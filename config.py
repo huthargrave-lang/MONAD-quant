@@ -72,13 +72,15 @@ KELLY_MULTIPLIER  = 0.5      # Fractional Kelly (0.5 = half-Kelly)
 MAX_POSITION_PCT  = 0.20     # Never risk more than 20% per trade
 
 # ── Hourly Signal Parameters (BTC intraday) ─────────────────────────────────
-RSI_PERIOD_HOURLY    = 7
-MACD_FAST_HOURLY     = 6
-MACD_SLOW_HOURLY     = 13
-MACD_SIGNAL_HOURLY   = 4
-ROC_PERIOD_HOURLY    = 5
-VWAP_WINDOW_HOURLY   = 10
-BB_WINDOW_HOURLY     = 14
+RSI_PERIOD_HOURLY      = 7
+MACD_FAST_HOURLY       = 6
+MACD_SLOW_HOURLY       = 13
+MACD_SIGNAL_HOURLY     = 4
+ROC_PERIOD_HOURLY      = 5
+VWAP_WINDOW_HOURLY     = 10
+VWAP_ZSCORE_THRESH_HOURLY = 1.0  # passed to volume signal (was defaulting to 1.5)
+BB_WINDOW_HOURLY       = 14
+USE_REGIME_FILTER_HOURLY = False  # regime filter too noisy on hourly bars
 
 # ── Backtest ────────────────────────────────────────────────────────────────
 BACKTEST_START        = "2020-01-01"

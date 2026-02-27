@@ -29,11 +29,14 @@ def run_backtest(df: pd.DataFrame,
 
     # Build signals
     print("[1/4] Building features and signals...")
+    import config
     df_feat = build_features(df, timeframe=timeframe)
+    use_regime = config.USE_REGIME_FILTER_HOURLY if timeframe == "hourly" else config.USE_REGIME_FILTER
     df_trades = generate_trades(df_feat,
                                 require_signals=require_signals,
                                 target_gain_pct=target_gain_pct,
-                                stop_loss_pct=stop_loss_pct)
+                                stop_loss_pct=stop_loss_pct,
+                                use_regime_filter=use_regime)
 
     # Compute individual trade returns (indexed by entry timestamp)
     print("[2/4] Simulating trades...")

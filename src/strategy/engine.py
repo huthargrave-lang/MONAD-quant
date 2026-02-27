@@ -28,7 +28,8 @@ def build_features(df: pd.DataFrame, timeframe: str = "daily") -> pd.DataFrame:
             macd_signal_period=config.MACD_SIGNAL_HOURLY,
             roc_period=config.ROC_PERIOD_HOURLY,
         )
-        df = add_volume_features(df, window=config.VWAP_WINDOW_HOURLY)
+        df = add_volume_features(df, window=config.VWAP_WINDOW_HOURLY,
+                                  zscore_threshold=config.VWAP_ZSCORE_THRESH_HOURLY)
         df = add_volatility_features(df, window=config.BB_WINDOW_HOURLY)
     else:
         df = add_momentum_features(df)
