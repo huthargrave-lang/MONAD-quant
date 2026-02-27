@@ -70,13 +70,27 @@ def run_backtest(df: pd.DataFrame,
 
     equity = pd.Series(equity_curve)
 
+    # Buy-and-hold benchmark
+    bh_return = (df["close"].iloc[-1] - df["close"].iloc[0]) / df["close"].iloc[0]
+    bh_final = initial_capital * (1 + bh_return)
+
     # Performance metrics
     total_return = (equity.iloc[-1] - initial_capital) / initial_capital
-    daily_returns = equity.pct_change().dropna()
-    sharpe = (daily_returns.mean() / daily_returns.std()) * np.sqrt(252) if daily_returns.std() > 0 else 0
+    trade_pnl = equity.pct_change().dropna()
+
+    # Annualize Sharpe based on timeframe
+    periods_per_year = 252 * 24 if timeframe == "hourly" else 252
+    sharpe = (trade_pnl.mean() / trade_pnl.std()) * np.sqrt(periods_per_year) if trade_pnl.std() > 0 else 0
+
     rolling_max = equity.cummax()
     drawdown = (equity - rolling_max) / rolling_max
     max_drawdown = drawdown.min()
+
+    # Annualized return
+    n_days = (df.index[-1] - df.index[0]).days
+    years = n_days / 365.25
+    ann_return = (1 + total_return) ** (1 / years) - 1 if years > 0 else total_return
+    bh_ann_return = (1 + bh_return) ** (1 / years) - 1 if years > 0 else bh_return
 
     # Monthly "dividend" breakdown
     monthly_returns = trade_returns.resample("ME").apply(
@@ -100,15 +114,24 @@ def run_backtest(df: pd.DataFrame,
         "equity_curve":     equity,
         "trade_returns":    trade_returns,
         "monthly_returns":  monthly_returns,
+        "bh_return":        round(bh_return, 4),
     }
 
     # Print summary
     print("[4/4] Results:")
     print(f"       Total Return:   {total_return*100:.2f}%")
+    print(f"       Annualized:     {ann_return*100:.2f}%")
     print(f"       Sharpe Ratio:   {sharpe:.3f}")
     print(f"       Max Drawdown:   {max_drawdown*100:.2f}%")
     print(f"       Final Capital:  ${equity.iloc[-1]:,.2f}")
     print(f"       Kelly Pos Size: {sizing['position_pct']}% (${sizing['position_dollars']:,.2f})")
+    print("-" * 50)
+    print(f"  vs Buy & Hold:")
+    print(f"       B&H Return:     {bh_return*100:.2f}%")
+    print(f"       B&H Annualized: {bh_ann_return*100:.2f}%")
+    print(f"       B&H Final:      ${bh_final:,.2f}")
+    alpha = total_return - bh_return
+    print(f"       Alpha:          {alpha*100:>+.2f}%")
     print("=" * 50)
 
     # Monthly dividend table
@@ -129,22 +152,27 @@ def run_backtest(df: pd.DataFrame,
     print()
 
     if plot:
-        _plot_results(equity, drawdown, trade_returns, monthly_returns)
+        _plot_results(equity, drawdown, trade_returns, monthly_returns,
+                      df, initial_capital)
 
     return results
 
 
-def _plot_results(equity, drawdown, trade_returns, monthly_returns):
+def _plot_results(equity, drawdown, trade_returns, monthly_returns,
+                  price_df, initial_capital):
     fig, axes = plt.subplots(4, 1, figsize=(12, 14))
     fig.suptitle("MONAD Quant — Backtest Results", fontsize=14, fontweight="bold")
 
-    # Equity curve
-    axes[0].plot(equity.values, color="#00d4ff", linewidth=1.5)
-    axes[0].set_title("Equity Curve")
+    # Equity curve + buy-and-hold overlay
+    bh_equity = initial_capital * (price_df["close"] / price_df["close"].iloc[0])
+    ax0_x = np.linspace(0, len(bh_equity) - 1, len(equity))
+    axes[0].plot(ax0_x, equity.values, color="#00d4ff", linewidth=1.5, label="Strategy")
+    axes[0].plot(range(len(bh_equity)), bh_equity.values, color="#ff8844",
+                 linewidth=1.2, alpha=0.7, linestyle="--", label="Buy & Hold")
+    axes[0].set_title("Equity Curve — Strategy vs Buy & Hold")
     axes[0].set_ylabel("Capital ($)")
+    axes[0].legend(fontsize=9)
     axes[0].grid(True, alpha=0.3)
-    axes[0].fill_between(range(len(equity)), equity.values, equity.values[0],
-                          alpha=0.1, color="#00d4ff")
 
     # Drawdown
     axes[1].fill_between(range(len(drawdown)), drawdown.values, 0,
