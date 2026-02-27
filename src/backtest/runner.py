@@ -16,6 +16,7 @@ def run_backtest(df: pd.DataFrame,
                  stop_loss_pct: float = 0.01,
                  require_signals: int = 2,
                  kelly_multiplier: float = 0.5,
+                 timeframe: str = "daily",
                  plot: bool = True) -> dict:
     """
     Run a full backtest on historical OHLCV data.
@@ -28,13 +29,13 @@ def run_backtest(df: pd.DataFrame,
 
     # Build signals
     print("[1/4] Building features and signals...")
-    df_feat = build_features(df)
+    df_feat = build_features(df, timeframe=timeframe)
     df_trades = generate_trades(df_feat,
                                 require_signals=require_signals,
                                 target_gain_pct=target_gain_pct,
                                 stop_loss_pct=stop_loss_pct)
 
-    # Compute individual trade returns
+    # Compute individual trade returns (indexed by entry timestamp)
     print("[2/4] Simulating trades...")
     trade_returns = compute_trade_returns(df_trades, target_gain_pct, stop_loss_pct)
 
@@ -74,18 +75,28 @@ def run_backtest(df: pd.DataFrame,
     drawdown = (equity - rolling_max) / rolling_max
     max_drawdown = drawdown.min()
 
+    # Monthly "dividend" breakdown
+    monthly_returns = trade_returns.resample("ME").apply(
+        lambda x: (1 + x).prod() - 1 if len(x) > 0 else 0.0
+    )
+    monthly_counts = trade_returns.resample("ME").count()
+    monthly_wr = trade_returns.resample("ME").apply(
+        lambda x: (x > 0).sum() / len(x) if len(x) > 0 else 0.0
+    )
+
     results = {
-        "total_trades":    stats["total_trades"],
-        "win_rate":        stats["win_rate"],
-        "avg_win_pct":     stats["avg_win_pct"],
-        "avg_loss_pct":    stats["avg_loss_pct"],
-        "total_return":    round(total_return, 4),
-        "sharpe_ratio":    round(sharpe, 3),
-        "max_drawdown":    round(max_drawdown, 4),
-        "final_capital":   round(equity.iloc[-1], 2),
-        "kelly_position":  sizing,
-        "equity_curve":    equity,
-        "trade_returns":   trade_returns,
+        "total_trades":     stats["total_trades"],
+        "win_rate":         stats["win_rate"],
+        "avg_win_pct":      stats["avg_win_pct"],
+        "avg_loss_pct":     stats["avg_loss_pct"],
+        "total_return":     round(total_return, 4),
+        "sharpe_ratio":     round(sharpe, 3),
+        "max_drawdown":     round(max_drawdown, 4),
+        "final_capital":    round(equity.iloc[-1], 2),
+        "kelly_position":   sizing,
+        "equity_curve":     equity,
+        "trade_returns":    trade_returns,
+        "monthly_returns":  monthly_returns,
     }
 
     # Print summary
@@ -97,14 +108,31 @@ def run_backtest(df: pd.DataFrame,
     print(f"       Kelly Pos Size: {sizing['position_pct']}% (${sizing['position_dollars']:,.2f})")
     print("=" * 50)
 
+    # Monthly dividend table
+    print("\n  Monthly 'Dividend' Schedule:")
+    print("  " + "-" * 44)
+    print(f"  {'Month':<12} {'Return':>8}  {'Trades':>7}  {'Win Rate':>9}")
+    print("  " + "-" * 44)
+    for month in monthly_returns.index:
+        ret = monthly_returns[month]
+        count = monthly_counts[month]
+        wr = monthly_wr[month]
+        if count > 0:
+            tag = " ✓" if ret >= 0.05 else ""
+            print(f"  {month.strftime('%Y-%m'):<12} {ret*100:>+7.2f}%  {count:>7}  {wr*100:>8.1f}%{tag}")
+    avg_monthly = monthly_returns[monthly_returns != 0].mean()
+    print("  " + "-" * 44)
+    print(f"  {'Avg Monthly':<12} {avg_monthly*100:>+7.2f}%")
+    print()
+
     if plot:
-        _plot_results(equity, drawdown, trade_returns, df_trades)
+        _plot_results(equity, drawdown, trade_returns, monthly_returns)
 
     return results
 
 
-def _plot_results(equity, drawdown, trade_returns, df_trades):
-    fig, axes = plt.subplots(3, 1, figsize=(12, 10))
+def _plot_results(equity, drawdown, trade_returns, monthly_returns):
+    fig, axes = plt.subplots(4, 1, figsize=(12, 14))
     fig.suptitle("MONAD Quant — Backtest Results", fontsize=14, fontweight="bold")
 
     # Equity curve
@@ -129,6 +157,22 @@ def _plot_results(equity, drawdown, trade_returns, df_trades):
     axes[2].set_xlabel("Return (%)")
     axes[2].set_ylabel("Frequency")
     axes[2].grid(True, alpha=0.3)
+
+    # Monthly returns bar chart
+    colors = ["#44ff88" if r >= 0 else "#ff4444" for r in monthly_returns.values]
+    axes[3].bar(range(len(monthly_returns)), monthly_returns.values * 100,
+                color=colors, alpha=0.8, edgecolor="white", linewidth=0.5)
+    axes[3].axhline(5, color="#ffdd44", linewidth=1, linestyle="--", label="5% target")
+    axes[3].axhline(0, color="white", linewidth=0.8)
+    axes[3].set_title("Monthly Returns — 'Dividend' Schedule")
+    axes[3].set_ylabel("Return (%)")
+    axes[3].set_xticks(range(len(monthly_returns)))
+    axes[3].set_xticklabels(
+        [m.strftime("%b %y") for m in monthly_returns.index],
+        rotation=45, ha="right", fontsize=8
+    )
+    axes[3].legend(fontsize=8)
+    axes[3].grid(True, alpha=0.3)
 
     plt.tight_layout()
     plt.savefig("backtest_results.png", dpi=150, bbox_inches="tight",

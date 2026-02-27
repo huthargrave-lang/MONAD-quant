@@ -47,15 +47,15 @@ def volatility_regime(df: pd.DataFrame, window: int = 20) -> pd.Series:
     return (bb_width > median_width).astype(int)
 
 
-def add_volatility_features(df: pd.DataFrame) -> pd.DataFrame:
+def add_volatility_features(df: pd.DataFrame, window: int = 20) -> pd.DataFrame:
     df = df.copy()
     df["atr"] = compute_atr(df)
     df["atr_pct"] = df["atr"] / df["close"]  # normalized ATR
-    upper, mid, lower = compute_bollinger_bands(df["close"])
+    upper, mid, lower = compute_bollinger_bands(df["close"], window)
     df["bb_upper"] = upper
     df["bb_mid"] = mid
     df["bb_lower"] = lower
-    df["bb_width"] = compute_bb_width(df["close"])
-    df["bb_position"] = compute_bb_position(df["close"])
-    df["vol_regime"] = volatility_regime(df)
+    df["bb_width"] = compute_bb_width(df["close"], window)
+    df["bb_position"] = compute_bb_position(df["close"], window)
+    df["vol_regime"] = volatility_regime(df, window)
     return df

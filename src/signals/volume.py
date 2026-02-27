@@ -52,11 +52,13 @@ def volume_signal(df: pd.DataFrame, zscore_threshold: float = 1.5) -> pd.Series:
     return signal
 
 
-def add_volume_features(df: pd.DataFrame) -> pd.DataFrame:
+def add_volume_features(df: pd.DataFrame,
+                         window: int = 20,
+                         zscore_threshold: float = 1.5) -> pd.DataFrame:
     df = df.copy()
-    df["vwap"] = compute_vwap(df)
-    df["vwap_zscore"] = compute_vwap_zscore(df)
+    df["vwap"] = compute_vwap(df, window)
+    df["vwap_zscore"] = compute_vwap_zscore(df, window)
     df["obv"] = compute_obv(df)
-    df["vol_ratio"] = compute_volume_sma_ratio(df)
-    df["volume_signal"] = volume_signal(df)
+    df["vol_ratio"] = compute_volume_sma_ratio(df, window)
+    df["volume_signal"] = volume_signal(df, zscore_threshold=zscore_threshold)
     return df

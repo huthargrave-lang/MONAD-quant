@@ -11,11 +11,29 @@ from src.signals.volume import add_volume_features
 from src.signals.volatility import add_volatility_features
 
 
-def build_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Run all signal modules and combine into a single feature DataFrame."""
-    df = add_momentum_features(df)
-    df = add_volume_features(df)
-    df = add_volatility_features(df)
+def build_features(df: pd.DataFrame, timeframe: str = "daily") -> pd.DataFrame:
+    """Run all signal modules and combine into a single feature DataFrame.
+
+    Args:
+        df: OHLCV DataFrame
+        timeframe: "daily" uses standard params; "hourly" uses faster intraday params
+    """
+    if timeframe == "hourly":
+        import config
+        df = add_momentum_features(
+            df,
+            rsi_period=config.RSI_PERIOD_HOURLY,
+            macd_fast=config.MACD_FAST_HOURLY,
+            macd_slow=config.MACD_SLOW_HOURLY,
+            macd_signal_period=config.MACD_SIGNAL_HOURLY,
+            roc_period=config.ROC_PERIOD_HOURLY,
+        )
+        df = add_volume_features(df, window=config.VWAP_WINDOW_HOURLY)
+        df = add_volatility_features(df, window=config.BB_WINDOW_HOURLY)
+    else:
+        df = add_momentum_features(df)
+        df = add_volume_features(df)
+        df = add_volatility_features(df)
     return df
 
 
@@ -75,6 +93,7 @@ def compute_trade_returns(df: pd.DataFrame,
     Returns a Series of individual trade P&L percentages.
     """
     trade_returns = []
+    trade_indices = []
     entries = df[df["entry_signal"] != 0]
 
     for i, (idx, row) in enumerate(entries.iterrows()):
@@ -109,5 +128,6 @@ def compute_trade_returns(df: pd.DataFrame,
 
         if exit_return is not None:
             trade_returns.append(exit_return)
+            trade_indices.append(idx)
 
-    return pd.Series(trade_returns)
+    return pd.Series(trade_returns, index=pd.DatetimeIndex(trade_indices))

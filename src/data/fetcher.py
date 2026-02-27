@@ -165,6 +165,22 @@ def fetch_macd(symbol: str, interval: str = "daily") -> pd.DataFrame:
     return df
 
 
+def fetch_btc_hourly(start: str, end: str) -> pd.DataFrame:
+    """
+    Fetch hourly BTC-USD OHLCV via yfinance.
+    yfinance supports up to 730 days of hourly history.
+    """
+    print(f"[yfinance] Fetching BTC-USD hourly from {start} to {end}...")
+    ticker = yf.Ticker("BTC-USD")
+    df = ticker.history(start=start, end=end, interval="1h")
+    df.columns = [c.lower() for c in df.columns]
+    df = df[["open", "high", "low", "close", "volume"]]
+    df.index = pd.to_datetime(df.index)
+    if df.index.tz is not None:
+        df.index = df.index.tz_convert(None)
+    return df
+
+
 def fetch_yfinance(symbol: str, start: str, end: str) -> pd.DataFrame:
     print(f"[yfinance] Fetching {symbol} from {start} to {end}...")
     ticker = yf.Ticker(symbol)

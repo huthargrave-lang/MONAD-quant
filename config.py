@@ -33,6 +33,15 @@ ASSETS = {
         "require_signals": 1,
         "vwap_zscore_thresh": 1.3,
     },
+    "BTC_HOURLY": {
+        "type": "crypto_hourly",
+        "target_gain_pct": 0.004,   # 0.4% per trade on hourly bars
+        "stop_loss_pct": 0.0025,    # 0.25% stop (1.6:1 R/R)
+        "require_signals": 1,
+        "rsi_oversold": 35,
+        "rsi_overbought": 65,
+        "vwap_zscore_thresh": 1.0,
+    },
 }
 
 DEFAULT_ASSET = "QQQ"
@@ -62,7 +71,18 @@ INITIAL_CAPITAL   = 100_000
 KELLY_MULTIPLIER  = 0.5      # Fractional Kelly (0.5 = half-Kelly)
 MAX_POSITION_PCT  = 0.20     # Never risk more than 20% per trade
 
+# ── Hourly Signal Parameters (BTC intraday) ─────────────────────────────────
+RSI_PERIOD_HOURLY    = 7
+MACD_FAST_HOURLY     = 6
+MACD_SLOW_HOURLY     = 13
+MACD_SIGNAL_HOURLY   = 4
+ROC_PERIOD_HOURLY    = 5
+VWAP_WINDOW_HOURLY   = 10
+BB_WINDOW_HOURLY     = 14
+
 # ── Backtest ────────────────────────────────────────────────────────────────
-BACKTEST_START    = "2020-01-01"
-BACKTEST_END      = "2024-12-31"
-PLOT_RESULTS      = True
+BACKTEST_START        = "2020-01-01"
+BACKTEST_END          = "2024-12-31"
+BACKTEST_START_HOURLY = "2024-01-01"   # yfinance: max 730 days of hourly data
+BACKTEST_END_HOURLY   = "2024-12-31"
+PLOT_RESULTS          = True

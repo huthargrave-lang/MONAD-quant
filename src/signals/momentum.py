@@ -68,12 +68,21 @@ def momentum_signal(df: pd.DataFrame,
     return signal
 
 
-def add_momentum_features(df: pd.DataFrame) -> pd.DataFrame:
+def add_momentum_features(df: pd.DataFrame,
+                           rsi_period: int = 14,
+                           macd_fast: int = 12,
+                           macd_slow: int = 26,
+                           macd_signal_period: int = 9,
+                           roc_period: int = 10,
+                           rsi_oversold: float = 35,
+                           rsi_overbought: float = 65) -> pd.DataFrame:
     """Add all momentum columns to a DataFrame in place."""
     df = df.copy()
-    df["rsi"] = compute_rsi(df["close"])
-    df["macd"], df["macd_signal"], df["macd_hist"] = compute_macd(df["close"])
-    df["roc_10"] = compute_roc(df["close"], 10)
-    df["roc_20"] = compute_roc(df["close"], 20)
-    df["momentum_signal"] = momentum_signal(df)
+    df["rsi"] = compute_rsi(df["close"], period=rsi_period)
+    df["macd"], df["macd_signal"], df["macd_hist"] = compute_macd(
+        df["close"], fast=macd_fast, slow=macd_slow, signal=macd_signal_period
+    )
+    df["roc_10"] = compute_roc(df["close"], roc_period)
+    df["roc_20"] = compute_roc(df["close"], roc_period * 2)
+    df["momentum_signal"] = momentum_signal(df, rsi_oversold=rsi_oversold, rsi_overbought=rsi_overbought)
     return df
