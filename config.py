@@ -73,6 +73,8 @@ MAX_POSITION_PCT  = 0.20     # Never risk more than 20% per trade
 
 # ── Hourly Signal Parameters (BTC intraday) ─────────────────────────────────
 RSI_PERIOD_HOURLY      = 7
+RSI_OVERSOLD_HOURLY    = 40   # 35 is too rare on hourly BTC during bull runs
+RSI_OVERBOUGHT_HOURLY  = 60
 MACD_FAST_HOURLY       = 6
 MACD_SLOW_HOURLY       = 13
 MACD_SIGNAL_HOURLY     = 4

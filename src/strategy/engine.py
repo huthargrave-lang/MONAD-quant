@@ -27,6 +27,8 @@ def build_features(df: pd.DataFrame, timeframe: str = "daily") -> pd.DataFrame:
             macd_slow=config.MACD_SLOW_HOURLY,
             macd_signal_period=config.MACD_SIGNAL_HOURLY,
             roc_period=config.ROC_PERIOD_HOURLY,
+            rsi_oversold=config.RSI_OVERSOLD_HOURLY,
+            rsi_overbought=config.RSI_OVERBOUGHT_HOURLY,
         )
         df = add_volume_features(df, window=config.VWAP_WINDOW_HOURLY,
                                   zscore_threshold=config.VWAP_ZSCORE_THRESH_HOURLY)
