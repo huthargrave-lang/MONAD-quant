@@ -1,0 +1,11 @@
+{
+  "name": "monad-quant",
+  "version": "0.1.0",
+  "description": "MONAD Quant Fund — momentum + mean-reversion strategy engine for ETFs and BTC",
+  "skills": ["skills/quant-momentum.md"],
+  "commands": [
+    "commands/screen.md",
+    "commands/backtest.md",
+    "commands/report.md"
+  ]
+}

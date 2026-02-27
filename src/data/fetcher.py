@@ -9,6 +9,7 @@ import requests
 import pandas as pd
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
+import yfinance as yf
 
 load_dotenv()
 
@@ -161,4 +162,17 @@ def fetch_macd(symbol: str, interval: str = "daily") -> pd.DataFrame:
     df.index = pd.to_datetime(df.index)
     df = df.sort_index()
     df.columns = ["macd", "macd_signal", "macd_hist"]
+    return df
+
+
+def fetch_yfinance(symbol: str, start: str, end: str) -> pd.DataFrame:
+    print(f"[yfinance] Fetching {symbol} from {start} to {end}...")
+    ticker = yf.Ticker(symbol)
+    df = ticker.history(start=start, end=end)
+    df.columns = [c.lower() for c in df.columns]
+    df = df[["open", "high", "low", "close", "volume"]]
+    df.index = pd.to_datetime(df.index)
+    if df.index.tz is not None:
+        df.index = df.index.tz_convert(None)  # strip timezone
+    df.index = df.index.normalize()           # remove time component
     return df
