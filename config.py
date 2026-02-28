@@ -64,7 +64,7 @@ BB_STD            = 2.0
 REQUIRE_SIGNALS      = 1        # Minimum signals to agree for entry (1-3)
 TARGET_GAIN_PCT      = 0.015    # 1.5% take profit
 STOP_LOSS_PCT        = 0.010    # 1.0% stop loss
-USE_REGIME_FILTER    = True     # Only trade in trending regimes
+USE_REGIME_FILTER    = False    # Vol-regime binary gate — too blunt for trending periods; MA filter handles regime
 MA_REGIME_WINDOW     = 252      # 52-week MA lookback (trading days)
 USE_MA_REGIME_FILTER = True     # Bull above 52w MA → longs only; bear → shorts only
 VERBOSE_SIGNALS      = True     # Print per-filter bar counts before each backtest
@@ -73,6 +73,7 @@ VERBOSE_SIGNALS      = True     # Print per-filter bar counts before each backte
 INITIAL_CAPITAL   = 100_000
 KELLY_MULTIPLIER  = 0.5      # Fractional Kelly (0.5 = half-Kelly)
 MAX_POSITION_PCT  = 0.20     # Never risk more than 20% per trade
+MIN_POSITION_PCT  = 0.02     # Floor: deploy at least 2% even when Kelly sample is thin
 
 # ── Hourly Signal Parameters (BTC intraday) ─────────────────────────────────
 RSI_PERIOD_HOURLY      = 7

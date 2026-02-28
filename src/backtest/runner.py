@@ -61,6 +61,7 @@ def run_backtest(df: pd.DataFrame,
         avg_win_pct=stats["avg_win_pct"],
         avg_loss_pct=stats["avg_loss_pct"],
         kelly_multiplier=kelly_multiplier,
+        min_position_pct=getattr(config, "MIN_POSITION_PCT", 0.0),
     )
 
     # Build equity curve
@@ -96,8 +97,9 @@ def run_backtest(df: pd.DataFrame,
     ann_return = (1 + total_return) ** (1 / years) - 1 if years > 0 else total_return
     bh_ann_return = (1 + bh_return) ** (1 / years) - 1 if years > 0 else bh_return
 
-    # Monthly "dividend" breakdown
-    monthly_returns = trade_returns.resample("ME").apply(
+    # Monthly "dividend" breakdown — scale by kelly_capped so it matches equity curve
+    kelly_scaled = trade_returns * sizing["kelly_capped"]
+    monthly_returns = kelly_scaled.resample("ME").apply(
         lambda x: (1 + x).prod() - 1 if len(x) > 0 else 0.0
     )
     monthly_counts = trade_returns.resample("ME").count()
