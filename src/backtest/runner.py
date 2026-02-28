@@ -77,7 +77,8 @@ def run_backtest(df: pd.DataFrame,
     regime_mult_map = {
         "STRONG_BULL": getattr(config, "KELLY_MULT_STRONG_BULL", 1.5),
         "BULL":        getattr(config, "KELLY_MULT_BULL",        1.0),
-        "NEUTRAL":     getattr(config, "KELLY_MULT_NEUTRAL",     0.5),
+        "STALLING":    getattr(config, "KELLY_MULT_STALLING",   0.75),
+        "RECOVERING":  getattr(config, "KELLY_MULT_RECOVERING", 0.75),
         "BEAR":        getattr(config, "KELLY_MULT_BEAR",        0.75),
         "STRONG_BEAR": getattr(config, "KELLY_MULT_STRONG_BEAR", 0.5),
     }
@@ -214,10 +215,10 @@ def _print_signal_diagnostics(df: pd.DataFrame, require_signals: int,
     after_vol = (long_mask | short_mask).sum()
 
     if use_slope_regime and "regime" in df.columns:
-        bull_regimes = {"STRONG_BULL", "BULL"}
-        bear_regimes = {"STRONG_BEAR", "BEAR"}
-        long_mask  = long_mask  & (~df["regime"].isin(bear_regimes))
-        short_mask = short_mask & (~df["regime"].isin(bull_regimes))
+        no_long_regimes  = {"STRONG_BEAR", "BEAR"}
+        no_short_regimes = {"STRONG_BULL", "BULL", "RECOVERING"}
+        long_mask  = long_mask  & (~df["regime"].isin(no_long_regimes))
+        short_mask = short_mask & (~df["regime"].isin(no_short_regimes))
         after_regime = (long_mask | short_mask).sum()
     elif use_ma_regime and "ma_regime" in df.columns:
         long_mask  = long_mask  & (df["ma_regime"] == 1)
@@ -239,11 +240,21 @@ def _print_signal_diagnostics(df: pd.DataFrame, require_signals: int,
     # Regime distribution
     if "regime" in df.columns:
         print(f"\n  Regime distribution ({n} bars):")
-        for state in ["STRONG_BULL", "BULL", "NEUTRAL", "BEAR", "STRONG_BEAR"]:
+        mult_lookup = {
+            "STRONG_BULL": 1.5, "BULL": 1.0,
+            "STALLING": 0.75,   "RECOVERING": 0.75,
+            "BEAR": 0.75,       "STRONG_BEAR": 0.5,
+        }
+        direction_lookup = {
+            "STRONG_BULL": "longs only",  "BULL": "longs only",
+            "STALLING":    "both",        "RECOVERING": "longs only",
+            "BEAR":        "shorts only", "STRONG_BEAR": "shorts only",
+        }
+        for state in ["STRONG_BULL", "BULL", "STALLING", "RECOVERING", "BEAR", "STRONG_BEAR"]:
             count = (df["regime"] == state).sum()
-            mult  = {"STRONG_BULL": 1.5, "BULL": 1.0, "NEUTRAL": 0.5,
-                     "BEAR": 0.75, "STRONG_BEAR": 0.5}.get(state, 1.0)
-            print(f"    {state:<14}: {count:>4} bars  (Kelly ×{mult})")
+            mult  = mult_lookup.get(state, 1.0)
+            direction = direction_lookup.get(state, "both")
+            print(f"    {state:<14}: {count:>4} bars  (Kelly ×{mult}, {direction})")
     print()
 
 

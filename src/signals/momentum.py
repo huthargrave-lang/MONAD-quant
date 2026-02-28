@@ -95,33 +95,40 @@ def classify_regime(prices: pd.Series,
                     strong_bull_thresh: float = 0.02,
                     strong_bear_thresh: float = -0.02) -> pd.Series:
     """
-    5-state slope-based MA regime classifier.
-    Returns pd.Series of str: STRONG_BULL, BULL, NEUTRAL, BEAR, STRONG_BEAR.
+    6-state slope-based MA regime classifier.
+    Returns pd.Series of str.
 
-    STRONG_BULL : price > MA  AND slope >  strong_bull_thresh  (trend accelerating up)
-    BULL        : price > MA  AND slope >= 0                   (trend steady upward)
-    STRONG_BEAR : price < MA  AND slope <  strong_bear_thresh  (trend accelerating down)
-    BEAR        : price < MA  AND slope <  0                   (trend declining)
-    NEUTRAL     : transition zones — MA flattening or price recovering from below.
-                  Both long and short signals are allowed here.
-    NaN slope rows (first slope_window bars) stay NEUTRAL.
+    STRONG_BULL : price > MA  AND slope >  +thresh   (trend accelerating up)
+    BULL        : price > MA  AND slope >= 0          (trend steady upward)
+    STALLING    : price > MA  AND slope <  0          (overextended; MA rolling over)
+                  → both long & short allowed (fade the stall)
+    RECOVERING  : price < MA  AND slope >= 0          (price rising back toward MA)
+                  → LONGS ONLY; shorts fight recovery momentum and lose
+    BEAR        : price < MA  AND slope <  0          (declining)
+    STRONG_BEAR : price < MA  AND slope < -thresh     (trend accelerating down)
+
+    NaN slope rows (first slope_window bars) → STALLING (both directions, sized 0.75×).
     """
     ma = prices.rolling(ma_window, min_periods=1).mean()
     slope = ma.pct_change(periods=slope_window)
     above_ma = prices >= ma
 
-    regime = pd.Series("NEUTRAL", index=prices.index, dtype=object)
+    regime = pd.Series("STALLING", index=prices.index, dtype=object)
     regime[above_ma & (slope >= 0) & (slope <= strong_bull_thresh)] = "BULL"
-    regime[above_ma & (slope > strong_bull_thresh)]                 = "STRONG_BULL"
-    regime[~above_ma & (slope < 0) & (slope >= strong_bear_thresh)] = "BEAR"
-    regime[~above_ma & (slope < strong_bear_thresh)]                = "STRONG_BEAR"
+    regime[above_ma & (slope > strong_bull_thresh)]                  = "STRONG_BULL"
+    # above_ma & slope < 0  → stays "STALLING"
+
+    regime[~above_ma & (slope >= 0)]                                 = "RECOVERING"
+    regime[~above_ma & (slope < 0) & (slope >= strong_bear_thresh)]  = "BEAR"
+    regime[~above_ma & (slope < strong_bear_thresh)]                 = "STRONG_BEAR"
     return regime
 
 
 _DEFAULT_REGIME_KELLY_MAP = {
     "STRONG_BULL": 1.5,
     "BULL":        1.0,
-    "NEUTRAL":     0.5,
+    "STALLING":    0.75,   # above MA but losing momentum — fade both ways, cautious
+    "RECOVERING":  0.75,   # below MA but rising — longs only, cautious
     "BEAR":        0.75,
     "STRONG_BEAR": 0.5,
 }

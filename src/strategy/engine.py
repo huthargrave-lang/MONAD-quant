@@ -37,7 +37,8 @@ def build_features(df: pd.DataFrame, timeframe: str = "daily") -> pd.DataFrame:
         kelly_mult_map = {
             "STRONG_BULL": config.KELLY_MULT_STRONG_BULL,
             "BULL":        config.KELLY_MULT_BULL,
-            "NEUTRAL":     config.KELLY_MULT_NEUTRAL,
+            "STALLING":    config.KELLY_MULT_STALLING,
+            "RECOVERING":  config.KELLY_MULT_RECOVERING,
             "BEAR":        config.KELLY_MULT_BEAR,
             "STRONG_BEAR": config.KELLY_MULT_STRONG_BEAR,
         }
@@ -77,8 +78,8 @@ def generate_trades(df: pd.DataFrame,
         require_signals: Minimum agreeing signals to enter (1-3)
         use_regime_filter: Only trade in ranging vol regime if True
         use_ma_regime_filter: Legacy binary 52w MA gate (ignored when use_slope_regime=True)
-        use_slope_regime: 5-state slope regime — constrains direction per regime,
-                          allows both in NEUTRAL. Overrides use_ma_regime_filter.
+        use_slope_regime: 6-state slope regime — constrains direction per regime.
+                          STALLING allows both directions. Overrides use_ma_regime_filter.
 
     Returns:
         DataFrame with entry_signal column added (-1, 0, 1)
@@ -99,13 +100,15 @@ def generate_trades(df: pd.DataFrame,
         short_entry = short_entry & (df["vol_regime"] == 0)
 
     if use_slope_regime and "regime" in df.columns:
-        # Bull regimes: longs only — shorts would fight a rising trend
-        # Bear regimes: shorts only — longs would fight a falling trend
-        # NEUTRAL: both directions allowed (transition zones, mean-reversion)
-        bull_regimes = {"STRONG_BULL", "BULL"}
-        bear_regimes = {"STRONG_BEAR", "BEAR"}
-        long_entry  = long_entry  & (~df["regime"].isin(bear_regimes))
-        short_entry = short_entry & (~df["regime"].isin(bull_regimes))
+        # STRONG_BULL / BULL  → longs only (trend is up)
+        # STALLING            → both (price above MA but MA rolling over; fade the stall)
+        # RECOVERING          → LONGS ONLY (price below MA but racing back up;
+        #                       shorts fight recovery momentum — see Jan 2023 BTC disaster)
+        # BEAR / STRONG_BEAR  → shorts only (trend is down)
+        no_long_regimes  = {"STRONG_BEAR", "BEAR"}
+        no_short_regimes = {"STRONG_BULL", "BULL", "RECOVERING"}
+        long_entry  = long_entry  & (~df["regime"].isin(no_long_regimes))
+        short_entry = short_entry & (~df["regime"].isin(no_short_regimes))
     elif use_ma_regime_filter and "ma_regime" in df.columns:
         # Legacy binary gate — only active when slope regime is off
         long_entry  = long_entry  & (df["ma_regime"] == 1)

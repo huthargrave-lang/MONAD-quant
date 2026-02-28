@@ -71,19 +71,20 @@ USE_MA_REGIME_FILTER = False    # Legacy binary gate — disabled, replaced by s
 VERBOSE_SIGNALS      = True     # Print per-filter bar counts before each backtest
 
 # ── MA Slope Regime ──────────────────────────────────────────────────────────
-# Replaces the binary MA gate with a 4-state slope-based classifier.
-# Regimes: STRONG_BULL / BULL / NEUTRAL / BEAR / STRONG_BEAR
-# Direction is constrained per regime; Kelly is scaled continuously.
+# 6-state slope-based classifier (replaces the binary USE_MA_REGIME_FILTER gate).
+# Regimes: STRONG_BULL / BULL / STALLING / RECOVERING / BEAR / STRONG_BEAR
+# Direction constrained per regime; Kelly scaled continuously per trade.
 USE_SLOPE_REGIME      = True    # Enable slope-based regime (replaces USE_MA_REGIME_FILTER)
 MA_SLOPE_WINDOW       = 20      # Bars over which to measure MA slope
 MA_STRONG_BULL_SLOPE  = 0.02    # MA rises >2% over slope window → STRONG_BULL
 MA_STRONG_BEAR_SLOPE  = -0.02   # MA falls >2% over slope window → STRONG_BEAR
 
 # Per-regime Kelly multipliers (applied per-trade in runner.py)
-KELLY_MULT_STRONG_BULL = 1.5    # Trend accelerating — size up
-KELLY_MULT_BULL        = 1.0    # Trend steady — base Kelly
-KELLY_MULT_NEUTRAL     = 0.5    # Transition zone — size down, both directions
-KELLY_MULT_BEAR        = 0.75   # Declining trend — shorts sized moderately
+KELLY_MULT_STRONG_BULL = 1.5    # Trend accelerating up — size up
+KELLY_MULT_BULL        = 1.0    # Trend steady upward — base Kelly
+KELLY_MULT_STALLING    = 0.75   # Above MA but MA rolling over — cautious, both directions
+KELLY_MULT_RECOVERING  = 0.75   # Below MA but price rising — longs only, cautious
+KELLY_MULT_BEAR        = 0.75   # Trend declining — shorts sized moderately
 KELLY_MULT_STRONG_BEAR = 0.5    # Trend accelerating down — size down
 
 # ── ADX (Average Directional Index) ─────────────────────────────────────────
