@@ -46,20 +46,19 @@ def momentum_signal(df: pd.DataFrame,
 
     signal = pd.Series(0, index=df.index)
 
-    # Long: RSI oversold + MACD bullish crossover + positive ROC
+    # Long: RSI oversold + MACD histogram turning up (reversal detection)
+    # Using hist > hist.shift(1) instead of roc > 0 so the signal fires at
+    # the turning point from oversold — not after price is already recovering,
+    # which contradicts an oversold RSI reading in bear conditions.
     long_cond = (
         (rsi < rsi_oversold) &
-        (macd_line > signal_line) &
-        (hist > 0) &
-        (roc > 0)
+        (hist > hist.shift(1))
     )
 
-    # Short: RSI overbought + MACD bearish crossover + negative ROC
+    # Short: RSI overbought + MACD histogram turning down
     short_cond = (
         (rsi > rsi_overbought) &
-        (macd_line < signal_line) &
-        (hist < 0) &
-        (roc < 0)
+        (hist < hist.shift(1))
     )
 
     signal[long_cond] = 1
