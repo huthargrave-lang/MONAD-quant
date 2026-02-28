@@ -47,6 +47,7 @@ def build_features(df: pd.DataFrame, timeframe: str = "daily") -> pd.DataFrame:
             rsi_oversold=config.RSI_OVERSOLD,
             rsi_overbought=config.RSI_OVERBOUGHT,
             ma_regime_window=config.MA_REGIME_WINDOW,
+            ma_short_window=getattr(config, "MA_SHORT_WINDOW", 50),
             slope_window=config.MA_SLOPE_WINDOW,
             strong_bull_thresh=config.MA_STRONG_BULL_SLOPE,
             strong_bear_thresh=config.MA_STRONG_BEAR_SLOPE,

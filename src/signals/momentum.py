@@ -91,36 +91,46 @@ def compute_ma_slope(prices: pd.Series,
 
 def classify_regime(prices: pd.Series,
                     ma_window: int = 252,
+                    ma_short_window: int = 50,
                     slope_window: int = 20,
                     strong_bull_thresh: float = 0.02,
                     strong_bear_thresh: float = -0.02) -> pd.Series:
     """
-    6-state slope-based MA regime classifier.
+    6-state dual-MA regime classifier.
     Returns pd.Series of str.
 
-    STRONG_BULL : price > MA  AND slope >  +thresh   (trend accelerating up)
-    BULL        : price > MA  AND slope >= 0          (trend steady upward)
-    STALLING    : price > MA  AND slope <  0          (overextended; MA rolling over)
-                  → both long & short allowed (fade the stall)
-    RECOVERING  : price < MA  AND slope >= 0          (price rising back toward MA)
-                  → LONGS ONLY; shorts fight recovery momentum and lose
-    BEAR        : price < MA  AND slope <  0          (declining)
-    STRONG_BEAR : price < MA  AND slope < -thresh     (trend accelerating down)
+    Uses two moving averages:
+      ma_long  (252-day) — broad trend direction
+      ma_short (50-day)  — medium-term recovery confirmation
 
-    NaN slope rows (first slope_window bars) → STALLING (both directions, sized 0.75×).
+    STRONG_BULL : price > 252-MA  AND slope > +thresh
+    BULL        : price > 252-MA  AND slope >= 0
+    STALLING    : price > 252-MA  AND slope < 0          → both directions
+    RECOVERING  : price < 252-MA  AND price >= 50-MA     → LONGS ONLY
+                  Triggers within weeks of recovery (50-MA), NOT after 12 months
+                  (the old slope >= 0 condition lagged by ~1 year after crashes)
+    BEAR        : price < 252-MA  AND price < 50-MA  AND slope >= -thresh
+    STRONG_BEAR : price < 252-MA  AND price < 50-MA  AND slope < -thresh
+
+    NaN slope rows (first slope_window bars) → STALLING.
     """
-    ma = prices.rolling(ma_window, min_periods=1).mean()
-    slope = ma.pct_change(periods=slope_window)
-    above_ma = prices >= ma
+    ma_long  = prices.rolling(ma_window, min_periods=1).mean()
+    ma_short = prices.rolling(ma_short_window, min_periods=1).mean()
+    slope    = ma_long.pct_change(periods=slope_window)
+
+    above_long  = prices >= ma_long
+    above_short = prices >= ma_short
 
     regime = pd.Series("STALLING", index=prices.index, dtype=object)
-    regime[above_ma & (slope >= 0) & (slope <= strong_bull_thresh)] = "BULL"
-    regime[above_ma & (slope > strong_bull_thresh)]                  = "STRONG_BULL"
-    # above_ma & slope < 0  → stays "STALLING"
+    regime[above_long & (slope >= 0) & (slope <= strong_bull_thresh)] = "BULL"
+    regime[above_long & (slope > strong_bull_thresh)]                  = "STRONG_BULL"
+    # above_long & slope < 0 → stays STALLING
 
-    regime[~above_ma & (slope >= 0)]                                 = "RECOVERING"
-    regime[~above_ma & (slope < 0) & (slope >= strong_bear_thresh)]  = "BEAR"
-    regime[~above_ma & (slope < strong_bear_thresh)]                 = "STRONG_BEAR"
+    # RECOVERING: below the long-term MA but already back above the 50-day.
+    # This fires 2-4 weeks into recovery vs ~12 months for slope-based detection.
+    regime[~above_long & above_short]                                           = "RECOVERING"
+    regime[~above_long & ~above_short & (slope >= strong_bear_thresh)]          = "BEAR"
+    regime[~above_long & ~above_short & (slope < strong_bear_thresh)]           = "STRONG_BEAR"
     return regime
 
 
@@ -143,13 +153,14 @@ def add_momentum_features(df: pd.DataFrame,
                            rsi_oversold: float = 35,
                            rsi_overbought: float = 65,
                            ma_regime_window: int = 252,
+                           ma_short_window: int = 50,
                            slope_window: int = 20,
                            strong_bull_thresh: float = 0.02,
                            strong_bear_thresh: float = -0.02,
                            kelly_mult_map: dict = None) -> pd.DataFrame:
     """Add all momentum columns to a DataFrame.
 
-    New columns: ma_slope, regime, regime_kelly_mult
+    New columns: ma_50d, ma_slope, regime, regime_kelly_mult
     """
     if kelly_mult_map is None:
         kelly_mult_map = _DEFAULT_REGIME_KELLY_MAP
@@ -163,17 +174,18 @@ def add_momentum_features(df: pd.DataFrame,
     df["roc_20"] = compute_roc(df["close"], roc_period * 2)
     df["momentum_signal"] = momentum_signal(df, rsi_oversold=rsi_oversold,
                                              rsi_overbought=rsi_overbought)
-    df["ma_52w"]    = df["close"].rolling(ma_regime_window, min_periods=1).mean()
+    df["ma_52w"]  = df["close"].rolling(ma_regime_window, min_periods=1).mean()
+    df["ma_50d"]  = df["close"].rolling(ma_short_window,  min_periods=1).mean()
     df["ma_regime"] = compute_ma_regime(df["close"], window=ma_regime_window)
 
-    # Slope-based regime classifier
     df["ma_slope"] = compute_ma_slope(df["close"],
                                       ma_window=ma_regime_window,
                                       slope_window=slope_window)
-    df["regime"]   = classify_regime(df["close"],
-                                     ma_window=ma_regime_window,
-                                     slope_window=slope_window,
-                                     strong_bull_thresh=strong_bull_thresh,
-                                     strong_bear_thresh=strong_bear_thresh)
+    df["regime"] = classify_regime(df["close"],
+                                   ma_window=ma_regime_window,
+                                   ma_short_window=ma_short_window,
+                                   slope_window=slope_window,
+                                   strong_bull_thresh=strong_bull_thresh,
+                                   strong_bear_thresh=strong_bear_thresh)
     df["regime_kelly_mult"] = df["regime"].map(kelly_mult_map).fillna(1.0)
     return df
