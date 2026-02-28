@@ -39,11 +39,12 @@ def compute_bb_position(prices: pd.Series, window: int = 20) -> pd.Series:
 
 def volatility_regime(df: pd.DataFrame, window: int = 20) -> pd.Series:
     """
-    Classify market into 'trending' or 'ranging' regime.
+    Classify market regime by Bollinger Band width.
     Returns: 1 = trending (wide bands), 0 = ranging (tight bands)
+    min_periods=20 so it works on short datasets; was rolling(100) with no min.
     """
     bb_width = compute_bb_width(df["close"], window)
-    median_width = bb_width.rolling(100).median()
+    median_width = bb_width.rolling(40, min_periods=20).median()
     return (bb_width > median_width).astype(int)
 
 

@@ -32,6 +32,9 @@ def run_backtest(df: pd.DataFrame,
     import config
     df_feat = build_features(df, timeframe=timeframe)
     use_regime = config.USE_REGIME_FILTER_HOURLY if timeframe == "hourly" else config.USE_REGIME_FILTER
+    if getattr(config, "VERBOSE_SIGNALS", False):
+        _print_signal_diagnostics(df_feat, require_signals, use_regime,
+                                  getattr(config, "USE_MA_REGIME_FILTER", False))
     df_trades = generate_trades(df_feat,
                                 require_signals=require_signals,
                                 target_gain_pct=target_gain_pct,
@@ -157,6 +160,38 @@ def run_backtest(df: pd.DataFrame,
                       df, initial_capital)
 
     return results
+
+
+def _print_signal_diagnostics(df: pd.DataFrame, require_signals: int,
+                               use_regime: bool, use_ma_regime: bool) -> None:
+    """Print how many bars survive each filter layer so dead filters are obvious."""
+    n = len(df)
+    mom  = (df["momentum_signal"] != 0).sum()
+    vol  = (df["volume_signal"]   != 0).sum()
+    vote = ((df["momentum_signal"] + df["volume_signal"]).abs() >= require_signals).sum()
+
+    long_mask  = (df["momentum_signal"] + df["volume_signal"]) >= require_signals
+    short_mask = (df["momentum_signal"] + df["volume_signal"]) <= -require_signals
+
+    if use_regime and "vol_regime" in df.columns:
+        long_mask  = long_mask  & (df["vol_regime"] == 0)
+        short_mask = short_mask & (df["vol_regime"] == 0)
+    after_vol = (long_mask | short_mask).sum()
+
+    if use_ma_regime and "ma_regime" in df.columns:
+        long_mask  = long_mask  & (df["ma_regime"] == 1)
+        short_mask = short_mask & (df["ma_regime"] == -1)
+    after_ma = (long_mask | short_mask).sum()
+
+    print(f"\n  Signal diagnostics ({n} bars total):")
+    print(f"    momentum_signal != 0  : {mom:>4} bars")
+    print(f"    volume_signal   != 0  : {vol:>4} bars")
+    print(f"    signal_vote >= {require_signals}      : {vote:>4} bars")
+    if use_regime:
+        print(f"    + vol_regime filter   : {after_vol:>4} bars")
+    if use_ma_regime:
+        print(f"    + ma_regime  filter   : {after_ma:>4} bars  <- final candidates")
+    print()
 
 
 def _plot_results(equity, drawdown, trade_returns, monthly_returns,

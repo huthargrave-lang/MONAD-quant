@@ -75,8 +75,10 @@ def generate_trades(df: pd.DataFrame,
     short_entry = df["signal_vote"] <= -require_signals
 
     if use_regime_filter:
-        long_entry = long_entry & (df["vol_regime"] == 1)
-        short_entry = short_entry & (df["vol_regime"] == 1)
+        # Mean-reversion works in ranging conditions (tight bands = vol_regime 0),
+        # not trending ones. Require ranging regime for both directions.
+        long_entry  = long_entry  & (df["vol_regime"] == 0)
+        short_entry = short_entry & (df["vol_regime"] == 0)
 
     # 52-week MA regime: only trade in the direction the trend supports
     if use_ma_regime_filter and "ma_regime" in df.columns:

@@ -67,6 +67,7 @@ STOP_LOSS_PCT        = 0.010    # 1.0% stop loss
 USE_REGIME_FILTER    = True     # Only trade in trending regimes
 MA_REGIME_WINDOW     = 252      # 52-week MA lookback (trading days)
 USE_MA_REGIME_FILTER = True     # Bull above 52w MA → longs only; bear → shorts only
+VERBOSE_SIGNALS      = True     # Print per-filter bar counts before each backtest
 
 # ── Risk & Sizing ───────────────────────────────────────────────────────────
 INITIAL_CAPITAL   = 100_000
