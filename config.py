@@ -62,8 +62,9 @@ BB_STD            = 2.0
 
 # ── Strategy Parameters ─────────────────────────────────────────────────────
 REQUIRE_SIGNALS      = 1        # Minimum signals to agree for entry (1-3)
-TARGET_GAIN_PCT      = 0.015    # 1.5% take profit
-STOP_LOSS_PCT        = 0.010    # 1.0% stop loss
+TARGET_GAIN_PCT      = 0.030    # 3.0% take profit (BTC daily ATR is 2-5%, 1.5% was within noise)
+STOP_LOSS_PCT        = 0.015    # 1.5% stop loss  (2:1 R:R vs old 1.5:1)
+MAX_TRADE_BARS       = 10       # Bars to hold before closing at market (was hardcoded 5)
 USE_REGIME_FILTER    = False    # Vol-regime binary gate — too blunt for trending periods; MA filter handles regime
 MA_REGIME_WINDOW     = 252      # 52-week MA lookback (trading days)
 USE_MA_REGIME_FILTER = True     # Bull above 52w MA → longs only; bear → shorts only

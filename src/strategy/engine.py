@@ -102,8 +102,9 @@ def generate_trades(df: pd.DataFrame,
 
 
 def compute_trade_returns(df: pd.DataFrame,
-                           target_gain_pct: float = 0.015,
-                           stop_loss_pct: float = 0.01) -> pd.Series:
+                           target_gain_pct: float = 0.030,
+                           stop_loss_pct: float = 0.015,
+                           max_trade_bars: int = 10) -> pd.Series:
     """
     Simulate next-bar trade outcomes for backtesting.
     Returns a Series of individual trade P&L percentages.
@@ -117,8 +118,8 @@ def compute_trade_returns(df: pd.DataFrame,
         direction = row["entry_signal"]
         entry_price = row["close"]
 
-        # Look ahead up to 5 bars for exit
-        future = df.iloc[loc + 1: loc + 6]
+        # Look ahead up to max_trade_bars for target/stop
+        future = df.iloc[loc + 1: loc + 1 + max_trade_bars]
         exit_return = None
 
         for _, bar in future.iterrows():

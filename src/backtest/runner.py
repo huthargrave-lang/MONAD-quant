@@ -44,7 +44,10 @@ def run_backtest(df: pd.DataFrame,
 
     # Compute individual trade returns (indexed by entry timestamp)
     print("[2/4] Simulating trades...")
-    trade_returns = compute_trade_returns(df_trades, target_gain_pct, stop_loss_pct)
+    trade_returns = compute_trade_returns(
+        df_trades, target_gain_pct, stop_loss_pct,
+        max_trade_bars=getattr(config, "MAX_TRADE_BARS", 10),
+    )
 
     if len(trade_returns) == 0:
         print("No trades generated. Try loosening signal requirements.")
