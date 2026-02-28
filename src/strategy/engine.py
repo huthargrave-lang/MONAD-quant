@@ -105,11 +105,14 @@ def generate_trades(df: pd.DataFrame,
 
     if use_slope_regime and "regime" in df.columns:
         if longs_only:
-            # Long entries allowed in: STRONG_BULL, BULL, STALLING, RECOVERING
-            # Sit completely flat in BEAR/STRONG_BEAR — don't try to catch falling knives.
-            # No short entries ever.
-            bear_regimes = {"BEAR", "STRONG_BEAR"}
-            long_entry  = long_entry  & (~df["regime"].isin(bear_regimes))
+            # Long entries only in confirmed uptrend or recovery:
+            #   STRONG_BULL, BULL : clear uptrend
+            #   RECOVERING        : below 252-MA but above 50-MA — momentum is upward
+            # Sit flat in STALLING (252-MA rolling over = early-bear transition; Dec 2021
+            # proved that "buy the dip while the MA tops out" is catching a falling knife)
+            # and BEAR / STRONG_BEAR.
+            flat_regimes = {"BEAR", "STRONG_BEAR", "STALLING"}
+            long_entry  = long_entry  & (~df["regime"].isin(flat_regimes))
             short_entry = pd.Series(False, index=df.index)
         else:
             # Bidirectional: constrain direction per regime
