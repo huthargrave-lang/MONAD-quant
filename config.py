@@ -44,7 +44,7 @@ ASSETS = {
     },
 }
 
-DEFAULT_ASSET = "QQQ"
+DEFAULT_ASSET = "BTC"
 
 # ── Signal Parameters ───────────────────────────────────────────────────────
 RSI_PERIOD        = 14
@@ -85,8 +85,8 @@ BB_WINDOW_HOURLY       = 14
 USE_REGIME_FILTER_HOURLY = False  # regime filter too noisy on hourly bars
 
 # ── Backtest ────────────────────────────────────────────────────────────────
-BACKTEST_START        = "2020-01-01"
-BACKTEST_END          = "2024-12-31"
+BACKTEST_START        = "2023-05-01"
+BACKTEST_END          = "2023-10-31"
 BACKTEST_START_HOURLY = "2024-03-01"   # yfinance: max 730 days rolling from today
 BACKTEST_END_HOURLY   = "2026-02-01"
 PLOT_RESULTS          = True
