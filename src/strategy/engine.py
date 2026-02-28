@@ -34,8 +34,13 @@ def build_features(df: pd.DataFrame, timeframe: str = "daily") -> pd.DataFrame:
                                   zscore_threshold=config.VWAP_ZSCORE_THRESH_HOURLY)
         df = add_volatility_features(df, window=config.BB_WINDOW_HOURLY)
     else:
-        df = add_momentum_features(df, ma_regime_window=config.MA_REGIME_WINDOW)
-        df = add_volume_features(df)
+        df = add_momentum_features(
+            df,
+            rsi_oversold=config.RSI_OVERSOLD,
+            rsi_overbought=config.RSI_OVERBOUGHT,
+            ma_regime_window=config.MA_REGIME_WINDOW,
+        )
+        df = add_volume_features(df, zscore_threshold=config.VWAP_ZSCORE_THRESH)
         df = add_volatility_features(df)
     return df
 
