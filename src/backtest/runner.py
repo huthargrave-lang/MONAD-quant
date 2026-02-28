@@ -36,7 +36,8 @@ def run_backtest(df: pd.DataFrame,
                                 require_signals=require_signals,
                                 target_gain_pct=target_gain_pct,
                                 stop_loss_pct=stop_loss_pct,
-                                use_regime_filter=use_regime)
+                                use_regime_filter=use_regime,
+                                use_ma_regime_filter=config.USE_MA_REGIME_FILTER)
 
     # Compute individual trade returns (indexed by entry timestamp)
     print("[2/4] Simulating trades...")

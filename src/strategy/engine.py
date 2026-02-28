@@ -18,8 +18,8 @@ def build_features(df: pd.DataFrame, timeframe: str = "daily") -> pd.DataFrame:
         df: OHLCV DataFrame
         timeframe: "daily" uses standard params; "hourly" uses faster intraday params
     """
+    import config
     if timeframe == "hourly":
-        import config
         df = add_momentum_features(
             df,
             rsi_period=config.RSI_PERIOD_HOURLY,
@@ -34,7 +34,7 @@ def build_features(df: pd.DataFrame, timeframe: str = "daily") -> pd.DataFrame:
                                   zscore_threshold=config.VWAP_ZSCORE_THRESH_HOURLY)
         df = add_volatility_features(df, window=config.BB_WINDOW_HOURLY)
     else:
-        df = add_momentum_features(df)
+        df = add_momentum_features(df, ma_regime_window=config.MA_REGIME_WINDOW)
         df = add_volume_features(df)
         df = add_volatility_features(df)
     return df
@@ -44,7 +44,8 @@ def generate_trades(df: pd.DataFrame,
                     require_signals: int = 2,
                     target_gain_pct: float = 0.015,   # 1.5% target
                     stop_loss_pct: float = 0.01,       # 1.0% stop
-                    use_regime_filter: bool = True) -> pd.DataFrame:
+                    use_regime_filter: bool = True,
+                    use_ma_regime_filter: bool = True) -> pd.DataFrame:
     """
     Generate trade signals from aggregated features.
 
@@ -76,6 +77,11 @@ def generate_trades(df: pd.DataFrame,
     if use_regime_filter:
         long_entry = long_entry & (df["vol_regime"] == 1)
         short_entry = short_entry & (df["vol_regime"] == 1)
+
+    # 52-week MA regime: only trade in the direction the trend supports
+    if use_ma_regime_filter and "ma_regime" in df.columns:
+        long_entry  = long_entry  & (df["ma_regime"] == 1)   # bull: longs only
+        short_entry = short_entry & (df["ma_regime"] == -1)  # bear: shorts only
 
     df["entry_signal"] = 0
     df.loc[long_entry, "entry_signal"] = 1
