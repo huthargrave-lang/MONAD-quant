@@ -47,25 +47,22 @@ def build_features(df: pd.DataFrame, timeframe: str = "daily") -> pd.DataFrame:
 
 def generate_trades(df: pd.DataFrame,
                     require_signals: int = 2,
-                    target_gain_pct: float = 0.015,   # 1.5% target
-                    stop_loss_pct: float = 0.01,       # 1.0% stop
                     use_regime_filter: bool = True,
                     use_ma_regime_filter: bool = True) -> pd.DataFrame:
     """
-    Generate trade signals from aggregated features.
+    Generate trade entry signals from aggregated features.
 
-    Entry: N signals must agree (default 2 out of 3)
-    Exit:  Take profit at target OR stop loss hit
+    Entry: N signals must agree (require_signals out of available signals)
+    Exit:  Handled by compute_trade_returns() with target/stop params
 
     Args:
         df: Feature DataFrame from build_features()
         require_signals: Minimum agreeing signals to enter (1-3)
-        target_gain_pct: Take profit level as decimal
-        stop_loss_pct:   Stop loss level as decimal
-        use_regime_filter: Only trade in trending regime if True
+        use_regime_filter: Only trade in ranging vol regime if True
+        use_ma_regime_filter: Align trade direction with 52w MA trend if True
 
     Returns:
-        DataFrame with trade signals added
+        DataFrame with entry_signal column added (-1, 0, 1)
     """
     df = df.copy()
 
@@ -93,10 +90,6 @@ def generate_trades(df: pd.DataFrame,
     df["entry_signal"] = 0
     df.loc[long_entry, "entry_signal"] = 1
     df.loc[short_entry, "entry_signal"] = -1
-
-    # Target and stop prices
-    df["target_price"] = df["close"] * (1 + df["entry_signal"] * target_gain_pct)
-    df["stop_price"] = df["close"] * (1 - df["entry_signal"] * stop_loss_pct)
 
     return df
 

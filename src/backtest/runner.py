@@ -12,8 +12,8 @@ from src.strategy.sizing import estimate_stats_from_backtest, compute_position_s
 
 def run_backtest(df: pd.DataFrame,
                  initial_capital: float = 100_000,
-                 target_gain_pct: float = 0.015,
-                 stop_loss_pct: float = 0.01,
+                 target_gain_pct: float = 0.030,
+                 stop_loss_pct: float = 0.015,
                  require_signals: int = 2,
                  kelly_multiplier: float = 0.5,
                  timeframe: str = "daily",
@@ -37,8 +37,6 @@ def run_backtest(df: pd.DataFrame,
                                   getattr(config, "USE_MA_REGIME_FILTER", False))
     df_trades = generate_trades(df_feat,
                                 require_signals=require_signals,
-                                target_gain_pct=target_gain_pct,
-                                stop_loss_pct=stop_loss_pct,
                                 use_regime_filter=use_regime,
                                 use_ma_regime_filter=config.USE_MA_REGIME_FILTER)
 
@@ -46,7 +44,7 @@ def run_backtest(df: pd.DataFrame,
     print("[2/4] Simulating trades...")
     trade_returns = compute_trade_returns(
         df_trades, target_gain_pct, stop_loss_pct,
-        max_trade_bars=getattr(config, "MAX_TRADE_BARS", 10),
+        max_trade_bars=config.MAX_TRADE_BARS,
     )
 
     if len(trade_returns) == 0:
