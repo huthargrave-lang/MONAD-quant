@@ -34,21 +34,38 @@ def build_features(df: pd.DataFrame, timeframe: str = "daily") -> pd.DataFrame:
                                   zscore_threshold=config.VWAP_ZSCORE_THRESH_HOURLY)
         df = add_volatility_features(df, window=config.BB_WINDOW_HOURLY)
     else:
+        kelly_mult_map = {
+            "STRONG_BULL": config.KELLY_MULT_STRONG_BULL,
+            "BULL":        config.KELLY_MULT_BULL,
+            "NEUTRAL":     config.KELLY_MULT_NEUTRAL,
+            "BEAR":        config.KELLY_MULT_BEAR,
+            "STRONG_BEAR": config.KELLY_MULT_STRONG_BEAR,
+        }
         df = add_momentum_features(
             df,
             rsi_oversold=config.RSI_OVERSOLD,
             rsi_overbought=config.RSI_OVERBOUGHT,
             ma_regime_window=config.MA_REGIME_WINDOW,
+            slope_window=config.MA_SLOPE_WINDOW,
+            strong_bull_thresh=config.MA_STRONG_BULL_SLOPE,
+            strong_bear_thresh=config.MA_STRONG_BEAR_SLOPE,
+            kelly_mult_map=kelly_mult_map,
         )
         df = add_volume_features(df, zscore_threshold=config.VWAP_ZSCORE_THRESH)
-        df = add_volatility_features(df)
+        df = add_volatility_features(
+            df,
+            adx_period=config.ADX_PERIOD,
+            adx_weak_thresh=config.ADX_WEAK_THRESH,
+            adx_strong_thresh=config.ADX_STRONG_THRESH,
+        )
     return df
 
 
 def generate_trades(df: pd.DataFrame,
                     require_signals: int = 2,
                     use_regime_filter: bool = True,
-                    use_ma_regime_filter: bool = True) -> pd.DataFrame:
+                    use_ma_regime_filter: bool = True,
+                    use_slope_regime: bool = False) -> pd.DataFrame:
     """
     Generate trade entry signals from aggregated features.
 
@@ -59,7 +76,9 @@ def generate_trades(df: pd.DataFrame,
         df: Feature DataFrame from build_features()
         require_signals: Minimum agreeing signals to enter (1-3)
         use_regime_filter: Only trade in ranging vol regime if True
-        use_ma_regime_filter: Align trade direction with 52w MA trend if True
+        use_ma_regime_filter: Legacy binary 52w MA gate (ignored when use_slope_regime=True)
+        use_slope_regime: 5-state slope regime — constrains direction per regime,
+                          allows both in NEUTRAL. Overrides use_ma_regime_filter.
 
     Returns:
         DataFrame with entry_signal column added (-1, 0, 1)
@@ -72,23 +91,28 @@ def generate_trades(df: pd.DataFrame,
         df["volume_signal"]
     )
 
-    # Long entry: enough signals agree AND (optionally) trending regime
-    long_entry = df["signal_vote"] >= require_signals
+    long_entry  = df["signal_vote"] >= require_signals
     short_entry = df["signal_vote"] <= -require_signals
 
     if use_regime_filter:
-        # Mean-reversion works in ranging conditions (tight bands = vol_regime 0),
-        # not trending ones. Require ranging regime for both directions.
         long_entry  = long_entry  & (df["vol_regime"] == 0)
         short_entry = short_entry & (df["vol_regime"] == 0)
 
-    # 52-week MA regime: only trade in the direction the trend supports
-    if use_ma_regime_filter and "ma_regime" in df.columns:
-        long_entry  = long_entry  & (df["ma_regime"] == 1)   # bull: longs only
-        short_entry = short_entry & (df["ma_regime"] == -1)  # bear: shorts only
+    if use_slope_regime and "regime" in df.columns:
+        # Bull regimes: longs only — shorts would fight a rising trend
+        # Bear regimes: shorts only — longs would fight a falling trend
+        # NEUTRAL: both directions allowed (transition zones, mean-reversion)
+        bull_regimes = {"STRONG_BULL", "BULL"}
+        bear_regimes = {"STRONG_BEAR", "BEAR"}
+        long_entry  = long_entry  & (~df["regime"].isin(bear_regimes))
+        short_entry = short_entry & (~df["regime"].isin(bull_regimes))
+    elif use_ma_regime_filter and "ma_regime" in df.columns:
+        # Legacy binary gate — only active when slope regime is off
+        long_entry  = long_entry  & (df["ma_regime"] == 1)
+        short_entry = short_entry & (df["ma_regime"] == -1)
 
     df["entry_signal"] = 0
-    df.loc[long_entry, "entry_signal"] = 1
+    df.loc[long_entry,  "entry_signal"] = 1
     df.loc[short_entry, "entry_signal"] = -1
 
     return df

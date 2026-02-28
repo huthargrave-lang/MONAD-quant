@@ -48,15 +48,89 @@ def volatility_regime(df: pd.DataFrame, window: int = 20) -> pd.Series:
     return (bb_width > median_width).astype(int)
 
 
-def add_volatility_features(df: pd.DataFrame, window: int = 20) -> pd.DataFrame:
+def compute_adx(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    """
+    Wilder's Average Directional Index — trend strength (0-100), direction-agnostic.
+    <20 = choppy/no trend, 20-35 = moderate, >35 = strong trend.
+
+    Steps:
+      1. True Range (same numerator as ATR)
+      2. +DM / -DM directional movement
+      3. Wilder smoothing via EWM(com=period-1) for TR, +DM, -DM
+      4. +DI, -DI, DX, then ADX = EWM(DX)
+    """
+    high  = df["high"]
+    low   = df["low"]
+    close = df["close"]
+
+    high_low   = high - low
+    high_close = (high - close.shift(1)).abs()
+    low_close  = (low  - close.shift(1)).abs()
+    tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+
+    up_move   =  high.diff()
+    down_move = -low.diff()
+
+    plus_dm  = pd.Series(
+        np.where((up_move > down_move) & (up_move > 0),   up_move,   0.0),
+        index=df.index
+    )
+    minus_dm = pd.Series(
+        np.where((down_move > up_move) & (down_move > 0), down_move, 0.0),
+        index=df.index
+    )
+
+    smoothed_tr  = tr.ewm(com=period - 1, adjust=False).mean()
+    s_plus_dm    = plus_dm.ewm(com=period - 1,  adjust=False).mean()
+    s_minus_dm   = minus_dm.ewm(com=period - 1, adjust=False).mean()
+
+    plus_di  = 100 * s_plus_dm  / smoothed_tr
+    minus_di = 100 * s_minus_dm / smoothed_tr
+
+    dx_denom = plus_di + minus_di
+    dx = pd.Series(
+        np.where(dx_denom > 0, 100 * (plus_di - minus_di).abs() / dx_denom, 0.0),
+        index=df.index
+    )
+    return dx.ewm(com=period - 1, adjust=False).mean()
+
+
+def adx_kelly_mult(adx_series: pd.Series,
+                   weak_thresh: float = 20,
+                   strong_thresh: float = 35) -> pd.Series:
+    """
+    Map ADX values to a Kelly position-size multiplier.
+    ADX < weak_thresh   → 0.8  (choppy — reduce size)
+    ADX weak–strong     → 1.0  (moderate trend — neutral)
+    ADX > strong_thresh → 1.2  (strong trend — increase size)
+    """
+    mult = pd.Series(1.0, index=adx_series.index)
+    mult[adx_series < weak_thresh]   = 0.8
+    mult[adx_series > strong_thresh] = 1.2
+    return mult
+
+
+def add_volatility_features(df: pd.DataFrame,
+                             window: int = 20,
+                             adx_period: int = 14,
+                             adx_weak_thresh: float = 20,
+                             adx_strong_thresh: float = 35) -> pd.DataFrame:
+    """Add volatility and trend-strength columns.
+
+    New columns: adx, adx_kelly_mult
+    """
     df = df.copy()
-    df["atr"] = compute_atr(df)
-    df["atr_pct"] = df["atr"] / df["close"]  # normalized ATR
+    df["atr"]        = compute_atr(df)
+    df["atr_pct"]    = df["atr"] / df["close"]
     upper, mid, lower = compute_bollinger_bands(df["close"], window)
-    df["bb_upper"] = upper
-    df["bb_mid"] = mid
-    df["bb_lower"] = lower
-    df["bb_width"] = compute_bb_width(df["close"], window)
+    df["bb_upper"]   = upper
+    df["bb_mid"]     = mid
+    df["bb_lower"]   = lower
+    df["bb_width"]   = compute_bb_width(df["close"], window)
     df["bb_position"] = compute_bb_position(df["close"], window)
     df["vol_regime"] = volatility_regime(df, window)
+    df["adx"]        = compute_adx(df, period=adx_period)
+    df["adx_kelly_mult"] = adx_kelly_mult(df["adx"],
+                                           weak_thresh=adx_weak_thresh,
+                                           strong_thresh=adx_strong_thresh)
     return df

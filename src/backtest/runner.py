@@ -32,13 +32,16 @@ def run_backtest(df: pd.DataFrame,
     import config
     df_feat = build_features(df, timeframe=timeframe)
     use_regime = config.USE_REGIME_FILTER_HOURLY if timeframe == "hourly" else config.USE_REGIME_FILTER
+    use_slope_regime = getattr(config, "USE_SLOPE_REGIME", False)
     if getattr(config, "VERBOSE_SIGNALS", False):
         _print_signal_diagnostics(df_feat, require_signals, use_regime,
-                                  getattr(config, "USE_MA_REGIME_FILTER", False))
+                                  getattr(config, "USE_MA_REGIME_FILTER", False),
+                                  use_slope_regime=use_slope_regime)
     df_trades = generate_trades(df_feat,
                                 require_signals=require_signals,
                                 use_regime_filter=use_regime,
-                                use_ma_regime_filter=config.USE_MA_REGIME_FILTER)
+                                use_ma_regime_filter=config.USE_MA_REGIME_FILTER,
+                                use_slope_regime=use_slope_regime)
 
     # Compute individual trade returns (indexed by entry timestamp)
     print("[2/4] Simulating trades...")
@@ -65,13 +68,41 @@ def run_backtest(df: pd.DataFrame,
         min_position_pct=getattr(config, "MIN_POSITION_PCT", 0.0),
     )
 
-    # Build equity curve
+    # Build equity curve with per-trade Kelly scaling
     print("[3/4] Computing equity curve...")
     capital = initial_capital
     equity_curve = [capital]
-    for r in trade_returns:
-        position = capital * sizing["kelly_capped"]
-        capital += position * r
+
+    # Regime → Kelly multiplier map from config (with fallback defaults)
+    regime_mult_map = {
+        "STRONG_BULL": getattr(config, "KELLY_MULT_STRONG_BULL", 1.5),
+        "BULL":        getattr(config, "KELLY_MULT_BULL",        1.0),
+        "NEUTRAL":     getattr(config, "KELLY_MULT_NEUTRAL",     0.5),
+        "BEAR":        getattr(config, "KELLY_MULT_BEAR",        0.75),
+        "STRONG_BEAR": getattr(config, "KELLY_MULT_STRONG_BEAR", 0.5),
+    }
+
+    for idx, r in trade_returns.items():
+        base_kelly = sizing["kelly_capped"]
+
+        # Regime-based Kelly scaling (per-trade, not one global fraction)
+        if (use_slope_regime
+                and "regime_kelly_mult" in df_trades.columns
+                and idx in df_trades.index):
+            regime_mult = df_trades.at[idx, "regime_kelly_mult"]
+        else:
+            regime_mult = 1.0
+
+        # ADX-based Kelly scaling
+        if (getattr(config, "USE_ADX_SIZING", False)
+                and "adx_kelly_mult" in df_trades.columns
+                and idx in df_trades.index):
+            adx_mult = df_trades.at[idx, "adx_kelly_mult"]
+        else:
+            adx_mult = 1.0
+
+        kelly_trade = min(base_kelly * regime_mult * adx_mult, config.MAX_POSITION_PCT)
+        capital += capital * kelly_trade * r
         equity_curve.append(capital)
 
     equity = pd.Series(equity_curve)
@@ -166,7 +197,8 @@ def run_backtest(df: pd.DataFrame,
 
 
 def _print_signal_diagnostics(df: pd.DataFrame, require_signals: int,
-                               use_regime: bool, use_ma_regime: bool) -> None:
+                               use_regime: bool, use_ma_regime: bool,
+                               use_slope_regime: bool = False) -> None:
     """Print how many bars survive each filter layer so dead filters are obvious."""
     n = len(df)
     mom  = (df["momentum_signal"] != 0).sum()
@@ -181,10 +213,18 @@ def _print_signal_diagnostics(df: pd.DataFrame, require_signals: int,
         short_mask = short_mask & (df["vol_regime"] == 0)
     after_vol = (long_mask | short_mask).sum()
 
-    if use_ma_regime and "ma_regime" in df.columns:
+    if use_slope_regime and "regime" in df.columns:
+        bull_regimes = {"STRONG_BULL", "BULL"}
+        bear_regimes = {"STRONG_BEAR", "BEAR"}
+        long_mask  = long_mask  & (~df["regime"].isin(bear_regimes))
+        short_mask = short_mask & (~df["regime"].isin(bull_regimes))
+        after_regime = (long_mask | short_mask).sum()
+    elif use_ma_regime and "ma_regime" in df.columns:
         long_mask  = long_mask  & (df["ma_regime"] == 1)
         short_mask = short_mask & (df["ma_regime"] == -1)
-    after_ma = (long_mask | short_mask).sum()
+        after_regime = (long_mask | short_mask).sum()
+    else:
+        after_regime = None
 
     print(f"\n  Signal diagnostics ({n} bars total):")
     print(f"    momentum_signal != 0  : {mom:>4} bars")
@@ -192,8 +232,18 @@ def _print_signal_diagnostics(df: pd.DataFrame, require_signals: int,
     print(f"    signal_vote >= {require_signals}      : {vote:>4} bars")
     if use_regime:
         print(f"    + vol_regime filter   : {after_vol:>4} bars")
-    if use_ma_regime:
-        print(f"    + ma_regime  filter   : {after_ma:>4} bars  <- final candidates")
+    if after_regime is not None:
+        label = "slope regime" if use_slope_regime else "ma_regime   "
+        print(f"    + {label} filter : {after_regime:>4} bars  <- final candidates")
+
+    # Regime distribution
+    if "regime" in df.columns:
+        print(f"\n  Regime distribution ({n} bars):")
+        for state in ["STRONG_BULL", "BULL", "NEUTRAL", "BEAR", "STRONG_BEAR"]:
+            count = (df["regime"] == state).sum()
+            mult  = {"STRONG_BULL": 1.5, "BULL": 1.0, "NEUTRAL": 0.5,
+                     "BEAR": 0.75, "STRONG_BEAR": 0.5}.get(state, 1.0)
+            print(f"    {state:<14}: {count:>4} bars  (Kelly ×{mult})")
     print()
 
 

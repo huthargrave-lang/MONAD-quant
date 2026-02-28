@@ -67,8 +67,31 @@ STOP_LOSS_PCT        = 0.015    # 1.5% stop loss  (2:1 R:R vs old 1.5:1)
 MAX_TRADE_BARS       = 10       # Bars to hold before closing at market (was hardcoded 5)
 USE_REGIME_FILTER    = False    # Vol-regime binary gate — too blunt for trending periods; MA filter handles regime
 MA_REGIME_WINDOW     = 252      # 52-week MA lookback (trading days)
-USE_MA_REGIME_FILTER = True     # Bull above 52w MA → longs only; bear → shorts only
+USE_MA_REGIME_FILTER = False    # Legacy binary gate — disabled, replaced by slope regime below
 VERBOSE_SIGNALS      = True     # Print per-filter bar counts before each backtest
+
+# ── MA Slope Regime ──────────────────────────────────────────────────────────
+# Replaces the binary MA gate with a 4-state slope-based classifier.
+# Regimes: STRONG_BULL / BULL / NEUTRAL / BEAR / STRONG_BEAR
+# Direction is constrained per regime; Kelly is scaled continuously.
+USE_SLOPE_REGIME      = True    # Enable slope-based regime (replaces USE_MA_REGIME_FILTER)
+MA_SLOPE_WINDOW       = 20      # Bars over which to measure MA slope
+MA_STRONG_BULL_SLOPE  = 0.02    # MA rises >2% over slope window → STRONG_BULL
+MA_STRONG_BEAR_SLOPE  = -0.02   # MA falls >2% over slope window → STRONG_BEAR
+
+# Per-regime Kelly multipliers (applied per-trade in runner.py)
+KELLY_MULT_STRONG_BULL = 1.5    # Trend accelerating — size up
+KELLY_MULT_BULL        = 1.0    # Trend steady — base Kelly
+KELLY_MULT_NEUTRAL     = 0.5    # Transition zone — size down, both directions
+KELLY_MULT_BEAR        = 0.75   # Declining trend — shorts sized moderately
+KELLY_MULT_STRONG_BEAR = 0.5    # Trend accelerating down — size down
+
+# ── ADX (Average Directional Index) ─────────────────────────────────────────
+# Layered Kelly multiplier: trend strength independent of direction.
+ADX_PERIOD        = 14
+ADX_WEAK_THRESH   = 20    # ADX < 20: choppy/no trend → Kelly × 0.8
+ADX_STRONG_THRESH = 35    # ADX > 35: strong trend    → Kelly × 1.2
+USE_ADX_SIZING    = True  # Apply ADX multiplier to per-trade Kelly
 
 # ── Risk & Sizing ───────────────────────────────────────────────────────────
 INITIAL_CAPITAL   = 100_000

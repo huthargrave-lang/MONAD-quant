@@ -77,6 +77,56 @@ def compute_ma_regime(prices: pd.Series, window: int = 252) -> pd.Series:
     return np.where(prices >= ma, 1, -1)
 
 
+def compute_ma_slope(prices: pd.Series,
+                     ma_window: int = 252,
+                     slope_window: int = 20) -> pd.Series:
+    """
+    Rate of change of the rolling MA over slope_window bars.
+    e.g. 0.02 = MA rose 2% over the last 20 bars.
+    NaN for the first slope_window rows — those default to NEUTRAL in classify_regime.
+    """
+    ma = prices.rolling(ma_window, min_periods=1).mean()
+    return ma.pct_change(periods=slope_window)
+
+
+def classify_regime(prices: pd.Series,
+                    ma_window: int = 252,
+                    slope_window: int = 20,
+                    strong_bull_thresh: float = 0.02,
+                    strong_bear_thresh: float = -0.02) -> pd.Series:
+    """
+    5-state slope-based MA regime classifier.
+    Returns pd.Series of str: STRONG_BULL, BULL, NEUTRAL, BEAR, STRONG_BEAR.
+
+    STRONG_BULL : price > MA  AND slope >  strong_bull_thresh  (trend accelerating up)
+    BULL        : price > MA  AND slope >= 0                   (trend steady upward)
+    STRONG_BEAR : price < MA  AND slope <  strong_bear_thresh  (trend accelerating down)
+    BEAR        : price < MA  AND slope <  0                   (trend declining)
+    NEUTRAL     : transition zones — MA flattening or price recovering from below.
+                  Both long and short signals are allowed here.
+    NaN slope rows (first slope_window bars) stay NEUTRAL.
+    """
+    ma = prices.rolling(ma_window, min_periods=1).mean()
+    slope = ma.pct_change(periods=slope_window)
+    above_ma = prices >= ma
+
+    regime = pd.Series("NEUTRAL", index=prices.index, dtype=object)
+    regime[above_ma & (slope >= 0) & (slope <= strong_bull_thresh)] = "BULL"
+    regime[above_ma & (slope > strong_bull_thresh)]                 = "STRONG_BULL"
+    regime[~above_ma & (slope < 0) & (slope >= strong_bear_thresh)] = "BEAR"
+    regime[~above_ma & (slope < strong_bear_thresh)]                = "STRONG_BEAR"
+    return regime
+
+
+_DEFAULT_REGIME_KELLY_MAP = {
+    "STRONG_BULL": 1.5,
+    "BULL":        1.0,
+    "NEUTRAL":     0.5,
+    "BEAR":        0.75,
+    "STRONG_BEAR": 0.5,
+}
+
+
 def add_momentum_features(df: pd.DataFrame,
                            rsi_period: int = 14,
                            macd_fast: int = 12,
@@ -85,8 +135,18 @@ def add_momentum_features(df: pd.DataFrame,
                            roc_period: int = 10,
                            rsi_oversold: float = 35,
                            rsi_overbought: float = 65,
-                           ma_regime_window: int = 252) -> pd.DataFrame:
-    """Add all momentum columns to a DataFrame in place."""
+                           ma_regime_window: int = 252,
+                           slope_window: int = 20,
+                           strong_bull_thresh: float = 0.02,
+                           strong_bear_thresh: float = -0.02,
+                           kelly_mult_map: dict = None) -> pd.DataFrame:
+    """Add all momentum columns to a DataFrame.
+
+    New columns: ma_slope, regime, regime_kelly_mult
+    """
+    if kelly_mult_map is None:
+        kelly_mult_map = _DEFAULT_REGIME_KELLY_MAP
+
     df = df.copy()
     df["rsi"] = compute_rsi(df["close"], period=rsi_period)
     df["macd"], df["macd_signal"], df["macd_hist"] = compute_macd(
@@ -94,7 +154,19 @@ def add_momentum_features(df: pd.DataFrame,
     )
     df["roc_10"] = compute_roc(df["close"], roc_period)
     df["roc_20"] = compute_roc(df["close"], roc_period * 2)
-    df["momentum_signal"] = momentum_signal(df, rsi_oversold=rsi_oversold, rsi_overbought=rsi_overbought)
-    df["ma_52w"] = df["close"].rolling(ma_regime_window, min_periods=1).mean()
+    df["momentum_signal"] = momentum_signal(df, rsi_oversold=rsi_oversold,
+                                             rsi_overbought=rsi_overbought)
+    df["ma_52w"]    = df["close"].rolling(ma_regime_window, min_periods=1).mean()
     df["ma_regime"] = compute_ma_regime(df["close"], window=ma_regime_window)
+
+    # Slope-based regime classifier
+    df["ma_slope"] = compute_ma_slope(df["close"],
+                                      ma_window=ma_regime_window,
+                                      slope_window=slope_window)
+    df["regime"]   = classify_regime(df["close"],
+                                     ma_window=ma_regime_window,
+                                     slope_window=slope_window,
+                                     strong_bull_thresh=strong_bull_thresh,
+                                     strong_bear_thresh=strong_bear_thresh)
+    df["regime_kelly_mult"] = df["regime"].map(kelly_mult_map).fillna(1.0)
     return df
