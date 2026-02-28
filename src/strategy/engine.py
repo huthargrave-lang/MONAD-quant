@@ -67,7 +67,8 @@ def generate_trades(df: pd.DataFrame,
                     require_signals: int = 2,
                     use_regime_filter: bool = True,
                     use_ma_regime_filter: bool = True,
-                    use_slope_regime: bool = False) -> pd.DataFrame:
+                    use_slope_regime: bool = False,
+                    longs_only: bool = False) -> pd.DataFrame:
     """
     Generate trade entry signals from aggregated features.
 
@@ -80,7 +81,9 @@ def generate_trades(df: pd.DataFrame,
         use_regime_filter: Only trade in ranging vol regime if True
         use_ma_regime_filter: Legacy binary 52w MA gate (ignored when use_slope_regime=True)
         use_slope_regime: 6-state slope regime — constrains direction per regime.
-                          STALLING allows both directions. Overrides use_ma_regime_filter.
+        longs_only: When True, never enter shorts. In BEAR/STRONG_BEAR regimes, sit flat
+                    rather than fighting a downtrend with shorts. Mean-reversion on the
+                    long side only — buy dips in uptrends, wait in downtrends.
 
     Returns:
         DataFrame with entry_signal column added (-1, 0, 1)
@@ -101,19 +104,25 @@ def generate_trades(df: pd.DataFrame,
         short_entry = short_entry & (df["vol_regime"] == 0)
 
     if use_slope_regime and "regime" in df.columns:
-        # STRONG_BULL / BULL  → longs only (trend is up)
-        # STALLING            → both (price above MA but MA rolling over; fade the stall)
-        # RECOVERING          → LONGS ONLY (price below MA but racing back up;
-        #                       shorts fight recovery momentum — see Jan 2023 BTC disaster)
-        # BEAR / STRONG_BEAR  → shorts only (trend is down)
-        no_long_regimes  = {"STRONG_BEAR", "BEAR"}
-        no_short_regimes = {"STRONG_BULL", "BULL", "RECOVERING"}
-        long_entry  = long_entry  & (~df["regime"].isin(no_long_regimes))
-        short_entry = short_entry & (~df["regime"].isin(no_short_regimes))
+        if longs_only:
+            # Long entries allowed in: STRONG_BULL, BULL, STALLING, RECOVERING
+            # Sit completely flat in BEAR/STRONG_BEAR — don't try to catch falling knives.
+            # No short entries ever.
+            bear_regimes = {"BEAR", "STRONG_BEAR"}
+            long_entry  = long_entry  & (~df["regime"].isin(bear_regimes))
+            short_entry = pd.Series(False, index=df.index)
+        else:
+            # Bidirectional: constrain direction per regime
+            no_long_regimes  = {"STRONG_BEAR", "BEAR"}
+            no_short_regimes = {"STRONG_BULL", "BULL", "RECOVERING"}
+            long_entry  = long_entry  & (~df["regime"].isin(no_long_regimes))
+            short_entry = short_entry & (~df["regime"].isin(no_short_regimes))
     elif use_ma_regime_filter and "ma_regime" in df.columns:
-        # Legacy binary gate — only active when slope regime is off
         long_entry  = long_entry  & (df["ma_regime"] == 1)
         short_entry = short_entry & (df["ma_regime"] == -1)
+
+    if longs_only:
+        short_entry = pd.Series(False, index=df.index)
 
     df["entry_signal"] = 0
     df.loc[long_entry,  "entry_signal"] = 1

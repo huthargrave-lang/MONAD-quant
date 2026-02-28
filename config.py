@@ -75,6 +75,7 @@ VERBOSE_SIGNALS      = True     # Print per-filter bar counts before each backte
 # Regimes: STRONG_BULL / BULL / STALLING / RECOVERING / BEAR / STRONG_BEAR
 # Direction constrained per regime; Kelly scaled continuously per trade.
 USE_SLOPE_REGIME      = True    # Enable slope-based regime (replaces USE_MA_REGIME_FILTER)
+LONGS_ONLY            = True    # No short trades at all — sit flat in BEAR/STRONG_BEAR
 MA_SLOPE_WINDOW       = 20      # Bars over which to measure MA slope
 MA_SHORT_WINDOW       = 50      # 50-day MA — RECOVERING fires when price crosses above this
 MA_STRONG_BULL_SLOPE  = 0.02    # MA rises >2% over slope window → STRONG_BULL
