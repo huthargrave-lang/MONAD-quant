@@ -86,8 +86,17 @@ KELLY_MULT_STRONG_BULL = 1.5    # Trend accelerating up — size up
 KELLY_MULT_BULL        = 1.0    # Trend steady upward — base Kelly
 KELLY_MULT_STALLING    = 0.75   # Above MA but MA rolling over — cautious, both directions
 KELLY_MULT_RECOVERING  = 0.75   # Below MA but price rising — longs only, cautious
-KELLY_MULT_BEAR        = 0.75   # Trend declining — shorts sized moderately
-KELLY_MULT_STRONG_BEAR = 0.5    # Trend accelerating down — size down
+KELLY_MULT_BEAR        = 0.75   # Trend declining — base for shorts (defensive longs use KELLY_MULT_BEAR_LONG)
+KELLY_MULT_STRONG_BEAR = 0.5    # Trend accelerating down — size down, sit flat in longs_only
+
+# ── Bear Market Defensive Longs ──────────────────────────────────────────────
+# In BEAR regime (mild downtrend, not STRONG_BEAR), allow very small long entries
+# when RSI is deeply oversold. These capture bear-market bounces (+20-30% in 2022)
+# without fighting a confirmed downtrend. STRONG_BEAR stays completely flat.
+BEAR_DEFENSIVE_LONGS  = True   # Allow longs in BEAR regime (True/False to toggle)
+RSI_OVERSOLD_BEAR     = 30     # Deeply oversold only — much tighter than bull threshold (38)
+KELLY_MULT_BEAR_LONG  = 0.25   # Quarter-Kelly — capital preservation, not full sizing
+BEAR_MAX_TRADE_BARS   = 10     # Exit in 2 weeks — don't hold into a deepening downtrend
 
 # ── ADX (Average Directional Index) ─────────────────────────────────────────
 # Layered Kelly multiplier: trend strength independent of direction.

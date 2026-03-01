@@ -11,14 +11,19 @@ from src.signals.volume import add_volume_features
 from src.signals.volatility import add_volatility_features
 
 
-def build_features(df: pd.DataFrame, timeframe: str = "daily") -> pd.DataFrame:
+def build_features(df: pd.DataFrame, timeframe: str = "daily",
+                   signal_overrides: dict = None) -> pd.DataFrame:
     """Run all signal modules and combine into a single feature DataFrame.
 
     Args:
         df: OHLCV DataFrame
         timeframe: "daily" uses standard params; "hourly" uses faster intraday params
+        signal_overrides: Optional dict to override specific signal params for this run.
+                          Supported keys: "rsi_oversold". Used by walk-forward optimizer
+                          to test different parameter combinations without mutating config.
     """
     import config
+    overrides = signal_overrides or {}
     if timeframe == "hourly":
         df = add_momentum_features(
             df,
@@ -44,7 +49,7 @@ def build_features(df: pd.DataFrame, timeframe: str = "daily") -> pd.DataFrame:
         }
         df = add_momentum_features(
             df,
-            rsi_oversold=config.RSI_OVERSOLD,
+            rsi_oversold=overrides.get("rsi_oversold", config.RSI_OVERSOLD),
             rsi_overbought=config.RSI_OVERBOUGHT,
             ma_regime_window=config.MA_REGIME_WINDOW,
             ma_short_window=getattr(config, "MA_SHORT_WINDOW", 50),
@@ -108,11 +113,26 @@ def generate_trades(df: pd.DataFrame,
             # Long entries only in confirmed uptrend or recovery:
             #   STRONG_BULL, BULL : clear uptrend
             #   RECOVERING        : below 252-MA but above 50-MA — momentum is upward
-            # Sit flat in STALLING (252-MA rolling over = early-bear transition; Dec 2021
-            # proved that "buy the dip while the MA tops out" is catching a falling knife)
-            # and BEAR / STRONG_BEAR.
-            flat_regimes = {"BEAR", "STRONG_BEAR", "STALLING"}
+            # Sit flat in STALLING (252-MA rolling over — Dec 2021 proved buying dips here
+            # is catching a falling knife) and STRONG_BEAR (accelerating downtrend).
+            # BEAR (mild downtrend) may allow defensive longs — see BEAR_DEFENSIVE_LONGS below.
+            import config as _cfg
+            bear_defensive = getattr(_cfg, "BEAR_DEFENSIVE_LONGS", False)
+            if bear_defensive:
+                flat_regimes = {"STRONG_BEAR", "STALLING"}
+            else:
+                flat_regimes = {"BEAR", "STRONG_BEAR", "STALLING"}
             long_entry  = long_entry  & (~df["regime"].isin(flat_regimes))
+
+            # Bear defensive gate: BEAR longs require RSI deeply oversold (< RSI_OVERSOLD_BEAR)
+            # AND both signals must agree (signal_vote >= 2). Overrides regime_kelly_mult to
+            # KELLY_MULT_BEAR_LONG (quarter-Kelly) for these entries.
+            if bear_defensive and "rsi" in df.columns:
+                bear_mask    = df["regime"] == "BEAR"
+                deep_oversold = df["rsi"] < getattr(_cfg, "RSI_OVERSOLD_BEAR", 30)
+                # Veto any BEAR long that doesn't meet the tighter criteria
+                long_entry = long_entry & (~bear_mask | (deep_oversold & (df["signal_vote"] >= 2)))
+
             short_entry = pd.Series(False, index=df.index)
         else:
             # Bidirectional: constrain direction per regime
@@ -131,16 +151,32 @@ def generate_trades(df: pd.DataFrame,
     df.loc[long_entry,  "entry_signal"] = 1
     df.loc[short_entry, "entry_signal"] = -1
 
+    # Override regime_kelly_mult for BEAR defensive longs to quarter-Kelly
+    if (use_slope_regime and longs_only
+            and "regime_kelly_mult" in df.columns
+            and "regime" in df.columns):
+        import config as _cfg
+        if getattr(_cfg, "BEAR_DEFENSIVE_LONGS", False):
+            bear_long_mask = (df["entry_signal"] == 1) & (df["regime"] == "BEAR")
+            df.loc[bear_long_mask, "regime_kelly_mult"] = getattr(_cfg, "KELLY_MULT_BEAR_LONG", 0.25)
+
     return df
 
 
 def compute_trade_returns(df: pd.DataFrame,
                            target_gain_pct: float = 0.030,
                            stop_loss_pct: float = 0.015,
-                           max_trade_bars: int = 10) -> pd.Series:
+                           max_trade_bars: int = 10,
+                           bar_limit_overrides: dict = None) -> pd.Series:
     """
     Simulate next-bar trade outcomes for backtesting.
     Returns a Series of individual trade P&L percentages.
+
+    Args:
+        bar_limit_overrides: Optional dict of {timestamp: n_bars} to use a different
+                             hold window for specific trades. Used for bear defensive
+                             longs which need a shorter window (BEAR_MAX_TRADE_BARS)
+                             than normal trades.
     """
     trade_returns = []
     trade_indices = []
@@ -151,8 +187,12 @@ def compute_trade_returns(df: pd.DataFrame,
         direction = row["entry_signal"]
         entry_price = row["close"]
 
-        # Look ahead up to max_trade_bars for target/stop
-        future = df.iloc[loc + 1: loc + 1 + max_trade_bars]
+        # Per-trade bar limit — bear defensive longs use a shorter window
+        n_bars = (bar_limit_overrides.get(idx, max_trade_bars)
+                  if bar_limit_overrides else max_trade_bars)
+
+        # Look ahead up to n_bars for target/stop
+        future = df.iloc[loc + 1: loc + 1 + n_bars]
         exit_return = None
 
         for _, bar in future.iterrows():

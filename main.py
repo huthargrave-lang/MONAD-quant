@@ -1,25 +1,23 @@
 """
 MONAD Quant - Main Entry Point
-Run: python main.py
+
+Run modes:
+  python main.py                      — standard backtest (default)
+  python main.py --mode=walk-forward  — walk-forward parameter optimization (OOS)
 """
 
+import argparse
 import config
 from src.data.fetcher import fetch_crypto_daily, fetch_daily, fetch_yfinance, fetch_btc_hourly
 from src.backtest.runner import run_backtest
 
-def main():
-    print("\n🔺 MONAD QUANT FUND — STRATEGY ENGINE 🔺\n")
 
+def _load_data():
+    """Load and slice the configured asset's OHLCV data."""
     asset = config.DEFAULT_ASSET
     asset_config = config.ASSETS[asset]
-
-    # Pull asset-specific params with fallback to global defaults
-    target_gain  = asset_config.get("target_gain_pct", config.TARGET_GAIN_PCT)
-    stop_loss    = asset_config.get("stop_loss_pct", config.STOP_LOSS_PCT)
-    req_signals  = asset_config.get("require_signals", config.REQUIRE_SIGNALS)
-
-    # Fetch data based on asset type
     asset_type = asset_config["type"]
+
     if asset_type == "crypto_hourly":
         df = fetch_btc_hourly(start=config.BACKTEST_START_HOURLY, end=config.BACKTEST_END_HOURLY)
         start, end, timeframe = config.BACKTEST_START_HOURLY, config.BACKTEST_END_HOURLY, "hourly"
@@ -30,12 +28,37 @@ def main():
         df = fetch_yfinance(symbol=asset, start=config.BACKTEST_START, end=config.BACKTEST_END)
         start, end, timeframe = config.BACKTEST_START, config.BACKTEST_END, "daily"
 
-    # Filter to backtest window
     df = df.loc[start:end]
     print(f"Loaded {len(df)} bars for {asset} ({start} → {end}) [{timeframe}]\n")
+    return df, asset, asset_config, timeframe
 
-    # Run backtest
-    results = run_backtest(
+
+def main():
+    parser = argparse.ArgumentParser(description="MONAD Quant Strategy Engine")
+    parser.add_argument(
+        "--mode",
+        default="normal",
+        choices=["normal", "walk-forward"],
+        help="normal = standard backtest; walk-forward = rolling OOS optimizer",
+    )
+    args = parser.parse_args()
+
+    print("\n🔺 MONAD QUANT FUND — STRATEGY ENGINE 🔺\n")
+    df, asset, asset_config, timeframe = _load_data()
+
+    if args.mode == "walk-forward":
+        if timeframe != "daily":
+            print("Walk-forward optimization is only supported for daily assets.")
+            return {}
+        from src.optimization.walk_forward import walk_forward_optimize
+        return walk_forward_optimize(df)
+
+    # ── Standard backtest ────────────────────────────────────────────────────
+    target_gain = asset_config.get("target_gain_pct", config.TARGET_GAIN_PCT)
+    stop_loss   = asset_config.get("stop_loss_pct",   config.STOP_LOSS_PCT)
+    req_signals = asset_config.get("require_signals",  config.REQUIRE_SIGNALS)
+
+    return run_backtest(
         df=df,
         initial_capital=config.INITIAL_CAPITAL,
         target_gain_pct=target_gain,
@@ -45,8 +68,6 @@ def main():
         timeframe=timeframe,
         plot=config.PLOT_RESULTS,
     )
-
-    return results
 
 
 if __name__ == "__main__":

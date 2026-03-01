@@ -46,9 +46,21 @@ def run_backtest(df: pd.DataFrame,
 
     # Compute individual trade returns (indexed by entry timestamp)
     print("[2/4] Simulating trades...")
+    # Bear defensive longs exit faster (BEAR_MAX_TRADE_BARS) — don't hold into deepening bear
+    bear_limit_overrides = None
+    if (use_slope_regime
+            and getattr(config, "BEAR_DEFENSIVE_LONGS", False)
+            and "regime" in df_trades.columns):
+        bear_bars = getattr(config, "BEAR_MAX_TRADE_BARS", 10)
+        bear_entries = df_trades[
+            (df_trades["entry_signal"] == 1) & (df_trades["regime"] == "BEAR")
+        ].index
+        if len(bear_entries):
+            bear_limit_overrides = {idx: bear_bars for idx in bear_entries}
     trade_returns = compute_trade_returns(
         df_trades, target_gain_pct, stop_loss_pct,
         max_trade_bars=config.MAX_TRADE_BARS,
+        bar_limit_overrides=bear_limit_overrides,
     )
 
     if len(trade_returns) == 0:
@@ -246,10 +258,13 @@ def _print_signal_diagnostics(df: pd.DataFrame, require_signals: int,
             "STALLING": 0.75,   "RECOVERING": 0.75,
             "BEAR": 0.75,       "STRONG_BEAR": 0.5,
         }
+        import config as _cfg
+        bear_defensive = getattr(_cfg, "BEAR_DEFENSIVE_LONGS", False)
         direction_lookup = {
             "STRONG_BULL": "longs only",  "BULL": "longs only",
-            "STALLING":    "both",        "RECOVERING": "longs only",
-            "BEAR":        "shorts only", "STRONG_BEAR": "shorts only",
+            "STALLING":    "flat",        "RECOVERING": "longs only",
+            "BEAR":        "defensive longs (RSI<30, ×0.25K)" if bear_defensive else "flat",
+            "STRONG_BEAR": "flat",
         }
         for state in ["STRONG_BULL", "BULL", "STALLING", "RECOVERING", "BEAR", "STRONG_BEAR"]:
             count = (df["regime"] == state).sum()
