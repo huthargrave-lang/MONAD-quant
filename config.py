@@ -75,7 +75,7 @@ VERBOSE_SIGNALS      = True     # Print per-filter bar counts before each backte
 # Regimes: STRONG_BULL / BULL / STALLING / RECOVERING / BEAR / STRONG_BEAR
 # Direction constrained per regime; Kelly scaled continuously per trade.
 USE_SLOPE_REGIME      = True    # Enable slope-based regime (replaces USE_MA_REGIME_FILTER)
-LONGS_ONLY            = True    # No short trades at all — sit flat in BEAR/STRONG_BEAR
+LONGS_ONLY            = False   # False = bidirectional: long in bulls, short in bears
 MA_SLOPE_WINDOW       = 20      # Bars over which to measure MA slope
 MA_SHORT_WINDOW       = 50      # 50-day MA — RECOVERING fires when price crosses above this
 MA_STRONG_BULL_SLOPE  = 0.02    # MA rises >2% over slope window → STRONG_BULL
@@ -92,11 +92,29 @@ KELLY_MULT_STRONG_BEAR = 0.5    # Trend accelerating down — size down, sit fla
 # ── Bear Market Defensive Longs ──────────────────────────────────────────────
 # In BEAR regime (mild downtrend, not STRONG_BEAR), allow very small long entries
 # when RSI is deeply oversold. These capture bear-market bounces (+20-30% in 2022)
-# without fighting a confirmed downtrend. STRONG_BEAR stays completely flat.
+# without fighting a confirmed downtrend. STRONG_BEAR stays completely flat for longs.
 BEAR_DEFENSIVE_LONGS  = True   # Allow longs in BEAR regime (True/False to toggle)
 RSI_OVERSOLD_BEAR     = 30     # Deeply oversold only — much tighter than bull threshold (38)
 KELLY_MULT_BEAR_LONG  = 0.25   # Quarter-Kelly — capital preservation, not full sizing
 BEAR_MAX_TRADE_BARS   = 10     # Exit in 2 weeks — don't hold into a deepening downtrend
+
+# ── Bear Market Shorts (rally fading) ────────────────────────────────────────
+# In BEAR/STRONG_BEAR, dead-cat bounces push RSI to 60-70 before reversing.
+# Short when RSI > threshold + MACD hist turning down — fade the rally.
+# Threshold is lower than the standard overbought (62) since bears suppress RSI peaks.
+RSI_OVERBOUGHT_BEAR        = 60    # Bear rally exhaustion — lower than standard 62
+RSI_OVERBOUGHT_STRONG_BEAR = 58    # Even lower in accelerating downtrend
+KELLY_MULT_BEAR_SHORT      = 0.5   # Half-Kelly — shorts in bears are volatile
+KELLY_MULT_STRONG_BEAR_SHORT = 0.75 # More conviction in confirmed strong bear
+BEAR_SHORT_MAX_BARS        = 10    # Quick exit — don't hold short into sudden reversal
+
+# ── Bull Breakout Signal (Phase B) ───────────────────────────────────────────
+# In STRONG_BULL, add a trend-following breakout entry alongside mean-reversion.
+# Fires when price breaks 20-day high + ADX confirms trend strength + MACD bullish.
+# This is a momentum signal — distinct from the RSI dip-buying mean-reversion signal.
+BULL_BREAKOUT_ENABLED = True   # Enable breakout entries in STRONG_BULL
+BREAKOUT_WINDOW       = 20     # N-day high breakout confirmation window
+ADX_BREAKOUT_MIN      = 25     # Minimum ADX trend strength for breakout entry
 
 # ── Bull Market Participation ─────────────────────────────────────────────────
 # In confirmed uptrends, dips are shallower so the RSI rarely drops to the

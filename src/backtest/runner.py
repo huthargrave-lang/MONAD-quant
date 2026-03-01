@@ -63,6 +63,13 @@ def run_backtest(df: pd.DataFrame,
             target_overrides[idx]    = bull_target
             bar_limit_overrides[idx] = bull_bars
 
+        # Bear shorts: quick exit — don't hold short into a sudden reversal
+        if not getattr(config, "LONGS_ONLY", True):
+            bear_short_bars = getattr(config, "BEAR_SHORT_MAX_BARS", 10)
+            short_in_bear   = (df_trades["entry_signal"] == -1) & df_trades["regime"].isin({"BEAR", "STRONG_BEAR"})
+            for idx in df_trades[short_in_bear].index:
+                bar_limit_overrides[idx] = bear_short_bars
+
     trade_returns = compute_trade_returns(
         df_trades, target_gain_pct, stop_loss_pct,
         max_trade_bars=config.MAX_TRADE_BARS,
@@ -267,11 +274,17 @@ def _print_signal_diagnostics(df: pd.DataFrame, require_signals: int,
         }
         import config as _cfg
         bear_defensive = getattr(_cfg, "BEAR_DEFENSIVE_LONGS", False)
+        longs_only     = getattr(_cfg, "LONGS_ONLY", True)
         direction_lookup = {
-            "STRONG_BULL": "longs only",  "BULL": "longs only",
-            "STALLING":    "flat",        "RECOVERING": "longs only",
-            "BEAR":        "defensive longs (RSI<30, ×0.25K)" if bear_defensive else "flat",
-            "STRONG_BEAR": "flat",
+            "STRONG_BULL": "longs only",
+            "BULL":        "longs only",
+            "STALLING":    "shorts (standard RSI gate)" if not longs_only else "flat",
+            "RECOVERING":  "longs only",
+            "BEAR":        ("defensive longs (RSI<30, ×0.25K) + shorts (RSI>60, ×0.5K)"
+                            if (bear_defensive and not longs_only)
+                            else ("defensive longs (RSI<30, ×0.25K)" if bear_defensive else
+                                  ("shorts (RSI>60, ×0.5K)" if not longs_only else "flat"))),
+            "STRONG_BEAR": "shorts (RSI>58, ×0.75K)" if not longs_only else "flat",
         }
         for state in ["STRONG_BULL", "BULL", "STALLING", "RECOVERING", "BEAR", "STRONG_BEAR"]:
             count = (df["regime"] == state).sum()

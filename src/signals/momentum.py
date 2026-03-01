@@ -160,7 +160,8 @@ def add_momentum_features(df: pd.DataFrame,
                            kelly_mult_map: dict = None) -> pd.DataFrame:
     """Add all momentum columns to a DataFrame.
 
-    New columns: ma_50d, ma_slope, regime, regime_kelly_mult
+    New columns: ma_50d, ma_slope, regime, regime_kelly_mult,
+                 bear_short_signal, bull_breakout_signal
     """
     if kelly_mult_map is None:
         kelly_mult_map = _DEFAULT_REGIME_KELLY_MAP
@@ -188,4 +189,20 @@ def add_momentum_features(df: pd.DataFrame,
                                    strong_bull_thresh=strong_bull_thresh,
                                    strong_bear_thresh=strong_bear_thresh)
     df["regime_kelly_mult"] = df["regime"].map(kelly_mult_map).fillna(1.0)
+
+    # Bear short signal: fade dead-cat bounces in confirmed downtrends.
+    # Uses a lower RSI overbought threshold than the standard signal (60/58 vs 62)
+    # because bear markets suppress RSI peaks — bounces rarely reach 65+.
+    # Computed after regime so the threshold can vary per regime state.
+    try:
+        import config as _cfg
+        bear_rsi_ob  = getattr(_cfg, "RSI_OVERBOUGHT_BEAR", 60)
+        sb_rsi_ob    = getattr(_cfg, "RSI_OVERBOUGHT_STRONG_BEAR", 58)
+    except ImportError:
+        bear_rsi_ob, sb_rsi_ob = 60, 58
+    macd_turning_dn = df["macd_hist"] < df["macd_hist"].shift(1)
+    df["bear_short_signal"] = 0
+    df.loc[(df["regime"] == "BEAR")        & (df["rsi"] > bear_rsi_ob)  & macd_turning_dn, "bear_short_signal"] = -1
+    df.loc[(df["regime"] == "STRONG_BEAR") & (df["rsi"] > sb_rsi_ob)    & macd_turning_dn, "bear_short_signal"] = -1
+
     return df

@@ -65,6 +65,23 @@ def build_features(df: pd.DataFrame, timeframe: str = "daily",
             adx_weak_thresh=config.ADX_WEAK_THRESH,
             adx_strong_thresh=config.ADX_STRONG_THRESH,
         )
+        # Bull breakout signal: requires ADX (from volatility) so computed here,
+        # after all feature modules have run. Fires on STRONG_BULL breakouts above
+        # the prior N-day high with ADX trend confirmation and MACD momentum.
+        # .shift(1) on the rolling high prevents look-ahead bias on the entry bar.
+        if getattr(config, "BULL_BREAKOUT_ENABLED", False) and "adx" in df.columns:
+            bw       = getattr(config, "BREAKOUT_WINDOW", 20)
+            adx_min  = getattr(config, "ADX_BREAKOUT_MIN", 25)
+            high_n   = df["close"].rolling(bw).max().shift(1)
+            macd_pos = (df["macd_hist"] > 0) & (df["macd_hist"] > df["macd_hist"].shift(1))
+            df["bull_breakout_signal"] = 0
+            df.loc[
+                (df["regime"] == "STRONG_BULL") &
+                (df["close"] > high_n) &
+                macd_pos &
+                (df["adx"] > adx_min),
+                "bull_breakout_signal"
+            ] = 1
     return df
 
 
@@ -136,10 +153,27 @@ def generate_trades(df: pd.DataFrame,
             short_entry = pd.Series(False, index=df.index)
         else:
             # Bidirectional: constrain direction per regime
+            # Longs blocked in BEAR/STRONG_BEAR — don't fight a confirmed downtrend
+            # Shorts blocked in STRONG_BULL/BULL/RECOVERING — don't fade an uptrend
             no_long_regimes  = {"STRONG_BEAR", "BEAR"}
             no_short_regimes = {"STRONG_BULL", "BULL", "RECOVERING"}
             long_entry  = long_entry  & (~df["regime"].isin(no_long_regimes))
             short_entry = short_entry & (~df["regime"].isin(no_short_regimes))
+
+            # Bear short override: in BEAR/STRONG_BEAR, use bear_short_signal instead
+            # of standard signal_vote shorts. bear_short_signal uses a lower RSI
+            # overbought threshold (60/58 vs 62) since bear markets suppress RSI peaks.
+            if "bear_short_signal" in df.columns:
+                bear_regimes      = df["regime"].isin({"BEAR", "STRONG_BEAR"})
+                bear_short_entry  = bear_regimes & (df["bear_short_signal"] == -1)
+                other_short_entry = ~bear_regimes & short_entry
+                short_entry = bear_short_entry | other_short_entry
+
+            # Bull breakout: in STRONG_BULL, OR the breakout signal with mean-reversion
+            # longs so both entry types are active simultaneously.
+            if "bull_breakout_signal" in df.columns:
+                bull_breakout = df["bull_breakout_signal"] == 1
+                long_entry = long_entry | bull_breakout
     elif use_ma_regime_filter and "ma_regime" in df.columns:
         long_entry  = long_entry  & (df["ma_regime"] == 1)
         short_entry = short_entry & (df["ma_regime"] == -1)
@@ -151,14 +185,26 @@ def generate_trades(df: pd.DataFrame,
     df.loc[long_entry,  "entry_signal"] = 1
     df.loc[short_entry, "entry_signal"] = -1
 
+    import config as _cfg
+
     # Override regime_kelly_mult for BEAR defensive longs to quarter-Kelly
     if (use_slope_regime and longs_only
             and "regime_kelly_mult" in df.columns
             and "regime" in df.columns):
-        import config as _cfg
         if getattr(_cfg, "BEAR_DEFENSIVE_LONGS", False):
             bear_long_mask = (df["entry_signal"] == 1) & (df["regime"] == "BEAR")
             df.loc[bear_long_mask, "regime_kelly_mult"] = getattr(_cfg, "KELLY_MULT_BEAR_LONG", 0.25)
+
+    # Override regime_kelly_mult for bear shorts — size per conviction level:
+    #   BEAR       → half-Kelly (volatile regime, downtrend not accelerating)
+    #   STRONG_BEAR → more conviction (accelerating downtrend), slightly larger
+    if (use_slope_regime and not longs_only
+            and "regime_kelly_mult" in df.columns
+            and "regime" in df.columns):
+        bear_short_mask  = (df["entry_signal"] == -1) & (df["regime"] == "BEAR")
+        sbear_short_mask = (df["entry_signal"] == -1) & (df["regime"] == "STRONG_BEAR")
+        df.loc[bear_short_mask,  "regime_kelly_mult"] = getattr(_cfg, "KELLY_MULT_BEAR_SHORT",       0.5)
+        df.loc[sbear_short_mask, "regime_kelly_mult"] = getattr(_cfg, "KELLY_MULT_STRONG_BEAR_SHORT", 0.75)
 
     return df
 
