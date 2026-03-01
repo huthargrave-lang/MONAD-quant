@@ -98,6 +98,16 @@ RSI_OVERSOLD_BEAR     = 30     # Deeply oversold only — much tighter than bull
 KELLY_MULT_BEAR_LONG  = 0.25   # Quarter-Kelly — capital preservation, not full sizing
 BEAR_MAX_TRADE_BARS   = 10     # Exit in 2 weeks — don't hold into a deepening downtrend
 
+# ── Bull Market Participation ─────────────────────────────────────────────────
+# In confirmed uptrends, dips are shallower so the RSI rarely drops to the
+# neutral threshold (38). Looser thresholds + wider targets let the strategy
+# participate in bull runs without touching bear/neutral behaviour.
+# Walk-forward optimizer consistently selected RSI<40 in bull windows, RSI<30 in bears.
+RSI_OVERSOLD_STRONG_BULL  = 42    # Looser — strong uptrend, shallower dips are buyable
+RSI_OVERSOLD_BULL         = 40    # Slightly looser than neutral (38)
+TARGET_GAIN_PCT_STRONG_BULL = 0.05  # 5% target — let winners run in a confirmed trend
+MAX_TRADE_BARS_STRONG_BULL  = 30    # Hold up to 6 weeks instead of 4 in strong bull
+
 # ── ADX (Average Directional Index) ─────────────────────────────────────────
 # Layered Kelly multiplier: trend strength independent of direction.
 ADX_PERIOD        = 14

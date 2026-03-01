@@ -46,21 +46,28 @@ def run_backtest(df: pd.DataFrame,
 
     # Compute individual trade returns (indexed by entry timestamp)
     print("[2/4] Simulating trades...")
-    # Bear defensive longs exit faster (BEAR_MAX_TRADE_BARS) — don't hold into deepening bear
-    bear_limit_overrides = None
-    if (use_slope_regime
-            and getattr(config, "BEAR_DEFENSIVE_LONGS", False)
-            and "regime" in df_trades.columns):
-        bear_bars = getattr(config, "BEAR_MAX_TRADE_BARS", 10)
-        bear_entries = df_trades[
-            (df_trades["entry_signal"] == 1) & (df_trades["regime"] == "BEAR")
-        ].index
-        if len(bear_entries):
-            bear_limit_overrides = {idx: bear_bars for idx in bear_entries}
+    bar_limit_overrides = {}
+    target_overrides    = {}
+
+    if use_slope_regime and "regime" in df_trades.columns:
+        # Bear defensive longs: exit faster — don't hold into deepening downtrend
+        if getattr(config, "BEAR_DEFENSIVE_LONGS", False):
+            bear_bars = getattr(config, "BEAR_MAX_TRADE_BARS", 10)
+            for idx in df_trades[(df_trades["entry_signal"] == 1) & (df_trades["regime"] == "BEAR")].index:
+                bar_limit_overrides[idx] = bear_bars
+
+        # Bull longs: wider target and longer hold — let winners run in confirmed uptrend
+        bull_target = getattr(config, "TARGET_GAIN_PCT_STRONG_BULL", target_gain_pct)
+        bull_bars   = getattr(config, "MAX_TRADE_BARS_STRONG_BULL",  config.MAX_TRADE_BARS)
+        for idx in df_trades[(df_trades["entry_signal"] == 1) & (df_trades["regime"] == "STRONG_BULL")].index:
+            target_overrides[idx]    = bull_target
+            bar_limit_overrides[idx] = bull_bars
+
     trade_returns = compute_trade_returns(
         df_trades, target_gain_pct, stop_loss_pct,
         max_trade_bars=config.MAX_TRADE_BARS,
-        bar_limit_overrides=bear_limit_overrides,
+        bar_limit_overrides=bar_limit_overrides or None,
+        target_overrides=target_overrides or None,
     )
 
     if len(trade_returns) == 0:

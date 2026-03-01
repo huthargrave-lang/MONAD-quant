@@ -133,6 +133,29 @@ def generate_trades(df: pd.DataFrame,
                 # Veto any BEAR long that doesn't meet the tighter criteria
                 long_entry = long_entry & (~bear_mask | (deep_oversold & (df["signal_vote"] >= 2)))
 
+            # Bull participation: add entries where RSI is between the neutral threshold
+            # and the looser bull threshold. momentum_signal was built with RSI_OVERSOLD (38)
+            # so these bars were excluded from signal_vote — add them back for bull regimes.
+            # Volume signal must still agree for confirmation.
+            if "rsi" in df.columns:
+                base_rsi = getattr(_cfg, "RSI_OVERSOLD", 38)
+                bull_rsi  = getattr(_cfg, "RSI_OVERSOLD_BULL", base_rsi)
+                sbull_rsi = getattr(_cfg, "RSI_OVERSOLD_STRONG_BULL", base_rsi)
+                if sbull_rsi > base_rsi:
+                    sb_extra = (
+                        (df["regime"] == "STRONG_BULL") &
+                        (df["rsi"] < sbull_rsi) &
+                        (df["volume_signal"] >= 1)
+                    )
+                    long_entry = long_entry | sb_extra
+                if bull_rsi > base_rsi:
+                    b_extra = (
+                        (df["regime"] == "BULL") &
+                        (df["rsi"] < bull_rsi) &
+                        (df["volume_signal"] >= 1)
+                    )
+                    long_entry = long_entry | b_extra
+
             short_entry = pd.Series(False, index=df.index)
         else:
             # Bidirectional: constrain direction per regime
@@ -167,7 +190,8 @@ def compute_trade_returns(df: pd.DataFrame,
                            target_gain_pct: float = 0.030,
                            stop_loss_pct: float = 0.015,
                            max_trade_bars: int = 10,
-                           bar_limit_overrides: dict = None) -> pd.Series:
+                           bar_limit_overrides: dict = None,
+                           target_overrides: dict = None) -> pd.Series:
     """
     Simulate next-bar trade outcomes for backtesting.
     Returns a Series of individual trade P&L percentages.
@@ -175,8 +199,10 @@ def compute_trade_returns(df: pd.DataFrame,
     Args:
         bar_limit_overrides: Optional dict of {timestamp: n_bars} to use a different
                              hold window for specific trades. Used for bear defensive
-                             longs which need a shorter window (BEAR_MAX_TRADE_BARS)
-                             than normal trades.
+                             longs (BEAR_MAX_TRADE_BARS) and bull longs (MAX_TRADE_BARS_STRONG_BULL).
+        target_overrides: Optional dict of {timestamp: target_pct} to use a different
+                         take-profit for specific trades. Used for STRONG_BULL entries
+                         to let winners run further (TARGET_GAIN_PCT_STRONG_BULL).
     """
     trade_returns = []
     trade_indices = []
@@ -187,9 +213,11 @@ def compute_trade_returns(df: pd.DataFrame,
         direction = row["entry_signal"]
         entry_price = row["close"]
 
-        # Per-trade bar limit — bear defensive longs use a shorter window
+        # Per-trade overrides — bear defensive longs use shorter window; bull longs use wider target
         n_bars = (bar_limit_overrides.get(idx, max_trade_bars)
                   if bar_limit_overrides else max_trade_bars)
+        target = (target_overrides.get(idx, target_gain_pct)
+                  if target_overrides else target_gain_pct)
 
         # Look ahead up to n_bars for target/stop
         future = df.iloc[loc + 1: loc + 1 + n_bars]
@@ -197,15 +225,15 @@ def compute_trade_returns(df: pd.DataFrame,
 
         for _, bar in future.iterrows():
             if direction == 1:
-                if bar["high"] >= entry_price * (1 + target_gain_pct):
-                    exit_return = target_gain_pct
+                if bar["high"] >= entry_price * (1 + target):
+                    exit_return = target
                     break
                 elif bar["low"] <= entry_price * (1 - stop_loss_pct):
                     exit_return = -stop_loss_pct
                     break
             elif direction == -1:
-                if bar["low"] <= entry_price * (1 - target_gain_pct):
-                    exit_return = target_gain_pct
+                if bar["low"] <= entry_price * (1 - target):
+                    exit_return = target
                     break
                 elif bar["high"] >= entry_price * (1 + stop_loss_pct):
                     exit_return = -stop_loss_pct
