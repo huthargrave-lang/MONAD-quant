@@ -105,7 +105,7 @@ BEAR_MAX_TRADE_BARS   = 10     # Exit in 2 weeks — don't hold into a deepening
 # Walk-forward optimizer consistently selected RSI<40 in bull windows, RSI<30 in bears.
 RSI_OVERSOLD_STRONG_BULL  = 42    # Looser — strong uptrend, shallower dips are buyable
 RSI_OVERSOLD_BULL         = 40    # Slightly looser than neutral (38)
-TARGET_GAIN_PCT_STRONG_BULL = 0.05  # 5% target — let winners run in a confirmed trend
+TARGET_GAIN_PCT_STRONG_BULL = 0.03  # Same 3% target — BTC daily ATR ~1.5-2%, 5% was too greedy
 MAX_TRADE_BARS_STRONG_BULL  = 30    # Hold up to 6 weeks instead of 4 in strong bull
 
 # ── ADX (Average Directional Index) ─────────────────────────────────────────

@@ -133,26 +133,27 @@ def generate_trades(df: pd.DataFrame,
                 # Veto any BEAR long that doesn't meet the tighter criteria
                 long_entry = long_entry & (~bear_mask | (deep_oversold & (df["signal_vote"] >= 2)))
 
-            # Bull participation: add entries where RSI is between the neutral threshold
-            # and the looser bull threshold. momentum_signal was built with RSI_OVERSOLD (38)
-            # so these bars were excluded from signal_vote — add them back for bull regimes.
-            # Volume signal must still agree for confirmation.
-            if "rsi" in df.columns:
-                base_rsi = getattr(_cfg, "RSI_OVERSOLD", 38)
-                bull_rsi  = getattr(_cfg, "RSI_OVERSOLD_BULL", base_rsi)
+            # Bull participation: add entries for RSI dips above the neutral threshold
+            # that momentum_signal missed because RSI didn't reach rsi_oversold (38).
+            # In uptrends VWAP stays elevated so volume_signal rarely fires — use MACD
+            # histogram turning up instead (same condition as momentum_signal, just looser RSI).
+            if "rsi" in df.columns and "macd_hist" in df.columns:
+                base_rsi  = getattr(_cfg, "RSI_OVERSOLD", 38)
+                bull_rsi  = getattr(_cfg, "RSI_OVERSOLD_BULL",        base_rsi)
                 sbull_rsi = getattr(_cfg, "RSI_OVERSOLD_STRONG_BULL", base_rsi)
+                macd_turning_up = df["macd_hist"] > df["macd_hist"].shift(1)
                 if sbull_rsi > base_rsi:
                     sb_extra = (
                         (df["regime"] == "STRONG_BULL") &
                         (df["rsi"] < sbull_rsi) &
-                        (df["volume_signal"] >= 1)
+                        macd_turning_up
                     )
                     long_entry = long_entry | sb_extra
                 if bull_rsi > base_rsi:
                     b_extra = (
                         (df["regime"] == "BULL") &
                         (df["rsi"] < bull_rsi) &
-                        (df["volume_signal"] >= 1)
+                        macd_turning_up
                     )
                     long_entry = long_entry | b_extra
 
