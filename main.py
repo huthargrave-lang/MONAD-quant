@@ -41,7 +41,14 @@ def main():
         choices=["normal", "walk-forward"],
         help="normal = standard backtest; walk-forward = rolling OOS optimizer",
     )
+    parser.add_argument("--start", default=None, help="Override backtest start date (YYYY-MM-DD)")
+    parser.add_argument("--end",   default=None, help="Override backtest end date (YYYY-MM-DD)")
     args = parser.parse_args()
+
+    if args.start:
+        config.BACKTEST_START = args.start
+    if args.end:
+        config.BACKTEST_END = args.end
 
     print("\n🔺 MONAD QUANT FUND — STRATEGY ENGINE 🔺\n")
     df, asset, asset_config, timeframe = _load_data()
