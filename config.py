@@ -107,12 +107,13 @@ RSI_OVERBOUGHT_STRONG_BEAR = 58    # Even lower in accelerating downtrend
 KELLY_MULT_BEAR_SHORT      = 0.5   # Half-Kelly — shorts in bears are volatile
 KELLY_MULT_STRONG_BEAR_SHORT = 0.75 # More conviction in confirmed strong bear
 BEAR_SHORT_MAX_BARS        = 10    # Quick exit — don't hold short into sudden reversal
+BEAR_SHORT_STOP_PCT        = 0.025 # 2.5% stop for shorts — crypto swings 3-5% intraday, 1.5% is noise
 
 # ── Bull Breakout Signal (Phase B) ───────────────────────────────────────────
 # In STRONG_BULL, add a trend-following breakout entry alongside mean-reversion.
 # Fires when price breaks 20-day high + ADX confirms trend strength + MACD bullish.
 # This is a momentum signal — distinct from the RSI dip-buying mean-reversion signal.
-BULL_BREAKOUT_ENABLED = True   # Enable breakout entries in STRONG_BULL
+BULL_BREAKOUT_ENABLED = False  # Disabled — fires too frequently at ATH in STRONG_BULL, momentum trap
 BREAKOUT_WINDOW       = 20     # N-day high breakout confirmation window
 ADX_BREAKOUT_MIN      = 25     # Minimum ADX trend strength for breakout entry
 

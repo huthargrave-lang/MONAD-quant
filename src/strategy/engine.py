@@ -214,18 +214,20 @@ def compute_trade_returns(df: pd.DataFrame,
                            stop_loss_pct: float = 0.015,
                            max_trade_bars: int = 10,
                            bar_limit_overrides: dict = None,
-                           target_overrides: dict = None) -> pd.Series:
+                           target_overrides: dict = None,
+                           stop_overrides: dict = None) -> pd.Series:
     """
     Simulate next-bar trade outcomes for backtesting.
     Returns a Series of individual trade P&L percentages.
 
     Args:
         bar_limit_overrides: Optional dict of {timestamp: n_bars} to use a different
-                             hold window for specific trades. Used for bear defensive
-                             longs (BEAR_MAX_TRADE_BARS) and bull longs (MAX_TRADE_BARS_STRONG_BULL).
+                             hold window for specific trades.
         target_overrides: Optional dict of {timestamp: target_pct} to use a different
-                         take-profit for specific trades. Used for STRONG_BULL entries
-                         to let winners run further (TARGET_GAIN_PCT_STRONG_BULL).
+                         take-profit for specific trades.
+        stop_overrides: Optional dict of {timestamp: stop_pct} to use a different
+                       stop-loss for specific trades. Used for bear shorts where
+                       1.5% stop is too tight for crypto intraday noise.
     """
     trade_returns = []
     trade_indices = []
@@ -236,11 +238,12 @@ def compute_trade_returns(df: pd.DataFrame,
         direction = row["entry_signal"]
         entry_price = row["close"]
 
-        # Per-trade overrides — bear defensive longs use shorter window; bull longs use wider target
         n_bars = (bar_limit_overrides.get(idx, max_trade_bars)
                   if bar_limit_overrides else max_trade_bars)
         target = (target_overrides.get(idx, target_gain_pct)
                   if target_overrides else target_gain_pct)
+        stop = (stop_overrides.get(idx, stop_loss_pct)
+                if stop_overrides else stop_loss_pct)
 
         # Look ahead up to n_bars for target/stop
         future = df.iloc[loc + 1: loc + 1 + n_bars]
@@ -251,15 +254,15 @@ def compute_trade_returns(df: pd.DataFrame,
                 if bar["high"] >= entry_price * (1 + target):
                     exit_return = target
                     break
-                elif bar["low"] <= entry_price * (1 - stop_loss_pct):
-                    exit_return = -stop_loss_pct
+                elif bar["low"] <= entry_price * (1 - stop):
+                    exit_return = -stop
                     break
             elif direction == -1:
                 if bar["low"] <= entry_price * (1 - target):
                     exit_return = target
                     break
-                elif bar["high"] >= entry_price * (1 + stop_loss_pct):
-                    exit_return = -stop_loss_pct
+                elif bar["high"] >= entry_price * (1 + stop):
+                    exit_return = -stop
                     break
 
         # If no target/stop hit, use close of last future bar

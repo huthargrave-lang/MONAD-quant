@@ -48,6 +48,7 @@ def run_backtest(df: pd.DataFrame,
     print("[2/4] Simulating trades...")
     bar_limit_overrides = {}
     target_overrides    = {}
+    stop_overrides      = {}
 
     if use_slope_regime and "regime" in df_trades.columns:
         # Bear defensive longs: exit faster — don't hold into deepening downtrend
@@ -63,18 +64,21 @@ def run_backtest(df: pd.DataFrame,
             target_overrides[idx]    = bull_target
             bar_limit_overrides[idx] = bull_bars
 
-        # Bear shorts: quick exit — don't hold short into a sudden reversal
+        # Bear shorts: quick exit + wider stop (crypto swings 3-5% intraday, 1.5% is noise)
         if not getattr(config, "LONGS_ONLY", True):
             bear_short_bars = getattr(config, "BEAR_SHORT_MAX_BARS", 10)
+            bear_short_stop = getattr(config, "BEAR_SHORT_STOP_PCT",  0.025)
             short_in_bear   = (df_trades["entry_signal"] == -1) & df_trades["regime"].isin({"BEAR", "STRONG_BEAR"})
             for idx in df_trades[short_in_bear].index:
                 bar_limit_overrides[idx] = bear_short_bars
+                stop_overrides[idx]      = bear_short_stop
 
     trade_returns = compute_trade_returns(
         df_trades, target_gain_pct, stop_loss_pct,
         max_trade_bars=config.MAX_TRADE_BARS,
         bar_limit_overrides=bar_limit_overrides or None,
         target_overrides=target_overrides or None,
+        stop_overrides=stop_overrides or None,
     )
 
     if len(trade_returns) == 0:
