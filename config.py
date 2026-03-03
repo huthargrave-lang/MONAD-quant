@@ -124,8 +124,9 @@ ADX_BREAKOUT_MIN      = 25     # Minimum ADX trend strength for breakout entry
 # Walk-forward optimizer consistently selected RSI<40 in bull windows, RSI<30 in bears.
 RSI_OVERSOLD_STRONG_BULL  = 42    # Looser — strong uptrend, shallower dips are buyable
 RSI_OVERSOLD_BULL         = 40    # Slightly looser than neutral (38)
-TARGET_GAIN_PCT_STRONG_BULL = 0.03  # Same 3% target — BTC daily ATR ~1.5-2%, 5% was too greedy
+TARGET_GAIN_PCT_STRONG_BULL = 0.05  # 5% target — bull dip recoveries run 10-20%, 3% exits too early
 MAX_TRADE_BARS_STRONG_BULL  = 30    # Hold up to 6 weeks instead of 4 in strong bull
+MAX_POSITION_PCT_STRONG_BULL = 0.30 # 30% cap — lets Kelly ×1.5 actually deploy (currently truncated at 20%)
 
 # ── ADX (Average Directional Index) ─────────────────────────────────────────
 # Layered Kelly multiplier: trend strength independent of direction.

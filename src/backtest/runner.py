@@ -133,7 +133,14 @@ def run_backtest(df: pd.DataFrame,
         else:
             adx_mult = 1.0
 
-        kelly_trade = min(base_kelly * regime_mult * adx_mult, config.MAX_POSITION_PCT)
+        # STRONG_BULL gets a higher position cap so Kelly ×1.5 isn't truncated at the base 20%
+        if (use_slope_regime
+                and idx in df_trades.index
+                and df_trades.at[idx, "regime"] == "STRONG_BULL"):
+            pos_cap = getattr(config, "MAX_POSITION_PCT_STRONG_BULL", config.MAX_POSITION_PCT)
+        else:
+            pos_cap = config.MAX_POSITION_PCT
+        kelly_trade = min(base_kelly * regime_mult * adx_mult, pos_cap)
         capital += capital * kelly_trade * r
         equity_curve.append(capital)
 
