@@ -98,10 +98,12 @@ RSI_OVERSOLD_BEAR     = 30     # Deeply oversold only — much tighter than bull
 KELLY_MULT_BEAR_LONG  = 0.25   # Quarter-Kelly — capital preservation, not full sizing
 BEAR_MAX_TRADE_BARS   = 10     # Exit in 2 weeks — don't hold into a deepening downtrend
 
-# ── Bear Market Shorts (rally fading) ────────────────────────────────────────
-# In BEAR/STRONG_BEAR, dead-cat bounces push RSI to 60-70 before reversing.
-# Short when RSI > threshold + MACD hist turning down — fade the rally.
-# Threshold is lower than the standard overbought (62) since bears suppress RSI peaks.
+# ── Bear Market Shorts (ONLY ACTIVE WHEN LONGS_ONLY=False) ───────────────────
+# These params are inert when LONGS_ONLY=True (the current default). All bear short
+# code paths are guarded by LONGS_ONLY checks in momentum.py, engine.py, and runner.py.
+# To activate bear shorts, flip LONGS_ONLY=False — these params take effect immediately.
+# Note: bear shorts tested in 2022 yielded 0% WR due to regime lag + tight stops.
+# Would need ATR-based stops to be viable (see USE_ATR_DYNAMIC_STOPS below).
 RSI_OVERBOUGHT_BEAR        = 60    # Bear rally exhaustion — lower than standard 62
 RSI_OVERBOUGHT_STRONG_BEAR = 58    # Even lower in accelerating downtrend
 KELLY_MULT_BEAR_SHORT      = 0.5   # Half-Kelly — shorts in bears are volatile
@@ -118,18 +120,15 @@ BREAKOUT_WINDOW       = 20     # N-day high breakout confirmation window
 ADX_BREAKOUT_MIN      = 25     # Minimum ADX trend strength for breakout entry
 
 # ── Bull Market Participation ─────────────────────────────────────────────────
-# In confirmed uptrends, dips are shallower so the RSI rarely drops to the
-# neutral threshold (38). Looser thresholds + wider targets let the strategy
-# participate in bull runs without touching bear/neutral behaviour.
-# Walk-forward optimizer consistently selected RSI<40 in bull windows, RSI<30 in bears.
-STRONG_BULL_REQUIRE_50MA  = False # Disabled — gate removes RSI dip entries that naturally
-                                  # occur below the lagging 50-MA during corrections (Aug 2023,
-                                  # May 2021). Too aggressive: filtered 71 of 83 5yr trades.
-RSI_OVERSOLD_STRONG_BULL  = 42    # Looser — strong uptrend, shallower dips are buyable
-RSI_OVERSOLD_BULL         = 40    # Slightly looser than neutral (38)
+STRONG_BULL_REQUIRE_50MA  = False # Disabled — strict gate filtered 71/83 5yr trades (Aug 2023,
+                                  # May 2021 healthy entries naturally occur below lagging 50-MA).
+                                  # Use STRONG_BULL_SOFT_50MA_PCT for the softer version instead.
+STRONG_BULL_SOFT_50MA_PCT = 0.0   # 0 = disabled. Set to 0.05 to only block STRONG_BULL entries
+                                  # when price is >5% below the 50-MA (extended corrections like
+                                  # June 2024 are 7-15% below; healthy dips like Aug 2023 are 1-3%).
 TARGET_GAIN_PCT_STRONG_BULL = 0.03  # 3% target — STRONG_BULL dips recover 3-4% on avg, 5% overshoots
 MAX_TRADE_BARS_STRONG_BULL  = 30    # Hold up to 6 weeks instead of 4 in strong bull
-MAX_POSITION_PCT_STRONG_BULL = 0.30 # 30% cap — lets Kelly ×1.5 actually deploy (currently truncated at 20%)
+MAX_POSITION_PCT_STRONG_BULL = 0.30 # 30% cap — lets Kelly ×1.5 actually deploy (was truncated at 20%)
 
 # ── ADX (Average Directional Index) ─────────────────────────────────────────
 # Layered Kelly multiplier: trend strength independent of direction.
@@ -137,6 +136,15 @@ ADX_PERIOD        = 14
 ADX_WEAK_THRESH   = 20    # ADX < 20: choppy/no trend → Kelly × 0.8
 ADX_STRONG_THRESH = 35    # ADX > 35: strong trend    → Kelly × 1.2
 USE_ADX_SIZING    = True  # Apply ADX multiplier to per-trade Kelly
+
+# ── ATR-Based Dynamic Stops ─────────────────────────────────────────────────
+# When current ATR exceeds ATR_STOP_MULT × 20-day median ATR, override the fixed
+# 1.5% stop with a wider ATR-proportional stop to avoid noise-triggered exits.
+# Addresses bad months (June/Aug 2024) where daily ATR 3-7% dwarfs the 1.5% stop.
+# Disabled by default — enable and test on 5yr before using live.
+USE_ATR_DYNAMIC_STOPS = False   # Enable ATR-scaled stop overrides
+ATR_STOP_MULT         = 2.0     # Trigger: override stop when ATR > 2× 20-day median ATR
+ATR_STOP_CAP_PCT      = 0.04    # Hard cap: stop never exceeds 4% even in extreme volatility
 
 # ── Risk & Sizing ───────────────────────────────────────────────────────────
 INITIAL_CAPITAL   = 100_000

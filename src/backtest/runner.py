@@ -65,6 +65,7 @@ def run_backtest(df: pd.DataFrame,
             bar_limit_overrides[idx] = bull_bars
 
         # Bear shorts: quick exit + wider stop (crypto swings 3-5% intraday, 1.5% is noise)
+        # ONLY ACTIVE WHEN LONGS_ONLY=False
         if not getattr(config, "LONGS_ONLY", True):
             bear_short_bars = getattr(config, "BEAR_SHORT_MAX_BARS", 10)
             bear_short_stop = getattr(config, "BEAR_SHORT_STOP_PCT",  0.025)
@@ -73,7 +74,23 @@ def run_backtest(df: pd.DataFrame,
                 bar_limit_overrides[idx] = bear_short_bars
                 stop_overrides[idx]      = bear_short_stop
 
-    trade_returns = compute_trade_returns(
+        # ATR-based dynamic stops: widen stop when volatility spikes above 2× normal.
+        # Prevents noise-triggered exits during intra-bull corrections (June/Aug 2024).
+        # Disabled by default (USE_ATR_DYNAMIC_STOPS=False).
+        if getattr(config, "USE_ATR_DYNAMIC_STOPS", False) and "atr_pct" in df_trades.columns:
+            atr_stop_mult = getattr(config, "ATR_STOP_MULT", 2.0)
+            atr_stop_cap  = getattr(config, "ATR_STOP_CAP_PCT", 0.04)
+            atr_baseline  = df_trades["atr_pct"].rolling(20, min_periods=5).median()
+            high_vol_entries = df_trades[
+                (df_trades["entry_signal"] != 0) &
+                (df_trades["atr_pct"] > atr_baseline * atr_stop_mult)
+            ].index
+            for idx in high_vol_entries:
+                new_stop = min(df_trades.at[idx, "atr_pct"] * 1.0, atr_stop_cap)
+                if new_stop > stop_loss_pct:   # only override if it's wider than default
+                    stop_overrides[idx] = new_stop
+
+    trade_returns, trade_exit_types = compute_trade_returns(
         df_trades, target_gain_pct, stop_loss_pct,
         max_trade_bars=config.MAX_TRADE_BARS,
         bar_limit_overrides=bar_limit_overrides or None,
@@ -87,7 +104,10 @@ def run_backtest(df: pd.DataFrame,
 
     # Stats from backtest
     stats = estimate_stats_from_backtest(trade_returns)
-    print(f"       {stats['total_trades']} trades | Win rate: {stats['win_rate']*100:.1f}%")
+    vc = trade_exit_types.value_counts()
+    print(f"       {stats['total_trades']} trades | Win rate: {stats['win_rate']*100:.1f}%"
+          f"  (target={vc.get('target_hit', 0)}  stop={vc.get('stop_hit', 0)}"
+          f"  time={vc.get('time_exit', 0)})")
 
     # Position sizing
     sizing = compute_position_size(

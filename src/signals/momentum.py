@@ -26,13 +26,8 @@ def compute_macd(prices: pd.Series, fast: int = 12, slow: int = 26, signal: int 
     return macd_line, signal_line, histogram
 
 
-def compute_roc(prices: pd.Series, period: int = 10) -> pd.Series:
-    """Rate of Change - % price change over N periods."""
-    return prices.pct_change(periods=period) * 100
-
-
-def momentum_signal(df: pd.DataFrame, 
-                    rsi_oversold: float = 35, 
+def momentum_signal(df: pd.DataFrame,
+                    rsi_oversold: float = 35,
                     rsi_overbought: float = 65) -> pd.Series:
     """
     Composite momentum signal.
@@ -42,7 +37,6 @@ def momentum_signal(df: pd.DataFrame,
 
     rsi = compute_rsi(close)
     macd_line, signal_line, hist = compute_macd(close)
-    roc = compute_roc(close)
 
     signal = pd.Series(0, index=df.index)
 
@@ -149,7 +143,6 @@ def add_momentum_features(df: pd.DataFrame,
                            macd_fast: int = 12,
                            macd_slow: int = 26,
                            macd_signal_period: int = 9,
-                           roc_period: int = 10,
                            rsi_oversold: float = 35,
                            rsi_overbought: float = 65,
                            ma_regime_window: int = 252,
@@ -160,8 +153,9 @@ def add_momentum_features(df: pd.DataFrame,
                            kelly_mult_map: dict = None) -> pd.DataFrame:
     """Add all momentum columns to a DataFrame.
 
-    New columns: ma_50d, ma_slope, regime, regime_kelly_mult,
-                 bear_short_signal, bull_breakout_signal
+    New columns: rsi, macd, macd_signal, macd_hist, momentum_signal,
+                 ma_52w, ma_50d, ma_regime, ma_slope, regime, regime_kelly_mult,
+                 bear_short_signal (only when LONGS_ONLY=False)
     """
     if kelly_mult_map is None:
         kelly_mult_map = _DEFAULT_REGIME_KELLY_MAP
@@ -171,8 +165,6 @@ def add_momentum_features(df: pd.DataFrame,
     df["macd"], df["macd_signal"], df["macd_hist"] = compute_macd(
         df["close"], fast=macd_fast, slow=macd_slow, signal=macd_signal_period
     )
-    df["roc_10"] = compute_roc(df["close"], roc_period)
-    df["roc_20"] = compute_roc(df["close"], roc_period * 2)
     df["momentum_signal"] = momentum_signal(df, rsi_oversold=rsi_oversold,
                                              rsi_overbought=rsi_overbought)
     df["ma_52w"]  = df["close"].rolling(ma_regime_window, min_periods=1).mean()
@@ -193,16 +185,21 @@ def add_momentum_features(df: pd.DataFrame,
     # Bear short signal: fade dead-cat bounces in confirmed downtrends.
     # Uses a lower RSI overbought threshold than the standard signal (60/58 vs 62)
     # because bear markets suppress RSI peaks — bounces rarely reach 65+.
-    # Computed after regime so the threshold can vary per regime state.
+    # ONLY COMPUTED WHEN LONGS_ONLY=False — inert column (all zeros) when longs-only.
     try:
         import config as _cfg
-        bear_rsi_ob  = getattr(_cfg, "RSI_OVERBOUGHT_BEAR", 60)
-        sb_rsi_ob    = getattr(_cfg, "RSI_OVERBOUGHT_STRONG_BEAR", 58)
+        _longs_only = getattr(_cfg, "LONGS_ONLY", True)
     except ImportError:
-        bear_rsi_ob, sb_rsi_ob = 60, 58
-    macd_turning_dn = df["macd_hist"] < df["macd_hist"].shift(1)
-    df["bear_short_signal"] = 0
-    df.loc[(df["regime"] == "BEAR")        & (df["rsi"] > bear_rsi_ob)  & macd_turning_dn, "bear_short_signal"] = -1
-    df.loc[(df["regime"] == "STRONG_BEAR") & (df["rsi"] > sb_rsi_ob)    & macd_turning_dn, "bear_short_signal"] = -1
+        _longs_only = True
+    df["bear_short_signal"] = 0  # always create so downstream checks never KeyError
+    if not _longs_only:
+        try:
+            bear_rsi_ob = getattr(_cfg, "RSI_OVERBOUGHT_BEAR", 60)
+            sb_rsi_ob   = getattr(_cfg, "RSI_OVERBOUGHT_STRONG_BEAR", 58)
+        except ImportError:
+            bear_rsi_ob, sb_rsi_ob = 60, 58
+        macd_turning_dn = df["macd_hist"] < df["macd_hist"].shift(1)
+        df.loc[(df["regime"] == "BEAR")        & (df["rsi"] > bear_rsi_ob) & macd_turning_dn, "bear_short_signal"] = -1
+        df.loc[(df["regime"] == "STRONG_BEAR") & (df["rsi"] > sb_rsi_ob)   & macd_turning_dn, "bear_short_signal"] = -1
 
     return df

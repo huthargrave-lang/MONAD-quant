@@ -128,7 +128,15 @@ def add_volatility_features(df: pd.DataFrame,
     df["bb_lower"]   = lower
     df["bb_width"]   = compute_bb_width(df["close"], window)
     df["bb_position"] = compute_bb_position(df["close"], window)
-    df["vol_regime"] = volatility_regime(df, window)
+    try:
+        import config as _cfg
+        _use_regime_filter = getattr(_cfg, "USE_REGIME_FILTER", False)
+    except ImportError:
+        _use_regime_filter = False
+    if _use_regime_filter:
+        df["vol_regime"] = volatility_regime(df, window)
+    else:
+        df["vol_regime"] = 0  # neutral — filter disabled; column must exist for generate_trades
     df["adx"]        = compute_adx(df, period=adx_period)
     df["adx_kelly_mult"] = adx_kelly_mult(df["adx"],
                                            weak_thresh=adx_weak_thresh,

@@ -76,11 +76,12 @@ def _run_slice(df_slice: pd.DataFrame, rsi_oversold: int,
         if len(bear_entries):
             bear_limit_overrides = {idx: bear_bars for idx in bear_entries}
 
-    return compute_trade_returns(
+    returns, _exit_types = compute_trade_returns(
         df_trades, target_gain_pct, stop_loss_pct,
         max_trade_bars=_cfg.MAX_TRADE_BARS,
         bar_limit_overrides=bear_limit_overrides,
     )
+    return returns
 
 
 def _make_windows(df: pd.DataFrame, train_months: int, test_months: int):

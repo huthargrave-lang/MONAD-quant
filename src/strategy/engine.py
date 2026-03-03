@@ -31,7 +31,6 @@ def build_features(df: pd.DataFrame, timeframe: str = "daily",
             macd_fast=config.MACD_FAST_HOURLY,
             macd_slow=config.MACD_SLOW_HOURLY,
             macd_signal_period=config.MACD_SIGNAL_HOURLY,
-            roc_period=config.ROC_PERIOD_HOURLY,
             rsi_oversold=config.RSI_OVERSOLD_HOURLY,
             rsi_overbought=config.RSI_OVERBOUGHT_HOURLY,
         )
@@ -150,6 +149,17 @@ def generate_trades(df: pd.DataFrame,
                 # Veto any BEAR long that doesn't meet the tighter criteria
                 long_entry = long_entry & (~bear_mask | (deep_oversold & (df["signal_vote"] >= 2)))
 
+            # Softer 50-MA gate for STRONG_BULL: only block when price is >X% below the 50-MA.
+            # Healthy bull dips (Aug 2023): 1-3% below 50-MA → NOT blocked.
+            # Extended corrections (June 2024): 7-15% below 50-MA → BLOCKED.
+            # Disabled by default (0.0). Set STRONG_BULL_SOFT_50MA_PCT=0.05 to activate.
+            _soft_50ma_pct = getattr(_cfg, "STRONG_BULL_SOFT_50MA_PCT", 0.0)
+            if _soft_50ma_pct > 0 and "ma_50d" in df.columns:
+                sb_mask      = df["regime"] == "STRONG_BULL"
+                pct_below_ma = (df["ma_50d"] - df["close"]) / df["close"]
+                deep_corr    = sb_mask & (pct_below_ma > _soft_50ma_pct)
+                long_entry   = long_entry & ~deep_corr
+
             short_entry = pd.Series(False, index=df.index)
         else:
             # Bidirectional: constrain direction per regime
@@ -215,21 +225,21 @@ def compute_trade_returns(df: pd.DataFrame,
                            max_trade_bars: int = 10,
                            bar_limit_overrides: dict = None,
                            target_overrides: dict = None,
-                           stop_overrides: dict = None) -> pd.Series:
+                           stop_overrides: dict = None):
     """
     Simulate next-bar trade outcomes for backtesting.
-    Returns a Series of individual trade P&L percentages.
+
+    Returns a tuple: (returns, exit_types)
+      - returns:    pd.Series of individual trade P&L percentages
+      - exit_types: pd.Series of exit type strings ("target_hit", "stop_hit", "time_exit")
 
     Args:
-        bar_limit_overrides: Optional dict of {timestamp: n_bars} to use a different
-                             hold window for specific trades.
-        target_overrides: Optional dict of {timestamp: target_pct} to use a different
-                         take-profit for specific trades.
-        stop_overrides: Optional dict of {timestamp: stop_pct} to use a different
-                       stop-loss for specific trades. Used for bear shorts where
-                       1.5% stop is too tight for crypto intraday noise.
+        bar_limit_overrides: Optional dict of {timestamp: n_bars} — different hold window.
+        target_overrides:    Optional dict of {timestamp: target_pct} — different take-profit.
+        stop_overrides:      Optional dict of {timestamp: stop_pct} — different stop-loss.
     """
     trade_returns = []
+    trade_exit_types = []
     trade_indices = []
     entries = df[df["entry_signal"] != 0]
 
@@ -248,30 +258,41 @@ def compute_trade_returns(df: pd.DataFrame,
         # Look ahead up to n_bars for target/stop
         future = df.iloc[loc + 1: loc + 1 + n_bars]
         exit_return = None
+        exit_type   = None
 
         for _, bar in future.iterrows():
             if direction == 1:
                 if bar["high"] >= entry_price * (1 + target):
                     exit_return = target
+                    exit_type   = "target_hit"
                     break
                 elif bar["low"] <= entry_price * (1 - stop):
                     exit_return = -stop
+                    exit_type   = "stop_hit"
                     break
             elif direction == -1:
                 if bar["low"] <= entry_price * (1 - target):
                     exit_return = target
+                    exit_type   = "target_hit"
                     break
                 elif bar["high"] >= entry_price * (1 + stop):
                     exit_return = -stop
+                    exit_type   = "stop_hit"
                     break
 
         # If no target/stop hit, use close of last future bar
         if exit_return is None and len(future) > 0:
-            last_close = future.iloc[-1]["close"]
+            last_close  = future.iloc[-1]["close"]
             exit_return = direction * (last_close - entry_price) / entry_price
+            exit_type   = "time_exit"
 
         if exit_return is not None:
             trade_returns.append(exit_return)
+            trade_exit_types.append(exit_type)
             trade_indices.append(idx)
 
-    return pd.Series(trade_returns, index=pd.DatetimeIndex(trade_indices))
+    idx_dt = pd.DatetimeIndex(trade_indices)
+    return (
+        pd.Series(trade_returns,    index=idx_dt),
+        pd.Series(trade_exit_types, index=idx_dt),
+    )
