@@ -141,6 +141,18 @@ def generate_trades(df: pd.DataFrame,
                 flat_regimes = {"BEAR", "STRONG_BEAR", "STALLING"}
             long_entry  = long_entry  & (~df["regime"].isin(flat_regimes))
 
+            # STRONG_BULL medium-term alignment gate: require price also above 50-MA.
+            # When BTC is in an extended correction (e.g., -30% from ATH in 2024) the
+            # 252-MA slope still reads STRONG_BULL while price drops well below the 50-MA.
+            # RSI dipping below 38 during those corrections fires entries into a falling
+            # market — not genuine dips. Filtering for price > 50-MA catches this:
+            # shallow dips (true mean-reversion setups) stay above the 50-MA;
+            # deep corrections (trending down short-term) don't.
+            if getattr(_cfg, "STRONG_BULL_REQUIRE_50MA", True) and "ma_50d" in df.columns:
+                sb_mask        = df["regime"] == "STRONG_BULL"
+                above_50ma     = df["close"] >= df["ma_50d"]
+                long_entry     = long_entry & (~sb_mask | above_50ma)
+
             # Bear defensive gate: BEAR longs require RSI deeply oversold (< RSI_OVERSOLD_BEAR)
             # AND both signals must agree (signal_vote >= 2). Overrides regime_kelly_mult to
             # KELLY_MULT_BEAR_LONG (quarter-Kelly) for these entries.

@@ -122,6 +122,9 @@ ADX_BREAKOUT_MIN      = 25     # Minimum ADX trend strength for breakout entry
 # neutral threshold (38). Looser thresholds + wider targets let the strategy
 # participate in bull runs without touching bear/neutral behaviour.
 # Walk-forward optimizer consistently selected RSI<40 in bull windows, RSI<30 in bears.
+STRONG_BULL_REQUIRE_50MA  = True  # Only enter STRONG_BULL longs when price > 50-MA
+                                  # Blocks entries during extended corrections (price below 50-MA)
+                                  # while keeping shallow dip entries intact
 RSI_OVERSOLD_STRONG_BULL  = 42    # Looser — strong uptrend, shallower dips are buyable
 RSI_OVERSOLD_BULL         = 40    # Slightly looser than neutral (38)
 TARGET_GAIN_PCT_STRONG_BULL = 0.03  # 3% target — STRONG_BULL dips recover 3-4% on avg, 5% overshoots
