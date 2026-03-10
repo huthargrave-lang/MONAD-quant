@@ -210,6 +210,7 @@ def run_backtest(df: pd.DataFrame,
         "kelly_position":   sizing,
         "equity_curve":     equity,
         "trade_returns":    trade_returns,
+        "exit_types":       trade_exit_types,
         "monthly_returns":  monthly_returns,
         "bh_return":        round(bh_return, 4),
     }
