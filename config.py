@@ -191,15 +191,15 @@ PLOT_RESULTS     = True
 # trades are running at 35% WR, the next 20 are likely also poor quality.
 # Reduce exposure automatically until quality recovers.
 # All new params default=False/disabled per project constraint.
-USE_ADAPTIVE_KELLY        = False  # Master toggle — set True for BTC hourly
+USE_ADAPTIVE_KELLY        = True   # Master toggle — set True for BTC hourly
 ADAPTIVE_KELLY_LOOKBACK   = 20     # Rolling window in trades (warm-up before activating)
-ADAPTIVE_KELLY_HIGH_WR    = 0.55   # Recent WR ≥ this → scale up (signal quality strong)
+ADAPTIVE_KELLY_HIGH_WR    = 0.52   # Recent WR ≥ this → scale up (was 0.55 — catches 52-55% months)
 ADAPTIVE_KELLY_LOW_WR     = 0.42   # Recent WR < this → scale down (signal degrading)
 ADAPTIVE_KELLY_PAUSE_WR   = 0.35   # Recent WR < this → near-flat (signal breakdown)
 ADAPTIVE_KELLY_HIGH_MULT  = 1.8    # Position multiplier when WR ≥ HIGH (vs 1.0 baseline)
 ADAPTIVE_KELLY_LOW_MULT   = 0.5    # Position multiplier when WR in [PAUSE, LOW)
 ADAPTIVE_KELLY_PAUSE_MULT = 0.2    # Position multiplier when WR < PAUSE
-ADAPTIVE_KELLY_HIGH_CAP   = 0.28   # Position cap in high-WR state (allows Kelly×1.4 to deploy)
+ADAPTIVE_KELLY_HIGH_CAP   = 0.30   # Position cap in high-WR state (was 0.28)
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  ASSET ROUTING — maps ACTIVE_MODE to engine config (do not edit)
