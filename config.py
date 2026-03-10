@@ -217,7 +217,7 @@ ASSETS = {
     },
     "BTC_HOURLY": {
         "type":               "crypto_hourly",
-        "target_gain_pct":    0.005,    # 0.5% per trade on hourly bars
+        "target_gain_pct":    0.004,    # 0.4% per trade on hourly bars
         "stop_loss_pct":      0.0025,   # 0.25% stop
         "require_signals":    1,
         "rsi_oversold":       RSI_OVERSOLD_HOURLY,
