@@ -125,7 +125,8 @@ def walk_forward_optimize(df: pd.DataFrame,
         Dict with keys: oos_trade_returns, per_window_params, summary_stats, window_table.
     """
     if param_grid is None:
-        param_grid = DEFAULT_PARAM_GRID
+        # Use asset-specific grid from config if defined, else fall back to default
+        param_grid = getattr(_cfg, "WALK_FORWARD_PARAM_GRID", DEFAULT_PARAM_GRID)
 
     windows = _make_windows(df, train_months, test_months)
     if not windows:

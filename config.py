@@ -142,9 +142,41 @@ STOP_LOSS_PCT_QQQ      = 0.006  # 0.6% stop (1.67:1 R:R)
 VWAP_ZSCORE_THRESH_QQQ = 1.0   # ETF reverts faster than BTC
 MAX_TRADE_BARS_QQQ     = 10    # Shorter hold — ETF dips tend to resolve faster
 
+# Walk-forward optimizer grid for QQQ (replaces DEFAULT_PARAM_GRID when ACTIVE_MODE="QQQ")
+# RSI 38-45: QQQ rarely hits RSI<30; need looser thresholds to generate trades
+# Targets 0.5-1%: QQQ daily range is 0.5-2%, not BTC's 2-5%
+WALK_FORWARD_PARAM_GRID = {
+    "rsi_oversold":    [38, 40, 42, 44, 45],
+    "target_gain_pct": [0.005, 0.007, 0.010],
+    "stop_loss_pct":   [0.004, 0.006, 0.008],
+}
+
 # Backtest window — QQQ daily
 BACKTEST_START_QQQ = "2020-01-01"
 BACKTEST_END_QQQ   = "2024-12-31"
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  PROFILE 4 — QQQ HOURLY (WORK IN PROGRESS)
+#  Goal:    Equity-hours income stream (~2-4%/month target)
+#  Style:   High-frequency mean-reversion during market hours only
+#  Status:  Params not yet validated — needs backtest tuning
+#  Note:    ~136 bars/month (6.5hr × 21 days) vs BTC hourly's 720/month
+#           Smaller moves (0.05-0.15%/hr) but more orderly mean-reversion
+# ═══════════════════════════════════════════════════════════════════════════
+
+RSI_PERIOD_QQQ_HOURLY         = 7
+RSI_OVERSOLD_QQQ_HOURLY       = 38    # QQQ hourly oversold — less volatile than BTC hourly
+RSI_OVERBOUGHT_QQQ_HOURLY     = 62
+MACD_FAST_QQQ_HOURLY          = 6
+MACD_SLOW_QQQ_HOURLY          = 13
+MACD_SIGNAL_QQQ_HOURLY        = 4
+VWAP_WINDOW_QQQ_HOURLY        = 10
+VWAP_ZSCORE_THRESH_QQQ_HOURLY = 0.8   # Tighter — QQQ VWAP deviations are smaller
+BB_WINDOW_QQQ_HOURLY          = 14
+
+# Backtest window — QQQ hourly (yfinance max 730-day rolling window)
+BACKTEST_START_QQQ_HOURLY = "2024-03-01"
+BACKTEST_END_QQQ_HOURLY   = "2026-02-01"
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  SHARED — Risk & Sizing (applies to all modes)
@@ -187,6 +219,15 @@ ASSETS = {
         "require_signals":    1,
         "vwap_zscore_thresh": VWAP_ZSCORE_THRESH_QQQ,
     },
+    "QQQ_HOURLY": {
+        "type":               "etf_hourly",
+        "target_gain_pct":    0.0015,   # 0.15% per trade — QQQ hourly range is 0.1-0.3%
+        "stop_loss_pct":      0.0008,   # 0.08% stop (1.875:1 R:R)
+        "require_signals":    1,
+        "rsi_oversold":       RSI_OVERSOLD_QQQ_HOURLY,
+        "rsi_overbought":     RSI_OVERBOUGHT_QQQ_HOURLY,
+        "vwap_zscore_thresh": VWAP_ZSCORE_THRESH_QQQ_HOURLY,
+    },
     "SOXL": {
         "type":               "etf",
         "rsi_oversold":       38,
@@ -202,5 +243,6 @@ _MODE_TO_ASSET = {
     "BTC_DAILY":  "BTC",
     "BTC_HOURLY": "BTC_HOURLY",
     "QQQ":        "QQQ",
+    "QQQ_HOURLY": "QQQ_HOURLY",
 }
 DEFAULT_ASSET = _MODE_TO_ASSET.get(ACTIVE_MODE, "BTC")
