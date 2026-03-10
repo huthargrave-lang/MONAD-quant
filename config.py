@@ -123,8 +123,8 @@ BB_WINDOW_HOURLY          = 14
 USE_REGIME_FILTER_HOURLY  = False  # Regime too noisy on hourly bars
 
 # Backtest window — hourly (yfinance max 730-day rolling window)
-BACKTEST_START_HOURLY = "2024-03-01"
-BACKTEST_END_HOURLY   = "2026-02-01"
+BACKTEST_START_HOURLY = "2024-03-15"
+BACKTEST_END_HOURLY   = "2026-02-15"
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  PROFILE 3 — QQQ (WORK IN PROGRESS)
