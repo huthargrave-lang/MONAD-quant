@@ -161,7 +161,7 @@ BACKTEST_END_QQQ   = "2024-12-31"
 # ═══════════════════════════════════════════════════════════════════════════
 
 RSI_PERIOD_QQQ_HOURLY         = 7
-RSI_OVERSOLD_QQQ_HOURLY       = 38    # QQQ hourly oversold — less volatile than BTC hourly
+RSI_OVERSOLD_QQQ_HOURLY       = 40    # QQQ hourly — less volatile than BTC, 38 too rare intraday
 RSI_OVERBOUGHT_QQQ_HOURLY     = 62
 MACD_FAST_QQQ_HOURLY          = 6
 MACD_SLOW_QQQ_HOURLY          = 13

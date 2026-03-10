@@ -32,7 +32,10 @@ def run_backtest(df: pd.DataFrame,
     import config
     df_feat = build_features(df, timeframe=timeframe)
     use_regime = config.USE_REGIME_FILTER_HOURLY if timeframe == "hourly" else config.USE_REGIME_FILTER
-    use_slope_regime = getattr(config, "USE_SLOPE_REGIME", False)
+    # Slope regime uses 252-bar windows designed for daily bars (≈1 trading year).
+    # On hourly bars, 252 bars ≈ 10 trading days — wrong calibration, blocks valid signals.
+    # Disable for all hourly timeframes; signal quality is managed by RSI+VWAP alone.
+    use_slope_regime = False if timeframe == "hourly" else getattr(config, "USE_SLOPE_REGIME", False)
     if getattr(config, "VERBOSE_SIGNALS", False):
         _print_signal_diagnostics(df_feat, require_signals, use_regime,
                                   getattr(config, "USE_MA_REGIME_FILTER", False),
