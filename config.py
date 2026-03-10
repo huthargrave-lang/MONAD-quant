@@ -142,14 +142,10 @@ STOP_LOSS_PCT_QQQ      = 0.006  # 0.6% stop (1.67:1 R:R)
 VWAP_ZSCORE_THRESH_QQQ = 1.0   # ETF reverts faster than BTC
 MAX_TRADE_BARS_QQQ     = 10    # Shorter hold — ETF dips tend to resolve faster
 
-# Walk-forward optimizer grid for QQQ (replaces DEFAULT_PARAM_GRID when ACTIVE_MODE="QQQ")
-# RSI 38-45: QQQ rarely hits RSI<30; need looser thresholds to generate trades
-# Targets 0.5-1%: QQQ daily range is 0.5-2%, not BTC's 2-5%
-WALK_FORWARD_PARAM_GRID = {
-    "rsi_oversold":    [38, 40, 42, 44, 45],
-    "target_gain_pct": [0.005, 0.007, 0.010],
-    "stop_loss_pct":   [0.004, 0.006, 0.008],
-}
+# Walk-forward optimizer note: QQQ daily generates ~5 trades/3yr OOS even at RSI<45
+# — the regime classifier + QQQ's smooth bull trend creates structural signal scarcity.
+# QQQ daily walk-forward is not viable; use QQQ_HOURLY instead.
+# The optimizer uses DEFAULT_PARAM_GRID (in walk_forward.py) when this is unset.
 
 # Backtest window — QQQ daily
 BACKTEST_START_QQQ = "2020-01-01"
@@ -174,9 +170,11 @@ VWAP_WINDOW_QQQ_HOURLY        = 10
 VWAP_ZSCORE_THRESH_QQQ_HOURLY = 0.8   # Tighter — QQQ VWAP deviations are smaller
 BB_WINDOW_QQQ_HOURLY          = 14
 
-# Backtest window — QQQ hourly (yfinance max 730-day rolling window)
-BACKTEST_START_QQQ_HOURLY = "2024-03-01"
-BACKTEST_END_QQQ_HOURLY   = "2026-02-01"
+# Backtest window — QQQ hourly (yfinance max 730-day rolling window from today)
+# Note: equity ETFs enforce the 730-day limit more strictly than crypto
+# 2024-04-01 → 2026-03-01 gives ~23 months safely within the window
+BACKTEST_START_QQQ_HOURLY = "2024-04-01"
+BACKTEST_END_QQQ_HOURLY   = "2026-03-01"
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  SHARED — Risk & Sizing (applies to all modes)
