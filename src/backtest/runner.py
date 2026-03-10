@@ -6,6 +6,7 @@ Full backtest loop with equity curve and performance metrics.
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from collections import deque
 from src.strategy.engine import build_features, generate_trades, compute_trade_returns
 from src.strategy.sizing import estimate_stats_from_backtest, compute_position_size
 
@@ -127,15 +128,20 @@ def run_backtest(df: pd.DataFrame,
     capital = initial_capital
     equity_curve = [capital]
 
-    # Regime → Kelly multiplier map from config (with fallback defaults)
-    regime_mult_map = {
-        "STRONG_BULL": getattr(config, "KELLY_MULT_STRONG_BULL", 1.5),
-        "BULL":        getattr(config, "KELLY_MULT_BULL",        1.0),
-        "STALLING":    getattr(config, "KELLY_MULT_STALLING",   0.75),
-        "RECOVERING":  getattr(config, "KELLY_MULT_RECOVERING", 0.75),
-        "BEAR":        getattr(config, "KELLY_MULT_BEAR",        0.75),
-        "STRONG_BEAR": getattr(config, "KELLY_MULT_STRONG_BEAR", 0.5),
-    }
+    # Adaptive Kelly state — tracks rolling WR to detect signal quality degradation
+    use_adaptive_kelly  = getattr(config, "USE_ADAPTIVE_KELLY", False)
+    ak_lookback         = getattr(config, "ADAPTIVE_KELLY_LOOKBACK",  20)
+    ak_high_wr          = getattr(config, "ADAPTIVE_KELLY_HIGH_WR",  0.55)
+    ak_low_wr           = getattr(config, "ADAPTIVE_KELLY_LOW_WR",   0.42)
+    ak_pause_wr         = getattr(config, "ADAPTIVE_KELLY_PAUSE_WR", 0.35)
+    ak_high_mult        = getattr(config, "ADAPTIVE_KELLY_HIGH_MULT",  1.4)
+    ak_low_mult         = getattr(config, "ADAPTIVE_KELLY_LOW_MULT",   0.5)
+    ak_pause_mult       = getattr(config, "ADAPTIVE_KELLY_PAUSE_MULT", 0.2)
+    ak_high_cap         = getattr(config, "ADAPTIVE_KELLY_HIGH_CAP",   0.28)
+    recent_outcomes: deque = deque(maxlen=ak_lookback)
+
+    # Collect actual per-trade capital contributions for accurate monthly display
+    trade_capital_returns: dict = {}
 
     for idx, r in trade_returns.items():
         base_kelly = sizing["kelly_capped"]
@@ -163,9 +169,30 @@ def run_backtest(df: pd.DataFrame,
             pos_cap = getattr(config, "MAX_POSITION_PCT_STRONG_BULL", config.MAX_POSITION_PCT)
         else:
             pos_cap = config.MAX_POSITION_PCT
-        kelly_trade = min(base_kelly * regime_mult * adx_mult, pos_cap)
-        capital += capital * kelly_trade * r
+
+        # Adaptive Kelly: scale position by rolling win rate of recent trades.
+        # High WR → size up; degrading WR → size down; breakdown → near-flat.
+        # Only activates after warm-up period (first ak_lookback trades use baseline).
+        if use_adaptive_kelly and len(recent_outcomes) == ak_lookback:
+            rolling_wr = sum(recent_outcomes) / ak_lookback
+            if rolling_wr >= ak_high_wr:
+                adaptive_mult = ak_high_mult
+                pos_cap = max(pos_cap, ak_high_cap)   # allow slightly larger cap when WR is strong
+            elif rolling_wr >= ak_low_wr:
+                adaptive_mult = 1.0                   # normal — no change
+            elif rolling_wr >= ak_pause_wr:
+                adaptive_mult = ak_low_mult           # signal degrading — half position
+            else:
+                adaptive_mult = ak_pause_mult         # signal breakdown — near-flat
+        else:
+            adaptive_mult = 1.0
+
+        kelly_trade = min(base_kelly * regime_mult * adx_mult * adaptive_mult, pos_cap)
+        pct_change  = kelly_trade * r
+        capital    += capital * pct_change
         equity_curve.append(capital)
+        trade_capital_returns[idx] = pct_change        # actual % capital move this trade
+        recent_outcomes.append(1 if r > 0 else 0)     # update rolling window after trade
 
     equity = pd.Series(equity_curve)
 
@@ -191,9 +218,11 @@ def run_backtest(df: pd.DataFrame,
     ann_return = (1 + total_return) ** (1 / years) - 1 if years > 0 else total_return
     bh_ann_return = (1 + bh_return) ** (1 / years) - 1 if years > 0 else bh_return
 
-    # Monthly "dividend" breakdown — scale by kelly_capped so it matches equity curve
-    kelly_scaled = trade_returns * sizing["kelly_capped"]
-    monthly_returns = kelly_scaled.resample("ME").apply(
+    # Monthly "dividend" breakdown — use actual per-trade capital returns from equity loop
+    # (trade_capital_returns reflects actual kelly sizing including adaptive adjustments)
+    capital_ret_series = pd.Series(trade_capital_returns, dtype=float)
+    capital_ret_series.index = pd.to_datetime(capital_ret_series.index)
+    monthly_returns = capital_ret_series.resample("ME").apply(
         lambda x: (1 + x).prod() - 1 if len(x) > 0 else 0.0
     )
     monthly_counts = trade_returns.resample("ME").count()

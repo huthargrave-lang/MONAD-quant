@@ -185,6 +185,22 @@ MAX_POSITION_PCT = 0.20      # Never risk more than 20% per trade
 MIN_POSITION_PCT = 0.02      # Floor: deploy at least 2% when Kelly sample is thin
 PLOT_RESULTS     = True
 
+# ── Adaptive Kelly — signal quality detector ─────────────────────────────
+# Tracks rolling win rate over the last N trades and scales position size.
+# Key use case: BTC hourly bad months (33-37% WR) cluster — if the last 20
+# trades are running at 35% WR, the next 20 are likely also poor quality.
+# Reduce exposure automatically until quality recovers.
+# All new params default=False/disabled per project constraint.
+USE_ADAPTIVE_KELLY        = False  # Master toggle — set True for BTC hourly
+ADAPTIVE_KELLY_LOOKBACK   = 20     # Rolling window in trades (warm-up before activating)
+ADAPTIVE_KELLY_HIGH_WR    = 0.55   # Recent WR ≥ this → scale up (signal quality strong)
+ADAPTIVE_KELLY_LOW_WR     = 0.42   # Recent WR < this → scale down (signal degrading)
+ADAPTIVE_KELLY_PAUSE_WR   = 0.35   # Recent WR < this → near-flat (signal breakdown)
+ADAPTIVE_KELLY_HIGH_MULT  = 1.4    # Position multiplier when WR ≥ HIGH (vs 1.0 baseline)
+ADAPTIVE_KELLY_LOW_MULT   = 0.5    # Position multiplier when WR in [PAUSE, LOW)
+ADAPTIVE_KELLY_PAUSE_MULT = 0.2    # Position multiplier when WR < PAUSE
+ADAPTIVE_KELLY_HIGH_CAP   = 0.28   # Position cap in high-WR state (allows Kelly×1.4 to deploy)
+
 # ═══════════════════════════════════════════════════════════════════════════
 #  ASSET ROUTING — maps ACTIVE_MODE to engine config (do not edit)
 # ═══════════════════════════════════════════════════════════════════════════
