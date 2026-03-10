@@ -1,173 +1,206 @@
 """
-MONAD Quant - Strategy Configuration
-Tune parameters here without touching core logic.
+MONAD Quant — Strategy Configuration
+=====================================
+Change ACTIVE_MODE to switch between strategy profiles.
+All other parameters are pre-tuned for their respective mode.
 """
 
-# ── Assets ─────────────────────────────────────────────────────────────────
-ASSETS = {
-    "BTC": {
-        "type": "crypto",
-        "market": "USD",
-        "rsi_oversold": 38,
-        "rsi_overbought": 62,
-        "target_gain_pct": 0.030,
-        "stop_loss_pct": 0.015,
-        "require_signals": 1,
-        "vwap_zscore_thresh": 1.3,
-    },
-    "QQQ": {
-        "type": "etf",
-        "rsi_oversold": 42,
-        "rsi_overbought": 58,
-        "target_gain_pct": 0.010,  # tighter targets for less volatile ETF
-        "stop_loss_pct": 0.007,
-        "require_signals": 1,
-        "vwap_zscore_thresh": 1.0,  # ETFs revert faster
-    },
-    "SOXL": {
-        "type": "etf",
-        "rsi_oversold": 38,
-        "rsi_overbought": 62,
-        "target_gain_pct": 0.020,  # leveraged ETF, wider targets
-        "stop_loss_pct": 0.012,
-        "require_signals": 1,
-        "vwap_zscore_thresh": 1.3,
-    },
-    "BTC_HOURLY": {
-        "type": "crypto_hourly",
-        "target_gain_pct": 0.004,   # 0.4% per trade on hourly bars
-        "stop_loss_pct": 0.0025,    # 0.25% stop (1.6:1 R/R)
-        "require_signals": 1,
-        "rsi_oversold": 35,
-        "rsi_overbought": 65,
-        "vwap_zscore_thresh": 1.0,
-    },
-}
+# ═══════════════════════════════════════════════════════════════════════════
+#  ACTIVE MODE — the only line you normally need to change
+#  Options: "BTC_DAILY" | "BTC_HOURLY" | "QQQ"
+# ═══════════════════════════════════════════════════════════════════════════
+ACTIVE_MODE = "BTC_DAILY"
 
-DEFAULT_ASSET = "BTC"
+# ═══════════════════════════════════════════════════════════════════════════
+#  PROFILE 1 — BTC DAILY
+#  Goal:    Capital preservation + consistent monthly income (~0.4–0.5%/mo)
+#  Style:   Mean-reversion dip-buying in confirmed bull regimes
+#  Sharpe:  4.9  |  Max DD: -1.72%  |  5yr return: 11.05%
+#  Best for: accounts that want near-zero drawdown, high Sharpe
+# ═══════════════════════════════════════════════════════════════════════════
 
-# ── Signal Parameters ───────────────────────────────────────────────────────
+# Signal params — daily bars
 RSI_PERIOD        = 14
-RSI_OVERSOLD      = 38
+RSI_OVERSOLD      = 38       # BTC in uptrends rarely hits 30 — 38 catches shallow bull dips
 RSI_OVERBOUGHT    = 62
 MACD_FAST         = 12
 MACD_SLOW         = 26
 MACD_SIGNAL       = 9
-ROC_PERIOD        = 10
+ROC_PERIOD        = 10       # Legacy param — computed but unused; kept for config compatibility
 VWAP_WINDOW       = 20
-VWAP_ZSCORE_THRESH = 1.3
+VWAP_ZSCORE_THRESH = 1.3     # Fires ~15-20% of bars; 1.5 too rare on BTC daily
 ATR_PERIOD        = 14
 BB_WINDOW         = 20
 BB_STD            = 2.0
 
-# ── Strategy Parameters ─────────────────────────────────────────────────────
-REQUIRE_SIGNALS      = 1        # Minimum signals to agree for entry (1-3)
-TARGET_GAIN_PCT      = 0.030    # 3.0% take profit (BTC daily ATR is 2-5%, 1.5% was within noise)
-STOP_LOSS_PCT        = 0.015    # 1.5% stop loss  (2:1 R:R vs old 1.5:1)
-MAX_TRADE_BARS       = 20       # Bars to hold before closing at market (4 trading weeks)
-USE_REGIME_FILTER    = False    # Vol-regime binary gate — too blunt for trending periods; MA filter handles regime
-MA_REGIME_WINDOW     = 252      # 52-week MA lookback (trading days)
-USE_MA_REGIME_FILTER = False    # Legacy binary gate — disabled, replaced by slope regime below
-VERBOSE_SIGNALS      = True     # Print per-filter bar counts before each backtest
+# Strategy params — daily
+REQUIRE_SIGNALS       = 1        # Only 1 of 2 signals needed — regime does the heavy filtering
+TARGET_GAIN_PCT       = 0.030    # 3% take-profit — dips recover 3-4%; 5% overshoots and reverses
+STOP_LOSS_PCT         = 0.015    # 1.5% stop (2:1 R:R)
+MAX_TRADE_BARS        = 20       # 4 trading weeks max hold — mean-reversion resolves in <4wks
 
-# ── MA Slope Regime ──────────────────────────────────────────────────────────
-# 6-state slope-based classifier (replaces the binary USE_MA_REGIME_FILTER gate).
-# Regimes: STRONG_BULL / BULL / STALLING / RECOVERING / BEAR / STRONG_BEAR
-# Direction constrained per regime; Kelly scaled continuously per trade.
-USE_SLOPE_REGIME      = True    # Enable slope-based regime (replaces USE_MA_REGIME_FILTER)
-LONGS_ONLY            = True    # Sit flat in BEAR/STRONG_BEAR — capital preservation IS the bear alpha
-MA_SLOPE_WINDOW       = 20      # Bars over which to measure MA slope
-MA_SHORT_WINDOW       = 50      # 50-day MA — RECOVERING fires when price crosses above this
-MA_STRONG_BULL_SLOPE  = 0.02    # MA rises >2% over slope window → STRONG_BULL
-MA_STRONG_BEAR_SLOPE  = -0.02   # MA falls >2% over slope window → STRONG_BEAR
+# Regime — daily (6-state slope classifier; core of the strategy)
+USE_SLOPE_REGIME      = True
+LONGS_ONLY            = True     # Bear alpha = NOT losing, not chasing shorts
+MA_SLOPE_WINDOW       = 20
+MA_SHORT_WINDOW       = 50       # RECOVERING fires when price crosses above 50-MA (2-4wk lag vs 252-MA)
+MA_STRONG_BULL_SLOPE  = 0.02
+MA_STRONG_BEAR_SLOPE  = -0.02
+MA_REGIME_WINDOW      = 252      # 1-year lookback for broad trend
 
-# Per-regime Kelly multipliers (applied per-trade in runner.py)
-KELLY_MULT_STRONG_BULL = 1.5    # Trend accelerating up — size up
-KELLY_MULT_BULL        = 1.0    # Trend steady upward — base Kelly
-KELLY_MULT_STALLING    = 0.75   # Above MA but MA rolling over — cautious, both directions
-KELLY_MULT_RECOVERING  = 0.75   # Below MA but price rising — longs only, cautious
-KELLY_MULT_BEAR        = 0.75   # Trend declining — base for shorts (defensive longs use KELLY_MULT_BEAR_LONG)
-KELLY_MULT_STRONG_BEAR = 0.5    # Trend accelerating down — size down, sit flat in longs_only
+# Per-regime Kelly multipliers
+KELLY_MULT_STRONG_BULL = 1.5
+KELLY_MULT_BULL        = 1.0
+KELLY_MULT_STALLING    = 0.75
+KELLY_MULT_RECOVERING  = 0.75
+KELLY_MULT_BEAR        = 0.75
+KELLY_MULT_STRONG_BEAR = 0.5
 
-# ── Bear Market Defensive Longs ──────────────────────────────────────────────
-# In BEAR regime (mild downtrend, not STRONG_BEAR), allow very small long entries
-# when RSI is deeply oversold. These capture bear-market bounces (+20-30% in 2022)
-# without fighting a confirmed downtrend. STRONG_BEAR stays completely flat for longs.
-BEAR_DEFENSIVE_LONGS  = True   # Allow longs in BEAR regime (True/False to toggle)
-RSI_OVERSOLD_BEAR     = 30     # Deeply oversold only — much tighter than bull threshold (38)
-KELLY_MULT_BEAR_LONG  = 0.25   # Quarter-Kelly — capital preservation, not full sizing
-BEAR_MAX_TRADE_BARS   = 10     # Exit in 2 weeks — don't hold into a deepening downtrend
+# Bear defensive longs — small longs at RSI<30 in BEAR (not STRONG_BEAR)
+BEAR_DEFENSIVE_LONGS  = True
+RSI_OVERSOLD_BEAR     = 30
+KELLY_MULT_BEAR_LONG  = 0.25
+BEAR_MAX_TRADE_BARS   = 10
 
-# ── Bear Market Shorts (ONLY ACTIVE WHEN LONGS_ONLY=False) ───────────────────
-# These params are inert when LONGS_ONLY=True (the current default). All bear short
-# code paths are guarded by LONGS_ONLY checks in momentum.py, engine.py, and runner.py.
-# To activate bear shorts, flip LONGS_ONLY=False — these params take effect immediately.
-# Note: bear shorts tested in 2022 yielded 0% WR due to regime lag + tight stops.
-# Would need ATR-based stops to be viable (see USE_ATR_DYNAMIC_STOPS below).
-RSI_OVERBOUGHT_BEAR        = 60    # Bear rally exhaustion — lower than standard 62
-RSI_OVERBOUGHT_STRONG_BEAR = 58    # Even lower in accelerating downtrend
-KELLY_MULT_BEAR_SHORT      = 0.5   # Half-Kelly — shorts in bears are volatile
-KELLY_MULT_STRONG_BEAR_SHORT = 0.75 # More conviction in confirmed strong bear
-BEAR_SHORT_MAX_BARS        = 10    # Quick exit — don't hold short into sudden reversal
-BEAR_SHORT_STOP_PCT        = 0.025 # 2.5% stop for shorts — crypto swings 3-5% intraday, 1.5% is noise
+# Strong bull tuning
+TARGET_GAIN_PCT_STRONG_BULL  = 0.03   # Same 3% — mean-reversion exits stay early
+MAX_TRADE_BARS_STRONG_BULL   = 30     # 6 weeks max in strong bull
+MAX_POSITION_PCT_STRONG_BULL = 0.30   # 30% cap lets Kelly×1.5 deploy to 27% (was truncated at 20%)
 
-# ── Bull Breakout Signal (Phase B) ───────────────────────────────────────────
-# In STRONG_BULL, add a trend-following breakout entry alongside mean-reversion.
-# Fires when price breaks 20-day high + ADX confirms trend strength + MACD bullish.
-# This is a momentum signal — distinct from the RSI dip-buying mean-reversion signal.
-BULL_BREAKOUT_ENABLED = False  # Disabled — fires too frequently at ATH in STRONG_BULL, momentum trap
-BREAKOUT_WINDOW       = 20     # N-day high breakout confirmation window
-ADX_BREAKOUT_MIN      = 25     # Minimum ADX trend strength for breakout entry
+# Soft 50-MA correction gate (0 = disabled; 0.05 = block if >5% below 50-MA)
+STRONG_BULL_REQUIRE_50MA  = False
+STRONG_BULL_SOFT_50MA_PCT = 0.0       # Set to 0.05 to filter extended corrections (June/Aug 2024)
 
-# ── Bull Market Participation ─────────────────────────────────────────────────
-STRONG_BULL_REQUIRE_50MA  = False # Disabled — strict gate filtered 71/83 5yr trades (Aug 2023,
-                                  # May 2021 healthy entries naturally occur below lagging 50-MA).
-                                  # Use STRONG_BULL_SOFT_50MA_PCT for the softer version instead.
-STRONG_BULL_SOFT_50MA_PCT = 0.0   # 0 = disabled. Set to 0.05 to only block STRONG_BULL entries
-                                  # when price is >5% below the 50-MA (extended corrections like
-                                  # June 2024 are 7-15% below; healthy dips like Aug 2023 are 1-3%).
-TARGET_GAIN_PCT_STRONG_BULL = 0.03  # 3% target — STRONG_BULL dips recover 3-4% on avg, 5% overshoots
-MAX_TRADE_BARS_STRONG_BULL  = 30    # Hold up to 6 weeks instead of 4 in strong bull
-MAX_POSITION_PCT_STRONG_BULL = 0.30 # 30% cap — lets Kelly ×1.5 actually deploy (was truncated at 20%)
-
-# ── ADX (Average Directional Index) ─────────────────────────────────────────
-# Layered Kelly multiplier: trend strength independent of direction.
+# ADX sizing
 ADX_PERIOD        = 14
-ADX_WEAK_THRESH   = 20    # ADX < 20: choppy/no trend → Kelly × 0.8
-ADX_STRONG_THRESH = 35    # ADX > 35: strong trend    → Kelly × 1.2
-USE_ADX_SIZING    = True  # Apply ADX multiplier to per-trade Kelly
+ADX_WEAK_THRESH   = 20    # ADX < 20: Kelly × 0.8
+ADX_STRONG_THRESH = 35    # ADX > 35: Kelly × 1.2
+USE_ADX_SIZING    = True
 
-# ── ATR-Based Dynamic Stops ─────────────────────────────────────────────────
-# When current ATR exceeds ATR_STOP_MULT × 20-day median ATR, override the fixed
-# 1.5% stop with a wider ATR-proportional stop to avoid noise-triggered exits.
-# Addresses bad months (June/Aug 2024) where daily ATR 3-7% dwarfs the 1.5% stop.
-# Disabled by default — enable and test on 5yr before using live.
-USE_ATR_DYNAMIC_STOPS = False   # Enable ATR-scaled stop overrides
-ATR_STOP_MULT         = 2.0     # Trigger: override stop when ATR > 2× 20-day median ATR
-ATR_STOP_CAP_PCT      = 0.04    # Hard cap: stop never exceeds 4% even in extreme volatility
+# ATR dynamic stops (disabled — widen stop to 1×ATR when ATR > 2× 20-day median)
+USE_ATR_DYNAMIC_STOPS = False
+ATR_STOP_MULT         = 2.0
+ATR_STOP_CAP_PCT      = 0.04
 
-# ── Risk & Sizing ───────────────────────────────────────────────────────────
-INITIAL_CAPITAL   = 100_000
-KELLY_MULTIPLIER  = 0.5      # Fractional Kelly (0.5 = half-Kelly)
-MAX_POSITION_PCT  = 0.20     # Never risk more than 20% per trade
-MIN_POSITION_PCT  = 0.02     # Floor: deploy at least 2% even when Kelly sample is thin
+# Disabled features (guarded in code, kept for future activation)
+USE_REGIME_FILTER    = False   # Vol-regime binary gate — too blunt
+USE_MA_REGIME_FILTER = False   # Legacy binary gate — replaced by slope regime
+BULL_BREAKOUT_ENABLED = False  # Momentum trap near ATH — tested, failed
+VERBOSE_SIGNALS      = True
 
-# ── Hourly Signal Parameters (BTC intraday) ─────────────────────────────────
-RSI_PERIOD_HOURLY      = 7
-RSI_OVERSOLD_HOURLY    = 40   # 35 is too rare on hourly BTC during bull runs
-RSI_OVERBOUGHT_HOURLY  = 60
-MACD_FAST_HOURLY       = 6
-MACD_SLOW_HOURLY       = 13
-MACD_SIGNAL_HOURLY     = 4
-ROC_PERIOD_HOURLY      = 5
-VWAP_WINDOW_HOURLY     = 10
-VWAP_ZSCORE_THRESH_HOURLY = 1.0  # passed to volume signal (was defaulting to 1.5)
-BB_WINDOW_HOURLY       = 14
-USE_REGIME_FILTER_HOURLY = False  # regime filter too noisy on hourly bars
+# Bear shorts (ONLY ACTIVE WHEN LONGS_ONLY=False — all code paths guarded)
+RSI_OVERBOUGHT_BEAR          = 60
+RSI_OVERBOUGHT_STRONG_BEAR   = 58
+KELLY_MULT_BEAR_SHORT        = 0.5
+KELLY_MULT_STRONG_BEAR_SHORT = 0.75
+BEAR_SHORT_MAX_BARS          = 10
+BEAR_SHORT_STOP_PCT          = 0.025
+BREAKOUT_WINDOW              = 20
+ADX_BREAKOUT_MIN             = 25
 
-# ── Backtest ────────────────────────────────────────────────────────────────
-BACKTEST_START        = "2020-01-01"
-BACKTEST_END          = "2024-12-31"
-BACKTEST_START_HOURLY = "2024-03-01"   # yfinance: max 730 days rolling from today
+# Backtest window — daily
+BACKTEST_START = "2020-01-01"
+BACKTEST_END   = "2024-12-31"
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  PROFILE 2 — BTC HOURLY
+#  Goal:    Active income generation (~5–6%/month avg)
+#  Style:   High-frequency mean-reversion on intraday bars
+#  Sharpe:  2.4  |  Max DD: -0.39%  |  2yr return: 7.8%  |  ~116 trades/mo
+#  Best for: accounts that want high monthly income, can handle lower WR (46%)
+# ═══════════════════════════════════════════════════════════════════════════
+
+RSI_PERIOD_HOURLY         = 7
+RSI_OVERSOLD_HOURLY       = 40     # 35 too rare during bull runs; 40 fires consistently
+RSI_OVERBOUGHT_HOURLY     = 60
+MACD_FAST_HOURLY          = 6
+MACD_SLOW_HOURLY          = 13
+MACD_SIGNAL_HOURLY        = 4
+ROC_PERIOD_HOURLY         = 5
+VWAP_WINDOW_HOURLY        = 10
+VWAP_ZSCORE_THRESH_HOURLY = 1.0    # Tighter threshold — hourly VWAP reverts faster
+BB_WINDOW_HOURLY          = 14
+USE_REGIME_FILTER_HOURLY  = False  # Regime too noisy on hourly bars
+
+# Backtest window — hourly (yfinance max 730-day rolling window)
+BACKTEST_START_HOURLY = "2024-03-01"
 BACKTEST_END_HOURLY   = "2026-02-01"
-PLOT_RESULTS          = True
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  PROFILE 3 — QQQ (WORK IN PROGRESS)
+#  Goal:    Equity-like returns with reduced drawdown vs passive index
+#  Style:   Mean-reversion dip-buying in tech bull regimes
+#  Status:  Params not yet optimized — needs walk-forward tuning
+#  Note:    Lower volatility than BTC → tighter targets/stops, RSI higher
+# ═══════════════════════════════════════════════════════════════════════════
+
+# QQQ-specific signal params (to be refined via walk-forward optimizer)
+RSI_OVERSOLD_QQQ       = 42     # QQQ dips are shallower — 42 vs BTC's 38
+RSI_OVERBOUGHT_QQQ     = 58
+TARGET_GAIN_PCT_QQQ    = 0.010  # 1% target — QQQ daily range is 0.5-2%, not 2-5%
+STOP_LOSS_PCT_QQQ      = 0.006  # 0.6% stop (1.67:1 R:R)
+VWAP_ZSCORE_THRESH_QQQ = 1.0   # ETF reverts faster than BTC
+MAX_TRADE_BARS_QQQ     = 10    # Shorter hold — ETF dips tend to resolve faster
+
+# Backtest window — QQQ daily
+BACKTEST_START_QQQ = "2020-01-01"
+BACKTEST_END_QQQ   = "2024-12-31"
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  SHARED — Risk & Sizing (applies to all modes)
+# ═══════════════════════════════════════════════════════════════════════════
+INITIAL_CAPITAL  = 100_000
+KELLY_MULTIPLIER = 0.5       # Half-Kelly — reduces variance vs full Kelly
+MAX_POSITION_PCT = 0.20      # Never risk more than 20% per trade
+MIN_POSITION_PCT = 0.02      # Floor: deploy at least 2% when Kelly sample is thin
+PLOT_RESULTS     = True
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  ASSET ROUTING — maps ACTIVE_MODE to engine config (do not edit)
+# ═══════════════════════════════════════════════════════════════════════════
+ASSETS = {
+    "BTC": {
+        "type":               "crypto",
+        "market":             "USD",
+        "rsi_oversold":       RSI_OVERSOLD,
+        "rsi_overbought":     RSI_OVERBOUGHT,
+        "target_gain_pct":    TARGET_GAIN_PCT,
+        "stop_loss_pct":      STOP_LOSS_PCT,
+        "require_signals":    REQUIRE_SIGNALS,
+        "vwap_zscore_thresh": VWAP_ZSCORE_THRESH,
+    },
+    "BTC_HOURLY": {
+        "type":               "crypto_hourly",
+        "target_gain_pct":    0.004,    # 0.4% per trade on hourly bars
+        "stop_loss_pct":      0.0025,   # 0.25% stop
+        "require_signals":    1,
+        "rsi_oversold":       RSI_OVERSOLD_HOURLY,
+        "rsi_overbought":     RSI_OVERBOUGHT_HOURLY,
+        "vwap_zscore_thresh": VWAP_ZSCORE_THRESH_HOURLY,
+    },
+    "QQQ": {
+        "type":               "etf",
+        "rsi_oversold":       RSI_OVERSOLD_QQQ,
+        "rsi_overbought":     RSI_OVERBOUGHT_QQQ,
+        "target_gain_pct":    TARGET_GAIN_PCT_QQQ,
+        "stop_loss_pct":      STOP_LOSS_PCT_QQQ,
+        "require_signals":    1,
+        "vwap_zscore_thresh": VWAP_ZSCORE_THRESH_QQQ,
+    },
+    "SOXL": {
+        "type":               "etf",
+        "rsi_oversold":       38,
+        "rsi_overbought":     62,
+        "target_gain_pct":    0.020,
+        "stop_loss_pct":      0.012,
+        "require_signals":    1,
+        "vwap_zscore_thresh": 1.3,
+    },
+}
+
+_MODE_TO_ASSET = {
+    "BTC_DAILY":  "BTC",
+    "BTC_HOURLY": "BTC_HOURLY",
+    "QQQ":        "QQQ",
+}
+DEFAULT_ASSET = _MODE_TO_ASSET.get(ACTIVE_MODE, "BTC")

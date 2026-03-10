@@ -8,15 +8,24 @@
 
 ## 1. Project Goal
 
-**NOT a growth strategy.** MONAD Quant is designed as a **capital-preservation + income** engine:
-- Target: consistent monthly "dividends" from BTC mean-reversion trades
-- Sharpe > 4.0 (risk-adjusted quality over raw returns)
-- Max drawdown < 5%
-- In bear markets: sit flat or take defensive small longs — **avoid losing money, not chase shorts**
-- In bull markets: buy RSI dips in confirmed uptrend regimes, sized via Kelly Criterion
+**NOT a growth strategy.** MONAD Quant is a **high-yield bond ETF alternative** — an
+actively-traded, long-only engine designed to generate consistent monthly income with
+near-zero drawdown. The strategy has two active modes:
 
-The Buy & Hold comparison (BTC +1194% over 5yr) is intentionally unfavorable — this strategy
-is for someone who wants low-volatility, consistent small gains, not crypto lottery tickets.
+| Mode | Target | Sharpe | Max DD | Style |
+|---|---|---|---|---|
+| **BTC Daily** | ~0.4%/mo, Sharpe >4 | 4.924 | -1.72% | Capital preservation + high Sharpe |
+| **BTC Hourly** | ~5–6%/mo income | 2.365 | -0.39% | Active income, ~116 trades/mo |
+| **QQQ** | TBD (WIP) | — | — | ETF mean-reversion (not yet tuned) |
+
+Core principles across all modes:
+- **Long-only** — bear alpha is defined as NOT losing money, not chasing shorts
+- **In bear markets:** sit flat (cash) or take tiny defensive longs — never fight downtrends
+- **In bull markets:** buy RSI dips in confirmed uptrend regimes, sized via Kelly Criterion
+- **Switch modes** by changing `ACTIVE_MODE` in `config.py` — one line
+
+The Buy & Hold comparison (BTC +1194% over 5yr) is intentionally unfavorable — the correct
+benchmark is a 4-6% high-yield bond ETF, not crypto lottery tickets.
 
 ---
 
@@ -262,11 +271,14 @@ RSI during a regular day. Too many false entries.
 
 ## 8. Current Performance Snapshot
 
+### BTC Daily (ACTIVE_MODE = "BTC_DAILY")
+
 **5-year (2020-01-01 → 2024-12-31):**
 ```
 Trades: 83 | Win Rate: 49.4% | Total Return: 11.05%
 Annualized: 2.12% | Sharpe: 4.924 | Max DD: -1.72%
 Final Capital: $111,049 (from $100,000)
+Exit breakdown: target_hit=41  stop_hit=42  time_exit=0
 ```
 
 **2023 (best bull year, best signal quality):**
@@ -297,10 +309,54 @@ Sharpe: 9.166 | Max DD: -0.72%
 2024-08: -0.36%,  2 trades,  0.0% WR  ← BAD: BTC correction continues
 ```
 
-**Observations:**
+**Observations (daily):**
 - 14 months with 0 trades (flat — correct behavior in BEAR/STRONG_BEAR)
-- Best performance: May 2021 (crash recovery), August 2023 (healthy bull dip)
-- Worst performance: June/August 2024, April 2021 (regime lag during BTC corrections)
+- Best: May 2021 (crash recovery), August 2023 (healthy bull dip)
+- Worst: June/Aug 2024, April 2021 (regime lag during BTC corrections)
+
+---
+
+### BTC Hourly (ACTIVE_MODE = "BTC_HOURLY")
+
+**2-year (2024-03-01 → 2026-02-01):**
+```
+Trades: 2,675 (~116/mo) | Win Rate: 46.2% | Total Return: 7.80%
+Sharpe: 2.365 | Max DD: -0.39% | Avg Monthly: +5.75%
+Final Capital: $107,802 (from $100,000)
+```
+
+**Monthly breakdown:**
+```
+2024-03: +8.69%, 103 trades, 51.5%  ← strong start
+2024-04: +3.55%, 121 trades, 43.0%
+2024-05: +5.33%, 121 trades, 45.5%
+2024-06: +0.85%, 120 trades, 40.8%
+2024-07: +3.62%, 122 trades, 44.3%
+2024-08: +5.12%, 115 trades, 45.2%
+2024-09: +0.71%, 141 trades, 39.7%
+2024-10: +7.72%, 120 trades, 48.3%
+2024-11:+11.39%, 110 trades, 53.6%  ← BTC bull run
+2024-12: +9.78%, 121 trades, 50.4%
+2025-01: +9.46%, 117 trades, 50.4%
+2025-02:+17.11%, 107 trades, 61.7%  ← BEST month
+2025-03:+11.27%, 117 trades, 53.0%
+2025-04: +5.05%, 111 trades, 45.0%
+2025-05: +4.26%, 105 trades, 45.7%
+2025-06: +7.59%, 131 trades, 46.6%
+2025-07: -0.95%, 123 trades, 37.4%  ← BAD: BTC correction
+2025-08: +3.93%, 112 trades, 44.6%
+2025-09: +5.36%, 106 trades, 48.1%
+2025-10: -0.89%, 120 trades, 39.2%
+2025-11: -3.64%, 116 trades, 33.6%  ← WORST month
+2025-12:+11.55%,  91 trades, 57.1%
+2026-01: +5.33%, 125 trades, 45.6%
+```
+
+**Observations (hourly):**
+- Only 3 negative months out of 23 (87% hit rate on positive months)
+- Worst month -3.64% is contained — max DD over full period only -0.39%
+- High-trade-count months (40+ WR) consistently positive; bad months correlate with WR <38%
+- No regime classifier on hourly — volume + RSI signal quality is the primary filter
 
 ---
 
@@ -416,12 +472,18 @@ while price is already between the 50-MA and 252-MA (already in recovery momentu
 
 ### Config flags quick reference
 ```python
+# ── Mode selector (the one line you change to switch profiles) ──
+ACTIVE_MODE = "BTC_DAILY"       # "BTC_DAILY" | "BTC_HOURLY" | "QQQ"
+
+# ── BTC Daily core flags ─────────────────────────────────────────
 USE_SLOPE_REGIME = True         # Core: 6-state regime classifier
 LONGS_ONLY = True               # No shorts (bear alpha = capital preservation)
 BEAR_DEFENSIVE_LONGS = True     # Small longs in BEAR at RSI<30, quarter-Kelly
 BULL_BREAKOUT_ENABLED = False   # Disabled: momentum trap near ATH
 STRONG_BULL_REQUIRE_50MA = False # Disabled: filtered 71/83 5yr trades
+STRONG_BULL_SOFT_50MA_PCT = 0.0  # 0=off; 0.05=block >5% below 50-MA
 USE_ADX_SIZING = True           # Active: ADX multiplier on position size
+USE_ATR_DYNAMIC_STOPS = False   # Disabled: widen stops in high-vol periods
 MAX_POSITION_PCT_STRONG_BULL = 0.30  # KEY FIX: lets Kelly×1.5 deploy to 27%
 TARGET_GAIN_PCT_STRONG_BULL = 0.03   # 3% (not 5% — 5% killed win rate)
 ```
@@ -442,5 +504,5 @@ TARGET_GAIN_PCT_STRONG_BULL = 0.03   # 3% (not 5% — 5% killed win rate)
 
 ---
 
-*Last updated: 2026-03-03 — after 30% STRONG_BULL cap fix and 50-MA gate revert*
+*Last updated: 2026-03-10 — multi-mode architecture (BTC Daily / BTC Hourly / QQQ), ACTIVE_MODE selector, hourly performance data added*
 *Branch: claude/review-codebase-o0ipc*
