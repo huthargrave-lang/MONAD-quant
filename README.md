@@ -1,6 +1,6 @@
 # 🔺 MONAD Quant
 
-> Momentum + mean-reversion strategy engine for ETFs and BTC. Built on Alpha Vantage data with Claude AI integration via the Anthropic financial-services-plugins framework.
+> Momentum + mean-reversion strategy engine for ETFs and BTC. Built on Alpha Vantage and Yfinance data with Claude AI integration via the Anthropic financial-services-plugins framework.
 
 ## Strategy
 
