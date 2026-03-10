@@ -196,7 +196,7 @@ ADAPTIVE_KELLY_LOOKBACK   = 20     # Rolling window in trades (warm-up before ac
 ADAPTIVE_KELLY_HIGH_WR    = 0.55   # Recent WR ≥ this → scale up (signal quality strong)
 ADAPTIVE_KELLY_LOW_WR     = 0.42   # Recent WR < this → scale down (signal degrading)
 ADAPTIVE_KELLY_PAUSE_WR   = 0.35   # Recent WR < this → near-flat (signal breakdown)
-ADAPTIVE_KELLY_HIGH_MULT  = 1.4    # Position multiplier when WR ≥ HIGH (vs 1.0 baseline)
+ADAPTIVE_KELLY_HIGH_MULT  = 1.8    # Position multiplier when WR ≥ HIGH (vs 1.0 baseline)
 ADAPTIVE_KELLY_LOW_MULT   = 0.5    # Position multiplier when WR in [PAUSE, LOW)
 ADAPTIVE_KELLY_PAUSE_MULT = 0.2    # Position multiplier when WR < PAUSE
 ADAPTIVE_KELLY_HIGH_CAP   = 0.28   # Position cap in high-WR state (allows Kelly×1.4 to deploy)
@@ -217,7 +217,7 @@ ASSETS = {
     },
     "BTC_HOURLY": {
         "type":               "crypto_hourly",
-        "target_gain_pct":    0.004,    # 0.4% per trade on hourly bars
+        "target_gain_pct":    0.005,    # 0.5% per trade on hourly bars
         "stop_loss_pct":      0.0025,   # 0.25% stop
         "require_signals":    1,
         "rsi_oversold":       RSI_OVERSOLD_HOURLY,
