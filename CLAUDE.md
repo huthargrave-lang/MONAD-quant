@@ -504,5 +504,90 @@ TARGET_GAIN_PCT_STRONG_BULL = 0.03   # 3% (not 5% — 5% killed win rate)
 
 ---
 
-*Last updated: 2026-03-10 — multi-mode architecture (BTC Daily / BTC Hourly / QQQ), ACTIVE_MODE selector, hourly performance data added*
+## 13. BTC Hourly Optimization Session (2026-03-11) — Current State
+
+### What was done this session
+Starting from the original BTC Hourly baseline (7.80% / 2yr, Sharpe 2.365, avg +5.75%/mo),
+we discovered the monthly numbers were inflated. **Correct baseline after fixing the display:**
+```
+Full 23-month (2024-03-15 → 2026-02-15): 7.68% total, Sharpe 12.133, Max DD -0.35%, avg +0.31%/mo
+```
+
+### Changes made (all in config.py + engine.py, branch claude/review-codebase-o0ipc)
+
+**1. ADAPTIVE_KELLY_HIGH_MULT: 1.4 → 1.8**
+- When rolling WR ≥ 52% (HIGH tier), position multiplier is now 1.8× not 1.4×
+- Effect: +1.42% total return over 23 months. Best months (Feb 2025 55% WR, Mar 2025 56% WR) got bigger.
+- ADAPTIVE_KELLY_HIGH_CAP raised from 0.28 → 0.30 to give headroom (not the binding constraint)
+- ADAPTIVE_KELLY_HIGH_WR lowered from 0.55 → 0.52 (tested inert — rolling WR doesn't sit in 52-55% band)
+
+**2. Time-of-day filter: HOURLY_TRADE_FILTER=True, hours 07-21 UTC**
+- Added to `generate_trades()` in engine.py (~10 lines)
+- Dead zone (00-07 UTC): low liquidity, RSI signals are noise not genuine demand
+- Effect: trades 2455 → 1468 (40% fewer), WR 45.6% → 48.5%, Kelly 5.82% → 8.16% (auto-scales)
+- August 2024 rescued: -0.08% → +0.33% (37.7% WR → 52.1% WR). Dead-zone noise was the culprit.
+
+**3. ADAPTIVE_KELLY_LOOKBACK: 20 → 15 trades**
+- Faster rolling WR detection (~3 days at 115 trades/mo vs 5 days)
+- Works well WITH the time filter (cleaner signals → less noisy 15-trade window)
+- Without the time filter, lb=15 made things slightly worse (noisy signals confuse faster window)
+
+### Current best result (all three changes, 23-month full period)
+```
+Total Return:   10.73%
+Annualized:     5.45%
+Sharpe Ratio:   14.603
+Max Drawdown:   -0.35%
+Avg Monthly:    +0.43%
+Win Rate:       48.5%  (was 45.6%)
+Kelly Pos Size: 8.16%  (was 5.82%)
+Trades:         1,468  (was 2,455)
+```
+
+### Critical architectural finding (this session)
+**The regime classifier (BULL/BEAR/RECOVERING etc.) has ZERO effect on hourly position sizing.**
+`runner.py` line 39: `use_slope_regime = False if timeframe == "hourly"` — intentionally disabled
+because 252 hourly bars = 10.5 days (wrong calibration for a regime filter).
+The regime distribution printed in diagnostics is computed and displayed but never used for sizing
+or entry gating in hourly mode. Adaptive Kelly is the ONLY dynamic sizing mechanism for hourly.
+
+### What was tried and failed this session
+- **target_gain_pct 0.004 → 0.005**: WR collapsed 50.7% → 42.1%. BTC hourly moves reach 0.4%
+  but rarely extend to 0.5% before reversing. Reverted immediately.
+- **Hourly regime_mult floor**: Made irrelevant by the above finding (regime_mult = 1.0 always).
+- **HIGH_WR threshold 0.55 → 0.52 alone**: Inert — rolling WR doesn't naturally sit at 52-55%.
+
+### Current config state (BTC_HOURLY active params)
+```python
+ACTIVE_MODE               = "BTC_HOURLY"
+HOURLY_TRADE_FILTER       = True
+HOURLY_TRADE_HOURS_START  = 7      # UTC
+HOURLY_TRADE_HOURS_END    = 21     # UTC
+USE_ADAPTIVE_KELLY        = True
+ADAPTIVE_KELLY_LOOKBACK   = 15
+ADAPTIVE_KELLY_HIGH_WR    = 0.52
+ADAPTIVE_KELLY_HIGH_MULT  = 1.8
+ADAPTIVE_KELLY_HIGH_CAP   = 0.30
+ADAPTIVE_KELLY_LOW_WR     = 0.42
+ADAPTIVE_KELLY_PAUSE_WR   = 0.35
+ADAPTIVE_KELLY_LOW_MULT   = 0.5
+ADAPTIVE_KELLY_PAUSE_MULT = 0.2
+# Signal params (hourly)
+RSI_PERIOD_HOURLY         = 7
+RSI_OVERSOLD_HOURLY       = 40
+MACD_FAST_HOURLY          = 6 / SLOW 13 / SIGNAL 4
+VWAP_ZSCORE_THRESH_HOURLY = 1.0
+target_gain_pct           = 0.004   # 0.4% (0.5% was tested, killed WR)
+stop_loss_pct             = 0.0025  # 0.25%
+```
+
+### Next experiments to try (not yet tested)
+1. **Hour window edges**: 6-22 UTC or 8-20 UTC — is 7-21 the optimal window or just a first pass?
+2. **VWAP_ZSCORE_THRESH_HOURLY 1.0 → 1.1**: Tighter volume filter, fewer but better-quality entries
+3. **RSI_OVERSOLD_HOURLY 40 → 38**: More selective, fewer trades, test WR improvement
+4. **BTC Daily mode**: untouched this session — still at Sharpe 4.924, Max DD -1.72% (5yr)
+
+---
+
+*Last updated: 2026-03-11 — BTC hourly optimization: time-of-day filter, adaptive Kelly tuning, 10.73% / Sharpe 14.6*
 *Branch: claude/review-codebase-o0ipc*
