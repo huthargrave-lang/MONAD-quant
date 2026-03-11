@@ -122,6 +122,14 @@ VWAP_ZSCORE_THRESH_HOURLY = 1.0    # Tighter threshold — hourly VWAP reverts f
 BB_WINDOW_HOURLY          = 14
 USE_REGIME_FILTER_HOURLY  = False  # Regime too noisy on hourly bars
 
+# Time-of-day filter — skip low-liquidity dead-zone hours on hourly bars.
+# London (07-16 UTC) + NY (13-21 UTC) sessions have genuine volume behind RSI dips.
+# Dead zone (00-07 UTC) is noise-driven — signals fire but rarely follow through.
+# Disabled by default. Enable to test: expect fewer trades, potentially higher WR.
+HOURLY_TRADE_FILTER      = True   # Master toggle
+HOURLY_TRADE_HOURS_START = 7      # UTC hour to start accepting entries (inclusive)
+HOURLY_TRADE_HOURS_END   = 21     # UTC hour to stop accepting entries (exclusive)
+
 # Backtest window — hourly (yfinance max 730-day rolling window)
 BACKTEST_START_HOURLY = "2024-03-15"
 BACKTEST_END_HOURLY   = "2026-02-15"
@@ -192,7 +200,7 @@ PLOT_RESULTS     = True
 # Reduce exposure automatically until quality recovers.
 # All new params default=False/disabled per project constraint.
 USE_ADAPTIVE_KELLY        = True   # Master toggle — set True for BTC hourly
-ADAPTIVE_KELLY_LOOKBACK   = 20     # Rolling window in trades (warm-up before activating)
+ADAPTIVE_KELLY_LOOKBACK   = 15     # Rolling window in trades (15 = ~3 days at 115 trades/mo)
 ADAPTIVE_KELLY_HIGH_WR    = 0.52   # Recent WR ≥ this → scale up (was 0.55 — catches 52-55% months)
 ADAPTIVE_KELLY_LOW_WR     = 0.42   # Recent WR < this → scale down (signal degrading)
 ADAPTIVE_KELLY_PAUSE_WR   = 0.35   # Recent WR < this → near-flat (signal breakdown)

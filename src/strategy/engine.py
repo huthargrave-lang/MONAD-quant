@@ -191,6 +191,18 @@ def generate_trades(df: pd.DataFrame,
     if longs_only:
         short_entry = pd.Series(False, index=df.index)
 
+    # Time-of-day filter for hourly: skip low-liquidity dead-zone hours.
+    # BTC volume concentrates in London (07-16 UTC) and NY (13-21 UTC) sessions.
+    # Dead-zone RSI signals (00-07 UTC) are driven by noise, not genuine demand.
+    # Disabled by default — enable with HOURLY_TRADE_FILTER=True in config.
+    import config as _cfg2
+    if getattr(_cfg2, "HOURLY_TRADE_FILTER", False) and hasattr(df.index, "hour"):
+        start_h = getattr(_cfg2, "HOURLY_TRADE_HOURS_START", 7)
+        end_h   = getattr(_cfg2, "HOURLY_TRADE_HOURS_END",   21)
+        active  = df.index.hour.isin(range(start_h, end_h))
+        long_entry  = long_entry  & active
+        short_entry = short_entry & active
+
     df["entry_signal"] = 0
     df.loc[long_entry,  "entry_signal"] = 1
     df.loc[short_entry, "entry_signal"] = -1
