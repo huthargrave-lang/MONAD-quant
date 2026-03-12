@@ -36,7 +36,7 @@ Raw OHLCV data (Alpha Vantage / yfinance)
         │
         ▼
 [build_features()]  ← engine.py
-  ├── add_momentum_features()   → RSI, MACD, ROC, regime, bear_short_signal
+  ├── add_momentum_features()   → RSI, MACD, regime
   ├── add_volume_features()     → VWAP z-score, volume_signal
   └── add_volatility_features() → Bollinger Bands, ATR, ADX, vol_regime
         │
@@ -102,12 +102,6 @@ See Section 4 below.
   - 20 ≤ ADX ≤ 35: Kelly × 1.0
   - ADX > 35 (strong trend): Kelly × 1.2
 - **Active** (USE_ADX_SIZING=True) but marginal effect in practice
-
-### bear_short_signal
-- **Status: BUILT BUT DISABLED** (LONGS_ONLY=True routes around it)
-- Fires -1 in BEAR regime when RSI > 60 + MACD turning down
-- Fires -1 in STRONG_BEAR when RSI > 58 + MACD turning down
-- Built to fade dead-cat bounces; **failed in testing** (see Section 7)
 
 ### bull_breakout_signal
 - **Status: BUILT BUT DISABLED** (BULL_BREAKOUT_ENABLED=False)
@@ -380,38 +374,12 @@ stays positive → regime = STRONG_BULL → strategy enters RSI dips into a fall
 **Mechanism:** RECOVERING = price < 252-MA but > 50-MA. RSI dip entries should fire here,
 but unclear if the signal frequency is meaningful. Needs trade count diagnostic.
 
-### Problem 3: Dead infrastructure increases cognitive load
-**Symptom:** bear_short_signal computed every run but never routed (LONGS_ONLY=True)
-Multiple config params for shorts are unreachable. ROC_10/ROC_20 computed but unused.
-**Risk:** Confusing to read; maintenance burden; risk of accidental activation.
-
 ---
 
 ## 10. Expert Agent Findings (2026-03-03 Analysis)
 
 Three expert agents (Simplicity, Performance, Risk) audited the full codebase.
-Below are the key findings, in priority order.
-
-### CRITICAL BUG: Per-regime RSI thresholds are never used
-**Source:** Performance agent, Q6
-
-`config.py` defines `RSI_OVERSOLD_STRONG_BULL = 42` and `RSI_OVERSOLD_BULL = 40`
-but `build_features()` in `engine.py:52` only reads the global `RSI_OVERSOLD = 38`.
-These per-regime thresholds are DEAD CONFIG — never passed into `momentum_signal()`.
-
-**Result:** STRONG_BULL entries require RSI < 38 when they should allow RSI < 42.
-This means shallower dips (RSI 38-42 in a strong bull) are silently ignored.
-**Fix:** In `build_features()`, pass regime-specific RSI oversold to `add_momentum_features()`
-or apply the regime-split post-hoc in `generate_trades()`.
-
-### Dead code audit (Simplicity agent)
-All of the following are computed every run but NEVER used:
-- `roc_10`, `roc_20` columns (momentum.py:174-175) — zero references anywhere
-- `bear_short_signal` column (momentum.py:203-206) — only consumed in `not longs_only` path
-- `vol_regime` column (volatility.py:131) — gate disabled (USE_REGIME_FILTER=False)
-- `USE_MA_REGIME_FILTER` elif branch (engine.py:177-179) — unreachable when USE_SLOPE_REGIME=True
-- 8 config params unreachable when LONGS_ONLY=True (KELLY_MULT_BEAR_SHORT, BEAR_SHORT_STOP_PCT, etc.)
-**Estimated overhead:** 5-7% slower backtest, zero correctness risk to remove
+Below are the key findings, in priority order. *(Items 1 & 2 from original audit resolved.)*
 
 ### Softer 50-MA gate (Risk agent, Q3) — the right correction filter
 **Problem:** June 2024 entries (bad month) are 7-15% below the 50-MA. Aug 2023 entries
@@ -445,11 +413,9 @@ while price is already between the 50-MA and 252-MA (already in recovery momentu
 ### Prioritized next steps
 | Priority | Change | Risk | Expected Impact |
 |---|---|---|---|
-| 1 | Remove dead code (roc, bear_short_signal, vol_regime) | Zero | 5-7% faster, cleaner |
-| 2 | Wire per-regime RSI thresholds (CRITICAL BUG) | Low | +5-10 STRONG_BULL trades/5yr |
-| 3 | Softer 5% 50-MA gate for intra-bull corrections | Low-Med | Reduce June/Aug 2024 losses |
-| 4 | ATR-based dynamic stop overrides | Medium | Reduce noise stops in high-vol |
-| 5 | Exit type tracking in compute_trade_returns() | Low | Diagnostic only, no signal change |
+| 1 | Softer 5% 50-MA gate for intra-bull corrections | Low-Med | Reduce June/Aug 2024 losses |
+| 2 | ATR-based dynamic stop overrides | Medium | Reduce noise stops in high-vol |
+| 3 | Exit type tracking in compute_trade_returns() | Low | Diagnostic only, no signal change |
 
 ---
 
@@ -458,7 +424,7 @@ while price is already between the 50-MA and 252-MA (already in recovery momentu
 | File | Key function | What it does |
 |---|---|---|
 | `config.py` | — | All tunable params; single source of truth |
-| `src/signals/momentum.py` | `add_momentum_features()` | RSI, MACD, regime, bear_short_signal |
+| `src/signals/momentum.py` | `add_momentum_features()` | RSI, MACD, regime |
 | `src/signals/momentum.py` | `classify_regime()` | 6-state dual-MA classifier |
 | `src/signals/volume.py` | `add_volume_features()` | VWAP z-score → volume_signal |
 | `src/signals/volatility.py` | `add_volatility_features()` | ADX, Bollinger, vol_regime |

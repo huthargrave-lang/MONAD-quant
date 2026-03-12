@@ -274,7 +274,7 @@ def run_backtest(df: pd.DataFrame,
         count = monthly_counts[month]
         wr = monthly_wr[month]
         if count > 0:
-            tag = " ✓" if ret >= 0.05 else ""
+            tag = " ✓" if ret >= 0.005 else ""
             print(f"  {month.strftime('%Y-%m'):<12} {ret*100:>+7.2f}%  {count:>7}  {wr*100:>8.1f}%{tag}")
     avg_monthly = monthly_returns[monthly_returns != 0].mean()
     print("  " + "-" * 44)
@@ -282,8 +282,10 @@ def run_backtest(df: pd.DataFrame,
     print()
 
     if plot:
-        _plot_results(equity, drawdown, trade_returns, monthly_returns,
-                      df, initial_capital)
+        _plot_results(equity, drawdown, monthly_returns, monthly_wr, monthly_counts,
+                      df, initial_capital,
+                      total_return, ann_return, sharpe, max_drawdown,
+                      stats["win_rate"], stats["total_trades"], bh_return, bh_ann_return)
 
     return results
 
@@ -358,55 +360,161 @@ def _print_signal_diagnostics(df: pd.DataFrame, require_signals: int,
     print()
 
 
-def _plot_results(equity, drawdown, trade_returns, monthly_returns,
-                  price_df, initial_capital):
-    fig, axes = plt.subplots(4, 1, figsize=(12, 14))
-    fig.suptitle("MONAD Quant — Backtest Results", fontsize=14, fontweight="bold")
+def _plot_results(equity, drawdown, monthly_returns, monthly_wr, monthly_counts,
+                  price_df, initial_capital,
+                  total_return, ann_return, sharpe, max_drawdown,
+                  win_rate, total_trades, bh_return, bh_ann_return):
+    # ── Palette ────────────────────────────────────────────────────────────
+    BG      = "#0d1117"
+    PANEL   = "#161b22"
+    BORDER  = "#21262d"
+    GRID    = "#21262d"
+    TEXT    = "#e6edf3"
+    MUTED   = "#8b949e"
+    CYAN    = "#58a6ff"
+    GREEN   = "#3fb950"
+    RED     = "#f85149"
+    ORANGE  = "#e3b341"
+    AMBER   = "#d29922"
 
-    # Equity curve + buy-and-hold overlay
-    bh_equity = initial_capital * (price_df["close"] / price_df["close"].iloc[0])
-    ax0_x = np.linspace(0, len(bh_equity) - 1, len(equity))
-    axes[0].plot(ax0_x, equity.values, color="#00d4ff", linewidth=1.5, label="Strategy")
-    axes[0].plot(range(len(bh_equity)), bh_equity.values, color="#ff8844",
-                 linewidth=1.2, alpha=0.7, linestyle="--", label="Buy & Hold")
-    axes[0].set_title("Equity Curve — Strategy vs Buy & Hold")
-    axes[0].set_ylabel("Capital ($)")
-    axes[0].legend(fontsize=9)
-    axes[0].grid(True, alpha=0.3)
+    TARGET_MONTHLY = 0.005  # 0.5%
 
-    # Drawdown
-    axes[1].fill_between(range(len(drawdown)), drawdown.values, 0,
-                          color="#ff4444", alpha=0.6)
-    axes[1].set_title("Drawdown")
-    axes[1].set_ylabel("Drawdown %")
-    axes[1].grid(True, alpha=0.3)
+    plt.rcParams.update({
+        "figure.facecolor":  BG,
+        "axes.facecolor":    PANEL,
+        "axes.edgecolor":    BORDER,
+        "axes.labelcolor":   MUTED,
+        "axes.titlecolor":   TEXT,
+        "xtick.color":       MUTED,
+        "ytick.color":       MUTED,
+        "xtick.labelsize":   8,
+        "ytick.labelsize":   8,
+        "grid.color":        GRID,
+        "grid.linewidth":    0.5,
+        "text.color":        TEXT,
+        "font.family":       "monospace",
+        "axes.spines.top":   False,
+        "axes.spines.right": False,
+    })
 
-    # Trade return distribution
-    axes[2].hist(trade_returns * 100, bins=30, color="#44ff88", alpha=0.7, edgecolor="white")
-    axes[2].axvline(0, color="white", linewidth=1, linestyle="--")
-    axes[2].set_title("Trade Return Distribution")
-    axes[2].set_xlabel("Return (%)")
-    axes[2].set_ylabel("Frequency")
-    axes[2].grid(True, alpha=0.3)
+    fig = plt.figure(figsize=(14, 12))
+    fig.suptitle("MONAD Quant  ·  Performance Dashboard",
+                 fontsize=13, fontweight="bold", color=TEXT, y=0.99)
 
-    # Monthly returns bar chart
-    colors = ["#44ff88" if r >= 0 else "#ff4444" for r in monthly_returns.values]
-    axes[3].bar(range(len(monthly_returns)), monthly_returns.values * 100,
-                color=colors, alpha=0.8, edgecolor="white", linewidth=0.5)
-    axes[3].axhline(5, color="#ffdd44", linewidth=1, linestyle="--", label="5% target")
-    axes[3].axhline(0, color="white", linewidth=0.8)
-    axes[3].set_title("Monthly Returns — 'Dividend' Schedule")
-    axes[3].set_ylabel("Return (%)")
-    axes[3].set_xticks(range(len(monthly_returns)))
-    axes[3].set_xticklabels(
-        [m.strftime("%b %y") for m in monthly_returns.index],
-        rotation=45, ha="right", fontsize=8
+    gs = fig.add_gridspec(3, 1, height_ratios=[2.8, 2.2, 1.0],
+                          hspace=0.45, left=0.08, right=0.96,
+                          top=0.95, bottom=0.07)
+    ax_eq = fig.add_subplot(gs[0])
+    ax_mo = fig.add_subplot(gs[1])
+    ax_dd = fig.add_subplot(gs[2])
+
+    price_dates = price_df.index
+    n_price     = len(price_dates)
+
+    # ── helpers ────────────────────────────────────────────────────────────
+    def _map_to_dates(series_len):
+        """Map an equity/drawdown index (0..N) onto price_df date positions."""
+        idx = np.linspace(0, n_price - 1, series_len).astype(int)
+        return price_dates[np.clip(idx, 0, n_price - 1)]
+
+    # ── Panel 1 · Equity Curve ─────────────────────────────────────────────
+    bh_equity  = initial_capital * (price_df["close"] / price_df["close"].iloc[0])
+    eq_dates   = _map_to_dates(len(equity))
+
+    ax_eq.plot(price_dates, bh_equity.values,
+               color=ORANGE, linewidth=1.0, alpha=0.55, linestyle="--", label="Buy & Hold")
+    ax_eq.plot(eq_dates, equity.values,
+               color=CYAN, linewidth=1.8, label="Strategy")
+    ax_eq.fill_between(eq_dates, initial_capital, equity.values,
+                        where=equity.values >= initial_capital,
+                        color=CYAN, alpha=0.07)
+
+    ax_eq.set_title("Equity Curve", fontsize=10, fontweight="bold", pad=6)
+    ax_eq.set_ylabel("Capital ($)", fontsize=8)
+    ax_eq.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"${x:,.0f}"))
+    ax_eq.legend(fontsize=8, framealpha=0.25, loc="upper left")
+    ax_eq.grid(True, alpha=0.35)
+
+    # Stats box — top right
+    alpha_pct = (total_return - bh_return) * 100
+    stats_lines = [
+        f"{'Return':<9} {total_return*100:>+6.2f}%  ({ann_return*100:>+.2f}% ann.)",
+        f"{'Sharpe':<9} {sharpe:>7.3f}",
+        f"{'Max DD':<9} {max_drawdown*100:>+6.2f}%",
+        f"{'Win Rate':<9} {win_rate*100:>5.1f}%   ({total_trades} trades)",
+        f"{'vs B&H':<9} {alpha_pct:>+6.2f}%  alpha",
+    ]
+    ax_eq.text(0.99, 0.97, "\n".join(stats_lines),
+               transform=ax_eq.transAxes,
+               fontsize=7.5, va="top", ha="right", fontfamily="monospace",
+               bbox=dict(boxstyle="round,pad=0.5", facecolor=BG,
+                         edgecolor=BORDER, alpha=0.85))
+
+    # ── Panel 2 · Monthly Returns ──────────────────────────────────────────
+    active_mo   = monthly_returns[monthly_returns != 0]
+    active_wr   = monthly_wr.reindex(active_mo.index).fillna(0)
+    active_cnt  = monthly_counts.reindex(active_mo.index).fillna(0)
+
+    bar_colors = []
+    for r in active_mo.values:
+        if r >= TARGET_MONTHLY:
+            bar_colors.append(GREEN)
+        elif r >= 0:
+            bar_colors.append(AMBER)
+        else:
+            bar_colors.append(RED)
+
+    xs = np.arange(len(active_mo))
+    ax_mo.bar(xs, active_mo.values * 100,
+              color=bar_colors, alpha=0.85, edgecolor=BG, linewidth=0.4, width=0.72)
+    ax_mo.axhline(TARGET_MONTHLY * 100, color=GREEN, linewidth=1.1,
+                  linestyle="--", alpha=0.75, label=f"{TARGET_MONTHLY*100:.1f}% target")
+    ax_mo.axhline(0, color=BORDER, linewidth=0.8)
+
+    # Annotate win rate per bar
+    for i, (ret, wr, cnt) in enumerate(zip(active_mo.values, active_wr.values, active_cnt.values)):
+        if cnt > 0:
+            y_off = 0.12 if ret >= 0 else -0.22
+            ax_mo.text(i, ret * 100 + y_off, f"{wr*100:.0f}%",
+                       ha="center", va="bottom" if ret >= 0 else "top",
+                       fontsize=6, color=MUTED)
+
+    ax_mo.set_title("Monthly Returns  ·  'Dividend' Schedule", fontsize=10,
+                    fontweight="bold", pad=6)
+    ax_mo.set_ylabel("Return (%)", fontsize=8)
+    ax_mo.set_xticks(xs)
+    ax_mo.set_xticklabels([m.strftime("%b '%y") for m in active_mo.index],
+                           rotation=45, ha="right", fontsize=7)
+    ax_mo.legend(fontsize=8, framealpha=0.25)
+    ax_mo.grid(True, alpha=0.35, axis="y")
+
+    pos_months  = (active_mo > 0).sum()
+    hit_rate    = pos_months / len(active_mo) if len(active_mo) > 0 else 0
+    avg_monthly = active_mo.mean()
+    beat_target = (active_mo >= TARGET_MONTHLY).sum()
+    summary = (
+        f"Avg   {avg_monthly*100:>+5.2f}%\n"
+        f"Hit   {hit_rate*100:>4.0f}%\n"
+        f"≥0.5% {beat_target}/{len(active_mo)} mo"
     )
-    axes[3].legend(fontsize=8)
-    axes[3].grid(True, alpha=0.3)
+    ax_mo.text(0.995, 0.97, summary,
+               transform=ax_mo.transAxes,
+               fontsize=7.5, va="top", ha="right", fontfamily="monospace",
+               bbox=dict(boxstyle="round,pad=0.5", facecolor=BG,
+                         edgecolor=BORDER, alpha=0.85))
 
-    plt.tight_layout()
-    plt.savefig("backtest_results.png", dpi=150, bbox_inches="tight",
-                facecolor="#1a1a2e")
+    # ── Panel 3 · Drawdown ─────────────────────────────────────────────────
+    dd_dates = _map_to_dates(len(drawdown))
+    ax_dd.fill_between(dd_dates, drawdown.values * 100, 0,
+                        color=RED, alpha=0.65)
+    ax_dd.plot(dd_dates, drawdown.values * 100, color=RED, linewidth=0.6, alpha=0.8)
+
+    ax_dd.set_title("Drawdown", fontsize=10, fontweight="bold", pad=6)
+    ax_dd.set_ylabel("DD (%)", fontsize=8)
+    ax_dd.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:.1f}%"))
+    ax_dd.set_ylim(min(drawdown.min() * 100 * 1.4, -0.1), 0.3)
+    ax_dd.grid(True, alpha=0.35)
+
+    plt.savefig("backtest_results.png", dpi=150, bbox_inches="tight", facecolor=BG)
     print("       Chart saved → backtest_results.png")
     plt.show()
