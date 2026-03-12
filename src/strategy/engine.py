@@ -54,8 +54,8 @@ def generate_trades(df: pd.DataFrame,
     short_entry = df["signal_vote"] <= -require_signals
 
     if use_regime_filter:
-        long_entry  = long_entry  & (df["vol_regime"] == 1) & (df["trend_direction"] == 1)
-        short_entry = short_entry & (df["vol_regime"] == 1) & (df["trend_direction"] == -1)
+        long_entry  = long_entry  & (df["vol_regime"] == 1)
+        short_entry = short_entry & (df["vol_regime"] == 1)
 
     if trade_hours is not None:
         hour = df.index.hour

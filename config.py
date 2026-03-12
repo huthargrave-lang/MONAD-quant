@@ -8,12 +8,12 @@ ASSETS = {
     "BTC": {
         "type": "crypto",
         "market": "USD",
-        "rsi_oversold": 38,
-        "rsi_overbought": 62,
+        "rsi_oversold": 35,
+        "rsi_overbought": 65,
         "target_gain_pct": 0.015,
         "stop_loss_pct": 0.010,
         "require_signals": 1,
-        "vwap_zscore_thresh": 1.3,
+        "vwap_zscore_thresh": 1.5,
     },
     "QQQ": {
         "type": "etf",
@@ -39,14 +39,14 @@ ACTIVE_MODE   = "BTC_HOURLY"  # Options: BTC_HOURLY, BTC_DAILY, QQQ_DAILY, SOXL_
 
 # ── Signal Parameters ───────────────────────────────────────────────────────
 RSI_PERIOD        = 14
-RSI_OVERSOLD      = 38
-RSI_OVERBOUGHT    = 62
+RSI_OVERSOLD      = 35
+RSI_OVERBOUGHT    = 65
 MACD_FAST         = 12
 MACD_SLOW         = 26
 MACD_SIGNAL       = 9
 ROC_PERIOD        = 10
 VWAP_WINDOW       = 20
-VWAP_ZSCORE_THRESH = 1.3
+VWAP_ZSCORE_THRESH = 1.5
 ATR_PERIOD        = 14
 BB_WINDOW         = 20
 BB_STD            = 2.0
