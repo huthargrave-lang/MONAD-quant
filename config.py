@@ -72,6 +72,6 @@ HOURLY_TRADE_HOURS_START = 8      # UTC hour to start accepting entries (inclusi
 HOURLY_TRADE_HOURS_END   = 22     # UTC hour to stop accepting entries (exclusive)
 
 # ── Backtest ────────────────────────────────────────────────────────────────
-BACKTEST_START    = "2020-01-01"
-BACKTEST_END      = "2024-12-31"
+BACKTEST_START    = "2024-03-15"
+BACKTEST_END      = "2026-03-11"
 PLOT_RESULTS      = True
