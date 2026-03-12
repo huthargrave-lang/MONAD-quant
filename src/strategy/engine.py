@@ -86,10 +86,10 @@ def build_features(df: pd.DataFrame, timeframe: str = "daily",
 
 def generate_trades(df: pd.DataFrame,
                     require_signals: int = 2,
+                    target_gain_pct: float = 0.015,   # 1.5% target
+                    stop_loss_pct: float = 0.01,       # 1.0% stop
                     use_regime_filter: bool = True,
-                    use_ma_regime_filter: bool = True,
-                    use_slope_regime: bool = False,
-                    longs_only: bool = False) -> pd.DataFrame:
+                    trade_hours: tuple = None) -> pd.DataFrame:
     """
     Generate trade entry signals from aggregated features.
 
@@ -121,87 +121,14 @@ def generate_trades(df: pd.DataFrame,
     short_entry = df["signal_vote"] <= -require_signals
 
     if use_regime_filter:
-        long_entry  = long_entry  & (df["vol_regime"] == 0)
-        short_entry = short_entry & (df["vol_regime"] == 0)
+        long_entry  = long_entry  & (df["vol_regime"] == 1) & (df["trend_direction"] == 1)
+        short_entry = short_entry & (df["vol_regime"] == 1) & (df["trend_direction"] == -1)
 
-    if use_slope_regime and "regime" in df.columns:
-        if longs_only:
-            # Long entries only in confirmed uptrend or recovery:
-            #   STRONG_BULL, BULL : clear uptrend
-            #   RECOVERING        : below 252-MA but above 50-MA — momentum is upward
-            # Sit flat in STALLING (252-MA rolling over — Dec 2021 proved buying dips here
-            # is catching a falling knife) and STRONG_BEAR (accelerating downtrend).
-            # BEAR (mild downtrend) may allow defensive longs — see BEAR_DEFENSIVE_LONGS below.
-            import config as _cfg
-            bear_defensive = getattr(_cfg, "BEAR_DEFENSIVE_LONGS", False)
-            if bear_defensive:
-                flat_regimes = {"STRONG_BEAR", "STALLING"}
-            else:
-                flat_regimes = {"BEAR", "STRONG_BEAR", "STALLING"}
-            long_entry  = long_entry  & (~df["regime"].isin(flat_regimes))
-
-            # Bear defensive gate: BEAR longs require RSI deeply oversold (< RSI_OVERSOLD_BEAR)
-            # AND both signals must agree (signal_vote >= 2). Overrides regime_kelly_mult to
-            # KELLY_MULT_BEAR_LONG (quarter-Kelly) for these entries.
-            if bear_defensive and "rsi" in df.columns:
-                bear_mask    = df["regime"] == "BEAR"
-                deep_oversold = df["rsi"] < getattr(_cfg, "RSI_OVERSOLD_BEAR", 30)
-                # Veto any BEAR long that doesn't meet the tighter criteria
-                long_entry = long_entry & (~bear_mask | (deep_oversold & (df["signal_vote"] >= 2)))
-
-            # Softer 50-MA gate for STRONG_BULL: only block when price is >X% below the 50-MA.
-            # Healthy bull dips (Aug 2023): 1-3% below 50-MA → NOT blocked.
-            # Extended corrections (June 2024): 7-15% below 50-MA → BLOCKED.
-            # Disabled by default (0.0). Set STRONG_BULL_SOFT_50MA_PCT=0.05 to activate.
-            _soft_50ma_pct = getattr(_cfg, "STRONG_BULL_SOFT_50MA_PCT", 0.0)
-            if _soft_50ma_pct > 0 and "ma_50d" in df.columns:
-                sb_mask      = df["regime"] == "STRONG_BULL"
-                pct_below_ma = (df["ma_50d"] - df["close"]) / df["close"]
-                deep_corr    = sb_mask & (pct_below_ma > _soft_50ma_pct)
-                long_entry   = long_entry & ~deep_corr
-
-            short_entry = pd.Series(False, index=df.index)
-        else:
-            # Bidirectional: constrain direction per regime
-            # Longs blocked in BEAR/STRONG_BEAR — don't fight a confirmed downtrend
-            # Shorts blocked in STRONG_BULL/BULL/RECOVERING — don't fade an uptrend
-            no_long_regimes  = {"STRONG_BEAR", "BEAR"}
-            no_short_regimes = {"STRONG_BULL", "BULL", "RECOVERING"}
-            long_entry  = long_entry  & (~df["regime"].isin(no_long_regimes))
-            short_entry = short_entry & (~df["regime"].isin(no_short_regimes))
-
-            # Bear short override: in BEAR/STRONG_BEAR, use bear_short_signal instead
-            # of standard signal_vote shorts. bear_short_signal uses a lower RSI
-            # overbought threshold (60/58 vs 62) since bear markets suppress RSI peaks.
-            if "bear_short_signal" in df.columns:
-                bear_regimes      = df["regime"].isin({"BEAR", "STRONG_BEAR"})
-                bear_short_entry  = bear_regimes & (df["bear_short_signal"] == -1)
-                other_short_entry = ~bear_regimes & short_entry
-                short_entry = bear_short_entry | other_short_entry
-
-            # Bull breakout: in STRONG_BULL, OR the breakout signal with mean-reversion
-            # longs so both entry types are active simultaneously.
-            if "bull_breakout_signal" in df.columns:
-                bull_breakout = df["bull_breakout_signal"] == 1
-                long_entry = long_entry | bull_breakout
-    elif use_ma_regime_filter and "ma_regime" in df.columns:
-        long_entry  = long_entry  & (df["ma_regime"] == 1)
-        short_entry = short_entry & (df["ma_regime"] == -1)
-
-    if longs_only:
-        short_entry = pd.Series(False, index=df.index)
-
-    # Time-of-day filter for hourly: skip low-liquidity dead-zone hours.
-    # BTC volume concentrates in London (07-16 UTC) and NY (13-21 UTC) sessions.
-    # Dead-zone RSI signals (00-07 UTC) are driven by noise, not genuine demand.
-    # Disabled by default — enable with HOURLY_TRADE_FILTER=True in config.
-    import config as _cfg2
-    if getattr(_cfg2, "HOURLY_TRADE_FILTER", False) and hasattr(df.index, "hour"):
-        start_h = getattr(_cfg2, "HOURLY_TRADE_HOURS_START", 7)
-        end_h   = getattr(_cfg2, "HOURLY_TRADE_HOURS_END",   21)
-        active  = df.index.hour.isin(range(start_h, end_h))
-        long_entry  = long_entry  & active
-        short_entry = short_entry & active
+    if trade_hours is not None:
+        hour = df.index.hour
+        in_hours = (hour >= trade_hours[0]) & (hour < trade_hours[1])
+        long_entry  = long_entry  & in_hours
+        short_entry = short_entry & in_hours
 
     df["entry_signal"] = 0
     df.loc[long_entry,  "entry_signal"] = 1
@@ -232,33 +159,22 @@ def generate_trades(df: pd.DataFrame,
 
 
 def compute_trade_returns(df: pd.DataFrame,
-                           target_gain_pct: float = 0.030,
-                           stop_loss_pct: float = 0.015,
-                           max_trade_bars: int = 10,
-                           bar_limit_overrides: dict = None,
-                           target_overrides: dict = None,
-                           stop_overrides: dict = None):
+                           target_gain_pct: float = 0.015,
+                           stop_loss_pct: float = 0.01) -> pd.DataFrame:
     """
     Simulate next-bar trade outcomes for backtesting.
-
-    Returns a tuple: (returns, exit_types)
-      - returns:    pd.Series of individual trade P&L percentages
-      - exit_types: pd.Series of exit type strings ("target_hit", "stop_hit", "time_exit")
-
-    Args:
-        bar_limit_overrides: Optional dict of {timestamp: n_bars} — different hold window.
-        target_overrides:    Optional dict of {timestamp: target_pct} — different take-profit.
-        stop_overrides:      Optional dict of {timestamp: stop_pct} — different stop-loss.
+    Returns a DataFrame with columns: timestamp, return, trend_regime (1=bull, -1=bear).
     """
     trade_returns = []
-    trade_exit_types = []
-    trade_indices = []
+    trade_regimes = []
+    trade_timestamps = []
     entries = df[df["entry_signal"] != 0]
 
     for i, (idx, row) in enumerate(entries.iterrows()):
         loc = df.index.get_loc(idx)
         direction = row["entry_signal"]
         entry_price = row["close"]
+        regime = row.get("trend_direction", 0)
 
         n_bars = (bar_limit_overrides.get(idx, max_trade_bars)
                   if bar_limit_overrides else max_trade_bars)
@@ -300,11 +216,7 @@ def compute_trade_returns(df: pd.DataFrame,
 
         if exit_return is not None:
             trade_returns.append(exit_return)
-            trade_exit_types.append(exit_type)
-            trade_indices.append(idx)
+            trade_regimes.append(regime)
+            trade_timestamps.append(idx)
 
-    idx_dt = pd.DatetimeIndex(trade_indices)
-    return (
-        pd.Series(trade_returns,    index=idx_dt),
-        pd.Series(trade_exit_types, index=idx_dt),
-    )
+    return pd.DataFrame({"timestamp": trade_timestamps, "return": trade_returns, "trend_regime": trade_regimes})

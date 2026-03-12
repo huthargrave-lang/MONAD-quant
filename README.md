@@ -1,7 +1,6 @@
 # MONAD Quant
 
-> A systematic, long-only trading engine designed to behave like a **high-yield bond ETF** —
-> consistent monthly income, capital preservation during downturns, no shorts, no leverage.
+> Momentum + mean-reversion strategy engine for ETFs and BTC. Built on Alpha Vantage and Yfinance data with Claude AI integration via the Anthropic financial-services-plugins framework.
 
 ---
 
