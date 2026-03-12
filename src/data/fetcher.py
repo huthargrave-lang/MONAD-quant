@@ -208,14 +208,15 @@ def fetch_macd(symbol: str, interval: str = "daily") -> pd.DataFrame:
     return df
 
 
-def fetch_yfinance(symbol: str, start: str, end: str) -> pd.DataFrame:
-    print(f"[yfinance] Fetching {symbol} from {start} to {end}...")
+def fetch_yfinance(symbol: str, start: str, end: str, interval: str = "1d") -> pd.DataFrame:
+    print(f"[yfinance] Fetching {symbol} {interval} from {start} to {end}...")
     ticker = yf.Ticker(symbol)
-    df = ticker.history(start=start, end=end)
+    df = ticker.history(start=start, end=end, interval=interval)
     df.columns = [c.lower() for c in df.columns]
     df = df[["open", "high", "low", "close", "volume"]]
     df.index = pd.to_datetime(df.index)
     if df.index.tz is not None:
-        df.index = df.index.tz_convert(None)  # strip timezone
-    df.index = df.index.normalize()           # remove time component
+        df.index = df.index.tz_convert(None)
+    if interval in ("1d", "1wk", "1mo"):
+        df.index = df.index.normalize()
     return df

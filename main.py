@@ -4,8 +4,10 @@ Run: python main.py
 """
 
 import config
-from src.data.fetcher import fetch_crypto_daily, fetch_daily, fetch_yfinance
+from src.data.fetcher import fetch_yfinance
 from src.backtest.runner import run_backtest
+
+CRYPTO_YFINANCE_SUFFIX = "USD=X"  # yfinance uses BTC-USD for crypto
 
 def main():
     print("\n🔺 MONAD QUANT FUND — STRATEGY ENGINE 🔺\n")
@@ -18,13 +20,16 @@ def main():
     stop_loss    = asset_config.get("stop_loss_pct", config.STOP_LOSS_PCT)
     req_signals  = asset_config.get("require_signals", config.REQUIRE_SIGNALS)
 
-    # Fetch data
+    # Fetch data — crypto uses yfinance with BTC-USD ticker at hourly resolution
     if asset_config["type"] == "crypto":
-        df = fetch_crypto_daily(symbol=asset, market=asset_config.get("market", "USD"))
+        market = asset_config.get("market", "USD")
+        yf_symbol = f"{asset}-{market}"
+        df = fetch_yfinance(symbol=yf_symbol, start=config.BACKTEST_START,
+                            end=config.BACKTEST_END, interval="1h")
     else:
-        df = fetch_yfinance(symbol=asset, start=config.BACKTEST_START, end=config.BACKTEST_END)
-   
-   
+        df = fetch_yfinance(symbol=asset, start=config.BACKTEST_START,
+                            end=config.BACKTEST_END)
+
     # Filter to backtest window
     df = df.loc[config.BACKTEST_START:config.BACKTEST_END]
     print(f"Loaded {len(df)} bars for {asset} "
@@ -38,6 +43,8 @@ def main():
         stop_loss_pct=stop_loss,
         require_signals=req_signals,
         kelly_multiplier=config.KELLY_MULTIPLIER,
+        bull_kelly_multiplier=config.BULL_KELLY_MULTIPLIER,
+        trade_hours=(config.TRADE_HOURS_START, config.TRADE_HOURS_END),
         plot=config.PLOT_RESULTS,
     )
 
