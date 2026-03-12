@@ -17,6 +17,7 @@ def run_backtest(df: pd.DataFrame,
                  require_signals: int = 2,
                  kelly_multiplier: float = 0.5,
                  bull_kelly_multiplier: float = 0.75,
+                 trade_hours: tuple = (8, 22),
                  plot: bool = True) -> dict:
     """
     Run a full backtest on historical OHLCV data.
@@ -33,7 +34,8 @@ def run_backtest(df: pd.DataFrame,
     df_trades = generate_trades(df_feat,
                                 require_signals=require_signals,
                                 target_gain_pct=target_gain_pct,
-                                stop_loss_pct=stop_loss_pct)
+                                stop_loss_pct=stop_loss_pct,
+                                trade_hours=trade_hours)
 
     # Compute individual trade returns
     print("[2/4] Simulating trades...")
@@ -117,40 +119,101 @@ def run_backtest(df: pd.DataFrame,
     print("=" * 50)
 
     if plot:
-        _plot_results(equity, drawdown, trade_returns, df_trades)
+        _plot_results(equity, drawdown, trade_returns, trades_df, df_trades, initial_capital)
 
     return results
 
 
-def _plot_results(equity, drawdown, trade_returns, df_trades):
-    fig, axes = plt.subplots(3, 1, figsize=(12, 10))
-    fig.suptitle("MONAD Quant — Backtest Results", fontsize=14, fontweight="bold")
+def _plot_results(equity, drawdown, trade_returns, trades_df, df_price, initial_capital):
+    BG      = "#0d0d1a"
+    GRID    = "#1e1e3a"
+    MODEL   = "#00d4ff"
+    BH      = "#f0a500"
+    RED     = "#ff4444"
+    GREEN   = "#44ff88"
+    WHITE   = "#e0e0e0"
 
-    # Equity curve
-    axes[0].plot(equity.values, color="#00d4ff", linewidth=1.5)
-    axes[0].set_title("Equity Curve")
-    axes[0].set_ylabel("Capital ($)")
-    axes[0].grid(True, alpha=0.3)
-    axes[0].fill_between(range(len(equity)), equity.values, equity.values[0],
-                          alpha=0.1, color="#00d4ff")
+    fig = plt.figure(figsize=(14, 11), facecolor=BG)
+    fig.suptitle("MONAD Quant — BTC Backtest", fontsize=15, fontweight="bold", color=WHITE, y=0.98)
 
-    # Drawdown
-    axes[1].fill_between(range(len(drawdown)), drawdown.values, 0,
-                          color="#ff4444", alpha=0.6)
-    axes[1].set_title("Drawdown")
-    axes[1].set_ylabel("Drawdown %")
-    axes[1].grid(True, alpha=0.3)
+    gs = fig.add_gridspec(3, 2, hspace=0.45, wspace=0.35,
+                          left=0.07, right=0.97, top=0.93, bottom=0.07)
+    ax_main   = fig.add_subplot(gs[0, :])   # full-width top: equity comparison
+    ax_dd     = fig.add_subplot(gs[1, :])   # full-width mid: drawdown comparison
+    ax_monthly = fig.add_subplot(gs[2, 0])  # bottom-left: monthly P&L
+    ax_dist   = fig.add_subplot(gs[2, 1])   # bottom-right: win/loss distribution
 
-    # Trade return distribution
-    axes[2].hist(trade_returns * 100, bins=30, color="#44ff88", alpha=0.7, edgecolor="white")
-    axes[2].axvline(0, color="white", linewidth=1, linestyle="--")
-    axes[2].set_title("Trade Return Distribution")
-    axes[2].set_xlabel("Return (%)")
-    axes[2].set_ylabel("Frequency")
-    axes[2].grid(True, alpha=0.3)
+    for ax in [ax_main, ax_dd, ax_monthly, ax_dist]:
+        ax.set_facecolor(BG)
+        ax.tick_params(colors=WHITE, labelsize=8)
+        ax.grid(True, color=GRID, linewidth=0.6)
+        for spine in ax.spines.values():
+            spine.set_edgecolor(GRID)
 
-    plt.tight_layout()
-    plt.savefig("backtest_results.png", dpi=150, bbox_inches="tight",
-                facecolor="#1a1a2e")
+    # ── Buy & Hold equity curve (time-indexed) ────────────────────────────────
+    first_price = df_price["close"].iloc[0]
+    bh_equity = initial_capital * (df_price["close"] / first_price)
+
+    # ── Model equity curve (time-indexed via trade timestamps) ────────────────
+    if "timestamp" in trades_df.columns:
+        model_ts = pd.Series(equity.values[1:], index=pd.to_datetime(trades_df["timestamp"]))
+        model_ts = pd.concat([pd.Series([initial_capital], index=[df_price.index[0]]), model_ts])
+        model_ts = model_ts[~model_ts.index.duplicated(keep="last")].sort_index()
+        model_full = model_ts.reindex(df_price.index, method="ffill")
+    else:
+        model_full = pd.Series(equity.values, index=df_price.index[:len(equity)])
+
+    # Panel 1: equity comparison
+    ax_main.plot(bh_equity.index, bh_equity.values, color=BH, linewidth=1.2,
+                 label="Buy & Hold", alpha=0.85)
+    ax_main.plot(model_full.index, model_full.values, color=MODEL, linewidth=1.4,
+                 label="MONAD Model")
+    ax_main.fill_between(model_full.index, model_full.values, initial_capital,
+                         where=(model_full.values > initial_capital),
+                         color=MODEL, alpha=0.07)
+    ax_main.set_title("Equity: Model vs Buy & Hold", color=WHITE, fontsize=10)
+    ax_main.set_ylabel("Capital ($)", color=WHITE, fontsize=8)
+    ax_main.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"${x:,.0f}"))
+    leg = ax_main.legend(fontsize=8, framealpha=0.2, labelcolor=WHITE)
+    leg.get_frame().set_facecolor(BG)
+
+    # Panel 2: drawdown comparison
+    bh_roll_max = bh_equity.cummax()
+    bh_dd = (bh_equity - bh_roll_max) / bh_roll_max
+
+    model_roll_max = model_full.cummax()
+    model_dd = (model_full - model_roll_max) / model_roll_max
+
+    ax_dd.fill_between(bh_dd.index, bh_dd.values * 100, 0, color=BH, alpha=0.35, label="B&H DD")
+    ax_dd.fill_between(model_dd.index, model_dd.values * 100, 0, color=RED, alpha=0.55, label="Model DD")
+    ax_dd.set_title("Drawdown Comparison", color=WHITE, fontsize=10)
+    ax_dd.set_ylabel("Drawdown (%)", color=WHITE, fontsize=8)
+    leg2 = ax_dd.legend(fontsize=8, framealpha=0.2, labelcolor=WHITE)
+    leg2.get_frame().set_facecolor(BG)
+
+    # Panel 3: monthly P&L bar chart
+    if "timestamp" in trades_df.columns:
+        monthly = (trades_df.set_index(pd.to_datetime(trades_df["timestamp"]))["return"]
+                   .resample("ME").sum() * 100)
+        bar_colors = [GREEN if v >= 0 else RED for v in monthly.values]
+        ax_monthly.bar(monthly.index, monthly.values, color=bar_colors, width=20, alpha=0.85)
+        ax_monthly.axhline(0, color=WHITE, linewidth=0.7, linestyle="--")
+    ax_monthly.set_title("Monthly P&L (%)", color=WHITE, fontsize=10)
+    ax_monthly.set_ylabel("Return (%)", color=WHITE, fontsize=8)
+    ax_monthly.tick_params(axis="x", rotation=45)
+
+    # Panel 4: win/loss distribution
+    wins  = trade_returns[trade_returns > 0] * 100
+    losses = trade_returns[trade_returns < 0] * 100
+    ax_dist.hist(wins,   bins=20, color=GREEN, alpha=0.75, label=f"Wins ({len(wins)})",   edgecolor=BG)
+    ax_dist.hist(losses, bins=20, color=RED,   alpha=0.75, label=f"Losses ({len(losses)})", edgecolor=BG)
+    ax_dist.axvline(0, color=WHITE, linewidth=0.8, linestyle="--")
+    ax_dist.set_title("Win / Loss Distribution", color=WHITE, fontsize=10)
+    ax_dist.set_xlabel("Trade Return (%)", color=WHITE, fontsize=8)
+    ax_dist.set_ylabel("Count", color=WHITE, fontsize=8)
+    leg3 = ax_dist.legend(fontsize=8, framealpha=0.2, labelcolor=WHITE)
+    leg3.get_frame().set_facecolor(BG)
+
+    plt.savefig("backtest_results.png", dpi=150, bbox_inches="tight", facecolor=BG)
     print("       Chart saved → backtest_results.png")
     plt.show()

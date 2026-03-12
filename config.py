@@ -35,7 +35,7 @@ ASSETS = {
     },
 }
 
-DEFAULT_ASSET = "QQQ"
+DEFAULT_ASSET = "BTC"
 
 # ── Signal Parameters ───────────────────────────────────────────────────────
 RSI_PERIOD        = 14
@@ -65,6 +65,10 @@ MAX_POSITION_PCT  = 0.20     # Never risk more than 20% per trade
 
 # ── Regime ──────────────────────────────────────────────────────────────────
 TREND_SMA_PERIOD  = 200      # Period for trend direction SMA (bull/bear filter)
+
+# ── Trade Hours ──────────────────────────────────────────────────────────────
+TRADE_HOURS_START = 8        # Only enter trades at or after this hour (UTC)
+TRADE_HOURS_END   = 22       # Only enter trades before this hour (UTC)
 
 # ── Backtest ────────────────────────────────────────────────────────────────
 BACKTEST_START    = "2020-01-01"

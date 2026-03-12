@@ -120,6 +120,49 @@ def fetch_crypto_daily(symbol: str = "BTC", market: str = "USD", use_cache: bool
     return df
 
 
+def fetch_crypto_hourly(symbol: str = "BTC", market: str = "USD", use_cache: bool = True) -> pd.DataFrame:
+    """
+    Fetch hourly OHLCV data for a crypto asset using Alpha Vantage CRYPTO_INTRADAY.
+    Returns a DataFrame indexed by datetime (UTC).
+    """
+    _ensure_cache_dir()
+    cache_key = f"{symbol}{market}"
+    cache_file = _cache_path(cache_key, "60min")
+
+    if use_cache and _cache_is_fresh(cache_file, max_age_hours=1):
+        print(f"[cache] Loading {symbol}/{market} hourly from cache")
+        df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
+        return df
+
+    print(f"[api] Fetching {symbol}/{market} hourly from Alpha Vantage...")
+    params = {
+        "function": "CRYPTO_INTRADAY",
+        "symbol": symbol,
+        "market": market,
+        "interval": "60min",
+        "outputsize": "full",
+        "apikey": API_KEY,
+    }
+    resp = requests.get(BASE_URL, params=params)
+    resp.raise_for_status()
+    data = resp.json()
+
+    key = "Time Series Crypto (60min)"
+    if key not in data:
+        raise ValueError(f"Unexpected response for {symbol}: {data.get('Note') or data.get('Information') or data}")
+
+    ts = data[key]
+    df = pd.DataFrame.from_dict(ts, orient="index")
+    df.index = pd.to_datetime(df.index)
+    df = df.sort_index()
+    df.columns = ["open", "high", "low", "close", "volume"]
+    df = df.astype(float)
+
+    df.to_csv(cache_file)
+    print(f"[cache] Saved {symbol}/{market} hourly to {cache_file}")
+    return df
+
+
 def fetch_rsi(symbol: str, interval: str = "daily", time_period: int = 14) -> pd.DataFrame:
     """Fetch RSI directly from Alpha Vantage technical indicator endpoint."""
     print(f"[api] Fetching RSI for {symbol}...")

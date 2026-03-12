@@ -23,7 +23,8 @@ def generate_trades(df: pd.DataFrame,
                     require_signals: int = 2,
                     target_gain_pct: float = 0.015,   # 1.5% target
                     stop_loss_pct: float = 0.01,       # 1.0% stop
-                    use_regime_filter: bool = True) -> pd.DataFrame:
+                    use_regime_filter: bool = True,
+                    trade_hours: tuple = None) -> pd.DataFrame:
     """
     Generate trade signals from aggregated features.
 
@@ -56,6 +57,12 @@ def generate_trades(df: pd.DataFrame,
         long_entry  = long_entry  & (df["vol_regime"] == 1) & (df["trend_direction"] == 1)
         short_entry = short_entry & (df["vol_regime"] == 1) & (df["trend_direction"] == -1)
 
+    if trade_hours is not None:
+        hour = df.index.hour
+        in_hours = (hour >= trade_hours[0]) & (hour < trade_hours[1])
+        long_entry  = long_entry  & in_hours
+        short_entry = short_entry & in_hours
+
     df["entry_signal"] = 0
     df.loc[long_entry, "entry_signal"] = 1
     df.loc[short_entry, "entry_signal"] = -1
@@ -72,10 +79,11 @@ def compute_trade_returns(df: pd.DataFrame,
                            stop_loss_pct: float = 0.01) -> pd.DataFrame:
     """
     Simulate next-bar trade outcomes for backtesting.
-    Returns a DataFrame with columns: return, trend_regime (1=bull, -1=bear).
+    Returns a DataFrame with columns: timestamp, return, trend_regime (1=bull, -1=bear).
     """
     trade_returns = []
     trade_regimes = []
+    trade_timestamps = []
     entries = df[df["entry_signal"] != 0]
 
     for i, (idx, row) in enumerate(entries.iterrows()):
@@ -112,5 +120,6 @@ def compute_trade_returns(df: pd.DataFrame,
         if exit_return is not None:
             trade_returns.append(exit_return)
             trade_regimes.append(regime)
+            trade_timestamps.append(idx)
 
-    return pd.DataFrame({"return": trade_returns, "trend_regime": trade_regimes})
+    return pd.DataFrame({"timestamp": trade_timestamps, "return": trade_returns, "trend_regime": trade_regimes})
