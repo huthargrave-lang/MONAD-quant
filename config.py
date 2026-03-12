@@ -7,7 +7,7 @@ All other parameters are pre-tuned for their respective mode.
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  ACTIVE MODE — the only line you normally need to change
-#  Options: "BTC_DAILY" | "BTC_HOURLY" | "QQQ"
+#  Options: "BTC_DAILY" | "BTC_HOURLY" | "BTC_HOURLY_AGG" | "QQQ"
 # ═══════════════════════════════════════════════════════════════════════════
 ACTIVE_MODE = "BTC_HOURLY"
 
@@ -185,6 +185,49 @@ BACKTEST_START_QQQ_HOURLY = "2024-04-01"
 BACKTEST_END_QQQ_HOURLY   = "2026-03-01"
 
 # ═══════════════════════════════════════════════════════════════════════════
+#  PROFILE 5 — BTC HOURLY AGGRESSIVE
+#  Goal:    Higher monthly income (~0.8–1.0%/mo), accepts more drawdown
+#  Style:   Same mean-reversion signals but larger positions, wider caps
+#  Risk:    Max DD target ~1.5-2% (vs 0.5% on standard hourly)
+#  Data:    Uses Binance API for 3+ year hourly history (vs yfinance 730-day)
+#  Note:    Compare side-by-side with BTC_HOURLY to evaluate risk/reward
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Signal params — same as standard hourly (proven signal quality)
+RSI_PERIOD_HOURLY_AGG         = 7
+RSI_OVERSOLD_HOURLY_AGG       = 42    # Looser: catch shallower dips in bull runs
+RSI_OVERBOUGHT_HOURLY_AGG     = 60
+MACD_FAST_HOURLY_AGG          = 6
+MACD_SLOW_HOURLY_AGG          = 13
+MACD_SIGNAL_HOURLY_AGG        = 4
+VWAP_WINDOW_HOURLY_AGG        = 10
+VWAP_ZSCORE_THRESH_HOURLY_AGG = 0.9   # Slightly looser — more entries
+BB_WINDOW_HOURLY_AGG          = 14
+
+# Time-of-day filter — same proven window
+HOURLY_TRADE_FILTER_AGG       = True
+HOURLY_TRADE_HOURS_START_AGG  = 7
+HOURLY_TRADE_HOURS_END_AGG    = 22
+
+# Aggressive adaptive Kelly — higher multipliers and caps
+USE_ADAPTIVE_KELLY_AGG        = True
+ADAPTIVE_KELLY_LOOKBACK_AGG   = 15
+ADAPTIVE_KELLY_HIGH_WR_AGG    = 0.48   # Fire HIGH tier more easily
+ADAPTIVE_KELLY_LOW_WR_AGG     = 0.40
+ADAPTIVE_KELLY_PAUSE_WR_AGG   = 0.33
+ADAPTIVE_KELLY_HIGH_MULT_AGG  = 2.5    # Aggressive sizing in bull streaks
+ADAPTIVE_KELLY_LOW_MULT_AGG   = 0.5
+ADAPTIVE_KELLY_PAUSE_MULT_AGG = 0.15
+ADAPTIVE_KELLY_HIGH_CAP_AGG   = 0.45   # Allow up to 45% position
+
+# Backtest window — Binance data, 3+ years
+BACKTEST_START_HOURLY_AGG = "2022-01-01"
+BACKTEST_END_HOURLY_AGG   = "2026-02-15"
+
+# Data source
+HOURLY_AGG_DATA_SOURCE = "binance"  # "binance" or "yfinance"
+
+# ═══════════════════════════════════════════════════════════════════════════
 #  SHARED — Risk & Sizing (applies to all modes)
 # ═══════════════════════════════════════════════════════════════════════════
 INITIAL_CAPITAL  = 100_000
@@ -250,6 +293,15 @@ ASSETS = {
         "rsi_overbought":     RSI_OVERBOUGHT_QQQ_HOURLY,
         "vwap_zscore_thresh": VWAP_ZSCORE_THRESH_QQQ_HOURLY,
     },
+    "BTC_HOURLY_AGG": {
+        "type":               "crypto_hourly_binance",
+        "target_gain_pct":    0.005,     # 0.5% target (wider than standard 0.4% — let winners run)
+        "stop_loss_pct":      0.003,     # 0.3% stop (1.67:1 R:R)
+        "require_signals":    1,
+        "rsi_oversold":       RSI_OVERSOLD_HOURLY_AGG,
+        "rsi_overbought":     RSI_OVERBOUGHT_HOURLY_AGG,
+        "vwap_zscore_thresh": VWAP_ZSCORE_THRESH_HOURLY_AGG,
+    },
     "SOXL": {
         "type":               "etf",
         "rsi_oversold":       38,
@@ -262,9 +314,10 @@ ASSETS = {
 }
 
 _MODE_TO_ASSET = {
-    "BTC_DAILY":  "BTC",
-    "BTC_HOURLY": "BTC_HOURLY",
-    "QQQ":        "QQQ",
-    "QQQ_HOURLY": "QQQ_HOURLY",
+    "BTC_DAILY":      "BTC",
+    "BTC_HOURLY":     "BTC_HOURLY",
+    "BTC_HOURLY_AGG": "BTC_HOURLY_AGG",
+    "QQQ":            "QQQ",
+    "QQQ_HOURLY":     "QQQ_HOURLY",
 }
 DEFAULT_ASSET = _MODE_TO_ASSET.get(ACTIVE_MODE, "BTC")

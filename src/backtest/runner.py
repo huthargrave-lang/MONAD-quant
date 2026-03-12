@@ -129,15 +129,22 @@ def run_backtest(df: pd.DataFrame,
     equity_curve = [capital]
 
     # Adaptive Kelly state — tracks rolling WR to detect signal quality degradation
-    use_adaptive_kelly  = getattr(config, "USE_ADAPTIVE_KELLY", False)
-    ak_lookback         = getattr(config, "ADAPTIVE_KELLY_LOOKBACK",  20)
-    ak_high_wr          = getattr(config, "ADAPTIVE_KELLY_HIGH_WR",  0.55)
-    ak_low_wr           = getattr(config, "ADAPTIVE_KELLY_LOW_WR",   0.42)
-    ak_pause_wr         = getattr(config, "ADAPTIVE_KELLY_PAUSE_WR", 0.35)
-    ak_high_mult        = getattr(config, "ADAPTIVE_KELLY_HIGH_MULT",  1.4)
-    ak_low_mult         = getattr(config, "ADAPTIVE_KELLY_LOW_MULT",   0.5)
-    ak_pause_mult       = getattr(config, "ADAPTIVE_KELLY_PAUSE_MULT", 0.2)
-    ak_high_cap         = getattr(config, "ADAPTIVE_KELLY_HIGH_CAP",   0.28)
+    # Resolve per-profile params: BTC_HOURLY_AGG uses _AGG suffixed config values
+    _agg = config.ACTIVE_MODE == "BTC_HOURLY_AGG"
+    def _ak(name, default):
+        if _agg:
+            return getattr(config, name + "_AGG", getattr(config, name, default))
+        return getattr(config, name, default)
+
+    use_adaptive_kelly  = _ak("USE_ADAPTIVE_KELLY", False)
+    ak_lookback         = _ak("ADAPTIVE_KELLY_LOOKBACK",  20)
+    ak_high_wr          = _ak("ADAPTIVE_KELLY_HIGH_WR",  0.55)
+    ak_low_wr           = _ak("ADAPTIVE_KELLY_LOW_WR",   0.42)
+    ak_pause_wr         = _ak("ADAPTIVE_KELLY_PAUSE_WR", 0.35)
+    ak_high_mult        = _ak("ADAPTIVE_KELLY_HIGH_MULT",  1.4)
+    ak_low_mult         = _ak("ADAPTIVE_KELLY_LOW_MULT",   0.5)
+    ak_pause_mult       = _ak("ADAPTIVE_KELLY_PAUSE_MULT", 0.2)
+    ak_high_cap         = _ak("ADAPTIVE_KELLY_HIGH_CAP",   0.28)
     recent_outcomes: deque = deque(maxlen=ak_lookback)
 
     # Collect actual per-trade capital contributions for accurate monthly display

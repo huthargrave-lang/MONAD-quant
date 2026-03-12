@@ -183,6 +183,73 @@ def fetch_btc_hourly(start: str, end: str) -> pd.DataFrame:
     return _fetch_hourly("BTC-USD", start, end)
 
 
+def fetch_btc_hourly_binance(start: str, end: str, symbol: str = "BTCUSDT") -> pd.DataFrame:
+    """
+    Fetch hourly BTC OHLCV from Binance public API.
+    No API key needed. Data available back to Aug 2017.
+    Paginates in 1000-candle chunks (~41 days each).
+    """
+    _ensure_cache_dir()
+    cache_file = _cache_path(f"{symbol}_binance", "1h")
+
+    start_dt = pd.Timestamp(start)
+    end_dt   = pd.Timestamp(end)
+
+    # Check cache — use if fresh and covers the requested range
+    if os.path.exists(cache_file) and _cache_is_fresh(cache_file):
+        df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
+        if len(df) > 0 and df.index[0] <= start_dt and df.index[-1] >= end_dt - timedelta(days=2):
+            print(f"[cache] Loading {symbol} hourly from Binance cache ({len(df)} bars)")
+            return df.loc[start:end]
+
+    print(f"[binance] Fetching {symbol} hourly from {start} to {end}...")
+    url = "https://api.binance.com/api/v3/klines"
+    all_rows = []
+    current_ms = int(start_dt.timestamp() * 1000)
+    end_ms     = int(end_dt.timestamp() * 1000)
+
+    while current_ms < end_ms:
+        params = {
+            "symbol":    symbol,
+            "interval":  "1h",
+            "startTime": current_ms,
+            "endTime":   end_ms,
+            "limit":     1000,
+        }
+        resp = requests.get(url, params=params, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+
+        if not data:
+            break
+
+        for k in data:
+            all_rows.append({
+                "timestamp": pd.Timestamp(k[0], unit="ms"),
+                "open":      float(k[1]),
+                "high":      float(k[2]),
+                "low":       float(k[3]),
+                "close":     float(k[4]),
+                "volume":    float(k[5]),
+            })
+
+        # Move past the last candle's open time
+        current_ms = data[-1][0] + 1
+        if len(data) < 1000:
+            break
+
+    if not all_rows:
+        raise ValueError(f"No data returned from Binance for {symbol} ({start} → {end})")
+
+    df = pd.DataFrame(all_rows).set_index("timestamp")
+    df = df.sort_index()
+    df = df[~df.index.duplicated(keep="first")]
+
+    df.to_csv(cache_file)
+    print(f"[cache] Saved {symbol} hourly to {cache_file} ({len(df)} bars)")
+    return df.loc[start:end]
+
+
 def fetch_qqq_hourly(start: str, end: str) -> pd.DataFrame:
     """
     Fetch hourly QQQ OHLCV via yfinance (max 730 days).
