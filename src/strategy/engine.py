@@ -207,10 +207,10 @@ def generate_trades(df: pd.DataFrame,
     _trade_filter = (getattr(_cfg2, "HOURLY_TRADE_FILTER_AGG", False) if _is_agg
                      else getattr(_cfg2, "HOURLY_TRADE_FILTER", False))
     if _trade_filter and hasattr(df.index, "hour"):
-        start_h = (getattr(_cfg2, "HOURLY_TRADE_HOURS_START_AGG", 7) if _is_agg
-                   else getattr(_cfg2, "HOURLY_TRADE_HOURS_START", 7))
+        start_h = (getattr(_cfg2, "HOURLY_TRADE_HOURS_START_AGG", 8) if _is_agg
+                   else getattr(_cfg2, "HOURLY_TRADE_HOURS_START", 8))
         end_h   = (getattr(_cfg2, "HOURLY_TRADE_HOURS_END_AGG", 22) if _is_agg
-                   else getattr(_cfg2, "HOURLY_TRADE_HOURS_END", 21))
+                   else getattr(_cfg2, "HOURLY_TRADE_HOURS_END", 22))
         active  = df.index.hour.isin(range(start_h, end_h))
         long_entry  = long_entry  & active
         short_entry = short_entry & active
