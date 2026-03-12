@@ -9,7 +9,7 @@ All other parameters are pre-tuned for their respective mode.
 #  ACTIVE MODE — the only line you normally need to change
 #  Options: "BTC_DAILY" | "BTC_HOURLY" | "QQQ"
 # ═══════════════════════════════════════════════════════════════════════════
-ACTIVE_MODE = "BTC_DAILY"
+ACTIVE_MODE = "BTC_HOURLY"
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  PROFILE 1 — BTC DAILY
@@ -127,8 +127,8 @@ USE_REGIME_FILTER_HOURLY  = False  # Regime too noisy on hourly bars
 # Dead zone (00-07 UTC) is noise-driven — signals fire but rarely follow through.
 # Disabled by default. Enable to test: expect fewer trades, potentially higher WR.
 HOURLY_TRADE_FILTER      = True   # Master toggle
-HOURLY_TRADE_HOURS_START = 7      # UTC hour to start accepting entries (inclusive)
-HOURLY_TRADE_HOURS_END   = 21     # UTC hour to stop accepting entries (exclusive)
+HOURLY_TRADE_HOURS_START = 8      # UTC hour to start accepting entries (inclusive)
+HOURLY_TRADE_HOURS_END   = 22     # UTC hour to stop accepting entries (exclusive)
 
 # Backtest window — hourly (yfinance max 730-day rolling window)
 BACKTEST_START_HOURLY = "2024-03-15"
