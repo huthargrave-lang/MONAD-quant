@@ -203,11 +203,17 @@ def fetch_btc_hourly_binance(start: str, end: str, symbol: str = "BTCUSDT") -> p
             return df.loc[start:end]
 
     print(f"[binance] Fetching {symbol} hourly from {start} to {end}...")
-    url = "https://api.binance.com/api/v3/klines"
+    # Try Binance.US first (works in US), fall back to Binance.com (international)
+    urls = [
+        "https://api.binance.us/api/v3/klines",
+        "https://api.binance.com/api/v3/klines",
+    ]
     all_rows = []
     current_ms = int(start_dt.timestamp() * 1000)
     end_ms     = int(end_dt.timestamp() * 1000)
 
+    # Determine which endpoint works on the first request
+    url = None
     while current_ms < end_ms:
         params = {
             "symbol":    symbol,
@@ -216,8 +222,22 @@ def fetch_btc_hourly_binance(start: str, end: str, symbol: str = "BTCUSDT") -> p
             "endTime":   end_ms,
             "limit":     1000,
         }
-        resp = requests.get(url, params=params, timeout=30)
-        resp.raise_for_status()
+        if url is None:
+            # First request: try each endpoint
+            for candidate_url in urls:
+                try:
+                    resp = requests.get(candidate_url, params=params, timeout=30)
+                    resp.raise_for_status()
+                    url = candidate_url
+                    print(f"[binance] Using endpoint: {url}")
+                    break
+                except requests.exceptions.HTTPError:
+                    continue
+            if url is None:
+                raise ValueError("All Binance endpoints failed. Check network/geo restrictions.")
+        else:
+            resp = requests.get(url, params=params, timeout=30)
+            resp.raise_for_status()
         data = resp.json()
 
         if not data:
