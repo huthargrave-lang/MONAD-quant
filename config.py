@@ -35,7 +35,7 @@ ASSETS = {
     },
 }
 
-DEFAULT_ASSET = "BTC"
+ACTIVE_MODE   = "BTC_HOURLY"  # Options: BTC_HOURLY, BTC_DAILY, QQQ_DAILY, SOXL_DAILY
 
 # ── Signal Parameters ───────────────────────────────────────────────────────
 RSI_PERIOD        = 14
@@ -66,9 +66,10 @@ MAX_POSITION_PCT  = 0.20     # Never risk more than 20% per trade
 # ── Regime ──────────────────────────────────────────────────────────────────
 TREND_SMA_PERIOD  = 200      # Period for trend direction SMA (bull/bear filter)
 
-# ── Trade Hours ──────────────────────────────────────────────────────────────
-TRADE_HOURS_START = 8        # Only enter trades at or after this hour (UTC)
-TRADE_HOURS_END   = 22       # Only enter trades before this hour (UTC)
+# ── Hourly Trade Filter ──────────────────────────────────────────────────────
+HOURLY_TRADE_FILTER      = True   # Master toggle
+HOURLY_TRADE_HOURS_START = 8      # UTC hour to start accepting entries (inclusive)
+HOURLY_TRADE_HOURS_END   = 22     # UTC hour to stop accepting entries (exclusive)
 
 # ── Backtest ────────────────────────────────────────────────────────────────
 BACKTEST_START    = "2020-01-01"
