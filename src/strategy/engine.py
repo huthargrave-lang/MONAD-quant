@@ -53,8 +53,8 @@ def generate_trades(df: pd.DataFrame,
     short_entry = df["signal_vote"] <= -require_signals
 
     if use_regime_filter:
-        long_entry = long_entry & (df["vol_regime"] == 1)
-        short_entry = short_entry & (df["vol_regime"] == 1)
+        long_entry  = long_entry  & (df["vol_regime"] == 1) & (df["trend_direction"] == 1)
+        short_entry = short_entry & (df["vol_regime"] == 1) & (df["trend_direction"] == -1)
 
     df["entry_signal"] = 0
     df.loc[long_entry, "entry_signal"] = 1
@@ -69,18 +69,20 @@ def generate_trades(df: pd.DataFrame,
 
 def compute_trade_returns(df: pd.DataFrame,
                            target_gain_pct: float = 0.015,
-                           stop_loss_pct: float = 0.01) -> pd.Series:
+                           stop_loss_pct: float = 0.01) -> pd.DataFrame:
     """
     Simulate next-bar trade outcomes for backtesting.
-    Returns a Series of individual trade P&L percentages.
+    Returns a DataFrame with columns: return, trend_regime (1=bull, -1=bear).
     """
     trade_returns = []
+    trade_regimes = []
     entries = df[df["entry_signal"] != 0]
 
     for i, (idx, row) in enumerate(entries.iterrows()):
         loc = df.index.get_loc(idx)
         direction = row["entry_signal"]
         entry_price = row["close"]
+        regime = row.get("trend_direction", 0)
 
         # Look ahead up to 5 bars for exit
         future = df.iloc[loc + 1: loc + 6]
@@ -109,5 +111,6 @@ def compute_trade_returns(df: pd.DataFrame,
 
         if exit_return is not None:
             trade_returns.append(exit_return)
+            trade_regimes.append(regime)
 
-    return pd.Series(trade_returns)
+    return pd.DataFrame({"return": trade_returns, "trend_regime": trade_regimes})

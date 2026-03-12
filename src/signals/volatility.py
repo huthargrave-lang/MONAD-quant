@@ -47,7 +47,19 @@ def volatility_regime(df: pd.DataFrame, window: int = 20) -> pd.Series:
     return (bb_width > median_width).astype(int)
 
 
-def add_volatility_features(df: pd.DataFrame) -> pd.DataFrame:
+def trend_direction(df: pd.DataFrame, period: int = 200) -> pd.Series:
+    """
+    Directional trend regime using SMA.
+    Returns: 1 = bull (close above SMA), -1 = bear (close below SMA)
+    """
+    sma = df["close"].rolling(period).mean()
+    direction = pd.Series(0, index=df.index)
+    direction[df["close"] > sma] = 1
+    direction[df["close"] < sma] = -1
+    return direction
+
+
+def add_volatility_features(df: pd.DataFrame, trend_sma_period: int = 200) -> pd.DataFrame:
     df = df.copy()
     df["atr"] = compute_atr(df)
     df["atr_pct"] = df["atr"] / df["close"]  # normalized ATR
@@ -58,4 +70,5 @@ def add_volatility_features(df: pd.DataFrame) -> pd.DataFrame:
     df["bb_width"] = compute_bb_width(df["close"])
     df["bb_position"] = compute_bb_position(df["close"])
     df["vol_regime"] = volatility_regime(df)
+    df["trend_direction"] = trend_direction(df, period=trend_sma_period)
     return df

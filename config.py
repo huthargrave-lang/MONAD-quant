@@ -52,7 +52,7 @@ BB_WINDOW         = 20
 BB_STD            = 2.0
 
 # ── Strategy Parameters ─────────────────────────────────────────────────────
-REQUIRE_SIGNALS   = 1        # Minimum signals to agree for entry (1-3)
+REQUIRE_SIGNALS   = 2        # Minimum signals to agree for entry (1-3)
 TARGET_GAIN_PCT   = 0.015    # 1.5% take profit
 STOP_LOSS_PCT     = 0.010    # 1.0% stop loss
 USE_REGIME_FILTER = True     # Only trade in trending regimes
@@ -60,7 +60,11 @@ USE_REGIME_FILTER = True     # Only trade in trending regimes
 # ── Risk & Sizing ───────────────────────────────────────────────────────────
 INITIAL_CAPITAL   = 100_000
 KELLY_MULTIPLIER  = 0.5      # Fractional Kelly (0.5 = half-Kelly)
+BULL_KELLY_MULTIPLIER = 0.75 # Kelly multiplier when trend direction is bullish
 MAX_POSITION_PCT  = 0.20     # Never risk more than 20% per trade
+
+# ── Regime ──────────────────────────────────────────────────────────────────
+TREND_SMA_PERIOD  = 200      # Period for trend direction SMA (bull/bear filter)
 
 # ── Backtest ────────────────────────────────────────────────────────────────
 BACKTEST_START    = "2020-01-01"

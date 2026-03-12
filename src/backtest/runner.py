@@ -16,6 +16,7 @@ def run_backtest(df: pd.DataFrame,
                  stop_loss_pct: float = 0.01,
                  require_signals: int = 2,
                  kelly_multiplier: float = 0.5,
+                 bull_kelly_multiplier: float = 0.75,
                  plot: bool = True) -> dict:
     """
     Run a full backtest on historical OHLCV data.
@@ -36,17 +37,21 @@ def run_backtest(df: pd.DataFrame,
 
     # Compute individual trade returns
     print("[2/4] Simulating trades...")
-    trade_returns = compute_trade_returns(df_trades, target_gain_pct, stop_loss_pct)
+    trades_df = compute_trade_returns(df_trades, target_gain_pct, stop_loss_pct)
 
-    if len(trade_returns) == 0:
+    if len(trades_df) == 0:
         print("No trades generated. Try loosening signal requirements.")
         return {}
 
+    trade_returns = trades_df["return"]
+
     # Stats from backtest
     stats = estimate_stats_from_backtest(trade_returns)
-    print(f"       {stats['total_trades']} trades | Win rate: {stats['win_rate']*100:.1f}%")
+    bull_trades = (trades_df["trend_regime"] == 1).sum()
+    bear_trades = (trades_df["trend_regime"] == -1).sum()
+    print(f"       {stats['total_trades']} trades | Win rate: {stats['win_rate']*100:.1f}% | Bull: {bull_trades} Bear: {bear_trades}")
 
-    # Position sizing
+    # Position sizing (base — bear/neutral regime)
     sizing = compute_position_size(
         capital=initial_capital,
         win_rate=stats["win_rate"],
@@ -54,13 +59,22 @@ def run_backtest(df: pd.DataFrame,
         avg_loss_pct=stats["avg_loss_pct"],
         kelly_multiplier=kelly_multiplier,
     )
+    bull_sizing = compute_position_size(
+        capital=initial_capital,
+        win_rate=stats["win_rate"],
+        avg_win_pct=stats["avg_win_pct"],
+        avg_loss_pct=stats["avg_loss_pct"],
+        kelly_multiplier=bull_kelly_multiplier,
+    )
 
     # Build equity curve
     print("[3/4] Computing equity curve...")
     capital = initial_capital
     equity_curve = [capital]
-    for r in trade_returns:
-        position = capital * sizing["kelly_capped"]
+    for _, trade in trades_df.iterrows():
+        r = trade["return"]
+        kelly_capped = bull_sizing["kelly_capped"] if trade["trend_regime"] == 1 else sizing["kelly_capped"]
+        position = capital * kelly_capped
         capital += position * r
         equity_curve.append(capital)
 
@@ -76,6 +90,8 @@ def run_backtest(df: pd.DataFrame,
 
     results = {
         "total_trades":    stats["total_trades"],
+        "bull_trades":     int(bull_trades),
+        "bear_trades":     int(bear_trades),
         "win_rate":        stats["win_rate"],
         "avg_win_pct":     stats["avg_win_pct"],
         "avg_loss_pct":    stats["avg_loss_pct"],
@@ -84,8 +100,10 @@ def run_backtest(df: pd.DataFrame,
         "max_drawdown":    round(max_drawdown, 4),
         "final_capital":   round(equity.iloc[-1], 2),
         "kelly_position":  sizing,
+        "bull_kelly_position": bull_sizing,
         "equity_curve":    equity,
         "trade_returns":   trade_returns,
+        "trades_df":       trades_df,
     }
 
     # Print summary
@@ -94,7 +112,8 @@ def run_backtest(df: pd.DataFrame,
     print(f"       Sharpe Ratio:   {sharpe:.3f}")
     print(f"       Max Drawdown:   {max_drawdown*100:.2f}%")
     print(f"       Final Capital:  ${equity.iloc[-1]:,.2f}")
-    print(f"       Kelly Pos Size: {sizing['position_pct']}% (${sizing['position_dollars']:,.2f})")
+    print(f"       Kelly (bear):   {sizing['position_pct']}% (${sizing['position_dollars']:,.2f})")
+    print(f"       Kelly (bull):   {bull_sizing['position_pct']}% (${bull_sizing['position_dollars']:,.2f})")
     print("=" * 50)
 
     if plot:
