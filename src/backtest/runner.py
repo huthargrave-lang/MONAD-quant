@@ -502,16 +502,31 @@ def _plot_results(equity, drawdown, monthly_returns, monthly_wr, monthly_counts,
                bbox=dict(boxstyle="round,pad=0.5", facecolor=BG,
                          edgecolor=BORDER, alpha=0.85))
 
-    # ── Panel 3 · Drawdown ─────────────────────────────────────────────────
+    # ── Panel 3 · Drawdown (% below all-time equity high) ───────────────────
     dd_dates = _map_to_dates(len(drawdown))
-    ax_dd.fill_between(dd_dates, drawdown.values * 100, 0,
-                        color=RED, alpha=0.65)
-    ax_dd.plot(dd_dates, drawdown.values * 100, color=RED, linewidth=0.6, alpha=0.8)
+    dd_pct   = drawdown.values * 100
 
-    ax_dd.set_title("Drawdown", fontsize=10, fontweight="bold", pad=6)
-    ax_dd.set_ylabel("DD (%)", fontsize=8)
-    ax_dd.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:.1f}%"))
-    ax_dd.set_ylim(min(drawdown.min() * 100 * 1.4, -0.1), 0.3)
+    ax_dd.fill_between(dd_dates, dd_pct, 0, color=RED, alpha=0.55)
+    ax_dd.plot(dd_dates, dd_pct, color=RED, linewidth=0.6, alpha=0.8)
+    ax_dd.axhline(0, color=BORDER, linewidth=0.8)
+
+    # Mark the max drawdown point
+    worst_idx = np.argmin(dd_pct)
+    worst_val = dd_pct[worst_idx]
+    ax_dd.annotate(
+        f"Max DD: {worst_val:.2f}%",
+        xy=(dd_dates[worst_idx], worst_val),
+        xytext=(0.5, 0.15), textcoords="axes fraction",
+        fontsize=7.5, fontweight="bold", color=RED,
+        arrowprops=dict(arrowstyle="->", color=RED, lw=1.2),
+        bbox=dict(boxstyle="round,pad=0.3", facecolor=BG, edgecolor=RED, alpha=0.85),
+    )
+
+    ax_dd.set_title("Drawdown  ·  Distance from equity peak (%)",
+                    fontsize=10, fontweight="bold", pad=6)
+    ax_dd.set_ylabel("Below peak (%)", fontsize=8)
+    ax_dd.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:.2f}%"))
+    ax_dd.set_ylim(min(worst_val * 1.5, -0.1), 0.15)
     ax_dd.grid(True, alpha=0.35)
 
     plt.savefig("backtest_results.png", dpi=150, bbox_inches="tight", facecolor=BG)
