@@ -267,7 +267,7 @@ ASSETS = {
         "vwap_zscore_thresh": VWAP_ZSCORE_THRESH,
     },
     "BTC_HOURLY": {
-        "type":               "crypto_hourly",
+        "type":               "crypto_hourly_binance",
         "target_gain_pct":    0.004,    # 0.4% per trade on hourly bars
         "stop_loss_pct":      0.0025,   # 0.25% stop
         "require_signals":    1,
