@@ -471,13 +471,12 @@ def _plot_results(equity, drawdown, monthly_returns, monthly_wr, monthly_counts,
                   linestyle="--", alpha=0.75, label=f"{TARGET_MONTHLY*100:.1f}% target")
     ax_mo.axhline(0, color=BORDER, linewidth=0.8)
 
-    # Annotate win rate per bar
-    for i, (ret, wr, cnt) in enumerate(zip(active_mo.values, active_wr.values, active_cnt.values)):
-        if cnt > 0:
-            y_off = 0.12 if ret >= 0 else -0.22
-            ax_mo.text(i, ret * 100 + y_off, f"{wr*100:.0f}%",
-                       ha="center", va="bottom" if ret >= 0 else "top",
-                       fontsize=6, color=MUTED)
+    # Annotate monthly return value on each bar
+    for i, ret in enumerate(active_mo.values):
+        y_off = 0.04 if ret >= 0 else -0.04
+        ax_mo.text(i, ret * 100 + y_off, f"{ret*100:+.2f}%",
+                   ha="center", va="bottom" if ret >= 0 else "top",
+                   fontsize=6, color=TEXT, fontweight="bold")
 
     ax_mo.set_title("Monthly Returns  ·  'Dividend' Schedule", fontsize=10,
                     fontweight="bold", pad=6)
