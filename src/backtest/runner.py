@@ -432,23 +432,29 @@ def _plot_results(equity, drawdown, monthly_returns, monthly_wr, monthly_counts,
     ax_eq.set_title("Equity Curve", fontsize=10, fontweight="bold", pad=6)
     ax_eq.set_ylabel("Capital ($)", fontsize=8)
     ax_eq.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"${x:,.0f}"))
-    ax_eq.legend(fontsize=8, framealpha=0.25, loc="upper left")
+    ax_eq.legend(fontsize=7.5, framealpha=0.15, loc="lower right",
+                 edgecolor=BORDER, handlelength=1.6)
     ax_eq.grid(True, alpha=0.35)
 
-    # Stats box — top right
+    # ── Right sidebar: Performance stats ──────────────────────────────────
+    _sx = 0.745   # sidebar x (left edge, figure coords)
     alpha_pct = (total_return - bh_return) * 100
+    fig.text(_sx, 0.950, "PERFORMANCE",
+             fontsize=7, fontweight="bold", color=MUTED,
+             va="top", ha="left", transform=fig.transFigure)
     stats_lines = [
-        f"{'Return':<9} {total_return*100:>+6.2f}%  ({ann_return*100:>+.2f}% ann.)",
-        f"{'Sharpe':<9} {sharpe:>7.3f}",
-        f"{'Max DD':<9} {max_drawdown*100:>+6.2f}%",
-        f"{'Win Rate':<9} {win_rate*100:>5.1f}%   ({total_trades} trades)",
-        f"{'vs B&H':<9} {alpha_pct:>+6.2f}%  alpha",
+        f"Return   {total_return*100:>+6.2f}%",
+        f"  ann.   {ann_return*100:>+6.2f}% /yr",
+        f"Sharpe   {sharpe:>7.3f}",
+        f"Max DD   {max_drawdown*100:>+6.2f}%",
+        f"Win Rate {win_rate*100:>5.1f}%  ({total_trades} tr.)",
+        f"vs B&H   {alpha_pct:>+6.1f}%  alpha",
     ]
-    fig.text(0.735, 0.94, "\n".join(stats_lines),
+    fig.text(_sx, 0.934, "\n".join(stats_lines),
              fontsize=7.5, va="top", ha="left", fontfamily="monospace",
              transform=fig.transFigure,
-             bbox=dict(boxstyle="round,pad=0.5", facecolor=BG,
-                       edgecolor=BORDER, alpha=0.85))
+             bbox=dict(boxstyle="round,pad=0.55", facecolor=BG,
+                       edgecolor=BORDER, alpha=0.9))
 
     # ── Panel 2 · Monthly Returns ──────────────────────────────────────────
     active_mo   = monthly_returns[monthly_returns != 0]
@@ -484,23 +490,27 @@ def _plot_results(equity, drawdown, monthly_returns, monthly_wr, monthly_counts,
     ax_mo.set_xticks(xs)
     ax_mo.set_xticklabels([m.strftime("%b '%y") for m in active_mo.index],
                            rotation=45, ha="right", fontsize=7)
-    ax_mo.legend(fontsize=8, framealpha=0.25)
     ax_mo.grid(True, alpha=0.35, axis="y")
 
+    # ── Right sidebar: Monthly stats ───────────────────────────────────────
     pos_months  = (active_mo > 0).sum()
     hit_rate    = pos_months / len(active_mo) if len(active_mo) > 0 else 0
     avg_monthly = active_mo.mean()
     beat_target = (active_mo >= TARGET_MONTHLY).sum()
-    summary = (
-        f"Avg   {avg_monthly*100:>+5.2f}%\n"
-        f"Hit   {hit_rate*100:>4.0f}%\n"
-        f"≥0.5% {beat_target}/{len(active_mo)} mo"
-    )
-    ax_mo.text(0.995, 0.97, summary,
-               transform=ax_mo.transAxes,
-               fontsize=7.5, va="top", ha="right", fontfamily="monospace",
-               bbox=dict(boxstyle="round,pad=0.5", facecolor=BG,
-                         edgecolor=BORDER, alpha=0.85))
+    fig.text(_sx, 0.530, "MONTHLY",
+             fontsize=7, fontweight="bold", color=MUTED,
+             va="top", ha="left", transform=fig.transFigure)
+    monthly_lines = [
+        f"Avg      {avg_monthly*100:>+5.2f}% /mo",
+        f"Hit rate {hit_rate*100:>4.0f}%  pos months",
+        f"≥ target {beat_target}/{len(active_mo)} months",
+        f"Target   {TARGET_MONTHLY*100:.1f}%  /mo",
+    ]
+    fig.text(_sx, 0.514, "\n".join(monthly_lines),
+             fontsize=7.5, va="top", ha="left", fontfamily="monospace",
+             transform=fig.transFigure,
+             bbox=dict(boxstyle="round,pad=0.55", facecolor=BG,
+                       edgecolor=BORDER, alpha=0.9))
 
     # ── Panel 3 · Drawdown (% below all-time equity high) ───────────────────
     dd_dates = _map_to_dates(len(drawdown))
