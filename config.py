@@ -127,7 +127,7 @@ USE_REGIME_FILTER_HOURLY  = False  # Regime too noisy on hourly bars
 # Dead zone (00-07 UTC) is noise-driven — signals fire but rarely follow through.
 # Disabled by default. Enable to test: expect fewer trades, potentially higher WR.
 HOURLY_TRADE_FILTER      = True   # Master toggle
-HOURLY_TRADE_HOURS_START = 8      # UTC hour to start accepting entries (inclusive)
+HOURLY_TRADE_HOURS_START = 7      # UTC hour to start accepting entries (inclusive) — London open
 HOURLY_TRADE_HOURS_END   = 22     # UTC hour to stop accepting entries (exclusive)
 
 # Backtest window — hourly (yfinance max 730-day rolling window)
@@ -201,13 +201,13 @@ PLOT_RESULTS     = True
 # All new params default=False/disabled per project constraint.
 USE_ADAPTIVE_KELLY        = True   # Master toggle — set True for BTC hourly
 ADAPTIVE_KELLY_LOOKBACK   = 15     # Rolling window in trades (15 = ~3 days at 115 trades/mo)
-ADAPTIVE_KELLY_HIGH_WR    = 0.52   # Recent WR ≥ this → scale up (was 0.55 — catches 52-55% months)
+ADAPTIVE_KELLY_HIGH_WR    = 0.50   # Recent WR ≥ this → scale up (was 0.52 — now catches 50-51% months too)
 ADAPTIVE_KELLY_LOW_WR     = 0.42   # Recent WR < this → scale down (signal degrading)
 ADAPTIVE_KELLY_PAUSE_WR   = 0.35   # Recent WR < this → near-flat (signal breakdown)
-ADAPTIVE_KELLY_HIGH_MULT  = 1.8    # Position multiplier when WR ≥ HIGH (vs 1.0 baseline)
+ADAPTIVE_KELLY_HIGH_MULT  = 2.0    # Position multiplier when WR ≥ HIGH (was 1.8 — deploy more in bull streaks)
 ADAPTIVE_KELLY_LOW_MULT   = 0.5    # Position multiplier when WR in [PAUSE, LOW)
 ADAPTIVE_KELLY_PAUSE_MULT = 0.2    # Position multiplier when WR < PAUSE
-ADAPTIVE_KELLY_HIGH_CAP   = 0.30   # Position cap in high-WR state (was 0.28)
+ADAPTIVE_KELLY_HIGH_CAP   = 0.35   # Position cap in high-WR state (was 0.30 — prevent cap truncation at 2.0×)
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  ASSET ROUTING — maps ACTIVE_MODE to engine config (do not edit)
