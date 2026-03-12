@@ -10,7 +10,7 @@ import argparse
 import config
 from src.data.fetcher import (
     fetch_crypto_daily, fetch_daily, fetch_yfinance,
-    fetch_btc_hourly, fetch_qqq_hourly, fetch_btc_hourly_binance,
+    fetch_qqq_hourly, fetch_btc_hourly_binance,
 )
 from src.backtest.runner import run_backtest
 
@@ -22,18 +22,10 @@ def _load_data():
     asset_type = asset_config["type"]
 
     if asset_type == "crypto_hourly_binance":
-        # AGG profile uses its own date range; standard hourly uses BACKTEST_START/END_HOURLY
-        if config.ACTIVE_MODE == "BTC_HOURLY_AGG":
-            start = config.BACKTEST_START_HOURLY_AGG
-            end   = config.BACKTEST_END_HOURLY_AGG
-        else:
-            start = config.BACKTEST_START_HOURLY
-            end   = config.BACKTEST_END_HOURLY
+        start = config.BACKTEST_START_HOURLY
+        end   = config.BACKTEST_END_HOURLY
         df = fetch_btc_hourly_binance(start=start, end=end)
         timeframe = "hourly"
-    elif asset_type == "crypto_hourly":
-        df = fetch_btc_hourly(start=config.BACKTEST_START_HOURLY, end=config.BACKTEST_END_HOURLY)
-        start, end, timeframe = config.BACKTEST_START_HOURLY, config.BACKTEST_END_HOURLY, "hourly"
     elif asset_type == "etf_hourly":
         df = fetch_qqq_hourly(start=config.BACKTEST_START_QQQ_HOURLY, end=config.BACKTEST_END_QQQ_HOURLY)
         start, end, timeframe = config.BACKTEST_START_QQQ_HOURLY, config.BACKTEST_END_QQQ_HOURLY, "hourly"

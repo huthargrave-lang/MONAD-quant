@@ -25,25 +25,18 @@ def build_features(df: pd.DataFrame, timeframe: str = "daily",
     import config
     overrides = signal_overrides or {}
     if timeframe == "hourly":
-        # Resolve per-profile hourly params: BTC_HOURLY_AGG uses _AGG suffixed values
-        _agg = getattr(config, "ACTIVE_MODE", "") == "BTC_HOURLY_AGG"
-        def _hp(name, default=None):
-            if _agg:
-                return getattr(config, name + "_AGG", getattr(config, name, default))
-            return getattr(config, name, default)
-
         df = add_momentum_features(
             df,
-            rsi_period=_hp("RSI_PERIOD_HOURLY", 7),
-            macd_fast=_hp("MACD_FAST_HOURLY", 6),
-            macd_slow=_hp("MACD_SLOW_HOURLY", 13),
-            macd_signal_period=_hp("MACD_SIGNAL_HOURLY", 4),
-            rsi_oversold=_hp("RSI_OVERSOLD_HOURLY", 40),
-            rsi_overbought=_hp("RSI_OVERBOUGHT_HOURLY", 60),
+            rsi_period=getattr(config, "RSI_PERIOD_HOURLY", 7),
+            macd_fast=getattr(config, "MACD_FAST_HOURLY", 6),
+            macd_slow=getattr(config, "MACD_SLOW_HOURLY", 13),
+            macd_signal_period=getattr(config, "MACD_SIGNAL_HOURLY", 4),
+            rsi_oversold=getattr(config, "RSI_OVERSOLD_HOURLY", 40),
+            rsi_overbought=getattr(config, "RSI_OVERBOUGHT_HOURLY", 60),
         )
-        df = add_volume_features(df, window=_hp("VWAP_WINDOW_HOURLY", 10),
-                                  zscore_threshold=_hp("VWAP_ZSCORE_THRESH_HOURLY", 1.0))
-        df = add_volatility_features(df, window=_hp("BB_WINDOW_HOURLY", 14))
+        df = add_volume_features(df, window=getattr(config, "VWAP_WINDOW_HOURLY", 10),
+                                  zscore_threshold=getattr(config, "VWAP_ZSCORE_THRESH_HOURLY", 1.0))
+        df = add_volatility_features(df, window=getattr(config, "BB_WINDOW_HOURLY", 14))
     else:
         kelly_mult_map = {
             "STRONG_BULL": config.KELLY_MULT_STRONG_BULL,
@@ -203,14 +196,10 @@ def generate_trades(df: pd.DataFrame,
     # Dead-zone RSI signals (00-07 UTC) are driven by noise, not genuine demand.
     # Disabled by default — enable with HOURLY_TRADE_FILTER=True in config.
     import config as _cfg2
-    _is_agg = getattr(_cfg2, "ACTIVE_MODE", "") == "BTC_HOURLY_AGG"
-    _trade_filter = (getattr(_cfg2, "HOURLY_TRADE_FILTER_AGG", False) if _is_agg
-                     else getattr(_cfg2, "HOURLY_TRADE_FILTER", False))
+    _trade_filter = getattr(_cfg2, "HOURLY_TRADE_FILTER", False)
     if _trade_filter and hasattr(df.index, "hour"):
-        start_h = (getattr(_cfg2, "HOURLY_TRADE_HOURS_START_AGG", 8) if _is_agg
-                   else getattr(_cfg2, "HOURLY_TRADE_HOURS_START", 8))
-        end_h   = (getattr(_cfg2, "HOURLY_TRADE_HOURS_END_AGG", 22) if _is_agg
-                   else getattr(_cfg2, "HOURLY_TRADE_HOURS_END", 22))
+        start_h = getattr(_cfg2, "HOURLY_TRADE_HOURS_START", 8)
+        end_h   = getattr(_cfg2, "HOURLY_TRADE_HOURS_END", 22)
         active  = df.index.hour.isin(range(start_h, end_h))
         long_entry  = long_entry  & active
         short_entry = short_entry & active

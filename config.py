@@ -7,9 +7,29 @@ All other parameters are pre-tuned for their respective mode.
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  ACTIVE MODE — the only line you normally need to change
-#  Options: "BTC_DAILY" | "BTC_HOURLY" | "BTC_HOURLY_AGG" | "QQQ"
+#  Options: "BTC_DAILY" | "BTC_HOURLY" | "QQQ" | "QQQ_HOURLY"
 # ═══════════════════════════════════════════════════════════════════════════
 ACTIVE_MODE = "BTC_HOURLY"
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  BACKTEST DATE RANGES — edit here, one place for all BTC windows
+#  Uncomment the preset you want, or set custom dates below.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ── BTC Daily presets ────────────────────────────────────────────────────
+# BACKTEST_START = "2020-01-01";  BACKTEST_END = "2024-12-31"  # 5yr full run (primary)
+# BACKTEST_START = "2021-01-01";  BACKTEST_END = "2024-12-31"  # 4yr (skip 2020 data)
+# BACKTEST_START = "2023-01-01";  BACKTEST_END = "2023-12-31"  # 2023 regression baseline
+# BACKTEST_START = "2024-01-01";  BACKTEST_END = "2024-12-31"  # 2024 only
+BACKTEST_START = "2020-01-01"
+BACKTEST_END   = "2024-12-31"
+
+# ── BTC Hourly presets ───────────────────────────────────────────────────
+# BACKTEST_START_HOURLY = "2024-03-15";  BACKTEST_END_HOURLY = "2026-02-15"  # 2yr baseline
+# BACKTEST_START_HOURLY = "2025-01-01";  BACKTEST_END_HOURLY = "2026-03-01"  # 2025–present
+# BACKTEST_START_HOURLY = "2024-06-01";  BACKTEST_END_HOURLY = "2026-03-01"  # 21mo recent
+BACKTEST_START_HOURLY = "2024-03-15"
+BACKTEST_END_HOURLY   = "2026-02-15"
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  PROFILE 1 — BTC DAILY
@@ -98,10 +118,6 @@ BEAR_SHORT_STOP_PCT          = 0.025
 BREAKOUT_WINDOW              = 20
 ADX_BREAKOUT_MIN             = 25
 
-# Backtest window — daily
-BACKTEST_START = "2020-01-01"
-BACKTEST_END   = "2024-12-31"
-
 # ═══════════════════════════════════════════════════════════════════════════
 #  PROFILE 2 — BTC HOURLY
 #  Goal:    Active income generation (~5–6%/month avg)
@@ -130,9 +146,6 @@ HOURLY_TRADE_FILTER      = True   # Master toggle
 HOURLY_TRADE_HOURS_START = 8      # UTC hour to start accepting entries (inclusive) — London open
 HOURLY_TRADE_HOURS_END   = 22     # UTC hour to stop accepting entries (exclusive)
 
-# Backtest window — hourly (yfinance max 730-day rolling window)
-BACKTEST_START_HOURLY = "2024-03-15"
-BACKTEST_END_HOURLY   = "2026-02-15"
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  PROFILE 3 — QQQ (WORK IN PROGRESS)
@@ -178,54 +191,9 @@ VWAP_WINDOW_QQQ_HOURLY        = 10
 VWAP_ZSCORE_THRESH_QQQ_HOURLY = 0.8   # Tighter — QQQ VWAP deviations are smaller
 BB_WINDOW_QQQ_HOURLY          = 14
 
-# Backtest window — QQQ hourly (yfinance max 730-day rolling window from today)
-# Note: equity ETFs enforce the 730-day limit more strictly than crypto
-# 2024-04-01 → 2026-03-01 gives ~23 months safely within the window
+# Backtest window — QQQ hourly
 BACKTEST_START_QQQ_HOURLY = "2024-04-01"
 BACKTEST_END_QQQ_HOURLY   = "2026-03-01"
-
-# ═══════════════════════════════════════════════════════════════════════════
-#  PROFILE 5 — BTC HOURLY AGGRESSIVE
-#  Goal:    Higher monthly income (~0.8–1.0%/mo), accepts more drawdown
-#  Style:   Same mean-reversion signals but larger positions, wider caps
-#  Risk:    Max DD target ~1.5-2% (vs 0.5% on standard hourly)
-#  Data:    Uses Binance API for 3+ year hourly history (vs yfinance 730-day)
-#  Note:    Compare side-by-side with BTC_HOURLY to evaluate risk/reward
-# ═══════════════════════════════════════════════════════════════════════════
-
-# Signal params — same as standard hourly (proven signal quality)
-RSI_PERIOD_HOURLY_AGG         = 7
-RSI_OVERSOLD_HOURLY_AGG       = 42    # Looser: catch shallower dips in bull runs
-RSI_OVERBOUGHT_HOURLY_AGG     = 60
-MACD_FAST_HOURLY_AGG          = 6
-MACD_SLOW_HOURLY_AGG          = 13
-MACD_SIGNAL_HOURLY_AGG        = 4
-VWAP_WINDOW_HOURLY_AGG        = 10
-VWAP_ZSCORE_THRESH_HOURLY_AGG = 0.9   # Slightly looser — more entries
-BB_WINDOW_HOURLY_AGG          = 14
-
-# Time-of-day filter — same proven window
-HOURLY_TRADE_FILTER_AGG       = True
-HOURLY_TRADE_HOURS_START_AGG  = 7
-HOURLY_TRADE_HOURS_END_AGG    = 22
-
-# Aggressive adaptive Kelly — higher multipliers and caps
-USE_ADAPTIVE_KELLY_AGG        = True
-ADAPTIVE_KELLY_LOOKBACK_AGG   = 15
-ADAPTIVE_KELLY_HIGH_WR_AGG    = 0.48   # Fire HIGH tier more easily
-ADAPTIVE_KELLY_LOW_WR_AGG     = 0.40
-ADAPTIVE_KELLY_PAUSE_WR_AGG   = 0.33
-ADAPTIVE_KELLY_HIGH_MULT_AGG  = 2.5    # Aggressive sizing in bull streaks
-ADAPTIVE_KELLY_LOW_MULT_AGG   = 0.5
-ADAPTIVE_KELLY_PAUSE_MULT_AGG = 0.15
-ADAPTIVE_KELLY_HIGH_CAP_AGG   = 0.45   # Allow up to 45% position
-
-# Backtest window — Binance data, 3+ years
-BACKTEST_START_HOURLY_AGG = "2022-01-01"
-BACKTEST_END_HOURLY_AGG   = "2026-02-15"
-
-# Data source
-HOURLY_AGG_DATA_SOURCE = "binance"  # "binance" or "yfinance"
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  SHARED — Risk & Sizing (applies to all modes)
@@ -293,15 +261,6 @@ ASSETS = {
         "rsi_overbought":     RSI_OVERBOUGHT_QQQ_HOURLY,
         "vwap_zscore_thresh": VWAP_ZSCORE_THRESH_QQQ_HOURLY,
     },
-    "BTC_HOURLY_AGG": {
-        "type":               "crypto_hourly_binance",
-        "target_gain_pct":    0.005,     # 0.5% target (wider than standard 0.4% — let winners run)
-        "stop_loss_pct":      0.003,     # 0.3% stop (1.67:1 R:R)
-        "require_signals":    1,
-        "rsi_oversold":       RSI_OVERSOLD_HOURLY_AGG,
-        "rsi_overbought":     RSI_OVERBOUGHT_HOURLY_AGG,
-        "vwap_zscore_thresh": VWAP_ZSCORE_THRESH_HOURLY_AGG,
-    },
     "SOXL": {
         "type":               "etf",
         "rsi_oversold":       38,
@@ -314,10 +273,9 @@ ASSETS = {
 }
 
 _MODE_TO_ASSET = {
-    "BTC_DAILY":      "BTC",
-    "BTC_HOURLY":     "BTC_HOURLY",
-    "BTC_HOURLY_AGG": "BTC_HOURLY_AGG",
-    "QQQ":            "QQQ",
-    "QQQ_HOURLY":     "QQQ_HOURLY",
+    "BTC_DAILY":  "BTC",
+    "BTC_HOURLY": "BTC_HOURLY",
+    "QQQ":        "QQQ",
+    "QQQ_HOURLY": "QQQ_HOURLY",
 }
 DEFAULT_ASSET = _MODE_TO_ASSET.get(ACTIVE_MODE, "BTC")

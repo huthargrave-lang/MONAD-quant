@@ -166,7 +166,7 @@ def fetch_macd(symbol: str, interval: str = "daily") -> pd.DataFrame:
 
 
 def _fetch_hourly(symbol: str, start: str, end: str) -> pd.DataFrame:
-    """Shared hourly fetcher via yfinance. Max 730 days rolling."""
+    """Shared hourly fetcher via yfinance."""
     ticker = yf.Ticker(symbol)
     df = ticker.history(start=start, end=end, interval="1h")
     df.columns = [c.lower() for c in df.columns]
@@ -178,7 +178,7 @@ def _fetch_hourly(symbol: str, start: str, end: str) -> pd.DataFrame:
 
 
 def fetch_btc_hourly(start: str, end: str) -> pd.DataFrame:
-    """Fetch hourly BTC-USD OHLCV via yfinance (max 730 days)."""
+    """Fetch hourly BTC-USD OHLCV via yfinance."""
     print(f"[yfinance] Fetching BTC-USD hourly from {start} to {end}...")
     return _fetch_hourly("BTC-USD", start, end)
 
@@ -272,7 +272,7 @@ def fetch_btc_hourly_binance(start: str, end: str, symbol: str = "BTCUSDT") -> p
 
 def fetch_qqq_hourly(start: str, end: str) -> pd.DataFrame:
     """
-    Fetch hourly QQQ OHLCV via yfinance (max 730 days).
+    Fetch hourly QQQ OHLCV via yfinance.
     Market-hours only (09:30–16:00 ET) — ~136 bars/month vs BTC's 720.
     """
     print(f"[yfinance] Fetching QQQ hourly from {start} to {end}...")
