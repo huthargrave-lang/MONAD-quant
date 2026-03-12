@@ -402,7 +402,7 @@ def _plot_results(equity, drawdown, monthly_returns, monthly_wr, monthly_counts,
                  fontsize=13, fontweight="bold", color=TEXT, y=0.99)
 
     gs = fig.add_gridspec(3, 1, height_ratios=[2.8, 2.2, 1.0],
-                          hspace=0.45, left=0.08, right=0.96,
+                          hspace=0.45, left=0.08, right=0.72,
                           top=0.95, bottom=0.07)
     ax_eq = fig.add_subplot(gs[0])
     ax_mo = fig.add_subplot(gs[1])
@@ -444,11 +444,11 @@ def _plot_results(equity, drawdown, monthly_returns, monthly_wr, monthly_counts,
         f"{'Win Rate':<9} {win_rate*100:>5.1f}%   ({total_trades} trades)",
         f"{'vs B&H':<9} {alpha_pct:>+6.2f}%  alpha",
     ]
-    ax_eq.text(0.99, 0.97, "\n".join(stats_lines),
-               transform=ax_eq.transAxes,
-               fontsize=7.5, va="top", ha="right", fontfamily="monospace",
-               bbox=dict(boxstyle="round,pad=0.5", facecolor=BG,
-                         edgecolor=BORDER, alpha=0.85))
+    fig.text(0.735, 0.94, "\n".join(stats_lines),
+             fontsize=7.5, va="top", ha="left", fontfamily="monospace",
+             transform=fig.transFigure,
+             bbox=dict(boxstyle="round,pad=0.5", facecolor=BG,
+                       edgecolor=BORDER, alpha=0.85))
 
     # ── Panel 2 · Monthly Returns ──────────────────────────────────────────
     active_mo   = monthly_returns[monthly_returns != 0]
