@@ -212,13 +212,13 @@ PLOT_RESULTS     = True
 # All new params default=False/disabled per project constraint.
 USE_ADAPTIVE_KELLY        = True   # Master toggle — set True for BTC hourly
 ADAPTIVE_KELLY_LOOKBACK   = 20     # Rolling window in trades (20 = ~4 days at 130 trades/mo in 24hr mode; lb=15 was for filtered mode)
-ADAPTIVE_KELLY_HIGH_WR    = 0.46   # Dead lever in 24hr mode — rolling WR rarely sustains above 46%; tested 0.46/0.50/0.52, all inert
+ADAPTIVE_KELLY_HIGH_WR    = 0.46   # Confirmed active at 0.46 — fires during 48-55% WR bull stretches; dead lever at 0.52+
 ADAPTIVE_KELLY_LOW_WR     = 0.42   # Recent WR < this → scale down (signal degrading)
 ADAPTIVE_KELLY_PAUSE_WR   = 0.35   # Recent WR < this → near-flat (signal breakdown)
-ADAPTIVE_KELLY_HIGH_MULT  = 1.8    # Position multiplier when WR ≥ HIGH (2.0 untested; 1.8 confirmed in session)
+ADAPTIVE_KELLY_HIGH_MULT  = 2.0    # Position multiplier when WR ≥ HIGH — tested: +553% vs +453% at 1.8 (2019-2026, VWAP=1.0)
 ADAPTIVE_KELLY_LOW_MULT   = 0.5    # Position multiplier when WR in [PAUSE, LOW)
 ADAPTIVE_KELLY_PAUSE_MULT = 0.2    # Position multiplier when WR < PAUSE
-ADAPTIVE_KELLY_HIGH_CAP   = 0.30   # Position cap in high-WR state (0.35 paired with untested 2.0× mult; 0.30 confirmed)
+ADAPTIVE_KELLY_HIGH_CAP   = 0.35   # Position cap in high-WR state — 0.35 gives headroom for 2.0× mult (2.0×12% = 24% → under cap)
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  ASSET ROUTING — maps ACTIVE_MODE to engine config (do not edit)
