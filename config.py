@@ -21,15 +21,15 @@ ACTIVE_MODE = "BTC_HOURLY"
 # BACKTEST_START = "2021-01-01";  BACKTEST_END = "2024-12-31"  # 4yr (skip 2020 data)
 # BACKTEST_START = "2023-01-01";  BACKTEST_END = "2023-12-31"  # 2023 regression baseline
 # BACKTEST_START = "2024-01-01";  BACKTEST_END = "2024-12-31"  # 2024 only
-BACKTEST_START = "2020-01-01"
+BACKTEST_START = "2021-11-01"
 BACKTEST_END   = "2024-12-31"
 
 # ── BTC Hourly presets ───────────────────────────────────────────────────
 # BACKTEST_START_HOURLY = "2024-03-15";  BACKTEST_END_HOURLY = "2026-02-15"  # 2yr baseline
 # BACKTEST_START_HOURLY = "2025-01-01";  BACKTEST_END_HOURLY = "2026-03-01"  # 2025–present
 # BACKTEST_START_HOURLY = "2024-06-01";  BACKTEST_END_HOURLY = "2026-03-01"  # 21mo recent
-BACKTEST_START_HOURLY = "2024-03-15"
-BACKTEST_END_HOURLY   = "2026-02-15"
+BACKTEST_START_HOURLY = "2019-01-01"
+BACKTEST_END_HOURLY   = "2026-01-01"
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  PROFILE 1 — BTC DAILY
@@ -126,7 +126,7 @@ ADX_BREAKOUT_MIN             = 25
 #  Best for: accounts that want high monthly income, can handle lower WR (46%)
 # ═══════════════════════════════════════════════════════════════════════════
 
-RSI_PERIOD_HOURLY         = 7
+RSI_PERIOD_HOURLY         = 5
 RSI_OVERSOLD_HOURLY       = 40     # 35 too rare during bull runs; 40 fires consistently
 RSI_OVERBOUGHT_HOURLY     = 60
 MACD_FAST_HOURLY          = 6
@@ -134,7 +134,7 @@ MACD_SLOW_HOURLY          = 13
 MACD_SIGNAL_HOURLY        = 4
 ROC_PERIOD_HOURLY         = 5
 VWAP_WINDOW_HOURLY        = 10
-VWAP_ZSCORE_THRESH_HOURLY = 1.0    # Tighter threshold — hourly VWAP reverts faster
+VWAP_ZSCORE_THRESH_HOURLY = 1.1    # Tighter threshold — hourly VWAP reverts faster
 BB_WINDOW_HOURLY          = 14
 USE_REGIME_FILTER_HOURLY  = False  # Regime too noisy on hourly bars
 
@@ -143,8 +143,8 @@ USE_REGIME_FILTER_HOURLY  = False  # Regime too noisy on hourly bars
 # Dead zone (00-07 UTC) is noise-driven — signals fire but rarely follow through.
 # Disabled by default. Enable to test: expect fewer trades, potentially higher WR.
 HOURLY_TRADE_FILTER      = True   # Master toggle
-HOURLY_TRADE_HOURS_START = 8      # UTC hour to start accepting entries (inclusive) — London open
-HOURLY_TRADE_HOURS_END   = 22     # UTC hour to stop accepting entries (exclusive)
+HOURLY_TRADE_HOURS_START = 0      # UTC hour to start accepting entries (inclusive) — London open
+HOURLY_TRADE_HOURS_END   = 24     # UTC hour to stop accepting entries (exclusive)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -211,8 +211,8 @@ PLOT_RESULTS     = True
 # Reduce exposure automatically until quality recovers.
 # All new params default=False/disabled per project constraint.
 USE_ADAPTIVE_KELLY        = True   # Master toggle — set True for BTC hourly
-ADAPTIVE_KELLY_LOOKBACK   = 15     # Rolling window in trades (15 = ~3 days at 115 trades/mo)
-ADAPTIVE_KELLY_HIGH_WR    = 0.50   # Recent WR ≥ this → scale up (was 0.52 — now catches 50-51% months too)
+ADAPTIVE_KELLY_LOOKBACK   = 20     # Rolling window in trades (15 = ~3 days at 115 trades/mo)
+ADAPTIVE_KELLY_HIGH_WR    = 0.46   # Recent WR ≥ this → scale up (was 0.52 — now catches 50-51% months too)
 ADAPTIVE_KELLY_LOW_WR     = 0.42   # Recent WR < this → scale down (signal degrading)
 ADAPTIVE_KELLY_PAUSE_WR   = 0.35   # Recent WR < this → near-flat (signal breakdown)
 ADAPTIVE_KELLY_HIGH_MULT  = 2.0    # Position multiplier when WR ≥ HIGH (was 1.8 — deploy more in bull streaks)
@@ -237,7 +237,7 @@ ASSETS = {
     "BTC_HOURLY": {
         "type":               "crypto_hourly_binance",
         "target_gain_pct":    0.004,    # 0.4% per trade on hourly bars
-        "stop_loss_pct":      0.0025,   # 0.25% stop
+        "stop_loss_pct":      0.002,   # 0.25% stop
         "require_signals":    1,
         "rsi_oversold":       RSI_OVERSOLD_HOURLY,
         "rsi_overbought":     RSI_OVERBOUGHT_HOURLY,
