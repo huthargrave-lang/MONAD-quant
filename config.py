@@ -127,7 +127,7 @@ ADX_BREAKOUT_MIN             = 25
 # ═══════════════════════════════════════════════════════════════════════════
 
 RSI_PERIOD_HOURLY         = 5
-RSI_OVERSOLD_HOURLY       = 40     # 35 too rare during bull runs; 40 fires consistently
+RSI_OVERSOLD_HOURLY       = 42     # Sweep tested 38-50: 42 is optimal (return+Sharpe peak, RSI still binding gate vs VWAP)
 RSI_OVERBOUGHT_HOURLY     = 60
 MACD_FAST_HOURLY          = 6
 MACD_SLOW_HOURLY          = 13
