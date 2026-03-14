@@ -142,9 +142,9 @@ USE_REGIME_FILTER_HOURLY  = False  # Regime too noisy on hourly bars
 # London (07-16 UTC) + NY (13-21 UTC) sessions have genuine volume behind RSI dips.
 # Dead zone (00-07 UTC) is noise-driven — signals fire but rarely follow through.
 # Disabled by default. Enable to test: expect fewer trades, potentially higher WR.
-HOURLY_TRADE_FILTER      = True   # Master toggle
-HOURLY_TRADE_HOURS_START = 0      # UTC hour to start accepting entries (inclusive) — London open
-HOURLY_TRADE_HOURS_END   = 24     # UTC hour to stop accepting entries (exclusive)
+HOURLY_TRADE_FILTER      = False  # 24hr mode confirmed best — tested: Sharpe 26, +579% 7.5yr vs +10.73% filtered 2yr
+HOURLY_TRADE_HOURS_START = 0      # UTC hour (only used when HOURLY_TRADE_FILTER=True)
+HOURLY_TRADE_HOURS_END   = 24     # UTC hour (only used when HOURLY_TRADE_FILTER=True)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -211,14 +211,14 @@ PLOT_RESULTS     = True
 # Reduce exposure automatically until quality recovers.
 # All new params default=False/disabled per project constraint.
 USE_ADAPTIVE_KELLY        = True   # Master toggle — set True for BTC hourly
-ADAPTIVE_KELLY_LOOKBACK   = 20     # Rolling window in trades (15 = ~3 days at 115 trades/mo)
-ADAPTIVE_KELLY_HIGH_WR    = 0.46   # Recent WR ≥ this → scale up (was 0.52 — now catches 50-51% months too)
+ADAPTIVE_KELLY_LOOKBACK   = 20     # Rolling window in trades (20 = ~4 days at 130 trades/mo in 24hr mode; lb=15 was for filtered mode)
+ADAPTIVE_KELLY_HIGH_WR    = 0.46   # Dead lever in 24hr mode — rolling WR rarely sustains above 46%; tested 0.46/0.50/0.52, all inert
 ADAPTIVE_KELLY_LOW_WR     = 0.42   # Recent WR < this → scale down (signal degrading)
 ADAPTIVE_KELLY_PAUSE_WR   = 0.35   # Recent WR < this → near-flat (signal breakdown)
-ADAPTIVE_KELLY_HIGH_MULT  = 2.0    # Position multiplier when WR ≥ HIGH (was 1.8 — deploy more in bull streaks)
+ADAPTIVE_KELLY_HIGH_MULT  = 1.8    # Position multiplier when WR ≥ HIGH (2.0 untested; 1.8 confirmed in session)
 ADAPTIVE_KELLY_LOW_MULT   = 0.5    # Position multiplier when WR in [PAUSE, LOW)
 ADAPTIVE_KELLY_PAUSE_MULT = 0.2    # Position multiplier when WR < PAUSE
-ADAPTIVE_KELLY_HIGH_CAP   = 0.35   # Position cap in high-WR state (was 0.30 — prevent cap truncation at 2.0×)
+ADAPTIVE_KELLY_HIGH_CAP   = 0.30   # Position cap in high-WR state (0.35 paired with untested 2.0× mult; 0.30 confirmed)
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  ASSET ROUTING — maps ACTIVE_MODE to engine config (do not edit)
@@ -237,7 +237,7 @@ ASSETS = {
     "BTC_HOURLY": {
         "type":               "crypto_hourly_binance",
         "target_gain_pct":    0.004,    # 0.4% per trade on hourly bars
-        "stop_loss_pct":      0.002,   # 0.25% stop
+        "stop_loss_pct":      0.002,    # 0.20% stop — 2:1 R:R; tighter stop compounds massively (tested: +579% 7.5yr vs +377% at 0.0025)
         "require_signals":    1,
         "rsi_oversold":       RSI_OVERSOLD_HOURLY,
         "rsi_overbought":     RSI_OVERBOUGHT_HOURLY,
