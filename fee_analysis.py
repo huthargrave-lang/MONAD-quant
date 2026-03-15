@@ -6,7 +6,8 @@ Simulates the BTC Hourly strategy equity curve under different Binance fee tiers
 and compares net returns to Buy & Hold.
 
 Usage:
-    python fee_analysis.py
+    python fee_analysis.py           # live run — fetches Binance data + runs backtest
+    python fee_analysis.py --demo    # offline demo — synthesizes from known 7yr stats
 
 Fee simulation method:
     Per-trade gross equity return = equity_curve[i+1] / equity_curve[i] - 1
@@ -16,6 +17,7 @@ Fee simulation method:
 """
 
 import sys
+import argparse
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -23,10 +25,6 @@ import matplotlib.gridspec as gridspec
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-
-import config
-from src.data.fetcher import fetch_btc_hourly_binance
-from src.backtest.runner import run_backtest
 
 
 # ── Binance fee tiers (round-trip %) ─────────────────────────────────────────
@@ -310,34 +308,127 @@ def plot_fee_analysis(results: dict, price_df: pd.DataFrame,
           f"{bh_total*100:>7.0f}%  ${bh_final:>11,.0f}")
 
 
+# ── Demo mode: synthetic equity from known 7yr backtest stats ─────────────────
+
+def _build_demo(initial_capital: float = 100_000) -> tuple:
+    """
+    Synthesise a representative equity curve + price_df from the confirmed
+    7yr BTC Hourly backtest statistics (2019-09-01 → 2026-01-01).
+
+    Calibrated to:
+        Trades:    10,850  (~130/mo over 84 months)
+        Win rate:  48.9%
+        Avg win:   +0.40%  (target hit)
+        Avg loss:  -0.20%  (stop hit)
+        Base Kelly: 11.66%   (used for fee calculation)
+        Eff. Kelly: 19.40%   (captures adaptive 2× scaling during high-WR months)
+        B&H BTC:   +600%    (approx 2019-2026 actual)
+
+    The equity simulation uses effective_kelly (~1.67× base) to reproduce the
+    adaptive Kelly boost from high-WR stretches (Jan/May 2021 etc.). Fee drag
+    is computed using base kelly (0.1166), which matches CLAUDE.md's
+    "0.10% RT → 1.52%/mo drag" calibration point.
+    """
+    rng = np.random.default_rng(42)   # fixed seed → reproducible chart
+
+    # Trade-level simulation
+    n_trades       = 10_850
+    win_rate       = 0.489
+    avg_win        = 0.004    # +0.4% on position
+    avg_loss       = 0.002    # -0.2% on position
+    base_kelly     = 0.1166   # base (for fee calculation — matches CLAUDE.md drag numbers)
+    equity_kelly   = 0.1940   # effective (captures adaptive 2× scaling; calibrated to 616% 7yr)
+
+    outcomes = rng.random(n_trades) < win_rate   # True = win
+    trade_returns_arr = np.where(outcomes, avg_win, -avg_loss)
+
+    # Equity curve (gross — no fees); uses equity_kelly to match actual adaptive scaling
+    capital = initial_capital
+    eq = [capital]
+    for r in trade_returns_arr:
+        capital += capital * equity_kelly * r
+        eq.append(capital)
+    equity_curve = pd.Series(eq)
+
+    # Date index spanning the 7yr period
+    start = pd.Timestamp("2019-09-01")
+    end   = pd.Timestamp("2026-01-01")
+    trade_dates = pd.date_range(start, end, periods=n_trades)
+
+    # Synthetic trade_returns Series (indexed by trade entry date)
+    trade_returns = pd.Series(trade_returns_arr, index=trade_dates)
+
+    # Monthly returns from the gross equity curve (for active_months count)
+    eq_series = pd.Series(eq[1:], index=trade_dates)
+    monthly_gross = eq_series.resample("ME").last().ffill().pct_change().dropna()
+
+    # Synthetic BTC price (roughly +600% over the period, with vol)
+    n_hours = int((end - start).days * 24)
+    # GBM parameters calibrated to approximate BTC 2019-2026 path
+    mu  = np.log(7.0) / (n_hours / (365.25 * 24))   # ~+600% total → ln(7)/7yr annualised
+    sig = 0.060 / np.sqrt(24)                        # ~6% daily vol → hourly
+    log_returns = rng.normal(mu / (365.25 * 24), sig, n_hours)
+    price = 8_000 * np.exp(np.cumsum(log_returns))   # start ~$8k (BTC Sep 2019)
+    price_dates = pd.date_range(start, periods=n_hours, freq="h")
+    price_df = pd.DataFrame({"close": price}, index=price_dates)
+
+    results = {
+        "equity_curve":  equity_curve,
+        "trade_returns": trade_returns,
+        "monthly_returns": monthly_gross,
+        "kelly_position": {
+            "kelly_capped":   base_kelly,   # base Kelly — correct for fee drag calculation
+            "position_pct":   base_kelly * 100,
+        },
+    }
+    return results, price_df
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def main():
+    parser = argparse.ArgumentParser(description="MONAD Quant — Fee Sensitivity Analysis")
+    parser.add_argument(
+        "--demo", action="store_true",
+        help="Offline demo: synthesise equity from known 7yr stats (no Binance API needed)",
+    )
+    args = parser.parse_args()
+
     print("MONAD Quant — Binance Fee Sensitivity Analysis\n")
 
-    print("Loading BTC hourly data from Binance...")
-    df = fetch_btc_hourly_binance(
-        start=config.BACKTEST_START_HOURLY,
-        end=config.BACKTEST_END_HOURLY,
-    )
-    print(f"Loaded {len(df):,} bars  ({df.index[0].date()} → {df.index[-1].date()})\n")
+    if args.demo:
+        print("Running in DEMO mode (synthetic equity from known 7yr stats)...")
+        results, df = _build_demo(initial_capital=100_000)
+        initial_capital = 100_000
+    else:
+        import config
+        from src.data.fetcher import fetch_btc_hourly_binance
+        from src.backtest.runner import run_backtest
 
-    asset_cfg = config.ASSETS["BTC_HOURLY"]
-    results = run_backtest(
-        df,
-        initial_capital=config.INITIAL_CAPITAL,
-        target_gain_pct=asset_cfg["target_gain_pct"],
-        stop_loss_pct=asset_cfg["stop_loss_pct"],
-        require_signals=asset_cfg["require_signals"],
-        kelly_multiplier=config.KELLY_MULTIPLIER,
-        timeframe="hourly",
-        plot=False,
-    )
-    if not results:
-        print("No trades generated.")
-        return
+        print("Loading BTC hourly data from Binance...")
+        df = fetch_btc_hourly_binance(
+            start=config.BACKTEST_START_HOURLY,
+            end=config.BACKTEST_END_HOURLY,
+        )
+        print(f"Loaded {len(df):,} bars  ({df.index[0].date()} → {df.index[-1].date()})\n")
 
-    plot_fee_analysis(results, df, config.INITIAL_CAPITAL)
+        asset_cfg = config.ASSETS["BTC_HOURLY"]
+        results = run_backtest(
+            df,
+            initial_capital=config.INITIAL_CAPITAL,
+            target_gain_pct=asset_cfg["target_gain_pct"],
+            stop_loss_pct=asset_cfg["stop_loss_pct"],
+            require_signals=asset_cfg["require_signals"],
+            kelly_multiplier=config.KELLY_MULTIPLIER,
+            timeframe="hourly",
+            plot=False,
+        )
+        if not results:
+            print("No trades generated.")
+            return
+        initial_capital = config.INITIAL_CAPITAL
+
+    plot_fee_analysis(results, df, initial_capital)
 
 
 if __name__ == "__main__":
