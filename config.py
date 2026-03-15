@@ -9,7 +9,7 @@ All other parameters are pre-tuned for their respective mode.
 #  ACTIVE MODE — the only line you normally need to change
 #  Options: "BTC_DAILY" | "BTC_HOURLY" | "QQQ" | "QQQ_HOURLY"
 # ═══════════════════════════════════════════════════════════════════════════
-ACTIVE_MODE = "BTC_HOURLY"
+ACTIVE_MODE = "QQQ_HOURLY"
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  BACKTEST DATE RANGES — edit here, one place for all BTC windows

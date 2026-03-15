@@ -272,14 +272,88 @@ def fetch_btc_hourly_binance(start: str, end: str, symbol: str = "BTCUSDT") -> p
 
 def fetch_qqq_hourly(start: str, end: str) -> pd.DataFrame:
     """
-    Fetch hourly QQQ OHLCV via yfinance.
-    Market-hours only (09:30–16:00 ET) — ~136 bars/month vs BTC's 720.
+    Fetch hourly QQQ OHLCV via Alpha Vantage TIME_SERIES_INTRADAY (60min, free tier).
+    Uses monthly slicing (one request per month) to cover multi-year windows.
+    Free tier supports ~25 requests/day — each covers one calendar month.
+    Market-hours only (09:30–16:00 ET) — ~136 bars/month.
+    Cached locally for 24hr to avoid redundant API calls.
     """
-    print(f"[yfinance] Fetching QQQ hourly from {start} to {end}...")
-    df = _fetch_hourly("QQQ", start, end)
-    # Keep only regular market hours (9:30–16:00 ET) to avoid pre/after-hours noise
+    import time as _time
+    _ensure_cache_dir()
+    cache_file = _cache_path("QQQ", "1h")
+
+    start_dt = pd.Timestamp(start)
+    end_dt   = pd.Timestamp(end)
+
+    if os.path.exists(cache_file) and _cache_is_fresh(cache_file):
+        df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
+        if len(df) > 0 and df.index[0] <= start_dt and df.index[-1] >= end_dt - timedelta(days=2):
+            print(f"[cache] Loading QQQ hourly from cache ({len(df)} bars)")
+            return df.loc[start:end]
+
+    if not API_KEY:
+        raise ValueError("ALPHA_VANTAGE_KEY not set in .env — required for QQQ hourly fetch")
+
+    # Build list of YYYY-MM months to request
+    months = []
+    cur = start_dt.replace(day=1)
+    while cur <= end_dt:
+        months.append(cur.strftime("%Y-%m"))
+        cur = (cur + timedelta(days=32)).replace(day=1)
+
+    print(f"[alpha_vantage] Fetching QQQ 60min: {len(months)} monthly slices ({start} → {end})...")
+    all_frames = []
+    for i, month in enumerate(months):
+        params = {
+            "function":   "TIME_SERIES_INTRADAY",
+            "symbol":     "QQQ",
+            "interval":   "60min",
+            "month":      month,
+            "outputsize": "full",
+            "apikey":     API_KEY,
+        }
+        resp = requests.get(BASE_URL, params=params, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+
+        if "Note" in data or "Information" in data:
+            raise ValueError(f"Alpha Vantage rate limit hit on month {month}: {data.get('Note') or data.get('Information')}")
+
+        ts = data.get("Time Series (60min)", {})
+        if not ts:
+            print(f"  [skip] {month}: no data returned")
+            continue
+
+        rows = []
+        for dt_str, vals in ts.items():
+            rows.append({
+                "timestamp": pd.Timestamp(dt_str),
+                "open":      float(vals["1. open"]),
+                "high":      float(vals["2. high"]),
+                "low":       float(vals["3. low"]),
+                "close":     float(vals["4. close"]),
+                "volume":    float(vals["5. volume"]),
+            })
+        frame = pd.DataFrame(rows).set_index("timestamp").sort_index()
+        all_frames.append(frame)
+        print(f"  {month}: {len(frame)} bars")
+
+        # Respect free-tier rate limit (5 req/min → 12s between calls)
+        if i < len(months) - 1:
+            _time.sleep(13)
+
+    if not all_frames:
+        raise ValueError("No QQQ hourly data returned from Alpha Vantage")
+
+    df = pd.concat(all_frames).sort_index()
+    df = df[~df.index.duplicated(keep="first")]
+
+    # Keep regular market hours only (09:30–16:00 ET)
     df = df.between_time("09:30", "16:00")
-    return df
+
+    df.to_csv(cache_file)
+    print(f"[cache] Saved QQQ hourly to {cache_file} ({len(df)} bars)")
+    return df.loc[start:end]
 
 
 def fetch_yfinance(symbol: str, start: str, end: str) -> pd.DataFrame:
