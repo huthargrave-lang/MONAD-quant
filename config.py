@@ -134,7 +134,7 @@ MACD_SLOW_HOURLY          = 13
 MACD_SIGNAL_HOURLY        = 4
 ROC_PERIOD_HOURLY         = 5
 VWAP_WINDOW_HOURLY        = 10
-VWAP_ZSCORE_THRESH_HOURLY = 1.1    # Tighter threshold — hourly VWAP reverts faster
+VWAP_ZSCORE_THRESH_HOURLY = 1.0    # Confirmed optimal: 1.0 > 1.1 (more trades, lower DD)
 BB_WINDOW_HOURLY          = 14
 USE_REGIME_FILTER_HOURLY  = False  # Regime too noisy on hourly bars
 
