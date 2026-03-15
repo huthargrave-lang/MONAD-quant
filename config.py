@@ -190,6 +190,8 @@ MACD_SIGNAL_QQQ_HOURLY        = 4
 VWAP_WINDOW_QQQ_HOURLY        = 10
 VWAP_ZSCORE_THRESH_QQQ_HOURLY = 0.8   # Tighter — QQQ VWAP deviations are smaller
 BB_WINDOW_QQQ_HOURLY          = 14
+TARGET_GAIN_PCT_QQQ_HOURLY    = 0.0015  # 0.15% per trade — QQQ hourly range is 0.1-0.3%
+STOP_LOSS_PCT_QQQ_HOURLY      = 0.0008  # 0.08% stop (1.875:1 R:R)
 
 # Backtest window — QQQ hourly
 BACKTEST_START_QQQ_HOURLY = "2024-04-01"
@@ -254,8 +256,8 @@ ASSETS = {
     },
     "QQQ_HOURLY": {
         "type":               "etf_hourly",
-        "target_gain_pct":    0.0015,   # 0.15% per trade — QQQ hourly range is 0.1-0.3%
-        "stop_loss_pct":      0.0008,   # 0.08% stop (1.875:1 R:R)
+        "target_gain_pct":    TARGET_GAIN_PCT_QQQ_HOURLY,
+        "stop_loss_pct":      STOP_LOSS_PCT_QQQ_HOURLY,
         "require_signals":    1,
         "rsi_oversold":       RSI_OVERSOLD_QQQ_HOURLY,
         "rsi_overbought":     RSI_OVERBOUGHT_QQQ_HOURLY,
