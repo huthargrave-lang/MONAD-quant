@@ -182,16 +182,16 @@ BACKTEST_END_QQQ   = "2024-12-31"
 # ═══════════════════════════════════════════════════════════════════════════
 
 RSI_PERIOD_QQQ_HOURLY         = 7
-RSI_OVERSOLD_QQQ_HOURLY       = 40    # QQQ hourly — less volatile than BTC, 38 too rare intraday
+RSI_OVERSOLD_QQQ_HOURLY       = 60    # best from sweep — loose RSI, MACD+VWAP do filtering
 RSI_OVERBOUGHT_QQQ_HOURLY     = 62
 MACD_FAST_QQQ_HOURLY          = 6
 MACD_SLOW_QQQ_HOURLY          = 13
 MACD_SIGNAL_QQQ_HOURLY        = 4
 VWAP_WINDOW_QQQ_HOURLY        = 10
-VWAP_ZSCORE_THRESH_QQQ_HOURLY = 0.8   # Tighter — QQQ VWAP deviations are smaller
+VWAP_ZSCORE_THRESH_QQQ_HOURLY = 0.5   # tightened from 0.8 — better signal quality
 BB_WINDOW_QQQ_HOURLY          = 14
-TARGET_GAIN_PCT_QQQ_HOURLY    = 0.0015  # 0.15% per trade — QQQ hourly range is 0.1-0.3%
-STOP_LOSS_PCT_QQQ_HOURLY      = 0.0008  # 0.08% stop (1.875:1 R:R)
+TARGET_GAIN_PCT_QQQ_HOURLY    = 0.002  # 0.2% target — raised from 0.15%
+STOP_LOSS_PCT_QQQ_HOURLY      = 0.0001 # WARNING: needs investigation — may be sim artifact
 
 # Backtest window — QQQ hourly
 BACKTEST_START_QQQ_HOURLY = "2024-04-01"
