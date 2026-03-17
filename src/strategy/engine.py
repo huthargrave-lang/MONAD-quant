@@ -25,18 +25,33 @@ def build_features(df: pd.DataFrame, timeframe: str = "daily",
     import config
     overrides = signal_overrides or {}
     if timeframe == "hourly":
-        df = add_momentum_features(
-            df,
-            rsi_period=config.RSI_PERIOD_HOURLY,
-            macd_fast=config.MACD_FAST_HOURLY,
-            macd_slow=config.MACD_SLOW_HOURLY,
-            macd_signal_period=config.MACD_SIGNAL_HOURLY,
-            rsi_oversold=config.RSI_OVERSOLD_HOURLY,
-            rsi_overbought=config.RSI_OVERBOUGHT_HOURLY,
-        )
-        df = add_volume_features(df, window=config.VWAP_WINDOW_HOURLY,
-                                  zscore_threshold=config.VWAP_ZSCORE_THRESH_HOURLY)
-        df = add_volatility_features(df, window=config.BB_WINDOW_HOURLY)
+        active_mode = getattr(config, "ACTIVE_MODE", "BTC_HOURLY")
+        if active_mode == "QQQ_HOURLY":
+            df = add_momentum_features(
+                df,
+                rsi_period=getattr(config, "RSI_PERIOD_QQQ_HOURLY", 7),
+                macd_fast=getattr(config, "MACD_FAST_QQQ_HOURLY", 6),
+                macd_slow=getattr(config, "MACD_SLOW_QQQ_HOURLY", 13),
+                macd_signal_period=getattr(config, "MACD_SIGNAL_QQQ_HOURLY", 4),
+                rsi_oversold=getattr(config, "RSI_OVERSOLD_QQQ_HOURLY", 40),
+                rsi_overbought=getattr(config, "RSI_OVERBOUGHT_QQQ_HOURLY", 62),
+            )
+            df = add_volume_features(df, window=getattr(config, "VWAP_WINDOW_QQQ_HOURLY", 10),
+                                      zscore_threshold=getattr(config, "VWAP_ZSCORE_THRESH_QQQ_HOURLY", 0.8))
+            df = add_volatility_features(df, window=getattr(config, "BB_WINDOW_QQQ_HOURLY", 14))
+        else:
+            df = add_momentum_features(
+                df,
+                rsi_period=getattr(config, "RSI_PERIOD_HOURLY", 7),
+                macd_fast=getattr(config, "MACD_FAST_HOURLY", 6),
+                macd_slow=getattr(config, "MACD_SLOW_HOURLY", 13),
+                macd_signal_period=getattr(config, "MACD_SIGNAL_HOURLY", 4),
+                rsi_oversold=getattr(config, "RSI_OVERSOLD_HOURLY", 40),
+                rsi_overbought=getattr(config, "RSI_OVERBOUGHT_HOURLY", 60),
+            )
+            df = add_volume_features(df, window=getattr(config, "VWAP_WINDOW_HOURLY", 10),
+                                      zscore_threshold=getattr(config, "VWAP_ZSCORE_THRESH_HOURLY", 1.0))
+            df = add_volatility_features(df, window=getattr(config, "BB_WINDOW_HOURLY", 14))
     else:
         kelly_mult_map = {
             "STRONG_BULL": config.KELLY_MULT_STRONG_BULL,
@@ -196,9 +211,10 @@ def generate_trades(df: pd.DataFrame,
     # Dead-zone RSI signals (00-07 UTC) are driven by noise, not genuine demand.
     # Disabled by default — enable with HOURLY_TRADE_FILTER=True in config.
     import config as _cfg2
-    if getattr(_cfg2, "HOURLY_TRADE_FILTER", False) and hasattr(df.index, "hour"):
-        start_h = getattr(_cfg2, "HOURLY_TRADE_HOURS_START", 7)
-        end_h   = getattr(_cfg2, "HOURLY_TRADE_HOURS_END",   21)
+    _trade_filter = getattr(_cfg2, "HOURLY_TRADE_FILTER", False)
+    if _trade_filter and hasattr(df.index, "hour"):
+        start_h = getattr(_cfg2, "HOURLY_TRADE_HOURS_START", 8)
+        end_h   = getattr(_cfg2, "HOURLY_TRADE_HOURS_END", 22)
         active  = df.index.hour.isin(range(start_h, end_h))
         long_entry  = long_entry  & active
         short_entry = short_entry & active

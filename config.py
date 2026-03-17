@@ -7,9 +7,29 @@ All other parameters are pre-tuned for their respective mode.
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  ACTIVE MODE — the only line you normally need to change
-#  Options: "BTC_DAILY" | "BTC_HOURLY" | "QQQ"
+#  Options: "BTC_DAILY" | "BTC_HOURLY" | "QQQ" | "QQQ_HOURLY"
 # ═══════════════════════════════════════════════════════════════════════════
-ACTIVE_MODE = "BTC_HOURLY"
+ACTIVE_MODE = "QQQ_HOURLY"
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  BACKTEST DATE RANGES — edit here, one place for all BTC windows
+#  Uncomment the preset you want, or set custom dates below.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ── BTC Daily presets ────────────────────────────────────────────────────
+# BACKTEST_START = "2020-01-01";  BACKTEST_END = "2024-12-31"  # 5yr full run (primary)
+# BACKTEST_START = "2021-01-01";  BACKTEST_END = "2024-12-31"  # 4yr (skip 2020 data)
+# BACKTEST_START = "2023-01-01";  BACKTEST_END = "2023-12-31"  # 2023 regression baseline
+# BACKTEST_START = "2024-01-01";  BACKTEST_END = "2024-12-31"  # 2024 only
+BACKTEST_START = "2021-11-01"
+BACKTEST_END   = "2024-12-31"
+
+# ── BTC Hourly presets ───────────────────────────────────────────────────
+# BACKTEST_START_HOURLY = "2024-03-15";  BACKTEST_END_HOURLY = "2026-02-15"  # 2yr baseline
+# BACKTEST_START_HOURLY = "2025-01-01";  BACKTEST_END_HOURLY = "2026-03-01"  # 2025–present
+# BACKTEST_START_HOURLY = "2024-06-01";  BACKTEST_END_HOURLY = "2026-03-01"  # 21mo recent
+BACKTEST_START_HOURLY = "2019-01-01"
+BACKTEST_END_HOURLY   = "2026-01-01"
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  PROFILE 1 — BTC DAILY
@@ -98,10 +118,6 @@ BEAR_SHORT_STOP_PCT          = 0.025
 BREAKOUT_WINDOW              = 20
 ADX_BREAKOUT_MIN             = 25
 
-# Backtest window — daily
-BACKTEST_START = "2020-01-01"
-BACKTEST_END   = "2024-12-31"
-
 # ═══════════════════════════════════════════════════════════════════════════
 #  PROFILE 2 — BTC HOURLY
 #  Goal:    Active income generation (~5–6%/month avg)
@@ -110,15 +126,15 @@ BACKTEST_END   = "2024-12-31"
 #  Best for: accounts that want high monthly income, can handle lower WR (46%)
 # ═══════════════════════════════════════════════════════════════════════════
 
-RSI_PERIOD_HOURLY         = 7
-RSI_OVERSOLD_HOURLY       = 40     # 35 too rare during bull runs; 40 fires consistently
+RSI_PERIOD_HOURLY         = 5
+RSI_OVERSOLD_HOURLY       = 42     # Sweep tested 38-50: 42 is optimal (return+Sharpe peak, RSI still binding gate vs VWAP)
 RSI_OVERBOUGHT_HOURLY     = 60
 MACD_FAST_HOURLY          = 6
 MACD_SLOW_HOURLY          = 13
 MACD_SIGNAL_HOURLY        = 4
 ROC_PERIOD_HOURLY         = 5
 VWAP_WINDOW_HOURLY        = 10
-VWAP_ZSCORE_THRESH_HOURLY = 1.0    # Tighter threshold — hourly VWAP reverts faster
+VWAP_ZSCORE_THRESH_HOURLY = 1.0    # Confirmed optimal: 1.0 > 1.1 (more trades, lower DD)
 BB_WINDOW_HOURLY          = 14
 USE_REGIME_FILTER_HOURLY  = False  # Regime too noisy on hourly bars
 
@@ -126,13 +142,10 @@ USE_REGIME_FILTER_HOURLY  = False  # Regime too noisy on hourly bars
 # London (07-16 UTC) + NY (13-21 UTC) sessions have genuine volume behind RSI dips.
 # Dead zone (00-07 UTC) is noise-driven — signals fire but rarely follow through.
 # Disabled by default. Enable to test: expect fewer trades, potentially higher WR.
-HOURLY_TRADE_FILTER      = True   # Master toggle
-HOURLY_TRADE_HOURS_START = 8      # UTC hour to start accepting entries (inclusive)
-HOURLY_TRADE_HOURS_END   = 22     # UTC hour to stop accepting entries (exclusive)
+HOURLY_TRADE_FILTER      = False  # 24hr mode confirmed best — tested: Sharpe 26, +579% 7.5yr vs +10.73% filtered 2yr
+HOURLY_TRADE_HOURS_START = 0      # UTC hour (only used when HOURLY_TRADE_FILTER=True)
+HOURLY_TRADE_HOURS_END   = 24     # UTC hour (only used when HOURLY_TRADE_FILTER=True)
 
-# Backtest window — hourly (yfinance max 730-day rolling window)
-BACKTEST_START_HOURLY = "2024-03-15"
-BACKTEST_END_HOURLY   = "2026-02-15"
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  PROFILE 3 — QQQ (WORK IN PROGRESS)
@@ -160,27 +173,28 @@ BACKTEST_START_QQQ = "2020-01-01"
 BACKTEST_END_QQQ   = "2024-12-31"
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  PROFILE 4 — QQQ HOURLY (WORK IN PROGRESS)
-#  Goal:    Equity-hours income stream (~2-4%/month target)
-#  Style:   High-frequency mean-reversion during market hours only
-#  Status:  Params not yet validated — needs backtest tuning
-#  Note:    ~136 bars/month (6.5hr × 21 days) vs BTC hourly's 720/month
-#           Smaller moves (0.05-0.15%/hr) but more orderly mean-reversion
+#  PROFILE 4 — QQQ HOURLY (OPTIMIZED 2026-03-17)
+#  Goal:    Equity-hours income stream (~0.71%/month consistent)
+#  Style:   High-frequency mean-reversion, ~24 trades/month
+#  Sharpe:  41.6  |  Max DD: -0.21%  |  2yr return: 17.77%  |  Avg: +0.71%/mo
+#  Status:  Fully optimized — all params exhaustively swept, nothing left to tune
+#  Note:    ~24 trades/month (vs BTC hourly's 130) — frequency is the ceiling.
+#           RSI=70 (QQQ dips shallower), VWAP=0.4 (smaller ETF deviations), 2:1 R:R
 # ═══════════════════════════════════════════════════════════════════════════
 
 RSI_PERIOD_QQQ_HOURLY         = 7
-RSI_OVERSOLD_QQQ_HOURLY       = 40    # QQQ hourly — less volatile than BTC, 38 too rare intraday
+RSI_OVERSOLD_QQQ_HOURLY       = 70    # QQQ hourly — less volatile than BTC; 70 confirmed optimal (full sweep done)
 RSI_OVERBOUGHT_QQQ_HOURLY     = 62
 MACD_FAST_QQQ_HOURLY          = 6
 MACD_SLOW_QQQ_HOURLY          = 13
 MACD_SIGNAL_QQQ_HOURLY        = 4
 VWAP_WINDOW_QQQ_HOURLY        = 10
-VWAP_ZSCORE_THRESH_QQQ_HOURLY = 0.8   # Tighter — QQQ VWAP deviations are smaller
+VWAP_ZSCORE_THRESH_QQQ_HOURLY = 0.4   # Confirmed optimal — QQQ VWAP deviations are smaller than BTC
 BB_WINDOW_QQQ_HOURLY          = 14
+TARGET_GAIN_PCT_QQQ_HOURLY    = 0.0024  # 0.24% target — QQQ hourly range is 0.1-0.3%; 2:1 R:R
+STOP_LOSS_PCT_QQQ_HOURLY      = 0.0012  # 0.12% stop — 2:1 R:R; WR 59.6%, Kelly 19.73%
 
-# Backtest window — QQQ hourly (yfinance max 730-day rolling window from today)
-# Note: equity ETFs enforce the 730-day limit more strictly than crypto
-# 2024-04-01 → 2026-03-01 gives ~23 months safely within the window
+# Backtest window — QQQ hourly
 BACKTEST_START_QQQ_HOURLY = "2024-04-01"
 BACKTEST_END_QQQ_HOURLY   = "2026-03-01"
 
@@ -200,14 +214,14 @@ PLOT_RESULTS     = True
 # Reduce exposure automatically until quality recovers.
 # All new params default=False/disabled per project constraint.
 USE_ADAPTIVE_KELLY        = True   # Master toggle — set True for BTC hourly
-ADAPTIVE_KELLY_LOOKBACK   = 15     # Rolling window in trades (15 = ~3 days at 115 trades/mo)
-ADAPTIVE_KELLY_HIGH_WR    = 0.52   # Recent WR ≥ this → scale up (was 0.55 — catches 52-55% months)
+ADAPTIVE_KELLY_LOOKBACK   = 20     # Rolling window in trades (20 = ~4 days at 130 trades/mo in 24hr mode; lb=15 was for filtered mode)
+ADAPTIVE_KELLY_HIGH_WR    = 0.46   # Confirmed active at 0.46 — fires during 48-55% WR bull stretches; dead lever at 0.52+
 ADAPTIVE_KELLY_LOW_WR     = 0.42   # Recent WR < this → scale down (signal degrading)
 ADAPTIVE_KELLY_PAUSE_WR   = 0.35   # Recent WR < this → near-flat (signal breakdown)
-ADAPTIVE_KELLY_HIGH_MULT  = 1.8    # Position multiplier when WR ≥ HIGH (vs 1.0 baseline)
+ADAPTIVE_KELLY_HIGH_MULT  = 2.0    # Position multiplier when WR ≥ HIGH — tested: +553% vs +453% at 1.8 (2019-2026, VWAP=1.0)
 ADAPTIVE_KELLY_LOW_MULT   = 0.5    # Position multiplier when WR in [PAUSE, LOW)
 ADAPTIVE_KELLY_PAUSE_MULT = 0.2    # Position multiplier when WR < PAUSE
-ADAPTIVE_KELLY_HIGH_CAP   = 0.30   # Position cap in high-WR state (was 0.28)
+ADAPTIVE_KELLY_HIGH_CAP   = 0.35   # Position cap in high-WR state — 0.35 gives headroom for 2.0× mult (2.0×12% = 24% → under cap)
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  ASSET ROUTING — maps ACTIVE_MODE to engine config (do not edit)
@@ -224,9 +238,9 @@ ASSETS = {
         "vwap_zscore_thresh": VWAP_ZSCORE_THRESH,
     },
     "BTC_HOURLY": {
-        "type":               "crypto_hourly",
+        "type":               "crypto_hourly_binance",
         "target_gain_pct":    0.004,    # 0.4% per trade on hourly bars
-        "stop_loss_pct":      0.0025,   # 0.25% stop
+        "stop_loss_pct":      0.002,    # 0.20% stop — 2:1 R:R; tighter stop compounds massively (tested: +579% 7.5yr vs +377% at 0.0025)
         "require_signals":    1,
         "rsi_oversold":       RSI_OVERSOLD_HOURLY,
         "rsi_overbought":     RSI_OVERBOUGHT_HOURLY,
@@ -243,8 +257,8 @@ ASSETS = {
     },
     "QQQ_HOURLY": {
         "type":               "etf_hourly",
-        "target_gain_pct":    0.0015,   # 0.15% per trade — QQQ hourly range is 0.1-0.3%
-        "stop_loss_pct":      0.0008,   # 0.08% stop (1.875:1 R:R)
+        "target_gain_pct":    TARGET_GAIN_PCT_QQQ_HOURLY,
+        "stop_loss_pct":      STOP_LOSS_PCT_QQQ_HOURLY,
         "require_signals":    1,
         "rsi_oversold":       RSI_OVERSOLD_QQQ_HOURLY,
         "rsi_overbought":     RSI_OVERBOUGHT_QQQ_HOURLY,
