@@ -708,3 +708,120 @@ Every parameter exhaustively swept: RSI (full range), VWAP (0.3–1.5), target/s
 Strategy is at its optimum given the current architecture.
 Future improvements require architectural changes: time-of-day filter (untested),
 or expanding to a second ETF instrument for correlation diversification.
+
+---
+
+## 16. Why We Pivoted to QQQ — The Fee Model Problem
+
+### The BTC Hourly fee drag problem
+BTC Hourly at its best produces +2.66%/mo gross. But it runs on a crypto CEX
+(Binance), and trading fees eat directly into that number:
+
+| Fee tier | Round-trip | Monthly drag (~130 trades × 0.24% avg size) | Net monthly |
+|---|---|---|---|
+| Retail (0.1%) | 0.20% per trade | −1.52%/mo | **+1.14%/mo** |
+| BNB discount (0.04%) | 0.08% per trade | −0.61%/mo | **+2.05%/mo** |
+| VIP maker (0.02%) | 0.04% per trade | −0.30%/mo | **+2.36%/mo** |
+
+To keep full gross returns, you need VIP maker status on Binance — which requires
+$10M+ 30-day trading volume. At retail rates (+1.14%/mo net), the strategy still
+beats high-yield bonds but loses most of its edge. The fee barrier is structural.
+
+### The QQQ fee reality
+QQQ trades on a standard US brokerage. At Schwab, Fidelity, TD Ameritrade,
+Interactive Brokers: **$0 commission per trade**. All major US retail brokers
+eliminated stock/ETF commissions in 2019.
+
+| Broker | Commission | Monthly drag (~24 trades) | Net monthly |
+|---|---|---|---|
+| Schwab / Fidelity / TD | $0 | $0 | **+0.71%/mo** |
+| Interactive Brokers | ~$0.005/share | ~$0.12/mo total | **+0.71%/mo** |
+
+QQQ gross return **equals** QQQ net return. No fee tier. No exchange account. No BNB.
+
+### The real comparison: net returns accessible to a retail investor
+| Mode | Gross/mo | Net/mo (retail) | Infrastructure required |
+|---|---|---|---|
+| BTC Hourly | +2.66% | +1.14% | Binance, BNB, VIP tier, 24/7 ops, custody risk |
+| **QQQ Hourly** | **+0.71%** | **+0.71%** | Any US brokerage, market hours only |
+
+BTC Hourly is still higher absolute return — but the operational complexity,
+custody risk, and fee structure require institutional-grade access to realize
+more than ~1.1%/mo net. QQQ delivers its full return to any retail investor
+with a standard brokerage account.
+
+### Additional reasons QQQ is preferred for retail deployment
+
+**Regulatory and tax simplicity:** QQQ trades produce standard 1099-B tax reporting.
+BTC trades produce crypto cost-basis reporting — complex, jurisdiction-dependent,
+and requires specialized accounting software (Koinly, TaxBit, etc.) at scale.
+
+**No custody risk:** QQQ is held at a SIPC-insured US brokerage (up to $500k).
+BTC on Binance carries exchange counterparty risk (see FTX, 2022).
+
+**Market hours only:** QQQ trades 9:30–16:00 ET. ~24 trades/month means roughly
+1 trade per trading day on average. BTC is 24/7/365 — requires either automation
+or constant monitoring. QQQ fits within a normal trading day.
+
+**Signal quality:** QQQ's 59.6% WR vs BTC hourly's 48.9% WR reflects the more
+orderly mean-reversion in regulated equity markets. Institutional market makers
+provide tighter bid-ask spreads and more predictable intraday patterns.
+
+### What we tried before landing on QQQ Hourly
+
+**QQQ Daily (walk-forward tested):** Generated ~5 trades over 3 years out-of-sample.
+The 6-state regime classifier + QQQ's smooth bull trend (252-day MA nearly always
+upsloping) creates structural signal scarcity. Only RSI<42 AND MACD turn AND
+confirmed bull regime fires — almost never on daily bars for a low-vol ETF.
+**Verdict:** QQQ daily is not viable with current signal architecture.
+
+**QQQ Hourly (first attempt):** Initial params borrowed from BTC hourly
+(RSI=38, VWAP=1.0, stop=0.0006). RSI 38 almost never fires intraday for QQQ —
+ETF hourly bars are too small to push RSI that low. Generated <5 trades/month.
+**Pivot:** Raised RSI to 70, tightened VWAP to 0.4, fixed stop to 0.0012 (2:1 R:R).
+This unlocked ~24 trades/month at 59.6% WR — the viable operating point.
+
+**BTC Daily (live comparison baseline):** +0.4%/mo at Sharpe 4.9 with near-zero DD.
+Excellent risk-adjusted but very low absolute return. Viable as a capital preservation
+vehicle but not an income strategy. Requires the same BTC exchange infrastructure as
+BTC Hourly without the return to justify it.
+
+### Monthly results — QQQ Hourly optimized run (2024-04 → 2026-02)
+```
+Month          Return   Trades   Win Rate   Notes
+------------------------------------------------------------
+2024-04        +0.41%       32      46.9%
+2024-05        +0.24%       12      50.0%
+2024-06        +0.67%       18      66.7% ✓
+2024-07        +1.16%       38      57.9% ✓
+2024-08        +1.30%       32      65.6% ✓
+2024-09        +0.38%       21      52.4%
+2024-10        +0.93%       33      54.5% ✓
+2024-11        +0.89%       21      76.2% ✓
+2024-12        +0.34%       13      53.8%
+2025-01        +0.86%       24      62.5% ✓
+2025-02        +0.33%       21      47.6%
+2025-03        +0.87%       37      56.8% ✓
+2025-04        +2.25%       36      83.3% ✓  ← BEST month
+2025-05        +0.54%       11      72.7% ✓
+2025-06        +0.53%       20      55.0% ✓
+2025-07        +0.66%       21      61.9% ✓
+2025-08        +0.30%       32      37.5%      ← WR collapse, but still positive
+2025-09        +0.05%       16      50.0%      ← Near-zero; BEAR regime in force
+2025-10        +0.93%       26      65.4% ✓
+2025-11        +0.14%       25      48.0%
+2025-12        +0.59%       18      61.1% ✓
+2026-01        +1.07%       23      73.9% ✓
+2026-02        +1.01%       20      75.0% ✓
+------------------------------------------------------------
+Avg Monthly    +0.71%
+ZERO negative months across 23 months (including Aug 2025 at 37.5% WR)
+```
+
+**Key observation:** Even the worst month (Aug 2025, 37.5% WR) was positive (+0.30%).
+The 2:1 R:R ratio means the strategy can sustain win rates as low as 34% before
+going negative on a month. QQQ's WR never fell below 37.5% in this run.
+Compare to BTC Hourly where bad months (WR < 35%) produce negative months.
+
+The high-Sharpe, 0-negative-month profile is the defining characteristic of QQQ Hourly
+and the primary reason it is preferred for retail deployment over BTC Hourly.
