@@ -69,6 +69,7 @@ High-frequency mean-reversion on BTC hourly bars. ~130 trades per month, each ta
 Best for: active income generation with crypto infrastructure in place. Requires
 maker-fee access on Binance — retail fees (0.1% round-trip) reduce net return to
 ~+1.14%/mo. See "Why QQQ?" section below for the fee model comparison.
+<img width="1414" height="856" alt="BTChourly" src="https://github.com/user-attachments/assets/af88b297-d79e-40bc-aabd-bf377e98867a" />
 
 ---
 
@@ -124,7 +125,9 @@ brokerages — gross return equals net return, no fee tier required.
 The 2:1 R:R ratio (0.24% target / 0.12% stop) means the strategy stays positive
 even at 37.5% WR — the breakeven win rate is ~34%. QQQ never approached it.
 
----
+
+---<img width="1496" height="864" alt="qqqtest" src="https://github.com/user-attachments/assets/26c164fe-b031-40a4-b612-fad5a78b3c73" />
+
 
 ## Why QQQ? The Fee Model Problem
 
