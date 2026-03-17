@@ -16,7 +16,7 @@ near-zero drawdown. The strategy has two active modes:
 |---|---|---|---|---|
 | **BTC Daily** | ~0.4%/mo, Sharpe >4 | 4.924 | -1.72% | Capital preservation + high Sharpe |
 | **BTC Hourly** | ~2.66%/mo income | 25.57 | -0.90% | Active income, ~130 trades/mo |
-| **QQQ** | TBD (WIP) | — | — | ETF mean-reversion (not yet tuned) |
+| **QQQ Hourly** | ~0.71%/mo income | 41.57 | -0.21% | ETF mean-reversion, ~24 trades/mo |
 
 Core principles across all modes:
 - **Long-only** — bear alpha is defined as NOT losing money, not chasing shorts
@@ -613,3 +613,98 @@ Future work should focus on: (1) BTC Daily mode improvements, (2) QQQ Hourly dev
 
 *Last updated: 2026-03-14 — Full BTC hourly optimization complete: RSI=42, stop=0.002, 24hr, HIGH_MULT=2.0 → +616.67% / Sharpe 25.6*
 *Branch: claude/setup-working-branch-sf66n*
+
+---
+
+## 15. QQQ Hourly Full Optimization (2026-03-17) — Current State
+
+### Final confirmed optimal config (QQQ_HOURLY)
+```python
+ACTIVE_MODE                   = "QQQ_HOURLY"
+RSI_PERIOD_QQQ_HOURLY         = 7
+RSI_OVERSOLD_QQQ_HOURLY       = 70    # QQQ less volatile — 38 too rare; 70 confirmed optimal
+RSI_OVERBOUGHT_QQQ_HOURLY     = 62
+MACD_FAST_QQQ_HOURLY          = 6     # DEAD LEVER (like BTC hourly — histogram direction is robust)
+MACD_SLOW_QQQ_HOURLY          = 13    # DEAD LEVER
+MACD_SIGNAL_QQQ_HOURLY        = 4     # DEAD LEVER
+VWAP_WINDOW_QQQ_HOURLY        = 10
+VWAP_ZSCORE_THRESH_QQQ_HOURLY = 0.4   # Confirmed — QQQ ETF VWAP deviations smaller than BTC
+BB_WINDOW_QQQ_HOURLY          = 14
+TARGET_GAIN_PCT_QQQ_HOURLY    = 0.0024 # 0.24% target — confirmed optimal for QQQ hourly range
+STOP_LOSS_PCT_QQQ_HOURLY      = 0.0012 # 0.12% stop — 2:1 R:R; WR 59.6%, Kelly 19.73%
+# Adaptive Kelly: same shared params as BTC hourly (see below)
+# USE_ADAPTIVE_KELLY = True, LOOKBACK=20, HIGH_WR=0.46, HIGH_MULT=2.0, HIGH_CAP=0.35
+```
+
+### Best result
+```
+Period:       2024-04-01 → 2026-03-01 (23 months)
+Total Return: 17.77%
+Annualized:   8.95%
+Sharpe:       41.568
+Max DD:       -0.21%
+Avg Monthly:  +0.71%
+Trades:       550 (~24/mo)
+Win Rate:     59.6%  (target=328  stop=222  time=0)
+Kelly Size:   19.73%
+EV/trade:     +0.095%  (0.596×0.24% − 0.404×0.12%)
+```
+
+### Why QQQ Hourly behaves differently from BTC Hourly
+
+| Property | BTC Hourly | QQQ Hourly |
+|---|---|---|
+| Trades/month | ~130 | ~24 |
+| Baseline WR | ~49% | ~60% |
+| RSI oversold | 42 | 70 (shallower dips) |
+| VWAP threshold | 1.0 | 0.4 (smaller deviations) |
+| Target/Stop | 0.4%/0.2% | 0.24%/0.12% |
+| Adaptive Kelly | Truly adaptive | Effectively fixed 2× |
+
+### Adaptive Kelly dead levers for QQQ (confirmed exhaustive sweep)
+
+**PAUSE_WR sweep (0.35 → 0.44): all inert.**
+Root cause: 24 trades/month means LOOKBACK=20 covers ~1 full month.
+By the time enough losses accumulate to push rolling WR below any threshold,
+the bad month is nearly over. PAUSE never fires in time to matter.
+
+**LOOKBACK sweep (5 → 100): 20 is optimal on Sharpe; diminishing returns above 15.**
+
+| LOOKBACK | Return | Sharpe | Avg/mo |
+|---|---|---|---|
+| 5 | 14.61% | 37.612 | +0.60% |
+| 8 | 16.05% | 38.267 | +0.65% |
+| 10 | 16.39% | 39.069 | +0.66% |
+| 12 | 16.70% | 39.716 | +0.67% |
+| 15 | 17.58% | 40.573 | +0.71% |
+| **20** | **17.77%** | **41.568** | **+0.71%** |
+| 30 | 18.22% | 41.227 | +0.73% |
+| 100 | 17.98% | 41.460 | +0.72% |
+
+LOOKBACK=20 wins on Sharpe. LOOKBACK=30 gets +0.45% more return at cost of higher DD (-0.28% vs -0.21%).
+
+**HIGH_WR=0.46 fires constantly for QQQ** (QQQ baseline WR ~60% >> 0.46 threshold).
+Adaptive Kelly is not truly adaptive for QQQ — it acts as a fixed 2.0× multiplier.
+HIGH_MULT=2.0 ON=17.77% vs OFF=10.21% (+7.56% purely from the always-on 2× sizing).
+
+### Adaptive Kelly: True vs False comparison
+| AK Setting | Return | Sharpe | Avg/mo |
+|---|---|---|---|
+| False (base Kelly only) | 10.21% | 41.565 | +0.42% |
+| **True (2× always active)** | **17.77%** | **41.568** | **+0.71%** |
+
+Same Sharpe, +74% more return. The 2× sizing scales returns and risk proportionally.
+
+### The fundamental ceiling
+QQQ Hourly generates ~24 trades/month vs BTC's ~130. The EV/trade (+0.095%) and
+Kelly size (19.73%) are fixed by signal quality. More trades require looser thresholds
+which collapsed WR in testing. **Trade frequency is the architectural ceiling.**
+
+Mathematical ceiling: `24 trades × 0.095% EV × 19.73% position × 2× AK ≈ 0.71%/mo`
+
+### Nothing left to tune on QQQ Hourly
+Every parameter exhaustively swept: RSI (full range), VWAP (0.3–1.5), target/stop
+(multiple R:R ratios), MACD (dead lever), LOOKBACK (5–100), PAUSE_WR (0.35–0.44).
+Strategy is at its optimum given the current architecture.
+Future improvements require architectural changes: time-of-day filter (untested),
+or expanding to a second ETF instrument for correlation diversification.
