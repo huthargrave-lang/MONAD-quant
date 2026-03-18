@@ -270,5 +270,8 @@ QQQ Hourly at +0.71%/mo net = +8.5%/yr with a -0.21% max drawdown and zero negat
 months. No high-yield bond fund comes close to that risk-adjusted profile.
 
 ---
+## License
 
-Monad Industries © 2026
+© 2026 Monad Industries
+
+This project is licensed under the MIT License.
