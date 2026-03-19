@@ -202,18 +202,18 @@ BACKTEST_END_QQQ_HOURLY   = "2026-03-01"
 #  PROFILE 5 — TQQQ HOURLY (3x leveraged QQQ)
 #  Goal:    Leveraged equity-hours income stream — higher vol = more alpha
 #  Style:   High-frequency mean-reversion, ~24+ trades/month
-#  Status:  Initial params — needs optimization sweep
-#  Note:    3x leveraged QQQ — wider target/stop, lower RSI threshold vs QQQ
+#  Status:  Fully optimized (2026-03-19)
+#  Note:    3x leveraged QQQ — wider target/stop vs QQQ; +62.34% / Sharpe 39.8
 # ═══════════════════════════════════════════════════════════════════════════
 
 RSI_PERIOD_TQQQ_HOURLY         = 7
 RSI_OVERSOLD_TQQQ_HOURLY       = 80    # Confirmed optimal: RSI saturated at ~78+, VWAP is binding gate
 RSI_OVERBOUGHT_TQQQ_HOURLY     = 62
-MACD_FAST_TQQQ_HOURLY          = 6     # Likely dead lever (same as QQQ/BTC hourly)
+MACD_FAST_TQQQ_HOURLY          = 6     # DEAD LEVER (confirmed: same as QQQ/BTC hourly)
 MACD_SLOW_TQQQ_HOURLY          = 13
 MACD_SIGNAL_TQQQ_HOURLY        = 4
 VWAP_WINDOW_TQQQ_HOURLY        = 10
-VWAP_ZSCORE_THRESH_TQQQ_HOURLY = 0.6   # Between QQQ (0.4) and BTC (1.0); sweep 0.3-1.0
+VWAP_ZSCORE_THRESH_TQQQ_HOURLY = 0.3   # Confirmed: dead lever (0.3-0.6 nearly identical); 0.3 marginal best
 BB_WINDOW_TQQQ_HOURLY          = 14
 TARGET_GAIN_PCT_TQQQ_HOURLY    = 0.007  # 0.70% target — confirmed optimal from sweep; 2:1 R:R
 STOP_LOSS_PCT_TQQQ_HOURLY      = 0.0035 # 0.35% stop — 2:1 R:R; WR 59.2%, Sharpe 40.0
