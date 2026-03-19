@@ -7,7 +7,7 @@ All other parameters are pre-tuned for their respective mode.
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  ACTIVE MODE — the only line you normally need to change
-#  Options: "BTC_DAILY" | "BTC_HOURLY" | "QQQ" | "QQQ_HOURLY"
+#  Options: "BTC_DAILY" | "BTC_HOURLY" | "QQQ" | "QQQ_HOURLY" | "TQQQ_HOURLY"
 # ═══════════════════════════════════════════════════════════════════════════
 ACTIVE_MODE = "QQQ_HOURLY"
 
@@ -199,6 +199,30 @@ BACKTEST_START_QQQ_HOURLY = "2024-04-01"
 BACKTEST_END_QQQ_HOURLY   = "2026-03-01"
 
 # ═══════════════════════════════════════════════════════════════════════════
+#  PROFILE 5 — TQQQ HOURLY (3x leveraged QQQ)
+#  Goal:    Leveraged equity-hours income stream — higher vol = more alpha
+#  Style:   High-frequency mean-reversion, ~24+ trades/month
+#  Status:  Initial params — needs optimization sweep
+#  Note:    3x leveraged QQQ — wider target/stop, lower RSI threshold vs QQQ
+# ═══════════════════════════════════════════════════════════════════════════
+
+RSI_PERIOD_TQQQ_HOURLY         = 7
+RSI_OVERSOLD_TQQQ_HOURLY       = 55    # TQQQ dips harder than QQQ (70); start at 55, sweep 40-70
+RSI_OVERBOUGHT_TQQQ_HOURLY     = 62
+MACD_FAST_TQQQ_HOURLY          = 6     # Likely dead lever (same as QQQ/BTC hourly)
+MACD_SLOW_TQQQ_HOURLY          = 13
+MACD_SIGNAL_TQQQ_HOURLY        = 4
+VWAP_WINDOW_TQQQ_HOURLY        = 10
+VWAP_ZSCORE_THRESH_TQQQ_HOURLY = 0.6   # Between QQQ (0.4) and BTC (1.0); sweep 0.3-1.0
+BB_WINDOW_TQQQ_HOURLY          = 14
+TARGET_GAIN_PCT_TQQQ_HOURLY    = 0.006  # 0.60% target — ~2.5x QQQ's 0.24%; 2:1 R:R
+STOP_LOSS_PCT_TQQQ_HOURLY      = 0.003  # 0.30% stop — 2:1 R:R preserved
+
+# Backtest window — TQQQ hourly
+BACKTEST_START_TQQQ_HOURLY = "2024-04-01"
+BACKTEST_END_TQQQ_HOURLY   = "2026-03-01"
+
+# ═══════════════════════════════════════════════════════════════════════════
 #  SHARED — Risk & Sizing (applies to all modes)
 # ═══════════════════════════════════════════════════════════════════════════
 INITIAL_CAPITAL  = 100_000
@@ -264,6 +288,15 @@ ASSETS = {
         "rsi_overbought":     RSI_OVERBOUGHT_QQQ_HOURLY,
         "vwap_zscore_thresh": VWAP_ZSCORE_THRESH_QQQ_HOURLY,
     },
+    "TQQQ_HOURLY": {
+        "type":               "etf_hourly_tqqq",
+        "target_gain_pct":    TARGET_GAIN_PCT_TQQQ_HOURLY,
+        "stop_loss_pct":      STOP_LOSS_PCT_TQQQ_HOURLY,
+        "require_signals":    1,
+        "rsi_oversold":       RSI_OVERSOLD_TQQQ_HOURLY,
+        "rsi_overbought":     RSI_OVERBOUGHT_TQQQ_HOURLY,
+        "vwap_zscore_thresh": VWAP_ZSCORE_THRESH_TQQQ_HOURLY,
+    },
     "SOXL": {
         "type":               "etf",
         "rsi_oversold":       38,
@@ -279,6 +312,7 @@ _MODE_TO_ASSET = {
     "BTC_DAILY":  "BTC",
     "BTC_HOURLY": "BTC_HOURLY",
     "QQQ":        "QQQ",
-    "QQQ_HOURLY": "QQQ_HOURLY",
+    "QQQ_HOURLY":  "QQQ_HOURLY",
+    "TQQQ_HOURLY": "TQQQ_HOURLY",
 }
 DEFAULT_ASSET = _MODE_TO_ASSET.get(ACTIVE_MODE, "BTC")

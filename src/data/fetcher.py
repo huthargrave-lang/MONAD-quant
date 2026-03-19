@@ -297,6 +297,32 @@ def fetch_qqq_hourly(start: str, end: str) -> pd.DataFrame:
     return df.loc[start:end]
 
 
+def fetch_tqqq_hourly(start: str, end: str) -> pd.DataFrame:
+    """
+    Fetch hourly TQQQ (3x leveraged QQQ) OHLCV via yfinance.
+    Market-hours only (09:30-16:00 ET). Cached locally for 24hr.
+    """
+    _ensure_cache_dir()
+    cache_file = _cache_path("TQQQ", "1h")
+
+    start_dt = pd.Timestamp(start)
+    end_dt   = pd.Timestamp(end)
+
+    if os.path.exists(cache_file) and _cache_is_fresh(cache_file):
+        df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
+        if len(df) > 0 and df.index[0] <= start_dt and df.index[-1] >= end_dt - timedelta(days=2):
+            print(f"[cache] Loading TQQQ hourly from cache ({len(df)} bars)")
+            return df.loc[start:end]
+
+    print(f"[yfinance] Fetching TQQQ hourly from {start} to {end}...")
+    df = _fetch_hourly("TQQQ", start, end)
+    df = df.between_time("09:30", "16:00")
+
+    df.to_csv(cache_file)
+    print(f"[cache] Saved TQQQ hourly to {cache_file} ({len(df)} bars)")
+    return df.loc[start:end]
+
+
 def fetch_yfinance(symbol: str, start: str, end: str) -> pd.DataFrame:
     print(f"[yfinance] Fetching {symbol} from {start} to {end}...")
     ticker = yf.Ticker(symbol)

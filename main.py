@@ -10,7 +10,7 @@ import argparse
 import config
 from src.data.fetcher import (
     fetch_crypto_daily, fetch_daily, fetch_yfinance,
-    fetch_qqq_hourly, fetch_btc_hourly_binance,
+    fetch_qqq_hourly, fetch_tqqq_hourly, fetch_btc_hourly_binance,
 )
 from src.backtest.runner import run_backtest
 
@@ -29,6 +29,9 @@ def _load_data():
     elif asset_type == "etf_hourly":
         df = fetch_qqq_hourly(start=config.BACKTEST_START_QQQ_HOURLY, end=config.BACKTEST_END_QQQ_HOURLY)
         start, end, timeframe = config.BACKTEST_START_QQQ_HOURLY, config.BACKTEST_END_QQQ_HOURLY, "hourly"
+    elif asset_type == "etf_hourly_tqqq":
+        df = fetch_tqqq_hourly(start=config.BACKTEST_START_TQQQ_HOURLY, end=config.BACKTEST_END_TQQQ_HOURLY)
+        start, end, timeframe = config.BACKTEST_START_TQQQ_HOURLY, config.BACKTEST_END_TQQQ_HOURLY, "hourly"
     elif asset_type == "crypto":
         df = fetch_crypto_daily(symbol=asset, market=asset_config.get("market", "USD"))
         start, end, timeframe = config.BACKTEST_START, config.BACKTEST_END, "daily"
