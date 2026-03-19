@@ -207,7 +207,7 @@ BACKTEST_END_QQQ_HOURLY   = "2026-03-01"
 # ═══════════════════════════════════════════════════════════════════════════
 
 RSI_PERIOD_TQQQ_HOURLY         = 7
-RSI_OVERSOLD_TQQQ_HOURLY       = 55    # TQQQ dips harder than QQQ (70); start at 55, sweep 40-70
+RSI_OVERSOLD_TQQQ_HOURLY       = 80    # Confirmed optimal: RSI saturated at ~78+, VWAP is binding gate
 RSI_OVERBOUGHT_TQQQ_HOURLY     = 62
 MACD_FAST_TQQQ_HOURLY          = 6     # Likely dead lever (same as QQQ/BTC hourly)
 MACD_SLOW_TQQQ_HOURLY          = 13
