@@ -215,8 +215,8 @@ MACD_SIGNAL_TQQQ_HOURLY        = 4
 VWAP_WINDOW_TQQQ_HOURLY        = 10
 VWAP_ZSCORE_THRESH_TQQQ_HOURLY = 0.6   # Between QQQ (0.4) and BTC (1.0); sweep 0.3-1.0
 BB_WINDOW_TQQQ_HOURLY          = 14
-TARGET_GAIN_PCT_TQQQ_HOURLY    = 0.006  # 0.60% target — ~2.5x QQQ's 0.24%; 2:1 R:R
-STOP_LOSS_PCT_TQQQ_HOURLY      = 0.003  # 0.30% stop — 2:1 R:R preserved
+TARGET_GAIN_PCT_TQQQ_HOURLY    = 0.007  # 0.70% target — confirmed optimal from sweep; 2:1 R:R
+STOP_LOSS_PCT_TQQQ_HOURLY      = 0.0035 # 0.35% stop — 2:1 R:R; WR 59.2%, Sharpe 40.0
 
 # Backtest window — TQQQ hourly
 BACKTEST_START_TQQQ_HOURLY = "2024-04-01"
