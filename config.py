@@ -282,3 +282,12 @@ _MODE_TO_ASSET = {
     "QQQ_HOURLY": "QQQ_HOURLY",
 }
 DEFAULT_ASSET = _MODE_TO_ASSET.get(ACTIVE_MODE, "BTC")
+
+# ── Live Trading ──────────────────────────────────────────────────────────────
+LIVE_PAPER_MODE              = True    # True = paper API; False = live money
+LIVE_SYMBOL                  = "QQQ"
+MAX_TRADE_BARS_QQQ_LIVE      = 10      # Time-exit after N hourly bars (matches backtest)
+LIVE_BOOTSTRAP_WR            = 0.596   # Seed Kelly from backtest until enough live trades
+LIVE_BOOTSTRAP_WIN           = 0.0024  # Avg win from optimized backtest
+LIVE_BOOTSTRAP_LOSS          = 0.0012  # Avg loss from optimized backtest
+LIVE_MIN_TRADES_FOR_ADAPTIVE = 10      # Switch from bootstrap → rolling stats after N trades
