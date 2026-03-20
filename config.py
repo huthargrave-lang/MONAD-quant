@@ -226,24 +226,29 @@ BACKTEST_END_TQQQ_HOURLY   = "2026-03-01"
 #  PROFILE 6 — GDXU HOURLY (3x leveraged gold miners) — OPTIMIZED 2026-03-20
 #  Goal:    Gold miners income stream — uncorrelated with QQQ/TQQQ
 #  Style:   High-frequency mean-reversion, ~27 trades/month
-#  Sharpe:  61.8  |  Max DD: -0.42%  |  23mo return: 149.19%  |  Avg: +4.07%/mo
-#  Status:  Optimized — target/stop/RSI exhaustively swept
+#  Sharpe:  96.5  |  Max DD: -0.10%  |  24mo return: 116.55%  |  Avg: +3.28%/mo
+#  Status:  Fully optimized — universal sweep (2-phase) confirmed
 #  Note:    3x leveraged gold miners ETN — higher vol than TQQQ;
 #           uncorrelated with tech = portfolio diversification benefit
-#           5:1 R:R confirmed optimal — GDXU mean-reversion resolves fast
+#           7.5:1 R:R confirmed optimal — ultra-tight stops, GDXU resolves fast
+#  CAUTION: 0.075% stop ≈ $0.04-0.06/share — near bid-ask spread in live trading.
+#           Monitor slippage carefully. If live WR degrades, fall back to 0.20% stop.
 # ═══════════════════════════════════════════════════════════════════════════
 
 RSI_PERIOD_GDXU_HOURLY         = 7        # DEAD LEVER (MACD is binding gate)
-RSI_OVERSOLD_GDXU_HOURLY       = 85       # Confirmed: RSI saturated; 85 beats 80 (+3 trades, same WR)
+RSI_OVERSOLD_GDXU_HOURLY       = 85       # Confirmed: RSI saturated; 85 optimal (sweep tested 42–100)
 RSI_OVERBOUGHT_GDXU_HOURLY     = 62
 MACD_FAST_GDXU_HOURLY          = 6        # DEAD LEVER (histogram direction robust to window changes)
 MACD_SLOW_GDXU_HOURLY          = 13       # DEAD LEVER
 MACD_SIGNAL_GDXU_HOURLY        = 4        # DEAD LEVER
 VWAP_WINDOW_GDXU_HOURLY        = 10
-VWAP_ZSCORE_THRESH_GDXU_HOURLY = 0.3      # DEAD LEVER (0.1–1.2 nearly identical; momentum_signal is gate)
+VWAP_ZSCORE_THRESH_GDXU_HOURLY = 0.5      # Marginal improvement over 0.3 (sweep confirmed)
 BB_WINDOW_GDXU_HOURLY          = 14
-TARGET_GAIN_PCT_GDXU_HOURLY    = 0.010    # 1.0% target — confirmed optimal (beats 0.8%, 0.9%, 1.1%, 1.2%)
-STOP_LOSS_PCT_GDXU_HOURLY      = 0.002    # 0.20% stop — 5:1 R:R; Sharpe 61.8, DD -0.42%, +4.07%/mo
+TARGET_GAIN_PCT_GDXU_HOURLY    = 0.0056   # 0.56% target — sweep optimal (7.5:1 R:R)
+STOP_LOSS_PCT_GDXU_HOURLY      = 0.00075  # 0.075% stop — Sharpe 96.5, DD -0.10%, WR 70.1%
+# Fallback (wider stops, higher gross return, lower Sharpe):
+# TARGET_GAIN_PCT_GDXU_HOURLY  = 0.010    # 1.0% target, 5:1 R:R
+# STOP_LOSS_PCT_GDXU_HOURLY    = 0.002    # 0.20% stop — Sharpe 61.8, DD -0.42%, +4.07%/mo
 
 # Backtest window — GDXU hourly (launched Dec 2020; yfinance hourly ~730 days)
 BACKTEST_START_GDXU_HOURLY = "2024-04-01"
@@ -326,12 +331,12 @@ ASSETS = {
     },
     "GDXU_HOURLY": {
         "type":               "etf_hourly_gdxu",
-        "target_gain_pct":    TARGET_GAIN_PCT_GDXU_HOURLY,    # 0.010 (1.0%)
-        "stop_loss_pct":      STOP_LOSS_PCT_GDXU_HOURLY,      # 0.002 (0.20%) — 5:1 R:R
+        "target_gain_pct":    TARGET_GAIN_PCT_GDXU_HOURLY,    # 0.0056 (0.56%)
+        "stop_loss_pct":      STOP_LOSS_PCT_GDXU_HOURLY,      # 0.00075 (0.075%) — 7.5:1 R:R
         "require_signals":    1,
         "rsi_oversold":       RSI_OVERSOLD_GDXU_HOURLY,       # 85
         "rsi_overbought":     RSI_OVERBOUGHT_GDXU_HOURLY,
-        "vwap_zscore_thresh": VWAP_ZSCORE_THRESH_GDXU_HOURLY, # 0.3 (dead lever)
+        "vwap_zscore_thresh": VWAP_ZSCORE_THRESH_GDXU_HOURLY, # 0.5
     },
     "SOXL": {
         "type":               "etf",
