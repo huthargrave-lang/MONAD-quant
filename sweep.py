@@ -41,7 +41,9 @@ parser.add_argument("--end", default=None, help="Backtest end date (default: tod
 parser.add_argument("--phase", default="all", choices=["1", "2", "all"],
                     help="Which sweep phase to run (default: all)")
 parser.add_argument("--min-stop", type=float, default=None,
-                    help="Minimum stop loss %% (e.g., 0.15 = 0.15%%). Prevents unrealistically tight stops.")
+                    help="Minimum stop loss %% (e.g., 0.15 = 0.15%%). Default: auto-calculated from price/spread. Use 0 to disable.")
+parser.add_argument("--spread", type=float, default=None,
+                    help="Assumed bid-ask spread in dollars (default: auto-estimated from price level)")
 args = parser.parse_args()
 
 TICKER = args.ticker.upper()
@@ -140,6 +142,46 @@ if len(df_raw) < 100:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+#  AUTO-CALCULATE SAFE STOP LOSS (live-trading guard)
+# ═══════════════════════════════════════════════════════════════════════════
+# Estimate bid-ask spread from price level, then set minimum stop = 5× spread.
+# This prevents the optimizer from recommending stops inside the bid-ask noise.
+
+median_price = df_raw["Close"].median()
+
+if args.spread is not None:
+    est_spread = args.spread
+else:
+    # Conservative spread estimate by price tier (liquid US ETFs)
+    if median_price < 15:
+        est_spread = 0.02
+    elif median_price < 50:
+        est_spread = 0.03
+    elif median_price < 150:
+        est_spread = 0.04
+    else:
+        est_spread = 0.05
+
+# Safe stop = 5× spread as % of price (round-trip: entry slippage + exit slippage)
+# Floor at 0.10% to prevent absurdly tight stops on high-priced tickers
+auto_min_stop_pct = max(0.10, (5 * est_spread / median_price) * 100)
+
+if args.min_stop is not None:
+    if args.min_stop == 0:
+        MIN_STOP_PCT = 0  # user explicitly disabled
+        print(f"  ⚠ Safe stop DISABLED (--min-stop 0). Optimizer may recommend unrealistic stops.\n")
+    else:
+        MIN_STOP_PCT = args.min_stop
+        print(f"  Min stop: {MIN_STOP_PCT:.2f}% (user override)\n")
+else:
+    MIN_STOP_PCT = round(auto_min_stop_pct, 2)
+    print(f"  Median price:     ${median_price:.2f}")
+    print(f"  Est. bid-ask:     ${est_spread:.3f}")
+    print(f"  Safe stop (5x):   {MIN_STOP_PCT:.2f}%  (${median_price * MIN_STOP_PCT / 100:.3f}/share)")
+    print(f"  [override with --min-stop N or --spread N]\n")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 #  SWEEP ENGINE
 # ═══════════════════════════════════════════════════════════════════════════
 def run_quiet(target, stop, rsi_os=None, vwap=None):
@@ -232,6 +274,8 @@ if args.phase in ("1", "all"):
     for t_pct in [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.2, 1.4, 1.6, 2.0]:
         t = t_pct / 100
         s = t / 2
+        if MIN_STOP_PCT and t_pct / 2 < MIN_STOP_PCT:
+            continue  # skip: stop below safe minimum
         r = run_quiet(target=t, stop=s)
         print(fmt(r, f"target={t_pct:4.1f}% stop={t_pct/2:5.2f}%"))
         if r and "error" not in r:
@@ -249,8 +293,8 @@ if args.phase in ("1", "all"):
         s = s_pct / 100
         if s >= best_target:
             continue  # skip R:R < 1:1
-        if args.min_stop and s_pct < args.min_stop:
-            continue  # skip stops below user-specified minimum
+        if MIN_STOP_PCT and s_pct < MIN_STOP_PCT:
+            continue  # skip stops below safe minimum
         r = run_quiet(target=best_target, stop=s)
         rr = best_t_pct / s_pct
         print(fmt(r, f"R:R={rr:4.1f}:1 stop={s_pct:.2f}%"))
@@ -326,7 +370,7 @@ if args.phase in ("2", "all"):
         s_pct = round(s_pct, 3)
         if s_pct <= 0 or s_pct / 100 >= bt:
             continue
-        if args.min_stop and s_pct < args.min_stop:
+        if MIN_STOP_PCT and s_pct < MIN_STOP_PCT:
             continue
         r = run_quiet(target=bt, stop=s_pct / 100, rsi_os=br)
         rr = bt * 100 / s_pct
@@ -385,6 +429,19 @@ if r and "error" not in r:
   Neg Months:      {neg_months}/{total_months}
 """)
 
+    # Live-trading viability warning
+    stop_dollars = median_price * best["stop"]
+    spread_multiple = stop_dollars / est_spread if est_spread > 0 else 999
+    if spread_multiple < 3:
+        print(f"  ⚠ LIVE TRADING WARNING: stop (${stop_dollars:.3f}) is only {spread_multiple:.1f}x the")
+        print(f"    estimated bid-ask spread (${est_spread:.3f}). Slippage will likely degrade WR.")
+        print(f"    Consider using --min-stop {auto_min_stop_pct:.2f} or wider.\n")
+    elif spread_multiple < 5:
+        print(f"  ℹ Note: stop (${stop_dollars:.3f}) is {spread_multiple:.1f}x the estimated spread")
+        print(f"    (${est_spread:.3f}). Viable but monitor slippage in live trading.\n")
+    else:
+        print(f"  ✓ Stop (${stop_dollars:.3f}) is {spread_multiple:.1f}x the estimated spread — live-safe.\n")
+
     # Save results to JSON for easy ingestion
     out = {
         "ticker": TICKER,
@@ -395,6 +452,14 @@ if r and "error" not in r:
             "stop_loss_pct": best["stop"],
             "rsi_oversold": best["rsi"],
             "vwap_zscore_thresh": best["vwap"],
+        },
+        "live_trading": {
+            "median_price": round(median_price, 2),
+            "est_spread": round(est_spread, 3),
+            "stop_dollars": round(median_price * best["stop"], 3),
+            "spread_multiple": round(spread_multiple, 1),
+            "min_stop_pct_used": MIN_STOP_PCT,
+            "live_safe": spread_multiple >= 5,
         },
         "performance": {
             "total_return_pct": round(r["total_return"] * 100, 2),
