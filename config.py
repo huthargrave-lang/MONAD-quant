@@ -7,9 +7,9 @@ All other parameters are pre-tuned for their respective mode.
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  ACTIVE MODE — the only line you normally need to change
-#  Options: "BTC_DAILY" | "BTC_HOURLY" | "QQQ" | "QQQ_HOURLY" | "TQQQ_HOURLY"
+#  Options: "BTC_DAILY" | "BTC_HOURLY" | "QQQ" | "QQQ_HOURLY" | "TQQQ_HOURLY" | "GDXU_HOURLY"
 # ═══════════════════════════════════════════════════════════════════════════
-ACTIVE_MODE = "QQQ_HOURLY"
+ACTIVE_MODE = "GDXU_HOURLY"
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  BACKTEST DATE RANGES — edit here, one place for all BTC windows
@@ -223,6 +223,31 @@ BACKTEST_START_TQQQ_HOURLY = "2024-04-01"
 BACKTEST_END_TQQQ_HOURLY   = "2026-03-01"
 
 # ═══════════════════════════════════════════════════════════════════════════
+#  PROFILE 6 — GDXU HOURLY (3x leveraged gold miners)
+#  Goal:    Gold miners income stream — uncorrelated with QQQ/TQQQ
+#  Style:   High-frequency mean-reversion, ~20-30 trades/month
+#  Status:  Initial params — needs optimization sweep
+#  Note:    3x leveraged gold miners ETN — higher vol than TQQQ;
+#           uncorrelated with tech = portfolio diversification benefit
+# ═══════════════════════════════════════════════════════════════════════════
+
+RSI_PERIOD_GDXU_HOURLY         = 7
+RSI_OVERSOLD_GDXU_HOURLY       = 80    # Start at TQQQ baseline (saturated RSI); optimize from here
+RSI_OVERBOUGHT_GDXU_HOURLY     = 62
+MACD_FAST_GDXU_HOURLY          = 6     # Likely dead lever (same pattern as all hourly modes)
+MACD_SLOW_GDXU_HOURLY          = 13
+MACD_SIGNAL_GDXU_HOURLY        = 4
+VWAP_WINDOW_GDXU_HOURLY        = 10
+VWAP_ZSCORE_THRESH_GDXU_HOURLY = 0.3   # Start at TQQQ baseline; optimize from here
+BB_WINDOW_GDXU_HOURLY          = 14
+TARGET_GAIN_PCT_GDXU_HOURLY    = 0.010  # 1.0% target — GDXU more volatile than TQQQ (wider swings)
+STOP_LOSS_PCT_GDXU_HOURLY      = 0.005  # 0.5% stop — 2:1 R:R
+
+# Backtest window — GDXU hourly (launched Dec 2020; yfinance hourly ~730 days)
+BACKTEST_START_GDXU_HOURLY = "2024-04-01"
+BACKTEST_END_GDXU_HOURLY   = "2026-03-01"
+
+# ═══════════════════════════════════════════════════════════════════════════
 #  SHARED — Risk & Sizing (applies to all modes)
 # ═══════════════════════════════════════════════════════════════════════════
 INITIAL_CAPITAL  = 100_000
@@ -297,6 +322,15 @@ ASSETS = {
         "rsi_overbought":     RSI_OVERBOUGHT_TQQQ_HOURLY,
         "vwap_zscore_thresh": VWAP_ZSCORE_THRESH_TQQQ_HOURLY,
     },
+    "GDXU_HOURLY": {
+        "type":               "etf_hourly_gdxu",
+        "target_gain_pct":    TARGET_GAIN_PCT_GDXU_HOURLY,
+        "stop_loss_pct":      STOP_LOSS_PCT_GDXU_HOURLY,
+        "require_signals":    1,
+        "rsi_oversold":       RSI_OVERSOLD_GDXU_HOURLY,
+        "rsi_overbought":     RSI_OVERBOUGHT_GDXU_HOURLY,
+        "vwap_zscore_thresh": VWAP_ZSCORE_THRESH_GDXU_HOURLY,
+    },
     "SOXL": {
         "type":               "etf",
         "rsi_oversold":       38,
@@ -314,5 +348,6 @@ _MODE_TO_ASSET = {
     "QQQ":        "QQQ",
     "QQQ_HOURLY":  "QQQ_HOURLY",
     "TQQQ_HOURLY": "TQQQ_HOURLY",
+    "GDXU_HOURLY": "GDXU_HOURLY",
 }
 DEFAULT_ASSET = _MODE_TO_ASSET.get(ACTIVE_MODE, "BTC")

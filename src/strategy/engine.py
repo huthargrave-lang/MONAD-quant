@@ -52,6 +52,19 @@ def build_features(df: pd.DataFrame, timeframe: str = "daily",
             df = add_volume_features(df, window=getattr(config, "VWAP_WINDOW_TQQQ_HOURLY", 10),
                                       zscore_threshold=getattr(config, "VWAP_ZSCORE_THRESH_TQQQ_HOURLY", 0.6))
             df = add_volatility_features(df, window=getattr(config, "BB_WINDOW_TQQQ_HOURLY", 14))
+        elif active_mode == "GDXU_HOURLY":
+            df = add_momentum_features(
+                df,
+                rsi_period=getattr(config, "RSI_PERIOD_GDXU_HOURLY", 7),
+                macd_fast=getattr(config, "MACD_FAST_GDXU_HOURLY", 6),
+                macd_slow=getattr(config, "MACD_SLOW_GDXU_HOURLY", 13),
+                macd_signal_period=getattr(config, "MACD_SIGNAL_GDXU_HOURLY", 4),
+                rsi_oversold=getattr(config, "RSI_OVERSOLD_GDXU_HOURLY", 80),
+                rsi_overbought=getattr(config, "RSI_OVERBOUGHT_GDXU_HOURLY", 62),
+            )
+            df = add_volume_features(df, window=getattr(config, "VWAP_WINDOW_GDXU_HOURLY", 10),
+                                      zscore_threshold=getattr(config, "VWAP_ZSCORE_THRESH_GDXU_HOURLY", 0.3))
+            df = add_volatility_features(df, window=getattr(config, "BB_WINDOW_GDXU_HOURLY", 14))
         else:
             df = add_momentum_features(
                 df,
