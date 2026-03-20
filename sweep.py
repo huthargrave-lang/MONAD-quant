@@ -43,7 +43,8 @@ args = parser.parse_args()
 
 TICKER = args.ticker.upper()
 END_DATE = args.end or datetime.now().strftime("%Y-%m-%d")
-START_DATE = args.start or (datetime.now() - timedelta(days=730)).strftime("%Y-%m-%d")
+# yfinance hourly data limit is 730 days. Use 710 to stay safely inside the window.
+START_DATE = args.start or (datetime.now() - timedelta(days=710)).strftime("%Y-%m-%d")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
