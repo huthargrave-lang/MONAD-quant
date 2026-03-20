@@ -10,6 +10,7 @@ Usage:
     python sweep.py SOXL --start 2024-06-01 # Custom start date
     python sweep.py TQQQ --phase 1          # Run only phase 1 (target/stop)
     python sweep.py NVDA --phase 2          # Run only phase 2 (cross-validation)
+    python sweep.py LABU --min-stop 0.15    # Force realistic stops (≥0.15%)
 
 Phases:
     1 = Coarse sweep (target/stop, VWAP, RSI)
@@ -39,6 +40,8 @@ parser.add_argument("--start", default=None, help="Backtest start date (default:
 parser.add_argument("--end", default=None, help="Backtest end date (default: today)")
 parser.add_argument("--phase", default="all", choices=["1", "2", "all"],
                     help="Which sweep phase to run (default: all)")
+parser.add_argument("--min-stop", type=float, default=None,
+                    help="Minimum stop loss %% (e.g., 0.15 = 0.15%%). Prevents unrealistically tight stops.")
 args = parser.parse_args()
 
 TICKER = args.ticker.upper()
@@ -287,6 +290,8 @@ if args.phase in ("1", "all"):
         s = s_pct / 100
         if s >= best_target:
             continue  # skip R:R < 1:1
+        if args.min_stop and s_pct < args.min_stop:
+            continue  # skip stops below user-specified minimum
         r = run_quiet(target=best_target, stop=s)
         rr = best_t_pct / s_pct
         print(fmt(r, f"R:R={rr:4.1f}:1 stop={s_pct:.2f}%"))
@@ -361,6 +366,8 @@ if args.phase in ("2", "all"):
                               bs_pct, bs_pct * 1.15, bs_pct * 1.3, bs_pct * 1.5])):
         s_pct = round(s_pct, 3)
         if s_pct <= 0 or s_pct / 100 >= bt:
+            continue
+        if args.min_stop and s_pct < args.min_stop:
             continue
         r = run_quiet(target=bt, stop=s_pct / 100, rsi_os=br)
         rr = bt * 100 / s_pct
