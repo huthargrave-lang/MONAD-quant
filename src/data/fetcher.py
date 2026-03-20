@@ -270,40 +270,14 @@ def fetch_btc_hourly_binance(start: str, end: str, symbol: str = "BTCUSDT") -> p
     return df.loc[start:end]
 
 
-def fetch_qqq_hourly(start: str, end: str) -> pd.DataFrame:
+def fetch_etf_hourly(ticker: str, start: str, end: str) -> pd.DataFrame:
     """
-    Fetch hourly QQQ OHLCV via yfinance (free, up to ~730 days history).
-    Market-hours only (09:30–16:00 ET) — ~136 bars/month vs BTC's 720.
-    Cached locally for 24hr to avoid redundant API calls.
-    """
-    _ensure_cache_dir()
-    cache_file = _cache_path("QQQ", "1h")
-
-    start_dt = pd.Timestamp(start)
-    end_dt   = pd.Timestamp(end)
-
-    if os.path.exists(cache_file) and _cache_is_fresh(cache_file):
-        df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
-        if len(df) > 0 and df.index[0] <= start_dt and df.index[-1] >= end_dt - timedelta(days=2):
-            print(f"[cache] Loading QQQ hourly from cache ({len(df)} bars)")
-            return df.loc[start:end]
-
-    print(f"[yfinance] Fetching QQQ hourly from {start} to {end}...")
-    df = _fetch_hourly("QQQ", start, end)
-    df = df.between_time("09:30", "16:00")
-
-    df.to_csv(cache_file)
-    print(f"[cache] Saved QQQ hourly to {cache_file} ({len(df)} bars)")
-    return df.loc[start:end]
-
-
-def fetch_tqqq_hourly(start: str, end: str) -> pd.DataFrame:
-    """
-    Fetch hourly TQQQ (3x leveraged QQQ) OHLCV via yfinance.
+    Generic hourly ETF fetcher via yfinance.
     Market-hours only (09:30-16:00 ET). Cached locally for 24hr.
+    Works for any ticker: QQQ, TQQQ, GDXU, SOXL, LABU, TNA, etc.
     """
     _ensure_cache_dir()
-    cache_file = _cache_path("TQQQ", "1h")
+    cache_file = _cache_path(ticker, "1h")
 
     start_dt = pd.Timestamp(start)
     end_dt   = pd.Timestamp(end)
@@ -311,96 +285,25 @@ def fetch_tqqq_hourly(start: str, end: str) -> pd.DataFrame:
     if os.path.exists(cache_file) and _cache_is_fresh(cache_file):
         df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
         if len(df) > 0 and df.index[0] <= start_dt and df.index[-1] >= end_dt - timedelta(days=2):
-            print(f"[cache] Loading TQQQ hourly from cache ({len(df)} bars)")
+            print(f"[cache] Loading {ticker} hourly from cache ({len(df)} bars)")
             return df.loc[start:end]
 
-    print(f"[yfinance] Fetching TQQQ hourly from {start} to {end}...")
-    df = _fetch_hourly("TQQQ", start, end)
+    print(f"[yfinance] Fetching {ticker} hourly from {start} to {end}...")
+    df = _fetch_hourly(ticker, start, end)
     df = df.between_time("09:30", "16:00")
 
     df.to_csv(cache_file)
-    print(f"[cache] Saved TQQQ hourly to {cache_file} ({len(df)} bars)")
+    print(f"[cache] Saved {ticker} hourly to {cache_file} ({len(df)} bars)")
     return df.loc[start:end]
 
 
-def fetch_gdxu_hourly(start: str, end: str) -> pd.DataFrame:
-    """
-    Fetch hourly GDXU (3x leveraged gold miners) OHLCV via yfinance.
-    Market-hours only (09:30-16:00 ET). Cached locally for 24hr.
-    """
-    _ensure_cache_dir()
-    cache_file = _cache_path("GDXU", "1h")
-
-    start_dt = pd.Timestamp(start)
-    end_dt   = pd.Timestamp(end)
-
-    if os.path.exists(cache_file) and _cache_is_fresh(cache_file):
-        df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
-        if len(df) > 0 and df.index[0] <= start_dt and df.index[-1] >= end_dt - timedelta(days=2):
-            print(f"[cache] Loading GDXU hourly from cache ({len(df)} bars)")
-            return df.loc[start:end]
-
-    print(f"[yfinance] Fetching GDXU hourly from {start} to {end}...")
-    df = _fetch_hourly("GDXU", start, end)
-    df = df.between_time("09:30", "16:00")
-
-    df.to_csv(cache_file)
-    print(f"[cache] Saved GDXU hourly to {cache_file} ({len(df)} bars)")
-    return df.loc[start:end]
-
-
-def fetch_soxl_hourly(start: str, end: str) -> pd.DataFrame:
-    """Fetch hourly SOXL (3x leveraged semiconductors) OHLCV via yfinance."""
-    _ensure_cache_dir()
-    cache_file = _cache_path("SOXL", "1h")
-    start_dt, end_dt = pd.Timestamp(start), pd.Timestamp(end)
-    if os.path.exists(cache_file) and _cache_is_fresh(cache_file):
-        df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
-        if len(df) > 0 and df.index[0] <= start_dt and df.index[-1] >= end_dt - timedelta(days=2):
-            print(f"[cache] Loading SOXL hourly from cache ({len(df)} bars)")
-            return df.loc[start:end]
-    print(f"[yfinance] Fetching SOXL hourly from {start} to {end}...")
-    df = _fetch_hourly("SOXL", start, end)
-    df = df.between_time("09:30", "16:00")
-    df.to_csv(cache_file)
-    print(f"[cache] Saved SOXL hourly to {cache_file} ({len(df)} bars)")
-    return df.loc[start:end]
-
-
-def fetch_labu_hourly(start: str, end: str) -> pd.DataFrame:
-    """Fetch hourly LABU (3x leveraged biotech) OHLCV via yfinance."""
-    _ensure_cache_dir()
-    cache_file = _cache_path("LABU", "1h")
-    start_dt, end_dt = pd.Timestamp(start), pd.Timestamp(end)
-    if os.path.exists(cache_file) and _cache_is_fresh(cache_file):
-        df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
-        if len(df) > 0 and df.index[0] <= start_dt and df.index[-1] >= end_dt - timedelta(days=2):
-            print(f"[cache] Loading LABU hourly from cache ({len(df)} bars)")
-            return df.loc[start:end]
-    print(f"[yfinance] Fetching LABU hourly from {start} to {end}...")
-    df = _fetch_hourly("LABU", start, end)
-    df = df.between_time("09:30", "16:00")
-    df.to_csv(cache_file)
-    print(f"[cache] Saved LABU hourly to {cache_file} ({len(df)} bars)")
-    return df.loc[start:end]
-
-
-def fetch_tna_hourly(start: str, end: str) -> pd.DataFrame:
-    """Fetch hourly TNA (3x leveraged Russell 2000) OHLCV via yfinance."""
-    _ensure_cache_dir()
-    cache_file = _cache_path("TNA", "1h")
-    start_dt, end_dt = pd.Timestamp(start), pd.Timestamp(end)
-    if os.path.exists(cache_file) and _cache_is_fresh(cache_file):
-        df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
-        if len(df) > 0 and df.index[0] <= start_dt and df.index[-1] >= end_dt - timedelta(days=2):
-            print(f"[cache] Loading TNA hourly from cache ({len(df)} bars)")
-            return df.loc[start:end]
-    print(f"[yfinance] Fetching TNA hourly from {start} to {end}...")
-    df = _fetch_hourly("TNA", start, end)
-    df = df.between_time("09:30", "16:00")
-    df.to_csv(cache_file)
-    print(f"[cache] Saved TNA hourly to {cache_file} ({len(df)} bars)")
-    return df.loc[start:end]
+# Backward-compatible aliases (used by existing imports)
+def fetch_qqq_hourly(start, end):  return fetch_etf_hourly("QQQ", start, end)
+def fetch_tqqq_hourly(start, end): return fetch_etf_hourly("TQQQ", start, end)
+def fetch_gdxu_hourly(start, end): return fetch_etf_hourly("GDXU", start, end)
+def fetch_soxl_hourly(start, end): return fetch_etf_hourly("SOXL", start, end)
+def fetch_labu_hourly(start, end): return fetch_etf_hourly("LABU", start, end)
+def fetch_tna_hourly(start, end):  return fetch_etf_hourly("TNA", start, end)
 
 
 def fetch_yfinance(symbol: str, start: str, end: str) -> pd.DataFrame:

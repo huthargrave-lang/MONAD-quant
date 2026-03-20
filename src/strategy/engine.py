@@ -25,98 +25,28 @@ def build_features(df: pd.DataFrame, timeframe: str = "daily",
     import config
     overrides = signal_overrides or {}
     if timeframe == "hourly":
+        # Generic hourly dispatch: reads config params using mode suffix.
+        # e.g., ACTIVE_MODE="TQQQ_HOURLY" → reads RSI_PERIOD_TQQQ_HOURLY, etc.
+        # BTC_HOURLY uses bare "_HOURLY" suffix (legacy naming).
         active_mode = getattr(config, "ACTIVE_MODE", "BTC_HOURLY")
-        if active_mode == "QQQ_HOURLY":
-            df = add_momentum_features(
-                df,
-                rsi_period=getattr(config, "RSI_PERIOD_QQQ_HOURLY", 7),
-                macd_fast=getattr(config, "MACD_FAST_QQQ_HOURLY", 6),
-                macd_slow=getattr(config, "MACD_SLOW_QQQ_HOURLY", 13),
-                macd_signal_period=getattr(config, "MACD_SIGNAL_QQQ_HOURLY", 4),
-                rsi_oversold=getattr(config, "RSI_OVERSOLD_QQQ_HOURLY", 40),
-                rsi_overbought=getattr(config, "RSI_OVERBOUGHT_QQQ_HOURLY", 62),
-            )
-            df = add_volume_features(df, window=getattr(config, "VWAP_WINDOW_QQQ_HOURLY", 10),
-                                      zscore_threshold=getattr(config, "VWAP_ZSCORE_THRESH_QQQ_HOURLY", 0.8))
-            df = add_volatility_features(df, window=getattr(config, "BB_WINDOW_QQQ_HOURLY", 14))
-        elif active_mode == "TQQQ_HOURLY":
-            df = add_momentum_features(
-                df,
-                rsi_period=getattr(config, "RSI_PERIOD_TQQQ_HOURLY", 7),
-                macd_fast=getattr(config, "MACD_FAST_TQQQ_HOURLY", 6),
-                macd_slow=getattr(config, "MACD_SLOW_TQQQ_HOURLY", 13),
-                macd_signal_period=getattr(config, "MACD_SIGNAL_TQQQ_HOURLY", 4),
-                rsi_oversold=getattr(config, "RSI_OVERSOLD_TQQQ_HOURLY", 55),
-                rsi_overbought=getattr(config, "RSI_OVERBOUGHT_TQQQ_HOURLY", 62),
-            )
-            df = add_volume_features(df, window=getattr(config, "VWAP_WINDOW_TQQQ_HOURLY", 10),
-                                      zscore_threshold=getattr(config, "VWAP_ZSCORE_THRESH_TQQQ_HOURLY", 0.6))
-            df = add_volatility_features(df, window=getattr(config, "BB_WINDOW_TQQQ_HOURLY", 14))
-        elif active_mode == "GDXU_HOURLY":
-            df = add_momentum_features(
-                df,
-                rsi_period=getattr(config, "RSI_PERIOD_GDXU_HOURLY", 7),
-                macd_fast=getattr(config, "MACD_FAST_GDXU_HOURLY", 6),
-                macd_slow=getattr(config, "MACD_SLOW_GDXU_HOURLY", 13),
-                macd_signal_period=getattr(config, "MACD_SIGNAL_GDXU_HOURLY", 4),
-                rsi_oversold=getattr(config, "RSI_OVERSOLD_GDXU_HOURLY", 80),
-                rsi_overbought=getattr(config, "RSI_OVERBOUGHT_GDXU_HOURLY", 62),
-            )
-            df = add_volume_features(df, window=getattr(config, "VWAP_WINDOW_GDXU_HOURLY", 10),
-                                      zscore_threshold=getattr(config, "VWAP_ZSCORE_THRESH_GDXU_HOURLY", 0.3))
-            df = add_volatility_features(df, window=getattr(config, "BB_WINDOW_GDXU_HOURLY", 14))
-        elif active_mode == "SOXL_HOURLY":
-            df = add_momentum_features(
-                df,
-                rsi_period=getattr(config, "RSI_PERIOD_SOXL_HOURLY", 7),
-                macd_fast=getattr(config, "MACD_FAST_SOXL_HOURLY", 6),
-                macd_slow=getattr(config, "MACD_SLOW_SOXL_HOURLY", 13),
-                macd_signal_period=getattr(config, "MACD_SIGNAL_SOXL_HOURLY", 4),
-                rsi_oversold=getattr(config, "RSI_OVERSOLD_SOXL_HOURLY", 80),
-                rsi_overbought=getattr(config, "RSI_OVERBOUGHT_SOXL_HOURLY", 62),
-            )
-            df = add_volume_features(df, window=getattr(config, "VWAP_WINDOW_SOXL_HOURLY", 10),
-                                      zscore_threshold=getattr(config, "VWAP_ZSCORE_THRESH_SOXL_HOURLY", 1.2))
-            df = add_volatility_features(df, window=getattr(config, "BB_WINDOW_SOXL_HOURLY", 14))
-        elif active_mode == "LABU_HOURLY":
-            df = add_momentum_features(
-                df,
-                rsi_period=getattr(config, "RSI_PERIOD_LABU_HOURLY", 7),
-                macd_fast=getattr(config, "MACD_FAST_LABU_HOURLY", 6),
-                macd_slow=getattr(config, "MACD_SLOW_LABU_HOURLY", 13),
-                macd_signal_period=getattr(config, "MACD_SIGNAL_LABU_HOURLY", 4),
-                rsi_oversold=getattr(config, "RSI_OVERSOLD_LABU_HOURLY", 70),
-                rsi_overbought=getattr(config, "RSI_OVERBOUGHT_LABU_HOURLY", 62),
-            )
-            df = add_volume_features(df, window=getattr(config, "VWAP_WINDOW_LABU_HOURLY", 10),
-                                      zscore_threshold=getattr(config, "VWAP_ZSCORE_THRESH_LABU_HOURLY", 1.2))
-            df = add_volatility_features(df, window=getattr(config, "BB_WINDOW_LABU_HOURLY", 14))
-        elif active_mode == "TNA_HOURLY":
-            df = add_momentum_features(
-                df,
-                rsi_period=getattr(config, "RSI_PERIOD_TNA_HOURLY", 7),
-                macd_fast=getattr(config, "MACD_FAST_TNA_HOURLY", 6),
-                macd_slow=getattr(config, "MACD_SLOW_TNA_HOURLY", 13),
-                macd_signal_period=getattr(config, "MACD_SIGNAL_TNA_HOURLY", 4),
-                rsi_oversold=getattr(config, "RSI_OVERSOLD_TNA_HOURLY", 65),
-                rsi_overbought=getattr(config, "RSI_OVERBOUGHT_TNA_HOURLY", 62),
-            )
-            df = add_volume_features(df, window=getattr(config, "VWAP_WINDOW_TNA_HOURLY", 10),
-                                      zscore_threshold=getattr(config, "VWAP_ZSCORE_THRESH_TNA_HOURLY", 0.1))
-            df = add_volatility_features(df, window=getattr(config, "BB_WINDOW_TNA_HOURLY", 14))
-        else:
-            df = add_momentum_features(
-                df,
-                rsi_period=getattr(config, "RSI_PERIOD_HOURLY", 7),
-                macd_fast=getattr(config, "MACD_FAST_HOURLY", 6),
-                macd_slow=getattr(config, "MACD_SLOW_HOURLY", 13),
-                macd_signal_period=getattr(config, "MACD_SIGNAL_HOURLY", 4),
-                rsi_oversold=getattr(config, "RSI_OVERSOLD_HOURLY", 40),
-                rsi_overbought=getattr(config, "RSI_OVERBOUGHT_HOURLY", 60),
-            )
-            df = add_volume_features(df, window=getattr(config, "VWAP_WINDOW_HOURLY", 10),
-                                      zscore_threshold=getattr(config, "VWAP_ZSCORE_THRESH_HOURLY", 1.0))
-            df = add_volatility_features(df, window=getattr(config, "BB_WINDOW_HOURLY", 14))
+        suffix = active_mode if active_mode != "BTC_HOURLY" else "HOURLY"
+        df = add_momentum_features(
+            df,
+            rsi_period=getattr(config, f"RSI_PERIOD_{suffix}", 7),
+            macd_fast=getattr(config, f"MACD_FAST_{suffix}", 6),
+            macd_slow=getattr(config, f"MACD_SLOW_{suffix}", 13),
+            macd_signal_period=getattr(config, f"MACD_SIGNAL_{suffix}", 4),
+            rsi_oversold=getattr(config, f"RSI_OVERSOLD_{suffix}", 40),
+            rsi_overbought=getattr(config, f"RSI_OVERBOUGHT_{suffix}", 62),
+        )
+        df = add_volume_features(
+            df,
+            window=getattr(config, f"VWAP_WINDOW_{suffix}", 10),
+            zscore_threshold=getattr(config, f"VWAP_ZSCORE_THRESH_{suffix}", 1.0),
+        )
+        df = add_volatility_features(
+            df, window=getattr(config, f"BB_WINDOW_{suffix}", 14),
+        )
     else:
         kelly_mult_map = {
             "STRONG_BULL": config.KELLY_MULT_STRONG_BULL,

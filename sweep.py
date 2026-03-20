@@ -94,49 +94,8 @@ config.VERBOSE_SIGNALS = False
 # Register the mode→asset mapping
 config._MODE_TO_ASSET[MODE_NAME] = MODE_NAME
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  PATCH engine to handle unknown hourly modes generically
-# ═══════════════════════════════════════════════════════════════════════════
-import src.strategy.engine as engine
-
-_original_build_features = engine.build_features
-
-def _patched_build_features(df, timeframe="daily", signal_overrides=None):
-    """Intercept build_features for unknown hourly modes — use generic config."""
-    import config as cfg
-    active = getattr(cfg, "ACTIVE_MODE", "")
-    # If engine already handles this mode, use original
-    if active in ("QQQ_HOURLY", "TQQQ_HOURLY", "GDXU_HOURLY", "SOXL_HOURLY", "LABU_HOURLY", "TNA_HOURLY", "BTC_HOURLY"):
-        return _original_build_features(df, timeframe, signal_overrides)
-    if timeframe != "hourly":
-        return _original_build_features(df, timeframe, signal_overrides)
-
-    # Generic hourly mode — read params from config using MODE_NAME pattern
-    from src.signals.momentum import add_momentum_features
-    from src.signals.volume import add_volume_features
-    from src.signals.volatility import add_volatility_features
-
-    mode = active
-    df = add_momentum_features(
-        df,
-        rsi_period=getattr(cfg, f"RSI_PERIOD_{mode}", 7),
-        macd_fast=getattr(cfg, f"MACD_FAST_{mode}", 6),
-        macd_slow=getattr(cfg, f"MACD_SLOW_{mode}", 13),
-        macd_signal_period=getattr(cfg, f"MACD_SIGNAL_{mode}", 4),
-        rsi_oversold=getattr(cfg, f"RSI_OVERSOLD_{mode}", 80),
-        rsi_overbought=getattr(cfg, f"RSI_OVERBOUGHT_{mode}", 62),
-    )
-    df = add_volume_features(
-        df,
-        window=getattr(cfg, f"VWAP_WINDOW_{mode}", 10),
-        zscore_threshold=getattr(cfg, f"VWAP_ZSCORE_THRESH_{mode}", 0.3),
-    )
-    df = add_volatility_features(
-        df, window=getattr(cfg, f"BB_WINDOW_{mode}", 14),
-    )
-    return df
-
-engine.build_features = _patched_build_features
+# Engine's build_features() now handles any hourly mode generically via config suffix.
+# No monkey-patching needed — sweep just sets config attributes and the engine reads them.
 
 
 # ═══════════════════════════════════════════════════════════════════════════
