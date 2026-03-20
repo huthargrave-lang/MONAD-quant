@@ -474,11 +474,23 @@ _MODE_TO_ASSET = {
 }
 DEFAULT_ASSET = _MODE_TO_ASSET.get(ACTIVE_MODE, "BTC")
 
-# ── Live Trading ──────────────────────────────────────────────────────────────
-LIVE_PAPER_MODE              = True    # True = paper API; False = live money
-LIVE_SYMBOL                  = "QQQ"
-MAX_TRADE_BARS_QQQ_LIVE      = 10      # Time-exit after N hourly bars (matches backtest)
-LIVE_BOOTSTRAP_WR            = 0.596   # Seed Kelly from backtest until enough live trades
-LIVE_BOOTSTRAP_WIN           = 0.0024  # Avg win from optimized backtest
-LIVE_BOOTSTRAP_LOSS          = 0.0012  # Avg loss from optimized backtest
-LIVE_MIN_TRADES_FOR_ADAPTIVE = 10      # Switch from bootstrap → rolling stats after N trades
+# ── Live Trading — IBKR ───────────────────────────────────────────────────────
+LIVE_PAPER_MODE    = True          # True = paper (port 7497); False = live (port 7496)
+LIVE_SYMBOL        = "TQQQ"       # Primary instrument — TQQQ: Sharpe 94.2, +1.89%/mo
+IBKR_HOST          = "127.0.0.1"  # TWS/Gateway host
+IBKR_PORT_PAPER    = 7497         # IB Gateway paper trading port
+IBKR_PORT_LIVE     = 7496         # IB Gateway live trading port
+IBKR_CLIENT_ID     = 1            # Unique per concurrent connection
+
+MAX_TRADE_BARS_LIVE = 10          # Time-exit after N hourly bars (matches backtest)
+LIVE_MIN_TRADES_FOR_ADAPTIVE = 10 # Switch from bootstrap → rolling stats after N trades
+
+# Per-instrument bootstrap stats (seed Kelly until enough live trades)
+LIVE_BOOTSTRAP = {
+    "QQQ":  {"wr": 0.596, "win": 0.0024, "loss": 0.0012},
+    "TQQQ": {"wr": 0.709, "win": 0.0042, "loss": 0.0008},
+    "GDXU": {"wr": 0.701, "win": 0.0056, "loss": 0.00075},
+    "SOXL": {"wr": 0.592, "win": 0.006,  "loss": 0.0025},
+    "LABU": {"wr": 0.593, "win": 0.007,  "loss": 0.0025},
+    "TNA":  {"wr": 0.596, "win": 0.0033, "loss": 0.0015},
+}

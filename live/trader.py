@@ -1,5 +1,5 @@
 """
-live/trader.py — Scheduler and main trading loop for QQQ Hourly live trading.
+live/trader.py — Scheduler and main trading loop for hourly ETF live trading.
 
 Runs as a long-lived process. APScheduler fires on_bar() 2 minutes after each
 hourly bar close during US market hours (ET):
@@ -7,12 +7,13 @@ hourly bar close during US market hours (ET):
 
 The 2-minute delay ensures yfinance has the completed bar available.
 
-Usage:
-    python -m live.trader            # paper mode (default)
-    python -m live.trader --live     # REAL MONEY — requires explicit flag
+Connects to Interactive Brokers via TWS or IB Gateway running locally.
+Paper vs live mode controlled by config.LIVE_PAPER_MODE (port 7497 vs 7496).
 
-The LIVE_PAPER_MODE config flag also controls which Alpaca endpoint is used.
-Running with --live overrides config.LIVE_PAPER_MODE to False.
+Usage:
+    python -m live.trader            # paper mode (default, port 7497)
+    python -m live.trader --live     # REAL MONEY — requires explicit flag (port 7496)
+    python -m live.trader --symbol GDXU  # override instrument
 """
 
 import argparse
@@ -31,6 +32,14 @@ logging.basicConfig(
 log = logging.getLogger("trader")
 
 
+def _get_asset_config() -> dict:
+    """Returns the ASSETS dict entry for the current LIVE_SYMBOL."""
+    mode = f"{config.LIVE_SYMBOL}_HOURLY"
+    if mode not in config.ASSETS:
+        raise ValueError(f"No ASSETS config for mode '{mode}'. Check config.LIVE_SYMBOL.")
+    return config.ASSETS[mode]
+
+
 # ── Core logic ────────────────────────────────────────────────────────────────
 
 def on_bar() -> None:
@@ -39,16 +48,16 @@ def on_bar() -> None:
     Handles: position bar-count tracking, time-exits, and new entry signals.
     """
     log.info("─" * 60)
-    log.info(f"on_bar() | {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
+    log.info(f"on_bar() | {config.LIVE_SYMBOL} | {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
 
     position = state.get_position()
 
     # ── Manage existing position ──────────────────────────────────────────────
     if position is not None:
         bar_count = state.increment_bar_count()
-        log.info(f"Open position: {position.qty} {position.symbol} @ {position.entry_price:.2f} | bar {bar_count}/{config.MAX_TRADE_BARS_QQQ_LIVE}")
+        log.info(f"Open position: {position.qty} {position.symbol} @ {position.entry_price:.2f} | bar {bar_count}/{config.MAX_TRADE_BARS_LIVE}")
 
-        if bar_count >= config.MAX_TRADE_BARS_QQQ_LIVE:
+        if bar_count >= config.MAX_TRADE_BARS_LIVE:
             log.info("Time-exit triggered — cancelling bracket and selling")
             current_price = broker.get_latest_price(position.symbol)
             ret = (current_price - position.entry_price) / position.entry_price
@@ -85,6 +94,7 @@ def on_bar() -> None:
         f"${kelly['position_dollars']:,.0f}"
     )
 
+    asset_config = _get_asset_config()
     entry_price = broker.get_latest_price(config.LIVE_SYMBOL)
     qty = int(kelly["position_dollars"] / entry_price)
 
@@ -96,8 +106,8 @@ def on_bar() -> None:
         symbol=config.LIVE_SYMBOL,
         qty=qty,
         entry_price=entry_price,
-        target_pct=config.TARGET_GAIN_PCT_QQQ_HOURLY,
-        stop_pct=config.STOP_LOSS_PCT_QQQ_HOURLY,
+        target_pct=asset_config["target_gain_pct"],
+        stop_pct=asset_config["stop_loss_pct"],
     )
     state.open_position(config.LIVE_SYMBOL, entry_price, qty, order_id)
     log.info(f"ENTRY placed: {qty} shares @ ~{entry_price:.2f}")
@@ -153,31 +163,39 @@ def run_scheduler() -> None:
             minute="32",
             timezone="America/New_York",
         ),
-        id="qqq_hourly_bar",
-        name="QQQ Hourly Bar Check",
+        id="hourly_bar",
+        name=f"{config.LIVE_SYMBOL} Hourly Bar Check",
         max_instances=1,
         coalesce=True,
     )
 
-    mode_str = "PAPER" if config.LIVE_PAPER_MODE else "*** LIVE MONEY ***"
+    mode_str = "PAPER (port 7497)" if config.LIVE_PAPER_MODE else "*** LIVE MONEY (port 7496) ***"
     log.info(f"Scheduler started | mode={mode_str} | symbol={config.LIVE_SYMBOL}")
     log.info("Firing at :32 past each hour, Mon–Fri 9:32–15:32 ET")
+    log.info("Requires IB Gateway or TWS running locally")
     log.info("Press Ctrl+C to stop")
 
     try:
         scheduler.start()
     except (KeyboardInterrupt, SystemExit):
+        log.info("Shutting down...")
+        broker.disconnect()
         log.info("Scheduler stopped")
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="MONAD Quant — QQQ Hourly Live Trader")
+    parser = argparse.ArgumentParser(description="MONAD Quant — Hourly ETF Live Trader (IBKR)")
     parser.add_argument(
         "--live",
         action="store_true",
-        help="Use live Alpaca account (real money). Omit for paper trading.",
+        help="Use live IBKR account (real money, port 7496). Omit for paper trading (port 7497).",
+    )
+    parser.add_argument(
+        "--symbol",
+        default=None,
+        help=f"Override instrument (default: {config.LIVE_SYMBOL}). E.g., --symbol GDXU",
     )
     parser.add_argument(
         "--once",
@@ -186,20 +204,34 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    if args.symbol:
+        config.LIVE_SYMBOL = args.symbol.upper()
+
     if args.live:
         config.LIVE_PAPER_MODE = False
         log.warning("=" * 60)
         log.warning("LIVE MODE — THIS WILL TRADE WITH REAL MONEY")
+        log.warning(f"Symbol: {config.LIVE_SYMBOL} | IBKR port: {config.IBKR_PORT_LIVE}")
         log.warning("=" * 60)
     else:
         config.LIVE_PAPER_MODE = True
-        log.info("Paper mode (safe for testing)")
+        log.info(f"Paper mode | symbol={config.LIVE_SYMBOL} | port={config.IBKR_PORT_PAPER}")
+
+    # Verify IBKR connection
+    try:
+        account = broker.get_account()
+        log.info(f"IBKR connected | equity=${account.equity:,.2f} | cash=${account.cash:,.2f}")
+    except Exception as exc:
+        log.error(f"Cannot connect to IBKR: {exc}")
+        log.error("Ensure IB Gateway or TWS is running on localhost")
+        sys.exit(1)
 
     state.init_db()
 
     if args.once:
         on_bar()
         _log_summary()
+        broker.disconnect()
         return
 
     run_scheduler()

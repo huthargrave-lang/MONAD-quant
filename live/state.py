@@ -123,18 +123,22 @@ def get_current_kelly(capital: float) -> dict:
 
     returns = [r["return_pct"] for r in rows]
 
+    # Per-instrument bootstrap stats
+    symbol = config.LIVE_SYMBOL
+    bootstrap = config.LIVE_BOOTSTRAP.get(symbol, config.LIVE_BOOTSTRAP.get("TQQQ"))
+
     if len(returns) < config.LIVE_MIN_TRADES_FOR_ADAPTIVE:
         # Bootstrap from optimized backtest statistics
-        win_rate = config.LIVE_BOOTSTRAP_WR
-        avg_win  = config.LIVE_BOOTSTRAP_WIN
-        avg_loss = config.LIVE_BOOTSTRAP_LOSS
-        log.debug(f"Kelly: using bootstrap stats ({len(returns)}/{config.LIVE_MIN_TRADES_FOR_ADAPTIVE} live trades)")
+        win_rate = bootstrap["wr"]
+        avg_win  = bootstrap["win"]
+        avg_loss = bootstrap["loss"]
+        log.debug(f"Kelly: using {symbol} bootstrap stats ({len(returns)}/{config.LIVE_MIN_TRADES_FOR_ADAPTIVE} live trades)")
     else:
         wins   = [r for r in returns if r > 0]
         losses = [r for r in returns if r < 0]
         win_rate = len(wins) / len(returns)
-        avg_win  = mean(wins) if wins else config.LIVE_BOOTSTRAP_WIN
-        avg_loss = abs(mean(losses)) if losses else config.LIVE_BOOTSTRAP_LOSS
+        avg_win  = mean(wins) if wins else bootstrap["win"]
+        avg_loss = abs(mean(losses)) if losses else bootstrap["loss"]
         log.debug(f"Kelly: live stats WR={win_rate:.1%} from {len(returns)} trades")
 
     return compute_position_size(
