@@ -44,6 +44,8 @@ parser.add_argument("--min-stop", type=float, default=None,
                     help="Minimum stop loss %% (e.g., 0.15 = 0.15%%). Default: auto-calculated from price/spread. Use 0 to disable.")
 parser.add_argument("--spread", type=float, default=None,
                     help="Assumed bid-ask spread in dollars (default: auto-estimated from price level)")
+parser.add_argument("--broker", default=None, choices=["ibkr", "schwab", "fidelity", "retail"],
+                    help="Broker preset for spread/fee estimates (default: conservative retail)")
 args = parser.parse_args()
 
 TICKER = args.ticker.upper()
@@ -149,18 +151,29 @@ if len(df_raw) < 100:
 
 median_price = df_raw["Close"].median()
 
+# Broker presets: spread estimates for liquid ETFs by broker
+_BROKER_SPREADS = {
+    "ibkr":     {"<15": 0.01, "<50": 0.01, "<150": 0.01, "else": 0.02},
+    "schwab":   {"<15": 0.01, "<50": 0.02, "<150": 0.03, "else": 0.03},
+    "fidelity": {"<15": 0.01, "<50": 0.02, "<150": 0.03, "else": 0.03},
+    "retail":   {"<15": 0.02, "<50": 0.03, "<150": 0.04, "else": 0.05},
+}
+
+def _estimate_spread(price, broker=None):
+    tiers = _BROKER_SPREADS.get(broker, _BROKER_SPREADS["retail"])
+    if price < 15:
+        return tiers["<15"]
+    elif price < 50:
+        return tiers["<50"]
+    elif price < 150:
+        return tiers["<150"]
+    else:
+        return tiers["else"]
+
 if args.spread is not None:
     est_spread = args.spread
 else:
-    # Conservative spread estimate by price tier (liquid US ETFs)
-    if median_price < 15:
-        est_spread = 0.02
-    elif median_price < 50:
-        est_spread = 0.03
-    elif median_price < 150:
-        est_spread = 0.04
-    else:
-        est_spread = 0.05
+    est_spread = _estimate_spread(median_price, args.broker)
 
 # Safe stop = 5× spread as % of price (round-trip: entry slippage + exit slippage)
 # Floor at 0.10% to prevent absurdly tight stops on high-priced tickers
@@ -175,10 +188,11 @@ if args.min_stop is not None:
         print(f"  Min stop: {MIN_STOP_PCT:.2f}% (user override)\n")
 else:
     MIN_STOP_PCT = round(auto_min_stop_pct, 2)
+    broker_label = f" ({args.broker.upper()})" if args.broker else " (conservative)"
     print(f"  Median price:     ${median_price:.2f}")
-    print(f"  Est. bid-ask:     ${est_spread:.3f}")
+    print(f"  Est. bid-ask:     ${est_spread:.3f}{broker_label}")
     print(f"  Safe stop (5x):   {MIN_STOP_PCT:.2f}%  (${median_price * MIN_STOP_PCT / 100:.3f}/share)")
-    print(f"  [override with --min-stop N or --spread N]\n")
+    print(f"  [override with --broker ibkr | --min-stop N | --spread N]\n")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
