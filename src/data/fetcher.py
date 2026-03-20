@@ -349,6 +349,60 @@ def fetch_gdxu_hourly(start: str, end: str) -> pd.DataFrame:
     return df.loc[start:end]
 
 
+def fetch_soxl_hourly(start: str, end: str) -> pd.DataFrame:
+    """Fetch hourly SOXL (3x leveraged semiconductors) OHLCV via yfinance."""
+    _ensure_cache_dir()
+    cache_file = _cache_path("SOXL", "1h")
+    start_dt, end_dt = pd.Timestamp(start), pd.Timestamp(end)
+    if os.path.exists(cache_file) and _cache_is_fresh(cache_file):
+        df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
+        if len(df) > 0 and df.index[0] <= start_dt and df.index[-1] >= end_dt - timedelta(days=2):
+            print(f"[cache] Loading SOXL hourly from cache ({len(df)} bars)")
+            return df.loc[start:end]
+    print(f"[yfinance] Fetching SOXL hourly from {start} to {end}...")
+    df = _fetch_hourly("SOXL", start, end)
+    df = df.between_time("09:30", "16:00")
+    df.to_csv(cache_file)
+    print(f"[cache] Saved SOXL hourly to {cache_file} ({len(df)} bars)")
+    return df.loc[start:end]
+
+
+def fetch_labu_hourly(start: str, end: str) -> pd.DataFrame:
+    """Fetch hourly LABU (3x leveraged biotech) OHLCV via yfinance."""
+    _ensure_cache_dir()
+    cache_file = _cache_path("LABU", "1h")
+    start_dt, end_dt = pd.Timestamp(start), pd.Timestamp(end)
+    if os.path.exists(cache_file) and _cache_is_fresh(cache_file):
+        df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
+        if len(df) > 0 and df.index[0] <= start_dt and df.index[-1] >= end_dt - timedelta(days=2):
+            print(f"[cache] Loading LABU hourly from cache ({len(df)} bars)")
+            return df.loc[start:end]
+    print(f"[yfinance] Fetching LABU hourly from {start} to {end}...")
+    df = _fetch_hourly("LABU", start, end)
+    df = df.between_time("09:30", "16:00")
+    df.to_csv(cache_file)
+    print(f"[cache] Saved LABU hourly to {cache_file} ({len(df)} bars)")
+    return df.loc[start:end]
+
+
+def fetch_tna_hourly(start: str, end: str) -> pd.DataFrame:
+    """Fetch hourly TNA (3x leveraged Russell 2000) OHLCV via yfinance."""
+    _ensure_cache_dir()
+    cache_file = _cache_path("TNA", "1h")
+    start_dt, end_dt = pd.Timestamp(start), pd.Timestamp(end)
+    if os.path.exists(cache_file) and _cache_is_fresh(cache_file):
+        df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
+        if len(df) > 0 and df.index[0] <= start_dt and df.index[-1] >= end_dt - timedelta(days=2):
+            print(f"[cache] Loading TNA hourly from cache ({len(df)} bars)")
+            return df.loc[start:end]
+    print(f"[yfinance] Fetching TNA hourly from {start} to {end}...")
+    df = _fetch_hourly("TNA", start, end)
+    df = df.between_time("09:30", "16:00")
+    df.to_csv(cache_file)
+    print(f"[cache] Saved TNA hourly to {cache_file} ({len(df)} bars)")
+    return df.loc[start:end]
+
+
 def fetch_yfinance(symbol: str, start: str, end: str) -> pd.DataFrame:
     print(f"[yfinance] Fetching {symbol} from {start} to {end}...")
     ticker = yf.Ticker(symbol)

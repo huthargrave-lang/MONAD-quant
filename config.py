@@ -7,7 +7,7 @@ All other parameters are pre-tuned for their respective mode.
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  ACTIVE MODE — the only line you normally need to change
-#  Options: "BTC_DAILY" | "BTC_HOURLY" | "QQQ" | "QQQ_HOURLY" | "TQQQ_HOURLY" | "GDXU_HOURLY"
+#  Options: "BTC_DAILY" | "BTC_HOURLY" | "QQQ" | "QQQ_HOURLY" | "TQQQ_HOURLY" | "GDXU_HOURLY" | "SOXL_HOURLY" | "LABU_HOURLY" | "TNA_HOURLY"
 # ═══════════════════════════════════════════════════════════════════════════
 ACTIVE_MODE = "GDXU_HOURLY"
 
@@ -262,6 +262,84 @@ BACKTEST_START_GDXU_HOURLY = "2024-04-01"
 BACKTEST_END_GDXU_HOURLY   = "2026-03-01"
 
 # ═══════════════════════════════════════════════════════════════════════════
+#  PROFILE 7 — SOXL HOURLY (3x leveraged semiconductors) — SWEEP 2026-03-20
+#  Goal:    Semis income stream — uncorrelated with gold/biotech
+#  Style:   High-frequency mean-reversion, ~27 trades/month
+#  Sharpe:  72.8  |  Max DD: -0.35%  |  24mo return: 116.52%  |  Avg: +3.28%/mo
+#  Status:  Sweep-optimized (--min-stop 0.25)
+#  Note:    3x leveraged semis ETF — higher vol than TQQQ;
+#           2.4:1 R:R at 0.25% stop — realistic for live trading
+# ═══════════════════════════════════════════════════════════════════════════
+
+RSI_PERIOD_SOXL_HOURLY         = 7        # DEAD LEVER (MACD is binding gate)
+RSI_OVERSOLD_SOXL_HOURLY       = 80       # Sweep optimal
+RSI_OVERBOUGHT_SOXL_HOURLY     = 62
+MACD_FAST_SOXL_HOURLY          = 6        # DEAD LEVER
+MACD_SLOW_SOXL_HOURLY          = 13       # DEAD LEVER
+MACD_SIGNAL_SOXL_HOURLY        = 4        # DEAD LEVER
+VWAP_WINDOW_SOXL_HOURLY        = 10
+VWAP_ZSCORE_THRESH_SOXL_HOURLY = 1.2      # Sweep optimal
+BB_WINDOW_SOXL_HOURLY          = 14
+TARGET_GAIN_PCT_SOXL_HOURLY    = 0.006    # 0.60% target — sweep optimal; 2.4:1 R:R
+STOP_LOSS_PCT_SOXL_HOURLY      = 0.0025   # 0.25% stop — realistic for live trading
+
+# Backtest window — SOXL hourly
+BACKTEST_START_SOXL_HOURLY = "2024-04-01"
+BACKTEST_END_SOXL_HOURLY   = "2026-03-01"
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  PROFILE 8 — LABU HOURLY (3x leveraged biotech) — SWEEP 2026-03-20
+#  Goal:    Biotech income stream — uncorrelated with tech/gold/semis
+#  Style:   High-frequency mean-reversion, ~26 trades/month
+#  Sharpe:  61.6  |  Max DD: -0.52%  |  24mo return: 106.22%  |  Avg: +3.07%/mo
+#  Status:  Sweep-optimized (--min-stop 0.25)
+#  Note:    3x leveraged biotech ETF — high vol, completely uncorrelated;
+#           2.8:1 R:R at 0.25% stop — realistic for live trading
+# ═══════════════════════════════════════════════════════════════════════════
+
+RSI_PERIOD_LABU_HOURLY         = 7        # DEAD LEVER (MACD is binding gate)
+RSI_OVERSOLD_LABU_HOURLY       = 70       # Sweep optimal
+RSI_OVERBOUGHT_LABU_HOURLY     = 62
+MACD_FAST_LABU_HOURLY          = 6        # DEAD LEVER
+MACD_SLOW_LABU_HOURLY          = 13       # DEAD LEVER
+MACD_SIGNAL_LABU_HOURLY        = 4        # DEAD LEVER
+VWAP_WINDOW_LABU_HOURLY        = 10
+VWAP_ZSCORE_THRESH_LABU_HOURLY = 1.2      # Sweep optimal
+BB_WINDOW_LABU_HOURLY          = 14
+TARGET_GAIN_PCT_LABU_HOURLY    = 0.007    # 0.70% target — sweep optimal; 2.8:1 R:R
+STOP_LOSS_PCT_LABU_HOURLY      = 0.0025   # 0.25% stop — realistic for live trading
+
+# Backtest window — LABU hourly
+BACKTEST_START_LABU_HOURLY = "2024-04-01"
+BACKTEST_END_LABU_HOURLY   = "2026-03-01"
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  PROFILE 9 — TNA HOURLY (3x leveraged Russell 2000) — SWEEP 2026-03-20
+#  Goal:    Small-cap income stream — uncorrelated with tech/gold/biotech
+#  Style:   High-frequency mean-reversion, ~24 trades/month
+#  Sharpe:  82.0  |  Max DD: -0.24%  |  24mo return: 51.33%  |  Avg: +1.74%/mo
+#  Status:  Sweep-optimized (--min-stop 0.25)
+#  Note:    3x leveraged Russell 2000 ETF — small caps, low tech correlation;
+#           2.2:1 R:R at 0.15% stop — tight but viable on ~$25 share price
+# ═══════════════════════════════════════════════════════════════════════════
+
+RSI_PERIOD_TNA_HOURLY         = 7        # DEAD LEVER (MACD is binding gate)
+RSI_OVERSOLD_TNA_HOURLY       = 65       # Sweep optimal — more selective than SOXL/LABU
+RSI_OVERBOUGHT_TNA_HOURLY     = 62
+MACD_FAST_TNA_HOURLY          = 6        # DEAD LEVER
+MACD_SLOW_TNA_HOURLY          = 13       # DEAD LEVER
+MACD_SIGNAL_TNA_HOURLY        = 4        # DEAD LEVER
+VWAP_WINDOW_TNA_HOURLY        = 10
+VWAP_ZSCORE_THRESH_TNA_HOURLY = 0.1      # Sweep optimal — very loose (momentum_signal is gate)
+BB_WINDOW_TNA_HOURLY          = 14
+TARGET_GAIN_PCT_TNA_HOURLY    = 0.0033   # 0.33% target — sweep optimal; 2.2:1 R:R
+STOP_LOSS_PCT_TNA_HOURLY      = 0.0015   # 0.15% stop — tight but TNA has tighter spreads
+
+# Backtest window — TNA hourly
+BACKTEST_START_TNA_HOURLY = "2024-04-01"
+BACKTEST_END_TNA_HOURLY   = "2026-03-01"
+
+# ═══════════════════════════════════════════════════════════════════════════
 #  SHARED — Risk & Sizing (applies to all modes)
 # ═══════════════════════════════════════════════════════════════════════════
 INITIAL_CAPITAL  = 100_000
@@ -354,14 +432,44 @@ ASSETS = {
         "require_signals":    1,
         "vwap_zscore_thresh": 1.3,
     },
+    "SOXL_HOURLY": {
+        "type":               "etf_hourly_soxl",
+        "target_gain_pct":    TARGET_GAIN_PCT_SOXL_HOURLY,
+        "stop_loss_pct":      STOP_LOSS_PCT_SOXL_HOURLY,
+        "require_signals":    1,
+        "rsi_oversold":       RSI_OVERSOLD_SOXL_HOURLY,
+        "rsi_overbought":     RSI_OVERBOUGHT_SOXL_HOURLY,
+        "vwap_zscore_thresh": VWAP_ZSCORE_THRESH_SOXL_HOURLY,
+    },
+    "LABU_HOURLY": {
+        "type":               "etf_hourly_labu",
+        "target_gain_pct":    TARGET_GAIN_PCT_LABU_HOURLY,
+        "stop_loss_pct":      STOP_LOSS_PCT_LABU_HOURLY,
+        "require_signals":    1,
+        "rsi_oversold":       RSI_OVERSOLD_LABU_HOURLY,
+        "rsi_overbought":     RSI_OVERBOUGHT_LABU_HOURLY,
+        "vwap_zscore_thresh": VWAP_ZSCORE_THRESH_LABU_HOURLY,
+    },
+    "TNA_HOURLY": {
+        "type":               "etf_hourly_tna",
+        "target_gain_pct":    TARGET_GAIN_PCT_TNA_HOURLY,
+        "stop_loss_pct":      STOP_LOSS_PCT_TNA_HOURLY,
+        "require_signals":    1,
+        "rsi_oversold":       RSI_OVERSOLD_TNA_HOURLY,
+        "rsi_overbought":     RSI_OVERBOUGHT_TNA_HOURLY,
+        "vwap_zscore_thresh": VWAP_ZSCORE_THRESH_TNA_HOURLY,
+    },
 }
 
 _MODE_TO_ASSET = {
-    "BTC_DAILY":  "BTC",
-    "BTC_HOURLY": "BTC_HOURLY",
-    "QQQ":        "QQQ",
+    "BTC_DAILY":   "BTC",
+    "BTC_HOURLY":  "BTC_HOURLY",
+    "QQQ":         "QQQ",
     "QQQ_HOURLY":  "QQQ_HOURLY",
     "TQQQ_HOURLY": "TQQQ_HOURLY",
     "GDXU_HOURLY": "GDXU_HOURLY",
+    "SOXL_HOURLY": "SOXL_HOURLY",
+    "LABU_HOURLY": "LABU_HOURLY",
+    "TNA_HOURLY":  "TNA_HOURLY",
 }
 DEFAULT_ASSET = _MODE_TO_ASSET.get(ACTIVE_MODE, "BTC")

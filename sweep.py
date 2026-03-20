@@ -106,7 +106,7 @@ def _patched_build_features(df, timeframe="daily", signal_overrides=None):
     import config as cfg
     active = getattr(cfg, "ACTIVE_MODE", "")
     # If engine already handles this mode, use original
-    if active in ("QQQ_HOURLY", "TQQQ_HOURLY", "GDXU_HOURLY", "BTC_HOURLY"):
+    if active in ("QQQ_HOURLY", "TQQQ_HOURLY", "GDXU_HOURLY", "SOXL_HOURLY", "LABU_HOURLY", "TNA_HOURLY", "BTC_HOURLY"):
         return _original_build_features(df, timeframe, signal_overrides)
     if timeframe != "hourly":
         return _original_build_features(df, timeframe, signal_overrides)

@@ -11,6 +11,7 @@ import config
 from src.data.fetcher import (
     fetch_crypto_daily, fetch_daily, fetch_yfinance,
     fetch_qqq_hourly, fetch_tqqq_hourly, fetch_gdxu_hourly,
+    fetch_soxl_hourly, fetch_labu_hourly, fetch_tna_hourly,
     fetch_btc_hourly_binance,
 )
 from src.backtest.runner import run_backtest
@@ -36,6 +37,15 @@ def _load_data():
     elif asset_type == "etf_hourly_gdxu":
         df = fetch_gdxu_hourly(start=config.BACKTEST_START_GDXU_HOURLY, end=config.BACKTEST_END_GDXU_HOURLY)
         start, end, timeframe = config.BACKTEST_START_GDXU_HOURLY, config.BACKTEST_END_GDXU_HOURLY, "hourly"
+    elif asset_type == "etf_hourly_soxl":
+        df = fetch_soxl_hourly(start=config.BACKTEST_START_SOXL_HOURLY, end=config.BACKTEST_END_SOXL_HOURLY)
+        start, end, timeframe = config.BACKTEST_START_SOXL_HOURLY, config.BACKTEST_END_SOXL_HOURLY, "hourly"
+    elif asset_type == "etf_hourly_labu":
+        df = fetch_labu_hourly(start=config.BACKTEST_START_LABU_HOURLY, end=config.BACKTEST_END_LABU_HOURLY)
+        start, end, timeframe = config.BACKTEST_START_LABU_HOURLY, config.BACKTEST_END_LABU_HOURLY, "hourly"
+    elif asset_type == "etf_hourly_tna":
+        df = fetch_tna_hourly(start=config.BACKTEST_START_TNA_HOURLY, end=config.BACKTEST_END_TNA_HOURLY)
+        start, end, timeframe = config.BACKTEST_START_TNA_HOURLY, config.BACKTEST_END_TNA_HOURLY, "hourly"
     elif asset_type == "crypto":
         df = fetch_crypto_daily(symbol=asset, market=asset_config.get("market", "USD"))
         start, end, timeframe = config.BACKTEST_START, config.BACKTEST_END, "daily"
