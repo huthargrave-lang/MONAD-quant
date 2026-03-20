@@ -17,7 +17,7 @@ near-zero drawdown. The strategy has four active modes:
 | **BTC Daily** | ~0.4%/mo, Sharpe >4 | 4.924 | -1.72% | Capital preservation + high Sharpe |
 | **BTC Hourly** | ~2.66%/mo income | 25.57 | -0.90% | Active income, ~130 trades/mo |
 | **QQQ Hourly** | ~0.71%/mo income | 41.57 | -0.21% | ETF mean-reversion, ~24 trades/mo |
-| **TQQQ Hourly** | ~2.14%/mo income | 39.84 | -0.81% | 3x leveraged ETF, ~26 trades/mo |
+| **TQQQ Hourly** | ~1.89%/mo income | 94.2 | -0.13% | 3x leveraged ETF, ~21 trades/mo |
 | **GDXU Hourly** | ~3.28%/mo income | 96.5 | -0.10% | 3x gold miners, ~27 trades/mo |
 
 Core principles across all modes:
@@ -843,16 +843,19 @@ maintaining the same zero-commission brokerage infrastructure.
 ```python
 ACTIVE_MODE                      = "TQQQ_HOURLY"
 RSI_PERIOD_TQQQ_HOURLY          = 7        # DEAD LEVER (MACD is binding gate)
-RSI_OVERSOLD_TQQQ_HOURLY        = 80       # Confirmed: RSI saturated at ~78+, VWAP is binding gate
+RSI_OVERSOLD_TQQQ_HOURLY        = 60       # Sweep optimal: more selective than 80 at tight stops
 RSI_OVERBOUGHT_TQQQ_HOURLY      = 62
 MACD_FAST_TQQQ_HOURLY           = 6        # DEAD LEVER
 MACD_SLOW_TQQQ_HOURLY           = 13       # DEAD LEVER
 MACD_SIGNAL_TQQQ_HOURLY         = 4        # DEAD LEVER
 VWAP_WINDOW_TQQQ_HOURLY         = 10
-VWAP_ZSCORE_THRESH_TQQQ_HOURLY  = 0.3      # DEAD LEVER (0.3–0.6 nearly identical); 0.3 marginal best
+VWAP_ZSCORE_THRESH_TQQQ_HOURLY  = 0.5      # DEAD LEVER (0.3–0.6 nearly identical); 0.5 marginal best
 BB_WINDOW_TQQQ_HOURLY           = 14
-TARGET_GAIN_PCT_TQQQ_HOURLY     = 0.007    # 0.70% target — confirmed optimal
-STOP_LOSS_PCT_TQQQ_HOURLY       = 0.0035   # 0.35% stop — 2:1 R:R
+TARGET_GAIN_PCT_TQQQ_HOURLY     = 0.0042   # 0.42% target — sweep optimal; 5.6:1 R:R
+STOP_LOSS_PCT_TQQQ_HOURLY       = 0.0008   # 0.08% stop — Sharpe 94.2, DD -0.13%, WR 70.9%
+# Fallback (wider stops, higher gross return, lower Sharpe):
+# TARGET_GAIN_PCT_TQQQ_HOURLY   = 0.007    # 0.70% target, 2:1 R:R
+# STOP_LOSS_PCT_TQQQ_HOURLY     = 0.0035   # 0.35% stop — Sharpe 39.8, DD -0.81%, +2.14%/mo
 ```
 
 ### Parameter sweep results
@@ -870,29 +873,30 @@ barely changes because momentum_signal (826 bars, constant) is the binding gate.
 ### Best result
 ```
 Period:       2024-04-01 → 2026-03-01 (23 months)
-Total Return: 62.34%
-Annualized:   28.91%
-Sharpe:       39.836
-Max DD:       -0.81%
-Avg Monthly:  +2.14%
-Trades:       590 (~26/mo)
-Win Rate:     59.2%  (target=349  stop=241  time=0)
-Kelly Size:   19.36%
+Total Return: 56.54%
+Annualized:   25.93%
+Sharpe:       94.2
+Max DD:       -0.13%
+Avg Monthly:  +1.89%
+Trades:       485 (~21/mo)
+Win Rate:     70.9%
+Kelly Size:   ~19%
 ```
 
 ### TQQQ vs QQQ comparison
 | Metric | QQQ Hourly | TQQQ Hourly | TQQQ advantage |
 |---|---|---|---|
-| Avg Monthly | +0.71% | +2.14% | **+3.0x** |
-| Total Return (23mo) | 17.77% | 62.34% | **+3.5x** |
-| Sharpe | 41.57 | 39.84 | QQQ slightly better |
-| Max DD | -0.21% | -0.81% | QQQ lower DD |
-| Win Rate | 59.6% | 59.2% | ~Same |
-| Trades/mo | ~24 | ~26 | ~Same |
+| Avg Monthly | +0.71% | +1.89% | **+2.7x** |
+| Total Return (23mo) | 17.77% | 56.54% | **+3.2x** |
+| Sharpe | 41.57 | **94.2** | **TQQQ 2.3x better** |
+| Max DD | -0.21% | -0.13% | **TQQQ lower DD** |
+| Win Rate | 59.6% | 70.9% | **TQQQ** |
+| Trades/mo | ~24 | ~21 | ~Same |
 | Zero-commission | Yes | Yes | Both |
 
-TQQQ delivers ~3x the monthly return of QQQ with proportionally scaled risk (~3.9x DD).
-The Sharpe ratio is slightly lower because the 3x leverage amplifies both signal and noise.
+TQQQ now has the second-highest Sharpe (94.2) after GDXU (96.5), thanks to the
+5.6:1 R:R ultra-tight stop configuration discovered by the universal sweep.
+Same pattern as GDXU: mean-reversion either works fast or fails immediately.
 Both instruments trade commission-free at US brokerages.
 
 ### Monthly results — TQQQ Hourly optimized run (2024-04 → 2026-02)
@@ -931,11 +935,18 @@ ZERO negative months across 23 months
 - **MACD params** (fast/slow/signal): Dead — histogram direction robust to window changes
 - **RSI period**: Dead — MACD is binding gate for momentum_signal
 - **VWAP threshold**: Dead — 0.3–0.6 nearly identical results; momentum_signal is binding gate
-- **RSI oversold (80)**: Saturated — at 80, RSI is effectively always "oversold", making
-  VWAP z-score the only real filter alongside MACD histogram direction
+
+### RSI oversold now a live lever (sweep update 2026-03-20)
+At the original 2:1 R:R, RSI=80 was saturated (effectively always "oversold").
+At the new 5.6:1 R:R with ultra-tight stops, **RSI=60 is optimal** — the tighter stop
+requires more selective entries. RSI=60 filters out marginal setups that would have
+hit the 0.08% stop on noise, improving WR from ~59% to 70.9%.
 
 ### Nothing left to tune on TQQQ Hourly
-Every parameter exhaustively swept. The strategy is at its optimum.
+Every parameter exhaustively swept via universal sweep tool. The strategy is at its optimum.
+**Live trading caution:** 0.08% stop ≈ $0.06/share on TQQQ (~$80). Near bid-ask spread.
+If live WR degrades due to slippage, fall back to 2:1 R:R (0.70%/0.35%) — still strong at
+Sharpe 39.8, +2.14%/mo.
 
 ---
 
@@ -1054,7 +1065,7 @@ Neg Months:   0/24
 |---|---|---|---|---|---|
 | BTC Daily | +0.40% | 4.9 | -1.72% | ~1.4 | No |
 | QQQ Hourly | +0.71% | 41.6 | -0.21% | ~24 | Yes |
-| TQQQ Hourly | +2.14% | 39.8 | -0.81% | ~26 | Yes |
+| TQQQ Hourly | +1.89% | 94.2 | -0.13% | ~21 | Yes |
 | BTC Hourly | +2.66% | 25.6 | -0.90% | ~130 | No (fees) |
 | **GDXU Hourly** | **+3.28%** | **96.5** | **-0.10%** | **~27** | **Yes** |
 

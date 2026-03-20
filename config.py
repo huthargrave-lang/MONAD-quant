@@ -199,24 +199,31 @@ BACKTEST_START_QQQ_HOURLY = "2024-04-01"
 BACKTEST_END_QQQ_HOURLY   = "2026-03-01"
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  PROFILE 5 — TQQQ HOURLY (3x leveraged QQQ)
+#  PROFILE 5 — TQQQ HOURLY (3x leveraged QQQ) — OPTIMIZED 2026-03-20
 #  Goal:    Leveraged equity-hours income stream — higher vol = more alpha
-#  Style:   High-frequency mean-reversion, ~24+ trades/month
-#  Status:  Fully optimized (2026-03-19)
-#  Note:    3x leveraged QQQ — wider target/stop vs QQQ; +62.34% / Sharpe 39.8
+#  Style:   High-frequency mean-reversion, ~26 trades/month
+#  Sharpe:  94.2  |  Max DD: -0.13%  |  23mo return: 56.54%  |  Avg: +1.89%/mo
+#  Status:  Fully optimized — universal sweep (2-phase) confirmed
+#  Note:    5.6:1 R:R confirmed optimal — ultra-tight stops, TQQQ resolves fast
+#           (same pattern as GDXU: tighter stops → higher Sharpe, lower DD)
+#  CAUTION: 0.08% stop ≈ $0.06/share on TQQQ (~$80 price) — near bid-ask spread.
+#           Monitor slippage carefully. If live WR degrades, fall back to 2:1 R:R.
 # ═══════════════════════════════════════════════════════════════════════════
 
 RSI_PERIOD_TQQQ_HOURLY         = 7
-RSI_OVERSOLD_TQQQ_HOURLY       = 80    # Confirmed optimal: RSI saturated at ~78+, VWAP is binding gate
+RSI_OVERSOLD_TQQQ_HOURLY       = 60    # Sweep optimal: 60 beats 80 at tight stops (more selective entry)
 RSI_OVERBOUGHT_TQQQ_HOURLY     = 62
 MACD_FAST_TQQQ_HOURLY          = 6     # DEAD LEVER (confirmed: same as QQQ/BTC hourly)
 MACD_SLOW_TQQQ_HOURLY          = 13
 MACD_SIGNAL_TQQQ_HOURLY        = 4
 VWAP_WINDOW_TQQQ_HOURLY        = 10
-VWAP_ZSCORE_THRESH_TQQQ_HOURLY = 0.3   # Confirmed: dead lever (0.3-0.6 nearly identical); 0.3 marginal best
+VWAP_ZSCORE_THRESH_TQQQ_HOURLY = 0.5   # Sweep optimal (dead lever — 0.3-0.6 nearly identical)
 BB_WINDOW_TQQQ_HOURLY          = 14
-TARGET_GAIN_PCT_TQQQ_HOURLY    = 0.007  # 0.70% target — confirmed optimal from sweep; 2:1 R:R
-STOP_LOSS_PCT_TQQQ_HOURLY      = 0.0035 # 0.35% stop — 2:1 R:R; WR 59.2%, Sharpe 40.0
+TARGET_GAIN_PCT_TQQQ_HOURLY    = 0.0042 # 0.42% target — sweep optimal; 5.6:1 R:R
+STOP_LOSS_PCT_TQQQ_HOURLY      = 0.0008 # 0.08% stop — Sharpe 94.2, DD -0.13%, WR 70.9%
+# Fallback (wider stops, higher gross return, lower Sharpe):
+# TARGET_GAIN_PCT_TQQQ_HOURLY  = 0.007   # 0.70% target, 2:1 R:R
+# STOP_LOSS_PCT_TQQQ_HOURLY    = 0.0035  # 0.35% stop — Sharpe 39.8, DD -0.81%, +2.14%/mo
 
 # Backtest window — TQQQ hourly
 BACKTEST_START_TQQQ_HOURLY = "2024-04-01"
