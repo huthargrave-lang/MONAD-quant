@@ -17,7 +17,8 @@ def run_backtest(df: pd.DataFrame,
                  stop_loss_pct: float = 0.015,
                  require_signals: int = 2,
                  kelly_multiplier: float = 0.5,
-                 timeframe: str = "daily",
+                 bull_kelly_multiplier: float = 0.75,
+                 trade_hours: tuple = (8, 22),
                  plot: bool = True) -> dict:
     """
     Run a full backtest on historical OHLCV data.
@@ -43,77 +44,27 @@ def run_backtest(df: pd.DataFrame,
                                   use_slope_regime=use_slope_regime)
     df_trades = generate_trades(df_feat,
                                 require_signals=require_signals,
-                                use_regime_filter=use_regime,
-                                use_ma_regime_filter=config.USE_MA_REGIME_FILTER,
-                                use_slope_regime=use_slope_regime,
-                                longs_only=getattr(config, "LONGS_ONLY", False))
+                                target_gain_pct=target_gain_pct,
+                                stop_loss_pct=stop_loss_pct,
+                                trade_hours=trade_hours)
 
     # Compute individual trade returns (indexed by entry timestamp)
     print("[2/4] Simulating trades...")
-    bar_limit_overrides = {}
-    target_overrides    = {}
-    stop_overrides      = {}
+    trades_df = compute_trade_returns(df_trades, target_gain_pct, stop_loss_pct)
 
-    if use_slope_regime and "regime" in df_trades.columns:
-        # Bear defensive longs: exit faster — don't hold into deepening downtrend
-        if getattr(config, "BEAR_DEFENSIVE_LONGS", False):
-            bear_bars = getattr(config, "BEAR_MAX_TRADE_BARS", 10)
-            for idx in df_trades[(df_trades["entry_signal"] == 1) & (df_trades["regime"] == "BEAR")].index:
-                bar_limit_overrides[idx] = bear_bars
-
-        # Bull longs: wider target and longer hold — let winners run in confirmed uptrend
-        bull_target = getattr(config, "TARGET_GAIN_PCT_STRONG_BULL", target_gain_pct)
-        bull_bars   = getattr(config, "MAX_TRADE_BARS_STRONG_BULL",  config.MAX_TRADE_BARS)
-        for idx in df_trades[(df_trades["entry_signal"] == 1) & (df_trades["regime"] == "STRONG_BULL")].index:
-            target_overrides[idx]    = bull_target
-            bar_limit_overrides[idx] = bull_bars
-
-        # Bear shorts: quick exit + wider stop (crypto swings 3-5% intraday, 1.5% is noise)
-        # ONLY ACTIVE WHEN LONGS_ONLY=False
-        if not getattr(config, "LONGS_ONLY", True):
-            bear_short_bars = getattr(config, "BEAR_SHORT_MAX_BARS", 10)
-            bear_short_stop = getattr(config, "BEAR_SHORT_STOP_PCT",  0.025)
-            short_in_bear   = (df_trades["entry_signal"] == -1) & df_trades["regime"].isin({"BEAR", "STRONG_BEAR"})
-            for idx in df_trades[short_in_bear].index:
-                bar_limit_overrides[idx] = bear_short_bars
-                stop_overrides[idx]      = bear_short_stop
-
-        # ATR-based dynamic stops: widen stop when volatility spikes above 2× normal.
-        # Prevents noise-triggered exits during intra-bull corrections (June/Aug 2024).
-        # Disabled by default (USE_ATR_DYNAMIC_STOPS=False).
-        if getattr(config, "USE_ATR_DYNAMIC_STOPS", False) and "atr_pct" in df_trades.columns:
-            atr_stop_mult = getattr(config, "ATR_STOP_MULT", 2.0)
-            atr_stop_cap  = getattr(config, "ATR_STOP_CAP_PCT", 0.04)
-            atr_baseline  = df_trades["atr_pct"].rolling(20, min_periods=5).median()
-            high_vol_entries = df_trades[
-                (df_trades["entry_signal"] != 0) &
-                (df_trades["atr_pct"] > atr_baseline * atr_stop_mult)
-            ].index
-            for idx in high_vol_entries:
-                new_stop = min(df_trades.at[idx, "atr_pct"] * 1.0, atr_stop_cap)
-                if new_stop > stop_loss_pct:   # only override if it's wider than default
-                    stop_overrides[idx] = new_stop
-
-    trade_returns, trade_exit_types = compute_trade_returns(
-        df_trades, target_gain_pct, stop_loss_pct,
-        max_trade_bars=config.MAX_TRADE_BARS,
-        bar_limit_overrides=bar_limit_overrides or None,
-        target_overrides=target_overrides or None,
-        stop_overrides=stop_overrides or None,
-    )
-
-    if len(trade_returns) == 0:
+    if len(trades_df) == 0:
         print("No trades generated. Try loosening signal requirements.")
         return {}
 
+    trade_returns = trades_df["return"]
+
     # Stats from backtest
     stats = estimate_stats_from_backtest(trade_returns)
-    vc = trade_exit_types.value_counts()
-    print(f"       {stats['total_trades']} trades | Win rate: {stats['win_rate']*100:.1f}%"
-          f"  (target={vc.get('target_hit', 0)}  stop={vc.get('stop_hit', 0)}"
-          f"  time={vc.get('time_exit', 0)})")
+    bull_trades = (trades_df["trend_regime"] == 1).sum()
+    bear_trades = (trades_df["trend_regime"] == -1).sum()
+    print(f"       {stats['total_trades']} trades | Win rate: {stats['win_rate']*100:.1f}% | Bull: {bull_trades} Bear: {bear_trades}")
 
-    # Position sizing
+    # Position sizing (base — bear/neutral regime)
     sizing = compute_position_size(
         capital=initial_capital,
         win_rate=stats["win_rate"],
@@ -122,74 +73,23 @@ def run_backtest(df: pd.DataFrame,
         kelly_multiplier=kelly_multiplier,
         min_position_pct=getattr(config, "MIN_POSITION_PCT", 0.0),
     )
+    bull_sizing = compute_position_size(
+        capital=initial_capital,
+        win_rate=stats["win_rate"],
+        avg_win_pct=stats["avg_win_pct"],
+        avg_loss_pct=stats["avg_loss_pct"],
+        kelly_multiplier=bull_kelly_multiplier,
+    )
 
     # Build equity curve with per-trade Kelly scaling
     print("[3/4] Computing equity curve...")
     capital = initial_capital
     equity_curve = [capital]
-
-    # Adaptive Kelly state — tracks rolling WR to detect signal quality degradation
-    use_adaptive_kelly  = getattr(config, "USE_ADAPTIVE_KELLY", False)
-    ak_lookback         = getattr(config, "ADAPTIVE_KELLY_LOOKBACK",  20)
-    ak_high_wr          = getattr(config, "ADAPTIVE_KELLY_HIGH_WR",  0.55)
-    ak_low_wr           = getattr(config, "ADAPTIVE_KELLY_LOW_WR",   0.42)
-    ak_pause_wr         = getattr(config, "ADAPTIVE_KELLY_PAUSE_WR", 0.35)
-    ak_high_mult        = getattr(config, "ADAPTIVE_KELLY_HIGH_MULT",  1.4)
-    ak_low_mult         = getattr(config, "ADAPTIVE_KELLY_LOW_MULT",   0.5)
-    ak_pause_mult       = getattr(config, "ADAPTIVE_KELLY_PAUSE_MULT", 0.2)
-    ak_high_cap         = getattr(config, "ADAPTIVE_KELLY_HIGH_CAP",   0.28)
-    recent_outcomes: deque = deque(maxlen=ak_lookback)
-
-    # Collect actual per-trade capital contributions for accurate monthly display
-    trade_capital_returns: dict = {}
-
-    for idx, r in trade_returns.items():
-        base_kelly = sizing["kelly_capped"]
-
-        # Regime-based Kelly scaling (per-trade, not one global fraction)
-        if (use_slope_regime
-                and "regime_kelly_mult" in df_trades.columns
-                and idx in df_trades.index):
-            regime_mult = df_trades.at[idx, "regime_kelly_mult"]
-        else:
-            regime_mult = 1.0
-
-        # ADX-based Kelly scaling
-        if (getattr(config, "USE_ADX_SIZING", False)
-                and "adx_kelly_mult" in df_trades.columns
-                and idx in df_trades.index):
-            adx_mult = df_trades.at[idx, "adx_kelly_mult"]
-        else:
-            adx_mult = 1.0
-
-        # STRONG_BULL gets a higher position cap so Kelly ×1.5 isn't truncated at the base 20%
-        if (use_slope_regime
-                and idx in df_trades.index
-                and df_trades.at[idx, "regime"] == "STRONG_BULL"):
-            pos_cap = getattr(config, "MAX_POSITION_PCT_STRONG_BULL", config.MAX_POSITION_PCT)
-        else:
-            pos_cap = config.MAX_POSITION_PCT
-
-        # Adaptive Kelly: scale position by rolling win rate of recent trades.
-        # High WR → size up; degrading WR → size down; breakdown → near-flat.
-        # Only activates after warm-up period (first ak_lookback trades use baseline).
-        if use_adaptive_kelly and len(recent_outcomes) == ak_lookback:
-            rolling_wr = sum(recent_outcomes) / ak_lookback
-            if rolling_wr >= ak_high_wr:
-                adaptive_mult = ak_high_mult
-                pos_cap = max(pos_cap, ak_high_cap)   # allow slightly larger cap when WR is strong
-            elif rolling_wr >= ak_low_wr:
-                adaptive_mult = 1.0                   # normal — no change
-            elif rolling_wr >= ak_pause_wr:
-                adaptive_mult = ak_low_mult           # signal degrading — half position
-            else:
-                adaptive_mult = ak_pause_mult         # signal breakdown — near-flat
-        else:
-            adaptive_mult = 1.0
-
-        kelly_trade = min(base_kelly * regime_mult * adx_mult * adaptive_mult, pos_cap)
-        pct_change  = kelly_trade * r
-        capital    += capital * pct_change
+    for _, trade in trades_df.iterrows():
+        r = trade["return"]
+        kelly_capped = bull_sizing["kelly_capped"] if trade["trend_regime"] == 1 else sizing["kelly_capped"]
+        position = capital * kelly_capped
+        capital += position * r
         equity_curve.append(capital)
         trade_capital_returns[idx] = pct_change        # actual % capital move this trade
         recent_outcomes.append(1 if r > 0 else 0)     # update rolling window after trade
@@ -231,20 +131,21 @@ def run_backtest(df: pd.DataFrame,
     )
 
     results = {
-        "total_trades":     stats["total_trades"],
-        "win_rate":         stats["win_rate"],
-        "avg_win_pct":      stats["avg_win_pct"],
-        "avg_loss_pct":     stats["avg_loss_pct"],
-        "total_return":     round(total_return, 4),
-        "sharpe_ratio":     round(sharpe, 3),
-        "max_drawdown":     round(max_drawdown, 4),
-        "final_capital":    round(equity.iloc[-1], 2),
-        "kelly_position":   sizing,
-        "equity_curve":     equity,
-        "trade_returns":    trade_returns,
-        "exit_types":       trade_exit_types,
-        "monthly_returns":  monthly_returns,
-        "bh_return":        round(bh_return, 4),
+        "total_trades":    stats["total_trades"],
+        "bull_trades":     int(bull_trades),
+        "bear_trades":     int(bear_trades),
+        "win_rate":        stats["win_rate"],
+        "avg_win_pct":     stats["avg_win_pct"],
+        "avg_loss_pct":    stats["avg_loss_pct"],
+        "total_return":    round(total_return, 4),
+        "sharpe_ratio":    round(sharpe, 3),
+        "max_drawdown":    round(max_drawdown, 4),
+        "final_capital":   round(equity.iloc[-1], 2),
+        "kelly_position":  sizing,
+        "bull_kelly_position": bull_sizing,
+        "equity_curve":    equity,
+        "trade_returns":   trade_returns,
+        "trades_df":       trades_df,
     }
 
     # Print summary
@@ -254,14 +155,8 @@ def run_backtest(df: pd.DataFrame,
     print(f"       Sharpe Ratio:   {sharpe:.3f}")
     print(f"       Max Drawdown:   {max_drawdown*100:.2f}%")
     print(f"       Final Capital:  ${equity.iloc[-1]:,.2f}")
-    print(f"       Kelly Pos Size: {sizing['position_pct']}% (${sizing['position_dollars']:,.2f})")
-    print("-" * 50)
-    print(f"  vs Buy & Hold:")
-    print(f"       B&H Return:     {bh_return*100:.2f}%")
-    print(f"       B&H Annualized: {bh_ann_return*100:.2f}%")
-    print(f"       B&H Final:      ${bh_final:,.2f}")
-    alpha = total_return - bh_return
-    print(f"       Alpha:          {alpha*100:>+.2f}%")
+    print(f"       Kelly (bear):   {sizing['position_pct']}% (${sizing['position_dollars']:,.2f})")
+    print(f"       Kelly (bull):   {bull_sizing['position_pct']}% (${bull_sizing['position_dollars']:,.2f})")
     print("=" * 50)
 
     # Monthly dividend table
@@ -282,262 +177,100 @@ def run_backtest(df: pd.DataFrame,
     print()
 
     if plot:
-        _plot_results(equity, drawdown, monthly_returns, monthly_wr, monthly_counts,
-                      df, initial_capital,
-                      total_return, ann_return, sharpe, max_drawdown,
-                      stats["win_rate"], stats["total_trades"], bh_return, bh_ann_return)
+        _plot_results(equity, drawdown, trade_returns, trades_df, df_trades, initial_capital)
 
     return results
 
 
-def _print_signal_diagnostics(df: pd.DataFrame, require_signals: int,
-                               use_regime: bool, use_ma_regime: bool,
-                               use_slope_regime: bool = False) -> None:
-    """Print how many bars survive each filter layer so dead filters are obvious."""
-    n = len(df)
-    mom  = (df["momentum_signal"] != 0).sum()
-    vol  = (df["volume_signal"]   != 0).sum()
-    vote = ((df["momentum_signal"] + df["volume_signal"]).abs() >= require_signals).sum()
+def _plot_results(equity, drawdown, trade_returns, trades_df, df_price, initial_capital):
+    BG      = "#0d0d1a"
+    GRID    = "#1e1e3a"
+    MODEL   = "#00d4ff"
+    BH      = "#f0a500"
+    RED     = "#ff4444"
+    GREEN   = "#44ff88"
+    WHITE   = "#e0e0e0"
 
-    long_mask  = (df["momentum_signal"] + df["volume_signal"]) >= require_signals
-    short_mask = (df["momentum_signal"] + df["volume_signal"]) <= -require_signals
+    fig = plt.figure(figsize=(14, 11), facecolor=BG)
+    fig.suptitle("MONAD Quant — BTC Backtest", fontsize=15, fontweight="bold", color=WHITE, y=0.98)
 
-    if use_regime and "vol_regime" in df.columns:
-        long_mask  = long_mask  & (df["vol_regime"] == 0)
-        short_mask = short_mask & (df["vol_regime"] == 0)
-    after_vol = (long_mask | short_mask).sum()
+    gs = fig.add_gridspec(3, 2, hspace=0.45, wspace=0.35,
+                          left=0.07, right=0.97, top=0.93, bottom=0.07)
+    ax_main   = fig.add_subplot(gs[0, :])   # full-width top: equity comparison
+    ax_dd     = fig.add_subplot(gs[1, :])   # full-width mid: drawdown comparison
+    ax_monthly = fig.add_subplot(gs[2, 0])  # bottom-left: monthly P&L
+    ax_dist   = fig.add_subplot(gs[2, 1])   # bottom-right: win/loss distribution
 
-    if use_slope_regime and "regime" in df.columns:
-        no_long_regimes  = {"STRONG_BEAR", "BEAR"}
-        no_short_regimes = {"STRONG_BULL", "BULL", "RECOVERING"}
-        long_mask  = long_mask  & (~df["regime"].isin(no_long_regimes))
-        short_mask = short_mask & (~df["regime"].isin(no_short_regimes))
-        after_regime = (long_mask | short_mask).sum()
-    elif use_ma_regime and "ma_regime" in df.columns:
-        long_mask  = long_mask  & (df["ma_regime"] == 1)
-        short_mask = short_mask & (df["ma_regime"] == -1)
-        after_regime = (long_mask | short_mask).sum()
+    for ax in [ax_main, ax_dd, ax_monthly, ax_dist]:
+        ax.set_facecolor(BG)
+        ax.tick_params(colors=WHITE, labelsize=8)
+        ax.grid(True, color=GRID, linewidth=0.6)
+        for spine in ax.spines.values():
+            spine.set_edgecolor(GRID)
+
+    # ── Buy & Hold equity curve (time-indexed) ────────────────────────────────
+    first_price = df_price["close"].iloc[0]
+    bh_equity = initial_capital * (df_price["close"] / first_price)
+
+    # ── Model equity curve (time-indexed via trade timestamps) ────────────────
+    if "timestamp" in trades_df.columns:
+        model_ts = pd.Series(equity.values[1:], index=pd.to_datetime(trades_df["timestamp"]))
+        model_ts = pd.concat([pd.Series([initial_capital], index=[df_price.index[0]]), model_ts])
+        model_ts = model_ts[~model_ts.index.duplicated(keep="last")].sort_index()
+        model_full = model_ts.reindex(df_price.index, method="ffill")
     else:
-        after_regime = None
+        model_full = pd.Series(equity.values, index=df_price.index[:len(equity)])
 
-    print(f"\n  Signal diagnostics ({n} bars total):")
-    print(f"    momentum_signal != 0  : {mom:>4} bars")
-    print(f"    volume_signal   != 0  : {vol:>4} bars")
-    print(f"    signal_vote >= {require_signals}      : {vote:>4} bars")
-    if use_regime:
-        print(f"    + vol_regime filter   : {after_vol:>4} bars")
-    if after_regime is not None:
-        label = "slope regime" if use_slope_regime else "ma_regime   "
-        print(f"    + {label} filter : {after_regime:>4} bars  <- final candidates")
+    # Panel 1: equity comparison
+    ax_main.plot(bh_equity.index, bh_equity.values, color=BH, linewidth=1.2,
+                 label="Buy & Hold", alpha=0.85)
+    ax_main.plot(model_full.index, model_full.values, color=MODEL, linewidth=1.4,
+                 label="MONAD Model")
+    ax_main.fill_between(model_full.index, model_full.values, initial_capital,
+                         where=(model_full.values > initial_capital),
+                         color=MODEL, alpha=0.07)
+    ax_main.set_title("Equity: Model vs Buy & Hold", color=WHITE, fontsize=10)
+    ax_main.set_ylabel("Capital ($)", color=WHITE, fontsize=8)
+    ax_main.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"${x:,.0f}"))
+    leg = ax_main.legend(fontsize=8, framealpha=0.2, labelcolor=WHITE)
+    leg.get_frame().set_facecolor(BG)
 
-    # Regime distribution
-    if "regime" in df.columns:
-        print(f"\n  Regime distribution ({n} bars):")
-        mult_lookup = {
-            "STRONG_BULL": 1.5, "BULL": 1.0,
-            "STALLING": 0.75,   "RECOVERING": 0.75,
-            "BEAR": 0.75,       "STRONG_BEAR": 0.5,
-        }
-        import config as _cfg
-        bear_defensive = getattr(_cfg, "BEAR_DEFENSIVE_LONGS", False)
-        longs_only     = getattr(_cfg, "LONGS_ONLY", True)
-        direction_lookup = {
-            "STRONG_BULL": "longs only",
-            "BULL":        "longs only",
-            "STALLING":    "shorts (standard RSI gate)" if not longs_only else "flat",
-            "RECOVERING":  "longs only",
-            "BEAR":        ("defensive longs (RSI<30, ×0.25K) + shorts (RSI>60, ×0.5K)"
-                            if (bear_defensive and not longs_only)
-                            else ("defensive longs (RSI<30, ×0.25K)" if bear_defensive else
-                                  ("shorts (RSI>60, ×0.5K)" if not longs_only else "flat"))),
-            "STRONG_BEAR": "shorts (RSI>58, ×0.75K)" if not longs_only else "flat",
-        }
-        for state in ["STRONG_BULL", "BULL", "STALLING", "RECOVERING", "BEAR", "STRONG_BEAR"]:
-            count = (df["regime"] == state).sum()
-            mult  = mult_lookup.get(state, 1.0)
-            direction = direction_lookup.get(state, "both")
-            print(f"    {state:<14}: {count:>4} bars  (Kelly ×{mult}, {direction})")
-    print()
+    # Panel 2: drawdown comparison
+    bh_roll_max = bh_equity.cummax()
+    bh_dd = (bh_equity - bh_roll_max) / bh_roll_max
 
+    model_roll_max = model_full.cummax()
+    model_dd = (model_full - model_roll_max) / model_roll_max
 
-def _plot_results(equity, drawdown, monthly_returns, monthly_wr, monthly_counts,
-                  price_df, initial_capital,
-                  total_return, ann_return, sharpe, max_drawdown,
-                  win_rate, total_trades, bh_return, bh_ann_return):
-    # ── Palette ────────────────────────────────────────────────────────────
-    BG      = "#0d1117"
-    PANEL   = "#161b22"
-    BORDER  = "#21262d"
-    GRID    = "#21262d"
-    TEXT    = "#e6edf3"
-    MUTED   = "#8b949e"
-    CYAN    = "#58a6ff"
-    GREEN   = "#3fb950"
-    RED     = "#f85149"
-    ORANGE  = "#e3b341"
-    AMBER   = "#d29922"
+    ax_dd.fill_between(bh_dd.index, bh_dd.values * 100, 0, color=BH, alpha=0.35, label="B&H DD")
+    ax_dd.fill_between(model_dd.index, model_dd.values * 100, 0, color=RED, alpha=0.55, label="Model DD")
+    ax_dd.set_title("Drawdown Comparison", color=WHITE, fontsize=10)
+    ax_dd.set_ylabel("Drawdown (%)", color=WHITE, fontsize=8)
+    leg2 = ax_dd.legend(fontsize=8, framealpha=0.2, labelcolor=WHITE)
+    leg2.get_frame().set_facecolor(BG)
 
-    TARGET_MONTHLY = 0.005  # 0.5%
+    # Panel 3: monthly P&L bar chart
+    if "timestamp" in trades_df.columns:
+        monthly = (trades_df.set_index(pd.to_datetime(trades_df["timestamp"]))["return"]
+                   .resample("ME").sum() * 100)
+        bar_colors = [GREEN if v >= 0 else RED for v in monthly.values]
+        ax_monthly.bar(monthly.index, monthly.values, color=bar_colors, width=20, alpha=0.85)
+        ax_monthly.axhline(0, color=WHITE, linewidth=0.7, linestyle="--")
+    ax_monthly.set_title("Monthly P&L (%)", color=WHITE, fontsize=10)
+    ax_monthly.set_ylabel("Return (%)", color=WHITE, fontsize=8)
+    ax_monthly.tick_params(axis="x", rotation=45)
 
-    plt.rcParams.update({
-        "figure.facecolor":  BG,
-        "axes.facecolor":    PANEL,
-        "axes.edgecolor":    BORDER,
-        "axes.labelcolor":   MUTED,
-        "axes.titlecolor":   TEXT,
-        "xtick.color":       MUTED,
-        "ytick.color":       MUTED,
-        "xtick.labelsize":   8,
-        "ytick.labelsize":   8,
-        "grid.color":        GRID,
-        "grid.linewidth":    0.5,
-        "text.color":        TEXT,
-        "font.family":       "monospace",
-        "axes.spines.top":   False,
-        "axes.spines.right": False,
-    })
-
-    fig = plt.figure(figsize=(14, 12))
-    fig.suptitle("MONAD Quant  ·  Performance Dashboard",
-                 fontsize=13, fontweight="bold", color=TEXT, y=0.99)
-
-    gs = fig.add_gridspec(3, 1, height_ratios=[2.8, 2.2, 1.0],
-                          hspace=0.45, left=0.08, right=0.72,
-                          top=0.95, bottom=0.07)
-    ax_eq = fig.add_subplot(gs[0])
-    ax_mo = fig.add_subplot(gs[1])
-    ax_dd = fig.add_subplot(gs[2])
-
-    price_dates = price_df.index
-    n_price     = len(price_dates)
-
-    # ── helpers ────────────────────────────────────────────────────────────
-    def _map_to_dates(series_len):
-        """Map an equity/drawdown index (0..N) onto price_df date positions."""
-        idx = np.linspace(0, n_price - 1, series_len).astype(int)
-        return price_dates[np.clip(idx, 0, n_price - 1)]
-
-    # ── Panel 1 · Equity Curve ─────────────────────────────────────────────
-    bh_equity  = initial_capital * (price_df["close"] / price_df["close"].iloc[0])
-    eq_dates   = _map_to_dates(len(equity))
-
-    ax_eq.plot(price_dates, bh_equity.values,
-               color=ORANGE, linewidth=1.0, alpha=0.55, linestyle="--", label="Buy & Hold")
-    ax_eq.plot(eq_dates, equity.values,
-               color=CYAN, linewidth=1.8, label="Strategy")
-    ax_eq.fill_between(eq_dates, initial_capital, equity.values,
-                        where=equity.values >= initial_capital,
-                        color=CYAN, alpha=0.07)
-
-    ax_eq.set_title("Equity Curve", fontsize=10, fontweight="bold", pad=6)
-    ax_eq.set_ylabel("Capital ($)", fontsize=8)
-    ax_eq.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"${x:,.0f}"))
-    ax_eq.legend(fontsize=7.5, framealpha=0.15, loc="lower right",
-                 edgecolor=BORDER, handlelength=1.6)
-    ax_eq.grid(True, alpha=0.35)
-
-    # ── Right sidebar: Performance stats ──────────────────────────────────
-    _sx = 0.745   # sidebar x (left edge, figure coords)
-    alpha_pct = (total_return - bh_return) * 100
-    fig.text(_sx, 0.950, "PERFORMANCE",
-             fontsize=7, fontweight="bold", color=MUTED,
-             va="top", ha="left", transform=fig.transFigure)
-    stats_lines = [
-        f"Return   {total_return*100:>+6.2f}%",
-        f"  ann.   {ann_return*100:>+6.2f}% /yr",
-        f"Sharpe   {sharpe:>7.3f}",
-        f"Max DD   {max_drawdown*100:>+6.2f}%",
-        f"Win Rate {win_rate*100:>5.1f}%  ({total_trades} tr.)",
-        f"vs B&H   {alpha_pct:>+6.1f}%  alpha",
-    ]
-    fig.text(_sx, 0.934, "\n".join(stats_lines),
-             fontsize=7.5, va="top", ha="left", fontfamily="monospace",
-             transform=fig.transFigure,
-             bbox=dict(boxstyle="round,pad=0.55", facecolor=BG,
-                       edgecolor=BORDER, alpha=0.9))
-
-    # ── Panel 2 · Monthly Returns ──────────────────────────────────────────
-    active_mo   = monthly_returns[monthly_returns != 0]
-    active_wr   = monthly_wr.reindex(active_mo.index).fillna(0)
-    active_cnt  = monthly_counts.reindex(active_mo.index).fillna(0)
-
-    bar_colors = []
-    for r in active_mo.values:
-        if r >= TARGET_MONTHLY:
-            bar_colors.append(GREEN)
-        elif r >= 0:
-            bar_colors.append(AMBER)
-        else:
-            bar_colors.append(RED)
-
-    xs = np.arange(len(active_mo))
-    ax_mo.bar(xs, active_mo.values * 100,
-              color=bar_colors, alpha=0.85, edgecolor=BG, linewidth=0.4, width=0.72)
-    ax_mo.axhline(TARGET_MONTHLY * 100, color=GREEN, linewidth=1.1,
-                  linestyle="--", alpha=0.75, label=f"{TARGET_MONTHLY*100:.1f}% target")
-    ax_mo.axhline(0, color=BORDER, linewidth=0.8)
-
-    # Annotate monthly return value on each bar
-    for i, ret in enumerate(active_mo.values):
-        y_off = 0.04 if ret >= 0 else -0.04
-        ax_mo.text(i, ret * 100 + y_off, f"{ret*100:+.2f}%",
-                   ha="center", va="bottom" if ret >= 0 else "top",
-                   fontsize=6, color=TEXT, fontweight="bold")
-
-    ax_mo.set_title("Monthly Returns  ·  'Dividend' Schedule", fontsize=10,
-                    fontweight="bold", pad=6)
-    ax_mo.set_ylabel("Return (%)", fontsize=8)
-    ax_mo.set_xticks(xs)
-    ax_mo.set_xticklabels([m.strftime("%b '%y") for m in active_mo.index],
-                           rotation=45, ha="right", fontsize=7)
-    ax_mo.grid(True, alpha=0.35, axis="y")
-
-    # ── Right sidebar: Monthly stats ───────────────────────────────────────
-    pos_months  = (active_mo > 0).sum()
-    hit_rate    = pos_months / len(active_mo) if len(active_mo) > 0 else 0
-    avg_monthly = active_mo.mean()
-    beat_target = (active_mo >= TARGET_MONTHLY).sum()
-    fig.text(_sx, 0.530, "MONTHLY",
-             fontsize=7, fontweight="bold", color=MUTED,
-             va="top", ha="left", transform=fig.transFigure)
-    monthly_lines = [
-        f"Avg      {avg_monthly*100:>+5.2f}% /mo",
-        f"Hit rate {hit_rate*100:>4.0f}%  pos months",
-        f"≥ target {beat_target}/{len(active_mo)} months",
-        f"Target   {TARGET_MONTHLY*100:.1f}%  /mo",
-    ]
-    fig.text(_sx, 0.514, "\n".join(monthly_lines),
-             fontsize=7.5, va="top", ha="left", fontfamily="monospace",
-             transform=fig.transFigure,
-             bbox=dict(boxstyle="round,pad=0.55", facecolor=BG,
-                       edgecolor=BORDER, alpha=0.9))
-
-    # ── Panel 3 · Drawdown (% below all-time equity high) ───────────────────
-    dd_dates = _map_to_dates(len(drawdown))
-    dd_pct   = drawdown.values * 100
-
-    ax_dd.fill_between(dd_dates, dd_pct, 0, color=RED, alpha=0.55)
-    ax_dd.plot(dd_dates, dd_pct, color=RED, linewidth=0.6, alpha=0.8)
-    ax_dd.axhline(0, color=BORDER, linewidth=0.8)
-
-    # Mark the max drawdown point
-    worst_idx = np.argmin(dd_pct)
-    worst_val = dd_pct[worst_idx]
-    ax_dd.annotate(
-        f"Max DD: {worst_val:.2f}%",
-        xy=(dd_dates[worst_idx], worst_val),
-        xytext=(0.5, 0.15), textcoords="axes fraction",
-        fontsize=7.5, fontweight="bold", color=RED,
-        arrowprops=dict(arrowstyle="->", color=RED, lw=1.2),
-        bbox=dict(boxstyle="round,pad=0.3", facecolor=BG, edgecolor=RED, alpha=0.85),
-    )
-
-    ax_dd.set_title("Drawdown  ·  Distance from equity peak (%)",
-                    fontsize=10, fontweight="bold", pad=6)
-    ax_dd.set_ylabel("Below peak (%)", fontsize=8)
-    ax_dd.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:.2f}%"))
-    ax_dd.set_ylim(min(worst_val * 1.5, -0.1), 0.15)
-    ax_dd.grid(True, alpha=0.35)
+    # Panel 4: win/loss distribution
+    wins  = trade_returns[trade_returns > 0] * 100
+    losses = trade_returns[trade_returns < 0] * 100
+    ax_dist.hist(wins,   bins=20, color=GREEN, alpha=0.75, label=f"Wins ({len(wins)})",   edgecolor=BG)
+    ax_dist.hist(losses, bins=20, color=RED,   alpha=0.75, label=f"Losses ({len(losses)})", edgecolor=BG)
+    ax_dist.axvline(0, color=WHITE, linewidth=0.8, linestyle="--")
+    ax_dist.set_title("Win / Loss Distribution", color=WHITE, fontsize=10)
+    ax_dist.set_xlabel("Trade Return (%)", color=WHITE, fontsize=8)
+    ax_dist.set_ylabel("Count", color=WHITE, fontsize=8)
+    leg3 = ax_dist.legend(fontsize=8, framealpha=0.2, labelcolor=WHITE)
+    leg3.get_frame().set_facecolor(BG)
 
     plt.savefig("backtest_results.png", dpi=150, bbox_inches="tight", facecolor=BG)
     print("       Chart saved → backtest_results.png")

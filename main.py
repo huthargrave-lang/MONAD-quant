@@ -8,89 +8,49 @@ Run modes:
 
 import argparse
 import config
-from src.data.fetcher import (
-    fetch_crypto_daily, fetch_daily, fetch_yfinance,
-    fetch_etf_hourly, fetch_btc_hourly_binance,
-)
+from src.data.fetcher import fetch_yfinance
 from src.backtest.runner import run_backtest
 
-
-def _load_data():
-    """Load and slice the configured asset's OHLCV data."""
-    asset = config.DEFAULT_ASSET
-    asset_config = config.ASSETS[asset]
-    asset_type = asset_config["type"]
-
-    if asset_type == "crypto_hourly_binance":
-        start = config.BACKTEST_START_HOURLY
-        end   = config.BACKTEST_END_HOURLY
-        df = fetch_btc_hourly_binance(start=start, end=end)
-        timeframe = "hourly"
-    elif asset_type.startswith("etf_hourly"):
-        # Generic ETF hourly routing: extracts ticker from asset type or mode name.
-        # "etf_hourly" → QQQ, "etf_hourly_tqqq" → TQQQ, "etf_hourly_soxl" → SOXL, etc.
-        mode = config.ACTIVE_MODE
-        parts = asset_type.split("_")
-        ticker = parts[2].upper() if len(parts) > 2 else "QQQ"
-        # Config date keys: BACKTEST_START_QQQ_HOURLY, BACKTEST_START_TQQQ_HOURLY, etc.
-        start_key = f"BACKTEST_START_{mode}" if mode != "QQQ_HOURLY" else "BACKTEST_START_QQQ_HOURLY"
-        end_key   = f"BACKTEST_END_{mode}"   if mode != "QQQ_HOURLY" else "BACKTEST_END_QQQ_HOURLY"
-        start = getattr(config, start_key)
-        end   = getattr(config, end_key)
-        df = fetch_etf_hourly(ticker, start=start, end=end)
-        timeframe = "hourly"
-    elif asset_type == "crypto":
-        df = fetch_crypto_daily(symbol=asset, market=asset_config.get("market", "USD"))
-        start, end, timeframe = config.BACKTEST_START, config.BACKTEST_END, "daily"
-    else:
-        df = fetch_yfinance(symbol=asset, start=config.BACKTEST_START, end=config.BACKTEST_END)
-        start, end, timeframe = config.BACKTEST_START, config.BACKTEST_END, "daily"
-
-    df = df.loc[start:end]
-    print(f"Loaded {len(df)} bars for {asset} ({start} → {end}) [{timeframe}]\n")
-    return df, asset, asset_config, timeframe
-
+# Map ACTIVE_MODE to (yfinance symbol, interval, asset config key)
+MODE_MAP = {
+    "BTC_HOURLY": ("BTC-USD", "1h",  "BTC"),
+    "BTC_DAILY":  ("BTC-USD", "1d",  "BTC"),
+    "QQQ_DAILY":  ("QQQ",     "1d",  "QQQ"),
+    "SOXL_DAILY": ("SOXL",    "1d",  "SOXL"),
+}
 
 def main():
-    parser = argparse.ArgumentParser(description="MONAD Quant Strategy Engine")
-    parser.add_argument(
-        "--mode",
-        default="normal",
-        choices=["normal", "walk-forward"],
-        help="normal = standard backtest; walk-forward = rolling OOS optimizer",
-    )
-    parser.add_argument("--start", default=None, help="Override backtest start date (YYYY-MM-DD)")
-    parser.add_argument("--end",   default=None, help="Override backtest end date (YYYY-MM-DD)")
-    args = parser.parse_args()
-
-    if args.start:
-        config.BACKTEST_START = args.start
-    if args.end:
-        config.BACKTEST_END = args.end
-
     print("\n🔺 MONAD QUANT FUND — STRATEGY ENGINE 🔺\n")
-    df, asset, asset_config, timeframe = _load_data()
 
-    if args.mode == "walk-forward":
-        if timeframe != "daily":
-            print("Walk-forward optimization is only supported for daily assets.")
-            return {}
-        from src.optimization.walk_forward import walk_forward_optimize
-        return walk_forward_optimize(df)
+    yf_symbol, interval, asset_key = MODE_MAP[config.ACTIVE_MODE]
+    asset_config = config.ASSETS[asset_key]
 
-    # ── Standard backtest ────────────────────────────────────────────────────
+    # Pull asset-specific params with fallback to global defaults
     target_gain = asset_config.get("target_gain_pct", config.TARGET_GAIN_PCT)
     stop_loss   = asset_config.get("stop_loss_pct",   config.STOP_LOSS_PCT)
-    req_signals = asset_config.get("require_signals",  config.REQUIRE_SIGNALS)
+    req_signals = asset_config.get("require_signals", config.REQUIRE_SIGNALS)
 
-    return run_backtest(
+    # Hourly trade filter — only applied when interval is hourly
+    if interval == "1h" and config.HOURLY_TRADE_FILTER:
+        trade_hours = (config.HOURLY_TRADE_HOURS_START, config.HOURLY_TRADE_HOURS_END)
+    else:
+        trade_hours = None
+
+    df = fetch_yfinance(symbol=yf_symbol, start=config.BACKTEST_START,
+                        end=config.BACKTEST_END, interval=interval)
+    df = df.loc[config.BACKTEST_START:config.BACKTEST_END]
+    print(f"Loaded {len(df)} bars for {config.ACTIVE_MODE} "
+          f"({config.BACKTEST_START} → {config.BACKTEST_END})\n")
+
+    results = run_backtest(
         df=df,
         initial_capital=config.INITIAL_CAPITAL,
         target_gain_pct=target_gain,
         stop_loss_pct=stop_loss,
         require_signals=req_signals,
         kelly_multiplier=config.KELLY_MULTIPLIER,
-        timeframe=timeframe,
+        bull_kelly_multiplier=config.BULL_KELLY_MULTIPLIER,
+        trade_hours=trade_hours,
         plot=config.PLOT_RESULTS,
     )
 

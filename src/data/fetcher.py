@@ -120,6 +120,49 @@ def fetch_crypto_daily(symbol: str = "BTC", market: str = "USD", use_cache: bool
     return df
 
 
+def fetch_crypto_hourly(symbol: str = "BTC", market: str = "USD", use_cache: bool = True) -> pd.DataFrame:
+    """
+    Fetch hourly OHLCV data for a crypto asset using Alpha Vantage CRYPTO_INTRADAY.
+    Returns a DataFrame indexed by datetime (UTC).
+    """
+    _ensure_cache_dir()
+    cache_key = f"{symbol}{market}"
+    cache_file = _cache_path(cache_key, "60min")
+
+    if use_cache and _cache_is_fresh(cache_file, max_age_hours=1):
+        print(f"[cache] Loading {symbol}/{market} hourly from cache")
+        df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
+        return df
+
+    print(f"[api] Fetching {symbol}/{market} hourly from Alpha Vantage...")
+    params = {
+        "function": "CRYPTO_INTRADAY",
+        "symbol": symbol,
+        "market": market,
+        "interval": "60min",
+        "outputsize": "full",
+        "apikey": API_KEY,
+    }
+    resp = requests.get(BASE_URL, params=params)
+    resp.raise_for_status()
+    data = resp.json()
+
+    key = "Time Series Crypto (60min)"
+    if key not in data:
+        raise ValueError(f"Unexpected response for {symbol}: {data.get('Note') or data.get('Information') or data}")
+
+    ts = data[key]
+    df = pd.DataFrame.from_dict(ts, orient="index")
+    df.index = pd.to_datetime(df.index)
+    df = df.sort_index()
+    df.columns = ["open", "high", "low", "close", "volume"]
+    df = df.astype(float)
+
+    df.to_csv(cache_file)
+    print(f"[cache] Saved {symbol}/{market} hourly to {cache_file}")
+    return df
+
+
 def fetch_rsi(symbol: str, interval: str = "daily", time_period: int = 14) -> pd.DataFrame:
     """Fetch RSI directly from Alpha Vantage technical indicator endpoint."""
     print(f"[api] Fetching RSI for {symbol}...")
@@ -165,155 +208,15 @@ def fetch_macd(symbol: str, interval: str = "daily") -> pd.DataFrame:
     return df
 
 
-def _fetch_hourly(symbol: str, start: str, end: str) -> pd.DataFrame:
-    """Shared hourly fetcher via yfinance."""
+def fetch_yfinance(symbol: str, start: str, end: str, interval: str = "1d") -> pd.DataFrame:
+    print(f"[yfinance] Fetching {symbol} {interval} from {start} to {end}...")
     ticker = yf.Ticker(symbol)
-    df = ticker.history(start=start, end=end, interval="1h")
+    df = ticker.history(start=start, end=end, interval=interval)
     df.columns = [c.lower() for c in df.columns]
     df = df[["open", "high", "low", "close", "volume"]]
     df.index = pd.to_datetime(df.index)
     if df.index.tz is not None:
         df.index = df.index.tz_convert(None)
-    return df
-
-
-def fetch_btc_hourly(start: str, end: str) -> pd.DataFrame:
-    """Fetch hourly BTC-USD OHLCV via yfinance."""
-    print(f"[yfinance] Fetching BTC-USD hourly from {start} to {end}...")
-    return _fetch_hourly("BTC-USD", start, end)
-
-
-def fetch_btc_hourly_binance(start: str, end: str, symbol: str = "BTCUSDT") -> pd.DataFrame:
-    """
-    Fetch hourly BTC OHLCV from Binance public API.
-    No API key needed. Data available back to Aug 2017.
-    Paginates in 1000-candle chunks (~41 days each).
-    """
-    _ensure_cache_dir()
-    cache_file = _cache_path(f"{symbol}_binance", "1h")
-
-    start_dt = pd.Timestamp(start)
-    end_dt   = pd.Timestamp(end)
-
-    # Check cache — use if fresh and covers the requested range
-    if os.path.exists(cache_file) and _cache_is_fresh(cache_file):
-        df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
-        if len(df) > 0 and df.index[0] <= start_dt and df.index[-1] >= end_dt - timedelta(days=2):
-            print(f"[cache] Loading {symbol} hourly from Binance cache ({len(df)} bars)")
-            return df.loc[start:end]
-
-    print(f"[binance] Fetching {symbol} hourly from {start} to {end}...")
-    # Try Binance.US first (works in US), fall back to Binance.com (international)
-    urls = [
-        "https://api.binance.us/api/v3/klines",
-        "https://api.binance.com/api/v3/klines",
-    ]
-    all_rows = []
-    current_ms = int(start_dt.timestamp() * 1000)
-    end_ms     = int(end_dt.timestamp() * 1000)
-
-    # Determine which endpoint works on the first request
-    url = None
-    while current_ms < end_ms:
-        params = {
-            "symbol":    symbol,
-            "interval":  "1h",
-            "startTime": current_ms,
-            "endTime":   end_ms,
-            "limit":     1000,
-        }
-        if url is None:
-            # First request: try each endpoint
-            for candidate_url in urls:
-                try:
-                    resp = requests.get(candidate_url, params=params, timeout=30)
-                    resp.raise_for_status()
-                    url = candidate_url
-                    print(f"[binance] Using endpoint: {url}")
-                    break
-                except requests.exceptions.HTTPError:
-                    continue
-            if url is None:
-                raise ValueError("All Binance endpoints failed. Check network/geo restrictions.")
-        else:
-            resp = requests.get(url, params=params, timeout=30)
-            resp.raise_for_status()
-        data = resp.json()
-
-        if not data:
-            break
-
-        for k in data:
-            all_rows.append({
-                "timestamp": pd.Timestamp(k[0], unit="ms"),
-                "open":      float(k[1]),
-                "high":      float(k[2]),
-                "low":       float(k[3]),
-                "close":     float(k[4]),
-                "volume":    float(k[5]),
-            })
-
-        # Move past the last candle's open time
-        current_ms = data[-1][0] + 1
-        if len(data) < 1000:
-            break
-
-    if not all_rows:
-        raise ValueError(f"No data returned from Binance for {symbol} ({start} → {end})")
-
-    df = pd.DataFrame(all_rows).set_index("timestamp")
-    df = df.sort_index()
-    df = df[~df.index.duplicated(keep="first")]
-
-    df.to_csv(cache_file)
-    print(f"[cache] Saved {symbol} hourly to {cache_file} ({len(df)} bars)")
-    return df.loc[start:end]
-
-
-def fetch_etf_hourly(ticker: str, start: str, end: str) -> pd.DataFrame:
-    """
-    Generic hourly ETF fetcher via yfinance.
-    Market-hours only (09:30-16:00 ET). Cached locally for 24hr.
-    Works for any ticker: QQQ, TQQQ, GDXU, SOXL, LABU, TNA, etc.
-    """
-    _ensure_cache_dir()
-    cache_file = _cache_path(ticker, "1h")
-
-    start_dt = pd.Timestamp(start)
-    end_dt   = pd.Timestamp(end)
-
-    if os.path.exists(cache_file) and _cache_is_fresh(cache_file):
-        df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
-        if len(df) > 0 and df.index[0] <= start_dt and df.index[-1] >= end_dt - timedelta(days=2):
-            print(f"[cache] Loading {ticker} hourly from cache ({len(df)} bars)")
-            return df.loc[start:end]
-
-    print(f"[yfinance] Fetching {ticker} hourly from {start} to {end}...")
-    df = _fetch_hourly(ticker, start, end)
-    df = df.between_time("09:30", "16:00")
-
-    df.to_csv(cache_file)
-    print(f"[cache] Saved {ticker} hourly to {cache_file} ({len(df)} bars)")
-    return df.loc[start:end]
-
-
-# Backward-compatible aliases (used by existing imports)
-def fetch_qqq_hourly(start, end):  return fetch_etf_hourly("QQQ", start, end)
-def fetch_tqqq_hourly(start, end): return fetch_etf_hourly("TQQQ", start, end)
-def fetch_gdxu_hourly(start, end): return fetch_etf_hourly("GDXU", start, end)
-def fetch_soxl_hourly(start, end): return fetch_etf_hourly("SOXL", start, end)
-def fetch_labu_hourly(start, end): return fetch_etf_hourly("LABU", start, end)
-def fetch_tna_hourly(start, end):  return fetch_etf_hourly("TNA", start, end)
-
-
-def fetch_yfinance(symbol: str, start: str, end: str) -> pd.DataFrame:
-    print(f"[yfinance] Fetching {symbol} from {start} to {end}...")
-    ticker = yf.Ticker(symbol)
-    df = ticker.history(start=start, end=end)
-    df.columns = [c.lower() for c in df.columns]
-    df = df[["open", "high", "low", "close", "volume"]]
-    df.index = pd.to_datetime(df.index)
-    if df.index.tz is not None:
-        df.index = df.index.tz_convert(None)  # strip timezone
-    df.index = df.index.normalize()           # remove time component
+    if interval in ("1d", "1wk", "1mo"):
+        df.index = df.index.normalize()
     return df
