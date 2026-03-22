@@ -10,7 +10,7 @@ import argparse
 import config
 from src.data.fetcher import (
     fetch_crypto_daily, fetch_daily, fetch_yfinance,
-    fetch_qqq_hourly, fetch_btc_hourly_binance,
+    fetch_etf_hourly, fetch_btc_hourly_binance,
 )
 from src.backtest.runner import run_backtest
 
@@ -26,9 +26,19 @@ def _load_data():
         end   = config.BACKTEST_END_HOURLY
         df = fetch_btc_hourly_binance(start=start, end=end)
         timeframe = "hourly"
-    elif asset_type == "etf_hourly":
-        df = fetch_qqq_hourly(start=config.BACKTEST_START_QQQ_HOURLY, end=config.BACKTEST_END_QQQ_HOURLY)
-        start, end, timeframe = config.BACKTEST_START_QQQ_HOURLY, config.BACKTEST_END_QQQ_HOURLY, "hourly"
+    elif asset_type.startswith("etf_hourly"):
+        # Generic ETF hourly routing: extracts ticker from asset type or mode name.
+        # "etf_hourly" → QQQ, "etf_hourly_tqqq" → TQQQ, "etf_hourly_soxl" → SOXL, etc.
+        mode = config.ACTIVE_MODE
+        parts = asset_type.split("_")
+        ticker = parts[2].upper() if len(parts) > 2 else "QQQ"
+        # Config date keys: BACKTEST_START_QQQ_HOURLY, BACKTEST_START_TQQQ_HOURLY, etc.
+        start_key = f"BACKTEST_START_{mode}" if mode != "QQQ_HOURLY" else "BACKTEST_START_QQQ_HOURLY"
+        end_key   = f"BACKTEST_END_{mode}"   if mode != "QQQ_HOURLY" else "BACKTEST_END_QQQ_HOURLY"
+        start = getattr(config, start_key)
+        end   = getattr(config, end_key)
+        df = fetch_etf_hourly(ticker, start=start, end=end)
+        timeframe = "hourly"
     elif asset_type == "crypto":
         df = fetch_crypto_daily(symbol=asset, market=asset_config.get("market", "USD"))
         start, end, timeframe = config.BACKTEST_START, config.BACKTEST_END, "daily"
