@@ -262,17 +262,18 @@ BACKTEST_START_GDXU_HOURLY = "2024-04-01"
 BACKTEST_END_GDXU_HOURLY   = "2026-03-01"
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  PROFILE 7 — SOXL HOURLY (3x leveraged semiconductors) — SWEEP 2026-03-20
+#  PROFILE 7 — SOXL HOURLY (3x leveraged semiconductors) — SWEEP 2026-03-22
 #  Goal:    Semis income stream — uncorrelated with gold/biotech
 #  Style:   High-frequency mean-reversion, ~27 trades/month
-#  Sharpe:  72.8  |  Max DD: -0.35%  |  24mo return: 116.52%  |  Avg: +3.28%/mo
-#  Status:  Sweep-optimized (--min-stop 0.25)
+#  Sharpe:  47.3  |  Max DD: -0.75%  |  24mo return: 127.49%  |  Avg: +3.50%/mo
+#  Status:  Sweep-optimized with Phase 3 robustness check (--min-stop 0.25)
+#           0/22 rolling windows negative, worst window +1.88%, live-safe (5x spread)
 #  Note:    3x leveraged semis ETF — higher vol than TQQQ;
-#           2.4:1 R:R at 0.25% stop — realistic for live trading
+#           2:1 R:R at 0.45% stop — robust for live trading (5x bid-ask spread)
 # ═══════════════════════════════════════════════════════════════════════════
 
 RSI_PERIOD_SOXL_HOURLY         = 7        # DEAD LEVER (MACD is binding gate)
-RSI_OVERSOLD_SOXL_HOURLY       = 80       # Sweep optimal
+RSI_OVERSOLD_SOXL_HOURLY       = 80       # Sweep optimal (Phase 2 fine-tuned: 77 close but 80 best)
 RSI_OVERBOUGHT_SOXL_HOURLY     = 62
 MACD_FAST_SOXL_HOURLY          = 6        # DEAD LEVER
 MACD_SLOW_SOXL_HOURLY          = 13       # DEAD LEVER
@@ -280,8 +281,8 @@ MACD_SIGNAL_SOXL_HOURLY        = 4        # DEAD LEVER
 VWAP_WINDOW_SOXL_HOURLY        = 10
 VWAP_ZSCORE_THRESH_SOXL_HOURLY = 1.2      # Sweep optimal
 BB_WINDOW_SOXL_HOURLY          = 14
-TARGET_GAIN_PCT_SOXL_HOURLY    = 0.006    # 0.60% target — sweep optimal; 2.4:1 R:R
-STOP_LOSS_PCT_SOXL_HOURLY      = 0.0025   # 0.25% stop — realistic for live trading
+TARGET_GAIN_PCT_SOXL_HOURLY    = 0.009    # 0.90% target — sweep optimal; 2:1 R:R
+STOP_LOSS_PCT_SOXL_HOURLY      = 0.0045   # 0.45% stop — live-safe (5x spread), 0/22 windows negative
 
 # Backtest window — SOXL hourly
 BACKTEST_START_SOXL_HOURLY = "2024-04-01"
@@ -490,7 +491,7 @@ LIVE_BOOTSTRAP = {
     "QQQ":  {"wr": 0.596, "win": 0.0024, "loss": 0.0012},
     "TQQQ": {"wr": 0.709, "win": 0.0042, "loss": 0.0008},
     "GDXU": {"wr": 0.701, "win": 0.0056, "loss": 0.00075},
-    "SOXL": {"wr": 0.592, "win": 0.006,  "loss": 0.0025},
+    "SOXL": {"wr": 0.631, "win": 0.009,  "loss": 0.0045},
     "LABU": {"wr": 0.593, "win": 0.007,  "loss": 0.0025},
     "TNA":  {"wr": 0.596, "win": 0.0033, "loss": 0.0015},
 }
