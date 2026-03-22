@@ -3,7 +3,7 @@
 #  MONAD Quant — Health Check
 #  Checks that the trader service and IB Gateway are running.
 #  Add to cron for periodic monitoring:
-#    */30 9-16 * * 1-5 /home/pi/MONAD-quant/deploy/healthcheck.sh
+#    */30 9-16 * * 1-5 /path/to/MONAD-quant/deploy/healthcheck.sh
 # ══════════════════════════════════════════════════════════════════════
 
 LOG_TAG="monad-health"

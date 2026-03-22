@@ -9,9 +9,15 @@
 # ══════════════════════════════════════════════════════════════════════
 set -euo pipefail
 
-REPO_DIR="/home/pi/MONAD-quant"
+# ── Auto-detect paths (works for any username, not just 'pi') ─────
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 VENV_DIR="$REPO_DIR/venv"
 SERVICE_FILE="$REPO_DIR/deploy/monad-trader.service"
+DEPLOY_USER="$(whoami)"
+
+echo "  Detected user: $DEPLOY_USER"
+echo "  Detected repo: $REPO_DIR"
 
 echo "══════════════════════════════════════════════════════════════"
 echo "  MONAD Quant — Raspberry Pi Setup"
@@ -54,7 +60,10 @@ mkdir -p "$REPO_DIR/logs"
 # ── 4. Install systemd service ──────────────────────────────────────
 echo ""
 echo "[4/5] Installing systemd service..."
-sudo cp "$SERVICE_FILE" /etc/systemd/system/monad-trader.service
+# Generate service file with correct user and paths
+sed -e "s|User=pi|User=$DEPLOY_USER|g" \
+    -e "s|/home/pi/MONAD-quant|$REPO_DIR|g" \
+    "$SERVICE_FILE" | sudo tee /etc/systemd/system/monad-trader.service > /dev/null
 sudo systemctl daemon-reload
 sudo systemctl enable monad-trader.service
 echo "  Service installed and enabled (will start on boot)"
@@ -80,7 +89,7 @@ echo "     Check 'Allow connections from localhost only'"
 echo ""
 echo "  3. Update TQQQ to live-safe params:"
 echo "     cd $REPO_DIR"
-echo "     source venv/bin/activate"
+echo "     source $VENV_DIR/bin/activate"
 echo "     python sweep.py TQQQ --apply"
 echo ""
 echo "  4. Test with paper trading first:"
