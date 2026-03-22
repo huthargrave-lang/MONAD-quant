@@ -11,13 +11,14 @@ Usage:
     python sweep.py TQQQ --phase 1          # Run only phase 1 (target/stop)
     python sweep.py NVDA --phase 2          # Run only phase 2 (cross-validation)
     python sweep.py LABU --min-stop 0.15    # Force realistic stops (≥0.15%)
+    python sweep.py GDXU --apply            # Auto-apply optimal params to config.py
 
 Phases:
     1 = Coarse sweep (target/stop, VWAP, RSI)
     2 = Cross-validation (fine-tune best params from phase 1)
     all = Both phases (default)
 """
-import sys, os, io, argparse, contextlib, json
+import sys, os, io, argparse, contextlib, json, re
 from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -46,6 +47,8 @@ parser.add_argument("--spread", type=float, default=None,
                     help="Assumed bid-ask spread in dollars (default: auto-estimated from price level)")
 parser.add_argument("--broker", default=None, choices=["ibkr", "schwab", "fidelity", "retail"],
                     help="Broker preset for spread/fee estimates (default: conservative retail)")
+parser.add_argument("--apply", action="store_true",
+                    help="Auto-apply optimal params to config.py without prompting")
 args = parser.parse_args()
 
 TICKER = args.ticker.upper()
@@ -683,6 +686,71 @@ if r and "error" not in r:
     with open(outfile, "w") as f:
         json.dump(out, f, indent=2)
     print(f"  Results saved → {outfile}")
+
+    # ── Apply params to config.py? ──────────────────────────────────────────
+    if args.apply:
+        answer = "y"
+    else:
+        try:
+            answer = input("\n  Apply these params to config.py? [y/N] ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            answer = "n"
+
+    if answer in ("y", "yes"):
+        config_path = os.path.join(os.path.dirname(__file__), "config.py")
+        with open(config_path, "r") as f:
+            cfg_text = f.read()
+
+        # The 4 params to update (using MODE_NAME suffix, e.g. GDXU_HOURLY)
+        param_map = {
+            f"TARGET_GAIN_PCT_{MODE_NAME}":     best["target"],
+            f"STOP_LOSS_PCT_{MODE_NAME}":       best["stop"],
+            f"RSI_OVERSOLD_{MODE_NAME}":        best["rsi"],
+            f"VWAP_ZSCORE_THRESH_{MODE_NAME}":  best["vwap"],
+        }
+
+        updated = 0
+        for param, value in param_map.items():
+            # Match: PARAM_NAME = <value> with optional trailing comment
+            pattern = rf'^({param}\s*=\s*)([^\s#]+)(.*)'
+            if isinstance(value, int):
+                new_val = str(value)
+            elif isinstance(value, float):
+                # Use enough precision: 4 decimal places for target/stop, 1 for VWAP
+                if "VWAP" in param or "RSI" in param:
+                    new_val = f"{value}"
+                else:
+                    new_val = f"{value:.6f}".rstrip("0").rstrip(".")
+                    # Ensure at least 4 decimal places for target/stop
+                    if "." in new_val:
+                        decimals = len(new_val.split(".")[1])
+                        if decimals < 4:
+                            new_val = f"{value:.4f}"
+            else:
+                new_val = str(value)
+
+            new_text, count = re.subn(
+                pattern,
+                rf'\g<1>{new_val}\3',
+                cfg_text,
+                flags=re.MULTILINE,
+            )
+            if count > 0:
+                cfg_text = new_text
+                updated += count
+
+        if updated > 0:
+            with open(config_path, "w") as f:
+                f.write(cfg_text)
+            print(f"\n  Updated {updated} params in config.py:")
+            for param, value in param_map.items():
+                if isinstance(value, float) and "VWAP" not in param and "RSI" not in param:
+                    print(f"    {param} = {value:.4f}  ({value*100:.2f}%)")
+                else:
+                    print(f"    {param} = {value}")
+        else:
+            print(f"\n  No matching params found in config.py for {MODE_NAME}.")
+            print(f"  You may need to add a {MODE_NAME} section manually.")
 else:
     print("  No valid results found. The ticker may not have enough data or liquidity.")
 
