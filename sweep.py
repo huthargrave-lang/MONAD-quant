@@ -241,11 +241,21 @@ def fmt(r, label):
             f"DD={dd:6.2f}% avg/mo={avg_mo:+.2f}%")
 
 
-def score(r):
-    """Composite score: prioritize Sharpe, then return, penalize DD."""
+def score(r, stop=None):
+    """Composite score: prioritize Sharpe, then return, penalize DD.
+    Applies a live-safety penalty for stops too close to bid-ask spread."""
     if r is None or "error" in r:
         return -9999
-    return r["sharpe_ratio"] * 0.5 + r["total_return"] * 100 * 0.3 + r["max_drawdown"] * 100 * 0.2
+    base = r["sharpe_ratio"] * 0.5 + r["total_return"] * 100 * 0.3 + r["max_drawdown"] * 100 * 0.2
+    # Penalize stops that won't survive live bid-ask spread
+    if stop is not None and est_spread > 0:
+        stop_dollars = median_price * stop
+        spread_mult = stop_dollars / est_spread
+        if spread_mult < 3:
+            base *= 0.3   # severe penalty: stop inside spread noise
+        elif spread_mult < 5:
+            base *= 0.7   # moderate penalty: borderline viability
+    return base
 
 
 def restore():
@@ -263,7 +273,7 @@ best = {"target": DEFAULT_TARGET, "stop": DEFAULT_STOP,
 
 
 def update_best(r, target, stop, rsi=None, vwap=None):
-    s = score(r)
+    s = score(r, stop=stop)
     if s > best["score"]:
         best["score"] = s
         best["result"] = r
@@ -410,6 +420,186 @@ if args.phase in ("2", "all"):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+#  PHASE 3 — ROBUSTNESS CHECK (rolling 2-month windows)
+# ═══════════════════════════════════════════════════════════════════════════
+if best["result"] and "error" not in best["result"]:
+    print()
+    print("=" * 95)
+    print(f"PHASE 3: Robustness check — rolling 2-month windows with optimal params")
+    print("=" * 95)
+
+    bt = best["target"]
+    bs = best["stop"]
+    br = best["rsi"]
+    bv = best["vwap"]
+
+    # Set optimal params
+    setattr(config, f"RSI_OVERSOLD_{MODE_NAME}", br)
+    config.ASSETS[MODE_NAME]["rsi_oversold"] = br
+    setattr(config, f"VWAP_ZSCORE_THRESH_{MODE_NAME}", bv)
+    config.ASSETS[MODE_NAME]["vwap_zscore_thresh"] = bv
+
+    # Build 2-month rolling windows, sliding by 1 month
+    window_days = 60
+    slide_days = 30
+    start_ts = df_raw.index[0]
+    end_ts = df_raw.index[-1]
+    windows = []
+    w_start = start_ts
+    while w_start + pd.Timedelta(days=window_days) <= end_ts:
+        w_end = w_start + pd.Timedelta(days=window_days)
+        windows.append((w_start, w_end))
+        w_start += pd.Timedelta(days=slide_days)
+
+    window_results = []
+    for w_start, w_end in windows:
+        df_window = df_raw.loc[w_start:w_end].copy()
+        if len(df_window) < 50:
+            continue  # not enough bars for meaningful backtest
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                wr = run_backtest(
+                    df=df_window,
+                    initial_capital=config.INITIAL_CAPITAL,
+                    target_gain_pct=bt,
+                    stop_loss_pct=bs,
+                    require_signals=1,
+                    kelly_multiplier=config.KELLY_MULTIPLIER,
+                    timeframe="hourly",
+                    plot=False,
+                )
+            if wr and "error" not in wr:
+                window_results.append({
+                    "start": w_start.strftime("%Y-%m-%d"),
+                    "end": w_end.strftime("%Y-%m-%d"),
+                    "return": wr["total_return"],
+                    "sharpe": wr["sharpe_ratio"],
+                    "max_dd": wr["max_drawdown"],
+                    "trades": wr["total_trades"],
+                    "win_rate": wr["win_rate"],
+                })
+        except Exception:
+            continue
+
+    if window_results:
+        # Sort by return to find worst/best
+        by_return = sorted(window_results, key=lambda x: x["return"])
+        worst = by_return[0]
+        best_window = by_return[-1]
+
+        # Stats across all windows
+        returns = [w["return"] for w in window_results]
+        dds = [w["max_dd"] for w in window_results]
+        wrs = [w["win_rate"] for w in window_results]
+        neg_windows = sum(1 for r in returns if r < 0)
+
+        print(f"\n  {len(window_results)} rolling windows tested ({window_days}-day, {slide_days}-day slide)")
+        print(f"  Negative windows:  {neg_windows}/{len(window_results)}")
+        print(f"  Avg window return: {sum(returns)/len(returns)*100:+.2f}%")
+        print(f"  Avg window WR:     {sum(wrs)/len(wrs)*100:.1f}%")
+        print()
+        print(f"  WORST window:  {worst['start']} → {worst['end']}")
+        print(f"    Return={worst['return']*100:+.2f}%  DD={worst['max_dd']*100:.2f}%  "
+              f"WR={worst['win_rate']*100:.1f}%  Trades={worst['trades']}")
+        print(f"  BEST window:   {best_window['start']} → {best_window['end']}")
+        print(f"    Return={best_window['return']*100:+.2f}%  DD={best_window['max_dd']*100:.2f}%  "
+              f"WR={best_window['win_rate']*100:.1f}%  Trades={best_window['trades']}")
+
+        # Fragility checks
+        fragile = False
+        fragile_reasons = []
+        if neg_windows > len(window_results) * 0.25:
+            fragile = True
+            fragile_reasons.append(f"{neg_windows}/{len(window_results)} windows negative (>25%)")
+        if worst["max_dd"] < -0.02:  # worse than -2% DD in any window
+            fragile = True
+            fragile_reasons.append(f"worst window DD {worst['max_dd']*100:.2f}% exceeds -2%")
+        if worst["return"] < -0.02:  # worse than -2% return in any window
+            fragile = True
+            fragile_reasons.append(f"worst window return {worst['return']*100:.2f}% exceeds -2%")
+
+        stop_dollars = median_price * bs
+        spread_mult = stop_dollars / est_spread if est_spread > 0 else 999
+        if spread_mult < 5:
+            fragile = True
+            fragile_reasons.append(f"stop ${stop_dollars:.3f} is only {spread_mult:.1f}x spread — live slippage risk")
+
+        if fragile:
+            print(f"\n  *** FRAGILE — params may not survive live trading ***")
+            for reason in fragile_reasons:
+                print(f"    - {reason}")
+
+            # Auto-test fallback: widen stop to safe minimum, keep same R:R
+            fallback_stop = max(bs, auto_min_stop_pct / 100)
+            fallback_target = fallback_stop * (bt / bs)  # preserve R:R ratio
+            if fallback_stop > bs:
+                print(f"\n  Testing fallback config: target={fallback_target*100:.2f}% "
+                      f"stop={fallback_stop*100:.2f}% (same {bt/bs:.1f}:1 R:R, live-safe stop)")
+                fr = run_quiet(target=fallback_target, stop=fallback_stop, rsi_os=br, vwap=bv)
+                if fr and "error" not in fr:
+                    fmo = fr["monthly_returns"]
+                    favg = fmo[fmo != 0].mean() * 100 if len(fmo[fmo != 0]) > 0 else 0
+                    print(f"  Fallback result: trades={fr['total_trades']} WR={fr['win_rate']*100:.1f}% "
+                          f"ret={fr['total_return']*100:+.2f}% Sharpe={fr['sharpe_ratio']:.1f} "
+                          f"DD={fr['max_drawdown']*100:.2f}% avg/mo={favg:+.2f}%")
+
+                    # Run robustness on fallback too
+                    fb_neg = 0
+                    fb_worst_ret = 999
+                    fb_worst_dd = 0
+                    for w_start, w_end in windows:
+                        df_window = df_raw.loc[w_start:w_end].copy()
+                        if len(df_window) < 50:
+                            continue
+                        try:
+                            with contextlib.redirect_stdout(io.StringIO()):
+                                fwr = run_backtest(
+                                    df=df_window,
+                                    initial_capital=config.INITIAL_CAPITAL,
+                                    target_gain_pct=fallback_target,
+                                    stop_loss_pct=fallback_stop,
+                                    require_signals=1,
+                                    kelly_multiplier=config.KELLY_MULTIPLIER,
+                                    timeframe="hourly",
+                                    plot=False,
+                                )
+                            if fwr and "error" not in fwr:
+                                if fwr["total_return"] < 0:
+                                    fb_neg += 1
+                                if fwr["total_return"] < fb_worst_ret:
+                                    fb_worst_ret = fwr["total_return"]
+                                if fwr["max_drawdown"] < fb_worst_dd:
+                                    fb_worst_dd = fwr["max_drawdown"]
+                        except Exception:
+                            continue
+
+                    print(f"  Fallback robustness: neg_windows={fb_neg}/{len(window_results)} "
+                          f"worst_ret={fb_worst_ret*100:+.2f}% worst_DD={fb_worst_dd*100:.2f}%")
+                    if fb_neg < neg_windows or fb_worst_ret > worst["return"]:
+                        print(f"  --> Fallback is MORE robust. Consider using fallback for live trading.")
+                    else:
+                        print(f"  --> Fallback is not better. Original params OK if slippage is managed.")
+        else:
+            print(f"\n  ✓ ROBUST — params survived all rolling windows with acceptable performance.")
+
+        # Store window results for JSON output
+        _phase3_results = {
+            "windows_tested": len(window_results),
+            "negative_windows": neg_windows,
+            "avg_window_return_pct": round(sum(returns) / len(returns) * 100, 2),
+            "worst_window": worst,
+            "best_window": best_window,
+            "fragile": fragile,
+            "fragile_reasons": fragile_reasons if fragile else [],
+        }
+    else:
+        print("  No valid windows — not enough data for robustness check.")
+        _phase3_results = None
+else:
+    _phase3_results = None
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 #  RESULTS SUMMARY
 # ═══════════════════════════════════════════════════════════════════════════
 restore()
@@ -486,6 +676,9 @@ if r and "error" not in r:
             "total_months": int(total_months),
         },
     }
+    if _phase3_results:
+        out["robustness"] = _phase3_results
+
     outfile = f"sweep_results_{TICKER}.json"
     with open(outfile, "w") as f:
         json.dump(out, f, indent=2)
