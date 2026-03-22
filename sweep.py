@@ -149,7 +149,7 @@ if len(df_raw) < 100:
 # Estimate bid-ask spread from price level, then set minimum stop = 5× spread.
 # This prevents the optimizer from recommending stops inside the bid-ask noise.
 
-median_price = df_raw["Close"].median()
+median_price = df_raw["close"].median()
 
 # Broker presets: spread estimates for liquid ETFs by broker
 _BROKER_SPREADS = {
