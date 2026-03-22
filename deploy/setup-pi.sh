@@ -45,11 +45,8 @@ fi
 source "$VENV_DIR/bin/activate"
 pip install --upgrade pip -q
 
-echo "  Installing backtest dependencies..."
-pip install -r "$REPO_DIR/requirements.txt" -q
-
 echo "  Installing live trading dependencies..."
-pip install -r "$REPO_DIR/requirements-live.txt" -q
+pip install -r "$REPO_DIR/requirements-pi.txt" -q
 
 # ── 3. Create data directories ──────────────────────────────────────
 echo ""
