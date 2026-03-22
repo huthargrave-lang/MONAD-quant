@@ -1,0 +1,27 @@
+[Unit]
+Description=MONAD Quant — Hourly ETF Live Trader (IBKR)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/MONAD-quant
+ExecStart=/home/pi/MONAD-quant/venv/bin/python -m live.trader --symbol TQQQ
+Restart=on-failure
+RestartSec=30
+# Restart up to 5 times within 5 minutes, then stop
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# Logging — systemd journal handles rotation automatically
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=monad-trader
+
+# Environment
+Environment=PYTHONUNBUFFERED=1
+Environment=TZ=America/New_York
+
+[Install]
+WantedBy=multi-user.target

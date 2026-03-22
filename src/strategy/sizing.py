@@ -26,18 +26,25 @@ def half_kelly(win_rate: float, avg_win: float, avg_loss: float) -> float:
     return kelly_fraction(win_rate, avg_win, avg_loss) * 0.5
 
 
-def compute_position_size(capital: float, 
-                           win_rate: float, 
-                           avg_win_pct: float, 
+def compute_position_size(capital: float,
+                           win_rate: float,
+                           avg_win_pct: float,
                            avg_loss_pct: float,
                            kelly_multiplier: float = 0.5,
-                           max_position_pct: float = 0.20) -> dict:
+                           max_position_pct: float = 0.20,
+                           min_position_pct: float = 0.0) -> dict:
     """
     Compute position size in dollars given account capital and historical stats.
-    Caps at max_position_pct of capital as a risk guardrail.
+    Caps at max_position_pct; floors at min_position_pct when Kelly > 0 so
+    a thin sample doesn't silently zero out all capital deployment.
+    min_position_pct is only applied when full Kelly is positive — if the
+    strategy has genuine negative edge, Kelly stays at 0 (don't override).
     """
     f = kelly_fraction(win_rate, avg_win_pct, avg_loss_pct)
     f_adjusted = f * kelly_multiplier
+    # Apply floor only when raw Kelly is positive (edge exists, sample just thin)
+    if f > 0:
+        f_adjusted = max(f_adjusted, min_position_pct)
     f_capped = min(f_adjusted, max_position_pct)
 
     position_dollars = capital * f_capped

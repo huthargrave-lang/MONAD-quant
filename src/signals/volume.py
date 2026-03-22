@@ -34,13 +34,13 @@ def compute_volume_sma_ratio(df: pd.DataFrame, window: int = 20) -> pd.Series:
     return df["volume"] / df["volume"].rolling(window).mean()
 
 
-def volume_signal(df: pd.DataFrame, zscore_threshold: float = 1.5) -> pd.Series:
+def volume_signal(df: pd.DataFrame, zscore_threshold: float = 1.5, window: int = 20) -> pd.Series:
     """
     Volume-based signal using VWAP z-score.
     Returns: 1 (long - price below VWAP), -1 (short - price above VWAP), 0 (neutral)
     """
-    zscore = compute_vwap_zscore(df)
-    vol_ratio = compute_volume_sma_ratio(df)
+    zscore = compute_vwap_zscore(df, window)
+    vol_ratio = compute_volume_sma_ratio(df, window)
 
     signal = pd.Series(0, index=df.index)
 
@@ -52,11 +52,13 @@ def volume_signal(df: pd.DataFrame, zscore_threshold: float = 1.5) -> pd.Series:
     return signal
 
 
-def add_volume_features(df: pd.DataFrame) -> pd.DataFrame:
+def add_volume_features(df: pd.DataFrame,
+                         window: int = 20,
+                         zscore_threshold: float = 1.5) -> pd.DataFrame:
     df = df.copy()
-    df["vwap"] = compute_vwap(df)
-    df["vwap_zscore"] = compute_vwap_zscore(df)
+    df["vwap"] = compute_vwap(df, window)
+    df["vwap_zscore"] = compute_vwap_zscore(df, window)
     df["obv"] = compute_obv(df)
-    df["vol_ratio"] = compute_volume_sma_ratio(df)
-    df["volume_signal"] = volume_signal(df)
+    df["vol_ratio"] = compute_volume_sma_ratio(df, window)
+    df["volume_signal"] = volume_signal(df, zscore_threshold=zscore_threshold, window=window)
     return df

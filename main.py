@@ -1,8 +1,12 @@
 """
 MONAD Quant - Main Entry Point
-Run: python main.py
+
+Run modes:
+  python main.py                      — standard backtest (default)
+  python main.py --mode=walk-forward  — walk-forward parameter optimization (OOS)
 """
 
+import argparse
 import config
 from src.data.fetcher import fetch_yfinance
 from src.backtest.runner import run_backtest
@@ -50,7 +54,6 @@ def main():
         plot=config.PLOT_RESULTS,
     )
 
-    return results
 
-
-
+if __name__ == "__main__":
+    main()
