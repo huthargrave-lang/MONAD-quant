@@ -221,6 +221,7 @@ def run_quiet(target, stop, rsi_os=None, vwap=None):
                 kelly_multiplier=config.KELLY_MULTIPLIER,
                 timeframe="hourly",
                 plot=False,
+                backtest_mode="optimistic",  # sweep uses optimistic for param comparison
             )
         return result if result else None
     except Exception as e:
@@ -470,6 +471,7 @@ if best["result"] and "error" not in best["result"]:
                     kelly_multiplier=config.KELLY_MULTIPLIER,
                     timeframe="hourly",
                     plot=False,
+                    backtest_mode="optimistic",
                 )
             if wr and "error" not in wr:
                 window_results.append({
@@ -565,6 +567,7 @@ if best["result"] and "error" not in best["result"]:
                                     kelly_multiplier=config.KELLY_MULTIPLIER,
                                     timeframe="hourly",
                                     plot=False,
+                                    backtest_mode="optimistic",
                                 )
                             if fwr and "error" not in fwr:
                                 if fwr["total_return"] < 0:

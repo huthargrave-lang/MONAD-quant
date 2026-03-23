@@ -346,6 +346,13 @@ MAX_POSITION_PCT = 0.20      # Never risk more than 20% per trade
 MIN_POSITION_PCT = 0.02      # Floor: deploy at least 2% when Kelly sample is thin
 PLOT_RESULTS     = True
 
+# ── Backtest fairness mode ─────────────────────────────────────────────
+# "optimistic" = legacy (no slippage, target wins ambiguity, full-sample Kelly)
+# "realistic"  = fair (2bps slippage, stop wins ambiguity, rolling Kelly)
+# "harsh"      = pessimistic (5bps slippage, stop wins, rolling Kelly)
+BACKTEST_MODE    = "realistic"
+BACKTEST_DEBUG   = False         # True = print per-trade detail (entry, exit, size, PnL)
+
 # ── Adaptive Kelly — signal quality detector ─────────────────────────────
 # Tracks rolling win rate over the last N trades and scales position size.
 # Key use case: BTC hourly bad months (33-37% WR) cluster — if the last 20

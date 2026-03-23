@@ -42,6 +42,8 @@ def main():
     print(f"Loaded {len(df)} bars for {config.ACTIVE_MODE} "
           f"({config.BACKTEST_START} → {config.BACKTEST_END})\n")
 
+    timeframe = "hourly" if interval == "1h" else "daily"
+
     results = run_backtest(
         df=df,
         initial_capital=config.INITIAL_CAPITAL,
@@ -51,7 +53,10 @@ def main():
         kelly_multiplier=config.KELLY_MULTIPLIER,
         bull_kelly_multiplier=config.BULL_KELLY_MULTIPLIER,
         trade_hours=trade_hours,
+        timeframe=timeframe,
         plot=config.PLOT_RESULTS,
+        backtest_mode=getattr(config, "BACKTEST_MODE", "realistic"),
+        debug=getattr(config, "BACKTEST_DEBUG", False),
     )
 
 

@@ -1,14 +1,49 @@
 """
 MONAD Quant - Backtest Runner
 Full backtest loop with equity curve and performance metrics.
+
+Fairness fixes (2026-03-23):
+  - Rolling Kelly: position sizing uses only past trades (no lookahead)
+  - Correct Sharpe: annualized by actual trade frequency, not hourly periods
+  - Same-bar ambiguity: worst-case rule (stop wins when both hit)
+  - Configurable slippage: deducted from every trade return
+  - Per-trade debug logging: shows entry, exit, size, slippage
+  - Backtest mode: optimistic / realistic / harsh
 """
 
 import pandas as pd
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")  # headless — no display required
 import matplotlib.pyplot as plt
 from collections import deque
 from src.strategy.engine import build_features, generate_trades, compute_trade_returns
 from src.strategy.sizing import estimate_stats_from_backtest, compute_position_size
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  BACKTEST MODES — preset fairness levels
+# ═══════════════════════════════════════════════════════════════════════════
+BACKTEST_MODES = {
+    "optimistic": {
+        "slippage_pct":          0.0,
+        "worst_case_ambiguity":  False,
+        "kelly_mode":            "full_sample",   # legacy: full-sample Kelly (lookahead)
+        "description":           "Legacy mode — no slippage, target wins ambiguity, full-sample Kelly",
+    },
+    "realistic": {
+        "slippage_pct":          0.0002,           # 2bps round-trip
+        "worst_case_ambiguity":  True,
+        "kelly_mode":            "rolling",        # rolling window Kelly (no lookahead)
+        "description":           "Fair mode — 2bps slippage, stop wins ambiguity, rolling Kelly",
+    },
+    "harsh": {
+        "slippage_pct":          0.0005,           # 5bps round-trip
+        "worst_case_ambiguity":  True,
+        "kelly_mode":            "rolling",
+        "description":           "Pessimistic — 5bps slippage, stop wins ambiguity, rolling Kelly",
+    },
+}
 
 
 def run_backtest(df: pd.DataFrame,
@@ -19,80 +54,175 @@ def run_backtest(df: pd.DataFrame,
                  kelly_multiplier: float = 0.5,
                  bull_kelly_multiplier: float = 0.75,
                  trade_hours: tuple = (8, 22),
-                 plot: bool = True) -> dict:
+                 timeframe: str = "daily",
+                 plot: bool = True,
+                 backtest_mode: str = "realistic",
+                 debug: bool = False) -> dict:
     """
     Run a full backtest on historical OHLCV data.
 
+    Args:
+        backtest_mode: "optimistic" | "realistic" | "harsh" — controls slippage,
+                       same-bar ambiguity, and Kelly sizing method.
+        debug: When True, prints per-trade detail (entry, exit, size, slippage).
+
     Returns a dict with performance metrics and equity curve.
     """
-    print("=" * 50)
-    print("  MONAD QUANT - BACKTEST ENGINE")
-    print("=" * 50)
-
-    # Build signals
-    print("[1/4] Building features and signals...")
     import config
+
+    mode_cfg = BACKTEST_MODES.get(backtest_mode, BACKTEST_MODES["realistic"])
+    slippage_pct = mode_cfg["slippage_pct"]
+    worst_case = mode_cfg["worst_case_ambiguity"]
+    kelly_mode = mode_cfg["kelly_mode"]
+
+    print("=" * 60)
+    print(f"  MONAD QUANT - BACKTEST ENGINE  [{backtest_mode.upper()}]")
+    print(f"  {mode_cfg['description']}")
+    print("=" * 60)
+
+    # ── 1. Build signals ──────────────────────────────────────────────────
+    print("[1/4] Building features and signals...")
     df_feat = build_features(df, timeframe=timeframe)
     use_regime = config.USE_REGIME_FILTER_HOURLY if timeframe == "hourly" else config.USE_REGIME_FILTER
-    # Slope regime uses 252-bar windows designed for daily bars (≈1 trading year).
-    # On hourly bars, 252 bars ≈ 10 trading days — wrong calibration, blocks valid signals.
-    # Disable for all hourly timeframes; signal quality is managed by RSI+VWAP alone.
     use_slope_regime = False if timeframe == "hourly" else getattr(config, "USE_SLOPE_REGIME", False)
     if getattr(config, "VERBOSE_SIGNALS", False):
         _print_signal_diagnostics(df_feat, require_signals, use_regime,
                                   getattr(config, "USE_MA_REGIME_FILTER", False),
                                   use_slope_regime=use_slope_regime)
+
+    max_trade_bars = getattr(config, "MAX_TRADE_BARS", 20)
     df_trades = generate_trades(df_feat,
                                 require_signals=require_signals,
                                 target_gain_pct=target_gain_pct,
                                 stop_loss_pct=stop_loss_pct,
                                 trade_hours=trade_hours)
 
-    # Compute individual trade returns (indexed by entry timestamp)
+    # ── 2. Simulate trades ────────────────────────────────────────────────
     print("[2/4] Simulating trades...")
-    trades_df = compute_trade_returns(df_trades, target_gain_pct, stop_loss_pct)
+    trades_df = compute_trade_returns(
+        df_trades,
+        target_gain_pct=target_gain_pct,
+        stop_loss_pct=stop_loss_pct,
+        max_trade_bars=max_trade_bars,
+        slippage_pct=slippage_pct,
+        worst_case_ambiguity=worst_case,
+    )
 
     if len(trades_df) == 0:
         print("No trades generated. Try loosening signal requirements.")
         return {}
 
     trade_returns = trades_df["return"]
+    trade_returns.index = pd.to_datetime(trades_df["timestamp"])
 
-    # Stats from backtest
+    # Exit type breakdown
+    if "exit_type" in trades_df.columns:
+        exit_counts = trades_df["exit_type"].value_counts()
+        exit_str = "  ".join(f"{k}={v}" for k, v in exit_counts.items())
+    else:
+        exit_str = ""
+
+    # Stats from all trades (for reporting only — NOT used for sizing in rolling mode)
     stats = estimate_stats_from_backtest(trade_returns)
     bull_trades = (trades_df["trend_regime"] == 1).sum()
     bear_trades = (trades_df["trend_regime"] == -1).sum()
-    print(f"       {stats['total_trades']} trades | Win rate: {stats['win_rate']*100:.1f}% | Bull: {bull_trades} Bear: {bear_trades}")
+    print(f"       {stats['total_trades']} trades | WR: {stats['win_rate']*100:.1f}% "
+          f"| Bull: {bull_trades} Bear: {bear_trades}")
+    if exit_str:
+        print(f"       Exits: {exit_str}")
+    if slippage_pct > 0:
+        print(f"       Slippage: {slippage_pct*100:.2f}% per trade ({slippage_pct*10000:.0f} bps)")
 
-    # Position sizing (base — bear/neutral regime)
-    sizing = compute_position_size(
-        capital=initial_capital,
-        win_rate=stats["win_rate"],
-        avg_win_pct=stats["avg_win_pct"],
-        avg_loss_pct=stats["avg_loss_pct"],
-        kelly_multiplier=kelly_multiplier,
-        min_position_pct=getattr(config, "MIN_POSITION_PCT", 0.0),
-    )
-    bull_sizing = compute_position_size(
-        capital=initial_capital,
-        win_rate=stats["win_rate"],
-        avg_win_pct=stats["avg_win_pct"],
-        avg_loss_pct=stats["avg_loss_pct"],
-        kelly_multiplier=bull_kelly_multiplier,
-    )
-
-    # Build equity curve with per-trade Kelly scaling
+    # ── 3. Build equity curve ─────────────────────────────────────────────
     print("[3/4] Computing equity curve...")
     capital = initial_capital
     equity_curve = [capital]
-    for _, trade in trades_df.iterrows():
+    trade_capital_returns = {}    # {timestamp: pct capital change}
+    rolling_returns = deque()     # rolling window for adaptive Kelly
+    min_trades_for_kelly = 10     # need at least N trades before Kelly kicks in
+
+    # Adaptive Kelly config
+    use_adaptive = getattr(config, "USE_ADAPTIVE_KELLY", False) and timeframe == "hourly"
+    ak_lookback  = getattr(config, "ADAPTIVE_KELLY_LOOKBACK", 20)
+    ak_high_wr   = getattr(config, "ADAPTIVE_KELLY_HIGH_WR", 0.52)
+    ak_low_wr    = getattr(config, "ADAPTIVE_KELLY_LOW_WR", 0.42)
+    ak_pause_wr  = getattr(config, "ADAPTIVE_KELLY_PAUSE_WR", 0.35)
+    ak_high_mult = getattr(config, "ADAPTIVE_KELLY_HIGH_MULT", 1.5)
+    ak_low_mult  = getattr(config, "ADAPTIVE_KELLY_LOW_MULT", 0.5)
+    ak_pause_mult= getattr(config, "ADAPTIVE_KELLY_PAUSE_MULT", 0.2)
+    ak_high_cap  = getattr(config, "ADAPTIVE_KELLY_HIGH_CAP", 0.30)
+    max_pos_pct  = getattr(config, "MAX_POSITION_PCT", 0.20)
+    min_pos_pct  = getattr(config, "MIN_POSITION_PCT", 0.02)
+
+    if debug:
+        print(f"\n  {'#':>4}  {'Timestamp':<20} {'Dir':>4} {'Entry$':>9} {'Return':>8} "
+              f"{'Exit':>11} {'Kelly%':>7} {'Pos$':>10} {'PnL$':>9} {'Capital$':>11}")
+        print("  " + "-" * 110)
+
+    for i, (_, trade) in enumerate(trades_df.iterrows()):
         r = trade["return"]
-        kelly_capped = bull_sizing["kelly_capped"] if trade["trend_regime"] == 1 else sizing["kelly_capped"]
+        ts = trade["timestamp"]
+        direction = "LONG" if trade.get("trend_regime", 0) >= 0 else "SHORT"
+        exit_type = trade.get("exit_type", "?")
+
+        # ── Compute Kelly from PAST trades only (rolling mode) ────────
+        if kelly_mode == "rolling" and len(rolling_returns) >= min_trades_for_kelly:
+            past = pd.Series(list(rolling_returns))
+            past_stats = estimate_stats_from_backtest(past)
+            base_sizing = compute_position_size(
+                capital=capital,
+                win_rate=past_stats["win_rate"],
+                avg_win_pct=past_stats["avg_win_pct"],
+                avg_loss_pct=past_stats["avg_loss_pct"],
+                kelly_multiplier=kelly_multiplier,
+                min_position_pct=min_pos_pct,
+                max_position_pct=max_pos_pct,
+            )
+            kelly_capped = base_sizing["kelly_capped"]
+        elif kelly_mode == "rolling" and len(rolling_returns) < min_trades_for_kelly:
+            # Not enough history — use conservative fixed size
+            kelly_capped = min_pos_pct
+        else:
+            # Full-sample mode (legacy/optimistic)
+            sizing_legacy = compute_position_size(
+                capital=capital,
+                win_rate=stats["win_rate"],
+                avg_win_pct=stats["avg_win_pct"],
+                avg_loss_pct=stats["avg_loss_pct"],
+                kelly_multiplier=kelly_multiplier,
+                min_position_pct=min_pos_pct,
+                max_position_pct=max_pos_pct,
+            )
+            kelly_capped = sizing_legacy["kelly_capped"]
+
+        # ── Adaptive Kelly multiplier (rolling WR tiers) ──────────────
+        if use_adaptive and len(rolling_returns) >= ak_lookback:
+            recent = list(rolling_returns)[-ak_lookback:]
+            recent_wr = sum(1 for x in recent if x > 0) / len(recent)
+            if recent_wr >= ak_high_wr:
+                kelly_capped = min(kelly_capped * ak_high_mult, ak_high_cap)
+            elif recent_wr < ak_pause_wr:
+                kelly_capped *= ak_pause_mult
+            elif recent_wr < ak_low_wr:
+                kelly_capped *= ak_low_mult
+
         position = capital * kelly_capped
-        capital += position * r
+        pnl = position * r
+        capital += pnl
         equity_curve.append(capital)
-        trade_capital_returns[idx] = pct_change        # actual % capital move this trade
-        recent_outcomes.append(1 if r > 0 else 0)     # update rolling window after trade
+
+        # Track capital return for this trade
+        pct_change = pnl / (capital - pnl) if (capital - pnl) != 0 else 0
+        trade_capital_returns[ts] = pct_change
+
+        # Update rolling window AFTER using it (no lookahead)
+        rolling_returns.append(r)
+
+        if debug:
+            entry_price = 0  # not available in trades_df, but exit_type tells the story
+            print(f"  {i+1:>4}  {str(ts):<20} {direction:>4} {'':>9} {r*100:>+7.3f}% "
+                  f"{exit_type:>11} {kelly_capped*100:>6.2f}% {position:>10,.0f} "
+                  f"{pnl:>+9,.0f} {capital:>11,.0f}")
 
     equity = pd.Series(equity_curve)
 
@@ -100,26 +230,25 @@ def run_backtest(df: pd.DataFrame,
     bh_return = (df["close"].iloc[-1] - df["close"].iloc[0]) / df["close"].iloc[0]
     bh_final = initial_capital * (1 + bh_return)
 
-    # Performance metrics
+    # ── Performance metrics ───────────────────────────────────────────────
     total_return = (equity.iloc[-1] - initial_capital) / initial_capital
     trade_pnl = equity.pct_change().dropna()
 
-    # Annualize Sharpe based on timeframe
-    periods_per_year = 252 * 24 if timeframe == "hourly" else 252
-    sharpe = (trade_pnl.mean() / trade_pnl.std()) * np.sqrt(periods_per_year) if trade_pnl.std() > 0 else 0
+    # Sharpe: annualize by actual trade frequency, NOT hourly periods
+    n_days = (df.index[-1] - df.index[0]).days
+    years = n_days / 365.25 if n_days > 0 else 1
+    trades_per_year = stats["total_trades"] / years if years > 0 else stats["total_trades"]
+    sharpe = (trade_pnl.mean() / trade_pnl.std()) * np.sqrt(trades_per_year) if trade_pnl.std() > 0 else 0
 
     rolling_max = equity.cummax()
     drawdown = (equity - rolling_max) / rolling_max
     max_drawdown = drawdown.min()
 
     # Annualized return
-    n_days = (df.index[-1] - df.index[0]).days
-    years = n_days / 365.25
     ann_return = (1 + total_return) ** (1 / years) - 1 if years > 0 else total_return
     bh_ann_return = (1 + bh_return) ** (1 / years) - 1 if years > 0 else bh_return
 
-    # Monthly "dividend" breakdown — use actual per-trade capital returns from equity loop
-    # (trade_capital_returns reflects actual kelly sizing including adaptive adjustments)
+    # Monthly breakdown using actual per-trade capital returns
     capital_ret_series = pd.Series(trade_capital_returns, dtype=float)
     capital_ret_series.index = pd.to_datetime(capital_ret_series.index)
     monthly_returns = capital_ret_series.resample("ME").apply(
@@ -141,23 +270,27 @@ def run_backtest(df: pd.DataFrame,
         "sharpe_ratio":    round(sharpe, 3),
         "max_drawdown":    round(max_drawdown, 4),
         "final_capital":   round(equity.iloc[-1], 2),
-        "kelly_position":  sizing,
-        "bull_kelly_position": bull_sizing,
         "equity_curve":    equity,
         "trade_returns":   trade_returns,
         "trades_df":       trades_df,
+        "monthly_returns": monthly_returns,
+        "backtest_mode":   backtest_mode,
+        "slippage_pct":    slippage_pct,
+        "trades_per_year": round(trades_per_year, 1),
     }
 
     # Print summary
-    print("[4/4] Results:")
+    print(f"\n[4/4] Results [{backtest_mode.upper()}]:")
     print(f"       Total Return:   {total_return*100:.2f}%")
     print(f"       Annualized:     {ann_return*100:.2f}%")
-    print(f"       Sharpe Ratio:   {sharpe:.3f}")
+    print(f"       Sharpe Ratio:   {sharpe:.3f}  (annualized by {trades_per_year:.0f} trades/yr)")
     print(f"       Max Drawdown:   {max_drawdown*100:.2f}%")
     print(f"       Final Capital:  ${equity.iloc[-1]:,.2f}")
-    print(f"       Kelly (bear):   {sizing['position_pct']}% (${sizing['position_dollars']:,.2f})")
-    print(f"       Kelly (bull):   {bull_sizing['position_pct']}% (${bull_sizing['position_dollars']:,.2f})")
-    print("=" * 50)
+    if kelly_mode == "rolling":
+        print(f"       Kelly Mode:     Rolling (min {min_trades_for_kelly} trades warmup)")
+    else:
+        print(f"       Kelly Mode:     Full-sample (LOOKAHEAD — use realistic mode)")
+    print("=" * 60)
 
     # Monthly dividend table
     print("\n  Monthly 'Dividend' Schedule:")
@@ -166,20 +299,46 @@ def run_backtest(df: pd.DataFrame,
     print("  " + "-" * 44)
     for month in monthly_returns.index:
         ret = monthly_returns[month]
-        count = monthly_counts[month]
-        wr = monthly_wr[month]
+        count = monthly_counts.get(month, 0)
+        wr = monthly_wr.get(month, 0)
         if count > 0:
-            tag = " ✓" if ret >= 0.005 else ""
-            print(f"  {month.strftime('%Y-%m'):<12} {ret*100:>+7.2f}%  {count:>7}  {wr*100:>8.1f}%{tag}")
+            print(f"  {month.strftime('%Y-%m'):<12} {ret*100:>+7.2f}%  {count:>7}  {wr*100:>8.1f}%")
     avg_monthly = monthly_returns[monthly_returns != 0].mean()
+    neg_months = (monthly_returns[monthly_returns != 0] < 0).sum()
+    total_months = (monthly_returns != 0).sum()
     print("  " + "-" * 44)
     print(f"  {'Avg Monthly':<12} {avg_monthly*100:>+7.2f}%")
+    print(f"  Negative months: {neg_months}/{total_months}")
     print()
 
     if plot:
         _plot_results(equity, drawdown, trade_returns, trades_df, df_trades, initial_capital)
 
     return results
+
+
+def _print_signal_diagnostics(df, require_signals, use_regime,
+                               use_ma_regime_filter, use_slope_regime=False):
+    """Print per-filter bar counts for signal debugging."""
+    total_bars = len(df)
+    mom_long  = (df["momentum_signal"] == 1).sum()
+    mom_short = (df["momentum_signal"] == -1).sum()
+    vol_long  = (df["volume_signal"] == 1).sum()
+    vol_short = (df["volume_signal"] == -1).sum()
+
+    print(f"  Signal diagnostics ({total_bars} bars):")
+    print(f"    momentum_signal: long={mom_long} short={mom_short}")
+    print(f"    volume_signal:   long={vol_long} short={vol_short}")
+
+    vote = df["momentum_signal"] + df["volume_signal"]
+    vote_long  = (vote >= require_signals).sum()
+    vote_short = (vote <= -require_signals).sum()
+    print(f"    signal_vote >= {require_signals}: {vote_long}")
+    print(f"    signal_vote <= -{require_signals}: {vote_short}")
+
+    if "entry_signal" in df.columns:
+        entries = (df["entry_signal"] != 0).sum()
+        print(f"    entry_signal (after all filters): {entries}")
 
 
 def _plot_results(equity, drawdown, trade_returns, trades_df, df_price, initial_capital):
@@ -192,14 +351,14 @@ def _plot_results(equity, drawdown, trade_returns, trades_df, df_price, initial_
     WHITE   = "#e0e0e0"
 
     fig = plt.figure(figsize=(14, 11), facecolor=BG)
-    fig.suptitle("MONAD Quant — BTC Backtest", fontsize=15, fontweight="bold", color=WHITE, y=0.98)
+    fig.suptitle("MONAD Quant — Backtest", fontsize=15, fontweight="bold", color=WHITE, y=0.98)
 
     gs = fig.add_gridspec(3, 2, hspace=0.45, wspace=0.35,
                           left=0.07, right=0.97, top=0.93, bottom=0.07)
-    ax_main   = fig.add_subplot(gs[0, :])   # full-width top: equity comparison
-    ax_dd     = fig.add_subplot(gs[1, :])   # full-width mid: drawdown comparison
-    ax_monthly = fig.add_subplot(gs[2, 0])  # bottom-left: monthly P&L
-    ax_dist   = fig.add_subplot(gs[2, 1])   # bottom-right: win/loss distribution
+    ax_main   = fig.add_subplot(gs[0, :])
+    ax_dd     = fig.add_subplot(gs[1, :])
+    ax_monthly = fig.add_subplot(gs[2, 0])
+    ax_dist   = fig.add_subplot(gs[2, 1])
 
     for ax in [ax_main, ax_dd, ax_monthly, ax_dist]:
         ax.set_facecolor(BG)
@@ -208,11 +367,11 @@ def _plot_results(equity, drawdown, trade_returns, trades_df, df_price, initial_
         for spine in ax.spines.values():
             spine.set_edgecolor(GRID)
 
-    # ── Buy & Hold equity curve (time-indexed) ────────────────────────────────
+    # Buy & Hold equity curve
     first_price = df_price["close"].iloc[0]
     bh_equity = initial_capital * (df_price["close"] / first_price)
 
-    # ── Model equity curve (time-indexed via trade timestamps) ────────────────
+    # Model equity curve (time-indexed via trade timestamps)
     if "timestamp" in trades_df.columns:
         model_ts = pd.Series(equity.values[1:], index=pd.to_datetime(trades_df["timestamp"]))
         model_ts = pd.concat([pd.Series([initial_capital], index=[df_price.index[0]]), model_ts])
@@ -221,7 +380,6 @@ def _plot_results(equity, drawdown, trade_returns, trades_df, df_price, initial_
     else:
         model_full = pd.Series(equity.values, index=df_price.index[:len(equity)])
 
-    # Panel 1: equity comparison
     ax_main.plot(bh_equity.index, bh_equity.values, color=BH, linewidth=1.2,
                  label="Buy & Hold", alpha=0.85)
     ax_main.plot(model_full.index, model_full.values, color=MODEL, linewidth=1.4,
@@ -235,7 +393,7 @@ def _plot_results(equity, drawdown, trade_returns, trades_df, df_price, initial_
     leg = ax_main.legend(fontsize=8, framealpha=0.2, labelcolor=WHITE)
     leg.get_frame().set_facecolor(BG)
 
-    # Panel 2: drawdown comparison
+    # Drawdown comparison
     bh_roll_max = bh_equity.cummax()
     bh_dd = (bh_equity - bh_roll_max) / bh_roll_max
 
@@ -249,7 +407,7 @@ def _plot_results(equity, drawdown, trade_returns, trades_df, df_price, initial_
     leg2 = ax_dd.legend(fontsize=8, framealpha=0.2, labelcolor=WHITE)
     leg2.get_frame().set_facecolor(BG)
 
-    # Panel 3: monthly P&L bar chart
+    # Monthly P&L
     if "timestamp" in trades_df.columns:
         monthly = (trades_df.set_index(pd.to_datetime(trades_df["timestamp"]))["return"]
                    .resample("ME").sum() * 100)
@@ -260,7 +418,7 @@ def _plot_results(equity, drawdown, trade_returns, trades_df, df_price, initial_
     ax_monthly.set_ylabel("Return (%)", color=WHITE, fontsize=8)
     ax_monthly.tick_params(axis="x", rotation=45)
 
-    # Panel 4: win/loss distribution
+    # Win/loss distribution
     wins  = trade_returns[trade_returns > 0] * 100
     losses = trade_returns[trade_returns < 0] * 100
     ax_dist.hist(wins,   bins=20, color=GREEN, alpha=0.75, label=f"Wins ({len(wins)})",   edgecolor=BG)
@@ -273,5 +431,5 @@ def _plot_results(equity, drawdown, trade_returns, trades_df, df_price, initial_
     leg3.get_frame().set_facecolor(BG)
 
     plt.savefig("backtest_results.png", dpi=150, bbox_inches="tight", facecolor=BG)
-    print("       Chart saved → backtest_results.png")
-    plt.show()
+    print("       Chart saved -> backtest_results.png")
+    plt.close(fig)
