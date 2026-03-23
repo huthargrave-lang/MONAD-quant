@@ -108,7 +108,7 @@ config._MODE_TO_ASSET[MODE_NAME] = MODE_NAME
 # ═══════════════════════════════════════════════════════════════════════════
 #  DATA LOADING
 # ═══════════════════════════════════════════════════════════════════════════
-from src.data.fetcher import _ensure_cache_dir, _cache_path, _cache_is_fresh, _fetch_hourly
+from src.data.fetcher import _ensure_cache_dir, _cache_path, _cache_is_fresh, fetch_yfinance
 from src.backtest.runner import run_backtest
 import pandas as pd
 
@@ -124,8 +124,7 @@ def fetch_ticker_hourly(ticker, start, end):
             print(f"[cache] Loading {ticker} hourly from cache ({len(df)} bars)")
             return df.loc[start:end]
 
-    print(f"[yfinance] Fetching {ticker} hourly from {start} to {end}...")
-    df = _fetch_hourly(ticker, start, end)
+    df = fetch_yfinance(symbol=ticker, start=start, end=end, interval="1h")
     df = df.between_time("09:30", "16:00")
     df.to_csv(cache_file)
     print(f"[cache] Saved {ticker} hourly to {cache_file} ({len(df)} bars)")
@@ -178,9 +177,10 @@ if args.spread is not None:
 else:
     est_spread = _estimate_spread(median_price, args.broker)
 
-# Safe stop = 5× spread as % of price (round-trip: entry slippage + exit slippage)
-# Floor at 0.10% to prevent absurdly tight stops on high-priced tickers
-auto_min_stop_pct = max(0.10, (5 * est_spread / median_price) * 100)
+# Safe stop = 5x spread as % of price (round-trip: entry slippage + exit slippage)
+# Floor at 0.15% — stops below this create same-bar ambiguity on hourly bars
+# (both stop and target fit inside one bar's range, making the result random)
+auto_min_stop_pct = max(0.15, (5 * est_spread / median_price) * 100)
 
 if args.min_stop is not None:
     if args.min_stop == 0:
