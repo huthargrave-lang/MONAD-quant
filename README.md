@@ -211,6 +211,13 @@ The live trader uses the same signal logic as the backtester (`src/signals/`) to
 compute RSI, MACD, and VWAP signals on the latest hourly bar, then routes through
 the same entry/exit rules. Paper vs live mode is controlled by `config.LIVE_PAPER_MODE`.
 
+**Sizing:** Live trading uses a fixed 10% position size (not Kelly). The backtest
+Kelly sizing is intentionally disabled in the live path to avoid compounding
+estimation error from a small live trade sample. See `live/state.py:get_position_plan()`.
+
+**Dry-run mode:** Use `--dry-run` to compute signals and log hypothetical trades
+without placing any orders — useful for verifying deployment before going live.
+
 ### Raspberry Pi Deployment
 
 For always-on headless operation, the strategy can be deployed to a Raspberry Pi
