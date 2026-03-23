@@ -356,7 +356,7 @@ BACKTEST_DEBUG   = False         # True = print per-trade detail (entry, exit, s
 # "fixed"  = fixed percentage per trade (recommended for live + validation)
 # "kelly_clamped" = Kelly but clamped to [2%, 10%] (safe Kelly)
 POSITION_SIZING_MODE = "fixed"       # "kelly" | "fixed" | "kelly_clamped"
-FIXED_POSITION_PCT   = 0.08          # 8% per trade (used when POSITION_SIZING_MODE="fixed")
+FIXED_POSITION_PCT   = 0.10          # 10% per trade (used when POSITION_SIZING_MODE="fixed")
 KELLY_CLAMP_MIN      = 0.02          # 2% floor (used when POSITION_SIZING_MODE="kelly_clamped")
 KELLY_CLAMP_MAX      = 0.10          # 10% cap (used when POSITION_SIZING_MODE="kelly_clamped")
 
