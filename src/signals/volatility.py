@@ -60,16 +60,50 @@ def trend_direction(df: pd.DataFrame, period: int = 200) -> pd.Series:
     return direction
 
 
-def add_volatility_features(df: pd.DataFrame, trend_sma_period: int = 200) -> pd.DataFrame:
+def compute_adx(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    """Average Directional Index — trend strength indicator."""
+    high = df["high"]
+    low = df["low"]
+    close = df["close"]
+
+    plus_dm = high.diff()
+    minus_dm = -low.diff()
+    plus_dm = plus_dm.where((plus_dm > minus_dm) & (plus_dm > 0), 0.0)
+    minus_dm = minus_dm.where((minus_dm > plus_dm) & (minus_dm > 0), 0.0)
+
+    atr = compute_atr(df, period=period)
+    plus_di = 100 * (plus_dm.ewm(span=period, adjust=False).mean() / atr)
+    minus_di = 100 * (minus_dm.ewm(span=period, adjust=False).mean() / atr)
+
+    dx = (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan) * 100
+    adx = dx.ewm(span=period, adjust=False).mean()
+    return adx
+
+
+def add_volatility_features(
+    df: pd.DataFrame,
+    window: int = 20,
+    trend_sma_period: int = 200,
+    adx_period: int = 14,
+    adx_weak_thresh: int = 20,
+    adx_strong_thresh: int = 35,
+) -> pd.DataFrame:
     df = df.copy()
     df["atr"] = compute_atr(df)
     df["atr_pct"] = df["atr"] / df["close"]  # normalized ATR
-    upper, mid, lower = compute_bollinger_bands(df["close"])
+    upper, mid, lower = compute_bollinger_bands(df["close"], window=window)
     df["bb_upper"] = upper
     df["bb_mid"] = mid
     df["bb_lower"] = lower
-    df["bb_width"] = compute_bb_width(df["close"])
-    df["bb_position"] = compute_bb_position(df["close"])
-    df["vol_regime"] = volatility_regime(df)
+    df["bb_width"] = compute_bb_width(df["close"], window=window)
+    df["bb_position"] = compute_bb_position(df["close"], window=window)
+    df["vol_regime"] = volatility_regime(df, window=window)
     df["trend_direction"] = trend_direction(df, period=trend_sma_period)
+
+    # ADX — trend strength for position sizing
+    df["adx"] = compute_adx(df, period=adx_period)
+    df["adx_kelly_mult"] = 1.0
+    df.loc[df["adx"] < adx_weak_thresh, "adx_kelly_mult"] = 0.8
+    df.loc[df["adx"] > adx_strong_thresh, "adx_kelly_mult"] = 1.2
+
     return df
