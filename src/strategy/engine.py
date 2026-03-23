@@ -172,14 +172,37 @@ def generate_trades(df: pd.DataFrame,
 
 def compute_trade_returns(df: pd.DataFrame,
                            target_gain_pct: float = 0.015,
-                           stop_loss_pct: float = 0.01) -> pd.DataFrame:
+                           stop_loss_pct: float = 0.01,
+                           max_trade_bars: int = 20,
+                           slippage_pct: float = 0.0,
+                           worst_case_ambiguity: bool = False,
+                           target_overrides: dict = None,
+                           stop_overrides: dict = None,
+                           bar_limit_overrides: dict = None) -> pd.DataFrame:
     """
     Simulate next-bar trade outcomes for backtesting.
-    Returns a DataFrame with columns: timestamp, return, trend_regime (1=bull, -1=bear).
+
+    Args:
+        df: Feature DataFrame with entry_signal column
+        target_gain_pct: Default target gain percentage
+        stop_loss_pct: Default stop loss percentage
+        max_trade_bars: Maximum bars to hold before time exit
+        slippage_pct: Round-trip slippage as decimal (e.g. 0.0004 = 4bps).
+                      Deducted from every trade return (wins shrink, losses grow).
+        worst_case_ambiguity: When True, if both stop and target are inside the
+                              same bar's range, assume the stop was hit (pessimistic).
+                              When False, assume target was hit (optimistic/legacy).
+        target_overrides: Dict of {timestamp: target_pct} for per-trade targets
+        stop_overrides: Dict of {timestamp: stop_pct} for per-trade stops
+        bar_limit_overrides: Dict of {timestamp: max_bars} for per-trade bar limits
+
+    Returns:
+        DataFrame with columns: timestamp, return, trend_regime, exit_type
     """
     trade_returns = []
     trade_regimes = []
     trade_timestamps = []
+    trade_exit_types = []
     entries = df[df["entry_signal"] != 0]
 
     for i, (idx, row) in enumerate(entries.iterrows()):
@@ -202,23 +225,31 @@ def compute_trade_returns(df: pd.DataFrame,
 
         for _, bar in future.iterrows():
             if direction == 1:
-                if bar["high"] >= entry_price * (1 + target):
-                    exit_return = target
-                    exit_type   = "target_hit"
-                    break
-                elif bar["low"] <= entry_price * (1 - stop):
-                    exit_return = -stop
-                    exit_type   = "stop_hit"
-                    break
+                target_hit = bar["high"] >= entry_price * (1 + target)
+                stop_hit   = bar["low"]  <= entry_price * (1 - stop)
             elif direction == -1:
-                if bar["low"] <= entry_price * (1 - target):
-                    exit_return = target
-                    exit_type   = "target_hit"
-                    break
-                elif bar["high"] >= entry_price * (1 + stop):
+                target_hit = bar["low"]  <= entry_price * (1 - target)
+                stop_hit   = bar["high"] >= entry_price * (1 + stop)
+            else:
+                continue
+
+            if target_hit and stop_hit:
+                # Same-bar ambiguity: both levels inside this bar's range
+                if worst_case_ambiguity:
                     exit_return = -stop
                     exit_type   = "stop_hit"
-                    break
+                else:
+                    exit_return = target
+                    exit_type   = "target_hit"
+                break
+            elif target_hit:
+                exit_return = target
+                exit_type   = "target_hit"
+                break
+            elif stop_hit:
+                exit_return = -stop
+                exit_type   = "stop_hit"
+                break
 
         # If no target/stop hit, use close of last future bar
         if exit_return is None and len(future) > 0:
@@ -227,8 +258,16 @@ def compute_trade_returns(df: pd.DataFrame,
             exit_type   = "time_exit"
 
         if exit_return is not None:
+            # Apply slippage: deduct from return (shrinks wins, enlarges losses)
+            exit_return -= slippage_pct
             trade_returns.append(exit_return)
             trade_regimes.append(regime)
             trade_timestamps.append(idx)
+            trade_exit_types.append(exit_type)
 
-    return pd.DataFrame({"timestamp": trade_timestamps, "return": trade_returns, "trend_regime": trade_regimes})
+    return pd.DataFrame({
+        "timestamp": trade_timestamps,
+        "return": trade_returns,
+        "trend_regime": trade_regimes,
+        "exit_type": trade_exit_types,
+    })

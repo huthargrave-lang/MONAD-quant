@@ -49,6 +49,8 @@ parser.add_argument("--broker", default=None, choices=["ibkr", "schwab", "fideli
                     help="Broker preset for spread/fee estimates (default: conservative retail)")
 parser.add_argument("--apply", action="store_true",
                     help="Auto-apply optimal params to config.py without prompting")
+parser.add_argument("--mode", default="realistic", choices=["optimistic", "realistic", "harsh"],
+                    help="Backtest fairness mode (default: realistic)")
 args = parser.parse_args()
 
 TICKER = args.ticker.upper()
@@ -108,7 +110,7 @@ config._MODE_TO_ASSET[MODE_NAME] = MODE_NAME
 # ═══════════════════════════════════════════════════════════════════════════
 #  DATA LOADING
 # ═══════════════════════════════════════════════════════════════════════════
-from src.data.fetcher import _ensure_cache_dir, _cache_path, _cache_is_fresh, _fetch_hourly
+from src.data.fetcher import _ensure_cache_dir, _cache_path, _cache_is_fresh, fetch_yfinance
 from src.backtest.runner import run_backtest
 import pandas as pd
 
@@ -124,8 +126,7 @@ def fetch_ticker_hourly(ticker, start, end):
             print(f"[cache] Loading {ticker} hourly from cache ({len(df)} bars)")
             return df.loc[start:end]
 
-    print(f"[yfinance] Fetching {ticker} hourly from {start} to {end}...")
-    df = _fetch_hourly(ticker, start, end)
+    df = fetch_yfinance(symbol=ticker, start=start, end=end, interval="1h")
     df = df.between_time("09:30", "16:00")
     df.to_csv(cache_file)
     print(f"[cache] Saved {ticker} hourly to {cache_file} ({len(df)} bars)")
@@ -133,7 +134,7 @@ def fetch_ticker_hourly(ticker, start, end):
 
 
 print(f"\n{'='*70}")
-print(f"  MONAD QUANT — UNIVERSAL SWEEP: {TICKER}")
+print(f"  MONAD QUANT — UNIVERSAL SWEEP: {TICKER}  [{args.mode.upper()}]")
 print(f"  Period: {START_DATE} → {END_DATE}")
 print(f"{'='*70}\n")
 
@@ -178,9 +179,10 @@ if args.spread is not None:
 else:
     est_spread = _estimate_spread(median_price, args.broker)
 
-# Safe stop = 5× spread as % of price (round-trip: entry slippage + exit slippage)
-# Floor at 0.10% to prevent absurdly tight stops on high-priced tickers
-auto_min_stop_pct = max(0.10, (5 * est_spread / median_price) * 100)
+# Safe stop = 5x spread as % of price (round-trip: entry slippage + exit slippage)
+# Floor at 0.15% — stops below this create same-bar ambiguity on hourly bars
+# (both stop and target fit inside one bar's range, making the result random)
+auto_min_stop_pct = max(0.15, (5 * est_spread / median_price) * 100)
 
 if args.min_stop is not None:
     if args.min_stop == 0:
@@ -221,6 +223,7 @@ def run_quiet(target, stop, rsi_os=None, vwap=None):
                 kelly_multiplier=config.KELLY_MULTIPLIER,
                 timeframe="hourly",
                 plot=False,
+                backtest_mode=args.mode,
             )
         return result if result else None
     except Exception as e:
@@ -470,6 +473,7 @@ if best["result"] and "error" not in best["result"]:
                     kelly_multiplier=config.KELLY_MULTIPLIER,
                     timeframe="hourly",
                     plot=False,
+                    backtest_mode=args.mode,
                 )
             if wr and "error" not in wr:
                 window_results.append({
@@ -565,6 +569,7 @@ if best["result"] and "error" not in best["result"]:
                                     kelly_multiplier=config.KELLY_MULTIPLIER,
                                     timeframe="hourly",
                                     plot=False,
+                                    backtest_mode=args.mode,
                                 )
                             if fwr and "error" not in fwr:
                                 if fwr["total_return"] < 0:

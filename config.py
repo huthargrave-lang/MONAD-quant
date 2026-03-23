@@ -9,7 +9,7 @@ All other parameters are pre-tuned for their respective mode.
 #  ACTIVE MODE — the only line you normally need to change
 #  Options: "BTC_DAILY" | "BTC_HOURLY" | "QQQ" | "QQQ_HOURLY" | "TQQQ_HOURLY" | "GDXU_HOURLY" | "SOXL_HOURLY" | "LABU_HOURLY" | "TNA_HOURLY"
 # ═══════════════════════════════════════════════════════════════════════════
-ACTIVE_MODE = "GDXU_HOURLY"
+ACTIVE_MODE = "TQQQ_HOURLY"
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  BACKTEST DATE RANGES — edit here, one place for all BTC windows
@@ -28,8 +28,8 @@ BACKTEST_END   = "2024-12-31"
 # BACKTEST_START_HOURLY = "2024-03-15";  BACKTEST_END_HOURLY = "2026-02-15"  # 2yr baseline
 # BACKTEST_START_HOURLY = "2025-01-01";  BACKTEST_END_HOURLY = "2026-03-01"  # 2025–present
 # BACKTEST_START_HOURLY = "2024-06-01";  BACKTEST_END_HOURLY = "2026-03-01"  # 21mo recent
-BACKTEST_START_HOURLY = "2019-01-01"
-BACKTEST_END_HOURLY   = "2026-01-01"
+BACKTEST_START_HOURLY = "2024-04-01"   # yfinance hourly limit = 730 days
+BACKTEST_END_HOURLY   = "2026-03-01"
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  PROFILE 1 — BTC DAILY
@@ -208,35 +208,33 @@ BACKTEST_END_QQQ_HOURLY   = "2026-03-01"
 # ═══════════════════════════════════════════════════════════════════════════
 
 RSI_PERIOD_TQQQ_HOURLY         = 7
-RSI_OVERSOLD_TQQQ_HOURLY       = 68    # Live-safe sweep optimal (1.8:1 R:R)
+RSI_OVERSOLD_TQQQ_HOURLY       = 70    # Realistic sweep optimal (1.9:1 R:R)
 RSI_OVERBOUGHT_TQQQ_HOURLY     = 62
 MACD_FAST_TQQQ_HOURLY          = 6     # DEAD LEVER (confirmed: same as QQQ/BTC hourly)
 MACD_SLOW_TQQQ_HOURLY          = 13
 MACD_SIGNAL_TQQQ_HOURLY        = 4
 VWAP_WINDOW_TQQQ_HOURLY        = 10
-VWAP_ZSCORE_THRESH_TQQQ_HOURLY = 0.6   # Sweep optimal (dead lever — 0.3-0.6 nearly identical)
+VWAP_ZSCORE_THRESH_TQQQ_HOURLY = 0.5   # Sweep optimal (dead lever — 0.3-0.6 nearly identical)
 BB_WINDOW_TQQQ_HOURLY          = 14
-TARGET_GAIN_PCT_TQQQ_HOURLY    = 0.0072 # 0.72% target — live-safe; 1.8:1 R:R
-STOP_LOSS_PCT_TQQQ_HOURLY      = 0.0040 # 0.40% stop — Sharpe 39.0, DD -0.85%, WR 60.4%
-# Previous ultra-tight config (higher Sharpe but near bid-ask spread):
-# TARGET_GAIN_PCT_TQQQ_HOURLY  = 0.0042  # 0.42% target, 5.6:1 R:R
-# STOP_LOSS_PCT_TQQQ_HOURLY    = 0.0008  # 0.08% stop — Sharpe 94.2, DD -0.13%, WR 70.9%
+TARGET_GAIN_PCT_TQQQ_HOURLY    = 0.0280 # 2.80% target — realistic sweep optimal; 1.9:1 R:R
+STOP_LOSS_PCT_TQQQ_HOURLY      = 0.0150 # 1.50% stop — Sharpe 3.7, DD -3.85%, WR 55.9%, +1.77%/mo
+# Previous configs (pre-realistic-backtest fixes — inflated by same-bar ambiguity bias):
+# TARGET_GAIN_PCT_TQQQ_HOURLY  = 0.0072  # 0.72% target, 1.8:1 R:R (optimistic mode)
+# TARGET_GAIN_PCT_TQQQ_HOURLY  = 0.0042  # 0.42% target, 5.6:1 R:R (optimistic mode)
 
 # Backtest window — TQQQ hourly
 BACKTEST_START_TQQQ_HOURLY = "2024-04-01"
 BACKTEST_END_TQQQ_HOURLY   = "2026-03-01"
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  PROFILE 6 — GDXU HOURLY (3x leveraged gold miners) — OPTIMIZED 2026-03-20
+#  PROFILE 6 — GDXU HOURLY (3x leveraged gold miners) — NEEDS RE-SWEEP
 #  Goal:    Gold miners income stream — uncorrelated with QQQ/TQQQ
 #  Style:   High-frequency mean-reversion, ~27 trades/month
-#  Sharpe:  96.5  |  Max DD: -0.10%  |  24mo return: 116.55%  |  Avg: +3.28%/mo
-#  Status:  Fully optimized — universal sweep (2-phase) confirmed
+#  Status:  Params from optimistic sweep — realistic sweep showed thin edge (+2.33%)
 #  Note:    3x leveraged gold miners ETN — higher vol than TQQQ;
 #           uncorrelated with tech = portfolio diversification benefit
-#           7.5:1 R:R confirmed optimal — ultra-tight stops, GDXU resolves fast
-#  CAUTION: 0.075% stop ≈ $0.04-0.06/share — near bid-ask spread in live trading.
-#           Monitor slippage carefully. If live WR degrades, fall back to 0.20% stop.
+#  CAUTION: Current 0.075% stop is near bid-ask spread. Realistic backtest showed
+#           Sharpe 1.8, WR 27.5%. Needs re-sweep with realistic mode for viable params.
 # ═══════════════════════════════════════════════════════════════════════════
 
 RSI_PERIOD_GDXU_HOURLY         = 7        # DEAD LEVER (MACD is binding gate)
@@ -248,11 +246,11 @@ MACD_SIGNAL_GDXU_HOURLY        = 4        # DEAD LEVER
 VWAP_WINDOW_GDXU_HOURLY        = 10
 VWAP_ZSCORE_THRESH_GDXU_HOURLY = 0.5      # Marginal improvement over 0.3 (sweep confirmed)
 BB_WINDOW_GDXU_HOURLY          = 14
-TARGET_GAIN_PCT_GDXU_HOURLY    = 0.0056   # 0.56% target — sweep optimal (7.5:1 R:R)
-STOP_LOSS_PCT_GDXU_HOURLY      = 0.00075  # 0.075% stop — Sharpe 96.5, DD -0.10%, WR 70.1%
-# Fallback (wider stops, higher gross return, lower Sharpe):
-# TARGET_GAIN_PCT_GDXU_HOURLY  = 0.010    # 1.0% target, 5:1 R:R
-# STOP_LOSS_PCT_GDXU_HOURLY    = 0.002    # 0.20% stop — Sharpe 61.8, DD -0.42%, +4.07%/mo
+TARGET_GAIN_PCT_GDXU_HOURLY    = 0.0280   # 2.80% target — realistic sweep result
+STOP_LOSS_PCT_GDXU_HOURLY      = 0.0046   # 0.46% stop — realistic sweep: Sharpe 1.8, +2.33%
+# Previous optimistic-mode params (inflated by same-bar ambiguity bias):
+# TARGET_GAIN_PCT_GDXU_HOURLY  = 0.0056   # 0.56% target, 7.5:1 R:R (optimistic mode)
+# STOP_LOSS_PCT_GDXU_HOURLY    = 0.00075  # 0.075% stop (optimistic mode)
 
 # Backtest window — GDXU hourly (launched Dec 2020; yfinance hourly ~730 days)
 BACKTEST_START_GDXU_HOURLY = "2024-04-01"
@@ -346,6 +344,13 @@ MAX_POSITION_PCT = 0.20      # Never risk more than 20% per trade
 MIN_POSITION_PCT = 0.02      # Floor: deploy at least 2% when Kelly sample is thin
 PLOT_RESULTS     = True
 
+# ── Backtest fairness mode ─────────────────────────────────────────────
+# "optimistic" = legacy (no slippage, target wins ambiguity, full-sample Kelly)
+# "realistic"  = fair (2bps slippage, stop wins ambiguity, rolling Kelly)
+# "harsh"      = pessimistic (5bps slippage, stop wins, rolling Kelly)
+BACKTEST_MODE    = "realistic"
+BACKTEST_DEBUG   = False         # True = print per-trade detail (entry, exit, size, PnL)
+
 # ── Adaptive Kelly — signal quality detector ─────────────────────────────
 # Tracks rolling win rate over the last N trades and scales position size.
 # Key use case: BTC hourly bad months (33-37% WR) cluster — if the last 20
@@ -414,8 +419,8 @@ ASSETS = {
     },
     "GDXU_HOURLY": {
         "type":               "etf_hourly_gdxu",
-        "target_gain_pct":    TARGET_GAIN_PCT_GDXU_HOURLY,    # 0.0056 (0.56%)
-        "stop_loss_pct":      STOP_LOSS_PCT_GDXU_HOURLY,      # 0.00075 (0.075%) — 7.5:1 R:R
+        "target_gain_pct":    TARGET_GAIN_PCT_GDXU_HOURLY,    # 0.0280 (2.80%)
+        "stop_loss_pct":      STOP_LOSS_PCT_GDXU_HOURLY,      # 0.0046 (0.46%) — realistic sweep
         "require_signals":    1,
         "rsi_oversold":       RSI_OVERSOLD_GDXU_HOURLY,       # 85
         "rsi_overbought":     RSI_OVERBOUGHT_GDXU_HOURLY,

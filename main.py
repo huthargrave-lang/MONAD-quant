@@ -13,16 +13,27 @@ from src.backtest.runner import run_backtest
 
 # Map ACTIVE_MODE to (yfinance symbol, interval, asset config key)
 MODE_MAP = {
-    "BTC_HOURLY": ("BTC-USD", "1h",  "BTC"),
-    "BTC_DAILY":  ("BTC-USD", "1d",  "BTC"),
-    "QQQ_DAILY":  ("QQQ",     "1d",  "QQQ"),
-    "SOXL_DAILY": ("SOXL",    "1d",  "SOXL"),
+    "BTC_HOURLY":  ("BTC-USD", "1h",  "BTC_HOURLY"),
+    "BTC_DAILY":   ("BTC-USD", "1d",  "BTC"),
+    "QQQ_DAILY":   ("QQQ",     "1d",  "QQQ"),
+    "QQQ_HOURLY":  ("QQQ",     "1h",  "QQQ_HOURLY"),
+    "TQQQ_HOURLY": ("TQQQ",    "1h",  "TQQQ_HOURLY"),
+    "GDXU_HOURLY": ("GDXU",    "1h",  "GDXU_HOURLY"),
+    "SOXL_HOURLY": ("SOXL",    "1h",  "SOXL_HOURLY"),
+    "SOXL_DAILY":  ("SOXL",    "1d",  "SOXL"),
+    "LABU_HOURLY": ("LABU",    "1h",  "LABU_HOURLY"),
+    "TNA_HOURLY":  ("TNA",     "1h",  "TNA_HOURLY"),
 }
 
 def main():
     print("\n🔺 MONAD QUANT FUND — STRATEGY ENGINE 🔺\n")
 
-    yf_symbol, interval, asset_key = MODE_MAP[config.ACTIVE_MODE]
+    mode = config.ACTIVE_MODE
+    if mode not in MODE_MAP:
+        print(f"ERROR: ACTIVE_MODE='{mode}' not in MODE_MAP.")
+        print(f"Available modes: {', '.join(sorted(MODE_MAP.keys()))}")
+        return
+    yf_symbol, interval, asset_key = MODE_MAP[mode]
     asset_config = config.ASSETS[asset_key]
 
     # Pull asset-specific params with fallback to global defaults
@@ -36,11 +47,19 @@ def main():
     else:
         trade_hours = None
 
-    df = fetch_yfinance(symbol=yf_symbol, start=config.BACKTEST_START,
-                        end=config.BACKTEST_END, interval=interval)
-    df = df.loc[config.BACKTEST_START:config.BACKTEST_END]
-    print(f"Loaded {len(df)} bars for {config.ACTIVE_MODE} "
-          f"({config.BACKTEST_START} → {config.BACKTEST_END})\n")
+    # Hourly modes use separate date range config
+    if interval == "1h":
+        bt_start = getattr(config, "BACKTEST_START_HOURLY", config.BACKTEST_START)
+        bt_end   = getattr(config, "BACKTEST_END_HOURLY",   config.BACKTEST_END)
+    else:
+        bt_start = config.BACKTEST_START
+        bt_end   = config.BACKTEST_END
+
+    df = fetch_yfinance(symbol=yf_symbol, start=bt_start, end=bt_end, interval=interval)
+    df = df.loc[bt_start:bt_end]
+    print(f"Loaded {len(df)} bars for {config.ACTIVE_MODE} ({bt_start} → {bt_end})\n")
+
+    timeframe = "hourly" if interval == "1h" else "daily"
 
     results = run_backtest(
         df=df,
@@ -49,9 +68,12 @@ def main():
         stop_loss_pct=stop_loss,
         require_signals=req_signals,
         kelly_multiplier=config.KELLY_MULTIPLIER,
-        bull_kelly_multiplier=config.BULL_KELLY_MULTIPLIER,
+        bull_kelly_multiplier=getattr(config, "BULL_KELLY_MULTIPLIER", 0.75),
         trade_hours=trade_hours,
+        timeframe=timeframe,
         plot=config.PLOT_RESULTS,
+        backtest_mode=getattr(config, "BACKTEST_MODE", "realistic"),
+        debug=getattr(config, "BACKTEST_DEBUG", False),
     )
 
 
