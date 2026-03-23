@@ -79,18 +79,60 @@ def get_account() -> AccountSnapshot:
 # ── Price ─────────────────────────────────────────────────────────────────────
 
 def get_latest_price(symbol: str) -> float:
-    """Returns the latest market price for a symbol."""
+    """Returns the latest market price for a symbol.
+
+    Tries: live data → delayed data (reqMarketDataType 3) → yfinance last close.
+    Paper accounts without market data subscriptions hit the delayed/yfinance path.
+    """
+    import math
     from ib_insync import Stock
 
     ib = _ensure_connected()
     contract = Stock(symbol, "SMART", "USD")
     ib.qualifyContracts(contract)
 
+    def _valid(p):
+        return p is not None and not math.isnan(p) and p > 0
+
+    # Try live market data
     [ticker] = ib.reqTickers(contract)
-    # Use last price; fall back to close if market is closed
-    price = ticker.last if ticker.last > 0 else ticker.close
-    log.debug(f"Latest price {symbol}: {price}")
-    return float(price)
+    for attr in ("last", "close"):
+        p = getattr(ticker, attr, None)
+        if _valid(p):
+            log.debug(f"Latest price {symbol}: {p} (live {attr})")
+            return float(p)
+
+    mp = ticker.marketPrice()
+    if _valid(mp):
+        log.debug(f"Latest price {symbol}: {mp} (marketPrice)")
+        return float(mp)
+
+    # Try delayed data (IBKR paper without live subscription)
+    try:
+        ib.reqMarketDataType(3)  # 3 = delayed
+        [delayed] = ib.reqTickers(contract)
+        for attr in ("last", "close"):
+            p = getattr(delayed, attr, None)
+            if _valid(p):
+                log.info(f"Latest price {symbol}: {p} (delayed {attr})")
+                ib.reqMarketDataType(1)
+                return float(p)
+        ib.reqMarketDataType(1)
+    except Exception:
+        pass
+
+    # Final fallback: yfinance last close
+    log.warning(f"IBKR data unavailable for {symbol}, using yfinance last close")
+    from src.data.fetcher import fetch_yfinance
+    from datetime import datetime, timedelta, timezone
+    end = (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%Y-%m-%d")
+    start = (datetime.now(timezone.utc) - timedelta(days=5)).strftime("%Y-%m-%d")
+    hist = fetch_yfinance(symbol, start=start, end=end, interval="1d")
+    if len(hist) > 0:
+        price = float(hist["close"].iloc[-1])
+        log.info(f"Latest price {symbol}: {price} (yfinance close)")
+        return price
+    raise RuntimeError(f"Cannot get price for {symbol} from IBKR or yfinance")
 
 
 # ── Orders ────────────────────────────────────────────────────────────────────
