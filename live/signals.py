@@ -57,6 +57,7 @@ def get_current_signal() -> int:
     df = generate_trades(
         df,
         require_signals=config.ASSETS[mode]["require_signals"],
+        use_regime_filter=False,
         use_slope_regime=False,
         longs_only=False,
     )
