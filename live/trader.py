@@ -254,6 +254,10 @@ def main() -> None:
         broker.disconnect()
         return
 
+    # Disconnect the startup connection — APScheduler runs in a worker thread
+    # and will create its own connection. Keeping the main-thread connection alive
+    # would cause ib_insync event loop conflicts (responses never processed).
+    broker.disconnect()
     run_scheduler()
 
 

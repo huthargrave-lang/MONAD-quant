@@ -20,15 +20,30 @@ log = logging.getLogger(__name__)
 
 # Module-level IB singleton — reused across calls within a session
 _ib = None
+_ib_thread_id = None  # track which thread created the connection
 
 
 def _ensure_connected():
-    """Returns a connected IB instance. Reconnects if disconnected."""
-    global _ib
+    """Returns a connected IB instance. Reconnects if called from a different thread."""
+    global _ib, _ib_thread_id
     import asyncio
+    import threading
     from ib_insync import IB
 
-    # APScheduler runs jobs in a thread pool — ensure an event loop exists
+    current_thread = threading.current_thread().ident
+
+    # Force reconnect if called from a different thread than the one that connected.
+    # ib_insync's event loop is thread-local — reusing a connection across threads
+    # causes qualifyContracts/reqTickers to timeout (responses never processed).
+    if _ib is not None and _ib.isConnected() and _ib_thread_id != current_thread:
+        log.info(f"Reconnecting IBKR — thread changed (was {_ib_thread_id}, now {current_thread})")
+        try:
+            _ib.disconnect()
+        except Exception:
+            pass
+        _ib = None
+
+    # Ensure an event loop exists in this thread
     try:
         asyncio.get_event_loop()
     except RuntimeError:
@@ -45,6 +60,7 @@ def _ensure_connected():
 
     log.info(f"Connecting to IBKR at {host}:{port} (clientId={client_id})")
     _ib.connect(host, port, clientId=client_id)
+    _ib_thread_id = current_thread
     log.info("IBKR connected")
     return _ib
 
