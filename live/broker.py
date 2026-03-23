@@ -177,20 +177,25 @@ def _yfinance_fallback(symbol: str) -> float:
 # ── Orders ────────────────────────────────────────────────────────────────────
 
 def place_bracket_order(symbol: str, qty: int, entry_price: float,
-                        target_pct: float, stop_pct: float) -> str:
+                        target_pct: float, stop_pct: float) -> str | None:
     """
     Places a market buy with linked take-profit (limit sell) and stop-loss legs.
 
     IBKR bracket orders: parent fills first, then child orders (TP + SL) go live.
     When either child fills, IBKR auto-cancels the other (OCA group).
 
-    Returns the parent order ID as string (needed for time-exit cancellation).
+    Returns the parent order ID as string, or None if the order could not be placed.
     """
     from ib_insync import Stock
 
     ib = _ensure_connected()
     contract = Stock(symbol, "SMART", "USD")
-    ib.qualifyContracts(contract)
+
+    try:
+        ib.qualifyContracts(contract)
+    except Exception as exc:
+        log.error(f"Cannot qualify contract for {symbol}: {exc} — order NOT placed")
+        return None
 
     target_price = round(entry_price * (1 + target_pct), 2)
     stop_price   = round(entry_price * (1 - stop_pct), 2)
@@ -238,7 +243,11 @@ def cancel_and_close(symbol: str, bracket_order_id: str, qty: int) -> None:
 
     # Place market sell to exit
     contract = Stock(symbol, "SMART", "USD")
-    ib.qualifyContracts(contract)
+    try:
+        ib.qualifyContracts(contract)
+    except Exception as exc:
+        log.error(f"Cannot qualify contract for time-exit sell {symbol}: {exc}")
+        raise
     sell_order = MarketOrder("SELL", qty)
     trade = ib.placeOrder(contract, sell_order)
     log.info(f"Time-exit market sell placed | id={trade.order.orderId} | {qty} {symbol}")

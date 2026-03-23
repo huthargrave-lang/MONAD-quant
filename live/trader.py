@@ -126,6 +126,9 @@ def on_bar() -> None:
         target_pct=asset_config["target_gain_pct"],
         stop_pct=asset_config["stop_loss_pct"],
     )
+    if order_id is None:
+        log.error("Bracket order failed — skipping this entry. Will retry next bar if signal persists.")
+        return
     state.open_position(config.LIVE_SYMBOL, entry_price, qty, order_id)
     log.info(f"ENTRY placed: {qty} shares @ ~{entry_price:.2f}")
 
