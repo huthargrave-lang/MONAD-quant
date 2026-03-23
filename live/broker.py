@@ -296,19 +296,6 @@ def get_bracket_fill(bracket_order_id: str) -> dict | None:
     parent_id = int(bracket_order_id)
 
     try:
-        fills = ib.fills()
-        for fill in fills:
-            if getattr(fill.contract, 'symbol', None) and fill.execution.orderId != parent_id:
-                # Check if this fill's order is a child of our bracket
-                # Child orders have parentId matching our bracket parent
-                try:
-                    order = None
-                    for o in ib.openOrders() + list(getattr(ib, '_trades', {}).values()):
-                        pass  # openOrders won't have filled orders
-                except Exception:
-                    pass
-
-        # More reliable: check completed trades for fills with our parent
         trades = ib.trades()
         for trade in trades:
             order = trade.order
@@ -331,15 +318,6 @@ def get_bracket_fill(bracket_order_id: str) -> dict | None:
                     "fill_time": fill_time,
                     "exit_type": exit_type,
                 }
-
-        # Also check executions directly
-        executions = ib.executions()
-        for ex in executions:
-            # Match child orders by checking if they reference our parent
-            if ex.orderId != parent_id and ex.side == 'SLD':
-                # This is a sell execution — could be our exit
-                # We can't definitively match without parent tracking, so skip
-                pass
 
         log.warning(f"No fill data found for bracket parent {parent_id}")
         return None

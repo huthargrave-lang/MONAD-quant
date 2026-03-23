@@ -118,7 +118,7 @@ def get_position_plan(capital: float) -> dict:
     """
     Returns the position sizing plan for the next trade.
 
-    Currently uses a fixed 10% position size. When adaptive/Kelly sizing
+    Currently uses a fixed 10% position size. When adaptive sizing
     is re-enabled for live trading, this function will compute it from
     the rolling trade log in state.db.
     """
@@ -127,17 +127,6 @@ def get_position_plan(capital: float) -> dict:
     return {
         "position_pct": position_pct,
         "position_dollars": position_dollars,
-    }
-
-
-def get_current_kelly(capital: float) -> dict:
-    """Backwards-compatible alias — delegates to get_position_plan()."""
-    plan = get_position_plan(capital)
-    return {
-        "kelly_full": plan["position_pct"],
-        "kelly_adjusted": plan["position_pct"],
-        "kelly_capped": plan["position_pct"],
-        "position_dollars": plan["position_dollars"],
     }
 
 

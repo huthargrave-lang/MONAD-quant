@@ -20,6 +20,7 @@ import argparse
 import logging
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
 import config
 from live import broker, signals, state
@@ -30,6 +31,19 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 log = logging.getLogger("trader")
+
+
+def _get_git_hash() -> str:
+    """Returns the short git commit hash, or 'unknown' if not in a repo."""
+    import subprocess
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=str(Path(__file__).parent.parent),
+            stderr=subprocess.DEVNULL,
+        ).decode().strip()
+    except Exception:
+        return "unknown"
 
 
 def _get_asset_config() -> dict:
@@ -47,9 +61,25 @@ def on_bar() -> None:
     Called once per completed hourly bar.
     Handles: position bar-count tracking, time-exits, and new entry signals.
     """
+    import time as _time
+    t0 = _time.monotonic()
+    cycle_action = "unknown"
+
     log.info("─" * 60)
     log.info(f"on_bar() | {config.LIVE_SYMBOL} | {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
 
+    try:
+        cycle_action = _on_bar_inner()
+    except Exception:
+        cycle_action = "error"
+        raise
+    finally:
+        elapsed = _time.monotonic() - t0
+        log.info(f"CYCLE | action={cycle_action} | elapsed={elapsed:.1f}s")
+
+
+def _on_bar_inner() -> str:
+    """Core on_bar logic. Returns a short action label for cycle logging."""
     position = state.get_position()
 
     # ── Manage existing position ──────────────────────────────────────────────
@@ -67,19 +97,19 @@ def on_bar() -> None:
                     f"fill_time={fill['fill_time']} | ret={ret:+.4%} → {exit_type}"
                 )
             else:
-                # Fallback: fill data unavailable (e.g. connection gap), use reference price
+                # Fill data unavailable (e.g. connection gap after restart).
+                # Record as pending_close — actual PnL unknown until fill is reconciled.
                 ref_price = broker.get_reference_price(position.symbol)
                 ret = (ref_price - position.entry_price) / position.entry_price
-                asset_cfg = _get_asset_config()
-                exit_type = "target_hit" if ret >= asset_cfg["target_gain_pct"] * 0.8 else "stop_hit"
                 log.warning(
-                    f"Fill data unavailable — inferred from reference price | "
-                    f"ref={ref_price:.2f} | ret={ret:+.4%} → {exit_type} (inferred)"
+                    f"Fill data unavailable — recording as pending_close | "
+                    f"ref={ref_price:.2f} | estimated_ret={ret:+.4%} (NOT recorded as PnL)"
                 )
-            state.close_position(return_pct=ret, exit_type=exit_type,
+                exit_type = "pending_close"
+            state.close_position(return_pct=ret if fill else 0.0, exit_type=exit_type,
                                  exit_price=fill["fill_price"] if fill else None)
             _log_summary()
-            return
+            return f"exit_{exit_type}"
 
         bar_count = state.increment_bar_count()
         log.info(f"Open position: {position.qty} {position.symbol} @ {position.entry_price:.2f} | bar {bar_count}/{config.MAX_TRADE_BARS_LIVE}")
@@ -92,22 +122,22 @@ def on_bar() -> None:
             ret = (ref_price - position.entry_price) / position.entry_price
             state.close_position(return_pct=ret, exit_type="time_exit", exit_price=ref_price)
             _log_summary()
-            return
+            return "exit_time_exit"
 
         # Position is still open and within bar limit — wait for bracket exit
         log.info("Position within bar limit, bracket order monitoring exit")
-        return
+        return f"holding_bar_{bar_count}"
 
     # ── Check for new entry signal ────────────────────────────────────────────
     try:
         sig_info = signals.get_current_signal()
     except RuntimeError as exc:
         log.error(f"Signal computation failed: {exc}")
-        return
+        return "signal_error"
 
     if sig_info["signal"] != 1:
         log.info(f"No entry signal (signal={sig_info['signal']})")
-        return
+        return "no_signal"
 
     # ── Size and place the trade ──────────────────────────────────────────────
     account = broker.get_account()
@@ -129,7 +159,16 @@ def on_bar() -> None:
 
     if qty < 1:
         log.warning(f"Position too small for one share (${sizing['position_dollars']:.0f} / ${entry_price:.2f})")
-        return
+        return "qty_too_small"
+
+    if config.LIVE_DRY_RUN:
+        target_p = round(entry_price * (1 + asset_config["target_gain_pct"]), 2)
+        stop_p = round(entry_price * (1 - asset_config["stop_loss_pct"]), 2)
+        log.info(
+            f"DRY RUN — would place: {qty} {config.LIVE_SYMBOL} @ ~{entry_price:.2f} | "
+            f"TP={target_p:.2f} | SL={stop_p:.2f}"
+        )
+        return "dry_run_entry"
 
     order_id = broker.place_bracket_order(
         symbol=config.LIVE_SYMBOL,
@@ -140,9 +179,10 @@ def on_bar() -> None:
     )
     if order_id is None:
         log.error("Bracket order failed — skipping this entry. Will retry next bar if signal persists.")
-        return
+        return "order_failed"
     state.open_position(config.LIVE_SYMBOL, entry_price, qty, order_id)
     log.info(f"ENTRY placed: {qty} shares @ ~{entry_price:.2f}")
+    return "entry_placed"
 
 
 def _log_summary() -> None:
@@ -234,10 +274,18 @@ def main() -> None:
         action="store_true",
         help="Run on_bar() once immediately then exit (for testing).",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Compute signals but do not place any orders (safe observation mode).",
+    )
     args = parser.parse_args()
 
     if args.symbol:
         config.LIVE_SYMBOL = args.symbol.upper()
+
+    if args.dry_run:
+        config.LIVE_DRY_RUN = True
 
     if args.live:
         config.LIVE_PAPER_MODE = False
@@ -261,16 +309,23 @@ def main() -> None:
     # ── Startup self-check: log active config ────────────────────────────
     asset_cfg = _get_asset_config()
     port = config.IBKR_PORT_PAPER if config.LIVE_PAPER_MODE else config.IBKR_PORT_LIVE
+    git_hash = _get_git_hash()
     log.info("─" * 60)
     log.info("Startup config:")
     log.info(f"  Symbol:       {config.LIVE_SYMBOL}")
     log.info(f"  Mode:         {'PAPER' if config.LIVE_PAPER_MODE else 'LIVE'} (port {port})")
+    log.info(f"  IB host:      {config.IBKR_HOST}:{port} (clientId={config.IBKR_CLIENT_ID})")
     log.info(f"  Position:     fixed 10%")
     log.info(f"  Target:       {asset_cfg['target_gain_pct']*100:.2f}%")
     log.info(f"  Stop:         {asset_cfg['stop_loss_pct']*100:.2f}%")
     log.info(f"  R:R:          {asset_cfg['target_gain_pct']/asset_cfg['stop_loss_pct']:.1f}:1")
     log.info(f"  Max bars:     {config.MAX_TRADE_BARS_LIVE}")
     log.info(f"  Warmup bars:  {signals._WARMUP_BARS}")
+    log.info(f"  Schedule:     :32 past each hour, Mon-Fri 9:32-15:32 ET")
+    log.info(f"  Timezone:     America/New_York")
+    log.info(f"  Git hash:     {git_hash}")
+    if getattr(config, 'LIVE_DRY_RUN', False):
+        log.info(f"  DRY RUN:      YES — no orders will be placed")
     log.info("─" * 60)
 
     state.init_db()

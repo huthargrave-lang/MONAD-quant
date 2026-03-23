@@ -5,6 +5,7 @@ Imported by the top-level config.py.
 """
 
 LIVE_PAPER_MODE    = True
+LIVE_DRY_RUN       = False   # True = compute signals but place no orders (safe test mode)
 LIVE_SYMBOL        = "TQQQ"
 IBKR_HOST          = "127.0.0.1"
 IBKR_PORT_PAPER    = 7497
