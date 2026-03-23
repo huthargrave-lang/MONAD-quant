@@ -25,7 +25,14 @@ _ib = None
 def _ensure_connected():
     """Returns a connected IB instance. Reconnects if disconnected."""
     global _ib
+    import asyncio
     from ib_insync import IB
+
+    # APScheduler runs jobs in a thread pool — ensure an event loop exists
+    try:
+        asyncio.get_event_loop()
+    except RuntimeError:
+        asyncio.set_event_loop(asyncio.new_event_loop())
 
     if _ib is not None and _ib.isConnected():
         return _ib
