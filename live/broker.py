@@ -102,12 +102,11 @@ def get_account() -> AccountSnapshot:
 
 # ── Price ─────────────────────────────────────────────────────────────────────
 
-def get_latest_price(symbol: str) -> float:
-    """Returns the latest market price for a symbol.
+def get_tradeable_price(symbol: str) -> float:
+    """Returns a fresh broker-sourced price suitable for order placement.
 
-    Tries: live data → delayed data (reqMarketDataType 3) → yfinance last close.
-    Paper accounts without market data subscriptions hit the delayed/yfinance path.
-    Each IBKR attempt has a timeout so the function never blocks the scheduler.
+    Only returns live or delayed IBKR data. Raises RuntimeError if no broker
+    price is available — NEVER falls back to yfinance for order placement.
     """
     import math
     from ib_insync import Stock
@@ -121,49 +120,40 @@ def get_latest_price(symbol: str) -> float:
         except (TypeError, ValueError):
             return False
 
-    # Qualify contract (with timeout protection via ib.RequestTimeout)
     try:
-        log.info(f"Qualifying contract for {symbol}")
         ib.qualifyContracts(contract)
-        log.info(f"Contract qualified: {contract}")
     except Exception as exc:
-        log.warning(f"qualifyContracts failed for {symbol}: {exc} — falling back to yfinance")
-        return _yfinance_fallback(symbol)
+        raise RuntimeError(f"Cannot qualify contract for {symbol}: {exc}")
 
     # Try live market data
     try:
-        log.info(f"Requesting live market data for {symbol}")
         [ticker] = ib.reqTickers(contract)
-        ib.sleep(2)  # give IBKR time to populate ticker fields
+        ib.sleep(2)
         for attr in ("last", "close", "bid", "ask"):
             p = getattr(ticker, attr, None)
             if _valid(p):
-                log.info(f"Latest price {symbol}: {p} (live {attr})")
+                log.info(f"Tradeable price {symbol}: {p} (live {attr})")
                 return float(p)
-
         mp = ticker.marketPrice()
         if _valid(mp):
-            log.info(f"Latest price {symbol}: {mp} (marketPrice)")
+            log.info(f"Tradeable price {symbol}: {mp} (marketPrice)")
             return float(mp)
-        log.info(f"Live data returned no valid price for {symbol}")
     except Exception as exc:
         log.warning(f"Live market data failed for {symbol}: {exc}")
 
-    # Try delayed data (IBKR paper without live subscription)
+    # Try delayed data
     try:
-        log.info(f"Requesting delayed market data for {symbol}")
-        ib.reqMarketDataType(3)  # 3 = delayed
+        ib.reqMarketDataType(3)
         ib.sleep(2)
         [delayed] = ib.reqTickers(contract)
         ib.sleep(2)
         for attr in ("last", "close", "bid", "ask"):
             p = getattr(delayed, attr, None)
             if _valid(p):
-                log.info(f"Latest price {symbol}: {p} (delayed {attr})")
+                log.info(f"Tradeable price {symbol}: {p} (delayed {attr})")
                 ib.reqMarketDataType(1)
                 return float(p)
         ib.reqMarketDataType(1)
-        log.info(f"Delayed data returned no valid price for {symbol}")
     except Exception as exc:
         log.warning(f"Delayed market data failed for {symbol}: {exc}")
         try:
@@ -171,8 +161,24 @@ def get_latest_price(symbol: str) -> float:
         except Exception:
             pass
 
-    # Final fallback: yfinance last close
+    raise RuntimeError(f"No broker price available for {symbol} — refusing to place order on stale data")
+
+
+def get_reference_price(symbol: str) -> float:
+    """Returns a price for logging/diagnostics. May fall back to delayed or yfinance.
+
+    NOT suitable for order placement — use get_tradeable_price() for that.
+    """
+    try:
+        return get_tradeable_price(symbol)
+    except RuntimeError:
+        pass
     return _yfinance_fallback(symbol)
+
+
+def get_latest_price(symbol: str) -> float:
+    """Backwards-compatible alias — delegates to get_reference_price()."""
+    return get_reference_price(symbol)
 
 
 def _yfinance_fallback(symbol: str) -> float:
@@ -197,6 +203,10 @@ def place_bracket_order(symbol: str, qty: int, entry_price: float,
     """
     Places a market buy with linked take-profit (limit sell) and stop-loss legs.
 
+    entry_price is the signal bar's close — used for target/stop bracket levels
+    (matches backtest convention). The parent limit price uses a fresh broker
+    quote to ensure fill at current market.
+
     IBKR bracket orders: parent fills first, then child orders (TP + SL) go live.
     When either child fills, IBKR auto-cancels the other (OCA group).
 
@@ -213,13 +223,20 @@ def place_bracket_order(symbol: str, qty: int, entry_price: float,
         log.error(f"Cannot qualify contract for {symbol}: {exc} — order NOT placed")
         return None
 
+    # Get fresh broker price for the parent limit order
+    try:
+        live_price = get_tradeable_price(symbol)
+    except RuntimeError as exc:
+        log.error(f"No tradeable price for {symbol}: {exc} — order NOT placed")
+        return None
+
     target_price = round(entry_price * (1 + target_pct), 2)
     stop_price   = round(entry_price * (1 - stop_pct), 2)
 
     bracket = ib.bracketOrder(
         action="BUY",
         quantity=qty,
-        limitPrice=round(entry_price * 1.005, 2),  # 0.5% above last price to ensure fill
+        limitPrice=round(live_price * 1.005, 2),  # 0.5% above live price to ensure fill
         takeProfitPrice=target_price,
         stopLossPrice=stop_price,
     )
@@ -267,6 +284,69 @@ def cancel_and_close(symbol: str, bracket_order_id: str, qty: int) -> None:
     sell_order = MarketOrder("SELL", qty)
     trade = ib.placeOrder(contract, sell_order)
     log.info(f"Time-exit market sell placed | id={trade.order.orderId} | {qty} {symbol}")
+
+
+def get_bracket_fill(bracket_order_id: str) -> dict | None:
+    """
+    Fetches actual fill data for a completed bracket order's child (TP or SL).
+
+    Returns dict with fill_price, fill_time, exit_type, or None if unavailable.
+    """
+    ib = _ensure_connected()
+    parent_id = int(bracket_order_id)
+
+    try:
+        fills = ib.fills()
+        for fill in fills:
+            if getattr(fill.contract, 'symbol', None) and fill.execution.orderId != parent_id:
+                # Check if this fill's order is a child of our bracket
+                # Child orders have parentId matching our bracket parent
+                try:
+                    order = None
+                    for o in ib.openOrders() + list(getattr(ib, '_trades', {}).values()):
+                        pass  # openOrders won't have filled orders
+                except Exception:
+                    pass
+
+        # More reliable: check completed trades for fills with our parent
+        trades = ib.trades()
+        for trade in trades:
+            order = trade.order
+            if getattr(order, 'parentId', 0) == parent_id and trade.fills:
+                last_fill = trade.fills[-1]
+                fill_price = last_fill.execution.price
+                fill_time = last_fill.execution.time.isoformat() if last_fill.execution.time else None
+
+                # Determine exit type from order type
+                if order.orderType == 'LMT':
+                    exit_type = "target_hit"
+                elif order.orderType in ('STP', 'STP LMT'):
+                    exit_type = "stop_hit"
+                else:
+                    exit_type = "bracket_exit"
+
+                log.info(f"Found bracket fill: price={fill_price}, type={exit_type}, time={fill_time}")
+                return {
+                    "fill_price": float(fill_price),
+                    "fill_time": fill_time,
+                    "exit_type": exit_type,
+                }
+
+        # Also check executions directly
+        executions = ib.executions()
+        for ex in executions:
+            # Match child orders by checking if they reference our parent
+            if ex.orderId != parent_id and ex.side == 'SLD':
+                # This is a sell execution — could be our exit
+                # We can't definitively match without parent tracking, so skip
+                pass
+
+        log.warning(f"No fill data found for bracket parent {parent_id}")
+        return None
+
+    except Exception as exc:
+        log.warning(f"Failed to fetch bracket fill data: {exc}")
+        return None
 
 
 def get_open_position(symbol: str) -> dict | None:

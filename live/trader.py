@@ -57,17 +57,27 @@ def on_bar() -> None:
         # Reconcile: check if bracket TP/SL already filled since last bar
         broker_pos = broker.get_open_position(position.symbol)
         if broker_pos is None or broker_pos["qty"] == 0:
-            # Bracket order already exited (TP or SL hit between bars)
-            current_price = broker.get_latest_price(position.symbol)
-            ret = (current_price - position.entry_price) / position.entry_price
-            # Infer exit type from return direction vs target/stop
-            asset_cfg = _get_asset_config()
-            if ret >= asset_cfg["target_gain_pct"] * 0.8:
-                exit_type = "target_hit"
+            # Bracket order already exited — fetch actual fill data from IBKR
+            fill = broker.get_bracket_fill(position.bracket_order_id)
+            if fill is not None:
+                ret = (fill["fill_price"] - position.entry_price) / position.entry_price
+                exit_type = fill["exit_type"]
+                log.info(
+                    f"Bracket filled | fill_price={fill['fill_price']:.2f} | "
+                    f"fill_time={fill['fill_time']} | ret={ret:+.4%} → {exit_type}"
+                )
             else:
-                exit_type = "stop_hit"
-            log.info(f"Bracket already filled (detected via IBKR position check) | ret={ret:+.4%} → {exit_type}")
-            state.close_position(return_pct=ret, exit_type=exit_type)
+                # Fallback: fill data unavailable (e.g. connection gap), use reference price
+                ref_price = broker.get_reference_price(position.symbol)
+                ret = (ref_price - position.entry_price) / position.entry_price
+                asset_cfg = _get_asset_config()
+                exit_type = "target_hit" if ret >= asset_cfg["target_gain_pct"] * 0.8 else "stop_hit"
+                log.warning(
+                    f"Fill data unavailable — inferred from reference price | "
+                    f"ref={ref_price:.2f} | ret={ret:+.4%} → {exit_type} (inferred)"
+                )
+            state.close_position(return_pct=ret, exit_type=exit_type,
+                                 exit_price=fill["fill_price"] if fill else None)
             _log_summary()
             return
 
@@ -76,10 +86,11 @@ def on_bar() -> None:
 
         if bar_count >= config.MAX_TRADE_BARS_LIVE:
             log.info("Time-exit triggered — cancelling bracket and selling")
-            current_price = broker.get_latest_price(position.symbol)
-            ret = (current_price - position.entry_price) / position.entry_price
             broker.cancel_and_close(position.symbol, position.bracket_order_id, position.qty)
-            state.close_position(return_pct=ret, exit_type="time_exit")
+            # Fetch fill from the time-exit market sell
+            ref_price = broker.get_reference_price(position.symbol)
+            ret = (ref_price - position.entry_price) / position.entry_price
+            state.close_position(return_pct=ret, exit_type="time_exit", exit_price=ref_price)
             _log_summary()
             return
 
@@ -89,13 +100,13 @@ def on_bar() -> None:
 
     # ── Check for new entry signal ────────────────────────────────────────────
     try:
-        signal = signals.get_current_signal()
+        sig_info = signals.get_current_signal()
     except RuntimeError as exc:
         log.error(f"Signal computation failed: {exc}")
         return
 
-    if signal != 1:
-        log.info(f"No entry signal (signal={signal})")
+    if sig_info["signal"] != 1:
+        log.info(f"No entry signal (signal={sig_info['signal']})")
         return
 
     # ── Size and place the trade ──────────────────────────────────────────────
@@ -103,17 +114,18 @@ def on_bar() -> None:
     capital = account.equity
     log.info(f"Account equity: ${capital:,.2f}")
 
-    kelly = state.get_current_kelly(capital)
+    sizing = state.get_position_plan(capital)
     log.info(
-        f"Kelly sizing: full={kelly['kelly_full']:.3f} | "
-        f"adj={kelly['kelly_adjusted']:.3f} | "
-        f"capped={kelly['kelly_capped']:.3f} | "
-        f"${kelly['position_dollars']:,.0f}"
+        f"Position sizing: pct={sizing['position_pct']:.3f} | "
+        f"${sizing['position_dollars']:,.0f}"
     )
 
     asset_config = _get_asset_config()
-    entry_price = broker.get_latest_price(config.LIVE_SYMBOL)
-    qty = int(kelly["position_dollars"] / entry_price)
+    # Use the completed bar's close for bracket pricing — matches backtest convention
+    # where entry = signal bar's close (next bar's open is approximated by close).
+    entry_price = sig_info["bar_close"]
+    log.info(f"Entry price from bar close: ${entry_price:.2f} (bar={sig_info['bar_time']})")
+    qty = int(sizing["position_dollars"] / entry_price)
 
     if qty < 1:
         log.warning(f"Kelly position too small for one share (${kelly['position_dollars']:.0f} / ${entry_price:.2f})")

@@ -51,6 +51,9 @@ parser.add_argument("--apply", action="store_true",
                     help="Auto-apply optimal params to config.py without prompting")
 parser.add_argument("--mode", default="realistic", choices=["optimistic", "realistic", "harsh"],
                     help="Backtest fairness mode (default: realistic)")
+parser.add_argument("--holdout-pct", type=float, default=20,
+                    help="Percentage of data to reserve as untouched holdout (default: 20%%). "
+                         "Set to 0 to disable holdout.")
 args = parser.parse_args()
 
 TICKER = args.ticker.upper()
@@ -138,13 +141,30 @@ print(f"  MONAD QUANT — UNIVERSAL SWEEP: {TICKER}  [{args.mode.upper()}]")
 print(f"  Period: {START_DATE} → {END_DATE}")
 print(f"{'='*70}\n")
 
-df_raw = fetch_ticker_hourly(TICKER, START_DATE, END_DATE)
-print(f"Loaded {len(df_raw)} bars\n")
+df_full = fetch_ticker_hourly(TICKER, START_DATE, END_DATE)
+print(f"Loaded {len(df_full)} bars\n")
 
-if len(df_raw) < 100:
-    print(f"ERROR: Only {len(df_raw)} bars loaded. Need at least 100 for meaningful backtest.")
+if len(df_full) < 100:
+    print(f"ERROR: Only {len(df_full)} bars loaded. Need at least 100 for meaningful backtest.")
     print("Try a wider date range or check if the ticker is valid.")
     sys.exit(1)
+
+# ── Holdout split: reserve the last N% of data as untouched test set ─────
+HOLDOUT_PCT = args.holdout_pct / 100.0
+if HOLDOUT_PCT > 0 and len(df_full) > 200:
+    split_idx = int(len(df_full) * (1 - HOLDOUT_PCT))
+    df_raw = df_full.iloc[:split_idx].copy()
+    df_holdout = df_full.iloc[split_idx:].copy()
+    print(f"  Train/optimize: {len(df_raw)} bars ({df_raw.index[0].strftime('%Y-%m-%d')} → {df_raw.index[-1].strftime('%Y-%m-%d')})")
+    print(f"  Holdout (OOS):  {len(df_holdout)} bars ({df_holdout.index[0].strftime('%Y-%m-%d')} → {df_holdout.index[-1].strftime('%Y-%m-%d')})")
+    print(f"  Holdout is NEVER used during optimization.\n")
+else:
+    df_raw = df_full.copy()
+    df_holdout = None
+    if HOLDOUT_PCT > 0:
+        print("  Holdout disabled — not enough bars to split meaningfully.\n")
+    else:
+        print("  Holdout disabled (--holdout-pct 0).\n")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -608,6 +628,88 @@ else:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+#  PHASE 4 — HOLDOUT EVALUATION (out-of-sample, never seen during optimization)
+# ═══════════════════════════════════════════════════════════════════════════
+_holdout_results = None
+if df_holdout is not None and best["result"] and "error" not in best["result"]:
+    print()
+    print("=" * 95)
+    print(f"PHASE 4: HOLDOUT evaluation — out-of-sample ({len(df_holdout)} bars, never used in optimization)")
+    print("=" * 95)
+
+    bt = best["target"]
+    bs = best["stop"]
+    br = best["rsi"]
+    bv = best["vwap"]
+
+    setattr(config, f"RSI_OVERSOLD_{MODE_NAME}", br)
+    config.ASSETS[MODE_NAME]["rsi_oversold"] = br
+    setattr(config, f"VWAP_ZSCORE_THRESH_{MODE_NAME}", bv)
+    config.ASSETS[MODE_NAME]["vwap_zscore_thresh"] = bv
+
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            hr = run_backtest(
+                df=df_holdout.copy(),
+                initial_capital=config.INITIAL_CAPITAL,
+                target_gain_pct=bt,
+                stop_loss_pct=bs,
+                require_signals=1,
+                kelly_multiplier=config.KELLY_MULTIPLIER,
+                timeframe="hourly",
+                plot=False,
+                backtest_mode=args.mode,
+            )
+        if hr and "error" not in hr:
+            hmo = hr["monthly_returns"]
+            havg = hmo[hmo != 0].mean() * 100 if len(hmo[hmo != 0]) > 0 else 0
+            hneg = (hmo[hmo != 0] < 0).sum()
+            htot = (hmo != 0).sum()
+
+            print(f"\n  Holdout period: {df_holdout.index[0].strftime('%Y-%m-%d')} → {df_holdout.index[-1].strftime('%Y-%m-%d')}")
+            print(f"  Trades:       {hr['total_trades']}")
+            print(f"  Win Rate:     {hr['win_rate']*100:.1f}%")
+            print(f"  Total Return: {hr['total_return']*100:+.2f}%")
+            print(f"  Sharpe:       {hr['sharpe_ratio']:.1f}")
+            print(f"  Max DD:       {hr['max_drawdown']*100:.2f}%")
+            print(f"  Avg Monthly:  {havg:+.2f}%")
+            print(f"  Neg Months:   {hneg}/{htot}")
+
+            # Compare train vs holdout
+            train_r = best["result"]
+            train_mo = train_r["monthly_returns"]
+            train_avg = train_mo[train_mo != 0].mean() * 100 if len(train_mo[train_mo != 0]) > 0 else 0
+
+            decay = (havg / train_avg * 100) if train_avg > 0 else 0
+            print(f"\n  Train avg/mo:   {train_avg:+.2f}%")
+            print(f"  Holdout avg/mo: {havg:+.2f}%")
+            if decay > 0:
+                print(f"  OOS retention:  {decay:.0f}% of in-sample performance")
+            if havg <= 0:
+                print(f"\n  *** WARNING: Holdout performance is non-positive — likely overfit ***")
+            elif decay < 50:
+                print(f"\n  *** CAUTION: >50% performance decay in holdout — possible overfit ***")
+            else:
+                print(f"\n  Holdout confirms in-sample results — no evidence of overfit.")
+
+            _holdout_results = {
+                "period": f"{df_holdout.index[0].strftime('%Y-%m-%d')} → {df_holdout.index[-1].strftime('%Y-%m-%d')}",
+                "bars": len(df_holdout),
+                "trades": hr["total_trades"],
+                "win_rate_pct": round(hr["win_rate"] * 100, 1),
+                "total_return_pct": round(hr["total_return"] * 100, 2),
+                "sharpe_ratio": hr["sharpe_ratio"],
+                "max_drawdown_pct": round(hr["max_drawdown"] * 100, 2),
+                "avg_monthly_pct": round(havg, 2),
+                "oos_retention_pct": round(decay, 1),
+            }
+        else:
+            print("  No trades in holdout period.")
+    except Exception as e:
+        print(f"  Holdout evaluation failed: {e}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 #  RESULTS SUMMARY
 # ═══════════════════════════════════════════════════════════════════════════
 restore()
@@ -686,6 +788,8 @@ if r and "error" not in r:
     }
     if _phase3_results:
         out["robustness"] = _phase3_results
+    if _holdout_results:
+        out["holdout"] = _holdout_results
 
     outfile = f"sweep_results_{TICKER}.json"
     with open(outfile, "w") as f:

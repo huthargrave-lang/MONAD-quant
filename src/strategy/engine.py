@@ -208,7 +208,6 @@ def compute_trade_returns(df: pd.DataFrame,
     for i, (idx, row) in enumerate(entries.iterrows()):
         loc = df.index.get_loc(idx)
         direction = row["entry_signal"]
-        entry_price = row["close"]
         regime = row.get("trend_direction", 0)
 
         n_bars = (bar_limit_overrides.get(idx, max_trade_bars)
@@ -218,8 +217,16 @@ def compute_trade_returns(df: pd.DataFrame,
         stop = (stop_overrides.get(idx, stop_loss_pct)
                 if stop_overrides else stop_loss_pct)
 
-        # Look ahead up to n_bars for target/stop
-        future = df.iloc[loc + 1: loc + 1 + n_bars]
+        # Entry convention: signal fires on bar N's close, fill at bar N+1's open.
+        # This matches live trading where the signal fires after bar close and the
+        # order fills at the next available price (market open of next bar).
+        next_bar_loc = loc + 1
+        if next_bar_loc >= len(df):
+            continue  # no next bar available for entry
+        entry_price = df.iloc[next_bar_loc]["open"]
+
+        # Look ahead from bar N+2 onward (N+1 is the entry bar)
+        future = df.iloc[next_bar_loc + 1: next_bar_loc + 1 + n_bars]
         exit_return = None
         exit_type   = None
 
