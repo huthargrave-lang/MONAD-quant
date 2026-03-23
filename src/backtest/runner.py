@@ -141,6 +141,12 @@ def run_backtest(df: pd.DataFrame,
     rolling_returns = deque()     # rolling window for adaptive Kelly
     min_trades_for_kelly = 10     # need at least N trades before Kelly kicks in
 
+    # Position sizing mode
+    sizing_mode      = getattr(config, "POSITION_SIZING_MODE", "kelly")
+    fixed_pos_pct    = getattr(config, "FIXED_POSITION_PCT", 0.08)
+    kelly_clamp_min  = getattr(config, "KELLY_CLAMP_MIN", 0.02)
+    kelly_clamp_max  = getattr(config, "KELLY_CLAMP_MAX", 0.10)
+
     # Adaptive Kelly config
     use_adaptive = getattr(config, "USE_ADAPTIVE_KELLY", False) and timeframe == "hourly"
     ak_lookback  = getattr(config, "ADAPTIVE_KELLY_LOOKBACK", 20)
@@ -165,46 +171,54 @@ def run_backtest(df: pd.DataFrame,
         direction = "LONG" if trade.get("trend_regime", 0) >= 0 else "SHORT"
         exit_type = trade.get("exit_type", "?")
 
-        # ── Compute Kelly from PAST trades only (rolling mode) ────────
-        if kelly_mode == "rolling" and len(rolling_returns) >= min_trades_for_kelly:
-            past = pd.Series(list(rolling_returns))
-            past_stats = estimate_stats_from_backtest(past)
-            base_sizing = compute_position_size(
-                capital=capital,
-                win_rate=past_stats["win_rate"],
-                avg_win_pct=past_stats["avg_win_pct"],
-                avg_loss_pct=past_stats["avg_loss_pct"],
-                kelly_multiplier=kelly_multiplier,
-                min_position_pct=min_pos_pct,
-                max_position_pct=max_pos_pct,
-            )
-            kelly_capped = base_sizing["kelly_capped"]
-        elif kelly_mode == "rolling" and len(rolling_returns) < min_trades_for_kelly:
-            # Not enough history — use conservative fixed size
-            kelly_capped = min_pos_pct
+        # ── Position sizing ──────────────────────────────────────────
+        if sizing_mode == "fixed":
+            # Fixed percentage — no Kelly, no adaptive scaling
+            kelly_capped = fixed_pos_pct
         else:
-            # Full-sample mode (legacy/optimistic)
-            sizing_legacy = compute_position_size(
-                capital=capital,
-                win_rate=stats["win_rate"],
-                avg_win_pct=stats["avg_win_pct"],
-                avg_loss_pct=stats["avg_loss_pct"],
-                kelly_multiplier=kelly_multiplier,
-                min_position_pct=min_pos_pct,
-                max_position_pct=max_pos_pct,
-            )
-            kelly_capped = sizing_legacy["kelly_capped"]
+            # Kelly-based sizing (rolling or full-sample)
+            if kelly_mode == "rolling" and len(rolling_returns) >= min_trades_for_kelly:
+                past = pd.Series(list(rolling_returns))
+                past_stats = estimate_stats_from_backtest(past)
+                base_sizing = compute_position_size(
+                    capital=capital,
+                    win_rate=past_stats["win_rate"],
+                    avg_win_pct=past_stats["avg_win_pct"],
+                    avg_loss_pct=past_stats["avg_loss_pct"],
+                    kelly_multiplier=kelly_multiplier,
+                    min_position_pct=min_pos_pct,
+                    max_position_pct=max_pos_pct,
+                )
+                kelly_capped = base_sizing["kelly_capped"]
+            elif kelly_mode == "rolling" and len(rolling_returns) < min_trades_for_kelly:
+                kelly_capped = min_pos_pct
+            else:
+                # Full-sample mode (legacy/optimistic)
+                sizing_legacy = compute_position_size(
+                    capital=capital,
+                    win_rate=stats["win_rate"],
+                    avg_win_pct=stats["avg_win_pct"],
+                    avg_loss_pct=stats["avg_loss_pct"],
+                    kelly_multiplier=kelly_multiplier,
+                    min_position_pct=min_pos_pct,
+                    max_position_pct=max_pos_pct,
+                )
+                kelly_capped = sizing_legacy["kelly_capped"]
 
-        # ── Adaptive Kelly multiplier (rolling WR tiers) ──────────────
-        if use_adaptive and len(rolling_returns) >= ak_lookback:
-            recent = list(rolling_returns)[-ak_lookback:]
-            recent_wr = sum(1 for x in recent if x > 0) / len(recent)
-            if recent_wr >= ak_high_wr:
-                kelly_capped = min(kelly_capped * ak_high_mult, ak_high_cap)
-            elif recent_wr < ak_pause_wr:
-                kelly_capped *= ak_pause_mult
-            elif recent_wr < ak_low_wr:
-                kelly_capped *= ak_low_mult
+            # Adaptive Kelly multiplier (rolling WR tiers)
+            if use_adaptive and len(rolling_returns) >= ak_lookback:
+                recent = list(rolling_returns)[-ak_lookback:]
+                recent_wr = sum(1 for x in recent if x > 0) / len(recent)
+                if recent_wr >= ak_high_wr:
+                    kelly_capped = min(kelly_capped * ak_high_mult, ak_high_cap)
+                elif recent_wr < ak_pause_wr:
+                    kelly_capped *= ak_pause_mult
+                elif recent_wr < ak_low_wr:
+                    kelly_capped *= ak_low_mult
+
+            # Safe Kelly clamp
+            if sizing_mode == "kelly_clamped":
+                kelly_capped = max(kelly_clamp_min, min(kelly_capped, kelly_clamp_max))
 
         position = capital * kelly_capped
         pnl = position * r
@@ -286,10 +300,15 @@ def run_backtest(df: pd.DataFrame,
     print(f"       Sharpe Ratio:   {sharpe:.3f}  (annualized by {trades_per_year:.0f} trades/yr)")
     print(f"       Max Drawdown:   {max_drawdown*100:.2f}%")
     print(f"       Final Capital:  ${equity.iloc[-1]:,.2f}")
-    if kelly_mode == "rolling":
-        print(f"       Kelly Mode:     Rolling (min {min_trades_for_kelly} trades warmup)")
+    if sizing_mode == "fixed":
+        print(f"       Sizing:         Fixed {fixed_pos_pct*100:.0f}% per trade")
+    elif sizing_mode == "kelly_clamped":
+        print(f"       Sizing:         Kelly clamped [{kelly_clamp_min*100:.0f}%-{kelly_clamp_max*100:.0f}%]"
+              f" ({'rolling' if kelly_mode == 'rolling' else 'full-sample'})")
+    elif kelly_mode == "rolling":
+        print(f"       Sizing:         Rolling Kelly (min {min_trades_for_kelly} trades warmup)")
     else:
-        print(f"       Kelly Mode:     Full-sample (LOOKAHEAD — use realistic mode)")
+        print(f"       Sizing:         Full-sample Kelly (LOOKAHEAD — use realistic mode)")
     print("=" * 60)
 
     # Monthly dividend table

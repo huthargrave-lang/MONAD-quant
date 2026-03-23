@@ -351,6 +351,15 @@ PLOT_RESULTS     = True
 BACKTEST_MODE    = "realistic"
 BACKTEST_DEBUG   = False         # True = print per-trade detail (entry, exit, size, PnL)
 
+# ── Position Sizing Mode ───────────────────────────────────────────────
+# "kelly"  = fractional Kelly Criterion (rolling or full-sample per backtest mode)
+# "fixed"  = fixed percentage per trade (recommended for live + validation)
+# "kelly_clamped" = Kelly but clamped to [2%, 10%] (safe Kelly)
+POSITION_SIZING_MODE = "fixed"       # "kelly" | "fixed" | "kelly_clamped"
+FIXED_POSITION_PCT   = 0.08          # 8% per trade (used when POSITION_SIZING_MODE="fixed")
+KELLY_CLAMP_MIN      = 0.02          # 2% floor (used when POSITION_SIZING_MODE="kelly_clamped")
+KELLY_CLAMP_MAX      = 0.10          # 10% cap (used when POSITION_SIZING_MODE="kelly_clamped")
+
 # ── Adaptive Kelly — signal quality detector ─────────────────────────────
 # Tracks rolling win rate over the last N trades and scales position size.
 # Key use case: BTC hourly bad months (33-37% WR) cluster — if the last 20
