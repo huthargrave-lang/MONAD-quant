@@ -92,11 +92,15 @@ def get_latest_price(symbol: str) -> float:
     ib.qualifyContracts(contract)
 
     def _valid(p):
-        return p is not None and not math.isnan(p) and p > 0
+        try:
+            return p is not None and math.isfinite(p) and p > 0
+        except (TypeError, ValueError):
+            return False
 
     # Try live market data
     [ticker] = ib.reqTickers(contract)
-    for attr in ("last", "close"):
+    ib.sleep(1)  # give IBKR time to populate ticker fields
+    for attr in ("last", "close", "bid", "ask"):
         p = getattr(ticker, attr, None)
         if _valid(p):
             log.debug(f"Latest price {symbol}: {p} (live {attr})")
@@ -110,8 +114,10 @@ def get_latest_price(symbol: str) -> float:
     # Try delayed data (IBKR paper without live subscription)
     try:
         ib.reqMarketDataType(3)  # 3 = delayed
+        ib.sleep(2)  # delayed data needs time to arrive
         [delayed] = ib.reqTickers(contract)
-        for attr in ("last", "close"):
+        ib.sleep(2)
+        for attr in ("last", "close", "bid", "ask"):
             p = getattr(delayed, attr, None)
             if _valid(p):
                 log.info(f"Latest price {symbol}: {p} (delayed {attr})")
