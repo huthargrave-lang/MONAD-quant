@@ -117,7 +117,7 @@ def place_bracket_order(symbol: str, qty: int, entry_price: float,
     bracket = ib.bracketOrder(
         action="BUY",
         quantity=qty,
-        limitPrice=entry_price,  # limit at current price (effectively market)
+        limitPrice=round(entry_price * 1.005, 2),  # 0.5% above last price to ensure fill
         takeProfitPrice=target_price,
         stopLossPrice=stop_price,
     )

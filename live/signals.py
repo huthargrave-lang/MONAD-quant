@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 
 import config
-from src.data.fetcher import fetch_etf_hourly
+from src.data.fetcher import fetch_yfinance
 from src.strategy.engine import build_features, generate_trades
 
 log = logging.getLogger(__name__)
@@ -84,16 +84,17 @@ def _fetch_recent_bars(symbol: str) -> pd.DataFrame | None:
     # Add buffer for weekends and holidays.
     trading_days_needed = (_WARMUP_BARS // 6) + 10
     start = (datetime.now(timezone.utc) - timedelta(days=trading_days_needed * 2)).strftime("%Y-%m-%d")
-    end   = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    # yfinance 'end' is exclusive — add 1 day so today's bars are included
+    end   = (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%Y-%m-%d")
 
     try:
-        df = fetch_etf_hourly(symbol, start=start, end=end)
+        df = fetch_yfinance(symbol, start=start, end=end, interval="1h")
     except Exception as exc:
         log.error(f"Failed to fetch {symbol} hourly data: {exc}")
         return None
 
     if df is None or df.empty:
-        log.error(f"fetch_etf_hourly({symbol}) returned empty DataFrame")
+        log.error(f"fetch_yfinance({symbol}, 1h) returned empty DataFrame")
         return None
 
     # Drop the current (possibly incomplete) bar.

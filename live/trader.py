@@ -54,6 +54,23 @@ def on_bar() -> None:
 
     # ── Manage existing position ──────────────────────────────────────────────
     if position is not None:
+        # Reconcile: check if bracket TP/SL already filled since last bar
+        broker_pos = broker.get_open_position(position.symbol)
+        if broker_pos is None or broker_pos["qty"] == 0:
+            # Bracket order already exited (TP or SL hit between bars)
+            current_price = broker.get_latest_price(position.symbol)
+            ret = (current_price - position.entry_price) / position.entry_price
+            # Infer exit type from return direction vs target/stop
+            asset_cfg = _get_asset_config()
+            if ret >= asset_cfg["target_gain_pct"] * 0.8:
+                exit_type = "target_hit"
+            else:
+                exit_type = "stop_hit"
+            log.info(f"Bracket already filled (detected via IBKR position check) | ret={ret:+.4%} → {exit_type}")
+            state.close_position(return_pct=ret, exit_type=exit_type)
+            _log_summary()
+            return
+
         bar_count = state.increment_bar_count()
         log.info(f"Open position: {position.qty} {position.symbol} @ {position.entry_price:.2f} | bar {bar_count}/{config.MAX_TRADE_BARS_LIVE}")
 
