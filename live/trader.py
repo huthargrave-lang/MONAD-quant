@@ -128,7 +128,7 @@ def on_bar() -> None:
     qty = int(sizing["position_dollars"] / entry_price)
 
     if qty < 1:
-        log.warning(f"Kelly position too small for one share (${kelly['position_dollars']:.0f} / ${entry_price:.2f})")
+        log.warning(f"Position too small for one share (${sizing['position_dollars']:.0f} / ${entry_price:.2f})")
         return
 
     order_id = broker.place_bracket_order(
@@ -257,6 +257,21 @@ def main() -> None:
         log.error(f"Cannot connect to IBKR: {exc}")
         log.error("Ensure IB Gateway or TWS is running on localhost")
         sys.exit(1)
+
+    # ── Startup self-check: log active config ────────────────────────────
+    asset_cfg = _get_asset_config()
+    port = config.IBKR_PORT_PAPER if config.LIVE_PAPER_MODE else config.IBKR_PORT_LIVE
+    log.info("─" * 60)
+    log.info("Startup config:")
+    log.info(f"  Symbol:       {config.LIVE_SYMBOL}")
+    log.info(f"  Mode:         {'PAPER' if config.LIVE_PAPER_MODE else 'LIVE'} (port {port})")
+    log.info(f"  Position:     fixed 10%")
+    log.info(f"  Target:       {asset_cfg['target_gain_pct']*100:.2f}%")
+    log.info(f"  Stop:         {asset_cfg['stop_loss_pct']*100:.2f}%")
+    log.info(f"  R:R:          {asset_cfg['target_gain_pct']/asset_cfg['stop_loss_pct']:.1f}:1")
+    log.info(f"  Max bars:     {config.MAX_TRADE_BARS_LIVE}")
+    log.info(f"  Warmup bars:  {signals._WARMUP_BARS}")
+    log.info("─" * 60)
 
     state.init_db()
 

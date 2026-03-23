@@ -3,7 +3,7 @@ live/state.py — SQLite-backed persistence for open position and trade log.
 
 Two tables:
   position  — zero or one row (the currently open trade)
-  trades    — append-only log of closed trades (for rolling Kelly computation)
+  trades    — append-only log of closed trades (for rolling stats and sizing)
 """
 
 import sqlite3
