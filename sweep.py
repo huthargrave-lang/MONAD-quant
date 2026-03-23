@@ -49,6 +49,8 @@ parser.add_argument("--broker", default=None, choices=["ibkr", "schwab", "fideli
                     help="Broker preset for spread/fee estimates (default: conservative retail)")
 parser.add_argument("--apply", action="store_true",
                     help="Auto-apply optimal params to config.py without prompting")
+parser.add_argument("--mode", default="realistic", choices=["optimistic", "realistic", "harsh"],
+                    help="Backtest fairness mode (default: realistic)")
 args = parser.parse_args()
 
 TICKER = args.ticker.upper()
@@ -132,7 +134,7 @@ def fetch_ticker_hourly(ticker, start, end):
 
 
 print(f"\n{'='*70}")
-print(f"  MONAD QUANT — UNIVERSAL SWEEP: {TICKER}")
+print(f"  MONAD QUANT — UNIVERSAL SWEEP: {TICKER}  [{args.mode.upper()}]")
 print(f"  Period: {START_DATE} → {END_DATE}")
 print(f"{'='*70}\n")
 
@@ -221,7 +223,7 @@ def run_quiet(target, stop, rsi_os=None, vwap=None):
                 kelly_multiplier=config.KELLY_MULTIPLIER,
                 timeframe="hourly",
                 plot=False,
-                backtest_mode="optimistic",  # sweep uses optimistic for param comparison
+                backtest_mode=args.mode,
             )
         return result if result else None
     except Exception as e:
@@ -471,7 +473,7 @@ if best["result"] and "error" not in best["result"]:
                     kelly_multiplier=config.KELLY_MULTIPLIER,
                     timeframe="hourly",
                     plot=False,
-                    backtest_mode="optimistic",
+                    backtest_mode=args.mode,
                 )
             if wr and "error" not in wr:
                 window_results.append({
@@ -567,7 +569,7 @@ if best["result"] and "error" not in best["result"]:
                                     kelly_multiplier=config.KELLY_MULTIPLIER,
                                     timeframe="hourly",
                                     plot=False,
-                                    backtest_mode="optimistic",
+                                    backtest_mode=args.mode,
                                 )
                             if fwr and "error" not in fwr:
                                 if fwr["total_return"] < 0:
