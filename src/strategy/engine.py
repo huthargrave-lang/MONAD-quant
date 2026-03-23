@@ -99,6 +99,8 @@ def generate_trades(df: pd.DataFrame,
                     target_gain_pct: float = 0.015,   # 1.5% target
                     stop_loss_pct: float = 0.01,       # 1.0% stop
                     use_regime_filter: bool = True,
+                    use_slope_regime: bool = False,
+                    longs_only: bool = False,
                     trade_hours: tuple = None) -> pd.DataFrame:
     """
     Generate trade entry signals from aggregated features.
