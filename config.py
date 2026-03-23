@@ -28,8 +28,8 @@ BACKTEST_END   = "2024-12-31"
 # BACKTEST_START_HOURLY = "2024-03-15";  BACKTEST_END_HOURLY = "2026-02-15"  # 2yr baseline
 # BACKTEST_START_HOURLY = "2025-01-01";  BACKTEST_END_HOURLY = "2026-03-01"  # 2025–present
 # BACKTEST_START_HOURLY = "2024-06-01";  BACKTEST_END_HOURLY = "2026-03-01"  # 21mo recent
-BACKTEST_START_HOURLY = "2019-01-01"
-BACKTEST_END_HOURLY   = "2026-01-01"
+BACKTEST_START_HOURLY = "2024-04-01"   # yfinance hourly limit = 730 days
+BACKTEST_END_HOURLY   = "2026-03-01"
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  PROFILE 1 — BTC DAILY
