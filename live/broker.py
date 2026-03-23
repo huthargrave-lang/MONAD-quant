@@ -38,6 +38,7 @@ def _ensure_connected():
         return _ib
 
     _ib = IB()
+    _ib.RequestTimeout = 10  # seconds — prevents blocking forever on API calls
     host = config.IBKR_HOST
     port = config.IBKR_PORT_PAPER if config.LIVE_PAPER_MODE else config.IBKR_PORT_LIVE
     client_id = config.IBKR_CLIENT_ID
@@ -90,13 +91,13 @@ def get_latest_price(symbol: str) -> float:
 
     Tries: live data → delayed data (reqMarketDataType 3) → yfinance last close.
     Paper accounts without market data subscriptions hit the delayed/yfinance path.
+    Each IBKR attempt has a timeout so the function never blocks the scheduler.
     """
     import math
     from ib_insync import Stock
 
     ib = _ensure_connected()
     contract = Stock(symbol, "SMART", "USD")
-    ib.qualifyContracts(contract)
 
     def _valid(p):
         try:
@@ -104,24 +105,39 @@ def get_latest_price(symbol: str) -> float:
         except (TypeError, ValueError):
             return False
 
-    # Try live market data
-    [ticker] = ib.reqTickers(contract)
-    ib.sleep(1)  # give IBKR time to populate ticker fields
-    for attr in ("last", "close", "bid", "ask"):
-        p = getattr(ticker, attr, None)
-        if _valid(p):
-            log.debug(f"Latest price {symbol}: {p} (live {attr})")
-            return float(p)
+    # Qualify contract (with timeout protection via ib.RequestTimeout)
+    try:
+        log.info(f"Qualifying contract for {symbol}")
+        ib.qualifyContracts(contract)
+        log.info(f"Contract qualified: {contract}")
+    except Exception as exc:
+        log.warning(f"qualifyContracts failed for {symbol}: {exc} — falling back to yfinance")
+        return _yfinance_fallback(symbol)
 
-    mp = ticker.marketPrice()
-    if _valid(mp):
-        log.debug(f"Latest price {symbol}: {mp} (marketPrice)")
-        return float(mp)
+    # Try live market data
+    try:
+        log.info(f"Requesting live market data for {symbol}")
+        [ticker] = ib.reqTickers(contract)
+        ib.sleep(2)  # give IBKR time to populate ticker fields
+        for attr in ("last", "close", "bid", "ask"):
+            p = getattr(ticker, attr, None)
+            if _valid(p):
+                log.info(f"Latest price {symbol}: {p} (live {attr})")
+                return float(p)
+
+        mp = ticker.marketPrice()
+        if _valid(mp):
+            log.info(f"Latest price {symbol}: {mp} (marketPrice)")
+            return float(mp)
+        log.info(f"Live data returned no valid price for {symbol}")
+    except Exception as exc:
+        log.warning(f"Live market data failed for {symbol}: {exc}")
 
     # Try delayed data (IBKR paper without live subscription)
     try:
+        log.info(f"Requesting delayed market data for {symbol}")
         ib.reqMarketDataType(3)  # 3 = delayed
-        ib.sleep(2)  # delayed data needs time to arrive
+        ib.sleep(2)
         [delayed] = ib.reqTickers(contract)
         ib.sleep(2)
         for attr in ("last", "close", "bid", "ask"):
@@ -131,10 +147,20 @@ def get_latest_price(symbol: str) -> float:
                 ib.reqMarketDataType(1)
                 return float(p)
         ib.reqMarketDataType(1)
-    except Exception:
-        pass
+        log.info(f"Delayed data returned no valid price for {symbol}")
+    except Exception as exc:
+        log.warning(f"Delayed market data failed for {symbol}: {exc}")
+        try:
+            ib.reqMarketDataType(1)
+        except Exception:
+            pass
 
     # Final fallback: yfinance last close
+    return _yfinance_fallback(symbol)
+
+
+def _yfinance_fallback(symbol: str) -> float:
+    """Fetch last close price from yfinance as a fallback."""
     log.warning(f"IBKR data unavailable for {symbol}, using yfinance last close")
     from src.data.fetcher import fetch_yfinance
     from datetime import datetime, timedelta, timezone
