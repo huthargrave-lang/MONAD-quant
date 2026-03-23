@@ -112,43 +112,16 @@ def close_position(return_pct: float, exit_type: str) -> None:
 
 def get_current_kelly(capital: float) -> dict:
     """
-    Computes Kelly position size from rolling live trade stats.
-    Falls back to backtest bootstrap stats until LIVE_MIN_TRADES_FOR_ADAPTIVE trades exist.
+    Returns a fixed 10% position size for live/paper trading.
     """
-    with _conn() as conn:
-        rows = conn.execute(
-            "SELECT return_pct FROM trades ORDER BY exit_time DESC LIMIT ?",
-            (config.ADAPTIVE_KELLY_LOOKBACK,),
-        ).fetchall()
-
-    returns = [r["return_pct"] for r in rows]
-
-    # Per-instrument bootstrap stats
-    symbol = config.LIVE_SYMBOL
-    bootstrap = config.LIVE_BOOTSTRAP.get(symbol, config.LIVE_BOOTSTRAP.get("TQQQ"))
-
-    if len(returns) < config.LIVE_MIN_TRADES_FOR_ADAPTIVE:
-        # Bootstrap from optimized backtest statistics
-        win_rate = bootstrap["wr"]
-        avg_win  = bootstrap["win"]
-        avg_loss = bootstrap["loss"]
-        log.debug(f"Kelly: using {symbol} bootstrap stats ({len(returns)}/{config.LIVE_MIN_TRADES_FOR_ADAPTIVE} live trades)")
-    else:
-        wins   = [r for r in returns if r > 0]
-        losses = [r for r in returns if r < 0]
-        win_rate = len(wins) / len(returns)
-        avg_win  = mean(wins) if wins else bootstrap["win"]
-        avg_loss = abs(mean(losses)) if losses else bootstrap["loss"]
-        log.debug(f"Kelly: live stats WR={win_rate:.1%} from {len(returns)} trades")
-
-    return compute_position_size(
-        capital=capital,
-        win_rate=win_rate,
-        avg_win_pct=avg_win,
-        avg_loss_pct=avg_loss,
-        kelly_multiplier=0.5,
-        max_position_pct=config.ADAPTIVE_KELLY_HIGH_CAP,
-    )
+    fixed_kelly = 0.10
+    position_dollars = capital * fixed_kelly
+    return {
+        "kelly_full": fixed_kelly,
+        "kelly_adjusted": fixed_kelly,
+        "kelly_capped": fixed_kelly,
+        "position_dollars": position_dollars,
+    }
 
 
 # ── Diagnostics ───────────────────────────────────────────────────────────────
