@@ -162,7 +162,15 @@ def _on_bar_inner() -> str:
         state.add_monitor_event("ERROR", "signal", f"Signal computation failed: {exc}")
         return "signal_error"
 
-    state.save_signal_snapshot(sig_info["signal"], str(sig_info["bar_time"]), sig_info["bar_close"])
+    state.save_signal_snapshot(
+        sig_info["signal"],
+        str(sig_info["bar_time"]),
+        sig_info["bar_close"],
+        sig_info.get("rsi"),
+        sig_info.get("vwap_zscore"),
+        sig_info.get("momentum_signal"),
+        sig_info.get("volume_signal"),
+    )
 
     if sig_info["signal"] != 1:
         log.info(f"No entry signal (signal={sig_info['signal']})")
@@ -170,6 +178,13 @@ def _on_bar_inner() -> str:
 
     # ── Size and place the trade ──────────────────────────────────────────────
     account = broker.get_account()
+    state.save_account_snapshot(
+        equity=getattr(account, "equity", None),
+        cash=getattr(account, "cash", None),
+        buying_power=getattr(account, "buying_power", None),
+        position_value=getattr(account, "position_value", None),
+        ibkr_connected=True,
+    )
     capital = account.equity
     log.info(f"Account equity: ${capital:,.2f}")
 
@@ -336,11 +351,28 @@ def main() -> None:
         config.LIVE_PAPER_MODE = True
         log.info(f"Paper mode | symbol={config.LIVE_SYMBOL} | port={config.IBKR_PORT_PAPER}")
 
+    state.init_db()
+    state.set_monitor_status(status="idle", cycle_action="startup", details="trader initialized")
+
     # Verify IBKR connection
     try:
         account = broker.get_account()
+        state.save_account_snapshot(
+            equity=getattr(account, "equity", None),
+            cash=getattr(account, "cash", None),
+            buying_power=getattr(account, "buying_power", None),
+            position_value=getattr(account, "position_value", None),
+            ibkr_connected=True,
+        )
         log.info(f"IBKR connected | equity=${account.equity:,.2f} | cash=${account.cash:,.2f}")
     except Exception as exc:
+        state.save_account_snapshot(
+            equity=None,
+            cash=None,
+            buying_power=None,
+            position_value=None,
+            ibkr_connected=False,
+        )
         log.error(f"Cannot connect to IBKR: {exc}")
         log.error("Ensure IB Gateway or TWS is running on localhost")
         sys.exit(1)
@@ -366,9 +398,6 @@ def main() -> None:
     if getattr(config, 'LIVE_DRY_RUN', False):
         log.info(f"  DRY RUN:      YES — no orders will be placed")
     log.info("─" * 60)
-
-    state.init_db()
-    state.set_monitor_status(status="idle", cycle_action="startup", details="trader initialized")
 
     if args.once:
         on_bar()

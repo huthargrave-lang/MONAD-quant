@@ -3,10 +3,12 @@ live/state.py — SQLite-backed persistence for open position and trade log.
 
 Tables:
   position         — zero or one row (the currently open trade)
-  trades           — append-only log of closed trades (for rolling stats and sizing)
+  trades           — append-only log of closed trades
   monitor_status   — singleton row with latest heartbeat/status metadata
   signal_snapshot  — latest computed signal payload
+  signal_history   — append-only signal snapshots for monitoring charts
   monitor_events   — append-only recent operational events/warnings
+  account_snapshot — latest IBKR/account snapshot from trader process
 """
 
 import sqlite3
@@ -14,11 +16,9 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from statistics import mean
 from typing import Optional
 
 import config
-from src.strategy.sizing import compute_position_size
 
 log = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ def _conn() -> sqlite3.Connection:
 
 
 def init_db() -> None:
-    """Create tables if they don't exist. Safe to call on every startup."""
+    """Create tables if they don't exist and apply additive migrations."""
     with _conn() as conn:
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS position (
@@ -49,7 +49,10 @@ def init_db() -> None:
                 exit_time   TEXT NOT NULL,
                 return_pct  REAL NOT NULL,
                 exit_type   TEXT NOT NULL,
-                exit_price  REAL
+                exit_price  REAL,
+                symbol      TEXT,
+                qty         INTEGER,
+                bars_held   INTEGER
             );
 
             CREATE TABLE IF NOT EXISTS monitor_status (
@@ -68,7 +71,23 @@ def init_db() -> None:
                 updated_at          TEXT,
                 signal              INTEGER,
                 bar_time            TEXT,
-                bar_close           REAL
+                bar_close           REAL,
+                rsi                 REAL,
+                vwap_zscore         REAL,
+                momentum_signal     INTEGER,
+                volume_signal       INTEGER
+            );
+
+            CREATE TABLE IF NOT EXISTS signal_history (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                updated_at          TEXT,
+                signal              INTEGER,
+                bar_time            TEXT,
+                bar_close           REAL,
+                rsi                 REAL,
+                vwap_zscore         REAL,
+                momentum_signal     INTEGER,
+                volume_signal       INTEGER
             );
 
             CREATE TABLE IF NOT EXISTS monitor_events (
@@ -78,7 +97,40 @@ def init_db() -> None:
                 category            TEXT NOT NULL,
                 message             TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS account_snapshot (
+                id                  INTEGER PRIMARY KEY CHECK (id = 1),
+                updated_at          TEXT,
+                equity              REAL,
+                cash                REAL,
+                buying_power        REAL,
+                position_value      REAL,
+                ibkr_connected      INTEGER
+            );
         """)
+
+        # Additive migrations for existing DBs.
+        existing_trade_cols = {
+            row["name"] for row in conn.execute("PRAGMA table_info(trades)").fetchall()
+        }
+        if "symbol" not in existing_trade_cols:
+            conn.execute("ALTER TABLE trades ADD COLUMN symbol TEXT")
+        if "qty" not in existing_trade_cols:
+            conn.execute("ALTER TABLE trades ADD COLUMN qty INTEGER")
+        if "bars_held" not in existing_trade_cols:
+            conn.execute("ALTER TABLE trades ADD COLUMN bars_held INTEGER")
+
+        existing_signal_cols = {
+            row["name"] for row in conn.execute("PRAGMA table_info(signal_snapshot)").fetchall()
+        }
+        for col, ctype in [
+            ("rsi", "REAL"),
+            ("vwap_zscore", "REAL"),
+            ("momentum_signal", "INTEGER"),
+            ("volume_signal", "INTEGER"),
+        ]:
+            if col not in existing_signal_cols:
+                conn.execute(f"ALTER TABLE signal_snapshot ADD COLUMN {col} {ctype}")
 
 
 # ── Position management ───────────────────────────────────────────────────────
@@ -105,7 +157,7 @@ def open_position(symbol: str, entry_price: float, qty: int,
                   bracket_order_id: str) -> None:
     entry_time = datetime.now(timezone.utc).isoformat()
     with _conn() as conn:
-        conn.execute("DELETE FROM position")  # ensure no stale row
+        conn.execute("DELETE FROM position")
         conn.execute(
             "INSERT INTO position VALUES (?, ?, ?, ?, ?, 0)",
             (symbol, entry_time, entry_price, qty, bracket_order_id),
@@ -133,9 +185,23 @@ def close_position(return_pct: float, exit_type: str,
             log.warning("close_position called but no open position found")
             return
         conn.execute(
-            "INSERT INTO trades (entry_time, exit_time, return_pct, exit_type, exit_price) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (pos["entry_time"], exit_time, return_pct, exit_type, exit_price),
+            """
+            INSERT INTO trades (
+                entry_time, exit_time, return_pct, exit_type, exit_price,
+                symbol, qty, bars_held
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                pos["entry_time"],
+                exit_time,
+                return_pct,
+                exit_type,
+                exit_price,
+                pos["symbol"],
+                pos["qty"],
+                pos["bar_count"],
+            ),
         )
         conn.execute("DELETE FROM position")
     price_str = f" @ {exit_price:.2f}" if exit_price else ""
@@ -145,13 +211,7 @@ def close_position(return_pct: float, exit_type: str,
 # ── Position sizing ──────────────────────────────────────────────────────────
 
 def get_position_plan(capital: float) -> dict:
-    """
-    Returns the position sizing plan for the next trade.
-
-    Currently uses a fixed 10% position size. When adaptive sizing
-    is re-enabled for live trading, this function will compute it from
-    the rolling trade log in state.db.
-    """
+    """Returns the position sizing plan for the next trade (fixed 10%)."""
     position_pct = 0.10
     position_dollars = capital * position_pct
     return {
@@ -160,25 +220,55 @@ def get_position_plan(capital: float) -> dict:
     }
 
 
-# ── Diagnostics ───────────────────────────────────────────────────────────────
+# ── Diagnostics / monitor helpers ────────────────────────────────────────────
 
 def get_trade_summary() -> dict:
     with _conn() as conn:
         rows = conn.execute("SELECT return_pct, exit_type FROM trades").fetchall()
     if not rows:
         return {"total": 0}
-    returns   = [r["return_pct"] for r in rows]
-    win_rate  = sum(1 for r in returns if r > 0) / len(returns)
+    returns = [r["return_pct"] for r in rows]
+    win_rate = sum(1 for r in returns if r > 0) / len(returns)
     total_ret = sum(returns)
-    by_type   = {}
+    by_type = {}
     for r in rows:
         by_type[r["exit_type"]] = by_type.get(r["exit_type"], 0) + 1
     return {
-        "total":      len(returns),
-        "win_rate":   win_rate,
-        "total_ret":  total_ret,
+        "total": len(returns),
+        "win_rate": win_rate,
+        "total_ret": total_ret,
         "exit_types": by_type,
     }
+
+
+def get_recent_trades(limit: int = 20) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT entry_time, exit_time, return_pct, exit_type, exit_price,
+                   symbol, qty, bars_held
+            FROM trades
+            ORDER BY exit_time DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_exit_type_counts(limit: int = 250) -> dict[str, int]:
+    with _conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT exit_type, COUNT(*) AS c
+            FROM (
+                SELECT exit_type FROM trades ORDER BY exit_time DESC LIMIT ?
+            ) t
+            GROUP BY exit_type
+            """,
+            (limit,),
+        ).fetchall()
+    return {r["exit_type"]: r["c"] for r in rows}
 
 
 def set_monitor_status(status: str, cycle_action: str, details: str = "") -> None:
@@ -218,20 +308,63 @@ def get_monitor_status() -> Optional[dict]:
     return dict(row) if row else None
 
 
-def save_signal_snapshot(signal: int, bar_time: str, bar_close: float) -> None:
+def save_signal_snapshot(
+    signal: int,
+    bar_time: str,
+    bar_close: float,
+    rsi: float | None = None,
+    vwap_zscore: float | None = None,
+    momentum_signal: int | None = None,
+    volume_signal: int | None = None,
+) -> None:
     now = datetime.now(timezone.utc).isoformat()
     with _conn() as conn:
         conn.execute(
             """
-            INSERT INTO signal_snapshot (id, updated_at, signal, bar_time, bar_close)
-            VALUES (1, ?, ?, ?, ?)
+            INSERT INTO signal_snapshot (
+                id, updated_at, signal, bar_time, bar_close,
+                rsi, vwap_zscore, momentum_signal, volume_signal
+            )
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 updated_at = excluded.updated_at,
                 signal = excluded.signal,
                 bar_time = excluded.bar_time,
-                bar_close = excluded.bar_close
+                bar_close = excluded.bar_close,
+                rsi = excluded.rsi,
+                vwap_zscore = excluded.vwap_zscore,
+                momentum_signal = excluded.momentum_signal,
+                volume_signal = excluded.volume_signal
             """,
-            (now, signal, str(bar_time), bar_close),
+            (
+                now,
+                signal,
+                str(bar_time),
+                bar_close,
+                rsi,
+                vwap_zscore,
+                momentum_signal,
+                volume_signal,
+            ),
+        )
+        conn.execute(
+            """
+            INSERT INTO signal_history (
+                updated_at, signal, bar_time, bar_close,
+                rsi, vwap_zscore, momentum_signal, volume_signal
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                now,
+                signal,
+                str(bar_time),
+                bar_close,
+                rsi,
+                vwap_zscore,
+                momentum_signal,
+                volume_signal,
+            ),
         )
 
 
@@ -239,6 +372,21 @@ def get_signal_snapshot() -> Optional[dict]:
     with _conn() as conn:
         row = conn.execute("SELECT * FROM signal_snapshot WHERE id = 1").fetchone()
     return dict(row) if row else None
+
+
+def get_signal_history(limit: int = 20) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT updated_at, signal, bar_time, bar_close, rsi,
+                   vwap_zscore, momentum_signal, volume_signal
+            FROM signal_history
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def add_monitor_event(level: str, category: str, message: str) -> None:
@@ -259,15 +407,42 @@ def get_recent_monitor_events(limit: int = 25) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-def get_recent_trades(limit: int = 20) -> list[dict]:
+def save_account_snapshot(
+    *,
+    equity: float | None,
+    cash: float | None,
+    buying_power: float | None = None,
+    position_value: float | None = None,
+    ibkr_connected: bool = True,
+) -> None:
+    now = datetime.now(timezone.utc).isoformat()
     with _conn() as conn:
-        rows = conn.execute(
+        conn.execute(
             """
-            SELECT entry_time, exit_time, return_pct, exit_type, exit_price
-            FROM trades
-            ORDER BY exit_time DESC
-            LIMIT ?
+            INSERT INTO account_snapshot (
+                id, updated_at, equity, cash, buying_power, position_value, ibkr_connected
+            )
+            VALUES (1, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                updated_at = excluded.updated_at,
+                equity = excluded.equity,
+                cash = excluded.cash,
+                buying_power = excluded.buying_power,
+                position_value = excluded.position_value,
+                ibkr_connected = excluded.ibkr_connected
             """,
-            (limit,),
-        ).fetchall()
-    return [dict(r) for r in rows]
+            (
+                now,
+                equity,
+                cash,
+                buying_power,
+                position_value,
+                1 if ibkr_connected else 0,
+            ),
+        )
+
+
+def get_account_snapshot() -> Optional[dict]:
+    with _conn() as conn:
+        row = conn.execute("SELECT * FROM account_snapshot WHERE id = 1").fetchone()
+    return dict(row) if row else None

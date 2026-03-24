@@ -143,11 +143,11 @@ uvicorn live.dashboard:app --host 0.0.0.0 --port 8080
 ```
 
 Dashboard shows:
-- Bot status / heartbeat
-- Latest computed signal snapshot
-- Current open position
-- Recent closed trades
-- Warnings and recent operational events
+- Bot status / heartbeat with stale-age indicator
+- Latest computed signal snapshot (+ RSI/VWAP/momentum/volume fields)
+- Current open position with bars remaining + TP/SL distance estimates
+- Recent closed trades and exit-type breakdown charts (Plotly)
+- Warnings, events, and signal snapshot history
 
 ### Raspberry Pi Deployment
 
