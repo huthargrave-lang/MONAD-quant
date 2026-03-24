@@ -165,6 +165,128 @@ class TestBacktestEntryBasis(unittest.TestCase):
         self.assertEqual(len(result), 0, "Signal on last bar should produce no trade")
 
 
+class TestExitTypeTracking(unittest.TestCase):
+    """Verify exit_type values including ambiguous_same_bar."""
+
+    def test_ambiguous_same_bar_pessimistic(self):
+        """When both TP and SL are inside the same bar, exit_type = ambiguous_same_bar."""
+        from src.strategy.engine import compute_trade_returns
+
+        df = _make_ohlcv([
+            {"open": 100, "high": 101, "low": 99, "close": 100, "entry_signal": 1},
+            # Bar 1: entry at open=100
+            {"open": 100, "high": 100.5, "low": 99.8, "close": 100.2, "entry_signal": 0},
+            # Bar 2: huge range — both 1% target (101) and 1% stop (99) inside
+            {"open": 100, "high": 102, "low": 98, "close": 100, "entry_signal": 0},
+        ])
+
+        result = compute_trade_returns(df, target_gain_pct=0.01, stop_loss_pct=0.01,
+                                       max_trade_bars=5, worst_case_ambiguity=True)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result.iloc[0]["exit_type"], "ambiguous_same_bar")
+        # Pessimistic: return = -stop
+        self.assertAlmostEqual(result.iloc[0]["return"], -0.01, places=4)
+
+    def test_ambiguous_same_bar_optimistic(self):
+        """Optimistic mode: same-bar ambiguity still labeled ambiguous_same_bar, but return = +target."""
+        from src.strategy.engine import compute_trade_returns
+
+        df = _make_ohlcv([
+            {"open": 100, "high": 101, "low": 99, "close": 100, "entry_signal": 1},
+            {"open": 100, "high": 100.5, "low": 99.8, "close": 100.2, "entry_signal": 0},
+            {"open": 100, "high": 102, "low": 98, "close": 100, "entry_signal": 0},
+        ])
+
+        result = compute_trade_returns(df, target_gain_pct=0.01, stop_loss_pct=0.01,
+                                       max_trade_bars=5, worst_case_ambiguity=False)
+        self.assertEqual(result.iloc[0]["exit_type"], "ambiguous_same_bar")
+        self.assertAlmostEqual(result.iloc[0]["return"], 0.01, places=4)
+
+    def test_exit_type_values_complete(self):
+        """All three normal exit types are produced by a multi-trade scenario."""
+        from src.strategy.engine import compute_trade_returns
+
+        df = _make_ohlcv([
+            # Trade 1: target hit
+            {"open": 100, "high": 101, "low": 99, "close": 100, "entry_signal": 1},
+            {"open": 100, "high": 100.5, "low": 99.8, "close": 100.2, "entry_signal": 0},
+            {"open": 100.2, "high": 103, "low": 100, "close": 102, "entry_signal": 0},
+            # Trade 2: stop hit
+            {"open": 102, "high": 103, "low": 101, "close": 102, "entry_signal": 1},
+            {"open": 102, "high": 102.5, "low": 101.8, "close": 102, "entry_signal": 0},
+            {"open": 102, "high": 102.1, "low": 98, "close": 99, "entry_signal": 0},
+            # Trade 3: time exit (narrow bars)
+            {"open": 99, "high": 100, "low": 98, "close": 99, "entry_signal": 1},
+            {"open": 99, "high": 99.1, "low": 98.9, "close": 99, "entry_signal": 0},
+            {"open": 99, "high": 99.1, "low": 98.9, "close": 99.05, "entry_signal": 0},
+        ])
+
+        result = compute_trade_returns(df, target_gain_pct=0.02, stop_loss_pct=0.02, max_trade_bars=1)
+        exit_types = set(result["exit_type"].values)
+        self.assertIn("target_hit", exit_types)
+        self.assertIn("stop_hit", exit_types)
+        self.assertIn("time_exit", exit_types)
+
+
+class TestSoft50MAGate(unittest.TestCase):
+    """Verify the soft 50-MA gate blocks STRONG_BULL longs when price is deeply below 50-MA."""
+
+    def test_gate_blocks_deep_below_50ma(self):
+        """When price is >5% below 50-MA in STRONG_BULL, entry should be blocked."""
+        from src.strategy.engine import generate_trades
+        import config
+
+        df = pd.DataFrame({
+            "open": [100, 100, 100],
+            "high": [101, 101, 101],
+            "low": [99, 99, 99],
+            "close": [100, 100, 100],
+            "momentum_signal": [1, 1, 0],
+            "volume_signal": [0, 0, 0],
+            "vol_regime": [0, 0, 0],
+            "trend_direction": [0, 0, 0],
+            "regime": ["STRONG_BULL", "STRONG_BULL", "STRONG_BULL"],
+            "regime_kelly_mult": [1.5, 1.5, 1.5],
+            "ma_50d": [106, 104, 106],  # bar 0: 6% above close; bar 1: 4% above
+        })
+        df.index = pd.RangeIndex(3)
+
+        old_val = getattr(config, "STRONG_BULL_SOFT_50MA_PCT", 0.0)
+        try:
+            config.STRONG_BULL_SOFT_50MA_PCT = 0.05
+            result = generate_trades(df, require_signals=1, use_regime_filter=False,
+                                     use_slope_regime=True, longs_only=True)
+            # Bar 0: close=100, ma_50d=106 → 6% below → blocked
+            self.assertEqual(result.iloc[0]["entry_signal"], 0)
+            # Bar 1: close=100, ma_50d=104 → 4% below → NOT blocked
+            self.assertEqual(result.iloc[1]["entry_signal"], 1)
+        finally:
+            config.STRONG_BULL_SOFT_50MA_PCT = old_val
+
+    def test_gate_off_when_zero(self):
+        """Gate should be inactive when STRONG_BULL_SOFT_50MA_PCT = 0."""
+        from src.strategy.engine import generate_trades
+        import config
+
+        df = pd.DataFrame({
+            "open": [100], "high": [101], "low": [99], "close": [100],
+            "momentum_signal": [1], "volume_signal": [0],
+            "vol_regime": [0], "trend_direction": [0],
+            "regime": ["STRONG_BULL"], "regime_kelly_mult": [1.5],
+            "ma_50d": [110],  # 10% above close — would be blocked if gate on
+        })
+        df.index = pd.RangeIndex(1)
+
+        old_val = getattr(config, "STRONG_BULL_SOFT_50MA_PCT", 0.0)
+        try:
+            config.STRONG_BULL_SOFT_50MA_PCT = 0.0
+            result = generate_trades(df, require_signals=1, use_regime_filter=False,
+                                     use_slope_regime=True, longs_only=True)
+            self.assertEqual(result.iloc[0]["entry_signal"], 1)
+        finally:
+            config.STRONG_BULL_SOFT_50MA_PCT = old_val
+
+
 class TestRegressionBarCloseAnchor(unittest.TestCase):
     """Regression tests for the old bug: TP/SL anchored to bar N close.
 
@@ -186,7 +308,8 @@ class TestRegressionBarCloseAnchor(unittest.TestCase):
             # Bar 1: entry — opens 0.625% higher than bar 0 close
             {"open": 80.50, "high": 80.55, "low": 80.40, "close": 80.48, "entry_signal": 0},
             # Bar 2: price reaches 80.85 — hits new TP (80.838) but NOT old TP (80.336)
-            {"open": 80.48, "high": 80.85, "low": 80.30, "close": 80.70, "entry_signal": 0},
+            # Low=80.35 stays above SL (80.339) so only TP is hit, not ambiguous
+            {"open": 80.48, "high": 80.85, "low": 80.35, "close": 80.70, "entry_signal": 0},
         ])
 
         result = compute_trade_returns(df, target_gain_pct=0.0042, stop_loss_pct=0.002, max_trade_bars=5)
@@ -224,6 +347,63 @@ class TestRegressionBarCloseAnchor(unittest.TestCase):
         # Under new model: entry=79.0, stop=78.842. Bar 2 low=79.0 > 78.842 → survives.
         # Bar 3 high=79.9 > 79.332 (target) → target_hit.
         self.assertEqual(trade["exit_type"], "target_hit")
+
+
+class TestATRDynamicStops(unittest.TestCase):
+    """Verify ATR dynamic stops widen the stop via stop_overrides."""
+
+    def test_stop_override_widens_stop(self):
+        """With stop_overrides, a wider stop prevents a stop_hit that would occur
+        with the default stop."""
+        from src.strategy.engine import compute_trade_returns
+
+        df = _make_ohlcv([
+            # Signal bar
+            {"open": 100, "high": 101, "low": 99, "close": 100, "entry_signal": 1},
+            # Entry bar — open=100
+            {"open": 100, "high": 100.5, "low": 99.8, "close": 100.2, "entry_signal": 0},
+            # Bar 2: low=99.0 — hits default 1.5% stop (98.5) NO, but hits 0.5% stop (99.5) YES
+            {"open": 100, "high": 100.3, "low": 99.0, "close": 99.5, "entry_signal": 0},
+            # Bar 3: recovery
+            {"open": 99.5, "high": 103, "low": 99.4, "close": 102, "entry_signal": 0},
+        ])
+
+        # Default stop=0.5%: entry=100, SL=99.50. Bar 2 low=99.0 → stop_hit
+        result_default = compute_trade_returns(df, target_gain_pct=0.02, stop_loss_pct=0.005,
+                                               max_trade_bars=5)
+        self.assertEqual(result_default.iloc[0]["exit_type"], "stop_hit")
+
+        # With widened stop via override: SL=100*(1-0.015)=98.5. Bar 2 low=99.0 → survives
+        # Bar 3 high=103 → target at 102 hit
+        stop_overrides = {0: 0.015}  # override for signal at index 0
+        result_widened = compute_trade_returns(df, target_gain_pct=0.02, stop_loss_pct=0.005,
+                                              max_trade_bars=5, stop_overrides=stop_overrides)
+        self.assertEqual(result_widened.iloc[0]["exit_type"], "target_hit")
+
+    def test_stop_override_only_affects_specified_trade(self):
+        """Override for one trade doesn't affect other trades."""
+        from src.strategy.engine import compute_trade_returns
+
+        df = _make_ohlcv([
+            # Trade 1 (overridden)
+            {"open": 100, "high": 101, "low": 99, "close": 100, "entry_signal": 1},
+            {"open": 100, "high": 100.5, "low": 99.8, "close": 100, "entry_signal": 0},
+            {"open": 100, "high": 100.1, "low": 98, "close": 99, "entry_signal": 0},
+            # Trade 2 (not overridden)
+            {"open": 99, "high": 100, "low": 98, "close": 99, "entry_signal": 1},
+            {"open": 99, "high": 99.5, "low": 98.8, "close": 99, "entry_signal": 0},
+            {"open": 99, "high": 99.1, "low": 97, "close": 98, "entry_signal": 0},
+        ])
+
+        # Override trade 1 to wide stop; trade 2 keeps default 1%
+        stop_overrides = {0: 0.05}
+        result = compute_trade_returns(df, target_gain_pct=0.05, stop_loss_pct=0.01,
+                                       max_trade_bars=3, stop_overrides=stop_overrides)
+        self.assertEqual(len(result), 2)
+        # Trade 1: entry=100, override stop=5%, so SL=95. Low=98 → survives → time_exit
+        self.assertEqual(result.iloc[0]["exit_type"], "time_exit")
+        # Trade 2: entry=99, default stop=1%, SL=98.01. Low=97 → stop_hit
+        self.assertEqual(result.iloc[1]["exit_type"], "stop_hit")
 
 
 class TestStateFillBasisConsistency(unittest.TestCase):

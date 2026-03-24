@@ -123,15 +123,22 @@ def _on_bar_inner() -> str:
 
         if bar_count >= config.MAX_TRADE_BARS_LIVE:
             log.info("Time-exit triggered — cancelling bracket and selling")
-            broker.cancel_and_close(position.symbol, position.bracket_order_id, position.qty)
-            # PnL note: cancel_and_close() places a market sell but doesn't return
-            # the fill price. We use get_reference_price() as the best available
-            # approximation — the market sell fills near-instantly so the reference
-            # price (live quote or delayed) is close. This is the one live exit path
-            # where PnL is estimated rather than sourced from an actual fill.
-            ref_price = broker.get_reference_price(position.symbol)
-            ret = (ref_price - position.entry_price) / position.entry_price
-            state.close_position(return_pct=ret, exit_type="time_exit", exit_price=ref_price)
+            sell_fill = broker.cancel_and_close(position.symbol, position.bracket_order_id, position.qty)
+            if sell_fill is not None:
+                # Actual fill price from the market sell — preferred PnL source
+                exit_price = sell_fill["fill_price"]
+                ret = (exit_price - position.entry_price) / position.entry_price
+                log.info(f"Time-exit filled | price={exit_price:.2f} | ret={ret:+.4%}")
+            else:
+                # Fill retrieval failed — fall back to reference price estimate.
+                # This is the one live exit path where PnL may be estimated.
+                exit_price = broker.get_reference_price(position.symbol)
+                ret = (exit_price - position.entry_price) / position.entry_price
+                log.warning(
+                    f"Time-exit fill unavailable — using reference price {exit_price:.2f} | "
+                    f"estimated_ret={ret:+.4%}"
+                )
+            state.close_position(return_pct=ret, exit_type="time_exit", exit_price=exit_price)
             _log_summary()
             return "exit_time_exit"
 

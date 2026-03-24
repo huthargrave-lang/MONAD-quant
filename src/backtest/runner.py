@@ -97,6 +97,33 @@ def run_backtest(df: pd.DataFrame,
                                 stop_loss_pct=stop_loss_pct,
                                 trade_hours=trade_hours)
 
+    # ── ATR dynamic stops ──────────────────────────────────────────────
+    # When ATR is elevated (> mult × rolling median), widen the stop to reduce
+    # noise-triggered exits. Uses stop_overrides dict passed to compute_trade_returns().
+    stop_overrides = None
+    use_atr_stops = getattr(config, "USE_ATR_DYNAMIC_STOPS", False)
+    if use_atr_stops and "atr_pct" in df_trades.columns:
+        atr_mult = getattr(config, "ATR_STOP_MULT", 2.0)
+        atr_cap  = getattr(config, "ATR_STOP_CAP_PCT", 0.04)
+        atr_baseline = df_trades["atr_pct"].rolling(20, min_periods=5).median()
+        # Only override for entry bars where ATR is elevated
+        entries = df_trades[df_trades["entry_signal"] != 0]
+        stop_overrides = {}
+        n_widened = 0
+        for idx in entries.index:
+            current_atr = df_trades.loc[idx, "atr_pct"]
+            baseline = atr_baseline.loc[idx] if pd.notna(atr_baseline.loc[idx]) else current_atr
+            if current_atr > atr_mult * baseline:
+                widened_stop = min(current_atr * 1.0, atr_cap)
+                if widened_stop > stop_loss_pct:
+                    stop_overrides[idx] = widened_stop
+                    n_widened += 1
+        if n_widened > 0:
+            print(f"       ATR dynamic stops: widened {n_widened}/{len(entries)} trades "
+                  f"(ATR > {atr_mult}× baseline, cap {atr_cap*100:.1f}%)")
+        else:
+            stop_overrides = None  # no overrides needed
+
     # ── 2. Simulate trades ────────────────────────────────────────────────
     print("[2/4] Simulating trades...")
     trades_df = compute_trade_returns(
@@ -106,6 +133,7 @@ def run_backtest(df: pd.DataFrame,
         max_trade_bars=max_trade_bars,
         slippage_pct=slippage_pct,
         worst_case_ambiguity=worst_case,
+        stop_overrides=stop_overrides,
     )
 
     if len(trades_df) == 0:
@@ -273,6 +301,11 @@ def run_backtest(df: pd.DataFrame,
         lambda x: (x > 0).sum() / len(x) if len(x) > 0 else 0.0
     )
 
+    # Exit type breakdown (for results dict and reporting)
+    exit_breakdown = {}
+    if "exit_type" in trades_df.columns:
+        exit_breakdown = trades_df["exit_type"].value_counts().to_dict()
+
     results = {
         "total_trades":    stats["total_trades"],
         "bull_trades":     int(bull_trades),
@@ -291,6 +324,7 @@ def run_backtest(df: pd.DataFrame,
         "backtest_mode":   backtest_mode,
         "slippage_pct":    slippage_pct,
         "trades_per_year": round(trades_per_year, 1),
+        "exit_breakdown":  exit_breakdown,
     }
 
     # Print summary
@@ -311,23 +345,37 @@ def run_backtest(df: pd.DataFrame,
         print(f"       Sizing:         Full-sample Kelly (LOOKAHEAD — use realistic mode)")
     print("=" * 60)
 
-    # Monthly dividend table
+    # Monthly dividend table with exit type breakdown
+    # Pre-compute per-month exit type counts
+    monthly_exit_types = {}
+    if "exit_type" in trades_df.columns:
+        trades_ts = trades_df.copy()
+        trades_ts["_ts"] = pd.to_datetime(trades_ts["timestamp"])
+        trades_ts["_month"] = trades_ts["_ts"].dt.to_period("M")
+        for month_period, grp in trades_ts.groupby("_month"):
+            monthly_exit_types[month_period] = grp["exit_type"].value_counts().to_dict()
+
     print("\n  Monthly 'Dividend' Schedule:")
-    print("  " + "-" * 44)
-    print(f"  {'Month':<12} {'Return':>8}  {'Trades':>7}  {'Win Rate':>9}")
-    print("  " + "-" * 44)
+    print("  " + "-" * 70)
+    print(f"  {'Month':<12} {'Return':>8}  {'Trades':>7}  {'Win Rate':>9}  {'Exits'}")
+    print("  " + "-" * 70)
     for month in monthly_returns.index:
         ret = monthly_returns[month]
         count = monthly_counts.get(month, 0)
         wr = monthly_wr.get(month, 0)
         if count > 0:
-            print(f"  {month.strftime('%Y-%m'):<12} {ret*100:>+7.2f}%  {count:>7}  {wr*100:>8.1f}%")
+            mp = month.to_period("M")
+            exits = monthly_exit_types.get(mp, {})
+            exit_parts = " ".join(f"{k[0].upper()}:{v}" for k, v in sorted(exits.items()))
+            print(f"  {month.strftime('%Y-%m'):<12} {ret*100:>+7.2f}%  {count:>7}  {wr*100:>8.1f}%  {exit_parts}")
     avg_monthly = monthly_returns[monthly_returns != 0].mean()
     neg_months = (monthly_returns[monthly_returns != 0] < 0).sum()
     total_months = (monthly_returns != 0).sum()
-    print("  " + "-" * 44)
+    print("  " + "-" * 70)
     print(f"  {'Avg Monthly':<12} {avg_monthly*100:>+7.2f}%")
     print(f"  Negative months: {neg_months}/{total_months}")
+    if exit_breakdown:
+        print(f"  Exit breakdown: " + "  ".join(f"{k}={v}" for k, v in sorted(exit_breakdown.items())))
     print()
 
     if plot:

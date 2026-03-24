@@ -148,6 +148,26 @@ def generate_trades(df: pd.DataFrame,
 
     import config as _cfg
 
+    # Soft 50-MA gate: block STRONG_BULL longs when price is deeply below the 50-MA.
+    # This catches extended intra-bull corrections (e.g. June/Aug 2024) where the
+    # 252-MA slope stays positive but price has fallen far from the medium-term trend.
+    # Toggled via STRONG_BULL_SOFT_50MA_PCT (0=off, 0.05=block when >5% below 50-MA).
+    soft_50ma_pct = getattr(_cfg, "STRONG_BULL_SOFT_50MA_PCT", 0.0)
+    if (soft_50ma_pct > 0 and use_slope_regime
+            and "regime" in df.columns and "ma_50d" in df.columns):
+        # (ma_50d - close) / close > threshold → price deeply below 50-MA
+        pct_below_50ma = (df["ma_50d"] - df["close"]) / df["close"]
+        deep_below = pct_below_50ma > soft_50ma_pct
+        gate_mask = (df["entry_signal"] == 1) & (df["regime"] == "STRONG_BULL") & deep_below
+        n_gated = gate_mask.sum()
+        if n_gated > 0:
+            df.loc[gate_mask, "entry_signal"] = 0
+            import logging
+            logging.getLogger(__name__).info(
+                f"Soft 50-MA gate: blocked {n_gated} STRONG_BULL longs "
+                f"(>{soft_50ma_pct*100:.0f}% below 50-MA)"
+            )
+
     # Override regime_kelly_mult for BEAR defensive longs to quarter-Kelly
     if (use_slope_regime and longs_only
             and "regime_kelly_mult" in df.columns
@@ -249,13 +269,14 @@ def compute_trade_returns(df: pd.DataFrame,
                 continue
 
             if target_hit and stop_hit:
-                # Same-bar ambiguity: both levels inside this bar's range
+                # Same-bar ambiguity: both TP and SL inside this bar's range.
+                # We can't know which was hit first from OHLC alone.
                 if worst_case_ambiguity:
                     exit_return = -stop
-                    exit_type   = "stop_hit"
+                    exit_type   = "ambiguous_same_bar"
                 else:
                     exit_return = target
-                    exit_type   = "target_hit"
+                    exit_type   = "ambiguous_same_bar"
                 break
             elif target_hit:
                 exit_return = target

@@ -259,10 +259,14 @@ def place_bracket_order(symbol: str, qty: int,
     return {"order_id": parent_id, "fill_basis": float(live_price)}
 
 
-def cancel_and_close(symbol: str, bracket_order_id: str, qty: int) -> None:
+def cancel_and_close(symbol: str, bracket_order_id: str, qty: int) -> dict | None:
     """
     Cancels all open child orders from the bracket and places a market sell.
     Used for the time-exit path when position exceeds MAX_TRADE_BARS.
+
+    Returns dict with fill_price and fill_time if the market sell fills within
+    10 seconds, or None if fill retrieval fails. The caller should fall back to
+    get_reference_price() for estimated PnL when None is returned.
     """
     from ib_insync import Stock, MarketOrder
 
@@ -289,6 +293,21 @@ def cancel_and_close(symbol: str, bracket_order_id: str, qty: int) -> None:
     sell_order = MarketOrder("SELL", qty)
     trade = ib.placeOrder(contract, sell_order)
     log.info(f"Time-exit market sell placed | id={trade.order.orderId} | {qty} {symbol}")
+
+    # Wait for fill — market orders during market hours fill near-instantly.
+    # Poll up to 10 seconds (ib.sleep processes the event loop).
+    for _ in range(20):
+        ib.sleep(0.5)
+        if trade.fills:
+            last_fill = trade.fills[-1]
+            fill_price = float(last_fill.execution.price)
+            fill_time = (last_fill.execution.time.isoformat()
+                         if last_fill.execution.time else None)
+            log.info(f"Time-exit fill: price={fill_price:.2f}, time={fill_time}")
+            return {"fill_price": fill_price, "fill_time": fill_time}
+
+    log.warning(f"Time-exit fill not received within 10s for order {trade.order.orderId}")
+    return None
 
 
 def get_bracket_fill(bracket_order_id: str) -> dict | None:
