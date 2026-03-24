@@ -796,6 +796,42 @@ if r and "error" not in r:
         json.dump(out, f, indent=2)
     print(f"  Results saved → {outfile}")
 
+    # ── Append to experiment journal ──────────────────────────────────────────
+    # One JSON line per sweep run for longitudinal tracking.
+    journal_entry = {
+        "timestamp": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "ticker": TICKER,
+        "period": f"{START_DATE} → {END_DATE}",
+        "backtest_mode": getattr(config, "BACKTEST_MODE", "unknown"),
+        "params": out["optimal"],
+        "metrics": {
+            "return_pct": out["performance"]["total_return_pct"],
+            "sharpe": out["performance"]["sharpe_ratio"],
+            "max_dd_pct": out["performance"]["max_drawdown_pct"],
+            "win_rate_pct": out["performance"]["win_rate_pct"],
+            "trades": out["performance"]["trades"],
+            "avg_monthly_pct": out["performance"]["avg_monthly_pct"],
+        },
+        "live_safe": out["live_trading"]["live_safe"],
+    }
+    if _holdout_results:
+        journal_entry["holdout_retention_pct"] = _holdout_results.get("oos_retention_pct")
+    # Add git hash if available
+    try:
+        import subprocess as _sp
+        _hash = _sp.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=os.path.dirname(__file__) or ".",
+            stderr=_sp.DEVNULL,
+        ).decode().strip()
+        journal_entry["git_hash"] = _hash
+    except Exception:
+        pass
+    journal_path = os.path.join(os.path.dirname(__file__) or ".", "experiments.jsonl")
+    with open(journal_path, "a") as jf:
+        jf.write(json.dumps(journal_entry) + "\n")
+    print(f"  Experiment logged → experiments.jsonl")
+
     # ── Apply params to config.py? ──────────────────────────────────────────
     if args.apply:
         answer = "y"

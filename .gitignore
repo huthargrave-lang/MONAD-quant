@@ -5,3 +5,6 @@ __pycache__/
 .DS_Store
 venv/
 *.egg-info/
+experiments.jsonl
+sweep_results_*.json
+live/state.db
