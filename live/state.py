@@ -119,6 +119,8 @@ def init_db() -> None:
             conn.execute("ALTER TABLE trades ADD COLUMN qty INTEGER")
         if "bars_held" not in existing_trade_cols:
             conn.execute("ALTER TABLE trades ADD COLUMN bars_held INTEGER")
+        if "exit_price" not in existing_trade_cols:
+            conn.execute("ALTER TABLE trades ADD COLUMN exit_price REAL")
 
         existing_signal_cols = {
             row["name"] for row in conn.execute("PRAGMA table_info(signal_snapshot)").fetchall()
@@ -245,15 +247,29 @@ def get_recent_trades(limit: int = 20) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
             """
-            SELECT entry_time, exit_time, return_pct, exit_type, exit_price,
-                   symbol, qty, bars_held
+            SELECT *
             FROM trades
             ORDER BY exit_time DESC
             LIMIT ?
             """,
             (limit,),
         ).fetchall()
-    return [dict(r) for r in rows]
+    normalized_rows = []
+    for row in rows:
+        r = dict(row)
+        normalized_rows.append(
+            {
+                "entry_time": r.get("entry_time"),
+                "exit_time": r.get("exit_time"),
+                "return_pct": r.get("return_pct"),
+                "exit_type": r.get("exit_type"),
+                "exit_price": r.get("exit_price"),
+                "symbol": r.get("symbol"),
+                "qty": r.get("qty"),
+                "bars_held": r.get("bars_held"),
+            }
+        )
+    return normalized_rows
 
 
 def get_exit_type_counts(limit: int = 250) -> dict[str, int]:

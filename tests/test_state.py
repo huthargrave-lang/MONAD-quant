@@ -35,6 +35,55 @@ class TestStateDB(unittest.TestCase):
         self.assertIn("position", table_names)
         self.assertIn("trades", table_names)
 
+    def test_init_db_migrates_legacy_trades_exit_price_column(self):
+        conn = sqlite3.connect(state_module._DB_PATH)
+        conn.executescript("DROP TABLE IF EXISTS trades;")
+        conn.execute(
+            """
+            CREATE TABLE trades (
+                entry_time TEXT NOT NULL,
+                exit_time TEXT NOT NULL,
+                return_pct REAL NOT NULL,
+                exit_type TEXT NOT NULL
+            )
+            """
+        )
+        conn.commit()
+        conn.close()
+
+        state_module.init_db()
+
+        conn = sqlite3.connect(state_module._DB_PATH)
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(trades)").fetchall()}
+        conn.close()
+        self.assertIn("exit_price", cols)
+
+    def test_get_recent_trades_handles_legacy_table_without_optional_columns(self):
+        conn = sqlite3.connect(state_module._DB_PATH)
+        conn.executescript("DROP TABLE IF EXISTS trades;")
+        conn.execute(
+            """
+            CREATE TABLE trades (
+                entry_time TEXT NOT NULL,
+                exit_time TEXT NOT NULL,
+                return_pct REAL NOT NULL,
+                exit_type TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            "INSERT INTO trades (entry_time, exit_time, return_pct, exit_type) VALUES (?, ?, ?, ?)",
+            ("2026-01-01T00:00:00+00:00", "2026-01-01T01:00:00+00:00", 0.01, "target_hit"),
+        )
+        conn.commit()
+        conn.close()
+
+        rows = state_module.get_recent_trades(limit=5)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["exit_type"], "target_hit")
+        self.assertIsNone(rows[0]["exit_price"])
+        self.assertIsNone(rows[0]["symbol"])
+
     def test_no_position_returns_none(self):
         self.assertIsNone(state_module.get_position())
 
