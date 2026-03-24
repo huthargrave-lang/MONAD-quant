@@ -110,7 +110,7 @@ def _build_returns_chart(trades: list[dict]) -> str:
     return fig.to_html(full_html=False, include_plotlyjs="cdn")
 
 
-def _build_exit_type_chart(exit_counts: dict[str, int]) -> str:
+def _build_exit_type_chart(exit_counts: dict[str, int], needs_plotlyjs: bool = False) -> str:
     if not exit_counts:
         return ""
     labels = list(exit_counts.keys())
@@ -126,10 +126,10 @@ def _build_exit_type_chart(exit_counts: dict[str, int]) -> str:
         margin=dict(l=20, r=20, t=40, b=20),
         height=300,
     )
-    return fig.to_html(full_html=False, include_plotlyjs=False)
+    return fig.to_html(full_html=False, include_plotlyjs="cdn" if needs_plotlyjs else False)
 
 
-def _build_signal_chart(signal_history: list[dict]) -> str:
+def _build_signal_chart(signal_history: list[dict], needs_plotlyjs: bool = False) -> str:
     rows = list(reversed(signal_history))
     if not rows:
         return ""
@@ -146,7 +146,7 @@ def _build_signal_chart(signal_history: list[dict]) -> str:
         xaxis_title="Timestamp",
         yaxis_title="Signal",
     )
-    return fig.to_html(full_html=False, include_plotlyjs=False)
+    return fig.to_html(full_html=False, include_plotlyjs="cdn" if needs_plotlyjs else False)
 
 
 @app.get("/health")
@@ -191,11 +191,18 @@ def dashboard(request: Request) -> HTMLResponse:
     latest_price = signal.get("bar_close") if signal else None
     position_view = None
     if position_dict:
-        mode_name = f"{position_dict['symbol']}_HOURLY"
+        # Try the active mode's asset key first, then fall back to symbol_HOURLY / symbol
+        asset_key = config.DEFAULT_ASSET
+        symbol = position_dict["symbol"]
+        if asset_key not in config.ASSETS:
+            for candidate in [f"{symbol}_HOURLY", symbol]:
+                if candidate in config.ASSETS:
+                    asset_key = candidate
+                    break
         target_pct = None
         stop_pct = None
-        if mode_name in config.ASSETS:
-            cfg = config.ASSETS[mode_name]
+        if asset_key in config.ASSETS:
+            cfg = config.ASSETS[asset_key]
             target_pct = cfg.get("target_gain_pct")
             stop_pct = cfg.get("stop_loss_pct")
 
@@ -234,8 +241,10 @@ def dashboard(request: Request) -> HTMLResponse:
     )
 
     returns_chart = Markup(_build_returns_chart(trades))
-    exit_chart = Markup(_build_exit_type_chart(exit_counts))
-    signal_chart = Markup(_build_signal_chart(signal_history))
+    exit_chart_needs_js = not returns_chart
+    exit_chart = Markup(_build_exit_type_chart(exit_counts, needs_plotlyjs=exit_chart_needs_js))
+    signal_chart_needs_js = not returns_chart and not exit_chart
+    signal_chart = Markup(_build_signal_chart(signal_history, needs_plotlyjs=signal_chart_needs_js))
 
     return TEMPLATES.TemplateResponse(
         request=request,

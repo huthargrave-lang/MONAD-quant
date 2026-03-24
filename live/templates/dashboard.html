@@ -160,9 +160,9 @@
     </div>
 
     <div class="row">
-      <section class="card span-8">{{ returns_chart }}</section>
-      <section class="card span-4">{{ exit_chart }}</section>
-      <section class="card span-12">{{ signal_chart }}</section>
+      <section class="card span-8">{% if returns_chart %}{{ returns_chart }}{% else %}<h2>Recent Trade Returns</h2><div class="v">No trade data yet.</div>{% endif %}</section>
+      <section class="card span-4">{% if exit_chart %}{{ exit_chart }}{% else %}<h2>Exit Type Breakdown</h2><div class="v">No exit data yet.</div>{% endif %}</section>
+      <section class="card span-12">{% if signal_chart %}{{ signal_chart }}{% else %}<h2>Signal History</h2><div class="v">No signal data yet.</div>{% endif %}</section>
     </div>
 
     <div class="row">
@@ -177,7 +177,7 @@
                 <td>{{ trade.symbol or '—' }}</td>
                 <td>{{ trade.entry_time }}</td>
                 <td>{{ trade.exit_time }}</td>
-                <td class="{{ 'red' if trade.return_pct < 0 else 'green' }}">{{ '%.3f'|format(trade.return_pct*100) }}</td>
+                <td class="{{ 'red' if trade.return_pct is not none and trade.return_pct < 0 else 'green' }}">{{ '%.3f'|format((trade.return_pct or 0)*100) }}</td>
                 <td>{{ trade.exit_type }}</td>
                 <td>{{ '%.2f'|format(trade.exit_price) if trade.exit_price is not none else '—' }}</td>
                 <td>{{ trade.qty if trade.qty is not none else '—' }}</td>
@@ -252,6 +252,6 @@
       </section>
     </div>
 
-    <script>setTimeout(() => location.reload(), 12000);</script>
+    <script>setTimeout(() => location.reload(), 30000);</script>
   </body>
 </html>
