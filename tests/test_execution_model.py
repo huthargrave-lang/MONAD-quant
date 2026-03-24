@@ -287,6 +287,38 @@ class TestSoft50MAGate(unittest.TestCase):
             config.STRONG_BULL_SOFT_50MA_PCT = old_val
 
 
+    def test_gate_works_without_regime_column_hourly(self):
+        """Hourly mode has no regime column — gate should apply to all longs."""
+        from src.strategy.engine import generate_trades
+        import config
+
+        df = pd.DataFrame({
+            "open": [100, 100, 100],
+            "high": [101, 101, 101],
+            "low": [99, 99, 99],
+            "close": [100, 100, 100],
+            "momentum_signal": [1, 1, 0],
+            "volume_signal": [0, 0, 0],
+            "vol_regime": [0, 0, 0],
+            "trend_direction": [0, 0, 0],
+            # No "regime" column — simulates hourly mode
+            "ma_50d": [106, 104, 106],
+        })
+        df.index = pd.RangeIndex(3)
+
+        old_val = getattr(config, "STRONG_BULL_SOFT_50MA_PCT", 0.0)
+        try:
+            config.STRONG_BULL_SOFT_50MA_PCT = 0.05
+            result = generate_trades(df, require_signals=1, use_regime_filter=False,
+                                     use_slope_regime=False, longs_only=True)
+            # Bar 0: 6% below → blocked
+            self.assertEqual(result.iloc[0]["entry_signal"], 0)
+            # Bar 1: 4% below → NOT blocked
+            self.assertEqual(result.iloc[1]["entry_signal"], 1)
+        finally:
+            config.STRONG_BULL_SOFT_50MA_PCT = old_val
+
+
 class TestRegressionBarCloseAnchor(unittest.TestCase):
     """Regression tests for the old bug: TP/SL anchored to bar N close.
 

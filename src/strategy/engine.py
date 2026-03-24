@@ -47,6 +47,12 @@ def build_features(df: pd.DataFrame, timeframe: str = "daily",
         df = add_volatility_features(
             df, window=getattr(config, f"BB_WINDOW_{suffix}", 14),
         )
+        # Compute 50-period MA for hourly soft gate (if enabled).
+        # For hourly bars, 50 periods ≈ ~2.5 trading days (vs 50 days for daily).
+        soft_50ma_pct = getattr(config, "STRONG_BULL_SOFT_50MA_PCT", 0.0)
+        if soft_50ma_pct > 0 and "ma_50d" not in df.columns:
+            ma_short = getattr(config, "MA_SHORT_WINDOW", 50)
+            df["ma_50d"] = df["close"].rolling(ma_short, min_periods=1).mean()
     else:
         kelly_mult_map = {
             "STRONG_BULL": config.KELLY_MULT_STRONG_BULL,
@@ -148,25 +154,37 @@ def generate_trades(df: pd.DataFrame,
 
     import config as _cfg
 
-    # Soft 50-MA gate: block STRONG_BULL longs when price is deeply below the 50-MA.
-    # This catches extended intra-bull corrections (e.g. June/Aug 2024) where the
-    # 252-MA slope stays positive but price has fallen far from the medium-term trend.
-    # Toggled via STRONG_BULL_SOFT_50MA_PCT (0=off, 0.05=block when >5% below 50-MA).
+    # Soft 50-MA gate: block longs when price is deeply below the 50-period MA.
+    # For daily mode: only blocks STRONG_BULL longs (regime-aware).
+    # For hourly mode: blocks all longs (no regime classifier on hourly bars).
+    # Toggled via STRONG_BULL_SOFT_50MA_PCT (0=off, 0.05=block when >5% below MA).
     soft_50ma_pct = getattr(_cfg, "STRONG_BULL_SOFT_50MA_PCT", 0.0)
-    if (soft_50ma_pct > 0 and use_slope_regime
-            and "regime" in df.columns and "ma_50d" in df.columns):
-        # (ma_50d - close) / close > threshold → price deeply below 50-MA
+    if soft_50ma_pct > 0 and "ma_50d" in df.columns:
         pct_below_50ma = (df["ma_50d"] - df["close"]) / df["close"]
         deep_below = pct_below_50ma > soft_50ma_pct
-        gate_mask = (df["entry_signal"] == 1) & (df["regime"] == "STRONG_BULL") & deep_below
+        long_mask = df["entry_signal"] == 1
+        if "regime" in df.columns:
+            # Daily mode: only gate STRONG_BULL entries
+            gate_mask = long_mask & (df["regime"] == "STRONG_BULL") & deep_below
+        else:
+            # Hourly mode: gate all long entries (no regime column)
+            gate_mask = long_mask & deep_below
+        n_candidates = long_mask.sum()
         n_gated = gate_mask.sum()
         if n_gated > 0:
-            df.loc[gate_mask, "entry_signal"] = 0
             import logging
-            logging.getLogger(__name__).info(
-                f"Soft 50-MA gate: blocked {n_gated} STRONG_BULL longs "
-                f"(>{soft_50ma_pct*100:.0f}% below 50-MA)"
+            _log = logging.getLogger(__name__)
+            gated_dates = df.index[gate_mask]
+            _log.info(
+                f"Soft 50-MA gate: blocked {n_gated}/{n_candidates} longs "
+                f"(>{soft_50ma_pct*100:.0f}% below 50-period MA)"
             )
+            for ts in gated_dates[:20]:  # cap at 20 to avoid log flood
+                pct = pct_below_50ma.loc[ts]
+                _log.info(f"  gated: {ts}  ({pct*100:.1f}% below MA)")
+            if len(gated_dates) > 20:
+                _log.info(f"  ... and {len(gated_dates) - 20} more")
+            df.loc[gate_mask, "entry_signal"] = 0
 
     # Override regime_kelly_mult for BEAR defensive longs to quarter-Kelly
     if (use_slope_regime and longs_only
