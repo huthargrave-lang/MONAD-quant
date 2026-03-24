@@ -22,8 +22,9 @@ log = logging.getLogger(__name__)
 
 # How many historical bars to fetch for rolling-window warmup.
 # Largest window in hourly signals: BB=14, VWAP=10, MACD slow=13, RSI=7.
-# 100 bars (~16 trading days) gives comfortable padding.
-_WARMUP_BARS = 100
+# 300 bars (~46 trading days) stabilizes feature distributions across weekends,
+# holidays, and yfinance session gaps. Cheap to fetch since we only check once/bar.
+_WARMUP_BARS = 300
 
 
 def _get_mode_name() -> str:
@@ -31,14 +32,20 @@ def _get_mode_name() -> str:
     return f"{config.LIVE_SYMBOL}_HOURLY"
 
 
-def get_current_signal() -> int:
+def get_current_signal() -> dict:
     """
-    Returns the entry_signal for the most recently completed hourly bar.
+    Returns signal info for the most recently completed hourly bar.
 
-    Returns:
-        1  — long entry signal
-        0  — no signal
-        -1 — short signal (not used in long-only config, included for completeness)
+    Execution model: signal fires on bar N's completed features. The caller
+    (trader.py) then places a bracket order at the current market price via
+    broker.py — that market price is the live equivalent of bar N+1's open
+    in the backtest. bar_close is returned for qty estimation and logging only;
+    it is NOT used as the TP/SL basis (broker.py uses live market price).
+
+    Returns dict with:
+        signal:    1 (long), 0 (no signal), or -1 (short)
+        bar_close: float — the completed bar's close price (for qty estimation)
+        bar_time:  the bar's timestamp
 
     Raises:
         RuntimeError if insufficient bars are available to compute signals.
@@ -63,17 +70,19 @@ def get_current_signal() -> int:
     )
 
     signal = int(df["entry_signal"].iloc[-1])
+    bar_close = float(df["close"].iloc[-1])
     last_bar_time = df.index[-1]
 
     log.info(
         f"Signal check | {symbol} | bar={last_bar_time} | "
+        f"close={bar_close:.2f} | "
         f"rsi={df['rsi'].iloc[-1]:.1f} | "
         f"vwap_z={df['vwap_zscore'].iloc[-1]:.3f} | "
         f"mom_sig={int(df['momentum_signal'].iloc[-1])} | "
         f"vol_sig={int(df['volume_signal'].iloc[-1])} | "
         f"entry_signal={signal}"
     )
-    return signal
+    return {"signal": signal, "bar_close": bar_close, "bar_time": last_bar_time}
 
 
 def _fetch_recent_bars(symbol: str) -> pd.DataFrame | None:
@@ -108,4 +117,10 @@ def _fetch_recent_bars(symbol: str) -> pd.DataFrame | None:
         log.debug(f"Dropping current incomplete bar at {df.index[-1]} (age {last_bar_age})")
         df = df.iloc[:-1]
 
-    return df.tail(_WARMUP_BARS)
+    result = df.tail(_WARMUP_BARS)
+    log.info(
+        f"Warmup bars: {len(result)} | "
+        f"first={result.index[0]} | last={result.index[-1]} | "
+        f"dropped_incomplete={'yes' if last_bar_age < pd.Timedelta(minutes=60) else 'no'}"
+    )
+    return result

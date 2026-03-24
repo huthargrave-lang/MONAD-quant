@@ -3,7 +3,18 @@ MONAD Quant — Strategy Configuration
 =====================================
 Change ACTIVE_MODE to switch between strategy profiles.
 All other parameters are pre-tuned for their respective mode.
+
+Structure:
+  config_modules/base.py  — shared risk, sizing, backtest settings
+  config_modules/live.py  — IBKR live/paper trading settings
+  config.py (this file)   — mode selector, per-mode signal params, ASSETS routing
+
+All imports via `import config` continue to work — this file re-exports everything.
 """
+
+# Import shared settings from submodules
+from config_modules.base import *   # noqa: F401,F403
+from config_modules.live import *   # noqa: F401,F403
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  ACTIVE MODE — the only line you normally need to change
@@ -336,45 +347,10 @@ BACKTEST_START_TNA_HOURLY = "2024-04-01"
 BACKTEST_END_TNA_HOURLY   = "2026-03-01"
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  SHARED — Risk & Sizing (applies to all modes)
+#  SHARED — Risk & Sizing → imported from config_modules/base.py
+#  LIVE  — IBKR settings  → imported from config_modules/live.py
+#  (Edit those files to change shared/live settings)
 # ═══════════════════════════════════════════════════════════════════════════
-INITIAL_CAPITAL  = 100_000
-KELLY_MULTIPLIER = 0.5       # Half-Kelly — reduces variance vs full Kelly
-MAX_POSITION_PCT = 0.20      # Never risk more than 20% per trade
-MIN_POSITION_PCT = 0.02      # Floor: deploy at least 2% when Kelly sample is thin
-PLOT_RESULTS     = True
-
-# ── Backtest fairness mode ─────────────────────────────────────────────
-# "optimistic" = legacy (no slippage, target wins ambiguity, full-sample Kelly)
-# "realistic"  = fair (2bps slippage, stop wins ambiguity, rolling Kelly)
-# "harsh"      = pessimistic (5bps slippage, stop wins, rolling Kelly)
-BACKTEST_MODE    = "realistic"
-BACKTEST_DEBUG   = False         # True = print per-trade detail (entry, exit, size, PnL)
-
-# ── Position Sizing Mode ───────────────────────────────────────────────
-# "kelly"  = fractional Kelly Criterion (rolling or full-sample per backtest mode)
-# "fixed"  = fixed percentage per trade (recommended for live + validation)
-# "kelly_clamped" = Kelly but clamped to [2%, 10%] (safe Kelly)
-POSITION_SIZING_MODE = "fixed"       # "kelly" | "fixed" | "kelly_clamped"
-FIXED_POSITION_PCT   = 0.10          # 10% per trade (used when POSITION_SIZING_MODE="fixed")
-KELLY_CLAMP_MIN      = 0.02          # 2% floor (used when POSITION_SIZING_MODE="kelly_clamped")
-KELLY_CLAMP_MAX      = 0.10          # 10% cap (used when POSITION_SIZING_MODE="kelly_clamped")
-
-# ── Adaptive Kelly — signal quality detector ─────────────────────────────
-# Tracks rolling win rate over the last N trades and scales position size.
-# Key use case: BTC hourly bad months (33-37% WR) cluster — if the last 20
-# trades are running at 35% WR, the next 20 are likely also poor quality.
-# Reduce exposure automatically until quality recovers.
-# All new params default=False/disabled per project constraint.
-USE_ADAPTIVE_KELLY        = True   # Master toggle — set True for BTC hourly
-ADAPTIVE_KELLY_LOOKBACK   = 20     # Rolling window in trades (20 = ~4 days at 130 trades/mo in 24hr mode; lb=15 was for filtered mode)
-ADAPTIVE_KELLY_HIGH_WR    = 0.46   # Confirmed active at 0.46 — fires during 48-55% WR bull stretches; dead lever at 0.52+
-ADAPTIVE_KELLY_LOW_WR     = 0.42   # Recent WR < this → scale down (signal degrading)
-ADAPTIVE_KELLY_PAUSE_WR   = 0.35   # Recent WR < this → near-flat (signal breakdown)
-ADAPTIVE_KELLY_HIGH_MULT  = 2.0    # Position multiplier when WR ≥ HIGH — tested: +553% vs +453% at 1.8 (2019-2026, VWAP=1.0)
-ADAPTIVE_KELLY_LOW_MULT   = 0.5    # Position multiplier when WR in [PAUSE, LOW)
-ADAPTIVE_KELLY_PAUSE_MULT = 0.2    # Position multiplier when WR < PAUSE
-ADAPTIVE_KELLY_HIGH_CAP   = 0.35   # Position cap in high-WR state — 0.35 gives headroom for 2.0× mult (2.0×12% = 24% → under cap)
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  ASSET ROUTING — maps ACTIVE_MODE to engine config (do not edit)
@@ -486,23 +462,4 @@ _MODE_TO_ASSET = {
 }
 DEFAULT_ASSET = _MODE_TO_ASSET.get(ACTIVE_MODE, "BTC")
 
-# ── Live Trading — IBKR ───────────────────────────────────────────────────────
-LIVE_PAPER_MODE    = True          # True = paper (port 7497); False = live (port 7496)
-LIVE_SYMBOL        = "TQQQ"       # Primary instrument — TQQQ: Sharpe 94.2, +1.89%/mo
-IBKR_HOST          = "127.0.0.1"  # TWS/Gateway host
-IBKR_PORT_PAPER    = 7497         # IB Gateway paper trading port
-IBKR_PORT_LIVE     = 7496         # IB Gateway live trading port
-IBKR_CLIENT_ID     = 1            # Unique per concurrent connection
-
-MAX_TRADE_BARS_LIVE = 10          # Time-exit after N hourly bars (matches backtest)
-LIVE_MIN_TRADES_FOR_ADAPTIVE = 10 # Switch from bootstrap → rolling stats after N trades
-
-# Per-instrument bootstrap stats (seed Kelly until enough live trades)
-LIVE_BOOTSTRAP = {
-    "QQQ":  {"wr": 0.596, "win": 0.0024, "loss": 0.0012},
-    "TQQQ": {"wr": 0.604, "win": 0.0072, "loss": 0.0040},
-    "GDXU": {"wr": 0.701, "win": 0.0056, "loss": 0.00075},
-    "SOXL": {"wr": 0.631, "win": 0.009,  "loss": 0.0045},
-    "LABU": {"wr": 0.593, "win": 0.007,  "loss": 0.0025},
-    "TNA":  {"wr": 0.596, "win": 0.0033, "loss": 0.0015},
-}
+# ── Live Trading settings → imported from config_modules/live.py

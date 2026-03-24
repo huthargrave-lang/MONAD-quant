@@ -3,7 +3,7 @@ live/state.py — SQLite-backed persistence for open position and trade log.
 
 Two tables:
   position  — zero or one row (the currently open trade)
-  trades    — append-only log of closed trades (for rolling Kelly computation)
+  trades    — append-only log of closed trades (for rolling stats and sizing)
 """
 
 import sqlite3
@@ -45,7 +45,8 @@ def init_db() -> None:
                 entry_time  TEXT NOT NULL,
                 exit_time   TEXT NOT NULL,
                 return_pct  REAL NOT NULL,
-                exit_type   TEXT NOT NULL
+                exit_type   TEXT NOT NULL,
+                exit_price  REAL
             );
         """)
 
@@ -92,7 +93,8 @@ def increment_bar_count() -> int:
     return new_count
 
 
-def close_position(return_pct: float, exit_type: str) -> None:
+def close_position(return_pct: float, exit_type: str,
+                   exit_price: float = None) -> None:
     """Records the closed trade and removes the position row."""
     exit_time = datetime.now(timezone.utc).isoformat()
     with _conn() as conn:
@@ -101,25 +103,29 @@ def close_position(return_pct: float, exit_type: str) -> None:
             log.warning("close_position called but no open position found")
             return
         conn.execute(
-            "INSERT INTO trades (entry_time, exit_time, return_pct, exit_type) VALUES (?, ?, ?, ?)",
-            (pos["entry_time"], exit_time, return_pct, exit_type),
+            "INSERT INTO trades (entry_time, exit_time, return_pct, exit_type, exit_price) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (pos["entry_time"], exit_time, return_pct, exit_type, exit_price),
         )
         conn.execute("DELETE FROM position")
-    log.info(f"Position closed: {return_pct:+.4%} ({exit_type})")
+    price_str = f" @ {exit_price:.2f}" if exit_price else ""
+    log.info(f"Position closed: {return_pct:+.4%} ({exit_type}){price_str}")
 
 
-# ── Kelly sizing from live trade log ─────────────────────────────────────────
+# ── Position sizing ──────────────────────────────────────────────────────────
 
-def get_current_kelly(capital: float) -> dict:
+def get_position_plan(capital: float) -> dict:
     """
-    Returns a fixed 10% position size for live/paper trading.
+    Returns the position sizing plan for the next trade.
+
+    Currently uses a fixed 10% position size. When adaptive sizing
+    is re-enabled for live trading, this function will compute it from
+    the rolling trade log in state.db.
     """
-    fixed_kelly = 0.10
-    position_dollars = capital * fixed_kelly
+    position_pct = 0.10
+    position_dollars = capital * position_pct
     return {
-        "kelly_full": fixed_kelly,
-        "kelly_adjusted": fixed_kelly,
-        "kelly_capped": fixed_kelly,
+        "position_pct": position_pct,
         "position_dollars": position_dollars,
     }
 

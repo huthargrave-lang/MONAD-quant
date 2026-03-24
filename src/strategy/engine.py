@@ -47,6 +47,12 @@ def build_features(df: pd.DataFrame, timeframe: str = "daily",
         df = add_volatility_features(
             df, window=getattr(config, f"BB_WINDOW_{suffix}", 14),
         )
+        # Compute 50-period MA for hourly soft gate (if enabled).
+        # For hourly bars, 50 periods ≈ ~2.5 trading days (vs 50 days for daily).
+        soft_50ma_pct = getattr(config, "STRONG_BULL_SOFT_50MA_PCT", 0.0)
+        if soft_50ma_pct > 0 and "ma_50d" not in df.columns:
+            ma_short = getattr(config, "MA_SHORT_WINDOW", 50)
+            df["ma_50d"] = df["close"].rolling(ma_short, min_periods=1).mean()
     else:
         kelly_mult_map = {
             "STRONG_BULL": config.KELLY_MULT_STRONG_BULL,
@@ -148,6 +154,38 @@ def generate_trades(df: pd.DataFrame,
 
     import config as _cfg
 
+    # Soft 50-MA gate: block longs when price is deeply below the 50-period MA.
+    # For daily mode: only blocks STRONG_BULL longs (regime-aware).
+    # For hourly mode: blocks all longs (no regime classifier on hourly bars).
+    # Toggled via STRONG_BULL_SOFT_50MA_PCT (0=off, 0.05=block when >5% below MA).
+    soft_50ma_pct = getattr(_cfg, "STRONG_BULL_SOFT_50MA_PCT", 0.0)
+    if soft_50ma_pct > 0 and "ma_50d" in df.columns:
+        pct_below_50ma = (df["ma_50d"] - df["close"]) / df["close"]
+        deep_below = pct_below_50ma > soft_50ma_pct
+        long_mask = df["entry_signal"] == 1
+        if "regime" in df.columns:
+            # Daily mode: only gate STRONG_BULL entries
+            gate_mask = long_mask & (df["regime"] == "STRONG_BULL") & deep_below
+        else:
+            # Hourly mode: gate all long entries (no regime column)
+            gate_mask = long_mask & deep_below
+        n_candidates = long_mask.sum()
+        n_gated = gate_mask.sum()
+        if n_gated > 0:
+            import logging
+            _log = logging.getLogger(__name__)
+            gated_dates = df.index[gate_mask]
+            _log.info(
+                f"Soft 50-MA gate: blocked {n_gated}/{n_candidates} longs "
+                f"(>{soft_50ma_pct*100:.0f}% below 50-period MA)"
+            )
+            for ts in gated_dates[:20]:  # cap at 20 to avoid log flood
+                pct = pct_below_50ma.loc[ts]
+                _log.info(f"  gated: {ts}  ({pct*100:.1f}% below MA)")
+            if len(gated_dates) > 20:
+                _log.info(f"  ... and {len(gated_dates) - 20} more")
+            df.loc[gate_mask, "entry_signal"] = 0
+
     # Override regime_kelly_mult for BEAR defensive longs to quarter-Kelly
     if (use_slope_regime and longs_only
             and "regime_kelly_mult" in df.columns
@@ -182,6 +220,14 @@ def compute_trade_returns(df: pd.DataFrame,
     """
     Simulate next-bar trade outcomes for backtesting.
 
+    Execution model (unified with live trading):
+        1. Signal fires on bar N based on bar N's completed OHLCV features.
+        2. Entry fills at bar N+1's open — the first tradeable price after the signal.
+        3. TP/SL levels are computed relative to the entry price (bar N+1 open).
+        4. Exit scanning starts at bar N+2 and runs up to max_trade_bars.
+    The live equivalent: signal on completed bar → fill at current market price
+    → TP/SL relative to that market price. See live/broker.py place_bracket_order().
+
     Args:
         df: Feature DataFrame with entry_signal column
         target_gain_pct: Default target gain percentage
@@ -208,7 +254,6 @@ def compute_trade_returns(df: pd.DataFrame,
     for i, (idx, row) in enumerate(entries.iterrows()):
         loc = df.index.get_loc(idx)
         direction = row["entry_signal"]
-        entry_price = row["close"]
         regime = row.get("trend_direction", 0)
 
         n_bars = (bar_limit_overrides.get(idx, max_trade_bars)
@@ -218,8 +263,16 @@ def compute_trade_returns(df: pd.DataFrame,
         stop = (stop_overrides.get(idx, stop_loss_pct)
                 if stop_overrides else stop_loss_pct)
 
-        # Look ahead up to n_bars for target/stop
-        future = df.iloc[loc + 1: loc + 1 + n_bars]
+        # Entry convention: signal fires on bar N's close, fill at bar N+1's open.
+        # This matches live trading where the signal fires after bar close and the
+        # order fills at the next available price (market open of next bar).
+        next_bar_loc = loc + 1
+        if next_bar_loc >= len(df):
+            continue  # no next bar available for entry
+        entry_price = df.iloc[next_bar_loc]["open"]
+
+        # Look ahead from bar N+2 onward (N+1 is the entry bar)
+        future = df.iloc[next_bar_loc + 1: next_bar_loc + 1 + n_bars]
         exit_return = None
         exit_type   = None
 
@@ -234,13 +287,14 @@ def compute_trade_returns(df: pd.DataFrame,
                 continue
 
             if target_hit and stop_hit:
-                # Same-bar ambiguity: both levels inside this bar's range
+                # Same-bar ambiguity: both TP and SL inside this bar's range.
+                # We can't know which was hit first from OHLC alone.
                 if worst_case_ambiguity:
                     exit_return = -stop
-                    exit_type   = "stop_hit"
+                    exit_type   = "ambiguous_same_bar"
                 else:
                     exit_return = target
-                    exit_type   = "target_hit"
+                    exit_type   = "ambiguous_same_bar"
                 break
             elif target_hit:
                 exit_return = target
