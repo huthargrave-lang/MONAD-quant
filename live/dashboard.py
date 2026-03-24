@@ -18,6 +18,13 @@ DB_PATH = Path(__file__).parent / "state.db"
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 app = FastAPI(title="MONAD Read-Only Monitor", version="2.0.0")
+UI_VERSION = "v2"
+
+
+@app.on_event("startup")
+def _startup_init_db() -> None:
+    """Ensure read-only dashboard queries run against migrated schema."""
+    state.init_db()
 
 
 def _conn() -> sqlite3.Connection:
@@ -164,12 +171,14 @@ def dashboard(request: Request) -> HTMLResponse:
     events = state.get_recent_monitor_events(limit=30)
     exit_counts = state.get_exit_type_counts(limit=250)
     account = state.get_account_snapshot()
+    freshness = state.get_dashboard_freshness_status()
 
-    cycle_age_min = _minutes_ago(status.get("last_cycle_time") if status else None)
+    cycle_age_min = _minutes_ago(freshness.get("last_cycle_time"))
     cycle_text, cycle_color = _stale_band(cycle_age_min)
 
-    signal_age_min = _minutes_ago(signal.get("updated_at") if signal else None)
-    event_age_min = _minutes_ago(events[0]["event_time"]) if events else None
+    signal_age_min = _minutes_ago(freshness.get("last_signal_time"))
+    event_age_min = _minutes_ago(freshness.get("last_event_time"))
+    broker_sync_age_min = _minutes_ago(freshness.get("last_broker_sync_time"))
     db_write_at = _db_last_write_time()
     db_age_min = _minutes_ago(db_write_at)
 
@@ -239,6 +248,7 @@ def dashboard(request: Request) -> HTMLResponse:
         name="dashboard.html",
         context={
             "generated_at": datetime.now(timezone.utc).isoformat(),
+            "ui_version": UI_VERSION,
             "git_hash": _get_git_hash(),
             "status": status,
             "signal": signal,
@@ -263,5 +273,6 @@ def dashboard(request: Request) -> HTMLResponse:
             "db_age_min": db_age_min,
             "signal_age_min": signal_age_min,
             "event_age_min": event_age_min,
+            "broker_sync_age_min": broker_sync_age_min,
         },
     )

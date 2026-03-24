@@ -87,7 +87,8 @@
           Active symbol: {{ status.live_symbol if status else '—' }} ·
           Last dashboard refresh: {{ generated_at }} ·
           Last trader cycle: {{ status.last_cycle_time if status else '—' }} ·
-          Git hash: {{ git_hash }}
+          Git hash: {{ git_hash }} ·
+          Version: {{ ui_version }}
         </div>
         <div class="readonly">Read-only dashboard — no trade or config controls.</div>
       </div>
@@ -244,6 +245,7 @@
             <tr><td>state.db last write time</td><td>{{ db_write_at or '—' }}</td><td class="{{ 'green' if db_age_min is not none and db_age_min < 30 else ('yellow' if db_age_min is not none and db_age_min < 90 else 'red') }}">{{ '%.1f min ago'|format(db_age_min) if db_age_min is not none else 'unknown' }}</td></tr>
             <tr><td>Signal snapshot age</td><td>{{ '%.1f min'|format(signal_age_min) if signal_age_min is not none else '—' }}</td><td class="{{ 'green' if signal_age_min is not none and signal_age_min < 30 else ('yellow' if signal_age_min is not none and signal_age_min < 90 else 'red') }}">freshness</td></tr>
             <tr><td>Most recent event age</td><td>{{ '%.1f min'|format(event_age_min) if event_age_min is not none else '—' }}</td><td class="{{ 'green' if event_age_min is not none and event_age_min < 120 else ('yellow' if event_age_min is not none and event_age_min < 360 else 'red') }}">freshness</td></tr>
+            <tr><td>Last broker sync age</td><td>{{ '%.1f min'|format(broker_sync_age_min) if broker_sync_age_min is not none else '—' }}</td><td class="{{ 'green' if broker_sync_age_min is not none and broker_sync_age_min < 30 else ('yellow' if broker_sync_age_min is not none and broker_sync_age_min < 120 else 'red') }}">freshness</td></tr>
             <tr><td>IBKR connection snapshot</td><td>{{ 'connected' if ibkr_connected else 'disconnected' }}</td><td class="{{ 'green' if ibkr_connected else 'red' }}">broker</td></tr>
           </tbody>
         </table>
