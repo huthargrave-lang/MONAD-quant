@@ -446,3 +446,18 @@ def get_account_snapshot() -> Optional[dict]:
     with _conn() as conn:
         row = conn.execute("SELECT * FROM account_snapshot WHERE id = 1").fetchone()
     return dict(row) if row else None
+
+
+def get_dashboard_freshness_status() -> dict:
+    """Return lightweight freshness metrics for read-only dashboard health cards."""
+    status = get_monitor_status()
+    signal = get_signal_snapshot()
+    events = get_recent_monitor_events(limit=1)
+    account = get_account_snapshot()
+
+    return {
+        "last_cycle_time": status.get("last_cycle_time") if status else None,
+        "last_signal_time": signal.get("updated_at") if signal else None,
+        "last_event_time": events[0]["event_time"] if events else None,
+        "last_broker_sync_time": account.get("updated_at") if account else None,
+    }
