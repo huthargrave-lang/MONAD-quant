@@ -1,9 +1,12 @@
 """
 live/state.py — SQLite-backed persistence for open position and trade log.
 
-Two tables:
-  position  — zero or one row (the currently open trade)
-  trades    — append-only log of closed trades (for rolling stats and sizing)
+Tables:
+  position         — zero or one row (the currently open trade)
+  trades           — append-only log of closed trades (for rolling stats and sizing)
+  monitor_status   — singleton row with latest heartbeat/status metadata
+  signal_snapshot  — latest computed signal payload
+  monitor_events   — append-only recent operational events/warnings
 """
 
 import sqlite3
@@ -47,6 +50,33 @@ def init_db() -> None:
                 return_pct  REAL NOT NULL,
                 exit_type   TEXT NOT NULL,
                 exit_price  REAL
+            );
+
+            CREATE TABLE IF NOT EXISTS monitor_status (
+                id                  INTEGER PRIMARY KEY CHECK (id = 1),
+                last_cycle_time     TEXT,
+                status              TEXT,
+                cycle_action        TEXT,
+                details             TEXT,
+                live_symbol         TEXT,
+                live_paper_mode     INTEGER,
+                live_dry_run        INTEGER
+            );
+
+            CREATE TABLE IF NOT EXISTS signal_snapshot (
+                id                  INTEGER PRIMARY KEY CHECK (id = 1),
+                updated_at          TEXT,
+                signal              INTEGER,
+                bar_time            TEXT,
+                bar_close           REAL
+            );
+
+            CREATE TABLE IF NOT EXISTS monitor_events (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_time          TEXT NOT NULL,
+                level               TEXT NOT NULL,
+                category            TEXT NOT NULL,
+                message             TEXT NOT NULL
             );
         """)
 
@@ -149,3 +179,95 @@ def get_trade_summary() -> dict:
         "total_ret":  total_ret,
         "exit_types": by_type,
     }
+
+
+def set_monitor_status(status: str, cycle_action: str, details: str = "") -> None:
+    now = datetime.now(timezone.utc).isoformat()
+    with _conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO monitor_status (
+                id, last_cycle_time, status, cycle_action, details,
+                live_symbol, live_paper_mode, live_dry_run
+            )
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                last_cycle_time = excluded.last_cycle_time,
+                status = excluded.status,
+                cycle_action = excluded.cycle_action,
+                details = excluded.details,
+                live_symbol = excluded.live_symbol,
+                live_paper_mode = excluded.live_paper_mode,
+                live_dry_run = excluded.live_dry_run
+            """,
+            (
+                now,
+                status,
+                cycle_action,
+                details,
+                config.LIVE_SYMBOL,
+                int(bool(config.LIVE_PAPER_MODE)),
+                int(bool(getattr(config, "LIVE_DRY_RUN", False))),
+            ),
+        )
+
+
+def get_monitor_status() -> Optional[dict]:
+    with _conn() as conn:
+        row = conn.execute("SELECT * FROM monitor_status WHERE id = 1").fetchone()
+    return dict(row) if row else None
+
+
+def save_signal_snapshot(signal: int, bar_time: str, bar_close: float) -> None:
+    now = datetime.now(timezone.utc).isoformat()
+    with _conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO signal_snapshot (id, updated_at, signal, bar_time, bar_close)
+            VALUES (1, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                updated_at = excluded.updated_at,
+                signal = excluded.signal,
+                bar_time = excluded.bar_time,
+                bar_close = excluded.bar_close
+            """,
+            (now, signal, str(bar_time), bar_close),
+        )
+
+
+def get_signal_snapshot() -> Optional[dict]:
+    with _conn() as conn:
+        row = conn.execute("SELECT * FROM signal_snapshot WHERE id = 1").fetchone()
+    return dict(row) if row else None
+
+
+def add_monitor_event(level: str, category: str, message: str) -> None:
+    now = datetime.now(timezone.utc).isoformat()
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO monitor_events (event_time, level, category, message) VALUES (?, ?, ?, ?)",
+            (now, level.upper(), category, message),
+        )
+
+
+def get_recent_monitor_events(limit: int = 25) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT event_time, level, category, message FROM monitor_events ORDER BY id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_recent_trades(limit: int = 20) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT entry_time, exit_time, return_pct, exit_type, exit_price
+            FROM trades
+            ORDER BY exit_time DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]

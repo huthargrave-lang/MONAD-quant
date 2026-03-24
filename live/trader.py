@@ -75,10 +75,14 @@ def on_bar() -> None:
     log.info("─" * 60)
     log.info(f"on_bar() | {config.LIVE_SYMBOL} | {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
 
+    state.set_monitor_status(status="running", cycle_action="started", details="on_bar cycle started")
     try:
         cycle_action = _on_bar_inner()
-    except Exception:
+        state.set_monitor_status(status="ok", cycle_action=cycle_action, details="on_bar cycle completed")
+    except Exception as exc:
         cycle_action = "error"
+        state.set_monitor_status(status="error", cycle_action=cycle_action, details=str(exc))
+        state.add_monitor_event("ERROR", "cycle", f"Unhandled on_bar exception: {exc}")
         raise
     finally:
         elapsed = _time.monotonic() - t0
@@ -108,10 +112,12 @@ def _on_bar_inner() -> str:
                 # Record as pending_close — actual PnL unknown until fill is reconciled.
                 ref_price = broker.get_reference_price(position.symbol)
                 ret = (ref_price - position.entry_price) / position.entry_price
-                log.warning(
+                warning_msg = (
                     f"Fill data unavailable — recording as pending_close | "
                     f"ref={ref_price:.2f} | estimated_ret={ret:+.4%} (NOT recorded as PnL)"
                 )
+                log.warning(warning_msg)
+                state.add_monitor_event("WARNING", "fill", warning_msg)
                 exit_type = "pending_close"
             state.close_position(return_pct=ret if fill else 0.0, exit_type=exit_type,
                                  exit_price=fill["fill_price"] if fill else None)
@@ -134,10 +140,12 @@ def _on_bar_inner() -> str:
                 # This is the one live exit path where PnL may be estimated.
                 exit_price = broker.get_reference_price(position.symbol)
                 ret = (exit_price - position.entry_price) / position.entry_price
-                log.warning(
+                warning_msg = (
                     f"Time-exit fill unavailable — using reference price {exit_price:.2f} | "
                     f"estimated_ret={ret:+.4%}"
                 )
+                log.warning(warning_msg)
+                state.add_monitor_event("WARNING", "time_exit", warning_msg)
             state.close_position(return_pct=ret, exit_type="time_exit", exit_price=exit_price)
             _log_summary()
             return "exit_time_exit"
@@ -151,7 +159,10 @@ def _on_bar_inner() -> str:
         sig_info = signals.get_current_signal()
     except RuntimeError as exc:
         log.error(f"Signal computation failed: {exc}")
+        state.add_monitor_event("ERROR", "signal", f"Signal computation failed: {exc}")
         return "signal_error"
+
+    state.save_signal_snapshot(sig_info["signal"], str(sig_info["bar_time"]), sig_info["bar_close"])
 
     if sig_info["signal"] != 1:
         log.info(f"No entry signal (signal={sig_info['signal']})")
@@ -176,7 +187,9 @@ def _on_bar_inner() -> str:
     qty = int(sizing["position_dollars"] / bar_close)
 
     if qty < 1:
-        log.warning(f"Position too small for one share (${sizing['position_dollars']:.0f} / ${bar_close:.2f})")
+        warning_msg = f"Position too small for one share (${sizing['position_dollars']:.0f} / ${bar_close:.2f})"
+        log.warning(warning_msg)
+        state.add_monitor_event("WARNING", "sizing", warning_msg)
         return "qty_too_small"
 
     if config.LIVE_DRY_RUN:
@@ -196,7 +209,9 @@ def _on_bar_inner() -> str:
         stop_pct=asset_config["stop_loss_pct"],
     )
     if result is None:
-        log.error("Bracket order failed — skipping this entry. Will retry next bar if signal persists.")
+        error_msg = "Bracket order failed — skipping this entry. Will retry next bar if signal persists."
+        log.error(error_msg)
+        state.add_monitor_event("ERROR", "order", error_msg)
         return "order_failed"
 
     # Record the broker's fill_basis as entry price — this is the live market price
@@ -205,6 +220,7 @@ def _on_bar_inner() -> str:
     order_id = result["order_id"]
     state.open_position(config.LIVE_SYMBOL, entry_price, qty, order_id)
     log.info(f"ENTRY placed: {qty} shares @ ~{entry_price:.2f} (fill_basis)")
+    state.add_monitor_event("INFO", "entry", f"Entry placed: {qty} {config.LIVE_SYMBOL} @ {entry_price:.2f}")
     return "entry_placed"
 
 
@@ -352,6 +368,7 @@ def main() -> None:
     log.info("─" * 60)
 
     state.init_db()
+    state.set_monitor_status(status="idle", cycle_action="startup", details="trader initialized")
 
     if args.once:
         on_bar()

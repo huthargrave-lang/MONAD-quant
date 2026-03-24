@@ -122,6 +122,33 @@ live/
 └── state.py    <- SQLite position/trade log, fixed 10% sizing
 ```
 
+
+### Read-Only Monitoring Dashboard
+
+A separate FastAPI process provides a **read-only** dashboard over `live/state.db`.
+It does **not** place orders and does not expose trade/config controls.
+
+```bash
+# Install live + dashboard deps
+pip install -r requirements-live.txt
+
+# Terminal 1: run trader (paper/live as desired)
+python -m live.trader
+
+# Terminal 2: run read-only monitor (separate process)
+uvicorn live.dashboard:app --host 0.0.0.0 --port 8080
+
+# Open dashboard
+# http://localhost:8080
+```
+
+Dashboard shows:
+- Bot status / heartbeat
+- Latest computed signal snapshot
+- Current open position
+- Recent closed trades
+- Warnings and recent operational events
+
 ### Raspberry Pi Deployment
 
 ```bash

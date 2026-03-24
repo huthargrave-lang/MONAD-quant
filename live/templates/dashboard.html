@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MONAD Bot Monitor</title>
+    <style>
+      :root {
+        --bg: #0b1020;
+        --panel: #121a2f;
+        --text: #e8ecf6;
+        --muted: #98a2b3;
+        --ok: #27c17e;
+        --warn: #ffb020;
+        --err: #ff5d5d;
+        --line: #28314c;
+      }
+      body {
+        margin: 0;
+        padding: 18px;
+        background: var(--bg);
+        color: var(--text);
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      }
+      h1,h2 { margin: 0 0 10px; }
+      .meta { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 12px;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 12px;
+      }
+      .k { color: var(--muted); font-size: 12px; }
+      .v { font-size: 16px; margin: 2px 0 10px; }
+      table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      th, td { border-bottom: 1px solid var(--line); padding: 6px 4px; text-align: left; }
+      .ok { color: var(--ok); }
+      .warn { color: var(--warn); }
+      .err { color: var(--err); }
+    </style>
+  </head>
+  <body>
+    <h1>MONAD Read-Only Dashboard</h1>
+    <div class="meta">
+      Generated UTC: {{ generated_at }} · auto-refresh every 15s
+      <script>setTimeout(() => location.reload(), 15000);</script>
+    </div>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Bot status</h2>
+        {% if status %}
+          <div class="k">Status</div><div class="v">{{ status.status }}</div>
+          <div class="k">Last cycle time</div><div class="v">{{ status.last_cycle_time or '—' }}</div>
+          <div class="k">Last action</div><div class="v">{{ status.cycle_action or '—' }}</div>
+          <div class="k">Mode</div><div class="v">{{ 'PAPER' if status.live_paper_mode else 'LIVE' }}{% if status.live_dry_run %} (DRY-RUN){% endif %}</div>
+          <div class="k">Symbol</div><div class="v">{{ status.live_symbol or '—' }}</div>
+          <div class="k">Details</div><div class="v">{{ status.details or '—' }}</div>
+        {% else %}
+          <div class="v">No status yet. Start the trader at least once.</div>
+        {% endif %}
+      </section>
+
+      <section class="card">
+        <h2>Latest signal</h2>
+        {% if signal %}
+          <div class="k">Signal</div><div class="v">{{ signal.signal }}</div>
+          <div class="k">Bar time</div><div class="v">{{ signal.bar_time or '—' }}</div>
+          <div class="k">Bar close</div><div class="v">{{ '%.2f'|format(signal.bar_close) if signal.bar_close is not none else '—' }}</div>
+          <div class="k">Updated at</div><div class="v">{{ signal.updated_at or '—' }}</div>
+        {% else %}
+          <div class="v">No signal snapshot yet.</div>
+        {% endif %}
+      </section>
+
+      <section class="card">
+        <h2>Current position</h2>
+        {% if position %}
+          <div class="k">Symbol</div><div class="v">{{ position.symbol }}</div>
+          <div class="k">Entry time</div><div class="v">{{ position.entry_time }}</div>
+          <div class="k">Entry price</div><div class="v">{{ '%.2f'|format(position.entry_price) }}</div>
+          <div class="k">Quantity</div><div class="v">{{ position.qty }}</div>
+          <div class="k">Bars held</div><div class="v">{{ position.bar_count }}</div>
+        {% else %}
+          <div class="v">Flat (no open position).</div>
+        {% endif %}
+      </section>
+
+      <section class="card">
+        <h2>Warnings / recent events</h2>
+        <table>
+          <thead><tr><th>Time</th><th>Level</th><th>Category</th><th>Message</th></tr></thead>
+          <tbody>
+            {% for event in events %}
+            <tr>
+              <td>{{ event.event_time }}</td>
+              <td class="{% if event.level == 'ERROR' %}err{% elif event.level == 'WARNING' %}warn{% else %}ok{% endif %}">{{ event.level }}</td>
+              <td>{{ event.category }}</td>
+              <td>{{ event.message }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4">No events yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+    </div>
+
+    <section class="card" style="margin-top: 12px;">
+      <h2>Recent trades</h2>
+      <table>
+        <thead>
+          <tr><th>Entry</th><th>Exit</th><th>Return %</th><th>Exit type</th><th>Exit price</th></tr>
+        </thead>
+        <tbody>
+          {% for trade in trades %}
+          <tr>
+            <td>{{ trade.entry_time }}</td>
+            <td>{{ trade.exit_time }}</td>
+            <td class="{% if trade.return_pct < 0 %}err{% else %}ok{% endif %}">{{ '%.3f'|format(trade.return_pct * 100) }}</td>
+            <td>{{ trade.exit_type }}</td>
+            <td>{{ '%.2f'|format(trade.exit_price) if trade.exit_price is not none else '—' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5">No closed trades yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </body>
+</html>
