@@ -182,6 +182,14 @@ def compute_trade_returns(df: pd.DataFrame,
     """
     Simulate next-bar trade outcomes for backtesting.
 
+    Execution model (unified with live trading):
+        1. Signal fires on bar N based on bar N's completed OHLCV features.
+        2. Entry fills at bar N+1's open — the first tradeable price after the signal.
+        3. TP/SL levels are computed relative to the entry price (bar N+1 open).
+        4. Exit scanning starts at bar N+2 and runs up to max_trade_bars.
+    The live equivalent: signal on completed bar → fill at current market price
+    → TP/SL relative to that market price. See live/broker.py place_bracket_order().
+
     Args:
         df: Feature DataFrame with entry_signal column
         target_gain_pct: Default target gain percentage

@@ -198,19 +198,22 @@ def _yfinance_fallback(symbol: str) -> float:
 
 # ── Orders ────────────────────────────────────────────────────────────────────
 
-def place_bracket_order(symbol: str, qty: int, entry_price: float,
-                        target_pct: float, stop_pct: float) -> str | None:
+def place_bracket_order(symbol: str, qty: int,
+                        target_pct: float, stop_pct: float) -> dict | None:
     """
     Places a market buy with linked take-profit (limit sell) and stop-loss legs.
 
-    entry_price is the signal bar's close — used for target/stop bracket levels
-    (matches backtest convention). The parent limit price uses a fresh broker
-    quote to ensure fill at current market.
+    TP/SL levels are computed from the live broker price at order time, matching the
+    backtest convention where entry = next-bar open (the first tradeable price after
+    the signal). The parent limit price is 0.5% above market to ensure fill.
 
     IBKR bracket orders: parent fills first, then child orders (TP + SL) go live.
     When either child fills, IBKR auto-cancels the other (OCA group).
 
-    Returns the parent order ID as string, or None if the order could not be placed.
+    Returns dict with:
+        order_id:   parent order ID as string
+        fill_basis: the market price used for TP/SL computation (≈ actual fill price)
+    Or None if the order could not be placed.
     """
     from ib_insync import Stock
 
@@ -223,20 +226,22 @@ def place_bracket_order(symbol: str, qty: int, entry_price: float,
         log.error(f"Cannot qualify contract for {symbol}: {exc} — order NOT placed")
         return None
 
-    # Get fresh broker price for the parent limit order
+    # Get fresh broker price — this is the basis for TP/SL and the limit price.
+    # Matches backtest entry convention: signal on bar N, fill at bar N+1 open.
+    # Live equivalent: signal on completed bar, fill at current market price.
     try:
         live_price = get_tradeable_price(symbol)
     except RuntimeError as exc:
         log.error(f"No tradeable price for {symbol}: {exc} — order NOT placed")
         return None
 
-    target_price = round(entry_price * (1 + target_pct), 2)
-    stop_price   = round(entry_price * (1 - stop_pct), 2)
+    target_price = round(live_price * (1 + target_pct), 2)
+    stop_price   = round(live_price * (1 - stop_pct), 2)
 
     bracket = ib.bracketOrder(
         action="BUY",
         quantity=qty,
-        limitPrice=round(live_price * 1.005, 2),  # 0.5% above live price to ensure fill
+        limitPrice=round(live_price * 1.005, 2),  # 0.5% above market to ensure fill
         takeProfitPrice=target_price,
         stopLossPrice=stop_price,
     )
@@ -248,10 +253,10 @@ def place_bracket_order(symbol: str, qty: int, entry_price: float,
 
     parent_id = str(parent_order.orderId)
     log.info(
-        f"Bracket order placed | id={parent_id} | {qty} {symbol} | "
+        f"Bracket order placed | id={parent_id} | {qty} {symbol} @ ~{live_price:.2f} | "
         f"target={target_price:.2f} (+{target_pct:.2%}) | stop={stop_price:.2f} (-{stop_pct:.2%})"
     )
-    return parent_id
+    return {"order_id": parent_id, "fill_basis": float(live_price)}
 
 
 def cancel_and_close(symbol: str, bracket_order_id: str, qty: int) -> None:

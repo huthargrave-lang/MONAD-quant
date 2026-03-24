@@ -1,6 +1,12 @@
 """
 live/trader.py — Scheduler and main trading loop for hourly ETF live trading.
 
+Execution model (unified with backtest):
+    1. Signal fires on completed bar N (RSI, MACD, VWAP computed from bar N's OHLCV).
+    2. Entry fills at current market price (live equivalent of bar N+1's open).
+    3. TP/SL bracket levels are relative to the fill price, not bar N's close.
+    4. Exit via IBKR bracket (TP limit sell / SL stop sell / time-exit market sell).
+
 Runs as a long-lived process. APScheduler fires on_bar() 2 minutes after each
 hourly bar close during US market hours (ET):
     9:32, 10:32, 11:32, 12:32, 13:32, 14:32, 15:32
@@ -14,6 +20,7 @@ Usage:
     python -m live.trader            # paper mode (default, port 7497)
     python -m live.trader --live     # REAL MONEY — requires explicit flag (port 7496)
     python -m live.trader --symbol GDXU  # override instrument
+    python -m live.trader --dry-run  # signals only, no orders placed
 """
 
 import argparse
@@ -151,37 +158,42 @@ def _on_bar_inner() -> str:
     )
 
     asset_config = _get_asset_config()
-    # Use the completed bar's close for bracket pricing — matches backtest convention
-    # where entry = signal bar's close (next bar's open is approximated by close).
-    entry_price = sig_info["bar_close"]
-    log.info(f"Entry price from bar close: ${entry_price:.2f} (bar={sig_info['bar_time']})")
-    qty = int(sizing["position_dollars"] / entry_price)
+    # Use bar_close for qty estimation. The actual entry basis (live market price)
+    # is determined by broker.place_bracket_order() and returned as fill_basis.
+    bar_close = sig_info["bar_close"]
+    log.info(f"Signal bar close: ${bar_close:.2f} (bar={sig_info['bar_time']})")
+    qty = int(sizing["position_dollars"] / bar_close)
 
     if qty < 1:
-        log.warning(f"Position too small for one share (${sizing['position_dollars']:.0f} / ${entry_price:.2f})")
+        log.warning(f"Position too small for one share (${sizing['position_dollars']:.0f} / ${bar_close:.2f})")
         return "qty_too_small"
 
     if config.LIVE_DRY_RUN:
-        target_p = round(entry_price * (1 + asset_config["target_gain_pct"]), 2)
-        stop_p = round(entry_price * (1 - asset_config["stop_loss_pct"]), 2)
+        # In dry-run, use bar_close as approximate basis (no broker call)
+        target_p = round(bar_close * (1 + asset_config["target_gain_pct"]), 2)
+        stop_p = round(bar_close * (1 - asset_config["stop_loss_pct"]), 2)
         log.info(
-            f"DRY RUN — would place: {qty} {config.LIVE_SYMBOL} @ ~{entry_price:.2f} | "
-            f"TP={target_p:.2f} | SL={stop_p:.2f}"
+            f"DRY RUN — would place: {qty} {config.LIVE_SYMBOL} @ ~{bar_close:.2f} | "
+            f"TP~={target_p:.2f} | SL~={stop_p:.2f} (approx; live uses broker price)"
         )
         return "dry_run_entry"
 
-    order_id = broker.place_bracket_order(
+    result = broker.place_bracket_order(
         symbol=config.LIVE_SYMBOL,
         qty=qty,
-        entry_price=entry_price,
         target_pct=asset_config["target_gain_pct"],
         stop_pct=asset_config["stop_loss_pct"],
     )
-    if order_id is None:
+    if result is None:
         log.error("Bracket order failed — skipping this entry. Will retry next bar if signal persists.")
         return "order_failed"
+
+    # Record the broker's fill_basis as entry price — this is the live market price
+    # at order time, matching the backtest convention of entering at next-bar open.
+    entry_price = result["fill_basis"]
+    order_id = result["order_id"]
     state.open_position(config.LIVE_SYMBOL, entry_price, qty, order_id)
-    log.info(f"ENTRY placed: {qty} shares @ ~{entry_price:.2f}")
+    log.info(f"ENTRY placed: {qty} shares @ ~{entry_price:.2f} (fill_basis)")
     return "entry_placed"
 
 

@@ -36,9 +36,15 @@ def get_current_signal() -> dict:
     """
     Returns signal info for the most recently completed hourly bar.
 
+    Execution model: signal fires on bar N's completed features. The caller
+    (trader.py) then places a bracket order at the current market price via
+    broker.py — that market price is the live equivalent of bar N+1's open
+    in the backtest. bar_close is returned for qty estimation and logging only;
+    it is NOT used as the TP/SL basis (broker.py uses live market price).
+
     Returns dict with:
         signal:    1 (long), 0 (no signal), or -1 (short)
-        bar_close: float — the completed bar's close price (use for bracket pricing)
+        bar_close: float — the completed bar's close price (for qty estimation)
         bar_time:  the bar's timestamp
 
     Raises:
