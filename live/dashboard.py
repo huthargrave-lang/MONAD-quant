@@ -21,12 +21,6 @@ app = FastAPI(title="MONAD Read-Only Monitor", version="2.0.0")
 UI_VERSION = "v2"
 
 
-@app.on_event("startup")
-def _startup_init_db() -> None:
-    """Ensure read-only dashboard queries run against migrated schema."""
-    state.init_db()
-
-
 def _conn() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
