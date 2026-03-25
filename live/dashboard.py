@@ -188,7 +188,24 @@ def dashboard(request: Request) -> HTMLResponse:
     else:
         health_label, health_color = "Stale", "red"
 
-    latest_price = signal.get("bar_close") if signal else None
+    # ── Resolve mark price: account_snapshot (broker-sourced) > signal bar_close ─
+    mark_price = None
+    mark_source = "unavailable"
+    mark_time = None
+    if account:
+        mp = account.get("mark_price")
+        ms = account.get("mark_source")
+        mt = account.get("mark_time")
+        if mp is not None and float(mp) > 0:
+            mark_price = float(mp)
+            mark_source = ms or "live"
+            mark_time = mt
+    # Fallback: use signal bar_close if no broker mark stored
+    if mark_price is None and signal and signal.get("bar_close"):
+        mark_price = float(signal["bar_close"])
+        mark_source = "last_close"
+        mark_time = signal.get("updated_at")
+
     position_view = None
     if position_dict:
         # Try the active mode's asset key first, then fall back to symbol_HOURLY / symbol
@@ -207,6 +224,7 @@ def dashboard(request: Request) -> HTMLResponse:
             stop_pct = cfg.get("stop_loss_pct")
 
         entry_price = float(position_dict["entry_price"])
+        qty = int(position_dict["qty"])
         target_price = entry_price * (1 + target_pct) if target_pct is not None else None
         stop_price = entry_price * (1 - stop_pct) if stop_pct is not None else None
         bars_remaining = max(0, config.MAX_TRADE_BARS_LIVE - int(position_dict["bar_count"]))
@@ -215,24 +233,28 @@ def dashboard(request: Request) -> HTMLResponse:
         unrealized_dollar = None
         dist_target = None
         dist_stop = None
-        if latest_price is not None:
-            latest = float(latest_price)
-            unrealized_pct = (latest - entry_price) / entry_price
-            unrealized_dollar = (latest - entry_price) * int(position_dict["qty"])
+        if mark_price is not None:
+            unrealized_pct = (mark_price - entry_price) / entry_price
+            unrealized_dollar = (mark_price - entry_price) * qty
             if target_price:
-                dist_target = (target_price - latest) / latest
+                dist_target = (target_price - mark_price) / mark_price
             if stop_price:
-                dist_stop = (latest - stop_price) / latest
+                dist_stop = (mark_price - stop_price) / mark_price
 
         position_view = {
             **position_dict,
             "bars_remaining": bars_remaining,
             "target_price": target_price,
             "stop_price": stop_price,
+            "mark_price": mark_price,
+            "mark_source": mark_source,
+            "mark_time": mark_time,
             "unrealized_pct": unrealized_pct,
             "unrealized_dollar": unrealized_dollar,
             "dist_target": dist_target,
             "dist_stop": dist_stop,
+            "cost_basis_total": entry_price * qty,
+            "market_value": mark_price * qty if mark_price else None,
         }
 
     signal_badge = {1: ("LONG", "green"), 0: ("NO SIGNAL", "yellow"), -1: ("SHORT", "red")}.get(

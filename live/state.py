@@ -134,6 +134,18 @@ def init_db() -> None:
             if col not in existing_signal_cols:
                 conn.execute(f"ALTER TABLE signal_snapshot ADD COLUMN {col} {ctype}")
 
+        # Mark-price columns on account_snapshot (for dashboard unrealized PnL)
+        existing_acct_cols = {
+            row["name"] for row in conn.execute("PRAGMA table_info(account_snapshot)").fetchall()
+        }
+        for col, ctype in [
+            ("mark_price", "REAL"),
+            ("mark_source", "TEXT"),
+            ("mark_time", "TEXT"),
+        ]:
+            if col not in existing_acct_cols:
+                conn.execute(f"ALTER TABLE account_snapshot ADD COLUMN {col} {ctype}")
+
 
 # ── Position management ───────────────────────────────────────────────────────
 
@@ -430,22 +442,29 @@ def save_account_snapshot(
     buying_power: float | None = None,
     position_value: float | None = None,
     ibkr_connected: bool = True,
+    mark_price: float | None = None,
+    mark_source: str | None = None,
+    mark_time: str | None = None,
 ) -> None:
     now = datetime.now(timezone.utc).isoformat()
     with _conn() as conn:
         conn.execute(
             """
             INSERT INTO account_snapshot (
-                id, updated_at, equity, cash, buying_power, position_value, ibkr_connected
+                id, updated_at, equity, cash, buying_power, position_value,
+                ibkr_connected, mark_price, mark_source, mark_time
             )
-            VALUES (1, ?, ?, ?, ?, ?, ?)
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 updated_at = excluded.updated_at,
                 equity = excluded.equity,
                 cash = excluded.cash,
                 buying_power = excluded.buying_power,
                 position_value = excluded.position_value,
-                ibkr_connected = excluded.ibkr_connected
+                ibkr_connected = excluded.ibkr_connected,
+                mark_price = excluded.mark_price,
+                mark_source = excluded.mark_source,
+                mark_time = excluded.mark_time
             """,
             (
                 now,
@@ -454,6 +473,9 @@ def save_account_snapshot(
                 buying_power,
                 position_value,
                 1 if ibkr_connected else 0,
+                mark_price,
+                mark_source,
+                mark_time,
             ),
         )
 

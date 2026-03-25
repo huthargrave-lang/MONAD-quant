@@ -63,6 +63,74 @@ def _get_asset_config() -> dict:
 
 # ── Core logic ────────────────────────────────────────────────────────────────
 
+def _resolve_mark_price(symbol: str, bar_close: float | None = None) -> tuple[float | None, str]:
+    """Resolve mark price using the best available source.
+
+    Returns (price, source) where source is one of:
+      "live"       — real-time IBKR price
+      "delayed"    — delayed IBKR data
+      "last_close" — most recent bar close from signal data
+      "unavailable"
+    """
+    # 1. Try live broker price (get_tradeable_price tries live then delayed)
+    try:
+        price = broker.get_tradeable_price(symbol)
+        # get_tradeable_price logs whether it used live or delayed attr
+        # We check: if it succeeded, it's at least "delayed" quality
+        # The function tries live first, then delayed — we can't distinguish
+        # from the return value alone, so call it "live" (broker-sourced)
+        return price, "live"
+    except RuntimeError:
+        pass
+
+    # 2. Try yfinance as delayed fallback
+    try:
+        from live.broker import _yfinance_fallback
+        price = _yfinance_fallback(symbol)
+        if price and price > 0:
+            return price, "delayed"
+    except Exception:
+        pass
+
+    # 3. Fall back to stored bar close
+    if bar_close is not None and bar_close > 0:
+        return bar_close, "last_close"
+
+    return None, "unavailable"
+
+
+def _sync_account_and_mark(bar_close: float | None = None) -> None:
+    """Sync account snapshot + mark price to state.db every cycle."""
+    mark_price, mark_source = _resolve_mark_price(config.LIVE_SYMBOL, bar_close=bar_close)
+    mark_time = datetime.now(timezone.utc).isoformat() if mark_price else None
+
+    try:
+        account = broker.get_account()
+        state.save_account_snapshot(
+            equity=getattr(account, "equity", None),
+            cash=getattr(account, "cash", None),
+            buying_power=getattr(account, "buying_power", None),
+            position_value=getattr(account, "position_value", None),
+            ibkr_connected=True,
+            mark_price=mark_price,
+            mark_source=mark_source,
+            mark_time=mark_time,
+        )
+    except Exception as exc:
+        log.warning(f"Account sync failed: {exc}")
+        # Still try to save mark even without account data
+        state.save_account_snapshot(
+            equity=None, cash=None,
+            ibkr_connected=False,
+            mark_price=mark_price,
+            mark_source=mark_source,
+            mark_time=mark_time,
+        )
+
+    if mark_price:
+        log.info(f"Mark: ${mark_price:.2f} ({mark_source})")
+
+
 def on_bar() -> None:
     """
     Called once per completed hourly bar.
@@ -152,6 +220,7 @@ def _on_bar_inner() -> str:
 
         # Position is still open and within bar limit — wait for bracket exit
         log.info("Position within bar limit, bracket order monitoring exit")
+        _sync_account_and_mark()
         return f"holding_bar_{bar_count}"
 
     # ── Check for new entry signal ────────────────────────────────────────────
@@ -174,17 +243,12 @@ def _on_bar_inner() -> str:
 
     if sig_info["signal"] != 1:
         log.info(f"No entry signal (signal={sig_info['signal']})")
+        _sync_account_and_mark(bar_close=sig_info.get("bar_close"))
         return "no_signal"
 
     # ── Size and place the trade ──────────────────────────────────────────────
+    _sync_account_and_mark(bar_close=sig_info.get("bar_close"))
     account = broker.get_account()
-    state.save_account_snapshot(
-        equity=getattr(account, "equity", None),
-        cash=getattr(account, "cash", None),
-        buying_power=getattr(account, "buying_power", None),
-        position_value=getattr(account, "position_value", None),
-        ibkr_connected=True,
-    )
     capital = account.equity
     log.info(f"Account equity: ${capital:,.2f}")
 

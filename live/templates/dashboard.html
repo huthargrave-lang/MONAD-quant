@@ -126,22 +126,86 @@
           <div class="k">Momentum / Volume</div><div class="v">{{ signal.momentum_signal if signal.momentum_signal is not none else '—' }} / {{ signal.volume_signal if signal.volume_signal is not none else '—' }}</div>
           <div class="k">Signal snapshot age</div><div class="v">{{ '%.1f min'|format(signal_age_min) if signal_age_min is not none else '—' }}</div>
         {% else %}
-          <div class="v">No signal snapshot yet.</div>
+          {% if status and status.cycle_action %}
+            <div class="k">Last cycle result</div>
+            <div class="v">{{ status.cycle_action }}</div>
+            <div class="k">Cycle time</div>
+            <div class="v">{{ status.last_cycle_time or '—' }}</div>
+            <div class="v" style="color:var(--muted);font-size:12px;margin-top:8px;">No signal snapshot stored yet. The trader has run but no signal was generated or persisted. This is normal before the first completed bar.</div>
+          {% else %}
+            <div class="v" style="color:var(--muted);">Trader has not run yet. Signals will appear after the first on_bar() cycle completes.</div>
+          {% endif %}
         {% endif %}
       </section>
 
       <section class="card span-3">
         <h2>Current position</h2>
         {% if position %}
-          <div class="k">Symbol</div><div class="v">{{ position.symbol }}</div>
-          <div class="k">Entry time</div><div class="v">{{ position.entry_time }}</div>
-          <div class="k">Entry / Qty</div><div class="v">{{ '%.2f'|format(position.entry_price) }} / {{ position.qty }}</div>
-          <div class="k">Bars held / remaining</div><div class="v">{{ position.bar_count }} / {{ position.bars_remaining }}</div>
-          <div class="k">Target / Stop</div><div class="v">{{ '%.2f'|format(position.target_price) if position.target_price else '—' }} / {{ '%.2f'|format(position.stop_price) if position.stop_price else '—' }}</div>
-          <div class="k">Unrealized PnL</div><div class="v">{{ '$%.2f'|format(position.unrealized_dollar) if position.unrealized_dollar is not none else '—' }} / {{ '%.3f%%'|format(position.unrealized_pct*100) if position.unrealized_pct is not none else '—' }}</div>
-          <div class="k">Dist to target / stop</div><div class="v">{{ '%.3f%%'|format(position.dist_target*100) if position.dist_target is not none else '—' }} / {{ '%.3f%%'|format(position.dist_stop*100) if position.dist_stop is not none else '—' }}</div>
+          <table style="width:100%;font-size:13px;border-collapse:collapse;">
+            <tr><td class="k" style="padding:2px 0;">Symbol</td><td style="padding:2px 0;">{{ position.symbol }}</td></tr>
+            <tr><td class="k" style="padding:2px 0;">Entry</td><td style="padding:2px 0;">${{ '%.2f'|format(position.entry_price) }} x {{ position.qty }} = ${{ '%,.0f'|format(position.cost_basis_total) }}</td></tr>
+            <tr><td class="k" style="padding:2px 0;">Entry time</td><td style="padding:2px 0;">{{ position.entry_time[:19] }}</td></tr>
+            <tr><td class="k" style="padding:2px 0;">Bars</td><td style="padding:2px 0;">{{ position.bar_count }} held / {{ position.bars_remaining }} remaining</td></tr>
+            <tr><td colspan="2" style="padding:6px 0 2px;border-top:1px solid var(--line);"></td></tr>
+            <tr>
+              <td class="k" style="padding:2px 0;">Mark price</td>
+              <td style="padding:2px 0;">
+                {% if position.mark_price is not none %}
+                  ${{ '%.2f'|format(position.mark_price) }}
+                  <span class="badge" style="font-size:10px;padding:1px 6px;margin-left:4px;{% if position.mark_source == 'live' %}color:var(--green){% elif position.mark_source == 'delayed' %}color:var(--yellow){% elif position.mark_source == 'last_close' %}color:var(--muted){% else %}color:var(--red){% endif %}">{{ position.mark_source }}</span>
+                {% else %}
+                  <span class="red">unavailable</span>
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <td class="k" style="padding:2px 0;">Unrealized PnL</td>
+              <td style="padding:2px 0;">
+                {% if position.unrealized_dollar is not none %}
+                  <span class="{{ 'green' if position.unrealized_dollar >= 0 else 'red' }}">
+                    {{ '$%+,.2f'|format(position.unrealized_dollar) }} ({{ '%+.3f'|format(position.unrealized_pct*100) }}%)
+                  </span>
+                {% else %}—{% endif %}
+              </td>
+            </tr>
+            {% if position.market_value is not none %}
+            <tr><td class="k" style="padding:2px 0;">Market value</td><td style="padding:2px 0;">${{ '%,.0f'|format(position.market_value) }}</td></tr>
+            {% endif %}
+            <tr><td colspan="2" style="padding:6px 0 2px;border-top:1px solid var(--line);"></td></tr>
+            <tr>
+              <td class="k" style="padding:2px 0;">Target</td>
+              <td style="padding:2px 0;">
+                {% if position.target_price %}
+                  ${{ '%.2f'|format(position.target_price) }}
+                  {% if position.dist_target is not none %}
+                    <span class="green" style="font-size:12px;">({{ '%+.3f'|format(position.dist_target*100) }}% away)</span>
+                  {% endif %}
+                {% else %}—{% endif %}
+              </td>
+            </tr>
+            <tr>
+              <td class="k" style="padding:2px 0;">Stop</td>
+              <td style="padding:2px 0;">
+                {% if position.stop_price %}
+                  ${{ '%.2f'|format(position.stop_price) }}
+                  {% if position.dist_stop is not none %}
+                    <span class="red" style="font-size:12px;">({{ '%.3f'|format(position.dist_stop*100) }}% cushion)</span>
+                  {% endif %}
+                {% else %}—{% endif %}
+              </td>
+            </tr>
+          </table>
         {% else %}
-          <div class="v">Flat (no open position).</div>
+          <div class="v" style="margin-bottom:4px;">Flat — no open position.</div>
+          {% if status and status.cycle_action %}
+            <div class="k">Last cycle action</div>
+            <div class="v">{{ status.cycle_action }}</div>
+          {% endif %}
+          {% if trades|length > 0 %}
+            {% set last = trades[0] %}
+            <div class="k" style="margin-top:4px;">Last trade</div>
+            <div class="v">{{ last.exit_type }} at {{ last.exit_time[:19] if last.exit_time else '—' }} · {{ '%.3f'|format((last.return_pct or 0)*100) }}%</div>
+          {% endif %}
         {% endif %}
       </section>
 
