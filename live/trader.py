@@ -75,10 +75,14 @@ def on_bar() -> None:
     log.info("─" * 60)
     log.info(f"on_bar() | {config.LIVE_SYMBOL} | {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
 
+    state.set_monitor_status(status="running", cycle_action="started", details="on_bar cycle started")
     try:
         cycle_action = _on_bar_inner()
-    except Exception:
+        state.set_monitor_status(status="ok", cycle_action=cycle_action, details="on_bar cycle completed")
+    except Exception as exc:
         cycle_action = "error"
+        state.set_monitor_status(status="error", cycle_action=cycle_action, details=str(exc))
+        state.add_monitor_event("ERROR", "cycle", f"Unhandled on_bar exception: {exc}")
         raise
     finally:
         elapsed = _time.monotonic() - t0
@@ -108,10 +112,12 @@ def _on_bar_inner() -> str:
                 # Record as pending_close — actual PnL unknown until fill is reconciled.
                 ref_price = broker.get_reference_price(position.symbol)
                 ret = (ref_price - position.entry_price) / position.entry_price
-                log.warning(
+                warning_msg = (
                     f"Fill data unavailable — recording as pending_close | "
                     f"ref={ref_price:.2f} | estimated_ret={ret:+.4%} (NOT recorded as PnL)"
                 )
+                log.warning(warning_msg)
+                state.add_monitor_event("WARNING", "fill", warning_msg)
                 exit_type = "pending_close"
             state.close_position(return_pct=ret if fill else 0.0, exit_type=exit_type,
                                  exit_price=fill["fill_price"] if fill else None)
@@ -134,10 +140,12 @@ def _on_bar_inner() -> str:
                 # This is the one live exit path where PnL may be estimated.
                 exit_price = broker.get_reference_price(position.symbol)
                 ret = (exit_price - position.entry_price) / position.entry_price
-                log.warning(
+                warning_msg = (
                     f"Time-exit fill unavailable — using reference price {exit_price:.2f} | "
                     f"estimated_ret={ret:+.4%}"
                 )
+                log.warning(warning_msg)
+                state.add_monitor_event("WARNING", "time_exit", warning_msg)
             state.close_position(return_pct=ret, exit_type="time_exit", exit_price=exit_price)
             _log_summary()
             return "exit_time_exit"
@@ -151,7 +159,18 @@ def _on_bar_inner() -> str:
         sig_info = signals.get_current_signal()
     except RuntimeError as exc:
         log.error(f"Signal computation failed: {exc}")
+        state.add_monitor_event("ERROR", "signal", f"Signal computation failed: {exc}")
         return "signal_error"
+
+    state.save_signal_snapshot(
+        sig_info["signal"],
+        str(sig_info["bar_time"]),
+        sig_info["bar_close"],
+        sig_info.get("rsi"),
+        sig_info.get("vwap_zscore"),
+        sig_info.get("momentum_signal"),
+        sig_info.get("volume_signal"),
+    )
 
     if sig_info["signal"] != 1:
         log.info(f"No entry signal (signal={sig_info['signal']})")
@@ -159,6 +178,13 @@ def _on_bar_inner() -> str:
 
     # ── Size and place the trade ──────────────────────────────────────────────
     account = broker.get_account()
+    state.save_account_snapshot(
+        equity=getattr(account, "equity", None),
+        cash=getattr(account, "cash", None),
+        buying_power=getattr(account, "buying_power", None),
+        position_value=getattr(account, "position_value", None),
+        ibkr_connected=True,
+    )
     capital = account.equity
     log.info(f"Account equity: ${capital:,.2f}")
 
@@ -176,7 +202,9 @@ def _on_bar_inner() -> str:
     qty = int(sizing["position_dollars"] / bar_close)
 
     if qty < 1:
-        log.warning(f"Position too small for one share (${sizing['position_dollars']:.0f} / ${bar_close:.2f})")
+        warning_msg = f"Position too small for one share (${sizing['position_dollars']:.0f} / ${bar_close:.2f})"
+        log.warning(warning_msg)
+        state.add_monitor_event("WARNING", "sizing", warning_msg)
         return "qty_too_small"
 
     if config.LIVE_DRY_RUN:
@@ -196,7 +224,9 @@ def _on_bar_inner() -> str:
         stop_pct=asset_config["stop_loss_pct"],
     )
     if result is None:
-        log.error("Bracket order failed — skipping this entry. Will retry next bar if signal persists.")
+        error_msg = "Bracket order failed — skipping this entry. Will retry next bar if signal persists."
+        log.error(error_msg)
+        state.add_monitor_event("ERROR", "order", error_msg)
         return "order_failed"
 
     # Record the broker's fill_basis as entry price — this is the live market price
@@ -205,6 +235,7 @@ def _on_bar_inner() -> str:
     order_id = result["order_id"]
     state.open_position(config.LIVE_SYMBOL, entry_price, qty, order_id)
     log.info(f"ENTRY placed: {qty} shares @ ~{entry_price:.2f} (fill_basis)")
+    state.add_monitor_event("INFO", "entry", f"Entry placed: {qty} {config.LIVE_SYMBOL} @ {entry_price:.2f}")
     return "entry_placed"
 
 
@@ -320,11 +351,28 @@ def main() -> None:
         config.LIVE_PAPER_MODE = True
         log.info(f"Paper mode | symbol={config.LIVE_SYMBOL} | port={config.IBKR_PORT_PAPER}")
 
+    state.init_db()
+    state.set_monitor_status(status="idle", cycle_action="startup", details="trader initialized")
+
     # Verify IBKR connection
     try:
         account = broker.get_account()
+        state.save_account_snapshot(
+            equity=getattr(account, "equity", None),
+            cash=getattr(account, "cash", None),
+            buying_power=getattr(account, "buying_power", None),
+            position_value=getattr(account, "position_value", None),
+            ibkr_connected=True,
+        )
         log.info(f"IBKR connected | equity=${account.equity:,.2f} | cash=${account.cash:,.2f}")
     except Exception as exc:
+        state.save_account_snapshot(
+            equity=None,
+            cash=None,
+            buying_power=None,
+            position_value=None,
+            ibkr_connected=False,
+        )
         log.error(f"Cannot connect to IBKR: {exc}")
         log.error("Ensure IB Gateway or TWS is running on localhost")
         sys.exit(1)
@@ -350,8 +398,6 @@ def main() -> None:
     if getattr(config, 'LIVE_DRY_RUN', False):
         log.info(f"  DRY RUN:      YES — no orders will be placed")
     log.info("─" * 60)
-
-    state.init_db()
 
     if args.once:
         on_bar()

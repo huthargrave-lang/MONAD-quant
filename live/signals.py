@@ -46,6 +46,7 @@ def get_current_signal() -> dict:
         signal:    1 (long), 0 (no signal), or -1 (short)
         bar_close: float — the completed bar's close price (for qty estimation)
         bar_time:  the bar's timestamp
+        rsi / vwap_zscore / momentum_signal / volume_signal: latest feature values
 
     Raises:
         RuntimeError if insufficient bars are available to compute signals.
@@ -82,7 +83,15 @@ def get_current_signal() -> dict:
         f"vol_sig={int(df['volume_signal'].iloc[-1])} | "
         f"entry_signal={signal}"
     )
-    return {"signal": signal, "bar_close": bar_close, "bar_time": last_bar_time}
+    return {
+        "signal": signal,
+        "bar_close": bar_close,
+        "bar_time": last_bar_time,
+        "rsi": float(df["rsi"].iloc[-1]),
+        "vwap_zscore": float(df["vwap_zscore"].iloc[-1]),
+        "momentum_signal": int(df["momentum_signal"].iloc[-1]),
+        "volume_signal": int(df["volume_signal"].iloc[-1]),
+    }
 
 
 def _fetch_recent_bars(symbol: str) -> pd.DataFrame | None:
