@@ -135,7 +135,7 @@
         {% if position %}
           <div class="k">Symbol</div><div class="v">{{ position.symbol }}</div>
           <div class="k">Entry time</div><div class="v">{{ position.entry_time }}</div>
-          <div class="k">Entry / Qty</div><div class="v">{{ '%.2f'|format(position.entry_price) }} / {{ position.qty }}</div>
+          <div class="k">Entry / Qty</div><div class="v">${{ '%.2f'|format(position.entry_price) }} x {{ position.qty }} = ${{ position.cost_basis_total|commafy }}</div>
           <div class="k">Bars held / remaining</div><div class="v">{{ position.bar_count }} / {{ position.bars_remaining }}</div>
           <div class="k">Target / Stop</div><div class="v">{{ '%.2f'|format(position.target_price) if position.target_price else '—' }} / {{ '%.2f'|format(position.stop_price) if position.stop_price else '—' }}</div>
           <div class="k">Unrealized PnL</div><div class="v">{{ '$%.2f'|format(position.unrealized_dollar) if position.unrealized_dollar is not none else '—' }} / {{ '%.3f%%'|format(position.unrealized_pct*100) if position.unrealized_pct is not none else '—' }}</div>

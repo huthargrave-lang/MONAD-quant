@@ -16,6 +16,7 @@ from live import state
 
 DB_PATH = Path(__file__).parent / "state.db"
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+TEMPLATES.env.filters["commafy"] = lambda v, fmt="{:,.0f}": fmt.format(v) if v is not None else "—"
 
 app = FastAPI(title="MONAD Read-Only Monitor", version="2.0.0")
 UI_VERSION = "v2"
@@ -224,11 +225,15 @@ def dashboard(request: Request) -> HTMLResponse:
             if stop_price:
                 dist_stop = (latest - stop_price) / latest
 
+        qty = int(position_dict["qty"])
+        cost_basis_total = entry_price * qty
+
         position_view = {
             **position_dict,
             "bars_remaining": bars_remaining,
             "target_price": target_price,
             "stop_price": stop_price,
+            "cost_basis_total": cost_basis_total,
             "unrealized_pct": unrealized_pct,
             "unrealized_dollar": unrealized_dollar,
             "dist_target": dist_target,
