@@ -155,6 +155,12 @@
       <section class="card span-3">
         <h2>Current position</h2>
         {% if position %}
+          {% if position.status == 'pending_close' %}
+          <div style="background:rgba(155,89,182,0.15);border:1px solid #9b59b6;border-radius:6px;padding:6px 10px;margin-bottom:8px;font-size:12px;color:#c39bd3;">
+            <strong>PENDING CLOSE</strong> — exit detected but fill not confirmed. Blocking new entries until reconciled.
+            {% if position.estimated_exit_price %} Est. exit: ${{ '%.2f'|format(position.estimated_exit_price) }}{% endif %}
+          </div>
+          {% endif %}
           <table style="width:100%;font-size:13px;border-collapse:collapse;">
             <tr><td class="k" style="padding:2px 0;">Symbol</td><td style="padding:2px 0;">{{ position.symbol }}</td></tr>
             <tr><td class="k" style="padding:2px 0;">Entry</td><td style="padding:2px 0;">${{ '%.2f'|format(position.entry_price) }} x {{ position.qty }} = ${{ position.cost_basis_total|commafy }}</td></tr>
@@ -166,7 +172,7 @@
               <td style="padding:2px 0;">
                 {% if position.mark_price is not none %}
                   ${{ '%.2f'|format(position.mark_price) }}
-                  <span class="badge" style="font-size:10px;padding:1px 6px;margin-left:4px;{% if position.mark_source == 'live' %}color:var(--green){% elif position.mark_source == 'delayed' %}color:var(--yellow){% elif position.mark_source in ('last_close', 'entry') %}color:var(--muted){% else %}color:var(--red){% endif %}">{{ position.mark_source }}</span>
+                  <span class="badge" style="font-size:10px;padding:1px 6px;margin-left:4px;{% if position.mark_source == 'live' %}color:var(--green){% elif position.mark_source == 'delayed' %}color:var(--yellow){% elif position.mark_source in ('last_close', 'entry') %}color:var(--muted){% elif position.mark_source == 'estimated' %}color:#9b59b6{% else %}color:var(--red){% endif %}">{{ position.mark_source }}</span>
                 {% else %}
                   <span class="red">unavailable</span>
                 {% endif %}

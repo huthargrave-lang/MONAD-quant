@@ -490,15 +490,29 @@ class TestStateFillBasisConsistency(unittest.TestCase):
         self.assertAlmostEqual(summary["total_ret"], 0.004224, places=4)
         self.assertAlmostEqual(summary["win_rate"], 1.0)
 
-    def test_pending_close_records_zero_pnl(self):
-        """When fill data is unavailable, return_pct=0.0 is recorded."""
+    def test_pending_close_blocks_then_reconciles(self):
+        """Pending close keeps position in DB; finalize records actual PnL."""
         self._state.open_position("TQQQ", 80.50, 10, "999")
-        self._state.close_position(return_pct=0.0, exit_type="pending_close", exit_price=None)
+
+        # Mark pending_close — position stays in DB
+        self._state.mark_pending_close(estimated_exit_price=80.70)
+        pos = self._state.get_position()
+        self.assertIsNotNone(pos, "Position must remain in DB while pending_close")
+        self.assertEqual(pos.status, "pending_close")
+        self.assertAlmostEqual(pos.estimated_exit_price, 80.70)
+
+        # Finalize with actual fill data
+        actual_ret = (80.60 - 80.50) / 80.50
+        self._state.finalize_pending_close(
+            return_pct=actual_ret, exit_type="target_hit", exit_price=80.60,
+        )
+        pos = self._state.get_position()
+        self.assertIsNone(pos, "Position must be removed after finalization")
 
         summary = self._state.get_trade_summary()
         self.assertEqual(summary["total"], 1)
-        self.assertAlmostEqual(summary["total_ret"], 0.0)
-        self.assertEqual(summary["exit_types"], {"pending_close": 1})
+        self.assertAlmostEqual(summary["total_ret"], actual_ret, places=4)
+        self.assertEqual(summary["exit_types"], {"target_hit": 1})
 
     def test_time_exit_pnl_uses_entry_price_from_state(self):
         """Time-exit PnL = (ref_price - entry_price) / entry_price.

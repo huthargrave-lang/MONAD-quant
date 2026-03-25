@@ -247,7 +247,15 @@ def dashboard(request: Request) -> HTMLResponse:
             mark_price = float(bc)
             mark_source = "last_close"
             mark_time = signal.get("updated_at")
-    # Fallback 2: use entry_price from position (always available when position exists)
+    # Fallback 2: use estimated_exit_price for pending_close positions
+    if mark_price is None and position_dict and position_dict.get("status") == "pending_close":
+        eep = position_dict.get("estimated_exit_price")
+        if eep is not None and float(eep) > 0:
+            mark_price = float(eep)
+            mark_source = "estimated"
+            mark_time = None
+
+    # Fallback 3: use entry_price from position (always available when position exists)
     if mark_price is None and position_dict:
         ep = position_dict.get("entry_price")
         if ep is not None and float(ep) > 0:

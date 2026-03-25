@@ -41,7 +41,9 @@ def init_db() -> None:
                 entry_price      REAL NOT NULL,
                 qty              INTEGER NOT NULL,
                 bracket_order_id TEXT NOT NULL,
-                bar_count        INTEGER NOT NULL DEFAULT 0
+                bar_count        INTEGER NOT NULL DEFAULT 0,
+                status           TEXT NOT NULL DEFAULT 'open',
+                estimated_exit_price REAL
             );
 
             CREATE TABLE IF NOT EXISTS trades (
@@ -134,6 +136,15 @@ def init_db() -> None:
             if col not in existing_signal_cols:
                 conn.execute(f"ALTER TABLE signal_snapshot ADD COLUMN {col} {ctype}")
 
+        # Position status columns (pending_close support)
+        existing_pos_cols = {
+            row["name"] for row in conn.execute("PRAGMA table_info(position)").fetchall()
+        }
+        if "status" not in existing_pos_cols:
+            conn.execute("ALTER TABLE position ADD COLUMN status TEXT NOT NULL DEFAULT 'open'")
+        if "estimated_exit_price" not in existing_pos_cols:
+            conn.execute("ALTER TABLE position ADD COLUMN estimated_exit_price REAL")
+
         # Mark-price columns on account_snapshot (for dashboard unrealized PnL)
         existing_acct_cols = {
             row["name"] for row in conn.execute("PRAGMA table_info(account_snapshot)").fetchall()
@@ -157,6 +168,8 @@ class Position:
     qty: int
     bracket_order_id: str
     bar_count: int
+    status: str = "open"
+    estimated_exit_price: float = None
 
 
 def get_position() -> Optional[Position]:
@@ -173,7 +186,8 @@ def open_position(symbol: str, entry_price: float, qty: int,
     with _conn() as conn:
         conn.execute("DELETE FROM position")
         conn.execute(
-            "INSERT INTO position VALUES (?, ?, ?, ?, ?, 0)",
+            "INSERT INTO position (symbol, entry_time, entry_price, qty, bracket_order_id, bar_count, status, estimated_exit_price) "
+            "VALUES (?, ?, ?, ?, ?, 0, 'open', NULL)",
             (symbol, entry_time, entry_price, qty, bracket_order_id),
         )
     log.info(f"Position opened: {qty} {symbol} @ {entry_price:.4f}")
@@ -220,6 +234,59 @@ def close_position(return_pct: float, exit_type: str,
         conn.execute("DELETE FROM position")
     price_str = f" @ {exit_price:.2f}" if exit_price else ""
     log.info(f"Position closed: {return_pct:+.4%} ({exit_type}){price_str}")
+
+
+def mark_pending_close(estimated_exit_price: float = None) -> None:
+    """Mark the current position as pending_close without deleting it.
+
+    The position stays in the DB (blocking new entries) until fill data
+    is reconciled and finalize_pending_close() is called.
+    """
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE position SET status = 'pending_close', estimated_exit_price = ?",
+            (estimated_exit_price,),
+        )
+    est_str = f" est_price={estimated_exit_price:.2f}" if estimated_exit_price else ""
+    log.info(f"Position marked pending_close{est_str}")
+
+
+def finalize_pending_close(return_pct: float, exit_type: str,
+                           exit_price: float) -> None:
+    """Finalize a pending_close position with actual fill data.
+
+    Records the trade with real PnL and removes the position row.
+    """
+    exit_time = datetime.now(timezone.utc).isoformat()
+    with _conn() as conn:
+        pos = conn.execute("SELECT * FROM position LIMIT 1").fetchone()
+        if pos is None:
+            log.warning("finalize_pending_close called but no position found")
+            return
+        if pos["status"] != "pending_close":
+            log.warning(f"finalize_pending_close called but status={pos['status']}, expected pending_close")
+            return
+        conn.execute(
+            """
+            INSERT INTO trades (
+                entry_time, exit_time, return_pct, exit_type, exit_price,
+                symbol, qty, bars_held
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                pos["entry_time"],
+                exit_time,
+                return_pct,
+                exit_type,
+                exit_price,
+                pos["symbol"],
+                pos["qty"],
+                pos["bar_count"],
+            ),
+        )
+        conn.execute("DELETE FROM position")
+    log.info(f"Pending close finalized: {return_pct:+.4%} ({exit_type}) @ {exit_price:.2f}")
 
 
 # ── Position sizing ──────────────────────────────────────────────────────────

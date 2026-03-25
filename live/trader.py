@@ -188,6 +188,33 @@ def _on_bar_inner() -> str:
 
     # ── Manage existing position ──────────────────────────────────────────────
     if position is not None:
+
+        # ── Retry reconciliation for pending_close positions ────────────────
+        if position.status == "pending_close":
+            fill = broker.get_bracket_fill(position.bracket_order_id)
+            if fill is not None:
+                ret = (fill["fill_price"] - position.entry_price) / position.entry_price
+                exit_type = fill["exit_type"]
+                log.info(
+                    f"Pending close reconciled | fill_price={fill['fill_price']:.2f} | "
+                    f"fill_time={fill['fill_time']} | ret={ret:+.4%} → {exit_type}"
+                )
+                state.finalize_pending_close(
+                    return_pct=ret, exit_type=exit_type,
+                    exit_price=fill["fill_price"],
+                )
+                state.add_monitor_event("INFO", "fill", f"Pending close reconciled: {exit_type} @ {fill['fill_price']:.2f}")
+                _sync_account_and_mark(bar_close=fill["fill_price"])
+                _log_summary()
+                return f"reconciled_{exit_type}"
+            else:
+                log.info(
+                    f"Pending close still unresolved — blocking new entries | "
+                    f"bracket_id={position.bracket_order_id}"
+                )
+                _sync_account_and_mark(bar_close=bar_close_fallback)
+                return "pending_close_unresolved"
+
         # Reconcile: check if bracket TP/SL already filled since last bar
         broker_pos = broker.get_open_position(position.symbol)
         if broker_pos is None or broker_pos["qty"] == 0:
@@ -200,22 +227,25 @@ def _on_bar_inner() -> str:
                     f"Bracket filled | fill_price={fill['fill_price']:.2f} | "
                     f"fill_time={fill['fill_time']} | ret={ret:+.4%} → {exit_type}"
                 )
+                state.close_position(return_pct=ret, exit_type=exit_type,
+                                     exit_price=fill["fill_price"])
             else:
                 # Fill data unavailable (e.g. connection gap after restart).
-                # Record as pending_close — actual PnL unknown until fill is reconciled.
+                # Mark as pending_close — position stays in DB blocking new entries.
+                # Reconciliation retried on each subsequent cycle.
                 ref_price = broker.get_reference_price(position.symbol)
-                ret = (ref_price - position.entry_price) / position.entry_price
+                est_ret = (ref_price - position.entry_price) / position.entry_price
                 warning_msg = (
-                    f"Fill data unavailable — recording as pending_close | "
-                    f"ref={ref_price:.2f} | estimated_ret={ret:+.4%} (NOT recorded as PnL)"
+                    f"Fill data unavailable — marking pending_close (blocks new entries) | "
+                    f"ref={ref_price:.2f} | estimated_ret={est_ret:+.4%} (NOT recorded as PnL)"
                 )
                 log.warning(warning_msg)
                 state.add_monitor_event("WARNING", "fill", warning_msg)
-                exit_type = "pending_close"
-            exit_px = fill["fill_price"] if fill else None
-            state.close_position(return_pct=ret if fill else 0.0, exit_type=exit_type,
-                                 exit_price=exit_px)
-            _sync_account_and_mark(bar_close=exit_px or bar_close_fallback)
+                state.mark_pending_close(estimated_exit_price=ref_price)
+                _sync_account_and_mark(bar_close=ref_price or bar_close_fallback)
+                return "exit_pending_close"
+
+            _sync_account_and_mark(bar_close=fill["fill_price"])
             _log_summary()
             return f"exit_{exit_type}"
 
