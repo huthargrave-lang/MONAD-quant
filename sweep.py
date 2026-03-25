@@ -21,7 +21,7 @@ Usage:
 
 Phases:
     1 = Coarse sweep (target/stop, VWAP, RSI)
-    2 = Cross-validation (fine-tune best params from phase 1)
+    2 = Cross-validation (fine-tune target/stop/RSI + MAX_TRADE_BARS)
     all = Both phases (default)
 """
 import sys, os, io, argparse, contextlib, json, re
@@ -297,6 +297,8 @@ def extract_metrics(r):
     ambiguous = eb.get("ambiguous_same_bar", 0)
     target_hits = eb.get("target_hit", 0)
 
+    time_exits = eb.get("time_exit", 0)
+
     return {
         "total_return_pct":    round(r["total_return"] * 100, 3),
         "sharpe_ratio":        r["sharpe_ratio"],
@@ -311,6 +313,7 @@ def extract_metrics(r):
         "target_hit_count":    target_hits,
         "stop_hit_count":      stop_hits,
         "ambiguous_count":     ambiguous,
+        "time_exit_count":     time_exits,
     }
 
 
@@ -388,11 +391,15 @@ def live_score(r, stop=None, train_metrics=None):
     return base
 
 
+_default_max_trade_bars = getattr(config, "MAX_TRADE_BARS", 20)
+
+
 def restore():
     setattr(config, f"RSI_OVERSOLD_{MODE_NAME}", _defaults[f"RSI_OVERSOLD_{MODE_NAME}"])
     setattr(config, f"VWAP_ZSCORE_THRESH_{MODE_NAME}", _defaults[f"VWAP_ZSCORE_THRESH_{MODE_NAME}"])
     config.ASSETS[MODE_NAME]["rsi_oversold"] = _defaults[f"RSI_OVERSOLD_{MODE_NAME}"]
     config.ASSETS[MODE_NAME]["vwap_zscore_thresh"] = _defaults[f"VWAP_ZSCORE_THRESH_{MODE_NAME}"]
+    config.MAX_TRADE_BARS = _default_max_trade_bars
 
 
 # ── Candidate collector: store ALL valid results, not just one best ──────
@@ -419,6 +426,7 @@ def collect(r, target, stop, rsi=None, vwap=None):
 best = {"target": DEFAULT_TARGET, "stop": DEFAULT_STOP,
         "rsi": _defaults[f"RSI_OVERSOLD_{MODE_NAME}"],
         "vwap": _defaults[f"VWAP_ZSCORE_THRESH_{MODE_NAME}"],
+        "max_trade_bars": _default_max_trade_bars,
         "score": -9999, "result": None}
 
 
@@ -569,6 +577,60 @@ if args.phase in ("2", "all"):
         if r and "error" not in r:
             update_best(r, bt, bs, rsi=rsi)
 
+    # ── 2d: MAX_TRADE_BARS sweep ─────────────────────────────────────────
+    # Test hold-period limits on the best params found so far.
+    # Mean-reversion should resolve quickly — shorter bars reduce stale trades,
+    # but too short clips winners before target is hit.
+    bt = best["target"]
+    bs = best["stop"]
+    br = best["rsi"]
+    bv = best["vwap"]
+    print()
+    print("=" * 95)
+    print(f"PHASE 2d: MAX_TRADE_BARS sweep at target={bt*100:.2f}% stop={bs*100:.2f}% RSI={br}")
+    print("=" * 95)
+
+    mtb_candidates = [8, 10, 12, 15, 20]
+    best_mtb = _default_max_trade_bars
+    best_mtb_score = best["score"]
+    best_mtb_result = None
+
+    for mtb in mtb_candidates:
+        config.MAX_TRADE_BARS = mtb
+        r = run_quiet(target=bt, stop=bs, rsi_os=br, vwap=bv)
+        config.MAX_TRADE_BARS = _default_max_trade_bars  # restore immediately
+
+        if r and "error" not in r:
+            m = extract_metrics(r)
+            s = live_score(r, stop=bs)
+            eb = r.get("exit_breakdown", {})
+            te = eb.get("time_exit", 0)
+            tgt = eb.get("target_hit", 0)
+            stp = eb.get("stop_hit", 0)
+            amb = eb.get("ambiguous_same_bar", 0)
+            print(f"  MTB={mtb:3d} | trades={m['total_trades']:4d} WR={m['win_rate_pct']:5.1f}% "
+                  f"ret={m['total_return_pct']:7.2f}% Sharpe={m['sharpe_ratio']:6.1f} "
+                  f"DD={m['max_drawdown_pct']:6.2f}% neg_mo={m['neg_months']}/{m['total_months']} "
+                  f"| exits: target={tgt} stop={stp} time={te} ambig={amb} "
+                  f"| score={s:.1f}")
+            if s > best_mtb_score:
+                best_mtb_score = s
+                best_mtb = mtb
+                best_mtb_result = r
+        else:
+            print(f"  MTB={mtb:3d} | NO TRADES or ERROR")
+
+    best["max_trade_bars"] = best_mtb
+    if best_mtb_result is not None:
+        best["result"] = best_mtb_result
+        best["score"] = best_mtb_score
+        # Re-collect the winning MTB as a candidate
+        config.MAX_TRADE_BARS = best_mtb
+        collect(best_mtb_result, bt, bs, rsi=br, vwap=bv)
+        config.MAX_TRADE_BARS = _default_max_trade_bars
+
+    print(f"\n  Phase 2d best: MAX_TRADE_BARS={best_mtb} → score={best_mtb_score:.1f}")
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  PHASE 3 — HOLDOUT EVALUATION + LIVE-SCORE RANKING
@@ -621,8 +683,11 @@ print(f"PHASE 3: HOLDOUT evaluation — top {TOP_N} candidates on OOS data")
 print("=" * 95)
 
 if df_holdout is not None and len(top_candidates) > 0:
+    # Use the best MAX_TRADE_BARS from Phase 2d for holdout evaluation
+    config.MAX_TRADE_BARS = best.get("max_trade_bars", _default_max_trade_bars)
     print(f"  Holdout: {len(df_holdout)} bars "
           f"({df_holdout.index[0].strftime('%Y-%m-%d')} → {df_holdout.index[-1].strftime('%Y-%m-%d')})")
+    print(f"  MAX_TRADE_BARS: {config.MAX_TRADE_BARS}")
     print()
 
     for c in top_candidates:
@@ -794,6 +859,7 @@ def _build_preset(c, label):
             "rsi_oversold": p["rsi"],
             "vwap_zscore_thresh": p["vwap"],
             "rr_ratio": round(rr, 2),
+            "max_trade_bars": best.get("max_trade_bars", _default_max_trade_bars),
         },
         "live_trading": {
             "stop_dollars": round(stop_d, 3),
@@ -852,7 +918,8 @@ for label, preset in presets.items():
     rob = preset.get("robustness", {})
     print(f"\n  [{label.upper()}]")
     print(f"    target={p['target_gain_pct']*100:.2f}%  stop={p['stop_loss_pct']*100:.3f}%  "
-          f"R:R={p['rr_ratio']:.1f}:1  RSI={p['rsi_oversold']}  VWAP={p['vwap_zscore_thresh']}")
+          f"R:R={p['rr_ratio']:.1f}:1  RSI={p['rsi_oversold']}  VWAP={p['vwap_zscore_thresh']}  "
+          f"MTB={p.get('max_trade_bars', _default_max_trade_bars)}")
     src = "holdout" if "holdout" in preset else "train"
     print(f"    {src}: ret={hm['total_return_pct']:+.2f}%  Sharpe={hm['sharpe_ratio']:.1f}  "
           f"DD={hm['max_drawdown_pct']:.2f}%  WR={hm['win_rate_pct']:.1f}%  "
@@ -945,6 +1012,7 @@ if r and "error" not in r:
             f"STOP_LOSS_PCT_{MODE_NAME}":       bp.get("stop_loss_pct", best["stop"]),
             f"RSI_OVERSOLD_{MODE_NAME}":        bp.get("rsi_oversold", best["rsi"]),
             f"VWAP_ZSCORE_THRESH_{MODE_NAME}":  bp.get("vwap_zscore_thresh", best["vwap"]),
+            "MAX_TRADE_BARS":                    bp.get("max_trade_bars", best.get("max_trade_bars", _default_max_trade_bars)),
         }
 
         updated = 0
