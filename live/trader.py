@@ -159,6 +159,31 @@ def on_bar() -> None:
 
 def _on_bar_inner() -> str:
     """Core on_bar logic. Returns a short action label for cycle logging."""
+
+    # ── Always compute and persist signal snapshot ──────────────────────────
+    # This runs every cycle (holding, exit, entry, no-signal) so the dashboard
+    # always has fresh signal data and a recent bar_close for mark fallback.
+    sig_info = None
+    bar_close_fallback = None
+    try:
+        sig_info = signals.get_current_signal()
+        bar_close_fallback = sig_info.get("bar_close")
+        state.save_signal_snapshot(
+            sig_info["signal"],
+            str(sig_info["bar_time"]),
+            sig_info["bar_close"],
+            sig_info.get("rsi"),
+            sig_info.get("vwap_zscore"),
+            sig_info.get("momentum_signal"),
+            sig_info.get("volume_signal"),
+        )
+    except RuntimeError as exc:
+        log.warning(f"Signal computation failed (non-fatal): {exc}")
+        # On failure, try to get bar_close from stored signal for mark fallback
+        stored = state.get_signal_snapshot()
+        if stored:
+            bar_close_fallback = stored.get("bar_close")
+
     position = state.get_position()
 
     # ── Manage existing position ──────────────────────────────────────────────
@@ -190,7 +215,7 @@ def _on_bar_inner() -> str:
             exit_px = fill["fill_price"] if fill else None
             state.close_position(return_pct=ret if fill else 0.0, exit_type=exit_type,
                                  exit_price=exit_px)
-            _sync_account_and_mark(bar_close=exit_px)
+            _sync_account_and_mark(bar_close=exit_px or bar_close_fallback)
             _log_summary()
             return f"exit_{exit_type}"
 
@@ -223,36 +248,23 @@ def _on_bar_inner() -> str:
 
         # Position is still open and within bar limit — wait for bracket exit
         log.info("Position within bar limit, bracket order monitoring exit")
-        # Use stored signal bar_close as fallback if broker price unavailable
-        sig = state.get_signal_snapshot()
-        _sync_account_and_mark(bar_close=sig.get("bar_close") if sig else None)
+        _sync_account_and_mark(bar_close=bar_close_fallback)
         return f"holding_bar_{bar_count}"
 
     # ── Check for new entry signal ────────────────────────────────────────────
-    try:
-        sig_info = signals.get_current_signal()
-    except RuntimeError as exc:
-        log.error(f"Signal computation failed: {exc}")
-        state.add_monitor_event("ERROR", "signal", f"Signal computation failed: {exc}")
+    if sig_info is None:
+        # Signal computation failed earlier — can't evaluate entry
+        state.add_monitor_event("ERROR", "signal", "Signal computation failed — cannot evaluate entry")
+        _sync_account_and_mark(bar_close=bar_close_fallback)
         return "signal_error"
-
-    state.save_signal_snapshot(
-        sig_info["signal"],
-        str(sig_info["bar_time"]),
-        sig_info["bar_close"],
-        sig_info.get("rsi"),
-        sig_info.get("vwap_zscore"),
-        sig_info.get("momentum_signal"),
-        sig_info.get("volume_signal"),
-    )
 
     if sig_info["signal"] != 1:
         log.info(f"No entry signal (signal={sig_info['signal']})")
-        _sync_account_and_mark(bar_close=sig_info.get("bar_close"))
+        _sync_account_and_mark(bar_close=bar_close_fallback)
         return "no_signal"
 
     # ── Size and place the trade ──────────────────────────────────────────────
-    _sync_account_and_mark(bar_close=sig_info.get("bar_close"))
+    _sync_account_and_mark(bar_close=bar_close_fallback)
     account = broker.get_account()
     capital = account.equity
     log.info(f"Account equity: ${capital:,.2f}")

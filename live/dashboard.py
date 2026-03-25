@@ -22,6 +22,10 @@ TEMPLATES.env.filters["commafy"] = lambda v, fmt="{:,.0f}": fmt.format(v) if v i
 app = FastAPI(title="MONAD Read-Only Monitor", version="2.0.0")
 UI_VERSION = "v2"
 
+# Ensure DB schema is up-to-date (adds mark_price columns if missing).
+# Safe to call multiple times — uses CREATE TABLE IF NOT EXISTS + ALTER TABLE migrations.
+state.init_db()
+
 # Valid production exit types — anything else is debug/test and filtered from charts
 _PROD_EXIT_TYPES = {"target_hit", "stop_hit", "time_exit", "bracket_exit", "pending_close"}
 
