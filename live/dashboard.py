@@ -16,6 +16,7 @@ from live import state
 
 DB_PATH = Path(__file__).parent / "state.db"
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+TEMPLATES.env.filters["commafy"] = lambda v, fmt="{:,.0f}": fmt.format(v) if v is not None else "—"
 
 app = FastAPI(title="MONAD Read-Only Monitor", version="2.0.0")
 UI_VERSION = "v2"
