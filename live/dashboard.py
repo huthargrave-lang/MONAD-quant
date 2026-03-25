@@ -2,8 +2,9 @@
 
 import sqlite3
 import subprocess
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import plotly.graph_objects as go
 from fastapi import FastAPI, Request
@@ -20,6 +21,14 @@ TEMPLATES.env.filters["commafy"] = lambda v, fmt="{:,.0f}": fmt.format(v) if v i
 
 app = FastAPI(title="MONAD Read-Only Monitor", version="2.0.0")
 UI_VERSION = "v2"
+
+# Valid production exit types — anything else is debug/test and filtered from charts
+_PROD_EXIT_TYPES = {"target_hit", "stop_hit", "time_exit", "bracket_exit", "pending_close"}
+
+
+def _filter_prod_trades(trades: list[dict]) -> list[dict]:
+    """Exclude debug/test trades (e.g. cancelled_test) from production views."""
+    return [t for t in trades if t.get("exit_type") in _PROD_EXIT_TYPES]
 
 
 def _conn() -> sqlite3.Connection:
@@ -72,6 +81,29 @@ def _get_git_hash() -> str:
         ).decode().strip()
     except Exception:
         return "unknown"
+
+
+def _next_scheduled_run() -> str | None:
+    """Compute next scheduled on_bar() fire time from cron: minute=32, hour=9-15, mon-fri ET."""
+    try:
+        et = ZoneInfo("America/New_York")
+    except Exception:
+        return None
+    now = datetime.now(et)
+    # Start from current hour at :32
+    candidate = now.replace(minute=32, second=0, microsecond=0)
+    if candidate <= now:
+        candidate += timedelta(hours=1)
+    # Search forward (covers weekends)
+    for _ in range(7 * 24):
+        if candidate.weekday() < 5 and 9 <= candidate.hour <= 15:
+            return candidate.strftime("%a %H:%M ET")
+        if candidate.hour > 15 or candidate.weekday() >= 5:
+            # Jump to next day 9:32
+            candidate = (candidate + timedelta(days=1)).replace(hour=9, minute=32)
+        else:
+            candidate = candidate.replace(hour=9, minute=32)
+    return None
 
 
 def _build_returns_chart(trades: list[dict]) -> str:
@@ -162,9 +194,11 @@ def dashboard(request: Request) -> HTMLResponse:
     signal_history = state.get_signal_history(limit=20)
     position = state.get_position()
     position_dict = position.__dict__ if position else None
-    trades = state.get_recent_trades(limit=30)
+    all_trades = state.get_recent_trades(limit=50)
+    trades = _filter_prod_trades(all_trades)[:30]
     events = state.get_recent_monitor_events(limit=30)
-    exit_counts = state.get_exit_type_counts(limit=250)
+    all_exit_counts = state.get_exit_type_counts(limit=250)
+    exit_counts = {k: v for k, v in all_exit_counts.items() if k in _PROD_EXIT_TYPES}
     account = state.get_account_snapshot()
     freshness = state.get_dashboard_freshness_status()
 
@@ -291,6 +325,7 @@ def dashboard(request: Request) -> HTMLResponse:
             "cycle_age_min": cycle_age_min,
             "cycle_text": cycle_text,
             "cycle_color": cycle_color,
+            "next_run": _next_scheduled_run(),
             "health_label": health_label,
             "health_color": health_color,
             "ibkr_connected": ibkr_connected,

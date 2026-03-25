@@ -187,8 +187,10 @@ def _on_bar_inner() -> str:
                 log.warning(warning_msg)
                 state.add_monitor_event("WARNING", "fill", warning_msg)
                 exit_type = "pending_close"
+            exit_px = fill["fill_price"] if fill else None
             state.close_position(return_pct=ret if fill else 0.0, exit_type=exit_type,
-                                 exit_price=fill["fill_price"] if fill else None)
+                                 exit_price=exit_px)
+            _sync_account_and_mark(bar_close=exit_px)
             _log_summary()
             return f"exit_{exit_type}"
 
@@ -215,12 +217,15 @@ def _on_bar_inner() -> str:
                 log.warning(warning_msg)
                 state.add_monitor_event("WARNING", "time_exit", warning_msg)
             state.close_position(return_pct=ret, exit_type="time_exit", exit_price=exit_price)
+            _sync_account_and_mark(bar_close=exit_price)
             _log_summary()
             return "exit_time_exit"
 
         # Position is still open and within bar limit — wait for bracket exit
         log.info("Position within bar limit, bracket order monitoring exit")
-        _sync_account_and_mark()
+        # Use stored signal bar_close as fallback if broker price unavailable
+        sig = state.get_signal_snapshot()
+        _sync_account_and_mark(bar_close=sig.get("bar_close") if sig else None)
         return f"holding_bar_{bar_count}"
 
     # ── Check for new entry signal ────────────────────────────────────────────

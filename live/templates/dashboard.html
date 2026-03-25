@@ -87,6 +87,7 @@
           Active symbol: {{ status.live_symbol if status else '—' }} ·
           Last dashboard refresh: {{ generated_at }} ·
           Last trader cycle: {{ status.last_cycle_time if status else '—' }} ·
+          {% if next_run %}Next cycle: <span class="green">{{ next_run }}</span> · {% endif %}
           Git hash: {{ git_hash }} ·
           Version: {{ ui_version }}
         </div>
@@ -110,9 +111,11 @@
           <div class="k">Last action</div><div class="v">{{ status.cycle_action or '—' }}</div>
           <div class="k">Current mode</div><div class="v">{{ 'PAPER' if status.live_paper_mode else 'LIVE' }}{% if status.live_dry_run %} (DRY-RUN){% endif %}</div>
           <div class="k">Active symbol</div><div class="v">{{ status.live_symbol or '—' }}</div>
+          {% if next_run %}<div class="k">Next scheduled run</div><div class="v green">{{ next_run }}</div>{% endif %}
           <div class="k">Details</div><div class="v">{{ status.details or '—' }}</div>
         {% else %}
           <div class="v">No status data yet.</div>
+          {% if next_run %}<div class="k">Next scheduled run</div><div class="v green">{{ next_run }}</div>{% endif %}
         {% endif %}
       </section>
 
@@ -131,9 +134,24 @@
             <div class="v">{{ status.cycle_action }}</div>
             <div class="k">Cycle time</div>
             <div class="v">{{ status.last_cycle_time or '—' }}</div>
-            <div class="v" style="color:var(--muted);font-size:12px;margin-top:8px;">No signal snapshot stored yet. The trader has run but no signal was generated or persisted. This is normal before the first completed bar.</div>
+            <div class="k">Status</div>
+            <div class="v">{{ status.status or '—' }}</div>
+            {% if status.details and status.details != 'on_bar cycle completed' %}
+              <div class="k">Details</div>
+              <div class="v" style="font-size:12px;">{{ status.details }}</div>
+            {% endif %}
+            {% if next_run %}
+              <div class="k">Next signal eval</div>
+              <div class="v green">{{ next_run }}</div>
+            {% endif %}
+            <div class="v" style="color:var(--muted);font-size:11px;margin-top:6px;">No signal snapshot yet — the trader ran but no signal was generated. This is normal before the first completed bar or if signal computation failed.</div>
           {% else %}
-            <div class="v" style="color:var(--muted);">Trader has not run yet. Signals will appear after the first on_bar() cycle completes.</div>
+            <div class="v" style="color:var(--muted);">Trader has not run yet.</div>
+            {% if next_run %}
+              <div class="k">Next scheduled run</div>
+              <div class="v green">{{ next_run }}</div>
+            {% endif %}
+            <div class="v" style="color:var(--muted);font-size:11px;margin-top:6px;">Signals will appear after the first on_bar() cycle completes during market hours (9:32–15:32 ET, Mon–Fri).</div>
           {% endif %}
         {% endif %}
       </section>
