@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MONAD Bot Monitor</title>
+    <style>
+      :root {
+        --bg: #0b1020;
+        --panel: #121a2f;
+        --text: #e8ecf6;
+        --muted: #98a2b3;
+        --green: #27c17e;
+        --yellow: #ffb020;
+        --red: #ff5d5d;
+        --line: #28314c;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 16px;
+        background: var(--bg);
+        color: var(--text);
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      }
+      .top {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
+      }
+      .title { margin: 0; }
+      .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
+      .badges { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+      .badge {
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 12px;
+        border: 1px solid var(--line);
+        background: #0f1530;
+      }
+      .green { color: var(--green); }
+      .yellow { color: var(--yellow); }
+      .red { color: var(--red); }
+      .row {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 12px;
+        min-height: 100px;
+      }
+      .span-3 { grid-column: span 3; }
+      .span-4 { grid-column: span 4; }
+      .span-6 { grid-column: span 6; }
+      .span-8 { grid-column: span 8; }
+      .span-12 { grid-column: span 12; }
+      h2 { margin: 0 0 10px; font-size: 17px; }
+      .k { color: var(--muted); font-size: 12px; }
+      .v { font-size: 15px; margin: 2px 0 8px; }
+      table { width: 100%; border-collapse: collapse; font-size: 12px; }
+      th, td { border-bottom: 1px solid var(--line); padding: 6px 5px; text-align: left; vertical-align: top; }
+      .scroll { max-height: 290px; overflow-y: auto; }
+      .stale-banner {
+        margin: 8px 0 12px;
+        font-size: 18px;
+        font-weight: 600;
+      }
+      .readonly { color: var(--muted); font-size: 12px; margin-top: 3px; }
+      @media (max-width: 1100px) {
+        .span-3, .span-4, .span-6, .span-8 { grid-column: span 12; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="top">
+      <div>
+        <h1 class="title">MONAD Bot Monitor</h1>
+        <div class="sub">
+          Active symbol: {{ status.live_symbol if status else '—' }} ·
+          Last dashboard refresh: {{ generated_at }} ·
+          Last trader cycle: {{ status.last_cycle_time if status else '—' }} ·
+          {% if next_run %}Next cycle: <span class="green">{{ next_run }}</span> · {% endif %}
+          Git hash: {{ git_hash }} ·
+          Version: {{ ui_version }}
+        </div>
+        <div class="readonly">Read-only dashboard — no trade or config controls.</div>
+      </div>
+      <div class="badges">
+        <div class="badge">{{ 'PAPER' if status and status.live_paper_mode else 'LIVE' }}</div>
+        <div class="badge {{ 'green' if ibkr_connected else 'red' }}">IBKR {{ 'Connected' if ibkr_connected else 'Disconnected' }}</div>
+        <div class="badge {{ health_color }}">{{ health_label }}</div>
+      </div>
+    </div>
+
+    <div class="stale-banner {{ cycle_color }}">{{ cycle_text }}</div>
+
+    <div class="row">
+      <section class="card span-3">
+        <h2>Bot status</h2>
+        {% if status %}
+          <div class="k">Status</div><div class="v">{{ status.status }}</div>
+          <div class="k">Last cycle time</div><div class="v">{{ status.last_cycle_time }}</div>
+          <div class="k">Last action</div><div class="v">{{ status.cycle_action or '—' }}</div>
+          <div class="k">Current mode</div><div class="v">{{ 'PAPER' if status.live_paper_mode else 'LIVE' }}{% if status.live_dry_run %} (DRY-RUN){% endif %}</div>
+          <div class="k">Active symbol</div><div class="v">{{ status.live_symbol or '—' }}</div>
+          {% if next_run %}<div class="k">Next scheduled run</div><div class="v green">{{ next_run }}</div>{% endif %}
+          <div class="k">Details</div><div class="v">{{ status.details or '—' }}</div>
+        {% else %}
+          <div class="v">No status data yet.</div>
+          {% if next_run %}<div class="k">Next scheduled run</div><div class="v green">{{ next_run }}</div>{% endif %}
+        {% endif %}
+      </section>
+
+      <section class="card span-3">
+        <h2>Latest signal</h2>
+        {% if signal %}
+          <div class="k">Signal</div><div class="v"><span class="badge {{ signal_badge[1] }}">{{ signal_badge[0] }}</span></div>
+          <div class="k">Completed bar</div><div class="v">{{ signal.bar_time or '—' }}</div>
+          <div class="k">RSI</div><div class="v">{{ '%.2f'|format(signal.rsi) if signal.rsi is not none else '—' }}</div>
+          <div class="k">VWAP z-score</div><div class="v">{{ '%.3f'|format(signal.vwap_zscore) if signal.vwap_zscore is not none else '—' }}</div>
+          <div class="k">Momentum / Volume</div><div class="v">{{ signal.momentum_signal if signal.momentum_signal is not none else '—' }} / {{ signal.volume_signal if signal.volume_signal is not none else '—' }}</div>
+          <div class="k">Signal snapshot age</div><div class="v">{{ '%.1f min'|format(signal_age_min) if signal_age_min is not none else '—' }}</div>
+        {% elif status and status.last_cycle_time %}
+          <div class="k">Last cycle</div>
+          <div class="v">{{ status.cycle_action or '—' }} <span style="color:var(--muted);font-size:12px;">({{ status.status or '—' }})</span></div>
+          <div class="k">Cycle time</div>
+          <div class="v">{{ status.last_cycle_time }}</div>
+          {% if status.details and status.details != 'on_bar cycle completed' %}
+            <div class="k">Details</div>
+            <div class="v" style="font-size:12px;">{{ status.details }}</div>
+          {% endif %}
+          {% if next_run %}
+            <div class="k">Next signal eval</div>
+            <div class="v green">{{ next_run }}</div>
+          {% endif %}
+          <div class="v" style="color:var(--muted);font-size:11px;margin-top:6px;">No signal snapshot persisted yet. Signals will populate after a completed evaluation cycle.</div>
+        {% else %}
+          <div class="v" style="color:var(--muted);">Awaiting first cycle.</div>
+          {% if next_run %}
+            <div class="k">Next scheduled run</div>
+            <div class="v green">{{ next_run }}</div>
+          {% endif %}
+          <div class="v" style="color:var(--muted);font-size:11px;margin-top:6px;">Market hours: 9:32–15:32 ET, Mon–Fri.</div>
+        {% endif %}
+      </section>
+
+      <section class="card span-3">
+        <h2>Current position</h2>
+        {% if position %}
+          {% if position.status == 'pending_close' %}
+          <div style="background:rgba(155,89,182,0.15);border:1px solid #9b59b6;border-radius:6px;padding:6px 10px;margin-bottom:8px;font-size:12px;color:#c39bd3;">
+            <strong>PENDING CLOSE</strong> — exit detected but fill not confirmed. Blocking new entries until reconciled.
+            {% if position.estimated_exit_price %} Est. exit: ${{ '%.2f'|format(position.estimated_exit_price) }}{% endif %}
+          </div>
+          {% endif %}
+          <table style="width:100%;font-size:13px;border-collapse:collapse;">
+            <tr><td class="k" style="padding:2px 0;">Symbol</td><td style="padding:2px 0;">{{ position.symbol }}</td></tr>
+            <tr><td class="k" style="padding:2px 0;">Entry</td><td style="padding:2px 0;">${{ '%.2f'|format(position.entry_price) }} x {{ position.qty }} = ${{ position.cost_basis_total|commafy }}</td></tr>
+            <tr><td class="k" style="padding:2px 0;">Entry time</td><td style="padding:2px 0;">{{ position.entry_time[:19] }}</td></tr>
+            <tr><td class="k" style="padding:2px 0;">Bars</td><td style="padding:2px 0;">{{ position.bar_count }} held / {{ position.bars_remaining }} remaining</td></tr>
+            <tr><td colspan="2" style="padding:6px 0 2px;border-top:1px solid var(--line);"></td></tr>
+            <tr>
+              <td class="k" style="padding:2px 0;">Mark price</td>
+              <td style="padding:2px 0;">
+                {% if position.mark_price is not none %}
+                  ${{ '%.2f'|format(position.mark_price) }}
+                  <span class="badge" style="font-size:10px;padding:1px 6px;margin-left:4px;{% if position.mark_source == 'live' %}color:var(--green){% elif position.mark_source == 'delayed' %}color:var(--yellow){% elif position.mark_source in ('last_close', 'entry') %}color:var(--muted){% elif position.mark_source == 'estimated' %}color:#9b59b6{% else %}color:var(--red){% endif %}">{{ position.mark_source }}</span>
+                {% else %}
+                  <span class="red">unavailable</span>
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <td class="k" style="padding:2px 0;">Unrealized PnL</td>
+              <td style="padding:2px 0;">
+                {% if position.unrealized_dollar is not none %}
+                  <span class="{{ 'green' if position.unrealized_dollar >= 0 else 'red' }}">
+                    ${{ position.unrealized_dollar|commafy('{:+,.2f}') }} ({{ '%+.3f'|format(position.unrealized_pct*100) }}%)
+                  </span>
+                {% else %}—{% endif %}
+              </td>
+            </tr>
+            {% if position.market_value is not none %}
+            <tr><td class="k" style="padding:2px 0;">Market value</td><td style="padding:2px 0;">${{ position.market_value|commafy }}</td></tr>
+            {% endif %}
+            <tr><td colspan="2" style="padding:6px 0 2px;border-top:1px solid var(--line);"></td></tr>
+            <tr>
+              <td class="k" style="padding:2px 0;">Target</td>
+              <td style="padding:2px 0;">
+                {% if position.target_price %}
+                  ${{ '%.2f'|format(position.target_price) }}
+                  {% if position.dist_target is not none %}
+                    <span class="green" style="font-size:12px;">({{ '%+.3f'|format(position.dist_target*100) }}% away)</span>
+                  {% endif %}
+                {% else %}—{% endif %}
+              </td>
+            </tr>
+            <tr>
+              <td class="k" style="padding:2px 0;">Stop</td>
+              <td style="padding:2px 0;">
+                {% if position.stop_price %}
+                  ${{ '%.2f'|format(position.stop_price) }}
+                  {% if position.dist_stop is not none %}
+                    <span class="red" style="font-size:12px;">({{ '%.3f'|format(position.dist_stop*100) }}% cushion)</span>
+                  {% endif %}
+                {% else %}—{% endif %}
+              </td>
+            </tr>
+          </table>
+        {% else %}
+          <div class="v" style="margin-bottom:4px;">Flat — no open position.</div>
+          {% if status and status.cycle_action %}
+            <div class="k">Last cycle action</div>
+            <div class="v">{{ status.cycle_action }}</div>
+          {% endif %}
+          {% if trades|length > 0 %}
+            {% set last = trades[0] %}
+            <div class="k" style="margin-top:4px;">Last trade</div>
+            <div class="v">{{ last.exit_type }} at {{ last.exit_time[:19] if last.exit_time else '—' }} · {{ '%.3f'|format((last.return_pct or 0)*100) }}%</div>
+          {% endif %}
+        {% endif %}
+      </section>
+
+      <section class="card span-3">
+        <h2>Account summary</h2>
+        {% if account %}
+          <div class="k">Net liq / equity</div><div class="v">{{ '$%0.2f'|format(account.equity) if account.equity is not none else '—' }}</div>
+          <div class="k">Cash</div><div class="v">{{ '$%0.2f'|format(account.cash) if account.cash is not none else '—' }}</div>
+          <div class="k">Position value</div><div class="v">{{ '$%0.2f'|format(account.position_value) if account.position_value is not none else '—' }}</div>
+          <div class="k">Buying power</div><div class="v">{{ '$%0.2f'|format(account.buying_power) if account.buying_power is not none else '—' }}</div>
+          <div class="k">Last broker sync</div><div class="v">{{ account.updated_at or '—' }}</div>
+        {% else %}
+          <div class="v">No account snapshot yet.</div>
+        {% endif %}
+      </section>
+    </div>
+
+    <div class="row">
+      {% if returns_chart %}
+        <section class="card span-8">{{ returns_chart }}</section>
+        <section class="card span-4">{% if exit_chart %}{{ exit_chart }}{% else %}<h2>Exit Type Breakdown</h2><div class="v" style="color:var(--muted);">Need 3+ trades for chart.</div>{% endif %}</section>
+      {% else %}
+        <section class="card span-12" style="min-height:60px;">
+          <h2 style="display:inline;">Trade Returns</h2>
+          {% if trades|length > 0 %}
+            <span style="color:var(--muted);font-size:13px;margin-left:8px;">{{ trades|length }} trade{{ 's' if trades|length != 1 else '' }} — chart appears at 3+</span>
+          {% else %}
+            <span style="color:var(--muted);font-size:13px;margin-left:8px;">No production trades recorded yet.</span>
+          {% endif %}
+        </section>
+      {% endif %}
+      {% if signal_chart %}
+        <section class="card span-12">{{ signal_chart }}</section>
+      {% else %}
+        <section class="card span-12" style="min-height:60px;">
+          <h2 style="display:inline;">Signal History</h2>
+          <span style="color:var(--muted);font-size:13px;margin-left:8px;">No signal data yet.</span>
+        </section>
+      {% endif %}
+    </div>
+
+    <div class="row">
+      <section class="card span-6">
+        <h2>Recent trades</h2>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>Symbol</th><th>Entry</th><th>Exit</th><th>Return %</th><th>Exit type</th><th>Exit price</th><th>Qty</th><th>Bars held</th></tr></thead>
+            <tbody>
+              {% for trade in trades %}
+              <tr>
+                <td>{{ trade.symbol or '—' }}</td>
+                <td>{{ trade.entry_time }}</td>
+                <td>{{ trade.exit_time }}</td>
+                <td class="{{ 'red' if trade.return_pct is not none and trade.return_pct < 0 else 'green' }}">{{ '%.3f'|format((trade.return_pct or 0)*100) }}</td>
+                <td>{{ trade.exit_type }}</td>
+                <td>{{ '%.2f'|format(trade.exit_price) if trade.exit_price is not none else '—' }}</td>
+                <td>{{ trade.qty if trade.qty is not none else '—' }}</td>
+                <td>{{ trade.bars_held if trade.bars_held is not none else '—' }}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="8">No trades yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card span-3">
+        <h2>Recent events / warnings</h2>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>Time</th><th>Level</th><th>Category</th><th>Message</th></tr></thead>
+            <tbody>
+              {% for event in events %}
+              <tr>
+                <td>{{ event.event_time }}</td>
+                <td class="{{ 'red' if event.level == 'ERROR' else ('yellow' if event.level == 'WARNING' else 'green') }}">{{ event.level }}</td>
+                <td>{{ event.category }}</td>
+                <td>{{ event.message }}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="4">No events yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card span-3">
+        <h2>Signal snapshot history</h2>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>Bar time</th><th>Signal</th><th>RSI</th><th>VWAP</th><th>M/V</th></tr></thead>
+            <tbody>
+              {% for s in signal_history %}
+              <tr>
+                <td>{{ s.bar_time }}</td>
+                <td>{{ s.signal }}</td>
+                <td>{{ '%.2f'|format(s.rsi) if s.rsi is not none else '—' }}</td>
+                <td>{{ '%.3f'|format(s.vwap_zscore) if s.vwap_zscore is not none else '—' }}</td>
+                <td>{{ s.momentum_signal if s.momentum_signal is not none else '—' }}/{{ s.volume_signal if s.volume_signal is not none else '—' }}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="5">No signal history yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div class="row">
+      <section class="card span-12">
+        <h2>Health / staleness / debug</h2>
+        <table>
+          <thead><tr><th>Metric</th><th>Value</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>Trader cycle age</td><td>{{ '%.1f min'|format(cycle_age_min) if cycle_age_min is not none else '—' }}</td><td class="{{ cycle_color }}">{{ 'alive' if trader_alive else 'stale' }}</td></tr>
+            <tr><td>state.db last write time</td><td>{{ db_write_at or '—' }}</td><td class="{{ 'green' if db_age_min is not none and db_age_min < 30 else ('yellow' if db_age_min is not none and db_age_min < 90 else 'red') }}">{{ '%.1f min ago'|format(db_age_min) if db_age_min is not none else 'unknown' }}</td></tr>
+            <tr><td>Signal snapshot age</td><td>{{ '%.1f min'|format(signal_age_min) if signal_age_min is not none else '—' }}</td><td class="{{ 'green' if signal_age_min is not none and signal_age_min < 30 else ('yellow' if signal_age_min is not none and signal_age_min < 90 else 'red') }}">freshness</td></tr>
+            <tr><td>Most recent event age</td><td>{{ '%.1f min'|format(event_age_min) if event_age_min is not none else '—' }}</td><td class="{{ 'green' if event_age_min is not none and event_age_min < 120 else ('yellow' if event_age_min is not none and event_age_min < 360 else 'red') }}">freshness</td></tr>
+            <tr><td>Last broker sync age</td><td>{{ '%.1f min'|format(broker_sync_age_min) if broker_sync_age_min is not none else '—' }}</td><td class="{{ 'green' if broker_sync_age_min is not none and broker_sync_age_min < 30 else ('yellow' if broker_sync_age_min is not none and broker_sync_age_min < 120 else 'red') }}">freshness</td></tr>
+            <tr><td>IBKR connection snapshot</td><td>{{ 'connected' if ibkr_connected else 'disconnected' }}</td><td class="{{ 'green' if ibkr_connected else 'red' }}">broker</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </div>
+
+    <script>setTimeout(() => location.reload(), 30000);</script>
+  </body>
+</html>

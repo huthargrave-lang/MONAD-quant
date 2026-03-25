@@ -63,6 +63,74 @@ def _get_asset_config() -> dict:
 
 # ── Core logic ────────────────────────────────────────────────────────────────
 
+def _resolve_mark_price(symbol: str, bar_close: float | None = None) -> tuple[float | None, str]:
+    """Resolve mark price using the best available source.
+
+    Returns (price, source) where source is one of:
+      "live"       — real-time IBKR price
+      "delayed"    — delayed IBKR data
+      "last_close" — most recent bar close from signal data
+      "unavailable"
+    """
+    # 1. Try live broker price (get_tradeable_price tries live then delayed)
+    try:
+        price = broker.get_tradeable_price(symbol)
+        # get_tradeable_price logs whether it used live or delayed attr
+        # We check: if it succeeded, it's at least "delayed" quality
+        # The function tries live first, then delayed — we can't distinguish
+        # from the return value alone, so call it "live" (broker-sourced)
+        return price, "live"
+    except RuntimeError:
+        pass
+
+    # 2. Try yfinance as delayed fallback
+    try:
+        from live.broker import _yfinance_fallback
+        price = _yfinance_fallback(symbol)
+        if price and price > 0:
+            return price, "delayed"
+    except Exception:
+        pass
+
+    # 3. Fall back to stored bar close
+    if bar_close is not None and bar_close > 0:
+        return bar_close, "last_close"
+
+    return None, "unavailable"
+
+
+def _sync_account_and_mark(bar_close: float | None = None) -> None:
+    """Sync account snapshot + mark price to state.db every cycle."""
+    mark_price, mark_source = _resolve_mark_price(config.LIVE_SYMBOL, bar_close=bar_close)
+    mark_time = datetime.now(timezone.utc).isoformat() if mark_price else None
+
+    try:
+        account = broker.get_account()
+        state.save_account_snapshot(
+            equity=getattr(account, "equity", None),
+            cash=getattr(account, "cash", None),
+            buying_power=getattr(account, "buying_power", None),
+            position_value=getattr(account, "position_value", None),
+            ibkr_connected=True,
+            mark_price=mark_price,
+            mark_source=mark_source,
+            mark_time=mark_time,
+        )
+    except Exception as exc:
+        log.warning(f"Account sync failed: {exc}")
+        # Still try to save mark even without account data
+        state.save_account_snapshot(
+            equity=None, cash=None,
+            ibkr_connected=False,
+            mark_price=mark_price,
+            mark_source=mark_source,
+            mark_time=mark_time,
+        )
+
+    if mark_price:
+        log.info(f"Mark: ${mark_price:.2f} ({mark_source})")
+
+
 def on_bar() -> None:
     """
     Called once per completed hourly bar.
@@ -75,10 +143,14 @@ def on_bar() -> None:
     log.info("─" * 60)
     log.info(f"on_bar() | {config.LIVE_SYMBOL} | {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
 
+    state.set_monitor_status(status="running", cycle_action="started", details="on_bar cycle started")
     try:
         cycle_action = _on_bar_inner()
-    except Exception:
+        state.set_monitor_status(status="ok", cycle_action=cycle_action, details="on_bar cycle completed")
+    except Exception as exc:
         cycle_action = "error"
+        state.set_monitor_status(status="error", cycle_action=cycle_action, details=str(exc))
+        state.add_monitor_event("ERROR", "cycle", f"Unhandled on_bar exception: {exc}")
         raise
     finally:
         elapsed = _time.monotonic() - t0
@@ -87,10 +159,62 @@ def on_bar() -> None:
 
 def _on_bar_inner() -> str:
     """Core on_bar logic. Returns a short action label for cycle logging."""
+
+    # ── Always compute and persist signal snapshot ──────────────────────────
+    # This runs every cycle (holding, exit, entry, no-signal) so the dashboard
+    # always has fresh signal data and a recent bar_close for mark fallback.
+    sig_info = None
+    bar_close_fallback = None
+    try:
+        sig_info = signals.get_current_signal()
+        bar_close_fallback = sig_info.get("bar_close")
+        state.save_signal_snapshot(
+            sig_info["signal"],
+            str(sig_info["bar_time"]),
+            sig_info["bar_close"],
+            sig_info.get("rsi"),
+            sig_info.get("vwap_zscore"),
+            sig_info.get("momentum_signal"),
+            sig_info.get("volume_signal"),
+        )
+    except RuntimeError as exc:
+        log.warning(f"Signal computation failed (non-fatal): {exc}")
+        # On failure, try to get bar_close from stored signal for mark fallback
+        stored = state.get_signal_snapshot()
+        if stored:
+            bar_close_fallback = stored.get("bar_close")
+
     position = state.get_position()
 
     # ── Manage existing position ──────────────────────────────────────────────
     if position is not None:
+
+        # ── Retry reconciliation for pending_close positions ────────────────
+        if position.status == "pending_close":
+            fill = broker.get_bracket_fill(position.bracket_order_id)
+            if fill is not None:
+                ret = (fill["fill_price"] - position.entry_price) / position.entry_price
+                exit_type = fill["exit_type"]
+                log.info(
+                    f"Pending close reconciled | fill_price={fill['fill_price']:.2f} | "
+                    f"fill_time={fill['fill_time']} | ret={ret:+.4%} → {exit_type}"
+                )
+                state.finalize_pending_close(
+                    return_pct=ret, exit_type=exit_type,
+                    exit_price=fill["fill_price"],
+                )
+                state.add_monitor_event("INFO", "fill", f"Pending close reconciled: {exit_type} @ {fill['fill_price']:.2f}")
+                _sync_account_and_mark(bar_close=fill["fill_price"])
+                _log_summary()
+                return f"reconciled_{exit_type}"
+            else:
+                log.info(
+                    f"Pending close still unresolved — blocking new entries | "
+                    f"bracket_id={position.bracket_order_id}"
+                )
+                _sync_account_and_mark(bar_close=bar_close_fallback)
+                return "pending_close_unresolved"
+
         # Reconcile: check if bracket TP/SL already filled since last bar
         broker_pos = broker.get_open_position(position.symbol)
         if broker_pos is None or broker_pos["qty"] == 0:
@@ -103,18 +227,25 @@ def _on_bar_inner() -> str:
                     f"Bracket filled | fill_price={fill['fill_price']:.2f} | "
                     f"fill_time={fill['fill_time']} | ret={ret:+.4%} → {exit_type}"
                 )
+                state.close_position(return_pct=ret, exit_type=exit_type,
+                                     exit_price=fill["fill_price"])
             else:
                 # Fill data unavailable (e.g. connection gap after restart).
-                # Record as pending_close — actual PnL unknown until fill is reconciled.
+                # Mark as pending_close — position stays in DB blocking new entries.
+                # Reconciliation retried on each subsequent cycle.
                 ref_price = broker.get_reference_price(position.symbol)
-                ret = (ref_price - position.entry_price) / position.entry_price
-                log.warning(
-                    f"Fill data unavailable — recording as pending_close | "
-                    f"ref={ref_price:.2f} | estimated_ret={ret:+.4%} (NOT recorded as PnL)"
+                est_ret = (ref_price - position.entry_price) / position.entry_price
+                warning_msg = (
+                    f"Fill data unavailable — marking pending_close (blocks new entries) | "
+                    f"ref={ref_price:.2f} | estimated_ret={est_ret:+.4%} (NOT recorded as PnL)"
                 )
-                exit_type = "pending_close"
-            state.close_position(return_pct=ret if fill else 0.0, exit_type=exit_type,
-                                 exit_price=fill["fill_price"] if fill else None)
+                log.warning(warning_msg)
+                state.add_monitor_event("WARNING", "fill", warning_msg)
+                state.mark_pending_close(estimated_exit_price=ref_price)
+                _sync_account_and_mark(bar_close=ref_price or bar_close_fallback)
+                return "exit_pending_close"
+
+            _sync_account_and_mark(bar_close=fill["fill_price"])
             _log_summary()
             return f"exit_{exit_type}"
 
@@ -134,30 +265,36 @@ def _on_bar_inner() -> str:
                 # This is the one live exit path where PnL may be estimated.
                 exit_price = broker.get_reference_price(position.symbol)
                 ret = (exit_price - position.entry_price) / position.entry_price
-                log.warning(
+                warning_msg = (
                     f"Time-exit fill unavailable — using reference price {exit_price:.2f} | "
                     f"estimated_ret={ret:+.4%}"
                 )
+                log.warning(warning_msg)
+                state.add_monitor_event("WARNING", "time_exit", warning_msg)
             state.close_position(return_pct=ret, exit_type="time_exit", exit_price=exit_price)
+            _sync_account_and_mark(bar_close=exit_price)
             _log_summary()
             return "exit_time_exit"
 
         # Position is still open and within bar limit — wait for bracket exit
         log.info("Position within bar limit, bracket order monitoring exit")
+        _sync_account_and_mark(bar_close=bar_close_fallback)
         return f"holding_bar_{bar_count}"
 
     # ── Check for new entry signal ────────────────────────────────────────────
-    try:
-        sig_info = signals.get_current_signal()
-    except RuntimeError as exc:
-        log.error(f"Signal computation failed: {exc}")
+    if sig_info is None:
+        # Signal computation failed earlier — can't evaluate entry
+        state.add_monitor_event("ERROR", "signal", "Signal computation failed — cannot evaluate entry")
+        _sync_account_and_mark(bar_close=bar_close_fallback)
         return "signal_error"
 
     if sig_info["signal"] != 1:
         log.info(f"No entry signal (signal={sig_info['signal']})")
+        _sync_account_and_mark(bar_close=bar_close_fallback)
         return "no_signal"
 
     # ── Size and place the trade ──────────────────────────────────────────────
+    _sync_account_and_mark(bar_close=bar_close_fallback)
     account = broker.get_account()
     capital = account.equity
     log.info(f"Account equity: ${capital:,.2f}")
@@ -176,7 +313,9 @@ def _on_bar_inner() -> str:
     qty = int(sizing["position_dollars"] / bar_close)
 
     if qty < 1:
-        log.warning(f"Position too small for one share (${sizing['position_dollars']:.0f} / ${bar_close:.2f})")
+        warning_msg = f"Position too small for one share (${sizing['position_dollars']:.0f} / ${bar_close:.2f})"
+        log.warning(warning_msg)
+        state.add_monitor_event("WARNING", "sizing", warning_msg)
         return "qty_too_small"
 
     if config.LIVE_DRY_RUN:
@@ -196,7 +335,9 @@ def _on_bar_inner() -> str:
         stop_pct=asset_config["stop_loss_pct"],
     )
     if result is None:
-        log.error("Bracket order failed — skipping this entry. Will retry next bar if signal persists.")
+        error_msg = "Bracket order failed — skipping this entry. Will retry next bar if signal persists."
+        log.error(error_msg)
+        state.add_monitor_event("ERROR", "order", error_msg)
         return "order_failed"
 
     # Record the broker's fill_basis as entry price — this is the live market price
@@ -205,6 +346,7 @@ def _on_bar_inner() -> str:
     order_id = result["order_id"]
     state.open_position(config.LIVE_SYMBOL, entry_price, qty, order_id)
     log.info(f"ENTRY placed: {qty} shares @ ~{entry_price:.2f} (fill_basis)")
+    state.add_monitor_event("INFO", "entry", f"Entry placed: {qty} {config.LIVE_SYMBOL} @ {entry_price:.2f}")
     return "entry_placed"
 
 
@@ -320,11 +462,28 @@ def main() -> None:
         config.LIVE_PAPER_MODE = True
         log.info(f"Paper mode | symbol={config.LIVE_SYMBOL} | port={config.IBKR_PORT_PAPER}")
 
+    state.init_db()
+    state.set_monitor_status(status="idle", cycle_action="startup", details="trader initialized")
+
     # Verify IBKR connection
     try:
         account = broker.get_account()
+        state.save_account_snapshot(
+            equity=getattr(account, "equity", None),
+            cash=getattr(account, "cash", None),
+            buying_power=getattr(account, "buying_power", None),
+            position_value=getattr(account, "position_value", None),
+            ibkr_connected=True,
+        )
         log.info(f"IBKR connected | equity=${account.equity:,.2f} | cash=${account.cash:,.2f}")
     except Exception as exc:
+        state.save_account_snapshot(
+            equity=None,
+            cash=None,
+            buying_power=None,
+            position_value=None,
+            ibkr_connected=False,
+        )
         log.error(f"Cannot connect to IBKR: {exc}")
         log.error("Ensure IB Gateway or TWS is running on localhost")
         sys.exit(1)
@@ -350,8 +509,6 @@ def main() -> None:
     if getattr(config, 'LIVE_DRY_RUN', False):
         log.info(f"  DRY RUN:      YES — no orders will be placed")
     log.info("─" * 60)
-
-    state.init_db()
 
     if args.once:
         on_bar()

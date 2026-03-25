@@ -424,6 +424,11 @@ while price is already between the 50-MA and 252-MA (already in recovery momentu
 | `src/strategy/sizing.py` | `compute_position_size()` | Fractional Kelly calculation |
 | `main.py` | `main()` | Entry point, --mode=walk-forward support |
 | `sweep.py` | — | Universal param sweep: `python sweep.py TICKER` |
+| `live/trader.py` | `_on_bar_inner()` | Scheduler loop, entry/exit/pending_close logic |
+| `live/state.py` | `mark_pending_close()` | Blocks entries until fill reconciled |
+| `live/state.py` | `finalize_pending_close()` | Records actual fill, clears position |
+| `live/broker.py` | `place_bracket_order()` | IBKR bracket orders + fill queries |
+| `live/dashboard.py` | `dashboard()` | Read-only FastAPI monitoring UI |
 
 ### Config flags quick reference
 ```python
@@ -1099,10 +1104,16 @@ python sweep.py COIN --phase 2             # Phase 2 only (fine-tune)
 ### What it does
 1. Fetches hourly OHLCV data via yfinance (with caching)
 2. Dynamically injects config for any ticker (no manual config setup needed)
-3. Runs a 2-phase sweep:
+3. Runs a multi-phase sweep:
    - **Phase 1**: Coarse grid — target/stop (2:1 R:R), R:R variations, VWAP, RSI
-   - **Phase 2**: Cross-validation — fine-tunes around Phase 1 best params
-4. Reports optimal params and saves to `sweep_results_TICKER.json`
+   - **Phase 2a–c**: Cross-validation — fine-tunes target, stop, RSI around Phase 1 best
+   - **Phase 2d**: MAX_TRADE_BARS sweep [8, 10, 12, 15, 20] on best params
+   - **Phase 3**: Holdout evaluation — top 20 candidates on out-of-sample data
+   - **Phase 4**: Perturbation robustness — jitter params to test stability
+   - **Phase 5**: Final preset selection (best_overall, most_robust, high_rr, high_trade_count)
+4. Uses fixed 10% position sizing (matches live trader)
+5. Reports optimal params and saves to `sweep_results_TICKER.json`
+6. Appends experiment log to `experiments.jsonl`
 
 ### Adding a new instrument after sweep
 After running `python sweep.py NEWTICKER`, take the optimal params from the output
@@ -1114,4 +1125,37 @@ and add a new PROFILE section in config.py following the GDXU/TQQQ pattern:
 
 ---
 
-*Last updated: 2026-03-20 — GDXU hourly optimization complete: RSI=85, VWAP=0.5, target=0.56%/stop=0.075% → +116.55% / Sharpe 96.5 / +3.28%/mo. Universal sweep tool (sweep.py) added.*
+## 20. Live Trading: Pending Close Architecture (2026-03-25)
+
+### Problem (fixed)
+When a bracket exit was detected but IBKR fill data was unavailable (connection
+gap/restart), `close_position()` deleted the position row immediately. On the next
+cycle, `get_position()` returned None → bot treated itself as flat → could place a
+new entry while the previous trade was unresolved.
+
+### Fix: position stays in DB until reconciled
+The position table now has a `status` column (`open` / `pending_close`) and an
+`estimated_exit_price` column. When fill data is unavailable:
+
+1. `mark_pending_close(estimated_exit_price)` sets status to `pending_close` — position
+   stays in the DB, blocking new entries.
+2. On each subsequent cycle, `get_bracket_fill()` is retried.
+3. When actual fill data is found, `finalize_pending_close(return_pct, exit_type, exit_price)`
+   records the trade with real PnL and deletes the position row.
+4. Only after finalization can new entries be placed.
+
+### Key files changed
+- `live/state.py`: `mark_pending_close()`, `finalize_pending_close()`, position schema migration
+- `live/trader.py`: pending_close retry loop in `_on_bar_inner()`, entry blocking
+- `live/dashboard.py` + `dashboard.html`: PENDING CLOSE banner, `estimated` mark source badge
+
+### Dashboard position states
+| State | What it means | UI display |
+|---|---|---|
+| `open` | Active position, bracket monitoring | Normal position card |
+| `pending_close` | Exit detected, fill unconfirmed | Purple banner: "PENDING CLOSE — blocking new entries" |
+| No position | Flat | "Flat — no open position" |
+
+---
+
+*Last updated: 2026-03-25 — Pending close blocks new entries until reconciliation. MAX_TRADE_BARS added to sweep Phase 2d. Universal sweep now 5-phase with holdout + perturbation robustness.*

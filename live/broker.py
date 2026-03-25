@@ -24,10 +24,16 @@ _ib_thread_id = None  # track which thread created the connection
 
 
 def _ensure_connected():
-    """Returns a connected IB instance. Reconnects if called from a different thread."""
+    """Returns a connected IB instance. Reconnects if called from a different thread.
+
+    Retries up to 3 times with 2s backoff if the connection fails (e.g. clientId
+    still held by a recently-disconnected session — IBKR Gateway takes a few seconds
+    to release it).
+    """
     global _ib, _ib_thread_id
     import asyncio
     import threading
+    import time
     from ib_insync import IB
 
     current_thread = threading.current_thread().ident
@@ -52,17 +58,31 @@ def _ensure_connected():
     if _ib is not None and _ib.isConnected():
         return _ib
 
-    _ib = IB()
-    _ib.RequestTimeout = 10  # seconds — prevents blocking forever on API calls
     host = config.IBKR_HOST
     port = config.IBKR_PORT_PAPER if config.LIVE_PAPER_MODE else config.IBKR_PORT_LIVE
     client_id = config.IBKR_CLIENT_ID
 
-    log.info(f"Connecting to IBKR at {host}:{port} (clientId={client_id})")
-    _ib.connect(host, port, clientId=client_id)
-    _ib_thread_id = current_thread
-    log.info("IBKR connected")
-    return _ib
+    # Retry with backoff — IBKR Gateway may still hold the clientId from a
+    # recently-disconnected session (startup probe → disconnect → scheduler reconnect).
+    max_retries = 3
+    for attempt in range(max_retries + 1):
+        _ib = IB()
+        _ib.RequestTimeout = 10
+        try:
+            log.info(f"Connecting to IBKR at {host}:{port} (clientId={client_id})"
+                     + (f" [retry {attempt}]" if attempt > 0 else ""))
+            _ib.connect(host, port, clientId=client_id)
+            _ib_thread_id = current_thread
+            log.info("IBKR connected")
+            return _ib
+        except Exception as exc:
+            _ib = None
+            if attempt < max_retries:
+                wait = 2 * (attempt + 1)
+                log.warning(f"IBKR connect failed: {exc} — retrying in {wait}s")
+                time.sleep(wait)
+            else:
+                raise
 
 
 def disconnect():
