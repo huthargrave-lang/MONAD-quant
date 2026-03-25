@@ -112,8 +112,8 @@ def _next_scheduled_run() -> str | None:
 
 def _build_returns_chart(trades: list[dict]) -> str:
     rows = list(reversed(trades[-30:]))
-    if not rows:
-        return ""
+    if len(rows) < 3:
+        return ""  # Too few trades for a meaningful chart; template shows compact fallback
     colors = {
         "target": "#2ecc71",
         "stop": "#e74c3c",
@@ -148,8 +148,9 @@ def _build_returns_chart(trades: list[dict]) -> str:
 
 
 def _build_exit_type_chart(exit_counts: dict[str, int], needs_plotlyjs: bool = False) -> str:
-    if not exit_counts:
-        return ""
+    total = sum(exit_counts.values()) if exit_counts else 0
+    if total < 3:
+        return ""  # Too few trades for a meaningful donut
     labels = list(exit_counts.keys())
     values = [exit_counts[k] for k in labels]
     fig = go.Figure(
@@ -227,7 +228,7 @@ def dashboard(request: Request) -> HTMLResponse:
     else:
         health_label, health_color = "Stale", "red"
 
-    # ── Resolve mark price: account_snapshot (broker-sourced) > signal bar_close ─
+    # ── Resolve mark price: account_snapshot (broker-sourced) > signal bar_close > entry_price ─
     mark_price = None
     mark_source = "unavailable"
     mark_time = None
@@ -239,11 +240,20 @@ def dashboard(request: Request) -> HTMLResponse:
             mark_price = float(mp)
             mark_source = ms or "live"
             mark_time = mt
-    # Fallback: use signal bar_close if no broker mark stored
+    # Fallback 1: use signal bar_close
     if mark_price is None and signal and signal.get("bar_close"):
-        mark_price = float(signal["bar_close"])
-        mark_source = "last_close"
-        mark_time = signal.get("updated_at")
+        bc = signal["bar_close"]
+        if bc is not None and float(bc) > 0:
+            mark_price = float(bc)
+            mark_source = "last_close"
+            mark_time = signal.get("updated_at")
+    # Fallback 2: use entry_price from position (always available when position exists)
+    if mark_price is None and position_dict:
+        ep = position_dict.get("entry_price")
+        if ep is not None and float(ep) > 0:
+            mark_price = float(ep)
+            mark_source = "entry"
+            mark_time = position_dict.get("entry_time")
 
     position_view = None
     if position_dict:

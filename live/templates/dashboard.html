@@ -128,31 +128,27 @@
           <div class="k">VWAP z-score</div><div class="v">{{ '%.3f'|format(signal.vwap_zscore) if signal.vwap_zscore is not none else '—' }}</div>
           <div class="k">Momentum / Volume</div><div class="v">{{ signal.momentum_signal if signal.momentum_signal is not none else '—' }} / {{ signal.volume_signal if signal.volume_signal is not none else '—' }}</div>
           <div class="k">Signal snapshot age</div><div class="v">{{ '%.1f min'|format(signal_age_min) if signal_age_min is not none else '—' }}</div>
-        {% else %}
-          {% if status and status.cycle_action %}
-            <div class="k">Last cycle result</div>
-            <div class="v">{{ status.cycle_action }}</div>
-            <div class="k">Cycle time</div>
-            <div class="v">{{ status.last_cycle_time or '—' }}</div>
-            <div class="k">Status</div>
-            <div class="v">{{ status.status or '—' }}</div>
-            {% if status.details and status.details != 'on_bar cycle completed' %}
-              <div class="k">Details</div>
-              <div class="v" style="font-size:12px;">{{ status.details }}</div>
-            {% endif %}
-            {% if next_run %}
-              <div class="k">Next signal eval</div>
-              <div class="v green">{{ next_run }}</div>
-            {% endif %}
-            <div class="v" style="color:var(--muted);font-size:11px;margin-top:6px;">No signal snapshot yet — the trader ran but no signal was generated. This is normal before the first completed bar or if signal computation failed.</div>
-          {% else %}
-            <div class="v" style="color:var(--muted);">Trader has not run yet.</div>
-            {% if next_run %}
-              <div class="k">Next scheduled run</div>
-              <div class="v green">{{ next_run }}</div>
-            {% endif %}
-            <div class="v" style="color:var(--muted);font-size:11px;margin-top:6px;">Signals will appear after the first on_bar() cycle completes during market hours (9:32–15:32 ET, Mon–Fri).</div>
+        {% elif status and status.last_cycle_time %}
+          <div class="k">Last cycle</div>
+          <div class="v">{{ status.cycle_action or '—' }} <span style="color:var(--muted);font-size:12px;">({{ status.status or '—' }})</span></div>
+          <div class="k">Cycle time</div>
+          <div class="v">{{ status.last_cycle_time }}</div>
+          {% if status.details and status.details != 'on_bar cycle completed' %}
+            <div class="k">Details</div>
+            <div class="v" style="font-size:12px;">{{ status.details }}</div>
           {% endif %}
+          {% if next_run %}
+            <div class="k">Next signal eval</div>
+            <div class="v green">{{ next_run }}</div>
+          {% endif %}
+          <div class="v" style="color:var(--muted);font-size:11px;margin-top:6px;">No signal snapshot persisted yet. Signals will populate after a completed evaluation cycle.</div>
+        {% else %}
+          <div class="v" style="color:var(--muted);">Awaiting first cycle.</div>
+          {% if next_run %}
+            <div class="k">Next scheduled run</div>
+            <div class="v green">{{ next_run }}</div>
+          {% endif %}
+          <div class="v" style="color:var(--muted);font-size:11px;margin-top:6px;">Market hours: 9:32–15:32 ET, Mon–Fri.</div>
         {% endif %}
       </section>
 
@@ -170,7 +166,7 @@
               <td style="padding:2px 0;">
                 {% if position.mark_price is not none %}
                   ${{ '%.2f'|format(position.mark_price) }}
-                  <span class="badge" style="font-size:10px;padding:1px 6px;margin-left:4px;{% if position.mark_source == 'live' %}color:var(--green){% elif position.mark_source == 'delayed' %}color:var(--yellow){% elif position.mark_source == 'last_close' %}color:var(--muted){% else %}color:var(--red){% endif %}">{{ position.mark_source }}</span>
+                  <span class="badge" style="font-size:10px;padding:1px 6px;margin-left:4px;{% if position.mark_source == 'live' %}color:var(--green){% elif position.mark_source == 'delayed' %}color:var(--yellow){% elif position.mark_source in ('last_close', 'entry') %}color:var(--muted){% else %}color:var(--red){% endif %}">{{ position.mark_source }}</span>
                 {% else %}
                   <span class="red">unavailable</span>
                 {% endif %}
@@ -242,9 +238,27 @@
     </div>
 
     <div class="row">
-      <section class="card span-8">{% if returns_chart %}{{ returns_chart }}{% else %}<h2>Recent Trade Returns</h2><div class="v">No trade data yet.</div>{% endif %}</section>
-      <section class="card span-4">{% if exit_chart %}{{ exit_chart }}{% else %}<h2>Exit Type Breakdown</h2><div class="v">No exit data yet.</div>{% endif %}</section>
-      <section class="card span-12">{% if signal_chart %}{{ signal_chart }}{% else %}<h2>Signal History</h2><div class="v">No signal data yet.</div>{% endif %}</section>
+      {% if returns_chart %}
+        <section class="card span-8">{{ returns_chart }}</section>
+        <section class="card span-4">{% if exit_chart %}{{ exit_chart }}{% else %}<h2>Exit Type Breakdown</h2><div class="v" style="color:var(--muted);">Need 3+ trades for chart.</div>{% endif %}</section>
+      {% else %}
+        <section class="card span-12" style="min-height:60px;">
+          <h2 style="display:inline;">Trade Returns</h2>
+          {% if trades|length > 0 %}
+            <span style="color:var(--muted);font-size:13px;margin-left:8px;">{{ trades|length }} trade{{ 's' if trades|length != 1 else '' }} — chart appears at 3+</span>
+          {% else %}
+            <span style="color:var(--muted);font-size:13px;margin-left:8px;">No production trades recorded yet.</span>
+          {% endif %}
+        </section>
+      {% endif %}
+      {% if signal_chart %}
+        <section class="card span-12">{{ signal_chart }}</section>
+      {% else %}
+        <section class="card span-12" style="min-height:60px;">
+          <h2 style="display:inline;">Signal History</h2>
+          <span style="color:var(--muted);font-size:13px;margin-left:8px;">No signal data yet.</span>
+        </section>
+      {% endif %}
     </div>
 
     <div class="row">
