@@ -76,6 +76,12 @@ def _ensure_connected():
             log.info("IBKR connected")
             return _ib
         except Exception as exc:
+            # Ensure the failed IB instance is fully torn down so it doesn't
+            # hold a ghost socket that blocks the next attempt's clientId.
+            try:
+                _ib.disconnect()
+            except Exception:
+                pass
             _ib = None
             if attempt < max_retries:
                 wait = 2 * (attempt + 1)

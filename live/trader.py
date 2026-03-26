@@ -153,6 +153,13 @@ def on_bar() -> None:
         state.add_monitor_event("ERROR", "cycle", f"Unhandled on_bar exception: {exc}")
         raise
     finally:
+        # Always disconnect at end of cycle. With hourly scheduling, keeping a
+        # connection open for ~60min causes stale sockets and clientId conflicts.
+        # Connect-per-cycle is clean and reliable for this cadence.
+        try:
+            broker.disconnect()
+        except Exception:
+            pass
         elapsed = _time.monotonic() - t0
         log.info(f"CYCLE | action={cycle_action} | elapsed={elapsed:.1f}s")
 
