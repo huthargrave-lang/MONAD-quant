@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 
 import plotly.graph_objects as go
 import yfinance as yf
+from plotly.offline.offline import get_plotlyjs_version
 from plotly.subplots import make_subplots
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -34,6 +35,7 @@ _PROD_EXIT_TYPES = {"target_hit", "stop_hit", "time_exit", "bracket_exit", "pend
 _UI_QUOTE_CACHE_TTL_SEC = 2.5
 _UI_QUOTE_STALE_OK_SEC = 60.0
 _UI_QUOTE_HEADERS = {"Cache-Control": "no-store, max-age=0"}
+_PLOTLY_JS_URL = f"https://cdn.plot.ly/plotly-{get_plotlyjs_version()}.min.js"
 _ui_quote_cache: dict[str, dict[str, float | str]] = {}
 
 
@@ -201,44 +203,88 @@ def _resolve_asset_config(symbol: str | None = None) -> tuple[str | None, dict |
     return None, None
 
 
+def _figure_to_html(fig: go.Figure, *, div_id: str) -> str:
+    return fig.to_html(
+        full_html=False,
+        include_plotlyjs=False,
+        div_id=div_id,
+        config={
+            "displayModeBar": False,
+            "responsive": True,
+        },
+        default_width="100%",
+    )
+
+
 def _build_returns_chart(trades: list[dict]) -> str:
-    rows = list(reversed(trades[-30:]))
+    rows = [dict(r) for r in trades]
     if len(rows) < 3:
-        return ""  # Too few trades for a meaningful chart; template shows compact fallback
-    colors = {
-        "target": "#2ecc71",
-        "stop": "#e74c3c",
-        "time_exit": "#f1c40f",
-        "pending_close": "#9b59b6",
-        "ambiguous_same_bar": "#e67e22",
-    }
-    x = [r.get("exit_time") or r.get("entry_time") for r in rows]
-    y = [float(r.get("return_pct") or 0.0) * 100 for r in rows]
-    c = [colors.get(r.get("exit_type"), "#4aa3ff") for r in rows]
-    fig = go.Figure(
-        data=[
-            go.Bar(
-                x=x,
-                y=y,
-                marker_color=c,
-                hovertemplate="%{x}<br>Return %{y:.3f}%<extra></extra>",
-            )
-        ]
+        return ""
+
+    rows.sort(key=lambda r: r.get("exit_time") or r.get("entry_time") or "")
+    x = []
+    cumulative = []
+    custom = []
+    marker_colors = []
+    equity = 1.0
+    for row in rows:
+        ts = row.get("exit_time") or row.get("entry_time")
+        ret = float(row.get("return_pct") or 0.0)
+        equity *= (1.0 + ret)
+        x.append(ts)
+        cumulative.append((equity - 1.0) * 100.0)
+        custom.append([ret * 100.0, row.get("exit_type") or "unknown"])
+        marker_colors.append("#2ecc71" if ret >= 0 else "#e74c3c")
+
+    line_color = "#2ecc71" if cumulative[-1] >= 0 else "#ff5d5d"
+    fill_color = "rgba(46, 204, 113, 0.12)" if cumulative[-1] >= 0 else "rgba(255, 93, 93, 0.12)"
+    hovertemplate = (
+        "%{x}<br>Cumulative %{y:.2f}%"
+        "<br>Trade %{customdata[0]:+.3f}%"
+        "<br>%{customdata[1]}<extra></extra>"
+    )
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=cumulative,
+            mode="lines",
+            fill="tozeroy",
+            line=dict(color=line_color, width=2),
+            fillcolor=fill_color,
+            customdata=custom,
+            hovertemplate=hovertemplate,
+            name="Equity Curve",
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=cumulative,
+            mode="markers",
+            marker=dict(color=marker_colors, size=7, line=dict(color="#0b1020", width=1)),
+            customdata=custom,
+            hovertemplate=hovertemplate,
+            showlegend=False,
+        )
     )
     fig.update_layout(
-        title="Recent Trade Returns (%)",
+        title="Cumulative Equity Curve",
         paper_bgcolor="#121a2f",
         plot_bgcolor="#121a2f",
         font_color="#e8ecf6",
         margin=dict(l=30, r=20, t=40, b=30),
         height=300,
         xaxis_title="Exit time",
-        yaxis_title="Return %",
+        yaxis_title="Compounded return %",
+        hovermode="x unified",
+        showlegend=False,
     )
-    return fig.to_html(full_html=False, include_plotlyjs="cdn")
+    return _figure_to_html(fig, div_id="returns-chart")
 
 
-def _build_exit_type_chart(exit_counts: dict[str, int], needs_plotlyjs: bool = False) -> str:
+def _build_exit_type_chart(exit_counts: dict[str, int]) -> str:
     total = sum(exit_counts.values()) if exit_counts else 0
     if total < 3:
         return ""  # Too few trades for a meaningful donut
@@ -255,15 +301,15 @@ def _build_exit_type_chart(exit_counts: dict[str, int], needs_plotlyjs: bool = F
         margin=dict(l=20, r=20, t=40, b=20),
         height=300,
     )
-    return fig.to_html(full_html=False, include_plotlyjs="cdn" if needs_plotlyjs else False)
+    return _figure_to_html(fig, div_id="exit-type-chart")
 
 
 def _build_signal_chart(
     signal_history: list[dict],
     *,
+    asset_label: str | None = None,
     rsi_oversold: float | None = None,
     rsi_overbought: float | None = None,
-    needs_plotlyjs: bool = False,
 ) -> str:
     rows = list(reversed(signal_history))
     if not rows:
@@ -346,11 +392,23 @@ def _build_signal_chart(
         col=1,
     )
 
+    # Neutral momentum reference line. Keep the strategy-specific thresholds too,
+    # since entries are still governed by the actual configured RSI levels.
+    fig.add_hline(
+        y=50,
+        line_dash="dot",
+        line_color="rgba(255, 255, 255, 0.25)",
+        row=2,
+        col=1,
+    )
+
     if rsi_oversold is not None:
         fig.add_hline(
             y=rsi_oversold,
             line_dash="dash",
             line_color="rgba(46, 204, 113, 0.55)",
+            annotation_text=f"Bot Long Limit ({rsi_oversold:g})",
+            annotation_position="top left",
             row=2,
             col=1,
         )
@@ -359,12 +417,14 @@ def _build_signal_chart(
             y=rsi_overbought,
             line_dash="dash",
             line_color="rgba(231, 76, 60, 0.55)",
+            annotation_text=f"Bot Short Limit ({rsi_overbought:g})",
+            annotation_position="bottom left",
             row=2,
             col=1,
         )
 
     fig.update_layout(
-        title="Price Action & Signals",
+        title=f"{asset_label or 'Signal'} Price Action & RSI",
         paper_bgcolor="#121a2f",
         plot_bgcolor="#121a2f",
         font_color="#e8ecf6",
@@ -389,10 +449,10 @@ def _build_signal_chart(
         row=2,
         col=1,
     )
-    return fig.to_html(full_html=False, include_plotlyjs="cdn" if needs_plotlyjs else False)
+    return _figure_to_html(fig, div_id="signal-history-chart")
 
 
-def _build_position_gauge(position: dict | None, needs_plotlyjs: bool = False) -> str:
+def _build_position_gauge(position: dict | None) -> str:
     if not position:
         return ""
 
@@ -443,7 +503,7 @@ def _build_position_gauge(position: dict | None, needs_plotlyjs: bool = False) -
         margin=dict(t=18, b=18, l=36, r=20),
         height=120,
     )
-    return fig.to_html(full_html=False, include_plotlyjs="cdn" if needs_plotlyjs else False)
+    return _figure_to_html(fig, div_id="position-gauge-chart")
 
 
 @app.get("/health")
@@ -489,8 +549,10 @@ def dashboard(request: Request) -> HTMLResponse:
     signal_chart_history = state.get_signal_history(limit=60)
     position = state.get_position()
     position_dict = position.__dict__ if position else None
-    all_trades = state.get_recent_trades(limit=50)
+    all_trades = state.get_recent_trades(limit=250)
     trades = _filter_prod_trades(all_trades)[:30]
+    chart_trades = _filter_prod_trades(all_trades)
+    summary = state.get_trade_summary(allowed_exit_types=_PROD_EXIT_TYPES)
     events = state.get_recent_monitor_events(limit=30)
     all_exit_counts = state.get_exit_type_counts(limit=250)
     exit_counts = {k: v for k, v in all_exit_counts.items() if k in _PROD_EXIT_TYPES}
@@ -602,25 +664,25 @@ def dashboard(request: Request) -> HTMLResponse:
         ("UNKNOWN", "red"),
     )
 
-    returns_chart = Markup(_build_returns_chart(trades))
-    exit_chart_needs_js = not returns_chart
-    exit_chart = Markup(_build_exit_type_chart(exit_counts, needs_plotlyjs=exit_chart_needs_js))
-    _, signal_asset_cfg = _resolve_asset_config(status.get("live_symbol") if status else None)
-    rsi_oversold = signal_asset_cfg.get("rsi_oversold") if signal_asset_cfg else None
-    rsi_overbought = signal_asset_cfg.get("rsi_overbought") if signal_asset_cfg else None
-    signal_chart_needs_js = not returns_chart and not exit_chart
+    returns_chart = Markup(_build_returns_chart(chart_trades))
+    exit_chart = Markup(_build_exit_type_chart(exit_counts))
+    signal_asset_key, signal_asset_cfg = _resolve_asset_config(status.get("live_symbol") if status else None)
+    active_asset_key = signal_asset_key or config.DEFAULT_ASSET
+    active_asset_cfg = signal_asset_cfg or config.ASSETS.get(config.DEFAULT_ASSET, {})
+    config_mode_mismatch = bool(
+        status and status.get("live_symbol") and signal_asset_key and signal_asset_key != config.DEFAULT_ASSET
+    )
+    rsi_oversold = active_asset_cfg.get("rsi_oversold") if active_asset_cfg else None
+    rsi_overbought = active_asset_cfg.get("rsi_overbought") if active_asset_cfg else None
     signal_chart = Markup(
         _build_signal_chart(
             signal_chart_history,
+            asset_label=active_asset_key or (status.get("live_symbol") if status else None),
             rsi_oversold=rsi_oversold,
             rsi_overbought=rsi_overbought,
-            needs_plotlyjs=signal_chart_needs_js,
         )
     )
-    gauge_needs_js = not returns_chart and not exit_chart and not signal_chart
-    position_gauge = Markup(
-        _build_position_gauge(position_view, needs_plotlyjs=gauge_needs_js)
-    )
+    position_gauge = Markup(_build_position_gauge(position_view))
 
     return TEMPLATES.TemplateResponse(
         request=request,
@@ -629,11 +691,17 @@ def dashboard(request: Request) -> HTMLResponse:
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "ui_version": UI_VERSION,
             "git_hash": _get_git_hash(),
+            "plotly_js_url": _PLOTLY_JS_URL,
             "status": status,
             "signal": signal,
             "signal_badge": signal_badge,
+            "summary": summary,
             "position": position_view,
             "account": account,
+            "active_mode": config.ACTIVE_MODE,
+            "active_asset_key": active_asset_key,
+            "asset_cfg": active_asset_cfg,
+            "config_mode_mismatch": config_mode_mismatch,
             "trades": trades,
             "events": events,
             "signal_history": signal_history,
