@@ -298,13 +298,15 @@ def _build_returns_chart(trades: list[dict]) -> str:
         paper_bgcolor="#121a2f",
         plot_bgcolor="#121a2f",
         font_color="#e8ecf6",
-        margin=dict(l=30, r=20, t=40, b=30),
+        margin=dict(l=60, r=20, t=40, b=50),
         height=300,
         xaxis_title="Exit time",
         yaxis_title="Compounded return %",
         hovermode="x unified",
         showlegend=False,
     )
+    fig.update_xaxes(automargin=True)
+    fig.update_yaxes(automargin=True)
     return _figure_to_html(fig, div_id="returns-chart")
 
 
@@ -324,6 +326,13 @@ def _build_exit_type_chart(exit_counts: dict[str, int]) -> str:
         font_color="#e8ecf6",
         margin=dict(l=20, r=20, t=40, b=20),
         height=300,
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.1,
+            xanchor="center",
+            x=0.5,
+        ),
     )
     return _figure_to_html(fig, div_id="exit-type-chart")
 
@@ -452,16 +461,17 @@ def _build_signal_chart(
         paper_bgcolor="#121a2f",
         plot_bgcolor="#121a2f",
         font_color="#e8ecf6",
-        margin=dict(l=30, r=20, t=40, b=30),
+        margin=dict(l=60, r=20, t=40, b=30),
         height=450,
         showlegend=False,
         hovermode="x unified",
     )
-    fig.update_xaxes(showgrid=False)
+    fig.update_xaxes(showgrid=False, automargin=True)
     fig.update_yaxes(
         title_text="Price",
         gridcolor="rgba(152, 162, 179, 0.12)",
         zeroline=False,
+        automargin=True,
         row=1,
         col=1,
     )
@@ -470,6 +480,7 @@ def _build_signal_chart(
         range=[0, 100],
         gridcolor="rgba(152, 162, 179, 0.12)",
         zeroline=False,
+        automargin=True,
         row=2,
         col=1,
     )
