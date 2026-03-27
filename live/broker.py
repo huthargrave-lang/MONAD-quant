@@ -272,6 +272,13 @@ def place_bracket_order(symbol: str, qty: int,
         stopLossPrice=stop_price,
     )
 
+    # Set child orders (TP + SL) to GTC so they survive overnight.
+    # Default tif='' maps to DAY at IBKR, which cancels at market close.
+    # Positions can be held up to MAX_TRADE_BARS (multiple days), so
+    # bracket protection must persist across sessions.
+    for order in bracket[1:]:  # skip parent (index 0)
+        order.tif = "GTC"
+
     # Submit all three legs (parent + TP + SL)
     parent_order = bracket[0]
     for order in bracket:
