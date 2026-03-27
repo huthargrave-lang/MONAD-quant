@@ -241,6 +241,8 @@ def _figure_to_html(fig: go.Figure, *, div_id: str) -> str:
 
 
 def _build_returns_chart(trades: list[dict]) -> str:
+    if not trades:
+        return ""
     rows = [dict(r) for r in trades]
     if len(rows) < 3:
         return ""
@@ -548,7 +550,7 @@ def health() -> dict:
     return {"status": "ok", "utc": datetime.now(timezone.utc).isoformat()}
 
 
-@app.get("/api/ticker/{symbol}")
+@app.get("/api/ticker/{symbol}", response_class=JSONResponse)
 def get_live_ticker(symbol: str) -> JSONResponse:
     symbol = symbol.strip().upper()
     if not symbol:

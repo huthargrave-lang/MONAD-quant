@@ -466,6 +466,13 @@
           const response = await fetch(`/api/ticker/${encodeURIComponent(activeSymbol)}`, {
             cache: "no-store",
           });
+          const contentType = response.headers.get("content-type") || "";
+          if (!contentType.toLowerCase().includes("application/json")) {
+            const body = await response.text();
+            throw new Error(
+              `Expected JSON from /api/ticker/${activeSymbol}, got ${contentType || "unknown"}: ${body.slice(0, 120)}`
+            );
+          }
           const data = await response.json();
           if (!response.ok || !isFiniteNumber(data.price)) {
             throw new Error(data.error || `HTTP ${response.status}`);
