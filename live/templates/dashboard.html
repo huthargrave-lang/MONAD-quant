@@ -518,6 +518,7 @@
             const gaugeUpper = Math.max(stopPrice, entryPrice, targetPrice, livePrice);
             Plotly.restyle(gaugeDiv, {
               value: [livePrice],
+              "gauge.threshold.value": [livePrice],
               "gauge.axis.range": [[gaugeLower, gaugeUpper]],
             });
           }

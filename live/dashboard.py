@@ -510,6 +510,8 @@ def _build_position_gauge(position: dict | None) -> str:
         pad = abs(lower) * 0.01 if lower else 1.0
         lower -= pad
         upper += pad
+    range_span = upper - lower
+    line_half_width = max(range_span * 0.0025, 1e-6)
 
     fig = go.Figure(
         go.Indicator(
@@ -523,15 +525,16 @@ def _build_position_gauge(position: dict | None) -> str:
                 "shape": "bullet",
                 "axis": {"range": [lower, upper], "tickcolor": "#e8ecf6"},
                 "threshold": {
-                    "line": {"color": "#e8ecf6", "width": 3},
-                    "thickness": 0.75,
-                    "value": entry,
+                    "line": {"color": "#4aa3ff", "width": 4},
+                    "thickness": 0.8,
+                    "value": mark,
                 },
                 "steps": [
                     {"range": [stop, entry], "color": "rgba(231, 76, 60, 0.25)"},
+                    {"range": [entry - line_half_width, entry + line_half_width], "color": "#e8ecf6"},
                     {"range": [entry, target], "color": "rgba(46, 204, 113, 0.25)"},
                 ],
-                "bar": {"color": "#4aa3ff", "thickness": 0.32},
+                "bar": {"color": "rgba(0,0,0,0)", "thickness": 0},
             },
         )
     )
