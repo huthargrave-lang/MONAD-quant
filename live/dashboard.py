@@ -514,7 +514,9 @@ def _build_position_gauge(position: dict | None) -> str:
             mode="number+gauge",
             value=mark,
             number={"prefix": "$", "font": {"size": 24, "color": "#e8ecf6"}},
-            domain={"x": [0, 1], "y": [0, 1]},
+            # Leave room on the left for the live price so it does not collide
+            # with the bullet gauge when the card gets narrow.
+            domain={"x": [0.25, 1], "y": [0, 1]},
             gauge={
                 "shape": "bullet",
                 "axis": {"range": [lower, upper], "tickcolor": "#e8ecf6"},
@@ -535,7 +537,7 @@ def _build_position_gauge(position: dict | None) -> str:
         paper_bgcolor="#121a2f",
         plot_bgcolor="#121a2f",
         font_color="#e8ecf6",
-        margin=dict(t=18, b=18, l=36, r=20),
+        margin=dict(t=20, b=20, l=10, r=20),
         height=120,
     )
     return _figure_to_html(fig, div_id="position-gauge-chart")
