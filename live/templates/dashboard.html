@@ -236,7 +236,7 @@
             {% endif %}
             <tr><td colspan="2" style="padding:6px 0 2px;border-top:1px solid var(--line);"></td></tr>
             {% if position_gauge %}
-            <tr><td colspan="2" style="padding:4px 0 8px;">{{ position_gauge }}</td></tr>
+            <tr><td colspan="2" style="padding:4px 0 8px;" id="live-gauge-container">{{ position_gauge }}</td></tr>
             {% endif %}
             <tr>
               <td class="k" style="padding:2px 0;">Target</td>
@@ -496,6 +496,23 @@
           const marketValueEl = document.getElementById("live-market-value");
           if (marketValueEl) {
             marketValueEl.textContent = formatCurrency(livePrice * qty);
+          }
+
+          const gaugeContainer = document.getElementById("live-gauge-container");
+          const gaugeDiv = document.getElementById("position-gauge-chart");
+          if (
+            gaugeContainer &&
+            gaugeDiv &&
+            typeof Plotly !== "undefined" &&
+            isFiniteNumber(targetPrice) &&
+            isFiniteNumber(stopPrice)
+          ) {
+            const gaugeLower = Math.min(stopPrice, entryPrice, targetPrice, livePrice);
+            const gaugeUpper = Math.max(stopPrice, entryPrice, targetPrice, livePrice);
+            Plotly.restyle(gaugeDiv, {
+              value: [livePrice],
+              "gauge.axis.range": [[gaugeLower, gaugeUpper]],
+            });
           }
 
           if (isFiniteNumber(targetPrice)) {
