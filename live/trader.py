@@ -259,6 +259,32 @@ def _on_bar_inner() -> str:
         bar_count = state.increment_bar_count()
         log.info(f"Open position: {position.qty} {position.symbol} @ {position.entry_price:.2f} | bar {bar_count}/{config.MAX_TRADE_BARS_LIVE}")
 
+        # ── Software stop-loss: safety net if IBKR doesn't trigger the stop ──
+        # IBKR paper accounts can miss stop triggers. Also protects against
+        # stale DAY-tif stops that expired overnight before the GTC fix.
+        asset_config = _get_asset_config()
+        stop_price = round(position.entry_price * (1 - asset_config["stop_loss_pct"]), 2)
+        mark_price, mark_source = _resolve_mark_price(position.symbol, bar_close=bar_close_fallback)
+        if mark_price is not None and mark_price <= stop_price:
+            log.warning(
+                f"SOFTWARE STOP triggered | mark={mark_price:.2f} ({mark_source}) <= "
+                f"stop={stop_price:.2f} | IBKR stop did not fire — forcing close"
+            )
+            sell_fill = broker.cancel_and_close(position.symbol, position.bracket_order_id, position.qty)
+            if sell_fill is not None:
+                exit_price = sell_fill["fill_price"]
+                ret = (exit_price - position.entry_price) / position.entry_price
+                log.info(f"Software stop filled | price={exit_price:.2f} | ret={ret:+.4%}")
+            else:
+                exit_price = mark_price
+                ret = (exit_price - position.entry_price) / position.entry_price
+                log.warning(f"Software stop fill unavailable — using mark {exit_price:.2f} | est_ret={ret:+.4%}")
+                state.add_monitor_event("WARNING", "stop", f"Software stop fill unavailable, mark={exit_price:.2f}")
+            state.close_position(return_pct=ret, exit_type="stop_hit", exit_price=exit_price)
+            _sync_account_and_mark(bar_close=exit_price)
+            _log_summary()
+            return "exit_software_stop"
+
         if bar_count >= config.MAX_TRADE_BARS_LIVE:
             log.info("Time-exit triggered — cancelling bracket and selling")
             sell_fill = broker.cancel_and_close(position.symbol, position.bracket_order_id, position.qty)
