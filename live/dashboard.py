@@ -44,6 +44,30 @@ def _filter_prod_trades(trades: list[dict]) -> list[dict]:
     return [t for t in trades if t.get("exit_type") in _PROD_EXIT_TYPES]
 
 
+def _summarize_trades(trades: list[dict]) -> dict:
+    if not trades:
+        return {"total": 0, "win_rate": 0.0, "total_ret": 0.0, "exit_types": {}}
+
+    returns = [float(t.get("return_pct") or 0.0) for t in trades]
+    win_rate = sum(1 for ret in returns if ret > 0) / len(returns)
+    total_ret = 1.0
+    for ret in returns:
+        total_ret *= (1.0 + ret)
+    total_ret -= 1.0
+
+    exit_types: dict[str, int] = {}
+    for trade in trades:
+        exit_type = trade.get("exit_type") or "unknown"
+        exit_types[exit_type] = exit_types.get(exit_type, 0) + 1
+
+    return {
+        "total": len(returns),
+        "win_rate": win_rate,
+        "total_ret": total_ret,
+        "exit_types": exit_types,
+    }
+
+
 def _coerce_price(value) -> float | None:
     try:
         price = float(value)
@@ -552,7 +576,7 @@ def dashboard(request: Request) -> HTMLResponse:
     all_trades = state.get_recent_trades(limit=250)
     trades = _filter_prod_trades(all_trades)[:30]
     chart_trades = _filter_prod_trades(all_trades)
-    summary = state.get_trade_summary(allowed_exit_types=_PROD_EXIT_TYPES)
+    summary = _summarize_trades(chart_trades)
     events = state.get_recent_monitor_events(limit=30)
     all_exit_counts = state.get_exit_type_counts(limit=250)
     exit_counts = {k: v for k, v in all_exit_counts.items() if k in _PROD_EXIT_TYPES}
