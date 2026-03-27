@@ -7,6 +7,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -110,6 +111,22 @@ def _next_scheduled_run() -> str | None:
     return None
 
 
+def _resolve_asset_config(symbol: str | None = None) -> tuple[str | None, dict | None]:
+    candidates = [config.DEFAULT_ASSET]
+    if symbol:
+        candidates.extend([f"{symbol}_HOURLY", symbol])
+
+    seen: set[str] = set()
+    for candidate in candidates:
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        cfg = config.ASSETS.get(candidate)
+        if cfg is not None:
+            return candidate, cfg
+    return None, None
+
+
 def _build_returns_chart(trades: list[dict]) -> str:
     rows = list(reversed(trades[-30:]))
     if len(rows) < 3:
@@ -167,22 +184,190 @@ def _build_exit_type_chart(exit_counts: dict[str, int], needs_plotlyjs: bool = F
     return fig.to_html(full_html=False, include_plotlyjs="cdn" if needs_plotlyjs else False)
 
 
-def _build_signal_chart(signal_history: list[dict], needs_plotlyjs: bool = False) -> str:
+def _build_signal_chart(
+    signal_history: list[dict],
+    *,
+    rsi_oversold: float | None = None,
+    rsi_overbought: float | None = None,
+    needs_plotlyjs: bool = False,
+) -> str:
     rows = list(reversed(signal_history))
     if not rows:
         return ""
+
     x = [r.get("bar_time") or r.get("updated_at") for r in rows]
-    y = [r.get("signal") for r in rows]
-    fig = go.Figure(data=[go.Scatter(x=x, y=y, mode="lines+markers", line_color="#4aa3ff")])
+    close = [r.get("bar_close") for r in rows]
+    rsi = [r.get("rsi") for r in rows]
+    signals = [r.get("signal") for r in rows]
+
+    fig = make_subplots(
+        rows=2,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.06,
+        row_heights=[0.72, 0.28],
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=close,
+            mode="lines",
+            name="Close",
+            line=dict(color="#4aa3ff", width=2),
+            hovertemplate="%{x}<br>Close $%{y:.2f}<extra></extra>",
+        ),
+        row=1,
+        col=1,
+    )
+
+    long_x, long_y, short_x, short_y = [], [], [], []
+    for idx, sig in enumerate(signals):
+        price = close[idx]
+        if price is None or sig is None:
+            continue
+        if sig > 0:
+            long_x.append(x[idx])
+            long_y.append(price)
+        elif sig < 0:
+            short_x.append(x[idx])
+            short_y.append(price)
+
+    if long_x:
+        fig.add_trace(
+            go.Scatter(
+                x=long_x,
+                y=long_y,
+                mode="markers",
+                name="LONG",
+                marker=dict(symbol="triangle-up", color="#2ecc71", size=12),
+                hovertemplate="%{x}<br>LONG @ $%{y:.2f}<extra></extra>",
+            ),
+            row=1,
+            col=1,
+        )
+    if short_x:
+        fig.add_trace(
+            go.Scatter(
+                x=short_x,
+                y=short_y,
+                mode="markers",
+                name="SHORT",
+                marker=dict(symbol="triangle-down", color="#e74c3c", size=12),
+                hovertemplate="%{x}<br>SHORT @ $%{y:.2f}<extra></extra>",
+            ),
+            row=1,
+            col=1,
+        )
+
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=rsi,
+            mode="lines",
+            name="RSI",
+            line=dict(color="#bb86fc", width=2),
+            hovertemplate="%{x}<br>RSI %{y:.2f}<extra></extra>",
+        ),
+        row=2,
+        col=1,
+    )
+
+    if rsi_oversold is not None:
+        fig.add_hline(
+            y=rsi_oversold,
+            line_dash="dash",
+            line_color="rgba(46, 204, 113, 0.55)",
+            row=2,
+            col=1,
+        )
+    if rsi_overbought is not None:
+        fig.add_hline(
+            y=rsi_overbought,
+            line_dash="dash",
+            line_color="rgba(231, 76, 60, 0.55)",
+            row=2,
+            col=1,
+        )
+
     fig.update_layout(
-        title="Signal Snapshot History",
+        title="Price Action & Signals",
         paper_bgcolor="#121a2f",
         plot_bgcolor="#121a2f",
         font_color="#e8ecf6",
         margin=dict(l=30, r=20, t=40, b=30),
-        height=240,
-        xaxis_title="Timestamp",
-        yaxis_title="Signal",
+        height=450,
+        showlegend=False,
+        hovermode="x unified",
+    )
+    fig.update_xaxes(showgrid=False)
+    fig.update_yaxes(
+        title_text="Price",
+        gridcolor="rgba(152, 162, 179, 0.12)",
+        zeroline=False,
+        row=1,
+        col=1,
+    )
+    fig.update_yaxes(
+        title_text="RSI",
+        range=[0, 100],
+        gridcolor="rgba(152, 162, 179, 0.12)",
+        zeroline=False,
+        row=2,
+        col=1,
+    )
+    return fig.to_html(full_html=False, include_plotlyjs="cdn" if needs_plotlyjs else False)
+
+
+def _build_position_gauge(position: dict | None, needs_plotlyjs: bool = False) -> str:
+    if not position:
+        return ""
+
+    mark = position.get("mark_price")
+    entry = position.get("entry_price")
+    target = position.get("target_price")
+    stop = position.get("stop_price")
+    if None in (mark, entry, target, stop):
+        return ""
+
+    mark = float(mark)
+    entry = float(entry)
+    target = float(target)
+    stop = float(stop)
+    lower = min(stop, entry, target, mark)
+    upper = max(stop, entry, target, mark)
+    if lower == upper:
+        pad = abs(lower) * 0.01 if lower else 1.0
+        lower -= pad
+        upper += pad
+
+    fig = go.Figure(
+        go.Indicator(
+            mode="number+gauge",
+            value=mark,
+            number={"prefix": "$", "font": {"size": 24, "color": "#e8ecf6"}},
+            domain={"x": [0, 1], "y": [0, 1]},
+            gauge={
+                "shape": "bullet",
+                "axis": {"range": [lower, upper], "tickcolor": "#e8ecf6"},
+                "threshold": {
+                    "line": {"color": "#e8ecf6", "width": 3},
+                    "thickness": 0.75,
+                    "value": entry,
+                },
+                "steps": [
+                    {"range": [stop, entry], "color": "rgba(231, 76, 60, 0.25)"},
+                    {"range": [entry, target], "color": "rgba(46, 204, 113, 0.25)"},
+                ],
+                "bar": {"color": "#4aa3ff", "thickness": 0.32},
+            },
+        )
+    )
+    fig.update_layout(
+        paper_bgcolor="#121a2f",
+        plot_bgcolor="#121a2f",
+        font_color="#e8ecf6",
+        margin=dict(t=18, b=18, l=36, r=20),
+        height=120,
     )
     return fig.to_html(full_html=False, include_plotlyjs="cdn" if needs_plotlyjs else False)
 
@@ -197,6 +382,7 @@ def dashboard(request: Request) -> HTMLResponse:
     status = state.get_monitor_status()
     signal = state.get_signal_snapshot()
     signal_history = state.get_signal_history(limit=20)
+    signal_chart_history = state.get_signal_history(limit=60)
     position = state.get_position()
     position_dict = position.__dict__ if position else None
     all_trades = state.get_recent_trades(limit=50)
@@ -265,18 +451,11 @@ def dashboard(request: Request) -> HTMLResponse:
 
     position_view = None
     if position_dict:
-        # Try the active mode's asset key first, then fall back to symbol_HOURLY / symbol
-        asset_key = config.DEFAULT_ASSET
         symbol = position_dict["symbol"]
-        if asset_key not in config.ASSETS:
-            for candidate in [f"{symbol}_HOURLY", symbol]:
-                if candidate in config.ASSETS:
-                    asset_key = candidate
-                    break
+        _asset_key, cfg = _resolve_asset_config(symbol)
         target_pct = None
         stop_pct = None
-        if asset_key in config.ASSETS:
-            cfg = config.ASSETS[asset_key]
+        if cfg is not None:
             target_pct = cfg.get("target_gain_pct")
             stop_pct = cfg.get("stop_loss_pct")
 
@@ -322,8 +501,22 @@ def dashboard(request: Request) -> HTMLResponse:
     returns_chart = Markup(_build_returns_chart(trades))
     exit_chart_needs_js = not returns_chart
     exit_chart = Markup(_build_exit_type_chart(exit_counts, needs_plotlyjs=exit_chart_needs_js))
+    _, signal_asset_cfg = _resolve_asset_config(status.get("live_symbol") if status else None)
+    rsi_oversold = signal_asset_cfg.get("rsi_oversold") if signal_asset_cfg else None
+    rsi_overbought = signal_asset_cfg.get("rsi_overbought") if signal_asset_cfg else None
     signal_chart_needs_js = not returns_chart and not exit_chart
-    signal_chart = Markup(_build_signal_chart(signal_history, needs_plotlyjs=signal_chart_needs_js))
+    signal_chart = Markup(
+        _build_signal_chart(
+            signal_chart_history,
+            rsi_oversold=rsi_oversold,
+            rsi_overbought=rsi_overbought,
+            needs_plotlyjs=signal_chart_needs_js,
+        )
+    )
+    gauge_needs_js = not returns_chart and not exit_chart and not signal_chart
+    position_gauge = Markup(
+        _build_position_gauge(position_view, needs_plotlyjs=gauge_needs_js)
+    )
 
     return TEMPLATES.TemplateResponse(
         request=request,
@@ -344,6 +537,7 @@ def dashboard(request: Request) -> HTMLResponse:
             "returns_chart": returns_chart,
             "exit_chart": exit_chart,
             "signal_chart": signal_chart,
+            "position_gauge": position_gauge,
             "cycle_age_min": cycle_age_min,
             "cycle_text": cycle_text,
             "cycle_color": cycle_color,

@@ -192,6 +192,9 @@
             <tr><td class="k" style="padding:2px 0;">Market value</td><td style="padding:2px 0;">${{ position.market_value|commafy }}</td></tr>
             {% endif %}
             <tr><td colspan="2" style="padding:6px 0 2px;border-top:1px solid var(--line);"></td></tr>
+            {% if position_gauge %}
+            <tr><td colspan="2" style="padding:4px 0 8px;">{{ position_gauge }}</td></tr>
+            {% endif %}
             <tr>
               <td class="k" style="padding:2px 0;">Target</td>
               <td style="padding:2px 0;">

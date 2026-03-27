@@ -100,7 +100,7 @@ MAX_POSITION_PCT_STRONG_BULL = 0.30   # 30% cap lets Kelly×1.5 deploy to 27% (w
 
 # Soft 50-MA correction gate (0 = disabled; 0.05 = block if >5% below 50-MA)
 STRONG_BULL_REQUIRE_50MA  = False
-STRONG_BULL_SOFT_50MA_PCT = 0.0       # Set to 0.05 to filter extended corrections (June/Aug 2024)
+STRONG_BULL_SOFT_50MA_PCT = 0.02       # Set to 0.05 to filter extended corrections (June/Aug 2024)
 
 # ADX sizing
 ADX_PERIOD        = 14
@@ -219,16 +219,16 @@ BACKTEST_END_QQQ_HOURLY   = "2026-03-01"
 # ═══════════════════════════════════════════════════════════════════════════
 
 RSI_PERIOD_TQQQ_HOURLY         = 7
-RSI_OVERSOLD_TQQQ_HOURLY       = 70    # Realistic sweep optimal (1.9:1 R:R)
+RSI_OVERSOLD_TQQQ_HOURLY       = 80    # Realistic sweep optimal (1.9:1 R:R)
 RSI_OVERBOUGHT_TQQQ_HOURLY     = 62
 MACD_FAST_TQQQ_HOURLY          = 6     # DEAD LEVER (confirmed: same as QQQ/BTC hourly)
 MACD_SLOW_TQQQ_HOURLY          = 13
 MACD_SIGNAL_TQQQ_HOURLY        = 4
 VWAP_WINDOW_TQQQ_HOURLY        = 10
-VWAP_ZSCORE_THRESH_TQQQ_HOURLY = 0.5   # Sweep optimal (dead lever — 0.3-0.6 nearly identical)
+VWAP_ZSCORE_THRESH_TQQQ_HOURLY = 0.4   # Sweep optimal (dead lever — 0.3-0.6 nearly identical)
 BB_WINDOW_TQQQ_HOURLY          = 14
-TARGET_GAIN_PCT_TQQQ_HOURLY    = 0.0280 # 2.80% target — realistic sweep optimal; 1.9:1 R:R
-STOP_LOSS_PCT_TQQQ_HOURLY      = 0.0150 # 1.50% stop — Sharpe 3.7, DD -3.85%, WR 55.9%, +1.77%/mo
+TARGET_GAIN_PCT_TQQQ_HOURLY    = 0.0140 # 2.80% target — realistic sweep optimal; 1.9:1 R:R
+STOP_LOSS_PCT_TQQQ_HOURLY      = 0.0060 # 1.50% stop — Sharpe 3.7, DD -3.85%, WR 55.9%, +1.77%/mo
 # Previous configs (pre-realistic-backtest fixes — inflated by same-bar ambiguity bias):
 # TARGET_GAIN_PCT_TQQQ_HOURLY  = 0.0072  # 0.72% target, 1.8:1 R:R (optimistic mode)
 # TARGET_GAIN_PCT_TQQQ_HOURLY  = 0.0042  # 0.42% target, 5.6:1 R:R (optimistic mode)
