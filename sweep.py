@@ -60,6 +60,17 @@ parser.add_argument("--mode", default="realistic", choices=["optimistic", "reali
 parser.add_argument("--holdout-pct", type=float, default=20,
                     help="Percentage of data to reserve as untouched holdout (default: 20%%). "
                          "Set to 0 to disable holdout.")
+parser.add_argument("--validate-best", action="store_true",
+                    help="After the sweep, automatically validate the top candidates across multiple holdout splits and modes.")
+# Optional parameter overrides / filters
+parser.add_argument("--rsi", type=int, default=None,
+                    help="Force a single RSI oversold value instead of sweeping RSI values.")
+parser.add_argument("--vwap", type=float, default=None,
+                    help="Force a single VWAP z-score threshold instead of sweeping VWAP values.")
+parser.add_argument("--target", type=float, default=None,
+                    help="Force a single target %% instead of sweeping target values (example: 1.4 for 1.4%%).")
+parser.add_argument("--stop", type=float, default=None,
+                    help="Force a single stop %% instead of sweeping stop values (example: 0.65 for 0.65%%).")
 args = parser.parse_args()
 
 TICKER = args.ticker.upper()
@@ -443,10 +454,15 @@ def update_best(r, target, stop, rsi=None, vwap=None):
         if vwap is not None:
             best["vwap"] = vwap
 
-
 # ═══════════════════════════════════════════════════════════════════════════
 #  PHASE 1 — COARSE SWEEP
 # ═══════════════════════════════════════════════════════════════════════════
+# Optional sweep override lists
+target_values_phase1a = [args.target] if args.target is not None else [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.2, 1.4, 1.6, 2.0]
+stop_values_phase1b = [args.stop] if args.stop is not None else [0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.50, 0.60]
+vwap_values_phase1c = [args.vwap] if args.vwap is not None else [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.2]
+rsi_values_phase1d = [args.rsi] if args.rsi is not None else [42, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100]
+
 if args.phase in ("1", "all"):
     # ── 1a: Target/Stop at 2:1 R:R ────────────────────────────────────────
     restore()
@@ -454,13 +470,17 @@ if args.phase in ("1", "all"):
     print(f"PHASE 1a: Target/Stop sweep (2:1 R:R) — {TICKER}")
     print("=" * 95)
 
-    for t_pct in [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.2, 1.4, 1.6, 2.0]:
+    for t_pct in target_values_phase1a:
         t = t_pct / 100
         s = t / 2
-        if MIN_STOP_PCT and t_pct / 2 < MIN_STOP_PCT:
-            continue  # skip: stop below safe minimum
+        if args.stop is not None:
+            s = args.stop / 100
+        if MIN_STOP_PCT and s * 100 < MIN_STOP_PCT:
+            continue
+        if s >= t:
+            continue
         r = run_quiet(target=t, stop=s)
-        print(fmt(r, f"target={t_pct:4.1f}% stop={t_pct/2:5.2f}%"))
+        print(fmt(r, f"target={t*100:4.1f}% stop={s*100:5.2f}%"))
         if r and "error" not in r:
             update_best(r, t, s)
 
@@ -472,50 +492,49 @@ if args.phase in ("1", "all"):
     print(f"PHASE 1b: R:R variations at target={best_t_pct:.1f}%")
     print("=" * 95)
 
-    for s_pct in [0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.50, 0.60]:
+    for s_pct in stop_values_phase1b:
         s = s_pct / 100
         if s >= best_target:
-            continue  # skip R:R < 1:1
+            continue
         if MIN_STOP_PCT and s_pct < MIN_STOP_PCT:
-            continue  # skip stops below safe minimum
+            continue
         r = run_quiet(target=best_target, stop=s)
         rr = best_t_pct / s_pct
         print(fmt(r, f"R:R={rr:4.1f}:1 stop={s_pct:.2f}%"))
         if r and "error" not in r:
             update_best(r, best_target, s)
 
-    # ── 1c: VWAP threshold ─────────────────────────────────────────────────
+    # ── 1c: VWAP threshold ────────────────────────────────────────────────
     restore()
     print()
     print("=" * 95)
     print(f"PHASE 1c: VWAP z-score threshold (at best target/stop so far)")
     print("=" * 95)
 
-    for v in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.2]:
+    for v in vwap_values_phase1c:
         r = run_quiet(target=best["target"], stop=best["stop"], vwap=v)
         print(fmt(r, f"VWAP={v:.1f}"))
         if r and "error" not in r:
             update_best(r, best["target"], best["stop"], vwap=v)
 
-    # ── 1d: RSI oversold threshold ──────────────────────────────────────────
+    # ── 1d: RSI oversold threshold ────────────────────────────────────────
     restore()
     print()
     print("=" * 95)
     print(f"PHASE 1d: RSI oversold threshold (at best target/stop so far)")
     print("=" * 95)
 
-    for rsi in [42, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100]:
+    for rsi in rsi_values_phase1d:
         r = run_quiet(target=best["target"], stop=best["stop"], rsi_os=rsi)
         print(fmt(r, f"RSI={rsi:3d}"))
         if r and "error" not in r:
             update_best(r, best["target"], best["stop"], rsi=rsi)
 
+# ═══════════════════════════════════════════════════════════════════════════
+#  PHASE 2 — CROSS-VALIDATION (fine-tune around phase 1 best)
     print(f"\n  Phase 1 best: target={best['target']*100:.2f}% stop={best['stop']*100:.2f}% "
           f"RSI={best['rsi']} VWAP={best['vwap']} → score={best['score']:.1f}")
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-#  PHASE 2 — CROSS-VALIDATION (fine-tune around phase 1 best)
 # ═══════════════════════════════════════════════════════════════════════════
 if args.phase in ("2", "all"):
     bt = best["target"]
@@ -638,12 +657,13 @@ if args.phase in ("2", "all"):
 #  live_score, NOT best train score. This prevents in-sample overfitting.
 # ═══════════════════════════════════════════════════════════════════════════
 
-def _run_on_data(df, target, stop, rsi, vwap):
+def _run_on_data(df, target, stop, rsi, vwap, holdout_start=None, backtest_mode=None):
     """Run a single backtest on arbitrary data slice. Returns result or None."""
     setattr(config, f"RSI_OVERSOLD_{MODE_NAME}", rsi)
     config.ASSETS[MODE_NAME]["rsi_oversold"] = rsi
     setattr(config, f"VWAP_ZSCORE_THRESH_{MODE_NAME}", vwap)
     config.ASSETS[MODE_NAME]["vwap_zscore_thresh"] = vwap
+    mode_to_use = backtest_mode or args.mode
     try:
         with contextlib.redirect_stdout(io.StringIO()):
             r = run_backtest(
@@ -655,9 +675,107 @@ def _run_on_data(df, target, stop, rsi, vwap):
                 kelly_multiplier=config.KELLY_MULTIPLIER,
                 timeframe="hourly",
                 plot=False,
-                backtest_mode=args.mode,
+                backtest_mode=mode_to_use,
             )
-        return r if r and "error" not in r and r.get("total_trades", 0) > 0 else None
+
+            # If the engine produced no trades, `run_backtest()` returns `{}`.
+            # Preserve that case for Phase 3 so it doesn't get treated as "missing".
+            if r == {}:
+                r = {
+                    "total_trades": 0,
+                    "bull_trades": 0,
+                    "bear_trades": 0,
+                    "win_rate": 0.0,
+                    "avg_win_pct": 0.0,
+                    "avg_loss_pct": 0.0,
+                    "total_return": 0.0,
+                    "sharpe_ratio": 0.0,
+                    "max_drawdown": 0.0,
+                    "final_capital": config.INITIAL_CAPITAL,
+                    "equity_curve": pd.Series([config.INITIAL_CAPITAL], dtype=float),
+                    "trade_returns": pd.Series(dtype=float),
+                    "trades_df": pd.DataFrame(),
+                    "monthly_returns": pd.Series(dtype=float),
+                    "backtest_mode": mode_to_use,
+                    "slippage_pct": 0.0,
+                    "trades_per_year": 0.0,
+                    "exit_breakdown": {},
+                }
+
+        if holdout_start is not None and isinstance(r, dict) and "error" not in r:
+            trades_df = r.get("trades_df")
+            if trades_df is not None and not trades_df.empty:
+                trade_timestamps = pd.to_datetime(trades_df["timestamp"])
+                filtered_trades = trades_df.loc[trade_timestamps >= holdout_start].copy()
+                filtered_trades["timestamp"] = pd.to_datetime(filtered_trades["timestamp"])
+            else:
+                filtered_trades = pd.DataFrame()
+
+            if filtered_trades.empty:
+                r = {
+                    "total_trades": 0,
+                    "bull_trades": 0,
+                    "bear_trades": 0,
+                    "win_rate": 0.0,
+                    "avg_win_pct": 0.0,
+                    "avg_loss_pct": 0.0,
+                    "total_return": 0.0,
+                    "sharpe_ratio": 0.0,
+                    "max_drawdown": 0.0,
+                    "final_capital": config.INITIAL_CAPITAL,
+                    "equity_curve": pd.Series([config.INITIAL_CAPITAL], dtype=float),
+                    "trade_returns": pd.Series(dtype=float),
+                    "trades_df": pd.DataFrame(),
+                    "monthly_returns": pd.Series(dtype=float),
+                    "backtest_mode": mode_to_use,
+                    "slippage_pct": 0.0,
+                    "trades_per_year": 0.0,
+                    "exit_breakdown": {},
+                }
+            else:
+                trade_returns = filtered_trades["return"].astype(float)
+                trade_returns.index = pd.to_datetime(filtered_trades["timestamp"])
+                wins = trade_returns[trade_returns > 0]
+                losses = trade_returns[trade_returns < 0]
+                equity_curve = (1.0 + trade_returns).cumprod() * config.INITIAL_CAPITAL
+                monthly_returns = trade_returns.resample("ME").sum()
+                running_max = equity_curve.cummax()
+                drawdown = (equity_curve / running_max) - 1.0
+                bull_trades = int((filtered_trades["trend_regime"] == 1).sum()) if "trend_regime" in filtered_trades.columns else 0
+                bear_trades = int((filtered_trades["trend_regime"] == -1).sum()) if "trend_regime" in filtered_trades.columns else 0
+                exit_breakdown = (
+                    filtered_trades["exit_type"].value_counts().to_dict()
+                    if "exit_type" in filtered_trades.columns else {}
+                )
+
+                r = {
+                    "total_trades": int(len(filtered_trades)),
+                    "bull_trades": bull_trades,
+                    "bear_trades": bear_trades,
+                    "win_rate": float((trade_returns > 0).mean()) if len(trade_returns) else 0.0,
+                    "avg_win_pct": float(wins.mean()) if len(wins) else 0.0,
+                    "avg_loss_pct": float(losses.mean()) if len(losses) else 0.0,
+                    "total_return": float((equity_curve.iloc[-1] / config.INITIAL_CAPITAL) - 1.0),
+                    "sharpe_ratio": float(
+                        (trade_returns.mean() / trade_returns.std(ddof=0)) * (len(trade_returns) ** 0.5)
+                    ) if len(trade_returns) > 1 and trade_returns.std(ddof=0) > 0 else 0.0,
+                    "max_drawdown": float(drawdown.min()) if len(drawdown) else 0.0,
+                    "final_capital": float(equity_curve.iloc[-1]) if len(equity_curve) else config.INITIAL_CAPITAL,
+                    "equity_curve": equity_curve,
+                    "trade_returns": trade_returns,
+                    "trades_df": filtered_trades,
+                    "monthly_returns": monthly_returns,
+                    "backtest_mode": mode_to_use,
+                    "slippage_pct": float(r.get("slippage_pct", 0.0) or 0.0),
+                    "trades_per_year": float(r.get("trades_per_year", 0.0) or 0.0),
+                    "exit_breakdown": exit_breakdown,
+                }
+
+        if r is None:
+            return None
+        if isinstance(r, dict) and "error" in r:
+            return None
+        return r
     except Exception:
         return None
 
@@ -682,6 +800,8 @@ print("=" * 95)
 print(f"PHASE 3: HOLDOUT evaluation — top {TOP_N} candidates on OOS data")
 print("=" * 95)
 
+all_zero_holdout = False
+
 if df_holdout is not None and len(top_candidates) > 0:
     # Use the best MAX_TRADE_BARS from Phase 2d for holdout evaluation
     config.MAX_TRADE_BARS = best.get("max_trade_bars", _default_max_trade_bars)
@@ -692,20 +812,63 @@ if df_holdout is not None and len(top_candidates) > 0:
 
     for c in top_candidates:
         p = c["params"]
-        hr = _run_on_data(df_holdout, p["target"], p["stop"], p["rsi"], p["vwap"])
-        if hr:
-            hm = extract_metrics(hr)
-            hs = live_score(hr, stop=p["stop"], train_metrics=c["train_metrics"])
-            c["holdout_result"] = hr
-            c["holdout_metrics"] = hm
-            c["holdout_score"] = hs
+        hold_r = _run_on_data(
+            df_full,
+            p["target"],
+            p["stop"],
+            p["rsi"],
+            p["vwap"],
+            holdout_start=df_holdout.index[0],
+        )
+
+        ZERO_TRADE_PENALTY = -9999.0
+        holdout_ok = (hold_r is not None and "error" not in hold_r)
+
+        # Exactly one holdout evaluation call above; exactly one score path here.
+        holdout_result = hold_r if holdout_ok else None
+        holdout_metrics = extract_metrics(hold_r) if holdout_ok else None
+
+        hold_trades = int((holdout_metrics or {}).get("total_trades", 0) or 0)
+        has_holdout_trades = hold_trades > 0
+
+        if has_holdout_trades:
+            holdout_score = float(live_score(holdout_result, stop=p["stop"], train_metrics=c.get("train_metrics")))
         else:
-            c["holdout_result"] = None
-            c["holdout_metrics"] = None
-            c["holdout_score"] = -9999
+            holdout_score = ZERO_TRADE_PENALTY
+
+        hold_ret = float((holdout_metrics or {}).get("total_return_pct", 0.0) or 0.0)
+        hold_wr = float((holdout_metrics or {}).get("win_rate_pct", 0.0) or 0.0)
+        hold_sharpe = float((holdout_metrics or {}).get("sharpe_ratio", 0.0) or 0.0)
+        hold_neg = int((holdout_metrics or {}).get("neg_months", 0) or 0)
+
+        # Single assignment block for Phase 3 records (even if 0-trade)
+        c["holdout_result"] = holdout_result
+        c["holdout_metrics"] = holdout_metrics
+        c["holdout_score"] = holdout_score
+        c["holdout_trades"] = hold_trades
+        c["holdout_return"] = hold_ret
+        c["holdout_win_rate"] = hold_wr
+        c["holdout_sharpe"] = hold_sharpe
+        c["holdout_neg_months"] = hold_neg
+        c["has_holdout_trades"] = has_holdout_trades
 
     # Rank by holdout score — THIS is the final selection criterion
-    top_candidates.sort(key=lambda c: c["holdout_score"], reverse=True)
+    top_candidates.sort(
+        key=lambda x: (
+            1 if x.get("has_holdout_trades", False) else 0,
+            x.get("holdout_score", -9999.0),
+            x.get("train_score", 0.0),
+        ),
+        reverse=True,
+    )
+
+    all_zero_holdout = (
+        len(top_candidates) > 0 and
+        all(not row.get("has_holdout_trades", False) for row in top_candidates)
+    )
+
+    if all_zero_holdout:
+        print("\nWARNING: all holdout candidates produced zero trades; final selection is diagnostic only.\n")
 
     print(f"  {'Rank':>4}  {'Target':>7} {'Stop':>7} {'RSI':>4} {'VWAP':>5} "
           f"| {'TrainRet':>9} {'HoldRet':>9} {'HoldSharpe':>11} {'HoldWR':>7} "
@@ -780,7 +943,7 @@ for c in top_candidates[:PERTURB_TOP_N]:
                     nr = base_rsi + rsi_delta
                     nv = round(base_vwap + vwap_delta, 2)
                     # Skip invalid combos
-                    if nt <= 0 or ns <= 0 or ns >= nt or nr < 30 or nr > 100 or nv < 0.05:
+                    if nt <= 0 or ns <= 0 or ns >= nt or nr < 30 or nr > 100 or nv < 0.0:
                         continue
                     if MIN_STOP_PCT and ns * 100 < MIN_STOP_PCT:
                         continue
@@ -790,18 +953,29 @@ for c in top_candidates[:PERTURB_TOP_N]:
     perturb_scores = []
     perturb_returns = []
     for nt, ns, nr, nv in neighbours:
-        pr = _run_on_data(perturb_df, nt, ns, nr, nv)
-        if pr:
+        if df_holdout is not None:
+            pr = _run_on_data(
+                df_full,
+                nt,
+                ns,
+                nr,
+                nv,
+                holdout_start=df_holdout.index[0],
+            )
+        else:
+            pr = _run_on_data(perturb_df, nt, ns, nr, nv)
+
+        if pr is not None and "error" not in pr:
             ps = live_score(pr, stop=ns)
             perturb_scores.append(ps)
-            perturb_returns.append(pr["total_return"])
+            perturb_returns.append(float(pr.get("total_return", 0.0) or 0.0))
         else:
-            perturb_scores.append(-9999)
-            perturb_returns.append(None)
+            perturb_scores.append(0.0)
+            perturb_returns.append(0.0)
 
     # Compute robustness metrics
-    valid_scores = [s for s in perturb_scores if s > -9999]
-    valid_returns = [r for r in perturb_returns if r is not None]
+    valid_scores = perturb_scores
+    valid_returns = perturb_returns
 
     if valid_scores:
         avg_score = sum(valid_scores) / len(valid_scores)
@@ -850,6 +1024,7 @@ def _build_preset(c, label):
     rr = p["target"] / p["stop"] if p["stop"] > 0 else 0
     stop_d = median_price * p["stop"]
     sp_mult = stop_d / est_spread if est_spread > 0 else 999
+    mtb = c.get("max_trade_bars", best.get("max_trade_bars", _default_max_trade_bars))
 
     preset = {
         "label": label,
@@ -859,7 +1034,7 @@ def _build_preset(c, label):
             "rsi_oversold": p["rsi"],
             "vwap_zscore_thresh": p["vwap"],
             "rr_ratio": round(rr, 2),
-            "max_trade_bars": best.get("max_trade_bars", _default_max_trade_bars),
+            "max_trade_bars": mtb,
         },
         "live_trading": {
             "stop_dollars": round(stop_d, 3),
@@ -882,27 +1057,132 @@ def _build_preset(c, label):
     return preset
 
 
+def _candidate_max_trade_bars(c):
+    return int(c.get("max_trade_bars", best.get("max_trade_bars", _default_max_trade_bars)))
+
+
+def _candidate_key(c):
+    p = c["params"]
+    return (
+        round(p["target"], 6),
+        round(p["stop"], 6),
+        int(p["rsi"]),
+        round(p["vwap"], 2),
+        _candidate_max_trade_bars(c),
+    )
+
+
+def _candidate_param_str(c):
+    p = c["params"]
+    return (f"t={p['target']*100:.2f}% s={p['stop']*100:.3f}% "
+            f"r={p['rsi']} v={p['vwap']:.1f} m={_candidate_max_trade_bars(c)}")
+
+
+def _robustness_summary(c):
+    rob = c.get("robustness", {})
+    if rob.get("avg_score", -9999) <= -9999:
+        return "-"
+    return f"{rob.get('avg_score', 0):.1f}/{rob.get('pct_positive', 0):.0f}%"
+
+
+def _validate_candidate_holdout(c, holdout_pct, backtest_mode):
+    holdout_frac = holdout_pct / 100.0
+    if holdout_frac <= 0 or holdout_frac >= 1 or len(df_full) <= 200:
+        return {
+            "holdout_pct": holdout_pct,
+            "mode": backtest_mode,
+            "result": None,
+            "metrics": None,
+            "score": -9999.0,
+            "holdout_bars": 0,
+            "holdout_start": None,
+        }
+
+    split_idx = int(len(df_full) * (1 - holdout_frac))
+    if split_idx <= 0 or split_idx >= len(df_full):
+        return {
+            "holdout_pct": holdout_pct,
+            "mode": backtest_mode,
+            "result": None,
+            "metrics": None,
+            "score": -9999.0,
+            "holdout_bars": 0,
+            "holdout_start": None,
+        }
+
+    df_validation_holdout = df_full.iloc[split_idx:].copy()
+    holdout_start = df_validation_holdout.index[0]
+    prev_mtb = config.MAX_TRADE_BARS
+    try:
+        config.MAX_TRADE_BARS = _candidate_max_trade_bars(c)
+        vr = _run_on_data(
+            df_full,
+            c["params"]["target"],
+            c["params"]["stop"],
+            c["params"]["rsi"],
+            c["params"]["vwap"],
+            holdout_start=holdout_start,
+            backtest_mode=backtest_mode,
+        )
+    finally:
+        config.MAX_TRADE_BARS = prev_mtb
+
+    metrics = extract_metrics(vr) if vr is not None and "error" not in vr else None
+    score = (float(live_score(vr, stop=c["params"]["stop"], train_metrics=c.get("train_metrics")))
+             if vr is not None and "error" not in vr else -9999.0)
+    return {
+        "holdout_pct": holdout_pct,
+        "mode": backtest_mode,
+        "result": vr,
+        "metrics": metrics,
+        "score": score,
+        "holdout_bars": len(df_validation_holdout),
+        "holdout_start": holdout_start,
+    }
+
+
 # ── 1. Best overall = top holdout score (already sorted) ─────────────────
 presets = {}
+preset_candidate_rows = {}
 
-valid_top = [c for c in top_candidates if c.get("holdout_score", -9999) > -9999
-             or (df_holdout is None and c["train_score"] > -9999)]
+def _selection_key(row):
+    return (
+        1 if row.get("has_holdout_trades", False) else 0,
+        row.get("holdout_score", -9999.0),
+        row.get("train_score", 0.0),
+        row.get("total_trades", 0),
+    )
+
+if df_holdout is None:
+    valid_top = [c for c in top_candidates if c.get("train_score", -9999) > -9999]
+else:
+    if all_zero_holdout:
+        valid_top = top_candidates
+    else:
+        valid_top = [c for c in top_candidates if c.get("has_holdout_trades", False)]
 
 if valid_top:
-    presets["best_overall"] = _build_preset(valid_top[0], "best_overall")
+    phase3_rows = valid_top
+    best_overall = max(phase3_rows, key=_selection_key)
+    presets["best_overall"] = _build_preset(best_overall, "best_overall")
+    preset_candidate_rows["best_overall"] = best_overall
 
 # ── 2. Most robust = highest avg perturbation score ──────────────────────
 robust_candidates = [c for c in top_candidates[:PERTURB_TOP_N]
                      if c.get("robustness", {}).get("avg_score", -9999) > -9999]
+if df_holdout is not None and not all_zero_holdout:
+    robust_candidates = [c for c in robust_candidates if c.get("has_holdout_trades", False)]
 if robust_candidates:
     most_robust = max(robust_candidates, key=lambda c: c["robustness"]["avg_score"])
     presets["most_robust"] = _build_preset(most_robust, "most_robust")
+    preset_candidate_rows["most_robust"] = most_robust
 
 # ── 3. High-R:R challenger = highest R:R ratio among valid candidates ────
 rr_candidates = [c for c in valid_top if c["params"]["stop"] > 0]
 if rr_candidates:
     high_rr = max(rr_candidates, key=lambda c: c["params"]["target"] / c["params"]["stop"])
     presets["high_rr"] = _build_preset(high_rr, "high_rr")
+    preset_candidate_rows["high_rr"] = high_rr
 
 # ── 4. High-trade-count = most trades among valid candidates ─────────────
 trade_source = "holdout_metrics" if df_holdout is not None else "train_metrics"
@@ -910,6 +1190,7 @@ tc_candidates = [c for c in valid_top if c.get(trade_source)]
 if tc_candidates:
     high_tc = max(tc_candidates, key=lambda c: c[trade_source]["total_trades"])
     presets["high_trade_count"] = _build_preset(high_tc, "high_trade_count")
+    preset_candidate_rows["high_trade_count"] = high_tc
 
 # Print presets
 for label, preset in presets.items():
@@ -931,6 +1212,184 @@ for label, preset in presets.items():
         print(f"    robustness: {rob.get('neighbours_valid', 0)}/{rob.get('neighbours_tested', 0)} valid  "
               f"avg_score={rob.get('avg_score', 0):.1f}  min_score={rob.get('min_score', 0):.1f}  "
               f"{rob.get('pct_positive', 0):.0f}% positive")
+
+
+validation_stage = {}
+if args.validate_best:
+    print()
+    print("=" * 95)
+    print(f"VALIDATION: Cross-split / cross-mode check for {TICKER} HOURLY")
+    print("=" * 95)
+
+    validation_candidates = []
+    seen_validation_keys = set()
+    for label in ("best_overall", "most_robust", "high_rr", "high_trade_count"):
+        row = preset_candidate_rows.get(label)
+        if row is None:
+            continue
+        key = _candidate_key(row)
+        if key in seen_validation_keys:
+            continue
+        seen_validation_keys.add(key)
+        validation_candidates.append(row)
+        if len(validation_candidates) >= 3:
+            break
+
+    for row in valid_top:
+        if len(validation_candidates) >= 3:
+            break
+        key = _candidate_key(row)
+        if key in seen_validation_keys:
+            continue
+        seen_validation_keys.add(key)
+        validation_candidates.append(row)
+
+    if not validation_candidates:
+        print("  No final candidates available for validation.")
+    else:
+        validation_rows = []
+        validation_aggregates = []
+        validation_holdouts = [10, 20, 30]
+        validation_modes = ["realistic", "harsh"]
+
+        print(f"  {'Cand':>4}  {'Params':<38} {'Split':>5} {'Mode':>10} {'Trades':>6} "
+              f"{'Ret':>9} {'Sharpe':>7} {'DD':>8} {'Rob':>10}")
+        print("  " + "-" * 114)
+
+        for idx, candidate in enumerate(validation_candidates, start=1):
+            cand_id = f"C{idx}"
+            cand_param_str = _candidate_param_str(candidate)
+            rob_summary = _robustness_summary(candidate)
+            candidate_runs = []
+
+            for holdout_pct in validation_holdouts:
+                for validation_mode in validation_modes:
+                    vr = _validate_candidate_holdout(candidate, holdout_pct, validation_mode)
+                    candidate_runs.append(vr)
+                    validation_rows.append({"candidate_id": cand_id, **vr})
+                    vm = vr["metrics"] or {}
+                    print(f"  {cand_id:>4}  {cand_param_str:<38} {holdout_pct:>4}% {validation_mode:>10} "
+                          f"{int(vm.get('total_trades', 0) or 0):>6d} "
+                          f"{float(vm.get('total_return_pct', 0.0) or 0.0):>+8.2f}% "
+                          f"{float(vm.get('sharpe_ratio', 0.0) or 0.0):>7.1f} "
+                          f"{float(vm.get('max_drawdown_pct', 0.0) or 0.0):>7.2f}% "
+                          f"{rob_summary:>10}")
+
+            returns = [float((run["metrics"] or {}).get("total_return_pct", 0.0) or 0.0) for run in candidate_runs]
+            sharpes = [float((run["metrics"] or {}).get("sharpe_ratio", 0.0) or 0.0) for run in candidate_runs]
+            scores = [float(run.get("score", -9999.0) or 0.0) for run in candidate_runs]
+            positive_cells = sum(1 for ret in returns if ret > 0)
+            zero_trade_cells = sum(
+                1 for run in candidate_runs if int(((run["metrics"] or {}).get("total_trades", 0) or 0)) == 0
+            )
+            realistic_returns = [returns[i] for i, run in enumerate(candidate_runs) if run["mode"] == "realistic"]
+            harsh_returns = [returns[i] for i, run in enumerate(candidate_runs) if run["mode"] == "harsh"]
+
+            validation_aggregates.append({
+                "candidate_id": cand_id,
+                "candidate": candidate,
+                "avg_return_pct": sum(returns) / len(returns) if returns else 0.0,
+                "worst_return_pct": min(returns) if returns else 0.0,
+                "avg_sharpe": sum(sharpes) / len(sharpes) if sharpes else 0.0,
+                "avg_score": sum(scores) / len(scores) if scores else -9999.0,
+                "positive_cells": positive_cells,
+                "zero_trade_cells": zero_trade_cells,
+                "return_range_pct": (max(returns) - min(returns)) if returns else 0.0,
+                "realistic_avg_return_pct": (
+                    sum(realistic_returns) / len(realistic_returns) if realistic_returns else 0.0
+                ),
+                "harsh_avg_return_pct": (
+                    sum(harsh_returns) / len(harsh_returns) if harsh_returns else 0.0
+                ),
+            })
+
+        print()
+        print(f"  {'Cand':>4}  {'Params':<38} {'AvgRet':>9} {'WorstRet':>10} {'AvgSharpe':>10} "
+              f"{'Pos':>5} {'Zero':>5} {'AvgScore':>10}")
+        print("  " + "-" * 101)
+        for agg in validation_aggregates:
+            print(f"  {agg['candidate_id']:>4}  {_candidate_param_str(agg['candidate']):<38} "
+                  f"{agg['avg_return_pct']:>+8.2f}% {agg['worst_return_pct']:>+9.2f}% "
+                  f"{agg['avg_sharpe']:>10.2f} {agg['positive_cells']:>5d} "
+                  f"{agg['zero_trade_cells']:>5d} {agg['avg_score']:>10.2f}")
+
+        best_raw = max(
+            validation_aggregates,
+            key=lambda row: (row["avg_return_pct"], row["avg_sharpe"], row["worst_return_pct"]),
+        )
+        best_robust = max(
+            validation_aggregates,
+            key=lambda row: (
+                row["avg_score"],
+                row["worst_return_pct"],
+                row["positive_cells"],
+                -row["zero_trade_cells"],
+            ),
+        )
+
+        print()
+        print("  Recommendation:")
+        print(f"    Best raw performer: {best_raw['candidate_id']}  "
+              f"{_candidate_param_str(best_raw['candidate'])}  "
+              f"(avg_ret={best_raw['avg_return_pct']:+.2f}%, worst={best_raw['worst_return_pct']:+.2f}%, "
+              f"avg_sharpe={best_raw['avg_sharpe']:.2f})")
+        print(f"    Best robust performer: {best_robust['candidate_id']}  "
+              f"{_candidate_param_str(best_robust['candidate'])}  "
+              f"(avg_score={best_robust['avg_score']:.2f}, zero_cells={best_robust['zero_trade_cells']}, "
+              f"positive_cells={best_robust['positive_cells']}/6)")
+
+        sensitivity_warnings = []
+        for agg in validation_aggregates:
+            reasons = []
+            if agg["return_range_pct"] > 5.0:
+                reasons.append(f"split-sensitive (range {agg['return_range_pct']:.2f}%)")
+            mode_gap = abs(agg["realistic_avg_return_pct"] - agg["harsh_avg_return_pct"])
+            if mode_gap > 3.0:
+                reasons.append(f"mode-sensitive (realistic-harsh gap {mode_gap:.2f}%)")
+            if agg["zero_trade_cells"] >= 2:
+                reasons.append(f"{agg['zero_trade_cells']} zero-trade cells")
+            if reasons:
+                sensitivity_warnings.append(
+                    f"    Warning: {agg['candidate_id']} {_candidate_param_str(agg['candidate'])} -> "
+                    + ", ".join(reasons)
+                )
+
+        if sensitivity_warnings:
+            for warning_line in sensitivity_warnings:
+                print(warning_line)
+        else:
+            print("    No major split-sensitivity or mode-sensitivity warnings.")
+
+        validation_stage = {
+            "candidates": [
+                {
+                    "candidate_id": agg["candidate_id"],
+                    "params": {
+                        **agg["candidate"]["params"],
+                        "max_trade_bars": _candidate_max_trade_bars(agg["candidate"]),
+                    },
+                    "avg_return_pct": round(agg["avg_return_pct"], 3),
+                    "worst_return_pct": round(agg["worst_return_pct"], 3),
+                    "avg_sharpe": round(agg["avg_sharpe"], 3),
+                    "avg_score": round(agg["avg_score"], 3),
+                    "positive_cells": agg["positive_cells"],
+                    "zero_trade_cells": agg["zero_trade_cells"],
+                }
+                for agg in validation_aggregates
+            ],
+            "runs": [
+                {
+                    "candidate_id": row["candidate_id"],
+                    "holdout_pct": row["holdout_pct"],
+                    "mode": row["mode"],
+                    "metrics": row["metrics"],
+                    "score": round(float(row["score"]), 3),
+                }
+                for row in validation_rows
+            ],
+            "best_raw_candidate_id": best_raw["candidate_id"],
+            "best_robust_candidate_id": best_robust["candidate_id"],
+        }
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -955,6 +1414,8 @@ if r and "error" not in r:
         },
         "presets": presets,
     }
+    if validation_stage:
+        out["validation_best"] = validation_stage
 
     outfile = f"sweep_results_{TICKER}.json"
     with open(outfile, "w") as f:

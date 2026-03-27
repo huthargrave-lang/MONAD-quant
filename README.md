@@ -188,8 +188,11 @@ goes stale (the stale-age indicator reflects this).
 ## Universal Sweep Tool
 
 The sweep tool (`sweep.py`) finds optimal parameters for any equity or ETF on
-hourly bars. It is designed to evaluate **live-worthiness**, not just in-sample
-fit.
+hourly bars. It performs parameter search, holdout evaluation, robustness testing,
+and optional post-sweep validation — designed to evaluate **live-worthiness**,
+not just in-sample fit.
+
+### Quick start
 
 ```bash
 python sweep.py GDXU                        # Full sweep (2yr lookback)
@@ -198,6 +201,26 @@ python sweep.py SOXL --start 2024-06-01      # Custom date range
 python sweep.py LABU --min-stop 0.15         # Minimum stop floor
 python sweep.py GDXU --apply                 # Auto-apply to config.py
 ```
+
+### Parameter overrides
+
+Pin one or more params to skip sweeping them:
+
+```bash
+# Lock target/stop/rsi/vwap — sweep only the remaining params
+python sweep.py TQQQ --mode realistic --target 1.4 --stop 0.5 --rsi 80 --vwap 0.3
+
+# Run a full sweep then validate top candidates across splits and modes
+python sweep.py TQQQ --mode harsh --holdout-pct 20 --validate-best
+```
+
+| Flag | Effect |
+|---|---|
+| `--rsi N` | Force a single RSI oversold value instead of sweeping |
+| `--vwap X` | Force a single VWAP z-score threshold |
+| `--target X` | Force a single target % (e.g. `1.4` = 1.4%) |
+| `--stop X` | Force a single stop % (e.g. `0.65` = 0.65%) |
+| `--validate-best` | After sweep, cross-validate top candidates across multiple holdout splits and modes |
 
 ### Sweep phases
 
@@ -213,19 +236,52 @@ python sweep.py GDXU --apply                 # Auto-apply to config.py
 | 4 | Perturbation robustness — jitter params to test stability |
 | 5 | Final preset selection |
 
-### Evaluation methodology
+### Holdout evaluation (warm-context)
 
-- **Fixed 10% position sizing** in all sweep runs (matches live trader)
-- **Holdout split** — final candidate selection uses out-of-sample performance, not train score
-- **Live-score function** — penalizes high stop-hit ratio, negative months, ambiguous exits, too few trades, spread-unsafe stops, and train→holdout degradation
-- **Perturbation robustness** — top candidates tested with jittered params; fragile optima are flagged
+Holdout evaluation runs the backtest on the **full dataset** so that indicators
+(moving averages, RSI, MACD) are fully warmed up, then filters trades to only
+those occurring in the holdout period. This avoids the false "zero holdout
+trades" problem that occurs when running on an isolated holdout slice where
+indicators haven't had enough history to initialize.
 
-### Output
+If a candidate still produces zero holdout trades after warm-context evaluation,
+it is displayed for diagnostics but penalized in ranking so it cannot
+accidentally win preset selection.
 
-- **Multiple presets** per sweep: `best_overall`, `most_robust`, `high_rr`, `high_trade_count`
-- Each preset includes: params (target, stop, RSI, VWAP, R:R, MAX_TRADE_BARS), train metrics, holdout metrics, robustness scores, live-safety assessment (spread multiple)
-- Saved to `sweep_results_TICKER.json`
-- Experiment log appended to `experiments.jsonl` (one line per run)
+### Interpreting the output
+
+**Phase 3 — Holdout ranking:** Candidates are ranked by a composite key:
+candidates with holdout trades rank above those without, then by holdout
+live-score, then by train score as tiebreaker. The live-score function
+penalizes high stop-hit ratio, negative months, ambiguous exits, too few
+trades, spread-unsafe stops, and train→holdout degradation.
+
+**Phase 4 — Robustness:** Each top candidate is tested with jittered params
+(small perturbations to target, stop, RSI, VWAP). The average score and
+percent-positive across neighbours measure whether the optimum is stable or
+fragile.
+
+**Phase 5 — Presets:** Four presets are selected: `best_overall` (highest
+holdout score), `most_robust` (highest average perturbation score), `high_rr`
+(highest risk/reward ratio), `high_trade_count` (most trades).
+
+**Validation stage** (`--validate-best`): Cross-validates up to 3 top
+candidates across multiple holdout splits (10%, 20%, 30%) and backtest modes
+(realistic, harsh). Reports per-candidate averages and flags split-sensitive
+or mode-sensitive results. "Best raw performer" maximizes average return;
+"best robust performer" maximizes average score with fewest zero-trade cells.
+
+### Recommended workflow
+
+1. Run `python sweep.py TICKER` — review the Phase 5 presets
+2. Use `--validate-best` to cross-validate the top candidates automatically
+3. Move the top 1–2 presets to paper trading before live deployment
+4. Results are saved to `sweep_results_TICKER.json` and `experiments.jsonl`
+
+### Output files
+
+- **`sweep_results_TICKER.json`** — full results: params, train/holdout metrics, robustness scores, presets, validation (if `--validate-best`)
+- **`experiments.jsonl`** — one line per sweep run (append-only log)
 
 ---
 
@@ -283,6 +339,7 @@ python main.py --start 2023-01-01 --end 2023-12-31
 # Parameter sweep
 python sweep.py GDXU
 python sweep.py SOXL --start 2024-06-01 --mode realistic
+python sweep.py TQQQ --mode harsh --validate-best
 
 # Live trading
 python -m live.trader --dry-run --once    # verify signals
