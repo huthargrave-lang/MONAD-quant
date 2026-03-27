@@ -169,7 +169,7 @@
             <tr><td colspan="2" style="padding:6px 0 2px;border-top:1px solid var(--line);"></td></tr>
             <tr>
               <td class="k" style="padding:2px 0;">Mark price</td>
-              <td style="padding:2px 0;">
+              <td style="padding:2px 0;" id="live-mark-price">
                 {% if position.mark_price is not none %}
                   ${{ '%.2f'|format(position.mark_price) }}
                   <span class="badge" style="font-size:10px;padding:1px 6px;margin-left:4px;{% if position.mark_source == 'live' %}color:var(--green){% elif position.mark_source == 'delayed' %}color:var(--yellow){% elif position.mark_source in ('last_close', 'entry') %}color:var(--muted){% elif position.mark_source == 'estimated' %}color:#9b59b6{% else %}color:var(--red){% endif %}">{{ position.mark_source }}</span>
@@ -180,7 +180,7 @@
             </tr>
             <tr>
               <td class="k" style="padding:2px 0;">Unrealized PnL</td>
-              <td style="padding:2px 0;">
+              <td style="padding:2px 0;" id="live-unrealized-pnl">
                 {% if position.unrealized_dollar is not none %}
                   <span class="{{ 'green' if position.unrealized_dollar >= 0 else 'red' }}">
                     ${{ position.unrealized_dollar|commafy('{:+,.2f}') }} ({{ '%+.3f'|format(position.unrealized_pct*100) }}%)
@@ -189,7 +189,7 @@
               </td>
             </tr>
             {% if position.market_value is not none %}
-            <tr><td class="k" style="padding:2px 0;">Market value</td><td style="padding:2px 0;">${{ position.market_value|commafy }}</td></tr>
+            <tr><td class="k" style="padding:2px 0;">Market value</td><td style="padding:2px 0;" id="live-market-value">${{ position.market_value|commafy }}</td></tr>
             {% endif %}
             <tr><td colspan="2" style="padding:6px 0 2px;border-top:1px solid var(--line);"></td></tr>
             {% if position_gauge %}
@@ -201,7 +201,7 @@
                 {% if position.target_price %}
                   ${{ '%.2f'|format(position.target_price) }}
                   {% if position.dist_target is not none %}
-                    <span class="green" style="font-size:12px;">({{ '%+.3f'|format(position.dist_target*100) }}% away)</span>
+                    <span class="green" style="font-size:12px;" id="live-target-distance">({{ '%+.3f'|format(position.dist_target*100) }}% away)</span>
                   {% endif %}
                 {% else %}—{% endif %}
               </td>
@@ -212,7 +212,7 @@
                 {% if position.stop_price %}
                   ${{ '%.2f'|format(position.stop_price) }}
                   {% if position.dist_stop is not none %}
-                    <span class="red" style="font-size:12px;">({{ '%.3f'|format(position.dist_stop*100) }}% cushion)</span>
+                    <span class="red" style="font-size:12px;" id="live-stop-distance">({{ '%.3f'|format(position.dist_stop*100) }}% cushion)</span>
                   {% endif %}
                 {% else %}—{% endif %}
               </td>
@@ -357,6 +357,93 @@
       </section>
     </div>
 
-    <script>setTimeout(() => location.reload(), 30000);</script>
+    <script>
+      const activeSymbol = {{ (position.symbol if position else (status.live_symbol if status else '')) | tojson }};
+      const hasPosition = {{ (position is not none) | tojson }};
+      const entryPrice = {{ (position.entry_price if position else none) | tojson }};
+      const qty = {{ (position.qty if position else none) | tojson }};
+      const targetPrice = {{ (position.target_price if position else none) | tojson }};
+      const stopPrice = {{ (position.stop_price if position else none) | tojson }};
+
+      function isFiniteNumber(value) {
+        return typeof value === "number" && Number.isFinite(value);
+      }
+
+      function formatCurrency(value, { signed = false } = {}) {
+        const sign = signed ? (value >= 0 ? "+" : "-") : "";
+        return `${sign}$${Math.abs(value).toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`;
+      }
+
+      function formatPct(value, { signed = false } = {}) {
+        const sign = signed ? (value >= 0 ? "+" : "-") : "";
+        return `${sign}${Math.abs(value).toFixed(3)}%`;
+      }
+
+      async function updateLiveData() {
+        if (!activeSymbol) return;
+
+        try {
+          const response = await fetch(`/api/ticker/${encodeURIComponent(activeSymbol)}`, {
+            cache: "no-store",
+          });
+          const data = await response.json();
+          if (!response.ok || !isFiniteNumber(data.price)) {
+            throw new Error(data.error || `HTTP ${response.status}`);
+          }
+
+          const livePrice = data.price;
+          document.title = `$${livePrice.toFixed(2)} ${activeSymbol} · MONAD Bot Monitor`;
+
+          if (!hasPosition || !isFiniteNumber(entryPrice) || !isFiniteNumber(qty)) {
+            return;
+          }
+
+          const markEl = document.getElementById("live-mark-price");
+          if (markEl) {
+            const badgeColor = data.stale ? "var(--yellow)" : "var(--green)";
+            const badgeLabel = data.stale ? "ui cache" : "live ui";
+            markEl.innerHTML = `$${livePrice.toFixed(2)} <span class="badge" style="font-size:10px;padding:1px 6px;margin-left:4px;color:${badgeColor}">${badgeLabel}</span>`;
+          }
+
+          const unrealizedDollar = (livePrice - entryPrice) * qty;
+          const unrealizedPct = ((livePrice - entryPrice) / entryPrice) * 100;
+          const pnlEl = document.getElementById("live-unrealized-pnl");
+          if (pnlEl) {
+            const colorClass = unrealizedDollar >= 0 ? "green" : "red";
+            pnlEl.innerHTML = `<span class="${colorClass}">${formatCurrency(unrealizedDollar, { signed: true })} (${formatPct(unrealizedPct, { signed: true })})</span>`;
+          }
+
+          const marketValueEl = document.getElementById("live-market-value");
+          if (marketValueEl) {
+            marketValueEl.textContent = formatCurrency(livePrice * qty);
+          }
+
+          if (isFiniteNumber(targetPrice)) {
+            const targetDistanceEl = document.getElementById("live-target-distance");
+            if (targetDistanceEl) {
+              const distTargetPct = ((targetPrice - livePrice) / livePrice) * 100;
+              targetDistanceEl.textContent = `(${formatPct(distTargetPct, { signed: true })} away)`;
+            }
+          }
+
+          if (isFiniteNumber(stopPrice)) {
+            const stopDistanceEl = document.getElementById("live-stop-distance");
+            if (stopDistanceEl) {
+              const distStopPct = ((livePrice - stopPrice) / livePrice) * 100;
+              stopDistanceEl.textContent = `(${formatPct(distStopPct, { signed: true })} cushion)`;
+            }
+          }
+        } catch (err) {
+          console.error("Failed to fetch live UI quote:", err);
+        }
+      }
+
+      updateLiveData();
+      setInterval(updateLiveData, 3000);
+      setTimeout(() => location.reload(), 300000);
+    </script>
   </body>
 </html>

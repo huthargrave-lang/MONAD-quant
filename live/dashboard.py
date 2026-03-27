@@ -2,14 +2,16 @@
 
 import sqlite3
 import subprocess
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import plotly.graph_objects as go
+import yfinance as yf
 from plotly.subplots import make_subplots
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
 
@@ -29,11 +31,83 @@ state.init_db()
 
 # Valid production exit types — anything else is debug/test and filtered from charts
 _PROD_EXIT_TYPES = {"target_hit", "stop_hit", "time_exit", "bracket_exit", "pending_close"}
+_UI_QUOTE_CACHE_TTL_SEC = 2.5
+_UI_QUOTE_STALE_OK_SEC = 60.0
+_UI_QUOTE_HEADERS = {"Cache-Control": "no-store, max-age=0"}
+_ui_quote_cache: dict[str, dict[str, float | str]] = {}
 
 
 def _filter_prod_trades(trades: list[dict]) -> list[dict]:
     """Exclude debug/test trades (e.g. cancelled_test) from production views."""
     return [t for t in trades if t.get("exit_type") in _PROD_EXIT_TYPES]
+
+
+def _coerce_price(value) -> float | None:
+    try:
+        price = float(value)
+    except (TypeError, ValueError):
+        return None
+    return price if price > 0 else None
+
+
+def _get_cached_ui_quote(symbol: str, max_age_sec: float) -> dict | None:
+    cached = _ui_quote_cache.get(symbol)
+    if not cached:
+        return None
+    fetched_monotonic = _coerce_price(cached.get("fetched_monotonic"))
+    if fetched_monotonic is None:
+        return None
+    age_sec = time.monotonic() - fetched_monotonic
+    if age_sec > max_age_sec:
+        return None
+    return {
+        "symbol": symbol,
+        "price": cached["price"],
+        "source": cached["source"],
+        "fetched_at": cached["fetched_at"],
+        "stale": bool(cached.get("stale", False)),
+    }
+
+
+def _store_ui_quote(symbol: str, price: float, source: str, *, stale: bool = False) -> dict:
+    quote = {
+        "price": price,
+        "source": source,
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "fetched_monotonic": time.monotonic(),
+        "stale": stale,
+    }
+    _ui_quote_cache[symbol] = quote
+    return {
+        "symbol": symbol,
+        "price": price,
+        "source": source,
+        "fetched_at": quote["fetched_at"],
+        "stale": stale,
+    }
+
+
+def _fetch_ui_quote(symbol: str) -> tuple[float, str]:
+    ticker = yf.Ticker(symbol)
+    fast_info = getattr(ticker, "fast_info", None)
+    if fast_info is not None:
+        for candidate in (
+            getattr(fast_info, "last_price", None),
+            fast_info.get("lastPrice") if hasattr(fast_info, "get") else None,
+            fast_info.get("regularMarketPreviousClose") if hasattr(fast_info, "get") else None,
+        ):
+            price = _coerce_price(candidate)
+            if price is not None:
+                return price, "yfinance_fast"
+
+    info = getattr(ticker, "info", {}) or {}
+    price = _coerce_price(info.get("regularMarketPrice"))
+    if price is not None:
+        return price, "yfinance_info"
+
+    from live.broker import _yfinance_fallback
+
+    return _yfinance_fallback(symbol), "yfinance_close"
 
 
 def _conn() -> sqlite3.Connection:
@@ -375,6 +449,36 @@ def _build_position_gauge(position: dict | None, needs_plotlyjs: bool = False) -
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok", "utc": datetime.now(timezone.utc).isoformat()}
+
+
+@app.get("/api/ticker/{symbol}")
+def get_live_ticker(symbol: str) -> JSONResponse:
+    symbol = symbol.strip().upper()
+    if not symbol:
+        return JSONResponse(
+            content={"error": "symbol is required"},
+            status_code=400,
+            headers=_UI_QUOTE_HEADERS,
+        )
+
+    cached = _get_cached_ui_quote(symbol, _UI_QUOTE_CACHE_TTL_SEC)
+    if cached is not None:
+        return JSONResponse(content=cached, headers=_UI_QUOTE_HEADERS)
+
+    try:
+        price, source = _fetch_ui_quote(symbol)
+        payload = _store_ui_quote(symbol, price, source)
+        return JSONResponse(content=payload, headers=_UI_QUOTE_HEADERS)
+    except Exception as exc:
+        stale = _get_cached_ui_quote(symbol, _UI_QUOTE_STALE_OK_SEC)
+        if stale is not None:
+            stale["stale"] = True
+            return JSONResponse(content=stale, headers=_UI_QUOTE_HEADERS)
+        return JSONResponse(
+            content={"symbol": symbol, "error": str(exc)},
+            status_code=500,
+            headers=_UI_QUOTE_HEADERS,
+        )
 
 
 @app.get("/", response_class=HTMLResponse)
