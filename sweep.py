@@ -183,12 +183,6 @@ if HOLDOUT_PCT > 0 and len(df_full) > 200:
     print(f"  Train/optimize: {len(df_raw)} bars ({df_raw.index[0].strftime('%Y-%m-%d')} → {df_raw.index[-1].strftime('%Y-%m-%d')})")
     print(f"  Holdout (OOS):  {len(df_holdout)} bars ({df_holdout.index[0].strftime('%Y-%m-%d')} → {df_holdout.index[-1].strftime('%Y-%m-%d')})")
     print(f"  Holdout is NEVER used during optimization.\n")
-    print("  [DEBUG] split_idx:", split_idx)
-    print("  [DEBUG] train first/last:", df_raw.index[0], "->", df_raw.index[-1])
-    print("  [DEBUG] holdout first/last:", df_holdout.index[0], "->", df_holdout.index[-1])
-    print("  [DEBUG] gap bars:",
-      len(df_full.loc[df_raw.index[-3]:df_holdout.index[:3][-1]]) if len(df_holdout) >= 3 else "n/a")
-    print()
 else:
     df_raw = df_full.copy()
     df_holdout = None
@@ -407,8 +401,6 @@ def live_score(r, stop=None, train_metrics=None):
 
     return base
 
-live_score_fn = live_score
-
 
 _default_max_trade_bars = getattr(config, "MAX_TRADE_BARS", 20)
 
@@ -473,6 +465,11 @@ rsi_values_phase1d = [args.rsi] if args.rsi is not None else [42, 50, 55, 60, 65
 
 if args.phase in ("1", "all"):
     # ── 1a: Target/Stop at 2:1 R:R ────────────────────────────────────────
+    restore()
+    print("=" * 95)
+    print(f"PHASE 1a: Target/Stop sweep (2:1 R:R) — {TICKER}")
+    print("=" * 95)
+
     for t_pct in target_values_phase1a:
         t = t_pct / 100
         s = t / 2
@@ -490,6 +487,10 @@ if args.phase in ("1", "all"):
     # ── 1b: R:R ratio variations at best target ──────────────────────────
     best_target = best["target"]
     best_t_pct = best_target * 100
+    print()
+    print("=" * 95)
+    print(f"PHASE 1b: R:R variations at target={best_t_pct:.1f}%")
+    print("=" * 95)
 
     for s_pct in stop_values_phase1b:
         s = s_pct / 100
@@ -504,6 +505,12 @@ if args.phase in ("1", "all"):
             update_best(r, best_target, s)
 
     # ── 1c: VWAP threshold ────────────────────────────────────────────────
+    restore()
+    print()
+    print("=" * 95)
+    print(f"PHASE 1c: VWAP z-score threshold (at best target/stop so far)")
+    print("=" * 95)
+
     for v in vwap_values_phase1c:
         r = run_quiet(target=best["target"], stop=best["stop"], vwap=v)
         print(fmt(r, f"VWAP={v:.1f}"))
@@ -511,6 +518,12 @@ if args.phase in ("1", "all"):
             update_best(r, best["target"], best["stop"], vwap=v)
 
     # ── 1d: RSI oversold threshold ────────────────────────────────────────
+    restore()
+    print()
+    print("=" * 95)
+    print(f"PHASE 1d: RSI oversold threshold (at best target/stop so far)")
+    print("=" * 95)
+
     for rsi in rsi_values_phase1d:
         r = run_quiet(target=best["target"], stop=best["stop"], rsi_os=rsi)
         print(fmt(r, f"RSI={rsi:3d}"))
@@ -519,6 +532,9 @@ if args.phase in ("1", "all"):
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  PHASE 2 — CROSS-VALIDATION (fine-tune around phase 1 best)
+    print(f"\n  Phase 1 best: target={best['target']*100:.2f}% stop={best['stop']*100:.2f}% "
+          f"RSI={best['rsi']} VWAP={best['vwap']} → score={best['score']:.1f}")
+
 # ═══════════════════════════════════════════════════════════════════════════
 if args.phase in ("2", "all"):
     bt = best["target"]
@@ -648,21 +664,6 @@ def _run_on_data(df, target, stop, rsi, vwap, holdout_start=None, backtest_mode=
     setattr(config, f"VWAP_ZSCORE_THRESH_{MODE_NAME}", vwap)
     config.ASSETS[MODE_NAME]["vwap_zscore_thresh"] = vwap
     mode_to_use = backtest_mode or args.mode
-    debug_this = (
-        abs(target - 0.014) < 1e-9 and
-        abs(stop - 0.0065) < 1e-9 and
-        rsi == 75 and
-        abs(vwap - 0.0) < 1e-9
-    )
-
-    if debug_this:
-        print("\n[DEBUG _run_on_data] candidate:",
-              f"target={target:.4f}, stop={stop:.4f}, rsi={rsi}, vwap={vwap}")
-        print("[DEBUG _run_on_data] bars:", len(df))
-        if len(df) > 0:
-            print("[DEBUG _run_on_data] first/last idx:", df.index[0], "->", df.index[-1])
-            print("[DEBUG _run_on_data] columns:", list(df.columns))
-            print("[DEBUG _run_on_data] close NaNs:", int(df['close'].isna().sum()) if 'close' in df.columns else "no close col")
     try:
         with contextlib.redirect_stdout(io.StringIO()):
             r = run_backtest(
@@ -770,26 +771,12 @@ def _run_on_data(df, target, stop, rsi, vwap, holdout_start=None, backtest_mode=
                     "exit_breakdown": exit_breakdown,
                 }
 
-        if debug_this:
-            if r is None:
-                print("[DEBUG _run_on_data] run_backtest returned None")
-            elif "error" in r:
-                print("[DEBUG _run_on_data] run_backtest error:", r["error"])
-            else:
-                print("[DEBUG _run_on_data] total_trades:", r.get("total_trades"))
-                print("[DEBUG _run_on_data] win_rate:", r.get("win_rate"))
-                print("[DEBUG _run_on_data] total_return:", r.get("total_return"))
-                print("[DEBUG _run_on_data] exit_breakdown:", r.get("exit_breakdown"))
-                print("[DEBUG _run_on_data] keys:", sorted(r.keys()))
-
         if r is None:
             return None
         if isinstance(r, dict) and "error" in r:
             return None
         return r
-    except Exception as e:
-        if debug_this:
-            print("[DEBUG _run_on_data] EXCEPTION:", repr(e))
+    except Exception:
         return None
 
 
@@ -825,17 +812,6 @@ if df_holdout is not None and len(top_candidates) > 0:
 
     for c in top_candidates:
         p = c["params"]
-        if (
-            abs(p["target"] - 0.014) < 1e-9 and
-            abs(p["stop"] - 0.0065) < 1e-9 and
-            p["rsi"] == 75 and
-            abs(p["vwap"] - 0.0) < 1e-9
-        ):
-            print("\n[DEBUG phase3] evaluating locked holdout candidate")
-            print("[DEBUG phase3] params:", p)
-            print("[DEBUG phase3] holdout bars:", len(df_holdout))
-            if len(df_holdout) > 0:
-                print("[DEBUG phase3] holdout range:", df_holdout.index[0], "->", df_holdout.index[-1])
         hold_r = _run_on_data(
             df_full,
             p["target"],
@@ -844,18 +820,6 @@ if df_holdout is not None and len(top_candidates) > 0:
             p["vwap"],
             holdout_start=df_holdout.index[0],
         )
-        if (
-            abs(p["target"] - 0.014) < 1e-9 and
-            abs(p["stop"] - 0.0065) < 1e-9 and
-            p["rsi"] == 75 and
-            abs(p["vwap"] - 0.0) < 1e-9
-        ):
-            print("[DEBUG phase3] hold_r is None:", hold_r is None)
-            if hold_r is not None and "error" not in hold_r:
-                print("[DEBUG phase3] hold_r total_trades:", hold_r.get("total_trades"))
-                print("[DEBUG phase3] hold_r exit_breakdown:", hold_r.get("exit_breakdown"))
-            elif hold_r is not None:
-                print("[DEBUG phase3] hold_r error:", hold_r.get("error"))
 
         ZERO_TRADE_PENALTY = -9999.0
         holdout_ok = (hold_r is not None and "error" not in hold_r)
@@ -868,7 +832,7 @@ if df_holdout is not None and len(top_candidates) > 0:
         has_holdout_trades = hold_trades > 0
 
         if has_holdout_trades:
-            holdout_score = float(live_score_fn(holdout_result, stop=p["stop"], train_metrics=c.get("train_metrics")))
+            holdout_score = float(live_score(holdout_result, stop=p["stop"], train_metrics=c.get("train_metrics")))
         else:
             holdout_score = ZERO_TRADE_PENALTY
 
@@ -1001,19 +965,8 @@ for c in top_candidates[:PERTURB_TOP_N]:
         else:
             pr = _run_on_data(perturb_df, nt, ns, nr, nv)
 
-        if (
-            abs(nt - 0.014) < 1e-9 and
-            abs(ns - 0.0065) < 1e-9 and
-            nr == 75 and
-            abs(nv - 0.0) < 1e-9
-        ):
-            print("[DEBUG phase4] locked neighbour total_trades:",
-                  None if pr is None else pr.get("total_trades"))
-            print("[DEBUG phase4] locked neighbour total_return:",
-                  None if pr is None else pr.get("total_return"))
-
         if pr is not None and "error" not in pr:
-            ps = live_score_fn(pr, stop=ns)
+            ps = live_score(pr, stop=ns)
             perturb_scores.append(ps)
             perturb_returns.append(float(pr.get("total_return", 0.0) or 0.0))
         else:
@@ -1175,7 +1128,7 @@ def _validate_candidate_holdout(c, holdout_pct, backtest_mode):
         config.MAX_TRADE_BARS = prev_mtb
 
     metrics = extract_metrics(vr) if vr is not None and "error" not in vr else None
-    score = (float(live_score_fn(vr, stop=c["params"]["stop"], train_metrics=c.get("train_metrics")))
+    score = (float(live_score(vr, stop=c["params"]["stop"], train_metrics=c.get("train_metrics")))
              if vr is not None and "error" not in vr else -9999.0)
     return {
         "holdout_pct": holdout_pct,
