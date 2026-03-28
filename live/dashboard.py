@@ -2,13 +2,17 @@
 
 import sqlite3
 import subprocess
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import plotly.graph_objects as go
+import yfinance as yf
+from plotly.offline.offline import get_plotlyjs_version
+from plotly.subplots import make_subplots
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
 
@@ -28,11 +32,108 @@ state.init_db()
 
 # Valid production exit types — anything else is debug/test and filtered from charts
 _PROD_EXIT_TYPES = {"target_hit", "stop_hit", "time_exit", "bracket_exit", "pending_close"}
+_UI_QUOTE_CACHE_TTL_SEC = 2.5
+_UI_QUOTE_STALE_OK_SEC = 60.0
+_UI_QUOTE_HEADERS = {"Cache-Control": "no-store, max-age=0"}
+_PLOTLY_JS_URL = f"https://cdn.plot.ly/plotly-{get_plotlyjs_version()}.min.js"
+_ui_quote_cache: dict[str, dict[str, float | str]] = {}
 
 
 def _filter_prod_trades(trades: list[dict]) -> list[dict]:
     """Exclude debug/test trades (e.g. cancelled_test) from production views."""
     return [t for t in trades if t.get("exit_type") in _PROD_EXIT_TYPES]
+
+
+def _summarize_trades(trades: list[dict]) -> dict:
+    if not trades:
+        return {"total": 0, "win_rate": 0.0, "total_ret": 0.0, "exit_types": {}}
+
+    returns = [float(t.get("return_pct") or 0.0) for t in trades]
+    win_rate = sum(1 for ret in returns if ret > 0) / len(returns)
+    total_ret = 1.0
+    for ret in returns:
+        total_ret *= (1.0 + ret)
+    total_ret -= 1.0
+
+    exit_types: dict[str, int] = {}
+    for trade in trades:
+        exit_type = trade.get("exit_type") or "unknown"
+        exit_types[exit_type] = exit_types.get(exit_type, 0) + 1
+
+    return {
+        "total": len(returns),
+        "win_rate": win_rate,
+        "total_ret": total_ret,
+        "exit_types": exit_types,
+    }
+
+
+def _coerce_price(value) -> float | None:
+    try:
+        price = float(value)
+    except (TypeError, ValueError):
+        return None
+    return price if price > 0 else None
+
+
+def _get_cached_ui_quote(symbol: str, max_age_sec: float) -> dict | None:
+    cached = _ui_quote_cache.get(symbol)
+    if not cached:
+        return None
+    fetched_monotonic = _coerce_price(cached.get("fetched_monotonic"))
+    if fetched_monotonic is None:
+        return None
+    age_sec = time.monotonic() - fetched_monotonic
+    if age_sec > max_age_sec:
+        return None
+    return {
+        "symbol": symbol,
+        "price": cached["price"],
+        "source": cached["source"],
+        "fetched_at": cached["fetched_at"],
+        "stale": bool(cached.get("stale", False)),
+    }
+
+
+def _store_ui_quote(symbol: str, price: float, source: str, *, stale: bool = False) -> dict:
+    quote = {
+        "price": price,
+        "source": source,
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "fetched_monotonic": time.monotonic(),
+        "stale": stale,
+    }
+    _ui_quote_cache[symbol] = quote
+    return {
+        "symbol": symbol,
+        "price": price,
+        "source": source,
+        "fetched_at": quote["fetched_at"],
+        "stale": stale,
+    }
+
+
+def _fetch_ui_quote(symbol: str) -> tuple[float, str]:
+    ticker = yf.Ticker(symbol)
+    fast_info = getattr(ticker, "fast_info", None)
+    if fast_info is not None:
+        for candidate in (
+            getattr(fast_info, "last_price", None),
+            fast_info.get("lastPrice") if hasattr(fast_info, "get") else None,
+            fast_info.get("regularMarketPreviousClose") if hasattr(fast_info, "get") else None,
+        ):
+            price = _coerce_price(candidate)
+            if price is not None:
+                return price, "yfinance_fast"
+
+    info = getattr(ticker, "info", {}) or {}
+    price = _coerce_price(info.get("regularMarketPrice"))
+    if price is not None:
+        return price, "yfinance_info"
+
+    from live.broker import _yfinance_fallback
+
+    return _yfinance_fallback(symbol), "yfinance_close"
 
 
 def _conn() -> sqlite3.Connection:
@@ -110,44 +211,108 @@ def _next_scheduled_run() -> str | None:
     return None
 
 
+def _resolve_asset_config(symbol: str | None = None) -> tuple[str | None, dict | None]:
+    candidates = [config.DEFAULT_ASSET]
+    if symbol:
+        candidates.extend([f"{symbol}_HOURLY", symbol])
+
+    seen: set[str] = set()
+    for candidate in candidates:
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        cfg = config.ASSETS.get(candidate)
+        if cfg is not None:
+            return candidate, cfg
+    return None, None
+
+
+def _figure_to_html(fig: go.Figure, *, div_id: str) -> str:
+    return fig.to_html(
+        full_html=False,
+        include_plotlyjs=False,
+        div_id=div_id,
+        config={
+            "displayModeBar": False,
+            "responsive": True,
+        },
+        default_width="100%",
+    )
+
+
 def _build_returns_chart(trades: list[dict]) -> str:
-    rows = list(reversed(trades[-30:]))
+    if not trades:
+        return ""
+    rows = [dict(r) for r in trades]
     if len(rows) < 3:
-        return ""  # Too few trades for a meaningful chart; template shows compact fallback
-    colors = {
-        "target": "#2ecc71",
-        "stop": "#e74c3c",
-        "time_exit": "#f1c40f",
-        "pending_close": "#9b59b6",
-        "ambiguous_same_bar": "#e67e22",
-    }
-    x = [r.get("exit_time") or r.get("entry_time") for r in rows]
-    y = [float(r.get("return_pct") or 0.0) * 100 for r in rows]
-    c = [colors.get(r.get("exit_type"), "#4aa3ff") for r in rows]
-    fig = go.Figure(
-        data=[
-            go.Bar(
-                x=x,
-                y=y,
-                marker_color=c,
-                hovertemplate="%{x}<br>Return %{y:.3f}%<extra></extra>",
-            )
-        ]
+        return ""
+
+    rows.sort(key=lambda r: r.get("exit_time") or r.get("entry_time") or "")
+    x = []
+    cumulative = []
+    custom = []
+    marker_colors = []
+    equity = 1.0
+    for row in rows:
+        ts = row.get("exit_time") or row.get("entry_time")
+        ret = float(row.get("return_pct") or 0.0)
+        equity *= (1.0 + ret)
+        x.append(ts)
+        cumulative.append((equity - 1.0) * 100.0)
+        custom.append([ret * 100.0, row.get("exit_type") or "unknown"])
+        marker_colors.append("#2ecc71" if ret >= 0 else "#e74c3c")
+
+    line_color = "#2ecc71" if cumulative[-1] >= 0 else "#ff5d5d"
+    fill_color = "rgba(46, 204, 113, 0.12)" if cumulative[-1] >= 0 else "rgba(255, 93, 93, 0.12)"
+    hovertemplate = (
+        "%{x}<br>Cumulative %{y:.2f}%"
+        "<br>Trade %{customdata[0]:+.3f}%"
+        "<br>%{customdata[1]}<extra></extra>"
+    )
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=cumulative,
+            mode="lines",
+            fill="tozeroy",
+            line=dict(color=line_color, width=2),
+            fillcolor=fill_color,
+            customdata=custom,
+            hovertemplate=hovertemplate,
+            name="Equity Curve",
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=cumulative,
+            mode="markers",
+            marker=dict(color=marker_colors, size=7, line=dict(color="#0b1020", width=1)),
+            customdata=custom,
+            hovertemplate=hovertemplate,
+            showlegend=False,
+        )
     )
     fig.update_layout(
-        title="Recent Trade Returns (%)",
+        title="Cumulative Equity Curve",
         paper_bgcolor="#121a2f",
         plot_bgcolor="#121a2f",
         font_color="#e8ecf6",
-        margin=dict(l=30, r=20, t=40, b=30),
+        margin=dict(l=60, r=20, t=40, b=50),
         height=300,
         xaxis_title="Exit time",
-        yaxis_title="Return %",
+        yaxis_title="Compounded return %",
+        hovermode="x unified",
+        showlegend=False,
     )
-    return fig.to_html(full_html=False, include_plotlyjs="cdn")
+    fig.update_xaxes(automargin=True)
+    fig.update_yaxes(automargin=True)
+    return _figure_to_html(fig, div_id="returns-chart")
 
 
-def _build_exit_type_chart(exit_counts: dict[str, int], needs_plotlyjs: bool = False) -> str:
+def _build_exit_type_chart(exit_counts: dict[str, int]) -> str:
     total = sum(exit_counts.values()) if exit_counts else 0
     if total < 3:
         return ""  # Too few trades for a meaningful donut
@@ -163,28 +328,224 @@ def _build_exit_type_chart(exit_counts: dict[str, int], needs_plotlyjs: bool = F
         font_color="#e8ecf6",
         margin=dict(l=20, r=20, t=40, b=20),
         height=300,
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.1,
+            xanchor="center",
+            x=0.5,
+        ),
     )
-    return fig.to_html(full_html=False, include_plotlyjs="cdn" if needs_plotlyjs else False)
+    return _figure_to_html(fig, div_id="exit-type-chart")
 
 
-def _build_signal_chart(signal_history: list[dict], needs_plotlyjs: bool = False) -> str:
+def _build_signal_chart(
+    signal_history: list[dict],
+    *,
+    asset_label: str | None = None,
+    rsi_oversold: float | None = None,
+    rsi_overbought: float | None = None,
+) -> str:
     rows = list(reversed(signal_history))
     if not rows:
         return ""
+
     x = [r.get("bar_time") or r.get("updated_at") for r in rows]
-    y = [r.get("signal") for r in rows]
-    fig = go.Figure(data=[go.Scatter(x=x, y=y, mode="lines+markers", line_color="#4aa3ff")])
+    close = [r.get("bar_close") for r in rows]
+    rsi = [r.get("rsi") for r in rows]
+    signals = [r.get("signal") for r in rows]
+
+    fig = make_subplots(
+        rows=2,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.06,
+        row_heights=[0.72, 0.28],
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=close,
+            mode="lines",
+            name="Close",
+            line=dict(color="#4aa3ff", width=2),
+            hovertemplate="%{x}<br>Close $%{y:.2f}<extra></extra>",
+        ),
+        row=1,
+        col=1,
+    )
+
+    long_x, long_y, short_x, short_y = [], [], [], []
+    for idx, sig in enumerate(signals):
+        price = close[idx]
+        if price is None or sig is None:
+            continue
+        if sig > 0:
+            long_x.append(x[idx])
+            long_y.append(price)
+        elif sig < 0:
+            short_x.append(x[idx])
+            short_y.append(price)
+
+    if long_x:
+        fig.add_trace(
+            go.Scatter(
+                x=long_x,
+                y=long_y,
+                mode="markers",
+                name="LONG",
+                marker=dict(symbol="triangle-up", color="#2ecc71", size=12),
+                hovertemplate="%{x}<br>LONG @ $%{y:.2f}<extra></extra>",
+            ),
+            row=1,
+            col=1,
+        )
+    if short_x:
+        fig.add_trace(
+            go.Scatter(
+                x=short_x,
+                y=short_y,
+                mode="markers",
+                name="SHORT",
+                marker=dict(symbol="triangle-down", color="#e74c3c", size=12),
+                hovertemplate="%{x}<br>SHORT @ $%{y:.2f}<extra></extra>",
+            ),
+            row=1,
+            col=1,
+        )
+
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=rsi,
+            mode="lines",
+            name="RSI",
+            line=dict(color="#bb86fc", width=2),
+            hovertemplate="%{x}<br>RSI %{y:.2f}<extra></extra>",
+        ),
+        row=2,
+        col=1,
+    )
+
+    # Neutral momentum reference line. Keep the strategy-specific thresholds too,
+    # since entries are still governed by the actual configured RSI levels.
+    fig.add_hline(
+        y=50,
+        line_dash="dot",
+        line_color="rgba(255, 255, 255, 0.25)",
+        row=2,
+        col=1,
+    )
+
+    if rsi_oversold is not None:
+        fig.add_hline(
+            y=rsi_oversold,
+            line_dash="dash",
+            line_color="rgba(46, 204, 113, 0.55)",
+            annotation_text=f"Bot Long Limit ({rsi_oversold:g})",
+            annotation_position="top left",
+            row=2,
+            col=1,
+        )
+    if rsi_overbought is not None:
+        fig.add_hline(
+            y=rsi_overbought,
+            line_dash="dash",
+            line_color="rgba(231, 76, 60, 0.55)",
+            annotation_text=f"Bot Short Limit ({rsi_overbought:g})",
+            annotation_position="bottom left",
+            row=2,
+            col=1,
+        )
+
     fig.update_layout(
-        title="Signal Snapshot History",
+        title=f"{asset_label or 'Signal'} Price Action & RSI",
         paper_bgcolor="#121a2f",
         plot_bgcolor="#121a2f",
         font_color="#e8ecf6",
-        margin=dict(l=30, r=20, t=40, b=30),
-        height=240,
-        xaxis_title="Timestamp",
-        yaxis_title="Signal",
+        margin=dict(l=60, r=20, t=40, b=30),
+        height=450,
+        showlegend=False,
+        hovermode="x unified",
     )
-    return fig.to_html(full_html=False, include_plotlyjs="cdn" if needs_plotlyjs else False)
+    fig.update_xaxes(showgrid=False, automargin=True)
+    fig.update_yaxes(
+        title_text="Price",
+        gridcolor="rgba(152, 162, 179, 0.12)",
+        zeroline=False,
+        automargin=True,
+        row=1,
+        col=1,
+    )
+    fig.update_yaxes(
+        title_text="RSI",
+        range=[0, 100],
+        gridcolor="rgba(152, 162, 179, 0.12)",
+        zeroline=False,
+        automargin=True,
+        row=2,
+        col=1,
+    )
+    return _figure_to_html(fig, div_id="signal-history-chart")
+
+
+def _build_position_gauge(position: dict | None) -> str:
+    if not position:
+        return ""
+
+    mark = position.get("mark_price")
+    entry = position.get("entry_price")
+    target = position.get("target_price")
+    stop = position.get("stop_price")
+    if None in (mark, entry, target, stop):
+        return ""
+
+    mark = float(mark)
+    entry = float(entry)
+    target = float(target)
+    stop = float(stop)
+    lower = min(stop, entry, target, mark)
+    upper = max(stop, entry, target, mark)
+    if lower == upper:
+        pad = abs(lower) * 0.01 if lower else 1.0
+        lower -= pad
+        upper += pad
+    range_span = upper - lower
+    line_half_width = max(range_span * 0.0025, 1e-6)
+
+    fig = go.Figure(
+        go.Indicator(
+            mode="number+gauge",
+            value=mark,
+            number={"prefix": "$", "font": {"size": 24, "color": "#e8ecf6"}},
+            # Leave room on the left for the live price so it does not collide
+            # with the bullet gauge when the card gets narrow.
+            domain={"x": [0.25, 1], "y": [0, 1]},
+            gauge={
+                "shape": "bullet",
+                "axis": {"range": [lower, upper], "tickcolor": "#e8ecf6"},
+                "threshold": {
+                    "line": {"color": "#4aa3ff", "width": 4},
+                    "thickness": 0.8,
+                    "value": mark,
+                },
+                "steps": [
+                    {"range": [stop, entry], "color": "rgba(231, 76, 60, 0.25)"},
+                    {"range": [entry - line_half_width, entry + line_half_width], "color": "#e8ecf6"},
+                    {"range": [entry, target], "color": "rgba(46, 204, 113, 0.25)"},
+                ],
+                "bar": {"color": "rgba(0,0,0,0)", "thickness": 0},
+            },
+        )
+    )
+    fig.update_layout(
+        paper_bgcolor="#121a2f",
+        plot_bgcolor="#121a2f",
+        font_color="#e8ecf6",
+        margin=dict(t=20, b=20, l=10, r=20),
+        height=120,
+    )
+    return _figure_to_html(fig, div_id="position-gauge-chart")
 
 
 @app.get("/health")
@@ -192,15 +553,48 @@ def health() -> dict:
     return {"status": "ok", "utc": datetime.now(timezone.utc).isoformat()}
 
 
+@app.get("/api/ticker/{symbol}", response_class=JSONResponse)
+def get_live_ticker(symbol: str) -> JSONResponse:
+    symbol = symbol.strip().upper()
+    if not symbol:
+        return JSONResponse(
+            content={"error": "symbol is required"},
+            status_code=400,
+            headers=_UI_QUOTE_HEADERS,
+        )
+
+    cached = _get_cached_ui_quote(symbol, _UI_QUOTE_CACHE_TTL_SEC)
+    if cached is not None:
+        return JSONResponse(content=cached, headers=_UI_QUOTE_HEADERS)
+
+    try:
+        price, source = _fetch_ui_quote(symbol)
+        payload = _store_ui_quote(symbol, price, source)
+        return JSONResponse(content=payload, headers=_UI_QUOTE_HEADERS)
+    except Exception as exc:
+        stale = _get_cached_ui_quote(symbol, _UI_QUOTE_STALE_OK_SEC)
+        if stale is not None:
+            stale["stale"] = True
+            return JSONResponse(content=stale, headers=_UI_QUOTE_HEADERS)
+        return JSONResponse(
+            content={"symbol": symbol, "error": str(exc)},
+            status_code=500,
+            headers=_UI_QUOTE_HEADERS,
+        )
+
+
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request) -> HTMLResponse:
     status = state.get_monitor_status()
     signal = state.get_signal_snapshot()
     signal_history = state.get_signal_history(limit=20)
+    signal_chart_history = state.get_signal_history(limit=60)
     position = state.get_position()
     position_dict = position.__dict__ if position else None
-    all_trades = state.get_recent_trades(limit=50)
+    all_trades = state.get_recent_trades(limit=250)
     trades = _filter_prod_trades(all_trades)[:30]
+    chart_trades = _filter_prod_trades(all_trades)
+    summary = _summarize_trades(chart_trades)
     events = state.get_recent_monitor_events(limit=30)
     all_exit_counts = state.get_exit_type_counts(limit=250)
     exit_counts = {k: v for k, v in all_exit_counts.items() if k in _PROD_EXIT_TYPES}
@@ -265,18 +659,11 @@ def dashboard(request: Request) -> HTMLResponse:
 
     position_view = None
     if position_dict:
-        # Try the active mode's asset key first, then fall back to symbol_HOURLY / symbol
-        asset_key = config.DEFAULT_ASSET
         symbol = position_dict["symbol"]
-        if asset_key not in config.ASSETS:
-            for candidate in [f"{symbol}_HOURLY", symbol]:
-                if candidate in config.ASSETS:
-                    asset_key = candidate
-                    break
+        _asset_key, cfg = _resolve_asset_config(symbol)
         target_pct = None
         stop_pct = None
-        if asset_key in config.ASSETS:
-            cfg = config.ASSETS[asset_key]
+        if cfg is not None:
             target_pct = cfg.get("target_gain_pct")
             stop_pct = cfg.get("stop_loss_pct")
 
@@ -322,11 +709,25 @@ def dashboard(request: Request) -> HTMLResponse:
         ("UNKNOWN", "red"),
     )
 
-    returns_chart = Markup(_build_returns_chart(trades))
-    exit_chart_needs_js = not returns_chart
-    exit_chart = Markup(_build_exit_type_chart(exit_counts, needs_plotlyjs=exit_chart_needs_js))
-    signal_chart_needs_js = not returns_chart and not exit_chart
-    signal_chart = Markup(_build_signal_chart(signal_history, needs_plotlyjs=signal_chart_needs_js))
+    returns_chart = Markup(_build_returns_chart(chart_trades))
+    exit_chart = Markup(_build_exit_type_chart(exit_counts))
+    signal_asset_key, signal_asset_cfg = _resolve_asset_config(status.get("live_symbol") if status else None)
+    active_asset_key = signal_asset_key or config.DEFAULT_ASSET
+    active_asset_cfg = signal_asset_cfg or config.ASSETS.get(config.DEFAULT_ASSET, {})
+    config_mode_mismatch = bool(
+        status and status.get("live_symbol") and signal_asset_key and signal_asset_key != config.DEFAULT_ASSET
+    )
+    rsi_oversold = active_asset_cfg.get("rsi_oversold") if active_asset_cfg else None
+    rsi_overbought = active_asset_cfg.get("rsi_overbought") if active_asset_cfg else None
+    signal_chart = Markup(
+        _build_signal_chart(
+            signal_chart_history,
+            asset_label=active_asset_key or (status.get("live_symbol") if status else None),
+            rsi_oversold=rsi_oversold,
+            rsi_overbought=rsi_overbought,
+        )
+    )
+    position_gauge = Markup(_build_position_gauge(position_view))
 
     return TEMPLATES.TemplateResponse(
         request=request,
@@ -335,11 +736,17 @@ def dashboard(request: Request) -> HTMLResponse:
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "ui_version": UI_VERSION,
             "git_hash": _get_git_hash(),
+            "plotly_js_url": _PLOTLY_JS_URL,
             "status": status,
             "signal": signal,
             "signal_badge": signal_badge,
+            "summary": summary,
             "position": position_view,
             "account": account,
+            "active_mode": config.ACTIVE_MODE,
+            "active_asset_key": active_asset_key,
+            "asset_cfg": active_asset_cfg,
+            "config_mode_mismatch": config_mode_mismatch,
             "trades": trades,
             "events": events,
             "signal_history": signal_history,
@@ -347,6 +754,7 @@ def dashboard(request: Request) -> HTMLResponse:
             "returns_chart": returns_chart,
             "exit_chart": exit_chart,
             "signal_chart": signal_chart,
+            "position_gauge": position_gauge,
             "cycle_age_min": cycle_age_min,
             "cycle_text": cycle_text,
             "cycle_color": cycle_color,

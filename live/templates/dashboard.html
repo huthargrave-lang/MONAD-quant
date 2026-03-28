@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MONAD Bot Monitor</title>
+    <script src="{{ plotly_js_url }}"></script>
     <style>
       :root {
         --bg: #0b1020;
@@ -74,6 +75,38 @@
         font-weight: 600;
       }
       .readonly { color: var(--muted); font-size: 12px; margin-top: 3px; }
+      .metric-strip {
+        display: flex;
+        justify-content: space-around;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding: 10px 12px;
+        min-height: auto;
+        background: #0f1530;
+        border-color: rgba(39, 193, 126, 0.45);
+      }
+      .metric-cell {
+        text-align: center;
+        min-width: 110px;
+      }
+      .filter-actions {
+        margin-bottom: 8px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .filter-btn {
+        background: #28314c;
+        border: 1px solid transparent;
+        color: var(--text);
+        padding: 4px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+      }
+      .filter-btn.is-active {
+        border-color: var(--text);
+      }
       @media (max-width: 1100px) {
         .span-3, .span-4, .span-6, .span-8 { grid-column: span 12; }
       }
@@ -101,6 +134,16 @@
     </div>
 
     <div class="stale-banner {{ cycle_color }}">{{ cycle_text }}</div>
+
+    {% if summary and summary.total > 0 %}
+    <div class="row">
+      <section class="card span-12 metric-strip">
+        <div class="metric-cell"><div class="k">Trades</div><div class="v" style="margin:0;">{{ summary.total }}</div></div>
+        <div class="metric-cell"><div class="k">Win Rate</div><div class="v green" style="margin:0;">{{ '%.1f'|format(summary.win_rate * 100) }}%</div></div>
+        <div class="metric-cell"><div class="k">Total Return</div><div class="v {{ 'green' if summary.total_ret >= 0 else 'red' }}" style="margin:0;">{{ '%+.2f'|format(summary.total_ret * 100) }}%</div></div>
+      </section>
+    </div>
+    {% endif %}
 
     <div class="row">
       <section class="card span-3">
@@ -169,7 +212,7 @@
             <tr><td colspan="2" style="padding:6px 0 2px;border-top:1px solid var(--line);"></td></tr>
             <tr>
               <td class="k" style="padding:2px 0;">Mark price</td>
-              <td style="padding:2px 0;">
+              <td style="padding:2px 0;" id="live-mark-price">
                 {% if position.mark_price is not none %}
                   ${{ '%.2f'|format(position.mark_price) }}
                   <span class="badge" style="font-size:10px;padding:1px 6px;margin-left:4px;{% if position.mark_source == 'live' %}color:var(--green){% elif position.mark_source == 'delayed' %}color:var(--yellow){% elif position.mark_source in ('last_close', 'entry') %}color:var(--muted){% elif position.mark_source == 'estimated' %}color:#9b59b6{% else %}color:var(--red){% endif %}">{{ position.mark_source }}</span>
@@ -180,7 +223,7 @@
             </tr>
             <tr>
               <td class="k" style="padding:2px 0;">Unrealized PnL</td>
-              <td style="padding:2px 0;">
+              <td style="padding:2px 0;" id="live-unrealized-pnl">
                 {% if position.unrealized_dollar is not none %}
                   <span class="{{ 'green' if position.unrealized_dollar >= 0 else 'red' }}">
                     ${{ position.unrealized_dollar|commafy('{:+,.2f}') }} ({{ '%+.3f'|format(position.unrealized_pct*100) }}%)
@@ -189,16 +232,19 @@
               </td>
             </tr>
             {% if position.market_value is not none %}
-            <tr><td class="k" style="padding:2px 0;">Market value</td><td style="padding:2px 0;">${{ position.market_value|commafy }}</td></tr>
+            <tr><td class="k" style="padding:2px 0;">Market value</td><td style="padding:2px 0;" id="live-market-value">${{ position.market_value|commafy }}</td></tr>
             {% endif %}
             <tr><td colspan="2" style="padding:6px 0 2px;border-top:1px solid var(--line);"></td></tr>
+            {% if position_gauge %}
+            <tr><td colspan="2" style="padding:4px 0 8px;" id="live-gauge-container">{{ position_gauge }}</td></tr>
+            {% endif %}
             <tr>
               <td class="k" style="padding:2px 0;">Target</td>
               <td style="padding:2px 0;">
                 {% if position.target_price %}
                   ${{ '%.2f'|format(position.target_price) }}
                   {% if position.dist_target is not none %}
-                    <span class="green" style="font-size:12px;">({{ '%+.3f'|format(position.dist_target*100) }}% away)</span>
+                    <span class="green" style="font-size:12px;" id="live-target-distance">({{ '%+.3f'|format(position.dist_target*100) }}% away)</span>
                   {% endif %}
                 {% else %}—{% endif %}
               </td>
@@ -209,7 +255,7 @@
                 {% if position.stop_price %}
                   ${{ '%.2f'|format(position.stop_price) }}
                   {% if position.dist_stop is not none %}
-                    <span class="red" style="font-size:12px;">({{ '%.3f'|format(position.dist_stop*100) }}% cushion)</span>
+                    <span class="red" style="font-size:12px;" id="live-stop-distance">({{ '%.3f'|format(position.dist_stop*100) }}% cushion)</span>
                   {% endif %}
                 {% else %}—{% endif %}
               </td>
@@ -230,16 +276,22 @@
       </section>
 
       <section class="card span-3">
-        <h2>Account summary</h2>
-        {% if account %}
-          <div class="k">Net liq / equity</div><div class="v">{{ '$%0.2f'|format(account.equity) if account.equity is not none else '—' }}</div>
-          <div class="k">Cash</div><div class="v">{{ '$%0.2f'|format(account.cash) if account.cash is not none else '—' }}</div>
-          <div class="k">Position value</div><div class="v">{{ '$%0.2f'|format(account.position_value) if account.position_value is not none else '—' }}</div>
-          <div class="k">Buying power</div><div class="v">{{ '$%0.2f'|format(account.buying_power) if account.buying_power is not none else '—' }}</div>
-          <div class="k">Last broker sync</div><div class="v">{{ account.updated_at or '—' }}</div>
-        {% else %}
-          <div class="v">No account snapshot yet.</div>
+        <h2>Active Config <span class="badge" style="float:right;">{{ active_mode }}</span></h2>
+        {% if config_mode_mismatch %}
+          <div style="background:rgba(255, 176, 32, 0.12);border:1px solid rgba(255, 176, 32, 0.45);border-radius:6px;padding:6px 10px;margin-bottom:8px;font-size:12px;color:var(--yellow);">
+            Dashboard mode resolves to <strong>{{ active_asset_key }}</strong>, but the trader is reporting symbol <strong>{{ status.live_symbol }}</strong>.
+          </div>
         {% endif %}
+        <table style="width:100%;font-size:13px;border-collapse:collapse;">
+          <tr><td class="k">Resolved asset</td><td>{{ active_asset_key or '—' }}</td></tr>
+          <tr><td class="k">Trader symbol</td><td>{{ status.live_symbol if status else '—' }}</td></tr>
+          <tr><td class="k">Target</td><td class="green">{% if asset_cfg.get('target_gain_pct') is not none %}+{{ '%.2f'|format(asset_cfg.get('target_gain_pct') * 100) }}%{% else %}—{% endif %}</td></tr>
+          <tr><td class="k">Stop Loss</td><td class="red">{% if asset_cfg.get('stop_loss_pct') is not none %}-{{ '%.2f'|format(asset_cfg.get('stop_loss_pct') * 100) }}%{% else %}—{% endif %}</td></tr>
+          <tr><td class="k">RSI thresholds</td><td>{% if asset_cfg.get('rsi_oversold') is not none %}{{ asset_cfg.get('rsi_oversold') }} (L){% else %}—{% endif %} / {% if asset_cfg.get('rsi_overbought') is not none %}{{ asset_cfg.get('rsi_overbought') }} (S){% else %}—{% endif %}</td></tr>
+          <tr><td class="k">VWAP z-score</td><td>{{ asset_cfg.get('vwap_zscore_thresh') if asset_cfg.get('vwap_zscore_thresh') is not none else '—' }}</td></tr>
+          <tr><td class="k">Require signals</td><td>{{ asset_cfg.get('require_signals') if asset_cfg.get('require_signals') is not none else '—' }}</td></tr>
+          <tr><td class="k">Last broker sync</td><td>{{ account.updated_at if account else '—' }}</td></tr>
+        </table>
       </section>
     </div>
 
@@ -249,9 +301,9 @@
         <section class="card span-4">{% if exit_chart %}{{ exit_chart }}{% else %}<h2>Exit Type Breakdown</h2><div class="v" style="color:var(--muted);">Need 3+ trades for chart.</div>{% endif %}</section>
       {% else %}
         <section class="card span-12" style="min-height:60px;">
-          <h2 style="display:inline;">Trade Returns</h2>
-          {% if trades|length > 0 %}
-            <span style="color:var(--muted);font-size:13px;margin-left:8px;">{{ trades|length }} trade{{ 's' if trades|length != 1 else '' }} — chart appears at 3+</span>
+          <h2 style="display:inline;">Equity Curve</h2>
+          {% if summary and summary.total > 0 %}
+            <span style="color:var(--muted);font-size:13px;margin-left:8px;">{{ summary.total }} production trade{{ 's' if summary.total != 1 else '' }} — chart appears at 3+</span>
           {% else %}
             <span style="color:var(--muted);font-size:13px;margin-left:8px;">No production trades recorded yet.</span>
           {% endif %}
@@ -295,8 +347,13 @@
 
       <section class="card span-3">
         <h2>Recent events / warnings</h2>
+        <div class="filter-actions">
+          <button type="button" class="filter-btn is-active" data-level="ALL" onclick="filterLogs('ALL', this)">All</button>
+          <button type="button" class="filter-btn" data-level="WARNING" onclick="filterLogs('WARNING', this)" style="background:rgba(255, 176, 32, 0.18);border-color:rgba(255, 176, 32, 0.45);color:var(--yellow);">Warnings</button>
+          <button type="button" class="filter-btn" data-level="ERROR" onclick="filterLogs('ERROR', this)" style="background:rgba(255, 93, 93, 0.18);border-color:rgba(255, 93, 93, 0.45);color:var(--red);">Errors</button>
+        </div>
         <div class="scroll">
-          <table>
+          <table id="events-table">
             <thead><tr><th>Time</th><th>Level</th><th>Category</th><th>Message</th></tr></thead>
             <tbody>
               {% for event in events %}
@@ -354,6 +411,145 @@
       </section>
     </div>
 
-    <script>setTimeout(() => location.reload(), 30000);</script>
+    <script>
+      const activeSymbol = {{ (position.symbol if position else (status.live_symbol if status else '')) | tojson }};
+      const hasPosition = {{ (position is not none) | tojson }};
+      const entryPrice = {{ (position.entry_price if position else none) | tojson }};
+      const qty = {{ (position.qty if position else none) | tojson }};
+      const targetPrice = {{ (position.target_price if position else none) | tojson }};
+      const stopPrice = {{ (position.stop_price if position else none) | tojson }};
+
+      function isFiniteNumber(value) {
+        return typeof value === "number" && Number.isFinite(value);
+      }
+
+      function formatCurrency(value, { signed = false } = {}) {
+        const sign = signed ? (value >= 0 ? "+" : "-") : "";
+        return `${sign}$${Math.abs(value).toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`;
+      }
+
+      function formatPct(value, { signed = false } = {}) {
+        const sign = signed ? (value >= 0 ? "+" : "-") : "";
+        return `${sign}${Math.abs(value).toFixed(3)}%`;
+      }
+
+      function filterLogs(level, button = null) {
+        const rows = document.querySelectorAll("#events-table tbody tr");
+        rows.forEach((row) => {
+          if (row.cells.length < 2) {
+            row.style.display = level === "ALL" ? "" : "none";
+            return;
+          }
+          const rowLevel = row.cells[1].innerText.trim();
+          row.style.display = level === "ALL" || rowLevel === level ? "" : "none";
+        });
+
+        const buttons = document.querySelectorAll(".filter-btn");
+        buttons.forEach((btn) => btn.classList.remove("is-active"));
+        if (button) {
+          button.classList.add("is-active");
+        }
+      }
+
+      let liveDataRequestInFlight = false;
+
+      async function updateLiveData() {
+        if (!activeSymbol) return;
+        if (liveDataRequestInFlight) return;
+
+        liveDataRequestInFlight = true;
+
+        try {
+          const response = await fetch(`/api/ticker/${encodeURIComponent(activeSymbol)}`, {
+            cache: "no-store",
+          });
+          const contentType = response.headers.get("content-type") || "";
+          if (!contentType.toLowerCase().includes("application/json")) {
+            const body = await response.text();
+            throw new Error(
+              `Expected JSON from /api/ticker/${activeSymbol}, got ${contentType || "unknown"}: ${body.slice(0, 120)}`
+            );
+          }
+          const data = await response.json();
+          if (!response.ok || !isFiniteNumber(data.price)) {
+            throw new Error(data.error || `HTTP ${response.status}`);
+          }
+
+          const livePrice = data.price;
+          document.title = `$${livePrice.toFixed(2)} ${activeSymbol} · MONAD Bot Monitor`;
+
+          if (!hasPosition || !isFiniteNumber(entryPrice) || !isFiniteNumber(qty)) {
+            return;
+          }
+
+          const markEl = document.getElementById("live-mark-price");
+          if (markEl) {
+            const badgeColor = data.stale ? "var(--yellow)" : "var(--green)";
+            const badgeLabel = data.stale ? "ui cache" : "live ui";
+            markEl.innerHTML = `$${livePrice.toFixed(2)} <span class="badge" style="font-size:10px;padding:1px 6px;margin-left:4px;color:${badgeColor}">${badgeLabel}</span>`;
+          }
+
+          const unrealizedDollar = (livePrice - entryPrice) * qty;
+          const unrealizedPct = ((livePrice - entryPrice) / entryPrice) * 100;
+          const pnlEl = document.getElementById("live-unrealized-pnl");
+          if (pnlEl) {
+            const colorClass = unrealizedDollar >= 0 ? "green" : "red";
+            pnlEl.innerHTML = `<span class="${colorClass}">${formatCurrency(unrealizedDollar, { signed: true })} (${formatPct(unrealizedPct, { signed: true })})</span>`;
+          }
+
+          const marketValueEl = document.getElementById("live-market-value");
+          if (marketValueEl) {
+            marketValueEl.textContent = formatCurrency(livePrice * qty);
+          }
+
+          const gaugeContainer = document.getElementById("live-gauge-container");
+          const gaugeDiv = document.getElementById("position-gauge-chart");
+          if (
+            gaugeContainer &&
+            gaugeDiv &&
+            typeof Plotly !== "undefined" &&
+            isFiniteNumber(targetPrice) &&
+            isFiniteNumber(stopPrice)
+          ) {
+            const gaugeLower = Math.min(stopPrice, entryPrice, targetPrice, livePrice);
+            const gaugeUpper = Math.max(stopPrice, entryPrice, targetPrice, livePrice);
+            Plotly.restyle(gaugeDiv, {
+              value: [livePrice],
+              "gauge.threshold.value": [livePrice],
+              "gauge.axis.range": [[gaugeLower, gaugeUpper]],
+            });
+          }
+
+          if (isFiniteNumber(targetPrice)) {
+            const targetDistanceEl = document.getElementById("live-target-distance");
+            if (targetDistanceEl) {
+              const distTargetPct = ((targetPrice - livePrice) / livePrice) * 100;
+              targetDistanceEl.textContent = `(${formatPct(distTargetPct, { signed: true })} away)`;
+            }
+          }
+
+          if (isFiniteNumber(stopPrice)) {
+            const stopDistanceEl = document.getElementById("live-stop-distance");
+            if (stopDistanceEl) {
+              const distStopPct = ((livePrice - stopPrice) / livePrice) * 100;
+              stopDistanceEl.textContent = `(${formatPct(distStopPct, { signed: true })} cushion)`;
+            }
+          }
+        } catch (err) {
+          console.error("Failed to fetch live UI quote:", err);
+        } finally {
+          liveDataRequestInFlight = false;
+        }
+      }
+
+      void updateLiveData();
+      setInterval(() => {
+        void updateLiveData();
+      }, 3000);
+      setTimeout(() => location.reload(), 300000);
+    </script>
   </body>
 </html>
