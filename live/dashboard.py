@@ -298,6 +298,9 @@ def dashboard(request: Request) -> HTMLResponse:
             if stop_price:
                 dist_stop = (mark_price - stop_price) / mark_price
 
+        qty = int(position_dict["qty"])
+        cost_basis_total = entry_price * qty
+
         position_view = {
             **position_dict,
             "bars_remaining": bars_remaining,
@@ -306,11 +309,11 @@ def dashboard(request: Request) -> HTMLResponse:
             "mark_price": mark_price,
             "mark_source": mark_source,
             "mark_time": mark_time,
+            "cost_basis_total": cost_basis_total,
             "unrealized_pct": unrealized_pct,
             "unrealized_dollar": unrealized_dollar,
             "dist_target": dist_target,
             "dist_stop": dist_stop,
-            "cost_basis_total": entry_price * qty,
             "market_value": mark_price * qty if mark_price else None,
         }
 

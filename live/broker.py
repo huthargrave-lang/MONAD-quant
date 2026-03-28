@@ -347,12 +347,17 @@ def get_bracket_fill(bracket_order_id: str) -> dict | None:
     """
     Fetches actual fill data for a completed bracket order's child (TP or SL).
 
+    Searches two sources:
+      1. ib.trades() — current-session trades (has order type for exit classification)
+      2. ib.fills()  — all fills from today (survives reconnects/restarts)
+
     Returns dict with fill_price, fill_time, exit_type, or None if unavailable.
     """
     ib = _ensure_connected()
     parent_id = int(bracket_order_id)
 
     try:
+        # ── Source 1: ib.trades() — has full order info (type, parentId) ──
         trades = ib.trades()
         for trade in trades:
             order = trade.order
@@ -369,7 +374,49 @@ def get_bracket_fill(bracket_order_id: str) -> dict | None:
                 else:
                     exit_type = "bracket_exit"
 
-                log.info(f"Found bracket fill: price={fill_price}, type={exit_type}, time={fill_time}")
+                log.info(f"Found bracket fill (trades): price={fill_price}, type={exit_type}, time={fill_time}")
+                return {
+                    "fill_price": float(fill_price),
+                    "fill_time": fill_time,
+                    "exit_type": exit_type,
+                }
+
+        # ── Source 2: ib.fills() — persists across reconnects for current day ──
+        # After a restart, ib.trades() is empty for previous-session orders,
+        # but ib.fills() still has the executions reported during sync.
+        # We match by orderId since parentId isn't available on raw fills.
+        fills = ib.fills()
+        # Collect all child order IDs from trades (may be empty after restart)
+        child_order_ids = set()
+        for trade in trades:
+            if getattr(trade.order, 'parentId', 0) == parent_id:
+                child_order_ids.add(trade.order.orderId)
+
+        for fill in fills:
+            exec_ = fill.execution
+            # Match by: (a) known child order ID, or (b) orderId close to parent
+            # (bracket children are typically parentId+1 and parentId+2)
+            is_child = (
+                exec_.orderId in child_order_ids
+                or exec_.orderId in (parent_id + 1, parent_id + 2)
+            )
+            # Must be a SELL (exit), not the entry BUY
+            if is_child and exec_.side == 'SLD' and exec_.shares > 0:
+                fill_price = exec_.price
+                fill_time = exec_.time.isoformat() if exec_.time else None
+
+                # Without order type, infer from permId convention or just mark as bracket_exit
+                # Check if this orderId matches a known STP or LMT from trades
+                exit_type = "bracket_exit"
+                for trade in trades:
+                    if trade.order.orderId == exec_.orderId:
+                        if trade.order.orderType == 'LMT':
+                            exit_type = "target_hit"
+                        elif trade.order.orderType in ('STP', 'STP LMT'):
+                            exit_type = "stop_hit"
+                        break
+
+                log.info(f"Found bracket fill (fills): price={fill_price}, type={exit_type}, time={fill_time}")
                 return {
                     "fill_price": float(fill_price),
                     "fill_time": fill_time,
