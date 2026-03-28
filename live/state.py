@@ -303,14 +303,19 @@ def get_position_plan(capital: float) -> dict:
 
 # ── Diagnostics / monitor helpers ────────────────────────────────────────────
 
-def get_trade_summary() -> dict:
+def get_trade_summary(allowed_exit_types: set[str] | None = None) -> dict:
     with _conn() as conn:
         rows = conn.execute("SELECT return_pct, exit_type FROM trades").fetchall()
+    if allowed_exit_types is not None:
+        rows = [r for r in rows if r["exit_type"] in allowed_exit_types]
     if not rows:
-        return {"total": 0}
+        return {"total": 0, "win_rate": 0.0, "total_ret": 0.0, "exit_types": {}}
     returns = [r["return_pct"] for r in rows]
     win_rate = sum(1 for r in returns if r > 0) / len(returns)
-    total_ret = sum(returns)
+    total_ret = 1.0
+    for ret in returns:
+        total_ret *= (1.0 + float(ret))
+    total_ret -= 1.0
     by_type = {}
     for r in rows:
         by_type[r["exit_type"]] = by_type.get(r["exit_type"], 0) + 1
