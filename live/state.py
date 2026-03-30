@@ -144,6 +144,8 @@ def init_db() -> None:
             conn.execute("ALTER TABLE position ADD COLUMN status TEXT NOT NULL DEFAULT 'open'")
         if "estimated_exit_price" not in existing_pos_cols:
             conn.execute("ALTER TABLE position ADD COLUMN estimated_exit_price REAL")
+        if "pending_close_retries" not in existing_pos_cols:
+            conn.execute("ALTER TABLE position ADD COLUMN pending_close_retries INTEGER NOT NULL DEFAULT 0")
 
         # Mark-price columns on account_snapshot (for dashboard unrealized PnL)
         existing_acct_cols = {
@@ -170,6 +172,7 @@ class Position:
     bar_count: int
     status: str = "open"
     estimated_exit_price: float = None
+    pending_close_retries: int = 0
 
 
 def get_position() -> Optional[Position]:
@@ -249,6 +252,16 @@ def mark_pending_close(estimated_exit_price: float = None) -> None:
         )
     est_str = f" est_price={estimated_exit_price:.2f}" if estimated_exit_price else ""
     log.info(f"Position marked pending_close{est_str}")
+
+
+def increment_pending_close_retries() -> int:
+    """Increment and return the pending_close retry counter."""
+    with _conn() as conn:
+        conn.execute("UPDATE position SET pending_close_retries = pending_close_retries + 1")
+        row = conn.execute("SELECT pending_close_retries FROM position LIMIT 1").fetchone()
+    count = row["pending_close_retries"] if row else 0
+    log.info(f"Pending close retry count: {count}")
+    return count
 
 
 def finalize_pending_close(return_pct: float, exit_type: str,

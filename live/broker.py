@@ -423,6 +423,32 @@ def get_bracket_fill(bracket_order_id: str) -> dict | None:
                     "exit_type": exit_type,
                 }
 
+        # ── Source 3: ib.reqExecutions() — historical fills up to 7 days ──
+        # ib.fills() only returns current-day fills. If the bracket filled on
+        # a previous trading day (e.g. Friday fill, Monday retry), we need to
+        # query historical executions explicitly.
+        try:
+            from ib_insync import ExecutionFilter
+            from datetime import datetime, timedelta, timezone
+            since = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y%m%d 00:00:00")
+            exec_filter = ExecutionFilter(time=since)
+            hist_fills = ib.reqExecutions(exec_filter)
+            for fill in hist_fills:
+                exec_ = fill.execution
+                is_child = exec_.orderId in (parent_id + 1, parent_id + 2)
+                if is_child and exec_.side == 'SLD' and exec_.shares > 0:
+                    fill_price = exec_.price
+                    fill_time = exec_.time.isoformat() if exec_.time else None
+                    exit_type = "bracket_exit"
+                    log.info(f"Found bracket fill (reqExecutions): price={fill_price}, type={exit_type}, time={fill_time}")
+                    return {
+                        "fill_price": float(fill_price),
+                        "fill_time": fill_time,
+                        "exit_type": exit_type,
+                    }
+        except Exception as exc2:
+            log.warning(f"reqExecutions fallback failed: {exc2}")
+
         log.warning(f"No fill data found for bracket parent {parent_id}")
         return None
 

@@ -215,8 +215,30 @@ def _on_bar_inner() -> str:
                 _log_summary()
                 return f"reconciled_{exit_type}"
             else:
+                retries = state.increment_pending_close_retries()
+                # After 6 failed retries (~6 hours), finalize with estimated price.
+                # IBKR fill data is permanently unavailable (e.g. filled on a previous
+                # trading day and reqExecutions also failed). Continuing to block
+                # new entries indefinitely is worse than recording estimated PnL.
+                max_retries = config.PENDING_CLOSE_MAX_RETRIES
+                if retries >= max_retries and position.estimated_exit_price is not None:
+                    est_price = position.estimated_exit_price
+                    ret = (est_price - position.entry_price) / position.entry_price
+                    warning_msg = (
+                        f"Pending close force-finalized after {retries} retries | "
+                        f"est_price={est_price:.2f} | est_ret={ret:+.4%} (ESTIMATED — fill data never found)"
+                    )
+                    log.warning(warning_msg)
+                    state.add_monitor_event("WARNING", "fill", warning_msg)
+                    state.finalize_pending_close(
+                        return_pct=ret, exit_type="estimated_close",
+                        exit_price=est_price,
+                    )
+                    _sync_account_and_mark(bar_close=est_price)
+                    _log_summary()
+                    return "reconciled_estimated"
                 log.info(
-                    f"Pending close still unresolved — blocking new entries | "
+                    f"Pending close still unresolved ({retries}/{max_retries}) — blocking new entries | "
                     f"bracket_id={position.bracket_order_id}"
                 )
                 _sync_account_and_mark(bar_close=bar_close_fallback)
