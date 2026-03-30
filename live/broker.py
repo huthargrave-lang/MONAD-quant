@@ -434,13 +434,11 @@ def get_bracket_fill(bracket_order_id: str) -> dict | None:
             exec_filter = ExecutionFilter(time=since)
             hist_fills = ib.reqExecutions(exec_filter)
 
-            # Log what we got back for diagnostics
-            sell_fills = [f for f in hist_fills if f.execution.side == 'SLD']
-            if sell_fills:
-                log.info(f"reqExecutions returned {len(hist_fills)} fills ({len(sell_fills)} sells)")
-                for f in sell_fills:
-                    log.info(f"  SELL fill: orderId={f.execution.orderId}, price={f.execution.price}, "
-                             f"shares={f.execution.shares}, time={f.execution.time}")
+            # Always log what we got back for diagnostics
+            log.info(f"reqExecutions returned {len(hist_fills)} total fills (looking for parent {parent_id}, children {parent_id+1}/{parent_id+2})")
+            for f in hist_fills:
+                log.info(f"  fill: orderId={f.execution.orderId}, side={f.execution.side}, "
+                         f"price={f.execution.price}, shares={f.execution.shares}, time={f.execution.time}")
 
             for fill in hist_fills:
                 exec_ = fill.execution
