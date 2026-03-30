@@ -430,9 +430,18 @@ def get_bracket_fill(bracket_order_id: str) -> dict | None:
         try:
             from ib_insync import ExecutionFilter
             from datetime import datetime, timedelta, timezone
-            since = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y%m%d 00:00:00")
+            since = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y%m%d-%H:%M:%S")
             exec_filter = ExecutionFilter(time=since)
             hist_fills = ib.reqExecutions(exec_filter)
+
+            # Log what we got back for diagnostics
+            sell_fills = [f for f in hist_fills if f.execution.side == 'SLD']
+            if sell_fills:
+                log.info(f"reqExecutions returned {len(hist_fills)} fills ({len(sell_fills)} sells)")
+                for f in sell_fills:
+                    log.info(f"  SELL fill: orderId={f.execution.orderId}, price={f.execution.price}, "
+                             f"shares={f.execution.shares}, time={f.execution.time}")
+
             for fill in hist_fills:
                 exec_ = fill.execution
                 is_child = exec_.orderId in (parent_id + 1, parent_id + 2)
