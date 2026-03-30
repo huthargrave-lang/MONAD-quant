@@ -13,7 +13,7 @@ IBKR_PORT_LIVE     = 7496
 IBKR_CLIENT_ID     = 1
 
 MAX_TRADE_BARS_LIVE = 10
-PENDING_CLOSE_MAX_RETRIES = 6  # Force-finalize with estimated price after this many failed cycles
+PENDING_CLOSE_MAX_RETRIES = 3  # Force-finalize with estimated price after this many failed cycles
 LIVE_MIN_TRADES_FOR_ADAPTIVE = 10
 
 LIVE_BOOTSTRAP = {
