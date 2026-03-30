@@ -68,7 +68,7 @@ BB_STD            = 2.0
 REQUIRE_SIGNALS       = 1        # Only 1 of 2 signals needed — regime does the heavy filtering
 TARGET_GAIN_PCT       = 0.030    # 3% take-profit — dips recover 3-4%; 5% overshoots and reverses
 STOP_LOSS_PCT         = 0.015    # 1.5% stop (2:1 R:R)
-MAX_TRADE_BARS        = 20       # 4 trading weeks max hold — mean-reversion resolves in <4wks
+MAX_TRADE_BARS        = 8       # 4 trading weeks max hold — mean-reversion resolves in <4wks
 
 # Regime — daily (6-state slope classifier; core of the strategy)
 USE_SLOPE_REGIME      = True
@@ -225,7 +225,7 @@ MACD_FAST_TQQQ_HOURLY          = 6     # DEAD LEVER (confirmed: same as QQQ/BTC 
 MACD_SLOW_TQQQ_HOURLY          = 13
 MACD_SIGNAL_TQQQ_HOURLY        = 4
 VWAP_WINDOW_TQQQ_HOURLY        = 10
-VWAP_ZSCORE_THRESH_TQQQ_HOURLY = 0.4   # Sweep optimal (dead lever — 0.3-0.6 nearly identical)
+VWAP_ZSCORE_THRESH_TQQQ_HOURLY = 0.5   # Sweep optimal (dead lever — 0.3-0.6 nearly identical)
 BB_WINDOW_TQQQ_HOURLY          = 14
 TARGET_GAIN_PCT_TQQQ_HOURLY    = 0.0140 # 2.80% target — realistic sweep optimal; 1.9:1 R:R
 STOP_LOSS_PCT_TQQQ_HOURLY      = 0.0060 # 1.50% stop — Sharpe 3.7, DD -3.85%, WR 55.9%, +1.77%/mo
