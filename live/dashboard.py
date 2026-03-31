@@ -36,6 +36,7 @@ _UI_QUOTE_CACHE_TTL_SEC = 2.5
 _UI_QUOTE_STALE_OK_SEC = 60.0
 _UI_QUOTE_HEADERS = {"Cache-Control": "no-store, max-age=0"}
 _PLOTLY_JS_URL = f"https://cdn.plot.ly/plotly-{get_plotlyjs_version()}.min.js"
+_MARKET_TZ = ZoneInfo("America/New_York")
 _ui_quote_cache: dict[str, dict[str, float | str]] = {}
 
 
@@ -80,45 +81,21 @@ def _coerce_timestamp(value) -> datetime | None:
     if value is None:
         return None
     if isinstance(value, datetime):
-        return value
-    text = str(value).strip()
-    if not text:
-        return None
-    try:
-        return datetime.fromisoformat(text.replace("Z", "+00:00"))
-    except ValueError:
-        return None
+        dt = value
+    else:
+        text = str(value).strip()
+        if not text:
+            return None
+        try:
+            dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError:
+            return None
 
-
-def _break_series_on_time_gaps(
-    x_values: list,
-    y_values: list,
-    *,
-    max_gap: timedelta,
-) -> tuple[list, list]:
-    if not x_values or not y_values:
-        return x_values, y_values
-
-    broken_x: list = []
-    broken_y: list = []
-    prev_ts: datetime | None = None
-
-    for raw_x, raw_y in zip(x_values, y_values):
-        current_ts = _coerce_timestamp(raw_x)
-        if (
-            broken_x
-            and prev_ts is not None
-            and current_ts is not None
-            and current_ts - prev_ts > max_gap
-        ):
-            broken_x.append(None)
-            broken_y.append(None)
-
-        broken_x.append(current_ts or raw_x)
-        broken_y.append(raw_y)
-        prev_ts = current_ts
-
-    return broken_x, broken_y
+    # live/signals.py stores yfinance hourly bars as UTC-naive timestamps
+    # (`tz_convert(None)`), so normalize them into New York market time for UI use.
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(_MARKET_TZ).replace(tzinfo=None)
 
 
 def _get_cached_ui_quote(symbol: str, max_age_sec: float) -> dict | None:
@@ -399,8 +376,7 @@ def _build_signal_chart(
     close = [r.get("bar_close") for r in rows]
     rsi = [r.get("rsi") for r in rows]
     signals = [r.get("signal") for r in rows]
-    line_x, line_close = _break_series_on_time_gaps(x, close, max_gap=timedelta(hours=3))
-    rsi_x, line_rsi = _break_series_on_time_gaps(x, rsi, max_gap=timedelta(hours=3))
+    use_market_session_breaks = not (asset_label or "").upper().startswith("BTC")
 
     fig = make_subplots(
         rows=2,
@@ -411,13 +387,12 @@ def _build_signal_chart(
     )
     fig.add_trace(
         go.Scatter(
-            x=line_x,
-            y=line_close,
+            x=x,
+            y=close,
             mode="lines",
             name="Close",
             line=dict(color="#4aa3ff", width=2),
             hovertemplate="%{x}<br>Close $%{y:.2f}<extra></extra>",
-            connectgaps=False,
         ),
         row=1,
         col=1,
@@ -464,13 +439,12 @@ def _build_signal_chart(
 
     fig.add_trace(
         go.Scatter(
-            x=rsi_x,
-            y=line_rsi,
+            x=x,
+            y=rsi,
             mode="lines",
             name="RSI",
             line=dict(color="#bb86fc", width=2),
             hovertemplate="%{x}<br>RSI %{y:.2f}<extra></extra>",
-            connectgaps=False,
         ),
         row=2,
         col=1,
@@ -517,7 +491,13 @@ def _build_signal_chart(
         showlegend=False,
         hovermode="x unified",
     )
-    fig.update_xaxes(showgrid=False, automargin=True)
+    xaxis_kwargs = {"showgrid": False, "automargin": True}
+    if use_market_session_breaks:
+        xaxis_kwargs["rangebreaks"] = [
+            dict(bounds=["sat", "mon"]),
+            dict(pattern="hour", bounds=[16, 9.5]),
+        ]
+    fig.update_xaxes(**xaxis_kwargs)
     fig.update_yaxes(
         title_text="Price",
         gridcolor="rgba(152, 162, 179, 0.12)",
