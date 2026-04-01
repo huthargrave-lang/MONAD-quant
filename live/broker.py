@@ -289,7 +289,12 @@ def place_bracket_order(symbol: str, qty: int,
         f"Bracket order placed | id={parent_id} | {qty} {symbol} @ ~{live_price:.2f} | "
         f"target={target_price:.2f} (+{target_pct:.2%}) | stop={stop_price:.2f} (-{stop_pct:.2%})"
     )
-    return {"order_id": parent_id, "fill_basis": float(live_price)}
+    return {
+        "order_id": parent_id,
+        "fill_basis": float(live_price),
+        "target_price": float(target_price),
+        "stop_price": float(stop_price),
+    }
 
 
 def cancel_and_close(symbol: str, bracket_order_id: str, qty: int) -> dict | None:

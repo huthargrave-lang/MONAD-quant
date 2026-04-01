@@ -53,6 +53,45 @@ def _get_git_hash() -> str:
         return "unknown"
 
 
+def _infer_bracket_exit(position, ref_price: float) -> tuple[float, str]:
+    """Infer which bracket leg (TP or SL) filled when IBKR fill data is unavailable.
+
+    Uses the stored target_price/stop_price from order placement. If the current
+    market price is above the target, TP likely filled. If below the stop, SL
+    likely filled. For ambiguous cases, uses the closer of TP/SL to the reference
+    price. Falls back to reference price if TP/SL not stored.
+    """
+    tp = position.target_price
+    sl = position.stop_price
+    entry = position.entry_price
+
+    if tp is None or sl is None:
+        # Legacy position without stored TP/SL — use reference price
+        exit_type = "target_hit" if ref_price >= entry else "stop_hit"
+        log.info(f"Infer exit (no TP/SL stored): ref={ref_price:.2f}, entry={entry:.2f} → {exit_type}")
+        return ref_price, exit_type
+
+    # If ref_price is at or above TP, target almost certainly hit
+    if ref_price >= tp:
+        log.info(f"Infer exit: ref={ref_price:.2f} >= TP={tp:.2f} → target_hit")
+        return tp, "target_hit"
+
+    # If ref_price is at or below SL, stop almost certainly hit
+    if ref_price <= sl:
+        log.info(f"Infer exit: ref={ref_price:.2f} <= SL={sl:.2f} → stop_hit")
+        return sl, "stop_hit"
+
+    # Ambiguous: price is between SL and TP. Use distance to decide.
+    dist_to_tp = abs(ref_price - tp)
+    dist_to_sl = abs(ref_price - sl)
+    if dist_to_tp <= dist_to_sl:
+        log.info(f"Infer exit (ambiguous, closer to TP): ref={ref_price:.2f}, TP={tp:.2f}, SL={sl:.2f} → target_hit")
+        return tp, "target_hit"
+    else:
+        log.info(f"Infer exit (ambiguous, closer to SL): ref={ref_price:.2f}, TP={tp:.2f}, SL={sl:.2f} → stop_hit")
+        return sl, "stop_hit"
+
+
 def _get_asset_config() -> dict:
     """Returns the ASSETS dict entry for the current LIVE_SYMBOL."""
     mode = f"{config.LIVE_SYMBOL}_HOURLY"
@@ -259,20 +298,23 @@ def _on_bar_inner() -> str:
                 state.close_position(return_pct=ret, exit_type=exit_type,
                                      exit_price=fill["fill_price"])
             else:
-                # Fill data unavailable (e.g. connection gap after restart).
-                # Mark as pending_close — position stays in DB blocking new entries.
-                # Reconciliation retried on each subsequent cycle.
+                # Fill data unavailable — IBKR paper doesn't retain execution
+                # history across disconnections. Infer exit from stored TP/SL
+                # prices and finalize immediately instead of blocking entries.
                 ref_price = broker.get_reference_price(position.symbol)
-                est_ret = (ref_price - position.entry_price) / position.entry_price
+                exit_price, exit_type = _infer_bracket_exit(position, ref_price)
+                ret = (exit_price - position.entry_price) / position.entry_price
                 warning_msg = (
-                    f"Fill data unavailable — marking pending_close (blocks new entries) | "
-                    f"ref={ref_price:.2f} | estimated_ret={est_ret:+.4%} (NOT recorded as PnL)"
+                    f"Fill data unavailable — inferred {exit_type} @ {exit_price:.2f} | "
+                    f"ret={ret:+.4%} (inferred from TP/SL prices, not actual fill)"
                 )
                 log.warning(warning_msg)
                 state.add_monitor_event("WARNING", "fill", warning_msg)
-                state.mark_pending_close(estimated_exit_price=ref_price)
-                _sync_account_and_mark(bar_close=ref_price or bar_close_fallback)
-                return "exit_pending_close"
+                state.close_position(return_pct=ret, exit_type=exit_type,
+                                     exit_price=exit_price)
+                _sync_account_and_mark(bar_close=exit_price)
+                _log_summary()
+                return f"exit_{exit_type}_inferred"
 
             _sync_account_and_mark(bar_close=fill["fill_price"])
             _log_summary()
@@ -399,7 +441,11 @@ def _on_bar_inner() -> str:
     # at order time, matching the backtest convention of entering at next-bar open.
     entry_price = result["fill_basis"]
     order_id = result["order_id"]
-    state.open_position(config.LIVE_SYMBOL, entry_price, qty, order_id)
+    state.open_position(
+        config.LIVE_SYMBOL, entry_price, qty, order_id,
+        target_price=result.get("target_price"),
+        stop_price=result.get("stop_price"),
+    )
     log.info(f"ENTRY placed: {qty} shares @ ~{entry_price:.2f} (fill_basis)")
     state.add_monitor_event("INFO", "entry", f"Entry placed: {qty} {config.LIVE_SYMBOL} @ {entry_price:.2f}")
     return "entry_placed"
