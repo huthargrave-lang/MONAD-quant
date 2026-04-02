@@ -404,6 +404,7 @@ def _build_trade_scatter_chart(trades: list[dict]) -> str:
 def _build_signal_chart(
     signal_history: list[dict],
     *,
+    position: dict | None = None,
     asset_label: str | None = None,
     rsi_oversold: float | None = None,
     rsi_overbought: float | None = None,
@@ -461,6 +462,42 @@ def _build_signal_chart(
         row=1,
         col=1,
     )
+
+    if position:
+        entry_price = _coerce_price(position.get("entry_price"))
+        target_price = _coerce_price(position.get("target_price"))
+        stop_price = _coerce_price(position.get("stop_price"))
+
+        if target_price is not None:
+            fig.add_hline(
+                y=target_price,
+                line_dash="dash",
+                line_color="rgba(46, 204, 113, 0.70)",
+                annotation_text=f"Target ${target_price:.2f}",
+                annotation_position="top right",
+                row=1,
+                col=1,
+            )
+        if entry_price is not None:
+            fig.add_hline(
+                y=entry_price,
+                line_dash="dot",
+                line_color="rgba(255, 255, 255, 0.40)",
+                annotation_text=f"Entry ${entry_price:.2f}",
+                annotation_position="top left",
+                row=1,
+                col=1,
+            )
+        if stop_price is not None:
+            fig.add_hline(
+                y=stop_price,
+                line_dash="dash",
+                line_color="rgba(231, 76, 60, 0.70)",
+                annotation_text=f"Stop ${stop_price:.2f}",
+                annotation_position="bottom right",
+                row=1,
+                col=1,
+            )
 
     long_x, long_y, short_x, short_y = [], [], [], []
     for idx, sig in enumerate(signals):
@@ -812,6 +849,7 @@ def dashboard(request: Request) -> HTMLResponse:
     signal_chart = Markup(
         _build_signal_chart(
             signal_chart_history,
+            position=position_view,
             asset_label=active_asset_key or (status.get("live_symbol") if status else None),
             rsi_oversold=rsi_oversold,
             rsi_overbought=rsi_overbought,
