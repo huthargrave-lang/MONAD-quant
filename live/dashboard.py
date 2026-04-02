@@ -568,12 +568,11 @@ def _build_position_gauge(position: dict | None) -> str:
 
     fig = go.Figure(
         go.Indicator(
-            mode="number+gauge",
+            mode="gauge",
             value=mark,
-            number={"prefix": "$", "font": {"size": 24, "color": "#e8ecf6"}},
-            # Leave room on the left for the live price so it does not collide
-            # with the bullet gauge when the card gets narrow.
-            domain={"x": [0.25, 1], "y": [0, 1]},
+            # The mark price is already shown in the position table above.
+            # Use the full width here for the risk/reward visualization.
+            domain={"x": [0.02, 0.98], "y": [0, 1]},
             gauge={
                 "shape": "bullet",
                 "axis": {"range": [lower, upper], "tickcolor": "#e8ecf6"},
