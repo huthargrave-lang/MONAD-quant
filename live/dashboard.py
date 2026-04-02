@@ -368,35 +368,11 @@ def _build_signal_chart(
     rsi_oversold: float | None = None,
     rsi_overbought: float | None = None,
 ) -> str:
-    if not signal_history:
-        return ""
-
-    # signal_history is fetched by insertion id, but live snapshots can contain
-    # duplicate or slightly delayed bar_time values. Sort and de-dup by actual
-    # bar timestamp so the plotted line never folds backward in time.
-    deduped_rows: dict[str, dict] = {}
-    for row in reversed(signal_history):
-        raw_x = row.get("bar_time") or row.get("updated_at")
-        parsed_x = _coerce_timestamp(raw_x)
-        dedupe_key = parsed_x.isoformat() if parsed_x is not None else str(raw_x)
-        deduped_rows[dedupe_key] = {
-            **row,
-            "_chart_x": parsed_x or raw_x,
-            "_chart_dt": parsed_x,
-        }
-
-    rows = sorted(
-        deduped_rows.values(),
-        key=lambda row: (
-            row.get("_chart_dt") is None,
-            row.get("_chart_dt") or datetime.max,
-            str(row.get("_chart_x")),
-        ),
-    )
+    rows = list(reversed(signal_history))
     if not rows:
         return ""
 
-    x = [r.get("_chart_x") for r in rows]
+    x = [_coerce_timestamp(r.get("bar_time") or r.get("updated_at")) or (r.get("bar_time") or r.get("updated_at")) for r in rows]
     close = [r.get("bar_close") for r in rows]
     rsi = [r.get("rsi") for r in rows]
     signals = [r.get("signal") for r in rows]
@@ -568,11 +544,12 @@ def _build_position_gauge(position: dict | None) -> str:
 
     fig = go.Figure(
         go.Indicator(
-            mode="gauge",
+            mode="number+gauge",
             value=mark,
-            # The mark price is already shown in the position table above.
-            # Use the full width here for the risk/reward visualization.
-            domain={"x": [0.02, 0.98], "y": [0, 1]},
+            number={"prefix": "$", "font": {"size": 24, "color": "#e8ecf6"}},
+            # Leave room on the left for the live price so it does not collide
+            # with the bullet gauge when the card gets narrow.
+            domain={"x": [0.25, 1], "y": [0, 1]},
             gauge={
                 "shape": "bullet",
                 "axis": {"range": [lower, upper], "tickcolor": "#e8ecf6"},
