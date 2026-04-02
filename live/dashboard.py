@@ -334,31 +334,71 @@ def _build_returns_chart(trades: list[dict]) -> str:
     return _figure_to_html(fig, div_id="returns-chart")
 
 
-def _build_exit_type_chart(exit_counts: dict[str, int]) -> str:
-    total = sum(exit_counts.values()) if exit_counts else 0
-    if total < 3:
-        return ""  # Too few trades for a meaningful donut
-    labels = list(exit_counts.keys())
-    values = [exit_counts[k] for k in labels]
+def _build_trade_scatter_chart(trades: list[dict]) -> str:
+    points = []
+    for trade in trades:
+        bars_held = trade.get("bars_held")
+        return_pct = trade.get("return_pct")
+        if bars_held is None or return_pct is None:
+            continue
+        try:
+            points.append(
+                {
+                    "bars_held": int(bars_held),
+                    "return_pct": float(return_pct) * 100.0,
+                    "symbol": trade.get("symbol") or "—",
+                    "exit_type": trade.get("exit_type") or "unknown",
+                    "exit_time": trade.get("exit_time") or "—",
+                }
+            )
+        except (TypeError, ValueError):
+            continue
+
+    if len(points) < 3:
+        return ""
+
+    x_bars = [point["bars_held"] for point in points]
+    y_rets = [point["return_pct"] for point in points]
+    colors = ["#2ecc71" if ret >= 0 else "#e74c3c" for ret in y_rets]
+    custom = [[point["symbol"], point["exit_type"], point["exit_time"]] for point in points]
+
     fig = go.Figure(
-        data=[go.Pie(labels=labels, values=values, hole=0.45, textinfo="label+percent")]
+        data=[
+            go.Scatter(
+                x=x_bars,
+                y=y_rets,
+                mode="markers",
+                marker=dict(
+                    size=10,
+                    color=colors,
+                    line=dict(width=1, color="#121a2f"),
+                ),
+                customdata=custom,
+                hovertemplate=(
+                    "%{customdata[0]}<br>"
+                    "Held: %{x} bars<br>"
+                    "Return: %{y:.2f}%<br>"
+                    "Exit: %{customdata[1]}<br>"
+                    "Closed: %{customdata[2]}<extra></extra>"
+                ),
+                showlegend=False,
+            )
+        ]
     )
     fig.update_layout(
-        title="Exit Type Breakdown",
+        title="Trade Efficiency (Return vs Duration)",
         paper_bgcolor="#121a2f",
         plot_bgcolor="#121a2f",
         font_color="#e8ecf6",
-        margin=dict(l=20, r=20, t=40, b=20),
+        margin=dict(l=50, r=20, t=40, b=40),
         height=300,
-        legend=dict(
-            orientation="h",
-            yanchor="top",
-            y=-0.1,
-            xanchor="center",
-            x=0.5,
-        ),
+        xaxis_title="Bars Held",
+        yaxis_title="Return %",
     )
-    return _figure_to_html(fig, div_id="exit-type-chart")
+    fig.add_hline(y=0, line_color="rgba(255,255,255,0.18)", line_width=1)
+    fig.update_xaxes(automargin=True, rangemode="tozero")
+    fig.update_yaxes(automargin=True)
+    return _figure_to_html(fig, div_id="trade-scatter-chart")
 
 
 def _build_signal_chart(
@@ -648,8 +688,6 @@ def dashboard(request: Request) -> HTMLResponse:
     chart_trades = _filter_prod_trades(all_trades)
     summary = _summarize_trades(chart_trades)
     events = state.get_recent_monitor_events(limit=30)
-    all_exit_counts = state.get_exit_type_counts(limit=250)
-    exit_counts = {k: v for k, v in all_exit_counts.items() if k in _PROD_EXIT_TYPES}
     account = state.get_account_snapshot()
     freshness = state.get_dashboard_freshness_status()
 
@@ -762,7 +800,7 @@ def dashboard(request: Request) -> HTMLResponse:
     )
 
     returns_chart = Markup(_build_returns_chart(chart_trades))
-    exit_chart = Markup(_build_exit_type_chart(exit_counts))
+    trade_scatter_chart = Markup(_build_trade_scatter_chart(chart_trades))
     signal_asset_key, signal_asset_cfg = _resolve_asset_config(status.get("live_symbol") if status else None)
     active_asset_key = signal_asset_key or config.DEFAULT_ASSET
     active_asset_cfg = signal_asset_cfg or config.ASSETS.get(config.DEFAULT_ASSET, {})
@@ -802,9 +840,8 @@ def dashboard(request: Request) -> HTMLResponse:
             "trades": trades,
             "events": events,
             "signal_history": signal_history,
-            "exit_counts": exit_counts,
             "returns_chart": returns_chart,
-            "exit_chart": exit_chart,
+            "trade_scatter_chart": trade_scatter_chart,
             "signal_chart": signal_chart,
             "position_gauge": position_gauge,
             "cycle_age_min": cycle_age_min,
