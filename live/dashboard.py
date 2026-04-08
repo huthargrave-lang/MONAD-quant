@@ -255,7 +255,9 @@ def _figure_to_html(fig: go.Figure, *, div_id: str) -> str:
         include_plotlyjs=False,
         div_id=div_id,
         config={
-            "displayModeBar": False,
+            "displayModeBar": True,
+            "displaylogo": False,
+            "scrollZoom": True,
             "responsive": True,
         },
         default_width="100%",
@@ -354,7 +356,7 @@ def _build_trade_scatter_chart(trades: list[dict]) -> str:
         except (TypeError, ValueError):
             continue
 
-    if len(points) < 3:
+    if not points:
         return ""
 
     x_bars = [point["bars_held"] for point in points]
