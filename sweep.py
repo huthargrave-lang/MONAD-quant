@@ -71,6 +71,11 @@ parser.add_argument("--target", type=float, default=None,
                     help="Force a single target %% instead of sweeping target values (example: 1.4 for 1.4%%).")
 parser.add_argument("--stop", type=float, default=None,
                     help="Force a single stop %% instead of sweeping stop values (example: 0.65 for 0.65%%).")
+parser.add_argument("--compare-opposing-exit", action="store_true",
+                    help="Skip the full sweep. Run the current config (or --target/--stop/--rsi/--vwap overrides) "
+                         "twice — once with use_opposing_signal_exit=False and once with =True — and print a "
+                         "side-by-side comparison. Useful for validating whether an opposing-signal exit helps "
+                         "a specific instrument before wiring it into the live trader.")
 args = parser.parse_args()
 
 TICKER = args.ticker.upper()
@@ -248,6 +253,20 @@ else:
 # ═══════════════════════════════════════════════════════════════════════════
 #  SWEEP ENGINE
 # ═══════════════════════════════════════════════════════════════════════════
+def _set_opposing_exit(enabled: bool):
+    """Toggle the opposing-signal exit flag read by runner.py.
+
+    Uses the mode-override set so the flag is scoped to this MODE_NAME only
+    and doesn't leak into unrelated imports during the process lifetime.
+    """
+    if enabled:
+        config.USE_OPPOSING_SIGNAL_EXIT = True
+    else:
+        config.USE_OPPOSING_SIGNAL_EXIT = False
+    # Clear any per-mode set override so the global flag is the single source.
+    config.OPPOSING_SIGNAL_EXIT_MODES = set()
+
+
 def run_quiet(target, stop, rsi_os=None, vwap=None):
     """Run a single backtest quietly. Returns result dict or None."""
     if rsi_os is not None:
@@ -453,6 +472,79 @@ def update_best(r, target, stop, rsi=None, vwap=None):
             best["rsi"] = rsi
         if vwap is not None:
             best["vwap"] = vwap
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  OPPOSING-SIGNAL EXIT COMPARISON (short-circuit mode)
+# ═══════════════════════════════════════════════════════════════════════════
+# When --compare-opposing-exit is passed, skip the full sweep and run the
+# current config (with any --target/--stop/--rsi/--vwap CLI overrides applied)
+# twice — once with use_opposing_signal_exit=False, once with =True. This lets
+# you validate whether the opposing-signal exit helps a specific instrument
+# before wiring it into the live trader.
+if args.compare_opposing_exit:
+    # Resolve comparison params — CLI overrides first, then ASSETS defaults.
+    cmp_target = args.target if args.target is not None else config.ASSETS[MODE_NAME]["target_gain_pct"]
+    cmp_stop   = args.stop   if args.stop   is not None else config.ASSETS[MODE_NAME]["stop_loss_pct"]
+    # --target/--stop are in PERCENT on the CLI (e.g. 0.42), but run_quiet
+    # expects DECIMALS (0.0042). Detect and convert if user passed a percent.
+    if args.target is not None and cmp_target >= 0.1:
+        cmp_target = cmp_target / 100.0
+    if args.stop is not None and cmp_stop >= 0.1:
+        cmp_stop = cmp_stop / 100.0
+    cmp_rsi  = args.rsi  if args.rsi  is not None else config.ASSETS[MODE_NAME]["rsi_oversold"]
+    cmp_vwap = args.vwap if args.vwap is not None else config.ASSETS[MODE_NAME]["vwap_zscore_thresh"]
+
+    print("=" * 95)
+    print(f"  OPPOSING-SIGNAL EXIT COMPARISON — {TICKER}")
+    print("=" * 95)
+    print(f"  target={cmp_target*100:.3f}%  stop={cmp_stop*100:.3f}%  "
+          f"rsi={cmp_rsi}  vwap={cmp_vwap}")
+    print(f"  Period: {START_DATE} → {END_DATE}  ({len(df_raw)} bars train)\n")
+
+    _set_opposing_exit(False)
+    r_off = run_quiet(cmp_target, cmp_stop, cmp_rsi, cmp_vwap)
+    _set_opposing_exit(True)
+    r_on  = run_quiet(cmp_target, cmp_stop, cmp_rsi, cmp_vwap)
+    _set_opposing_exit(False)   # leave config in its default state
+
+    print(fmt(r_off, "OFF  (baseline)        "))
+    print(fmt(r_on,  "ON   (opposing-exit)   "))
+
+    # Compute delta for each extractable metric
+    m_off = extract_metrics(r_off) if r_off else None
+    m_on  = extract_metrics(r_on)  if r_on  else None
+    if m_off and m_on:
+        print("\n  DELTA (ON − OFF):")
+        fields = [
+            ("total_return_pct", "total_return", "%"),
+            ("sharpe_ratio",     "sharpe",       ""),
+            ("max_drawdown_pct", "max_drawdown", "%"),
+            ("avg_monthly_pct",  "avg/mo",       "%"),
+            ("total_trades",     "trades",       ""),
+            ("win_rate_pct",     "win_rate",     "%"),
+        ]
+        for key, label, unit in fields:
+            delta = m_on[key] - m_off[key]
+            sign = "+" if delta >= 0 else ""
+            print(f"    {label:14s} {sign}{delta:.3f}{unit}")
+
+        # Count how many trades ended as opposing_signal in the ON run.
+        eb_on = r_on.get("exit_breakdown", {}) if r_on else {}
+        opp_count = eb_on.get("opposing_signal", 0)
+        print(f"\n  Opposing-signal exits in ON run: {opp_count} / {m_on['total_trades']}")
+
+        # Simple verdict
+        if m_on["sharpe_ratio"] > m_off["sharpe_ratio"] and m_on["total_return_pct"] > m_off["total_return_pct"]:
+            verdict = "HELPS — higher return and Sharpe"
+        elif m_on["sharpe_ratio"] < m_off["sharpe_ratio"] and m_on["total_return_pct"] < m_off["total_return_pct"]:
+            verdict = "HURTS — lower return and Sharpe"
+        else:
+            verdict = "MIXED — one metric up, another down (manual review)"
+        print(f"\n  Verdict: {verdict}")
+
+    print()
+    sys.exit(0)
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  PHASE 1 — COARSE SWEEP

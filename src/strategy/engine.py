@@ -216,7 +216,8 @@ def compute_trade_returns(df: pd.DataFrame,
                            worst_case_ambiguity: bool = False,
                            target_overrides: dict = None,
                            stop_overrides: dict = None,
-                           bar_limit_overrides: dict = None) -> pd.DataFrame:
+                           bar_limit_overrides: dict = None,
+                           use_opposing_signal_exit: bool = False) -> pd.DataFrame:
     """
     Simulate next-bar trade outcomes for backtesting.
 
@@ -241,6 +242,11 @@ def compute_trade_returns(df: pd.DataFrame,
         target_overrides: Dict of {timestamp: target_pct} for per-trade targets
         stop_overrides: Dict of {timestamp: stop_pct} for per-trade stops
         bar_limit_overrides: Dict of {timestamp: max_bars} for per-trade bar limits
+        use_opposing_signal_exit: When True, a future bar whose entry_signal is
+                              opposite to the open trade's direction closes the
+                              trade at the NEXT bar's open (matching entry
+                              convention). TP/SL still win on the same bar.
+                              Produces exit_type="opposing_signal".
 
     Returns:
         DataFrame with columns: timestamp, return, trend_regime, exit_type
@@ -250,6 +256,12 @@ def compute_trade_returns(df: pd.DataFrame,
     trade_timestamps = []
     trade_exit_types = []
     entries = df[df["entry_signal"] != 0]
+
+    # Precompute the entry_signal column once for opposing-signal lookups. Using
+    # the ndarray avoids per-bar pandas overhead in the tight future loop.
+    signal_arr = df["entry_signal"].to_numpy() if use_opposing_signal_exit else None
+    open_arr   = df["open"].to_numpy() if use_opposing_signal_exit else None
+    df_len     = len(df)
 
     for i, (idx, row) in enumerate(entries.iterrows()):
         loc = df.index.get_loc(idx)
@@ -272,11 +284,12 @@ def compute_trade_returns(df: pd.DataFrame,
         entry_price = df.iloc[next_bar_loc]["open"]
 
         # Look ahead from bar N+2 onward (N+1 is the entry bar)
-        future = df.iloc[next_bar_loc + 1: next_bar_loc + 1 + n_bars]
+        future_start = next_bar_loc + 1
+        future = df.iloc[future_start: future_start + n_bars]
         exit_return = None
         exit_type   = None
 
-        for _, bar in future.iterrows():
+        for fut_offset, (_, bar) in enumerate(future.iterrows()):
             if direction == 1:
                 target_hit = bar["high"] >= entry_price * (1 + target)
                 stop_hit   = bar["low"]  <= entry_price * (1 - stop)
@@ -305,7 +318,25 @@ def compute_trade_returns(df: pd.DataFrame,
                 exit_type   = "stop_hit"
                 break
 
-        # If no target/stop hit, use close of last future bar
+            # Opposing-signal exit — only reached when neither TP nor SL fired
+            # on this bar. The signal on bar K is actionable at bar K+1 open
+            # (same rule as entries), so we exit at the *next* bar's open.
+            if use_opposing_signal_exit:
+                bar_loc = future_start + fut_offset
+                bar_signal = signal_arr[bar_loc]
+                if ((direction == 1 and bar_signal == -1) or
+                    (direction == -1 and bar_signal == 1)):
+                    opp_fill_loc = bar_loc + 1
+                    if opp_fill_loc < df_len:
+                        opp_price = open_arr[opp_fill_loc]
+                        exit_return = direction * (opp_price - entry_price) / entry_price
+                        exit_type   = "opposing_signal"
+                        break
+                    # Opposing signal fires on the last bar — no next bar to
+                    # fill at. Fall through and let the time-exit path below
+                    # handle it (consistent with entry-drop-on-last-bar rule).
+
+        # If no target/stop/opposing-signal hit, use close of last future bar
         if exit_return is None and len(future) > 0:
             last_close  = future.iloc[-1]["close"]
             exit_return = direction * (last_close - entry_price) / entry_price

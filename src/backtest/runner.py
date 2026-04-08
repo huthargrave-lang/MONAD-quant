@@ -124,6 +124,18 @@ def run_backtest(df: pd.DataFrame,
         else:
             stop_overrides = None  # no overrides needed
 
+    # ── Opposing-signal exit resolution ───────────────────────────────────
+    # Global flag OR per-mode override set (checked against ACTIVE_MODE).
+    active_mode = getattr(config, "ACTIVE_MODE", None)
+    opp_modes = getattr(config, "OPPOSING_SIGNAL_EXIT_MODES", set()) or set()
+    use_opposing_exit = bool(
+        getattr(config, "USE_OPPOSING_SIGNAL_EXIT", False)
+        or (active_mode is not None and active_mode in opp_modes)
+    )
+    if use_opposing_exit:
+        print("       Opposing-signal exit: ENABLED "
+              "(long closes on -1 signal, short closes on +1 signal)")
+
     # ── 2. Simulate trades ────────────────────────────────────────────────
     print("[2/4] Simulating trades...")
     trades_df = compute_trade_returns(
@@ -134,6 +146,7 @@ def run_backtest(df: pd.DataFrame,
         slippage_pct=slippage_pct,
         worst_case_ambiguity=worst_case,
         stop_overrides=stop_overrides,
+        use_opposing_signal_exit=use_opposing_exit,
     )
 
     if len(trades_df) == 0:

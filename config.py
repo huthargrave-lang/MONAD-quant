@@ -113,6 +113,17 @@ USE_ATR_DYNAMIC_STOPS = False
 ATR_STOP_MULT         = 2.0
 ATR_STOP_CAP_PCT      = 0.04
 
+# Opposing-signal exit — close an open trade when the signal flips against it.
+# Applied in compute_trade_returns() after TP/SL checks each bar (TP/SL always win).
+# Exit fills at the opposing-signal bar's NEXT open, matching entry convention.
+# Off by default — enable per-mode via OPPOSING_SIGNAL_EXIT_MODES or globally.
+# Live equivalent lives in live/trader.py behind EXIT_ON_OPPOSING_SIGNAL.
+USE_OPPOSING_SIGNAL_EXIT  = False
+# Optional per-mode override set: {"QQQ_HOURLY", "TQQQ_HOURLY", ...}.
+# When ACTIVE_MODE is in this set, opposing-signal exit is enabled for the run
+# regardless of USE_OPPOSING_SIGNAL_EXIT. Empty set = use the global flag only.
+OPPOSING_SIGNAL_EXIT_MODES = set()
+
 # Disabled features (guarded in code, kept for future activation)
 USE_REGIME_FILTER    = False   # Vol-regime binary gate — too blunt
 USE_MA_REGIME_FILTER = False   # Legacy binary gate — replaced by slope regime
