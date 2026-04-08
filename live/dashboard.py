@@ -364,42 +364,58 @@ def _build_trade_scatter_chart(trades: list[dict]) -> str:
     colors = ["#2ecc71" if ret >= 0 else "#e74c3c" for ret in y_rets]
     custom = [[point["symbol"], point["exit_type"], point["exit_time"]] for point in points]
 
-    fig = go.Figure(
-        data=[
-            go.Scatter(
-                x=x_bars,
-                y=y_rets,
-                mode="markers",
-                marker=dict(
-                    size=10,
-                    color=colors,
-                    line=dict(width=1, color="#121a2f"),
-                ),
-                customdata=custom,
-                hovertemplate=(
-                    "%{customdata[0]}<br>"
-                    "Held: %{x} bars<br>"
-                    "Return: %{y:.2f}%<br>"
-                    "Exit: %{customdata[1]}<br>"
-                    "Closed: %{customdata[2]}<extra></extra>"
-                ),
-                showlegend=False,
-            )
-        ]
+    fig = go.Figure()
+
+    fig.add_hline(
+        y=0,
+        line_dash="dash",
+        line_color="rgba(255,255,255,0.2)",
+        line_width=2,
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=x_bars,
+            y=y_rets,
+            mode="markers",
+            marker=dict(
+                size=12,
+                color=colors,
+                opacity=0.85,
+                line=dict(width=1.5, color="#121a2f"),
+            ),
+            customdata=custom,
+            hovertemplate=(
+                "<b>%{customdata[0]}</b><br>"
+                "Return: %{y:+.2f}%<br>"
+                "Duration: %{x} bars<br>"
+                "Exit: %{customdata[1]}<br>"
+                "Closed: %{customdata[2]}<extra></extra>"
+            ),
+            showlegend=False,
+        )
     )
     fig.update_layout(
-        title="Trade Efficiency (Return vs Duration)",
+        title="Trade Efficiency",
         paper_bgcolor="#121a2f",
         plot_bgcolor="#121a2f",
         font_color="#e8ecf6",
-        margin=dict(l=50, r=20, t=40, b=40),
+        margin=dict(l=60, r=20, t=40, b=40),
         height=300,
-        xaxis_title="Bars Held",
-        yaxis_title="Return %",
+        xaxis_title="Duration (Bars)",
+        yaxis_title="Return (%)",
+        hovermode="closest",
     )
-    fig.add_hline(y=0, line_color="rgba(255,255,255,0.18)", line_width=1)
-    fig.update_xaxes(automargin=True, rangemode="tozero")
-    fig.update_yaxes(automargin=True)
+    fig.update_xaxes(
+        automargin=True,
+        rangemode="tozero",
+        gridcolor="rgba(152, 162, 179, 0.1)",
+        zeroline=False,
+    )
+    fig.update_yaxes(
+        automargin=True,
+        gridcolor="rgba(152, 162, 179, 0.1)",
+        zeroline=False,
+    )
     return _figure_to_html(fig, div_id="trade-scatter-chart")
 
 

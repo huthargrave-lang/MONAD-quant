@@ -107,6 +107,57 @@
       .filter-btn.is-active {
         border-color: var(--text);
       }
+      .event-menu-wrap {
+        position: relative;
+        display: inline-block;
+      }
+      .event-menu-trigger {
+        background: none;
+        border: none;
+        color: var(--muted);
+        font-size: 20px;
+        cursor: pointer;
+        padding: 0 5px;
+        line-height: 1;
+      }
+      .event-menu-panel {
+        display: none;
+        position: absolute;
+        right: 0;
+        top: 24px;
+        background: #0f1530;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 4px;
+        z-index: 100;
+        min-width: 110px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      }
+      .event-menu-panel.is-open {
+        display: block;
+      }
+      .event-menu-item {
+        padding: 6px 12px;
+        font-size: 12px;
+        cursor: pointer;
+        border-radius: 4px;
+        color: var(--text);
+      }
+      .event-menu-item:hover {
+        background: rgba(255,255,255,0.05);
+      }
+      .event-menu-item.warning {
+        color: var(--yellow);
+      }
+      .event-menu-item.warning:hover {
+        background: rgba(255,176,32,0.1);
+      }
+      .event-menu-item.error {
+        color: var(--red);
+      }
+      .event-menu-item.error:hover {
+        background: rgba(255,93,93,0.1);
+      }
       .fullscreen-btn {
         position: absolute;
         top: 12px;
@@ -385,11 +436,22 @@
       </section>
 
       <section class="card span-3">
-        <h2>Recent events / warnings</h2>
-        <div class="filter-actions">
-          <button type="button" class="filter-btn is-active" data-level="ALL" onclick="filterLogs('ALL', this)">All</button>
-          <button type="button" class="filter-btn" data-level="WARNING" onclick="filterLogs('WARNING', this)" style="background:rgba(255, 176, 32, 0.18);border-color:rgba(255, 176, 32, 0.45);color:var(--yellow);">Warnings</button>
-          <button type="button" class="filter-btn" data-level="ERROR" onclick="filterLogs('ERROR', this)" style="background:rgba(255, 93, 93, 0.18);border-color:rgba(255, 93, 93, 0.45);color:var(--red);">Errors</button>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;">
+          <h2 style="margin:0;">Recent events</h2>
+          <div class="event-menu-wrap">
+            <button
+              type="button"
+              class="event-menu-trigger"
+              aria-label="Filter events"
+              aria-expanded="false"
+              onclick="toggleEventMenu(this)"
+            >⋮</button>
+            <div id="event-menu" class="event-menu-panel">
+              <div class="event-menu-item" onclick="filterLogs('ALL'); closeEventMenu();">All events</div>
+              <div class="event-menu-item warning" onclick="filterLogs('WARNING'); closeEventMenu();">Warnings</div>
+              <div class="event-menu-item error" onclick="filterLogs('ERROR'); closeEventMenu();">Errors</div>
+            </div>
+          </div>
         </div>
         <div class="scroll">
           <table id="events-table">
@@ -493,6 +555,30 @@
         }
       }
 
+      function closeEventMenu() {
+        const menu = document.getElementById("event-menu");
+        if (menu) {
+          menu.classList.remove("is-open");
+        }
+        const trigger = document.querySelector(".event-menu-trigger");
+        if (trigger) {
+          trigger.setAttribute("aria-expanded", "false");
+        }
+      }
+
+      function toggleEventMenu(button) {
+        const menu = document.getElementById("event-menu");
+        if (!menu) return;
+        const willOpen = !menu.classList.contains("is-open");
+        closeEventMenu();
+        if (willOpen) {
+          menu.classList.add("is-open");
+          if (button) {
+            button.setAttribute("aria-expanded", "true");
+          }
+        }
+      }
+
       function toggleFullscreen(elementId, btn) {
         const elem = document.getElementById(elementId);
         if (!elem) return;
@@ -512,6 +598,12 @@
           document.querySelectorAll(".fullscreen-btn").forEach((btn) => {
             btn.innerText = "⛶ Fullscreen";
           });
+        }
+      });
+
+      document.addEventListener("click", (event) => {
+        if (!event.target.closest(".event-menu-wrap")) {
+          closeEventMenu();
         }
       });
 
