@@ -16,6 +16,12 @@ MAX_TRADE_BARS_LIVE = 10
 PENDING_CLOSE_MAX_RETRIES = 3  # Force-finalize with estimated price after this many failed cycles
 LIVE_MIN_TRADES_FOR_ADAPTIVE = 10
 
+# Short-side execution. Default OFF — the live trader is long-only today.
+# Flip to True to route signal=-1 through the short bracket path (SELL entry,
+# BUY cover). The short framework (broker, state, trader) stays wired regardless
+# of this flag so shorts can be toggled on without further refactor.
+TRADER_ALLOW_SHORTS = False
+
 LIVE_BOOTSTRAP = {
     "QQQ":  {"wr": 0.596, "win": 0.0024, "loss": 0.0012},
     "TQQQ": {"wr": 0.604, "win": 0.0072, "loss": 0.0040},

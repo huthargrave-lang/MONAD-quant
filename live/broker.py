@@ -225,13 +225,18 @@ def _yfinance_fallback(symbol: str) -> float:
 # ── Orders ────────────────────────────────────────────────────────────────────
 
 def place_bracket_order(symbol: str, qty: int,
-                        target_pct: float, stop_pct: float) -> dict | None:
+                        target_pct: float, stop_pct: float,
+                        direction: str = "long") -> dict | None:
     """
-    Places a market buy with linked take-profit (limit sell) and stop-loss legs.
+    Places a market entry with linked take-profit and stop-loss legs.
+
+    direction="long":  BUY entry  → TP is a SELL LMT above entry, SL is a SELL STP below.
+    direction="short": SELL entry → TP is a BUY  LMT below entry, SL is a BUY  STP above.
 
     TP/SL levels are computed from the live broker price at order time, matching the
     backtest convention where entry = next-bar open (the first tradeable price after
-    the signal). The parent limit price is 0.5% above market to ensure fill.
+    the signal). The parent limit price is 0.5% through market (above for BUY,
+    below for SELL) to ensure fill.
 
     IBKR bracket orders: parent fills first, then child orders (TP + SL) go live.
     When either child fills, IBKR auto-cancels the other (OCA group).
@@ -239,9 +244,14 @@ def place_bracket_order(symbol: str, qty: int,
     Returns dict with:
         order_id:   parent order ID as string
         fill_basis: the market price used for TP/SL computation (≈ actual fill price)
+        target_price, stop_price, direction
     Or None if the order could not be placed.
     """
     from ib_insync import Stock
+
+    if direction not in ("long", "short"):
+        log.error(f"Invalid direction {direction!r}; must be 'long' or 'short'")
+        return None
 
     ib = _ensure_connected()
     contract = Stock(symbol, "SMART", "USD")
@@ -261,13 +271,21 @@ def place_bracket_order(symbol: str, qty: int,
         log.error(f"No tradeable price for {symbol}: {exc} — order NOT placed")
         return None
 
-    target_price = round(live_price * (1 + target_pct), 2)
-    stop_price   = round(live_price * (1 - stop_pct), 2)
+    if direction == "long":
+        action = "BUY"
+        target_price = round(live_price * (1 + target_pct), 2)
+        stop_price   = round(live_price * (1 - stop_pct), 2)
+        limit_price  = round(live_price * 1.005, 2)  # 0.5% through market, upward
+    else:  # short
+        action = "SELL"
+        target_price = round(live_price * (1 - target_pct), 2)
+        stop_price   = round(live_price * (1 + stop_pct), 2)
+        limit_price  = round(live_price * 0.995, 2)  # 0.5% through market, downward
 
     bracket = ib.bracketOrder(
-        action="BUY",
+        action=action,
         quantity=qty,
-        limitPrice=round(live_price * 1.005, 2),  # 0.5% above market to ensure fill
+        limitPrice=limit_price,
         takeProfitPrice=target_price,
         stopLossPrice=stop_price,
     )
@@ -286,27 +304,37 @@ def place_bracket_order(symbol: str, qty: int,
 
     parent_id = str(parent_order.orderId)
     log.info(
-        f"Bracket order placed | id={parent_id} | {qty} {symbol} @ ~{live_price:.2f} | "
-        f"target={target_price:.2f} (+{target_pct:.2%}) | stop={stop_price:.2f} (-{stop_pct:.2%})"
+        f"Bracket order placed | id={parent_id} | {direction.upper()} {qty} {symbol} "
+        f"@ ~{live_price:.2f} | target={target_price:.2f} "
+        f"({'+' if direction == 'long' else '-'}{target_pct:.2%}) | "
+        f"stop={stop_price:.2f} ({'-' if direction == 'long' else '+'}{stop_pct:.2%})"
     )
     return {
         "order_id": parent_id,
         "fill_basis": float(live_price),
         "target_price": float(target_price),
         "stop_price": float(stop_price),
+        "direction": direction,
     }
 
 
-def cancel_and_close(symbol: str, bracket_order_id: str, qty: int) -> dict | None:
+def cancel_and_close(symbol: str, bracket_order_id: str, qty: int,
+                     direction: str = "long") -> dict | None:
     """
-    Cancels all open child orders from the bracket and places a market sell.
-    Used for the time-exit path when position exceeds MAX_TRADE_BARS.
+    Cancels all open child orders from the bracket and places a market close.
+    Used for the time-exit / software-stop paths when we need to force a flat.
 
-    Returns dict with fill_price and fill_time if the market sell fills within
+    direction="long"  → the open position is long → close via market SELL.
+    direction="short" → the open position is short → cover via market BUY.
+
+    Returns dict with fill_price and fill_time if the close fills within
     10 seconds, or None if fill retrieval fails. The caller should fall back to
     get_reference_price() for estimated PnL when None is returned.
     """
     from ib_insync import Stock, MarketOrder
+
+    if direction not in ("long", "short"):
+        raise ValueError(f"direction must be 'long' or 'short', got {direction!r}")
 
     ib = _ensure_connected()
 
@@ -321,16 +349,17 @@ def cancel_and_close(symbol: str, bracket_order_id: str, qty: int) -> dict | Non
             except Exception as exc:
                 log.warning(f"Cancel child order {order.orderId} failed: {exc}")
 
-    # Place market sell to exit
+    # Place market close (SELL for longs, BUY to cover shorts)
     contract = Stock(symbol, "SMART", "USD")
     try:
         ib.qualifyContracts(contract)
     except Exception as exc:
-        log.error(f"Cannot qualify contract for time-exit sell {symbol}: {exc}")
+        log.error(f"Cannot qualify contract for time-exit close {symbol}: {exc}")
         raise
-    sell_order = MarketOrder("SELL", qty)
-    trade = ib.placeOrder(contract, sell_order)
-    log.info(f"Time-exit market sell placed | id={trade.order.orderId} | {qty} {symbol}")
+    close_action = "SELL" if direction == "long" else "BUY"
+    close_order = MarketOrder(close_action, qty)
+    trade = ib.placeOrder(contract, close_order)
+    log.info(f"Time-exit market {close_action} placed | id={trade.order.orderId} | {qty} {symbol}")
 
     # Wait for fill — market orders during market hours fill near-instantly.
     # Poll up to 10 seconds (ib.sleep processes the event loop).
@@ -348,9 +377,13 @@ def cancel_and_close(symbol: str, bracket_order_id: str, qty: int) -> dict | Non
     return None
 
 
-def get_bracket_fill(bracket_order_id: str) -> dict | None:
+def get_bracket_fill(bracket_order_id: str, direction: str = "long") -> dict | None:
     """
     Fetches actual fill data for a completed bracket order's child (TP or SL).
+
+    direction="long" → exit side is SELL ('SLD'); direction="short" → exit side
+    is BUY ('BOT'). Filtering by exit side prevents matching the short's own
+    entry fill when scanning raw executions.
 
     Searches two sources:
       1. ib.trades() — current-session trades (has order type for exit classification)
@@ -360,6 +393,7 @@ def get_bracket_fill(bracket_order_id: str) -> dict | None:
     """
     ib = _ensure_connected()
     parent_id = int(bracket_order_id)
+    exit_side = "SLD" if direction == "long" else "BOT"
 
     try:
         # ── Source 1: ib.trades() — has full order info (type, parentId) ──
@@ -406,7 +440,7 @@ def get_bracket_fill(bracket_order_id: str) -> dict | None:
                 or exec_.orderId in (parent_id + 1, parent_id + 2)
             )
             # Must be a SELL (exit), not the entry BUY
-            if is_child and exec_.side == 'SLD' and exec_.shares > 0:
+            if is_child and exec_.side == exit_side and exec_.shares > 0:
                 fill_price = exec_.price
                 fill_time = exec_.time.isoformat() if exec_.time else None
 
@@ -448,7 +482,7 @@ def get_bracket_fill(bracket_order_id: str) -> dict | None:
             for fill in hist_fills:
                 exec_ = fill.execution
                 is_child = exec_.orderId in (parent_id + 1, parent_id + 2)
-                if is_child and exec_.side == 'SLD' and exec_.shares > 0:
+                if is_child and exec_.side == exit_side and exec_.shares > 0:
                     fill_price = exec_.price
                     fill_time = exec_.time.isoformat() if exec_.time else None
                     exit_type = "bracket_exit"
