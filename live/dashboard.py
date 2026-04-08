@@ -255,7 +255,7 @@ def _figure_to_html(fig: go.Figure, *, div_id: str) -> str:
         include_plotlyjs=False,
         div_id=div_id,
         config={
-            "displayModeBar": True,
+            "displayModeBar": False,
             "displaylogo": False,
             "scrollZoom": True,
             "responsive": True,
@@ -405,9 +405,10 @@ def _build_trade_scatter_chart(trades: list[dict]) -> str:
         yaxis_title="Return (%)",
         hovermode="closest",
     )
+    max_x = max(x_bars) if x_bars else 10
     fig.update_xaxes(
         automargin=True,
-        rangemode="tozero",
+        range=[-1, max_x + (max_x * 0.1)],
         gridcolor="rgba(152, 162, 179, 0.1)",
         zeroline=False,
     )
