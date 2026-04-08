@@ -263,6 +263,12 @@
           </table>
         {% else %}
           <div class="v" style="margin-bottom:4px;">Flat — no open position.</div>
+          {% if signal %}
+            <div class="k">Latest RSI</div>
+            <div class="v">{{ '%.2f'|format(signal.rsi) if signal.rsi is not none else '—' }}</div>
+            <div class="k">Latest VWAP z-score</div>
+            <div class="v">{{ '%.3f'|format(signal.vwap_zscore) if signal.vwap_zscore is not none else '—' }}</div>
+          {% endif %}
           {% if status and status.cycle_action %}
             <div class="k">Last cycle action</div>
             <div class="v">{{ status.cycle_action }}</div>
@@ -298,7 +304,7 @@
     <div class="row">
       {% if returns_chart %}
         <section class="card span-8">{{ returns_chart }}</section>
-        <section class="card span-4">{% if exit_chart %}{{ exit_chart }}{% else %}<h2>Exit Type Breakdown</h2><div class="v" style="color:var(--muted);">Need 3+ trades for chart.</div>{% endif %}</section>
+        <section class="card span-4">{% if trade_scatter_chart %}{{ trade_scatter_chart }}{% else %}<h2>Trade Efficiency</h2><div class="v" style="color:var(--muted);">Need 3+ trades with duration data for chart.</div>{% endif %}</section>
       {% else %}
         <section class="card span-12" style="min-height:60px;">
           <h2 style="display:inline;">Equity Curve</h2>

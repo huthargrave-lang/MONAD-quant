@@ -717,7 +717,7 @@ def dashboard(request: Request) -> HTMLResponse:
     status = state.get_monitor_status()
     signal = state.get_signal_snapshot()
     signal_history = state.get_signal_history(limit=20)
-    signal_chart_history = state.get_signal_history(limit=60)
+    signal_chart_history = state.get_signal_history(limit=1000)
     position = state.get_position()
     position_dict = position.__dict__ if position else None
     all_trades = state.get_recent_trades(limit=250)
