@@ -56,39 +56,52 @@ def _get_git_hash() -> str:
 def _infer_bracket_exit(position, ref_price: float) -> tuple[float, str]:
     """Infer which bracket leg (TP or SL) filled when IBKR fill data is unavailable.
 
-    Uses the stored target_price/stop_price from order placement. If the current
-    market price is above the target, TP likely filled. If below the stop, SL
-    likely filled. For ambiguous cases, uses the closer of TP/SL to the reference
-    price. Falls back to reference price if TP/SL not stored.
+    Direction-aware. For longs: TP > entry > SL, target is "above", stop is "below".
+    For shorts: TP < entry < SL, target is "below", stop is "above". The
+    ordering is inferred from the stored TP/SL values rather than the direction
+    column so legacy positions without `direction` still work.
     """
     tp = position.target_price
     sl = position.stop_price
     entry = position.entry_price
+    direction = getattr(position, "direction", None) or (
+        "long" if (tp is not None and sl is not None and tp >= sl) else "long"
+    )
 
     if tp is None or sl is None:
         # Legacy position without stored TP/SL — use reference price
-        exit_type = "target_hit" if ref_price >= entry else "stop_hit"
-        log.info(f"Infer exit (no TP/SL stored): ref={ref_price:.2f}, entry={entry:.2f} → {exit_type}")
+        if direction == "long":
+            exit_type = "target_hit" if ref_price >= entry else "stop_hit"
+        else:
+            exit_type = "target_hit" if ref_price <= entry else "stop_hit"
+        log.info(f"Infer exit (no TP/SL stored, {direction}): ref={ref_price:.2f}, entry={entry:.2f} → {exit_type}")
         return ref_price, exit_type
 
-    # If ref_price is at or above TP, target almost certainly hit
-    if ref_price >= tp:
-        log.info(f"Infer exit: ref={ref_price:.2f} >= TP={tp:.2f} → target_hit")
-        return tp, "target_hit"
-
-    # If ref_price is at or below SL, stop almost certainly hit
-    if ref_price <= sl:
-        log.info(f"Infer exit: ref={ref_price:.2f} <= SL={sl:.2f} → stop_hit")
-        return sl, "stop_hit"
+    if direction == "long":
+        # TP is above entry, SL is below entry.
+        if ref_price >= tp:
+            log.info(f"Infer exit (long): ref={ref_price:.2f} >= TP={tp:.2f} → target_hit")
+            return tp, "target_hit"
+        if ref_price <= sl:
+            log.info(f"Infer exit (long): ref={ref_price:.2f} <= SL={sl:.2f} → stop_hit")
+            return sl, "stop_hit"
+    else:  # short
+        # TP is below entry, SL is above entry.
+        if ref_price <= tp:
+            log.info(f"Infer exit (short): ref={ref_price:.2f} <= TP={tp:.2f} → target_hit")
+            return tp, "target_hit"
+        if ref_price >= sl:
+            log.info(f"Infer exit (short): ref={ref_price:.2f} >= SL={sl:.2f} → stop_hit")
+            return sl, "stop_hit"
 
     # Ambiguous: price is between SL and TP. Use distance to decide.
     dist_to_tp = abs(ref_price - tp)
     dist_to_sl = abs(ref_price - sl)
     if dist_to_tp <= dist_to_sl:
-        log.info(f"Infer exit (ambiguous, closer to TP): ref={ref_price:.2f}, TP={tp:.2f}, SL={sl:.2f} → target_hit")
+        log.info(f"Infer exit (ambiguous {direction}, closer to TP): ref={ref_price:.2f}, TP={tp:.2f}, SL={sl:.2f} → target_hit")
         return tp, "target_hit"
     else:
-        log.info(f"Infer exit (ambiguous, closer to SL): ref={ref_price:.2f}, TP={tp:.2f}, SL={sl:.2f} → stop_hit")
+        log.info(f"Infer exit (ambiguous {direction}, closer to SL): ref={ref_price:.2f}, TP={tp:.2f}, SL={sl:.2f} → stop_hit")
         return sl, "stop_hit"
 
 
@@ -204,7 +217,19 @@ def on_bar() -> None:
 
 
 def _on_bar_inner() -> str:
-    """Core on_bar logic. Returns a short action label for cycle logging."""
+    """Core on_bar logic. Returns a short action label for cycle logging.
+
+    Control flow:
+        1. Compute + persist the signal snapshot (always).
+        2. If a position exists: reconcile/exit as needed. The *reconcile* and
+           *force-close* paths set ``exit_action`` and fall through to the
+           entry block. The *holding* and *pending_close-unresolved* paths
+           return early because a new entry would stack onto an open trade.
+        3. If flat (or we just closed in this cycle), evaluate the entry
+           signal and place a new bracket. A trade on the same cycle that
+           just closed another is labeled ``{exit_action}_then_entry`` — this
+           is the fix for the "signal on chart but no trade" bug.
+    """
 
     # ── Always compute and persist signal snapshot ──────────────────────────
     # This runs every cycle (holding, exit, entry, no-signal) so the dashboard
@@ -231,15 +256,17 @@ def _on_bar_inner() -> str:
             bar_close_fallback = stored.get("bar_close")
 
     position = state.get_position()
+    exit_action: str | None = None  # set when we close a position this cycle
 
     # ── Manage existing position ──────────────────────────────────────────────
     if position is not None:
+        position_direction = getattr(position, "direction", None) or "long"
 
         # ── Retry reconciliation for pending_close positions ────────────────
         if position.status == "pending_close":
-            fill = broker.get_bracket_fill(position.bracket_order_id)
+            fill = broker.get_bracket_fill(position.bracket_order_id, direction=position_direction)
             if fill is not None:
-                ret = (fill["fill_price"] - position.entry_price) / position.entry_price
+                ret = _signed_return(position_direction, position.entry_price, fill["fill_price"])
                 exit_type = fill["exit_type"]
                 log.info(
                     f"Pending close reconciled | fill_price={fill['fill_price']:.2f} | "
@@ -252,17 +279,18 @@ def _on_bar_inner() -> str:
                 state.add_monitor_event("INFO", "fill", f"Pending close reconciled: {exit_type} @ {fill['fill_price']:.2f}")
                 _sync_account_and_mark(bar_close=fill["fill_price"])
                 _log_summary()
-                return f"reconciled_{exit_type}"
+                exit_action = f"reconciled_{exit_type}"
+                # Fall through to entry check — same cycle can place a new trade
             else:
                 retries = state.increment_pending_close_retries()
-                # After 6 failed retries (~6 hours), finalize with estimated price.
+                # After N failed retries, finalize with estimated price.
                 # IBKR fill data is permanently unavailable (e.g. filled on a previous
                 # trading day and reqExecutions also failed). Continuing to block
                 # new entries indefinitely is worse than recording estimated PnL.
                 max_retries = config.PENDING_CLOSE_MAX_RETRIES
                 if retries >= max_retries and position.estimated_exit_price is not None:
                     est_price = position.estimated_exit_price
-                    ret = (est_price - position.entry_price) / position.entry_price
+                    ret = _signed_return(position_direction, position.entry_price, est_price)
                     warning_msg = (
                         f"Pending close force-finalized after {retries} retries | "
                         f"est_price={est_price:.2f} | est_ret={ret:+.4%} (ESTIMATED — fill data never found)"
@@ -275,123 +303,164 @@ def _on_bar_inner() -> str:
                     )
                     _sync_account_and_mark(bar_close=est_price)
                     _log_summary()
-                    return "reconciled_estimated"
+                    exit_action = "reconciled_estimated"
+                    # Fall through to entry check
+                else:
+                    log.info(
+                        f"Pending close still unresolved ({retries}/{max_retries}) — blocking new entries | "
+                        f"bracket_id={position.bracket_order_id}"
+                    )
+                    _sync_account_and_mark(bar_close=bar_close_fallback)
+                    return "pending_close_unresolved"
+
+        else:
+            # Reconcile: check if bracket TP/SL already filled since last bar
+            broker_pos = broker.get_open_position(position.symbol)
+            if broker_pos is None or broker_pos["qty"] == 0:
+                # Bracket order already exited — fetch actual fill data from IBKR
+                fill = broker.get_bracket_fill(position.bracket_order_id, direction=position_direction)
+                if fill is not None:
+                    ret = _signed_return(position_direction, position.entry_price, fill["fill_price"])
+                    exit_type = fill["exit_type"]
+                    log.info(
+                        f"Bracket filled | fill_price={fill['fill_price']:.2f} | "
+                        f"fill_time={fill['fill_time']} | ret={ret:+.4%} → {exit_type}"
+                    )
+                    state.close_position(return_pct=ret, exit_type=exit_type,
+                                         exit_price=fill["fill_price"])
+                    _sync_account_and_mark(bar_close=fill["fill_price"])
+                    _log_summary()
+                    exit_action = f"exit_{exit_type}"
+                    # Fall through to entry check
+                else:
+                    # Fill data unavailable — IBKR paper doesn't retain execution
+                    # history across disconnections. Infer exit from stored TP/SL
+                    # prices and finalize immediately instead of blocking entries.
+                    ref_price = broker.get_reference_price(position.symbol)
+                    exit_price, exit_type = _infer_bracket_exit(position, ref_price)
+                    ret = _signed_return(position_direction, position.entry_price, exit_price)
+                    warning_msg = (
+                        f"Fill data unavailable — inferred {exit_type} @ {exit_price:.2f} | "
+                        f"ret={ret:+.4%} (inferred from TP/SL prices, not actual fill)"
+                    )
+                    log.warning(warning_msg)
+                    state.add_monitor_event("WARNING", "fill", warning_msg)
+                    state.close_position(return_pct=ret, exit_type=exit_type,
+                                         exit_price=exit_price)
+                    _sync_account_and_mark(bar_close=exit_price)
+                    _log_summary()
+                    exit_action = f"exit_{exit_type}_inferred"
+                    # Fall through to entry check
+            else:
+                bar_count = state.increment_bar_count()
                 log.info(
-                    f"Pending close still unresolved ({retries}/{max_retries}) — blocking new entries | "
-                    f"bracket_id={position.bracket_order_id}"
+                    f"Open {position_direction} position: {position.qty} {position.symbol} @ "
+                    f"{position.entry_price:.2f} | bar {bar_count}/{config.MAX_TRADE_BARS_LIVE}"
                 )
-                _sync_account_and_mark(bar_close=bar_close_fallback)
-                return "pending_close_unresolved"
 
-        # Reconcile: check if bracket TP/SL already filled since last bar
-        broker_pos = broker.get_open_position(position.symbol)
-        if broker_pos is None or broker_pos["qty"] == 0:
-            # Bracket order already exited — fetch actual fill data from IBKR
-            fill = broker.get_bracket_fill(position.bracket_order_id)
-            if fill is not None:
-                ret = (fill["fill_price"] - position.entry_price) / position.entry_price
-                exit_type = fill["exit_type"]
-                log.info(
-                    f"Bracket filled | fill_price={fill['fill_price']:.2f} | "
-                    f"fill_time={fill['fill_time']} | ret={ret:+.4%} → {exit_type}"
-                )
-                state.close_position(return_pct=ret, exit_type=exit_type,
-                                     exit_price=fill["fill_price"])
-            else:
-                # Fill data unavailable — IBKR paper doesn't retain execution
-                # history across disconnections. Infer exit from stored TP/SL
-                # prices and finalize immediately instead of blocking entries.
-                ref_price = broker.get_reference_price(position.symbol)
-                exit_price, exit_type = _infer_bracket_exit(position, ref_price)
-                ret = (exit_price - position.entry_price) / position.entry_price
-                warning_msg = (
-                    f"Fill data unavailable — inferred {exit_type} @ {exit_price:.2f} | "
-                    f"ret={ret:+.4%} (inferred from TP/SL prices, not actual fill)"
-                )
-                log.warning(warning_msg)
-                state.add_monitor_event("WARNING", "fill", warning_msg)
-                state.close_position(return_pct=ret, exit_type=exit_type,
-                                     exit_price=exit_price)
-                _sync_account_and_mark(bar_close=exit_price)
-                _log_summary()
-                return f"exit_{exit_type}_inferred"
+                # ── Software stop-loss: safety net if IBKR doesn't trigger the stop ──
+                # IBKR paper accounts can miss stop triggers. Also protects against
+                # stale DAY-tif stops that expired overnight before the GTC fix.
+                asset_config = _get_asset_config()
+                mark_price, mark_source = _resolve_mark_price(position.symbol, bar_close=bar_close_fallback)
+                if position_direction == "long":
+                    stop_trigger = round(position.entry_price * (1 - asset_config["stop_loss_pct"]), 2)
+                    stop_hit = mark_price is not None and mark_price <= stop_trigger
+                else:
+                    stop_trigger = round(position.entry_price * (1 + asset_config["stop_loss_pct"]), 2)
+                    stop_hit = mark_price is not None and mark_price >= stop_trigger
 
-            _sync_account_and_mark(bar_close=fill["fill_price"])
-            _log_summary()
-            return f"exit_{exit_type}"
-
-        bar_count = state.increment_bar_count()
-        log.info(f"Open position: {position.qty} {position.symbol} @ {position.entry_price:.2f} | bar {bar_count}/{config.MAX_TRADE_BARS_LIVE}")
-
-        # ── Software stop-loss: safety net if IBKR doesn't trigger the stop ──
-        # IBKR paper accounts can miss stop triggers. Also protects against
-        # stale DAY-tif stops that expired overnight before the GTC fix.
-        asset_config = _get_asset_config()
-        stop_price = round(position.entry_price * (1 - asset_config["stop_loss_pct"]), 2)
-        mark_price, mark_source = _resolve_mark_price(position.symbol, bar_close=bar_close_fallback)
-        if mark_price is not None and mark_price <= stop_price:
-            log.warning(
-                f"SOFTWARE STOP triggered | mark={mark_price:.2f} ({mark_source}) <= "
-                f"stop={stop_price:.2f} | IBKR stop did not fire — forcing close"
-            )
-            sell_fill = broker.cancel_and_close(position.symbol, position.bracket_order_id, position.qty)
-            if sell_fill is not None:
-                exit_price = sell_fill["fill_price"]
-                ret = (exit_price - position.entry_price) / position.entry_price
-                log.info(f"Software stop filled | price={exit_price:.2f} | ret={ret:+.4%}")
-            else:
-                exit_price = mark_price
-                ret = (exit_price - position.entry_price) / position.entry_price
-                log.warning(f"Software stop fill unavailable — using mark {exit_price:.2f} | est_ret={ret:+.4%}")
-                state.add_monitor_event("WARNING", "stop", f"Software stop fill unavailable, mark={exit_price:.2f}")
-            state.close_position(return_pct=ret, exit_type="stop_hit", exit_price=exit_price)
-            _sync_account_and_mark(bar_close=exit_price)
-            _log_summary()
-            return "exit_software_stop"
-
-        if bar_count >= config.MAX_TRADE_BARS_LIVE:
-            log.info("Time-exit triggered — cancelling bracket and selling")
-            sell_fill = broker.cancel_and_close(position.symbol, position.bracket_order_id, position.qty)
-            if sell_fill is not None:
-                # Actual fill price from the market sell — preferred PnL source
-                exit_price = sell_fill["fill_price"]
-                ret = (exit_price - position.entry_price) / position.entry_price
-                log.info(f"Time-exit filled | price={exit_price:.2f} | ret={ret:+.4%}")
-            else:
-                # Fill retrieval failed — fall back to reference price estimate.
-                # This is the one live exit path where PnL may be estimated.
-                exit_price = broker.get_reference_price(position.symbol)
-                ret = (exit_price - position.entry_price) / position.entry_price
-                warning_msg = (
-                    f"Time-exit fill unavailable — using reference price {exit_price:.2f} | "
-                    f"estimated_ret={ret:+.4%}"
-                )
-                log.warning(warning_msg)
-                state.add_monitor_event("WARNING", "time_exit", warning_msg)
-            state.close_position(return_pct=ret, exit_type="time_exit", exit_price=exit_price)
-            _sync_account_and_mark(bar_close=exit_price)
-            _log_summary()
-            return "exit_time_exit"
-
-        # Position is still open and within bar limit — wait for bracket exit
-        log.info("Position within bar limit, bracket order monitoring exit")
-        _sync_account_and_mark(bar_close=bar_close_fallback)
-        return f"holding_bar_{bar_count}"
+                if stop_hit:
+                    log.warning(
+                        f"SOFTWARE STOP triggered ({position_direction}) | mark={mark_price:.2f} ({mark_source}) "
+                        f"vs stop={stop_trigger:.2f} | IBKR stop did not fire — forcing close"
+                    )
+                    close_fill = broker.cancel_and_close(
+                        position.symbol, position.bracket_order_id, position.qty,
+                        direction=position_direction,
+                    )
+                    if close_fill is not None:
+                        exit_price = close_fill["fill_price"]
+                        ret = _signed_return(position_direction, position.entry_price, exit_price)
+                        log.info(f"Software stop filled | price={exit_price:.2f} | ret={ret:+.4%}")
+                    else:
+                        exit_price = mark_price
+                        ret = _signed_return(position_direction, position.entry_price, exit_price)
+                        log.warning(f"Software stop fill unavailable — using mark {exit_price:.2f} | est_ret={ret:+.4%}")
+                        state.add_monitor_event("WARNING", "stop", f"Software stop fill unavailable, mark={exit_price:.2f}")
+                    state.close_position(return_pct=ret, exit_type="stop_hit", exit_price=exit_price)
+                    _sync_account_and_mark(bar_close=exit_price)
+                    _log_summary()
+                    exit_action = "exit_software_stop"
+                    # Fall through to entry check
+                elif bar_count >= config.MAX_TRADE_BARS_LIVE:
+                    log.info("Time-exit triggered — cancelling bracket and closing")
+                    close_fill = broker.cancel_and_close(
+                        position.symbol, position.bracket_order_id, position.qty,
+                        direction=position_direction,
+                    )
+                    if close_fill is not None:
+                        # Actual fill price from the market close — preferred PnL source
+                        exit_price = close_fill["fill_price"]
+                        ret = _signed_return(position_direction, position.entry_price, exit_price)
+                        log.info(f"Time-exit filled | price={exit_price:.2f} | ret={ret:+.4%}")
+                    else:
+                        # Fill retrieval failed — fall back to reference price estimate.
+                        # This is the one live exit path where PnL may be estimated.
+                        exit_price = broker.get_reference_price(position.symbol)
+                        ret = _signed_return(position_direction, position.entry_price, exit_price)
+                        warning_msg = (
+                            f"Time-exit fill unavailable — using reference price {exit_price:.2f} | "
+                            f"estimated_ret={ret:+.4%}"
+                        )
+                        log.warning(warning_msg)
+                        state.add_monitor_event("WARNING", "time_exit", warning_msg)
+                    state.close_position(return_pct=ret, exit_type="time_exit", exit_price=exit_price)
+                    _sync_account_and_mark(bar_close=exit_price)
+                    _log_summary()
+                    exit_action = "exit_time_exit"
+                    # Fall through to entry check
+                else:
+                    # Position is still open and within bar limit — wait for bracket exit
+                    log.info("Position within bar limit, bracket order monitoring exit")
+                    _sync_account_and_mark(bar_close=bar_close_fallback)
+                    return f"holding_bar_{bar_count}"
 
     # ── Check for new entry signal ────────────────────────────────────────────
+    # Reached when (a) we were flat at the top of the cycle, or (b) we just
+    # closed a position and want to place a back-to-back trade on the same bar.
     if sig_info is None:
         # Signal computation failed earlier — can't evaluate entry
         state.add_monitor_event("ERROR", "signal", "Signal computation failed — cannot evaluate entry")
-        _sync_account_and_mark(bar_close=bar_close_fallback)
-        return "signal_error"
+        if exit_action is None:
+            _sync_account_and_mark(bar_close=bar_close_fallback)
+        return exit_action or "signal_error"
 
-    if sig_info["signal"] != 1:
-        log.info(f"No entry signal (signal={sig_info['signal']})")
-        _sync_account_and_mark(bar_close=bar_close_fallback)
-        return "no_signal"
+    raw_signal = sig_info["signal"]
+
+    # Resolve the trade direction for this signal. The live signal pipeline
+    # computes both longs (+1) and shorts (-1); shorts only route through when
+    # config.TRADER_ALLOW_SHORTS is explicitly enabled.
+    entry_direction: str | None = None
+    if raw_signal == 1:
+        entry_direction = "long"
+    elif raw_signal == -1:
+        if getattr(config, "TRADER_ALLOW_SHORTS", False):
+            entry_direction = "short"
+        else:
+            log.info("Short signal fired but TRADER_ALLOW_SHORTS is False — skipping")
+
+    if entry_direction is None:
+        log.info(f"No actionable entry signal (signal={raw_signal})")
+        if exit_action is None:
+            _sync_account_and_mark(bar_close=bar_close_fallback)
+        return exit_action or "no_signal"
 
     # ── Size and place the trade ──────────────────────────────────────────────
-    _sync_account_and_mark(bar_close=bar_close_fallback)
+    # Skip re-sync when we already synced immediately after the exit — the
+    # broker.get_account() call below is what actually feeds sizing.
+    if exit_action is None:
+        _sync_account_and_mark(bar_close=bar_close_fallback)
     account = broker.get_account()
     capital = account.equity
     log.info(f"Account equity: ${capital:,.2f}")
@@ -413,29 +482,35 @@ def _on_bar_inner() -> str:
         warning_msg = f"Position too small for one share (${sizing['position_dollars']:.0f} / ${bar_close:.2f})"
         log.warning(warning_msg)
         state.add_monitor_event("WARNING", "sizing", warning_msg)
-        return "qty_too_small"
+        return exit_action or "qty_too_small"
 
     if config.LIVE_DRY_RUN:
         # In dry-run, use bar_close as approximate basis (no broker call)
-        target_p = round(bar_close * (1 + asset_config["target_gain_pct"]), 2)
-        stop_p = round(bar_close * (1 - asset_config["stop_loss_pct"]), 2)
+        if entry_direction == "long":
+            target_p = round(bar_close * (1 + asset_config["target_gain_pct"]), 2)
+            stop_p = round(bar_close * (1 - asset_config["stop_loss_pct"]), 2)
+        else:
+            target_p = round(bar_close * (1 - asset_config["target_gain_pct"]), 2)
+            stop_p = round(bar_close * (1 + asset_config["stop_loss_pct"]), 2)
         log.info(
-            f"DRY RUN — would place: {qty} {config.LIVE_SYMBOL} @ ~{bar_close:.2f} | "
-            f"TP~={target_p:.2f} | SL~={stop_p:.2f} (approx; live uses broker price)"
+            f"DRY RUN — would place: {entry_direction.upper()} {qty} {config.LIVE_SYMBOL} "
+            f"@ ~{bar_close:.2f} | TP~={target_p:.2f} | SL~={stop_p:.2f} "
+            f"(approx; live uses broker price)"
         )
-        return "dry_run_entry"
+        return f"{exit_action}_then_dry_run_entry" if exit_action else "dry_run_entry"
 
     result = broker.place_bracket_order(
         symbol=config.LIVE_SYMBOL,
         qty=qty,
         target_pct=asset_config["target_gain_pct"],
         stop_pct=asset_config["stop_loss_pct"],
+        direction=entry_direction,
     )
     if result is None:
         error_msg = "Bracket order failed — skipping this entry. Will retry next bar if signal persists."
         log.error(error_msg)
         state.add_monitor_event("ERROR", "order", error_msg)
-        return "order_failed"
+        return exit_action or "order_failed"
 
     # Record the broker's fill_basis as entry price — this is the live market price
     # at order time, matching the backtest convention of entering at next-bar open.
@@ -445,10 +520,23 @@ def _on_bar_inner() -> str:
         config.LIVE_SYMBOL, entry_price, qty, order_id,
         target_price=result.get("target_price"),
         stop_price=result.get("stop_price"),
+        direction=entry_direction,
     )
-    log.info(f"ENTRY placed: {qty} shares @ ~{entry_price:.2f} (fill_basis)")
-    state.add_monitor_event("INFO", "entry", f"Entry placed: {qty} {config.LIVE_SYMBOL} @ {entry_price:.2f}")
-    return "entry_placed"
+    log.info(f"ENTRY placed: {entry_direction.upper()} {qty} shares @ ~{entry_price:.2f} (fill_basis)")
+    entry_event = f"Entry placed: {entry_direction.upper()} {qty} {config.LIVE_SYMBOL} @ {entry_price:.2f}"
+    if exit_action:
+        entry_event = f"{entry_event} (back-to-back after {exit_action})"
+    state.add_monitor_event("INFO", "entry", entry_event)
+    return f"{exit_action}_then_entry" if exit_action else "entry_placed"
+
+
+def _signed_return(direction: str, entry_price: float, exit_price: float) -> float:
+    """Return percentage, signed by direction.
+
+    Longs profit when exit > entry; shorts profit when exit < entry.
+    """
+    raw = (exit_price - entry_price) / entry_price
+    return raw if direction == "long" else -raw
 
 
 def _log_summary() -> None:

@@ -530,5 +530,179 @@ class TestStateFillBasisConsistency(unittest.TestCase):
         self.assertEqual(summary["exit_types"], {"time_exit": 1})
 
 
+class TestOpposingSignalExit(unittest.TestCase):
+    """Verify the opposing-signal exit path in compute_trade_returns().
+
+    When use_opposing_signal_exit=True, an open long closes at the NEXT bar's
+    open if a future bar's entry_signal is -1 (and vice versa for shorts).
+    TP/SL checks still win on the same bar.
+    """
+
+    def test_flag_off_is_unchanged(self):
+        """With flag OFF, an opposing signal in a future bar has no effect."""
+        from src.strategy.engine import compute_trade_returns
+
+        df = _make_ohlcv([
+            # Bar 0: long signal
+            {"open": 99.0, "high": 100.5, "low": 98.5, "close": 100.0, "entry_signal": 1},
+            # Bar 1: entry at open=100
+            {"open": 100.0, "high": 100.2, "low": 99.8, "close": 100.0, "entry_signal": 0},
+            # Bar 2: opposing signal fires here; narrow range (no TP/SL)
+            {"open": 100.0, "high": 100.1, "low": 99.9, "close": 100.0, "entry_signal": -1},
+            # Bar 3: narrow
+            {"open": 100.0, "high": 100.1, "low": 99.9, "close": 100.05, "entry_signal": 0},
+        ])
+
+        result = compute_trade_returns(
+            df, target_gain_pct=0.05, stop_loss_pct=0.05, max_trade_bars=5,
+            use_opposing_signal_exit=False,
+        )
+        self.assertEqual(len(result), 1)
+        # Neither TP nor SL hit, flag off → time_exit
+        self.assertEqual(result.iloc[0]["exit_type"], "time_exit")
+
+    def test_long_closes_on_short_signal(self):
+        """Long position: opposing signal on bar K → exit at bar K+1 open."""
+        from src.strategy.engine import compute_trade_returns
+
+        df = _make_ohlcv([
+            # Bar 0: long signal
+            {"open": 99.0, "high": 100.5, "low": 98.5, "close": 100.0, "entry_signal": 1},
+            # Bar 1: entry at open=100
+            {"open": 100.0, "high": 100.2, "low": 99.8, "close": 100.0, "entry_signal": 0},
+            # Bar 2: opposing short signal (narrow bar, no TP/SL breach)
+            {"open": 100.0, "high": 100.3, "low": 99.7, "close": 100.1, "entry_signal": -1},
+            # Bar 3: this bar's open is where opposing-signal exit fills
+            {"open": 101.0, "high": 101.5, "low": 100.5, "close": 101.0, "entry_signal": 0},
+        ])
+
+        result = compute_trade_returns(
+            df, target_gain_pct=0.05, stop_loss_pct=0.05, max_trade_bars=5,
+            use_opposing_signal_exit=True,
+        )
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result.iloc[0]["exit_type"], "opposing_signal")
+        # Entry=100, exit=101 → return = +0.01 (long, signed)
+        self.assertAlmostEqual(result.iloc[0]["return"], 0.01, places=6)
+
+    def test_short_closes_on_long_signal(self):
+        """Short position: opposing (long) signal on bar K → exit at bar K+1 open.
+        Requires LONGS_ONLY=False so direction=-1 entries make it through."""
+        from src.strategy.engine import compute_trade_returns
+
+        df = _make_ohlcv([
+            # Bar 0: short signal
+            {"open": 101.0, "high": 101.5, "low": 99.5, "close": 100.0, "entry_signal": -1},
+            # Bar 1: entry at open=100 (short)
+            {"open": 100.0, "high": 100.2, "low": 99.8, "close": 100.0, "entry_signal": 0},
+            # Bar 2: opposing long signal (narrow bar)
+            {"open": 100.0, "high": 100.3, "low": 99.7, "close": 99.9, "entry_signal": 1},
+            # Bar 3: fill here at open=99 → short profits
+            {"open": 99.0, "high": 99.5, "low": 98.5, "close": 99.0, "entry_signal": 0},
+        ])
+
+        result = compute_trade_returns(
+            df, target_gain_pct=0.05, stop_loss_pct=0.05, max_trade_bars=5,
+            use_opposing_signal_exit=True,
+        )
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result.iloc[0]["exit_type"], "opposing_signal")
+        # Short entry=100, exit=99 → signed return = -1 * (99-100)/100 = +0.01
+        self.assertAlmostEqual(result.iloc[0]["return"], 0.01, places=6)
+
+    def test_target_hit_beats_opposing_signal_same_bar(self):
+        """Hard TP/SL wins over opposing signal on the same bar."""
+        from src.strategy.engine import compute_trade_returns
+
+        df = _make_ohlcv([
+            # Bar 0: long signal
+            {"open": 99.0, "high": 100.5, "low": 98.5, "close": 100.0, "entry_signal": 1},
+            # Bar 1: entry at open=100
+            {"open": 100.0, "high": 100.2, "low": 99.8, "close": 100.0, "entry_signal": 0},
+            # Bar 2: TP hit (high=103 >> 100*1.02=102) AND opposing signal present
+            {"open": 100.0, "high": 103.0, "low": 99.9, "close": 102.5, "entry_signal": -1},
+            {"open": 102.5, "high": 103.0, "low": 102.0, "close": 102.5, "entry_signal": 0},
+        ])
+
+        result = compute_trade_returns(
+            df, target_gain_pct=0.02, stop_loss_pct=0.02, max_trade_bars=5,
+            use_opposing_signal_exit=True,
+        )
+        self.assertEqual(len(result), 1)
+        # TP wins even though opposing signal is on the same bar
+        self.assertEqual(result.iloc[0]["exit_type"], "target_hit")
+        self.assertAlmostEqual(result.iloc[0]["return"], 0.02, places=6)
+
+    def test_stop_hit_beats_opposing_signal_same_bar(self):
+        """Hard SL wins over opposing signal on the same bar (symmetric to TP)."""
+        from src.strategy.engine import compute_trade_returns
+
+        df = _make_ohlcv([
+            # Bar 0: long signal
+            {"open": 99.0, "high": 100.5, "low": 98.5, "close": 100.0, "entry_signal": 1},
+            # Bar 1: entry at open=100
+            {"open": 100.0, "high": 100.2, "low": 99.8, "close": 100.0, "entry_signal": 0},
+            # Bar 2: SL hit (low=97 << 100*0.98=98) AND opposing signal
+            {"open": 100.0, "high": 100.1, "low": 97.0, "close": 98.0, "entry_signal": -1},
+            {"open": 98.0, "high": 98.5, "low": 97.5, "close": 98.0, "entry_signal": 0},
+        ])
+
+        result = compute_trade_returns(
+            df, target_gain_pct=0.02, stop_loss_pct=0.02, max_trade_bars=5,
+            use_opposing_signal_exit=True,
+        )
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result.iloc[0]["exit_type"], "stop_hit")
+        self.assertAlmostEqual(result.iloc[0]["return"], -0.02, places=6)
+
+    def test_opposing_signal_on_last_bar_falls_through_to_time_exit(self):
+        """If the opposing signal fires on the final future bar, there's no
+        next bar to fill at → the code falls through to time_exit."""
+        from src.strategy.engine import compute_trade_returns
+
+        df = _make_ohlcv([
+            # Bar 0: long signal
+            {"open": 99.0, "high": 100.5, "low": 98.5, "close": 100.0, "entry_signal": 1},
+            # Bar 1: entry at open=100
+            {"open": 100.0, "high": 100.2, "low": 99.8, "close": 100.0, "entry_signal": 0},
+            # Bar 2: opposing signal on the LAST bar of the dataframe — no bar 3.
+            {"open": 100.0, "high": 100.3, "low": 99.7, "close": 100.2, "entry_signal": -1},
+        ])
+
+        result = compute_trade_returns(
+            df, target_gain_pct=0.05, stop_loss_pct=0.05, max_trade_bars=5,
+            use_opposing_signal_exit=True,
+        )
+        self.assertEqual(len(result), 1)
+        # No next bar for the opposing-signal fill → fell through to time_exit
+        self.assertEqual(result.iloc[0]["exit_type"], "time_exit")
+        # Time exit uses last close = 100.2 → return = (100.2-100)/100 = 0.002
+        self.assertAlmostEqual(result.iloc[0]["return"], 0.002, places=6)
+
+    def test_only_triggers_on_directional_mismatch(self):
+        """A same-direction signal (long while long) must NOT trigger exit."""
+        from src.strategy.engine import compute_trade_returns
+
+        df = _make_ohlcv([
+            # Bar 0: long signal
+            {"open": 99.0, "high": 100.5, "low": 98.5, "close": 100.0, "entry_signal": 1},
+            # Bar 1: entry at open=100
+            {"open": 100.0, "high": 100.2, "low": 99.8, "close": 100.0, "entry_signal": 0},
+            # Bar 2: ANOTHER long signal (same direction — should NOT exit)
+            {"open": 100.0, "high": 100.3, "low": 99.7, "close": 100.1, "entry_signal": 1},
+            # Bar 3: final bar
+            {"open": 100.1, "high": 100.2, "low": 100.0, "close": 100.15, "entry_signal": 0},
+        ])
+
+        result = compute_trade_returns(
+            df, target_gain_pct=0.05, stop_loss_pct=0.05, max_trade_bars=5,
+            use_opposing_signal_exit=True,
+        )
+        # Same-direction bars don't trigger exit; time_exit fires at last close.
+        # Note: two entry signals → two trades; we only check that NEITHER is labeled
+        # "opposing_signal".
+        self.assertNotIn("opposing_signal", set(result["exit_type"].values))
+
+
 if __name__ == "__main__":
     unittest.main()

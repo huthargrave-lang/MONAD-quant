@@ -156,6 +156,57 @@ class TestStateDB(unittest.TestCase):
         self.assertEqual(summary["exit_types"]["stop_hit"], 1)
         self.assertEqual(summary["exit_types"]["time_exit"], 1)
 
+    def test_open_position_default_direction_is_long(self):
+        state_module.open_position("TQQQ", 80.0, 10, "1")
+        pos = state_module.get_position()
+        self.assertEqual(pos.direction, "long")
+
+    def test_open_position_short_direction_persists(self):
+        state_module.open_position(
+            "TQQQ", 80.0, 10, "1",
+            target_price=79.60, stop_price=80.20,
+            direction="short",
+        )
+        pos = state_module.get_position()
+        self.assertEqual(pos.direction, "short")
+        self.assertAlmostEqual(pos.target_price, 79.60)
+        self.assertAlmostEqual(pos.stop_price, 80.20)
+
+    def test_open_position_rejects_invalid_direction(self):
+        with self.assertRaises(ValueError):
+            state_module.open_position("TQQQ", 80.0, 10, "1", direction="sideways")
+
+    def test_init_db_migrates_legacy_position_without_direction(self):
+        """A position row created before the direction column must default to 'long'."""
+        conn = sqlite3.connect(state_module._DB_PATH)
+        conn.executescript("DROP TABLE IF EXISTS position;")
+        conn.execute(
+            """
+            CREATE TABLE position (
+                symbol           TEXT NOT NULL,
+                entry_time       TEXT NOT NULL,
+                entry_price      REAL NOT NULL,
+                qty              INTEGER NOT NULL,
+                bracket_order_id TEXT NOT NULL,
+                bar_count        INTEGER NOT NULL DEFAULT 0
+            )
+            """
+        )
+        conn.execute(
+            "INSERT INTO position (symbol, entry_time, entry_price, qty, bracket_order_id, bar_count) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            ("TQQQ", "2026-01-01T00:00:00+00:00", 80.0, 10, "999", 0),
+        )
+        conn.commit()
+        conn.close()
+
+        state_module.init_db()
+
+        pos = state_module.get_position()
+        self.assertIsNotNone(pos)
+        self.assertEqual(pos.direction, "long")
+        self.assertEqual(pos.bracket_order_id, "999")
+
     @classmethod
     def tearDownClass(cls):
         try:

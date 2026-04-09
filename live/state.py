@@ -43,7 +43,8 @@ def init_db() -> None:
                 bracket_order_id TEXT NOT NULL,
                 bar_count        INTEGER NOT NULL DEFAULT 0,
                 status           TEXT NOT NULL DEFAULT 'open',
-                estimated_exit_price REAL
+                estimated_exit_price REAL,
+                direction        TEXT NOT NULL DEFAULT 'long'
             );
 
             CREATE TABLE IF NOT EXISTS trades (
@@ -150,6 +151,9 @@ def init_db() -> None:
             conn.execute("ALTER TABLE position ADD COLUMN target_price REAL")
         if "stop_price" not in existing_pos_cols:
             conn.execute("ALTER TABLE position ADD COLUMN stop_price REAL")
+        if "direction" not in existing_pos_cols:
+            # Legacy positions were always longs; default preserves historical semantics.
+            conn.execute("ALTER TABLE position ADD COLUMN direction TEXT NOT NULL DEFAULT 'long'")
 
         # Mark-price columns on account_snapshot (for dashboard unrealized PnL)
         existing_acct_cols = {
@@ -179,6 +183,7 @@ class Position:
     pending_close_retries: int = 0
     target_price: float = None
     stop_price: float = None
+    direction: str = "long"  # "long" or "short"
 
 
 def get_position() -> Optional[Position]:
@@ -191,16 +196,19 @@ def get_position() -> Optional[Position]:
 
 def open_position(symbol: str, entry_price: float, qty: int,
                   bracket_order_id: str,
-                  target_price: float = None, stop_price: float = None) -> None:
+                  target_price: float = None, stop_price: float = None,
+                  direction: str = "long") -> None:
+    if direction not in ("long", "short"):
+        raise ValueError(f"direction must be 'long' or 'short', got {direction!r}")
     entry_time = datetime.now(timezone.utc).isoformat()
     with _conn() as conn:
         conn.execute("DELETE FROM position")
         conn.execute(
-            "INSERT INTO position (symbol, entry_time, entry_price, qty, bracket_order_id, bar_count, status, estimated_exit_price, target_price, stop_price) "
-            "VALUES (?, ?, ?, ?, ?, 0, 'open', NULL, ?, ?)",
-            (symbol, entry_time, entry_price, qty, bracket_order_id, target_price, stop_price),
+            "INSERT INTO position (symbol, entry_time, entry_price, qty, bracket_order_id, bar_count, status, estimated_exit_price, target_price, stop_price, direction) "
+            "VALUES (?, ?, ?, ?, ?, 0, 'open', NULL, ?, ?, ?)",
+            (symbol, entry_time, entry_price, qty, bracket_order_id, target_price, stop_price, direction),
         )
-    log.info(f"Position opened: {qty} {symbol} @ {entry_price:.4f} | TP={target_price} SL={stop_price}")
+    log.info(f"Position opened: {direction.upper()} {qty} {symbol} @ {entry_price:.4f} | TP={target_price} SL={stop_price}")
 
 
 def increment_bar_count() -> int:
