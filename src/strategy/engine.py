@@ -217,7 +217,8 @@ def compute_trade_returns(df: pd.DataFrame,
                            target_overrides: dict = None,
                            stop_overrides: dict = None,
                            bar_limit_overrides: dict = None,
-                           use_opposing_signal_exit: bool = False) -> pd.DataFrame:
+                           use_opposing_signal_exit: bool = False,
+                           opposing_signal_threshold: int = 1) -> pd.DataFrame:
     """
     Simulate next-bar trade outcomes for backtesting.
 
@@ -242,11 +243,25 @@ def compute_trade_returns(df: pd.DataFrame,
         target_overrides: Dict of {timestamp: target_pct} for per-trade targets
         stop_overrides: Dict of {timestamp: stop_pct} for per-trade stops
         bar_limit_overrides: Dict of {timestamp: max_bars} for per-trade bar limits
-        use_opposing_signal_exit: When True, a future bar whose entry_signal is
-                              opposite to the open trade's direction closes the
-                              trade at the NEXT bar's open (matching entry
-                              convention). TP/SL still win on the same bar.
-                              Produces exit_type="opposing_signal".
+        use_opposing_signal_exit: When True, a future bar whose raw signal_vote
+                              crosses the opposing_signal_threshold in the
+                              opposite direction closes the trade at the NEXT
+                              bar's open (matching entry convention). TP/SL
+                              still win on the same bar. Produces
+                              exit_type="opposing_signal".
+                              Reads the pre-gate `signal_vote` column (raw
+                              momentum+volume composite) rather than the
+                              post-gate `entry_signal`, so regime filters
+                              (trend_direction, vol_regime, longs_only) that
+                              suppress entries in one direction do NOT also
+                              suppress the exit. Falls back to `entry_signal`
+                              if `signal_vote` is absent (supports test
+                              fixtures that don't run generate_trades).
+        opposing_signal_threshold: Absolute threshold for the raw composite
+                              vote to count as an opposing signal. Should
+                              match the `require_signals` used at entry so
+                              the exit fires when the strategy would now
+                              enter in the opposite direction. Default 1.
 
     Returns:
         DataFrame with columns: timestamp, return, trend_regime, exit_type
@@ -257,11 +272,26 @@ def compute_trade_returns(df: pd.DataFrame,
     trade_exit_types = []
     entries = df[df["entry_signal"] != 0]
 
-    # Precompute the entry_signal column once for opposing-signal lookups. Using
-    # the ndarray avoids per-bar pandas overhead in the tight future loop.
-    signal_arr = df["entry_signal"].to_numpy() if use_opposing_signal_exit else None
-    open_arr   = df["open"].to_numpy() if use_opposing_signal_exit else None
+    # Precompute the raw composite vote column for opposing-signal lookups.
+    # IMPORTANT: we read the pre-gate `signal_vote` (raw momentum+volume sum),
+    # NOT the post-gate `entry_signal`. The regime filter in generate_trades()
+    # (trend_direction + vol_regime) + longs_only gating zero out the opposite
+    # direction in entry_signal, so the exit would never fire if we read
+    # entry_signal. Fall back to entry_signal for legacy test fixtures that
+    # construct a df without running generate_trades (they set entry_signal
+    # directly and never populate signal_vote).
+    if use_opposing_signal_exit:
+        if "signal_vote" in df.columns:
+            signal_arr = df["signal_vote"].to_numpy()
+        else:
+            signal_arr = df["entry_signal"].to_numpy()
+        open_arr = df["open"].to_numpy()
+    else:
+        signal_arr = None
+        open_arr   = None
     df_len     = len(df)
+    # Normalize the threshold — use absolute value and ensure int-compatible.
+    opp_thresh = abs(int(opposing_signal_threshold)) if opposing_signal_threshold else 1
 
     for i, (idx, row) in enumerate(entries.iterrows()):
         loc = df.index.get_loc(idx)
@@ -321,11 +351,13 @@ def compute_trade_returns(df: pd.DataFrame,
             # Opposing-signal exit — only reached when neither TP nor SL fired
             # on this bar. The signal on bar K is actionable at bar K+1 open
             # (same rule as entries), so we exit at the *next* bar's open.
+            # Reads raw signal_vote, so an opposing composite fires even when
+            # regime/longs_only would block an actual short entry.
             if use_opposing_signal_exit:
                 bar_loc = future_start + fut_offset
                 bar_signal = signal_arr[bar_loc]
-                if ((direction == 1 and bar_signal == -1) or
-                    (direction == -1 and bar_signal == 1)):
+                if ((direction == 1 and bar_signal <= -opp_thresh) or
+                    (direction == -1 and bar_signal >= opp_thresh)):
                     opp_fill_loc = bar_loc + 1
                     if opp_fill_loc < df_len:
                         opp_price = open_arr[opp_fill_loc]
