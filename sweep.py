@@ -45,8 +45,9 @@ parser = argparse.ArgumentParser(
 parser.add_argument("ticker", help="Ticker symbol (e.g., GDXU, SOXL, TQQQ, NVDA)")
 parser.add_argument("--start", default=None, help="Backtest start date (default: 2yr ago)")
 parser.add_argument("--end", default=None, help="Backtest end date (default: today)")
-parser.add_argument("--phase", default="all", choices=["1", "2", "all"],
-                    help="Which sweep phase to run (default: all)")
+parser.add_argument("--phase", default="all", choices=["1", "2", "all", "exit-tuning"],
+                    help="Which sweep phase to run (default: all). "
+                         "'exit-tuning' sweeps RSI_OVERBOUGHT for opposing-signal exit tuning.")
 parser.add_argument("--min-stop", type=float, default=None,
                     help="Minimum stop loss %% (e.g., 0.15 = 0.15%%). Default: auto-calculated from price/spread. Use 0 to disable.")
 parser.add_argument("--spread", type=float, default=None,
@@ -71,6 +72,8 @@ parser.add_argument("--target", type=float, default=None,
                     help="Force a single target %% instead of sweeping target values (example: 1.4 for 1.4%%).")
 parser.add_argument("--stop", type=float, default=None,
                     help="Force a single stop %% instead of sweeping stop values (example: 0.65 for 0.65%%).")
+parser.add_argument("--short-rsi", type=int, default=None,
+                    help="Force a single RSI overbought value for exit-tuning sweep instead of sweeping.")
 parser.add_argument("--compare-opposing-exit", action="store_true",
                     help="Skip the full sweep. Run the current config (or --target/--stop/--rsi/--vwap overrides) "
                          "twice — once with use_opposing_signal_exit=False and once with =True — and print a "
@@ -267,14 +270,25 @@ def _set_opposing_exit(enabled: bool):
     config.OPPOSING_SIGNAL_EXIT_MODES = set()
 
 
-def run_quiet(target, stop, rsi_os=None, vwap=None):
-    """Run a single backtest quietly. Returns result dict or None."""
+def run_quiet(target, stop, rsi_os=None, vwap=None, short_rsi_ob=None):
+    """Run a single backtest quietly. Returns result dict or None.
+
+    Args:
+        short_rsi_ob: When set, temporarily overrides RSI_OVERBOUGHT_{MODE_NAME}
+                      (the bearish/short signal threshold). This controls how
+                      sensitive the opposing-signal exit is — lower values make
+                      the exit fire earlier, higher values make it fire later.
+                      Only meaningful when USE_OPPOSING_SIGNAL_EXIT is True.
+    """
     if rsi_os is not None:
         setattr(config, f"RSI_OVERSOLD_{MODE_NAME}", rsi_os)
         config.ASSETS[MODE_NAME]["rsi_oversold"] = rsi_os
     if vwap is not None:
         setattr(config, f"VWAP_ZSCORE_THRESH_{MODE_NAME}", vwap)
         config.ASSETS[MODE_NAME]["vwap_zscore_thresh"] = vwap
+    if short_rsi_ob is not None:
+        setattr(config, f"RSI_OVERBOUGHT_{MODE_NAME}", short_rsi_ob)
+        config.ASSETS[MODE_NAME]["rsi_overbought"] = short_rsi_ob
 
     try:
         with contextlib.redirect_stdout(io.StringIO()):
@@ -426,8 +440,10 @@ _default_max_trade_bars = getattr(config, "MAX_TRADE_BARS", 20)
 
 def restore():
     setattr(config, f"RSI_OVERSOLD_{MODE_NAME}", _defaults[f"RSI_OVERSOLD_{MODE_NAME}"])
+    setattr(config, f"RSI_OVERBOUGHT_{MODE_NAME}", _defaults[f"RSI_OVERBOUGHT_{MODE_NAME}"])
     setattr(config, f"VWAP_ZSCORE_THRESH_{MODE_NAME}", _defaults[f"VWAP_ZSCORE_THRESH_{MODE_NAME}"])
     config.ASSETS[MODE_NAME]["rsi_oversold"] = _defaults[f"RSI_OVERSOLD_{MODE_NAME}"]
+    config.ASSETS[MODE_NAME]["rsi_overbought"] = _defaults[f"RSI_OVERBOUGHT_{MODE_NAME}"]
     config.ASSETS[MODE_NAME]["vwap_zscore_thresh"] = _defaults[f"VWAP_ZSCORE_THRESH_{MODE_NAME}"]
     config.MAX_TRADE_BARS = _default_max_trade_bars
 
@@ -541,6 +557,215 @@ if args.compare_opposing_exit:
         else:
             verdict = "MIXED — one metric up, another down (manual review)"
         print(f"\n  Verdict: {verdict}")
+
+    print()
+    sys.exit(0)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  EXIT-TUNING PHASE — Sweep RSI_OVERBOUGHT for opposing-signal exit tuning
+# ═══════════════════════════════════════════════════════════════════════════
+# When --phase exit-tuning is passed, hold the best long-side params fixed
+# and sweep the RSI overbought threshold that drives the bearish (opposing)
+# signal. For each candidate, run the backtest twice (OFF/ON), compare, and
+# pick the RSI_OVERBOUGHT that produces the best Sharpe/DD improvement.
+#
+# This is strictly an EXIT-tuning workflow — no short positions are opened.
+# The bearish signal only fires inside compute_trade_returns() to close
+# an existing long trade early when the signal flips against it.
+if args.phase == "exit-tuning":
+    # ── Resolve fixed long params from CLI overrides or config defaults ────
+    et_target = args.target if args.target is not None else config.ASSETS[MODE_NAME]["target_gain_pct"]
+    et_stop   = args.stop   if args.stop   is not None else config.ASSETS[MODE_NAME]["stop_loss_pct"]
+    if args.target is not None and et_target >= 0.1:
+        et_target = et_target / 100.0
+    if args.stop is not None and et_stop >= 0.1:
+        et_stop = et_stop / 100.0
+    et_rsi  = args.rsi  if args.rsi  is not None else config.ASSETS[MODE_NAME]["rsi_oversold"]
+    et_vwap = args.vwap if args.vwap is not None else config.ASSETS[MODE_NAME]["vwap_zscore_thresh"]
+
+    # ── Build the short-RSI candidate list ─────────────────────────────────
+    if args.short_rsi is not None:
+        short_rsi_values = [args.short_rsi]
+    else:
+        short_rsi_values = [45, 50, 55, 58, 60, 62, 65, 68, 70, 75, 80, 85]
+
+    print("=" * 100)
+    print(f"  EXIT-TUNING PHASE: Opposing-signal RSI_OVERBOUGHT sweep — {TICKER}")
+    print("=" * 100)
+    print(f"  Fixed long params: target={et_target*100:.3f}%  stop={et_stop*100:.3f}%  "
+          f"rsi_oversold={et_rsi}  vwap={et_vwap}")
+    print(f"  Period: {START_DATE} → {END_DATE}  ({len(df_raw)} bars train)")
+    print(f"  Short RSI candidates: {short_rsi_values}")
+    print(f"  NOTE: Long-only exit tuning. No short positions are opened.\n")
+
+    # ── Run baseline (opposing-exit OFF) once ──────────────────────────────
+    restore()
+    _set_opposing_exit(False)
+    r_baseline = run_quiet(et_target, et_stop, rsi_os=et_rsi, vwap=et_vwap)
+    m_baseline = extract_metrics(r_baseline) if r_baseline else None
+    eb_baseline = r_baseline.get("exit_breakdown", {}) if r_baseline else {}
+
+    print(f"  BASELINE (opposing-exit OFF, RSI_OB={_defaults[f'RSI_OVERBOUGHT_{MODE_NAME}']}):")
+    print(fmt(r_baseline, "  OFF"))
+    if m_baseline:
+        print(f"       Exits: " + "  ".join(f"{k}={v}" for k, v in sorted(eb_baseline.items())))
+    print()
+
+    # ── Table header ───────────────────────────────────────────────────────
+    print(f"  {'RSI_OB':>6}  {'Trades':>6}  {'WR':>6}  {'Return':>8}  {'Sharpe':>7}  "
+          f"{'MaxDD':>7}  {'Avg/mo':>7}  {'OppExit':>7}  {'dRet':>7}  {'dSharpe':>8}  "
+          f"{'dDD':>6}  {'Score':>7}  {'Verdict'}")
+    print("  " + "-" * 115)
+
+    # ── Sweep each short RSI candidate with opposing-exit ON ───────────────
+    exit_tuning_results = []
+
+    for short_rsi in short_rsi_values:
+        restore()
+        _set_opposing_exit(True)
+        r_on = run_quiet(et_target, et_stop, rsi_os=et_rsi, vwap=et_vwap,
+                         short_rsi_ob=short_rsi)
+        _set_opposing_exit(False)
+        restore()
+
+        m_on = extract_metrics(r_on) if r_on else None
+        eb_on = r_on.get("exit_breakdown", {}) if r_on else {}
+        opp_count = eb_on.get("opposing_signal", 0)
+
+        if m_on is None or m_baseline is None:
+            print(f"  {short_rsi:>6}  {'ERROR or NO TRADES':>50}")
+            continue
+
+        # Compute deltas vs baseline
+        d_ret    = m_on["total_return_pct"] - m_baseline["total_return_pct"]
+        d_sharpe = m_on["sharpe_ratio"] - m_baseline["sharpe_ratio"]
+        d_dd     = m_on["max_drawdown_pct"] - m_baseline["max_drawdown_pct"]
+        d_wr     = m_on["win_rate_pct"] - m_baseline["win_rate_pct"]
+        total_t  = m_on["total_trades"]
+
+        # ── Exit-tuning score ──────────────────────────────────────────────
+        # Prefers: Sharpe improvement, DD improvement, stable/improved return,
+        # penalizes overactive exits (>25% of trades) or zero opposing exits.
+        score = 0.0
+        # Sharpe improvement is the primary signal (weighted 50%)
+        score += d_sharpe * 5.0
+        # DD improvement: more negative d_dd is better (less drawdown)
+        # d_dd > 0 means ON has worse DD (more negative), so we want d_dd < 0
+        score += (-d_dd) * 2.0
+        # Return stability: mild penalty for lost return, bonus for gained
+        score += d_ret * 1.0
+        # Overactive exit penalty: if opposing exits > 25% of trades
+        if total_t > 0:
+            opp_ratio = opp_count / total_t
+            if opp_ratio > 0.40:
+                score -= 5.0    # very overactive
+            elif opp_ratio > 0.25:
+                score -= 2.0    # somewhat overactive
+        # Zero opposing exits means the setting is inert
+        if opp_count == 0:
+            score -= 10.0
+
+        # Verdict
+        if d_sharpe > 0 and d_ret >= 0:
+            verdict = "HELPS"
+        elif d_sharpe > 0 and d_ret < 0 and abs(d_ret) < 0.5:
+            verdict = "MIXED+"
+        elif d_sharpe <= 0 and d_ret <= 0:
+            verdict = "HURTS"
+        elif opp_count == 0:
+            verdict = "INERT"
+        else:
+            verdict = "MIXED"
+
+        print(f"  {short_rsi:>6}  {total_t:>6}  {m_on['win_rate_pct']:>5.1f}%  "
+              f"{m_on['total_return_pct']:>+7.2f}%  {m_on['sharpe_ratio']:>7.1f}  "
+              f"{m_on['max_drawdown_pct']:>6.2f}%  {m_on['avg_monthly_pct']:>+6.2f}%  "
+              f"{opp_count:>4}/{total_t:<3}  {d_ret:>+6.2f}%  {d_sharpe:>+7.2f}  "
+              f"{d_dd:>+5.2f}%  {score:>+6.1f}  {verdict}")
+
+        exit_tuning_results.append({
+            "short_rsi": short_rsi,
+            "result_on": r_on,
+            "metrics_on": m_on,
+            "exit_breakdown_on": eb_on,
+            "opp_count": opp_count,
+            "d_ret": d_ret,
+            "d_sharpe": d_sharpe,
+            "d_dd": d_dd,
+            "d_wr": d_wr,
+            "score": score,
+            "verdict": verdict,
+        })
+
+    # ── Pick the best exit-tuning RSI_OVERBOUGHT ──────────────────────────
+    print()
+    if exit_tuning_results:
+        # Filter to candidates that actually produced opposing exits
+        active = [c for c in exit_tuning_results if c["opp_count"] > 0]
+        if active:
+            best_et = max(active, key=lambda c: c["score"])
+            print(f"  BEST EXIT-TUNING RSI_OVERBOUGHT: {best_et['short_rsi']}")
+            print(f"    Score: {best_et['score']:+.1f}  Verdict: {best_et['verdict']}")
+            print(f"    Opposing exits: {best_et['opp_count']}/{best_et['metrics_on']['total_trades']}")
+            print(f"    vs baseline: ret {best_et['d_ret']:+.2f}%  "
+                  f"Sharpe {best_et['d_sharpe']:+.2f}  DD {best_et['d_dd']:+.2f}%  "
+                  f"WR {best_et['d_wr']:+.1f}%")
+
+            # Print full exit breakdown for the winner
+            eb_w = best_et["exit_breakdown_on"]
+            print(f"    Exit breakdown: " + "  ".join(f"{k}={v}" for k, v in sorted(eb_w.items())))
+
+            if best_et["score"] <= 0:
+                print(f"\n  RECOMMENDATION: Do NOT enable opposing-signal exit for {TICKER}.")
+                print(f"    Best candidate still has negative score ({best_et['score']:+.1f}).")
+                print(f"    The baseline (OFF) outperforms all tested RSI_OVERBOUGHT values.")
+            else:
+                print(f"\n  RECOMMENDATION: Enable opposing-signal exit for {TICKER}.")
+                print(f"    Set RSI_OVERBOUGHT_{MODE_NAME} = {best_et['short_rsi']}")
+                print(f"    Set USE_OPPOSING_SIGNAL_EXIT = True (or add '{MODE_NAME}' to "
+                      f"OPPOSING_SIGNAL_EXIT_MODES)")
+        else:
+            print(f"  No RSI_OVERBOUGHT setting produced any opposing-signal exits.")
+            print(f"  The long params (target={et_target*100:.3f}%, stop={et_stop*100:.3f}%) "
+                  f"may resolve too fast for opposing signals to fire.")
+            print(f"  Try wider target/stop or review signal generation diagnostics.")
+    else:
+        print("  No valid results from exit-tuning sweep.")
+
+    # ── Save exit-tuning results to JSON ──────────────────────────────────
+    if exit_tuning_results:
+        et_out = {
+            "ticker": TICKER,
+            "period": f"{START_DATE} → {END_DATE}",
+            "train_bars": len(df_raw),
+            "backtest_mode": args.mode,
+            "fixed_long_params": {
+                "target_gain_pct": et_target,
+                "stop_loss_pct": et_stop,
+                "rsi_oversold": et_rsi,
+                "vwap_zscore_thresh": et_vwap,
+            },
+            "baseline": m_baseline,
+            "candidates": [
+                {
+                    "rsi_overbought": c["short_rsi"],
+                    "opp_exits": c["opp_count"],
+                    "total_trades": c["metrics_on"]["total_trades"],
+                    "d_return_pct": round(c["d_ret"], 3),
+                    "d_sharpe": round(c["d_sharpe"], 3),
+                    "d_drawdown_pct": round(c["d_dd"], 3),
+                    "d_win_rate_pct": round(c["d_wr"], 2),
+                    "score": round(c["score"], 2),
+                    "verdict": c["verdict"],
+                }
+                for c in exit_tuning_results
+            ],
+        }
+        outfile = f"sweep_exit_tuning_{TICKER}.json"
+        with open(outfile, "w") as f:
+            json.dump(et_out, f, indent=2, default=str)
+        print(f"\n  Results saved -> {outfile}")
 
     print()
     sys.exit(0)
@@ -749,12 +974,16 @@ if args.phase in ("2", "all"):
 #  live_score, NOT best train score. This prevents in-sample overfitting.
 # ═══════════════════════════════════════════════════════════════════════════
 
-def _run_on_data(df, target, stop, rsi, vwap, holdout_start=None, backtest_mode=None):
+def _run_on_data(df, target, stop, rsi, vwap, holdout_start=None, backtest_mode=None,
+                 short_rsi_ob=None):
     """Run a single backtest on arbitrary data slice. Returns result or None."""
     setattr(config, f"RSI_OVERSOLD_{MODE_NAME}", rsi)
     config.ASSETS[MODE_NAME]["rsi_oversold"] = rsi
     setattr(config, f"VWAP_ZSCORE_THRESH_{MODE_NAME}", vwap)
     config.ASSETS[MODE_NAME]["vwap_zscore_thresh"] = vwap
+    if short_rsi_ob is not None:
+        setattr(config, f"RSI_OVERBOUGHT_{MODE_NAME}", short_rsi_ob)
+        config.ASSETS[MODE_NAME]["rsi_overbought"] = short_rsi_ob
     mode_to_use = backtest_mode or args.mode
     try:
         with contextlib.redirect_stdout(io.StringIO()):
