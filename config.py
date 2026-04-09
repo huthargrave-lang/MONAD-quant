@@ -238,8 +238,8 @@ MACD_SIGNAL_TQQQ_HOURLY        = 4
 VWAP_WINDOW_TQQQ_HOURLY        = 10
 VWAP_ZSCORE_THRESH_TQQQ_HOURLY = 0.5   # Sweep optimal (dead lever — 0.3-0.6 nearly identical)
 BB_WINDOW_TQQQ_HOURLY          = 14
-TARGET_GAIN_PCT_TQQQ_HOURLY    = 0.0140 # 2.80% target — realistic sweep optimal; 1.9:1 R:R
-STOP_LOSS_PCT_TQQQ_HOURLY      = 0.0060 # 1.50% stop — Sharpe 3.7, DD -3.85%, WR 55.9%, +1.77%/mo
+TARGET_GAIN_PCT_TQQQ_HOURLY    = 0.0100 # 2.80% target — realistic sweep optimal; 1.9:1 R:R
+STOP_LOSS_PCT_TQQQ_HOURLY      = 0.0050 # 1.50% stop — Sharpe 3.7, DD -3.85%, WR 55.9%, +1.77%/mo
 # Previous configs (pre-realistic-backtest fixes — inflated by same-bar ambiguity bias):
 # TARGET_GAIN_PCT_TQQQ_HOURLY  = 0.0072  # 0.72% target, 1.8:1 R:R (optimistic mode)
 # TARGET_GAIN_PCT_TQQQ_HOURLY  = 0.0042  # 0.42% target, 5.6:1 R:R (optimistic mode)
