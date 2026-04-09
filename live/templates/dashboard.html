@@ -183,21 +183,9 @@
         right: 0;
         bottom: 0;
         z-index: 10;
-        background: rgba(18, 26, 47, 0.4);
-        backdrop-filter: blur(2px);
-        color: var(--text);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 15px;
-        font-weight: 500;
-        opacity: 0;
-        transition: opacity 0.2s ease;
+        background: transparent;
         cursor: pointer;
         border-radius: 10px;
-      }
-      .card:hover .interaction-shield {
-        opacity: 1;
       }
       .card:fullscreen .interaction-shield {
         display: none !important;
@@ -412,10 +400,10 @@
       {% if returns_chart %}
         <section class="card span-8" id="returns-card" style="position: relative;">
           <button class="fullscreen-btn" onclick="toggleFullscreen('returns-card', this)">⛶ Fullscreen</button>
-          <div class="interaction-shield">Click to interact</div>
+          <div class="interaction-shield"></div>
           {{ returns_chart }}
         </section>
-        <section class="card span-4" style="position: relative;">{% if trade_scatter_chart %}<div class="interaction-shield">Click to interact</div>{{ trade_scatter_chart }}{% else %}<h2>Trade Efficiency</h2><div class="v" style="color:var(--muted);">Waiting for duration data.</div>{% endif %}</section>
+        <section class="card span-4" style="position: relative;">{% if trade_scatter_chart %}<div class="interaction-shield"></div>{{ trade_scatter_chart }}{% else %}<h2>Trade Efficiency</h2><div class="v" style="color:var(--muted);">Waiting for duration data.</div>{% endif %}</section>
       {% else %}
         <section class="card span-12" style="min-height:60px;">
           <h2 style="display:inline;">Equity Curve</h2>
@@ -429,7 +417,7 @@
       {% if signal_chart %}
         <section class="card span-12" id="signal-card" style="position: relative;">
           <button class="fullscreen-btn" onclick="toggleFullscreen('signal-card', this)">⛶ Fullscreen</button>
-          <div class="interaction-shield">Click to interact</div>
+          <div class="interaction-shield"></div>
           {{ signal_chart }}
         </section>
       {% else %}
