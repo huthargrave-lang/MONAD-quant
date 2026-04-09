@@ -133,8 +133,8 @@ def run_backtest(df: pd.DataFrame,
         or (active_mode is not None and active_mode in opp_modes)
     )
     if use_opposing_exit:
-        print("       Opposing-signal exit: ENABLED "
-              "(long closes on -1 signal, short closes on +1 signal)")
+        print(f"       Opposing-signal exit: ENABLED "
+              f"(reads raw signal_vote, threshold ±{require_signals})")
 
     # ── 2. Simulate trades ────────────────────────────────────────────────
     print("[2/4] Simulating trades...")
@@ -147,6 +147,7 @@ def run_backtest(df: pd.DataFrame,
         worst_case_ambiguity=worst_case,
         stop_overrides=stop_overrides,
         use_opposing_signal_exit=use_opposing_exit,
+        opposing_signal_threshold=require_signals,
     )
 
     if len(trades_df) == 0:

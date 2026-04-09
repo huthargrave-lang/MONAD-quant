@@ -703,6 +703,64 @@ class TestOpposingSignalExit(unittest.TestCase):
         # "opposing_signal".
         self.assertNotIn("opposing_signal", set(result["exit_type"].values))
 
+    def test_reads_signal_vote_when_present_not_entry_signal(self):
+        """Production path: generate_trades() writes both signal_vote (raw
+        composite) and entry_signal (post-regime-gate). When signal_vote is
+        present, compute_trade_returns must read from it, not entry_signal.
+
+        This is the bug that made opposing_signal_exit never fire for TQQQ:
+        use_regime_filter=True forces longs and shorts to never coexist in
+        entry_signal (different trend_direction), but signal_vote keeps the
+        raw direction. The exit must fire on the raw vote flip."""
+        from src.strategy.engine import compute_trade_returns
+
+        df = _make_ohlcv([
+            # Bar 0: long entry — entry_signal=+1, signal_vote=+1
+            {"open": 99.0, "high": 100.5, "low": 98.5, "close": 100.0, "entry_signal": 1},
+            # Bar 1: entry at open=100
+            {"open": 100.0, "high": 100.2, "low": 99.8, "close": 100.0, "entry_signal": 0},
+            # Bar 2: regime filter ZEROED entry_signal, but signal_vote shows -1
+            # (momentum+volume still voted opposite). Flag should still fire here.
+            {"open": 100.0, "high": 100.3, "low": 99.7, "close": 100.1, "entry_signal": 0},
+            # Bar 3: opposing-signal fills at this open
+            {"open": 101.0, "high": 101.5, "low": 100.5, "close": 101.0, "entry_signal": 0},
+        ])
+        # Populate signal_vote with the pre-gate truth: long, neutral, short, neutral.
+        df["signal_vote"] = [1, 0, -1, 0]
+
+        result = compute_trade_returns(
+            df, target_gain_pct=0.05, stop_loss_pct=0.05, max_trade_bars=5,
+            use_opposing_signal_exit=True,
+        )
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result.iloc[0]["exit_type"], "opposing_signal")
+        # Entry=100, exit=101 → +0.01 (signal_vote drove the exit, not entry_signal)
+        self.assertAlmostEqual(result.iloc[0]["return"], 0.01, places=6)
+
+    def test_threshold_respects_require_signals(self):
+        """Opposing-signal exit should only fire when |signal_vote| >= threshold,
+        matching the require_signals used at entry. A threshold=2 run must NOT
+        exit on a single-signal vote of -1."""
+        from src.strategy.engine import compute_trade_returns
+
+        df = _make_ohlcv([
+            {"open": 99.0, "high": 100.5, "low": 98.5, "close": 100.0, "entry_signal": 1},
+            {"open": 100.0, "high": 100.2, "low": 99.8, "close": 100.0, "entry_signal": 0},
+            # Bar 2: signal_vote=-1 (only one signal fired). threshold=2 should IGNORE.
+            {"open": 100.0, "high": 100.3, "low": 99.7, "close": 100.1, "entry_signal": 0},
+            {"open": 101.0, "high": 101.5, "low": 100.5, "close": 101.0, "entry_signal": 0},
+        ])
+        df["signal_vote"] = [1, 0, -1, 0]
+
+        result = compute_trade_returns(
+            df, target_gain_pct=0.05, stop_loss_pct=0.05, max_trade_bars=5,
+            use_opposing_signal_exit=True,
+            opposing_signal_threshold=2,
+        )
+        self.assertEqual(len(result), 1)
+        # Vote=-1 < threshold=2 → no opposing exit → falls through to time_exit
+        self.assertEqual(result.iloc[0]["exit_type"], "time_exit")
+
 
 if __name__ == "__main__":
     unittest.main()
