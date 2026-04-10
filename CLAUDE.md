@@ -1265,10 +1265,11 @@ Make the data layer resilient for live trading.
 
 | # | Change | Impact |
 |---|---|---|
-| 4.1 | Add exponential backoff + retry logic to yfinance fetcher | Prevents live crash on network glitch |
-| 4.2 | Add OHLC validation (low ≤ open ≤ high, low ≤ close ≤ high) | Catches bad data before it corrupts signals |
+| 4.1 | Add exponential backoff + retry logic to yfinance fetcher | Prevents live crash on network glitch | **DONE** |
+| 4.2 | Add OHLC validation (low ≤ open ≤ high, low ≤ close ≤ high) | Catches bad data before it corrupts signals | **DONE** |
 | 4.3 | Add hourly bar continuity check (no gaps > 1 hour during market hours) | Catches DST gaps and data source issues |
 | 4.4 | Validate ALPHA_VANTAGE_KEY at startup when BTC_DAILY is active | Prevents silent API failure |
+| 4.5 | Auto-clamp backtest date ranges to yfinance's 730-day hourly limit | Prevents 0-bar backtest runs | **DONE** |
 
 **Estimated effort: 0.5-1 day.**
 
@@ -1282,6 +1283,7 @@ These are the signal/strategy enhancements identified by the expert agent audit.
 | 5.2 | ATR-based dynamic stop overrides (USE_ATR_DYNAMIC_STOPS) | Medium | Reduce noise stops in high-vol |
 | 5.3 | Exit type tracking in compute_trade_returns() | Low | Diagnostic — enables better analysis |
 | 5.4 | Fix walk-forward Sharpe annualization for hourly modes | Low | More accurate parameter selection |
+| 5.5 | Re-integrate rolling Kelly position sizing for hourly modes | Medium | Potentially improves risk-adjusted returns; adaptive Kelly currently acts as fixed 2x multiplier for QQQ/TQQQ (WR always above HIGH_WR threshold). True rolling Kelly would size based on recent trade-level win/loss stats instead. Needs extensive backtesting to evaluate whether it improves or hurts vs current fixed-multiplier approach. |
 
 **Estimated effort: 2-3 days. Directly improves strategy performance.**
 

@@ -7,9 +7,13 @@ Run modes:
 """
 
 import argparse
+from datetime import datetime, timedelta
 import config
 from src.data.fetcher import fetch_yfinance
 from src.backtest.runner import run_backtest
+
+# yfinance limits hourly data to the most recent 730 days.
+_YFINANCE_HOURLY_MAX_DAYS = 730
 
 # Map ACTIVE_MODE to (yfinance symbol, interval, asset config key)
 MODE_MAP = {
@@ -103,6 +107,13 @@ def main():
     if interval == "1h":
         bt_start = getattr(config, "BACKTEST_START_HOURLY", config.BACKTEST_START)
         bt_end   = getattr(config, "BACKTEST_END_HOURLY",   config.BACKTEST_END)
+
+        # Auto-clamp: yfinance only serves ~730 days of hourly data.
+        earliest_allowed = (datetime.now() - timedelta(days=_YFINANCE_HOURLY_MAX_DAYS)).strftime("%Y-%m-%d")
+        if bt_start < earliest_allowed:
+            print(f"  WARNING: BACKTEST_START '{bt_start}' exceeds yfinance 730-day hourly limit.")
+            print(f"           Clamping to '{earliest_allowed}'.")
+            bt_start = earliest_allowed
     else:
         bt_start = config.BACKTEST_START
         bt_end   = config.BACKTEST_END
