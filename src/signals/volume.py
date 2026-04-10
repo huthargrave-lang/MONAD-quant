@@ -19,7 +19,9 @@ def compute_vwap_zscore(df: pd.DataFrame, window: int = 20) -> pd.Series:
     vwap = compute_vwap(df, window)
     deviation = df["close"] - vwap
     rolling_std = deviation.rolling(window).std()
-    return deviation / rolling_std
+    # Guard against division by zero when rolling_std is 0 (flat market).
+    # Returns 0 z-score (neutral) when there's no price variation.
+    return deviation / rolling_std.replace(0, np.nan)
 
 
 def compute_obv(df: pd.DataFrame) -> pd.Series:

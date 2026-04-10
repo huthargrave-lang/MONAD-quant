@@ -1203,10 +1203,10 @@ scaling live deployment.
    Time-exit path uses `future.iloc[-1]["close"]` without NaN check. If incomplete bar,
    NaN return is appended to trade_returns → equity curve propagates NaN silently.
 
-4. **`PENDING_CLOSE_MAX_RETRIES` undefined in config**
-   trader.py references `config.PENDING_CLOSE_MAX_RETRIES` but this constant is never
-   defined in config.py or config_modules/. Will crash or hang indefinitely on first
-   pending_close event. Fix: add `PENDING_CLOSE_MAX_RETRIES = 10` to config.py.
+4. **~~`PENDING_CLOSE_MAX_RETRIES` undefined~~ — FALSE POSITIVE (resolved)**
+   Originally flagged as undefined, but `PENDING_CLOSE_MAX_RETRIES = 3` already exists
+   at `config_modules/live.py:16` and is imported via `from config_modules.live import *`
+   at `config.py:17`. Not a bug.
 
 5. **Sweep.py dual-sync requirement** (sweep.py:284-291)
    Must update BOTH `setattr(config, param_name, value)` AND `config.ASSETS[mode][key] = value`
@@ -1293,7 +1293,7 @@ scaling live deployment.
 | Signal Pipeline | B+ | Works correctly but no tests, division-by-zero risks |
 | Backtest Runner | B+ | Correct but index alignment and NaN risks |
 | Config System | B- | Functional but fragmented, no validation, dead params |
-| Live Trader | B+ | Solid architecture, but PENDING_CLOSE_MAX_RETRIES undefined |
+| Live Trader | B+ | Solid architecture, pending_close correctly wired |
 | IBKR Broker | A | Excellent connection handling, three-tier fill search |
 | State Persistence | A- | Clean migrations, atomic operations, no SQL injection |
 | Dashboard | B+ | Read-only safe, cache logic brittle |
@@ -1311,12 +1311,12 @@ These are bugs that could cause incorrect results or crashes. Fix before any new
 
 | # | Fix | File(s) | LOC | Risk |
 |---|---|---|---|---|
-| 1.1 | Guard `compute_vwap_zscore()` against zero `rolling_std` | volume.py:22 | ~3 | Low |
-| 1.2 | Guard `compute_bb_position()` against flat bands (upper==lower) | volatility.py:37 | ~3 | Low |
-| 1.3 | Add NaN check before appending time-exit return | engine.py:374 | ~3 | Low |
-| 1.4 | Add `PENDING_CLOSE_MAX_RETRIES = 10` to config.py | config.py | ~1 | Low |
-| 1.5 | Remove phantom modes (QQQ_DAILY, SOXL_DAILY) from main.py MODE_MAP or add to _MODE_TO_ASSET | main.py, config.py | ~4 | Low |
-| 1.6 | Add startup config validation: verify ACTIVE_MODE exists in _MODE_TO_ASSET and ASSETS | main.py | ~10 | Low |
+| 1.1 | Guard `compute_vwap_zscore()` against zero `rolling_std` | volume.py:22 | ~3 | Low | **DONE** |
+| 1.2 | Guard `compute_bb_position()` against flat bands (upper==lower) | volatility.py:37 | ~3 | Low | **DONE** |
+| 1.3 | Add NaN check before appending time-exit return | engine.py:374 | ~3 | Low | **DONE** |
+| 1.4 | ~~Add PENDING_CLOSE_MAX_RETRIES~~ — false positive, already in config_modules/live.py | — | 0 | — | N/A |
+| 1.5 | Sync MODE_MAP with _MODE_TO_ASSET: rename QQQ_DAILY→QQQ, add SOXL_DAILY | main.py, config.py | ~4 | Low | **DONE** |
+| 1.6 | Add startup config validation: verify ACTIVE_MODE, ASSETS keys, stop<target | main.py | ~40 | Low | **DONE** |
 
 **Estimated effort: 1-2 hours. Zero risk of regression.**
 

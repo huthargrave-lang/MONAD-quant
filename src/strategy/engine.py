@@ -371,6 +371,8 @@ def compute_trade_returns(df: pd.DataFrame,
         # If no target/stop/opposing-signal hit, use close of last future bar
         if exit_return is None and len(future) > 0:
             last_close  = future.iloc[-1]["close"]
+            if pd.isna(last_close) or entry_price == 0:
+                continue  # skip trade — incomplete bar or zero entry price
             exit_return = direction * (last_close - entry_price) / entry_price
             exit_type   = "time_exit"
 
