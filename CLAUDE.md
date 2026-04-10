@@ -1276,14 +1276,14 @@ scaling live deployment.
 | Position state machine (open/close/pending) | Good — ~16 tests | B+ |
 | Dashboard routes (read-only verification) | Basic — 6 tests | B- |
 | Trader helpers (direction-aware inference) | Good — 10 tests | B+ |
-| Signal modules (momentum/volume/volatility) | **None** | F |
+| Signal modules (momentum/volume/volatility) | Good — 37 tests | B+ |
 | Data fetcher (yfinance/Alpha Vantage) | **None** | F |
-| Config validation (mode routing) | **None** | F |
+| Config validation (mode routing) | Good — 16 tests | B+ |
 | Sweep tool (parameter optimization) | **None** | F |
 | Pending close reconciliation flow | **None** | F |
 | IBKR integration (broker.py) | **None** | F |
 
-**Total: ~52 tests across 4 files (~1,239 lines of test code)**
+**Total: 101 tests across 4 files, all passing. CI via GitHub Actions.**
 
 ### Production Readiness
 
@@ -1326,11 +1326,19 @@ Add tests for the untested critical paths. These prevent future regressions.
 
 | # | Test | Target | Priority |
 |---|---|---|---|
-| 2.1 | Signal module tests: RSI calculation, MACD histogram turn, regime classification, VWAP z-score | momentum.py, volume.py, volatility.py | HIGH |
-| 2.2 | Config validation tests: each ACTIVE_MODE routes to valid ASSETS entry, no orphan modes | config.py | HIGH |
+| 2.1 | Signal module tests: RSI calculation, MACD histogram turn, regime classification, VWAP z-score | momentum.py, volume.py, volatility.py | HIGH | **DONE** |
+| 2.2 | Config validation tests: each ACTIVE_MODE routes to valid ASSETS entry, no orphan modes | config.py | HIGH | **DONE** |
 | 2.3 | Data fetcher test: yfinance returns valid OHLCV, OHLC invariants hold | fetcher.py | MEDIUM |
 | 2.4 | Pending close full flow test: mark → retry → finalize | state.py, trader.py | MEDIUM |
-| 2.5 | Add GitHub Actions CI: pytest on push/PR | .github/workflows/ | MEDIUM |
+| 2.5 | Add GitHub Actions CI: pytest on push/PR | .github/workflows/ | MEDIUM | **DONE** |
+
+**Test coverage summary (Phase 2 complete):**
+- `tests/test_signals.py`: 37 tests — RSI, MACD, momentum_signal, classify_regime (6-state),
+  VWAP z-score, volume_signal, ATR, Bollinger bands, ADX, integration tests for all 3 modules
+- `tests/test_config.py`: 16 tests — mode routing sync (MODE_MAP ↔ _MODE_TO_ASSET ↔ ASSETS),
+  ASSETS invariants (required keys, stop < target, positive values), live config, active mode
+- `.github/workflows/test.yml`: CI runs pytest on push to main/claude/** and PRs to main
+- **Total: 101 tests across 4 files, all passing**
 
 **Estimated effort: 1-2 days. Significantly improves confidence in signal correctness.**
 
