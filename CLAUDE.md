@@ -1158,4 +1158,263 @@ The position table now has a `status` column (`open` / `pending_close`) and an
 
 ---
 
-*Last updated: 2026-03-25 — Pending close blocks new entries until reconciliation. MAX_TRADE_BARS added to sweep Phase 2d. Universal sweep now 5-phase with holdout + perturbation robustness.*
+---
+
+## 21. Comprehensive Project Review (2026-04-10)
+
+### Overall Assessment: **B+ / Production-Capable, Needs Hardening**
+
+The codebase is well-architected, exceptionally documented, and genuinely mode-agnostic.
+The strategy engine, signal pipeline, and backtest infrastructure are sound. The live
+trading system has robust IBKR integration. However, there are reliability gaps in edge-case
+handling, testing coverage, and configuration management that should be addressed before
+scaling live deployment.
+
+**Codebase size:** ~8,950 lines Python across 33 files.
+
+### Strengths
+
+| Area | Finding | Impact |
+|---|---|---|
+| **Architecture** | Truly mode-agnostic engine — adding a new instrument requires only config.py changes (no code changes) | Massive scalability advantage |
+| **Documentation** | CLAUDE.md (55KB), README.md (18KB), inline comments throughout — exceptional institutional memory | Low onboarding friction for AI agents and collaborators |
+| **Backtest/Live Separation** | Clean boundary — backtest code never imports from live/, live code only imports signals from src/ | No cross-contamination risk |
+| **Execution Model** | Unified entry/exit logic between backtest and live, verified by test_execution_model.py (~20 tests) | Backtest results trustworthy |
+| **Walk-Forward Optimizer** | Properly implemented OOS validation with no look-ahead bias | Parameter selection is legitimate |
+| **IBKR Integration** | Thread-local event loop, 3x retry with backoff, three-tier fill search, GTC bracket orders | Robust connection handling |
+| **Pending Close Architecture** | Position stays in DB until reconciled — blocks new entries, prevents phantom trades | Correct state machine design |
+| **Kelly Sizing** | Half-Kelly with regime multipliers, ADX adjustment, adaptive scaling — well-implemented | Position sizing is mathematically sound |
+| **Universal Sweep Tool** | 5-phase sweep with holdout + perturbation robustness, auto-applies results | Efficient parameter optimization |
+| **Signal Design** | Each signal independently togglable, no component "knows about" another | Clean A/B testing of features |
+
+### Weaknesses & Bugs Found
+
+#### Critical (affects correctness or reliability)
+
+1. **Division by zero in `compute_vwap_zscore()`** (volume.py:22)
+   `deviation / rolling_std` — if `rolling_std == 0` (flat market), produces NaN → propagates
+   through signal chain. Fix: guard with `np.where(rolling_std > 0, ..., 0)`.
+
+2. **Division by zero in `compute_bb_position()`** (volatility.py:37)
+   `(prices - lower) / (upper - lower)` — if Bollinger bands converge (upper == lower),
+   division by zero → NaN. Fix: guard with `np.where(denom > 1e-10, ..., 0.5)`.
+
+3. **NaN propagation in `compute_trade_returns()`** (engine.py:374)
+   Time-exit path uses `future.iloc[-1]["close"]` without NaN check. If incomplete bar,
+   NaN return is appended to trade_returns → equity curve propagates NaN silently.
+
+4. **`PENDING_CLOSE_MAX_RETRIES` undefined in config**
+   trader.py references `config.PENDING_CLOSE_MAX_RETRIES` but this constant is never
+   defined in config.py or config_modules/. Will crash or hang indefinitely on first
+   pending_close event. Fix: add `PENDING_CLOSE_MAX_RETRIES = 10` to config.py.
+
+5. **Sweep.py dual-sync requirement** (sweep.py:284-291)
+   Must update BOTH `setattr(config, param_name, value)` AND `config.ASSETS[mode][key] = value`
+   for every parameter change. If one is missed, backtest runs with inconsistent params.
+
+6. **Phantom modes in main.py MODE_MAP**
+   `QQQ_DAILY` and `SOXL_DAILY` exist in MODE_MAP but NOT in `_MODE_TO_ASSET` or ASSETS dict.
+   Setting `ACTIVE_MODE = "QQQ_DAILY"` will fail at runtime with a confusing error.
+
+#### High (affects maintainability or safety)
+
+7. **No signal module tests** — momentum.py, volume.py, volatility.py have zero test coverage.
+   RSI calculation, MACD histogram turn, VWAP z-score gating, regime classification are
+   all untested. A subtle bug (e.g., missing .shift()) could persist undetected.
+
+8. **No CI/CD pipeline** — no GitHub Actions, no pre-commit hooks, no mandatory test pass.
+   Tests don't run automatically on PR. Bugs can merge to main.
+
+9. **Walk-forward Sharpe annualization wrong for hourly modes** — uses `sqrt(252)` which
+   assumes daily returns. For hourly data with ~130 trades/month, this understates risk
+   and inflates Sharpe by ~2.5×. May select parameters that look good on walk-forward
+   but underperform live.
+
+10. **165+ config parameters with no validation** — no check that `stop_loss_pct < target_gain_pct`,
+    no type enforcement, no startup validation. If a param is typo'd or missing, caught
+    only at runtime via `getattr()` fallback (which silently uses a default).
+
+11. **Three mode routing layers** — MODE_MAP (main.py), _MODE_TO_ASSET (config.py), and
+    ASSETS dict (config.py) must all agree. Adding a new mode requires updating all three.
+    No automated check that they're in sync.
+
+12. **ModeConfig migration incomplete** — `config_modules/mode_config.py` defines a typed
+    `ModeConfig` dataclass (Stage 1 of 3), but `get_mode_config()` is never called anywhere.
+    All code still uses untyped `config.ASSETS[mode]` dicts.
+
+13. **12-15 dead config params** — `ROC_PERIOD`, `ROC_PERIOD_HOURLY`, `ATR_PERIOD`, `BB_STD`,
+    all `BB_WINDOW_*_HOURLY` variants are defined but never referenced in the codebase.
+
+#### Medium (code quality / operational risk)
+
+14. **No data fetcher retry logic** — yfinance timeout will crash live trading without fallback.
+    No exponential backoff, no cached-data fallback.
+
+15. **No OHLC validation** — fetcher doesn't verify `low ≤ open ≤ high`, `low ≤ close ≤ high`.
+    Bad data from yfinance (possible during outages) would corrupt signals silently.
+
+16. **Config drift between CLAUDE.md and code** — CLAUDE.md documents 6 modes; actual code
+    has 9 (added SOXL_HOURLY, LABU_HOURLY, TNA_HOURLY post-documentation).
+
+17. **Backtest date ranges scattered** — 18 separate params (BACKTEST_START_X, BACKTEST_END_X
+    for each mode). No centralized date config. Fragile `getattr()` fallback in main.py.
+
+18. **Index alignment risk in runner.py plot** (line 457) — creates equity Series indexed by
+    trade timestamps without validating length matches. Silent misalignment possible.
+
+19. **`fee_analysis.py` abandoned** — 20KB file not referenced anywhere in codebase. Historical
+    artifact from BTC fee analysis. Should be archived or removed.
+
+20. **Plugin commands missing** — `.claude-plugin/plugin.json` references `commands/screen.md`,
+    `commands/backtest.md`, `commands/report.md` but `commands/` directory doesn't exist.
+
+### Test Coverage Assessment
+
+| Area | Coverage | Grade |
+|---|---|---|
+| Backtest execution model (entry/exit) | Excellent — ~20 tests | A |
+| Position state machine (open/close/pending) | Good — ~16 tests | B+ |
+| Dashboard routes (read-only verification) | Basic — 6 tests | B- |
+| Trader helpers (direction-aware inference) | Good — 10 tests | B+ |
+| Signal modules (momentum/volume/volatility) | **None** | F |
+| Data fetcher (yfinance/Alpha Vantage) | **None** | F |
+| Config validation (mode routing) | **None** | F |
+| Sweep tool (parameter optimization) | **None** | F |
+| Pending close reconciliation flow | **None** | F |
+| IBKR integration (broker.py) | **None** | F |
+
+**Total: ~52 tests across 4 files (~1,239 lines of test code)**
+
+### Production Readiness
+
+| Component | Grade | Key Finding |
+|---|---|---|
+| Strategy Engine | A | Sound, mode-agnostic, correct execution model |
+| Signal Pipeline | B+ | Works correctly but no tests, division-by-zero risks |
+| Backtest Runner | B+ | Correct but index alignment and NaN risks |
+| Config System | B- | Functional but fragmented, no validation, dead params |
+| Live Trader | B+ | Solid architecture, but PENDING_CLOSE_MAX_RETRIES undefined |
+| IBKR Broker | A | Excellent connection handling, three-tier fill search |
+| State Persistence | A- | Clean migrations, atomic operations, no SQL injection |
+| Dashboard | B+ | Read-only safe, cache logic brittle |
+| Testing | C | Good core coverage, no signal/data/config/integration tests |
+| CI/CD | F | Nonexistent |
+| Documentation | A | Exceptional — best-in-class for a project this size |
+
+---
+
+## 22. Future Work Roadmap (2026-04-10)
+
+### Phase 1: Critical Bug Fixes (Do First)
+
+These are bugs that could cause incorrect results or crashes. Fix before any new feature work.
+
+| # | Fix | File(s) | LOC | Risk |
+|---|---|---|---|---|
+| 1.1 | Guard `compute_vwap_zscore()` against zero `rolling_std` | volume.py:22 | ~3 | Low |
+| 1.2 | Guard `compute_bb_position()` against flat bands (upper==lower) | volatility.py:37 | ~3 | Low |
+| 1.3 | Add NaN check before appending time-exit return | engine.py:374 | ~3 | Low |
+| 1.4 | Add `PENDING_CLOSE_MAX_RETRIES = 10` to config.py | config.py | ~1 | Low |
+| 1.5 | Remove phantom modes (QQQ_DAILY, SOXL_DAILY) from main.py MODE_MAP or add to _MODE_TO_ASSET | main.py, config.py | ~4 | Low |
+| 1.6 | Add startup config validation: verify ACTIVE_MODE exists in _MODE_TO_ASSET and ASSETS | main.py | ~10 | Low |
+
+**Estimated effort: 1-2 hours. Zero risk of regression.**
+
+### Phase 2: Testing Foundation (Do Second)
+
+Add tests for the untested critical paths. These prevent future regressions.
+
+| # | Test | Target | Priority |
+|---|---|---|---|
+| 2.1 | Signal module tests: RSI calculation, MACD histogram turn, regime classification, VWAP z-score | momentum.py, volume.py, volatility.py | HIGH |
+| 2.2 | Config validation tests: each ACTIVE_MODE routes to valid ASSETS entry, no orphan modes | config.py | HIGH |
+| 2.3 | Data fetcher test: yfinance returns valid OHLCV, OHLC invariants hold | fetcher.py | MEDIUM |
+| 2.4 | Pending close full flow test: mark → retry → finalize | state.py, trader.py | MEDIUM |
+| 2.5 | Add GitHub Actions CI: pytest on push/PR | .github/workflows/ | MEDIUM |
+
+**Estimated effort: 1-2 days. Significantly improves confidence in signal correctness.**
+
+### Phase 3: Config Cleanup & Consolidation
+
+Reduce the 165-param config sprawl and eliminate fragmentation.
+
+| # | Change | Impact |
+|---|---|---|
+| 3.1 | Remove dead params: `ROC_PERIOD`, `ROC_PERIOD_HOURLY`, `ATR_PERIOD`, `BB_STD`, unused `BB_WINDOW_*` variants | Reduces cognitive load |
+| 3.2 | Consolidate backtest date ranges into a single `BACKTEST_WINDOWS` dict | Eliminates 18 scattered params |
+| 3.3 | Unify mode routing: merge MODE_MAP + _MODE_TO_ASSET + ASSETS into one registry | Eliminates sync bugs |
+| 3.4 | Complete ModeConfig migration (Stage 2/3): replace all `config.ASSETS[mode]` with typed `ModeConfig` lookups | Type safety, IDE autocomplete |
+| 3.5 | Add startup validation: `stop_loss_pct < target_gain_pct`, required keys present, mode exists | Catches misconfig before runtime |
+| 3.6 | Archive or remove `fee_analysis.py` (history preserved in git) | Reduces file clutter |
+
+**Estimated effort: 1-2 days. Major maintainability improvement.**
+
+### Phase 4: Data Pipeline Hardening
+
+Make the data layer resilient for live trading.
+
+| # | Change | Impact |
+|---|---|---|
+| 4.1 | Add exponential backoff + retry logic to yfinance fetcher | Prevents live crash on network glitch |
+| 4.2 | Add OHLC validation (low ≤ open ≤ high, low ≤ close ≤ high) | Catches bad data before it corrupts signals |
+| 4.3 | Add hourly bar continuity check (no gaps > 1 hour during market hours) | Catches DST gaps and data source issues |
+| 4.4 | Validate ALPHA_VANTAGE_KEY at startup when BTC_DAILY is active | Prevents silent API failure |
+
+**Estimated effort: 0.5-1 day.**
+
+### Phase 5: Strategy Improvements (From Section 10 Priorities)
+
+These are the signal/strategy enhancements identified by the expert agent audit.
+
+| # | Change | Risk | Expected Impact |
+|---|---|---|---|
+| 5.1 | Softer 5% 50-MA gate for intra-bull corrections (STRONG_BULL_SOFT_50MA_PCT=0.05) | Low-Med | Reduce June/Aug 2024 losses |
+| 5.2 | ATR-based dynamic stop overrides (USE_ATR_DYNAMIC_STOPS) | Medium | Reduce noise stops in high-vol |
+| 5.3 | Exit type tracking in compute_trade_returns() | Low | Diagnostic — enables better analysis |
+| 5.4 | Fix walk-forward Sharpe annualization for hourly modes | Low | More accurate parameter selection |
+
+**Estimated effort: 2-3 days. Directly improves strategy performance.**
+
+### Phase 6: Live Trading Hardening
+
+Finalize for production deployment.
+
+| # | Change | Impact |
+|---|---|---|
+| 6.1 | Add CRITICAL alert when pending_close force-finalizes with estimated price | Prevents silent PnL inaccuracy |
+| 6.2 | Add data fetcher retry with cached-data fallback for live signals | Prevents signal computation crash |
+| 6.3 | Refuse entry when signal fetch fails (don't estimate qty from stale price) | Prevents position oversizing |
+| 6.4 | Add external monitoring/alerting (healthcheck + Slack/PagerDuty) | Operational awareness |
+| 6.5 | Run 2+ weeks paper trading on each target mode to validate cycle stability | Confidence before real money |
+
+**Estimated effort: 2-3 days.**
+
+### Phase 7: Nice-to-Have (Low Priority)
+
+| # | Change | Impact |
+|---|---|---|
+| 7.1 | Create `commands/` directory referenced by plugin.json (or remove from plugin.json) | Plugin completeness |
+| 7.2 | Add pre-commit hooks (black, isort, ruff) | Code formatting consistency |
+| 7.3 | Add type hints throughout signal modules | IDE support, static analysis |
+| 7.4 | Refactor duplicate MA computation into shared utility | Code deduplication |
+| 7.5 | Add ASCII diagrams to README (regime transitions, signal flow, trade lifecycle) | Documentation quality |
+
+### Recommended Execution Order
+
+```
+Phase 1 (Critical bugs)     ──→  1-2 hours
+Phase 2 (Testing)           ──→  1-2 days
+Phase 3 (Config cleanup)    ──→  1-2 days
+Phase 4 (Data hardening)    ──→  0.5-1 day
+Phase 5 (Strategy)          ──→  2-3 days     ← can run in parallel with Phase 3-4
+Phase 6 (Live hardening)    ──→  2-3 days
+Phase 7 (Nice-to-have)      ──→  as time permits
+```
+
+Phases 1-2 are prerequisites for everything else.
+Phases 3-5 can be partially parallelized.
+Phase 6 should come after Phase 5 (strategy changes affect live behavior).
+
+---
+
+*Last updated: 2026-04-10 — Comprehensive project review: B+ overall. Critical bugs identified in volume.py, volatility.py, engine.py, config.py. Roadmap: 7 phases from bug fixes through live hardening.*
