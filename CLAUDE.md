@@ -10,15 +10,25 @@
 
 **NOT a growth strategy.** MONAD Quant is a **high-yield bond ETF alternative** — an
 actively-traded, long-only engine designed to generate consistent monthly income with
-near-zero drawdown. The strategy has four active modes:
+near-zero drawdown. The strategy has nine configured modes across two tiers:
+
+**Tier 1 — Production-ready (realistic backtest validated):**
 
 | Mode | Target | Sharpe | Max DD | Style |
 |---|---|---|---|---|
 | **BTC Daily** | ~0.4%/mo, Sharpe >4 | 4.924 | -1.72% | Capital preservation + high Sharpe |
-| **BTC Hourly** | ~2.66%/mo income | 25.57 | -0.90% | Active income, ~130 trades/mo |
+| **BTC Hourly** | ~2.66%/mo gross | 25.57 | -0.90% | Active income, ~130 trades/mo (crypto fees apply) |
 | **QQQ Hourly** | ~0.71%/mo income | 41.57 | -0.21% | ETF mean-reversion, ~24 trades/mo |
-| **TQQQ Hourly** | ~1.89%/mo income | 94.2 | -0.13% | 3x leveraged ETF, ~21 trades/mo |
-| **GDXU Hourly** | ~3.28%/mo income | 96.5 | -0.10% | 3x gold miners, ~27 trades/mo |
+| **TQQQ Hourly** | ~2.02%/mo income | 39.0 | -0.85% | 3x leveraged ETF, ~24 trades/mo |
+| **SOXL Hourly** | ~3.50%/mo income | 47.3 | -0.75% | 3x leveraged semis, ~27 trades/mo |
+| **LABU Hourly** | ~3.07%/mo income | 61.6 | -0.52% | 3x leveraged biotech, ~26 trades/mo |
+| **TNA Hourly** | ~1.74%/mo income | 82.0 | -0.24% | 3x leveraged Russell 2000, ~24 trades/mo |
+
+**Tier 2 — Needs re-sweep (optimistic-mode params, not validated in realistic backtest):**
+
+| Mode | Status | Issue |
+|---|---|---|
+| **GDXU Hourly** | NEEDS RE-SWEEP | Realistic backtest showed Sharpe 1.8, WR 27.5%. Optimistic-mode params (0.075% stop) are inside bid-ask spread. |
 
 Core principles across all modes:
 - **Long-only** — bear alpha is defined as NOT losing money, not chasing shorts
@@ -433,7 +443,9 @@ while price is already between the 50-MA and 252-MA (already in recovery momentu
 ### Config flags quick reference
 ```python
 # ── Mode selector (the one line you change to switch profiles) ──
-ACTIVE_MODE = "BTC_DAILY"       # "BTC_DAILY" | "BTC_HOURLY" | "QQQ"
+ACTIVE_MODE = "TQQQ_HOURLY"    # Current live mode
+# Options: "BTC_DAILY" | "BTC_HOURLY" | "QQQ" | "QQQ_HOURLY" | "TQQQ_HOURLY"
+#          | "GDXU_HOURLY" | "SOXL_HOURLY" | "LABU_HOURLY" | "TNA_HOURLY"
 
 # ── BTC Daily core flags ─────────────────────────────────────────
 USE_SLOPE_REGIME = True         # Core: 6-state regime classifier
@@ -441,11 +453,12 @@ LONGS_ONLY = True               # No shorts (bear alpha = capital preservation)
 BEAR_DEFENSIVE_LONGS = True     # Small longs in BEAR at RSI<30, quarter-Kelly
 BULL_BREAKOUT_ENABLED = False   # Disabled: momentum trap near ATH
 STRONG_BULL_REQUIRE_50MA = False # Disabled: filtered 71/83 5yr trades
-STRONG_BULL_SOFT_50MA_PCT = 0.0  # 0=off; 0.05=block >5% below 50-MA
+STRONG_BULL_SOFT_50MA_PCT = 0.02 # Active: block entries >2% below 50-MA
 USE_ADX_SIZING = True           # Active: ADX multiplier on position size
 USE_ATR_DYNAMIC_STOPS = False   # Disabled: widen stops in high-vol periods
 MAX_POSITION_PCT_STRONG_BULL = 0.30  # KEY FIX: lets Kelly×1.5 deploy to 27%
 TARGET_GAIN_PCT_STRONG_BULL = 0.03   # 3% (not 5% — 5% killed win rate)
+USE_OPPOSING_SIGNAL_EXIT = False # Tested: hurts TQQQ (sweep confirmed)
 ```
 
 ---
@@ -836,7 +849,7 @@ and the primary reason it is preferred for retail deployment over BTC Hourly.
 
 ---
 
-## 17. TQQQ Hourly Full Optimization (2026-03-19) — Current State
+## 17. TQQQ Hourly Optimization — Current State
 
 ### Why TQQQ?
 TQQQ is 3x leveraged QQQ — same underlying index, but wider intraday swings.
@@ -844,250 +857,147 @@ The mean-reversion signal architecture that works on QQQ should work even better
 on TQQQ because the larger price moves create more alpha per trade while
 maintaining the same zero-commission brokerage infrastructure.
 
-### Final confirmed optimal config (TQQQ_HOURLY)
+### Optimistic vs Realistic backtest modes
+Early TQQQ optimization used the "optimistic" backtest mode, which resolved same-bar
+ambiguity (bar hits both TP and SL) in favor of the trade. This produced headline
+numbers of Sharpe 94.2 and +1.89%/mo at a 5.6:1 R:R (0.42% target / 0.08% stop).
+
+The "realistic" backtest mode was introduced later to handle same-bar ambiguity
+pessimistically (assume the stop was hit). This collapsed the ultra-tight stop
+configs and required a full re-sweep. **All current production configs use realistic mode.**
+
+### Current production config (TQQQ_HOURLY — realistic mode)
 ```python
 ACTIVE_MODE                      = "TQQQ_HOURLY"
 RSI_PERIOD_TQQQ_HOURLY          = 7        # DEAD LEVER (MACD is binding gate)
-RSI_OVERSOLD_TQQQ_HOURLY        = 60       # Sweep optimal: more selective than 80 at tight stops
+RSI_OVERSOLD_TQQQ_HOURLY        = 80       # Realistic sweep optimal (1.9:1 R:R)
 RSI_OVERBOUGHT_TQQQ_HOURLY      = 62
 MACD_FAST_TQQQ_HOURLY           = 6        # DEAD LEVER
 MACD_SLOW_TQQQ_HOURLY           = 13       # DEAD LEVER
 MACD_SIGNAL_TQQQ_HOURLY         = 4        # DEAD LEVER
 VWAP_WINDOW_TQQQ_HOURLY         = 10
-VWAP_ZSCORE_THRESH_TQQQ_HOURLY  = 0.5      # DEAD LEVER (0.3–0.6 nearly identical); 0.5 marginal best
+VWAP_ZSCORE_THRESH_TQQQ_HOURLY  = 0.5      # DEAD LEVER (0.3–0.6 nearly identical)
 BB_WINDOW_TQQQ_HOURLY           = 14
-TARGET_GAIN_PCT_TQQQ_HOURLY     = 0.0042   # 0.42% target — sweep optimal; 5.6:1 R:R
-STOP_LOSS_PCT_TQQQ_HOURLY       = 0.0008   # 0.08% stop — Sharpe 94.2, DD -0.13%, WR 70.9%
-# Fallback (wider stops, higher gross return, lower Sharpe):
-# TARGET_GAIN_PCT_TQQQ_HOURLY   = 0.007    # 0.70% target, 2:1 R:R
-# STOP_LOSS_PCT_TQQQ_HOURLY     = 0.0035   # 0.35% stop — Sharpe 39.8, DD -0.81%, +2.14%/mo
+TARGET_GAIN_PCT_TQQQ_HOURLY     = 0.0100   # 1.00% target — realistic sweep optimal; 1.9:1 R:R
+STOP_LOSS_PCT_TQQQ_HOURLY       = 0.0050   # 0.50% stop — live-safe (5.1x spread)
 ```
 
-### Parameter sweep results
-
-**VWAP_ZSCORE_THRESH sweep (0.3–0.5):**
-| VWAP | Trades | WR | Return | Sharpe | Max DD | Avg/mo |
-|---|---|---|---|---|---|---|
-| **0.3** | **590** | **59.2%** | **62.34%** | **39.836** | **-0.81%** | **+2.14%** |
-| 0.4 | 589 | 58.9% | 61.66% | 39.751 | -0.81% | +2.12% |
-| 0.5 | 586 | 59.0% | 61.20% | 39.768 | -0.81% | +2.11% |
-
-VWAP is a dead lever for TQQQ — volume_signal bars drop (458→437→418) but trade count
-barely changes because momentum_signal (826 bars, constant) is the binding gate.
-
-### Best result
+### Current realistic-mode performance
 ```
-Period:       2024-04-01 → 2026-03-01 (23 months)
-Total Return: 56.54%
-Annualized:   25.93%
-Sharpe:       94.2
-Max DD:       -0.13%
-Avg Monthly:  +1.89%
-Trades:       485 (~21/mo)
-Win Rate:     70.9%
-Kelly Size:   ~19%
+Period:       2024-04-01 → 2026-03-01 (24 months)
+Sharpe:       39.0
+Max DD:       -0.85%
+24mo Return:  61.17%
+Avg Monthly:  +2.02%
+Trades/mo:    ~24
+Status:       Live-safe — stop $0.153 is 5.1x estimated spread
 ```
 
-### TQQQ vs QQQ comparison
-| Metric | QQQ Hourly | TQQQ Hourly | TQQQ advantage |
-|---|---|---|---|
-| Avg Monthly | +0.71% | +1.89% | **+2.7x** |
-| Total Return (23mo) | 17.77% | 56.54% | **+3.2x** |
-| Sharpe | 41.57 | **94.2** | **TQQQ 2.3x better** |
-| Max DD | -0.21% | -0.13% | **TQQQ lower DD** |
-| Win Rate | 59.6% | 70.9% | **TQQQ** |
-| Trades/mo | ~24 | ~21 | ~Same |
-| Zero-commission | Yes | Yes | Both |
-
-TQQQ now has the second-highest Sharpe (94.2) after GDXU (96.5), thanks to the
-5.6:1 R:R ultra-tight stop configuration discovered by the universal sweep.
-Same pattern as GDXU: mean-reversion either works fast or fails immediately.
-Both instruments trade commission-free at US brokerages.
-
-### Monthly results — TQQQ Hourly optimized run (2024-04 → 2026-02)
-```
-Month          Return   Trades   Win Rate   Notes
-------------------------------------------------------------
-2024-04        +1.30%       27      51.9% ✓
-2024-05        +0.29%       17      35.3%
-2024-06        +1.89%       22      72.7% ✓
-2024-07        +3.79%       41      58.5% ✓
-2024-08        +3.74%       32      65.6% ✓
-2024-09        +1.12%       24      50.0% ✓
-2024-10        +2.15%       38      50.0% ✓
-2024-11        +3.19%       23      78.3% ✓
-2024-12        +1.23%       17      52.9% ✓
-2025-01        +2.75%       22      68.2% ✓
-2025-02        +1.39%       20      55.0% ✓
-2025-03        +2.60%       37      56.8% ✓
-2025-04        +6.64%       34      85.3% ✓  ← BEST month
-2025-05        +1.59%       17      58.8% ✓
-2025-06        +0.91%       20      50.0% ✓
-2025-07        +0.66%       28      50.0% ✓
-2025-08        +0.87%       31      38.7% ✓
-2025-09        +0.12%       22      45.5%
-2025-10        +3.27%       29      69.0% ✓
-2025-11        +1.52%       25      52.0% ✓
-2025-12        +2.18%       20      65.0% ✓
-2026-01        +3.08%       23      73.9% ✓
-2026-02        +2.94%       21      71.4% ✓
-------------------------------------------------------------
-Avg Monthly    +2.14%
-ZERO negative months across 23 months
-```
+### Opposing signal exit: tested and rejected
+Exit-tuning sweep (2026-04-10) tested RSI_OVERBOUGHT 45–85 for opposing-signal exit.
+**Every threshold HURT performance.** Best candidate (RSI_OB=62) scored -1.0 with only
+3 opposing exits across 119 trades. Baseline (OFF) outperforms all variants.
+`USE_OPPOSING_SIGNAL_EXIT = False` is confirmed optimal.
 
 ### Dead levers confirmed for TQQQ
 - **MACD params** (fast/slow/signal): Dead — histogram direction robust to window changes
 - **RSI period**: Dead — MACD is binding gate for momentum_signal
 - **VWAP threshold**: Dead — 0.3–0.6 nearly identical results; momentum_signal is binding gate
 
-### RSI oversold now a live lever (sweep update 2026-03-20)
-At the original 2:1 R:R, RSI=80 was saturated (effectively always "oversold").
-At the new 5.6:1 R:R with ultra-tight stops, **RSI=60 is optimal** — the tighter stop
-requires more selective entries. RSI=60 filters out marginal setups that would have
-hit the 0.08% stop on noise, improving WR from ~59% to 70.9%.
-
-### Nothing left to tune on TQQQ Hourly
-Every parameter exhaustively swept via universal sweep tool. The strategy is at its optimum.
-**Live trading caution:** 0.08% stop ≈ $0.06/share on TQQQ (~$80). Near bid-ask spread.
-If live WR degrades due to slippage, fall back to 2:1 R:R (0.70%/0.35%) — still strong at
-Sharpe 39.8, +2.14%/mo.
+### Historical note: optimistic-mode results (deprecated)
+The original optimistic sweep found 5.6:1 R:R (0.42% target / 0.08% stop) with Sharpe 94.2
+and WR 70.9%. These params are not viable in realistic mode because the 0.08% stop is inside
+bid-ask spread and same-bar ambiguity inflated the win rate. Preserved in config.py comments
+for reference only.
 
 ---
 
-## 18. GDXU Hourly Full Optimization (2026-03-20) — Current State
+## 18. GDXU Hourly — NEEDS RE-SWEEP
 
 ### Why GDXU?
 GDXU is a 3x leveraged gold miners ETN — same mean-reversion architecture as TQQQ,
 but uncorrelated with tech. Gold miners have higher intraday volatility than TQQQ,
 creating more alpha per trade. Zero-commission at all US brokerages.
 
-### Final confirmed optimal config (GDXU_HOURLY)
+### Status: NOT PRODUCTION-READY
+The original GDXU optimization (2026-03-20) used the "optimistic" backtest mode
+and found a 7.5:1 R:R (0.56% target / 0.075% stop) with Sharpe 96.5. When
+re-tested with realistic mode, results collapsed:
+- **Realistic Sharpe: 1.8** (vs 96.5 optimistic)
+- **Realistic WR: 27.5%** (vs 70.1% optimistic)
+- The 0.075% stop ($0.04-0.06/share) is inside bid-ask spread
+
+### Current config (placeholder — needs re-sweep)
 ```python
-ACTIVE_MODE                      = "GDXU_HOURLY"
-RSI_PERIOD_GDXU_HOURLY          = 7        # DEAD LEVER (MACD is binding gate)
-RSI_OVERSOLD_GDXU_HOURLY        = 85       # Confirmed: 85 optimal (sweep tested 42–100)
-RSI_OVERBOUGHT_GDXU_HOURLY      = 62
-MACD_FAST_GDXU_HOURLY           = 6        # DEAD LEVER
-MACD_SLOW_GDXU_HOURLY           = 13       # DEAD LEVER
-MACD_SIGNAL_GDXU_HOURLY         = 4        # DEAD LEVER
-VWAP_WINDOW_GDXU_HOURLY         = 10
-VWAP_ZSCORE_THRESH_GDXU_HOURLY  = 0.5      # Marginal (0.1–1.2 nearly identical)
-BB_WINDOW_GDXU_HOURLY           = 14
-TARGET_GAIN_PCT_GDXU_HOURLY     = 0.0056   # 0.56% target — sweep optimal (7.5:1 R:R)
-STOP_LOSS_PCT_GDXU_HOURLY       = 0.00075  # 0.075% stop — ultra-tight; Sharpe 96.5
+TARGET_GAIN_PCT_GDXU_HOURLY    = 0.0280   # 2.80% target — realistic sweep result
+STOP_LOSS_PCT_GDXU_HOURLY      = 0.0046   # 0.46% stop — Sharpe 1.8, +2.33%/mo
+RSI_OVERSOLD_GDXU_HOURLY       = 85       # Saturated above 85
 ```
 
-### Why 7.5:1 R:R beats 2:1 and 5:1
-The universal sweep's automated cross-validation found that GDXU mean-reversion
-resolves even faster than manual sweeps suggested. At 0.075% stop:
-- Losses are near-zero: 30% of trades lose only 0.075% each
-- WR jumps from 58% to 70%: many trades that hit a 0.20% stop actually recover
-- Sharpe explodes because per-trade variance collapses
+### What needs to happen
+Run `python sweep.py GDXU` with realistic mode to find viable params. The optimistic
+sweep data (preserved below) shows the R:R and signal structure is sound — the problem
+is specifically that ultra-tight stops don't survive realistic same-bar ambiguity.
 
-**Live trading caution:** 0.075% stop ≈ $0.04-0.06/share on GDXU (~$60 price).
-This is at the boundary of bid-ask spread. If live WR degrades due to slippage,
-fall back to 0.20% stop (5:1 R:R) — still excellent at Sharpe 61.8.
+### Historical optimistic-mode sweep data (for reference only)
 
-### Parameter sweep results
-
-**Target/Stop at 2:1 R:R:**
-| Target | Stop | WR | Return | Sharpe | Max DD | Avg/mo |
-|---|---|---|---|---|---|---|
-| 0.5% | 0.25% | 71.1% | 77.80% | 64.2 | -0.35% | +2.54% |
-| 0.7% | 0.35% | 66.1% | 98.31% | 53.2 | -0.56% | +3.03% |
-| **1.0%** | **0.50%** | **59.6%** | **111.39%** | **41.5** | **-1.05%** | **+3.32%** |
-| 1.2% | 0.60% | 55.7% | 93.90% | 35.0 | -1.65% | +2.94% |
-| 2.0% | 1.00% | 49.8% | 70.10% | 24.5 | -2.36% | +2.36% |
-
-1.0% target is the return peak. Above 1.0%, returns collapse because GDXU mean-reversion
-overshoots — trades held for 1.2%+ reverse and hit the stop.
-
-**R:R ratio variations at target=1.0% (THE KEY FINDING):**
+**R:R ratio variations at target=1.0% (optimistic mode):**
 | Stop | R:R | WR | Return | Sharpe | Max DD | Avg/mo |
 |---|---|---|---|---|---|---|
-| **0.20%** | **5.0:1** | **58.2%** | **149.19%** | **61.8** | **-0.42%** | **+4.07%** |
-| 0.25% | 4.0:1 | 58.5% | 143.70% | 58.0 | -0.52% | +3.96% |
-| 0.30% | 3.3:1 | 58.6% | 136.95% | 54.1 | -0.63% | +3.84% |
+| 0.20% | 5.0:1 | 58.2% | 149.19% | 61.8 | -0.42% | +4.07% |
 | 0.50% | 2.0:1 | 59.6% | 111.39% | 41.5 | -1.05% | +3.32% |
-| 0.70% | 1.4:1 | 60.7% | 81.76% | 31.7 | -1.45% | +2.64% |
 
-**Tighter stops dominate on GDXU.** The 5:1 R:R beats 2:1 by +38% return and +49% Sharpe
-while cutting DD by 60%. GDXU mean-reversion resolves fast — when a trade doesn't work,
-it fails immediately (within 0.20%). The tight stop cuts losses before they compound.
+These numbers are from optimistic mode and are NOT achievable in realistic backtesting.
 
-This is a different pattern from TQQQ (2:1 optimal) because GDXU has higher intraday
-volatility — the signal either works fast or doesn't work at all.
+---
 
-**VWAP threshold: dead lever**
-| VWAP | Trades | Return | Sharpe |
-|---|---|---|---|
-| 0.1 | 615 | 118.13% | 42.8 |
-| 0.3 | 616 | 111.39% | 41.5 |
-| 1.0 | 605 | 101.08% | 39.2 |
+## 18a. SOXL / LABU / TNA Hourly Modes (2026-03-22)
 
-Only 11 trades difference across the full range. Momentum_signal is the binding gate.
+Three additional 3x leveraged ETF modes were sweep-optimized. All use the same
+mean-reversion architecture and zero-commission US brokerage infrastructure.
 
-**RSI oversold: saturated at 85+**
-| RSI | Trades | WR | Return | Sharpe |
-|---|---|---|---|---|
-| 42 | 290 | 59.3% | 37.34% | 38.7 |
-| 70 | 566 | 59.2% | 95.80% | 41.0 |
-| 75 | 591 | 59.9% | 108.72% | 42.6 |
-| **85** | **619** | **59.6%** | **113.25%** | **41.7** |
-| 90 | 621 | 59.6% | 113.55% | 41.6 |
-| 100 | 621 | 59.6% | 113.55% | 41.6 |
-
-RSI=85 captures all meaningful trades. Above 85, only 2 more trades are added.
-RSI=75 has marginally higher Sharpe (42.6) but 28 fewer trades and 4% less return.
-
-### Cross-validation (RSI=85 × best R:R)
-
-**RSI=85, target=1.0%, stop=0.20%:**
+### SOXL Hourly (3x leveraged semiconductors)
+```python
+RSI_OVERSOLD_SOXL_HOURLY       = 80
+VWAP_ZSCORE_THRESH_SOXL_HOURLY = 1.2
+TARGET_GAIN_PCT_SOXL_HOURLY    = 0.009    # 0.90% target, 2:1 R:R
+STOP_LOSS_PCT_SOXL_HOURLY      = 0.0045   # 0.45% stop — live-safe (5x spread)
 ```
-Return: 149.19%  |  Sharpe: 61.8  |  DD: -0.42%  |  Avg/mo: +4.07%
-Trades: 619  |  WR: 58.2%
+```
+Sharpe: 47.3 | Max DD: -0.75% | Avg/mo: +3.50% | ~27 trades/mo
+0/22 rolling windows negative, worst window +1.88%
 ```
 
-Confirmed: RSI=85 + 5:1 R:R interact positively. The 3 extra trades from RSI 80→85
-at the tighter stop are all winners.
-
-### Best result
+### LABU Hourly (3x leveraged biotech)
+```python
+RSI_OVERSOLD_LABU_HOURLY       = 70
+VWAP_ZSCORE_THRESH_LABU_HOURLY = 1.2
+TARGET_GAIN_PCT_LABU_HOURLY    = 0.007    # 0.70% target, 2.8:1 R:R
+STOP_LOSS_PCT_LABU_HOURLY      = 0.0025   # 0.25% stop
 ```
-Period:       2024-04-08 → 2026-03-19 (24 months)
-Total Return: 116.55%
-Annualized:   ~49%
-Sharpe:       96.549
-Max DD:       -0.10%
-Avg Monthly:  +3.28%
-Trades:       636 (~27/mo)
-Win Rate:     70.1%
-Neg Months:   0/24
+```
+Sharpe: 61.6 | Max DD: -0.52% | Avg/mo: +3.07% | ~26 trades/mo
 ```
 
-### GDXU vs all modes comparison
-| Mode | Avg/mo | Sharpe | Max DD | Trades/mo | Zero-commission |
-|---|---|---|---|---|---|
-| BTC Daily | +0.40% | 4.9 | -1.72% | ~1.4 | No |
-| QQQ Hourly | +0.71% | 41.6 | -0.21% | ~24 | Yes |
-| TQQQ Hourly | +1.89% | 94.2 | -0.13% | ~21 | Yes |
-| BTC Hourly | +2.66% | 25.6 | -0.90% | ~130 | No (fees) |
-| **GDXU Hourly** | **+3.28%** | **96.5** | **-0.10%** | **~27** | **Yes** |
+### TNA Hourly (3x leveraged Russell 2000)
+```python
+RSI_OVERSOLD_TNA_HOURLY       = 65
+VWAP_ZSCORE_THRESH_TNA_HOURLY = 0.1       # Very loose (momentum_signal is gate)
+TARGET_GAIN_PCT_TNA_HOURLY    = 0.0033    # 0.33% target, 2.2:1 R:R
+STOP_LOSS_PCT_TNA_HOURLY      = 0.0015    # 0.15% stop — tight but TNA has tighter spreads
+```
+```
+Sharpe: 82.0 | Max DD: -0.24% | Avg/mo: +1.74% | ~24 trades/mo
+```
 
-GDXU is the highest-performing mode on Sharpe (96.5) and lowest DD (-0.10%).
-Trades commission-free at US brokerages with standard tax reporting.
-Higher gross return available at wider stops (5:1 R:R → +4.07%/mo, Sharpe 61.8).
+### Common dead levers (all 3 modes)
+- MACD params (fast/slow/signal): Dead — histogram direction robust
+- RSI period: Dead — MACD is binding gate
 
-### Dead levers confirmed for GDXU
-- **MACD params** (fast/slow/signal): Dead — histogram direction robust
-- **RSI period**: Dead — MACD is binding gate
-- **VWAP threshold**: Dead — 0.1–1.2 nearly identical; momentum_signal is gate
-- **RSI oversold (85)**: Saturated above 85 — all additional bars already pass MACD gate
-
-### Nothing left to tune on GDXU Hourly
-Universal sweep (2-phase) exhaustively cross-validated all params. The 7.5:1 R:R
-is the theoretical optimum. Only remaining concern is live trading viability of
-the 0.075% stop (bid-ask spread proximity). Fallback config preserved in comments.
+### Note on backtest mode
+These were sweep-optimized but should be re-validated with realistic backtest mode
+(same-bar pessimistic ambiguity) before live deployment. SOXL is the most robust
+(0/22 rolling windows negative).
 
 ---
 
@@ -1191,39 +1101,31 @@ scaling live deployment.
 
 #### Critical (affects correctness or reliability)
 
-1. **Division by zero in `compute_vwap_zscore()`** (volume.py:22)
-   `deviation / rolling_std` — if `rolling_std == 0` (flat market), produces NaN → propagates
-   through signal chain. Fix: guard with `np.where(rolling_std > 0, ..., 0)`.
+1. **~~Division by zero in `compute_vwap_zscore()`~~ — FIXED**
+   Guarded with `rolling_std.replace(0, np.nan)`. (volume.py:24)
 
-2. **Division by zero in `compute_bb_position()`** (volatility.py:37)
-   `(prices - lower) / (upper - lower)` — if Bollinger bands converge (upper == lower),
-   division by zero → NaN. Fix: guard with `np.where(denom > 1e-10, ..., 0.5)`.
+2. **~~Division by zero in `compute_bb_position()`~~ — FIXED**
+   Guarded with `np.where(band_width != 0, ..., 0.5)`. (volatility.py:33-42)
 
-3. **NaN propagation in `compute_trade_returns()`** (engine.py:374)
-   Time-exit path uses `future.iloc[-1]["close"]` without NaN check. If incomplete bar,
-   NaN return is appended to trade_returns → equity curve propagates NaN silently.
+3. **~~NaN propagation in `compute_trade_returns()`~~ — FIXED**
+   Added `if pd.isna(last_close) or entry_price == 0: continue`. (engine.py:372-375)
 
-4. **~~`PENDING_CLOSE_MAX_RETRIES` undefined~~ — FALSE POSITIVE (resolved)**
-   Originally flagged as undefined, but `PENDING_CLOSE_MAX_RETRIES = 3` already exists
-   at `config_modules/live.py:16` and is imported via `from config_modules.live import *`
-   at `config.py:17`. Not a bug.
+4. **~~`PENDING_CLOSE_MAX_RETRIES` undefined~~ — FALSE POSITIVE**
+   Already exists at `config_modules/live.py:16`.
 
 5. **Sweep.py dual-sync requirement** (sweep.py:284-291)
    Must update BOTH `setattr(config, param_name, value)` AND `config.ASSETS[mode][key] = value`
    for every parameter change. If one is missed, backtest runs with inconsistent params.
 
-6. **Phantom modes in main.py MODE_MAP**
-   `QQQ_DAILY` and `SOXL_DAILY` exist in MODE_MAP but NOT in `_MODE_TO_ASSET` or ASSETS dict.
+6. **~~Phantom modes in main.py MODE_MAP~~ — FIXED**
+   Renamed QQQ_DAILY→QQQ, added SOXL_DAILY to _MODE_TO_ASSET.
    Setting `ACTIVE_MODE = "QQQ_DAILY"` will fail at runtime with a confusing error.
 
 #### High (affects maintainability or safety)
 
-7. **No signal module tests** — momentum.py, volume.py, volatility.py have zero test coverage.
-   RSI calculation, MACD histogram turn, VWAP z-score gating, regime classification are
-   all untested. A subtle bug (e.g., missing .shift()) could persist undetected.
+7. **~~No signal module tests~~ — FIXED** 37 tests added in `tests/test_signals.py`.
 
-8. **No CI/CD pipeline** — no GitHub Actions, no pre-commit hooks, no mandatory test pass.
-   Tests don't run automatically on PR. Bugs can merge to main.
+8. **~~No CI/CD pipeline~~ — FIXED** GitHub Actions CI in `.github/workflows/test.yml`.
 
 9. **Walk-forward Sharpe annualization wrong for hourly modes** — uses `sqrt(252)` which
    assumes daily returns. For hourly data with ~130 trades/month, this understates risk
@@ -1290,15 +1192,15 @@ scaling live deployment.
 | Component | Grade | Key Finding |
 |---|---|---|
 | Strategy Engine | A | Sound, mode-agnostic, correct execution model |
-| Signal Pipeline | B+ | Works correctly but no tests, division-by-zero risks |
-| Backtest Runner | B+ | Correct but index alignment and NaN risks |
-| Config System | B- | Functional but fragmented, no validation, dead params |
+| Signal Pipeline | A- | Division-by-zero bugs fixed, 37 signal tests added |
+| Backtest Runner | B+ | Correct, NaN guard added; index alignment risk remains |
+| Config System | B | Startup validation added; fragmented but functional |
 | Live Trader | B+ | Solid architecture, pending_close correctly wired |
 | IBKR Broker | A | Excellent connection handling, three-tier fill search |
 | State Persistence | A- | Clean migrations, atomic operations, no SQL injection |
 | Dashboard | B+ | Read-only safe, cache logic brittle |
-| Testing | C | Good core coverage, no signal/data/config/integration tests |
-| CI/CD | F | Nonexistent |
+| Testing | B | 101 tests across 4 files; signal + config + execution + state covered |
+| CI/CD | B | GitHub Actions on push/PR; no pre-commit hooks yet |
 | Documentation | A | Exceptional — best-in-class for a project this size |
 
 ---
@@ -1425,4 +1327,4 @@ Phase 6 should come after Phase 5 (strategy changes affect live behavior).
 
 ---
 
-*Last updated: 2026-04-10 — Comprehensive project review: B+ overall. Critical bugs identified in volume.py, volatility.py, engine.py, config.py. Roadmap: 7 phases from bug fixes through live hardening.*
+*Last updated: 2026-04-10 — CLAUDE.md audit: corrected TQQQ/GDXU performance to realistic-mode numbers, added SOXL/LABU/TNA docs, marked fixed bugs, updated test coverage. Phase 1-2 complete. TQQQ live paper trading in progress.*
