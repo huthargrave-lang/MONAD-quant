@@ -1295,7 +1295,7 @@ Finalize for production deployment.
 |---|---|---|
 | 6.1 | Add CRITICAL alert when pending_close force-finalizes with estimated price | Prevents silent PnL inaccuracy |
 | 6.2 | Add data fetcher retry with cached-data fallback for live signals | Prevents signal computation crash |
-| 6.3 | Refuse entry when signal fetch fails (don't estimate qty from stale price) | Prevents position oversizing |
+| 6.3 | Refuse entry when signal fetch fails (don't estimate qty from stale price) | Prevents position oversizing | **DONE** — `live/signals.py` raises RuntimeError on yfinance exceptions, empty/partial data, stale bars (LIVE_MAX_BAR_STALENESS_HOURS=120), or NaN features. `live/trader.py` escalates to CRITICAL monitor events after LIVE_SIGNAL_FAIL_ALERT_THRESHOLD (=2) consecutive failures. Entry block is mandatory: `sig_info is None` → `return signal_error`, never trades on stored snapshot. 9 unit tests in `tests/test_live_signals.py`. |
 | 6.4 | Add external monitoring/alerting (healthcheck + Slack/PagerDuty) | Operational awareness |
 | 6.5 | Run 2+ weeks paper trading on each target mode to validate cycle stability | Confidence before real money |
 

@@ -234,6 +234,13 @@ def _on_bar_inner() -> str:
     # ── Always compute and persist signal snapshot ──────────────────────────
     # This runs every cycle (holding, exit, entry, no-signal) so the dashboard
     # always has fresh signal data and a recent bar_close for mark fallback.
+    #
+    # Safety contract: signals.get_current_signal() is the sole source of truth
+    # for entry evaluation. If it raises (yfinance down, stale data, insufficient
+    # bars, NaN features) we leave sig_info=None and the entry block below
+    # refuses to place a trade. We NEVER fall back to a stale stored signal
+    # snapshot for entry decisions — stored snapshots are only used for the
+    # mark-price display on the dashboard.
     sig_info = None
     bar_close_fallback = None
     try:
@@ -249,8 +256,28 @@ def _on_bar_inner() -> str:
             sig_info.get("volume_signal"),
         )
     except RuntimeError as exc:
-        log.warning(f"Signal computation failed (non-fatal): {exc}")
-        # On failure, try to get bar_close from stored signal for mark fallback
+        # Escalation: first failure = ERROR, N+ consecutive failures = CRITICAL.
+        # Operator should wake up when signal fetch has been broken multiple cycles.
+        recent = state.get_recent_monitor_events(limit=5)
+        consecutive_failures = 1
+        for ev in recent:
+            cat = ev.get("category", "")
+            lvl = (ev.get("level") or "").upper()
+            if cat == "signal" and lvl in ("ERROR", "CRITICAL"):
+                consecutive_failures += 1
+            else:
+                break
+        threshold = getattr(config, "LIVE_SIGNAL_FAIL_ALERT_THRESHOLD", 2)
+        level = "CRITICAL" if consecutive_failures >= threshold else "ERROR"
+        log.error(
+            f"Signal computation failed ({level}, streak={consecutive_failures}): {exc}"
+        )
+        state.add_monitor_event(
+            level, "signal",
+            f"Signal fetch failed ({consecutive_failures}x): {exc}. Entries blocked.",
+        )
+        # Use stored snapshot's bar_close ONLY for dashboard mark fallback.
+        # sig_info stays None so the entry block below refuses any trade.
         stored = state.get_signal_snapshot()
         if stored:
             bar_close_fallback = stored.get("bar_close")
@@ -430,8 +457,10 @@ def _on_bar_inner() -> str:
     # Reached when (a) we were flat at the top of the cycle, or (b) we just
     # closed a position and want to place a back-to-back trade on the same bar.
     if sig_info is None:
-        # Signal computation failed earlier — can't evaluate entry
-        state.add_monitor_event("ERROR", "signal", "Signal computation failed — cannot evaluate entry")
+        # Signal fetch failed at the top of the cycle — the monitor event was
+        # already logged there (with escalation level). Just refuse the entry
+        # and return. Never trade on a missing signal.
+        log.error("Entry refused: signal fetch failed this cycle (see monitor event)")
         if exit_action is None:
             _sync_account_and_mark(bar_close=bar_close_fallback)
         return exit_action or "signal_error"
