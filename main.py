@@ -97,9 +97,23 @@ def main():
     stop_loss   = asset_config.get("stop_loss_pct",   config.STOP_LOSS_PCT)
     req_signals = asset_config.get("require_signals", config.REQUIRE_SIGNALS)
 
-    # Hourly trade filter — only applied when interval is hourly
-    if interval == "1h" and config.HOURLY_TRADE_FILTER:
-        trade_hours = (config.HOURLY_TRADE_HOURS_START, config.HOURLY_TRADE_HOURS_END)
+    # Hourly trade filter — match live scheduler behavior.
+    # The live trader's APScheduler only fires Mon-Fri 9:32-15:32 ET (trader.py:584),
+    # and live/signals.py double-guards with _is_market_hours(). Equity ETF backtests
+    # must gate entries identically or they diverge from live (trading phantom after-hours
+    # bars that yfinance sometimes includes but the live bot never sees).
+    # BTC/crypto trades 24/7 on spot exchanges — no hour filter applies.
+    if interval == "1h":
+        is_crypto = yf_symbol.endswith("-USD")
+        if is_crypto:
+            trade_hours = None  # 24/7
+        elif config.HOURLY_TRADE_FILTER:
+            # Explicit config override (e.g., a stricter intraday window)
+            trade_hours = (config.HOURLY_TRADE_HOURS_START, config.HOURLY_TRADE_HOURS_END)
+        else:
+            # Default for equities: US regular trading hours (9:30–16:00 ET → bars 9-15)
+            # Matches live scheduler: CronTrigger(hour="9-15", timezone="America/New_York")
+            trade_hours = (9, 16)
     else:
         trade_hours = None
 
