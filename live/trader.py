@@ -322,8 +322,8 @@ def _on_bar_inner() -> str:
                         f"Pending close force-finalized after {retries} retries | "
                         f"est_price={est_price:.2f} | est_ret={ret:+.4%} (ESTIMATED — fill data never found)"
                     )
-                    log.warning(warning_msg)
-                    state.add_monitor_event("WARNING", "fill", warning_msg)
+                    log.critical(warning_msg)
+                    state.add_monitor_event("CRITICAL", "fill", warning_msg)
                     state.finalize_pending_close(
                         return_pct=ret, exit_type="estimated_close",
                         exit_price=est_price,
@@ -398,9 +398,15 @@ def _on_bar_inner() -> str:
                     stop_hit = mark_price is not None and mark_price >= stop_trigger
 
                 if stop_hit:
-                    log.warning(
+                    log.critical(
                         f"SOFTWARE STOP triggered ({position_direction}) | mark={mark_price:.2f} ({mark_source}) "
                         f"vs stop={stop_trigger:.2f} | IBKR stop did not fire — forcing close"
+                    )
+                    state.add_monitor_event(
+                        "CRITICAL", "stop",
+                        f"SOFTWARE STOP triggered: mark={mark_price:.2f} ({mark_source}) "
+                        f"breached stop={stop_trigger:.2f} but IBKR bracket did not execute. "
+                        f"Forcing close. Check IBKR bracket order status.",
                     )
                     close_fill = broker.cancel_and_close(
                         position.symbol, position.bracket_order_id, position.qty,
@@ -413,8 +419,8 @@ def _on_bar_inner() -> str:
                     else:
                         exit_price = mark_price
                         ret = _signed_return(position_direction, position.entry_price, exit_price)
-                        log.warning(f"Software stop fill unavailable — using mark {exit_price:.2f} | est_ret={ret:+.4%}")
-                        state.add_monitor_event("WARNING", "stop", f"Software stop fill unavailable, mark={exit_price:.2f}")
+                        log.critical(f"SOFTWARE STOP fill unavailable — using mark {exit_price:.2f} | est_ret={ret:+.4%}")
+                        state.add_monitor_event("CRITICAL", "stop", f"Software stop fill unavailable — using mark={exit_price:.2f}, est_ret={ret:+.4%}. Verify position is actually closed.")
                     state.close_position(return_pct=ret, exit_type="stop_hit", exit_price=exit_price)
                     _sync_account_and_mark(bar_close=exit_price)
                     _log_summary()
