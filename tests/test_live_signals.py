@@ -68,6 +68,14 @@ def _make_hourly_df(n_bars: int, end_time: datetime | None = None,
 class TestFetchRecentBarsRaises(unittest.TestCase):
     """_fetch_recent_bars raises RuntimeError on every failure mode."""
 
+    def setUp(self):
+        signals._cached_bars = None
+        signals._cached_bars_time = None
+
+    def tearDown(self):
+        signals._cached_bars = None
+        signals._cached_bars_time = None
+
     def test_yfinance_exception_raises(self):
         with patch("live.signals.fetch_yfinance", side_effect=ConnectionError("yfinance down")):
             with self.assertRaises(RuntimeError) as ctx:
@@ -128,6 +136,14 @@ class TestFetchRecentBarsRaises(unittest.TestCase):
 class TestStalenessConfigurable(unittest.TestCase):
     """The staleness limit honors config.LIVE_MAX_BAR_STALENESS_HOURS."""
 
+    def setUp(self):
+        signals._cached_bars = None
+        signals._cached_bars_time = None
+
+    def tearDown(self):
+        signals._cached_bars = None
+        signals._cached_bars_time = None
+
     def test_custom_staleness_limit(self):
         # Latest bar 3 days old. Default 120h allows it, but a 48h limit blocks it.
         old_end = datetime.now() - timedelta(days=3)
@@ -147,6 +163,14 @@ class TestStalenessConfigurable(unittest.TestCase):
 class TestMinBarsConfigurable(unittest.TestCase):
     """The min_bars arg overrides the default."""
 
+    def setUp(self):
+        signals._cached_bars = None
+        signals._cached_bars_time = None
+
+    def tearDown(self):
+        signals._cached_bars = None
+        signals._cached_bars_time = None
+
     def test_tight_min_bars(self):
         df = _make_hourly_df(150)
         with patch("live.signals.fetch_yfinance", return_value=df):
@@ -156,6 +180,87 @@ class TestMinBarsConfigurable(unittest.TestCase):
             # min_bars=100 passes
             result = signals._fetch_recent_bars("TQQQ", min_bars=100)
             self.assertGreaterEqual(len(result), 100)
+
+
+class TestCacheFallback(unittest.TestCase):
+    """In-memory cache provides resilience against transient yfinance failures."""
+
+    def setUp(self):
+        # Clear the module-level cache before each test
+        signals._cached_bars = None
+        signals._cached_bars_time = None
+
+    def tearDown(self):
+        signals._cached_bars = None
+        signals._cached_bars_time = None
+
+    def test_cache_populated_after_success(self):
+        """A successful fetch populates the in-memory cache."""
+        df = _make_hourly_df(300)
+        with patch("live.signals.fetch_yfinance", return_value=df):
+            signals._fetch_recent_bars("TQQQ", min_bars=200)
+        self.assertIsNotNone(signals._cached_bars)
+        self.assertIsNotNone(signals._cached_bars_time)
+        self.assertGreaterEqual(len(signals._cached_bars), 200)
+
+    def test_fallback_to_cache_on_exception(self):
+        """When yfinance raises, fall back to cached data from prior cycle."""
+        # First call succeeds and populates cache
+        df = _make_hourly_df(300)
+        with patch("live.signals.fetch_yfinance", return_value=df):
+            signals._fetch_recent_bars("TQQQ", min_bars=200)
+
+        # Second call fails — should fall back to cache
+        with patch("live.signals.fetch_yfinance", side_effect=ConnectionError("timeout")):
+            result = signals._fetch_recent_bars("TQQQ", min_bars=200)
+        self.assertGreaterEqual(len(result), 200)
+
+    def test_fallback_to_cache_on_empty(self):
+        """When yfinance returns empty, fall back to cached data."""
+        df = _make_hourly_df(300)
+        with patch("live.signals.fetch_yfinance", return_value=df):
+            signals._fetch_recent_bars("TQQQ", min_bars=200)
+
+        empty = pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
+        with patch("live.signals.fetch_yfinance", return_value=empty):
+            result = signals._fetch_recent_bars("TQQQ", min_bars=200)
+        self.assertGreaterEqual(len(result), 200)
+
+    def test_no_cache_still_raises(self):
+        """First-ever fetch failure with no cache raises immediately."""
+        self.assertIsNone(signals._cached_bars)
+        with patch("live.signals.fetch_yfinance", side_effect=ConnectionError("down")):
+            with self.assertRaises(RuntimeError) as ctx:
+                signals._fetch_recent_bars("TQQQ", min_bars=200)
+            self.assertIn("down", str(ctx.exception))
+
+    def test_stale_cache_still_rejected(self):
+        """Cached data that fails staleness check is rejected, not silently used."""
+        # Populate cache with old data (10 days ago)
+        old_end = datetime.now() - timedelta(days=10)
+        old_df = _make_hourly_df(300, end_time=old_end)
+        signals._cached_bars = old_df
+        signals._cached_bars_time = datetime.now() - timedelta(days=10)
+
+        # Fresh fetch fails → falls back to stale cache → staleness check rejects
+        with patch("live.signals.fetch_yfinance", side_effect=ConnectionError("timeout")):
+            with self.assertRaises(RuntimeError) as ctx:
+                signals._fetch_recent_bars("TQQQ", min_bars=200)
+            self.assertIn("stale", str(ctx.exception).lower())
+
+    def test_cache_not_updated_from_fallback(self):
+        """When we use cached data as fallback, the cache timestamp doesn't refresh."""
+        df = _make_hourly_df(300)
+        with patch("live.signals.fetch_yfinance", return_value=df):
+            signals._fetch_recent_bars("TQQQ", min_bars=200)
+        original_cache_time = signals._cached_bars_time
+
+        # Fail and fall back
+        with patch("live.signals.fetch_yfinance", side_effect=ConnectionError("blip")):
+            signals._fetch_recent_bars("TQQQ", min_bars=200)
+
+        # Cache time should NOT have been updated (would mask increasing staleness)
+        self.assertEqual(signals._cached_bars_time, original_cache_time)
 
 
 if __name__ == "__main__":

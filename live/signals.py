@@ -11,6 +11,11 @@ a thin adapter that feeds live OHLCV data into the existing pipeline.
 Safety: every failure path (yfinance down, stale data, insufficient bars,
 NaN features) raises RuntimeError. The caller (trader.py) MUST block new
 entries when this module raises. Never trade on stale or partial signals.
+
+Resilience: on yfinance transient failures, falls back to the last
+successful OHLCV fetch (in-memory cache). Cached data still goes through
+all Phase 6.3 validation — staleness, min-bars, NaN checks — so stale
+cache can't sneak through. Cache clears on process restart (clean slate).
 """
 
 import logging
@@ -40,6 +45,13 @@ _MIN_BARS_DEFAULT = 200
 # realistic US-market holiday weekend (Thanksgiving Wed-early-close → following
 # Monday 9:30 ET ≈ 115 hours). Beyond this, yfinance or the data source is broken.
 _MAX_STALENESS_HOURS_DEFAULT = 120
+
+# ── In-memory cache of last successful OHLCV fetch ──────────────────────────
+# Populated after every successful fetch_yfinance call. Used as fallback when
+# yfinance has a transient failure. Cached data still passes through ALL
+# Phase 6.3 validation (staleness, min_bars, NaN). Clears on process restart.
+_cached_bars: pd.DataFrame | None = None
+_cached_bars_time: datetime | None = None
 
 
 def _get_mode_name() -> str:
@@ -131,12 +143,18 @@ def _fetch_recent_bars(symbol: str, min_bars: int = _MIN_BARS_DEFAULT) -> pd.Dat
     Fetches the last ~_WARMUP_BARS hourly bars for the given symbol via yfinance.
     Returns a DataFrame trimmed to completed bars only.
 
-    Raises RuntimeError on every failure mode so the caller can block entries:
-      * yfinance fetch exception
-      * empty DataFrame
-      * fewer than min_bars completed bars
-      * latest completed bar is staler than LIVE_MAX_BAR_STALENESS_HOURS
+    On a successful yfinance fetch, caches the raw OHLCV in memory. On a
+    transient fetch failure (exception or empty DataFrame), falls back to the
+    in-memory cache from the last successful cycle. Cached data still goes
+    through ALL validation (min_bars, staleness) — stale cache can't sneak past.
+
+    Raises RuntimeError when no usable data is available:
+      * yfinance exception AND no cached fallback (or cache also invalid)
+      * fewer than min_bars completed bars (fresh or cached)
+      * latest completed bar older than LIVE_MAX_BAR_STALENESS_HOURS
     """
+    global _cached_bars, _cached_bars_time
+
     # Fetch a window large enough: trading days needed = ceil(bars / 6.5 hours/day)
     # Add buffer for weekends and holidays.
     trading_days_needed = (_WARMUP_BARS // 6) + 10
@@ -144,17 +162,34 @@ def _fetch_recent_bars(symbol: str, min_bars: int = _MIN_BARS_DEFAULT) -> pd.Dat
     # yfinance 'end' is exclusive — add 1 day so today's bars are included
     end   = (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%Y-%m-%d")
 
+    df = None
+    fetch_source = "live"
+    fetch_error = None
+
     try:
         df = fetch_yfinance(symbol, start=start, end=end, interval="1h")
     except Exception as exc:
-        raise RuntimeError(
-            f"fetch_yfinance({symbol}, 1h) raised: {exc}"
-        ) from exc
+        fetch_error = exc
 
-    if df is None or df.empty:
-        raise RuntimeError(
-            f"fetch_yfinance({symbol}, 1h) returned empty DataFrame"
-        )
+    if df is None or (hasattr(df, "empty") and df.empty):
+        # ── Fallback to cached data ───────────────────────────────────────
+        if _cached_bars is not None and not _cached_bars.empty:
+            log.warning(
+                f"yfinance fetch failed ({fetch_error or 'empty DataFrame'}). "
+                f"Falling back to cached data from {_cached_bars_time}."
+            )
+            df = _cached_bars.copy()
+            fetch_source = "cache"
+        else:
+            # No cache available — raise with the original error
+            if fetch_error is not None:
+                raise RuntimeError(
+                    f"fetch_yfinance({symbol}, 1h) raised: {fetch_error}"
+                ) from fetch_error
+            raise RuntimeError(
+                f"fetch_yfinance({symbol}, 1h) returned empty DataFrame "
+                f"and no cached data is available"
+            )
 
     # Drop the current (possibly incomplete) bar.
     # A bar is "current" if its timestamp is within the last 60 minutes.
@@ -192,11 +227,19 @@ def _fetch_recent_bars(symbol: str, min_bars: int = _MIN_BARS_DEFAULT) -> pd.Dat
         raise RuntimeError(
             f"{symbol} latest completed bar is stale: "
             f"bar_time={result.index[-1]}, age={latest_age}, "
-            f"max_allowed={max_staleness}. yfinance likely down or returning stale data."
+            f"max_allowed={max_staleness}. "
+            f"{'Cached data too old.' if fetch_source == 'cache' else 'yfinance likely down or returning stale data.'}"
         )
 
+    # ── Update cache on successful validation ─────────────────────────────
+    # Only update cache from a live fetch (not from a cache fallback that
+    # passed validation — that would just re-cache the same stale data).
+    if fetch_source == "live":
+        _cached_bars = df.copy()
+        _cached_bars_time = datetime.now(timezone.utc)
+
     log.info(
-        f"Warmup bars: {len(result)} | "
+        f"Warmup bars: {len(result)} (source={fetch_source}) | "
         f"first={result.index[0]} | last={result.index[-1]} | "
         f"latest_age={latest_age} | "
         f"dropped_incomplete={'yes' if dropped_incomplete else 'no'}"
