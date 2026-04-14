@@ -201,8 +201,9 @@ def on_bar() -> None:
         state.set_monitor_status(status="ok", cycle_action=cycle_action, details="on_bar cycle completed")
     except Exception as exc:
         cycle_action = "error"
-        state.set_monitor_status(status="error", cycle_action=cycle_action, details=str(exc))
-        state.add_monitor_event("ERROR", "cycle", f"Unhandled on_bar exception: {exc}")
+        exc_detail = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
+        state.set_monitor_status(status="error", cycle_action=cycle_action, details=exc_detail)
+        state.add_monitor_event("ERROR", "cycle", f"Unhandled on_bar exception: {exc_detail}")
         raise
     finally:
         # Always disconnect at end of cycle. With hourly scheduling, keeping a
