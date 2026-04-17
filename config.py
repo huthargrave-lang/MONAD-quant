@@ -39,8 +39,8 @@ BACKTEST_END   = "2024-12-31"
 # BACKTEST_START_HOURLY = "2024-03-15";  BACKTEST_END_HOURLY = "2026-02-15"  # 2yr baseline
 # BACKTEST_START_HOURLY = "2025-01-01";  BACKTEST_END_HOURLY = "2026-03-01"  # 2025–present
 # BACKTEST_START_HOURLY = "2024-06-01";  BACKTEST_END_HOURLY = "2026-03-01"  # 21mo recent
-BACKTEST_START_HOURLY = "2024-04-01"   # yfinance hourly limit = 730 days
-BACKTEST_END_HOURLY   = "2026-03-01"
+BACKTEST_START_HOURLY = "2024-06-15"   # yfinance hourly limit = 730 days; margin from 2026-04-10
+BACKTEST_END_HOURLY   = "2026-04-10"
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  PROFILE 1 — BTC DAILY
@@ -217,8 +217,8 @@ TARGET_GAIN_PCT_QQQ_HOURLY    = 0.0024  # 0.24% target — QQQ hourly range is 0
 STOP_LOSS_PCT_QQQ_HOURLY      = 0.0012  # 0.12% stop — 2:1 R:R; WR 59.6%, Kelly 19.73%
 
 # Backtest window — QQQ hourly
-BACKTEST_START_QQQ_HOURLY = "2024-04-01"
-BACKTEST_END_QQQ_HOURLY   = "2026-03-01"
+BACKTEST_START_QQQ_HOURLY = "2024-06-15"
+BACKTEST_END_QQQ_HOURLY   = "2026-04-10"
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  PROFILE 5 — TQQQ HOURLY (3x leveraged QQQ) — OPTIMIZED 2026-03-22
@@ -245,8 +245,8 @@ STOP_LOSS_PCT_TQQQ_HOURLY      = 0.0050 # 1.50% stop — Sharpe 3.7, DD -3.85%, 
 # TARGET_GAIN_PCT_TQQQ_HOURLY  = 0.0042  # 0.42% target, 5.6:1 R:R (optimistic mode)
 
 # Backtest window — TQQQ hourly
-BACKTEST_START_TQQQ_HOURLY = "2024-04-01"
-BACKTEST_END_TQQQ_HOURLY   = "2026-03-01"
+BACKTEST_START_TQQQ_HOURLY = "2024-06-15"
+BACKTEST_END_TQQQ_HOURLY   = "2026-04-10"
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  PROFILE 6 — GDXU HOURLY (3x leveraged gold miners) — NEEDS RE-SWEEP
@@ -275,8 +275,8 @@ STOP_LOSS_PCT_GDXU_HOURLY      = 0.0046   # 0.46% stop — realistic sweep: Shar
 # STOP_LOSS_PCT_GDXU_HOURLY    = 0.00075  # 0.075% stop (optimistic mode)
 
 # Backtest window — GDXU hourly (launched Dec 2020; yfinance hourly ~730 days)
-BACKTEST_START_GDXU_HOURLY = "2024-04-01"
-BACKTEST_END_GDXU_HOURLY   = "2026-03-01"
+BACKTEST_START_GDXU_HOURLY = "2024-06-15"
+BACKTEST_END_GDXU_HOURLY   = "2026-04-10"
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  PROFILE 7 — SOXL HOURLY (3x leveraged semiconductors) — SWEEP 2026-03-22
@@ -302,8 +302,8 @@ TARGET_GAIN_PCT_SOXL_HOURLY    = 0.009    # 0.90% target — sweep optimal; 2:1 
 STOP_LOSS_PCT_SOXL_HOURLY      = 0.0045   # 0.45% stop — live-safe (5x spread), 0/22 windows negative
 
 # Backtest window — SOXL hourly
-BACKTEST_START_SOXL_HOURLY = "2024-04-01"
-BACKTEST_END_SOXL_HOURLY   = "2026-03-01"
+BACKTEST_START_SOXL_HOURLY = "2024-06-15"
+BACKTEST_END_SOXL_HOURLY   = "2026-04-10"
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  PROFILE 8 — LABU HOURLY (3x leveraged biotech) — SWEEP 2026-03-20
@@ -328,8 +328,8 @@ TARGET_GAIN_PCT_LABU_HOURLY    = 0.007    # 0.70% target — sweep optimal; 2.8:
 STOP_LOSS_PCT_LABU_HOURLY      = 0.0025   # 0.25% stop — realistic for live trading
 
 # Backtest window — LABU hourly
-BACKTEST_START_LABU_HOURLY = "2024-04-01"
-BACKTEST_END_LABU_HOURLY   = "2026-03-01"
+BACKTEST_START_LABU_HOURLY = "2024-06-15"
+BACKTEST_END_LABU_HOURLY   = "2026-04-10"
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  PROFILE 9 — TNA HOURLY (3x leveraged Russell 2000) — SWEEP 2026-03-20
@@ -354,8 +354,8 @@ TARGET_GAIN_PCT_TNA_HOURLY    = 0.0033   # 0.33% target — sweep optimal; 2.2:1
 STOP_LOSS_PCT_TNA_HOURLY      = 0.0015   # 0.15% stop — tight but TNA has tighter spreads
 
 # Backtest window — TNA hourly
-BACKTEST_START_TNA_HOURLY = "2024-04-01"
-BACKTEST_END_TNA_HOURLY   = "2026-03-01"
+BACKTEST_START_TNA_HOURLY = "2024-06-15"
+BACKTEST_END_TNA_HOURLY   = "2026-04-10"
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  SHARED — Risk & Sizing → imported from config_modules/base.py
@@ -468,6 +468,7 @@ _MODE_TO_ASSET = {
     "TQQQ_HOURLY": "TQQQ_HOURLY",
     "GDXU_HOURLY": "GDXU_HOURLY",
     "SOXL_HOURLY": "SOXL_HOURLY",
+    "SOXL_DAILY":  "SOXL",
     "LABU_HOURLY": "LABU_HOURLY",
     "TNA_HOURLY":  "TNA_HOURLY",
 }

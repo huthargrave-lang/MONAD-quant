@@ -16,6 +16,15 @@ MAX_TRADE_BARS_LIVE = 10
 PENDING_CLOSE_MAX_RETRIES = 3  # Force-finalize with estimated price after this many failed cycles
 LIVE_MIN_TRADES_FOR_ADAPTIVE = 10
 
+# ── Signal-fetch safety (Phase 6.3) ──────────────────────────────────────────
+# live/signals.py refuses to return a signal (→ trader blocks new entries) if
+# either of these thresholds is violated. Tune only if you understand the live
+# trader's reliance on fresh, stable feature distributions.
+LIVE_MIN_WARMUP_BARS = 200             # Minimum completed bars to trust features
+LIVE_MAX_BAR_STALENESS_HOURS = 120     # Latest bar must be within N hours of now
+                                       # 120h covers Thanksgiving-weekend gap (~115h max)
+LIVE_SIGNAL_FAIL_ALERT_THRESHOLD = 2   # N consecutive signal failures → CRITICAL alert
+
 # Short-side execution. Default OFF — the live trader is long-only today.
 # Flip to True to route signal=-1 through the short bracket path (SELL entry,
 # BUY cover). The short framework (broker, state, trader) stays wired regardless

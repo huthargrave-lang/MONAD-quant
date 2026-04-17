@@ -34,7 +34,13 @@ def compute_bb_width(prices: pd.Series, window: int = 20) -> pd.Series:
 def compute_bb_position(prices: pd.Series, window: int = 20) -> pd.Series:
     """%B — where price sits within Bollinger Bands (0=lower, 1=upper)."""
     upper, mid, lower = compute_bollinger_bands(prices, window)
-    return (prices - lower) / (upper - lower)
+    band_width = upper - lower
+    # Guard against division by zero when bands converge (flat market).
+    # Returns 0.5 (midpoint) when upper == lower.
+    return pd.Series(
+        np.where(band_width != 0, (prices - lower) / band_width, 0.5),
+        index=prices.index,
+    )
 
 
 def volatility_regime(df: pd.DataFrame, window: int = 20) -> pd.Series:

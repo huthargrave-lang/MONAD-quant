@@ -8,3 +8,4 @@ venv/
 experiments.jsonl
 sweep_results_*.json
 live/state.db
+state.db
