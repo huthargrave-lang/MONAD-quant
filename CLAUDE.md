@@ -1070,17 +1070,24 @@ The position table now has a `status` column (`open` / `pending_close`) and an
 
 ---
 
-## 21. Comprehensive Project Review (2026-04-10)
+## 21. Comprehensive Project Review (2026-04-17)
 
-### Overall Assessment: **B+ / Production-Capable, Needs Hardening**
+### Overall Assessment: **B / Production-Capable on Paper, Ops Gaps for Real Money**
 
-The codebase is well-architected, exceptionally documented, and genuinely mode-agnostic.
-The strategy engine, signal pipeline, and backtest infrastructure are sound. The live
-trading system has robust IBKR integration. However, there are reliability gaps in edge-case
-handling, testing coverage, and configuration management that should be addressed before
-scaling live deployment.
+Significant hardening work has landed since the April 10 audit. All 130 tests pass locally.
+Phase 1 (critical bugs), Phase 2 (testing foundation), Phase 4 (data hardening ~80% done),
+and Phase 6.1–6.3 (live signal safety, cache fallback, CRITICAL escalation) are complete.
+The system is running live TQQQ paper trades on a Pi and reconciling correctly.
 
-**Codebase size:** ~8,950 lines Python across 33 files.
+The grade stepped down slightly from B+ because three issues previously flagged remain
+unfixed (walk-forward Sharpe bug, sweep.py dual-sync, CI cannot collect `test_dashboard.py`),
+and two workstreams are barely started: Phase 3 (config cleanup, 0/6 items) and Phase 5
+(strategy improvements, 1/5 items). Real-money deployment is blocked on Phase 6.4 (external
+alerting — CRITICAL events are logged but no one is paged) and Phase 6.5 (documented 2-week
+paper validation protocol).
+
+**Codebase size:** ~10,170 lines Python across 36 files (+1,220 since April 10).
+**Test suite:** 130 tests, all passing when `test_dashboard.py` is excluded.
 
 ### Strengths
 
@@ -1205,7 +1212,96 @@ scaling live deployment.
 
 ---
 
-## 22. Future Work Roadmap (2026-04-10)
+## 22. Future Work Roadmap (2026-04-17)
+
+### Progress summary (since the 2026-04-10 audit)
+
+| Phase | Scope | Status |
+|---|---|---|
+| **1** | Critical bug fixes | ✅ 6/6 complete |
+| **2** | Testing foundation | ✅ 5/5 complete — 130 tests, all pass locally |
+| **3** | Config cleanup | ⬜ 0/6 — **not started** |
+| **4** | Data pipeline hardening | 🟡 3/5 — 4.1, 4.2, 4.5 done; 4.3, 4.4 pending |
+| **5** | Strategy improvements | 🟡 2/5 — 5.1 active, 5.3 instrumented; 5.2, 5.4, 5.5 pending |
+| **6** | Live trading hardening | 🟡 3/5 — 6.1, 6.2, 6.3 done; 6.4, 6.5 pending |
+| **7** | Nice-to-have | 🟡 1/5 — pre-commit and plugin cleanup still open |
+
+Overall: ~30/44 roadmap items done (~68%). Live paper trading is active on TQQQ.
+Real-money deployment remains blocked on 6.4 (no external alerting) and 6.5 (no
+documented validation protocol).
+
+### Phase A: Critical — fix or lose confidence in results
+
+These three items were flagged on April 10 but never shipped. They actively hurt
+the project today: one makes CI unreliable, one biases walk-forward selection,
+one is a sharp edge waiting to cut someone editing sweep.py.
+
+| # | Fix | File | Why it matters |
+|---|---|---|---|
+| **A.1** | CI can't collect `tests/test_dashboard.py` (fastapi missing) | `.github/workflows/test.yml` + `requirements.txt` | Any future test-discovery change that includes the dashboard file will break CI. Also means `test_live_signals.py` (Phase 6.3) and `test_trader_helpers.py` aren't even running in CI — the workflow hard-codes a list of 4 files. Fix: install `fastapi` in the CI step and run `pytest tests/` (whole dir). |
+| **A.2** | Walk-forward Sharpe uses `sqrt(252)` for hourly modes | `src/optimization/walk_forward.py:42` | Hourly bars with ~1,500+ observations/year inflate Sharpe by ~2.5×. Parameter selection may look great in walk-forward and underperform live. Fix: choose the annualization factor based on timeframe (or compute directly from the returns index). |
+| **A.3** | `sweep.py` requires dual-sync for every param (setattr + ASSETS dict) | `sweep.py:284–291` and every `setattr` block | Miss one layer and the backtest runs with inconsistent params. Extract to `_update_mode_param(mode, key, value)` that touches both in one place. |
+
+### Phase B: High — config sprawl and untouched strategy work
+
+| # | Change | Risk | Notes |
+|---|---|---|---|
+| **B.1** | Remove dead params: `ROC_PERIOD`, `ROC_PERIOD_HOURLY`, `ATR_PERIOD`, `BB_STD`, unused `BB_WINDOW_*_HOURLY` variants | Low | `grep -r` confirms none referenced outside config.py itself |
+| **B.2** | Collapse mode routing into one registry (MODE_MAP + `_MODE_TO_ASSET` + `ASSETS`) — derive the first two as views of `ASSETS` | Low-Med | Eliminates the 3-way sync bug every new mode can hit |
+| **B.3** | Complete ModeConfig migration (stage 2/3): have `live/trader.py` and `live/signals.py` call `get_mode_config()` instead of indexing `config.ASSETS[mode]` | Low | `get_mode_config()` is defined but never called |
+| **B.4** | Consolidate scattered backtest date params into a single `BACKTEST_WINDOWS` dict keyed by mode | Low | 18 BACKTEST_START_*/END_* variables today |
+| **B.5** | Implement ATR-based dynamic stops (5.2) — `USE_ATR_DYNAMIC_STOPS` flag is defined but no implementation in `compute_trade_returns()` | Medium | Expected impact: fewer noise-triggered stops in high-vol periods (June/Aug 2024) |
+| **B.6** | Rolling Kelly re-integration (5.5) — current adaptive Kelly acts as a fixed 2× multiplier for QQQ/TQQQ because baseline WR (~60%) always exceeds HIGH_WR threshold | Medium | Size from rolling trade stats instead of fixed regime multipliers. Must backtest extensively before shipping. |
+
+### Phase C: Medium — operational readiness for real money
+
+Real-money deployment should not happen until C.1 and C.2 are done.
+
+| # | Change | Why |
+|---|---|---|
+| **C.1** | External alerting for CRITICAL monitor events (Slack webhook or similar) | CRITICAL events (force-finalize with estimated PnL, software-stop triggered, N consecutive signal failures) land in SQLite but nobody is paged. On a Pi this means the operator finds out next time they open the dashboard. |
+| **C.2** | Documented 2-week paper validation protocol (pre-flight checklist) | Nothing in the repo defines "ready for real money." Should cover: cycle stability over a full trading week, no pending_close retries beyond 1 cycle, no CRITICAL events, dashboard mark sources ≥95% "live"/"delayed" (not "last_close"). |
+| **C.3** | Data pipeline 4.3: hourly bar continuity check (no gaps > 1h during market hours) | DST transitions and yfinance outages can silently drop bars. |
+| **C.4** | Data pipeline 4.4: validate `ALPHA_VANTAGE_KEY` at startup when BTC_DAILY is active | Currently fails silently at runtime if the key is missing. |
+| **C.5** | Tests for `live/broker.py` (mock IBKR) — bracket parsing, fill-search fallbacks, reconnect logic | Zero coverage today. Biggest untested risk surface in live/. |
+| **C.6** | Test for the Phase 6.3 escalation path in `trader.py` (consecutive failures → CRITICAL) | `test_live_signals.py` covers `signals.py`; the escalation in `trader.py` is only verified by hand. |
+
+### Phase D: Low — quality of life
+
+| # | Change | Notes |
+|---|---|---|
+| **D.1** | Delete `commands` array from `.claude-plugin/plugin.json` (referenced files don't exist) or create the three `commands/*.md` files | Trivial; fixes a broken manifest |
+| **D.2** | Add pre-commit hooks (black, isort, ruff) | 10-minute setup, catches trivial diffs |
+| **D.3** | Fix CLAUDE.md §1 and README.md mode tables — both still reference 6 modes; current code has 9 live modes (BTC daily/hourly, QQQ hourly, TQQQ, GDXU, SOXL, LABU, TNA, + QQQ/SOXL daily variants) | Documentation drift |
+| **D.4** | Refactor duplicate MA / MACD-histogram-turn logic into `src/signals/utils.py` | ~30 LOC dedup across momentum.py, volume.py |
+| **D.5** | Split `compute_trade_returns()` (181 LOC) — extract exit-type classification into a helper | Readability only; tests cover the current structure |
+| **D.6** | Archive or remove `fee_analysis.py` (20KB, no imports reference it) | Historical artifact |
+
+### Recommended execution order
+
+```
+Phase A (Critical)     ──→  half day     — do before any new feature work
+Phase C.1 + C.2        ──→  2–3 days     — gate real-money deployment on these
+Phase B (Config + 5.2) ──→  2–3 days     — parallelizable with C
+Phase C.3–C.6          ──→  1–2 days
+Phase B.6 (rolling Kelly) ──→ 2–3 days   — needs its own backtest sweep
+Phase D                ──→  as time permits
+```
+
+Phase A is the only hard prerequisite. C.1 and C.2 should come before scaling from
+paper to real money. Everything else can be parallelized.
+
+---
+
+*Last updated: 2026-04-17 — fresh audit after Phases 4/6.1/6.2/6.3 landed. 130 tests passing, live paper on TQQQ reconciling correctly. Three April-10 criticals (walk-forward Sharpe, sweep dual-sync, CI dashboard collection) still unfixed; Phase 3 not started; Phase 6.4–6.5 gate real-money deployment.*
+
+---
+
+## 22-ARCHIVE. Original Future Work Roadmap (2026-04-10)
+
+*Preserved for history. The April-17 audit (Section 22 above) supersedes this.
+Items marked DONE here are still done; items not marked DONE were re-scored
+in the April-17 view, which is the current source of truth.*
 
 ### Phase 1: Critical Bug Fixes (Do First)
 
@@ -1329,4 +1425,4 @@ Phase 6 should come after Phase 5 (strategy changes affect live behavior).
 
 ---
 
-*Last updated: 2026-04-10 — CLAUDE.md audit: corrected TQQQ/GDXU performance to realistic-mode numbers, added SOXL/LABU/TNA docs, marked fixed bugs, updated test coverage. Phase 1-2 complete. TQQQ live paper trading in progress.*
+*Original Phase 1-2 completion note (2026-04-10): corrected TQQQ/GDXU performance to realistic-mode numbers, added SOXL/LABU/TNA docs, marked fixed bugs, updated test coverage. TQQQ live paper trading in progress.*

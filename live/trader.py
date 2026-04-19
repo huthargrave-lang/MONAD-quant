@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import config
-from live import broker, signals, state
+from live import alerts, broker, signals, state
 
 logging.basicConfig(
     level=logging.INFO,
@@ -204,6 +204,7 @@ def on_bar() -> None:
         exc_detail = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
         state.set_monitor_status(status="error", cycle_action=cycle_action, details=exc_detail)
         state.add_monitor_event("ERROR", "cycle", f"Unhandled on_bar exception: {exc_detail}")
+        alerts.alert_error(f"Unhandled on_bar exception: {exc_detail}", level="ERROR")
         raise
     finally:
         # Always disconnect at end of cycle. With hourly scheduling, keeping a
@@ -273,6 +274,10 @@ def _on_bar_inner() -> str:
         log.error(
             f"Signal computation failed ({level}, streak={consecutive_failures}): {exc}"
         )
+        alerts.alert_error(
+            f"Signal fetch failed ({consecutive_failures}x): {exc}. Entries blocked.",
+            level=level,
+        )
         state.add_monitor_event(
             level, "signal",
             f"Signal fetch failed ({consecutive_failures}x): {exc}. Entries blocked.",
@@ -307,6 +312,12 @@ def _on_bar_inner() -> str:
                 state.add_monitor_event("INFO", "fill", f"Pending close reconciled: {exit_type} @ {fill['fill_price']:.2f}")
                 _sync_account_and_mark(bar_close=fill["fill_price"])
                 _log_summary()
+                summary = state.get_trade_summary()
+                alerts.alert_exit(
+                    position.symbol, position_direction, position.entry_price,
+                    fill["fill_price"], ret, exit_type,
+                    total_trades=summary["total"], win_rate=summary["win_rate"],
+                )
                 exit_action = f"reconciled_{exit_type}"
                 # Fall through to entry check — same cycle can place a new trade
             else:
@@ -325,6 +336,7 @@ def _on_bar_inner() -> str:
                     )
                     log.critical(warning_msg)
                     state.add_monitor_event("CRITICAL", "fill", warning_msg)
+                    alerts.alert_error(warning_msg, level="CRITICAL")
                     state.finalize_pending_close(
                         return_pct=ret, exit_type="estimated_close",
                         exit_price=est_price,
@@ -358,6 +370,12 @@ def _on_bar_inner() -> str:
                                          exit_price=fill["fill_price"])
                     _sync_account_and_mark(bar_close=fill["fill_price"])
                     _log_summary()
+                    summary = state.get_trade_summary()
+                    alerts.alert_exit(
+                        position.symbol, position_direction, position.entry_price,
+                        fill["fill_price"], ret, exit_type,
+                        total_trades=summary["total"], win_rate=summary["win_rate"],
+                    )
                     exit_action = f"exit_{exit_type}"
                     # Fall through to entry check
                 else:
@@ -377,6 +395,12 @@ def _on_bar_inner() -> str:
                                          exit_price=exit_price)
                     _sync_account_and_mark(bar_close=exit_price)
                     _log_summary()
+                    summary = state.get_trade_summary()
+                    alerts.alert_exit(
+                        position.symbol, position_direction, position.entry_price,
+                        exit_price, ret, exit_type, inferred=True,
+                        total_trades=summary["total"], win_rate=summary["win_rate"],
+                    )
                     exit_action = f"exit_{exit_type}_inferred"
                     # Fall through to entry check
             else:
@@ -425,6 +449,17 @@ def _on_bar_inner() -> str:
                     state.close_position(return_pct=ret, exit_type="stop_hit", exit_price=exit_price)
                     _sync_account_and_mark(bar_close=exit_price)
                     _log_summary()
+                    summary = state.get_trade_summary()
+                    alerts.alert_error(
+                        f"SOFTWARE STOP triggered on {position.symbol} | "
+                        f"mark={mark_price:.2f} vs stop={stop_trigger:.2f} | ret={ret:+.4%}",
+                        level="CRITICAL",
+                    )
+                    alerts.alert_exit(
+                        position.symbol, position_direction, position.entry_price,
+                        exit_price, ret, "stop_hit (software)",
+                        total_trades=summary["total"], win_rate=summary["win_rate"],
+                    )
                     exit_action = "exit_software_stop"
                     # Fall through to entry check
                 elif bar_count >= config.MAX_TRADE_BARS_LIVE:
@@ -452,6 +487,12 @@ def _on_bar_inner() -> str:
                     state.close_position(return_pct=ret, exit_type="time_exit", exit_price=exit_price)
                     _sync_account_and_mark(bar_close=exit_price)
                     _log_summary()
+                    summary = state.get_trade_summary()
+                    alerts.alert_exit(
+                        position.symbol, position_direction, position.entry_price,
+                        exit_price, ret, "time_exit",
+                        total_trades=summary["total"], win_rate=summary["win_rate"],
+                    )
                     exit_action = "exit_time_exit"
                     # Fall through to entry check
                 else:
@@ -563,6 +604,11 @@ def _on_bar_inner() -> str:
     if exit_action:
         entry_event = f"{entry_event} (back-to-back after {exit_action})"
     state.add_monitor_event("INFO", "entry", entry_event)
+    alerts.alert_entry(
+        config.LIVE_SYMBOL, entry_direction, qty, entry_price,
+        position_pct=sizing["position_pct"],
+        back_to_back=exit_action,
+    )
     return f"{exit_action}_then_entry" if exit_action else "entry_placed"
 
 
