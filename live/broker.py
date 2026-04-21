@@ -299,19 +299,42 @@ def place_bracket_order(symbol: str, qty: int,
 
     # Submit all three legs (parent + TP + SL)
     parent_order = bracket[0]
+    parent_trade = None
     for order in bracket:
-        ib.placeOrder(contract, order)
+        trade = ib.placeOrder(contract, order)
+        if order is parent_order:
+            parent_trade = trade
 
     parent_id = str(parent_order.orderId)
+
+    # Wait for the parent (entry) order to fill so we record the actual
+    # execution price, not the stale live_price from seconds earlier.
+    actual_fill = None
+    if parent_trade is not None:
+        for _ in range(20):
+            ib.sleep(0.5)
+            if parent_trade.orderStatus.status == "Filled":
+                avg = parent_trade.orderStatus.avgFillPrice
+                if avg and avg > 0:
+                    actual_fill = float(avg)
+                break
+
+    fill_basis = actual_fill if actual_fill is not None else float(live_price)
+    if actual_fill is not None and abs(actual_fill - live_price) > 0.005:
+        log.info(
+            f"Fill price diff: live_price={live_price:.2f} → actual_fill={actual_fill:.2f} "
+            f"(slip={actual_fill - live_price:+.2f})"
+        )
+
     log.info(
         f"Bracket order placed | id={parent_id} | {direction.upper()} {qty} {symbol} "
-        f"@ ~{live_price:.2f} | target={target_price:.2f} "
+        f"@ {fill_basis:.2f} (live_price={live_price:.2f}) | target={target_price:.2f} "
         f"({'+' if direction == 'long' else '-'}{target_pct:.2%}) | "
         f"stop={stop_price:.2f} ({'-' if direction == 'long' else '+'}{stop_pct:.2%})"
     )
     return {
         "order_id": parent_id,
-        "fill_basis": float(live_price),
+        "fill_basis": fill_basis,
         "target_price": float(target_price),
         "stop_price": float(stop_price),
         "direction": direction,
