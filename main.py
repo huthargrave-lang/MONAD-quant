@@ -134,6 +134,18 @@ def main():
 
     df = fetch_yfinance(symbol=yf_symbol, start=bt_start, end=bt_end, interval=interval)
     df = df.loc[bt_start:bt_end]
+
+    # Strip after-hours bars for hourly equity ETFs to match sweep.py feature inputs.
+    # yfinance returns pre/post-market bars for equities; the live scheduler never sees
+    # them, so leaving them in contaminates rolling RSI/MACD/VWAP calculations and
+    # causes main.py to diverge from sweep.py (and from live). BTC trades 24/7 and
+    # must retain all bars.
+    is_crypto = yf_symbol.endswith("-USD")
+    if interval == "1h" and not is_crypto:
+        before = len(df)
+        df = df.between_time("09:30", "16:00")
+        print(f"[market-hours] Stripped {before - len(df)} after-hours bars for {yf_symbol}")
+
     print(f"Loaded {len(df)} bars for {config.ACTIVE_MODE} ({bt_start} → {bt_end})\n")
 
     timeframe = "hourly" if interval == "1h" else "daily"

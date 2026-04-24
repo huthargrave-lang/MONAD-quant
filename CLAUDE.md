@@ -434,6 +434,7 @@ while price is already between the 50-MA and 252-MA (already in recovery momentu
 | `src/strategy/sizing.py` | `compute_position_size()` | Fractional Kelly calculation |
 | `main.py` | `main()` | Entry point, --mode=walk-forward support |
 | `sweep.py` | — | Universal param sweep: `python sweep.py TICKER` |
+| `validate.py` | — | Stress-test sweep results: `python validate.py TICKER` |
 | `live/trader.py` | `_on_bar_inner()` | Scheduler loop, entry/exit/pending_close logic |
 | `live/state.py` | `mark_pending_close()` | Blocks entries until fill reconciled |
 | `live/state.py` | `finalize_pending_close()` | Records actual fill, clears position |
@@ -1035,6 +1036,47 @@ and add a new PROFILE section in config.py following the GDXU/TQQQ pattern:
 
 ---
 
+## 19a. Validation Tool (validate.py)
+
+### Usage
+```bash
+python validate.py TQQQ                          # validate all presets from sweep JSON
+python validate.py TQQQ --preset best_overall     # validate one preset
+python validate.py TQQQ --target 1.0 --stop 0.5   # validate custom params
+python validate.py TQQQ --skip-mc --skip-slippage  # skip expensive tests
+python validate.py SOXL --windows 6 --mc-samples 5000  # more thorough
+```
+
+### What it does
+Consumes `sweep_results_{TICKER}.json` (or custom CLI params) and runs 5 stress tests
+that sweep.py doesn't cover:
+
+1. **Rolling Walk-Forward** — splits data into N equal windows, backtests each independently.
+   A stable strategy should profit in all windows, not just the aggregate.
+2. **Monte Carlo Trade-Order Shuffle** — reshuffles trade return order 1000× to build a
+   return distribution. If realized return is below P25, profit may be from lucky sequencing.
+3. **Regime-Split Analysis** — breaks trades by regime state (bull/bear/recovering) and
+   reports WR and contribution per regime. Flags regimes with < 3 trades.
+4. **Drawdown Profile** — max DD duration, consecutive loss streaks, worst/best month,
+   monthly return std, negative month count.
+5. **Slippage Sensitivity** — re-runs backtest at [0, 2, 5, 10] bps slippage. Reports
+   degradation curve. Fragile strategies (> 0.5%/bps) are flagged.
+
+### Outputs
+- Human-readable summary printed to console
+- `validate_{TICKER}_{TIMESTAMP}.json` with full test results
+- Final verdict: **HIGH** (score ≥ 75), **MEDIUM** (≥ 50), or **LOW** confidence
+- Comparison table when validating multiple presets
+
+### Workflow: sweep → validate → deploy
+```
+python sweep.py TQQQ           # Phase 1-5: find optimal params
+python validate.py TQQQ        # Stress-test the top presets
+# Review validate output → confident? → deploy to live
+```
+
+---
+
 ## 20. Live Trading: Pending Close Architecture (2026-03-25)
 
 ### Problem (fixed)
@@ -1233,7 +1275,7 @@ recorded. Real-money deployment blocked on validated paper track record.
 
 | # | Fix | Why it matters |
 |---|---|---|
-| **A.1** | **Fix main.py/sweep.py data discrepancy** — sweep.py strips after-hours bars with `between_time("09:30", "16:00")` (sweep.py:166) before backtesting. main.py keeps all 24h bars and only gates entries via `trade_hours=(9,16)` in engine.py:145. After-hours bars contaminate RSI/MACD/VWAP calculations → 32 phantom entries, 10% worse WR. **Fix:** Add `df = df.between_time("09:30", "16:00")` to main.py after yfinance fetch for equity ETFs. | main.py results are unreliable until this is fixed |
+| **A.1** | ✅ **DONE** — main.py now strips after-hours bars for equity ETFs via `between_time("09:30", "16:00")` after fetch. BTC 24/7 preserved. | Feature alignment with sweep.py restored |
 | **A.2** | **TP/SL bracket prices based on stale `live_price`** — broker.py:276-283 computes target/stop from `live_price` before order fills, not from actual fill price. If actual fill is $58.20 but `live_price` was $58.49, stop is based on $58.49 (tighter than intended). Fix: place parent first, wait for fill, then submit TP/SL children. | Stop hits when it shouldn't → worse WR than designed |
 | **A.3** | **CI only runs 4 of 7 test files** — `.github/workflows/test.yml` hardcodes 4 files, skipping `test_live_signals.py`, `test_trader_helpers.py`, `test_dashboard.py`. Fix: install fastapi in CI, run `pytest tests/` (whole dir). | Phase 6.3 safety tests never run in CI |
 
@@ -1294,7 +1336,7 @@ C items can run in parallel with everything else.
 
 ---
 
-*Last updated: 2026-04-23 — comprehensive re-audit: identified main.py/sweep.py data discrepancy root cause (after-hours bar contamination), TP/SL bracket price drift, dashboard UI gaps. Added short-side research track, true rolling Kelly, bracket restructure. Slack alerts (Phase 6.4) complete. Actual IBKR fill recording live.*
+*Last updated: 2026-04-24 — A.1 DONE (main.py after-hours bar fix). Added validate.py (Section 19a): rolling walk-forward, Monte Carlo trade shuffle, regime split, drawdown profile, slippage sensitivity. Sweep→validate→deploy workflow documented.*
 
 ---
 
