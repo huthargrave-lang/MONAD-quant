@@ -842,10 +842,10 @@ if args.phase in ("1", "all"):
     print("=" * 95)
 
     for rsi in rsi_values_phase1d:
-        r = run_quiet(target=best["target"], stop=best["stop"], rsi_os=rsi)
+        r = run_quiet(target=best["target"], stop=best["stop"], rsi_os=rsi, vwap=best["vwap"])
         print(fmt(r, f"RSI={rsi:3d}"))
         if r and "error" not in r:
-            update_best(r, best["target"], best["stop"], rsi=rsi)
+            update_best(r, best["target"], best["stop"], rsi=rsi, vwap=best["vwap"])
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  PHASE 2 — CROSS-VALIDATION (fine-tune around phase 1 best)
@@ -871,10 +871,10 @@ if args.phase in ("2", "all"):
         t_pct = round(t_pct, 2)
         if t_pct <= 0:
             continue
-        r = run_quiet(target=t_pct / 100, stop=bs, rsi_os=br)
+        r = run_quiet(target=t_pct / 100, stop=bs, rsi_os=br, vwap=bv)
         print(fmt(r, f"target={t_pct:.2f}% stop={bs*100:.2f}% RSI={br}"))
         if r and "error" not in r:
-            update_best(r, t_pct / 100, bs, rsi=br)
+            update_best(r, t_pct / 100, bs, rsi=br, vwap=bv)
 
     # ── 2b: Fine-tune stop at best target + RSI ───────────────────────────
     bt = best["target"]  # may have updated
@@ -891,11 +891,11 @@ if args.phase in ("2", "all"):
             continue
         if MIN_STOP_PCT and s_pct < MIN_STOP_PCT:
             continue
-        r = run_quiet(target=bt, stop=s_pct / 100, rsi_os=br)
+        r = run_quiet(target=bt, stop=s_pct / 100, rsi_os=br, vwap=bv)
         rr = bt * 100 / s_pct
         print(fmt(r, f"stop={s_pct:.3f}% (R:R={rr:.1f}:1)"))
         if r and "error" not in r:
-            update_best(r, bt, s_pct / 100, rsi=br)
+            update_best(r, bt, s_pct / 100, rsi=br, vwap=bv)
 
     # ── 2c: Fine-tune RSI around best ──────────────────────────────────────
     bt = best["target"]
@@ -908,10 +908,10 @@ if args.phase in ("2", "all"):
     rsi_range = sorted(set([max(40, br - 10), max(40, br - 5), max(40, br - 3),
                              br, min(100, br + 3), min(100, br + 5), min(100, br + 10)]))
     for rsi in rsi_range:
-        r = run_quiet(target=bt, stop=bs, rsi_os=rsi)
+        r = run_quiet(target=bt, stop=bs, rsi_os=rsi, vwap=bv)
         print(fmt(r, f"RSI={rsi:3d}"))
         if r and "error" not in r:
-            update_best(r, bt, bs, rsi=rsi)
+            update_best(r, bt, bs, rsi=rsi, vwap=bv)
 
     # ── 2d: MAX_TRADE_BARS sweep ─────────────────────────────────────────
     # Test hold-period limits on the best params found so far.

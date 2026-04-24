@@ -23,7 +23,6 @@ import io
 import json
 import os
 import sys
-import time
 from datetime import datetime, timedelta
 
 import numpy as np
@@ -107,19 +106,9 @@ if MODE_NAME not in config._MODE_TO_ASSET:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  DATA FETCHER — same cache pattern as sweep.py, strips after-hours
+#  DATA FETCHER — shares cache with sweep.py via src.data.fetcher
 # ═══════════════════════════════════════════════════════════════════════════
-_CACHE_DIR = os.path.join(os.path.dirname(__file__) or ".", ".sweep_cache")
-
-def _ensure_cache_dir():
-    os.makedirs(_CACHE_DIR, exist_ok=True)
-
-def _cache_path(ticker, interval):
-    return os.path.join(_CACHE_DIR, f"{ticker}_{interval}.csv")
-
-def _cache_is_fresh(path, max_age_hours=4):
-    age = time.time() - os.path.getmtime(path)
-    return age < max_age_hours * 3600
+from src.data.fetcher import _ensure_cache_dir, _cache_path, _cache_is_fresh
 
 def fetch_ticker_hourly(ticker, start, end):
     _ensure_cache_dir()
@@ -295,43 +284,53 @@ def test_rolling_windows(df, params, n_windows=4):
 # ═══════════════════════════════════════════════════════════════════════════
 #  TEST 2: Monte Carlo Trade-Order Shuffle
 # ═══════════════════════════════════════════════════════════════════════════
-def test_monte_carlo(trade_returns, n_samples=1000, initial=100_000):
-    """Reshuffle trade order N times to build return distribution.
+def _equity_max_drawdown(returns_arr, initial=100_000):
+    """Compute max drawdown from a sequence of trade returns."""
+    equity = initial * np.cumprod(1 + returns_arr)
+    peak = np.maximum.accumulate(equity)
+    dd = (equity - peak) / peak
+    return float(dd.min())
 
-    If the realized return is below the 25th percentile of random orderings,
-    the profit may be luck-dependent (favorable sequencing).
+
+def test_monte_carlo(trade_returns, n_samples=1000, initial=100_000):
+    """Reshuffle trade order N times, compare MAX DRAWDOWN distributions.
+
+    Terminal compound return is identical for all shuffles (multiplication is
+    commutative), so we test path-dependent metrics instead:
+    - Max drawdown: is the realized DD better than most random orderings?
+    - If realized DD is worse than P75 of shuffles, the strategy's drawdown
+      profile may be order-dependent (unlucky sequencing).
     """
     if len(trade_returns) < 5:
         return {"error": "too_few_trades", "samples": 0}
 
     returns_arr = trade_returns.values
-    realized = float(np.prod(1 + returns_arr))
-    terminals = np.empty(n_samples)
+    realized_dd = _equity_max_drawdown(returns_arr, initial)
+    realized_return = float((np.prod(1 + returns_arr) - 1) * 100)
+    shuffle_dds = np.empty(n_samples)
 
     rng = np.random.default_rng(seed=42)
     for i in range(n_samples):
         shuffled = rng.permutation(returns_arr)
-        terminals[i] = np.prod(1 + shuffled)
+        shuffle_dds[i] = _equity_max_drawdown(shuffled, initial)
 
-    terminal_pcts = (terminals - 1) * 100
-    realized_pct = (realized - 1) * 100
-    percentile_rank = float(np.mean(terminals <= realized))
+    shuffle_dds_pct = shuffle_dds * 100
+    realized_dd_pct = realized_dd * 100
+    # Higher percentile = realized DD is less severe than most shuffles (good)
+    dd_percentile = float(np.mean(shuffle_dds <= realized_dd))
 
     return {
         "samples": n_samples,
-        "realized_return_pct": round(realized_pct, 2),
-        "p05_return_pct": round(float(np.percentile(terminal_pcts, 5)), 2),
-        "p25_return_pct": round(float(np.percentile(terminal_pcts, 25)), 2),
-        "p50_return_pct": round(float(np.percentile(terminal_pcts, 50)), 2),
-        "p75_return_pct": round(float(np.percentile(terminal_pcts, 75)), 2),
-        "p95_return_pct": round(float(np.percentile(terminal_pcts, 95)), 2),
-        "percentile_rank": round(percentile_rank, 3),
-        "luck_dependent": percentile_rank < 0.25,
-        "max_drawdown_distribution": {
-            "note": "MC shuffles trade ORDER, not trade RETURNS — "
-                    "all shuffles have identical total return when compounded, "
-                    "but different equity paths and drawdown profiles.",
-        },
+        "realized_return_pct": round(realized_return, 2),
+        "realized_max_dd_pct": round(realized_dd_pct, 2),
+        "shuffle_dd_p05_pct": round(float(np.percentile(shuffle_dds_pct, 5)), 2),
+        "shuffle_dd_p25_pct": round(float(np.percentile(shuffle_dds_pct, 25)), 2),
+        "shuffle_dd_p50_pct": round(float(np.percentile(shuffle_dds_pct, 50)), 2),
+        "shuffle_dd_p75_pct": round(float(np.percentile(shuffle_dds_pct, 75)), 2),
+        "shuffle_dd_p95_pct": round(float(np.percentile(shuffle_dds_pct, 95)), 2),
+        "dd_percentile_rank": round(dd_percentile, 3),
+        "lucky_sequencing": dd_percentile > 0.75,
+        "unlucky_sequencing": dd_percentile < 0.25,
     }
 
 
@@ -472,15 +471,14 @@ def test_slippage_sensitivity(df, params):
     results = []
 
     for slip in slippage_levels:
-        # Temporarily patch the mode's slippage
         mode_key = args.mode
         original_slip = BACKTEST_MODES[mode_key]["slippage_pct"]
         BACKTEST_MODES[mode_key]["slippage_pct"] = slip
-
-        r = run_quiet(df, params["target"], params["stop"],
-                      params["rsi"], params["vwap"], params["mtb"], args.mode)
-
-        BACKTEST_MODES[mode_key]["slippage_pct"] = original_slip
+        try:
+            r = run_quiet(df, params["target"], params["stop"],
+                          params["rsi"], params["vwap"], params["mtb"], args.mode)
+        finally:
+            BACKTEST_MODES[mode_key]["slippage_pct"] = original_slip
 
         if r and "error" not in r:
             mo = r["monthly_returns"]
@@ -535,11 +533,14 @@ def compute_verdict(rolling, mc, regime, drawdown, slippage):
                 score -= 15
                 warnings.append(f"Only {pos} windows profitable")
 
-    # Monte Carlo
+    # Monte Carlo (drawdown path analysis)
     if mc and not mc.get("error"):
-        if mc.get("luck_dependent"):
-            score -= 25
-            warnings.append(f"MC percentile {mc['percentile_rank']:.0%} — possible luck dependence")
+        if mc.get("unlucky_sequencing"):
+            score -= 20
+            warnings.append(f"MC DD percentile {mc['dd_percentile_rank']:.0%} — realized DD worse than most shuffles")
+        if mc.get("lucky_sequencing"):
+            score -= 10
+            warnings.append(f"MC DD percentile {mc['dd_percentile_rank']:.0%} — realized DD unusually good (may not persist)")
 
     # Regime split
     if regime and not regime.get("error"):
@@ -612,15 +613,20 @@ def print_summary(label, params, baseline, rolling, mc, regime, drawdown, slippa
         print(f"    → {rolling['positive_windows']} positive | "
               f"range={rolling['return_range_pct']:.1f}%  std={rolling['return_std_pct']:.1f}%  [{status}]")
 
-    # Monte Carlo
+    # Monte Carlo (drawdown path analysis)
     if mc and not mc.get("error"):
-        print(f"\n  MONTE CARLO ({mc['samples']} shuffles):")
-        print(f"    P5={mc['p05_return_pct']:+.1f}%  P25={mc['p25_return_pct']:+.1f}%  "
-              f"P50={mc['p50_return_pct']:+.1f}%  P75={mc['p75_return_pct']:+.1f}%  "
-              f"P95={mc['p95_return_pct']:+.1f}%")
-        print(f"    Realized: {mc['realized_return_pct']:+.1f}%  "
-              f"Percentile: {mc['percentile_rank']:.0%}  "
-              f"{'⚠ LUCK-DEPENDENT' if mc['luck_dependent'] else 'OK'}")
+        print(f"\n  MONTE CARLO — Drawdown Path Analysis ({mc['samples']} shuffles):")
+        print(f"    Realized Max DD: {mc['realized_max_dd_pct']:+.2f}%")
+        print(f"    Shuffle DD distribution: "
+              f"P5={mc['shuffle_dd_p05_pct']:+.2f}%  P25={mc['shuffle_dd_p25_pct']:+.2f}%  "
+              f"P50={mc['shuffle_dd_p50_pct']:+.2f}%  P75={mc['shuffle_dd_p75_pct']:+.2f}%  "
+              f"P95={mc['shuffle_dd_p95_pct']:+.2f}%")
+        status = "OK"
+        if mc.get("unlucky_sequencing"):
+            status = "⚠ UNLUCKY SEQUENCING (DD worse than 75% of shuffles)"
+        elif mc.get("lucky_sequencing"):
+            status = "~ LUCKY SEQUENCING (DD better than 75% of shuffles — may not persist)"
+        print(f"    DD Percentile: {mc['dd_percentile_rank']:.0%}  [{status}]")
 
     # Regime split
     if regime and not regime.get("error") and regime.get("regimes"):
@@ -786,20 +792,21 @@ if __name__ == "__main__":
         print(f"\n{'='*70}")
         print(f"  COMPARISON TABLE")
         print(f"{'='*70}")
-        print(f"  {'Preset':<20} {'Return':>8} {'Sharpe':>7} {'WR':>6} {'MC%':>5} "
+        print(f"  {'Preset':<20} {'Return':>8} {'Sharpe':>7} {'WR':>6} {'MC DD%':>7} "
               f"{'Windows':>8} {'Slip':>6} {'Verdict':>8}")
-        print(f"  {'─'*20} {'─'*8} {'─'*7} {'─'*6} {'─'*5} {'─'*8} {'─'*6} {'─'*8}")
+        print(f"  {'─'*20} {'─'*8} {'─'*7} {'─'*6} {'─'*7} {'─'*8} {'─'*6} {'─'*8}")
         for label, cr in all_results.items():
             b = cr.get("baseline", {})
             m = cr.get("monte_carlo", {})
             rw = cr.get("rolling_windows", {})
             sl = cr.get("slippage_sensitivity", {})
             v = cr.get("verdict", {})
+            mc_dd = f"{m.get('dd_percentile_rank', 0)*100:.0f}%" if m and not m.get("error") else "N/A"
             print(f"  {label:<20} "
                   f"{b.get('total_return_pct', 0):>+7.1f}% "
                   f"{b.get('sharpe', 0):>6.1f} "
                   f"{b.get('win_rate_pct', 0):>5.1f}% "
-                  f"{m.get('percentile_rank', 0)*100:>4.0f}% "
+                  f"{mc_dd:>7} "
                   f"{rw.get('positive_windows', 'N/A'):>8} "
                   f"{'FRAG' if sl.get('fragile') else 'OK':>6} "
                   f"{v.get('confidence', '?'):>8}")
