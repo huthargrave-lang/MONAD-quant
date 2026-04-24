@@ -44,7 +44,9 @@ def init_db() -> None:
                 bar_count        INTEGER NOT NULL DEFAULT 0,
                 status           TEXT NOT NULL DEFAULT 'open',
                 estimated_exit_price REAL,
-                direction        TEXT NOT NULL DEFAULT 'long'
+                direction        TEXT NOT NULL DEFAULT 'long',
+                tp_order_id      TEXT,
+                sl_order_id      TEXT
             );
 
             CREATE TABLE IF NOT EXISTS trades (
@@ -154,6 +156,10 @@ def init_db() -> None:
         if "direction" not in existing_pos_cols:
             # Legacy positions were always longs; default preserves historical semantics.
             conn.execute("ALTER TABLE position ADD COLUMN direction TEXT NOT NULL DEFAULT 'long'")
+        if "tp_order_id" not in existing_pos_cols:
+            conn.execute("ALTER TABLE position ADD COLUMN tp_order_id TEXT")
+        if "sl_order_id" not in existing_pos_cols:
+            conn.execute("ALTER TABLE position ADD COLUMN sl_order_id TEXT")
 
         # Mark-price columns on account_snapshot (for dashboard unrealized PnL)
         existing_acct_cols = {
@@ -184,6 +190,8 @@ class Position:
     target_price: float = None
     stop_price: float = None
     direction: str = "long"  # "long" or "short"
+    tp_order_id: str = None
+    sl_order_id: str = None
 
 
 def get_position() -> Optional[Position]:
@@ -197,16 +205,17 @@ def get_position() -> Optional[Position]:
 def open_position(symbol: str, entry_price: float, qty: int,
                   bracket_order_id: str,
                   target_price: float = None, stop_price: float = None,
-                  direction: str = "long") -> None:
+                  direction: str = "long",
+                  tp_order_id: str = None, sl_order_id: str = None) -> None:
     if direction not in ("long", "short"):
         raise ValueError(f"direction must be 'long' or 'short', got {direction!r}")
     entry_time = datetime.now(timezone.utc).isoformat()
     with _conn() as conn:
         conn.execute("DELETE FROM position")
         conn.execute(
-            "INSERT INTO position (symbol, entry_time, entry_price, qty, bracket_order_id, bar_count, status, estimated_exit_price, target_price, stop_price, direction) "
-            "VALUES (?, ?, ?, ?, ?, 0, 'open', NULL, ?, ?, ?)",
-            (symbol, entry_time, entry_price, qty, bracket_order_id, target_price, stop_price, direction),
+            "INSERT INTO position (symbol, entry_time, entry_price, qty, bracket_order_id, bar_count, status, estimated_exit_price, target_price, stop_price, direction, tp_order_id, sl_order_id) "
+            "VALUES (?, ?, ?, ?, ?, 0, 'open', NULL, ?, ?, ?, ?, ?)",
+            (symbol, entry_time, entry_price, qty, bracket_order_id, target_price, stop_price, direction, tp_order_id, sl_order_id),
         )
     log.info(f"Position opened: {direction.upper()} {qty} {symbol} @ {entry_price:.4f} | TP={target_price} SL={stop_price}")
 

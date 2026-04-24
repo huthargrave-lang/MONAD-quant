@@ -151,11 +151,17 @@ def get_tradeable_price(symbol: str) -> float:
     except Exception as exc:
         raise RuntimeError(f"Cannot qualify contract for {symbol}: {exc}")
 
-    # Try live market data
+    # Try live market data — prefer bid/ask midpoint (best estimate of fair value)
     try:
         [ticker] = ib.reqTickers(contract)
         ib.sleep(2)
-        for attr in ("last", "close", "bid", "ask"):
+        bid = getattr(ticker, "bid", None)
+        ask = getattr(ticker, "ask", None)
+        if _valid(bid) and _valid(ask) and ask >= bid:
+            mid = round((bid + ask) / 2, 2)
+            log.info(f"Tradeable price {symbol}: {mid} (midpoint, bid={bid}, ask={ask})")
+            return float(mid)
+        for attr in ("last", "close"):
             p = getattr(ticker, attr, None)
             if _valid(p):
                 log.info(f"Tradeable price {symbol}: {p} (live {attr})")
@@ -247,7 +253,7 @@ def place_bracket_order(symbol: str, qty: int,
         target_price, stop_price, direction
     Or None if the order could not be placed.
     """
-    from ib_insync import Stock
+    from ib_insync import Stock, LimitOrder, StopOrder
 
     if direction not in ("long", "short"):
         log.error(f"Invalid direction {direction!r}; must be 'long' or 'short'")
@@ -262,9 +268,6 @@ def place_bracket_order(symbol: str, qty: int,
         log.error(f"Cannot qualify contract for {symbol}: {exc} — order NOT placed")
         return None
 
-    # Get fresh broker price — this is the basis for TP/SL and the limit price.
-    # Matches backtest entry convention: signal on bar N, fill at bar N+1 open.
-    # Live equivalent: signal on completed bar, fill at current market price.
     try:
         live_price = get_tradeable_price(symbol)
     except RuntimeError as exc:
@@ -273,61 +276,82 @@ def place_bracket_order(symbol: str, qty: int,
 
     if direction == "long":
         action = "BUY"
-        target_price = round(live_price * (1 + target_pct), 2)
-        stop_price   = round(live_price * (1 - stop_pct), 2)
-        limit_price  = round(live_price * 1.005, 2)  # 0.5% through market, upward
-    else:  # short
+        exit_action = "SELL"
+        limit_price = round(live_price * 1.005, 2)
+    else:
         action = "SELL"
-        target_price = round(live_price * (1 - target_pct), 2)
-        stop_price   = round(live_price * (1 + stop_pct), 2)
-        limit_price  = round(live_price * 0.995, 2)  # 0.5% through market, downward
+        exit_action = "BUY"
+        limit_price = round(live_price * 0.995, 2)
 
-    bracket = ib.bracketOrder(
-        action=action,
-        quantity=qty,
-        limitPrice=limit_price,
-        takeProfitPrice=target_price,
-        stopLossPrice=stop_price,
-    )
-
-    # Set child orders (TP + SL) to GTC so they survive overnight.
-    # Default tif='' maps to DAY at IBKR, which cancels at market close.
-    # Positions can be held up to MAX_TRADE_BARS (multiple days), so
-    # bracket protection must persist across sessions.
-    for order in bracket[1:]:  # skip parent (index 0)
-        order.tif = "GTC"
-
-    # Submit all three legs (parent + TP + SL)
-    parent_order = bracket[0]
-    parent_trade = None
-    for order in bracket:
-        trade = ib.placeOrder(contract, order)
-        if order is parent_order:
-            parent_trade = trade
-
+    # ── Phase 1: Submit parent (entry) order only ─────────────────────────
+    parent_order = LimitOrder(action, qty, limit_price)
+    parent_trade = ib.placeOrder(contract, parent_order)
     parent_id = str(parent_order.orderId)
+    log.info(f"Parent order submitted | id={parent_id} | {action} {qty} {symbol} @ limit {limit_price:.2f}")
 
-    # Wait for the parent (entry) order to fill so we record the actual
-    # execution price, not the stale live_price from seconds earlier.
+    # ── Phase 2: Wait for fill (up to 15s) ────────────────────────────────
     actual_fill = None
-    if parent_trade is not None:
-        for _ in range(20):
-            ib.sleep(0.5)
-            if parent_trade.orderStatus.status == "Filled":
-                avg = parent_trade.orderStatus.avgFillPrice
-                if avg and avg > 0:
-                    actual_fill = float(avg)
-                break
+    for _ in range(30):
+        ib.sleep(0.5)
+        status = parent_trade.orderStatus.status
+        if status == "Filled":
+            avg = parent_trade.orderStatus.avgFillPrice
+            if avg and avg > 0:
+                actual_fill = float(avg)
+            break
+        if status in ("Cancelled", "ApiCancelled", "Inactive"):
+            log.error(f"Parent order {parent_id} rejected/cancelled: {status}")
+            return None
 
-    fill_basis = actual_fill if actual_fill is not None else float(live_price)
-    if actual_fill is not None and abs(actual_fill - live_price) > 0.005:
+    if actual_fill is None:
+        log.warning(f"Parent order {parent_id} not filled in 15s — cancelling")
+        try:
+            ib.cancelOrder(parent_order)
+        except Exception:
+            pass
+        return None
+
+    fill_basis = actual_fill
+    if abs(actual_fill - live_price) > 0.005:
         log.info(
             f"Fill price diff: live_price={live_price:.2f} → actual_fill={actual_fill:.2f} "
             f"(slip={actual_fill - live_price:+.2f})"
         )
 
+    # ── Phase 3: Compute TP/SL from ACTUAL fill price ─────────────────────
+    if direction == "long":
+        target_price = round(fill_basis * (1 + target_pct), 2)
+        stop_price   = round(fill_basis * (1 - stop_pct), 2)
+    else:
+        target_price = round(fill_basis * (1 - target_pct), 2)
+        stop_price   = round(fill_basis * (1 + stop_pct), 2)
+
+    # ── Phase 4: Submit TP + SL as OCA children ───────────────────────────
+    oca_group = f"MONAD_{parent_order.orderId}"
+
+    tp_order = LimitOrder(exit_action, qty, target_price)
+    tp_order.ocaGroup = oca_group
+    tp_order.ocaType = 1  # cancel others when one fills
+    tp_order.tif = "GTC"
+    tp_order.transmit = True
+
+    sl_order = StopOrder(exit_action, qty, stop_price)
+    sl_order.ocaGroup = oca_group
+    sl_order.ocaType = 1
+    sl_order.tif = "GTC"
+    sl_order.transmit = True
+
+    ib.placeOrder(contract, tp_order)
+    ib.placeOrder(contract, sl_order)
+    tp_id = str(tp_order.orderId)
+    sl_id = str(sl_order.orderId)
     log.info(
-        f"Bracket order placed | id={parent_id} | {direction.upper()} {qty} {symbol} "
+        f"OCA children placed | TP id={tp_id} @ {target_price:.2f} | "
+        f"SL id={sl_id} @ {stop_price:.2f} | OCA group={oca_group}"
+    )
+
+    log.info(
+        f"Bracket order complete | parent={parent_id} | {direction.upper()} {qty} {symbol} "
         f"@ {fill_basis:.2f} (live_price={live_price:.2f}) | target={target_price:.2f} "
         f"({'+' if direction == 'long' else '-'}{target_pct:.2%}) | "
         f"stop={stop_price:.2f} ({'-' if direction == 'long' else '+'}{stop_pct:.2%})"
@@ -338,17 +362,23 @@ def place_bracket_order(symbol: str, qty: int,
         "target_price": float(target_price),
         "stop_price": float(stop_price),
         "direction": direction,
+        "tp_order_id": tp_id,
+        "sl_order_id": sl_id,
     }
 
 
 def cancel_and_close(symbol: str, bracket_order_id: str, qty: int,
-                     direction: str = "long") -> dict | None:
+                     direction: str = "long",
+                     tp_order_id: str = None, sl_order_id: str = None) -> dict | None:
     """
     Cancels all open child orders from the bracket and places a market close.
     Used for the time-exit / software-stop paths when we need to force a flat.
 
     direction="long"  → the open position is long → close via market SELL.
     direction="short" → the open position is short → cover via market BUY.
+
+    tp_order_id / sl_order_id: explicit child order IDs from place_bracket_order().
+    When provided, these are cancelled directly instead of searching by parentId.
 
     Returns dict with fill_price and fill_time if the close fills within
     10 seconds, or None if fill retrieval fails. The caller should fall back to
@@ -361,11 +391,25 @@ def cancel_and_close(symbol: str, bracket_order_id: str, qty: int,
 
     ib = _ensure_connected()
 
-    # Cancel all open orders for this symbol (catches both TP and SL legs)
+    # Cancel TP and SL child orders
     open_orders = ib.openOrders()
     parent_id = int(bracket_order_id)
+    known_child_ids = set()
+    if tp_order_id:
+        known_child_ids.add(int(tp_order_id))
+    if sl_order_id:
+        known_child_ids.add(int(sl_order_id))
+
     for order in open_orders:
-        if getattr(order, "parentId", None) == parent_id:
+        is_child = False
+        if known_child_ids and order.orderId in known_child_ids:
+            is_child = True
+        elif getattr(order, "parentId", None) == parent_id:
+            is_child = True
+        elif not known_child_ids and order.orderId in (parent_id + 1, parent_id + 2):
+            is_child = True
+
+        if is_child:
             try:
                 ib.cancelOrder(order)
                 log.info(f"Cancelled child order {order.orderId} (parent={parent_id})")
@@ -400,7 +444,8 @@ def cancel_and_close(symbol: str, bracket_order_id: str, qty: int,
     return None
 
 
-def get_bracket_fill(bracket_order_id: str, direction: str = "long") -> dict | None:
+def get_bracket_fill(bracket_order_id: str, direction: str = "long",
+                     tp_order_id: str = None, sl_order_id: str = None) -> dict | None:
     """
     Fetches actual fill data for a completed bracket order's child (TP or SL).
 
@@ -408,9 +453,13 @@ def get_bracket_fill(bracket_order_id: str, direction: str = "long") -> dict | N
     is BUY ('BOT'). Filtering by exit side prevents matching the short's own
     entry fill when scanning raw executions.
 
-    Searches two sources:
+    tp_order_id / sl_order_id: explicit child order IDs from place_bracket_order().
+    When provided, these are used for precise matching instead of parentId heuristics.
+
+    Searches three sources:
       1. ib.trades() — current-session trades (has order type for exit classification)
       2. ib.fills()  — all fills from today (survives reconnects/restarts)
+      3. ib.reqExecutions() — historical fills up to 7 days
 
     Returns dict with fill_price, fill_time, exit_type, or None if unavailable.
     """
@@ -418,23 +467,38 @@ def get_bracket_fill(bracket_order_id: str, direction: str = "long") -> dict | N
     parent_id = int(bracket_order_id)
     exit_side = "SLD" if direction == "long" else "BOT"
 
+    known_tp_id = int(tp_order_id) if tp_order_id else None
+    known_sl_id = int(sl_order_id) if sl_order_id else None
+    known_child_ids = {x for x in (known_tp_id, known_sl_id) if x is not None}
+
+    def _classify_exit(order_id, order_type=None):
+        """Classify exit type from order type or known child ID."""
+        if order_type == 'LMT' or order_id == known_tp_id:
+            return "target_hit"
+        if order_type in ('STP', 'STP LMT') or order_id == known_sl_id:
+            return "stop_hit"
+        return "bracket_exit"
+
+    def _is_child(order_id, order_parent_id=None):
+        """Check if an order is a child of our bracket."""
+        if known_child_ids and order_id in known_child_ids:
+            return True
+        if order_parent_id is not None and order_parent_id == parent_id:
+            return True
+        if not known_child_ids:
+            return order_id in (parent_id + 1, parent_id + 2)
+        return False
+
     try:
         # ── Source 1: ib.trades() — has full order info (type, parentId) ──
         trades = ib.trades()
         for trade in trades:
             order = trade.order
-            if getattr(order, 'parentId', 0) == parent_id and trade.fills:
+            if _is_child(order.orderId, getattr(order, 'parentId', 0)) and trade.fills:
                 last_fill = trade.fills[-1]
                 fill_price = last_fill.execution.price
                 fill_time = last_fill.execution.time.isoformat() if last_fill.execution.time else None
-
-                # Determine exit type from order type
-                if order.orderType == 'LMT':
-                    exit_type = "target_hit"
-                elif order.orderType in ('STP', 'STP LMT'):
-                    exit_type = "stop_hit"
-                else:
-                    exit_type = "bracket_exit"
+                exit_type = _classify_exit(order.orderId, order.orderType)
 
                 log.info(f"Found bracket fill (trades): price={fill_price}, type={exit_type}, time={fill_time}")
                 return {
@@ -444,39 +508,13 @@ def get_bracket_fill(bracket_order_id: str, direction: str = "long") -> dict | N
                 }
 
         # ── Source 2: ib.fills() — persists across reconnects for current day ──
-        # After a restart, ib.trades() is empty for previous-session orders,
-        # but ib.fills() still has the executions reported during sync.
-        # We match by orderId since parentId isn't available on raw fills.
         fills = ib.fills()
-        # Collect all child order IDs from trades (may be empty after restart)
-        child_order_ids = set()
-        for trade in trades:
-            if getattr(trade.order, 'parentId', 0) == parent_id:
-                child_order_ids.add(trade.order.orderId)
-
         for fill in fills:
             exec_ = fill.execution
-            # Match by: (a) known child order ID, or (b) orderId close to parent
-            # (bracket children are typically parentId+1 and parentId+2)
-            is_child = (
-                exec_.orderId in child_order_ids
-                or exec_.orderId in (parent_id + 1, parent_id + 2)
-            )
-            # Must be a SELL (exit), not the entry BUY
-            if is_child and exec_.side == exit_side and exec_.shares > 0:
+            if _is_child(exec_.orderId) and exec_.side == exit_side and exec_.shares > 0:
                 fill_price = exec_.price
                 fill_time = exec_.time.isoformat() if exec_.time else None
-
-                # Without order type, infer from permId convention or just mark as bracket_exit
-                # Check if this orderId matches a known STP or LMT from trades
-                exit_type = "bracket_exit"
-                for trade in trades:
-                    if trade.order.orderId == exec_.orderId:
-                        if trade.order.orderType == 'LMT':
-                            exit_type = "target_hit"
-                        elif trade.order.orderType in ('STP', 'STP LMT'):
-                            exit_type = "stop_hit"
-                        break
+                exit_type = _classify_exit(exec_.orderId)
 
                 log.info(f"Found bracket fill (fills): price={fill_price}, type={exit_type}, time={fill_time}")
                 return {
@@ -486,9 +524,6 @@ def get_bracket_fill(bracket_order_id: str, direction: str = "long") -> dict | N
                 }
 
         # ── Source 3: ib.reqExecutions() — historical fills up to 7 days ──
-        # ib.fills() only returns current-day fills. If the bracket filled on
-        # a previous trading day (e.g. Friday fill, Monday retry), we need to
-        # query historical executions explicitly.
         try:
             from ib_insync import ExecutionFilter
             from datetime import datetime, timedelta, timezone
@@ -496,19 +531,18 @@ def get_bracket_fill(bracket_order_id: str, direction: str = "long") -> dict | N
             exec_filter = ExecutionFilter(time=since)
             hist_fills = ib.reqExecutions(exec_filter)
 
-            # Always log what we got back for diagnostics
-            log.info(f"reqExecutions returned {len(hist_fills)} total fills (looking for parent {parent_id}, children {parent_id+1}/{parent_id+2})")
+            child_desc = f"tp={known_tp_id}, sl={known_sl_id}" if known_child_ids else f"parent+1/+2={parent_id+1}/{parent_id+2}"
+            log.info(f"reqExecutions returned {len(hist_fills)} total fills (looking for {child_desc})")
             for f in hist_fills:
                 log.info(f"  fill: orderId={f.execution.orderId}, side={f.execution.side}, "
                          f"price={f.execution.price}, shares={f.execution.shares}, time={f.execution.time}")
 
             for fill in hist_fills:
                 exec_ = fill.execution
-                is_child = exec_.orderId in (parent_id + 1, parent_id + 2)
-                if is_child and exec_.side == exit_side and exec_.shares > 0:
+                if _is_child(exec_.orderId) and exec_.side == exit_side and exec_.shares > 0:
                     fill_price = exec_.price
                     fill_time = exec_.time.isoformat() if exec_.time else None
-                    exit_type = "bracket_exit"
+                    exit_type = _classify_exit(exec_.orderId)
                     log.info(f"Found bracket fill (reqExecutions): price={fill_price}, type={exit_type}, time={fill_time}")
                     return {
                         "fill_price": float(fill_price),

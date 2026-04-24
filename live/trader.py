@@ -297,7 +297,11 @@ def _on_bar_inner() -> str:
 
         # ── Retry reconciliation for pending_close positions ────────────────
         if position.status == "pending_close":
-            fill = broker.get_bracket_fill(position.bracket_order_id, direction=position_direction)
+            fill = broker.get_bracket_fill(
+                position.bracket_order_id, direction=position_direction,
+                tp_order_id=getattr(position, "tp_order_id", None),
+                sl_order_id=getattr(position, "sl_order_id", None),
+            )
             if fill is not None:
                 ret = _signed_return(position_direction, position.entry_price, fill["fill_price"])
                 exit_type = fill["exit_type"]
@@ -358,7 +362,11 @@ def _on_bar_inner() -> str:
             broker_pos = broker.get_open_position(position.symbol)
             if broker_pos is None or broker_pos["qty"] == 0:
                 # Bracket order already exited — fetch actual fill data from IBKR
-                fill = broker.get_bracket_fill(position.bracket_order_id, direction=position_direction)
+                fill = broker.get_bracket_fill(
+                    position.bracket_order_id, direction=position_direction,
+                    tp_order_id=getattr(position, "tp_order_id", None),
+                    sl_order_id=getattr(position, "sl_order_id", None),
+                )
                 if fill is not None:
                     ret = _signed_return(position_direction, position.entry_price, fill["fill_price"])
                     exit_type = fill["exit_type"]
@@ -436,6 +444,8 @@ def _on_bar_inner() -> str:
                     close_fill = broker.cancel_and_close(
                         position.symbol, position.bracket_order_id, position.qty,
                         direction=position_direction,
+                        tp_order_id=getattr(position, "tp_order_id", None),
+                        sl_order_id=getattr(position, "sl_order_id", None),
                     )
                     if close_fill is not None:
                         exit_price = close_fill["fill_price"]
@@ -467,6 +477,8 @@ def _on_bar_inner() -> str:
                     close_fill = broker.cancel_and_close(
                         position.symbol, position.bracket_order_id, position.qty,
                         direction=position_direction,
+                        tp_order_id=getattr(position, "tp_order_id", None),
+                        sl_order_id=getattr(position, "sl_order_id", None),
                     )
                     if close_fill is not None:
                         # Actual fill price from the market close — preferred PnL source
@@ -598,6 +610,8 @@ def _on_bar_inner() -> str:
         target_price=result.get("target_price"),
         stop_price=result.get("stop_price"),
         direction=entry_direction,
+        tp_order_id=result.get("tp_order_id"),
+        sl_order_id=result.get("sl_order_id"),
     )
     log.info(f"ENTRY placed: {entry_direction.upper()} {qty} shares @ ~{entry_price:.2f} (fill_basis)")
     entry_event = f"Entry placed: {entry_direction.upper()} {qty} {config.LIVE_SYMBOL} @ {entry_price:.2f}"

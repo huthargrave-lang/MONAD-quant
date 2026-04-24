@@ -1276,14 +1276,14 @@ recorded. Real-money deployment blocked on validated paper track record.
 | # | Fix | Why it matters |
 |---|---|---|
 | **A.1** | ✅ **DONE** — main.py now strips after-hours bars for equity ETFs via `between_time("09:30", "16:00")` after fetch. BTC 24/7 preserved. | Feature alignment with sweep.py restored |
-| **A.2** | **TP/SL bracket prices based on stale `live_price`** — broker.py:276-283 computes target/stop from `live_price` before order fills, not from actual fill price. If actual fill is $58.20 but `live_price` was $58.49, stop is based on $58.49 (tighter than intended). Fix: place parent first, wait for fill, then submit TP/SL children. | Stop hits when it shouldn't → worse WR than designed |
+| **A.2** | ✅ **DONE** — `place_bracket_order()` rewritten as two-phase: submit parent LimitOrder → wait for fill (up to 15s) → compute TP/SL from actual fill price → submit OCA children. `get_tradeable_price()` now prefers bid/ask midpoint. Child order IDs stored in position DB for precise fill matching. | Eliminates R:R drift from entry slippage |
 | **A.3** | **CI only runs 4 of 7 test files** — `.github/workflows/test.yml` hardcodes 4 files, skipping `test_live_signals.py`, `test_trader_helpers.py`, `test_dashboard.py`. Fix: install fastapi in CI, run `pytest tests/` (whole dir). | Phase 6.3 safety tests never run in CI |
 
 ### Phase B: High — execution quality and strategy improvements
 
 | # | Change | Impact |
 |---|---|---|
-| **B.1** | **Refactor bracket order to two-phase (parent → fill → children)** — Currently all 3 legs are submitted simultaneously via `ib.bracketOrder()`. Change: submit parent limit order, wait for fill (up to 10s), then compute TP/SL from actual fill price and submit children. This eliminates TP/SL drift from entry slippage. | Eliminates the structural stop-too-tight / target-too-far problem |
+| **B.1** | ✅ **DONE** (merged with A.2) — Two-phase bracket implemented. Also fixed `get_bracket_fill()` and `cancel_and_close()` to use stored child order IDs instead of parentId/+1/+2 heuristics (which broke with OCA orders). | Eliminates the structural stop-too-tight / target-too-far problem |
 | **B.2** | **Evaluate skipping 9:32 AM bar** — Market open has widest spreads and highest volatility on leveraged ETFs. The 9:32 bar fill ($58.49) vs signal bar close ($58.08) was 0.7% adverse entry. Test in sweep.py: does restricting to 10:32–15:32 improve Sharpe? | Could eliminate worst-execution trades |
 | **B.3** | **Implement ATR-based dynamic stops** — `USE_ATR_DYNAMIC_STOPS` flag exists in config (line 112) but has no implementation. When ATR > 2× baseline, widen stops to `atr_pct × 1.0`. Expected impact: fewer noise-triggered stops during high-vol periods. | Reduce noise stops in volatile sessions |
 | **B.4** | **True rolling Kelly** — Current adaptive Kelly is a fixed 2× multiplier for QQQ/TQQQ because baseline WR (~60%) always exceeds HIGH_WR=0.46. Refactor to compute f* = (p×b - q)/b directly from last 20 trades every cycle. This would naturally scale size based on actual recent edge, not fixed tiers. | More responsive position sizing |
@@ -1321,22 +1321,21 @@ recorded. Real-money deployment blocked on validated paper track record.
 ### Recommended execution order
 
 ```
-Phase A (Critical)         ──→  1 day      — do before trusting any backtest results
-Phase B.1 + B.5            ──→  1 day      — execution quality (bracket + exit types)
-Phase B.2 (skip 9:32?)     ──→  half day   — sweep test only, low risk
-Phase C.1–C.4 (dashboard)  ──→  2–3 days   — parallelizable with strategy work
-Phase B.3 + B.4 (ATR/Kelly) ──→ 2–3 days   — needs sweep validation
-Phase D (research)         ──→  as time permits — speculative, paper-only
-Phase E (cleanup)          ──→  as time permits
+Phase A.3 (CI test coverage) ──→  half day  — install fastapi in CI, run all 7 test files
+Phase B.2 (skip 9:32?)       ──→  half day  — sweep test only, low risk
+Phase B.5 (exit type classify)──→ half day  — compare fill price to stored TP/SL
+Phase C.1–C.4 (dashboard)    ──→  2–3 days  — parallelizable with strategy work
+Phase B.3 + B.4 (ATR/Kelly)  ──→  2–3 days  — needs sweep validation
+Phase D (research)            ──→  as time permits — speculative, paper-only
+Phase E (cleanup)             ──→  as time permits
 ```
 
-Phase A is the hard prerequisite — main.py backtests are unreliable until A.1 is fixed.
-B.1 (bracket restructure) directly addresses the $58.49 slippage problem.
+Phase A.1 (after-hours bars) and A.2/B.1 (two-phase bracket) are done.
 C items can run in parallel with everything else.
 
 ---
 
-*Last updated: 2026-04-24 — A.1 DONE (main.py after-hours bar fix). Added validate.py (Section 19a): rolling walk-forward, Monte Carlo trade shuffle, regime split, drawdown profile, slippage sensitivity. Sweep→validate→deploy workflow documented.*
+*Last updated: 2026-04-24 — A.2/B.1 DONE (two-phase bracket order: TP/SL from actual fill, OCA children, bid/ask midpoint, stored child IDs). A.1 DONE (after-hours bar fix). validate.py added (Section 19a).*
 
 ---
 
