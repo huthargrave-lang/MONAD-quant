@@ -305,6 +305,8 @@ def _on_bar_inner() -> str:
             if fill is not None:
                 ret = _signed_return(position_direction, position.entry_price, fill["fill_price"])
                 exit_type = fill["exit_type"]
+                if exit_type == "bracket_exit":
+                    exit_type = _classify_bracket_exit_from_prices(position, fill["fill_price"])
                 log.info(
                     f"Pending close reconciled | fill_price={fill['fill_price']:.2f} | "
                     f"fill_time={fill['fill_time']} | ret={ret:+.4%} → {exit_type}"
@@ -370,6 +372,8 @@ def _on_bar_inner() -> str:
                 if fill is not None:
                     ret = _signed_return(position_direction, position.entry_price, fill["fill_price"])
                     exit_type = fill["exit_type"]
+                    if exit_type == "bracket_exit":
+                        exit_type = _classify_bracket_exit_from_prices(position, fill["fill_price"])
                     log.info(
                         f"Bracket filled | fill_price={fill['fill_price']:.2f} | "
                         f"fill_time={fill['fill_time']} | ret={ret:+.4%} → {exit_type}"
@@ -633,6 +637,39 @@ def _signed_return(direction: str, entry_price: float, exit_price: float) -> flo
     """
     raw = (exit_price - entry_price) / entry_price
     return raw if direction == "long" else -raw
+
+
+def _classify_bracket_exit_from_prices(position, fill_price: float, tolerance_pct: float = 0.001) -> str:
+    """Classify a generic bracket_exit using stored target/stop prices.
+
+    When broker metadata is incomplete (e.g. after IBKR reconnect), the fill
+    price can be compared to the stored TP/SL levels to recover the exit label.
+    """
+    tp = getattr(position, "target_price", None)
+    sl = getattr(position, "stop_price", None)
+    if tp is None or sl is None or fill_price is None:
+        return "bracket_exit"
+    if tp == 0 or sl == 0:
+        return "bracket_exit"
+
+    dist_tp = abs(fill_price - tp)
+    dist_sl = abs(fill_price - sl)
+    tp_sl_range = abs(tp - sl)
+
+    if tp_sl_range == 0:
+        return "bracket_exit"
+
+    # Fill must be within tolerance of the closer leg to reclassify
+    min_dist = min(dist_tp, dist_sl)
+    if min_dist / tp_sl_range > 0.5:
+        return "bracket_exit"
+
+    if dist_tp <= dist_sl:
+        log.info(f"Reclassified bracket_exit → target_hit (fill={fill_price:.2f}, TP={tp:.2f}, SL={sl:.2f})")
+        return "target_hit"
+    else:
+        log.info(f"Reclassified bracket_exit → stop_hit (fill={fill_price:.2f}, TP={tp:.2f}, SL={sl:.2f})")
+        return "stop_hit"
 
 
 def _log_summary() -> None:

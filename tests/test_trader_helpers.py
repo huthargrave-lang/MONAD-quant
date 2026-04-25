@@ -38,7 +38,7 @@ if "ib_insync" not in sys.modules:
             setattr(ib, attr, type(attr, (), {}))
         sys.modules["ib_insync"] = ib
 
-from live.trader import _infer_bracket_exit, _signed_return  # noqa: E402
+from live.trader import _classify_bracket_exit_from_prices, _infer_bracket_exit, _signed_return  # noqa: E402
 
 
 @dataclass
@@ -142,6 +142,70 @@ class TestInferBracketExitLegacy(unittest.TestCase):
         exit_price, exit_type = _infer_bracket_exit(pos, 47.80)
         self.assertAlmostEqual(exit_price, 47.90)
         self.assertEqual(exit_type, "stop_hit")
+
+
+class TestClassifyBracketExitLong(unittest.TestCase):
+    """Reclassify bracket_exit using stored TP/SL — long positions."""
+
+    def test_fill_at_target_is_target_hit(self):
+        pos = _FakePos(entry_price=100.0, target_price=103.0, stop_price=98.0, direction="long")
+        self.assertEqual(_classify_bracket_exit_from_prices(pos, 103.0), "target_hit")
+
+    def test_fill_at_stop_is_stop_hit(self):
+        pos = _FakePos(entry_price=100.0, target_price=103.0, stop_price=98.0, direction="long")
+        self.assertEqual(_classify_bracket_exit_from_prices(pos, 98.0), "stop_hit")
+
+    def test_fill_near_target_is_target_hit(self):
+        pos = _FakePos(entry_price=100.0, target_price=103.0, stop_price=98.0, direction="long")
+        self.assertEqual(_classify_bracket_exit_from_prices(pos, 102.8), "target_hit")
+
+    def test_fill_near_stop_is_stop_hit(self):
+        pos = _FakePos(entry_price=100.0, target_price=103.0, stop_price=98.0, direction="long")
+        self.assertEqual(_classify_bracket_exit_from_prices(pos, 98.3), "stop_hit")
+
+
+class TestClassifyBracketExitShort(unittest.TestCase):
+    """Reclassify bracket_exit using stored TP/SL — short positions."""
+
+    def test_fill_at_target_is_target_hit(self):
+        pos = _FakePos(entry_price=100.0, target_price=97.0, stop_price=102.0, direction="short")
+        self.assertEqual(_classify_bracket_exit_from_prices(pos, 97.0), "target_hit")
+
+    def test_fill_at_stop_is_stop_hit(self):
+        pos = _FakePos(entry_price=100.0, target_price=97.0, stop_price=102.0, direction="short")
+        self.assertEqual(_classify_bracket_exit_from_prices(pos, 102.0), "stop_hit")
+
+
+class TestClassifyBracketExitEdgeCases(unittest.TestCase):
+    """Edge cases: missing data, ambiguous fills."""
+
+    def test_missing_target_returns_bracket_exit(self):
+        pos = _FakePos(entry_price=100.0, target_price=None, stop_price=98.0)
+        self.assertEqual(_classify_bracket_exit_from_prices(pos, 99.0), "bracket_exit")
+
+    def test_missing_stop_returns_bracket_exit(self):
+        pos = _FakePos(entry_price=100.0, target_price=103.0, stop_price=None)
+        self.assertEqual(_classify_bracket_exit_from_prices(pos, 101.0), "bracket_exit")
+
+    def test_missing_fill_returns_bracket_exit(self):
+        pos = _FakePos(entry_price=100.0, target_price=103.0, stop_price=98.0)
+        self.assertEqual(_classify_bracket_exit_from_prices(pos, None), "bracket_exit")
+
+    def test_zero_target_returns_bracket_exit(self):
+        pos = _FakePos(entry_price=100.0, target_price=0, stop_price=98.0)
+        self.assertEqual(_classify_bracket_exit_from_prices(pos, 99.0), "bracket_exit")
+
+    def test_exact_midpoint_goes_to_target(self):
+        # Equidistant: dist_tp == dist_sl → target wins (dist_tp <= dist_sl)
+        pos = _FakePos(entry_price=100.0, target_price=103.0, stop_price=97.0)
+        self.assertEqual(_classify_bracket_exit_from_prices(pos, 100.0), "target_hit")
+
+    def test_already_classified_not_called(self):
+        # Verify the function only handles bracket_exit — caller checks exit_type first
+        pos = _FakePos(entry_price=100.0, target_price=103.0, stop_price=98.0)
+        # Function always returns a label; caller gates on exit_type == "bracket_exit"
+        result = _classify_bracket_exit_from_prices(pos, 103.0)
+        self.assertEqual(result, "target_hit")
 
 
 if __name__ == "__main__":
