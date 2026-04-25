@@ -1277,7 +1277,7 @@ recorded. Real-money deployment blocked on validated paper track record.
 |---|---|---|
 | **A.1** | ✅ **DONE** — main.py now strips after-hours bars for equity ETFs via `between_time("09:30", "16:00")` after fetch. BTC 24/7 preserved. | Feature alignment with sweep.py restored |
 | **A.2** | ✅ **DONE** — `place_bracket_order()` rewritten as two-phase: submit parent LimitOrder → wait for fill (up to 15s) → compute TP/SL from actual fill price → submit OCA children. `get_tradeable_price()` now prefers bid/ask midpoint. Child order IDs stored in position DB for precise fill matching. | Eliminates R:R drift from entry slippage |
-| **A.3** | **CI only runs 4 of 7 test files** — `.github/workflows/test.yml` hardcodes 4 files, skipping `test_live_signals.py`, `test_trader_helpers.py`, `test_dashboard.py`. Fix: install fastapi in CI, run `pytest tests/` (whole dir). | Phase 6.3 safety tests never run in CI |
+| **A.3** | ✅ **DONE** — CI now installs `fastapi jinja2 plotly yfinance httpx` and runs `pytest tests/ -v` (all 7 files, 136 tests). Previously hardcoded 4 files (130 tests), skipping dashboard, live signals, and trader helper tests. | All safety tests now run in CI |
 
 ### Phase B: High — execution quality and strategy improvements
 
@@ -1335,7 +1335,7 @@ C items can run in parallel with everything else.
 
 ---
 
-*Last updated: 2026-04-24 — A.2/B.1 DONE (two-phase bracket order: TP/SL from actual fill, OCA children, bid/ask midpoint, stored child IDs). A.1 DONE (after-hours bar fix). validate.py added (Section 19a).*
+*Last updated: 2026-04-25 — A.3 DONE (CI runs all 7 test files, 136 tests). A.2/B.1 DONE (two-phase bracket order: TP/SL from actual fill, OCA children, bid/ask midpoint, stored child IDs). A.1 DONE (after-hours bar fix). validate.py added (Section 19a).*
 
 ---
 
