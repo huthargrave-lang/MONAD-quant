@@ -83,13 +83,27 @@ START_DATE = args.start or (datetime.now() - timedelta(days=710)).strftime("%Y-%
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  IBKR fill export (optional, runs before everything else)
+#  Fill audit export (optional, runs before everything else)
 # ═══════════════════════════════════════════════════════════════════════════
 if args.export_ibkr_fills:
     from src.research.fill_audit import export_fill_audit
-    print(f"  Exporting IBKR fill audit → {args.fill_audit_path}")
+    print(f"  Exporting state DB fill audit → {args.fill_audit_path}")
     export_fill_audit(output_path=args.fill_audit_path)
     print("  Done.\n")
+
+observed_slippage_bps = None
+if args.use_ibkr_fills:
+    from src.research.fill_audit import read_trades as _read_fill_trades
+    from src.research.fill_audit import compute_slippage_stats as _compute_slippage
+    _fill_trades = _read_fill_trades(limit=200)
+    if len(_fill_trades) < 20:
+        print(f"  WARNING: Only {len(_fill_trades)} fill records in state.db "
+              f"(need >= 20 for reliable slippage). Using default slippage.\n")
+    else:
+        _fill_stats = _compute_slippage(_fill_trades)
+        observed_slippage_bps = _fill_stats.median_slippage_bps
+        print(f"  Fill audit: {len(_fill_trades)} trades, "
+              f"median slippage {observed_slippage_bps:.1f} bps\n")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -178,10 +192,9 @@ def _make_params(target_pct, stop_pct, rsi=80, vwap=0.3) -> CandidateParams:
 def _score_result(r: dict, params: CandidateParams,
                   train_metrics: CandidateResult = None) -> tuple:
     """Run extract_metrics + live_score on a raw result. Returns (metrics, score)."""
-    m = extract_metrics(r)
+    m = extract_metrics(r, params)
     if m is None:
         return None, -9999
-    m.params = params
     s = live_score(m, median_price, est_spread, train_metrics)
     m.score = s
     return m, s
@@ -452,6 +465,7 @@ output = {
     "min_stop_pct": min_stop_pct,
     "generated_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
     "total_candidates_swept": len(all_candidates),
+    "observed_slippage_bps": observed_slippage_bps,
     "rankings": [],
 }
 

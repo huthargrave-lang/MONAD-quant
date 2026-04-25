@@ -1,9 +1,13 @@
 """
-src/research/fill_audit.py — Read-only IBKR fill audit for calibrating slippage.
+src/research/fill_audit.py — Read-only fill audit for calibrating slippage.
 
-Reads trade records from state.db (live trading database) and computes
-slippage statistics between intended and actual fill prices. Output can
-feed into autosweep.py for realistic slippage assumptions.
+Reads trade records from live/state.db (the live trading database where
+the bot records actual fills) and computes slippage statistics between
+intended and actual fill prices. Output can feed into autosweep.py for
+realistic slippage assumptions.
+
+Note: this reads from state.db, not directly from the IBKR API.
+The bot's trader.py writes fill data to state.db during live operation.
 
 Safety: ALL operations are read-only. No writes to state.db.
 """
@@ -67,19 +71,20 @@ def read_trades(db_path: str = None, limit: int = 500) -> list[FillRecord]:
     finally:
         conn.close()
 
-    return [
-        FillRecord(
-            entry_time=r["entry_time"],
-            exit_time=r["exit_time"],
-            return_pct=r["return_pct"],
-            exit_type=r["exit_type"],
-            exit_price=r.get("exit_price"),
-            symbol=r.get("symbol"),
-            qty=r.get("qty"),
-            bars_held=r.get("bars_held"),
-        )
-        for r in rows
-    ]
+    results = []
+    for r in rows:
+        d = dict(r)
+        results.append(FillRecord(
+            entry_time=d["entry_time"],
+            exit_time=d["exit_time"],
+            return_pct=d["return_pct"],
+            exit_type=d["exit_type"],
+            exit_price=d.get("exit_price"),
+            symbol=d.get("symbol"),
+            qty=d.get("qty"),
+            bars_held=d.get("bars_held"),
+        ))
+    return results
 
 
 def compute_slippage_stats(

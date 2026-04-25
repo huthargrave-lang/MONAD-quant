@@ -240,7 +240,7 @@ def run_candidate(df: pd.DataFrame, params: CandidateParams,
 #  Metrics extraction
 # ═══════════════════════════════════════════════════════════════════════════
 
-def extract_metrics(r: dict) -> Optional[CandidateResult]:
+def extract_metrics(r: dict, params: CandidateParams) -> Optional[CandidateResult]:
     """Extract live-relevant metrics from a backtest result dict."""
     if r is None or "error" in r:
         return None
@@ -260,7 +260,7 @@ def extract_metrics(r: dict) -> Optional[CandidateResult]:
     tpm = total_trades / max(total_months, 1)
 
     return CandidateResult(
-        params=CandidateParams(ticker=""),  # placeholder, caller should set
+        params=params,
         total_return_pct=round(r.get("total_return", 0) * 100, 3),
         sharpe_ratio=r.get("sharpe_ratio", 0),
         max_drawdown_pct=round(r.get("max_drawdown", 0) * 100, 3),

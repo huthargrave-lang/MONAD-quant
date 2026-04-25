@@ -12,11 +12,13 @@ Tests pure functions that don't require data fetching or full backtests:
 import unittest
 from dataclasses import dataclass
 
+import pandas as pd
 from src.research.harness import (
     CandidateParams,
     CandidateResult,
     ValidationResult,
     AutoSweepConfig,
+    extract_metrics,
     live_score,
     compute_confidence,
     equity_max_drawdown,
@@ -73,6 +75,74 @@ class TestAutoSweepConfig(unittest.TestCase):
         self.assertEqual(cfg.validate_top, 10)
         self.assertEqual(cfg.mc_samples, 500)
         self.assertFalse(cfg.skip_mc)
+
+
+class TestExtractMetrics(unittest.TestCase):
+
+    def _fake_result(self, **overrides) -> dict:
+        """Build a minimal backtest result dict matching runner.py output."""
+        mo = pd.Series([0.01, 0.005, -0.002, 0.008, 0.0, 0.003])
+        mo.index = pd.date_range("2025-01-01", periods=6, freq="MS")
+        defaults = {
+            "total_return": 0.15,
+            "sharpe_ratio": 25.0,
+            "max_drawdown": -0.008,
+            "win_rate": 0.58,
+            "total_trades": 60,
+            "monthly_returns": mo,
+            "exit_breakdown": {
+                "target_hit": 30,
+                "stop_hit": 25,
+                "time_exit": 3,
+                "ambiguous_same_bar": 2,
+            },
+        }
+        defaults.update(overrides)
+        return defaults
+
+    def test_preserves_params(self):
+        p = CandidateParams(ticker="TQQQ", target=0.01, stop=0.005,
+                            rsi=80, entry_start_hour=10)
+        m = extract_metrics(self._fake_result(), p)
+        self.assertIsNotNone(m)
+        self.assertEqual(m.params.ticker, "TQQQ")
+        self.assertAlmostEqual(m.params.target, 0.01)
+        self.assertAlmostEqual(m.params.stop, 0.005)
+        self.assertEqual(m.params.entry_start_hour, 10)
+
+    def test_return_values(self):
+        p = CandidateParams(ticker="X", target=0.01, stop=0.005)
+        m = extract_metrics(self._fake_result(), p)
+        self.assertAlmostEqual(m.total_return_pct, 15.0, places=1)
+        self.assertAlmostEqual(m.sharpe_ratio, 25.0)
+        self.assertEqual(m.total_trades, 60)
+        self.assertAlmostEqual(m.win_rate_pct, 58.0)
+
+    def test_exit_breakdown_counts(self):
+        p = CandidateParams(ticker="X", target=0.01, stop=0.005)
+        m = extract_metrics(self._fake_result(), p)
+        self.assertEqual(m.target_hit_count, 30)
+        self.assertEqual(m.stop_hit_count, 25)
+        self.assertEqual(m.time_exit_count, 3)
+        self.assertEqual(m.ambiguous_count, 2)
+
+    def test_negative_months_counted(self):
+        p = CandidateParams(ticker="X", target=0.01, stop=0.005)
+        m = extract_metrics(self._fake_result(), p)
+        self.assertEqual(m.neg_months, 1)
+
+    def test_none_result_returns_none(self):
+        p = CandidateParams(ticker="X", target=0.01, stop=0.005)
+        self.assertIsNone(extract_metrics(None, p))
+
+    def test_error_result_returns_none(self):
+        p = CandidateParams(ticker="X", target=0.01, stop=0.005)
+        self.assertIsNone(extract_metrics({"error": "boom"}, p))
+
+    def test_stop_hit_ratio(self):
+        p = CandidateParams(ticker="X", target=0.01, stop=0.005)
+        m = extract_metrics(self._fake_result(), p)
+        self.assertAlmostEqual(m.stop_hit_ratio, 25 / 60, places=2)
 
 
 class TestLiveScore(unittest.TestCase):
