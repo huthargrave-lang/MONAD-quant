@@ -1284,7 +1284,7 @@ recorded. Real-money deployment blocked on validated paper track record.
 | # | Change | Impact |
 |---|---|---|
 | **B.1** | ✅ **DONE** (merged with A.2) — Two-phase bracket implemented. Also fixed `get_bracket_fill()` and `cancel_and_close()` to use stored child order IDs instead of parentId/+1/+2 heuristics (which broke with OCA orders). | Eliminates the structural stop-too-tight / target-too-far problem |
-| **B.2** | **Evaluate skipping 9:32 AM bar** — Market open has widest spreads and highest volatility on leveraged ETFs. The 9:32 bar fill ($58.49) vs signal bar close ($58.08) was 0.7% adverse entry. Test in sweep.py: does restricting to 10:32–15:32 improve Sharpe? | Could eliminate worst-execution trades |
+| **B.2** | ✅ **DONE** (sweep-only, no live change) — Added `--entry-start-hour`, `--skip-open-bar`, and `--compare-open-skip` to sweep.py. `run_quiet()` now passes `trade_hours` to `run_backtest()`. Comparison mode prints side-by-side metrics (Sharpe, DD, stop-hit ratio, trades/month, holdout) with automated verdict. | Research tool for market-open bar evaluation |
 | **B.3** | **Implement ATR-based dynamic stops** — `USE_ATR_DYNAMIC_STOPS` flag exists in config (line 112) but has no implementation. When ATR > 2× baseline, widen stops to `atr_pct × 1.0`. Expected impact: fewer noise-triggered stops during high-vol periods. | Reduce noise stops in volatile sessions |
 | **B.4** | **True rolling Kelly** — Current adaptive Kelly is a fixed 2× multiplier for QQQ/TQQQ because baseline WR (~60%) always exceeds HIGH_WR=0.46. Refactor to compute f* = (p×b - q)/b directly from last 20 trades every cycle. This would naturally scale size based on actual recent edge, not fixed tiers. | More responsive position sizing |
 | **B.5** | ✅ **DONE** — Added `_classify_bracket_exit_from_prices()` in trader.py: when `get_bracket_fill()` returns "bracket_exit", compares fill price to stored TP/SL to reclassify as "target_hit" or "stop_hit". Applied in both normal and pending_close reconciliation paths. 12 new tests (148 total). | Accurate trade stats in dashboard and Slack |
@@ -1335,7 +1335,7 @@ C items can run in parallel with everything else.
 
 ---
 
-*Last updated: 2026-04-25 — B.5 DONE (bracket exit reclassification from stored TP/SL, 148 tests). A.3 DONE (CI runs all 7 test files). A.2/B.1 DONE (two-phase bracket order). A.1 DONE (after-hours bar fix). validate.py added (Section 19a).*
+*Last updated: 2026-04-25 — B.2 DONE (sweep --compare-open-skip for 9:32 bar evaluation). B.5 DONE (bracket exit reclassification, 148 tests). A.3 DONE (CI runs all 7 test files). A.2/B.1 DONE (two-phase bracket order). A.1 DONE (after-hours bar fix). validate.py added (Section 19a).*
 
 ---
 

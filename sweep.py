@@ -79,9 +79,23 @@ parser.add_argument("--compare-opposing-exit", action="store_true",
                          "twice — once with use_opposing_signal_exit=False and once with =True — and print a "
                          "side-by-side comparison. Useful for validating whether an opposing-signal exit helps "
                          "a specific instrument before wiring it into the live trader.")
+parser.add_argument("--entry-start-hour", type=int, default=9,
+                    help="Earliest hour (ET) for entries. Default 9 (=9:32 bar). "
+                         "Use 10 to skip the volatile market-open bar.")
+parser.add_argument("--skip-open-bar", action="store_true",
+                    help="Shortcut for --entry-start-hour 10. Blocks entries on the 9:32 bar.")
+parser.add_argument("--compare-open-skip", action="store_true",
+                    help="Skip the full sweep. Run the current config twice — "
+                         "baseline (9:32–15:32) and skip-open (10:32–15:32) — "
+                         "and print a side-by-side comparison.")
 args = parser.parse_args()
 
+if args.skip_open_bar:
+    args.entry_start_hour = 10
+
 TICKER = args.ticker.upper()
+ENTRY_START_HOUR = args.entry_start_hour
+TRADE_HOURS = (ENTRY_START_HOUR, 16)
 END_DATE = args.end or datetime.now().strftime("%Y-%m-%d")
 # yfinance hourly data limit is 730 days. Use 710 to stay safely inside the window.
 START_DATE = args.start or (datetime.now() - timedelta(days=710)).strftime("%Y-%m-%d")
@@ -169,9 +183,11 @@ def fetch_ticker_hourly(ticker, start, end):
     return df.loc[start:end]
 
 
+entry_window_label = f"{ENTRY_START_HOUR}:32–15:32 ET"
 print(f"\n{'='*70}")
 print(f"  MONAD QUANT — UNIVERSAL SWEEP: {TICKER}  [{args.mode.upper()}]")
 print(f"  Period: {START_DATE} → {END_DATE}")
+print(f"  Entry window: {entry_window_label}")
 print(f"{'='*70}\n")
 
 df_full = fetch_ticker_hourly(TICKER, START_DATE, END_DATE)
@@ -270,7 +286,8 @@ def _set_opposing_exit(enabled: bool):
     config.OPPOSING_SIGNAL_EXIT_MODES = set()
 
 
-def run_quiet(target, stop, rsi_os=None, vwap=None, short_rsi_ob=None):
+def run_quiet(target, stop, rsi_os=None, vwap=None, short_rsi_ob=None,
+              trade_hours=None):
     """Run a single backtest quietly. Returns result dict or None.
 
     Args:
@@ -279,7 +296,11 @@ def run_quiet(target, stop, rsi_os=None, vwap=None, short_rsi_ob=None):
                       sensitive the opposing-signal exit is — lower values make
                       the exit fire earlier, higher values make it fire later.
                       Only meaningful when USE_OPPOSING_SIGNAL_EXIT is True.
+        trade_hours:  (start_hour, end_hour) tuple for entry filtering.
+                      Default: uses module-level TRADE_HOURS.
     """
+    if trade_hours is None:
+        trade_hours = TRADE_HOURS
     if rsi_os is not None:
         setattr(config, f"RSI_OVERSOLD_{MODE_NAME}", rsi_os)
         config.ASSETS[MODE_NAME]["rsi_oversold"] = rsi_os
@@ -299,6 +320,7 @@ def run_quiet(target, stop, rsi_os=None, vwap=None, short_rsi_ob=None):
                 stop_loss_pct=stop,
                 require_signals=1,
                 kelly_multiplier=config.KELLY_MULTIPLIER,
+                trade_hours=trade_hours,
                 timeframe="hourly",
                 plot=False,
                 backtest_mode=args.mode,
@@ -557,6 +579,102 @@ if args.compare_opposing_exit:
         else:
             verdict = "MIXED — one metric up, another down (manual review)"
         print(f"\n  Verdict: {verdict}")
+
+    print()
+    sys.exit(0)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  OPEN-BAR SKIP COMPARISON (B.2)
+# ═══════════════════════════════════════════════════════════════════════════
+# When --compare-open-skip is passed, run the current config twice:
+#   baseline:  entry_start_hour=9  (9:32–15:32 ET)
+#   skip-open: entry_start_hour=10 (10:32–15:32 ET)
+# and print side-by-side metrics.
+if args.compare_open_skip:
+    cmp_target = args.target if args.target is not None else config.ASSETS[MODE_NAME]["target_gain_pct"]
+    cmp_stop   = args.stop   if args.stop   is not None else config.ASSETS[MODE_NAME]["stop_loss_pct"]
+    if args.target is not None and cmp_target >= 0.1:
+        cmp_target = cmp_target / 100.0
+    if args.stop is not None and cmp_stop >= 0.1:
+        cmp_stop = cmp_stop / 100.0
+    cmp_rsi  = args.rsi  if args.rsi  is not None else config.ASSETS[MODE_NAME]["rsi_oversold"]
+    cmp_vwap = args.vwap if args.vwap is not None else config.ASSETS[MODE_NAME]["vwap_zscore_thresh"]
+
+    print("=" * 95)
+    print(f"  OPEN-BAR SKIP COMPARISON (B.2) — {TICKER}")
+    print("=" * 95)
+    print(f"  target={cmp_target*100:.3f}%  stop={cmp_stop*100:.3f}%  "
+          f"rsi={cmp_rsi}  vwap={cmp_vwap}")
+    print(f"  Period: {START_DATE} → {END_DATE}  ({len(df_raw)} bars train)\n")
+
+    r_base = run_quiet(cmp_target, cmp_stop, cmp_rsi, cmp_vwap, trade_hours=(9, 16))
+    r_skip = run_quiet(cmp_target, cmp_stop, cmp_rsi, cmp_vwap, trade_hours=(10, 16))
+
+    print(fmt(r_base, "BASELINE  (9:32–15:32) "))
+    print(fmt(r_skip, "SKIP-OPEN (10:32–15:32)"))
+
+    m_base = extract_metrics(r_base) if r_base else None
+    m_skip = extract_metrics(r_skip) if r_skip else None
+    if m_base and m_skip:
+        # Compute trades/month for both
+        base_months = m_base["total_months"] or 1
+        skip_months = m_skip["total_months"] or 1
+        base_tpm = m_base["total_trades"] / base_months
+        skip_tpm = m_skip["total_trades"] / skip_months
+
+        print(f"\n  {'Metric':<22s} {'Baseline':>12s} {'Skip-Open':>12s} {'Delta':>12s}")
+        print(f"  {'─'*22} {'─'*12} {'─'*12} {'─'*12}")
+        rows = [
+            ("total_return",     "total_return_pct",  "%",  1),
+            ("sharpe",           "sharpe_ratio",      "",   1),
+            ("max_drawdown",     "max_drawdown_pct",  "%",  1),
+            ("avg_monthly",      "avg_monthly_pct",   "%",  1),
+            ("total_trades",     "total_trades",      "",   0),
+            ("win_rate",         "win_rate_pct",      "%",  1),
+            ("stop_hit_ratio",   "stop_hit_ratio",    "",   3),
+            ("ambiguous_ratio",  "ambiguous_ratio",   "",   3),
+            ("target_hit_count", "target_hit_count",  "",   0),
+            ("neg_months",       "neg_months",        "",   0),
+        ]
+        for label, key, unit, dec in rows:
+            vb = m_base[key]
+            vs = m_skip[key]
+            d = vs - vb
+            sign = "+" if d >= 0 else ""
+            fmt_str = f".{dec}f"
+            print(f"  {label:<22s} {vb:>11{fmt_str}}{unit} {vs:>11{fmt_str}}{unit} {sign}{d:>10{fmt_str}}{unit}")
+        # Trades/month (computed, not in extract_metrics)
+        d_tpm = skip_tpm - base_tpm
+        sign_tpm = "+" if d_tpm >= 0 else ""
+        print(f"  {'trades/month':<22s} {base_tpm:>11.1f}  {skip_tpm:>11.1f}  {sign_tpm}{d_tpm:>10.1f}")
+
+        # Holdout comparison if available
+        if df_holdout is not None and len(df_holdout) > 50:
+            print(f"\n  ── Holdout ({len(df_holdout)} bars) ──")
+            # Temporarily swap in holdout data
+            _save_df = globals().get("df_raw")
+            globals()["df_raw"] = df_holdout
+            rh_base = run_quiet(cmp_target, cmp_stop, cmp_rsi, cmp_vwap, trade_hours=(9, 16))
+            rh_skip = run_quiet(cmp_target, cmp_stop, cmp_rsi, cmp_vwap, trade_hours=(10, 16))
+            globals()["df_raw"] = _save_df
+            print(f"  {fmt(rh_base, 'HOLDOUT BASE  (9:32) ')}")
+            print(f"  {fmt(rh_skip, 'HOLDOUT SKIP  (10:32)')}")
+
+        # Verdict
+        sharpe_better = m_skip["sharpe_ratio"] > m_base["sharpe_ratio"]
+        dd_better = m_skip["max_drawdown_pct"] > m_base["max_drawdown_pct"]  # less negative = better
+        stop_better = m_skip["stop_hit_ratio"] < m_base["stop_hit_ratio"]
+        trade_loss = (m_base["total_trades"] - m_skip["total_trades"]) / m_base["total_trades"] if m_base["total_trades"] else 0
+
+        positives = sum([sharpe_better, dd_better, stop_better])
+        if positives >= 2 and trade_loss < 0.25:
+            verdict = "SKIP-OPEN WINS — improves risk metrics without excessive trade loss"
+        elif positives <= 1 and trade_loss > 0.15:
+            verdict = "KEEP BASELINE — skip-open loses too many trades without clear benefit"
+        else:
+            verdict = "MIXED — review metrics manually"
+        print(f"\n  Verdict: {verdict}  (trade loss: {trade_loss:.0%})")
 
     print()
     sys.exit(0)
