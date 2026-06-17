@@ -1,0 +1,12 @@
+[
+  {
+    "id": 1,
+    "last_cycle_time": "2026-06-17T15:17:46.524688+00:00",
+    "status": "idle",
+    "cycle_action": "startup",
+    "details": "trader initialized",
+    "live_symbol": "TQQQ",
+    "live_paper_mode": 1,
+    "live_dry_run": 0
+  }
+]

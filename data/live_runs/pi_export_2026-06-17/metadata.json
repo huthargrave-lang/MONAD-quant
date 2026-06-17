@@ -1,0 +1,50 @@
+{
+  "source_database": "/home/hudson/MONAD-quant/live/state.db",
+  "export_time_utc": "2026-06-17T15:18:06.874735+00:00",
+  "exported_by": "pi-live-run-data export",
+  "note": "Paper-trading data only (live_paper_mode=1). No account IDs, credentials, or secrets present. Raw .db intentionally NOT committed.",
+  "tables": {
+    "trades": {
+      "format": "jsonl",
+      "file": "trades.jsonl",
+      "rows": 65,
+      "date_range": [
+        "2026-03-26 23:16:41",
+        "2026-05-29T14:32:48.272432+00:00"
+      ]
+    },
+    "signal_history": {
+      "format": "jsonl",
+      "file": "signal_history.jsonl",
+      "rows": 542,
+      "date_range": [
+        "2026-03-24 19:30:00",
+        "2026-05-29 19:30:00"
+      ]
+    },
+    "monitor_events": {
+      "format": "jsonl",
+      "file": "monitor_events.jsonl",
+      "rows": 147,
+      "date_range": [
+        "2026-03-27T14:32:14.920410+00:00",
+        "2026-05-29T14:32:48.252979+00:00"
+      ]
+    },
+    "monitor_status": {
+      "format": "json",
+      "file": "monitor_status.json",
+      "rows": 1
+    },
+    "signal_snapshot": {
+      "format": "json",
+      "file": "signal_snapshot.json",
+      "rows": 1
+    },
+    "account_snapshot": {
+      "format": "json",
+      "file": "account_snapshot.json",
+      "rows": 1
+    }
+  }
+}

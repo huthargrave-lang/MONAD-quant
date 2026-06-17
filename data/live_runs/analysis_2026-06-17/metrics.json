@@ -1,0 +1,239 @@
+{
+  "generated_utc": "2026-06-17T15:30:36.208634+00:00",
+  "source_db": "live/state.db (paper-trading; live_paper_mode=1)",
+  "symbol": "TQQQ",
+  "trade_span": {
+    "first_entry": "2026-03-26T18:32:14.768970+00:00",
+    "last_exit": "2026-05-29T14:32:48.272432+00:00"
+  },
+  "config": {
+    "target_gain_pct": 0.01,
+    "stop_loss_pct": 0.005,
+    "max_trade_bars_live": 10
+  },
+  "performance_all_trades": {
+    "n": 65,
+    "wins": 37,
+    "losses": 28,
+    "breakeven": 0,
+    "win_rate": 0.5692,
+    "avg_return_pct": 0.4783,
+    "median_return_pct": 0.9954,
+    "best_pct": 5.5527,
+    "worst_pct": -3.0759,
+    "avg_win_pct": 1.5168,
+    "avg_loss_pct": -0.8942,
+    "win_loss_ratio": 1.696,
+    "total_return_simple_sum_pct": 31.0864,
+    "total_return_compounded_pct": 35.4114
+  },
+  "performance_prod_trades_dashboard_view": {
+    "n": 62,
+    "wins": 36,
+    "losses": 26,
+    "breakeven": 0,
+    "win_rate": 0.5806,
+    "avg_return_pct": 0.4976,
+    "median_return_pct": 0.9956,
+    "best_pct": 5.5527,
+    "worst_pct": -3.0759,
+    "avg_win_pct": 1.4723,
+    "avg_loss_pct": -0.852,
+    "win_loss_ratio": 1.728,
+    "total_return_simple_sum_pct": 30.8502,
+    "total_return_compounded_pct": 35.2026
+  },
+  "by_exit_type": {
+    "paper_reset": {
+      "n": 1,
+      "sum_pct": -0.31,
+      "compounded_pct": -0.31,
+      "avg_pct": -0.31,
+      "win_rate": 0.0
+    },
+    "estimated_close": {
+      "n": 2,
+      "sum_pct": 0.5462,
+      "compounded_pct": 0.4658,
+      "avg_pct": 0.2731,
+      "win_rate": 0.5
+    },
+    "bracket_exit": {
+      "n": 41,
+      "sum_pct": 10.142,
+      "compounded_pct": 10.4884,
+      "avg_pct": 0.2474,
+      "win_rate": 0.5122
+    },
+    "target_hit": {
+      "n": 6,
+      "sum_pct": 6.0264,
+      "compounded_pct": 6.1797,
+      "avg_pct": 1.0044,
+      "win_rate": 1.0
+    },
+    "stop_hit": {
+      "n": 6,
+      "sum_pct": -9.6696,
+      "compounded_pct": -9.3075,
+      "avg_pct": -1.6116,
+      "win_rate": 0.0
+    },
+    "time_exit": {
+      "n": 9,
+      "sum_pct": 24.3514,
+      "compounded_pct": 27.0736,
+      "avg_pct": 2.7057,
+      "win_rate": 1.0
+    }
+  },
+  "holding_time": {
+    "min_h": 0.0047,
+    "max_h": 118.9961,
+    "mean_h": 11.807,
+    "median_h": 0.997,
+    "gt_72h": 2
+  },
+  "drawdown": {
+    "max_drawdown_pct": -7.0373,
+    "final_equity_mult": 1.354114,
+    "basis": "compounded per-trade return_pct, chronological by exit_time, ALL 65 trades"
+  },
+  "weekly_compounded": {
+    "2026-W13": {
+      "n": 1,
+      "compounded_pct": -0.31,
+      "win_rate": 0.0
+    },
+    "2026-W14": {
+      "n": 7,
+      "compounded_pct": 3.3489,
+      "win_rate": 0.5714
+    },
+    "2026-W15": {
+      "n": 7,
+      "compounded_pct": -2.0421,
+      "win_rate": 0.1429
+    },
+    "2026-W16": {
+      "n": 3,
+      "compounded_pct": 3.0332,
+      "win_rate": 1.0
+    },
+    "2026-W17": {
+      "n": 9,
+      "compounded_pct": 0.9996,
+      "win_rate": 0.4444
+    },
+    "2026-W18": {
+      "n": 14,
+      "compounded_pct": 4.9311,
+      "win_rate": 0.5714
+    },
+    "2026-W19": {
+      "n": 8,
+      "compounded_pct": 8.2765,
+      "win_rate": 1.0
+    },
+    "2026-W20": {
+      "n": 8,
+      "compounded_pct": 2.7627,
+      "win_rate": 0.5
+    },
+    "2026-W21": {
+      "n": 5,
+      "compounded_pct": 0.4464,
+      "win_rate": 0.4
+    },
+    "2026-W22": {
+      "n": 3,
+      "compounded_pct": 9.9393,
+      "win_rate": 1.0
+    }
+  },
+  "return_distribution_buckets": {
+    "-1..0%": 21,
+    "<-2%": 3,
+    "1..2%": 22,
+    ">2%": 7,
+    "0..1%": 8,
+    "-2..-1%": 4
+  },
+  "equity_curve_compounded": [
+    0.9969,
+    0.97123,
+    0.965118,
+    0.978684,
+    0.971565,
+    0.985222,
+    1.015973,
+    1.030285,
+    1.023942,
+    1.017328,
+    1.031491,
+    1.027192,
+    1.020777,
+    1.014388,
+    1.009246,
+    1.019265,
+    1.029468,
+    1.039859,
+    1.033458,
+    1.028195,
+    1.038522,
+    1.048978,
+    1.059415,
+    1.053925,
+    1.048699,
+    1.039814,
+    1.050253,
+    1.044009,
+    1.054446,
+    1.065058,
+    1.05948,
+    1.054097,
+    1.064624,
+    1.07531,
+    1.086116,
+    1.080359,
+    1.07499,
+    1.085818,
+    1.09676,
+    1.107784,
+    1.102042,
+    1.113011,
+    1.124078,
+    1.135332,
+    1.146736,
+    1.158244,
+    1.169857,
+    1.181486,
+    1.193252,
+    1.168341,
+    1.162281,
+    1.144483,
+    1.10928,
+    1.149235,
+    1.189381,
+    1.209136,
+    1.226218,
+    1.204425,
+    1.191291,
+    1.217108,
+    1.203476,
+    1.231692,
+    1.300083,
+    1.335735,
+    1.354114
+  ],
+  "outlier_sensitivity": {
+    "compounded_all_pct": 35.4114,
+    "compounded_excl_best_timeexit_pct": 28.288,
+    "time_exit_share_of_total": "time_exit compounds to +27.07% of +35.41% total (ALL trades)"
+  },
+  "dashboard_vs_log_discrepancy": {
+    "dashboard__summarize_trades": "compounded, PROD-filtered (62 trades) => +35.20%",
+    "state.get_trade_summary": "simple sum, ALL trades (65) => +31.09%",
+    "note": "Two different 'total return' figures depending on code path."
+  }
+}

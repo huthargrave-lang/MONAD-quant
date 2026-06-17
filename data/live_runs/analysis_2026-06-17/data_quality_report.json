@@ -1,0 +1,144 @@
+{
+  "generated_utc": "2026-06-17T15:31:08.658237+00:00",
+  "source_db": "live/state.db",
+  "row_counts": {
+    "db_trades": 65,
+    "db_signal_history": 542,
+    "db_monitor_events": 147,
+    "export_trades": 65,
+    "export_signal_history": 542,
+    "export_monitor_events": 147,
+    "export_matches_db": true
+  },
+  "date_range": {
+    "trades_first_entry": "2026-03-26T18:32:14.768970+00:00",
+    "trades_last_exit": "2026-05-29T14:32:48.272432+00:00"
+  },
+  "missing_fields": {
+    "entry_time": 0,
+    "exit_time": 0,
+    "return_pct": 0,
+    "exit_type": 0,
+    "exit_price": 0,
+    "symbol": 0,
+    "qty": 0,
+    "bars_held": 0
+  },
+  "timestamp_issues": {
+    "entry_all_have_utc_offset": true,
+    "exit_naive_no_offset_count": 1,
+    "exit_naive_examples": [
+      "2026-03-26 23:16:41"
+    ],
+    "exit_non_ISO_space_separated": [
+      "2026-03-26 23:16:41"
+    ],
+    "note": "Mixed exit_time formats: 64 ISO+offset, 1 naive space-separated (the paper_reset row)."
+  },
+  "duration_issues": {
+    "negative_duration": 0,
+    "zero_duration": 0,
+    "gt_72h_count": 2,
+    "gt_72h_trades": [
+      {
+        "return_pct": -0.02575000000000003,
+        "hours": 75.0,
+        "exit_type": "estimated_close",
+        "entry": "2026-03-27T14:32:14",
+        "exit": "2026-03-30T17:32:00"
+      },
+      {
+        "return_pct": 0.05552665799739916,
+        "hours": 119.0,
+        "exit_type": "time_exit",
+        "entry": "2026-05-21T18:33:02",
+        "exit": "2026-05-26T17:32:48"
+      }
+    ]
+  },
+  "duplicates": {
+    "exact_duplicate_groups": 0,
+    "details": []
+  },
+  "suspicious_returns": {
+    "abs_gt_10pct": [],
+    "time_exit_above_target_all_winners": [
+      {
+        "return_pct": 3.602,
+        "exit_type": "time_exit",
+        "entry": "2026-05-12T16:32:28"
+      },
+      {
+        "return_pct": 3.493,
+        "exit_type": "time_exit",
+        "entry": "2026-05-13T14:32:47"
+      },
+      {
+        "return_pct": 1.661,
+        "exit_type": "time_exit",
+        "entry": "2026-05-13T19:32:46"
+      },
+      {
+        "return_pct": 1.413,
+        "exit_type": "time_exit",
+        "entry": "2026-05-15T13:32:33"
+      },
+      {
+        "return_pct": 2.167,
+        "exit_type": "time_exit",
+        "entry": "2026-05-20T13:32:21"
+      },
+      {
+        "return_pct": 2.344,
+        "exit_type": "time_exit",
+        "entry": "2026-05-21T13:32:54"
+      },
+      {
+        "return_pct": 5.553,
+        "exit_type": "time_exit",
+        "entry": "2026-05-21T18:33:02"
+      },
+      {
+        "return_pct": 2.742,
+        "exit_type": "time_exit",
+        "entry": "2026-05-27T18:32:15"
+      },
+      {
+        "return_pct": 1.376,
+        "exit_type": "time_exit",
+        "entry": "2026-05-28T16:33:02"
+      }
+    ],
+    "note": "All 9 time_exit trades closed ABOVE the +1% take-profit target as winners \u2014 implies the bracket take-profit did not fill; winners rode to time-exit."
+  },
+  "signal_history_quality": {
+    "rows": 542,
+    "distinct_bar_time": 321,
+    "duplicate_bar_rows": 221,
+    "note": "Same bar re-written across multiple cycles; signal chart contains repeats."
+  },
+  "event_log": {
+    "by_level": {
+      "INFO": 71,
+      "WARNING": 15,
+      "ERROR": 55,
+      "CRITICAL": 6
+    },
+    "ibkr_connection_errors": 46,
+    "position_init_bug_errors": 8,
+    "software_stop_criticals": 6,
+    "inferred_fill_warnings": 9,
+    "force_finalized_estimates": 2
+  },
+  "account_snapshot": {
+    "equity": null,
+    "cash": null,
+    "ibkr_connected": 0,
+    "note": "No persisted dollar equity curve; PnL is per-trade return_pct only. Real $ drawdown cannot be computed from stored data."
+  },
+  "entry_event_vs_trade_mismatch": {
+    "entry_category_events": 71,
+    "trades": 65,
+    "note": "6 more entry-category events than recorded trades (likely duplicate per-cycle entry logging)."
+  }
+}

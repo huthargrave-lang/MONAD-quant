@@ -1,0 +1,147 @@
+{"id": 8, "event_time": "2026-03-27T14:32:14.920410+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: 258 TQQQ @ 40.00"}
+{"id": 9, "event_time": "2026-03-27T18:32:07.626961+00:00", "level": "WARNING", "category": "fill", "message": "Fill data unavailable \u2014 marking pending_close (blocks new entries) | ref=38.97 | estimated_ret=-2.5750% (NOT recorded as PnL)"}
+{"id": 10, "event_time": "2026-03-30T15:32:00.242735+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: Position.__init__() got an unexpected keyword argument 'pending_close_retries'"}
+{"id": 11, "event_time": "2026-03-30T16:32:00.309378+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: Position.__init__() got an unexpected keyword argument 'pending_close_retries'"}
+{"id": 12, "event_time": "2026-03-30T17:32:00.243718+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: Position.__init__() got an unexpected keyword argument 'pending_close_retries'"}
+{"id": 13, "event_time": "2026-03-30T17:32:00.776241+00:00", "level": "WARNING", "category": "fill", "message": "Pending close force-finalized after 3 retries | est_price=38.97 | est_ret=-2.5750% (ESTIMATED \u2014 fill data never found)"}
+{"id": 14, "event_time": "2026-03-30T18:32:14.945305+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: 268 TQQQ @ 38.13"}
+{"id": 15, "event_time": "2026-03-30T18:32:38.597626+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: 268 TQQQ @ 38.14"}
+{"id": 16, "event_time": "2026-03-30T19:32:00.275622+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: Position.__init__() got an unexpected keyword argument 'pending_close_retries'"}
+{"id": 17, "event_time": "2026-03-31T13:32:24.170928+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: 269 TQQQ @ 39.14"}
+{"id": 18, "event_time": "2026-03-31T13:32:49.402001+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: 259 TQQQ @ 39.13"}
+{"id": 19, "event_time": "2026-03-31T15:32:21.100758+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: 258 TQQQ @ 39.87"}
+{"id": 20, "event_time": "2026-03-31T16:32:31.762229+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: 256 TQQQ @ 39.84"}
+{"id": 21, "event_time": "2026-03-31T18:32:15.614226+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: 248 TQQQ @ 41.32"}
+{"id": 22, "event_time": "2026-03-31T18:32:39.335590+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: 247 TQQQ @ 41.33"}
+{"id": 23, "event_time": "2026-04-01T13:32:13.210387+00:00", "level": "WARNING", "category": "fill", "message": "Fill data unavailable \u2014 marking pending_close (blocks new entries) | ref=42.62 | estimated_ret=+3.1212% (NOT recorded as PnL)"}
+{"id": 24, "event_time": "2026-04-01T13:32:36.246178+00:00", "level": "WARNING", "category": "fill", "message": "Fill data unavailable \u2014 marking pending_close (blocks new entries) | ref=42.62 | estimated_ret=+3.1212% (NOT recorded as PnL)"}
+{"id": 25, "event_time": "2026-04-01T14:32:00.276983+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: Position.__init__() got an unexpected keyword argument 'target_price'"}
+{"id": 26, "event_time": "2026-04-01T15:32:00.245953+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: Position.__init__() got an unexpected keyword argument 'target_price'"}
+{"id": 27, "event_time": "2026-04-01T16:32:00.355660+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: Position.__init__() got an unexpected keyword argument 'target_price'"}
+{"id": 28, "event_time": "2026-04-01T16:32:00.717867+00:00", "level": "WARNING", "category": "fill", "message": "Pending close force-finalized after 3 retries | est_price=42.62 | est_ret=+3.1212% (ESTIMATED \u2014 fill data never found)"}
+{"id": 29, "event_time": "2026-04-02T14:32:15.755738+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: 245 TQQQ @ 41.88"}
+{"id": 30, "event_time": "2026-04-02T15:32:00.277996+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: Position.__init__() got an unexpected keyword argument 'target_price'"}
+{"id": 31, "event_time": "2026-04-03T13:32:12.256702+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 32, "event_time": "2026-04-03T13:32:12.627657+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 33, "event_time": "2026-04-03T14:32:12.264816+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 34, "event_time": "2026-04-03T14:32:12.305161+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 35, "event_time": "2026-04-03T15:32:12.253833+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 36, "event_time": "2026-04-03T15:32:12.320630+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 37, "event_time": "2026-04-03T16:32:12.262856+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 38, "event_time": "2026-04-03T16:32:12.325653+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 39, "event_time": "2026-04-06T13:32:23.117224+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: 237 TQQQ @ 43.83"}
+{"id": 40, "event_time": "2026-04-06T13:32:45.058993+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: 233 TQQQ @ 43.85"}
+{"id": 41, "event_time": "2026-04-07T13:32:36.375092+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: 237 TQQQ @ 43.35"}
+{"id": 42, "event_time": "2026-04-07T15:32:16.732848+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: 241 TQQQ @ 42.38"}
+{"id": 43, "event_time": "2026-04-07T17:32:28.794835+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: 237 TQQQ @ 43.19"}
+{"id": 44, "event_time": "2026-04-08T14:32:14.840800+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: 214 TQQQ @ 48.04"}
+{"id": 45, "event_time": "2026-04-08T16:32:15.256237+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: 213 TQQQ @ 47.93"}
+{"id": 46, "event_time": "2026-04-08T16:32:38.658551+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: 213 TQQQ @ 47.93"}
+{"id": 47, "event_time": "2026-04-10T13:32:36.235180+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 206 TQQQ @ 49.32"}
+{"id": 48, "event_time": "2026-04-13T16:32:14.377369+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 205 TQQQ @ 49.38"}
+{"id": 49, "event_time": "2026-04-13T16:32:38.619553+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 205 TQQQ @ 49.36"}
+{"id": 50, "event_time": "2026-04-13T17:32:14.637397+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 204 TQQQ @ 49.97 (back-to-back after exit_bracket_exit)"}
+{"id": 51, "event_time": "2026-04-13T17:32:30.661051+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 204 TQQQ @ 49.95"}
+{"id": 52, "event_time": "2026-04-14T13:32:13.207691+00:00", "level": "WARNING", "category": "fill", "message": "Fill data unavailable \u2014 inferred target_hit @ 50.45 | ret=+1.0010% (inferred from TP/SL prices, not actual fill)"}
+{"id": 53, "event_time": "2026-04-14T13:32:28.325470+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: "}
+{"id": 54, "event_time": "2026-04-14T13:32:34.060185+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 198 TQQQ @ 51.52 (back-to-back after exit_target_hit_inferred)"}
+{"id": 55, "event_time": "2026-04-21T13:32:22.143003+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 176 TQQQ @ 58.49"}
+{"id": 56, "event_time": "2026-04-21T14:32:14.536613+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 175 TQQQ @ 58.91 (back-to-back after exit_bracket_exit)"}
+{"id": 57, "event_time": "2026-04-21T18:32:14.536420+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 178 TQQQ @ 57.75"}
+{"id": 58, "event_time": "2026-04-22T13:32:11.054755+00:00", "level": "WARNING", "category": "fill", "message": "Fill data unavailable \u2014 inferred target_hit @ 58.33 | ret=+1.0043% (inferred from TP/SL prices, not actual fill)"}
+{"id": 59, "event_time": "2026-04-22T13:32:31.104794+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 174 TQQQ @ 58.60 (back-to-back after exit_target_hit_inferred)"}
+{"id": 60, "event_time": "2026-04-22T14:32:14.950141+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 172 TQQQ @ 59.30 (back-to-back after exit_bracket_exit)"}
+{"id": 61, "event_time": "2026-04-22T17:32:14.833545+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 171 TQQQ @ 59.82 (back-to-back after exit_bracket_exit)"}
+{"id": 62, "event_time": "2026-04-23T15:32:15.721430+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 169 TQQQ @ 60.50"}
+{"id": 63, "event_time": "2026-04-24T14:32:14.462571+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 168 TQQQ @ 61.38"}
+{"id": 64, "event_time": "2026-04-24T15:32:14.801429+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 165 TQQQ @ 61.76 (back-to-back after exit_bracket_exit)"}
+{"id": 65, "event_time": "2026-04-24T16:32:16.105700+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 164 TQQQ @ 62.24 (back-to-back after exit_bracket_exit)"}
+{"id": 66, "event_time": "2026-04-28T13:32:12.284141+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 67, "event_time": "2026-04-28T17:32:14.668660+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 170 TQQQ @ 60.02"}
+{"id": 68, "event_time": "2026-04-28T18:32:14.873596+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 169 TQQQ @ 60.61 (back-to-back after exit_bracket_exit)"}
+{"id": 69, "event_time": "2026-04-29T14:32:14.760038+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 167 TQQQ @ 61.10 (back-to-back after exit_bracket_exit)"}
+{"id": 70, "event_time": "2026-04-29T17:32:14.606357+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 168 TQQQ @ 61.01"}
+{"id": 71, "event_time": "2026-04-29T18:32:14.675908+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 168 TQQQ @ 61.08 (back-to-back after exit_bracket_exit)"}
+{"id": 72, "event_time": "2026-04-29T19:32:14.642160+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 166 TQQQ @ 61.77 (back-to-back after exit_bracket_exit)"}
+{"id": 73, "event_time": "2026-04-30T13:32:09.035376+00:00", "level": "WARNING", "category": "fill", "message": "Fill data unavailable \u2014 inferred target_hit @ 62.39 | ret=+1.0037% (inferred from TP/SL prices, not actual fill)"}
+{"id": 74, "event_time": "2026-04-30T14:32:14.448060+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 167 TQQQ @ 60.70"}
+{"id": 75, "event_time": "2026-04-30T15:32:16.874897+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 164 TQQQ @ 62.26 (back-to-back after exit_bracket_exit)"}
+{"id": 76, "event_time": "2026-04-30T16:32:16.900585+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 164 TQQQ @ 62.38 (back-to-back after exit_bracket_exit)"}
+{"id": 77, "event_time": "2026-04-30T17:32:14.913050+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 163 TQQQ @ 62.55 (back-to-back after exit_bracket_exit)"}
+{"id": 78, "event_time": "2026-04-30T18:32:14.769377+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 161 TQQQ @ 63.51 (back-to-back after exit_bracket_exit)"}
+{"id": 79, "event_time": "2026-05-01T13:32:20.202272+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 159 TQQQ @ 63.67 (back-to-back after exit_target_hit)"}
+{"id": 80, "event_time": "2026-05-01T14:32:07.727655+00:00", "level": "WARNING", "category": "fill", "message": "Fill data unavailable \u2014 inferred target_hit @ 64.31 | ret=+1.0052% (inferred from TP/SL prices, not actual fill)"}
+{"id": 81, "event_time": "2026-05-01T14:32:21.770203+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 157 TQQQ @ 65.59 (back-to-back after exit_target_hit_inferred)"}
+{"id": 82, "event_time": "2026-05-01T15:32:16.501842+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 156 TQQQ @ 65.30 (back-to-back after exit_bracket_exit)"}
+{"id": 83, "event_time": "2026-05-04T13:32:12.246746+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 84, "event_time": "2026-05-05T13:32:21.156253+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 154 TQQQ @ 66.38"}
+{"id": 85, "event_time": "2026-05-05T14:32:30.954614+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 153 TQQQ @ 66.92 (back-to-back after exit_bracket_exit)"}
+{"id": 86, "event_time": "2026-05-05T18:32:30.758370+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 152 TQQQ @ 67.70 (back-to-back after exit_bracket_exit)"}
+{"id": 87, "event_time": "2026-05-06T13:32:13.246536+00:00", "level": "WARNING", "category": "fill", "message": "Fill data unavailable \u2014 inferred target_hit @ 68.38 | ret=+1.0044% (inferred from TP/SL prices, not actual fill)"}
+{"id": 88, "event_time": "2026-05-06T13:32:36.140031+00:00", "level": "WARNING", "category": "fill", "message": "Fill data unavailable \u2014 inferred target_hit @ 68.38 | ret=+1.0044% (inferred from TP/SL prices, not actual fill)"}
+{"id": 89, "event_time": "2026-05-06T14:32:15.131928+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 148 TQQQ @ 69.75"}
+{"id": 90, "event_time": "2026-05-08T13:32:20.382093+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 140 TQQQ @ 72.81"}
+{"id": 91, "event_time": "2026-05-08T14:32:28.673470+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 138 TQQQ @ 74.44 (back-to-back after exit_bracket_exit)"}
+{"id": 92, "event_time": "2026-05-08T16:32:15.608921+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 136 TQQQ @ 75.31 (back-to-back after exit_bracket_exit)"}
+{"id": 93, "event_time": "2026-05-11T15:32:28.880853+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 134 TQQQ @ 76.64"}
+{"id": 94, "event_time": "2026-05-12T13:32:34.232649+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 137 TQQQ @ 75.19 (back-to-back after exit_bracket_exit)"}
+{"id": 95, "event_time": "2026-05-12T14:32:28.953116+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 138 TQQQ @ 75.10 (back-to-back after exit_bracket_exit)"}
+{"id": 96, "event_time": "2026-05-12T15:32:15.363152+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 142 TQQQ @ 72.97 (back-to-back after exit_bracket_exit)"}
+{"id": 97, "event_time": "2026-05-12T15:32:31.672304+00:00", "level": "CRITICAL", "category": "stop", "message": "SOFTWARE STOP triggered: mark=72.94 (live) breached stop=74.72 but IBKR bracket did not execute. Forcing close. Check IBKR bracket order status."}
+{"id": 98, "event_time": "2026-05-12T16:32:28.695594+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 142 TQQQ @ 72.74"}
+{"id": 99, "event_time": "2026-05-13T14:32:47.083479+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 136 TQQQ @ 75.00 (back-to-back after exit_time_exit)"}
+{"id": 100, "event_time": "2026-05-13T19:32:46.385740+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 131 TQQQ @ 77.67 (back-to-back after exit_time_exit)"}
+{"id": 101, "event_time": "2026-05-14T13:32:12.414582+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 102, "event_time": "2026-05-14T13:32:12.491740+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 103, "event_time": "2026-05-15T13:32:33.164443+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 136 TQQQ @ 75.03"}
+{"id": 104, "event_time": "2026-05-15T19:32:15.443539+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 135 TQQQ @ 75.96"}
+{"id": 105, "event_time": "2026-05-18T14:32:31.869969+00:00", "level": "CRITICAL", "category": "stop", "message": "SOFTWARE STOP triggered: mark=75.50 (live) breached stop=75.58 but IBKR bracket did not execute. Forcing close. Check IBKR bracket order status."}
+{"id": 106, "event_time": "2026-05-19T13:32:12.492118+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 107, "event_time": "2026-05-19T13:32:12.563640+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 108, "event_time": "2026-05-19T17:32:28.715000+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 140 TQQQ @ 74.28"}
+{"id": 109, "event_time": "2026-05-19T19:32:08.413496+00:00", "level": "CRITICAL", "category": "stop", "message": "SOFTWARE STOP triggered: mark=73.82 (live) breached stop=73.91 but IBKR bracket did not execute. Forcing close. Check IBKR bracket order status."}
+{"id": 110, "event_time": "2026-05-19T19:32:31.944559+00:00", "level": "CRITICAL", "category": "stop", "message": "SOFTWARE STOP triggered: mark=73.75 (live) breached stop=73.91 but IBKR bracket did not execute. Forcing close. Check IBKR bracket order status."}
+{"id": 111, "event_time": "2026-05-20T13:32:21.259985+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 139 TQQQ @ 74.29"}
+{"id": 112, "event_time": "2026-05-20T18:32:46.871120+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 134 TQQQ @ 75.89 (back-to-back after exit_time_exit)"}
+{"id": 113, "event_time": "2026-05-21T13:32:11.113536+00:00", "level": "CRITICAL", "category": "stop", "message": "SOFTWARE STOP triggered: mark=75.11 (live) breached stop=75.51 but IBKR bracket did not execute. Forcing close. Check IBKR bracket order status."}
+{"id": 114, "event_time": "2026-05-21T13:32:34.152759+00:00", "level": "CRITICAL", "category": "stop", "message": "SOFTWARE STOP triggered: mark=75.09 (live) breached stop=75.51 but IBKR bracket did not execute. Forcing close. Check IBKR bracket order status."}
+{"id": 115, "event_time": "2026-05-21T13:32:54.249310+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 134 TQQQ @ 75.07 (back-to-back after exit_software_stop)"}
+{"id": 116, "event_time": "2026-05-21T18:32:48.616713+00:00", "level": "WARNING", "category": "time_exit", "message": "Time-exit fill unavailable \u2014 using reference price 76.83 | estimated_ret=+2.3445%"}
+{"id": 117, "event_time": "2026-05-21T18:33:02.949222+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 129 TQQQ @ 76.90 (back-to-back after exit_time_exit)"}
+{"id": 118, "event_time": "2026-05-22T13:32:12.372452+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 119, "event_time": "2026-05-22T13:32:12.418262+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 120, "event_time": "2026-05-22T14:32:12.374374+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 121, "event_time": "2026-05-22T14:32:12.417914+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 122, "event_time": "2026-05-22T15:32:12.331875+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 123, "event_time": "2026-05-22T15:32:12.383721+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 124, "event_time": "2026-05-22T16:32:12.338695+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 125, "event_time": "2026-05-22T16:32:12.381933+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 126, "event_time": "2026-05-22T17:32:12.336136+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 127, "event_time": "2026-05-22T17:32:12.378696+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 128, "event_time": "2026-05-22T18:32:12.310446+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 129, "event_time": "2026-05-22T18:32:12.346200+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 130, "event_time": "2026-05-22T19:32:12.358911+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 131, "event_time": "2026-05-22T19:32:12.394988+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 132, "event_time": "2026-05-25T13:32:12.376964+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 133, "event_time": "2026-05-25T13:32:12.405572+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 134, "event_time": "2026-05-25T14:32:12.329294+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 135, "event_time": "2026-05-25T14:32:12.370895+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 136, "event_time": "2026-05-25T15:32:12.329525+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 137, "event_time": "2026-05-25T15:32:12.367835+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 138, "event_time": "2026-05-25T16:32:12.462627+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 139, "event_time": "2026-05-25T16:32:12.504297+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 140, "event_time": "2026-05-25T17:32:12.312988+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 141, "event_time": "2026-05-25T17:32:12.358320+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 142, "event_time": "2026-05-25T18:32:12.327505+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 143, "event_time": "2026-05-25T18:32:12.382465+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 144, "event_time": "2026-05-25T19:32:12.330423+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 145, "event_time": "2026-05-25T19:32:12.364240+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 146, "event_time": "2026-05-26T13:32:12.438418+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 147, "event_time": "2026-05-26T13:32:12.542914+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 148, "event_time": "2026-05-26T17:32:48.707919+00:00", "level": "WARNING", "category": "time_exit", "message": "Time-exit fill unavailable \u2014 using reference price 81.17 | estimated_ret=+5.5527%"}
+{"id": 149, "event_time": "2026-05-27T13:32:12.363122+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 150, "event_time": "2026-05-27T13:32:12.403447+00:00", "level": "ERROR", "category": "cycle", "message": "Unhandled on_bar exception: ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 7497)"}
+{"id": 151, "event_time": "2026-05-27T18:32:15.131304+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 114 TQQQ @ 81.32"}
+{"id": 152, "event_time": "2026-05-28T16:32:48.770963+00:00", "level": "WARNING", "category": "time_exit", "message": "Time-exit fill unavailable \u2014 using reference price 83.55 | estimated_ret=+2.7423%"}
+{"id": 153, "event_time": "2026-05-28T16:33:02.812099+00:00", "level": "INFO", "category": "entry", "message": "Entry placed: LONG 109 TQQQ @ 83.58 (back-to-back after exit_time_exit)"}
+{"id": 154, "event_time": "2026-05-29T14:32:48.252979+00:00", "level": "WARNING", "category": "time_exit", "message": "Time-exit fill unavailable \u2014 using reference price 84.73 | estimated_ret=+1.3759%"}
