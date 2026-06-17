@@ -533,6 +533,30 @@ def _on_bar_inner() -> str:
             _sync_account_and_mark(bar_close=bar_close_fallback)
         return exit_action or "no_signal"
 
+    # ── Reconciliation guard: never enter while the broker holds a position the
+    #    state DB doesn't know about. state.get_position() returned None (flat),
+    #    so the broker MUST also be flat for this symbol before we open a new
+    #    trade. If the broker holds an orphaned/desynced position (e.g. a leftover
+    #    short), trading on top of it stacks blind exposure — this is the exact
+    #    failure that put a hidden -1,174 TQQQ short under a "flat" bot. Fail-safe:
+    #    if we cannot verify the broker is flat, we refuse the entry.
+    try:
+        broker_pos = broker.get_open_position(config.LIVE_SYMBOL)
+    except Exception as exc:
+        msg = (f"Entry blocked: could not verify broker position for {config.LIVE_SYMBOL} "
+               f"({type(exc).__name__}: {exc}). Refusing to trade until verifiable.")
+        log.error(msg)
+        state.add_monitor_event("ERROR", "reconcile", msg)
+        return exit_action or "entry_blocked_broker_unverified"
+    if broker_pos is not None and broker_pos.get("qty"):
+        msg = (f"Entry blocked: broker holds {broker_pos['qty']} {config.LIVE_SYMBOL} "
+               f"(avg {broker_pos['avg_price']:.2f}) but state.db is flat — POSITION DESYNC. "
+               f"Refusing to trade until reconciled (flatten/reconcile manually, then resume).")
+        log.critical(msg)
+        state.add_monitor_event("CRITICAL", "reconcile", msg)
+        alerts.alert_error(msg, level="CRITICAL")
+        return exit_action or "entry_blocked_desync"
+
     # ── Size and place the trade ──────────────────────────────────────────────
     # Skip re-sync when we already synced immediately after the exit — the
     # broker.get_account() call below is what actually feeds sizing.
