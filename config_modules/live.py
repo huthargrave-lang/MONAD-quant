@@ -16,6 +16,13 @@ MAX_TRADE_BARS_LIVE = 10
 PENDING_CLOSE_MAX_RETRIES = 3  # Force-finalize with estimated price after this many failed cycles
 LIVE_MIN_TRADES_FOR_ADAPTIVE = 10
 
+# ── Software take-profit safety net ───────────────────────────────────────────
+# Mirror of the software stop-loss: the IBKR paper bracket TP frequently fails to
+# fill, letting winners ride past target until the time-exit (which inflated live
+# returns and left positions unprotected). When True, the trader force-closes at
+# market once the mark price reaches the target, capping the winner at target.
+USE_SOFTWARE_TAKE_PROFIT = True
+
 # ── Signal-fetch safety (Phase 6.3) ──────────────────────────────────────────
 # live/signals.py refuses to return a signal (→ trader blocks new entries) if
 # either of these thresholds is violated. Tune only if you understand the live
