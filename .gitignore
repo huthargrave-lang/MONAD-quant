@@ -9,3 +9,7 @@ experiments.jsonl
 sweep_results_*.json
 live/state.db
 state.db
+local_ops/
+local_logs/
+.ibkr-paper.env
+*.ibkr-paper.env
