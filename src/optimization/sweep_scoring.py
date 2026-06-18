@@ -89,7 +89,17 @@ def live_score(r, stop=None, train_metrics=None, est_spread=0.0, median_price=0.
 
 def _apply_penalties(base, m, stop=None, train_metrics=None, est_spread=0.0, median_price=0.0):
     """Apply the live-hostile-trait penalties to a base score (shared by every
-    objective). Each is a multiplicative shrink of ``base``."""
+    objective). Each is a multiplicative shrink of ``base``.
+
+    Guard: penalties are skipped when base <= 0. A multiplicative shrink of a
+    NEGATIVE base moves it toward zero — i.e. it *improves* a losing config — so
+    without this guard the selector would prefer the worst-behaved config among
+    net-negative candidates (which matters when no positive-edge config exists).
+    Losing configs are ranked by their raw base (return/Sharpe) instead.
+    """
+    if base <= 0:
+        return base
+
     # ── Penalty: stop_hit ratio ──────────────────────────────────────────
     if m["stop_hit_ratio"] > 0.55:
         base *= 0.6     # >55% stops = mostly noise

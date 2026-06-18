@@ -188,6 +188,33 @@ class TestSpreadPenalty(unittest.TestCase):
             live_score(_result(), stop=None, est_spread=0.25, median_price=100), BASE, places=6)
 
 
+class TestNegativeBasePenalties(unittest.TestCase):
+    """Penalties must never IMPROVE a losing config (regression).
+
+    A multiplicative shrink of a negative base moves it toward zero, so without
+    a guard the selector prefers the worst-behaved config among net-negative
+    candidates. Penalties are skipped for base <= 0; losers rank by raw base.
+    """
+    def _loser(self, neg_months, stop_hit, ambiguous):
+        idx = pd.date_range("2024-01-31", periods=12, freq="ME")
+        mo = pd.Series([0.01] * (12 - neg_months) + [-0.02] * neg_months, index=idx)
+        return _result(total_return=-0.05, sharpe=-2.0, max_dd=-0.05, win_rate=0.40,
+                       monthly=mo, total_trades=120, stop_hit=stop_hit,
+                       ambiguous=ambiguous, target_hit=10, time_exit=0)
+
+    def test_worse_traits_do_not_beat_cleaner_loser(self):
+        clean = self._loser(neg_months=1, stop_hit=30, ambiguous=0)
+        nasty = self._loser(neg_months=6, stop_hit=90, ambiguous=40)
+        # Same negative base; the nasty one must NOT score higher.
+        self.assertLessEqual(live_score(nasty), live_score(clean))
+        self.assertLessEqual(ev_score(nasty), ev_score(clean))
+
+    def test_negative_base_returned_unchanged(self):
+        nasty = self._loser(neg_months=6, stop_hit=90, ambiguous=40)
+        # base = sharpe*0.5 + ret*0.3 + dd*0.2 = -1 - 1.5 - 1.0 = -3.5, no shrink applied
+        self.assertAlmostEqual(live_score(nasty), -2.0 * 0.5 + (-5.0) * 0.3 + (-5.0) * 0.2, places=6)
+
+
 class TestEvScore(unittest.TestCase):
     """The opt-in net-of-cost EV objective (C4)."""
 
