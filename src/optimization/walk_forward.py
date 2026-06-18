@@ -24,6 +24,7 @@ from dateutil.relativedelta import relativedelta
 
 from src.strategy.engine import build_features, generate_trades, compute_trade_returns
 from src.strategy.sizing import estimate_stats_from_backtest, compute_position_size
+from src.backtest import metrics
 import config as _cfg
 
 
@@ -36,10 +37,19 @@ DEFAULT_PARAM_GRID = {
 
 
 def _sharpe(returns: pd.Series) -> float:
-    """Annualised Sharpe (daily assumption) from a series of trade returns."""
+    """Annualised Sharpe from a series of *per-trade* returns.
+
+    Annualizes by the strategy's actual trade frequency (trades per year),
+    derived from the returns' datetime index — matching the backtest runner
+    (src/backtest/runner.py:269-273). A fixed sqrt(252) here would assume 252
+    trades/year regardless of timeframe, inflating Sharpe for sparse daily
+    strategies (~17 trades/yr) and biasing parameter selection.
+    """
     if len(returns) < 3 or returns.std() == 0:
         return -np.inf
-    return (returns.mean() / returns.std()) * np.sqrt(252)
+    idx = returns.index
+    tpy = metrics.trades_per_year(len(returns), idx[0], idx[-1])
+    return metrics.annualized_sharpe(returns, tpy, degenerate=-np.inf)
 
 
 def _run_slice(df_slice: pd.DataFrame, rsi_oversold: int,

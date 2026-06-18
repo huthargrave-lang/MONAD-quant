@@ -12,7 +12,6 @@ Fairness fixes (2026-03-23):
 """
 
 import pandas as pd
-import numpy as np
 # matplotlib is optional: it is only used to render backtest_results.png. The
 # minimal/live Pi venv omits it, so guard the import — the backtest still
 # computes and prints all stats; only the plot is skipped when it's absent.
@@ -26,6 +25,7 @@ except ImportError:
 from collections import deque
 from src.strategy.engine import build_features, generate_trades, compute_trade_returns
 from src.strategy.sizing import estimate_stats_from_backtest, compute_position_size, position_fraction
+from src.backtest import metrics
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -259,33 +259,26 @@ def run_backtest(df: pd.DataFrame,
     equity = pd.Series(equity_curve)
 
     # Buy-and-hold benchmark
-    bh_return = (df["close"].iloc[-1] - df["close"].iloc[0]) / df["close"].iloc[0]
+    bh_return = metrics.buy_hold_return(df["close"])
     bh_final = initial_capital * (1 + bh_return)
 
-    # ── Performance metrics ───────────────────────────────────────────────
-    total_return = (equity.iloc[-1] - initial_capital) / initial_capital
-    trade_pnl = equity.pct_change().dropna()
+    # ── Performance metrics (pure functions in src/backtest/metrics.py) ────
+    total_return = metrics.total_return(equity, initial_capital)
 
     # Sharpe: annualize by actual trade frequency, NOT hourly periods
     n_days = (df.index[-1] - df.index[0]).days
     years = n_days / 365.25 if n_days > 0 else 1
-    trades_per_year = stats["total_trades"] / years if years > 0 else stats["total_trades"]
-    sharpe = (trade_pnl.mean() / trade_pnl.std()) * np.sqrt(trades_per_year) if trade_pnl.std() > 0 else 0
+    trades_per_year = metrics.trades_per_year(stats["total_trades"], df.index[0], df.index[-1])
+    sharpe = metrics.annualized_sharpe(equity.pct_change().dropna(), trades_per_year, degenerate=0)
 
-    rolling_max = equity.cummax()
-    drawdown = (equity - rolling_max) / rolling_max
-    max_drawdown = drawdown.min()
+    max_drawdown = metrics.max_drawdown(equity)
 
     # Annualized return
-    ann_return = (1 + total_return) ** (1 / years) - 1 if years > 0 else total_return
-    bh_ann_return = (1 + bh_return) ** (1 / years) - 1 if years > 0 else bh_return
+    ann_return = metrics.annualize_return(total_return, years)
+    bh_ann_return = metrics.annualize_return(bh_return, years)
 
     # Monthly breakdown using actual per-trade capital returns
-    capital_ret_series = pd.Series(trade_capital_returns, dtype=float)
-    capital_ret_series.index = pd.to_datetime(capital_ret_series.index)
-    monthly_returns = capital_ret_series.resample("ME").apply(
-        lambda x: (1 + x).prod() - 1 if len(x) > 0 else 0.0
-    )
+    monthly_returns = metrics.monthly_returns(pd.Series(trade_capital_returns, dtype=float))
     monthly_counts = trade_returns.resample("ME").count()
     monthly_wr = trade_returns.resample("ME").apply(
         lambda x: (x > 0).sum() / len(x) if len(x) > 0 else 0.0
