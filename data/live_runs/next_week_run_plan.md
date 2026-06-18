@@ -23,7 +23,7 @@ both are now fixed on this branch.
 ## 2. What is already working
 - **Gateway autostart** (systemd timer, timezone-aware, full re-auth from `~/.ibkr-paper.env`).
 - **The two correctness fixes** (entry-desync guard, software take-profit) — merged + tested on this branch.
-- **Local ops tooling** in `local_ops/`: `status_check.sh`, `start_trader.sh`, `healthcheck.sh`, `export_daily_data.py`, plus the existing `start_ibkr_gateway.sh` / `healthcheck_ibkr.sh`.
+- **Local ops tooling** in `ops/`: `status_check.sh`, `start_trader.sh`, `healthcheck.sh`, `export_daily_data.py`, plus the existing `start_ibkr_gateway.sh` / `healthcheck_ibkr.sh`.
 - **Read-only diagnostic** `tools/diagnose_brackets.py`.
 
 ## 3. What is broken or unknown
@@ -40,7 +40,7 @@ both are now fixed on this branch.
 **Manual (you):**
 1. **Confirm Gateway is up & connected** (a few min after 08:00 ET):
    ```bash
-   bash ~/MONAD-quant/local_ops/status_check.sh
+   bash ~/MONAD-quant/ops/status_check.sh
    ```
    Expect: `gateway: RUNNING`, `port 7497 (paper): OPEN`, `port 7496 (live): closed`.
 2. **Confirm the bot can connect to IBKR** (read-only, no orders):
@@ -50,7 +50,7 @@ both are now fixed on this branch.
    Expect: `Connected … accounts=[…]`, and **position FLAT, no stray orders**.
 3. **Start the paper trader** (guards paper-mode + port 7497):
    ```bash
-   bash ~/MONAD-quant/local_ops/start_trader.sh
+   bash ~/MONAD-quant/ops/start_trader.sh
    ```
 4. *(Optional)* **Dashboard**:
    ```bash
@@ -65,15 +65,15 @@ both are now fixed on this branch.
 
 | Check | Command | Healthy result |
 |---|---|---|
-| IBKR connected | `bash local_ops/status_check.sh` | port 7497 OPEN, gateway RUNNING |
+| IBKR connected | `bash ops/status_check.sh` | port 7497 OPEN, gateway RUNNING |
 | Trader running | `systemctl status monad-trader.service` | `active (running)` |
-| Data being written | `bash local_ops/status_check.sh` | `data_age` < 20 min during market hours |
-| Health snapshot | `bash local_ops/healthcheck.sh && cat local_logs/healthcheck.json` | `"status":"ok"` |
+| Data being written | `bash ops/status_check.sh` | `data_age` < 20 min during market hours |
+| Health snapshot | `bash ops/healthcheck.sh && cat local_logs/healthcheck.json` | `"status":"ok"` |
 | Live trader log | `journalctl -u monad-trader.service -f` | hourly `on_bar` cycles, no tracebacks |
 
 ## 6. End-of-day export (after 16:00 ET / 21:00 BST)
 ```bash
-cd ~/MONAD-quant && venv/bin/python local_ops/export_daily_data.py
+cd ~/MONAD-quant && venv/bin/python ops/export_daily_data.py
 ```
 Writes sanitized JSONL/JSON to `data/live_runs/pi_export_<date>/` (account IDs redacted,
 no raw `.db`). Review, then optionally commit that folder.
@@ -82,7 +82,7 @@ no raw `.db`). Review, then optionally commit that folder.
 | Symptom | Fix |
 |---|---|
 | Port 7497 closed / gateway down | `sudo systemctl start ibkr-gateway-paper.service`; watch `tail -f local_logs/ibkr_gateway_start.log` |
-| Trader not active | `bash local_ops/start_trader.sh` (it refuses if Gateway is down) |
+| Trader not active | `bash ops/start_trader.sh` (it refuses if Gateway is down) |
 | `ConnectionRefused` storm | restart Gateway, then trader; check `journalctl -u ibkr-gateway-paper.service` |
 | Stale data (`data_age` high) | check trader log for signal-fetch failures (yfinance 429); restart trader |
 | Stray/desync position | the trader now **blocks entries** on desync (logs CRITICAL `entry_blocked_desync`); flatten manually in Gateway, then it resumes |
