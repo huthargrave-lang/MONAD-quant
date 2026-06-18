@@ -286,3 +286,33 @@ preflight-gated trader · healthcheck/export timers · run archive + dashboard r
 agent context system (`AGENT_INDEX.md`/`context_map.json`/`ctx`) · sizing extraction + 25 tests ·
 runnable backtest (matplotlib optional) + date-clamp fix · `requirements.txt` regen · CI full-suite ·
 `AGENTS.md` dedup · `ops/analyze_run.py` · parameter & testing audits.
+
+### Session 2026-06-18 (testing workstream B + I1) — on `pi-ops-automation`, offline-only
+Decision/measurement layer that produced the misleading numbers is now tested
+(was F-grade); no live-trader path was modified. Test count 181 → 269.
+- **B1** — fixed walk-forward Sharpe annualization (`_sharpe` used a fixed
+  `sqrt(252)`; now annualizes by actual trade frequency, matching `runner.py`) + 10 tests.
+- **B2/B3** — extracted `src/backtest/metrics.py` (pure Sharpe/drawdown/return/monthly);
+  `runner.py` delegates to it; `walk_forward._sharpe` reuses it (one Sharpe impl now).
+  20 tests + a config-independent metrics golden-master.
+- **B4** — extracted `src/optimization/sweep_scoring.py` (`extract_metrics` + `live_score`,
+  spread/price now explicit args) so the param-selection scorer is importable/testable;
+  `sweep.py` keeps a behavior-preserving wrapper. 19 tests covering every penalty tier.
+- **B5** — `tests/test_fetcher.py` (15): OHLC-invariant validation, yfinance retry/backoff,
+  cache freshness.
+- **B6** — `tests/test_broker.py` (20, ib_insync mocked): bracket construction, three-tier
+  fill search, cancel/close, reconciliation reads. `broker.py` not modified.
+- **B8** — CI now runs under `coverage` with a `src/`-only floor (`--fail-under=65`;
+  baseline 71%); `coverage`/`hypothesis` added to `requirements-dev.txt`; opt-in
+  `.pre-commit-config.yaml` (ruff + private-key/large-file guards); coverage artifacts gitignored.
+- **B9** — `tests/test_compute_returns_properties.py` (hypothesis, guarded import):
+  exit-type/return invariants, slippage shift, determinism over random price paths.
+- **Bug fix (found via B9)** — `walk_forward._run_slice` had drifted from the engine API
+  and **crashed** `main.py --mode=walk-forward` (DataFrame unpacked as a 2-tuple;
+  stale `use_ma_regime_filter` kwarg). Fixed + end-to-end optimizer test added.
+- **I1** — the two correctness fixes cherry-picked clean onto `main` and pushed as
+  `land-desync-guard` and `land-software-take-profit` (PRs to be opened; `main` still has the bugs).
+
+**Still open in B:** B7 (`_on_bar_inner` end-to-end flow tests). The 8 commits sit
+**locally** on `pi-ops-automation` (not pushed). Next evidence items (A2 fill-provenance,
+A4 fixed-10% re-sweep) need the trader stopped.
