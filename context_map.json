@@ -5,7 +5,8 @@
   "context_docs": {
     "strategy_why": ["CLAUDE.md", "AGENTS.md"],
     "live_ops_how": ["OPERATIONS.md", "ops/README.md"],
-    "navigation": ["AGENT_INDEX.md", "AGENT_CONTEXT_PLAN.md"]
+    "navigation": ["AGENT_INDEX.md", "AGENT_CONTEXT_PLAN.md"],
+    "roadmap": ["IMPROVEMENT_PLAN.md"]
   },
 
   "invariants": {
