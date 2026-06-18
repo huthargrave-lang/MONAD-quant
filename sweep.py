@@ -63,6 +63,10 @@ parser.add_argument("--apply", action="store_true",
                     help="Auto-apply optimal params to config.py without prompting")
 parser.add_argument("--mode", default="realistic", choices=["optimistic", "realistic", "harsh"],
                     help="Backtest fairness mode (default: realistic)")
+parser.add_argument("--objective", default="sharpe", choices=["sharpe", "ev"],
+                    help="Selection objective (default: sharpe = current live_score). "
+                         "'ev' optimizes net-of-cost total return (EV×trades) instead of "
+                         "Sharpe (which rewards churn) and hard-rejects sub-breakeven WR.")
 parser.add_argument("--holdout-pct", type=float, default=20,
                     help="Percentage of data to reserve as untouched holdout (default: 20%%). "
                          "Set to 0 to disable holdout.")
@@ -337,12 +341,14 @@ def fmt(r, label):
 
 
 def live_score(r, stop=None, train_metrics=None):
-    """Thin wrapper over sweep_scoring.live_score that injects the module-level
-    spread/price globals (est_spread, median_price) computed from the fetched
-    data. Kept so every existing call site in this script is unchanged; the
-    scoring logic lives in src/optimization/sweep_scoring.py (importable/tested).
+    """Thin wrapper over the selected scoring objective that injects the module-
+    level spread/price globals (est_spread, median_price). Every call site uses
+    this, so --objective switches the objective everywhere. Default 'sharpe' =
+    the original live_score (unchanged); 'ev' = net-of-cost EV (C4). Scoring
+    logic lives in src/optimization/sweep_scoring.py (importable/tested).
     """
-    return sweep_scoring.live_score(
+    score_fn = sweep_scoring.ev_score if args.objective == "ev" else sweep_scoring.live_score
+    return score_fn(
         r, stop=stop, train_metrics=train_metrics,
         est_spread=est_spread, median_price=median_price,
     )
@@ -1636,6 +1642,7 @@ if r and "error" not in r:
         "train_bars": len(df_raw),
         "holdout_bars": len(df_holdout) if df_holdout is not None else 0,
         "backtest_mode": args.mode,
+        "objective": args.objective,
         # Record the sizing actually used (C1) — not a hardcoded label — so the
         # result is reproducible even when --sizing/--adaptive override the default.
         "position_sizing": (f"fixed_{_sizing.fixed_pct:.0%}" if _sizing.mode == "fixed"

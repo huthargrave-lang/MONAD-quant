@@ -83,7 +83,13 @@ def live_score(r, stop=None, train_metrics=None, est_spread=0.0, median_price=0.
 
     # Base: Sharpe × 0.5 + return × 0.3 + DD bonus × 0.2  (DD is negative, so bonus)
     base = m["sharpe_ratio"] * 0.5 + m["total_return_pct"] * 0.3 + m["max_drawdown_pct"] * 0.2
+    return _apply_penalties(base, m, stop=stop, train_metrics=train_metrics,
+                            est_spread=est_spread, median_price=median_price)
 
+
+def _apply_penalties(base, m, stop=None, train_metrics=None, est_spread=0.0, median_price=0.0):
+    """Apply the live-hostile-trait penalties to a base score (shared by every
+    objective). Each is a multiplicative shrink of ``base``."""
     # ── Penalty: stop_hit ratio ──────────────────────────────────────────
     if m["stop_hit_ratio"] > 0.55:
         base *= 0.6     # >55% stops = mostly noise
@@ -135,3 +141,29 @@ def live_score(r, stop=None, train_metrics=None, est_spread=0.0, median_price=0.
             base *= 0.7
 
     return base
+
+
+def ev_score(r, stop=None, train_metrics=None, est_spread=0.0, median_price=0.0,
+             min_wr_pct: float = 34.0):
+    """Net-of-cost EV objective (C4 — opt-in via ``--objective ev``).
+
+    Rewards total return (which, with C3's round-trip cost baked into every
+    trade, IS net-of-cost EV × trades) instead of Sharpe. Sharpe scales with
+    √(trade frequency), so the default ``live_score`` (Sharpe × 0.5) quietly
+    rewards churn; this objective does not. Applies the same live-hostile-trait
+    penalties, then HARD-rejects any config whose win rate is below the 2:1 R:R
+    breakeven (~33.3%) — structurally unprofitable however good the sample looks.
+    """
+    if r is None or "error" in r:
+        return -9999
+
+    m = extract_metrics(r)
+    if m is None:
+        return -9999
+
+    base = m["total_return_pct"]
+    scored = _apply_penalties(base, m, stop=stop, train_metrics=train_metrics,
+                              est_spread=est_spread, median_price=median_price)
+    if m["win_rate_pct"] < min_wr_pct:
+        return scored - 1000.0   # hard reject: below breakeven WR
+    return scored

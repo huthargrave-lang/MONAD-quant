@@ -16,7 +16,7 @@ import unittest
 
 import pandas as pd
 
-from src.optimization.sweep_scoring import extract_metrics, live_score
+from src.optimization.sweep_scoring import extract_metrics, live_score, ev_score
 
 
 def _result(total_return=0.10, sharpe=4.0, max_dd=-0.01, win_rate=0.55,
@@ -186,6 +186,40 @@ class TestSpreadPenalty(unittest.TestCase):
     def test_stop_none_disables_penalty(self):
         self.assertAlmostEqual(
             live_score(_result(), stop=None, est_spread=0.25, median_price=100), BASE, places=6)
+
+
+class TestEvScore(unittest.TestCase):
+    """The opt-in net-of-cost EV objective (C4)."""
+
+    def test_errored_result_floored(self):
+        self.assertEqual(ev_score(None), -9999)
+        self.assertEqual(ev_score({"error": "x"}), -9999)
+
+    def test_base_is_total_return_no_penalties(self):
+        # No penalties active -> score == total_return_pct (not the Sharpe blend).
+        self.assertAlmostEqual(ev_score(_result()), 10.0, places=6)
+
+    def test_hard_rejects_sub_breakeven_win_rate(self):
+        # WR below 34% (2:1 breakeven) -> heavy fixed penalty regardless of return.
+        r = _result(win_rate=0.30)
+        self.assertAlmostEqual(ev_score(r), 10.0 - 1000.0, places=6)
+
+    def test_win_rate_at_floor_not_rejected(self):
+        self.assertAlmostEqual(ev_score(_result(win_rate=0.34)), 10.0, places=6)
+
+    def test_custom_min_wr(self):
+        self.assertLess(ev_score(_result(win_rate=0.40), min_wr_pct=45.0), 0)
+
+    def test_penalties_still_apply(self):
+        # >25% negative months halves the base (10.0 * 0.5 = 5.0).
+        idx = pd.date_range("2024-01-31", periods=12, freq="ME")
+        many_neg = pd.Series([0.01] * 8 + [-0.01] * 4, index=idx)
+        self.assertAlmostEqual(ev_score(_result(monthly=many_neg)), 5.0, places=6)
+
+    def test_differs_from_live_score(self):
+        # EV ignores Sharpe; a high-Sharpe/low-return config scores differently.
+        r = _result(sharpe=12.0, total_return=0.04)
+        self.assertNotAlmostEqual(ev_score(r), live_score(r), places=3)
 
 
 if __name__ == "__main__":
