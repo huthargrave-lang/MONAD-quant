@@ -317,6 +317,22 @@ Decision/measurement layer that produced the misleading numbers is now tested
 - **I1** — the two correctness fixes cherry-picked clean onto `main` and pushed as
   `land-desync-guard` and `land-software-take-profit` (PRs to be opened; `main` still has the bugs).
 
-**Workstream B complete.** The 10 commits sit **locally** on `pi-ops-automation` (not
-pushed). Next: Workstream C (backtest↔live gap — some need design decisions) and the
-evidence items (A2 fill-provenance, A4 fixed-10% re-sweep) which need the trader stopped.
+**Workstream B complete.**
+
+### Session 2026-06-18 (cont.) — Workstream C started (offline)
+- **C1** — `src/optimization/sweep_sizing.py`: sweep defaults to live fixed-10% sizing
+  but `--sizing`/`--adaptive` now actually override (they were silently clobbered);
+  prominent comparability banner. 8 tests.
+- **C3** — `src/optimization/sweep_costs.py` + `run_backtest(slippage_pct=…)` override
+  (the param was dead): sweep bakes instrument-derived round-trip spread cost into EV,
+  so it stops favouring high-trade-count configs that lose to fees. 10 tests.
+- **C7** — `src/optimization/sweep_repro.py`: `sweep_results_*.json` now records a data
+  fingerprint (window + content hash) + the actual sizing/cost; param writes routed
+  through `_update_mode_param` (dual-sync hazard). 6 tests.
+
+**Still open in C:** C2 (configurable backtest fill model — bigger, touches the engine),
+and the design-decision items **C4** (sweep objective reweight) / **C5** (walk-forward as
+primary selector) — implement behind a flag, don't change default selection without sign-off.
+
+The **16 commits** sit **locally** on `pi-ops-automation` (not pushed). The evidence items
+(A2 fill-provenance, A4 fixed-10% re-sweep) still need the trader stopped.
