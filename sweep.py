@@ -30,6 +30,8 @@ from datetime import datetime, timedelta
 sys.path.insert(0, os.path.dirname(__file__))
 
 import config
+from src.optimization.sweep_scoring import extract_metrics
+from src.optimization import sweep_scoring
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -351,114 +353,16 @@ def fmt(r, label):
             f"DD={dd:6.2f}% avg/mo={avg_mo:+.2f}%")
 
 
-def extract_metrics(r):
-    """Pull live-relevant metrics from a backtest result dict."""
-    if r is None or "error" in r:
-        return None
-    mo = r["monthly_returns"]
-    active_months = mo[mo != 0]
-    neg_months = int((active_months < 0).sum())
-    total_months = int(len(active_months))
-    avg_mo = float(active_months.mean()) if total_months > 0 else 0.0
-
-    eb = r.get("exit_breakdown", {})
-    total_trades = r["total_trades"]
-    stop_hits = eb.get("stop_hit", 0)
-    ambiguous = eb.get("ambiguous_same_bar", 0)
-    target_hits = eb.get("target_hit", 0)
-
-    time_exits = eb.get("time_exit", 0)
-
-    return {
-        "total_return_pct":    round(r["total_return"] * 100, 3),
-        "sharpe_ratio":        r["sharpe_ratio"],
-        "max_drawdown_pct":    round(r["max_drawdown"] * 100, 3),
-        "avg_monthly_pct":     round(avg_mo * 100, 3),
-        "total_trades":        total_trades,
-        "win_rate_pct":        round(r["win_rate"] * 100, 2),
-        "neg_months":          neg_months,
-        "total_months":        total_months,
-        "stop_hit_ratio":      round(stop_hits / total_trades, 3) if total_trades else 0,
-        "ambiguous_ratio":     round(ambiguous / total_trades, 3) if total_trades else 0,
-        "target_hit_count":    target_hits,
-        "stop_hit_count":      stop_hits,
-        "ambiguous_count":     ambiguous,
-        "time_exit_count":     time_exits,
-    }
-
-
 def live_score(r, stop=None, train_metrics=None):
-    """Live-oriented scoring: Sharpe + return, penalised by live-hostile traits.
-
-    Penalties:
-      - High stop_hit ratio (>50%): trades are noise-stopped too often
-      - Negative months: income strategy should have near-zero neg months
-      - Ambiguous same-bar exits: result is random (stop or target in same bar)
-      - Too few trades (<5/month): not enough for statistical confidence
-      - Large train→holdout degradation (when train_metrics provided)
-      - Stop inside bid-ask spread noise
+    """Thin wrapper over sweep_scoring.live_score that injects the module-level
+    spread/price globals (est_spread, median_price) computed from the fetched
+    data. Kept so every existing call site in this script is unchanged; the
+    scoring logic lives in src/optimization/sweep_scoring.py (importable/tested).
     """
-    if r is None or "error" in r:
-        return -9999
-
-    m = extract_metrics(r)
-    if m is None:
-        return -9999
-
-    # Base: Sharpe × 0.5 + return × 0.3 + DD bonus × 0.2  (DD is negative, so bonus)
-    base = m["sharpe_ratio"] * 0.5 + m["total_return_pct"] * 0.3 + m["max_drawdown_pct"] * 0.2
-
-    # ── Penalty: stop_hit ratio ──────────────────────────────────────────
-    if m["stop_hit_ratio"] > 0.55:
-        base *= 0.6     # >55% stops = mostly noise
-    elif m["stop_hit_ratio"] > 0.50:
-        base *= 0.8     # >50% stops = marginal
-
-    # ── Penalty: negative months ─────────────────────────────────────────
-    if m["total_months"] > 0:
-        neg_frac = m["neg_months"] / m["total_months"]
-        if neg_frac > 0.25:
-            base *= 0.5   # >25% of months negative = not income-grade
-        elif neg_frac > 0.10:
-            base *= 0.75  # >10% negative = caution
-
-    # ── Penalty: ambiguous same-bar exits ────────────────────────────────
-    if m["ambiguous_ratio"] > 0.20:
-        base *= 0.5      # >20% ambiguous = R:R too tight for bar range
-    elif m["ambiguous_ratio"] > 0.10:
-        base *= 0.75
-
-    # ── Penalty: too few trades ──────────────────────────────────────────
-    if m["total_months"] > 0:
-        trades_per_mo = m["total_trades"] / max(m["total_months"], 1)
-        if trades_per_mo < 3:
-            base *= 0.5   # <3 trades/month = no statistical edge
-        elif trades_per_mo < 5:
-            base *= 0.75
-
-    # ── Penalty: train→holdout degradation ───────────────────────────────
-    if train_metrics is not None:
-        train_avg = train_metrics.get("avg_monthly_pct", 0)
-        holdout_avg = m["avg_monthly_pct"]
-        if train_avg > 0:
-            retention = holdout_avg / train_avg
-            if retention < 0:
-                base *= 0.3    # holdout negative = likely overfit
-            elif retention < 0.4:
-                base *= 0.5    # >60% decay
-            elif retention < 0.6:
-                base *= 0.7    # >40% decay
-
-    # ── Penalty: stop inside bid-ask spread ──────────────────────────────
-    if stop is not None and est_spread > 0:
-        stop_dollars = median_price * stop
-        spread_mult = stop_dollars / est_spread
-        if spread_mult < 3:
-            base *= 0.3
-        elif spread_mult < 5:
-            base *= 0.7
-
-    return base
+    return sweep_scoring.live_score(
+        r, stop=stop, train_metrics=train_metrics,
+        est_spread=est_spread, median_price=median_price,
+    )
 
 
 _default_max_trade_bars = getattr(config, "MAX_TRADE_BARS", 20)
