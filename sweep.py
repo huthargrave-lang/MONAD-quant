@@ -79,12 +79,32 @@ parser.add_argument("--compare-opposing-exit", action="store_true",
                          "twice — once with use_opposing_signal_exit=False and once with =True — and print a "
                          "side-by-side comparison. Useful for validating whether an opposing-signal exit helps "
                          "a specific instrument before wiring it into the live trader.")
+parser.add_argument("--sizing", default=None, choices=["fixed", "kelly", "kelly_clamped"],
+                    help="Position sizing the backtest uses (default: config.POSITION_SIZING_MODE). "
+                         "Use '--sizing fixed --fixed-pct 0.10' to match the live trader's fixed 10%%.")
+parser.add_argument("--fixed-pct", type=float, default=0.10,
+                    help="Capital fraction per trade when --sizing fixed (default 0.10 = live trader).")
+parser.add_argument("--adaptive", default=None, choices=["on", "off"],
+                    help="Run the sweep with adaptive Kelly on/off (default: config.USE_ADAPTIVE_KELLY).")
 args = parser.parse_args()
 
 TICKER = args.ticker.upper()
 END_DATE = args.end or datetime.now().strftime("%Y-%m-%d")
 # yfinance hourly data limit is 730 days. Use 710 to stay safely inside the window.
 START_DATE = args.start or (datetime.now() - timedelta(days=710)).strftime("%Y-%m-%d")
+
+# ── Position-sizing mode for this sweep — so results reflect how you'll run it.
+#    (The live trader uses fixed 10%; the backtest default is adaptive Kelly.
+#    Sweeping with the sizing you intend to deploy avoids the sizing mismatch.) ──
+if args.sizing is not None:
+    config.POSITION_SIZING_MODE = args.sizing
+    if args.sizing == "fixed":
+        config.FIXED_POSITION_PCT = args.fixed_pct
+    print(f"  Sizing mode: {args.sizing}"
+          + (f" @ {args.fixed_pct:.0%}" if args.sizing == "fixed" else ""))
+if args.adaptive is not None:
+    config.USE_ADAPTIVE_KELLY = (args.adaptive == "on")
+    print(f"  Adaptive Kelly: {'ON' if config.USE_ADAPTIVE_KELLY else 'OFF'}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -270,6 +290,15 @@ def _set_opposing_exit(enabled: bool):
     config.OPPOSING_SIGNAL_EXIT_MODES = set()
 
 
+def _update_mode_param(const_suffix: str, asset_key: str, value):
+    """Keep a swept parameter consistent in BOTH places the engine reads it:
+    the top-level config constant (``<SUFFIX>_<MODE>``) AND ``config.ASSETS[mode]``.
+    Routing every update through here prevents the silent dual-sync bug where the
+    two disagree and the backtest runs with inconsistent params."""
+    setattr(config, f"{const_suffix}_{MODE_NAME}", value)
+    config.ASSETS[MODE_NAME][asset_key] = value
+
+
 def run_quiet(target, stop, rsi_os=None, vwap=None, short_rsi_ob=None):
     """Run a single backtest quietly. Returns result dict or None.
 
@@ -281,14 +310,11 @@ def run_quiet(target, stop, rsi_os=None, vwap=None, short_rsi_ob=None):
                       Only meaningful when USE_OPPOSING_SIGNAL_EXIT is True.
     """
     if rsi_os is not None:
-        setattr(config, f"RSI_OVERSOLD_{MODE_NAME}", rsi_os)
-        config.ASSETS[MODE_NAME]["rsi_oversold"] = rsi_os
+        _update_mode_param("RSI_OVERSOLD", "rsi_oversold", rsi_os)
     if vwap is not None:
-        setattr(config, f"VWAP_ZSCORE_THRESH_{MODE_NAME}", vwap)
-        config.ASSETS[MODE_NAME]["vwap_zscore_thresh"] = vwap
+        _update_mode_param("VWAP_ZSCORE_THRESH", "vwap_zscore_thresh", vwap)
     if short_rsi_ob is not None:
-        setattr(config, f"RSI_OVERBOUGHT_{MODE_NAME}", short_rsi_ob)
-        config.ASSETS[MODE_NAME]["rsi_overbought"] = short_rsi_ob
+        _update_mode_param("RSI_OVERBOUGHT", "rsi_overbought", short_rsi_ob)
 
     try:
         with contextlib.redirect_stdout(io.StringIO()):

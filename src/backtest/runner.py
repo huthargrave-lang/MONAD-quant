@@ -25,7 +25,7 @@ except ImportError:
     _HAS_MPL = False
 from collections import deque
 from src.strategy.engine import build_features, generate_trades, compute_trade_returns
-from src.strategy.sizing import estimate_stats_from_backtest, compute_position_size
+from src.strategy.sizing import estimate_stats_from_backtest, compute_position_size, position_fraction
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -220,54 +220,23 @@ def run_backtest(df: pd.DataFrame,
         direction = "LONG" if trade.get("trend_regime", 0) >= 0 else "SHORT"
         exit_type = trade.get("exit_type", "?")
 
-        # ── Position sizing ──────────────────────────────────────────
-        if sizing_mode == "fixed":
-            # Fixed percentage — no Kelly, no adaptive scaling
-            kelly_capped = fixed_pos_pct
-        else:
-            # Kelly-based sizing (rolling or full-sample)
-            if kelly_mode == "rolling" and len(rolling_returns) >= min_trades_for_kelly:
-                past = pd.Series(list(rolling_returns))
-                past_stats = estimate_stats_from_backtest(past)
-                base_sizing = compute_position_size(
-                    capital=capital,
-                    win_rate=past_stats["win_rate"],
-                    avg_win_pct=past_stats["avg_win_pct"],
-                    avg_loss_pct=past_stats["avg_loss_pct"],
-                    kelly_multiplier=kelly_multiplier,
-                    min_position_pct=min_pos_pct,
-                    max_position_pct=max_pos_pct,
-                )
-                kelly_capped = base_sizing["kelly_capped"]
-            elif kelly_mode == "rolling" and len(rolling_returns) < min_trades_for_kelly:
-                kelly_capped = min_pos_pct
-            else:
-                # Full-sample mode (legacy/optimistic)
-                sizing_legacy = compute_position_size(
-                    capital=capital,
-                    win_rate=stats["win_rate"],
-                    avg_win_pct=stats["avg_win_pct"],
-                    avg_loss_pct=stats["avg_loss_pct"],
-                    kelly_multiplier=kelly_multiplier,
-                    min_position_pct=min_pos_pct,
-                    max_position_pct=max_pos_pct,
-                )
-                kelly_capped = sizing_legacy["kelly_capped"]
-
-            # Adaptive Kelly multiplier (rolling WR tiers)
-            if use_adaptive and len(rolling_returns) >= ak_lookback:
-                recent = list(rolling_returns)[-ak_lookback:]
-                recent_wr = sum(1 for x in recent if x > 0) / len(recent)
-                if recent_wr >= ak_high_wr:
-                    kelly_capped = min(kelly_capped * ak_high_mult, ak_high_cap)
-                elif recent_wr < ak_pause_wr:
-                    kelly_capped *= ak_pause_mult
-                elif recent_wr < ak_low_wr:
-                    kelly_capped *= ak_low_mult
-
-            # Safe Kelly clamp
-            if sizing_mode == "kelly_clamped":
-                kelly_capped = max(kelly_clamp_min, min(kelly_capped, kelly_clamp_max))
+        # ── Position sizing (delegated to src/strategy/sizing.position_fraction;
+        #    behaviour-identical to the previous inline logic, now unit-tested) ──
+        adaptive_params = None
+        if use_adaptive:
+            adaptive_params = dict(
+                lookback=ak_lookback, high_wr=ak_high_wr, low_wr=ak_low_wr,
+                pause_wr=ak_pause_wr, high_mult=ak_high_mult, low_mult=ak_low_mult,
+                pause_mult=ak_pause_mult, high_cap=ak_high_cap,
+            )
+        kelly_capped = position_fraction(
+            mode=sizing_mode, kelly_mode=kelly_mode,
+            rolling_returns=list(rolling_returns), full_sample_stats=stats,
+            kelly_multiplier=kelly_multiplier,
+            min_pct=min_pos_pct, max_pct=max_pos_pct, fixed_pct=fixed_pos_pct,
+            min_trades_for_kelly=min_trades_for_kelly, adaptive=adaptive_params,
+            clamp_min=kelly_clamp_min, clamp_max=kelly_clamp_max,
+        )
 
         position = capital * kelly_capped
         pnl = position * r

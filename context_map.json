@@ -50,8 +50,8 @@
     "strategy_engine": {
       "summary": "Feature orchestration, signal routing/regime gate, and trade-return simulation.",
       "files": ["src/strategy/engine.py", "src/strategy/sizing.py", "config.py"],
-      "entrypoints": ["src/strategy/engine.py::build_features", "src/strategy/engine.py::generate_trades", "src/strategy/engine.py::compute_trade_returns"],
-      "tests": ["tests/test_execution_model.py"],
+      "entrypoints": ["src/strategy/engine.py::build_features", "src/strategy/engine.py::generate_trades", "src/strategy/engine.py::compute_trade_returns", "src/strategy/sizing.py::position_fraction", "src/strategy/sizing.py::adaptive_kelly_multiplier"],
+      "tests": ["tests/test_execution_model.py", "tests/test_sizing.py"],
       "docs": ["CLAUDE.md"],
       "do_not_touch_without_approval": false
     },
