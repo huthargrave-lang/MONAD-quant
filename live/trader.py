@@ -415,12 +415,17 @@ def _on_bar_inner() -> str:
                 # stale DAY-tif stops that expired overnight before the GTC fix.
                 asset_config = _get_asset_config()
                 mark_price, mark_source = _resolve_mark_price(position.symbol, bar_close=bar_close_fallback)
+                use_sw_tp = getattr(config, "USE_SOFTWARE_TAKE_PROFIT", True)
                 if position_direction == "long":
                     stop_trigger = round(position.entry_price * (1 - asset_config["stop_loss_pct"]), 2)
                     stop_hit = mark_price is not None and mark_price <= stop_trigger
+                    target_trigger = round(position.entry_price * (1 + asset_config["target_gain_pct"]), 2)
+                    target_hit_sw = use_sw_tp and mark_price is not None and mark_price >= target_trigger
                 else:
                     stop_trigger = round(position.entry_price * (1 + asset_config["stop_loss_pct"]), 2)
                     stop_hit = mark_price is not None and mark_price >= stop_trigger
+                    target_trigger = round(position.entry_price * (1 - asset_config["target_gain_pct"]), 2)
+                    target_hit_sw = use_sw_tp and mark_price is not None and mark_price <= target_trigger
 
                 if stop_hit:
                     log.critical(
@@ -461,6 +466,46 @@ def _on_bar_inner() -> str:
                         total_trades=summary["total"], win_rate=summary["win_rate"],
                     )
                     exit_action = "exit_software_stop"
+                    # Fall through to entry check
+                elif target_hit_sw:
+                    # ── Software take-profit: safety net if IBKR doesn't fill the TP ──
+                    # The paper bracket TP frequently fails to fill, letting winners
+                    # ride past target until the time-exit (which inflated returns and
+                    # left the position unprotected). Cap the winner at target by
+                    # force-closing at market, mirroring the software stop above.
+                    log.warning(
+                        f"SOFTWARE TAKE-PROFIT triggered ({position_direction}) | mark={mark_price:.2f} ({mark_source}) "
+                        f"vs target={target_trigger:.2f} | IBKR TP did not fire — forcing close"
+                    )
+                    state.add_monitor_event(
+                        "WARNING", "take_profit",
+                        f"SOFTWARE TAKE-PROFIT triggered: mark={mark_price:.2f} ({mark_source}) "
+                        f"reached target={target_trigger:.2f} but IBKR bracket TP did not execute. "
+                        f"Forcing close. Check IBKR bracket order status.",
+                    )
+                    close_fill = broker.cancel_and_close(
+                        position.symbol, position.bracket_order_id, position.qty,
+                        direction=position_direction,
+                    )
+                    if close_fill is not None:
+                        exit_price = close_fill["fill_price"]
+                        ret = _signed_return(position_direction, position.entry_price, exit_price)
+                        log.info(f"Software take-profit filled | price={exit_price:.2f} | ret={ret:+.4%}")
+                    else:
+                        exit_price = mark_price
+                        ret = _signed_return(position_direction, position.entry_price, exit_price)
+                        log.warning(f"Software take-profit fill unavailable — using mark {exit_price:.2f} | est_ret={ret:+.4%}")
+                        state.add_monitor_event("WARNING", "take_profit", f"Software take-profit fill unavailable — using mark={exit_price:.2f}, est_ret={ret:+.4%}. Verify position is actually closed.")
+                    state.close_position(return_pct=ret, exit_type="target_hit", exit_price=exit_price)
+                    _sync_account_and_mark(bar_close=exit_price)
+                    _log_summary()
+                    summary = state.get_trade_summary()
+                    alerts.alert_exit(
+                        position.symbol, position_direction, position.entry_price,
+                        exit_price, ret, "target_hit (software)",
+                        total_trades=summary["total"], win_rate=summary["win_rate"],
+                    )
+                    exit_action = "exit_software_take_profit"
                     # Fall through to entry check
                 elif bar_count >= config.MAX_TRADE_BARS_LIVE:
                     log.info("Time-exit triggered — cancelling bracket and closing")
