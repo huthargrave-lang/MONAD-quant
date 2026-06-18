@@ -153,12 +153,16 @@ The fast layer must never lie. Generate the volatile parts:
 
 ## 8. Suggested build order (low effort → high leverage)
 
-1. **`AGENT_INDEX.md`** — the L0 router + the §3 table + §6 conventions. *(Biggest win, ~1 file.)*
-2. **`context_map.yaml`** — machine-readable manifest (§4.1). Lets `ctx` and CI consume it.
-3. **`tools/ctx.py`** — at minimum `route`, `where`, `schema`, `status`, `recent`. *(Turns reading into querying.)*
-4. **CI invariants test** — assert `context_map.yaml` matches `config.py` (anti-drift).
-5. **Per-area `CONTEXT.md`** stubs for `live/` and `src/`.
-6. **Auto-generated `AGENT_SYMBOLS.md`** + a `make context` target / pre-commit hook.
+> **Status (2026-06-18): items 1–5 are BUILT and committed.** Only item 6 (auto-generated
+> symbol index) is deferred — `ctx where <symbol>` already covers definition lookup live.
+> The manifest is JSON (`context_map.json`), not YAML, to avoid adding a venv dependency.
+
+1. **`AGENT_INDEX.md`** ✅ — the L0 router + the §3 table + §6 conventions.
+2. **`context_map.json`** ✅ — machine-readable manifest (§4.1). Consumed by `ctx` + CI.
+3. **`tools/ctx.py`** ✅ — `route`, `where`, `schema`, `config`, `perf`, `status`, `recent`, `map`, `tests`.
+4. **CI invariants test** ✅ — `tests/test_context_map.py` asserts the manifest matches `config.py` + files exist.
+5. **Per-area `CONTEXT.md`** ✅ — `live/CONTEXT.md`, `src/CONTEXT.md`.
+6. **Auto-generated `AGENT_SYMBOLS.md`** ⬜ (deferred) — `ctags`/AST + a `make context` hook.
 
 ## 9. Anti-patterns to avoid
 

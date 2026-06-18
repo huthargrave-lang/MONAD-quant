@@ -1,0 +1,148 @@
+{
+  "_README": "Machine-readable context manifest for coding agents. Read this (or run `ctx`) BEFORE reading the codebase. Invariants are asserted against config.py by tests/test_context_map.py (anti-drift). JSON (not YAML) to avoid adding a runtime dependency to the deployed venv.",
+  "project": "MONAD-quant",
+  "deploy_branch": "pi-ops-automation",
+  "context_docs": {
+    "strategy_why": ["CLAUDE.md", "AGENTS.md"],
+    "live_ops_how": ["OPERATIONS.md", "ops/README.md"],
+    "navigation": ["AGENT_INDEX.md", "AGENT_CONTEXT_PLAN.md"]
+  },
+
+  "invariants": {
+    "_note": "Source of truth is config.py; these are asserted equal by tests/test_context_map.py.",
+    "paper_only": true,
+    "api_port_paper": 7497,
+    "api_port_live_forbidden": 7496,
+    "active_symbol": "TQQQ",
+    "active_mode": "TQQQ_HOURLY",
+    "max_trade_bars_live": 10,
+    "software_take_profit": true,
+    "timezone_pi": "Europe/London",
+    "schedule_tz": "America/New_York"
+  },
+  "invariant_sources": {
+    "paper_only": "config.LIVE_PAPER_MODE",
+    "api_port_paper": "config.IBKR_PORT_PAPER",
+    "api_port_live_forbidden": "config.IBKR_PORT_LIVE",
+    "active_symbol": "config.LIVE_SYMBOL",
+    "active_mode": "config.ACTIVE_MODE",
+    "max_trade_bars_live": "config.MAX_TRADE_BARS_LIVE",
+    "software_take_profit": "config.USE_SOFTWARE_TAKE_PROFIT"
+  },
+
+  "areas": {
+    "live_trader": {
+      "summary": "The hourly scheduler + entry/exit/reconcile loop that places paper bracket orders.",
+      "files": ["live/trader.py", "live/state.py", "live/broker.py", "live/signals.py", "live/alerts.py"],
+      "entrypoints": ["live/trader.py::_on_bar_inner", "live/trader.py::main", "live/state.py::init_db"],
+      "tests": ["tests/test_trader_reconcile.py", "tests/test_software_take_profit.py", "tests/test_state.py", "tests/test_execution_model.py", "tests/test_live_signals.py", "tests/test_trader_helpers.py"],
+      "docs": ["OPERATIONS.md", "CLAUDE.md"],
+      "do_not_touch_without_approval": true
+    },
+    "signals": {
+      "summary": "Signal feature engineering: RSI/MACD/regime, VWAP z-score, ADX/Bollinger.",
+      "files": ["src/signals/momentum.py", "src/signals/volume.py", "src/signals/volatility.py"],
+      "entrypoints": ["src/signals/momentum.py::classify_regime", "src/signals/momentum.py::add_momentum_features"],
+      "tests": ["tests/test_signals.py"],
+      "docs": ["CLAUDE.md"],
+      "do_not_touch_without_approval": false
+    },
+    "strategy_engine": {
+      "summary": "Feature orchestration, signal routing/regime gate, and trade-return simulation.",
+      "files": ["src/strategy/engine.py", "src/strategy/sizing.py", "config.py"],
+      "entrypoints": ["src/strategy/engine.py::build_features", "src/strategy/engine.py::generate_trades", "src/strategy/engine.py::compute_trade_returns"],
+      "tests": ["tests/test_execution_model.py"],
+      "docs": ["CLAUDE.md"],
+      "do_not_touch_without_approval": false
+    },
+    "backtest": {
+      "summary": "Backtest loop + Kelly equity curve; universal param sweep.",
+      "files": ["src/backtest/runner.py", "main.py", "sweep.py"],
+      "entrypoints": ["src/backtest/runner.py::run_backtest"],
+      "tests": [],
+      "docs": ["CLAUDE.md"],
+      "do_not_touch_without_approval": false
+    },
+    "dashboard": {
+      "summary": "Read-only FastAPI monitor; current/all/archive run-window view.",
+      "files": ["live/dashboard.py", "live/templates/dashboard.html", "src/analysis/run_window.py"],
+      "entrypoints": ["live/dashboard.py::dashboard", "src/analysis/run_window.py::filter_rows"],
+      "tests": ["tests/test_run_window.py", "tests/test_dashboard.py"],
+      "docs": ["OPERATIONS.md"],
+      "do_not_touch_without_approval": false,
+      "run_cmd": "venv/bin/python -m uvicorn live.dashboard:app --host 127.0.0.1 --port 8000"
+    },
+    "ops": {
+      "summary": "Systemd timers + ops scripts for paper data collection, health, export, archive.",
+      "files": ["ops/", "ops/systemd/"],
+      "entrypoints": ["ops/status_check.sh", "ops/preflight_trader_start.sh", "ops/archive_and_start_new_run.py"],
+      "tests": [],
+      "docs": ["OPERATIONS.md", "ops/README.md"],
+      "do_not_touch_without_approval": false
+    },
+    "config": {
+      "summary": "Single source of truth for all tunable params and mode routing.",
+      "files": ["config.py", "config_modules/live.py"],
+      "entrypoints": [],
+      "tests": ["tests/test_config.py"],
+      "docs": ["CLAUDE.md"],
+      "do_not_touch_without_approval": false
+    }
+  },
+
+  "routing": [
+    {"keywords": ["strategy", "signal", "param", "threshold", "rsi", "macd", "regime", "kelly", "sweep", "backtest"],
+     "read": ["CLAUDE.md (relevant section)", "config.py", "src/signals/", "src/strategy/engine.py"],
+     "run": ["python sweep.py TICKER"], "avoid": ["live/ trader/order paths"]},
+    {"keywords": ["trader", "live", "entry", "exit", "reconcile", "on_bar", "pending_close", "position"],
+     "read": ["OPERATIONS.md", "live/trader.py::_on_bar_inner", "tests/test_trader_reconcile.py"],
+     "run": ["bash ops/status_check.sh", "ctx status"], "avoid": ["strategy logic"]},
+    {"keywords": ["ibkr", "broker", "order", "bracket", "fill", "gateway"],
+     "read": ["live/broker.py", "OPERATIONS.md"],
+     "run": ["venv/bin/python tools/diagnose_brackets.py"], "avoid": ["order-submission logic without approval"]},
+    {"keywords": ["dashboard", "ui", "chart", "view", "run window", "equity curve", "uvicorn", "fastapi"],
+     "read": ["live/dashboard.py", "live/templates/dashboard.html", "src/analysis/run_window.py"],
+     "run": ["bash ops/dashboard_smoke_test.sh"], "avoid": ["live/state.py writers"]},
+    {"keywords": ["ops", "systemd", "deploy", "timer", "healthcheck", "export", "archive", "preflight"],
+     "read": ["OPERATIONS.md", "ops/README.md", "ops/systemd/"],
+     "run": ["systemctl list-timers 'monad-*' 'ibkr-*'", "ctx status"], "avoid": ["enabling trader autostart without approval"]},
+    {"keywords": ["db", "schema", "state.db", "table", "trades", "sqlite", "data model"],
+     "read": ["live/state.py::init_db"], "run": ["ctx schema"], "avoid": ["committing raw .db"]},
+    {"keywords": ["performance", "edge", "return", "win rate", "analysis", "benchmark", "confirmed"],
+     "read": ["data/live_runs/analysis_2026-06-17/", "data/live_runs/model_phase_recommendations.md"],
+     "run": ["ctx perf"], "avoid": []},
+    {"keywords": ["status", "running", "current state", "health", "what is running"],
+     "read": [], "run": ["bash ops/status_check.sh", "ctx status"], "avoid": []}
+  ],
+
+  "facts": {
+    "deploy_state": "run: bash ops/status_check.sh   (or: ctx status)",
+    "db_schema": "run: ctx schema",
+    "headline_performance": "run: ctx perf",
+    "recent_changes": "run: ctx recent   (git log on deploy branch)",
+    "current_mode": "config.LIVE_SYMBOL / config.ACTIVE_MODE   (or: ctx config LIVE_SYMBOL)",
+    "where_is_symbol": "run: ctx where <name>",
+    "scheduled_timers": "run: systemctl list-timers 'monad-*' 'ibkr-*'"
+  },
+
+  "tools_readonly": [
+    {"cmd": "ctx route \"<task>\"", "returns": "which files to read + tools to run for a task"},
+    {"cmd": "ctx where <symbol>", "returns": "file:line where a function/class/config key is defined"},
+    {"cmd": "ctx schema", "returns": "live/state.db tables, columns, row counts"},
+    {"cmd": "ctx config <KEY>", "returns": "a config.py value + where it is set"},
+    {"cmd": "ctx perf [--view current|all]", "returns": "headline metrics from state.db (compounded + confirmed-fill)"},
+    {"cmd": "ctx status", "returns": "ops/status_check.sh (deploy/runtime state)"},
+    {"cmd": "ctx recent [N]", "returns": "last N commits + changed files on the deploy branch"},
+    {"cmd": "ctx map [area]", "returns": "this manifest (or one area)"},
+    {"cmd": "bash ops/status_check.sh", "returns": "system + gateway + trader + data freshness"},
+    {"cmd": "venv/bin/python tools/diagnose_brackets.py", "returns": "IBKR connection + positions + brackets (read-only)"}
+  ],
+
+  "conventions": [
+    "Read this manifest (or run `ctx`) first; drill into deep docs only at the cited section.",
+    "Prefer a tool call over a file read for any computable fact (state, schema, symbol, diff).",
+    "Cite file:line so the next agent can jump there.",
+    "Respect invariants: paper-only, port 7497 never 7496; do not edit do_not_touch_without_approval areas without explicit approval.",
+    "Never commit .env / raw .db / logs / credentials / account IDs; push via SSH, never to main."
+  ]
+}
