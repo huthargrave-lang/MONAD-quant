@@ -32,6 +32,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 import config
 from src.optimization.sweep_scoring import extract_metrics
 from src.optimization import sweep_scoring
+from src.optimization.sweep_sizing import resolve_sizing
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -95,18 +96,8 @@ END_DATE = args.end or datetime.now().strftime("%Y-%m-%d")
 # yfinance hourly data limit is 730 days. Use 710 to stay safely inside the window.
 START_DATE = args.start or (datetime.now() - timedelta(days=710)).strftime("%Y-%m-%d")
 
-# ── Position-sizing mode for this sweep — so results reflect how you'll run it.
-#    (The live trader uses fixed 10%; the backtest default is adaptive Kelly.
-#    Sweeping with the sizing you intend to deploy avoids the sizing mismatch.) ──
-if args.sizing is not None:
-    config.POSITION_SIZING_MODE = args.sizing
-    if args.sizing == "fixed":
-        config.FIXED_POSITION_PCT = args.fixed_pct
-    print(f"  Sizing mode: {args.sizing}"
-          + (f" @ {args.fixed_pct:.0%}" if args.sizing == "fixed" else ""))
-if args.adaptive is not None:
-    config.USE_ADAPTIVE_KELLY = (args.adaptive == "on")
-    print(f"  Adaptive Kelly: {'ON' if config.USE_ADAPTIVE_KELLY else 'OFF'}")
+# Position sizing is resolved below (after the per-ticker config is registered),
+# defaulting to the live trader's fixed 10% so results are comparable to live.
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -150,13 +141,14 @@ config.DEFAULT_ASSET = MODE_NAME
 config.PLOT_RESULTS = False
 config.VERBOSE_SIGNALS = False
 
-# ── Match live trader sizing: fixed 10% per trade ────────────────────────
-# Live trader (live/state.py) uses hardcoded 10%. Force the backtest runner
-# to use the same so sweep results are directly comparable to live performance.
-config.POSITION_SIZING_MODE = "fixed"
-config.FIXED_POSITION_PCT = 0.10
-# Disable adaptive Kelly — live trader doesn't use it
-config.USE_ADAPTIVE_KELLY = False
+# ── Position sizing: default to the live trader's fixed 10% so sweep results are
+#    directly comparable to live, but let --sizing/--adaptive override (the prior
+#    code force-set fixed 10% AFTER applying the flags, silently ignoring them). ──
+_sizing = resolve_sizing(args.sizing, args.fixed_pct, args.adaptive)
+config.POSITION_SIZING_MODE = _sizing.mode
+config.FIXED_POSITION_PCT = _sizing.fixed_pct
+config.USE_ADAPTIVE_KELLY = _sizing.use_adaptive
+print(_sizing.banner)
 
 # Register the mode→asset mapping
 config._MODE_TO_ASSET[MODE_NAME] = MODE_NAME
