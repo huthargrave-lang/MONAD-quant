@@ -13,3 +13,12 @@ local_ops/
 local_logs/
 .ibkr-paper.env
 *.ibkr-paper.env
+
+# Raw databases — never commit; export sanitized JSON instead
+*.db
+*.sqlite
+*.sqlite3
+# Runtime / operational artifacts
+*.pid
+*.tmp
+data/live_runs/tmp_*/
