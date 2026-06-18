@@ -65,6 +65,7 @@ def run_backtest(df: pd.DataFrame,
                  plot: bool = True,
                  backtest_mode: str = "realistic",
                  slippage_pct: float = None,
+                 stop_slippage_pct: float = 0.0,
                  debug: bool = False) -> dict:
     """
     Run a full backtest on historical OHLCV data.
@@ -156,6 +157,7 @@ def run_backtest(df: pd.DataFrame,
         stop_loss_pct=stop_loss_pct,
         max_trade_bars=max_trade_bars,
         slippage_pct=slippage_pct,
+        stop_slippage_pct=stop_slippage_pct,
         worst_case_ambiguity=worst_case,
         stop_overrides=stop_overrides,
         use_opposing_signal_exit=use_opposing_exit,

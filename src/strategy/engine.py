@@ -213,6 +213,7 @@ def compute_trade_returns(df: pd.DataFrame,
                            stop_loss_pct: float = 0.01,
                            max_trade_bars: int = 20,
                            slippage_pct: float = 0.0,
+                           stop_slippage_pct: float = 0.0,
                            worst_case_ambiguity: bool = False,
                            target_overrides: dict = None,
                            stop_overrides: dict = None,
@@ -237,6 +238,11 @@ def compute_trade_returns(df: pd.DataFrame,
         max_trade_bars: Maximum bars to hold before time exit
         slippage_pct: Round-trip slippage as decimal (e.g. 0.0004 = 4bps).
                       Deducted from every trade return (wins shrink, losses grow).
+        stop_slippage_pct: Fill-model extra (C2). Additional adverse slippage on
+                      STOP fills only — a stop becomes a market order that crosses
+                      the spread and can gap, so it fills worse than the trigger.
+                      Applied to stop_hit (and worst-case ambiguous-as-stop) exits
+                      on top of slippage_pct. Default 0.0 = no stop penalty.
         worst_case_ambiguity: When True, if both stop and target are inside the
                               same bar's range, assume the stop was hit (pessimistic).
                               When False, assume target was hit (optimistic/legacy).
@@ -333,7 +339,7 @@ def compute_trade_returns(df: pd.DataFrame,
                 # Same-bar ambiguity: both TP and SL inside this bar's range.
                 # We can't know which was hit first from OHLC alone.
                 if worst_case_ambiguity:
-                    exit_return = -stop
+                    exit_return = -stop - stop_slippage_pct  # stop fill: extra slip
                     exit_type   = "ambiguous_same_bar"
                 else:
                     exit_return = target
@@ -344,7 +350,7 @@ def compute_trade_returns(df: pd.DataFrame,
                 exit_type   = "target_hit"
                 break
             elif stop_hit:
-                exit_return = -stop
+                exit_return = -stop - stop_slippage_pct  # stop fill: extra slip
                 exit_type   = "stop_hit"
                 break
 
