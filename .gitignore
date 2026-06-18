@@ -24,3 +24,10 @@ local_logs/
 data/live_runs/tmp_*/
 local_backups/
 local_runtime/
+
+# Coverage artifacts (CI/dev only — see .github/workflows/test.yml)
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.pytest_cache/

@@ -1,0 +1,26 @@
+# Opt-in pre-commit hooks (B8 / roadmap D.2 / 7.2).
+#
+# These do NOT run automatically. To enable on a dev machine:
+#     pip install pre-commit
+#     pre-commit install              # run on changed files at commit time
+#     pre-commit run --all-files      # one-off sweep (will reformat — review the diff)
+#
+# CI does not depend on these; they are a convenience for consistent formatting
+# and a safety net (large files, private keys) matching the repo's commit rules.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: detect-private-key          # guards the "never commit credentials" rule
+      - id: check-added-large-files     # guards "never commit raw .db / logs"
+        args: ["--maxkb=1024"]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff                        # lint (E, F) — does not auto-fix unless --fix added
+      - id: ruff-format                 # formatter (black-compatible)

@@ -25,6 +25,13 @@ jobs:
           # possible, so the CI install is kept lean and explicit.
           pip install pandas numpy fastapi httpx ib_insync yfinance apscheduler
 
-      - name: Run the full test suite
+      - name: Run the full test suite (with coverage)
         run: |
-          python -m pytest tests/ -v
+          coverage run --source=src,live -m pytest tests/ -v
+          # Visibility: full report (src + live), missing lines annotated.
+          coverage report -m
+          # Gate: fail if the offline strategy core (src/) regresses below the
+          # floor. Baseline at introduction was ~71%; the floor leaves margin
+          # while still catching real coverage regressions. live/ (trader/broker/
+          # dashboard) is reported but not yet gated — raise this once B7 lands.
+          coverage report --include="src/*" --fail-under=65

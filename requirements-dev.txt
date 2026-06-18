@@ -6,3 +6,5 @@
 matplotlib>=3.7      # backtest equity-curve plots (src/backtest/runner.py); import is now optional
 httpx>=0.24          # fastapi TestClient for tests/test_dashboard.py
 pytest>=7.0          # test runner (the suite also runs under stdlib unittest)
+coverage>=7.0        # CI coverage report + src/ floor (see .github/workflows/test.yml)
+hypothesis>=6.0      # property-based tests (tests/test_*; e.g. compute_trade_returns)
