@@ -334,11 +334,16 @@ Decision/measurement layer that produced the misleading numbers is now tested
   `run_backtest` threads it through. Default 0.0 (behaviour-preserving); capability only,
   NOT wired into the sweep default. 7 tests.
 
-**Still open in C — design decisions (need sign-off; change which params get selected):**
-**C4** (reweight `live_score` toward net-of-cost EV×trades, away from churn-rewarding
-Sharpe, hard <34%-WR penalty) and **C5** (walk-forward as the primary selector — now
-runnable after the B1-era fix). Plan: implement behind a flag, keep the default selector
-unchanged until approved. C6 (multiple-testing controls) follows C4/C5.
+- **C4** — opt-in net-of-cost EV objective behind `--objective {sharpe,ev}` (default
+  `sharpe` = unchanged). `ev_score` rewards net-of-cost total return (EV×trades) instead
+  of churn-rewarding Sharpe, hard-rejects sub-breakeven (<34%) WR; shared penalties
+  extracted to `_apply_penalties` (live_score identical). 7 tests. **Default selection
+  unchanged — making `ev` the default needs sign-off.**
+
+**Still open in C — design decisions:** **C5** (walk-forward as the primary selector via
+rolling-origin OOS — now runnable after the optimizer fix, but a bigger change to the
+sweep's selection flow; warrants a design pass on how it integrates with the 5-phase
+sweep) and **C6** (multiple-testing/overfitting controls).
 
 All session commits sit **locally** on `pi-ops-automation` (not pushed). The evidence items
 (A2 fill-provenance, A4 fixed-10% re-sweep) still need the trader stopped.
