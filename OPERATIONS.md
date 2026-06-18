@@ -163,6 +163,8 @@ Chronological summary of the live-ops work done in this stretch (all on/toward `
 8. **Run archive + current-run dashboard reset** — archived history, wrote the run marker, added the current/all/archive view toggle (dashboard-side only; `state.db` untouched).
 9. **Agent context system** — `AGENT_INDEX.md`, `context_map.json`, `tools/ctx.py` (query CLI), anti-drift tests, per-area `CONTEXT.md`; pointers from `CLAUDE.md`/`AGENTS.md`.
 10. **Parameter/codebase review** (`data/live_runs/parameter_review_2026-06-18.md`) — config matches documented optima, but a fresh realistic backtest yields **+0.08%/mo (Sharpe ~1.2)** vs the documented +2%/mo, agreeing with the ~flat live edge. Fixed: optional matplotlib in the backtest, the 730-day date-clamp bug, stale `requirements.txt`, CI (full suite + `pi-ops-automation`), and deduped `AGENTS.md`.
+11. **Position-sizing extraction + 25 tests** — adaptive Kelly is now a pure, tested function (`src/strategy/sizing.position_fraction`); sweep gains `--sizing`/`--adaptive` so it can run fixed-10% (matching live) or adaptive Kelly. Backtest output unchanged.
+12. **Next-changes audit** (`data/live_runs/next_changes_audit_2026-06-18.md`) — realistic WR is **41%** (EV +0.115%/trade), so the edge is marginal, not broken plumbing. Added **`ops/analyze_run.py`** (read-only run analyzer + clean-run rubric) for the pending clean run.
 
 ---
 
