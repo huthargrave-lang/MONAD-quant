@@ -307,12 +307,16 @@ Decision/measurement layer that produced the misleading numbers is now tested
   `.pre-commit-config.yaml` (ruff + private-key/large-file guards); coverage artifacts gitignored.
 - **B9** — `tests/test_compute_returns_properties.py` (hypothesis, guarded import):
   exit-type/return invariants, slippage shift, determinism over random price paths.
+- **B7** — `tests/test_trader_flow.py` (11): end-to-end `_on_bar_inner` transitions —
+  signal-fetch escalation (ERROR→CRITICAL streak), holding, exit reconcile (real fill /
+  inferred / back-to-back), pending_close (reconciled / unresolved / force-finalize),
+  time-exit. `trader.py` not modified. **Workstream B is now complete (B1–B9).**
 - **Bug fix (found via B9)** — `walk_forward._run_slice` had drifted from the engine API
   and **crashed** `main.py --mode=walk-forward` (DataFrame unpacked as a 2-tuple;
   stale `use_ma_regime_filter` kwarg). Fixed + end-to-end optimizer test added.
 - **I1** — the two correctness fixes cherry-picked clean onto `main` and pushed as
   `land-desync-guard` and `land-software-take-profit` (PRs to be opened; `main` still has the bugs).
 
-**Still open in B:** B7 (`_on_bar_inner` end-to-end flow tests). The 8 commits sit
-**locally** on `pi-ops-automation` (not pushed). Next evidence items (A2 fill-provenance,
-A4 fixed-10% re-sweep) need the trader stopped.
+**Workstream B complete.** The 10 commits sit **locally** on `pi-ops-automation` (not
+pushed). Next: Workstream C (backtest↔live gap — some need design decisions) and the
+evidence items (A2 fill-provenance, A4 fixed-10% re-sweep) which need the trader stopped.
