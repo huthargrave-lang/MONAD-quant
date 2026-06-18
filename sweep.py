@@ -34,6 +34,7 @@ from src.optimization.sweep_scoring import extract_metrics
 from src.optimization import sweep_scoring
 from src.optimization.sweep_sizing import resolve_sizing
 from src.optimization.sweep_costs import estimate_spread, round_trip_cost_pct
+from src.optimization.sweep_repro import data_fingerprint
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -351,12 +352,11 @@ _default_max_trade_bars = getattr(config, "MAX_TRADE_BARS", 20)
 
 
 def restore():
-    setattr(config, f"RSI_OVERSOLD_{MODE_NAME}", _defaults[f"RSI_OVERSOLD_{MODE_NAME}"])
-    setattr(config, f"RSI_OVERBOUGHT_{MODE_NAME}", _defaults[f"RSI_OVERBOUGHT_{MODE_NAME}"])
-    setattr(config, f"VWAP_ZSCORE_THRESH_{MODE_NAME}", _defaults[f"VWAP_ZSCORE_THRESH_{MODE_NAME}"])
-    config.ASSETS[MODE_NAME]["rsi_oversold"] = _defaults[f"RSI_OVERSOLD_{MODE_NAME}"]
-    config.ASSETS[MODE_NAME]["rsi_overbought"] = _defaults[f"RSI_OVERBOUGHT_{MODE_NAME}"]
-    config.ASSETS[MODE_NAME]["vwap_zscore_thresh"] = _defaults[f"VWAP_ZSCORE_THRESH_{MODE_NAME}"]
+    # Route through _update_mode_param so both the config constant and ASSETS
+    # stay in sync (kills the dual-sync hazard — C7).
+    _update_mode_param("RSI_OVERSOLD", "rsi_oversold", _defaults[f"RSI_OVERSOLD_{MODE_NAME}"])
+    _update_mode_param("RSI_OVERBOUGHT", "rsi_overbought", _defaults[f"RSI_OVERBOUGHT_{MODE_NAME}"])
+    _update_mode_param("VWAP_ZSCORE_THRESH", "vwap_zscore_thresh", _defaults[f"VWAP_ZSCORE_THRESH_{MODE_NAME}"])
     config.MAX_TRADE_BARS = _default_max_trade_bars
 
 
@@ -889,13 +889,10 @@ if args.phase in ("2", "all"):
 def _run_on_data(df, target, stop, rsi, vwap, holdout_start=None, backtest_mode=None,
                  short_rsi_ob=None):
     """Run a single backtest on arbitrary data slice. Returns result or None."""
-    setattr(config, f"RSI_OVERSOLD_{MODE_NAME}", rsi)
-    config.ASSETS[MODE_NAME]["rsi_oversold"] = rsi
-    setattr(config, f"VWAP_ZSCORE_THRESH_{MODE_NAME}", vwap)
-    config.ASSETS[MODE_NAME]["vwap_zscore_thresh"] = vwap
+    _update_mode_param("RSI_OVERSOLD", "rsi_oversold", rsi)
+    _update_mode_param("VWAP_ZSCORE_THRESH", "vwap_zscore_thresh", vwap)
     if short_rsi_ob is not None:
-        setattr(config, f"RSI_OVERBOUGHT_{MODE_NAME}", short_rsi_ob)
-        config.ASSETS[MODE_NAME]["rsi_overbought"] = short_rsi_ob
+        _update_mode_param("RSI_OVERBOUGHT", "rsi_overbought", short_rsi_ob)
     mode_to_use = backtest_mode or args.mode
     try:
         with contextlib.redirect_stdout(io.StringIO()):
@@ -1639,11 +1636,17 @@ if r and "error" not in r:
         "train_bars": len(df_raw),
         "holdout_bars": len(df_holdout) if df_holdout is not None else 0,
         "backtest_mode": args.mode,
-        "position_sizing": "fixed_10pct",
+        # Record the sizing actually used (C1) — not a hardcoded label — so the
+        # result is reproducible even when --sizing/--adaptive override the default.
+        "position_sizing": (f"fixed_{_sizing.fixed_pct:.0%}" if _sizing.mode == "fixed"
+                            else _sizing.mode) + ("_adaptive" if _sizing.use_adaptive else ""),
+        # Reproducibility fingerprint of the train data (C7): window + content hash.
+        "data": data_fingerprint(df_raw, START_DATE, END_DATE),
         "selection_method": "holdout_live_score" if df_holdout is not None else "train_live_score",
         "live_trading": {
             "median_price": round(median_price, 2),
             "est_spread": round(est_spread, 3),
+            "round_trip_cost_pct": round(SLIPPAGE_PCT, 5),
             "min_stop_pct_used": MIN_STOP_PCT,
         },
         "presets": presets,
@@ -1662,8 +1665,9 @@ if r and "error" not in r:
         "timestamp": datetime.utcnow().isoformat(timespec="seconds") + "Z",
         "ticker": TICKER,
         "period": f"{START_DATE} → {END_DATE}",
+        "data_hash": out["data"]["data_hash"],
         "backtest_mode": args.mode,
-        "position_sizing": "fixed_10pct",
+        "position_sizing": out["position_sizing"],
         "selection_method": out["selection_method"],
         "params": bo.get("params", {}),
         "train": bo.get("train", {}),
