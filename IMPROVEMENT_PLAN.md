@@ -329,10 +329,16 @@ Decision/measurement layer that produced the misleading numbers is now tested
 - **C7** — `src/optimization/sweep_repro.py`: `sweep_results_*.json` now records a data
   fingerprint (window + content hash) + the actual sizing/cost; param writes routed
   through `_update_mode_param` (dual-sync hazard). 6 tests.
+- **C2** — stop-slippage fill model: `compute_trade_returns(stop_slippage_pct=…)` charges
+  extra adverse slippage on STOP fills only (live stops are market orders that gap);
+  `run_backtest` threads it through. Default 0.0 (behaviour-preserving); capability only,
+  NOT wired into the sweep default. 7 tests.
 
-**Still open in C:** C2 (configurable backtest fill model — bigger, touches the engine),
-and the design-decision items **C4** (sweep objective reweight) / **C5** (walk-forward as
-primary selector) — implement behind a flag, don't change default selection without sign-off.
+**Still open in C — design decisions (need sign-off; change which params get selected):**
+**C4** (reweight `live_score` toward net-of-cost EV×trades, away from churn-rewarding
+Sharpe, hard <34%-WR penalty) and **C5** (walk-forward as the primary selector — now
+runnable after the B1-era fix). Plan: implement behind a flag, keep the default selector
+unchanged until approved. C6 (multiple-testing controls) follows C4/C5.
 
-The **16 commits** sit **locally** on `pi-ops-automation` (not pushed). The evidence items
+All session commits sit **locally** on `pi-ops-automation` (not pushed). The evidence items
 (A2 fill-provenance, A4 fixed-10% re-sweep) still need the trader stopped.
