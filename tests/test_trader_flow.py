@@ -226,6 +226,42 @@ class TestPendingClose(_Base):
         self.assertEqual(malerts.alert_error.call_args.kwargs.get("level"), "CRITICAL")
 
 
+class TestInferBracketExit(unittest.TestCase):
+    """_infer_bracket_exit decides the recorded exit price/type when IBKR fill
+    data is unavailable — it directly sets estimated live PnL, so pin it.
+    """
+    def _pos(self, entry=80.0, tp=81.6, sl=79.6, direction="long"):
+        return types.SimpleNamespace(entry_price=entry, target_price=tp,
+                                      stop_price=sl, direction=direction)
+
+    def test_long_target(self):
+        self.assertEqual(trader._infer_bracket_exit(self._pos(), 82.0), (81.6, "target_hit"))
+
+    def test_long_stop(self):
+        self.assertEqual(trader._infer_bracket_exit(self._pos(), 79.0), (79.6, "stop_hit"))
+
+    def test_short_target(self):
+        p = self._pos(tp=78.4, sl=80.4, direction="short")
+        self.assertEqual(trader._infer_bracket_exit(p, 78.0), (78.4, "target_hit"))
+
+    def test_short_stop(self):
+        p = self._pos(tp=78.4, sl=80.4, direction="short")
+        self.assertEqual(trader._infer_bracket_exit(p, 81.0), (80.4, "stop_hit"))
+
+    def test_long_ambiguous_closer_to_tp(self):
+        # ref between sl and tp, nearer tp -> target_hit
+        self.assertEqual(trader._infer_bracket_exit(self._pos(), 81.4), (81.6, "target_hit"))
+
+    def test_long_ambiguous_closer_to_sl(self):
+        self.assertEqual(trader._infer_bracket_exit(self._pos(), 79.9), (79.6, "stop_hit"))
+
+    def test_legacy_no_tp_sl_uses_reference(self):
+        p = types.SimpleNamespace(entry_price=80.0, target_price=None,
+                                  stop_price=None, direction="long")
+        self.assertEqual(trader._infer_bracket_exit(p, 82.0), (82.0, "target_hit"))
+        self.assertEqual(trader._infer_bracket_exit(p, 78.0), (78.0, "stop_hit"))
+
+
 class TestTimeExit(_Base):
     def test_time_exit_closes_at_bar_limit(self):
         with ExitStack() as s:

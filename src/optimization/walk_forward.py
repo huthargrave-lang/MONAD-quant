@@ -233,7 +233,12 @@ def walk_forward_optimize(df: pd.DataFrame,
     stats = estimate_stats_from_backtest(combined_oos)
     oos_sharpe_total = _sharpe(combined_oos)
 
-    # Equity curve from OOS returns (equal-weight for display)
+    # Equity curve from OOS returns.
+    # NOTE (consistency gap): this sizes the equity curve with half-Kelly, but
+    # the live trader and the C1-aligned sweep both deploy a FIXED 10% per trade.
+    # So oos_total_return / final_capital below are NOT directly comparable to live
+    # or to sweep_results — only the trade-level OOS returns and Sharpe (which select
+    # params) are sizing-independent. Align to fixed-10% before quoting these numbers.
     sizing = compute_position_size(
         capital=_cfg.INITIAL_CAPITAL,
         win_rate=stats["win_rate"],

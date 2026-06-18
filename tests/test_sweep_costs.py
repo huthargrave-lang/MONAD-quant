@@ -76,19 +76,19 @@ class TestRunBacktestSlippageOverride(unittest.TestCase):
 
     def test_explicit_override_reflected(self):
         res = self._run(slippage_pct=0.01)
-        if res:  # synthetic should produce trades
-            self.assertAlmostEqual(res["slippage_pct"], 0.01, places=9)
+        self.assertTrue(res, "synthetic must produce trades or this test is vacuous")
+        self.assertAlmostEqual(res["slippage_pct"], 0.01, places=9)
 
     def test_default_uses_mode_value(self):
         res = self._run()  # no override -> realistic mode's 2bps
-        if res:
-            self.assertAlmostEqual(res["slippage_pct"], 0.0002, places=9)
+        self.assertTrue(res, "synthetic must produce trades or this test is vacuous")
+        self.assertAlmostEqual(res["slippage_pct"], 0.0002, places=9)
 
     def test_higher_slippage_lowers_return(self):
         lo = self._run(slippage_pct=0.0)
         hi = self._run(slippage_pct=0.02)
-        if lo and hi:
-            self.assertGreater(lo["total_return"], hi["total_return"])
+        self.assertTrue(lo and hi, "synthetic must produce trades")
+        self.assertGreater(lo["total_return"], hi["total_return"])
 
 
 if __name__ == "__main__":

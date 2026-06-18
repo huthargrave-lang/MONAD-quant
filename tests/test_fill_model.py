@@ -115,8 +115,8 @@ class TestRunBacktestPassthrough(unittest.TestCase):
         slipped = run_backtest(df=df.copy(), target_gain_pct=0.01, stop_loss_pct=0.005,
                                require_signals=1, timeframe="hourly", plot=False,
                                backtest_mode="realistic", stop_slippage_pct=0.01)
-        if base and slipped:   # synthetic produces stop exits
-            self.assertGreaterEqual(base["total_return"], slipped["total_return"])
+        self.assertTrue(base and slipped, "synthetic must produce trades (incl. stops)")
+        self.assertGreaterEqual(base["total_return"], slipped["total_return"])
 
 
 if __name__ == "__main__":
