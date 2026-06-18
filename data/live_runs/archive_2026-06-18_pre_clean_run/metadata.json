@@ -1,0 +1,41 @@
+{
+  "archive_id": "archive_2026-06-18_pre_clean_run",
+  "export_time_utc": "2026-06-18T03:13:35.201417+00:00",
+  "source_database": "/home/hudson/MONAD-quant/live/state.db",
+  "source_database_sha256": "fd8504c0d0e10c7831151ceef6d31d73722f2f2dc459f0e64869aff94550aff7",
+  "raw_backup_local_only": "/home/hudson/MONAD-quant/local_backups/state_2026-06-18_pre_clean_run.db",
+  "git_branch": "pi-ops-automation",
+  "git_commit": "b37a8a8",
+  "row_counts": {
+    "trades": 65,
+    "signal_history": 543,
+    "monitor_events": 149,
+    "position_snapshot": 0,
+    "monitor_status": 1,
+    "signal_snapshot": 1,
+    "account_snapshot": 1
+  },
+  "timestamp_ranges": {
+    "trades": [
+      "2026-03-26T18:32:14.768970+00:00",
+      "2026-05-29T14:32:48.272432+00:00"
+    ],
+    "signal_history": [
+      "2026-03-24 19:30:00",
+      "2026-06-17 15:30:00"
+    ],
+    "monitor_events": [
+      "2026-03-27T14:32:14.920410+00:00",
+      "2026-06-17T16:59:46.760625+00:00"
+    ]
+  },
+  "headline_metrics": {
+    "dashboard_prod_trades": 62,
+    "dashboard_win_rate_pct": 58.0645,
+    "dashboard_compounded_pct": 35.2026,
+    "alert_all_trades": 65,
+    "alert_simple_sum_pct": 31.0864,
+    "open_positions": 0
+  },
+  "note": "Sanitized export. Account IDs redacted. Raw .db NOT committed (local backup only). No rows were deleted from state.db."
+}

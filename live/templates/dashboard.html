@@ -230,6 +230,31 @@
 
     <div class="stale-banner {{ cycle_color }}">{{ cycle_text }}</div>
 
+    <!-- Run-window banner + view toggle -->
+    <div class="row">
+      <section class="card span-12" style="padding:10px 14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+          <div>
+            {% if run_marker %}
+              <strong>{{ {'current':'Current run','all':'All history','archive':'Archived (pre-clean)'}.get(run_view, 'Current run') }}</strong>
+              · run <code>{{ run_marker.run_id }}</code> started <span class="green">{{ run_started_at }}</span>
+              {% if run_marker.archive_id %} · archive <code>{{ run_marker.archive_id }}</code>{% endif %}
+            {% else %}
+              <strong>All history</strong> · no current-run marker set
+            {% endif %}
+          </div>
+          <div>
+            <a class="badge {{ 'green' if run_view == 'current' else '' }}" href="/?view=current">Current run</a>
+            <a class="badge {{ 'green' if run_view == 'all' else '' }}" href="/?view=all">All history</a>
+            <a class="badge {{ 'green' if run_view == 'archive' else '' }}" href="/?view=archive">Archived</a>
+          </div>
+        </div>
+        {% if run_marker and run_view == 'current' and (not summary or summary.total == 0) %}
+          <div style="color:var(--muted);font-size:12px;margin-top:6px;">No trades in the current run yet — metrics, equity curve and history below start fresh. Health/staleness still reflect the actual latest runtime status.</div>
+        {% endif %}
+      </section>
+    </div>
+
     {% if summary and summary.total > 0 %}
     <div class="row">
       <section class="card span-12 metric-strip">

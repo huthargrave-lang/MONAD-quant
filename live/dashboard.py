@@ -18,8 +18,12 @@ from markupsafe import Markup
 
 import config
 from live import state
+from src.analysis import run_window
 
 DB_PATH = Path(__file__).parent / "state.db"
+# Optional "current run" marker (gitignored runtime). When present, history
+# sections default to rows at/after its started_at. Absent → behaves as before.
+RUN_MARKER_PATH = Path(__file__).parent.parent / "local_runtime" / "current_run.json"
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 TEMPLATES.env.filters["commafy"] = lambda v, fmt="{:,.0f}": fmt.format(v) if v is not None else "—"
 
@@ -732,20 +736,34 @@ def get_live_ticker(symbol: str) -> JSONResponse:
 
 
 @app.get("/", response_class=HTMLResponse)
-def dashboard(request: Request) -> HTMLResponse:
+def dashboard(request: Request, view: str = "current") -> HTMLResponse:
+    # ── Run-window filter (display-side only; never touches state.db) ─────────
+    # "current" (default) shows rows at/after the run marker's started_at;
+    # "all" shows everything; "archive" shows pre-marker history. If no marker
+    # exists, every mode returns all rows (backward compatible).
+    if view not in run_window.VALID_MODES:
+        view = "current"
+    run_marker = run_window.load_run_marker(RUN_MARKER_PATH)
+    run_started_at = run_window.marker_started_at(run_marker)
+
     status = state.get_monitor_status()
     signal = state.get_signal_snapshot()
-    signal_history = state.get_signal_history(limit=20)
-    signal_chart_history = state.get_signal_history(limit=1000)
+    # Fetch generously, then filter the append-only history by run window.
+    sig_hist = run_window.filter_rows(
+        state.get_signal_history(limit=1000), ["updated_at", "bar_time"], run_started_at, view)
+    signal_history = sig_hist[:20]
+    signal_chart_history = sig_hist
     position = state.get_position()
     position_dict = position.__dict__ if position else None
-    all_trades = state.get_recent_trades(limit=250)
+    all_trades = run_window.filter_rows(
+        state.get_recent_trades(limit=250), ["entry_time", "exit_time"], run_started_at, view)
     trades = _filter_prod_trades(all_trades)[:30]
     chart_trades = _filter_prod_trades(all_trades)
     summary = _summarize_trades(chart_trades)
-    events = state.get_recent_monitor_events(limit=30)
+    events = run_window.filter_rows(
+        state.get_recent_monitor_events(limit=250), ["event_time"], run_started_at, view)[:30]
     account = state.get_account_snapshot()
-    freshness = state.get_dashboard_freshness_status()
+    freshness = state.get_dashboard_freshness_status()  # current-state: NOT filtered
 
     cycle_age_min = _minutes_ago(freshness.get("last_cycle_time"))
     cycle_text, cycle_color = _stale_band(cycle_age_min)
@@ -894,6 +912,9 @@ def dashboard(request: Request) -> HTMLResponse:
             "active_asset_key": active_asset_key,
             "asset_cfg": active_asset_cfg,
             "config_mode_mismatch": config_mode_mismatch,
+            "run_marker": run_marker,
+            "run_view": view,
+            "run_started_at": run_started_at.isoformat() if run_started_at else None,
             "trades": trades,
             "events": events,
             "signal_history": signal_history,

@@ -1,0 +1,14 @@
+[
+  {
+    "id": 1,
+    "updated_at": "2026-06-17T16:32:08.535255+00:00",
+    "equity": 93515.09,
+    "cash": 188828.35,
+    "buying_power": 30231.56,
+    "position_value": null,
+    "ibkr_connected": 1,
+    "mark_price": 80.95,
+    "mark_source": "live",
+    "mark_time": "2026-06-17T16:32:08.428416+00:00"
+  }
+]

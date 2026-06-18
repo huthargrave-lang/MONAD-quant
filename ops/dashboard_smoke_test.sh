@@ -44,7 +44,8 @@ chk "/health returns 200" "[ '$hcode' = 200 ]"
 # / (dashboard)
 dcode=$(curl -s -o /tmp/_smoke_dash.html -w "%{http_code}" --max-time 15 "$BASE/")
 chk "/ (dashboard) returns 200" "[ '$dcode' = 200 ]"
-chk "/ renders expected content" "grep -qE 'Win Rate|Total Return|Cumulative' /tmp/_smoke_dash.html"
+# Use always-present markup (the metric strip is hidden in a fresh current-run view)
+chk "/ renders expected content" "grep -qE 'Bot status|Current run|All history' /tmp/_smoke_dash.html"
 chk "/ exposes NO account id / creds / secrets" "! grep -qiE 'D?U[0-9]{5,}|password|IB_PAPER|secret|api[_-]?key|BEGIN (RSA|OPENSSH)' /tmp/_smoke_dash.html"
 
 # /api/ticker (network; tolerate failure but must not 500/leak)
