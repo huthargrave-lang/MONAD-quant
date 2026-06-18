@@ -1,0 +1,8 @@
+# Dev / test / backtest extras — NOT required to run the live trader or dashboard.
+# Install on a dev machine (or CI) for backtests, sweeps, and the full test suite:
+#   pip install -r requirements.txt -r requirements-dev.txt
+#
+# (The live Pi venv intentionally omits these — the trader/dashboard don't need them.)
+matplotlib>=3.7      # backtest equity-curve plots (src/backtest/runner.py); import is now optional
+httpx>=0.24          # fastapi TestClient for tests/test_dashboard.py
+pytest>=7.0          # test runner (the suite also runs under stdlib unittest)

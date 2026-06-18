@@ -161,6 +161,8 @@ Chronological summary of the live-ops work done in this stretch (all on/toward `
 6. **Added preflight-gated trader autostart** (`monad-trader.timer`, 09:22 ET) and enabled it (verified next fire pre-market, paper-only).
 7. **Dashboard smoke test + model observability plan** (`data/live_runs/model_phase_recommendations.md`) — verified the dashboard is read-only and internally consistent.
 8. **Run archive + current-run dashboard reset** — archived history, wrote the run marker, added the current/all/archive view toggle (dashboard-side only; `state.db` untouched).
+9. **Agent context system** — `AGENT_INDEX.md`, `context_map.json`, `tools/ctx.py` (query CLI), anti-drift tests, per-area `CONTEXT.md`; pointers from `CLAUDE.md`/`AGENTS.md`.
+10. **Parameter/codebase review** (`data/live_runs/parameter_review_2026-06-18.md`) — config matches documented optima, but a fresh realistic backtest yields **+0.08%/mo (Sharpe ~1.2)** vs the documented +2%/mo, agreeing with the ~flat live edge. Fixed: optional matplotlib in the backtest, the 730-day date-clamp bug, stale `requirements.txt`, CI (full suite + `pi-ops-automation`), and deduped `AGENTS.md`.
 
 ---
 

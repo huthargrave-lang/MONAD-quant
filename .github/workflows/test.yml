@@ -2,7 +2,7 @@ name: Tests
 
 on:
   push:
-    branches: [main, "claude/**"]
+    branches: [main, "claude/**", "pi-ops-automation", "fix-**"]
   pull_request:
     branches: [main]
 
@@ -16,10 +16,15 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
+      - name: Install dependencies (runtime + dev)
         run: |
-          pip install pandas numpy pytest
+          python -m pip install --upgrade pip
+          # Dev/test extras: httpx (dashboard TestClient), matplotlib, pytest.
+          pip install -r requirements-dev.txt
+          # Libraries the tests import directly. Tests stub ib_insync/yfinance where
+          # possible, so the CI install is kept lean and explicit.
+          pip install pandas numpy fastapi httpx ib_insync yfinance apscheduler
 
-      - name: Run tests
+      - name: Run the full test suite
         run: |
-          python -m pytest tests/test_signals.py tests/test_config.py tests/test_execution_model.py tests/test_state.py -v
+          python -m pytest tests/ -v

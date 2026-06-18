@@ -13,9 +13,16 @@ Fairness fixes (2026-03-23):
 
 import pandas as pd
 import numpy as np
-import matplotlib
-matplotlib.use("Agg")  # headless — no display required
-import matplotlib.pyplot as plt
+# matplotlib is optional: it is only used to render backtest_results.png. The
+# minimal/live Pi venv omits it, so guard the import — the backtest still
+# computes and prints all stats; only the plot is skipped when it's absent.
+try:
+    import matplotlib
+    matplotlib.use("Agg")  # headless — no display required
+    import matplotlib.pyplot as plt
+    _HAS_MPL = True
+except ImportError:
+    _HAS_MPL = False
 from collections import deque
 from src.strategy.engine import build_features, generate_trades, compute_trade_returns
 from src.strategy.sizing import estimate_stats_from_backtest, compute_position_size
@@ -392,8 +399,11 @@ def run_backtest(df: pd.DataFrame,
         print(f"  Exit breakdown: " + "  ".join(f"{k}={v}" for k, v in sorted(exit_breakdown.items())))
     print()
 
-    if plot:
+    if plot and _HAS_MPL:
         _plot_results(equity, drawdown, trade_returns, trades_df, df_trades, initial_capital)
+    elif plot:
+        print("(matplotlib not installed — skipping backtest_results.png; stats above are complete. "
+              "`pip install -r requirements-dev.txt` to enable the plot.)")
 
     return results
 

@@ -122,12 +122,19 @@ def main():
         bt_start = getattr(config, "BACKTEST_START_HOURLY", config.BACKTEST_START)
         bt_end   = getattr(config, "BACKTEST_END_HOURLY",   config.BACKTEST_END)
 
-        # Auto-clamp: yfinance only serves ~730 days of hourly data.
-        earliest_allowed = (datetime.now() - timedelta(days=_YFINANCE_HOURLY_MAX_DAYS)).strftime("%Y-%m-%d")
+        # Auto-clamp: yfinance only serves ~730 days of hourly data, and rejects a
+        # start at the exact boundary — so clamp a few days INSIDE the window.
+        _MARGIN_DAYS = 5
+        earliest_allowed = (datetime.now() - timedelta(days=_YFINANCE_HOURLY_MAX_DAYS - _MARGIN_DAYS)).strftime("%Y-%m-%d")
         if bt_start < earliest_allowed:
             print(f"  WARNING: BACKTEST_START '{bt_start}' exceeds yfinance 730-day hourly limit.")
             print(f"           Clamping to '{earliest_allowed}'.")
             bt_start = earliest_allowed
+        # Also clamp an end date that runs past 'now' (yfinance returns nothing then).
+        _today = datetime.now().strftime("%Y-%m-%d")
+        if bt_end > _today:
+            print(f"  WARNING: BACKTEST_END '{bt_end}' is in the future — clamping to today '{_today}'.")
+            bt_end = _today
     else:
         bt_start = config.BACKTEST_START
         bt_end   = config.BACKTEST_END
