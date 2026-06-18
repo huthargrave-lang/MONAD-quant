@@ -1,0 +1,9 @@
+[Unit]
+Description=Export MONAD paper data after US market close
+
+[Timer]
+OnCalendar=Mon..Fri 16:15 America/New_York
+Persistent=true
+
+[Install]
+WantedBy=timers.target

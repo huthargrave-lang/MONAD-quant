@@ -1,0 +1,11 @@
+[Unit]
+Description=MONAD paper-stack healthcheck (one probe)
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=hudson
+WorkingDirectory=/home/hudson/MONAD-quant
+ExecStart=/home/hudson/MONAD-quant/ops/healthcheck.sh
+# Degraded (exit 1) must not mark the unit failed — state lives in the JSON/log.
+SuccessExitStatus=0 1

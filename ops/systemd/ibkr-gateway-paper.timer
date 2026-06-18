@@ -1,0 +1,10 @@
+[Unit]
+Description=Start IB Gateway PAPER weekdays at 08:00 America/New_York (pre-market)
+
+[Timer]
+OnCalendar=Mon..Fri 08:00:00 America/New_York
+Persistent=true
+Unit=ibkr-gateway-paper.service
+
+[Install]
+WantedBy=timers.target

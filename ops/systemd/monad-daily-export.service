@@ -1,0 +1,9 @@
+[Unit]
+Description=MONAD daily sanitized data export from state.db
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=hudson
+WorkingDirectory=/home/hudson/MONAD-quant
+ExecStart=/home/hudson/MONAD-quant/venv/bin/python /home/hudson/MONAD-quant/ops/export_daily_data.py

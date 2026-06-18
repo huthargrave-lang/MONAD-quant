@@ -1,0 +1,21 @@
+[Unit]
+Description=IB Gateway PAPER (IBC, headless via Xvfb) for MONAD-quant
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=600
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=hudson
+Group=hudson
+WorkingDirectory=/home/hudson/ibc
+Environment=HOME=/home/hudson
+ExecStart=/home/hudson/MONAD-quant/ops/start_ibkr_gateway.sh
+Restart=on-failure
+RestartSec=30
+TimeoutStartSec=300
+SyslogIdentifier=ibkr-gateway-paper
+StandardOutput=journal
+StandardError=journal
+# No [Install] — the .timer schedules this. PAPER only (script hard-gates port 7497).

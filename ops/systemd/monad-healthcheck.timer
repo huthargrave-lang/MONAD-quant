@@ -1,0 +1,9 @@
+[Unit]
+Description=Run MONAD healthcheck every 5 min during US market hours
+
+[Timer]
+OnCalendar=Mon..Fri 09..16:00/5 America/New_York
+Persistent=false
+
+[Install]
+WantedBy=timers.target
