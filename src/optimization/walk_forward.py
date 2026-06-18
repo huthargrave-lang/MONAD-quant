@@ -71,7 +71,6 @@ def _run_slice(df_slice: pd.DataFrame, rsi_oversold: int,
         df_feat,
         require_signals=require_signals,
         use_regime_filter=_cfg.USE_REGIME_FILTER,
-        use_ma_regime_filter=_cfg.USE_MA_REGIME_FILTER,
         use_slope_regime=use_slope,
         longs_only=longs_only,
     )
@@ -86,12 +85,19 @@ def _run_slice(df_slice: pd.DataFrame, rsi_oversold: int,
         if len(bear_entries):
             bear_limit_overrides = {idx: bear_bars for idx in bear_entries}
 
-    returns, _exit_types = compute_trade_returns(
+    # compute_trade_returns returns a DataFrame (timestamp/return/trend_regime/
+    # exit_type). The optimizer needs a timestamp-indexed Series of returns for
+    # _sharpe (trade-frequency annualization), concatenation, and equity sizing.
+    result = compute_trade_returns(
         df_trades, target_gain_pct, stop_loss_pct,
         max_trade_bars=_cfg.MAX_TRADE_BARS,
         bar_limit_overrides=bear_limit_overrides,
     )
-    return returns
+    return pd.Series(
+        result["return"].to_numpy(),
+        index=pd.to_datetime(result["timestamp"]),
+        name="return",
+    )
 
 
 def _make_windows(df: pd.DataFrame, train_months: int, test_months: int):

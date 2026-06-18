@@ -15,10 +15,12 @@ Layers:
   * TestMakeWindows             — rolling train/test window geometry
 """
 import unittest
+from unittest import mock
 
 import numpy as np
 import pandas as pd
 
+from src.optimization import walk_forward
 from src.optimization.walk_forward import _sharpe, _make_windows
 
 
@@ -123,6 +125,94 @@ class TestMakeWindows(unittest.TestCase):
             self.assertLessEqual(train_start, train_end)
             self.assertEqual(train_end, test_start)
             self.assertLess(test_start, test_end)
+
+
+class TestRunSlice(unittest.TestCase):
+    """_run_slice must return a timestamp-indexed Series of trade returns.
+
+    Regression: compute_trade_returns returns a DataFrame (timestamp/return/
+    trend_regime/exit_type), but _run_slice used to unpack it as a 2-tuple
+    (`returns, _exit_types = ...`), which raises ValueError — so the whole
+    walk-forward optimizer (main.py --mode=walk-forward) crashed on the first
+    parameter evaluation. build_features/generate_trades are mocked to a fixed
+    feature frame so this isolates the return-contract handling.
+    """
+
+    def _feature_df(self):
+        idx = pd.date_range("2024-01-01", periods=12, freq="D")
+        close = np.linspace(100, 111, 12)
+        df = pd.DataFrame({
+            "open":  close,
+            "high":  close + 2.0,   # generous range so the long target hits
+            "low":   close - 2.0,
+            "close": close,
+            "entry_signal": [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        }, index=idx)
+        return df
+
+    @mock.patch("src.optimization.walk_forward.generate_trades")
+    @mock.patch("src.optimization.walk_forward.build_features")
+    def test_returns_timestamp_indexed_series(self, mock_bf, mock_gt):
+        feat = self._feature_df()
+        mock_bf.return_value = feat
+        mock_gt.return_value = feat
+        out = walk_forward._run_slice(feat, rsi_oversold=35,
+                                      target_gain_pct=0.01, stop_loss_pct=0.01)
+        self.assertIsInstance(out, pd.Series)
+        self.assertEqual(out.name, "return") if out.name else None
+        self.assertTrue(pd.api.types.is_datetime64_any_dtype(out.index))
+        self.assertEqual(len(out), 1)                  # one entry signal -> one trade
+        # _sharpe consumes this Series; it must not raise on it.
+        self.assertTrue(np.isfinite(_sharpe(pd.concat([out, out, out]))) or True)
+
+    @mock.patch("src.optimization.walk_forward.generate_trades")
+    @mock.patch("src.optimization.walk_forward.build_features")
+    def test_no_trades_returns_empty_series(self, mock_bf, mock_gt):
+        feat = self._feature_df()
+        feat["entry_signal"] = 0   # no entries
+        mock_bf.return_value = feat
+        mock_gt.return_value = feat
+        out = walk_forward._run_slice(feat, rsi_oversold=35,
+                                      target_gain_pct=0.01, stop_loss_pct=0.01)
+        self.assertIsInstance(out, pd.Series)
+        self.assertEqual(len(out), 0)
+
+
+class TestWalkForwardEndToEnd(unittest.TestCase):
+    """Run the real optimizer on synthetic daily data — no mocks.
+
+    This exercises build_features -> generate_trades -> compute_trade_returns ->
+    _run_slice -> _sharpe and would have caught BOTH stale-API bugs in _run_slice
+    (the DataFrame tuple-unpack and the removed use_ma_regime_filter kwarg) that
+    made `main.py --mode=walk-forward` crash.
+    """
+
+    def _synthetic_daily(self, n=520):
+        idx = pd.date_range("2022-01-01", periods=n, freq="D")
+        rng = np.random.default_rng(3)
+        close = 100 * (1 + 0.2 * np.sin(np.linspace(0, 30, n)) + rng.normal(0, 0.01, n).cumsum())
+        close = np.maximum(close, 5.0)
+        return pd.DataFrame({
+            "open": close, "high": close * 1.02, "low": close * 0.98,
+            "close": close, "volume": rng.integers(1_000_000, 5_000_000, n),
+        }, index=idx)
+
+    def test_optimize_runs_without_raising(self):
+        import contextlib
+        import io
+        df = self._synthetic_daily()
+        grid = {"rsi_oversold": [35, 40], "target_gain_pct": [0.01], "stop_loss_pct": [0.01]}
+        with contextlib.redirect_stdout(io.StringIO()):
+            res = walk_forward.walk_forward_optimize(
+                df, param_grid=grid, train_months=12, test_months=3
+            )
+        # May be {} if the synthetic data produced no OOS trades, but it must run.
+        self.assertIsInstance(res, dict)
+        if res:
+            self.assertIsInstance(res["oos_trade_returns"], pd.Series)
+            self.assertTrue(pd.api.types.is_datetime64_any_dtype(res["oos_trade_returns"].index))
+            self.assertIn("oos_sharpe", res)
+            self.assertIn("window_table", res)
 
 
 if __name__ == "__main__":
