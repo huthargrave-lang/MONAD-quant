@@ -33,6 +33,7 @@ import config
 from src.optimization.sweep_scoring import extract_metrics
 from src.optimization import sweep_scoring
 from src.optimization.sweep_sizing import resolve_sizing
+from src.optimization.sweep_costs import estimate_spread, round_trip_cost_pct
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -222,29 +223,16 @@ else:
 
 median_price = df_raw["close"].median()
 
-# Broker presets: spread estimates for liquid ETFs by broker
-_BROKER_SPREADS = {
-    "ibkr":     {"<15": 0.01, "<50": 0.01, "<150": 0.01, "else": 0.02},
-    "schwab":   {"<15": 0.01, "<50": 0.02, "<150": 0.03, "else": 0.03},
-    "fidelity": {"<15": 0.01, "<50": 0.02, "<150": 0.03, "else": 0.03},
-    "retail":   {"<15": 0.02, "<50": 0.03, "<150": 0.04, "else": 0.05},
-}
-
-def _estimate_spread(price, broker=None):
-    tiers = _BROKER_SPREADS.get(broker, _BROKER_SPREADS["retail"])
-    if price < 15:
-        return tiers["<15"]
-    elif price < 50:
-        return tiers["<50"]
-    elif price < 150:
-        return tiers["<150"]
-    else:
-        return tiers["else"]
-
+# Broker spread presets + round-trip cost live in src/optimization/sweep_costs.py.
 if args.spread is not None:
     est_spread = args.spread
 else:
-    est_spread = _estimate_spread(median_price, args.broker)
+    est_spread = estimate_spread(median_price, args.broker)
+
+# Round-trip execution cost as a return drag, applied to every trade in the
+# backtest so EV is net of realistic slippage (C3). Without this, the sweep
+# favoured high-trade-count configs that lose to cumulative spread cost.
+SLIPPAGE_PCT = round_trip_cost_pct(est_spread, median_price)
 
 # Safe stop = 5x spread as % of price (round-trip: entry slippage + exit slippage)
 # Floor at 0.15% — stops below this create same-bar ambiguity on hourly bars
@@ -263,6 +251,7 @@ else:
     broker_label = f" ({args.broker.upper()})" if args.broker else " (conservative)"
     print(f"  Median price:     ${median_price:.2f}")
     print(f"  Est. bid-ask:     ${est_spread:.3f}{broker_label}")
+    print(f"  Round-trip cost:  {SLIPPAGE_PCT*100:.3f}%/trade  (applied to every trade's return)")
     print(f"  Safe stop (5x):   {MIN_STOP_PCT:.2f}%  (${median_price * MIN_STOP_PCT / 100:.3f}/share)")
     print(f"  [override with --broker ibkr | --min-stop N | --spread N]\n")
 
@@ -322,6 +311,7 @@ def run_quiet(target, stop, rsi_os=None, vwap=None, short_rsi_ob=None):
                 timeframe="hourly",
                 plot=False,
                 backtest_mode=args.mode,
+                slippage_pct=SLIPPAGE_PCT,   # instrument-derived round-trip cost (C3)
             )
         return result if result else None
     except Exception as e:
@@ -919,6 +909,7 @@ def _run_on_data(df, target, stop, rsi, vwap, holdout_start=None, backtest_mode=
                 timeframe="hourly",
                 plot=False,
                 backtest_mode=mode_to_use,
+                slippage_pct=SLIPPAGE_PCT,   # instrument-derived round-trip cost (C3)
             )
 
             # If the engine produced no trades, `run_backtest()` returns `{}`.

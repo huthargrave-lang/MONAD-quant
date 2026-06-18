@@ -64,6 +64,7 @@ def run_backtest(df: pd.DataFrame,
                  timeframe: str = "daily",
                  plot: bool = True,
                  backtest_mode: str = "realistic",
+                 slippage_pct: float = None,
                  debug: bool = False) -> dict:
     """
     Run a full backtest on historical OHLCV data.
@@ -78,7 +79,11 @@ def run_backtest(df: pd.DataFrame,
     import config
 
     mode_cfg = BACKTEST_MODES.get(backtest_mode, BACKTEST_MODES["realistic"])
-    slippage_pct = mode_cfg["slippage_pct"]
+    # Explicit slippage_pct overrides the mode default — lets the sweep inject a
+    # realistic, instrument-derived round-trip cost (the fixed 2bps mode default
+    # badly understates a low-priced ETF's bid-ask spread). None => use the mode.
+    if slippage_pct is None:
+        slippage_pct = mode_cfg["slippage_pct"]
     worst_case = mode_cfg["worst_case_ambiguity"]
     kelly_mode = mode_cfg["kelly_mode"]
 
