@@ -1,0 +1,12 @@
+[Unit]
+Description=Start MONAD paper trader weekdays 09:22 America/New_York (pre-open, after Gateway)
+
+[Timer]
+# 09:22 ET — ~8 min before the 09:30 open and before the 09:32 first bar cycle.
+# Gateway autostart fires at 08:00 ET, so the API should already be up.
+OnCalendar=Mon..Fri 09:22:00 America/New_York
+# Do NOT catch up a missed start (avoid starting the trader late mid-session).
+Persistent=false
+
+[Install]
+WantedBy=timers.target

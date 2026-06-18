@@ -34,7 +34,26 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now monad-healthcheck.timer monad-daily-export.timer
 ```
 
-> Do **not** create or enable an auto-start trader service. Trader start stays manual.
+> The trader autostart below is **preflight-gated** and ships **disabled**. Install/enable
+> it only after you have verified a clean paper run.
+
+### Preflight-gated trader autostart (install only after approval)
+
+`monad-trader.service` runs `preflight_trader_start.sh` as a hard `ExecStartPre`
+gate (branch, Gateway up, port 7497 open, **7496 closed**, IBKR connects, account
+flat, no duplicate trader, writable db/logs, no recent healthcheck failure). Only
+if **all** checks pass does it run `start_trader.sh --exec`. `Restart=no` (a crashed
+trader stays down for review). `monad-trader.timer` fires weekdays **09:22 ET**.
+
+```bash
+# Install the templates (does NOT enable them):
+sudo cp ~/MONAD-quant/ops/systemd/monad-trader.service ~/MONAD-quant/ops/systemd/monad-trader.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+# Dry-run the gate by hand first (safe; exits non-zero if anything is off):
+bash ~/MONAD-quant/ops/preflight_trader_start.sh
+# Enable the timer ONLY after a verified clean run:
+# sudo systemctl enable --now monad-trader.timer
+```
 
 ## Enable / disable
 

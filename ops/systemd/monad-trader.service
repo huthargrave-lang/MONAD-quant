@@ -1,0 +1,34 @@
+[Unit]
+Description=MONAD paper trader (preflight-gated, PAPER only)
+After=network-online.target ibkr-gateway-paper.service
+Wants=network-online.target
+# Conservative restart limiting (see Restart=no below).
+StartLimitIntervalSec=600
+StartLimitBurst=2
+
+[Service]
+Type=simple
+User=hudson
+Group=hudson
+WorkingDirectory=/home/hudson/MONAD-quant
+Environment=PYTHONUNBUFFERED=1
+Environment=TZ=America/New_York
+
+# HARD GATE: if preflight exits non-zero, ExecStart never runs (trader stays down).
+ExecStartPre=/home/hudson/MONAD-quant/ops/preflight_trader_start.sh
+# Guarded starter in foreground mode (paper + port 7497 checks, then exec trader).
+ExecStart=/home/hudson/MONAD-quant/ops/start_trader.sh --exec
+
+# Do NOT auto-restart: a crashed trader should stay down for operator review.
+# Restarting cannot be proven safe (risk of repeated entries / acting on bad
+# state), so we choose the conservative default. Restart manually after checking.
+Restart=no
+
+# Logs to a local file (plus the preflight script's own trader_preflight.log).
+# Requires local_logs/ to exist (it is created by the ops scripts).
+StandardOutput=append:/home/hudson/MONAD-quant/local_logs/trader.log
+StandardError=append:/home/hudson/MONAD-quant/local_logs/trader.log
+SyslogIdentifier=monad-trader
+
+# No [Install]: this unit is started by monad-trader.timer (and manually).
+# It is intentionally NOT enabled for boot.
