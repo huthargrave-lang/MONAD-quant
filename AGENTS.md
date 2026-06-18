@@ -1,5 +1,7 @@
 # MONAD Quant — Full Model History & Context
 
+> 🧭 **Agents: start with [`AGENT_INDEX.md`](AGENT_INDEX.md) and `tools/ctx.py`** (e.g. `venv/bin/python tools/ctx.py route "<task>"`) — route to the specific files/sections you need instead of reading this whole file. This doc is the deep *"why"* (strategy); **`OPERATIONS.md`** is the live/ops *"how it runs"*.
+
 > **Purpose of this file:** Complete institutional memory for the strategy — what every
 > component does, every approach tried, why things failed, and what to try next. Written
 > for AI agents and collaborators who need maximum context without reading git history.
