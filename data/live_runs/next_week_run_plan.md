@@ -23,12 +23,14 @@ both are now fixed on this branch.
 ## 2. What is already working
 - **Gateway autostart** (systemd timer, timezone-aware, full re-auth from `~/.ibkr-paper.env`).
 - **The two correctness fixes** (entry-desync guard, software take-profit) — merged + tested on this branch.
-- **Local ops tooling** in `ops/`: `status_check.sh`, `start_trader.sh`, `healthcheck.sh`, `export_daily_data.py`, plus the existing `start_ibkr_gateway.sh` / `healthcheck_ibkr.sh`.
+- **Version-controlled ops tooling** in `ops/`: `status_check.sh`, `start_trader.sh`, `healthcheck.sh`, `export_daily_data.py`, `start_ibkr_gateway.sh`, `healthcheck_ibkr.sh`, plus `ops/systemd/` unit templates and `ops/README.md`.
+- **Installed + enabled systemd timers** (all paper, none place orders):
+  `ibkr-gateway-paper.timer` (08:00 ET start), `monad-healthcheck.timer` (every 5 min, market hours), `monad-daily-export.timer` (16:15 ET). The Gateway service now runs the tracked `ops/start_ibkr_gateway.sh`.
 - **Read-only diagnostic** `tools/diagnose_brackets.py`.
 
 ## 3. What is broken or unknown
 - ⚠️ **yfinance rate-limiting (HTTP 429)** observed once — the trader's signal source. If it persists, signal fetches fail and entries are (correctly) blocked. Recheck tomorrow.
-- ⚠️ **No mid-market Gateway auto-recovery yet** — the healthcheck timer (below) is *staged, not installed*. If the Gateway dies mid-session it won't self-restart until the next morning unless we install the healthcheck/auto-restart.
+- ⚠️ **No mid-market Gateway auto-recovery** — the healthcheck timer is installed and *observes* gateway/port every 5 min (writes `local_logs/healthcheck.json`), but it does **not** auto-restart the Gateway. If the Gateway dies mid-session, recovery is still manual (`sudo systemctl start ibkr-gateway-paper.service`). Adding an auto-restart action is a deliberate future step.
 - ⚠️ **IBC `AutoRestartTime` is blank** — the Gateway uses its own restart time. Confirmed it currently restarts ~23:45 BST (after US close), which is safe, but it's not pinned.
 - ❓ **Whether brackets fill reliably enough** in live paper — the software TP/stop now backstop this, but we want to measure how often the native bracket actually fills vs. the software net firing.
 
