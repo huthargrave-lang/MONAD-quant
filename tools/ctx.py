@@ -28,6 +28,7 @@ import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MANIFEST = os.path.join(REPO, "context_map.json")
+WEB = os.path.join(REPO, "RESEARCH_WEB.md")
 DB = os.path.join(REPO, "live", "state.db")
 PROD = {"target_hit", "stop_hit", "time_exit", "bracket_exit", "pending_close"}
 CONFIRMED = {"bracket_exit", "stop_hit"}  # actually-filled exits (drop inferred target_hit + artifacts)
@@ -205,6 +206,57 @@ def cmd_tests(args):
     print("  " + ("\n  ".join(a.get("tests", [])) or "(no tests listed)"))
 
 
+def _parse_web():
+    """Parse RESEARCH_WEB.md into {id: {title, body, links}} + reverse links.
+    Nodes are '### <ID> — <title>'; edges are '[[ID]]' references in the body."""
+    if not os.path.exists(WEB):
+        return {}, {}
+    nodes, cur = {}, None
+    hdr = re.compile(r"^###\s+([A-Za-z]+\d+)\s+[—-]\s+(.*)$")
+    with open(WEB) as f:
+        for line in f:
+            m = hdr.match(line.rstrip())
+            if m:
+                cur = m.group(1)
+                nodes[cur] = {"title": m.group(2).strip(), "body": ""}
+            elif cur:
+                nodes[cur]["body"] += line
+    link_rx = re.compile(r"\[\[([A-Za-z]+\d+)\]\]")
+    rev = {}
+    for nid, n in nodes.items():
+        n["links"] = sorted(set(link_rx.findall(n["body"])) - {nid})
+        for tgt in n["links"]:
+            rev.setdefault(tgt, set()).add(nid)
+    return nodes, {k: sorted(v) for k, v in rev.items()}
+
+
+def cmd_web(args):
+    """Traverse the research idea web (RESEARCH_WEB.md)."""
+    nodes, rev = _parse_web()
+    if not nodes:
+        print("RESEARCH_WEB.md not found or empty.")
+        return
+    if args.node:
+        n = nodes.get(args.node)
+        if not n:
+            print(f"no node '{args.node}'. nodes: {', '.join(sorted(nodes))}")
+            return
+        print(f"{args.node} — {n['title']}\n{n['body'].strip()}")
+        print(f"\n  → links to:  {', '.join(n['links']) or '—'}")
+        print(f"  ← linked by: {', '.join(rev.get(args.node, [])) or '—'}")
+        return
+    labels = {"F": "Findings", "H": "Hypotheses", "E": "Experiments", "D": "Decisions"}
+    for pre, label in labels.items():
+        ids = sorted((k for k in nodes if k.startswith(pre)), key=lambda x: int(x[1:]))
+        if not ids:
+            continue
+        print(f"{label}:")
+        for nid in ids:
+            links = ", ".join(nodes[nid]["links"])
+            print(f"  {nid:<4} {nodes[nid]['title'][:58]:<58} → {links}")
+        print()
+
+
 def main():
     p = argparse.ArgumentParser(description="ctx — read-only context query tool for agents")
     sub = p.add_subparsers(dest="cmd")
@@ -217,6 +269,7 @@ def main():
     sp = sub.add_parser("recent"); sp.add_argument("n", nargs="?", type=int, default=10); sp.set_defaults(fn=cmd_recent)
     sp = sub.add_parser("map"); sp.add_argument("area", nargs="?"); sp.set_defaults(fn=cmd_map)
     sp = sub.add_parser("tests"); sp.add_argument("area"); sp.set_defaults(fn=cmd_tests)
+    sp = sub.add_parser("web"); sp.add_argument("node", nargs="?"); sp.set_defaults(fn=cmd_web)
     args = p.parse_args()
     if not getattr(args, "fn", None):
         # default: print the index summary

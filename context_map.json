@@ -6,7 +6,8 @@
     "strategy_why": ["CLAUDE.md", "AGENTS.md"],
     "live_ops_how": ["OPERATIONS.md", "ops/README.md"],
     "navigation": ["AGENT_INDEX.md", "AGENT_CONTEXT_PLAN.md"],
-    "roadmap": ["IMPROVEMENT_PLAN.md"]
+    "roadmap": ["IMPROVEMENT_PLAN.md"],
+    "research_idea_web": ["RESEARCH_WEB.md"]
   },
 
   "invariants": {
@@ -103,9 +104,9 @@
     {"keywords": ["strategy", "signal", "param", "threshold", "rsi", "macd", "regime", "kelly", "sweep", "backtest"],
      "read": ["CLAUDE.md (relevant section)", "config.py", "src/signals/", "src/strategy/engine.py"],
      "run": ["python sweep.py TICKER"], "avoid": ["live/ trader/order paths"]},
-    {"keywords": ["objective", "live_score", "ev_score", "scoring", "sizing", "slippage", "cost", "spread", "fill model", "reproducib", "walk-forward", "walk forward", "optimizer", "selection", "overfit", "metrics", "sharpe", "leak-free", "oos", "out-of-sample", "edge", "validation"],
-     "read": ["src/optimization/sweep_scoring.py", "src/optimization/sweep_sizing.py", "src/optimization/sweep_costs.py", "src/optimization/walk_forward.py", "tools/walkforward_eval.py", "src/backtest/metrics.py", "IMPROVEMENT_PLAN.md (Workstreams B/C)"],
-     "run": ["ctx map optimization", "ctx tests optimization", "venv/bin/python tools/walkforward_eval.py TQQQ QQQ TNA --objective ev", "python sweep.py TICKER --objective ev"],
+    {"keywords": ["objective", "live_score", "ev_score", "scoring", "sizing", "slippage", "cost", "spread", "fill model", "reproducib", "walk-forward", "walk forward", "optimizer", "selection", "overfit", "metrics", "sharpe", "leak-free", "oos", "out-of-sample", "edge", "validation", "research", "hypothesis", "idea", "findings", "web"],
+     "read": ["RESEARCH_WEB.md (run: ctx web)", "src/optimization/sweep_scoring.py", "src/optimization/sweep_sizing.py", "src/optimization/sweep_costs.py", "src/optimization/walk_forward.py", "tools/walkforward_eval.py", "src/backtest/metrics.py", "IMPROVEMENT_PLAN.md (Workstreams B/C)"],
+     "run": ["ctx web", "ctx map optimization", "ctx tests optimization", "venv/bin/python tools/walkforward_eval.py TQQQ QQQ TNA --objective ev", "python sweep.py TICKER --objective ev"],
      "avoid": ["trusting holdout-selected sweep numbers (selection-biased) — prefer the leak-free walkforward_eval", "changing the default sweep objective/sizing/selection without sign-off"]},
     {"keywords": ["trader", "live", "entry", "exit", "reconcile", "on_bar", "pending_close", "position"],
      "read": ["OPERATIONS.md", "live/trader.py::_on_bar_inner", "tests/test_trader_reconcile.py"],
@@ -137,6 +138,7 @@
     "where_is_symbol": "run: ctx where <name>",
     "scheduled_timers": "run: systemctl list-timers 'monad-*' 'ibkr-*'",
     "tests_for_area": "run: ctx tests <area>   (e.g. ctx tests optimization)",
+    "research_idea_web": "run: ctx web   (findings/hypotheses/experiments/decisions graph; `ctx web F3` for a node). The honest edge evidence + open questions live here.",
     "sweep_sizing": "sweep defaults to live fixed-10% (resolve_sizing, sweep_sizing.py); --sizing/--adaptive override. Backtest 'fixed' mode == live get_position_plan.",
     "sweep_objective": "default 'sharpe' (live_score); '--objective ev' = net-of-cost EV, hard-rejects <34% WR (sweep_scoring.py, opt-in). Do NOT change the default selection without sign-off.",
     "sweep_cost_realism": "round-trip spread cost is baked into EV (sweep_costs.round_trip_cost_pct); scoring penalties are skipped on negative-base scores (else they perversely improve losing configs)."
@@ -152,6 +154,7 @@
     {"cmd": "ctx recent [N]", "returns": "last N commits + changed files on the deploy branch"},
     {"cmd": "ctx map [area]", "returns": "this manifest (or one area)"},
     {"cmd": "ctx tests <area>", "returns": "the test files that cover an area (code->verification link)"},
+    {"cmd": "ctx web [node]", "returns": "traverse the research idea web (findings/hypotheses/experiments/decisions + links)"},
     {"cmd": "bash ops/status_check.sh", "returns": "system + gateway + trader + data freshness"},
     {"cmd": "venv/bin/python tools/diagnose_brackets.py", "returns": "IBKR connection + positions + brackets (read-only)"}
   ],
