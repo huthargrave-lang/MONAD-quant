@@ -268,6 +268,39 @@ F13 reversal (a confidently-stored "edge" that was a data artifact) is the motiv
 - **K6 — Memory hygiene**: fix the dangling `[[session-2026-06-18-testing]]` link; keep per-user
   MEMORY pointing to (not copying) the repo SSOT; the repo wins on conflict. (memory agent)
 
+## Workstream K-access — Max codebase access (from 12 investigatory agents, 2026-06-19)
+
+**Theme (unanimous across 12 lanes):** give agents maximum access by extending the stdlib
+`ctx` CLI — NOT a vector DB, NOT an MCP server (both add deps/ops for ~zero benefit at 15k LOC;
+Anthropic/Cursor dropped vector indexes for agentic search). Everything stays stdlib, read-only,
+CI-guarded by `tests/test_context_map.py`. **CLAUDE.md compressed (1440→499 lines, history archived).**
+
+- **KA0 (DONE)** — `ctx route` robustness (tokenize+stem+word-boundary kills the `stops`→`ops`
+  misroute; manifest `routing_synonyms`; difflib fallback) + golden-query/synonym anti-drift tests;
+  `ctx usages <symbol>` (all refs classified) + `ctx defs <file>` (symbol outline); CI now installs
+  requirements.txt (was silently dropping test_dashboard + test_fetcher at collection).
+- **KA1 — `ctx brief <area> --task`** (≤900-token orientation packet, 7 ordered blocks) + sub-agent
+  RESULT schema (`research_web_delta`). Kills cold-start re-derivation; make it AGENT_INDEX's first move. (onboarding)
+- **KA2 — `ctx impact <file|config.KEY>`** — reverse-deps + **⚠ flags when the blast radius touches a
+  `do_not_touch` live file** + covering tests + 3-form config scan (`config.KEY`/`getattr`/`ASSETS`).
+  Prototyped. The single best safety+access primitive. (impact)
+- **KA3 — `ctx history <file|symbol>`** (commits + cited RESEARCH_WEB nodes) + **`ctx reverts`** (a
+  self-maintaining "what we already tried & abandoned" ledger from git) + `ctx churn`. (git-history)
+- **KA4 — `ctx events`** (monitor_events error narrative) + `ctx config-effective` (resolved per-mode
+  params + config↔DB drift) + `ctx signal`; **broaden `_redact()` to a shared filter first**. (runtime)
+- **KA5 — `ctx tree`/`ctx summary`** (AST repomap from existing docstrings) + **`test_area_coverage`**
+  CI guard (found 5 orphaned modules) + docstring-present lint. (maps)
+- **KA6 — `ctx covers <symbol>`** (symbol→tests via coverage contexts) + auto-derive area test lists +
+  a `live/` coverage floor. (tests-as-map)
+- **KA7 — Safe-write fence**: `edit_policy` block in context_map (deny `live/**`,`config.py`,`*.db`,`.env`)
+  + `ctx can-edit <file>` + a **PreToolUse hook** that blocks live-path edits + a real pre-commit
+  secret-scan (currently enforced by nobody — `.git/hooks` empty) + `ctx armed` market-hours escalation. (safety)
+- **KA8 — Skills suite**: `monad-orient/test/commit/validate-edge/sweep/screen/preflight` SKILL.md +
+  fix the broken `.claude-plugin/plugin.json` (dangling commands/ + stale quant-momentum.md). (skills)
+- **KA9 — Deferred (correctly NOT now)**: vector/embedding retrieval (flip only >100k LOC + heterogeneous
+  + sustained conceptual queries; lightest path = BM25-first hybrid built OFF the Pi); a hand-built MCP
+  server (reserve a thin auto-generated shim over `ctx`; populate-or-delete the empty `.mcp.json`).
+
 ---
 
 ## Prioritized roadmap (phased)
