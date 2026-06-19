@@ -68,6 +68,16 @@ The cached yfinance hourly data is truncated to ~3 bars/day (≈13–15 UTC / fi
 hours). Every number in this web is the **morning-session regime**. A full-session re-pull
 could shift magnitudes. → [[H5]], [[E7]].
 
+### F12 — ROOT CAUSE of the morning-only data + a backtest↔live data mismatch
+The morning-only data ([[F10]]) is a yfinance quirk: a 1h fetch over a LONG (~710-day) range
+returns only ~3 bars/day (the open, 13–15 UTC), but the SAME data fetched in ≤250-day chunks
+returns FULL 7-bar sessions (13–20 UTC). Crucially: the **live bot fetches a short ~40-day
+window** (`live/signals.py::_fetch_recent_bars`, `trading_days_needed*2`) → it trades on
+FULL-session data; but **every backtest/sweep fetched ~710 days → morning-only**. So all
+validation to date used a DIFFERENT (thinner, open-only) data distribution than the live bot
+actually trades on — a serious backtest↔live gap. Fixed by `tools/fetch_fullsession.py`
+(chunked re-pull, ~3× the bars). Re-running [[E3]]/screen on full-session data is [[E7]]. Supersedes the caveat in [[F10]].
+
 ### F11 — Penalty-inversion selection bug (fixed)
 The sweep scorer multiplied a NEGATIVE base by penalty factors <1, moving it toward zero —
 i.e. it *improved* losing configs, so among net-negative candidates it preferred the
@@ -119,8 +129,11 @@ ATR stops + require_signals=2 in leak-free OOS. Neither lifts the edge reliably.
 ### E6 — RESOLVED: QQQ structural deep-dive + SPY/IWM
 Exit-type decomposition + noise-ratio across 7 instruments + SPY/IWM fetch. Produced the
 mechanism [[F7]], [[F9]]; resolved [[H2]], explained [[F4]].
-### E7 — OPEN: full-session data re-pull & re-validate
-Resolve the morning-only caveat [[F10]]/[[H5]]. Pull full RTH hourly bars; re-run [[E3]].
+### E7 — IN PROGRESS: full-session data re-pull & re-validate (now matches live)
+`tools/fetch_fullsession.py` rebuilds full-session 1h data (root cause [[F12]]). Gathering a
+conservative universe (broad indices + low-vol/dividend + bond ETFs). Then re-run the
+noise-ratio screen [[E8]] + leak-free walk-forward [[E3]] on data that finally matches what the
+live bot trades. Resolves [[H5]]; feeds the conservative-target question [[D4]].
 ### E8 — OPEN: noise-ratio instrument screener
 `tools/instrument_screen.py` — rank a universe by `P(bar range > stop)` / noise_ratio to
 find where the signal can work ([[H6]]), before spending sweep/validation time.
@@ -147,3 +160,12 @@ bar range (noise_ratio > 1)**. Concretely: (1) run full sweeps on QQQ + SPY (+ I
 production candidates; (2) build the screener [[E8]] to apply the rule to a wider universe; (3) do
 NOT size up the leveraged ETFs on this architecture. NOTE: changing the live instrument touches the
 armed trader path — requires sign-off; this node records the evidence-backed recommendation, not an applied change.
+
+### D4 — OPEN: is the original ~3.75% APY conservative goal achievable?
+3.75% APY ≈ +0.307%/mo compounded. The leak-free QQQ result ([[F3]]) was +0.34%/mo ≈ 4.1% APY at
+Sharpe 3.74 / −0.78% DD — i.e. the goal looks ACHIEVABLE on the right (un-leveraged, high-noise-ratio
+[[F7]]) instrument, NOT on the 3x ETFs. Open questions to settle it: does it hold on FULL-session,
+live-representative data ([[E7]]/[[F12]])? Do bond/low-vol ETFs (AGG/SCHD/USMV…) screen friendly and
+validate? Does DIVERSIFYING across several friendly instruments cut drawdown for the same return
+(the classic conservative move)? Resolve via [[E7]] + [[E8]] across the conservative universe, then a
+multi-instrument leak-free portfolio test.

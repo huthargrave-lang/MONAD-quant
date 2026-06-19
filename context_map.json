@@ -59,8 +59,8 @@
     },
     "backtest": {
       "summary": "Backtest loop + performance metrics + data ingestion; universal param sweep entrypoint.",
-      "files": ["src/backtest/runner.py", "src/backtest/metrics.py", "src/data/fetcher.py", "main.py", "sweep.py"],
-      "entrypoints": ["src/backtest/runner.py::run_backtest", "src/backtest/metrics.py::annualized_sharpe", "src/data/fetcher.py::fetch_yfinance"],
+      "files": ["src/backtest/runner.py", "src/backtest/metrics.py", "src/data/fetcher.py", "tools/fetch_fullsession.py", "main.py", "sweep.py"],
+      "entrypoints": ["src/backtest/runner.py::run_backtest", "src/backtest/metrics.py::annualized_sharpe", "src/data/fetcher.py::fetch_yfinance", "tools/fetch_fullsession.py::fetch_full"],
       "tests": ["tests/test_runner_metrics.py", "tests/test_fetcher.py"],
       "docs": ["CLAUDE.md"],
       "do_not_touch_without_approval": false
