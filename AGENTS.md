@@ -20,3 +20,27 @@ full strategy memory now lives in **one** place.
    backtest of the live TQQQ config yields ~**+0.08%/mo (Sharpe ~1.2)**, and the live paper
    confirmed-fill edge is ~**flat (+0.2%)** — versus the ~+2%/mo / Sharpe 39 once documented.
    Treat headline performance claims with skepticism; run `ctx perf` for the honest read.
+
+## Commands (imperative — this is the cross-tool surface)
+```bash
+# orient (do this first — don't read the whole codebase)
+venv/bin/python tools/ctx.py route "<task>"        # files to read + tools to run
+venv/bin/python tools/ctx.py brief <area> --task "<task>"   # ≤900-tok orientation packet
+# test — uses unittest (NOT pytest; the venv is lean). discover, or one module:
+venv/bin/python -m unittest discover -s tests
+venv/bin/python -m unittest tests.test_<area> -v
+# before committing
+venv/bin/python tools/ctx.py can_edit <file>       # ALLOW/WARN/DENY (DENY ⇒ stop)
+venv/bin/python ops/secret_scan.py --staged        # blocks secrets/raw DBs (install: bash ops/hooks/install.sh)
+```
+
+## Guardrails (non-negotiable — also enforced in CI + a PreToolUse hook)
+- **PAPER ONLY.** IBKR paper port **7497**; the live port **7496 must never be used**.
+  `config.LIVE_PAPER_MODE=True`, active symbol **TQQQ**.
+- **Do NOT modify the live-trader / order / strategy path** (`live/**`, `src/strategy/**`,
+  `src/signals/**`, `config.py`) without explicit approval — the trader auto-starts from
+  `pi-ops-automation`. `ctx can_edit` and `ops/guard_edit.py` (a PreToolUse hook) DENY these writes.
+- **Never commit** `.env`, raw `*.db`, logs, credentials, or **account IDs**. Push via **SSH**,
+  never to `main`. `ops/secret_scan.py` is the commit-time gate.
+- **Validate on the full realistic backtest / `ctx perf`**, never a standalone year or the
+  superseded headline numbers.
