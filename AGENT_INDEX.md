@@ -14,6 +14,7 @@ venv/bin/python tools/ctx.py perf                  # headline + the HONEST confi
 venv/bin/python tools/ctx.py status                # live deploy/runtime state
 venv/bin/python tools/ctx.py recent [N]            # recent commits + changed files
 venv/bin/python tools/ctx.py map [area]            # the manifest (or one area)
+venv/bin/python tools/ctx.py web [node]            # walk the research idea-web (findings→hypotheses→evidence)
 ```
 
 Machine-readable routing/invariants live in **`context_map.json`** (kept honest by
@@ -30,6 +31,7 @@ Machine-readable routing/invariants live in **`context_map.json`** (kept honest 
 | Ops / systemd / deploy | `OPERATIONS.md`, `ops/README.md`, `ops/systemd/` | `ctx status` | enabling trader autostart w/o approval |
 | DB / schema / data model | `live/state.py::init_db` | `ctx schema` | committing raw `.db` |
 | Performance / "is it real" | `data/live_runs/analysis_2026-06-17/`, `model_phase_recommendations.md` | `ctx perf` | — |
+| Research / edge / which params | `RESEARCH_WEB.md` | `ctx web`, `tools/walkforward_eval.py` | trusting holdout-selected sweep numbers (biased) |
 
 (Or just `ctx route "<task>"`.)
 
