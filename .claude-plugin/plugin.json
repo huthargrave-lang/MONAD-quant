@@ -1,11 +1,16 @@
 {
   "name": "monad-quant",
-  "version": "0.1.0",
-  "description": "MONAD Quant Fund — momentum + mean-reversion strategy engine for ETFs and BTC",
-  "skills": ["skills/quant-momentum.md"],
-  "commands": [
-    "commands/screen.md",
-    "commands/backtest.md",
-    "commands/report.md"
+  "version": "0.2.0",
+  "description": "MONAD Quant — PAPER-ONLY long-only mean-reversion ETF/BTC engine. Skills route agents through the ctx tooling (orient, test, validate-edge, preflight) and enforce the repo invariants (paper port 7497, never the live trading/order/strategy path).",
+  "author": {
+    "name": "hudson",
+    "email": "hut.hargrave@gmail.com"
+  },
+  "skills": [
+    "skills/monad-orient/SKILL.md",
+    "skills/monad-test/SKILL.md",
+    "skills/monad-validate-edge/SKILL.md",
+    "skills/monad-preflight/SKILL.md",
+    "skills/monad-sweep/SKILL.md"
   ]
 }
