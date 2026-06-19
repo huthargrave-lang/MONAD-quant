@@ -30,7 +30,7 @@ Machine-readable routing/invariants live in **`context_map.json`** (kept honest 
 | Dashboard / UI | `live/dashboard.py`, `templates/dashboard.html`, `src/analysis/run_window.py` | `ops/dashboard_smoke_test.sh` | `live/state.py` writers |
 | Ops / systemd / deploy | `OPERATIONS.md`, `ops/README.md`, `ops/systemd/` | `ctx status` | enabling trader autostart w/o approval |
 | DB / schema / data model | `live/state.py::init_db` | `ctx schema` | committing raw `.db` |
-| Performance / "is it real" | `data/live_runs/analysis_2026-06-17/`, `model_phase_recommendations.md` | `ctx perf` | — |
+| Performance / "is it real" | `RESEARCH_WEB.md` (honest edge) | `ctx perf`, `ctx web --live` | CLAUDE.md headlines (superseded) |
 | Research / edge / which params | `RESEARCH_WEB.md` | `ctx web`, `tools/walkforward_eval.py` | trusting holdout-selected sweep numbers (biased) |
 
 (Or just `ctx route "<task>"`.)

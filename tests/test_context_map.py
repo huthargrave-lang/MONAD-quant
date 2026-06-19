@@ -66,6 +66,41 @@ class TestManifestReferencesExist(unittest.TestCase):
                 with self.subTest(area=area, test=t):
                     self.assertTrue(os.path.exists(os.path.join(REPO, t)), f"missing test file: {t}")
 
+    def test_context_docs_exist(self):
+        """Every doc the manifest points agents at must exist (a rename otherwise
+        silently sends the router to a dead file)."""
+        for group, docs in self.m["context_docs"].items():
+            for d in docs:
+                with self.subTest(group=group, doc=d):
+                    self.assertTrue(os.path.exists(os.path.join(REPO, d)),
+                                    f"context_docs path missing: {d}")
+
+    def test_routing_read_paths_exist(self):
+        """Routing 'read' targets that are file paths must exist. Skips non-path
+        hints (ctx commands, '(section)' notes, TICKER placeholders)."""
+        for r in self.m["routing"]:
+            for entry in r["read"]:
+                tok = entry.split()[0].split("::")[0]  # first token, drop ::symbol
+                is_path = ("/" in tok) or tok.endswith((".md", ".py", ".json", ".html"))
+                if not is_path:
+                    continue
+                with self.subTest(read=entry):
+                    self.assertTrue(os.path.exists(os.path.join(REPO, tok)),
+                                    f"routing read path missing: {tok}")
+
+    def test_referenced_ctx_subcommands_are_registered(self):
+        """Every 'ctx <sub>' advertised in tools_readonly must be a real subcommand
+        in tools/ctx.py — so the manifest can't send agents to a command that errors."""
+        import re
+        with open(os.path.join(REPO, "tools", "ctx.py")) as f:
+            registered = set(re.findall(r'add_parser\("(\w+)"\)', f.read()))
+        for t in self.m["tools_readonly"]:
+            m = re.match(r"ctx (\w+)", t["cmd"])
+            if m:
+                with self.subTest(cmd=t["cmd"]):
+                    self.assertIn(m.group(1), registered,
+                                  f"tools_readonly advertises 'ctx {m.group(1)}' but it's not registered")
+
     def test_area_entrypoints_resolve(self):
         """Each area entrypoint must resolve: a bare path must exist, and a
         'file::symbol' must have that symbol actually defined in the file. This

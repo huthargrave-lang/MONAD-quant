@@ -230,24 +230,59 @@ def _parse_web():
     return nodes, {k: sorted(v) for k, v in rev.items()}
 
 
+def _is_superseded(node) -> bool:
+    """A node is superseded if its title says so (e.g. '[SUPERSEDED by F13]')."""
+    return "SUPERSEDED" in node["title"].upper()
+
+
 def cmd_web(args):
     """Traverse the research idea web (RESEARCH_WEB.md)."""
     nodes, rev = _parse_web()
     if not nodes:
         print("RESEARCH_WEB.md not found or empty.")
         return
+
+    # --lint: graph integrity. Dangling links = hard problems (CI-gated by
+    # tests/test_research_web.py). Stale-cites = advisories (need typed edges to
+    # cleanly tell "produced/narrates" from "relies on" — until then, informational).
+    if getattr(args, "lint", False):
+        dangling = [(nid, tgt) for nid, n in nodes.items()
+                    for tgt in n["links"] if tgt not in nodes]
+        for nid, tgt in dangling:
+            print(f"  PROBLEM dangling: {nid} → [[{tgt}]] (no such node)")
+        advisories = 0
+        for nid, n in nodes.items():
+            if _is_superseded(n):
+                for src in rev.get(nid, []):
+                    sn = nodes[src]
+                    if _is_superseded(sn) or "SUPERSEDE" in sn["body"].upper():
+                        continue
+                    print(f"  advisory stale-cite: {src} still links to superseded {nid}")
+                    advisories += 1
+        sup = sum(1 for n in nodes.values() if _is_superseded(n))
+        print(f"\n  {len(nodes)} nodes | {sup} superseded | "
+              f"{len(dangling)} problem(s) | {advisories} advisory")
+        return
+
     if args.node:
         n = nodes.get(args.node)
         if not n:
             print(f"no node '{args.node}'. nodes: {', '.join(sorted(nodes))}")
             return
-        print(f"{args.node} — {n['title']}\n{n['body'].strip()}")
+        flag = "  [SUPERSEDED]" if _is_superseded(n) else ""
+        print(f"{args.node} — {n['title']}{flag}\n{n['body'].strip()}")
         print(f"\n  → links to:  {', '.join(n['links']) or '—'}")
         print(f"  ← linked by: {', '.join(rev.get(args.node, [])) or '—'}")
         return
+
+    live_only = getattr(args, "live", False)
+    if live_only:
+        print("(--live: showing only current, non-superseded nodes)\n")
     labels = {"F": "Findings", "H": "Hypotheses", "E": "Experiments", "D": "Decisions"}
     for pre, label in labels.items():
         ids = sorted((k for k in nodes if k.startswith(pre)), key=lambda x: int(x[1:]))
+        if live_only:
+            ids = [i for i in ids if not _is_superseded(nodes[i])]
         if not ids:
             continue
         print(f"{label}:")
@@ -269,7 +304,10 @@ def main():
     sp = sub.add_parser("recent"); sp.add_argument("n", nargs="?", type=int, default=10); sp.set_defaults(fn=cmd_recent)
     sp = sub.add_parser("map"); sp.add_argument("area", nargs="?"); sp.set_defaults(fn=cmd_map)
     sp = sub.add_parser("tests"); sp.add_argument("area"); sp.set_defaults(fn=cmd_tests)
-    sp = sub.add_parser("web"); sp.add_argument("node", nargs="?"); sp.set_defaults(fn=cmd_web)
+    sp = sub.add_parser("web"); sp.add_argument("node", nargs="?")
+    sp.add_argument("--live", action="store_true", help="show only current (non-superseded) nodes")
+    sp.add_argument("--lint", action="store_true", help="graph integrity: dangling links, live-cites-superseded")
+    sp.set_defaults(fn=cmd_web)
     args = p.parse_args()
     if not getattr(args, "fn", None):
         # default: print the index summary
