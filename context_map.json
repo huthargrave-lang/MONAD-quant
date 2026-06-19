@@ -129,6 +129,13 @@
      "read": [], "run": ["bash ops/status_check.sh", "ctx status"], "avoid": []}
   ],
 
+  "edit_policy": {
+    "_README": "Checked by `ctx can_edit <file>` and the (opt-in) PreToolUse hook ops/guard_edit.py. READ access is unrestricted; only WRITES are fenced. deny = armed-trader path + secrets + raw DBs; warn = selection-of-record.",
+    "deny": ["live/", "config.py", "config_modules/", ".env", ".ibkr-paper.env", "*.db", "*.sqlite", "*.sqlite3", "ops/systemd/"],
+    "warn": ["sweep.py", "main.py"],
+    "allow_default": true
+  },
+
   "routing_synonyms": {
     "_README": "concept -> keywords that exist in routing[].keywords. ctx route expands the query through these so plain-English questions reach the right rule.",
     "stop loss": ["exit", "strategy", "trader"],
@@ -182,6 +189,8 @@
     {"cmd": "ctx where <symbol>", "returns": "file:line where a function/class/config key is defined"},
     {"cmd": "ctx usages <symbol>", "returns": "ALL references to a symbol across the repo, classified (def/import/assign/ref/attr)"},
     {"cmd": "ctx defs <file>", "returns": "a file's symbol outline (imports + functions w/ args + classes/methods) without reading it"},
+    {"cmd": "ctx impact <file|symbol|config.KEY>", "returns": "blast radius: transitive reverse-deps + whether it reaches the live-trader boundary + covering tests"},
+    {"cmd": "ctx can_edit <file>", "returns": "edit-policy gate ALLOW/WARN/DENY (exit 0/2/1) — fences writes to the live path; read is always allowed"},
     {"cmd": "ctx schema", "returns": "live/state.db tables, columns, row counts"},
     {"cmd": "ctx config <KEY>", "returns": "a config.py value + where it is set"},
     {"cmd": "ctx perf [--view current|all]", "returns": "headline metrics from state.db (compounded + confirmed-fill)"},

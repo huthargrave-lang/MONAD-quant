@@ -213,6 +213,136 @@ def cmd_defs(args):
                     print(f"      L{sub.lineno}: {sub.name}()")
 
 
+def policy_match(path, patterns):
+    """Return the first edit_policy glob that matches `path`, else None.
+    Handles dir-prefixes ('live/'), exact files, and globs ('*.db')."""
+    import fnmatch
+    if path.startswith("./"):
+        path = path[2:]
+    for pat in patterns:
+        if pat.endswith("/") and (path == pat[:-1] or path.startswith(pat)):
+            return pat
+        if path == pat or fnmatch.fnmatch(path, pat) or fnmatch.fnmatch(os.path.basename(path), pat):
+            return pat
+    return None
+
+
+def cmd_can_edit(args):
+    """Edit-policy gate: ALLOW/WARN/DENY + exit code (0/2/1) so it's scriptable
+    and hookable. READ is always allowed; this fences WRITES to the live path."""
+    pol = _manifest().get("edit_policy", {})
+    path = args.file
+    d = policy_match(path, pol.get("deny", []))
+    if d:
+        print(f"DENY  {path}  (matches deny '{d}' — armed-trader path / secret / raw DB; "
+              f"needs explicit approval AND the trader stopped)")
+        sys.exit(1)
+    w = policy_match(path, pol.get("warn", []))
+    if w:
+        print(f"WARN  {path}  (matches warn '{w}' — selection-of-record; prefer sign-off)")
+        sys.exit(2)
+    print(f"ALLOW {path}  (freely writable)")
+
+
+def _import_graph():
+    """importers[module] = set of repo modules that import it. Stdlib ast."""
+    import ast
+    mod2file = {}
+    for p in _iter_py(REPO):
+        rel = os.path.relpath(p, REPO)
+        mod2file[rel[:-3].replace(os.sep, ".")] = rel
+    importers = {m: set() for m in mod2file}
+    for m, rel in mod2file.items():
+        try:
+            tree = ast.parse(open(os.path.join(REPO, rel), errors="ignore").read())
+        except (OSError, SyntaxError):
+            continue
+        seen = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                seen |= {a.name for a in node.names}
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                seen.add(node.module)
+                seen |= {f"{node.module}.{a.name}" for a in node.names}
+        for t in seen:
+            cand = t
+            while cand:
+                if cand in importers and cand != m:
+                    importers[cand].add(m)
+                    break
+                cand = cand.rsplit(".", 1)[0] if "." in cand else ""
+    return importers, mod2file
+
+
+def _live_boundary_modules():
+    """Modules behind the hard safety boundary: do_not_touch areas + config."""
+    out = {"config"}
+    for area, spec in _manifest()["areas"].items():
+        if spec.get("do_not_touch_without_approval"):
+            out |= {f[:-3].replace("/", ".") for f in spec["files"] if f.endswith(".py")}
+    return out
+
+
+def _is_protected(mod):
+    return mod == "config" or mod.startswith("live.") or mod.startswith("config_modules.")
+
+
+def cmd_impact(args):
+    """Blast radius of editing a file/symbol/config key: transitive reverse-deps,
+    whether it reaches the live-trader/config boundary, and covering tests."""
+    target = args.target
+    importers, mod2file = _import_graph()
+
+    # config.KEY mode — scan all three access forms (config.KEY / getattr / ASSETS).
+    if target.startswith("config.") or (target.isupper() and "_" in target):
+        key = target.split(".", 1)[1] if target.startswith("config.") else target
+        rx = re.compile(rf"(config\.{re.escape(key)}\b|getattr\(\s*config\s*,\s*[\"']{re.escape(key)}|\b{re.escape(key)}\b)")
+        hits = []
+        for p in _iter_py(REPO):
+            for i, line in enumerate(open(p, errors="ignore"), 1):
+                if rx.search(line):
+                    hits.append((os.path.relpath(p, REPO), i)); break
+        print(f"  config key '{key}' referenced in {len(hits)} file(s) "
+              f"(config.KEY / getattr / ASSETS forms); config is imported by 20+ modules — high coupling")
+        for rel, ln in sorted(hits):
+            print(f"    {rel}:{ln}{' ⚠live' if rel.startswith(('live/','config')) else ''}")
+        return
+
+    # file or symbol → module
+    if target.endswith(".py"):
+        mod = target[:-3].replace("/", ".")
+    elif target in importers:
+        mod = target
+    else:
+        mod = None
+        rx = re.compile(rf"^\s*(def|class)\s+{re.escape(target)}\b")
+        for p in _iter_py(REPO):
+            if any(rx.search(l) for l in open(p, errors="ignore")):
+                mod = os.path.relpath(p, REPO)[:-3].replace(os.sep, "."); break
+    if mod not in importers:
+        print(f"  '{target}' is not a repo module/file/symbol (try src/strategy/engine.py)")
+        return
+
+    affected, queue = set(), [mod]
+    while queue:
+        for imp in importers.get(queue.pop(), ()):
+            if imp not in affected:
+                affected.add(imp); queue.append(imp)
+    live = _live_boundary_modules()
+    touched = sorted(a for a in affected if a in live or _is_protected(a))
+    tests = sorted(a for a in affected if a.startswith("tests."))
+    print(f"  impact of {mod2file.get(mod, mod)}: {len(affected)} transitive importer(s)")
+    if touched:
+        print(f"  ⚠ BLAST RADIUS REACHES THE LIVE/PROTECTED BOUNDARY: {', '.join(touched)}")
+        print(f"    → editing {mod2file.get(mod)} can affect the armed trader path — needs approval.")
+    else:
+        print("  ✓ does NOT reach the live-trader/config boundary (safe area to edit)")
+    for a in sorted(affected - set(tests)):
+        print(f"    {mod2file.get(a, a)}{' ⚠live' if _is_protected(a) else ''}")
+    if tests:
+        print(f"  covering tests: {', '.join(mod2file.get(t, t) for t in tests)}")
+
+
 def cmd_schema(args):
     if not os.path.exists(DB):
         print("live/state.db not present.")
@@ -413,6 +543,8 @@ def main():
     sp = sub.add_parser("where"); sp.add_argument("symbol"); sp.set_defaults(fn=cmd_where)
     sp = sub.add_parser("usages"); sp.add_argument("symbol"); sp.set_defaults(fn=cmd_usages)
     sp = sub.add_parser("defs"); sp.add_argument("file"); sp.set_defaults(fn=cmd_defs)
+    sp = sub.add_parser("impact"); sp.add_argument("target"); sp.set_defaults(fn=cmd_impact)
+    sp = sub.add_parser("can_edit"); sp.add_argument("file"); sp.set_defaults(fn=cmd_can_edit)
     sub.add_parser("schema").set_defaults(fn=cmd_schema)
     sp = sub.add_parser("config"); sp.add_argument("key"); sp.set_defaults(fn=cmd_config)
     sp = sub.add_parser("perf"); sp.set_defaults(fn=cmd_perf)

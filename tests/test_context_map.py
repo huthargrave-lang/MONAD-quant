@@ -177,5 +177,47 @@ class TestRouteRobustness(unittest.TestCase):
         self.assertNotIn("ops/systemd", _route_output("what stops a bad trade from losing too much"))
 
 
+class TestEditPolicy(unittest.TestCase):
+    """The safe-write fence: every do_not_touch file must be denied, and the gate
+    must allow ordinary offline code."""
+
+    def setUp(self):
+        with open(MANIFEST) as f:
+            self.m = json.load(f)
+        self.deny = self.m["edit_policy"]["deny"]
+
+    def test_do_not_touch_files_are_denied(self):
+        for area, spec in self.m["areas"].items():
+            if spec.get("do_not_touch_without_approval"):
+                for f in spec["files"]:
+                    with self.subTest(area=area, file=f):
+                        self.assertIsNotNone(ctx.policy_match(f, self.deny),
+                                             f"do_not_touch file {f} not covered by an edit_policy deny glob")
+
+    def test_safety_critical_paths_denied(self):
+        for f in ["live/trader.py", "config.py", "config_modules/live.py",
+                  ".env", "live/state.db"]:
+            with self.subTest(file=f):
+                self.assertIsNotNone(ctx.policy_match(f, self.deny), f"{f} should be deny-listed")
+
+    def test_offline_code_is_allowed(self):
+        for f in ["src/backtest/runner.py", "tools/ctx.py", "tests/test_signals.py",
+                  "src/optimization/sweep_scoring.py"]:
+            with self.subTest(file=f):
+                self.assertIsNone(ctx.policy_match(f, self.deny), f"{f} should be freely editable")
+
+    def test_impact_flags_live_boundary(self):
+        # fetcher is imported transitively by the trader — impact must reach 'live'.
+        importers, _ = ctx._import_graph()
+        affected = set()
+        queue = ["src.data.fetcher"]
+        while queue:
+            for imp in importers.get(queue.pop(), ()):
+                if imp not in affected:
+                    affected.add(imp); queue.append(imp)
+        self.assertTrue(any(a.startswith("live.") for a in affected),
+                        "ctx impact should detect that editing src/data/fetcher.py reaches live/")
+
+
 if __name__ == "__main__":
     unittest.main()
