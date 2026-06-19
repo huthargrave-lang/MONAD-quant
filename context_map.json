@@ -36,7 +36,7 @@
       "summary": "The hourly scheduler + entry/exit/reconcile loop that places paper bracket orders.",
       "files": ["live/trader.py", "live/state.py", "live/broker.py", "live/signals.py", "live/alerts.py"],
       "entrypoints": ["live/trader.py::_on_bar_inner", "live/trader.py::main", "live/state.py::init_db"],
-      "tests": ["tests/test_trader_reconcile.py", "tests/test_software_take_profit.py", "tests/test_state.py", "tests/test_execution_model.py", "tests/test_live_signals.py", "tests/test_trader_helpers.py"],
+      "tests": ["tests/test_trader_reconcile.py", "tests/test_trader_flow.py", "tests/test_software_take_profit.py", "tests/test_state.py", "tests/test_execution_model.py", "tests/test_live_signals.py", "tests/test_trader_helpers.py", "tests/test_broker.py"],
       "docs": ["OPERATIONS.md", "CLAUDE.md"],
       "do_not_touch_without_approval": true
     },
@@ -52,16 +52,24 @@
       "summary": "Feature orchestration, signal routing/regime gate, and trade-return simulation.",
       "files": ["src/strategy/engine.py", "src/strategy/sizing.py", "config.py"],
       "entrypoints": ["src/strategy/engine.py::build_features", "src/strategy/engine.py::generate_trades", "src/strategy/engine.py::compute_trade_returns", "src/strategy/sizing.py::position_fraction", "src/strategy/sizing.py::adaptive_kelly_multiplier"],
-      "tests": ["tests/test_execution_model.py", "tests/test_sizing.py"],
+      "tests": ["tests/test_execution_model.py", "tests/test_sizing.py", "tests/test_compute_returns_properties.py", "tests/test_fill_model.py"],
       "docs": ["CLAUDE.md"],
       "do_not_touch_without_approval": false
     },
     "backtest": {
-      "summary": "Backtest loop + Kelly equity curve; universal param sweep.",
-      "files": ["src/backtest/runner.py", "main.py", "sweep.py"],
-      "entrypoints": ["src/backtest/runner.py::run_backtest"],
-      "tests": [],
+      "summary": "Backtest loop + performance metrics + data ingestion; universal param sweep entrypoint.",
+      "files": ["src/backtest/runner.py", "src/backtest/metrics.py", "src/data/fetcher.py", "main.py", "sweep.py"],
+      "entrypoints": ["src/backtest/runner.py::run_backtest", "src/backtest/metrics.py::annualized_sharpe", "src/data/fetcher.py::fetch_yfinance"],
+      "tests": ["tests/test_runner_metrics.py", "tests/test_fetcher.py"],
       "docs": ["CLAUDE.md"],
+      "do_not_touch_without_approval": false
+    },
+    "optimization": {
+      "summary": "Parameter-SELECTION decision layer: walk-forward optimizer + the sweep's scoring/sizing/cost/reproducibility helpers. This is what picks production params — test it, don't trust it blindly (its metrics were the misleading headline source).",
+      "files": ["src/optimization/walk_forward.py", "src/optimization/sweep_scoring.py", "src/optimization/sweep_sizing.py", "src/optimization/sweep_costs.py", "src/optimization/sweep_repro.py"],
+      "entrypoints": ["src/optimization/walk_forward.py::walk_forward_optimize", "src/optimization/sweep_scoring.py::live_score", "src/optimization/sweep_scoring.py::ev_score", "src/optimization/sweep_sizing.py::resolve_sizing", "src/optimization/sweep_costs.py::round_trip_cost_pct", "src/optimization/sweep_repro.py::data_fingerprint"],
+      "tests": ["tests/test_walk_forward.py", "tests/test_sweep_scoring.py", "tests/test_sweep_sizing.py", "tests/test_sweep_costs.py", "tests/test_sweep_repro.py"],
+      "docs": ["CLAUDE.md", "IMPROVEMENT_PLAN.md"],
       "do_not_touch_without_approval": false
     },
     "dashboard": {
@@ -95,6 +103,10 @@
     {"keywords": ["strategy", "signal", "param", "threshold", "rsi", "macd", "regime", "kelly", "sweep", "backtest"],
      "read": ["CLAUDE.md (relevant section)", "config.py", "src/signals/", "src/strategy/engine.py"],
      "run": ["python sweep.py TICKER"], "avoid": ["live/ trader/order paths"]},
+    {"keywords": ["objective", "live_score", "ev_score", "scoring", "sizing", "slippage", "cost", "spread", "fill model", "reproducib", "walk-forward", "walk forward", "optimizer", "selection", "overfit", "metrics", "sharpe"],
+     "read": ["src/optimization/sweep_scoring.py", "src/optimization/sweep_sizing.py", "src/optimization/sweep_costs.py", "src/optimization/walk_forward.py", "src/backtest/metrics.py", "IMPROVEMENT_PLAN.md (Workstreams B/C)"],
+     "run": ["ctx map optimization", "ctx tests optimization", "python sweep.py TICKER --objective ev"],
+     "avoid": ["changing the default sweep objective/sizing/selection without sign-off"]},
     {"keywords": ["trader", "live", "entry", "exit", "reconcile", "on_bar", "pending_close", "position"],
      "read": ["OPERATIONS.md", "live/trader.py::_on_bar_inner", "tests/test_trader_reconcile.py"],
      "run": ["bash ops/status_check.sh", "ctx status"], "avoid": ["strategy logic"]},
@@ -123,7 +135,11 @@
     "recent_changes": "run: ctx recent   (git log on deploy branch)",
     "current_mode": "config.LIVE_SYMBOL / config.ACTIVE_MODE   (or: ctx config LIVE_SYMBOL)",
     "where_is_symbol": "run: ctx where <name>",
-    "scheduled_timers": "run: systemctl list-timers 'monad-*' 'ibkr-*'"
+    "scheduled_timers": "run: systemctl list-timers 'monad-*' 'ibkr-*'",
+    "tests_for_area": "run: ctx tests <area>   (e.g. ctx tests optimization)",
+    "sweep_sizing": "sweep defaults to live fixed-10% (resolve_sizing, sweep_sizing.py); --sizing/--adaptive override. Backtest 'fixed' mode == live get_position_plan.",
+    "sweep_objective": "default 'sharpe' (live_score); '--objective ev' = net-of-cost EV, hard-rejects <34% WR (sweep_scoring.py, opt-in). Do NOT change the default selection without sign-off.",
+    "sweep_cost_realism": "round-trip spread cost is baked into EV (sweep_costs.round_trip_cost_pct); scoring penalties are skipped on negative-base scores (else they perversely improve losing configs)."
   },
 
   "tools_readonly": [
@@ -135,6 +151,7 @@
     {"cmd": "ctx status", "returns": "ops/status_check.sh (deploy/runtime state)"},
     {"cmd": "ctx recent [N]", "returns": "last N commits + changed files on the deploy branch"},
     {"cmd": "ctx map [area]", "returns": "this manifest (or one area)"},
+    {"cmd": "ctx tests <area>", "returns": "the test files that cover an area (code->verification link)"},
     {"cmd": "bash ops/status_check.sh", "returns": "system + gateway + trader + data freshness"},
     {"cmd": "venv/bin/python tools/diagnose_brackets.py", "returns": "IBKR connection + positions + brackets (read-only)"}
   ],

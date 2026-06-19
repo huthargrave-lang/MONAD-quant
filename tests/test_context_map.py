@@ -66,6 +66,28 @@ class TestManifestReferencesExist(unittest.TestCase):
                 with self.subTest(area=area, test=t):
                     self.assertTrue(os.path.exists(os.path.join(REPO, t)), f"missing test file: {t}")
 
+    def test_area_entrypoints_resolve(self):
+        """Each area entrypoint must resolve: a bare path must exist, and a
+        'file::symbol' must have that symbol actually defined in the file. This
+        is what lets agents trust `ctx map` entrypoints — a rename that doesn't
+        update the manifest fails here."""
+        import re
+        for area, spec in self.m["areas"].items():
+            for ep in spec.get("entrypoints", []):
+                with self.subTest(area=area, entrypoint=ep):
+                    if "::" in ep:
+                        path, sym = ep.split("::", 1)
+                        full = os.path.join(REPO, path)
+                        self.assertTrue(os.path.exists(full), f"entrypoint file missing: {path}")
+                        with open(full, errors="ignore") as fh:
+                            src = fh.read()
+                        pat = re.compile(
+                            rf"^\s*(def|class)\s+{re.escape(sym)}\b|^\s*{re.escape(sym)}\s*=", re.M)
+                        self.assertRegex(src, pat, f"entrypoint '{sym}' not defined in {path}")
+                    else:
+                        self.assertTrue(os.path.exists(os.path.join(REPO, ep)),
+                                        f"entrypoint path missing: {ep}")
+
     def test_routing_shape(self):
         for r in self.m["routing"]:
             for k in ("keywords", "read", "run", "avoid"):
