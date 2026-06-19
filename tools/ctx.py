@@ -33,10 +33,15 @@ DB = os.path.join(REPO, "live", "state.db")
 PROD = {"target_hit", "stop_hit", "time_exit", "bracket_exit", "pending_close"}
 CONFIRMED = {"bracket_exit", "stop_hit"}  # actually-filled exits (drop inferred target_hit + artifacts)
 _ACCT = re.compile(r"\bD?U[0-9]{5,}\b")
+_CONID = re.compile(r"(conId[=:]?\s*)[0-9]+")
 
 
 def _redact(s: str) -> str:
-    return _ACCT.sub("<acct-redacted>", s)
+    """Shared redaction: IBKR account IDs + contract (conId) numbers. Applied to
+    any command that prints DB messages or log text (status, events, reverts)."""
+    s = _ACCT.sub("<acct-redacted>", s)
+    s = _CONID.sub(r"\1<redacted>", s)
+    return s
 
 
 def _manifest() -> dict:
@@ -362,6 +367,34 @@ def cmd_schema(args):
         print(f"  {t} ({n} rows): {', '.join(cols)}")
 
 
+def cmd_events(args):
+    """Recent monitor events — the trader's own narrative of what happened/broke
+    (force-finalizes, software-stops, reconcile warnings). Read-only + redacted."""
+    if not os.path.exists(DB):
+        print("live/state.db not present.")
+        return
+    c = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
+    q = "SELECT event_time, level, category, message FROM monitor_events"
+    conds, params = [], []
+    if args.level:
+        conds.append("upper(level) = ?"); params.append(args.level.upper())
+    if args.category:
+        conds.append("category = ?"); params.append(args.category)
+    if conds:
+        q += " WHERE " + " AND ".join(conds)
+    q += " ORDER BY event_time DESC LIMIT ?"; params.append(args.n)
+    try:
+        rows = c.execute(q, params).fetchall()
+    except Exception as exc:
+        print(f"  query failed (table/schema missing?): {exc}")
+        return
+    if not rows:
+        print("  no matching monitor events")
+        return
+    for t, lvl, cat, msg in rows:
+        print(f"  {str(t)[:19]} [{str(lvl):<8}] {str(cat):<11} {_redact(str(msg))[:160]}")
+
+
 def cmd_config(args):
     sys.path.insert(0, REPO)
     try:
@@ -619,6 +652,8 @@ def main():
     sp = sub.add_parser("brief"); sp.add_argument("area", nargs="?")
     sp.add_argument("--task", nargs="+", default=None); sp.set_defaults(fn=cmd_brief)
     sp = sub.add_parser("reverts"); sp.add_argument("area", nargs="?"); sp.set_defaults(fn=cmd_reverts)
+    sp = sub.add_parser("events"); sp.add_argument("n", nargs="?", type=int, default=20)
+    sp.add_argument("--level"); sp.add_argument("--category"); sp.set_defaults(fn=cmd_events)
     sub.add_parser("schema").set_defaults(fn=cmd_schema)
     sp = sub.add_parser("config"); sp.add_argument("key"); sp.set_defaults(fn=cmd_config)
     sp = sub.add_parser("perf"); sp.set_defaults(fn=cmd_perf)
