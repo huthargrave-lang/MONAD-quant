@@ -18,6 +18,14 @@ venv/bin/python tools/ctx.py status                # live deploy/runtime state
 venv/bin/python tools/ctx.py recent [N]            # recent commits + changed files
 venv/bin/python tools/ctx.py map [area]            # the manifest (or one area)
 venv/bin/python tools/ctx.py web [node]            # walk the research idea-web (findings→hypotheses→evidence)
+venv/bin/python tools/ctx.py brief <area> --task ".."  # ≤900-tok orientation packet (best first move)
+venv/bin/python tools/ctx.py impact <file|symbol|config.KEY>  # blast radius + ⛔ if it hits the live boundary
+venv/bin/python tools/ctx.py can_edit <file>       # edit gate ALLOW/WARN/DENY (exit 0/2/1, scriptable)
+venv/bin/python tools/ctx.py usages <symbol>       # all references to a symbol, classified
+venv/bin/python tools/ctx.py defs <file>           # symbol outline of one file
+venv/bin/python tools/ctx.py events [N]            # the trader's own error/event narrative (redacted)
+venv/bin/python tools/ctx.py reverts [area]        # what we already tried & abandoned (mined from git)
+venv/bin/python tools/ctx.py tests <area>          # which test files cover an area
 ```
 
 Machine-readable routing/invariants live in **`context_map.json`** (kept honest by

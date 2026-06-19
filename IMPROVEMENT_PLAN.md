@@ -275,10 +275,16 @@ F13 reversal (a confidently-stored "edge" that was a data artifact) is the motiv
 Anthropic/Cursor dropped vector indexes for agentic search). Everything stays stdlib, read-only,
 CI-guarded by `tests/test_context_map.py`. **CLAUDE.md compressed (1440→499 lines, history archived).**
 
-**STATUS:** KA0, KA1, KA2, KA3, KA4, KA7 **SHIPPED** (4 build passes, f930698→993ed1d) — `ctx`
-gained `brief / usages / defs / impact / can_edit / reverts / events` + robust `route` + the
-`edit_policy` safe-write fence + the `ops/guard_edit.py` hook. KA5/KA6/KA8 are the remaining
-backlog; KA9 stays deferred.
+**STATUS:** KA0–KA8 **SHIPPED**; KA9 stays deferred. KA0–KA4+KA7 shipped in 4 build passes
+(f930698→993ed1d). **KA5/KA6** (`ctx tree`/`summary`/`covers` + the `test_area_coverage` CI
+guard) and **KA8** (real skills suite + fixed plugin manifest) shipped in the **2026-06-19 night
+review**, which also **activated the KA7 fence**: `ops/guard_edit.py` is now wired as a committed
+`.claude/settings.json` PreToolUse hook, and `ops/secret_scan.py` + `ops/hooks/pre-commit` add
+real commit-time enforcement (it was previously enforced by nobody — R5 P1). That review (6
+audit/research agents) additionally fixed three `ctx impact` correctness bugs, the
+`.claude/worktrees` symbol-contamination in every tree-walker, and the AGENT_INDEX
+command-completeness drift (R3/R4), each now pinned by a CI guard (`test_edit_policy`,
+`test_agent_index_lists_every_subcommand`).
 
 - **KA0 (DONE)** — `ctx route` robustness (tokenize+stem+word-boundary kills the `stops`→`ops`
   misroute; manifest `routing_synonyms`; difflib fallback) + golden-query/synonym anti-drift tests;
@@ -298,7 +304,7 @@ backlog; KA9 stays deferred.
 - **KA6 — `ctx covers <symbol>`** (symbol→tests via coverage contexts) + auto-derive area test lists +
   a `live/` coverage floor. (tests-as-map)
 - **KA7 — Safe-write fence**: `edit_policy` block in context_map (deny `live/**`,`config.py`,`*.db`,`.env`)
-  + `ctx can-edit <file>` + a **PreToolUse hook** that blocks live-path edits + a real pre-commit
+  + `ctx can_edit <file>` + a **PreToolUse hook** that blocks live-path edits + a real pre-commit
   secret-scan (currently enforced by nobody — `.git/hooks` empty) + `ctx armed` market-hours escalation. (safety)
 - **KA8 — Skills suite**: `monad-orient/test/commit/validate-edge/sweep/screen/preflight` SKILL.md +
   fix the broken `.claude-plugin/plugin.json` (dangling commands/ + stale quant-momentum.md). (skills)

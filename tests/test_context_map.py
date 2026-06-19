@@ -114,6 +114,19 @@ class TestManifestReferencesExist(unittest.TestCase):
                     self.assertIn(m.group(1), registered,
                                   f"tools_readonly advertises 'ctx {m.group(1)}' but it's not registered")
 
+    def test_agent_index_lists_every_subcommand(self):
+        """The L0 router (AGENT_INDEX.md Step 1) must mention every registered ctx
+        subcommand, so an agent reading only the index never misses a tool. Night
+        review R4 P1-2 found brief/impact/usages/defs/can_edit/events/reverts were
+        shipped but unlisted — this guard stops that recurring."""
+        import re
+        with open(os.path.join(REPO, "tools", "ctx.py")) as f:
+            registered = set(re.findall(r'add_parser\("(\w+)"\)', f.read()))
+        with open(os.path.join(REPO, "AGENT_INDEX.md")) as f:
+            cited = set(re.findall(r"ctx\.py (\w+)", f.read()))
+        missing = registered - cited
+        self.assertFalse(missing, f"AGENT_INDEX.md Step 1 omits ctx subcommands: {sorted(missing)}")
+
     def test_area_entrypoints_resolve(self):
         """Each area entrypoint must resolve: a bare path must exist, and a
         'file::symbol' must have that symbol actually defined in the file. This
