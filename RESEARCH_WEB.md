@@ -7,10 +7,14 @@
 > as strong as the Experiment behind it, and only OOS, leak-free, cost-aware
 > numbers count as evidence (see [[E3]]).
 >
-> **Headline (2026-06-19):** the mean-reversion engine has a small, genuine,
-> structurally-explained edge **on un-leveraged broad indices** (QQQ/SPY,
-> ~+0.3%/mo, Sharpe ~3–4, t>3) and is **structurally mismatched to the 3x
-> leveraged ETFs the project was built around** ([[F7]], [[F4]], [[F9]]).
+> **⚠ HEADLINE CORRECTED (2026-06-19, later):** the QQQ/SPY edge above was a
+> MORNING-ONLY DATA-SAMPLING ARTIFACT ([[F13]]). On full-session, live-representative
+> data the hourly signal has NO reliable edge (QQQ/SPY negative). The edge tracks
+> BAR-SAMPLING FREQUENCY, not instrument or time-of-day ([[F14]]) — it exists at a
+> coarse (~daily/multi-day) timescale and vanishes at hourly, the frequency the
+> live bot actually trades. This explains the flat live result. Findings F3/F4/F7/F8/F9
+> below are SUPERSEDED for the hourly timescale; the mechanism [[F7]] still explains
+> the leveraged-ETF failure. Live-representative verdict + next direction: [[D4]], [[H7]].
 
 ---
 
@@ -25,13 +29,13 @@ leak-free +0.1–0.34%/mo (honest). Only the last is trustworthy. See [[E1]], [[
 best-of-many on that holdout — biased. The +4–5%/mo for SOXL/LABU/TNA did NOT survive
 de-biasing. Motivates [[H4]]. Evidence: [[E2]] vs [[E3]].
 
-### F3 — The honest edge is small but real (and decaying)
+### F3 — [SUPERSEDED by F13] The honest edge is small but real (and decaying)
 Leak-free walk-forward ([[E3]]): QQQ +0.34%/mo Sh 3.74, TQQQ +0.18%/mo Sh 2.17, LABU
 +0.15%, TNA +0.12%, SOXL +0.08% — sub-1% DD, ~90–112 OOS trades. Robustness ([[E4]])
 shows the edge is **front-loaded into late 2025 and fades** in later folds. A near-zero-DD
 ~0.2–0.3%/mo vehicle, NOT a 2–3.5%/mo income engine. Bears on [[D1]].
 
-### F4 — QQQ (un-leveraged) is the best risk-adjusted instrument — structurally
+### F4 — [SUPERSEDED by F13] QQQ (un-leveraged) is the best risk-adjusted instrument — structurally
 In leak-free OOS QQQ beat every 3x ETF (Sharpe 3.74, 54.5% WR). Mechanism found ([[F7]]):
 it is NOT luck. Evidence: [[E3]], [[E6]]. The leverage tier is the wrong instrument class for this signal.
 
@@ -53,7 +57,7 @@ SPY **17%** (stop outside noise → fires only on genuine adverse moves). Across
 `corr(stop_frac, WR) = −0.97`, `corr(noise_ratio, Sharpe) = +0.72`. Win/loss magnitudes and
 R:R are ~identical across instruments — the edge is FEWER noise-stops, not bigger wins. Source: [[E6]]. Drives [[D3]].
 
-### F8 — The QQQ edge is a signal property, not an optimizer artifact
+### F8 — [SUPERSEDED by F13] The QQQ edge is a signal property, not an optimizer artifact
 Robustness ([[E4]]): the QQQ edge survives with a **single fixed candidate (zero parameter
 selection)** — t-stat 3.3 — and across every fold count, objective, and grid width (t 3.3–4.3,
 4/4 folds positive). So it is not selection overfit. Strongest evidence the edge is real. Supports [[F4]], [[D1]].
@@ -67,6 +71,22 @@ predicts. The noise-ratio→WR relationship is continuous, not a QQQ one-off. So
 The cached yfinance hourly data is truncated to ~3 bars/day (≈13–15 UTC / first 2 trading
 hours). Every number in this web is the **morning-session regime**. A full-session re-pull
 could shift magnitudes. → [[H5]], [[E7]].
+
+### F13 — REVERSAL: the hourly edge was a morning-only data-sampling artifact
+Re-running the leak-free walk-forward on FULL-session, live-representative data ([[F12]], [[E7]])
+flips the headline: QQQ −0.05%/mo (Sh −0.75), SPY −0.05%/mo — NEGATIVE. The +0.34%/mo QQQ
+edge ([[F3]], [[F4]], [[F8]]) only existed on the morning-only (3 bars/day) cache. Since the live
+bot trades full sessions, this is exactly why it is FLAT. SUPERSEDES [[F3]], [[F4]], [[F8]], [[F9]] for the
+hourly timescale. The instrument mechanism [[F7]] still holds for the leveraged-ETF failure. → [[D4]].
+
+### F14 — The edge tracks BAR-SAMPLING FREQUENCY, not time-of-day or instrument
+Decomposition on full-session data: QQQ AM(3 bars/day) +0.34%/mo Sh 3.72; QQQ PM(4 bars/day)
++0.32%/mo Sh 3.31; QQQ ALL-DAY(7 bars/day) −0.05%/mo Sh −0.75. AM ≈ PM (so NOT time-of-day),
+but both ≫ ALL-DAY. RSI(7)/MACD on ~3 bars/day spans ~2 trading days → captures multi-day
+mean-reversion (edge); on 7 bars/day it spans ~1 day → intraday noise (no edge). The signal has
+edge at a COARSE (~daily) timescale and none at the HOURLY timescale the bot runs. → [[H7]], [[D4]].
+CAVEAT: hour-subsampling also recomputes indicators on a coarser series — the clean confirmation
+is a real DAILY-bar test ([[E9]]), not just hour-filtering.
 
 ### F12 — ROOT CAUSE of the morning-only data + a backtest↔live data mismatch
 The morning-only data ([[F10]]) is a yfinance quirk: a 1h fetch over a LONG (~710-day) range
@@ -107,6 +127,13 @@ Promote it inside the sweep. → [[D2]].
 All current evidence is the morning regime ([[F10]]). Re-pull full-session hourly data and
 re-run [[E3]] across instruments. Could change magnitudes and the instrument ranking. → [[E7]].
 
+### H7 — OPEN (most promising): the edge lives at the DAILY timescale, not hourly
+[[F14]] shows the mean-reversion edge appears at ~daily/multi-day bar spacing and vanishes
+hourly. Test a clean DAILY-bar mean-reversion strategy (more history → more regimes, lower
+trade count → lower cost → inherently more conservative). The project's original BTC_DAILY mode
+had the best Sharpe / lowest DD — possibly the real thing before the hourly pivot chased a
+sampling artifact. → [[E9]]. Directly bears on the conservative goal [[D4]].
+
 ### H6 — OPEN: screen instruments by noise-ratio to find where the signal works
 [[F7]] gives a one-number predictor (`P(bar range > stop) < ~0.5`, i.e. noise_ratio > 1) of
 where this mean-reversion edge survives. Screen a broad universe (large-cap, low-vol ETFs/
@@ -134,9 +161,15 @@ mechanism [[F7]], [[F9]]; resolved [[H2]], explained [[F4]].
 conservative universe (broad indices + low-vol/dividend + bond ETFs). Then re-run the
 noise-ratio screen [[E8]] + leak-free walk-forward [[E3]] on data that finally matches what the
 live bot trades. Resolves [[H5]]; feeds the conservative-target question [[D4]].
-### E8 — OPEN: noise-ratio instrument screener
-`tools/instrument_screen.py` — rank a universe by `P(bar range > stop)` / noise_ratio to
-find where the signal can work ([[H6]]), before spending sweep/validation time.
+### E8 — DONE: noise-ratio instrument screener
+`tools/instrument_screen.py` — ranks a universe by `P(bar range > stop)`. On full-session data:
+bonds ultra-friendly (but target unreachable), indices friendly, leveraged noise-dominated.
+The screen is necessary-not-sufficient (doesn't test target reachability or timescale [[F14]]).
+
+### E9 — OPEN (next): clean DAILY-timescale validation
+Resolve [[H7]]/[[F14]]. Pull multi-year DAILY bars (QQQ/SPY/DIA + the leveraged set), run a
+leak-free walk-forward at the daily timescale (`timeframe="daily"`), across multiple regimes.
+This is the decisive test of whether ~3.75% APY [[D4]] is reachable at all with this signal.
 
 ---
 
@@ -161,11 +194,12 @@ production candidates; (2) build the screener [[E8]] to apply the rule to a wide
 NOT size up the leveraged ETFs on this architecture. NOTE: changing the live instrument touches the
 armed trader path — requires sign-off; this node records the evidence-backed recommendation, not an applied change.
 
-### D4 — OPEN: is the original ~3.75% APY conservative goal achievable?
-3.75% APY ≈ +0.307%/mo compounded. The leak-free QQQ result ([[F3]]) was +0.34%/mo ≈ 4.1% APY at
-Sharpe 3.74 / −0.78% DD — i.e. the goal looks ACHIEVABLE on the right (un-leveraged, high-noise-ratio
-[[F7]]) instrument, NOT on the 3x ETFs. Open questions to settle it: does it hold on FULL-session,
-live-representative data ([[E7]]/[[F12]])? Do bond/low-vol ETFs (AGG/SCHD/USMV…) screen friendly and
-validate? Does DIVERSIFYING across several friendly instruments cut drawdown for the same return
-(the classic conservative move)? Resolve via [[E7]] + [[E8]] across the conservative universe, then a
-multi-instrument leak-free portfolio test.
+### D4 — is the original ~3.75% APY conservative goal achievable? — UPDATED (sobering)
+3.75% APY ≈ +0.307%/mo. The earlier "yes on QQQ" was a data artifact ([[F13]]). On full-session,
+live-representative data the HOURLY mean-reversion architecture has NO reliable edge on any
+instrument tested (QQQ/SPY negative; bonds: target unreachable; leveraged: noise-dominated [[F7]]).
+So **as currently deployed (hourly), ~3.75% APY is NOT achievable** — and this explains the flat
+live bot. The goal is not dead, but the only credible path on the evidence is the **DAILY timescale**
+([[F14]], [[H7]], [[E9]]) — fewer trades, lower cost, inherently more conservative, and historically the
+project's best Sharpe (BTC_DAILY). NEXT: run the clean daily-bar validation [[E9]] before any further
+hourly work. Do NOT chase the hourly edge further.
