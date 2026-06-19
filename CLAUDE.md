@@ -1,5 +1,14 @@
 # MONAD Quant — Full Model History & Context
 
+> ⚠️ **STALE-PERFORMANCE WARNING (read before trusting any number below).** The headline
+> performance in §1, §8, §13–18 (Sharpe 25–94, +0.7–3.5%/mo, "Production-ready") is
+> **SUPERSEDED** and was produced by optimistic-mode backtests on **morning-only data**.
+> The honest, leak-free, full-session (live-representative) verdict: the **hourly** strategy
+> has **no edge** (the live bot is flat) — the apparent edge was a data-sampling artifact.
+> There IS a real edge at **~3 bars/day** for QQQ/SPY (≈4.5% APY, Sharpe ~4). For current
+> truth run **`venv/bin/python tools/ctx.py web`** and **`ctx perf`**; see `RESEARCH_WEB.md`
+> (F13/F14/F15/D4). Treat the numbers below as **optimization history, not current fact.**
+
 > 🧭 **Agents: start with [`AGENT_INDEX.md`](AGENT_INDEX.md) and `tools/ctx.py`** (e.g. `venv/bin/python tools/ctx.py route "<task>"`) — route to the specific files/sections you need instead of reading this whole file. This doc is the deep *"why"* (strategy); **`OPERATIONS.md`** is the live/ops *"how it runs"*.
 
 > **Purpose of this file:** Complete institutional memory for the strategy — what every

@@ -88,6 +88,17 @@ edge at a COARSE (~daily) timescale and none at the HOURLY timescale the bot run
 CAVEAT: hour-subsampling also recomputes indicators on a coarser series — the clean confirmation
 is a real DAILY-bar test ([[E9]]), not just hour-filtering.
 
+### F15 — The edge is REAL at ~3 bars/day; the live bot just trades the wrong frequency
+E9 (same full-session data, proper OHLC resample to N bars/day): QQQ at **3 bars/day = +0.37%/mo,
+Sharpe 4.15, DD −0.6%** (≈4.5% APY — the conservative goal); SPY 3/day +0.22%/mo Sh 2.43. But at
+7 bars/day (hourly, what the LIVE bot trades) both are NEGATIVE; at 2/day weaker; 1/day (pure daily)
+too sparse over 2yr to test ([[E9]]). The robustness work ([[E4]]) already showed the 3/day regime
+survives zero parameter selection (t>3). So the QQQ/SPY edge is genuine at the ~3-bars/day (multi-day
+mean-reversion) timescale and absent hourly — F3/F4's numbers were this 3/day regime, mislabeled as
+"hourly". ACTIONABLE LEVER: sample ~3 bars/day (≈every 2h), not hourly. CAVEAT: DIA INVERTS (positive
+hourly, negative 3/day) → instrument-dependent, not universal; needs multi-instrument + multi-regime
+confirmation. Refines [[F13]] (hourly-negative still holds) and [[F14]]. → [[D4]], [[H7]].
+
 ### F12 — ROOT CAUSE of the morning-only data + a backtest↔live data mismatch
 The morning-only data ([[F10]]) is a yfinance quirk: a 1h fetch over a LONG (~710-day) range
 returns only ~3 bars/day (the open, 13–15 UTC), but the SAME data fetched in ≤250-day chunks
@@ -166,10 +177,10 @@ live bot trades. Resolves [[H5]]; feeds the conservative-target question [[D4]].
 bonds ultra-friendly (but target unreachable), indices friendly, leveraged noise-dominated.
 The screen is necessary-not-sufficient (doesn't test target reachability or timescale [[F14]]).
 
-### E9 — OPEN (next): clean DAILY-timescale validation
-Resolve [[H7]]/[[F14]]. Pull multi-year DAILY bars (QQQ/SPY/DIA + the leveraged set), run a
-leak-free walk-forward at the daily timescale (`timeframe="daily"`), across multiple regimes.
-This is the decisive test of whether ~3.75% APY [[D4]] is reachable at all with this signal.
+### E9 — DONE (part 1): edge vs bar-duration on resampled full-session data
+Produced [[F15]]: QQQ/SPY edge peaks at ~3 bars/day (QQQ +0.37%/mo Sh 4.15), negative hourly,
+DIA inverts. Pure daily (1/day) too sparse over 2yr. Part 2 (multi-year DAILY bars across regimes
+incl. 2022 bear) is in progress via a research agent — the decisive long-history daily test.
 
 ---
 
@@ -198,8 +209,10 @@ armed trader path — requires sign-off; this node records the evidence-backed r
 3.75% APY ≈ +0.307%/mo. The earlier "yes on QQQ" was a data artifact ([[F13]]). On full-session,
 live-representative data the HOURLY mean-reversion architecture has NO reliable edge on any
 instrument tested (QQQ/SPY negative; bonds: target unreachable; leveraged: noise-dominated [[F7]]).
-So **as currently deployed (hourly), ~3.75% APY is NOT achievable** — and this explains the flat
-live bot. The goal is not dead, but the only credible path on the evidence is the **DAILY timescale**
-([[F14]], [[H7]], [[E9]]) — fewer trades, lower cost, inherently more conservative, and historically the
-project's best Sharpe (BTC_DAILY). NEXT: run the clean daily-bar validation [[E9]] before any further
-hourly work. Do NOT chase the hourly edge further.
+So at the HOURLY frequency the bot runs, ~3.75% APY is NOT achievable (explains the flat live bot).
+BUT [[F15]] shows the edge IS real at ~3 bars/day: **QQQ +0.37%/mo ≈ 4.5% APY, Sharpe 4.15, DD −0.6%**
+— the conservative goal, at the right SAMPLING FREQUENCY. So the answer is a qualified YES, via the
+actionable lever "trade ~3 bars/day (≈every 2h), not hourly." Gating evidence before any live change:
+(1) confirm 3/day robustness across instruments + the 2022 bear regime (long-history daily test, in
+progress); (2) DIA inverts so it's instrument-specific; (3) changing the live sampling cadence touches
+the trader path → sign-off. Do NOT chase the HOURLY edge; DO pursue the 3-bars/day timescale.
