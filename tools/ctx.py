@@ -69,38 +69,41 @@ def _route_tokens(text: str):
     return toks | {_stem(t) for t in toks}
 
 
-def cmd_route(args):
-    task = " ".join(args.task).lower()
+def _route_rules(task):
+    """Score routing rules for a task string. Returns [(score, hits, rule), ...]
+    sorted desc. Tokenized + stemmed + synonym-expanded (shared by route & brief)."""
+    task = task.lower()
     qtoks = _route_tokens(task)
     m = _manifest()
-    rules = m["routing"]
-    # P2: concept→keyword synonyms (data-driven, in the manifest). Expand the
-    # query so plain-English ("how big should each trade be") reaches the rule.
     synonyms = m.get("routing_synonyms", {})
     expanded = set(task.split())
     for concept, kws in synonyms.items():
         if any(t in qtoks for t in _route_tokens(concept)):
             expanded.update(kws)
     scored = []
-    for r in rules:
+    for r in m["routing"]:
         hits = []
         for k in r["keywords"]:
-            ktoks = _route_tokens(k)
             phrase = " " in k or "-" in k
-            # phrase keyword: require it as a substring; word keyword: token match
-            if (phrase and k in task) or (not phrase and (ktoks & qtoks)) or (k in expanded):
+            if (phrase and k in task) or (not phrase and (_route_tokens(k) & qtoks)) or (k in expanded):
                 hits.append(k)
-        # weight: phrase/multiword hits count double
         score = sum(2 if (" " in h or "-" in h) else 1 for h in hits)
         if score:
             scored.append((score, hits, r))
     scored.sort(key=lambda x: -x[0])
+    return scored
+
+
+def cmd_route(args):
+    task = " ".join(args.task).lower()
+    scored = _route_rules(task)
     if not scored:
         # P4: fuzzy fallback instead of a dead end.
         import difflib
-        vocab = {k for r in rules for k in r["keywords"]} | set(synonyms)
+        m = _manifest()
+        vocab = {k for r in m["routing"] for k in r["keywords"]} | set(m.get("routing_synonyms", {}))
         near = difflib.get_close_matches(task, vocab, n=3, cutoff=0.4) or \
-            [w for t in qtoks for w in difflib.get_close_matches(t, vocab, n=1, cutoff=0.7)]
+            [w for t in _route_tokens(task) for w in difflib.get_close_matches(t, vocab, n=1, cutoff=0.7)]
         if near:
             print(f"No exact route. Did you mean: {', '.join(dict.fromkeys(near))}?  (or `ctx where <symbol>`)")
         else:
@@ -536,6 +539,74 @@ def cmd_web(args):
         print()
 
 
+def _web_banner():
+    """The first ⚠ blockquote of RESEARCH_WEB.md (the honest-state correction)."""
+    if not os.path.exists(WEB):
+        return ""
+    out, grabbing = [], False
+    for line in open(WEB):
+        if "⚠" in line and line.lstrip().startswith(">"):
+            grabbing = True
+        if grabbing:
+            if line.lstrip().startswith(">"):
+                out.append(line.lstrip("> ").rstrip())
+            else:
+                break
+    return " ".join(out)[:420]
+
+
+def cmd_brief(args):
+    """One-screen cold-start orientation packet (composed from the manifest + git +
+    research web). Safety + honest-state first, then area/task, then a drill menu."""
+    m = _manifest()
+    inv = m["invariants"]
+    print(f"{m['project']} @ {m['deploy_branch']} · PAPER ONLY · port {inv['api_port_paper']} "
+          f"(never {inv['api_port_live_forbidden']}) · {inv['active_symbol']}/{inv['active_mode']}")
+    print("INVARIANT: don't edit live trading/order/strategy logic without approval — `ctx can_edit <file>`\n")
+    banner = _web_banner()
+    if banner:
+        print(f"HONEST STATE: {banner}\n  → run `ctx perf` · `ctx web --live`\n")
+    area = args.area if args.area and args.area in m["areas"] else None
+    if area:
+        a = m["areas"][area]
+        print(f"AREA {area} — {a['summary']}")
+        if a.get("do_not_touch_without_approval"):
+            print("  ⚠ do_not_touch_without_approval = TRUE")
+        if a.get("entrypoints"):
+            print(f"  entrypoints: {' · '.join(a['entrypoints'][:4])}")
+        print(f"  files: {', '.join(a['files'][:6])}   ·   tests: ctx tests {area}\n")
+    elif args.area:
+        print(f"(no area '{args.area}'. areas: {', '.join(m['areas'])})\n")
+    if args.task:
+        scored = _route_rules(" ".join(args.task))
+        if scored:
+            r = scored[0][2]
+            print(f"TASK \"{' '.join(args.task)}\" →")
+            print(f"  READ:  {', '.join(r['read'][:5])}")
+            print(f"  RUN:   {', '.join(r['run'][:3])}")
+            print(f"  AVOID: {', '.join(r['avoid']) or '—'}\n")
+    print(f"RECENT: {_git('log', '--oneline', '-3').replace(chr(10), ' · ')}")
+    print("DRILL: ctx where/usages/defs <sym> · ctx impact <file> · ctx web --live · "
+          "ctx tests <area> · ctx perf · ctx status · ctx reverts")
+
+
+def cmd_reverts(args):
+    """A self-maintaining 'what we already tried & abandoned' ledger, mined from
+    git commit messages — can't go stale like a hand-written 'What Failed' doc."""
+    log = _git("log", "--oneline", "-n", "300", "-i",
+               "--grep=revert", "--grep=disabl", "--grep=abandon",
+               "--grep=rolled back", "--grep=roll back", "--grep=not viable", "--grep=killed")
+    lines = [l for l in log.splitlines() if l.strip()]
+    if getattr(args, "area", None):
+        lines = [l for l in lines if args.area.lower() in l.lower()]
+    if not lines:
+        print("  no revert/abandon commits found")
+        return
+    print(f"  {len(lines)} tried-and-reverted commit(s) (newest first):")
+    for l in lines[:30]:
+        print(f"  {_redact(l)}")
+
+
 def main():
     p = argparse.ArgumentParser(description="ctx — read-only context query tool for agents")
     sub = p.add_subparsers(dest="cmd")
@@ -545,6 +616,9 @@ def main():
     sp = sub.add_parser("defs"); sp.add_argument("file"); sp.set_defaults(fn=cmd_defs)
     sp = sub.add_parser("impact"); sp.add_argument("target"); sp.set_defaults(fn=cmd_impact)
     sp = sub.add_parser("can_edit"); sp.add_argument("file"); sp.set_defaults(fn=cmd_can_edit)
+    sp = sub.add_parser("brief"); sp.add_argument("area", nargs="?")
+    sp.add_argument("--task", nargs="+", default=None); sp.set_defaults(fn=cmd_brief)
+    sp = sub.add_parser("reverts"); sp.add_argument("area", nargs="?"); sp.set_defaults(fn=cmd_reverts)
     sub.add_parser("schema").set_defaults(fn=cmd_schema)
     sp = sub.add_parser("config"); sp.add_argument("key"); sp.set_defaults(fn=cmd_config)
     sp = sub.add_parser("perf"); sp.set_defaults(fn=cmd_perf)
