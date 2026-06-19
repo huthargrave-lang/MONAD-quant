@@ -214,7 +214,7 @@
     {"cmd": "ctx schema", "returns": "live/state.db tables, columns, row counts"},
     {"cmd": "ctx events [N] [--level L] [--category C]", "returns": "recent monitor events (the trader's own narrative of what happened/broke), read-only + redacted"},
     {"cmd": "ctx config <KEY>", "returns": "a config.py value + where it is set"},
-    {"cmd": "ctx perf [--view current|all]", "returns": "headline metrics from state.db (compounded + confirmed-fill)"},
+    {"cmd": "ctx perf", "returns": "headline metrics from state.db (compounded + confirmed-fill)"},
     {"cmd": "ctx status", "returns": "ops/status_check.sh (deploy/runtime state)"},
     {"cmd": "ctx recent [N]", "returns": "last N commits + changed files on the deploy branch"},
     {"cmd": "ctx map [area]", "returns": "this manifest (or one area)"},

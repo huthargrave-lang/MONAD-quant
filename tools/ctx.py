@@ -128,7 +128,7 @@ def cmd_where(args):
     found = 0
     for root, dirs, files in os.walk(REPO):
         dirs[:] = [d for d in dirs if d not in
-                   (".git", "venv", "__pycache__", "local_logs", "local_backups", "local_runtime")]
+                   (".git", ".claude", "venv", "__pycache__", "local_logs", "local_backups", "local_runtime")]
         for fn in files:
             if not fn.endswith((".py",)):
                 continue
@@ -149,7 +149,7 @@ def cmd_where(args):
 def _iter_py(root_dir):
     for root, dirs, files in os.walk(root_dir):
         dirs[:] = [d for d in dirs if d not in
-                   (".git", "venv", "__pycache__", "local_logs", "local_backups", "local_runtime")]
+                   (".git", ".claude", "venv", "__pycache__", "local_logs", "local_backups", "local_runtime")]
         for fn in files:
             if fn.endswith(".py"):
                 yield os.path.join(root, fn)
@@ -475,7 +475,7 @@ def cmd_impact(args):
     importers, mod2file = _import_graph()
 
     # config.KEY mode — scan all three access forms (config.KEY / getattr / ASSETS).
-    if target.startswith("config.") or (target.isupper() and "_" in target):
+    if (target.startswith("config.") and not target.endswith(".py")) or (target.isupper() and "_" in target):
         key = target.split(".", 1)[1] if target.startswith("config.") else target
         rx = re.compile(rf"(config\.{re.escape(key)}\b|getattr\(\s*config\s*,\s*[\"']{re.escape(key)}|\b{re.escape(key)}\b)")
         hits = []
@@ -510,13 +510,17 @@ def cmd_impact(args):
             if imp not in affected:
                 affected.add(imp); queue.append(imp)
     live = _live_boundary_modules()
+    target_protected = mod in live or _is_protected(mod)
     touched = sorted(a for a in affected if a in live or _is_protected(a))
     tests = sorted(a for a in affected if a.startswith("tests."))
     print(f"  impact of {mod2file.get(mod, mod)}: {len(affected)} transitive importer(s)")
+    if target_protected:
+        print(f"  ⛔ TARGET IS ON THE LIVE/PROTECTED BOUNDARY ({mod}) — editing it needs the")
+        print(f"     trader stopped + explicit approval (`ctx can_edit {mod2file.get(mod, target)}`).")
     if touched:
-        print(f"  ⚠ BLAST RADIUS REACHES THE LIVE/PROTECTED BOUNDARY: {', '.join(touched)}")
+        print(f"  ⚠ BLAST RADIUS ALSO REACHES PROTECTED MODULES: {', '.join(touched)}")
         print(f"    → editing {mod2file.get(mod)} can affect the armed trader path — needs approval.")
-    else:
+    if not target_protected and not touched:
         print("  ✓ does NOT reach the live-trader/config boundary (safe area to edit)")
     for a in sorted(affected - set(tests)):
         print(f"    {mod2file.get(a, a)}{' ⚠live' if _is_protected(a) else ''}")
