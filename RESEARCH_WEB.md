@@ -99,6 +99,23 @@ mean-reversion) timescale and absent hourly — F3/F4's numbers were this 3/day 
 hourly, negative 3/day) → instrument-dependent, not universal; needs multi-instrument + multi-regime
 confirmation. Refines [[F13]] (hourly-negative still holds) and [[F14]]. → [[D4]], [[H7]].
 
+### F16 — Daily mean-reversion is REAL (model-free, not an artifact)
+12yr daily data (2014–2026, n≈3030): lag-1 autocorrelation SPY −0.117 (t −6.4), QQQ −0.105 (t −5.8),
+DIA −0.125 (t −6.9), IWM −0.061 (t −3.3); variance ratios <1 at all horizons. The 3x ETFs have the
+SAME serial correlation as their 1x parents (leverage is irrelevant to the edge). Unlike the hourly
+"edge" ([[F13]]), this is a genuine statistical property of the price series, not a sampling artifact.
+CAVEAT: in the 2022 bear, lag-1 ACF collapses to ~0 — the edge VANISHES in sustained downtrends
+(→ must sit out bears; the slope-regime gate already does some of this). Source: daily-history agent ([[E9]]). → [[F17]], [[D4]].
+
+### F17 — THE EXIT IS THE ARCHITECTURAL FLAW (fixed %-stop kills mean-reversion)
+The fixed %-target/%-stop exit used everywhere destroys the real mean-reversion edge ([[F16]]) at BOTH
+timescales — it exits winning trades on intraband noise before the bounce completes (daily WR 34–41%,
+below the 2:1 breakeven, half the instruments negative). Root-cause isolation (leak-free daily WF):
+swapping the %-stop for a multi-day HORIZON (time) exit flips EVERY instrument positive — **QQQ +1.99%
+APY, Sharpe 0.74, −8% DD, survives 2022**. Cost is not the bottleneck (QQQ holds +1.74% APY at 10bps,
+5× spread). This UNIFIES the flat hourly bot ([[F13]]) and the daily result: the signal is fine; the
+exit is wrong. ACTIONABLE: replace %-stop with a horizon/time exit for the mean-reversion strategy. → [[D4]], [[H8]].
+
 ### F12 — ROOT CAUSE of the morning-only data + a backtest↔live data mismatch
 The morning-only data ([[F10]]) is a yfinance quirk: a 1h fetch over a LONG (~710-day) range
 returns only ~3 bars/day (the open, 13–15 UTC), but the SAME data fetched in ≤250-day chunks
@@ -144,6 +161,13 @@ hourly. Test a clean DAILY-bar mean-reversion strategy (more history → more re
 trade count → lower cost → inherently more conservative). The project's original BTC_DAILY mode
 had the best Sharpe / lowest DD — possibly the real thing before the hourly pivot chased a
 sampling artifact. → [[E9]]. Directly bears on the conservative goal [[D4]].
+
+### H8 — OPEN (the path to the goal): diversified daily-MR sleeves with a horizon exit
+[[F17]] gives a real ~2% APY / −8% DD on a single broad index (QQQ) — about HALF the 3.75% target. To
+reach 3.75% at acceptable drawdown without leverage (forbidden by the DD mandate), combine several
+low-correlation daily mean-reversion sleeves (SPY/QQQ/DIA/IWM + maybe sector ETFs), each with a horizon
+exit + the slope-regime bear gate, and measure the PORTFOLIO Sharpe/DD. Diversification should cut DD
+for the same return. → builds on [[F16]], [[F17]]; resolves [[D4]].
 
 ### H6 — OPEN: screen instruments by noise-ratio to find where the signal works
 [[F7]] gives a one-number predictor (`P(bar range > stop) < ~0.5`, i.e. noise_ratio > 1) of
@@ -209,10 +233,13 @@ armed trader path — requires sign-off; this node records the evidence-backed r
 3.75% APY ≈ +0.307%/mo. The earlier "yes on QQQ" was a data artifact ([[F13]]). On full-session,
 live-representative data the HOURLY mean-reversion architecture has NO reliable edge on any
 instrument tested (QQQ/SPY negative; bonds: target unreachable; leveraged: noise-dominated [[F7]]).
-So at the HOURLY frequency the bot runs, ~3.75% APY is NOT achievable (explains the flat live bot).
-BUT [[F15]] shows the edge IS real at ~3 bars/day: **QQQ +0.37%/mo ≈ 4.5% APY, Sharpe 4.15, DD −0.6%**
-— the conservative goal, at the right SAMPLING FREQUENCY. So the answer is a qualified YES, via the
-actionable lever "trade ~3 bars/day (≈every 2h), not hourly." Gating evidence before any live change:
-(1) confirm 3/day robustness across instruments + the 2022 bear regime (long-history daily test, in
-progress); (2) DIA inverts so it's instrument-specific; (3) changing the live sampling cadence touches
-the trader path → sign-off. Do NOT chase the HOURLY edge; DO pursue the 3-bars/day timescale.
+DEFINITIVE ANSWER (12yr daily, model-free + leak-free): daily mean-reversion is REAL ([[F16]]), but the
+project's fixed %-stop EXIT destroys it ([[F17]]); a multi-day HORIZON exit recovers it. With the fix,
+**QQQ ≈ +2% APY, Sharpe 0.74, −8% DD, regime-robust (survives 2022)** — about HALF the 3.75% target on
+a single index. 3.75% at acceptable drawdown requires DIVERSIFYING several low-correlation daily-MR
+sleeves ([[H8]]) — NOT leverage (the 3x ETFs hit 3.75%+ but at −25% to −40% DD and invert in bears,
+violating the capital-preservation mandate). So: **the goal is reachable, but as a diversified DAILY
+mean-reversion product with a horizon exit and a bear gate — not the hourly %-stop bot.** Concrete next
+build: daily MR + time/horizon exit + slope-regime gate, multi-instrument portfolio ([[H8]]). The
+single highest-value change is the EXIT ([[F17]]). (1-bars/day hourly note [[F15]] is the weaker, less
+robust cousin; the daily horizon-exit result supersedes it as the recommended direction.)
