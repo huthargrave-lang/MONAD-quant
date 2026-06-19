@@ -243,6 +243,31 @@ signals.
 - **J4. Kill switch.** A single documented command/flag to flatten and halt (the software stop
   + `systemctl stop` exist; formalize + alert).
 
+## Workstream K — Agent context layer (from 7 context-storage research agents, 2026-06-19)
+
+**Theme:** stored context must distinguish LIVE truth from SUPERSEDED, carry provenance,
+self-verify (so it can't lie), and be cheaply queryable + writeable across agents. Today's
+F13 reversal (a confidently-stored "edge" that was a data artifact) is the motivating case.
+
+- **K0 (DONE)** — stale-`CLAUDE.md` banner; `ctx web --live`/`--lint`; `tests/test_research_web.py`
+  anti-rot; `test_context_map.py` extended (context_docs/routing-read/ctx-subcommand checks — caught
+  a real dead routing pointer).
+- **K1 — Typed idea-web edges** `[[supersedes:F4]]` / `[[supports:F7]]` / `[[produced-by:E7]]`
+  (backward-compatible; ~15 LOC in `_parse_web`/`cmd_web`). Lets `ctx web --lint` cleanly separate
+  provenance from reliance (kills the 9 current advisories) and `ctx web <node>` render grouped edges.
+- **K2 — `ctx experiments [ticker] [--type] [--node]`** + **un-ignore & commit `experiments.jsonl`**;
+  have `walkforward_eval.py`/`instrument_screen.py` write registry records (reuse `data_fingerprint`).
+  So an agent asks "what did we already test on QQQ?" instead of re-running. (registry agent)
+- **K3 — `ctx brief <area> --task`** orientation packet + a sub-agent RESULT schema (incl. a
+  `research_web_delta`) — cut each sub-agent cold start from ~425 lines re-derived to one call. (handoff agent)
+- **K4 — `ctx doc <section>`** (CLAUDE.md is section-queryable, not a 18.7k auto-read) + archive
+  CLAUDE.md history §13–22 to `docs/history/`. (efficiency agent)
+- **K5 — Provenance + verify**: per-Finding `prov:` footer (experiment/date/data_hash via
+  `data_fingerprint`); `ctx verify <node>` re-derives + diffs the data hash; git-age staleness flags;
+  `ctx web add` safe writer (ID alloc + link validation + auto-provenance + Decision human-gate). (trust + write-back agents)
+- **K6 — Memory hygiene**: fix the dangling `[[session-2026-06-18-testing]]` link; keep per-user
+  MEMORY pointing to (not copying) the repo SSOT; the repo wins on conflict. (memory agent)
+
 ---
 
 ## Prioritized roadmap (phased)
