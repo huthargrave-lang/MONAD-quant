@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# MONAD-quant pre-commit: block secrets / never-commit files from entering a commit.
+# Not active until installed: run `bash ops/hooks/install.sh` (symlinks this into
+# .git/hooks/). Fixes the night-review R5 gap — the KA7 fence had no commit-time
+# enforcement (.git/hooks/ held only samples). Bypass once with `git commit -n`.
+set -euo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+PY="$ROOT/venv/bin/python"
+[ -x "$PY" ] || PY="python3"
+exec "$PY" "$ROOT/ops/secret_scan.py" --staged

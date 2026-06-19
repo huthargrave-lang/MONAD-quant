@@ -1,0 +1,16 @@
+{
+  "_comment": "Project settings (committed). The PreToolUse hook makes the KA7 safe-write fence MECHANICAL, not convention-only: ops/guard_edit.py denies Edit/Write/NotebookEdit on the armed live-trader path + secrets + raw DBs (from context_map.json edit_policy). Fail-open by design. See ops/hooks/ for the matching pre-commit secret-scan.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/venv/bin/python \"$CLAUDE_PROJECT_DIR\"/ops/guard_edit.py"
+          }
+        ]
+      }
+    ]
+  }
+}
