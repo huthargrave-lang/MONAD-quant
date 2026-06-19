@@ -275,6 +275,11 @@ F13 reversal (a confidently-stored "edge" that was a data artifact) is the motiv
 Anthropic/Cursor dropped vector indexes for agentic search). Everything stays stdlib, read-only,
 CI-guarded by `tests/test_context_map.py`. **CLAUDE.md compressed (1440→499 lines, history archived).**
 
+**STATUS:** KA0, KA1, KA2, KA3, KA4, KA7 **SHIPPED** (4 build passes, f930698→993ed1d) — `ctx`
+gained `brief / usages / defs / impact / can_edit / reverts / events` + robust `route` + the
+`edit_policy` safe-write fence + the `ops/guard_edit.py` hook. KA5/KA6/KA8 are the remaining
+backlog; KA9 stays deferred.
+
 - **KA0 (DONE)** — `ctx route` robustness (tokenize+stem+word-boundary kills the `stops`→`ops`
   misroute; manifest `routing_synonyms`; difflib fallback) + golden-query/synonym anti-drift tests;
   `ctx usages <symbol>` (all refs classified) + `ctx defs <file>` (symbol outline); CI now installs
