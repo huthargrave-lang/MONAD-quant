@@ -59,7 +59,7 @@
     },
     "backtest": {
       "summary": "Backtest loop + performance metrics + data ingestion; universal param sweep entrypoint.",
-      "files": ["src/backtest/runner.py", "src/backtest/metrics.py", "src/data/fetcher.py", "tools/fetch_fullsession.py", "main.py", "sweep.py"],
+      "files": ["src/backtest/runner.py", "src/backtest/metrics.py", "src/data/fetcher.py", "tools/fetch_fullsession.py", "main.py", "sweep.py", "fee_analysis.py"],
       "entrypoints": ["src/backtest/runner.py::run_backtest", "src/backtest/metrics.py::annualized_sharpe", "src/data/fetcher.py::fetch_yfinance", "tools/fetch_fullsession.py::fetch_full"],
       "tests": ["tests/test_runner_metrics.py", "tests/test_fetcher.py"],
       "docs": ["CLAUDE.md"],
@@ -92,7 +92,7 @@
     },
     "config": {
       "summary": "Single source of truth for all tunable params and mode routing.",
-      "files": ["config.py", "config_modules/live.py"],
+      "files": ["config.py", "config_modules/live.py", "config_modules/base.py", "config_modules/mode_config.py"],
       "entrypoints": [],
       "tests": ["tests/test_config.py"],
       "docs": ["CLAUDE.md"],
@@ -128,6 +128,23 @@
     {"keywords": ["status", "running", "current state", "health", "what is running"],
      "read": [], "run": ["bash ops/status_check.sh", "ctx status"], "avoid": []}
   ],
+
+  "coverage_allowlist": {
+    "_README": "First-party .py modules intentionally NOT owned by an 'areas' entry, with the reason. Enforced by tests/test_area_coverage.py: every first-party module must be claimed by an area OR listed here (so a NEW orphaned module fails CI and gets triaged, instead of silently going un-mapped). __init__.py are empty package markers; the two tools below are read-only agent/diagnostic CLIs (advertised in tools_readonly), not strategy areas.",
+    "modules": [
+      "config_modules/__init__.py",
+      "live/__init__.py",
+      "src/__init__.py",
+      "src/analysis/__init__.py",
+      "src/backtest/__init__.py",
+      "src/data/__init__.py",
+      "src/optimization/__init__.py",
+      "src/signals/__init__.py",
+      "src/strategy/__init__.py",
+      "tools/ctx.py",
+      "tools/diagnose_brackets.py"
+    ]
+  },
 
   "edit_policy": {
     "_README": "Checked by `ctx can_edit <file>` and the (opt-in) PreToolUse hook ops/guard_edit.py. READ access is unrestricted; only WRITES are fenced. deny = armed-trader path + secrets + raw DBs; warn = selection-of-record.",
@@ -189,6 +206,9 @@
     {"cmd": "ctx where <symbol>", "returns": "file:line where a function/class/config key is defined"},
     {"cmd": "ctx usages <symbol>", "returns": "ALL references to a symbol across the repo, classified (def/import/assign/ref/attr)"},
     {"cmd": "ctx defs <file>", "returns": "a file's symbol outline (imports + functions w/ args + classes/methods) without reading it"},
+    {"cmd": "ctx tree [path] [--tests]", "returns": "AST repomap: every first-party module → its docstring first line + top-level class/def names (+ one-line docstrings); optional path prefix filter"},
+    {"cmd": "ctx summary [area]", "returns": "per-area rollup of the repomap (one line per module) grouped by context_map.json areas"},
+    {"cmd": "ctx covers <symbol>", "returns": "which test(s) exercise a symbol: direct (tests/ grep) + the area tests that own the symbol's module"},
     {"cmd": "ctx impact <file|symbol|config.KEY>", "returns": "blast radius: transitive reverse-deps + whether it reaches the live-trader boundary + covering tests"},
     {"cmd": "ctx can_edit <file>", "returns": "edit-policy gate ALLOW/WARN/DENY (exit 0/2/1) — fences writes to the live path; read is always allowed"},
     {"cmd": "ctx schema", "returns": "live/state.db tables, columns, row counts"},

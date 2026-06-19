@@ -221,6 +221,179 @@ def cmd_defs(args):
                     print(f"      L{sub.lineno}: {sub.name}()")
 
 
+# ── KA5: AST repomap (ctx tree / ctx summary) + area coverage ────────────────
+
+def _first_line(doc):
+    """First non-blank line of a docstring, trimmed. '' if none."""
+    if not doc:
+        return ""
+    for ln in doc.strip().splitlines():
+        ln = ln.strip()
+        if ln:
+            return ln
+    return ""
+
+
+def _module_summary(rel):
+    """AST outline of one repo module → dict(doc, symbols=[(kind,name,doc1)]).
+    Stdlib ast only; top-level defs/classes (+ their one-line docstrings).
+    Returns None on parse/read error."""
+    import ast
+    try:
+        tree = ast.parse(open(os.path.join(REPO, rel), errors="ignore").read())
+    except (OSError, SyntaxError):
+        return None
+    syms = []
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            syms.append(("def", node.name, _first_line(ast.get_docstring(node))))
+        elif isinstance(node, ast.ClassDef):
+            syms.append(("class", node.name, _first_line(ast.get_docstring(node))))
+    return {"doc": _first_line(ast.get_docstring(tree)), "symbols": syms}
+
+
+def _first_party_modules(include_tests=False):
+    """Sorted repo-relative .py modules an agent would care about (skips venv etc.,
+    and __pycache__ via _iter_py). Tests excluded unless asked."""
+    mods = sorted(os.path.relpath(p, REPO) for p in _iter_py(REPO))
+    if not include_tests:
+        mods = [m for m in mods if not m.startswith("tests" + os.sep) and m != "tests"]
+    return mods
+
+
+def cmd_tree(args):
+    """Compact AST repomap: each first-party module → its docstring's first line +
+    top-level class/def names (token-economical; for an agent budget, not a human)."""
+    mods = _first_party_modules(include_tests=getattr(args, "tests", False))
+    if getattr(args, "path", None):
+        pref = args.path.rstrip("/") + os.sep
+        mods = [m for m in mods if m == args.path or m.startswith(pref)]
+        if not mods:
+            print(f"  no first-party modules under '{args.path}'")
+            return
+    shown = 0
+    for rel in mods:
+        s = _module_summary(rel)
+        if s is None:
+            continue
+        shown += 1
+        doc = f" — {s['doc']}" if s["doc"] else ""
+        print(f"{rel}{doc}")
+        for kind, name, d1 in s["symbols"]:
+            sig = f"{'class' if kind == 'class' else 'def'} {name}"
+            print(f"    {sig}{('  · ' + d1) if d1 else ''}")
+    print(f"\n  {shown} module(s)")
+
+
+def cmd_summary(args):
+    """Per-area rollup of the repomap, grouped by context_map.json areas (one line
+    per module: path + docstring first line). `ctx summary <area>` drills into one."""
+    m = _manifest()
+    areas = m["areas"]
+    if args.area:
+        if args.area not in areas:
+            print(f"no area '{args.area}'. areas: {', '.join(areas)}")
+            return
+        sel = {args.area: areas[args.area]}
+    else:
+        sel = areas
+    for area, spec in sel.items():
+        files = [f for f in spec["files"] if f.endswith(".py")]
+        # expand dir-prefix entries (e.g. 'ops/') to their .py modules
+        for f in spec["files"]:
+            if f.endswith("/"):
+                files += [m2 for m2 in _first_party_modules() if m2.startswith(f)]
+        files = sorted(dict.fromkeys(files))
+        flag = "  ⚠ do_not_touch" if spec.get("do_not_touch_without_approval") else ""
+        print(f"AREA {area} — {spec['summary']}{flag}")
+        for rel in files:
+            s = _module_summary(rel)
+            if s is None:
+                print(f"    {rel}  (missing/unparseable)")
+                continue
+            doc = s["doc"] or f"({len(s['symbols'])} symbols)"
+            print(f"    {rel:42} {doc[:70]}")
+        print()
+
+
+# ── KA6: ctx covers <symbol> — which tests exercise a symbol ─────────────────
+
+def _symbol_module(sym):
+    """Repo-relative file where `sym` is def/class/assigned (first match), else None."""
+    rx = re.compile(rf"^\s*(def|class)\s+{re.escape(sym)}\b|^\s*{re.escape(sym)}\s*=")
+    for p in _iter_py(REPO):
+        rel = os.path.relpath(p, REPO)
+        if rel.startswith("tests" + os.sep):
+            continue
+        try:
+            if any(rx.search(line) for line in open(p, errors="ignore")):
+                return rel
+        except OSError:
+            continue
+    return None
+
+
+def _areas_for_module(rel):
+    """Areas whose 'files' claim this module (direct or via a dir-prefix entry)."""
+    out = []
+    for area, spec in _manifest()["areas"].items():
+        for f in spec["files"]:
+            if f == rel or (f.endswith("/") and rel.startswith(f)):
+                out.append(area)
+                break
+    return out
+
+
+def _tests_grepping(sym):
+    """Test files under tests/ that mention `sym` by name (word-boundary)."""
+    rx = re.compile(rf"\b{re.escape(sym)}\b")
+    hits = []
+    tdir = os.path.join(REPO, "tests")
+    if not os.path.isdir(tdir):
+        return hits
+    for p in _iter_py(tdir):
+        try:
+            if any(rx.search(line) for line in open(p, errors="ignore")):
+                hits.append(os.path.relpath(p, REPO))
+        except OSError:
+            continue
+    return sorted(hits)
+
+
+def cmd_covers(args):
+    """Which test(s) exercise a symbol: (a) grep tests/ for the name, plus (b) the
+    tests listed for the area(s) that own the symbol's module in context_map.json."""
+    sym = args.symbol
+    direct = _tests_grepping(sym)
+    rel = _symbol_module(sym)
+    area_tests, areas = [], []
+    if rel:
+        areas = _areas_for_module(rel)
+        m = _manifest()
+        for a in areas:
+            area_tests += m["areas"][a].get("tests", [])
+        area_tests = sorted(dict.fromkeys(area_tests))
+    if rel:
+        print(f"  symbol '{sym}' defined in {rel}"
+              + (f"  (area: {', '.join(areas)})" if areas else "  (no area claims it)"))
+    else:
+        print(f"  '{sym}' not found as a top-level def/class/assign in first-party code")
+    if direct:
+        print(f"  direct (tests/ mention '{sym}'):")
+        for t in direct:
+            print(f"    {t}")
+    else:
+        print(f"  direct: none of tests/ mention '{sym}' by name")
+    indirect = [t for t in area_tests if t not in direct]
+    if indirect:
+        print(f"  area tests (cover the module's area, may exercise it indirectly):")
+        for t in indirect:
+            mark = "" if os.path.exists(os.path.join(REPO, t)) else "  (MISSING)"
+            print(f"    {t}{mark}")
+    if not direct and not area_tests:
+        print("  → no covering tests found (untested? try `ctx usages` to see callers)")
+
+
 def policy_match(path, patterns):
     """Return the first edit_policy glob that matches `path`, else None.
     Handles dir-prefixes ('live/'), exact files, and globs ('*.db')."""
@@ -647,6 +820,10 @@ def main():
     sp = sub.add_parser("where"); sp.add_argument("symbol"); sp.set_defaults(fn=cmd_where)
     sp = sub.add_parser("usages"); sp.add_argument("symbol"); sp.set_defaults(fn=cmd_usages)
     sp = sub.add_parser("defs"); sp.add_argument("file"); sp.set_defaults(fn=cmd_defs)
+    sp = sub.add_parser("tree"); sp.add_argument("path", nargs="?")
+    sp.add_argument("--tests", action="store_true", help="include tests/ modules"); sp.set_defaults(fn=cmd_tree)
+    sp = sub.add_parser("summary"); sp.add_argument("area", nargs="?"); sp.set_defaults(fn=cmd_summary)
+    sp = sub.add_parser("covers"); sp.add_argument("symbol"); sp.set_defaults(fn=cmd_covers)
     sp = sub.add_parser("impact"); sp.add_argument("target"); sp.set_defaults(fn=cmd_impact)
     sp = sub.add_parser("can_edit"); sp.add_argument("file"); sp.set_defaults(fn=cmd_can_edit)
     sp = sub.add_parser("brief"); sp.add_argument("area", nargs="?")
@@ -669,7 +846,8 @@ def main():
     if not getattr(args, "fn", None):
         # default: print the index summary
         cmd_map(argparse.Namespace(area=None))
-        print("\nUsage: ctx {route|where|schema|config|perf|status|recent|map|tests}")
+        print("\nUsage: ctx {route|where|usages|defs|tree|summary|covers|impact|"
+              "schema|config|perf|status|recent|map|tests|brief|web}")
         return
     args.fn(args)
 

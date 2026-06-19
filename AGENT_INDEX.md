@@ -8,6 +8,9 @@ Most facts are a command away (read-only, stdlib-only):
 ```bash
 venv/bin/python tools/ctx.py route "<your task>"   # which files to read + tools to run
 venv/bin/python tools/ctx.py where <symbol>        # file:line of a def/class/config key
+venv/bin/python tools/ctx.py tree [path]           # AST repomap: each module → docstring + class/def names
+venv/bin/python tools/ctx.py summary [area]        # per-area rollup of the repomap (one line/module)
+venv/bin/python tools/ctx.py covers <symbol>       # which test(s) exercise a symbol (direct + area tests)
 venv/bin/python tools/ctx.py schema                # state.db tables/columns/counts
 venv/bin/python tools/ctx.py config <KEY>          # a config value + where it's set
 venv/bin/python tools/ctx.py perf                  # headline + the HONEST confirmed-fill edge
