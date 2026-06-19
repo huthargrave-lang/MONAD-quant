@@ -7,10 +7,23 @@ instead of re-reading the codebase.
 """
 import json
 import os
+import sys
 import unittest
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MANIFEST = os.path.join(REPO, "context_map.json")
+sys.path.insert(0, os.path.join(REPO, "tools"))
+import ctx  # noqa: E402  (reuse the route scorer + manifest reader)
+
+
+def _route_output(query):
+    import contextlib
+    import io
+    import types
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        ctx.cmd_route(types.SimpleNamespace(task=query.split()))
+    return buf.getvalue().lower()
 
 
 def _load():
@@ -128,6 +141,40 @@ class TestManifestReferencesExist(unittest.TestCase):
             for k in ("keywords", "read", "run", "avoid"):
                 self.assertIn(k, r)
             self.assertTrue(r["keywords"], "routing entry has no keywords")
+
+    def test_routing_synonyms_resolve_to_real_keywords(self):
+        """Every synonym target must be a real routing keyword (anti-drift)."""
+        kws = {k for r in self.m["routing"] for k in r["keywords"]}
+        for concept, targets in self.m.get("routing_synonyms", {}).items():
+            if concept.startswith("_"):
+                continue
+            for t in targets:
+                with self.subTest(concept=concept, target=t):
+                    self.assertIn(t, kws, f"synonym '{concept}'→'{t}' is not a routing keyword")
+
+
+class TestRouteRobustness(unittest.TestCase):
+    """Golden natural-language queries route sensibly (locks in the matcher fix)."""
+
+    GOLDEN = [
+        ("where is position sizing decided", ["strategy", "sizing", "kelly"]),
+        ("how big should each trade be", ["kelly", "sizing", "strategy"]),
+        ("what happens on a software stop", ["trader", "exit", "strategy"]),
+        ("how do I add a new ticker", ["sweep", "backtest"]),
+        ("is the edge real", ["perf", "edge", "research_web"]),
+    ]
+
+    def test_golden_queries_match(self):
+        for q, expect_any in self.GOLDEN:
+            out = _route_output(q)
+            with self.subTest(query=q):
+                self.assertNotIn("no routing match", out, f"'{q}' got no route")
+                self.assertNotIn("no exact route", out, f"'{q}' got no route")
+                self.assertTrue(any(e in out for e in expect_any), f"'{q}' → {out[:140]}")
+
+    def test_stop_question_not_misrouted_to_ops(self):
+        # The classic substring bug: 'stops' contains 'ops' → was routed to ops/systemd.
+        self.assertNotIn("ops/systemd", _route_output("what stops a bad trade from losing too much"))
 
 
 if __name__ == "__main__":

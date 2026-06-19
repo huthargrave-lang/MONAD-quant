@@ -54,18 +54,57 @@ def _git(*args) -> str:
 
 # ── commands ─────────────────────────────────────────────────────────────────
 
+def _stem(tok: str) -> str:
+    """Crude suffix-stripper so 'sizing'→'siz', 'stops'→'stop', 'charting'→'chart'."""
+    for suf in ("ing", "ed", "es", "ly", "s"):
+        if len(tok) > len(suf) + 2 and tok.endswith(suf):
+            return tok[:-len(suf)]
+    return tok
+
+
+def _route_tokens(text: str):
+    """Word-boundary tokens (+ stems). Word-boundary kills the 'ops' in 'st-ops'
+    false-positive that plain substring matching produced."""
+    toks = set(re.findall(r"[a-z0-9]+", text.lower()))
+    return toks | {_stem(t) for t in toks}
+
+
 def cmd_route(args):
     task = " ".join(args.task).lower()
-    rules = _manifest()["routing"]
+    qtoks = _route_tokens(task)
+    m = _manifest()
+    rules = m["routing"]
+    # P2: concept→keyword synonyms (data-driven, in the manifest). Expand the
+    # query so plain-English ("how big should each trade be") reaches the rule.
+    synonyms = m.get("routing_synonyms", {})
+    expanded = set(task.split())
+    for concept, kws in synonyms.items():
+        if any(t in qtoks for t in _route_tokens(concept)):
+            expanded.update(kws)
     scored = []
     for r in rules:
-        hits = [k for k in r["keywords"] if k in task]
-        if hits:
-            scored.append((len(hits), hits, r))
+        hits = []
+        for k in r["keywords"]:
+            ktoks = _route_tokens(k)
+            phrase = " " in k or "-" in k
+            # phrase keyword: require it as a substring; word keyword: token match
+            if (phrase and k in task) or (not phrase and (ktoks & qtoks)) or (k in expanded):
+                hits.append(k)
+        # weight: phrase/multiword hits count double
+        score = sum(2 if (" " in h or "-" in h) else 1 for h in hits)
+        if score:
+            scored.append((score, hits, r))
     scored.sort(key=lambda x: -x[0])
     if not scored:
-        print("No routing match. Try keywords like: trader, signal, dashboard, ops, db, ibkr, performance.")
-        print("Or: ctx map   (see all areas)")
+        # P4: fuzzy fallback instead of a dead end.
+        import difflib
+        vocab = {k for r in rules for k in r["keywords"]} | set(synonyms)
+        near = difflib.get_close_matches(task, vocab, n=3, cutoff=0.4) or \
+            [w for t in qtoks for w in difflib.get_close_matches(t, vocab, n=1, cutoff=0.7)]
+        if near:
+            print(f"No exact route. Did you mean: {', '.join(dict.fromkeys(near))}?  (or `ctx where <symbol>`)")
+        else:
+            print("No routing match. Try: ctx map (areas) · ctx where <symbol> · ctx web --live")
         return
     for _, hits, r in scored[:3]:
         print(f"• matched: {', '.join(hits)}")
@@ -96,7 +135,82 @@ def cmd_where(args):
             except OSError:
                 continue
     if not found:
-        print(f"  no definition of '{sym}' found (try `ctx grep {sym}` style search yourself)")
+        print(f"  no definition of '{sym}' found (try `ctx usages {sym}`)")
+
+
+def _iter_py(root_dir):
+    for root, dirs, files in os.walk(root_dir):
+        dirs[:] = [d for d in dirs if d not in
+                   (".git", "venv", "__pycache__", "local_logs", "local_backups", "local_runtime")]
+        for fn in files:
+            if fn.endswith(".py"):
+                yield os.path.join(root, fn)
+
+
+def cmd_usages(args):
+    """All references to a symbol across the repo, classified (def/import/assign/ref/attr)."""
+    import ast
+    sym = args.symbol
+    refs = []
+    for p in _iter_py(REPO):
+        try:
+            tree = ast.parse(open(p, errors="ignore").read())
+        except (OSError, SyntaxError):
+            continue
+        rel = os.path.relpath(p, REPO)
+        for node in ast.walk(tree):
+            kind = ln = None
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and node.name == sym:
+                kind, ln = "def", node.lineno
+            elif isinstance(node, ast.Name) and node.id == sym:
+                kind, ln = ("assign" if isinstance(node.ctx, ast.Store) else "ref"), node.lineno
+            elif isinstance(node, ast.Attribute) and node.attr == sym:
+                kind, ln = "attr", node.lineno
+            elif isinstance(node, (ast.Import, ast.ImportFrom)) and \
+                    any((a.asname or a.name.split(".")[0]) == sym or a.name == sym for a in node.names):
+                kind, ln = "import", node.lineno
+            if kind:
+                refs.append((rel, ln, kind))
+    if not refs:
+        print(f"  no references to '{sym}' found")
+        return
+    refs = sorted(set(refs))
+    print(f"  {len(refs)} refs across {len({r[0] for r in refs})} files")
+    for rel, ln, kind in refs:
+        print(f"  [{kind:<6}] {rel}:{ln}")
+
+
+def cmd_defs(args):
+    """Top-level symbol outline of a file (imports, functions w/ args, classes + methods)."""
+    import ast
+    path = args.file
+    full = os.path.join(REPO, path)
+    if not os.path.exists(full):
+        print(f"  no such file: {path}")
+        return
+    try:
+        tree = ast.parse(open(full, errors="ignore").read())
+    except SyntaxError as exc:
+        print(f"  parse error: {exc}")
+        return
+    imps = []
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            imps += [a.name for a in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            imps.append((node.module or ".") + "." + "{" + ",".join(a.name for a in node.names) + "}")
+    print(f"  {path}")
+    if imps:
+        print(f"  imports: {', '.join(imps[:12])}{' …' if len(imps) > 12 else ''}")
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            a = ", ".join(arg.arg for arg in node.args.args)
+            print(f"  L{node.lineno}: def {node.name}({a})")
+        elif isinstance(node, ast.ClassDef):
+            print(f"  L{node.lineno}: class {node.name}")
+            for sub in node.body:
+                if isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    print(f"      L{sub.lineno}: {sub.name}()")
 
 
 def cmd_schema(args):
@@ -297,6 +411,8 @@ def main():
     sub = p.add_subparsers(dest="cmd")
     sp = sub.add_parser("route"); sp.add_argument("task", nargs="+"); sp.set_defaults(fn=cmd_route)
     sp = sub.add_parser("where"); sp.add_argument("symbol"); sp.set_defaults(fn=cmd_where)
+    sp = sub.add_parser("usages"); sp.add_argument("symbol"); sp.set_defaults(fn=cmd_usages)
+    sp = sub.add_parser("defs"); sp.add_argument("file"); sp.set_defaults(fn=cmd_defs)
     sub.add_parser("schema").set_defaults(fn=cmd_schema)
     sp = sub.add_parser("config"); sp.add_argument("key"); sp.set_defaults(fn=cmd_config)
     sp = sub.add_parser("perf"); sp.set_defaults(fn=cmd_perf)

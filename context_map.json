@@ -129,6 +129,39 @@
      "read": [], "run": ["bash ops/status_check.sh", "ctx status"], "avoid": []}
   ],
 
+  "routing_synonyms": {
+    "_README": "concept -> keywords that exist in routing[].keywords. ctx route expands the query through these so plain-English questions reach the right rule.",
+    "stop loss": ["exit", "strategy", "trader"],
+    "take profit": ["exit", "strategy", "trader"],
+    "software stop": ["exit", "trader", "broker"],
+    "target": ["strategy", "exit"],
+    "position size": ["sizing", "kelly"],
+    "how big": ["sizing", "kelly"],
+    "trade size": ["sizing", "kelly"],
+    "risk": ["sizing", "kelly", "regime"],
+    "drawdown": ["performance", "edge"],
+    "add ticker": ["sweep", "backtest", "param"],
+    "new instrument": ["sweep", "backtest"],
+    "new mode": ["sweep", "param"],
+    "fee": ["cost", "slippage"],
+    "commission": ["cost", "slippage"],
+    "sell": ["exit", "trader"],
+    "buy": ["entry", "trader"],
+    "why did it exit": ["exit", "reconcile"],
+    "crash": ["ops", "status"],
+    "restart": ["ops", "status"],
+    "not running": ["status", "ops"],
+    "logs": ["ops", "status"],
+    "alert": ["ops"],
+    "secret": ["ops"],
+    "credential": ["ops"],
+    "tws": ["ibkr", "gateway"],
+    "adx": ["signal"],
+    "vwap": ["signal"],
+    "atr": ["signal"],
+    "edit": ["status"]
+  },
+
   "facts": {
     "deploy_state": "run: bash ops/status_check.sh   (or: ctx status)",
     "db_schema": "run: ctx schema",
@@ -147,6 +180,8 @@
   "tools_readonly": [
     {"cmd": "ctx route \"<task>\"", "returns": "which files to read + tools to run for a task"},
     {"cmd": "ctx where <symbol>", "returns": "file:line where a function/class/config key is defined"},
+    {"cmd": "ctx usages <symbol>", "returns": "ALL references to a symbol across the repo, classified (def/import/assign/ref/attr)"},
+    {"cmd": "ctx defs <file>", "returns": "a file's symbol outline (imports + functions w/ args + classes/methods) without reading it"},
     {"cmd": "ctx schema", "returns": "live/state.db tables, columns, row counts"},
     {"cmd": "ctx config <KEY>", "returns": "a config.py value + where it is set"},
     {"cmd": "ctx perf [--view current|all]", "returns": "headline metrics from state.db (compounded + confirmed-fill)"},

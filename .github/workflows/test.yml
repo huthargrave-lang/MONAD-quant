@@ -21,6 +21,10 @@ jobs:
           python -m pip install --upgrade pip
           # Dev/test extras: httpx (dashboard TestClient), matplotlib, pytest.
           pip install -r requirements-dev.txt
+          # Runtime deps (jinja2/plotly/python-dotenv etc.) — without these,
+          # tests/test_dashboard.py and tests/test_fetcher.py error at COLLECTION
+          # (plotly / dotenv imports) and are silently dropped from the run.
+          pip install -r requirements.txt
           # Libraries the tests import directly. Tests stub ib_insync/yfinance where
           # possible, so the CI install is kept lean and explicit.
           pip install pandas numpy fastapi httpx ib_insync yfinance apscheduler
