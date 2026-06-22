@@ -229,5 +229,38 @@ class TestUnifiedGraph(unittest.TestCase):
         self.assertIn("F13", f3_in)
 
 
+class TestFrontier(unittest.TestCase):
+    """Context Web v2 #7 — task-shaped progressive disclosure: seeds + corrections,
+    budget-bounded, not a fixed summary."""
+
+    def _run(self, task, budget=900):
+        import contextlib
+        import io
+        import types
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ctx.cmd_frontier(types.SimpleNamespace(task=task.split(), budget=budget))
+        return buf.getvalue()
+
+    def test_stop_task_surfaces_flaw_reversal_and_bridge(self):
+        out = self._run("retune the TQQQ hourly stop")
+        self.assertIn("HONEST STATE", out)
+        self.assertIn("F17", out)   # the %-stop exit-flaw finding
+        self.assertIn("F13", out)   # the hourly-edge reversal pulled in by activation
+        self.assertIn("cfg:STOP_LOSS_PCT_TQQQ_HOURLY", out)  # the code bridge
+
+    def test_no_match_is_graceful(self):
+        self.assertIn("no idea-graph match", self._run("zzzqqq xyzzy nonsense"))
+
+    def test_stopwords_alone_do_not_seed(self):
+        # regression on the stopword filter: bare 'the' must not seed every node.
+        self.assertIn("no idea-graph match", self._run("the the the"))
+
+    def test_smaller_budget_yields_fewer_lines(self):
+        big = self._run("edge stop exit regime", 2000)
+        small = self._run("edge stop exit regime", 120)
+        self.assertLess(small.count("\n"), big.count("\n"))
+
+
 if __name__ == "__main__":
     unittest.main()

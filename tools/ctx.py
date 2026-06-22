@@ -1158,6 +1158,95 @@ def cmd_contradicts(args):
     print(f"  ← superseded/contradicted by    {', '.join(_g_label(G, x) for x in inc) or '—'}")
 
 
+# Edge weights for spreading activation — corrections (supersedes/contradicts)
+# spread hardest, so a task near a stale claim pulls the reversal into context.
+_ACT_WEIGHT = {
+    "supersedes": 0.95, "contradicts": 0.95, "refines": 0.75, "relies_on": 0.7,
+    "builds_on": 0.7, "drives": 0.6, "resolves": 0.6, "concerns": 0.6, "gated_by": 0.6,
+    "supports": 0.55, "evidenced_by": 0.5, "produces": 0.5, "derived_from": 0.5,
+    "implemented_in": 0.6, "measured_by": 0.5, "relates": 0.4,
+}
+# Stopwords that would otherwise seed nearly every node ('the' matches "THE EXIT", etc.).
+_FRONTIER_STOPWORDS = {
+    "the", "and", "for", "are", "was", "that", "this", "with", "from", "not", "but",
+    "how", "what", "why", "does", "did", "can", "should", "would", "its", "you", "our",
+    "new", "use", "set", "get", "run", "via", "per", "all", "any", "out",
+}
+
+
+def cmd_frontier(args):
+    """Task-shaped progressive disclosure (the anti-summary front door): seed from
+    the task, spread activation across the unified idea graph (corrections pulled
+    in hardest), and emit a budget-bounded packet — the honest-state spine + the
+    nodes that matter, not a fixed summary. `--budget` is a rough token ceiling."""
+    task = " ".join(args.task)
+    budget = args.budget
+    G, adj = build_graph()
+    nodes, _ = _parse_web()
+    qtoks = {t for t in _route_tokens(task.lower())
+             if len(t) >= 3 and t not in _FRONTIER_STOPWORDS}
+
+    # Seed on TITLE-token overlap (a node's curated essence — far more discriminating
+    # than dense bodies, which share vocabulary and would seed nearly everything) +
+    # code/config bridge nodes whose symbol the task names. Bodies inform relevance
+    # only via spreading activation from these entry points.
+    seeds = {}
+    for nid, n in nodes.items():
+        ov = len(qtoks & _route_tokens(n["title"].lower()))
+        if ov:
+            seeds[nid] = 2 * ov
+    for gid, meta in G.items():
+        if gid.startswith(("code:", "cfg:")) and any(t in meta["title"].lower() for t in qtoks):
+            seeds[gid] = seeds.get(gid, 0) + 3
+    if not seeds:
+        print(f'frontier("{task}"): no idea-graph match. '
+              f'Try `ctx route "{task}"` or `ctx web`.')
+        return
+
+    act = dict(seeds)
+    for _hop in range(2):                      # 2 hops of decayed spread
+        for nid, a in list(act.items()):
+            for e in adj.get(nid, []):
+                act[e["to"]] = act.get(e["to"], 0.0) + a * _ACT_WEIGHT.get(e["type"], 0.4) * 0.5
+
+    forced = {e["to"] for s in seeds for e in adj.get(s, [])
+              if e["type"] in ("supersedes", "contradicts")}
+    mx = max(act.values())
+    # keep seeds + forced corrections + anything activated above a relevance floor;
+    # drop the faintly-trickled tail so the packet is task-shaped, not the whole web.
+    keep = {nid for nid in act if nid in seeds or nid in forced or act[nid] >= 0.18 * mx}
+    order = sorted(keep, key=lambda k: (k not in forced, -act.get(k, 0.0)))  # corrections first
+
+    def stub(nid):
+        st = G.get(nid, {})
+        tag = f" [{st.get('status')}]" if st.get("status", "current") != "current" else ""
+        return f"  {nid}{tag}: {st.get('title', nid)[:90]}"
+
+    banner = _web_banner()
+    used = (len(banner) // 4) if banner else 0
+    packed, overflow = [], 0
+    for nid in order:
+        if nid not in G:
+            continue
+        s = stub(nid)
+        cost = len(s) // 4 + 1
+        if used + cost <= budget:
+            packed.append(s)
+            used += cost
+        else:
+            overflow += 1
+
+    print(f'frontier("{task}") — {len(seeds)} seed(s), budget {budget} tok:')
+    if banner:
+        print(f"HONEST STATE: {banner}")
+    print("nodes (activation-ranked; supersedes/contradicts pulled in first):")
+    for s in packed:
+        print(s)
+    if overflow:
+        print(f"  … +{overflow} more — raise --budget, or `ctx walk`/`ctx web <node>` to drill")
+    print("drill: ctx web <node> · ctx why <node> · ctx neighbors <node> · ctx impact <symbol>")
+
+
 def _web_banner():
     """The first ⚠ blockquote of RESEARCH_WEB.md (the honest-state correction)."""
     if not os.path.exists(WEB):
@@ -1262,12 +1351,14 @@ def main():
     sp.set_defaults(fn=cmd_walk)
     sp = sub.add_parser("why"); sp.add_argument("node"); sp.set_defaults(fn=cmd_why)
     sp = sub.add_parser("contradicts"); sp.add_argument("node"); sp.set_defaults(fn=cmd_contradicts)
+    sp = sub.add_parser("frontier"); sp.add_argument("task", nargs="+")
+    sp.add_argument("--budget", type=int, default=900); sp.set_defaults(fn=cmd_frontier)
     args = p.parse_args()
     if not getattr(args, "fn", None):
         # default: print the index summary
         cmd_map(argparse.Namespace(area=None))
-        print("\nUsage: ctx {route|where|usages|defs|tree|summary|covers|impact|schema|"
-              "config|perf|audit|status|recent|map|tests|brief|web|neighbors|walk|why|contradicts}")
+        print("\nUsage: ctx {route|where|usages|defs|tree|summary|covers|impact|schema|config|"
+              "perf|audit|status|recent|map|tests|brief|web|neighbors|walk|why|contradicts|frontier}")
         return
     args.fn(args)
 

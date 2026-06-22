@@ -279,6 +279,7 @@
     {"cmd": "ctx walk <node> [--edge T] [--depth N]", "returns": "BFS the unified idea graph from a node along out-edges (optionally one edge type, e.g. a supersedes chain)"},
     {"cmd": "ctx why <node>", "returns": "the node's grounding experiments + the decisions it bears on (provenance path, not a summary)"},
     {"cmd": "ctx contradicts <node>", "returns": "what supersedes/contradicts a node and what it overturns"},
+    {"cmd": "ctx frontier \"<task>\" [--budget N]", "returns": "task-shaped progressive-disclosure packet: honest-state spine + activation-ranked idea-graph nodes (corrections pulled in first), budget-bounded — not a fixed summary"},
     {"cmd": "bash ops/status_check.sh", "returns": "system + gateway + trader + data freshness"},
     {"cmd": "venv/bin/python tools/diagnose_brackets.py", "returns": "IBKR connection + positions + brackets (read-only)"}
   ],
