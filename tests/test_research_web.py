@@ -150,5 +150,46 @@ class TestEdgeClassificationHardening(unittest.TestCase):
                          "reliance edge hidden behind a same-rank lineage edge to the same target")
 
 
+class TestStructuredStatus(unittest.TestCase):
+    """Context Web v2 #3 — node status is parsed structured metadata, not a
+    title-string match; reason codes + retracted/current are first-class."""
+
+    def test_explicit_metadata_parsed(self):
+        nodes, _ = _parse_web_text(
+            "### F1 — a title\n<!-- status: superseded; by: F9; reason: data-fixed; conf: 0.2 -->\nbody\n"
+            "### F9 — b\nx\n")
+        m = ctx._node_meta(nodes["F1"])
+        self.assertEqual(m["status"], "superseded")
+        self.assertEqual(m["by"], "F9")
+        self.assertEqual(m["reason"], "data-fixed")
+        self.assertEqual(m["conf"], 0.2)
+        self.assertTrue(ctx._is_superseded(nodes["F1"]))
+
+    def test_title_tag_fallback_still_works(self):
+        nodes, _ = _parse_web_text("### F2 — [SUPERSEDED by F9] old\nbody no meta\n### F9 — b\nx\n")
+        m = ctx._node_meta(nodes["F2"])
+        self.assertEqual(m["status"], "superseded")
+        self.assertEqual(m["by"], "F9")
+        self.assertTrue(ctx._is_superseded(nodes["F2"]))
+
+    def test_explicit_current_overrides_title_tag(self):
+        nodes, _ = _parse_web_text(
+            "### F3 — [SUPERSEDED by F9] reinstated\n<!-- status: current -->\nbody\n### F9 — b\nx\n")
+        self.assertFalse(ctx._is_superseded(nodes["F3"]),
+                         "explicit `status: current` must override the title tag")
+
+    def test_retracted_is_not_current(self):
+        nodes, _ = _parse_web_text("### F4 — t\n<!-- status: retracted; reason: withdrawn -->\nb\n")
+        self.assertTrue(ctx._is_superseded(nodes["F4"]))
+
+    def test_known_status_and_reason_vocab_in_real_web(self):
+        nodes, _ = ctx._parse_web()
+        for nid, n in nodes.items():
+            m = ctx._node_meta(n)
+            self.assertIn(m["status"], ctx.STATUS_VALUES, f"{nid} bad status {m['status']!r}")
+            if m["reason"]:
+                self.assertIn(m["reason"], ctx.REASON_CODES, f"{nid} bad reason {m['reason']!r}")
+
+
 if __name__ == "__main__":
     unittest.main()

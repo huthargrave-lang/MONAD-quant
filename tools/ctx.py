@@ -842,9 +842,51 @@ def _parse_web():
     return nodes, {k: sorted(v) for k, v in rev.items()}
 
 
+# ── Structured supersession (Context Web v2 #3) ──────────────────────────────
+# Status is machine-readable, not a title-string match: a node may carry
+#   <!-- status: superseded; by: F13; reason: data-fixed; conf: 0.9; at: 2026-06-19 -->
+# Explicit metadata wins; otherwise the title's '[SUPERSEDED by Fx]' tag is the
+# fallback (backward compatible). status ∈ {current, superseded, retracted}.
+_META_RX = re.compile(r"<!--(.*?)-->", re.S)
+STATUS_VALUES = {"current", "superseded", "retracted"}
+REASON_CODES = {"reversed", "refined", "data-fixed", "decayed", "merged", "withdrawn"}
+
+
+def _node_meta(node):
+    """Parse a node's structured status block (or fall back to its title tag).
+    Returns {status, by, reason, conf, at} with status defaulted to 'current'."""
+    meta = {"status": None, "by": None, "reason": None, "conf": None, "at": None}
+    for block in _META_RX.findall(node.get("body", "")):
+        low = block.lower()
+        if not any(k in low for k in ("status:", "reason:", "conf:")):
+            continue
+        for part in re.split(r"[;\n]", block):
+            if ":" not in part:
+                continue
+            k, v = part.split(":", 1)
+            k, v = k.strip().lower(), v.strip()
+            if k in meta and v:
+                meta[k] = v
+        break
+    if meta["status"] is None:  # no explicit status → title tag (backward compatible)
+        tm = re.search(r"\[(SUPERSEDED|RETRACTED) by ([FHED]\d+)\]", node["title"], re.I)
+        if tm:
+            meta["status"] = tm.group(1).lower()
+            meta["by"] = meta["by"] or tm.group(2)
+        else:
+            meta["status"] = "current"
+    meta["status"] = meta["status"].lower()
+    if meta["conf"] is not None:
+        try:
+            meta["conf"] = float(meta["conf"])
+        except ValueError:
+            meta["conf"] = None
+    return meta
+
+
 def _is_superseded(node) -> bool:
-    """A node is superseded if its title says so (e.g. '[SUPERSEDED by F13]')."""
-    return "SUPERSEDED" in node["title"].upper()
+    """True if the node is no longer current (superseded or retracted)."""
+    return _node_meta(node)["status"] in ("superseded", "retracted")
 
 
 def cmd_web(args):
@@ -890,7 +932,12 @@ def cmd_web(args):
         if not n:
             print(f"no node '{args.node}'. nodes: {', '.join(sorted(nodes))}")
             return
-        flag = "  [SUPERSEDED]" if _is_superseded(n) else ""
+        meta = _node_meta(n)
+        flag = ""
+        if meta["status"] != "current":
+            by = f" by {meta['by']}" if meta["by"] else ""
+            why = f", {meta['reason']}" if meta["reason"] else ""
+            flag = f"  [{meta['status'].upper()}{by}{why}]"
         print(f"{args.node} — {n['title']}{flag}\n{n['body'].strip()}")
         print("\n  → links to (by edge type):")
         if n["edges"]:
