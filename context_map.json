@@ -32,6 +32,28 @@
     "software_take_profit": "config.USE_SOFTWARE_TAKE_PROFIT"
   },
 
+  "param_claims": {
+    "_README": "Drift-prone strategy params bound to their config.py source of truth — generalizes invariant_sources beyond the safety/identity invariants. Asserted by tests/test_context_map.py::TestParamClaims: each `source` must resolve and each `value` must equal the live config value, and any explicit `KEY=value` mention in CLAUDE.md/AGENTS.md must match. Query these (or `ctx config <KEY>` for the live value) instead of trusting prose — CLAUDE.md headline/§6 numbers are flagged stale. Changing a param means updating config.py AND `value` here; CI fails when they diverge.",
+    "claims": [
+      {"key": "daily_max_trade_bars", "source": "config.MAX_TRADE_BARS", "value": 8,
+       "note": "Daily mean-reversion max hold. CLAUDE.md §6 still records 20 (stale, baselined in KNOWN_DOC_PARAM_DRIFT)."},
+      {"key": "strong_bull_max_trade_bars", "source": "config.MAX_TRADE_BARS_STRONG_BULL", "value": 30,
+       "note": "6-week max hold in STRONG_BULL."},
+      {"key": "daily_rsi_oversold", "source": "config.RSI_OVERSOLD", "value": 38,
+       "note": "BTC daily oversold threshold (38 not 30 — catches shallow bull dips)."},
+      {"key": "tqqq_hourly_rsi_oversold", "source": "config.RSI_OVERSOLD_TQQQ_HOURLY", "value": 80,
+       "note": "Active live mode (TQQQ_HOURLY) oversold threshold."},
+      {"key": "tqqq_hourly_target_pct", "source": "config.TARGET_GAIN_PCT_TQQQ_HOURLY", "value": 0.01,
+       "note": "Active live mode target (1.00%). NB config.py comment mislabels it 2.80% — see `ctx audit`."},
+      {"key": "tqqq_hourly_stop_pct", "source": "config.STOP_LOSS_PCT_TQQQ_HOURLY", "value": 0.005,
+       "note": "Active live mode stop (0.50%). NB config.py comment mislabels it 1.50% — see `ctx audit`."},
+      {"key": "gdxu_hourly_stop_pct", "source": "config.STOP_LOSS_PCT_GDXU_HOURLY", "value": 0.0046,
+       "note": "GDXU needs re-sweep; 0.46% realistic-sweep stop."},
+      {"key": "gdxu_hourly_rsi_oversold", "source": "config.RSI_OVERSOLD_GDXU_HOURLY", "value": 85,
+       "note": "GDXU RSI saturated; 85 optimal."}
+    ]
+  },
+
   "areas": {
     "live_trader": {
       "summary": "The hourly scheduler + entry/exit/reconcile loop that places paper bracket orders.",

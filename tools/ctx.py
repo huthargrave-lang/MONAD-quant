@@ -707,6 +707,11 @@ def cmd_map(args):
         for k, v in m["invariants"].items():
             if not k.startswith("_"):
                 print(f"  {k} = {v}")
+        claims = m.get("param_claims", {}).get("claims", [])
+        if claims:
+            print("\nparam_claims (config-bound; `ctx config <KEY>` for the live value):")
+            for c in claims:
+                print(f"  {c['source'].split('.', 1)[1]:30} = {c['value']}")
         print("\ntools (read-only):")
         for t in m["tools_readonly"]:
             print(f"  {t['cmd']:42} {t['returns']}")

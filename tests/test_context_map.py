@@ -62,6 +62,82 @@ class TestManifestMatchesConfig(unittest.TestCase):
         self.assertEqual(self.m["invariants"]["api_port_live_forbidden"], 7496)
 
 
+class TestParamClaims(unittest.TestCase):
+    """Context Web v2 #4 — drift-prone strategy params bound to their config.py
+    source of truth (generalizes invariant_sources), plus doc-prose drift."""
+
+    # Accepted, baselined doc drift: (doc, KEY, stated_value). CLAUDE.md §6 records
+    # a historical MAX_TRADE_BARS=20 while config is 8 — rewriting that strategy-
+    # history prose (the "4-week" rationale changes too) is a judgment call, so it
+    # is surfaced and baselined, not silently edited. The test self-cleans: once the
+    # doc is reconciled, remove the entry (a stale baseline fails the test).
+    KNOWN_DOC_PARAM_DRIFT = {("CLAUDE.md", "MAX_TRADE_BARS", "20")}
+
+    def setUp(self):
+        sys.path.insert(0, REPO)
+        import config
+        self.config = config
+        self.m = _load()
+        self.claims = self.m["param_claims"]["claims"]
+
+    def test_param_claim_sources_resolve(self):
+        """No dangling binding: every claim points at a real config attribute."""
+        for c in self.claims:
+            with self.subTest(key=c["key"]):
+                self.assertTrue(c["source"].startswith("config."),
+                                f"{c['key']} source must be a config.KEY, got {c['source']}")
+                attr = c["source"].split(".", 1)[1]
+                self.assertTrue(hasattr(self.config, attr),
+                                f"param_claim '{c['key']}' binds to {c['source']} which doesn't exist")
+
+    def test_param_claim_values_match_config(self):
+        """The recorded value must equal the live config value (the anti-drift core)."""
+        for c in self.claims:
+            with self.subTest(key=c["key"]):
+                live = getattr(self.config, c["source"].split(".", 1)[1])
+                if isinstance(live, float) or isinstance(c["value"], float):
+                    self.assertAlmostEqual(
+                        c["value"], live, places=6,
+                        msg=f"param_claim '{c['key']}'={c['value']} but {c['source']}={live} — update the manifest")
+                else:
+                    self.assertEqual(
+                        c["value"], live,
+                        f"param_claim '{c['key']}'={c['value']} but {c['source']}={live} — update the manifest")
+
+    def test_param_claim_keys_unique(self):
+        keys = [c["key"] for c in self.claims]
+        self.assertEqual(len(keys), len(set(keys)), f"duplicate param_claim keys: {keys}")
+
+    def test_doc_param_mentions_match_config(self):
+        """Any explicit `KEY = value` of a bound param in CLAUDE.md/AGENTS.md must
+        match config — catches prose drift. Known-stale mentions are baselined."""
+        import re
+        bound = {c["source"].split(".", 1)[1] for c in self.claims}
+        drift = set()
+        for doc in ("CLAUDE.md", "AGENTS.md"):
+            p = os.path.join(REPO, doc)
+            if not os.path.exists(p):
+                continue
+            text = open(p, errors="ignore").read()
+            for key in bound:
+                rx = re.compile(r"(?<![A-Za-z0-9_])" + re.escape(key) + r"\s*=\s*(-?\d+\.?\d*)")
+                for mm in rx.finditer(text):
+                    live = getattr(self.config, key)
+                    if abs(float(mm.group(1)) - float(live)) > 1e-9:
+                        drift.add((doc, key, mm.group(1)))
+        new = drift - self.KNOWN_DOC_PARAM_DRIFT
+        self.assertEqual(
+            new, set(),
+            "doc params disagree with config (prose drift): "
+            + "; ".join(f"{d} says {k}={v} but config={getattr(self.config, k)}"
+                        for d, k, v in sorted(new)))
+        stale = self.KNOWN_DOC_PARAM_DRIFT - drift
+        self.assertEqual(
+            stale, set(),
+            f"baselined doc drift no longer present (good — the doc was fixed; "
+            f"remove it from KNOWN_DOC_PARAM_DRIFT): {stale}")
+
+
 class TestManifestReferencesExist(unittest.TestCase):
     def setUp(self):
         self.m = _load()
