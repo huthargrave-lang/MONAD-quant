@@ -246,3 +246,72 @@ mean-reversion product with a horizon exit and a bear gate — not the hourly %-
 build: daily MR + time/horizon exit + slope-regime gate, multi-instrument portfolio ([[H8]]). The
 single highest-value change is the EXIT ([[F17]]). (1-bars/day hourly note [[F15]] is the weaker, less
 robust cousin; the daily horizon-exit result supersedes it as the recommended direction.)
+
+---
+
+## Strategy Lab — leverage-free daily-MR (2026-06-22, independent replication + extension)
+
+> Reproducible harness: `tools/mr_daily_lab.py` (read-only; yfinance daily, 2014–2026).
+
+### E10 — Independent daily-MR replication + strategy lab
+<!-- status: current; conf: 0.85; at: 2026-06-22 -->
+Model-free, leak-free harness (`tools/mr_daily_lab.py`) on 12yr adjusted daily data:
+lag-1 autocorrelation + variance ratios; dip entry (buy the close of a down day) with
+horizon vs fixed %-stop exits; diversified multi-sleeve portfolios; long-only
+cross-sectional sector rotation; conditional entries; vol-targeted vs adaptive-Kelly
+sizing; bond signal tests. Produces [[F18|produces]], [[F19|produces]], [[F20|produces]],
+[[F21|produces]]; extends the daily direction of [[E9|supports]].
+
+### F18 — F16 replicates exactly, but its significance was ~3× overstated
+<!-- status: current; conf: 0.8; at: 2026-06-22 -->
+Independent 12yr daily ([[E10|evidenced_by]]) reproduces F16's lag-1 autocorrelations
+almost exactly (SPY −0.113 vs −0.117, QQQ −0.100, DIA −0.122, IWM −0.058) and variance
+ratios <1. BUT F16's naive `t = ρ√n` ignores volatility clustering; under a
+heteroskedasticity-robust SE the t-stats fall ~3× (SPY −6.3→−2.2, IWM −1.7 = n.s.), and
+non-overlapping trades leave only QQQ at t>2. So the mean-reversion structure is REAL but
+**modest**, not overwhelming. The 2022-bear collapse is confirmed (ρ→0, |t|<1 for all).
+Refines [[F16|refines]].
+
+### F19 — Confirmed: the EXIT, not the entry, is the dominant lever
+<!-- status: current; conf: 0.85; at: 2026-06-22 -->
+Within-comparison on identical dip entries ([[E10|evidenced_by]]): a 5-day HORIZON exit
+yields +29 bps/trade on SPY (+38 QQQ, +80 TQQQ), while a fixed ±0.8% stop/target yields
+−2 bps (−27 TQQQ, 36% WR) — same entry, opposite sign. The tight band is whipsawed inside
+daily noise, worst on 3× ETFs. Independently confirms [[F17|supports]] and unifies it with
+the noise-ratio mechanism [[F7|supports]]. The horizon exit does NOT rescue the 2022 bear
+(3× −166/−346 bps/trade) → the regime gate is non-negotiable, independent of exit.
+
+### F20 — What does NOT work (four negative results)
+<!-- status: current; conf: 0.8; at: 2026-06-22 -->
+From the lab ([[E10|evidenced_by]]): (1) **long-only cross-sectional** sector rotation
+(buy the most-oversold of 9 SPDRs) underperforms sector buy&hold (Sharpe 0.44 vs 0.65,
+−43% DD) — it loads falling knives; real cross-sectional MR needs the forbidden short leg.
+(2) **Adaptive (variable) Kelly** sizing HURTS risk-adjusted return vs a fixed fraction
+(QQQ Sharpe 0.72→0.48): betting up after wins / down after losses is a momentum overlay on
+a mean-reverting edge — directly questions the live `USE_ADAPTIVE_KELLY` mechanism.
+(3) **Low-vol entry filtering** hurts (Sharpe 0.56→0.26): the biggest dips revert hardest.
+(4) **Bond signal-trading** (TLT/IEF, MR or momentum) loses to buy&hold — hold bonds as
+passive ballast, don't trade them. Relates the noise mechanism [[F7|relates]].
+
+### F21 — The honest leverage-free ceiling + the recommended build
+<!-- status: current; conf: 0.8; at: 2026-06-22 -->
+Best leverage-free config ([[E10|evidenced_by]]): EQUAL-WEIGHT diversified daily-MR sleeves
+(equities + gold + passive-bond ballast) + 200d bear gate + VOL-TARGETED (not Kelly) sizing
+→ ~Sharpe 0.66, ~4%/yr, −10% DD. "Smart" trailing-Sharpe weighting underperforms equal-weight
+(0.42 vs 0.66). The ~3.75% target is reachable only by levering the low-vol (~6%) portfolio
+to a vol target (≈5.8%/yr at 1.5×, −19% DD) — you buy return with drawdown, not Sharpe. So
+leverage-free daily-MR is a solid BALANCED strategy (Sharpe ~0.6, equity-like DD), NOT a
+near-zero-DD bond alternative — that headline was the morning-only artifact. Refines
+[[H8|refines]] and [[D4|refines]]; drives [[D5|drives]].
+
+### D5 — Recommended next architecture (the leverage-free daily-MR product)
+<!-- status: current; conf: 0.7; at: 2026-06-22 -->
+Build: equal-weight portfolio of daily mean-reversion sleeves on un-leveraged equities
+(QQQ/SPY/IWM/DIA) + gold (GLD), each = buy-the-dip + multi-day HORIZON exit + slope/200d
+bear gate, with VOL-TARGETED position sizing and passive bond ballast for correlation.
+DROP, on evidence: the hourly timescale, the fixed %-stop exit, 3× leverage, adaptive
+Kelly, and long-only cross-sectional rotation. Expected ~Sharpe 0.6, ~4%/yr leverage-free
+(or ~6% vol-targeted at higher DD). Builds on [[F19|builds_on]], [[F20|builds_on]];
+relates the hourly/leverage evidence [[F13|relates]], [[F7|relates]]. Refines [[D4|refines]].
+NOTE: changing the live instrument/exit/sizing touches the armed trader path — sign-off
+required; this records the evidence-backed recommendation, not an applied change.
