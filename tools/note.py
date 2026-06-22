@@ -21,7 +21,10 @@ being re-derived by the next agent (see CONTEXT_KIT.md). Safety by construction:
 """
 from __future__ import annotations
 import argparse
+import contextlib
 import datetime
+import fcntl
+import hashlib
 import os
 import re
 import sys
@@ -143,7 +146,33 @@ def _parse(text):
         os.unlink(tmp)
 
 
-# ── the gate: validate the candidate, then dry-run or atomic-commit ──────────
+# ── concurrency lock + the gate ──────────────────────────────────────────────
+@contextlib.contextmanager
+def _weblock(real_target):
+    """Exclusive lock spanning read→validate→replace so two concurrent --commit
+    runs can't lost-update (both read the same base, both os.replace, one wins)."""
+    key = hashlib.sha1(real_target.encode()).hexdigest()[:16]
+    lf = open(os.path.join(tempfile.gettempdir(), f"rweb_{key}.lock"), "w")
+    try:
+        fcntl.flock(lf.fileno(), fcntl.LOCK_EX)
+        yield
+    finally:
+        try:
+            fcntl.flock(lf.fileno(), fcntl.LOCK_UN)
+        finally:
+            lf.close()
+
+
+def _locked_commit(real_target, build, expect_delta, commit):
+    """Hold the lock, read the FRESH file, build the candidate from it, then gate."""
+    with _weblock(real_target):
+        text = open(real_target, encoding="utf-8").read()
+        if not text.endswith("\n"):
+            text += "\n"
+        candidate, preview, label = build(text)
+        return _finish(real_target, candidate, expect_delta, commit, label, preview)
+
+
 def _finish(real_target, candidate, expect_delta, commit, label, preview):
     base_n = len(_parse(open(real_target, encoding="utf-8").read())[0])
     nodes, _ = _parse(candidate)
@@ -164,11 +193,16 @@ def _finish(real_target, candidate, expect_delta, commit, label, preview):
         return 2 if advisories else 0
     real_repo, t2 = _fence()                          # TOCTOU-narrow re-check
     fd, tmp = tempfile.mkstemp(dir=real_repo, prefix=".rweb_", suffix=".md")
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
-        f.write(candidate)
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(tmp, t2)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(candidate)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, t2)
+    except BaseException:                              # never leave an orphan temp on failure
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
     print(f"WROTE RESEARCH_WEB.md ({label}). Working-tree only — staging/commit is yours.")
     return 2 if advisories else 0
 
@@ -185,28 +219,28 @@ def cmd_add(args):
         if HDR.match(ln):
             sys.exit("--body must not contain a '### <id> — ...' line (it would start a new node)")
     real_repo, real_target = _fence()
-    text = open(real_target, encoding="utf-8").read()
-    if not text.endswith("\n"):
-        text += "\n"
-    nodes = _parse(text)[0]
-    links = []
-    for spec in args.link:
-        if spec.count(":") != 1:
-            sys.exit(f"--link must be ID:type, got {spec!r}")
-        tid, ty = spec.split(":")
-        tid, ty = tid.strip(), ty.strip().lower()
-        if not re.match(r"^[A-Za-z]+\d+$", tid):
-            sys.exit(f"--link id {tid!r} is malformed")
-        if tid not in nodes:
-            sys.exit(f"--link target {tid} does not exist in the web")
-        if ty not in ctx.EDGE_TYPES:
-            sys.exit(f"--link type {ty!r} not in {sorted(ctx.EDGE_TYPES)}")
-        if ty in ctx.RELIANCE_EDGES and ctx._is_superseded(nodes[tid]):
-            sys.exit(f"reliance edge '{ty}' to superseded {tid} — use relates/supersedes/contradicts")
-        links.append((tid, ty))
-    nid = next_id(text, args.kind)
-    block = render_add(nid, title, args.body, links, datetime.date.today().isoformat())
-    return _finish(real_target, text + block, 1, args.commit, f"add {nid}", block.strip())
+
+    def build(text):
+        nodes = _parse(text)[0]
+        links = []
+        for spec in args.link:
+            if spec.count(":") != 1:
+                sys.exit(f"--link must be ID:type, got {spec!r}")
+            tid, ty = spec.split(":")
+            tid, ty = tid.strip(), ty.strip().lower()
+            if not re.match(r"^[A-Za-z]+\d+$", tid):
+                sys.exit(f"--link id {tid!r} is malformed")
+            if tid not in nodes:
+                sys.exit(f"--link target {tid} does not exist in the web")
+            if ty not in ctx.EDGE_TYPES:
+                sys.exit(f"--link type {ty!r} not in {sorted(ctx.EDGE_TYPES)}")
+            if ty in ctx.RELIANCE_EDGES and ctx._is_superseded(nodes[tid]):
+                sys.exit(f"reliance edge '{ty}' to superseded {tid} — use relates/supersedes/contradicts")
+            links.append((tid, ty))
+        nid = next_id(text, args.kind)
+        block = render_add(nid, title, args.body, links, datetime.date.today().isoformat())
+        return text + block, block.strip(), f"add {nid}"
+    return _locked_commit(real_target, build, 1, args.commit)
 
 
 def cmd_supersede(args):
@@ -214,19 +248,19 @@ def cmd_supersede(args):
     if reason and reason not in ctx.REASON_CODES:
         sys.exit(f"--reason must be one of {sorted(ctx.REASON_CODES)}")
     real_repo, real_target = _fence()
-    text = open(real_target, encoding="utf-8").read()
-    if not text.endswith("\n"):
-        text += "\n"
-    nodes = _parse(text)[0]
-    if args.old not in nodes:
-        sys.exit(f"{args.old} does not exist")
-    if args.by not in nodes:
-        sys.exit(f"{args.by} does not exist (the superseding node must already be captured)")
-    candidate = apply_supersede(text, args.old, args.by, reason, datetime.date.today().isoformat())
-    preview = (f"mark {args.old} superseded by {args.by}"
-               + (f" (reason: {reason})" if reason else "")
-               + f"; ensure {args.by} carries [[{args.old}|supersedes]]")
-    return _finish(real_target, candidate, 0, args.commit, f"supersede {args.old}", preview)
+
+    def build(text):
+        nodes = _parse(text)[0]
+        if args.old not in nodes:
+            sys.exit(f"{args.old} does not exist")
+        if args.by not in nodes:
+            sys.exit(f"{args.by} does not exist (the superseding node must already be captured)")
+        candidate = apply_supersede(text, args.old, args.by, reason, datetime.date.today().isoformat())
+        preview = (f"mark {args.old} superseded by {args.by}"
+                   + (f" (reason: {reason})" if reason else "")
+                   + f"; ensure {args.by} carries [[{args.old}|supersedes]]")
+        return candidate, preview, f"supersede {args.old}"
+    return _locked_commit(real_target, build, 0, args.commit)
 
 
 def main():
