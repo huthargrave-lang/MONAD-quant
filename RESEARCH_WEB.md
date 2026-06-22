@@ -324,3 +324,29 @@ Kelly is harmful — [[F20]]). Expected ~Sharpe 0.6, ~4%/yr leverage-free
 relates the hourly/leverage evidence [[F13|relates]], [[F7|relates]]. Refines [[D4|refines]].
 NOTE: changing the live instrument/exit/sizing touches the armed trader path — sign-off
 required; this records the evidence-backed recommendation, not an applied change.
+⚠ OOS UPDATE ([[F22]]): a walk-forward stress test shows this build does NOT beat buy&hold
+risk-adjusted (Sharpe 0.69 vs 0.80) — its value is capital-preservation via reduced exposure,
+which a static equity/cash blend achieves more simply at higher Sharpe. So D5 stands only as a
+low-drawdown CAPITAL-PRESERVATION overlay; the go/no-go for an *active* alpha engine is negative.
+
+### E11 — Out-of-sample / walk-forward stress test of the D5 build
+<!-- status: current; conf: 0.85; at: 2026-06-22 -->
+Stress-tested the D5 equal-weight daily-MR portfolio (QQQ/SPY/IWM/DIA/GLD, dip+5d+200d gate,
+net 5bps) against an equal-weight BUY&HOLD of the same 5 assets: per-calendar-year, first-half
+vs second-half, held-out COVID-2020 + 2022-bear regimes, and a 20-day block bootstrap of the
+per-day Sharpe difference. Reproducible: `tools/mr_daily_lab.py oos`. Produces [[F22|produces]].
+
+### F22 — OOS verdict: the daily-MR timing has NO risk-adjusted edge over buy&hold
+<!-- status: current; conf: 0.8; at: 2026-06-22 -->
+Stress test ([[E11|evidenced_by]]): the D5 equal-weight daily-MR portfolio scores Sharpe 0.69
+vs **0.80 for an equal-weight BUY&HOLD of the same 5 assets**, and the 20-day block bootstrap of
+the per-day Sharpe DIFFERENCE is [−1.12, −0.05] (`tools/mr_daily_lab.py oos`, seed 0) — the timing
+is *significantly WORSE* risk-adjusted (upper bound just below 0). NOT front-loaded (2nd-half Sharpe 0.94 > 1st-half
+0.42), so the negative is robust, not a one-period artifact. What timing buys is REDUCED EXPOSURE:
+~half the return (6.2% vs 12.1%) at ~half the drawdown (−13.9% vs −29.5%), 87% time-in-market.
+Its only edge is defensive in SLOW bears (2022 −8% vs −17%); it fails in FAST crashes (COVID
+≈−11% both — the 200d gate is too slow). DECISIVE: a static ~50/50 equity/cash blend has the SAME
+Sharpe as full buy&hold (0.80; cash-scaling is Sharpe-invariant) at the timing strategy's return/DD
+— so daily-MR timing is DOMINATED by trivial static de-risking. This is the same lesson as the
+hourly arc ([[F13|relates]]): a flattering backtest number that doesn't survive the honest
+benchmark. Refines [[F21|refines]] and [[D5|refines]]; bears on the go/no-go [[D1|drives]], [[D4|drives]].

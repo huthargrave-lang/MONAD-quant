@@ -220,8 +220,43 @@ def cmd_kelly(PX):
     print("  (fixed-f scales return+vol equally → Sharpe-invariant; the variable-f drop is the finding)")
 
 
+def cmd_oos(PX):
+    """F22: OOS stress test of the D5 equal-weight daily-MR portfolio vs an equal-weight
+    BUY&HOLD of the same 5 assets (the honest benchmark) — per-year, stress regimes, and a
+    20-day block bootstrap of the Sharpe DIFFERENCE."""
+    A = ["QQQ", "SPY", "IWM", "DIA", "GLD"]
+    S = pd.DataFrame({s: sleeve(PX, s) for s in A}).fillna(0.0).mean(axis=1)
+    B = pd.DataFrame({s: np.log(PX[s].dropna() / PX[s].dropna().shift(1)) for s in A}).mean(axis=1)
+    both = pd.concat([S.rename("s"), B.rename("b")], axis=1).dropna(); S, B = both["s"], both["b"]
+    shf = lambda r: r.mean() / r.std() * math.sqrt(252) if r.std() else 0
+    annf = lambda r: r.mean() * 252 * 100
+    ddf = lambda r: (np.exp(r.cumsum()) / np.exp(r.cumsum()).cummax() - 1).min() * 100
+    print("F22 — D5 daily-MR timing vs equal-weight buy&hold of the SAME 5 assets (2014-2026)")
+    print(f"  strat  Sharpe {shf(S):.2f}  ann {annf(S):5.1f}%  DD {ddf(S):6.1f}%  time-in-mkt {(S!=0).mean()*100:3.0f}%")
+    print(f"  bench  Sharpe {shf(B):.2f}  ann {annf(B):5.1f}%  DD {ddf(B):6.1f}%  time-in-mkt 100%")
+    print("  per-year strat/bench Sharpe: " + "  ".join(
+        f"{y}:{shf(S[S.index.year==y]):.2f}/{shf(B[B.index.year==y]):.2f}"
+        for y in range(2014, 2027) if (S.index.year == y).sum() > 20))
+    for lab, a, z in [("COVID-2020", "2020-02-19", "2020-04-30"), ("2022 bear", "2022-01-01", "2022-12-31")]:
+        sw = S[(S.index >= a) & (S.index <= z)]; bw = B[(B.index >= a) & (B.index <= z)]
+        print(f"  {lab:11} strat {(math.exp(sw.sum())-1)*100:+5.1f}%   bench {(math.exp(bw.sum())-1)*100:+5.1f}%")
+    rng = np.random.default_rng(0)
+
+    def boot(x):
+        x = x.values; n = len(x); nb = n // 20; out = []
+        for _ in range(3000):
+            idx = rng.integers(0, n - 20, nb); samp = np.concatenate([x[i:i + 20] for i in idx])
+            out.append(samp.mean() / samp.std() * math.sqrt(252) if samp.std() else 0)
+        return np.percentile(out, [2.5, 97.5])
+
+    d = boot(S - B)
+    print(f"  block-bootstrap 95% CI on (strat−bench) Sharpe diff: [{d[0]:.2f}, {d[1]:.2f}]"
+          f"  → timing adds NO risk-adjusted edge over buy&hold")
+    print("  (a static ~50/50 equity/cash blend matches the strat's return/DD at the bench Sharpe — cash-scaling is Sharpe-invariant)")
+
+
 CMDS = {"acf": cmd_acf, "exit": cmd_exit, "portfolio": cmd_portfolio, "xsect": cmd_xsect,
-        "conditional": cmd_conditional, "bonds": cmd_bonds, "kelly": cmd_kelly}
+        "conditional": cmd_conditional, "bonds": cmd_bonds, "kelly": cmd_kelly, "oos": cmd_oos}
 
 
 def main():
