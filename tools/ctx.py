@@ -609,30 +609,49 @@ _CFG_ASSIGN_RX = re.compile(
 _FIRST_PCT_RX = re.compile(r"(\d+(?:\.\d+)?)\s*%")
 
 
-def config_comment_drift(path=None, tol=0.005):
+def _config_files():
+    """config.py + every config_modules/*.py — config was split into submodules
+    (see config.py:7-12), so the percent params live across all of them. The
+    drift scan must follow the split or it blinds itself to e.g. base.py's
+    MAX_POSITION_PCT / MIN_POSITION_PCT."""
+    files = [os.path.join(REPO, "config.py")]
+    cmdir = os.path.join(REPO, "config_modules")
+    if os.path.isdir(cmdir):
+        files += [os.path.join(cmdir, f) for f in sorted(os.listdir(cmdir)) if f.endswith(".py")]
+    return files
+
+
+def config_comment_drift(paths=None, tol=0.005):
     """Percent-annotated config params whose inline comment disagrees with the
     value. Scans module-level `NAME = <num>  # <num>% ...` lines in the
-    target/stop/PCT family; flags when the comment's FIRST percent != value×100.
-    Read-only. Returns [{key, line, value, value_pct, comment_pct, comment}]."""
-    path = path or os.path.join(REPO, "config.py")
+    target/stop/PCT family across config.py + config_modules/*.py; flags when the
+    comment's FIRST percent != value×100. Read-only.
+    Returns [{key, file, line, value, value_pct, comment_pct, comment}]."""
+    if paths is None:
+        paths = _config_files()
+    elif isinstance(paths, str):
+        paths = [paths]
     out = []
-    try:
-        lines = open(path, errors="ignore").read().splitlines()
-    except OSError:
-        return out
-    for i, line in enumerate(lines, 1):
-        m = _CFG_ASSIGN_RX.match(line)
-        if not m or not _PCT_PARAM_RX.search(m.group("key")):
+    for path in paths:
+        try:
+            with open(path, errors="ignore") as fh:
+                lines = fh.read().splitlines()
+        except OSError:
             continue
-        pm = _FIRST_PCT_RX.search(m.group("comment"))
-        if not pm:
-            continue  # no percent claimed in the comment — nothing to check
-        value_pct = float(m.group("val")) * 100
-        comment_pct = float(pm.group(1))
-        if abs(value_pct - comment_pct) > tol:
-            out.append({"key": m.group("key"), "line": i, "value": float(m.group("val")),
-                        "value_pct": round(value_pct, 4), "comment_pct": comment_pct,
-                        "comment": m.group("comment")})
+        rel = os.path.relpath(path, REPO)
+        for i, line in enumerate(lines, 1):
+            m = _CFG_ASSIGN_RX.match(line)
+            if not m or not _PCT_PARAM_RX.search(m.group("key")):
+                continue
+            pm = _FIRST_PCT_RX.search(m.group("comment"))
+            if not pm:
+                continue  # no percent claimed in the comment — nothing to check
+            value_pct = float(m.group("val")) * 100
+            comment_pct = float(pm.group(1))
+            if abs(value_pct - comment_pct) > tol:
+                out.append({"key": m.group("key"), "file": rel, "line": i,
+                            "value": float(m.group("val")), "value_pct": round(value_pct, 4),
+                            "comment_pct": comment_pct, "comment": m.group("comment")})
     return out
 
 
@@ -644,13 +663,13 @@ def cmd_audit(args):
     if not drift:
         print("  ✓ config.py: no comment-vs-value drift in target/stop/PCT params")
         return
-    print(f"  ⚠ {len(drift)} config.py comment-vs-value mismatch(es) (comment % ≠ value×100):")
+    print(f"  ⚠ {len(drift)} config comment-vs-value mismatch(es) (comment % ≠ value×100):")
     for d in drift:
-        print(f"    config.py:{d['line']}  {d['key']} = {d['value']} "
+        print(f"    {d['file']}:{d['line']}  {d['key']} = {d['value']} "
               f"→ value is {d['value_pct']:.2f}% but the comment says {d['comment_pct']:.2f}%")
         print(f"        # {d['comment'][:90]}")
-    print("  (config.py is on the edit deny-fence — fixing a comment needs sign-off + the "
-          "trader stopped; `ctx can_edit config.py`)")
+    print("  (config.py + config_modules/ are on the edit deny-fence — fixing a comment needs "
+          "sign-off + the trader stopped; `ctx can_edit <file>`)")
     sys.exit(1)
 
 
@@ -750,21 +769,34 @@ _EDGE_CUES = [
     ("motivat", "drives"), ("drives", "drives"), ("bears on", "drives"), ("→", "drives"),
     ("resolve", "resolves"), ("closed", "resolves"),
 ]
-_LINK_RX = re.compile(r"\[\[([A-Za-z]+\d+)(?:\|([A-Za-z_]+))?\]\]")
+# Capture the ID first and the type permissively (anything up to ]]) so a
+# malformed/spaced type degrades to untyped instead of dropping the whole link
+# (which would blind dangling- and stale-cite detection).
+_LINK_RX = re.compile(r"\[\[([A-Za-z]+\d+)(?:\|([^\]]*))?\]\]")
 
 
 def _classify_edge(pre):
     """Infer an edge type from the prose immediately preceding a [[link]]. Looks
-    only within the current sentence/line (so a cue in a prior clause can't bleed
-    across), nearest cue wins. Returns a canonical type, default 'relates'."""
+    only within the current sentence/line (no cross-clause bleed); matches cues on
+    word boundaries with a negation guard ('not'/'un' → skip), and lets a RELIANCE
+    verb win over a closer lineage cue so reliance-on-superseded stays decidable.
+    Returns a canonical type, default 'relates'."""
     brk = max(pre.rfind(". "), pre.rfind("\n"), pre.rfind("; "), pre.rfind("! "))
     window = (pre[brk + 1:] if brk >= 0 else pre)[-90:].lower()
-    best, best_pos = "relates", -1
+    reliance, other = (-1, None), (-1, None)   # (pos, type) of nearest reliance / lineage cue
     for cue, etype in _EDGE_CUES:
-        pos = window.rfind(cue)
-        if pos > best_pos:
-            best_pos, best = pos, etype
-    return best
+        pat = (r"\b" + re.escape(cue)) if cue[:1].isalpha() else re.escape(cue)
+        for mm in re.finditer(pat, window):
+            pos = mm.start()
+            if window[max(0, pos - 4):pos].endswith(("not ", "no ")) or \
+                    window[max(0, pos - 2):pos] == "un":
+                continue  # negated reference ('not supported', 'unsupported') — not an edge
+            if etype in RELIANCE_EDGES:
+                if pos > reliance[0]:
+                    reliance = (pos, etype)
+            elif pos > other[0]:
+                other = (pos, etype)
+    return reliance[1] or other[1] or "relates"
 
 
 def _parse_web():
@@ -789,15 +821,19 @@ def _parse_web():
         body = n["body"]
         edges = {}  # target -> (rank, type); rank: relates=0, cue=1, explicit=2
         for m in _LINK_RX.finditer(body):
-            tgt, etype = m.group(1), m.group(2)
+            tgt, raw = m.group(1), m.group(2)
             if tgt == nid:
                 continue
-            if etype:                       # explicit [[ID|type]] wins
-                rank, t = 2, etype.lower()
-            else:
+            if raw is not None and raw.strip().lower() in EDGE_TYPES:
+                rank, t = 2, raw.strip().lower()       # explicit, well-formed type wins
+            else:                                       # untyped OR malformed type → infer, keep link
                 t = _classify_edge(body[:m.start()])
                 rank = 0 if t == "relates" else 1
-            if tgt not in edges or rank > edges[tgt][0]:
+            cur = edges.get(tgt)
+            # higher rank wins; at equal rank a RELIANCE edge wins over lineage, so a
+            # stale-cite isn't hidden behind a same-rank provenance link to the same target.
+            if cur is None or rank > cur[0] or (
+                    rank == cur[0] and t in RELIANCE_EDGES and cur[1] not in RELIANCE_EDGES):
                 edges[tgt] = (rank, t)
         n["edges"] = [{"target": t, "type": ty} for t, (_, ty) in sorted(edges.items())]
         n["links"] = sorted(edges)          # target IDs only — unchanged contract

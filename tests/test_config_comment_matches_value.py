@@ -76,6 +76,30 @@ class TestConfigCommentMatchesValue(unittest.TestCase):
             with self.subTest(key=ok):
                 self.assertNotIn(ok, self.by_key, f"{ok} false-flagged as drifted")
 
+    def test_config_modules_are_scanned(self):
+        """Finding #1: the default scan must follow the config split and include
+        config_modules/*.py (where MAX_POSITION_PCT / MIN_POSITION_PCT live), not
+        just config.py — else those risk-param comments are silently unguarded."""
+        scanned = [os.path.relpath(p, REPO) for p in ctx._config_files()]
+        self.assertIn("config.py", scanned)
+        self.assertIn(os.path.join("config_modules", "base.py"), scanned)
+
+    def test_detector_flags_synthetic_drift_in_any_file(self):
+        """The engine works on an arbitrary file (the multi-file generalization):
+        a crafted drifted line is flagged, a matching one is not."""
+        import tempfile
+        with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as tf:
+            tf.write("STOP_LOSS_PCT_FAKE = 0.0050  # 1.50% stop\n"
+                     "TARGET_GAIN_PCT_FAKE = 0.0090  # 0.90% target\n")
+            name = tf.name
+        try:
+            d = ctx.config_comment_drift(paths=[name])
+            keys = {x["key"] for x in d}
+            self.assertIn("STOP_LOSS_PCT_FAKE", keys)        # 0.50% value vs 1.50% comment
+            self.assertNotIn("TARGET_GAIN_PCT_FAKE", keys)   # 0.90% == 0.90% — clean
+        finally:
+            os.unlink(name)
+
 
 if __name__ == "__main__":
     unittest.main()

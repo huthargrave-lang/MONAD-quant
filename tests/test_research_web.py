@@ -16,11 +16,27 @@ advisory in `ctx web --lint` until typed edges can distinguish provenance from r
 import os
 import re
 import sys
+import tempfile
 import unittest
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO, "tools"))
 import ctx  # noqa: E402  (the context tool — reuse its canonical parser)
+
+
+def _parse_web_text(text):
+    """Run the real ctx._parse_web over synthetic web markdown (temporarily
+    repointing ctx.WEB), so edge-classification edge cases are testable."""
+    with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as tf:
+        tf.write(text)
+        name = tf.name
+    old = ctx.WEB
+    try:
+        ctx.WEB = name
+        return ctx._parse_web()
+    finally:
+        ctx.WEB = old
+        os.unlink(name)
 
 
 class TestResearchWebIntegrity(unittest.TestCase):
@@ -95,6 +111,43 @@ class TestTypedEdges(unittest.TestCase):
                         and ctx._is_superseded(self.nodes[t])):
                     offenders.append(f"{nid} --{e['type']}--> {t}")
         self.assertEqual(offenders, [], f"live nodes rely on superseded nodes: {offenders}")
+
+
+class TestEdgeClassificationHardening(unittest.TestCase):
+    """Adversarial-review regressions (Context Web v2 #2–#5): malformed typed
+    links must not vanish, and the cue classifier must not mis-type in ways that
+    hide (or fabricate) a reliance-on-superseded stale-cite."""
+
+    def _edges(self, body, node="N1"):
+        nodes, _ = _parse_web_text(f"### {node} — t\n{body}\n### F2 — [SUPERSEDED by F9]\nx\n"
+                                   "### F9 — y\nz\n### F3 — w\nq\n")
+        return {e["target"]: e["type"] for e in nodes[node]["edges"]}, nodes
+
+    def test_malformed_typed_link_not_dropped(self):  # finding #2
+        # natural-language type → keep the link (untyped); dangling/stale-cite must still see it.
+        self.assertEqual([m[0] for m in ctx._LINK_RX.findall("[[F99|relies on]]")], ["F99"])
+        edges, nodes = self._edges("This relies on [[F99|relies on]] heavily.")
+        self.assertIn("F99", nodes["N1"]["links"], "malformed-typed link target was dropped")
+
+    def test_spaced_explicit_type_tolerated(self):  # finding #2
+        edges, _ = self._edges("It [[F3| supersedes]] the prior view.")
+        self.assertEqual(edges["F3"], "supersedes")
+
+    def test_reliance_wins_over_closer_lineage_cue(self):  # finding #3
+        # within one clause, a closer lineage cue ('based on') must NOT override the
+        # reliance verb ('relies on') — else a reliance-on-superseded escapes --lint.
+        edges, _ = self._edges("This decision relies on results based on [[F2]] for its conclusion.")
+        self.assertEqual(edges["F2"], "relies_on", "a closer lineage cue hid the reliance edge")
+
+    def test_negated_support_is_not_a_reliance_edge(self):  # finding #4
+        edges, _ = self._edges("This conclusion is unsupported by [[F2]].")
+        self.assertNotIn(edges["F2"], ctx.RELIANCE_EDGES,
+                         "'unsupported' was mis-typed as a reliance edge")
+
+    def test_dedupe_prefers_reliance_at_equal_rank(self):  # finding #5
+        edges, _ = self._edges("Produced by [[F2]]. Later work relies on [[F2]] for its result.")
+        self.assertEqual(edges["F2"], "relies_on",
+                         "reliance edge hidden behind a same-rank lineage edge to the same target")
 
 
 if __name__ == "__main__":
