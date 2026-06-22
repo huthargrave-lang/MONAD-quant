@@ -314,6 +314,20 @@ class TestRelated(unittest.TestCase):
         out = self._run("zzqqx nonsense xyzzy")
         self.assertIn("no", out.lower())                 # fallback / no-match message, no crash
 
+    def test_lowercase_id_matches_uppercase(self):       # review fix #1
+        self.assertEqual(self._run("f13").splitlines()[0], self._run("F13").splitlines()[0])
+        self.assertEqual(self._run("[[F13]]").splitlines()[0], self._run("F13").splitlines()[0])
+
+    def test_markup_does_not_drive_results(self):        # review fix #2
+        # related F13 should surface content neighbours, not the superseded nodes that merely cite it
+        out = self._run("F13")
+        head = "\n".join(out.splitlines()[1:4])           # top-3
+        self.assertNotIn("F4", head)
+        self.assertNotIn("F8", head)
+
+    def test_top_zero_does_not_crash(self):              # review fix #3
+        self.assertIsInstance(self._run("F13", top=0), str)
+
 
 class TestWhyProvenance(unittest.TestCase):
     """Review fixes for ctx why (Context Web v2 #6): grounding must not be routed

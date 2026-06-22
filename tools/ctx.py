@@ -1539,6 +1539,15 @@ def cmd_frontier(args):
 # time — no model, no committed sidecar, so it can never go stale. Complements
 # keyword `route` and graph `frontier` with content-similarity: "what's like this?"
 
+def _strip_markup(text):
+    """Drop graph/status MARKUP so TF-IDF indexes CONTENT, not link/citation tokens
+    (else a '[[F13]]'/'[SUPERSEDED by F13]' leaks an 'f13' term into citers' vectors)."""
+    text = re.sub(r"<!--.*?-->", " ", text, flags=re.S)                       # status blocks
+    text = re.sub(r"\[(?:SUPERSEDED|RETRACTED) by [FHED]\d+\]", " ", text, flags=re.I)  # title tags
+    text = re.sub(r"\[\[[^\]]*\]\]", " ", text)                               # [[ID|type]] links
+    return text
+
+
 def _doc_terms(text):
     """Stemmed, stopworded content tokens (with repeats, for term frequency)."""
     return [_stem(t) for t in re.findall(r"[a-z0-9]+", text.lower())
@@ -1549,7 +1558,8 @@ def _tfidf(nodes):
     """Return ({id: {term: tfidf}}, idf) over node title (×3 weight) + body."""
     import math
     from collections import Counter
-    docterms = {nid: _doc_terms((n["title"] + " ") * 3 + n["body"]) for nid, n in nodes.items()}
+    docterms = {nid: _doc_terms(_strip_markup((n["title"] + " ") * 3 + n["body"]))
+                for nid, n in nodes.items()}
     df = Counter()
     for terms in docterms.values():
         df.update(set(terms))
@@ -1582,22 +1592,26 @@ def cmd_related(args):
         return
     vecs, idf = _tfidf(nodes)
     q = " ".join(args.query)
-    if q in nodes:
-        qvec, qid = vecs[q], q
-        print(f"related to {q} — {nodes[q]['title'][:60]}:")
+    top = max(1, args.top)
+    # an id-like query ("F13", "f13", "[[F13]]") resolves to that node's own vector;
+    # anything else is free text. (Canonicalizes case + strips link brackets.)
+    m = re.fullmatch(r"\[*([A-Za-z]+\d+)\]*", q.strip())
+    qid = m.group(1).upper() if m and m.group(1).upper() in nodes else None
+    if qid:
+        qvec = vecs[qid]
+        print(f"related to {qid} — {nodes[qid]['title'][:60]}:")
     else:
-        terms = _doc_terms(q)
+        terms = _doc_terms(_strip_markup(q))
         tf = Counter(terms)
         qvec = {t: (c / len(terms)) * idf.get(t, 0.0) for t, c in tf.items()} if terms else {}
-        qid = None
         print(f'related to "{q}":')
     scored = sorted(((nid, _cos(qvec, v)) for nid, v in vecs.items() if nid != qid),
                     key=lambda kv: -kv[1])
-    scored = [(nid, s) for nid, s in scored if s > 0.01][:args.top]
+    scored = [(nid, s) for nid, s in scored if s > 0.01][:top]
     if not scored:                              # graceful fallback: difflib on titles
         import difflib
         t2id = {n["title"].lower(): nid for nid, n in nodes.items()}
-        near = difflib.get_close_matches(q.lower(), list(t2id), n=args.top, cutoff=0.3)
+        near = difflib.get_close_matches(q.lower(), list(t2id), n=top, cutoff=0.3)
         if near:
             print("  (no TF-IDF overlap — nearest titles)")
             for title in near:
