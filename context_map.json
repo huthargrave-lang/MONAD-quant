@@ -207,7 +207,8 @@
       "src/strategy/__init__.py",
       "tools/ctx.py",
       "tools/diagnose_brackets.py",
-      "tools/mr_daily_lab.py"
+      "tools/mr_daily_lab.py",
+      "tools/note.py"
     ]
   },
 

@@ -27,6 +27,8 @@ venv/bin/python tools/ctx.py frontier "<task>" [--budget N]  # task-shaped packe
 venv/bin/python tools/ctx.py graph [--json|--html]  # the whole unified map (idea web ∪ code graph); --html = interactive browser map
 venv/bin/python tools/ctx.py health                # context-map health score: coverage + freshness + bridge/lint integrity
 venv/bin/python tools/ctx.py init [--write]        # scaffold the context layer for a fresh repo (the kit's portability entrypoint)
+venv/bin/python tools/note.py add --kind F --title "..." --body "..." [--link ID:type] [--commit]   # capture a finding into the web (dry-run by default)
+venv/bin/python tools/note.py supersede <OLD> --by <NEW> [--reason <code>] [--commit]   # mark a node superseded (write-fenced, lint-gated)
 venv/bin/python tools/ctx.py brief <area> --task ".."  # ≤900-tok orientation packet (best first move)
 venv/bin/python tools/ctx.py impact <file|symbol|config.KEY>  # blast radius + ⛔ if it hits the live boundary
 venv/bin/python tools/ctx.py can_edit <file>       # edit gate ALLOW/WARN/DENY (exit 0/2/1, scriptable)

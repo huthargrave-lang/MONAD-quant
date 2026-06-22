@@ -13,6 +13,7 @@
 | File | Role | Portable? |
 |---|---|---|
 | `tools/ctx.py` | **Engine** — query/graph/traversal/drift logic, manifest-driven. | **Mostly generic** — the query/navigate/map/guard/init layer is repo-agnostic; **~6 commands are wired to this repo** (see *Repo-wired commands* below) — trim or re-point them |
+| `tools/note.py` | **Writer** — the only write tool; appends/supersedes web nodes, lint-gated + atomic. | **Generic** — reuses `ctx`'s primitives; no domain coupling |
 | `tests/test_context_map.py`, `tests/test_research_web.py`, `tests/test_area_coverage.py` | **Anti-rot guards** — fail CI on drift. | **Templates** — keep the *patterns*; the concrete assertions (ports, golden NL queries, deny-paths) are repo-specific — **adapt, don't copy verbatim** |
 | `context_map.json` | **Structural content** — areas, invariants→config bindings, param-claims, edit-policy, idea↔code bridges, routing. | **Repo-specific** — `ctx init` scaffolds a skeleton; you fill it |
 | `RESEARCH_WEB.md` | **Idea content** — the F/H/E/D graph with typed `[[ID\|type]]` edges. | **Repo-specific** — starts empty |
@@ -56,8 +57,13 @@ QUERY     ctx route "<task>"   ctx where <sym>   ctx config <KEY>   ctx defs/usa
 NAVIGATE  ctx brief   ctx frontier "<task>"   ctx walk/why/neighbors/contradicts <node>
 MAP       ctx graph [--json|--html]   ctx tree   ctx summary   ctx web [--live|--lint]
 GUARD     ctx impact <x>   ctx can_edit <f>   ctx audit   ctx health   ctx reverts
+CAPTURE   note add --kind F --title … --body … [--link ID:type]   ·   note supersede <OLD> --by <NEW>
 SET UP    ctx init [--write]
 ```
+`ctx` is **read-only by contract**; the single *writer* is `tools/note.py` — write-fenced to
+`RESEARCH_WEB.md` only, atomic, **dry-run by default**, and it refuses to write unless the result
+re-parses and passes the same integrity lint as `ctx web --lint`. So the graph can populate itself
+without a human hand-editing markdown, and a bad capture can never corrupt the web.
 
 ## What makes it *not plain docs*
 
