@@ -721,9 +721,52 @@ def cmd_tests(args):
     print("  " + ("\n  ".join(a.get("tests", [])) or "(no tests listed)"))
 
 
+# ── Typed edges (Context Web v2 #2) ──────────────────────────────────────────
+# An edge can be written explicitly as [[ID|type]]; an untyped [[ID]] falls back
+# to a cue classifier that reads the relation verb just before the link. The
+# split below is what `--lint` needs: a RELIANCE edge into a superseded node is a
+# real problem; a LINEAGE/provenance edge into one is fine; `relates` is advisory.
+RELIANCE_EDGES = {"relies_on", "supports", "refines", "builds_on"}
+EDGE_TYPES = RELIANCE_EDGES | {
+    "supersedes", "contradicts", "evidenced_by", "produces", "derived_from",
+    "drives", "resolves", "relates",
+}
+# Prose cue → canonical type (nearest cue to the link wins; substring match).
+_EDGE_CUES = [
+    ("supersede", "supersedes"), ("reversal", "supersedes"),
+    ("contradict", "contradicts"),
+    ("relies on", "relies_on"), ("depends on", "relies_on"),
+    ("corroborat", "supports"), ("support", "supports"),
+    ("refine", "refines"),
+    ("builds on", "builds_on"), ("build on", "builds_on"),
+    ("evidence", "evidenced_by"), ("evidenced", "evidenced_by"), ("source:", "evidenced_by"),
+    ("produced", "produces"), ("produces", "produces"), ("feeds", "produces"),
+    ("derived from", "derived_from"), ("based on", "derived_from"),
+    ("motivat", "drives"), ("drives", "drives"), ("bears on", "drives"), ("→", "drives"),
+    ("resolve", "resolves"), ("closed", "resolves"),
+]
+_LINK_RX = re.compile(r"\[\[([A-Za-z]+\d+)(?:\|([A-Za-z_]+))?\]\]")
+
+
+def _classify_edge(pre):
+    """Infer an edge type from the prose immediately preceding a [[link]]. Looks
+    only within the current sentence/line (so a cue in a prior clause can't bleed
+    across), nearest cue wins. Returns a canonical type, default 'relates'."""
+    brk = max(pre.rfind(". "), pre.rfind("\n"), pre.rfind("; "), pre.rfind("! "))
+    window = (pre[brk + 1:] if brk >= 0 else pre)[-90:].lower()
+    best, best_pos = "relates", -1
+    for cue, etype in _EDGE_CUES:
+        pos = window.rfind(cue)
+        if pos > best_pos:
+            best_pos, best = pos, etype
+    return best
+
+
 def _parse_web():
-    """Parse RESEARCH_WEB.md into {id: {title, body, links}} + reverse links.
-    Nodes are '### <ID> — <title>'; edges are '[[ID]]' references in the body."""
+    """Parse RESEARCH_WEB.md into {id: {title, body, links, edges}} + reverse links.
+    Nodes are '### <ID> — <title>'; edges are '[[ID]]'/'[[ID|type]]' references in
+    the body. `links` is the sorted unique target IDs (backward-compatible); `edges`
+    is [{target, type}] with the relation type (explicit, else cue-classified)."""
     if not os.path.exists(WEB):
         return {}, {}
     nodes, cur = {}, None
@@ -736,10 +779,23 @@ def _parse_web():
                 nodes[cur] = {"title": m.group(2).strip(), "body": ""}
             elif cur:
                 nodes[cur]["body"] += line
-    link_rx = re.compile(r"\[\[([A-Za-z]+\d+)\]\]")
     rev = {}
     for nid, n in nodes.items():
-        n["links"] = sorted(set(link_rx.findall(n["body"])) - {nid})
+        body = n["body"]
+        edges = {}  # target -> (rank, type); rank: relates=0, cue=1, explicit=2
+        for m in _LINK_RX.finditer(body):
+            tgt, etype = m.group(1), m.group(2)
+            if tgt == nid:
+                continue
+            if etype:                       # explicit [[ID|type]] wins
+                rank, t = 2, etype.lower()
+            else:
+                t = _classify_edge(body[:m.start()])
+                rank = 0 if t == "relates" else 1
+            if tgt not in edges or rank > edges[tgt][0]:
+                edges[tgt] = (rank, t)
+        n["edges"] = [{"target": t, "type": ty} for t, (_, ty) in sorted(edges.items())]
+        n["links"] = sorted(edges)          # target IDs only — unchanged contract
         for tgt in n["links"]:
             rev.setdefault(tgt, set()).add(nid)
     return nodes, {k: sorted(v) for k, v in rev.items()}
@@ -757,26 +813,35 @@ def cmd_web(args):
         print("RESEARCH_WEB.md not found or empty.")
         return
 
-    # --lint: graph integrity. Dangling links = hard problems (CI-gated by
-    # tests/test_research_web.py). Stale-cites = advisories (need typed edges to
-    # cleanly tell "produced/narrates" from "relies on" — until then, informational).
+    # --lint: graph integrity. Dangling links + reliance-on-superseded = hard
+    # problems (the latter now decidable thanks to typed edges). A live node that
+    # RELIES ON a superseded one is a real stale-cite; LINEAGE edges (supersedes/
+    # evidenced_by/...) pointing back at old nodes are fine; untyped `relates` to a
+    # superseded node stays advisory (add [[ID|type]] to make it decidable).
     if getattr(args, "lint", False):
         dangling = [(nid, tgt) for nid, n in nodes.items()
                     for tgt in n["links"] if tgt not in nodes]
         for nid, tgt in dangling:
             print(f"  PROBLEM dangling: {nid} → [[{tgt}]] (no such node)")
-        advisories = 0
+        problems, advisories = 0, 0
         for nid, n in nodes.items():
             if _is_superseded(n):
-                for src in rev.get(nid, []):
-                    sn = nodes[src]
-                    if _is_superseded(sn) or "SUPERSEDE" in sn["body"].upper():
-                        continue
-                    print(f"  advisory stale-cite: {src} still links to superseded {nid}")
+                continue  # a superseded node may freely cite anything (history)
+            for e in n["edges"]:
+                tgt = e["target"]
+                if tgt not in nodes or not _is_superseded(nodes[tgt]):
+                    continue
+                if e["type"] in RELIANCE_EDGES:
+                    print(f"  PROBLEM stale-cite: live {nid} --{e['type']}--> superseded "
+                          f"{tgt} (relies on a retracted claim)")
+                    problems += 1
+                elif e["type"] == "relates":
+                    print(f"  advisory stale-cite: {nid} relates to superseded {tgt} "
+                          f"(untyped — add [[{tgt}|<type>]] to disambiguate)")
                     advisories += 1
         sup = sum(1 for n in nodes.values() if _is_superseded(n))
         print(f"\n  {len(nodes)} nodes | {sup} superseded | "
-              f"{len(dangling)} problem(s) | {advisories} advisory")
+              f"{len(dangling) + problems} problem(s) | {advisories} advisory")
         return
 
     if args.node:
@@ -786,7 +851,18 @@ def cmd_web(args):
             return
         flag = "  [SUPERSEDED]" if _is_superseded(n) else ""
         print(f"{args.node} — {n['title']}{flag}\n{n['body'].strip()}")
-        print(f"\n  → links to:  {', '.join(n['links']) or '—'}")
+        print("\n  → links to (by edge type):")
+        if n["edges"]:
+            by_type = {}
+            for e in n["edges"]:
+                by_type.setdefault(e["type"], []).append(e["target"])
+            for ty in sorted(by_type):
+                items = ", ".join(
+                    t + (" (superseded)" if t in nodes and _is_superseded(nodes[t]) else "")
+                    for t in by_type[ty])
+                print(f"      {ty:<13} {items}")
+        else:
+            print("      —")
         print(f"  ← linked by: {', '.join(rev.get(args.node, [])) or '—'}")
         return
 

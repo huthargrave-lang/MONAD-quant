@@ -54,5 +54,48 @@ class TestResearchWebIntegrity(unittest.TestCase):
             self.assertTrue(n["title"].strip(), f"{nid} has an empty title")
 
 
+class TestTypedEdges(unittest.TestCase):
+    """Context Web v2 #2 — every link now carries a relation type (explicit
+    [[ID|type]] or cue-classified), and reliance never points at a retraction."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.nodes, cls.rev = ctx._parse_web()
+
+    def test_edges_cover_links_exactly(self):
+        # backward-compat: edge targets are exactly the (unchanged) links contract.
+        for nid, n in self.nodes.items():
+            with self.subTest(node=nid):
+                self.assertIn("edges", n)
+                self.assertEqual(sorted(e["target"] for e in n["edges"]), n["links"])
+
+    def test_edge_types_in_vocabulary(self):
+        for nid, n in self.nodes.items():
+            for e in n["edges"]:
+                with self.subTest(node=nid, target=e["target"]):
+                    self.assertIn(e["type"], ctx.EDGE_TYPES,
+                                  f"{nid}->{e['target']} has unknown edge type {e['type']!r}")
+
+    def test_explicit_typed_edge_is_parsed(self):
+        # F13 explicitly supersedes F3 (an explicit [[F3|supersedes]] in the web).
+        types = {e["target"]: e["type"] for e in self.nodes["F13"]["edges"]}
+        self.assertEqual(types.get("F3"), "supersedes",
+                         "explicit [[F3|supersedes]] from F13 was not parsed as typed")
+
+    def test_no_live_node_relies_on_superseded(self):
+        """The invariant typed edges make checkable: a current node must not
+        rely_on/support/refine/build_on a superseded node (a retracted claim)."""
+        offenders = []
+        for nid, n in self.nodes.items():
+            if ctx._is_superseded(n):
+                continue
+            for e in n["edges"]:
+                t = e["target"]
+                if (e["type"] in ctx.RELIANCE_EDGES and t in self.nodes
+                        and ctx._is_superseded(self.nodes[t])):
+                    offenders.append(f"{nid} --{e['type']}--> {t}")
+        self.assertEqual(offenders, [], f"live nodes rely on superseded nodes: {offenders}")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -76,7 +76,7 @@ could shift magnitudes. → [[H5]], [[E7]].
 Re-running the leak-free walk-forward on FULL-session, live-representative data ([[F12]], [[E7]])
 flips the headline: QQQ −0.05%/mo (Sh −0.75), SPY −0.05%/mo — NEGATIVE. The +0.34%/mo QQQ
 edge ([[F3]], [[F4]], [[F8]]) only existed on the morning-only (3 bars/day) cache. Since the live
-bot trades full sessions, this is exactly why it is FLAT. SUPERSEDES [[F3]], [[F4]], [[F8]], [[F9]] for the
+bot trades full sessions, this is exactly why it is FLAT. SUPERSEDES [[F3|supersedes]], [[F4|supersedes]], [[F8|supersedes]], [[F9|supersedes]] for the
 hourly timescale. The instrument mechanism [[F7]] still holds for the leveraged-ETF failure. → [[D4]].
 
 ### F14 — The edge tracks BAR-SAMPLING FREQUENCY, not time-of-day or instrument
@@ -97,7 +97,7 @@ survives zero parameter selection (t>3). So the QQQ/SPY edge is genuine at the ~
 mean-reversion) timescale and absent hourly — F3/F4's numbers were this 3/day regime, mislabeled as
 "hourly". ACTIONABLE LEVER: sample ~3 bars/day (≈every 2h), not hourly. CAVEAT: DIA INVERTS (positive
 hourly, negative 3/day) → instrument-dependent, not universal; needs multi-instrument + multi-regime
-confirmation. Refines [[F13]] (hourly-negative still holds) and [[F14]]. → [[D4]], [[H7]].
+confirmation. Refines [[F13|refines]] (hourly-negative still holds) and [[F14|refines]]. → [[D4]], [[H7]].
 
 ### F16 — Daily mean-reversion is REAL (model-free, not an artifact)
 12yr daily data (2014–2026, n≈3030): lag-1 autocorrelation SPY −0.117 (t −6.4), QQQ −0.105 (t −5.8),
