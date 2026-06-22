@@ -27,10 +27,7 @@ import ctx  # noqa: E402  (reuse the canonical drift detector)
 # Known, deny-fenced drift: key -> (value, stated_comment_pct). Fixing these needs
 # sign-off (config.py is the armed-trader path). Remove an entry once its comment
 # in config.py is corrected — test_known_drift_still_present will flag the change.
-KNOWN_COMMENT_DRIFT = {
-    "TARGET_GAIN_PCT_TQQQ_HOURLY": (0.0100, 2.80),  # value 1.00% vs comment "2.80% target"
-    "STOP_LOSS_PCT_TQQQ_HOURLY":   (0.0050, 1.50),  # value 0.50% vs comment "1.50% stop"
-}
+KNOWN_COMMENT_DRIFT = {}
 
 
 class TestConfigCommentMatchesValue(unittest.TestCase):
