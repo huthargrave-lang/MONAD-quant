@@ -286,12 +286,19 @@ the noise-ratio mechanism [[F7|supports]]. The horizon exit does NOT rescue the 
 From the lab ([[E10|evidenced_by]]): (1) **long-only cross-sectional** sector rotation
 (buy the most-oversold of 9 SPDRs) underperforms sector buy&hold (Sharpe 0.44 vs 0.65,
 −43% DD) — it loads falling knives; real cross-sectional MR needs the forbidden short leg.
-(2) **Adaptive (variable) Kelly** sizing HURTS risk-adjusted return vs a fixed fraction
-(QQQ Sharpe 0.72→0.48): betting up after wins / down after losses is a momentum overlay on
-a mean-reverting edge — directly questions the live `USE_ADAPTIVE_KELLY` mechanism.
+(2) **Sizing — the estimator SHAPE matters** (corrected after review): a *continuous*
+textbook half-Kelly HURTS (QQQ Sharpe 0.72→0.48) because its fraction (CV 0.77) chases the
+noisy win/loss-ratio `b`. BUT that is a strawman for the project's LIVE `adaptive_kelly_multiplier`
+— a coarse 4-tier *win-rate* step that never computes `b` (CV 0.23): re-run on the same trades
+it is ~Sharpe-NEUTRAL (0.68 ≈ the fixed baseline), neither helping nor hurting (and it is bypassed
+on the active fixed-sizing path). So only a noisy continuous Kelly is harmful; vol-targeting is the
+sizing that actively helps (0.56→0.67).
 (3) **Low-vol entry filtering** hurts (Sharpe 0.56→0.26): the biggest dips revert hardest.
-(4) **Bond signal-trading** (TLT/IEF, MR or momentum) loses to buy&hold — hold bonds as
-passive ballast, don't trade them. Relates the noise mechanism [[F7|relates]].
+(4) **Bond signal-trading** (corrected): the 200d *equity* bear gate is wrong-signed for
+(anti-correlated) bonds — gated, TLT/IEF dips lose to B&H; UN-gated, a TLT dip beats B&H
+(Sharpe 0.19 vs 0.10, lower DD) but insignificantly (bootstrap straddles 0) and IEF still loses.
+Net: hold bonds as PASSIVE ballast (the −0.09 equity correlation), not for a signal edge.
+Relates the noise mechanism [[F7|relates]].
 
 ### F21 — The honest leverage-free ceiling + the recommended build
 <!-- status: current; conf: 0.8; at: 2026-06-22 -->
@@ -309,8 +316,10 @@ near-zero-DD bond alternative — that headline was the morning-only artifact. R
 Build: equal-weight portfolio of daily mean-reversion sleeves on un-leveraged equities
 (QQQ/SPY/IWM/DIA) + gold (GLD), each = buy-the-dip + multi-day HORIZON exit + slope/200d
 bear gate, with VOL-TARGETED position sizing and passive bond ballast for correlation.
-DROP, on evidence: the hourly timescale, the fixed %-stop exit, 3× leverage, adaptive
-Kelly, and long-only cross-sectional rotation. Expected ~Sharpe 0.6, ~4%/yr leverage-free
+DROP, on evidence: the hourly timescale, the fixed %-stop exit, 3× leverage, and long-only
+cross-sectional rotation. PREFER vol-targeted sizing (it lifts Sharpe); the live WR-tiered
+adaptive-Kelly is ~Sharpe-neutral so keep-or-replace is a wash (only a noisy *continuous*
+Kelly is harmful — [[F20]]). Expected ~Sharpe 0.6, ~4%/yr leverage-free
 (or ~6% vol-targeted at higher DD). Builds on [[F19|builds_on]], [[F20|builds_on]];
 relates the hourly/leverage evidence [[F13|relates]], [[F7|relates]]. Refines [[D4|refines]].
 NOTE: changing the live instrument/exit/sizing touches the armed trader path — sign-off
