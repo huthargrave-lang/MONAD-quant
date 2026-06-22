@@ -1021,9 +1021,12 @@ def cmd_web(args):
 # single ID namespace: research IDs (F17) + 'code:'/'cfg:' pseudo-nodes for bridge
 # targets. Lets an agent WALK task → finding → decision → symbol in one place.
 
-def build_graph():
-    """Return (G, adj). G[id] = {kind, title, status}; adj[id] = list of
-    {to, type, dir} where dir is 'out' (id→to) or 'in' (to→id)."""
+def build_graph(include_code=False):
+    """Unified context graph. G[id] = {kind, title, status}; adj[id] = list of
+    {to, type, dir} ('out' = id→to, 'in' = to→id). Always: research nodes (F/H/E/D)
+    + their typed edges + idea↔code bridges. With include_code=True it also folds in
+    the AUTO-EXTRACTED code graph — modules, imports, area-ownership, test-coverage,
+    config-reads — so the whole repo is one navigable map (the 'map all of it' layer)."""
     nodes, _ = _parse_web()
     G, adj = {}, {}
 
@@ -1032,13 +1035,12 @@ def build_graph():
             G[nid] = {"kind": kind, "title": title, "status": status}
             adj[nid] = []
 
-    for nid, n in nodes.items():
-        ensure(nid, nid[0], n["title"], _node_meta(n)["status"])
-
     def add(a, b, t):
         adj[a].append({"to": b, "type": t, "dir": "out"})
         adj[b].append({"to": a, "type": t, "dir": "in"})
 
+    for nid, n in nodes.items():
+        ensure(nid, nid[0], n["title"], _node_meta(n)["status"])
     for nid, n in nodes.items():
         for e in n["edges"]:
             ensure(e["target"], e["target"][0], e["target"])  # dangling target → stub
@@ -1048,8 +1050,41 @@ def build_graph():
             continue
         for code in b["code"]:
             cid = _bridge_code_id(code)
-            ensure(cid, "code", code)
+            ensure(cid, "code" if "::" in code else "config", code)
             add(b["node"], cid, b["relation"])
+            if include_code and "::" in code:           # connect symbol-bridge to its module
+                f = code.split("::")[0]
+                ensure("mod:" + f, "module", f); add(cid, "mod:" + f, "defined_in")
+
+    if include_code:
+        importers, mod2file = _import_graph()
+        m = _manifest()
+        for rel in mod2file.values():
+            ensure("mod:" + rel, "module", rel)
+        for area, spec in m["areas"].items():
+            aid = "area:" + area
+            ensure(aid, "area", spec.get("summary", area)[:70])
+            for rel in mod2file.values():
+                if any(rel == f or (f.endswith("/") and rel.startswith(f)) for f in spec["files"]):
+                    add(aid, "mod:" + rel, "owns")
+        for dotted, rel in mod2file.items():
+            for imp in importers.get(dotted, ()):        # imp imports dotted
+                irel = mod2file.get(imp)
+                if not irel:
+                    continue
+                if irel.startswith("tests" + os.sep):
+                    add("mod:" + rel, "mod:" + irel, "tested_by")
+                else:
+                    add("mod:" + irel, "mod:" + rel, "imports")
+        rx = re.compile(r"\bconfig\.([A-Z][A-Z0-9_]+)")
+        for rel in mod2file.values():
+            try:
+                txt = open(os.path.join(REPO, rel), errors="ignore").read()
+            except OSError:
+                continue
+            for key in sorted(set(rx.findall(txt)))[:40]:
+                cid = "cfg:" + key
+                ensure(cid, "config", "config." + key); add("mod:" + rel, cid, "reads_config")
     return G, adj
 
 
@@ -1162,6 +1197,67 @@ def cmd_contradicts(args):
     inc = [e["to"] for e in adj[args.node] if e["dir"] == "in" and e["type"] in rel]
     print(f"  supersedes/contradicts →        {', '.join(_g_label(G, x) for x in out) or '—'}")
     print(f"  ← superseded/contradicted by    {', '.join(_g_label(G, x) for x in inc) or '—'}")
+
+
+def cmd_graph(args):
+    """Emit the whole unified context map (research web ∪ idea↔code bridges ∪ the
+    auto-extracted code graph). `--json` = machine-readable map (feeds the visual map
+    + any other tool); else a kind/edge-type summary. `--ideas-only` drops the code layer."""
+    G, adj = build_graph(include_code=not getattr(args, "ideas_only", False))
+    edges = [{"from": a, "to": e["to"], "type": e["type"]}
+             for a, es in adj.items() for e in es if e["dir"] == "out"]
+    if getattr(args, "json", False):
+        nodes = [{"id": nid, "kind": d["kind"], "title": d["title"][:120], "status": d["status"]}
+                 for nid, d in G.items()]
+        print(json.dumps({"project": _manifest().get("project", ""),
+                          "nodes": nodes, "edges": edges}))
+        return
+    from collections import Counter
+    nk, ek = Counter(d["kind"] for d in G.values()), Counter(e["type"] for e in edges)
+    print(f"unified context map: {len(G)} nodes, {len(edges)} edges")
+    print("  nodes by kind:  " + "  ".join(f"{k}:{v}" for k, v in sorted(nk.items())))
+    print("  edges by type:  " + "  ".join(f"{k}:{v}" for k, v in sorted(ek.items())))
+    print("  → `ctx graph --json` for the full map (feeds the visual view) · `ctx health` for coverage")
+
+
+def cmd_health(args):
+    """Context-map health SCORE: code coverage + idea-graph freshness + bridge/lint
+    integrity, so the map measures itself instead of being trusted on vibes."""
+    m = _manifest()
+    mods = _first_party_modules(include_tests=False)
+    allow = set(m.get("coverage_allowlist", {}).get("modules", []))
+    mapped = [r for r in mods if _areas_for_module(r)]
+    orphan = [r for r in mods if not _areas_for_module(r) and r not in allow]
+    nodes, _ = _parse_web()
+    sup = [k for k, n in nodes.items() if _is_superseded(n)]
+    dangling = [(nid, t) for nid, n in nodes.items() for t in n["links"] if t not in nodes]
+    problems = advisories = 0
+    for nid, n in nodes.items():
+        if _is_superseded(n):
+            continue
+        for e in n["edges"]:
+            if e["target"] in nodes and _is_superseded(nodes[e["target"]]):
+                if e["type"] in RELIANCE_EDGES:
+                    problems += 1
+                elif e["type"] == "relates":
+                    advisories += 1
+    bridges = _graph_bridges()
+    G, adj = build_graph(include_code=True)
+    n_edges = sum(len(a) for a in adj.values()) // 2
+    isolated = [nid for nid in G if not adj[nid]]
+    cov = len(mapped) / max(len(mods), 1)
+    score = 100 * (0.40 * cov + 0.20 * (not orphan) + 0.20 * (not dangling and not problems)
+                   + 0.10 * (len(bridges) >= 8) + 0.10 * (len(isolated) < 0.2 * len(G)))
+    bar = "█" * round(score / 5) + "░" * (20 - round(score / 5))
+    print(f"CONTEXT HEALTH  {score:5.0f}/100  [{bar}]")
+    print(f"  code coverage : {len(mapped)}/{len(mods)} first-party modules in an area ({cov*100:.0f}%)"
+          + (f"  ·  {len(orphan)} ORPHAN: {', '.join(orphan)}" if orphan else "  ·  0 orphan"))
+    print(f"  idea web      : {len(nodes)} nodes ({len(sup)} superseded)  ·  {len(dangling)} dangling  ·  "
+          f"{problems} stale-cite problem(s)  ·  {advisories} advisory")
+    print(f"  bridges       : {len(bridges)} idea↔code")
+    print(f"  unified graph : {len(G)} nodes  ·  {n_edges} edges  ·  {len(isolated)} isolated node(s)")
+    if orphan:
+        print("  → triage each orphan into an area, or add to coverage_allowlist with a reason")
 
 
 # Edge weights for spreading activation — corrections (supersedes/contradicts)
@@ -1365,12 +1461,17 @@ def main():
     sp = sub.add_parser("contradicts"); sp.add_argument("node"); sp.set_defaults(fn=cmd_contradicts)
     sp = sub.add_parser("frontier"); sp.add_argument("task", nargs="+")
     sp.add_argument("--budget", type=int, default=900); sp.set_defaults(fn=cmd_frontier)
+    sp = sub.add_parser("graph")
+    sp.add_argument("--json", action="store_true", help="emit the full unified map as JSON")
+    sp.add_argument("--ideas-only", action="store_true", help="drop the auto-extracted code layer")
+    sp.set_defaults(fn=cmd_graph)
+    sub.add_parser("health").set_defaults(fn=cmd_health)
     args = p.parse_args()
     if not getattr(args, "fn", None):
         # default: print the index summary
         cmd_map(argparse.Namespace(area=None))
-        print("\nUsage: ctx {route|where|usages|defs|tree|summary|covers|impact|schema|config|"
-              "perf|audit|status|recent|map|tests|brief|web|neighbors|walk|why|contradicts|frontier}")
+        print("\nUsage: ctx {route|where|usages|defs|tree|summary|covers|impact|schema|config|perf|"
+              "audit|status|recent|map|tests|brief|web|neighbors|walk|why|contradicts|frontier|graph|health}")
         return
     args.fn(args)
 

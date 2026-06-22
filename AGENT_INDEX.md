@@ -24,6 +24,8 @@ venv/bin/python tools/ctx.py walk <node> [--edge T --depth N]  # BFS the idea gr
 venv/bin/python tools/ctx.py why <node>            # grounding experiments + decisions a node bears on (provenance path)
 venv/bin/python tools/ctx.py contradicts <node>    # what overturns this node / what it overturns
 venv/bin/python tools/ctx.py frontier "<task>" [--budget N]  # task-shaped packet: seeds + corrections, not a fixed summary
+venv/bin/python tools/ctx.py graph [--json]        # the whole unified map (idea web ∪ code graph); --json feeds the visual view
+venv/bin/python tools/ctx.py health                # context-map health score: coverage + freshness + bridge/lint integrity
 venv/bin/python tools/ctx.py brief <area> --task ".."  # ≤900-tok orientation packet (best first move)
 venv/bin/python tools/ctx.py impact <file|symbol|config.KEY>  # blast radius + ⛔ if it hits the live boundary
 venv/bin/python tools/ctx.py can_edit <file>       # edit gate ALLOW/WARN/DENY (exit 0/2/1, scriptable)
