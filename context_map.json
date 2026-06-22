@@ -293,7 +293,7 @@
     {"cmd": "ctx why <node>", "returns": "the node's grounding experiments + the decisions it bears on (provenance path, not a summary)"},
     {"cmd": "ctx contradicts <node>", "returns": "what supersedes/contradicts a node and what it overturns"},
     {"cmd": "ctx frontier \"<task>\" [--budget N]", "returns": "task-shaped progressive-disclosure packet: honest-state spine + activation-ranked idea-graph nodes (corrections pulled in first), budget-bounded — not a fixed summary"},
-    {"cmd": "ctx graph [--json] [--ideas-only]", "returns": "the whole unified context map (research web + idea↔code bridges + auto-extracted code graph); --json emits it machine-readably for the visual view and other tools"},
+    {"cmd": "ctx graph [--json|--html] [--ideas-only]", "returns": "the whole unified context map (research web + idea↔code bridges + auto-extracted code graph); --json = machine-readable, --html = self-contained interactive force-graph (open in a browser)"},
     {"cmd": "ctx health", "returns": "context-map health score: code coverage (modules in an area), idea-graph freshness (superseded/dangling/stale-cites), bridge + lint integrity"},
     {"cmd": "bash ops/status_check.sh", "returns": "system + gateway + trader + data freshness"},
     {"cmd": "venv/bin/python tools/diagnose_brackets.py", "returns": "IBKR connection + positions + brackets (read-only)"}
