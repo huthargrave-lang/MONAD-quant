@@ -474,6 +474,13 @@ def cmd_impact(args):
     target = args.target
     importers, mod2file = _import_graph()
 
+    brs = _bridges_for_target(target)
+    if brs:
+        print("  ⚠ idea bridges (RESEARCH_WEB.md findings about this target — `ctx web <node>`):")
+        for b in brs:
+            print(f"    {b['node']} ({b['relation']}): {b['note']}")
+        print()
+
     # config.KEY mode — scan all three access forms (config.KEY / getattr / ASSETS).
     if (target.startswith("config.") and not target.endswith(".py")) or (target.isupper() and "_" in target):
         key = target.split(".", 1)[1] if target.startswith("config.") else target
@@ -889,6 +896,37 @@ def _is_superseded(node) -> bool:
     return _node_meta(node)["status"] in ("superseded", "retracted")
 
 
+# ── Idea↔code bridges (Context Web v2 #5) ────────────────────────────────────
+
+def _graph_bridges():
+    """Curated idea↔code edges (context_map.json graph_bridges)."""
+    return _manifest().get("graph_bridges", {}).get("bridges", [])
+
+
+def _bridge_code_id(code):
+    """Normalize a bridge code target to a unified-graph pseudo-node id."""
+    return ("cfg:" + code.split(".", 1)[1]) if code.startswith("config.") else ("code:" + code)
+
+
+def _bridges_for_target(target):
+    """Bridges whose code list references this impact target (a symbol, a config
+    key with or without the 'config.' prefix, or a file path)."""
+    t = target[7:] if target.startswith("config.") else target
+    out = []
+    for b in _graph_bridges():
+        handles = set()
+        for code in b["code"]:
+            handles.add(code)
+            if code.startswith("config."):
+                handles.add(code[7:])
+            if "::" in code:
+                f, s = code.split("::", 1)
+                handles.update((f, s))
+        if target in handles or t in handles:
+            out.append(b)
+    return out
+
+
 def cmd_web(args):
     """Traverse the research idea web (RESEARCH_WEB.md)."""
     nodes, rev = _parse_web()
@@ -952,6 +990,13 @@ def cmd_web(args):
         else:
             print("      —")
         print(f"  ← linked by: {', '.join(rev.get(args.node, [])) or '—'}")
+        brs = [b for b in _graph_bridges() if b["node"] == args.node]
+        if brs:
+            print("  ⊢ code bridges:")
+            for b in brs:
+                print(f"      {b['relation']:<13} {', '.join(b['code'])}")
+                if b.get("note"):
+                    print(f"        ↳ {b['note']}")
         return
 
     live_only = getattr(args, "live", False)

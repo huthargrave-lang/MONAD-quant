@@ -54,6 +54,36 @@
     ]
   },
 
+  "graph_bridges": {
+    "_README": "Curated idea↔code edges linking RESEARCH_WEB.md nodes to the code/config they concern — the connective tissue that lets an agent editing a symbol discover the finding about it (and vice-versa). Asserted by tests/test_context_map.py::TestGraphBridges: every `node` must exist in the web and every `code` target must resolve (file::symbol defined, or config.KEY exists). Surfaced by `ctx web <node>`, `ctx impact <symbol|config.KEY>`, and the unified `ctx walk/why/neighbors`. relation ∈ {concerns, implemented_in, measured_by, gated_by}.",
+    "bridges": [
+      {"node": "F17", "relation": "concerns",
+       "code": ["src/strategy/engine.py::compute_trade_returns", "config.STOP_LOSS_PCT_TQQQ_HOURLY", "config.TARGET_GAIN_PCT_TQQQ_HOURLY"],
+       "note": "The fixed %-target/%-stop exit is the architectural flaw; a multi-day horizon exit would replace it here."},
+      {"node": "F7", "relation": "concerns",
+       "code": ["config.STOP_LOSS_PCT_TQQQ_HOURLY", "config.STOP_LOSS_PCT_GDXU_HOURLY"],
+       "note": "stop-vs-intrabar-noise ratio drives win rate — the stop pct is the lever (3x ETFs stop inside noise)."},
+      {"node": "F13", "relation": "concerns",
+       "code": ["live/signals.py::_fetch_recent_bars", "config.ACTIVE_MODE"],
+       "note": "the live bot trades full sessions → flat; the hourly edge was a morning-only sampling artifact."},
+      {"node": "F12", "relation": "concerns",
+       "code": ["tools/fetch_fullsession.py::fetch_full", "live/signals.py::_fetch_recent_bars"],
+       "note": "backtest↔live data mismatch root cause (710d fetch = morning-only) + the chunked re-pull fix."},
+      {"node": "F16", "relation": "concerns",
+       "code": ["src/strategy/engine.py::generate_trades"],
+       "note": "daily mean-reversion is a real serial-correlation property; the entry signal exploits it."},
+      {"node": "D4", "relation": "gated_by",
+       "code": ["config.ACTIVE_MODE", "src/strategy/engine.py::compute_trade_returns"],
+       "note": "goal reachable only as diversified daily-MR + horizon exit — not the hourly %-stop bot; the exit is the highest-value change."},
+      {"node": "D2", "relation": "concerns",
+       "code": ["src/optimization/walk_forward.py::walk_forward_optimize"],
+       "note": "promote rolling-origin OOS to the sweep's primary selector."},
+      {"node": "F6", "relation": "concerns",
+       "code": ["config.ACTIVE_MODE", "config.STOP_LOSS_PCT_TQQQ_HOURLY"],
+       "note": "the live instrument (TQQQ) is fragile — collapses to t=0.37 on recent data."}
+    ]
+  },
+
   "areas": {
     "live_trader": {
       "summary": "The hourly scheduler + entry/exit/reconcile loop that places paper bracket orders.",

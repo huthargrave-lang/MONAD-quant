@@ -140,6 +140,52 @@ class TestParamClaims(unittest.TestCase):
             f"remove it from KNOWN_DOC_PARAM_DRIFT): {stale}")
 
 
+class TestGraphBridges(unittest.TestCase):
+    """Context Web v2 #5 — idea↔code bridges must point at real nodes and real
+    code, so the connective tissue can't silently rot (mirrors entrypoint checks)."""
+
+    REL_VOCAB = {"concerns", "implemented_in", "measured_by", "gated_by"}
+
+    def setUp(self):
+        sys.path.insert(0, REPO)
+        import config
+        self.config = config
+        self.m = _load()
+        self.bridges = self.m["graph_bridges"]["bridges"]
+        import ctx
+        self.nodes = ctx._parse_web()[0]
+
+    def test_bridge_nodes_exist(self):
+        for b in self.bridges:
+            with self.subTest(node=b["node"]):
+                self.assertIn(b["node"], self.nodes, f"bridge node {b['node']} not in RESEARCH_WEB.md")
+
+    def test_bridge_relations_in_vocab(self):
+        for b in self.bridges:
+            with self.subTest(node=b["node"]):
+                self.assertIn(b["relation"], self.REL_VOCAB, f"unknown relation {b['relation']!r}")
+
+    def test_bridge_code_targets_resolve(self):
+        import re
+        for b in self.bridges:
+            for code in b["code"]:
+                with self.subTest(node=b["node"], code=code):
+                    if code.startswith("config."):
+                        self.assertTrue(hasattr(self.config, code.split(".", 1)[1]),
+                                        f"bridge {code} not a config attribute")
+                    elif "::" in code:
+                        path, sym = code.split("::", 1)
+                        full = os.path.join(REPO, path)
+                        self.assertTrue(os.path.exists(full), f"bridge file missing: {path}")
+                        with open(full, errors="ignore") as fh:
+                            src = fh.read()
+                        self.assertRegex(
+                            src, re.compile(rf"^\s*(def|class)\s+{re.escape(sym)}\b|^\s*{re.escape(sym)}\s*=", re.M),
+                            f"bridge symbol '{sym}' not defined in {path}")
+                    else:
+                        self.assertTrue(os.path.exists(os.path.join(REPO, code)), f"bridge path missing: {code}")
+
+
 class TestManifestReferencesExist(unittest.TestCase):
     def setUp(self):
         self.m = _load()
