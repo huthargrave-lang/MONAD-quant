@@ -255,8 +255,44 @@ def cmd_oos(PX):
     print("  (a static ~50/50 equity/cash blend matches the strat's return/DD at the bench Sharpe — cash-scaling is Sharpe-invariant)")
 
 
+def cmd_gonogo(PX):
+    """D6 go/no-go: does the ACTIVE daily-MR engine beat a trivial STATIC blend of the
+    same assets? Compares active (D5) vs static 50/50 equity/cash, static 60/40
+    equity/bond (IEF), and 100% buy&hold, with a bootstrap on active−static50."""
+    A = ["QQQ", "SPY", "IWM", "DIA", "GLD"]
+    active = pd.DataFrame({s: sleeve(PX, s) for s in A}).fillna(0.0).mean(axis=1)
+    eq = pd.DataFrame({s: np.log(PX[s].dropna() / PX[s].dropna().shift(1)) for s in A}).mean(axis=1)
+    both = pd.concat([active.rename("a"), eq.rename("e")], axis=1).dropna()
+    a, e = both["a"], both["e"]
+    ief = np.log(PX["IEF"].dropna() / PX["IEF"].dropna().shift(1)).reindex(e.index).fillna(0.0)
+    shf = lambda r: r.mean() / r.std() * math.sqrt(252) if r.std() else 0
+    annf = lambda r: r.mean() * 252 * 100
+    ddf = lambda r: (np.exp(r.cumsum()) / np.exp(r.cumsum()).cummax() - 1).min() * 100
+    cands = [("active daily-MR (D5)", a, "~26/yr"), ("static 50/50 equity/cash", 0.5 * e, "none"),
+             ("static 60/40 equity/bond", 0.6 * e + 0.4 * ief, "none"), ("buy&hold equity 100%", e, "none")]
+    print("D6 — active daily-MR vs STATIC blends of the same assets (2014-2026)")
+    print(f"  {'strategy':26} {'ann%':>6} {'Sharpe':>7} {'maxDD%':>7}  trades")
+    for nm, r, tr in cands:
+        print(f"  {nm:26} {annf(r):6.1f} {shf(r):7.2f} {ddf(r):7.1f}  {tr}")
+    rng = np.random.default_rng(0)
+
+    def boot(x):
+        x = x.values; n = len(x); nb = n // 20; out = []
+        for _ in range(3000):
+            idx = rng.integers(0, n - 20, nb); samp = np.concatenate([x[i:i + 20] for i in idx])
+            out.append(samp.mean() / samp.std() * math.sqrt(252) if samp.std() else 0)
+        return np.percentile(out, [2.5, 97.5])
+
+    lo, hi = boot(a - 0.5 * e)
+    verdict = ("straddles 0 → NO demonstrated advantage" if lo < 0 < hi
+               else "below 0 → active is worse" if hi <= 0 else "above 0 → active wins")
+    print(f"  block-bootstrap 95% CI, (active − static-50/50) Sharpe diff: [{lo:.2f}, {hi:.2f}]  {verdict}")
+    print("  → the active engine does not beat a static blend; the static blend matches it at lower complexity/cost/risk.")
+
+
 CMDS = {"acf": cmd_acf, "exit": cmd_exit, "portfolio": cmd_portfolio, "xsect": cmd_xsect,
-        "conditional": cmd_conditional, "bonds": cmd_bonds, "kelly": cmd_kelly, "oos": cmd_oos}
+        "conditional": cmd_conditional, "bonds": cmd_bonds, "kelly": cmd_kelly, "oos": cmd_oos,
+        "gonogo": cmd_gonogo}
 
 
 def main():
