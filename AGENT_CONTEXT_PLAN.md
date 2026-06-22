@@ -285,29 +285,41 @@ graph is one the next agent will re-derive.*
 | 1 | `config.py` comment-vs-value drift guard (`ctx audit` + `test_config_comment_matches_value`) | ~1 hr, stdlib | **1 ✅** |
 | 2 | Typed edges in `_parse_web` (`[[ID\|type]]` + cue classifier; grouped `ctx web` output + typed `--lint`) | ~60 LOC | **1 ✅** |
 | 4 | `param_claims` bindings + drift test (MAX_TRADE_BARS / RSI / GDXU) | ~30 LOC | **1 ✅** |
-| 3 | Structured `status`/`reason` metadata (retire the `"SUPERSEDED"` string match) | ~40 LOC | 2 |
-| 5 | `graph_bridges` (idea↔code) + CI target check (~15 curated rows) | tiny | 2 |
-| 6 | Unified `build_graph()` + traversal verbs (`walk`, `why`, `contradicts`, `neighbors`) | ~200 LOC | 2 |
-| 7 | `ctx frontier` — spreading activation + budget packer | ~120 LOC | 2 |
-| 8 | `ctx note add/supersede` + self-capture convention | ~120 LOC | 3 |
-| 9 | Confidence decay + confidence-weighted `ctx brief/route` | ~80 LOC | 3 |
-| 10 | `experiments.jsonl` ledger + CI freshness guard | ~50 LOC | 3 |
-| 11 | (optional) Embedding sidecar (offline precompute, `ctx related`) | high | deferred |
+| 3 | Structured `status`/`reason` metadata (retire the `"SUPERSEDED"` string match) | ~40 LOC | **2 ✅** |
+| 5 | `graph_bridges` (idea↔code) + CI target check (~15 curated rows) | tiny | **2 ✅** |
+| 6 | Unified `build_graph()` + traversal verbs (`walk`, `why`, `contradicts`, `neighbors`) | ~200 LOC | **2 ✅** |
+| 7 | `ctx frontier` — spreading activation + budget packer | ~120 LOC | **2 ✅** |
+| 8 | note-capture (`add`/`supersede`) + self-capture convention | ~250 LOC | 3 (scoped) |
+| 9 | Confidence decay + confidence-weighted `ctx brief/route/frontier` | ~80 LOC | 3 (scoped) |
+| 10 | `experiments.jsonl` ledger commit + CI freshness guard | ~50 LOC | 3 (scoped) |
+| 11 | (optional) Embedding/TF-IDF sidecar (offline precompute, `ctx related`) | ~6 hr | deferred (scoped) |
 
-> **Correction logged during design:** `experiments.jsonl` (item 10) does **not** exist on disk —
-> it is referenced aspirationally in `README`/structure only. Treat it as a *proposal*, not a
-> dependency. `src/optimization/sweep_repro.py::data_fingerprint` is cited as the reusable
-> provenance primitive — verify before building on it.
+## 13. What Phase 1 + 2 shipped (built & CI-guarded)
+**Phase 1** — `ctx audit` config comment-vs-value guard (catches the two live TQQQ bugs, baselined
+since `config.py` is deny-fenced); typed edges (`[[ID|type]]` + cue classifier, reliance-vs-provenance
+`--lint`); `param_claims` binding drift-prone params to `config.py`.
+**Phase 2** — structured `<!-- status:…;reason:… -->` supersession (`_node_meta`, retires the title
+substring match); `graph_bridges` idea↔code edges (so `ctx impact compute_trade_returns` surfaces F17
++ D4); unified `build_graph()` + `ctx neighbors/walk/why/contradicts`; `ctx frontier` spreading-
+activation packet (corrections pulled in first, budget-bounded). All stdlib, read-only, no new venv dep.
 
-## 13. What Phase 1 ships (this change set)
-- **`ctx audit`** + `tests/test_config_comment_matches_value.py` — parses `config.py` percent-annotated
-  `TARGET_GAIN_PCT*`/`STOP_LOSS_PCT*` params and fails on comment-vs-value drift. Surfaces the two
-  live TQQQ bugs (baselined, since `config.py` is on the deny-fence and needs sign-off to fix).
-- **Typed edges** — `[[ID|type]]` parsing + cue-classifier fallback in `_parse_web`; `ctx web <node>`
-  groups outgoing links by edge type; `ctx web --lint` now distinguishes reliance-on-superseded
-  (problem) from provenance (silent). Backward-compatible: `n["links"]` is unchanged, all existing
-  `[[ID]]` links keep working.
-- **`param_claims`** in `context_map.json` + `test_context_map.py` assertions — binds the
-  drift-prone strategy params (MAX_TRADE_BARS, daily/active-mode RSI, GDXU stop) to their `config.py`
-  source of truth, generalizing `invariant_sources`. A documented baseline records the one known
-  stale `CLAUDE.md` mention (`MAX_TRADE_BARS=20` vs config `8`) and fails on any *new* doc drift.
+## 14. Phase 3 scoping outcomes (explore pass — decisions for the owner)
+- **#8 note-capture — recommend a SEPARATE `tools/note.py`, not a `ctx` subcommand.** `ctx` advertises
+  *"Read-only: never writes"* (`tools/ctx.py:16`); a write verb would break that contract. `tools/note.py`
+  would `add`/`supersede` nodes in `RESEARCH_WEB.md` (freely writable — not deny-fenced) with: refuse-on-
+  `ctx web --lint`-failure, only-ever-write-`RESEARCH_WEB.md`, auto-assign next ID, atomic temp+rename,
+  and provenance auto-stamp via `_git()` (SHA/branch/date). **Owner decision: do we want agents to write
+  to the research web at all?**
+- **#9 confidence decay — feasible now (git ages are free) but modest value; minimal slice only.** Only 3
+  nodes carry `conf:` and none carry `at:`; `git log -S "### F13" -- RESEARCH_WEB.md` cheaply dates a node
+  (headers are immutable). Minimal slice: weight `ctx frontier` seeds by `eff_conf = conf × decay(age)` and
+  demote stale nodes. Defer the full framework until `conf:`/`at:` are populated (e.g. by #8).
+- **#10 `experiments.jsonl` ALREADY EXISTS** (5 records, appended by `sweep.py:1696`) but is **`.gitignore`d**
+  (line 8) — *correcting the earlier "does not exist" note*. `src/optimization/sweep_repro.py::data_fingerprint(df, requested_start, requested_end) -> dict`
+  (SHA256[:16] of the OHLCV) is real and reusable but **not yet in the record**. Remaining work: enrich the
+  record with `data_fingerprint`, add a read-only `ctx experiments` + freshness guard, and **un-ignore +
+  commit the ledger — gated on a secrets/PII audit + owner approval** (it's data, currently untracked by design).
+- **#11 embedding sidecar — recommend a stdlib TF-IDF sidecar (offline-precomputed, committed JSON) with a
+  `difflib` fallback, NOT a real model** (torch on ARM Pi is unviable; the venv must stay clean). ~6 hr.
+  Deferred: the typed graph + `ctx frontier` already cover safety-critical navigation; `ctx related` is a
+  nice-to-have semantic search, non-blocking.
