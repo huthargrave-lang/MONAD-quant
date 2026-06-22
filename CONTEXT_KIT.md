@@ -12,26 +12,42 @@
 
 | File | Role | Portable? |
 |---|---|---|
-| `tools/ctx.py` | **Engine** — all query/graph/traversal/drift logic. Repo-agnostic; reads the manifest. | **Generic** — copy as-is |
-| `tests/test_context_map.py`, `tests/test_research_web.py`, `tests/test_area_coverage.py` | **Anti-rot guards** — fail CI if the map drifts from the code/config. | **Generic** — copy as-is |
-| `context_map.json` | **Structural content** — areas, invariants→config bindings, param-claims, edit-policy, idea↔code bridges, routing. | **Repo-specific** — `ctx init` scaffolds it |
+| `tools/ctx.py` | **Engine** — query/graph/traversal/drift logic, manifest-driven. | **Mostly generic** — the query/navigate/map/guard/init layer is repo-agnostic; **~6 commands are wired to this repo** (see *Repo-wired commands* below) — trim or re-point them |
+| `tests/test_context_map.py`, `tests/test_research_web.py`, `tests/test_area_coverage.py` | **Anti-rot guards** — fail CI on drift. | **Templates** — keep the *patterns*; the concrete assertions (ports, golden NL queries, deny-paths) are repo-specific — **adapt, don't copy verbatim** |
+| `context_map.json` | **Structural content** — areas, invariants→config bindings, param-claims, edit-policy, idea↔code bridges, routing. | **Repo-specific** — `ctx init` scaffolds a skeleton; you fill it |
 | `RESEARCH_WEB.md` | **Idea content** — the F/H/E/D graph with typed `[[ID\|type]]` edges. | **Repo-specific** — starts empty |
 | `AGENT_INDEX.md` | The ≤1-screen L0 router agents read first. | Repo-specific, tiny |
 
-The split is the point: **one engine, two content files.** Everything trading-specific in this
-repo lives in the two content files; `tools/ctx.py` knows nothing about trading.
+**The genuinely repo-agnostic surface** (works on any repo right after `ctx init`):
+`route · where · usages · defs · tree · summary · covers · impact · map · tests · web · neighbors ·
+walk · why · contradicts · frontier · graph · health · init · brief · can_edit · reverts`.
+
+**Repo-wired commands** — wired to *this* repo; trim or re-point them when you lift the kit. They
+degrade gracefully (print "not present" / no-op) rather than crash, but do nothing useful until adapted:
+- `perf`, `events` — read this repo's `live/state.db` (`trades` / `monitor_events` schema).
+- `status` — shells out to `ops/status_check.sh`.
+- `config`, `audit` — assume a top-level `config.py` (+`config_modules/`); `audit`'s drift regex
+  targets the `TARGET_GAIN|STOP_LOSS|_PCT` param family — broaden it for your domain.
+- `impact`'s live-boundary verdict and `_redact` (IBKR account-id masking) are trading-specific;
+  `impact`'s blast-radius + covering-tests output is generic.
+
+So it is **not** "one engine, zero coupling" — it is a generic core plus a thin, clearly-listed
+repo-wired rim. Lifting the kit means filling the content files **and** trimming that rim.
 
 ## Lift it into another repo (≈5 minutes)
 
-1. Copy `tools/ctx.py` + the three `tests/test_*` guards.
+1. Copy `tools/ctx.py`; trim/re-point the *repo-wired commands* above for your domain.
 2. `python tools/ctx.py init --write` — introspects the source tree + import graph and writes a
    `context_map.json` skeleton (one area per top-level package) and an empty `RESEARCH_WEB.md`.
    It **never overwrites** an existing file.
-3. Fill in each area's one-line `summary` + `entrypoints`; add `invariants` you want CI-pinned to
-   their `config.KEY` source (the `invariant_sources` pattern); wire your CI to run the guards.
-4. `python tools/ctx.py health` — see the coverage score; triage any orphan module into an area.
-5. As you learn things, record them: append F/H/E/D nodes to `RESEARCH_WEB.md` with typed edges,
-   and add idea↔code `graph_bridges`. `ctx graph --html > map.html` for the visual.
+3. Fill in each area's `summary` + `entrypoints`; add real **routing keywords/synonyms** (the
+   scaffold seeds only the area name per rule — natural-language routing needs more); declare any
+   `invariants` you want CI-pinned to their `config.KEY` source (the `invariant_sources` pattern).
+4. Copy the three `tests/test_*` guards as **templates** and replace their repo-specific assertions
+   (this repo's ports/golden-queries/deny-paths) with yours; then wire CI to run them.
+5. `python tools/ctx.py health` (target high coverage / 0 orphan) and `ctx graph --html > map.html`
+   (the interactive map). As you learn things, append F/H/E/D nodes with typed edges + idea↔code
+   `graph_bridges`.
 
 ## Command surface
 

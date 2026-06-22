@@ -692,7 +692,11 @@ def cmd_perf(args):
         print("live/state.db not present.")
         return
     c = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
-    rows = c.execute("SELECT return_pct, exit_type FROM trades").fetchall()
+    try:
+        rows = c.execute("SELECT return_pct, exit_type FROM trades").fetchall()
+    except Exception as exc:
+        print(f"  no 'trades' table (this command expects this repo's live/state.db schema): {exc}")
+        return
     if not rows:
         print("  no trades recorded yet.")
         return
@@ -1035,7 +1039,12 @@ def build_graph(include_code=False):
             G[nid] = {"kind": kind, "title": title, "status": status}
             adj[nid] = []
 
+    seen_e = set()
+
     def add(a, b, t):
+        if (a, b, t) in seen_e:          # dedup (e.g. a symbol bridged by several findings)
+            return
+        seen_e.add((a, b, t))
         adj[a].append({"to": b, "type": t, "dir": "out"})
         adj[b].append({"to": a, "type": t, "dir": "in"})
 
@@ -1304,9 +1313,15 @@ def cmd_graph(args):
     edges = [{"from": a, "to": e["to"], "type": e["type"]}
              for a, es in adj.items() for e in es if e["dir"] == "out"]
     if getattr(args, "html", False):
-        comp = json.dumps(_graph_compact(G, adj), separators=(",", ":"))
-        proj = _manifest().get("project", "project")
-        print(_GRAPH_HTML.replace("__DATA__", comp).replace("__PROJECT__", proj))
+        def esc(s):  # HTML-escape so author-edited titles can't break out of <script> or inject via d3 .html()
+            return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        comp_obj = _graph_compact(G, adj)
+        for nd in comp_obj["n"]:
+            nd[3] = esc(nd[3])
+        comp = json.dumps(comp_obj, separators=(",", ":"))
+        proj = esc(_manifest().get("project", "project"))
+        # substitute __PROJECT__ first so a title literally containing it isn't clobbered
+        print(_GRAPH_HTML.replace("__PROJECT__", proj).replace("__DATA__", comp))
         return
     if getattr(args, "json", False):
         nodes = [{"id": nid, "kind": d["kind"], "title": d["title"][:120], "status": d["status"]}
@@ -1347,12 +1362,13 @@ def cmd_health(args):
     G, adj = build_graph(include_code=True)
     n_edges = sum(len(a) for a in adj.values()) // 2
     isolated = [nid for nid in G if not adj[nid]]
-    cov = len(mapped) / max(len(mods), 1)
+    guarded = [r for r in mods if r not in allow]   # allowlisted modules are intentionally unmapped
+    cov = len(mapped) / max(len(guarded), 1)
     score = 100 * (0.40 * cov + 0.20 * (not orphan) + 0.20 * (not dangling and not problems)
                    + 0.10 * (len(bridges) >= 8) + 0.10 * (len(isolated) < 0.2 * len(G)))
     bar = "█" * round(score / 5) + "░" * (20 - round(score / 5))
     print(f"CONTEXT HEALTH  {score:5.0f}/100  [{bar}]")
-    print(f"  code coverage : {len(mapped)}/{len(mods)} first-party modules in an area ({cov*100:.0f}%)"
+    print(f"  code coverage : {len(mapped)}/{len(guarded)} non-allowlisted modules in an area ({cov*100:.0f}%)"
           + (f"  ·  {len(orphan)} ORPHAN: {', '.join(orphan)}" if orphan else "  ·  0 orphan"))
     print(f"  idea web      : {len(nodes)} nodes ({len(sup)} superseded)  ·  {len(dangling)} dangling  ·  "
           f"{problems} stale-cite problem(s)  ·  {advisories} advisory")
@@ -1539,10 +1555,18 @@ def cmd_brief(args):
     """One-screen cold-start orientation packet (composed from the manifest + git +
     research web). Safety + honest-state first, then area/task, then a drill menu."""
     m = _manifest()
-    inv = m["invariants"]
-    print(f"{m['project']} @ {m['deploy_branch']} · PAPER ONLY · port {inv['api_port_paper']} "
-          f"(never {inv['api_port_live_forbidden']}) · {inv['active_symbol']}/{inv['active_mode']}")
-    print("INVARIANT: don't edit live trading/order/strategy logic without approval — `ctx can_edit <file>`\n")
+    inv = m.get("invariants", {})
+    head = f"{m.get('project', 'project')} @ {m.get('deploy_branch', '?')}"
+    if inv.get("paper_only"):              # repo-specific safety banner only when declared
+        head += f" · PAPER ONLY · port {inv.get('api_port_paper')} (never {inv.get('api_port_live_forbidden')})"
+    if inv.get("active_symbol") or inv.get("active_mode"):
+        head += f" · {inv.get('active_symbol', '')}{'/' + inv['active_mode'] if inv.get('active_mode') else ''}"
+    print(head)
+    fenced = [a for a, s in m.get("areas", {}).items() if s.get("do_not_touch_without_approval")]
+    if fenced:
+        print(f"INVARIANT: don't edit {', '.join(fenced)} without approval — `ctx can_edit <file>`\n")
+    else:
+        print("INVARIANT: respect do_not_touch_without_approval areas — `ctx can_edit <file>`\n")
     banner = _web_banner()
     if banner:
         print(f"HONEST STATE: {banner}\n  → run `ctx perf` · `ctx web --live`\n")
