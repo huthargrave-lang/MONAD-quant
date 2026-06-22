@@ -261,6 +261,52 @@ class TestFrontier(unittest.TestCase):
         small = self._run("edge stop exit regime", 120)
         self.assertLess(small.count("\n"), big.count("\n"))
 
+    def test_tiny_budget_still_keeps_corrections_and_seeds(self):
+        # review #4: a budget below the banner floor must NOT drop corrections/seeds.
+        out = self._run("is the edge real", budget=20)
+        node_lines = [l for l in out.splitlines() if l.startswith("  F") or l.startswith("  D")]
+        self.assertTrue(node_lines, "tiny budget dropped every node (corrections lost)")
+        self.assertIn("F13", out)  # the live reversal must survive
+
+    def test_live_reversal_outranks_dead_nodes_it_supersedes(self):
+        # review #5: when the query lands on a superseded topic, the LIVE correction
+        # (F13) must lead — not the dead F3/F4/F8 that F13 overturns.
+        out = self._run("is the edge real")
+        lines = [l.strip() for l in out.splitlines() if l.startswith("  F") or l.startswith("  D")]
+        f13_pos = next(i for i, l in enumerate(lines) if l.startswith("F13"))
+        for dead in ("F3", "F4", "F8"):
+            dead_pos = next((i for i, l in enumerate(lines) if l.startswith(dead + " ")), None)
+            if dead_pos is not None:
+                self.assertLess(f13_pos, dead_pos, f"dead {dead} ranked above the live reversal F13")
+
+
+class TestWhyProvenance(unittest.TestCase):
+    """Review fixes for ctx why (Context Web v2 #6): grounding must not be routed
+    backwards through supersedes/contradicts edges."""
+
+    def _why(self, node):
+        import contextlib
+        import io
+        import types
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ctx.cmd_why(types.SimpleNamespace(node=node))
+        return buf.getvalue()
+
+    def test_grounding_never_traverses_supersedes(self):
+        # review #1 (high): `why F13` must not present an overturned node's evidence
+        # as F13's grounding — i.e. no 'supersedes:'/'contradicts:' hop in the paths.
+        out = self._why("F13")
+        grounding = out.split("bears on")[0]
+        self.assertNotIn("supersedes:", grounding,
+                         "why routed grounding THROUGH a supersedes edge (backwards provenance)")
+        self.assertNotIn("contradicts:", grounding)
+
+    def test_grounding_reaches_real_experiments(self):
+        out = self._why("F13")
+        self.assertIn("E", out)  # F13 is still grounded in genuine experiments via non-supersession paths
+        self.assertIn("grounded in", out)
+
 
 if __name__ == "__main__":
     unittest.main()

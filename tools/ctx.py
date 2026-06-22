@@ -1118,20 +1118,26 @@ def cmd_why(args):
     if _g_missing(G, args.node):
         return
 
-    def paths_to(prefix, maxlen=4):
-        seen, q, found = {args.node}, [(args.node, [])], []
-        while q:
-            cur, path = q.pop(0)
+    def paths_to(prefix, maxlen=4, cap=8):
+        # One shortest provenance path per reachable endpoint of `prefix` (BFS →
+        # first path found is shortest). Per-path visited (not a global set) so a
+        # node reachable via several routes isn't suppressed. NEVER traverse a
+        # supersedes/contradicts edge — walking into an overturned node and
+        # harvesting ITS evidence would attribute a refuted claim's grounding to
+        # the node that reverses it (backwards provenance).
+        found, q = {}, [(args.node, [], frozenset([args.node]))]
+        while q and len(found) < cap:
+            cur, path, vis = q.pop(0)
             for e in adj.get(cur, []):
-                if e["dir"] != "out" or e["to"] in seen:
+                tgt = e["to"]
+                if e["dir"] != "out" or e["type"] in ("supersedes", "contradicts") or tgt in vis:
                     continue
-                seen.add(e["to"])
-                np = path + [(e["type"], e["to"])]
-                if e["to"][:1] == prefix and e["to"][1:2].isdigit():
-                    found.append(np)
+                np = path + [(e["type"], tgt)]
+                if tgt[:1] == prefix and tgt[1:2].isdigit():
+                    found.setdefault(tgt, np)            # keep first (shortest) per endpoint
                 elif len(np) < maxlen:
-                    q.append((e["to"], np))
-        return found
+                    q.append((tgt, np, vis | {tgt}))
+        return list(found.values())
 
     def fmt(p):
         return " → ".join(f"{t}:{tgt}" for t, tgt in p)
@@ -1139,10 +1145,10 @@ def cmd_why(args):
     print(f"why {_g_head(G, args.node)}")
     ev, dec = paths_to("E"), paths_to("D")
     print("  grounded in (experiments):")
-    print("\n".join(f"    {args.node} → {fmt(p)}" for p in ev[:5])
+    print("\n".join(f"    {args.node} → {fmt(p)}" for p in ev)
           or "    (no experiment reachable — unevidenced, or a pure hypothesis/decision)")
     print("  bears on (decisions):")
-    print("\n".join(f"    {args.node} → {fmt(p)}" for p in dec[:5]) or "    —")
+    print("\n".join(f"    {args.node} → {fmt(p)}" for p in dec) or "    —")
 
 
 def cmd_contradicts(args):
@@ -1209,12 +1215,17 @@ def cmd_frontier(args):
             for e in adj.get(nid, []):
                 act[e["to"]] = act.get(e["to"], 0.0) + a * _ACT_WEIGHT.get(e["type"], 0.4) * 0.5
 
+    # Corrections to force in = a CURRENT node that supersedes/contradicts a seed
+    # (the seed's `in` edge — "X overturns me"). Following the edge the other way
+    # would surface the DEAD nodes a live seed overturns, inverting the contract.
     forced = {e["to"] for s in seeds for e in adj.get(s, [])
-              if e["type"] in ("supersedes", "contradicts")}
+              if e["type"] in ("supersedes", "contradicts") and e["dir"] == "in"
+              and G.get(e["to"], {}).get("status", "current") == "current"}
     mx = max(act.values())
     # keep seeds + forced corrections + anything activated above a relevance floor;
     # drop the faintly-trickled tail so the packet is task-shaped, not the whole web.
     keep = {nid for nid in act if nid in seeds or nid in forced or act[nid] >= 0.18 * mx}
+    must = forced | set(seeds)               # corrections + matched seeds always make the cut
     order = sorted(keep, key=lambda k: (k not in forced, -act.get(k, 0.0)))  # corrections first
 
     def stub(nid):
@@ -1230,7 +1241,7 @@ def cmd_frontier(args):
             continue
         s = stub(nid)
         cost = len(s) // 4 + 1
-        if used + cost <= budget:
+        if nid in must or used + cost <= budget:   # never drop a correction/seed to budget
             packed.append(s)
             used += cost
         else:
@@ -1239,7 +1250,7 @@ def cmd_frontier(args):
     print(f'frontier("{task}") — {len(seeds)} seed(s), budget {budget} tok:')
     if banner:
         print(f"HONEST STATE: {banner}")
-    print("nodes (activation-ranked; supersedes/contradicts pulled in first):")
+    print("nodes (activation-ranked; live corrections + seeds first):")
     for s in packed:
         print(s)
     if overflow:
@@ -1252,14 +1263,15 @@ def _web_banner():
     if not os.path.exists(WEB):
         return ""
     out, grabbing = [], False
-    for line in open(WEB):
-        if "⚠" in line and line.lstrip().startswith(">"):
-            grabbing = True
-        if grabbing:
-            if line.lstrip().startswith(">"):
-                out.append(line.lstrip("> ").rstrip())
-            else:
-                break
+    with open(WEB) as fh:
+        for line in fh:
+            if "⚠" in line and line.lstrip().startswith(">"):
+                grabbing = True
+            if grabbing:
+                if line.lstrip().startswith(">"):
+                    out.append(line.lstrip("> ").rstrip())
+                else:
+                    break
     return " ".join(out)[:420]
 
 
