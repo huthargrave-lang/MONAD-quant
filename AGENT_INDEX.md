@@ -26,6 +26,7 @@ venv/bin/python tools/ctx.py contradicts <node>    # what overturns this node / 
 venv/bin/python tools/ctx.py frontier "<task>" [--budget N]  # task-shaped packet: seeds + corrections, not a fixed summary
 venv/bin/python tools/ctx.py graph [--json|--html]  # the whole unified map (idea web ∪ code graph); --html = interactive browser map
 venv/bin/python tools/ctx.py health                # context-map health score: coverage + freshness + bridge/lint integrity
+venv/bin/python tools/ctx.py related <node|query>  # semantic search: nodes most similar to a node or free-text (TF-IDF)
 venv/bin/python tools/ctx.py init [--write]        # scaffold the context layer for a fresh repo (the kit's portability entrypoint)
 venv/bin/python tools/note.py add --kind F --title "..." --body "..." [--link ID:type] [--commit]   # capture a finding into the web (dry-run by default)
 venv/bin/python tools/note.py supersede <OLD> --by <NEW> [--reason <code>] [--commit]   # mark a node superseded (write-fenced, lint-gated)

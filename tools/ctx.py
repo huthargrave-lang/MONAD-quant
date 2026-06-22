@@ -1534,6 +1534,85 @@ def cmd_frontier(args):
     print("drill: ctx web <node> · ctx why <node> · ctx neighbors <node> · ctx impact <symbol>")
 
 
+# ── Semantic search over the idea web (Context Web v2 #11) ───────────────────
+# Pure-stdlib TF-IDF + cosine over the (small) research web, computed at query
+# time — no model, no committed sidecar, so it can never go stale. Complements
+# keyword `route` and graph `frontier` with content-similarity: "what's like this?"
+
+def _doc_terms(text):
+    """Stemmed, stopworded content tokens (with repeats, for term frequency)."""
+    return [_stem(t) for t in re.findall(r"[a-z0-9]+", text.lower())
+            if len(t) >= 3 and t not in _FRONTIER_STOPWORDS]
+
+
+def _tfidf(nodes):
+    """Return ({id: {term: tfidf}}, idf) over node title (×3 weight) + body."""
+    import math
+    from collections import Counter
+    docterms = {nid: _doc_terms((n["title"] + " ") * 3 + n["body"]) for nid, n in nodes.items()}
+    df = Counter()
+    for terms in docterms.values():
+        df.update(set(terms))
+    n = len(nodes) or 1
+    idf = {t: math.log((1 + n) / (1 + d)) + 1 for t, d in df.items()}
+    vecs = {}
+    for nid, terms in docterms.items():
+        tf = Counter(terms)
+        vecs[nid] = {t: (c / len(terms)) * idf[t] for t, c in tf.items()} if terms else {}
+    return vecs, idf
+
+
+def _cos(a, b):
+    import math
+    if not a or not b:
+        return 0.0
+    dot = sum(w * b.get(t, 0.0) for t, w in a.items())
+    na = math.sqrt(sum(w * w for w in a.values()))
+    nb = math.sqrt(sum(w * w for w in b.values()))
+    return dot / (na * nb) if na and nb else 0.0
+
+
+def cmd_related(args):
+    """Nodes most similar to a node id or a free-text query (TF-IDF cosine over
+    the research web). Content-similarity, complementing `route`/`frontier`."""
+    from collections import Counter
+    nodes, rev = _parse_web()
+    if not nodes:
+        print("RESEARCH_WEB.md not found or empty.")
+        return
+    vecs, idf = _tfidf(nodes)
+    q = " ".join(args.query)
+    if q in nodes:
+        qvec, qid = vecs[q], q
+        print(f"related to {q} — {nodes[q]['title'][:60]}:")
+    else:
+        terms = _doc_terms(q)
+        tf = Counter(terms)
+        qvec = {t: (c / len(terms)) * idf.get(t, 0.0) for t, c in tf.items()} if terms else {}
+        qid = None
+        print(f'related to "{q}":')
+    scored = sorted(((nid, _cos(qvec, v)) for nid, v in vecs.items() if nid != qid),
+                    key=lambda kv: -kv[1])
+    scored = [(nid, s) for nid, s in scored if s > 0.01][:args.top]
+    if not scored:                              # graceful fallback: difflib on titles
+        import difflib
+        t2id = {n["title"].lower(): nid for nid, n in nodes.items()}
+        near = difflib.get_close_matches(q.lower(), list(t2id), n=args.top, cutoff=0.3)
+        if near:
+            print("  (no TF-IDF overlap — nearest titles)")
+            for title in near:
+                nid = t2id[title]
+                print(f"  {nid:<4}      {nodes[nid]['title'][:64]}")
+        else:
+            print("  (no match — try `ctx web` to browse, or `ctx frontier`)")
+        return
+    for nid, s in scored:
+        meta = _node_meta(nodes[nid])
+        tag = f" [{meta['status']}]" if meta["status"] != "current" else ""
+        print(f"  {nid:<4} {s:4.2f}{tag}  {nodes[nid]['title'][:62]}")
+    print("  drill: ctx web <node> · ctx why <node> · ctx neighbors <node>")
+
+
 def _web_banner():
     """The first ⚠ blockquote of RESEARCH_WEB.md (the honest-state correction)."""
     if not os.path.exists(WEB):
@@ -1655,6 +1734,8 @@ def main():
     sp.add_argument("--ideas-only", action="store_true", help="drop the auto-extracted code layer")
     sp.set_defaults(fn=cmd_graph)
     sub.add_parser("health").set_defaults(fn=cmd_health)
+    sp = sub.add_parser("related"); sp.add_argument("query", nargs="+")
+    sp.add_argument("--top", type=int, default=6); sp.set_defaults(fn=cmd_related)
     sp = sub.add_parser("init"); sp.add_argument("--write", action="store_true",
         help="create context_map.json + RESEARCH_WEB.md (never overwrites)")
     sp.set_defaults(fn=cmd_init)
@@ -1663,7 +1744,7 @@ def main():
         # default: print the index summary
         cmd_map(argparse.Namespace(area=None))
         print("\nUsage: ctx {route|where|usages|defs|tree|summary|covers|impact|schema|config|perf|audit|"
-              "status|recent|map|tests|brief|web|neighbors|walk|why|contradicts|frontier|graph|health|init}")
+              "status|recent|map|tests|brief|web|neighbors|walk|why|contradicts|frontier|graph|health|related|init}")
         return
     args.fn(args)
 

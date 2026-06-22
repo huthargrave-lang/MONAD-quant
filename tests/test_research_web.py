@@ -280,6 +280,41 @@ class TestFrontier(unittest.TestCase):
                 self.assertLess(f13_pos, dead_pos, f"dead {dead} ranked above the live reversal F13")
 
 
+class TestRelated(unittest.TestCase):
+    """Context Web v2 #11 — TF-IDF semantic search over the real web."""
+
+    def _run(self, query, top=6):
+        import contextlib
+        import io
+        import types
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ctx.cmd_related(types.SimpleNamespace(query=query.split(), top=top))
+        return buf.getvalue()
+
+    def test_related_node_surfaces_its_cluster_and_excludes_self(self):
+        out = self._run("F13")           # the morning-data / sampling-artifact reversal
+        self.assertNotRegex(out, r"^\s*F13\s", )    # never returns the query node itself
+        # at least one of the morning-data / bar-frequency cluster ranks
+        self.assertTrue(any(n in out for n in ("F10", "F12", "F14", "F15", "H5")))
+
+    def test_free_text_query_ranks_relevant_nodes(self):
+        out = self._run("exit horizon stop mean reversion")
+        self.assertTrue("F17" in out or "F19" in out)   # the exit-mechanism findings
+
+    def test_cosine_is_symmetric_and_bounded(self):
+        a = {"x": 1.0, "y": 2.0}
+        b = {"y": 1.0, "z": 3.0}
+        self.assertAlmostEqual(ctx._cos(a, b), ctx._cos(b, a))
+        self.assertLessEqual(ctx._cos(a, a), 1.0 + 1e-9)
+        self.assertAlmostEqual(ctx._cos(a, a), 1.0)
+        self.assertEqual(ctx._cos(a, {}), 0.0)          # empty vector → 0, no div-by-zero
+
+    def test_nonsense_query_degrades_gracefully(self):
+        out = self._run("zzqqx nonsense xyzzy")
+        self.assertIn("no", out.lower())                 # fallback / no-match message, no crash
+
+
 class TestWhyProvenance(unittest.TestCase):
     """Review fixes for ctx why (Context Web v2 #6): grounding must not be routed
     backwards through supersedes/contradicts edges."""

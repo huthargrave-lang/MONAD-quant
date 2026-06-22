@@ -296,6 +296,7 @@
     {"cmd": "ctx frontier \"<task>\" [--budget N]", "returns": "task-shaped progressive-disclosure packet: honest-state spine + activation-ranked idea-graph nodes (corrections pulled in first), budget-bounded — not a fixed summary"},
     {"cmd": "ctx graph [--json|--html] [--ideas-only]", "returns": "the whole unified context map (research web + idea↔code bridges + auto-extracted code graph); --json = machine-readable, --html = self-contained interactive force-graph (open in a browser)"},
     {"cmd": "ctx health", "returns": "context-map health score: code coverage (modules in an area), idea-graph freshness (superseded/dangling/stale-cites), bridge + lint integrity"},
+    {"cmd": "ctx related <node|query> [--top N]", "returns": "semantic search over the research web: nodes most similar to a node id or free-text query (pure-stdlib TF-IDF cosine, computed at query time), with a difflib title fallback"},
     {"cmd": "ctx init [--write]", "returns": "scaffold a starter context layer for ANY repo (discovers areas + code graph → context_map.json + RESEARCH_WEB.md skeleton); dry-run unless --write, never overwrites — the kit's portability entrypoint"},
     {"cmd": "bash ops/status_check.sh", "returns": "system + gateway + trader + data freshness"},
     {"cmd": "venv/bin/python tools/diagnose_brackets.py", "returns": "IBKR connection + positions + brackets (read-only)"}
