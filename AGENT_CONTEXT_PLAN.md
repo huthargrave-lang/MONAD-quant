@@ -289,7 +289,7 @@ graph is one the next agent will re-derive.*
 | 5 | `graph_bridges` (idea↔code) + CI target check (~15 curated rows) | tiny | **2 ✅** |
 | 6 | Unified `build_graph()` + traversal verbs (`walk`, `why`, `contradicts`, `neighbors`) | ~200 LOC | **2 ✅** |
 | 7 | `ctx frontier` — spreading activation + budget packer | ~120 LOC | **2 ✅** |
-| 8 | note-capture (`add`/`supersede`) + self-capture convention | ~250 LOC | 3 (scoped) |
+| 8 | note-capture (`add`/`supersede`) + self-capture convention | ~250 LOC | **✅ built** (`tools/note.py`) |
 | 9 | Confidence decay + confidence-weighted `ctx brief/route/frontier` | ~80 LOC | 3 (scoped) |
 | 10 | `experiments.jsonl` ledger commit + CI freshness guard | ~50 LOC | 3 (scoped) |
 | 11 | (optional) Embedding/TF-IDF sidecar (offline precompute, `ctx related`) | ~6 hr | deferred (scoped) |
@@ -304,12 +304,12 @@ substring match); `graph_bridges` idea↔code edges (so `ctx impact compute_trad
 activation packet (corrections pulled in first, budget-bounded). All stdlib, read-only, no new venv dep.
 
 ## 14. Phase 3 scoping outcomes (explore pass — decisions for the owner)
-- **#8 note-capture — recommend a SEPARATE `tools/note.py`, not a `ctx` subcommand.** `ctx` advertises
-  *"Read-only: never writes"* (`tools/ctx.py:16`); a write verb would break that contract. `tools/note.py`
-  would `add`/`supersede` nodes in `RESEARCH_WEB.md` (freely writable — not deny-fenced) with: refuse-on-
-  `ctx web --lint`-failure, only-ever-write-`RESEARCH_WEB.md`, auto-assign next ID, atomic temp+rename,
-  and provenance auto-stamp via `_git()` (SHA/branch/date). **Owner decision: do we want agents to write
-  to the research web at all?**
+- **#8 note-capture — ✅ BUILT as a separate `tools/note.py`** (keeps `ctx` read-only). `add`/`supersede`
+  the research web, write-fenced to `RESEARCH_WEB.md` (realpath identity + deny-policy reuse, fail-closed),
+  atomic (temp + `os.replace`) under an exclusive `flock`, dry-run by default, and it refuses unless the
+  result re-parses + passes the same lint as `ctx web --lint`. Auto-IDs, provenance-stamped, never commits.
+  Designed against a fan-out pre-mortem and adversarially verified (2 minor fixes applied). Self-capture
+  convention added to `AGENTS.md` + `AGENT_INDEX.md`.
 - **#9 confidence decay — feasible now (git ages are free) but modest value; minimal slice only.** Only 3
   nodes carry `conf:` and none carry `at:`; `git log -S "### F13" -- RESEARCH_WEB.md` cheaply dates a node
   (headers are immutable). Minimal slice: weight `ctx frontier` seeds by `eff_conf = conf × decay(age)` and
