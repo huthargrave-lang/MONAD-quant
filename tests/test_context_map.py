@@ -114,7 +114,9 @@ class TestParamClaims(unittest.TestCase):
         import re
         bound = {c["source"].split(".", 1)[1] for c in self.claims}
         drift = set()
-        for doc in ("CLAUDE.md", "AGENTS.md"):
+        # docs/history/MODEL_HISTORY.md carries live `KEY = value` snapshots too;
+        # the guard would otherwise miss drift there (review finding #6).
+        for doc in ("CLAUDE.md", "AGENTS.md", os.path.join("docs", "history", "MODEL_HISTORY.md")):
             p = os.path.join(REPO, doc)
             if not os.path.exists(p):
                 continue
