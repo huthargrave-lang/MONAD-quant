@@ -223,7 +223,7 @@ Result: 5yr improved from 10.55% → 11.05%, Sharpe 4.844 → 4.924.
 | **REQUIRE_SIGNALS=1 not 2** | ~25 trades/5yr | 83 trades/5yr | Two-signal agreement too restrictive; regime does filtering |
 | **30% STRONG_BULL cap** | Kelly×1.5 truncated at 20% | Kelly×1.5 deploys to 27% | Fixed truncation bug — regime mult now actually works |
 | **3% target (not 5%)** | WR 68.8% | WR 68.8% maintained | STRONG_BULL dips recover 3-4%; 5% overshoot → reversal |
-| **MAX_TRADE_BARS=20** | Stale trades | Cleaner exits | 4-week max hold — mean-reversion should resolve in 4wks |
+| **MAX_TRADE_BARS time-exit** | Stale trades | Cleaner exits | Bounded max hold forces stale mean-reversion trades out; later tightened from 20 (≈4wk) to **8 bars** (≈1.5wk) — source of truth is config.py:71 |
 
 ---
 

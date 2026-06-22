@@ -66,12 +66,13 @@ class TestParamClaims(unittest.TestCase):
     """Context Web v2 #4 — drift-prone strategy params bound to their config.py
     source of truth (generalizes invariant_sources), plus doc-prose drift."""
 
-    # Accepted, baselined doc drift: (doc, KEY, stated_value). CLAUDE.md §6 records
-    # a historical MAX_TRADE_BARS=20 while config is 8 — rewriting that strategy-
-    # history prose (the "4-week" rationale changes too) is a judgment call, so it
-    # is surfaced and baselined, not silently edited. The test self-cleans: once the
-    # doc is reconciled, remove the entry (a stale baseline fails the test).
-    KNOWN_DOC_PARAM_DRIFT = {("CLAUDE.md", "MAX_TRADE_BARS", "20")}
+    # Accepted, baselined doc drift: (doc, KEY, stated_value). Add an entry here
+    # only when a doc deliberately states a historical/illustrative param value that
+    # differs from config and rewriting the prose is a judgment call. The test
+    # self-cleans: once a doc is reconciled, the matching baseline entry must be
+    # removed (a stale baseline fails the test). Currently empty — the prior
+    # MAX_TRADE_BARS=20 drift in CLAUDE.md §6 was reconciled to point at config.py:71.
+    KNOWN_DOC_PARAM_DRIFT = set()
 
     def setUp(self):
         sys.path.insert(0, REPO)
