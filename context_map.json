@@ -5,7 +5,7 @@
   "context_docs": {
     "strategy_why": ["CLAUDE.md", "AGENTS.md"],
     "live_ops_how": ["OPERATIONS.md", "ops/README.md"],
-    "navigation": ["AGENT_INDEX.md", "AGENT_CONTEXT_PLAN.md"],
+    "navigation": ["AGENT_INDEX.md", "AGENT_CONTEXT_PLAN.md", "CONTEXT_KIT.md"],
     "roadmap": ["IMPROVEMENT_PLAN.md"],
     "research_idea_web": ["RESEARCH_WEB.md"]
   },
@@ -295,6 +295,7 @@
     {"cmd": "ctx frontier \"<task>\" [--budget N]", "returns": "task-shaped progressive-disclosure packet: honest-state spine + activation-ranked idea-graph nodes (corrections pulled in first), budget-bounded — not a fixed summary"},
     {"cmd": "ctx graph [--json|--html] [--ideas-only]", "returns": "the whole unified context map (research web + idea↔code bridges + auto-extracted code graph); --json = machine-readable, --html = self-contained interactive force-graph (open in a browser)"},
     {"cmd": "ctx health", "returns": "context-map health score: code coverage (modules in an area), idea-graph freshness (superseded/dangling/stale-cites), bridge + lint integrity"},
+    {"cmd": "ctx init [--write]", "returns": "scaffold a starter context layer for ANY repo (discovers areas + code graph → context_map.json + RESEARCH_WEB.md skeleton); dry-run unless --write, never overwrites — the kit's portability entrypoint"},
     {"cmd": "bash ops/status_check.sh", "returns": "system + gateway + trader + data freshness"},
     {"cmd": "venv/bin/python tools/diagnose_brackets.py", "returns": "IBKR connection + positions + brackets (read-only)"}
   ],

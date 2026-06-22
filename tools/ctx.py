@@ -1362,6 +1362,68 @@ def cmd_health(args):
         print("  → triage each orphan into an area, or add to coverage_allowlist with a reason")
 
 
+def cmd_init(args):
+    """Scaffold a starter context layer for ANY repo (the kit is repo-agnostic):
+    discover areas from the source tree + code graph, emit a context_map.json
+    skeleton + a RESEARCH_WEB.md stub. Dry-run by default; `--write` creates the
+    files and NEVER overwrites an existing one."""
+    import collections
+    mods = sorted(os.path.relpath(p, REPO) for p in _iter_py(REPO))
+    by_top, tests = collections.defaultdict(list), []
+    for rel in mods:
+        if rel.startswith("tests" + os.sep) or os.path.basename(rel).startswith("test_"):
+            tests.append(rel)
+            continue
+        by_top[rel.split(os.sep)[0]].append(rel)
+    areas = {}
+    for top, files in sorted(by_top.items()):
+        name = top[:-3] if top.endswith(".py") else top
+        areas[name] = {"summary": "TODO: one line on what this area does",
+                       "files": files, "entrypoints": [], "tests": [], "docs": [],
+                       "do_not_touch_without_approval": False}
+    project = os.path.basename(REPO.rstrip(os.sep))
+    branch = _git("rev-parse", "--abbrev-ref", "HEAD") or "main"
+    manifest = {
+        "_README": "Context manifest scaffolded by `ctx init` — fill in summaries/entrypoints/"
+                   "invariants and add the anti-rot tests (see CONTEXT_KIT.md).",
+        "project": project, "deploy_branch": branch,
+        "context_docs": {"navigation": ["AGENT_INDEX.md", "CONTEXT_KIT.md"],
+                         "research_idea_web": ["RESEARCH_WEB.md"]},
+        "invariants": {}, "invariant_sources": {}, "param_claims": {"claims": []},
+        "graph_bridges": {"bridges": []}, "areas": areas,
+        "routing": [{"keywords": [a], "read": areas[a]["files"][:3], "run": [], "avoid": []}
+                    for a in areas],
+        "coverage_allowlist": {"modules": [m for m in mods if os.path.basename(m) == "__init__.py"]
+                               + ["tools/ctx.py"]},
+        "edit_policy": {"deny": [".env", "*.db", "*.sqlite", "*.sqlite3"], "warn": [], "allow_default": True},
+        "routing_synonyms": {}, "facts": {},
+        "tools_readonly": [{"cmd": "ctx " + c, "returns": ""}
+                           for c in ("route", "where", "impact", "graph", "health", "web", "brief")],
+    }
+    web = (f"# {project} — Research Idea Web\n\n> Findings / Hypotheses / Experiments / Decisions; "
+           "link with [[ID]] or [[ID|type]].\n> Walk with `ctx web`; visualize with `ctx graph --html`.\n\n"
+           "## Findings\n\n## Hypotheses\n\n## Experiments\n\n## Decisions / Gates\n")
+    print(f"# ctx init — scaffold for '{project}' @ {branch}")
+    print(f"#   discovered {len(areas)} area(s): {', '.join(areas)}")
+    print(f"#   {len(mods)} first-party module(s), {len(tests)} test file(s)")
+    targets = [("context_map.json", json.dumps(manifest, indent=2)), ("RESEARCH_WEB.md", web)]
+    if getattr(args, "write", False):
+        for fn, content in targets:
+            p = os.path.join(REPO, fn)
+            if os.path.exists(p):
+                print(f"#   SKIP {fn} (exists — never overwritten)")
+                continue
+            with open(p, "w") as f:
+                f.write(content)
+            print(f"#   WROTE {fn}")
+        print("#   next: fill in summaries/invariants, copy the tests/ guards, run `ctx health`")
+    else:
+        print("#   (dry run — re-run with --write to create these; existing files are never overwritten)\n")
+        print("# ===== context_map.json =====")
+        print(targets[0][1])
+        print("\n# ===== RESEARCH_WEB.md =====\n" + targets[1][1])
+
+
 # Edge weights for spreading activation — corrections (supersedes/contradicts)
 # spread hardest, so a task near a stale claim pulls the reversal into context.
 _ACT_WEIGHT = {
@@ -1569,12 +1631,15 @@ def main():
     sp.add_argument("--ideas-only", action="store_true", help="drop the auto-extracted code layer")
     sp.set_defaults(fn=cmd_graph)
     sub.add_parser("health").set_defaults(fn=cmd_health)
+    sp = sub.add_parser("init"); sp.add_argument("--write", action="store_true",
+        help="create context_map.json + RESEARCH_WEB.md (never overwrites)")
+    sp.set_defaults(fn=cmd_init)
     args = p.parse_args()
     if not getattr(args, "fn", None):
         # default: print the index summary
         cmd_map(argparse.Namespace(area=None))
-        print("\nUsage: ctx {route|where|usages|defs|tree|summary|covers|impact|schema|config|perf|"
-              "audit|status|recent|map|tests|brief|web|neighbors|walk|why|contradicts|frontier|graph|health}")
+        print("\nUsage: ctx {route|where|usages|defs|tree|summary|covers|impact|schema|config|perf|audit|"
+              "status|recent|map|tests|brief|web|neighbors|walk|why|contradicts|frontier|graph|health|init}")
         return
     args.fn(args)
 
