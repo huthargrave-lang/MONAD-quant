@@ -92,7 +92,10 @@
        "note": "vol-targeted sizing beat both fixed-Kelly and adaptive-Kelly on Sharpe; equal-weight beat 'smart' weighting."},
       {"node": "D5", "relation": "gated_by",
        "code": ["config.ACTIVE_MODE", "src/strategy/engine.py::compute_trade_returns"],
-       "note": "recommended build = daily-MR + horizon exit + vol-target on un-leveraged equities; changing mode/exit needs sign-off (armed path)."}
+       "note": "recommended build = daily-MR + horizon exit + vol-target on un-leveraged equities; changing mode/exit needs sign-off (armed path)."},
+      {"node": "D6", "relation": "gated_by",
+       "code": ["config.ACTIVE_MODE"],
+       "note": "go/no-go verdict: the active engine shows no demonstrated advantage over a static blend — recommend a static allocation; changing the live mode needs sign-off."}
     ]
   },
 
