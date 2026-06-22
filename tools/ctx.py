@@ -596,6 +596,64 @@ def cmd_config(args):
                     print(f"    set at {sub}:{i}: {line.strip()[:90]}")
 
 
+# ── KA9: config comment-vs-value drift audit (Context Web v2, Layer 2) ───────
+# A param like `STOP_LOSS_PCT_X = 0.0050  # 1.50% stop` silently lies when the
+# value and its percent-comment disagree (here 0.50% vs the stated 1.50%). The
+# structure guards (test_context_map) can't see it — it's *content* drift. This
+# parses module-level `NAME = <num>  # <num>% ...` lines in the target/stop/PCT
+# family and flags any where the comment's FIRST percent != value×100.
+
+_PCT_PARAM_RX = re.compile(r"TARGET_GAIN|STOP_LOSS|_PCT")
+_CFG_ASSIGN_RX = re.compile(
+    r"^(?P<key>[A-Z_][A-Z0-9_]*)\s*=\s*(?P<val>-?\d+\.?\d*)\s*#\s*(?P<comment>.*\S)\s*$")
+_FIRST_PCT_RX = re.compile(r"(\d+(?:\.\d+)?)\s*%")
+
+
+def config_comment_drift(path=None, tol=0.005):
+    """Percent-annotated config params whose inline comment disagrees with the
+    value. Scans module-level `NAME = <num>  # <num>% ...` lines in the
+    target/stop/PCT family; flags when the comment's FIRST percent != value×100.
+    Read-only. Returns [{key, line, value, value_pct, comment_pct, comment}]."""
+    path = path or os.path.join(REPO, "config.py")
+    out = []
+    try:
+        lines = open(path, errors="ignore").read().splitlines()
+    except OSError:
+        return out
+    for i, line in enumerate(lines, 1):
+        m = _CFG_ASSIGN_RX.match(line)
+        if not m or not _PCT_PARAM_RX.search(m.group("key")):
+            continue
+        pm = _FIRST_PCT_RX.search(m.group("comment"))
+        if not pm:
+            continue  # no percent claimed in the comment — nothing to check
+        value_pct = float(m.group("val")) * 100
+        comment_pct = float(pm.group(1))
+        if abs(value_pct - comment_pct) > tol:
+            out.append({"key": m.group("key"), "line": i, "value": float(m.group("val")),
+                        "value_pct": round(value_pct, 4), "comment_pct": comment_pct,
+                        "comment": m.group("comment")})
+    return out
+
+
+def cmd_audit(args):
+    """Content drift the structure guards can't see: config params whose inline
+    %-comment disagrees with the value (e.g. `= 0.0050  # 1.50% stop` → 0.50%).
+    Exit 1 if any drift (scriptable/CI-able), 0 if clean."""
+    drift = config_comment_drift()
+    if not drift:
+        print("  ✓ config.py: no comment-vs-value drift in target/stop/PCT params")
+        return
+    print(f"  ⚠ {len(drift)} config.py comment-vs-value mismatch(es) (comment % ≠ value×100):")
+    for d in drift:
+        print(f"    config.py:{d['line']}  {d['key']} = {d['value']} "
+              f"→ value is {d['value_pct']:.2f}% but the comment says {d['comment_pct']:.2f}%")
+        print(f"        # {d['comment'][:90]}")
+    print("  (config.py is on the edit deny-fence — fixing a comment needs sign-off + the "
+          "trader stopped; `ctx can_edit config.py`)")
+    sys.exit(1)
+
+
 def _compound(returns):
     e = 1.0
     for r in returns:
@@ -838,6 +896,7 @@ def main():
     sub.add_parser("schema").set_defaults(fn=cmd_schema)
     sp = sub.add_parser("config"); sp.add_argument("key"); sp.set_defaults(fn=cmd_config)
     sp = sub.add_parser("perf"); sp.set_defaults(fn=cmd_perf)
+    sub.add_parser("audit").set_defaults(fn=cmd_audit)
     sub.add_parser("status").set_defaults(fn=cmd_status)
     sp = sub.add_parser("recent"); sp.add_argument("n", nargs="?", type=int, default=10); sp.set_defaults(fn=cmd_recent)
     sp = sub.add_parser("map"); sp.add_argument("area", nargs="?"); sp.set_defaults(fn=cmd_map)
@@ -851,7 +910,7 @@ def main():
         # default: print the index summary
         cmd_map(argparse.Namespace(area=None))
         print("\nUsage: ctx {route|where|usages|defs|tree|summary|covers|impact|"
-              "schema|config|perf|status|recent|map|tests|brief|web}")
+              "schema|config|perf|audit|status|recent|map|tests|brief|web}")
         return
     args.fn(args)
 

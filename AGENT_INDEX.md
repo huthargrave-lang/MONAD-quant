@@ -14,6 +14,7 @@ venv/bin/python tools/ctx.py covers <symbol>       # which test(s) exercise a sy
 venv/bin/python tools/ctx.py schema                # state.db tables/columns/counts
 venv/bin/python tools/ctx.py config <KEY>          # a config value + where it's set
 venv/bin/python tools/ctx.py perf                  # headline + the HONEST confirmed-fill edge
+venv/bin/python tools/ctx.py audit                 # content drift: config %-comments that disagree with the value
 venv/bin/python tools/ctx.py status                # live deploy/runtime state
 venv/bin/python tools/ctx.py recent [N]            # recent commits + changed files
 venv/bin/python tools/ctx.py map [area]            # the manifest (or one area)
