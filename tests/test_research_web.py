@@ -191,5 +191,43 @@ class TestStructuredStatus(unittest.TestCase):
                 self.assertIn(m["reason"], ctx.REASON_CODES, f"{nid} bad reason {m['reason']!r}")
 
 
+class TestUnifiedGraph(unittest.TestCase):
+    """Context Web v2 #6 — one walkable graph over research nodes ∪ idea↔code
+    bridges, with directed typed adjacency."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.G, cls.adj = ctx.build_graph()
+
+    def test_research_and_code_nodes_share_one_namespace(self):
+        self.assertIn("F17", self.G)
+        self.assertEqual(self.G["F17"]["kind"], "F")
+        # F17's bridge to compute_trade_returns is a 'code:' pseudo-node in the graph.
+        self.assertIn("code:src/strategy/engine.py::compute_trade_returns", self.G)
+        self.assertIn("cfg:STOP_LOSS_PCT_TQQQ_HOURLY", self.G)
+
+    def test_edges_are_bidirectional(self):
+        # every out-edge has a matching in-edge on the target (so traversal works both ways).
+        for nid, edges in self.adj.items():
+            for e in edges:
+                if e["dir"] != "out":
+                    continue
+                self.assertTrue(
+                    any(b["to"] == nid and b["type"] == e["type"] and b["dir"] == "in"
+                        for b in self.adj[e["to"]]),
+                    f"missing reverse edge for {nid} --{e['type']}--> {e['to']}")
+
+    def test_bridge_edge_present_from_finding_to_code(self):
+        outs = [(e["type"], e["to"]) for e in self.adj["F17"] if e["dir"] == "out"]
+        self.assertIn(("concerns", "code:src/strategy/engine.py::compute_trade_returns"), outs)
+
+    def test_supersession_is_walkable_both_directions(self):
+        # F13 supersedes F3; the reverse (F3 superseded-by F13) must be reachable.
+        f13_out = [e["to"] for e in self.adj["F13"] if e["dir"] == "out" and e["type"] == "supersedes"]
+        self.assertIn("F3", f13_out)
+        f3_in = [e["to"] for e in self.adj["F3"] if e["dir"] == "in" and e["type"] == "supersedes"]
+        self.assertIn("F13", f3_in)
+
+
 if __name__ == "__main__":
     unittest.main()

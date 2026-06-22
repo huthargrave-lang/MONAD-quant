@@ -275,6 +275,10 @@
     {"cmd": "ctx brief [area] [--task ...]", "returns": "one-screen cold-start orientation packet (invariants + honest-state + area + task-route + recent); the recommended FIRST call"},
     {"cmd": "ctx reverts [area]", "returns": "what we already tried and abandoned, mined from git (a self-maintaining 'What Failed')"},
     {"cmd": "ctx web [node] [--live] [--lint]", "returns": "traverse the research idea web; --live hides superseded nodes; --lint checks graph integrity"},
+    {"cmd": "ctx neighbors <node>", "returns": "unified idea-graph neighbors (research nodes + idea↔code bridges), grouped by edge type and direction"},
+    {"cmd": "ctx walk <node> [--edge T] [--depth N]", "returns": "BFS the unified idea graph from a node along out-edges (optionally one edge type, e.g. a supersedes chain)"},
+    {"cmd": "ctx why <node>", "returns": "the node's grounding experiments + the decisions it bears on (provenance path, not a summary)"},
+    {"cmd": "ctx contradicts <node>", "returns": "what supersedes/contradicts a node and what it overturns"},
     {"cmd": "bash ops/status_check.sh", "returns": "system + gateway + trader + data freshness"},
     {"cmd": "venv/bin/python tools/diagnose_brackets.py", "returns": "IBKR connection + positions + brackets (read-only)"}
   ],

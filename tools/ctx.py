@@ -1016,6 +1016,148 @@ def cmd_web(args):
         print()
 
 
+# ── Unified idea graph + traversal verbs (Context Web v2 #6) ─────────────────
+# One graph over RESEARCH_WEB.md (typed edges) ∪ context_map graph_bridges, in a
+# single ID namespace: research IDs (F17) + 'code:'/'cfg:' pseudo-nodes for bridge
+# targets. Lets an agent WALK task → finding → decision → symbol in one place.
+
+def build_graph():
+    """Return (G, adj). G[id] = {kind, title, status}; adj[id] = list of
+    {to, type, dir} where dir is 'out' (id→to) or 'in' (to→id)."""
+    nodes, _ = _parse_web()
+    G, adj = {}, {}
+
+    def ensure(nid, kind, title, status="current"):
+        if nid not in G:
+            G[nid] = {"kind": kind, "title": title, "status": status}
+            adj[nid] = []
+
+    for nid, n in nodes.items():
+        ensure(nid, nid[0], n["title"], _node_meta(n)["status"])
+
+    def add(a, b, t):
+        adj[a].append({"to": b, "type": t, "dir": "out"})
+        adj[b].append({"to": a, "type": t, "dir": "in"})
+
+    for nid, n in nodes.items():
+        for e in n["edges"]:
+            ensure(e["target"], e["target"][0], e["target"])  # dangling target → stub
+            add(nid, e["target"], e["type"])
+    for b in _graph_bridges():
+        if b["node"] not in G:
+            continue
+        for code in b["code"]:
+            cid = _bridge_code_id(code)
+            ensure(cid, "code", code)
+            add(b["node"], cid, b["relation"])
+    return G, adj
+
+
+def _g_label(G, nid):
+    st = G.get(nid, {}).get("status", "current")
+    return nid + (f" ⚠{st}" if st != "current" else "")
+
+
+def _g_head(G, nid):
+    st = G[nid]
+    return f"{nid} — {st['title']}" + (f"  [{st['status']}]" if st["status"] != "current" else "")
+
+
+def _g_missing(G, nid):
+    if nid in G:
+        return False
+    print(f"no node '{nid}'. (research IDs like F17, or `code:`/`cfg:` bridge targets; "
+          f"list: ctx web)")
+    return True
+
+
+def cmd_neighbors(args):
+    """Immediate graph neighbors of a node, grouped by edge type and direction."""
+    G, adj = build_graph()
+    if _g_missing(G, args.node):
+        return
+    print(_g_head(G, args.node))
+    for label, d in (("→ out", "out"), ("← in", "in")):
+        by = {}
+        for e in adj[args.node]:
+            if e["dir"] == d:
+                by.setdefault(e["type"], []).append(e["to"])
+        print(f"  {label}:" + ("" if by else " —"))
+        for t in sorted(by):
+            print(f"    {t:<13} {', '.join(_g_label(G, x) for x in by[t])}")
+
+
+def cmd_walk(args):
+    """BFS from a node along out-edges to a depth, optionally one edge type only
+    (e.g. `ctx walk F3 --edge supersedes` follows the supersession chain)."""
+    G, adj = build_graph()
+    if _g_missing(G, args.node):
+        return
+    only = args.edge
+    print(f"walk from {args.node}" + (f" along '{only}'" if only else "") + f" (depth {args.depth}):")
+    seen, q, shown = {args.node}, [(args.node, 0)], 0
+    while q:
+        node, d = q.pop(0)
+        if d >= args.depth:
+            continue
+        for e in adj.get(node, []):
+            if e["dir"] != "out" or (only and e["type"] != only) or e["to"] in seen:
+                continue
+            seen.add(e["to"])
+            print(f"    {'  ' * d}{node} --{e['type']}--> {_g_label(G, e['to'])}")
+            shown += 1
+            q.append((e["to"], d + 1))
+    if not shown:
+        print("    (no outgoing edges" + (f" of type '{only}'" if only else "") + ")")
+
+
+def cmd_why(args):
+    """Why believe / where it leads: nearest grounding Experiments (out-edges) and
+    the Decisions a node bears on — the provenance path, not a summary."""
+    G, adj = build_graph()
+    if _g_missing(G, args.node):
+        return
+
+    def paths_to(prefix, maxlen=4):
+        seen, q, found = {args.node}, [(args.node, [])], []
+        while q:
+            cur, path = q.pop(0)
+            for e in adj.get(cur, []):
+                if e["dir"] != "out" or e["to"] in seen:
+                    continue
+                seen.add(e["to"])
+                np = path + [(e["type"], e["to"])]
+                if e["to"][:1] == prefix and e["to"][1:2].isdigit():
+                    found.append(np)
+                elif len(np) < maxlen:
+                    q.append((e["to"], np))
+        return found
+
+    def fmt(p):
+        return " → ".join(f"{t}:{tgt}" for t, tgt in p)
+
+    print(f"why {_g_head(G, args.node)}")
+    ev, dec = paths_to("E"), paths_to("D")
+    print("  grounded in (experiments):")
+    print("\n".join(f"    {args.node} → {fmt(p)}" for p in ev[:5])
+          or "    (no experiment reachable — unevidenced, or a pure hypothesis/decision)")
+    print("  bears on (decisions):")
+    print("\n".join(f"    {args.node} → {fmt(p)}" for p in dec[:5]) or "    —")
+
+
+def cmd_contradicts(args):
+    """What overturns this node and what it overturns (supersedes/contradicts)."""
+    G, adj = build_graph()
+    if _g_missing(G, args.node):
+        return
+    print(_g_head(G, args.node))
+    rel = ("supersedes", "contradicts")
+    out = [e["to"] for e in adj[args.node] if e["dir"] == "out" and e["type"] in rel]
+    inc = [e["to"] for e in adj[args.node] if e["dir"] == "in" and e["type"] in rel]
+    print(f"  supersedes/contradicts →        {', '.join(_g_label(G, x) for x in out) or '—'}")
+    print(f"  ← superseded/contradicted by    {', '.join(_g_label(G, x) for x in inc) or '—'}")
+
+
 def _web_banner():
     """The first ⚠ blockquote of RESEARCH_WEB.md (the honest-state correction)."""
     if not os.path.exists(WEB):
@@ -1114,12 +1256,18 @@ def main():
     sp.add_argument("--live", action="store_true", help="show only current (non-superseded) nodes")
     sp.add_argument("--lint", action="store_true", help="graph integrity: dangling links, live-cites-superseded")
     sp.set_defaults(fn=cmd_web)
+    sp = sub.add_parser("neighbors"); sp.add_argument("node"); sp.set_defaults(fn=cmd_neighbors)
+    sp = sub.add_parser("walk"); sp.add_argument("node")
+    sp.add_argument("--depth", type=int, default=2); sp.add_argument("--edge")
+    sp.set_defaults(fn=cmd_walk)
+    sp = sub.add_parser("why"); sp.add_argument("node"); sp.set_defaults(fn=cmd_why)
+    sp = sub.add_parser("contradicts"); sp.add_argument("node"); sp.set_defaults(fn=cmd_contradicts)
     args = p.parse_args()
     if not getattr(args, "fn", None):
         # default: print the index summary
         cmd_map(argparse.Namespace(area=None))
-        print("\nUsage: ctx {route|where|usages|defs|tree|summary|covers|impact|"
-              "schema|config|perf|audit|status|recent|map|tests|brief|web}")
+        print("\nUsage: ctx {route|where|usages|defs|tree|summary|covers|impact|schema|"
+              "config|perf|audit|status|recent|map|tests|brief|web|neighbors|walk|why|contradicts}")
         return
     args.fn(args)
 
