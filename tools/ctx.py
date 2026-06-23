@@ -1304,7 +1304,10 @@ def _effective_conf(node, nodes, adj):
     confs = [(nid, c) for nid, c in confs if c is not None]
     if not confs:
         return None, None
-    bottleneck, lo = min(confs, key=lambda kv: kv[1])
+    # Deterministic tie-break (the candidates come from a set, so raw min() would
+    # flap with PYTHONHASHSEED): lowest conf wins; on a tie prefer the node itself
+    # (report intrinsic weakness as "self is the weakest link"), then by id.
+    bottleneck, lo = min(confs, key=lambda kv: (kv[1], kv[0] != node, kv[0]))
     return lo, bottleneck
 
 
@@ -1568,7 +1571,8 @@ def _claim_guard_resolves(g):
     that symbol is defined there — same shape as the graph-bridge code resolution, so
     a renamed/deleted guard test is caught instead of silently passing as 'guarded'."""
     if "::" in g:
-        path, sym = g.split("::", 1)
+        parts = g.split("::")
+        path, sym = parts[0], parts[-1]   # file::Class or file::Class::method → match the trailing def/class
         full = os.path.join(REPO, path)
         if not os.path.exists(full):
             return False

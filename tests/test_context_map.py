@@ -420,6 +420,14 @@ class TestEpistemicCoverage(unittest.TestCase):
                         ctx._claim_guard_resolves(g),
                         f"{b['node']} guarded_by {g!r} does not resolve to a real test file::symbol")
 
+    def test_guard_resolver_handles_three_part_pytest_id(self):
+        # file::Class::method must resolve by matching the trailing def (not the
+        # impossible 'Class::method' symbol) — fails closed, never false-GUARDED.
+        self.assertTrue(ctx._claim_guard_resolves(
+            "tests/test_sweep_scoring.py::TestNegativeBasePenalties::test_negative_base_returned_unchanged"))
+        self.assertFalse(ctx._claim_guard_resolves(
+            "tests/test_sweep_scoring.py::NoSuchClass::no_such_method"))
+
     def test_claims_command_runs_and_classifies(self):
         import contextlib, io, types
         buf = io.StringIO()

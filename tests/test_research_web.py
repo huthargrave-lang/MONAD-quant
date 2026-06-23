@@ -215,6 +215,18 @@ class TestEffectiveConfidence(unittest.TestCase):
         nodes = {"F1": {"title": "a", "body": "no meta"}}
         self.assertEqual(ctx._effective_conf("F1", nodes, {"F1": []}), (None, None))
 
+    def test_tied_minimum_is_deterministic(self):
+        # Candidates come from a set, so a naive min() flaps with PYTHONHASHSEED on a
+        # tie. The bottleneck must be stable AND, on a tie, prefer the node itself.
+        nodes = {
+            "F1": {"title": "a", "body": "<!-- status: current; conf: 0.2 -->"},
+            "F2": {"title": "b", "body": "<!-- status: current; conf: 0.2 -->"},
+        }
+        adj = {"F1": [{"to": "F2", "type": "relies_on", "dir": "out"}], "F2": []}
+        eff, bott = ctx._effective_conf("F1", nodes, adj)
+        self.assertAlmostEqual(eff, 0.2)
+        self.assertEqual(bott, "F1", "on a tied minimum, the root node is the reported bottleneck")
+
 
 class TestNoOrphanIdeaNodes(unittest.TestCase):
     """Soft-fail (rot-by-omission): a research idea node (F/H/E/D) with no idea-edge
