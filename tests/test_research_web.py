@@ -228,6 +228,34 @@ class TestEffectiveConfidence(unittest.TestCase):
         self.assertEqual(bott, "F1", "on a tied minimum, the root node is the reported bottleneck")
 
 
+class TestWebListingViews(unittest.TestCase):
+    """cmd_web listing: --pending (open work) + tombstoned superseded nodes."""
+
+    def _web(self, **kw):
+        import contextlib, io, types
+        ns = types.SimpleNamespace(node=None, live=False, lint=False, pending=False)
+        for k, v in kw.items():
+            setattr(ns, k, v)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ctx.cmd_web(ns)
+        return buf.getvalue()
+
+    def test_pending_lists_open_and_decisions_excludes_superseded(self):
+        out = self._web(pending=True)
+        for nid in ("D1", "H4", "E7"):
+            self.assertIn(nid, out, f"{nid} should appear in --pending")
+        self.assertNotIn("F3 ", out, "superseded F3 must not appear in --pending")
+
+    def test_superseded_tombstoned_in_full_listing(self):
+        out = self._web()
+        self.assertIn("[SUPERSEDED → F13]", out, "superseded nodes should be tombstoned in the listing")
+
+    def test_live_view_hides_superseded_entirely(self):
+        out = self._web(live=True)
+        self.assertNotIn("[SUPERSEDED", out, "--live must hide superseded nodes, not tombstone them")
+
+
 class TestEvidenceAndInversion(unittest.TestCase):
     """ctx._n_evidence (maturity count) + the inverted/data-revised reason codes and
     cmd_why's escalated warning for an inverted supersession."""

@@ -1135,6 +1135,18 @@ def cmd_web(args):
                     print(f"        ↳ {b['note']}")
         return
 
+    if getattr(args, "pending", False):
+        # Open work only: live decisions/gates (D-nodes) + open questions
+        # (titles tagged OPEN / IN PROGRESS). The "what still needs doing" view.
+        pend = [nid for nid in sorted(nodes, key=lambda x: (x[0], int(x[1:])))
+                if not _is_superseded(nodes[nid])
+                and (nid[:1] == "D"
+                     or re.search(r"\b(OPEN|IN PROGRESS)\b", nodes[nid]["title"], re.I))]
+        print(f"PENDING — open questions + decisions/gates ({len(pend)}):\n")
+        for nid in pend:
+            print(f"  {nid:<4} {nodes[nid]['title'][:72]}")
+        return
+
     live_only = getattr(args, "live", False)
     if live_only:
         print("(--live: showing only current, non-superseded nodes)\n")
@@ -1147,8 +1159,14 @@ def cmd_web(args):
             continue
         print(f"{label}:")
         for nid in ids:
-            links = ", ".join(nodes[nid]["links"])
-            print(f"  {nid:<4} {nodes[nid]['title'][:58]:<58} → {links}")
+            if _is_superseded(nodes[nid]):                       # tombstone: collapse to one line
+                by = _node_meta(nodes[nid]).get("by") or "?"
+                t = re.sub(r"^\[(SUPERSEDED|RETRACTED) by [A-Za-z]+\d+\]\s*", "",
+                           nodes[nid]["title"], flags=re.I)
+                print(f"  {nid:<4} [SUPERSEDED → {by}]  {t[:44]}")
+            else:
+                links = ", ".join(nodes[nid]["links"])
+                print(f"  {nid:<4} {nodes[nid]['title'][:58]:<58} → {links}")
         print()
 
 
@@ -2002,6 +2020,7 @@ def main():
     sp = sub.add_parser("web"); sp.add_argument("node", nargs="?")
     sp.add_argument("--live", action="store_true", help="show only current (non-superseded) nodes")
     sp.add_argument("--lint", action="store_true", help="graph integrity: dangling links, live-cites-superseded")
+    sp.add_argument("--pending", action="store_true", help="open work only: live decisions/gates + OPEN/IN PROGRESS questions")
     sp.set_defaults(fn=cmd_web)
     sp = sub.add_parser("neighbors"); sp.add_argument("node"); sp.set_defaults(fn=cmd_neighbors)
     sp = sub.add_parser("walk"); sp.add_argument("node")
