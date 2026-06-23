@@ -119,14 +119,21 @@ def lint_nodes(nodes):
         for e in n["edges"]:
             if e["type"] not in ctx.EDGE_TYPES:
                 problems.append(f"{nid} edge type {e['type']!r}")
-        if not ctx._is_superseded(n):
+        if ctx._is_superseded(n):
+            if not ctx._superseder(n):
+                problems.append(f"superseded node {nid} has no `by:` superseder")
+        else:
             for e in n["edges"]:
                 t = e["target"]
-                if t in nodes and ctx._is_superseded(nodes[t]):
-                    if e["type"] in ctx.RELIANCE_EDGES:
-                        problems.append(f"live {nid} --{e['type']}--> superseded {t} (reliance on a retracted claim)")
-                    elif e["type"] == "relates":
-                        advisories.append(f"{nid} relates to superseded {t} (untyped)")
+                if (e["type"] in ctx.RELIANCE_EDGES and t in nodes
+                        and ctx._is_superseded(nodes[t])):
+                    problems.append(f"live {nid} --{e['type']}--> superseded {t} (reliance on a retracted claim)")
+    # Supersession-propagation: enforce the SAME hard invariant as ctx web --lint /
+    # ctx health, so this write-fenced tool can't commit a web the read-side lint (and
+    # the TestSupersessionPropagation CI guard) would reject — e.g. `supersede F3 --by F13`
+    # must refuse until every live node citing F3 also cites F13.
+    for nid, t, sup in ctx._propagation_violations(nodes):
+        problems.append(f"live {nid} cites superseded {t} without superseder {sup} (cite [[{sup}]])")
     return problems, advisories
 
 

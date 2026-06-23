@@ -54,6 +54,23 @@ class TestNotePure(unittest.TestCase):
         probs = note.lint_nodes(nodes)[0]
         self.assertTrue(any("F23" in p and "F3" in p for p in probs))
 
+    def test_lint_flags_propagation_without_superseder(self):
+        # The write gate must enforce the SAME supersession-propagation invariant as
+        # ctx web --lint: a live F23 that `relates` to superseded F3 without also citing
+        # its superseder F22 is a PROBLEM (else `supersede --commit` could write a web
+        # that CI then hard-fails). Regression for the adversarial-review gap.
+        block = note.render_add("F23", "t", "body", [("F3", "relates")], "2026-06-22")
+        nodes, _ = note._parse(WEB + block)
+        probs = note.lint_nodes(nodes)[0]
+        self.assertTrue(any("F23" in p and "F3" in p and "F22" in p for p in probs),
+                        f"propagation violation not flagged by note.lint_nodes: {probs}")
+
+    def test_lint_clears_propagation_when_superseder_cited(self):
+        # citing both the superseded F3 and its superseder F22 clears the violation
+        block = note.render_add("F23", "t", "body", [("F3", "relates"), ("F22", "relates")], "2026-06-22")
+        nodes, _ = note._parse(WEB + block)
+        self.assertEqual(note.lint_nodes(nodes)[0], [])
+
     def test_lint_clean_on_the_real_web(self):
         # note's own lint must agree the committed RESEARCH_WEB.md is problem-free
         nodes, _ = ctx._parse_web()

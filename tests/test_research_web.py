@@ -148,6 +148,29 @@ class TestSupersessionPropagation(unittest.TestCase):
         self.assertEqual(ctx._propagation_violations(nodes), [],
                          "citing both the superseded node and its superseder must clear it")
 
+    def test_dependency_via_lineage_cue_is_caught(self):
+        # "based on" (derived_from) / "motivated by" (drives) express a current
+        # dependency; a superseded target must NOT escape the guard via the cue
+        # classifier (regression: adversarial-review finding — relates-only was too narrow).
+        for cue in ("based on", "Motivated by"):
+            nodes, _ = _parse_web_text(
+                "### F1 — old\n<!-- status: superseded; by: F2; reason: reversed -->\nx\n"
+                "### F2 — new\nthe replacement\n"
+                f"### D1 — a live decision\n{cue} [[F1]] and never mentions the reversal.\n")
+            with self.subTest(cue=cue):
+                self.assertIn(("D1", "F1", "F2"), ctx._propagation_violations(nodes),
+                              f"dependency cue {cue!r} to a superseded node escaped the guard")
+
+    def test_historical_upstream_edge_is_exempt(self):
+        # an experiment that PRODUCED a now-superseded finding is history, not a
+        # dependency on retracted evidence — must stay exempt (no false positive).
+        nodes, _ = _parse_web_text(
+            "### F1 — old\n<!-- status: superseded; by: F2; reason: reversed -->\nx\n"
+            "### F2 — new\nthe replacement\n"
+            "### E1 — an experiment\nproduced [[F1]].\n")
+        self.assertEqual(ctx._propagation_violations(nodes), [],
+                         "a 'produces' (upstream) edge to a superseded node must stay exempt")
+
     def test_superseded_source_is_exempt(self):
         # A superseded node may freely reference history (incl. other superseded nodes).
         nodes, _ = _parse_web_text(
@@ -165,7 +188,7 @@ class TestNoOrphanIdeaNodes(unittest.TestCase):
     waiver set mirrors the KNOWN_* idiom — empty today; add an id (with a reason) only
     if a finding is intentionally standalone, and the stale-waiver check self-cleans it."""
 
-    KNOWN_ORPHAN_IDEA_NODES = set()  # e.g. {"F11": "intentionally standalone"} keys only
+    KNOWN_ORPHAN_IDEA_NODES = set()  # e.g. {"F11"} — a SET of ids; put the reason in a comment
 
     def test_no_unwaived_orphan_idea_nodes(self):
         G, adj = ctx.build_graph(include_code=True)

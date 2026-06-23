@@ -828,7 +828,9 @@ def cmd_tests(args):
 # An edge can be written explicitly as [[ID|type]]; an untyped [[ID]] falls back
 # to a cue classifier that reads the relation verb just before the link. The
 # split below is what `--lint` needs: a RELIANCE edge into a superseded node is a
-# real problem; a LINEAGE/provenance edge into one is fine; `relates` is advisory.
+# real problem; a historical/upstream edge into one is exempt; a dependency edge
+# (relates/derived_from/drives) into one is a problem unless the superseder is also
+# cited (the supersession-propagation invariant — see _PROPAGATION_EXEMPT).
 RELIANCE_EDGES = {"relies_on", "supports", "refines", "builds_on"}
 EDGE_TYPES = RELIANCE_EDGES | {
     "supersedes", "contradicts", "evidenced_by", "produces", "derived_from",
@@ -974,23 +976,32 @@ def _superseder(node):
 
 
 def _is_idea_id(nid):
-    """True if a unified-graph node id is a research idea node (F/H/E/D + number),
-    not a code/module/area/config pseudo-node (those carry a 'code:'/'mod:'/'cfg:'/
-    'area:' prefix). Lets health/graph separate a genuinely orphaned FINDING from
-    inert package stubs that are isolated by design."""
-    return bool(re.fullmatch(r"[FHED]\d+", nid))
+    """True if a unified-graph node id is a research idea node, not a code/module/
+    area/config pseudo-node (those carry a 'code:'/'mod:'/'cfg:'/'area:' prefix, i.e.
+    a colon). Matches the RESEARCH_WEB header id pattern ([A-Za-z]+ + number) rather
+    than hard-coding F/H/E/D, so a node with a new prefix is still detected as an
+    idea node (and so caught by the orphan check) instead of mis-bucketed as a stub."""
+    return bool(re.fullmatch(r"[A-Za-z]+\d+", nid))
+
+
+# Edges that legitimately reference history/upstream WITHOUT depending on the cited
+# node: the citing node overturns it (supersedes/contradicts), produced/evidences it
+# (an experiment E-node → finding), or resolves it. These are exempt from propagation.
+# Everything else that is NOT a reliance edge — relates, derived_from ("based on"),
+# drives ("motivated by"/"→") — expresses a current dependency and IS checked, so a
+# lineage-cued mention can't smuggle a live dependency on retracted evidence past the
+# guard (reliance edges are the stronger, separately-guarded case).
+_PROPAGATION_EXEMPT = {"supersedes", "contradicts", "produces", "evidenced_by", "resolves"}
 
 
 def _propagation_violations(nodes):
-    """Supersession-propagation invariant: a CURRENT node that points at a
-    superseded node via a current-dependency `relates` edge must ALSO cite that
-    node's superseder — else `ctx why <node>` hands an agent a claim built on
-    retracted evidence with no pointer to what replaced it (the live case: D1
-    cited F3/F4/F8 after F13 reversed them and never cited F13). Reliance edges
-    into a superseded node are a stronger, separate problem (RELIANCE_EDGES, the
-    --lint reliance check); lineage/provenance edges (produces, evidenced_by,
-    derived_from, supersedes, resolves, drives, contradicts) legitimately
-    reference history and are exempt. Returns [(node_id, superseded, superseder)]."""
+    """Supersession-propagation invariant: a CURRENT node that DEPENDS on a superseded
+    node (any edge that is neither a reliance edge nor a historical/upstream one —
+    see _PROPAGATION_EXEMPT) must ALSO cite that node's superseder. Else `ctx why
+    <node>` hands an agent a claim built on retracted evidence with no pointer to what
+    replaced it (the live case: D1 cited F3/F4/F8 after F13 reversed them and never
+    cited F13). Reliance edges into a superseded node are a stronger, separate problem
+    (RELIANCE_EDGES, the --lint reliance check). Returns [(node, superseded, superseder)]."""
     out = []
     for nid, n in nodes.items():
         if _is_superseded(n):
@@ -998,7 +1009,9 @@ def _propagation_violations(nodes):
         links = set(n["links"])
         for e in n["edges"]:
             tgt = e["target"]
-            if e["type"] != "relates" or tgt not in nodes or not _is_superseded(nodes[tgt]):
+            if e["type"] in RELIANCE_EDGES or e["type"] in _PROPAGATION_EXEMPT:
+                continue  # reliance = stronger separate check; exempt = historical/upstream
+            if tgt not in nodes or not _is_superseded(nodes[tgt]):
                 continue
             sup = _superseder(nodes[tgt])
             if sup and sup in nodes and sup != nid and sup not in links:
@@ -1044,17 +1057,22 @@ def cmd_web(args):
         print("RESEARCH_WEB.md not found or empty.")
         return
 
-    # --lint: graph integrity. Dangling links + reliance-on-superseded = hard
-    # problems (the latter now decidable thanks to typed edges). A live node that
-    # RELIES ON a superseded one is a real stale-cite; LINEAGE edges (supersedes/
-    # evidenced_by/...) pointing back at old nodes are fine; untyped `relates` to a
-    # superseded node stays advisory (add [[ID|type]] to make it decidable).
+    # --lint: graph integrity. Hard problems: dangling links; a superseded node with
+    # no `by:` superseder; a live node that RELIES ON a superseded node; and a live
+    # node that DEPENDS on a superseded node (relates/derived_from/drives) without also
+    # citing its superseder (the supersession-propagation invariant). Historical/upstream
+    # edges (supersedes/contradicts/produces/evidenced_by/resolves) are exempt.
     if getattr(args, "lint", False):
         dangling = [(nid, tgt) for nid, n in nodes.items()
                     for tgt in n["links"] if tgt not in nodes]
         for nid, tgt in dangling:
             print(f"  PROBLEM dangling: {nid} → [[{tgt}]] (no such node)")
         problems = 0
+        for nid, n in nodes.items():
+            if _is_superseded(n) and not _superseder(n):
+                print(f"  PROBLEM: superseded node {nid} declares no `by:` superseder "
+                      f"(propagation can't point citers at a replacement)")
+                problems += 1
         for nid, n in nodes.items():
             if _is_superseded(n):
                 continue  # a superseded node may freely cite anything (history)
@@ -1065,9 +1083,9 @@ def cmd_web(args):
                     print(f"  PROBLEM stale-cite: live {nid} --{e['type']}--> superseded "
                           f"{tgt} (relies on a retracted claim)")
                     problems += 1
-        # Supersession-propagation: a live node that `relates` to a superseded node
-        # must also cite its superseder (else it reads as standing on retracted
-        # evidence). This replaces the old chronic "advisory" — it is now a hard problem.
+        # Supersession-propagation: a live node that DEPENDS on a superseded node
+        # (relates/derived_from/drives) must also cite its superseder, else it reads as
+        # standing on retracted evidence. (Replaced the old chronic "advisory" channel.)
         for nid, tgt, sup in _propagation_violations(nodes):
             print(f"  PROBLEM stale-cite: live {nid} cites superseded {tgt} without its "
                   f"superseder {sup} (cite [[{sup}]] alongside it)")
