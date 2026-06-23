@@ -71,6 +71,27 @@ class TestNotePure(unittest.TestCase):
         nodes, _ = note._parse(WEB + block)
         self.assertEqual(note.lint_nodes(nodes)[0], [])
 
+    def test_similar_live_nodes_flags_restatement(self):
+        # idea L: a near-identical node is surfaced; an unrelated one is not.
+        nodes = {
+            "F1": {"title": "noise ratio governs winrate", "body": "stop inside intrabar noise band drives winrate", "links": [], "edges": []},
+            "F2": {"title": "noise ratio governs winrate", "body": "stop inside intrabar noise band drives winrate", "links": [], "edges": []},
+            "F3": {"title": "kelly position sizing", "body": "fractional kelly multiplier caps deployment", "links": [], "edges": []},
+        }
+        sims = dict(note._similar_live_nodes(nodes, "F1"))
+        self.assertIn("F2", sims, "identical-content node should be flagged similar")
+        self.assertNotIn("F3", sims, "unrelated node must not be flagged")
+
+    def test_similar_live_nodes_excludes_superseded(self):
+        nodes = {
+            "F1": {"title": "noise ratio governs winrate", "body": "stop inside intrabar noise band", "links": [], "edges": []},
+            "F2": {"title": "noise ratio governs winrate", "body": "stop inside intrabar noise band",
+                   "links": [], "edges": [], }
+        }
+        nodes["F2"]["body"] = "<!-- status: superseded; by: F1; reason: reversed -->\n" + nodes["F2"]["body"]
+        self.assertEqual(note._similar_live_nodes(nodes, "F1"), [],
+                         "a superseded near-duplicate must not be flagged (history, not a live dup)")
+
     def test_lint_clean_on_the_real_web(self):
         # note's own lint must agree the committed RESEARCH_WEB.md is problem-free
         nodes, _ = ctx._parse_web()

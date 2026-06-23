@@ -137,6 +137,23 @@ def lint_nodes(nodes):
     return problems, advisories
 
 
+def _similar_live_nodes(nodes, nid, thresh=0.6):
+    """Live nodes whose CONTENT is >thresh cosine-similar to node `nid` (self and
+    superseded nodes excluded), sorted strongest first. Reuses ctx's TF-IDF/cosine —
+    the same engine behind `ctx related` — so a newly-written node that restates or
+    contradicts an existing one can be flagged at write time. Threshold calibrated to
+    THIS corpus: a clear restatement scores ~0.72 while 0.75+ never fires (the strongest
+    real near-duplicate pair is ~0.73), so 0.6 catches restatements; already-linked
+    related pairs are filtered out by the caller (only UNLINKED pairs nudge). Advisory only."""
+    vecs, _ = ctx._tfidf(nodes)
+    me = vecs.get(nid, {})
+    if not me:
+        return []
+    out = [(other, ctx._cos(me, v)) for other, v in vecs.items()
+           if other != nid and not ctx._is_superseded(nodes[other])]
+    return sorted([(o, s) for o, s in out if s > thresh], key=lambda kv: -kv[1])
+
+
 def _parse(text):
     """Parse candidate text via the canonical ctx parser (temp + WEB swap)."""
     fd, tmp = tempfile.mkstemp(dir=os.path.realpath(ctx.REPO), prefix=".rweb_chk_", suffix=".md")
@@ -181,12 +198,22 @@ def _locked_commit(real_target, build, expect_delta, commit):
 
 
 def _finish(real_target, candidate, expect_delta, commit, label, preview):
-    base_n = len(_parse(open(real_target, encoding="utf-8").read())[0])
+    base = _parse(open(real_target, encoding="utf-8").read())[0]
+    base_n = len(base)
     nodes, _ = _parse(candidate)
     problems, advisories = lint_nodes(nodes)
     if len(nodes) != base_n + expect_delta:
         problems.append(f"node count went {base_n}→{len(nodes)} (expected +{expect_delta}); a duplicate "
                         f"id clobber or a stray '### <id> —' line in the body")
+    # Contradiction/duplicate on write (idea L): a newly-added node that is highly
+    # similar to an existing live node but cites no edge to it likely restates or
+    # contradicts it — advisory, never blocking (the repo's thesis is "land the
+    # result, don't re-derive it", so an unlinked near-duplicate is worth a nudge).
+    for nid in sorted(set(nodes) - set(base)):
+        for sim_id, score in _similar_live_nodes(nodes, nid):
+            if sim_id not in nodes[nid]["links"]:
+                advisories.append(f"{nid} closely resembles {sim_id} (cos {score:.2f}) but cites no edge to it "
+                                  f"— add relates/supersedes/contradicts if they're about the same thing")
     print(f"── {label} ──\n{preview}")
     for p in problems:
         print(f"  PROBLEM  {p}")
