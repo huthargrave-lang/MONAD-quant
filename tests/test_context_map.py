@@ -438,5 +438,23 @@ class TestEpistemicCoverage(unittest.TestCase):
         self.assertIn("GUARDED", out, "F11's penalty-inversion claim should resolve as guarded")
 
 
+class TestImpactEpistemics(unittest.TestCase):
+    """ctx impact — epistemic blast radius: live-vs-retracted bridged findings +
+    'may invalidate evidence' warning."""
+
+    def _impact(self, target):
+        import contextlib, io, types
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ctx.cmd_impact(types.SimpleNamespace(target=target))
+        return buf.getvalue()
+
+    def test_impact_reports_epistemic_blast_radius(self):
+        out = self._impact("compute_trade_returns")  # bridged by F17/D4/F19/D5
+        self.assertIn("epistemic blast radius", out)
+        self.assertIn("may INVALIDATE evidence", out)
+        self.assertIn("F17", out)
+
+
 if __name__ == "__main__":
     unittest.main()

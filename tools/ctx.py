@@ -544,9 +544,18 @@ def cmd_impact(args):
 
     brs = _bridges_for_target(target)
     if brs:
-        print("  ⚠ idea bridges (RESEARCH_WEB.md findings about this target — `ctx web <node>`):")
+        nw = _parse_web()[0]
+        live = [b for b in brs if b["node"] in nw and not _is_superseded(nw[b["node"]])]
+        dead = [b for b in brs if b["node"] in nw and _is_superseded(nw[b["node"]])]
+        print(f"  ⚠ epistemic blast radius: {len(live)} live + {len(dead)} retracted "
+              f"finding(s)/decision(s) bridge to this target (`ctx web <node>`):")
         for b in brs:
-            print(f"    {b['node']} ({b['relation']}): {b['note']}")
+            st = " [SUPERSEDED]" if (b["node"] in nw and _is_superseded(nw[b["node"]])) \
+                 else (" [?]" if b["node"] not in nw else "")
+            print(f"    {b['node']}{st} ({b['relation']}): {b['note']}")
+        if live:
+            print(f"    → editing this may INVALIDATE evidence for: "
+                  f"{', '.join(b['node'] for b in live)} — re-verify those claims")
         print()
 
     # config.KEY mode — scan all three access forms (config.KEY / getattr / ASSETS).
