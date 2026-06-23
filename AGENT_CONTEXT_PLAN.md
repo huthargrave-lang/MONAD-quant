@@ -178,3 +178,148 @@ The fast layer must never lie. Generate the volatile parts:
 - `CLAUDE.md` / `AGENTS.md` = **why** (strategy/model). `OPERATIONS.md` = **how it runs** (live/ops).
 - This plan adds the **routing + query layer** on top so agents reach the right `why`/`how`
   without reading all of it.
+
+---
+
+# Part II — The Context Web (v2): a navigable idea map
+
+> **Status (2026-06-22):** Part I (the L0/L1 router + `ctx` query layer) is **built**. Part II
+> upgrades the *research/idea* memory from "linked notes" to a **typed, self-invalidating
+> knowledge graph** an agent can walk. **Phase 1 (items 1, 2, 4 below) is shipping now**;
+> 3, 5–11 are specified for later. Pure-stdlib, git-diffable, CI-enforced — **no new runtime
+> dependency** (the deployed Pi venv stays clean).
+
+## 10. Why v2 — the gap Part I leaves
+
+Part I made *structural* facts queryable (`ctx route/where/impact/map`) and *anti-drift*
+(`test_context_map.py` asserts the manifest matches `config.py`). But the project's
+**highest-stakes evolving knowledge** — the research idea web (`RESEARCH_WEB.md`: Findings,
+Hypotheses, Experiments, Decisions) — is still effectively linked notes. Three gaps keep it
+from being a navigable idea map:
+
+1. **Edges are untyped.** Every relation — *supersedes, evidence-for, relies-on, contradicts,
+   drives* — collapses to one `[[ID]]`. `ctx web --lint` even says so: it can only emit an
+   advisory "stale-cite" because it "needs typed edges to tell produced-from from relies-on"
+   (`tools/ctx.py`, the `--lint` branch). The relation verbs are already written in the prose
+   (*supersedes / evidence / resolves / refines / drives*) — recovering them is the single
+   highest-leverage, lowest-cost change.
+2. **The idea graph and the code graph never touch.** `F17` ("the fixed %-stop exit is the
+   architectural flaw") doesn't point at `engine.py::compute_trade_returns` or
+   `config.STOP_LOSS_PCT_*`. An agent told "retune the TQQQ stop" never discovers the finding
+   that says the whole approach is dead.
+3. **Fact *content* is unguarded.** Part I's guards protect *structure* (do files/tests exist?
+   do manifest invariants match config?) — not the *numbers in prose*. That's exactly where
+   this repo rots: `config.py` ships `TARGET_GAIN_PCT_TQQQ_HOURLY = 0.0100 # 2.80% target`
+   (value 1.00%, comment 2.80%) and `STOP_LOSS_PCT_TQQQ_HOURLY = 0.0050 # 1.50% stop` (0.50% vs
+   1.50%); `CLAUDE.md` §6 says `MAX_TRADE_BARS=20` while `config.MAX_TRADE_BARS=8`. The docs lie
+   and nothing catches it.
+
+## 11. The four-layer stack
+
+| Layer | What it adds | Generalizes (proven pattern) |
+|---|---|---|
+| **L0 — Substrate** | one in-memory graph `G` built at `ctx` startup from all sources, one ID namespace | the on-demand `_import_graph()` / `_parse_web()` |
+| **L1 — Representation** | typed nodes (research F/H/E/D + code A/S/P + truth M/INV/X) and **typed, directed edges** | the `[[ID]]` link parser |
+| **L2 — Truth maintenance** | source-of-truth *binding*, contradiction detection, structured supersession, confidence decay | `invariant_sources` + `test_invariants_match_config` |
+| **L3 — Navigation** | typed traversal (`walk/why/contradicts`), spreading-activation `frontier`, budget-aware packet | `_route_rules` + `ctx brief` |
+| **L4 — Authoring** | `ctx note add/supersede` write-fenced capture, auto-extract vs hand-author split, freshness GC | `ctx reverts` (git-mined ledger) + `ctx can_edit` fence |
+
+### L1 — typed edges (the load-bearing addition)
+Extend the link syntax to **`[[ID|type]]`** (explicit wins). Untyped `[[ID]]` falls back to a
+deterministic **cue classifier** that reads the nearest preceding relation verb in the prose,
+degrading to `relates` so nothing regresses. Canonical edge vocabulary, split by what `--lint`
+needs to know:
+
+- **Reliance** (this node's claim *depends on* the target being true): `relies_on`, `supports`,
+  `refines`, `builds_on`. A reliance edge into a **superseded** node is a real stale-cite **problem**.
+- **Lineage / provenance** (points back at history or evidence — fine to be old): `supersedes`,
+  `contradicts`, `evidenced_by`, `produces`, `derived_from`, `drives`, `resolves`.
+- **`relates`** (default / unknown): stays **advisory**, never a hard error.
+
+This resolves the ambiguity the code laments today and turns the "produced-from vs relies-on"
+distinction from a comment into a check.
+
+### L2 — truth maintenance (the hit on "context storage rots")
+Context stops being a pile of summaries that silently decay and becomes **self-invalidating**:
+- **Source-of-truth binding.** Generalize `test_invariants_match_config` (which already asserts
+  `invariants[k] == getattr(config, source[k])`) to *all* fact content: a `param_claims` table
+  binds documented params to `config.KEY`; CI fails on mismatch. **(Phase 1, item 4.)**
+- **Contradiction detection.** A stdlib check parses `config.py` lines `NAME = <num> # <num>% …`
+  and asserts comment == value — catching the TQQQ `0.0100`/"2.80%" class the moment it appears.
+  **(Phase 1, item 1 — `ctx audit`.)**
+- **Structured supersession + reason codes** (item 3): replace the `"SUPERSEDED"`-in-title string
+  match with `status: {current|superseded|retracted}` + `reason: {reversed|refined|data-fixed}`.
+- **Confidence decay** (item 9): `eff_conf = base × decay(age) × (0 if any relies_on is retracted)`.
+  Stale ≠ deleted — decayed nodes stay navigable as history, demoted, never surfaced as current.
+
+### L3 — navigation (the hit on "I don't want basic summaries")
+Replace fixed-resolution summaries with **task-shaped progressive disclosure**:
+- Entry resolution = keyword (`_route_rules`) + structural exact-match + git-recency boost.
+- **Spreading activation** `frontier(task)`: seed at entry nodes, spread along edges with
+  type-weighted decay; `supersedes`/`contradicts` edges get ~0.95 decay so any task near a stale
+  claim pulls the correction into context with high rank — *deterministically*.
+- Typed verbs: `ctx walk F13 --edge supersedes`, `ctx why <node>`, `ctx contradicts <node>`;
+  cross-graph `ctx impact` already does the code side.
+- **Budget-aware packet** (`--budget 900`, matching `ctx brief`): always include the honest-state
+  spine + any `supersedes`/`contradicts` neighbor of a seed; pack the rest by activation; mark
+  the overflow `[+expand N tok]`.
+
+The worked example Phase 1 unlocks: **"retune the TQQQ hourly stop"** → seeds `config.ACTIVE_MODE`
++ `area:strategy_engine` → the `concerns`/`contradicts` bridges surface `F13` (Sharpe superseded —
+sampling artifact), `F17` (the %-stop exit *is* the flaw → `compute_trade_returns`), and `D4`
+(goal reachable only as daily-MR + horizon exit) **before** the agent reads `CLAUDE.md`'s wrong
+headline number.
+
+### L4 — authoring & lifecycle (so the map populates itself)
+Bright line: **auto-extract** anything a deterministic AST/git walk can recompute (modules,
+symbols, config keys, reverted-experiment nodes via `ctx reverts`); **hand/agent-author** only
+judgment (findings, decisions, what-failed-and-why). `ctx note add/supersede` is a write-fenced
+capture verb (writes only to `RESEARCH_WEB.md`, never code/live path, refuses on lint failure) that
+auto-stamps provenance (SHA, branch, `file:line`). Convention for agents: *a result not in the
+graph is one the next agent will re-derive.*
+
+## 12. Prioritized roadmap
+
+| # | Change | Effort | Phase |
+|---|---|---|---|
+| 1 | `config.py` comment-vs-value drift guard (`ctx audit` + `test_config_comment_matches_value`) | ~1 hr, stdlib | **1 ✅** |
+| 2 | Typed edges in `_parse_web` (`[[ID\|type]]` + cue classifier; grouped `ctx web` output + typed `--lint`) | ~60 LOC | **1 ✅** |
+| 4 | `param_claims` bindings + drift test (MAX_TRADE_BARS / RSI / GDXU) | ~30 LOC | **1 ✅** |
+| 3 | Structured `status`/`reason` metadata (retire the `"SUPERSEDED"` string match) | ~40 LOC | **2 ✅** |
+| 5 | `graph_bridges` (idea↔code) + CI target check (~15 curated rows) | tiny | **2 ✅** |
+| 6 | Unified `build_graph()` + traversal verbs (`walk`, `why`, `contradicts`, `neighbors`) | ~200 LOC | **2 ✅** |
+| 7 | `ctx frontier` — spreading activation + budget packer | ~120 LOC | **2 ✅** |
+| 8 | note-capture (`add`/`supersede`) + self-capture convention | ~250 LOC | **✅ built** (`tools/note.py`) |
+| 9 | Confidence decay + confidence-weighted `ctx brief/route/frontier` | ~80 LOC | 3 (scoped) |
+| 10 | `experiments.jsonl` ledger commit + CI freshness guard | ~50 LOC | 3 (scoped) |
+| 11 | (optional) Embedding/TF-IDF sidecar (offline precompute, `ctx related`) | ~6 hr | deferred (scoped) |
+
+## 13. What Phase 1 + 2 shipped (built & CI-guarded)
+**Phase 1** — `ctx audit` config comment-vs-value guard (catches the two live TQQQ bugs, baselined
+since `config.py` is deny-fenced); typed edges (`[[ID|type]]` + cue classifier, reliance-vs-provenance
+`--lint`); `param_claims` binding drift-prone params to `config.py`.
+**Phase 2** — structured `<!-- status:…;reason:… -->` supersession (`_node_meta`, retires the title
+substring match); `graph_bridges` idea↔code edges (so `ctx impact compute_trade_returns` surfaces F17
++ D4); unified `build_graph()` + `ctx neighbors/walk/why/contradicts`; `ctx frontier` spreading-
+activation packet (corrections pulled in first, budget-bounded). All stdlib, read-only, no new venv dep.
+
+## 14. Phase 3 scoping outcomes (explore pass — decisions for the owner)
+- **#8 note-capture — ✅ BUILT as a separate `tools/note.py`** (keeps `ctx` read-only). `add`/`supersede`
+  the research web, write-fenced to `RESEARCH_WEB.md` (realpath identity + deny-policy reuse, fail-closed),
+  atomic (temp + `os.replace`) under an exclusive `flock`, dry-run by default, and it refuses unless the
+  result re-parses + passes the same lint as `ctx web --lint`. Auto-IDs, provenance-stamped, never commits.
+  Designed against a fan-out pre-mortem and adversarially verified (2 minor fixes applied). Self-capture
+  convention added to `AGENTS.md` + `AGENT_INDEX.md`.
+- **#9 confidence decay — feasible now (git ages are free) but modest value; minimal slice only.** Only 3
+  nodes carry `conf:` and none carry `at:`; `git log -S "### F13" -- RESEARCH_WEB.md` cheaply dates a node
+  (headers are immutable). Minimal slice: weight `ctx frontier` seeds by `eff_conf = conf × decay(age)` and
+  demote stale nodes. Defer the full framework until `conf:`/`at:` are populated (e.g. by #8).
+- **#10 `experiments.jsonl` ALREADY EXISTS** (5 records, appended by `sweep.py:1696`) but is **`.gitignore`d**
+  (line 8) — *correcting the earlier "does not exist" note*. `src/optimization/sweep_repro.py::data_fingerprint(df, requested_start, requested_end) -> dict`
+  (SHA256[:16] of the OHLCV) is real and reusable but **not yet in the record**. Remaining work: enrich the
+  record with `data_fingerprint`, add a read-only `ctx experiments` + freshness guard, and **un-ignore +
+  commit the ledger — gated on a secrets/PII audit + owner approval** (it's data, currently untracked by design).
+- **#11 embedding sidecar — recommend a stdlib TF-IDF sidecar (offline-precomputed, committed JSON) with a
+  `difflib` fallback, NOT a real model** (torch on ARM Pi is unviable; the venv must stay clean). ~6 hr.
+  Deferred: the typed graph + `ctx frontier` already cover safety-critical navigation; `ctx related` is a
+  nice-to-have semantic search, non-blocking.

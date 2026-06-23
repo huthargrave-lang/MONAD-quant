@@ -20,6 +20,9 @@ full strategy memory now lives in **one** place.
    backtest of the live TQQQ config yields ~**+0.08%/mo (Sharpe ~1.2)**, and the live paper
    confirmed-fill edge is ~**flat (+0.2%)** — versus the ~+2%/mo / Sharpe 39 once documented.
    Treat headline performance claims with skepticism; run `ctx perf` for the honest read.
+3. **A result not in the web is one the next agent re-derives — capture it.** When you establish
+   a finding/decision, record it with `tools/note.py add` (dry-run by default; `--commit` to write);
+   walk it with `ctx web`. Don't leave hard-won conclusions only in chat.
 
 ## Commands (imperative — this is the cross-tool surface)
 ```bash

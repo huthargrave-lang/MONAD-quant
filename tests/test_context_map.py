@@ -62,6 +62,131 @@ class TestManifestMatchesConfig(unittest.TestCase):
         self.assertEqual(self.m["invariants"]["api_port_live_forbidden"], 7496)
 
 
+class TestParamClaims(unittest.TestCase):
+    """Context Web v2 #4 — drift-prone strategy params bound to their config.py
+    source of truth (generalizes invariant_sources), plus doc-prose drift."""
+
+    # Accepted, baselined doc drift: (doc, KEY, stated_value). Add an entry here
+    # only when a doc deliberately states a historical/illustrative param value that
+    # differs from config and rewriting the prose is a judgment call. The test
+    # self-cleans: once a doc is reconciled, the matching baseline entry must be
+    # removed (a stale baseline fails the test). Currently empty — the prior
+    # MAX_TRADE_BARS=20 drift in CLAUDE.md §6 was reconciled to point at config.py:71.
+    KNOWN_DOC_PARAM_DRIFT = set()
+
+    def setUp(self):
+        sys.path.insert(0, REPO)
+        import config
+        self.config = config
+        self.m = _load()
+        self.claims = self.m["param_claims"]["claims"]
+
+    def test_param_claim_sources_resolve(self):
+        """No dangling binding: every claim points at a real config attribute."""
+        for c in self.claims:
+            with self.subTest(key=c["key"]):
+                self.assertTrue(c["source"].startswith("config."),
+                                f"{c['key']} source must be a config.KEY, got {c['source']}")
+                attr = c["source"].split(".", 1)[1]
+                self.assertTrue(hasattr(self.config, attr),
+                                f"param_claim '{c['key']}' binds to {c['source']} which doesn't exist")
+
+    def test_param_claim_values_match_config(self):
+        """The recorded value must equal the live config value (the anti-drift core)."""
+        for c in self.claims:
+            with self.subTest(key=c["key"]):
+                live = getattr(self.config, c["source"].split(".", 1)[1])
+                if isinstance(live, float) or isinstance(c["value"], float):
+                    self.assertAlmostEqual(
+                        c["value"], live, places=6,
+                        msg=f"param_claim '{c['key']}'={c['value']} but {c['source']}={live} — update the manifest")
+                else:
+                    self.assertEqual(
+                        c["value"], live,
+                        f"param_claim '{c['key']}'={c['value']} but {c['source']}={live} — update the manifest")
+
+    def test_param_claim_keys_unique(self):
+        keys = [c["key"] for c in self.claims]
+        self.assertEqual(len(keys), len(set(keys)), f"duplicate param_claim keys: {keys}")
+
+    def test_doc_param_mentions_match_config(self):
+        """Any explicit `KEY = value` of a bound param in CLAUDE.md/AGENTS.md must
+        match config — catches prose drift. Known-stale mentions are baselined."""
+        import re
+        bound = {c["source"].split(".", 1)[1] for c in self.claims}
+        drift = set()
+        # docs/history/MODEL_HISTORY.md carries live `KEY = value` snapshots too;
+        # the guard would otherwise miss drift there (review finding #6).
+        for doc in ("CLAUDE.md", "AGENTS.md", os.path.join("docs", "history", "MODEL_HISTORY.md")):
+            p = os.path.join(REPO, doc)
+            if not os.path.exists(p):
+                continue
+            text = open(p, errors="ignore").read()
+            for key in bound:
+                rx = re.compile(r"(?<![A-Za-z0-9_])" + re.escape(key) + r"\s*=\s*(-?\d+\.?\d*)")
+                for mm in rx.finditer(text):
+                    live = getattr(self.config, key)
+                    if abs(float(mm.group(1)) - float(live)) > 1e-9:
+                        drift.add((doc, key, mm.group(1)))
+        new = drift - self.KNOWN_DOC_PARAM_DRIFT
+        self.assertEqual(
+            new, set(),
+            "doc params disagree with config (prose drift): "
+            + "; ".join(f"{d} says {k}={v} but config={getattr(self.config, k)}"
+                        for d, k, v in sorted(new)))
+        stale = self.KNOWN_DOC_PARAM_DRIFT - drift
+        self.assertEqual(
+            stale, set(),
+            f"baselined doc drift no longer present (good — the doc was fixed; "
+            f"remove it from KNOWN_DOC_PARAM_DRIFT): {stale}")
+
+
+class TestGraphBridges(unittest.TestCase):
+    """Context Web v2 #5 — idea↔code bridges must point at real nodes and real
+    code, so the connective tissue can't silently rot (mirrors entrypoint checks)."""
+
+    REL_VOCAB = {"concerns", "implemented_in", "measured_by", "gated_by"}
+
+    def setUp(self):
+        sys.path.insert(0, REPO)
+        import config
+        self.config = config
+        self.m = _load()
+        self.bridges = self.m["graph_bridges"]["bridges"]
+        import ctx
+        self.nodes = ctx._parse_web()[0]
+
+    def test_bridge_nodes_exist(self):
+        for b in self.bridges:
+            with self.subTest(node=b["node"]):
+                self.assertIn(b["node"], self.nodes, f"bridge node {b['node']} not in RESEARCH_WEB.md")
+
+    def test_bridge_relations_in_vocab(self):
+        for b in self.bridges:
+            with self.subTest(node=b["node"]):
+                self.assertIn(b["relation"], self.REL_VOCAB, f"unknown relation {b['relation']!r}")
+
+    def test_bridge_code_targets_resolve(self):
+        import re
+        for b in self.bridges:
+            for code in b["code"]:
+                with self.subTest(node=b["node"], code=code):
+                    if code.startswith("config."):
+                        self.assertTrue(hasattr(self.config, code.split(".", 1)[1]),
+                                        f"bridge {code} not a config attribute")
+                    elif "::" in code:
+                        path, sym = code.split("::", 1)
+                        full = os.path.join(REPO, path)
+                        self.assertTrue(os.path.exists(full), f"bridge file missing: {path}")
+                        with open(full, errors="ignore") as fh:
+                            src = fh.read()
+                        self.assertRegex(
+                            src, re.compile(rf"^\s*(def|class)\s+{re.escape(sym)}\b|^\s*{re.escape(sym)}\s*=", re.M),
+                            f"bridge symbol '{sym}' not defined in {path}")
+                    else:
+                        self.assertTrue(os.path.exists(os.path.join(REPO, code)), f"bridge path missing: {code}")
+
+
 class TestManifestReferencesExist(unittest.TestCase):
     def setUp(self):
         self.m = _load()

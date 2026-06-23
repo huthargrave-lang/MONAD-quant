@@ -14,10 +14,22 @@ venv/bin/python tools/ctx.py covers <symbol>       # which test(s) exercise a sy
 venv/bin/python tools/ctx.py schema                # state.db tables/columns/counts
 venv/bin/python tools/ctx.py config <KEY>          # a config value + where it's set
 venv/bin/python tools/ctx.py perf                  # headline + the HONEST confirmed-fill edge
+venv/bin/python tools/ctx.py audit                 # content drift: config %-comments that disagree with the value
 venv/bin/python tools/ctx.py status                # live deploy/runtime state
 venv/bin/python tools/ctx.py recent [N]            # recent commits + changed files
 venv/bin/python tools/ctx.py map [area]            # the manifest (or one area)
 venv/bin/python tools/ctx.py web [node]            # walk the research idea-web (findings→hypotheses→evidence)
+venv/bin/python tools/ctx.py neighbors <node>      # unified-graph neighbors (idea + code bridges) by edge type
+venv/bin/python tools/ctx.py walk <node> [--edge T --depth N]  # BFS the idea graph (e.g. follow a supersedes chain)
+venv/bin/python tools/ctx.py why <node>            # grounding experiments + decisions a node bears on (provenance path)
+venv/bin/python tools/ctx.py contradicts <node>    # what overturns this node / what it overturns
+venv/bin/python tools/ctx.py frontier "<task>" [--budget N]  # task-shaped packet: seeds + corrections, not a fixed summary
+venv/bin/python tools/ctx.py graph [--json|--html]  # the whole unified map (idea web ∪ code graph); --html = interactive browser map
+venv/bin/python tools/ctx.py health                # context-map health score: coverage + freshness + bridge/lint integrity
+venv/bin/python tools/ctx.py related <node|query>  # semantic search: nodes most similar to a node or free-text (TF-IDF)
+venv/bin/python tools/ctx.py init [--write]        # scaffold the context layer for a fresh repo (the kit's portability entrypoint)
+venv/bin/python tools/note.py add --kind F --title "..." --body "..." [--link ID:type] [--commit]   # capture a finding into the web (dry-run by default)
+venv/bin/python tools/note.py supersede <OLD> --by <NEW> [--reason <code>] [--commit]   # mark a node superseded (write-fenced, lint-gated)
 venv/bin/python tools/ctx.py brief <area> --task ".."  # ≤900-tok orientation packet (best first move)
 venv/bin/python tools/ctx.py impact <file|symbol|config.KEY>  # blast radius + ⛔ if it hits the live boundary
 venv/bin/python tools/ctx.py can_edit <file>       # edit gate ALLOW/WARN/DENY (exit 0/2/1, scriptable)

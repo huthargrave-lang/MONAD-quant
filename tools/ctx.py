@@ -474,6 +474,13 @@ def cmd_impact(args):
     target = args.target
     importers, mod2file = _import_graph()
 
+    brs = _bridges_for_target(target)
+    if brs:
+        print("  ⚠ idea bridges (RESEARCH_WEB.md findings about this target — `ctx web <node>`):")
+        for b in brs:
+            print(f"    {b['node']} ({b['relation']}): {b['note']}")
+        print()
+
     # config.KEY mode — scan all three access forms (config.KEY / getattr / ASSETS).
     if (target.startswith("config.") and not target.endswith(".py")) or (target.isupper() and "_" in target):
         key = target.split(".", 1)[1] if target.startswith("config.") else target
@@ -596,6 +603,83 @@ def cmd_config(args):
                     print(f"    set at {sub}:{i}: {line.strip()[:90]}")
 
 
+# ── KA9: config comment-vs-value drift audit (Context Web v2, Layer 2) ───────
+# A param like `STOP_LOSS_PCT_X = 0.0050  # 1.50% stop` silently lies when the
+# value and its percent-comment disagree (here 0.50% vs the stated 1.50%). The
+# structure guards (test_context_map) can't see it — it's *content* drift. This
+# parses module-level `NAME = <num>  # <num>% ...` lines in the target/stop/PCT
+# family and flags any where the comment's FIRST percent != value×100.
+
+_PCT_PARAM_RX = re.compile(r"TARGET_GAIN|STOP_LOSS|_PCT")
+_CFG_ASSIGN_RX = re.compile(
+    r"^(?P<key>[A-Z_][A-Z0-9_]*)\s*=\s*(?P<val>-?\d+\.?\d*)\s*#\s*(?P<comment>.*\S)\s*$")
+_FIRST_PCT_RX = re.compile(r"(\d+(?:\.\d+)?)\s*%")
+
+
+def _config_files():
+    """config.py + every config_modules/*.py — config was split into submodules
+    (see config.py:7-12), so the percent params live across all of them. The
+    drift scan must follow the split or it blinds itself to e.g. base.py's
+    MAX_POSITION_PCT / MIN_POSITION_PCT."""
+    files = [os.path.join(REPO, "config.py")]
+    cmdir = os.path.join(REPO, "config_modules")
+    if os.path.isdir(cmdir):
+        files += [os.path.join(cmdir, f) for f in sorted(os.listdir(cmdir)) if f.endswith(".py")]
+    return files
+
+
+def config_comment_drift(paths=None, tol=0.005):
+    """Percent-annotated config params whose inline comment disagrees with the
+    value. Scans module-level `NAME = <num>  # <num>% ...` lines in the
+    target/stop/PCT family across config.py + config_modules/*.py; flags when the
+    comment's FIRST percent != value×100. Read-only.
+    Returns [{key, file, line, value, value_pct, comment_pct, comment}]."""
+    if paths is None:
+        paths = _config_files()
+    elif isinstance(paths, str):
+        paths = [paths]
+    out = []
+    for path in paths:
+        try:
+            with open(path, errors="ignore") as fh:
+                lines = fh.read().splitlines()
+        except OSError:
+            continue
+        rel = os.path.relpath(path, REPO)
+        for i, line in enumerate(lines, 1):
+            m = _CFG_ASSIGN_RX.match(line)
+            if not m or not _PCT_PARAM_RX.search(m.group("key")):
+                continue
+            pm = _FIRST_PCT_RX.search(m.group("comment"))
+            if not pm:
+                continue  # no percent claimed in the comment — nothing to check
+            value_pct = float(m.group("val")) * 100
+            comment_pct = float(pm.group(1))
+            if abs(value_pct - comment_pct) > tol:
+                out.append({"key": m.group("key"), "file": rel, "line": i,
+                            "value": float(m.group("val")), "value_pct": round(value_pct, 4),
+                            "comment_pct": comment_pct, "comment": m.group("comment")})
+    return out
+
+
+def cmd_audit(args):
+    """Content drift the structure guards can't see: config params whose inline
+    %-comment disagrees with the value (e.g. `= 0.0050  # 1.50% stop` → 0.50%).
+    Exit 1 if any drift (scriptable/CI-able), 0 if clean."""
+    drift = config_comment_drift()
+    if not drift:
+        print("  ✓ config.py: no comment-vs-value drift in target/stop/PCT params")
+        return
+    print(f"  ⚠ {len(drift)} config comment-vs-value mismatch(es) (comment % ≠ value×100):")
+    for d in drift:
+        print(f"    {d['file']}:{d['line']}  {d['key']} = {d['value']} "
+              f"→ value is {d['value_pct']:.2f}% but the comment says {d['comment_pct']:.2f}%")
+        print(f"        # {d['comment'][:90]}")
+    print("  (config.py + config_modules/ are on the edit deny-fence — fixing a comment needs "
+          "sign-off + the trader stopped; `ctx can_edit <file>`)")
+    sys.exit(1)
+
+
 def _compound(returns):
     e = 1.0
     for r in returns:
@@ -608,7 +692,11 @@ def cmd_perf(args):
         print("live/state.db not present.")
         return
     c = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
-    rows = c.execute("SELECT return_pct, exit_type FROM trades").fetchall()
+    try:
+        rows = c.execute("SELECT return_pct, exit_type FROM trades").fetchall()
+    except Exception as exc:
+        print(f"  no 'trades' table (this command expects this repo's live/state.db schema): {exc}")
+        return
     if not rows:
         print("  no trades recorded yet.")
         return
@@ -649,6 +737,11 @@ def cmd_map(args):
         for k, v in m["invariants"].items():
             if not k.startswith("_"):
                 print(f"  {k} = {v}")
+        claims = m.get("param_claims", {}).get("claims", [])
+        if claims:
+            print("\nparam_claims (config-bound; `ctx config <KEY>` for the live value):")
+            for c in claims:
+                print(f"  {c['source'].split('.', 1)[1]:30} = {c['value']}")
         print("\ntools (read-only):")
         for t in m["tools_readonly"]:
             print(f"  {t['cmd']:42} {t['returns']}")
@@ -663,9 +756,65 @@ def cmd_tests(args):
     print("  " + ("\n  ".join(a.get("tests", [])) or "(no tests listed)"))
 
 
+# ── Typed edges (Context Web v2 #2) ──────────────────────────────────────────
+# An edge can be written explicitly as [[ID|type]]; an untyped [[ID]] falls back
+# to a cue classifier that reads the relation verb just before the link. The
+# split below is what `--lint` needs: a RELIANCE edge into a superseded node is a
+# real problem; a LINEAGE/provenance edge into one is fine; `relates` is advisory.
+RELIANCE_EDGES = {"relies_on", "supports", "refines", "builds_on"}
+EDGE_TYPES = RELIANCE_EDGES | {
+    "supersedes", "contradicts", "evidenced_by", "produces", "derived_from",
+    "drives", "resolves", "relates",
+}
+# Prose cue → canonical type (nearest cue to the link wins; substring match).
+_EDGE_CUES = [
+    ("supersede", "supersedes"), ("reversal", "supersedes"),
+    ("contradict", "contradicts"),
+    ("relies on", "relies_on"), ("depends on", "relies_on"),
+    ("corroborat", "supports"), ("support", "supports"),
+    ("refine", "refines"),
+    ("builds on", "builds_on"), ("build on", "builds_on"),
+    ("evidence", "evidenced_by"), ("evidenced", "evidenced_by"), ("source:", "evidenced_by"),
+    ("produced", "produces"), ("produces", "produces"), ("feeds", "produces"),
+    ("derived from", "derived_from"), ("based on", "derived_from"),
+    ("motivat", "drives"), ("drives", "drives"), ("bears on", "drives"), ("→", "drives"),
+    ("resolve", "resolves"), ("closed", "resolves"),
+]
+# Capture the ID first and the type permissively (anything up to ]]) so a
+# malformed/spaced type degrades to untyped instead of dropping the whole link
+# (which would blind dangling- and stale-cite detection).
+_LINK_RX = re.compile(r"\[\[([A-Za-z]+\d+)(?:\|([^\]]*))?\]\]")
+
+
+def _classify_edge(pre):
+    """Infer an edge type from the prose immediately preceding a [[link]]. Looks
+    only within the current sentence/line (no cross-clause bleed); matches cues on
+    word boundaries with a negation guard ('not'/'un' → skip), and lets a RELIANCE
+    verb win over a closer lineage cue so reliance-on-superseded stays decidable.
+    Returns a canonical type, default 'relates'."""
+    brk = max(pre.rfind(". "), pre.rfind("\n"), pre.rfind("; "), pre.rfind("! "))
+    window = (pre[brk + 1:] if brk >= 0 else pre)[-90:].lower()
+    reliance, other = (-1, None), (-1, None)   # (pos, type) of nearest reliance / lineage cue
+    for cue, etype in _EDGE_CUES:
+        pat = (r"\b" + re.escape(cue)) if cue[:1].isalpha() else re.escape(cue)
+        for mm in re.finditer(pat, window):
+            pos = mm.start()
+            if window[max(0, pos - 4):pos].endswith(("not ", "no ")) or \
+                    window[max(0, pos - 2):pos] == "un":
+                continue  # negated reference ('not supported', 'unsupported') — not an edge
+            if etype in RELIANCE_EDGES:
+                if pos > reliance[0]:
+                    reliance = (pos, etype)
+            elif pos > other[0]:
+                other = (pos, etype)
+    return reliance[1] or other[1] or "relates"
+
+
 def _parse_web():
-    """Parse RESEARCH_WEB.md into {id: {title, body, links}} + reverse links.
-    Nodes are '### <ID> — <title>'; edges are '[[ID]]' references in the body."""
+    """Parse RESEARCH_WEB.md into {id: {title, body, links, edges}} + reverse links.
+    Nodes are '### <ID> — <title>'; edges are '[[ID]]'/'[[ID|type]]' references in
+    the body. `links` is the sorted unique target IDs (backward-compatible); `edges`
+    is [{target, type}] with the relation type (explicit, else cue-classified)."""
     if not os.path.exists(WEB):
         return {}, {}
     nodes, cur = {}, None
@@ -678,18 +827,108 @@ def _parse_web():
                 nodes[cur] = {"title": m.group(2).strip(), "body": ""}
             elif cur:
                 nodes[cur]["body"] += line
-    link_rx = re.compile(r"\[\[([A-Za-z]+\d+)\]\]")
     rev = {}
     for nid, n in nodes.items():
-        n["links"] = sorted(set(link_rx.findall(n["body"])) - {nid})
+        body = n["body"]
+        edges = {}  # target -> (rank, type); rank: relates=0, cue=1, explicit=2
+        for m in _LINK_RX.finditer(body):
+            tgt, raw = m.group(1), m.group(2)
+            if tgt == nid:
+                continue
+            if raw is not None and raw.strip().lower() in EDGE_TYPES:
+                rank, t = 2, raw.strip().lower()       # explicit, well-formed type wins
+            else:                                       # untyped OR malformed type → infer, keep link
+                t = _classify_edge(body[:m.start()])
+                rank = 0 if t == "relates" else 1
+            cur = edges.get(tgt)
+            # higher rank wins; at equal rank a RELIANCE edge wins over lineage, so a
+            # stale-cite isn't hidden behind a same-rank provenance link to the same target.
+            if cur is None or rank > cur[0] or (
+                    rank == cur[0] and t in RELIANCE_EDGES and cur[1] not in RELIANCE_EDGES):
+                edges[tgt] = (rank, t)
+        n["edges"] = [{"target": t, "type": ty} for t, (_, ty) in sorted(edges.items())]
+        n["links"] = sorted(edges)          # target IDs only — unchanged contract
         for tgt in n["links"]:
             rev.setdefault(tgt, set()).add(nid)
     return nodes, {k: sorted(v) for k, v in rev.items()}
 
 
+# ── Structured supersession (Context Web v2 #3) ──────────────────────────────
+# Status is machine-readable, not a title-string match: a node may carry
+#   <!-- status: superseded; by: F13; reason: data-fixed; conf: 0.9; at: 2026-06-19 -->
+# Explicit metadata wins; otherwise the title's '[SUPERSEDED by Fx]' tag is the
+# fallback (backward compatible). status ∈ {current, superseded, retracted}.
+_META_RX = re.compile(r"<!--(.*?)-->", re.S)
+STATUS_VALUES = {"current", "superseded", "retracted"}
+REASON_CODES = {"reversed", "refined", "data-fixed", "decayed", "merged", "withdrawn"}
+
+
+def _node_meta(node):
+    """Parse a node's structured status block (or fall back to its title tag).
+    Returns {status, by, reason, conf, at} with status defaulted to 'current'."""
+    meta = {"status": None, "by": None, "reason": None, "conf": None, "at": None}
+    for block in _META_RX.findall(node.get("body", "")):
+        low = block.lower()
+        if not any(k in low for k in ("status:", "reason:", "conf:")):
+            continue
+        for part in re.split(r"[;\n]", block):
+            if ":" not in part:
+                continue
+            k, v = part.split(":", 1)
+            k, v = k.strip().lower(), v.strip()
+            if k in meta and v:
+                meta[k] = v
+        break
+    if meta["status"] is None:  # no explicit status → title tag (backward compatible)
+        tm = re.search(r"\[(SUPERSEDED|RETRACTED) by ([FHED]\d+)\]", node["title"], re.I)
+        if tm:
+            meta["status"] = tm.group(1).lower()
+            meta["by"] = meta["by"] or tm.group(2)
+        else:
+            meta["status"] = "current"
+    meta["status"] = meta["status"].lower()
+    if meta["conf"] is not None:
+        try:
+            meta["conf"] = float(meta["conf"])
+        except ValueError:
+            meta["conf"] = None
+    return meta
+
+
 def _is_superseded(node) -> bool:
-    """A node is superseded if its title says so (e.g. '[SUPERSEDED by F13]')."""
-    return "SUPERSEDED" in node["title"].upper()
+    """True if the node is no longer current (superseded or retracted)."""
+    return _node_meta(node)["status"] in ("superseded", "retracted")
+
+
+# ── Idea↔code bridges (Context Web v2 #5) ────────────────────────────────────
+
+def _graph_bridges():
+    """Curated idea↔code edges (context_map.json graph_bridges)."""
+    return _manifest().get("graph_bridges", {}).get("bridges", [])
+
+
+def _bridge_code_id(code):
+    """Normalize a bridge code target to a unified-graph pseudo-node id."""
+    return ("cfg:" + code.split(".", 1)[1]) if code.startswith("config.") else ("code:" + code)
+
+
+def _bridges_for_target(target):
+    """Bridges whose code list references this impact target (a symbol, a config
+    key with or without the 'config.' prefix, or a file path)."""
+    t = target[7:] if target.startswith("config.") else target
+    out = []
+    for b in _graph_bridges():
+        handles = set()
+        for code in b["code"]:
+            handles.add(code)
+            if code.startswith("config."):
+                handles.add(code[7:])
+            if "::" in code:
+                f, s = code.split("::", 1)
+                handles.update((f, s))
+        if target in handles or t in handles:
+            out.append(b)
+    return out
 
 
 def cmd_web(args):
@@ -699,26 +938,35 @@ def cmd_web(args):
         print("RESEARCH_WEB.md not found or empty.")
         return
 
-    # --lint: graph integrity. Dangling links = hard problems (CI-gated by
-    # tests/test_research_web.py). Stale-cites = advisories (need typed edges to
-    # cleanly tell "produced/narrates" from "relies on" — until then, informational).
+    # --lint: graph integrity. Dangling links + reliance-on-superseded = hard
+    # problems (the latter now decidable thanks to typed edges). A live node that
+    # RELIES ON a superseded one is a real stale-cite; LINEAGE edges (supersedes/
+    # evidenced_by/...) pointing back at old nodes are fine; untyped `relates` to a
+    # superseded node stays advisory (add [[ID|type]] to make it decidable).
     if getattr(args, "lint", False):
         dangling = [(nid, tgt) for nid, n in nodes.items()
                     for tgt in n["links"] if tgt not in nodes]
         for nid, tgt in dangling:
             print(f"  PROBLEM dangling: {nid} → [[{tgt}]] (no such node)")
-        advisories = 0
+        problems, advisories = 0, 0
         for nid, n in nodes.items():
             if _is_superseded(n):
-                for src in rev.get(nid, []):
-                    sn = nodes[src]
-                    if _is_superseded(sn) or "SUPERSEDE" in sn["body"].upper():
-                        continue
-                    print(f"  advisory stale-cite: {src} still links to superseded {nid}")
+                continue  # a superseded node may freely cite anything (history)
+            for e in n["edges"]:
+                tgt = e["target"]
+                if tgt not in nodes or not _is_superseded(nodes[tgt]):
+                    continue
+                if e["type"] in RELIANCE_EDGES:
+                    print(f"  PROBLEM stale-cite: live {nid} --{e['type']}--> superseded "
+                          f"{tgt} (relies on a retracted claim)")
+                    problems += 1
+                elif e["type"] == "relates":
+                    print(f"  advisory stale-cite: {nid} relates to superseded {tgt} "
+                          f"(untyped — add [[{tgt}|<type>]] to disambiguate)")
                     advisories += 1
         sup = sum(1 for n in nodes.values() if _is_superseded(n))
         print(f"\n  {len(nodes)} nodes | {sup} superseded | "
-              f"{len(dangling)} problem(s) | {advisories} advisory")
+              f"{len(dangling) + problems} problem(s) | {advisories} advisory")
         return
 
     if args.node:
@@ -726,10 +974,33 @@ def cmd_web(args):
         if not n:
             print(f"no node '{args.node}'. nodes: {', '.join(sorted(nodes))}")
             return
-        flag = "  [SUPERSEDED]" if _is_superseded(n) else ""
+        meta = _node_meta(n)
+        flag = ""
+        if meta["status"] != "current":
+            by = f" by {meta['by']}" if meta["by"] else ""
+            why = f", {meta['reason']}" if meta["reason"] else ""
+            flag = f"  [{meta['status'].upper()}{by}{why}]"
         print(f"{args.node} — {n['title']}{flag}\n{n['body'].strip()}")
-        print(f"\n  → links to:  {', '.join(n['links']) or '—'}")
+        print("\n  → links to (by edge type):")
+        if n["edges"]:
+            by_type = {}
+            for e in n["edges"]:
+                by_type.setdefault(e["type"], []).append(e["target"])
+            for ty in sorted(by_type):
+                items = ", ".join(
+                    t + (" (superseded)" if t in nodes and _is_superseded(nodes[t]) else "")
+                    for t in by_type[ty])
+                print(f"      {ty:<13} {items}")
+        else:
+            print("      —")
         print(f"  ← linked by: {', '.join(rev.get(args.node, [])) or '—'}")
+        brs = [b for b in _graph_bridges() if b["node"] == args.node]
+        if brs:
+            print("  ⊢ code bridges:")
+            for b in brs:
+                print(f"      {b['relation']:<13} {', '.join(b['code'])}")
+                if b.get("note"):
+                    print(f"        ↳ {b['note']}")
         return
 
     live_only = getattr(args, "live", False)
@@ -749,19 +1020,627 @@ def cmd_web(args):
         print()
 
 
+# ── Unified idea graph + traversal verbs (Context Web v2 #6) ─────────────────
+# One graph over RESEARCH_WEB.md (typed edges) ∪ context_map graph_bridges, in a
+# single ID namespace: research IDs (F17) + 'code:'/'cfg:' pseudo-nodes for bridge
+# targets. Lets an agent WALK task → finding → decision → symbol in one place.
+
+def build_graph(include_code=False):
+    """Unified context graph. G[id] = {kind, title, status}; adj[id] = list of
+    {to, type, dir} ('out' = id→to, 'in' = to→id). Always: research nodes (F/H/E/D)
+    + their typed edges + idea↔code bridges. With include_code=True it also folds in
+    the AUTO-EXTRACTED code graph — modules, imports, area-ownership, test-coverage,
+    config-reads — so the whole repo is one navigable map (the 'map all of it' layer)."""
+    nodes, _ = _parse_web()
+    G, adj = {}, {}
+
+    def ensure(nid, kind, title, status="current"):
+        if nid not in G:
+            G[nid] = {"kind": kind, "title": title, "status": status}
+            adj[nid] = []
+
+    seen_e = set()
+
+    def add(a, b, t):
+        if (a, b, t) in seen_e:          # dedup (e.g. a symbol bridged by several findings)
+            return
+        seen_e.add((a, b, t))
+        adj[a].append({"to": b, "type": t, "dir": "out"})
+        adj[b].append({"to": a, "type": t, "dir": "in"})
+
+    for nid, n in nodes.items():
+        ensure(nid, nid[0], n["title"], _node_meta(n)["status"])
+    for nid, n in nodes.items():
+        for e in n["edges"]:
+            ensure(e["target"], e["target"][0], e["target"])  # dangling target → stub
+            add(nid, e["target"], e["type"])
+    for b in _graph_bridges():
+        if b["node"] not in G:
+            continue
+        for code in b["code"]:
+            cid = _bridge_code_id(code)
+            ensure(cid, "code" if "::" in code else "config", code)
+            add(b["node"], cid, b["relation"])
+            if include_code and "::" in code:           # connect symbol-bridge to its module
+                f = code.split("::")[0]
+                ensure("mod:" + f, "module", f); add(cid, "mod:" + f, "defined_in")
+
+    if include_code:
+        importers, mod2file = _import_graph()
+        m = _manifest()
+        for rel in mod2file.values():
+            ensure("mod:" + rel, "module", rel)
+        for area, spec in m["areas"].items():
+            aid = "area:" + area
+            ensure(aid, "area", spec.get("summary", area)[:70])
+            for rel in mod2file.values():
+                if any(rel == f or (f.endswith("/") and rel.startswith(f)) for f in spec["files"]):
+                    add(aid, "mod:" + rel, "owns")
+        for dotted, rel in mod2file.items():
+            for imp in importers.get(dotted, ()):        # imp imports dotted
+                irel = mod2file.get(imp)
+                if not irel:
+                    continue
+                if irel.startswith("tests" + os.sep):
+                    add("mod:" + rel, "mod:" + irel, "tested_by")
+                else:
+                    add("mod:" + irel, "mod:" + rel, "imports")
+        rx = re.compile(r"\bconfig\.([A-Z][A-Z0-9_]+)")
+        for rel in mod2file.values():
+            try:
+                txt = open(os.path.join(REPO, rel), errors="ignore").read()
+            except OSError:
+                continue
+            for key in sorted(set(rx.findall(txt)))[:40]:
+                cid = "cfg:" + key
+                ensure(cid, "config", "config." + key); add("mod:" + rel, cid, "reads_config")
+    return G, adj
+
+
+def _g_label(G, nid):
+    st = G.get(nid, {}).get("status", "current")
+    return nid + (f" ⚠{st}" if st != "current" else "")
+
+
+def _g_head(G, nid):
+    st = G[nid]
+    return f"{nid} — {st['title']}" + (f"  [{st['status']}]" if st["status"] != "current" else "")
+
+
+def _g_missing(G, nid):
+    if nid in G:
+        return False
+    print(f"no node '{nid}'. (research IDs like F17, or `code:`/`cfg:` bridge targets; "
+          f"list: ctx web)")
+    return True
+
+
+def cmd_neighbors(args):
+    """Immediate graph neighbors of a node, grouped by edge type and direction."""
+    G, adj = build_graph()
+    if _g_missing(G, args.node):
+        return
+    print(_g_head(G, args.node))
+    for label, d in (("→ out", "out"), ("← in", "in")):
+        by = {}
+        for e in adj[args.node]:
+            if e["dir"] == d:
+                by.setdefault(e["type"], []).append(e["to"])
+        print(f"  {label}:" + ("" if by else " —"))
+        for t in sorted(by):
+            print(f"    {t:<13} {', '.join(_g_label(G, x) for x in by[t])}")
+
+
+def cmd_walk(args):
+    """BFS from a node along out-edges to a depth, optionally one edge type only
+    (e.g. `ctx walk F3 --edge supersedes` follows the supersession chain)."""
+    G, adj = build_graph()
+    if _g_missing(G, args.node):
+        return
+    only = args.edge
+    print(f"walk from {args.node}" + (f" along '{only}'" if only else "") + f" (depth {args.depth}):")
+    seen, q, shown = {args.node}, [(args.node, 0)], 0
+    while q:
+        node, d = q.pop(0)
+        if d >= args.depth:
+            continue
+        for e in adj.get(node, []):
+            if e["dir"] != "out" or (only and e["type"] != only) or e["to"] in seen:
+                continue
+            seen.add(e["to"])
+            print(f"    {'  ' * d}{node} --{e['type']}--> {_g_label(G, e['to'])}")
+            shown += 1
+            q.append((e["to"], d + 1))
+    if not shown:
+        print("    (no outgoing edges" + (f" of type '{only}'" if only else "") + ")")
+
+
+def cmd_why(args):
+    """Why believe / where it leads: nearest grounding Experiments (out-edges) and
+    the Decisions a node bears on — the provenance path, not a summary."""
+    G, adj = build_graph()
+    if _g_missing(G, args.node):
+        return
+
+    def paths_to(prefix, maxlen=4, cap=8):
+        # One shortest provenance path per reachable endpoint of `prefix` (BFS →
+        # first path found is shortest). Per-path visited (not a global set) so a
+        # node reachable via several routes isn't suppressed. NEVER traverse a
+        # supersedes/contradicts edge — walking into an overturned node and
+        # harvesting ITS evidence would attribute a refuted claim's grounding to
+        # the node that reverses it (backwards provenance).
+        found, q = {}, [(args.node, [], frozenset([args.node]))]
+        while q and len(found) < cap:
+            cur, path, vis = q.pop(0)
+            for e in adj.get(cur, []):
+                tgt = e["to"]
+                if e["dir"] != "out" or e["type"] in ("supersedes", "contradicts") or tgt in vis:
+                    continue
+                np = path + [(e["type"], tgt)]
+                if tgt[:1] == prefix and tgt[1:2].isdigit():
+                    found.setdefault(tgt, np)            # keep first (shortest) per endpoint
+                elif len(np) < maxlen:
+                    q.append((tgt, np, vis | {tgt}))
+        return list(found.values())
+
+    def fmt(p):
+        return " → ".join(f"{t}:{tgt}" for t, tgt in p)
+
+    print(f"why {_g_head(G, args.node)}")
+    ev, dec = paths_to("E"), paths_to("D")
+    print("  grounded in (experiments):")
+    print("\n".join(f"    {args.node} → {fmt(p)}" for p in ev)
+          or "    (no experiment reachable — unevidenced, or a pure hypothesis/decision)")
+    print("  bears on (decisions):")
+    print("\n".join(f"    {args.node} → {fmt(p)}" for p in dec) or "    —")
+
+
+def cmd_contradicts(args):
+    """What overturns this node and what it overturns (supersedes/contradicts)."""
+    G, adj = build_graph()
+    if _g_missing(G, args.node):
+        return
+    print(_g_head(G, args.node))
+    rel = ("supersedes", "contradicts")
+    out = [e["to"] for e in adj[args.node] if e["dir"] == "out" and e["type"] in rel]
+    inc = [e["to"] for e in adj[args.node] if e["dir"] == "in" and e["type"] in rel]
+    print(f"  supersedes/contradicts →        {', '.join(_g_label(G, x) for x in out) or '—'}")
+    print(f"  ← superseded/contradicted by    {', '.join(_g_label(G, x) for x in inc) or '—'}")
+
+
+_GRAPH_HTML = r"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>__PROJECT__ — context map</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+:root{--bg:#fff;--surf:#f7f6f2;--tx:#26251f;--mut:#5f5e5a;--bd:rgba(0,0,0,.14)}
+@media(prefers-color-scheme:dark){:root{--bg:#1b1b19;--surf:#242420;--tx:#e9e7df;--mut:#a8a79f;--bd:rgba(255,255,255,.16)}}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--tx)}
+header{padding:12px 16px;border-bottom:.5px solid var(--bd)}h1{font-size:16px;font-weight:500;margin:0}
+.sub{font-size:12px;color:var(--mut);margin-top:3px}
+.bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 16px;font-size:12px;border-bottom:.5px solid var(--bd)}
+button{font:inherit;font-size:12px;height:28px;padding:0 9px;border:.5px solid var(--bd);background:transparent;color:var(--tx);border-radius:7px;cursor:pointer}
+button:hover{background:var(--surf)}input{font:inherit;height:28px;padding:0 8px;border:.5px solid var(--bd);background:var(--bg);color:var(--tx);border-radius:7px}
+.legend{display:flex;flex-wrap:wrap;gap:12px;padding:6px 16px;font-size:11px;color:var(--mut);border-bottom:.5px solid var(--bd)}
+#wrap{position:relative}svg{display:block;width:100%;height:68vh;cursor:grab}
+#tip{position:absolute;pointer-events:none;opacity:0;background:var(--bg);border:.5px solid var(--bd);border-radius:6px;padding:3px 7px;font-size:11px;max-width:300px}
+#detail{padding:10px 16px;font-size:13px;color:var(--mut);min-height:46px;border-top:.5px solid var(--bd)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:0}
+.ln{display:inline-block;width:14px;height:0;border-top:2px solid;vertical-align:3px;margin-right:4px}
+</style></head><body>
+<header><h1>__PROJECT__ · context map</h1><div class="sub">research web &cup; idea&harr;code bridges &cup; auto-extracted code graph — generated by <code>ctx graph --html</code></div></header>
+<div class="bar"><span id="pills"></span><input id="q" placeholder="search…" style="margin-left:auto;width:140px"><button id="reset">reset</button></div>
+<div class="legend" id="legend"></div>
+<div id="wrap"><svg id="svg"></svg><div id="tip"></div></div>
+<div id="detail">Click a node to inspect it and its neighbours · drag to rearrange · scroll to zoom.</div>
+<script>
+const D=__DATA__;
+const dark=matchMedia&&matchMedia('(prefers-color-scheme:dark)').matches;
+const COL=dark?{F:'#5DCAA5',H:'#EF9F27',E:'#AFA9EC',D:'#F0997B',area:'#85B7EB',module:'#9a988f',config:'#97C459',code:'#85B7EB'}
+              :{F:'#1D9E75',H:'#BA7517',E:'#7F77DD',D:'#D85A30',area:'#185FA5',module:'#888780',config:'#639922',code:'#378ADD'};
+const LBL={F:'Findings',H:'Hypotheses',E:'Experiments',D:'Decisions',area:'Code areas',module:'Modules',config:'Config keys',code:'Code symbols'};
+const SUP=dark?'#6f6e6a':'#a8a7a0', STROKE=dark?'#1b1b19':'#fff', MUT=dark?'#a8a79f':'#5f5e5a';
+const idea=new Set(['F','H','E','D','area']);
+const nodes=D.n.map((d,i)=>({i,id:d[0],k:D.k[d[1]],sup:d[2],title:d[3]||d[0].replace(/^(mod|cfg|code):/,'')}));
+const links=D.e.map(e=>({source:e[0],target:e[1],tn:D.t[e[2]]}));
+function ecol(t){if(t==='supersedes'||t==='contradicts')return dark?'#F09595':'#E24B4A';if(t==='concerns'||t==='gated_by')return dark?'#85B7EB':'#185FA5';if(t==='imports')return dark?'#5f5e5a':'#b4b2a9';return dark?'#403f3a':'#cdcbc2';}
+function edash(t){return (t==='evidenced_by'||t==='produces'||t==='derived_from'||t==='concerns'||t==='reads_config')?'3,3':null;}
+function rad(n){return n.k==='area'?11:(idea.has(n.k)?(n.sup?5:6.5):(n.k==='module'?4.5:4));}
+const adj={};nodes.forEach(n=>adj[n.i]=new Set());links.forEach(l=>{adj[l.source].add(l.target);adj[l.target].add(l.source);});
+const on={};Object.keys(LBL).forEach(k=>on[k]=true);on._sup=true;
+const svg=d3.select('#svg'),g=svg.append('g'),svgEl=document.getElementById('svg');
+let W=svgEl.clientWidth||900,H=svgEl.clientHeight||560;
+const link=g.append('g').selectAll('line').data(links).join('line').attr('fill','none')
+ .attr('stroke',d=>ecol(d.tn)).attr('stroke-width',d=>(d.tn==='supersedes'||d.tn==='contradicts')?1.8:1)
+ .attr('stroke-dasharray',d=>edash(d.tn));
+const node=g.append('g').selectAll('g').data(nodes).join('g').style('cursor','pointer');
+node.append('circle').attr('r',rad).attr('fill',d=>d.sup?SUP:COL[d.k]).attr('stroke',STROKE).attr('stroke-width',1.3).attr('opacity',d=>d.sup?.6:1);
+node.append('text').text(d=>idea.has(d.k)?d.id.replace('area:',''):'').attr('x',d=>rad(d)+3).attr('y',3.5)
+ .attr('font-size',d=>d.k==='area'?'11px':'10px').attr('fill',d=>d.k==='area'?COL.area:MUT).attr('font-family','ui-monospace,monospace');
+const tip=d3.select('#tip');
+node.on('mousemove',(ev,d)=>{const r=svgEl.getBoundingClientRect();tip.style('opacity',1).html((d.sup?'[superseded] ':'')+'<b>'+d.id+'</b> '+d.title).style('left',Math.min(ev.clientX-r.left+12,r.width-300)+'px').style('top',(ev.clientY-r.top+12)+'px');}).on('mouseleave',()=>tip.style('opacity',0));
+let sel=null;
+node.on('click',(ev,d)=>{ev.stopPropagation();sel=sel===d.i?null:d.i;paint();
+ if(sel===null){det('Cleared — click a node to inspect.');return;}
+ const nb={};links.forEach(l=>{if(l.source.i===d.i)(nb[l.tn]=nb[l.tn]||[]).push('→'+nodes[l.target.i].id);if(l.target.i===d.i)(nb[l.tn]=nb[l.tn]||[]).push('←'+nodes[l.source.i].id);});
+ let h='<b style="color:var(--tx)">'+d.id+'</b> · '+(LBL[d.k]||d.k)+(d.sup?' · <span style="color:'+(dark?'#F09595':'#A32D2D')+'">superseded</span>':'')+'<br><span style="color:var(--tx)">'+d.title+'</span>';
+ const ks=Object.keys(nb);if(ks.length)h+='<br>'+ks.map(k=>'<b>'+k+'</b> '+[...new Set(nb[k])].join(', ')).join(' &nbsp;·&nbsp; ');
+ det(h);});
+svg.on('click',()=>{sel=null;paint();});
+function det(h){document.getElementById('detail').innerHTML=h;}
+function vis(n){return on[n.k]&&(on._sup||!n.sup);}
+function paint(){node.style('display',n=>vis(n)?null:'none');link.style('display',l=>vis(l.source)&&vis(l.target)?null:'none');
+ if(sel===null){node.attr('opacity',1);link.attr('stroke-opacity',l=>(l.tn==='supersedes'||l.tn==='contradicts'||l.tn==='concerns')?.85:.32);return;}
+ node.attr('opacity',n=>n.i===sel||adj[sel].has(n.i)?1:.1);link.attr('stroke-opacity',l=>l.source.i===sel||l.target.i===sel?.95:.04);}
+const sim=d3.forceSimulation(nodes).force('link',d3.forceLink(links).distance(d=>d.tn==='imports'?70:48).strength(.4))
+ .force('charge',d3.forceManyBody().strength(-120)).force('center',d3.forceCenter(W/2,H/2))
+ .force('collide',d3.forceCollide().radius(d=>rad(d)+6)).force('x',d3.forceX(W/2).strength(.03)).force('y',d3.forceY(H/2).strength(.05));
+sim.on('tick',()=>{link.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y).attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);node.attr('transform',d=>'translate('+d.x+','+d.y+')');});
+node.call(d3.drag().on('start',(ev,d)=>{if(!ev.active)sim.alphaTarget(.3).restart();d.fx=d.x;d.fy=d.y;}).on('drag',(ev,d)=>{d.fx=ev.x;d.fy=ev.y;}).on('end',(ev,d)=>{if(!ev.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}));
+const zoom=d3.zoom().scaleExtent([.3,5]).on('zoom',ev=>g.attr('transform',ev.transform));svg.call(zoom);paint();
+document.getElementById('reset').onclick=()=>{svg.transition().duration(400).call(zoom.transform,d3.zoomIdentity);sel=null;document.getElementById('q').value='';srch('');paint();};
+const pills=d3.select('#pills');Object.keys(LBL).filter(k=>nodes.some(n=>n.k===k)).forEach(k=>{const b=pills.append('button').html('<span class="dot" style="background:'+COL[k]+'"></span>'+LBL[k]);b.on('click',()=>{on[k]=!on[k];b.style('opacity',on[k]?1:.4);paint();});});
+const sb=pills.append('button').text('superseded');sb.on('click',()=>{on._sup=!on._sup;sb.style('opacity',on._sup?1:.4);paint();});
+const leg=d3.select('#legend');[['supersedes / contradicts',ecol('supersedes')],['finding concerns code',ecol('concerns')],['import',ecol('imports')],['other edge',ecol('relates')]].forEach(([t,c])=>leg.append('span').html('<span class="ln" style="border-color:'+c+'"></span>'+t));
+function srch(q){q=q.trim().toLowerCase();node.select('circle').attr('stroke',d=>q&&(d.id.toLowerCase().includes(q)||d.title.toLowerCase().includes(q))?(dark?'#FAC775':'#BA7517'):STROKE).attr('stroke-width',d=>q&&(d.id.toLowerCase().includes(q)||d.title.toLowerCase().includes(q))?3:1.3);}
+document.getElementById('q').addEventListener('input',e=>srch(e.target.value));
+</script></body></html>"""
+
+
+def _graph_compact(G, adj):
+    """Index-encoded {k(kinds), t(edge-types), n[[id,kind,supflag,label]], e[[i,j,t]]}
+    for the self-contained HTML map (small enough to inline)."""
+    ids = list(G)
+    idx = {x: i for i, x in enumerate(ids)}
+    kinds = sorted({d["kind"] for d in G.values()})
+    ki = {k: i for i, k in enumerate(kinds)}
+    etypes = sorted({e["type"] for es in adj.values() for e in es})
+    ti = {t: i for i, t in enumerate(etypes)}
+    idea = {"F", "H", "E", "D", "area"}
+    n = [[nid, ki[d["kind"]], 1 if d["status"] != "current" else 0,
+          d["title"][:90] if d["kind"] in idea else ""] for nid, d in G.items()]
+    e = [[idx[a], idx[ed["to"]], ti[ed["type"]]]
+         for a, es in adj.items() for ed in es if ed["dir"] == "out"]
+    return {"k": kinds, "t": etypes, "n": n, "e": e}
+
+
+def cmd_graph(args):
+    """Emit the whole unified context map (research web ∪ idea↔code bridges ∪ the
+    auto-extracted code graph). `--json` = machine-readable map; `--html` = a
+    self-contained interactive force-graph (redirect to a file, open in a browser);
+    else a kind/edge-type summary. `--ideas-only` drops the code layer."""
+    G, adj = build_graph(include_code=not getattr(args, "ideas_only", False))
+    edges = [{"from": a, "to": e["to"], "type": e["type"]}
+             for a, es in adj.items() for e in es if e["dir"] == "out"]
+    if getattr(args, "html", False):
+        def esc(s):  # HTML-escape so author-edited titles can't break out of <script> or inject via d3 .html()
+            return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        comp_obj = _graph_compact(G, adj)
+        for nd in comp_obj["n"]:
+            nd[3] = esc(nd[3])
+        comp = json.dumps(comp_obj, separators=(",", ":"))
+        proj = esc(_manifest().get("project", "project"))
+        # substitute __PROJECT__ first so a title literally containing it isn't clobbered
+        print(_GRAPH_HTML.replace("__PROJECT__", proj).replace("__DATA__", comp))
+        return
+    if getattr(args, "json", False):
+        nodes = [{"id": nid, "kind": d["kind"], "title": d["title"][:120], "status": d["status"]}
+                 for nid, d in G.items()]
+        print(json.dumps({"project": _manifest().get("project", ""),
+                          "nodes": nodes, "edges": edges}))
+        return
+    from collections import Counter
+    nk, ek = Counter(d["kind"] for d in G.values()), Counter(e["type"] for e in edges)
+    print(f"unified context map: {len(G)} nodes, {len(edges)} edges")
+    print("  nodes by kind:  " + "  ".join(f"{k}:{v}" for k, v in sorted(nk.items())))
+    print("  edges by type:  " + "  ".join(f"{k}:{v}" for k, v in sorted(ek.items())))
+    print("  → `ctx graph --json` for the full map (feeds the visual view) · `ctx health` for coverage")
+
+
+def cmd_health(args):
+    """Context-map health SCORE: code coverage + idea-graph freshness + bridge/lint
+    integrity, so the map measures itself instead of being trusted on vibes."""
+    m = _manifest()
+    mods = _first_party_modules(include_tests=False)
+    allow = set(m.get("coverage_allowlist", {}).get("modules", []))
+    mapped = [r for r in mods if _areas_for_module(r)]
+    orphan = [r for r in mods if not _areas_for_module(r) and r not in allow]
+    nodes, _ = _parse_web()
+    sup = [k for k, n in nodes.items() if _is_superseded(n)]
+    dangling = [(nid, t) for nid, n in nodes.items() for t in n["links"] if t not in nodes]
+    problems = advisories = 0
+    for nid, n in nodes.items():
+        if _is_superseded(n):
+            continue
+        for e in n["edges"]:
+            if e["target"] in nodes and _is_superseded(nodes[e["target"]]):
+                if e["type"] in RELIANCE_EDGES:
+                    problems += 1
+                elif e["type"] == "relates":
+                    advisories += 1
+    bridges = _graph_bridges()
+    G, adj = build_graph(include_code=True)
+    n_edges = sum(len(a) for a in adj.values()) // 2
+    isolated = [nid for nid in G if not adj[nid]]
+    guarded = [r for r in mods if r not in allow]   # allowlisted modules are intentionally unmapped
+    cov = len(mapped) / max(len(guarded), 1)
+    score = 100 * (0.40 * cov + 0.20 * (not orphan) + 0.20 * (not dangling and not problems)
+                   + 0.10 * (len(bridges) >= 8) + 0.10 * (len(isolated) < 0.2 * len(G)))
+    bar = "█" * round(score / 5) + "░" * (20 - round(score / 5))
+    print(f"CONTEXT HEALTH  {score:5.0f}/100  [{bar}]")
+    print(f"  code coverage : {len(mapped)}/{len(guarded)} non-allowlisted modules in an area ({cov*100:.0f}%)"
+          + (f"  ·  {len(orphan)} ORPHAN: {', '.join(orphan)}" if orphan else "  ·  0 orphan"))
+    print(f"  idea web      : {len(nodes)} nodes ({len(sup)} superseded)  ·  {len(dangling)} dangling  ·  "
+          f"{problems} stale-cite problem(s)  ·  {advisories} advisory")
+    print(f"  bridges       : {len(bridges)} idea↔code")
+    print(f"  unified graph : {len(G)} nodes  ·  {n_edges} edges  ·  {len(isolated)} isolated node(s)")
+    if orphan:
+        print("  → triage each orphan into an area, or add to coverage_allowlist with a reason")
+
+
+def cmd_init(args):
+    """Scaffold a starter context layer for ANY repo (the kit is repo-agnostic):
+    discover areas from the source tree + code graph, emit a context_map.json
+    skeleton + a RESEARCH_WEB.md stub. Dry-run by default; `--write` creates the
+    files and NEVER overwrites an existing one."""
+    import collections
+    mods = sorted(os.path.relpath(p, REPO) for p in _iter_py(REPO))
+    by_top, tests = collections.defaultdict(list), []
+    for rel in mods:
+        if rel.startswith("tests" + os.sep) or os.path.basename(rel).startswith("test_"):
+            tests.append(rel)
+            continue
+        by_top[rel.split(os.sep)[0]].append(rel)
+    areas = {}
+    for top, files in sorted(by_top.items()):
+        name = top[:-3] if top.endswith(".py") else top
+        areas[name] = {"summary": "TODO: one line on what this area does",
+                       "files": files, "entrypoints": [], "tests": [], "docs": [],
+                       "do_not_touch_without_approval": False}
+    project = os.path.basename(REPO.rstrip(os.sep))
+    branch = _git("rev-parse", "--abbrev-ref", "HEAD") or "main"
+    manifest = {
+        "_README": "Context manifest scaffolded by `ctx init` — fill in summaries/entrypoints/"
+                   "invariants and add the anti-rot tests (see CONTEXT_KIT.md).",
+        "project": project, "deploy_branch": branch,
+        "context_docs": {"navigation": ["AGENT_INDEX.md", "CONTEXT_KIT.md"],
+                         "research_idea_web": ["RESEARCH_WEB.md"]},
+        "invariants": {}, "invariant_sources": {}, "param_claims": {"claims": []},
+        "graph_bridges": {"bridges": []}, "areas": areas,
+        "routing": [{"keywords": [a], "read": areas[a]["files"][:3], "run": [], "avoid": []}
+                    for a in areas],
+        "coverage_allowlist": {"modules": [m for m in mods if os.path.basename(m) == "__init__.py"]
+                               + ["tools/ctx.py"]},
+        "edit_policy": {"deny": [".env", "*.db", "*.sqlite", "*.sqlite3"], "warn": [], "allow_default": True},
+        "routing_synonyms": {}, "facts": {},
+        "tools_readonly": [{"cmd": "ctx " + c, "returns": ""}
+                           for c in ("route", "where", "impact", "graph", "health", "web", "brief")],
+    }
+    web = (f"# {project} — Research Idea Web\n\n> Findings / Hypotheses / Experiments / Decisions; "
+           "link with [[ID]] or [[ID|type]].\n> Walk with `ctx web`; visualize with `ctx graph --html`.\n\n"
+           "## Findings\n\n## Hypotheses\n\n## Experiments\n\n## Decisions / Gates\n")
+    print(f"# ctx init — scaffold for '{project}' @ {branch}")
+    print(f"#   discovered {len(areas)} area(s): {', '.join(areas)}")
+    print(f"#   {len(mods)} first-party module(s), {len(tests)} test file(s)")
+    targets = [("context_map.json", json.dumps(manifest, indent=2)), ("RESEARCH_WEB.md", web)]
+    if getattr(args, "write", False):
+        for fn, content in targets:
+            p = os.path.join(REPO, fn)
+            if os.path.exists(p):
+                print(f"#   SKIP {fn} (exists — never overwritten)")
+                continue
+            with open(p, "w") as f:
+                f.write(content)
+            print(f"#   WROTE {fn}")
+        print("#   next: fill in summaries/invariants, copy the tests/ guards, run `ctx health`")
+    else:
+        print("#   (dry run — re-run with --write to create these; existing files are never overwritten)\n")
+        print("# ===== context_map.json =====")
+        print(targets[0][1])
+        print("\n# ===== RESEARCH_WEB.md =====\n" + targets[1][1])
+
+
+# Edge weights for spreading activation — corrections (supersedes/contradicts)
+# spread hardest, so a task near a stale claim pulls the reversal into context.
+_ACT_WEIGHT = {
+    "supersedes": 0.95, "contradicts": 0.95, "refines": 0.75, "relies_on": 0.7,
+    "builds_on": 0.7, "drives": 0.6, "resolves": 0.6, "concerns": 0.6, "gated_by": 0.6,
+    "supports": 0.55, "evidenced_by": 0.5, "produces": 0.5, "derived_from": 0.5,
+    "implemented_in": 0.6, "measured_by": 0.5, "relates": 0.4,
+}
+# Stopwords that would otherwise seed nearly every node ('the' matches "THE EXIT", etc.).
+_FRONTIER_STOPWORDS = {
+    "the", "and", "for", "are", "was", "that", "this", "with", "from", "not", "but",
+    "how", "what", "why", "does", "did", "can", "should", "would", "its", "you", "our",
+    "new", "use", "set", "get", "run", "via", "per", "all", "any", "out",
+}
+
+
+def cmd_frontier(args):
+    """Task-shaped progressive disclosure (the anti-summary front door): seed from
+    the task, spread activation across the unified idea graph (corrections pulled
+    in hardest), and emit a budget-bounded packet — the honest-state spine + the
+    nodes that matter, not a fixed summary. `--budget` is a rough token ceiling."""
+    task = " ".join(args.task)
+    budget = args.budget
+    G, adj = build_graph()
+    nodes, _ = _parse_web()
+    qtoks = {t for t in _route_tokens(task.lower())
+             if len(t) >= 3 and t not in _FRONTIER_STOPWORDS}
+
+    # Seed on TITLE-token overlap (a node's curated essence — far more discriminating
+    # than dense bodies, which share vocabulary and would seed nearly everything) +
+    # code/config bridge nodes whose symbol the task names. Bodies inform relevance
+    # only via spreading activation from these entry points.
+    seeds = {}
+    for nid, n in nodes.items():
+        ov = len(qtoks & _route_tokens(n["title"].lower()))
+        if ov:
+            seeds[nid] = 2 * ov
+    for gid, meta in G.items():
+        if gid.startswith(("code:", "cfg:")) and any(t in meta["title"].lower() for t in qtoks):
+            seeds[gid] = seeds.get(gid, 0) + 3
+    if not seeds:
+        print(f'frontier("{task}"): no idea-graph match. '
+              f'Try `ctx route "{task}"` or `ctx web`.')
+        return
+
+    act = dict(seeds)
+    for _hop in range(2):                      # 2 hops of decayed spread
+        for nid, a in list(act.items()):
+            for e in adj.get(nid, []):
+                act[e["to"]] = act.get(e["to"], 0.0) + a * _ACT_WEIGHT.get(e["type"], 0.4) * 0.5
+
+    # Corrections to force in = a CURRENT node that supersedes/contradicts a seed
+    # (the seed's `in` edge — "X overturns me"). Following the edge the other way
+    # would surface the DEAD nodes a live seed overturns, inverting the contract.
+    forced = {e["to"] for s in seeds for e in adj.get(s, [])
+              if e["type"] in ("supersedes", "contradicts") and e["dir"] == "in"
+              and G.get(e["to"], {}).get("status", "current") == "current"}
+    mx = max(act.values())
+    # keep seeds + forced corrections + anything activated above a relevance floor;
+    # drop the faintly-trickled tail so the packet is task-shaped, not the whole web.
+    keep = {nid for nid in act if nid in seeds or nid in forced or act[nid] >= 0.18 * mx}
+    must = forced | set(seeds)               # corrections + matched seeds always make the cut
+    order = sorted(keep, key=lambda k: (k not in forced, -act.get(k, 0.0)))  # corrections first
+
+    def stub(nid):
+        st = G.get(nid, {})
+        tag = f" [{st.get('status')}]" if st.get("status", "current") != "current" else ""
+        return f"  {nid}{tag}: {st.get('title', nid)[:90]}"
+
+    banner = _web_banner()
+    used = (len(banner) // 4) if banner else 0
+    packed, overflow = [], 0
+    for nid in order:
+        if nid not in G:
+            continue
+        s = stub(nid)
+        cost = len(s) // 4 + 1
+        if nid in must or used + cost <= budget:   # never drop a correction/seed to budget
+            packed.append(s)
+            used += cost
+        else:
+            overflow += 1
+
+    print(f'frontier("{task}") — {len(seeds)} seed(s), budget {budget} tok:')
+    if banner:
+        print(f"HONEST STATE: {banner}")
+    print("nodes (activation-ranked; live corrections + seeds first):")
+    for s in packed:
+        print(s)
+    if overflow:
+        print(f"  … +{overflow} more — raise --budget, or `ctx walk`/`ctx web <node>` to drill")
+    print("drill: ctx web <node> · ctx why <node> · ctx neighbors <node> · ctx impact <symbol>")
+
+
+# ── Semantic search over the idea web (Context Web v2 #11) ───────────────────
+# Pure-stdlib TF-IDF + cosine over the (small) research web, computed at query
+# time — no model, no committed sidecar, so it can never go stale. Complements
+# keyword `route` and graph `frontier` with content-similarity: "what's like this?"
+
+def _strip_markup(text):
+    """Drop graph/status MARKUP so TF-IDF indexes CONTENT, not link/citation tokens
+    (else a '[[F13]]'/'[SUPERSEDED by F13]' leaks an 'f13' term into citers' vectors)."""
+    text = re.sub(r"<!--.*?-->", " ", text, flags=re.S)                       # status blocks
+    text = re.sub(r"\[(?:SUPERSEDED|RETRACTED) by [FHED]\d+\]", " ", text, flags=re.I)  # title tags
+    text = re.sub(r"\[\[[^\]]*\]\]", " ", text)                               # [[ID|type]] links
+    return text
+
+
+def _doc_terms(text):
+    """Stemmed, stopworded content tokens (with repeats, for term frequency)."""
+    return [_stem(t) for t in re.findall(r"[a-z0-9]+", text.lower())
+            if len(t) >= 3 and t not in _FRONTIER_STOPWORDS]
+
+
+def _tfidf(nodes):
+    """Return ({id: {term: tfidf}}, idf) over node title (×3 weight) + body."""
+    import math
+    from collections import Counter
+    docterms = {nid: _doc_terms(_strip_markup((n["title"] + " ") * 3 + n["body"]))
+                for nid, n in nodes.items()}
+    df = Counter()
+    for terms in docterms.values():
+        df.update(set(terms))
+    n = len(nodes) or 1
+    idf = {t: math.log((1 + n) / (1 + d)) + 1 for t, d in df.items()}
+    vecs = {}
+    for nid, terms in docterms.items():
+        tf = Counter(terms)
+        vecs[nid] = {t: (c / len(terms)) * idf[t] for t, c in tf.items()} if terms else {}
+    return vecs, idf
+
+
+def _cos(a, b):
+    import math
+    if not a or not b:
+        return 0.0
+    dot = sum(w * b.get(t, 0.0) for t, w in a.items())
+    na = math.sqrt(sum(w * w for w in a.values()))
+    nb = math.sqrt(sum(w * w for w in b.values()))
+    return dot / (na * nb) if na and nb else 0.0
+
+
+def cmd_related(args):
+    """Nodes most similar to a node id or a free-text query (TF-IDF cosine over
+    the research web). Content-similarity, complementing `route`/`frontier`."""
+    from collections import Counter
+    nodes, rev = _parse_web()
+    if not nodes:
+        print("RESEARCH_WEB.md not found or empty.")
+        return
+    vecs, idf = _tfidf(nodes)
+    q = " ".join(args.query)
+    top = max(1, args.top)
+    # an id-like query ("F13", "f13", "[[F13]]") resolves to that node's own vector;
+    # anything else is free text. (Canonicalizes case + strips link brackets.)
+    m = re.fullmatch(r"\[*([A-Za-z]+\d+)\]*", q.strip())
+    qid = m.group(1).upper() if m and m.group(1).upper() in nodes else None
+    if qid:
+        qvec = vecs[qid]
+        print(f"related to {qid} — {nodes[qid]['title'][:60]}:")
+    else:
+        terms = _doc_terms(_strip_markup(q))
+        tf = Counter(terms)
+        qvec = {t: (c / len(terms)) * idf.get(t, 0.0) for t, c in tf.items()} if terms else {}
+        print(f'related to "{q}":')
+    scored = sorted(((nid, _cos(qvec, v)) for nid, v in vecs.items() if nid != qid),
+                    key=lambda kv: -kv[1])
+    scored = [(nid, s) for nid, s in scored if s > 0.01][:top]
+    if not scored:                              # graceful fallback: difflib on titles
+        import difflib
+        t2id = {n["title"].lower(): nid for nid, n in nodes.items()}
+        near = difflib.get_close_matches(q.lower(), list(t2id), n=top, cutoff=0.3)
+        if near:
+            print("  (no TF-IDF overlap — nearest titles)")
+            for title in near:
+                nid = t2id[title]
+                print(f"  {nid:<4}      {nodes[nid]['title'][:64]}")
+        else:
+            print("  (no match — try `ctx web` to browse, or `ctx frontier`)")
+        return
+    for nid, s in scored:
+        meta = _node_meta(nodes[nid])
+        tag = f" [{meta['status']}]" if meta["status"] != "current" else ""
+        print(f"  {nid:<4} {s:4.2f}{tag}  {nodes[nid]['title'][:62]}")
+    print("  drill: ctx web <node> · ctx why <node> · ctx neighbors <node>")
+
+
 def _web_banner():
     """The first ⚠ blockquote of RESEARCH_WEB.md (the honest-state correction)."""
     if not os.path.exists(WEB):
         return ""
     out, grabbing = [], False
-    for line in open(WEB):
-        if "⚠" in line and line.lstrip().startswith(">"):
-            grabbing = True
-        if grabbing:
-            if line.lstrip().startswith(">"):
-                out.append(line.lstrip("> ").rstrip())
-            else:
-                break
+    with open(WEB) as fh:
+        for line in fh:
+            if "⚠" in line and line.lstrip().startswith(">"):
+                grabbing = True
+            if grabbing:
+                if line.lstrip().startswith(">"):
+                    out.append(line.lstrip("> ").rstrip())
+                else:
+                    break
     return " ".join(out)[:420]
 
 
@@ -769,10 +1648,18 @@ def cmd_brief(args):
     """One-screen cold-start orientation packet (composed from the manifest + git +
     research web). Safety + honest-state first, then area/task, then a drill menu."""
     m = _manifest()
-    inv = m["invariants"]
-    print(f"{m['project']} @ {m['deploy_branch']} · PAPER ONLY · port {inv['api_port_paper']} "
-          f"(never {inv['api_port_live_forbidden']}) · {inv['active_symbol']}/{inv['active_mode']}")
-    print("INVARIANT: don't edit live trading/order/strategy logic without approval — `ctx can_edit <file>`\n")
+    inv = m.get("invariants", {})
+    head = f"{m.get('project', 'project')} @ {m.get('deploy_branch', '?')}"
+    if inv.get("paper_only"):              # repo-specific safety banner only when declared
+        head += f" · PAPER ONLY · port {inv.get('api_port_paper')} (never {inv.get('api_port_live_forbidden')})"
+    if inv.get("active_symbol") or inv.get("active_mode"):
+        head += f" · {inv.get('active_symbol', '')}{'/' + inv['active_mode'] if inv.get('active_mode') else ''}"
+    print(head)
+    fenced = [a for a, s in m.get("areas", {}).items() if s.get("do_not_touch_without_approval")]
+    if fenced:
+        print(f"INVARIANT: don't edit {', '.join(fenced)} without approval — `ctx can_edit <file>`\n")
+    else:
+        print("INVARIANT: respect do_not_touch_without_approval areas — `ctx can_edit <file>`\n")
     banner = _web_banner()
     if banner:
         print(f"HONEST STATE: {banner}\n  → run `ctx perf` · `ctx web --live`\n")
@@ -838,6 +1725,7 @@ def main():
     sub.add_parser("schema").set_defaults(fn=cmd_schema)
     sp = sub.add_parser("config"); sp.add_argument("key"); sp.set_defaults(fn=cmd_config)
     sp = sub.add_parser("perf"); sp.set_defaults(fn=cmd_perf)
+    sub.add_parser("audit").set_defaults(fn=cmd_audit)
     sub.add_parser("status").set_defaults(fn=cmd_status)
     sp = sub.add_parser("recent"); sp.add_argument("n", nargs="?", type=int, default=10); sp.set_defaults(fn=cmd_recent)
     sp = sub.add_parser("map"); sp.add_argument("area", nargs="?"); sp.set_defaults(fn=cmd_map)
@@ -846,12 +1734,31 @@ def main():
     sp.add_argument("--live", action="store_true", help="show only current (non-superseded) nodes")
     sp.add_argument("--lint", action="store_true", help="graph integrity: dangling links, live-cites-superseded")
     sp.set_defaults(fn=cmd_web)
+    sp = sub.add_parser("neighbors"); sp.add_argument("node"); sp.set_defaults(fn=cmd_neighbors)
+    sp = sub.add_parser("walk"); sp.add_argument("node")
+    sp.add_argument("--depth", type=int, default=2); sp.add_argument("--edge")
+    sp.set_defaults(fn=cmd_walk)
+    sp = sub.add_parser("why"); sp.add_argument("node"); sp.set_defaults(fn=cmd_why)
+    sp = sub.add_parser("contradicts"); sp.add_argument("node"); sp.set_defaults(fn=cmd_contradicts)
+    sp = sub.add_parser("frontier"); sp.add_argument("task", nargs="+")
+    sp.add_argument("--budget", type=int, default=900); sp.set_defaults(fn=cmd_frontier)
+    sp = sub.add_parser("graph")
+    sp.add_argument("--json", action="store_true", help="emit the full unified map as JSON")
+    sp.add_argument("--html", action="store_true", help="emit a self-contained interactive HTML map")
+    sp.add_argument("--ideas-only", action="store_true", help="drop the auto-extracted code layer")
+    sp.set_defaults(fn=cmd_graph)
+    sub.add_parser("health").set_defaults(fn=cmd_health)
+    sp = sub.add_parser("related"); sp.add_argument("query", nargs="+")
+    sp.add_argument("--top", type=int, default=6); sp.set_defaults(fn=cmd_related)
+    sp = sub.add_parser("init"); sp.add_argument("--write", action="store_true",
+        help="create context_map.json + RESEARCH_WEB.md (never overwrites)")
+    sp.set_defaults(fn=cmd_init)
     args = p.parse_args()
     if not getattr(args, "fn", None):
         # default: print the index summary
         cmd_map(argparse.Namespace(area=None))
-        print("\nUsage: ctx {route|where|usages|defs|tree|summary|covers|impact|"
-              "schema|config|perf|status|recent|map|tests|brief|web}")
+        print("\nUsage: ctx {route|where|usages|defs|tree|summary|covers|impact|schema|config|perf|audit|"
+              "status|recent|map|tests|brief|web|neighbors|walk|why|contradicts|frontier|graph|health|related|init}")
         return
     args.fn(args)
 

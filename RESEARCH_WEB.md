@@ -30,12 +30,14 @@ best-of-many on that holdout — biased. The +4–5%/mo for SOXL/LABU/TNA did NO
 de-biasing. Motivates [[H4]]. Evidence: [[E2]] vs [[E3]].
 
 ### F3 — [SUPERSEDED by F13] The honest edge is small but real (and decaying)
+<!-- status: superseded; by: F13; reason: data-fixed; conf: 0.2 -->
 Leak-free walk-forward ([[E3]]): QQQ +0.34%/mo Sh 3.74, TQQQ +0.18%/mo Sh 2.17, LABU
 +0.15%, TNA +0.12%, SOXL +0.08% — sub-1% DD, ~90–112 OOS trades. Robustness ([[E4]])
 shows the edge is **front-loaded into late 2025 and fades** in later folds. A near-zero-DD
 ~0.2–0.3%/mo vehicle, NOT a 2–3.5%/mo income engine. Bears on [[D1]].
 
 ### F4 — [SUPERSEDED by F13] QQQ (un-leveraged) is the best risk-adjusted instrument — structurally
+<!-- status: superseded; by: F13; reason: data-fixed; conf: 0.2 -->
 In leak-free OOS QQQ beat every 3x ETF (Sharpe 3.74, 54.5% WR). Mechanism found ([[F7]]):
 it is NOT luck. Evidence: [[E3]], [[E6]]. The leverage tier is the wrong instrument class for this signal.
 
@@ -58,6 +60,7 @@ SPY **17%** (stop outside noise → fires only on genuine adverse moves). Across
 R:R are ~identical across instruments — the edge is FEWER noise-stops, not bigger wins. Source: [[E6]]. Drives [[D3]].
 
 ### F8 — [SUPERSEDED by F13] The QQQ edge is a signal property, not an optimizer artifact
+<!-- status: superseded; by: F13; reason: data-fixed; conf: 0.2 -->
 Robustness ([[E4]]): the QQQ edge survives with a **single fixed candidate (zero parameter
 selection)** — t-stat 3.3 — and across every fold count, objective, and grid width (t 3.3–4.3,
 4/4 folds positive). So it is not selection overfit. Strongest evidence the edge is real. Supports [[F4]], [[D1]].
@@ -76,7 +79,7 @@ could shift magnitudes. → [[H5]], [[E7]].
 Re-running the leak-free walk-forward on FULL-session, live-representative data ([[F12]], [[E7]])
 flips the headline: QQQ −0.05%/mo (Sh −0.75), SPY −0.05%/mo — NEGATIVE. The +0.34%/mo QQQ
 edge ([[F3]], [[F4]], [[F8]]) only existed on the morning-only (3 bars/day) cache. Since the live
-bot trades full sessions, this is exactly why it is FLAT. SUPERSEDES [[F3]], [[F4]], [[F8]], [[F9]] for the
+bot trades full sessions, this is exactly why it is FLAT. SUPERSEDES [[F3|supersedes]], [[F4|supersedes]], [[F8|supersedes]], [[F9|supersedes]] for the
 hourly timescale. The instrument mechanism [[F7]] still holds for the leveraged-ETF failure. → [[D4]].
 
 ### F14 — The edge tracks BAR-SAMPLING FREQUENCY, not time-of-day or instrument
@@ -97,7 +100,7 @@ survives zero parameter selection (t>3). So the QQQ/SPY edge is genuine at the ~
 mean-reversion) timescale and absent hourly — F3/F4's numbers were this 3/day regime, mislabeled as
 "hourly". ACTIONABLE LEVER: sample ~3 bars/day (≈every 2h), not hourly. CAVEAT: DIA INVERTS (positive
 hourly, negative 3/day) → instrument-dependent, not universal; needs multi-instrument + multi-regime
-confirmation. Refines [[F13]] (hourly-negative still holds) and [[F14]]. → [[D4]], [[H7]].
+confirmation. Refines [[F13|refines]] (hourly-negative still holds) and [[F14|refines]]. → [[D4]], [[H7]].
 
 ### F16 — Daily mean-reversion is REAL (model-free, not an artifact)
 12yr daily data (2014–2026, n≈3030): lag-1 autocorrelation SPY −0.117 (t −6.4), QQQ −0.105 (t −5.8),
@@ -243,3 +246,117 @@ mean-reversion product with a horizon exit and a bear gate — not the hourly %-
 build: daily MR + time/horizon exit + slope-regime gate, multi-instrument portfolio ([[H8]]). The
 single highest-value change is the EXIT ([[F17]]). (1-bars/day hourly note [[F15]] is the weaker, less
 robust cousin; the daily horizon-exit result supersedes it as the recommended direction.)
+
+---
+
+## Strategy Lab — leverage-free daily-MR (2026-06-22, independent replication + extension)
+
+> Reproducible harness: `tools/mr_daily_lab.py` (read-only; yfinance daily, 2014–2026).
+
+### E10 — Independent daily-MR replication + strategy lab
+<!-- status: current; conf: 0.85; at: 2026-06-22 -->
+Model-free, leak-free harness (`tools/mr_daily_lab.py`) on 12yr adjusted daily data:
+lag-1 autocorrelation + variance ratios; dip entry (buy the close of a down day) with
+horizon vs fixed %-stop exits; diversified multi-sleeve portfolios; long-only
+cross-sectional sector rotation; conditional entries; vol-targeted vs adaptive-Kelly
+sizing; bond signal tests. Produces [[F18|produces]], [[F19|produces]], [[F20|produces]],
+[[F21|produces]]; extends the daily direction of [[E9|supports]].
+
+### F18 — F16 replicates exactly, but its significance was ~3× overstated
+<!-- status: current; conf: 0.8; at: 2026-06-22 -->
+Independent 12yr daily ([[E10|evidenced_by]]) reproduces F16's lag-1 autocorrelations
+almost exactly (SPY −0.113 vs −0.117, QQQ −0.100, DIA −0.122, IWM −0.058) and variance
+ratios <1. BUT F16's naive `t = ρ√n` ignores volatility clustering; under a
+heteroskedasticity-robust SE the t-stats fall ~3× (SPY −6.3→−2.2, IWM −1.7 = n.s.), and
+non-overlapping trades leave only QQQ at t>2. So the mean-reversion structure is REAL but
+**modest**, not overwhelming. The 2022-bear collapse is confirmed (ρ→0, |t|<1 for all).
+Refines [[F16|refines]].
+
+### F19 — Confirmed: the EXIT, not the entry, is the dominant lever
+<!-- status: current; conf: 0.85; at: 2026-06-22 -->
+Within-comparison on identical dip entries ([[E10|evidenced_by]]): a 5-day HORIZON exit
+yields +29 bps/trade on SPY (+38 QQQ, +80 TQQQ), while a fixed ±0.8% stop/target yields
+−2 bps (−27 TQQQ, 36% WR) — same entry, opposite sign. The tight band is whipsawed inside
+daily noise, worst on 3× ETFs. Independently confirms [[F17|supports]] and unifies it with
+the noise-ratio mechanism [[F7|supports]]. The horizon exit does NOT rescue the 2022 bear
+(3× −166/−346 bps/trade) → the regime gate is non-negotiable, independent of exit.
+
+### F20 — What does NOT work (four negative results)
+<!-- status: current; conf: 0.8; at: 2026-06-22 -->
+From the lab ([[E10|evidenced_by]]): (1) **long-only cross-sectional** sector rotation
+(buy the most-oversold of 9 SPDRs) underperforms sector buy&hold (Sharpe 0.44 vs 0.65,
+−43% DD) — it loads falling knives; real cross-sectional MR needs the forbidden short leg.
+(2) **Sizing — the estimator SHAPE matters** (corrected after review): a *continuous*
+textbook half-Kelly HURTS (QQQ Sharpe 0.72→0.48) because its fraction (CV 0.77) chases the
+noisy win/loss-ratio `b`. BUT that is a strawman for the project's LIVE `adaptive_kelly_multiplier`
+— a coarse 4-tier *win-rate* step that never computes `b` (CV 0.23): re-run on the same trades
+it is ~Sharpe-NEUTRAL (0.68 ≈ the fixed baseline), neither helping nor hurting (and it is bypassed
+on the active fixed-sizing path). So only a noisy continuous Kelly is harmful; vol-targeting is the
+sizing that actively helps (0.56→0.67).
+(3) **Low-vol entry filtering** hurts (Sharpe 0.56→0.26): the biggest dips revert hardest.
+(4) **Bond signal-trading** (corrected): the 200d *equity* bear gate is wrong-signed for
+(anti-correlated) bonds — gated, TLT/IEF dips lose to B&H; UN-gated, a TLT dip beats B&H
+(Sharpe 0.19 vs 0.10, lower DD) but insignificantly (bootstrap straddles 0) and IEF still loses.
+Net: hold bonds as PASSIVE ballast (the −0.09 equity correlation), not for a signal edge.
+Relates the noise mechanism [[F7|relates]].
+
+### F21 — The honest leverage-free ceiling + the recommended build
+<!-- status: current; conf: 0.8; at: 2026-06-22 -->
+Best leverage-free config ([[E10|evidenced_by]]): EQUAL-WEIGHT diversified daily-MR sleeves
+(equities + gold + passive-bond ballast) + 200d bear gate + VOL-TARGETED (not Kelly) sizing
+→ ~Sharpe 0.66, ~4%/yr, −10% DD. "Smart" trailing-Sharpe weighting underperforms equal-weight
+(0.42 vs 0.66). The ~3.75% target is reachable only by levering the low-vol (~6%) portfolio
+to a vol target (≈5.8%/yr at 1.5×, −19% DD) — you buy return with drawdown, not Sharpe. So
+leverage-free daily-MR is a solid BALANCED strategy (Sharpe ~0.6, equity-like DD), NOT a
+near-zero-DD bond alternative — that headline was the morning-only artifact. Refines
+[[H8|refines]] and [[D4|refines]]; drives [[D5|drives]].
+
+### D5 — Recommended next architecture (the leverage-free daily-MR product)
+<!-- status: current; conf: 0.7; at: 2026-06-22 -->
+Build: equal-weight portfolio of daily mean-reversion sleeves on un-leveraged equities
+(QQQ/SPY/IWM/DIA) + gold (GLD), each = buy-the-dip + multi-day HORIZON exit + slope/200d
+bear gate, with VOL-TARGETED position sizing and passive bond ballast for correlation.
+DROP, on evidence: the hourly timescale, the fixed %-stop exit, 3× leverage, and long-only
+cross-sectional rotation. PREFER vol-targeted sizing (it lifts Sharpe); the live WR-tiered
+adaptive-Kelly is ~Sharpe-neutral so keep-or-replace is a wash (only a noisy *continuous*
+Kelly is harmful — [[F20]]). Expected ~Sharpe 0.6, ~4%/yr leverage-free
+(or ~6% vol-targeted at higher DD). Builds on [[F19|builds_on]], [[F20|builds_on]];
+relates the hourly/leverage evidence [[F13|relates]], [[F7|relates]]. Refines [[D4|refines]].
+NOTE: changing the live instrument/exit/sizing touches the armed trader path — sign-off
+required; this records the evidence-backed recommendation, not an applied change.
+⚠ OOS UPDATE ([[F22]]): a walk-forward stress test shows this build does NOT beat buy&hold
+risk-adjusted (Sharpe 0.69 vs 0.80) — its value is capital-preservation via reduced exposure,
+which a static equity/cash blend achieves more simply at higher Sharpe. So D5 stands only as a
+low-drawdown CAPITAL-PRESERVATION overlay; the go/no-go for an *active* alpha engine is negative.
+
+### E11 — Out-of-sample / walk-forward stress test of the D5 build
+<!-- status: current; conf: 0.85; at: 2026-06-22 -->
+Stress-tested the D5 equal-weight daily-MR portfolio (QQQ/SPY/IWM/DIA/GLD, dip+5d+200d gate,
+net 5bps) against an equal-weight BUY&HOLD of the same 5 assets: per-calendar-year, first-half
+vs second-half, held-out COVID-2020 + 2022-bear regimes, and a 20-day block bootstrap of the
+per-day Sharpe difference. Reproducible: `tools/mr_daily_lab.py oos`. Produces [[F22|produces]].
+
+### F22 — OOS verdict: the daily-MR timing has NO risk-adjusted edge over buy&hold
+<!-- status: current; conf: 0.8; at: 2026-06-22 -->
+Stress test ([[E11|evidenced_by]]): the D5 equal-weight daily-MR portfolio scores Sharpe 0.69
+vs **0.80 for an equal-weight BUY&HOLD of the same 5 assets**, and the 20-day block bootstrap of
+the per-day Sharpe DIFFERENCE is [−1.12, −0.05] (`tools/mr_daily_lab.py oos`, seed 0) — the timing
+is *significantly WORSE* risk-adjusted (upper bound just below 0). NOT front-loaded (2nd-half Sharpe 0.94 > 1st-half
+0.42), so the negative is robust, not a one-period artifact. What timing buys is REDUCED EXPOSURE:
+~half the return (6.2% vs 12.1%) at ~half the drawdown (−13.9% vs −29.5%), 87% time-in-market.
+Its only edge is defensive in SLOW bears (2022 −8% vs −17%); it fails in FAST crashes (COVID
+≈−11% both — the 200d gate is too slow). DECISIVE: a static ~50/50 equity/cash blend has the SAME
+Sharpe as full buy&hold (0.80; cash-scaling is Sharpe-invariant) at the timing strategy's return/DD
+— so daily-MR timing is DOMINATED by trivial static de-risking. This is the same lesson as the
+hourly arc ([[F13|relates]]): a flattering backtest number that doesn't survive the honest
+benchmark. Refines [[F21|refines]] and [[D5|refines]]; bears on the go/no-go [[D1|drives]], [[D4|drives]].
+
+### E12 — Go/no-go: active daily-MR vs static blends (head-to-head)
+tools/mr_daily_lab.py gonogo — 2014-2026 cached data. The D5 equal-weight daily-MR portfolio (QQQ/SPY/IWM/DIA/GLD, dip + 5d horizon + 200d gate) scores Sharpe 0.69 / 6.2%/yr / -13.9% DD, vs static 50/50 equity/cash (Sharpe 0.80), static 60/40 equity/bond via IEF (0.86), and 100% buy&hold (0.80). The 20-day block bootstrap of (active - static-50/50) Sharpe diff is [-0.41, +0.48] — straddles zero (within noise). Extends the OOS test.
+Links: [[F22|relates]] · [[F21|relates]].
+_— captured claude/strategy-go-nogo@54e6637, 2026-06-22_
+
+### D6 — GO/NO-GO: the active engine is not justified — recommend a static allocation
+Decisive comparison (E12): the active daily-MR engine shows NO DEMONSTRATED ADVANTAGE over a trivial static blend of the same assets — active Sharpe 0.69 / 6.2%/yr vs static 50/50 (0.80) and 60/40 equity/bond (0.86) at comparable return, with the active-minus-static Sharpe-diff bootstrap straddling zero (within noise). It is not better, while carrying all the trading, cost and live-execution risk. This unifies the arc: F22 (active doesn't beat buy&hold), F13/F17 (no hourly edge; the %-stop EXIT was the flaw), and the flat live confirmed-fill result (the ~+35% headline is a paper mark-price ESTIMATION ARTIFACT on time/target exits, not real, and not a fixable execution bug). RECOMMENDATION: the honest bond-alternative is a STATIC allocation (e.g. 50/50 or 60/40 equity/bond), de-risked and periodically rebalanced — not the active engine. NOTE: changing the live deployment touches the armed trader path — sign-off required; this records the evidence-backed recommendation, not an applied change.
+Links: [[E12|evidenced_by]] · [[F22|builds_on]] · [[D5|refines]] · [[D4|refines]].
+_— captured claude/strategy-go-nogo@54e6637, 2026-06-22_

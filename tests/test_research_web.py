@@ -16,11 +16,27 @@ advisory in `ctx web --lint` until typed edges can distinguish provenance from r
 import os
 import re
 import sys
+import tempfile
 import unittest
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO, "tools"))
 import ctx  # noqa: E402  (the context tool — reuse its canonical parser)
+
+
+def _parse_web_text(text):
+    """Run the real ctx._parse_web over synthetic web markdown (temporarily
+    repointing ctx.WEB), so edge-classification edge cases are testable."""
+    with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as tf:
+        tf.write(text)
+        name = tf.name
+    old = ctx.WEB
+    try:
+        ctx.WEB = name
+        return ctx._parse_web()
+    finally:
+        ctx.WEB = old
+        os.unlink(name)
 
 
 class TestResearchWebIntegrity(unittest.TestCase):
@@ -52,6 +68,293 @@ class TestResearchWebIntegrity(unittest.TestCase):
     def test_every_node_has_a_title(self):
         for nid, n in self.nodes.items():
             self.assertTrue(n["title"].strip(), f"{nid} has an empty title")
+
+
+class TestTypedEdges(unittest.TestCase):
+    """Context Web v2 #2 — every link now carries a relation type (explicit
+    [[ID|type]] or cue-classified), and reliance never points at a retraction."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.nodes, cls.rev = ctx._parse_web()
+
+    def test_edges_cover_links_exactly(self):
+        # backward-compat: edge targets are exactly the (unchanged) links contract.
+        for nid, n in self.nodes.items():
+            with self.subTest(node=nid):
+                self.assertIn("edges", n)
+                self.assertEqual(sorted(e["target"] for e in n["edges"]), n["links"])
+
+    def test_edge_types_in_vocabulary(self):
+        for nid, n in self.nodes.items():
+            for e in n["edges"]:
+                with self.subTest(node=nid, target=e["target"]):
+                    self.assertIn(e["type"], ctx.EDGE_TYPES,
+                                  f"{nid}->{e['target']} has unknown edge type {e['type']!r}")
+
+    def test_explicit_typed_edge_is_parsed(self):
+        # F13 explicitly supersedes F3 (an explicit [[F3|supersedes]] in the web).
+        types = {e["target"]: e["type"] for e in self.nodes["F13"]["edges"]}
+        self.assertEqual(types.get("F3"), "supersedes",
+                         "explicit [[F3|supersedes]] from F13 was not parsed as typed")
+
+    def test_no_live_node_relies_on_superseded(self):
+        """The invariant typed edges make checkable: a current node must not
+        rely_on/support/refine/build_on a superseded node (a retracted claim)."""
+        offenders = []
+        for nid, n in self.nodes.items():
+            if ctx._is_superseded(n):
+                continue
+            for e in n["edges"]:
+                t = e["target"]
+                if (e["type"] in ctx.RELIANCE_EDGES and t in self.nodes
+                        and ctx._is_superseded(self.nodes[t])):
+                    offenders.append(f"{nid} --{e['type']}--> {t}")
+        self.assertEqual(offenders, [], f"live nodes rely on superseded nodes: {offenders}")
+
+
+class TestEdgeClassificationHardening(unittest.TestCase):
+    """Adversarial-review regressions (Context Web v2 #2–#5): malformed typed
+    links must not vanish, and the cue classifier must not mis-type in ways that
+    hide (or fabricate) a reliance-on-superseded stale-cite."""
+
+    def _edges(self, body, node="N1"):
+        nodes, _ = _parse_web_text(f"### {node} — t\n{body}\n### F2 — [SUPERSEDED by F9]\nx\n"
+                                   "### F9 — y\nz\n### F3 — w\nq\n")
+        return {e["target"]: e["type"] for e in nodes[node]["edges"]}, nodes
+
+    def test_malformed_typed_link_not_dropped(self):  # finding #2
+        # natural-language type → keep the link (untyped); dangling/stale-cite must still see it.
+        self.assertEqual([m[0] for m in ctx._LINK_RX.findall("[[F99|relies on]]")], ["F99"])
+        edges, nodes = self._edges("This relies on [[F99|relies on]] heavily.")
+        self.assertIn("F99", nodes["N1"]["links"], "malformed-typed link target was dropped")
+
+    def test_spaced_explicit_type_tolerated(self):  # finding #2
+        edges, _ = self._edges("It [[F3| supersedes]] the prior view.")
+        self.assertEqual(edges["F3"], "supersedes")
+
+    def test_reliance_wins_over_closer_lineage_cue(self):  # finding #3
+        # within one clause, a closer lineage cue ('based on') must NOT override the
+        # reliance verb ('relies on') — else a reliance-on-superseded escapes --lint.
+        edges, _ = self._edges("This decision relies on results based on [[F2]] for its conclusion.")
+        self.assertEqual(edges["F2"], "relies_on", "a closer lineage cue hid the reliance edge")
+
+    def test_negated_support_is_not_a_reliance_edge(self):  # finding #4
+        edges, _ = self._edges("This conclusion is unsupported by [[F2]].")
+        self.assertNotIn(edges["F2"], ctx.RELIANCE_EDGES,
+                         "'unsupported' was mis-typed as a reliance edge")
+
+    def test_dedupe_prefers_reliance_at_equal_rank(self):  # finding #5
+        edges, _ = self._edges("Produced by [[F2]]. Later work relies on [[F2]] for its result.")
+        self.assertEqual(edges["F2"], "relies_on",
+                         "reliance edge hidden behind a same-rank lineage edge to the same target")
+
+
+class TestStructuredStatus(unittest.TestCase):
+    """Context Web v2 #3 — node status is parsed structured metadata, not a
+    title-string match; reason codes + retracted/current are first-class."""
+
+    def test_explicit_metadata_parsed(self):
+        nodes, _ = _parse_web_text(
+            "### F1 — a title\n<!-- status: superseded; by: F9; reason: data-fixed; conf: 0.2 -->\nbody\n"
+            "### F9 — b\nx\n")
+        m = ctx._node_meta(nodes["F1"])
+        self.assertEqual(m["status"], "superseded")
+        self.assertEqual(m["by"], "F9")
+        self.assertEqual(m["reason"], "data-fixed")
+        self.assertEqual(m["conf"], 0.2)
+        self.assertTrue(ctx._is_superseded(nodes["F1"]))
+
+    def test_title_tag_fallback_still_works(self):
+        nodes, _ = _parse_web_text("### F2 — [SUPERSEDED by F9] old\nbody no meta\n### F9 — b\nx\n")
+        m = ctx._node_meta(nodes["F2"])
+        self.assertEqual(m["status"], "superseded")
+        self.assertEqual(m["by"], "F9")
+        self.assertTrue(ctx._is_superseded(nodes["F2"]))
+
+    def test_explicit_current_overrides_title_tag(self):
+        nodes, _ = _parse_web_text(
+            "### F3 — [SUPERSEDED by F9] reinstated\n<!-- status: current -->\nbody\n### F9 — b\nx\n")
+        self.assertFalse(ctx._is_superseded(nodes["F3"]),
+                         "explicit `status: current` must override the title tag")
+
+    def test_retracted_is_not_current(self):
+        nodes, _ = _parse_web_text("### F4 — t\n<!-- status: retracted; reason: withdrawn -->\nb\n")
+        self.assertTrue(ctx._is_superseded(nodes["F4"]))
+
+    def test_known_status_and_reason_vocab_in_real_web(self):
+        nodes, _ = ctx._parse_web()
+        for nid, n in nodes.items():
+            m = ctx._node_meta(n)
+            self.assertIn(m["status"], ctx.STATUS_VALUES, f"{nid} bad status {m['status']!r}")
+            if m["reason"]:
+                self.assertIn(m["reason"], ctx.REASON_CODES, f"{nid} bad reason {m['reason']!r}")
+
+
+class TestUnifiedGraph(unittest.TestCase):
+    """Context Web v2 #6 — one walkable graph over research nodes ∪ idea↔code
+    bridges, with directed typed adjacency."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.G, cls.adj = ctx.build_graph()
+
+    def test_research_and_code_nodes_share_one_namespace(self):
+        self.assertIn("F17", self.G)
+        self.assertEqual(self.G["F17"]["kind"], "F")
+        # F17's bridge to compute_trade_returns is a 'code:' pseudo-node in the graph.
+        self.assertIn("code:src/strategy/engine.py::compute_trade_returns", self.G)
+        self.assertIn("cfg:STOP_LOSS_PCT_TQQQ_HOURLY", self.G)
+
+    def test_edges_are_bidirectional(self):
+        # every out-edge has a matching in-edge on the target (so traversal works both ways).
+        for nid, edges in self.adj.items():
+            for e in edges:
+                if e["dir"] != "out":
+                    continue
+                self.assertTrue(
+                    any(b["to"] == nid and b["type"] == e["type"] and b["dir"] == "in"
+                        for b in self.adj[e["to"]]),
+                    f"missing reverse edge for {nid} --{e['type']}--> {e['to']}")
+
+    def test_bridge_edge_present_from_finding_to_code(self):
+        outs = [(e["type"], e["to"]) for e in self.adj["F17"] if e["dir"] == "out"]
+        self.assertIn(("concerns", "code:src/strategy/engine.py::compute_trade_returns"), outs)
+
+    def test_supersession_is_walkable_both_directions(self):
+        # F13 supersedes F3; the reverse (F3 superseded-by F13) must be reachable.
+        f13_out = [e["to"] for e in self.adj["F13"] if e["dir"] == "out" and e["type"] == "supersedes"]
+        self.assertIn("F3", f13_out)
+        f3_in = [e["to"] for e in self.adj["F3"] if e["dir"] == "in" and e["type"] == "supersedes"]
+        self.assertIn("F13", f3_in)
+
+
+class TestFrontier(unittest.TestCase):
+    """Context Web v2 #7 — task-shaped progressive disclosure: seeds + corrections,
+    budget-bounded, not a fixed summary."""
+
+    def _run(self, task, budget=900):
+        import contextlib
+        import io
+        import types
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ctx.cmd_frontier(types.SimpleNamespace(task=task.split(), budget=budget))
+        return buf.getvalue()
+
+    def test_stop_task_surfaces_flaw_reversal_and_bridge(self):
+        out = self._run("retune the TQQQ hourly stop")
+        self.assertIn("HONEST STATE", out)
+        self.assertIn("F17", out)   # the %-stop exit-flaw finding
+        self.assertIn("F13", out)   # the hourly-edge reversal pulled in by activation
+        self.assertIn("cfg:STOP_LOSS_PCT_TQQQ_HOURLY", out)  # the code bridge
+
+    def test_no_match_is_graceful(self):
+        self.assertIn("no idea-graph match", self._run("zzzqqq xyzzy nonsense"))
+
+    def test_stopwords_alone_do_not_seed(self):
+        # regression on the stopword filter: bare 'the' must not seed every node.
+        self.assertIn("no idea-graph match", self._run("the the the"))
+
+    def test_smaller_budget_yields_fewer_lines(self):
+        big = self._run("edge stop exit regime", 2000)
+        small = self._run("edge stop exit regime", 120)
+        self.assertLess(small.count("\n"), big.count("\n"))
+
+    def test_tiny_budget_still_keeps_corrections_and_seeds(self):
+        # review #4: a budget below the banner floor must NOT drop corrections/seeds.
+        out = self._run("is the edge real", budget=20)
+        node_lines = [l for l in out.splitlines() if l.startswith("  F") or l.startswith("  D")]
+        self.assertTrue(node_lines, "tiny budget dropped every node (corrections lost)")
+        self.assertIn("F13", out)  # the live reversal must survive
+
+    def test_live_reversal_outranks_dead_nodes_it_supersedes(self):
+        # review #5: when the query lands on a superseded topic, the LIVE correction
+        # (F13) must lead — not the dead F3/F4/F8 that F13 overturns.
+        out = self._run("is the edge real")
+        lines = [l.strip() for l in out.splitlines() if l.startswith("  F") or l.startswith("  D")]
+        f13_pos = next(i for i, l in enumerate(lines) if l.startswith("F13"))
+        for dead in ("F3", "F4", "F8"):
+            dead_pos = next((i for i, l in enumerate(lines) if l.startswith(dead + " ")), None)
+            if dead_pos is not None:
+                self.assertLess(f13_pos, dead_pos, f"dead {dead} ranked above the live reversal F13")
+
+
+class TestRelated(unittest.TestCase):
+    """Context Web v2 #11 — TF-IDF semantic search over the real web."""
+
+    def _run(self, query, top=6):
+        import contextlib
+        import io
+        import types
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ctx.cmd_related(types.SimpleNamespace(query=query.split(), top=top))
+        return buf.getvalue()
+
+    def test_related_node_surfaces_its_cluster_and_excludes_self(self):
+        out = self._run("F13")           # the morning-data / sampling-artifact reversal
+        self.assertNotRegex(out, r"^\s*F13\s", )    # never returns the query node itself
+        # at least one of the morning-data / bar-frequency cluster ranks
+        self.assertTrue(any(n in out for n in ("F10", "F12", "F14", "F15", "H5")))
+
+    def test_free_text_query_ranks_relevant_nodes(self):
+        out = self._run("exit horizon stop mean reversion")
+        self.assertTrue("F17" in out or "F19" in out)   # the exit-mechanism findings
+
+    def test_cosine_is_symmetric_and_bounded(self):
+        a = {"x": 1.0, "y": 2.0}
+        b = {"y": 1.0, "z": 3.0}
+        self.assertAlmostEqual(ctx._cos(a, b), ctx._cos(b, a))
+        self.assertLessEqual(ctx._cos(a, a), 1.0 + 1e-9)
+        self.assertAlmostEqual(ctx._cos(a, a), 1.0)
+        self.assertEqual(ctx._cos(a, {}), 0.0)          # empty vector → 0, no div-by-zero
+
+    def test_nonsense_query_degrades_gracefully(self):
+        out = self._run("zzqqx nonsense xyzzy")
+        self.assertIn("no", out.lower())                 # fallback / no-match message, no crash
+
+    def test_lowercase_id_matches_uppercase(self):       # review fix #1
+        self.assertEqual(self._run("f13").splitlines()[0], self._run("F13").splitlines()[0])
+        self.assertEqual(self._run("[[F13]]").splitlines()[0], self._run("F13").splitlines()[0])
+
+    def test_markup_does_not_drive_results(self):        # review fix #2
+        # related F13 should surface content neighbours, not the superseded nodes that merely cite it
+        out = self._run("F13")
+        head = "\n".join(out.splitlines()[1:4])           # top-3
+        self.assertNotIn("F4", head)
+        self.assertNotIn("F8", head)
+
+    def test_top_zero_does_not_crash(self):              # review fix #3
+        self.assertIsInstance(self._run("F13", top=0), str)
+
+
+class TestWhyProvenance(unittest.TestCase):
+    """Review fixes for ctx why (Context Web v2 #6): grounding must not be routed
+    backwards through supersedes/contradicts edges."""
+
+    def _why(self, node):
+        import contextlib
+        import io
+        import types
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ctx.cmd_why(types.SimpleNamespace(node=node))
+        return buf.getvalue()
+
+    def test_grounding_never_traverses_supersedes(self):
+        # review #1 (high): `why F13` must not present an overturned node's evidence
+        # as F13's grounding — i.e. no 'supersedes:'/'contradicts:' hop in the paths.
+        out = self._why("F13")
+        grounding = out.split("bears on")[0]
+        self.assertNotIn("supersedes:", grounding,
+                         "why routed grounding THROUGH a supersedes edge (backwards provenance)")
+        self.assertNotIn("contradicts:", grounding)
+
+    def test_grounding_reaches_real_experiments(self):
+        out = self._why("F13")
+        self.assertIn("E", out)  # F13 is still grounded in genuine experiments via non-supersession paths
+        self.assertIn("grounded in", out)
 
 
 if __name__ == "__main__":
