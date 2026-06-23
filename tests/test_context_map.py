@@ -373,5 +373,34 @@ class TestEditPolicy(unittest.TestCase):
                         "ctx impact should detect that editing src/data/fetcher.py reaches live/")
 
 
+class TestCtxFind(unittest.TestCase):
+    """`ctx find` — free-text code-body search returns the hit's enclosing symbol
+    (and owning area / governing bridge), so a behavioral query stays in the kit."""
+
+    def _find(self, *query):
+        import contextlib, io, types
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ctx.cmd_find(types.SimpleNamespace(query=list(query)))
+        return buf.getvalue()
+
+    def test_finds_behavior_with_enclosing_symbol(self):
+        # 'worst_case_ambiguity' is used inside compute_trade_returns in engine.py
+        out = self._find("worst_case_ambiguity")
+        self.assertIn("src/strategy/engine.py", out)
+        self.assertIn("[compute_trade_returns]", out)
+
+    def test_excludes_tests_dir(self):
+        # first-party search must not return matches from tests/ (avoids self-noise)
+        out = self._find("worst_case_ambiguity")
+        self.assertNotIn("tests/", out)
+
+    def test_short_query_rejected(self):
+        self.assertIn("too short", self._find("ab"))
+
+    def test_no_match_is_graceful(self):
+        self.assertIn("no first-party code matches", self._find("zzq_nonexistent_token_qzx"))
+
+
 if __name__ == "__main__":
     unittest.main()

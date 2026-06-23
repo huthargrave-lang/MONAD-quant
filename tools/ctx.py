@@ -146,6 +146,74 @@ def cmd_where(args):
         print(f"  no definition of '{sym}' found (try `ctx usages {sym}`)")
 
 
+def cmd_find(args):
+    """Free-text / regex search over first-party Python BODIES — 'find the code that
+    does X' when you know the behavior but not the symbol name (`ctx where` is
+    symbol-exact; `ctx route` maps to areas/files). For each hit it also shows the
+    enclosing def/class and any area + idea-bridge that governs the file, so a
+    behavioral query pulls in the relevant findings instead of dropping you into
+    raw grep (and leaving the context layer)."""
+    import ast
+    query = " ".join(args.query)
+    if len(query) < 3:
+        print("  query too short (need ≥3 chars): `ctx find <text-or-regex>`")
+        return
+    try:
+        rx = re.compile(query, re.I)
+    except re.error:
+        rx = re.compile(re.escape(query), re.I)   # not valid regex → literal search
+    PER_FILE = 8
+    total = files_hit = 0
+    bridges_seen = {}
+    for rel in _first_party_modules(include_tests=False):
+        try:
+            with open(os.path.join(REPO, rel), errors="ignore") as fh:
+                src = fh.read()
+        except OSError:
+            continue
+        matched = [(i + 1, ln) for i, ln in enumerate(src.splitlines()) if rx.search(ln)]
+        if not matched:
+            continue
+        spans = []
+        try:
+            for node in ast.walk(ast.parse(src)):
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                    spans.append((node.lineno, getattr(node, "end_lineno", node.lineno), node.name))
+        except SyntaxError:
+            pass
+
+        def enclosing(lineno):
+            best = None
+            for s, e, name in spans:
+                if s <= lineno <= e and (best is None or s > best[0]):
+                    best = (s, e, name)
+            return best[2] if best else None
+
+        files_hit += 1
+        total += len(matched)
+        areas = _areas_for_module(rel)
+        print(f"\n  {rel}" + (f"   ({', '.join(areas)})" if areas else ""))
+        for ln_no, ln in matched[:PER_FILE]:
+            enc = enclosing(ln_no)
+            print(f"    {ln_no}:{('  [' + enc + ']') if enc else ''} {ln.strip()[:100]}")
+            if enc:
+                for b in _bridges_for_target(enc):
+                    bridges_seen[b["node"]] = b.get("note", "")
+        if len(matched) > PER_FILE:
+            print(f"    … +{len(matched) - PER_FILE} more in this file")
+        for b in _bridges_for_target(rel):
+            bridges_seen[b["node"]] = b.get("note", "")
+    if not files_hit:
+        print(f"  no first-party code matches /{query}/  (try `ctx route {query}` for area routing)")
+        return
+    print(f"\n  {total} hit(s) across {files_hit} file(s)")
+    if bridges_seen:
+        print("  governing findings (idea↔code bridges touched):")
+        for node, note in sorted(bridges_seen.items()):
+            print(f"    [[{node}]] {note[:88]}")
+        print("  → `ctx web <ID>` / `ctx why <ID>` to expand the finding")
+
+
 def _iter_py(root_dir):
     for root, dirs, files in os.walk(root_dir):
         dirs[:] = [d for d in dirs if d not in
@@ -1771,6 +1839,7 @@ def main():
     sub = p.add_subparsers(dest="cmd")
     sp = sub.add_parser("route"); sp.add_argument("task", nargs="+"); sp.set_defaults(fn=cmd_route)
     sp = sub.add_parser("where"); sp.add_argument("symbol"); sp.set_defaults(fn=cmd_where)
+    sp = sub.add_parser("find"); sp.add_argument("query", nargs="+"); sp.set_defaults(fn=cmd_find)
     sp = sub.add_parser("usages"); sp.add_argument("symbol"); sp.set_defaults(fn=cmd_usages)
     sp = sub.add_parser("defs"); sp.add_argument("file"); sp.set_defaults(fn=cmd_defs)
     sp = sub.add_parser("tree"); sp.add_argument("path", nargs="?")

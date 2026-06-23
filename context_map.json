@@ -279,6 +279,7 @@
   "tools_readonly": [
     {"cmd": "ctx route \"<task>\"", "returns": "which files to read + tools to run for a task"},
     {"cmd": "ctx where <symbol>", "returns": "file:line where a function/class/config key is defined"},
+    {"cmd": "ctx find <text-or-regex>", "returns": "free-text/regex search over first-party code BODIES (find code by behavior when you don't know the symbol) → each hit's enclosing def/class + owning area + governing idea-bridge"},
     {"cmd": "ctx usages <symbol>", "returns": "ALL references to a symbol across the repo, classified (def/import/assign/ref/attr)"},
     {"cmd": "ctx defs <file>", "returns": "a file's symbol outline (imports + functions w/ args + classes/methods) without reading it"},
     {"cmd": "ctx tree [path] [--tests]", "returns": "AST repomap: every first-party module → its docstring first line + top-level class/def names (+ one-line docstrings); optional path prefix filter"},
