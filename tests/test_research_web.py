@@ -181,6 +181,41 @@ class TestSupersessionPropagation(unittest.TestCase):
                          "a superseded source node must not be flagged for citing history")
 
 
+class TestEffectiveConfidence(unittest.TestCase):
+    """ctx._effective_conf — a node is only as strong as the weakest stated conf in
+    its reliance chain (min-propagation); non-reliance edges don't drag it down."""
+
+    def test_min_over_reliance_chain_with_bottleneck(self):
+        nodes = {
+            "F1": {"title": "a", "body": "<!-- status: current; conf: 0.9 -->"},
+            "F2": {"title": "b", "body": "<!-- status: current; conf: 0.3 -->"},
+            "F3": {"title": "c", "body": "<!-- status: current; conf: 0.8 -->"},
+        }
+        adj = {
+            "F1": [{"to": "F2", "type": "relies_on", "dir": "out"},
+                   {"to": "F3", "type": "relates", "dir": "out"}],  # relates ≠ reliance
+            "F2": [], "F3": [],
+        }
+        eff, bott = ctx._effective_conf("F1", nodes, adj)
+        self.assertAlmostEqual(eff, 0.3)
+        self.assertEqual(bott, "F2", "weakest reliance link should be the bottleneck")
+
+    def test_relates_edge_does_not_drag_confidence(self):
+        # F3 (0.8) is reached only via `relates`, so it must NOT be the bottleneck.
+        nodes = {
+            "F1": {"title": "a", "body": "<!-- status: current; conf: 0.9 -->"},
+            "F3": {"title": "c", "body": "<!-- status: current; conf: 0.1 -->"},
+        }
+        adj = {"F1": [{"to": "F3", "type": "relates", "dir": "out"}], "F3": []}
+        eff, bott = ctx._effective_conf("F1", nodes, adj)
+        self.assertAlmostEqual(eff, 0.9)
+        self.assertEqual(bott, "F1", "a relates-only neighbour must not lower effective confidence")
+
+    def test_no_conf_anywhere_returns_none(self):
+        nodes = {"F1": {"title": "a", "body": "no meta"}}
+        self.assertEqual(ctx._effective_conf("F1", nodes, {"F1": []}), (None, None))
+
+
 class TestNoOrphanIdeaNodes(unittest.TestCase):
     """Soft-fail (rot-by-omission): a research idea node (F/H/E/D) with no idea-edge
     AND no bridge is invisible to frontier/why/impact. Inert code stubs (__init__.py,

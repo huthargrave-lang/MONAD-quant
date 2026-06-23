@@ -1281,12 +1281,41 @@ def cmd_walk(args):
         print("    (no outgoing edges" + (f" of type '{only}'" if only else "") + ")")
 
 
+def _reliance_closure(node, adj):
+    """All nodes reachable from `node` via reliance out-edges (relies_on/supports/
+    refines/builds_on) — the chain of claims this node stands on."""
+    seen, q = set(), [node]
+    while q:
+        cur = q.pop()
+        for e in adj.get(cur, []):
+            if e["dir"] == "out" and e["type"] in RELIANCE_EDGES and e["to"] not in seen:
+                seen.add(e["to"])
+                q.append(e["to"])
+    return seen
+
+
+def _effective_conf(node, nodes, adj):
+    """(effective_conf, bottleneck_id): the WEAKEST stated confidence among `node`
+    and its reliance chain — a claim is only as strong as the shakiest link it
+    relies on. Returns (None, None) if neither the node nor its chain carries a
+    `conf:`. Advisory only: confidences are hand-authored priors, not a live signal."""
+    chain = {node} | _reliance_closure(node, adj)
+    confs = [(nid, _node_meta(nodes[nid]).get("conf")) for nid in chain if nid in nodes]
+    confs = [(nid, c) for nid, c in confs if c is not None]
+    if not confs:
+        return None, None
+    bottleneck, lo = min(confs, key=lambda kv: kv[1])
+    return lo, bottleneck
+
+
 def cmd_why(args):
     """Why believe / where it leads: nearest grounding Experiments (out-edges) and
-    the Decisions a node bears on — the provenance path, not a summary."""
+    the Decisions a node bears on — the provenance path, not a summary. Also reports
+    effective confidence: the weakest stated `conf:` along the node's reliance chain."""
     G, adj = build_graph()
     if _g_missing(G, args.node):
         return
+    nodes_web, _ = _parse_web()
 
     def paths_to(prefix, maxlen=4, cap=8):
         # One shortest provenance path per reachable endpoint of `prefix` (BFS →
@@ -1313,6 +1342,14 @@ def cmd_why(args):
         return " → ".join(f"{t}:{tgt}" for t, tgt in p)
 
     print(f"why {_g_head(G, args.node)}")
+    eff, bott = _effective_conf(args.node, nodes_web, adj)
+    if eff is not None:
+        own = _node_meta(nodes_web[args.node]).get("conf") if args.node in nodes_web else None
+        own_s = f"stated {own:.2f} · " if own is not None else ""
+        if bott == args.node:
+            print(f"  confidence: {own_s}effective {eff:.2f} (self is the weakest link)")
+        else:
+            print(f"  confidence: {own_s}effective {eff:.2f} (weakest link in reliance chain: {bott} @ {eff:.2f})")
     ev, dec = paths_to("E"), paths_to("D")
     print("  grounded in (experiments):")
     print("\n".join(f"    {args.node} → {fmt(p)}" for p in ev)
