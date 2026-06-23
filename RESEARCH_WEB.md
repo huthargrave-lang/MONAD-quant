@@ -357,6 +357,8 @@ Sharpe as full buy&hold (0.80; cash-scaling is Sharpe-invariant) at the timing s
 — so daily-MR timing is DOMINATED by trivial static de-risking. This is the same lesson as the
 hourly arc ([[F13|relates]]): a flattering backtest number that doesn't survive the honest
 benchmark. Refines [[F21|refines]] and [[D5|refines]]; bears on the go/no-go [[D1|drives]], [[D4|drives]].
+Directly disputes the "edge is REAL at ~3 bars/day" framing ([[F15|contradicts]]): the per-instrument
+3/day Sharpe doesn't survive as a portfolio held against an equal-weight buy&hold of the same assets.
 
 ### E12 — Go/no-go: active daily-MR vs static blends (head-to-head)
 tools/mr_daily_lab.py gonogo — 2014-2026 cached data. The D5 equal-weight daily-MR portfolio (QQQ/SPY/IWM/DIA/GLD, dip + 5d horizon + 200d gate) scores Sharpe 0.69 / 6.2%/yr / -13.9% DD, vs static 50/50 equity/cash (Sharpe 0.80), static 60/40 equity/bond via IEF (0.86), and 100% buy&hold (0.80). The 20-day block bootstrap of (active - static-50/50) Sharpe diff is [-0.41, +0.48] — straddles zero (within noise). Extends the OOS test.

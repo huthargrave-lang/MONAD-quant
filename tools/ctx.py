@@ -979,6 +979,20 @@ def _superseder(node):
     return _node_meta(node).get("by")
 
 
+def _contradicted_by(nodes):
+    """{node_id: [current nodes that contradict it]} — built from `contradicts` edges
+    out of current nodes. A contradicted node may still be CURRENT (disputed, not
+    retracted), so a live node relying on it is worth an advisory, not a hard problem."""
+    out = {}
+    for nid, n in nodes.items():
+        if _is_superseded(n):
+            continue
+        for e in n["edges"]:
+            if e["type"] == "contradicts" and e["target"] in nodes:
+                out.setdefault(e["target"], []).append(nid)
+    return out
+
+
 def _is_idea_id(nid):
     """True if a unified-graph node id is a research idea node, not a code/module/
     area/config pseudo-node (those carry a 'code:'/'mod:'/'cfg:'/'area:' prefix, i.e.
@@ -1094,9 +1108,24 @@ def cmd_web(args):
             print(f"  PROBLEM stale-cite: live {nid} cites superseded {tgt} without its "
                   f"superseder {sup} (cite [[{sup}]] alongside it)")
             problems += 1
+        # Advisory: a live node that relies on / relates to a CONTRADICTED node (one a
+        # current node carries a `contradicts` edge to). The cited node is still live but
+        # disputed — not a hard problem, but the reliance chain crosses contested ground.
+        contra = _contradicted_by(nodes)
+        advisories = 0
+        for nid, n in nodes.items():
+            if _is_superseded(n):
+                continue
+            for e in n["edges"]:
+                tgt = e["target"]
+                if (tgt in contra and tgt != nid and nid not in contra.get(tgt, [])
+                        and e["type"] in (RELIANCE_EDGES | {"relates"})):
+                    print(f"  advisory: live {nid} --{e['type']}--> {tgt}, which is contradicted "
+                          f"by {', '.join(contra[tgt])} (disputed — verify before relying)")
+                    advisories += 1
         sup_n = sum(1 for n in nodes.values() if _is_superseded(n))
         print(f"\n  {len(nodes)} nodes | {sup_n} superseded | "
-              f"{len(dangling) + problems} problem(s)")
+              f"{len(dangling) + problems} problem(s) | {advisories} advisory")
         return
 
     if args.node:

@@ -255,6 +255,30 @@ class TestWebListingViews(unittest.TestCase):
         out = self._web(live=True)
         self.assertNotIn("[SUPERSEDED", out, "--live must hide superseded nodes, not tombstone them")
 
+    def test_lint_advises_reliance_on_contradicted_node(self):
+        # F22 contradicts F15; D1/D4 relate to F15 → the reliance chain crosses a
+        # contradicted (but live) node → advisory, not a hard problem.
+        out = self._web(lint=True)
+        self.assertIn("contradicted by F22", out)
+
+
+class TestContradictedNodeLint(unittest.TestCase):
+    def test_contradicted_by_maps_current_disputes(self):
+        nodes = {
+            "F1": {"title": "a", "body": "", "links": ["F2"], "edges": [{"target": "F2", "type": "contradicts"}]},
+            "F2": {"title": "b", "body": "", "links": [], "edges": []},
+        }
+        self.assertEqual(ctx._contradicted_by(nodes), {"F2": ["F1"]})
+
+    def test_superseded_contradictor_does_not_count(self):
+        nodes = {
+            "F1": {"title": "a", "body": "<!-- status: superseded; by: F9; reason: reversed -->",
+                   "links": ["F2"], "edges": [{"target": "F2", "type": "contradicts"}]},
+            "F2": {"title": "b", "body": "", "links": [], "edges": []},
+            "F9": {"title": "c", "body": "", "links": [], "edges": []},
+        }
+        self.assertEqual(ctx._contradicted_by(nodes), {}, "a superseded node's contradicts edge must not count")
+
 
 class TestEvidenceAndInversion(unittest.TestCase):
     """ctx._n_evidence (maturity count) + the inverted/data-revised reason codes and
