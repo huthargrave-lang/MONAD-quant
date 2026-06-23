@@ -155,8 +155,10 @@ def _similar_live_nodes(nodes, nid, thresh=0.6):
 
 
 def _title_terms(title):
-    return {ctx._stem(w) for w in re.findall(r"[a-z0-9]+", title.lower())
-            if len(w) >= 3 and w not in ctx._FRONTIER_STOPWORDS}
+    # Stem BEFORE the stopword filter so inflected stopwords (e.g. "results"→"result")
+    # are caught too, instead of leaking in as content tokens.
+    return {s for w in re.findall(r"[a-z0-9]+", title.lower()) if len(w) >= 3
+            for s in (ctx._stem(w),) if s not in ctx._FRONTIER_STOPWORDS}
 
 
 def _title_match_suggestions(nodes, nid, exclude, cap=3):

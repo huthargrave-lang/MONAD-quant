@@ -293,6 +293,20 @@ class TestCtxDelta(unittest.TestCase):
         self.assertIn("ctx delta", out)
         self.assertIn("base", out)
 
+    def test_delta_since_revision_uses_that_revision(self):
+        # Regression: git --before (approxidate) silently coerced 'HEAD~3' into a
+        # bogus date; the base must be the actual HEAD~3 commit.
+        import contextlib, io, types, subprocess
+        full = subprocess.run(["git", "rev-parse", "HEAD~3"], cwd=ctx.REPO,
+                              capture_output=True, text=True).stdout.strip()
+        if not full:
+            self.skipTest("not enough git history")
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ctx.cmd_delta(types.SimpleNamespace(since="HEAD~3"))
+        self.assertIn(full[:9], buf.getvalue(),
+                      "delta --since HEAD~3 must use HEAD~3 as the base, not an approxidate guess")
+
 
 class TestContradictedNodeLint(unittest.TestCase):
     def test_contradicted_by_maps_current_disputes(self):
@@ -326,6 +340,19 @@ class TestEvidenceAndInversion(unittest.TestCase):
         }
         self.assertEqual(ctx._n_evidence("F1", nodes), (2, 1))  # 2 cited experiments, 1 corroborator
         self.assertEqual(ctx._n_evidence("E1", nodes), (0, 0))
+
+    def test_n_evidence_excludes_superseded_backing(self):
+        # A superseded supporter / cited experiment is retracted backing — not counted.
+        nodes = {
+            "F1": {"title": "x", "body": "", "edges": [{"target": "E1", "type": "evidenced_by"}]},
+            "E1": {"title": "e", "body": "<!-- status: superseded; by: E2; reason: reversed -->", "edges": []},
+            "E2": {"title": "e2", "body": "", "edges": []},
+            "F2": {"title": "y", "body": "<!-- status: superseded; by: F3; reason: reversed -->",
+                   "edges": [{"target": "F1", "type": "supports"}]},
+            "F3": {"title": "z", "body": "", "edges": []},
+        }
+        self.assertEqual(ctx._n_evidence("F1", nodes), (0, 0),
+                         "superseded cited experiment and superseded supporter must both be excluded")
 
     def test_inversion_reason_codes_registered(self):
         self.assertIn("inverted", ctx.REASON_CODES)

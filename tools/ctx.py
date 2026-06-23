@@ -547,8 +547,11 @@ def cmd_impact(args):
         nw = _parse_web()[0]
         live = [b for b in brs if b["node"] in nw and not _is_superseded(nw[b["node"]])]
         dead = [b for b in brs if b["node"] in nw and _is_superseded(nw[b["node"]])]
-        print(f"  ⚠ epistemic blast radius: {len(live)} live + {len(dead)} retracted "
-              f"finding(s)/decision(s) bridge to this target (`ctx web <node>`):")
+        unknown = [b for b in brs if b["node"] not in nw]
+        head = (f"{len(live)} live + {len(dead)} retracted"
+                + (f" + {len(unknown)} unknown" if unknown else ""))
+        print(f"  ⚠ epistemic blast radius: {head} finding(s)/decision(s) "
+              f"bridge to this target (`ctx web <node>`):")
         for b in brs:
             st = " [SUPERSEDED]" if (b["node"] in nw and _is_superseded(nw[b["node"]])) \
                  else (" [?]" if b["node"] not in nw else "")
@@ -564,9 +567,10 @@ def cmd_impact(args):
         rx = re.compile(rf"(config\.{re.escape(key)}\b|getattr\(\s*config\s*,\s*[\"']{re.escape(key)}|\b{re.escape(key)}\b)")
         hits = []
         for p in _iter_py(REPO):
-            for i, line in enumerate(open(p, errors="ignore"), 1):
-                if rx.search(line):
-                    hits.append((os.path.relpath(p, REPO), i)); break
+            with open(p, errors="ignore") as _fh:
+                for i, line in enumerate(_fh, 1):
+                    if rx.search(line):
+                        hits.append((os.path.relpath(p, REPO), i)); break
         print(f"  config key '{key}' referenced in {len(hits)} file(s) "
               f"(config.KEY / getattr / ASSETS forms); config is imported by 20+ modules — high coupling")
         for rel, ln in sorted(hits):
@@ -582,8 +586,9 @@ def cmd_impact(args):
         mod = None
         rx = re.compile(rf"^\s*(def|class)\s+{re.escape(target)}\b")
         for p in _iter_py(REPO):
-            if any(rx.search(l) for l in open(p, errors="ignore")):
-                mod = os.path.relpath(p, REPO)[:-3].replace(os.sep, "."); break
+            with open(p, errors="ignore") as _fh:
+                if any(rx.search(l) for l in _fh):
+                    mod = os.path.relpath(p, REPO)[:-3].replace(os.sep, "."); break
     if mod not in importers:
         print(f"  '{target}' is not a repo module/file/symbol (try src/strategy/engine.py)")
         return
@@ -1008,6 +1013,13 @@ def _contradicted_by(nodes):
     return out
 
 
+def _node_sort_key(nid):
+    """Sort key tolerant of any alpha prefix + number (F3, AP12), so a multi-letter
+    node id doesn't crash `int(nid[1:])`."""
+    m = re.match(r"([A-Za-z]+)(\d+)", nid)
+    return (m.group(1), int(m.group(2))) if m else (nid, 0)
+
+
 def _is_idea_id(nid):
     """True if a unified-graph node id is a research idea node, not a code/module/
     area/config pseudo-node (those carry a 'code:'/'mod:'/'cfg:'/'area:' prefix, i.e.
@@ -1134,6 +1146,7 @@ def cmd_web(args):
             for e in n["edges"]:
                 tgt = e["target"]
                 if (tgt in contra and tgt != nid and nid not in contra.get(tgt, [])
+                        and not _is_superseded(nodes[tgt])   # superseded target → already a hard PROBLEM above
                         and e["type"] in (RELIANCE_EDGES | {"relates"})):
                     print(f"  advisory: live {nid} --{e['type']}--> {tgt}, which is contradicted "
                           f"by {', '.join(contra[tgt])} (disputed — verify before relying)")
@@ -1182,10 +1195,10 @@ def cmd_web(args):
     if getattr(args, "pending", False):
         # Open work only: live decisions/gates (D-nodes) + open questions
         # (titles tagged OPEN / IN PROGRESS). The "what still needs doing" view.
-        pend = [nid for nid in sorted(nodes, key=lambda x: (x[0], int(x[1:])))
+        pend = [nid for nid in sorted(nodes, key=_node_sort_key)
                 if not _is_superseded(nodes[nid])
                 and (nid[:1] == "D"
-                     or re.search(r"\b(OPEN|IN PROGRESS)\b", nodes[nid]["title"], re.I))]
+                     or re.match(r"\s*(OPEN|IN PROGRESS)\b", nodes[nid]["title"], re.I))]
         print(f"PENDING — open questions + decisions/gates ({len(pend)}):\n")
         for nid in pend:
             print(f"  {nid:<4} {nodes[nid]['title'][:72]}")
@@ -1204,10 +1217,11 @@ def cmd_web(args):
         print(f"{label}:")
         for nid in ids:
             if _is_superseded(nodes[nid]):                       # tombstone: collapse to one line
-                by = _node_meta(nodes[nid]).get("by") or "?"
+                meta = _node_meta(nodes[nid])
+                by = meta.get("by") or "?"
                 t = re.sub(r"^\[(SUPERSEDED|RETRACTED) by [A-Za-z]+\d+\]\s*", "",
                            nodes[nid]["title"], flags=re.I)
-                print(f"  {nid:<4} [SUPERSEDED → {by}]  {t[:44]}")
+                print(f"  {nid:<4} [{meta['status'].upper()} → {by}]  {t[:44]}")
             else:
                 links = ", ".join(nodes[nid]["links"])
                 print(f"  {nid:<4} {nodes[nid]['title'][:58]:<58} → {links}")
@@ -1385,9 +1399,12 @@ def _n_evidence(node, nodes):
     outgoing `evidenced_by` edges) + nodes that corroborate it (incoming `supports`
     edges). Higher = the claim is better-backed by the graph."""
     n = nodes.get(node, {})
-    cited = sum(1 for e in n.get("edges", []) if e["type"] == "evidenced_by")
-    corrob = sum(1 for sn in nodes.values() for e in sn.get("edges", [])
-                 if e["target"] == node and e["type"] == "supports")
+    # Only LIVE evidence counts toward maturity — a superseded experiment/supporter is
+    # retracted backing (cmd_why even warns "do not cite this as support").
+    cited = sum(1 for e in n.get("edges", []) if e["type"] == "evidenced_by"
+                and not (e["target"] in nodes and _is_superseded(nodes[e["target"]])))
+    corrob = sum(1 for sn in nodes.values() if not _is_superseded(sn)
+                 for e in sn.get("edges", []) if e["target"] == node and e["type"] == "supports")
     return cited, corrob
 
 
@@ -1723,12 +1740,18 @@ def cmd_delta(args):
 
     since = getattr(args, "since", None)
     base = ""
-    if since:                                  # a date ('5 days ago') → commit before it, else a literal rev
-        r = git("rev-list", "-1", f"--before={since}", "HEAD")
+    if since:
+        # Literal revision FIRST (rev-parse): git's --before uses approxidate, which
+        # silently coerces 'HEAD~5'/'main'/a sha into a bogus date and returns a wrong
+        # commit — so the revision form must be tried before the date form.
+        r = git("rev-parse", "--verify", "--quiet", f"{since}^{{commit}}")
         base = r.stdout.strip() if (r and r.returncode == 0 and r.stdout.strip()) else ""
+        if not base:                           # not a revision → treat as a git date ('5 days ago')
+            r2 = git("rev-list", "-1", f"--before={since}", "HEAD")
+            base = r2.stdout.strip() if (r2 and r2.returncode == 0 and r2.stdout.strip()) else ""
         if not base:
-            r2 = git("rev-parse", "--verify", "--quiet", f"{since}^{{commit}}")
-            base = r2.stdout.strip() if (r2 and r2.stdout.strip()) else ""
+            print(f"ctx delta: could not resolve --since {since!r} as a revision or a git date.")
+            return
     else:
         r = git("rev-parse", "--verify", "--quiet", "HEAD~12^{commit}")
         base = r.stdout.strip() if (r and r.stdout.strip()) else ""
@@ -1745,13 +1768,15 @@ def cmd_delta(args):
 
     old_nodes = _parse_web_text(at("RESEARCH_WEB.md"))[0]
     new_nodes = _parse_web()[0]
-    order = lambda ids: sorted(ids, key=lambda x: (x[0], int(x[1:])))
+    order = lambda ids: sorted(ids, key=_node_sort_key)
     both = set(old_nodes) & set(new_nodes)
     added, removed = order(set(new_nodes) - set(old_nodes)), order(set(old_nodes) - set(new_nodes))
-    amended = order(n for n in both if old_nodes[n]["body"] != new_nodes[n]["body"]
-                    or old_nodes[n]["title"] != new_nodes[n]["title"])
     newly_sup = order(n for n in both
                       if not _is_superseded(old_nodes[n]) and _is_superseded(new_nodes[n]))
+    _ns = set(newly_sup)   # a node that became superseded is reported under ⊘, not also under ~
+    amended = order(n for n in both if n not in _ns
+                    and (old_nodes[n]["body"] != new_nodes[n]["body"]
+                         or old_nodes[n]["title"] != new_nodes[n]["title"]))
 
     def bridge_nodes(text):
         try:
@@ -2050,7 +2075,7 @@ def _web_banner():
     nodes = _parse_web()[0]
     n_sup = sum(1 for n in nodes.values() if _is_superseded(n))
     dates = [d for d in (_node_meta(n).get("at") for n in nodes.values()) if d]
-    rider = f"[Auto] {len(nodes)} nodes, {n_sup} superseded" + (f" · latest node {max(dates)}" if dates else "")
+    rider = f"[Auto] {len(nodes)} nodes, {n_sup} superseded" + (f" · latest dated node {max(dates)}" if dates else "")
     return (f"{banner}  {rider}" if banner else rider)[:520]
 
 
