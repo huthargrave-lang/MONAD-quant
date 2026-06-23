@@ -113,6 +113,51 @@ class TestTypedEdges(unittest.TestCase):
         self.assertEqual(offenders, [], f"live nodes rely on superseded nodes: {offenders}")
 
 
+class TestSupersessionPropagation(unittest.TestCase):
+    """Context Web v2 — supersession propagation: a CURRENT node that `relates` to a
+    superseded node must ALSO cite that node's superseder, so `ctx why <node>` can't
+    hand an agent a claim standing on retracted evidence (the live failure: D1 cited
+    F3/F4/F8 after F13 reversed them, never citing F13). See ctx._propagation_violations."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.nodes, _ = ctx._parse_web()
+
+    def test_web_has_no_propagation_violations(self):
+        v = ctx._propagation_violations(self.nodes)
+        self.assertEqual(
+            v, [],
+            "live nodes cite a superseded node without its superseder — cite the "
+            "superseder alongside it: "
+            + "; ".join(f"{nid}->{tgt} (missing {sup})" for nid, tgt, sup in v))
+
+    def test_guard_fires_on_synthetic_violation(self):
+        # The guard must actually catch the failure, not silently pass (adversarial).
+        nodes, _ = _parse_web_text(
+            "### F1 — old\n<!-- status: superseded; by: F2; reason: reversed -->\nx\n"
+            "### F2 — new\nthe replacement\n"
+            "### D1 — a live decision\nstill points at [[F1]] and never mentions the reversal.\n")
+        self.assertIn(("D1", "F1", "F2"), ctx._propagation_violations(nodes),
+                      "guard missed a live node citing superseded F1 without superseder F2")
+
+    def test_citing_the_superseder_clears_it(self):
+        nodes, _ = _parse_web_text(
+            "### F1 — old\n<!-- status: superseded; by: F2; reason: reversed -->\nx\n"
+            "### F2 — new\nthe replacement\n"
+            "### D1 — a live decision\nnotes [[F1]] but now follows [[F2]].\n")
+        self.assertEqual(ctx._propagation_violations(nodes), [],
+                         "citing both the superseded node and its superseder must clear it")
+
+    def test_superseded_source_is_exempt(self):
+        # A superseded node may freely reference history (incl. other superseded nodes).
+        nodes, _ = _parse_web_text(
+            "### F1 — old\n<!-- status: superseded; by: F2; reason: reversed -->\nx\n"
+            "### F2 — new\nthe replacement\n"
+            "### F0 — also old\n<!-- status: superseded; by: F2; reason: reversed -->\nrefers to [[F1]].\n")
+        self.assertEqual(ctx._propagation_violations(nodes), [],
+                         "a superseded source node must not be flagged for citing history")
+
+
 class TestEdgeClassificationHardening(unittest.TestCase):
     """Adversarial-review regressions (Context Web v2 #2–#5): malformed typed
     links must not vanish, and the cue classifier must not mis-type in ways that

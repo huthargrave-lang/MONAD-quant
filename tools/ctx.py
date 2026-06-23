@@ -900,6 +900,36 @@ def _is_superseded(node) -> bool:
     return _node_meta(node)["status"] in ("superseded", "retracted")
 
 
+def _superseder(node):
+    """The id of the node that supersedes/retracts this one (status meta 'by'), or None."""
+    return _node_meta(node).get("by")
+
+
+def _propagation_violations(nodes):
+    """Supersession-propagation invariant: a CURRENT node that points at a
+    superseded node via a current-dependency `relates` edge must ALSO cite that
+    node's superseder — else `ctx why <node>` hands an agent a claim built on
+    retracted evidence with no pointer to what replaced it (the live case: D1
+    cited F3/F4/F8 after F13 reversed them and never cited F13). Reliance edges
+    into a superseded node are a stronger, separate problem (RELIANCE_EDGES, the
+    --lint reliance check); lineage/provenance edges (produces, evidenced_by,
+    derived_from, supersedes, resolves, drives, contradicts) legitimately
+    reference history and are exempt. Returns [(node_id, superseded, superseder)]."""
+    out = []
+    for nid, n in nodes.items():
+        if _is_superseded(n):
+            continue  # a superseded node may reference history freely
+        links = set(n["links"])
+        for e in n["edges"]:
+            tgt = e["target"]
+            if e["type"] != "relates" or tgt not in nodes or not _is_superseded(nodes[tgt]):
+                continue
+            sup = _superseder(nodes[tgt])
+            if sup and sup in nodes and sup != nid and sup not in links:
+                out.append((nid, tgt, sup))
+    return out
+
+
 # ── Idea↔code bridges (Context Web v2 #5) ────────────────────────────────────
 
 def _graph_bridges():
@@ -948,25 +978,27 @@ def cmd_web(args):
                     for tgt in n["links"] if tgt not in nodes]
         for nid, tgt in dangling:
             print(f"  PROBLEM dangling: {nid} → [[{tgt}]] (no such node)")
-        problems, advisories = 0, 0
+        problems = 0
         for nid, n in nodes.items():
             if _is_superseded(n):
                 continue  # a superseded node may freely cite anything (history)
             for e in n["edges"]:
                 tgt = e["target"]
-                if tgt not in nodes or not _is_superseded(nodes[tgt]):
-                    continue
-                if e["type"] in RELIANCE_EDGES:
+                if (e["type"] in RELIANCE_EDGES and tgt in nodes
+                        and _is_superseded(nodes[tgt])):
                     print(f"  PROBLEM stale-cite: live {nid} --{e['type']}--> superseded "
                           f"{tgt} (relies on a retracted claim)")
                     problems += 1
-                elif e["type"] == "relates":
-                    print(f"  advisory stale-cite: {nid} relates to superseded {tgt} "
-                          f"(untyped — add [[{tgt}|<type>]] to disambiguate)")
-                    advisories += 1
-        sup = sum(1 for n in nodes.values() if _is_superseded(n))
-        print(f"\n  {len(nodes)} nodes | {sup} superseded | "
-              f"{len(dangling) + problems} problem(s) | {advisories} advisory")
+        # Supersession-propagation: a live node that `relates` to a superseded node
+        # must also cite its superseder (else it reads as standing on retracted
+        # evidence). This replaces the old chronic "advisory" — it is now a hard problem.
+        for nid, tgt, sup in _propagation_violations(nodes):
+            print(f"  PROBLEM stale-cite: live {nid} cites superseded {tgt} without its "
+                  f"superseder {sup} (cite [[{sup}]] alongside it)")
+            problems += 1
+        sup_n = sum(1 for n in nodes.values() if _is_superseded(n))
+        print(f"\n  {len(nodes)} nodes | {sup_n} superseded | "
+              f"{len(dangling) + problems} problem(s)")
         return
 
     if args.node:
@@ -1348,16 +1380,16 @@ def cmd_health(args):
     nodes, _ = _parse_web()
     sup = [k for k, n in nodes.items() if _is_superseded(n)]
     dangling = [(nid, t) for nid, n in nodes.items() for t in n["links"] if t not in nodes]
-    problems = advisories = 0
+    problems = 0
     for nid, n in nodes.items():
         if _is_superseded(n):
             continue
         for e in n["edges"]:
-            if e["target"] in nodes and _is_superseded(nodes[e["target"]]):
-                if e["type"] in RELIANCE_EDGES:
-                    problems += 1
-                elif e["type"] == "relates":
-                    advisories += 1
+            if (e["type"] in RELIANCE_EDGES and e["target"] in nodes
+                    and _is_superseded(nodes[e["target"]])):
+                problems += 1
+    # Supersession-propagation: live node `relates` to superseded without citing its superseder.
+    problems += len(_propagation_violations(nodes))
     bridges = _graph_bridges()
     G, adj = build_graph(include_code=True)
     n_edges = sum(len(a) for a in adj.values()) // 2
@@ -1371,7 +1403,7 @@ def cmd_health(args):
     print(f"  code coverage : {len(mapped)}/{len(guarded)} non-allowlisted modules in an area ({cov*100:.0f}%)"
           + (f"  ·  {len(orphan)} ORPHAN: {', '.join(orphan)}" if orphan else "  ·  0 orphan"))
     print(f"  idea web      : {len(nodes)} nodes ({len(sup)} superseded)  ·  {len(dangling)} dangling  ·  "
-          f"{problems} stale-cite problem(s)  ·  {advisories} advisory")
+          f"{problems} stale-cite problem(s)")
     print(f"  bridges       : {len(bridges)} idea↔code")
     print(f"  unified graph : {len(G)} nodes  ·  {n_edges} edges  ·  {len(isolated)} isolated node(s)")
     if orphan:

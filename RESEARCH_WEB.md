@@ -22,7 +22,8 @@
 
 ### F1 — Three numbers, three stories
 Documented Sharpe 39–94 / +2–3.5%/mo (fantasy), holdout-selected +4–5%/mo (biased),
-leak-free +0.1–0.34%/mo (honest). Only the last is trustworthy. See [[E1]], [[E2]], [[E3]], [[F2]], [[F3]].
+leak-free +0.1–0.34%/mo (honest). Only the last is trustworthy. See [[E1]], [[E2]], [[E3]], [[F2]], [[F3]]
+— though even that "honest" ~0.34%/mo QQQ number was later shown to be a morning-only sampling artifact ([[F13]]).
 
 ### F2 — Holdout-selection bias inflates the sweep
 `sweep.py` picks its winner BY the holdout score, so its "holdout" numbers are the
@@ -141,6 +142,7 @@ regime this research operates in. Fixed in commit 084f15e.
 
 ### H1 — RESOLVED: edge is sample-luck? → NO for QQQ, YES for TQQQ
 Robustness ([[E4]]): QQQ robust (t 3.3–4.3, survives no-selection [[F8]]); TQQQ fragile ([[F6]]). Closed.
+(NB: the QQQ edge F8 affirmed was later shown to be a morning-only artifact — [[F13]]; this holds only at the ~3-bars/day timescale, not hourly.)
 
 ### H2 — RESOLVED: un-leveraged indices generalize the edge? → YES
 Confirmed by the noise-ratio mechanism [[F7]] + SPY/IWM corroboration [[F9]] ([[E6]]). Closed → [[D3]].
@@ -220,6 +222,11 @@ the right instrument** ([[F3]], [[F4]], [[F7]], [[F8]], [[F9]]) — exactly the 
 the project set out to be. Verdict: **don't kill it — reframe it** as a capital-preservation /
 high-Sharpe product AND **switch instrument focus from 3x ETFs to un-leveraged broad indices**.
 Caveats: morning-only data ([[F10]]), edge decaying ([[F3]]), TQQQ fragile ([[F6]]).
+**CORRECTION ([[F13]]):** the high-Sharpe premise above ([[F3]], [[F4]], [[F8]]) was a MORNING-ONLY
+data-sampling artifact — on full-session, live-representative data the hourly edge is FLAT/negative.
+The reframe holds only at a ~3-bars/day timescale ([[F15]]), NOT the hourly bot this gate was about.
+Overtaken in substance by the sobering update [[D4]] and the final go/no-go [[D6]] (the evidence-backed
+recommendation is a STATIC allocation, not the active engine).
 
 ### D2 — Promote walk-forward to primary selector (C5)
 Make the sweep select on rolling-origin OOS, not single-split holdout ([[H4]]). Now well-motivated
