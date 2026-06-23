@@ -2,9 +2,9 @@ name: Tests
 
 on:
   push:
-    branches: [main, "claude/**", "pi-ops-automation", "fix-**"]
+    branches: [main, development, "claude/**", "pi-ops-automation", "fix-**"]
   pull_request:
-    branches: [main]
+    branches: [main, development]
 
 jobs:
   test:
