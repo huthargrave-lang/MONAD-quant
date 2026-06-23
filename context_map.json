@@ -95,7 +95,13 @@
        "note": "recommended build = daily-MR + horizon exit + vol-target on un-leveraged equities; changing mode/exit needs sign-off (armed path)."},
       {"node": "D6", "relation": "gated_by",
        "code": ["config.ACTIVE_MODE"],
-       "note": "go/no-go verdict: the active engine shows no demonstrated advantage over a static blend — recommend a static allocation; changing the live mode needs sign-off."}
+       "note": "go/no-go verdict: the active engine shows no demonstrated advantage over a static blend — recommend a static allocation; changing the live mode needs sign-off."},
+      {"node": "F11", "relation": "implemented_in",
+       "code": ["src/optimization/sweep_scoring.py::_apply_penalties"],
+       "note": "the penalty-inversion fix lives here: the `if base <= 0: return base` guard skips the multiplicative penalties on net-negative configs (shrinking a negative base toward zero would otherwise IMPROVE losing configs). Fixed in 084f15e."},
+      {"node": "F23", "relation": "implemented_in",
+       "code": ["src/signals/momentum.py::momentum_signal", "live/signals.py::get_current_signal"],
+       "note": "momentum_signal recomputes RSI/MACD with HARDCODED defaults (compute_rsi/compute_macd take no period args → RSI 14, MACD 12/26/9), so the per-mode RSI_PERIOD_*/MACD_* config never reaches the entry signal — only the oversold/overbought THRESHOLDS are threaded through. The armed bot rides this path via get_current_signal → build_features → add_momentum_features. The config's 'DEAD LEVER' comments are empirically right but MISATTRIBUTE the cause to market structure rather than this code path."}
     ]
   },
 
