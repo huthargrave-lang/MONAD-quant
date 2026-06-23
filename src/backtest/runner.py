@@ -369,7 +369,7 @@ def run_backtest(df: pd.DataFrame,
     print()
 
     if plot and _HAS_MPL:
-        _plot_results(equity, drawdown, trade_returns, trades_df, df_trades, initial_capital)
+        _plot_results(equity, trade_returns, trades_df, df_trades, initial_capital)
     elif plot:
         print("(matplotlib not installed — skipping backtest_results.png; stats above are complete. "
               "`pip install -r requirements-dev.txt` to enable the plot.)")
@@ -401,7 +401,7 @@ def _print_signal_diagnostics(df, require_signals, use_regime,
         print(f"    entry_signal (after all filters): {entries}")
 
 
-def _plot_results(equity, drawdown, trade_returns, trades_df, df_price, initial_capital):
+def _plot_results(equity, trade_returns, trades_df, df_price, initial_capital):
     BG      = "#0d0d1a"
     GRID    = "#1e1e3a"
     MODEL   = "#00d4ff"
