@@ -881,22 +881,28 @@ def _classify_edge(pre):
 
 
 def _parse_web():
-    """Parse RESEARCH_WEB.md into {id: {title, body, links, edges}} + reverse links.
-    Nodes are '### <ID> — <title>'; edges are '[[ID]]'/'[[ID|type]]' references in
-    the body. `links` is the sorted unique target IDs (backward-compatible); `edges`
-    is [{target, type}] with the relation type (explicit, else cue-classified)."""
+    """Parse the working-tree RESEARCH_WEB.md. See _parse_web_text for the contract."""
     if not os.path.exists(WEB):
         return {}, {}
+    with open(WEB) as f:
+        return _parse_web_text(f.read())
+
+
+def _parse_web_text(text):
+    """Parse research-web markdown TEXT into {id: {title, body, links, edges}} +
+    reverse links. Nodes are '### <ID> — <title>'; edges are '[[ID]]'/'[[ID|type]]'
+    references in the body. `links` = sorted unique target IDs (backward-compatible);
+    `edges` = [{target, type}] (explicit, else cue-classified). Pure over a string, so
+    an arbitrary git revision's content can be parsed (used by `ctx delta`)."""
     nodes, cur = {}, None
     hdr = re.compile(r"^###\s+([A-Za-z]+\d+)\s+[—-]\s+(.*)$")
-    with open(WEB) as f:
-        for line in f:
-            m = hdr.match(line.rstrip())
-            if m:
-                cur = m.group(1)
-                nodes[cur] = {"title": m.group(2).strip(), "body": ""}
-            elif cur:
-                nodes[cur]["body"] += line
+    for line in text.splitlines(keepends=True):
+        m = hdr.match(line.rstrip())
+        if m:
+            cur = m.group(1)
+            nodes[cur] = {"title": m.group(2).strip(), "body": ""}
+        elif cur:
+            nodes[cur]["body"] += line
     rev = {}
     for nid, n in nodes.items():
         body = n["body"]
@@ -1693,6 +1699,78 @@ def cmd_claims(args):
               "then add `guarded_by: [tests/x.py::TestY]` to the bridge")
 
 
+def cmd_delta(args):
+    """What changed in the research web + manifest recently (git-based) — a returning
+    agent's "what's new" packet: nodes added / amended / newly-superseded and new
+    idea↔code bridges, diffed between a base git revision and the working tree. Base
+    defaults to HEAD~12; `--since` takes a git date ('5 days ago') or a revision."""
+    import subprocess
+
+    def git(*a):
+        try:
+            return subprocess.run(["git", *a], cwd=REPO, capture_output=True, text=True, timeout=15)
+        except Exception:
+            return None
+
+    since = getattr(args, "since", None)
+    base = ""
+    if since:                                  # a date ('5 days ago') → commit before it, else a literal rev
+        r = git("rev-list", "-1", f"--before={since}", "HEAD")
+        base = r.stdout.strip() if (r and r.returncode == 0 and r.stdout.strip()) else ""
+        if not base:
+            r2 = git("rev-parse", "--verify", "--quiet", f"{since}^{{commit}}")
+            base = r2.stdout.strip() if (r2 and r2.stdout.strip()) else ""
+    else:
+        r = git("rev-parse", "--verify", "--quiet", "HEAD~12^{commit}")
+        base = r.stdout.strip() if (r and r.stdout.strip()) else ""
+        if not base:                           # shallow / very young history → root commit
+            root = git("rev-list", "--max-parents=0", "HEAD")
+            base = root.stdout.strip().splitlines()[0] if (root and root.stdout.strip()) else ""
+    if not base:
+        print("ctx delta: not a git repo, or no history to diff against.")
+        return
+
+    def at(path):
+        r = git("show", f"{base}:{path}")
+        return r.stdout if (r and r.returncode == 0) else ""
+
+    old_nodes = _parse_web_text(at("RESEARCH_WEB.md"))[0]
+    new_nodes = _parse_web()[0]
+    order = lambda ids: sorted(ids, key=lambda x: (x[0], int(x[1:])))
+    both = set(old_nodes) & set(new_nodes)
+    added, removed = order(set(new_nodes) - set(old_nodes)), order(set(old_nodes) - set(new_nodes))
+    amended = order(n for n in both if old_nodes[n]["body"] != new_nodes[n]["body"]
+                    or old_nodes[n]["title"] != new_nodes[n]["title"])
+    newly_sup = order(n for n in both
+                      if not _is_superseded(old_nodes[n]) and _is_superseded(new_nodes[n]))
+
+    def bridge_nodes(text):
+        try:
+            return {b["node"] for b in json.loads(text or "{}").get("graph_bridges", {}).get("bridges", [])}
+        except Exception:
+            return set()
+    added_br = sorted({b["node"] for b in _graph_bridges()} - bridge_nodes(at("context_map.json")))
+
+    log = git("log", "--oneline", f"{base}..HEAD", "--", "RESEARCH_WEB.md", "context_map.json")
+    commits = log.stdout.strip().splitlines() if (log and log.stdout.strip()) else []
+
+    print(f"ctx delta — research web + manifest since {since or 'HEAD~12'} (base {base[:9]})")
+    if not (added or amended or newly_sup or removed or added_br):
+        print("  (no node or bridge changes in this window)")
+    else:
+        if added:     print(f"  + new nodes:        {', '.join(added)}")
+        if amended:   print(f"  ~ amended:          {', '.join(amended)}")
+        if newly_sup: print(f"  ⊘ newly superseded: {', '.join(newly_sup)}")
+        if removed:   print(f"  - removed:          {', '.join(removed)}")
+        if added_br:  print(f"  ⊢ new code bridges: {', '.join(added_br)}")
+    if commits:
+        print(f"  ({len(commits)} commit(s) touched the web/manifest):")
+        for c in commits[:12]:
+            print(f"    {c}")
+        if len(commits) > 12:
+            print(f"    … +{len(commits) - 12} more")
+
+
 def cmd_init(args):
     """Scaffold a starter context layer for ANY repo (the kit is repo-agnostic):
     discover areas from the source tree + code graph, emit a context_map.json
@@ -2067,6 +2145,8 @@ def main():
     sp.set_defaults(fn=cmd_graph)
     sub.add_parser("health").set_defaults(fn=cmd_health)
     sub.add_parser("claims").set_defaults(fn=cmd_claims)
+    sp = sub.add_parser("delta"); sp.add_argument("--since", default=None,
+        help="git date ('5 days ago') or revision; default HEAD~12"); sp.set_defaults(fn=cmd_delta)
     sp = sub.add_parser("related"); sp.add_argument("query", nargs="+")
     sp.add_argument("--top", type=int, default=6); sp.set_defaults(fn=cmd_related)
     sp = sub.add_parser("init"); sp.add_argument("--write", action="store_true",

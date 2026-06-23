@@ -262,6 +262,29 @@ class TestWebListingViews(unittest.TestCase):
         self.assertIn("contradicted by F22", out)
 
 
+class TestCtxDelta(unittest.TestCase):
+    """ctx delta + the _parse_web / _parse_web_text refactor invariant."""
+
+    def test_parse_web_text_matches_file_parse(self):
+        with open(ctx.WEB) as f:
+            txt = f.read()
+        a_nodes, a_rev = ctx._parse_web()
+        b_nodes, b_rev = ctx._parse_web_text(txt)
+        self.assertEqual(set(a_nodes), set(b_nodes))
+        self.assertEqual(a_rev, b_rev)
+        for nid in a_nodes:
+            self.assertEqual(a_nodes[nid]["edges"], b_nodes[nid]["edges"])
+
+    def test_delta_runs_and_reports_base(self):
+        import contextlib, io, types
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ctx.cmd_delta(types.SimpleNamespace(since=None))
+        out = buf.getvalue()
+        self.assertIn("ctx delta", out)
+        self.assertIn("base", out)
+
+
 class TestContradictedNodeLint(unittest.TestCase):
     def test_contradicted_by_maps_current_disputes(self):
         nodes = {
