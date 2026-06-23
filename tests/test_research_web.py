@@ -262,6 +262,15 @@ class TestWebListingViews(unittest.TestCase):
         self.assertIn("contradicted by F22", out)
 
 
+class TestBannerRider(unittest.TestCase):
+    """_web_banner appends an [Auto] rider of computed facts to the hand-written banner."""
+
+    def test_banner_has_auto_rider(self):
+        b = ctx._web_banner()
+        self.assertIn("[Auto]", b)
+        self.assertRegex(b, r"\[Auto\] \d+ nodes, \d+ superseded")
+
+
 class TestCtxDelta(unittest.TestCase):
     """ctx delta + the _parse_web / _parse_web_text refactor invariant."""
 

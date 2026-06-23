@@ -2030,7 +2030,10 @@ def cmd_related(args):
 
 
 def _web_banner():
-    """The first ⚠ blockquote of RESEARCH_WEB.md (the honest-state correction)."""
+    """The first ⚠ blockquote of RESEARCH_WEB.md (the hand-written honest-state
+    correction) + an [Auto] rider of facts computed from the live web (node count,
+    superseded count, latest node date) — so the freshest numbers are always present
+    even when the hand-written prose drifts."""
     if not os.path.exists(WEB):
         return ""
     out, grabbing = [], False
@@ -2043,7 +2046,12 @@ def _web_banner():
                     out.append(line.lstrip("> ").rstrip())
                 else:
                     break
-    return " ".join(out)[:420]
+    banner = " ".join(out)[:420]
+    nodes = _parse_web()[0]
+    n_sup = sum(1 for n in nodes.values() if _is_superseded(n))
+    dates = [d for d in (_node_meta(n).get("at") for n in nodes.values()) if d]
+    rider = f"[Auto] {len(nodes)} nodes, {n_sup} superseded" + (f" · latest node {max(dates)}" if dates else "")
+    return (f"{banner}  {rider}" if banner else rider)[:520]
 
 
 def cmd_brief(args):
