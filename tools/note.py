@@ -154,6 +154,30 @@ def _similar_live_nodes(nodes, nid, thresh=0.6):
     return sorted([(o, s) for o, s in out if s > thresh], key=lambda kv: -kv[1])
 
 
+def _title_terms(title):
+    return {ctx._stem(w) for w in re.findall(r"[a-z0-9]+", title.lower())
+            if len(w) >= 3 and w not in ctx._FRONTIER_STOPWORDS}
+
+
+def _title_match_suggestions(nodes, nid, exclude, cap=3):
+    """Existing live nodes whose TITLE shares >=2 content tokens with `nid`'s title —
+    a cheap 'did you mean to link this?' complement to the body-level cosine check.
+    Excludes self, superseded, already-linked, and `exclude` (the cosine hits, so the
+    two checks don't double-suggest the same node). Returns up to `cap` ids."""
+    mine = _title_terms(nodes[nid]["title"])
+    if not mine:
+        return []
+    linked = set(nodes[nid]["links"])
+    scored = []
+    for other, n in nodes.items():
+        if other == nid or other in linked or other in exclude or ctx._is_superseded(n):
+            continue
+        shared = mine & _title_terms(n["title"])
+        if len(shared) >= 2:
+            scored.append((len(shared), other))
+    return [o for _, o in sorted(scored, reverse=True)[:cap]]
+
+
 def _parse(text):
     """Parse candidate text via the canonical ctx parser (temp + WEB swap)."""
     fd, tmp = tempfile.mkstemp(dir=os.path.realpath(ctx.REPO), prefix=".rweb_chk_", suffix=".md")
@@ -210,10 +234,27 @@ def _finish(real_target, candidate, expect_delta, commit, label, preview):
     # contradicts it — advisory, never blocking (the repo's thesis is "land the
     # result, don't re-derive it", so an unlinked near-duplicate is worth a nudge).
     for nid in sorted(set(nodes) - set(base)):
+        etypes = {e["type"] for e in nodes[nid]["edges"]}
+        # Required-field advisories (idea #5): a Finding should cite its evidence;
+        # a Decision should link the question it closes. Advisory, never blocking.
+        if nid[:1] == "F" and "evidenced_by" not in etypes:
+            advisories.append(f"{nid} is a Finding with no `evidenced_by` edge — cite the "
+                              f"experiment/source it rests on (or note it's an observation)")
+        if nid[:1] == "D" and "resolves" not in etypes:
+            advisories.append(f"{nid} is a Decision with no `resolves` edge — link the "
+                              f"hypothesis/gate it closes")
+        # Near-duplicate (idea L): cosine over bodies.
+        sim_ids = set()
         for sim_id, score in _similar_live_nodes(nodes, nid):
             if sim_id not in nodes[nid]["links"]:
                 advisories.append(f"{nid} closely resembles {sim_id} (cos {score:.2f}) but cites no edge to it "
                                   f"— add relates/supersedes/contradicts if they're about the same thing")
+                sim_ids.add(sim_id)
+        # Title-match auto-link suggestions (idea #6), deduped against the cosine hits.
+        tm = _title_match_suggestions(nodes, nid, exclude=sim_ids)
+        if tm:
+            advisories.append(f"{nid} shares title terms with {', '.join(tm)} — link if related "
+                              f"(relates/refines/builds_on)")
     print(f"── {label} ──\n{preview}")
     for p in problems:
         print(f"  PROBLEM  {p}")
@@ -297,6 +338,149 @@ def cmd_supersede(args):
     return _locked_commit(real_target, build, 0, args.commit)
 
 
+def cmd_draft(args):
+    """Read experiments.jsonl and print a ready-to-run `note.py add` command."""
+    import json as _json
+    import shlex as _shlex
+
+    journal_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "experiments.jsonl")
+    journal_path = os.path.realpath(journal_path)
+
+    if not os.path.isfile(journal_path):
+        sys.exit(
+            "experiments.jsonl not found at expected path:\n"
+            f"  {journal_path}\n"
+            "Run sweep.py for a ticker first to populate it."
+        )
+
+    entries = []
+    with open(journal_path, encoding="utf-8") as jf:
+        for lineno, raw in enumerate(jf, 1):
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                entries.append(_json.loads(raw))
+            except _json.JSONDecodeError as exc:
+                sys.exit(f"experiments.jsonl line {lineno} is malformed JSON: {exc}")
+
+    if not entries:
+        sys.exit("experiments.jsonl is empty. Run sweep.py for a ticker first.")
+
+    # --entry N: 1-indexed from the most-recent end (1 = most recent, 2 = second-most-recent, …)
+    n = getattr(args, "entry", 1) or 1
+    if n < 1 or n > len(entries):
+        sys.exit(
+            f"--entry {n} is out of range: file has {len(entries)} "
+            f"entr{'y' if len(entries)==1 else 'ies'} (1 = most recent)."
+        )
+    e = entries[-n]  # -1 = last = most recent
+
+    # ── Extract fields with graceful fallbacks ──────────────────────────────
+    ticker          = e.get("ticker", "UNKNOWN")
+    period          = e.get("period", "?→?")
+    timestamp       = e.get("timestamp", "")[:10]   # just the date
+    backtest_mode   = e.get("backtest_mode", "?")
+    position_sizing = e.get("position_sizing", "?")
+    selection_method = e.get("selection_method", "?")
+    git_hash        = e.get("git_hash", "")
+    data_hash       = e.get("data_hash", "")
+
+    oos = e.get("holdout", {})
+    oos_trades      = oos.get("total_trades", "?")
+    oos_wr          = oos.get("win_rate_pct", "?")
+    oos_ret         = oos.get("total_return_pct", "?")
+    oos_avg_mo      = oos.get("avg_monthly_pct", "?")
+    oos_sharpe      = oos.get("sharpe_ratio", "?")
+    oos_dd          = oos.get("max_drawdown_pct", "?")
+    oos_months      = oos.get("total_months", "?")
+    oos_neg_mo      = oos.get("neg_months", "?")
+    oos_retention   = oos.get("oos_retention_pct", None)
+
+    rob = e.get("robustness", {})
+    rob_pct_pos     = rob.get("pct_positive", "?")
+    rob_min_score   = rob.get("min_score", "?")
+    rob_neighbours  = rob.get("neighbours_valid", rob.get("neighbours_tested", "?"))
+
+    params = e.get("params", {})
+    # Format the most important params concisely (% for threshold params)
+    def _pct(v):
+        return f"{float(v)*100:.3g}%" if isinstance(v, (int, float)) else str(v)
+    param_parts = []
+    if "target_gain_pct" in params:
+        param_parts.append(f"target={_pct(params['target_gain_pct'])}")
+    if "stop_loss_pct" in params:
+        param_parts.append(f"stop={_pct(params['stop_loss_pct'])}")
+    if "rsi_oversold" in params:
+        param_parts.append(f"rsi_oversold={params['rsi_oversold']}")
+    if "vwap_zscore_thresh" in params:
+        param_parts.append(f"vwap_z={params['vwap_zscore_thresh']}")
+    if "rr_ratio" in params:
+        param_parts.append(f"R:R={params['rr_ratio']}")
+    if "max_trade_bars" in params:
+        param_parts.append(f"max_bars={params['max_trade_bars']}")
+    params_str = ", ".join(param_parts) if param_parts else "(no params recorded)"
+
+    holdout_score   = e.get("holdout_score", "?")
+    train_score     = e.get("train_score", "?")
+
+    # ── Build title ─────────────────────────────────────────────────────────
+    title = f"{ticker} sweep OOS {period} ({backtest_mode}, {position_sizing})"
+
+    # ── Build body ──────────────────────────────────────────────────────────
+    body_lines = [
+        f"`sweep.py {ticker}` — fixed-10% {backtest_mode} backtest, {selection_method}.",
+        f"Period: {period}  |  run: {timestamp}",
+        "",
+        f"**OOS (holdout) — {oos_months} months, {oos_neg_mo} neg:**",
+        f"  trades={oos_trades}, WR={oos_wr}%, return={oos_ret}%, avg/mo={oos_avg_mo}%, Sharpe={oos_sharpe:.2f}, maxDD={oos_dd}%"
+        if isinstance(oos_sharpe, float) else
+        f"  trades={oos_trades}, WR={oos_wr}%, return={oos_ret}%, avg/mo={oos_avg_mo}%, Sharpe={oos_sharpe}, maxDD={oos_dd}%",
+    ]
+    if oos_retention is not None:
+        body_lines.append(f"  OOS retention vs train: {oos_retention}%")
+    body_lines += [
+        "",
+        f"**Robustness:** {rob_pct_pos}% of {rob_neighbours} neighbours positive, min_score={rob_min_score}",
+        f"**Params:** {params_str}",
+        f"**Scores:** holdout={holdout_score}, train={train_score}",
+        f"**Sizing:** {position_sizing}  |  git={git_hash or 'n/a'}"
+        + (f"  |  data_hash={data_hash}" if data_hash else ""),
+    ]
+    body = "\n".join(body_lines)
+
+    # ── Suggest --link ───────────────────────────────────────────────────────
+    # E2 is the named node for "Fixed-10% realistic HOLDOUT sweep" in RESEARCH_WEB.md.
+    # For entries produced by walkforward_eval.py (selection_method != holdout_live_score),
+    # E3 ("Leak-free walk-forward") is the right parent.
+    if "holdout" in selection_method or selection_method == "holdout_live_score":
+        suggested_link = "E2:relates"
+    else:
+        suggested_link = "E3:relates"
+
+    # ── Render the draft command ─────────────────────────────────────────────
+    # Escape body for safe shell embedding: use double-quotes, escape internal ones.
+    # We print the command with a heredoc-style note so it's copy-paste safe.
+    title_escaped = title.replace('"', '\\"')
+    body_escaped  = body.replace('"', '\\"')
+
+    print("Draft command (review, then run with --commit to add to research web):\n")
+    print(f"venv/bin/python tools/note.py add --kind E \\")
+    print(f'  --title "{title_escaped}" \\')
+    print(f'  --body "{body_escaped}" \\')
+    print(f"  --link {suggested_link}")
+    print()
+    print("Notes:")
+    print(f"  • Source entry: {journal_path} (entry -{n}, ticker={ticker}, ts={timestamp})")
+    print(f"  • {len(entries)} total entr{'y' if len(entries)==1 else 'ies'} in journal; use --entry N to pick an older one")
+    print(f"  • Suggested link: {suggested_link}  — change if a different node is more specific")
+    print(f"  • Remove --commit during review; add it only when ready to write RESEARCH_WEB.md")
+    if args.wf:
+        print()
+        print("  --wf (walk-forward mode): NOT YET IMPLEMENTED (see implementation spec).")
+        print("  walkforward_eval.py currently prints to stdout only — add jsonl output there first.")
+
+
 def main():
     p = argparse.ArgumentParser(description="write-fenced capture for RESEARCH_WEB.md (no path argument by design)")
     sub = p.add_subparsers(dest="cmd")
@@ -313,6 +497,12 @@ def main():
     s.add_argument("--reason", default=None, help="one of: " + ", ".join(sorted(ctx.REASON_CODES)))
     s.add_argument("--commit", action="store_true")
     s.set_defaults(fn=cmd_supersede)
+    dr = sub.add_parser("draft", help="print a ready-to-run `note.py add` command from the most recent experiments.jsonl entry")
+    dr.add_argument("--entry", type=int, default=1, metavar="N",
+                    help="which entry to use (1=most recent, 2=second-most-recent, …); default: 1")
+    dr.add_argument("--wf", action="store_true",
+                    help="[NOT YET IMPLEMENTED] use walk-forward output instead of sweep holdout")
+    dr.set_defaults(fn=cmd_draft)
     args = p.parse_args()
     if not getattr(args, "fn", None):
         p.print_help()

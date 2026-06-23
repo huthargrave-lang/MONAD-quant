@@ -92,6 +92,26 @@ class TestNotePure(unittest.TestCase):
         self.assertEqual(note._similar_live_nodes(nodes, "F1"), [],
                          "a superseded near-duplicate must not be flagged (history, not a live dup)")
 
+    def test_title_match_suggests_overlapping_titles(self):
+        # idea #6: ≥2 shared title tokens → suggested; no overlap → not.
+        nodes = {
+            "F1": {"title": "noise ratio governs win rate", "links": [], "edges": []},
+            "F2": {"title": "noise ratio screen for instruments", "links": [], "edges": []},
+            "F3": {"title": "kelly position sizing caps", "links": [], "edges": []},
+        }
+        sugg = note._title_match_suggestions(nodes, "F1", exclude=set())
+        self.assertIn("F2", sugg)
+        self.assertNotIn("F3", sugg)
+
+    def test_title_match_excludes_linked_and_cosine_hits(self):
+        nodes = {
+            "F1": {"title": "noise ratio governs win rate", "links": ["F2"], "edges": []},
+            "F2": {"title": "noise ratio screen", "links": [], "edges": []},   # already linked
+            "F4": {"title": "noise ratio mechanism", "links": [], "edges": []},  # in exclude set
+        }
+        self.assertEqual(note._title_match_suggestions(nodes, "F1", exclude={"F4"}), [],
+                         "already-linked and cosine-hit nodes must be deduped out of title matches")
+
     def test_lint_clean_on_the_real_web(self):
         # note's own lint must agree the committed RESEARCH_WEB.md is problem-free
         nodes, _ = ctx._parse_web()
