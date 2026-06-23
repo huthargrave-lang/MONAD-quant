@@ -228,6 +228,35 @@ class TestEffectiveConfidence(unittest.TestCase):
         self.assertEqual(bott, "F1", "on a tied minimum, the root node is the reported bottleneck")
 
 
+class TestEvidenceAndInversion(unittest.TestCase):
+    """ctx._n_evidence (maturity count) + the inverted/data-revised reason codes and
+    cmd_why's escalated warning for an inverted supersession."""
+
+    def test_n_evidence_counts_cited_and_corroborating(self):
+        nodes = {
+            "F1": {"title": "x", "body": "", "edges": [
+                {"target": "E1", "type": "evidenced_by"}, {"target": "E2", "type": "evidenced_by"}]},
+            "F2": {"title": "y", "body": "", "edges": [{"target": "F1", "type": "supports"}]},
+            "E1": {"title": "e", "body": "", "edges": []},
+            "E2": {"title": "e", "body": "", "edges": []},
+        }
+        self.assertEqual(ctx._n_evidence("F1", nodes), (2, 1))  # 2 cited experiments, 1 corroborator
+        self.assertEqual(ctx._n_evidence("E1", nodes), (0, 0))
+
+    def test_inversion_reason_codes_registered(self):
+        self.assertIn("inverted", ctx.REASON_CODES)
+        self.assertIn("data-revised", ctx.REASON_CODES)
+        self.assertIn("inverted", ctx._INVERSION_REASONS)
+
+    def test_cmd_why_escalates_inverted_supersession(self):
+        # F3 is superseded by F13 with reason 'inverted' → cmd_why must escalate.
+        import contextlib, io, types
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ctx.cmd_why(types.SimpleNamespace(node="F3"))
+        self.assertIn("INVERTED", buf.getvalue())
+
+
 class TestNoOrphanIdeaNodes(unittest.TestCase):
     """Soft-fail (rot-by-omission): a research idea node (F/H/E/D) with no idea-edge
     AND no bridge is invisible to frontier/why/impact. Inert code stubs (__init__.py,

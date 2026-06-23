@@ -31,14 +31,14 @@ best-of-many on that holdout — biased. The +4–5%/mo for SOXL/LABU/TNA did NO
 de-biasing. Motivates [[H4]]. Evidence: [[E2]] vs [[E3]].
 
 ### F3 — [SUPERSEDED by F13] The honest edge is small but real (and decaying)
-<!-- status: superseded; by: F13; reason: data-fixed; conf: 0.2 -->
+<!-- status: superseded; by: F13; reason: inverted; conf: 0.2 -->
 Leak-free walk-forward ([[E3]]): QQQ +0.34%/mo Sh 3.74, TQQQ +0.18%/mo Sh 2.17, LABU
 +0.15%, TNA +0.12%, SOXL +0.08% — sub-1% DD, ~90–112 OOS trades. Robustness ([[E4]])
 shows the edge is **front-loaded into late 2025 and fades** in later folds. A near-zero-DD
 ~0.2–0.3%/mo vehicle, NOT a 2–3.5%/mo income engine. Bears on [[D1]].
 
 ### F4 — [SUPERSEDED by F13] QQQ (un-leveraged) is the best risk-adjusted instrument — structurally
-<!-- status: superseded; by: F13; reason: data-fixed; conf: 0.2 -->
+<!-- status: superseded; by: F13; reason: inverted; conf: 0.2 -->
 In leak-free OOS QQQ beat every 3x ETF (Sharpe 3.74, 54.5% WR). Mechanism found ([[F7]]):
 it is NOT luck. Evidence: [[E3]], [[E6]]. The leverage tier is the wrong instrument class for this signal.
 
@@ -61,7 +61,7 @@ SPY **17%** (stop outside noise → fires only on genuine adverse moves). Across
 R:R are ~identical across instruments — the edge is FEWER noise-stops, not bigger wins. Source: [[E6]]. Drives [[D3]].
 
 ### F8 — [SUPERSEDED by F13] The QQQ edge is a signal property, not an optimizer artifact
-<!-- status: superseded; by: F13; reason: data-fixed; conf: 0.2 -->
+<!-- status: superseded; by: F13; reason: inverted; conf: 0.2 -->
 Robustness ([[E4]]): the QQQ edge survives with a **single fixed candidate (zero parameter
 selection)** — t-stat 3.3 — and across every fold count, objective, and grid width (t 3.3–4.3,
 4/4 folds positive). So it is not selection overfit. Strongest evidence the edge is real. Supports [[F4]], [[D1]].

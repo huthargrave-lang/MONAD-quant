@@ -930,7 +930,11 @@ def _parse_web():
 # fallback (backward compatible). status ∈ {current, superseded, retracted}.
 _META_RX = re.compile(r"<!--(.*?)-->", re.S)
 STATUS_VALUES = {"current", "superseded", "retracted"}
-REASON_CODES = {"reversed", "refined", "data-fixed", "decayed", "merged", "withdrawn"}
+REASON_CODES = {"reversed", "refined", "data-fixed", "data-revised", "decayed",
+                "merged", "withdrawn", "inverted"}
+# Reasons that mean the claim was FLIPPED to the opposite conclusion (not merely
+# refined/decayed) — cmd_why escalates the warning for these.
+_INVERSION_REASONS = {"inverted", "reversed"}
 
 
 def _node_meta(node):
@@ -1107,7 +1111,9 @@ def cmd_web(args):
             why = f", {meta['reason']}" if meta["reason"] else ""
             flag = f"  [{meta['status'].upper()}{by}{why}]"
         print(f"{args.node} — {n['title']}{flag}\n{n['body'].strip()}")
-        print("\n  → links to (by edge type):")
+        _cited, _corrob = _n_evidence(args.node, nodes)
+        print(f"\n  evidence: {_cited} cited experiment(s)/source(s) + {_corrob} corroborating support(s)")
+        print("  → links to (by edge type):")
         if n["edges"]:
             by_type = {}
             for e in n["edges"]:
@@ -1311,6 +1317,18 @@ def _effective_conf(node, nodes, adj):
     return lo, bottleneck
 
 
+def _n_evidence(node, nodes):
+    """Evidence-maturity counts for a node, pure over the parsed web:
+    (cited, corroborating) = experiments/sources this node cites as evidence (its
+    outgoing `evidenced_by` edges) + nodes that corroborate it (incoming `supports`
+    edges). Higher = the claim is better-backed by the graph."""
+    n = nodes.get(node, {})
+    cited = sum(1 for e in n.get("edges", []) if e["type"] == "evidenced_by")
+    corrob = sum(1 for sn in nodes.values() for e in sn.get("edges", [])
+                 if e["target"] == node and e["type"] == "supports")
+    return cited, corrob
+
+
 def cmd_why(args):
     """Why believe / where it leads: nearest grounding Experiments (out-edges) and
     the Decisions a node bears on — the provenance path, not a summary. Also reports
@@ -1345,6 +1363,17 @@ def cmd_why(args):
         return " → ".join(f"{t}:{tgt}" for t, tgt in p)
 
     print(f"why {_g_head(G, args.node)}")
+    meta = _node_meta(nodes_web[args.node]) if args.node in nodes_web else {"status": "current"}
+    if meta["status"] != "current":
+        by = f" by {meta['by']}" if meta.get("by") else ""
+        if meta.get("reason") in _INVERSION_REASONS:
+            print(f"  ⚠ {meta['status'].upper()}{by} — INVERTED: the conclusion was reversed to "
+                  f"the OPPOSITE, not merely refined; do not cite this as support")
+        else:
+            rs = f" ({meta['reason']})" if meta.get("reason") else ""
+            print(f"  {meta['status'].upper()}{by}{rs}")
+    cited, corrob = _n_evidence(args.node, nodes_web)
+    print(f"  evidence: {cited} cited experiment(s)/source(s) + {corrob} corroborating support(s)")
     eff, bott = _effective_conf(args.node, nodes_web, adj)
     if eff is not None:
         own = _node_meta(nodes_web[args.node]).get("conf") if args.node in nodes_web else None
