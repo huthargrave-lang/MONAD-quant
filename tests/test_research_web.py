@@ -158,6 +158,32 @@ class TestSupersessionPropagation(unittest.TestCase):
                          "a superseded source node must not be flagged for citing history")
 
 
+class TestNoOrphanIdeaNodes(unittest.TestCase):
+    """Soft-fail (rot-by-omission): a research idea node (F/H/E/D) with no idea-edge
+    AND no bridge is invisible to frontier/why/impact. Inert code stubs (__init__.py,
+    un-owned test files) are isolated by design and ignored via _is_idea_id. The
+    waiver set mirrors the KNOWN_* idiom — empty today; add an id (with a reason) only
+    if a finding is intentionally standalone, and the stale-waiver check self-cleans it."""
+
+    KNOWN_ORPHAN_IDEA_NODES = set()  # e.g. {"F11": "intentionally standalone"} keys only
+
+    def test_no_unwaived_orphan_idea_nodes(self):
+        G, adj = ctx.build_graph(include_code=True)
+        orphans = {nid for nid in G if not adj[nid] and ctx._is_idea_id(nid)}
+        unexpected = orphans - self.KNOWN_ORPHAN_IDEA_NODES
+        self.assertEqual(
+            unexpected, set(),
+            f"orphan idea node(s) with no edge/bridge: {sorted(unexpected)} — add an idea-edge "
+            f"[[ID]] or a graph_bridge, or waive in KNOWN_ORPHAN_IDEA_NODES")
+
+    def test_waivers_are_still_orphaned(self):
+        # Keep the waiver honest: an id that's no longer orphaned must be removed.
+        G, adj = ctx.build_graph(include_code=True)
+        orphans = {nid for nid in G if not adj[nid] and ctx._is_idea_id(nid)}
+        stale = self.KNOWN_ORPHAN_IDEA_NODES - orphans
+        self.assertEqual(stale, set(), f"stale waivers (no longer orphaned): {sorted(stale)}")
+
+
 class TestEdgeClassificationHardening(unittest.TestCase):
     """Adversarial-review regressions (Context Web v2 #2–#5): malformed typed
     links must not vanish, and the cue classifier must not mis-type in ways that

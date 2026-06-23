@@ -905,6 +905,14 @@ def _superseder(node):
     return _node_meta(node).get("by")
 
 
+def _is_idea_id(nid):
+    """True if a unified-graph node id is a research idea node (F/H/E/D + number),
+    not a code/module/area/config pseudo-node (those carry a 'code:'/'mod:'/'cfg:'/
+    'area:' prefix). Lets health/graph separate a genuinely orphaned FINDING from
+    inert package stubs that are isolated by design."""
+    return bool(re.fullmatch(r"[FHED]\d+", nid))
+
+
 def _propagation_violations(nodes):
     """Supersession-propagation invariant: a CURRENT node that points at a
     superseded node via a current-dependency `relates` edge must ALSO cite that
@@ -1344,6 +1352,18 @@ def cmd_graph(args):
     G, adj = build_graph(include_code=not getattr(args, "ideas_only", False))
     edges = [{"from": a, "to": e["to"], "type": e["type"]}
              for a, es in adj.items() for e in es if e["dir"] == "out"]
+    if getattr(args, "orphans", False):
+        idea_orphans = sorted(nid for nid in G if not adj[nid] and _is_idea_id(nid))
+        if not idea_orphans:
+            print("No orphan idea nodes — every finding/hypothesis/experiment/gate is reachable.")
+            return
+        nodes_web, _ = _parse_web()
+        print(f"{len(idea_orphans)} orphan idea node(s) (no idea-edge AND no bridge — "
+              f"invisible to frontier/why/impact):")
+        for nid in idea_orphans:
+            print(f"  {nid} — {nodes_web.get(nid, {}).get('title', '')}")
+        print("  → add an idea-edge [[ID]] to a related node, or a graph_bridge to the code it concerns.")
+        return
     if getattr(args, "html", False):
         def esc(s):  # HTML-escape so author-edited titles can't break out of <script> or inject via d3 .html()
             return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -1394,10 +1414,15 @@ def cmd_health(args):
     G, adj = build_graph(include_code=True)
     n_edges = sum(len(a) for a in adj.values()) // 2
     isolated = [nid for nid in G if not adj[nid]]
+    # An isolated IDEA node (a finding with no idea-edge AND no bridge) is a real
+    # defect — invisible to frontier/why/impact. Isolated code stubs (__init__.py,
+    # un-owned test files) are isolated by design and must not mask it.
+    idea_orphans = sorted(nid for nid in isolated if _is_idea_id(nid))
+    stub_isolated = [nid for nid in isolated if not _is_idea_id(nid)]
     guarded = [r for r in mods if r not in allow]   # allowlisted modules are intentionally unmapped
     cov = len(mapped) / max(len(guarded), 1)
     score = 100 * (0.40 * cov + 0.20 * (not orphan) + 0.20 * (not dangling and not problems)
-                   + 0.10 * (len(bridges) >= 8) + 0.10 * (len(isolated) < 0.2 * len(G)))
+                   + 0.10 * (len(bridges) >= 8) + 0.10 * (not idea_orphans))
     bar = "█" * round(score / 5) + "░" * (20 - round(score / 5))
     print(f"CONTEXT HEALTH  {score:5.0f}/100  [{bar}]")
     print(f"  code coverage : {len(mapped)}/{len(guarded)} non-allowlisted modules in an area ({cov*100:.0f}%)"
@@ -1405,9 +1430,14 @@ def cmd_health(args):
     print(f"  idea web      : {len(nodes)} nodes ({len(sup)} superseded)  ·  {len(dangling)} dangling  ·  "
           f"{problems} stale-cite problem(s)")
     print(f"  bridges       : {len(bridges)} idea↔code")
-    print(f"  unified graph : {len(G)} nodes  ·  {n_edges} edges  ·  {len(isolated)} isolated node(s)")
+    print(f"  unified graph : {len(G)} nodes  ·  {n_edges} edges  ·  "
+          f"{len(idea_orphans)} orphan idea node(s)" + (f" [{', '.join(idea_orphans)}]" if idea_orphans else "")
+          + f"  ·  {len(stub_isolated)} inert stub(s)")
     if orphan:
-        print("  → triage each orphan into an area, or add to coverage_allowlist with a reason")
+        print("  → triage each orphan MODULE into an area, or add to coverage_allowlist with a reason")
+    if idea_orphans:
+        print(f"  → orphan idea node(s) {', '.join(idea_orphans)}: add an idea-edge [[ID]] or a "
+              f"graph_bridge so frontier/why/impact can reach them (`ctx graph --orphans`)")
 
 
 def cmd_init(args):
@@ -1778,6 +1808,7 @@ def main():
     sp.add_argument("--json", action="store_true", help="emit the full unified map as JSON")
     sp.add_argument("--html", action="store_true", help="emit a self-contained interactive HTML map")
     sp.add_argument("--ideas-only", action="store_true", help="drop the auto-extracted code layer")
+    sp.add_argument("--orphans", action="store_true", help="list orphan idea nodes (no idea-edge and no bridge)")
     sp.set_defaults(fn=cmd_graph)
     sub.add_parser("health").set_defaults(fn=cmd_health)
     sp = sub.add_parser("related"); sp.add_argument("query", nargs="+")
