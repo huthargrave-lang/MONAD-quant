@@ -13,7 +13,7 @@ set -uo pipefail
 REPO="$HOME/MONAD-quant"
 LOG_DIR="$REPO/local_logs"
 LOG="$LOG_DIR/trader_preflight.log"
-EXPECT_BRANCH="pi-ops-automation"
+EXPECT_BRANCH="development"
 PAPER_PORT=7497
 LIVE_PORT=7496
 CONNECT_CLIENT_ID=70          # distinct from the trader (clientId 1)

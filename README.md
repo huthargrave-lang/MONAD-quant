@@ -353,9 +353,25 @@ uvicorn live.dashboard:app --port 8080
 python -m pytest tests/ -v
 ```
 
+### Branches
+
+- **`development`** — the canonical running branch and the GitHub default. All
+  reviewed work lands here; it is what the Pi runs.
+- **`pi-ops-automation`** — prior deploy branch, now folded into `development`.
+- **`main`** — legacy/divergent; not used for deployment.
+
+The systemd preflight gate (`ops/preflight_trader_start.sh`) hard-checks that the
+working tree is on `development` before the paper trader will start, so the trader
+can never run from an unreviewed branch.
+
 ### Raspberry Pi Deployment
 
+The Pi runs the **paper** trader from `development`. Stay on that branch when
+updating:
+
 ```bash
+git checkout development && git pull        # the only branch the preflight allows
+
 chmod +x deploy/setup-pi.sh
 ./deploy/setup-pi.sh
 ./deploy/smoke-test.sh
