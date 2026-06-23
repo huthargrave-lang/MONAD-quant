@@ -1,7 +1,7 @@
 {
   "_README": "Machine-readable context manifest for coding agents. Read this (or run `ctx`) BEFORE reading the codebase. Invariants are asserted against config.py by tests/test_context_map.py (anti-drift). JSON (not YAML) to avoid adding a runtime dependency to the deployed venv.",
   "project": "MONAD-quant",
-  "deploy_branch": "pi-ops-automation",
+  "deploy_branch": "development",
   "context_docs": {
     "strategy_why": ["CLAUDE.md", "AGENTS.md"],
     "live_ops_how": ["OPERATIONS.md", "ops/README.md"],

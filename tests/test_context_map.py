@@ -55,6 +55,22 @@ class TestManifestMatchesConfig(unittest.TestCase):
                     f"context_map.json invariant '{key}'={inv[key]} but {source}={self._cfg(source)} — update the manifest",
                 )
 
+    def test_deploy_branch_matches_preflight_gate(self):
+        # The manifest's deploy_branch is the FIRST line `ctx brief` prints as the
+        # orientation packet. It must equal the branch the live preflight gate actually
+        # enforces (ops/preflight_trader_start.sh: EXPECT_BRANCH=...), or `ctx brief`
+        # confidently lies about where the bot runs. Value-vs-value, no guesswork.
+        import re
+        pf = os.path.join(REPO, "ops", "preflight_trader_start.sh")
+        with open(pf) as f:
+            mm = re.search(r'^EXPECT_BRANCH="([^"]+)"', f.read(), re.M)
+        self.assertIsNotNone(mm, "could not find EXPECT_BRANCH in preflight_trader_start.sh")
+        self.assertEqual(
+            self.m["deploy_branch"], mm.group(1),
+            f"context_map.json deploy_branch='{self.m['deploy_branch']}' but the preflight gate "
+            f"enforces EXPECT_BRANCH='{mm.group(1)}' — `ctx brief` would lie about the deploy branch",
+        )
+
     def test_paper_only_and_ports(self):
         # Hard safety: the manifest must assert paper-only and the live port as forbidden.
         self.assertTrue(self.m["invariants"]["paper_only"])
