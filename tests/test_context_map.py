@@ -402,5 +402,33 @@ class TestCtxFind(unittest.TestCase):
         self.assertIn("no first-party code matches", self._find("zzq_nonexistent_token_qzx"))
 
 
+class TestEpistemicCoverage(unittest.TestCase):
+    """`ctx claims` — an implemented_in finding's guarded_by must point at a real
+    test (file::symbol), so a renamed/deleted guard test is caught, not silently
+    treated as 'guarded'."""
+
+    def setUp(self):
+        self.m = _load()
+        self.bridges = [b for b in self.m["graph_bridges"]["bridges"]
+                        if b.get("relation") == "implemented_in"]
+
+    def test_guarded_by_targets_resolve(self):
+        for b in self.bridges:
+            for g in b.get("guarded_by", []):
+                with self.subTest(node=b["node"], guard=g):
+                    self.assertTrue(
+                        ctx._claim_guard_resolves(g),
+                        f"{b['node']} guarded_by {g!r} does not resolve to a real test file::symbol")
+
+    def test_claims_command_runs_and_classifies(self):
+        import contextlib, io, types
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ctx.cmd_claims(types.SimpleNamespace())
+        out = buf.getvalue()
+        self.assertIn("implemented_in claim", out)
+        self.assertIn("GUARDED", out, "F11's penalty-inversion claim should resolve as guarded")
+
+
 if __name__ == "__main__":
     unittest.main()

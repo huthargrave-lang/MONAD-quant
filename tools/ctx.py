@@ -1563,6 +1563,56 @@ def cmd_health(args):
               f"graph_bridge so frontier/why/impact can reach them (`ctx graph --orphans`)")
 
 
+def _claim_guard_resolves(g):
+    """A `guarded_by` entry resolves if its test file exists and (for file::symbol)
+    that symbol is defined there — same shape as the graph-bridge code resolution, so
+    a renamed/deleted guard test is caught instead of silently passing as 'guarded'."""
+    if "::" in g:
+        path, sym = g.split("::", 1)
+        full = os.path.join(REPO, path)
+        if not os.path.exists(full):
+            return False
+        try:
+            with open(full, errors="ignore") as fh:
+                src = fh.read()
+        except OSError:
+            return False
+        return bool(re.search(rf"^\s*(def|class)\s+{re.escape(sym)}\b", src, re.M))
+    return os.path.exists(os.path.join(REPO, g))
+
+
+def cmd_claims(args):
+    """Test↔epistemic coverage: for each `implemented_in` idea↔code bridge (a Finding
+    asserting concrete CODE BEHAVIOR), report whether a designated guard TEST asserts
+    that specific claim. `ctx covers <sym>` only shows tests that TOUCH a symbol — a
+    finding can look covered (the symbol has tests) while its claim is unguarded. The
+    live example: F23 claims momentum_signal ignores the per-mode RSI/MACD periods;
+    momentum_signal has tests, but none assert that claim → it shows UNGUARDED here."""
+    bridges = [b for b in _graph_bridges() if b.get("relation") == "implemented_in"]
+    if not bridges:
+        print("no implemented_in bridges (findings asserting concrete code behavior)")
+        return
+    nodes, _ = _parse_web()
+    unguarded = 0
+    for b in sorted(bridges, key=lambda x: x["node"]):
+        node, code = b["node"], ", ".join(b["code"])
+        guards = b.get("guarded_by") or []
+        resolved = [g for g in guards if _claim_guard_resolves(g)]
+        if resolved:
+            print(f"  GUARDED    {node}  ({code})")
+            for g in resolved:
+                print(f"             └ {g}")
+        else:
+            unguarded += 1
+            print(f"  UNGUARDED  {node} — {nodes.get(node, {}).get('title', '')[:58]}")
+            print(f"             claim about {code} has no test asserting it"
+                  + (f"; declared guards {guards} do not resolve" if guards else ""))
+    print(f"\n  {len(bridges)} implemented_in claim(s) · {unguarded} UNGUARDED")
+    if unguarded:
+        print("  → write a test that ASSERTS the claim (not just exercises the symbol), "
+              "then add `guarded_by: [tests/x.py::TestY]` to the bridge")
+
+
 def cmd_init(args):
     """Scaffold a starter context layer for ANY repo (the kit is repo-agnostic):
     discover areas from the source tree + code graph, emit a context_map.json
@@ -1935,6 +1985,7 @@ def main():
     sp.add_argument("--orphans", action="store_true", help="list orphan idea nodes (no idea-edge and no bridge)")
     sp.set_defaults(fn=cmd_graph)
     sub.add_parser("health").set_defaults(fn=cmd_health)
+    sub.add_parser("claims").set_defaults(fn=cmd_claims)
     sp = sub.add_parser("related"); sp.add_argument("query", nargs="+")
     sp.add_argument("--top", type=int, default=6); sp.set_defaults(fn=cmd_related)
     sp = sub.add_parser("init"); sp.add_argument("--write", action="store_true",
