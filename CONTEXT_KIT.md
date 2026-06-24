@@ -20,8 +20,8 @@
 | `AGENT_INDEX.md` | The ≤1-screen L0 router agents read first. | Repo-specific, tiny |
 
 **The genuinely repo-agnostic surface** (works on any repo right after `ctx init`):
-`route · where · usages · defs · tree · summary · covers · impact · map · tests · web · neighbors ·
-walk · why · contradicts · frontier · graph · health · init · brief · can_edit · reverts`.
+`route · where · find · usages · defs · tree · summary · covers · impact · map · tests · web · neighbors ·
+walk · why · contradicts · frontier · graph · health · claims · delta · init · brief · can_edit · reverts`.
 
 **Repo-wired commands** — wired to *this* repo; trim or re-point them when you lift the kit. They
 degrade gracefully (print "not present" / no-op) rather than crash, but do nothing useful until adapted:
@@ -53,13 +53,15 @@ repo-wired rim. Lifting the kit means filling the content files **and** trimming
 ## Command surface
 
 ```
-QUERY     ctx route "<task>"   ctx where <sym>   ctx config <KEY>   ctx defs/usages <x>
-NAVIGATE  ctx brief   ctx frontier "<task>"   ctx walk/why/neighbors/contradicts <node>
-MAP       ctx graph [--json|--html]   ctx tree   ctx summary   ctx web [--live|--lint]
-GUARD     ctx impact <x>   ctx can_edit <f>   ctx audit   ctx health   ctx reverts
+QUERY     ctx route "<task>"   ctx where <sym>   ctx find <text>   ctx config <KEY>   ctx defs/usages <x>
+NAVIGATE  ctx brief   ctx frontier "<task>"   ctx delta [--since X]   ctx related <node|q>   ctx walk/why/neighbors/contradicts <node>
+MAP       ctx graph [--json|--html|--orphans]   ctx tree   ctx summary   ctx web [--live|--lint|--pending]
+GUARD     ctx impact <x>   ctx can_edit <f>   ctx audit   ctx claims   ctx health   ctx reverts
 CAPTURE   note add --kind F --title … --body … [--link ID:type]   ·   note supersede <OLD> --by <NEW>
 SET UP    ctx init [--write]
 ```
+These are the highlights; the **complete, CI-guaranteed** subcommand list lives in
+`AGENT_INDEX.md` (a guard pins every registered `ctx` subcommand to it).
 `ctx` is **read-only by contract**; the single *writer* is `tools/note.py` — write-fenced to
 `RESEARCH_WEB.md` only, atomic, **dry-run by default**, and it refuses to write unless the result
 re-parses and passes the same integrity lint as `ctx web --lint`. So the graph can populate itself
