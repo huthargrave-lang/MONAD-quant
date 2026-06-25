@@ -367,10 +367,94 @@ _— captured claude/strategy-go-nogo@54e6637, 2026-06-22_
 
 ### D6 — GO/NO-GO: the active engine is not justified — recommend a static allocation
 Decisive comparison (E12): the active daily-MR engine shows NO DEMONSTRATED ADVANTAGE over a trivial static blend of the same assets — active Sharpe 0.69 / 6.2%/yr vs static 50/50 (0.80) and 60/40 equity/bond (0.86) at comparable return, with the active-minus-static Sharpe-diff bootstrap straddling zero (within noise). It is not better, while carrying all the trading, cost and live-execution risk. This unifies the arc: F22 (active doesn't beat buy&hold), F13/F17 (no hourly edge; the %-stop EXIT was the flaw), and the flat live confirmed-fill result (the ~+35% headline is a paper mark-price ESTIMATION ARTIFACT on time/target exits, not real, and not a fixable execution bug). RECOMMENDATION: the honest bond-alternative is a STATIC allocation (e.g. 50/50 or 60/40 equity/bond), de-risked and periodically rebalanced — not the active engine. NOTE: changing the live deployment touches the armed trader path — sign-off required; this records the evidence-backed recommendation, not an applied change.
-Links: [[E12|evidenced_by]] · [[F22|builds_on]] · [[D5|refines]] · [[D4|refines]].
-_— captured claude/strategy-go-nogo@54e6637, 2026-06-22_
+⚠ UPDATE (2026-06-25, adversarially verified): D6 is CONFIRMED & STRENGTHENED and its one open gap is closed. [[F24]]: the RSI+MACD signal D6 never tested (it only used any-down-day) does NOT rescue the active engine — RSI-conditioning is no-better-or-worse on every metric. [[F25]]: ~2× the data (2000-2026, +dot-com +2008) NARROWS the (active − static-50/50) Sharpe CI to [−0.34,+0.30] (still straddles 0) → the "underpowered" objection is retired. Honest nuance for the capital-preservation mandate: the active engine does have the lowest drawdown / best Calmar of any static blend BY POINT ESTIMATE, but that edge is PATH-DEPENDENT (the paired maxDD/Calmar bootstrap straddles 0) and a static 60/40 beats it on Sharpe AND return — so the static-allocation recommendation STANDS; keep the active engine only as a low-DD overlay, not an alpha engine. SEPARATELY [[F26]]: the slope-regime "core innovation" this whole arc implicitly assumed is in fact dead-wired/stripped from the backtests, so the gate never actually contributed to any of these numbers.
+Links: [[E12|evidenced_by]] · [[F22|builds_on]] · [[D5|refines]] · [[D4|refines]] · [[F24|builds_on]] · [[F25|builds_on]] · [[F26|relates]].
+_— captured claude/strategy-go-nogo@54e6637, 2026-06-22 (updated development@c9a20a8, 2026-06-25)_
 
 ### F23 — Per-mode RSI period + MACD windows never reach the entry signal (code bug)
 momentum_signal() (src/signals/momentum.py:38-39) recomputes RSI and MACD with HARDCODED defaults (RSI 14, MACD 12/26/9), ignoring the per-mode RSI_PERIOD_*/MACD_* config that add_momentum_features is handed (it uses them only for the stored rsi/macd_hist columns). Proven empirically: momentum_signal is byte-identical for period 7 vs 14 while stored rsi/macd_hist differ. The live trader rides this exact path (live/signals.py:95 -> build_features -> add_momentum_features -> momentum_signal), so the armed bot trades on RSI-14 / MACD-12-26-9 regardless of config. The config's '# DEAD LEVER (robust to window changes)' comments are empirically correct but MISATTRIBUTED: the cause is this code path, not market structure. Only the RSI oversold/overbought THRESHOLDS are threaded through and effective. Fixing changes live entries AND invalidates every prior sweep tuned with the bug present -> needs re-sweep + sign-off with the trader stopped, not a unilateral edit. Relates to [[D4]].
 Links: [[D4|relates]].
 _— captured claude/robustness@b408769, 2026-06-23_
+
+---
+
+## Strategy Lab — go/no-go closure (2026-06-25, adversarially verified)
+
+> Closes D6's one open gap (it had only tested a bare "any down day" entry, never the project's
+> RSI+MACD signal) and retires the "underpowered CI" objection with a 26yr extension. All three
+> results were reproduced byte-for-byte and red-teamed by a 4-agent adversarial panel (leak check,
+> RSI correctness, git archaeology, devil's-advocate-for-the-active-engine + completeness critic).
+
+### E13 — RSI-conditioned go/no-go: the entry signal D6 never tested
+<!-- status: current; conf: 0.85; at: 2026-06-25 -->
+D6/[[E12]] declared the active engine unjustified using a BARE "any down day" entry — never the
+project's ACTUAL signal. E13 adds a Wilder RSI + an `rsi_thresh` param to `mr_daily_lab.py::sleeve()`
+and races RSI<30/35/40 actives against the bare active and the static blends, reporting Calmar +
+time-in-market and bootstrapping each vs static 50/50. Leak-free (RSI[d] is known at the dip close,
+same bar the entry already uses; a future-price scramble leaves the return head unchanged, max abs
+diff 0.0). Reproducible: `tools/mr_daily_lab.py gonogo`. Produces [[F24|produces]]; extends [[E12|extends]].
+_— captured development@cf78fcd, 2026-06-25_
+
+### F24 — RSI-conditioning never overturns D6 (the project's own signal does not rescue the engine)
+<!-- status: current; conf: 0.85; at: 2026-06-25 -->
+[[E13|evidenced_by]]: requiring RSI<30/35/40 on the dip NEVER lifts the (active − static-50/50)
+Sharpe-diff CI above 0. On 2014-2026 the RSI actives are strictly WORSE than the bare active on
+Calmar (0.16/0.28/0.30 vs 0.44) and their Sharpe-spread CIs sit below 0 — though that is partly a
+mechanical time-in-market artifact (they sit in cash 77–97%; the bootstrap is the Sharpe of the
+spread `active − 0.5·e`), so the "worse" claim leans on Calmar/maxDD, which is immune. On the 26yr
+window ([[F25]]) the RSI CIs merely straddle 0 (no edge, not worse). The bare active still does not
+beat static on Sharpe. So the one gap that could have overturned D6 — "D6 used any-down-day, not the
+real RSI+MACD signal" — is CLOSED: the real signal at the daily timescale does not rescue the engine.
+Refines [[D6|refines]]; supports [[F22|supports]].
+_— captured development@cf78fcd, 2026-06-25_
+
+### E14 — long-history (2000-2026) go/no-go + 26yr autocorrelation + capital-preservation bootstrap
+<!-- status: current; conf: 0.85; at: 2026-06-25 -->
+Retires the "underpowered CI" objection to [[D6]]/[[F22]] by re-running the go/no-go on ~2× the data
+(+ dot-com bust + 2008 GFC). `tools/mr_daily_lab.py gonogolong`: fetches its OWN 2000-start data into a
+separate cache (cannot perturb the 2014-based [[F18]]–[[F22]]), basket = ^GSPC+QQQ+IWM+DIA (four DISTINCT
+equity exposures live from ≤2000-05; GLD/SPY dropped to avoid 2004-truncation / S&P double-count — the
+naive "add ^GSPC + change START" one-liner would have silently done both), and adds a PAIRED
+maxDD/Calmar-difference block bootstrap — the significance test a capital-preservation mandate actually
+needs (Sharpe is time-in-market sensitive). Produces [[F25|produces]]; extends [[E11|extends]], [[E12|extends]].
+_— captured development@c97b56d, 2026-06-25 (hardened @c9a20a8)_
+
+### F25 — 26yr data CONFIRMS D6; the MR autocorrelation is robustly real; the only pro-active edge is path-dependent drawdown
+<!-- status: current; conf: 0.85; at: 2026-06-25 -->
+[[E14|evidenced_by]], 2000-2026 / 6654 days / 332 blocks: (1) the negative lag-1 autocorrelation is
+robustly REAL over 26yr under the [[F18]] robust SE — ^GSPC t −3.64, DIA −3.20, IWM −3.02, QQQ −2.55
+(NOT a 2014-2026 artifact; strengthens [[F16]]/[[F18]] over a window with two extra crises). (2) NO Sharpe
+edge: the (bare-active − static-50/50) CI NARROWS from [−0.41,+0.48] to [−0.34,+0.30] and still straddles
+0 → D6 confirmed with more power; the "underpowered" objection is retired. (3) Capital preservation: the
+active engine has the lowest maxDD / best Calmar of any listed static blend on BOTH windows by point
+estimate (active −19.9% DD vs static-50/50 −34.1% vs B&H −56.5%; Calmar 0.19 vs 0.11), BUT the paired
+maxDD/Calmar-difference bootstrap STRADDLES 0 ([−15.8,+18.4] / [−0.18,+0.19]) → the drawdown edge is
+PATH-DEPENDENT, not statistically significant; and a static 60/40 equity/bond BEATS the active engine on
+Sharpe AND return (active wins only on drawdown). Confirms [[F22|supports]]; refines [[D6|refines]].
+_— captured development@c97b56d, 2026-06-25_
+
+### E15 — engine.py slope-regime wiring audit (git archaeology + 4-combo entry test)
+<!-- status: current; conf: 0.9; at: 2026-06-25 -->
+Audit (read-only) of whether CLAUDE.md's "core innovation" — the 6-state slope-regime gate — actually
+runs: read the current `generate_trades()`, the `runner.py` call site, every caller (main/sweep/
+walk_forward/live), bisected the gate's history (`git log -S'no_long_regimes'`, merge-parent inspection),
+and ran a 4-combo entry-signal equality test on synthetic OHLCV exercising all 6 regimes. Produces [[F26|produces]].
+_— captured development (read-only audit), 2026-06-25_
+
+### F26 — the "core innovation" (slope-regime gate) is DEAD-WIRED AND STRIPPED; a 2nd vol-regime gate runs against config
+<!-- status: current; conf: 0.9; at: 2026-06-25 -->
+[[E15|evidenced_by]]: CLAUDE.md's slope-regime classifier (§4/§12, "the entire foundation") does NOT gate
+entries in any backtest. (a) The entry-gating block (`no_long_regimes`/`flat_regimes`/`longs_only` short
+suppression) was added only on a feature branch (`3da676b`), never reached `main`, and was DELETED by the
+merge `9b4648e` (2026-03-22) resolving to main's gate-less `generate_trades` — NOT by `8a1f42e`/`176adde`.
+(b) `runner.py` calls `generate_trades()` WITHOUT `use_slope_regime`/`longs_only` anyway, so main.py/sweep.py
+never pass them; only `walk_forward.py` threads them and it is test-only (main.py `--mode=walk-forward` is
+dead). (c) Empirically all 4 (use_slope_regime, longs_only) combos give byte-identical entries; the flags
+only mutate `regime_kelly_mult`, which no backtest path reads. SEPARATE NON-INERT BUG: `generate_trades()`
+has `use_regime_filter` default True and `runner.py` never threads `config.USE_REGIME_FILTER` (=False) into
+it → every backtest silently runs a 200d `trend_direction`+`vol_regime` entry gate config says is OFF (this
+one DOES change entries; flagged for its own session). IMPLICATION: CLAUDE.md §1's regime-dependent Sharpe
+table and the "core innovation" claim describe code that does not run; restoring the gate needs an engine.py
+re-insert (`git show 194ae6d:src/strategy/engine.py`) + a `runner.py` wiring. Same bug-class as [[F23]] (a
+config lever that never reaches the signal). Relates [[F23|relates]], [[D6|relates]].
+_— captured development (read-only audit), 2026-06-25_
