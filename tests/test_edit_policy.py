@@ -25,11 +25,13 @@ class TestEditPolicyFence(unittest.TestCase):
         self.deny = json.load(open(os.path.join(ROOT, "context_map.json")))["edit_policy"]["deny"]
 
     def test_deny_covers_protected_paths(self):
-        for needed in ("live/", "config.py", "*.db", ".env"):
+        # context_map.json is the fence policy itself — it must stay denied so the
+        # deny list can't be silently edited away (VD-3b).
+        for needed in ("live/", "config.py", "*.db", ".env", "context_map.json"):
             self.assertIn(needed, self.deny, f"edit_policy.deny lost {needed!r}")
 
     def test_guard_denies_protected(self):
-        for p in ("live/trader.py", "config.py", ".env", "live/state.db"):
+        for p in ("live/trader.py", "config.py", ".env", "live/state.db", "context_map.json"):
             self.assertIn('"permissionDecision": "deny"', _guard(p), f"{p} should be DENIED")
 
     def test_guard_allows_benign(self):

@@ -223,8 +223,8 @@
   },
 
   "edit_policy": {
-    "_README": "Checked by `ctx can_edit <file>` and the (opt-in) PreToolUse hook ops/guard_edit.py. READ access is unrestricted; only WRITES are fenced. deny = armed-trader path + secrets + raw DBs; warn = selection-of-record.",
-    "deny": ["live/", "config.py", "config_modules/", ".env", ".ibkr-paper.env", "*.db", "*.sqlite", "*.sqlite3", "ops/systemd/"],
+    "_README": "Checked by `ctx can_edit <file>` and the (opt-in) PreToolUse hook ops/guard_edit.py. READ access is unrestricted; only WRITES are fenced. deny = armed-trader path + secrets + raw DBs + this policy file itself; warn = selection-of-record. context_map.json is denied so an agent can't silently neuter the fence by editing the deny list — for legitimate manifest maintenance (bridges/routing/areas), stop the trader, get explicit approval, and edit with the hook bypassed or the entry temporarily removed.",
+    "deny": ["live/", "config.py", "config_modules/", ".env", ".ibkr-paper.env", "*.db", "*.sqlite", "*.sqlite3", "ops/systemd/", "context_map.json"],
     "warn": ["sweep.py", "main.py"],
     "allow_default": true
   },
