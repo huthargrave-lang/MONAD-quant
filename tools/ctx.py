@@ -781,7 +781,9 @@ def _compound(returns):
 
 def cmd_perf(args):
     if not os.path.exists(DB):
-        print("live/state.db not present.")
+        print("  ⚠ live/state.db not present — live performance is UNAVAILABLE here")
+        print("    (worktree / fresh checkout / CI). Do NOT fall back to the CLAUDE.md headline")
+        print("    tables (SUPERSEDED). Run on the Pi, or see `ctx web --live` for current truth.")
         return
     c = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
     try:
@@ -797,9 +799,15 @@ def cmd_perf(args):
     confr = [r for r, e in rows if e in CONFIRMED]
     def wr(v):
         return sum(1 for x in v if x > 0) / len(v) * 100 if v else 0
-    print(f"  ALL trades:        n={len(allr):3}  WR={wr(allr):5.1f}%  compounded={_compound(allr):+8.3f}%  simple_sum={sum(allr)*100:+8.3f}%")
+    conf_c, all_c = _compound(confr), _compound(allr)
+    # Lead with the honest CONFIRMED edge — the ALL/PROD headline is inflated by time_exit
+    # artifacts + inferred target_hit, and an agent that cites it repeats the SUPERSEDED mistake.
+    print(f"  CONFIRMED fills:   n={len(confr):3}  WR={wr(confr):5.1f}%  compounded={conf_c:+8.3f}%   <- THE HONEST EDGE")
     print(f"  PROD (dashboard):  n={len(prodr):3}  WR={wr(prodr):5.1f}%  compounded={_compound(prodr):+8.3f}%")
-    print(f"  CONFIRMED fills:   n={len(confr):3}  WR={wr(confr):5.1f}%  compounded={_compound(confr):+8.3f}%   <- the honest edge")
+    print(f"  ALL trades:        n={len(allr):3}  WR={wr(allr):5.1f}%  compounded={all_c:+8.3f}%  simple_sum={sum(allr)*100:+8.3f}%")
+    if confr and allr and abs(all_c - conf_c) > 1.0:
+        print(f"  ⚠ headline gap: ALL {all_c:+.1f}% vs CONFIRMED {conf_c:+.1f}% — the headline is inflated by")
+        print(f"    time_exit artifacts + inferred target_hit; cite CONFIRMED, not the dashboard/ALL number.")
     print("  (CONFIRMED = bracket_exit + stop_hit; excludes time_exit artifacts and inferred target_hit)")
 
 

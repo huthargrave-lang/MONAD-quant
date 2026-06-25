@@ -681,5 +681,26 @@ class TestWhyProvenance(unittest.TestCase):
         self.assertIn("F15", out)
 
 
+class TestPerfHonesty(unittest.TestCase):
+    """ctx perf — SF-4: lead with the honest CONFIRMED edge, and make an absent
+    state.db a loud warning (not a silent one-liner that invites the SUPERSEDED tables)."""
+
+    def _perf(self):
+        import contextlib, io, types
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ctx.cmd_perf(types.SimpleNamespace())
+        return buf.getvalue()
+
+    def test_perf_leads_confirmed_or_loudly_absent(self):
+        out = self._perf()
+        if "UNAVAILABLE" in out:                 # no state.db (worktree/CI) → must be loud
+            self.assertIn("CLAUDE.md", out)      # warns off the superseded fallback
+        else:
+            self.assertIn("HONEST EDGE", out)
+            self.assertLess(out.index("CONFIRMED"), out.index("ALL trades"),
+                            "CONFIRMED (honest) must lead the inflated ALL/PROD rows")
+
+
 if __name__ == "__main__":
     unittest.main()
