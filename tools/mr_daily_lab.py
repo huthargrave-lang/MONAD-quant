@@ -280,20 +280,20 @@ def cmd_oos(PX):
     print("  (a static ~50/50 equity/cash blend matches the strat's return/DD at the bench Sharpe — cash-scaling is Sharpe-invariant)")
 
 
-def cmd_gonogo(PX):
-    """D6 go/no-go: does the ACTIVE daily-MR engine beat a trivial STATIC blend of the
-    same assets? Compares active (D5, bare 'any down day') AND the RSI-conditioned variant
-    (the project's ACTUAL signal: RSI<thresh + down day + 200d gate — Experiment #1, the
-    one gap D6 never tested) vs static 50/50 equity/cash, static 60/40 equity/bond (IEF),
-    and 100% buy&hold. Bootstraps each active variant against static 50/50, and reports
-    Calmar (ann/|maxDD|, the capital-preservation metric) + time-in-market."""
-    A = ["QQQ", "SPY", "IWM", "DIA", "GLD"]
+def _gonogo_core(PX, A, label):
+    """Shared D6/Exp#1 comparison over an arbitrary basket A: bare 'any down day' active
+    AND the RSI-conditioned active (project's ACTUAL signal: RSI<thresh + down + 200d gate)
+    vs static 50/50 equity/cash, 60/40 equity/bond (IEF), and 100% buy&hold. Reports Calmar
+    (ann/|maxDD|, the capital-preservation metric) + time-in-market, and bootstraps each
+    active variant against static 50/50. Prints the REAL common window (no silent truncation)."""
+    A = [s for s in A if s in PX.columns]
     blend = lambda **kw: pd.DataFrame({s: sleeve(PX, s, **kw) for s in A}).fillna(0.0).mean(axis=1)
     active = blend()
     eq = pd.DataFrame({s: np.log(PX[s].dropna() / PX[s].dropna().shift(1)) for s in A}).mean(axis=1)
     both = pd.concat([active.rename("a"), eq.rename("e")], axis=1).dropna()
     a, e = both["a"], both["e"]
-    ief = np.log(PX["IEF"].dropna() / PX["IEF"].dropna().shift(1)).reindex(e.index).fillna(0.0)
+    ief = (np.log(PX["IEF"].dropna() / PX["IEF"].dropna().shift(1)).reindex(e.index).fillna(0.0)
+           if "IEF" in PX.columns else pd.Series(0.0, index=e.index))
     rsi_act = {th: blend(rsi_thresh=th).reindex(e.index).fillna(0.0) for th in (30, 35, 40)}
     shf = lambda r: r.mean() / r.std() * math.sqrt(252) if r.std() else 0
     annf = lambda r: r.mean() * 252 * 100
@@ -305,8 +305,8 @@ def cmd_gonogo(PX):
              ("static 50/50 equity/cash", 0.5 * e), ("static 60/40 equity/bond", 0.6 * e + 0.4 * ief),
              ("buy&hold equity 100%", e)]
     yrs = (e.index[-1] - e.index[0]).days / 365.25
-    print(f"D6/Exp#1 — active daily-MR vs STATIC blends of the same assets "
-          f"({e.index[0].date()}→{e.index[-1].date()}, {yrs:.1f}yr)")
+    print(f"{label} — active daily-MR vs STATIC blends of the same assets "
+          f"({e.index[0].date()}→{e.index[-1].date()}, {yrs:.1f}yr, {len(both)} days, basket={'+'.join(A)})")
     print(f"  {'strategy':26} {'ann%':>6} {'Sharpe':>7} {'maxDD%':>7} {'Calmar':>7} {'inMkt%':>7}")
     for nm, r in cands:
         print(f"  {nm:26} {annf(r):6.1f} {shf(r):7.2f} {ddf(r):7.1f} {cal(r):7.2f} {tim(r):7.0f}")
@@ -319,18 +319,59 @@ def cmd_gonogo(PX):
             out.append(samp.mean() / samp.std() * math.sqrt(252) if samp.std() else 0)
         return np.percentile(out, [2.5, 97.5])
 
-    print("  block-bootstrap 95% CI on (active − static-50/50) Sharpe diff:")
+    print(f"  block-bootstrap 95% CI on (active − static-50/50) Sharpe diff ({len(both)//20} blocks):")
     for nm, r in [("any down day", a), ("RSI<30", rsi_act[30]), ("RSI<35", rsi_act[35]), ("RSI<40", rsi_act[40])]:
         lo, hi = boot(r - 0.5 * e)
         verdict = ("straddles 0 → NO edge" if lo < 0 < hi
                    else "below 0 → worse" if hi <= 0 else "ABOVE 0 → active WINS")
         print(f"    {nm:14} [{lo:+.2f}, {hi:+.2f}]  {verdict}")
+
+
+def cmd_gonogo(PX):
+    """D6/Exp#1 go/no-go on the standard 2014-2026 basket: does the ACTIVE daily-MR engine
+    (bare or RSI-conditioned) beat a trivial STATIC blend of the same assets?"""
+    _gonogo_core(PX, ["QQQ", "SPY", "IWM", "DIA", "GLD"], "D6/Exp#1")
     print("  → Exp#1: does RSI-conditioning lift any CI above 0 (overturn D6)? read the rows above.")
+
+
+def cmd_gonogolong(PX):
+    """Exp#7: re-run D6/Exp#1 on a LONG-history (2000-2026) basket to ~2x the independent
+    observations and narrow the underpowered bootstrap CI (adds the dot-com bust + 2008 GFC).
+
+    Fetches its OWN 2000-start data into a separate cache so it cannot perturb the 2014-based
+    F18-F22 findings. Basket = ^GSPC + QQQ + IWM + DIA: four DISTINCT equity exposures that all
+    trade from ≤2000-05 (IWM inception, the binding constraint). GLD (2004) and SPY (≈^GSPC,
+    redundant) are intentionally dropped so the blend is neither truncated to 2004 nor double-
+    counts the S&P. ^GSPC is price-only (no dividends), but the active and static legs share it,
+    so the timing-vs-static COMPARISON stays fair (the dividend stream cancels in the diff)."""
+    import yfinance as yf
+    cache = "/tmp/mr_daily_close_2000.csv"
+    basket = ["^GSPC", "QQQ", "IWM", "DIA"]
+    fetch = sorted(set(basket + ["IEF"]))
+    if os.path.exists(cache):
+        LPX = pd.read_csv(cache, index_col=0, parse_dates=True)
+    else:
+        raw = yf.download(fetch, start="2000-01-01", end=END, interval="1d", progress=False, auto_adjust=True)
+        LPX = raw["Close"][fetch].dropna(how="all")
+        LPX.to_csv(cache)
+    print("  per-asset first date: " + "  ".join(
+        f"{s}:{LPX[s].dropna().index[0].date()}" for s in fetch if s in LPX.columns))
+    print("  long-history lag-1 autocorrelation (F18 robust t) over the full 2000-2026 window:")
+    for s in basket:
+        if s not in LPX.columns:
+            continue
+        r = np.log(LPX[s].dropna() / LPX[s].dropna().shift(1)).dropna().values
+        cc = r - r.mean(); nn = len(cc); den = (cc ** 2).sum()
+        rho = (cc[1:] * cc[:-1]).sum() / den
+        rv = (cc[1:] ** 2 * cc[:-1] ** 2).sum() / den ** 2
+        print(f"    {s:6} n={nn:5d}  rho1={rho:+.3f}  t_robust={rho / math.sqrt(rv):+5.2f}")
+    _gonogo_core(LPX, basket, "Exp#7 long-history (2000-2026)")
+    print("  → Exp#7: with ~2x the data + two extra crises, does the D6 CI still straddle/sit-below 0?")
 
 
 CMDS = {"acf": cmd_acf, "exit": cmd_exit, "portfolio": cmd_portfolio, "xsect": cmd_xsect,
         "conditional": cmd_conditional, "bonds": cmd_bonds, "kelly": cmd_kelly, "oos": cmd_oos,
-        "gonogo": cmd_gonogo}
+        "gonogo": cmd_gonogo, "gonogolong": cmd_gonogolong}
 
 
 def main():
