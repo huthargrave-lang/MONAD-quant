@@ -40,9 +40,12 @@ venv/bin/python ops/secret_scan.py --staged        # blocks secrets/raw DBs (ins
 ## Guardrails (non-negotiable — also enforced in CI + a PreToolUse hook)
 - **PAPER ONLY.** IBKR paper port **7497**; the live port **7496 must never be used**.
   `config.LIVE_PAPER_MODE=True`, active symbol **TQQQ**.
-- **Do NOT modify the live-trader / order / strategy path** (`live/**`, `src/strategy/**`,
-  `src/signals/**`, `config.py`) without explicit approval — the trader auto-starts from
-  `pi-ops-automation`. `ctx can_edit` and `ops/guard_edit.py` (a PreToolUse hook) DENY these writes.
+- **Do NOT modify the live-trader / order / config path** (`live/**`, `config.py`,
+  `config_modules/`) without explicit approval and the trader stopped — `ctx can_edit` and
+  `ops/guard_edit.py` (a PreToolUse hook) mechanically **DENY** these writes (the Pi runs
+  whatever is checked out on `development`). The **strategy/signal layer** (`src/strategy/**`,
+  `src/signals/**`) is *not* mechanically fenced — it's editable, but it feeds the live signal,
+  so get approval and validate before it reaches `development`.
 - **Never commit** `.env`, raw `*.db`, logs, credentials, or **account IDs**. Push via **SSH**,
   never to `main`. `ops/secret_scan.py` is the commit-time gate.
 - **Validate on the full realistic backtest / `ctx perf`**, never a standalone year or the
