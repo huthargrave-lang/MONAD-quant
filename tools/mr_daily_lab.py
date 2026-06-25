@@ -56,18 +56,43 @@ def perf(r, ann=252):
                 t=r.mean() / (r.std() / math.sqrt(len(r))), n=len(r))
 
 
-def sleeve(PX, sym, H=5, gate=True, vol_filter=False):
-    """Daily-return series of the non-overlapping dip+H, long-only sleeve."""
+def rsi_wilder(close, period=14):
+    """Wilder's RSI on a 1-D close array → np.array aligned to close (NaN during warmup).
+    Uses only data up to and including bar i (no look-ahead): RSI[i] is known at the close
+    of bar i, the same bar the dip-entry decision is made on, so it adds no leak vs the
+    existing ret[d]<0 / cv[d]>ma[d] convention."""
+    close = np.asarray(close, dtype=float); n = len(close)
+    rsi = np.full(n, np.nan)
+    if n <= period:
+        return rsi
+    delta = np.diff(close, prepend=close[0])
+    gain = np.where(delta > 0, delta, 0.0); loss = np.where(delta < 0, -delta, 0.0)
+    ag = gain[1:period + 1].mean(); al = loss[1:period + 1].mean()
+    rsi[period] = 100.0 if al == 0 else 100 - 100 / (1 + ag / al)
+    for i in range(period + 1, n):
+        ag = (ag * (period - 1) + gain[i]) / period
+        al = (al * (period - 1) + loss[i]) / period
+        rsi[i] = 100.0 if al == 0 else 100 - 100 / (1 + ag / al)
+    return rsi
+
+
+def sleeve(PX, sym, H=5, gate=True, vol_filter=False, rsi_thresh=None, rsi_period=14):
+    """Daily-return series of the non-overlapping dip+H, long-only sleeve.
+    rsi_thresh: if set, additionally require Wilder RSI(rsi_period) < rsi_thresh at the dip
+    (the project's actual signal at the daily timescale, vs D6's bare 'any down day')."""
     c = PX[sym].dropna(); idx = c.index; cv = c.values; n = len(cv)
     ret = np.zeros(n); ret[1:] = np.log(cv[1:] / cv[:-1])
     ma = pd.Series(cv).rolling(200).mean().values
     v20 = pd.Series(ret).rolling(20).std().shift(1).values
     vmed = pd.Series(v20).rolling(252).median().shift(1).values
+    rsi = rsi_wilder(cv, rsi_period) if rsi_thresh is not None else None
     inv = np.zeros(n); d = 1
     while d < n - 1:
         ok = ret[d] < 0
         if gate:
             ok = ok and cv[d] > ma[d]
+        if rsi_thresh is not None:
+            ok = ok and (rsi[d] < rsi_thresh if not math.isnan(rsi[d]) else False)
         if vol_filter:
             ok = ok and (v20[d] < vmed[d] if not math.isnan(vmed[d]) else False)
         if ok:
@@ -257,23 +282,34 @@ def cmd_oos(PX):
 
 def cmd_gonogo(PX):
     """D6 go/no-go: does the ACTIVE daily-MR engine beat a trivial STATIC blend of the
-    same assets? Compares active (D5) vs static 50/50 equity/cash, static 60/40
-    equity/bond (IEF), and 100% buy&hold, with a bootstrap on active−static50."""
+    same assets? Compares active (D5, bare 'any down day') AND the RSI-conditioned variant
+    (the project's ACTUAL signal: RSI<thresh + down day + 200d gate — Experiment #1, the
+    one gap D6 never tested) vs static 50/50 equity/cash, static 60/40 equity/bond (IEF),
+    and 100% buy&hold. Bootstraps each active variant against static 50/50, and reports
+    Calmar (ann/|maxDD|, the capital-preservation metric) + time-in-market."""
     A = ["QQQ", "SPY", "IWM", "DIA", "GLD"]
-    active = pd.DataFrame({s: sleeve(PX, s) for s in A}).fillna(0.0).mean(axis=1)
+    blend = lambda **kw: pd.DataFrame({s: sleeve(PX, s, **kw) for s in A}).fillna(0.0).mean(axis=1)
+    active = blend()
     eq = pd.DataFrame({s: np.log(PX[s].dropna() / PX[s].dropna().shift(1)) for s in A}).mean(axis=1)
     both = pd.concat([active.rename("a"), eq.rename("e")], axis=1).dropna()
     a, e = both["a"], both["e"]
     ief = np.log(PX["IEF"].dropna() / PX["IEF"].dropna().shift(1)).reindex(e.index).fillna(0.0)
+    rsi_act = {th: blend(rsi_thresh=th).reindex(e.index).fillna(0.0) for th in (30, 35, 40)}
     shf = lambda r: r.mean() / r.std() * math.sqrt(252) if r.std() else 0
     annf = lambda r: r.mean() * 252 * 100
     ddf = lambda r: (np.exp(r.cumsum()) / np.exp(r.cumsum()).cummax() - 1).min() * 100
-    cands = [("active daily-MR (D5)", a, "~26/yr"), ("static 50/50 equity/cash", 0.5 * e, "none"),
-             ("static 60/40 equity/bond", 0.6 * e + 0.4 * ief, "none"), ("buy&hold equity 100%", e, "none")]
-    print("D6 — active daily-MR vs STATIC blends of the same assets (2014-2026)")
-    print(f"  {'strategy':26} {'ann%':>6} {'Sharpe':>7} {'maxDD%':>7}  trades")
-    for nm, r, tr in cands:
-        print(f"  {nm:26} {annf(r):6.1f} {shf(r):7.2f} {ddf(r):7.1f}  {tr}")
+    cal = lambda r: (annf(r) / abs(ddf(r))) if ddf(r) != 0 else 0
+    tim = lambda r: (r != 0).mean() * 100
+    cands = [("active D5 (any down day)", a), ("active RSI<30 + down", rsi_act[30]),
+             ("active RSI<35 + down", rsi_act[35]), ("active RSI<40 + down", rsi_act[40]),
+             ("static 50/50 equity/cash", 0.5 * e), ("static 60/40 equity/bond", 0.6 * e + 0.4 * ief),
+             ("buy&hold equity 100%", e)]
+    yrs = (e.index[-1] - e.index[0]).days / 365.25
+    print(f"D6/Exp#1 — active daily-MR vs STATIC blends of the same assets "
+          f"({e.index[0].date()}→{e.index[-1].date()}, {yrs:.1f}yr)")
+    print(f"  {'strategy':26} {'ann%':>6} {'Sharpe':>7} {'maxDD%':>7} {'Calmar':>7} {'inMkt%':>7}")
+    for nm, r in cands:
+        print(f"  {nm:26} {annf(r):6.1f} {shf(r):7.2f} {ddf(r):7.1f} {cal(r):7.2f} {tim(r):7.0f}")
     rng = np.random.default_rng(0)
 
     def boot(x):
@@ -283,11 +319,13 @@ def cmd_gonogo(PX):
             out.append(samp.mean() / samp.std() * math.sqrt(252) if samp.std() else 0)
         return np.percentile(out, [2.5, 97.5])
 
-    lo, hi = boot(a - 0.5 * e)
-    verdict = ("straddles 0 → NO demonstrated advantage" if lo < 0 < hi
-               else "below 0 → active is worse" if hi <= 0 else "above 0 → active wins")
-    print(f"  block-bootstrap 95% CI, (active − static-50/50) Sharpe diff: [{lo:.2f}, {hi:.2f}]  {verdict}")
-    print("  → the active engine does not beat a static blend; the static blend matches it at lower complexity/cost/risk.")
+    print("  block-bootstrap 95% CI on (active − static-50/50) Sharpe diff:")
+    for nm, r in [("any down day", a), ("RSI<30", rsi_act[30]), ("RSI<35", rsi_act[35]), ("RSI<40", rsi_act[40])]:
+        lo, hi = boot(r - 0.5 * e)
+        verdict = ("straddles 0 → NO edge" if lo < 0 < hi
+                   else "below 0 → worse" if hi <= 0 else "ABOVE 0 → active WINS")
+        print(f"    {nm:14} [{lo:+.2f}, {hi:+.2f}]  {verdict}")
+    print("  → Exp#1: does RSI-conditioning lift any CI above 0 (overturn D6)? read the rows above.")
 
 
 CMDS = {"acf": cmd_acf, "exit": cmd_exit, "portfolio": cmd_portfolio, "xsect": cmd_xsect,
