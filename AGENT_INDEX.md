@@ -69,7 +69,7 @@ Machine-readable routing/invariants live in **`context_map.json`** (kept honest 
 
 ## Non-negotiable invariants (also asserted in CI)
 - **Paper only.** API port **7497**; the live port **7496 must never be used**. `config.LIVE_PAPER_MODE=True`, symbol **TQQQ**.
-- **Don't modify live trading/order/strategy logic** without explicit approval — the trader auto-starts from `pi-ops-automation`.
+- **Don't modify live trading/order/strategy logic** without explicit approval — the trader auto-starts from `development`.
 - **Never commit** `.env`, raw `*.db`, logs, credentials, or **account IDs**. Push via **SSH**, never to `main`.
 - **Heads-up:** the headline **+35%** is mostly broken-bracket artifact; the honest confirmed-fill edge is ~flat (run `ctx perf`).
 

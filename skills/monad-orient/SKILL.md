@@ -50,7 +50,7 @@ no network). Run from the repo root with `venv/bin/python`.
      `config.LIVE_PAPER_MODE=True`, active symbol **TQQQ**.
    - Do NOT modify live trading / order / strategy logic (`live/**`,
      `src/strategy/**`, `src/signals/**`, `config.py`) without explicit approval —
-     the trader auto-starts from `pi-ops-automation`.
+     the trader auto-starts from `development`.
    - Never commit `.env`, raw `*.db`, logs, credentials, or account IDs. Push via
      SSH; **never push to `main`**.
    - The headline Sharpe 25–94 / "+0.7–3.5%/mo" in CLAUDE.md is SUPERSEDED (a

@@ -62,7 +62,7 @@ One small file an agent greps to route. Sketch:
 
 ```yaml
 project: MONAD-quant
-deploy_branch: pi-ops-automation
+deploy_branch: development
 invariants:                 # facts agents repeatedly need
   paper_only: true
   api_port_paper: 7497
@@ -90,7 +90,7 @@ facts:                      # how to GET a value rather than where it's document
   current_mode: "config.LIVE_SYMBOL"
   deploy_state: "run: bash ops/status_check.sh"
   db_schema: "run: ctx schema"
-  recent_changes: "run: git log --oneline -15 pi-ops-automation"
+  recent_changes: "run: git log --oneline -15 development"
 ```
 
 ### 4.2 Per-area `CONTEXT.md` stubs **[BUILD]**
@@ -128,7 +128,7 @@ Design notes: read-only; no network unless asked; **redacts account IDs**; refus
 - `venv/bin/python tools/diagnose_brackets.py` — IBKR connection + positions + bracket state (read-only).
 - `cat local_logs/healthcheck.json` — latest health snapshot.
 - `bash ops/dashboard_smoke_test.sh` — verify the dashboard server.
-- `git log --oneline -N pi-ops-automation` / `git diff --stat` — recent change surface.
+- `git log --oneline -N development` / `git diff --stat` — recent change surface.
 
 **Proposed [BUILD]:** the `tools/ctx.py` subcommands above (the single highest-leverage item).
 

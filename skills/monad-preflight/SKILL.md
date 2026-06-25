@@ -6,7 +6,7 @@ description: Pre-commit gate for MONAD-quant. Run BEFORE every commit. Checks th
 # monad-preflight — the gate every commit must pass
 
 This is a PAPER-ONLY algo-trading repo whose live trader auto-starts from
-`pi-ops-automation`. A bad commit can arm or break a real (paper) trader. Run every
+`development`. A bad commit can arm or break a real (paper) trader. Run every
 step from the repo root before committing.
 
 ## Steps

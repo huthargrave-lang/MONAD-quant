@@ -8,7 +8,7 @@
 > - **Strategy / model / backtests / signal logic** → see `CLAUDE.md` and `AGENTS.md`.
 > - **Live deployment, Pi ops, dashboard, this session's work** → this file.
 >
-> *Last updated: 2026-06-18. Deployment branch: `pi-ops-automation`.*
+> *Last updated: 2026-06-18. Deployment branch: `development`.*
 
 ---
 
@@ -16,7 +16,7 @@
 
 - This Pi runs **IBKR paper trading only** (TQQQ), never live. Paper API port **7497**; the live port **7496 must never be used**.
 - The live trader, Gateway autostart, healthchecks, exports, and dashboard are all driven by **systemd timers** (timezone-aware, scheduled in **America/New_York**; the Pi clock is **Europe/London**).
-- The deployment branch is **`pi-ops-automation`** — it has the two correctness fixes + all ops tooling. Keep it checked out; the trader runs whatever is checked out.
+- The deployment branch is **`development`** — it has the two correctness fixes + all ops tooling. Keep it checked out; the trader runs whatever is checked out.
 - **Do not modify live trading/order/strategy logic** without explicit approval. Most tasks here are ops/observability/reporting.
 - The headline backtest/paper numbers (e.g. **+35.20%**) are **inflated by broken-bracket artifacts** — the honest confirmed-fill edge is far lower. See §5.
 
@@ -29,7 +29,7 @@
 3. **Never commit:** `.env`, `~/.ibkr-paper.env`, raw `*.db`/`*.sqlite`, logs, credentials, **IBKR account IDs**, PID/runtime files, or raw trading data. `.gitignore` enforces most of this; always scan staged diffs.
 4. **Redact account IDs** (`DUD…`/`U…`) in any output, export, or commit. They appear in `local_logs/`, `~/ibc`, `~/Jts` logs (all gitignored / outside the repo) — don't echo or share raw logs.
 5. **Before changing runtime data / rotating anything:** confirm the **trader is inactive** and the **account is flat** (0 open positions). If a position is open or the trader is active, **stop and ask**.
-6. **Pushing:** `origin` is HTTPS **without stored credentials**. Push via the SSH URL instead: `git push git@github.com:huthargrave-lang/MONAD-quant.git <branch>` (the Pi's SSH key is authorized for `huthargrave-lang`). **Never push to `main`** — use feature/`pi-ops-automation` branches.
+6. **Pushing:** `origin` is HTTPS **without stored credentials**. Push via the SSH URL instead: `git push git@github.com:huthargrave-lang/MONAD-quant.git <branch>` (the Pi's SSH key is authorized for `huthargrave-lang`). **Never push to `main`** — use feature/`development` branches.
 7. **Confirm hard-to-reverse / outward actions** (commits, pushes, service start/stop, order placement) before doing them unless already authorized.
 
 ---
@@ -60,13 +60,13 @@ Time conversions you'll need: **08:00 ET = 13:00 BST**, **09:22 ET = 14:22 BST**
 | `pi-live-run-analysis` | The deep historical data analysis + the read-only diagnostic (`tools/diagnose_brackets.py`) + exports. |
 | `fix-state-reconciliation` | The entry-time broker/state reconciliation guard (commit `ef967b6`). |
 | `fix-software-take-profit` | The software take-profit fallback (commit `99847cb`). |
-| **`pi-ops-automation`** | **The deployment branch.** Integrates dev tip + both fixes + diagnostic + all `ops/` tooling + dashboard run-window reset. **This is what the Pi runs.** |
+| **`development`** | **The deployment branch.** Integrates dev tip + both fixes + diagnostic + all `ops/` tooling + dashboard run-window reset. **This is what the Pi runs.** |
 
-To deploy clean code, keep `pi-ops-automation` checked out (`monad-trader.service` runs `python -m live.trader` from the checked-out tree).
+To deploy clean code, keep `development` checked out (`monad-trader.service` runs `python -m live.trader` from the checked-out tree).
 
 ---
 
-## 4. The two correctness fixes (live in `pi-ops-automation`)
+## 4. The two correctness fixes (live in `development`)
 
 1. **Entry-time reconciliation guard** (`live/trader.py::_on_bar_inner`): before opening a trade while `state.db` says flat, it verifies the **broker is actually flat**. If the broker holds a position the DB doesn't know about → **blocks the entry** (`entry_blocked_desync`, CRITICAL alert). Fail-safe: also blocks if the broker can't be verified. *Fixes the bug where the bot traded into a hidden short.* Tests: `tests/test_trader_reconcile.py`.
 2. **Software take-profit fallback** (`config_modules/live.py: USE_SOFTWARE_TAKE_PROFIT=True`): mirrors the existing software stop — force-closes at market when the mark reaches target, because the **IBKR paper bracket TP frequently fails to fill** (letting winners ride to the time-exit and inflating returns). Tests: `tests/test_software_take_profit.py`.
@@ -96,7 +96,7 @@ Also note a **reporting discrepancy** (by design, not a bug): the dashboard comp
 | `monad-trader.timer` → `.service` | weekdays **09:22** | **Preflight-gated** trader autostart: `ExecStartPre=ops/preflight_trader_start.sh` (10 checks) → `ops/start_trader.sh --exec`. `Restart=no`. Logs to `local_logs/trader.log`. | **enabled** (timer); service is `static`, started only by the timer/preflight |
 
 - IB Gateway does an **IBKR-forced nightly shutdown (~23:45 BST / 18:45 ET)** requiring full re-auth; the morning timer restarts it. There is **no mid-market auto-recovery** yet — the healthcheck *observes* but doesn't restart. If the Gateway dies mid-session, restart manually: `sudo systemctl start ibkr-gateway-paper.service`.
-- The trader **preflight** refuses to start unless: on `pi-ops-automation`, Gateway up, 7497 open, **7496 closed**, IBKR connects, **account flat**, no duplicate trader, `state.db` writable, `local_logs/` writable, no recent healthcheck failure. A failed preflight = no trade that day (safe).
+- The trader **preflight** refuses to start unless: on `development`, Gateway up, 7497 open, **7496 closed**, IBKR connects, **account flat**, no duplicate trader, `state.db` writable, `local_logs/` writable, no recent healthcheck failure. A failed preflight = no trade that day (safe).
 
 ---
 
