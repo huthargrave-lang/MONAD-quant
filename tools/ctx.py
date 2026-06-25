@@ -1749,6 +1749,17 @@ def cmd_delta(args):
         if not base:                           # not a revision → treat as a git date ('5 days ago')
             r2 = git("rev-list", "-1", f"--before={since}", "HEAD")
             base = r2.stdout.strip() if (r2 and r2.returncode == 0 and r2.stdout.strip()) else ""
+            # git's --before runs approxidate, which silently coerces an UNPARSEABLE string
+            # (e.g. a mistyped revision like 'HEAD~x') to "now" and returns HEAD — a false
+            # "(no changes)" against the wrong base. If the date form lands on HEAD, the
+            # input was neither a valid revision nor an earlier date: refuse, don't guess.
+            if base:
+                rh = git("rev-parse", "--verify", "--quiet", "HEAD")
+                if rh and rh.stdout.strip() and base == rh.stdout.strip():
+                    print(f"ctx delta: --since {since!r} is not a valid revision or an earlier "
+                          f"date (it resolves to HEAD). Pass a sha, a ref, or a date like "
+                          f"'5 days ago' / '2026-06-01'.")
+                    sys.exit(1)
         if not base:
             print(f"ctx delta: could not resolve --since {since!r} as a revision or a git date.")
             return

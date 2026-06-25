@@ -307,6 +307,18 @@ class TestCtxDelta(unittest.TestCase):
         self.assertIn(full[:9], buf.getvalue(),
                       "delta --since HEAD~3 must use HEAD~3 as the base, not an approxidate guess")
 
+    def test_delta_since_garbage_errors_not_silent(self):
+        # SF-1 regression: git --before coerces an unparseable --since to "now" and returns
+        # HEAD, so delta would print "(no changes)" against the wrong base. A garbage
+        # revision must error loudly (exit 1), never a silent false-negative.
+        import contextlib, io, types
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            with self.assertRaises(SystemExit) as cm:
+                ctx.cmd_delta(types.SimpleNamespace(since="not-a-real-rev-xyz"))
+        self.assertEqual(cm.exception.code, 1)
+        self.assertIn("not a valid revision", buf.getvalue())
+
 
 class TestContradictedNodeLint(unittest.TestCase):
     def test_contradicted_by_maps_current_disputes(self):
