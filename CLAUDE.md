@@ -5,9 +5,16 @@
 > **SUPERSEDED** and was produced by optimistic-mode backtests on **morning-only data**.
 > The honest, leak-free, full-session (live-representative) verdict: the **hourly** strategy
 > has **no edge** (the live bot is flat) — the apparent edge was a data-sampling artifact.
-> There IS a real edge at **~3 bars/day** for QQQ/SPY (≈4.5% APY, Sharpe ~4). For current
-> truth run **`venv/bin/python tools/ctx.py web`** and **`ctx perf`**; see `RESEARCH_WEB.md`
-> (F13/F14/F15/D4). Treat the numbers below as **optimization history, not current fact.**
+> The honest go/no-go verdict (**D6**, confirmed & strengthened 2026-06-25): the **active
+> mean-reversion engine has NO risk-adjusted edge over a trivial static 50/50–60/40 allocation**
+> at any timescale — hourly is flat/negative (F13); the ~3-bars/day (F15) and daily-MR (F22)
+> results do NOT survive a static-blend benchmark; conditioning on the project's own RSI signal
+> doesn't help (F24) and 26yr of data confirms it (F25). And the slope-regime "core innovation"
+> is in fact **dead-wired/stripped from every backtest** (F26). The honest bond-alternative is a
+> STATIC allocation; the active engine's only role is a low-drawdown overlay (and even that DD
+> edge is path-dependent). For current truth run **`venv/bin/python tools/ctx.py web`** and
+> **`ctx perf`**; see `RESEARCH_WEB.md` (**D6/F22/F24/F25/F26**). Treat the numbers below as
+> **optimization history, not current fact.**
 
 > 🧭 **Agents: start with [`AGENT_INDEX.md`](AGENT_INDEX.md) and `tools/ctx.py`** (e.g. `venv/bin/python tools/ctx.py route "<task>"`) — route to the specific files/sections you need instead of reading this whole file. This doc is the deep *"why"* (strategy); **`OPERATIONS.md`** is the live/ops *"how it runs"*.
 
@@ -134,6 +141,16 @@ See Section 4 below.
 ---
 
 ## 4. Regime Classifier (The Core Innovation)
+
+> ⚠️ **WIRING WARNING (2026-06-25 — `RESEARCH_WEB.md` F26).** The 6-state slope-regime gate
+> described below is **NOT wired into any backtest**. The entry-gating block was stripped from
+> `generate_trades()` at merge `9b4648e`, and `runner.py` never passes `use_slope_regime`/
+> `longs_only` anyway — so `main.py`/`sweep.py` produce byte-identical entries with the gate
+> "on" or "off" (the flags only nudge a `regime_kelly_mult` column nothing reads). It is
+> aspirational design, not running code. (Separately, `use_regime_filter` runs at its default
+> **True** in backtests despite `config.USE_REGIME_FILTER=False` — a real, non-inert bug.)
+> Restoring the slope gate needs an engine.py re-insert (`git show 194ae6d:src/strategy/engine.py`)
+> + a runner.py wiring. Read the section below as *intended* behavior, not *current* behavior.
 
 ### Why regimes matter
 Before the regime classifier, the strategy entered RSI dips regardless of broader context.
@@ -478,7 +495,11 @@ USE_OPPOSING_SIGNAL_EXIT = False # Tested: hurts TQQQ (sweep confirmed)
 
 1. **No ML/neural networks** — explainability required
 2. **No inverse ETFs or derivatives** — same asset, direction flip only
-3. **Never touch the 252-MA regime classifier logic** — it's the entire foundation
+3. **The 252-MA slope-regime classifier is currently DEAD CODE** (stripped from `generate_trades()`
+   at merge `9b4648e`, never wired into `runner.py` — see §4 warning / `RESEARCH_WEB.md` F26). It was
+   historically called "the entire foundation," but **no current backtest number depends on it.** If
+   you restore it, do so deliberately (engine.py re-insert + runner.py wiring) and re-validate
+   everything; until then, do not assume it gates any entry.
 4. **All new features must be independently toggleable** via config flag (default=False)
 5. **Validate on 5yr full run, not standalone year** — standalone year has look-ahead
    bias in the 252-MA (computed from too few bars)
