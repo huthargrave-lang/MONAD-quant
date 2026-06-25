@@ -2083,28 +2083,48 @@ def cmd_related(args):
 
 
 def _web_banner():
-    """The first ⚠ blockquote of RESEARCH_WEB.md (the hand-written honest-state
-    correction) + an [Auto] rider of facts computed from the live web (node count,
-    superseded count, latest node date) — so the freshest numbers are always present
-    even when the hand-written prose drifts."""
+    """The honest-state CORRECTION blockquote of RESEARCH_WEB.md (anchored on the
+    "⚠ …CORRECT…" heading, not just any ⚠ block) + an [Auto] rider of facts computed
+    from the live web (node count, superseded count, latest node date) — so the freshest
+    numbers are always present even when the hand-written prose drifts."""
     if not os.path.exists(WEB):
         return ""
-    out, grabbing = [], False
-    with open(WEB) as fh:
-        for line in fh:
-            if "⚠" in line and line.lstrip().startswith(">"):
-                grabbing = True
-            if grabbing:
-                if line.lstrip().startswith(">"):
-                    out.append(line.lstrip("> ").rstrip())
-                else:
-                    break
-    banner = " ".join(out)[:420]
+
+    def _grab(require_corrected):
+        out, grabbing = [], False
+        with open(WEB) as fh:
+            for line in fh:
+                ls = line.lstrip()
+                if "⚠" in line and ls.startswith(">") and (not require_corrected or "CORRECT" in line.upper()):
+                    grabbing = True
+                if grabbing:
+                    if ls.startswith(">"):
+                        out.append(ls.lstrip("> ").rstrip())
+                    else:
+                        break
+        return out
+
+    # Prefer the correction block specifically so an unrelated ⚠ blockquote elsewhere in
+    # the web can't be scraped; fall back to the first ⚠ block if none is found.
+    full = " ".join(_grab(True) or _grab(False))
+    # Truncate on a word boundary — the old [:420] crop clipped mid-word ("…actually trad")
+    # and the final [:520] could even clip the [Auto] rider. Never sever a [[ID]] reference.
+    LIMIT = 560
+    if len(full) > LIMIT:
+        cut = full.rfind(" ", 0, LIMIT)
+        cut = cut if cut != -1 else LIMIT
+        if full[:cut].count("[[") > full[:cut].count("]]"):   # mid-reference → extend to close
+            close = full.find("]]", cut)
+            if close != -1:
+                cut = close + 2
+        banner = full[:cut].rstrip() + " …"
+    else:
+        banner = full
     nodes = _parse_web()[0]
     n_sup = sum(1 for n in nodes.values() if _is_superseded(n))
     dates = [d for d in (_node_meta(n).get("at") for n in nodes.values()) if d]
     rider = f"[Auto] {len(nodes)} nodes, {n_sup} superseded" + (f" · latest dated node {max(dates)}" if dates else "")
-    return (f"{banner}  {rider}" if banner else rider)[:520]
+    return f"{banner}  {rider}" if banner else rider
 
 
 def cmd_brief(args):
