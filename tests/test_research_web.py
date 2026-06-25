@@ -237,8 +237,12 @@ class TestWebListingViews(unittest.TestCase):
         for k, v in kw.items():
             setattr(ns, k, v)
         buf = io.StringIO()
+        self.exit_code = 0
         with contextlib.redirect_stdout(buf):
-            ctx.cmd_web(ns)
+            try:
+                ctx.cmd_web(ns)
+            except SystemExit as e:                       # --lint now exits non-zero (SF-2)
+                self.exit_code = e.code if isinstance(e.code, int) else 1
         return buf.getvalue()
 
     def test_pending_lists_open_and_decisions_excludes_superseded(self):
@@ -260,6 +264,19 @@ class TestWebListingViews(unittest.TestCase):
         # contradicted (but live) node → advisory, not a hard problem.
         out = self._web(lint=True)
         self.assertIn("contradicted by F22", out)
+
+    def test_lint_exit_code_matches_summary(self):
+        # SF-2: web --lint must encode integrity in its exit code, not always return 0.
+        # 2 = hard problem (dangling/stale-cite), 1 = disputed-but-live advisory, 0 = clean.
+        import re
+        out = self._web(lint=True)
+        m = re.search(r"(\d+) problem\(s\) \| (\d+) advisory", out)
+        self.assertIsNotNone(m, out)
+        problems, advisories = int(m.group(1)), int(m.group(2))
+        expected = 2 if problems else (1 if advisories else 0)
+        self.assertEqual(self.exit_code, expected,
+                         f"exit {self.exit_code} != expected {expected} for "
+                         f"{problems} problem(s)/{advisories} advisory")
 
 
 class TestBannerRider(unittest.TestCase):

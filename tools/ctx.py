@@ -1154,6 +1154,13 @@ def cmd_web(args):
         sup_n = sum(1 for n in nodes.values() if _is_superseded(n))
         print(f"\n  {len(nodes)} nodes | {sup_n} superseded | "
               f"{len(dangling) + problems} problem(s) | {advisories} advisory")
+        # Exit code so CI / preflight can gate on integrity (was always 0 → a silent pass
+        # even with hard problems): 2 = hard problem (dangling link / stale-cite),
+        # 1 = disputed-but-live advisory, 0 = clean.
+        if len(dangling) + problems > 0:
+            sys.exit(2)
+        if advisories > 0:
+            sys.exit(1)
         return
 
     if args.node:
