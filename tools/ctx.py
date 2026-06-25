@@ -1468,6 +1468,13 @@ def cmd_why(args):
         else:
             rs = f" ({meta['reason']})" if meta.get("reason") else ""
             print(f"  {meta['status'].upper()}{by}{rs}")
+    # Fragility: a still-'current' node the project has effectively disputed (a later
+    # current node contradicts it) reads as settled here unless we say otherwise.
+    contra = _contradicted_by(nodes_web)
+    if meta["status"] == "current" and args.node in contra:
+        print(f"  ⚠ DISPUTED: contradicted by {', '.join(contra[args.node])} (a later current "
+              f"finding) — this conclusion is disputed; verify before relying "
+              f"(`ctx contradicts {args.node}`)")
     cited, corrob = _n_evidence(args.node, nodes_web)
     print(f"  evidence: {cited} cited experiment(s)/source(s) + {corrob} corroborating support(s)")
     eff, bott = _effective_conf(args.node, nodes_web, adj)
@@ -1478,6 +1485,17 @@ def cmd_why(args):
             print(f"  confidence: {own_s}effective {eff:.2f} (self is the weakest link)")
         else:
             print(f"  confidence: {own_s}effective {eff:.2f} (weakest link in reliance chain: {bott} @ {eff:.2f})")
+    # Fragility: this node leans on a contradicted (still-live) claim. Superseded targets
+    # are already hard-failed by `ctx web --lint`; contradicted ones are only advisory, so
+    # surface them here where someone is reasoning about why to believe the node.
+    seen_weak = set()
+    for e in nodes_web.get(args.node, {}).get("edges", []):
+        t = e["target"]
+        if e["type"] in _PROPAGATION_EXEMPT or t == args.node or t in seen_weak or t not in contra:
+            continue
+        seen_weak.add(t)
+        print(f"  ⚠ FRAGILE: this {e['type']} → {t}, which is contradicted by "
+              f"{', '.join(contra[t])} — disputed ground")
     ev, dec = paths_to("E"), paths_to("D")
     print("  grounded in (experiments):")
     print("\n".join(f"    {args.node} → {fmt(p)}" for p in ev)

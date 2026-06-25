@@ -666,6 +666,20 @@ class TestWhyProvenance(unittest.TestCase):
         self.assertIn("E", out)  # F13 is still grounded in genuine experiments via non-supersession paths
         self.assertIn("grounded in", out)
 
+    def test_why_flags_contradicted_current_node(self):
+        # DP-1: F15 is status:current but contradicted by the later F22 — ctx why must
+        # flag it DISPUTED, not present it as a settled conclusion.
+        out = self._why("F15")
+        self.assertIn("DISPUTED", out)
+        self.assertIn("F22", out)
+
+    def test_why_flags_dependency_on_contradicted_node(self):
+        # DP-1: D1 references the contradicted F15 → ctx why D1 must flag the fragile
+        # dependency on disputed ground.
+        out = self._why("D1")
+        self.assertIn("FRAGILE", out)
+        self.assertIn("F15", out)
+
 
 if __name__ == "__main__":
     unittest.main()
