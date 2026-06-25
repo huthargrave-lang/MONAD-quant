@@ -320,11 +320,35 @@ def _gonogo_core(PX, A, label):
         return np.percentile(out, [2.5, 97.5])
 
     print(f"  block-bootstrap 95% CI on (active − static-50/50) Sharpe diff ({len(both)//20} blocks):")
+    print("    [caveat: this is the Sharpe of the SPREAD (active − 0.5·e), so the cash-heavy RSI rows'")
+    print("     below-0 CI is partly a mechanical 'half-short-equity-in-a-bull' effect — lean on Calmar/maxDD]")
     for nm, r in [("any down day", a), ("RSI<30", rsi_act[30]), ("RSI<35", rsi_act[35]), ("RSI<40", rsi_act[40])]:
         lo, hi = boot(r - 0.5 * e)
         verdict = ("straddles 0 → NO edge" if lo < 0 < hi
                    else "below 0 → worse" if hi <= 0 else "ABOVE 0 → active WINS")
         print(f"    {nm:14} [{lo:+.2f}, {hi:+.2f}]  {verdict}")
+
+    def boot_paired(xa, xs):
+        """Paired block bootstrap of the capital-preservation metrics: resample the SAME block
+        indices for both legs and report the (active − static-50/50) maxDD and Calmar differences.
+        This is the test that actually matters for a near-zero-DD mandate (Sharpe is time-in-market
+        sensitive); committing it so the drawdown-edge claim is reproducible, not an ad-hoc script."""
+        xa, xs = xa.values, xs.values; nn = len(xa); nb = nn // 20; ddd = []; cld = []
+        for _ in range(3000):
+            ix = rng.integers(0, nn - 20, nb)
+            sa = np.concatenate([xa[i:i + 20] for i in ix]); ss = np.concatenate([xs[i:i + 20] for i in ix])
+            ea = np.exp(sa.cumsum()); es = np.exp(ss.cumsum())
+            da = (ea / np.maximum.accumulate(ea) - 1).min() * 100; ds = (es / np.maximum.accumulate(es) - 1).min() * 100
+            ddd.append(da - ds)
+            cld.append((sa.mean() * 252 * 100 / abs(da) if da else 0) - (ss.mean() * 252 * 100 / abs(ds) if ds else 0))
+        return np.percentile(ddd, [2.5, 50, 97.5]), np.percentile(cld, [2.5, 50, 97.5])
+
+    dd, cl = boot_paired(a, 0.5 * e)
+    print("  block-bootstrap 95% CI, bare-active vs static-50/50, capital-preservation metrics:")
+    print(f"    maxDD diff (active−static, +=active shallower) [{dd[0]:+.1f}, med {dd[1]:+.1f}, {dd[2]:+.1f}]"
+          f"  {'straddles 0 → DD edge is path-dependent, NOT significant' if dd[0] < 0 < dd[2] else 'significant'}")
+    print(f"    Calmar diff (active−static, +=active better)   [{cl[0]:+.2f}, med {cl[1]:+.2f}, {cl[2]:+.2f}]"
+          f"  {'straddles 0 → NOT significant' if cl[0] < 0 < cl[2] else 'significant'}")
 
 
 def cmd_gonogo(PX):
@@ -341,9 +365,11 @@ def cmd_gonogolong(PX):
     Fetches its OWN 2000-start data into a separate cache so it cannot perturb the 2014-based
     F18-F22 findings. Basket = ^GSPC + QQQ + IWM + DIA: four DISTINCT equity exposures that all
     trade from ≤2000-05 (IWM inception, the binding constraint). GLD (2004) and SPY (≈^GSPC,
-    redundant) are intentionally dropped so the blend is neither truncated to 2004 nor double-
-    counts the S&P. ^GSPC is price-only (no dividends), but the active and static legs share it,
-    so the timing-vs-static COMPARISON stays fair (the dividend stream cancels in the diff)."""
+    daily-return corr 0.9986, redundant) are intentionally dropped so the blend is neither
+    truncated to 2004 nor double-counts the S&P. ^GSPC is price-only (no dividends): the active
+    leg is full-weight ~79% of the time vs static's permanent half-weight, so missing dividends
+    penalize the ACTIVE leg slightly MORE (≈+0.5%/yr to active vs +0.2%/yr to static if divs are
+    added back) — i.e. the comparison is *conservative against* the active engine, not unfair."""
     import yfinance as yf
     cache = "/tmp/mr_daily_close_2000.csv"
     basket = ["^GSPC", "QQQ", "IWM", "DIA"]
@@ -356,6 +382,9 @@ def cmd_gonogolong(PX):
         LPX.to_csv(cache)
     print("  per-asset first date: " + "  ".join(
         f"{s}:{LPX[s].dropna().index[0].date()}" for s in fetch if s in LPX.columns))
+    if "IEF" in LPX.columns and LPX["IEF"].dropna().index[0] > LPX.index[0]:
+        print(f"  NOTE: IEF (bond leg of the 60/40 row) starts {LPX['IEF'].dropna().index[0].date()}; before that"
+              f" the 60/40 row is effectively 60% equity / 40% CASH (understates its early-2000s drawdown).")
     print("  long-history lag-1 autocorrelation (F18 robust t) over the full 2000-2026 window:")
     for s in basket:
         if s not in LPX.columns:
