@@ -585,10 +585,20 @@ def cmd_impact(args):
     else:
         mod = None
         rx = re.compile(rf"^\s*(def|class)\s+{re.escape(target)}\b")
+        defs = []   # every file defining this symbol — first-match would hide the rest
         for p in _iter_py(REPO):
             with open(p, errors="ignore") as _fh:
                 if any(rx.search(l) for l in _fh):
-                    mod = os.path.relpath(p, REPO)[:-3].replace(os.sep, "."); break
+                    defs.append(os.path.relpath(p, REPO))
+        if len(defs) > 1:
+            # Don't silently pick the first os.walk match — that can report a wrong (often
+            # "safe to edit") blast radius for a symbol defined in several modules.
+            print(f"  ⚠ AMBIGUOUS: '{target}' is defined in {len(defs)} files; first-match "
+                  f"would report only one blast radius. Re-run on a specific file:")
+            for rel in defs:
+                print(f"     ctx impact {rel}")
+            return
+        mod = defs[0][:-3].replace(os.sep, ".") if defs else None
     if mod not in importers:
         print(f"  '{target}' is not a repo module/file/symbol (try src/strategy/engine.py)")
         return

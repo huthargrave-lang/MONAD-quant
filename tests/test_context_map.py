@@ -455,6 +455,15 @@ class TestImpactEpistemics(unittest.TestCase):
         self.assertIn("may INVALIDATE evidence", out)
         self.assertIn("F17", out)
 
+    def test_impact_warns_on_ambiguous_symbol(self):
+        # SF-3: a bare symbol defined in >1 file (live_score lives in sweep.py and
+        # src/optimization/sweep_scoring.py) must flag ambiguity, not silently resolve
+        # to the first os.walk match and report a misleading "safe to edit" radius.
+        out = self._impact("live_score")
+        self.assertIn("AMBIGUOUS", out)
+        self.assertIn("sweep.py", out)
+        self.assertIn(os.path.join("src", "optimization", "sweep_scoring.py"), out)
+
 
 if __name__ == "__main__":
     unittest.main()
