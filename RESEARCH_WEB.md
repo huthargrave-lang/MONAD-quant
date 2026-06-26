@@ -522,3 +522,148 @@ _— captured development@1806b74, 2026-06-26_
 VD-4 corrected most docs but live/CONTEXT.md still names the dead pi-ops-automation deploy branch (it sits behind the live/ edit-fence, so needs a trader-stopped approved edit). Open: finish the sweep and add a CI assertion (extend tests/test_context_map.py) that no tracked doc names a branch other than context_map.json deploy_branch, so prose branch-drift fails CI.
 Links: [[F27|relates]].
 _— captured development@1806b74, 2026-06-26_
+
+### H19 — OPEN: Regime lag during intra-bull corrections (the #1 unsolved active-engine problem)
+The 252-MA stays bullish through -20-30% intra-bull corrections (Jun/Aug 2024, Apr 2021), so the active engine buys RSI dips into falling knives — the primary documented unsolved problem, with untried mitigations (ATR stops, softer 50-MA gate, vol circuit-breaker) hanging off it. MOOT while the active engine stays retired (D6); load-bearing only if it is ever revisited.
+Links: [[D6|relates]] · [[F17|relates]].
+_— captured development@bebe6c5, 2026-06-26_
+
+### H20 — OPEN: ATR-scaled stops & targets (sit outside intraday noise)
+The fixed ~0.5% stop sits inside TQQQ intraday ATR; scaling stop/target by recent ATR would place them outside noise. USE_ATR_DYNAMIC_STOPS exists but compute_trade_returns() has no implementation. Recurs across CLAUDE.md §10, MODEL_HISTORY, IMPROVEMENT_PLAN D1/D2. Conditional on revisiting the active engine (D6).
+Links: [[F7|relates]] · [[F17|relates]] · [[D6|relates]].
+_— captured development@bebe6c5, 2026-06-26_
+
+### H21 — OPEN: Softer 5% 50-MA gate for intra-bull corrections (config at 0.02, proposed 0.05)
+Gate STRONG_BULL entries only when price is >5% below the 50-MA (vs the strict any-touch gate that filtered 71/83 trades). Bad Jun-2024 entries sit 7-15% below; good Aug-2023 ones 1-3% below. STRONG_BULL_SOFT_50MA_PCT is at 0.02, not the proposed 0.05, and unvalidated. Conditional on the active engine (D6).
+Links: [[D6|relates]] · [[F17|relates]].
+_— captured development@bebe6c5, 2026-06-26_
+
+### H22 — OPEN: Entry quality over quantity (require both signals / deeper RSI / EV-per-trade objective)
+The signal fires on ~50% of bars but the edge is thin; require BOTH momentum AND volume, a deeper RSI, more regime conviction, and optimize EV/trade not trade count (the churn-rewarding-Sharpe problem). IMPROVEMENT_PLAN D5. Conditional on the active engine (D6).
+Links: [[F22|relates]] · [[D6|relates]].
+_— captured development@bebe6c5, 2026-06-26_
+
+### H23 — OPEN: Exit-logic experiments (trailing / partial / vol-scaled hold)
+F17/F19 found the EXIT is the dominant lever; concrete untried variants: trailing stops, partial profit-taking, vol-scaled hold time vs the fixed 8-10 bar time-exit. The natural successor to the exit findings. Conditional on the active engine (D6).
+Links: [[F17|builds_on]] · [[F19|builds_on]] · [[D5|relates]].
+_— captured development@bebe6c5, 2026-06-26_
+
+### H24 — OPEN: Re-validate SOXL/LABU/TNA in realistic mode before any live use (tight stops may collapse like GDXU)
+The three 2026-03-22 leveraged modes were optimistic-mode swept; their tight stops (LABU 0.25%, TNA 0.15%) risk being inside the spread like GDXU (Sharpe 96.5->1.8 realistic). They are also the holdout-biased experiments.jsonl winners F2 flags. Re-run fixed-10% realistic and pick by realistic EV.
+Links: [[F2|relates]] · [[D6|relates]] · [[D3|relates]].
+_— captured development@bebe6c5, 2026-06-26_
+
+### H25 — OPEN: GDXU realistic re-sweep (optimistic 0.075% stop is inside the spread)
+GDXU's optimistic Sharpe 96.5 collapsed to 1.8 / WR 27.5% realistic because the 0.075% stop is inside the bid-ask spread — not production-ready, placeholder config. Action: python sweep.py GDXU in realistic mode.
+Links: [[F2|relates]] · [[D6|relates]].
+_— captured development@bebe6c5, 2026-06-26_
+
+### H26 — OPEN: Shadow evaluator — replay bars and log what a candidate config would have traded
+A non-trading process that replays bars and logs what a candidate config would have done to a separate table, answering 'would a different model have traded here?' without risking live. Infrastructure that would de-risk all active-engine experiments.
+Links: [[D6|relates]].
+_— captured development@bebe6c5, 2026-06-26_
+
+### H27 — OPEN bug: use_regime_filter runs at default True despite config.USE_REGIME_FILTER=False
+Distinct from the dead slope gate (F26): the vol_regime Bollinger-width filter runs at its default True in backtests despite config being False — a real, non-inert bug silently changing backtest behavior. Needs the runner.py call-site fixed to honor the config flag.
+Links: [[F26|relates]].
+_— captured development@bebe6c5, 2026-06-26_
+
+### D8 — OPEN: Honest fallback (D7) — accept a capital-preservation vehicle if nothing clears 0.5%/mo net OOS
+If no configuration clears ~0.5%/mo net on confirmed fills out-of-sample, accept the strategy as a low-return / near-zero-drawdown capital-preservation vehicle (or re-derive the signal) — a win, not a failure. The forward-looking sibling of D6's static-allocation verdict.
+Links: [[D6|builds_on]] · [[D4|relates]].
+_— captured development@bebe6c5, 2026-06-26_
+
+### H28 — OPEN: A2 fill_source provenance column (actual/inferred/estimated) — highest-value data change
+Without a fill_source provenance column on trades/exports, live PnL is uninterpretable — synthetic/estimated fills silently inflate the headline (the ~24x ALL-vs-CONFIRMED gap). Add an additive column set in trader.py at each close path. Live path: do with the trader stopped.
+Links: [[F13|relates]] · [[D6|relates]].
+_— captured development@bebe6c5, 2026-06-26_
+
+### H29 — OPEN: A1/A4 Phase-0 evidence gate — clean-run protocol + fixed-10% realistic re-sweep
+ops/analyze_run.py renders a clean-run rubric + honest confirmed-fill edge (mostly done); next: run daily, accumulate a week, codify a 'ready for real money' checklist, then a fixed-10% realistic re-sweep (sweep.py TQQQ --sizing fixed --fixed-pct 0.10). The evidence gate that blocks everything; needs the trader stopped.
+Links: [[D6|relates]] · [[H4|relates]].
+_— captured development@bebe6c5, 2026-06-26_
+
+### F28 — The backtest is structurally disconnected from live (sweep optimized a sizing model the live trader doesn't use)
+Backtest optima don't transfer: the sweep optimized an adaptive-Kelly sizing model the live trader (fixed-10%) doesn't use, and execution differs. Motivates workstream C (sizing C1 shipped, fill-model C2 partial, fees C3 shipped, objective C4 partial, walk-forward-primary C5 open).
+Links: [[F2|relates]] · [[H4|relates]] · [[D6|relates]].
+_— captured development@bebe6c5, 2026-06-26_
+
+### H30 — OPEN: Data hardening (workstream F) — yfinance 429 rate-limits + unvalidated data silently corrupt signals
+yfinance is rate-limited (429s) and bad data silently corrupts signals. Partly shipped (retry/backoff, cache fallback, OHLC validation); open: extended OHLC/bar-continuity/DST/730d-clamp checks, 429 mitigation via parquet cache + shared fetch + backup source, a data-quality table, and a point-in-time fetch/feature boundary.
+Links: [[F13|relates]].
+_— captured development@bebe6c5, 2026-06-26_
+
+### F29 — Walk-forward Sharpe annualization bug (sqrt(252) on hourly) — FIXED, recorded so it isn't re-derived
+walk_forward.py annualized hourly returns by sqrt(252), inflating Sharpe ~2.5x and selecting params that underperformed live. Fixed 2026-06-18 (IMPROVEMENT_PLAN B1). Recorded as a methodology finding; residual: the cross-surface Sharpe-consistency check (H3).
+Links: [[F2|relates]] · [[H4|relates]].
+_— captured development@bebe6c5, 2026-06-26_
+
+### E17 — DEAD-END: Bear shorts (Phase A) — 0% WR in 2022
+LONGS_ONLY=False bear shorts had 0% WR in 2022 even at a 2.5% stop; crypto's 4-7% daily range hit stops on noise and the 252-MA lag fired shorts into a +40% recovery. Lesson: don't fight bears with daily-bar shorts; bear alpha = capital preservation. Reverted.
+Links: [[D6|relates]].
+_— captured development@bebe6c5, 2026-06-26_
+
+### E18 — DEAD-END: Bull breakout signal (Phase B) — momentum trap at ATH
+STRONG_BULL breakout entries (price>20d-high + ADX>25 + MACD bull) dropped WR 49.4%->39.6%, firing relentlessly near ATH (RSI 70-80). Lesson: breakout signals are traps at tops; the core is mean-reversion. BULL_BREAKOUT_ENABLED=False.
+Links: [[F16|relates]].
+_— captured development@bebe6c5, 2026-06-26_
+
+### E19 — DEAD-END: four reverted tuning attempts (strict 50-MA gate / 5% target / RSI 38-42 extras / opposing-signal exit)
+Strict 50-MA gate filtered 71/83 trades; 5% STRONG_BULL target dropped WR 49.4%->33.7%; RSI 38-42 extra entries dropped WR 68.8%->57.9%; opposing-signal exit hurt TQQQ (every overbought threshold scored negative). Consolidated 'tried & abandoned' ledger.
+Links: [[F17|relates]] · [[D6|relates]].
+_— captured development@bebe6c5, 2026-06-26_
+
+### H31 — OPEN: External alerting for CRITICAL events (G1) — gates real money
+CRITICAL events (force-finalize, software-stop, desync block, N consecutive signal failures) land in SQLite but page nobody — on a Pi the operator learns at the next dashboard open. Wire a Slack/ntfy/email webhook. Decision gate 2 for real money.
+Links: [[D6|relates]].
+_— captured development@bebe6c5, 2026-06-26_
+
+### H32 — OPEN: Hard live risk limits + circuit breakers + drawdown sizing + kill switch (J1-J4) — gates real money
+Few explicit live risk controls despite near-zero modeled drawdown. Add per-day loss limit / max-consecutive-losses pause / max notional (J1), vol-spike & data-degradation & bracket-failure circuit breakers (J2), an equity-drawdown throttle (J3), and a documented kill switch (J4). Signal-independent; decision gate 2.
+Links: [[D6|relates]].
+_— captured development@bebe6c5, 2026-06-26_
+
+### H33 — OPEN: Root-cause IBKR paper bracket non-fills (E1) — determines funded-account viability
+IBKR paper brackets fill unreliably; the software net masks it but provenance/recovery have gaps. Use tools/diagnose_brackets.py during open positions + TWS/IBC logs to determine if it's submission/OCA/tif/paper-engine. Determines funded-account viability; gates order-type experiments and decision gate 2.
+Links: [[F6|relates]] · [[D6|relates]].
+_— captured development@bebe6c5, 2026-06-26_
+
+### H34 — OPEN: Reporting consistency (H1-H3) — dashboard vs alert PnL mismatch + fill-quality + annualization
+Dashboard (compounded, 62 PROD trades) != alert path (simple-sum, 65 all trades). Extract one shared src/analysis/performance.py; pick compounded + one trade population; label estimated trades; carry a fill-quality note in every view; use trade-frequency Sharpe everywhere.
+Links: [[F13|relates]] · [[D6|relates]].
+_— captured development@bebe6c5, 2026-06-26_
+
+### H35 — OPEN: Config consolidation + dead params + 3-way mode-routing sync + ModeConfig migration (I2)
+~165 params with ~12-15 dead ones; the 3-way mode routing (MODE_MAP / _MODE_TO_ASSET / ASSETS) has no sync check; the ModeConfig dataclass is defined but get_mode_config() is never called; 18 scattered BACKTEST_* date params; adding an instrument touches 4 sites. Consolidate + validate.
+Links: [[F23|relates]].
+_— captured development@bebe6c5, 2026-06-26_
+
+### D9 — OPEN: Branch hygiene (I1) — main still ships the desync & bracket bugs
+Two correctness fixes (reconciliation desync guard, software take-profit) live only on feature branches; cherry-picked clean onto land-* branches but PRs aren't opened, so main STILL ships the desync & bracket bugs. Open PRs, define merge order, land fixes on main.
+Links: [[F6|relates]].
+_— captured development@bebe6c5, 2026-06-26_
+
+### F30 — Test coverage is inverted — the param-selection layer that produced the misleading numbers is F-grade
+Execution mechanics are A-grade but the param-selection layer is F-grade — bugs hide where there are no tests. Workstream B (B1-B9) largely shipped (walk-forward, runner metrics, golden-master, sweep scoring, fetcher, broker mock, trader flow, coverage floor, property tests), surfacing the walk_forward._run_slice crash. Residual: keep the floor, fill remaining live/ gaps.
+Links: [[F2|relates]] · [[H4|relates]].
+_— captured development@bebe6c5, 2026-06-26_
+
+### F31 — MONAD's goal is a high-yield bond-ETF alternative, not growth (long-only; bear alpha = not losing)
+Foundational framing: an actively-traded long-only income engine targeting consistent monthly income with near-zero drawdown; the benchmark is a 4-6% bond ETF, not BTC buy-and-hold. Hard constraints: no ML, no inverse ETFs/derivatives, every feature config-toggleable default-False, .shift(1) no look-ahead. Why D6's static-allocation verdict is an acceptable outcome.
+Links: [[D6|relates]] · [[D4|relates]].
+_— captured development@bebe6c5, 2026-06-26_
+
+### F32 — Root cause of the invalidated headlines: optimistic-vs-realistic backtest mode
+Optimistic mode resolves a both-TP-and-SL bar in the trade's favor; realistic mode assumes the stop hit. Realistic mode collapsed ultra-tight-stop configs and forced full re-sweeps. Decision: all production configs use realistic mode. The mechanism behind the stale-performance warning.
+Links: [[F2|relates]] · [[F13|relates]] · [[D6|relates]].
+_— captured development@bebe6c5, 2026-06-26_
+
+### F33 — The bottleneck is trustworthy evidence + a real edge, NOT features (gate feature work on a demonstrated edge)
+Infra is solid (correctness fixes, autostart, 180+ tests, runnable backtest) but evidence is not (no clean live week, no fill-provenance until A2, an under-tested param-selection layer). Decision: gate all feature work on a demonstrated edge; don't polish an unproven one. The ordering thesis behind every IMPROVEMENT_PLAN workstream.
+Links: [[D6|relates]].
+_— captured development@bebe6c5, 2026-06-26_
+
+### E20 — DONE: mr_daily_lab adversarial-panel hardening of Exp#1/#7 before the D6 closure
+Exp#1/#7 (the RSI-conditioning and 26yr go/no-go experiments, E13/E14) were hardened by an adversarial verification panel before D6's closure was recorded (commit c9a20a8) — recording the verification rigor that strengthened the no-edge verdict.
+Links: [[E13|relates]] · [[E14|relates]] · [[D6|relates]].
+_— captured development@bebe6c5, 2026-06-26_
