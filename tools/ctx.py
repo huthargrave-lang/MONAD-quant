@@ -2153,6 +2153,46 @@ def _web_banner():
     return f"{banner}  {rider}" if banner else rider
 
 
+# Paths where strategy/research findings ORIGINATE (deliberately excludes the ctx kit
+# itself — tools/ctx.py / note.py changes are meta and would make the nudge noisy).
+_RESEARCH_PATHS = ["src/", "sweep.py", "main.py", "experiments.jsonl",
+                   "tools/mr_daily_lab.py", "docs/history/", "CLAUDE.md", "IMPROVEMENT_PLAN.md"]
+
+
+def _uncaptured():
+    """Strategy/research commits landed since RESEARCH_WEB.md last moved — a signal that
+    findings/ideas may not have been captured into the web. Returns
+    (n, base_sha, base_date, sample_commits) or None when there's no git/web history."""
+    last = _git("log", "-1", "--format=%H %cs", "--", "RESEARCH_WEB.md")
+    if not last:
+        return None
+    parts = last.split()
+    base, date = parts[0], (parts[1] if len(parts) > 1 else "")
+    log = _git("log", f"{base}..HEAD", "--oneline", "--no-decorate", "--", *_RESEARCH_PATHS)
+    commits = log.splitlines() if log else []
+    return (len(commits), base, date, commits[:8])
+
+
+def cmd_uncaptured(args):
+    """What strategy/research work landed since the idea web last moved — capture it via
+    note.py so `ctx web --pending` / `ctx frontier` can route to it (keeps the web complete)."""
+    r = _uncaptured()
+    if r is None:
+        print("  (not a git repo, or RESEARCH_WEB.md has no history)")
+        return
+    n, base, date, sample = r
+    if n == 0:
+        print(f"  ✓ idea web is current — RESEARCH_WEB.md moved with the latest research/strategy work ({base[:9]}, {date}).")
+        return
+    print(f"  ⚠ {n} research/strategy commit(s) landed since the idea web last moved ({base[:9]}, {date}).")
+    print("    Capture any new finding / idea / dead-end so routing can surface it:")
+    print("      note.py add --kind {F|H|E|D} --title 'OPEN: ...' --body '...' --link <ID>:relates --commit")
+    for c in sample:
+        print(f"      · {c}")
+    if n > len(sample):
+        print(f"      … and {n - len(sample)} more")
+
+
 def cmd_brief(args):
     """One-screen cold-start orientation packet (composed from the manifest + git +
     research web). Safety + honest-state first, then area/task, then a drill menu."""
@@ -2172,6 +2212,9 @@ def cmd_brief(args):
     banner = _web_banner()
     if banner:
         print(f"HONEST STATE: {banner}\n  → run `ctx perf` · `ctx web --live`\n")
+    u = _uncaptured()
+    if u and u[0] > 0:
+        print(f"UNCAPTURED: {u[0]} research/strategy commit(s) since the web last moved — `ctx uncaptured` (capture via note.py)\n")
     area = args.area if args.area and args.area in m["areas"] else None
     if area:
         a = m["areas"][area]
@@ -2261,6 +2304,7 @@ def main():
     sp.set_defaults(fn=cmd_graph)
     sub.add_parser("health").set_defaults(fn=cmd_health)
     sub.add_parser("claims").set_defaults(fn=cmd_claims)
+    sub.add_parser("uncaptured").set_defaults(fn=cmd_uncaptured)
     sp = sub.add_parser("delta"); sp.add_argument("--since", default=None,
         help="git date ('5 days ago') or revision; default HEAD~12"); sp.set_defaults(fn=cmd_delta)
     sp = sub.add_parser("related"); sp.add_argument("query", nargs="+")

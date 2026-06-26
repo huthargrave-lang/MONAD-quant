@@ -681,6 +681,30 @@ class TestWhyProvenance(unittest.TestCase):
         self.assertIn("F15", out)
 
 
+class TestUncaptured(unittest.TestCase):
+    """ctx uncaptured (DP-13): nudge that strategy/research work landed since the idea
+    web last moved, so findings don't escape uncaptured and routing stays complete."""
+
+    def _run(self):
+        import contextlib, io, types
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ctx.cmd_uncaptured(types.SimpleNamespace())
+        return buf.getvalue()
+
+    def test_uncaptured_reports_web_freshness(self):
+        out = self._run()
+        self.assertTrue("idea web is current" in out or "since the idea web last moved" in out, out)
+
+    def test_uncaptured_helper_resolves_a_base(self):
+        r = ctx._uncaptured()
+        self.assertIsNotNone(r, "RESEARCH_WEB.md should have git history")
+        n, base, date, sample = r
+        self.assertRegex(base, r"^[0-9a-f]{7,40}$")
+        self.assertGreaterEqual(n, 0)
+        self.assertLessEqual(len(sample), 8)
+
+
 class TestPerfHonesty(unittest.TestCase):
     """ctx perf — SF-4: lead with the honest CONFIRMED edge, and make an absent
     state.db a loud warning (not a silent one-liner that invites the SUPERSEDED tables)."""
