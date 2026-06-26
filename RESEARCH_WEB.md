@@ -667,3 +667,28 @@ _— captured development@bebe6c5, 2026-06-26_
 Exp#1/#7 (the RSI-conditioning and 26yr go/no-go experiments, E13/E14) were hardened by an adversarial verification panel before D6's closure was recorded (commit c9a20a8) — recording the verification rigor that strengthened the no-edge verdict.
 Links: [[E13|relates]] · [[E14|relates]] · [[D6|relates]].
 _— captured development@bebe6c5, 2026-06-26_
+
+### E21 — DONE: [ctx] DP-13 — ctx uncaptured nudge (shipped)
+Lists strategy/research commits landed since RESEARCH_WEB.md last moved + the note.py command to capture them; wired a one-line nudge into ctx brief so every cold-start surfaces the gap. Closes the write-back compliance gap so the idea web stays complete (and this very capture was prompted by dogfooding it). Commit 4d8b25d.
+Links: [[F27|relates]].
+_— captured development@4d8b25d, 2026-06-26_
+
+### H36 — OPEN [ctx]: DP-11 — computed-graph cache (no caching today)
+_manifest re-reads context_map.json, _parse_web re-reads RESEARCH_WEB.md, and impact/graph/health/frontier re-walk the AST every call (~0.5s for a full graph build). Open: an mtime/git-sha-invalidated cache or a ctx graph --json sidecar that can NEVER serve stale epistemic data. Low priority — correctness first; current cost is modest.
+Links: [[F27|relates]].
+_— captured development@4d8b25d, 2026-06-26_
+
+### H37 — OPEN [ctx]: DP-12 — audit + harden _classify_edge prose-cue inference
+Untyped [[ID]] links are typed by a nearest-verb heuristic; a misclassification can flip a reliance edge into an exempt one (or vice-versa), silently changing lint. Open: dump every untyped link with its inferred type, quantify false-pos/neg on the stale-cite boundary, and consider requiring explicit [[ID|type]] for links into superseded/contradicted nodes.
+Links: [[F27|relates]].
+_— captured development@4d8b25d, 2026-06-26_
+
+### H38 — OPEN [ctx]: DP-14 — extend ctx route synonyms + stress-test vocabulary coverage
+ctx route keys off ~11 hand-built routing_synonyms; paraphrases/jargon outside them silently fall back to reading whole docs (the failure the layer exists to prevent). Open: generate realistic task phrasings, measure the miss rate, add synonyms (in context_map.json — now self-fenced, so use the escape hatch).
+Links: [[F27|relates]].
+_— captured development@4d8b25d, 2026-06-26_
+
+### H39 — OPEN [ctx]: DP-15 — generate the doc-ownership tables from context_map.json context_docs
+The 'why vs how' topology is hand-restated in 4+ prose docs (AGENT_INDEX/OPERATIONS/AGENTS/AGENT_CONTEXT_PLAN) plus machine-readably in context_docs; only the manifest is CI-bound, so the prose drifts. Open: generate the prose from context_docs (a ctx topology view) or add a CI test that each prose table matches context_docs.
+Links: [[F27|relates]].
+_— captured development@4d8b25d, 2026-06-26_
