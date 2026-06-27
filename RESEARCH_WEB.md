@@ -697,3 +697,13 @@ _— captured development@4d8b25d, 2026-06-26_
 Closes the authority-by-convention root risk — the whole layer only worked if an agent chose to run ctx. ops/session_orient.py is a SessionStart hook (.claude/settings.json) that injects ctx brief + a 'navigate via ctx route, do not bulk-read' directive as additionalContext into every new chat, fail-safe (still injects the directive if ctx cannot run; never blocks a session). So a fresh session is oriented (honest-state, safety, command surface, open-ends) without relying on discipline. Commit c3fcb89. domain: context-web.
 Links: [[F27|relates]].
 _— captured development@c3fcb89, 2026-06-27_
+
+### E23 — DONE: [ctx] ctx serve — the context map as a live read-only web app
+ctx serve [--host --port] runs a stdlib http.server serving the interactive force-graph at / (rebuilt each load, always fresh) — a new chat or the user can SEE the context map in a browser, not just dump HTML. Reuses the ctx graph --html renderer (_render_graph_html). Fence-clean: lives in the ctx CLI per F27 (the context tool serves the context map), not bolted onto the fenced trading dashboard. Running on the Pi at http://100.76.6.75:8787/ over Tailscale. Commit b4490a6. domain: context-web.
+Links: [[F27|relates]].
+_— captured development@b4490a6, 2026-06-27_
+
+### H40 — OPEN [ctx]: embed the context map in the trading dashboard (fenced live/dashboard.py)
+ctx serve gives a standalone context-map web app (port 8787); a tighter integration would add a /context route+page to live/dashboard.py (port 8000) so the map appears alongside the trading monitor. live/ is edit-fenced, so this needs the trader stopped + explicit approval + the escape hatch. Cheaper alternative: just iframe/link to ctx serve from the dashboard. domain: context-web.
+Links: [[F27|relates]].
+_— captured development@b4490a6, 2026-06-27_
