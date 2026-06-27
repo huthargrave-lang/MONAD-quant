@@ -726,5 +726,19 @@ class TestPerfHonesty(unittest.TestCase):
                             "CONFIRMED (honest) must lead the inflated ALL/PROD rows")
 
 
+class TestGraphHtml(unittest.TestCase):
+    """`ctx serve` and `ctx graph --html` share _render_graph_html — it must emit a
+    self-contained page with the data injected (no leftover template placeholders)."""
+
+    def test_render_graph_html_is_self_contained(self):
+        G, adj = ctx.build_graph(include_code=True)
+        html = ctx._render_graph_html(G, adj)
+        self.assertTrue(html.startswith("<!DOCTYPE html>"), html[:40])
+        self.assertIn("MONAD", html)            # __PROJECT__ substituted
+        self.assertNotIn("__DATA__", html)      # graph data injected
+        self.assertNotIn("__PROJECT__", html)
+        self.assertIn('"n":', html)             # compact graph payload present
+
+
 if __name__ == "__main__":
     unittest.main()

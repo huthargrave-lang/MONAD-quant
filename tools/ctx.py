@@ -1621,6 +1621,20 @@ def _graph_compact(G, adj):
     return {"k": kinds, "t": etypes, "n": n, "e": e}
 
 
+def _render_graph_html(G, adj):
+    """The self-contained interactive context-map page (shared by `ctx graph --html` and
+    `ctx serve`): the unified graph compacted to JSON and injected into _GRAPH_HTML."""
+    def esc(s):  # HTML-escape so author-edited titles can't break out of <script> / d3 .html()
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    comp_obj = _graph_compact(G, adj)
+    for nd in comp_obj["n"]:
+        nd[3] = esc(nd[3])
+    comp = json.dumps(comp_obj, separators=(",", ":"))
+    proj = esc(_manifest().get("project", "project"))
+    # substitute __PROJECT__ first so a title literally containing it isn't clobbered
+    return _GRAPH_HTML.replace("__PROJECT__", proj).replace("__DATA__", comp)
+
+
 def cmd_graph(args):
     """Emit the whole unified context map (research web ∪ idea↔code bridges ∪ the
     auto-extracted code graph). `--json` = machine-readable map; `--html` = a
@@ -1642,15 +1656,7 @@ def cmd_graph(args):
         print("  → add an idea-edge [[ID]] to a related node, or a graph_bridge to the code it concerns.")
         return
     if getattr(args, "html", False):
-        def esc(s):  # HTML-escape so author-edited titles can't break out of <script> or inject via d3 .html()
-            return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-        comp_obj = _graph_compact(G, adj)
-        for nd in comp_obj["n"]:
-            nd[3] = esc(nd[3])
-        comp = json.dumps(comp_obj, separators=(",", ":"))
-        proj = esc(_manifest().get("project", "project"))
-        # substitute __PROJECT__ first so a title literally containing it isn't clobbered
-        print(_GRAPH_HTML.replace("__PROJECT__", proj).replace("__DATA__", comp))
+        print(_render_graph_html(G, adj))
         return
     if getattr(args, "json", False):
         nodes = [{"id": nid, "kind": d["kind"], "title": d["title"][:120], "status": d["status"]}
@@ -1664,6 +1670,51 @@ def cmd_graph(args):
     print("  nodes by kind:  " + "  ".join(f"{k}:{v}" for k, v in sorted(nk.items())))
     print("  edges by type:  " + "  ".join(f"{k}:{v}" for k, v in sorted(ek.items())))
     print("  → `ctx graph --json` for the full map (feeds the visual view) · `ctx health` for coverage")
+
+
+def cmd_serve(args):
+    """Serve the LIVE context map as a tiny read-only web app (stdlib http.server, no
+    deps) — the context layer's OWN web view, separate from the (fenced) trading dashboard.
+    GET / = the interactive force-graph (rebuilt each load, always fresh); /health = ok.
+    Bind --host 0.0.0.0 to reach it over the network (e.g. Tailscale). Ctrl-C to stop."""
+    import http.server
+
+    class Server(http.server.ThreadingHTTPServer):
+        allow_reuse_address = True
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):  # keep the console quiet
+            pass
+
+        def _send(self, code, body, ctype="text/html; charset=utf-8"):
+            data = body.encode() if isinstance(body, str) else body
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def do_GET(self):
+            try:
+                path = self.path.split("?", 1)[0]
+                if path in ("/", "/index.html", "/graph"):
+                    G, adj = build_graph(include_code=True)
+                    self._send(200, _render_graph_html(G, adj))
+                elif path == "/health":
+                    self._send(200, "ok\n", "text/plain; charset=utf-8")
+                else:
+                    self._send(404, "not found — try / (the context map)\n", "text/plain; charset=utf-8")
+            except Exception as exc:  # never crash the server on one bad request
+                self._send(500, f"error: {exc}\n", "text/plain; charset=utf-8")
+
+    srv = Server((args.host, args.port), Handler)
+    print(f"ctx serve — context map at http://{args.host}:{args.port}/  (Ctrl-C to stop)")
+    try:
+        srv.serve_forever()
+    except KeyboardInterrupt:
+        print("\nstopped.")
+    finally:
+        srv.server_close()
 
 
 def cmd_health(args):
@@ -2302,6 +2353,10 @@ def main():
     sp.add_argument("--ideas-only", action="store_true", help="drop the auto-extracted code layer")
     sp.add_argument("--orphans", action="store_true", help="list orphan idea nodes (no idea-edge and no bridge)")
     sp.set_defaults(fn=cmd_graph)
+    sp = sub.add_parser("serve")
+    sp.add_argument("--host", default="127.0.0.1", help="bind address (0.0.0.0 to reach over the network)")
+    sp.add_argument("--port", type=int, default=8787, help="port (default 8787)")
+    sp.set_defaults(fn=cmd_serve)
     sub.add_parser("health").set_defaults(fn=cmd_health)
     sub.add_parser("claims").set_defaults(fn=cmd_claims)
     sub.add_parser("uncaptured").set_defaults(fn=cmd_uncaptured)

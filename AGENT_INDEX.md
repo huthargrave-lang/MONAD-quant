@@ -28,6 +28,7 @@ venv/bin/python tools/ctx.py why <node>            # grounding experiments + dec
 venv/bin/python tools/ctx.py contradicts <node>    # what overturns this node / what it overturns
 venv/bin/python tools/ctx.py frontier "<task>" [--budget N]  # task-shaped packet: seeds + corrections, not a fixed summary
 venv/bin/python tools/ctx.py graph [--json|--html]  # the whole unified map (idea web ∪ code graph); --html = interactive browser map
+venv/bin/python tools/ctx.py serve [--host H --port N]  # serve the live context map as a read-only web app (stdlib; 0.0.0.0 for Tailscale)
 venv/bin/python tools/ctx.py health                # context-map health score: coverage + freshness + bridge/lint integrity
 venv/bin/python tools/ctx.py related <node|query>  # semantic search: nodes most similar to a node or free-text (TF-IDF)
 venv/bin/python tools/ctx.py uncaptured            # strategy/research commits since the web last moved — what to capture via note.py
