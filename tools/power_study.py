@@ -145,8 +145,9 @@ def lag1_autocorr(returns: np.ndarray):
 
 def paired_maxdd_diff_boot(active: np.ndarray, static: np.ndarray):
     """Paired block bootstrap of the maxDD difference (active − static), +=active
-    shallower. `static` is the 0.5·bench cash blend (the capital-preservation
-    benchmark). Mirrors mr_daily_lab._gonogo_core.boot_paired."""
+    shallower. `static` is the comparator series (study #1 / E25 passes the 0.5·bench
+    cash blend; study #2 / power_study_6040 passes the 60/40 itself). Mirrors
+    mr_daily_lab._gonogo_core.boot_paired."""
     n = len(active)
     nb = n // BLOCK
     rng = np.random.default_rng(SEED)
