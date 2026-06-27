@@ -112,6 +112,22 @@ The dashboard reads the same `live/state.db`; if `status_check.sh` shows fresh d
 the dashboard reflects it. Cross-check trade count between dashboard and
 `status_check.sh` — they read the same source and should agree.
 
+## Context-web map (separate read-only service, :8001)
+
+The research idea-graph has its own web view, deliberately kept separate from the
+(fenced) trading dashboard — no DB writes, no broker, no secrets:
+
+```bash
+# Ad-hoc, then browse via Tailscale http://100.76.6.75:8001 :
+cd ~/MONAD-quant && venv/bin/python tools/ctx.py serve --host 0.0.0.0 --port 8001
+# Persistent (auto-restart + start on boot — safe for this read-only daemon):
+sudo cp deploy/monad-ctxweb.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now monad-ctxweb
+systemctl status monad-ctxweb        # verify; journalctl -u monad-ctxweb -f for logs
+```
+Endpoints: `GET /` (the interactive map, rebuilt fresh each load), `GET /health`.
+Use `--host 100.76.6.75` instead of `0.0.0.0` to keep it tailnet-only (off the LAN).
+
 ## Safety notes
 - Re-pointing or editing `monad-trader.service` is **out of scope** for routine ops — the trader stays manually started until the system is validated.
 - If `status_check.sh` shows **port 7496 OPEN**, stop immediately — that is the live port and must never be used here.

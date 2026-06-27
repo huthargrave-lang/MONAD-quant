@@ -1,0 +1,31 @@
+[Unit]
+Description=MONAD context-web map (read-only `ctx serve`, separate from the trading dashboard)
+After=network-online.target
+Wants=network-online.target
+# Read-only daemon (no DB writes, no broker, no secrets) — safe to restart freely.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=hudson
+Group=hudson
+WorkingDirectory=/home/hudson/MONAD-quant
+Environment=PYTHONUNBUFFERED=1
+
+# The context layer's OWN web view — deliberately a separate process/port from the
+# (fenced) trading dashboard (:8000). Rebuilds the graph on each load, always fresh.
+# Bind 0.0.0.0 so it is reachable over Tailscale at http://100.76.6.75:8001 (it is
+# also exposed on the LAN; restrict to --host 100.76.6.75 if you want tailnet-only).
+ExecStart=/home/hudson/MONAD-quant/venv/bin/python /home/hudson/MONAD-quant/tools/ctx.py serve --host 0.0.0.0 --port 8001
+
+# Unlike the trader, restarting this is harmless (it only reads notes + code).
+Restart=on-failure
+RestartSec=10
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=monad-ctxweb
+
+[Install]
+WantedBy=multi-user.target
