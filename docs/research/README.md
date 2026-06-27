@@ -31,7 +31,7 @@ Every study uses the same disciplines, which is what makes the collection trustw
 - **One source of truth** — all studies reuse the same vetted primitives; no divergent Sharpe or
   drawdown implementations.
 
-## The eight studies
+## The nine studies
 
 | # | Study | Question | Honest finding | Nodes · Doc |
 |---|---|---|---|---|
