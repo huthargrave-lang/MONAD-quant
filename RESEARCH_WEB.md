@@ -692,3 +692,8 @@ _— captured development@4d8b25d, 2026-06-26_
 The 'why vs how' topology is hand-restated in 4+ prose docs (AGENT_INDEX/OPERATIONS/AGENTS/AGENT_CONTEXT_PLAN) plus machine-readably in context_docs; only the manifest is CI-bound, so the prose drifts. Open: generate the prose from context_docs (a ctx topology view) or add a CI test that each prose table matches context_docs.
 Links: [[F27|relates]].
 _— captured development@4d8b25d, 2026-06-26_
+
+### E22 — DONE: [ctx] SessionStart hook auto-orients new chats via the context map
+Closes the authority-by-convention root risk — the whole layer only worked if an agent chose to run ctx. ops/session_orient.py is a SessionStart hook (.claude/settings.json) that injects ctx brief + a 'navigate via ctx route, do not bulk-read' directive as additionalContext into every new chat, fail-safe (still injects the directive if ctx cannot run; never blocks a session). So a fresh session is oriented (honest-state, safety, command surface, open-ends) without relying on discipline. Commit c3fcb89. domain: context-web.
+Links: [[F27|relates]].
+_— captured development@c3fcb89, 2026-06-27_
