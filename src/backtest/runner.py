@@ -25,7 +25,7 @@ except ImportError:
 from collections import deque
 from src.strategy.engine import build_features, generate_trades, compute_trade_returns
 from src.strategy.sizing import estimate_stats_from_backtest, compute_position_size, position_fraction
-from src.backtest import metrics
+from src.backtest import metrics, uncertainty
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -284,6 +284,23 @@ def run_backtest(df: pd.DataFrame,
     ann_return = metrics.annualize_return(total_return, years)
     bh_ann_return = metrics.annualize_return(bh_return, years)
 
+    # ── Uncertainty bands on the headline point estimates ──────────────────
+    # Every metric above is a single number; band each so it's calibrated rather
+    # than over-trusted — this project's recurring failure mode (RESEARCH_WEB
+    # F2 holdout bias, F13 morning artifact, F18 ~3x-inflated t-stats). Bootstrap
+    # the SAME sized per-trade equity returns the headline Sharpe uses, so each
+    # band's point estimate equals the number printed below.
+    try:
+        equity_returns = equity.pct_change().dropna().to_numpy()
+        wins = int(round(stats["win_rate"] * stats["total_trades"]))
+        uncertainty_bands = uncertainty.summarize(
+            equity_returns, wins=wins, trades_per_year=trades_per_year,
+            initial_capital=initial_capital, n_boot=1000, n_paths=1000, seed=0,
+        )
+    except Exception as exc:  # a reporting band must never break a backtest
+        uncertainty_bands = None
+        print(f"       (uncertainty bands unavailable: {exc})")
+
     # Monthly breakdown using actual per-trade capital returns
     monthly_returns = metrics.monthly_returns(pd.Series(trade_capital_returns, dtype=float))
     monthly_counts = trade_returns.resample("ME").count()
@@ -315,6 +332,7 @@ def run_backtest(df: pd.DataFrame,
         "slippage_pct":    slippage_pct,
         "trades_per_year": round(trades_per_year, 1),
         "exit_breakdown":  exit_breakdown,
+        "uncertainty":     uncertainty_bands,
     }
 
     # Print summary
@@ -324,6 +342,11 @@ def run_backtest(df: pd.DataFrame,
     print(f"       Sharpe Ratio:   {sharpe:.3f}  (annualized by {trades_per_year:.0f} trades/yr)")
     print(f"       Max Drawdown:   {max_drawdown*100:.2f}%")
     print(f"       Final Capital:  ${equity.iloc[-1]:,.2f}")
+    if uncertainty_bands is not None:
+        print()
+        for line in uncertainty.format_report(uncertainty_bands).splitlines():
+            print(f"       {line}")
+        print()
     if sizing_mode == "fixed":
         print(f"       Sizing:         Fixed {fixed_pos_pct*100:.0f}% per trade")
     elif sizing_mode == "kelly_clamped":
