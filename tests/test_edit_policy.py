@@ -58,5 +58,32 @@ class TestSecretScan(unittest.TestCase):
             os.unlink(tmp)
 
 
+class TestSessionOrient(unittest.TestCase):
+    """The SessionStart hook (ops/session_orient.py) must emit a valid additionalContext
+    envelope that pushes navigation via ctx — and never crash (fail-safe)."""
+
+    def _run(self, project_dir):
+        e = dict(os.environ)
+        e["CLAUDE_PROJECT_DIR"] = project_dir
+        return subprocess.run([sys.executable, os.path.join(ROOT, "ops", "session_orient.py")],
+                              input="{}", capture_output=True, text=True, env=e)
+
+    def test_emits_valid_session_start_context(self):
+        r = self._run(ROOT)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(r.stdout)
+        self.assertEqual(d["hookSpecificOutput"]["hookEventName"], "SessionStart")
+        ac = d["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("NAVIGATION", ac)
+        self.assertIn("ctx.py route", ac)
+
+    def test_fail_safe_when_ctx_unavailable(self):
+        # A bad project dir means `ctx brief` can't run, but the directive must still inject.
+        r = self._run("/nonexistent")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        ac = json.loads(r.stdout)["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("NAVIGATION", ac)
+
+
 if __name__ == "__main__":
     unittest.main()
