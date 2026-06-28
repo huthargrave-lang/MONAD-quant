@@ -539,6 +539,95 @@ class TestUnifiedGraph(unittest.TestCase):
         self.assertIn("F13", f3_in)
 
 
+class TestGraphHtmlExplore(unittest.TestCase):
+    """The static `ctx graph --html` UI should keep its selected-node prompt drawer.
+
+    This is template-level because the map is emitted as one self-contained HTML blob;
+    browser behavior is smoke-checked separately by parsing the generated inline JS.
+    """
+
+    def test_explore_prompt_drawer_is_embedded(self):
+        html = ctx._GRAPH_HTML
+        for needle in (
+            "function makePrompts",
+            "function renderPrompts",
+            "data-copy",
+            "fallbackCopy",
+            "Evidence Chain",
+            "Config Value",
+            "Code Impact",
+            "Area Brief",
+            "--map:#02040a",
+            "const dark=true",
+            "function targetZ",
+            "function nodeZ",
+            "function init3D",
+            "function relax3D",
+            "function orbPath",
+            "function haloOpacity",
+            "node-orb mark",
+            "node-halo",
+            "node-corona",
+            "node-core",
+            "node-label",
+            ".attr('class','node')",
+            ".attr('data-id',d=>d.id)",
+            ".classed('selected'",
+            "orbGlowStrong",
+            "orbHalo",
+            "function viewCenter",
+            "x:(W/2-(zt.x||0))/k",
+            "dataset.viewCx",
+            "dataset.orbitRy",
+            "dataset.fastRender",
+            "simSettling=true",
+            "function setFastRender",
+            "function settleRenderQuality",
+            "function filterGlow",
+            "fastRender&&!vivid",
+            "renderFrame%12",
+            "renderFrame%24",
+            "suppressZoomLabel",
+            "alphaDecay(.055)",
+            "alphaMin(.02)",
+            "cruiseFrame++%3",
+            "!suppressZoomLabel&&!fastRender",
+            "setOrbit(a.rx+(b.rx-a.rx)*e,a.ry+dy*e,false)",
+            "function projectPoint",
+            "function projectNode",
+            "function labelBox",
+            "function layoutLabels",
+            "function placeTip",
+            "function showTip",
+            "boxesOverlap",
+            "text-anchor",
+            ".attr('data-z'",
+            ".attr('data-depth'",
+            "init3D();",
+            "sim.on('tick',()=>{relax3D(sim.alpha());render();});",
+            "pointerdown.orbit",
+            "!ev.shiftKey",
+            'id="flat"',
+            "function flatView",
+            "function orbitToNode",
+            "function egoNodes",
+            "function transformForEgo",
+            "function applyEgoFrame",
+            "function cruiseOrbit",
+            "function stopCruise",
+            "dur=52000",
+            "segs=views.length-1",
+            "cruiseAnim=requestAnimationFrame(step)",
+            "if(sel!==null){const d=nodes[sel],frame=()=>applyEgoFrame",
+            "animateOrbit(0,0,420);",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, html)
+        for needle in ("spaceDots", "space-dot", "function renderSpace", "node.append('circle')", "function starPath", "node-star"):
+            with self.subTest(needle=needle):
+                self.assertNotIn(needle, html)
+
+
 class TestFrontier(unittest.TestCase):
     """Context Web v2 #7 — task-shaped progressive disclosure: seeds + corrections,
     budget-bounded, not a fixed summary."""

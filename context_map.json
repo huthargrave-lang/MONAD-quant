@@ -102,7 +102,15 @@
        "note": "the penalty-inversion fix lives here: the `if base <= 0: return base` guard skips the multiplicative penalties on net-negative configs (shrinking a negative base toward zero would otherwise IMPROVE losing configs). Fixed in 084f15e."},
       {"node": "F23", "relation": "implemented_in",
        "code": ["src/signals/momentum.py::momentum_signal", "live/signals.py::get_current_signal"],
-       "note": "momentum_signal recomputes RSI/MACD with HARDCODED defaults (compute_rsi/compute_macd take no period args → RSI 14, MACD 12/26/9), so the per-mode RSI_PERIOD_*/MACD_* config never reaches the entry signal — only the oversold/overbought THRESHOLDS are threaded through. The armed bot rides this path via get_current_signal → build_features → add_momentum_features. The config's 'DEAD LEVER' comments are empirically right but MISATTRIBUTE the cause to market structure rather than this code path."}
+       "note": "momentum_signal recomputes RSI/MACD with HARDCODED defaults (compute_rsi/compute_macd take no period args → RSI 14, MACD 12/26/9), so the per-mode RSI_PERIOD_*/MACD_* config never reaches the entry signal — only the oversold/overbought THRESHOLDS are threaded through. The armed bot rides this path via get_current_signal → build_features → add_momentum_features. The config's 'DEAD LEVER' comments are empirically right but MISATTRIBUTE the cause to market structure rather than this code path."},
+      {"node": "D7", "relation": "implemented_in",
+       "code": ["tools/ctx.py::_GRAPH_HTML"],
+       "guarded_by": ["tests/test_research_web.py::TestGraphHtmlExplore"],
+       "note": "Selected-node Explore prompts are deterministic, static HTML/JS in the ctx graph template; no backend or LLM credentials are required for the first implementation."},
+      {"node": "D8", "relation": "implemented_in",
+       "code": ["tools/ctx.py::_GRAPH_HTML"],
+       "guarded_by": ["tests/test_research_web.py::TestGraphHtmlExplore"],
+       "note": "Shift-drag orbit around the current viewport center, focus-preserving flat camera reset, dark outer-space canvas, node-click continuous slow orbit cruise, deterministic per-node z/depth relaxation, soft layered SVG glow-orb node marks, collision-aware labels/tooltips, and fast-render motion quality are 3D-vector controls inside the static ctx graph template; motion mode disables distant blur filters, throttles depth/label work, skips fast zoom label recompute, and shortens force settling; node selection frames the selected node plus visible one-hop neighbors, and no synthetic non-node dots are drawn in the background."}
     ]
   },
 
