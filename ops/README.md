@@ -105,9 +105,20 @@ no raw `.db`. Review, then commit the folder if you want it tracked.
 ```bash
 # Source DB freshness:
 bash ~/MONAD-quant/ops/status_check.sh        # data_age should be < 20 min in market hours
-# Dashboard (read-only FastAPI), then browse via Tailscale http://100.76.6.75:8000 :
+```
+
+The dashboard normally runs as **`monad-dashboard.service`**, coupled to the trader
+(up iff the trader is up — see OPERATIONS.md §6), bound to the Tailscale IP. Browse it
+at **http://100.76.6.75:8000** whenever the trader is active. Manage it with:
+
+```bash
+systemctl status monad-dashboard.service          # is it up?
+sudo systemctl start  monad-dashboard.service      # manual start (no-op while trader up)
+journalctl -u monad-dashboard.service -n 50        # logs
+# Ad-hoc localhost-only run (e.g. on-Pi check while the service is stopped):
 cd ~/MONAD-quant && venv/bin/python -m uvicorn live.dashboard:app --host 127.0.0.1 --port 8000
 ```
+
 The dashboard reads the same `live/state.db`; if `status_check.sh` shows fresh data,
 the dashboard reflects it. Cross-check trade count between dashboard and
 `status_check.sh` — they read the same source and should agree.

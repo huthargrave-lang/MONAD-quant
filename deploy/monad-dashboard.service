@@ -1,0 +1,44 @@
+[Unit]
+Description=MONAD trading dashboard (read-only FastAPI paper monitor) — bound to the trader
+After=network-online.target tailscaled.service monad-trader.service
+Wants=network-online.target tailscaled.service
+# Tightly coupled to the trader: the dashboard runs IFF the trader runs.
+#   BindsTo  => when monad-trader.service stops/crashes/goes inactive for ANY reason,
+#               this dashboard is stopped too (no orphaned dashboard with no trader).
+#   After    => start the dashboard only once the trader unit has come up.
+# The start side is handled by [Install] WantedBy= below (a .wants symlink), so we
+# NEVER edit the armed monad-trader.service unit — the coupling is declared entirely
+# from this side.
+BindsTo=monad-trader.service
+# Read-only daemon (no DB writes — dashboard init_db() is an idempotent no-op; no
+# broker, no secrets). Safe to restart freely.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=hudson
+Group=hudson
+WorkingDirectory=/home/hudson/MONAD-quant
+Environment=PYTHONUNBUFFERED=1
+Environment=TZ=America/New_York
+
+# FastAPI monitoring UI for the live paper trader. Bound to the Tailscale IP so it is
+# reachable over the tailnet at http://100.76.6.75:8000 (NOT exposed on the LAN).
+# Must run from repo root — dashboard.py imports src.analysis.run_window. Read-only:
+# it serves state.db and never writes trading/order state.
+ExecStart=/home/hudson/MONAD-quant/venv/bin/python -m uvicorn live.dashboard:app --host 100.76.6.75 --port 8000
+
+# Unlike the trader, restarting this is harmless (it only reads state.db + code).
+Restart=on-failure
+RestartSec=10
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=monad-dashboard
+
+[Install]
+# `systemctl enable` creates a .wants symlink under monad-trader.service.wants/, so
+# starting the trader (via the 09:22 ET monad-trader.timer, or a manual start) pulls
+# the dashboard up alongside it. monad-trader.service itself is left untouched.
+WantedBy=monad-trader.service
