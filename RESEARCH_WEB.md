@@ -55,6 +55,7 @@ split (pooled t≈2.1), **collapses to t=0.37 on recent-only data**, second-half
 has a losing fold. The live paper deployment is on a fragile, leveraged instrument. → [[D1]], [[D3]].
 
 ### F7 — THE MECHANISM: stop-vs-intrabar-noise ratio drives win rate
+domain: monad_strategy
 The same fixed ~0.7% stop is used on every instrument; the edge difference is entirely
 **how often a bar's own intrabar range can trigger the stop on noise alone**, `P(bar range > stop)`:
 3x ETFs **94–100%** (stop always inside noise → near coin-flip stop-outs) vs QQQ **37%**,
@@ -189,6 +190,7 @@ indices) by it, then leak-free-validate the top candidates. → operationalized 
 ### E2 — Fixed-10% realistic HOLDOUT sweep (2026-06-19)
 `sweep.py TICKER --sizing fixed --fixed-pct 0.10 --mode realistic`. Biased by holdout selection ([[F2]]). Feeds [[F1]].
 ### E3 — Leak-free walk-forward (PRIMARY evidence)
+domain: backtest_engine
 `tools/walkforward_eval.py`. Produced [[F3]], [[F4]], [[F5]], [[F6]].
 ### E4 — RESOLVED: edge robustness & confidence
 QQQ robust (t 3.3–4.3, survives zero-selection), TQQQ fragile (t 0.37 on recent data); both
@@ -471,6 +473,7 @@ Links: [[F27|relates]] · [[F13|relates]] · [[D6|relates]].
 _— captured development@1806b74, 2026-06-26_
 
 ### H9 — OPEN [ctx]: VD-1 — F23 armed RSI/MACD config-ignored bug is UNGUARDED; write an asserting test
+domain: context_kit
 F23 records a LIVE bug: momentum_signal/get_current_signal recompute RSI/MACD with hardcoded defaults, ignoring per-mode config, and the armed bot rides this path. ctx claims confirms F23 UNGUARDED. Open: write a test that ASSERTS the per-mode periods are ignored (flips F23 GUARDED) + add a guarded_by bridge; scope the config-routing fix on a branch without touching the armed path.
 Links: [[F27|relates]] · [[F23|relates]].
 _— captured development@1806b74, 2026-06-26_
@@ -626,6 +629,7 @@ Links: [[D6|relates]].
 _— captured development@bebe6c5, 2026-06-26_
 
 ### H33 — OPEN: Root-cause IBKR paper bracket non-fills (E1) — determines funded-account viability
+domain: live_ops
 IBKR paper brackets fill unreliably; the software net masks it but provenance/recovery have gaps. Use tools/diagnose_brackets.py during open positions + TWS/IBC logs to determine if it's submission/OCA/tif/paper-engine. Determines funded-account viability; gates order-type experiments and decision gate 2.
 Links: [[F6|relates]] · [[D6|relates]].
 _— captured development@bebe6c5, 2026-06-26_

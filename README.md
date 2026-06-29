@@ -2,6 +2,11 @@
 
 > Mean-reversion strategy engine for leveraged ETFs and BTC. Long-only,
 > regime-gated, bracket-exit. Currently in paper-testing / validation.
+>
+> **What this really is →** an open-source **evidence graph + validation funnel + context
+> web for quant research**. The trading bot documented below is the *reference
+> implementation* that exercises the substrate end-to-end — the demo, not the whole
+> product. Direction: **[VISION.md](VISION.md)** · graph model: **[SCHEMA.md](SCHEMA.md)**.
 
 ---
 

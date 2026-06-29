@@ -227,6 +227,38 @@ edge vocabulary; **MINOR** for additive optional fields/tags.
 | **1 — engine extraction** | Split the generic graph engine from the MONAD/IBKR/ops adapter; externalize `KINDS`/`EDGE_TYPES` to config. *(Separate task — not started.)* | Yes. |
 | **3 — domain kinds** | Widen the ID guard `^[FHED]\d+$` to admit `DS/R/SG/ST/BM/EM/RM`; add the proposed edges to `EDGE_TYPES`; update `note.py`/`ctx.py` + the CI guards; then migrate content. | Yes. Re-validate everything. |
 
+### 9.1 Domain-tag backfill plan (Stage 0.5)
+
+Goal: give every existing node a [`domain:` tag](#7-domain-tags) so the flat F/H/E/D
+namespace splits cleanly into sub-projects. **Metadata-only: it adds no nodes, links,
+or edges, so the node count and lint problem-count stay unchanged.**
+
+**Assignment heuristic** (apply the first that matches; record one PRIMARY domain per node):
+
+1. Title carries `[ctx]` **or** body has `domain: context-web` → **`context_kit`** (also normalize the legacy `domain: context-web` → `domain: context_kit`).
+2. About IBKR / brackets / fills / pending-close / deploy / monitoring → **`live_ops`**.
+3. Names a backtest/sweep/walk-forward harness or methodology (`sweep.py`, `walkforward_eval`, fairness modes, Kelly sizing) → **`backtest_engine`**.
+4. A one-off study write-up (maps to a `docs/research/D6_*` file) → **`research_study`**.
+5. About the schema / OSS foundation (`SCHEMA.md`, `VISION.md`) → **`public_schema`**.
+6. Otherwise (strategy edge, signal, instrument finding, go/no-go) → **`monad_strategy`** (default).
+
+**Batching** (small, reviewable passes; `ctx web --lint` clean after each):
+
+- **Batch A — `context_kit`:** the ~21 `[ctx]` nodes + normalize the 5 legacy `context-web` tags.
+- **Batch B — `backtest_engine` + `live_ops`.**
+- **Batch C — `research_study` + remainder → `monad_strategy`.**
+
+**Rules:** one `domain:` line per node, in the body (after the status comment if present,
+else the first body line); multi-domain nodes pick the PRIMARY (a future schema rev may
+allow a list). Safe writer: a `note.py tag <ID> --domain <d>` subcommand or a one-off
+lint-gated script — **not hand edits at scale** (that tooling is Stage 0.5+, not this pass).
+Validate: node count and `ctx web --lint` problem-count unchanged before/after each batch.
+
+**Status — plan only.** This pass adds **4 example tags** (`F7`→`monad_strategy`,
+`E3`→`backtest_engine`, `H9`→`context_kit`, `H33`→`live_ops`) to demonstrate the
+convention; the 5 legacy `context-web` tags and the remaining ~126 nodes are intentionally
+left for the batched backfill.
+
 ---
 
 ## 10. Maintainer pre-publication checklist
