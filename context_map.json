@@ -133,9 +133,9 @@
     },
     "backtest": {
       "summary": "Backtest loop + performance metrics + data ingestion; universal param sweep entrypoint.",
-      "files": ["src/backtest/runner.py", "src/backtest/metrics.py", "src/data/fetcher.py", "tools/fetch_fullsession.py", "main.py", "sweep.py", "fee_analysis.py"],
+      "files": ["src/backtest/runner.py", "src/backtest/metrics.py", "src/backtest/uncertainty.py", "src/data/fetcher.py", "tools/fetch_fullsession.py", "main.py", "sweep.py", "fee_analysis.py"],
       "entrypoints": ["src/backtest/runner.py::run_backtest", "src/backtest/metrics.py::annualized_sharpe", "src/data/fetcher.py::fetch_yfinance", "tools/fetch_fullsession.py::fetch_full"],
-      "tests": ["tests/test_runner_metrics.py", "tests/test_fetcher.py"],
+      "tests": ["tests/test_runner_metrics.py", "tests/test_fetcher.py", "tests/test_uncertainty.py"],
       "docs": ["CLAUDE.md"],
       "do_not_touch_without_approval": false
     },
@@ -204,7 +204,7 @@
   ],
 
   "coverage_allowlist": {
-    "_README": "First-party .py modules intentionally NOT owned by an 'areas' entry, with the reason. Enforced by tests/test_area_coverage.py: every first-party module must be claimed by an area OR listed here (so a NEW orphaned module fails CI and gets triaged, instead of silently going un-mapped). __init__.py are empty package markers; the read-only CLIs below are agent/diagnostic/research tools (ctx.py + diagnose_brackets.py are advertised in tools_readonly; mr_daily_lab.py is a network-fetching research harness), not strategy areas.",
+    "_README": "First-party .py modules intentionally NOT owned by an 'areas' entry, with the reason. Enforced by tests/test_area_coverage.py: every first-party module must be claimed by an area OR listed here (so a NEW orphaned module fails CI and gets triaged, instead of silently going un-mapped). __init__.py are empty package markers; the read-only CLIs below are agent/diagnostic/research tools (ctx.py + diagnose_brackets.py are advertised in tools_readonly; mr_daily_lab.py is a network-fetching research harness, and the tools/*_study.py files are one-off RESEARCH_WEB study scripts of the same class), not strategy areas.",
     "modules": [
       "config_modules/__init__.py",
       "live/__init__.py",
@@ -218,7 +218,19 @@
       "tools/ctx.py",
       "tools/diagnose_brackets.py",
       "tools/mr_daily_lab.py",
-      "tools/note.py"
+      "tools/note.py",
+      "tools/bond_ladder_study.py",
+      "tools/crisis_overlay_study.py",
+      "tools/forward_expectation_study.py",
+      "tools/gold_oos_study.py",
+      "tools/income_universe_study.py",
+      "tools/live_backtest_reconciliation_study.py",
+      "tools/overlay_build_study.py",
+      "tools/power_study.py",
+      "tools/power_study_6040.py",
+      "tools/static_product_study.py",
+      "tools/vol_target_study.py",
+      "tools/weight_optimization_study.py"
     ]
   },
 
