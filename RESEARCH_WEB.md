@@ -1,4 +1,5 @@
 # MONAD-quant — Research Idea Web
+<!-- schema_version: 0.1 -->
 
 > A traversable graph of what we **know** (Findings), what we're **testing**
 > (Hypotheses), how we **test** it (Experiments), and what we **decide** (Gates).
@@ -6,6 +7,7 @@
 > Append nodes; supersede rather than rewrite. **Evidence-first:** a claim is only
 > as strong as the Experiment behind it, and only OOS, leak-free, cost-aware
 > numbers count as evidence (see [[E3]]).
+> **Schema:** v0.1 — node kinds, edge vocab & write rules are specified in [SCHEMA.md](SCHEMA.md).
 >
 > **⚠ HEADLINE CORRECTED (2026-06-19, later):** the QQQ/SPY edge above was a
 > MORNING-ONLY DATA-SAMPLING ARTIFACT ([[F13]]). On full-session, live-representative

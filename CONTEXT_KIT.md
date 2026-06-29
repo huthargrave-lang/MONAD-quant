@@ -8,6 +8,8 @@
 > concerns), guards it against rot in CI, **measures its own health**, and renders an
 > **interactive visual map**. Pure stdlib (the runtime needs no dependency). Lift it into any repo.
 
+**Schema spec:** node kinds, edge vocabulary, and write rules live in [`SCHEMA.md`](SCHEMA.md) — start there.
+
 ## The pieces (engine vs content)
 
 | File | Role | Portable? |
