@@ -141,9 +141,9 @@
     },
     "optimization": {
       "summary": "Parameter-SELECTION decision layer: walk-forward optimizer + the sweep's scoring/sizing/cost/reproducibility helpers. This is what picks production params — test it, don't trust it blindly (its metrics were the misleading headline source).",
-      "files": ["src/optimization/walk_forward.py", "src/optimization/sweep_scoring.py", "src/optimization/sweep_sizing.py", "src/optimization/sweep_costs.py", "src/optimization/sweep_repro.py", "tools/walkforward_eval.py", "tools/instrument_screen.py", "RESEARCH_WEB.md"],
+      "files": ["src/optimization/walk_forward.py", "src/optimization/sweep_scoring.py", "src/optimization/sweep_sizing.py", "src/optimization/sweep_costs.py", "src/optimization/sweep_repro.py", "tools/walkforward_eval.py", "tools/instrument_screen.py", "src/optimization/funnel.py", "tools/strategy_funnel.py", "RESEARCH_WEB.md"],
       "entrypoints": ["src/optimization/walk_forward.py::walk_forward_optimize", "src/optimization/sweep_scoring.py::live_score", "src/optimization/sweep_scoring.py::ev_score", "src/optimization/sweep_sizing.py::resolve_sizing", "src/optimization/sweep_costs.py::round_trip_cost_pct", "src/optimization/sweep_repro.py::data_fingerprint", "tools/walkforward_eval.py::walkforward", "tools/instrument_screen.py::screen"],
-      "tests": ["tests/test_walk_forward.py", "tests/test_sweep_scoring.py", "tests/test_sweep_sizing.py", "tests/test_sweep_costs.py", "tests/test_sweep_repro.py"],
+      "tests": ["tests/test_walk_forward.py", "tests/test_sweep_scoring.py", "tests/test_sweep_sizing.py", "tests/test_sweep_costs.py", "tests/test_sweep_repro.py", "tests/test_funnel.py"],
       "docs": ["CLAUDE.md", "IMPROVEMENT_PLAN.md"],
       "do_not_touch_without_approval": false
     },
