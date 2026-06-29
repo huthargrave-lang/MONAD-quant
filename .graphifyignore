@@ -1,0 +1,63 @@
+# .graphifyignore — what Graphify must NEVER ingest from this repo.
+#
+# Gitignore syntax; Graphify merges this with .gitignore and evaluates it LAST,
+# so it only ever EXCLUDES more (never re-includes).
+#
+# WHY THIS EXISTS: Graphify sends docs/markdown/PDF/image content — and all
+# relationship inference / cluster naming — to an EXTERNAL LLM by default
+# (Anthropic/OpenAI/Gemini) unless pointed at a local Ollama backend. Code is
+# extracted locally (tree-sitter). Until this repo is scrubbed for public release
+# (see SCHEMA.md §10), keep every secret, raw DB, runtime/live-trading state, and
+# personal/ops artifact OUT of any Graphify corpus. Also disable query logging:
+#   GRAPHIFY_QUERY_LOG_DISABLE=1   (default log: ~/.cache/graphify-queries.log)
+
+# ── Secrets — never ─────────────────────────────────────────────────────────
+.env
+.env.*
+*.ibkr-paper.env
+.ibkr-paper.env
+
+# ── Databases / raw state — never ───────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+state.db
+live/state.db
+
+# ── Runtime / operational state — never ─────────────────────────────────────
+data/live_runs/
+local_ops/
+local_logs/
+local_runtime/
+local_backups/
+*.pid
+*.tmp
+
+# ── Data + heavy artifacts (also keeps them off the LLM path) ───────────────
+data/cache/
+*.csv
+sweep_results_*.json
+experiments.jsonl
+*.png
+*.jpg
+
+# ── Build / env / caches ────────────────────────────────────────────────────
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.hypothesis/
+.coverage*
+.git/
+
+# ── Graphify's own output (don't ingest it; don't commit it yet) ────────────
+graphify-out/
+
+# ── Live-ops + personal/ops docs: EXCLUDED BY DEFAULT to avoid exfiltrating
+#    un-scrubbed IBKR / host / network / account material to a cloud LLM.
+#    To map these, FIRST scrub (SCHEMA.md §10) OR use a LOCAL Ollama backend,
+#    then delete the relevant lines below. ──────────────────────────────────
+OPERATIONS.md
+live/
+ops/
+deploy/
