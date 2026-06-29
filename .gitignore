@@ -26,6 +26,9 @@ local_backups/
 local_runtime/
 # Strategy-funnel offline research output (survivor/rejection cards)
 data/funnel_runs/
+# Graphify ingestion output + the bridge's suggestions (never auto-committed)
+graphify-out/
+data/graphify_suggestions/
 
 # Coverage artifacts (CI/dev only — see .github/workflows/test.yml)
 .coverage
