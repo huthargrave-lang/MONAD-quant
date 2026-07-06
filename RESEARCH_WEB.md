@@ -96,6 +96,7 @@ CAVEAT: hour-subsampling also recomputes indicators on a coarser series — the 
 is a real DAILY-bar test ([[E9]]), not just hour-filtering.
 
 ### F15 — The edge is REAL at ~3 bars/day; the live bot just trades the wrong frequency
+<!-- status: superseded; by: F22; reason: reversed; at: 2026-07-06 -->
 E9 (same full-session data, proper OHLC resample to N bars/day): QQQ at **3 bars/day = +0.37%/mo,
 Sharpe 4.15, DD −0.6%** (≈4.5% APY — the conservative goal); SPY 3/day +0.22%/mo Sh 2.43. But at
 7 bars/day (hourly, what the LIVE bot trades) both are NEGATIVE; at 2/day weaker; 1/day (pure daily)
@@ -228,7 +229,9 @@ high-Sharpe product AND **switch instrument focus from 3x ETFs to un-leveraged b
 Caveats: morning-only data ([[F10]]), edge decaying ([[F3]]), TQQQ fragile ([[F6]]).
 **CORRECTION ([[F13]]):** the high-Sharpe premise above ([[F3]], [[F4]], [[F8]]) was a MORNING-ONLY
 data-sampling artifact — on full-session, live-representative data the hourly edge is FLAT/negative.
-The reframe holds only at a ~3-bars/day timescale ([[F15]]), NOT the hourly bot this gate was about.
+The reframe held only at a ~3-bars/day timescale ([[F22]] — superseding [[F15]]: the 3/day
+per-instrument measurement is real but does NOT survive a static-blend benchmark as a portfolio),
+NOT the hourly bot this gate was about.
 Overtaken in substance by the sobering update [[D4]] and the final go/no-go [[D6]] (the evidence-backed
 recommendation is a STATIC allocation, not the active engine).
 
@@ -255,8 +258,9 @@ sleeves ([[H8]]) — NOT leverage (the 3x ETFs hit 3.75%+ but at −25% to −40
 violating the capital-preservation mandate). So: **the goal is reachable, but as a diversified DAILY
 mean-reversion product with a horizon exit and a bear gate — not the hourly %-stop bot.** Concrete next
 build: daily MR + time/horizon exit + slope-regime gate, multi-instrument portfolio ([[H8]]). The
-single highest-value change is the EXIT ([[F17]]). (1-bars/day hourly note [[F15]] is the weaker, less
-robust cousin; the daily horizon-exit result supersedes it as the recommended direction.)
+single highest-value change is the EXIT ([[F17]]). (The ~3-bars/day note [[F15]] was the weaker, less
+robust cousin and is formally superseded by [[F22]] — its timing does not survive the static-blend
+benchmark; the daily horizon-exit result replaced it as the recommended direction.)
 
 ---
 
@@ -478,10 +482,11 @@ F23 records a LIVE bug: momentum_signal/get_current_signal recompute RSI/MACD wi
 Links: [[F27|relates]] · [[F23|relates]].
 _— captured development@1806b74, 2026-06-26_
 
-### D7 — OPEN [ctx]: VD-2 — should F15 be formally superseded by F22? (contradicted-but-current limbo)
-F15 ('edge real at ~3 bars/day') is status:current but contradicted by the more rigorous F22->D6, producing 2 live advisories (D1,D4). Its per-instrument measurement still holds; F22 overturns the actionable framing, and the contradicts (not supersedes) edge may be intentional. Open decision: tombstone F15 by F22 (and re-point D1/D4 to cite F22 first to avoid a stale-cite) vs leave it disputed-but-live; optionally escalate 'N current nodes contradicted by a later node' to a scored health deduction.
-Links: [[F27|relates]] · [[F15|relates]] · [[F22|relates]] · [[D6|relates]].
-_— captured development@1806b74, 2026-06-26_
+### D7 — RESOLVED [ctx]: VD-2 — F15 formally superseded by F22 (reason: reversed)
+F15 ('edge real at ~3 bars/day') was status:current but contradicted by the more rigorous F22->D6, producing 2 live advisories (D1,D4). Its per-instrument measurement still holds; F22 overturns the actionable framing. The open decision was: tombstone F15 by F22 (re-pointing D1/D4 to cite F22 first) vs leave it disputed-but-live; optionally escalate 'N current nodes contradicted by a later node' to a scored health deduction.
+**RESOLUTION (2026-07-06): tombstoned.** F15 is superseded by [[F22]] (reason: reversed) — its HEADLINE claim ('the edge is REAL at ~3 bars/day', an actionable lever) did not survive the honest static-blend benchmark ([[F22]]), the 26yr confirmation ([[F25]]), or the D6 arc; a node whose headline is overturned should not sit status:current on the strength of a surviving footnote (the per-instrument 3/day Sharpe measurement, which the tombstoned body preserves). D1 and D4 were re-pointed to cite [[F22]] first in the same change — note.py supersede REFUSES the write until they are, so the stale-cite guard works as designed. The optional escalation ('N current findings contradicted by a later node' as a scored health deduction) is NOT built here: it is exactly [[H11]]'s semantic-staleness detector — deferred there rather than duplicated.
+Links: [[F27|relates]] · [[F15|relates]] · [[F22|relates]] · [[D6|relates]] · [[H11|relates]].
+_— captured development@1806b74, 2026-06-26; resolved development@5bc7d7e, 2026-07-06_
 
 ### H10 — OPEN [ctx]: DP-3 — add reversal-arc edges so ctx walk/why narrates Sharpe-94 -> static-allocation end-to-end
 The repo's most important epistemic story (headline Sharpe 25-94 -> D6 static allocation, via F13/F14 morning-only artifact -> F15/F16 daily edge -> F17/F19 stop destroys it -> F22/D6) should be fully walkable with ctx walk/why alone. Open: test whether traversal reconstructs it without prose, add the missing/untyped edges, and verify the human 'see F13/F14/F15/D4' citations still point at the live frontier.
