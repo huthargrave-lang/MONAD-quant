@@ -2,7 +2,7 @@
 
 > An open-source **research substrate for quantitative finance**: a queryable
 > **evidence graph** (Context Kit), a **validation funnel**, and a growing,
-> **adversarially-verified research library** — thirteen studies and counting —
+> **adversarially-verified research library** — fifteen studies and counting —
 > with a full trading stack (signals → backtest → sweep → live paper broker)
 > as the reference implementation that exercises it end-to-end.
 >
@@ -28,7 +28,7 @@ kind that funds keep private. Here they are free:
 
 **The library so far** (each finding links to a deterministic, re-runnable study
 tool, a standalone writeup, and its graph nodes — see the
-[thirteen-study compendium](docs/research/README.md)):
+[fifteen-study compendium](docs/research/README.md)):
 
 | What we established | Why it matters beyond this repo | Nodes |
 |---|---|---|
@@ -41,6 +41,7 @@ tool, a standalone writeup, and its graph nodes — see the
 | Forward-looking (2026 yields), a 60/40 returns ~5–6%/yr at **Sharpe ~0.5** — half its bond-bull-flattered history; the goal-optimal mix is **more conservative than 60/40** | Historical 60/40 stats are a regime, not an expectation | F41/F42 |
 | Across the income-ETF universe, **high yield ≠ low drawdown** — nothing beats the 60/40 on both; the one structural escape (held-to-maturity ladder) has a **definitional, nominal-only** 0% drawdown | Distribution yield is not return; amortized-cost accounting is not safety | F44/F45 |
 | Everything above is **correlation-regime-conditional**: bonds hedged stocks in only ~22 of the last 64 years; in the 1965–81 inflation regime every bond-heavy mix lost purchasing power for a decade, and the conservative tilt's drawdown edge *inverts* in real terms | The stock-bond hedge is the exception, not the rule — and it flipped again in 2022 | F46 |
+| There is **no escape from the regime bet by composition**: a marked-to-market TIPS sleeve is duration-shortening in disguise (indistinguishable from a duration-matched nominal sleeve), and no fixed cash/bond blend or barbell dominates both correlation regimes — a 50/50 blend *halves* the worst-case bet, nothing removes it | Test any "inflation hedge" against a duration-matched control before crediting the label | F48/F49 |
 | Sweep/holdout winners are **selection-biased best-of-many**; live-vs-backtest gaps decompose into measurable causes (bar frequency dominated here) | Reconcile live to backtest quantitatively before blaming execution | F2/F28/F43 |
 
 ## The methodology (what makes the library trustworthy)
@@ -528,8 +529,8 @@ MONAD-quant/
 ├── tools/
 │   ├── ctx.py              <- Context Kit CLI (query, graph, serve, guard)
 │   ├── note.py             <- Append/supersede research-web nodes
-│   └── *_study.py          <- The thirteen deterministic research-study tools
-├── docs/research/          <- Thirteen-study research program writeups + compendium
+│   └── *_study.py          <- The fifteen deterministic research-study tools
+├── docs/research/          <- Fifteen-study research program writeups + compendium
 ├── experiments.jsonl        <- Experiment log (one JSON line per sweep run)
 ├── live/
 │   ├── trader.py           <- Scheduler + on_bar() loop, pending_close retry
