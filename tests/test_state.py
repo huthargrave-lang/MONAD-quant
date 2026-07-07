@@ -21,7 +21,10 @@ class TestStateDB(unittest.TestCase):
     def setUp(self):
         """Reset the database before each test."""
         conn = sqlite3.connect(state_module._DB_PATH)
-        conn.executescript("DROP TABLE IF EXISTS position; DROP TABLE IF EXISTS trades;")
+        conn.executescript(
+            "DROP TABLE IF EXISTS position; DROP TABLE IF EXISTS trades; "
+            "DROP TABLE IF EXISTS monitor_events;"
+        )
         conn.close()
         state_module.init_db()
 
@@ -129,6 +132,44 @@ class TestStateDB(unittest.TestCase):
     def test_close_position_no_position_is_safe(self):
         # Should not raise — just logs a warning
         state_module.close_position(return_pct=0.01, exit_type="stop_hit")
+
+    def test_close_position_emits_exit_monitor_event(self):
+        state_module.open_position("TQQQ", 76.61, 123, "12345")
+        state_module.close_position(
+            return_pct=-0.040073, exit_type="stop_hit", exit_price=73.54
+        )
+
+        events = state_module.get_recent_monitor_events(limit=1)
+        self.assertEqual(len(events), 1)
+        ev = events[0]
+        self.assertEqual(ev["level"], "INFO")
+        self.assertEqual(ev["category"], "exit")
+        self.assertIn("LONG 123 TQQQ", ev["message"])
+        self.assertIn("stop_hit", ev["message"])
+        self.assertIn("73.54", ev["message"])
+        self.assertIn("-4.0073%", ev["message"])
+
+    def test_close_position_no_exit_price_emits_event(self):
+        state_module.open_position("TQQQ", 80.0, 10, "1")
+        state_module.close_position(return_pct=0.01, exit_type="time_exit")
+
+        ev = state_module.get_recent_monitor_events(limit=1)[0]
+        self.assertEqual(ev["category"], "exit")
+        self.assertIn("@ n/a", ev["message"])
+
+    def test_finalize_pending_close_emits_exit_monitor_event(self):
+        state_module.open_position("TQQQ", 80.0, 50, "999")
+        state_module.mark_pending_close(estimated_exit_price=78.0)
+        state_module.finalize_pending_close(
+            return_pct=-0.025, exit_type="stop_hit", exit_price=78.0
+        )
+
+        ev = state_module.get_recent_monitor_events(limit=1)[0]
+        self.assertEqual(ev["level"], "INFO")
+        self.assertEqual(ev["category"], "exit")
+        self.assertIn("LONG 50 TQQQ", ev["message"])
+        self.assertIn("78.00", ev["message"])
+        self.assertIn("-2.5000%", ev["message"])
 
     def test_get_position_plan(self):
         plan = state_module.get_position_plan(100_000)

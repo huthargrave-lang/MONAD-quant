@@ -221,6 +221,26 @@ def increment_bar_count() -> int:
     return new_count
 
 
+def _emit_exit_event(pos, exit_type: str, exit_price: float,
+                     return_pct: float) -> None:
+    """Uniform INFO/'exit' monitor_event for every recorded exit fill.
+
+    Lives here rather than trader.py because every live exit path funnels
+    through close_position()/finalize_pending_close(), so no exit can skip
+    it. Must never raise — monitoring must not break the trading loop.
+    """
+    try:
+        direction = (pos["direction"] if "direction" in pos.keys() else None) or "long"
+        price_str = f"{exit_price:.2f}" if exit_price is not None else "n/a"
+        add_monitor_event(
+            "INFO", "exit",
+            f"Exit filled: {direction.upper()} {pos['qty']} {pos['symbol']} "
+            f"@ {price_str} | {exit_type} | ret={return_pct:+.4%}",
+        )
+    except Exception:
+        log.exception("Failed to record exit monitor_event")
+
+
 def close_position(return_pct: float, exit_type: str,
                    exit_price: float = None) -> None:
     """Records the closed trade and removes the position row."""
@@ -252,6 +272,7 @@ def close_position(return_pct: float, exit_type: str,
         conn.execute("DELETE FROM position")
     price_str = f" @ {exit_price:.2f}" if exit_price else ""
     log.info(f"Position closed: {return_pct:+.4%} ({exit_type}){price_str}")
+    _emit_exit_event(pos, exit_type, exit_price, return_pct)
 
 
 def mark_pending_close(estimated_exit_price: float = None) -> None:
@@ -315,6 +336,7 @@ def finalize_pending_close(return_pct: float, exit_type: str,
         )
         conn.execute("DELETE FROM position")
     log.info(f"Pending close finalized: {return_pct:+.4%} ({exit_type}) @ {exit_price:.2f}")
+    _emit_exit_event(pos, exit_type, exit_price, return_pct)
 
 
 # ── Position sizing ──────────────────────────────────────────────────────────
