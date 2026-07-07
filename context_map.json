@@ -228,6 +228,7 @@
       "tools/mr_daily_lab.py",
       "tools/note.py",
       "tools/bond_ladder_study.py",
+      "tools/correlation_regime_study.py",
       "tools/crisis_overlay_study.py",
       "tools/forward_expectation_study.py",
       "tools/gold_oos_study.py",
