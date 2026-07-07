@@ -1,10 +1,13 @@
 # MONAD Quant
 
 > Mean-reversion strategy engine for leveraged ETFs and BTC. Long-only,
-> regime-gated, bracket-exit. Currently in paper-testing / validation.
+> regime-gated, bracket-exit. Currently in **paper-testing / validation**; the active
+> hourly edge did not survive honest, full-session backtests (see
+> [Research](#research--honest-edge) below).
 >
 > **What this really is →** an open-source **evidence graph + validation funnel + context
-> web for quant research**. The trading bot documented below is the *reference
+> web for quant research** — a queryable research + code knowledge graph (**Context Kit**)
+> with an interactive 3D map. The trading bot documented below is the *reference
 > implementation* that exercises the substrate end-to-end — the demo, not the whole
 > product. Direction: **[VISION.md](VISION.md)** · graph model: **[SCHEMA.md](SCHEMA.md)**.
 
@@ -17,10 +20,38 @@ It sits flat during bear markets and buys mean-reversion setups during bull
 regimes. The design targets consistent monthly income with low drawdown —
 closer to a high-yield bond ETF than a growth strategy.
 
+**Two layers in one repo:**
+
+1. **Trading engine** — signals, backtest, sweep, and a paper IBKR live trader
+2. **Context Kit** — `tools/ctx.py` + `RESEARCH_WEB.md` + `context_map.json`:
+   a self-maintaining knowledge graph linking findings, experiments, and code.
+   Browse it in the browser (`ctx serve`) or query it from the CLI (`ctx web`,
+   `ctx route`, `ctx impact`, …). See [Context Kit](#context-kit--research-web).
+
 - **Long-only** — bear alpha is defined as *not losing money*, not chasing shorts
 - **Regime-gated** — a 6-state MA classifier blocks entries in downtrends (backtest); hourly modes use adaptive Kelly instead
 - **Tight exits** — bracket orders with fixed target/stop, typically 2:1–7:1 R:R
 - **Zero commission** — targets US-brokerage ETFs (TQQQ, GDXU, QQQ) at $0/trade
+
+### Research & honest edge
+
+> **Do not trust headline Sharpe/return numbers in older docs** — they came from
+> optimistic-mode backtests on morning-only data. Run `venv/bin/python tools/ctx.py perf`
+> and `ctx web --live` for the current verdict.
+
+After an eleven-study adversarial program ([`docs/research/`](docs/research/README.md)):
+
+- The **hourly** live bot trades a coarse-timescale signal at a frequency where that
+  edge does not exist → **flat in paper** (finding `F43` in `RESEARCH_WEB.md`).
+- The **active daily** engine does not beat a trivial static allocation on a
+  risk-adjusted basis (decision `D6`).
+- The **honest product recommendation** is a static **60/40 equity/bond** mix (~Sharpe
+  0.84); no simple sleeve reliably improves it in-sample (`F38`–`F44`).
+- A real but small edge may exist at **~3 bars/day** on QQQ/SPY — not what the live
+  hourly bot runs.
+
+The repo stays open as a validated research artifact: the engine, the sweep tooling,
+the live/paper stack, and the Context Kit that records *what we tried and why it failed*.
 
 ---
 
@@ -37,8 +68,9 @@ Switch modes by changing `ACTIVE_MODE` in `config.py`.
 | `GDXU_HOURLY` | GDXU (3x) | Leveraged gold miners | ~27 |
 
 > All backtest numbers should be generated fresh with `python main.py` or
-> `python sweep.py TICKER --mode realistic`. See CLAUDE.md for detailed
-> historical parameter sweep results.
+> `python sweep.py TICKER --mode realistic`. Sweep holdout scores are
+> selection-biased — see [Research & honest edge](#research--honest-edge).
+> Detailed history lives in `CLAUDE.md` and `RESEARCH_WEB.md`.
 
 ---
 
@@ -149,6 +181,60 @@ live/
 ├── signals.py  <- Wraps build_features() + generate_trades() on live bars
 ├── broker.py   <- IBKR bracket orders, fill reconciliation, price queries
 └── state.py    <- SQLite position/trade log, pending_close state, fixed 10% sizing
+```
+
+---
+
+## Context Kit & Research Web
+
+The **Context Kit** is a portable, stdlib-only layer that agents (and humans) query
+instead of reading the whole codebase. It unifies:
+
+- **Ideas** — findings, hypotheses, experiments, decisions in `RESEARCH_WEB.md`
+- **Code** — modules, symbols, config keys, test coverage (auto-extracted)
+- **Bridges** — which finding lives in which symbol, guarded by which test
+
+**Start here:** [`AGENT_INDEX.md`](AGENT_INDEX.md) · [`CONTEXT_KIT.md`](CONTEXT_KIT.md)
+
+```bash
+# Orient to a task (files to read + commands to run)
+venv/bin/python tools/ctx.py route "fix dashboard stale mark price"
+
+# Walk the research graph
+venv/bin/python tools/ctx.py web F43
+venv/bin/python tools/ctx.py why D6
+
+# Blast radius before editing
+venv/bin/python tools/ctx.py impact live/broker.py
+venv/bin/python tools/ctx.py can_edit config.py   # DENY on live/strategy paths
+
+# Capture a new finding (dry-run by default; --commit to write)
+venv/bin/python tools/note.py add --kind F --title "..." --body "..."
+```
+
+### Interactive context map (browser)
+
+Serve the unified idea + code graph as a read-only web app:
+
+```bash
+venv/bin/python tools/ctx.py serve --host 127.0.0.1 --port 8001
+# → http://127.0.0.1:8001/
+```
+
+The map is a self-contained D3/SVG page (no backend credentials):
+
+- **Dark 3D layout** — deterministic depth, shift-drag to orbit, click a node for a slow cruise
+- **Explore drawer** — kind-specific prompts (evidence chain, config impact, area brief, …) with copy-to-clipboard
+- **Search / fit / flat** — filter nodes, frame selection + one-hop neighbors, reset camera
+- **Fresh on every load** — rebuilt from the manifest each request
+
+On the Pi this runs as a separate read-only service on `:8001`, deliberately isolated
+from the trading dashboard. See `OPERATIONS.md` and `deploy/monad-ctxweb.service`.
+
+Static export (no server):
+
+```bash
+venv/bin/python tools/ctx.py graph --html > context_map.html
 ```
 
 ---
@@ -351,11 +437,11 @@ python -m live.trader --dry-run --once    # verify signals
 python -m live.trader                      # paper mode
 python -m live.trader --live --symbol TQQQ # real money
 
-# Dashboard
-uvicorn live.dashboard:app --port 8080
+# Context map (read-only, separate from trading dashboard)
+venv/bin/python tools/ctx.py serve --port 8001
 
-# Tests
-python -m pytest tests/ -v
+# Tests (unittest — NOT pytest)
+python -m unittest discover -s tests
 ```
 
 ### Branches
@@ -391,11 +477,19 @@ journalctl -u monad-trader -f
 ```
 MONAD-quant/
 ├── config.py               <- All params; change ACTIVE_MODE here
+├── context_map.json        <- Context Kit manifest (areas, routing, idea↔code bridges)
+├── RESEARCH_WEB.md         <- Research idea web (findings, experiments, decisions)
+├── AGENT_INDEX.md          <- Agent router — start here for navigation
+├── CONTEXT_KIT.md          <- Context Kit design + portability guide
 ├── config_modules/
 │   ├── base.py             <- Shared risk/sizing/backtest settings
 │   └── live.py             <- IBKR connection, dry-run flag, bootstrap stats
 ├── main.py                 <- Entry point (backtest)
 ├── sweep.py                <- Universal parameter sweep tool
+├── tools/
+│   ├── ctx.py              <- Context Kit CLI (query, graph, serve, guard)
+│   └── note.py             <- Append/supersede research-web nodes
+├── docs/research/          <- Eleven-study active-vs-static research program writeups
 ├── experiments.jsonl        <- Experiment log (one JSON line per sweep run)
 ├── live/
 │   ├── trader.py           <- Scheduler + on_bar() loop, pending_close retry
@@ -409,6 +503,7 @@ MONAD-quant/
 │   ├── setup-pi.sh         <- Raspberry Pi deployment script
 │   ├── smoke-test.sh       <- Post-deployment verification
 │   ├── monad-trader.service <- systemd service template
+│   ├── monad-ctxweb.service <- systemd unit for ctx serve (:8001)
 │   └── healthcheck.sh      <- Health check for monitoring
 ├── src/
 │   ├── data/               <- yfinance + Alpha Vantage fetchers
@@ -422,9 +517,11 @@ MONAD-quant/
 │   └── backtest/
 │       └── runner.py       <- Equity curve, monthly P&L, diagnostics
 ├── tests/
-│   ├── test_state.py       <- State DB + config tests (16 tests)
-│   ├── test_execution_model.py <- Execution model + regression tests (20 tests)
-│   └── test_dashboard.py   <- Dashboard route + rendering tests (6 tests)
+│   ├── test_context_map.py <- Manifest drift guards
+│   ├── test_research_web.py <- Idea-web + graph HTML template guards
+│   ├── test_state.py       <- State DB + config tests
+│   ├── test_execution_model.py <- Execution model + regression tests
+│   └── test_dashboard.py   <- Dashboard route + rendering tests
 └── sweep_results_*.json    <- Saved sweep results per ticker
 ```
 
@@ -433,6 +530,8 @@ MONAD-quant/
 ## Known Limitations
 
 - **Paper-testing phase.** The live system has not been validated on real money at scale. Backtest results are not a guarantee of live performance.
+- **Honest edge is near zero at hourly frequency.** Full-session, leak-free backtests and live paper reconcile to flat; see [Research & honest edge](#research--honest-edge) and `docs/research/`.
+- **Sweep holdout scores are selection-biased.** A sweep winner is the best-of-many on its holdout — use `--validate-best` and `ctx perf`, not Phase-3 numbers alone.
 - **Pending close reconciliation** depends on IBKR making fill data available on subsequent cycles. If IBKR never surfaces the fill (e.g., prolonged outage), the position stays blocked until manual intervention.
 - **Dashboard mark price / unrealized PnL** accuracy depends on the available price source. The fallback chain (live → delayed → bar_close → estimated → entry) means the displayed price may be stale or approximate.
 - **Hourly monitoring cadence** means bracket exits that fill between cycles are detected on the next cycle, not immediately. PnL is still computed from actual fill data when available.

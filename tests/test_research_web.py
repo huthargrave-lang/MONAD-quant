@@ -27,16 +27,41 @@ import ctx  # noqa: E402  (the context tool — reuse its canonical parser)
 def _parse_web_text(text):
     """Run the real ctx._parse_web over synthetic web markdown (temporarily
     repointing ctx.WEB), so edge-classification edge cases are testable."""
+    return _in_synthetic_web(text, ctx._parse_web)
+
+
+def _in_synthetic_web(text, fn):
+    """Run fn() with ctx.WEB temporarily repointed at synthetic web markdown."""
     with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as tf:
         tf.write(text)
         name = tf.name
     old = ctx.WEB
     try:
         ctx.WEB = name
-        return ctx._parse_web()
+        return fn()
     finally:
         ctx.WEB = old
         os.unlink(name)
+
+
+# A minimal contradicted-but-current web: F91 (later, current) contradicts F90 (still
+# current, NOT superseded), and D90 relies on F90. The live corpus intentionally no
+# longer contains such a node — D7 resolved the one real example (F15 contradicted by
+# F22) by formal supersession — so the DISPUTED/advisory features are pinned here on a
+# synthetic fixture instead of on live-corpus state.
+DISPUTED_WEB = """\
+### F90 — old claim: the edge is real
+The edge is real at some timescale. Links: [[E90|evidenced_by]].
+
+### F91 — newer rigorous result overturns the framing
+Directly disputes the old claim ([[F90|contradicts]]). Links: [[E90|evidenced_by]].
+
+### E90 — the deciding experiment
+Ran the honest benchmark.
+
+### D90 — decision leaning on the disputed claim
+Still cites [[F90|relates]].
+"""
 
 
 class TestResearchWebIntegrity(unittest.TestCase):
@@ -260,10 +285,12 @@ class TestWebListingViews(unittest.TestCase):
         self.assertNotIn("[SUPERSEDED", out, "--live must hide superseded nodes, not tombstone them")
 
     def test_lint_advises_reliance_on_contradicted_node(self):
-        # F22 contradicts F15; D1/D4 relate to F15 → the reliance chain crosses a
-        # contradicted (but live) node → advisory, not a hard problem.
-        out = self._web(lint=True)
-        self.assertIn("contradicted by F22", out)
+        # A live node relying on a contradicted (but still current) node → advisory,
+        # not a hard problem. Synthetic fixture: the live example this used to pin
+        # (D1/D4 → F15, contradicted by F22) was resolved by D7 — F15 is now formally
+        # superseded, so the live web has no contradicted-but-current node by design.
+        out = _in_synthetic_web(DISPUTED_WEB, lambda: self._web(lint=True))
+        self.assertIn("contradicted by F91", out)
 
     def test_lint_exit_code_matches_summary(self):
         # SF-2: web --lint must encode integrity in its exit code, not always return 0.
@@ -539,6 +566,95 @@ class TestUnifiedGraph(unittest.TestCase):
         self.assertIn("F13", f3_in)
 
 
+class TestGraphHtmlExplore(unittest.TestCase):
+    """The static `ctx graph --html` UI should keep its selected-node prompt drawer.
+
+    This is template-level because the map is emitted as one self-contained HTML blob;
+    browser behavior is smoke-checked separately by parsing the generated inline JS.
+    """
+
+    def test_explore_prompt_drawer_is_embedded(self):
+        html = ctx._GRAPH_HTML
+        for needle in (
+            "function makePrompts",
+            "function renderPrompts",
+            "data-copy",
+            "fallbackCopy",
+            "Evidence Chain",
+            "Config Value",
+            "Code Impact",
+            "Area Brief",
+            "--map:#02040a",
+            "const dark=true",
+            "function targetZ",
+            "function nodeZ",
+            "function init3D",
+            "function relax3D",
+            "function orbPath",
+            "function haloOpacity",
+            "node-orb mark",
+            "node-halo",
+            "node-corona",
+            "node-core",
+            "node-label",
+            ".attr('class','node')",
+            ".attr('data-id',d=>d.id)",
+            ".classed('selected'",
+            "orbGlowStrong",
+            "orbHalo",
+            "function viewCenter",
+            "x:(W/2-(zt.x||0))/k",
+            "dataset.viewCx",
+            "dataset.orbitRy",
+            "dataset.fastRender",
+            "simSettling=true",
+            "function setFastRender",
+            "function settleRenderQuality",
+            "function filterGlow",
+            "fastRender&&!vivid",
+            "renderFrame%12",
+            "renderFrame%24",
+            "suppressZoomLabel",
+            "alphaDecay(.055)",
+            "alphaMin(.02)",
+            "cruiseFrame++%3",
+            "!suppressZoomLabel&&!fastRender",
+            "setOrbit(a.rx+(b.rx-a.rx)*e,a.ry+dy*e,false)",
+            "function projectPoint",
+            "function projectNode",
+            "function labelBox",
+            "function layoutLabels",
+            "function placeTip",
+            "function showTip",
+            "boxesOverlap",
+            "text-anchor",
+            ".attr('data-z'",
+            ".attr('data-depth'",
+            "init3D();",
+            "sim.on('tick',()=>{relax3D(sim.alpha());render();});",
+            "pointerdown.orbit",
+            "!ev.shiftKey",
+            'id="flat"',
+            "function flatView",
+            "function orbitToNode",
+            "function egoNodes",
+            "function transformForEgo",
+            "function applyEgoFrame",
+            "function cruiseOrbit",
+            "function stopCruise",
+            "dur=52000",
+            "segs=views.length-1",
+            "cruiseAnim=requestAnimationFrame(step)",
+            "if(sel!==null){const d=nodes[sel],frame=()=>applyEgoFrame",
+            "animateOrbit(0,0,420);",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, html)
+        for needle in ("spaceDots", "space-dot", "function renderSpace", "node.append('circle')", "function starPath", "node-star"):
+            with self.subTest(needle=needle):
+                self.assertNotIn(needle, html)
+
+
 class TestFrontier(unittest.TestCase):
     """Context Web v2 #7 — task-shaped progressive disclosure: seeds + corrections,
     budget-bounded, not a fixed summary."""
@@ -667,11 +783,13 @@ class TestWhyProvenance(unittest.TestCase):
         self.assertIn("grounded in", out)
 
     def test_why_flags_contradicted_current_node(self):
-        # DP-1: F15 is status:current but contradicted by the later F22 — ctx why must
-        # flag it DISPUTED, not present it as a settled conclusion.
-        out = self._why("F15")
+        # DP-1: a status:current node contradicted by a later current node must be
+        # flagged DISPUTED, not presented as settled. Synthetic fixture: the live
+        # example this used to pin (F15 vs F22) was resolved by D7 — F15 is now
+        # superseded and carries the stronger SUPERSEDED banner instead.
+        out = _in_synthetic_web(DISPUTED_WEB, lambda: self._why("F90"))
         self.assertIn("DISPUTED", out)
-        self.assertIn("F22", out)
+        self.assertIn("F91", out)
 
     def test_why_flags_dependency_on_contradicted_node(self):
         # DP-1: D1 references the contradicted F15 → ctx why D1 must flag the fragile
