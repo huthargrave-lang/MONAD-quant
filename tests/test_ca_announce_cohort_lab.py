@@ -10,6 +10,7 @@ import copy
 import datetime as dt
 import importlib.util
 import math
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -290,13 +291,41 @@ class PowerAnalysisTests(unittest.TestCase):
         self.assertGreater(large, 0.5)  # thousands of deals do
 
     def test_effect_size_increases_with_skill(self):
-        low = LAB.skill_effect_size(0.1, n_big=4000)["mean_brier_gap_market_minus_model"]
-        high = LAB.skill_effect_size(0.75, n_big=4000)["mean_brier_gap_market_minus_model"]
+        """A larger skill must produce a larger mean Brier gap. Uses a big sample
+        because the gap at low skill is small relative to Monte-Carlo noise."""
+        low = LAB.skill_effect_size(0.1, n_big=20000)["mean_brier_gap_market_minus_model"]
+        high = LAB.skill_effect_size(0.75, n_big=20000)["mean_brier_gap_market_minus_model"]
         self.assertGreater(high, low)
-        self.assertGreater(low, 0.0)
+        self.assertGreater(high, 0.0)
 
     def test_power_is_deterministic(self):
         self.assertEqual(LAB.power_at(40, 0.3, reps=120), LAB.power_at(40, 0.3, reps=120))
+
+    def test_seed_derivation_never_uses_randomised_hash(self):
+        """Regression guard: seeding via hash() on a tuple containing a str is
+        randomised per process by PYTHONHASHSEED, silently breaking reproducibility.
+        _derive_seed must be a pure function of its integer inputs."""
+        self.assertEqual(LAB._derive_seed(1, 2, 3), LAB._derive_seed(1, 2, 3))
+        self.assertNotEqual(LAB._derive_seed(1, 2, 3), LAB._derive_seed(1, 2, 4))
+        src = (ROOT / "tools" / "ca_announce_cohort_lab.py").read_text(encoding="utf-8")
+        self.assertNotIn(".__hash__()", src,
+                         "seed derivation must not rely on hash(); use _derive_seed")
+
+    def test_effect_size_is_reproducible_across_processes(self):
+        """Run the same call in a FRESH interpreter (new PYTHONHASHSEED) and require
+        an identical result — the exact failure mode the hash-based seed had."""
+        code = (
+            "import importlib.util,sys;"
+            "s=importlib.util.spec_from_file_location('m',r'%s');"
+            "m=importlib.util.module_from_spec(s);sys.modules['m']=m;s.loader.exec_module(m);"
+            "print(repr(m.skill_effect_size(0.5,n_big=2000)['mean_brier_gap_market_minus_model']))"
+        ) % (ROOT / "tools" / "ca_announce_cohort_lab.py")
+        outs = set()
+        for _ in range(2):
+            proc = subprocess.run([sys.executable, "-c", code], capture_output=True,
+                                  text=True, check=True)
+            outs.add(proc.stdout.strip())
+        self.assertEqual(len(outs), 1, "result differs across processes: {}".format(outs))
 
 
 if __name__ == "__main__":

@@ -1099,10 +1099,23 @@ def _one_sided_paired_t_rejects(diffs: Sequence[float]) -> bool:
     return t > _t_crit_one_sided_05(n - 1)
 
 
+def _derive_seed(*parts: int) -> int:
+    """Deterministic seed derivation (FNV-1a over the integer parts).
+
+    Never use ``hash()`` for this: ``PYTHONHASHSEED`` randomises the hash of any
+    tuple containing a str per process, which silently makes a "seeded" run
+    irreproducible across invocations.
+    """
+    value = 1469598103934665603
+    for part in parts:
+        value = ((value ^ (int(part) & 0xFFFFFFFFFFFFFFFF)) * 1099511628211) % (2 ** 64)
+    return value
+
+
 def power_at(n: int, skill: float, reps: int = 400, seed: int = BOOTSTRAP_SEED, **dgp) -> float:
     """Fraction of synthetic cohorts in which the deal-clustered one-sided test
     concludes the model beats the market benchmark (lower Brier)."""
-    rng = random.Random((seed, n, round(skill * 1000)).__hash__())
+    rng = random.Random(_derive_seed(seed, n, round(skill * 1000)))
     rejects = 0
     for _ in range(reps):
         if _one_sided_paired_t_rejects(simulate_paired_brier_diffs(n, skill, rng, **dgp)):
@@ -1115,7 +1128,7 @@ def skill_effect_size(skill: float, n_big: int = 20000, seed: int = BOOTSTRAP_SE
     (market minus model) and each side's absolute multiclass Brier, on a large
     synthetic sample. Lets the abstract skill knob be compared to real reported
     gaps (e.g. the CA-ANNOUNCE blueprint's ICML baseline: 0.151 vs 0.199)."""
-    rng = random.Random((seed, "effect", round(skill * 1000)).__hash__())
+    rng = random.Random(_derive_seed(seed, 0xEFFEC7, round(skill * 1000)))
     diffs = simulate_paired_brier_diffs(n_big, skill, rng, **dgp)
     mean_gap = sum(diffs) / len(diffs)
     return {"mean_brier_gap_market_minus_model": mean_gap}

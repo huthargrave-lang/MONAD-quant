@@ -134,10 +134,13 @@ noise σ=0.6, and a candidate model reduces that noise by a fraction `skill`.
 |---|---:|---:|
 | 0.10 | 0.003 | > 3200 |
 | 0.20 | 0.004 | > 3200 |
-| 0.30 | 0.007 | ~3200 |
+| 0.30 | 0.009 | ~3200 |
 | 0.50 | 0.012 | ~1600 |
 | 0.75 | 0.014 | ~800 |
-| 1.00 (perfect model) | 0.016 | ~800 |
+| 1.00 (perfect model) | 0.015 | ~800 |
+
+(Monte-Carlo estimates at `--reps 300`; gaps move by roughly ±0.002 between rep
+counts, while the `N*` column is stable.)
 
 The false-positive rate at `skill=0` sits at ~0.05 across every N, confirming the
 test is calibrated — so the low power is the **cohort size**, not the test. The
@@ -150,6 +153,12 @@ in the same ballpark as — if smaller than — the ICML baseline the blueprint 
 much worse the real market-implied is than the best attainable model. This echoes
 that paper needing **404 held-out deals** for a marginal result, and it echoes this
 project's own history (F18: a headline significance was ~3× oversold).
+
+> **Reproducibility note.** An earlier revision of this lab seeded one Monte-Carlo
+> path via `hash()` on a tuple containing a string, which `PYTHONHASHSEED`
+> randomises per process — a "seeded" run that silently differed between
+> invocations. Seeding now goes through a pure integer `_derive_seed`, and a test
+> re-runs the calculation in a fresh interpreter and requires an identical result.
 
 ## Integrity, enforced in code
 
