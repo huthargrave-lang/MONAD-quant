@@ -7,7 +7,7 @@ announcement-forward cohort is frozen; the market-implied branch is illustrative
 [CA-FAILFRAME](CA_FAILFRAME_termination_seed.md), [CA-00](CA00_corporate_action_outcome_lab.md)<br>
 **Fixture:** `docs/research/data/ca_announce_cohort_2023.json`<br>
 **Tool:** `tools/ca_announce_cohort_lab.py`<br>
-**Research-web nodes:** `E111`, `F130`, `F131`, `H71`, `D16`<br>
+**Research-web nodes:** `E111`, `F130`, `F131`, `F132`, `H71`, `D16`<br>
 **Reproduce:**
 ```bash
 python3 tools/ca_announce_cohort_lab.py selfcheck   # validate the estimators on synthetic ground-truth
@@ -121,6 +121,36 @@ holding out a "close" deal lowers the training close-rate (p_close 0.667) while
 holding out a rare failure raises it (0.750), so close-positives rank just below
 the two failures. It disappears with a larger, better-balanced cohort.
 
+## How many deals would it take to answer D16? (a design/power analysis)
+
+Before anyone fetches provenance and prices and builds models, the binding
+question is sample size. `python3 tools/ca_announce_cohort_lab.py power` runs a
+Monte-Carlo over the deal-clustered one-sided Brier test using the
+`selfcheck`-validated estimators: deals have a true completion probability
+`p ~ Beta(8,2)` (mean 0.8), the market-implied benchmark observes `logit(p)` with
+noise σ=0.6, and a candidate model reduces that noise by a fraction `skill`.
+
+| skill (noise cut vs market) | mean Brier gap | N for 80% power |
+|---|---:|---:|
+| 0.10 | 0.003 | > 3200 |
+| 0.20 | 0.004 | > 3200 |
+| 0.30 | 0.007 | ~3200 |
+| 0.50 | 0.012 | ~1600 |
+| 0.75 | 0.014 | ~800 |
+| 1.00 (perfect model) | 0.016 | ~800 |
+
+The false-positive rate at `skill=0` sits at ~0.05 across every N, confirming the
+test is calibrated — so the low power is the **cohort size**, not the test. The
+result is stark: **at N=11 no plausible model advantage is detectable (power ≈ the
+0.05 false-positive rate), and even a perfect model needs ~800 deals.** Because
+each deal contributes a single high-variance binary outcome, answering D16 is a
+sample-size problem first. The simulated effect sizes (Brier gaps 0.003–0.016) are
+in the same ballpark as — if smaller than — the ICML baseline the blueprint cites
+(0.199 market-implied vs 0.151 model, a 0.048 gap); the exact N* scales with how
+much worse the real market-implied is than the best attainable model. This echoes
+that paper needing **404 held-out deals** for a marginal result, and it echoes this
+project's own history (F18: a headline significance was ~3× oversold).
+
 ## Integrity, enforced in code
 
 **No look-ahead.** `point_in_time_features` reads a `public_view` of each deal with
@@ -169,16 +199,23 @@ It does **not** establish any edge, any real "beats calibrated spread" result (t
 market-implied inputs are proxy), a deal-risk *population* (11 curated deals), or a
 survival estimate with meaningful censoring at the default horizon.
 
-## Next moves (network-gated)
+## Next moves
 
-1. **Freeze provenance** — fetch each announcement/termination/completion 8-K from
-   EDGAR and replace every `public_record_unverified_offline` marker with a real
-   accession + acceptance clock + SHA-256 (the CA-FAILFRAME/CA-00 pattern).
-2. **Freeze contemporaneous prices** — obtain rights-cleared target/acquirer prices
-   at each `as_of` so the market-implied benchmark is truth, not proxy; then the
-   D16 head-to-head becomes a real claim.
-3. **Scale the cohort** forward (2024–2025 announcements) to restore right-censoring
-   and give the survival + calibration branches real power.
+The power analysis reorders the roadmap: **cohort scale is the binding
+constraint**, not model sophistication.
+
+1. **Scale the cohort to the hundreds** (multi-year announcement panel). The power
+   study says a few hundred deals is the floor for detecting even a strong model,
+   and thousands for a modest one — chasing a better model on 11 deals cannot pay
+   off. This is the highest-leverage step and most of it (enumerating announcements)
+   is offline-friendly once EDGAR access exists.
+2. **Freeze provenance** (network-gated) — fetch each announcement/termination/
+   completion 8-K from EDGAR and replace every `public_record_unverified_offline`
+   marker with a real accession + acceptance clock + SHA-256 (the CA-FAILFRAME/CA-00
+   pattern).
+3. **Freeze contemporaneous prices** (network-gated) — obtain rights-cleared
+   target/acquirer prices at each `as_of` so the market-implied benchmark is truth,
+   not proxy; then the D16 head-to-head becomes a real claim.
 4. Only then advance to CA-RHETORIC (`H72`): point-in-time filing/rhetoric deltas on
    top of these baselines, out-of-sample, with the same leakage and kill-criteria
-   gates.
+   gates — and only at a cohort size the power study says can detect the gain.

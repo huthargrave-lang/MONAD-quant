@@ -268,5 +268,36 @@ class SelfCheckTests(unittest.TestCase):
         self.assertTrue(result["all_passed"])
 
 
+class PowerAnalysisTests(unittest.TestCase):
+    def test_t_crit_table(self):
+        self.assertAlmostEqual(LAB._t_crit_one_sided_05(10), 1.812, places=3)
+        self.assertEqual(LAB._t_crit_one_sided_05(100000), 1.645)  # normal limit
+        # interpolated value sits between its bracketing table entries
+        v = LAB._t_crit_one_sided_05(11)
+        self.assertTrue(1.782 <= v <= 1.812)
+
+    def test_false_positive_rate_is_near_alpha_at_zero_skill(self):
+        """skill=0 => model and market are equally good; rejection rate must sit
+        near the nominal 0.05, i.e. the test is calibrated, not lucky."""
+        fpr = LAB.power_at(50, 0.0, reps=400)
+        self.assertLess(fpr, 0.13)
+
+    def test_power_rises_with_sample_size(self):
+        small = LAB.power_at(11, 1.0, reps=200)
+        large = LAB.power_at(2000, 1.0, reps=200)
+        self.assertLess(small, large)
+        self.assertLess(small, 0.15)   # 11 deals detect ~nothing
+        self.assertGreater(large, 0.5)  # thousands of deals do
+
+    def test_effect_size_increases_with_skill(self):
+        low = LAB.skill_effect_size(0.1, n_big=4000)["mean_brier_gap_market_minus_model"]
+        high = LAB.skill_effect_size(0.75, n_big=4000)["mean_brier_gap_market_minus_model"]
+        self.assertGreater(high, low)
+        self.assertGreater(low, 0.0)
+
+    def test_power_is_deterministic(self):
+        self.assertEqual(LAB.power_at(40, 0.3, reps=120), LAB.power_at(40, 0.3, reps=120))
+
+
 if __name__ == "__main__":
     unittest.main()
