@@ -1,0 +1,228 @@
+"""Executable verification of the research web's claims ABOUT THE CODE.
+
+Most of the web's claims are about markets, and this environment cannot check them
+(market-data hosts are network-blocked, and F139 shows the load-bearing arc is not
+reproducible from the repo anyway). But a subset of nodes make claims about *this
+codebase*, and those are decidable right now, with certainty.
+
+EPI-00 (F133) found that the web is only ever re-examined when adjacent new work
+happens to touch it. That makes code-claims uniquely dangerous: the code moves
+continuously, so a finding can rot without anyone noticing. These guards are
+therefore **bidirectional** — each fails if the claim stops being true, with a
+message telling the maintainer to update the WEB, not to "fix the test". A silent
+fix that leaves a stale finding behind is exactly as much of a defect as a
+regression.
+
+Checks use the AST rather than grep so that a rename or reformat cannot quietly
+make a guard vacuous.
+
+Covered today:
+  H27 — `use_regime_filter` runs at its default True in the backtest runner despite
+        `config.USE_REGIME_FILTER = False`, while walk-forward honours the config.
+  F26 — the 6-state slope-regime gate is dead-wired: `runner.py` never passes
+        `use_slope_regime`/`longs_only`, and inside `generate_trades` they only
+        adjust a Kelly-multiplier column, never gate an entry.
+"""
+import ast
+import importlib
+import sys
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+ENGINE = ROOT / "src" / "strategy" / "engine.py"
+RUNNER = ROOT / "src" / "backtest" / "runner.py"
+WALKFWD = ROOT / "src" / "optimization" / "walk_forward.py"
+
+
+def _calls_to(path, func_name):
+    """Every ast.Call to `func_name` in `path`."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    out = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            f = node.func
+            name = getattr(f, "id", None) or getattr(f, "attr", None)
+            if name == func_name:
+                out.append(node)
+    return out
+
+
+def _param_default(path, func_name, param):
+    """Default value of `param` in `func_name`'s signature, or a sentinel."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == func_name:
+            args = node.args
+            names = [a.arg for a in args.args]
+            defaults = list(args.defaults)
+            # defaults align to the TAIL of args.args
+            offset = len(names) - len(defaults)
+            if param in names:
+                i = names.index(param)
+                if i >= offset:
+                    return ast.literal_eval(defaults[i - offset])
+            kwnames = [a.arg for a in args.kwonlyargs]
+            if param in kwnames:
+                d = args.kw_defaults[kwnames.index(param)]
+                return ast.literal_eval(d) if d is not None else None
+    raise AssertionError(f"{func_name}({param}=...) not found in {path.name}")
+
+
+class H27RegimeFilterClaim(unittest.TestCase):
+    """H27 — OPEN bug: the backtest runner ignores config.USE_REGIME_FILTER."""
+
+    def test_signature_default_is_true(self):
+        self.assertIs(
+            _param_default(ENGINE, "generate_trades", "use_regime_filter"), True,
+            "generate_trades(use_regime_filter=...) no longer defaults to True — H27's "
+            "premise changed. Re-verify H27 and update the web node.",
+        )
+
+    def test_config_says_false(self):
+        cfg = importlib.import_module("config")
+        self.assertIs(
+            cfg.USE_REGIME_FILTER, False,
+            "config.USE_REGIME_FILTER is no longer False — H27's premise changed. "
+            "Re-verify H27 and update the web node.",
+        )
+
+    def test_runner_still_omits_the_flag(self):
+        """The bug itself. If this fails, H27 was FIXED — update the web."""
+        calls = _calls_to(RUNNER, "generate_trades")
+        self.assertTrue(calls, "no generate_trades call found in runner.py")
+        passes_flag = any(
+            kw.arg == "use_regime_filter" for c in calls for kw in c.keywords
+        )
+        self.assertFalse(
+            passes_flag,
+            "runner.py NOW passes use_regime_filter — H27 appears FIXED. This is good "
+            "news, but it means the web is stale AND every backtest number changed: "
+            "supersede H27 (note.py supersede H27 --by <new> --reason data-fixed) and "
+            "re-baseline the affected findings before deleting this guard.",
+        )
+
+    def test_walk_forward_does_honour_the_flag(self):
+        """The asymmetry is the substance of H27: the two evidence-producing paths
+        apply different entry gates, so their numbers are not comparable."""
+        calls = _calls_to(WALKFWD, "generate_trades")
+        self.assertTrue(calls, "no generate_trades call found in walk_forward.py")
+        self.assertTrue(
+            any(kw.arg == "use_regime_filter" for c in calls for kw in c.keywords),
+            "walk_forward.py no longer passes use_regime_filter — the runner/"
+            "walk-forward asymmetry H27 describes has changed shape. Re-verify H27.",
+        )
+
+
+class F26SlopeRegimeClaim(unittest.TestCase):
+    """F26 — the slope-regime 'core innovation' is dead-wired."""
+
+    def test_runner_never_passes_the_slope_flags(self):
+        calls = _calls_to(RUNNER, "generate_trades")
+        self.assertTrue(calls, "no generate_trades call found in runner.py")
+        passed = {
+            kw.arg for c in calls for kw in c.keywords
+            if kw.arg in {"use_slope_regime", "longs_only"}
+        }
+        self.assertEqual(
+            passed, set(),
+            "runner.py NOW passes slope-regime flags "
+            f"({sorted(passed)}) — F26 appears FIXED/re-wired. Every backtest number "
+            "changes if so: re-verify F26 and supersede it rather than editing it.",
+        )
+
+    def test_slope_flags_default_off(self):
+        for flag in ("use_slope_regime", "longs_only"):
+            with self.subTest(flag=flag):
+                self.assertIs(
+                    _param_default(ENGINE, "generate_trades", flag), False,
+                    f"generate_trades({flag}=...) no longer defaults to False — "
+                    "F26's premise changed.",
+                )
+
+    def test_slope_flags_only_touch_the_kelly_column_not_entries(self):
+        """F26's substance: the flags exist but gate nothing. Inside generate_trades
+        every block guarded by a slope flag may WRITE only `regime_kelly_mult`; it
+        may read entry_signal to build a mask, but never assign to it.
+
+        Only assignment TARGETS are inspected — `bear_long_mask = (df["entry_signal"]
+        == 1) & ...` reads the column and is not a gate, whereas
+        `df.loc[mask, "entry_signal"] = 0` is.
+        """
+        tree = ast.parse(ENGINE.read_text(encoding="utf-8"))
+        fn = next(
+            n for n in ast.walk(tree)
+            if isinstance(n, ast.FunctionDef) and n.name == "generate_trades"
+        )
+        entry_names = {"long_entry", "short_entry", "entry_signal"}
+        offenders = []
+        for node in ast.walk(fn):
+            if not isinstance(node, ast.If):
+                continue
+            if not any(
+                isinstance(n, ast.Name) and n.id in {"use_slope_regime", "longs_only"}
+                for n in ast.walk(node.test)
+            ):
+                continue
+            for stmt in ast.walk(ast.Module(body=node.body, type_ignores=[])):
+                targets = []
+                if isinstance(stmt, ast.Assign):
+                    targets = stmt.targets
+                elif isinstance(stmt, (ast.AugAssign, ast.AnnAssign)):
+                    targets = [stmt.target]
+                for tgt in targets:
+                    written = {
+                        n.value for n in ast.walk(tgt)
+                        if isinstance(n, ast.Constant) and isinstance(n.value, str)
+                    } | {
+                        n.id for n in ast.walk(tgt) if isinstance(n, ast.Name)
+                    }
+                    if written & entry_names:
+                        offenders.append(ast.unparse(stmt))
+        self.assertEqual(
+            offenders, [],
+            "a slope-regime flag now guards a block that ASSIGNS to an entry signal "
+            f"({offenders}) — F26 ('dead-wired, gates nothing') appears FIXED. "
+            "Re-verify F26 and supersede it; backtest numbers will have changed.",
+        )
+
+    def test_the_detector_would_actually_catch_a_rewiring(self):
+        """Negative control: a guard that cannot fail is worthless. Synthesise the
+        code F26 says is absent and confirm the same logic flags it."""
+        src = (
+            "def generate_trades(df, use_slope_regime=False, longs_only=False):\n"
+            "    if use_slope_regime and longs_only:\n"
+            "        mask = df['regime'] == 'BEAR'\n"
+            "        df.loc[mask, 'entry_signal'] = 0\n"
+            "    return df\n"
+        )
+        fn = next(
+            n for n in ast.walk(ast.parse(src))
+            if isinstance(n, ast.FunctionDef) and n.name == "generate_trades"
+        )
+        found = []
+        for node in ast.walk(fn):
+            if not isinstance(node, ast.If):
+                continue
+            if not any(
+                isinstance(n, ast.Name) and n.id in {"use_slope_regime", "longs_only"}
+                for n in ast.walk(node.test)
+            ):
+                continue
+            for stmt in ast.walk(ast.Module(body=node.body, type_ignores=[])):
+                if isinstance(stmt, ast.Assign):
+                    for tgt in stmt.targets:
+                        strs = {
+                            n.value for n in ast.walk(tgt)
+                            if isinstance(n, ast.Constant) and isinstance(n.value, str)
+                        }
+                        if strs & {"entry_signal"}:
+                            found.append(ast.unparse(stmt))
+        self.assertTrue(found, "the F26 detector failed to flag a synthetic rewiring")
+
+
+if __name__ == "__main__":
+    unittest.main()
