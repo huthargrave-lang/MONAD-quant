@@ -5,7 +5,7 @@ version's headline did not survive review<br>
 **Tool:** `tools/epistemic_audit_lab.py` (v2)<br>
 **Guarantee:** its web parser is asserted byte-for-byte equal to `ctx.py`'s on every
 edge of the live web (`test_classifier_matches_the_canonical_ctx_reader_on_the_real_web`)<br>
-**Research-web nodes:** `E112`, `F133`–`F138`, `H73`<br>
+**Research-web nodes:** `E112`, `F133`–`F139`, `H73`, `H74`<br>
 **CI:** `tests/test_web_integrity.py` enforces the four structural invariants below<br>
 **Reproduce:**
 ```bash
@@ -146,12 +146,49 @@ staleness:
 | F20 | 136 | linked | what does NOT work |
 | F7 | 139 | **linked** (cue-resolved) | THE MECHANISM: stop-vs-noise ratio |
 
-**F17 is the single highest-leverage *evidence-linking* edit in the web**: 140 nodes rely on it, it
-issues the project's most consequential recommendation ("replace %-stop with a
-horizon/time exit") with specific numbers, and it links to **no Experiment of its
-own**. Its evidence almost certainly lives in E10 and F19 independently confirms it —
-so this is a *traversability* gap, not an accusation that the work wasn't done. But
-an agent walking the web from F17 cannot reach its evidence.
+**F17 is the single highest-leverage evidence gap in the web** — and following it up
+produced a stronger result than the ranking suggested.
+
+I originally wrote that F17's evidence "almost certainly lives in E10". **Searching
+properly does not support that.** F17's specific figures — QQQ +1.99% APY, Sharpe
+0.74, −8% DD, +1.74% APY at 10 bps — appear in **no committed file except F17's own
+body**. Every other grep hit for those numbers is a coincidental match from an
+unrelated study (gap betas, TNA monthlies, bootstrap CIs), and no deleted file in the
+observable history held them.
+
+The plausible generator is `tools/mr_daily_lab.py` (E10's harness), which does emit
+exactly `ann`/`sharpe`/`maxdd` for a QQQ dip-plus-5-day-horizon sleeve — the claim
+*shape* matches. But no artifact records the run, and it cannot be reproduced here:
+
+```
+CACHE = "/tmp/mr_daily_close.csv"   # ephemeral; re-fetched if absent (no repo data committed)
+```
+
+no committed fixture, no SHA-256 manifest, and the network policy blocks Yahoo (403)
+even though PyPI is reachable — `numpy`/`pandas`/`yfinance` install fine, but no price
+data can be fetched.
+
+This is **strictly weaker than F63**, which established that the *execution* studies'
+inputs are byte-identified by SHA-256 yet not reconstructible from a fresh clone. The
+daily-MR arc is neither byte-identified **nor** reconstructible — and it is where the
+structural weight sits: F17, F19, F20, F21, D4, D5, D6 and H8, the entire top of the
+load-bearing table, are produced by or rest on E9/E10.
+
+*Honesty check on that last claim:* measured across all edge types, 20/20 of the
+top-20 trace to the E9/E10 arc — but so do 88% of all nodes, so that framing is
+near-vacuous. Restricted to evidence and reliance edges it is 70% of the top-20
+against a 44% baseline: a real but modest enrichment. The structural statement stands
+without the enrichment.
+
+The remedy is a pattern this project already uses elsewhere — the SEC and
+corporate-action labs commit a small *transformed* fixture plus a hash (D13/F63) and
+keep raw vendor bytes outside the repo. The market-data labs never adopted it. H74
+records the concrete steps; the missing `evidenced_by` edge should be added only once
+a recorded run substantiates the figures, not before.
+
+Until then F17 is best read as **directionally corroborated** — F19 independently
+confirms the sign of the exit effect from E10, in per-trade bps — with its specific
+portfolio figures **unverified**.
 
 Across 129 current Findings: 111 `linked`, 7 `cited_not_evidence_typed`, 2
 `corroborated_only`, **9 `no_direct_link`** (F11, F23, F27, F28, F29, F30, F31, F32,
