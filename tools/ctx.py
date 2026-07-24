@@ -25,6 +25,7 @@ import re
 import sqlite3
 import subprocess
 import sys
+from pathlib import Path
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MANIFEST = os.path.join(REPO, "context_map.json")
@@ -792,7 +793,9 @@ def cmd_perf(args):
         print(f"  no 'trades' table (this command expects this repo's live/state.db schema): {exc}")
         return
     if not rows:
-        print("  no trades recorded yet.")
+        print("  ⚠ live performance is UNAVAILABLE — the trades table contains no observations")
+        print("    An empty paper ledger is not evidence of an edge. Do NOT fall back to the")
+        print("    CLAUDE.md headline tables (SUPERSEDED); use `ctx web --live` for current truth.")
         return
     allr = [r for r, _ in rows]
     prodr = [r for r, e in rows if e in PROD]
@@ -1764,6 +1767,35 @@ def _render_graph_html(G, adj):
     return _GRAPH_HTML.replace("__PROJECT__", proj).replace("__DATA__", comp)
 
 
+def _render_served_graph_html(
+    G, adj, event_db=None, corporate_action_db=None,
+    corporate_action_state_db=None, form25_population_db=None
+):
+    """Add navigation to optional server-only surfaces without changing exports."""
+    page = _render_graph_html(G, adj)
+    links = []
+    if event_db:
+        links.append(
+            '<a href="/events">revision-aware research events</a>'
+        )
+    if corporate_action_db:
+        links.append(
+            '<a href="/corporate-actions">corporate-action outcomes</a>'
+        )
+    if corporate_action_state_db:
+        links.append(
+            '<a href="/corporate-action-states">SEC action states</a>'
+        )
+    if form25_population_db:
+        links.append(
+            '<a href="/form25-population">Form 25 population</a>'
+        )
+    if links:
+        nav = '<div class="sub">browse: ' + " · ".join(links) + "</div>"
+        page = page.replace("</header>", nav + "</header>", 1)
+    return page
+
+
 def cmd_graph(args):
     """Emit the whole unified context map (research web ∪ idea↔code bridges ∪ the
     auto-extracted code graph). `--json` = machine-readable map; `--html` = a
@@ -1801,10 +1833,243 @@ def cmd_graph(args):
     print("  → `ctx graph --json` for the full map (feeds the visual view) · `ctx health` for coverage")
 
 
+def _event_ledger_response(event_db, raw_path):
+    """Pure route adapter for the optional research-event SQLite projection."""
+    import urllib.parse
+
+    if not event_db:
+        return (
+            404,
+            "research-event ledger not configured; restart with --event-db PATH\n",
+            "text/plain; charset=utf-8",
+        )
+    from research_event_ledger import ledger_payload, render_events_html
+
+    parsed = urllib.parse.urlsplit(raw_path)
+    path = parsed.path.rstrip("/") or "/"
+    params = urllib.parse.parse_qs(parsed.query, keep_blank_values=False)
+    revision = params.get("revision", [None])[0]
+    try:
+        if path == "/events":
+            base = ledger_payload(Path(event_db))
+            batches = base["batches"]
+            requested = params.get("batch", [None])[0]
+            batch_id = requested or (batches[0]["batch_id"] if batches else None)
+            payload = (
+                ledger_payload(Path(event_db), batch_id, revision)
+                if batch_id
+                else base
+            )
+            return 200, render_events_html(payload), "text/html; charset=utf-8"
+        if path == "/api/research-events":
+            payload = ledger_payload(Path(event_db))
+            return (
+                200,
+                json.dumps(payload, separators=(",", ":")),
+                "application/json; charset=utf-8",
+            )
+        prefix = "/api/research-events/"
+        if path.startswith(prefix):
+            batch_id = urllib.parse.unquote(path[len(prefix) :])
+            if not batch_id or "/" in batch_id:
+                raise KeyError("invalid batch")
+            payload = ledger_payload(Path(event_db), batch_id, revision)
+            return (
+                200,
+                json.dumps(payload, separators=(",", ":")),
+                "application/json; charset=utf-8",
+            )
+    except KeyError as exc:
+        return 404, f"unknown research-event batch/revision: {exc}\n", "text/plain; charset=utf-8"
+    except (OSError, sqlite3.Error) as exc:
+        return 503, f"research-event ledger unavailable: {exc}\n", "text/plain; charset=utf-8"
+    return 404, "not found\n", "text/plain; charset=utf-8"
+
+
+def _corporate_action_response(corporate_action_db, raw_path):
+    """Pure route adapter for the optional corporate-action SQLite projection."""
+    import urllib.parse
+
+    if not corporate_action_db:
+        return (
+            404,
+            "corporate-action ledger not configured; restart with "
+            "--corporate-action-db PATH\n",
+            "text/plain; charset=utf-8",
+        )
+    from corporate_action_outcome_lab import ledger_payload, render_html
+
+    parsed = urllib.parse.urlsplit(raw_path)
+    path = parsed.path.rstrip("/") or "/"
+    params = urllib.parse.parse_qs(parsed.query, keep_blank_values=False)
+    try:
+        if path == "/corporate-actions":
+            action_id = params.get("id", [None])[0]
+            payload = ledger_payload(Path(corporate_action_db), action_id)
+            return 200, render_html(payload), "text/html; charset=utf-8"
+        if path == "/api/corporate-actions":
+            payload = ledger_payload(Path(corporate_action_db))
+            return (
+                200,
+                json.dumps(payload, separators=(",", ":")),
+                "application/json; charset=utf-8",
+            )
+        prefix = "/api/corporate-actions/"
+        if path.startswith(prefix):
+            action_id = urllib.parse.unquote(path[len(prefix) :])
+            if not action_id or "/" in action_id:
+                raise KeyError("invalid corporate action")
+            payload = ledger_payload(Path(corporate_action_db), action_id)
+            return (
+                200,
+                json.dumps(payload, separators=(",", ":")),
+                "application/json; charset=utf-8",
+            )
+    except KeyError as exc:
+        return (
+            404,
+            f"unknown corporate action: {exc}\n",
+            "text/plain; charset=utf-8",
+        )
+    except (OSError, sqlite3.Error) as exc:
+        return (
+            503,
+            f"corporate-action ledger unavailable: {exc}\n",
+            "text/plain; charset=utf-8",
+        )
+    return 404, "not found\n", "text/plain; charset=utf-8"
+
+
+def _corporate_action_state_response(corporate_action_state_db, raw_path):
+    """Pure route adapter for the point-in-time SEC action-state projection."""
+    import urllib.parse
+
+    if not corporate_action_state_db:
+        return (
+            404,
+            "SEC action-state ledger not configured; restart with "
+            "--corporate-action-state-db PATH\n",
+            "text/plain; charset=utf-8",
+        )
+    from sec_corporate_action_state_lab import ledger_payload, render_html
+
+    parsed = urllib.parse.urlsplit(raw_path)
+    path = parsed.path.rstrip("/") or "/"
+    params = urllib.parse.parse_qs(parsed.query, keep_blank_values=False)
+    as_of = params.get("as_of", [None])[0]
+    try:
+        if path == "/corporate-action-states":
+            chain_id = params.get("id", [None])[0]
+            payload = ledger_payload(
+                Path(corporate_action_state_db), chain_id, as_of
+            )
+            return 200, render_html(payload), "text/html; charset=utf-8"
+        if path == "/api/corporate-action-states":
+            payload = ledger_payload(Path(corporate_action_state_db))
+            return (
+                200,
+                json.dumps(payload, separators=(",", ":")),
+                "application/json; charset=utf-8",
+            )
+        prefix = "/api/corporate-action-states/"
+        if path.startswith(prefix):
+            chain_id = urllib.parse.unquote(path[len(prefix) :])
+            if not chain_id or "/" in chain_id:
+                raise KeyError("invalid action chain")
+            payload = ledger_payload(
+                Path(corporate_action_state_db), chain_id, as_of
+            )
+            return (
+                200,
+                json.dumps(payload, separators=(",", ":")),
+                "application/json; charset=utf-8",
+            )
+    except (KeyError, ValueError) as exc:
+        return (
+            404,
+            f"unknown SEC action chain/as-of clock: {exc}\n",
+            "text/plain; charset=utf-8",
+        )
+    except (OSError, sqlite3.Error) as exc:
+        return (
+            503,
+            f"SEC action-state ledger unavailable: {exc}\n",
+            "text/plain; charset=utf-8",
+        )
+    return 404, "not found\n", "text/plain; charset=utf-8"
+
+
+def _form25_population_response(form25_population_db, raw_path):
+    """Pure route adapter for the SEC Form 25 population projection."""
+    import urllib.parse
+
+    if not form25_population_db:
+        return (
+            404,
+            "Form 25 population not configured; restart with "
+            "--form25-population-db PATH\n",
+            "text/plain; charset=utf-8",
+        )
+    from sec_form25_population_lab import (
+        population_payload,
+        render_population_html,
+    )
+
+    parsed = urllib.parse.urlsplit(raw_path)
+    path = parsed.path.rstrip("/") or "/"
+    params = urllib.parse.parse_qs(parsed.query, keep_blank_values=False)
+    filters = {
+        key: params[key][0]
+        for key in (
+            "q",
+            "quarter",
+            "exchange",
+            "window",
+            "security",
+            "rule",
+            "reason",
+            "sampled",
+            "informative",
+        )
+        if key in params
+    }
+    try:
+        limit = int(params.get("limit", ["100"])[0])
+        payload = population_payload(
+            Path(form25_population_db), filters, limit
+        )
+        if path == "/form25-population":
+            return (
+                200,
+                render_population_html(payload),
+                "text/html; charset=utf-8",
+            )
+        if path == "/api/form25-population":
+            return (
+                200,
+                json.dumps(payload, separators=(",", ":")),
+                "application/json; charset=utf-8",
+            )
+    except (OSError, sqlite3.Error, ValueError) as exc:
+        return (
+            503,
+            f"Form 25 population unavailable: {exc}\n",
+            "text/plain; charset=utf-8",
+        )
+    return 404, "not found\n", "text/plain; charset=utf-8"
+
+
 def cmd_serve(args):
     """Serve the LIVE context map as a tiny read-only web app (stdlib http.server, no
     deps) — the context layer's OWN web view, separate from the (fenced) trading dashboard.
     GET / = the interactive force-graph (rebuilt each load, always fresh); /health = ok.
+    With --event-db, /events and /api/research-events are read-only projections of
+    the revision-aware research-event ledger. With --corporate-action-db,
+    /corporate-actions and /api/corporate-actions expose outcome facts read-only.
+    With --corporate-action-state-db, /corporate-action-states exposes a
+    point-in-time SEC state vector and observation-ordered timeline.
+    With --form25-population-db, /form25-population exposes a filterable
+    accession-level Form 25 census and enriched sample.
     Bind --host 0.0.0.0 to reach it over the network (e.g. Tailscale). Ctrl-C to stop."""
     import http.server
 
@@ -1825,12 +2090,50 @@ def cmd_serve(args):
 
         def do_GET(self):
             try:
-                path = self.path.split("?", 1)[0]
+                path = self.path.split("?", 1)[0].rstrip("/") or "/"
                 if path in ("/", "/index.html", "/graph"):
                     G, adj = build_graph(include_code=True)
-                    self._send(200, _render_graph_html(G, adj))
+                    self._send(
+                        200,
+                        _render_served_graph_html(
+                            G,
+                            adj,
+                            getattr(args, "event_db", None),
+                            getattr(args, "corporate_action_db", None),
+                            getattr(args, "corporate_action_state_db", None),
+                            getattr(args, "form25_population_db", None),
+                        ),
+                    )
                 elif path == "/health":
                     self._send(200, "ok\n", "text/plain; charset=utf-8")
+                elif path == "/events" or path.startswith("/api/research-events"):
+                    code, body, ctype = _event_ledger_response(
+                        getattr(args, "event_db", None), self.path
+                    )
+                    self._send(code, body, ctype)
+                elif path == "/corporate-actions" or path.startswith(
+                    "/api/corporate-actions"
+                ):
+                    code, body, ctype = _corporate_action_response(
+                        getattr(args, "corporate_action_db", None), self.path
+                    )
+                    self._send(code, body, ctype)
+                elif path == "/corporate-action-states" or path.startswith(
+                    "/api/corporate-action-states"
+                ):
+                    code, body, ctype = _corporate_action_state_response(
+                        getattr(args, "corporate_action_state_db", None),
+                        self.path,
+                    )
+                    self._send(code, body, ctype)
+                elif path == "/form25-population" or path.startswith(
+                    "/api/form25-population"
+                ):
+                    code, body, ctype = _form25_population_response(
+                        getattr(args, "form25_population_db", None),
+                        self.path,
+                    )
+                    self._send(code, body, ctype)
                 else:
                     self._send(404, "not found — try / (the context map)\n", "text/plain; charset=utf-8")
             except Exception as exc:  # never crash the server on one bad request
@@ -2485,6 +2788,26 @@ def main():
     sp = sub.add_parser("serve")
     sp.add_argument("--host", default="127.0.0.1", help="bind address (0.0.0.0 to reach over the network)")
     sp.add_argument("--port", type=int, default=8787, help="port (default 8787)")
+    sp.add_argument(
+        "--event-db",
+        default=None,
+        help="optional disposable research-event SQLite projection; enables read-only /events and API routes",
+    )
+    sp.add_argument(
+        "--corporate-action-db",
+        default=None,
+        help="optional disposable corporate-action SQLite projection; enables read-only outcome browser and API routes",
+    )
+    sp.add_argument(
+        "--corporate-action-state-db",
+        default=None,
+        help="optional disposable SEC action-state SQLite projection; enables read-only point-in-time timeline routes",
+    )
+    sp.add_argument(
+        "--form25-population-db",
+        default=None,
+        help="optional disposable SEC Form 25 SQLite projection; enables read-only population browser and API",
+    )
     sp.set_defaults(fn=cmd_serve)
     sub.add_parser("health").set_defaults(fn=cmd_health)
     sub.add_parser("claims").set_defaults(fn=cmd_claims)

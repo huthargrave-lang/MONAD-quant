@@ -815,12 +815,12 @@ Links: [[E33|evidenced_by]] · [[F41|refines]] · [[D4|refines]] · [[D6|support
 _— captured development@00be0c5, 2026-06-28_
 
 ### E34 — study #10: live<->backtest reconciliation (read-only forensic) - why is the live bot flat?
-tools/live_backtest_reconciliation_study.py + docs/research/D6_live_backtest_reconciliation.md. READ-ONLY forensic (panel AST-audited: no live-state mutation; reproduces ctx perf against the live DB) quantifying [[F28]] - why the live bot is flat vs the backtest headline. PART A: re-derives F13/F14 on the LIVE instrument (QQQ/TQQQ hourly cache) - lag-1 return autocorrelation is negative DAILY (MR) but ~0 hourly and +0.07 within-session (momentum); the dip-buy sleeve nets +16-17bps/trade daily vs -3bps hourly. PART B: decomposes the live fills - CONFIRMED (bracket_exit+stop_hit, 51) net +1.55% (flat) vs ALL +37% (inflated by 6 inferred target_hit + 9 max-bars time_exit marks). 2-lens skeptic panel (blocking=false, byte-reproducible). Builds on [[F13]]/[[F14]]; quantifies [[F28]].
+tools/live_backtest_reconciliation_study.py + docs/research/D6_live_backtest_reconciliation.md. READ-ONLY forensic (panel AST-audited: no live-state mutation) quantifying [[F28]] - why the active hourly signal is flat vs the backtest headline. PART A re-derives F13/F14 on QQQ/TQQQ: lag-1 return autocorrelation is negative DAILY (MR), ~0 hourly, and +0.07 within-session (momentum); the dip-buy sleeve nets +16-17bps/trade daily vs -3bps hourly. PART B decomposes the former 69-row export: the historically named CONFIRMED bucket (bracket_exit+stop_hit, 51) nets +1.55% (flat) vs ALL +37%, with six ~1% target_hit and nine max-bars time_exit rows driving the difference. [[F87]] corrects CONFIRMED to project exit-confirmed on a quote-derived basis; [[F88]] establishes that inference rows are execution-unverified rather than proven non-fills. The declared input is absent from the current checkout, so the 51-row number is not currently repriceable. Builds on [[F13]]/[[F14]]; quantifies [[F28]].
 Links: [[F13|builds_on]] · [[F14|builds_on]] · [[F2|relates]] · [[D6|relates]].
 _— captured development@df22530, 2026-06-28_
 
 ### F43 — Live<->backtest reconciled: the bot is flat because it trades a coarse-timescale signal hourly (no edge); both the Sharpe-25 backtest and +37% live headlines are artifacts - quantifies F28
-[[E34|evidenced_by]]: the live bot is flat NOT because it is broken but because it trades a coarse-timescale (multi-day mean-reversion) signal at the HOURLY frequency where that edge does not exist - re-derived on the live instrument: QQQ/TQQQ lag-1 autocorrelation is negative DAILY (the MR fuel) but ~0 hourly and +0.07 within-session (momentum), and the dip-buy sleeve flips from +16-17bps/trade daily to -3bps hourly. BOTH eye-catching headlines are mirages: the backtest Sharpe-25 was a morning-only (3-bars/day) sampling artifact ([[F13]]/[[F14]]) compounded by an unused adaptive-Kelly sizing ([[F28]]), holdout selection ([[F2]]) and optimistic fills; the live dashboard +37% is a separate exit-accounting artifact (6 inferred target_hit + 9 max-bars time_exit marks - the 51 confirmed fills net +1.55%). The two HONEST numbers (full-session backtest ~0, live CONFIRMED +1.5%) round to FLAT and agree - a qualitative reconciliation, not a single regression. Quantifies/refines [[F28]]: the disconnect is dominated by BAR-FREQUENCY. Confirms [[D6]].
+[[E34|evidenced_by]]: the active signal is flat because it applies a coarse-timescale (multi-day mean-reversion) idea at the HOURLY frequency where that edge does not exist. QQQ/TQQQ lag-1 autocorrelation is negative DAILY but ~0 hourly and +0.07 within-session; the dip-buy sleeve flips from +16-17bps/trade daily to -3bps hourly. The backtest Sharpe-25 was a morning-only sampling artifact ([[F13]]/[[F14]]) compounded by unused adaptive-Kelly sizing ([[F28]]), holdout selection ([[F2]]), and optimistic fills. The dashboard +37% is a separate accounting artifact: the 51-row project exit-confirmed bucket nets +1.55%, while six ~1% target_hit and nine max-bars time_exit rows drive the broader result. [[F87]]/[[F88]] weaken the execution-provenance labels but not the flat verdict. Full-session backtest ~0 and the project bucket +1.5% round to FLAT and agree qualitatively, not as one regression. This does not imply the runtime is operationally sound. Quantifies/refines [[F28]]: the disconnect is dominated by bar frequency; confirms [[D6]].
 Links: [[E34|evidenced_by]] · [[F28|refines]] · [[F13|builds_on]] · [[F14|builds_on]] · [[F2|relates]] · [[D6|relates]].
 _— captured development@df22530, 2026-06-28_
 
@@ -907,3 +907,926 @@ _— captured development@0979530, 2026-07-07_
 [[E39|evidenced_by]]: every fixed composition FAILS weak dominance vs the era-best pole, each on at least one robust leg (25/75 and both barbells: pos-era real-DD gaps of 8.6-12.9pp with bootstrap CIs excluding the 1pp tolerance; 50/50 and 75/25: neg-era excess-Sharpe CIs entirely below 0 across 9 block-seed combos). The duration-MATCHED 37.5/62.5 z2/z10 barbell is statistically IDENTICAL to the 7yr pole in the neg era (dSh [-0.06,+0.06], dMaxDD [-1.5,+0.3]) - at matched duration, curve SHAPE adds nothing (absence of evidence at one matched point; ~90% of the unmatched 50/50 barbell's shortfall was its 6.0-vs-7.0 duration gap, a panel catch) - so within nominal Treasuries the ballast question is ONE-DIMENSIONAL: how much duration. [[F46]] maps that trade-off; [[F48]] closes the marked-to-market REAL-ballast variant. Constructive: the minimax-regret ballast is 50/50 cash/z7 - worst normalized regret 0.49 pole-gap units vs the poles' 1.00 by construction (bootstrap-robust winner in ~95% of replicates; proxy-robust: 0.51 coupon-honest), and EVERY blend beats BOTH poles on full-sample 64yr excess Sharpe (0.489-0.507 vs 0.484/0.463) with the 50/50's real DD 10.5pp shallower than the bond pole - cross-regime diversification is real and free; it is just not dominance. Sharpens [[F46]] product guidance and the [[D8]] honest fallback: refuse the regime bet -> hold the regret-minimizing blend and accept second-best everywhere; halve the bet, never remove it.
 Links: [[E39|evidenced_by]] · [[H43|resolves]] · [[F46|refines]] · [[F48|relates]] · [[D8|relates]] · [[D6|supports]].
 _— captured development@0979530, 2026-07-07_
+
+### E40 — study #16: overnight gap-through-stop risk
+tools/overnight_gap_risk_study.py + docs/research/D6_overnight_gap_risk_study.md. Full-session TQQQ hourly replay (2024-08-01..2026-07-22), current live signal shape including the trader's TRADER_ALLOW_SHORTS=False gate, one position, paired exact-stop vs open-aware gap fills; exact custom replay first matches compute_trade_returns over 1,516 gated-long trades with zero differences. Tests 8/10-bar caps, scalar stop-penalty calibration, and EOD flatten; selfcheck + Python 3.9/3.13 JSON-identical reproduction. Builds on [[F47]] and refines [[F28]].
+Links: [[F47|builds_on]] · [[F28|refines]].
+_— captured development@234691a, 2026-07-23_
+
+### F50 — Exact-stop fills roughly halve observed hourly loss and drawdown; overnight gap risk is structural
+[[E40|evidenced_by]]: on 3,429 full-session TQQQ hourly bars / 494 sessions, the live-shaped long-only sequential replay carries 127/1,117 positions overnight and 34 (26.8%) open through the 0.5% stop. Exact-stop accounting reports -5.17% total / -5.88% maxDD at fixed 10% sizing; open-aware fills report -10.15% / -10.19%, a -5.38pp account-performance hit robust at 8 and 10 hold bars. A mean-matching 7.0bp stop penalty hides the tail (conditional damage median 1.03pp, p90 3.51pp, max 8.96pp). The July live case reproduces at -3.82% vs observed -4.01%. Corrected EOD flatten (official-close proxy, cannot fire before entry) removes the gap channel and improves the path to -5.77% / -6.75% but still has no edge. Strengthens [[F47]]/[[F28]] and supports [[D6]]; two-year path, not a stationary forecast.
+Links: [[E40|evidenced_by]] · [[F47|builds_on]] · [[F28|refines]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-23_
+
+### E41 — study #17: backtest-to-live execution-semantics waterfall and entry-bar ordering audit
+One shared full-session TQQQ feature panel is replayed through clock, regime, short-gate, position-overlap, entry-bar-bracket, and gap-fill assumptions. A paired 1,516-entry test proves N+2 exactly matches compute_trade_returns but 980 entries touch a bracket in N+1; 157 are dual-hit. Hourly ordering bounds total return at -7.61% to +16.91%; recent 5m calibration resolves 16/19 (11 stop-first, 5 target-first; 3 remain ambiguous). Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_execution_semantics_study.md.
+Links: [[F28|refines]] · [[F43|refines]].
+_— captured development@234691a, 2026-07-23_
+
+### F51 — The research engine skips the live bracket's entry hour; the mismatch is material but hourly OHLC cannot identify its return sign
+E41 pairs identical entries and shows 980/1,516 (64.6%) exit in the entry hour. Delayed N+2 returns +11.94%; immediate N+1 spans -7.61% under stop-first to +16.91% under target-first because 157 entry bars hit both thresholds. Recent 5m evidence leans stop-first (11 vs 5 resolved; Wilson95 target-first 14.2%-55.6%) but is small/clustered. Therefore N+2 is not live-faithful and pessimistic hourly N+1 is not a fully identified repair; tick/order-event or broad lower-timeframe history is required for return claims.
+Links: [[E41|evidenced_by]] · [[F28|refines]] · [[F43|supports]].
+_— captured development@234691a, 2026-07-23_
+
+### E42 — study #18: overnight-risk mitigation frontier and stop-width stress
+Pre-registered risk gate compares time cutoffs, end-of-day flatten, 0.25%-3% stops, and calendar slices on the live-shaped gap-aware replay. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_gap_mitigation_frontier_study.md.
+Links: [[F50|builds_on]] · [[F13|relates]].
+_— captured development@234691a, 2026-07-23_
+
+### F52 — Only direct exposure removal cleanly eliminates the observed gap channel; clock cutoffs are in-sample selection and wider stops do not bound jumps
+E42: corrected EOD flatten removes 34/34 gap stops and improves maxDD 3.44pp but remains -5.77% using an official-close proxy; its observed benefit implies a rough 34.7bp extra-cost budget per EOD exit across 126 exits before erasure. A source audit found the last hourly close differs from daily close by >5bp on 13.16% of sessions (max 129.9bp), and a harness bug had allowed open entries to flatten before they existed; both are corrected/self-checked. Noon/13:00 cutoffs pass the numeric risk gate but suppress 49%/36% of trades and repeat F13's morning-only selection mechanism, so they are not validated alpha. Across 0.25%-3% stops, worst conditional misses remain 7.46-9.21pp; width changes survival into the close, not the size of a discontinuous open.
+Links: [[E42|evidenced_by]] · [[F50|refines]] · [[F13|relates]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-23_
+
+### E43 — study #19: 2010-2026 cross-instrument leveraged-ETF overnight-gap history
+Unconditional close-to-open tails for SPY/SSO/UPRO, QQQ/QLD/TQQQ, SOXL, and TNA plus paired leverage regressions and COVID/2022/recent slices. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_cross_instrument_gap_history.md.
+Links: [[F50|builds_on]].
+_— captured development@234691a, 2026-07-23_
+
+### F53 — Leveraged-ETF overnight gap tails scale nearly mechanically with leverage across 16 years, so TQQQ's jump risk is structural rather than a two-year signal accident
+E43: over 4,133 nights, TQQQ's 1% gap quantile is -6.69%, worst-1% mean -10.33%, 31.19% of opens are <=-0.5%, 11.71% <=-2%, and worst is -28.82%. TQQQ-vs-QQQ gap beta is 2.95 (R2 .993); 2x/3x pairs recover 1.99-2.99 betas. SOXL/TNA and COVID, 2022, 2025-26 slices confirm the channel. At the current 10% paper position shape, the simple account translation is -0.67% at the instrument q01, -1.03% at ES1, and -2.88% at the historical worst before spread/liquidity. These are unconditional historical scenarios, not strategy loss probabilities, sizing recommendations, limits, or a stationary forecast.
+Links: [[E43|evidenced_by]] · [[F50|refines]] · [[F47|supports]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-23_
+
+### E44 — study #20: entry-bar ordering break-even and calibration value-of-information
+Derives exact target-first break-even counts for the paired overlapping diagnostic (53/157=33.76%), one-position exact path (36/138=26.09%), and one-position open-aware path (72/138=52.17%). Exact beta-binomial/Jeffreys sensitivity uses the durable 5m audit; Wilson sample-size analysis measures whether more calibration can resolve the sign. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_entry_bar_calibration_study.md.
+Links: [[F51|refines]] · [[F50|builds_on]].
+_— captured development@234691a, 2026-07-23_
+
+### F54 — Entry ordering can flip the exact-stop result, but cannot plausibly rescue the gap-aware live-shaped path on current calibration evidence
+E44: exact-stop break-even lies near observed target-first rates and is unidentified (overlap diagnostic predictive P(total>0) 27%-78%; one-position exact 44%-91% across unresolved bounds). The open-aware one-position path instead needs 72/138=52.17% target-first vs 4/14=28.57% resolved; Jeffreys beta-binomial predictive P(total>0) is 1.2%-20.4%, median -5.59% to -2.13%. Conditional on strong exchangeability assumptions, not proof of negative alpha. Do not patch with a 16-event stochastic rate; resolve the three 5m dual-hits and obtain historical lower-timeframe/order-event data.
+Links: [[E44|evidenced_by]] · [[F51|refines]] · [[F50|supports]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-23_
+
+### E45 — study #21: calendar-aware partial flattening before weekends and long closures
+Attributes 34 strategy gap events by known session spacing and tests flatten-before-4+, 3+, and 2+ calendar-day closures against daily flatten under the pre-registered mitigation gate. Adds event concentration and first-order execution-cost budgets. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_calendar_gap_mitigation_study.md.
+Links: [[F52|refines]] · [[F50|builds_on]].
+_— captured development@234691a, 2026-07-23_
+
+### F55 — Weekend and long-closure opens carry 44% of gap damage but only 24% of events; partial flatten cuts turnover, not the dominant weekday risk
+E45: 8/34 gaps after 3-4 calendar-day closures cause 23.70/53.76pp (44.08%) gross trade damage. After correcting the pre-entry flatten bug and using official daily closes, flattening before >=3-day closures uses 29 exits vs daily flatten's 126, improves total -10.15% to -8.61% and maxDD -10.19% to -8.65%, but removes only 23.53% of gap stops and misses the >=50%/2pp gate. Adding 2-day holiday eves makes 4 extra exits, removes no additional baseline gap, and worsens the path. Top five events carry 46.14% of damage. Calendar partial flatten is a turnover compromise, not tail elimination.
+Links: [[E45|evidenced_by]] · [[F52|refines]] · [[F50|supports]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-23_
+
+### E46 — study #22: expiring one-minute resolution of entry-bar ambiguity
+Recovered the July 6 one-minute TQQQ window before vendor retention expired, durably hashed the 1,170-row source, and resolved one of three five-minute dual hits. June 23-24 were already outside the stated 30-day range. Artifact: tools/overnight_gap_risk_study.py; audit: docs/research/data/entry_bar_1m_resolution_2026.csv; doc: docs/research/D6_one_minute_entry_resolution_study.md.
+Links: [[F54|refines]] · [[E44|builds_on]].
+_— captured development@234691a, 2026-07-23_
+
+### F56 — One-minute evidence resolves July 6 stop-first; exact-stop sign remains unidentified while the gap-aware rescue bound tightens
+E46: July 6 hit the 0.5% stop in the 09:30 one-minute bar and the 1% target at 09:34. Best-available counts become 5 target-first / 12 stop-first / 2 unresolved (29.41% of 17); the one-position subset is 4/15 target-first. Exact-stop break-even remains indistinguishable (26.09% vs 26.67%; ~21,887 resolved events to separate at that rate). Open-aware break-even is 52.17%; model-based P(total>0) tightens to 1.24%-9.89%. The resolved-only Wilson upper is 51.95%, only 0.22pp below break-even and not conservative to the two unknowns. Do not impute them or patch the simulator from 17 clustered events.
+Links: [[E46|evidenced_by]] · [[F54|refines]] · [[F51|refines]] · [[F50|supports]].
+_— captured development@234691a, 2026-07-23_
+
+### E47 — study #23: overnight-gap clustering and lagged-volatility risk frontier
+Measures dependence of TQQQ <=-2% overnight gaps over 4,113 nights, block-bootstrap rate uncertainty, conditional cluster risk, and a leak-free QQQ 20-session realized-volatility classifier shifted before each open. Applies fixed 12.5%-50% thresholds as risk-only flatten counterfactuals on the live-shaped path. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_gap_cluster_volatility_study.md.
+Links: [[F53|builds_on]] · [[F55|builds_on]].
+_— captured development@234691a, 2026-07-23_
+
+### F57 — Severe TQQQ gaps cluster, and lagged volatility captures weekday risk only by disabling most overnight exposure
+E47: <=-2% gaps occur 483/4,113 nights (11.74%; block20 CI 10.41%-13.13%). The next-night rate after a severe gap is 15.77% (1.34x); max clusters are 4/5 and 10/20 sessions. A 15% lagged-QQQ-vol rule captures 75.16% of unconditional severe gaps and removes 61.76% of strategy gap stops with 66 exits, improving the negative path to -6.10%/-6.81%; but it removes 56.5% of all nights and 75.3% since 2020. At 17.5% the strategy event gate already fails. This is the best partial risk mechanism found, but broad, same-sample, selected, and not alpha or production approval.
+Links: [[E47|evidenced_by]] · [[F53|refines]] · [[F55|refines]] · [[F52|supports]].
+_— captured development@234691a, 2026-07-23_
+
+### E48 — study #24: mitigation dependence, auction-cost, and selection stress
+Aligns candidate-policy wealth effects to exit sessions, circular-block bootstraps paired daily log differences at 5/20/60 sessions, reports calendar slices, and charges 0-80bp incremental cost per flatten exit. Compares daily, weekend/long-closure, and selected lagged-vol>=15% controls against the gap-aware baseline. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_mitigation_uncertainty_cost_study.md.
+Links: [[F52|builds_on]] · [[F55|builds_on]] · [[F57|builds_on]].
+_— captured development@234691a, 2026-07-23_
+
+### F58 — Daily and lagged-volatility flatten survive same-path block stress, but cost and post-selection leave only a forward paper-shadow hypothesis
+E48: block20 relative-wealth CIs are daily [+1.82,+8.58]%, weekend [-0.50,+4.70]%, and lagged-vol>=15% [+1.99,+7.83]%; the direction is stable across 5/20/60 blocks. Extra-cost break-even budgets are ~34.7/53.2/61.3bp per exit; at 40bp daily is worse than baseline while lagged-vol retains +1.60pp. Daily/vol directions are positive in all three dependent calendar slices; weekend reverses in 2024. The vol rule uses 66 vs 126 daily exits but was selected on the same two-year path and disables most recent nights. Freeze it only for future paper shadow accounting of real auction fills; no live/config change.
+Links: [[E48|evidenced_by]] · [[F52|refines]] · [[F55|refines]] · [[F57|refines]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-23_
+
+### E49 — study #25: lagged-volatility lookback and early-split falsification
+For QQQ realized-volatility lookbacks of 10, 20, 40, and 60 sessions, selects the highest absolute threshold retaining at least 60% capture of TQQQ gaps at or below -2% using 2010-2019 only, freezes it, tests the classifier on 2020-2026, and applies each control to the live-shaped 2024-2026 replay. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_volatility_lookback_oos_study.md.
+Links: [[F57|refines]] · [[F58|builds_on]].
+_— captured development@234691a, 2026-07-23_
+
+### F59 — The 20-day volatility rule survives an early threshold split, but the mechanism is lookback-sensitive and longer memories approach daily flatten
+E49: the 2010-2019 rule independently selects 15% for both 10d and 20d QQQ volatility. In 2020-2026 their unconditional severe-gap capture is 82.2% and 85.3%, but on the strategy path 10d removes only 47.1% of gap stops and fails the risk gate while 20d removes 61.8% with 66 exits and passes. The 40d/60d rules select 12.5%, remove 88.2% of strategy gaps, and pass, but require 96/104 exits versus daily flatten 126, so much of their protection is broad exposure removal. Every path remains negative. This supports a specific paper-shadow candidate of 20d/15%, not generic vol timing or production approval.
+Links: [[E49|evidenced_by]] · [[F57|refines]] · [[F58|refines]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-23_
+
+### E50 — study #26: forward shadow validation and fixed evidence horizons
+Freezes the 20-session QQQ volatility at 15% candidate, derives one-sided exact-binomial event horizons for strategy-conditioned and unconditional severe-gap capture, plans cost-precision scenarios, defines an immutable shadow ledger, and audits whether IBKR Paper Trading can identify real closing-auction cost. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_forward_shadow_validation_design.md.
+Links: [[F58|builds_on]] · [[F59|builds_on]].
+_— captured development@234691a, 2026-07-23_
+
+### F60 — A paper shadow can falsify the volatility classifier, but validation is multi-year and IBKR paper fills cannot identify auction cost
+E50: historical strategy capture is 21/34 and is not significant against 50% (one-sided exact p=.1147). At the observed 61.76% alternative, an iid fixed horizon needs 115 strategy gap events and at least 67 captures for 80% power, about 6.67 years; heuristic clustering design effects of 1.25-2.0 extend this to roughly 144-230 events / 8.35-13.34 years. The unconditional >60% capture surrogate needs 62 severe gaps and at least 44 captures, about 2.10 iid years, but is not decision-equivalent. IBKR documents that Paper Trading has no execution/clearing ability, does not support Auction orders, and simulates top-of-book fills; paper-only evidence therefore cannot clear the 61.3bp real MOC cost gate. Freeze a no-order ledger for classifier/plumbing falsification only; no production approval.
+Links: [[E50|evidenced_by]] · [[F58|refines]] · [[F59|refines]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-23_
+
+### E51 — study #27: simple recent-gap risk-classifier benchmarks
+Benchmarks the lagged QQQ-volatility rule against transparent flags active for 1, 2, 3, 5, 10, or 20 sessions after a TQQQ gap at or below -2%. Reports exposure, severe-gap capture, lift over random flags, downside capture, and live-shaped mitigation paths. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_simple_risk_classifier_benchmarks.md.
+Links: [[F57|refines]] · [[F59|refines]].
+_— captured development@234691a, 2026-07-23_
+
+### F61 — Volatility does not beat simple gap clustering on unconditional concentration, but it aligns better with this selected strategy path
+E51: vol20>=15% removes 56.5% of nights and captures 75.2% of severe gaps, lift 1.33x. Recent-gap windows of 1-5 sessions have essentially the same 1.31x-1.38x lift, so unconditional concentration is not unique to volatility. On the strategy path, vol20 removes 61.8% of gap stops with 66 exits and passes, while the exposure-near prior-10 rule removes 47.1% with 72 exits and fails. A recent-gap rule passes only at 20 sessions, removing 82.9% of nights with 104 exits. The strategy alignment is same-sample and requires Study26 forward testing; all paths remain negative.
+Links: [[E51|evidenced_by]] · [[F57|refines]] · [[F59|refines]] · [[F60|supports]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-23_
+
+### E52 — study #28: volatility-classifier annual regime and base-rate decomposition
+Decomposes the frozen vol20>=15% rule by year into exposure removed, severe-gap capture, capture lift over exposure-matched random flags, precision, and downside capture; also performs recent leave-one-year-out summaries. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_volatility_regime_stability.md.
+Links: [[F59|refines]] · [[F61|builds_on]].
+_— captured development@234691a, 2026-07-23_
+
+### F62 — Recent volatility-rule capture is stable but mostly broad regime exposure, while year-level discrimination is unstable
+E52: the vol20>=15% rule flagged 100% of 2022 nights, so 100% severe-gap capture had lift exactly 1. It flagged 84.6%/84.4% in 2020/2023 with lift 1.03x/1.05x; in 2024 it flagged 59.1% but captured 54.5%, lift .92x. Recent meaningful concentration appears in 2025 at 1.38x. Earlier annual lift ranges .56x-4.28x with small counts. Leaving one recent year out preserves high raw capture, but that reflects persistent risk-off exposure rather than stable discrimination. Report exposure and lift; do not shorten Study26 using the 85.3% capture headline.
+Links: [[E52|evidenced_by]] · [[F59|refines]] · [[F61|refines]] · [[F60|supports]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-23_
+
+### E53 — study #29: execution-risk input provenance and reconstruction audit
+Hashes the five exact Yahoo/yfinance runtime caches underlying Studies16-32, records queries/sizes/line counts/durable derivatives in a committed manifest, and distinguishes deterministic transforms from repo-only raw-data reconstructability. Artifact: tools/overnight_gap_risk_study.py; manifest: docs/research/data/overnight_gap_input_manifest_2026.json; doc: docs/research/D6_input_provenance_audit.md.
+Links: [[E40|refines]] · [[E46|refines]] · [[E52|refines]].
+_— captured development@234691a, 2026-07-23_
+
+### F63 — All five execution-study inputs are byte-identified, but a fresh repository clone cannot reconstruct the full vendor sample
+E53: current hourly, 5m, daily, 1m, and corporate-action caches all match embedded SHA-256 snapshots. The tool and manifest preserve exact queries, byte sizes, hashes, and lower-timeframe/corporate-action derived audits. However raw vendor bytes remain only in /tmp, and expiring/revisable downloads may not reproduce them later. Thus the analysis transform is deterministic and current bytes are auditable, but the repository alone is not fully self-contained. Any refresh requires a new hash and result diff; do not silently inherit old findings.
+Links: [[E53|evidenced_by]] · [[E40|refines]] · [[E46|refines]] · [[E52|refines]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-23_
+
+### E54 — study #30: volatility-rule capture calibration across gap severity
+Measures vol20>=15% capture, lift over exposure-matched random flags, and residual unflagged events for nested TQQQ overnight loss thresholds from .25% to 10%; quantifies the remaining unflagged q01, ES1, and worst gap. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_volatility_gap_severity_calibration.md.
+Links: [[F57|refines]] · [[F62|refines]].
+_— captured development@234691a, 2026-07-23_
+
+### F64 — Lagged volatility is a catastrophic-severity state, not a precise routine-stop predictor or loss bound
+E54: vol20>=15% removes 56.5% of nights. It captures 62.82% of >=.5% losses, only 1.11x lift, but capture/lift rise to 88.61%/1.57x at 4%, 91.38%/1.62x at 6%, and 96.30%/1.70x at 8%. The unflagged tail still has q01 -3.99%, ES1 -5.39%, and worst -10.54%, about -1.05% of account at a 10% position before liquidity. Interpret the rule as broad catastrophic-risk exposure removal; it neither predicts ordinary stop gaps precisely nor caps losses.
+Links: [[E54|evidenced_by]] · [[F57|refines]] · [[F62|refines]] · [[F60|supports]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-23_
+
+### E55 — study #31: TQQQ corporate-action and ex-dividend gap audit
+Separates raw-price stop triggers from distribution-inclusive wealth using 21 TQQQ cash distributions and eight splits. Recounts long-history gap thresholds, credits distributions only to positions held before each ex-date, and reruns hold, vol15, and daily-flatten policy accounting. Source action cache is hashed and a durable audit is committed; latest distribution and 2025 split are sponsor-cross-checked. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_corporate_action_gap_audit.md.
+Links: [[F50|refines]] · [[F57|refines]] · [[F58|refines]].
+_— captured development@234691a, 2026-07-23_
+
+### F65 — Ex-dividend accounting is a real but immaterial correction; it does not explain the overnight tail or mitigation result
+E55: adding cash distributions removes only 2 of 1,289 raw >=.5% gap classifications, 2 of 935 >=1% classifications, and none of 484 >=2% or 158 >=4% gaps. No baseline overnight gap stop occurs on a distribution ex-date. Two held positions earn distributions, improving the gap-aware baseline only +.0338pp to -10.1133%; daily-flatten relative benefit becomes +4.3387pp and vol15 +4.0482pp. Raw price remains correct for stop triggering; distribution-inclusive wealth is the corrected performance convention. Every path and decision stays negative/unapproved.
+Links: [[E55|evidenced_by]] · [[F50|refines]] · [[F57|refines]] · [[F58|refines]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-23_
+
+### E56 — study #32: first-hour open source and missing-session-bar audit
+Pairs 494 Yahoo first-hour opens with daily-bar opens, audits per-session bar completeness against known early closes, substitutes daily opens only for held-position gap fills, and recomputes after excluding two corrupt sessions. Public historical tables independently check the largest bad daily open. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_session_open_source_audit.md.
+Links: [[F50|refines]] · [[F63|refines]].
+_— captured development@234691a, 2026-07-23_
+
+### F66 — The hourly cache contains two corrupt partial sessions; daily-open and exclusion sensitivities make the negative path slightly worse
+E56: 487 sessions have seven bars and five have valid early-close three bars, but 2026-01-30 has only 09:30/10:30 and 2026-02-02 only 13:30-15:30. Feb2 first-hour proxy $55.625 is an afternoon value versus daily/public open $53.16, a 463.7bp mismatch. Across 494 sessions median absolute open difference is 1.04bp and p95 25.92bp. Substituting daily opens for held-position gap fills changes 18 trades and worsens total/maxDD by .0580pp to -10.2051%/-10.2463%. Excluding both defects and rebuilding worsens them .0879/.0880pp. Median-bars validation is insufficient; audit every session and prefer daily open for this vendor. Tail conclusion stands.
+Links: [[E56|evidenced_by]] · [[F50|refines]] · [[F63|refines]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-23_
+
+### E57 — study #33: consolidated corrected execution ledger
+Applies the daily raw open to held-position gap-fill mechanics, credits earned TQQQ distributions separately, measures the correction interaction and defective-session exclusion sensitivity, and reruns hold, vol20>=15%, and daily-flatten policies on one accounting convention. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_corrected_execution_ledger.md.
+Links: [[F50|refines]] · [[F58|refines]] · [[F65|refines]] · [[F66|refines]].
+_— captured development@234691a, 2026-07-23_
+
+### F67 — The joint corrected baseline remains materially negative; mitigation survives only as an unapproved cost-sensitive risk hypothesis
+E57: daily-open plus distribution-inclusive accounting yields -10.1713% total / -10.2126% maxDD for 1,117 live-shaped trades. Excluding the two partial sessions and rebuilding worsens the path to -10.2593%/-10.3005%. Corrected vol20>=15% gives -6.0411%/-6.7539%, removes 21/32 classified gap stops with 66 exits, and has a 62.58bp first-order cost ceiling; daily flatten gives -5.7746%/-6.7518%, removes all 32 with 126 exits, and has a 34.89bp ceiling. Use the joint convention as canonical; descriptive gate passes are not production approval.
+Links: [[E57|evidenced_by]] · [[F50|refines]] · [[F58|refines]] · [[F65|refines]] · [[F66|refines]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-23_
+
+### E58 — study #34: mitigation close-proxy sensitivity
+Pairs corrected vol20>=15% and daily-flatten paths under official daily-close versus last-hourly-close exits, holding entries, exit timestamps, exit types, daily-open gap fills, and distribution credits fixed. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_close_proxy_policy_sensitivity.md.
+Links: [[F58|refines]] · [[F67|refines]].
+_— captured development@234691a, 2026-07-23_
+
+### F68 — Mitigation survives the close-proxy alternative, but shared-vendor agreement is not auction-fill validation
+E58: official versus last-hourly close changes corrected total return by only +.0778pp for vol20>=15% and +.0344pp for daily flatten. Median absolute flattened-trade differences are 1.93/1.40bp and p95 10.21/9.09bp; both descriptive gates pass under either proxy. Conservative last-hourly cost ceilings are 61.40bp and 34.62bp per exit. The proxy choice does not drive the result, but neither Yahoo field measures executable MOC cost.
+Links: [[E58|evidenced_by]] · [[F58|refines]] · [[F67|refines]] · [[F60|supports]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-23_
+
+### E59 — study #35: fixed closing-auction evidence protocol
+Freezes Nasdaq/IBKR operational facts, required event fields, a fixed intended-event horizon, and rejection rules for any future real closing-auction evidence. Study #43 corrects its original NOCP endpoint: standard-Cross fill versus NOCP is reconciliation, while the 60-event gate measures operational failure. It explicitly preserves MONAD paper-only status. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_closing_auction_evidence_protocol.md.
+Links: [[F60|refines]] · [[F68|refines]] · [[F78|refines]].
+_— captured development@234691a, 2026-07-23_
+
+### F69 — Real auction-cost approval needs a fixed 60-fill zero-breach trial that MONAD paper cannot provide
+<!-- status: superseded; by: F78; reason: data-fixed; at: 2026-07-24 -->
+E59: require 60 executed fills, complete order/fill/NOCP records, no rejects or ceiling breaches, and a block-5 one-sided 95% upper mean below the conservative 61.40bp vol15 or 34.62bp daily ceiling. Zero breaches in 60 gives a 4.87% exact one-sided upper breach-rate bound. At observed proxy exit rates this is ~1.79/~.94 years. Nasdaq cutoff/NOII mechanics and IBKR paper limitations make this a separately authorized real-data requirement, never approval to alter the paper-only bot.
+Links: [[E59|evidenced_by]] · [[F60|refines]] · [[F68|refines]] · [[F67|supports]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-23_
+
+### E60 — study #36: QQQ distribution contamination audit for vol20
+Hashes 69 QQQ distributions, reconstructs lagged 20-session volatility from distribution-inclusive returns, identifies every 15% threshold flip, and reruns the corrected volatility-flatten policy. Artifact: tools/overnight_gap_risk_study.py; derivative: docs/research/data/qqq_distributions_2010_2026.csv; doc: docs/research/D6_volatility_distribution_audit.md.
+Links: [[F57|refines]] · [[F67|refines]] · [[F63|refines]].
+_— captured development@234691a, 2026-07-23_
+
+### F70 — QQQ distributions flip five marginal vol15 labels but zero strategy decisions; the mitigation result is not an ex-dividend artifact
+E60: across 4,113 sessions, distribution-inclusive QQQ returns change mean vol20 by -.01343pp, with p95 absolute difference .18824pp and max .76546pp. Only five 15% labels flip (four raw-only, one adjusted-only); exposure changes 56.504% to 56.431%, severe-gap capture stays 75.155%, and no flip intersects an active flatten. The corrected policy remains exactly 66 exits, 11 gaps, -6.0411% total, -6.7539% maxDD, and 62.58bp cost ceiling. Use distribution-inclusive returns anyway.
+Links: [[E60|evidenced_by]] · [[F57|refines]] · [[F67|refines]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-23_
+
+### F71 — The execution program now byte-identifies six inputs, while raw vendor panels remain outside the repository
+E60 extends E53 with a sixth hashed runtime input: the 501,193-byte QQQ daily action cache (SHA-256 7969bc74...ecdb94) plus a committed 69-row distribution derivative. All six current caches match. The analysis remains byte-auditable in this environment but not repo-self-contained because raw Yahoo panels live in /tmp.
+Links: [[E60|evidenced_by]] · [[F63|refines]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-23_
+
+### E61 — study #37: volatility decision-time and lookahead audit
+Recomputes every vol20 state from exactly the 20 QQQ total-return observations ending at t-1, reports threshold margins, and contrasts the feasible policy with an explicit current-close lookahead replay. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_volatility_decision_time_audit.md.
+Links: [[F59|refines]] · [[F78|refines]] · [[F70|refines]].
+_— captured development@234691a, 2026-07-24_
+
+### F72 — Vol20 is exactly known from t-1 data before the MOC lock; current-close lookahead changes the path and is forbidden
+E61: 4,113 manual truncated recomputations match the shifted distribution-inclusive classifier within 2.5e-15. The unshifted current-close variant flips 147 historical and 20 recent labels, despite flagging the same 357 recent nights overall; it produces 65 exits, 12 gaps, -6.2049% total and -7.1522% maxDD versus the feasible path 66/11/-6.0411%/-6.7539%. Lookahead is worse here, but still impossible and invalid. Runtime ingestion timing remains a shadow-logging requirement.
+Links: [[E61|evidenced_by]] · [[F59|refines]] · [[F78|refines]] · [[F70|refines]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E62 — study #38: local vol20 threshold robustness
+Runs a symmetric, non-selectable 14.00%-16.00% grid in 0.25pp steps under corrected accounting and reports exposure, exits, residual gaps, path metrics, cost ceilings, and the existing descriptive gate. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_local_volatility_threshold_robustness.md.
+Links: [[F59|refines]] · [[F70|refines]] · [[F72|refines]].
+_— captured development@234691a, 2026-07-24_
+
+### F73 — The vol20 risk-control result sits on a 14%-16% local plateau, not a 15.00% threshold cliff
+E62: all nine quarter-point thresholds pass the descriptive gate. Corrected totals range -6.2417% to -5.6813%, maxDD -6.9745% to -6.5014%, exits 61-75, remaining gaps 7-12, and first-order cost ceilings 59.11-65.23bp. Thus small threshold/data perturbations do not reverse the conclusion. The grid is same-sample robustness only; no row may replace the frozen 15% forward hypothesis.
+Links: [[E62|evidenced_by]] · [[F59|refines]] · [[F70|refines]] · [[F72|refines]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E63 — study #39: direct mitigation versus opportunity-path decomposition
+Applies each flatten rule to the fixed 1,117-trade corrected baseline cohort, then contrasts that direct effect with the normal dynamic one-position rerun and its changed signal opportunity set. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_mitigation_path_decomposition.md.
+Links: [[F58|refines]] · [[F67|refines]].
+_— captured development@234691a, 2026-07-24_
+
+### F74 — Vol15 benefit is almost entirely direct same-cohort risk removal; daily replacement trades give back part of its benefit
+E63: vol15 improves the fixed baseline cohort +4.1299pp versus +4.1302pp dynamically, so 38 dynamic-only and one lost signal contribute only +.0003pp; 99.99% is direct. Daily flatten improves the fixed cohort +5.1691pp but only +4.3967pp dynamically; its 72 new and two lost signals subtract .7724pp. Vol15 therefore does not borrow favorable replacement alpha, while daily exact returns are opportunity-path-dependent. Both remain negative and unapproved.
+Links: [[E63|evidenced_by]] · [[F58|refines]] · [[F67|refines]] · [[F73|supports]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E64 — study #40: direct mitigation benefit concentration
+Ranks leave-one-out account contributions for every fixed-cohort flatten, reports helpful versus harmful changes, resets the largest 1/3/5/10 events, and attributes changed trades by year. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_mitigation_benefit_concentration.md.
+Links: [[F74|refines]].
+_— captured development@234691a, 2026-07-24_
+
+### F75 — Vol15 direct benefit is tail-concentrated but survives removing its largest events
+E64: 43 of 67 changed vol15 trades improve and 24 worsen; gross trade deltas are +64.39pp/-19.54pp. The largest Jan24-27 2025 event contributes ~.998pp account wealth; removing it retains 75.84% (+3.1321pp) of direct benefit. Removing top five retains 42.75% (+1.7657pp), and top ten 17.27% (+.7134pp). Most net trade benefit occurs in 2025. This supports a repeated tail-loss mechanism but not a stable expected magnitude or shorter forward trial.
+Links: [[E64|evidenced_by]] · [[F74|refines]] · [[F60|supports]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E65 — study #41: fixed-cohort direct-effect dependence stress
+Aligns corrected fixed-cohort and hold account log returns by session and circular-block bootstraps paired relative wealth at 5/20/60-session dependence lengths; also reports annual effects and direct cost ceilings. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_fixed_cohort_dependence_stress.md.
+Links: [[F58|refines]] · [[F74|refines]] · [[F75|refines]].
+_— captured development@234691a, 2026-07-24_
+
+### F76 — Corrected fixed-cohort vol15 loss avoidance survives block-5, block-20, and block-60 dependence stress
+E65: vol15 fixed-cohort relative wealth is +4.5976%; paired daily-log 95% CIs are [+1.850,+8.135]% at block5, [+1.860,+8.314]% at block20, and [+1.796,+8.297]% at block60. Partial-year effects are positive in 2024/2025/2026 (+.3886/+3.1133/+1.0468%). Direct cost ceiling is 61.64bp. This hardens historical loss avoidance after removing opportunity drift, but cannot cure classifier selection or validate real MOC cost.
+Links: [[E65|evidenced_by]] · [[F58|refines]] · [[F74|refines]] · [[F75|refines]] · [[F60|supports]] · [[F78|supports]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E66 — study #42: fixed-cohort flatten intervention outcome anatomy
+Measures favorable versus harmful fixed-cohort changes with Wilson/exact-binomial uncertainty and decomposes outcomes by the baseline exit that the early close replaces. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_flatten_intervention_outcomes.md.
+Links: [[F74|refines]] · [[F75|refines]] · [[F76|refines]].
+_— captured development@234691a, 2026-07-24_
+
+### F77 — Vol15 favors 43 of 67 changed baseline trades by cutting eventual losers and sacrificing eventual targets
+E66: vol15 improves 43/67 interventions (64.2%, Wilson95 52.2-74.6%, one-sided p=.0136 vs 50%) with median +50bp. All 21 eventual overnight gap stops, 14 ordinary stops, and 8 ambiguous stops improve; all 24 eventual targets worsen. Daily flatten is only 70/127 favorable (55.1%, Wilson 46.4-63.5%, p=.1435). The mechanism is asymmetric loss avoidance, not precise next-gap prediction.
+Links: [[E66|evidenced_by]] · [[F74|refines]] · [[F75|refines]] · [[F76|refines]] · [[F60|supports]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E67 — study #43: closing-auction benchmark identity and cost-endpoint correction
+Re-reads Nasdaq Equity 4 Rules 4702/4754, current Nasdaq Closing Cross FAQs, and IBKR MOC/paper/fee documentation; distinguishes a qualifying Closing Cross from the ETP T-WAM fallback; rescales the published per-share fee; and corrects Study #35's fill-versus-NOCP endpoint. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_closing_auction_benchmark_identity.md.
+Links: [[F68|refines]] · [[F60|refines]].
+_— captured development@234691a, 2026-07-24_
+
+### F78 — Standard Nasdaq MOC fill equals the Cross/NOCP price; the 60-event gate measures operational failure, not fill slippage
+E67: under Nasdaq Rules 4702/4754, a standard qualifying MOC executes at the single Closing Cross price, which is the NOCP; fill-minus-published-NOCP is therefore reconciliation, not an independent implementation-shortfall sample. For a Nasdaq-listed ETP with no Cross or less than one round lot, NOCP instead uses a 15:58:00-15:59:55 time-weighted NBBO midpoint, so those events must be separate. At the published $0.0016/share exchange fee, fee scale is only 0.40/0.2667/0.20bp at $40/$60/$80. Sixty intended events with zero rejects/unfilled flattens bounds operational failure below 4.87% one-sided; self-impact remains unidentified because the order helps form the published NOCP.
+Links: [[E67|evidenced_by]] · [[F69|supersedes]] · [[F68|refines]] · [[F60|supports]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E68 — study #44: current closing-auction runtime readiness audit
+Hashes and statically audits live/trader.py, live/broker.py, live/signals.py, and the trader systemd timer against the corrected auction protocol; directly clock-tests the market-hours guard on a 2026 early-close weekday. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_closing_auction_runtime_readiness.md.
+Links: [[F78|builds_on]] · [[F72|refines]].
+_— captured development@234691a, 2026-07-24_
+
+### F79 — The current trader is not MOC-ready and its hard-coded 16:00 guard admits post-close jobs on early-close weekdays
+E68: the final regular-session cycle is 15:32 ET, nominally 18 minutes before Nasdaq's cancel lock and 23 before its MOC acceptance cutoff. But the live path has no frozen t-1 vol20 policy, MOC constructor, cutoff deadline, exchange-calendar/early-close guard, or NOCP/NOII schema; its close path is a SMART MarketOrder. The weekday 09:30-16:00 guard returns true at 13:32 ET on the 2026 post-Thanksgiving 13:00 close, admitting the 13:32/14:32/15:32 jobs after the exchange close. This blocks readiness and is not authorization to modify protected code.
+Links: [[E68|evidenced_by]] · [[F78|supports]] · [[F72|refines]] · [[F60|supports]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E69 — study #45: 2026 closed-session scheduler and duplicate-state audit
+Combines Nasdaq's official 2026 holiday calendar with the current weekday 09:32-15:32 scheduler, 09:30-16:00 guard, 120-hour bar-staleness allowance, and cycle-based holding counter to count off-exchange jobs and state-transition exposure. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_exchange_calendar_closed_cycle_audit.md.
+Links: [[F79|builds_on]] · [[F66|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F80 — The 2026 weekday-only runtime admits 76 off-exchange-calendar cycles and can count the same bar repeatedly
+<!-- status: superseded; by: F81; reason: data-fixed; at: 2026-07-24 -->
+E69: Nasdaq lists ten fully closed weekdays and two 13:00 closes in 2026. The current seven-cycle weekday scheduler plus hard-coded 16:00 guard therefore admits 70 jobs on closed holidays and six after early closes. The configured 120-hour bar-staleness window lets prior-session data pass, while an open position's bar_count increments once per admitted cycle with no last-processed-bar idempotency gate: up to seven same-bar increments on a holiday, or three after an early close (two duplicate the final bar). This is deterministic schedule/state exposure, not evidence of 76 orders, and it independently blocks safe runtime readiness.
+Links: [[E69|evidenced_by]] · [[F79|refines]] · [[F66|relates]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E70 — study #46: pinned calendar-misfire materiality replay
+Enumerates official Nasdaq closed and early-close dates inside the 2024-08 to 2026-07 pinned window, maps each admitted off-calendar scheduler cycle to the causally available TQQQ signal bar, and intersects the cycles with the clean gap-aware one-position path. It also audits actual early-close bar timestamps. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_pinned_calendar_misfire_materiality.md.
+Links: [[F79|builds_on]] · [[F66|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F81 — Pinned replay finds 162 off-calendar jobs, 65 baseline-open cycle exposures, and 15 of 15 duplicate early-close jobs
+E70: from 2024-08 through 2026-07, official dates produce 21 full-holiday and five early-close weekdays, hence 162 jobs admitted outside the exchange calendar. Reused signals are nonzero on 14/21 holidays and 4/5 early closes. The clean counterfactual path has a position open for 65 admitted cycle slots; nine dates are clean-flat with a nonzero signal (59 frozen-state cycle evaluations, not orders). All five early-close sessions contain three Yahoo bars ending 11:30, so all 15 post-13:00 jobs reuse the final bar already processable at 12:32, correcting F80's generic two-duplicate estimate. No Pi state, broker action, or fill is inferred.
+Links: [[E70|evidenced_by]] · [[F80|supersedes]] · [[F79|refines]] · [[F66|relates]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E71 — study #47: sanitized observed holiday-runtime audit
+Hashes and audits the committed 2026-06-18 sanitized Pi archive for official closed dates inside its signal-history coverage; groups signal and monitor records by ET minute, checks repeated bars/signals, broker connection failures, trade endpoints, and archive-wide double writes. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_sanitized_holiday_runtime_evidence.md.
+Links: [[F81|builds_on]] · [[F79|refines]] · [[F43|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F82 — Sanitized Pi records confirm holiday cycles ran; paper Gateway failure, not a calendar guard, prevented downstream behavior
+E71: the archive covers two official closures. Good Friday 2026 logged 8 signal rows over 4 distinct hourly slots, all reusing one prior-session bar with signal +1; Memorial Day logged 14 over all 7 slots, reusing one bar with signal 0. All 22 rows have paired paper-port-7497 connection failures and neither date has a trade entry/exit endpoint. Each observed holiday slot was double-written. Archive-wide, 543 signal rows collapse to 333 minute slots, including 210 double-written slots (13 identical payload, 197 divergent), consistent with duplicate historical invocations/writers but not identifying cause. The current preflight has a duplicate-process check, so do not project that historical concurrency forward; the exchange-calendar gap remains current.
+Links: [[E71|evidenced_by]] · [[F81|refines]] · [[F79|refines]] · [[F43|relates]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E72 — study #48: historical duplicate-writer and order-path forensics
+Audits paired signal rows, entry monitor events, and trade rows in the committed sanitized Pi archive; measures bar/signal disagreement, long-eligibility changes, duplicate submission success paths, and which local state survives. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_historical_duplicate_writer_forensics.md.
+Links: [[F82|refines]] · [[E69|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F83 — Historical duplicate cycles changed decisions and reached the bracket path twice in seven entry minutes
+E72: 210 paired minute slots disagree on the final signal 69 times (32.9%) and on long-entry eligibility 58 times (27.6%) under the archived shorts-disabled configuration. The monitor archive has 72 entry events across 65 unique entry minutes; seven minutes contain two success-path events. Archived code calls ib.placeOrder for parent, TP, and stop before each event, so this proves seven extra bracket paths and 21 extra application submission calls. All seven local trade rows retain only the later state. Broker acceptance, fills, and exposure remain unproven without an order/execution ledger.
+Links: [[E72|evidenced_by]] · [[F82|refines]] · [[F43|relates]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E73 — study #49: live bar-completion timezone and DST natural-experiment audit
+Hashes and audits the current yfinance/live-signal time conversion, builds a fixed-clock host-timezone x vendor-tail decision table, and checks the sanitized paired history against the UK 2026 DST transition and holiday boundaries. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_live_bar_completion_timezone_audit.md.
+Links: [[F83|builds_on]] · [[F79|refines]].
+_— captured development@234691a, 2026-07-24_
+
+### F84 — UTC-naive bars are compared with host-local time, making live completed-bar selection environment-dependent
+E73: fetch_yfinance converts hourly labels to UTC-naive, but live/signals uses local-naive Timestamp.now when the index is naive. A fixed 14:32 UTC case is invariant under UTC; London BST accepts a 14:30 in-progress bar when the vendor tail is present, while New York EDT drops the completed 13:30 bar when that tail is absent. The archived natural experiment matches exactly: two pre-BST regular plus eleven closed-holiday slots agree, while the other 197 pairs differ by the predicted 60/1080/3960/5400 minutes, producing 69 signal and 58 long-eligibility disagreements. The systemd New York TZ shifts the 120h true-age boundary to 124/125h. Current runtime is not ready; no protected change is authorized.
+Links: [[E73|evidenced_by]] · [[F83|relates]] · [[F82|refines]] · [[F79|refines]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E74 — study #50: archived incomplete-bar materiality and conservative entry attribution
+Reinterprets every sanitized signal row against true UTC bar age, separates paired from single writes, applies a strict cycle-without-ID attribution rule to entry events, and partitions the archive-confirmed local trade rows. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_archived_incomplete_bar_materiality.md.
+Links: [[F84|builds_on]] · [[F83|relates]] · [[F43|refines]].
+_— captured development@234691a, 2026-07-24_
+
+### F85 — More than half of archived signals and at least 40 of 65 entry minutes used an in-progress hourly bar
+E74: true-UTC aging classifies 297/543 signal rows (54.7%) as about two minutes into the hour, including 100/123 single-write rows. A strict join that excludes both-long ambiguity attributes at least 40/65 unique entry minutes (61.5%) and 40/72 entry events (55.6%) to an incomplete information set; all 40 have local trade rows and 33 sit in the archive-confirmed bucket. Those 33 compound +1.4388% versus -1.2166% for the 14-row remainder, a descriptive non-causal partition. The overall verdict stays flat, but archived live PnL is not clean completed-bar validation.
+Links: [[E74|evidenced_by]] · [[F84|refines]] · [[F83|relates]] · [[F43|refines]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E75 — study #51: trader singleton and launch-safety audit
+Hashes and audits six repository-visible trader launch paths, scopes the preflight, named-unit, scheduler, IBKR-client, broker-position, and SQLite controls, and constructs a falsifiable current-code interleaving that can reach a second bracket path while the first parent remains working but unfilled. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_trader_singleton_launch_safety_audit.md.
+Links: [[F83|builds_on]] · [[F84|relates]] · [[F85|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F86 — Managed service startup is safer, but current code does not prove exactly-once trader or per-bar order ownership
+E75: only two of six repository-visible launch paths route through the full preflight/named unit; four bypass it, and none holds a cross-process lock or durable symbol+bar+direction intent. pgrep is check-then-exec, max_instances=1 is per scheduler, clientId 1 is disconnected/retried, and SQLite serializes final writes rather than the broker check-to-act sequence. The broker-position guard often fails safe, but a second retry can still proceed while the first parent is working yet unfilled because entry does not inspect working orders or reread local state. --once bypasses market hours and --live contradicts PAPER ONLY. This is a residual reachability proof, not attribution of the seven historical double-entry minutes.
+Links: [[E75|evidenced_by]] · [[F83|refines]] · [[F79|refines]] · [[F84|relates]] · [[F85|relates]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E76 — study #52: entry acknowledgement, crash cutpoint, and quote-basis audit
+Hashes and audits the current bracket submission/local-state path, maps the TWS/IB acceptance and execution evidence ladder, enumerates crash cutpoints, and reprices the 47-row sanitized project exit-confirmed archive under uniform entry-basis shifts. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_entry_acknowledgement_basis_audit.md.
+Links: [[F86|builds_on]] · [[F43|refines]] · [[F85|relates]] · [[E41|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F87 — ENTRY placed proves application submission, not acceptance or fill; fill_basis is a quote
+E76: the current entry function makes three placeOrder calls, retains zero returned Trade objects, and performs zero status/fill/open-order checks before persisting the quote-derived basis and emitting local success. A crash after the final transmit but before SQLite can leave a working bracket without local state; startup checks positions, not active orders. The 47-row project exit-confirmed archive compounds +0.204664% on its quote basis and crosses zero at only +0.435020bp uniform adverse entry error. That threshold is sensitivity, not estimated slippage. Study 10's 51-row input is absent, so +1.55% is not numerically revised; its flat verdict stands, but CONFIRMED must mean exit-confirmed rather than fully fill-confirmed.
+Links: [[E76|evidenced_by]] · [[F43|refines]] · [[F83|refines]] · [[F86|refines]] · [[F85|relates]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E77 — study #53: unfilled-parent and execution-unverified inferred-closure audit
+Hashes and audits the current entry-to-reconcile control flow and the committed sanitized Pi archive; constructs the locally-recorded-but-unfilled parent path, joins inference warnings to trade rows with duplicate-writer deduplication, partitions target_hit provenance, and measures ledger-only materiality. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_unfilled_parent_phantom_trade_audit.md.
+Links: [[F87|builds_on]] · [[F86|relates]] · [[E72|relates]] · [[F63|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F88 — Broker-flat plus missing child fill can manufacture a local TP/SL lifecycle; five archived rows are execution-unverified
+E77: current code checks IB positions but not active/rejected parent state; if flat and no child fill is retrieved, _infer_bracket_exit has no unknown outcome and closes local state at TP or SL before same-cycle entry evaluation. Thus a locally recorded but economically unfilled parent can become a phantom round trip. The sanitized archive has six warnings joined to five unique target_hit rows (one duplicate warning) and three explicit same-cycle reentries. The five rows compound +5.120432% as a ledger slice and removing their factors changes the 65-row endpoint by 6.595908pp, but the archive cannot distinguish missed real exits from never-filled parents. Classify them execution-unverified. Study 52's 47-row bracket_exit/stop_hit +0.204664% result excludes all five and is unchanged.
+Links: [[E77|evidenced_by]] · [[F87|refines]] · [[F86|refines]] · [[F83|refines]] · [[F43|refines]] · [[F63|relates]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E78 — study #54: bracket-fill identity, partial aggregation, and Gateway retention audit
+Hashes and audits the three current get_bracket_fill recovery tiers and tests, checks the durable state/result identity fields, proves the one-execution price rules are not VWAP aggregation, and relates IB Gateway's since-midnight execution limit to archive timing without asserting historical fills. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_bracket_fill_identity_retention_audit.md.
+Links: [[F88|builds_on]] · [[F87|refines]] · [[F63|relates]] · [[E77|relates]] · [[E76|relates]] · [[H33|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F89 — Recovered bracket exits lack durable identity and VWAP; Gateway cannot satisfy the seven-day fallback
+E78: current-session matching uses parentId and the last fill of the first child; cache/history tiers accept a child API order ID or parent+1/+2 plus side and positive shares, then return the first match. No tier checks symbol/conId, account, clientId, permId, execId, cumulative quantity, or avgPrice, and state retains none of those fields. A synthetic 60@100 plus 40@101 exit has VWAP 100.40, while current tier rules select 101 (+59.761bp) or 100 (-39.841bp); this is proof of non-aggregation, not estimated historic error. IBKR documents Gateway execution retrieval as since-midnight only, regardless of a seven-day filter; 4/5 archived inferred rows cross a UTC date boundary, consistent with but not proving retention loss. Call recovered prices project-matched, not durably fill-confirmed.
+Links: [[E78|evidenced_by]] · [[F88|refines]] · [[F87|refines]] · [[F83|relates]] · [[F51|relates]] · [[F63|relates]] · [[H33|relates]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E79 — study #55: concurrent close idempotency and stale-reader SQLite interleaving
+Hashes and audits close_position/finalize_pending_close plus their callers/tests, reproduces a two-connection schedule in a temporary SQLite database where both readers cache one position and sequentially commit two trade rows, relates the May 6 two-warning/one-row archive outcome, and bounds one duplicate factor's ledger effect. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_concurrent_close_idempotency_audit.md.
+Links: [[F88|builds_on]] · [[F86|refines]] · [[F83|refines]] · [[F63|relates]] · [[E58|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F90 — SQLite write serialization does not make local close exactly once; duplicate PnL and side effects remain reachable
+E79: under the current sqlite3 defaults the connection context manager does not open a transaction and SELECT is outside the implicit DML transaction. A deterministic two-connection schedule lets A and B cache the same position, after which both sequentially INSERT a trade and DELETE/commit; two rows survive because trades has no unique lifecycle key. close_position also returns None for success and no-position, so a losing caller still syncs, alerts, sets exit_action, and can re-enter. The archive's May 6 two warnings/one trade is an observed collapse, not a guarantee. Duplicating its +1.004431% factor would add 1.360114pp to the 65-row endpoint, a ledger sensitivity rather than an exposure counterfactual.
+Links: [[E79|evidenced_by]] · [[F88|refines]] · [[F86|refines]] · [[F83|refines]] · [[F81|refines]] · [[F72|relates]] · [[F56|relates]] · [[F63|relates]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E80 — study #56: cross-generation close/re-entry identity audit
+Hashes and audits the current close/open/caller identity boundary, reproduces a temporary-SQLite cut-point where an old cycle's exit economics are attached to a newer position before that newer row is deleted, and measures which parent/lifecycle identities the sanitized duplicate-entry archive retains. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_cross_generation_close_reentry_audit.md.
+Links: [[F90|builds_on]] · [[F89|refines]] · [[F86|refines]] · [[F83|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F91 — An old close can erase a newer re-entry because local lifecycle operations are not generation-safe
+E80: a cycle resolves exit evidence from its cached Position, but close_position accepts only return/type/price, independently SELECTs whichever row exists, records that row's metadata, and DELETEs without an identity predicate. The deterministic cut-point maps bracket-100 exit economics onto bracket-200 metadata and deletes bracket 200, leaving local flat after the external re-entry submission. Its synthetic +1.0% record versus -49.5% selected-generation price return is a 50.5pp field-mixing proof, not historical error. The archive cannot confirm or refute the race: zero of 14 success events in seven duplicate-entry minutes and no closed trade retain parent/lifecycle identity. Require a durable lifecycle ID, exact conditional claim/delete, unique close, typed winner, and identity-complete broker ledger.
+Links: [[E80|evidenced_by]] · [[F90|refines]] · [[F89|refines]] · [[F86|refines]] · [[F83|refines]] · [[F88|relates]] · [[F63|relates]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E81 — study #57: quote-anchored bracket geometry and bar-close sizing audit
+Hashes and audits the current quantity, parent-limit, TP/SL, and stored-basis formulas; derives fill-relative geometry at the permitted limit cap; applies penny rounding over 72 archived quote values; and conservatively joins 66 entry events to actionable sizing bars to bound notional drift without asserting fills. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_quote_anchored_bracket_geometry_audit.md.
+Links: [[F87|builds_on]] · [[F91|relates]] · [[F89|refines]] · [[F43|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F92 — TQQQ target stop and position labels are quote- and bar-anchored rather than fill-relative
+E81: quantity is floored from planned dollars divided by the signal bar close, while parent limit, TP, SL, and stored entry basis use a later pre-submission quote. With current 1.0% target, 0.5% stop, and 0.5% buy-limit offset, the least favorable permitted no-rounding fill geometry is +0.497512%/-0.995025% and reward:risk falls from 2.0 to 0.5. Across 72 archived quote values, rounded medians are +0.497791%/-0.998129%. A strict 66-event sizing join bounds the parent-limit envelope at -141.121 to +382.687bp versus the bar basis; the maximum permitted allocation is about 10.344%-10.383% against a 10% plan. These are bounds, not fill or slippage estimates; actual entries remain absent.
+Links: [[E81|evidenced_by]] · [[F87|refines]] · [[F89|refines]] · [[F91|relates]] · [[F43|refines]] · [[F28|relates]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E82 — study #58: partial-fill and force-close quantity safety audit
+Hashes and audits parent/local/broker quantity flow, attached-child activation, the three force-close callers, child-only cancellation, cancellation acknowledgement, and tests; constructs signed-quantity counterexamples for partial parents and child fills during pending cancellation; and measures the sanitized archive's missing quantity/status evidence. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_partial_fill_force_close_quantity_audit.md.
+Links: [[F92|builds_on]] · [[F91|relates]] · [[F89|refines]] · [[F88|relates]] · [[F86|refines]].
+_— captured development@234691a, 2026-07-24_
+
+### F93 — Force-close can turn partial or racing bracket fills into the opposite broker position
+E82: local state records requested quantity before any parent fill; reconciliation treats every nonzero broker quantity as normally open; software stop, software take-profit, and time exit all pass the full local quantity to cancel_and_close. Thus a 50/100 long parent fill followed by SELL 100 leaves short 50. IBKR states attached children remain held until complete parent fill, while the adapter cancels children but not a partial parent remainder. It also submits the market close without confirmed child cancellation, so a late child fill can independently overshoot flat. The archive has 72 requested-quantity events but zero partial/remaining/average-fill/cancellation fields, leaving historical frequency unidentified. Require terminal parent/child cancellation, fresh signed broker quantity, residual-sized close, and a post-close broker-flat assertion.
+Links: [[E82|evidenced_by]] · [[F92|refines]] · [[F89|refines]] · [[F91|relates]] · [[F88|refines]] · [[F86|refines]] · [[F83|relates]] · [[F63|relates]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E83 — study #59: force-close completion, partial execution, VWAP, and timeout audit
+Hashes and audits cancel_and_close, its three callers, state deletion, pending-close machinery, and tests; constructs a first-partial-execution residual and two-fill VWAP counterexample; and measures explicit ten-second fill-unavailable events plus missing completion identity in the sanitized archive. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_force_close_completion_vwap_audit.md.
+Links: [[F93|builds_on]] · [[F89|refines]] · [[F91|relates]] · [[F88|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F94 — A force close is finalized on the first execution or after a no-fill timeout without proving flatness
+E83: cancel_and_close returns when trade.fills first becomes nonempty, omitting filled, remaining, status, and identity, and using the last visible execution component rather than VWAP. Thus a first 60-share execution of SELL 100 lets callers delete a 100-share local position while 40 shares remain long; if both 60@100 and 40@101 are visible, it records 101 instead of VWAP 100.40. After ten seconds with no observed fill, it returns None without cancelling or checking the close order and all callers estimate PnL then delete state. Four of nine archived time exits explicitly logged this missing-fill boundary, but ultimate execution and residual exposure are unidentified. Require cumulative completion, execution VWAP, pending-close retention, and a fresh exact-flat broker check.
+Links: [[E83|evidenced_by]] · [[F93|refines]] · [[F89|refines]] · [[F91|relates]] · [[F88|refines]] · [[F86|refines]] · [[F63|relates]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E84 — study #60: unresolved-close back-to-back re-entry and old-order collision audit
+Hashes and audits force-close fallthrough, the broker-flat successor guard, active-order omissions, and back-to-back tests; constructs an old-child/flat-snapshot/new-parent/late-old-close interleaving; and joins explicit close-timeout warnings to same-cycle entry submissions in the sanitized archive. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_unresolved_close_back_to_back_reentry_audit.md.
+Links: [[F94|builds_on]] · [[F93|builds_on]] · [[F91|relates]] · [[F86|refines]].
+_— captured development@234691a, 2026-07-24_
+
+### F95 — A broker-flat snapshot cannot safely hand off to a successor while old orders remain nonterminal
+E84: software/time force-close paths fall through to same-cycle entry; the successor guard checks net broker position but zero active-order or prior-lifecycle terminal fields. A reachable schedule lets an old child flatten long 100, a new parent buy 100, and the still-working old market SELL erase the new exposure while local state remains long 100. The archive has 32 back-to-back application entries, including two placed about 14 seconds after explicit time-exit fill-unavailable warnings. Those pairs prove the unresolved boundary was crossed, not that an old order remained working or filled late. Require terminal prior orders, reconciled executions, exact flatness, and atomic lifecycle handoff.
+Links: [[E84|evidenced_by]] · [[F94|refines]] · [[F93|refines]] · [[F91|refines]] · [[F89|relates]] · [[F88|refines]] · [[F86|refines]] · [[F83|relates]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E85 — study #61: broker account, model, and order-destination scope audit
+Hashes and audits account-summary reduction, position lookup, order construction, state/tests, and sanitized identity retention; permutes two synthetic account summaries and opposite-symbol positions to prove callback-order dependence without reading or exposing real account IDs. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_broker_account_scope_audit.md.
+Links: [[F95|builds_on]] · [[F93|refines]] · [[F87|relates]] · [[F86|refines]].
+_— captured development@234691a, 2026-07-24_
+
+### F96 — Broker account identity is implicit, so multi-account callback order can select sizing capital or position direction
+E85: get_account drops account/currency and uses last-row-per-tag values; get_open_position drops account/model/contract identity and returns the first symbol match; bracket and close orders set no account/model; local state retains none. Synthetic 100k/1m account callbacks change 10%-at-$100 sizing from 100 to 1000 shares by row order; if routing targets the smaller account that is conditionally 100% notional. Opposite TQQQ positions likewise report long 100 or short 40 by order. This is dormant when Gateway exposes exactly one account, but the repository cannot establish that because sanitized artifacts correctly omit account IDs. Require one authorized paper account/model identity end to end and fail closed on ambiguity.
+Links: [[E85|evidenced_by]] · [[F95|refines]] · [[F93|refines]] · [[F92|relates]] · [[F91|refines]] · [[F87|refines]] · [[F86|refines]] · [[F63|relates]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E86 — study #62: duplicate-writer holding-counter materiality reconstruction
+Hashes and audits the increment/threshold path, proves with temporary SQLite that two writers preserve two increments for one logical slot, and reconstructs all nine sanitized time-exit intervals from signal-history writes under a strict exact-double attribution rule. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_duplicate_writer_hold_counter_materiality.md.
+Links: [[F83|builds_on]] · [[F81|refines]] · [[F95|relates]] · [[F84|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F97 — Historical duplicate writers compressed seven ten-bar time exits into exactly five distinct cycle minutes
+E86: bar_count increments once per trader invocation with no completed-bar identity, so SQLite serializes and preserves both increments from two writers in one logical slot. All nine sanitized time exits record bars_held=10; seven map exactly to ten signal-history writes over five minute slots with two writes in every slot, and eight use fewer than ten distinct slots. This proves premature local time-exit triggering relative to ten unique cycles. All nine recorded returns are positive, but the longer-hold PnL sign is unidentified because later TP/SL execution is path-dependent. Require a unique lifecycle+completed-bar conditional transition.
+Links: [[E86|evidenced_by]] · [[F83|refines]] · [[F81|refines]] · [[F95|relates]] · [[F90|relates]] · [[F84|relates]] · [[F85|relates]] · [[F43|refines]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E87 — study #63: broker quote-field precedence and staleness audit
+Hashes and audits quote selection, pinned ib-insync snapshot/marketPrice semantics, current tests, and sanitized quote observability; constructs prior-close and out-of-spread-last order-geometry counterexamples; and pins exact 15/20-minute TQQQ staleness stress summaries with a durable derivative. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_broker_quote_field_precedence_audit.md.
+Links: [[F92|builds_on]] · [[F88|refines]] · [[F87|refines]] · [[F63|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F98 — Quote selection can turn prior-close, out-of-spread last, or delayed data into bracket geometry without executable-price proof
+E87: get_tradeable_price selects first-positive last, prior-day close, bid, or ask before ib-insync's spread-aware midpoint; it checks no timestamp, data-type callback, size, spread containment, or halt and explicitly accepts 15-20-minute delayed data. A close=100 with bid/ask 109.90/110.10 yields a long limit 871.935bp below ask; a high last=120 makes the long stop 854.545bp above midpoint. In a pinned recent TQQQ OHLC proxy, 964/3,000 15-minute and 1,080/2,960 20-minute moves exceed the 0.5% offset; prior close differs from hourly-cycle open by over 0.5% in 248/273 cases. These are conditional stress frequencies, not runtime incident rates; three archive overlaps do not identify field/type/age. Require timestamped callback-typed positive-size side-aware live spread evidence and confirmed execution.
+Links: [[E87|evidenced_by]] · [[F92|refines]] · [[F88|refines]] · [[F87|refines]] · [[F89|relates]] · [[F63|relates]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E88 — study #64: entry snapshot latency and decision-age audit
+Hashes and audits the byte-matched current/archived signal-to-mark-to-order call chain, counts repeated blocking snapshot attempts and explicit sleeps, and reconstructs all 72 sanitized application entry-event offsets from the nominal schedule plus conservative same-minute signal bounds. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_entry_snapshot_latency_audit.md.
+Links: [[F98|builds_on]] · [[F87|refines]] · [[F83|relates]] · [[F95|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F99 — Entry decisions age through repeated blocking snapshots without a submission deadline or signal revalidation
+E88: every entry gets one broker price for account marking and a separate price for bracket construction. Nominal-live success therefore uses at least two blocking snapshots and four explicit sleep seconds; full delayed fallback can issue four snapshots and sleep twelve seconds. The byte-matched archive has 72 application Entry placed events 14.377-62.949 seconds after the :32 anchor (median 20.292; 22 at least 30 seconds, eight at least 40). Seventy join same-minute signal writes with at most 1.966 seconds of duplicate-writer attribution ambiguity; two spill into :33. Total latency includes other broker/application work and the endpoint proves neither acceptance nor fill. Remove/reuse the redundant mark request, impose a decision-to-submit deadline, revalidate after waits, and persist one signal-quote-order-execution clock.
+Links: [[E88|evidenced_by]] · [[F98|refines]] · [[F87|refines]] · [[F83|relates]] · [[F95|relates]] · [[F84|relates]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E89 — study #65: market-data provenance label integrity audit
+Hashes and traces the scalar broker-price interface through mark resolution, singleton persistence, dashboard rendering, software-risk consumption, tests, and the sanitized account snapshot; constructs indistinguishable nominal-live/delayed inputs and audits missing source-time/type/field evidence. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_market_data_provenance_label_audit.md.
+Links: [[F98|builds_on]] · [[F99|relates]] · [[F94|relates]] · [[F87|refines]].
+_— captured development@234691a, 2026-07-24_
+
+### F100 — A green live mark is a broker-success label, not evidence of real-time or fresh market data
+E89: nominal-live and 15-20-minute delayed broker branches both return only a float, so _resolve_mark_price cannot distinguish them and labels every successful scalar live. State persists that label in an overwritten singleton, the dashboard renders it green and defaults a missing source to live, and the same resolver feeds software stop/take-profit checks. mark_time is local post-resolution time, not source quote time. The sole sanitized snapshot says live but retains no market-data type, selected field, or source timestamp, so historical false-live incidence and any exit association remain unidentified. Require callback-typed, field-level, source-timestamped provenance end to end and default missing identity to unknown.
+Links: [[E89|evidenced_by]] · [[F98|refines]] · [[F99|relates]] · [[F94|relates]] · [[F87|refines]] · [[F63|relates]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E90 — study #66: software risk-trigger provenance and retained-outcome audit
+Hashes and audits the unqualified software stop/take-profit mark gate, joins all six sanitized software-stop trigger events to retained stop exits, measures breach margins, and separates four unique close joins from two later duplicate-writer triggers. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_software_risk_trigger_outcome_audit.md.
+Links: [[F100|builds_on]] · [[F94|refines]] · [[F90|relates]] · [[F97|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F101 — Archived software stops corroborate the breach, but two writers triggered again after close
+E90: software stop/take-profit logic accepts any non-null resolved mark with no source or age gate. Six archived software-stop events all carry the provenance-unverified live label; four unique events join within 1.1 seconds to retained stop exits and all four execution components remain beyond the stop, so retained prices show no economic false trigger. Two further writers trigger 22-23 seconds after the prior close record; because force-close ordering precedes local close and execution identity/flatness are incomplete, their external outcome is unknown. Gate typed quote provenance, atomically claim lifecycle ownership, and persist close identity plus exact-flat verification.
+Links: [[E90|evidenced_by]] · [[F100|refines]] · [[F94|refines]] · [[F90|refines]] · [[F97|relates]] · [[F93|relates]] · [[F63|relates]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E91 — study #67: software-risk fallback freshness and prior-close materiality audit
+Hashes and audits the broker-to-daily-yfinance-to-bar-close fallback chain and retry timing, then replays a prior-session-close counterfactual across 160 unique archived in-position cycle slots using the pinned full-session hourly cache and sanitized signal/trade records. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_software_risk_fallback_freshness_audit.md.
+Links: [[F101|builds_on]] · [[F100|builds_on]] · [[F99|refines]] · [[F98|refines]].
+_— captured development@234691a, 2026-07-24_
+
+### F102 — An unchecked daily fallback can reverse intraday software-risk decisions
+E91: after broker-price failure, _resolve_mark_price accepts the last daily yfinance close without checking its row date/session/age and labels it delayed; software stop/take-profit accepts it without a source gate. Broker sleeps plus yfinance retry backoff total 20 explicit seconds before request duration, with no decision deadline. Under the explicit prior-session-row counterfactual, 62-65/160 archived trade-cycle slots (38.75%-40.63%) falsely cross the long-stop proxy while archived signal bar close does not; 17/160 (10.63%) falsely cross take-profit. Three stop slots are duplicate-writer ambiguous. Zero actual fallback incidents are retained, so these are conditional exposure bounds, not rates. Exclude daily closes from intraday triggers or require typed row-time freshness and one deadline.
+Links: [[E91|evidenced_by]] · [[F101|refines]] · [[F100|refines]] · [[F99|refines]] · [[F98|refines]] · [[F84|relates]] · [[F63|relates]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E92 — study #68: duplicate bar-fallback software-trigger divergence audit
+Hashes and audits the signal-bar-close fallback and software-risk boundary, reconstructs all archived in-position trade-cycle slots, and identifies paired writer bar values that straddle recorded-basis stops or targets with exact timing and bar identities. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_duplicate_bar_fallback_trigger_divergence.md.
+Links: [[F102|builds_on]] · [[F84|builds_on]] · [[F97|refines]] · [[F101|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F103 — Duplicate writers can make opposite bar-fallback stop or take-profit decisions in one cycle
+E92: among 167 archived in-position trade-cycle minute slots, 114 contain multiple writer bar-close values. Five paired slots straddle the reconstructed long stop and five straddle take-profit, affecting nine trades; every fork mixes the cycle's in-progress bar with an older bar, nine across session dates. Writer updates are only 0.000125-2.112320 seconds apart. If both reach the final bar-close fallback, one forces close while the other holds, with no atomic lifecycle claim. Zero retained software triggers use last_close, so this is a concrete decision fork rather than an incident claim. Require one completed-bar identity and one atomic lifecycle/cycle owner.
+Links: [[E92|evidenced_by]] · [[F102|refines]] · [[F84|refines]] · [[F97|refines]] · [[F101|relates]] · [[F90|relates]] · [[F63|relates]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E93 — study #69: broker-connection exception fallback and missed-risk-cycle audit
+Hashes and audits connection retry/exception propagation through broker price, position reconciliation, holding age, and software-risk control flow; classifies all sanitized unhandled connection failures and joins them to local position lifecycles with exact schedule offsets. Artifact: tools/overnight_gap_risk_study.py; doc: docs/research/D6_broker_connection_exception_fallback_audit.md.
+Links: [[F102|builds_on]] · [[F103|relates]] · [[F97|refines]] · [[F63|refines]].
+_— captured development@234691a, 2026-07-24_
+
+### F104 — Connection refusal bypasses mark fallbacks and aborts open-position risk cycles
+E93: _ensure_connected tries four times, sleeps 2+4+6 seconds, and re-raises the original ConnectionRefusedError. get_tradeable_price calls it outside the market-data try and _resolve_mark_price catches only RuntimeError; open-position reconciliation also calls it before holding-age increment and software-risk checks. The archive records 46 unhandled connection failures across 24 slots, 22 paired. Thirty-three events spanning 17 slots occur while three local position lifecycles are open; 12.247-12.628-second schedule offsets corroborate retry exhaustion. Stack location, broker protection, and economic effect remain unidentified. Normalize availability into typed results and persist/reconcile missed risk cycles.
+Links: [[E93|evidenced_by]] · [[F102|refines]] · [[F103|relates]] · [[F97|refines]] · [[F84|relates]] · [[F63|refines]] · [[D6|supports]].
+_— captured development@234691a, 2026-07-24_
+
+### E94 — public investment intelligence frontier reconnaissance
+docs/research/PUBLIC_INVESTMENT_INTELLIGENCE_FRONTIER.md records a primary-source reconnaissance of official public datasets, original return-predictability research, contradictory evidence, replication decay, source clocks, rights constraints, and a preregistered study queue. It separates published precedent from MONAD evidence and ranks branches by public usefulness, point-in-time integrity, falsifiability, data cost, leakage risk, and ability to spawn additional models. This is a program-design experiment, not an empirical alpha result and not study #70.
+Links: [[D12|builds_on]] · [[F33|builds_on]].
+_— captured development@234691a, 2026-07-24_
+
+### F105 — the highest-leverage free frontier is a point-in-time filing ledger, not another isolated signal
+The [[E94]] reconnaissance finds that SEC submissions plus XBRL are the strongest first substrate: official APIs require no authentication, update near real time, expose both narrative and structured facts, and can support filing-delta, rhetoric-number divergence, event, future-fundamental, and market-response models from one reproducible ledger. The finding is about research priority and feasibility, NOT predictive edge. Cross-asset price networks and transparent 52-week/trend anchors rank next as falsifiable baselines. FRED/ALFRED, CFTC, GDELT, and SEC fails-to-deliver data are valuable later sources only under their true vintage/release/publication clocks and redistribution terms. Paid-transcript and historical-options dependencies are deferred. All published effects remain unvalidated priors subject to post-publication decay, multiple-testing correction, and untouched out-of-sample tests.
+Links: [[E94|evidenced_by]] · [[D12|refines]] · [[F33|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### H44 — OPEN root: point-in-time public intelligence graph can become MONAD's next model factory
+Build the shared event/outcome ledger specified by [[E94]]: durable entity/security mappings; source, first-seen, and conservative tradable timestamps; revision/vintage identity; payload hashes; rights metadata; multi-horizon price and future-fundamental labels; and a trial registry. Hypothesis: this substrate will make radical price, filing, news, macro, and positioning ideas cheap to test without letting each model invent its own leaky clock. First gate PT-01: adversarial SEC acceptance/dissemination fixtures plus source-specific tradable-time rules. Pass is exact point-in-time reconstruction and deterministic labels; fail if timestamp or rights provenance cannot be audited.
+Links: [[F105|builds_on]] · [[E94|builds_on]] · [[D12|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### H45 — OPEN child: filing changes predict future fundamentals or market response beyond numeric and market baselines
+FD-00/FD-01. On comparable 10-K/10-Q filings, freeze section-diff, finance-language-change, XBRL-change, and lagged market-context families. Test next-filing revenue, margin, cash flow, leverage, and dilution plus 1/5/20/60-session abnormal return and volatility. Train 2010-2018, select 2019-2022, open 2023+ once. Pass only for corrected, stable incremental OOS information beyond numeric-only, prior-return/volatility, industry-year, length-only, and base-rate models; preserve inactive CIKs, amendments, and delistings. Published filing effects are priors, not evidence.
+Links: [[H44|builds_on]] · [[F105|builds_on]].
+_— captured development@234691a, 2026-07-24_
+
+### H46 — OPEN child: rhetoric-number divergence predicts deterioration or downside better than raw sentiment
+RN-01. Estimate language expected from contemporaneous XBRL results, firm history, section, industry, size, loss status, and prior returns; test the residual tone, uncertainty, emphasis, and narrative-number disagreement against next-period fundamentals and 20/60-session downside/volatility. Begin with mandatory filings, not paid call transcripts. Transparent counts/diffs are the baseline; model outputs need frozen versions and source spans. Kill if document length, boilerplate, firm style, or current performance explains the result, or if a complex language model cannot beat the transparent baseline.
+Links: [[H44|builds_on]] · [[H45|builds_on]].
+_— captured development@234691a, 2026-07-24_
+
+### H47 — OPEN child: a corrected cross-asset information-flow graph improves own-lag and common-factor forecasts
+PN-01. Start with liquid equity, sector, rates, credit, commodity, volatility, dollar, and crypto proxies. Estimate directed return, direction, and volatility edges using lagged/partial correlation and regularized multivariate baselines. Every fold builds its graph on training data only. Require controls for own/market/sector lags, overnight overlap, calendars/time zones, stale or nonsynchronous prices, distributions, pair-lag-horizon FDR, circular-shift placebos, edge half-life, and turnover/cost. Pass only if a frozen later-period graph adds stable calibrated information; a descriptive public flow map may ship earlier with explicit non-predictive labeling.
+Links: [[H44|builds_on]] · [[F105|builds_on]].
+_— captured development@234691a, 2026-07-24_
+
+### H48 — OPEN child: 52-week and moving-average anchors generalize across equities, ETFs, and BTC
+TA-01. Compare price-to-252-session high, BTC 365-day and 252-observation highs, 50/100/200-session and 26/52-week moving averages, 1/3/6/12-month returns, volatility, drawdown, and cross-sectional ranks. Evaluate 1/5/20/60-session return, direction, volatility, and downside with explicit 24/7-versus-exchange alignment. All horizon variants are reported. Pass only if a preregistered representation adds both statistical and calibrated user-facing value beyond past-return-only, volatility-only, and historical-mean baselines across more than one asset class or a mechanism-scoped subset; one lucky BTC horizon fails.
+Links: [[H44|builds_on]] · [[F105|builds_on]].
+_— captured development@234691a, 2026-07-24_
+
+### H49 — OPEN child: source-clock-correct public events add information beyond single-source baselines
+EV-01/NG-00. After the filing ledger, add ALFRED macro vintages, SEC 8-K event codes, CFTC positioning, GDELT entity/event propagation, and SEC fails-to-deliver data one source at a time. Define surprise relative to information available immediately before release, not observation date. Enforce actual release clocks: macro vintages and revisions; CFTC prior-Tuesday positions released Friday; GDELT duplicate/entity/publication audits; delayed FTD publication. Pass each source alone before cross-source models. Kill or defer any feed whose historical timing, entity precision, or public-use rights cannot be reconstructed.
+Links: [[H44|builds_on]] · [[F105|builds_on]].
+_— captured development@234691a, 2026-07-24_
+
+### H50 — OPEN child: index additions and deletions predict price, liquidity, and reversal outcomes around announcement and effective dates
+IDX-01, noted for later and not yet researched. Build a point-in-time history of index membership changes with distinct announcement, publication, close-auction, and effective timestamps. Test abnormal return, volume, spread, closing-auction imbalance, volatility, and 1/5/20/60-session reversal for additions versus deletions. Separate mechanical index-fund demand from information, size/liquidity eligibility changes, concurrent earnings/corporate events, anticipation, and survivorship. Compare against matched eligible non-events and index/sector baselines; freeze index families and event windows before testing. Membership data rights and complete historical candidate universes are a gating dependency.
+Links: [[H44|builds_on]] · [[H49|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### E95 — PN-00 daily liquid-ETF lead-lag falsification baseline
+docs/research/PN00_daily_cross_asset_lead_lag.md + docs/research/data/pn00_daily_lead_lag_summary_2026.json. Fixed before download: 17 adjusted-close ETFs, 240 directed one-session pairs; development through 2015, validation 2016-2020, untouched test 2021-2026-07-23. Compares raw and lagged-252-session-beta SPY-residual graphs; BH-FDR plus 1,000 joint circular-shift family threshold; forecasts against own-lag + SPY-lag with ridge alpha selected only in development; paired 5,000-draw block-20 MSE intervals. Input SHA 21a95207...32; full result SHA 2e812af...d3b. Exploratory vendor-backed pilot, not clone-only reproducible and not study #70.
+Links: [[H47|builds_on]] · [[F105|builds_on]].
+_— captured development@234691a, 2026-07-24_
+
+### F106 — the corrected daily ETF lead-lag graph is crisis-specific and harms later forecasts
+[[E95]]: 54 raw family-wide edges collapse to four after lagged-beta SPY residualization. All four are IWM/HYG/XLF links concentrated in 2007-2009; none keeps its sign through development, validation, and test. The strict graph worsens pooled MSE in validation (-2.10 squared bp, CI [-4.76,+0.69]) and significantly in the 2021-2026 test (-1.85, [-2.88,-0.64]); sign accuracy is unchanged/slightly worse. BH and dense-ridge sensitivities also fail the preregistered validation+test rule: dense test +27.14 has CI [-10.24,+69.37] after validation -16.23. Robust across beta windows 126/252/504 and permutation seeds 0-2 (3-6 strict edges, same unstable core). Rejects a one-day liquid-ETF return graph, NOT monthly industry diffusion, intraday discovery, event-conditioned networks, individual-stock links, nonlinear features, or volatility spillovers. H47 remains open but is narrowed toward event-conditioned or monthly designs.
+Links: [[E95|evidenced_by]] · [[H47|refines]] · [[F105|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### E96 — FD-00 SEC filing clock and source-contract audit
+Official SEC documentation plus real filing fixtures audit the point-in-time contract for the Filing Delta Lab. The fixtures cover premarket acceptance, after-5:30 filing-date rollover, post-close same-date events, weekend rollover amendments, legacy midnight ambiguity, private-to-public release months after acceptance, accession-prefix/issuer-CIK mismatch, and post-acceptance corrections. The audit also freezes source hierarchy, corpus coverage diagnostics, XBRL/text contracts, falsification gates, and a public evidence-card contract. Corpus-scale backfill was not claimed because the SEC rejected this environment's direct automated bulk/API requests.
+Links: [[H44|relates]] · [[H45|relates]] · [[F105|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F107 — SEC current discovery surfaces are not a historical truth layer
+The FD-00 audit finds that filing date can differ from acceptance date, acceptance is not guaranteed public availability, private-to-public records can become public months after original acceptance, current quarterly indexes can be rebuilt after corrections, accession prefixes can identify filing agents rather than issuers, current ticker mappings are explicitly not guaranteed for accuracy or scope, and filing facts have real context/tag/scaling hazards. Therefore any filing model must use an append-only, accession-scoped ledger with raw payload hashes, dissemination/revision identity, first-seen and conservative tradable clocks, header-role issuer identity, filing-specific XBRL, and time-bounded security mappings. This is a data-integrity finding, not evidence of predictive edge.
+Links: [[E96|evidenced_by]] · [[F105|refines]].
+_— captured development@234691a, 2026-07-24_
+
+### H51 — OPEN child: filing numeric deltas predict next fundamentals beyond seasonal baselines
+FD-NUM. Using only filing-specific, accession-scoped XBRL facts known at the event, test next-filing revenue, margin, cash-flow, leverage, and dilution against prior-value, same-fiscal-quarter, industry-year, size, and market-context baselines. Preserve first-as-filed versus corrected targets and unresolved fact contexts. Pass only for calibrated incremental validation and untouched-test information with stable era/industry coverage; fail on later-filed companyfacts leakage or unstable concept coverage.
+Links: [[H45|builds_on]] · [[F107|builds_on]].
+_— captured development@234691a, 2026-07-24_
+
+### H52 — OPEN child: amendment anatomy predicts reporting and operating risk
+FD-AMEND. Pair each 10-K/A or 10-Q/A to its exact original accession; classify exhibit-only, Part III, tagging-only, narrative, and financial changes; retain both events and amendment lag. Test subsequent restatement, material weakness, late filing, operating deterioration, volatility, and downside against amendment base rates, size, complexity, industry, and original-filing controls. Pass only if a frozen change taxonomy adds OOS information beyond the mere existence and delay of an amendment.
+Links: [[H45|builds_on]] · [[F107|builds_on]].
+_— captured development@234691a, 2026-07-24_
+
+### H53 — OPEN child: filing-conditioned industry graph predicts related-company outcomes
+FD-GRAPH. Condition edges on a new filing rather than searching every trading day: test whether issuer numeric/text surprises update future fundamentals, volatility, or returns of industry, supplier/customer, product, or factor-linked firms before their next filings. Use point-in-time relationship and security mappings, date/firm clustering, market and industry controls, and family-wide correction. Pass only if frozen edges improve untouched outcomes beyond common-event and industry-news baselines.
+Links: [[H47|builds_on]] · [[H45|builds_on]] · [[F107|builds_on]].
+_— captured development@234691a, 2026-07-24_
+
+### H54 — OPEN child: disclosure and tagging instability predict future reporting failures
+FD-QUALITY. Test custom-concept share, tag churn, reconciliation failures, section instability, late filing, control-language change, and parser/data-quality warnings as predictors of amendments, restatements, material weaknesses, volatility, or operating deterioration. Control for filer complexity, industry, size, rule era, and baseline reporting quality. Pass only if transparent quality features survive post-2019 and untouched-test evaluation without treating missing or unparseable rows as good firms.
+Links: [[H45|builds_on]] · [[F107|builds_on]].
+_— captured development@234691a, 2026-07-24_
+
+### H55 — OPEN child: public Context Web can use a rebuildable SQLite projection plus quarantined suggestions
+The existing read-only server rebuilds the 447-node/1,255-edge unified map from versioned Markdown and code metadata on every page load. Preserve that audited source of truth, but export nodes, edges, documents, and FTS5 search rows into a disposable SQLite read model for public browse/search. Put anonymous research proposals in separate suggestion and suggestion_event tables with strict size limits, parameterized statements, rate limiting, moderation states, and append-only review history; never allow a submission to allocate a graph ID, edit RESEARCH_WEB.md, execute SQL, or auto-train a model. A reviewer may convert an accepted proposal into a draft note or pull request. SQLite fits an initial single-host, low-write site, but this environment links SQLite 3.51.0, so do not enable WAL until upgrading to a WAL-reset-bug-fixed build (3.51.3+ or an official backport); use the default rollback journal and a single short-lived writer meanwhile. Graduate the inbox to a client/server database if deployment becomes multi-instance or write-heavy.
+Links: [[H44|builds_on]] · [[D12|relates]] · [[H41|relates]] · [[H15|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### E97 — IX-00 index-membership source contract and March 2026 event-clock pilot
+docs/research/IX00_index_membership_event_lab.md, tools/index_membership_event_pilot.py, and docs/research/data/ix00_sp500_march2026_event_pilot.json audit official S&P, Nasdaq, Russell, and MSCI event clocks, revision structures, transition types, security identity, data access, and redistribution constraints. A fixed March 2026 S&P 500 batch uses announcement date 2026-03-06, conservative first tradable open 2026-03-09, implementation close 2026-03-20, and effective open 2026-03-23. It measures four additions and four deletions versus SPY with adjusted OHLCV, preserves SATS-to-ECHO identity, and retains normalized input SHA 9c88c322...88e. One batch is descriptive; it has no causal control, inference, or predictive-edge claim.
+Links: [[H50|builds_on]].
+_— captured development@234691a, 2026-07-24_
+
+### F108 — index membership sign is not the flow treatment and effective date is not the implementation clock
+IX-00 finds that an honest event row needs public-announcement/first-tradable time, implementation-session close, and effective-session open as separate clocks. The March 2026 S&P release also shows three of four additions migrating from the MidCap 400 and all four deletions migrating to the SmallCap 600, so gross add/delete labels mix offsetting family flows with direct entry/exit. The pilot's additions moved +10.8709% relative to SPY from first tradable open through implementation close versus -3.4614% for deletions, with implementation-session whole-day volume at 8.65x/13.75x prior medians. This is an eight-name descriptive validation, not causal evidence: later continuation and large security-specific moves reject attributing the separation to index demand. The scalable treatment is signed family-wide weight change times indexed capital divided by ex-ante dollar ADV, or a clearly labeled public proxy.
+Links: [[E97|evidenced_by]] · [[H50|refines]].
+_— captured development@234691a, 2026-07-24_
+
+### H56 — OPEN child: signed net index flow relative to liquidity predicts implementation impact and reversal
+IX-FLOW. Reconstruct every affected family weight change and estimate signed indexed-capital demand divided by pre-announcement dollar ADV; begin with transparent transition/size/liquidity proxies and add licensed weights/AUM only under an explicit rights contract. Predict implementation-close impact in the flow direction and prespecified 1/5/20-session reversal, controlling for market, sector, momentum, earnings/news, provider family, batch, and migration type. Pass only if ex-ante pressure has stable sign and untouched-era incremental information with batch-clustered uncertainty; fail if binary membership sign or a simple volume/liquidity baseline matches it.
+Links: [[H50|builds_on]] · [[F108|builds_on]].
+_— captured development@234691a, 2026-07-24_
+
+### H57 — OPEN child: preliminary-list revision surprise predicts index-event repricing
+IX-REVISION. Preserve every Russell preliminary list, scheduled update, lockdown, and final publication as a separate point-in-time event rather than overwriting with final membership. Estimate pre-revision survival probability from frozen public eligibility features, then test whether unexpected additions/deletions at each revision predict announcement response, implementation impact, and reversal beyond final membership sign. Pass only with exact source clocks, reproducible historical candidate universes, strong identity reconciliation, batch-clustered uncertainty, and an untouched later reconstitution; fail if final-only labels, timing ambiguity, or a base-rate probability performs equally well.
+Links: [[H50|builds_on]] · [[F108|builds_on]].
+_— captured development@234691a, 2026-07-24_
+
+### H58 — OPEN child: discretionary index selection carries information beyond mechanical benchmark demand
+IX-SELECTION. Compare S&P committee-selected changes with strongly rule-based Nasdaq/Russell events after matching transition type, flow/liquidity proxy, size, sector, momentum, profitability, earnings/news distance, and methodology era. The preregistered mechanism predicts more announcement-to-implementation continuation for discretionary selections, but more implementation-close reversal for mechanical events conditional on forced flow. Pass only if provider-mechanism interactions generalize across untouched eras and remain after concurrent-event exclusions; fail if one pooled add/delete effect or provider-specific liquidity explains the result.
+Links: [[H50|builds_on]] · [[F108|builds_on]] · [[H56|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### H59 — OPEN child: closing-auction imbalance mediates index flow impact and post-event reversal
+IX-AUCTION. Under a rights-cleared TAQ/NOII contract, test whether signed pre-close imbalance and auction volume relative to ADV mediate the relationship between ex-ante index flow pressure and official-close impact, then whether the transitory component reverses over 1/5/20 sessions. Freeze imbalance observation time and executable latency, distinguish whole-day from auction-only volume, and include spread, volatility, market stress, provider batch, and concurrent news. Pass only if the mediator has the correct sign, adds untouched-era information, and survives realistic cost; daily OHLCV volume spikes cannot pass this hypothesis.
+Links: [[H50|builds_on]] · [[F108|builds_on]] · [[H56|builds_on]].
+_— captured development@234691a, 2026-07-24_
+
+### E98 — IX-00 exact-clock Nasdaq-100 cross-provider replication
+The same event-window tool applies Nasdaq's official 2025 annual reconstitution at exact publication 2025-12-12 20:00 EST, first tradable open 2025-12-15, inferred implementation close 2025-12-19, and effective open 2025-12-22. Six additions and six deletions are measured versus QQQ with the same adjusted OHLCV definitions as E97; normalized input SHA 6761aadc...ee71. The retained derived artifact is docs/research/data/ix00_ndx_december2025_event_replication.json. This is a second descriptive batch without matched controls, causal identification, or p-values.
+Links: [[H50|builds_on]] · [[E97|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F109 — the recent index-event directional sign fails cross-provider replication while implementation volume repeats
+E98 contradicts the tempting directional reading of E97. Nasdaq additions returned -1.5627% relative to QQQ from first tradable open through implementation close versus -0.6394% for deletions; S&P additions had been +10.8709% versus -3.4614%. Exceptional implementation-session whole-day volume repeats: Nasdaq additions/deletions average 17.14x/8.60x prior 20-day medians after S&P's 8.65x/13.75x. Nasdaq additions then underperform for 1 and 5 sessions but outperform at 20/60 sessions, with large winner dispersion and explicit prior-momentum selection. Across twenty securities in two batches, only the liquidity-demand observation is directionally stable; neither price direction nor reversal is established, and daily volume cannot identify the auction mechanism.
+Links: [[E98|evidenced_by]] · [[F108|refines]] · [[H56|relates]] · [[H59|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### E99 — IX-00 consecutive vendor-refresh provenance audit
+Repeated same-day Yahoo/yfinance 1.2.0 downloads of both retained IX-00 batches produced different exact hashes of the sorted normalized OHLCV panels. The tool therefore preserves exact input hashes without arbitrary rounding and adds a separate decision-level hash over security metrics rounded to five decimals in return units (0.001 percentage point). Two consecutive S&P result hashes both equal ae78900f...2c74 and two Nasdaq result hashes both equal f723b4bf...2e10, while exact input hashes differ. Tests freeze the distinction. No raw vendor panel is committed.
+Links: [[E97|builds_on]] · [[E98|builds_on]].
+_— captured development@234691a, 2026-07-24_
+
+### F110 — free historical price refreshes are not byte-stable even when IX-00 decisions reproduce
+E99 finds that consecutive same-day Yahoo panels for both IX-00 batches have different exact normalized-input SHA-256 values, consistent with provider revision or insignificant adjusted-price float jitter. Arbitrary input rounding also failed to supply a principled stable identity. However, security-level event results hashed at the preregistered 0.001-percentage-point precision reproduce exactly in paired refreshes for both batches. Thus the current artifacts are decision-stable but vendor-backed, not clone-only reproducible. Preserve every exact snapshot hash, report a separate precision-declared result hash, and require retained rights-cleared raw snapshots before corpus-scale claims.
+Links: [[E99|evidenced_by]] · [[F109|relates]] · [[F63|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### E100 — IX-00 recent Nasdaq annual-panel extension and survivorship gate
+The event pilot adds the complete December 2024 Nasdaq-100 batch and attempts December 2022 using official exact 8:00 p.m. announcement clocks, preceding quadruple-witching implementation closes, QQQ-relative adjusted OHLCV, and unchanged horizons. The complete 2024 batch has three additions/deletions; pooled with complete 2025 it yields nine per side. The 2022 official list has 13 security events, but Yahoo supplies only 12 because acquired Splunk is unavailable; the tool records the exclusion and bars 2022 from the complete panel. The December 2023 list is also excluded because Nasdaq revised it after Seagen acquisition news, requiring security-specific revision clocks. Artifacts: ix00_ndx_december2024_event_replication.json, ix00_ndx_december2022_partial_diagnostic.json, and ix00_ndx_recent_complete_panel.json.
+Links: [[E98|builds_on]] · [[F110|builds_on]] · [[H57|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F111 — recent complete Nasdaq batches generate a short addition-reversal hypothesis but partial history cannot validate it
+E100 pools only the complete 2024 and 2025 annual batches: nine additions versus nine deletions. Additions separate positively at the next tradable open (+2.074 pp add-minus-delete) but do not continue into implementation (-0.375 pp). They underperform deletions by 2.226 pp after one session and 3.167 pp after five; both batches have the same post-implementation sign. Whole-day implementation volume averages 12.87x for additions and 7.26x for deletions. The incomplete 2022 diagnostic has the same five-session sign (-2.794 pp) but is excluded because SPLK is missing. Two complete batches, eighteen securities, prior-winner selection, and no matched controls provide no inference or tradable edge; they only justify freezing IX-REVERSAL for a larger rights-cleared panel.
+Links: [[E100|evidenced_by]] · [[F109|refines]] · [[F110|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### H60 — OPEN child: predictable Nasdaq additions reverse after implementation conditional on prior-winner selection
+IX-REVERSAL. Freeze the 1- and 5-session addition-minus-deletion outcomes before expanding annual Nasdaq reconstitutions. Recover every official security including acquired/delisted names, preserve revisions per security, and match or residualize on pre-announcement momentum, beta, volatility, size, liquidity, sector, earnings/news, and rank/eligibility proxies. Cluster by annual batch and compare against matched near-eligible non-events. Pass only if additions have stable negative post-implementation residuals in an untouched later-era panel after family-wide horizon correction and realistic close/open execution cost; fail if prior-winner mean reversion, one volatile cohort, missing deletions, or a transparent momentum reversal baseline explains it.
+Links: [[F111|builds_on]] · [[H59|relates]] · [[H56|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### E101 — IX-01 revision-aware Nasdaq event ledger and Context Web projection
+A versioned fixture preserves Nasdaq-100 December 2023 knowledge states: r1 published 2023-12-08 20:00 ET contains the original six additions and six deletions; r2 published 2023-12-12 18:00 ET retains those twelve facts and adds TTWO/SGEN after Pfizer acquisition news. tools/research_event_ledger.py validates clocks and identities, builds an atomic STRICT SQLite projection only outside the repository, uses rollback journaling and foreign-key checks, keeps raw documents out, and supports exact as-of queries. ctx serve exposes read-only /events and /api/research-events paths; no public write route exists. The suggestion schema is append-only but quarantined. Artifacts: ix00_ndx_2023_revision_fixture.json and IX01_nasdaq_2023_revision_ledger.md.
+Links: [[E100|builds_on]] · [[H55|builds_on]] · [[H57|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F112 — final-only index membership leaks revisions and conflates corporate-action outcomes
+The December 2023 Nasdaq-100 case proves two separate data errors. A final table backdates the TTWO addition and SGEN deletion from the Dec 12 update into the Dec 8 initial announcement; correct as-of counts are 12 then 14. It also treats SGEN like a continuing equity even though Pfizer merger consideration converted each share into a $229 cash right on Dec 14. The TTWO diagnostic shows +2.263% QQQ-relative announcement-close-to-first-open, -1.986% first-open-to-implementation, and 9.47x implementation volume, but one event supports no edge. Revision-specific clocks and outcome-type-specific labels are mandatory before pooling.
+Links: [[E101|evidenced_by]] · [[F111|refines]] · [[H57|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### D13 — versioned fixtures remain authoritative while SQLite is a disposable read projection
+For public Context Web research data, commit only small rights-reviewed transformed fixtures and rebuild SQLite outside the repository. The projection may index batches, revisions, event versions, identities, and FTS search, but it is not the source of truth and raw vendor documents or databases are never committed. Use rollback journaling, atomic replacement, foreign-key validation, schema versions, parameterized reads, and no anonymous write endpoint. Keep suggestions in separate append-only tables until a least-privilege moderated writer, rate limits, CSRF protection, and abuse controls exist.
+Links: [[E101|evidenced_by]] · [[H55|refines]] · [[D12|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### H61 — OPEN child: corporate-action-aware index exits require terminal-value and successor-security labels
+IX-CORPORATE-ACTION. Build a rights-cleared outcome layer for index exits caused by cash mergers, stock mergers, spinoffs, bankruptcies, and identifier changes. For cash deals, join the last tradable price and declared consideration; for stock deals, map the successor security and exchange ratio; preserve halt, effective, delisting, and cash-payment clocks. Compare these events only within outcome type, never against ordinary continuing-equity deletions. Pass when inactive securities reconcile to official batches and terminal returns reproduce from independent corporate-action evidence; fail if current-symbol provider coverage silently drops delisted members or if successor mappings remain ambiguous.
+Links: [[F112|builds_on]] · [[F110|builds_on]] · [[H57|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### E102 — CA-00 corporate-action outcome ledger and eight-case official fixture
+CA-00 implements five investor-wealth outcome classes across eight transformed SEC cases: SGEN/ATVI/SPLK/TWTR fixed cash; XLNX-to-AMD stock conversion; GE plus distributed GEV; BBBYQ cancellation pending plan-distribution review; and FB-to-META identity continuity. The tool validates type-specific terms, resolves terminal values through explicit consideration legs, refuses numeric cancellation values without evidence, builds an atomic STRICT SQLite projection only outside the repository, and exposes parameterized read-only Context Web routes. Raw SEC documents and market panels are not committed.
+Links: [[F112|builds_on]] · [[E101|builds_on]] · [[H61|builds_on]].
+_— captured development@234691a, 2026-07-24_
+
+### F113 — current-symbol free prices fail the predecessor leg exactly where terminal outcomes matter
+The CA-00 Yahoo/yfinance 1.2.0 audit resolves 7/12 required price roles and only 3/8 complete actions. SGEN, ATVI, SPLK, and TWTR have no usable pre-effective rows; AMD exists while predecessor XLNX does not. GE/GEV is complete. BBBYQ is missing but the required session appears under BBBY; FB is missing but META exposes both sides of the unchanged-CUSIP ticker transition. Two refreshes reproduce coverage-decision SHA-256 171209f5...b43fcf. Current-symbol data therefore select against acquired predecessors and require alias reconciliation or a rights-cleared inactive-security source before survivorship-free returns.
+Links: [[E102|evidenced_by]] · [[F110|refines]] · [[F112|refines]].
+_— captured development@234691a, 2026-07-24_
+
+### D14 — corporate-action research continues wealth through typed consideration legs
+Adopt an outcome contract rather than a delisting convention. Fixed cash terminates in contractual cash; stock mergers continue through ratio-adjusted successor shares; spinoffs retain the parent and add distributed child shares; ticker changes splice time-bounded symbols for the same security; cancellations remain numerically unresolved until distribution and contingent-right terms are reviewed. Completion filings validate terminal labels but do not replace earlier point-in-time announcement clocks. Backtests must fail closed when any required leg or identity mapping is absent.
+Links: [[E102|evidenced_by]] · [[H61|resolves]] · [[D13|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### H62 — OPEN child: SEC completion and delisting forms can produce a public corporate-action state machine
+<!-- status: superseded; by: D15; reason: refined; at: 2026-07-24 -->
+CA-FORM25. Join issuer/acquirer 8-K Items 2.01 and 1.03, exchange Form 25-NSE, issuer Form 25/15, and later distribution evidence by CIK, accession, security identity, and effective clock. Emit append-only states for announced, approved, completed, suspended, delisted, deregistered, paid, and successor-delivered. Pass on a frozen diverse sample only if every state is sourced, revisions never overwrite earlier knowledge, duplicate exchange/issuer filings reconcile, and cash/stock/spinoff/cancellation outcomes match manual review; fail if CIK-only joins conflate share classes or confirmation filings leak backward into prediction clocks.
+Links: [[E102|builds_on]] · [[D14|builds_on]] · [[H57|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### H63 — OPEN child: inactive-security source benchmark determines the public/private research boundary
+CA-PRICE. Freeze the twelve CA-00 price roles and compare candidate sources on inactive-symbol coverage, time-bounded aliases, unadjusted and adjusted OHLCV, last-trade identity, corporate-action conventions, revision stability, API cost, and redistribution rights. Require independent agreement on last tradable sessions and wealth-chain outcomes, not merely nonempty rows. Pass a free public tier only if coverage and rights support reproducible transformed labels; otherwise keep licensed prices private while publishing official terms, source clocks, coverage gaps, and model uncertainty.
+Links: [[F113|builds_on]] · [[D14|builds_on]] · [[H61|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### E103 — CA-01 point-in-time SEC corporate-action state vector
+CA-01 freezes three official action chains with 27 append-only assertions across transaction, listing, reporting, security-rights, bankruptcy, and disclosure dimensions. Every assertion separates effective_on/effective_at from exact EDGAR observed_at; a disposable STRICT SQLite projection supports absolute-time as-of queries and read-only Context Web routes. The Twitter, Activision, and BBBY chains are deliberately selected architecture tests, not population or alpha evidence.
+Links: [[E102|builds_on]] · [[H62|resolves]] · [[D13|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F114 — corporate actions are parallel state vectors and source order is not universal
+E103 finds that completed, suspended, Form-25-filed, removal-scheduled, rights-converted, and Form-15-filed are distinct states. Twitter NYSE Form 25-NSE preceded the issuer completion 8-K by 11:51:17; Activision issuer completion preceded Nasdaq Form 25-NSE by 26:14; BBBY Form 25 retrospectively confirmed a suspension 68 calendar days later. A single delisted status or effective-date join leaks information and destroys executability/reporting distinctions.
+Links: [[E103|evidenced_by]] · [[D15|relates]] · [[F107|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F115 — BBBYQ terminal common-equity value is explicitly zero only after stronger effective-date evidence
+The earlier confirmed-plan filing established cancellation but not by itself a numeric terminal value. The September 29 effective-date 8-K, accepted 16:23:06 ET, explicitly says all equity interests were canceled without consideration and have no value. CA-00 now resolves BBBYQ common equity to 0.00 USD while validation still refuses zero when cancellation lacks those issuer-specific facts.
+Links: [[E103|evidenced_by]] · [[E102|refines]] · [[D14|refines]].
+_— captured development@234691a, 2026-07-24_
+
+### D15 — corporate-action features enter at observation time while schedules and outcomes remain separate
+Adopt observed_at as the conservative decision clock. Keep effective dates, exact boundaries, future schedules, requested states, confirmed states, and terminal labels separate. Future schedules never overwrite current effective state, date-only assertions do not invent midnight timing, and post-effective confirmations/outcome labels cannot predict their own transition. EDGAR acceptance is still only a lower-bound infrastructure clock; downstream studies must add dissemination, parsing, and executable-latency assumptions.
+Links: [[E103|evidenced_by]] · [[H62|resolves]] · [[D13|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### H64 — OPEN child: scale the corporate-action clock to 100 outcome-balanced chains
+CA-CLOCK100. Harvest completed, delayed, failed, amended, bankruptcy, spinoff, stock, and cash actions across exchanges. Join issuer and exchange filings, preserve revisions, measure source-order reversals and confirmation lag, and manually audit security identity. Pass only if at least 100 chains materialize without backdating, source clocks reconcile, and missing states are explicit; this is a data gate before event-risk modeling.
+Links: [[E103|builds_on]] · [[F114|builds_on]] · [[H57|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### H65 — OPEN child: legal completion to investor payment and successor delivery
+CA-PAYMENT. Separate legal completion and rights conversion from broker cash receipt, successor-share delivery, fractional cash, and settlement exceptions. Build an auditable lag distribution by consideration type and custodian evidence where rights permit. Pass only if payment/delivery states reconcile independently and portfolio wealth does not assume immediate settlement; fail if evidence is anecdotal or account-specific.
+Links: [[E103|builds_on]] · [[D14|builds_on]].
+_— captured development@234691a, 2026-07-24_
+
+### H66 — OPEN child: predict merger failure and delay from contemporaneous state revisions
+CA-FAIL. On a frozen outcome-balanced panel, model failure and time-to-close using only observed agreement amendments, shareholder and regulatory milestones, litigation, financing conditions, spread, volatility, and issuer rhetoric. Compare transparent survival/logistic baselines before nonlinear models; group by deal, correct the feature family, and hold out a later era. Kill if completion labels leak, amendments are overwritten, or spread and deal age explain the result.
+Links: [[E103|builds_on]] · [[H49|relates]] · [[H45|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### E104 — CA-CLOCK100 Form 25-NSE population backbone
+Official 2023 SEC quarterly master indexes contain 2,282 Form 25-NSE rows but 1,141 unique accessions because each filing is indexed under both the national-exchange filer and subject issuer. The identity-verified census contains 920 issuers; a deterministic 25-per-quarter sample enriches 100 submissions with exact acceptance clocks, security class, rule provision, exchange, reason-exhibit availability, and source hashes. Raw filings remain outside the repository. See docs/research/CA_CLOCK100_form25_population.md and docs/research/data/ca_clock100_form25_2023.json. This is descriptive data infrastructure, not return or alpha evidence.
+Links: [[H64|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F116 — SEC Form 25 master rows are dual identities, not independent events
+In every 2023 Form 25-NSE accession, the SEC master index contributes one national-exchange row and one subject-issuer row: 2,282 rows collapse to 1,141 filings. The accession-prefix CIK is not a reliable exchange-role resolver for all NYSE-family submissions, so the parser resolves the exchange-name row, retains both identities, and verifies the subject CIK against filing XML. Event studies must use accession-level units and issuer/action clustering.
+Links: [[E104|evidenced_by]].
+_— captured development@234691a, 2026-07-24_
+
+### F117 — Form 25 acceptance windows and reason coverage are exchange-structured
+In the deterministic 100-filing sample, 28/46 Nasdaq filings were accepted post-close while 25/33 NYSE filings were accepted during the regular session. Informative EX-99.25 coverage was 27/46 for Nasdaq versus 33/33 NYSE, 16/16 NYSE Arca, and 4/4 NYSE American. These are sample diagnostics, not population or quality estimates, but they show exchange workflow must be controlled before attributing clock or text effects to outcomes.
+Links: [[E104|evidenced_by]].
+_— captured development@234691a, 2026-07-24_
+
+### F118 — Form 25-NSE is a mixed security-class frame, not a delisted-stock label
+The 100-filing sample contains 31 common-equity removals, 11 debt/note removals, 40 warrant/right/unit or multi-class descriptions containing them, one preferred-equity removal, and 17 other/unknown securities. Rule families and reason exhibits also mix mergers, maturities/redemptions, compliance/distress, and unresolved cases. Any return or outcome study must stratify security rights and terminal wealth before pooling.
+Links: [[E104|evidenced_by]] · [[F115|builds_on]] · [[H61|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### H67 — CA-CLOCK100B: expand the filing backbone into observation-ordered action chains
+CA-CLOCK100B. Start with the 31 common-equity filings in the frozen sample, then extend the deterministic frame until 100 outcome-aware chains exist. Join only point-in-time issuer 8-K, amendment, merger-completion, bankruptcy-effectiveness, rights-conversion, and Form 15 assertions; retain missing sources and source-order reversals. Freeze completed, delayed, failed, bankruptcy, and unresolved strata before prices. Pass when at least 100 outcome-aware chains are materialized without backdating and manual identity audits pass; this remains a data gate before event-risk modeling.
+Links: [[E104|builds_on]] · [[F116|builds_on]] · [[F117|builds_on]] · [[F118|builds_on]] · [[H64|refines]] · [[H65|relates]] · [[H66|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### E105 — CA-CLOCK100B issuer and exchange sequence join
+Six adjacent SEC quarterly indexes join 31 common-equity Form 25 seeds to 259 nearby candidate filings. A frozen label-blind selector retains 80 content-review sources across 26 chains; 22 have a material issuer-source candidate and 19 are within 36 hours of Form 25. Exact acceptance clocks and source hashes are preserved; raw documents remain outside the repository and all outcome labels stay unreviewed. See docs/research/CA_CLOCK100B_action_chain_join.md.
+Links: [[E104|builds_on]] · [[H67|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F119 — Corporate-action issuer and exchange source order reverses in both directions
+Among 19 CA-CLOCK100B chains with a material issuer-source candidate within 36 hours of Form 25, the issuer source leads in 12 and the exchange filing leads in seven. Manual examples confirm both directions: Myovant issuer 8-K leads by 4:00:08 and New Relic by 24:47; Reata Form 25 leads its issuer 8-K by 8:04:22 and Fiesta by 3:11:44. One filing date or fixed source precedence would backdate information.
+Links: [[E105|evidenced_by]] · [[F114|refines]] · [[D15|builds_on]] · [[H67|relates]] · [[H64|relates]] · [[H61|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F120 — Fund exits require a separate disclosure-form pipeline
+All five CA-CLOCK100B seed chains with no relevant filing in the frozen 60-day-before/30-day-after corporate form search are funds: three Nuveen funds, Strategy Shares, and Virtus Stone Harbor. Two other fund seeds contribute N-CSRS. Missingness is economically structured, not a random scrape failure; widening the window would hide the need for N-CSR/N-CSRS, N-CEN, proxy, liquidation-plan, exchange-notice, and sponsor-source clocks.
+Links: [[E105|evidenced_by]] · [[F118|refines]] · [[H61|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F121 — Corporate-action phrase extraction is review routing, not an outcome label
+The 80 CA-CLOCK100B content sources contain material phrase families, but submissions bundle merger agreements, historical transactions, par values, bids, option terms, and boilerplate. A dollar amount near per-share text is not necessarily final consideration. The evidence manifest therefore retains hashes, phrase flags, and unvalidated candidates while forcing outcome_status=unreviewed; content-level manual evidence and abstention remain mandatory.
+Links: [[E105|evidenced_by]] · [[F116|builds_on]] · [[H64|relates]] · [[H61|relates]] · [[E102|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### H68 — CA-CLOCK100C reviewed outcome ledger across 100 action chains
+Extend CA-CLOCK100B to at least 100 manually reviewed chains stratified across cash, stock/successor, contingent value, fund liquidation, bankruptcy, listing transfer, failed/delayed, and unresolved outcomes. Every label must cite content-level official evidence and accepted-at clock; preserve amendments, missing states, and source order. Apply CA-00 terminal-wealth legs and CA-01 parallel dimensions. Pass only when independent identity/terms audits reproduce all labels and abstentions.
+Links: [[E105|builds_on]] · [[F119|builds_on]] · [[F120|builds_on]] · [[F121|builds_on]] · [[H64|refines]] · [[H65|relates]] · [[H66|relates]] · [[E102|relates]] · [[H67|refines]].
+_— captured development@234691a, 2026-07-24_
+
+### E106 — CA-CLOCK100C exact cash-right promotion benchmark
+Twelve CA-CLOCK100B chains are promoted through manual content review to exact fixed-cash holder-conversion labels. Every row carries USD cash per share, exact issuer and exchange acceptance clocks, official source URL and SHA-256, and predictive_for_outcome=false. The seed spans $2.33-$172.50 per share and splits six issuer-first/six exchange-first. It is a reviewed parser/clock benchmark, not an outcome-balanced panel or return study. See docs/research/CA_CLOCK100C_reviewed_cash_seed.md.
+Links: [[E105|builds_on]] · [[F121|builds_on]] · [[H68|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F122 — Manual holder-conversion labels retain dual source precedence
+The 12 manually reviewed fixed-cash chains split exactly six issuer-source-before-Form-25 and six exchange-before-issuer. Eleven are within 36 hours and split six/five; Sumo completion evidence arrives more than three days after Form 25. Selection targeted unambiguous cash-right evidence, not source order, but remains a convenience seed. Fixed source precedence or date-only joins are invalid; no population frequency or price effect is claimed.
+Links: [[E106|evidenced_by]] · [[F119|refines]] · [[D15|builds_on]].
+_— captured development@234691a, 2026-07-24_
+
+### H69 — CA-NONCASH review successor contingent bankruptcy and fund exits
+Extend the reviewed promotion contract beyond the 12 easy fixed-cash chains. First batch: CRH, Ambrx, and Incannex successor or redomiciliation rights; Pardes fixed-plus-CVR; Venator and RVL bankruptcy with unresolved versus explicit cancellation; five structurally missing fund exits through a fund-specific source graph. Require exact legs, currency or ratio, contingencies, clocks, hashes, and explicit abstention. These strata are prerequisites for H68's 100-chain panel.
+Links: [[E106|builds_on]] · [[F120|builds_on]] · [[F122|builds_on]] · [[H68|refines]] · [[H65|relates]] · [[H61|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### E107 — CA-NONCASH rights-aware promotion benchmark
+Six CA-CLOCK100B chains are manually promoted beyond fixed cash: three successor-equity conversions, one USD 2.13 plus non-tradeable CVR conversion, one bankruptcy with explicit zero recovery, and one bankruptcy unresolved at the selected source. Each row retains exact rights, acceptance clock, source URL and SHA-256, and predictive_for_outcome=false. Source order is four issuer-first and two exchange-first. See docs/research/CA_NONCASH_reviewed_seed.md.
+Links: [[E106|builds_on]] · [[H69|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F123 — Bankruptcy and delisting do not imply zero terminal wealth
+The RVL source explicitly states ordinary holders recover nothing, supporting USD 0.00. The Venator source establishes Chapter 11 and possible cancellation but not final holder recovery, so terminal value remains null. The promotion validator rejects an invented zero for Venator. Terminal wealth therefore requires rights-specific effective evidence, not a bankruptcy, cancellation, suspension, or Form 25 status alone.
+Links: [[E107|evidenced_by]] · [[F115|builds_on]] · [[H69|refines]].
+_— captured development@234691a, 2026-07-24_
+
+### F124 — Corporate-action clocks use the earliest fact-establishing source
+CRH has multiple nearby 6-K reports, but the 2023-09-25 06:43:16 ET filing already establishes the ADS termination and one-for-one ordinary-share exchange. A later duplicate report cannot define the information clock. The reviewed pipeline binds the outcome to the earliest harvested accession whose content proves the rights transition and validates its hash.
+Links: [[E107|evidenced_by]] · [[D15|builds_on]] · [[F121|refines]].
+_— captured development@234691a, 2026-07-24_
+
+### E108 — CA-FUND five-chain rights recovery
+All five CA-CLOCK100B fund chains with zero corporate-form candidates are manually recovered: NKG, NSL, and EDI convert into successor funds at exact ratios; NIQ pays USD 12.4082 plus one non-transferable liquidating-trust unit initially valued at USD 0.5768; NZRO schedules cash equal to NAV but the selected source does not establish amount or payment. Exact accessions, acceptance seconds, hashes, and source markers are validated. See docs/research/CA_FUND_reviewed_seed.md.
+Links: [[E107|builds_on]] · [[H69|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F125 — Fund exits require series-aware rights and source graphs
+The five missing corporate-form chains resolve through three exchange reason exhibits, one issuer N-CSR, and one Form 497. The resulting rights are NAV-ratio successor shares, cash plus an illiquid trust unit, and scheduled cash at future NAV. Target-only 8-K/6-K discovery cannot represent series identity, acquiring-fund CIKs, liquidation legs, or payment clocks.
+Links: [[E108|evidenced_by]] · [[F120|refines]] · [[H69|refines]].
+_— captured development@234691a, 2026-07-24_
+
+### F126 — Official exchange exhibits can contain claim-level contradictions
+NKG's NYSE exhibit says replacement rights arose and trading was suspended on April 17, 2023, but its merger-effective sentence says April 17, 2027. The 0.85425383 successor ratio is clear while the legal-date text conflicts. Official provenance does not remove the need for claim-level validation, contradiction flags, and stronger-source reconciliation.
+Links: [[E108|evidenced_by]] · [[D15|builds_on]] · [[F124|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### H70 — CA-FAILFRAME freeze failed delayed and amended action candidates
+Build the negative and censored side of the corporate-action panel before any prediction. Start from contemporaneous merger, tender, liquidation, bankruptcy, and exchange notices; preserve amendments and deadline extensions; distinguish failed, delayed, pending, completed, and right-censored actions. Pass only with content-level official evidence, observation clocks, identity audits, and frozen sampling independent of outcome availability.
+Links: [[E108|builds_on]] · [[H66|refines]] · [[H68|refines]] · [[F123|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### E109 — CA-FAILFRAME 2023 mutual-termination review seed
+One frozen SEC full-text query yields 31 document hits, 23 unique submissions, and 14 unique content-reviewed in-year merger terminations after removing five false or wrong-period matches and four counterparty or amendment duplicates. Exact accessions, acceptance clocks, hashes, reason families, and termination terms are retained. The query is outcome-conditioned and is not a failure population. See docs/research/CA_FAILFRAME_termination_seed.md.
+Links: [[E108|builds_on]] · [[H70|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F127 — SEC search documents submissions and deals are different units
+CA-FAILFRAME collapses 31 SEC document hits to 23 submissions and 14 unique 2023 deal terminations. Counterparty filings, an amendment, historical events, and nearby non-merger terminations explain the gaps. Event studies and models must cluster by deal chain and content-review event identity; search-hit or accession counts are not outcome counts.
+Links: [[E109|evidenced_by]] · [[F116|builds_on]] · [[H70|refines]].
+_— captured development@234691a, 2026-07-24_
+
+### F128 — Failure labels have delayed clocks and non-shareholder cash legs
+Only seven of 14 primary termination sources are accepted on the date-only event date; seven arrive one to five calendar days later. Termination economics also vary: Adobe USD 1 billion, First Horizon USD 200 million plus USD 25 million reimbursement, Amedisys USD 106 million, and Great Ajax cash plus a stock purchase. These are company/deal transfers, not direct per-share consideration, and cannot be used before source acceptance or added to holder wealth without separate evidence.
+Links: [[E109|evidenced_by]] · [[D15|builds_on]] · [[F121|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### H71 — CA-ANNOUNCE build an announcement-time censored deal cohort
+Freeze a cohort from contemporaneous deal announcements rather than known failures. Preserve parties, terms, outside dates, conditions, revisions, votes, regulatory milestones, competing bids, litigation, completion, termination, and a fixed right-censor date. Include unresolved deals, group all filings by deal, and time-split before transparent survival or logistic baselines. This is the minimum honest frame for public deal-risk prediction.
+Links: [[E109|builds_on]] · [[H70|refines]] · [[H66|refines]] · [[F127|builds_on]].
+_— captured development@234691a, 2026-07-24_
+
+### E110 — CA-ANNOUNCE deal-risk literature and model blueprint
+Classical merger-arbitrage research identifies nonlinear crash exposure and completion-risk premia. A July 2026 ICML paper reports a three-outcome long-context forecaster beating calibrated market-implied and XGBoost baselines on 404 held-out large deals, but its proprietary enriched corpus is not replicated here. CA-ANNOUNCE translates the literature into a public SEC-only cohort, baseline, leakage, calibration, and product contract. See docs/research/CA_ANNOUNCE_model_blueprint.md.
+Links: [[E109|builds_on]] · [[H71|relates]].
+_— captured development@234691a, 2026-07-24_
+
+### F129 — Deal failure must separate higher bids from negative termination
+A binary completion label misclassifies holder outcomes. CA-FAILFRAME's Amedisys/Option Care deal terminated because Amedisys moved to a competing UnitedHealth agreement, unlike regulatory or deadline failures with no better bid. The reviewed literature independently uses close as announced, higher-bid displacement, and negative termination, plus time to resolution.
+Links: [[E110|evidenced_by]] · [[E109|builds_on]] · [[H71|refines]].
+_— captured development@234691a, 2026-07-24_
+
+### D16 — Deal-risk models must beat calibrated spread on grouped chronological forecasts
+Adopt an announcement-time, right-censored cohort and a strict baseline ladder: market-implied probability, multinomial logistic and cause-specific survival, then boosted trees, then evidence-constrained language models. Score Brier, log loss, calibration, and time-dependent survival metrics on deal-grouped chronological splits. Open-web retrieval and post-cutoff model knowledge are barred from backtests; unresolved deals remain censored.
+Links: [[E110|evidenced_by]] · [[H71|resolves]] · [[F129|builds_on]] · [[D15|builds_on]].
+_— captured development@234691a, 2026-07-24_
+
+### H72 — CA-RHETORIC test filing-language revisions after structured deal baselines
+For announcement-time deals, convert each new filing into a point-in-time delta against the previous issuer statement: closing-window changes, certainty and condition language, regulatory scope, financing, litigation, board recommendation, and explicit unknowns. Test whether structured and embedding deltas improve calibrated spread plus survival baselines out of sample. Kill if gains depend on future pages, boilerplate, deal leakage, or hindsight-selected phrases.
+Links: [[D16|builds_on]] · [[H71|builds_on]] · [[F124|relates]] · [[F128|relates]].
+_— captured development@234691a, 2026-07-24_

@@ -1,0 +1,196 @@
+{
+  "schema_version": 1,
+  "fixture_id": "ix00-ndx-2023-revision-v1",
+  "status": "normalized public-announcement evidence; not a licensed constituent database",
+  "batch": {
+    "batch_id": "ndx-2023-12",
+    "provider": "Nasdaq Global Indexes",
+    "index_name": "Nasdaq-100",
+    "index_symbol": "NDX",
+    "implementation_session": "2023-12-15",
+    "implementation_time_quality": "inferred prior close from effective-before-open and quadruple-witching schedule",
+    "effective_session": "2023-12-18",
+    "rights_tier": "public announcement; transformed event facts only"
+  },
+  "revisions": [
+    {
+      "revision_id": "ndx-2023-12-r1",
+      "ordinal": 1,
+      "revision_kind": "initial",
+      "published_at": "2023-12-08T20:00:00-05:00",
+      "first_tradable_at": "2023-12-11T09:30:00-05:00",
+      "source_url": "https://www.nasdaq.com/press-release/annual-changes-to-the-nasdaq-100-indexr-2023-12-08",
+      "source_time_quality": "exact_after_hours",
+      "hash_scope": "canonical normalized fixture revision",
+      "events": [
+        {
+          "logical_event_id": "ndx-2023-12:CDW:add",
+          "security_id": "symbol-scope:CDW",
+          "security_name": "CDW Corporation",
+          "identity_quality": "symbol_scoped_pending_security_master",
+          "announced_symbol": "CDW",
+          "action": "addition",
+          "transition_type": "direct_entry",
+          "operation": "assert",
+          "reason_code": "annual_reconstitution"
+        },
+        {
+          "logical_event_id": "ndx-2023-12:CCEP:add",
+          "security_id": "symbol-scope:CCEP",
+          "security_name": "Coca-Cola Europacific Partners plc",
+          "identity_quality": "symbol_scoped_pending_security_master",
+          "announced_symbol": "CCEP",
+          "action": "addition",
+          "transition_type": "direct_entry",
+          "operation": "assert",
+          "reason_code": "annual_reconstitution"
+        },
+        {
+          "logical_event_id": "ndx-2023-12:DASH:add",
+          "security_id": "symbol-scope:DASH",
+          "security_name": "DoorDash, Inc.",
+          "identity_quality": "symbol_scoped_pending_security_master",
+          "announced_symbol": "DASH",
+          "action": "addition",
+          "transition_type": "direct_entry",
+          "operation": "assert",
+          "reason_code": "annual_reconstitution"
+        },
+        {
+          "logical_event_id": "ndx-2023-12:MDB:add",
+          "security_id": "symbol-scope:MDB",
+          "security_name": "MongoDB, Inc.",
+          "identity_quality": "symbol_scoped_pending_security_master",
+          "announced_symbol": "MDB",
+          "action": "addition",
+          "transition_type": "direct_entry",
+          "operation": "assert",
+          "reason_code": "annual_reconstitution"
+        },
+        {
+          "logical_event_id": "ndx-2023-12:ROP:add",
+          "security_id": "symbol-scope:ROP",
+          "security_name": "Roper Technologies, Inc.",
+          "identity_quality": "symbol_scoped_pending_security_master",
+          "announced_symbol": "ROP",
+          "action": "addition",
+          "transition_type": "direct_entry",
+          "operation": "assert",
+          "reason_code": "annual_reconstitution"
+        },
+        {
+          "logical_event_id": "ndx-2023-12:SPLK:add",
+          "security_id": "symbol-scope:SPLK",
+          "security_name": "Splunk Inc.",
+          "identity_quality": "symbol_scoped_acquired_2024",
+          "announced_symbol": "SPLK",
+          "action": "addition",
+          "transition_type": "direct_entry",
+          "operation": "assert",
+          "reason_code": "annual_reconstitution"
+        },
+        {
+          "logical_event_id": "ndx-2023-12:ALGN:delete",
+          "security_id": "symbol-scope:ALGN",
+          "security_name": "Align Technology, Inc.",
+          "identity_quality": "symbol_scoped_pending_security_master",
+          "announced_symbol": "ALGN",
+          "action": "deletion",
+          "transition_type": "direct_exit",
+          "operation": "assert",
+          "reason_code": "annual_reconstitution"
+        },
+        {
+          "logical_event_id": "ndx-2023-12:EBAY:delete",
+          "security_id": "symbol-scope:EBAY",
+          "security_name": "eBay Inc.",
+          "identity_quality": "symbol_scoped_pending_security_master",
+          "announced_symbol": "EBAY",
+          "action": "deletion",
+          "transition_type": "direct_exit",
+          "operation": "assert",
+          "reason_code": "annual_reconstitution"
+        },
+        {
+          "logical_event_id": "ndx-2023-12:ENPH:delete",
+          "security_id": "symbol-scope:ENPH",
+          "security_name": "Enphase Energy, Inc.",
+          "identity_quality": "symbol_scoped_pending_security_master",
+          "announced_symbol": "ENPH",
+          "action": "deletion",
+          "transition_type": "direct_exit",
+          "operation": "assert",
+          "reason_code": "annual_reconstitution"
+        },
+        {
+          "logical_event_id": "ndx-2023-12:JD:delete",
+          "security_id": "symbol-scope:JD",
+          "security_name": "JD.com, Inc.",
+          "identity_quality": "symbol_scoped_pending_security_master",
+          "announced_symbol": "JD",
+          "action": "deletion",
+          "transition_type": "direct_exit",
+          "operation": "assert",
+          "reason_code": "annual_reconstitution"
+        },
+        {
+          "logical_event_id": "ndx-2023-12:LCID:delete",
+          "security_id": "symbol-scope:LCID",
+          "security_name": "Lucid Group, Inc.",
+          "identity_quality": "symbol_scoped_pending_security_master",
+          "announced_symbol": "LCID",
+          "action": "deletion",
+          "transition_type": "direct_exit",
+          "operation": "assert",
+          "reason_code": "annual_reconstitution"
+        },
+        {
+          "logical_event_id": "ndx-2023-12:ZM:delete",
+          "security_id": "symbol-scope:ZM",
+          "security_name": "Zoom Video Communications, Inc.",
+          "identity_quality": "symbol_scoped_pending_security_master",
+          "announced_symbol": "ZM",
+          "action": "deletion",
+          "transition_type": "direct_exit",
+          "operation": "assert",
+          "reason_code": "annual_reconstitution"
+        }
+      ]
+    },
+    {
+      "revision_id": "ndx-2023-12-r2",
+      "ordinal": 2,
+      "revision_kind": "corporate_action_update",
+      "published_at": "2023-12-12T18:00:00-05:00",
+      "first_tradable_at": "2023-12-13T09:30:00-05:00",
+      "source_url": "https://www.nasdaq.com/press-release/update%3A-annual-changes-to-the-nasdaq-100r-index-2023-12-12",
+      "source_time_quality": "exact_after_hours",
+      "hash_scope": "canonical normalized fixture revision",
+      "supersedes_revision_id": "ndx-2023-12-r1",
+      "events": [
+        {
+          "logical_event_id": "ndx-2023-12:TTWO:add",
+          "security_id": "symbol-scope:TTWO",
+          "security_name": "Take-Two Interactive Software, Inc.",
+          "identity_quality": "symbol_scoped_pending_security_master",
+          "announced_symbol": "TTWO",
+          "action": "addition",
+          "transition_type": "corporate_action_replacement",
+          "operation": "assert",
+          "reason_code": "seagen_acquisition_expected_close"
+        },
+        {
+          "logical_event_id": "ndx-2023-12:SGEN:delete",
+          "security_id": "symbol-scope:SGEN",
+          "security_name": "Seagen Inc.",
+          "identity_quality": "symbol_scoped_acquired_2023",
+          "announced_symbol": "SGEN",
+          "action": "deletion",
+          "transition_type": "corporate_action_replacement",
+          "operation": "assert",
+          "reason_code": "seagen_acquisition_expected_close"
+        }
+      ]
+    }
+  ]
+}

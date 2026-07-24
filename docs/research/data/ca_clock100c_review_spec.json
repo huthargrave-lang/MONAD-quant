@@ -1,0 +1,151 @@
+{
+  "schema_version": 1,
+  "review_id": "ca-clock100c-fixed-cash-seed-review-v1",
+  "review_method": "manual_content_review",
+  "entries": [
+    {
+      "form25_accession": "0001354457-23-000108",
+      "evidence_accession": "0001193125-23-044883",
+      "outcome_type": "fixed_cash_merger",
+      "rights_outcome": "cash_right_fixed",
+      "consideration": {
+        "currency": "USD",
+        "cash_per_share": "18.00",
+        "contingent": false
+      },
+      "claim": "At the effective time, each eligible 1Life share automatically converted into the right to receive $18.00 in cash without interest."
+    },
+    {
+      "form25_accession": "0000876661-23-000191",
+      "evidence_accession": "0001140361-23-011046",
+      "outcome_type": "fixed_cash_merger",
+      "rights_outcome": "cash_right_fixed",
+      "consideration": {
+        "currency": "USD",
+        "cash_per_share": "27.00",
+        "contingent": false
+      },
+      "claim": "At the effective time, each eligible Myovant common share converted into the right to receive $27.00 per share in cash without interest."
+    },
+    {
+      "form25_accession": "0001354457-23-000306",
+      "evidence_accession": "0001104659-23-051430",
+      "outcome_type": "fixed_cash_merger",
+      "rights_outcome": "cash_right_fixed",
+      "consideration": {
+        "currency": "USD",
+        "cash_per_share": "20.00",
+        "contingent": false
+      },
+      "claim": "At the effective time, each eligible Cardiovascular Systems share converted into the right to receive $20.00 in cash per share without interest."
+    },
+    {
+      "form25_accession": "0001354457-23-000347",
+      "evidence_accession": "0001140361-23-024758",
+      "outcome_type": "fixed_cash_merger",
+      "rights_outcome": "cash_right_fixed",
+      "consideration": {
+        "currency": "USD",
+        "cash_per_share": "12.05",
+        "contingent": false
+      },
+      "claim": "At the effective time, each eligible Sumo Logic common share converted into the right to receive $12.05 in cash without interest."
+    },
+    {
+      "form25_accession": "0001354457-23-000493",
+      "evidence_accession": "0001104659-23-079843",
+      "outcome_type": "fixed_cash_merger",
+      "rights_outcome": "cash_right_fixed",
+      "consideration": {
+        "currency": "USD",
+        "cash_per_share": "40.00",
+        "contingent": false
+      },
+      "claim": "At the merger effective time, each eligible IVERIC share converted into the right to receive $40.00 per share in cash without interest."
+    },
+    {
+      "form25_accession": "0001354457-23-000558",
+      "evidence_accession": "0001140361-23-037209",
+      "outcome_type": "fixed_cash_merger",
+      "rights_outcome": "cash_right_fixed",
+      "consideration": {
+        "currency": "USD",
+        "cash_per_share": "2.33",
+        "contingent": false
+      },
+      "claim": "The Home Point offer paid $2.33 per eligible share in cash without interest, and remaining eligible shares converted into the right to receive that offer price."
+    },
+    {
+      "form25_accession": "0000876661-23-000678",
+      "evidence_accession": "0001140361-23-040969",
+      "outcome_type": "fixed_cash_merger",
+      "rights_outcome": "cash_right_fixed",
+      "consideration": {
+        "currency": "USD",
+        "cash_per_share": "23.25",
+        "contingent": false
+      },
+      "claim": "At the effective time, each eligible ForgeRock common share converted into the right to receive $23.25 in cash without interest."
+    },
+    {
+      "form25_accession": "0001354457-23-000700",
+      "evidence_accession": "0001193125-23-242619",
+      "outcome_type": "fixed_cash_merger",
+      "rights_outcome": "cash_right_fixed",
+      "consideration": {
+        "currency": "USD",
+        "cash_per_share": "172.50",
+        "contingent": false
+      },
+      "claim": "At the effective time, each eligible Reata common share converted into the right to receive $172.50 in cash without interest."
+    },
+    {
+      "form25_accession": "0001354457-23-000786",
+      "evidence_accession": "0001104659-23-110660",
+      "outcome_type": "fixed_cash_merger",
+      "rights_outcome": "cash_right_fixed",
+      "consideration": {
+        "currency": "USD",
+        "cash_per_share": "22.95",
+        "contingent": false
+      },
+      "claim": "At the effective time, each eligible SciPlay Class A share converted into the right to receive $22.95 in cash without interest."
+    },
+    {
+      "form25_accession": "0001354457-23-000793",
+      "evidence_accession": "0001140361-23-050103",
+      "outcome_type": "fixed_cash_merger",
+      "rights_outcome": "cash_right_fixed",
+      "consideration": {
+        "currency": "USD",
+        "cash_per_share": "8.50",
+        "contingent": false
+      },
+      "claim": "At the effective time, each eligible Fiesta Restaurant Group common share converted into the right to receive $8.50 per share in cash without interest."
+    },
+    {
+      "form25_accession": "0000876661-23-000824",
+      "evidence_accession": "0001193125-23-273042",
+      "outcome_type": "fixed_cash_merger",
+      "rights_outcome": "cash_right_fixed",
+      "consideration": {
+        "currency": "USD",
+        "cash_per_share": "87.00",
+        "contingent": false
+      },
+      "claim": "At the effective time, each eligible New Relic common share converted into the right to receive $87.00 in cash without interest."
+    },
+    {
+      "form25_accession": "0001354457-23-000962",
+      "evidence_accession": "0001140361-23-058857",
+      "outcome_type": "fixed_cash_merger",
+      "rights_outcome": "cash_right_fixed",
+      "consideration": {
+        "currency": "USD",
+        "cash_per_share": "16.26",
+        "contingent": false
+      },
+      "claim": "At the effective time, each eligible Patriot Transportation common share converted into the right to receive $16.26 per share in cash without interest."
+    }
+  ]
+}

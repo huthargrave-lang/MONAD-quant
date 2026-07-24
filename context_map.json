@@ -155,6 +155,14 @@
       "docs": ["CLAUDE.md", "IMPROVEMENT_PLAN.md"],
       "do_not_touch_without_approval": false
     },
+    "research_labs": {
+      "summary": "Point-in-time public-investment research labs: append-only event ledgers, SEC corporate-action state and outcome chains, index-membership event studies, and exploratory gap-risk measurement. These tools build auditable research projections; they do not place trades.",
+      "files": ["tools/corporate_action_outcome_lab.py", "tools/index_membership_event_pilot.py", "tools/overnight_gap_risk_study.py", "tools/research_event_ledger.py", "tools/sec_action_chain_join_lab.py", "tools/sec_corporate_action_state_lab.py", "tools/sec_failed_action_lab.py", "tools/sec_form25_population_lab.py", "tools/sec_fund_exit_lab.py"],
+      "entrypoints": [],
+      "tests": ["tests/test_corporate_action_outcome_lab.py", "tests/test_index_membership_event_pilot.py", "tests/test_research_event_ledger.py", "tests/test_sec_action_chain_join_lab.py", "tests/test_sec_corporate_action_state_lab.py", "tests/test_sec_failed_action_lab.py", "tests/test_sec_form25_population_lab.py", "tests/test_sec_fund_exit_lab.py"],
+      "docs": ["docs/research/README.md", "docs/research/PUBLIC_INVESTMENT_INTELLIGENCE_FRONTIER.md", "docs/research/CA_ANNOUNCE_model_blueprint.md", "docs/research/FD00_sec_filing_delta_lab.md", "docs/research/IX00_index_membership_event_lab.md"],
+      "do_not_touch_without_approval": false
+    },
     "dashboard": {
       "summary": "Read-only FastAPI monitor; current/all/archive run-window view.",
       "files": ["live/dashboard.py", "live/templates/dashboard.html", "src/analysis/run_window.py"],
@@ -183,6 +191,10 @@
   },
 
   "routing": [
+    {"keywords": ["corporate action", "merger", "form 25", "delisting", "sec filing", "filing delta", "index addition", "index removal", "index membership", "event ledger", "research lab"],
+     "read": ["docs/research/README.md", "docs/research/PUBLIC_INVESTMENT_INTELLIGENCE_FRONTIER.md", "RESEARCH_WEB.md (relevant node)"],
+     "run": ["ctx map research_labs", "ctx tests research_labs", "ctx web", "ctx related \"<task>\""],
+     "avoid": ["using outcome-time filings as predictive features", "treating unresolved or provider-missing outcomes as zero", "committing generated SQLite projections"]},
     {"keywords": ["strategy", "signal", "param", "threshold", "rsi", "macd", "regime", "kelly", "sweep", "backtest"],
      "read": ["CLAUDE.md (relevant section)", "config.py", "src/signals/", "src/strategy/engine.py"],
      "run": ["python sweep.py TICKER"], "avoid": ["live/ trader/order paths"]},
