@@ -70,6 +70,7 @@ selection)** — t-stat 3.3 — and across every fold count, objective, and grid
 4/4 folds positive). So it is not selection overfit. Strongest evidence the edge is real. Supports [[F4]], [[D1]].
 
 ### F9 — SPY corroborates; un-leveraged broad indices are the right class
+<!-- status: superseded; by: F13; reason: inverted; at: 2026-07-24 -->
 SPY (fetched fresh, vol 0.38%, noise ratio 1.83): WR 53.2%, Sharpe 2.9, +0.27%/mo —
 independently corroborates QQQ. IWM (noise ratio ~1.0) lands mid-pack exactly as [[F7]]
 predicts. The noise-ratio→WR relationship is continuous, not a QQQ one-off. Source: [[E6]]. → [[D3]].
@@ -148,8 +149,12 @@ regime this research operates in. Fixed in commit 084f15e.
 Robustness ([[E4]]): QQQ robust (t 3.3–4.3, survives no-selection [[F8]]); TQQQ fragile ([[F6]]). Closed.
 (NB: the QQQ edge F8 affirmed was later shown to be a morning-only artifact — [[F13]]; this holds only at the ~3-bars/day timescale, not hourly.)
 
-### H2 — RESOLVED: un-leveraged indices generalize the edge? → YES
-Confirmed by the noise-ratio mechanism [[F7]] + SPY/IWM corroboration [[F9]] ([[E6]]). Closed → [[D3]].
+### H2 — RESOLVED then REVERSED by F13: un-leveraged indices generalize the edge? → NO
+Originally closed YES on the noise-ratio mechanism [[F7]] plus SPY/IWM corroboration ([[E6]]).
+[[F13]] then reversed the premise: the hourly edge was a morning-only sampling artifact, so
+there was no edge to generalize. The corroborating finding [[F9|relates]] is superseded, and
+this YES no longer stands — [[F22]] later found no risk-adjusted edge at any timescale. The
+mechanism [[F7]] survives as an explanation of *relative* stop-vs-noise behaviour. → [[D3]].
 
 ### H3 — RESOLVED: edge can be cheaply lifted (ATR stops / entry quality)? → NO
 Lever test ([[E5]]): ATR-1.5× helps QQQ marginally (Sh 3.74→4.09) but HURTS TQQQ (2.17→1.30)
@@ -200,7 +205,10 @@ decay over time. Inert to folds/objective; survives grid width. Resolved [[H1]],
 ATR stops + require_signals=2 in leak-free OOS. Neither lifts the edge reliably. Resolved [[H3]].
 ### E6 — RESOLVED: QQQ structural deep-dive + SPY/IWM
 Exit-type decomposition + noise-ratio across 7 instruments + SPY/IWM fetch. Produced the
-mechanism [[F7]], [[F9]]; resolved [[H2]], explained [[F4]].
+mechanism [[F7]], [[F9]]; resolved [[H2]], explained [[F4]]. CAVEAT: this ran on the
+morning-only cache, so its edge magnitudes were later overturned by [[F13]] — [[F4]] and
+[[F9]] are superseded. The run itself stands; the noise-ratio mechanism [[F7]] survives
+because it explains *relative* stop-vs-noise behaviour, which the sampling bug did not touch.
 ### E7 — IN PROGRESS: full-session data re-pull & re-validate (now matches live)
 `tools/fetch_fullsession.py` rebuilds full-session 1h data (root cause [[F12]]). Gathering a
 conservative universe (broad indices + low-vol/dividend + bond ETFs). Then re-run the
@@ -376,7 +384,7 @@ _— captured claude/strategy-go-nogo@54e6637, 2026-06-22_
 ### D6 — GO/NO-GO: the active engine is not justified — recommend a static allocation
 Decisive comparison (E12): the active daily-MR engine shows NO DEMONSTRATED ADVANTAGE over a trivial static blend of the same assets — active Sharpe 0.69 / 6.2%/yr vs static 50/50 (0.80) and 60/40 equity/bond (0.86) at comparable return, with the active-minus-static Sharpe-diff bootstrap straddling zero (within noise). It is not better, while carrying all the trading, cost and live-execution risk. This unifies the arc: F22 (active doesn't beat buy&hold), F13/F17 (no hourly edge; the %-stop EXIT was the flaw), and the flat live confirmed-fill result (the ~+35% headline is a paper mark-price ESTIMATION ARTIFACT on time/target exits, not real, and not a fixable execution bug). RECOMMENDATION: the honest bond-alternative is a STATIC allocation (e.g. 50/50 or 60/40 equity/bond), de-risked and periodically rebalanced — not the active engine. NOTE: changing the live deployment touches the armed trader path — sign-off required; this records the evidence-backed recommendation, not an applied change.
 ⚠ UPDATE (2026-06-25, adversarially verified): D6 is CONFIRMED & STRENGTHENED and its one open gap is closed. [[F24]]: the RSI+MACD signal D6 never tested (it only used any-down-day) does NOT rescue the active engine — RSI-conditioning is no-better-or-worse on every metric. [[F25]]: ~2× the data (2000-2026, +dot-com +2008) NARROWS the (active − static-50/50) Sharpe CI to [−0.34,+0.30] (still straddles 0) → the "underpowered" objection is retired. Honest nuance for the capital-preservation mandate: the active engine does have the lowest drawdown / best Calmar of any static blend BY POINT ESTIMATE, but that edge is PATH-DEPENDENT (the paired maxDD/Calmar bootstrap straddles 0) and a static 60/40 beats it on Sharpe AND return — so the static-allocation recommendation STANDS; keep the active engine only as a low-DD overlay, not an alpha engine. SEPARATELY [[F26]]: the slope-regime "core innovation" this whole arc implicitly assumed is in fact dead-wired/stripped from the backtests, so the gate never actually contributed to any of these numbers.
-Links: [[E12|evidenced_by]] · [[F22|builds_on]] · [[D5|refines]] · [[D4|refines]] · [[F24|builds_on]] · [[F25|builds_on]] · [[F26|relates]].
+Links: [[E12|evidenced_by]] · [[F22|builds_on]] · [[D5|refines]] · [[D4|refines]] · [[F24|relates]] · [[F25|relates]] · [[F26|relates]].
 _— captured claude/strategy-go-nogo@54e6637, 2026-06-22 (updated development@c9a20a8, 2026-06-25)_
 
 ### F23 — Per-mode RSI period + MACD windows never reach the entry signal (code bug)
@@ -400,7 +408,7 @@ project's ACTUAL signal. E13 adds a Wilder RSI + an `rsi_thresh` param to `mr_da
 and races RSI<30/35/40 actives against the bare active and the static blends, reporting Calmar +
 time-in-market and bootstrapping each vs static 50/50. Leak-free (RSI[d] is known at the dip close,
 same bar the entry already uses; a future-price scramble leaves the return head unchanged, max abs
-diff 0.0). Reproducible: `tools/mr_daily_lab.py gonogo`. Produces [[F24|produces]]; extends [[E12|extends]].
+diff 0.0). Reproducible: `tools/mr_daily_lab.py gonogo`. Produces [[F24|produces]]; extends [[E12|builds_on]].
 _— captured development@cf78fcd, 2026-06-25_
 
 ### F24 — RSI-conditioning never overturns D6 (the project's own signal does not rescue the engine)
@@ -424,7 +432,7 @@ separate cache (cannot perturb the 2014-based [[F18]]–[[F22]]), basket = ^GSPC
 equity exposures live from ≤2000-05; GLD/SPY dropped to avoid 2004-truncation / S&P double-count — the
 naive "add ^GSPC + change START" one-liner would have silently done both), and adds a PAIRED
 maxDD/Calmar-difference block bootstrap — the significance test a capital-preservation mandate actually
-needs (Sharpe is time-in-market sensitive). Produces [[F25|produces]]; extends [[E11|extends]], [[E12|extends]].
+needs (Sharpe is time-in-market sensitive). Produces [[F25|produces]]; extends [[E11|builds_on]], [[E12|builds_on]].
 _— captured development@c97b56d, 2026-06-25 (hardened @c9a20a8)_
 
 ### F25 — 26yr data CONFIRMS D6; the MR autocorrelation is robustly real; the only pro-active edge is path-dependent drawdown
@@ -1877,6 +1885,16 @@ Links: [[F133|builds_on]] · [[F134|builds_on]] · [[F135|builds_on]] · [[F27|r
 _— captured claude/research-continuation-ca1242@8d685fb, 2026-07-24_
 
 ### F136 — A second parser is a second source of truth: the audit's own cue classifier drifted from ctx.py and corrupted its reliance graph
-EPI-00 v2 hand-wrote a copy of ctx.py's untyped-link cue classifier. The copy was materially unfaithful: ctx uses stem cues ('corroborat', 'support', 'refine'), sentence-boundary windowing, word-boundary matching, a negation guard ('not supported' is not an edge), and a rule letting a reliance verb beat a closer lineage cue. The copy missed all of it, mis-typing real edges - H2's 'Confirmed by the noise-ratio mechanism [[F7]] + SPY/IWM corroboration [[F9]]' resolved to 'relates' instead of 'supports' - which silently corrupts the reliance graph that blast radius and the whole structural-risk ranking are computed from. It was caught only because note.py's write-fence REFUSED a tombstone, citing a live H2 --supports--> F9 edge the lab could not see. v3 deletes the copy and delegates to ctx._classify_edge, plus dedupes one edge per target with explicit typing beating cue inference (SCHEMA calls the trailing Links: line authoritative) and rejects out-of-vocabulary types the way ctx does. A test now asserts byte-for-byte agreement with ctx on all 1171 edges of the live web. Corrected ranking: F28 (blast 111, no evidence link of any kind) outranks F17 (blast 140, corroborated_only via F19). Corrected integrity: only F9 has a DECLARED supersedes without a tombstone - F10 and F22 were cue-inferred false positives, and the F9 fix is blocked by live dependents (H2 supports it; E6 cites it without citing F13), which is why it persisted.
+EPI-00 v2 hand-wrote a copy of ctx.py's untyped-link cue classifier. The copy was materially unfaithful: ctx uses stem cues ('corroborat', 'support', 'refine'), sentence-boundary windowing, word-boundary matching, a negation guard ('not supported' is not an edge), and a rule letting a reliance verb beat a closer lineage cue. The copy missed all of it, mis-typing real edges - H2's 'Confirmed by the noise-ratio mechanism (F7) + SPY/IWM corroboration (F9)' resolved to 'relates' instead of 'supports' - which silently corrupts the reliance graph that blast radius and the whole structural-risk ranking are computed from. (Node IDs are deliberately written bare here, not as links: quoting another node's prose verbatim with live link syntax injects SPURIOUS edges, because cue classification cannot distinguish quotation from assertion. This node's own quote manufactured a supports edge to F9 that blocked F9's tombstone - see F137.) It was caught only because note.py's write-fence REFUSED a tombstone, citing a live H2 --supports--> F9 edge the lab could not see. v3 deletes the copy and delegates to ctx._classify_edge, plus dedupes one edge per target with explicit typing beating cue inference (SCHEMA calls the trailing Links: line authoritative) and rejects out-of-vocabulary types the way ctx does. A test now asserts byte-for-byte agreement with ctx on all 1171 edges of the live web. Corrected ranking: F28 (blast 111, no evidence link of any kind) outranks F17 (blast 140, corroborated_only via F19). Corrected integrity: only F9 has a DECLARED supersedes without a tombstone - F10 and F22 were cue-inferred false positives, and the F9 fix is blocked by live dependents (H2 supports it; E6 cites it without citing F13), which is why it persisted.
 Links: [[E112|evidenced_by]] · [[F135|refines]] · [[F27|relates]].
 _— captured claude/research-continuation-ca1242@2ef5724, 2026-07-24_
+
+### F137 — Quoting another node's prose verbatim injects spurious edges, because cue classification cannot tell quotation from assertion
+While fixing the F9 tombstone, the blocking edge turned out to be emitted by F136 itself: F136 quoted H2's prose verbatim, including live link syntax, and ctx's cue classifier read the phrase 'SPY/IWM corroboration (F9)' inside that quotation as a first-class supports edge from F136 to F9. A finding ABOUT cue misclassification thereby manufactured the exact edge it was describing, and that phantom reliance blocked the tombstone note.py was otherwise willing to write. The point was then demonstrated a third time: the first attempt to capture THIS finding was itself refused, because its body quoted the same phrase with live brackets. This is a structural limitation of prose-cue edge inference, not a one-off typo - any node that quotes, critiques, or documents another node's text silently acquires that text's edges, and meta-research nodes do this constantly. Mitigation used here: write node IDs bare inside quotations so a quotation cannot assert a relation. A stronger fix would be an explicit quotation fence the parser skips. The episode also shows the write-fence earning its keep: it refused three writes that would each have left the graph inconsistent, and named the offending edge precisely every time.
+Links: [[E112|evidenced_by]] · [[F136|refines]].
+_— captured claude/research-continuation-ca1242@83292c6, 2026-07-24_
+
+### F138 — The web's four structural invariants were all violated and all invisible; they are now CI-enforced and the violations are fixed
+EPI-00 (H73) recommended making the audit's integrity checks permanent. All four invariants it defines were VIOLATED when first run, and none was visible to ctx --lint (which covers dangling links, stale cites and reliance-on-superseded, but not these). Fixed in this pass: (1) F9 carried no tombstone although F13 explicitly declared it superseded - repaired via note.py supersede after clearing two real blockers, since H2 relied on F9 and E6 cited it without citing F13; H2's own answer was stale too and now records that F13 reversed its YES. (2) Three edges used the type 'extends', which is outside ctx.EDGE_TYPES, so ctx silently degraded them to relates; retyped to builds_on, which SCHEMA literally defines as 'Extends/depends on an earlier claim'. (3) The reliance graph had two cycles, D6<->F24 and D6<->F25: D6 was captured 2026-06-22 and carried builds_on edges to findings captured 2026-06-25, i.e. reliance pointing FORWARD in time. Retyped to relates - the later findings already refine D6 correctly - and the reliance graph is now a true DAG (570 edges, 0 cycles). (4) No duplicate node IDs today, though a historical revision defined D7 and D8 twice. tests/test_web_integrity.py now enforces all four plus byte-for-byte parser agreement with ctx, verified by a negative control that reintroduces the D6 cycle and confirms CI fails with an actionable message.
+Links: [[E112|evidenced_by]] · [[F135|builds_on]] · [[F27|relates]].
+_— captured claude/research-continuation-ca1242@83292c6, 2026-07-24_

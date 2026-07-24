@@ -143,29 +143,40 @@ def parse_web(text: str) -> Dict[str, Dict[str, object]]:
         # over a cue-inferred one: SCHEMA calls the trailing `Links:` line the
         # authoritative echo of the typed edges, so "Builds on [[E26]]/[[F35]]" in
         # prose must not override an explicit `[[F35|relates]]` there.
-        resolved: Dict[str, Tuple[str, bool]] = {}
+        # Collapse to one edge per target using ctx.py's exact precedence rule
+        # (tools/ctx.py::_parse_web): rank relates=0 < cue=1 < explicit=2; a higher
+        # rank wins, and at equal rank a RELIANCE edge beats a non-reliance one so a
+        # stale cite cannot hide behind a same-rank provenance link to the same node.
+        resolved: Dict[str, Tuple[int, str]] = {}
         order: List[str] = []
         out_of_vocab: List[Tuple[str, str]] = []
         for lm in LINK_RE.finditer(body):
-            target, explicit_type = lm.group(1), lm.group(2)
-            # A type outside the enforced vocabulary is NOT a typed edge: ctx.py
-            # falls back to cue classification for it, so an out-of-vocab label
-            # like `extends` silently becomes `relates` for every other reader.
-            if explicit_type and explicit_type not in _ctx.EDGE_TYPES:
-                out_of_vocab.append((target, explicit_type))
-                explicit_type = None
-            edge_type = explicit_type or classify_untyped_link(body[: lm.start()])
-            is_explicit = bool(explicit_type)
-            previous = resolved.get(target)
-            if previous is None:
+            target, raw_type = lm.group(1), lm.group(2)
+            if target == node_id:
+                continue
+            if raw_type and raw_type in _ctx.EDGE_TYPES:
+                rank, edge_type = 2, raw_type
+            else:
+                # An out-of-vocabulary label (e.g. `extends`) is NOT a typed edge:
+                # ctx falls back to cue inference, silently losing the author's
+                # intent, so it is recorded as an integrity finding.
+                if raw_type:
+                    out_of_vocab.append((target, raw_type))
+                edge_type = classify_untyped_link(body[: lm.start()])
+                rank = 0 if edge_type == "relates" else 1
+            current = resolved.get(target)
+            if current is None:
                 order.append(target)
-                resolved[target] = (edge_type, is_explicit)
-            elif is_explicit or not previous[1]:
-                # explicit always wins; otherwise the later inference wins
-                resolved[target] = (edge_type, previous[1] or is_explicit)
-        edges: List[Tuple[str, str]] = [(t, resolved[t][0]) for t in order]
+                resolved[target] = (rank, edge_type)
+            elif rank > current[0] or (
+                rank == current[0]
+                and edge_type in RELIANCE_EDGES
+                and current[1] not in RELIANCE_EDGES
+            ):
+                resolved[target] = (rank, edge_type)
+        edges: List[Tuple[str, str]] = [(t, resolved[t][1]) for t in order]
         explicit_edges: List[Tuple[str, str]] = [
-            (t, resolved[t][0]) for t in order if resolved[t][1]
+            (t, resolved[t][1]) for t in order if resolved[t][0] == 2
         ]
         resolved_evidence = any(
             t.startswith("E") and e == "evidenced_by" for t, e in edges

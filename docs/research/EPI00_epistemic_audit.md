@@ -5,7 +5,8 @@ version's headline did not survive review<br>
 **Tool:** `tools/epistemic_audit_lab.py` (v2)<br>
 **Guarantee:** its web parser is asserted byte-for-byte equal to `ctx.py`'s on every
 edge of the live web (`test_classifier_matches_the_canonical_ctx_reader_on_the_real_web`)<br>
-**Research-web nodes:** `E112`, `F133`, `F134`, `F135`, `H73`<br>
+**Research-web nodes:** `E112`, `F133`–`F138`, `H73`<br>
+**CI:** `tests/test_web_integrity.py` enforces the four structural invariants below<br>
 **Reproduce:**
 ```bash
 python3 tools/epistemic_audit_lab.py revision   # revision classes, censoring, hazard
@@ -128,11 +129,10 @@ Restricting to the schema's four **reliance** edges (`relies_on`, `supports`,
 near-DAG. This is concrete support for the schema's own warning that overuse of
 `relates` is a typing smell: **typed edges are what make the web traversable at all.**
 
-Two cycles survive — **D6 ↔ F24** and **D6 ↔ F25** — where the go/no-go decision and
-its own confirmations are mutually load-bearing. (Note: SCHEMA §6 does not actually
-list acyclicity among CI-enforced invariants, so `ctx --lint` will not catch these.
-`find_cycles` detects back-edges; an independent Tarjan SCC check confirmed the sole
-non-trivial component is `{D6, F24, F25}` containing exactly these 2.)
+Two cycles were found — **D6 ↔ F24** and **D6 ↔ F25**. Diagnosis: D6 was captured
+2026-06-22 and carried `builds_on` edges to findings captured 2026-06-25, i.e. reliance
+pointing *forward in time*. **Now fixed**: retyped to `relates` (F24/F25 already
+`refine` D6 correctly), so the reliance graph is a true DAG — 570 edges, 0 cycles.
 
 ## Result 4 — the actionable output
 
@@ -161,22 +161,44 @@ evidence link of any kind.
 The risk score is an inspectable triage heuristic for ordering re-verification work —
 explicitly not a probability and not a claim of error.
 
-## Result 5 — two integrity violations the lab now catches
+## Result 5 — four structural invariants, all violated, now fixed and CI-enforced
 
-- **Declared `supersedes` with no tombstone: F9.** SCHEMA §5 says `supersedes` is
-  "auto-paired with the tombstone". F13's body explicitly declares `[[F9|supersedes]]`,
-  but F9 carries no `<!-- status: superseded -->` comment — so every other reader of
-  the web still counts F9's +0.27%/mo SPY claim as current. Only *explicitly typed*
-  supersedes edges count here: ctx's cue table infers `supersedes` from prose like
-  "reversal", which produced false positives on F10 and F22 until the check was
-  tightened to declared edges only.
-- **Out-of-vocabulary edge types: `E13 -[extends]-> E12`, `E14 -[extends]-> E11`,
-  `E14 -[extends]-> E12`.** `extends` is a PROPOSED edge, not in the enforced
-  vocabulary, so ctx silently cue-classifies these to `relates` and the author's
-  intended relation is lost.
-- **Duplicate node IDs:** none in HEAD today, but a historical version defined D7 and
-  D8 twice with unrelated bodies; the parser now counts rather than silently
-  overwrites.
+Every invariant the audit defines was violated when it first ran, and **none was
+visible to `ctx --lint`** (which covers dangling links, stale cites and
+reliance-on-superseded — but not these). All four are now repaired and guarded by
+`tests/test_web_integrity.py`:
+
+| Invariant | Was | Fix |
+|---|---|---|
+| Declared `supersedes` ⇒ tombstone | **F9** untombstoned though F13 declared it | `note.py supersede F9 --by F13` |
+| Edge types in vocabulary | 3 × `extends` (not in `EDGE_TYPES`) | retyped `builds_on` |
+| Reliance graph acyclic | D6 ↔ F24, D6 ↔ F25 | retyped D6's forward edges to `relates` |
+| Node IDs unique | clean today (D7/D8 dup'd historically) | parser now counts, never overwrites |
+
+The F9 repair was not a one-liner, and *why* is the interesting part: `note.py`'s
+write-fence refused it three times, each time naming a real inconsistency.
+
+1. **H2 relied on F9.** H2 was itself stale — it recorded "un-leveraged indices
+   generalize the edge? → **YES**", an answer F13 had reversed. Updated to record the
+   reversal.
+2. **E6 cited F9 without citing its superseder.** E6 is an Experiment: it *ran*, and
+   its results stand as a record — but it needed the caveat that its morning-only
+   sampling was later overturned.
+3. **F136 — this study's own node — blocked it.** F136 quoted H2's prose verbatim
+   *including live link syntax*, so the cue classifier read "SPY/IWM corroboration
+   `[[F9]]`" **inside a quotation** as a genuine `supports` edge. A finding about cue
+   misclassification manufactured the exact edge it described. The first attempt to
+   capture *that* finding was refused for the same reason (F137).
+
+So the violation persisted not through neglect but because **three live dependents
+had to be corrected first** — and the write-fence, far from being an obstacle,
+located each one precisely. That is the mechanism this study argued was
+under-exercised, working exactly as designed.
+
+Also surfaced: quoting another node's text is not epistemically neutral. Any node
+that quotes, critiques, or documents another silently inherits its edges — a
+structural hazard for meta-research nodes specifically. Mitigation used here: write
+bare IDs inside quotations.
 
 ## Result 6 — "do doomed beliefs look different at birth?" is not askable
 
