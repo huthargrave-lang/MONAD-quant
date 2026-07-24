@@ -5,24 +5,27 @@ Every other lab in this repo asks "is this market claim true?". This one turns t
 same machinery on the project's own belief ledger and asks:
 
 1. **How fast do this project's beliefs actually die?** `RESEARCH_WEB.md` records
-   supersessions, so the naive answer is "7 of 331 nodes = 2%". That number is
-   uninterpretable for two reasons this lab measures:
-   - **Backfill vs in-vivo revision.** A node recorded *in the same commit* that
-     marks it superseded was never a live belief that got refuted — it is
-     retroactive bookkeeping. Only a node that was born, lived, and was *later*
-     superseded is evidence about the rate of belief revision.
+   supersessions, so the naive answer is a simple proportion of tombstoned nodes.
+   That number is uninterpretable, for three reasons this lab measures:
+   - **Backfill.** A node recorded *in the same commit* that tombstones it, with no
+     stamp separating birth from death, was never an observed live belief.
+   - **Left-truncation.** A node already tombstoned in the FIRST observable commit
+     had both its birth and its refutation happen before the window. Whether it was
+     ever live is *unobservable* — it must not be asserted to be bookkeeping. These
+     are excluded from numerator and denominator and reported as a sensitivity band.
    - **Right-censoring.** Most nodes are days or hours old and have had almost no
-     exposure to refutation. A raw proportion ignores exposure time entirely; the
-     honest quantity is a hazard per node-day, with an interval that reflects how
-     few events there are.
+     exposure to refutation. A raw proportion ignores exposure entirely; the honest
+     quantity is a hazard per node-day with an interval reflecting how few events
+     there are.
 
-2. **Which beliefs hold up the most other beliefs, and are they substantiated?**
+2. **Which beliefs hold up the most other beliefs, and is their evidence linked?**
    The schema names four *reliance* edges (`relies_on`, `supports`, `refines`,
    `builds_on`) meaning "node → prior node". Their transitive closure gives each
    node a blast radius: how much of the web moves if this node is wrong. Crossing
-   blast radius with the schema's own evidence rule ("a Finding without an
-   `evidenced_by` edge is unsubstantiated") and with attention staleness yields a
-   ranked structural-risk list — where re-verification effort actually pays.
+   blast radius with evidence *linkage* and attention staleness yields a ranked
+   structural-risk list — where re-verification effort actually pays. Note this
+   measures whether evidence is reachable **from a node's own body**, never whether
+   the underlying work was done.
 
 3. **Could reversal be predicted at all?** With a handful of events, no. This lab
    states the minimum detectable effect rather than fitting a model to noise, in
@@ -59,6 +62,7 @@ import json
 import math
 import re
 import subprocess
+import sys
 from pathlib import Path
 from typing import Dict, List, Mapping, Optional, Sequence, Set, Tuple
 
@@ -82,33 +86,25 @@ ANY_EXPERIMENT_RE = re.compile(r"\[\[E\d+")
 # happens to carry the node, so it is preferred over git where present.
 FOOTER_DATE_RE = re.compile(r"^_— captured [^,]*,\s*(\d{4}-\d{2}-\d{2})_", re.M)
 
-# Untyped `[[ID]]` links are CUE-CLASSIFIED from the prose immediately before
-# them (SCHEMA.md §5) and only fall back to `relates`. Mirrors tools/ctx.py's
-# `_EDGE_CUES` so this lab reads the web the way the project's own reader does —
-# without it, "Source: [[E6]]" is wrongly scored as an untyped/non-evidence link.
-EDGE_CUES = [
-    ("evidence", "evidenced_by"), ("evidenced", "evidenced_by"),
-    ("source:", "evidenced_by"), ("sources:", "evidenced_by"),
-    ("supersedes", "supersedes"), ("contradicts", "contradicts"),
-    ("refines", "refines"), ("builds on", "builds_on"),
-    ("relies on", "relies_on"), ("depends on", "relies_on"),
-    ("confirms", "supports"), ("corroborates", "supports"),
-    ("supports", "supports"), ("resolves", "resolves"),
-    ("produces", "produces"), ("motivates", "drives"), ("drives", "drives"),
-]
-CUE_WINDOW = 60  # characters of preceding prose inspected for a cue
+# Untyped `[[ID]]` links are CUE-CLASSIFIED from the prose immediately before them
+# (SCHEMA.md §5) and only fall back to `relates`.
+#
+# This DELEGATES to tools/ctx.py's `_classify_edge` rather than reimplementing it.
+# A hand-written copy was tried first and was materially wrong: ctx's version uses
+# stem cues ("corroborat", "support"), sentence-boundary windowing, word-boundary
+# matching, a negation guard ("not supported" is not an edge), and a rule letting a
+# reliance verb beat a closer lineage cue. The copy mis-classified real edges (e.g.
+# H2's "Confirmed by ... corroboration [[F9]]" -> `relates` instead of `supports`),
+# which silently corrupts the reliance graph. One classifier, one source of truth.
+_TOOLS_DIR = str(Path(__file__).resolve().parent)
+if _TOOLS_DIR not in sys.path:
+    sys.path.insert(0, _TOOLS_DIR)
+import ctx as _ctx  # noqa: E402  (canonical web reader; stdlib-only)
 
 
 def classify_untyped_link(preceding_text: str) -> str:
-    """Cue-classify an untyped `[[ID]]` from the prose just before it."""
-    window = preceding_text[-CUE_WINDOW:].lower()
-    best_type = "relates"
-    best_pos = -1
-    for cue, edge_type in EDGE_CUES:
-        pos = window.rfind(cue)
-        if pos > best_pos:
-            best_pos, best_type = pos, edge_type
-    return best_type
+    """Cue-classify an untyped `[[ID]]` exactly as the project's own reader does."""
+    return _ctx._classify_edge(preceding_text)
 
 
 # --------------------------------------------------------------------------- #
@@ -142,13 +138,35 @@ def parse_web(text: str) -> Dict[str, Dict[str, object]]:
             reason = rs.group(1) if rs else None
             status_at = at.group(1) if at else None
         footer = FOOTER_DATE_RE.search(body)
-        # Resolve every link, cue-classifying the untyped ones the way ctx.py does.
-        edges: List[Tuple[str, str]] = []
+        # Resolve every link, cue-classifying the untyped ones the way ctx.py does,
+        # then collapse to ONE edge per target. An EXPLICITLY typed occurrence wins
+        # over a cue-inferred one: SCHEMA calls the trailing `Links:` line the
+        # authoritative echo of the typed edges, so "Builds on [[E26]]/[[F35]]" in
+        # prose must not override an explicit `[[F35|relates]]` there.
+        resolved: Dict[str, Tuple[str, bool]] = {}
+        order: List[str] = []
+        out_of_vocab: List[Tuple[str, str]] = []
         for lm in LINK_RE.finditer(body):
-            target, edge_type = lm.group(1), lm.group(2)
-            if not edge_type:
-                edge_type = classify_untyped_link(body[: lm.start()])
-            edges.append((target, edge_type))
+            target, explicit_type = lm.group(1), lm.group(2)
+            # A type outside the enforced vocabulary is NOT a typed edge: ctx.py
+            # falls back to cue classification for it, so an out-of-vocab label
+            # like `extends` silently becomes `relates` for every other reader.
+            if explicit_type and explicit_type not in _ctx.EDGE_TYPES:
+                out_of_vocab.append((target, explicit_type))
+                explicit_type = None
+            edge_type = explicit_type or classify_untyped_link(body[: lm.start()])
+            is_explicit = bool(explicit_type)
+            previous = resolved.get(target)
+            if previous is None:
+                order.append(target)
+                resolved[target] = (edge_type, is_explicit)
+            elif is_explicit or not previous[1]:
+                # explicit always wins; otherwise the later inference wins
+                resolved[target] = (edge_type, previous[1] or is_explicit)
+        edges: List[Tuple[str, str]] = [(t, resolved[t][0]) for t in order]
+        explicit_edges: List[Tuple[str, str]] = [
+            (t, resolved[t][0]) for t in order if resolved[t][1]
+        ]
         resolved_evidence = any(
             t.startswith("E") and e == "evidenced_by" for t, e in edges
         )
@@ -164,11 +182,13 @@ def parse_web(text: str) -> Dict[str, Dict[str, object]]:
             "status_at": status_at,
             "footer_date": footer.group(1) if footer else None,
             "edges": edges,
+            "explicit_edges": explicit_edges,
             # strict: an explicitly typed [[E#|evidenced_by]] link
             "has_evidenced_by": bool(EVIDENCED_RE.search(body)),
             # as the project's own reader sees it (typed OR cue-resolved)
             "has_resolved_evidence": resolved_evidence,
             "cites_experiment": bool(ANY_EXPERIMENT_RE.search(body)),
+            "out_of_vocab_edges": out_of_vocab,
             "duplicate_count": (int(previous["duplicate_count"]) + 1) if previous else 1,
         }
     return nodes
@@ -742,7 +762,10 @@ def integrity_checks(nodes: Mapping[str, Mapping[str, object]]) -> Dict[str, obj
     tombstoned = {n for n, v in nodes.items() if v["status"] == "superseded"}
     supersede_targets: Set[str] = set()
     for node in nodes.values():
-        for target, edge_type in node.get("edges", []):
+        # Only an EXPLICITLY typed [[X|supersedes]] is a declaration. A cue-inferred
+        # one (ctx maps prose like "reversal" to `supersedes`) is an inference and
+        # must not be treated as the author asserting a supersession.
+        for target, edge_type in node.get("explicit_edges", []):
             if edge_type == "supersedes" and target in nodes:
                 supersede_targets.add(target)
     # SCHEMA §5: `supersedes` is "auto-paired with the tombstone", so a node that
@@ -753,13 +776,21 @@ def integrity_checks(nodes: Mapping[str, Mapping[str, object]]) -> Dict[str, obj
         n for n in tombstoned
         if nodes[n].get("superseded_by") and nodes[n]["superseded_by"] not in nodes
     )
+    out_of_vocab = sorted(
+        "{} -[{}]-> {}".format(n, etype, target)
+        for n, v in nodes.items()
+        for target, etype in v.get("out_of_vocab_edges", [])
+    )
     return {
         "supersedes_edge_without_tombstone": missing_tombstone,
         "tombstone_pointing_at_missing_node": orphan_tombstone,
         "duplicate_node_ids": duplicate_node_ids(nodes),
+        "out_of_vocabulary_edge_types": out_of_vocab,
         "note": (
             "A `supersedes` edge whose target has no tombstone means the node is "
-            "still counted as current by every other reader of the web."
+            "still counted as current by every other reader of the web. An "
+            "out-of-vocabulary edge type is silently cue-classified (usually to "
+            "`relates`) by ctx.py, so the author's intended relation is lost."
         ),
     }
 

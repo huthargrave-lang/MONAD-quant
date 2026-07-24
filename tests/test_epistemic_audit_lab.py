@@ -471,6 +471,44 @@ class ProductionWebTests(unittest.TestCase):
         checks = LAB.integrity_checks(nodes)
         self.assertEqual(checks["supersedes_edge_without_tombstone"], ["F2"])
 
+    def test_only_declared_supersessions_count_not_cue_inferred(self):
+        """ctx's cue table maps prose like 'reversal' to `supersedes`. An inferred
+        edge is not the author declaring a supersession, so it must not raise an
+        integrity violation (this produced false positives on F10 and F22)."""
+        nodes = LAB.parse_web("### F1 — a\nThis reversal of [[F2]] is discussed.\n\n"
+                              "### F2 — b\nno tombstone\n")
+        self.assertIn(("F2", "supersedes"), nodes["F1"]["edges"])      # inferred
+        self.assertEqual(nodes["F1"]["explicit_edges"], [])            # not declared
+        self.assertEqual(
+            LAB.integrity_checks(nodes)["supersedes_edge_without_tombstone"], [])
+
+    def test_out_of_vocabulary_edge_types_are_reported(self):
+        nodes = LAB.parse_web("### F1 — a\nSee [[F2|extends]].\n\n### F2 — b\nx\n")
+        checks = LAB.integrity_checks(nodes)
+        self.assertEqual(checks["out_of_vocabulary_edge_types"],
+                         ["F1 -[extends]-> F2"])
+
+    def test_explicit_type_beats_a_cue_inferred_duplicate(self):
+        """SCHEMA calls the trailing `Links:` line the authoritative echo of typed
+        edges, so an explicit type must win over prose inference for the same target."""
+        nodes = LAB.parse_web(
+            "### F1 — a\nBuilds on [[F2]].\nLinks: [[F2|relates]].\n\n### F2 — b\nx\n")
+        self.assertEqual(nodes["F1"]["edges"], [("F2", "relates")])
+
+    def test_classifier_matches_the_canonical_ctx_reader_on_the_real_web(self):
+        """Single source of truth: a hand-written cue copy drifted from ctx.py and
+        silently corrupted the reliance graph. Assert byte-for-byte agreement."""
+        import ctx as CTX
+        ctx_nodes, _ = CTX._parse_web()
+        mine = LAB.parse_web(LAB.WEB.read_text(encoding="utf-8"))
+        self.assertEqual(set(ctx_nodes), set(mine))
+        for node_id, node in ctx_nodes.items():
+            self.assertEqual(
+                {(e["target"], e["type"]) for e in node["edges"]},
+                set(mine[node_id]["edges"]),
+                "edge disagreement with ctx.py at {}".format(node_id),
+            )
+
     def test_report_refuses_to_write_inside_the_repo(self):
         with self.assertRaisesRegex(ValueError, "refusing to write"):
             LAB._write_json_atomic(ROOT / "should_not_exist.json", {"a": 1})

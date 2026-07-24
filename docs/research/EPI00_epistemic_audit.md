@@ -3,6 +3,8 @@
 **Status:** built, adversarially reviewed, and **materially corrected** — the first
 version's headline did not survive review<br>
 **Tool:** `tools/epistemic_audit_lab.py` (v2)<br>
+**Guarantee:** its web parser is asserted byte-for-byte equal to `ctx.py`'s on every
+edge of the live web (`test_classifier_matches_the_canonical_ctx_reader_on_the_real_web`)<br>
 **Research-web nodes:** `E112`, `F133`, `F134`, `F135`, `H73`<br>
 **Reproduce:**
 ```bash
@@ -56,6 +58,13 @@ Two more corrections came out of the same review:
   `ctx.py` resolves that to `evidenced_by`. v1's strict parser did not implement cue
   classification, so it scored a properly-evidenced Finding as a gap. v2 ports the
   cues; F7 is now correctly `linked`.
+
+  *A second round caught that even this port was unfaithful*: a hand-written cue copy
+  missed ctx's stem cues, sentence-boundary windowing, negation guard and
+  reliance-wins rule, mis-typing real edges (H2's "Confirmed by … corroboration
+  `[[F9]]`" became `relates` instead of `supports`) and silently corrupting the
+  reliance graph. v2 now *delegates* to `ctx._classify_edge` — one classifier, one
+  source of truth — and a test asserts exact agreement on all 1,171 edges.
 - **`evidence_link: "none"` claimed "no Experiment reachable"**, which is a
   *reachability* claim the code never computed — it is a one-hop test on the node's
   own body. F17 reaches E9 in one hop and is independently corroborated by F19.
@@ -67,7 +76,7 @@ The audit found that pattern in the web, then demonstrated it on itself.
 
 ## Result 1 — supersession count is not a belief-revision rate
 
-331 nodes; 7 tombstoned. The naive reading is 2.1%. Decomposed by what is actually
+336 nodes; 7 tombstoned. The naive reading is ~2%. Decomposed by what is actually
 observable:
 
 | Class | Count | Nodes | Meaning |
@@ -75,7 +84,7 @@ observable:
 | `in_vivo` | **2** | F15, F69 | born, lived, then revised — the only direct evidence |
 | `truncated_unknown` | 3 | F3, F4, F8 | tombstoned in the first observed commit; birth *and* death precede the window |
 | `backfill` | 2 | F80, H62 | recorded already dead, no stamp separating birth from death |
-| `alive` | 324 | — | not yet revised |
+| `alive` | 329 | — | not yet revised |
 
 F15 lived 11 days before F22 reversed it; F69 lived 1 day before F78. Everything else
 the project is proud of reversing happened before this ledger could witness it.
@@ -103,15 +112,15 @@ The conclusion is unchanged from v1 even though every number moved: **this proje
 cannot yet measure how fast its beliefs die.** Two facts keep even that an upper
 bound on confidence:
 
-- **44% of nodes (145/331) have zero days of exposure.** Median node age is 0 days.
+- **45% of nodes (150/336) have zero days of exposure.** Median node age is 0 days.
   The web's apparent stability is mostly its youth.
 - **Supersession is detected by effort, not by nature.** The hazard measures how fast
   the project *notices* it was wrong, which is a lower bound on being wrong.
 
 ## Result 3 — only the typed reliance graph has a hierarchy
 
-Following all 1,155 citation edges, the transitive closure of almost any node reaches
-**316 of 331** — the untyped citation graph is one mutually-referential blob and
+Following all 1,171 citation edges, the transitive closure of almost any node reaches
+**321 of 336** — the untyped citation graph is one mutually-referential blob and
 "what depends on what" is meaningless in it.
 
 Restricting to the schema's four **reliance** edges (`relies_on`, `supports`,
@@ -132,31 +141,39 @@ staleness:
 
 | Node | Blast | Evidence link | Claim |
 |---|---:|---|---|
-| **F17** | 148 | `corroborated_only` (via F19) | THE EXIT IS THE ARCHITECTURAL FLAW |
-| **F28** | 112 | `no_direct_link` | backtest structurally disconnected from live |
-| F20 | 144 | linked | what does NOT work |
-| F7 | 147 | **linked** (cue-resolved) | THE MECHANISM: stop-vs-noise ratio |
+| **F28** | 111 | `no_direct_link` | backtest structurally disconnected from live |
+| **F17** | 140 | `corroborated_only` (via F19) | THE EXIT IS THE ARCHITECTURAL FLAW |
+| F20 | 136 | linked | what does NOT work |
+| F7 | 139 | **linked** (cue-resolved) | THE MECHANISM: stop-vs-noise ratio |
 
-**F17 remains the single highest-leverage edit in the web**: 148 nodes rely on it, it
+**F17 is the single highest-leverage *evidence-linking* edit in the web**: 140 nodes rely on it, it
 issues the project's most consequential recommendation ("replace %-stop with a
 horizon/time exit") with specific numbers, and it links to **no Experiment of its
 own**. Its evidence almost certainly lives in E10 and F19 independently confirms it —
 so this is a *traversability* gap, not an accusation that the work wasn't done. But
 an agent walking the web from F17 cannot reach its evidence.
 
-Across 126 current Findings: 108 `linked`, 7 `cited_not_evidence_typed`, 2
+Across 129 current Findings: 111 `linked`, 7 `cited_not_evidence_typed`, 2
 `corroborated_only`, **9 `no_direct_link`** (F11, F23, F27, F28, F29, F30, F31, F32,
-F33).
+F33). F28 outranks F17 because it is both load-bearing (111 dependents) and has no
+evidence link of any kind.
 
 The risk score is an inspectable triage heuristic for ordering re-verification work —
 explicitly not a probability and not a claim of error.
 
 ## Result 5 — two integrity violations the lab now catches
 
-- **`supersedes` edge with no tombstone: F9, F10.** SCHEMA §5 says `supersedes` is
-  "auto-paired with the tombstone". F13's body declares it supersedes F9 and F10, but
-  neither carries a `<!-- status: superseded -->` comment — so every other reader of
-  the web still counts them as current claims.
+- **Declared `supersedes` with no tombstone: F9.** SCHEMA §5 says `supersedes` is
+  "auto-paired with the tombstone". F13's body explicitly declares `[[F9|supersedes]]`,
+  but F9 carries no `<!-- status: superseded -->` comment — so every other reader of
+  the web still counts F9's +0.27%/mo SPY claim as current. Only *explicitly typed*
+  supersedes edges count here: ctx's cue table infers `supersedes` from prose like
+  "reversal", which produced false positives on F10 and F22 until the check was
+  tightened to declared edges only.
+- **Out-of-vocabulary edge types: `E13 -[extends]-> E12`, `E14 -[extends]-> E11`,
+  `E14 -[extends]-> E12`.** `extends` is a PROPOSED edge, not in the enforced
+  vocabulary, so ctx silently cue-classifies these to `relates` and the author's
+  intended relation is lost.
 - **Duplicate node IDs:** none in HEAD today, but a historical version defined D7 and
   D8 twice with unrelated bodies; the parser now counts rather than silently
   overwrites.
@@ -164,9 +181,9 @@ explicitly not a probability and not a claim of error.
 ## Result 6 — "do doomed beliefs look different at birth?" is not askable
 
 With 2 events over 186 exposure-bearing nodes, the minimum detectable rate difference
-(0.0239) **exceeds the largest difference any two-arm split could produce** (0.0121).
+(0.0423) **exceeds the largest difference any two-arm split could produce** (0.0215).
 Verdict: `no_feasible_signature` — not "hard to detect", but *no signature of any
-strength could be established*. Expected events per arm is 0.19, so the normal
+strength could be established*. Expected events per arm is well under 1, so the normal
 approximation underlying the MDE is itself invalid. Fitting a reversal classifier
 here would be fitting noise.
 
@@ -186,7 +203,10 @@ here would be fitting noise.
 
 1. **Link F17 to its Experiment** — highest-leverage single edit in the web (148
    dependents).
-2. **Tombstone F9 and F10**, which F13 already claims to supersede.
+2. **Tombstone F9**, which F13 explicitly declares it supersedes. (Blocked today:
+   `note.py supersede` correctly REFUSES, because live `H2 --supports--> F9` and `E6`
+   cites F9 without citing F13 — so the fix requires updating those two nodes too.
+   That dependency, not mere oversight, is why the violation persisted.)
 3. **Break the D6 ↔ F24/F25 cycles.**
 4. **Commit in-vivo supersessions separately from capture batches.** The single most
    valuable change to the ledger's scientific value: the hazard estimate only becomes
