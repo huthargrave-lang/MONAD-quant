@@ -330,3 +330,97 @@ class PowerAnalysisTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ForecastTimeGuardTests(unittest.TestCase):
+    """The as_of guard, added after a demonstrated hole.
+
+    The original validator only required `as_of >= announced`. That is necessary but
+    easy to over-read: a cohort in which EVERY forecast was timestamped after its deal
+    had already resolved passed validate_cohort, the outcome-leakage test, and all
+    eight kill criteria without raising a caveat. The leakage guard is orthogonal by
+    construction — it tests that features cannot see the terminal OUTCOME, not that
+    they were observable when claimed.
+    """
+
+    def setUp(self):
+        self.cohort = LAB.load_cohort(COHORT_PATH)
+
+    def _mutate(self, fn):
+        cohort = copy.deepcopy(self.cohort)
+        for deal in cohort["deals"]:
+            fn(deal)
+        return cohort
+
+    def test_committed_fixture_still_validates(self):
+        LAB.validate_cohort(self.cohort)  # must not raise
+
+    def test_a_cohort_forecast_after_resolution_is_REJECTED(self):
+        """The exact adversarial cohort that used to pass everything."""
+        after = self._mutate(lambda d: d["market_implied"].__setitem__(
+            "as_of",
+            (dt.date.fromisoformat(d["ground_truth"]["resolution_on"])
+             + dt.timedelta(days=1)).isoformat()))
+        with self.assertRaises(ValueError) as ctx:
+            LAB.validate_cohort(after)
+        self.assertIn("postdiction", str(ctx.exception))
+
+    def test_a_forecast_dated_exactly_on_resolution_is_REJECTED(self):
+        """Same-day is not a forecast either — the outcome is known intraday."""
+        same = copy.deepcopy(self.cohort)
+        deal = same["deals"][0]
+        deal["market_implied"]["as_of"] = deal["ground_truth"]["resolution_on"]
+        with self.assertRaises(ValueError):
+            LAB.validate_cohort(same)
+
+    def test_the_announcement_floor_still_works(self):
+        before = copy.deepcopy(self.cohort)
+        deal = before["deals"][0]
+        deal["market_implied"]["as_of"] = (
+            dt.date.fromisoformat(deal["announced_on"])
+            - dt.timedelta(days=1)).isoformat()
+        with self.assertRaises(ValueError) as ctx:
+            LAB.validate_cohort(before)
+        self.assertIn("precedes announcement", str(ctx.exception))
+
+
+class VantageAuditTests(unittest.TestCase):
+    """The guard closes postdiction; it cannot close hindsight in the CHOICE of
+    vantage. That channel leaves no feature-level trace, so it is reported."""
+
+    def setUp(self):
+        self.cohort = LAB.load_cohort(COHORT_PATH)
+        self.audit = LAB.vantage_audit(self.cohort)
+
+    def test_audit_reports_the_non_uniform_rule_as_a_fact_not_a_test_result(self):
+        self.assertFalse(self.audit["uniform_vantage_rule"])
+        self.assertEqual(self.audit["n_deals"], len(self.cohort["deals"]))
+
+    def test_the_longest_vantage_belongs_to_the_failed_deal(self):
+        """The specific shape that motivated this audit. If the fixture is
+        re-vantaged, this should change — and the caveat text with it."""
+        self.assertEqual(self.audit["longest_vantage_outcome"], "negative_termination")
+        self.assertGreater(self.audit["longest_vantage_days"], 200)
+
+    def test_the_exact_p_value_is_reported_and_NOT_significant(self):
+        """Reported precisely so nobody reads it as reassurance. At N=11 with one
+        deal per non-clean class, no test can reach significance."""
+        p = self.audit["non_clean_rank_sum_p_exact"]
+        self.assertIsNotNone(p)
+        self.assertTrue(0.0 <= p <= 1.0)
+        self.assertGreater(p, 0.05, "if this ever goes significant, re-read the audit")
+
+    def test_the_audit_states_what_its_statistic_is_BLIND_to(self):
+        """A rank sum cannot see two non-clean deals at opposite extremes — which is
+        exactly the observed pattern (ranks 1 and 11). Saying so is the difference
+        between an honest null and a false all-clear."""
+        blind = self.audit["statistic_is_blind_to"]
+        self.assertIn("opposite extremes", blind.lower())
+        self.assertIn("not", blind.lower())
+
+    def test_the_caveat_surfaces_in_the_built_artifact(self):
+        """It must fire on every run, not only when someone asks for it."""
+        artifact = LAB.evaluate_cohort(self.cohort)
+        blob = " ".join(artifact["caveats"])
+        self.assertIn("FORECAST-TIME VANTAGE IS NOT UNIFORM", blob)
+        self.assertIn("Do not read the market-implied margin as forecasting skill", blob)

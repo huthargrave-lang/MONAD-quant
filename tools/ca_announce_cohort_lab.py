@@ -119,6 +119,19 @@ def validate_cohort(cohort: Mapping[str, object]) -> None:
         as_of = _date(mi["as_of"])
         if as_of < announced:
             raise ValueError("{}: market_implied.as_of precedes announcement".format(deal_id))
+        # FORECAST-TIME GUARD. The announcement floor above is necessary but far from
+        # sufficient, and on its own it is easy to over-read: a cohort in which EVERY
+        # forecast was timestamped after its deal had already resolved passed this
+        # function, the outcome-leakage test, and all eight kill criteria without a
+        # single caveat. The leakage guard is orthogonal by construction — it checks
+        # that features cannot see the terminal OUTCOME, not that they were observable
+        # at the time claimed. A "forecast" dated on or after resolution is a
+        # postdiction, so require strict precedence.
+        if as_of >= resolved:
+            raise ValueError(
+                "{}: market_implied.as_of ({}) is not strictly before resolution ({}) "
+                "— that is a postdiction, not a forecast".format(
+                    deal_id, as_of, resolved))
         if mi.get("proxy") is not True:
             raise ValueError("{}: market_implied must be flagged proxy".format(deal_id))
         prov = deal.get("provenance") or {}
@@ -844,6 +857,92 @@ def evaluate_cohort(
     return artifact
 
 
+def vantage_audit(cohort: Mapping[str, object]) -> Dict[str, object]:
+    """How far after announcement each forecast stands, grouped by outcome class.
+
+    A hard guard can only reject a forecast dated after resolution. It cannot reject
+    the subtler failure: choosing each deal's vantage AFTER knowing how that deal
+    went. That leaves no leakage a feature-level test can see, because every feature
+    really was observable at its stated `as_of` — the information enters through
+    WHICH `as_of` was picked.
+
+    The signature is a vantage distribution that differs by outcome, so this reports
+    it rather than hiding it. It deliberately does not raise: the committed fixture
+    HAS this property, and silently failing would be worse than stating it.
+    """
+    rows = []
+    for deal in cohort["deals"]:
+        announced = _date(deal["announced_on"])
+        as_of = _date(deal["market_implied"]["as_of"])
+        gt = deal["ground_truth"]
+        rows.append({
+            "deal_id": deal["deal_id"],
+            "outcome_class": gt["outcome_class"],
+            "as_of_offset_days": (as_of - announced).days,
+            "days_before_resolution": (_date(gt["resolution_on"]) - as_of).days,
+        })
+    rows.sort(key=lambda r: r["as_of_offset_days"])
+
+    by_class: Dict[str, List[int]] = {}
+    for row in rows:
+        by_class.setdefault(row["outcome_class"], []).append(row["as_of_offset_days"])
+
+    # An EXACT rank test, not a threshold. With N=11 and one failure, any statistic
+    # that "detects" outcome-correlated vantage is manufacturing significance, so
+    # report the exact permutation probability and let it be unimpressive.
+    #
+    # Statistic: the summed rank (1 = shortest vantage) of the non-`close_as_announced`
+    # deals. Under the null that vantage was assigned without regard to outcome, every
+    # assignment of ranks to deals is equally likely, so P(sum >= observed) is exact.
+    order = sorted(rows, key=lambda r: r["as_of_offset_days"])
+    ranks = {r["deal_id"]: i + 1 for i, r in enumerate(order)}
+    n = len(rows)
+    non_clean = [r["deal_id"] for r in rows if r["outcome_class"] != "close_as_announced"]
+    k = len(non_clean)
+    observed = sum(ranks[d] for d in non_clean)
+    p_exact = None
+    if 0 < k < n:
+        import itertools
+        total = hit = 0
+        for combo in itertools.combinations(range(1, n + 1), k):
+            total += 1
+            if sum(combo) >= observed:
+                hit += 1
+        p_exact = round(hit / total, 4)
+
+    longest = order[-1]
+    return {
+        "per_deal": rows,
+        "offsets_by_outcome_class": {k2: sorted(v) for k2, v in by_class.items()},
+        "n_deals": n,
+        "non_clean_rank_sum": observed,
+        "non_clean_rank_sum_p_exact": p_exact,
+        "longest_vantage_deal": longest["deal_id"],
+        "longest_vantage_outcome": longest["outcome_class"],
+        "longest_vantage_days": longest["as_of_offset_days"],
+        "uniform_vantage_rule": False,
+        "statistic_is_blind_to": (
+            "A rank SUM cannot see the pattern actually present here. The two "
+            "non-clean deals sit at OPPOSITE extremes — the higher-bid displacement "
+            "has the shortest vantage in the cohort and the failed deal the longest — "
+            "so their ranks (1 and 11) sum to an unremarkable value and the exact "
+            "p-value lands near 0.55. That is a limitation of the statistic, not "
+            "evidence of uniformity. A dispersion or extremity statistic would be "
+            "more powerful, but at N=11 with one deal per non-clean class nothing "
+            "reaches significance, so no test is reported as decisive."
+        ),
+        "note": (
+            "Vantage is hand-authored per deal, not derived from a stated rule — that "
+            "is a FACT about the fixture, independent of any test. The exact rank "
+            "p-value is descriptive only: at this N it cannot establish outcome-"
+            "correlated vantage, and it is reported so nobody reads its size as "
+            "reassurance. Until a uniform rule (e.g. as_of := announcement + 30d for "
+            "every deal) is applied, the market-implied benchmark's margin is not "
+            "interpretable as forecasting skill."
+        ),
+    }
+
+
 def _caveats(cohort, composition) -> List[str]:
     caveats = [
         "Market-implied and spread-dependent scores use illustrative proxy prices "
@@ -859,6 +958,24 @@ def _caveats(cohort, composition) -> List[str]:
         "failure raises it, so close-positives rank just below the failures. That is "
         "a correct LODO artifact of tiny-N imbalance, not sub-random discrimination.",
     ]
+    # Forecast-time vantage. Surfaced unconditionally when it co-varies with outcome,
+    # because this channel is invisible to every other guard the lab has.
+    van = vantage_audit(cohort)
+    if not van["uniform_vantage_rule"]:
+        caveats.append(
+            "FORECAST-TIME VANTAGE IS NOT UNIFORM. `market_implied.as_of` is hand-set "
+            "per deal rather than derived from a stated rule, and the longest vantage "
+            "in the cohort ({}d, {}) belongs to a {} deal. A later vantage on a deal "
+            "that broke is a nearly-resolved forecast, so part of the benchmark's edge "
+            "can be bought by hindsight in the CHOICE of vantage — a channel no "
+            "feature-level leakage test can see, because every feature really was "
+            "observable at its stated as_of. The exact rank test (p={}) cannot settle "
+            "this at N={}; the non-uniformity itself is the finding. Do not read the "
+            "market-implied margin as forecasting skill until a uniform vantage rule "
+            "is applied.".format(
+                van["longest_vantage_days"], van["longest_vantage_deal"],
+                van["longest_vantage_outcome"], van["non_clean_rank_sum_p_exact"],
+                van["n_deals"]))
     if composition["censoring_fraction"] < 0.1:
         caveats.append(
             "At this censor horizon the 2023 cohort is (near-)fully resolved, so the "
