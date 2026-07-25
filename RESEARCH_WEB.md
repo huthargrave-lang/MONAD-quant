@@ -2284,3 +2284,20 @@ Guarded by tests/test_f114_state_vector_clocks.py (14 tests), which pins both ce
 LIMITS, unchanged: three hand-selected chains, deliberately unrepresentative — chosen to find orderings a single-status model cannot express, not to estimate frequencies. The fixture's own `market_access_policy` states EDGAR acceptance is not investor ingestion.
 Links: [[F114|refines]] · [[E103|relates]] · [[F182|builds_on]].
 _— captured claude/research-continuation-ca1242@64fc05b, 2026-07-25_
+
+### F184 — The CA-00 zero-value resolver was one clause more permissive than its validator, so a caller could walk past the three-fact rule F115 rests on
+F115 and F113 were the next two uncited nodes. Every figure re-derives from committed artifacts; published `docs/research/CA00_terminal_value_and_coverage.md`. Checking F115 found a live inconsistency in `tools/corporate_action_outcome_lab.py`.
+
+THE RULE. A cancelled equity is not automatically worth zero — plan distributions, CVRs and litigation trusts all cancel the old equity while paying something. `validate_fixture` therefore gates an explicit zero on a THREE-fact conjunction: `equity_canceled_without_consideration`, `issuer_stated_no_value`, and `cash_usd_per_share == 0`. Missing any one, asserting a numeric zero raises 'cancellation alone cannot infer a numeric zero'. BBBYQ's Sept 29 2023 effective-date 8-K (accepted 16:23:06 ET — cross-checked against CA-01's `plan_effective` assertion) supplies all three, which is why and only why BBBYQ common resolves to 0.00 USD.
+
+THE WALK-AROUND (FIXED). `consideration_legs` — the resolver — checked only the FIRST TWO. An action recording 'cancelled without consideration, issuer states no value' alongside a NON-ZERO `cash_usd_per_share` resolved to 0.00 with `status: resolved`, while `validate_fixture` rejected the identical action. No committed result was affected (`load_fixture` always validates), so the exposure was a caller assembling an action dict and calling `resolve_terminal_value` directly — which is exactly how a downstream study would use this lab. The resolver now applies the same conjunction, and a test asserts the two predicates agree field-by-field so they cannot drift apart again. All 35 pre-existing lab tests still pass.
+
+The general shape: **a resolver more permissive than its validator is a validator that can be walked around.** The two predicates were written separately and drifted by one clause.
+
+REMAINING SHARP EDGE, recorded not changed: when resolution refuses, the output still echoes the action's `label_type` and `formula`, so an unresolved action can carry `terminal_zero_value_confirmed_no_consideration`. A consumer reading the label without checking `status` sees a confirmed zero. Whether the resolver should recompute or echo the label is a design question, so it is asserted as-is rather than silently altered.
+
+F113's COVERAGE FIGURES all re-derive from the per-action rows: 7/12 price roles (58.33%), 3/8 complete actions, identical decision fingerprint 171209f5...b43fcf across two refreshes. The failures are structural, not attrition: ALL FOUR fixed-cash mergers fail on exactly `subject_pre_effective` — the subject's last pre-effective session — while the surviving successor AMD resolves and the disappearing XLNX does not. Current-symbol data select against precisely the securities whose terminal outcomes the study exists to measure. The two near-misses (BBBY for BBBYQ, META for FB) show the fix is time-bounded symbol aliasing, not a different vendor.
+
+Guarded by tests/test_f115_f113_terminal_value_and_coverage.py (15 tests).
+Links: [[F115|refines]] · [[F113|supports]] · [[F183|builds_on]].
+_— captured claude/research-continuation-ca1242@c480a87, 2026-07-25_

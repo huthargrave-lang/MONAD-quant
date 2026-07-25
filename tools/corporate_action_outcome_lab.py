@@ -439,24 +439,28 @@ def consideration_legs(action: Mapping[str, object]) -> List[Dict[str, object]]:
                 "status": "same_security",
             }
         ]
+    # The SAME three-fact conjunction validate_fixture() enforces for an explicit zero.
+    # It used to be only the first two here, so an action recording "canceled without
+    # consideration, issuer states no value" alongside a NON-zero cash_usd_per_share
+    # resolved to 0.00 even though validate_fixture rejects it. load_fixture always
+    # validates, so no committed action was affected; the exposure was a caller
+    # constructing an action dict and calling resolve_terminal_value directly. Keeping
+    # the two predicates identical is the point — a resolver more permissive than its
+    # validator is a validator that can be walked around.
+    zero_confirmed = (
+        terms.get("equity_canceled_without_consideration") is True
+        and terms.get("issuer_stated_no_value") is True
+        and terms.get("cash_usd_per_share") == 0
+    )
     return [
         {
             "leg_type": "cancellation_rights",
             "security_id": None,
             "symbol": None,
             "units": None,
-            "cash": (
-                0.0
-                if terms.get("equity_canceled_without_consideration") is True
-                and terms.get("issuer_stated_no_value") is True
-                else None
-            ),
-            "status": (
-                "zero_consideration_confirmed"
-                if terms.get("equity_canceled_without_consideration") is True
-                and terms.get("issuer_stated_no_value") is True
-                else "distribution_review_required"
-            ),
+            "cash": 0.0 if zero_confirmed else None,
+            "status": ("zero_consideration_confirmed" if zero_confirmed
+                       else "distribution_review_required"),
         }
     ]
 
