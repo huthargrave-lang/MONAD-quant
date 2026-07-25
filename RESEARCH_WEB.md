@@ -2567,3 +2567,18 @@ NOT RE-RUN. The corrected numbers need market data and the caches are empty. Thi
 Guarded by tests/test_f149_maxdd_benchmark_anchor.py (11 tests).
 Links: [[F149|resolves]] · [[D6|supports]] · [[F176|builds_on]].
 _— captured claude/research-continuation-ca1242@0f3a53f, 2026-07-25_
+
+### F200 — config.py advertised a live opposing-signal exit that does not exist in any form — and the loop's own backlog pinned a resolved item to the top forever
+Two defects, one surfaced by the other.
+
+1. A COMMENT PROMISING BACKTEST/LIVE PARITY THAT DOES NOT EXIST. `config.py:120` read 'Live equivalent lives in live/trader.py behind EXIT_ON_OPPOSING_SIGNAL.' The identifier `EXIT_ON_OPPOSING_SIGNAL` appears exactly ONCE in the repository — in that comment. Worse, `live/trader.py` has **no opposing-signal logic under any name**: the word 'opposing' does not appear in the file. Its exits are the bracket (target/stop, including the inferred form), the software take-profit, `MAX_TRADE_BARS_LIVE`, and the reconciliation paths — none consults the signal. Meanwhile the backtest engine really does book `exit_type = 'opposing_signal'`, and `OPPOSING_SIGNAL_EXIT_MODES` makes it reachable per-mode, so a sweep could select parameters conditioned on an exit that will never fire live. This is the F12 family — a backtest<->live divergence — manufactured by a comment rather than by data.
+
+FIXED BY CORRECTING THE COMMENT, NOT BY BUILDING THE FEATURE. Adding a live opposing-signal exit touches the fenced `live/trader.py`, needs approval and its own validation, and D6 recommends against the active engine anyway. The comment now marks the flag BACKTEST-ONLY, enumerates the live exits, and records that the advertised flag never existed. A test fails the moment `live/trader.py` gains real opposing-signal handling, telling the maintainer to restore a parity note that would then be true.
+
+2. THE BACKLOG PINNED A RESOLVED ITEM TO THE TOP FOREVER. F149 was listed open in `HANDOFF_2026-07-25.md`, resolved by F199 the cycle before — and kept ranking first. A handoff's Open list is a DATED record, so the doc cannot know, and the anti-repetition filter only looks at RECENT commits: the item would resurface every time those commits aged out of the window. Rewriting the handoff would be rewriting history (the same principle that keeps `data/live_runs/` archives naming a dead branch in F191), so the staleness is now COMPUTED: `_nodes_resolved_since()` drops any handoff item whose named nodes have all been closed by a `resolves` edge from a node that is still current.
+
+Guarding both directions matters here — items naming NO node id (most of them are prose tasks) must still be kept, or the highest-leverage source silently empties. Tested.
+
+Guarded by tests/test_opposing_exit_live_parity.py (8 tests) and three new tests in tests/test_research_backlog.py.
+Links: [[F12|relates]] · [[F199|builds_on]].
+_— captured claude/research-continuation-ca1242@a31b3f7, 2026-07-25_

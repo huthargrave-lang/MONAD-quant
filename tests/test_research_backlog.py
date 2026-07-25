@@ -13,6 +13,7 @@ So the tests below assert BOTH directions, and the starvation test is the load-b
 one, because over-suppression fails silently while under-suppression is merely noisy.
 """
 import importlib.util
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -284,3 +285,45 @@ class ToolCitationIsSecondClassEvidenceTests(unittest.TestCase):
     def test_tool_regex_matches_this_repos_layout(self):
         self.assertTrue(BL.TOOL_REF.findall("see tools/bond_ladder_study.py for it"))
         self.assertFalse(BL.TOOL_REF.findall("no tool named here"))
+
+
+class ResolvedHandoffItemsDropOutTests(unittest.TestCase):
+    """A handoff's Open list is a DATED record; staleness must be computed, not edited.
+
+    F149 was listed open in HANDOFF_2026-07-25.md and later resolved by a Finding. It
+    kept topping the queue anyway: the doc cannot know, and the anti-repetition filter
+    only looks at RECENT commits, so the item would resurface every time those commits
+    aged out of the window. Rewriting the handoff would be rewriting history — the fix
+    is to cross-check the named nodes against the web.
+    """
+
+    def test_an_item_whose_nodes_are_all_resolved_is_dropped(self):
+        nodes = BL.load_nodes()
+        closed = {t for t, _by in BL._nodes_resolved_since(nodes)}
+        if not closed:
+            self.skipTest("no node has been resolved yet")
+        heads = {t["title"] for t in BL.source_open_items(limit=20)}
+        for head in heads:
+            named = set(re.findall(r"\b([FDEH]\d+)\b", head))
+            if named:
+                self.assertFalse(
+                    named <= closed,
+                    "handoff item {!r} names only resolved node(s) {} but is still "
+                    "queued".format(head, sorted(named & closed)))
+
+    def test_items_naming_NO_node_are_still_kept(self):
+        """Most handoff items are prose tasks with no node id; dropping those would
+        silently empty the highest-leverage source."""
+        heads = [t["title"] for t in BL.source_open_items(limit=20)]
+        self.assertTrue(heads, "the handoff open list produced nothing at all")
+        self.assertTrue(
+            any(not re.findall(r"\b([FDEH]\d+)\b", h) for h in heads),
+            "every remaining handoff item names a node — the no-node path is untested")
+
+    def test_resolution_only_counts_from_a_CURRENT_node(self):
+        """A superseded node's `resolves` edge must not close anything."""
+        nodes = BL.load_nodes()
+        for target, by in BL._nodes_resolved_since(nodes):
+            self.assertEqual(
+                str(nodes[by].get("status", "current")), "current",
+                "{} is credited with resolving {} but is not current".format(by, target))

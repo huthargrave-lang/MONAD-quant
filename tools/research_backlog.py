@@ -266,8 +266,32 @@ def source_blocked_labs(limit: int = 5) -> List[dict]:
     return rows[:limit]
 
 
+def _nodes_resolved_since(nodes: Mapping[str, dict]) -> set:
+    """Nodes closed by a `resolves` edge from a node that is still current.
+
+    A handoff's Open list is a DATED record — rewriting it would be rewriting history,
+    so the list itself is left alone and the staleness is computed instead. Without
+    this, an item naming a node that has since been resolved tops the queue forever:
+    the doc cannot know, and the anti-repetition filter only looks at recent commits,
+    so the item resurfaces the moment those commits age out.
+    """
+    closed = set()
+    for nid, node in nodes.items():
+        if str(node.get("status", "current")) != "current":
+            continue
+        for target, etype in node.get("edges", []):
+            if etype == "resolves":
+                closed.add((target, nid))
+    return closed
+
+
 def source_open_items(limit: int = 6) -> List[dict]:
-    """The newest handoff's explicit open list. Human priorities outrank inference."""
+    """The newest handoff's explicit open list. Human priorities outrank inference.
+
+    Items whose named node has since been resolved are dropped (see
+    `_nodes_resolved_since`), so a static doc cannot pin finished work to the top of
+    the queue.
+    """
     handoffs = sorted(DOCS.glob("HANDOFF_*.md"))
     if not handoffs:
         return []
@@ -275,9 +299,14 @@ def source_open_items(limit: int = 6) -> List[dict]:
     section = re.search(r"\n##+\s*\d*\.?\s*Open[^\n]*\n(.*?)(?=\n##\s|\Z)", text, re.S)
     if not section:
         return []
+    resolved = _nodes_resolved_since(load_nodes())
+    resolved_ids = {target for target, _by in resolved}
     rows = []
     for m in re.finditer(r"^\s*\d+\.\s+\*\*(.+?)\*\*(.*)$", section.group(1), re.M):
         head = m.group(1).strip()
+        named = set(re.findall(r"\b([FDEH]\d+)\b", head))
+        if named and named <= resolved_ids:
+            continue          # every node this item names has since been closed
         rows.append({
             "key": "open:{}".format(re.sub(r"\W+", "-", head.lower())[:40]),
             "kind": "open_item",
