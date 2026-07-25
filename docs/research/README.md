@@ -151,8 +151,19 @@ Every study uses the same disciplines, which is what makes the collection trustw
   (construction, leak-freeness, statistics, interpretation) that re-ran the code and tried to
   refute the verdict. Studies 16–69 instead expose explicit ordering bounds, paired controls,
   cross-runtime output, and mechanism-scoped caveats; independent panel review remains future work.
-- **One source of truth** — all studies reuse the same vetted primitives; no divergent Sharpe or
-  drawdown implementations.
+- ~~**One source of truth** — all studies reuse the same vetted primitives; no divergent Sharpe or
+  drawdown implementations.~~
+  > ⚠️ **FALSE AS WRITTEN (2026-07-25 — `RESEARCH_WEB.md` F153).** There are **two disjoint
+  > metric stacks**, and no tool bridges them. The active mean-reversion family
+  > (`mr_daily_lab`, `power_study`, `power_study_6040`, `overlay_build_study`,
+  > `crisis_overlay_study`) computes Sharpe on **log** returns with `exp(cumsum)` equity
+  > curves — zero of those five files contain a single `pct_change`/`expm1` call. The
+  > static-product family (`static_product_study`, `gold_oos_study`,
+  > `voltarget_riskparity_study`, `bond_ladder_study`) computes Sharpe on **simple**
+  > returns with `cumprod(1+r)` — zero of those contain `np.log`. On a provably identical
+  > 60/40 (same basket, weights, 6010-day window and cache) the two stacks publish **0.70**
+  > and **0.82**. That is a divergent Sharpe implementation, and the guarantee above is
+  > what allowed cross-convention numbers to be compared as if commensurable.
 
 ## The sixty-nine studies
 

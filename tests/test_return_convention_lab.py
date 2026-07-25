@@ -186,3 +186,70 @@ class CliTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TwoDisjointMetricStacksTests(unittest.TestCase):
+    """The corpus computes Sharpe two incompatible ways, and no tool bridges them.
+
+    `docs/research/README.md` listed "no divergent Sharpe or drawdown implementations"
+    among its methodology guarantees. That guarantee was prose with no executable
+    check behind it, so it could be false for the whole life of the corpus without any
+    run failing — and it is exactly the licence a reader needs to compare two published
+    Sharpes directly. These tests make it checkable.
+    """
+
+    ACTIVE_STACK = ["mr_daily_lab.py", "power_study.py", "power_study_6040.py",
+                    "overlay_build_study.py", "crisis_overlay_study.py"]
+    STATIC_STACK = ["static_product_study.py", "gold_oos_study.py",
+                    "bond_ladder_study.py"]
+
+    def _src(self, name):
+        path = ROOT / "tools" / name
+        if not path.exists():
+            self.skipTest("{} not present".format(name))
+        return path.read_text(encoding="utf-8")
+
+    def test_the_active_stack_uses_log_returns_only(self):
+        for name in self.ACTIVE_STACK:
+            src = self._src(name)
+            for simple in ("pct_change", "expm1"):
+                self.assertNotIn(
+                    simple, src,
+                    "{} now uses simple returns — if the stacks were UNIFIED, that is "
+                    "good news, but every published Sharpe in this family shifts by "
+                    "~0.12 and F147/F153 must be superseded.".format(name),
+                )
+
+    def test_the_static_stack_uses_simple_returns_only(self):
+        for name in self.STATIC_STACK:
+            src = self._src(name)
+            self.assertNotIn(
+                "np.log", src,
+                "{} now uses log returns — see the message above; the stacks may have "
+                "been unified and the web nodes need re-baselining.".format(name),
+            )
+
+    def test_no_tool_computes_both_conventions(self):
+        """The reason nothing in the codebase could surface the discrepancy."""
+        both = []
+        for path in (ROOT / "tools").glob("*.py"):
+            src = path.read_text(encoding="utf-8")
+            if ("np.log" in src) and ("pct_change" in src or "expm1" in src):
+                both.append(path.name)
+        self.assertEqual(
+            both, [],
+            "a tool now computes both conventions ({}) — it could serve as the bridge "
+            "that reconciles the two stacks. Check whether it does.".format(both),
+        )
+
+    def test_the_readme_no_longer_asserts_a_guarantee_that_is_false(self):
+        """Bidirectional: restoring the claim fails unless the stacks really merged."""
+        readme = (ROOT / "docs" / "research" / "README.md").read_text(encoding="utf-8")
+        if "FALSE AS WRITTEN" in readme:
+            return  # correction in place
+        self.fail(
+            "docs/research/README.md asserts 'no divergent Sharpe or drawdown "
+            "implementations' without the F153 correction. That guarantee is false "
+            "while the two stacks above remain disjoint — and the disjointness tests "
+            "in this class are passing, so it is still false."
+        )
