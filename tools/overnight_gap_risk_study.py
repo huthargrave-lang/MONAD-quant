@@ -13533,6 +13533,48 @@ def preflight_artifacts() -> None:
             data_cache.format_missing_artifacts(missing, repo_relative_to=REPO))
 
 
+def run_source_audits() -> int:
+    """Run every zero-argument source audit and report. Returns a process exit code.
+
+    WHY THIS ENTRYPOINT EXISTS. The documented way in was `--selfcheck`, which dies
+    immediately on four never-committed CSVs. That made the whole module look
+    unreproducible offline — but the ~17 source audits behind F86-F104 read only
+    `live/**` source text and need no market data at all. They were runnable the
+    whole time; the entrypoint hid it. Measured: 17 of 18 complete in about two
+    seconds total.
+
+    A caveat these audits carry, worth knowing before trusting a green run: their
+    tripwires are ONE-DIRECTIONAL. Each cites a substring of the buggy code, so it
+    fires when the evidence is deleted and stays silent when the bug is REPAIRED.
+    A green pass here means "the cited source still reads as it did", not "the
+    safety controls are still absent".
+    """
+    import inspect as _inspect
+
+    names = sorted(
+        n for n in globals()
+        if n.endswith("_audit") and callable(globals()[n])
+        and not [p for p in _inspect.signature(globals()[n]).parameters.values()
+                 if p.default is _inspect.Parameter.empty]
+    )
+    ok, failed = 0, []
+    for name in names:
+        try:
+            globals()[name]()
+            ok += 1
+            print("  ok    %s" % name)
+        except AssertionError as exc:
+            failed.append(name)
+            print("  FAIL  %s  (source contract changed: %s)" % (name, str(exc)[:70]))
+        except Exception as exc:  # missing artifact, not a contract breach
+            failed.append(name)
+            print("  skip  %s  (%s: %s)" % (name, type(exc).__name__, str(exc)[:60]))
+    print("\n%d/%d source audits ran offline" % (ok, len(names)))
+    print("NOTE: a green run means the cited source is unchanged, NOT that the "
+          "safety controls are still absent — these tripwires are one-directional.")
+    return 0 if not failed else 1
+
+
 def selfcheck() -> None:
     """Synthetic proof: a 0.5% modeled stop becomes the next-session open."""
     preflight_artifacts()
@@ -16148,7 +16190,11 @@ def main() -> None:
     ap.add_argument("--csv", help="use a caller-supplied full-session hourly CSV")
     ap.add_argument("--json", metavar="PATH", help="write full machine-readable results")
     ap.add_argument("--selfcheck", action="store_true", help="run synthetic gap-fill checks first")
+    ap.add_argument("--audits", action="store_true",
+                    help="run ONLY the offline source audits (no market data needed)")
     args = ap.parse_args()
+    if args.audits:
+        raise SystemExit(run_source_audits())
     if args.selfcheck:
         selfcheck()
         print("[selfcheck PASS]")
