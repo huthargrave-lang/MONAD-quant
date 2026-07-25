@@ -2412,6 +2412,99 @@ def cmd_stale(args):
         print("  nothing flagged")
 
 
+_NODE_REF_RX = re.compile(r"\b([FDEH]\d+)\b")
+
+
+def _drift_stores():
+    """Which claim stores this checkout can actually read.
+
+    Three stores hold claims (H15/DP-8): the research web, the context-map bridges, and
+    `experiments.jsonl`, the sweep ledger. The third is **gitignored** (.gitignore:17),
+    so it is absent from every fresh clone and from CI. A cross-store checker that
+    silently skips it would report "no drift" about a store it never opened — the
+    absence-flag failure this project keeps re-learning (F155/F159/F167). So store
+    availability is reported first, and any check needing an unreadable store is
+    UNKNOWN, never clean.
+    """
+    stores = {}
+    stores["web"] = (os.path.exists(WEB), WEB)
+    manifest = os.path.join(REPO, "context_map.json")
+    stores["bridges"] = (os.path.exists(manifest), manifest)
+    ledger = os.path.join(REPO, "experiments.jsonl")
+    stores["ledger"] = (os.path.exists(ledger), ledger)
+    return stores
+
+
+def drift_report():
+    """(stores, problems, unknowns) — read-only cross-store consistency.
+
+    Problems are concrete and decidable. Unknowns are checks that could not run because
+    a store is unreadable; they are counted separately so an unreadable store can never
+    be mistaken for a clean one.
+    """
+    stores = _drift_stores()
+    problems, unknowns = [], []
+
+    if not stores["ledger"][0]:
+        unknowns.append(
+            "ledger: experiments.jsonl is absent (gitignored) — cannot check whether "
+            "any sweep row's headline contradicts a current Finding. This is UNKNOWN, "
+            "not clean. Un-ignoring the ledger (IMPROVEMENT_PLAN K2) would make it "
+            "checkable in CI.")
+
+    if not (stores["web"][0] and stores["bridges"][0]):
+        unknowns.append("bridges<->web: a store is missing; bridge checks skipped")
+        return stores, problems, unknowns
+
+    nodes, _ = _parse_web()
+    for b in _graph_bridges():
+        nid = b.get("node")
+        if nid not in nodes:
+            problems.append(f"bridge {nid} names a node that does not exist in the web")
+            continue
+        if _is_superseded(nodes[nid]):
+            problems.append(
+                f"bridge {nid} points at a SUPERSEDED node — `ctx impact` will surface "
+                f"a retracted finding as if it governed the code")
+        for ref in sorted(set(_NODE_REF_RX.findall(b.get("note", "")))):
+            if ref not in nodes:
+                problems.append(f"bridge {nid}'s note cites {ref}, which does not exist")
+            elif _is_superseded(nodes[ref]):
+                problems.append(
+                    f"bridge {nid}'s note cites {ref}, which is superseded")
+    return stores, problems, unknowns
+
+
+def cmd_drift(args):
+    """Cross-store consistency (H15/DP-8): research web vs context-map bridges vs the
+    sweep ledger. Advisory by design — cross-store semantic matching is heuristic — but
+    an unreadable store is reported as UNKNOWN rather than passing silently."""
+    stores, problems, unknowns = drift_report()
+    print("  STORES:")
+    for name, (ok, path) in sorted(stores.items()):
+        rel = os.path.relpath(path, REPO)
+        print(f"    {'readable  ' if ok else 'UNREADABLE'}  {name:8} {rel}")
+    print()
+    if problems:
+        print(f"  PROBLEM(S) ({len(problems)}):")
+        for p in problems:
+            print(f"    {p}")
+        print()
+    if unknowns:
+        print(f"  UNKNOWN ({len(unknowns)}) — checks that could not run:")
+        for u in unknowns:
+            print(f"    {u}")
+        print()
+    print(f"  {len(problems)} problem(s) · {len(unknowns)} unknown(s)")
+    if unknowns and not problems:
+        print("  NOTE: 0 problems does NOT mean consistent — see the unknowns above.")
+    # `main()` discards return values; every other exit-code-bearing command in this
+    # module signals with sys.exit, so do the same rather than documenting a contract
+    # that is not enforced. UNKNOWNs are advisory (H15 says so) and do not fail.
+    if problems:
+        sys.exit(1)
+
+
 def cmd_claims(args):
     """Test↔epistemic coverage: for each idea↔code bridge asserting concrete CODE
     BEHAVIOR, report whether a designated guard TEST asserts that specific claim.
@@ -3012,6 +3105,7 @@ def main():
     sub.add_parser("health").set_defaults(fn=cmd_health)
     sub.add_parser("claims").set_defaults(fn=cmd_claims)
     sp = sub.add_parser("stale"); sp.add_argument("--limit", type=int, default=15)
+    sub.add_parser("drift").set_defaults(fn=cmd_drift)
     sp.set_defaults(fn=cmd_stale)
     sub.add_parser("uncaptured").set_defaults(fn=cmd_uncaptured)
     sp = sub.add_parser("delta"); sp.add_argument("--since", default=None,

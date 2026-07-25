@@ -2350,3 +2350,20 @@ The second-order harm is the real objection: a gate whose failures are sometimes
 Guarded by tests/test_cli_smoke.py (7 tests).
 Links: [[H12|resolves]] · [[F186|builds_on]] · [[F158|relates]].
 _— captured claude/research-continuation-ca1242@bd443b1, 2026-07-25_
+
+### F188 — H15 closed: one of the three claim stores is gitignored, so a drift checker built to spec would report 'no drift' about a file it never opened
+H15 asked for `ctx drift`, a cross-checker over three claim stores: RESEARCH_WEB.md, `experiments.jsonl` (the sweep ledger), and the context_map bridges. Building it surfaced why it had not been built.
+
+ONE STORE IS NOT IN THE REPOSITORY. `experiments.jsonl` is gitignored (`.gitignore:17`) and absent from this clone — and therefore from every fresh clone and from CI. A checker written to H15's specification would open two files, skip the third, and print 'no drift': a verdict about a store it never read. That is the absence-flag failure this project keeps re-learning (F155/F159/F167), arriving in a new place.
+
+SO THE BUILD SEPARATES 'CLEAN' FROM 'UNKNOWN'. `drift_report()` returns problems and unknowns as distinct lists; `ctx drift` prints a STORE CENSUS first (readable / UNREADABLE with the path), and when any unknown exists it prints **'0 problems does NOT mean consistent'**. The ledger check is a permanent UNKNOWN until the file is committed — a test asserts the gitignore entry is still there and tells the next maintainer to implement the real check if it is ever un-ignored (IMPROVEMENT_PLAN K2 already proposes exactly that).
+
+WHAT IS CHECKABLE IS CLEAN, AND NOW GUARDED. All 17 bridges name a node that exists and is current, and every node ID cited in a bridge NOTE resolves and is current. That second check matters more than it sounds: this session added F174-F181 references into those notes, and a note citing a superseded finding would point `ctx impact` at retracted work.
+
+TWO SELF-CORRECTIONS WORTH RECORDING. (1) I first read `note.py draft`'s exit code as 0 on a missing ledger — I had measured `head`'s exit code through a pipe. It exits 1 and fails cleanly; the reported bug was mine, not the tool's. (2) `cmd_drift` originally RETURNED its exit code, which `main()` discards — the documented contract would have been false. It now uses `sys.exit` like every other exit-code-bearing ctx command, and a test asserts that.
+
+The CLI smoke test from the previous cycle caught `drift` as unsmoked the moment it was registered — the guard doing exactly what it was built for, one cycle later.
+
+Advisory by H15's own instruction: unknowns do not fail the command, only concrete inconsistencies do. Guarded by tests/test_ctx_drift.py (10 tests).
+Links: [[H15|resolves]] · [[F187|builds_on]] · [[F159|relates]].
+_— captured claude/research-continuation-ca1242@5ddefbe, 2026-07-25_

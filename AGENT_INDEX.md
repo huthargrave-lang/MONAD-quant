@@ -11,6 +11,7 @@ venv/bin/python tools/ctx.py where <symbol>        # file:line of a def/class/co
 venv/bin/python tools/ctx.py find <text-or-regex>  # search code BODIES for behavior → enclosing symbol + governing finding
 venv/bin/python tools/ctx.py claims                # behavior-asserting bridges: is each code claim GUARDED by a test?
 venv/bin/python tools/ctx.py stale [--limit N]     # SEMANTIC staleness: current findings the web has quietly moved past
+venv/bin/python tools/ctx.py drift                 # cross-store consistency (web vs bridges vs ledger); UNREADABLE stores reported, never assumed clean
 venv/bin/python tools/ctx.py delta [--since X]     # git-based 'what changed' in the web/manifest since a base rev (default HEAD~12)
 venv/bin/python tools/ctx.py tree [path]           # AST repomap: each module → docstring + class/def names
 venv/bin/python tools/ctx.py summary [area]        # per-area rollup of the repomap (one line/module)

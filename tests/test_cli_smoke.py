@@ -65,6 +65,7 @@ RUNS_CLEAN = {
     "health": [],
     "claims": [],
     "stale": [],
+    "drift": [],
     "uncaptured": [],
     "delta": [],
     "related": ["kelly sizing"],
