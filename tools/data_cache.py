@@ -68,6 +68,46 @@ class PoisonedCacheError(MarketDataError):
     """The cache file on disk is a stub, written by an earlier failed fetch."""
 
 
+def missing_artifacts(specs) -> list:
+    """Which required committed artifacts are absent.
+
+    `specs` is a sequence of (path, description, declared_sha256_or_None).
+
+    Exists because a study that needs several fixtures otherwise dies on the FIRST
+    one with a bare `FileNotFoundError`, so the maintainer discovers the gap one
+    file per run. Reporting all of them at once turns four rounds of whack-a-mole
+    into one message.
+    """
+    return [(p, what, sha) for p, what, sha in specs if not os.path.exists(p)]
+
+
+def format_missing_artifacts(missing, *, repo_relative_to: Optional[str] = None) -> str:
+    """A message naming every absent artifact and its declared hash.
+
+    The declared SHA-256 matters: it means a regenerated file can be VERIFIED
+    against what the study originally consumed, so these are recoverable-if-refetched
+    rather than lost.
+    """
+    lines = ["missing {} required research artifact(s):".format(len(missing))]
+    for path, what, sha in missing:
+        shown = path
+        if repo_relative_to and path.startswith(repo_relative_to):
+            shown = path[len(repo_relative_to):].lstrip("/")
+        lines.append("  - {}  ({})".format(shown, what))
+        if sha:
+            lines.append("      declared sha256: {}".format(sha))
+    lines.append("")
+    lines.append(
+        "These are committed fixtures, not caches — they cannot be regenerated "
+        "offline. A blanket `*.csv` rule in .gitignore silently dropped them when "
+        "they were first added (`git add` on an ignored path is a no-op); the rule "
+        "now has an exception for docs/research/data/*.csv, so re-adding them "
+        "works. Each declared sha256 above lets a refetched file be verified "
+        "against exactly what the study originally consumed."
+    )
+    return "\n".join(lines)
+
+
 def fail_cleanly(exc: BaseException) -> "None":
     """Report a MarketDataError as an actionable message and exit 2.
 

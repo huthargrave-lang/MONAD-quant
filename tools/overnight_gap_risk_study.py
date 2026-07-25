@@ -57,6 +57,8 @@ if REPO not in sys.path:
     sys.path.insert(0, REPO)
 
 import config  # noqa: E402
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import data_cache  # noqa: E402  (required-artifact preflight)
 from src.strategy.engine import (  # noqa: E402
     build_features,
     compute_trade_returns,
@@ -13500,8 +13502,40 @@ def run(refresh: bool = False, csv_path: Optional[str] = None) -> Dict[str, obje
     )
 
 
+def required_artifacts():
+    """Every committed fixture this study reads, with its declared SHA-256.
+
+    These are NOT caches: they cannot be refetched offline, and four of them were
+    silently dropped from the repo by a blanket `*.csv` .gitignore rule. They are
+    the sole evidence behind roughly a third of RESEARCH_WEB.md.
+    """
+    return [
+        (FIVE_MIN_AUDIT, "5-minute entry-bar ordering audit", FIVE_MIN_SOURCE_SHA256),
+        (ONE_MIN_AUDIT, "1-minute entry-bar resolution audit", ONE_MIN_SOURCE_SHA256),
+        (CORPORATE_ACTIONS_AUDIT, "TQQQ corporate actions 2010-2026",
+         CORPORATE_ACTIONS_SOURCE_SHA256),
+        (QQQ_DISTRIBUTIONS_AUDIT, "QQQ distributions 2010-2026",
+         QQQ_ACTIONS_SOURCE_SHA256),
+        (QUOTE_STALENESS_AUDIT, "TQQQ 5m quote-staleness summary", None),
+    ]
+
+
+def preflight_artifacts() -> None:
+    """Report EVERY missing fixture at once, instead of dying on the first.
+
+    Before this, `--selfcheck` raised a bare FileNotFoundError naming one file,
+    so the gap was discovered one artifact per run with no hint that the files
+    were never committed rather than merely deleted.
+    """
+    missing = data_cache.missing_artifacts(required_artifacts())
+    if missing:
+        raise SystemExit(
+            data_cache.format_missing_artifacts(missing, repo_relative_to=REPO))
+
+
 def selfcheck() -> None:
     """Synthetic proof: a 0.5% modeled stop becomes the next-session open."""
+    preflight_artifacts()
     idx = pd.DatetimeIndex(
         [
             "2026-01-05 14:30",

@@ -216,5 +216,81 @@ class WiredIntoTheLabsTests(unittest.TestCase):
             )
 
 
+class RequiredArtifactTests(unittest.TestCase):
+    """Missing FIXTURES are a different failure from missing CACHES.
+
+    A cache can be refetched; a committed fixture cannot. Four of this repo's
+    fixtures were silently dropped by a blanket `*.csv` .gitignore rule, and the
+    study that needs them died on the first one with a bare FileNotFoundError — so
+    the gap was discovered one file per run, with no hint that the files were never
+    committed rather than merely deleted.
+    """
+
+    def test_all_missing_artifacts_are_reported_at_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            present = os.path.join(tmp, "here.csv")
+            open(present, "w").close()
+            specs = [
+                (os.path.join(tmp, "a.csv"), "alpha", "aaa"),
+                (present, "beta", "bbb"),
+                (os.path.join(tmp, "c.csv"), "gamma", None),
+            ]
+            missing = DC.missing_artifacts(specs)
+            self.assertEqual(len(missing), 2, "the present file must not be reported")
+            text = DC.format_missing_artifacts(missing, repo_relative_to=tmp)
+            self.assertIn("alpha", text)
+            self.assertIn("gamma", text)
+            self.assertNotIn("beta", text)
+            self.assertIn("aaa", text, "a declared sha256 must be shown")
+
+    def test_message_explains_the_root_cause_not_just_the_symptom(self):
+        missing = [("/x/y.csv", "thing", "deadbeef")]
+        text = DC.format_missing_artifacts(missing)
+        for needle in ("gitignore", "sha256", "cannot be regenerated offline"):
+            self.assertIn(needle, text.lower().replace("sha256", "sha256"))
+
+
+class GitignoreExceptionTests(unittest.TestCase):
+    """The actual repair: research fixtures must be committable.
+
+    `git add` on an ignored path is a SILENT no-op, which is how four fixtures
+    vanished while their .json sibling in the same directory and same commit
+    survived — only the extension differed. If this negation is ever removed, the
+    next person to regenerate those files will "commit" them and lose them again
+    with no error.
+    """
+
+    def test_research_data_csvs_are_not_ignored(self):
+        gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
+        self.assertIn(
+            "!docs/research/data/*.csv", gitignore,
+            "the exception for research fixtures is gone — re-adding a regenerated "
+            "fixture will silently do nothing again.",
+        )
+
+    def test_the_exception_comes_after_the_blanket_rule(self):
+        """Order matters in .gitignore: a negation before the rule it negates is
+        inert, which would be a silent no-op fix."""
+        lines = [l.strip() for l in
+                 (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()]
+        self.assertIn("*.csv", lines)
+        self.assertIn("!docs/research/data/*.csv", lines)
+        self.assertGreater(
+            lines.index("!docs/research/data/*.csv"), lines.index("*.csv"),
+            "the negation must come AFTER the blanket *.csv rule or it does nothing",
+        )
+
+    def test_unrelated_csv_paths_are_still_ignored(self):
+        """The exception must be narrow — scratch caches must stay out of git."""
+        lines = [l.strip() for l in
+                 (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()]
+        negations = [l for l in lines if l.startswith("!") and l.endswith(".csv")]
+        self.assertEqual(
+            negations, ["!docs/research/data/*.csv"],
+            "a broader csv negation appeared — scratch caches could now be "
+            "committed. Keep the exception scoped to the fixtures directory.",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
