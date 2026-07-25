@@ -2335,3 +2335,18 @@ It stays a READING QUEUE, not a verdict — nothing edits a node or changes a st
 Guarded by tests/test_ctx_semantic_staleness.py (14 tests). Registered in AGENT_INDEX.md — caught by the pre-existing guard that every ctx subcommand must be listed there, which is the same class of check working as intended.
 Links: [[H11|resolves]] · [[F10|relates]] · [[F181|builds_on]].
 _— captured claude/research-continuation-ca1242@4118788, 2026-07-25_
+
+### F187 — H12 answered in two halves: CI now gates on context-layer lint, but the live preflight deliberately does NOT — and the CLI smoke test that was missing already caught a real bug
+H12 asked to gate BOTH the live-trader preflight and CI on context-layer health, plus add a ctx.py/note.py CLI smoke test. Did two of the three, declined one with reasons.
+
+CI: DONE, AND NARROWER THAN IT LOOKS. The test suite already asserts most context integrity — `test_research_web.py` (73 tests) covers dangling links, superseder existence, edge vocabulary, reliance-on-superseded, propagation and orphans. What it did NOT assert is the LINT EXIT CODE itself. Added a workflow step running `ctx health` and `ctx web --lint` (both currently exit 0; the web reports 393 nodes, 0 problems, 0 advisories), so a merge cannot land a web that lints non-zero.
+
+CLI SMOKE TEST: DONE, AND IT WAS NOT HYPOTHETICAL. The unit tests import `ctx` and call `cmd_*` directly, so argument wiring, `main()` dispatch and path-specific module imports were never exercised as a PROCESS. **`ctx stale` shipped in the previous cycle with a NameError on a module-level import that its own 14 unit tests did not reach — it surfaced only because I ran the command by hand.** `tests/test_cli_smoke.py` now runs every registered subcommand as a subprocess with real argv. The load-bearing test is the one asserting the smoke list matches the registered commands, so a NEW subcommand cannot be silently unsmoked, which is exactly how that bug shipped. `can_edit` is smoked on BOTH branches — ALLOW exits 0, DENY on `live/trader.py` exits 1, and the fence refusing is the correct behaviour, not a failure.
+
+PREFLIGHT: DECLINED, WITH REASONS. `ops/preflight_trader_start.sh`'s ten checks all test the RUNNING SYSTEM — branch, gateway process, paper port open, live port 7496 closed, IBKR connect, account flat, no duplicate trader, writable state.db, writable logs, no recent critical healthcheck. Context-layer health is a property of the REPOSITORY, and it is now gated at merge. Coupling them would mean a dangling wiki-link in RESEARCH_WEB.md can block arming a paper trader.
+
+The second-order harm is the real objection: a gate whose failures are sometimes irrelevant trains an operator to bypass it, and the value of this particular gate is that a failure ALWAYS means something about safety. The live-relevant context invariants are already enforced where they belong — `test_context_map.py` asserts manifest==config for paper_only/ports/ACTIVE_MODE/LIVE_SYMBOL, and F158's `_assert_mode_symbol_coherent` refuses at trader start. Adding a docs lint to a safety gate would dilute it, not strengthen it.
+
+Guarded by tests/test_cli_smoke.py (7 tests).
+Links: [[H12|resolves]] · [[F186|builds_on]] · [[F158|relates]].
+_— captured claude/research-continuation-ca1242@bd443b1, 2026-07-25_

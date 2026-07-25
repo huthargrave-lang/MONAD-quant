@@ -29,6 +29,17 @@ jobs:
           # possible, so the CI install is kept lean and explicit.
           pip install pandas numpy fastapi httpx ib_insync yfinance apscheduler
 
+      # H12/DP-5: context-layer integrity is asserted by the test suite, but the
+      # LINT EXIT CODE is not — `ctx web --lint` returns non-zero when the research
+      # web has dangling links, an undeclared superseder, or a live node relying on a
+      # superseded one. Gating on it here means a merge cannot land those. This
+      # deliberately does NOT gate the live-trader preflight: see RESEARCH_WEB.md
+      # F187 for why a documentation defect must not be able to block arming a bot.
+      - name: Context-layer integrity (ctx health + web --lint)
+        run: |
+          python tools/ctx.py health
+          python tools/ctx.py web --lint
+
       - name: Run the full test suite (with coverage)
         run: |
           coverage run --source=src,live -m pytest tests/ -v
