@@ -2417,3 +2417,20 @@ Also asserted: the three committed sources of truth (manifest `deploy_branch`, p
 Guarded by tests/test_branch_drift_guard.py (9 tests), including both non-vacuity directions — a synthetic present-tense claim is flagged, and two real historical mentions are not.
 Links: [[H18|supports]] · [[F190|builds_on]].
 _— captured claude/research-continuation-ca1242@d117bc5, 2026-07-25_
+
+### F192 — H19's '#1 unsolved problem' describes a gate that does not run — and the gate that DOES run is a level test with 3.8x less lag, contradicting CLAUDE.md twice
+H19 records regime lag as the primary unsolved active-engine problem: the 252-MA SLOPE stays positive through a -20-30% intra-bull correction, so the regime reads STRONG_BULL and the engine buys dips into a falling knife. Verified from source, the mechanism is not connected.
+
+THE SLOPE REGIME GATES NOTHING. `runner.py` calls `generate_trades()` with only `require_signals`, `target_gain_pct`, `stop_loss_pct` and `trade_hours`. It never passes `use_slope_regime` or `longs_only`, both of which default to False, and every remaining regime branch in `generate_trades` is gated on `use_slope_regime and longs_only`. F26 said this; it is still true today.
+
+WHAT ACTUALLY GATES ENTRIES IS UNDOCUMENTED AS SUCH. `use_regime_filter` defaults to **True** and `runner.py` never overrides it, so every backtest runs `long_entry &= (vol_regime == 1) & (trend_direction == 1)`, where `trend_direction` is `close > SMA(200)` and `vol_regime` is Bollinger width ABOVE its rolling median. Two contradictions with the project's own docs follow:
+  1. CLAUDE.md §3 says vol_regime is 'currently disabled (USE_REGIME_FILTER=False) — too blunt, blocks good entries.' It is NOT disabled: `config.USE_REGIME_FILTER` has no reader on this path and the engine default wins. Entries are restricted to the MORE VOLATILE half of bars — the opposite of what the doc implies was decided.
+  2. The active trend gate is a LEVEL test, not a SLOPE test, so H19's lag mechanism cannot fire through it.
+
+QUANTIFIED. On a synthetic -25% intra-bull correction the level test (`close > SMA200`, what runs) starts blocking longs 59 bars in and permits longs through only 20% of the drop. The 252-MA slope (what H19 describes, dead-wired) stays positive for 227 bars and would permit longs through 76% of it. Same correction, **3.8x the lag**, and the laggy one is the disconnected one.
+
+SO H19 IS RETIRED AS STATED. It is a genuine design risk for an engine that would exist if the slope gate were restored, not a live defect. Its own body says 'MOOT while the active engine stays retired (D6)'; this establishes the stronger claim — it would be moot even with the engine running, because the mechanism is unwired. Anyone restoring the slope gate should re-open it, and a test fails the moment `runner.py` passes those flags again.
+
+The synthetic series is a shape demonstration of two indicator definitions, not a market claim; no performance conclusion is drawn from it. Guarded by tests/test_h19_regime_lag_is_dead_wired.py (11 tests).
+Links: [[H19|resolves]] · [[F26|supports]] · [[D6|relates]].
+_— captured claude/research-continuation-ca1242@ef2475e, 2026-07-25_
