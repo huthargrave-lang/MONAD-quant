@@ -2301,3 +2301,20 @@ F113's COVERAGE FIGURES all re-derive from the per-action rows: 7/12 price roles
 Guarded by tests/test_f115_f113_terminal_value_and_coverage.py (15 tests).
 Links: [[F115|refines]] · [[F113|supports]] · [[F183|builds_on]].
 _— captured claude/research-continuation-ca1242@c480a87, 2026-07-25_
+
+### F185 — H10 tested and closed with a NEGATIVE result: forward traversal cannot narrate the central story, and adding reversal arcs would make it worse — ID order already solves it
+H10 asked whether the project's central arc (headline Sharpe 25-94 -> morning-only artifact F13/F14 -> daily edge is real F15/F16 -> the %-stop exit destroys it F17/F19 -> OOS rejection and static allocation F22/D6) is walkable with `ctx walk/why` alone, and proposed adding reversal-arc edges if not. Ran the experiment.
+
+IT IS NOT WALKABLE. Of the 7 consecutive story pairs, exactly ONE has a direct forward edge (`F16 drives F17`); FOUR have a direct REVERSE edge (refines/supports/builds_on/relates). The web encodes PROVENANCE — a new node points back at the older one it refines — not NARRATIVE. Forward traversal runs the graph against its grain. The shortest directed path from F13 to D6 is `F13 -> F3 -> D1 -> D6`, visiting ZERO of the six intermediate story nodes: traversal yields A path, not THE path.
+
+THE CAUSE IS HUB SHORT-CIRCUITING. D6 has degree 126 and D4 degree 33 (26 inbound). FIVE of seven consecutive pairs route their shortest path through D4 — a hub with 26 inbound edges puts any two of its neighbours 2 hops apart, destroying sequence information.
+
+SO H10's PROPOSED FIX IS WRONG. Adding forward duplicates of every provenance edge would raise those degrees further and create more shortcuts, degrading exactly the property H10 wants. Recommend NOT doing it.
+
+THE REMEDY IS TEMPORAL, AND ALREADY PRESENT. Narrative order is a time property, not a graph property. Node-ID order is a valid proxy: monotone in capture date with ZERO inversions for D, E and H, and two for F — both nodes whose recorded date is an AMENDMENT (`status: superseded`) timestamp rather than a creation one. The story narrates by sorting the relevant nodes by ID, with no new edges.
+
+THE CATCH, worth recording on its own. 38 nodes carry no date at all, and they are exactly the earliest block — D1-D7, E1-E9, F1-F17, H1-H8 — predating note.py's capture footer. That block contains the ENTIRE narrative spine H10 cares about (F13, F14, F16, F17, D4, D6). The one region of the web with neither ordering edges nor timestamps is the one holding the central story; 353 of 391 nodes elsewhere are dated. ID order is what makes it recoverable anyway.
+
+Guarded by tests/test_h10_narrative_traversal.py (11 tests), including a ratchet on the undated set (it may shrink by backfill, never grow) and a check that the two ID-order exemptions really are superseded nodes rather than a blanket excuse.
+Links: [[H10|resolves]] · [[F181|builds_on]].
+_— captured claude/research-continuation-ca1242@645f7c3, 2026-07-25_
