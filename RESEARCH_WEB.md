@@ -2400,3 +2400,20 @@ DESIGN CALL, STATED. This landed inside `ctx drift` rather than as a separate `c
 Result: 0 problems, 2 unknowns. Guarded by tests/test_ctx_drift.py (16 tests, 6 new), including a synthetic-violation check so the linter is known to be able to fail.
 Links: [[H17|resolves]] · [[F188|builds_on]].
 _— captured claude/research-continuation-ca1242@bc53383, 2026-07-25_
+
+### F191 — H18 half-closed: the CI branch-drift guard is in, and it confirms live/CONTEXT.md is the LAST doc naming the dead deploy branch — the fix needs live-fence approval
+H18 asked to finish the pi-ops-automation -> development sweep and add a CI guard so prose branch-drift fails.
+
+THE GUARD IS IN, AND IT NARROWS TO EXACTLY ONE HIT. A naive 'does any doc mention the dead branch' scan finds **13 mentions across 9 files**, and nearly all are CORRECT HISTORY: README says 'prior deploy branch, now folded into development', IMPROVEMENT_PLAN records what shipped there, and `data/live_runs/*` are dated records of runs that really did happen on it. A guard flagging those would demand the repo forget its own past.
+
+The rule that works: a PRESENT-TENSE deployment verb (auto-starts / runs from / deployed / checked out) on the same line as a dead branch, with no past-tense marker, outside the archive directories, and outside RESEARCH_WEB.md — which is the finding ledger and must be able to DESCRIBE a defect without committing it (H18's own body trips a naive matcher). That takes 13 to **1**.
+
+THE ONE HIT IS live/CONTEXT.md:20 — 'The trader **auto-starts from `pi-ops-automation`**'. That is the file an agent reads immediately before editing the live path, naming a branch that no longer exists even as a remote. It FAILS SAFE — the preflight enforces `EXPECT_BRANCH=development`, so acting on the prose is refused at the gate — but it is wrong at the highest-stakes moment.
+
+NOT FIXED: BLOCKED ON APPROVAL. `ctx can_edit live/CONTEXT.md` returns DENY (the `live/` fence), and the standing instruction is that the live path needs explicit approval. It is a ONE-LINE prose change with no executable effect, but I am not taking that decision. Recorded as a ratcheted exemption: the guard fails if a SECOND such claim appears, and fails when the exemption is cleared, so the debt stays visible and cannot grow while approval is pending. A further test asserts the file is still fenced — if the fence ever moves, the exemption's justification evaporates and the test says so.
+
+Also asserted: the three committed sources of truth (manifest `deploy_branch`, preflight `EXPECT_BRANCH`, CI workflow) all say `development`, so the correct value is unambiguous.
+
+Guarded by tests/test_branch_drift_guard.py (9 tests), including both non-vacuity directions — a synthetic present-tense claim is flagged, and two real historical mentions are not.
+Links: [[H18|supports]] · [[F190|builds_on]].
+_— captured claude/research-continuation-ca1242@d117bc5, 2026-07-25_
