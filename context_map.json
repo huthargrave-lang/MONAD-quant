@@ -71,6 +71,7 @@
        "note": "backtest↔live data mismatch root cause (710d fetch = morning-only) + the chunked re-pull fix."},
       {"node": "F16", "relation": "concerns",
        "code": ["src/strategy/engine.py::generate_trades"],
+       "guarded_by": ["tests/test_f16_mean_reversion_bridge.py::F16EntrySignExploitsMeanReversion"],
        "note": "daily mean-reversion is a real serial-correlation property; the entry signal exploits it."},
       {"node": "D4", "relation": "gated_by",
        "code": ["config.ACTIVE_MODE", "src/strategy/engine.py::compute_trade_returns"],
