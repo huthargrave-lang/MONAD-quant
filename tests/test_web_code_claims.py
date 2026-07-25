@@ -224,5 +224,100 @@ class F26SlopeRegimeClaim(unittest.TestCase):
         self.assertTrue(found, "the F26 detector failed to flag a synthetic rewiring")
 
 
+class F23PerModeWindowsClaim(unittest.TestCase):
+    """F23 — per-mode RSI period + MACD windows never reach the entry signal.
+
+    `ctx claims` reports this bridge as UNGUARDED and asks for a test that ASSERTS
+    the claim rather than merely exercising the symbol. This is that test: it checks
+    the mechanism structurally (AST) *and* reproduces F23's own stated empirical
+    proof — `momentum_signal` byte-identical for period 7 vs 14 while the stored
+    `rsi`/`macd_hist` columns differ.
+
+    The live trader rides this path (`live/signals.py` -> `build_features` ->
+    `add_momentum_features` -> `momentum_signal`), so the armed bot trades on
+    RSI-14 / MACD-12-26-9 regardless of config. Per F23, fixing it changes live
+    entries and invalidates every sweep tuned with the bug present — it needs a
+    re-sweep and sign-off with the trader stopped, not a unilateral edit.
+    """
+
+    MOMENTUM = ROOT / "src" / "signals" / "momentum.py"
+
+    def test_momentum_signal_recomputes_without_period_arguments(self):
+        """Structural half: inside momentum_signal, compute_rsi/compute_macd are
+        called with the close series only — no period is threaded through."""
+        tree = ast.parse(self.MOMENTUM.read_text(encoding="utf-8"))
+        fn = next(
+            n for n in ast.walk(tree)
+            if isinstance(n, ast.FunctionDef) and n.name == "momentum_signal"
+        )
+        checked = 0
+        for node in ast.walk(fn):
+            if not isinstance(node, ast.Call):
+                continue
+            name = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
+            if name not in {"compute_rsi", "compute_macd"}:
+                continue
+            checked += 1
+            extra = [a for a in node.args[1:]] + list(node.keywords)
+            self.assertEqual(
+                extra, [],
+                f"{name}() inside momentum_signal now receives period arguments — "
+                "F23 appears FIXED. Per F23 this changes LIVE entries and invalidates "
+                "every sweep tuned with the bug present: supersede F23, re-sweep, and "
+                "get sign-off with the trader stopped before relying on this.",
+            )
+        self.assertEqual(
+            checked, 2,
+            "expected exactly one compute_rsi and one compute_macd call inside "
+            f"momentum_signal, found {checked} — F23's mechanism has changed shape.",
+        )
+
+    def test_empirical_proof_signal_invariant_to_periods(self):
+        """Empirical half: F23's own reproduction, on synthetic data."""
+        try:
+            import numpy as np
+            import pandas as pd
+        except ImportError:  # pragma: no cover - bare env
+            self.skipTest("numpy/pandas unavailable")
+        from src.signals.momentum import add_momentum_features
+
+        rng = np.random.default_rng(11)
+        n = 1200
+        idx = pd.date_range("2021-01-01", periods=n, freq="D", tz="UTC")
+        close = 100 * np.exp(np.cumsum(rng.normal(0, 0.012, n)))
+        df = pd.DataFrame(
+            {
+                "open": close * (1 + rng.normal(0, 0.001, n)),
+                "high": close * (1 + abs(rng.normal(0, 0.004, n))),
+                "low": close * (1 - abs(rng.normal(0, 0.004, n))),
+                "close": close,
+                "volume": rng.integers(1e5, 1e6, n),
+            },
+            index=idx,
+        )
+        fast = add_momentum_features(
+            df.copy(), rsi_period=7, macd_fast=5, macd_slow=13, macd_signal_period=4
+        )
+        slow = add_momentum_features(
+            df.copy(), rsi_period=14, macd_fast=12, macd_slow=26, macd_signal_period=9
+        )
+        # The config DOES reach the stored columns...
+        self.assertFalse(
+            fast["rsi"].fillna(-1).equals(slow["rsi"].fillna(-1)),
+            "stored rsi no longer varies with rsi_period — F23's premise changed.",
+        )
+        self.assertFalse(
+            fast["macd_hist"].fillna(-1).equals(slow["macd_hist"].fillna(-1)),
+            "stored macd_hist no longer varies with the MACD windows — premise changed.",
+        )
+        # ...but never reaches the entry signal.
+        self.assertTrue(
+            fast["momentum_signal"].equals(slow["momentum_signal"]),
+            "momentum_signal now VARIES with the per-mode windows — F23 appears "
+            "FIXED. Supersede F23 and re-sweep (see the docstring): every prior "
+            "sweep was tuned with the bug present.",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

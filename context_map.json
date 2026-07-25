@@ -100,7 +100,7 @@
        "code": ["src/optimization/sweep_scoring.py::_apply_penalties"],
        "guarded_by": ["tests/test_sweep_scoring.py::TestNegativeBasePenalties"],
        "note": "the penalty-inversion fix lives here: the `if base <= 0: return base` guard skips the multiplicative penalties on net-negative configs (shrinking a negative base toward zero would otherwise IMPROVE losing configs). Fixed in 084f15e."},
-      {"node": "F23", "relation": "implemented_in",
+      {"node": "F23", "relation": "implemented_in", "guarded_by": ["tests/test_web_code_claims.py::F23PerModeWindowsClaim"],
        "code": ["src/signals/momentum.py::momentum_signal", "live/signals.py::get_current_signal"],
        "note": "momentum_signal recomputes RSI/MACD with HARDCODED defaults (compute_rsi/compute_macd take no period args → RSI 14, MACD 12/26/9), so the per-mode RSI_PERIOD_*/MACD_* config never reaches the entry signal — only the oversold/overbought THRESHOLDS are threaded through. The armed bot rides this path via get_current_signal → build_features → add_momentum_features. The config's 'DEAD LEVER' comments are empirically right but MISATTRIBUTE the cause to market structure rather than this code path."},
       {"node": "D7", "relation": "implemented_in",
