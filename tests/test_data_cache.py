@@ -294,3 +294,59 @@ class GitignoreExceptionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EveryMarketDataLabIsGuardedTests(unittest.TestCase):
+    """No market-data lab may write a cache it has not validated (F144).
+
+    Bidirectional sweep rather than a per-lab test: a NEW lab that fetches prices and
+    memoises them re-introduces the trap, and a per-lab list would not notice. This
+    fails on the new file instead.
+
+    The exemption list is deliberately empty. If a lab genuinely cannot use the shared
+    guard, add it here WITH a reason — an unexplained entry is how the original
+    footgun survived.
+    """
+
+    EXEMPT = {
+        "data_cache.py":
+            "IS the guard — its docstring names yfinance and write_frame_atomic "
+            "calls to_csv, so it matches its own detector.",
+        "fetch_fullsession.py":
+            "a deliberate fetch-to-disk tool, not a memoising study. It refuses "
+            "empty AND partial panels inline (MIN_BARS / MIN_BARS_PER_DAY) because "
+            "its partial fetch is the documented F12 morning-only artifact.",
+    }
+
+    def _market_data_labs(self):
+        for path in sorted((ROOT / "tools").glob("*.py")):
+            text = path.read_text(encoding="utf-8", errors="ignore")
+            fetches = ("yfinance" in text) or ("raw.githubusercontent.com" in text)
+            if fetches and ".to_csv(" in text:
+                yield path, text
+
+    def test_no_lab_writes_an_unvalidated_cache(self):
+        offenders = []
+        for path, text in self._market_data_labs():
+            if path.name in self.EXEMPT:
+                continue
+            if "data_cache" not in text:
+                offenders.append(path.name)
+        self.assertEqual(
+            offenders, [],
+            "these labs fetch market data and write a cache without the validated "
+            "guard, so a blocked fetch will write a stub that every later run trusts "
+            "(F144): {}. Route them through tools/data_cache.py.".format(offenders))
+
+    def test_the_sweep_actually_finds_labs(self):
+        """A sweep that matches nothing would pass vacuously."""
+        found = [p.name for p, _ in self._market_data_labs()]
+        self.assertGreater(
+            len(found), 3,
+            "the market-data lab sweep matched almost nothing — its detection "
+            "heuristic probably broke, making the test above vacuous")
+
+    def test_exemptions_carry_a_reason(self):
+        for name, reason in self.EXEMPT.items():
+            self.assertTrue(str(reason).strip(),
+                            "{} is exempted with no reason".format(name))

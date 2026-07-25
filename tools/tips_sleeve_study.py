@@ -64,6 +64,9 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import data_cache  # noqa: E402  (validated cache: never trust a stub, never write one)
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bond_ladder_study as bls   # noqa: E402  load_cpi (FRED CPIAUCSL cache)
 
 CACHE_PX = "/tmp/tips_sleeve_prices.csv"
@@ -83,15 +86,15 @@ CUTS = [("full", None, None),
 
 # ── data ──────────────────────────────────────────────────────────────────────
 def load_px():
-    if os.path.exists(CACHE_PX):
-        cached = pd.read_csv(CACHE_PX, index_col=0, parse_dates=True)
-        if all(t in cached.columns for t in TICKERS):
-            return cached
-    import yfinance as yf
-    raw = yf.download(TICKERS, start="2003-12-01", end=END, interval="1d",
-                      progress=False, auto_adjust=True)["Close"]
-    raw.to_csv(CACHE_PX)
-    return raw
+    # NOTE: the previous guard checked that every ticker COLUMN was present but never
+    # that any ROW was — a header-only stub has all its columns and passed (F144).
+    def _fetch():
+        import yfinance as yf
+        return yf.download(TICKERS, start="2003-12-01", end=END, interval="1d",
+                           progress=False, auto_adjust=True)["Close"]
+
+    return data_cache.load_cached_frame(
+        CACHE_PX, _fetch, min_rows=1000, required_cols=TICKERS, label="tips_sleeve")
 
 
 # ── metrics (daily) ───────────────────────────────────────────────────────────

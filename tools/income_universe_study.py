@@ -45,6 +45,9 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import data_cache  # noqa: E402  (validated cache: never trust a stub, never write one)
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import static_product_study as sps   # noqa: E402  pmetrics / simple_ret
 
 CACHE_ADJ = "/tmp/income_universe_adj.csv"   # total-return (Adj Close)
@@ -67,16 +70,32 @@ GOAL_APY = 3.75
 
 def load():
     """Return (adj, raw) close panels. adj = total return; raw = price/NAV path."""
-    if os.path.exists(CACHE_ADJ) and os.path.exists(CACHE_RAW):
-        return (pd.read_csv(CACHE_ADJ, index_col=0, parse_dates=True),
-                pd.read_csv(CACHE_RAW, index_col=0, parse_dates=True))
-    import yfinance as yf
-    raw = yf.download(sorted(CAT), start="2002-01-01", end="2026-06-20", interval="1d",
-                      progress=False, auto_adjust=False)
-    adj = raw["Adj Close"].dropna(how="all")
-    rawpx = raw["Close"].dropna(how="all")
-    adj.to_csv(CACHE_ADJ)
-    rawpx.to_csv(CACHE_RAW)
+    # Two panels from ONE fetch, so they are validated and written together — a
+    # partial write would leave the pair inconsistent, which is worse than a miss.
+    def _fetch_both():
+        import yfinance as yf
+        raw = yf.download(sorted(CAT), start="2002-01-01", end="2026-06-20",
+                          interval="1d", progress=False, auto_adjust=False)
+        return raw["Adj Close"].dropna(how="all"), raw["Close"].dropna(how="all")
+
+    def _no_fetch():
+        raise AssertionError("unreachable: only called on a cache hit")
+
+    if all(os.path.exists(p) for p in (CACHE_ADJ, CACHE_RAW)):
+        # Both present: validate each on read, so a poisoned pair raises rather
+        # than silently feeding a stub into the study.
+        return tuple(
+            data_cache.load_cached_frame(p, _no_fetch, min_rows=500,
+                                         label="income_universe")
+            for p in (CACHE_ADJ, CACHE_RAW))
+
+    adj, rawpx = _fetch_both()
+    for frame, name in ((adj, "adj"), (rawpx, "raw")):
+        data_cache.validate_frame(frame, min_rows=500,
+                                  source="income_universe fetch ({})".format(name),
+                                  error=data_cache.EmptyFetchError)
+    data_cache.write_frame_atomic(adj, CACHE_ADJ)
+    data_cache.write_frame_atomic(rawpx, CACHE_RAW)
     return adj, rawpx
 
 

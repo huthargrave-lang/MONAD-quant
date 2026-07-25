@@ -69,6 +69,9 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import data_cache  # noqa: E402  (validated cache: never trust a stub, never write one)
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bond_ladder_study as bls   # noqa: E402  load_yields / load_cpi / curve / zero_price
 
 CACHE_GSPC = "/tmp/corr_regime_gspc.csv"     # month-end ^GSPC price + SPY TR (validation/splice)
@@ -99,29 +102,35 @@ def load_shiller():
     the slowly-varying dividend YIELD (D/P, same-index scale) and as a CPI cross-check — the
     price path itself comes from month-end ^GSPC (Shiller's price is a monthly AVERAGE, which
     smooths returns and would distort correlations)."""
-    if os.path.exists(CACHE_SHILLER):
-        df = pd.read_csv(CACHE_SHILLER, index_col=0, parse_dates=True)
-    else:
-        df = pd.read_csv("https://raw.githubusercontent.com/datasets/s-and-p-500/master/data/data.csv")
-        df = df.rename(columns={"Date": "date"}).set_index("date")
-        df.index = pd.to_datetime(df.index)
-        df.to_csv(CACHE_SHILLER)
+    def _fetch():
+        raw = pd.read_csv("https://raw.githubusercontent.com/datasets/s-and-p-500/master/data/data.csv")
+        raw = raw.rename(columns={"Date": "date"}).set_index("date")
+        raw.index = pd.to_datetime(raw.index)
+        return raw
+
+    # Monthly since 1871, so >1000 rows. A blocked fetch of a raw GitHub CSV can
+    # return an HTML error page that parses as a tiny frame — validate, don't trust.
+    df = data_cache.load_cached_frame(
+        CACHE_SHILLER, _fetch, min_rows=1000,
+        required_cols=["SP500", "Dividend", "Consumer Price Index"],
+        label="shiller")
     out = df[["SP500", "Dividend", "Consumer Price Index"]].replace(0.0, np.nan)
     return out.rename(columns={"SP500": "p", "Dividend": "d", "Consumer Price Index": "cpi"})
 
 
 def load_gspc():
     """Month-end ^GSPC price + month-end SPY total-return level (yfinance, cached)."""
-    if os.path.exists(CACHE_GSPC):
-        return pd.read_csv(CACHE_GSPC, index_col=0, parse_dates=True)
-    import yfinance as yf
-    g = yf.Ticker("^GSPC").history(period="max", auto_adjust=True)["Close"]
-    s = yf.Ticker("SPY").history(period="max", auto_adjust=True)["Close"]
-    df = pd.DataFrame({"gspc": g, "spy": s})
-    df.index = pd.to_datetime(df.index, utc=True).tz_localize(None)
-    df = df.resample("ME").last()
-    df.to_csv(CACHE_GSPC)
-    return df
+    def _fetch():
+        import yfinance as yf
+        g = yf.Ticker("^GSPC").history(period="max", auto_adjust=True)["Close"]
+        s = yf.Ticker("SPY").history(period="max", auto_adjust=True)["Close"]
+        df = pd.DataFrame({"gspc": g, "spy": s})
+        df.index = pd.to_datetime(df.index, utc=True).tz_localize(None)
+        return df.resample("ME").last()
+
+    return data_cache.load_cached_frame(
+        CACHE_GSPC, _fetch, min_rows=300, required_cols=["gspc", "spy"],
+        label="gspc_spy")
 
 
 def load_tip():

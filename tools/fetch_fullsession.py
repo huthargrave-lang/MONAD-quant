@@ -29,6 +29,12 @@ from src.data.fetcher import fetch_yfinance  # noqa: E402
 
 CACHE = os.path.join(os.path.dirname(__file__), "..", "data", "cache")
 
+# Floors for a usable full-session hourly panel. A US session is 7 hourly bars;
+# the F12 artifact was a panel averaging ~3, so 5 rejects it while allowing
+# half-days and holidays to pull the median down slightly.
+MIN_BARS = 500
+MIN_BARS_PER_DAY = 5
+
 UNIVERSES = {
     # Conservative bond-ETF-alternative candidates + leveraged ones for contrast.
     "conservative": [
@@ -86,6 +92,16 @@ def main():
             print(f"{tk:<6} FAILED (no data)")
             continue
         bpd = int(df.groupby(df.index.date).size().median())
+        # A PARTIAL fetch is the dangerous case here, not an empty one. This tool's
+        # 710-day fetch returning morning-only bars is the documented root cause of
+        # the backtest-vs-live mismatch (F12/F13), and an empty-only check would
+        # write that panel happily. Refuse anything too short to be a real session
+        # panel, or too few bars per day to be full-session.
+        if len(df) < MIN_BARS or bpd < MIN_BARS_PER_DAY:
+            print(f"{tk:<6} REFUSED ({len(df)} bars, {bpd}/day) — need >={MIN_BARS} "
+                  f"bars and >={MIN_BARS_PER_DAY}/day. A partial or morning-only "
+                  f"panel is exactly the F12 artifact; not written.")
+            continue
         path = os.path.join(CACHE, f"{tk}_1h.csv")
         df.to_csv(path)
         print(f"{tk:<6} {len(df):5d} bars | {bpd} bars/day | {df.index[0].date()}..{df.index[-1].date()} -> {os.path.basename(path)}")
