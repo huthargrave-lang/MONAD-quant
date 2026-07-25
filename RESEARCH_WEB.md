@@ -2212,3 +2212,22 @@ WHY IT COULD NOT BE SETTLED FROM THE RECORD. F17 carries no `evidenced_by` edge 
 Guarded by tests/test_f17_breakeven_arithmetic.py (10 tests). Two assertions were corrected during construction after over-generalising QQQ's harsh-cost number to SOXL — the per-band separation is now asserted separately, with the reason recorded in the test.
 Links: [[F17|refines]] · [[F19|relates]].
 _— captured claude/research-continuation-ca1242@421d492, 2026-07-25_
+
+### F180 — F12's fix was ADDITIVE — sweep.py still makes 710-day single-call hourly fetches — but the latest committed manifest shows the quirk did not fire
+F12 is the root cause behind F13's reversal: a yfinance 1h request over ~710 days returned ~3 bars/day while <=250-day chunks returned full 7-bar sessions, so every backtest/sweep validated on a thinner distribution than the live bot trades. F12 closes 'Fixed by tools/fetch_fullsession.py (chunked re-pull)'. Two checkable facts pull in opposite directions.
+
+THE FIX WAS ADDITIVE, NOT CORRECTIVE. `fetch_full` chunks at 240 days — inside the threshold — but it has NO first-party consumer anywhere outside its own module. The original long-span call sites were never converted:
+  - `sweep.py:103` still defaults to 710 days and fetches that span in ONE 1h call (line 185). This is the tool that SELECTS the parameters the live bot runs on.
+  - `tools/instrument_screen.py:39` — same 710-day single call.
+  - `tools/overnight_gap_risk_study.py` pins ~721 days through one `yf.download`.
+So 'Fixed by' means a tool was added beside the exposure, not that the exposure was removed.
+
+BUT THE MOST RECENT COMMITTED FETCH SHOWS THE QUIRK DID NOT BITE. `docs/research/data/overnight_gap_input_manifest_2026.json` (captured 2026-07-23) records 'TQQQ FULL-SESSION hourly OHLCV, TQQQ 1h, 2024-08-01 through 2026-07-22' at 3430 physical lines. That span holds 515 weekdays, so the panel carries ~6.7 bars per trading day — near 7, not 3 — from a single 721-day request. The study's own author labelled it full-session.
+
+SCOPE. One instrument, one window, one capture date, and the evidence is a provenance record (raw bytes are deliberately not committed) rather than a re-measurement — Yahoo is network-blocked here. It does not prove the quirk is gone everywhere. It does contradict the blanket present-tense form of F12 as of that date. Both facts are now guarded so neither is lost: the exposure is real and unconverted, and the latest evidence says the hazard did not fire.
+
+F13's half is intact: the live window is ((300//6)+10)*2 = 120 days, comfortably inside the threshold — the asymmetry that created the gap.
+
+Guarded by tests/test_f12_f13_fetch_span_bridge.py (11 tests). The density test fails if the committed panel ever drops toward 3 bars/day, which would mean the quirk is firing again through every unconverted site above. This clears F12 and F13 from the ctx-claims ratchet, leaving D4 as the last unguarded behavior-asserting bridge.
+Links: [[F12|refines]] · [[F13|supports]] · [[F167|relates]].
+_— captured claude/research-continuation-ca1242@26e4517, 2026-07-25_
