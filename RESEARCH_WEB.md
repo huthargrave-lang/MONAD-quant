@@ -2603,3 +2603,25 @@ So H26's remaining gap is narrow: to replay a different indicator PERIOD, the li
 Guarded by tests/test_shadow_replay.py (13 tests), including a non-vacuity check that the correctly-ordered threshold produces zero overlap.
 Links: [[H26|refines]] · [[F195|supports]] · [[F23|relates]].
 _— captured claude/research-continuation-ca1242@ff9ba53, 2026-07-25_
+
+### F202 — CORRECTION to F189: ctx perf's CONFIRMED set is wrong in both directions — it includes possibly-INFERRED stop_hit and excludes possibly-ACTUAL target_hit
+H28 argues live PnL is uninterpretable without a `fill_source` column. Checked against the committed live run, the argument is stronger than stated — and it corrects my own cycle-26 work.
+
+`exit_type` IS A LOSSY JOIN OF MECHANISM AND PROVENANCE. `target_hit` and `stop_hit` are written by TWO paths the ledger cannot distinguish:
+  - `broker.py:410-412` — from a REAL fill, typed by order type (LMT -> target_hit, STP -> stop_hit).
+  - `trader.py::_infer_bracket_exit` — INFERRED from a reference price when IBKR fill data is unavailable, emitting the same two strings.
+`estimated_close` announces itself; these two do not.
+
+SO `ctx.CONFIRMED = {bracket_exit, stop_hit}` IS WRONG IN BOTH DIRECTIONS. It INCLUDES `stop_hit`, which may be inferred, and EXCLUDES `target_hit`, which may be a real LMT fill. `cmd_perf`'s own note says CONFIRMED 'excludes time_exit artifacts and inferred target_hit' — so the ambiguity was known for target_hit, but `_infer_bracket_exit` produces stop_hit from the same branch and that was missed.
+
+**This qualifies F189**, which asserted the CONFIRMED set as correct while wiring it into the cold-start rider. The rider's plumbing is fine; the set it reports is contaminated.
+
+BOUNDED FROM THE ARCHIVE. 65 trades: 41 bracket_exit, 6 target_hit, 6 stop_hit, 9 time_exit, 2 estimated_close, 1 paper_reset. The event log records **9 'Fill data unavailable'** events, each routing to `_infer_bracket_exit`. So up to 9 of the 12 target_hit+stop_hit rows are inferred — and the ledger cannot say which. CONFIRMED is 47 of 65, of which 6 are possibly-inferred stop_hits.
+
+AND THE INFERENCE LEAVES NO DURABLE TRACE. `_infer_bracket_exit` logs at `log.info`, not to `monitor_events` — 'Infer exit' appears ZERO times in the durable event log. The only lasting signal is the PRECEDING 'Fill data unavailable' line. Provenance is not merely uncolumned; it is unrecoverable after the process exits.
+
+NOT PAPERED OVER. Re-partitioning CONFIRMED cannot help: dropping stop_hit discards real STP fills, keeping it admits inferred ones, and no split of a lossy field recovers information the field never carried. The fix is H28's additive column written at each close path — in the fenced `live/trader.py`, so it needs approval and a stopped trader.
+
+Guarded by tests/test_h28_fill_provenance_gap.py (12 tests), which fails if the column lands (prompting a re-partition) or if the inference starts writing a durable event.
+Links: [[F189|refines]] · [[H28|supports]] · [[F160|relates]].
+_— captured claude/research-continuation-ca1242@7ee72f3, 2026-07-25_
