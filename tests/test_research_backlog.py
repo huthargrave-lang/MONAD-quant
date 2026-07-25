@@ -131,3 +131,53 @@ class NeverStopsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ResolvedHypothesesAreNotFlaggedUncitedTests(unittest.TestCase):
+    """Evidence flows in DIFFERENT directions for findings and hypotheses.
+
+    A Finding reaches its evidence downstream: F -> evidenced_by -> E -> doc. A
+    HYPOTHESIS reaches its evidence upstream: the Finding that resolved it holds the
+    citation. An engine that follows only outgoing edges is direction-blind, and will
+    keep proposing work on a hypothesis that was just closed — which is exactly what
+    happened to H50 the moment a resolving Finding was attached to it.
+    """
+
+    def test_a_hypothesis_resolved_by_a_CITING_finding_is_not_uncited(self):
+        """Note the precise property. Being resolved is NOT enough — if the resolver
+        itself cites no document, the resolved node genuinely has no evidence path
+        and belongs in the queue. A first version of this test asserted the broader
+        "resolved => not uncited" and correctly failed on D4, F7 and H3, whose
+        resolvers (H8/F41, H2, E5) cite nothing. The code was right; the assertion
+        was too strong.
+        """
+        nodes = BL.load_nodes()
+        resolved_by_citing = set()
+        for node in nodes.values():
+            cites_doc = bool(BL.DOC_REF.findall(str(node.get("body", ""))))
+            if not cites_doc:
+                continue
+            for target, etype in node.get("edges", []):
+                if etype == "resolves":
+                    resolved_by_citing.add(target)
+        if not resolved_by_citing:
+            self.skipTest("no hypothesis is yet resolved by a doc-citing node")
+        flagged = {t["node"] for t in BL.source_uncited(nodes, limit=50)}
+        overlap = resolved_by_citing & flagged
+        self.assertEqual(
+            overlap, set(),
+            "these nodes are resolved by a Finding that DOES cite a document, yet "
+            "are still flagged uncited: {}. source_uncited is following only "
+            "outgoing edges again, so it cannot see that a hypothesis's evidence "
+            "lives upstream in the Finding that closed it.".format(sorted(overlap)))
+
+    def test_the_web_actually_contains_a_resolves_edge_to_test_against(self):
+        """Otherwise the test above passes vacuously."""
+        nodes = BL.load_nodes()
+        n_resolves = sum(
+            1 for node in nodes.values()
+            for _t, etype in node.get("edges", []) if etype == "resolves")
+        self.assertGreater(
+            n_resolves, 0,
+            "no resolves edges exist, so the direction-blindness guard above is "
+            "vacuous — re-check when the first hypothesis is closed")

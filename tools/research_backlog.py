@@ -118,6 +118,15 @@ def source_uncited(nodes, limit: int = 8) -> List[dict]:
         for target, _ in node.get("edges", []):
             if target in nodes:
                 reachable |= set(DOC_REF.findall(str(nodes[target].get("body", ""))))
+        # Follow `resolves` INBOUND too. Evidence flows downstream for a Finding
+        # (F -> evidenced_by -> E -> doc) but UPSTREAM for a hypothesis: a resolved
+        # H node's evidence lives in the Finding that resolved it. Following only
+        # outgoing edges left H50 flagged as uncited immediately after a resolving
+        # Finding was attached to it, which is direction-blindness, not a real gap.
+        for other in nodes.values():
+            for target, etype in other.get("edges", []):
+                if target == nid and etype == "resolves":
+                    reachable |= set(DOC_REF.findall(str(other.get("body", ""))))
         if reachable:
             continue
         rows.append({
