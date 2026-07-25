@@ -2550,3 +2550,20 @@ WHAT IS NOT ANSWERED: no price series is available in this checkout, so this est
 Guarded by tests/test_h24_h25_stop_vs_spread_floor.py (14 tests).
 Links: [[H24|refines]] · [[H25|resolves]] · [[F174|builds_on]].
 _— captured claude/research-continuation-ca1242@d7b5883, 2026-07-25_
+
+### F199 — F149's open question answered: maxDD is NOT scale-invariant, so the Sharpe-path equivalence was invalid on the drawdown path — both sides now anchor on static 50/50
+F149 found `tools/power_study.py` measuring the capital-preservation POINT estimate against `bench` (100% equity) while bootstrapping its CONFIDENCE INTERVAL against `static5050`, and the verdict prose welding them into 'far shallower at the point BUT the bootstrap straddles 0'. It left open which comparison SHOULD anchor the claim.
+
+THE MECHANISM F149 DID NOT NAME. The same swap is harmless for Sharpe and invalid for drawdown — and the study RELIES on that, stating 'the test is vs buy&hold (== static 50/50, **Sharpe-invariant** — the EASIER bar)'. Sharpe is scale-invariant, so `bench` and `0.5*bench` score identically (verified to 12 decimal places). **maxDD is not**: on a representative path, halving the position takes maxDD from -59.6% to -36.4%, a 39% reduction. The equivalence was carried from the Sharpe path onto the drawdown path where it does not hold, and that inflation is precisely what manufactured the 'but'.
+
+THE ANCHOR IS STATIC 50/50, ON BOTH SIDES. Not because buy&hold is a bad comparator generally, but because D6's RECOMMENDATION is a static blend: the decision-relevant question is whether the active engine beats what we would otherwise do, and D6 never recommends 100% equity. Matching the point estimate to the interval also changes one line rather than re-deriving a bootstrap. `maxdd_bench` is still reported, now labelled a reference and explicitly disclaimed as not a stand-in for the blend — with the reason (non-scale-invariance) in the sentence, so the swap cannot be reintroduced by someone who reads only the prose.
+
+The result dict now carries `maxdd_static5050` and `maxdd_comparator="static5050"`, so a future reader can tell which benchmark the CI belongs to without reading the code.
+
+DIRECTION OF THE CORRECTION: the honest gap is SMALLER than the published one. D6's nuance — 'the active engine has the lowest drawdown of any static blend by point estimate, but path-dependent' — was already hedged; this makes the point half of it less impressive while leaving the interval unchanged, so **D6's static-allocation recommendation is unaffected and if anything slightly strengthened**.
+
+NOT RE-RUN. The corrected numbers need market data and the caches are empty. This fixes and guards the SHAPE of the comparison — both sides naming one comparator — which is the defect F149 recorded. A test asserts the data absence so the numeric follow-up is not forgotten.
+
+Guarded by tests/test_f149_maxdd_benchmark_anchor.py (11 tests).
+Links: [[F149|resolves]] · [[D6|supports]] · [[F176|builds_on]].
+_— captured claude/research-continuation-ca1242@0f3a53f, 2026-07-25_
