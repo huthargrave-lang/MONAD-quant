@@ -2385,3 +2385,18 @@ The guard also pins the reason the rider exists: with a synthetic ledger carryin
 Guarded by tests/test_ctx_perf_rider.py (10 tests).
 Links: [[H16|resolves]] · [[F188|builds_on]] · [[F160|relates]].
 _— captured claude/research-continuation-ca1242@3aa72f6, 2026-07-25_
+
+### F190 — H17 closed as a clean negative: no operator-fact drift, but a naive doc linter would have reported ~40 false positives and the memory store is outside the repo
+H17 asked for `ctx memory --lint`: repo facts are hand-copied into per-user `.claude/memory/*.md` and synced only by convention. Two answers.
+
+THE LITERAL TARGET IS NOT IN THE REPOSITORY. `~/.claude/memory/` is per-user and absent from this checkout, so it cannot be checked from a clone or from CI. It joins `experiments.jsonl` as a permanent UNKNOWN in `ctx drift` rather than a silent pass — the same discipline as F188.
+
+THE CHECKABLE FORM IS CLEAN. The three drift-prone facts H17 names are the branch model, CI triggers and base SHA. The branch model is stated in three committed places and all three agree: manifest `deploy_branch`, the live preflight's `EXPECT_BRANCH`, and the CI workflow's branch lists all say `development`. Only the first two were previously bound by a test; the CI trigger was not, and now is — a workflow that stopped naming the deploy branch would mean pushes to it go untested.
+
+THE USEFUL PART IS THE FILTERS. A naive 'does this backticked path exist' scan over 18 operator docs produced roughly **40 hits**. Resolving bare basenames anywhere in the tree and allowlisting runtime artifacts (`live/state.db`, `experiments.jsonl`, ...) cut that to **four**, and all four were explicable on reading: three roadmap proposals, and one deliberate NEGATIVE reference — `skills/monad-validate-edge/SKILL.md` says 'There is NO `validate.py` in this repo — do not cite it', which a regex reads as a citation. Planning documents are now excluded by name, with the reason stated in the code: a roadmap names files that do not exist yet, which is what a roadmap is. **A linter with a 90% false-positive rate is a linter nobody runs**, and shipping the naive version would have been worse than shipping nothing.
+
+DESIGN CALL, STATED. This landed inside `ctx drift` rather than as a separate `ctx memory --lint`. `drift` already IS the cross-store consistency command; adding a second checker with overlapping scope is precisely the two-paths-one-fact drift this repo keeps finding.
+
+Result: 0 problems, 2 unknowns. Guarded by tests/test_ctx_drift.py (16 tests, 6 new), including a synthetic-violation check so the linter is known to be able to fail.
+Links: [[H17|resolves]] · [[F188|builds_on]].
+_— captured claude/research-continuation-ca1242@bc53383, 2026-07-25_

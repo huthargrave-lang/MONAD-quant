@@ -133,3 +133,79 @@ class TheCommandContractIsRealTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OperatorFactDriftTests(unittest.TestCase):
+    """H17/DP-10: repo facts hand-copied into prose, and the memory store that is not
+    in the repository.
+
+    H17's literal target is `.claude/memory/*.md`, which lives outside the repo and is
+    per-user — absent from every clone and from CI, so it joins the ledger as a
+    permanent UNKNOWN rather than a silent pass. What IS checkable is the same failure
+    in the in-repo docs: the branch model and CI triggers are stated in four places and
+    synced only by convention.
+
+    The dangling-reference check needed two filters to be usable. A naive "does this
+    backticked path exist" scan produced roughly 40 hits on this repo; resolving bare
+    basenames anywhere in the tree and allowlisting runtime artifacts cut it to four,
+    and all four were explicable — three roadmap proposals and one deliberate NEGATIVE
+    reference (`skills/monad-validate-edge/SKILL.md` says "There is NO `validate.py` in
+    this repo — do not cite it"). Planning documents are now excluded by name: a roadmap
+    names files that do not exist yet, which is what a roadmap is.
+
+    So the current answer is a clean negative — no operator-fact drift — and the value
+    is the guard plus the filters, because a linter with a 90% false-positive rate is
+    one nobody runs.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.problems, cls.unknowns = ctx.operator_fact_drift()
+
+    def test_there_is_no_operator_fact_drift_today(self):
+        self.assertEqual(
+            self.problems, [],
+            "operator-fact drift appeared: {}".format(self.problems))
+
+    def test_the_absent_memory_store_becomes_an_UNKNOWN(self):
+        import os
+        memdir = os.path.join(os.path.expanduser("~"), ".claude", "memory")
+        if os.path.isdir(memdir):
+            self.skipTest("operator memory exists here; the check should now run for real")
+        self.assertTrue(
+            any("operator memory" in u for u in self.unknowns),
+            "the per-user memory directory is absent but no unknown was raised — "
+            "`ctx drift` would read as clean about a store outside the repository")
+
+    def test_the_branch_model_agrees_in_all_three_committed_places(self):
+        """The fact H17 names first. Manifest, live preflight gate, CI workflow."""
+        import json
+        import re as _re
+        deploy = json.loads((ROOT / "context_map.json").read_text(
+            encoding="utf-8"))["deploy_branch"]
+        pf = (ROOT / "ops" / "preflight_trader_start.sh").read_text(encoding="utf-8")
+        self.assertEqual(
+            _re.search(r'^EXPECT_BRANCH="([^"]+)"', pf, _re.M).group(1), deploy)
+        self.assertIn(
+            deploy, (ROOT / ".github" / "workflows" / "test.yml").read_text(
+                encoding="utf-8"),
+            "the CI workflow no longer mentions the deploy branch — pushes to it may "
+            "not be tested")
+
+    def test_a_synthetic_dangling_reference_would_be_caught(self):
+        """A guard that cannot fail is not a guard."""
+        self.assertTrue(ctx._DOC_PATH_RX.findall("see `tools/nonexistent_thing.py` now"))
+        names, relpaths = ctx._repo_file_index()
+        self.assertNotIn("nonexistent_thing.py", names)
+        self.assertIn("ctx.py", names, "the file index is not seeing the repo")
+
+    def test_runtime_artifacts_are_allowlisted_with_intent(self):
+        """Flagging state.db or experiments.jsonl would train a reader to ignore it."""
+        for artifact in ("live/state.db", "experiments.jsonl"):
+            self.assertIn(artifact, ctx._RUNTIME_ARTIFACTS)
+
+    def test_planning_docs_are_excluded_deliberately(self):
+        source = (ROOT / "tools" / "ctx.py").read_text(encoding="utf-8")
+        self.assertIn("PLANNING_DOCS", source)
+        self.assertIn("that is what a roadmap is", source,
+                      "the exclusion lost its stated reason")

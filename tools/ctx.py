@@ -2507,11 +2507,108 @@ def drift_report():
     return stores, problems, unknowns
 
 
+# Files a doc may legitimately name that are runtime artifacts, not repository content.
+# Flagging these would train a reader to ignore the linter.
+_RUNTIME_ARTIFACTS = {
+    "live/state.db", "state.db", "experiments.jsonl", "graph.json", ".mcp.json",
+    "local_logs/healthcheck.json", "local_runtime/current_run.json",
+    "sweep_results_TICKER.json",
+}
+_DOC_PATH_RX = re.compile(r"`([A-Za-z0-9_./-]+\.(?:py|sh|md|json|jsonl|yml|db|service|txt))`")
+
+
+def _repo_file_index():
+    names, relpaths = set(), set()
+    for dirpath, dirnames, filenames in os.walk(REPO):
+        dirnames[:] = [d for d in dirnames
+                       if d not in (".git", "venv", "__pycache__", ".pytest_cache")]
+        for fn in filenames:
+            names.add(fn)
+            relpaths.add(os.path.relpath(os.path.join(dirpath, fn), REPO))
+    return names, relpaths
+
+
+def operator_fact_drift():
+    """Repo facts hand-copied into operator docs (H17/DP-10).
+
+    H17's literal target is `.claude/memory/*.md`, which lives OUTSIDE the repository
+    and is absent from this checkout — so it is reported as an unknown, not as clean.
+    What IS checkable is the same failure in the in-repo docs: the branch model and CI
+    triggers are copied into prose in several places and synced only by convention.
+
+    The dangling-reference check needs two filters or it is unusable. A naive
+    "does this backticked path exist" scan produces ~40 hits here; resolving bare
+    basenames anywhere in the tree and allowlisting runtime artifacts takes that to a
+    handful. A linter with a 90% false-positive rate is a linter nobody runs.
+    """
+    problems, unknowns = [], []
+
+    memdir = os.path.join(os.path.expanduser("~"), ".claude", "memory")
+    if not os.path.isdir(memdir):
+        unknowns.append(
+            f"operator memory: {memdir} is absent (it lives outside the repo and is "
+            f"per-user) — copied repo facts there cannot be checked from a clone or "
+            f"from CI. UNKNOWN, not clean.")
+
+    # Branch model: four independent statements of one fact.
+    deploy = _manifest().get("deploy_branch")
+    pf = os.path.join(REPO, "ops", "preflight_trader_start.sh")
+    if deploy and os.path.exists(pf):
+        with open(pf, errors="ignore") as fh:
+            mm = re.search(r'^EXPECT_BRANCH="([^"]+)"', fh.read(), re.M)
+        if mm and mm.group(1) != deploy:
+            problems.append(
+                f"branch model: manifest deploy_branch={deploy!r} but the preflight "
+                f"gate enforces EXPECT_BRANCH={mm.group(1)!r}")
+    wf = os.path.join(REPO, ".github", "workflows", "test.yml")
+    if deploy and os.path.exists(wf):
+        with open(wf, errors="ignore") as fh:
+            text = fh.read()
+        if deploy not in text:
+            problems.append(
+                f"CI triggers: the workflow never mentions the deploy branch {deploy!r}, "
+                f"so pushes to it may not be tested")
+
+    # Dangling in-repo references in operator docs.
+    #
+    # PLANNING documents are excluded by name. A roadmap names files that do not exist
+    # yet -- that is what a roadmap is -- so demanding its references resolve asks a
+    # plan not to plan. Excluding them deliberately beats a fragile "is this sentence
+    # aspirational" heuristic; the same call as the smoke test's NOT_SMOKED list.
+    PLANNING_DOCS = {"IMPROVEMENT_PLAN.md", "AGENT_CONTEXT_PLAN.md", "VISION.md"}
+    names, relpaths = _repo_file_index()
+    docs = [f for f in os.listdir(REPO) if f.endswith(".md")]
+    docs += [os.path.join("ops", f) for f in os.listdir(os.path.join(REPO, "ops"))
+             if f.endswith(".md")] if os.path.isdir(os.path.join(REPO, "ops")) else []
+    for doc in sorted(docs):
+        if os.path.basename(doc) in PLANNING_DOCS:
+            continue
+        path = os.path.join(REPO, doc)
+        with open(path, errors="ignore") as fh:
+            text = fh.read()
+        for ref in sorted(set(_DOC_PATH_RX.findall(text))):
+            if ref in _RUNTIME_ARTIFACTS or ref in relpaths:
+                continue
+            if os.path.basename(ref) in names:
+                continue                       # named by basename; resolves elsewhere
+            if re.search(r"(no|NO|not|deferred|proposed|would|planned)[^.\n]{0,60}`"
+                         + re.escape(ref) + "`", text):
+                continue                       # a proposal or an explicit non-existence
+            problems.append(f"{doc} references `{ref}`, which does not exist")
+    return problems, unknowns
+
+
 def cmd_drift(args):
     """Cross-store consistency (H15/DP-8): research web vs context-map bridges vs the
     sweep ledger. Advisory by design — cross-store semantic matching is heuristic — but
     an unreadable store is reported as UNKNOWN rather than passing silently."""
     stores, problems, unknowns = drift_report()
+    # H17/DP-10 lands here rather than in a separate `ctx memory --lint`: this IS the
+    # cross-store consistency command, and a second overlapping checker is the drift
+    # this repo keeps finding (two paths, one fact, quietly diverging).
+    fact_problems, fact_unknowns = operator_fact_drift()
+    problems = problems + fact_problems
+    unknowns = unknowns + fact_unknowns
     print("  STORES:")
     for name, (ok, path) in sorted(stores.items()):
         rel = os.path.relpath(path, REPO)
