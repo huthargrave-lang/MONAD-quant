@@ -2156,3 +2156,18 @@ AND ON THE DEFAULT PATH NONE OF IT RUNS. `position_fraction` returns `fixed_pct`
 Guarded by tests/test_f20_kelly_estimator_bridge.py (16 tests), wired as `guarded_by` on the F20 bridge. Scope: F20's Sharpe numbers rest on 12yr of real daily data and are NOT re-tested here — only the estimator arithmetic is.
 Links: [[F20|refines]] · [[F145|supports]].
 _— captured claude/research-continuation-ca1242@87676c5, 2026-07-25_
+
+### F176 — F21's recommended build was never run: the lab vol-targets the arm that LOST, and no sizing code implements vol-targeting at all
+F21 recommends 'EQUAL-WEIGHT diversified daily-MR sleeves ... + VOL-TARGETED (not Kelly) sizing -> ~Sharpe 0.66', bridged to `src/strategy/sizing.py::position_fraction`. Three source-checkable problems, all confirmed.
+
+1. THE BRIDGED FUNCTION CANNOT DO IT. `position_fraction`'s modes are `fixed`/`kelly`/`kelly_clamped`. No vol-target branch, no config knob, and `src/strategy/sizing.py` never computes realized volatility. `vol_target` is defined only in `tools/` — twice, in two labs, with different parameters. Same pattern as F26: aspirational design recorded as if it were running code, this time in the sizing layer.
+
+2. THE RECOMMENDED COMBINATION WAS NEVER MEASURED. `mr_daily_lab.py` calls `vol_target` exactly twice: on `swp`, the trailing-Sharpe-WEIGHTED portfolio (line 179), and on a single QQQ sleeve (line 211). The equal-weight portfolio `ew` is never vol-targeted. So F21's headline composes two rows of one table that never met — the 0.66 is equal-weight WITHOUT vol-targeting, and the vol-target arm was applied to the weighting scheme that lost (0.42). Whether equal-weight plus vol-targeting beats either is unknown. (F20's separate 'vol-targeting helps, 0.56->0.67' is the line-211 single-sleeve QQQ result — a third scope again.)
+
+3. F21's LAB CANNOT PRICE THE COST F40 FOUND DECISIVE. `mr_daily_lab.vol_target` has no `financing` parameter and caps leverage at 3.0; `tools/vol_target_study.vol_target` (behind F40) has one and caps at 2.0. F40 concluded the opposite of F21 — leverage is Sharpe-invariant, the measured lift is timing, and 2%/yr financing pushes the levered form BELOW the unlevered baseline. F21 and F40 contradict each other on vol-targeting with no edge between them in the web.
+
+HONEST MAGNITUDES. The labs also differ on warm-up (`fillna(0.0)` vs `dropna()`; `perf()`'s dropna cannot remove injected ZEROS). Measured on a synthetic heteroskedastic series that is worth ~0.003 Sharpe and the leverage cap does not bind — recorded as structural discrepancies, not large ones. The one exact result: constant leverage leaves Sharpe unchanged to floating point, so any lift must be timing or cap-clipping, and omitting financing is a one-sided error that can only flatter a levered arm.
+
+Guarded by tests/test_f21_vol_target_bridge.py (14 tests), wired as `guarded_by` on the F21 bridge. Scope: neither F21's nor F40's Sharpe numbers are re-tested — both rest on real daily data unreachable offline.
+Links: [[F21|refines]] · [[F40|relates]] · [[F26|supports]].
+_— captured claude/research-continuation-ca1242@afd01b2, 2026-07-25_
