@@ -2525,3 +2525,28 @@ The one H23 proposal the engine CAN already express is per-trade hold length: `b
 Evidence is the committed gap study's own table, parsed rather than quoted from memory. Guarded by tests/test_h23_exit_experiments_scope.py (9 tests).
 Links: [[H23|resolves]] · [[F174|builds_on]] · [[F47|relates]].
 _— captured claude/research-continuation-ca1242@7316ec7, 2026-07-25_
+
+### F198 — H24/H25 answered without a sweep: 'is the stop inside the spread' reduces to a minimum price per mode — TNA needs $33 (IBKR) / $133 (retail)
+H24 fears SOXL/LABU/TNA's tight stops 'may collapse like GDXU'; H25 asks for a GDXU realistic re-sweep. Both prescribe running `sweep.py`, which needs market data — Yahoo is blocked here, so neither can be EXECUTED. Both can be ANSWERED.
+
+THE SWEEP ALREADY CONTAINS THE SAFETY MODEL. `sweep.py` derives a per-instrument cost from `estimate_spread(median_price, broker)` and injects it as `slippage_pct`, overriding the backtest mode's flat 2bps, and computes `auto_min_stop_pct = max(0.15, (5 * est_spread / median_price) * 100)` — 'safe stop = 5x spread', with a hard 0.15% minimum whose stated reason is that tighter stops 'create same-bar ambiguity on hourly bars (both stop and target fit inside one bar's range, making the result random)'. That is exactly F174's mechanism: at a high ambiguous share the `worst_case_ambiguity` flag CHOOSES the result.
+
+SO THE QUESTION REDUCES TO A MINIMUM PRICE. Solving `stop% >= floor%` against the repo's own spread tiers:
+    mode          stop    needs price >= (ibkr)   (retail)
+    TQQQ_HOURLY   0.50%        $10.0               $30.0
+    SOXL_HOURLY   0.45%        $11.2               $33.4
+    GDXU_HOURLY   0.46%        $10.9               $32.7
+    LABU_HOURLY   0.25%        $20.0               $80.0
+    TNA_HOURLY    0.15%        $33.4              $133.4
+
+H24's CONCERN IS CONFIRMED FOR TWO OF THE THREE — AND SOXL IS NOT ONE OF THEM. SOXL clears its floor as easily as TQQQ and GDXU; H24 groups it with the risky pair but the arithmetic separates it. TNA's stop EQUALS the hard 0.15% floor exactly, which means the unconstrained optimum was BELOW it and the constraint bound — a parameter sitting on its own safety boundary. The live path trades through IBKR, so the operative threshold is **TNA is only sweep-safe above ~$33.4**, LABU above ~$20. That converts a vague worry into a checkable precondition.
+
+Also: a flat 'realistic mode' run would NOT have answered H24. Its 2bps is instrument-blind and 5-33x smaller than every one of these stops; the collapse GDXU showed comes from the ambiguity flag and rolling Kelly, not from a spread model. Only the sweep's injected instrument cost probes the spread.
+
+H25 APPEARS ALREADY DONE. GDXU's configured stop is 0.46%, annotated 'realistic sweep' in config.py — not the 0.075% H25 complains about. And 0.075% is HALF the hard 0.15% floor, so it could only have come from `--min-stop 0` or from before the floor existed.
+
+WHAT IS NOT ANSWERED: no price series is available in this checkout, so this establishes THRESHOLDS, not verdicts. One median price per instrument turns them into verdicts, and a test asserts the absence so the gap cannot be forgotten.
+
+Guarded by tests/test_h24_h25_stop_vs_spread_floor.py (14 tests).
+Links: [[H24|refines]] · [[H25|resolves]] · [[F174|builds_on]].
+_— captured claude/research-continuation-ca1242@d7b5883, 2026-07-25_
