@@ -2266,3 +2266,21 @@ NEW GUARD CLASS: PROSE FIGURES BOUND TO COMMITTED DATA. `tests/test_f111_ndx_pan
 The panel remains what its own limitations say: eighteen securities, two batch clusters, no p-values, no controls, prior-winner selection. The 60-session +16.25 pp contrast is the largest number in the table and the least trustworthy one.
 Links: [[F111|supports]] · [[F110|relates]].
 _— captured claude/research-continuation-ca1242@498b071, 2026-07-25_
+
+### F183 — An effective-date join on corporate actions fails in BOTH directions: 7 of 27 CA-01 assertions leak, but 4 are SUPPRESSED — and only the leak has a symptom
+F114 was the second uncited node in the queue (ten figures, zero reachable docs). As with F111 the evidence was there: every figure recomputes exactly from `docs/research/data/ca01_sec_state_machine_fixture.json`.
+
+FIGURES VERIFIED. TWTR's exchange Form 25-NSE precedes the issuer completion 8-K by 11:51:17; ATVI's issuer completion precedes the exchange Form 25-NSE by 00:26:14 — same action family, OPPOSITE order, which is F114's central claim and is now guarded so it cannot quietly stop being demonstrated. BBBY's `trading_suspended` is effective 2023-05-03 but observable only 2023-07-10: a 68-calendar-day retrospective confirmation. 27 assertions, 3 chains, 6 dimensions — all exact. Published `docs/research/CA01_state_vector_clock_separation.md`.
+
+THE ADDITION F114 DOES NOT STATE. F114 says an effective-date join 'leaks information'. Censused across all 27 assertions, the error runs in BOTH directions:
+  - 7 assertions LEAK — visible before their source existed, up to 68 days.
+  - 4 assertions are SUPPRESSED — filed 8-11 days AHEAD of their effective date (scheduled removals, an expected cancellation), so an effective-date join hides facts the market already had.
+  - 16 are same-day, which is precisely why the bug survives in a pipeline: it looks right most of the time.
+
+The two halves fail differently, and the unstated one is the more dangerous. A leak inflates results and gets caught by ordinary suspicion of a good number. A suppression removes information that was genuinely public, makes a strategy look WORSE than it was, and produces no symptom at all — a signal can be discarded as unprofitable when the discard was an artifact of the join. Both hit `predictive_status` assertions, so neither is confined to retrospective bookkeeping.
+
+Guarded by tests/test_f114_state_vector_clocks.py (14 tests), which pins both census halves, the ordering reversal, and the doc-to-fixture agreement.
+
+LIMITS, unchanged: three hand-selected chains, deliberately unrepresentative — chosen to find orderings a single-status model cannot express, not to estimate frequencies. The fixture's own `market_access_policy` states EDGAR acceptance is not investor ingestion.
+Links: [[F114|refines]] · [[E103|relates]] · [[F182|builds_on]].
+_— captured claude/research-continuation-ca1242@64fc05b, 2026-07-25_
