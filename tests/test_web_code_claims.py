@@ -319,5 +319,113 @@ class F23PerModeWindowsClaim(unittest.TestCase):
         )
 
 
+LIVE_SIGNALS = ROOT / "live" / "signals.py"
+GAP_STUDY = ROOT / "tools" / "overnight_gap_risk_study.py"
+
+
+def _kwarg(call, name):
+    """The keyword argument `name` on an ast.Call, or None if not passed."""
+    for kw in call.keywords:
+        if kw.arg == name:
+            return kw
+    return None
+
+
+class FourSiteGateTests(unittest.TestCase):
+    """H27 is not backtest-vs-walk-forward — the runner is the odd one out of FOUR.
+
+    F140 framed the `use_regime_filter` divergence as two paths disagreeing. Counting
+    every production call site of `generate_trades` shows the runner disagreeing with
+    all three others *and* with its own stated intent two lines earlier:
+
+        runner.py              not passed        -> signature default True
+        walk_forward.py        _cfg.USE_REGIME_FILTER
+        live/signals.py        hardcoded False
+        overnight_gap_risk...  study parameter (varied deliberately)
+
+    Two consequences the two-path framing hides. (1) walk-forward and live agree only
+    COINCIDENTALLY, at today's config value: flipping `config.USE_REGIME_FILTER` to
+    True moves the OOS selector and leaves the armed bot where it is. (2) the runner
+    computes the correct per-timeframe gate, hands it to the diagnostics printer, and
+    then never hands it to `generate_trades` — so with `VERBOSE_SIGNALS=True` every
+    backtest prints a gate it did not trade.
+    """
+
+    def test_generate_trades_has_exactly_these_production_call_sites(self):
+        """Bidirectional: a NEW caller must be classified here, not silently ignored."""
+        sites = {}
+        for path in (RUNNER, WALKFWD, LIVE_SIGNALS, GAP_STUDY):
+            sites[path.name] = len(_calls_to(path, "generate_trades"))
+        self.assertEqual(
+            sites,
+            {"runner.py": 1, "walk_forward.py": 1, "signals.py": 1,
+             "overnight_gap_risk_study.py": 1},
+            "the set of production generate_trades call sites changed — re-verify "
+            "which ones pass use_regime_filter and supersede the web node.",
+        )
+
+    def test_runner_is_the_only_caller_that_omits_the_gate(self):
+        self.assertIsNone(
+            _kwarg(_calls_to(RUNNER, "generate_trades")[0], "use_regime_filter"),
+            "runner.py now PASSES use_regime_filter — H27 appears fixed. Supersede "
+            "the web node and re-baseline every backtest number, which was produced "
+            "with the gate at its default True.",
+        )
+        for path in (WALKFWD, LIVE_SIGNALS, GAP_STUDY):
+            self.assertIsNotNone(
+                _kwarg(_calls_to(path, "generate_trades")[0], "use_regime_filter"),
+                "{} stopped passing use_regime_filter — the divergence changed "
+                "shape; re-verify the web node.".format(path.name),
+            )
+
+    def test_walkforward_and_live_agree_only_by_coincidence(self):
+        """walk-forward reads the config; live hardcodes False. They match today
+        because the config happens to be False. That is a latent divergence, not
+        agreement — assert the MECHANISM, not the current value."""
+        import config
+
+        wf = _kwarg(_calls_to(WALKFWD, "generate_trades")[0], "use_regime_filter")
+        self.assertIsInstance(
+            wf.value, ast.Attribute,
+            "walk_forward no longer reads the gate from config — re-verify.")
+        self.assertEqual(wf.value.attr, "USE_REGIME_FILTER")
+
+        live = _kwarg(_calls_to(LIVE_SIGNALS, "generate_trades")[0], "use_regime_filter")
+        self.assertIsInstance(
+            live.value, ast.Constant,
+            "live/signals.py no longer hardcodes the gate — if it now reads config, "
+            "the coincidence is resolved and the web node should be superseded.")
+        self.assertIs(live.value.value, False)
+
+        self.assertFalse(
+            config.USE_REGIME_FILTER,
+            "config.USE_REGIME_FILTER is now True, so walk-forward and live have "
+            "ACTUALLY diverged: the OOS selector gates entries the armed bot does "
+            "not. This is the latent bug firing — do not just update this test.",
+        )
+
+    def test_runner_diagnostics_describe_a_gate_the_trades_do_not_use(self):
+        """The smoking gun: the correct value is computed, printed, and dropped."""
+        import config
+
+        printed = _calls_to(RUNNER, "_print_signal_diagnostics")
+        self.assertEqual(len(printed), 1)
+        # third positional arg is the computed `use_regime`
+        self.assertEqual(
+            getattr(printed[0].args[2], "id", None), "use_regime",
+            "runner no longer prints the computed gate — re-verify the claim.")
+        self.assertTrue(
+            getattr(config, "VERBOSE_SIGNALS", False),
+            "VERBOSE_SIGNALS is off, so the misleading diagnostic no longer prints; "
+            "the wiring bug remains but its visible symptom is gone.",
+        )
+        gate_default = _param_default(ENGINE, "generate_trades", "use_regime_filter")
+        self.assertNotEqual(
+            bool(gate_default), bool(config.USE_REGIME_FILTER),
+            "the printed gate and the traded gate now AGREE — the diagnostic is no "
+            "longer misleading. Supersede the web node.",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
