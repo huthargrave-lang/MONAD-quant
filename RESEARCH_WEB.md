@@ -2582,3 +2582,24 @@ Guarding both directions matters here — items naming NO node id (most of them 
 Guarded by tests/test_opposing_exit_live_parity.py (8 tests) and three new tests in tests/test_research_backlog.py.
 Links: [[F12|relates]] · [[F199|builds_on]].
 _— captured claude/research-continuation-ca1242@a31b3f7, 2026-07-25_
+
+### F201 — H26's shadow evaluator was mostly already possible — and replaying real live bars confirms F195's RSI inversion, worse than the synthetic estimate
+H26 asks for a shadow evaluator: 'a non-trading process that replays bars and logs what a candidate config would have done'. Most of it already existed and nobody had joined the pieces.
+
+THE RAW INDICATORS WERE ALREADY BEING LOGGED. `live/signals.py` writes one row per scheduler cycle into `signal_history.jsonl`, and each row carries `rsi` and `vwap_zscore` — the exact quantities the entry thresholds compare against — alongside the derived signals. So any candidate threshold set replays **offline, with no market data and no new logging**. Built `tools/shadow_replay.py` to do it.
+
+FIRST USE CONFIRMS F195 ON REAL BARS, AND MORE STRONGLY:
+    oversold   rsi<os %   rsi>ob %   in BOTH zones %
+       80        81.4       60.6         41.9    <- the LIVE setting; zones OVERLAP
+       38        13.7       60.6          0.0    <- the daily setting
+322 distinct bars (543 cycle rows — an unchanged bar repeats across cycles, and counting rows would weight quiet hours by scheduler frequency). The live 'oversold' threshold admits **81.4%** of real recorded bars vs **13.7%** for the correctly-ordered daily one, and RSI sits in BOTH named zones on **41.9%** where F195's synthetic estimate was 24.6%. **The real inversion is worse than the modelled one.** Recorded momentum fires long on 130/322 bars, short on 108, neutral on only 84.
+
+ALSO RECORDED: 112 of 322 bars produced a final signal of -1. The live pipeline computes shorts (`generate_trades(..., longs_only=False)`) and `trader.py` discards them behind `TRADER_ALLOW_SHORTS = False`, logging 'Short signal fired but TRADER_ALLOW_SHORTS is False — skipping'. Correct behaviour on a long-only paper bot, and it means about a third of live cycles compute a signal that is thrown away.
+
+WHAT THE REPLAY CANNOT DO, asserted so the tool is not over-read: it cannot vary the RSI PERIOD or MACD windows (only the indicator's VALUE was logged — the F23 boundary), and it cannot evaluate the MACD histogram-turn term, which is not logged at all. Every count is therefore an **upper bound** on how often a candidate would actually fire, and it says nothing about fills or PnL.
+
+So H26's remaining gap is narrow: to replay a different indicator PERIOD, the live logger would need to record `macd_hist` and the periods used. That is a small additive change to a fenced file, not the standalone shadow process H26 imagined.
+
+Guarded by tests/test_shadow_replay.py (13 tests), including a non-vacuity check that the correctly-ordered threshold produces zero overlap.
+Links: [[H26|refines]] · [[F195|supports]] · [[F23|relates]].
+_— captured claude/research-continuation-ca1242@ff9ba53, 2026-07-25_
