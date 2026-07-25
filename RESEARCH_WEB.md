@@ -2434,3 +2434,21 @@ SO H19 IS RETIRED AS STATED. It is a genuine design risk for an engine that woul
 The synthetic series is a shape demonstration of two indicator definitions, not a market claim; no performance conclusion is drawn from it. Guarded by tests/test_h19_regime_lag_is_dead_wired.py (11 tests).
 Links: [[H19|resolves]] · [[F26|supports]] · [[D6|relates]].
 _— captured claude/research-continuation-ca1242@ef2475e, 2026-07-25_
+
+### F193 — H20's premise is false — ATR dynamic stops ARE wired end-to-end — but the implemented feature is a spike detector that collapses R:R from 2.0 to ~0.4 when it fires
+H20 says 'USE_ATR_DYNAMIC_STOPS exists but compute_trade_returns() has no implementation' and asks for ATR-scaled stops/targets so the barriers sit outside intraday noise (F7: the fixed stop is inside the bar's own range 94-100% of the time on 3x ETFs).
+
+THE PREMISE IS FALSE. The feature is wired end to end: `runner.py` builds a `stop_overrides` dict from `atr_pct` and passes it to `compute_trade_returns`, which consumes it at `engine.py:311`. It is simply OFF by default (`USE_ATR_DYNAMIC_STOPS = False`).
+
+BUT WHAT IS IMPLEMENTED IS NOT WHAT H20 ASKS FOR. Three properties, exact from source:
+  1. It is a SPIKE DETECTOR, not a scaling rule — the override applies only when `atr_pct > 2.0 x median(atr_pct, 20)`. On every other bar the stop is unchanged, so on the ordinary bars where F7's complaint lives, nothing happens.
+  2. It ONLY WIDENS, never narrows (`if widened_stop > stop_loss_pct`).
+  3. It NEVER TOUCHES THE TARGET. `compute_trade_returns` accepts `target_overrides`; `runner.py` never builds one.
+
+(2) and (3) together mean reward:risk can only get WORSE when it fires. On synthetic ATR series the trigger fires on ~2% of bars (lognormal) to ~5% (with vol clustering), and when it does the stop widens from 0.50% to a median 2.1-2.5% against an unchanged 1.00% target: **R:R 2.00 -> ~0.40-0.47**, pushing breakeven win rate from 33% to roughly 70%.
+
+SO DO NOT JUST FLIP THE FLAG. Enabling it as-is converts the rare high-volatility trades from 2:1 into about 0.4:1 while leaving the systematic problem untouched — it addresses the tail and not the base case. A rule that actually answered F7 would scale BOTH barriers on EVERY trade, preserving R:R, rather than widening one on a spike.
+
+Trigger rates and R:R medians are from synthetic ATR distributions and are illustrative; the three structural properties are exact. Guarded by tests/test_h20_atr_stops_are_a_spike_detector.py (10 tests), including one that fails if `runner.py` ever starts building target overrides — which would mean the asymmetry was fixed.
+Links: [[H20|resolves]] · [[F7|relates]] · [[F179|builds_on]].
+_— captured claude/research-continuation-ca1242@6c60fb3, 2026-07-25_
