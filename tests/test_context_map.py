@@ -403,14 +403,18 @@ class TestCtxFind(unittest.TestCase):
 
 
 class TestEpistemicCoverage(unittest.TestCase):
-    """`ctx claims` — an implemented_in finding's guarded_by must point at a real
+    """`ctx claims` — a behavior-asserting finding's guarded_by must point at a real
     test (file::symbol), so a renamed/deleted guard test is caught, not silently
-    treated as 'guarded'."""
+    treated as 'guarded'.
+
+    Scope widened for H13/DP-6: this used to check `implemented_in` bridges only, which
+    left 13 of 17 bridges unauditable and let `ctx claims` report "0 UNGUARDED" while
+    six behavior-asserting bridges had no guard at all. Any bridge naming a
+    `file.py::symbol` is now in scope, whatever its relation."""
 
     def setUp(self):
         self.m = _load()
-        self.bridges = [b for b in self.m["graph_bridges"]["bridges"]
-                        if b.get("relation") == "implemented_in"]
+        self.bridges = ctx.behavior_asserting_bridges()
 
     def test_guarded_by_targets_resolve(self):
         for b in self.bridges:
@@ -419,6 +423,48 @@ class TestEpistemicCoverage(unittest.TestCase):
                     self.assertTrue(
                         ctx._claim_guard_resolves(g),
                         f"{b['node']} guarded_by {g!r} does not resolve to a real test file::symbol")
+
+    def test_every_symbol_naming_bridge_is_in_scope(self):
+        """The scoping bug itself, asserted. A bridge that names a ::symbol asserts
+        something about that symbol; if the audit ever narrows back to implemented_in,
+        the metric starts lying again."""
+        named = {b["node"] for b in self.m["graph_bridges"]["bridges"]
+                 if any("::" in c for c in b.get("code", []))}
+        audited = {b["node"] for b in self.bridges}
+        self.assertEqual(
+            named - audited, set(),
+            "these bridges name a ::symbol but are not audited by `ctx claims`: {} — "
+            "the coverage metric under-counts unguarded claims".format(
+                sorted(named - audited)))
+
+    def test_config_only_bridges_are_deliberately_excluded(self):
+        """The other direction: naming a config KEY is not a behavioral claim, and
+        counting it as one would inflate the denominator with unguardable items."""
+        config_only = [b for b in self.m["graph_bridges"]["bridges"]
+                       if b.get("relation") != "implemented_in"
+                       and b.get("code") and not any("::" in c for c in b["code"])]
+        if not config_only:
+            self.skipTest("no config-only bridge exists to check the exclusion against")
+        audited = {b["node"] for b in self.bridges}
+        for b in config_only:
+            self.assertNotIn(b["node"], audited)
+
+    def test_the_unguarded_set_is_the_known_remainder(self):
+        """A ratchet, not a pass/fail on the debt. It fails if a NEW unguarded
+        behavior-asserting bridge appears (debt grew silently), and it fails when one
+        is cleared (update the list, and enjoy it) — so the remaining work stays
+        visible and cannot quietly expand."""
+        known = {"F12", "F13", "F17", "D4"}
+        actual = {b["node"] for b in self.bridges
+                  if not any(ctx._claim_guard_resolves(g)
+                             for g in (b.get("guarded_by") or []))}
+        self.assertEqual(
+            actual, known,
+            "the set of behavior-asserting bridges without a resolving guard changed.\n"
+            "  newly unguarded: {}\n  newly guarded:   {}\n"
+            "If a bridge was cleared, remove it from `known` above. If one appeared, "
+            "write the guard — do not widen `known` to make this pass.".format(
+                sorted(actual - known) or "none", sorted(known - actual) or "none"))
 
     def test_guard_resolver_handles_three_part_pytest_id(self):
         # file::Class::method must resolve by matching the trailing def (not the
@@ -434,7 +480,11 @@ class TestEpistemicCoverage(unittest.TestCase):
         with contextlib.redirect_stdout(buf):
             ctx.cmd_claims(types.SimpleNamespace())
         out = buf.getvalue()
-        self.assertIn("implemented_in claim", out)
+        self.assertIn("behavior-asserting claim", out)
+        self.assertIn("implemented_in,", out, "the breakdown by relation went missing")
+        self.assertIn("[concerns]", out,
+                      "concerns bridges are no longer reported — the audit narrowed "
+                      "back to implemented_in and the metric will under-count again")
         self.assertIn("GUARDED", out, "F11's penalty-inversion claim should resolve as guarded")
 
 

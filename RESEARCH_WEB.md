@@ -2184,3 +2184,16 @@ NOT APPLIED. `live/**` is fenced and the F157 approval covered that specific cha
 Guarded by tests/test_d5_recommendation_gap.py (12 tests), including two vacuity checks — an un-leveraged daily mode IS reachable in config, so 'D5 not applied' is a reversible choice rather than an impossibility.
 Links: [[D5|supports]] · [[F157|builds_on]] · [[F158|refines]].
 _— captured claude/research-continuation-ca1242@ef97ca0, 2026-07-25_
+
+### F178 — H13/DP-6 closed: the guard audit covered 4 of 17 bridges and reported '0 UNGUARDED' while six behavior-asserting claims had no guard
+`ctx claims` — the project's own test-vs-epistemic coverage metric — scoped itself to `implemented_in` bridges. There are 4 of those and 17 bridges total, so 13 were permanently unauditable, and the command printed **'4 claims · 0 UNGUARDED'** while six bridges naming a `file.py::symbol` had no guard at all. A metric that cannot see most of its domain and reports perfect coverage is worse than no metric: it retires the question.
+
+FIX. `behavior_asserting_bridges()` now includes any bridge naming a `::symbol`, whatever its relation — F17 'concerns compute_trade_returns' asserts something about that function exactly as strongly as an `implemented_in` edge does. Bridges naming only `config.KEY` stay excluded: a config name is not a behavioral claim and counting it would inflate the denominator with unguardable items. `ctx claims` now reports **14 behavior-asserting claims (4 implemented_in, 10 concerns/gated_by) · 4 UNGUARDED**, and `TestEpistemicCoverage` validates guard RESOLUTION across all of them rather than a quarter.
+
+I DID NOT DO H13's SECOND PRESCRIPTION, deliberately. H13 asked to 'upgrade behavior-asserting ones to implemented_in+guarded_by'. That conflates two different relations — a finding ABOUT a function is not IMPLEMENTED IN it — and would have corrupted the taxonomy to satisfy a scoping bug. Widening the audit makes the relation irrelevant to auditability, which is the same outcome without the type error.
+
+RATCHET. `test_the_unguarded_set_is_the_known_remainder` pins the remaining four (F12, F13, F17, D4). It fails if a new unguarded behavior-asserting bridge appears AND when one is cleared, so the debt stays visible and cannot quietly grow. Two further tests assert the scope itself in both directions: every `::symbol` bridge is audited, and config-only bridges are excluded.
+
+CONTEXT: the six unguarded bridges were 14 at the start of this session; F19/F20/F21/D5 (this session) plus F16/D2/F6 closed seven. Same family as F161 — the auditor degrading the metric it built.
+Links: [[H13|resolves]] · [[F161|builds_on]] · [[F141|relates]].
+_— captured claude/research-continuation-ca1242@1908f69, 2026-07-25_

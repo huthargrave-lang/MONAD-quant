@@ -2273,33 +2273,62 @@ def _claim_guard_resolves(g):
     return os.path.exists(os.path.join(REPO, g))
 
 
+def behavior_asserting_bridges():
+    """Bridges whose claim is about CODE BEHAVIOR, so a guard test is meaningful.
+
+    `implemented_in` is the explicit case. But a `concerns`/`gated_by` bridge that names
+    a `file.py::symbol` is asserting something about that symbol just as strongly — F17
+    "concerns compute_trade_returns" is a claim about what that function does. Scoping
+    the audit to `implemented_in` alone (H13/DP-6) let 13 of 17 bridges sit permanently
+    unauditable, and made `ctx claims` print "0 UNGUARDED" while six behavior-asserting
+    bridges had no guard at all — a metric that lies by construction.
+
+    A bridge pointing only at `config.KEY` is excluded: naming a config value is not a
+    behavioral claim, and there is nothing for a guard to assert about it on its own.
+    """
+    out = []
+    for b in _graph_bridges():
+        if b.get("relation") == "implemented_in":
+            out.append(b)
+        elif any("::" in c for c in b.get("code", [])):
+            out.append(b)
+    return out
+
+
 def cmd_claims(args):
-    """Test↔epistemic coverage: for each `implemented_in` idea↔code bridge (a Finding
-    asserting concrete CODE BEHAVIOR), report whether a designated guard TEST asserts
-    that specific claim. `ctx covers <sym>` only shows tests that TOUCH a symbol — a
-    finding can look covered (the symbol has tests) while its claim is unguarded. The
-    live example: F23 claims momentum_signal ignores the per-mode RSI/MACD periods;
-    momentum_signal has tests, but none assert that claim → it shows UNGUARDED here."""
-    bridges = [b for b in _graph_bridges() if b.get("relation") == "implemented_in"]
+    """Test↔epistemic coverage: for each idea↔code bridge asserting concrete CODE
+    BEHAVIOR, report whether a designated guard TEST asserts that specific claim.
+    `ctx covers <sym>` only shows tests that TOUCH a symbol — a finding can look covered
+    (the symbol has tests) while its claim is unguarded. The live example: F23 claims
+    momentum_signal ignores the per-mode RSI/MACD periods; momentum_signal has tests,
+    but none assert that claim → it shows UNGUARDED here.
+
+    Covers `implemented_in` bridges AND any `concerns`/`gated_by` bridge naming a
+    `::symbol` (H13/DP-6) — see behavior_asserting_bridges()."""
+    bridges = behavior_asserting_bridges()
     if not bridges:
-        print("no implemented_in bridges (findings asserting concrete code behavior)")
+        print("no bridges asserting concrete code behavior")
         return
     nodes, _ = _parse_web()
     unguarded = 0
-    for b in sorted(bridges, key=lambda x: x["node"]):
+    for b in sorted(bridges, key=lambda x: (x.get("relation", ""), x["node"])):
         node, code = b["node"], ", ".join(b["code"])
+        rel = b.get("relation", "?")
         guards = b.get("guarded_by") or []
         resolved = [g for g in guards if _claim_guard_resolves(g)]
         if resolved:
-            print(f"  GUARDED    {node}  ({code})")
+            print(f"  GUARDED    {node}  [{rel}]  ({code})")
             for g in resolved:
                 print(f"             └ {g}")
         else:
             unguarded += 1
-            print(f"  UNGUARDED  {node} — {nodes.get(node, {}).get('title', '')[:58]}")
+            print(f"  UNGUARDED  {node}  [{rel}] — {nodes.get(node, {}).get('title', '')[:52]}")
             print(f"             claim about {code} has no test asserting it"
                   + (f"; declared guards {guards} do not resolve" if guards else ""))
-    print(f"\n  {len(bridges)} implemented_in claim(s) · {unguarded} UNGUARDED")
+    n_impl = sum(1 for b in bridges if b.get("relation") == "implemented_in")
+    print(f"\n  {len(bridges)} behavior-asserting claim(s) "
+          f"({n_impl} implemented_in, {len(bridges) - n_impl} concerns/gated_by) "
+          f"· {unguarded} UNGUARDED")
     if unguarded:
         print("  → write a test that ASSERTS the claim (not just exercises the symbol), "
               "then add `guarded_by: [tests/x.py::TestY]` to the bridge")
