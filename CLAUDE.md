@@ -83,9 +83,13 @@ Raw OHLCV data (Alpha Vantage / yfinance)
         ▼
 [run_backtest()]  ← runner.py
   ├── estimate_stats_from_backtest() → win rate, avg win/loss
-  ├── compute_position_size()        → fractional Kelly sizing
-  └── equity curve loop              → per-trade Kelly × regime_mult × ADX_mult
+  ├── position_fraction()            → sizing (DEFAULT: fixed 10%, not Kelly)
+  └── equity curve loop              → position = capital × fraction
 ```
+
+> ⚠️ The old last line read `per-trade Kelly × regime_mult × ADX_mult`. **No such
+> multiplication exists** — see the §5 wiring warning (F145). The default path sizes at a
+> flat `FIXED_POSITION_PCT = 0.10`, deliberately, to match the live trader.
 
 **Key design principle:** Every component is independently togglable via config flags.
 No component "knows about" another — signals produce columns, engine routes them,
@@ -131,7 +135,8 @@ See Section 4 below.
   - ADX < 20 (choppy): Kelly × 0.8
   - 20 ≤ ADX ≤ 35: Kelly × 1.0
   - ADX > 35 (strong trend): Kelly × 1.2
-- **Active** (USE_ADX_SIZING=True) but marginal effect in practice
+- ⚠️ **DEAD (F145):** the column is computed but **no code reads it**, and `USE_ADX_SIZING`
+  has zero readers anywhere. Effect is exactly zero, not "marginal". See §10.
 
 ### bull_breakout_signal
 - **Status: BUILT BUT DISABLED** (BULL_BREAKOUT_ENABLED=False)
@@ -203,6 +208,28 @@ STRONG_BULL → strategy continues entering longs into a 20% correction.
 ---
 
 ## 5. Kelly Criterion Sizing
+
+> ⚠️ **WIRING WARNING (2026-07-25 — `RESEARCH_WEB.md` F145).** The multiplier chain below
+> **exists in no code path.** `runner.py:246` is plainly `position = capital * kelly_capped`
+> — there is no `regime_mult` and no `adx_mult` anywhere in `runner.py` or `sizing.py`.
+> `regime_kelly_mult` (written `momentum.py:183`) and `adx_kelly_mult` (written
+> `volatility.py:111-113`) are computed as DataFrame columns and **consumed by nothing**.
+> This is true regardless of sizing mode. Likewise `MAX_POSITION_PCT_STRONG_BULL` — the
+> "KEY FIX" credited below with 10.55%→11.05% and Sharpe 4.844→4.924 — has exactly one
+> non-definition reference in the repo: a test asserting its inline *comment* matches its
+> *value*. **No code reads it.** So the truncation-bug story is history, not mechanism.
+>
+> What actually runs: `config_modules/base.py:24` sets `POSITION_SIZING_MODE = "fixed"` with
+> `FIXED_POSITION_PCT = 0.10`, and `sizing.py:129` returns `fixed_pct` before any Kelly code.
+> This is **deliberate**, not a bug — `sweep_sizing.py`'s docstring explains it as
+> live-alignment (workstream C1) so backtest numbers reflect how the bot actually trades, and
+> every backtest prints `Sizing: Fixed 10% per trade` in its result block. Kelly is still
+> reachable two ways: `walk_forward.py:242-251` runs its own half-Kelly equity loop
+> (`main.py --mode=walk-forward`), and `sweep.py --sizing kelly`. That the default path and
+> the walk-forward path size differently is the F28 comparability problem.
+>
+> Read this section as *intended design*, not *current behaviour*. Restoring it means wiring
+> the two multiplier columns into `position_fraction` and re-validating everything.
 
 ### Base Kelly formula
 ```
@@ -426,10 +453,20 @@ stop-hit vs target-hit vs time-exit. This makes it impossible to know if bad mon
 are from noise-triggered stops (mechanical) or real adverse moves (structural).
 **Fix:** Add an `exit_type` column to the return (minor refactor of compute_trade_returns).
 
-### ADX multiplier: working but marginal (Performance agent, Q3)
-ADX multiplier IS correctly computed (volatility.py:133-135) and applied (runner.py:129-134).
-However its effect is only ±20% on Kelly sizing → <1% total return swing over 5yr.
-Not broken, not impactful. Leave as-is.
+### ADX multiplier: ~~working but marginal~~ NOT APPLIED (Performance agent, Q3)
+
+> ⚠️ **FALSE AS WRITTEN (2026-07-25 — `RESEARCH_WEB.md` F145).** Both halves of the original
+> claim are wrong, and **both line cites are stale** — which is the tell that it was never
+> re-verified after the code moved. `volatility.py` is **115 lines long**, so "volatility.py:133-135"
+> points past the end of the file (`adx_kelly_mult` is written at **111-113**), and
+> "runner.py:129-134" is now ATR stop-widening code. The multiplier is **computed but never
+> applied**: `adx_kelly_mult` has no consumer in `runner.py` or `sizing.py`. `USE_ADX_SIZING`
+> (`config.py:109`) is read by **nothing at all**, including tests. Its effect is not "±20% on
+> Kelly sizing" — it is exactly zero. Guarded by `DeadSizingKnobTests`.
+
+*Original text, retained for history:* ADX multiplier IS correctly computed
+(volatility.py:133-135) and applied (runner.py:129-134). However its effect is only ±20% on
+Kelly sizing → <1% total return swing over 5yr. Not broken, not impactful. Leave as-is.
 
 ### RECOVERING regime: not dead, but sparse (Performance agent, Q1)
 RECOVERING contributes ~3-8 trades over 5yr on secondary dips during recovery phases.
@@ -482,9 +519,9 @@ BEAR_DEFENSIVE_LONGS = True     # Small longs in BEAR at RSI<30, quarter-Kelly
 BULL_BREAKOUT_ENABLED = False   # Disabled: momentum trap near ATH
 STRONG_BULL_REQUIRE_50MA = False # Disabled: filtered 71/83 5yr trades
 STRONG_BULL_SOFT_50MA_PCT = 0.02 # Active: block entries >2% below 50-MA
-USE_ADX_SIZING = True           # Active: ADX multiplier on position size
+USE_ADX_SIZING = True           # ⚠ DEAD (F145): zero readers anywhere — governs nothing
 USE_ATR_DYNAMIC_STOPS = False   # Disabled: widen stops in high-vol periods
-MAX_POSITION_PCT_STRONG_BULL = 0.30  # KEY FIX: lets Kelly×1.5 deploy to 27%
+MAX_POSITION_PCT_STRONG_BULL = 0.30  # ⚠ DEAD (F145): no code reads it; see §5 warning
 TARGET_GAIN_PCT_STRONG_BULL = 0.03   # 3% (not 5% — 5% killed win rate)
 USE_OPPOSING_SIGNAL_EXIT = False # Tested: hurts TQQQ (sweep confirmed)
 ```
