@@ -56,6 +56,13 @@ last 40 commits, so you do not redo your own work.
 
 Take the top item unless you have a specific reason not to; say the reason if so. If it
 prints **BACKLOG EMPTY**, that is an instruction to open a *new* direction, not to stop.
+
+**If the same item tops the queue repeatedly and you keep skipping it, stop skipping
+silently and raise it.** A standing block — needs sign-off, moves published numbers,
+waiting on data rights — is a decision for the owner, not something to route around
+each cycle. Once they decide, record it in `DEFERRED` in `tools/research_backlog.py`
+*with their reason*, so the item leaves the queue without leaving the record.
+`list --deferred` shows what is held and why; a deferral is a pause, not a verdict.
 Pick an unexamined fixture in `docs/research/data/`, an unaudited module, or a question
 the web has never asked — and record it as an `H` node **before** you start, so the
 hypothesis is on record independent of how it turns out.

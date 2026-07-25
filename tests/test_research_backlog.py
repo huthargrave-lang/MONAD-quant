@@ -181,3 +181,64 @@ class ResolvedHypothesesAreNotFlaggedUncitedTests(unittest.TestCase):
             n_resolves, 0,
             "no resolves edges exist, so the direction-blindness guard above is "
             "vacuous — re-check when the first hypothesis is closed")
+
+
+class OwnerDeferralTests(unittest.TestCase):
+    """A deferral must be a PAUSE, not a disappearance.
+
+    The whole point of this engine is that nothing worth doing goes unseen. An
+    exemption list is the obvious way to stop an item topping the queue forever, and
+    also the obvious way to lose it — so every deferral carries a written reason, the
+    count is surfaced by `next`, and `list --deferred` prints them in full.
+    """
+
+    def test_every_deferral_carries_a_reason(self):
+        for key, reason in BL.DEFERRED.items():
+            self.assertTrue(
+                str(reason).strip(),
+                "{} is deferred with no reason — an unexplained entry is how a real "
+                "blocker becomes invisible".format(key))
+            self.assertGreater(
+                len(str(reason)), 40,
+                "{}'s reason is too terse to be actionable later".format(key))
+
+    def test_deferred_keys_correspond_to_real_backlog_items(self):
+        """A stale key silently defers nothing and hides a typo."""
+        live = {str(t["key"]) for t in BL.collect(skip_recent=False)}
+        held = {str(t["key"]) for t in BL.deferred()}
+        for key in BL.DEFERRED:
+            self.assertIn(
+                key, live | held,
+                "{} is in DEFERRED but matches no backlog item — the item was "
+                "renamed or resolved; drop the stale entry".format(key))
+
+    def test_deferred_items_are_excluded_from_the_queue(self):
+        keys = {str(t["key"]) for t in BL.collect(skip_recent=False)}
+        for key in BL.DEFERRED:
+            self.assertNotIn(key, keys, "{} is deferred but still queued".format(key))
+
+    def test_deferred_items_remain_RETRIEVABLE(self):
+        """The property that makes this a pause rather than a deletion."""
+        if not BL.DEFERRED:
+            self.skipTest("nothing deferred")
+        held = BL.deferred()
+        self.assertEqual(
+            {str(t["key"]) for t in held}, set(BL.DEFERRED),
+            "deferred() does not return every deferred item — some are unreachable")
+        for t in held:
+            self.assertTrue(t["deferred_reason"], "a deferred item lost its reason")
+
+    def test_next_surfaces_that_something_is_deferred(self):
+        import io
+        import types
+        from contextlib import redirect_stdout
+
+        if not BL.DEFERRED:
+            self.skipTest("nothing deferred")
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            BL.command_next(types.SimpleNamespace(no_skip=False))
+        self.assertIn(
+            "owner-deferred", buf.getvalue(),
+            "`next` no longer mentions deferred items — they have become invisible")
+

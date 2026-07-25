@@ -65,6 +65,23 @@ FIGURE = re.compile(r"(?<![\w.])(-?\d+(?:\.\d+)?)(?:%|pp|bps|bp|bn|yr|mo|x)?(?![
 # session, small enough that a genuinely stalled item resurfaces.
 RECENT_COMMITS = 40
 
+# Items the OWNER has deferred. These are removed from the queue but never hidden —
+# `next` and `list` both report the count, and `list --deferred` prints them with
+# their reasons. Silent truncation is the failure mode this engine exists to avoid;
+# an item nobody can see is worse than one that keeps topping the queue.
+#
+# Add an entry ONLY on an explicit human decision, and record WHY. An unexplained
+# entry is how a real blocker becomes invisible. Remove the entry when the block
+# lifts — a deferral is a pause, not a verdict.
+DEFERRED = {
+    "open:f148-the-utc-gate-": (
+        "Owner-deferred 2026-07-25. Correcting either the timezone or the "
+        "else-branch changes which bars produce entries, so every hourly backtest "
+        "number moves. Needs explicit sign-off plus a re-sweep; the finding stands "
+        "recorded in F148 meanwhile."
+    ),
+}
+
 
 def _git(*args: str) -> str:
     try:
@@ -303,9 +320,20 @@ def collect(skip_recent: bool = True) -> List[dict]:
     for t in tasks:
         t["score"] = round(float(t["leverage"]) * float(t["tractability"]), 4)
         t["recently_touched"] = bool(subjects) and _recently_touched(t, subjects)
-    fresh = [t for t in tasks if not t["recently_touched"]]
+        t["deferred_reason"] = DEFERRED.get(str(t["key"]))
+    fresh = [t for t in tasks
+             if not t["recently_touched"] and not t["deferred_reason"]]
     fresh.sort(key=lambda t: (-t["score"], -t["tractability"], str(t["key"])))
     return fresh
+
+
+def deferred(skip_recent: bool = True) -> List[dict]:
+    """Owner-deferred items, so a deferral is visible rather than a disappearance."""
+    nodes = load_nodes()
+    tasks = (source_open_items() + source_uncited(nodes) + source_unguarded()
+             + source_unresolved(nodes) + source_blocked_labs())
+    return [dict(t, deferred_reason=DEFERRED[str(t["key"])])
+            for t in tasks if str(t["key"]) in DEFERRED]
 
 
 # --------------------------------------------------------------------------- #
@@ -320,6 +348,10 @@ def command_next(args) -> None:
         print("fixture in docs/research/data/, an unaudited module, or a question")
         print("the web has never asked. Record it as a new H node first.")
         return
+    held = deferred()
+    if held:
+        print("  ({} item(s) owner-deferred and excluded — "
+              "`list --deferred` to see them)\n".format(len(held)))
     t = tasks[0]
     print("NEXT  [{}]  score={:.2f}".format(t["kind"], t["score"]))
     print("  {}".format(t["title"]))
@@ -331,6 +363,15 @@ def command_next(args) -> None:
 
 
 def command_list(args) -> None:
+    if getattr(args, "deferred", False):
+        held = deferred()
+        if not held:
+            print("  nothing is owner-deferred")
+            return
+        for t in held:
+            print("  [{}] {}".format(t["kind"], t["title"]))
+            print("      {}".format(t["deferred_reason"]))
+        return
     tasks = collect(skip_recent=not args.no_skip)
     if not tasks:
         print("  backlog empty — see `next` for what to do instead")
@@ -354,6 +395,8 @@ def main(argv: Optional[Iterable[str]] = None) -> None:
     p.set_defaults(func=command_next)
     p = sub.add_parser("list", help="the ranked queue")
     p.add_argument("-n", type=int, default=15)
+    p.add_argument("--deferred", action="store_true",
+                   help="show owner-deferred items and why")
     p.set_defaults(func=command_list)
     p = sub.add_parser("json", help="machine-readable")
     p.set_defaults(func=command_json)
