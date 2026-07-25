@@ -2452,3 +2452,20 @@ SO DO NOT JUST FLIP THE FLAG. Enabling it as-is converts the rare high-volatilit
 Trigger rates and R:R medians are from synthetic ATR distributions and are illustrative; the three structural properties are exact. Guarded by tests/test_h20_atr_stops_are_a_spike_detector.py (10 tests), including one that fails if `runner.py` ever starts building target overrides — which would mean the asymmetry was fixed.
 Links: [[H20|resolves]] · [[F7|relates]] · [[F179|builds_on]].
 _— captured claude/research-continuation-ca1242@6c60fb3, 2026-07-25_
+
+### F194 — The soft 50-MA gate runs on the live hourly mode against a 50-HOUR mean with a threshold calibrated from 50-DAY distances — blocking ~42% of dip-entry candidates
+H21 proposes raising `STRONG_BULL_SOFT_50MA_PCT` 0.02 -> 0.05, citing DAILY observations (bad Jun-2024 entries 7-15% below the 50-MA, good Aug-2023 ones 1-3% below). Three facts about the running code mean that threshold does not measure what H21 thinks.
+
+1. IT IS ACTIVE ON THE LIVE MODE. `STRONG_BULL_SOFT_50MA_PCT = 0.02` and `generate_trades` applies it whenever `ma_50d` exists.
+
+2. ON HOURLY IT GATES ALL LONGS, NOT JUST STRONG_BULL. There is no `regime` column on the hourly path, so the code takes the else-branch: `gate_mask = long_mask & deep_below`. The regime-awareness H21 assumes is daily-only.
+
+3. `ma_50d` ON HOURLY IS A 50-HOUR MEAN. `engine.py:50` says so itself: 'For hourly bars, 50 periods ~= ~2.5 trading days (vs 50 days for daily).' So a threshold calibrated from distance-below-a-50-DAY MA is applied to distance-below-a-2.5-DAY MA, on a 3x ETF.
+
+WHAT IT COSTS. On a synthetic 3x hourly series (sigma ~1.1%/bar, TQQQ-like), 2% below the 50-bar MA covers **28% of all bars and 42% of DIP bars** — dip bars being exactly the mean-reversion entry candidates the strategy exists to take. The gate conditions on the very property that defines an entry, so it selects against the strategy's own signal. For scale, CLAUDE.md §7 records the STRICT any-touch version was reverted for filtering 71 of 83 trades; the current setting is far milder than that but nothing like the gentle filter H21 describes.
+
+H21's DIRECTION IS RIGHT, ITS REASONING DOES NOT TRANSFER. Raising 0.02 -> 0.05 cuts the hourly block rate from ~28% to ~11%, which is probably an improvement on the live path — but not because June-2024 dips sat 7-15% below a 50-DAY MA. Any recalibration must be done in the timeframe the gate actually runs in, and the daily evidence H21 cites cannot justify a value for the hourly gate.
+
+Percentages come from synthetic series with the stated volatilities and illustrate the scale mismatch; they are not measurements of TQQQ. The three structural facts are exact. Guarded by tests/test_h21_soft_50ma_gate_timeframe.py (10 tests), including a non-vacuity check that the two timeframes really do differ at the same threshold.
+Links: [[H21|refines]] · [[F192|builds_on]] · [[F7|relates]].
+_— captured claude/research-continuation-ca1242@2e64308, 2026-07-25_
