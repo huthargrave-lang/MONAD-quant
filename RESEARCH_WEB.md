@@ -2625,3 +2625,22 @@ NOT PAPERED OVER. Re-partitioning CONFIRMED cannot help: dropping stop_hit disca
 Guarded by tests/test_h28_fill_provenance_gap.py (12 tests), which fails if the column lands (prompting a re-partition) or if the inference starts writing a durable event.
 Links: [[F189|refines]] · [[H28|supports]] · [[F160|relates]].
 _— captured claude/research-continuation-ca1242@7ee72f3, 2026-07-25_
+
+### F203 — The 'ready for real money' gate's verdict FLIPS on F202's lossy partition: 63.1% / 72.3% / 81.5% confirmed against an 80% bar
+H29 calls `ops/analyze_run.py`'s clean-run rubric 'the evidence gate that blocks everything'. Running the protocol needs a live week plus a sweep with market data — neither available here. What the gate MEASURES is checkable, and it inherits F202's defect in a second, independent copy.
+
+THE SAME CONTAMINATED SET, DEFINED TWICE. `analyze_run.py:27` declares `ACTUAL = {"bracket_exit", "stop_hit"}` with the comment 'exits with a confirmed fill price' — identical to `ctx.CONFIRMED`, in a separate file. Both include `stop_hit`, which `_infer_bracket_exit` can produce WITHOUT a fill; both exclude `target_hit`, which the broker writes from a real LMT fill. Two implementations of one fact, wrong the same way, so neither can catch the other — the F20/F145/F189 pattern with both copies defective.
+
+AND THE VERDICT FLIPS. The rubric's criterion is '>=80% of fills are confirmed'. On the committed 65-trade run:
+    bracket_exit + stop_hit  (as written)       47/65 = 72.3%  -> FAIL
+    bracket_exit only        (provably actual)  41/65 = 63.1%  -> FAIL
+    bracket_exit + stop_hit + target_hit        53/65 = 81.5%  -> PASS
+**The 80% bar sits INSIDE the band the ambiguity spans.** So the gate meant to authorise real money returns a different answer depending on a distinction the ledger cannot make. That is a stronger argument for H28's column than 'PnL is uninterpretable' — here a specific go/no-go decision changes.
+
+A WHOLE EXIT CLASS IS ALSO UNCLASSIFIED. The rubric buckets exits into ACTUAL, ARTIFACT (`time_exit`) and SYNTH (`estimated_close`, `paper_reset`). `target_hit` is in NONE of them: its 6 trades count toward 'ALL trades' and toward nothing else, so they are invisible in every per-bucket line the report prints.
+
+NOT FIXED. Correcting the partition needs the provenance H28 asks for; picking a bucket for `target_hit` without it would move the error rather than remove it. Recorded, bounded, and guarded — a test fails if the two copies diverge (which is not automatically an improvement), if `target_hit` gets bucketed, or if the threshold moves out of the band.
+
+Guarded by tests/test_h29_evidence_gate_partition.py (12 tests).
+Links: [[H29|refines]] · [[F202|builds_on]] · [[H28|supports]].
+_— captured claude/research-continuation-ca1242@dd5a58a, 2026-07-25_
