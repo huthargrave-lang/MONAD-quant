@@ -2505,3 +2505,23 @@ THE FENCE IS UNCHANGED, AND THAT IS ASSERTED. A test checks `ctx can_edit live/C
 Supersedes the blocked half of F191.
 Links: [[F191|refines]] · [[H18|resolves]] · [[F190|relates]].
 _— captured claude/research-continuation-ca1242@1f83f94, 2026-07-25_
+
+### F197 — H23 scoped: the hold cap is a measured null (8 vs 10 bars = 0.01pp), the FILL MODEL swings 4.98pp, and trailing/partial exits are engine work not experiments
+H23 proposes trailing stops, partial profit-taking and a vol-scaled hold as the successor to F17/F19. Two of the three are engine changes; the third is already measured, with a null result.
+
+VOL-SCALED HOLD IS BOUNDED SMALL, ON REAL DATA. The overnight-gap study replayed the observed TQQQ live path at both configured caps:
+    max bars 8:  34 gap events, exact -5.18%, gap-aware -10.15%, damage -5.38pp
+    max bars 10: 34 gap events, exact -5.17%, gap-aware -10.15%, damage -5.38pp
+Changing the cap moves total return by **0.01pp** and leaves the gap-event count identical. A vol-scaled hold varies exactly this parameter, so the study already bounds the family it belongs to.
+
+That table also settles a backtest<->live mismatch worth naming: the backtest reads `MAX_TRADE_BARS = 8` (runner.py:106) while the live trader reads `MAX_TRADE_BARS_LIVE = 10` (trader.py:552). They disagree — and uniquely among the mismatches this repo has found, it is **measurably immaterial**. Worth recording precisely because the reflex from F12 would be to assume otherwise.
+
+WHAT DOMINATES IS THE FILL MODEL. In the same table, changing how the stop FILLS — exact-stop vs gap-aware — moves the same path from -5.17% to -10.15%: a **4.98pp swing, ~500x the hold-cap effect**, with a single event (2025-01-27) contributing an 8.96pp understatement. F174 found the same shape from the other side: the `worst_case_ambiguity` flag inverts which exit rule wins. So **exit-model assumptions dominate exit-parameter choices**, and H23 proposes only parameter changes.
+
+TRAILING AND PARTIAL EXITS DO NOT FIT THE ENGINE. `compute_trade_returns` books a stop at the constant `-stop - stop_slippage_pct` with no per-bar stop state, and neither it nor `runner.py` contains any notion of a fractional position. A trailing stop needs the stop level to move within a trade; a partial exit needs position accounting that does not exist. Both are engine work, not sweeps — stating this before anyone schedules them as parameter experiments.
+
+The one H23 proposal the engine CAN already express is per-trade hold length: `bar_limit_overrides` exists and is used only by `walk_forward.py`; `runner.py` never passes one. A test fails if it starts, so a vol-scaled hold would be measured against the null result above rather than assumed to help.
+
+Evidence is the committed gap study's own table, parsed rather than quoted from memory. Guarded by tests/test_h23_exit_experiments_scope.py (9 tests).
+Links: [[H23|resolves]] · [[F174|builds_on]] · [[F47|relates]].
+_— captured claude/research-continuation-ca1242@7316ec7, 2026-07-25_
