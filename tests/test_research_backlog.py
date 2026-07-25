@@ -1,0 +1,133 @@
+"""Tests for the autonomous loop's work-selection engine.
+
+The engine's job is to keep a continuous agent from two failure modes:
+
+* **Stuttering** — redoing what it just finished. Guarded by the anti-repetition
+  filter, which keys off recent commits.
+* **Starving** — suppressing so much that nothing is left. This is the subtler
+  failure, and it is a real one: a first version matched on title tokens like
+  `strategy` and `engine`, which appear in most commit bodies, and suppressed 23 of
+  30 items. A loop fed by that returns "backlog empty" while real work sits there.
+
+So the tests below assert BOTH directions, and the starvation test is the load-bearing
+one, because over-suppression fails silently while under-suppression is merely noisy.
+"""
+import importlib.util
+import sys
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+_SPEC = importlib.util.spec_from_file_location(
+    "research_backlog", ROOT / "tools" / "research_backlog.py")
+BL = importlib.util.module_from_spec(_SPEC)
+sys.modules[_SPEC.name] = BL
+_SPEC.loader.exec_module(BL)
+
+
+class AntiRepetitionTests(unittest.TestCase):
+    def test_a_node_named_in_a_recent_commit_is_suppressed(self):
+        task = {"node": "F142", "title": "some finding"}
+        self.assertTrue(BL._recently_touched(task, ["capture f142: the go/no-go cites nothing"]))
+
+    def test_a_node_NOT_named_is_kept(self):
+        task = {"node": "F999", "title": "some finding"}
+        self.assertFalse(BL._recently_touched(task, ["capture f142: something else"]))
+
+    def test_node_matching_is_whole_word_not_substring(self):
+        """F14 must not be suppressed by a commit about F142."""
+        self.assertFalse(
+            BL._recently_touched({"node": "F14", "title": "x"}, ["about f142 here"]))
+
+    def test_generic_engineering_words_do_NOT_suppress(self):
+        """The starvation bug. `strategy`/`engine` appear in most commit bodies; if
+        they suppress, the queue empties while real work remains."""
+        task = {"node": None, "title": "code-claim about src/strategy/engine.py::generate_trades"}
+        subjects = ["refactor the strategy engine and its config signals"]
+        self.assertFalse(
+            BL._recently_touched(task, subjects),
+            "generic vocabulary is suppressing items — the loop will starve")
+
+    def test_a_distinctive_filename_DOES_suppress(self):
+        task = {"node": None, "title": "bond_ladder_study.py"}
+        self.assertTrue(
+            BL._recently_touched(task, ["route bond_ladder_study.py through data_cache"]))
+
+    def test_a_task_with_a_node_ignores_its_title_entirely(self):
+        """Precise key wins: falling through to title tokens is what caused the
+        over-suppression, so a node-keyed task must not consult its title."""
+        task = {"node": "F999", "title": "bond_ladder_study.py"}
+        self.assertFalse(
+            BL._recently_touched(task, ["route bond_ladder_study.py through data_cache"]))
+
+
+class CollectTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.unfiltered = BL.collect(skip_recent=False)
+        cls.filtered = BL.collect(skip_recent=True)
+
+    def test_the_engine_finds_real_work(self):
+        self.assertGreater(len(self.unfiltered), 5)
+
+    def test_the_filter_suppresses_something_but_not_everything(self):
+        """Both directions at once. If suppression hits 100% the loop starves; if it
+        hits 0% the filter is inert and the loop stutters."""
+        n_all, n_fresh = len(self.unfiltered), len(self.filtered)
+        self.assertLess(n_fresh, n_all, "filter is inert — the loop will repeat itself")
+        self.assertGreater(
+            n_fresh, 0,
+            "filter suppressed EVERYTHING — the loop will report an empty backlog "
+            "while real work remains. This is the starvation failure.")
+        self.assertLess(
+            (n_all - n_fresh) / n_all, 0.9,
+            "filter is suppressing >90% of the queue; check for generic-token matching")
+
+    def test_every_task_carries_an_actionable_instruction(self):
+        for t in self.unfiltered:
+            self.assertTrue(str(t["action"]).strip(), "task {} has no action".format(t["key"]))
+            self.assertIn(t["kind"],
+                          {"uncited", "unresolved", "unguarded", "blocked", "open_item"})
+            self.assertGreater(t["score"], 0.0)
+
+    def test_tasks_are_ranked_by_score_descending(self):
+        scores = [t["score"] for t in self.filtered]
+        self.assertEqual(scores, sorted(scores, reverse=True))
+
+    def test_keys_are_unique_so_the_loop_can_deduplicate(self):
+        keys = [t["key"] for t in self.unfiltered]
+        self.assertEqual(len(keys), len(set(keys)))
+
+    def test_human_stated_open_items_outrank_inferred_ones(self):
+        """A handoff item is a deliberate human priority; inference should not
+        outrank it at equal tractability."""
+        opens = [t for t in self.unfiltered if t["kind"] == "open_item"]
+        if not opens:
+            self.skipTest("no handoff open items parsed")
+        self.assertTrue(all(t["leverage"] >= 0.8 for t in opens))
+
+
+class NeverStopsTests(unittest.TestCase):
+    """The loop must not treat an empty queue as a reason to stop."""
+
+    def test_empty_backlog_still_instructs_the_agent_to_continue(self):
+        import io
+        from contextlib import redirect_stdout
+        import types
+
+        original = BL.collect
+        try:
+            BL.collect = lambda **kw: []
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                BL.command_next(types.SimpleNamespace(no_skip=False))
+            out = buf.getvalue()
+        finally:
+            BL.collect = original
+        self.assertIn("Do NOT stop", out)
+        self.assertIn("new direction", out)
+
+
+if __name__ == "__main__":
+    unittest.main()

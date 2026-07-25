@@ -1,0 +1,356 @@
+#!/usr/bin/env python3
+"""BACKLOG — what should the next research cycle work on?
+
+An autonomous loop needs a *work-selection* engine, or it drifts: it redoes what it
+just did, or picks whatever is most recently in mind rather than what matters. This is
+that engine. It reads the repo and returns a ranked queue, with a concrete next action
+per item and — critically — an **anti-repetition filter** keyed off recent commits, so
+a loop that has just closed an item moves on instead of circling it.
+
+It deliberately reports what `ctx health` cannot. `ctx health` returns 100/100 while
+the web has a single articulation point, 50 dead-end hypotheses, and 143 nodes quoting
+figures with no citation (F142, F151) — because health checks dangling references and
+staleness, not leverage, connectivity, or reproducibility.
+
+Sources, each a distinct failure mode this project has actually shipped:
+
+* ``uncited``    — nodes quoting figures that reach no research doc (F142). Ranked by
+                   reliance in-degree, so blast-radius x uncitedness comes first. That
+                   ranking is what put D6 at the top.
+* ``unresolved`` — hypotheses no Finding ever answered (F151: 50 of 74). Ranked by age.
+* ``unguarded``  — idea<->code bridges with no ``guarded_by`` test. These are the
+                   claims that rot silently, because code moves and prose does not.
+* ``blocked``    — labs that cannot run offline, which is what makes a finding
+                   unreproducible on a fresh checkout (F144/F156).
+* ``open_item``  — the newest handoff's explicit open list, so human-stated priorities
+                   outrank anything this tool infers.
+
+Scoring is ``leverage * tractability``, both in [0,1], and both are *stated* rather
+than learned — there is no data here to fit them on, and a fitted score would be false
+precision. Ties break toward the cheaper item.
+
+Stdlib only; read-only; writes nothing.
+
+Commands::
+
+    python3 tools/research_backlog.py next          # exactly one task, for a loop
+    python3 tools/research_backlog.py list [-n 15]  # the ranked queue
+    python3 tools/research_backlog.py json          # machine-readable
+"""
+from __future__ import annotations
+
+import argparse
+import collections
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+from typing import Dict, Iterable, List, Mapping, Optional, Sequence
+
+REPO = Path(__file__).resolve().parents[1]
+WEB = REPO / "RESEARCH_WEB.md"
+DOCS = REPO / "docs" / "research"
+
+_TOOLS = str(Path(__file__).resolve().parent)
+if _TOOLS not in sys.path:
+    sys.path.insert(0, _TOOLS)
+import epistemic_audit_lab as _epi  # noqa: E402  (canonical web parser)
+
+RELIANCE = {"relies_on", "supports", "refines", "builds_on"}
+DOC_REF = re.compile(r"docs/research/([A-Za-z0-9_\-]+\.md)")
+FIGURE = re.compile(r"(?<![\w.])(-?\d+(?:\.\d+)?)(?:%|pp|bps|bp|bn|yr|mo|x)?(?![\w.])")
+
+# How many recent commits count as "already worked on". Large enough to cover a long
+# session, small enough that a genuinely stalled item resurfaces.
+RECENT_COMMITS = 40
+
+
+def _git(*args: str) -> str:
+    try:
+        out = subprocess.run(["git", "-C", str(REPO), *args],
+                             capture_output=True, text=True, timeout=30)
+        return out.stdout
+    except Exception:
+        return ""
+
+
+def recent_subjects(n: int = RECENT_COMMITS) -> List[str]:
+    return [l.strip().lower() for l in
+            _git("log", "--format=%s%n%b", "-n", str(n)).splitlines() if l.strip()]
+
+
+def _figures(text: str) -> set:
+    text = text.replace("−", "-").replace("–", "-").replace("—", "-")
+    text = re.sub(r"(?<=\d),(?=\d\d\d)", "", text)
+    return {m.group(1) for m in FIGURE.finditer(text)
+            if len(m.group(1).replace("-", "").replace(".", "")) >= 2}
+
+
+def load_nodes() -> Dict[str, dict]:
+    return _epi.parse_web(WEB.read_text(encoding="utf-8"))
+
+
+def reliance_in_degree(nodes: Mapping[str, dict]) -> Dict[str, int]:
+    deg: Dict[str, int] = collections.Counter()
+    for node in nodes.values():
+        for target, etype in node.get("edges", []):
+            if etype in RELIANCE and target in nodes:
+                deg[target] += 1
+    return deg
+
+
+# --------------------------------------------------------------------------- #
+# sources                                                                      #
+# --------------------------------------------------------------------------- #
+def source_uncited(nodes, limit: int = 8) -> List[dict]:
+    """Nodes quoting figures that reach no research doc, by reliance in-degree."""
+    deg = reliance_in_degree(nodes)
+    rows = []
+    for nid, node in nodes.items():
+        body = str(node.get("body", ""))
+        if node.get("superseded"):
+            continue
+        figs = _figures(body)
+        if len(figs) < 5:
+            continue
+        reachable = set(DOC_REF.findall(body))
+        for target, _ in node.get("edges", []):
+            if target in nodes:
+                reachable |= set(DOC_REF.findall(str(nodes[target].get("body", ""))))
+        if reachable:
+            continue
+        rows.append({
+            "key": "uncited:{}".format(nid),
+            "kind": "uncited",
+            "node": nid,
+            "title": str(node.get("title", ""))[:90],
+            "evidence": "{} figures, 0 reachable docs, {} reliance dependents".format(
+                len(figs), deg.get(nid, 0)),
+            # Leverage scales with how much of the graph leans on it.
+            "leverage": min(1.0, 0.35 + deg.get(nid, 0) / 40.0),
+            "tractability": 0.6,   # writing a doc is bounded work, but not trivial
+            "action": ("Locate or reconstruct the evidence for {}'s figures and publish "
+                       "docs/research/<STUDY>.md, then link it. If the numbers are NOT "
+                       "recoverable, say so in the node — that is also a result."
+                       .format(nid)),
+        })
+    rows.sort(key=lambda r: -r["leverage"])
+    return rows[:limit]
+
+
+def source_unresolved(nodes, limit: int = 6) -> List[dict]:
+    """Hypotheses no Finding ever answered."""
+    cited_by_finding = set()
+    resolved = set()
+    for nid, node in nodes.items():
+        for target, etype in node.get("edges", []):
+            if etype == "resolves":
+                resolved.add(target)
+            if nid.startswith("F") and target.startswith("H"):
+                cited_by_finding.add(target)
+    rows = []
+    for nid, node in nodes.items():
+        if not nid.startswith("H") or node.get("superseded"):
+            continue
+        if nid in resolved or nid in cited_by_finding:
+            continue
+        title = str(node.get("title", ""))
+        if re.search(r"\b(RESOLVED|DEAD|DONE|CLOSED)\b", title, re.I):
+            continue
+        rows.append({
+            "key": "unresolved:{}".format(nid),
+            "kind": "unresolved",
+            "node": nid,
+            "title": title[:90],
+            "evidence": "no resolves edge; no Finding cites it",
+            "leverage": 0.5,
+            "tractability": 0.45,
+            "action": ("Test {} or retire it. An untested hypothesis that is never "
+                       "closed biases the project's self-measured error rate toward "
+                       "looking stable (F133/F151).".format(nid)),
+        })
+    rows.sort(key=lambda r: r["node"])
+    return rows[:limit]
+
+
+def source_unguarded(limit: int = 6) -> List[dict]:
+    """Idea<->code bridges with no guarded_by test — the claims that rot silently."""
+    path = REPO / "context_map.json"
+    if not path.exists():
+        return []
+    try:
+        bridges = json.loads(path.read_text(encoding="utf-8"))["graph_bridges"]["bridges"]
+    except Exception:
+        return []
+    rows = []
+    for b in bridges:
+        if b.get("guarded_by"):
+            continue
+        rows.append({
+            "key": "unguarded:{}".format(b.get("node")),
+            "kind": "unguarded",
+            "node": b.get("node"),
+            "title": "code-claim about {}".format(", ".join(b.get("code", []))[:70]),
+            "evidence": "bridge has no guarded_by test",
+            "leverage": 0.7,      # a rotting code-claim misleads every future reader
+            "tractability": 0.8,  # an AST/behavioural guard is usually a short test
+            "action": ("Write a BIDIRECTIONAL guard for {}: it must fail if the claim "
+                       "stops being true, with a message telling the maintainer to "
+                       "supersede the WEB node rather than edit the test."
+                       .format(b.get("node"))),
+        })
+    return rows[:limit]
+
+
+def source_blocked_labs(limit: int = 5) -> List[dict]:
+    """Labs that cannot run offline are findings nobody can reproduce."""
+    rows = []
+    for path in sorted((REPO / "tools").glob("*_study.py")):
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        if "data_cache" in text or "yfinance" not in text:
+            continue
+        rows.append({
+            "key": "blocked:{}".format(path.name),
+            "kind": "blocked",
+            "node": None,
+            "title": path.name,
+            "evidence": "fetches network data without the validated cache guard",
+            "leverage": 0.45,
+            "tractability": 0.75,
+            "action": ("Route {}'s cache through tools/data_cache.py so a blocked "
+                       "fetch raises instead of writing a stub that every later run "
+                       "trusts (F144).".format(path.name)),
+        })
+    return rows[:limit]
+
+
+def source_open_items(limit: int = 6) -> List[dict]:
+    """The newest handoff's explicit open list. Human priorities outrank inference."""
+    handoffs = sorted(DOCS.glob("HANDOFF_*.md"))
+    if not handoffs:
+        return []
+    text = handoffs[-1].read_text(encoding="utf-8")
+    section = re.search(r"\n##+\s*\d*\.?\s*Open[^\n]*\n(.*?)(?=\n##\s|\Z)", text, re.S)
+    if not section:
+        return []
+    rows = []
+    for m in re.finditer(r"^\s*\d+\.\s+\*\*(.+?)\*\*(.*)$", section.group(1), re.M):
+        head = m.group(1).strip()
+        rows.append({
+            "key": "open:{}".format(re.sub(r"\W+", "-", head.lower())[:40]),
+            "kind": "open_item",
+            "node": None,
+            "title": head[:90],
+            "evidence": "listed open in {}".format(handoffs[-1].name),
+            "leverage": 0.85,     # a human wrote this down deliberately
+            "tractability": 0.5,
+            "action": (m.group(2).strip()[:240] or "See {}".format(handoffs[-1].name)),
+        })
+    return rows[:limit]
+
+
+# --------------------------------------------------------------------------- #
+# ranking                                                                      #
+# --------------------------------------------------------------------------- #
+def _recently_touched(task: Mapping[str, object], subjects: Sequence[str]) -> bool:
+    """Has a recent commit already addressed this item?
+
+    Anti-repetition is the difference between a loop and a stutter. Matching is
+    deliberately loose (node id, or a distinctive title token) and errs toward
+    SKIPPING: re-doing finished work wastes a whole cycle, whereas skipping a live
+    item only defers it — it resurfaces once the commit falls out of the window.
+    """
+    node = task.get("node")
+    if node:
+        # A node id is a PRECISE key — match on it alone and stop. Falling through to
+        # title tokens here was the bug: "code-claim about src/strategy/engine.py"
+        # tokenises to `strategy`/`engine`, which appear in most commit bodies, and
+        # suppressed 23 of 30 items instead of the 7 genuinely addressed.
+        pat = re.compile(r"\b{}\b".format(re.escape(str(node).lower())))
+        return any(pat.search(s) for s in subjects)
+
+    # No node id (blocked labs, handoff items): match a DISTINCTIVE token only.
+    # Generic engineering vocabulary matches everything, so it is excluded, and a
+    # filename is required to appear whole rather than as a substring.
+    title = str(task.get("title", "")).lower()
+    generic = {"research", "should", "because", "strategy", "engine", "signals",
+               "config", "study", "python", "tools", "claim", "code-claim", "about"}
+    tokens = [t for t in re.findall(r"[a-z_][a-z_0-9]{5,}", title) if t not in generic]
+    return any(re.search(r"\b{}\b".format(re.escape(t)), s)
+               for t in tokens[:3] for s in subjects)
+
+
+def collect(skip_recent: bool = True) -> List[dict]:
+    nodes = load_nodes()
+    tasks: List[dict] = []
+    tasks += source_open_items()
+    tasks += source_uncited(nodes)
+    tasks += source_unguarded()
+    tasks += source_unresolved(nodes)
+    tasks += source_blocked_labs()
+
+    subjects = recent_subjects() if skip_recent else []
+    for t in tasks:
+        t["score"] = round(float(t["leverage"]) * float(t["tractability"]), 4)
+        t["recently_touched"] = bool(subjects) and _recently_touched(t, subjects)
+    fresh = [t for t in tasks if not t["recently_touched"]]
+    fresh.sort(key=lambda t: (-t["score"], -t["tractability"], str(t["key"])))
+    return fresh
+
+
+# --------------------------------------------------------------------------- #
+# CLI                                                                          #
+# --------------------------------------------------------------------------- #
+def command_next(args) -> None:
+    tasks = collect(skip_recent=not args.no_skip)
+    if not tasks:
+        print("BACKLOG EMPTY — every tracked item was addressed in the last "
+              "{} commits.".format(RECENT_COMMITS))
+        print("Do NOT stop. Open a genuinely new direction: pick an unexamined")
+        print("fixture in docs/research/data/, an unaudited module, or a question")
+        print("the web has never asked. Record it as a new H node first.")
+        return
+    t = tasks[0]
+    print("NEXT  [{}]  score={:.2f}".format(t["kind"], t["score"]))
+    print("  {}".format(t["title"]))
+    print("  why : {}".format(t["evidence"]))
+    print("  do  : {}".format(t["action"]))
+    if len(tasks) > 1:
+        print("\n  (queue depth {}; runner-up: {})".format(
+            len(tasks), tasks[1]["title"][:70]))
+
+
+def command_list(args) -> None:
+    tasks = collect(skip_recent=not args.no_skip)
+    if not tasks:
+        print("  backlog empty — see `next` for what to do instead")
+        return
+    print("  {:<5} {:<12} {:<58} {}".format("score", "kind", "item", "why"))
+    for t in tasks[: args.n]:
+        print("  {:<5.2f} {:<12} {:<58} {}".format(
+            t["score"], t["kind"], t["title"][:58], t["evidence"][:44]))
+
+
+def command_json(args) -> None:
+    print(json.dumps(collect(skip_recent=not args.no_skip), indent=2))
+
+
+def main(argv: Optional[Iterable[str]] = None) -> None:
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--no-skip", action="store_true",
+                    help="do not filter items addressed in recent commits")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    p = sub.add_parser("next", help="exactly one task, for an autonomous loop")
+    p.set_defaults(func=command_next)
+    p = sub.add_parser("list", help="the ranked queue")
+    p.add_argument("-n", type=int, default=15)
+    p.set_defaults(func=command_list)
+    p = sub.add_parser("json", help="machine-readable")
+    p.set_defaults(func=command_json)
+    args = ap.parse_args(list(argv) if argv is not None else None)
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()
