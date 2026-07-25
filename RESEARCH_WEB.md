@@ -2644,3 +2644,23 @@ NOT FIXED. Correcting the partition needs the provenance H28 asks for; picking a
 Guarded by tests/test_h29_evidence_gate_partition.py (12 tests).
 Links: [[H29|refines]] · [[F202|builds_on]] · [[H28|supports]].
 _— captured claude/research-continuation-ca1242@dd5a58a, 2026-07-25_
+
+### F204 — CORRECTED: the OHLC validation IS on the live path and catches every corruption class — but it DROPS bars, and the hole it leaves is unchecked
+H30 says 'bad data silently corrupts signals' and lists bar-continuity checks as open. Testing the first half corrected my own starting hypothesis, so both halves are recorded.
+
+MY FIRST READ WAS WRONG. I constructed corrupt frames directly, fed them to `build_features`, and found RSI 2.6 from a zero close and RSI 99.2 from a close above the high, none blocked by the live NaN gate. That was an artifact of BYPASSING THE FETCHER. `src/data/fetcher.py::validate_ohlc` is called at the end of `fetch_yfinance` — which `live/signals.py` uses — and it removes every class I tested: `low > high`, open/close outside `[low, high]`, zero prices, NaN prices, negative volume. Verified as positive controls: each corruption drops exactly one bar.
+
+BUT IT DROPS RATHER THAN RAISES, AND NOTHING SEES THE GAP. Corrupting three recent bars of a 400-bar hourly panel removes them silently, leaving 397 bars with a **4-hour hole** in an otherwise 1-hour series. Then:
+  - `_fetch_recent_bars`'s `min_bars` floor (200) does not fire — the panel is still long. Only LARGE drops are caught.
+  - Its staleness check inspects only the LATEST bar, which is untouched.
+  - The NaN gate sees finite values, because they are finite.
+  - Indicators are computed straight across the discontinuity: **RSI moves 2.82 points**.
+The validation catches bad VALUES; nothing catches the DISCONTINUITY it creates. That is exactly H30's open bar-continuity item, with a worked example.
+
+AND THE DROP LEAVES NO DURABLE TRACE. `validate_ohlc` emits a `log.warning`, not a monitor event, so a live run whose panel was silently shortened has nothing in the durable record. This is the **THIRD** instance of one shape: F172 (healthy exits emit no event), F202 (`_infer_bracket_exit` logs at info), and now this. Degraded paths announce themselves to a log nobody keeps — that recurrence is now worth treating as a pattern rather than three incidents.
+
+MAGNITUDE, HONESTLY. 2.82 RSI points rarely flips the live threshold of 80, which per F195 binds on almost nothing. It matters more on the correctly-ordered daily 38 and near any boundary. The finding is that the shift happens UNNOTICED, not that it is large.
+
+Guarded by tests/test_h30_ohlc_validation_leaves_holes.py (11 tests), with the validation's effectiveness asserted as positive controls so the correction cannot be lost.
+Links: [[H30|refines]] · [[F202|builds_on]] · [[F172|relates]].
+_— captured claude/research-continuation-ca1242@a5d28d3, 2026-07-25_
