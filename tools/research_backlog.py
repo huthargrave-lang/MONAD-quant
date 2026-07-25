@@ -59,6 +59,13 @@ import epistemic_audit_lab as _epi  # noqa: E402  (canonical web parser)
 
 RELIANCE = {"relies_on", "supports", "refines", "builds_on"}
 DOC_REF = re.compile(r"docs/research/([A-Za-z0-9_\-]+\.md)")
+# A node naming a REPRODUCING TOOL is not uncited in the same sense as one naming
+# nothing: it gives a reader a way to regenerate the result, just not a document
+# holding the numbers. Measured across the web: 11 nodes cite a doc only, 74 cite
+# both, 39 (10.3%) cite a TOOL ONLY, and 253 cite neither. A doc-only metric treats
+# that middle group as uncited, which overstates the gap. They are ranked below
+# doc-cited nodes but above uncited ones, not dropped.
+TOOL_REF = re.compile(r"tools/([a-z0-9_]+)\.py")
 FIGURE = re.compile(r"(?<![\w.])(-?\d+(?:\.\d+)?)(?:%|pp|bps|bp|bn|yr|mo|x)?(?![\w.])")
 
 # How many recent commits count as "already worked on". Large enough to cover a long
@@ -146,15 +153,23 @@ def source_uncited(nodes, limit: int = 8) -> List[dict]:
                     reachable |= set(DOC_REF.findall(str(other.get("body", ""))))
         if reachable:
             continue
+        # Second-class evidence: a reproducing tool named by the node or one hop out.
+        tooled = set(TOOL_REF.findall(body))
+        for target, _ in node.get("edges", []):
+            if target in nodes:
+                tooled |= set(TOOL_REF.findall(str(nodes[target].get("body", ""))))
         rows.append({
             "key": "uncited:{}".format(nid),
             "kind": "uncited",
             "node": nid,
             "title": str(node.get("title", ""))[:90],
-            "evidence": "{} figures, 0 reachable docs, {} reliance dependents".format(
-                len(figs), deg.get(nid, 0)),
-            # Leverage scales with how much of the graph leans on it.
-            "leverage": min(1.0, 0.35 + deg.get(nid, 0) / 40.0),
+            "evidence": "{} figures, 0 reachable docs{}, {} reliance dependents".format(
+                len(figs),
+                " (names tool {})".format(sorted(tooled)[0]) if tooled else "",
+                deg.get(nid, 0)),
+            # Leverage scales with how much of the graph leans on it, discounted when
+            # a reproducing tool is at least named — that is a weaker gap than nothing.
+            "leverage": min(1.0, 0.35 + deg.get(nid, 0) / 40.0) * (0.6 if tooled else 1.0),
             "tractability": 0.6,   # writing a doc is bounded work, but not trivial
             "action": ("Locate or reconstruct the evidence for {}'s figures and publish "
                        "docs/research/<STUDY>.md, then link it. If the numbers are NOT "

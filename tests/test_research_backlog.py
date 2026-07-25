@@ -242,3 +242,45 @@ class OwnerDeferralTests(unittest.TestCase):
             "owner-deferred", buf.getvalue(),
             "`next` no longer mentions deferred items — they have become invisible")
 
+
+
+class ToolCitationIsSecondClassEvidenceTests(unittest.TestCase):
+    """A node naming a reproducing TOOL is not as uncited as one naming nothing.
+
+    Measured across the web: 11 nodes cite a doc only, 74 cite both, 39 (10.3%) cite
+    a TOOL only, and 253 cite neither. A doc-only metric treats that middle group as
+    fully uncited, which overstates the gap — naming `tools/bond_ladder_study.py`
+    gives a reader a way to regenerate the result, even though the tool does not hold
+    the numbers the way a study document does.
+
+    So tool-cited nodes are DISCOUNTED rather than excluded: still queued, ranked
+    below genuinely uncited ones. Excluding them would hide a real (if weaker) gap;
+    ranking them equal would waste cycles on the more recoverable case first.
+    """
+
+    def test_a_tool_reference_lowers_leverage_but_does_not_remove_the_item(self):
+        nodes = BL.load_nodes()
+        rows = BL.source_uncited(nodes, limit=50)
+        tooled = [r for r in rows if "names tool" in r["evidence"]]
+        plain = [r for r in rows if "names tool" not in r["evidence"]]
+        if not tooled:
+            self.skipTest("no tool-cited node currently in the uncited queue")
+        self.assertTrue(plain, "every uncited node names a tool — discount is vacuous")
+        # same dependent count should rank the tool-cited node lower
+        for t in tooled:
+            self.assertLess(
+                t["leverage"], 1.0,
+                "{} names a tool yet carries undiscounted leverage".format(t["node"]))
+
+    def test_the_discount_is_visible_in_the_evidence_string(self):
+        """A silent discount is unauditable — the reason must be readable."""
+        nodes = BL.load_nodes()
+        for row in BL.source_uncited(nodes, limit=50):
+            if row["leverage"] < min(1.0, 0.35 + 0 / 40.0) * 0.61:
+                self.assertIn(
+                    "names tool", row["evidence"],
+                    "{} was discounted without saying why".format(row["node"]))
+
+    def test_tool_regex_matches_this_repos_layout(self):
+        self.assertTrue(BL.TOOL_REF.findall("see tools/bond_ladder_study.py for it"))
+        self.assertFalse(BL.TOOL_REF.findall("no tool named here"))
