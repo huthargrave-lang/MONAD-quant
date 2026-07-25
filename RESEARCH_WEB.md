@@ -2469,3 +2469,26 @@ H21's DIRECTION IS RIGHT, ITS REASONING DOES NOT TRANSFER. Raising 0.02 -> 0.05 
 Percentages come from synthetic series with the stated volatilities and illustrate the scale mismatch; they are not measurements of TQQQ. The three structural facts are exact. Guarded by tests/test_h21_soft_50ma_gate_timeframe.py (10 tests), including a non-vacuity check that the two timeframes really do differ at the same threshold.
 Links: [[H21|refines]] · [[F192|builds_on]] · [[F7|relates]].
 _— captured claude/research-continuation-ca1242@2e64308, 2026-07-25_
+
+### F195 — H22's '~50% of bars' explained: every hourly mode sets RSI oversold ABOVE overbought, so the RSI entry filter is inert and the signal is the MACD tick alone
+H22 observes the entry signal fires on ~half of all bars and asks for entry quality. The frequency is right and the cause is specific.
+
+EVERY HOURLY ETF MODE HAS OVERSOLD ABOVE OVERBOUGHT:
+  TQQQ_HOURLY  oversold 80  overbought 62   <- the LIVE mode
+  GDXU_HOURLY  oversold 85  overbought 62
+  QQQ_HOURLY   oversold 70  overbought 62
+  BTC_DAILY    oversold 38  overbought 62   <- the only correctly ordered pair
+
+`momentum_signal` fires long on `(rsi < oversold) & (hist > hist.shift(1))`. On a synthetic hourly series run through the repo's own `compute_rsi`/`compute_macd`, `rsi < 80` is true on **94.9%** of bars (98.0% at GDXU's 85). The long signal therefore reduces to 'the MACD histogram ticked up', which fires about half the time by construction — measured **46.2%**, which is exactly H22's '~50%'. The RSI term changes the long rate by under 15% versus the bare MACD tick.
+
+For contrast the daily mode's correctly-ordered 38 gives `rsi < 38` on 23.3% of bars and a long signal on **6.6%** — seven times more selective.
+
+THE ZONES ALSO OVERLAP. With oversold 80 above overbought 62, RSI sits in BOTH named zones on **24.6%** of bars. No contradictory signal results — `hist` rising and falling are mutually exclusive, and a test confirms zero bars satisfy both conditions — but that is the point: the RSI term contributes nothing and the labels no longer describe what they select.
+
+THIS LOOKS LIKE AN OPTIMIZER OUTCOME, NOT A TYPO. The context map records GDXU's 85 as 'GDXU RSI saturated; 85 optimal' — a sweep result. A sweep free to raise `oversold` keeps raising it while the constraint hurts, until it stops binding at all. The feature was not tuned; it was switched off from the outside, and nothing in the repo flags the inversion.
+
+CONSEQUENCE FOR H22. 'Deeper RSI' is not a refinement of a working filter — it would be RESTORING one that is currently inert on every hourly mode, including the one that trades. And it reframes CLAUDE.md §3, which presents `RSI < 38` as the core entry condition: that is the daily mode only.
+
+Percentages are synthetic (sigma ~1.1%/bar) but computed with the production indicator code; the threshold orderings are exact config values. Guarded by tests/test_h22_rsi_thresholds_are_inverted.py (11 tests), including a non-vacuity check that the daily mode is still ordered correctly.
+Links: [[H22|refines]] · [[F23|relates]] · [[F192|builds_on]].
+_— captured claude/research-continuation-ca1242@e382d29, 2026-07-25_
