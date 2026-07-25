@@ -50,14 +50,29 @@ RISK_TOKENS = ("kill_switch", "KILL_SWITCH", "MAX_DAILY_LOSS", "DRAWDOWN_LIMIT",
                "MAX_NOTIONAL", "daily_loss")
 
 
+# The finding ledger and the handoff docs must be able to NAME a missing control
+# without the guard reading that as the control existing. Same exclusion, and same
+# reason, as the branch-drift guard: F206's own text tripped this test on first run.
+DESCRIBES_RATHER_THAN_IMPLEMENTS = ("tests/", "RESEARCH_WEB.md", "docs/", "IMPROVEMENT_PLAN.md")
+
+
 def grep_first_party(token):
     out = subprocess.run(["git", "grep", "-l", "--", token], cwd=str(ROOT),
                          capture_output=True, text=True)
-    return [f for f in out.stdout.split() if not f.startswith("tests/")]
+    return [f for f in out.stdout.split()
+            if not f.startswith(DESCRIBES_RATHER_THAN_IMPLEMENTS)]
 
 
 class NoSessionLevelRiskControlExistsTests(unittest.TestCase):
-    def test_none_of_the_named_controls_appear_anywhere(self):
+    def test_the_ledger_can_name_a_control_without_tripping_the_guard(self):
+        """Non-vacuity for the exclusion above: F206 does name these tokens."""
+        out = subprocess.run(["git", "grep", "-l", "--", "MAX_DAILY_LOSS"],
+                             cwd=str(ROOT), capture_output=True, text=True)
+        self.assertIn("RESEARCH_WEB.md", out.stdout,
+                      "the ledger no longer names the missing controls, so the "
+                      "exclusion is untested")
+
+    def test_none_of_the_named_controls_appear_in_CODE(self):
         found = {t: grep_first_party(t) for t in RISK_TOKENS}
         present = {t: f for t, f in found.items() if f}
         self.assertEqual(

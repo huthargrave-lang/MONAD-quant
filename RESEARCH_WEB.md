@@ -2696,3 +2696,22 @@ NOTHING FIXED. Every control H32 asks for lives in `live/`, which is fenced, and
 Guarded by tests/test_h32_no_session_level_risk_limits.py (13 tests), which fails if any named control lands (prompting a recompute) and if OPERATIONS.md gains the stop command.
 Links: [[H32|supports]] · [[F47|builds_on]] · [[F193|relates]].
 _— captured claude/research-continuation-ca1242@b8a4e11, 2026-07-25_
+
+### F207 — sweep.py's cache footgun is the OPPOSITE of the recorded one: the cache is almost never read, so no poison risk — and no rate-limit protection either
+The 2026-07-25 handoff lists 'sweep.py has the same cache footgun' as open, meaning F167's poison-cache class. Measuring it found something different, and in one respect the opposite.
+
+THE CACHE IS ALMOST NEVER READ BACK. The read guard requires `df.index[0] <= start_dt`, but `start_dt` is `pd.Timestamp("2024-08-01")` — **midnight** — while the first intraday bar of that day is 13:30 UTC. `13:30 <= 00:00` is False, so the cache is REJECTED on every invocation where `--start` is a plain date, which is the normal one. Verified against the exact expression from `fetch_ticker_hourly`.
+
+TWO CONSEQUENCES PULLING OPPOSITE WAYS:
+  - The POISON risk is mostly moot here — a bad panel is written but not re-read on the common path, so the failure mode the handoff assumed does not usually arise.
+  - But the cache gives NO RATE-LIMIT PROTECTION either, and every sweep re-fetches ~710 days of hourly bars. That is exactly what provokes the yfinance 429s H30 lists as open. **The cache exists to prevent the thing it is not preventing.**
+
+AND IT IS INVOCATION-DEPENDENT. The cache IS accepted when the stored panel happens to begin on an EARLIER calendar day than requested — i.e. when some previous run used a wider start. So a sweep's data source silently differs between runs of the same command depending on history, which is worse than either consistent outcome.
+
+WHEN IT IS READ, THE GUARD CHECKS ENDPOINTS, NOT DENSITY. A morning-only panel (F12's quirk, 3 bars/day instead of 7) has IDENTICAL first and last timestamps and 43% of the bars. A panel with a 400-bar interior hole (F204's silent `validate_ohlc` drop) has identical endpoints too. Both are accepted. The one property that would catch the two data defects this repo has actually recorded is the one not checked.
+
+THE FIX IS TWO LINES AND NOT MINE TO MAKE: `df.index[0].normalize() <= start_dt` plus a bars-per-day floor. `sweep.py` is WARN-fenced (selection-of-record) and this changes which data the parameter selection sees, so it needs sign-off. Both halves of the fix are asserted in the guard so the intent is unambiguous when someone takes it.
+
+Guarded by tests/test_sweep_cache_guard.py (13 tests). A slice error in my first pass silently dropped zero bars and made the interior-hole case look like it passed for the wrong reason; the corrected test now asserts the hole is exactly 400 bars.
+Links: [[F167|refines]] · [[F12|relates]] · [[F204|builds_on]].
+_— captured claude/research-continuation-ca1242@2b9ad2e, 2026-07-25_
