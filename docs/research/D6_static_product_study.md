@@ -66,16 +66,29 @@ Only **GLD** (lowest correlation, +0.14) shows a directional signal: it shallows
 
 **The multiple-comparisons discount (required disclosure).** GLD is the **winner of three** tested sleeves. Its one-sided P(Δ≤0) = 0.031 clears an *unadjusted* 5% one-sided test but **FAILS** the 3-test Bonferroni threshold (one-sided p ≤ 0.0167). Two-sided, the CI lower bound (−0.003) already fails 0. So gold is **in-sample best-of-3, OOS-unconfirmed, and not family-wise significant**. The 94% P(shallower-DD) is a *descriptive directional tilt*, not a significant Sharpe edge. The sleeve test also runs only on 2014–2026, a strong **gold-bull** sub-window (GLD ~10%/yr), so gold's apparent benefit is exactly the kind of regime-dependent diversification that demands OOS / pre-2014 (GLD launched 2004) confirmation.
 
+> 📝 **CORRECTION (2026-07-25 — `RESEARCH_WEB.md` F146).** The Finding and Verdict below
+> originally reported the headline as **0.84 Sharpe / 9.5% CAGR "(dividend-correct)"** and the
+> dividend effect as **+0.02 Sharpe**. Those are the **composition-variant** row's numbers, not
+> the dividend-corrected ones — the exact conflation the "Honest read" under the Results table
+> warns about 30 lines above ("the all-TR ETF basket looks richer (CAGR 9.5%) but the extra is
+> *composition*, not dividends"). The table at Results is authoritative: dividend-corrected is
+> **0.85 / 9.4%**, and the dividend effect is **+0.03 Sharpe**, which is what web node `F38`
+> records. Corrected in place; the composition row's own 0.84 / 9.5% figures are unchanged and
+> still correct where they are genuinely about composition.
+>
+> This error propagated: `D6_forward_expectation_study.md:10` quotes F38 but carries the wrong
+> 9.5%. The general lesson is in F146 — figures move by **citation**, not by recomputation.
+
 ## The Finding
 
-**The honest static 60/40 is ~Sharpe 0.84 / CAGR ~9.5%/yr (dividend-correct), it is robust to the rebalance schedule, and no single third sleeve reliably improves it — gold is the only borderline candidate and it fails a family-wise correction.** Specifically:
-1. **Ceiling (honest, but composition-specific):** dividends lift the 60/40 by **~+0.02 Sharpe / ~+0.3%/yr** (the +0.5%/yr in the tool overstates dividends by ~0.2%/yr of composition). Studies #2–4 were mildly conservative against the active engine, so the active deficit ([[F35]]/[[F37]]) is real, not a price-only artifact. The 9.5% CAGR is **not a generic 60/40 number** — it rests on a QQQ-inclusive growth-tilted equity leg (a large-cap-only 60/40 is ~1.5%/yr / ~0.04 Sharpe lower) and a 2002–2026 **secular bond bull** (IEF 3.6%/yr standalone); it is a backward-looking realized ceiling, not a forward expectation.
+**The honest static 60/40 is ~Sharpe 0.85 / CAGR ~9.4%/yr (dividend-correct), it is robust to the rebalance schedule, and no single third sleeve reliably improves it — gold is the only borderline candidate and it fails a family-wise correction.** Specifically:
+1. **Ceiling (honest, but composition-specific):** dividends lift the 60/40 by **~+0.03 Sharpe / ~+0.3%/yr** (the +0.5%/yr in the tool overstates dividends by ~0.2%/yr of composition). Studies #2–4 were mildly conservative against the active engine, so the active deficit ([[F35]]/[[F37]]) is real, not a price-only artifact. Neither the 9.4% nor the 9.5% CAGR is a **generic 60/40 number** — both rest on a QQQ-inclusive growth-tilted equity leg (a large-cap-only 60/40 is ~1.5%/yr / ~0.04 Sharpe lower, measured against the composition row: 8.06% / 0.804 vs 9.5% / 0.844) and a 2002–2026 **secular bond bull** (IEF 3.6%/yr standalone); it is a backward-looking realized ceiling, not a forward expectation.
 2. **Rebalance-robust:** Sharpe spans <0.03 from daily to annual at a fraction of the turnover; a monthly or 5%-band rebalance is the honest, low-cost implementation. (The schedule rank order is a bull-market drift effect, not a recommendation to rebalance less.)
 3. **Gold-borderline-only:** of GLD/TLT/HYG, only a low-correlation gold sleeve shows even a directional diversification signal (94% shallower DD); it is **borderline, best-of-3, and fails Bonferroni** — worth OOS confirmation, not adoption. Long-bond and credit do not help.
 
 ## Verdict
 
-**The recommended product is a static 60/40, honestly ~Sharpe 0.84 / CAGR ~9.5%/yr; it is about as good as a *simple* static build reliably gets, and the only lever showing even a borderline in-sample lift is a small gold sleeve, pending OOS confirmation.** Dividends raise the honest ceiling only marginally (~+0.02 Sharpe), confirming the active engine's deficit was never a price-only mirage. The product is insensitive to the rebalance rule (monthly/band ≈ daily). Of three diversifying sleeves, only gold is borderline and it does not clear a multiple-comparisons-adjusted bar in-sample. This is the constructive close to the [[D6]]/[[F25]] arc on the *product* side: the bond-alternative is a pure static 60/40, and there is **no simple, reliable single-lever improvement** to it in-sample — a small gold sleeve is the single hypothesis worth testing out-of-sample.
+**The recommended product is a static 60/40, honestly ~Sharpe 0.85 / CAGR ~9.4%/yr; it is about as good as a *simple* static build reliably gets, and the only lever showing even a borderline in-sample lift is a small gold sleeve, pending OOS confirmation.** Dividends raise the honest ceiling only marginally (~+0.03 Sharpe), confirming the active engine's deficit was never a price-only mirage. The product is insensitive to the rebalance rule (monthly/band ≈ daily). Of three diversifying sleeves, only gold is borderline and it does not clear a multiple-comparisons-adjusted bar in-sample. This is the constructive close to the [[D6]]/[[F25]] arc on the *product* side: the bond-alternative is a pure static 60/40, and there is **no simple, reliable single-lever improvement** to it in-sample — a small gold sleeve is the single hypothesis worth testing out-of-sample.
 
 ## Surviving Caveats
 
