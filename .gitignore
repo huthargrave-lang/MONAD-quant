@@ -2,6 +2,15 @@
 __pycache__/
 *.pyc
 *.csv
+# ...but NOT the committed research provenance artifacts. The blanket *.csv above
+# silently ate four fixtures that tools/overnight_gap_risk_study.py declares
+# SHA-256 hashes for (entry_bar_5m_ordering_2026.csv, entry_bar_1m_resolution_2026.csv,
+# tqqq_corporate_actions_2010_2026.csv, qqq_distributions_2010_2026.csv). Their JSON
+# sibling in the same directory and the same commit survived, because only the .csv
+# extension matched — `git add` on an ignored path is a silent no-op. Those four
+# fixtures are the sole evidence behind ~32% of RESEARCH_WEB.md and cannot be
+# regenerated offline. Committing them is the one action that restores it.
+!docs/research/data/*.csv
 .DS_Store
 venv/
 *.egg-info/

@@ -1,0 +1,59 @@
+{
+  "artifact": "IX-00 recent complete Nasdaq-100 annual-reconstitution panel",
+  "schema_version": 1,
+  "status": "exploratory two-batch panel; no inference or predictive edge claimed",
+  "included_batches": [
+    "ndx-2024-12",
+    "ndx-2025-12"
+  ],
+  "excluded_batches": {
+    "ndx-2022-12": "incomplete free-provider coverage: SPLK missing",
+    "ndx-2023-12": "initial list revised after the Seagen acquisition; requires security-specific revision clocks"
+  },
+  "security_weighted_summary_percent": {
+    "additions": {
+      "n": 9,
+      "announcement_close_to_first_open_relative": 0.213560,
+      "first_open_to_implementation_close_relative": -1.266259,
+      "implementation_close_to_effective_open_relative": 0.631462,
+      "implementation_volume_ratio_to_prior_20d_median": 12.874951,
+      "post_implementation_1_session_relative": -2.375358,
+      "post_implementation_5_sessions_relative": -4.052202,
+      "post_implementation_20_sessions_relative": 3.989988,
+      "post_implementation_60_sessions_relative": 14.318159
+    },
+    "deletions": {
+      "n": 9,
+      "announcement_close_to_first_open_relative": -1.860422,
+      "first_open_to_implementation_close_relative": -0.891044,
+      "implementation_close_to_effective_open_relative": -0.515036,
+      "implementation_volume_ratio_to_prior_20d_median": 7.260169,
+      "post_implementation_1_session_relative": -0.148917,
+      "post_implementation_5_sessions_relative": -0.884778,
+      "post_implementation_20_sessions_relative": 2.034208,
+      "post_implementation_60_sessions_relative": -1.933601
+    },
+    "addition_minus_deletion": {
+      "announcement_close_to_first_open_relative": 2.073983,
+      "first_open_to_implementation_close_relative": -0.375215,
+      "implementation_close_to_effective_open_relative": 1.146497,
+      "post_implementation_1_session_relative": -2.226441,
+      "post_implementation_5_sessions_relative": -3.167424,
+      "post_implementation_20_sessions_relative": 1.955780,
+      "post_implementation_60_sessions_relative": 16.251760
+    }
+  },
+  "interpretation": [
+    "Recent complete batches show a positive next-open announcement separation but no addition pressure continuation into the implementation close.",
+    "Implementation-session whole-day volume is very large for both sides and larger for additions.",
+    "Additions underperform deletions over the next one and five sessions in both complete batches.",
+    "The same five-session sign appears in the incomplete 2022 sensitivity, but that batch is excluded from the panel.",
+    "Longer-horizon addition outperformance is dominated by prior-winner selection and high dispersion, so it is not evidence of index causality."
+  ],
+  "limitations": [
+    "Only two complete batches and eighteen securities.",
+    "Security-weighted means do not provide batch-clustered inference.",
+    "No candidate controls, factor matching, flow estimates, auction data, or transaction costs.",
+    "The five-session reversal pattern is a hypothesis generator, not a validated model."
+  ]
+}

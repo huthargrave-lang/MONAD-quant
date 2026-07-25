@@ -1,0 +1,77 @@
+{
+  "artifact": "IX-00 December 2024 Nasdaq-100 event-window replication",
+  "schema_version": 1,
+  "status": "complete descriptive batch; no predictive edge claimed",
+  "retrieved_at_utc": "2026-07-24T15:02:31+00:00",
+  "provider": "Yahoo Finance via yfinance",
+  "provider_version": "1.2.0",
+  "raw_data_committed": false,
+  "normalized_input_sha256": "7accbe7fef42e9fbfa18e98025ca5b1816dfcaadba620bdb2803792fcff3b7a5",
+  "derived_result_sha256": "a3ef110bcb42cf438b61772cd6be3e04a23d04f2d3c17457ceee26d773ea62d3",
+  "fingerprint_contract": {
+    "input_hash": "exact sorted normalized vendor frame; may expose provider revision or float jitter",
+    "derived_hash_returns": "percentage points rounded to 2 decimals",
+    "derived_hash_volume_ratio": "multiple rounded to 2 decimals",
+    "reason": "separate exact snapshot provenance from displayed-evidence reproducibility"
+  },
+  "refresh_audit": {
+    "observed_exact_input_sha256": [
+      "7accbe7fef42e9fbfa18e98025ca5b1816dfcaadba620bdb2803792fcff3b7a5",
+      "b62125963f9e7c9e15626b07249cd06279460f0bdd047a838ee4779c51a647fa",
+      "4ddfb0d93f2f969ac5e16bf2b6dacad6032b47f41ec967f882b055b5b2a946aa"
+    ],
+    "paired_derived_result_sha256": [
+      "a3ef110bcb42cf438b61772cd6be3e04a23d04f2d3c17457ceee26d773ea62d3",
+      "a3ef110bcb42cf438b61772cd6be3e04a23d04f2d3c17457ceee26d773ea62d3"
+    ]
+  },
+  "official_source": "https://www.nasdaq.com/press-release/annual-changes-nasdaq-100-indexr-2024-12-13",
+  "coverage": {
+    "analyzed": 6,
+    "official_events": 6,
+    "complete": true
+  },
+  "event_clock": {
+    "announcement_source_at": "2024-12-13T20:00:00-05:00",
+    "announcement_time_quality": "exact_after_hours",
+    "first_tradable_session": "2024-12-16",
+    "implementation_session_close": "2024-12-20",
+    "implementation_time_quality": "inferred_prior_close_from_effective_pre_open",
+    "effective_session_open": "2024-12-23"
+  },
+  "group_summary_percent": {
+    "additions": {
+      "n": 3,
+      "announcement_close_to_first_open_relative": 0.760924,
+      "first_open_to_implementation_close_relative": -0.673349,
+      "implementation_close_to_effective_open_relative": -0.701199,
+      "implementation_volume_ratio_to_prior_20d_median": 4.349238,
+      "post_implementation_1_session_relative": -4.199870,
+      "post_implementation_5_sessions_relative": -8.050524,
+      "post_implementation_20_sessions_relative": -3.558691,
+      "post_implementation_60_sessions_relative": 2.323433
+    },
+    "deletions": {
+      "n": 3,
+      "announcement_close_to_first_open_relative": -4.567378,
+      "first_open_to_implementation_close_relative": -1.394284,
+      "implementation_close_to_effective_open_relative": -0.410259,
+      "implementation_volume_ratio_to_prior_20d_median": 4.576665,
+      "post_implementation_1_session_relative": -0.200781,
+      "post_implementation_5_sessions_relative": -1.146238,
+      "post_implementation_20_sessions_relative": 1.253497,
+      "post_implementation_60_sessions_relative": 0.795580
+    }
+  },
+  "security_contract": {
+    "additions": ["PLTR", "MSTR", "AXON"],
+    "deletions": ["ILMN", "SMCI", "MRNA"],
+    "benchmark": "QQQ"
+  },
+  "limitations": [
+    "One six-security batch; group means are descriptive and receive no p-values.",
+    "The addition group contains extreme prior winners and volatile securities.",
+    "Daily OHLCV cannot identify closing-auction imbalance or auction-only volume.",
+    "No matched candidate universe or factor-controlled counterfactual was constructed."
+  ]
+}

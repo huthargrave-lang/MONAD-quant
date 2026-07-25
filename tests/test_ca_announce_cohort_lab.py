@@ -1,0 +1,426 @@
+"""Tests for the CA-ANNOUNCE announcement-forward deal-risk lab.
+
+Covers: committed-cohort validation + integrity guards, the point-in-time
+leakage guard, competing-risks label derivation at both horizons, estimator
+correctness (via the synthetic self-check plus closed-form metric checks),
+deal-clustered bootstrap determinism, and the kill-criteria audit. Stdlib only,
+runs offline on a fresh clone.
+"""
+import copy
+import datetime as dt
+import importlib.util
+import math
+import subprocess
+import sys
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+SPEC = importlib.util.spec_from_file_location(
+    "ca_announce_cohort_lab", ROOT / "tools" / "ca_announce_cohort_lab.py"
+)
+LAB = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = LAB
+SPEC.loader.exec_module(LAB)
+COHORT_PATH = ROOT / "docs" / "research" / "data" / "ca_announce_cohort_2023.json"
+
+
+class CohortFixtureTests(unittest.TestCase):
+    def setUp(self):
+        self.cohort = LAB.load_cohort(COHORT_PATH)
+
+    def test_committed_cohort_validates(self):
+        LAB.validate_cohort(self.cohort)
+
+    def test_frame_is_announcement_forward_not_outcome_conditioned(self):
+        self.assertEqual(
+            self.cohort["frame"], "announcement_forward_not_outcome_conditioned"
+        )
+
+    def test_all_three_classes_present_so_no_stratum_is_outcome_selected(self):
+        classes = {d["ground_truth"]["outcome_class"] for d in self.cohort["deals"]}
+        self.assertEqual(classes, set(LAB.CLASSES))
+
+    def test_market_implied_inputs_are_flagged_proxy(self):
+        self.assertTrue(self.cohort["market_implied_inputs_are_proxy"])
+        for deal in self.cohort["deals"]:
+            self.assertTrue(deal["market_implied"]["proxy"])
+
+    def test_no_fabricated_provenance(self):
+        """Unverified provenance must never carry an accession; frozen provenance
+        must reference a sibling fixture + accession. At least one is frozen."""
+        frozen = 0
+        for deal in self.cohort["deals"]:
+            term = deal["provenance"]["terminal"]
+            if term["status"] == "frozen_upstream":
+                self.assertTrue(term.get("accession"))
+                self.assertTrue(term.get("fixture"))
+                frozen += 1
+            else:
+                self.assertEqual(term["status"], "public_record_unverified_offline")
+                self.assertIsNone(term.get("accession"))
+                self.assertTrue(term.get("needs_freeze"))
+        self.assertGreaterEqual(frozen, 1)
+
+    def test_frozen_provenance_points_at_real_committed_fixtures(self):
+        data_dir = ROOT / "docs" / "research" / "data"
+        for deal in self.cohort["deals"]:
+            term = deal["provenance"]["terminal"]
+            if term["status"] == "frozen_upstream":
+                self.assertTrue((data_dir / term["fixture"]).exists(),
+                                "frozen provenance references a missing fixture")
+
+    def test_resolution_never_precedes_announcement(self):
+        for deal in self.cohort["deals"]:
+            ann = dt.date.fromisoformat(deal["announced_on"])
+            res = dt.date.fromisoformat(deal["ground_truth"]["resolution_on"])
+            self.assertGreaterEqual(res, ann)
+
+    def test_validation_rejects_committed_raw_documents(self):
+        bad = copy.deepcopy(self.cohort)
+        bad["raw_documents_committed"] = True
+        with self.assertRaises(ValueError):
+            LAB.validate_cohort(bad)
+
+    def test_validation_rejects_unverified_provenance_with_accession(self):
+        bad = copy.deepcopy(self.cohort)
+        for deal in bad["deals"]:
+            term = deal["provenance"]["terminal"]
+            if term["status"] == "public_record_unverified_offline":
+                term["accession"] = "0000000000-23-000000"
+                break
+        with self.assertRaisesRegex(ValueError, "must not carry an accession"):
+            LAB.validate_cohort(bad)
+
+
+class LeakageGuardTests(unittest.TestCase):
+    def setUp(self):
+        self.cohort = LAB.load_cohort(COHORT_PATH)
+
+    def test_public_view_strips_ground_truth_and_provenance(self):
+        deal = self.cohort["deals"][0]
+        view = LAB.public_view(deal)
+        self.assertNotIn("ground_truth", view)
+        self.assertNotIn("provenance", view)
+
+    def test_features_are_invariant_to_the_terminal_outcome(self):
+        """The core anti-leakage property: mutating only the outcome/resolution
+        must not change any feature."""
+        for deal in self.cohort["deals"]:
+            f1 = LAB.feature_vector(deal)
+            mutated = copy.deepcopy(deal)
+            mutated["ground_truth"] = {
+                "outcome_class": "negative_termination",
+                "resolution_on": "2023-04-01",
+            }
+            self.assertEqual(f1, LAB.feature_vector(mutated), deal["deal_id"])
+
+    def test_feature_vector_has_expected_length(self):
+        deal = self.cohort["deals"][0]
+        self.assertEqual(len(LAB.feature_vector(deal)), len(LAB.FEATURE_NAMES))
+
+
+class LabelDerivationTests(unittest.TestCase):
+    def setUp(self):
+        self.cohort = LAB.load_cohort(COHORT_PATH)
+        self.deals = self.cohort["deals"]
+
+    def test_default_horizon_counts(self):
+        labels = LAB.label_cohort(self.deals, dt.date(2025, 6, 30))
+        observed = [l for l in labels if l.status == "observed"]
+        censored = [l for l in labels if l.status == "censored"]
+        self.assertEqual(len(observed), 10)
+        self.assertEqual(len(censored), 1)  # Hess/Chevron resolves 2025-07-18
+
+    def test_secondary_horizon_produces_real_censoring(self):
+        labels = LAB.label_cohort(self.deals, dt.date(2024, 3, 31))
+        censored = [l for l in labels if l.status == "censored"]
+        self.assertEqual(len(censored), 4)
+
+    def test_hess_chevron_is_censored_at_default_horizon(self):
+        deal = next(d for d in self.deals if d["deal_id"] == "hess-chevron")
+        lab = LAB.derive_label(deal, dt.date(2025, 6, 30))
+        self.assertEqual(lab.status, "censored")
+        self.assertIsNone(lab.event_class)
+
+    def test_amedisys_is_higher_bid_displacement(self):
+        deal = next(d for d in self.deals if d["deal_id"] == "amedisys-option-care")
+        lab = LAB.derive_label(deal, dt.date(2025, 6, 30))
+        self.assertEqual(lab.event_class, "higher_bid_displacement")
+
+    def test_capri_is_negative_termination(self):
+        deal = next(d for d in self.deals if d["deal_id"] == "capri-tapestry")
+        lab = LAB.derive_label(deal, dt.date(2025, 6, 30))
+        self.assertEqual(lab.event_class, "negative_termination")
+
+    def test_label_time_is_non_negative(self):
+        labels = LAB.label_cohort(self.deals, dt.date(2024, 3, 31))
+        for l in labels:
+            self.assertGreaterEqual(l.time_days, 0)
+
+
+class MetricTests(unittest.TestCase):
+    def test_multiclass_brier_perfect_and_worst(self):
+        y = ["close_as_announced", "negative_termination"]
+        perfect = [LAB._onehot("close_as_announced"), LAB._onehot("negative_termination")]
+        perfect = [dict(zip(LAB.CLASSES, v)) for v in perfect]
+        self.assertAlmostEqual(LAB.multiclass_brier(perfect, y), 0.0, places=9)
+        worst = [dict(zip(LAB.CLASSES, LAB._onehot("higher_bid_displacement"))) for _ in y]
+        self.assertAlmostEqual(LAB.multiclass_brier(worst, y), 2.0, places=9)
+
+    def test_log_loss_of_confident_correct_is_small(self):
+        y = ["close_as_announced"]
+        p = [{"close_as_announced": 0.99, "higher_bid_displacement": 0.005,
+              "negative_termination": 0.005}]
+        self.assertLess(LAB.log_loss(p, y), 0.02)
+
+    def test_uniform_log_loss_equals_log_three(self):
+        y = ["close_as_announced", "negative_termination", "higher_bid_displacement"]
+        p = [{c: 1 / 3 for c in LAB.CLASSES} for _ in y]
+        self.assertAlmostEqual(LAB.log_loss(p, y), math.log(3), places=6)
+
+    def test_auc_is_one_for_perfect_ranking(self):
+        scores = [0.1, 0.2, 0.3, 0.4]
+        positive = [False, False, True, True]
+        self.assertAlmostEqual(LAB.auc_ovr(scores, positive), 1.0, places=9)
+
+    def test_auc_none_when_one_class_absent(self):
+        self.assertIsNone(LAB.auc_ovr([0.1, 0.2], [True, True]))
+
+    def test_market_implied_inversion_is_exact(self):
+        C, D, days = 100.0, 70.0, 180.0
+        pv = C * math.exp(-LAB.ANNUAL_RATE * days / 365.0)
+        for p_true in (0.15, 0.5, 0.85):
+            target = p_true * pv + (1 - p_true) * D
+            deal = {"consideration": {"structure": "cash", "cash_usd_per_share": C},
+                    "market_implied": {"target_price": target, "downside_estimate": D,
+                                       "expected_days_to_close": days}}
+            self.assertAlmostEqual(LAB.market_implied_completion_prob(deal), p_true, places=4)
+
+    def test_bootstrap_is_deterministic(self):
+        y = ["close_as_announced"] * 6 + ["negative_termination"] * 2
+        preds = [{"close_as_announced": 0.7, "higher_bid_displacement": 0.1,
+                  "negative_termination": 0.2} for _ in y]
+        a = LAB.deal_clustered_bootstrap(LAB.multiclass_brier, preds, y, n_boot=500)
+        b = LAB.deal_clustered_bootstrap(LAB.multiclass_brier, preds, y, n_boot=500)
+        self.assertEqual(a, b)
+
+
+class CompetingRisksTests(unittest.TestCase):
+    def test_incidence_partitions_probability(self):
+        train = [
+            LAB.Labelled("a", "observed", "close_as_announced", 10, 0),
+            LAB.Labelled("b", "observed", "negative_termination", 20, 0),
+            LAB.Labelled("c", "censored", None, 30, 0),
+            LAB.Labelled("d", "observed", "close_as_announced", 40, 0),
+        ]
+        aj = LAB.aalen_johansen(train)
+        total = sum(aj["cif"].values()) + aj["final_survival"]
+        self.assertAlmostEqual(total, 1.0, places=9)
+
+    def test_survival_uses_censored_observations(self):
+        """Adding a censored deal changes the at-risk denominator, so incidence
+        must differ from dropping it entirely (kill-criterion 6)."""
+        base = [
+            LAB.Labelled("a", "observed", "close_as_announced", 10, 0),
+            LAB.Labelled("b", "observed", "negative_termination", 30, 0),
+        ]
+        with_censor = base + [LAB.Labelled("c", "censored", None, 20, 0)]
+        self.assertNotEqual(
+            LAB.aalen_johansen(base)["cif"]["negative_termination"],
+            LAB.aalen_johansen(with_censor)["cif"]["negative_termination"],
+        )
+
+
+class EvaluationTests(unittest.TestCase):
+    def setUp(self):
+        self.cohort = LAB.load_cohort(COHORT_PATH)
+
+    def test_evaluate_default_horizon(self):
+        art = LAB.evaluate_cohort(self.cohort)
+        self.assertEqual(art["composition"]["n_deals"], 11)
+        self.assertIn("market_implied", art["model_scores"])
+        self.assertEqual(len(art["kill_criteria"]), 8)
+
+    def test_no_lodo_leakage_predictions_only_for_observed(self):
+        labels = LAB.label_cohort(self.cohort["deals"], dt.date(2025, 6, 30))
+        preds = LAB.lodo_predictions(self.cohort["deals"], labels)
+        censored_ids = {l.deal_id for l in labels if l.status == "censored"}
+        for model_preds in preds.values():
+            self.assertFalse(censored_ids & set(model_preds.keys()),
+                             "a censored deal received an out-of-sample class prediction")
+
+    def test_kill_criteria_all_report_ok(self):
+        art = LAB.evaluate_cohort(self.cohort)
+        for key, val in art["kill_criteria"].items():
+            self.assertTrue(val["ok"], key)
+
+    def test_evaluation_is_deterministic(self):
+        a = LAB.evaluate_cohort(self.cohort)
+        b = LAB.evaluate_cohort(self.cohort)
+        self.assertEqual(a["model_scores"]["market_implied"]["multiclass_brier"],
+                         b["model_scores"]["market_implied"]["multiclass_brier"])
+
+
+class SelfCheckTests(unittest.TestCase):
+    def test_selfcheck_passes(self):
+        result = LAB.selfcheck(verbose=False)
+        self.assertTrue(result["all_passed"])
+
+
+class PowerAnalysisTests(unittest.TestCase):
+    def test_t_crit_table(self):
+        self.assertAlmostEqual(LAB._t_crit_one_sided_05(10), 1.812, places=3)
+        self.assertEqual(LAB._t_crit_one_sided_05(100000), 1.645)  # normal limit
+        # interpolated value sits between its bracketing table entries
+        v = LAB._t_crit_one_sided_05(11)
+        self.assertTrue(1.782 <= v <= 1.812)
+
+    def test_false_positive_rate_is_near_alpha_at_zero_skill(self):
+        """skill=0 => model and market are equally good; rejection rate must sit
+        near the nominal 0.05, i.e. the test is calibrated, not lucky."""
+        fpr = LAB.power_at(50, 0.0, reps=400)
+        self.assertLess(fpr, 0.13)
+
+    def test_power_rises_with_sample_size(self):
+        small = LAB.power_at(11, 1.0, reps=200)
+        large = LAB.power_at(2000, 1.0, reps=200)
+        self.assertLess(small, large)
+        self.assertLess(small, 0.15)   # 11 deals detect ~nothing
+        self.assertGreater(large, 0.5)  # thousands of deals do
+
+    def test_effect_size_increases_with_skill(self):
+        """A larger skill must produce a larger mean Brier gap. Uses a big sample
+        because the gap at low skill is small relative to Monte-Carlo noise."""
+        low = LAB.skill_effect_size(0.1, n_big=20000)["mean_brier_gap_market_minus_model"]
+        high = LAB.skill_effect_size(0.75, n_big=20000)["mean_brier_gap_market_minus_model"]
+        self.assertGreater(high, low)
+        self.assertGreater(high, 0.0)
+
+    def test_power_is_deterministic(self):
+        self.assertEqual(LAB.power_at(40, 0.3, reps=120), LAB.power_at(40, 0.3, reps=120))
+
+    def test_seed_derivation_never_uses_randomised_hash(self):
+        """Regression guard: seeding via hash() on a tuple containing a str is
+        randomised per process by PYTHONHASHSEED, silently breaking reproducibility.
+        _derive_seed must be a pure function of its integer inputs."""
+        self.assertEqual(LAB._derive_seed(1, 2, 3), LAB._derive_seed(1, 2, 3))
+        self.assertNotEqual(LAB._derive_seed(1, 2, 3), LAB._derive_seed(1, 2, 4))
+        src = (ROOT / "tools" / "ca_announce_cohort_lab.py").read_text(encoding="utf-8")
+        self.assertNotIn(".__hash__()", src,
+                         "seed derivation must not rely on hash(); use _derive_seed")
+
+    def test_effect_size_is_reproducible_across_processes(self):
+        """Run the same call in a FRESH interpreter (new PYTHONHASHSEED) and require
+        an identical result — the exact failure mode the hash-based seed had."""
+        code = (
+            "import importlib.util,sys;"
+            "s=importlib.util.spec_from_file_location('m',r'%s');"
+            "m=importlib.util.module_from_spec(s);sys.modules['m']=m;s.loader.exec_module(m);"
+            "print(repr(m.skill_effect_size(0.5,n_big=2000)['mean_brier_gap_market_minus_model']))"
+        ) % (ROOT / "tools" / "ca_announce_cohort_lab.py")
+        outs = set()
+        for _ in range(2):
+            proc = subprocess.run([sys.executable, "-c", code], capture_output=True,
+                                  text=True, check=True)
+            outs.add(proc.stdout.strip())
+        self.assertEqual(len(outs), 1, "result differs across processes: {}".format(outs))
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+class ForecastTimeGuardTests(unittest.TestCase):
+    """The as_of guard, added after a demonstrated hole.
+
+    The original validator only required `as_of >= announced`. That is necessary but
+    easy to over-read: a cohort in which EVERY forecast was timestamped after its deal
+    had already resolved passed validate_cohort, the outcome-leakage test, and all
+    eight kill criteria without raising a caveat. The leakage guard is orthogonal by
+    construction — it tests that features cannot see the terminal OUTCOME, not that
+    they were observable when claimed.
+    """
+
+    def setUp(self):
+        self.cohort = LAB.load_cohort(COHORT_PATH)
+
+    def _mutate(self, fn):
+        cohort = copy.deepcopy(self.cohort)
+        for deal in cohort["deals"]:
+            fn(deal)
+        return cohort
+
+    def test_committed_fixture_still_validates(self):
+        LAB.validate_cohort(self.cohort)  # must not raise
+
+    def test_a_cohort_forecast_after_resolution_is_REJECTED(self):
+        """The exact adversarial cohort that used to pass everything."""
+        after = self._mutate(lambda d: d["market_implied"].__setitem__(
+            "as_of",
+            (dt.date.fromisoformat(d["ground_truth"]["resolution_on"])
+             + dt.timedelta(days=1)).isoformat()))
+        with self.assertRaises(ValueError) as ctx:
+            LAB.validate_cohort(after)
+        self.assertIn("postdiction", str(ctx.exception))
+
+    def test_a_forecast_dated_exactly_on_resolution_is_REJECTED(self):
+        """Same-day is not a forecast either — the outcome is known intraday."""
+        same = copy.deepcopy(self.cohort)
+        deal = same["deals"][0]
+        deal["market_implied"]["as_of"] = deal["ground_truth"]["resolution_on"]
+        with self.assertRaises(ValueError):
+            LAB.validate_cohort(same)
+
+    def test_the_announcement_floor_still_works(self):
+        before = copy.deepcopy(self.cohort)
+        deal = before["deals"][0]
+        deal["market_implied"]["as_of"] = (
+            dt.date.fromisoformat(deal["announced_on"])
+            - dt.timedelta(days=1)).isoformat()
+        with self.assertRaises(ValueError) as ctx:
+            LAB.validate_cohort(before)
+        self.assertIn("precedes announcement", str(ctx.exception))
+
+
+class VantageAuditTests(unittest.TestCase):
+    """The guard closes postdiction; it cannot close hindsight in the CHOICE of
+    vantage. That channel leaves no feature-level trace, so it is reported."""
+
+    def setUp(self):
+        self.cohort = LAB.load_cohort(COHORT_PATH)
+        self.audit = LAB.vantage_audit(self.cohort)
+
+    def test_audit_reports_the_non_uniform_rule_as_a_fact_not_a_test_result(self):
+        self.assertFalse(self.audit["uniform_vantage_rule"])
+        self.assertEqual(self.audit["n_deals"], len(self.cohort["deals"]))
+
+    def test_the_longest_vantage_belongs_to_the_failed_deal(self):
+        """The specific shape that motivated this audit. If the fixture is
+        re-vantaged, this should change — and the caveat text with it."""
+        self.assertEqual(self.audit["longest_vantage_outcome"], "negative_termination")
+        self.assertGreater(self.audit["longest_vantage_days"], 200)
+
+    def test_the_exact_p_value_is_reported_and_NOT_significant(self):
+        """Reported precisely so nobody reads it as reassurance. At N=11 with one
+        deal per non-clean class, no test can reach significance."""
+        p = self.audit["non_clean_rank_sum_p_exact"]
+        self.assertIsNotNone(p)
+        self.assertTrue(0.0 <= p <= 1.0)
+        self.assertGreater(p, 0.05, "if this ever goes significant, re-read the audit")
+
+    def test_the_audit_states_what_its_statistic_is_BLIND_to(self):
+        """A rank sum cannot see two non-clean deals at opposite extremes — which is
+        exactly the observed pattern (ranks 1 and 11). Saying so is the difference
+        between an honest null and a false all-clear."""
+        blind = self.audit["statistic_is_blind_to"]
+        self.assertIn("opposite extremes", blind.lower())
+        self.assertIn("not", blind.lower())
+
+    def test_the_caveat_surfaces_in_the_built_artifact(self):
+        """It must fire on every run, not only when someone asks for it."""
+        artifact = LAB.evaluate_cohort(self.cohort)
+        blob = " ".join(artifact["caveats"])
+        self.assertIn("FORECAST-TIME VANTAGE IS NOT UNIFORM", blob)
+        self.assertIn("Do not read the market-implied margin as forecasting skill", blob)

@@ -25,6 +25,7 @@ import re
 import sqlite3
 import subprocess
 import sys
+from pathlib import Path
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MANIFEST = os.path.join(REPO, "context_map.json")
@@ -772,10 +773,25 @@ def cmd_audit(args):
     sys.exit(1)
 
 
-def _compound(returns):
+# The live trader sizes every position at a fixed fraction of equity
+# (live/state.py: position_pct = 0.10), and `trades.return_pct` is a PRICE return on
+# that position (live/trader.py::_signed_return). So a raw compound of return_pct is a
+# return on 10%-of-equity NOTIONAL, not on the account -- roughly 10x the account
+# effect. RESEARCH_WEB.md F160 measured the consequence on the one committed run: the
+# dashboard's "+35.2%" is +3.13% on the account, and the CONFIRMED-fill "honest edge"
+# is +0.045%, not +0.205%. The flat verdict survives either way; the magnitude does not.
+LIVE_POSITION_FRACTION = 0.10
+
+
+def _compound(returns, fraction=1.0):
+    """Compound a sequence of returns. `fraction` scales each to account units.
+
+    fraction=1.0 gives the NOTIONAL figure (what the dashboard shows);
+    fraction=LIVE_POSITION_FRACTION gives the ACCOUNT figure.
+    """
     e = 1.0
     for r in returns:
-        e *= (1 + r)
+        e *= (1 + r * fraction)
     return (e - 1) * 100
 
 
@@ -792,22 +808,36 @@ def cmd_perf(args):
         print(f"  no 'trades' table (this command expects this repo's live/state.db schema): {exc}")
         return
     if not rows:
-        print("  no trades recorded yet.")
+        print("  ⚠ live performance is UNAVAILABLE — the trades table contains no observations")
+        print("    An empty paper ledger is not evidence of an edge. Do NOT fall back to the")
+        print("    CLAUDE.md headline tables (SUPERSEDED); use `ctx web --live` for current truth.")
         return
     allr = [r for r, _ in rows]
     prodr = [r for r, e in rows if e in PROD]
     confr = [r for r, e in rows if e in CONFIRMED]
     def wr(v):
         return sum(1 for x in v if x > 0) / len(v) * 100 if v else 0
-    conf_c, all_c = _compound(confr), _compound(allr)
-    # Lead with the honest CONFIRMED edge — the ALL/PROD headline is inflated by time_exit
-    # artifacts + inferred target_hit, and an agent that cites it repeats the SUPERSEDED mistake.
-    print(f"  CONFIRMED fills:   n={len(confr):3}  WR={wr(confr):5.1f}%  compounded={conf_c:+8.3f}%   <- THE HONEST EDGE")
-    print(f"  PROD (dashboard):  n={len(prodr):3}  WR={wr(prodr):5.1f}%  compounded={_compound(prodr):+8.3f}%")
-    print(f"  ALL trades:        n={len(allr):3}  WR={wr(allr):5.1f}%  compounded={all_c:+8.3f}%  simple_sum={sum(allr)*100:+8.3f}%")
-    if confr and allr and abs(all_c - conf_c) > 1.0:
-        print(f"  ⚠ headline gap: ALL {all_c:+.1f}% vs CONFIRMED {conf_c:+.1f}% — the headline is inflated by")
-        print(f"    time_exit artifacts + inferred target_hit; cite CONFIRMED, not the dashboard/ALL number.")
+    F = LIVE_POSITION_FRACTION
+    conf_c, all_c = _compound(confr, F), _compound(allr, F)
+    conf_n, all_n = _compound(confr), _compound(allr)
+    # Lead with the honest CONFIRMED edge IN ACCOUNT UNITS — the ALL/PROD headline is
+    # inflated twice over: by time_exit artifacts + inferred target_hit, and by being a
+    # return on 10%-of-equity notional reported as an account return (F160).
+    print(f"  (account units: each trade deploys {F*100:.0f}% of equity; 'notional' = the raw"
+          f" dashboard convention)")
+    print(f"  CONFIRMED fills:   n={len(confr):3}  WR={wr(confr):5.1f}%  account={conf_c:+8.3f}%"
+          f"  notional={conf_n:+8.3f}%   <- THE HONEST EDGE")
+    print(f"  PROD (dashboard):  n={len(prodr):3}  WR={wr(prodr):5.1f}%  account={_compound(prodr, F):+8.3f}%"
+          f"  notional={_compound(prodr):+8.3f}%")
+    print(f"  ALL trades:        n={len(allr):3}  WR={wr(allr):5.1f}%  account={all_c:+8.3f}%"
+          f"  notional={all_n:+8.3f}%  simple_sum={sum(allr)*100:+8.3f}%")
+    if confr and allr and abs(all_c - conf_c) > 0.1:
+        print(f"  ⚠ headline gap: ALL {all_c:+.2f}% vs CONFIRMED {conf_c:+.2f}% (account) — the headline is")
+        print(f"    inflated by time_exit artifacts + inferred target_hit; cite CONFIRMED, not ALL.")
+    if abs(all_n - all_c) > 1.0:
+        print(f"  ⚠ the dashboard and live/state.py report the NOTIONAL column as if it were an")
+        print(f"    account return (F160). Those code paths are on the live deny-fence; this")
+        print(f"    command reports both so the two cannot be confused.")
     print("  (CONFIRMED = bracket_exit + stop_hit; excludes time_exit artifacts and inferred target_hit)")
 
 
@@ -1575,7 +1605,7 @@ const SUP=dark?'#6f6e6a':'#a8a7a0', STROKE=dark?'#1b1b19':'#fff', MUT=dark?'#a8a
 const idea=new Set(['F','H','E','D','area']);
 const Z={D:95,F:75,H:55,E:45,code:28,config:12,module:-45,area:-75};
 const nodes=D.n.map((d,i)=>({i,id:d[0],k:D.k[d[1]],sup:d[2],title:d[3]||d[0].replace(/^(mod|cfg|code):/,'')}));
-const links=D.e.map(e=>({source:e[0],target:e[1],tn:D.t[e[2]]}));
+const links=D.e.map((e,i)=>({_i:i,source:e[0],target:e[1],tn:D.t[e[2]]}));
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function ecol(t){if(t==='supersedes'||t==='contradicts')return dark?'#F09595':'#E24B4A';if(t==='concerns'||t==='gated_by')return dark?'#85B7EB':'#185FA5';if(t==='imports')return dark?'#5f5e5a':'#b4b2a9';return dark?'#403f3a':'#cdcbc2';}
 function edash(t){return (t==='evidenced_by'||t==='produces'||t==='derived_from'||t==='concerns'||t==='reads_config')?'3,3':null;}
@@ -1584,24 +1614,32 @@ function labelText(n){return idea.has(n.k)?n.id.replace('area:',''):'';}
 function labelFont(n){return n.k==='area'?11:10;}
 function orbPath(n){const r=rad(n),c=r*.55228475,f=v=>v.toFixed(2);return 'M0,'+f(-r)+'C'+f(c)+','+f(-r)+' '+f(r)+','+f(-c)+' '+f(r)+',0C'+f(r)+','+f(c)+' '+f(c)+','+f(r)+' 0,'+f(r)+'C'+f(-c)+','+f(r)+' '+f(-r)+','+f(c)+' '+f(-r)+',0C'+f(-r)+','+f(-c)+' '+f(-c)+','+f(-r)+' 0,'+f(-r)+'Z';}
 const adj={};nodes.forEach(n=>adj[n.i]=new Set());links.forEach(l=>{adj[l.source].add(l.target);adj[l.target].add(l.source);});
-const on={};Object.keys(LBL).forEach(k=>on[k]=true);on._sup=true;
+/* incident-link index, built while source/target are still numeric indices (d3
+   forceLink rewrites them to node objects once the simulation is constructed). */
+const incid={};nodes.forEach(n=>incid[n.i]=[]);links.forEach(l=>{incid[l.source].push(l);incid[l.target].push(l);});
+/* module + config nodes are 33% of the graph and 19% of the edges, and they are   scaffolding rather than research content — default them OFF so the map opens on the   idea web. Both pills toggle them straight back on. */const on={};Object.keys(LBL).forEach(k=>on[k]=true);on._sup=true;on.module=false;on.config=false;let visNodes=nodes,visLinks=links;function recomputeVisible(){visNodes=nodes.filter(vis);visLinks=links.filter(l=>vis(l.source)&&vis(l.target));for(let i=0;i<visNodes.length;i++){const n=visNodes[i];if(!n.p)n.p=projectNode(n);}}
 const svg=d3.select('#svg'),svgEl=document.getElementById('svg');
-svg.append('defs').html("<filter id='orbGlow' x='-100%' y='-100%' width='300%' height='300%'><feGaussianBlur in='SourceGraphic' stdDeviation='1.8' result='blur'/><feMerge><feMergeNode in='blur'/><feMergeNode in='SourceGraphic'/></feMerge></filter><filter id='orbGlowStrong' x='-140%' y='-140%' width='380%' height='380%'><feGaussianBlur in='SourceGraphic' stdDeviation='3.2' result='blur'/><feMerge><feMergeNode in='blur'/><feMergeNode in='blur'/><feMergeNode in='SourceGraphic'/></feMerge></filter><filter id='orbHalo' x='-220%' y='-220%' width='540%' height='540%'><feGaussianBlur in='SourceGraphic' stdDeviation='5.2' result='blur'/><feMerge><feMergeNode in='blur'/></feMerge></filter>");
+/* MEASURED, DO NOT RE-TRY WITHOUT NEW EVIDENCE (Chromium, software-rendered   container, 363 visible nodes, rotating the orbit so every node moves each frame):   stripping ALL feGaussianBlur filters lifts 6.8 -> 8.0 fps, i.e. the blur is ~16% of   frame time. Replacing the halo+corona blur with radialGradient bloom fills was built   and measured at 7.0 -> 7.2 fps (inside run-to-run noise: runs overlapped 6.7-7.2 vs   6.9-8.1) because the gradient fills cost their own paint time — while visibly   flattening the orbs from a luminous bloom to dim rings. Reverted: real visual cost,   no reliable gain. The dominant frame cost is SVG element count (~124ms of a ~148ms   frame with filters entirely absent), not the filters. The lever that DID work was   hiding module/config by default, which removes 33% of nodes and 19% of edges. */svg.append('defs').html("<filter id='orbGlow' x='-100%' y='-100%' width='300%' height='300%'><feGaussianBlur in='SourceGraphic' stdDeviation='1.8' result='blur'/><feMerge><feMergeNode in='blur'/><feMergeNode in='SourceGraphic'/></feMerge></filter><filter id='orbGlowStrong' x='-140%' y='-140%' width='380%' height='380%'><feGaussianBlur in='SourceGraphic' stdDeviation='3.2' result='blur'/><feMerge><feMergeNode in='blur'/><feMergeNode in='blur'/><feMergeNode in='SourceGraphic'/></feMerge></filter><filter id='orbHalo' x='-220%' y='-220%' width='540%' height='540%'><feGaussianBlur in='SourceGraphic' stdDeviation='5.2' result='blur'/><feMerge><feMergeNode in='blur'/></feMerge></filter>");
 const g=svg.append('g');
 let W=svgEl.clientWidth||900,H=svgEl.clientHeight||560,zt=d3.zoomIdentity;
 const link=g.append('g').selectAll('line').data(links).join('line').attr('fill','none')
  .attr('stroke',d=>ecol(d.tn)).attr('stroke-width',d=>(d.tn==='supersedes'||d.tn==='contradicts')?1.8:1)
  .attr('stroke-dasharray',d=>edash(d.tn));
 const node=g.append('g').selectAll('g').data(nodes).join('g').attr('class','node').attr('data-id',d=>d.id).style('cursor','pointer');
-node.append('path').attr('class','node-halo').attr('d',orbPath).attr('fill',d=>d.sup?SUP:COL[d.k]).attr('opacity',d=>d.sup?0.16:0.3).attr('filter','url(#orbHalo)').attr('transform','scale(2.65)');
+/* The orbs were near-unhittable: at the default zoom (k~0.37) a 6px-radius orb is   ~2px on screen, so elementFromPoint at an orb returned the <svg>. Grabs therefore   missed the node, fell through to d3.zoom, and PANNED the whole canvas — which reads   as 'grabbing an orb moves all the orbs'. A transparent hit disc gives every node a   real target for drag, click and tooltip. */node.append('path').attr('class','node-hit').attr('d',orbPath).attr('fill','transparent').attr('pointer-events','all').attr('transform',d=>'scale('+(Math.max(16,rad(d)*3)/rad(d)).toFixed(3)+')');node.append('path').attr('class','node-halo').attr('d',orbPath).attr('fill',d=>d.sup?SUP:COL[d.k]).attr('opacity',d=>d.sup?0.16:0.3).attr('filter','url(#orbHalo)').attr('transform','scale(2.65)');
 node.append('path').attr('class','node-corona').attr('d',orbPath).attr('fill',d=>d.sup?SUP:COL[d.k]).attr('opacity',d=>d.sup?0.24:0.56).attr('filter','url(#orbGlow)').attr('transform','scale(1.5)');
 node.append('path').attr('class','node-orb mark').attr('d',orbPath).attr('fill',d=>d.sup?SUP:COL[d.k]).attr('stroke','none').attr('opacity',d=>d.sup?0.58:0.86).attr('filter','url(#orbGlow)');
 node.append('path').attr('class','node-core').attr('d',orbPath).attr('fill',d=>d.sup?'#d7d2c2':'#fff6c7').attr('opacity',d=>d.sup?0.3:0.72).attr('filter','url(#orbGlow)').attr('transform','scale(.34)');
 node.append('text').attr('class','node-label').text(labelText).attr('dominant-baseline','middle')
  .attr('font-size',d=>labelFont(d)+'px').attr('fill',d=>d.k==='area'?COL.area:MUT).attr('font-family','ui-monospace,monospace');
+const nodeEls=node.nodes(),linkEls=link.nodes();
+/* A drag moves exactly ONE node, but render() rewrote all ~540 node transforms and
+   all ~1490 links x4 attrs (~7.5k DOM writes) every frame. This touches only the
+   dragged orb and its incident edges — writes drop to 1+4*degree. */
+function renderDragged(d){d.p=projectNode(d);const ne=nodeEls[d.i];if(ne)ne.setAttribute('transform','translate('+d.p.x+','+d.p.y+') scale('+d.p.s+')');const ls=incid[d.i]||[];for(let i=0;i<ls.length;i++){const l=ls[i],le=linkEls[l._i];if(!le)continue;const sN=l.source,tN=l.target;if(!sN.p)sN.p=projectNode(sN);if(!tN.p)tN.p=projectNode(tN);le.setAttribute('x1',sN.p.x);le.setAttribute('y1',sN.p.y);le.setAttribute('x2',tN.p.x);le.setAttribute('y2',tN.p.y);}}
 const tip=d3.select('#tip');
 node.on('mousemove',(ev,d)=>showTip(ev,d)).on('mouseleave',()=>tip.style('opacity',0));
-let sel=null,query='',matches=[],matchAt=-1,promptBank=[],orbit={rx:0,ry:0},orbitDrag=null,blockClick=false,orbitAnim=null,cruiseAnim=null,cruise=null,fastRender=true,fastTimer=null,renderFrame=0,suppressZoomLabel=false,simSettling=true;
+let sel=null,query='',matches=[],matchAt=-1,promptBank=[],orbit={rx:0,ry:0},orbitDrag=null,blockClick=false,orbitAnim=null,cruiseAnim=null,cruise=null,fastRender=true,fastTimer=null,renderFrame=0,suppressZoomLabel=false,simSettling=true,dragging=false;
 svgEl.classList.add('fast-render');svgEl.dataset.fastRender='1';
 node.on('click',(ev,d)=>{ev.stopPropagation();if(blockClick){blockClick=false;return;}selectNode(sel===d.i?null:d.i,true);});
 svg.on('click',()=>{if(blockClick){blockClick=false;return;}selectNode(null,false);});
@@ -1613,8 +1651,19 @@ function prand(i,s){return Math.abs(Math.sin((i+1)*s)*43758.5453)%1;}
 function targetZ(n){const deg=adj[n.i]?adj[n.i].size:0,semantic=Z[n.k]||0,hub=Math.min(70,deg*3.2),spread=(prand(n.i,41.17)-.5)*125;return semantic+spread+(idea.has(n.k)?hub:-hub*.45);}
 function nodeZ(n){let z=Number.isFinite(n.z)?n.z:targetZ(n);if(sel!==null){if(n.i===sel)z+=95;else if(adj[sel].has(n.i))z+=42;}if(hit(n))z+=52;return z;}
 function init3D(){const phi=Math.PI*(3-Math.sqrt(5)),cnt=Math.max(1,nodes.length),rx=Math.max(W*.34,260),ry=Math.max(H*.30,190);nodes.forEach(n=>{const q=(n.i+.5)/cnt,a=n.i*phi,r=Math.sqrt(q);if(!Number.isFinite(n.x))n.x=W/2+Math.cos(a)*r*rx;if(!Number.isFinite(n.y))n.y=H/2+Math.sin(a)*r*ry;n.z=targetZ(n);n.vz=0;});}
-function relax3D(alpha){const a=Math.max(.035,alpha||.035);links.forEach(l=>{const s=l.source,t=l.target;if(!Number.isFinite(s.z)||!Number.isFinite(t.z))return;const dz=t.z-s.z,bias=(targetZ(t)-targetZ(s))*.18,w=(l.tn==='imports'||l.tn==='relates')?0.004:0.007,delta=(dz-bias)*w*a;s.vz+=delta;t.vz-=delta;});for(let i=0;i<nodes.length;i++){const a0=nodes[i];if(!Number.isFinite(a0.z))continue;for(let j=i+1;j<nodes.length;j++){const b0=nodes[j];if(!Number.isFinite(b0.z))continue;const dx=a0.x-b0.x,dy=a0.y-b0.y;if(Math.abs(dx)>46||Math.abs(dy)>46)continue;const min=18+rad(a0)+rad(b0),dz=b0.z-a0.z,gap=min-Math.abs(dz);if(gap>0){const push=(dz<0?-1:1)*gap*.014*a;a0.vz-=push;b0.vz+=push;}}}nodes.forEach(n=>{if(!Number.isFinite(n.z))n.z=targetZ(n);if(!Number.isFinite(n.vz))n.vz=0;n.vz+=(targetZ(n)-n.z)*.018*a;n.vz=Math.max(-9,Math.min(9,n.vz*.88));n.z=Math.max(-380,Math.min(380,n.z+n.vz));});}
+const ZCELL=46;
+function relax3D(alpha){if(dragging)return;const a=Math.max(.035,alpha||.035);links.forEach(l=>{const s=l.source,t=l.target;if(!Number.isFinite(s.z)||!Number.isFinite(t.z))return;const dz=t.z-s.z,bias=(targetZ(t)-targetZ(s))*.18,w=(l.tn==='imports'||l.tn==='relates')?0.004:0.007,delta=(dz-bias)*w*a;s.vz+=delta;t.vz-=delta;});
+ /* z-separation was O(n^2) (~146k pair tests/tick at 540 nodes) which dominated the
+    frame budget. Same semantics — only pairs within ZCELL in x AND y interact — via a
+    spatial hash, so each node is tested against its 3x3 cell neighbourhood only. */
+ const grid=new Map();for(let i=0;i<nodes.length;i++){const n=nodes[i];if(!Number.isFinite(n.z)||!Number.isFinite(n.x)||!Number.isFinite(n.y))continue;const key=((n.x/ZCELL)|0)+','+((n.y/ZCELL)|0);let b=grid.get(key);if(!b){b=[];grid.set(key,b);}b.push(n);}
+ grid.forEach((bucket,key)=>{const parts=key.split(','),cx=+parts[0],cy=+parts[1];for(let gx=cx;gx<=cx+1;gx++)for(let gy=(gx===cx?cy:cy-1);gy<=cy+1;gy++){const other=grid.get(gx+','+gy);if(!other)continue;const same=(gx===cx&&gy===cy);for(let i=0;i<bucket.length;i++){const a0=bucket[i];for(let j=same?i+1:0;j<other.length;j++){const b0=other[j];if(a0===b0)continue;const dx=a0.x-b0.x,dy=a0.y-b0.y;if(dx>ZCELL||dx<-ZCELL||dy>ZCELL||dy<-ZCELL)continue;const min=18+rad(a0)+rad(b0),dz=b0.z-a0.z,gap=min-Math.abs(dz);if(gap>0){const push=(dz<0?-1:1)*gap*.014*a;a0.vz-=push;b0.vz+=push;}}}}});
+ nodes.forEach(n=>{if(!Number.isFinite(n.z))n.z=targetZ(n);if(!Number.isFinite(n.vz))n.vz=0;n.vz+=(targetZ(n)-n.z)*.018*a;n.vz=Math.max(-9,Math.min(9,n.vz*.88));n.z=Math.max(-380,Math.min(380,n.z+n.vz));});}
 function viewCenter(){const k=zoomK();return {x:(W/2-(zt.x||0))/k,y:(H/2-(zt.y||0))/k};}
+/* NB: memoising the four trig terms + viewCenter here was tried and MEASURED SLOWER
+   (0.8x) despite being bit-identical — V8's Math.cos/sin are cheap intrinsics and the
+   cache-validity check cost more than it saved. Left inline deliberately; the frame
+   cost is DOM writes, not this arithmetic. */
 function projectPoint(x0,y0,z){const c=viewCenter(),x=x0-c.x,y=y0-c.y,cy=Math.cos(orbit.ry),sy=Math.sin(orbit.ry),cx=Math.cos(orbit.rx),sx=Math.sin(orbit.rx),x1=x*cy+z*sy,z1=z*cy-x*sy,y1=y*cx-z1*sx,z2=y*sx+z1*cx,p=620/(620-z2),s=Math.max(.68,Math.min(1.45,p));return {x:c.x+x1*s,y:c.y+y1*s,z:z2,s:s};}
 function projectNode(n){if(!Number.isFinite(n.x)||!Number.isFinite(n.y))return {x:W/2,y:H/2,z:0,s:1};return projectPoint(n.x,n.y,nodeZ(n));}
 function zoomK(){return zt&&Number.isFinite(zt.k)?zt.k:1;}
@@ -1636,15 +1685,15 @@ function filterGlow(d){return isHot(d)?'url(#orbGlowStrong)':(fastRender&&!isNea
 function filterHalo(d){return fastRender&&!vivid(d)?null:'url(#orbHalo)';}
 function filterCore(d){return fastRender&&!vivid(d)?null:'url(#orbGlow)';}
 function setFastRender(on){if(fastTimer){clearTimeout(fastTimer);fastTimer=null;}if(fastRender===on)return;fastRender=on;svgEl.classList.toggle('fast-render',on);svgEl.dataset.fastRender=on?'1':'0';paint();}
-function settleRenderQuality(delay=220){if(fastTimer)clearTimeout(fastTimer);fastTimer=setTimeout(()=>{fastTimer=null;if(simSettling||cruiseAnim||orbitAnim||orbitDrag)return;setFastRender(false);},delay);}
-function render(){renderFrame++;const vc=viewCenter();svgEl.dataset.viewCx=vc.x.toFixed(2);svgEl.dataset.viewCy=vc.y.toFixed(2);svgEl.dataset.orbitRx=orbit.rx.toFixed(4);svgEl.dataset.orbitRy=orbit.ry.toFixed(4);svgEl.dataset.fastRender=fastRender?'1':'0';svgEl.dataset.renderFrame=String(renderFrame);nodes.forEach(n=>{n.p=projectNode(n);});link.attr('x1',d=>d.source.p.x).attr('y1',d=>d.source.p.y).attr('x2',d=>d.target.p.x).attr('y2',d=>d.target.p.y);node.attr('transform',d=>'translate('+d.p.x+','+d.p.y+') scale('+d.p.s+')').attr('data-z',d=>Number.isFinite(d.z)?d.z.toFixed(2):'').attr('data-depth',d=>Number.isFinite(d.p.z)?d.p.z.toFixed(2):'');if(!fastRender||renderFrame%12===0)node.sort((a,b)=>(a.p.z||0)-(b.p.z||0));if(!fastRender||renderFrame%24===0)layoutLabels();}
+function settleRenderQuality(delay=220){if(fastTimer)clearTimeout(fastTimer);fastTimer=setTimeout(()=>{fastTimer=null;if(simSettling||cruiseAnim||orbitAnim||orbitDrag||dragging)return;setFastRender(false);},delay);}
+function render(){renderFrame++;const vc=viewCenter();svgEl.dataset.viewCx=vc.x.toFixed(2);svgEl.dataset.viewCy=vc.y.toFixed(2);svgEl.dataset.orbitRx=orbit.rx.toFixed(4);svgEl.dataset.orbitRy=orbit.ry.toFixed(4);svgEl.dataset.fastRender=fastRender?'1':'0';svgEl.dataset.renderFrame=String(renderFrame);for(let i=0;i<visNodes.length;i++){const n=visNodes[i];n.p=projectNode(n);}/* Measured in Chromium at 544 nodes/1504 links: four d3 .attr(fn) passes over the   link selection cost 3.59ms of a 5.47ms frame (66%). One raw pass over the cached   elements does the same work without d3's per-element accessor overhead. */for(let li=0;li<visLinks.length;li++){const l=visLinks[li],le=linkEls[l._i];if(!le)continue;const sp=l.source.p,tp=l.target.p;if(!sp||!tp)continue;le.setAttribute('x1',sp.x);le.setAttribute('y1',sp.y);le.setAttribute('x2',tp.x);le.setAttribute('y2',tp.y);}for(let i=0;i<visNodes.length;i++){const n=visNodes[i],ne=nodeEls[n.i];if(ne&&n.p)ne.setAttribute('transform','translate('+n.p.x+','+n.p.y+') scale('+n.p.s+')');}/* data-z/data-depth are inspection telemetry, not visuals: writing them every frame   cost ~1.1k DOM writes/frame. Emitted when the view is settled (and on the periodic   sort frame) so tooling can still read them. */if(!fastRender||renderFrame%12===0)node.attr('data-z',d=>Number.isFinite(d.z)?d.z.toFixed(2):'').attr('data-depth',d=>(d.p&&Number.isFinite(d.p.z))?d.p.z.toFixed(2):'');if(!fastRender||renderFrame%12===0)node.sort((a,b)=>((a.p&&a.p.z)||0)-((b.p&&b.p.z)||0));if(!fastRender||renderFrame%24===0)layoutLabels();}
 function haloOpacity(d){if(sel===d.i)return .78;if(sel!==null&&adj[sel].has(d.i))return .44;if(hit(d))return .6;return d.sup?0.12:0.28;}
 function haloScale(d){return (sel===d.i||hit(d))?'scale(3.15)':'scale(2.65)';}
 function coronaOpacity(d){if(sel===d.i)return .9;if(sel!==null&&adj[sel].has(d.i))return .68;if(hit(d))return .82;return d.sup?0.22:0.54;}
 function coronaScale(d){return (sel===d.i||hit(d))?'scale(1.9)':'scale(1.5)';}
 function coreOpacity(d){if(sel===d.i)return .96;if(hit(d))return .9;return d.sup?0.28:0.68;}
 function coreScale(d){return (sel===d.i||hit(d))?'scale(.46)':'scale(.34)';}
-function paint(){updateMatches();node.classed('selected',n=>sel===n.i).classed('neighbor',n=>sel!==null&&adj[sel].has(n.i)).style('display',n=>vis(n)?null:'none');link.style('display',l=>vis(l.source)&&vis(l.target)?null:'none');
+function paint(){updateMatches();recomputeVisible();node.classed('selected',n=>sel===n.i).classed('neighbor',n=>sel!==null&&adj[sel].has(n.i)).style('display',n=>vis(n)?null:'none');link.style('display',l=>vis(l.source)&&vis(l.target)?null:'none');
  node.attr('opacity',n=>{if(sel!==null)return n.i===sel||adj[sel].has(n.i)?1:.1;if(query)return hit(n)?1:.12;return 1;});
  link.attr('stroke-opacity',l=>{if(sel!==null)return (l.source.i===sel||l.target.i===sel)?0.95:0.04;if(query)return (hit(l.source)||hit(l.target))?0.72:0.035;return (l.tn==='supersedes'||l.tn==='contradicts'||l.tn==='concerns')?0.85:0.32;});
  node.select('.mark').attr('opacity',d=>isHot(d)?1:(d.sup?0.58:0.86)).attr('filter',filterGlow);
@@ -1716,13 +1765,21 @@ const sim=d3.forceSimulation(nodes).alphaDecay(.055).alphaMin(.02).velocityDecay
  .force('collide',d3.forceCollide().radius(d=>rad(d)+6)).force('x',d3.forceX(W/2).strength(.03)).force('y',d3.forceY(H/2).strength(.05));
 sim.on('tick',()=>{relax3D(sim.alpha());render();});
 sim.on('end',()=>{simSettling=false;settleRenderQuality(140);});
-node.call(d3.drag().filter(ev=>!ev.shiftKey&&!ev.button).on('start',(ev,d)=>{if(!ev.active)sim.alphaTarget(.3).restart();d.fx=d.x;d.fy=d.y;}).on('drag',(ev,d)=>{d.fx=ev.x;d.fy=ev.y;}).on('end',(ev,d)=>{if(!ev.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}));
-const zoom=d3.zoom().filter(ev=>!ev.shiftKey&&(!ev.ctrlKey||ev.type==='wheel')&&!ev.button).scaleExtent([.3,5]).on('start',()=>setFastRender(true)).on('zoom',ev=>{zt=ev.transform;g.attr('transform',zt);if(!suppressZoomLabel&&!fastRender)layoutLabels();}).on('end',()=>settleRenderQuality());svg.call(zoom);paint();
+/* Dragging used to `sim.alphaTarget(.3).restart()`, which re-heated the WHOLE layout:
+   grabbing one orb made every other orb drift, and relax3D kept mutating z so their
+   projected scale changed — orbs visibly resized under the cursor. Now a grab moves
+   only the grabbed orb (z frozen via the `dragging` guard in relax3D), and the orb
+   stays where it is dropped. Use Reset to re-run the layout. */
+node.call(d3.drag().filter(ev=>!ev.shiftKey&&!ev.button)
+ .on('start',(ev,d)=>{dragging=true;setFastRender(true);sim.stop();d.fx=d.x;d.fy=d.y;})
+ .on('drag',(ev,d)=>{d.fx=d.x=ev.x;d.fy=d.y=ev.y;blockClick=true;renderDragged(d);})
+ .on('end',(ev,d)=>{dragging=false;settleRenderQuality(140);}));
+/* A mousedown on an orb bubbled to the svg and started a d3.zoom PAN as well as the   node drag. Panning changes zt, and every node's projection goes through viewCenter(zt),   so grabbing one orb visibly displaced all 544 of them — the 'grab changes the orbs'   bug. Pointer gestures that start on a node are now excluded from zoom; the wheel is   still allowed over a node so scroll-to-zoom keeps working. */const onNode=ev=>!!(ev&&ev.target&&ev.target.closest&&ev.target.closest('g.node'));const zoom=d3.zoom().filter(ev=>!ev.shiftKey&&(!ev.ctrlKey||ev.type==='wheel')&&!ev.button&&(ev.type==='wheel'||!onNode(ev))).scaleExtent([.3,5]).on('start',()=>setFastRender(true)).on('zoom',ev=>{zt=ev.transform;g.attr('transform',zt);if(!suppressZoomLabel&&!fastRender)layoutLabels();}).on('end',()=>settleRenderQuality());svg.call(zoom);paint();
 svg.on('pointerdown.orbit',startOrbit).on('pointermove.orbit',moveOrbit).on('pointerup.orbit',endOrbit).on('pointercancel.orbit',endOrbit);
 document.getElementById('flat').onclick=()=>flatView();
 document.getElementById('fit').onclick=()=>{stopCruise();fitVisible();};
 document.getElementById('reset').onclick=()=>{stopCruise();sel=null;query='';matchAt=-1;orbit.rx=0;orbit.ry=0;document.getElementById('q').value='';paint();fitVisible();};
-const pills=d3.select('#pills');Object.keys(LBL).filter(k=>nodes.some(n=>n.k===k)).forEach(k=>{const b=pills.append('button').html('<span class="dot" style="background:'+COL[k]+'"></span>'+LBL[k]);b.on('click',()=>{on[k]=!on[k];b.style('opacity',on[k]?1:.4);paint();});});
+const pills=d3.select('#pills');Object.keys(LBL).filter(k=>nodes.some(n=>n.k===k)).forEach(k=>{const b=pills.append('button').html('<span class="dot" style="background:'+COL[k]+'"></span>'+LBL[k]);b.style('opacity',on[k]?1:.4);b.on('click',()=>{on[k]=!on[k];b.style('opacity',on[k]?1:.4);paint();});});
 const sb=pills.append('button').text('superseded');sb.on('click',()=>{on._sup=!on._sup;sb.style('opacity',on._sup?1:.4);paint();});
 const leg=d3.select('#legend');[['supersedes / contradicts',ecol('supersedes')],['finding concerns code',ecol('concerns')],['import',ecol('imports')],['other edge',ecol('relates')]].forEach(([t,c])=>leg.append('span').html('<span class="ln" style="border-color:'+c+'"></span>'+t));
 function cycleMatch(dir){if(!matches.length)return;matchAt=(matchAt+dir+matches.length)%matches.length;selectNode(matches[matchAt].i,true);}
@@ -1764,6 +1821,35 @@ def _render_graph_html(G, adj):
     return _GRAPH_HTML.replace("__PROJECT__", proj).replace("__DATA__", comp)
 
 
+def _render_served_graph_html(
+    G, adj, event_db=None, corporate_action_db=None,
+    corporate_action_state_db=None, form25_population_db=None
+):
+    """Add navigation to optional server-only surfaces without changing exports."""
+    page = _render_graph_html(G, adj)
+    links = []
+    if event_db:
+        links.append(
+            '<a href="/events">revision-aware research events</a>'
+        )
+    if corporate_action_db:
+        links.append(
+            '<a href="/corporate-actions">corporate-action outcomes</a>'
+        )
+    if corporate_action_state_db:
+        links.append(
+            '<a href="/corporate-action-states">SEC action states</a>'
+        )
+    if form25_population_db:
+        links.append(
+            '<a href="/form25-population">Form 25 population</a>'
+        )
+    if links:
+        nav = '<div class="sub">browse: ' + " · ".join(links) + "</div>"
+        page = page.replace("</header>", nav + "</header>", 1)
+    return page
+
+
 def cmd_graph(args):
     """Emit the whole unified context map (research web ∪ idea↔code bridges ∪ the
     auto-extracted code graph). `--json` = machine-readable map; `--html` = a
@@ -1801,10 +1887,243 @@ def cmd_graph(args):
     print("  → `ctx graph --json` for the full map (feeds the visual view) · `ctx health` for coverage")
 
 
+def _event_ledger_response(event_db, raw_path):
+    """Pure route adapter for the optional research-event SQLite projection."""
+    import urllib.parse
+
+    if not event_db:
+        return (
+            404,
+            "research-event ledger not configured; restart with --event-db PATH\n",
+            "text/plain; charset=utf-8",
+        )
+    from research_event_ledger import ledger_payload, render_events_html
+
+    parsed = urllib.parse.urlsplit(raw_path)
+    path = parsed.path.rstrip("/") or "/"
+    params = urllib.parse.parse_qs(parsed.query, keep_blank_values=False)
+    revision = params.get("revision", [None])[0]
+    try:
+        if path == "/events":
+            base = ledger_payload(Path(event_db))
+            batches = base["batches"]
+            requested = params.get("batch", [None])[0]
+            batch_id = requested or (batches[0]["batch_id"] if batches else None)
+            payload = (
+                ledger_payload(Path(event_db), batch_id, revision)
+                if batch_id
+                else base
+            )
+            return 200, render_events_html(payload), "text/html; charset=utf-8"
+        if path == "/api/research-events":
+            payload = ledger_payload(Path(event_db))
+            return (
+                200,
+                json.dumps(payload, separators=(",", ":")),
+                "application/json; charset=utf-8",
+            )
+        prefix = "/api/research-events/"
+        if path.startswith(prefix):
+            batch_id = urllib.parse.unquote(path[len(prefix) :])
+            if not batch_id or "/" in batch_id:
+                raise KeyError("invalid batch")
+            payload = ledger_payload(Path(event_db), batch_id, revision)
+            return (
+                200,
+                json.dumps(payload, separators=(",", ":")),
+                "application/json; charset=utf-8",
+            )
+    except KeyError as exc:
+        return 404, f"unknown research-event batch/revision: {exc}\n", "text/plain; charset=utf-8"
+    except (OSError, sqlite3.Error) as exc:
+        return 503, f"research-event ledger unavailable: {exc}\n", "text/plain; charset=utf-8"
+    return 404, "not found\n", "text/plain; charset=utf-8"
+
+
+def _corporate_action_response(corporate_action_db, raw_path):
+    """Pure route adapter for the optional corporate-action SQLite projection."""
+    import urllib.parse
+
+    if not corporate_action_db:
+        return (
+            404,
+            "corporate-action ledger not configured; restart with "
+            "--corporate-action-db PATH\n",
+            "text/plain; charset=utf-8",
+        )
+    from corporate_action_outcome_lab import ledger_payload, render_html
+
+    parsed = urllib.parse.urlsplit(raw_path)
+    path = parsed.path.rstrip("/") or "/"
+    params = urllib.parse.parse_qs(parsed.query, keep_blank_values=False)
+    try:
+        if path == "/corporate-actions":
+            action_id = params.get("id", [None])[0]
+            payload = ledger_payload(Path(corporate_action_db), action_id)
+            return 200, render_html(payload), "text/html; charset=utf-8"
+        if path == "/api/corporate-actions":
+            payload = ledger_payload(Path(corporate_action_db))
+            return (
+                200,
+                json.dumps(payload, separators=(",", ":")),
+                "application/json; charset=utf-8",
+            )
+        prefix = "/api/corporate-actions/"
+        if path.startswith(prefix):
+            action_id = urllib.parse.unquote(path[len(prefix) :])
+            if not action_id or "/" in action_id:
+                raise KeyError("invalid corporate action")
+            payload = ledger_payload(Path(corporate_action_db), action_id)
+            return (
+                200,
+                json.dumps(payload, separators=(",", ":")),
+                "application/json; charset=utf-8",
+            )
+    except KeyError as exc:
+        return (
+            404,
+            f"unknown corporate action: {exc}\n",
+            "text/plain; charset=utf-8",
+        )
+    except (OSError, sqlite3.Error) as exc:
+        return (
+            503,
+            f"corporate-action ledger unavailable: {exc}\n",
+            "text/plain; charset=utf-8",
+        )
+    return 404, "not found\n", "text/plain; charset=utf-8"
+
+
+def _corporate_action_state_response(corporate_action_state_db, raw_path):
+    """Pure route adapter for the point-in-time SEC action-state projection."""
+    import urllib.parse
+
+    if not corporate_action_state_db:
+        return (
+            404,
+            "SEC action-state ledger not configured; restart with "
+            "--corporate-action-state-db PATH\n",
+            "text/plain; charset=utf-8",
+        )
+    from sec_corporate_action_state_lab import ledger_payload, render_html
+
+    parsed = urllib.parse.urlsplit(raw_path)
+    path = parsed.path.rstrip("/") or "/"
+    params = urllib.parse.parse_qs(parsed.query, keep_blank_values=False)
+    as_of = params.get("as_of", [None])[0]
+    try:
+        if path == "/corporate-action-states":
+            chain_id = params.get("id", [None])[0]
+            payload = ledger_payload(
+                Path(corporate_action_state_db), chain_id, as_of
+            )
+            return 200, render_html(payload), "text/html; charset=utf-8"
+        if path == "/api/corporate-action-states":
+            payload = ledger_payload(Path(corporate_action_state_db))
+            return (
+                200,
+                json.dumps(payload, separators=(",", ":")),
+                "application/json; charset=utf-8",
+            )
+        prefix = "/api/corporate-action-states/"
+        if path.startswith(prefix):
+            chain_id = urllib.parse.unquote(path[len(prefix) :])
+            if not chain_id or "/" in chain_id:
+                raise KeyError("invalid action chain")
+            payload = ledger_payload(
+                Path(corporate_action_state_db), chain_id, as_of
+            )
+            return (
+                200,
+                json.dumps(payload, separators=(",", ":")),
+                "application/json; charset=utf-8",
+            )
+    except (KeyError, ValueError) as exc:
+        return (
+            404,
+            f"unknown SEC action chain/as-of clock: {exc}\n",
+            "text/plain; charset=utf-8",
+        )
+    except (OSError, sqlite3.Error) as exc:
+        return (
+            503,
+            f"SEC action-state ledger unavailable: {exc}\n",
+            "text/plain; charset=utf-8",
+        )
+    return 404, "not found\n", "text/plain; charset=utf-8"
+
+
+def _form25_population_response(form25_population_db, raw_path):
+    """Pure route adapter for the SEC Form 25 population projection."""
+    import urllib.parse
+
+    if not form25_population_db:
+        return (
+            404,
+            "Form 25 population not configured; restart with "
+            "--form25-population-db PATH\n",
+            "text/plain; charset=utf-8",
+        )
+    from sec_form25_population_lab import (
+        population_payload,
+        render_population_html,
+    )
+
+    parsed = urllib.parse.urlsplit(raw_path)
+    path = parsed.path.rstrip("/") or "/"
+    params = urllib.parse.parse_qs(parsed.query, keep_blank_values=False)
+    filters = {
+        key: params[key][0]
+        for key in (
+            "q",
+            "quarter",
+            "exchange",
+            "window",
+            "security",
+            "rule",
+            "reason",
+            "sampled",
+            "informative",
+        )
+        if key in params
+    }
+    try:
+        limit = int(params.get("limit", ["100"])[0])
+        payload = population_payload(
+            Path(form25_population_db), filters, limit
+        )
+        if path == "/form25-population":
+            return (
+                200,
+                render_population_html(payload),
+                "text/html; charset=utf-8",
+            )
+        if path == "/api/form25-population":
+            return (
+                200,
+                json.dumps(payload, separators=(",", ":")),
+                "application/json; charset=utf-8",
+            )
+    except (OSError, sqlite3.Error, ValueError) as exc:
+        return (
+            503,
+            f"Form 25 population unavailable: {exc}\n",
+            "text/plain; charset=utf-8",
+        )
+    return 404, "not found\n", "text/plain; charset=utf-8"
+
+
 def cmd_serve(args):
     """Serve the LIVE context map as a tiny read-only web app (stdlib http.server, no
     deps) — the context layer's OWN web view, separate from the (fenced) trading dashboard.
     GET / = the interactive force-graph (rebuilt each load, always fresh); /health = ok.
+    With --event-db, /events and /api/research-events are read-only projections of
+    the revision-aware research-event ledger. With --corporate-action-db,
+    /corporate-actions and /api/corporate-actions expose outcome facts read-only.
+    With --corporate-action-state-db, /corporate-action-states exposes a
+    point-in-time SEC state vector and observation-ordered timeline.
+    With --form25-population-db, /form25-population exposes a filterable
+    accession-level Form 25 census and enriched sample.
     Bind --host 0.0.0.0 to reach it over the network (e.g. Tailscale). Ctrl-C to stop."""
     import http.server
 
@@ -1825,12 +2144,50 @@ def cmd_serve(args):
 
         def do_GET(self):
             try:
-                path = self.path.split("?", 1)[0]
+                path = self.path.split("?", 1)[0].rstrip("/") or "/"
                 if path in ("/", "/index.html", "/graph"):
                     G, adj = build_graph(include_code=True)
-                    self._send(200, _render_graph_html(G, adj))
+                    self._send(
+                        200,
+                        _render_served_graph_html(
+                            G,
+                            adj,
+                            getattr(args, "event_db", None),
+                            getattr(args, "corporate_action_db", None),
+                            getattr(args, "corporate_action_state_db", None),
+                            getattr(args, "form25_population_db", None),
+                        ),
+                    )
                 elif path == "/health":
                     self._send(200, "ok\n", "text/plain; charset=utf-8")
+                elif path == "/events" or path.startswith("/api/research-events"):
+                    code, body, ctype = _event_ledger_response(
+                        getattr(args, "event_db", None), self.path
+                    )
+                    self._send(code, body, ctype)
+                elif path == "/corporate-actions" or path.startswith(
+                    "/api/corporate-actions"
+                ):
+                    code, body, ctype = _corporate_action_response(
+                        getattr(args, "corporate_action_db", None), self.path
+                    )
+                    self._send(code, body, ctype)
+                elif path == "/corporate-action-states" or path.startswith(
+                    "/api/corporate-action-states"
+                ):
+                    code, body, ctype = _corporate_action_state_response(
+                        getattr(args, "corporate_action_state_db", None),
+                        self.path,
+                    )
+                    self._send(code, body, ctype)
+                elif path == "/form25-population" or path.startswith(
+                    "/api/form25-population"
+                ):
+                    code, body, ctype = _form25_population_response(
+                        getattr(args, "form25_population_db", None),
+                        self.path,
+                    )
+                    self._send(code, body, ctype)
                 else:
                     self._send(404, "not found — try / (the context map)\n", "text/plain; charset=utf-8")
             except Exception as exc:  # never crash the server on one bad request
@@ -2485,6 +2842,26 @@ def main():
     sp = sub.add_parser("serve")
     sp.add_argument("--host", default="127.0.0.1", help="bind address (0.0.0.0 to reach over the network)")
     sp.add_argument("--port", type=int, default=8787, help="port (default 8787)")
+    sp.add_argument(
+        "--event-db",
+        default=None,
+        help="optional disposable research-event SQLite projection; enables read-only /events and API routes",
+    )
+    sp.add_argument(
+        "--corporate-action-db",
+        default=None,
+        help="optional disposable corporate-action SQLite projection; enables read-only outcome browser and API routes",
+    )
+    sp.add_argument(
+        "--corporate-action-state-db",
+        default=None,
+        help="optional disposable SEC action-state SQLite projection; enables read-only point-in-time timeline routes",
+    )
+    sp.add_argument(
+        "--form25-population-db",
+        default=None,
+        help="optional disposable SEC Form 25 SQLite projection; enables read-only population browser and API",
+    )
     sp.set_defaults(fn=cmd_serve)
     sub.add_parser("health").set_defaults(fn=cmd_health)
     sub.add_parser("claims").set_defaults(fn=cmd_claims)

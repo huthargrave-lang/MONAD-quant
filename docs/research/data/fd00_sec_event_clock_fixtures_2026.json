@@ -1,0 +1,211 @@
+{
+  "artifact": "FD-00 SEC point-in-time event-clock fixtures",
+  "created_at": "2026-07-24",
+  "status": "research contract; fixture expectations, not a predictive result",
+  "schema_version": 1,
+  "clock_policy": {
+    "source_timezone": "America/New_York",
+    "preserve_raw_source_time": true,
+    "acceptance_is_not_public_availability": true,
+    "historical_daily_default": "next regular-session open after the source event",
+    "historical_intraday_default": "ineligible without archived first-seen or dissemination evidence",
+    "live_default": "first eligible bar after max(source event, collector first-seen) plus a declared processing buffer",
+    "amendments_are_separate_events": true,
+    "post_acceptance_corrections_are_separate_revisions": true,
+    "private_to_public_uses_public_release_not_original_acceptance": true,
+    "midnight_display_is_not_assumed_to_be_an_exact_acceptance_time": true
+  },
+  "source_contract": {
+    "discovery": [
+      "SEC submissions API",
+      "SEC daily/full indexes",
+      "SEC latest-filings/RSS"
+    ],
+    "immutable_evidence": [
+      "complete submission text and SGML header",
+      "daily Feed or Oldloads dissemination archive when available",
+      "collector receipt timestamp",
+      "payload hash"
+    ],
+    "structured_facts": [
+      "filing-specific extracted XBRL instance",
+      "accession-scoped facts only"
+    ],
+    "not_historical_truth": [
+      "current ticker-CIK mapping",
+      "current submissions JSON alone",
+      "latest companyfacts value selected by period",
+      "rebuilt quarterly index alone"
+    ]
+  },
+  "fixtures": [
+    {
+      "id": "premarket_regular_filing",
+      "entity_name": "Apple Inc.",
+      "issuer_cik": "0000320193",
+      "accession": "0000320193-26-000013",
+      "form": "10-Q",
+      "accepted_raw": "2026-05-01 06:01:00",
+      "filing_date": "2026-05-01",
+      "period_of_report": "2026-03-28",
+      "dissemination_kind": "PUBLIC",
+      "source": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000013/0000320193-26-000013-index.htm",
+      "expected": {
+        "market_phase": "premarket",
+        "acceptance_time_quality": "second",
+        "daily_research_tradable_policy": "2026-05-01 regular-session open",
+        "intraday_research_requires_first_seen": true,
+        "flags": []
+      }
+    },
+    {
+      "id": "after_1730_filing_date_rollover",
+      "entity_name": "Alphabet Inc.",
+      "issuer_cik": "0001652044",
+      "accession": "0001652044-26-000048",
+      "form": "10-Q",
+      "accepted_raw": "2026-04-29 21:02:11",
+      "filing_date": "2026-04-30",
+      "period_of_report": "2026-03-31",
+      "dissemination_kind": "PUBLIC",
+      "source": "https://www.sec.gov/Archives/edgar/data/1652044/000165204426000048/0001652044-26-000048-index.htm",
+      "expected": {
+        "market_phase": "late_evening",
+        "acceptance_time_quality": "second",
+        "daily_research_tradable_policy": "2026-04-30 regular-session open",
+        "filing_date_is_not_acceptance_date": true,
+        "flags": [
+          "filing_date_rollover"
+        ]
+      }
+    },
+    {
+      "id": "postclose_same_filing_date",
+      "entity_name": "Natera, Inc.",
+      "issuer_cik": "0001604821",
+      "accession": "0001628280-26-032101",
+      "form": "8-K",
+      "accepted_raw": "2026-05-07 16:10:41",
+      "filing_date": "2026-05-07",
+      "period_of_report": "2026-05-07",
+      "dissemination_kind": "PUBLIC",
+      "source": "https://www.sec.gov/Archives/edgar/data/1604821/000162828026032101/0001628280-26-032101-index.htm",
+      "expected": {
+        "market_phase": "after_regular_close",
+        "acceptance_time_quality": "second",
+        "daily_research_tradable_policy": "2026-05-08 regular-session open",
+        "filing_date_is_not_a_sufficient_session_label": true,
+        "flags": [
+          "after_regular_close"
+        ]
+      }
+    },
+    {
+      "id": "weekend_rollover_amendment",
+      "entity_name": "BIO-key International, Inc.",
+      "issuer_cik": "0001019034",
+      "accession": "0001437749-26-020535",
+      "form": "10-K/A",
+      "accepted_raw": "2026-06-12 19:31:12",
+      "filing_date": "2026-06-15",
+      "period_of_report": "2025-12-31",
+      "dissemination_kind": "PUBLIC",
+      "source": "https://www.sec.gov/Archives/edgar/data/1019034/0001437749-26-020535-index.html",
+      "expected": {
+        "market_phase": "late_evening_friday",
+        "acceptance_time_quality": "second",
+        "daily_research_tradable_policy": "2026-06-15 regular-session open",
+        "amendment_is_separate_event": true,
+        "flags": [
+          "amendment",
+          "filing_date_rollover",
+          "weekend_boundary"
+        ]
+      }
+    },
+    {
+      "id": "legacy_midnight_display",
+      "entity_name": "Enron Corp.",
+      "issuer_cik": "0001024401",
+      "accession": "0001024401-00-000002",
+      "form": "10-K",
+      "accepted_raw": "2000-03-30 00:00:00",
+      "filing_date": "2000-03-30",
+      "period_of_report": "1999-12-31",
+      "dissemination_kind": "PUBLIC",
+      "source": "https://www.sec.gov/Archives/edgar/data/1024401/0001024401-00-000002-index.html",
+      "expected": {
+        "market_phase": "unknown",
+        "acceptance_time_quality": "legacy_midnight_display",
+        "daily_research_tradable_policy": "next regular-session open after filing date",
+        "intraday_research_eligible": false,
+        "flags": [
+          "legacy_time_unresolved",
+          "inactive_issuer",
+          "no_modern_xbrl"
+        ]
+      }
+    },
+    {
+      "id": "private_to_public_release",
+      "entity_name": "Circle Internet Group, Inc.",
+      "issuer_cik": "0001876042",
+      "accession": "0000950123-24-007245",
+      "form": "DRS/A",
+      "accepted_raw": "2024-08-06 17:21:53",
+      "filing_date": "2024-08-06",
+      "public_release_date": "2025-04-01",
+      "dissemination_kind": "PRIVATE-TO-PUBLIC",
+      "source": "https://www.sec.gov/Archives/edgar/data/1876042/000095012324007245/0000950123-24-007245-index-headers.html",
+      "expected": {
+        "market_phase": "unknown_on_public_release",
+        "acceptance_time_quality": "not_public_event_time",
+        "daily_research_tradable_policy": "next regular-session open after public release unless dissemination time is recovered",
+        "original_acceptance_must_not_be_used": true,
+        "flags": [
+          "private_to_public",
+          "public_time_date_only"
+        ]
+      }
+    },
+    {
+      "id": "accession_prefix_not_issuer_cik",
+      "entity_name": "Apple Inc.",
+      "issuer_cik": "0000320193",
+      "accession": "0001140361-26-006577",
+      "form": "8-K",
+      "accepted_raw": "2026-02-24 16:55:58",
+      "filing_date": "2026-02-24",
+      "period_of_report": "2026-02-24",
+      "dissemination_kind": "PUBLIC",
+      "source": "https://www.sec.gov/Archives/edgar/data/320193/000114036126006577/",
+      "expected": {
+        "market_phase": "after_regular_close",
+        "accession_prefix_equals_issuer_cik": false,
+        "issuer_identity_must_come_from_header_roles": true,
+        "flags": [
+          "third_party_filer_or_agent_accession"
+        ]
+      }
+    },
+    {
+      "id": "post_acceptance_correction_contract",
+      "entity_name": null,
+      "issuer_cik": null,
+      "accession": null,
+      "form": null,
+      "accepted_raw": null,
+      "filing_date": null,
+      "dissemination_kind": "CORRECTION_OR_DELETION",
+      "source": "https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data",
+      "expected": {
+        "correction_is_new_revision": true,
+        "preserve_original_payload_if_lawful": true,
+        "current_rebuilt_index_is_not_original_history": true,
+        "flags": [
+          "post_acceptance_correction"
+        ]
+      }
+    }
+  ]
+}

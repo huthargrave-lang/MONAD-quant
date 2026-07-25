@@ -113,6 +113,48 @@ def _get_asset_config() -> dict:
     return config.ASSETS[mode]
 
 
+def _assert_mode_symbol_coherent() -> None:
+    """Refuse to start if the signal thresholds and the traded instrument disagree.
+
+    The live path reads its instrument from two different config keys, and nothing
+    previously required them to agree (RESEARCH_WEB.md F157):
+
+      * `build_features()` resolves the per-mode signal parameters — RSI_OVERSOLD,
+        the VWAP z-score threshold, the MACD windows — from `config.ACTIVE_MODE`
+        (src/strategy/engine.py:31-32), which is a *backtest* selector.
+      * everything else keys on `config.LIVE_SYMBOL`: the bars (live/signals.py),
+        `require_signals`, and the target/stop via `_get_asset_config()` above.
+
+    They coincide only when ACTIVE_MODE == f"{LIVE_SYMBOL}_HOURLY". The supported
+    `--symbol` flag sets LIVE_SYMBOL alone, so `--symbol GDXU` would arm the trader
+    on GDXU while computing TQQQ's entry thresholds. Measured on synthetic hourly
+    bars, swapping ACTIVE_MODE alone flips 4.8% of entry signals for QQQ-vs-TQQQ
+    parameters — a silent, instrument-wide change to when the bot buys.
+
+    This REFUSES TO START rather than auto-correcting. Rewriting ACTIVE_MODE here
+    would silently change which thresholds fire; which instrument's signal
+    parameters to trade is the operator's decision, not this function's.
+    """
+    expected = f"{config.LIVE_SYMBOL}_HOURLY"
+    active = getattr(config, "ACTIVE_MODE", None)
+    if active == expected:
+        return
+    raise SystemExit(
+        "\n".join([
+            "REFUSING TO START — signal parameters and traded instrument disagree.",
+            "",
+            f"  config.LIVE_SYMBOL  = {config.LIVE_SYMBOL!r}  -> bars, target/stop, require_signals",
+            f"  config.ACTIVE_MODE  = {active!r}  -> RSI / VWAP / MACD thresholds",
+            f"  expected ACTIVE_MODE = {expected!r}",
+            "",
+            "build_features() takes its entry thresholds from ACTIVE_MODE, so the bot",
+            "would trade one instrument using another's signal parameters. If you passed",
+            f"--symbol, set config.ACTIVE_MODE = {expected!r} to match (and re-sweep before",
+            "trusting any parameters for the new instrument). See RESEARCH_WEB.md F157.",
+        ])
+    )
+
+
 # ── Core logic ────────────────────────────────────────────────────────────────
 
 def _resolve_mark_price(symbol: str, bar_close: float | None = None) -> tuple[float | None, str]:
@@ -788,6 +830,10 @@ def main() -> None:
 
     if args.symbol:
         config.LIVE_SYMBOL = args.symbol.upper()
+
+    # Checked here — after --symbol is applied and BEFORE any broker connection,
+    # order, or scheduler start — so a mismatch cannot arm the trader (F157).
+    _assert_mode_symbol_coherent()
 
     if args.dry_run:
         config.LIVE_DRY_RUN = True

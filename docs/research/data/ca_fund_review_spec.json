@@ -1,0 +1,167 @@
+{
+  "schema_version": 1,
+  "spec_id": "ca-fund-five-missing-review-v1",
+  "research_status": "manual_terms_review_not_predictive_features",
+  "raw_documents_committed": false,
+  "cases": [
+    {
+      "form25_accession": "0000876661-23-000340",
+      "issuer_cik": "0001177219",
+      "ticker": "NKG",
+      "fund_structure": "closed_end_fund",
+      "outcome_type": "nav_ratio_successor_fund",
+      "effective_on": "2023-04-17",
+      "effective_date_status": "rights_date_supported_but_legal_date_text_conflicts",
+      "source": {
+        "accession": "0000876661-23-000340",
+        "cache_family": "form25",
+        "accepted_at": "2023-04-17T10:07:03-04:00",
+        "submission_url": "https://www.sec.gov/Archives/edgar/data/876661/000087666123000340/0000876661-23-000340.txt",
+        "sha256": "828e2672dfe750b4825c63f0d4788f7aec867e0a51fd87b28e9402a58571882f",
+        "role": "exchange_rights_confirmation",
+        "required_markers": [
+          "that on april 17, 2023 the instruments representing the securities",
+          "0.85425383 common shares of nuveen municipal credit income fund",
+          "became effective before market open on april 17, 2027",
+          "suspended from trading on april 17, 2023"
+        ]
+      },
+      "rights": {
+        "old_units": 1,
+        "successor_units": 0.85425383,
+        "successor_name": "Nuveen Municipal Credit Income Fund",
+        "successor_ticker": "NZF",
+        "cash_amount_usd": null,
+        "cash_in_lieu_fractional": "unresolved_in_selected_source"
+      },
+      "manual_claim": "Each NKG common share became 0.85425383 NZF common shares; the exhibit contains a 2027 legal-date typo alongside two 2023 rights/suspension statements."
+    },
+    {
+      "form25_accession": "0000876661-23-000549",
+      "issuer_cik": "0001564584",
+      "ticker": "NIQ",
+      "fund_structure": "closed_end_term_fund",
+      "outcome_type": "completed_cash_plus_liquidating_trust",
+      "effective_on": "2023-06-30",
+      "effective_date_status": "retrospectively_confirmed",
+      "source": {
+        "accession": "0001821268-23-000155",
+        "cache_family": "fund",
+        "accepted_at": "2023-08-03T12:13:22-04:00",
+        "submission_url": "https://www.sec.gov/Archives/edgar/data/1564584/000182126823000155/0001821268-23-000155.txt",
+        "sha256": "d33b5466342099079482cbe8b16d003d203b27f62e8ed228f12beaf6d0d6f266",
+        "role": "issuer_retrospective_completion_and_terms",
+        "required_markers": [
+          "completed its termination and liquidation following the close of business on june 30, 2023",
+          "cash distribution of $12.4082 per common share",
+          "one unit of nuveen intermediate duration quality municipal term fund liquidating trust per common share",
+          "nav equal to $0.5768 per unit",
+          "not presently possible to predict when the liquidating trust"
+        ]
+      },
+      "rights": {
+        "cash_amount_usd": 12.4082,
+        "liquidating_trust_units": 1,
+        "trust_initial_nav_usd": 0.5768,
+        "combined_value_at_close_usd": 12.985,
+        "trust_transferability": "nontransferable_except_operation_of_law",
+        "trust_final_cash_timing": "unresolved"
+      },
+      "manual_claim": "NIQ paid USD 12.4082 and delivered one non-tradeable liquidating-trust unit initially valued at USD 0.5768 per share; final trust cash timing was unknown."
+    },
+    {
+      "form25_accession": "0000876661-23-000619",
+      "issuer_cik": "0001093428",
+      "ticker": "NSL",
+      "fund_structure": "closed_end_fund",
+      "outcome_type": "nav_ratio_successor_fund",
+      "effective_on": "2023-07-31",
+      "effective_date_status": "exchange_confirmed",
+      "source": {
+        "accession": "0000876661-23-000619",
+        "cache_family": "form25",
+        "accepted_at": "2023-07-31T15:50:37-04:00",
+        "submission_url": "https://www.sec.gov/Archives/edgar/data/876661/000087666123000619/0000876661-23-000619.txt",
+        "sha256": "8c4eb698e39fe5939bf5cfc6e21fbd40bd5d4e64f5beeb4b93cd1005293ce822",
+        "role": "exchange_completion_and_rights",
+        "required_markers": [
+          "the merger between nuveen senior income fund and nuveen floating rate income fund became effective on july 31, 2023",
+          "0.58066176 common shares of nuveen floating rate income fund",
+          "suspended from trading on july 31, 2023"
+        ]
+      },
+      "rights": {
+        "old_units": 1,
+        "successor_units": 0.58066176,
+        "successor_name": "Nuveen Floating Rate Income Fund",
+        "successor_ticker": "JFR",
+        "cash_amount_usd": null,
+        "cash_in_lieu_fractional": "unresolved_in_selected_source"
+      },
+      "manual_claim": "Each NSL common share became 0.58066176 JFR common shares."
+    },
+    {
+      "form25_accession": "0001354457-23-000772",
+      "issuer_cik": "0001506213",
+      "ticker": "NZRO",
+      "fund_structure": "exchange_traded_fund",
+      "outcome_type": "scheduled_cash_at_nav_liquidation",
+      "effective_on": "2023-10-16",
+      "effective_date_status": "cessation_confirmed_payment_unconfirmed",
+      "source": {
+        "accession": "0001580642-23-004965",
+        "cache_family": "fund",
+        "accepted_at": "2023-09-15T14:22:10-04:00",
+        "submission_url": "https://www.sec.gov/Archives/edgar/data/1506213/000158064223004965/0001580642-23-004965.txt",
+        "sha256": "7ad61ac3d39524cafa44eff0deca58d0c6c2f46a33e6573fbc52d9a627f2521d",
+        "role": "issuer_advance_liquidation_schedule",
+        "required_markers": [
+          "the fund cease operations",
+          "last day of trading for the fund on the nasdaq stock market",
+          "expected to be october 16, 2023",
+          "receive cash equal to the amount of the net asset value of their shares",
+          "on or about october 20, 2023"
+        ]
+      },
+      "rights": {
+        "cash_formula": "net_asset_value_of_shares",
+        "cash_amount_usd": null,
+        "last_exchange_trade_on": "2023-10-16",
+        "scheduled_cash_on_or_about": "2023-10-20",
+        "payment_confirmation": "not_established_by_selected_source"
+      },
+      "manual_claim": "Unsold NZRO shares were scheduled to receive cash at NAV around October 20; the selected source does not establish the amount or confirm payment."
+    },
+    {
+      "form25_accession": "0000876661-23-000996",
+      "issuer_cik": "0001551040",
+      "ticker": "EDI",
+      "fund_structure": "closed_end_fund",
+      "outcome_type": "nav_ratio_successor_fund",
+      "effective_on": "2023-12-18",
+      "effective_date_status": "exchange_confirmed",
+      "source": {
+        "accession": "0000876661-23-000996",
+        "cache_family": "form25",
+        "accepted_at": "2023-12-18T14:31:38-05:00",
+        "submission_url": "https://www.sec.gov/Archives/edgar/data/876661/000087666123000996/0000876661-23-000996.txt",
+        "sha256": "62bb930bab103a777c58986e81325a3eb90836bf5afc38c747e11a4055b5725d",
+        "role": "exchange_completion_and_rights",
+        "required_markers": [
+          "became effective before the opening on december 18, 2023",
+          "1.153733 shares of virtus stone harbor emerging markets income fund common stock",
+          "suspended from trading on december 18, 2023"
+        ]
+      },
+      "rights": {
+        "old_units": 1,
+        "successor_units": 1.153733,
+        "successor_name": "Virtus Stone Harbor Emerging Markets Income Fund",
+        "successor_ticker": "EDF",
+        "cash_amount_usd": null,
+        "cash_in_lieu_fractional": "unresolved_in_selected_source"
+      },
+      "manual_claim": "Each EDI common share became 1.153733 EDF common shares."
+    }
+  ]
+}

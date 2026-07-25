@@ -1,0 +1,148 @@
+{
+  "artifact": "IX-00 March 2026 S&P 500 event-window pilot",
+  "schema_version": 1,
+  "status": "descriptive source-contract pilot; no predictive edge claimed",
+  "retrieved_at_utc": "2026-07-24T14:45:05+00:00",
+  "provider": "Yahoo Finance via yfinance",
+  "provider_version": "1.2.0",
+  "raw_data_committed": false,
+  "official_source": "https://www.spglobal.com/spdji/en/documents/indexnews/announcements/20260306-1482263/1482263_march2026rebalance1546.pdf",
+  "coverage": {
+    "analyzed": 8,
+    "official_events": 8,
+    "complete": true
+  },
+  "normalized_input_sha256": "9c88c32203332dc8f85111b99babdd5fca43ba5c94ed5f5fdce0557044c9c88e",
+  "derived_result_sha256": "3530409a6500f3f9765f661e77c60716d154478d7583bf8597acb9d27c22b7d6",
+  "fingerprint_contract": {
+    "input_hash": "exact sorted normalized vendor frame; may expose provider revision or float jitter",
+    "derived_hash_returns": "percentage points rounded to 2 decimals",
+    "derived_hash_volume_ratio": "multiple rounded to 2 decimals",
+    "reason": "separate exact snapshot provenance from decision-level reproducibility"
+  },
+  "refresh_audit": {
+    "observed_exact_input_sha256": [
+      "9c88c32203332dc8f85111b99babdd5fca43ba5c94ed5f5fdce0557044c9c88e",
+      "57cab0b3323d1e1755378c608c7a5c5dcebb45647a4c5cb198baa7902d5bd2fa",
+      "563b7a977a96140a893c22c1179031d212131b126569938ae48e30137f87adc4",
+      "aed91e12629c168b87fad02ba80628b9a360e0fbeb74dbed37ee9700df9411e1"
+    ],
+    "paired_derived_result_sha256": [
+      "3530409a6500f3f9765f661e77c60716d154478d7583bf8597acb9d27c22b7d6",
+      "3530409a6500f3f9765f661e77c60716d154478d7583bf8597acb9d27c22b7d6"
+    ],
+    "interpretation": "Exact vendor panels changed across consecutive refreshes while the decision-level result hash reproduced."
+  },
+  "event_clock": {
+    "announcement_source_date": "2026-03-06",
+    "announcement_time_quality": "date_only",
+    "historical_tradable_policy": "next regular-session open",
+    "first_tradable_session": "2026-03-09",
+    "implementation_session_close": "2026-03-20",
+    "effective_session_open": "2026-03-23"
+  },
+  "group_summary_percent": {
+    "additions": {
+      "n": 4,
+      "announcement_close_to_first_open_relative": 3.327748,
+      "first_open_to_implementation_close_relative": 10.870918,
+      "implementation_close_to_effective_open_relative": 0.440487,
+      "implementation_volume_ratio_to_prior_20d_median": 8.649664,
+      "post_implementation_1_session_relative": -0.176231,
+      "post_implementation_5_sessions_relative": 1.898685,
+      "post_implementation_20_sessions_relative": 16.591535,
+      "post_implementation_60_sessions_relative": 8.501928
+    },
+    "deletions": {
+      "n": 4,
+      "announcement_close_to_first_open_relative": 0.674459,
+      "first_open_to_implementation_close_relative": -3.461407,
+      "implementation_close_to_effective_open_relative": -0.812101,
+      "implementation_volume_ratio_to_prior_20d_median": 13.751232,
+      "post_implementation_1_session_relative": -0.778673,
+      "post_implementation_5_sessions_relative": -0.356842,
+      "post_implementation_20_sessions_relative": 2.084130,
+      "post_implementation_60_sessions_relative": 3.594199
+    },
+    "direct_entries": {
+      "n": 1,
+      "announcement_close_to_first_open_relative": 4.951023,
+      "first_open_to_implementation_close_relative": 4.281225,
+      "implementation_volume_ratio_to_prior_20d_median": 12.696751,
+      "post_implementation_20_sessions_relative": 12.445536,
+      "post_implementation_60_sessions_relative": 1.227927
+    },
+    "family_up_migrations": {
+      "n": 3,
+      "announcement_close_to_first_open_relative": 2.786656,
+      "first_open_to_implementation_close_relative": 13.067482,
+      "implementation_volume_ratio_to_prior_20d_median": 7.300636,
+      "post_implementation_20_sessions_relative": 17.973535,
+      "post_implementation_60_sessions_relative": 10.926595
+    },
+    "family_down_migrations": {
+      "n": 4,
+      "same_as": "deletions"
+    }
+  },
+  "security_contract": [
+    {
+      "event_symbol": "VRT",
+      "provider_symbol": "VRT",
+      "action": "addition",
+      "transition": "direct_entry"
+    },
+    {
+      "event_symbol": "LITE",
+      "provider_symbol": "LITE",
+      "action": "addition",
+      "transition": "family_up_migration"
+    },
+    {
+      "event_symbol": "COHR",
+      "provider_symbol": "COHR",
+      "action": "addition",
+      "transition": "family_up_migration"
+    },
+    {
+      "event_symbol": "SATS",
+      "provider_symbol": "ECHO",
+      "action": "addition",
+      "transition": "family_up_migration",
+      "identity_note": "EchoStar changed ticker SATS to ECHO on 2026-06-24 without a CUSIP change."
+    },
+    {
+      "event_symbol": "MTCH",
+      "provider_symbol": "MTCH",
+      "action": "deletion",
+      "transition": "family_down_migration"
+    },
+    {
+      "event_symbol": "MOH",
+      "provider_symbol": "MOH",
+      "action": "deletion",
+      "transition": "family_down_migration"
+    },
+    {
+      "event_symbol": "LW",
+      "provider_symbol": "LW",
+      "action": "deletion",
+      "transition": "family_down_migration"
+    },
+    {
+      "event_symbol": "PAYC",
+      "provider_symbol": "PAYC",
+      "action": "deletion",
+      "transition": "family_down_migration"
+    }
+  ],
+  "limitations": [
+    "One eight-security batch; group means are descriptive and receive no p-values.",
+    "The official announcement supplied a date but not a verified publication time, so the conservative tradable clock is the next regular-session open.",
+    "Daily OHLCV cannot identify closing-auction imbalance, spread, auction-only volume, or implementation shortfall.",
+    "Yahoo Finance is a convenient pilot source, not a production market-data authority.",
+    "Ticker is not security identity; SATS required the later ECHO provider symbol.",
+    "Transition labels come from the official announcement and require point-in-time historical family-membership validation at scale.",
+    "Large contemporaneous security-specific moves can dominate an eight-name event batch; no causal index effect is claimed."
+  ]
+}

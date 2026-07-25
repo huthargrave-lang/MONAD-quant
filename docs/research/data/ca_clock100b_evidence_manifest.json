@@ -1,0 +1,4683 @@
+{
+  "schema_version": 1,
+  "manifest_id": "ca-clock100b-content-evidence-v1",
+  "generated_at": "2026-07-24T16:44:43.363531+00:00",
+  "research_status": "content_evidence_not_outcome_labels",
+  "discovery_manifest_id": "ca-clock100b-common-equity-candidates-v1",
+  "discovery_chains_sha256": "641f995dd7cf472310d45f76e98b7abe55ebc6cdb6f2657e201ff4e1b3043b14",
+  "raw_documents_committed": false,
+  "selection": {
+    "per_chain_cap": 8,
+    "uses_future_outcome_labels": false
+  },
+  "chains": [
+    {
+      "chain_id": "ca-clock100b:0001354457-23-000001",
+      "issuer_cik": "0001720725",
+      "issuer_name": "Oyster Point Pharma, Inc.",
+      "form25_accession": "0001354457-23-000001",
+      "form25_filed_on": "2023-01-03",
+      "form25_accepted_at": "2023-01-03T09:52:01-05:00",
+      "exchange_name": "Nasdaq Stock Market LLC",
+      "rule_family": "a_3",
+      "reason_family_heuristic": "not_informative",
+      "review_sources": [
+        {
+          "issuer_cik": "0001720725",
+          "company_name_index": "Oyster Point Pharma, Inc.",
+          "form_type": "8-K",
+          "filed_on": "2023-01-03",
+          "archive_path": "edgar/data/1720725/0001193125-23-000324.txt",
+          "accession": "0001193125-23-000324",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1720725/000119312523000324/0001193125-23-000324.txt",
+          "calendar_day_offset_from_form25": 0,
+          "candidate_score": 100000,
+          "content_review_required": true,
+          "accepted_at": "2023-01-03T09:12:04-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": true,
+            "cash_language": false,
+            "stock_or_successor_language": true,
+            "bankruptcy_language": false,
+            "liquidation_language": true,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [
+              "converted into the right to receive",
+              "entitled to receive"
+            ],
+            "cash_language": [],
+            "stock_or_successor_language": [
+              "exchange ratio"
+            ],
+            "bankruptcy_language": [],
+            "liquidation_language": [
+              "liquidation"
+            ],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.0001",
+            "0.001",
+            "0.01",
+            "1.00",
+            "2.00",
+            "11.00"
+          ],
+          "normalized_text_length": 140479,
+          "source_sha256": "604ee3906d5d15e9887e5db4afd272937d996c3bb74a645e7ad52a99b9bbd143",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001720725",
+          "company_name_index": "Oyster Point Pharma, Inc.",
+          "form_type": "8-K",
+          "filed_on": "2022-11-10",
+          "archive_path": "edgar/data/1720725/0001720725-22-000079.txt",
+          "accession": "0001720725-22-000079",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1720725/000172072522000079/0001720725-22-000079.txt",
+          "calendar_day_offset_from_form25": -54,
+          "candidate_score": 99946,
+          "content_review_required": true,
+          "accepted_at": "2022-11-10T16:08:53-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.001",
+            "1.00",
+            "2.00",
+            "11.00"
+          ],
+          "normalized_text_length": 91456,
+          "source_sha256": "d4e80d2a9ef2db5b2788c3dd40fdad88e58b4a3d47a4579eefa055e6a45c255a",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001720725",
+          "company_name_index": "Oyster Point Pharma, Inc.",
+          "form_type": "8-K/A",
+          "filed_on": "2023-01-13",
+          "archive_path": "edgar/data/1720725/0001193125-23-008477.txt",
+          "accession": "0001193125-23-008477",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1720725/000119312523008477/0001193125-23-008477.txt",
+          "calendar_day_offset_from_form25": 10,
+          "candidate_score": 94990,
+          "content_review_required": true,
+          "accepted_at": "2023-01-13T17:06:01-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": true,
+            "cash_language": false,
+            "stock_or_successor_language": true,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [
+              "converted into the right to receive"
+            ],
+            "cash_language": [],
+            "stock_or_successor_language": [
+              "exchange ratio"
+            ],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.001",
+            "0.01",
+            "1.00",
+            "2.00",
+            "11.00"
+          ],
+          "normalized_text_length": 74693,
+          "source_sha256": "c747f8c319496cd0985fb8aedefd9de12cdf253915aa7f3dd578553f024c8098",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001720725",
+          "company_name_index": "Oyster Point Pharma, Inc.",
+          "form_type": "15-12G",
+          "filed_on": "2023-01-13",
+          "archive_path": "edgar/data/1720725/0001193125-23-008484.txt",
+          "accession": "0001193125-23-008484",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1720725/000119312523008484/0001193125-23-008484.txt",
+          "calendar_day_offset_from_form25": 10,
+          "candidate_score": 34990,
+          "content_review_required": true,
+          "accepted_at": "2023-01-13T17:10:52-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.001"
+          ],
+          "normalized_text_length": 2439,
+          "source_sha256": "a66de02d406bdd5f17768a0d2e0e34322e4fa53a13ac3a941a78196127ac8b55",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001720725",
+          "company_name_index": "Oyster Point Pharma, Inc.",
+          "form_type": "SC 14D9",
+          "filed_on": "2022-12-22",
+          "archive_path": "edgar/data/1720725/0001193125-22-311180.txt",
+          "accession": "0001193125-22-311180",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1720725/000119312522311180/0001193125-22-311180.txt",
+          "calendar_day_offset_from_form25": -12,
+          "candidate_score": 64988,
+          "content_review_required": true,
+          "accepted_at": "2022-12-22T17:14:59-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": true,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [
+              "in cash, without interest"
+            ],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.001",
+            "11.00"
+          ],
+          "normalized_text_length": 47691,
+          "source_sha256": "bbf885801cc724b0d83c32ab9b7940443c0dd51e82dbfd6ecd2e3fd5e52ab46e",
+          "raw_document_committed": false
+        }
+      ],
+      "review_source_count": 5,
+      "primary_material_source_candidate": {
+        "accession": "0001193125-23-000324",
+        "form_type": "8-K",
+        "accepted_at": "2023-01-03T09:12:04-05:00",
+        "issuer_minus_exchange_seconds": -2397,
+        "order": "issuer_source_before_exchange",
+        "term_flags": {
+          "completion_language": false,
+          "holder_conversion_language": true,
+          "cash_language": false,
+          "stock_or_successor_language": true,
+          "bankruptcy_language": false,
+          "liquidation_language": true,
+          "listing_transfer_language": false,
+          "failure_or_termination_language": false,
+          "zero_value_language": false
+        },
+        "candidate_not_outcome_confirmation": true
+      },
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0001143313-23-000005",
+      "issuer_cik": "0001773250",
+      "issuer_name": "MAVERIX METALS INC.",
+      "form25_accession": "0001143313-23-000005",
+      "form25_filed_on": "2023-01-20",
+      "form25_accepted_at": "2023-01-20T08:52:00-05:00",
+      "exchange_name": "NYSE AMERICAN LLC",
+      "rule_family": "a_3",
+      "reason_family_heuristic": "merger_or_acquisition",
+      "review_sources": [
+        {
+          "issuer_cik": "0001773250",
+          "company_name_index": "MAVERIX METALS INC.",
+          "form_type": "6-K",
+          "filed_on": "2023-01-20",
+          "archive_path": "edgar/data/1773250/0001104659-23-005193.txt",
+          "accession": "0001104659-23-005193",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1773250/000110465923005193/0001104659-23-005193.txt",
+          "calendar_day_offset_from_form25": 0,
+          "candidate_score": 90000,
+          "content_review_required": true,
+          "accepted_at": "2023-01-20T07:05:37-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 92927,
+          "source_sha256": "3fb1a58dfbf86d15d6abde2b1e2c24f1b0076f10b99b9d37f98b44369aa7acc8",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001773250",
+          "company_name_index": "MAVERIX METALS INC.",
+          "form_type": "6-K",
+          "filed_on": "2023-01-18",
+          "archive_path": "edgar/data/1773250/0001104659-23-004571.txt",
+          "accession": "0001104659-23-004571",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1773250/000110465923004571/0001104659-23-004571.txt",
+          "calendar_day_offset_from_form25": -2,
+          "candidate_score": 89998,
+          "content_review_required": true,
+          "accepted_at": "2023-01-18T15:07:13-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": true,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [
+              "cash consideration"
+            ],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 15058,
+          "source_sha256": "75092aa22b8da1787fc37cb1365f6d504190175c89765662cc7ca59be6559dfc",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001773250",
+          "company_name_index": "MAVERIX METALS INC.",
+          "form_type": "15-12G",
+          "filed_on": "2023-01-30",
+          "archive_path": "edgar/data/1773250/0001104659-23-007680.txt",
+          "accession": "0001104659-23-007680",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1773250/000110465923007680/0001104659-23-007680.txt",
+          "calendar_day_offset_from_form25": 10,
+          "candidate_score": 34990,
+          "content_review_required": true,
+          "accepted_at": "2023-01-30T06:25:53-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 2364,
+          "source_sha256": "041c6374c35fd22bd26a47fd0c456ba6b5e2e404ead6037f68aeee4c0d306788",
+          "raw_document_committed": false
+        }
+      ],
+      "review_source_count": 3,
+      "primary_material_source_candidate": null,
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0000876661-23-000075",
+      "issuer_cik": "0001359711",
+      "issuer_name": "MICRO FOCUS INTERNATIONAL PLC",
+      "form25_accession": "0000876661-23-000075",
+      "form25_filed_on": "2023-01-31",
+      "form25_accepted_at": "2023-01-31T08:34:23-05:00",
+      "exchange_name": "NEW YORK STOCK EXCHANGE LLC",
+      "rule_family": "a_3",
+      "reason_family_heuristic": "merger_or_acquisition",
+      "review_sources": [
+        {
+          "issuer_cik": "0001359711",
+          "company_name_index": "MICRO FOCUS INTERNATIONAL PLC",
+          "form_type": "6-K",
+          "filed_on": "2023-01-31",
+          "archive_path": "edgar/data/1359711/0001654954-23-001038.txt",
+          "accession": "0001654954-23-001038",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1359711/000165495423001038/0001654954-23-001038.txt",
+          "calendar_day_offset_from_form25": 0,
+          "candidate_score": 90000,
+          "content_review_required": true,
+          "accepted_at": "2023-01-31T07:22:37-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": true,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [
+              "entitled to receive"
+            ],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 26239,
+          "source_sha256": "28d40bedae623d986de905603254bf7640c541562a0b6f7e996cfa2f4c1049c2",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001359711",
+          "company_name_index": "MICRO FOCUS INTERNATIONAL PLC",
+          "form_type": "6-K",
+          "filed_on": "2023-01-30",
+          "archive_path": "edgar/data/1359711/0001654954-23-000978.txt",
+          "accession": "0001654954-23-000978",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1359711/000165495423000978/0001654954-23-000978.txt",
+          "calendar_day_offset_from_form25": -1,
+          "candidate_score": 89999,
+          "content_review_required": true,
+          "accepted_at": "2023-01-30T13:57:27-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 9447,
+          "source_sha256": "2ba92a1c2417532539d5390050173d8370c50de9959a00bf7c754557cbc2484d",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001359711",
+          "company_name_index": "MICRO FOCUS INTERNATIONAL PLC",
+          "form_type": "6-K",
+          "filed_on": "2023-02-01",
+          "archive_path": "edgar/data/1359711/0001654954-23-001122.txt",
+          "accession": "0001654954-23-001122",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1359711/000165495423001122/0001654954-23-001122.txt",
+          "calendar_day_offset_from_form25": 1,
+          "candidate_score": 89999,
+          "content_review_required": true,
+          "accepted_at": "2023-02-01T06:07:27-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 9856,
+          "source_sha256": "f0af3f6cf31988f8ca7566831562ffa12ca306e51fb4e524827978828cc5745b",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001359711",
+          "company_name_index": "MICRO FOCUS INTERNATIONAL PLC",
+          "form_type": "15-12G",
+          "filed_on": "2023-02-10",
+          "archive_path": "edgar/data/1359711/0001193125-23-031428.txt",
+          "accession": "0001193125-23-031428",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1359711/000119312523031428/0001193125-23-031428.txt",
+          "calendar_day_offset_from_form25": 10,
+          "candidate_score": 34990,
+          "content_review_required": true,
+          "accepted_at": "2023-02-10T08:17:00-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 2869,
+          "source_sha256": "48865cc808ceb0e41353836e3faa39a4d9d9da48d991ab6b31f81f5d303ab0eb",
+          "raw_document_committed": false
+        }
+      ],
+      "review_source_count": 4,
+      "primary_material_source_candidate": {
+        "accession": "0001654954-23-001038",
+        "form_type": "6-K",
+        "accepted_at": "2023-01-31T07:22:37-05:00",
+        "issuer_minus_exchange_seconds": -4306,
+        "order": "issuer_source_before_exchange",
+        "term_flags": {
+          "completion_language": false,
+          "holder_conversion_language": true,
+          "cash_language": false,
+          "stock_or_successor_language": false,
+          "bankruptcy_language": false,
+          "liquidation_language": false,
+          "listing_transfer_language": false,
+          "failure_or_termination_language": false,
+          "zero_value_language": false
+        },
+        "candidate_not_outcome_confirmation": true
+      },
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0001354457-23-000108",
+      "issuer_cik": "0001404123",
+      "issuer_name": "1Life Healthcare Inc",
+      "form25_accession": "0001354457-23-000108",
+      "form25_filed_on": "2023-02-22",
+      "form25_accepted_at": "2023-02-22T09:48:45-05:00",
+      "exchange_name": "Nasdaq Stock Market LLC",
+      "rule_family": "a_3",
+      "reason_family_heuristic": "other_or_unclassified",
+      "review_sources": [
+        {
+          "issuer_cik": "0001404123",
+          "company_name_index": "1Life Healthcare Inc",
+          "form_type": "8-K",
+          "filed_on": "2023-02-22",
+          "archive_path": "edgar/data/1404123/0001193125-23-044883.txt",
+          "accession": "0001193125-23-044883",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1404123/000119312523044883/0001193125-23-044883.txt",
+          "calendar_day_offset_from_form25": 0,
+          "candidate_score": 100000,
+          "content_review_required": true,
+          "accepted_at": "2023-02-22T16:35:32-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": true,
+            "holder_conversion_language": true,
+            "cash_language": true,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": true,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": true
+          },
+          "matched_phrases": {
+            "completion_language": [
+              "completed its merger",
+              "consummated",
+              "merger was completed"
+            ],
+            "holder_conversion_language": [
+              "converted into the right to receive",
+              "entitled to receive"
+            ],
+            "cash_language": [
+              "in cash, without interest"
+            ],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [
+              "dissolution"
+            ],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": [
+              "without consideration"
+            ]
+          },
+          "cash_per_share_candidates": [
+            "0.001",
+            "0.01"
+          ],
+          "normalized_text_length": 154626,
+          "source_sha256": "72e26a95288f65c490c8df10e8240b430ef57be84a5304f219d948393a357f11",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001404123",
+          "company_name_index": "1Life Healthcare Inc",
+          "form_type": "8-K",
+          "filed_on": "2023-02-22",
+          "archive_path": "edgar/data/1404123/0001404123-23-000015.txt",
+          "accession": "0001404123-23-000015",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1404123/000140412323000015/0001404123-23-000015.txt",
+          "calendar_day_offset_from_form25": 0,
+          "candidate_score": 100000,
+          "content_review_required": true,
+          "accepted_at": "2023-02-21T18:09:31-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 83957,
+          "source_sha256": "d98d7bc8dad0059e1b65fdeda505eaf1c38362836b309ac154c9323bd7f5433e",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001404123",
+          "company_name_index": "1Life Healthcare Inc",
+          "form_type": "15-12G",
+          "filed_on": "2023-03-06",
+          "archive_path": "edgar/data/1404123/0000950142-23-000605.txt",
+          "accession": "0000950142-23-000605",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1404123/000095014223000605/0000950142-23-000605.txt",
+          "calendar_day_offset_from_form25": 12,
+          "candidate_score": 34988,
+          "content_review_required": true,
+          "accepted_at": "2023-03-06T09:26:07-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 2458,
+          "source_sha256": "236d345cf7d594448d863b3ce8a0bd1a8ff3767465ded7664be2aa7dedec61f7",
+          "raw_document_committed": false
+        }
+      ],
+      "review_source_count": 3,
+      "primary_material_source_candidate": {
+        "accession": "0001193125-23-044883",
+        "form_type": "8-K",
+        "accepted_at": "2023-02-22T16:35:32-05:00",
+        "issuer_minus_exchange_seconds": 24407,
+        "order": "exchange_before_issuer_source",
+        "term_flags": {
+          "completion_language": true,
+          "holder_conversion_language": true,
+          "cash_language": true,
+          "stock_or_successor_language": false,
+          "bankruptcy_language": false,
+          "liquidation_language": true,
+          "listing_transfer_language": false,
+          "failure_or_termination_language": false,
+          "zero_value_language": true
+        },
+        "candidate_not_outcome_confirmation": true
+      },
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0000876661-23-000191",
+      "issuer_cik": "0001679082",
+      "issuer_name": "Myovant Sciences Ltd.",
+      "form25_accession": "0000876661-23-000191",
+      "form25_filed_on": "2023-03-10",
+      "form25_accepted_at": "2023-03-10T13:11:06-05:00",
+      "exchange_name": "NEW YORK STOCK EXCHANGE LLC",
+      "rule_family": "a_3",
+      "reason_family_heuristic": "merger_or_acquisition",
+      "review_sources": [
+        {
+          "issuer_cik": "0001679082",
+          "company_name_index": "Myovant Sciences Ltd.",
+          "form_type": "8-K",
+          "filed_on": "2023-03-10",
+          "archive_path": "edgar/data/1679082/0001140361-23-011046.txt",
+          "accession": "0001140361-23-011046",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1679082/000114036123011046/0001140361-23-011046.txt",
+          "calendar_day_offset_from_form25": 0,
+          "candidate_score": 100000,
+          "content_review_required": true,
+          "accepted_at": "2023-03-10T09:10:58-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": true,
+            "holder_conversion_language": true,
+            "cash_language": true,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": true,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [
+              "completed its acquisition"
+            ],
+            "holder_conversion_language": [
+              "converted into the right to receive",
+              "entitled to receive"
+            ],
+            "cash_language": [
+              "in cash, without interest"
+            ],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [
+              "dissolution",
+              "liquidation"
+            ],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "27.00"
+          ],
+          "normalized_text_length": 220337,
+          "source_sha256": "e0582f33122120fac11591b6a514b23739a7b288fd4513d059ed4c05fdc17e86",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001679082",
+          "company_name_index": "Myovant Sciences Ltd.",
+          "form_type": "8-K",
+          "filed_on": "2023-03-01",
+          "archive_path": "edgar/data/1679082/0001140361-23-009304.txt",
+          "accession": "0001140361-23-009304",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1679082/000114036123009304/0001140361-23-009304.txt",
+          "calendar_day_offset_from_form25": -9,
+          "candidate_score": 99991,
+          "content_review_required": true,
+          "accepted_at": "2023-03-01T08:18:21-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 50666,
+          "source_sha256": "4a413268e537b6b3fb2c859508f8426fd21c91123fe714f1b643ba730c3738ba",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001679082",
+          "company_name_index": "Myovant Sciences Ltd.",
+          "form_type": "15-12G",
+          "filed_on": "2023-03-20",
+          "archive_path": "edgar/data/1679082/0001140361-23-012511.txt",
+          "accession": "0001140361-23-012511",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1679082/000114036123012511/0001140361-23-012511.txt",
+          "calendar_day_offset_from_form25": 10,
+          "candidate_score": 34990,
+          "content_review_required": true,
+          "accepted_at": "2023-03-20T13:58:45-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 2378,
+          "source_sha256": "39d58d7a232360039fd1767312f5a31ba56dd97f31c182399df0c116ae5ade57",
+          "raw_document_committed": false
+        }
+      ],
+      "review_source_count": 3,
+      "primary_material_source_candidate": {
+        "accession": "0001140361-23-011046",
+        "form_type": "8-K",
+        "accepted_at": "2023-03-10T09:10:58-05:00",
+        "issuer_minus_exchange_seconds": -14408,
+        "order": "issuer_source_before_exchange",
+        "term_flags": {
+          "completion_language": true,
+          "holder_conversion_language": true,
+          "cash_language": true,
+          "stock_or_successor_language": false,
+          "bankruptcy_language": false,
+          "liquidation_language": true,
+          "listing_transfer_language": false,
+          "failure_or_termination_language": false,
+          "zero_value_language": false
+        },
+        "candidate_not_outcome_confirmation": true
+      },
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0000876661-23-000340",
+      "issuer_cik": "0001177219",
+      "issuer_name": "NUVEEN GEORGIA QUALITY MUNICIPAL INCOME FUND",
+      "form25_accession": "0000876661-23-000340",
+      "form25_filed_on": "2023-04-17",
+      "form25_accepted_at": "2023-04-17T10:07:03-04:00",
+      "exchange_name": "NEW YORK STOCK EXCHANGE LLC",
+      "rule_family": "a_3",
+      "reason_family_heuristic": "merger_or_acquisition",
+      "review_sources": [],
+      "review_source_count": 0,
+      "primary_material_source_candidate": null,
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0001354457-23-000306",
+      "issuer_cik": "0001180145",
+      "issuer_name": "Cardiovascular Systems Inc",
+      "form25_accession": "0001354457-23-000306",
+      "form25_filed_on": "2023-04-27",
+      "form25_accepted_at": "2023-04-27T17:21:59-04:00",
+      "exchange_name": "Nasdaq Stock Market LLC",
+      "rule_family": "a_3",
+      "reason_family_heuristic": "other_or_unclassified",
+      "review_sources": [
+        {
+          "issuer_cik": "0001180145",
+          "company_name_index": "Cardiovascular Systems Inc",
+          "form_type": "8-K",
+          "filed_on": "2023-04-27",
+          "archive_path": "edgar/data/1180145/0001104659-23-051430.txt",
+          "accession": "0001104659-23-051430",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1180145/000110465923051430/0001104659-23-051430.txt",
+          "calendar_day_offset_from_form25": 0,
+          "candidate_score": 100000,
+          "content_review_required": true,
+          "accepted_at": "2023-04-27T16:41:54-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": true,
+            "holder_conversion_language": true,
+            "cash_language": true,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": true,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [
+              "completed the acquisition"
+            ],
+            "holder_conversion_language": [
+              "converted into the right to receive",
+              "entitled to receive"
+            ],
+            "cash_language": [
+              "cash per share"
+            ],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [
+              "dissolution"
+            ],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.001",
+            "20.00"
+          ],
+          "normalized_text_length": 121285,
+          "source_sha256": "66154c34958ed0500569ca3a7331e6e35224cc5670e9872953001f13a3c8a882",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001180145",
+          "company_name_index": "Cardiovascular Systems Inc",
+          "form_type": "8-K",
+          "filed_on": "2023-04-13",
+          "archive_path": "edgar/data/1180145/0001140361-23-018126.txt",
+          "accession": "0001140361-23-018126",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1180145/000114036123018126/0001140361-23-018126.txt",
+          "calendar_day_offset_from_form25": -14,
+          "candidate_score": 99986,
+          "content_review_required": true,
+          "accepted_at": "2023-04-13T09:13:40-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": true,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [
+              "termination of the merger agreement"
+            ],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 57556,
+          "source_sha256": "f91c8492e3ad614d58b6e6409f156bc825c68aac7f3db0445ab390461fcaf066",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001180145",
+          "company_name_index": "Cardiovascular Systems Inc",
+          "form_type": "15-12G",
+          "filed_on": "2023-05-08",
+          "archive_path": "edgar/data/1180145/0001104659-23-056753.txt",
+          "accession": "0001104659-23-056753",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1180145/000110465923056753/0001104659-23-056753.txt",
+          "calendar_day_offset_from_form25": 11,
+          "candidate_score": 34989,
+          "content_review_required": true,
+          "accepted_at": "2023-05-08T06:00:37-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 2435,
+          "source_sha256": "bda107cd3ce0d60a413232a7c0c16f193d53786df1818dfc7924d5cf348933e1",
+          "raw_document_committed": false
+        }
+      ],
+      "review_source_count": 3,
+      "primary_material_source_candidate": {
+        "accession": "0001104659-23-051430",
+        "form_type": "8-K",
+        "accepted_at": "2023-04-27T16:41:54-04:00",
+        "issuer_minus_exchange_seconds": -2405,
+        "order": "issuer_source_before_exchange",
+        "term_flags": {
+          "completion_language": true,
+          "holder_conversion_language": true,
+          "cash_language": true,
+          "stock_or_successor_language": false,
+          "bankruptcy_language": false,
+          "liquidation_language": true,
+          "listing_transfer_language": false,
+          "failure_or_termination_language": false,
+          "zero_value_language": false
+        },
+        "candidate_not_outcome_confirmation": true
+      },
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0000876661-23-000374",
+      "issuer_cik": "0001000229",
+      "issuer_name": "CORE LABORATORIES N V",
+      "form25_accession": "0000876661-23-000374",
+      "form25_filed_on": "2023-05-02",
+      "form25_accepted_at": "2023-05-02T12:57:08-04:00",
+      "exchange_name": "NEW YORK STOCK EXCHANGE LLC",
+      "rule_family": "a_3",
+      "reason_family_heuristic": "merger_or_acquisition",
+      "review_sources": [
+        {
+          "issuer_cik": "0001000229",
+          "company_name_index": "CORE LABORATORIES N V",
+          "form_type": "8-K",
+          "filed_on": "2023-04-26",
+          "archive_path": "edgar/data/1000229/0000950170-23-014881.txt",
+          "accession": "0000950170-23-014881",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1000229/000095017023014881/0000950170-23-014881.txt",
+          "calendar_day_offset_from_form25": -6,
+          "candidate_score": 99994,
+          "content_review_required": true,
+          "accepted_at": "2023-04-26T16:55:56-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.01"
+          ],
+          "normalized_text_length": 99618,
+          "source_sha256": "f60c946dc56200f60fec981fd4c936d350de3226a2427beffdd742bd2b3a87a2",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001000229",
+          "company_name_index": "CORE LABORATORIES N V",
+          "form_type": "15F-12G",
+          "filed_on": "2023-05-12",
+          "archive_path": "edgar/data/1000229/0001193125-23-143477.txt",
+          "accession": "0001193125-23-143477",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1000229/000119312523143477/0001193125-23-143477.txt",
+          "calendar_day_offset_from_form25": 10,
+          "candidate_score": 34990,
+          "content_review_required": true,
+          "accepted_at": "2023-05-12T16:09:59-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": true,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [
+              "successor issuer"
+            ],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 4325,
+          "source_sha256": "153d53254dc250c3b35faea37878af3cf4ab4fab3503f92e02ec60e39dbcab2e",
+          "raw_document_committed": false
+        }
+      ],
+      "review_source_count": 2,
+      "primary_material_source_candidate": null,
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0001354457-23-000347",
+      "issuer_cik": "0001643269",
+      "issuer_name": "Sumo Logic, Inc.",
+      "form25_accession": "0001354457-23-000347",
+      "form25_filed_on": "2023-05-12",
+      "form25_accepted_at": "2023-05-12T09:39:42-04:00",
+      "exchange_name": "Nasdaq Stock Market LLC",
+      "rule_family": "a_3",
+      "reason_family_heuristic": "not_informative",
+      "review_sources": [
+        {
+          "issuer_cik": "0001643269",
+          "company_name_index": "Sumo Logic, Inc.",
+          "form_type": "8-K",
+          "filed_on": "2023-05-10",
+          "archive_path": "edgar/data/1643269/0001140361-23-023913.txt",
+          "accession": "0001140361-23-023913",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1643269/000114036123023913/0001140361-23-023913.txt",
+          "calendar_day_offset_from_form25": -2,
+          "candidate_score": 99998,
+          "content_review_required": true,
+          "accepted_at": "2023-05-10T16:37:04-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.0001"
+          ],
+          "normalized_text_length": 48652,
+          "source_sha256": "099b2193c295f8db6c67eaf601c4627246c2ad6645d253ba02cd561288c61b0b",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001643269",
+          "company_name_index": "Sumo Logic, Inc.",
+          "form_type": "8-K",
+          "filed_on": "2023-05-15",
+          "archive_path": "edgar/data/1643269/0001140361-23-024758.txt",
+          "accession": "0001140361-23-024758",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1643269/000114036123024758/0001140361-23-024758.txt",
+          "calendar_day_offset_from_form25": 3,
+          "candidate_score": 99997,
+          "content_review_required": true,
+          "accepted_at": "2023-05-15T16:57:18-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": true,
+            "holder_conversion_language": true,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [
+              "completed its acquisition"
+            ],
+            "holder_conversion_language": [
+              "converted into the right to receive",
+              "entitled to receive"
+            ],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.0001",
+            "0.01",
+            "12.05"
+          ],
+          "normalized_text_length": 139859,
+          "source_sha256": "a4980e1255e49e3747fd896dc240b72253871b7c6ff03b7f421dba00099a1202",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001643269",
+          "company_name_index": "Sumo Logic, Inc.",
+          "form_type": "15-12G",
+          "filed_on": "2023-05-22",
+          "archive_path": "edgar/data/1643269/0001140361-23-026009.txt",
+          "accession": "0001140361-23-026009",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1643269/000114036123026009/0001140361-23-026009.txt",
+          "calendar_day_offset_from_form25": 10,
+          "candidate_score": 34990,
+          "content_review_required": true,
+          "accepted_at": "2023-05-22T16:30:53-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.0001"
+          ],
+          "normalized_text_length": 2345,
+          "source_sha256": "01f9471689a33fc322e3cce2f50953c31625e91272d21399e2a017d4be6eaaf1",
+          "raw_document_committed": false
+        }
+      ],
+      "review_source_count": 3,
+      "primary_material_source_candidate": {
+        "accession": "0001140361-23-024758",
+        "form_type": "8-K",
+        "accepted_at": "2023-05-15T16:57:18-04:00",
+        "issuer_minus_exchange_seconds": 285456,
+        "order": "exchange_before_issuer_source",
+        "term_flags": {
+          "completion_language": true,
+          "holder_conversion_language": true,
+          "cash_language": false,
+          "stock_or_successor_language": false,
+          "bankruptcy_language": false,
+          "liquidation_language": false,
+          "listing_transfer_language": false,
+          "failure_or_termination_language": false,
+          "zero_value_language": false
+        },
+        "candidate_not_outcome_confirmation": true
+      },
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0000876661-23-000413",
+      "issuer_cik": "0001705682",
+      "issuer_name": "Venator Materials PLC",
+      "form25_accession": "0000876661-23-000413",
+      "form25_filed_on": "2023-05-19",
+      "form25_accepted_at": "2023-05-19T10:55:42-04:00",
+      "exchange_name": "NEW YORK STOCK EXCHANGE LLC",
+      "rule_family": "b",
+      "reason_family_heuristic": "distress_or_compliance",
+      "review_sources": [
+        {
+          "issuer_cik": "0001705682",
+          "company_name_index": "Venator Materials PLC",
+          "form_type": "6-K",
+          "filed_on": "2023-05-18",
+          "archive_path": "edgar/data/1705682/0001705682-23-000008.txt",
+          "accession": "0001705682-23-000008",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1705682/000170568223000008/0001705682-23-000008.txt",
+          "calendar_day_offset_from_form25": -1,
+          "candidate_score": 89999,
+          "content_review_required": true,
+          "accepted_at": "2023-05-18T10:11:07-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": true,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": true,
+            "liquidation_language": true,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": true
+          },
+          "matched_phrases": {
+            "completion_language": [
+              "consummated"
+            ],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [
+              "bankruptcy code",
+              "chapter 11",
+              "debtor in possession"
+            ],
+            "liquidation_language": [
+              "liquidate"
+            ],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": [
+              "no recovery",
+              "without consideration"
+            ]
+          },
+          "cash_per_share_candidates": [
+            "1.00"
+          ],
+          "normalized_text_length": 2308503,
+          "source_sha256": "d7f8b2fb04ea4029e4db9701dc6504f3eae574fc531f2bd75491fccbfbf45603",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001705682",
+          "company_name_index": "Venator Materials PLC",
+          "form_type": "6-K",
+          "filed_on": "2023-05-22",
+          "archive_path": "edgar/data/1705682/0001104659-23-062859.txt",
+          "accession": "0001104659-23-062859",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1705682/000110465923062859/0001104659-23-062859.txt",
+          "calendar_day_offset_from_form25": 3,
+          "candidate_score": 89997,
+          "content_review_required": true,
+          "accepted_at": "2023-05-22T06:08:04-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": true,
+            "holder_conversion_language": true,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": true,
+            "liquidation_language": true,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [
+              "consummated"
+            ],
+            "holder_conversion_language": [
+              "entitled to receive"
+            ],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [
+              "bankruptcy code",
+              "chapter 11",
+              "debtors in possession"
+            ],
+            "liquidation_language": [
+              "dissolution",
+              "liquidation"
+            ],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 521499,
+          "source_sha256": "7713eea567c459068f14cd728e023fc90dbf7df2ca04b66260ed6778b3642a27",
+          "raw_document_committed": false
+        }
+      ],
+      "review_source_count": 2,
+      "primary_material_source_candidate": {
+        "accession": "0001705682-23-000008",
+        "form_type": "6-K",
+        "accepted_at": "2023-05-18T10:11:07-04:00",
+        "issuer_minus_exchange_seconds": -89075,
+        "order": "issuer_source_before_exchange",
+        "term_flags": {
+          "completion_language": true,
+          "holder_conversion_language": false,
+          "cash_language": false,
+          "stock_or_successor_language": false,
+          "bankruptcy_language": true,
+          "liquidation_language": true,
+          "listing_transfer_language": false,
+          "failure_or_termination_language": false,
+          "zero_value_language": true
+        },
+        "candidate_not_outcome_confirmation": true
+      },
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0001354457-23-000395",
+      "issuer_cik": "0001324272",
+      "issuer_name": "Ruths Hospitality Group, Inc.",
+      "form25_accession": "0001354457-23-000395",
+      "form25_filed_on": "2023-06-14",
+      "form25_accepted_at": "2023-06-14T08:45:25-04:00",
+      "exchange_name": "Nasdaq Stock Market LLC",
+      "rule_family": "a_3",
+      "reason_family_heuristic": "not_informative",
+      "review_sources": [
+        {
+          "issuer_cik": "0001324272",
+          "company_name_index": "Ruths Hospitality Group, Inc.",
+          "form_type": "8-K",
+          "filed_on": "2023-06-14",
+          "archive_path": "edgar/data/1324272/0001193125-23-166585.txt",
+          "accession": "0001193125-23-166585",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1324272/000119312523166585/0001193125-23-166585.txt",
+          "calendar_day_offset_from_form25": 0,
+          "candidate_score": 100000,
+          "content_review_required": true,
+          "accepted_at": "2023-06-14T09:24:28-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": true,
+            "cash_language": true,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [
+              "converted into the right to receive",
+              "entitled to receive"
+            ],
+            "cash_language": [
+              "in cash, without interest"
+            ],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.01",
+            "21.50"
+          ],
+          "normalized_text_length": 104222,
+          "source_sha256": "d6f2be0ecf1b014e65134045a647c5fbd41d71a99da53aea5ad077614e68573f",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001324272",
+          "company_name_index": "Ruths Hospitality Group, Inc.",
+          "form_type": "8-K",
+          "filed_on": "2023-05-31",
+          "archive_path": "edgar/data/1324272/0001193125-23-157820.txt",
+          "accession": "0001193125-23-157820",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1324272/000119312523157820/0001193125-23-157820.txt",
+          "calendar_day_offset_from_form25": -14,
+          "candidate_score": 99986,
+          "content_review_required": true,
+          "accepted_at": "2023-05-31T16:07:34-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": true,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": true,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [
+              "entitled to receive"
+            ],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [
+              "liquidation"
+            ],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.01"
+          ],
+          "normalized_text_length": 84731,
+          "source_sha256": "7784246a29f00927fb4df6ec65cdf0e56bc5f3733f88f54169ae3cb0fdc1923d",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001324272",
+          "company_name_index": "Ruths Hospitality Group, Inc.",
+          "form_type": "15-12G",
+          "filed_on": "2023-06-26",
+          "archive_path": "edgar/data/1324272/0001193125-23-175062.txt",
+          "accession": "0001193125-23-175062",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1324272/000119312523175062/0001193125-23-175062.txt",
+          "calendar_day_offset_from_form25": 12,
+          "candidate_score": 34988,
+          "content_review_required": true,
+          "accepted_at": "2023-06-26T16:09:50-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.01"
+          ],
+          "normalized_text_length": 2565,
+          "source_sha256": "c595d933bf5ee7524e4207f936523dbb0e2156fc5b31de36c4d21906e6d7b4e9",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001324272",
+          "company_name_index": "Ruths Hospitality Group, Inc.",
+          "form_type": "SC 14D9",
+          "filed_on": "2023-05-16",
+          "archive_path": "edgar/data/1324272/0001193125-23-146169.txt",
+          "accession": "0001193125-23-146169",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1324272/000119312523146169/0001193125-23-146169.txt",
+          "calendar_day_offset_from_form25": -29,
+          "candidate_score": 64971,
+          "content_review_required": true,
+          "accepted_at": "2023-05-16T16:58:29-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": true,
+            "holder_conversion_language": true,
+            "cash_language": true,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": true,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": true,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [
+              "consummated"
+            ],
+            "holder_conversion_language": [
+              "converted into the right to receive",
+              "entitled to receive"
+            ],
+            "cash_language": [
+              "cash consideration",
+              "in cash, without interest"
+            ],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [
+              "liquidation"
+            ],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [
+              "termination of the merger agreement"
+            ],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.01",
+            "16.03",
+            "16.23",
+            "20.75",
+            "21.00",
+            "21.50",
+            "22.25",
+            "23.50",
+            "23.75",
+            "24.50"
+          ],
+          "normalized_text_length": 261694,
+          "source_sha256": "9c3103e373c4aa3d7501b932cb0f2333d1eb8663df6d3ad2a9bddb06e3377083",
+          "raw_document_committed": false
+        }
+      ],
+      "review_source_count": 4,
+      "primary_material_source_candidate": {
+        "accession": "0001193125-23-166585",
+        "form_type": "8-K",
+        "accepted_at": "2023-06-14T09:24:28-04:00",
+        "issuer_minus_exchange_seconds": 2343,
+        "order": "exchange_before_issuer_source",
+        "term_flags": {
+          "completion_language": false,
+          "holder_conversion_language": true,
+          "cash_language": true,
+          "stock_or_successor_language": false,
+          "bankruptcy_language": false,
+          "liquidation_language": false,
+          "listing_transfer_language": false,
+          "failure_or_termination_language": false,
+          "zero_value_language": false
+        },
+        "candidate_not_outcome_confirmation": true
+      },
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0000876661-23-000549",
+      "issuer_cik": "0001564584",
+      "issuer_name": "Nuveen Intermediate Duration Quality Municipal Term Fund",
+      "form25_accession": "0000876661-23-000549",
+      "form25_filed_on": "2023-06-30",
+      "form25_accepted_at": "2023-06-30T15:24:14-04:00",
+      "exchange_name": "NEW YORK STOCK EXCHANGE LLC",
+      "rule_family": "a_3",
+      "reason_family_heuristic": "other_or_unclassified",
+      "review_sources": [],
+      "review_source_count": 0,
+      "primary_material_source_candidate": null,
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0001354457-23-000493",
+      "issuer_cik": "0001410939",
+      "issuer_name": "IVERIC bio, Inc.",
+      "form25_accession": "0001354457-23-000493",
+      "form25_filed_on": "2023-07-11",
+      "form25_accepted_at": "2023-07-11T10:24:16-04:00",
+      "exchange_name": "Nasdaq Stock Market LLC",
+      "rule_family": "a_3",
+      "reason_family_heuristic": "other_or_unclassified",
+      "review_sources": [
+        {
+          "issuer_cik": "0001410939",
+          "company_name_index": "IVERIC bio, Inc.",
+          "form_type": "8-K",
+          "filed_on": "2023-07-11",
+          "archive_path": "edgar/data/1410939/0001104659-23-079843.txt",
+          "accession": "0001104659-23-079843",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1410939/000110465923079843/0001104659-23-079843.txt",
+          "calendar_day_offset_from_form25": 0,
+          "candidate_score": 100000,
+          "content_review_required": true,
+          "accepted_at": "2023-07-11T09:22:06-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": true,
+            "holder_conversion_language": true,
+            "cash_language": true,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": true
+          },
+          "matched_phrases": {
+            "completion_language": [
+              "completed its merger"
+            ],
+            "holder_conversion_language": [
+              "converted into the right to receive",
+              "entitled to receive"
+            ],
+            "cash_language": [
+              "in cash, without interest"
+            ],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": [
+              "without consideration"
+            ]
+          },
+          "cash_per_share_candidates": [
+            "0.001",
+            "40.00"
+          ],
+          "normalized_text_length": 158224,
+          "source_sha256": "29038940011040ae56be01f108c056b128997dc9111350b430435445c06acea4",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001410939",
+          "company_name_index": "IVERIC bio, Inc.",
+          "form_type": "8-K",
+          "filed_on": "2023-07-06",
+          "archive_path": "edgar/data/1410939/0001104659-23-078609.txt",
+          "accession": "0001104659-23-078609",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1410939/000110465923078609/0001104659-23-078609.txt",
+          "calendar_day_offset_from_form25": -5,
+          "candidate_score": 99995,
+          "content_review_required": true,
+          "accepted_at": "2023-07-06T13:00:39-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.001"
+          ],
+          "normalized_text_length": 65436,
+          "source_sha256": "1ff41fb5765c81c27390cade6dc875ef7bbfe487102415a5d4f8ab853c9321a3",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001410939",
+          "company_name_index": "IVERIC bio, Inc.",
+          "form_type": "15-12G",
+          "filed_on": "2023-07-21",
+          "archive_path": "edgar/data/1410939/0001104659-23-082897.txt",
+          "accession": "0001104659-23-082897",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1410939/000110465923082897/0001104659-23-082897.txt",
+          "calendar_day_offset_from_form25": 10,
+          "candidate_score": 34990,
+          "content_review_required": true,
+          "accepted_at": "2023-07-21T08:30:11-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 2351,
+          "source_sha256": "d96bd954d52a5a065a4f78b903922cfae37945f768a5654f07b86362bf19c31c",
+          "raw_document_committed": false
+        }
+      ],
+      "review_source_count": 3,
+      "primary_material_source_candidate": {
+        "accession": "0001104659-23-079843",
+        "form_type": "8-K",
+        "accepted_at": "2023-07-11T09:22:06-04:00",
+        "issuer_minus_exchange_seconds": -3730,
+        "order": "issuer_source_before_exchange",
+        "term_flags": {
+          "completion_language": true,
+          "holder_conversion_language": true,
+          "cash_language": true,
+          "stock_or_successor_language": false,
+          "bankruptcy_language": false,
+          "liquidation_language": false,
+          "listing_transfer_language": false,
+          "failure_or_termination_language": false,
+          "zero_value_language": true
+        },
+        "candidate_not_outcome_confirmation": true
+      },
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0001143362-23-000300",
+      "issuer_cik": "0001491978",
+      "issuer_name": "FLEXSHARES TRUST",
+      "form25_accession": "0001143362-23-000300",
+      "form25_filed_on": "2023-07-18",
+      "form25_accepted_at": "2023-07-18T08:18:28-04:00",
+      "exchange_name": "NYSE ARCA, INC.",
+      "rule_family": "a_3",
+      "reason_family_heuristic": "other_or_unclassified",
+      "review_sources": [
+        {
+          "issuer_cik": "0001491978",
+          "company_name_index": "FLEXSHARES TRUST",
+          "form_type": "N-CSRS",
+          "filed_on": "2023-07-03",
+          "archive_path": "edgar/data/1491978/0001193125-23-181173.txt",
+          "accession": "0001193125-23-181173",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1491978/000119312523181173/0001193125-23-181173.txt",
+          "calendar_day_offset_from_form25": -15,
+          "candidate_score": 69985,
+          "content_review_required": true,
+          "accepted_at": "2023-07-03T12:26:21-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": true,
+            "liquidation_language": true,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [
+              "bankruptcy code"
+            ],
+            "liquidation_language": [
+              "liquidation"
+            ],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "23.86",
+            "24.60",
+            "25.00",
+            "25.06",
+            "25.08",
+            "26.27",
+            "27.82",
+            "28.08",
+            "31.59",
+            "31.83",
+            "40.00",
+            "41.84",
+            "42.04",
+            "42.57",
+            "47.85",
+            "50.00",
+            "50.98",
+            "53.88",
+            "57.38",
+            "60.49",
+            "62.02",
+            "67.51",
+            "75.61",
+            "91.97",
+            "107.50"
+          ],
+          "normalized_text_length": 1277402,
+          "source_sha256": "4873ed74fed5ffa0ecac5a84fe247c2b5b03a1db3914dc54805176a7bc385828",
+          "raw_document_committed": false
+        }
+      ],
+      "review_source_count": 1,
+      "primary_material_source_candidate": {
+        "accession": "0001193125-23-181173",
+        "form_type": "N-CSRS",
+        "accepted_at": "2023-07-03T12:26:21-04:00",
+        "issuer_minus_exchange_seconds": -1281127,
+        "order": "issuer_source_before_exchange",
+        "term_flags": {
+          "completion_language": false,
+          "holder_conversion_language": false,
+          "cash_language": false,
+          "stock_or_successor_language": false,
+          "bankruptcy_language": true,
+          "liquidation_language": true,
+          "listing_transfer_language": false,
+          "failure_or_termination_language": false,
+          "zero_value_language": false
+        },
+        "candidate_not_outcome_confirmation": true
+      },
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0000876661-23-000619",
+      "issuer_cik": "0001093428",
+      "issuer_name": "NUVEEN SENIOR INCOME FUND",
+      "form25_accession": "0000876661-23-000619",
+      "form25_filed_on": "2023-07-31",
+      "form25_accepted_at": "2023-07-31T15:50:37-04:00",
+      "exchange_name": "NEW YORK STOCK EXCHANGE LLC",
+      "rule_family": "a_3",
+      "reason_family_heuristic": "merger_or_acquisition",
+      "review_sources": [],
+      "review_source_count": 0,
+      "primary_material_source_candidate": null,
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0001354457-23-000558",
+      "issuer_cik": "0001830197",
+      "issuer_name": "Home Point Capital Inc.",
+      "form25_accession": "0001354457-23-000558",
+      "form25_filed_on": "2023-08-01",
+      "form25_accepted_at": "2023-08-01T09:08:22-04:00",
+      "exchange_name": "Nasdaq Stock Market LLC",
+      "rule_family": "a_3",
+      "reason_family_heuristic": "other_or_unclassified",
+      "review_sources": [
+        {
+          "issuer_cik": "0001830197",
+          "company_name_index": "Home Point Capital Inc.",
+          "form_type": "8-K",
+          "filed_on": "2023-08-01",
+          "archive_path": "edgar/data/1830197/0001140361-23-037209.txt",
+          "accession": "0001140361-23-037209",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1830197/000114036123037209/0001140361-23-037209.txt",
+          "calendar_day_offset_from_form25": 0,
+          "candidate_score": 100000,
+          "content_review_required": true,
+          "accepted_at": "2023-08-01T09:14:13-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": true,
+            "cash_language": true,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [
+              "converted into the right to receive",
+              "entitled to receive"
+            ],
+            "cash_language": [
+              "in cash, without interest"
+            ],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.01",
+            "2.33"
+          ],
+          "normalized_text_length": 116113,
+          "source_sha256": "35b8f367b35564cfe941458bb3d0da0cae7f0a16d04caeec6c8128e4f416c457",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001830197",
+          "company_name_index": "Home Point Capital Inc.",
+          "form_type": "8-K",
+          "filed_on": "2023-07-28",
+          "archive_path": "edgar/data/1830197/0001140361-23-036645.txt",
+          "accession": "0001140361-23-036645",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1830197/000114036123036645/0001140361-23-036645.txt",
+          "calendar_day_offset_from_form25": -4,
+          "candidate_score": 99996,
+          "content_review_required": true,
+          "accepted_at": "2023-07-28T09:17:49-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 46670,
+          "source_sha256": "7aea6fd85a39cd09a66b2ecfa8ef00a4b6270ee8cf911591ce1dbb446635f4c1",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001830197",
+          "company_name_index": "Home Point Capital Inc.",
+          "form_type": "15-12G",
+          "filed_on": "2023-08-11",
+          "archive_path": "edgar/data/1830197/0001140361-23-039193.txt",
+          "accession": "0001140361-23-039193",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1830197/000114036123039193/0001140361-23-039193.txt",
+          "calendar_day_offset_from_form25": 10,
+          "candidate_score": 34990,
+          "content_review_required": true,
+          "accepted_at": "2023-08-11T08:32:48-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 2959,
+          "source_sha256": "2b56d33fd1910d867b79dcb37abf131f4c94688f360aed34a59a37adae2876aa",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001830197",
+          "company_name_index": "Home Point Capital Inc.",
+          "form_type": "SC 14D9/A",
+          "filed_on": "2023-08-01",
+          "archive_path": "edgar/data/1830197/0001140361-23-037205.txt",
+          "accession": "0001140361-23-037205",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1830197/000114036123037205/0001140361-23-037205.txt",
+          "calendar_day_offset_from_form25": 0,
+          "candidate_score": 64000,
+          "content_review_required": true,
+          "accepted_at": "2023-08-01T09:08:53-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": true,
+            "holder_conversion_language": true,
+            "cash_language": true,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [
+              "merger was completed"
+            ],
+            "holder_conversion_language": [
+              "converted into the right to receive"
+            ],
+            "cash_language": [
+              "in cash, without interest"
+            ],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "2.33"
+          ],
+          "normalized_text_length": 7447,
+          "source_sha256": "2d83463a7f587aa5de7514bd3282940860ca35f7fa56b20985fb3a4854c2203a",
+          "raw_document_committed": false
+        }
+      ],
+      "review_source_count": 4,
+      "primary_material_source_candidate": {
+        "accession": "0001140361-23-037205",
+        "form_type": "SC 14D9/A",
+        "accepted_at": "2023-08-01T09:08:53-04:00",
+        "issuer_minus_exchange_seconds": 31,
+        "order": "exchange_before_issuer_source",
+        "term_flags": {
+          "completion_language": true,
+          "holder_conversion_language": true,
+          "cash_language": true,
+          "stock_or_successor_language": false,
+          "bankruptcy_language": false,
+          "liquidation_language": false,
+          "listing_transfer_language": false,
+          "failure_or_termination_language": false,
+          "zero_value_language": false
+        },
+        "candidate_not_outcome_confirmation": true
+      },
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0000876661-23-000678",
+      "issuer_cik": "0001543916",
+      "issuer_name": "ForgeRock, Inc.",
+      "form25_accession": "0000876661-23-000678",
+      "form25_filed_on": "2023-08-23",
+      "form25_accepted_at": "2023-08-23T09:53:02-04:00",
+      "exchange_name": "NEW YORK STOCK EXCHANGE LLC",
+      "rule_family": "a_3",
+      "reason_family_heuristic": "merger_or_acquisition",
+      "review_sources": [
+        {
+          "issuer_cik": "0001543916",
+          "company_name_index": "ForgeRock, Inc.",
+          "form_type": "8-K",
+          "filed_on": "2023-08-23",
+          "archive_path": "edgar/data/1543916/0001140361-23-040969.txt",
+          "accession": "0001140361-23-040969",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1543916/000114036123040969/0001140361-23-040969.txt",
+          "calendar_day_offset_from_form25": 0,
+          "candidate_score": 100000,
+          "content_review_required": true,
+          "accepted_at": "2023-08-23T08:53:06-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": true,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": true,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [
+              "converted into the right to receive",
+              "entitled to receive"
+            ],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [
+              "dissolution"
+            ],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.001",
+            "0.01"
+          ],
+          "normalized_text_length": 157507,
+          "source_sha256": "e56bcedeffda8fe988974edd4a48ba2a7aa66c18d4e0894e75849c8e806ccae7",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001543916",
+          "company_name_index": "ForgeRock, Inc.",
+          "form_type": "8-K",
+          "filed_on": "2023-08-07",
+          "archive_path": "edgar/data/1543916/0001543916-23-000057.txt",
+          "accession": "0001543916-23-000057",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1543916/000154391623000057/0001543916-23-000057.txt",
+          "calendar_day_offset_from_form25": -16,
+          "candidate_score": 99984,
+          "content_review_required": true,
+          "accepted_at": "2023-08-07T16:07:45-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 83322,
+          "source_sha256": "0d72ad651ab90e342229c598ad6ea8c5c196c6147f1282af146acf8d592ff725",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001543916",
+          "company_name_index": "ForgeRock, Inc.",
+          "form_type": "15-12G",
+          "filed_on": "2023-09-05",
+          "archive_path": "edgar/data/1543916/0001140361-23-042741.txt",
+          "accession": "0001140361-23-042741",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1543916/000114036123042741/0001140361-23-042741.txt",
+          "calendar_day_offset_from_form25": 13,
+          "candidate_score": 34987,
+          "content_review_required": true,
+          "accepted_at": "2023-09-05T17:25:51-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.001"
+          ],
+          "normalized_text_length": 2337,
+          "source_sha256": "ad732220722acfba438324bf59f3ffdcd76a52bc2f4b0710ddf5ed8ce5e8ed93",
+          "raw_document_committed": false
+        }
+      ],
+      "review_source_count": 3,
+      "primary_material_source_candidate": {
+        "accession": "0001140361-23-040969",
+        "form_type": "8-K",
+        "accepted_at": "2023-08-23T08:53:06-04:00",
+        "issuer_minus_exchange_seconds": -3596,
+        "order": "issuer_source_before_exchange",
+        "term_flags": {
+          "completion_language": false,
+          "holder_conversion_language": true,
+          "cash_language": false,
+          "stock_or_successor_language": false,
+          "bankruptcy_language": false,
+          "liquidation_language": true,
+          "listing_transfer_language": false,
+          "failure_or_termination_language": false,
+          "zero_value_language": false
+        },
+        "candidate_not_outcome_confirmation": true
+      },
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0001354457-23-000611",
+      "issuer_cik": "0001822711",
+      "issuer_name": "PARDES BIOSCIENCES, INC.",
+      "form25_accession": "0001354457-23-000611",
+      "form25_filed_on": "2023-08-31",
+      "form25_accepted_at": "2023-08-31T09:19:07-04:00",
+      "exchange_name": "Nasdaq Stock Market LLC",
+      "rule_family": "a_3",
+      "reason_family_heuristic": "not_informative",
+      "review_sources": [
+        {
+          "issuer_cik": "0001822711",
+          "company_name_index": "PARDES BIOSCIENCES, INC.",
+          "form_type": "8-K",
+          "filed_on": "2023-08-31",
+          "archive_path": "edgar/data/1822711/0001140361-23-041917.txt",
+          "accession": "0001140361-23-041917",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1822711/000114036123041917/0001140361-23-041917.txt",
+          "calendar_day_offset_from_form25": 0,
+          "candidate_score": 100000,
+          "content_review_required": true,
+          "accepted_at": "2023-08-31T08:59:52-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": true,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [
+              "converted into the right to receive",
+              "entitled to receive"
+            ],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.0001",
+            "2.13"
+          ],
+          "normalized_text_length": 121411,
+          "source_sha256": "953d5e808e89d0518b4e2d833fcfba5a21c9f26dc694e20a5a6984de78aa1517",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001822711",
+          "company_name_index": "PARDES BIOSCIENCES, INC.",
+          "form_type": "8-K",
+          "filed_on": "2023-07-17",
+          "archive_path": "edgar/data/1822711/0001193125-23-187637.txt",
+          "accession": "0001193125-23-187637",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1822711/000119312523187637/0001193125-23-187637.txt",
+          "calendar_day_offset_from_form25": -45,
+          "candidate_score": 99955,
+          "content_review_required": true,
+          "accepted_at": "2023-07-17T07:06:30-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": true,
+            "holder_conversion_language": true,
+            "cash_language": true,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": true,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": true,
+            "zero_value_language": true
+          },
+          "matched_phrases": {
+            "completion_language": [
+              "consummated"
+            ],
+            "holder_conversion_language": [
+              "converted into the right to receive",
+              "entitled to receive"
+            ],
+            "cash_language": [
+              "cash consideration",
+              "cash per share",
+              "in cash without interest"
+            ],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [
+              "dissolution",
+              "liquidation"
+            ],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [
+              "termination of the merger agreement"
+            ],
+            "zero_value_language": [
+              "without consideration"
+            ]
+          },
+          "cash_per_share_candidates": [
+            "0.0001",
+            "0.17",
+            "2.02",
+            "2.19",
+            "5.26"
+          ],
+          "normalized_text_length": 561732,
+          "source_sha256": "7b8fd9e39e41a35a4c6bf46537e3b2075e80d3890240750f6f4135ad35a9dd0a",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001822711",
+          "company_name_index": "PARDES BIOSCIENCES, INC.",
+          "form_type": "15-12G",
+          "filed_on": "2023-09-11",
+          "archive_path": "edgar/data/1822711/0001140361-23-043444.txt",
+          "accession": "0001140361-23-043444",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1822711/000114036123043444/0001140361-23-043444.txt",
+          "calendar_day_offset_from_form25": 11,
+          "candidate_score": 34989,
+          "content_review_required": true,
+          "accepted_at": "2023-09-11T08:00:13-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 2484,
+          "source_sha256": "1bd41c19e674b05fd36235587efaaa348416d41305c66a3bbe97b9ca6ed368bc",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001822711",
+          "company_name_index": "PARDES BIOSCIENCES, INC.",
+          "form_type": "SC 14D9",
+          "filed_on": "2023-07-28",
+          "archive_path": "edgar/data/1822711/0001193125-23-197795.txt",
+          "accession": "0001193125-23-197795",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1822711/000119312523197795/0001193125-23-197795.txt",
+          "calendar_day_offset_from_form25": -34,
+          "candidate_score": 64966,
+          "content_review_required": true,
+          "accepted_at": "2023-07-28T17:04:58-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": true,
+            "holder_conversion_language": true,
+            "cash_language": true,
+            "stock_or_successor_language": true,
+            "bankruptcy_language": false,
+            "liquidation_language": true,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": true,
+            "zero_value_language": true
+          },
+          "matched_phrases": {
+            "completion_language": [
+              "consummated"
+            ],
+            "holder_conversion_language": [
+              "converted into the right to receive",
+              "entitled to receive"
+            ],
+            "cash_language": [
+              "cash consideration",
+              "cash per share",
+              "in cash without interest"
+            ],
+            "stock_or_successor_language": [
+              "exchange ratio"
+            ],
+            "bankruptcy_language": [],
+            "liquidation_language": [
+              "dissolution",
+              "liquidation"
+            ],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [
+              "termination of the merger agreement"
+            ],
+            "zero_value_language": [
+              "without consideration"
+            ]
+          },
+          "cash_per_share_candidates": [
+            "0.0001",
+            "0.009",
+            "0.17",
+            "0.40",
+            "1.65",
+            "1.93",
+            "2.02",
+            "2.03",
+            "2.04",
+            "2.06",
+            "2.07",
+            "2.08",
+            "2.09",
+            "2.12",
+            "2.19",
+            "2.20",
+            "4.5541",
+            "10.00",
+            "12.00"
+          ],
+          "normalized_text_length": 329257,
+          "source_sha256": "52947088bb0404d0ca8a8f5561b6eae98ba955742bda6e2ced8fd28cef17371c",
+          "raw_document_committed": false
+        }
+      ],
+      "review_source_count": 4,
+      "primary_material_source_candidate": {
+        "accession": "0001140361-23-041917",
+        "form_type": "8-K",
+        "accepted_at": "2023-08-31T08:59:52-04:00",
+        "issuer_minus_exchange_seconds": -1155,
+        "order": "issuer_source_before_exchange",
+        "term_flags": {
+          "completion_language": false,
+          "holder_conversion_language": true,
+          "cash_language": false,
+          "stock_or_successor_language": false,
+          "bankruptcy_language": false,
+          "liquidation_language": false,
+          "listing_transfer_language": false,
+          "failure_or_termination_language": false,
+          "zero_value_language": false
+        },
+        "candidate_not_outcome_confirmation": true
+      },
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0000876661-23-000754",
+      "issuer_cik": "0000849395",
+      "issuer_name": "CRH PUBLIC LTD CO",
+      "form25_accession": "0000876661-23-000754",
+      "form25_filed_on": "2023-09-25",
+      "form25_accepted_at": "2023-09-25T10:53:29-04:00",
+      "exchange_name": "NEW YORK STOCK EXCHANGE LLC",
+      "rule_family": "a_3",
+      "reason_family_heuristic": "other_or_unclassified",
+      "review_sources": [
+        {
+          "issuer_cik": "0000849395",
+          "company_name_index": "CRH PUBLIC LTD CO",
+          "form_type": "6-K",
+          "filed_on": "2023-09-25",
+          "archive_path": "edgar/data/849395/0001193125-23-241146.txt",
+          "accession": "0001193125-23-241146",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/849395/000119312523241146/0001193125-23-241146.txt",
+          "calendar_day_offset_from_form25": 0,
+          "candidate_score": 90000,
+          "content_review_required": true,
+          "accepted_at": "2023-09-25T12:58:50-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": true,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [
+              "entitled to receive"
+            ],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 230596,
+          "source_sha256": "7b3ab93d629e41b2aa38f3d06f05f2bce4c3599ce28334601e25d45557149a61",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0000849395",
+          "company_name_index": "CRH PUBLIC LTD CO",
+          "form_type": "6-K",
+          "filed_on": "2023-09-25",
+          "archive_path": "edgar/data/849395/0001654954-23-012179.txt",
+          "accession": "0001654954-23-012179",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/849395/000165495423012179/0001654954-23-012179.txt",
+          "calendar_day_offset_from_form25": 0,
+          "candidate_score": 90000,
+          "content_review_required": true,
+          "accepted_at": "2023-09-25T06:29:42-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 25500,
+          "source_sha256": "8f7d6ac99bb74565ca10095d4b8c1eda7b755769edd523ad6119c14e86199883",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0000849395",
+          "company_name_index": "CRH PUBLIC LTD CO",
+          "form_type": "6-K",
+          "filed_on": "2023-09-25",
+          "archive_path": "edgar/data/849395/0001654954-23-012180.txt",
+          "accession": "0001654954-23-012180",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/849395/000165495423012180/0001654954-23-012180.txt",
+          "calendar_day_offset_from_form25": 0,
+          "candidate_score": 90000,
+          "content_review_required": true,
+          "accepted_at": "2023-09-25T06:38:14-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 25449,
+          "source_sha256": "06dcba80ea75c39ac566cdd8a4de9f50e87ab36fc8bbbfc1f9ab48a0ff9e8f23",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0000849395",
+          "company_name_index": "CRH PUBLIC LTD CO",
+          "form_type": "6-K",
+          "filed_on": "2023-09-25",
+          "archive_path": "edgar/data/849395/0001654954-23-012182.txt",
+          "accession": "0001654954-23-012182",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/849395/000165495423012182/0001654954-23-012182.txt",
+          "calendar_day_offset_from_form25": 0,
+          "candidate_score": 90000,
+          "content_review_required": true,
+          "accepted_at": "2023-09-25T06:43:16-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": true,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [
+              "primary listing"
+            ],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 3608,
+          "source_sha256": "43bf5d3504c2d7a74c5108a7a3ecfed8c8d0f8b9941b0b200d17d2142fc6f38e",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0000849395",
+          "company_name_index": "CRH PUBLIC LTD CO",
+          "form_type": "6-K",
+          "filed_on": "2023-09-25",
+          "archive_path": "edgar/data/849395/0001654954-23-012187.txt",
+          "accession": "0001654954-23-012187",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/849395/000165495423012187/0001654954-23-012187.txt",
+          "calendar_day_offset_from_form25": 0,
+          "candidate_score": 90000,
+          "content_review_required": true,
+          "accepted_at": "2023-09-25T08:26:22-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": true,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [
+              "primary listing"
+            ],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 7491,
+          "source_sha256": "a58bd17c28efb782b7afc48c97c3e11864952ba40c3cb5d4eb8086e6fc9739c8",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0000849395",
+          "company_name_index": "CRH PUBLIC LTD CO",
+          "form_type": "6-K",
+          "filed_on": "2023-09-25",
+          "archive_path": "edgar/data/849395/0001654954-23-012194.txt",
+          "accession": "0001654954-23-012194",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/849395/000165495423012194/0001654954-23-012194.txt",
+          "calendar_day_offset_from_form25": 0,
+          "candidate_score": 90000,
+          "content_review_required": true,
+          "accepted_at": "2023-09-25T09:55:48-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": true,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [
+              "primary listing"
+            ],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 7511,
+          "source_sha256": "7c1ad890205b9f8dc9128ffdae43268af3ca98032ccf0be7bd4452342909add0",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0000849395",
+          "company_name_index": "CRH PUBLIC LTD CO",
+          "form_type": "6-K",
+          "filed_on": "2023-09-26",
+          "archive_path": "edgar/data/849395/0001654954-23-012245.txt",
+          "accession": "0001654954-23-012245",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/849395/000165495423012245/0001654954-23-012245.txt",
+          "calendar_day_offset_from_form25": 1,
+          "candidate_score": 89999,
+          "content_review_required": true,
+          "accepted_at": "2023-09-26T11:52:07-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 19202,
+          "source_sha256": "0814608dc7a6269d75119e8bf2be3fc9d7f013db6ce5fe80388f0c375e09d788",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0000849395",
+          "company_name_index": "CRH PUBLIC LTD CO",
+          "form_type": "6-K",
+          "filed_on": "2023-09-21",
+          "archive_path": "edgar/data/849395/0001654954-23-012088.txt",
+          "accession": "0001654954-23-012088",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/849395/000165495423012088/0001654954-23-012088.txt",
+          "calendar_day_offset_from_form25": -4,
+          "candidate_score": 89996,
+          "content_review_required": true,
+          "accepted_at": "2023-09-20T18:10:58-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 7443,
+          "source_sha256": "01cbfc4b86c634875dc5fe331bc3c776072053c046dbeb8dea14da6a570114d1",
+          "raw_document_committed": false
+        }
+      ],
+      "review_source_count": 8,
+      "primary_material_source_candidate": {
+        "accession": "0001654954-23-012194",
+        "form_type": "6-K",
+        "accepted_at": "2023-09-25T09:55:48-04:00",
+        "issuer_minus_exchange_seconds": -3461,
+        "order": "issuer_source_before_exchange",
+        "term_flags": {
+          "completion_language": false,
+          "holder_conversion_language": false,
+          "cash_language": false,
+          "stock_or_successor_language": false,
+          "bankruptcy_language": false,
+          "liquidation_language": false,
+          "listing_transfer_language": true,
+          "failure_or_termination_language": false,
+          "zero_value_language": false
+        },
+        "candidate_not_outcome_confirmation": true
+      },
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0001354457-23-000700",
+      "issuer_cik": "0001358762",
+      "issuer_name": "REATA PHARMACEUTICALS INC",
+      "form25_accession": "0001354457-23-000700",
+      "form25_filed_on": "2023-09-26",
+      "form25_accepted_at": "2023-09-26T09:21:37-04:00",
+      "exchange_name": "Nasdaq Stock Market LLC",
+      "rule_family": "a_3",
+      "reason_family_heuristic": "not_informative",
+      "review_sources": [
+        {
+          "issuer_cik": "0001358762",
+          "company_name_index": "REATA PHARMACEUTICALS INC",
+          "form_type": "8-K",
+          "filed_on": "2023-09-26",
+          "archive_path": "edgar/data/1358762/0001193125-23-242619.txt",
+          "accession": "0001193125-23-242619",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1358762/000119312523242619/0001193125-23-242619.txt",
+          "calendar_day_offset_from_form25": 0,
+          "candidate_score": 100000,
+          "content_review_required": true,
+          "accepted_at": "2023-09-26T17:25:59-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": true,
+            "cash_language": true,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": true,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [
+              "converted into the right to receive",
+              "entitled to receive"
+            ],
+            "cash_language": [
+              "in cash, without interest"
+            ],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [
+              "dissolution"
+            ],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.001"
+          ],
+          "normalized_text_length": 179751,
+          "source_sha256": "7304d10046ee6eb08482fa4deb0af4170569a12783644b88aea499c0e0094b84",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001358762",
+          "company_name_index": "REATA PHARMACEUTICALS INC",
+          "form_type": "8-K",
+          "filed_on": "2023-09-21",
+          "archive_path": "edgar/data/1358762/0001193125-23-239558.txt",
+          "accession": "0001193125-23-239558",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1358762/000119312523239558/0001193125-23-239558.txt",
+          "calendar_day_offset_from_form25": -5,
+          "candidate_score": 99995,
+          "content_review_required": true,
+          "accepted_at": "2023-09-21T16:05:29-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.001"
+          ],
+          "normalized_text_length": 59191,
+          "source_sha256": "34b87561a62b1430cc1fc3aab7d0f6c1d52efd848d468141a6cf763fee6d5107",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001358762",
+          "company_name_index": "REATA PHARMACEUTICALS INC",
+          "form_type": "15-12G",
+          "filed_on": "2023-10-06",
+          "archive_path": "edgar/data/1358762/0001193125-23-252376.txt",
+          "accession": "0001193125-23-252376",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1358762/000119312523252376/0001193125-23-252376.txt",
+          "calendar_day_offset_from_form25": 10,
+          "candidate_score": 34990,
+          "content_review_required": true,
+          "accepted_at": "2023-10-06T16:07:57-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.001"
+          ],
+          "normalized_text_length": 2308,
+          "source_sha256": "30e6c0ac7676d45d85bc3da25dcbda95cc9e32457850ff58e8623faa0927064d",
+          "raw_document_committed": false
+        }
+      ],
+      "review_source_count": 3,
+      "primary_material_source_candidate": {
+        "accession": "0001193125-23-242619",
+        "form_type": "8-K",
+        "accepted_at": "2023-09-26T17:25:59-04:00",
+        "issuer_minus_exchange_seconds": 29062,
+        "order": "exchange_before_issuer_source",
+        "term_flags": {
+          "completion_language": false,
+          "holder_conversion_language": true,
+          "cash_language": true,
+          "stock_or_successor_language": false,
+          "bankruptcy_language": false,
+          "liquidation_language": true,
+          "listing_transfer_language": false,
+          "failure_or_termination_language": false,
+          "zero_value_language": false
+        },
+        "candidate_not_outcome_confirmation": true
+      },
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0001354457-23-000757",
+      "issuer_cik": "0001340476",
+      "issuer_name": "DIRTT ENVIRONMENTAL SOLUTIONS LTD",
+      "form25_accession": "0001354457-23-000757",
+      "form25_filed_on": "2023-10-12",
+      "form25_accepted_at": "2023-10-12T08:18:03-04:00",
+      "exchange_name": "Nasdaq Stock Market LLC",
+      "rule_family": "b",
+      "reason_family_heuristic": "other_or_unclassified",
+      "review_sources": [
+        {
+          "issuer_cik": "0001340476",
+          "company_name_index": "DIRTT ENVIRONMENTAL SOLUTIONS LTD",
+          "form_type": "8-K",
+          "filed_on": "2023-10-02",
+          "archive_path": "edgar/data/1340476/0000950170-23-051172.txt",
+          "accession": "0000950170-23-051172",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1340476/000095017023051172/0000950170-23-051172.txt",
+          "calendar_day_offset_from_form25": -10,
+          "candidate_score": 99990,
+          "content_review_required": true,
+          "accepted_at": "2023-10-02T17:00:11-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 49332,
+          "source_sha256": "2f980b3eb0d78f3f4ec0d86eab048edf6a6fb5e9e1467f72d8a1ffbd742688cd",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001340476",
+          "company_name_index": "DIRTT ENVIRONMENTAL SOLUTIONS LTD",
+          "form_type": "8-K",
+          "filed_on": "2023-11-09",
+          "archive_path": "edgar/data/1340476/0000950170-23-062239.txt",
+          "accession": "0000950170-23-062239",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1340476/000095017023062239/0000950170-23-062239.txt",
+          "calendar_day_offset_from_form25": 28,
+          "candidate_score": 99972,
+          "content_review_required": true,
+          "accepted_at": "2023-11-09T17:30:14-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 77329,
+          "source_sha256": "888bc327fcf6cbf42766acb4b7e585042e97a905d5efa366b1b9f96fafe7db9c",
+          "raw_document_committed": false
+        }
+      ],
+      "review_source_count": 2,
+      "primary_material_source_candidate": null,
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0001354457-23-000765",
+      "issuer_cik": "0001836056",
+      "issuer_name": "Ambrx Biopharma Cayman, Inc.",
+      "form25_accession": "0001354457-23-000765",
+      "form25_filed_on": "2023-10-12",
+      "form25_accepted_at": "2023-10-12T15:41:33-04:00",
+      "exchange_name": "Nasdaq Stock Market LLC",
+      "rule_family": "a_3",
+      "reason_family_heuristic": "other_or_unclassified",
+      "review_sources": [
+        {
+          "issuer_cik": "0001836056",
+          "company_name_index": "Ambrx Biopharma Cayman, Inc.",
+          "form_type": "8-K",
+          "filed_on": "2023-10-12",
+          "archive_path": "edgar/data/1836056/0001193125-23-254549.txt",
+          "accession": "0001193125-23-254549",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1836056/000119312523254549/0001193125-23-254549.txt",
+          "calendar_day_offset_from_form25": 0,
+          "candidate_score": 100000,
+          "content_review_required": true,
+          "accepted_at": "2023-10-12T06:04:34-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": true,
+            "cash_language": false,
+            "stock_or_successor_language": true,
+            "bankruptcy_language": false,
+            "liquidation_language": true,
+            "listing_transfer_language": true,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [
+              "entitled to receive"
+            ],
+            "cash_language": [],
+            "stock_or_successor_language": [
+              "successor issuer"
+            ],
+            "bankruptcy_language": [],
+            "liquidation_language": [
+              "dissolution",
+              "liquidation"
+            ],
+            "listing_transfer_language": [
+              "commence trading on"
+            ],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.0001"
+          ],
+          "normalized_text_length": 257644,
+          "source_sha256": "0c96e1be187b8bd14c57c8cf19893e0ff1cf97902701fdbce9ba4947dd130efa",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001836056",
+          "company_name_index": "Ambrx Biopharma Inc.",
+          "form_type": "8-K",
+          "filed_on": "2023-10-10",
+          "archive_path": "edgar/data/1836056/0001193125-23-253527.txt",
+          "accession": "0001193125-23-253527",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1836056/000119312523253527/0001193125-23-253527.txt",
+          "calendar_day_offset_from_form25": -2,
+          "candidate_score": 99998,
+          "content_review_required": true,
+          "accepted_at": "2023-10-10T16:49:04-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": true,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": true,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [
+              "entitled to receive"
+            ],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [
+              "commence trading on"
+            ],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.0001"
+          ],
+          "normalized_text_length": 63434,
+          "source_sha256": "13d6c4f45dc4bb16acfb84746bd4b49c8b958856bcbf8a4f01ef1b8aff3a6017",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001836056",
+          "company_name_index": "Ambrx Biopharma Cayman, Inc.",
+          "form_type": "15-12G",
+          "filed_on": "2023-10-23",
+          "archive_path": "edgar/data/1836056/0001193125-23-260905.txt",
+          "accession": "0001193125-23-260905",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1836056/000119312523260905/0001193125-23-260905.txt",
+          "calendar_day_offset_from_form25": 11,
+          "candidate_score": 34989,
+          "content_review_required": true,
+          "accepted_at": "2023-10-23T17:19:26-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.0001"
+          ],
+          "normalized_text_length": 2696,
+          "source_sha256": "64bdc735ffbecdbf284b5719a18b8f57ecee724832d949af0aa4f8c659045983",
+          "raw_document_committed": false
+        }
+      ],
+      "review_source_count": 3,
+      "primary_material_source_candidate": {
+        "accession": "0001193125-23-254549",
+        "form_type": "8-K",
+        "accepted_at": "2023-10-12T06:04:34-04:00",
+        "issuer_minus_exchange_seconds": -34619,
+        "order": "issuer_source_before_exchange",
+        "term_flags": {
+          "completion_language": false,
+          "holder_conversion_language": true,
+          "cash_language": false,
+          "stock_or_successor_language": true,
+          "bankruptcy_language": false,
+          "liquidation_language": true,
+          "listing_transfer_language": true,
+          "failure_or_termination_language": false,
+          "zero_value_language": false
+        },
+        "candidate_not_outcome_confirmation": true
+      },
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0001354457-23-000772",
+      "issuer_cik": "0001506213",
+      "issuer_name": "Strategy Shares",
+      "form25_accession": "0001354457-23-000772",
+      "form25_filed_on": "2023-10-16",
+      "form25_accepted_at": "2023-10-16T16:19:43-04:00",
+      "exchange_name": "Nasdaq Stock Market LLC",
+      "rule_family": "a_1",
+      "reason_family_heuristic": "not_informative",
+      "review_sources": [],
+      "review_source_count": 0,
+      "primary_material_source_candidate": null,
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0001354457-23-000786",
+      "issuer_cik": "0001760717",
+      "issuer_name": "SciPlay Corp",
+      "form25_accession": "0001354457-23-000786",
+      "form25_filed_on": "2023-10-23",
+      "form25_accepted_at": "2023-10-23T08:26:09-04:00",
+      "exchange_name": "Nasdaq Stock Market LLC",
+      "rule_family": "a_3",
+      "reason_family_heuristic": "not_informative",
+      "review_sources": [
+        {
+          "issuer_cik": "0001760717",
+          "company_name_index": "SciPlay Corp",
+          "form_type": "8-K",
+          "filed_on": "2023-10-23",
+          "archive_path": "edgar/data/1760717/0001104659-23-110660.txt",
+          "accession": "0001104659-23-110660",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1760717/000110465923110660/0001104659-23-110660.txt",
+          "calendar_day_offset_from_form25": 0,
+          "candidate_score": 100000,
+          "content_review_required": true,
+          "accepted_at": "2023-10-23T08:07:46-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": true,
+            "cash_language": true,
+            "stock_or_successor_language": true,
+            "bankruptcy_language": false,
+            "liquidation_language": true,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [
+              "converted into the right to receive",
+              "entitled to receive"
+            ],
+            "cash_language": [
+              "in cash, without interest"
+            ],
+            "stock_or_successor_language": [
+              "exchange ratio"
+            ],
+            "bankruptcy_language": [],
+            "liquidation_language": [
+              "dissolution",
+              "liquidation"
+            ],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.001"
+          ],
+          "normalized_text_length": 229641,
+          "source_sha256": "677e1d41057ebb2cfa80aa5f7b47fb4ac5297e4c30fe30cc6f6d924819c62074",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001760717",
+          "company_name_index": "SciPlay Corp",
+          "form_type": "15-12G",
+          "filed_on": "2023-11-02",
+          "archive_path": "edgar/data/1760717/0000950157-23-001096.txt",
+          "accession": "0000950157-23-001096",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1760717/000095015723001096/0000950157-23-001096.txt",
+          "calendar_day_offset_from_form25": 10,
+          "candidate_score": 34990,
+          "content_review_required": true,
+          "accepted_at": "2023-11-02T09:42:15-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.001"
+          ],
+          "normalized_text_length": 2906,
+          "source_sha256": "59fd07a82f8dc1202e6e5b07fb33b3cad29d0ddcc62e703d638a14c9d4c6d42f",
+          "raw_document_committed": false
+        }
+      ],
+      "review_source_count": 2,
+      "primary_material_source_candidate": {
+        "accession": "0001104659-23-110660",
+        "form_type": "8-K",
+        "accepted_at": "2023-10-23T08:07:46-04:00",
+        "issuer_minus_exchange_seconds": -1103,
+        "order": "issuer_source_before_exchange",
+        "term_flags": {
+          "completion_language": false,
+          "holder_conversion_language": true,
+          "cash_language": true,
+          "stock_or_successor_language": true,
+          "bankruptcy_language": false,
+          "liquidation_language": true,
+          "listing_transfer_language": false,
+          "failure_or_termination_language": false,
+          "zero_value_language": false
+        },
+        "candidate_not_outcome_confirmation": true
+      },
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0001354457-23-000793",
+      "issuer_cik": "0001534992",
+      "issuer_name": "Fiesta Restaurant Group, Inc.",
+      "form25_accession": "0001354457-23-000793",
+      "form25_filed_on": "2023-10-30",
+      "form25_accepted_at": "2023-10-30T09:12:24-04:00",
+      "exchange_name": "Nasdaq Stock Market LLC",
+      "rule_family": "a_3",
+      "reason_family_heuristic": "not_informative",
+      "review_sources": [
+        {
+          "issuer_cik": "0001534992",
+          "company_name_index": "Fiesta Restaurant Group, Inc.",
+          "form_type": "8-K",
+          "filed_on": "2023-10-30",
+          "archive_path": "edgar/data/1534992/0001140361-23-050103.txt",
+          "accession": "0001140361-23-050103",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1534992/000114036123050103/0001140361-23-050103.txt",
+          "calendar_day_offset_from_form25": 0,
+          "candidate_score": 100000,
+          "content_review_required": true,
+          "accepted_at": "2023-10-30T12:24:08-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": true,
+            "cash_language": true,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": true,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [
+              "converted into the right to receive",
+              "entitled to receive"
+            ],
+            "cash_language": [
+              "in cash, without interest"
+            ],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [
+              "termination of the merger agreement"
+            ],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.01",
+            "8.50"
+          ],
+          "normalized_text_length": 138042,
+          "source_sha256": "623f484d3cf6701546432709a010a635122dc364f3bd3059c0f067fcc2eb2235",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001534992",
+          "company_name_index": "Fiesta Restaurant Group, Inc.",
+          "form_type": "8-K",
+          "filed_on": "2023-10-25",
+          "archive_path": "edgar/data/1534992/0001140361-23-049365.txt",
+          "accession": "0001140361-23-049365",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1534992/000114036123049365/0001140361-23-049365.txt",
+          "calendar_day_offset_from_form25": -5,
+          "candidate_score": 99995,
+          "content_review_required": true,
+          "accepted_at": "2023-10-24T17:47:43-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": true,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [
+              "termination of the merger agreement"
+            ],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 54481,
+          "source_sha256": "01342bacfd38c7e3cbb155a5d0a4bc11c52bb97a3b86d05a44f0fa8f281c2982",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001534992",
+          "company_name_index": "Fiesta Restaurant Group, Inc.",
+          "form_type": "15-12G",
+          "filed_on": "2023-11-09",
+          "archive_path": "edgar/data/1534992/0001140361-23-052181.txt",
+          "accession": "0001140361-23-052181",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1534992/000114036123052181/0001140361-23-052181.txt",
+          "calendar_day_offset_from_form25": 10,
+          "candidate_score": 34990,
+          "content_review_required": true,
+          "accepted_at": "2023-11-09T06:01:05-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": true,
+            "cash_language": true,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [
+              "converted into the right to receive"
+            ],
+            "cash_language": [
+              "in cash, without interest"
+            ],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.01",
+            "8.50"
+          ],
+          "normalized_text_length": 4886,
+          "source_sha256": "44b3e1936b1dd345356c84aa918238d4159c64df63e2884547d0b9a69517dbd3",
+          "raw_document_committed": false
+        }
+      ],
+      "review_source_count": 3,
+      "primary_material_source_candidate": {
+        "accession": "0001140361-23-050103",
+        "form_type": "8-K",
+        "accepted_at": "2023-10-30T12:24:08-04:00",
+        "issuer_minus_exchange_seconds": 11504,
+        "order": "exchange_before_issuer_source",
+        "term_flags": {
+          "completion_language": false,
+          "holder_conversion_language": true,
+          "cash_language": true,
+          "stock_or_successor_language": false,
+          "bankruptcy_language": false,
+          "liquidation_language": false,
+          "listing_transfer_language": false,
+          "failure_or_termination_language": true,
+          "zero_value_language": false
+        },
+        "candidate_not_outcome_confirmation": true
+      },
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0000876661-23-000824",
+      "issuer_cik": "0001448056",
+      "issuer_name": "NEW RELIC, INC.",
+      "form25_accession": "0000876661-23-000824",
+      "form25_filed_on": "2023-11-08",
+      "form25_accepted_at": "2023-11-08T09:16:45-05:00",
+      "exchange_name": "NEW YORK STOCK EXCHANGE LLC",
+      "rule_family": "a_3",
+      "reason_family_heuristic": "merger_or_acquisition",
+      "review_sources": [
+        {
+          "issuer_cik": "0001448056",
+          "company_name_index": "NEW RELIC, INC.",
+          "form_type": "8-K",
+          "filed_on": "2023-11-08",
+          "archive_path": "edgar/data/1448056/0001193125-23-273042.txt",
+          "accession": "0001193125-23-273042",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1448056/000119312523273042/0001193125-23-273042.txt",
+          "calendar_day_offset_from_form25": 0,
+          "candidate_score": 100000,
+          "content_review_required": true,
+          "accepted_at": "2023-11-08T08:51:58-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": true,
+            "cash_language": true,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": true
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [
+              "converted into the right to receive",
+              "entitled to receive"
+            ],
+            "cash_language": [
+              "in cash, without interest"
+            ],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": [
+              "without consideration"
+            ]
+          },
+          "cash_per_share_candidates": [
+            "0.001",
+            "87.00"
+          ],
+          "normalized_text_length": 148158,
+          "source_sha256": "0d4706cefaeea3ef577a045dc83876db094283d3a2a99d2a41a61abdaf8e4728",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001448056",
+          "company_name_index": "NEW RELIC, INC.",
+          "form_type": "8-K",
+          "filed_on": "2023-11-02",
+          "archive_path": "edgar/data/1448056/0001193125-23-268810.txt",
+          "accession": "0001193125-23-268810",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1448056/000119312523268810/0001193125-23-268810.txt",
+          "calendar_day_offset_from_form25": -6,
+          "candidate_score": 99994,
+          "content_review_required": true,
+          "accepted_at": "2023-11-02T07:07:52-04:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.001",
+            "87.00"
+          ],
+          "normalized_text_length": 60373,
+          "source_sha256": "f7cb9db5478e662606ee4a309cfe77af44ea967d70572eade3c484deed045abd",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001448056",
+          "company_name_index": "NEW RELIC, INC.",
+          "form_type": "15-12G",
+          "filed_on": "2023-11-20",
+          "archive_path": "edgar/data/1448056/0001193125-23-280249.txt",
+          "accession": "0001193125-23-280249",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1448056/000119312523280249/0001193125-23-280249.txt",
+          "calendar_day_offset_from_form25": 12,
+          "candidate_score": 34988,
+          "content_review_required": true,
+          "accepted_at": "2023-11-20T07:45:27-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.001"
+          ],
+          "normalized_text_length": 2498,
+          "source_sha256": "e5712db3432757f458fc249653a4ecdfac2e23163304b9b01b6076c16db376a0",
+          "raw_document_committed": false
+        }
+      ],
+      "review_source_count": 3,
+      "primary_material_source_candidate": {
+        "accession": "0001193125-23-273042",
+        "form_type": "8-K",
+        "accepted_at": "2023-11-08T08:51:58-05:00",
+        "issuer_minus_exchange_seconds": -1487,
+        "order": "issuer_source_before_exchange",
+        "term_flags": {
+          "completion_language": false,
+          "holder_conversion_language": true,
+          "cash_language": true,
+          "stock_or_successor_language": false,
+          "bankruptcy_language": false,
+          "liquidation_language": false,
+          "listing_transfer_language": false,
+          "failure_or_termination_language": false,
+          "zero_value_language": true
+        },
+        "candidate_not_outcome_confirmation": true
+      },
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0001354457-23-000870",
+      "issuer_cik": "0001739426",
+      "issuer_name": "RVL Pharmaceuticals plc",
+      "form25_accession": "0001354457-23-000870",
+      "form25_filed_on": "2023-11-20",
+      "form25_accepted_at": "2023-11-20T08:47:44-05:00",
+      "exchange_name": "Nasdaq Stock Market LLC",
+      "rule_family": "b",
+      "reason_family_heuristic": "other_or_unclassified",
+      "review_sources": [
+        {
+          "issuer_cik": "0001739426",
+          "company_name_index": "RVL Pharmaceuticals plc",
+          "form_type": "8-K",
+          "filed_on": "2023-11-27",
+          "archive_path": "edgar/data/1739426/0001104659-23-121234.txt",
+          "accession": "0001104659-23-121234",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1739426/000110465923121234/0001104659-23-121234.txt",
+          "calendar_day_offset_from_form25": 7,
+          "candidate_score": 99993,
+          "content_review_required": true,
+          "accepted_at": "2023-11-27T16:06:32-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": true,
+            "holder_conversion_language": true,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": true,
+            "liquidation_language": true,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": true
+          },
+          "matched_phrases": {
+            "completion_language": [
+              "consummated"
+            ],
+            "holder_conversion_language": [
+              "entitled to receive"
+            ],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [
+              "bankruptcy code",
+              "chapter 11",
+              "debtors in possession"
+            ],
+            "liquidation_language": [
+              "dissolution",
+              "liquidation"
+            ],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": [
+              "no recovery"
+            ]
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 30023840,
+          "source_sha256": "cd4de8fdacff6607cb16276568176ab93cfe5afdb635e601f57dc0fce3c15ad7",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001739426",
+          "company_name_index": "RVL Pharmaceuticals plc",
+          "form_type": "8-K",
+          "filed_on": "2023-11-06",
+          "archive_path": "edgar/data/1739426/0001104659-23-114741.txt",
+          "accession": "0001104659-23-114741",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1739426/000110465923114741/0001104659-23-114741.txt",
+          "calendar_day_offset_from_form25": -14,
+          "candidate_score": 99986,
+          "content_review_required": true,
+          "accepted_at": "2023-11-06T16:05:31-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 64157,
+          "source_sha256": "f0a3ec41c5104e0133532bfa574f0cdca85bd8f389ee8c1014a0120debede2b5",
+          "raw_document_committed": false
+        }
+      ],
+      "review_source_count": 2,
+      "primary_material_source_candidate": {
+        "accession": "0001104659-23-121234",
+        "form_type": "8-K",
+        "accepted_at": "2023-11-27T16:06:32-05:00",
+        "issuer_minus_exchange_seconds": 631128,
+        "order": "exchange_before_issuer_source",
+        "term_flags": {
+          "completion_language": true,
+          "holder_conversion_language": true,
+          "cash_language": false,
+          "stock_or_successor_language": false,
+          "bankruptcy_language": true,
+          "liquidation_language": true,
+          "listing_transfer_language": false,
+          "failure_or_termination_language": false,
+          "zero_value_language": true
+        },
+        "candidate_not_outcome_confirmation": true
+      },
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0001354457-23-000892",
+      "issuer_cik": "0001873875",
+      "issuer_name": "Incannex Healthcare Ltd",
+      "form25_accession": "0001354457-23-000892",
+      "form25_filed_on": "2023-11-28",
+      "form25_accepted_at": "2023-11-28T16:05:37-05:00",
+      "exchange_name": "Nasdaq Stock Market LLC",
+      "rule_family": "a_3",
+      "reason_family_heuristic": "other_or_unclassified",
+      "review_sources": [
+        {
+          "issuer_cik": "0001873875",
+          "company_name_index": "Incannex Healthcare Ltd",
+          "form_type": "8-K",
+          "filed_on": "2023-11-29",
+          "archive_path": "edgar/data/1873875/0001213900-23-091083.txt",
+          "accession": "0001213900-23-091083",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1873875/000121390023091083/0001213900-23-091083.txt",
+          "calendar_day_offset_from_form25": 1,
+          "candidate_score": 99999,
+          "content_review_required": true,
+          "accepted_at": "2023-11-29T16:36:55-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": true,
+            "cash_language": false,
+            "stock_or_successor_language": true,
+            "bankruptcy_language": false,
+            "liquidation_language": true,
+            "listing_transfer_language": true,
+            "failure_or_termination_language": false,
+            "zero_value_language": true
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [
+              "entitled to receive"
+            ],
+            "cash_language": [],
+            "stock_or_successor_language": [
+              "successor issuer"
+            ],
+            "bankruptcy_language": [],
+            "liquidation_language": [
+              "dissolution",
+              "liquidation"
+            ],
+            "listing_transfer_language": [
+              "commence trading on",
+              "primary listing",
+              "transfer the listing"
+            ],
+            "failure_or_termination_language": [],
+            "zero_value_language": [
+              "without consideration"
+            ]
+          },
+          "cash_per_share_candidates": [
+            "0.0001"
+          ],
+          "normalized_text_length": 711541,
+          "source_sha256": "b7c672e8c012d33327d404be6940976ece91736db204db3820b71241707e86f6",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001873875",
+          "company_name_index": "Incannex Healthcare Ltd",
+          "form_type": "6-K",
+          "filed_on": "2023-11-24",
+          "archive_path": "edgar/data/1873875/0001213900-23-089714.txt",
+          "accession": "0001213900-23-089714",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1873875/000121390023089714/0001213900-23-089714.txt",
+          "calendar_day_offset_from_form25": -4,
+          "candidate_score": 89996,
+          "content_review_required": true,
+          "accepted_at": "2023-11-24T06:02:57-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 238580,
+          "source_sha256": "4b3d15d9e7fe1fb1b0f69a6ad72c7cf222b7bb0fdd589d6609b3563588965b2c",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001873875",
+          "company_name_index": "Incannex Healthcare Ltd",
+          "form_type": "15-12G",
+          "filed_on": "2023-11-29",
+          "archive_path": "edgar/data/1873875/0001213900-23-091028.txt",
+          "accession": "0001213900-23-091028",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1873875/000121390023091028/0001213900-23-091028.txt",
+          "calendar_day_offset_from_form25": 1,
+          "candidate_score": 34999,
+          "content_review_required": true,
+          "accepted_at": "2023-11-29T16:06:46-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [],
+          "normalized_text_length": 3718,
+          "source_sha256": "e676323d38931162270b387d12ffddca05619cc19cc032122a0caced535b95d7",
+          "raw_document_committed": false
+        }
+      ],
+      "review_source_count": 3,
+      "primary_material_source_candidate": {
+        "accession": "0001213900-23-091083",
+        "form_type": "8-K",
+        "accepted_at": "2023-11-29T16:36:55-05:00",
+        "issuer_minus_exchange_seconds": 88278,
+        "order": "exchange_before_issuer_source",
+        "term_flags": {
+          "completion_language": false,
+          "holder_conversion_language": true,
+          "cash_language": false,
+          "stock_or_successor_language": true,
+          "bankruptcy_language": false,
+          "liquidation_language": true,
+          "listing_transfer_language": true,
+          "failure_or_termination_language": false,
+          "zero_value_language": true
+        },
+        "candidate_not_outcome_confirmation": true
+      },
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0000876661-23-000920",
+      "issuer_cik": "0001682811",
+      "issuer_name": "INVESCO HIGH INCOME 2023 TARGET TERM FUND",
+      "form25_accession": "0000876661-23-000920",
+      "form25_filed_on": "2023-12-01",
+      "form25_accepted_at": "2023-12-01T09:32:15-05:00",
+      "exchange_name": "NEW YORK STOCK EXCHANGE LLC",
+      "rule_family": "a_3",
+      "reason_family_heuristic": "other_or_unclassified",
+      "review_sources": [
+        {
+          "issuer_cik": "0001682811",
+          "company_name_index": "INVESCO HIGH INCOME 2023 TARGET TERM FUND",
+          "form_type": "N-CSRS",
+          "filed_on": "2023-11-06",
+          "archive_path": "edgar/data/1682811/0001193125-23-271086.txt",
+          "accession": "0001193125-23-271086",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1682811/000119312523271086/0001193125-23-271086.txt",
+          "calendar_day_offset_from_form25": -25,
+          "candidate_score": 69975,
+          "content_review_required": true,
+          "accepted_at": "2023-11-06T12:01:04-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": true,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [
+              "liquidate"
+            ],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.02",
+            "9.835"
+          ],
+          "normalized_text_length": 270985,
+          "source_sha256": "1f598013445f20d07889a8b3b23ae6ed4883ec0544ff73e66f2dc2b3e1cfb8e1",
+          "raw_document_committed": false
+        }
+      ],
+      "review_source_count": 1,
+      "primary_material_source_candidate": null,
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0000876661-23-000996",
+      "issuer_cik": "0001551040",
+      "issuer_name": "Virtus Stone Harbor Emerging Markets Total Income Fund",
+      "form25_accession": "0000876661-23-000996",
+      "form25_filed_on": "2023-12-18",
+      "form25_accepted_at": "2023-12-18T14:31:38-05:00",
+      "exchange_name": "NEW YORK STOCK EXCHANGE LLC",
+      "rule_family": "a_3",
+      "reason_family_heuristic": "merger_or_acquisition",
+      "review_sources": [],
+      "review_source_count": 0,
+      "primary_material_source_candidate": null,
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    },
+    {
+      "chain_id": "ca-clock100b:0001354457-23-000962",
+      "issuer_cik": "0001616741",
+      "issuer_name": "PATRIOT TRANSPORTATION HOLDING, INC.",
+      "form25_accession": "0001354457-23-000962",
+      "form25_filed_on": "2023-12-21",
+      "form25_accepted_at": "2023-12-21T13:21:18-05:00",
+      "exchange_name": "Nasdaq Stock Market LLC",
+      "rule_family": "a_3",
+      "reason_family_heuristic": "not_informative",
+      "review_sources": [
+        {
+          "issuer_cik": "0001616741",
+          "company_name_index": "PATRIOT TRANSPORTATION HOLDING, INC.",
+          "form_type": "8-K",
+          "filed_on": "2023-12-21",
+          "archive_path": "edgar/data/1616741/0001140361-23-058857.txt",
+          "accession": "0001140361-23-058857",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1616741/000114036123058857/0001140361-23-058857.txt",
+          "calendar_day_offset_from_form25": 0,
+          "candidate_score": 100000,
+          "content_review_required": true,
+          "accepted_at": "2023-12-21T14:27:17-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": true,
+            "cash_language": true,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [
+              "converted into the right to receive"
+            ],
+            "cash_language": [
+              "in cash, without interest"
+            ],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.10",
+            "16.26"
+          ],
+          "normalized_text_length": 128549,
+          "source_sha256": "5c42c82dbe574b29dbf34a4df4ad83a9ba8478d46b8d9ee034454d48dc560676",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001616741",
+          "company_name_index": "PATRIOT TRANSPORTATION HOLDING, INC.",
+          "form_type": "8-K",
+          "filed_on": "2023-12-19",
+          "archive_path": "edgar/data/1616741/0001140361-23-058412.txt",
+          "accession": "0001140361-23-058412",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1616741/000114036123058412/0001140361-23-058412.txt",
+          "calendar_day_offset_from_form25": -2,
+          "candidate_score": 99998,
+          "content_review_required": true,
+          "accepted_at": "2023-12-19T16:15:49-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": true,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": true,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [
+              "consummated"
+            ],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [
+              "termination of the merger agreement"
+            ],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.10"
+          ],
+          "normalized_text_length": 56525,
+          "source_sha256": "cad26aacbd9424111a185511284a59c63c6d66c00f1e4427d38daa087d3e6aa8",
+          "raw_document_committed": false
+        },
+        {
+          "issuer_cik": "0001616741",
+          "company_name_index": "PATRIOT TRANSPORTATION HOLDING, INC.",
+          "form_type": "15-12G",
+          "filed_on": "2024-01-02",
+          "archive_path": "edgar/data/1616741/0001140361-24-000164.txt",
+          "accession": "0001140361-24-000164",
+          "submission_url": "https://www.sec.gov/Archives/edgar/data/1616741/000114036124000164/0001140361-24-000164.txt",
+          "calendar_day_offset_from_form25": 12,
+          "candidate_score": 34988,
+          "content_review_required": true,
+          "accepted_at": "2024-01-02T16:15:38-05:00",
+          "decision_clock": "accepted_at",
+          "observation_time_quality": "exact_sec_acceptance_second",
+          "term_flags": {
+            "completion_language": false,
+            "holder_conversion_language": false,
+            "cash_language": false,
+            "stock_or_successor_language": false,
+            "bankruptcy_language": false,
+            "liquidation_language": false,
+            "listing_transfer_language": false,
+            "failure_or_termination_language": false,
+            "zero_value_language": false
+          },
+          "matched_phrases": {
+            "completion_language": [],
+            "holder_conversion_language": [],
+            "cash_language": [],
+            "stock_or_successor_language": [],
+            "bankruptcy_language": [],
+            "liquidation_language": [],
+            "listing_transfer_language": [],
+            "failure_or_termination_language": [],
+            "zero_value_language": []
+          },
+          "cash_per_share_candidates": [
+            "0.10"
+          ],
+          "normalized_text_length": 2589,
+          "source_sha256": "6d4f940dd5f0dfb5fd1dea29e01822948110e7cc64e29a65100f9af7c41c70f7",
+          "raw_document_committed": false
+        }
+      ],
+      "review_source_count": 3,
+      "primary_material_source_candidate": {
+        "accession": "0001140361-23-058857",
+        "form_type": "8-K",
+        "accepted_at": "2023-12-21T14:27:17-05:00",
+        "issuer_minus_exchange_seconds": 3959,
+        "order": "exchange_before_issuer_source",
+        "term_flags": {
+          "completion_language": false,
+          "holder_conversion_language": true,
+          "cash_language": true,
+          "stock_or_successor_language": false,
+          "bankruptcy_language": false,
+          "liquidation_language": false,
+          "listing_transfer_language": false,
+          "failure_or_termination_language": false,
+          "zero_value_language": false
+        },
+        "candidate_not_outcome_confirmation": true
+      },
+      "outcome_status": "unreviewed",
+      "outcome_label": null
+    }
+  ],
+  "summary": {
+    "seed_chains": 31,
+    "chains_with_review_sources": 26,
+    "chains_without_review_sources": 5,
+    "review_sources": 80,
+    "source_term_flag_counts": {
+      "bankruptcy_language": 4,
+      "cash_language": 18,
+      "completion_language": 13,
+      "failure_or_termination_language": 7,
+      "holder_conversion_language": 29,
+      "liquidation_language": 18,
+      "listing_transfer_language": 6,
+      "stock_or_successor_language": 7,
+      "zero_value_language": 8
+    },
+    "chains_with_primary_material_source_candidate": 22,
+    "primary_material_source_order": {
+      "exchange_before_issuer_source": 9,
+      "issuer_source_before_exchange": 13
+    },
+    "issuer_minus_exchange_seconds": {
+      "minimum": -1281127,
+      "maximum": 631128
+    },
+    "near_clock_material_sources_36h": {
+      "chains": 19,
+      "order": {
+        "exchange_before_issuer_source": 7,
+        "issuer_source_before_exchange": 12
+      },
+      "minimum_seconds": -89075,
+      "maximum_seconds": 88278
+    }
+  },
+  "chains_sha256": "f0dbea21941fedc794f134c47e5ccd372d4ab64c39a2df99a37e4b90375c7e60"
+}

@@ -1,0 +1,158 @@
+{
+  "study": "PN-00 daily liquid-ETF lead-lag falsification baseline",
+  "status": "exploratory empirical study; not a live strategy",
+  "created": "2026-07-24",
+  "universe": [
+    "SPY",
+    "QQQ",
+    "IWM",
+    "DIA",
+    "XLB",
+    "XLE",
+    "XLF",
+    "XLI",
+    "XLK",
+    "XLP",
+    "XLU",
+    "XLV",
+    "XLY",
+    "TLT",
+    "IEF",
+    "GLD",
+    "HYG"
+  ],
+  "network_assets": 16,
+  "lag_sessions": 1,
+  "periods": {
+    "development": "2007-04-12 through 2015-12-31",
+    "validation": "2016-01-01 through 2020-12-31",
+    "test": "2021-01-01 through 2026-07-23"
+  },
+  "input": {
+    "source": "Yahoo Finance via yfinance 1.2.0, auto_adjust=True",
+    "price_rows_union": 4919,
+    "common_return_rows": 4851,
+    "price_panel_sha256": "21a952070a8e311851703438fb45fe5e0b68481c704b7490e4896cca6fcb8632",
+    "full_result_sha256": "2e812af1737e7339dae939c98a67154f38ba004576315c684152d37ed2f04d3b",
+    "temporary_harness_sha256": "52a301ceda06f169faaa4dea20707b3fc98fe4b388d2cdb5dfc91d83bbbd929f",
+    "raw_vendor_panel_committed": false,
+    "vendor_revision_warning": true
+  },
+  "graph": {
+    "directed_pairs_tested": 240,
+    "raw_returns": {
+      "observations": 2197,
+      "bh_fdr_5pct_edges": 140,
+      "familywise_5pct_edges": 54,
+      "familywise_abs_correlation_threshold": 0.07732376466222714
+    },
+    "lagged_252_session_beta_market_residuals": {
+      "observations": 2071,
+      "bh_fdr_5pct_edges": 37,
+      "familywise_5pct_edges": 4,
+      "familywise_abs_correlation_threshold": 0.10041086801192449,
+      "familywise_edges": [
+        {
+          "leader": "IWM",
+          "follower": "XLF",
+          "development_correlation": -0.12579583348630727,
+          "validation_correlation": 0.029707801611390198,
+          "test_correlation": 0.028228244541840454
+        },
+        {
+          "leader": "HYG",
+          "follower": "XLF",
+          "development_correlation": 0.12060201509868619,
+          "validation_correlation": -0.056486272194706914,
+          "test_correlation": 0.0024767647264761342
+        },
+        {
+          "leader": "IWM",
+          "follower": "HYG",
+          "development_correlation": 0.10840035043838211,
+          "validation_correlation": 0.14395620197729567,
+          "test_correlation": -0.012708200906114742
+        },
+        {
+          "leader": "HYG",
+          "follower": "IWM",
+          "development_correlation": 0.10662103143032503,
+          "validation_correlation": -0.03941761546501811,
+          "test_correlation": 0.01086005386205583
+        }
+      ]
+    }
+  },
+  "crisis_concentration": {
+    "2007_2009": {
+      "IWM_to_XLF": -0.1714,
+      "HYG_to_XLF": 0.1486,
+      "IWM_to_HYG": 0.1452,
+      "HYG_to_IWM": 0.1366
+    },
+    "2010_2015": {
+      "IWM_to_XLF": -0.0131,
+      "HYG_to_XLF": -0.0236,
+      "IWM_to_HYG": 0.0292,
+      "HYG_to_IWM": 0.0433
+    }
+  },
+  "forecast_comparison": {
+    "baseline": "target own lag plus SPY lag, ridge alpha selected only in development",
+    "strict_graph": {
+      "validation_pooled_mse_improvement_squared_bp": {
+        "point": -2.0988950811785134,
+        "block_95pct_ci": [
+          -4.759727423319743,
+          0.6947080107638427
+        ]
+      },
+      "test_pooled_mse_improvement_squared_bp": {
+        "point": -1.8469274711010577,
+        "block_95pct_ci": [
+          -2.8806249695623314,
+          -0.6423400271004089
+        ]
+      },
+      "test_mean_sign_accuracy_delta_percentage_points": -0.04035150645624111
+    },
+    "bh_graph": {
+      "validation_point_squared_bp": -2.356819511719036,
+      "test_point_squared_bp": -1.1548994482190578,
+      "both_intervals_cross_zero": true
+    },
+    "dense_17_lag_ridge": {
+      "validation_point_squared_bp": -16.232901828430375,
+      "validation_95pct_ci": [
+        -55.58079035398426,
+        14.07273334872821
+      ],
+      "test_point_squared_bp": 27.143562132811947,
+      "test_95pct_ci": [
+        -10.243388474738813,
+        69.36645375831725
+      ],
+      "test_mean_sign_accuracy_delta_percentage_points": 0.0044835007173602
+    }
+  },
+  "robustness": {
+    "beta_windows_tested": [
+      126,
+      252,
+      504
+    ],
+    "permutation_seeds_tested": [
+      0,
+      1,
+      2
+    ],
+    "strict_edge_count_range": [
+      3,
+      6
+    ],
+    "core_edges_recur_but_fail_later_period_sign_stability": true
+  },
+  "preregistered_pass": "positive pooled MSE improvement in validation and test, with the test 95% block interval above zero",
+  "verdict": "FAIL: the daily liquid-ETF graph does not add stable predictive information beyond own-lag and SPY-lag baselines",
+  "scope": "Does not test monthly industry diffusion, intraday price discovery, individual-stock networks, event-conditioned edges, nonlinear features, or volatility-spillover targets."
+}

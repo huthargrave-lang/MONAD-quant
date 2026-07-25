@@ -647,6 +647,25 @@ class TestGraphHtmlExplore(unittest.TestCase):
             "cruiseAnim=requestAnimationFrame(step)",
             "if(sel!==null){const d=nodes[sel],frame=()=>applyEgoFrame",
             "animateOrbit(0,0,420);",
+            # Orbs must stay grabbable: at the default zoom (k~0.37) a 6px orb is ~2px
+            # on screen, so without a generous transparent hit target elementFromPoint
+            # returns the <svg>, the grab falls through to d3.zoom and PANS the canvas —
+            # which reads as "grabbing one orb moves all the orbs". Verified in Chromium:
+            # 544/544 orbs displaced before, exactly 1 after.
+            "node-hit",
+            "pointer-events','all'",
+            # A drag must not re-heat the layout, and relax3D must not mutate z mid-drag
+            # (that resized orbs under the cursor).
+            "function renderDragged",
+            "if(dragging)return",
+            # module + config nodes are scaffolding, not research content: 181 of 544
+            # nodes and 291 of 1504 edges. Hidden by default so the map opens on the idea
+            # web; both pills toggle them back on. Hiding only pays off because render()
+            # iterates the visible subset — display:none elements were previously still
+            # written every frame.
+            "on.module=false;on.config=false",
+            "function recomputeVisible",
+            "visNodes.length",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, html)

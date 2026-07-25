@@ -1,0 +1,74 @@
+{
+  "artifact": "IX-00 December 2022 Nasdaq-100 partial public-provider diagnostic",
+  "schema_version": 1,
+  "status": "incomplete; barred from pooled directional inference",
+  "retrieved_at_utc": "2026-07-24T15:04:46+00:00",
+  "provider": "Yahoo Finance via yfinance",
+  "provider_version": "1.2.0",
+  "raw_data_committed": false,
+  "normalized_input_sha256": "1334d39149fae0c2d6f0afcd76f7cbc0e05480efdaa5183291ae1655d4ca38e4",
+  "derived_result_sha256": "834c66b32ec4a11355cd67f86471d40145e23d934514c72656b58b0724255399",
+  "fingerprint_contract": {
+    "input_hash": "exact sorted normalized vendor frame; may expose provider revision or float jitter",
+    "derived_hash_returns": "percentage points rounded to 2 decimals",
+    "derived_hash_volume_ratio": "multiple rounded to 2 decimals",
+    "reason": "separate exact snapshot provenance from displayed-evidence reproducibility"
+  },
+  "refresh_audit": {
+    "observed_exact_input_sha256": [
+      "1334d39149fae0c2d6f0afcd76f7cbc0e05480efdaa5183291ae1655d4ca38e4",
+      "abf98e90b87e3cf5c2b31cb1d42d9fc45f203e01039e11dcbb803c44d4c8ce47",
+      "e3a71ba7abbc27e7784373a00dfad8dc2d569c0933cf39a1d7ae733f48e3f8f4"
+    ],
+    "paired_derived_result_sha256": [
+      "834c66b32ec4a11355cd67f86471d40145e23d934514c72656b58b0724255399",
+      "834c66b32ec4a11355cd67f86471d40145e23d934514c72656b58b0724255399"
+    ]
+  },
+  "official_source": "https://www.nasdaq.com/press-release/annual-changes-to-the-nasdaq-100-index-2022-12-09",
+  "coverage": {
+    "analyzed": 12,
+    "official_events": 13,
+    "complete": false
+  },
+  "excluded_security": {
+    "event_symbol": "SPLK",
+    "action": "deletion",
+    "reason": "The current free provider reports the acquired/delisted symbol as unavailable."
+  },
+  "event_clock": {
+    "announcement_source_at": "2022-12-09T20:00:00-05:00",
+    "first_tradable_session": "2022-12-12",
+    "implementation_session_close": "2022-12-16",
+    "effective_session_open": "2022-12-19"
+  },
+  "partial_group_summary_percent": {
+    "additions": {
+      "n": 6,
+      "announcement_close_to_first_open_relative": 0.035363,
+      "first_open_to_implementation_close_relative": -2.182359,
+      "implementation_close_to_effective_open_relative": -0.288915,
+      "implementation_volume_ratio_to_prior_20d_median": 8.822227,
+      "post_implementation_1_session_relative": -0.927177,
+      "post_implementation_5_sessions_relative": -2.433932,
+      "post_implementation_20_sessions_relative": 0.560689,
+      "post_implementation_60_sessions_relative": -11.853397
+    },
+    "observed_deletions": {
+      "n": 6,
+      "announcement_close_to_first_open_relative": -0.235989,
+      "first_open_to_implementation_close_relative": 4.074729,
+      "implementation_close_to_effective_open_relative": 0.254594,
+      "implementation_volume_ratio_to_prior_20d_median": 6.152938,
+      "post_implementation_1_session_relative": -0.235650,
+      "post_implementation_5_sessions_relative": 0.360082,
+      "post_implementation_20_sessions_relative": 9.285223,
+      "post_implementation_60_sessions_relative": -2.391208
+    }
+  },
+  "limitations": [
+    "Splunk is one of seven official deletions and is missing; deletion means can be survivorship biased.",
+    "This batch may be used only as a coverage and sign-sensitivity diagnostic.",
+    "It must not enter the complete-batch pooled directional estimate."
+  ]
+}
