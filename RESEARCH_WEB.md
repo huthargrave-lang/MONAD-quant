@@ -2492,3 +2492,16 @@ CONSEQUENCE FOR H22. 'Deeper RSI' is not a refinement of a working filter — it
 Percentages are synthetic (sigma ~1.1%/bar) but computed with the production indicator code; the threshold orderings are exact config values. Guarded by tests/test_h22_rsi_thresholds_are_inverted.py (11 tests), including a non-vacuity check that the daily mode is still ordered correctly.
 Links: [[H22|refines]] · [[F23|relates]] · [[F192|builds_on]].
 _— captured claude/research-continuation-ca1242@e382d29, 2026-07-25_
+
+### F196 — APPLIED with approval: live/CONTEXT.md now names the real deploy branch, closing H18's last hit and emptying the branch-drift exemption list
+F191 recorded that `live/CONTEXT.md:20` said 'The trader **auto-starts from `pi-ops-automation`**' — a branch that no longer exists even as a remote — in the file an agent reads immediately before editing the live path. It was left unfixed because `live/` is fenced (`ctx can_edit` returns DENY) and the standing instruction requires explicit approval.
+
+APPROVAL GIVEN, EDIT APPLIED. The line now reads 'The trader **auto-starts from `development`**' with a pointer to `ops/preflight_trader_start.sh`, which enforces it by refusing to start on any other branch. Verified before editing that no trader process was running in this checkout — it is a remote clone, not the Pi — and the change is documentation only, with no executable effect on the trading path.
+
+H18 IS NOW FULLY CLOSED. The branch-drift guard finds zero present-tense dead-branch deploy claims across all tracked markdown, and `EXEMPT` is empty. A test asserts it STAYS empty: any future entry is new debt rather than carried-over debt, and the message says to fix the prose rather than exempt it.
+
+THE FENCE IS UNCHANGED, AND THAT IS ASSERTED. A test checks `ctx can_edit live/CONTEXT.md` still returns DENY — correcting one line of prose under approval must not quietly make `live/` freely writable. The three committed statements of the deploy branch (manifest `deploy_branch`, preflight `EXPECT_BRANCH`, CI workflow) are each asserted to agree, so the value the doc now names is the one three independent places enforce.
+
+Supersedes the blocked half of F191.
+Links: [[F191|refines]] · [[H18|resolves]] · [[F190|relates]].
+_— captured claude/research-continuation-ca1242@1f83f94, 2026-07-25_

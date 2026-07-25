@@ -17,7 +17,8 @@
 
 ## Do NOT touch without explicit approval
 `trader.py` entry/exit/order logic, `broker.py` order submission, `signals.py` decision logic.
-The trader **auto-starts from `pi-ops-automation`** — a bug here corrupts a live paper run.
+The trader **auto-starts from `development`** — a bug here corrupts a live paper run.
+(`ops/preflight_trader_start.sh` enforces this: it refuses to start on any other branch.)
 The dashboard is safe to edit (it does **not** import the trader); never edit `state.py` *writers* for a dashboard task.
 
 ## Facts to query, not read

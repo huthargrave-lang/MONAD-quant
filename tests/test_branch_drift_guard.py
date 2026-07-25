@@ -1,30 +1,29 @@
 """H18: no tracked doc may state a present-tense deploy claim naming a dead branch.
 
 `pi-ops-automation` was the deploy branch and was folded into `development`. VD-4 swept
-most docs; H18 records that `live/CONTEXT.md` still says *"The trader **auto-starts from
+most docs; H18 recorded that `live/CONTEXT.md` still said *"The trader **auto-starts from
 `pi-ops-automation`**"* — in the file an agent reads immediately before editing the live
 path, naming a branch that no longer exists even as a remote.
 
-It fails safe (the preflight enforces `EXPECT_BRANCH="development"`, so acting on the
-prose would be refused at the gate) but it is wrong at the highest-stakes moment, and it
-is the only such claim left.
+**That line is now corrected**, under explicit owner approval, since `live/` is fenced and
+`ctx can_edit` returns DENY for it. The file now says `development` and points at
+`ops/preflight_trader_start.sh`, which enforces it. The exemption list is empty, and a
+test asserts it stays empty: a future entry is new debt, not carried-over debt.
 
 **Why the check is narrow.** A naive "does any doc mention the dead branch" scan hits 13
-mentions across 9 files, and almost all of them are *correct history*: `README.md` says
-"prior deploy branch, now folded into `development`", `IMPROVEMENT_PLAN.md` records what
-shipped on it, and the `data/live_runs/` archives are dated records of runs that really
-did happen there. A guard that flagged those would demand the repo forget its own past.
+mentions across 9 files, and almost all are *correct history*: `README.md` calls it the
+prior deploy branch, `IMPROVEMENT_PLAN.md` records what shipped there, and the
+`data/live_runs/` archives are dated records of runs that really did happen on it. A guard
+flagging those would demand the repo forget its own past.
 
 So the rule is: a **present-tense deployment verb** (auto-starts / runs from / deployed /
-checked out) in the same line as a dead branch name, with no past-tense marker, outside
-the archive directories, and outside `RESEARCH_WEB.md` — which is the finding ledger and
-must be able to describe a defect without committing it. That takes 13 mentions to 1.
+checked out) on the same line as a dead branch name, with no past-tense marker, outside
+the archive directories, and outside `RESEARCH_WEB.md` — the finding ledger, which must be
+able to describe a defect without committing it. That took 13 mentions to 1, and the 1 is
+now 0.
 
-**The one hit is not fixed here.** `live/CONTEXT.md` sits behind the `live/` edit fence
-(`ctx can_edit` returns DENY), and the standing instruction is that the live path needs
-explicit approval. So it is recorded as a ratcheted exemption: this test fails if a
-*second* such claim appears, and it fails when the exemption is cleared, so the debt
-stays visible and cannot grow while the approval is pending.
+The file remains behind the edit fence, and a test asserts that too: correcting one line
+of prose under approval should not quietly make `live/` freely writable.
 """
 import re
 import subprocess
@@ -46,8 +45,10 @@ DEPLOY = re.compile(
     r"(auto-?starts?|runs? from|deploys?|deployment|deployed|checked out|the Pi runs"
     r"|is what the Pi)", re.I)
 
-# Known, approval-blocked. Fails if it grows OR if it is cleared.
-EXEMPT = {("live/CONTEXT.md", "pi-ops-automation")}
+# Empty: the last present-tense dead-branch claim was corrected with owner approval
+# (live/CONTEXT.md now says `development`, matching the manifest and the preflight gate).
+# Any entry appearing here again is new debt, not a carried-over exemption.
+EXEMPT = set()
 
 
 def tracked_markdown():
@@ -84,24 +85,37 @@ class NoDocClaimsADeadDeployBranchTests(unittest.TestCase):
             "new present-tense deploy claim(s) naming a dead branch: {}. Fix the prose "
             "— do not add to EXEMPT.".format(sorted(new)))
 
-    def test_the_exemption_is_still_needed(self):
-        """Fails when someone fixes it, so the exemption cannot outlive the defect."""
-        found = {(rel, dead) for rel, dead, _n, _l in self.hits}
-        cleared = EXEMPT - found
+    def test_no_claim_remains_at_all(self):
+        """The exemption is gone because the defect is. Stated separately from the
+        test above so a regression reads as 'the fix was reverted', not 'a new file
+        appeared'."""
         self.assertEqual(
-            cleared, set(),
-            "{} no longer claims a dead deploy branch — the approved edit landed. "
-            "Remove it from EXEMPT.".format(sorted(cleared)))
+            self.hits, [],
+            "a present-tense dead-branch deploy claim is back: {}".format(
+                [(f, n, line[:80]) for f, _d, n, line in self.hits]))
 
-    def test_the_exempt_file_is_actually_fenced(self):
-        """The reason it is exempt rather than fixed. If the fence moves, fix it."""
+    def test_the_exemption_list_is_empty(self):
+        self.assertEqual(
+            EXEMPT, set(),
+            "an exemption was re-added ({}). The last one was cleared by fixing the "
+            "prose; fix the new one too rather than exempting it.".format(sorted(EXEMPT)))
+
+    def test_the_previously_fenced_file_now_names_the_real_branch(self):
+        """It was corrected under explicit owner approval. The file is still fenced —
+        that is asserted too, so a future edit there is still a deliberate act."""
+        import json
+        deploy = json.loads((ROOT / "context_map.json").read_text(
+            encoding="utf-8"))["deploy_branch"]
+        text = (ROOT / "live" / "CONTEXT.md").read_text(encoding="utf-8")
+        self.assertIn("auto-starts from `{}`".format(deploy), text,
+                      "live/CONTEXT.md no longer names the real deploy branch")
+        self.assertNotIn("pi-ops-automation", text)
         proc = subprocess.run(
             ["python3", "tools/ctx.py", "can_edit", "live/CONTEXT.md"],
             cwd=str(ROOT), capture_output=True, text=True)
-        self.assertIn(
-            "DENY", proc.stdout,
-            "live/CONTEXT.md is no longer behind the edit fence — the one-line branch "
-            "correction can now be made directly; make it and drop the exemption")
+        self.assertIn("DENY", proc.stdout,
+                      "live/CONTEXT.md left the edit fence — edits there should stay "
+                      "deliberate even for documentation")
 
 
 class TheLiveDeployBranchIsConsistentTests(unittest.TestCase):
@@ -121,13 +135,12 @@ class TheLiveDeployBranchIsConsistentTests(unittest.TestCase):
         self.assertNotIn(self.deploy_branch(), DEAD_BRANCHES,
                          "the deploy branch is now one this guard treats as dead")
 
-    def test_the_fenced_file_disagrees_with_all_of_them(self):
-        """States the defect as a fact, so it reads as a finding rather than a TODO."""
-        text = (ROOT / "live" / "CONTEXT.md").read_text(encoding="utf-8")
-        self.assertIn("pi-ops-automation", text)
-        self.assertNotIn(
-            "auto-starts from `{}`".format(self.deploy_branch()), text,
-            "live/CONTEXT.md now names the real deploy branch — clear the exemption")
+    def test_the_ci_workflow_names_it_too(self):
+        """The third committed statement of the same fact (F190)."""
+        wf = (ROOT / ".github" / "workflows" / "test.yml").read_text(encoding="utf-8")
+        self.assertIn(self.deploy_branch(), wf,
+                      "CI no longer names the deploy branch — pushes to it may go "
+                      "untested")
 
 
 class TheGuardIsNotVacuousTests(unittest.TestCase):
