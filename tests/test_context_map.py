@@ -453,8 +453,9 @@ class TestEpistemicCoverage(unittest.TestCase):
         """A ratchet, not a pass/fail on the debt. It fails if a NEW unguarded
         behavior-asserting bridge appears (debt grew silently), and it fails when one
         is cleared (update the list, and enjoy it) — so the remaining work stays
-        visible and cannot quietly expand."""
-        known = {"D4"}
+        visible and cannot quietly expand. Currently EMPTY: every behavior-asserting
+        bridge carries a resolving guard, so any failure here is new debt."""
+        known = set()
         actual = {b["node"] for b in self.bridges
                   if not any(ctx._claim_guard_resolves(g)
                              for g in (b.get("guarded_by") or []))}

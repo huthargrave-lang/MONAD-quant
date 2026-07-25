@@ -2231,3 +2231,20 @@ F13's half is intact: the live window is ((300//6)+10)*2 = 120 days, comfortably
 Guarded by tests/test_f12_f13_fetch_span_bridge.py (11 tests). The density test fails if the committed panel ever drops toward 3 bars/day, which would mean the quirk is firing again through every unconverted site above. This clears F12 and F13 from the ctx-claims ratchet, leaving D4 as the last unguarded behavior-asserting bridge.
 Links: [[F12|refines]] · [[F13|supports]] · [[F167|relates]].
 _— captured claude/research-continuation-ca1242@26e4517, 2026-07-25_
+
+### F181 — Passive voice inverted two supersedes edges — the graph said D4 supersedes the OOS evidence against it — and D4's answer predates that evidence
+Guarding the last unguarded bridge (D4) surfaced a live graph defect and a stale conclusion.
+
+THE PASSIVE-VOICE BUG. D4's body reads 'The ~3-bars/day note [[F15]] ... is formally superseded by [[F22]]' — meaning F22 supersedes F15. `_classify_edge` matched the cue 'superseded by' and emitted **D4 --supersedes--> F22**: wrong on the DIRECTION (passive reverses it) and wrong on the SUBJECT (F15, not D4). D7 carried the identical error, also aimed at F22. A repo-wide sweep found exactly these two of 290 untyped links.
+
+Why it matters: F22 is the node holding that the recommended daily-MR build does NOT beat buy&hold out-of-sample — the evidence against D4's answer. The graph asserted D4 supersedes it, inverting the epistemic order on the project's central question.
+
+BLAST RADIUS, BOUNDED HONESTLY. `_is_superseded` reads the explicit status HTML comment on a node, not `supersedes` edges, so F22 was never flagged stale and the lint was unaffected. What the false edges did was render as graph fact in `ctx web/walk/why` and the graph HTML.
+
+FIX: DECLINE, DON'T REVERSE. A cue inside a be-verb + cue + 'by' construction now yields `relates`. Reversing would stack a second guess on the first, and the prose establishes a relation between two OTHER nodes — nothing about this node's edge is determined. Verified the cue table still fires on active voice (supersedes/supports/resolves/relies on/builds on/derived from) so the guard did not silence the inference. Closes H37/DP-12's audit ask for this class.
+
+D4's ANSWER PREDATES THE EVIDENCE. Its arithmetic is sound (3.75% APY = +0.3072%/mo; QQQ's +2% is 53% of target, 'about HALF'). Its conclusion — reachable as a diversified daily-MR product — is what F22 rejected OOS and what F41 answered differently when it RESOLVED D4 (a static blend clears the return goal; near-zero drawdown is unattainable by any honest static or active build). D4's body references none of F22's verdict, F41, D6 or F25, and the bridge note carried the stale answer into `ctx impact`, telling an agent editing `compute_trade_returns` that the goal is reachable as diversified daily-MR. The note now carries the caveat.
+
+Guarded by tests/test_d4_goal_bridge_and_passive_edges.py (14 tests), including a non-vacuity check that the triggering sentences are still present. With this, `ctx claims` reports **14 behavior-asserting claims, 0 UNGUARDED** — the ratchet is empty, so any future failure is new debt.
+Links: [[D4|refines]] · [[F137|builds_on]] · [[H37|relates]] · [[F22|supports]].
+_— captured claude/research-continuation-ca1242@1b7cf3e, 2026-07-25_

@@ -918,12 +918,34 @@ _EDGE_CUES = [
 _LINK_RX = re.compile(r"\[\[([A-Za-z]+\d+)(?:\|([^\]]*))?\]\]")
 
 
+# A cue inside a PASSIVE construction points the other way, and usually names a
+# different subject. "F15 is formally superseded by [[F22]]" means F22 supersedes F15
+# — not that the node whose body this is supersedes F22. The old inference produced
+# exactly that: D4 --supersedes--> F22 and D7 --supersedes--> F22, false on both the
+# direction and the subject, on the node recording the project's central question.
+# Declining to infer (falling back to `relates`) is the honest response: the prose
+# establishes a relation between two OTHER nodes, so nothing about THIS node's edge is
+# determined. Guessing the reverse type would be a second guess on top of the first.
+_PASSIVE_CUE = re.compile(
+    r"\b(?:is|are|was|were|be|been|being)\s+"
+    r"(?:\w+ly\s+|now\s+|already\s+|later\s+|then\s+){0,2}$")
+
+
+def _is_passive(window, pos, cue_len):
+    """True when the cue at `pos` sits in a '<be-verb> ... <cue> by' construction."""
+    if not _PASSIVE_CUE.search(window[:pos]):
+        return False
+    tail = window[pos + cue_len:]
+    return bool(re.match(r"\w*\s+by\b", tail))
+
+
 def _classify_edge(pre):
     """Infer an edge type from the prose immediately preceding a [[link]]. Looks
     only within the current sentence/line (no cross-clause bleed); matches cues on
-    word boundaries with a negation guard ('not'/'un' → skip), and lets a RELIANCE
-    verb win over a closer lineage cue so reliance-on-superseded stays decidable.
-    Returns a canonical type, default 'relates'."""
+    word boundaries with a negation guard ('not'/'un' → skip) and a PASSIVE-voice
+    guard ('X is superseded by [[Y]]' → decline, see _is_passive), and lets a
+    RELIANCE verb win over a closer lineage cue so reliance-on-superseded stays
+    decidable. Returns a canonical type, default 'relates'."""
     brk = max(pre.rfind(". "), pre.rfind("\n"), pre.rfind("; "), pre.rfind("! "))
     window = (pre[brk + 1:] if brk >= 0 else pre)[-90:].lower()
     reliance, other = (-1, None), (-1, None)   # (pos, type) of nearest reliance / lineage cue
@@ -934,6 +956,8 @@ def _classify_edge(pre):
             if window[max(0, pos - 4):pos].endswith(("not ", "no ")) or \
                     window[max(0, pos - 2):pos] == "un":
                 continue  # negated reference ('not supported', 'unsupported') — not an edge
+            if _is_passive(window, pos, mm.end() - mm.start()):
+                continue  # direction reversed and subject is another node — decline
             if etype in RELIANCE_EDGES:
                 if pos > reliance[0]:
                     reliance = (pos, etype)
