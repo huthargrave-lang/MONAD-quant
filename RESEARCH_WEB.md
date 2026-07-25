@@ -2367,3 +2367,21 @@ The CLI smoke test from the previous cycle caught `drift` as unsmoked the moment
 Advisory by H15's own instruction: unknowns do not fail the command, only concrete inconsistencies do. Guarded by tests/test_ctx_drift.py (10 tests).
 Links: [[H15|resolves]] · [[F187|builds_on]] · [[F159|relates]].
 _— captured claude/research-continuation-ca1242@5ddefbe, 2026-07-25_
+
+### F189 — H16 closed: the cold-start rider now carries the CONFIRMED live edge, and says so explicitly in all three states including 'nobody looked'
+H16: `ctx perf` leads with the CONFIRMED edge (bracket_exit + stop_hit, excluding time_exit artifacts and inferred target_hit) because the ALL headline is inflated, but the HONEST STATE rider in `ctx brief`/`ctx frontier` pulled only node counts. An agent orienting at cold start got prose about a corrected headline and no live number at all — at the moment the number matters most.
+
+FIXED. `perf_summary()` appends one line to the `[Auto]` rider, and it ALWAYS returns one:
+  - measured: `live CONFIRMED n=.. WR=..% account=..% (ALL ..% — cite CONFIRMED)`
+  - empty ledger: `live edge UNMEASURED (0 trades — an empty ledger is not evidence)`
+  - no ledger: `live perf UNAVAILABLE here (no live/state.db — worktree/CI, not 'no edge')`
+
+THE THIRD STRING IS THE CAREFUL ONE. A rider that simply drops the line when state.db is absent leaves a reader unable to distinguish 'no edge was found' from 'nobody looked' — the absence-flag failure this project has now hit in three separate places (F155, F159, F188). So the missing-ledger string names itself as a property of the CHECKOUT and explicitly disclaims being a verdict about the edge. A test asserts that disclaimer is present.
+
+NO SECOND SOURCE OF TRUTH. `perf_summary()` shares `cmd_perf`'s ledger read and the same `CONFIRMED` / `LIVE_POSITION_FRACTION` constants, and a test asserts both functions still reference them — two code paths reporting the same quantity differently is the failure mode F20 (estimation windows) and F145 (the sizing chain) already record in this repo, and adding a second perf number would have been a third instance.
+
+The guard also pins the reason the rider exists: with a synthetic ledger carrying a 50% time_exit alongside two 0.1% confirmed fills, the ALL-vs-CONFIRMED gap must remain visible in the rendered line. If a change ever collapses that gap, the rider has stopped doing its job even while still printing something.
+
+Guarded by tests/test_ctx_perf_rider.py (10 tests).
+Links: [[H16|resolves]] · [[F188|builds_on]] · [[F160|relates]].
+_— captured claude/research-continuation-ca1242@3aa72f6, 2026-07-25_

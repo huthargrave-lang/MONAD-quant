@@ -795,6 +795,38 @@ def _compound(returns, fraction=1.0):
     return (e - 1) * 100
 
 
+def perf_summary():
+    """One line of live truth for the cold-start rider (H16/DP-9), or an explicit
+    statement that there is none.
+
+    `ctx perf` leads with the CONFIRMED edge, but `ctx brief`/`ctx frontier` pulled only
+    node counts, so the ALL-vs-CONFIRMED gap could be skimmed past at cold start — which
+    is the moment it matters most. This shares cmd_perf's ledger read so the rider and
+    the command cannot drift apart into two different numbers for the same thing.
+
+    The three states are all SPOKEN, never omitted: an absent ledger, an empty ledger,
+    and a measured edge read very differently, and a rider that simply drops the line
+    when state.db is missing leaves an agent unable to tell "no edge" from "nobody
+    looked" (the absence-flag failure of F155/F159/F188).
+    """
+    if not os.path.exists(DB):
+        return "live perf UNAVAILABLE here (no live/state.db — worktree/CI, not 'no edge')"
+    try:
+        conn = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
+        rows = conn.execute("SELECT return_pct, exit_type FROM trades").fetchall()
+    except Exception:
+        return "live perf UNAVAILABLE (state.db present but unreadable/unexpected schema)"
+    if not rows:
+        return "live edge UNMEASURED (state.db has 0 trades — an empty ledger is not evidence)"
+    allr = [r for r, _ in rows]
+    confr = [r for r, e in rows if e in CONFIRMED]
+    F = LIVE_POSITION_FRACTION
+    conf_c, all_c = _compound(confr, F), _compound(allr, F)
+    wr = (sum(1 for x in confr if x > 0) / len(confr) * 100) if confr else 0.0
+    return (f"live CONFIRMED n={len(confr)} WR={wr:.0f}% account={conf_c:+.2f}%"
+            f" (ALL {all_c:+.2f}% — cite CONFIRMED)")
+
+
 def cmd_perf(args):
     if not os.path.exists(DB):
         print("  ⚠ live/state.db not present — live performance is UNAVAILABLE here")
@@ -2926,6 +2958,9 @@ def _web_banner():
     n_sup = sum(1 for n in nodes.values() if _is_superseded(n))
     dates = [d for d in (_node_meta(n).get("at") for n in nodes.values()) if d]
     rider = f"[Auto] {len(nodes)} nodes, {n_sup} superseded" + (f" · latest dated node {max(dates)}" if dates else "")
+    # H16/DP-9: node counts alone let the ALL-vs-CONFIRMED gap be skimmed past at cold
+    # start. perf_summary() always returns a line — measured, unmeasured, or unavailable.
+    rider += f" · {perf_summary()}"
     return f"{banner}  {rider}" if banner else rider
 
 
