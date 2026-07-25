@@ -2248,3 +2248,21 @@ D4's ANSWER PREDATES THE EVIDENCE. Its arithmetic is sound (3.75% APY = +0.3072%
 Guarded by tests/test_d4_goal_bridge_and_passive_edges.py (14 tests), including a non-vacuity check that the triggering sentences are still present. With this, `ctx claims` reports **14 behavior-asserting claims, 0 UNGUARDED** — the ratchet is empty, so any future failure is new debt.
 Links: [[D4|refines]] · [[F137|builds_on]] · [[H37|relates]] · [[F22|supports]].
 _— captured claude/research-continuation-ca1242@1b7cf3e, 2026-07-25_
+
+### F182 — F111's twelve figures were fully recoverable and reconcile exactly — the gap was a citation path, not missing evidence
+F111 topped the uncited queue: twelve figures, zero reachable documents. The task allowed for 'if the numbers are NOT recoverable, say so'. They are, entirely.
+
+EVERY FIGURE IS IN A COMMITTED ARTIFACT. All twelve of F111's numbers read directly out of `docs/research/data/ix00_*.json`: +2.074 / -0.375 / -2.226 / -3.167 pp add-minus-delete, 12.87x and 7.26x implementation volume, n=9 per side, and the excluded 2022 diagnostic's -2.794 pp. Nothing had to be reconstructed.
+
+AND THE ARITHMETIC RECONCILES EXACTLY (to 1e-5). Two identities re-derived from the batch files:
+  1. Pooling is a plain n-weighted mean — `(m24*n24 + m25*n25)/(n24+n25)` equals the panel value for EVERY metric on BOTH sides (n = 3+6 = 9). No reweighting, winsorising or trimming hides in the pooling step.
+  2. `addition_minus_deletion` is exactly the difference of the two pooled sides, not a separately estimated contrast.
+The -2.794 figure reproduces only by combining `additions` with `observed_deletions` — the 2022 file deliberately names its deletion group differently BECAUSE the set is incomplete (SPLK missing), making accidental pooling impossible. That is good schema design and is now asserted.
+
+WHAT WAS ACTUALLY MISSING was a citation path. Published `docs/research/IX00_ndx_recent_complete_panel.md` recording the windows, the four batches and why two are excluded, the pooled table, both reconciliation identities, and the provenance (`raw_data_committed: false`, yfinance 1.2.0, F110 dual-hash discipline) — so the panel is decision-stable but vendor-backed, verifiable from the repo and regenerable only with network access.
+
+NEW GUARD CLASS: PROSE FIGURES BOUND TO COMMITTED DATA. `tests/test_f111_ndx_panel_figures.py` (13 tests) binds each stated figure to its artifact value at the precision the prose uses, re-checks both identities, and — the load-bearing one — fails if F111 ever states a number with NO artifact value behind it. Verified non-vacuous: seven distinct figures are matched and an injected value is rejected. The repo had no test of this kind; a node's number and its artifact could drift apart silently in either direction.
+
+The panel remains what its own limitations say: eighteen securities, two batch clusters, no p-values, no controls, prior-winner selection. The 60-session +16.25 pp contrast is the largest number in the table and the least trustworthy one.
+Links: [[F111|supports]] · [[F110|relates]].
+_— captured claude/research-continuation-ca1242@498b071, 2026-07-25_
