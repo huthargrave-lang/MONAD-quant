@@ -1578,7 +1578,7 @@ const SUP=dark?'#6f6e6a':'#a8a7a0', STROKE=dark?'#1b1b19':'#fff', MUT=dark?'#a8a
 const idea=new Set(['F','H','E','D','area']);
 const Z={D:95,F:75,H:55,E:45,code:28,config:12,module:-45,area:-75};
 const nodes=D.n.map((d,i)=>({i,id:d[0],k:D.k[d[1]],sup:d[2],title:d[3]||d[0].replace(/^(mod|cfg|code):/,'')}));
-const links=D.e.map(e=>({source:e[0],target:e[1],tn:D.t[e[2]]}));
+const links=D.e.map((e,i)=>({_i:i,source:e[0],target:e[1],tn:D.t[e[2]]}));
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function ecol(t){if(t==='supersedes'||t==='contradicts')return dark?'#F09595':'#E24B4A';if(t==='concerns'||t==='gated_by')return dark?'#85B7EB':'#185FA5';if(t==='imports')return dark?'#5f5e5a':'#b4b2a9';return dark?'#403f3a':'#cdcbc2';}
 function edash(t){return (t==='evidenced_by'||t==='produces'||t==='derived_from'||t==='concerns'||t==='reads_config')?'3,3':null;}
@@ -1587,6 +1587,9 @@ function labelText(n){return idea.has(n.k)?n.id.replace('area:',''):'';}
 function labelFont(n){return n.k==='area'?11:10;}
 function orbPath(n){const r=rad(n),c=r*.55228475,f=v=>v.toFixed(2);return 'M0,'+f(-r)+'C'+f(c)+','+f(-r)+' '+f(r)+','+f(-c)+' '+f(r)+',0C'+f(r)+','+f(c)+' '+f(c)+','+f(r)+' 0,'+f(r)+'C'+f(-c)+','+f(r)+' '+f(-r)+','+f(c)+' '+f(-r)+',0C'+f(-r)+','+f(-c)+' '+f(-c)+','+f(-r)+' 0,'+f(-r)+'Z';}
 const adj={};nodes.forEach(n=>adj[n.i]=new Set());links.forEach(l=>{adj[l.source].add(l.target);adj[l.target].add(l.source);});
+/* incident-link index, built while source/target are still numeric indices (d3
+   forceLink rewrites them to node objects once the simulation is constructed). */
+const incid={};nodes.forEach(n=>incid[n.i]=[]);links.forEach(l=>{incid[l.source].push(l);incid[l.target].push(l);});
 const on={};Object.keys(LBL).forEach(k=>on[k]=true);on._sup=true;
 const svg=d3.select('#svg'),svgEl=document.getElementById('svg');
 svg.append('defs').html("<filter id='orbGlow' x='-100%' y='-100%' width='300%' height='300%'><feGaussianBlur in='SourceGraphic' stdDeviation='1.8' result='blur'/><feMerge><feMergeNode in='blur'/><feMergeNode in='SourceGraphic'/></feMerge></filter><filter id='orbGlowStrong' x='-140%' y='-140%' width='380%' height='380%'><feGaussianBlur in='SourceGraphic' stdDeviation='3.2' result='blur'/><feMerge><feMergeNode in='blur'/><feMergeNode in='blur'/><feMergeNode in='SourceGraphic'/></feMerge></filter><filter id='orbHalo' x='-220%' y='-220%' width='540%' height='540%'><feGaussianBlur in='SourceGraphic' stdDeviation='5.2' result='blur'/><feMerge><feMergeNode in='blur'/></feMerge></filter>");
@@ -1596,15 +1599,20 @@ const link=g.append('g').selectAll('line').data(links).join('line').attr('fill',
  .attr('stroke',d=>ecol(d.tn)).attr('stroke-width',d=>(d.tn==='supersedes'||d.tn==='contradicts')?1.8:1)
  .attr('stroke-dasharray',d=>edash(d.tn));
 const node=g.append('g').selectAll('g').data(nodes).join('g').attr('class','node').attr('data-id',d=>d.id).style('cursor','pointer');
-node.append('path').attr('class','node-halo').attr('d',orbPath).attr('fill',d=>d.sup?SUP:COL[d.k]).attr('opacity',d=>d.sup?0.16:0.3).attr('filter','url(#orbHalo)').attr('transform','scale(2.65)');
+/* The orbs were near-unhittable: at the default zoom (k~0.37) a 6px-radius orb is   ~2px on screen, so elementFromPoint at an orb returned the <svg>. Grabs therefore   missed the node, fell through to d3.zoom, and PANNED the whole canvas — which reads   as 'grabbing an orb moves all the orbs'. A transparent hit disc gives every node a   real target for drag, click and tooltip. */node.append('path').attr('class','node-hit').attr('d',orbPath).attr('fill','transparent').attr('pointer-events','all').attr('transform',d=>'scale('+(Math.max(16,rad(d)*3)/rad(d)).toFixed(3)+')');node.append('path').attr('class','node-halo').attr('d',orbPath).attr('fill',d=>d.sup?SUP:COL[d.k]).attr('opacity',d=>d.sup?0.16:0.3).attr('filter','url(#orbHalo)').attr('transform','scale(2.65)');
 node.append('path').attr('class','node-corona').attr('d',orbPath).attr('fill',d=>d.sup?SUP:COL[d.k]).attr('opacity',d=>d.sup?0.24:0.56).attr('filter','url(#orbGlow)').attr('transform','scale(1.5)');
 node.append('path').attr('class','node-orb mark').attr('d',orbPath).attr('fill',d=>d.sup?SUP:COL[d.k]).attr('stroke','none').attr('opacity',d=>d.sup?0.58:0.86).attr('filter','url(#orbGlow)');
 node.append('path').attr('class','node-core').attr('d',orbPath).attr('fill',d=>d.sup?'#d7d2c2':'#fff6c7').attr('opacity',d=>d.sup?0.3:0.72).attr('filter','url(#orbGlow)').attr('transform','scale(.34)');
 node.append('text').attr('class','node-label').text(labelText).attr('dominant-baseline','middle')
  .attr('font-size',d=>labelFont(d)+'px').attr('fill',d=>d.k==='area'?COL.area:MUT).attr('font-family','ui-monospace,monospace');
+const nodeEls=node.nodes(),linkEls=link.nodes();
+/* A drag moves exactly ONE node, but render() rewrote all ~540 node transforms and
+   all ~1490 links x4 attrs (~7.5k DOM writes) every frame. This touches only the
+   dragged orb and its incident edges — writes drop to 1+4*degree. */
+function renderDragged(d){d.p=projectNode(d);const ne=nodeEls[d.i];if(ne)ne.setAttribute('transform','translate('+d.p.x+','+d.p.y+') scale('+d.p.s+')');const ls=incid[d.i]||[];for(let i=0;i<ls.length;i++){const l=ls[i],le=linkEls[l._i];if(!le)continue;const sN=l.source,tN=l.target;if(!sN.p)sN.p=projectNode(sN);if(!tN.p)tN.p=projectNode(tN);le.setAttribute('x1',sN.p.x);le.setAttribute('y1',sN.p.y);le.setAttribute('x2',tN.p.x);le.setAttribute('y2',tN.p.y);}}
 const tip=d3.select('#tip');
 node.on('mousemove',(ev,d)=>showTip(ev,d)).on('mouseleave',()=>tip.style('opacity',0));
-let sel=null,query='',matches=[],matchAt=-1,promptBank=[],orbit={rx:0,ry:0},orbitDrag=null,blockClick=false,orbitAnim=null,cruiseAnim=null,cruise=null,fastRender=true,fastTimer=null,renderFrame=0,suppressZoomLabel=false,simSettling=true;
+let sel=null,query='',matches=[],matchAt=-1,promptBank=[],orbit={rx:0,ry:0},orbitDrag=null,blockClick=false,orbitAnim=null,cruiseAnim=null,cruise=null,fastRender=true,fastTimer=null,renderFrame=0,suppressZoomLabel=false,simSettling=true,dragging=false;
 svgEl.classList.add('fast-render');svgEl.dataset.fastRender='1';
 node.on('click',(ev,d)=>{ev.stopPropagation();if(blockClick){blockClick=false;return;}selectNode(sel===d.i?null:d.i,true);});
 svg.on('click',()=>{if(blockClick){blockClick=false;return;}selectNode(null,false);});
@@ -1616,8 +1624,19 @@ function prand(i,s){return Math.abs(Math.sin((i+1)*s)*43758.5453)%1;}
 function targetZ(n){const deg=adj[n.i]?adj[n.i].size:0,semantic=Z[n.k]||0,hub=Math.min(70,deg*3.2),spread=(prand(n.i,41.17)-.5)*125;return semantic+spread+(idea.has(n.k)?hub:-hub*.45);}
 function nodeZ(n){let z=Number.isFinite(n.z)?n.z:targetZ(n);if(sel!==null){if(n.i===sel)z+=95;else if(adj[sel].has(n.i))z+=42;}if(hit(n))z+=52;return z;}
 function init3D(){const phi=Math.PI*(3-Math.sqrt(5)),cnt=Math.max(1,nodes.length),rx=Math.max(W*.34,260),ry=Math.max(H*.30,190);nodes.forEach(n=>{const q=(n.i+.5)/cnt,a=n.i*phi,r=Math.sqrt(q);if(!Number.isFinite(n.x))n.x=W/2+Math.cos(a)*r*rx;if(!Number.isFinite(n.y))n.y=H/2+Math.sin(a)*r*ry;n.z=targetZ(n);n.vz=0;});}
-function relax3D(alpha){const a=Math.max(.035,alpha||.035);links.forEach(l=>{const s=l.source,t=l.target;if(!Number.isFinite(s.z)||!Number.isFinite(t.z))return;const dz=t.z-s.z,bias=(targetZ(t)-targetZ(s))*.18,w=(l.tn==='imports'||l.tn==='relates')?0.004:0.007,delta=(dz-bias)*w*a;s.vz+=delta;t.vz-=delta;});for(let i=0;i<nodes.length;i++){const a0=nodes[i];if(!Number.isFinite(a0.z))continue;for(let j=i+1;j<nodes.length;j++){const b0=nodes[j];if(!Number.isFinite(b0.z))continue;const dx=a0.x-b0.x,dy=a0.y-b0.y;if(Math.abs(dx)>46||Math.abs(dy)>46)continue;const min=18+rad(a0)+rad(b0),dz=b0.z-a0.z,gap=min-Math.abs(dz);if(gap>0){const push=(dz<0?-1:1)*gap*.014*a;a0.vz-=push;b0.vz+=push;}}}nodes.forEach(n=>{if(!Number.isFinite(n.z))n.z=targetZ(n);if(!Number.isFinite(n.vz))n.vz=0;n.vz+=(targetZ(n)-n.z)*.018*a;n.vz=Math.max(-9,Math.min(9,n.vz*.88));n.z=Math.max(-380,Math.min(380,n.z+n.vz));});}
+const ZCELL=46;
+function relax3D(alpha){if(dragging)return;const a=Math.max(.035,alpha||.035);links.forEach(l=>{const s=l.source,t=l.target;if(!Number.isFinite(s.z)||!Number.isFinite(t.z))return;const dz=t.z-s.z,bias=(targetZ(t)-targetZ(s))*.18,w=(l.tn==='imports'||l.tn==='relates')?0.004:0.007,delta=(dz-bias)*w*a;s.vz+=delta;t.vz-=delta;});
+ /* z-separation was O(n^2) (~146k pair tests/tick at 540 nodes) which dominated the
+    frame budget. Same semantics — only pairs within ZCELL in x AND y interact — via a
+    spatial hash, so each node is tested against its 3x3 cell neighbourhood only. */
+ const grid=new Map();for(let i=0;i<nodes.length;i++){const n=nodes[i];if(!Number.isFinite(n.z)||!Number.isFinite(n.x)||!Number.isFinite(n.y))continue;const key=((n.x/ZCELL)|0)+','+((n.y/ZCELL)|0);let b=grid.get(key);if(!b){b=[];grid.set(key,b);}b.push(n);}
+ grid.forEach((bucket,key)=>{const parts=key.split(','),cx=+parts[0],cy=+parts[1];for(let gx=cx;gx<=cx+1;gx++)for(let gy=(gx===cx?cy:cy-1);gy<=cy+1;gy++){const other=grid.get(gx+','+gy);if(!other)continue;const same=(gx===cx&&gy===cy);for(let i=0;i<bucket.length;i++){const a0=bucket[i];for(let j=same?i+1:0;j<other.length;j++){const b0=other[j];if(a0===b0)continue;const dx=a0.x-b0.x,dy=a0.y-b0.y;if(dx>ZCELL||dx<-ZCELL||dy>ZCELL||dy<-ZCELL)continue;const min=18+rad(a0)+rad(b0),dz=b0.z-a0.z,gap=min-Math.abs(dz);if(gap>0){const push=(dz<0?-1:1)*gap*.014*a;a0.vz-=push;b0.vz+=push;}}}}});
+ nodes.forEach(n=>{if(!Number.isFinite(n.z))n.z=targetZ(n);if(!Number.isFinite(n.vz))n.vz=0;n.vz+=(targetZ(n)-n.z)*.018*a;n.vz=Math.max(-9,Math.min(9,n.vz*.88));n.z=Math.max(-380,Math.min(380,n.z+n.vz));});}
 function viewCenter(){const k=zoomK();return {x:(W/2-(zt.x||0))/k,y:(H/2-(zt.y||0))/k};}
+/* NB: memoising the four trig terms + viewCenter here was tried and MEASURED SLOWER
+   (0.8x) despite being bit-identical — V8's Math.cos/sin are cheap intrinsics and the
+   cache-validity check cost more than it saved. Left inline deliberately; the frame
+   cost is DOM writes, not this arithmetic. */
 function projectPoint(x0,y0,z){const c=viewCenter(),x=x0-c.x,y=y0-c.y,cy=Math.cos(orbit.ry),sy=Math.sin(orbit.ry),cx=Math.cos(orbit.rx),sx=Math.sin(orbit.rx),x1=x*cy+z*sy,z1=z*cy-x*sy,y1=y*cx-z1*sx,z2=y*sx+z1*cx,p=620/(620-z2),s=Math.max(.68,Math.min(1.45,p));return {x:c.x+x1*s,y:c.y+y1*s,z:z2,s:s};}
 function projectNode(n){if(!Number.isFinite(n.x)||!Number.isFinite(n.y))return {x:W/2,y:H/2,z:0,s:1};return projectPoint(n.x,n.y,nodeZ(n));}
 function zoomK(){return zt&&Number.isFinite(zt.k)?zt.k:1;}
@@ -1639,8 +1658,8 @@ function filterGlow(d){return isHot(d)?'url(#orbGlowStrong)':(fastRender&&!isNea
 function filterHalo(d){return fastRender&&!vivid(d)?null:'url(#orbHalo)';}
 function filterCore(d){return fastRender&&!vivid(d)?null:'url(#orbGlow)';}
 function setFastRender(on){if(fastTimer){clearTimeout(fastTimer);fastTimer=null;}if(fastRender===on)return;fastRender=on;svgEl.classList.toggle('fast-render',on);svgEl.dataset.fastRender=on?'1':'0';paint();}
-function settleRenderQuality(delay=220){if(fastTimer)clearTimeout(fastTimer);fastTimer=setTimeout(()=>{fastTimer=null;if(simSettling||cruiseAnim||orbitAnim||orbitDrag)return;setFastRender(false);},delay);}
-function render(){renderFrame++;const vc=viewCenter();svgEl.dataset.viewCx=vc.x.toFixed(2);svgEl.dataset.viewCy=vc.y.toFixed(2);svgEl.dataset.orbitRx=orbit.rx.toFixed(4);svgEl.dataset.orbitRy=orbit.ry.toFixed(4);svgEl.dataset.fastRender=fastRender?'1':'0';svgEl.dataset.renderFrame=String(renderFrame);nodes.forEach(n=>{n.p=projectNode(n);});link.attr('x1',d=>d.source.p.x).attr('y1',d=>d.source.p.y).attr('x2',d=>d.target.p.x).attr('y2',d=>d.target.p.y);node.attr('transform',d=>'translate('+d.p.x+','+d.p.y+') scale('+d.p.s+')').attr('data-z',d=>Number.isFinite(d.z)?d.z.toFixed(2):'').attr('data-depth',d=>Number.isFinite(d.p.z)?d.p.z.toFixed(2):'');if(!fastRender||renderFrame%12===0)node.sort((a,b)=>(a.p.z||0)-(b.p.z||0));if(!fastRender||renderFrame%24===0)layoutLabels();}
+function settleRenderQuality(delay=220){if(fastTimer)clearTimeout(fastTimer);fastTimer=setTimeout(()=>{fastTimer=null;if(simSettling||cruiseAnim||orbitAnim||orbitDrag||dragging)return;setFastRender(false);},delay);}
+function render(){renderFrame++;const vc=viewCenter();svgEl.dataset.viewCx=vc.x.toFixed(2);svgEl.dataset.viewCy=vc.y.toFixed(2);svgEl.dataset.orbitRx=orbit.rx.toFixed(4);svgEl.dataset.orbitRy=orbit.ry.toFixed(4);svgEl.dataset.fastRender=fastRender?'1':'0';svgEl.dataset.renderFrame=String(renderFrame);nodes.forEach(n=>{n.p=projectNode(n);});/* Measured in Chromium at 544 nodes/1504 links: four d3 .attr(fn) passes over the   link selection cost 3.59ms of a 5.47ms frame (66%). One raw pass over the cached   elements does the same work without d3's per-element accessor overhead. */for(let li=0;li<links.length;li++){const l=links[li],le=linkEls[li];if(!le)continue;const sp=l.source.p,tp=l.target.p;if(!sp||!tp)continue;le.setAttribute('x1',sp.x);le.setAttribute('y1',sp.y);le.setAttribute('x2',tp.x);le.setAttribute('y2',tp.y);}node.attr('transform',d=>'translate('+d.p.x+','+d.p.y+') scale('+d.p.s+')');/* data-z/data-depth are inspection telemetry, not visuals: writing them every frame   cost ~1.1k DOM writes/frame. Emitted when the view is settled (and on the periodic   sort frame) so tooling can still read them. */if(!fastRender||renderFrame%12===0)node.attr('data-z',d=>Number.isFinite(d.z)?d.z.toFixed(2):'').attr('data-depth',d=>Number.isFinite(d.p.z)?d.p.z.toFixed(2):'');if(!fastRender||renderFrame%12===0)node.sort((a,b)=>(a.p.z||0)-(b.p.z||0));if(!fastRender||renderFrame%24===0)layoutLabels();}
 function haloOpacity(d){if(sel===d.i)return .78;if(sel!==null&&adj[sel].has(d.i))return .44;if(hit(d))return .6;return d.sup?0.12:0.28;}
 function haloScale(d){return (sel===d.i||hit(d))?'scale(3.15)':'scale(2.65)';}
 function coronaOpacity(d){if(sel===d.i)return .9;if(sel!==null&&adj[sel].has(d.i))return .68;if(hit(d))return .82;return d.sup?0.22:0.54;}
@@ -1719,8 +1738,16 @@ const sim=d3.forceSimulation(nodes).alphaDecay(.055).alphaMin(.02).velocityDecay
  .force('collide',d3.forceCollide().radius(d=>rad(d)+6)).force('x',d3.forceX(W/2).strength(.03)).force('y',d3.forceY(H/2).strength(.05));
 sim.on('tick',()=>{relax3D(sim.alpha());render();});
 sim.on('end',()=>{simSettling=false;settleRenderQuality(140);});
-node.call(d3.drag().filter(ev=>!ev.shiftKey&&!ev.button).on('start',(ev,d)=>{if(!ev.active)sim.alphaTarget(.3).restart();d.fx=d.x;d.fy=d.y;}).on('drag',(ev,d)=>{d.fx=ev.x;d.fy=ev.y;}).on('end',(ev,d)=>{if(!ev.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}));
-const zoom=d3.zoom().filter(ev=>!ev.shiftKey&&(!ev.ctrlKey||ev.type==='wheel')&&!ev.button).scaleExtent([.3,5]).on('start',()=>setFastRender(true)).on('zoom',ev=>{zt=ev.transform;g.attr('transform',zt);if(!suppressZoomLabel&&!fastRender)layoutLabels();}).on('end',()=>settleRenderQuality());svg.call(zoom);paint();
+/* Dragging used to `sim.alphaTarget(.3).restart()`, which re-heated the WHOLE layout:
+   grabbing one orb made every other orb drift, and relax3D kept mutating z so their
+   projected scale changed — orbs visibly resized under the cursor. Now a grab moves
+   only the grabbed orb (z frozen via the `dragging` guard in relax3D), and the orb
+   stays where it is dropped. Use Reset to re-run the layout. */
+node.call(d3.drag().filter(ev=>!ev.shiftKey&&!ev.button)
+ .on('start',(ev,d)=>{dragging=true;setFastRender(true);sim.stop();d.fx=d.x;d.fy=d.y;})
+ .on('drag',(ev,d)=>{d.fx=d.x=ev.x;d.fy=d.y=ev.y;blockClick=true;renderDragged(d);})
+ .on('end',(ev,d)=>{dragging=false;settleRenderQuality(140);}));
+/* A mousedown on an orb bubbled to the svg and started a d3.zoom PAN as well as the   node drag. Panning changes zt, and every node's projection goes through viewCenter(zt),   so grabbing one orb visibly displaced all 544 of them — the 'grab changes the orbs'   bug. Pointer gestures that start on a node are now excluded from zoom; the wheel is   still allowed over a node so scroll-to-zoom keeps working. */const onNode=ev=>!!(ev&&ev.target&&ev.target.closest&&ev.target.closest('g.node'));const zoom=d3.zoom().filter(ev=>!ev.shiftKey&&(!ev.ctrlKey||ev.type==='wheel')&&!ev.button&&(ev.type==='wheel'||!onNode(ev))).scaleExtent([.3,5]).on('start',()=>setFastRender(true)).on('zoom',ev=>{zt=ev.transform;g.attr('transform',zt);if(!suppressZoomLabel&&!fastRender)layoutLabels();}).on('end',()=>settleRenderQuality());svg.call(zoom);paint();
 svg.on('pointerdown.orbit',startOrbit).on('pointermove.orbit',moveOrbit).on('pointerup.orbit',endOrbit).on('pointercancel.orbit',endOrbit);
 document.getElementById('flat').onclick=()=>flatView();
 document.getElementById('fit').onclick=()=>{stopCruise();fitVisible();};
