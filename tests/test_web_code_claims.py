@@ -427,5 +427,109 @@ class FourSiteGateTests(unittest.TestCase):
         )
 
 
+SIGNALS_DIR = ROOT / "src" / "signals"
+SIZING = ROOT / "src" / "strategy" / "sizing.py"
+
+
+def _first_party_sources():
+    """Every first-party .py, excluding tests and vendored/venv trees."""
+    for path in ROOT.rglob("*.py"):
+        parts = set(path.parts)
+        if parts & {"venv", ".git", "__pycache__", "tests"}:
+            continue
+        yield path
+
+
+class DeadSizingKnobTests(unittest.TestCase):
+    """Five sizing knobs are written or configured and read by NOTHING.
+
+    Scope note, because the broader version of this claim does not survive: the
+    executed sizing is NOT undocumented. `config_modules/base.py` sets
+    POSITION_SIZING_MODE='fixed', `runner.py:351` PRINTS "Sizing: Fixed 10% per
+    trade" in every result block, `sweep_sizing.py`'s docstring explains the fixed
+    default as a deliberate live-alignment choice, and F28 records it. Kelly is also
+    still reachable — `walk_forward.py` runs its own half-Kelly equity loop and
+    `sweep.py --sizing kelly` exists.
+
+    What IS defective is narrower and fully mechanical: these five knobs have no
+    consumer on ANY path, so they read as live tuning surface while governing
+    nothing. CLAUDE.md compounds it by documenting a multiplier chain
+    (`kelly_trade = min(base_kelly x regime_mult x adx_mult, pos_cap)`) that exists
+    in no code path, citing `volatility.py:133-135` in a 115-line file.
+    """
+
+    def _read_sites(self, name, writers):
+        """Files mentioning `name` that are not its declared writers."""
+        hits = []
+        for path in _first_party_sources():
+            rel = str(path.relative_to(ROOT))
+            if rel in writers:
+                continue
+            if name in path.read_text(encoding="utf-8"):
+                hits.append(rel)
+        return hits
+
+    def test_adx_kelly_mult_is_computed_and_consumed_by_nothing(self):
+        hits = self._read_sites("adx_kelly_mult", {"src/signals/volatility.py"})
+        self.assertEqual(
+            hits, [],
+            "adx_kelly_mult now has a consumer ({}) — the ADX multiplier may be "
+            "live again. Re-verify and supersede the web node.".format(hits),
+        )
+
+    def test_regime_kelly_mult_is_computed_and_consumed_by_nothing(self):
+        hits = self._read_sites(
+            "regime_kelly_mult",
+            {"src/signals/momentum.py", "src/strategy/engine.py"},
+        )
+        self.assertEqual(
+            hits, [],
+            "regime_kelly_mult now has a consumer ({}) — the regime multiplier may "
+            "be live again. Re-verify and supersede.".format(hits),
+        )
+
+    def test_use_adx_sizing_has_no_reader_at_all(self):
+        hits = self._read_sites("USE_ADX_SIZING", {"config.py"})
+        self.assertEqual(
+            hits, [],
+            "USE_ADX_SIZING is read somewhere now ({}) — it was pure dead "
+            "config.".format(hits),
+        )
+
+    def test_max_position_pct_strong_bull_has_no_reader(self):
+        """CLAUDE.md calls this the 'KEY FIX' worth 10.55%->11.05% and Sharpe
+        4.844->4.924. Nothing reads it."""
+        hits = self._read_sites("MAX_POSITION_PCT_STRONG_BULL", {"config.py"})
+        self.assertEqual(
+            hits, [],
+            "MAX_POSITION_PCT_STRONG_BULL now has a reader ({}) — the STRONG_BULL "
+            "cap may be live. Re-verify and re-baseline.".format(hits),
+        )
+
+    def test_bull_kelly_multiplier_is_born_dead(self):
+        """Threaded main.py -> runner signature -> nowhere. It appears exactly once
+        in runner.py: the parameter declaration itself."""
+        source = RUNNER.read_text(encoding="utf-8")
+        self.assertEqual(
+            source.count("bull_kelly_multiplier"), 1,
+            "bull_kelly_multiplier is now referenced more than once in runner.py — "
+            "it may have acquired a consumer. Re-verify and supersede.",
+        )
+
+    def test_claude_md_cites_a_line_range_that_does_not_exist(self):
+        """The doc's ADX cite points past the end of the file it names — evidence
+        the claim was never re-verified after the code moved."""
+        volatility = SIGNALS_DIR / "volatility.py"
+        n_lines = len(volatility.read_text(encoding="utf-8").splitlines())
+        claude = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+        if "volatility.py:133-135" not in claude:
+            self.skipTest("CLAUDE.md's stale ADX cite was corrected — good")
+        self.assertLess(
+            n_lines, 133,
+            "volatility.py is now long enough for CLAUDE.md's cite to be valid — "
+            "re-check whether the ADX claim became true.",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
