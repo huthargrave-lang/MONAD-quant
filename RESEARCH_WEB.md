@@ -2111,3 +2111,25 @@ SCOPE CAVEAT. Each audit pairs only 2 derived hashes against those 3-4 observed 
 Guarded by tests/test_f110_hash_discipline.py (5 tests), which fails in BOTH directions: if the vendor becomes byte-stable (F110 goes stale), if decision-level reproducibility breaks (F110's load-bearing half fails), or if the pairing widens to cover every refresh (this caveat stops applying).
 Links: [[F110|supports]] · [[E99|relates]].
 _— captured claude/research-continuation-ca1242@708ca8f, 2026-07-25_
+
+### F174 — F19 survives, but only under the honest fill rule: optimistic mode INVERTS the exit comparison, and the wedge scales with the same-bar ambiguous share
+F19's bridge (compute_trade_returns + STOP_LOSS_PCT_TQQQ_HOURLY) was unguarded. It turns out to be mechanisable inside the repo's own engine: widen the band past any bar and every trade falls to the `time_exit` branch, which IS an N-bar horizon exit. Same entries, same bars, same function, one parameter changed — F19's within-comparison, re-runnable offline on synthetic data.
+
+THE FIRST PASS LOOKED LIKE A REFUTATION. The band exit BEAT the horizon exit and got BETTER as intrabar noise rose (+21 -> +76 bps as P(bar range > stop) went 0.76 -> 0.97). That is backwards from every mechanism F7 and F19 describe.
+
+THE CAUSE WAS THE FLAG, NOT THE MECHANISM. `worst_case_ambiguity` decides who wins when one bar's range contains BOTH barriers. Under the honest rule (stop wins — what `realistic` and `harsh` ship) the identical trades go +16 -> -32 bps, monotonically DOWN, crossing below the horizon exit: F19's sign flip, confirmed. Under the optimistic rule (target wins — what `optimistic` ships) they go monotonically UP. Measured wedge vs ambiguous share, same frames:
+
+  amb share    optimistic   worst-case   horizon
+     1.0%         +15.4        +13.8      +14.4
+     9.2%         +26.8        +13.0      +14.4
+    22.8%         +35.7         +1.5      +14.4
+    50.4%         +59.1        -16.5      +14.4
+    72.0%         +75.9        -32.1      +14.4
+
+So on identical entries the FLAG chooses the conclusion, and the wedge grows monotonically with the ambiguous share (it is <5 bps when almost no bar is ambiguous — the negative control). This is a mechanism for CLAUDE.md's stale-performance warning: optimistic mode does not merely omit costs, it can reverse the ranking of two exit rules.
+
+SCOPE. The ambiguous share is a property of the DATA, and no real bars are committed (`data/cache/` empty, the vendor CSVs gone). Nothing here says what that share IS for TQQQ hourly at its configured 1.0%/0.5% band. The claim is conditional: wherever the share is large, the reported result is chosen by the flag. Measuring it on real bars is open.
+
+Guarded by tests/test_f19_exit_lever_bridge.py (12 tests, bidirectional), now wired as `guarded_by` on the F19 bridge.
+Links: [[F19|supports]] · [[F7|supports]] · [[E10|relates]].
+_— captured claude/research-continuation-ca1242@bf2e098, 2026-07-25_
