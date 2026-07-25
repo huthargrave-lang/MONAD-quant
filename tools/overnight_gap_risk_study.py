@@ -5785,8 +5785,12 @@ def trader_singleton_launch_safety_audit() -> Dict[str, object]:
             present=True,
             write_serialization=True,
             business_check_to_act_atomic=False,
-            position_uniqueness_constraint=False,
-            signal_bar_uniqueness_constraint=False,
+            position_uniqueness_constraint=_derived_control(
+                source_text["live/state.py"],
+                ("CREATE UNIQUE INDEX", "UNIQUE (", "UNIQUE(")),
+            signal_bar_uniqueness_constraint=_derived_control(
+                source_text["live/state.py"],
+                ("CREATE UNIQUE INDEX", "UNIQUE (", "UNIQUE(")),
             limitation=(
                 "The state read, broker checks, three external order submissions, "
                 "and DELETE+INSERT state write are not one transaction."
@@ -8004,7 +8008,9 @@ def concurrent_close_idempotency_audit() -> Dict[str, object]:
             select_implicitly_opened_driver_transaction=False,
             first_transactional_statement="INSERT INTO trades",
             select_and_insert_share_one_explicit_transaction=False,
-            begin_immediate_present=False,
+            begin_immediate_present=_derived_control(
+                source_text["live/state.py"],
+                ("BEGIN IMMEDIATE", "begin immediate", "isolation_level='IMMEDIATE'")),
             compare_and_swap_delete_present=False,
             close_returns_success_status=False,
             trades_unique_lifecycle_constraint=bool(
@@ -8425,8 +8431,13 @@ def cross_generation_close_reentry_audit() -> Dict[str, object]:
                 or "lifecycle" in close_parameters
                 or "position_id" in close_parameters
             ),
-            close_delete_is_generation_conditional=False,
-            close_checks_delete_rowcount=False,
+            close_delete_is_generation_conditional=_derived_control(
+                source_text["live/state.py"],
+                ("DELETE FROM position WHERE generation",
+                 "WHERE generation = ?", "AND generation = ?")),
+            close_checks_delete_rowcount=_derived_control(
+                source_text["live/state.py"],
+                (".rowcount", "rowcount ==", "rowcount !=")),
             trade_retains_bracket_or_lifecycle_id=(
                 "bracket_order_id" in trades_fields
                 or any("lifecycle" in field for field in trades_fields)
@@ -13518,6 +13529,32 @@ def required_artifacts():
          QQQ_ACTIONS_SOURCE_SHA256),
         (QUOTE_STALENESS_AUDIT, "TQQQ 5m quote-staleness summary", None),
     ]
+
+
+def _derived_control(source: str, tokens) -> Dict[str, object]:
+    """Presence of a safety control, DERIVED from source rather than asserted.
+
+    WHY THIS EXISTS (RESEARCH_WEB.md F155). The audits in this module conclude that
+    various live-safety controls are ABSENT, and they protect those conclusions with
+    substring tokens that cite the *buggy* code. That makes every such tripwire
+    one-directional: it fires when the evidence is deleted, and stays silent when the
+    bug is FIXED. Measured by implementing three remediations these audits' own
+    `falsification_gate` fields demand and diffing all 4,470 output leaves -- 18
+    changed, 15 of them an echoed sha256, and ZERO of the 313 `False` absence claims
+    flipped. A future engineer could do exactly what the gates ask and still get a
+    green "control absent" report.
+
+    A flag built from this helper flips the moment the control appears in the source,
+    so the audit agrees with the engineer who fixed it.
+
+    Deliberate error direction: tokens are matched against the whole source file
+    rather than a narrowly-scoped schema block, so an unrelated occurrence can read
+    as `present`. That over-approximation errs toward INVALIDATING the absence
+    finding, which is the safe direction -- a false "present" prompts a human to
+    re-examine, while a false "absent" silently perpetuates a stale claim.
+    """
+    matched = sorted(t for t in tokens if t in source)
+    return {"present": bool(matched), "matched_tokens": matched}
 
 
 def preflight_artifacts() -> None:
