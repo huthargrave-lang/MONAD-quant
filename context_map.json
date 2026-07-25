@@ -82,6 +82,7 @@
        "note": "promote rolling-origin OOS to the sweep's primary selector."},
       {"node": "F6", "relation": "concerns",
        "code": ["config.ACTIVE_MODE", "config.STOP_LOSS_PCT_TQQQ_HOURLY"],
+       "guarded_by": ["tests/test_f6_fragile_instrument_bridge.py::F6PreconditionStillHolds"],
        "note": "the live instrument (TQQQ) is fragile — collapses to t=0.37 on recent data."},
       {"node": "F19", "relation": "concerns",
        "code": ["src/strategy/engine.py::compute_trade_returns", "config.STOP_LOSS_PCT_TQQQ_HOURLY"],
