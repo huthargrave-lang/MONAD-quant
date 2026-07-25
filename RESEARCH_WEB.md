@@ -2681,3 +2681,18 @@ ALSO RECORDED: `_should_send` dedupes on `message[:80]` for 300s, so two DIFFERE
 Guarded by tests/test_h31_alerting_reachability.py (15 tests).
 Links: [[H31|refines]] · [[F204|builds_on]].
 _— captured claude/research-continuation-ca1242@7bc5508, 2026-07-25_
+
+### F206 — H32 confirmed exhaustively: per-TRADE risk is bounded, session risk is not — worst case is frequency x per-trade loss, and F47 makes that 8x the modelled figure
+H32 asks for per-day loss limits, max-consecutive-losses pauses, notional caps, circuit breakers, a drawdown throttle and a documented kill switch. A repo-wide search finds NONE of them — no `kill_switch`, `MAX_DAILY_LOSS`, `DRAWDOWN_LIMIT`, `MAX_CONSECUTIVE` or circuit breaker outside tests, and `trader.py` holds no cumulative-loss state of any kind.
+
+THE HONEST OTHER HALF: THIS IS NOT AN UNGUARDED BOT. Fixed 10% sizing, a 0.50% stop, a bounded hold (`MAX_TRADE_BARS_LIVE = 10`), the reconciliation guard that refuses entry on a broker/DB desync, the software take-profit, `TRADER_ALLOW_SHORTS = False`, and paper mode. Every trade is capped. **Nothing is capped ACROSS trades** — that is the precise shape of the gap, and it is worth stating that way rather than as 'risk is unmanaged'.
+
+THE ARITHMETIC. At the modelled stop, one trade risks `10% x 0.50% = 0.050%` of account. F47 observed an overnight gap turn that same 0.50% stop into a **-4.007%** realized loss = `10% x 4.007% = 0.401%` of account — **8x the modelled figure** — and the engine has no term that can express it (F19/F193: the stop fills at a constant, so no gap can enter it). With ~7 hourly bars per session and no session-level limit, the worst case is bounded only by FREQUENCY x PER-TRADE LOSS: ~0.35%/day modelled, **~2.8%/day** at F47's observed loss. Nothing stops the second day, or the tenth.
+
+THE KILL SWITCH IS ONE LINE IN THE WRONG DOCUMENT. `sudo systemctl stop monad-trader.service` appears in `ops/README.md` and NOT in `OPERATIONS.md`, which is the runbook operators are pointed at. There is no in-process halt — no file or flag the trader itself checks — so stopping it requires shell access to the Pi.
+
+NOTHING FIXED. Every control H32 asks for lives in `live/`, which is fenced, and a loss limit changes WHEN THE BOT REFUSES TO TRADE — an owner decision, not a research one. This records the state, the arithmetic and what already exists, so decision gate 2 can be argued from numbers rather than adjectives.
+
+Guarded by tests/test_h32_no_session_level_risk_limits.py (13 tests), which fails if any named control lands (prompting a recompute) and if OPERATIONS.md gains the stop command.
+Links: [[H32|supports]] · [[F47|builds_on]] · [[F193|relates]].
+_— captured claude/research-continuation-ca1242@b8a4e11, 2026-07-25_
