@@ -773,10 +773,25 @@ def cmd_audit(args):
     sys.exit(1)
 
 
-def _compound(returns):
+# The live trader sizes every position at a fixed fraction of equity
+# (live/state.py: position_pct = 0.10), and `trades.return_pct` is a PRICE return on
+# that position (live/trader.py::_signed_return). So a raw compound of return_pct is a
+# return on 10%-of-equity NOTIONAL, not on the account -- roughly 10x the account
+# effect. RESEARCH_WEB.md F160 measured the consequence on the one committed run: the
+# dashboard's "+35.2%" is +3.13% on the account, and the CONFIRMED-fill "honest edge"
+# is +0.045%, not +0.205%. The flat verdict survives either way; the magnitude does not.
+LIVE_POSITION_FRACTION = 0.10
+
+
+def _compound(returns, fraction=1.0):
+    """Compound a sequence of returns. `fraction` scales each to account units.
+
+    fraction=1.0 gives the NOTIONAL figure (what the dashboard shows);
+    fraction=LIVE_POSITION_FRACTION gives the ACCOUNT figure.
+    """
     e = 1.0
     for r in returns:
-        e *= (1 + r)
+        e *= (1 + r * fraction)
     return (e - 1) * 100
 
 
@@ -802,15 +817,27 @@ def cmd_perf(args):
     confr = [r for r, e in rows if e in CONFIRMED]
     def wr(v):
         return sum(1 for x in v if x > 0) / len(v) * 100 if v else 0
-    conf_c, all_c = _compound(confr), _compound(allr)
-    # Lead with the honest CONFIRMED edge — the ALL/PROD headline is inflated by time_exit
-    # artifacts + inferred target_hit, and an agent that cites it repeats the SUPERSEDED mistake.
-    print(f"  CONFIRMED fills:   n={len(confr):3}  WR={wr(confr):5.1f}%  compounded={conf_c:+8.3f}%   <- THE HONEST EDGE")
-    print(f"  PROD (dashboard):  n={len(prodr):3}  WR={wr(prodr):5.1f}%  compounded={_compound(prodr):+8.3f}%")
-    print(f"  ALL trades:        n={len(allr):3}  WR={wr(allr):5.1f}%  compounded={all_c:+8.3f}%  simple_sum={sum(allr)*100:+8.3f}%")
-    if confr and allr and abs(all_c - conf_c) > 1.0:
-        print(f"  ⚠ headline gap: ALL {all_c:+.1f}% vs CONFIRMED {conf_c:+.1f}% — the headline is inflated by")
-        print(f"    time_exit artifacts + inferred target_hit; cite CONFIRMED, not the dashboard/ALL number.")
+    F = LIVE_POSITION_FRACTION
+    conf_c, all_c = _compound(confr, F), _compound(allr, F)
+    conf_n, all_n = _compound(confr), _compound(allr)
+    # Lead with the honest CONFIRMED edge IN ACCOUNT UNITS — the ALL/PROD headline is
+    # inflated twice over: by time_exit artifacts + inferred target_hit, and by being a
+    # return on 10%-of-equity notional reported as an account return (F160).
+    print(f"  (account units: each trade deploys {F*100:.0f}% of equity; 'notional' = the raw"
+          f" dashboard convention)")
+    print(f"  CONFIRMED fills:   n={len(confr):3}  WR={wr(confr):5.1f}%  account={conf_c:+8.3f}%"
+          f"  notional={conf_n:+8.3f}%   <- THE HONEST EDGE")
+    print(f"  PROD (dashboard):  n={len(prodr):3}  WR={wr(prodr):5.1f}%  account={_compound(prodr, F):+8.3f}%"
+          f"  notional={_compound(prodr):+8.3f}%")
+    print(f"  ALL trades:        n={len(allr):3}  WR={wr(allr):5.1f}%  account={all_c:+8.3f}%"
+          f"  notional={all_n:+8.3f}%  simple_sum={sum(allr)*100:+8.3f}%")
+    if confr and allr and abs(all_c - conf_c) > 0.1:
+        print(f"  ⚠ headline gap: ALL {all_c:+.2f}% vs CONFIRMED {conf_c:+.2f}% (account) — the headline is")
+        print(f"    inflated by time_exit artifacts + inferred target_hit; cite CONFIRMED, not ALL.")
+    if abs(all_n - all_c) > 1.0:
+        print(f"  ⚠ the dashboard and live/state.py report the NOTIONAL column as if it were an")
+        print(f"    account return (F160). Those code paths are on the live deny-fence; this")
+        print(f"    command reports both so the two cannot be confused.")
     print("  (CONFIRMED = bracket_exit + stop_hit; excludes time_exit artifacts and inferred target_hit)")
 
 

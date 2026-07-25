@@ -23,11 +23,19 @@ separates "we never wrote it down" from "we wrote it down but nothing points the
 as absent-everywhere at more than double the true rate. Sampling one node (F50)
 showed every one of its "absent" figures was in fact present — written with a
 Unicode minus (U+2212), which the docs use 1164 times, while the node bodies use
-ASCII hyphen. Normalising the minus signs and thousands separators cuts
-absent-everywhere from **8.40% to 4.50% — a 1.87x overstatement**, re-measured by
-monkeypatching `normalise_numerals` to the identity and re-running `census`. Any
+ASCII hyphen. Normalising the minus signs and thousands separators materially
+cuts absent-everywhere. Measured by monkeypatching `normalise_numerals` to the
+identity and re-running `census`:
+
+    2026-07-25, 328 nodes / 2388 figures:  8.40% -> 4.50%   (1.87x)
+    2026-07-25, 351 nodes / 2834 figures: 11.00% -> 8.00%   (1.38x)
+
+**The ratio is corpus-dependent, not a constant** — it tracks how much of the corpus
+was written with U+2212 versus ASCII hyphen, so nodes added in bulk by one author
+dilute it. Quote the measurement with its corpus size, never the bare multiple. Any
 figure-matching over this corpus MUST normalise; `normalise_numerals` does it and
-`tests/test_numeric_provenance_lab.py` pins the behaviour. Reported numbers are
+`tests/test_numeric_provenance_lab.py` pins the behaviour and forced this
+re-measurement when the ratio drifted below its floor. Reported numbers are
 still an upper bound on "missing": a figure can be legitimately node-local (a
 count of things described only in the node) without indicating a provenance defect.
 
@@ -243,7 +251,8 @@ def census(
         "caveats": [
             "Numeral matching is normalised for Unicode minus and thousands separators; "
             "without that, real figures are reported missing (this lab's first result "
-            "overstated absent-everywhere by 1.87x: 8.40% vs the true 4.50%).",
+            "overstated absent-everywhere by 1.4-1.9x depending on corpus vintage; "
+            "measured 8.40% vs 4.50% at 2388 figures and 11.00% vs 8.00% at 2834).",
             "A bare numeric match does not prove the doc states the SAME quantity — it "
             "proves the token appears. This measures reachability of evidence, not "
             "agreement of values. Measured null: a figure perturbed by one tick — a "
