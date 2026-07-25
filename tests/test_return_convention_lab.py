@@ -111,7 +111,7 @@ class DisclosureSiteTests(unittest.TestCase):
 
     def test_every_quoted_site_still_says_what_the_lab_claims(self):
         stale = []
-        for rel, line_no, expect in LAB.DISCLOSURE_SITES:
+        for rel, line_no, expect, _klass in LAB.DISCLOSURE_SITES:
             text = LAB.read_site(rel, line_no)
             if expect not in text:
                 stale.append("{}:{} no longer contains {!r} -> {!r}".format(
@@ -133,14 +133,41 @@ class DisclosureSiteTests(unittest.TestCase):
                 "re-read it before relying on the floor".format(rel, line_no),
             )
 
-    def test_sites_output_warns_against_conflating_quantities(self):
-        """The lab must not overclaim: paired deltas genuinely do nearly cancel."""
+    def test_sites_output_refuses_to_quote_a_span(self):
+        """Regression on this lab's OWN overstatement. An earlier version put the
+        correct site, the differently-scoped site, and the error on one axis and
+        quoted a 20x span. The span was manufactured; the output must say so."""
         buf = io.StringIO()
         with redirect_stdout(buf):
             LAB.command_sites(None)
         out = buf.getvalue()
-        self.assertIn("paired", out.lower())
-        self.assertIn("ABSOLUTE", out)
+        self.assertIn("manufactured", out)
+        self.assertIn("CITATION-PROPAGATION", out)
+
+    def test_sites_are_classified_and_the_error_is_the_minority(self):
+        """The corpus states this quantity CORRECTLY at three sites. A framing that
+        loses that is the overstatement this lab was corrected for."""
+        classes = [k for *_r, k in LAB.DISCLOSURE_SITES]
+        self.assertIn("correct", classes, "the corpus's correct statements vanished")
+        self.assertGreaterEqual(
+            classes.count("correct"), 3,
+            "study #2 states the gap correctly at three sites — keep them visible")
+        self.assertGreaterEqual(classes.count("other-scope"), 2)
+        for klass in classes:
+            self.assertIn(klass, ("correct", "other-scope", "wrong"))
+
+    def test_implied_names_the_portfolio_the_identity_is_about(self):
+        """Regression: an earlier version quoted the SMALLEST floor (+0.045, Window
+        A's ACTIVE leg) as though it bounded the Window-B 60/40 (+0.057)."""
+        rows = {r["label"]: r for r in LAB.implied_floors()}
+        self.assertIn(LAB.IDENTITY_PORTFOLIO, rows)
+        identity = rows[LAB.IDENTITY_PORTFOLIO]
+        self.assertGreater(
+            identity["gap_floor"], min(r["gap_floor"] for r in rows.values()),
+            "the identity portfolio is no longer distinguishable from the smallest "
+            "floor — re-check which portfolio is being bounded",
+        )
+        self.assertAlmostEqual(identity["gap_floor"], 0.0565, places=3)
 
 
 class CliTests(unittest.TestCase):

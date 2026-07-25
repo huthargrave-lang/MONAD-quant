@@ -31,6 +31,37 @@ This lab checks that quantity WITHOUT market data, three independent ways.
    `Sharpe`, so the implied volatility is `ann/100/Sharpe` and the floor follows.
    No re-run required — the arithmetic is on numbers already in the repo.
 
+WHAT THE CORPUS ACTUALLY DOES (corrected after adversarial review — an earlier
+version of this docstring said "four sites state it four different ways, spanning
+20x", and that framing was wrong):
+
+* It states the leg-level gap **CORRECTLY**, and does so **first**, at three sites in
+  study #2 — ``power_study_6040.py:29`` and ``:209`` and ``D6_active_vs_6040_study.md:70``
+  give 0.84 -> ~0.97, i.e. +0.13, which is the true value to the printed precision.
+  Those sites live in the very study that supplies the log-convention anchor.
+* ``overlay_build_study.py:29`` / ``D6_overlay_build_study.md:107`` ("~0.006",
+  "~0.005-0.04") are scoped **in their own sentence** to that study's OUTER
+  core<->active blending step, a *different operation* whose Jensen term really is
+  about +0.005-0.007 at the pre-specified w=20%. They are right answers to a
+  different question and do not belong on the same axis.
+* The genuine error is **one sentence** — "absolute Sharpes differ ~0.01 from the
+  prior log-convention studies" — written once at ``static_product_study.py:20`` and
+  copy-pasted verbatim into five further sites. It is wrong by roughly **12x**.
+
+So this is a **citation-propagation defect**, not a corpus-wide misunderstanding:
+one wrong number replicated six times, coexisting with three correct statements of
+the same quantity. That is the same failure mode recorded in F146 — figures move by
+citation rather than by recomputation.
+
+Also corrected: a causal story that did not survive checking. It looked as though
+``D6_overlay_build_study.md:107`` licensed the error by "verifying" an absolute-level
+claim with a paired-delta measurement. Two things kill it. The ``verified:``
+parenthetical attaches to the *cancellation* clause immediately before it, for which
+paired deltas are exactly the right measurement; and ``git blame`` puts :107 in
+``02ba6dc`` at 2026-06-27 19:12:47 and the "~0.01" in ``7405f43`` at 19:39:56 — the
+supposed cause was written **27 minutes after** the effect. It is retained here as a
+worked example of a plausible mechanism that the timeline refutes.
+
 What this lab deliberately does NOT do: decide which convention is *correct*.
 Neither is wrong. The question is only whether the corpus states the size of the
 translation between them consistently with its own reported volatilities.
@@ -61,13 +92,24 @@ DOCS = REPO / "docs" / "research"
 # Sites in the repo that state a size for the log->simple Sharpe gap. Collected by
 # hand from a repo-wide search; `sites` re-reads each line so a stale quote fails
 # loudly rather than silently misrepresenting the file.
-DISCLOSURE_SITES: Sequence[Tuple[str, int, str]] = (
-    ("tools/power_study_6040.py", 29, "0.97"),
-    ("tools/overlay_build_study.py", 29, "0.006"),
-    ("tools/static_product_study.py", 20, "0.01"),
-    ("docs/research/D6_overlay_build_study.md", 107, "0.005"),
-    ("docs/research/D6_static_product_study.md", 19, "0.01"),
-    ("docs/research/D6_voltarget_riskparity_study.md", 21, "0.01"),
+DISCLOSURE_SITES: Sequence[Tuple[str, int, str, str]] = (
+    # (path, line, expected substring, CLASS)
+    # CORRECT — study #2 states the leg-level gap accurately, and does so FIRST,
+    # in the very study that supplies the log-convention anchor (0.70 / 0.84).
+    ("tools/power_study_6040.py", 29, "0.97", "correct"),
+    ("tools/power_study_6040.py", 209, "0.97", "correct"),
+    ("docs/research/D6_active_vs_6040_study.md", 70, "0.97", "correct"),
+    # DIFFERENT QUANTITY — scoped in its own sentence to the study's OUTER
+    # core<->active blending step, not the leg-level gap. Correct for its scope.
+    ("tools/overlay_build_study.py", 29, "0.006", "other-scope"),
+    ("docs/research/D6_overlay_build_study.md", 107, "0.005", "other-scope"),
+    # THE ROOT ERROR — one sentence, written once, copy-pasted verbatim into five
+    # further sites. This is the only genuinely wrong statement of the quantity.
+    ("tools/static_product_study.py", 20, "0.01", "wrong"),
+    ("docs/research/D6_static_product_study.md", 19, "0.01", "wrong"),
+    ("docs/research/D6_static_product_study.md", 103, "0.01", "wrong"),
+    ("docs/research/D6_voltarget_riskparity_study.md", 21, "0.01", "wrong"),
+    ("docs/research/D6_gold_oos_study.md", 83, "0.01", "wrong"),
 )
 
 
@@ -142,12 +184,18 @@ def verify_bound(trials: int = 20000, seed: int = 20260725) -> dict:
 # --------------------------------------------------------------------------- #
 # (label, ann%, Sharpe, source) — every pair is quoted from a committed table.
 COMMITTED_PAIRS: Sequence[Tuple[str, float, float, str]] = (
-    ("active leg, Window A", 6.09, 0.68, "docs/research/D6_active_vs_6040_study.md:31-32"),
-    ("static 60/40, Window A", 7.85, 0.84, "docs/research/D6_active_vs_6040_study.md:31-32"),
-    ("active leg, Window B", 4.63, 0.43, "docs/research/D6_active_vs_6040_study.md:31-32"),
-    ("static 60/40, Window B", 7.91, 0.70, "docs/research/D6_active_vs_6040_study.md:31-32"),
-    ("static 60/40 as-used (simple)", 9.1, 0.82, "docs/research/D6_static_product_study.md:34"),
+    ("active leg, Window A (log)", 6.09, 0.68, "D6_active_vs_6040_study.md:31-32"),
+    ("static 60/40, Window A (log)", 7.85, 0.84, "D6_active_vs_6040_study.md:31-32"),
+    ("active leg, Window B (log)", 4.63, 0.43, "D6_active_vs_6040_study.md:31-32"),
+    ("static 60/40, Window B (log)", 7.91, 0.70, "D6_active_vs_6040_study.md:31-32"),
+    ("static 60/40, Window B (simple)", 9.1, 0.82, "D6_static_product_study.md:34"),
 )
+
+# The portfolio the +0.12 identity is actually about. An earlier version of this
+# lab quoted the SMALLEST floor across all five pairs (+0.045, Window A's ACTIVE
+# leg) as though it bounded the 60/40 — conservative, but it bounded the wrong
+# portfolio. The identity is Window B's 60/40, whose floor is +0.057.
+IDENTITY_PORTFOLIO = "static 60/40, Window B (log)"
 
 
 def implied_floors() -> List[dict]:
@@ -209,26 +257,51 @@ def command_implied(args: argparse.Namespace) -> None:
             row["label"], row["ann_pct"], row["sharpe"],
             row["implied_vol_pct"], row["gap_floor"]))
     print()
-    floors = [r["gap_floor"] for r in implied_floors()]
-    print("smallest floor across all committed portfolios : +{:.3f}".format(min(floors)))
+    rows = implied_floors()
+    identity = next(r for r in rows if r["label"] == IDENTITY_PORTFOLIO)
+    print("floor for the portfolio the +0.12 identity is ABOUT")
+    print("  ({:<30}) : +{:.3f}".format(IDENTITY_PORTFOLIO, identity["gap_floor"]))
+    print("smallest floor across all five pairs        : +{:.3f}".format(
+        min(r["gap_floor"] for r in rows)))
+    print()
+    print("Quote the FIRST of those against the identity, not the second: the smallest")
+    print("floor belongs to Window A's ACTIVE leg and bounds a different portfolio.")
+    print()
     print("a disclosed gap of ~0.01 would require a portfolio volatility of {:.2f}%".format(
         0.01 * 2 * 100))
 
 
+CLASS_LABEL = {
+    "correct": "CORRECT    ",
+    "other-scope": "OTHER-SCOPE",
+    "wrong": "WRONG (~12x)",
+}
+
+
 def command_sites(args: argparse.Namespace) -> None:
-    print("Every site in the repo that states a size for the convention gap.")
-    print("Lines are re-read live, so a stale quote here shows up as a mismatch.")
+    print("Every site in the repo that states a size for the convention gap,")
+    print("CLASSIFIED. Lines are re-read live, so a stale quote shows as a mismatch.")
     print()
-    for rel, line_no, expect in DISCLOSURE_SITES:
+    counts = {}
+    for rel, line_no, expect, klass in DISCLOSURE_SITES:
         text = read_site(rel, line_no)
         ok = expect in text
-        print("  [{}] {}:{}".format("ok " if ok else "STALE", rel, line_no))
-        print("       {}".format(text[:150]))
+        counts[klass] = counts.get(klass, 0) + 1
+        print("  [{}] {:<12} {}:{}".format(
+            "ok " if ok else "STALE", CLASS_LABEL[klass], rel, line_no))
+        print("       {}".format(text[:140]))
     print()
-    print("NOTE: these sites do not all describe the same QUANTITY — some are about")
-    print("the absolute Sharpe level and some about paired blend-minus-core deltas,")
-    print("which genuinely do nearly cancel. Read each in context before concluding")
-    print("they contradict; the floor above bounds the ABSOLUTE gap only.")
+    print("  correct     : {}   the corpus states the gap accurately, and FIRST".format(
+        counts.get("correct", 0)))
+    print("  other-scope : {}   about the OUTER blending step, not the leg-level gap".format(
+        counts.get("other-scope", 0)))
+    print("  wrong       : {}   one sentence, copy-pasted verbatim".format(
+        counts.get("wrong", 0)))
+    print()
+    print("This is a CITATION-PROPAGATION defect, not a corpus-wide error: one wrong")
+    print("number replicated six times, coexisting with three correct statements of")
+    print("the same quantity. Do NOT put all of these on one axis and quote a span —")
+    print("an earlier version of this lab did, and the span was manufactured.")
 
 
 def main(argv: Iterable[str] | None = None) -> None:
