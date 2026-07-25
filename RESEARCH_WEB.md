@@ -2318,3 +2318,20 @@ THE CATCH, worth recording on its own. 38 nodes carry no date at all, and they a
 Guarded by tests/test_h10_narrative_traversal.py (11 tests), including a ratchet on the undated set (it may shrink by backfill, never grow) and a check that the two ID-order exemptions really are superseded nodes rather than a blanket excuse.
 Links: [[H10|resolves]] · [[F181|builds_on]].
 _— captured claude/research-continuation-ca1242@645f7c3, 2026-07-25_
+
+### F186 — H11 shipped: ctx stale finds semantic staleness, and its blind ranking reproduces four staleness judgements this session made by hand
+H11 asked for a read-only semantic-staleness detector — the epistemic layer sees DECLARED staleness (a node saying `status: superseded`) and is blind to a node the web quietly moved past. Built `ctx stale` / `ctx.semantic_staleness()` with two signals of deliberately different kinds.
+
+SIGNAL 1 — EDGE/STATUS CONFLICT (hard, unranked). A node that is the TARGET of a `supersedes` edge while still declaring `current`: the web contradicts itself about one node. Exactly ONE exists, and it is a real find — **F10** ('DATA CAVEAT: all results are MORNING-ONLY') is superseded by F12 yet declares current with no `by:`. It is stale twice over: F12 replaced its mechanism, and F180 (this session) found the underlying vendor quirk did not fire in the most recent committed fetch.
+
+SIGNAL 2 — DECAY LIST (soft, ranked). A CURRENT Finding/Decision that cites no evidence of its own, is refined/contradicted/superseded by a STRICTLY LATER node, and never mentions that node. Ranked by `unacknowledged_count x max_id_gap`.
+
+THE SCOPING IS THE DESIGN. Being refined by something later is NOT staleness — 187 current nodes are, which is healthy accumulation. Requiring both 'cites no evidence of its own' AND 'never mentions the later node' cuts 194 current F/D nodes to **12**. A detector that flags 187 items is a detector nobody reads.
+
+THE VALIDATION. The heuristic was written before comparing it to anything. Its top-ranked entries are **D4, F12, F17 and F47** — independently, four of the nodes this session read and amended as stale (F181, F180, F179, F172), across cycles 16-21. A mechanical rank over graph structure reproduced several sessions of manual judgement, and all four sit in the top 6. That agreement is pinned by a test: if the ranking stops surfacing independently-confirmed stale nodes, the heuristic has lost the property that justified shipping it.
+
+It stays a READING QUEUE, not a verdict — nothing edits a node or changes a status, and a test asserts the command leaves RESEARCH_WEB.md byte-identical.
+
+Guarded by tests/test_ctx_semantic_staleness.py (14 tests). Registered in AGENT_INDEX.md — caught by the pre-existing guard that every ctx subcommand must be listed there, which is the same class of check working as intended.
+Links: [[H11|resolves]] · [[F10|relates]] · [[F181|builds_on]].
+_— captured claude/research-continuation-ca1242@4118788, 2026-07-25_

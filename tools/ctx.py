@@ -2319,6 +2319,99 @@ def behavior_asserting_bridges():
     return out
 
 
+NODE_ID_RX = re.compile(r"^([A-Za-z]+)(\d+)$")
+
+
+def _node_number(nid):
+    m = NODE_ID_RX.match(nid)
+    return int(m.group(2)) if m else -1
+
+
+def _inbound_edges(nodes):
+    from collections import defaultdict
+    inbound = defaultdict(list)
+    for nid, n in nodes.items():
+        for e in n.get("edges", []):
+            inbound[e["target"]].append((nid, e["type"]))
+    return inbound
+
+
+def _cites_evidence(node):
+    return (any(e["type"] == "evidenced_by" for e in node.get("edges", []))
+            or "Source:" in node.get("body", ""))
+
+
+def semantic_staleness(nodes=None):
+    """SEMANTIC staleness -- nodes that read as current but the web has moved past.
+
+    The epistemic layer detects DECLARED staleness: a node says `status: superseded`
+    and the lint follows. It is blind to a node that never declared anything while
+    later work overtook it (H11/DP-4). Two signals, deliberately different in kind:
+
+    * `edge_status_conflict` -- the node is the TARGET of a `supersedes` edge yet still
+      declares `current`. The web contradicts itself about one node; that is a hard
+      problem, not a ranking.
+    * `decay` -- a CURRENT Finding/Decision that cites no evidence of its own, is
+      refined/contradicted/superseded by a STRICTLY LATER node, and whose body never
+      mentions that node. Unacknowledged overtaking. Ranked by
+      `len(unacknowledged) * max_id_gap`, largest first.
+
+    Both are heuristics and are meant to be read, not obeyed. The decay list is scoped
+    hard on purpose: requiring "cites no evidence" AND "never mentions the later node"
+    takes 194 current F/D nodes down to a dozen. Refinement alone is normal accumulation
+    -- 187 nodes are refined by something later, which is healthy, not stale.
+
+    Returns (conflicts, decay_rows). Read-only.
+    """
+    if nodes is None:
+        nodes, _ = _parse_web()
+    inbound = _inbound_edges(nodes)
+    conflicts, decay = [], []
+    for nid, n in nodes.items():
+        if _is_superseded(n):
+            continue
+        for src, etype in inbound[nid]:
+            if etype == "supersedes":
+                conflicts.append((nid, src))
+        if nid[:1] not in ("F", "D") or _cites_evidence(n):
+            continue
+        later = [src for src, etype in inbound[nid]
+                 if etype in ("refines", "contradicts", "supersedes")
+                 and _node_number(src) > _node_number(nid)
+                 and src not in n.get("body", "")]
+        if later:
+            gap = max(_node_number(s) - _node_number(nid) for s in later)
+            decay.append({"node": nid, "score": len(later) * gap, "gap": gap,
+                          "by": sorted(later, key=_node_number),
+                          "title": n.get("title", "")})
+    decay.sort(key=lambda r: (-r["score"], r["node"]))
+    return sorted(set(conflicts)), decay
+
+
+def cmd_stale(args):
+    """Semantic-staleness decay list (H11/DP-4) -- findings the web has moved past
+    without anyone declaring it. Complements `--lint`, which only sees DECLARED
+    staleness. Read-only; nothing here is authoritative, it is a reading queue."""
+    conflicts, decay = semantic_staleness()
+    if conflicts:
+        print("  EDGE/STATUS CONFLICT -- the web says superseded, the node says current:")
+        for tgt, src in conflicts:
+            print(f"    {tgt} is superseded by {src} but declares status: current")
+            print(f"      -> set `<!-- status: superseded; by: {src}; reason: ... -->` "
+                  f"on {tgt}, or retype the edge if {src} does not actually supersede it")
+        print()
+    limit = getattr(args, "limit", None) or 15
+    print(f"  DECAY LIST -- current, self-uncited, overtaken by a later node ({len(decay)}):")
+    for row in decay[:limit]:
+        print(f"    {row['score']:5}  {row['node']:5} overtaken by {', '.join(row['by'])}"
+              f"  (gap {row['gap']})")
+        print(f"           {row['title'][:72]}")
+    if len(decay) > limit:
+        print(f"    ... {len(decay) - limit} more (--limit)")
+    if not conflicts and not decay:
+        print("  nothing flagged")
+
+
 def cmd_claims(args):
     """Test↔epistemic coverage: for each idea↔code bridge asserting concrete CODE
     BEHAVIOR, report whether a designated guard TEST asserts that specific claim.
@@ -2918,6 +3011,8 @@ def main():
     sp.set_defaults(fn=cmd_serve)
     sub.add_parser("health").set_defaults(fn=cmd_health)
     sub.add_parser("claims").set_defaults(fn=cmd_claims)
+    sp = sub.add_parser("stale"); sp.add_argument("--limit", type=int, default=15)
+    sp.set_defaults(fn=cmd_stale)
     sub.add_parser("uncaptured").set_defaults(fn=cmd_uncaptured)
     sp = sub.add_parser("delta"); sp.add_argument("--since", default=None,
         help="git date ('5 days ago') or revision; default HEAD~12"); sp.set_defaults(fn=cmd_delta)
