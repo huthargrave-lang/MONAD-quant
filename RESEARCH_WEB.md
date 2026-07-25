@@ -2664,3 +2664,20 @@ MAGNITUDE, HONESTLY. 2.82 RSI points rarely flips the live threshold of 80, whic
 Guarded by tests/test_h30_ohlc_validation_leaves_holes.py (11 tests), with the validation's effectiveness asserted as positive controls so the correction cannot be lost.
 Links: [[H30|refines]] · [[F202|builds_on]] · [[F172|relates]].
 _— captured claude/research-continuation-ca1242@a5d28d3, 2026-07-25_
+
+### F205 — H31's premise is stale — all four CRITICAL events DO page Slack — but whether any alert reaches a human is unobservable from anywhere
+H31 says CRITICAL events 'land in SQLite but page nobody' and calls external alerting decision gate 2 for real money. Checking each named event corrected my own read twice.
+
+ALL FOUR ARE WIRED. `live/alerts.py` posts to a Slack webhook and `trader.py` alerts at CRITICAL on every event H31 lists: force-finalize (:381), software stop (:500), desync block (:644), and N consecutive signal failures (:319, which passes a COMPUTED `level=level` that becomes CRITICAL at the threshold). Two intermediate reads here were wrong — one concluded the software stop was unwired (its alert sits ~1900 chars later, after the close executes), and one counted only 3 CRITICAL sites because the fourth never names the literal. Both corrections are recorded in the guard so the next reader does not repeat them.
+
+THE REAL GAP: NOBODY CAN TELL WHETHER ANY OF IT LANDS. `_post` returns immediately when `SLACK_WEBHOOK_URL` is empty — silently, by design — and NOTHING ANYWHERE REPORTS THAT STATE. The preflight's ten checks say nothing about alerting. The startup banner prints twelve config lines (symbol, mode, port, sizing, target, stop, R:R, max bars, warmup, schedule, timezone, git hash) and not whether alerts will be delivered. So an operator can have correct wiring, a green preflight and a full banner while every CRITICAL is computed and discarded, discoverable only by reading `.env`.
+
+For a gate labelled 'gates real money', the defect is that the subsystem's status is UNKNOWABLE, not that the wiring is missing. **Fourth appearance of the absence-flag family** (F155, F159, F188, F204): a thing that is off looks exactly like a thing that is fine.
+
+FIXED AS A REPORT, NOT A CHECK. `ops/preflight_trader_start.sh` now prints whether the webhook is configured, via a new `report()` helper that does not touch the fail count. The unconfigured branch names the consequence ('computed and discarded') and states that it does not block arming. Promoting it to a hard check would block arming on a missing env var — a change to WHEN THE BOT MAY START, which is the owner's call, not something to slip in under a research cycle. The secret value is never logged, and a test asserts that.
+
+ALSO RECORDED: `_should_send` dedupes on `message[:80]` for 300s, so two DIFFERENT CRITICALs sharing an 80-character prefix collide and the second is dropped. Hourly bars are 3600s apart, so the ordinary cadence is unaffected; a burst inside five minutes is not.
+
+Guarded by tests/test_h31_alerting_reachability.py (15 tests).
+Links: [[H31|refines]] · [[F204|builds_on]].
+_— captured claude/research-continuation-ca1242@7bc5508, 2026-07-25_
