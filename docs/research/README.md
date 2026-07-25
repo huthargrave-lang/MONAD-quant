@@ -140,6 +140,20 @@ visible uncertainty.
 
 Every study uses the same disciplines, which is what makes the collection trustworthy:
 
+> 🔎 **Which of these are CHECKED, and which are beliefs (2026-07-25 — `RESEARCH_WEB.md` F153/F154).**
+> A guarantee with no executable check can be false for the whole life of the corpus without
+> any run failing — which is exactly what happened to "one source of truth" below. Status of
+> each, verified rather than assumed:
+>
+> | guarantee | status | how it is checked |
+> |---|---|---|
+> | Leak-free (`.shift(1)`) | **TRUE for the studies** | `mr_daily_lab.py:97,98,121,176,219` genuinely lag every rolling input that feeds an entry. NB this is the *research* code; CLAUDE.md §12's identical-sounding constraint covers `src/signals/` + `src/strategy/`, where the `.shift(1)` letter is *not* followed even though the no-look-ahead property holds. |
+> | Bootstrap CIs (block=20, B=5000, seed=0) | **TRUE** | identical constants at `power_study.py:55-57` and `static_product_study.py:40-42`. |
+> | Pre-registration / OOS | **not machine-checkable** | a claim about process, not code. Believe it or audit the git history. |
+> | Adversarial verification | **self-describing** | the bullet states its own limit (studies 16–69 had no panel). |
+> | One source of truth | **FALSE — corrected below** | had no check of any kind; now pinned by `tests/test_return_convention_lab.py::TwoDisjointMetricStacksTests`. |
+
+
 - **Leak-free** — entries/weights use only lagged information (`.shift(1)`); windows verified
   byte-identical to a truncated re-computation.
 - **Bootstrap confidence intervals** — paired block bootstrap (block=20, B=5000, seed=0) of the
