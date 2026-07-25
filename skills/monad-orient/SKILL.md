@@ -55,3 +55,8 @@ no network). Run from the repo root with `venv/bin/python`.
      SSH; **never push to `main`**.
    - The headline Sharpe 25–94 / "+0.7–3.5%/mo" in CLAUDE.md is SUPERSEDED (a
      data-sampling artifact). For the truth, use the `monad-validate-edge` skill.
+
+7. **If the task is open-ended** — "explore", "find something interesting", "take any
+   direction" — stop here and use the **`monad-explore`** skill instead. This repo's
+   research substrate (`RESEARCH_WEB.md` + the labs) is a first-class object, and that
+   skill gives you the latitude, the live open threads, and the house style for it.
