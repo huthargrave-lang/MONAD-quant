@@ -2171,3 +2171,16 @@ HONEST MAGNITUDES. The labs also differ on warm-up (`fillna(0.0)` vs `dropna()`;
 Guarded by tests/test_f21_vol_target_bridge.py (14 tests), wired as `guarded_by` on the F21 bridge. Scope: neither F21's nor F40's Sharpe numbers are re-tested — both rest on real daily data unreachable offline.
 Links: [[F21|refines]] · [[F40|relates]] · [[F26|supports]].
 _— captured claude/research-continuation-ca1242@afd01b2, 2026-07-25_
+
+### F177 — The F157 live invariant hard-codes the hourly timescale, so applying D5's first recommendation would make the trader refuse to start
+D5's gap is now guarded item by item — all four DROPs (hourly timescale, fixed %-stop exit, 3x leverage, cross-sectional rotation) are still in force, plus the two positives it recommends (equal-weight sleeve portfolio, vol-targeted sizing) are unimplemented in `src/`. Each assertion fails the moment that item is applied, which is exactly when D5 must stop calling itself a recommendation and when the armed-path sign-off it demands becomes due.
+
+THE NEW FINDING IS A COUPLING I INTRODUCED. `live/trader.py::_assert_mode_symbol_coherent`, added with approval for F157, requires `ACTIVE_MODE == f"{LIVE_SYMBOL}_HOURLY"` — a literal suffix match. Three daily modes exist in `config._MODE_TO_ASSET` (`BTC_DAILY`, `QQQ`, `SOXL_DAILY`) and NONE can satisfy it. So the live trader cannot be armed on any daily timescale, and its refusal message actively prescribes going back to the hourly mode D5 says to drop ('set config.ACTIVE_MODE = {expected!r} to match').
+
+SCOPE, STATED HONESTLY. This is LATENT, not a live bug: every live mode the project currently supports is hourly, so the invariant is correct for every configuration that exists today, and its intent — signal thresholds must match the traded instrument — is timescale-independent. Only the implementation is coupled. The fix is to resolve the mode's asset via `_MODE_TO_ASSET` and compare that to `LIVE_SYMBOL`, instead of string-matching `_HOURLY`.
+
+NOT APPLIED. `live/**` is fenced and the F157 approval covered that specific change, not this one. Recorded and guarded rather than done; a test asserts the coupling is still latent and will fail if a daily live mode is ever configured, at which point it becomes a real blocker.
+
+Guarded by tests/test_d5_recommendation_gap.py (12 tests), including two vacuity checks — an un-leveraged daily mode IS reachable in config, so 'D5 not applied' is a reversible choice rather than an impossibility.
+Links: [[D5|supports]] · [[F157|builds_on]] · [[F158|refines]].
+_— captured claude/research-continuation-ca1242@ef97ca0, 2026-07-25_
