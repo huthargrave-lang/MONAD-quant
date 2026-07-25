@@ -2133,3 +2133,26 @@ SCOPE. The ambiguous share is a property of the DATA, and no real bars are commi
 Guarded by tests/test_f19_exit_lever_bridge.py (12 tests, bidirectional), now wired as `guarded_by` on the F19 bridge.
 Links: [[F19|supports]] · [[F7|supports]] · [[E10|relates]].
 _— captured claude/research-continuation-ca1242@bf2e098, 2026-07-25_
+
+### F175 — CORRECTION to F20's mechanism: estimator variance is driven by the 30-trade WINDOW, not by 'estimator shape' — and the project's own 'rolling' Kelly does not roll
+F20 concluded that a continuous half-Kelly hurts while the project's 4-tier win-rate step is Sharpe-neutral, and attributed it to **'the estimator SHAPE matters'** — continuous chases the noisy `b = avg_win/avg_loss` (CV 0.77), the tier never computes `b` (CV 0.23). The conclusion holds. The mechanism does not survive isolation.
+
+REPRODUCED, THEN DECOMPOSED. Transcribing F20's own estimator from `tools/mr_daily_lab.py::cmd_kelly` (half-Kelly, W=30 trades, cap 1.0) and varying one factor at a time on synthetic trade sequences:
+
+  estimator                      CV @ wr .45 / .50 / .55
+  lab continuous W=30 cap 1.0       1.79 / 1.10 / 0.88
+  lab continuous W=30 cap 0.20      1.79 / 1.06 / 0.82   <- 5x tighter cap: no change
+  lab continuous W=200 cap 1.0      1.42 / 0.50 / 0.38   <- window: -9% / -47% / -72%
+  tiered 4-step                     0.49 / 0.37 / 0.27
+
+A 5x tighter cap moves the variance by <10%. Widening the estimation window cuts it by half or more. The instability is in estimating a RATIO from few trades, not in continuity. (The wr .45 exception is kept, not tuned away: with no edge, Kelly's `max(...,0)` pins the fraction to zero >50% of the time, and a zero-inflated series' CV is set by the zero share, which more data cannot shrink.)
+
+THE DECISIVE CASE. `position_fraction(kelly_mode='rolling')` passes its ENTIRE history to `estimate_stats_from_backtest` with no truncation, and `runner.py:197` backs it with an unbounded `deque()` whose comment reads 'rolling window for adaptive Kelly'. So the project's continuous Kelly is an EXPANDING-window estimator, and at wr .50/.55 it is LESS variable than the 4-tier step it is cast as the noisy alternative to. F20's ordering reverses for the estimator the repo actually ships. Continuity is not the discriminating property; sample size is. `BACKTEST_MODES['realistic']` also advertises 'rolling window Kelly' — accurate about lookahead, wrong about rolling.
+
+(The TIER is unaffected: `recent_win_rate` slices `[-lookback:]` internally, so its window is real. Only the continuous path expands.)
+
+AND ON THE DEFAULT PATH NONE OF IT RUNS. `position_fraction` returns `fixed_pct` before the adaptive block, and the shipped config is `POSITION_SIZING_MODE='fixed'`, so `runner.py` assembles `adaptive_params` from nine config knobs and hands them to a function that has already returned — with `USE_ADAPTIVE_KELLY=True`. Same family as F145: a flag that is on while governing nothing.
+
+Guarded by tests/test_f20_kelly_estimator_bridge.py (16 tests), wired as `guarded_by` on the F20 bridge. Scope: F20's Sharpe numbers rest on 12yr of real daily data and are NOT re-tested here — only the estimator arithmetic is.
+Links: [[F20|refines]] · [[F145|supports]].
+_— captured claude/research-continuation-ca1242@87676c5, 2026-07-25_
