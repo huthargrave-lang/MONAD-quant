@@ -116,13 +116,21 @@ deliberately **not** done and why.
 
 ### 7. Loop
 
-Go to step 1. Do not ask permission. Do not summarise and wait.
+Go to step 1 **in the same turn**. Do not ask permission. Do not summarise and wait.
 
-**If the harness ends your turn**, re-enter immediately: schedule the next cycle with
-`ScheduleWakeup` (self-paced, ~20–30 min for idle ticks; match the delay to whatever
-you are actually waiting on), or use `/loop` if the session was started that way. Report
-progress *as you go* rather than banking it for a final summary — the user may read at
-any point, and may not read at all.
+**Do not schedule a wakeup just to continue.** Research cycles are self-contained —
+nothing external gates them — so a timer only buys idle time. Chain cycles back to
+back for as long as the turn allows. Report progress *as you go* rather than banking
+it for a final summary; the user may read at any point, and may not read at all.
+
+`ScheduleWakeup` is a **fallback, not a pacer**. Arm it only when:
+
+- the harness has actually ended your turn and you need to re-enter, or
+- you are genuinely blocked on something external (a CI run, a human decision) — and
+  then match the delay to how fast *that* changes, not to a habit.
+
+Idling on a timer while tractable work sits in the backlog is a failure of the loop,
+not a way of running it.
 
 ---
 

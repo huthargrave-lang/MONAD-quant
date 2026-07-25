@@ -78,6 +78,7 @@
        "note": "goal reachable only as diversified daily-MR + horizon exit — not the hourly %-stop bot; the exit is the highest-value change."},
       {"node": "D2", "relation": "concerns",
        "code": ["src/optimization/walk_forward.py::walk_forward_optimize"],
+       "guarded_by": ["tests/test_d2_walkforward_selector.py::D2IsStillOpenTests"],
        "note": "promote rolling-origin OOS to the sweep's primary selector."},
       {"node": "F6", "relation": "concerns",
        "code": ["config.ACTIVE_MODE", "config.STOP_LOSS_PCT_TQQQ_HOURLY"],
