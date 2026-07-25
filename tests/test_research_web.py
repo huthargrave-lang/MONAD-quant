@@ -658,6 +658,14 @@ class TestGraphHtmlExplore(unittest.TestCase):
             # (that resized orbs under the cursor).
             "function renderDragged",
             "if(dragging)return",
+            # module + config nodes are scaffolding, not research content: 181 of 544
+            # nodes and 291 of 1504 edges. Hidden by default so the map opens on the idea
+            # web; both pills toggle them back on. Hiding only pays off because render()
+            # iterates the visible subset — display:none elements were previously still
+            # written every frame.
+            "on.module=false;on.config=false",
+            "function recomputeVisible",
+            "visNodes.length",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, html)
