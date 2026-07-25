@@ -49,6 +49,7 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import mr_daily_lab as lab  # noqa: E402  (canonical sleeve / load / COST)
+import data_cache  # noqa: E402  (validated cache: never trust a stub, never write one)
 
 ANN = 252
 BLOCK = 20          # trading-month blocks, matching the mr_daily_lab bootstrap
@@ -91,14 +92,18 @@ def load_2000() -> pd.DataFrame:
     """Mirror mr_daily_lab.cmd_gonogolong's own 2000-start cache (fetch if absent)."""
     cache = "/tmp/mr_daily_close_2000.csv"
     fetch = sorted({"^GSPC", "QQQ", "IWM", "DIA", "IEF"})
-    if os.path.exists(cache):
-        return pd.read_csv(cache, index_col=0, parse_dates=True)
-    import yfinance as yf
-    raw = yf.download(fetch, start="2000-01-01", end=lab.END, interval="1d",
-                      progress=False, auto_adjust=True)
-    px = raw["Close"][fetch].dropna(how="all")
-    px.to_csv(cache)
-    return px
+
+    def _fetch():
+        import yfinance as yf
+        raw = yf.download(fetch, start="2000-01-01", end=lab.END, interval="1d",
+                          progress=False, auto_adjust=True)
+        return raw["Close"][fetch].dropna(how="all")
+
+    # Shares the cache path with mr_daily_lab.cmd_gonogolong, so it must share the
+    # validation too — otherwise one lab's stub silently becomes the other's input.
+    return data_cache.load_cached_frame(
+        cache, _fetch, min_rows=lab.MIN_LONG_ROWS, required_cols=fetch,
+        label="power_study_2000")
 
 
 def build_legs(PX: pd.DataFrame, basket: list[str]):
@@ -313,7 +318,10 @@ def main():
     ap.add_argument("--json", metavar="PATH", help="also write the full result dict as JSON")
     a = ap.parse_args()
 
-    LPX = load_2000()
+    try:
+        LPX = load_2000()
+    except data_cache.MarketDataError as exc:
+        data_cache.fail_cleanly(exc)
     long_basket = ["^GSPC", "QQQ", "IWM", "DIA"]
     w12 = study_window(load_2014(), ["QQQ", "SPY", "IWM", "DIA", "GLD"], "2014-2026 standard basket")
     w26 = study_window(LPX, long_basket, "2000-2026 long-history basket")
