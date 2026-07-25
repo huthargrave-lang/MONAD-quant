@@ -533,3 +533,64 @@ class DeadSizingKnobTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UtcGateLandsInsideTheCoarseEdgeRegimeTests(unittest.TestCase):
+    """F148's timezone bug is not a random defect — it lands on F14's edge regime.
+
+    F14 decomposed the hourly "edge" by BAR-SAMPLING FREQUENCY: QQQ AM (3 bars/day)
+    Sharpe 3.72, PM (4 bars/day) 3.31, ALL-DAY (7 bars/day) **-0.75**. Its mechanism
+    is arithmetic — RSI(7) over 3 bars/day spans ~2.3 trading days and captures
+    multi-day mean reversion, while over 7 bars/day it spans ~1 day and captures
+    intraday noise.
+
+    F148 found `main.py` applies a (9,16) gate to a UTC-NAIVE index, keeping 2 of 7
+    session bars in winter and 3 in summer. Those are the SAME coarse regimes F14
+    credits with the edge. So an hourly backtest run through `main.py` is silently
+    measuring F14's AM subsample, while the live bot trades all-day.
+
+    That gives the backtest-vs-live gap a second, independent mechanism. F12/F13
+    attributed it to the DATA path (a 710-day fetch returning morning-only bars);
+    this shows the ENTRY GATE reproduces the same artifact on correct full-session
+    data. Fixing the fetch would not have removed it.
+
+    The arithmetic is pinned here because it is decidable offline; the Sharpe figures
+    are F14's and are not re-measured (market data is unavailable).
+    """
+
+    SESSION_BARS = 7          # 09:30..15:30 ET hourly
+    RSI_PERIOD = 7
+
+    def _bars_kept(self, utc_offset_hours):
+        """Session bars surviving a (9,16) filter applied to a UTC-naive index."""
+        return sum(1 for hour_et in range(9, 16)
+                   if 9 <= (hour_et + utc_offset_hours) < 16)
+
+    def test_the_gate_keeps_two_to_three_of_seven_session_bars(self):
+        winter, summer = self._bars_kept(5), self._bars_kept(4)
+        self.assertEqual((winter, summer), (2, 3),
+                         "the UTC-gate retention changed — re-verify F148 and the "
+                         "regime mapping below before citing either")
+
+    def test_those_retentions_are_F14s_COARSE_regime_not_the_all_day_one(self):
+        """The load-bearing claim: the bug lands where F14 says the edge lives."""
+        for offset in (5, 4):
+            kept = self._bars_kept(offset)
+            self.assertLessEqual(
+                kept, 3,
+                "the gate now keeps {} bars/day, which is no longer F14's coarse "
+                "regime — the mechanism linking F148 to F14 has changed".format(kept))
+            self.assertLess(
+                kept, self.SESSION_BARS,
+                "the gate keeps the full session, so it no longer subsamples at all")
+
+    def test_the_indicator_span_separates_the_two_regimes(self):
+        """F14's stated mechanism, as arithmetic: ~2+ trading days vs ~1."""
+        coarse = self.RSI_PERIOD / 3          # AM subsample and the summer gate
+        all_day = self.RSI_PERIOD / self.SESSION_BARS
+        self.assertGreater(coarse, 2.0, "the coarse regime no longer spans multi-day")
+        self.assertLessEqual(all_day, 1.05, "the all-day regime no longer spans ~1 day")
+        self.assertGreater(
+            coarse / all_day, 2.0,
+            "the two regimes' indicator spans have converged, so F14's "
+            "coarse-vs-hourly distinction no longer holds arithmetically")
