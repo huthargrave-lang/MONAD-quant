@@ -2197,3 +2197,18 @@ RATCHET. `test_the_unguarded_set_is_the_known_remainder` pins the remaining four
 CONTEXT: the six unguarded bridges were 14 at the start of this session; F19/F20/F21/D5 (this session) plus F16/D2/F6 closed seven. Same family as F161 — the auditor degrading the metric it built.
 Links: [[H13|resolves]] · [[F161|builds_on]] · [[F141|relates]].
 _— captured claude/research-continuation-ca1242@1908f69, 2026-07-25_
+
+### F179 — F17's 'below the 2:1 breakeven' mislabels the band: the daily ETF exits are 1.67:1, and the mislabel makes a sound claim read as false
+F17 is the project's most actionable finding ('replace %-stop with a horizon/time exit') and supports itself with a parenthetical that is pure arithmetic: 'daily WR 34-41%, below the 2:1 breakeven, half the instruments negative'. Checked against the shipped bands, the clause does not survive as written — but the substance does.
+
+READ LITERALLY, IT SAYS THE OPPOSITE. A 2:1 band's breakeven win rate is exactly 33.3%, so 34-41% is entirely ABOVE it. Costs do not rescue the reading: at the realistic 2bps the 2:1 breakeven is 33.8%, at the harsh 5bps 34.4% (clipping the bottom 6% of the cited range), and reaching 41% would take ~34 bps round-trip — seventeen times realistic cost.
+
+THE DAILY ETF BANDS ARE NOT 2:1. `QQQ` daily is 1.00/0.60 and `SOXL` daily 2.00/1.20 — both **1.67:1**, breakeven **37.5%** at zero cost, which sits INSIDE the cited range. A fixed 5bps bites harder on the tighter band, so under harsh cost they separate: QQQ reaches 40.6%, SOXL only 39.1%. Against the band F17 was actually measuring, 34-41% straddles breakeven at realistic cost and is mostly at or below it under harsh cost. F17's point stands; its label does not.
+
+THE FAILURE MODE IS WORTH NAMING: a mislabelled ratio makes a sound claim read as false. A reader who does the arithmetic against the stated '2:1' concludes F17 is wrong — about the finding the project most wants to act on.
+
+WHY IT COULD NOT BE SETTLED FROM THE RECORD. F17 carries no `evidenced_by` edge and names no experiment, unlike F16/F19/F20/F21 which all cite E9/E10. There is no run to open and check which band produced '34-41%', so a one-word error became unresolvable. Also checked: no shipped band anywhere in `config.ASSETS` has a zero-cost breakeven above 41%, so the blanket form of the clause is unsupportable for every configured exit.
+
+Guarded by tests/test_f17_breakeven_arithmetic.py (10 tests). Two assertions were corrected during construction after over-generalising QQQ's harsh-cost number to SOXL — the per-band separation is now asserted separately, with the reason recorded in the test.
+Links: [[F17|refines]] · [[F19|relates]].
+_— captured claude/research-continuation-ca1242@421d492, 2026-07-25_

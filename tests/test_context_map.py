@@ -454,7 +454,7 @@ class TestEpistemicCoverage(unittest.TestCase):
         behavior-asserting bridge appears (debt grew silently), and it fails when one
         is cleared (update the list, and enjoy it) — so the remaining work stays
         visible and cannot quietly expand."""
-        known = {"F12", "F13", "F17", "D4"}
+        known = {"F12", "F13", "D4"}
         actual = {b["node"] for b in self.bridges
                   if not any(ctx._claim_guard_resolves(g)
                              for g in (b.get("guarded_by") or []))}

@@ -59,7 +59,9 @@
     "bridges": [
       {"node": "F17", "relation": "concerns",
        "code": ["src/strategy/engine.py::compute_trade_returns", "config.STOP_LOSS_PCT_TQQQ_HOURLY", "config.TARGET_GAIN_PCT_TQQQ_HOURLY"],
-       "note": "The fixed %-target/%-stop exit is the architectural flaw; a multi-day horizon exit would replace it here."},
+       "guarded_by": ["tests/test_f17_breakeven_arithmetic.py::TheDailyETFBandsAreNotTwoToOneTests",
+                      "tests/test_f17_breakeven_arithmetic.py::ATwoToOneBandCannotProduceTheCitedClaimTests"],
+       "note": "The fixed %-target/%-stop exit is the architectural flaw; a multi-day horizon exit would replace it here. NOTE (F179): F17's 'below the 2:1 breakeven' clause mislabels the band -- the daily ETF exits are 1.67:1 (breakeven 37.5%), not 2:1 (33.3%); the substance holds against the right band."},
       {"node": "F7", "relation": "concerns",
        "code": ["config.STOP_LOSS_PCT_TQQQ_HOURLY", "config.STOP_LOSS_PCT_GDXU_HOURLY"],
        "note": "stop-vs-intrabar-noise ratio drives win rate — the stop pct is the lever (3x ETFs stop inside noise)."},
