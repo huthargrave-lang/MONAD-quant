@@ -2575,7 +2575,14 @@ def operator_fact_drift():
     # yet -- that is what a roadmap is -- so demanding its references resolve asks a
     # plan not to plan. Excluding them deliberately beats a fragile "is this sentence
     # aspirational" heuristic; the same call as the smoke test's NOT_SMOKED list.
-    PLANNING_DOCS = {"IMPROVEMENT_PLAN.md", "AGENT_CONTEXT_PLAN.md", "VISION.md"}
+    # RESEARCH_WEB.md joins them for a different reason: it is the FINDING LEDGER, and
+    # a finding routinely names a file that does not exist (that is often the finding).
+    # F208 records that `src/analysis/performance.py` is still only a proposal, and that
+    # sentence tripped this linter. Third time this exclusion has been needed — the
+    # branch-drift guard and the H32 risk-token grep both carry it too: a ledger must be
+    # able to DESCRIBE an absence without the absence-detector reading it as presence.
+    PLANNING_DOCS = {"IMPROVEMENT_PLAN.md", "AGENT_CONTEXT_PLAN.md", "VISION.md",
+                     "RESEARCH_WEB.md"}
     names, relpaths = _repo_file_index()
     docs = [f for f in os.listdir(REPO) if f.endswith(".md")]
     docs += [os.path.join("ops", f) for f in os.listdir(os.path.join(REPO, "ops"))

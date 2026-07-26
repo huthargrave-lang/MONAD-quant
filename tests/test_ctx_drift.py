@@ -209,3 +209,20 @@ class OperatorFactDriftTests(unittest.TestCase):
         self.assertIn("PLANNING_DOCS", source)
         self.assertIn("that is what a roadmap is", source,
                       "the exclusion lost its stated reason")
+
+    def test_the_finding_ledger_is_excluded_too(self):
+        """Third occurrence of one pattern: a ledger must be able to DESCRIBE an
+        absence without the absence-detector reading it as presence. F208 names
+        `src/analysis/performance.py` as a still-unbuilt proposal and tripped this."""
+        source = (ROOT / "tools" / "ctx.py").read_text(encoding="utf-8")
+        idx = source.index("PLANNING_DOCS = {")
+        block = source[idx:idx + 300]
+        self.assertIn('"RESEARCH_WEB.md"', block,
+                      "the finding ledger is no longer excluded from the doc-reference "
+                      "linter — any finding naming an unbuilt file will trip it")
+
+    def test_the_ledger_really_does_name_an_unbuilt_file(self):
+        """Non-vacuity for the exclusion above."""
+        web = (ROOT / "RESEARCH_WEB.md").read_text(encoding="utf-8")
+        self.assertIn("src/analysis/performance.py", web)
+        self.assertFalse((ROOT / "src" / "analysis" / "performance.py").exists())

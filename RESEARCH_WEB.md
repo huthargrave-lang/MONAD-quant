@@ -2741,3 +2741,26 @@ NOT FIXED, AND FOR A REASON THAT IS ITSELF A FINDING. The consolidation H34 asks
 Guarded by tests/test_h34_reporting_divergence.py (14 tests), including a non-vacuity check that the two simple-sum paths DO agree with each other, so the divergence is specific rather than universal.
 Links: [[H34|refines]] · [[F203|builds_on]] · [[H28|relates]] · [[F160|relates]].
 _— captured claude/research-continuation-ca1242@3f3a176, 2026-07-26_
+
+### F209 — H36's cache proposal targets 2% of the cost and its own estimate is 2.3x stale — the epistemic layer is the half that must NEVER be cached
+H36 asks for an mtime/git-sha-invalidated cache 'that can NEVER serve stale epistemic data', naming `_manifest`, `_parse_web`, and — in a subordinate clause — the AST re-walk. Measured on the current repo (415 nodes):
+
+  _manifest()                    0.3 ms   <- named first
+  _parse_web()                  23.5 ms   <- named second
+  build_graph(include_code=False) 26.8 ms
+  build_graph(include_code=True) 1161.3 ms <- the subordinate clause
+  _first_party_modules()         1.7 ms
+
+`cmd_health` takes ~1240 ms, of which web parsing is **47 ms — 4%**. The code-side AST walk is **43x** the epistemic graph and ~98% of the total. **The two things H36 names as caching targets are worth about 2% between them.** And it is not the file listing: `_first_party_modules` is 1.7 ms, so the expense is the per-module AST parse.
+
+H36's OWN FIGURE IS STALE. '~0.5s for a full graph build' is now **1.16 s**, grown with the repo — stale in the direction of UNDERSTATING, which matters because 'current cost is modest' is the stated reason it is low priority.
+
+THE SAFETY ARGUMENT INVERTS THE PROPOSAL. H36's constraint is exactly right and applies to the CHEAP half. This project's discipline is that a guard fails when a claim stops being true; a cached research web would let a guard pass against data that no longer exists — categorical risk for a ~24 ms saving. The code AST, by contrast, is derived purely from file contents, is trivially mtime-invalidated, and is where 98% of the cost is.
+
+So the remedy is the other way round from how H36 states it: **never cache the epistemic layer; cache the code AST.**
+
+NOT IMPLEMENTED. H36 says 'low priority — correctness first' and after this measurement that judgement STANDS — what changes is which thing would be cached if anyone did. `ctx.py` currently caches nothing at all, asserted, so a future `lru_cache` appearing anywhere in it is a prompt to check which side it landed on.
+
+Guarded by tests/test_h36_graph_cost_profile.py (11 tests). Timings are wall-clock and vary; the guard asserts RATIOS and uses medians of repeated runs, since the argument rests on proportions rather than absolute milliseconds.
+Links: [[H36|refines]] · [[F27|relates]].
+_— captured claude/research-continuation-ca1242@2183a06, 2026-07-26_
