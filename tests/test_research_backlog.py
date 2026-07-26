@@ -81,9 +81,26 @@ class CollectTests(unittest.TestCase):
             n_fresh, 0,
             "filter suppressed EVERYTHING — the loop will report an empty backlog "
             "while real work remains. This is the starvation failure.")
+        # Above ~85% the loop has consumed the backlog faster than RECENT_COMMITS
+        # forgets. That is a real state, not necessarily a bug — so the bound is on the
+        # SILENCE, not on the ratio: `next` must say so instead of handing over the
+        # leftovers as though the queue were healthy.
+        ratio = (n_all - n_fresh) / n_all
+        if ratio > 0.85:
+            import io
+            import types
+            from contextlib import redirect_stdout
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                BL.command_next(types.SimpleNamespace(no_skip=False))
+            self.assertIn(
+                "nearly exhausted", buf.getvalue(),
+                "{:.0%} of the queue is suppressed and `next` does not warn — the loop "
+                "will re-circle the last few items instead of opening a new "
+                "direction".format(ratio))
         self.assertLess(
-            (n_all - n_fresh) / n_all, 0.9,
-            "filter is suppressing >90% of the queue; check for generic-token matching")
+            ratio, 0.98,
+            "filter is suppressing >98% of the queue; check for generic-token matching")
 
     def test_every_task_carries_an_actionable_instruction(self):
         for t in self.unfiltered:
@@ -128,6 +145,56 @@ class NeverStopsTests(unittest.TestCase):
             BL.collect = original
         self.assertIn("Do NOT stop", out)
         self.assertIn("new direction", out)
+
+
+
+
+class SupersededNodesAreNotOfferedAsWorkTests(unittest.TestCase):
+    """The filter asked for a key the parser does not emit, so it never fired.
+
+    `epistemic_audit_lab.parse_web` exposes `status` ("current"/"superseded"), not a
+    boolean `superseded`. Both `source_uncited` and `source_unresolved` called
+    `node.get("superseded")`, which is always None. Three retracted findings — F9, F3,
+    F15 — sat in the uncited queue, and F9 was next up: "publish a document for the
+    figures of a finding F13 inverted".
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.nodes = BL.load_nodes()
+        cls.superseded = {n for n, d in cls.nodes.items()
+                          if str(d.get("status", "")).lower() == "superseded"}
+
+    def test_the_web_still_has_superseded_nodes_to_filter(self):
+        self.assertGreaterEqual(
+            len(self.superseded), 3,
+            "fewer than three superseded nodes — this guard has almost nothing to "
+            "check; confirm the supersession mechanism is still in use")
+
+    def test_the_helper_reads_the_key_the_parser_actually_emits(self):
+        sample = next(iter(self.superseded))
+        self.assertTrue(BL._is_superseded(self.nodes[sample]))
+        self.assertFalse(BL._is_superseded({}))
+        self.assertFalse(BL._is_superseded({"status": "current"}))
+
+    def test_no_superseded_node_reaches_the_uncited_queue(self):
+        leaked = sorted({r["node"] for r in BL.source_uncited(self.nodes, 999)}
+                        & self.superseded)
+        self.assertEqual(
+            leaked, [],
+            "retracted findings are queued as work again ({}) — the loop would be "
+            "asked to document a claim the web already withdrew".format(leaked))
+
+    def test_no_superseded_node_reaches_the_unresolved_queue(self):
+        leaked = sorted({r["node"] for r in BL.source_unresolved(self.nodes, 999)}
+                        & self.superseded)
+        self.assertEqual(leaked, [], "superseded hypotheses queued: {}".format(leaked))
+
+    def test_the_queue_is_not_emptied_by_the_filter(self):
+        """Non-vacuity: excluding 8 nodes should cost about 3 items, not the backlog."""
+        self.assertGreater(
+            len(BL.source_uncited(self.nodes, 999)), 20,
+            "the uncited queue collapsed — the supersession filter is too broad")
 
 
 if __name__ == "__main__":

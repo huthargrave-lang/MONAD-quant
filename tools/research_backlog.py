@@ -58,6 +58,18 @@ if _TOOLS not in sys.path:
 import epistemic_audit_lab as _epi  # noqa: E402  (canonical web parser)
 
 RELIANCE = {"relies_on", "supports", "refines", "builds_on"}
+
+
+def _is_superseded(node: Mapping[str, object]) -> bool:
+    """Whether a parsed node is retracted.
+
+    `epistemic_audit_lab.parse_web` exposes `status` ("current"/"superseded"), NOT a
+    boolean `superseded` key. Two sources here asked for `node.get("superseded")`,
+    which is always None — so the filter never fired and F9/F3/F15, all superseded,
+    sat in the uncited queue as work. F9 was next up: "publish a document for the
+    figures of a finding that was inverted by F13".
+    """
+    return str(node.get("status", "current")).lower() == "superseded"
 # Edge types that carry EVIDENCE upstream: if X--type-->Y and X cites a document, a
 # reader standing at Y is one hop from that document. Used for doc-REACHABILITY only.
 UPSTREAM_EVIDENCE = {"resolves", "supports", "refines", "builds_on", "evidenced_by"}
@@ -193,7 +205,7 @@ def source_uncited(nodes, limit: int = 8) -> List[dict]:
     rows = []
     for nid, node in nodes.items():
         body = str(node.get("body", ""))
-        if node.get("superseded"):
+        if _is_superseded(node):
             continue
         figs = _figures(body)
         if len(figs) < 5:
@@ -273,7 +285,7 @@ def source_unresolved(nodes, limit: int = 6) -> List[dict]:
                 cited_by_finding.add(target)
     rows = []
     for nid, node in nodes.items():
-        if not nid.startswith("H") or node.get("superseded"):
+        if not nid.startswith("H") or _is_superseded(node):
             continue
         if nid in resolved or nid in cited_by_finding:
             continue
@@ -524,6 +536,16 @@ def command_next(args) -> None:
               "`list --blocked` / `list --blocked --recheck`)".format(len(stuck)))
     if held or stuck:
         print()
+    # Near-starvation: the anti-repetition window is hiding almost everything, which
+    # means the loop has consumed the backlog faster than RECENT_COMMITS forgets. Say so
+    # rather than handing over the last two leftovers as if the queue were healthy —
+    # the same reasoning as the deferred and blocked counts above.
+    total = len(collect(skip_recent=False))
+    if total and (total - len(tasks)) / total > 0.85:
+        print("  NOTE: {} of {} items were worked in the last {} commits. The queue is "
+              "nearly exhausted —\n        after this one, open a genuinely new "
+              "direction rather than re-circling.\n".format(
+                  total - len(tasks), total, RECENT_COMMITS))
     t = tasks[0]
     print("NEXT  [{}]  score={:.2f}".format(t["kind"], t["score"]))
     print("  {}".format(t["title"]))
