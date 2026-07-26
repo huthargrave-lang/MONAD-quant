@@ -196,6 +196,98 @@ class TheConfiguredBandsTests(unittest.TestCase):
                 places=1)
 
 
+class TheEvObjectiveBakesInTheSameRatioTests(unittest.TestCase):
+    """H22 proposed an EV-per-trade objective. It was built — with 2:1 hardcoded in it.
+
+    `sweep.py --objective ev` routes to `sweep_scoring.ev_score`, which HARD-REJECTS any
+    candidate whose win rate is below `min_wr_pct`, defaulting to **34.0** and documented
+    as "the 2:1 R:R breakeven (~33.3%)". No caller ever passes it.
+
+    A break-even win rate is `100/(1+R:R)`. A fixed floor is therefore correct at exactly
+    one ratio and wrong in BOTH directions elsewhere:
+
+        R:R 1.20 -> breakeven 45.5%  ->  floor PASSES unprofitable configs
+        R:R 2.80 -> breakeven 26.3%  ->  floor REJECTS profitable ones
+        R:R 6.09 -> breakeven 14.1%  ->  floor REJECTS profitable ones
+
+    6.09 is not hypothetical: it is GDXU_HOURLY's configured band. Under this objective
+    its own configuration is scored -1000 for any win rate between 14.1% and 34%.
+
+    Read with the search geometry above, the ratio 2:1 is assumed in TWO independent
+    places — the phase 1a grid that proposes candidates, and the objective that scores
+    them. A sweep run with `--objective ev` therefore cannot discover a good wide band:
+    1a will not propose one, and if 1b stumbles on one the objective may reject it.
+
+    NOT FIXED HERE. The one-line change is to derive the floor from the candidate's own
+    R:R, but that changes which parameters every future sweep selects, which is a
+    research decision rather than a cleanup.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        import inspect
+        from src.optimization import sweep_scoring
+        cls.scoring = sweep_scoring
+        cls.default = inspect.signature(sweep_scoring.ev_score).parameters[
+            "min_wr_pct"].default
+
+    def test_the_floor_is_a_fixed_number(self):
+        self.assertEqual(
+            self.default, 34.0,
+            "ev_score's min_wr_pct default moved to {} — if it became a function of the "
+            "candidate's reward:risk that is the FIX; record it and supersede".format(
+                self.default))
+
+    def test_no_caller_ever_overrides_it(self):
+        """A defaulted knob nobody passes is the value in force everywhere."""
+        hits = []
+        for area in ("src", "tools", "."):
+            root = ROOT / area if area != "." else ROOT
+            for path in (root.glob("*.py") if area == "." else root.rglob("*.py")):
+                if path.name == "sweep_scoring.py" or "test" in path.name:
+                    continue
+                if "min_wr_pct" in path.read_text(encoding="utf-8"):
+                    hits.append(path.name)
+        self.assertEqual(
+            sorted(set(hits)), [],
+            "something now passes min_wr_pct ({}) — the floor is no longer a single "
+            "fixed value and this finding needs re-measuring".format(sorted(set(hits))))
+
+    def test_the_floor_matches_the_seed_ratio_and_nothing_else(self):
+        seed_breakeven = 100.0 / (1.0 + bg.seed_ratio())
+        self.assertAlmostEqual(
+            self.default, seed_breakeven, delta=1.0,
+            msg="the fixed floor {} is no longer ~the seed ratio's breakeven {:.1f}% — "
+                "the coincidence tying the objective to the search grid has "
+                "changed".format(self.default, seed_breakeven))
+
+    def test_it_misjudges_the_configured_bands_in_both_directions(self):
+        """Non-vacuity, and the reason this is a defect rather than a quirk."""
+        rejected, passed = [], []
+        for band in bg.census()["bands"]:
+            be = band["breakeven_wr_pct"]
+            if be < self.default - 0.5:
+                rejected.append(band["mode"])      # profitable below the floor
+            elif be > self.default + 0.5:
+                passed.append(band["mode"])        # unprofitable above it
+        self.assertTrue(
+            rejected,
+            "no configured band has a breakeven below the floor, so the objective "
+            "cannot currently reject a profitable config — the defect is dormant")
+        self.assertIn(
+            "GDXU_HOURLY", rejected,
+            "GDXU is no longer among the bands the EV floor would misjudge: {}".format(
+                rejected))
+        self.assertTrue(
+            passed,
+            "no configured band has a breakeven above the floor, so the objective "
+            "cannot currently accept an unprofitable config — half the claim is dormant")
+
+    def test_the_breakeven_formula_is_what_the_floor_should_be(self):
+        for rr, expected in ((2.0, 33.3), (2.8, 26.3), (6.09, 14.1)):
+            self.assertAlmostEqual(100.0 / (1.0 + rr), expected, delta=0.1)
+
+
 class TheCensusIsFrozenAndBridgedTests(unittest.TestCase):
     def test_it_matches_the_frozen_artifact(self):
         frozen = json.loads(FROZEN.read_text(encoding="utf-8"))
