@@ -470,7 +470,8 @@
         "tools/sec_form25_population_lab.py",
         "tools/sec_fund_exit_lab.py",
         "tools/shadow_replay.py",
-        "tools/research_ui.py"
+        "tools/research_ui.py",
+        "tools/ui_tokens.py"
       ],
       "entrypoints": [],
       "tests": [

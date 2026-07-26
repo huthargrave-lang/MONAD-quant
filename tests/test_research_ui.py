@@ -1,20 +1,29 @@
-"""Seven UI surfaces, five grounds, one theme-aware page — and a node view that admits
-when a chart does not apply.
+"""Seven UI surfaces, ONE palette — and a node view that admits when a chart can't apply.
 
-Tool: `tools/research_ui.py`. Study: `docs/research/UI_surface_unification.md`.
+Tool: `tools/research_ui.py`. Palette: `tools/ui_tokens.py`.
+Study: `docs/research/UI_surface_unification.md`.
 
-Before `research_ui.py` this repository had six HTML surfaces and nothing shared between
-them: four distinct page grounds, five independently-authored CSS blocks, no page
-answering `prefers-color-scheme`, and one page fetching d3 from a CDN it cannot always
-reach (F216). The three `#080b12` lab pages look alike because they were copied, not
-because they share anything — whitespace-normalised they are now three different strings
-of 444, 463 and 476 characters. That is the same defect the config census (F226/F227) and
-the column census (F228) found one layer down: several paths holding one fact, with
-nothing keeping them in step.
+F231 measured the fragmentation: six HTML surfaces, four grounds, five independently
+-authored CSS blocks, zero shared tokens, zero pages answering `prefers-color-scheme`.
+F232 is the port. Every surface this repository controls now draws from
+`tools/ui_tokens.py`:
 
-The server does not rewrite those surfaces. It mounts them — `ctx.py`'s four database
-route adapters are called unchanged — under one shell that owns the palette, and it
-measures the fragmentation from source so the number cannot rot.
+    7 surfaces · 2 grounds · 6 theme-aware · 6 share tokens · 0 copies of the lab sheet
+
+The one remaining second ground is `live/templates/dashboard.html`, which is FENCED —
+`live/**` is not modifiable here — so it is measured and reported, never touched. That
+is why the counts below are 6-of-7 and not 7-of-7, and why a guard that reaches 7 means
+someone got approval and ported the trading dashboard.
+
+The three `#080b12` lab pages had looked alike only because they were copied; by the
+time they were measured they had drifted to 444 / 463 / 476 characters. They differed in
+exactly one meaningful way — content width — which is now the `max_width` argument to
+`ui_tokens.document_head`. That is the shape of the whole fix: the thing that varied
+became a parameter, and the thing that shouldn't have varied became one definition.
+
+The server owns no second copy of anything. `ctx.py`'s four database route adapters are
+called unchanged, and `research_ui.UI_CSS` is `ui_tokens.TOKENS` plus layout — a guard
+below fails if a second token block appears anywhere in the repository.
 
 THE NODE VIEW IS THE SUBSTANTIVE PART, and its rule is that a rendering must be earned:
 each of the six chart patterns is gated by a predicate over data the node ACTUALLY has —
@@ -39,11 +48,22 @@ below because each would silently return:
   `backtest` — so every row was labelled with one of the two values being compared
   instead of with the dimension being compared.
 
-Guards below fail in BOTH directions. They fail if the fragmentation gets worse (a sixth
-ground, a fourth copy of the lab stylesheet, a new surface nobody censused) and they fail
-if it gets BETTER (a second theme-aware page, a second surface adopting the tokens) —
-because a census that quietly starts passing is as stale as one that quietly starts
-failing. Fix the surface, then supersede the finding; do not edit the number here.
+Porting `ctx.py`'s map found a fifth defect, and it is the reason that page is in scope
+at all: **its light palette was already written and unreachable.** Every colour there was
+authored as `dark ? <dark> : <light>` and then pinned by `const dark=true`, so the light
+half had never rendered — the dead-lever shape of F145's no-reader knobs and F224's
+compute-only flag, one layer up in the UI. Binding `dark` to the environment made the
+existing half reachable; no colours were invented. Its *canvas* could not be visually
+verified here, because d3 comes from a CDN this environment cannot reach (F216) — the
+page's own fail-loud banner is what renders instead. The chrome was verified in both
+themes; the canvas was not, and the guards below assert the wiring rather than the pixels.
+
+Guards fail in BOTH directions. They fail if the unification regresses (a third ground, a
+surface dropping the tokens, a re-forked stylesheet) and they fail if it ADVANCES past
+what is recorded (the fenced dashboard adopting the tokens, the CDN dependency
+disappearing) — because a census that quietly starts passing is as stale as one that
+quietly starts failing. Fix the surface, then supersede the finding; do not edit the
+number here.
 """
 import json
 import re
@@ -57,6 +77,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
 import research_ui as ui  # noqa: E402
+import ui_tokens  # noqa: E402
 
 DATA = ROOT / "docs" / "research" / "data"
 HEX = re.compile(r"#[0-9a-fA-F]{6}\b")
@@ -79,12 +100,31 @@ class TheSurfaceCensusIsCompleteTests(unittest.TestCase):
                 text = path.read_text(encoding="utf-8", errors="ignore")
                 if "<style>" in text or "<!doctype" in text.lower():
                     found.add(path.relative_to(ROOT).as_posix())
-        missed = sorted(found - set(self.by_path))
+        # The palette module emits a <head> and a stylesheet, never a page. It is the
+        # ONE exemption, named explicitly so a real surface cannot hide behind a
+        # loosened detector.
+        missed = sorted(found - set(self.by_path) - {ui.TOKENS_MODULE})
         self.assertEqual(
             missed, [],
             "these files emit HTML and are not in research_ui.SURFACES: {} — add them, "
             "because an uncensused surface is exactly how the count stops meaning "
             "anything".format(missed))
+        self.assertIn(ui.TOKENS_MODULE, found,
+                      "the palette module no longer looks like an HTML emitter — check "
+                      "whether document_head still exists before trusting the exemption")
+
+    def test_it_matches_the_frozen_artifact(self):
+        frozen = json.loads(
+            (DATA / "ui_surface_census.json").read_text(encoding="utf-8"))
+        self.assertEqual(
+            frozen["counts"], self.census["counts"],
+            "the committed surface census no longer matches a fresh run — regenerate "
+            "with `python3 tools/research_ui.py surfaces --json "
+            "docs/research/data/ui_surface_census.json`")
+        self.assertEqual(
+            frozen["subject"], "repository",
+            "the census must declare subject=repository or it lands in PT-01's "
+            "provenance denominator, where an introspection artifact does not belong")
 
     def test_every_listed_surface_still_exists(self):
         for rel, _role, _entry, _served in ui.SURFACES:
@@ -92,34 +132,54 @@ class TheSurfaceCensusIsCompleteTests(unittest.TestCase):
                             "{} is in SURFACES but gone from disk".format(rel))
         self.assertEqual(len(self.census["surfaces"]), len(ui.SURFACES))
 
-    def test_the_ground_count_has_not_grown(self):
-        self.assertLessEqual(
-            self.census["counts"]["grounds"], 5,
-            "a sixth distinct page ground appeared — a new surface invented its own "
-            "palette instead of using /static/ui.css")
-
-    def test_the_ground_count_has_not_shrunk_either(self):
-        self.assertGreaterEqual(
-            self.census["counts"]["grounds"], 5,
-            "distinct grounds fell below 5 — surfaces are converging, which is GOOD "
-            "news. Re-run `python3 tools/research_ui.py surfaces`, update "
-            "docs/research/UI_surface_unification.md and supersede the finding")
-
-    def test_exactly_one_surface_is_theme_aware(self):
-        aware = [r["path"] for r in self.census["surfaces"] if r["theme_aware"]]
+    def test_only_the_fenced_dashboard_has_its_own_ground(self):
+        """Two grounds: the shared plane, and the one page nobody here may edit."""
+        by_ground = {}
+        for r in self.census["surfaces"]:
+            by_ground.setdefault(r["ground"], []).append(r["path"])
         self.assertEqual(
-            aware, [ui.SELF_REL],
-            "the set of theme-aware surfaces changed to {} — if another page learned to "
-            "answer prefers-color-scheme that is a real fix; record it and "
-            "supersede".format(aware))
-
-    def test_exactly_one_surface_shares_the_tokens(self):
-        sharing = [r["path"] for r in self.census["surfaces"] if r["shares_tokens"]]
+            self.census["counts"]["grounds"], 2,
+            "distinct page grounds moved to {} (was 2: the shared plane plus the fenced "
+            "dashboard). More means a surface invented its own palette; fewer means "
+            "live/** was ported, which needs owner approval and a new "
+            "measurement".format(self.census["counts"]["grounds"]))
+        odd = [g for g, paths in by_ground.items() if len(paths) == 1]
         self.assertEqual(
-            sharing, [ui.SELF_REL],
-            "surfaces referencing {} changed to {} — adoption is the point, so this "
-            "failing upward means the study needs re-measuring".format(
-                ui.TOKENS_HREF, sharing))
+            [by_ground[g] for g in odd], [["live/templates/dashboard.html"]],
+            "the surface standing apart from the shared ground is no longer the fenced "
+            "dashboard: {}".format({g: by_ground[g] for g in odd}))
+
+    def test_every_unfenced_surface_is_theme_aware(self):
+        aware = {r["path"] for r in self.census["surfaces"] if r["theme_aware"]}
+        expected = {r["path"] for r in self.census["surfaces"] if r["served_here"]}
+        self.assertEqual(
+            aware, expected,
+            "theme-aware surfaces are {} but the unfenced set is {} — a page either "
+            "lost its theme support or the fenced dashboard gained it (which would be "
+            "a real fix worth recording)".format(sorted(aware), sorted(expected)))
+        self.assertEqual(len(aware), 6)
+
+    def test_every_unfenced_surface_shares_the_tokens(self):
+        sharing = {r["path"] for r in self.census["surfaces"] if r["shares_tokens"]}
+        expected = {r["path"] for r in self.census["surfaces"] if r["served_here"]}
+        self.assertEqual(
+            sharing, expected,
+            "surfaces drawing from the shared palette are {}, expected {} — if a page "
+            "dropped ui_tokens that is a regression; if the fenced dashboard adopted "
+            "them, re-measure and supersede".format(sorted(sharing), sorted(expected)))
+
+    def test_the_four_ported_labs_declare_no_colour_of_their_own(self):
+        """The strongest form of the claim: their source contains no hex at all."""
+        labs = ["tools/research_event_ledger.py",
+                "tools/corporate_action_outcome_lab.py",
+                "tools/sec_corporate_action_state_lab.py",
+                "tools/sec_form25_population_lab.py"]
+        for rel in labs:
+            found = sorted(set(HEX.findall((ROOT / rel).read_text(encoding="utf-8"))))
+            self.assertEqual(
+                found, [],
+                "{} declares colour(s) {} again — every colour on these pages must come "
+                "from tools/ui_tokens.py".format(rel, found))
 
     def test_one_surface_still_needs_an_external_host(self):
         """F216: `ctx graph` pulls d3 from a CDN this repo often cannot reach."""
@@ -129,15 +189,13 @@ class TheSurfaceCensusIsCompleteTests(unittest.TestCase):
             external, {"tools/ctx.py": ["cdnjs.cloudflare.com"]},
             "the set of surfaces with external dependencies changed: {}".format(external))
 
-    def test_the_lab_stylesheet_is_three_drifted_copies(self):
+    def test_the_copied_lab_stylesheet_is_gone(self):
         variants = ui.css_block_variants()
-        files = sorted(f for group in variants.values() for f in group)
-        self.assertEqual(len(files), 3, "the #080b12 family changed size: {}".format(files))
         self.assertEqual(
-            len(variants), 3,
-            "the three copied lab stylesheets are now {} distinct string(s), not 3. One "
-            "means they were unified (good — supersede); more means the drift "
-            "grew".format(len(variants)))
+            variants, {},
+            "the #080b12 lab stylesheet family is back in {} — those three pages were "
+            "unified onto tools/ui_tokens.py (F232) and a re-fork undoes it".format(
+                sorted(f for g in variants.values() for f in g)))
 
     def test_the_live_dashboard_is_fenced_and_never_imported(self):
         source = (ROOT / "tools" / "research_ui.py").read_text(encoding="utf-8")
@@ -146,14 +204,146 @@ class TheSurfaceCensusIsCompleteTests(unittest.TestCase):
         self.assertFalse(self.by_path["live/templates/dashboard.html"]["served_here"])
 
     def test_luminance_decides_the_theme_not_a_hand_written_label(self):
-        """Non-vacuity: the derivation must actually separate the surfaces."""
+        """Non-vacuity: the derivation must still produce both outcomes.
+
+        Before the port this compared a light-only page against a dark-only one. After
+        it there are no light-only pages left — six respond to the media query and the
+        fenced dashboard is dark. So the discrimination to check is dual-theme against
+        single-theme; comparing two single-theme buckets now asserts something that
+        being FIXED made impossible, which is a guard passing for the wrong reason.
+        """
         self.assertGreater(ui.relative_luminance("#f5f7fa"), 0.5)
         self.assertLess(ui.relative_luminance("#080b12"), 0.5)
-        dark = [r for r in self.census["surfaces"] if r["themes"] == ["dark"]]
-        light = [r for r in self.census["surfaces"] if r["themes"] == ["light"]]
-        self.assertTrue(dark and light,
-                        "every surface landed in one theme bucket — the derivation is "
-                        "not discriminating and the column means nothing")
+        both = [r for r in self.census["surfaces"] if len(r["themes"]) == 2]
+        single = [r for r in self.census["surfaces"] if len(r["themes"]) == 1]
+        self.assertTrue(
+            both and single,
+            "every surface landed in one theme bucket — the derivation is not "
+            "discriminating and the column means nothing")
+        self.assertEqual([r["path"] for r in single], ["live/templates/dashboard.html"])
+
+
+class ThePaletteHasExactlyOneDefinitionTests(unittest.TestCase):
+    """One definition is the whole claim; two would be F231 again with better manners."""
+
+    def test_the_token_block_appears_once_in_the_repository(self):
+        # Split so this file does not contain the literal it searches for. Written whole,
+        # the detector counted itself and reported two declarations — the observer effect
+        # this codebase keeps meeting (F226's census, the FD-00 fixture readers, the
+        # entry-gate probe). A detector that changes what it measures by describing it
+        # is not measuring.
+        marker = "--ink-on" + "-1:"
+        holders = []
+        for area in ("tools", "live", "src", "tests"):
+            for path in (ROOT / area).rglob("*"):
+                if path.suffix not in (".py", ".html", ".css") or not path.is_file():
+                    continue
+                text = path.read_text(encoding="utf-8", errors="ignore")
+                holders.extend([path.relative_to(ROOT).as_posix()] * text.count(marker))
+        self.assertEqual(
+            sorted(set(holders)), [ui.TOKENS_MODULE],
+            "the token block is declared in {} — it must exist once, in {}, or the two "
+            "copies will drift exactly as the lab stylesheets did".format(
+                sorted(set(holders)), ui.TOKENS_MODULE))
+        self.assertEqual(
+            len(holders), 4,
+            "the palette declares {} theme blocks, expected 4: the light `:root`, the "
+            "`prefers-color-scheme` dark block, and one `data-theme` override per "
+            "direction. Dropping any of the four leaves a theme that cannot be "
+            "reached.".format(len(holders)))
+
+    def test_the_server_imports_the_palette_rather_than_restating_it(self):
+        self.assertTrue(ui.UI_CSS.startswith(ui_tokens.TOKENS),
+                        "research_ui.UI_CSS no longer begins with the shared tokens")
+        layout = ui.UI_CSS[len(ui_tokens.TOKENS):]
+        found = sorted(set(HEX.findall(layout)))
+        self.assertEqual(found, [],
+                         "the server's own layout CSS declares colour(s) {}".format(found))
+
+    def test_the_palette_module_imports_nothing(self):
+        """What lets both `ctx` and `research_ui` use it without closing a cycle."""
+        import ast
+        tree = ast.parse((ROOT / ui.TOKENS_MODULE).read_text(encoding="utf-8"))
+        imports = [n for n in ast.walk(tree)
+                   if isinstance(n, (ast.Import, ast.ImportFrom))]
+        self.assertEqual(
+            imports, [],
+            "tools/ui_tokens.py grew an import — research_ui imports ctx and ctx imports "
+            "the palette, so anything the palette imports risks a cycle")
+
+    def test_both_theme_signals_are_present(self):
+        for signal in ("prefers-color-scheme", '[data-theme="dark"]',
+                       '[data-theme="light"]'):
+            self.assertIn(signal, ui_tokens.TOKENS,
+                          "the palette dropped {} — an explicit theme choice must win "
+                          "over the OS preference in BOTH directions".format(signal))
+
+    def test_the_width_that_varied_is_a_parameter_now(self):
+        narrow = ui_tokens.document_css("1100px")
+        wide = ui_tokens.document_css("1500px")
+        self.assertIn("max-width:1100px", narrow)
+        self.assertIn("max-width:1500px", wide)
+        self.assertNotEqual(narrow, wide)
+        self.assertEqual(narrow.replace("1100px", "1500px"), wide,
+                         "content width is no longer the ONLY difference between the "
+                         "two — something else was forked back out")
+
+
+class TheContextMapsLightPaletteIsReachableTests(unittest.TestCase):
+    """It was written and pinned off by `const dark=true` — the dead-lever family."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.source = (ROOT / "tools" / "ctx.py").read_text(encoding="utf-8")
+
+    def test_the_pin_is_gone(self):
+        # Matched as a STATEMENT (trailing `;`), not as a phrase: the comment in ctx.py
+        # that explains the fix quotes the old line, and a substring search found its
+        # own documentation. Third observer-effect fix in this file.
+        pins = re.findall(r"const\s+dark\s*=\s*true\s*;", self.source)
+        self.assertEqual(
+            pins, [],
+            "`dark` is pinned again — the light palette below it becomes unreachable, "
+            "which is what F232 fixed")
+        # assertTrue over a regex rather than assertIn over the file: a failing assertIn
+        # prints the whole 160KB haystack, which buries the message it came with.
+        self.assertTrue(
+            re.search(r"let\s+dark\s*=\s*themePref\(\)", self.source),
+            "ctx's map no longer derives `dark` from the environment")
+
+    def test_the_theme_is_read_from_the_environment(self):
+        for token in ("prefers-color-scheme", "themePref", "data-theme", "paintTheme"):
+            self.assertIn(token, self.source,
+                          "ctx's map lost `{}` — the theme binding is incomplete".format(
+                              token))
+
+    def test_the_light_branch_still_carries_real_values(self):
+        """Non-vacuity: reaching a light palette that is a copy of the dark one is no fix."""
+        light = re.search(r":\{F:'(#\w{6})'.*?code:'(#\w{6})'\};", self.source)
+        dark = re.search(r"COL=dark\?\{F:'(#\w{6})'", self.source)
+        self.assertIsNotNone(light, "the light node palette is gone from ctx.py")
+        self.assertIsNotNone(dark)
+        self.assertNotEqual(light.group(1), dark.group(1),
+                            "the light and dark node palettes are identical — the "
+                            "branch is reachable but no longer says anything")
+
+    def test_the_page_chrome_names_tokens_not_colours(self):
+        style = self.source[self.source.index("_GRAPH_HTML = r"):]
+        style = style[style.index("<style>"):style.index("</style>")]
+        found = sorted(set(HEX.findall(style)))
+        self.assertEqual(
+            found, [],
+            "the map's stylesheet declares colour(s) {} — it aliases the shared tokens "
+            "instead".format(found))
+
+    def test_the_cdn_dependency_is_still_the_open_one(self):
+        """Scoped honestly: F232 ported the palette, not the offline problem (F216)."""
+        census = {r["path"]: r["external_hosts"] for r in ui.surface_census()["surfaces"]
+                  if r["external_hosts"]}
+        self.assertEqual(
+            census, {"tools/ctx.py": ["cdnjs.cloudflare.com"]},
+            "external dependencies changed to {} — if d3 was vendored, F216 is closed "
+            "and this guard should be retired with it".format(census))
 
 
 class TheRendererPredicatesAreRealPredicatesTests(unittest.TestCase):

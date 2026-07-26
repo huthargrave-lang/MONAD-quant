@@ -55,6 +55,7 @@ for _p in (REPO, TOOLS):
         sys.path.insert(0, _p)
 
 import ctx  # noqa: E402  — the context layer; reused, never duplicated
+import ui_tokens  # noqa: E402  — the one palette; this file holds no second copy
 
 
 def esc(value) -> str:
@@ -62,49 +63,15 @@ def esc(value) -> str:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 1. The token system — the single source of truth for this server's palette.
+# 1. This server's chrome, on top of the shared palette.
 #
-# The ordinal ramps below were validated with the dataviz palette checker (lightness
-# band, chroma floor, adjacent-pair CVD separation, normal-vision floor, contrast) in
-# BOTH modes against their own surface. Do not hand-edit a step; re-validate instead.
-# `--ink-on-1` / `--ink-on-4` exist because a label sitting on the pale end of the ramp
-# and one sitting on the dark end need opposite ink, and the two ends swap by theme.
+# The palette itself lives in `tools/ui_tokens.py` and is imported, not restated — this
+# file used to carry its own copy, which is the very defect the census here catalogues.
+# Everything below is layout: it names tokens and defines no colour.
 # ─────────────────────────────────────────────────────────────────────────────
 TOKENS_HREF = "/static/ui.css"
 
-UI_CSS = """
-:root{
-  --plane:#f2f3f1; --surface:#fcfcfb; --ink:#0b0b0b; --ink-2:#52514e;
-  --ink-muted:#898781; --rule:#e1e0d9; --axis:#c3c2b7; --accent:#2a78d6;
-  --ord-1:#86b6ef; --ord-2:#3987e5; --ord-3:#1c5cab; --ord-4:#0d366b;
-  --ink-on-1:#0b0b0b; --ink-on-4:#ffffff;
-  --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
-  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-}
-@media (prefers-color-scheme: dark){
-  :root:where(:not([data-theme="light"])){
-    --plane:#0d0f12; --surface:#15181d; --ink:#f4f4f2; --ink-2:#b8b7b2;
-    --ink-muted:#83827d; --rule:#282c33; --axis:#3d424b; --accent:#6ba7f0;
-    --ord-1:#184f95; --ord-2:#2f79d4; --ord-3:#74aaee; --ord-4:#b7d3f6;
-    --ink-on-1:#ffffff; --ink-on-4:#0b0b0b;
-    --good:#3fbf3f; --warning:#e5b23c; --serious:#f09268; --critical:#ef6a6a;
-  }
-}
-:root[data-theme="dark"]{
-  --plane:#0d0f12; --surface:#15181d; --ink:#f4f4f2; --ink-2:#b8b7b2;
-  --ink-muted:#83827d; --rule:#282c33; --axis:#3d424b; --accent:#6ba7f0;
-  --ord-1:#184f95; --ord-2:#2f79d4; --ord-3:#74aaee; --ord-4:#b7d3f6;
-  --ink-on-1:#ffffff; --ink-on-4:#0b0b0b;
-  --good:#3fbf3f; --warning:#e5b23c; --serious:#f09268; --critical:#ef6a6a;
-}
-:root[data-theme="light"]{
-  --plane:#f2f3f1; --surface:#fcfcfb; --ink:#0b0b0b; --ink-2:#52514e;
-  --ink-muted:#898781; --rule:#e1e0d9; --axis:#c3c2b7; --accent:#2a78d6;
-  --ord-1:#86b6ef; --ord-2:#3987e5; --ord-3:#1c5cab; --ord-4:#0d366b;
-  --ink-on-1:#0b0b0b; --ink-on-4:#ffffff;
-  --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
-}
+UI_CSS = ui_tokens.TOKENS + """
 *{box-sizing:border-box}
 body{margin:0;background:var(--plane);color:var(--ink);font:15px/1.55 var(--sans);
   -webkit-font-smoothing:antialiased}
@@ -219,11 +186,39 @@ footer{margin-top:44px;padding-top:14px;border-top:1px solid var(--rule);
 # 2. The surface census — measured from source, not written down.
 # ─────────────────────────────────────────────────────────────────────────────
 _HEX = re.compile(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})\b")
-_GROUND = re.compile(r"body\s*\{\{?[^}]*?background(?:-color)?:\s*(#[0-9a-fA-F]{3,6})")
+_GROUND = re.compile(
+    r"body\s*\{\{?[^}]*?background(?:-color)?:\s*(#[0-9a-fA-F]{3,6}|var\(--[\w-]+\))")
 _BGVAR = re.compile(r"--(?:bg|plane|background)\s*:\s*(#[0-9a-fA-F]{3,6})")
 _HOST = re.compile(r"(?:src|href)=[\"']https?://([a-z0-9.\-]+)")
 
+
+def _resolve_colour(value, text, depth=0):
+    """Follow `var(--name)` through the page's own custom properties to a hex.
+
+    A token-driven page has no literal colour in its `body` rule — that is the point of
+    porting it. Resolving the reference keeps the ground DERIVED from the source rather
+    than special-cased by an is-this-page-modern flag, so a page that adopts the tokens
+    and a page that hard-codes the same colour are still measured the same way. The
+    FIRST declaration wins, which is the light `:root`; the dark ones follow it.
+    """
+    if value is None or depth > 4:
+        return None
+    value = value.strip()
+    if value.startswith("#"):
+        return value.lower()
+    m = re.fullmatch(r"var\((--[\w-]+)\)", value)
+    if not m:
+        return None
+    decl = re.search(re.escape(m.group(1)) + r"\s*:\s*([^;}\n]+)", text)
+    return _resolve_colour(decl.group(1), text, depth + 1) if decl else None
+
 SELF_REL = "tools/research_ui.py"
+
+#: The palette module. NOT a surface: it emits a `<head>` and a stylesheet, never a
+#: page, and giving it a census row would invent a ground that nothing renders on.
+#: Named here so the "did we census every HTML-emitting file" guard can exempt exactly
+#: this one file and nothing else.
+TOKENS_MODULE = "tools/ui_tokens.py"
 
 #: Every HTML-emitting surface in the repository. `served` = this server can mount it.
 SURFACES = [
@@ -249,6 +244,21 @@ def relative_luminance(hexcolor: str) -> float:
     return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
 
 
+def _effective_css(text):
+    """The CSS a surface will actually emit, following the one import that matters.
+
+    Porting the labs onto `ui_tokens` made their own source contain no CSS at all —
+    they call `ui_tokens.document_head(...)` and the stylesheet is assembled at run
+    time. A census that only reads the file therefore reported every ported page as
+    groundless and dark-only, which is the opposite of what the port achieved. Reading
+    the composed sheet is what keeps the measurement about the rendered page rather
+    than about where its bytes happen to live.
+    """
+    if "ui_tokens" in text:
+        return text + ui_tokens.TOKENS + ui_tokens.PAGE_CSS
+    return text
+
+
 def _surface_row(rel, role, entry, served):
     """One surface, read from source.
 
@@ -261,10 +271,14 @@ def _surface_row(rel, role, entry, served):
     if not os.path.exists(path):
         return None
     with open(path, encoding="utf-8") as fh:
-        text = fh.read()
+        source = fh.read()
+    text = _effective_css(source)
     hexes = sorted({m.group(0).lower() for m in _HEX.finditer(text)})
-    m = _GROUND.search(text) or _BGVAR.search(text)
-    ground = (m.group(1).lower() if m else (hexes[0] if hexes else "#000000"))
+    m = _GROUND.search(text)
+    ground = _resolve_colour(m.group(1), text) if m else None
+    if ground is None:
+        m = _BGVAR.search(text)
+        ground = m.group(1).lower() if m else (hexes[0] if hexes else "#000000")
     if len(ground) == 4:
         ground = "#" + "".join(c * 2 for c in ground[1:])
     lum = relative_luminance(ground)
@@ -280,8 +294,10 @@ def _surface_row(rel, role, entry, served):
         "themes": themes,
         "theme_aware": len(themes) == 2,
         "distinct_hexes": len(hexes),
-        "external_hosts": sorted({m.group(1) for m in _HOST.finditer(text)}),
-        "shares_tokens": TOKENS_HREF in text,
+        "external_hosts": sorted({m.group(1) for m in _HOST.finditer(source)}),
+        # Either route to the one palette counts: importing `ui_tokens` (the standalone
+        # pages, which must inline their CSS) or linking the served stylesheet.
+        "shares_tokens": "ui_tokens" in source or TOKENS_HREF in source,
     }
 
 

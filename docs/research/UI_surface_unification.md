@@ -1,12 +1,25 @@
-# One server, one token system — and a node view that admits when a chart doesn't apply
+# One palette, seven surfaces — and a node view that admits when a chart doesn't apply
 
-**Status:** built, measured, guarded. **Tool:** `tools/research_ui.py`.
-**Guard:** `tests/test_research_ui.py`.
+**Status:** built, ported, measured, guarded. **Palette:** `tools/ui_tokens.py`.
+**Server:** `tools/research_ui.py`. **Guard:** `tests/test_research_ui.py`.
 **Run it:** `python3 tools/research_ui.py serve` → <http://127.0.0.1:8801/>
+**Re-measure:** `python3 tools/research_ui.py surfaces`
+
+> **Two stages.** [`F231`](../../RESEARCH_WEB.md) measured the fragmentation and built one
+> shell around it. [`F232`](../../RESEARCH_WEB.md) is the port: every surface this
+> repository controls now draws from one palette. The before/after:
+>
+> | | surfaces | grounds | theme-aware | share tokens | copies of the lab sheet |
+> |---|---:|---:|---:|---:|---:|
+> | before (F231) | 7 | 5 | 1 | 1 | 3 |
+> | after (F232) | 7 | **2** | **6** | **6** | **0** |
+>
+> The one remaining second ground is `live/templates/dashboard.html`, which is **fenced**
+> — `live/**` is not modifiable here — so it is measured and reported, never touched.
 
 ---
 
-## The measurement
+## The measurement that started it
 
 Six HTML surfaces existed in this repository and shared nothing:
 
@@ -21,7 +34,8 @@ Six HTML surfaces existed in this repository and shared nothing:
 
 **Four grounds · five independently-authored CSS blocks · zero shared tokens · zero
 pages answering `prefers-color-scheme` · one CDN dependency the repo's own banner admits
-often fails ([`F216`](../../RESEARCH_WEB.md)).**
+often fails ([`F216`](../../RESEARCH_WEB.md)).** *(All six now share `ui_tokens.py`; see
+[the port](#the-port-f232).)*
 
 Every row is extracted from source when the tool runs. A surface's theme support is
 *derived*, not declared: a page supports a theme if it answers
@@ -142,13 +156,62 @@ anyone writes a guard naming a dead one; only the union is stable, which is why
 `test_config_reachability.py` pins **29** and not the split. The doc now says so instead
 of quoting an unstable number as if it were the census.
 
+## The port (F232)
+
+`tools/ui_tokens.py` holds the palette and the shared document chrome. It **imports
+nothing** — deliberately: `research_ui` imports `ctx`, and `ctx` needs the tokens, so
+anything the palette imported would close a cycle. That is why it is a third module
+rather than a constant living in either consumer.
+
+The three lab pages differed in exactly one meaningful way: content width (1100, 1100,
+1250). That is now the `max_width` argument to `document_head`. **The thing that varied
+became a parameter; the thing that shouldn't have varied became one definition** — and a
+guard asserts content width is still the *only* difference between two widths of the
+generated sheet, so a second fork cannot creep back in unnoticed.
+
+### `ctx graph`'s light theme was already written and unreachable
+
+Every colour on the context map was authored as `dark ? <dark> : <light>` — and then
+pinned by `const dark = true`. **The light half had never rendered.** This is the
+dead-lever shape of [`F145`](../../RESEARCH_WEB.md)'s no-reader knobs and
+[`F224`](../../RESEARCH_WEB.md)'s compute-only flag, one layer up in the UI: a written,
+complete, unreachable branch.
+
+Binding `dark` to `prefers-color-scheme` (plus a `data-theme` override and a
+`MutationObserver`, so an explicit choice wins in both directions) made the existing half
+reachable. **No colours were invented.** A guard checks the light branch still carries
+values *different* from the dark one — a reachable branch that has become a copy of its
+sibling is reachable and meaningless.
+
+`paintTheme()` re-applies what CSS cannot reach: d3 writes colours into SVG attributes,
+so a token swap alone would leave the canvas painted for the old theme.
+
+### One thing the port did not fix, stated plainly
+
+The map still fetches d3 from `cdnjs.cloudflare.com`, and that host is unreachable from
+this environment — so **the map's canvas could not be visually verified in either
+theme.** What renders here is the page's own fail-loud banner, which is the correct
+behaviour ([`F216`](../../RESEARCH_WEB.md)) and is itself now token-styled. The chrome
+was verified in both themes at 1320px and 420px; the canvas was not. The guards assert
+the wiring, not the pixels, and say so.
+
+### A defect the port introduced, and the census caught
+
+Porting the labs made their own source contain no CSS at all — they call
+`ui_tokens.document_head(...)` and the stylesheet is assembled at run time. The census
+reads *files*, so it promptly reported every ported page as groundless and dark-only:
+the exact opposite of what the port achieved. Fixed by having the census follow the one
+import that matters and measure the **composed** sheet. A measurement that reads where
+the bytes live rather than what the page renders will invert on you the moment the code
+improves.
+
 ## What this does not establish
 
-* It does **not** unify the six surfaces. It puts one shell around them and measures the
-  fragmentation. Adoption is the next step and the guards are written to fail when it
-  happens, so the number cannot quietly go stale in the good direction.
-* It does **not** touch `live/**` or any strategy code. Nothing here changes a backtest
-  number or a live decision.
+* It does **not** cover `live/**`. The trading dashboard keeps its own palette because it
+  is fenced; porting it is a one-line owner decision plus a re-measurement, and the
+  guards are written to fail when it happens.
+* It does **not** close the CDN dependency. That is F216 and it is still open.
+* It does **not** touch strategy code. No backtest or live number moves.
 * The chart patterns are a rendering vocabulary, not a claim about which is *best* for a
   node. A node supporting five renderings is not better evidenced than one supporting
   two — it has more shapes of data, which is a different property.

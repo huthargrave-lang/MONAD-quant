@@ -33,6 +33,11 @@ from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
 
+_TOOLS = str(Path(__file__).resolve().parent)
+if _TOOLS not in sys.path:
+    sys.path.insert(0, _TOOLS)
+import ui_tokens  # noqa: E402  — the one palette; see F231
+
 REPO = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = (
     REPO
@@ -1048,34 +1053,16 @@ def render_population_html(payload: Mapping[str, object]) -> str:
             )
         )
     summary = payload["summary"]
-    return """<!doctype html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SEC Form 25 population</title>
-<style>
-body{{font:14px system-ui,sans-serif;margin:0;background:#f5f7fa;color:#172033}}
-header,main{{max-width:1500px;margin:auto;padding:18px 24px}}
-header{{background:#172033;color:white;max-width:none}}
-h1{{margin:0 0 6px}} .muted{{color:#61708a}} header .muted{{color:#c8d2e2}}
-.cards{{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}}
-.card{{background:white;border:1px solid #d9e0ea;border-radius:8px;padding:10px 14px}}
-form{{display:flex;gap:10px;flex-wrap:wrap;align-items:end;background:white;
-padding:12px;border:1px solid #d9e0ea;border-radius:8px}}
-label{{display:flex;flex-direction:column;gap:4px;font-size:12px}}
-input,select,button{{font:inherit;padding:7px;border:1px solid #aeb9c9;border-radius:5px}}
-.table{{overflow:auto;margin-top:14px;background:white;border:1px solid #d9e0ea}}
-table{{border-collapse:collapse;width:100%}} th,td{{padding:8px;border-bottom:1px solid #e6eaf0;
-text-align:left;white-space:nowrap}} th{{position:sticky;top:0;background:#edf1f6}}
-a{{color:#2369b3}} header a{{color:#bcd9ff}}
-</style></head><body>
-<header><h1>SEC Form 25-NSE population</h1>
+    return """{head}
+<body>
+<div class="masthead"><div class="inner"><h1>SEC Form 25-NSE population</h1>
 <div class="muted">Read-only SQLite projection · transformed official metadata ·
-not a return signal</div><a href="/">← context map</a></header>
-<main><div class="cards">
-<div class="card"><b>{census}</b><br><span class="muted">unique accessions</span></div>
-<div class="card"><b>{issuers}</b><br><span class="muted">subject issuers</span></div>
-<div class="card"><b>{sample}</b><br><span class="muted">content-enriched sample</span></div>
-<div class="card"><b>{matches}</b><br><span class="muted">current matches</span></div>
+not a return signal</div><a href="/">← context map</a></div></div>
+<div class="wrap"><div class="cards">
+<div class="card"><b>{census}</b><span class="muted">unique accessions</span></div>
+<div class="card"><b>{issuers}</b><span class="muted">subject issuers</span></div>
+<div class="card"><b>{sample}</b><span class="muted">content-enriched sample</span></div>
+<div class="card"><b>{matches}</b><span class="muted">current matches</span></div>
 </div>
 <form method="get">
 <label>search<input name="q" value="{q}" placeholder="issuer, accession, security"></label>
@@ -1093,7 +1080,16 @@ exist only for the frozen 100-filing sample.</p>
 <div class="table"><table><thead><tr><th>filed</th><th>accession</th>
 <th>subject issuer</th><th>exchange</th><th>sampled</th><th>window</th>
 <th>security</th><th>rule</th><th>reason</th></tr></thead>
-<tbody>{rows}</tbody></table></div></main></body></html>""".format(
+<tbody>{rows}</tbody></table></div></div></body></html>""".format(
+        head=ui_tokens.document_head(
+            "SEC Form 25 population", "1500px",
+            # This page is a wide filterable grid, the only surface with a sticky
+            # header row; `th` needs a solid ground to scroll under, which the shared
+            # sheet already gives it, plus the stickiness itself.
+            extra_css="th{position:sticky;top:0;z-index:1}"
+                      "td,th{white-space:nowrap}"
+                      ".table{max-height:70vh;overflow:auto;border:1px solid var(--rule);"
+                      "border-radius:9px;background:var(--surface);margin-top:14px}"),
         census=esc(summary["census_rows"]),
         issuers=esc(summary["unique_census_issuers"]),
         sample=esc(summary["sample_rows"]),

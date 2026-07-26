@@ -19,10 +19,16 @@ import html
 import json
 import os
 import sqlite3
+import sys
 import tempfile
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence
 
+
+_TOOLS = str(Path(__file__).resolve().parent)
+if _TOOLS not in sys.path:
+    sys.path.insert(0, _TOOLS)
+import ui_tokens  # noqa: E402  — the one palette; see F231
 
 REPO = Path(__file__).resolve().parents[1]
 DEFAULT_FIXTURE = (
@@ -702,21 +708,15 @@ def render_events_html(payload: Mapping[str, object]) -> str:
             "<th>Action</th><th>First asserted in</th></tr></thead><tbody>{}</tbody>"
             "</table></section>"
         ).format(esc(as_of["as_of_revision_id"]), rows)
-    return """<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport"
-content="width=device-width,initial-scale=1"><title>MONAD research events</title>
-<style>
-body{{max-width:1100px;margin:32px auto;padding:0 18px;background:#080b12;color:#edf2ff;
-font:14px system-ui,sans-serif}}a{{color:#85b7eb}}article,section{{background:#101622;
-border:1px solid #263043;border-radius:10px;padding:14px;margin:12px 0}}
-h1,h2,h3{{margin:0 0 8px}}p{{color:#aebbd0}}table{{width:100%;border-collapse:collapse}}
-th,td{{text-align:left;padding:7px;border-bottom:1px solid #263043}}
-code{{color:#fac775}}.note{{padding:10px;border-left:3px solid #fac775;color:#c8d1e2}}
-</style></head><body><h1>MONAD research-event ledger</h1>
+    return """{head}
+<body><div class="wrap"><h1>MONAD research-event ledger</h1>
 <p class="note">Disposable SQLite projection. Versioned fixtures remain authoritative;
-licensed source documents and raw databases are not published.</p>{}{}{}
-</body></html>""".format(
-        "".join(batch_sections), "".join(timeline_sections), as_of_html
+licensed source documents and raw databases are not published.</p>{batches}{timeline}{as_of}
+</div></body></html>""".format(
+        head=ui_tokens.document_head("MONAD research events", "1100px"),
+        batches="".join(batch_sections),
+        timeline="".join(timeline_sections),
+        as_of=as_of_html,
     )
 
 

@@ -25,6 +25,11 @@ from pathlib import Path
 from typing import Callable, Dict, List, Mapping, Optional, Sequence
 
 
+_TOOLS = str(Path(__file__).resolve().parent)
+if _TOOLS not in sys.path:
+    sys.path.insert(0, _TOOLS)
+import ui_tokens  # noqa: E402  — the one palette; see F231
+
 REPO = Path(__file__).resolve().parents[1]
 DEFAULT_FIXTURE = (
     REPO / "docs" / "research" / "data" / "ca00_corporate_action_fixture.json"
@@ -819,23 +824,14 @@ def render_html(payload: Mapping[str, object]) -> str:
             "<table><thead><tr><th>Leg</th><th>Symbol</th><th>Units</th>"
             f"<th>Cash USD</th></tr></thead><tbody>{legs}</tbody></table></section>"
         )
-    return f"""<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport"
-content="width=device-width,initial-scale=1"><title>MONAD corporate actions</title>
-<style>
-body{{max-width:1100px;margin:32px auto;padding:0 18px;background:#080b12;color:#edf2ff;
-font:14px system-ui,sans-serif}}a{{color:#85b7eb}}section{{background:#101622;
-border:1px solid #263043;border-radius:10px;padding:14px;margin:12px 0}}
-h1,h2{{margin:0 0 8px}}p{{color:#aebbd0}}table{{width:100%;border-collapse:collapse}}
-th,td{{text-align:left;padding:7px;border-bottom:1px solid #263043}}
-.note{{padding:10px;border-left:3px solid #fac775;color:#c8d1e2}}
-</style></head><body><h1>Corporate-action outcome ledger</h1>
+    return f"""{ui_tokens.document_head("MONAD corporate actions", "1100px")}
+<body><div class="wrap"><h1>Corporate-action outcome ledger</h1>
 <p class="note">Outcome labels, not a trading signal. Versioned fixtures remain
 authoritative; raw SEC documents and vendor price panels are not published.</p>
-<section><table><thead><tr><th>Symbol</th><th>Action</th><th>Effective</th>
-<th>Outcome label</th><th>Completeness</th></tr></thead>
-<tbody>{''.join(action_rows)}</tbody></table></section>{detail_html}
-</body></html>"""
+<section><div class="table"><table><thead><tr><th>Symbol</th><th>Action</th>
+<th>Effective</th><th>Outcome label</th><th>Completeness</th></tr></thead>
+<tbody>{''.join(action_rows)}</tbody></table></div></section>{detail_html}
+</div></body></html>"""
 
 
 def _default_downloader(symbol: str, start: str, end: str):

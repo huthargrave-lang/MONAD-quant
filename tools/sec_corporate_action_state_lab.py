@@ -24,6 +24,11 @@ from typing import Dict, List, Mapping, Optional, Sequence
 from urllib.parse import quote
 
 
+_TOOLS = str(Path(__file__).resolve().parent)
+if _TOOLS not in sys.path:
+    sys.path.insert(0, _TOOLS)
+import ui_tokens  # noqa: E402  — the one palette; see F231
+
 REPO = Path(__file__).resolve().parents[1]
 DEFAULT_FIXTURE = (
     REPO / "docs" / "research" / "data" / "ca01_sec_state_machine_fixture.json"
@@ -741,24 +746,15 @@ def render_html(payload: Mapping[str, object]) -> str:
             "<th>Dimension</th><th>State</th><th>Role</th><th>Source</th>"
             f"</tr></thead><tbody>{timeline}</tbody></table></section>"
         )
-    return f"""<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport"
-content="width=device-width,initial-scale=1"><title>MONAD SEC action states</title>
-<style>
-body{{max-width:1250px;margin:32px auto;padding:0 18px;background:#080b12;color:#edf2ff;
-font:14px system-ui,sans-serif}}a{{color:#85b7eb}}section{{background:#101622;
-border:1px solid #263043;border-radius:10px;padding:14px;margin:12px 0}}
-h1,h2{{margin:0 0 8px}}p{{color:#aebbd0}}table{{width:100%;border-collapse:collapse}}
-th,td{{text-align:left;padding:7px;border-bottom:1px solid #263043;vertical-align:top}}
-.note{{padding:10px;border-left:3px solid #fac775;color:#c8d1e2}}
-</style></head><body><h1>SEC corporate-action state machine</h1>
+    return f"""{ui_tokens.document_head("MONAD SEC action states", "1250px")}
+<body><div class="wrap"><h1>SEC corporate-action state machine</h1>
 <p class="note">Point-in-time rule: facts enter the state vector at EDGAR
 acceptance, never at a retroactively reported effective date. This is transformed
 official evidence, not a trading signal or proof of investor ingestion.</p>
-<section><table><thead><tr><th>Symbol</th><th>Family</th><th>Assertions</th>
-<th>Dimensions</th><th>First observed</th><th>Last observed</th></tr></thead>
-<tbody>{''.join(chain_rows)}</tbody></table></section>{detail_html}
-</body></html>"""
+<section><div class="table"><table><thead><tr><th>Symbol</th><th>Family</th>
+<th>Assertions</th><th>Dimensions</th><th>First observed</th><th>Last observed</th>
+</tr></thead><tbody>{''.join(chain_rows)}</tbody></table></div></section>{detail_html}
+</div></body></html>"""
 
 
 def _parser() -> argparse.ArgumentParser:

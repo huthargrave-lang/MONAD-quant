@@ -584,8 +584,14 @@ class TestGraphHtmlExplore(unittest.TestCase):
             "Config Value",
             "Code Impact",
             "Area Brief",
-            "--map:#02040a",
-            "const dark=true",
+            # Was `--map:#02040a` / `const dark=true` until F232 ported this page onto
+            # tools/ui_tokens.py. Both pinned the dark-only palette: the first hard-coded
+            # the canvas colour, the second pinned `dark` on and made the light branch —
+            # which was already written — unreachable. The replacements pin the port
+            # itself, so re-hardcoding either would fail here as well.
+            "--map:var(--plane)",
+            "let dark=themePref()",
+            "__TOKENS__",
             "function targetZ",
             "function nodeZ",
             "function init3D",
