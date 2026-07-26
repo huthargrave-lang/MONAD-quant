@@ -20,11 +20,32 @@ What this does NOT do, stated so the tool is not over-read:
 
 * It cannot replay a different RSI *period* or MACD window — those change the indicator,
   and only its value was logged (the F23 territory).
-* It cannot replay the MACD histogram-turn term, which is not logged; the momentum long
-  condition is `(rsi < oversold) & (hist rising)` and only the first half is replayable.
-  So the counts below are an **upper bound** on how often a candidate would fire.
 * It says nothing about fills, PnL or drawdown. It answers "would this bar have been a
   candidate?", not "would the trade have made money".
+
+`replay()` returns MARGINALS — one threshold at a time — and they are upper bounds,
+because each signal has a second condition that was never logged::
+
+    momentum long = (rsi < oversold)   & (macd_hist > prev)
+    volume   long = (z   < -threshold) & (vol_ratio > 1.0)
+
+`macd_hist` and `vol_ratio` are absent from the history. It is tempting to recover them by
+INVERTING the logged signal — on a bar passing the live threshold, `momentum_signal == 1`
+means the hidden term held — and to call a tighter candidate's replay exact. **That is
+unsound, and the reason is F244:** `momentum_signal()` recomputes RSI at the DEFAULT period
+instead of the configured one, so the RSI written to the log is a different series from the
+one the signal compared. A logged `0` is therefore ambiguous — the hidden term may have
+been false, or the signal's RSI may have been above the threshold while the logged RSI sat
+below it. In the committed archive that ambiguity is not theoretical: **18 of 322 bars**
+fired long while the logged RSI was ABOVE the oversold threshold.
+
+So `entry_bounds()` brackets rather than pretending. The `== 1` direction IS sound, which
+gives a real lower bound; `replay()`'s marginal is the upper. On the archive at live
+settings that bracket is 39.4%–81.4% — wide, and honestly wide. **Exact shadow replay is
+blocked on F244 being fixed**, which is the useful thing to know.
+
+Both bounds refuse a candidate LOOSER than live: outside the live-eligible set nothing is
+known about the hidden term at all.
 
 Usage::
 
@@ -82,6 +103,70 @@ def replay(bars: Sequence[dict], oversold: float, overbought: float,
         "vwap_long_pct": round(
             sum(1 for x in z if x < -z_threshold) / (len(z) or 1) * 100, 1),
         "zones_overlap": oversold > overbought,
+    }
+
+
+def known_macd_turns(bars: Sequence[dict], live_oversold: float) -> Dict[str, bool]:
+    """Bars where the MACD-turn term is KNOWN to have held.
+
+    `momentum_signal == 1` implies the term held — that direction is sound. The converse
+    is NOT: `== 0` can mean the term was false OR that the RSI the signal used was above
+    the threshold while the RSI that was LOGGED was below it. Those are different series
+    (see F244: `momentum_signal()` recomputes RSI at the default period instead of the
+    configured one), so a zero is ambiguous and this returns only the sound direction.
+    """
+    known: Dict[str, bool] = {}
+    for b in bars:
+        key = b.get("bar_time")
+        if key is not None and b.get("momentum_signal") == 1:
+            known[key] = True
+    return known
+
+
+def entry_bounds(bars: Sequence[dict], oversold: float, zthresh: float,
+                 live_oversold: float, live_zthresh: float) -> dict:
+    """Bracket a candidate's LONG entry count between a sound lower and upper bound.
+
+    Exact replay is not available. Both signals have a second condition that was never
+    logged (`macd_hist > prev`, `vol_ratio > 1.0`), and the logged RSI is not the series
+    the momentum signal actually compared (F244), so the obvious inversion is unsound in
+    one direction.
+
+    * lower — bars where the hidden term is KNOWN to have held, and the candidate
+      threshold is also met. Every one of these would genuinely have fired.
+    * upper — the marginal: threshold met, hidden term assumed true. `replay()`'s number.
+
+    A candidate LOOSER than live is refused: outside the live-eligible set nothing is
+    known about the hidden term, so the lower bound would silently become meaningless.
+    """
+    if oversold > live_oversold:
+        raise ValueError(
+            "oversold={} is LOOSER than the live {}; nothing is known about the hidden "
+            "term on bars the live config never fired on.".format(oversold, live_oversold))
+    if zthresh < live_zthresh:
+        raise ValueError(
+            "zthresh={} is LOOSER than the live {}; same problem on the volume "
+            "side.".format(zthresh, live_zthresh))
+    macd_known = known_macd_turns(bars, live_oversold)
+    lower, upper = set(), set()
+    for b in bars:
+        key, rsi, z = b.get("bar_time"), b.get("rsi"), b.get("vwap_zscore")
+        if rsi is not None and rsi < oversold:
+            upper.add(key)
+            if macd_known.get(key):
+                lower.add(key)
+        if z is not None and z < -zthresh:
+            upper.add(key)
+            if b.get("volume_signal") == 1:
+                lower.add(key)
+    n = len(bars) or 1
+    return {
+        "bars": len(bars),
+        "lower": len(lower),
+        "upper": len(upper),
+        "lower_pct": round(len(lower) / n * 100, 1),
+        "upper_pct": round(len(upper) / n * 100, 1),
+        "exact": False,
     }
 
 
