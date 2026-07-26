@@ -111,9 +111,62 @@ Consequence: this panel is **decision-stable but vendor-backed**, not clone-only
 reproducible. Regenerating it requires network access to the provider; verifying it
 requires only this repository.
 
+---
+
+## Addendum — this document also holds [`E100`](../../RESEARCH_WEB.md)'s counts
+
+E100 is the experiment node behind the panel, and it was queued as "uncited" long after
+this document was published. Its statements reconcile against the same artifacts:
+
+| E100 states | artifact | field | value |
+|---|---|---|---|
+| the complete Dec-2024 batch has three additions/deletions | `ix00_ndx_december2024_event_replication.json` | `group_summary_percent.{additions,deletions}.n` | 3 / 3 |
+| pooled with complete 2025 it yields nine per side | `ix00_ndx_recent_complete_panel.json` | `security_weighted_summary_percent.{additions,deletions}.n` | 9 / 9 |
+| the 2022 official list has 13 security events | `ix00_ndx_december2022_partial_diagnostic.json` | `coverage.official_events` | 13 |
+| Yahoo supplies only 12 | same | `coverage.analyzed` (and `coverage.complete: false`) | 12 |
+| acquired Splunk is unavailable; the tool records the exclusion | same | `excluded_security` | `SPLK`, deletion |
+| 2022 is barred from the complete panel | `ix00_ndx_recent_complete_panel.json` | `excluded_batches["ndx-2022-12"]` | "incomplete free-provider coverage: SPLK missing" |
+| 2023 excluded — list revised after Seagen | same | `excluded_batches["ndx-2023-12"]` | "…requires security-specific revision clocks" |
+
+Nothing had to be reconstructed. **The gap was that this document names `F111` and never
+named `E100`**, and doc-reachability is measured one hop. F111 does not itself cite the
+document — [`F182`](../../RESEARCH_WEB.md) does — so from E100 the document sits two hops
+away and was invisible.
+
+**Raising the hop limit is the wrong fix, and the cost is measurable.** Re-running the
+reachability walk over the whole web at increasing depth:
+
+| depth | nodes left in the uncited queue |
+|---:|---:|
+| 1 (current) | 51 |
+| 2 | 23 |
+| 3 | 2 |
+| unbounded | 1 |
+
+Depth 2 would silently mark 28 nodes as documented by a document that need not be about
+them; depth 3 all but empties the queue. Reaching *a* document is not the same as reaching
+one that holds *your* figures, and the coupling only holds at one hop. A "the doc names
+the node id" rule fails for a different reason: 19 of the 51 are named in some document,
+but mostly by `EPI00_epistemic_audit.md` and the handoff notes, which *list* nodes as
+audit subjects rather than documenting their numbers.
+
+*(Counts are after the figure-counter fix below, over 166 candidate nodes clearing the
+five-measurement floor; before it the same walk gave 67 / 27 / 4 / 1 over 209.)*
+
+So the fix is the cheap exact one, applied here: **when a study documents a node's
+figures, cite that node.**
+
+E100 also leaves the queue on its own merits once the figure counter stops counting
+non-measurements — see the guard below.
+
 ## Guard
 
 `tests/test_f111_ndx_panel_figures.py` binds every figure F111 states in prose to the
 artifact value it came from, at the precision the prose uses, and re-checks both
 reconciliation identities. If a node's number drifts from its artifact, or an artifact is
 regenerated with different values, it fails and names the pair.
+
+`tests/test_e100_figures_and_measurement_floor.py` binds the table above to the same
+artifacts, and guards the figure-counter fix: ISO timestamps, clock times and index names
+carrying digits are not measurements. E100's "5 figures" were `-07`, `00`, `100`, `12`,
+`13` — a date fragment, a clock fragment, half of "Nasdaq-100", and two real counts.

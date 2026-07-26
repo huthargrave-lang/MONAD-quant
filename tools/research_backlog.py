@@ -112,8 +112,21 @@ def recent_subjects(n: int = RECENT_COMMITS) -> List[str]:
 # whose only numbers are `10-K`/`10-Q`, `FD-00`/`FD-01`, event horizons and train/select
 # split years — reached the top of the uncited queue with "11 figures". A design has
 # specifications, not claims, and asking it to cite evidence for `10-K` is noise.
+#
+# Third pass (E100). Stripping bare years was not enough: an event-study node states
+# its clocks as ISO timestamps and its subject as an index name, so `2026-07-24T15:04`
+# survived as `-07`/`15`, `8:00 p.m.` as `00`, and `Nasdaq-100` as `100`. E100 reached
+# the uncited queue with "5 figures" of which THREE were a date fragment, a clock
+# fragment and half an index name; its only real numbers are the counts 12 and 13. The
+# ISO alternative must come first — the year rule would otherwise consume `2026` and
+# leave the rest of the timestamp behind as separate "figures".
 NOT_A_MEASUREMENT = re.compile(
-    r"\b(?:10-[KQ]|8-K|20-F|13[FDG]|S-\d|N-\d|Form\s+\d+)\b"     # SEC form names
+    r"\b\d{4}-\d{2}-\d{2}"                                        # ISO date …
+    r"(?:T\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)?"   # … and time
+    r"|\b\d{1,2}:\d{2}(?::\d{2})?\s*(?:[ap]\.?m\.?)?"             # clock times
+    r"|\b(?:Nasdaq[- ]100|NDX|S&P\s*(?:500|400|600)"              # index names …
+    r"|Russell\s*(?:1000|2000|3000)|MidCap\s*400|SmallCap\s*600)" # … carrying digits
+    r"|\b(?:10-[KQ]|8-K|20-F|13[FDG]|S-\d|N-\d|Form\s+\d+)\b"     # SEC form names
     r"|\b[A-Z]{2,10}-\d{2}\b"                                     # artifact ids: FD-00
     r"|\b(?:19|20)\d{2}\b"                                        # calendar years
     r"|\b[FDEH]\d+\b",                                            # node ids
