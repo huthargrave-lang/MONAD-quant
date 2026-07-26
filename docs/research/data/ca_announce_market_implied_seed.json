@@ -1,0 +1,223 @@
+{
+  "schema_version": 1,
+  "artifact_id": "ca-announce-market-implied-cash-v1",
+  "generated_at": "2026-07-26T05:43:06.005561+00:00",
+  "research_status": "cash_market_implied_proxy_seed_not_calibrated_model",
+  "price_source": "transformed_fixture_not_live_feed",
+  "raw_market_data_committed": false,
+  "snapshots": [
+    {
+      "snapshot_id": "atvi-msft:2022-01-19",
+      "deal_id": "atvi-msft",
+      "as_of": "2022-01-19",
+      "target_symbol": "ATVI",
+      "target_price": 82.5,
+      "cash_usd_per_share": 95.0,
+      "downside_usd_per_share": 60.0,
+      "expected_days_to_close": 400,
+      "annual_discount_rate": 0.05,
+      "assumptions": [
+        "cash consideration remains $95",
+        "downside fixed at $60 pending a better break-price model",
+        "expected close ~400 calendar days from snapshot"
+      ],
+      "metrics": {
+        "p_close_proxy": 0.7516394041461191,
+        "p_close_proxy_undiscounted": 0.6428571428571429,
+        "gross_spread": 0.13157894736842105,
+        "downside_to_break": 0.2727272727272727,
+        "discount_factor": 0.9466796511855877,
+        "discounted_cash": 89.93456686263083
+      },
+      "is_probability_truth": false,
+      "predictive_for_outcome": false
+    },
+    {
+      "snapshot_id": "twtr-musk:2022-04-26",
+      "deal_id": "twtr-musk",
+      "as_of": "2022-04-26",
+      "target_symbol": "TWTR",
+      "target_price": 51.0,
+      "cash_usd_per_share": 54.2,
+      "downside_usd_per_share": 35.0,
+      "expected_days_to_close": 180,
+      "annual_discount_rate": 0.05,
+      "assumptions": [
+        "cash consideration remains $54.20",
+        "downside fixed at $35 pending a better break-price model"
+      ],
+      "metrics": {
+        "p_close_proxy": 0.8948594063892648,
+        "p_close_proxy_undiscounted": 0.8333333333333333,
+        "gross_spread": 0.059040590405904106,
+        "downside_to_break": 0.3137254901960784,
+        "discount_factor": 0.9756439794722424,
+        "discounted_cash": 52.87990368739554
+      },
+      "is_probability_truth": false,
+      "predictive_for_outcome": false
+    },
+    {
+      "snapshot_id": "sgen-pfe:2023-03-14",
+      "deal_id": "sgen-pfe",
+      "as_of": "2023-03-14",
+      "target_symbol": "SGEN",
+      "target_price": 215.0,
+      "cash_usd_per_share": 229.0,
+      "downside_usd_per_share": 160.0,
+      "expected_days_to_close": 270,
+      "annual_discount_rate": 0.05,
+      "assumptions": [
+        "cash consideration remains $229",
+        "downside fixed at $160 pending a better break-price model"
+      ],
+      "metrics": {
+        "p_close_proxy": 0.9063216387624812,
+        "p_close_proxy_undiscounted": 0.7971014492753623,
+        "gross_spread": 0.0611353711790393,
+        "downside_to_break": 0.2558139534883721,
+        "discount_factor": 0.9636893364824219,
+        "discounted_cash": 220.68485805447463
+      },
+      "is_probability_truth": false,
+      "predictive_for_outcome": false
+    },
+    {
+      "snapshot_id": "atvi-msft:2023-06-15-stress",
+      "deal_id": "atvi-msft",
+      "as_of": "2023-06-15",
+      "target_symbol": "ATVI",
+      "target_price": 78.0,
+      "cash_usd_per_share": 95.0,
+      "downside_usd_per_share": 60.0,
+      "expected_days_to_close": 150,
+      "annual_discount_rate": 0.05,
+      "assumptions": [
+        "regulatory-stress snapshot with wider gross spread",
+        "same downside assumption as announcement snapshot"
+      ],
+      "metrics": {
+        "p_close_proxy": 0.5443351301522708,
+        "p_close_proxy_undiscounted": 0.5142857142857142,
+        "gross_spread": 0.17894736842105263,
+        "downside_to_break": 0.23076923076923078,
+        "discount_factor": 0.9796617252657864,
+        "discounted_cash": 93.0678639002497
+      },
+      "is_probability_truth": false,
+      "predictive_for_outcome": false
+    },
+    {
+      "snapshot_id": "albireo-ipsen:2023-01-10",
+      "deal_id": "albireo-ipsen",
+      "as_of": "2023-01-10",
+      "target_symbol": "ALBO",
+      "target_price": 40.0,
+      "cash_usd_per_share": 42.0,
+      "downside_usd_per_share": 25.0,
+      "expected_days_to_close": 60,
+      "annual_discount_rate": 0.05,
+      "assumptions": [
+        "fixture prices; Ipsen cash term approx $42; CVR ignored in v1 cash proxy"
+      ],
+      "metrics": {
+        "p_close_proxy": 0.900565052637271,
+        "p_close_proxy_undiscounted": 0.8823529411764706,
+        "gross_spread": 0.047619047619047616,
+        "downside_to_break": 0.375,
+        "discount_factor": 0.9918145070108791,
+        "discounted_cash": 41.65620929445692
+      },
+      "is_probability_truth": false,
+      "predictive_for_outcome": false
+    },
+    {
+      "snapshot_id": "cincor-astrazeneca:2023-01-10",
+      "deal_id": "cincor-astrazeneca",
+      "as_of": "2023-01-10",
+      "target_symbol": "CINC",
+      "target_price": 24.5,
+      "cash_usd_per_share": 26.0,
+      "downside_usd_per_share": 15.0,
+      "expected_days_to_close": 45,
+      "annual_discount_rate": 0.05,
+      "assumptions": [
+        "fixture prices; AZ cash term $26"
+      ],
+      "metrics": {
+        "p_close_proxy": 0.8763660579268046,
+        "p_close_proxy_undiscounted": 0.8636363636363636,
+        "gross_spread": 0.057692307692307696,
+        "downside_to_break": 0.3877551020408163,
+        "discount_factor": 0.9938545772700847,
+        "discounted_cash": 25.840219009022203
+      },
+      "is_probability_truth": false,
+      "predictive_for_outcome": false
+    },
+    {
+      "snapshot_id": "duckcreek-vista:2023-01-11",
+      "deal_id": "duckcreek-vista",
+      "as_of": "2023-01-11",
+      "target_symbol": "DCT",
+      "target_price": 18.2,
+      "cash_usd_per_share": 19.0,
+      "downside_usd_per_share": 12.0,
+      "expected_days_to_close": 75,
+      "annual_discount_rate": 0.05,
+      "assumptions": [
+        "fixture prices; Vista take-private $19"
+      ],
+      "metrics": {
+        "p_close_proxy": 0.9109885084275965,
+        "p_close_proxy_undiscounted": 0.8857142857142856,
+        "gross_spread": 0.04210526315789478,
+        "downside_to_break": 0.3406593406593406,
+        "discount_factor": 0.9897786243730395,
+        "discounted_cash": 18.80579386308775
+      },
+      "is_probability_truth": false,
+      "predictive_for_outcome": false
+    },
+    {
+      "snapshot_id": "concert-sun-pharma:2023-01-20",
+      "deal_id": "concert-sun-pharma",
+      "as_of": "2023-01-20",
+      "target_symbol": "CNCE",
+      "target_price": 7.4,
+      "cash_usd_per_share": 8.0,
+      "downside_usd_per_share": 4.0,
+      "expected_days_to_close": 50,
+      "annual_discount_rate": 0.05,
+      "assumptions": [
+        "fixture prices; Sun Pharma cash term $8; CVR ignored"
+      ],
+      "metrics": {
+        "p_close_proxy": 0.8617646594118824,
+        "p_close_proxy_undiscounted": 0.8500000000000001,
+        "gross_spread": 0.07499999999999996,
+        "downside_to_break": 0.4594594594594595,
+        "discount_factor": 0.9931740880277504,
+        "discounted_cash": 7.945392704222003
+      },
+      "is_probability_truth": false,
+      "predictive_for_outcome": false
+    }
+  ],
+  "summary": {
+    "snapshot_count": 8,
+    "deal_ids": [
+      "albireo-ipsen",
+      "atvi-msft",
+      "cincor-astrazeneca",
+      "concert-sun-pharma",
+      "duckcreek-vista",
+      "sgen-pfe",
+      "twtr-musk"
+    ],
+    "mean_p_close_proxy": 0.8308549822317113,
+    "proxy_not_true_probability": true,
+    "stock_and_mixed_deals_unsupported": true
+  },
+  "snapshots_sha256": "7fde6610915498dfb2eeb6f5c5a4d0ed2f0768fbff37c54705463c9afa3cc9e5"
+}

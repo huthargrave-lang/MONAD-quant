@@ -1,0 +1,267 @@
+{
+  "schema_version": 1,
+  "artifact_id": "ca-rhetoric-delta-transparent-seed-v1",
+  "generated_at": "2026-07-26T05:18:47.112070+00:00",
+  "research_status": "transparent_rhetoric_delta_seed_not_predictive_model",
+  "phrase_families": {
+    "closing_window": [
+      "outside date",
+      "end date",
+      "expected to close",
+      "anticipated to close"
+    ],
+    "certainty": [
+      "confident",
+      "highly confident",
+      "no assurance",
+      "cannot be assured",
+      "subject to.*conditions"
+    ],
+    "regulatory": [
+      "antitrust",
+      "hart-scott-rodino",
+      "\\bhsr\\b",
+      "second request",
+      "regulatory approval",
+      "competition.?law"
+    ],
+    "financing": [
+      "financing condition",
+      "debt commitment",
+      "equity commitment",
+      "financing not a condition"
+    ],
+    "litigation": [
+      "litigation",
+      "lawsuit",
+      "complaint was filed",
+      "preliminary injunction"
+    ],
+    "board_recommendation": [
+      "board.*recommends",
+      "recommendation of the board",
+      "withdraw.*recommendation",
+      "change in recommendation"
+    ],
+    "explicit_unknowns": [
+      "unable to predict",
+      "timing.*uncertain",
+      "no clear path",
+      "uncertainty as to when"
+    ]
+  },
+  "raw_documents_committed": false,
+  "predictive_features_allowed": false,
+  "chains": [
+    {
+      "chain_id": "synthetic-regulatory-path-collapse",
+      "deal_id": "synthetic-reg-collapse",
+      "filings": [
+        {
+          "accession": "syn-announce-0001",
+          "observed_at": "2022-09-15T16:00:00-04:00",
+          "role": "announcement",
+          "family_hits": {
+            "closing_window": [
+              "expected to close"
+            ],
+            "certainty": [
+              "confident"
+            ],
+            "regulatory": [
+              "antitrust",
+              "hart-scott-rodino",
+              "regulatory approval"
+            ],
+            "financing": [],
+            "litigation": [],
+            "board_recommendation": [
+              "board.*recommends"
+            ],
+            "explicit_unknowns": []
+          },
+          "presence": {
+            "closing_window": true,
+            "certainty": true,
+            "regulatory": true,
+            "financing": false,
+            "litigation": false,
+            "board_recommendation": true,
+            "explicit_unknowns": false
+          },
+          "delta_from_previous": null,
+          "previous_accession": null
+        },
+        {
+          "accession": "syn-update-0002",
+          "observed_at": "2023-06-01T09:00:00-04:00",
+          "role": "status_update",
+          "family_hits": {
+            "closing_window": [],
+            "certainty": [
+              "no assurance"
+            ],
+            "regulatory": [
+              "antitrust",
+              "second request"
+            ],
+            "financing": [],
+            "litigation": [],
+            "board_recommendation": [
+              "board.*recommends"
+            ],
+            "explicit_unknowns": [
+              "timing.*uncertain"
+            ]
+          },
+          "presence": {
+            "closing_window": false,
+            "certainty": true,
+            "regulatory": true,
+            "financing": false,
+            "litigation": false,
+            "board_recommendation": true,
+            "explicit_unknowns": true
+          },
+          "delta_from_previous": {
+            "closing_window": "disappeared",
+            "certainty": "unchanged",
+            "regulatory": "unchanged",
+            "financing": "unchanged",
+            "litigation": "unchanged",
+            "board_recommendation": "unchanged",
+            "explicit_unknowns": "appeared"
+          },
+          "previous_accession": "syn-announce-0001"
+        },
+        {
+          "accession": "syn-terminate-0003",
+          "observed_at": "2023-12-18T08:00:00-05:00",
+          "role": "termination",
+          "family_hits": {
+            "closing_window": [],
+            "certainty": [],
+            "regulatory": [
+              "regulatory approval"
+            ],
+            "financing": [],
+            "litigation": [],
+            "board_recommendation": [],
+            "explicit_unknowns": [
+              "no clear path",
+              "uncertainty as to when"
+            ]
+          },
+          "presence": {
+            "closing_window": false,
+            "certainty": false,
+            "regulatory": true,
+            "financing": false,
+            "litigation": false,
+            "board_recommendation": false,
+            "explicit_unknowns": true
+          },
+          "delta_from_previous": {
+            "closing_window": "unchanged",
+            "certainty": "disappeared",
+            "regulatory": "unchanged",
+            "financing": "unchanged",
+            "litigation": "unchanged",
+            "board_recommendation": "disappeared",
+            "explicit_unknowns": "unchanged"
+          },
+          "previous_accession": "syn-update-0002"
+        }
+      ],
+      "summary": {
+        "filing_count": 3,
+        "delta_steps": 2,
+        "family_state_changes": 4
+      }
+    },
+    {
+      "chain_id": "synthetic-higher-bid-switch",
+      "deal_id": "synthetic-higher-bid",
+      "filings": [
+        {
+          "accession": "syn-hb-announce-0001",
+          "observed_at": "2023-05-03T08:00:00-04:00",
+          "role": "announcement",
+          "family_hits": {
+            "closing_window": [],
+            "certainty": [],
+            "regulatory": [
+              "regulatory approval"
+            ],
+            "financing": [],
+            "litigation": [],
+            "board_recommendation": [
+              "board.*recommends"
+            ],
+            "explicit_unknowns": []
+          },
+          "presence": {
+            "closing_window": false,
+            "certainty": false,
+            "regulatory": true,
+            "financing": false,
+            "litigation": false,
+            "board_recommendation": true,
+            "explicit_unknowns": false
+          },
+          "delta_from_previous": null,
+          "previous_accession": null
+        },
+        {
+          "accession": "syn-hb-switch-0002",
+          "observed_at": "2023-06-26T08:00:00-04:00",
+          "role": "termination_and_new_deal",
+          "family_hits": {
+            "closing_window": [],
+            "certainty": [],
+            "regulatory": [],
+            "financing": [],
+            "litigation": [
+              "complaint was filed"
+            ],
+            "board_recommendation": [
+              "board.*recommends"
+            ],
+            "explicit_unknowns": []
+          },
+          "presence": {
+            "closing_window": false,
+            "certainty": false,
+            "regulatory": false,
+            "financing": false,
+            "litigation": true,
+            "board_recommendation": true,
+            "explicit_unknowns": false
+          },
+          "delta_from_previous": {
+            "closing_window": "unchanged",
+            "certainty": "unchanged",
+            "regulatory": "disappeared",
+            "financing": "unchanged",
+            "litigation": "appeared",
+            "board_recommendation": "unchanged",
+            "explicit_unknowns": "unchanged"
+          },
+          "previous_accession": "syn-hb-announce-0001"
+        }
+      ],
+      "summary": {
+        "filing_count": 2,
+        "delta_steps": 1,
+        "family_state_changes": 2
+      }
+    }
+  ],
+  "summary": {
+    "chain_count": 2,
+    "total_family_state_changes": 6,
+    "transparent_baseline_only": true,
+    "embedding_branch_not_run": true
+  },
+  "chains_sha256": "fd00559cb0c684d19d8f3190dc2ad284c97dea0d3aaef10542dfdeb489718ab3"
+}

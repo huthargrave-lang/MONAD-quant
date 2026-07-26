@@ -1830,3 +1830,154 @@ _— captured development@234691a, 2026-07-24_
 For announcement-time deals, convert each new filing into a point-in-time delta against the previous issuer statement: closing-window changes, certainty and condition language, regulatory scope, financing, litigation, board recommendation, and explicit unknowns. Test whether structured and embedding deltas improve calibrated spread plus survival baselines out of sample. Kill if gains depend on future pages, boilerplate, deal leakage, or hindsight-selected phrases.
 Links: [[D16|builds_on]] · [[H71|builds_on]] · [[F124|relates]] · [[F128|relates]].
 _— captured development@234691a, 2026-07-24_
+
+### E111 — CA-ANNOUNCE announcement-time cohort schema seed
+Freeze a six-deal announcement-time cohort schema with fixed censor_on=2025-01-01. Outcomes: 3 close_as_announced, 1 higher_bid, 2 negative_termination, 0 censored. Exact EDGAR announcement clocks only for ATVI/TWTR (from CA-01); four deals remain date-only manual review. Artifact marks baseline_ladder_ready=false and zero_censored_blocks_survival_claim=true. See docs/research/CA_ANNOUNCE_cohort_seed.md and tools/sec_announce_cohort_lab.py.
+Links: [[H71|relates]] · [[E110|builds_on]] · [[E109|builds_on]] · [[D16|relates]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F130 — Announcement cohort schema works; population and censor mass still missing
+The CA-ANNOUNCE schema can encode announcement clocks, three-class holder outcomes, and right-censoring without treating termination-search seeds as a failure population. Amedisys/Option Care must stay higher_bid, not negative_termination. The six-deal pilot is not a forecasting cohort: selection is reviewed/structural, 4/6 announcement clocks are date-only, and zero unresolved deals remain at the 2025-01-01 censor, so survival baselines are blocked until an announcement-search population includes right-censored observations.
+Links: [[E111|evidenced_by]] · [[H71|relates]] · [[F129|builds_on]] · [[D16|relates]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### H73 — CA-ANNOUNCE-POP freeze an SEC announcement-search population with unresolved deals
+Next gate after the schema seed: freeze a real Item 1.01 / definitive-agreement SEC full-text search response, review accession roles, join exact announcement clocks for date-only deals, and force inclusion of still-open deals at the fixed censor before any market-implied, logistic, or survival baseline. Kill if announcement selection depends on eventual resolution or if unresolved deals are dropped.
+Links: [[F130|builds_on]] · [[H71|refines]] · [[H72|relates]] · [[E111|builds_on]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### E112 — CA-ANNOUNCE-POP January 2023 announcement-search discovery frame
+Freeze SEC EFTS query "entered into an Agreement and Plan of Merger" for 8-K filings dated 2023-01-01..2023-01-31. Response sha256 714ce403c957ccad585994e5d913ed7ac2a847568d96ff046d213c1ac425cea4 yields 106 document hits collapsing to 93 unique submissions. Tags Item 1.01/1.02 and SPAC-ish heuristics only; outcomes_assigned=false and right_censor_population_still_open=true. See docs/research/CA_ANNOUNCE_POP_discovery.md.
+Links: [[H73|relates]] · [[E111|builds_on]] · [[F127|builds_on]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F131 — Announcement phrase hits are not entry events: only 47/93 January submissions carry Item 1.01
+The January 2023 announcement-language search collapses 106 docs to 93 submissions, but only 47 carry Item 1.01 and 27 are SPAC-ish by heuristic. Phrase presence therefore mixes true entry announcements with later status/completion quotations of the merger agreement. Extends F127: documents ≠ submissions ≠ deals, and announcement phrases ≠ announcement events. Content review of the Item 1.01 subset is required before outcomes or censor labels.
+Links: [[E112|evidenced_by]] · [[H73|relates]] · [[F127|builds_on]] · [[F130|builds_on]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### E113 — CA-ANNOUNCE cash market-implied proxy seed
+Implement baseline-ladder step 0 for pure-cash deals: p_proxy=clip((price-downside)/(cash-downside),0,1) with optional day-count discounting. Four transformed fixture snapshots on ATVI/TWTR/SGEN; every row marked is_probability_truth=false; stock/mixed unsupported. See docs/research/CA_ANNOUNCE_market_implied.md.
+Links: [[D16|relates]] · [[E111|builds_on]] · [[E110|builds_on]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F132 — Cash market-implied proxy is implementable but is not a calibrated probability
+The cash close-probability proxy formula is deterministic and unit-tested, but fixture prices/downsides are explicit assumptions rather than frozen vendor quotes, and the proxy is uncalibrated to outcomes. Useful only as the hard baseline a later model must beat after a true announcement population exists.
+Links: [[E113|evidenced_by]] · [[D16|relates]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### E114 — CA-RHETORIC transparent phrase-family delta seed
+Extract appeared/disappeared/unchanged deltas across frozen phrase families (closing window, certainty, regulatory, financing, litigation, board recommendation, explicit unknowns) on two synthetic deal chains. Six family-state changes observed. Embedding branch not run. See docs/research/CA_RHETORIC_delta_seed.md.
+Links: [[H72|relates]] · [[E111|builds_on]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F133 — Transparent rhetoric deltas are ready as a pre-embedding baseline
+Successive filings can be reduced to auditable family presence deltas without embeddings. This does not establish predictive value; kill if phrases are chosen after outcomes or if the delta layer cannot beat calibrated spread plus survival baselines on a real announcement population.
+Links: [[E114|evidenced_by]] · [[H72|relates]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F134 — Schema-seed announcement clocks are now exact for all six deals via data.sec.gov
+Joined data.sec.gov acceptance timestamps for SGEN (0001193125-23-068474), Amedisys (0001104659-23-055570), Adobe (0001140361-22-033412), and FHN (0000930413-22-000362) onto the CA-ANNOUNCE schema seed. Combined with CA-01 ATVI/TWTR clocks, exact_announcement_clocks=6/6. Archives.sec.gov raw bytes remain 403 in this environment; acceptance provenance is the submissions API, not committed raw filings.
+Links: [[E111|evidenced_by]] · [[F130|relates]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F135 — January Item 1.01 review can begin from 32 classic-ish submissions after SPAC heuristic tightening
+Tightened SPAC-ish name stems (Capital Corp / SPAC) so Pono Capital Corp leaves the classic-ish bucket. Discovery summary after rebuild: use ctx/artifact for exact counts. A provisional 12-row review spec covers 8 primary January deals (Albireo, CinCor, Duck Creek, Evoqua, IAA, Umpqua, Concert, First Guaranty, DCP) plus counterparties — labels pending raw hash validation and still include zero unresolved/censored deals.
+Links: [[E112|evidenced_by]] · [[F131|builds_on]] · [[H73|relates]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### H74 — CA-ANNOUNCE-REVIEW hash-validate provisional January deal labels and add unresolved censor cases
+Next after F135: validate the provisional January review spec against raw filing markers/acceptance clocks, expand beyond the nine primary deals, and deliberately include still-open deals at censor_on=2025-01-01. Kill if provisional outcomes are treated as final without content hashes or if the reviewed set remains resolution-conditioned.
+Links: [[F135|builds_on]] · [[H73|refines]] · [[E112|builds_on]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### E115 — First Guaranty announcement-to-termination bridge across CA-ANNOUNCE-POP and CA-FAILFRAME
+Join First Guaranty/Lone Star: January 2023 Item 1.01 announcement accession 0001408534-23-000003 (accepted 2023-01-09 via data.sec.gov) to CA-FAILFRAME termination accession 0001408534-23-000060. Same issuer appears in both the announcement-language discovery frame and the termination-language seed, proving the two entry points can meet on one deal without treating either search as a population by itself. Artifact: docs/research/data/ca_announce_failframe_bridge_fgbi.json.
+Links: [[E112|builds_on]] · [[E109|builds_on]] · [[F131|relates]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F136 — Announcement and termination searches can meet on the same deal without either being a cohort
+First Guaranty demonstrates a concrete announcement→termination path spanning CA-ANNOUNCE-POP and CA-FAILFRAME. That is necessary plumbing for population construction, not evidence of base rates: both source queries remain phrase-conditioned, and one bridged deal does not estimate failure probability.
+Links: [[E115|evidenced_by]] · [[H73|relates]] · [[F127|builds_on]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### E116 — CA-ANNOUNCE-REVIEW clock-joined January cohort with right-censor mass
+Build an 11-deal review cohort from the frozen January announcement discovery frame with data.sec.gov acceptance clocks. Outcomes: 8 close_as_announced, 1 negative_termination (First Guaranty), 2 censored at 2025-01-01 (WBA, Orchestra). Five deals remain open at early censor 2023-04-01. Raw EDGAR content hashes not validated. See docs/research/CA_ANNOUNCE_REVIEW_cohort.md.
+Links: [[H74|relates]] · [[E112|builds_on]] · [[F135|builds_on]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F137 — Right-censor mass exists in the January announcement frame: 2/11 deals open at 2025-01-01
+After clock-joining the January review cohort, two deals (WBA, Orchestra) have no target-CIK Form25/2.01/1.02 signal on or before censor_on=2025-01-01, and five of eleven were still open at a 90-day early censor. This flips zero_censored_blocks_survival_claim to false for the reviewed frame. Censored rows remain content-unvalidated and must not be treated as confirmed classic public-target mergers.
+Links: [[E116|evidenced_by]] · [[H74|relates]] · [[F130|builds_on]] · [[F131|builds_on]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F138 — DCP not Phillips 66 is the disappearing security in the January DCP/PSX announcement cluster
+The provisional review had Phillips 66 as primary. Target-CIK resolution scanning shows DCP Midstream carries the Form 25-NSE / completion path (first signal 2023-06-15). PSX is the acquirer counterparty duplicate. Announcement-population primary keys must follow the security whose public float disappears.
+Links: [[E116|evidenced_by]] · [[F112|relates]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### E117 — CA-ANNOUNCE Kaplan-Meier seed on the 11-deal right-censored review cohort
+Compute a descriptive Kaplan-Meier curve on the 11-deal CA-ANNOUNCE-REVIEW cohort (9 events, 2 censored). Median time-to-event-or-censor is 79 days. Artifact docs/research/data/ca_announce_population_km_seed.json is explicitly not_a_population_estimate. Demonstrates that survival tooling can consume the reviewed frame now that right-censor mass exists.
+Links: [[E116|builds_on]] · [[D16|relates]] · [[F137|builds_on]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F139 — Survival tooling can run once right-censor mass exists, but n=11 is not a rate
+The KM seed on CA-ANNOUNCE-REVIEW proves the cohort schema feeds time-to-event code paths. It does not estimate industry completion hazard: sample is hand-reviewed, non-random, content-unvalidated for censored rows, and tiny. Expand and hash-validate before any baseline comparison to market-implied probabilities.
+Links: [[E117|evidenced_by]] · [[F137|builds_on]] · [[D16|relates]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### E118 — FORM4-POP day-sliced Form 4 discovery frame
+Frozen Form 4 EFTS 2024-06-03..07: index 5637 docs/week; day-sliced first-100/day yields 500 submissions balanced across days. Flat from=0 window was newest-day biased (all 400 from 2024-06-07). q=* returns 0 hits. Archives raw.txt is 403 so transaction codes not parsed; open-market cluster labels not assigned. Spec form4_population_spec.json; lab tools/form4_discovery_lab.py; writeup FORM4_POP_discovery.md.
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F140 — Form 4 EFTS needs day-slicing; archives block code P labels
+FORM4-POP: multi-day uncapped from=0 pulls only the newest file_date. Day-sliced caps restore calendar mix for discovery but are not a full population. Raw ownership XML unavailable (sec.gov Archives 403) so transactionCode/open-market cluster thesis remains untested.
+Links: [[E118|evidenced_by]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### E119 — CEF-DISCOUNT Yahoo NAV cheap-minus-rich pilot
+Eight CEFs with Yahoo X{TICKER}X NAV proxies (PDI BDJ BBN UTF HYT EOS NUV RVT; ADX dropped). 60d discount z to 20d: mean cheap-minus-rich price +1.76%, mean corr -0.19, mean discount-change cheap-minus-rich +0.78%. Price-only control also shows MR (high-minus-low -1.50%). first_cut_supports_long_cheap=true but UTF flips sign; descriptive only, no costs. Lab tools/cef_discount_lab.py; artifact cef_discount_pilot_result.json.
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F141 — CEF discount z cheap beats rich on first cut; confounded by price MR
+CEF-DISCOUNT pilot: long-cheap vs rich on discount z is +1.76% over 20d across 8 names, but price-only trail MR is also present (-1.50% high-minus-low). Does not establish a tradable discount-staleness edge after beta/NAV residualization. UTF is a sign flip.
+Links: [[E119|evidenced_by]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### H75 — H75 Form 4 open-market clusters after drawdowns
+Preregister: once Form 4 XML is available, define clusters of open-market buys (code P) after issuer drawdowns and test forward returns. Blocked on archives access; discovery frame E118 only.
+Links: [[E118|builds_on]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### H76 — H76 CEF discount mean-reversion residualized kill
+Preregister: residualize CEF cheap-minus-rich on NAV change and equity beta; kill if residual edge is non-positive after costs proxy. Parent pilot E119.
+Links: [[E119|builds_on]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### E120 — LF-01 NT 10-K 2023 month-sliced discovery
+Month-sliced NT 10-K 2023 (odd months, cap 50/mo): 170 submissions; March deadline cluster dominates (100 of 170). Full-year index 986. Year-level newest-first caps overweight Dec microcaps. Outcomes not assigned. Lab tools/nt_late_filer_lab.py; writeup LF01_NT_late_filer_discovery.md.
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F142 — NT 10-K population is March-deadline clustered; year caps mis-sample
+LF-01: odd-month NT 10-K sample still puts most mass in March. Flat year from=0 discovery is the wrong frame for a late-filer kill test. Need full deadline-window census plus ticker/exchange join before returns.
+Links: [[E120|evidenced_by]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### E121 — DI-01 424B5 at-the-market Q1-2024 discovery and price pilot
+EFTS 424B5 + at-the-market 2024Q1: 463 index hits, capped 100 submissions. Price pilot n=19 vs SPY: median xs_10d -9.3%, median xs_20d -21.6%, 68% negative xs_10d; mean xs_10d +1.1% outlier-pulled. Phrase hit != confirmed ATM takedown. Lab tools/atm_424b5_lab.py.
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F143 — ATM phrase cohort shows median SPY underperformance; mean confounded
+DI-01 descriptive pilot: median excess return negative at 10d/20d on capped Q1 phrase hits, but mean flips positive and sample mixes REITs, biotech, and dead tickers. Not a tradable overhang claim until reviewed ATM subset + broader years.
+Links: [[E121|evidenced_by]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### H77 — H77 NT late-filer matched-control kill after deadline census
+Preregister: full March/extension NT census, liquid tickers only, T+1 to T+20 vs same-week controls; kill if median excess >= -1% or sign unstable 2023 vs 2024.
+Links: [[E120|builds_on]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### H78 — H78 ATM takedown overhang after phrase-to-event review
+Preregister: promote DI-01 phrase hits to reviewed ATM programs; kill if reviewed subset median xs_10d >= -2% and unstable across 2023-2024.
+Links: [[E121|builds_on]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_

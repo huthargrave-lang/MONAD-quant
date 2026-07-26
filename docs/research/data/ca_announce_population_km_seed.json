@@ -1,0 +1,54 @@
+{
+  "n": 11,
+  "events": 9,
+  "censored": 2,
+  "km_curve": [
+    [
+      0,
+      1.0
+    ],
+    [
+      46,
+      0.909091
+    ],
+    [
+      46,
+      0.818182
+    ],
+    [
+      51,
+      0.727273
+    ],
+    [
+      52,
+      0.636364
+    ],
+    [
+      57,
+      0.545455
+    ],
+    [
+      79,
+      0.454545
+    ],
+    [
+      121,
+      0.363636
+    ],
+    [
+      160,
+      0.272727
+    ],
+    [
+      182,
+      0.181818
+    ]
+  ],
+  "median_tte_or_censor": 79,
+  "outcome_counts": {
+    "close_as_announced": 8,
+    "negative_termination": 1,
+    "censored": 2
+  },
+  "not_a_population_estimate": true
+}

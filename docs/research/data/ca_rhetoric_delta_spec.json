@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "spec_id": "ca-rhetoric-delta-transparent-seed-v1",
+  "research_status": "transparent_rhetoric_delta_seed_not_predictive_model",
+  "chains": [
+    {
+      "chain_id": "synthetic-regulatory-path-collapse",
+      "deal_id": "synthetic-reg-collapse",
+      "filings": [
+        {
+          "accession": "syn-announce-0001",
+          "observed_at": "2022-09-15T16:00:00-04:00",
+          "role": "announcement",
+          "inline_text": "ACCESSION NUMBER: syn-announce-0001\nThe parties entered into an Agreement and Plan of Merger. The board recommends that stockholders approve the merger. Closing is subject to regulatory approval and antitrust clearance under the Hart-Scott-Rodino Act. The company is confident the transaction will receive necessary regulatory approval. Expected to close in 2023.",
+          "required_markers": [
+            "board recommends",
+            "hart-scott-rodino",
+            "confident",
+            "expected to close"
+          ]
+        },
+        {
+          "accession": "syn-update-0002",
+          "observed_at": "2023-06-01T09:00:00-04:00",
+          "role": "status_update",
+          "inline_text": "ACCESSION NUMBER: syn-update-0002\nThe Agreement and Plan of Merger remains in effect. The board recommends that stockholders approve the merger. The parties received a second request from antitrust authorities. Timing is uncertain and there is no assurance the transaction will close.",
+          "required_markers": [
+            "second request",
+            "timing is uncertain",
+            "no assurance"
+          ]
+        },
+        {
+          "accession": "syn-terminate-0003",
+          "observed_at": "2023-12-18T08:00:00-05:00",
+          "role": "termination",
+          "inline_text": "ACCESSION NUMBER: syn-terminate-0003\nThe parties mutually agreed to terminate the merger agreement because there is no clear path to receive necessary regulatory approvals. Uncertainty as to when approvals could be obtained led to termination.",
+          "required_markers": [
+            "no clear path",
+            "uncertainty as to when"
+          ]
+        }
+      ]
+    },
+    {
+      "chain_id": "synthetic-higher-bid-switch",
+      "deal_id": "synthetic-higher-bid",
+      "filings": [
+        {
+          "accession": "syn-hb-announce-0001",
+          "observed_at": "2023-05-03T08:00:00-04:00",
+          "role": "announcement",
+          "inline_text": "ACCESSION NUMBER: syn-hb-announce-0001\nThe company entered into an Agreement and Plan of Merger. The board recommends the merger. Closing is subject to regulatory approval. Financing is not a condition to closing.",
+          "required_markers": [
+            "board recommends",
+            "regulatory approval",
+            "financing is not a condition"
+          ]
+        },
+        {
+          "accession": "syn-hb-switch-0002",
+          "observed_at": "2023-06-26T08:00:00-04:00",
+          "role": "termination_and_new_deal",
+          "inline_text": "ACCESSION NUMBER: syn-hb-switch-0002\nThe company and counterparty mutually agreed to terminate the merger agreement. The board recommends that stockholders support a superior proposal with a new counterparty. A complaint was filed regarding the prior process.",
+          "required_markers": [
+            "board recommends",
+            "complaint was filed"
+          ]
+        }
+      ]
+    }
+  ]
+}

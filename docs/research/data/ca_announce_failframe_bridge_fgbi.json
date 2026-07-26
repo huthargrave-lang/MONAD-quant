@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "artifact_id": "ca-announce-failframe-bridge-fgbi-v1",
+  "deal_id": "first-guaranty-lone-star",
+  "research_status": "single_deal_announcement_to_termination_bridge",
+  "announcement": {
+    "accession": "0001408534-23-000003",
+    "file_date": "2023-01-09",
+    "form": "8-K",
+    "items": [
+      "1.01",
+      "7.01",
+      "9.01"
+    ],
+    "has_item_1_01": true,
+    "display_names": [
+      "First Guaranty Bancshares, Inc.  (FGBI, FGBIP)  (CIK 0001408534)"
+    ],
+    "from_discovery_artifact": "ca-announce-pop-2023-01-discovery-v1",
+    "accepted_at_quality": "file_date_only_in_this_bridge"
+  },
+  "termination": {
+    "accession": "0001408534-23-000060",
+    "accepted_at": "2023-07-10T16:30:10-04:00",
+    "event_on": "2023-07-10",
+    "reason_family": "challenging_bank_market",
+    "outcome": "merger_agreement_terminated",
+    "source_sha256": "ed99fd606f84de135f453429f723c1047d5b4d044988ab35ded427f8c516a8df",
+    "from_failframe_artifact": "ca-failframe-2023-mutual-termination-seed-v1"
+  },
+  "calendar_days_file_date_to_event_on": 182,
+  "selected_from_announcement_search": true,
+  "selected_from_termination_search": true,
+  "predictive_features_allowed": false,
+  "notes": [
+    "Bridge proves dual-entry-point joinability.",
+    "Announcement acceptance second not embedded here because offline rebuild uses discovery file_date only."
+  ]
+}

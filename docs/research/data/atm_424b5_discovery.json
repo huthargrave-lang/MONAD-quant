@@ -1,0 +1,1572 @@
+{
+  "artifact_sha256": "10840785de29dbbb523d7ac181e5eb65c3c3679cc6405207afd441a96519f18d",
+  "confirmed_atm_takedown": false,
+  "lab_id": "DI-01",
+  "outcomes_assigned": false,
+  "price_pilot": {
+    "rows": [
+      {
+        "accession": "0001493152-24-008509",
+        "entry_date": "2024-07-25",
+        "file_date": "2024-03-01",
+        "ret_10d": -0.336,
+        "ret_20d": -0.2627,
+        "spy_10d": -0.0367,
+        "spy_20d": 0.0413,
+        "ticker": "XAIR",
+        "xs_10d": -0.2993,
+        "xs_20d": -0.304
+      },
+      {
+        "accession": "0001493152-24-009254",
+        "entry_date": "2024-07-25",
+        "file_date": "2024-03-07",
+        "ret_10d": -0.1523,
+        "ret_20d": -0.2308,
+        "spy_10d": -0.0367,
+        "spy_20d": 0.0413,
+        "ticker": "PETV",
+        "xs_10d": -0.1156,
+        "xs_20d": -0.272
+      },
+      {
+        "accession": "0001193125-24-044580",
+        "entry_date": "2024-07-25",
+        "file_date": "2024-02-23",
+        "ret_10d": -0.0437,
+        "ret_20d": -0.0253,
+        "spy_10d": -0.0367,
+        "spy_20d": 0.0413,
+        "ticker": "APLE",
+        "xs_10d": -0.007,
+        "xs_20d": -0.0665
+      },
+      {
+        "accession": "0001558370-24-000476",
+        "entry_date": "2024-07-25",
+        "file_date": "2024-01-24",
+        "ret_10d": 1.0,
+        "ret_20d": -0.6364,
+        "spy_10d": -0.0367,
+        "spy_20d": 0.0413,
+        "ticker": "AMPE",
+        "xs_10d": 1.0367,
+        "xs_20d": -0.6776
+      },
+      {
+        "accession": "0001193125-24-060784",
+        "entry_date": "2024-07-25",
+        "file_date": "2024-03-06",
+        "ret_10d": -0.2958,
+        "ret_20d": -0.265,
+        "spy_10d": -0.0367,
+        "spy_20d": 0.0413,
+        "ticker": "CIFR",
+        "xs_10d": -0.2591,
+        "xs_20d": -0.3062
+      },
+      {
+        "accession": "0001213900-24-023564",
+        "entry_date": "2024-07-25",
+        "file_date": "2024-03-18",
+        "ret_10d": -0.1299,
+        "ret_20d": -0.0276,
+        "spy_10d": -0.0367,
+        "spy_20d": 0.0413,
+        "ticker": "ORMP",
+        "xs_10d": -0.0932,
+        "xs_20d": -0.0688
+      },
+      {
+        "accession": "0001493152-24-008779",
+        "entry_date": "2024-07-25",
+        "file_date": "2024-03-05",
+        "ret_10d": -0.2845,
+        "ret_20d": -0.2155,
+        "spy_10d": -0.0367,
+        "spy_20d": 0.0413,
+        "ticker": "MVIS",
+        "xs_10d": -0.2478,
+        "xs_20d": -0.2568
+      },
+      {
+        "accession": "0001079973-24-000170",
+        "entry_date": "2024-07-25",
+        "file_date": "2024-02-01",
+        "ret_10d": -0.0837,
+        "ret_20d": -0.0558,
+        "spy_10d": -0.0367,
+        "spy_20d": 0.0413,
+        "ticker": "CDIO",
+        "xs_10d": -0.047,
+        "xs_20d": -0.097
+      },
+      {
+        "accession": "0001213900-24-013279",
+        "entry_date": "2024-07-25",
+        "file_date": "2024-02-13",
+        "ret_10d": -0.0053,
+        "ret_20d": -0.107,
+        "spy_10d": -0.0367,
+        "spy_20d": 0.0413,
+        "ticker": "PLUR",
+        "xs_10d": 0.0313,
+        "xs_20d": -0.1482
+      },
+      {
+        "accession": "0001104659-24-027306",
+        "entry_date": "2024-07-25",
+        "file_date": "2024-02-26",
+        "ret_10d": -0.269,
+        "ret_20d": -0.1774,
+        "spy_10d": -0.0367,
+        "spy_20d": 0.0413,
+        "ticker": "CLDX",
+        "xs_10d": -0.2324,
+        "xs_20d": -0.2186
+      },
+      {
+        "accession": "0001193125-24-006650",
+        "entry_date": "2024-07-25",
+        "file_date": "2024-01-11",
+        "ret_10d": -0.2235,
+        "ret_20d": -0.2706,
+        "spy_10d": -0.0367,
+        "spy_20d": 0.0413,
+        "ticker": "SCLX",
+        "xs_10d": -0.1868,
+        "xs_20d": -0.3118
+      },
+      {
+        "accession": "0001193125-24-080832",
+        "entry_date": "2024-07-25",
+        "file_date": "2024-03-28",
+        "ret_10d": -0.3152,
+        "ret_20d": -0.233,
+        "spy_10d": -0.0367,
+        "spy_20d": 0.0413,
+        "ticker": "CLSK",
+        "xs_10d": -0.2785,
+        "xs_20d": -0.2743
+      },
+      {
+        "accession": "0001493152-24-005039",
+        "entry_date": "2024-07-25",
+        "file_date": "2024-02-06",
+        "ret_10d": -0.1635,
+        "ret_20d": -0.125,
+        "spy_10d": -0.0367,
+        "spy_20d": 0.0413,
+        "ticker": "LCTX",
+        "xs_10d": -0.1268,
+        "xs_20d": -0.1663
+      },
+      {
+        "accession": "0001104659-24-028232",
+        "entry_date": "2024-07-25",
+        "file_date": "2024-02-27",
+        "ret_10d": 0.0177,
+        "ret_20d": 0.005,
+        "spy_10d": -0.0367,
+        "spy_20d": 0.0413,
+        "ticker": "AWR",
+        "xs_10d": 0.0544,
+        "xs_20d": -0.0362
+      },
+      {
+        "accession": "0001104659-24-025582",
+        "entry_date": "2024-07-25",
+        "file_date": "2024-02-20",
+        "ret_10d": 0.0867,
+        "ret_20d": 0.1053,
+        "spy_10d": -0.0367,
+        "spy_20d": 0.0413,
+        "ticker": "VTR",
+        "xs_10d": 0.1234,
+        "xs_20d": 0.064
+      },
+      {
+        "accession": "0001628280-24-003894",
+        "entry_date": "2024-07-25",
+        "file_date": "2024-02-08",
+        "ret_10d": -0.1238,
+        "ret_20d": -0.1743,
+        "spy_10d": -0.0367,
+        "spy_20d": 0.0413,
+        "ticker": "ARQT",
+        "xs_10d": -0.0871,
+        "xs_20d": -0.2155
+      },
+      {
+        "accession": "0001104659-24-029375",
+        "entry_date": "2024-07-25",
+        "file_date": "2024-02-29",
+        "ret_10d": -0.0119,
+        "ret_20d": 0.083,
+        "spy_10d": -0.0367,
+        "spy_20d": 0.0413,
+        "ticker": "MFA",
+        "xs_10d": 0.0248,
+        "xs_20d": 0.0418
+      },
+      {
+        "accession": "0001558370-24-000541",
+        "entry_date": "2024-07-25",
+        "file_date": "2024-01-25",
+        "ret_10d": 1.0,
+        "ret_20d": -0.6364,
+        "spy_10d": -0.0367,
+        "spy_20d": 0.0413,
+        "ticker": "AMPE",
+        "xs_10d": 1.0367,
+        "xs_20d": -0.6776
+      },
+      {
+        "accession": "0001493152-24-010996",
+        "entry_date": "2024-07-25",
+        "file_date": "2024-03-22",
+        "ret_10d": -0.1635,
+        "ret_20d": -0.125,
+        "spy_10d": -0.0367,
+        "spy_20d": 0.0413,
+        "ticker": "LCTX",
+        "xs_10d": -0.1268,
+        "xs_20d": -0.1663
+      }
+    ],
+    "summary": {
+      "caveat": "phrase hit != ATM takedown; capped newest-biased slice; microcaps dominate; no costs",
+      "descriptive_only": true,
+      "frac_negative_xs_10d": 0.6842,
+      "mean_xs_10d": 0.0105,
+      "median_xs_10d": -0.0932,
+      "median_xs_20d": -0.2155,
+      "n_events_with_price": 19
+    }
+  },
+  "raw_documents_committed": false,
+  "schema_version": 1,
+  "search": {
+    "bias_note": "phrase hit != ATM takedown event; many are shelf boilerplate",
+    "end_date": "2024-03-31",
+    "endpoint": "https://efts.sec.gov/LATEST/search-index",
+    "forms": [
+      "424B5"
+    ],
+    "index_total": 463,
+    "query": "\"at-the-market\"",
+    "response_sha256": "5cbec46bdfea4322396fce51bfe589e160305dbccc8aa7807a601da13039c4c7",
+    "sampling": "first_100_of_index",
+    "start_date": "2024-01-01"
+  },
+  "spec_id": "di01-424b5-atm-2024q1-v1",
+  "submissions": [
+    {
+      "accession": "0000950170-24-007904",
+      "ciks": [
+        "0001833214"
+      ],
+      "display_names": [
+        "SAB Biotherapeutics, Inc.  (SABS, SABSW)  (CIK 0001833214)"
+      ],
+      "file_date": "2024-01-26",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "SABS"
+    },
+    {
+      "accession": "0000950170-24-022047",
+      "ciks": [
+        "0001262104"
+      ],
+      "display_names": [
+        "MEI Pharma, Inc.  (MEIP)  (CIK 0001262104)"
+      ],
+      "file_date": "2024-02-28",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "MEIP"
+    },
+    {
+      "accession": "0000950170-24-034429",
+      "ciks": [
+        "0001779020"
+      ],
+      "display_names": [
+        "Danimer Scientific, Inc.  (DNMR, DNMRW)  (CIK 0001779020)"
+      ],
+      "file_date": "2024-03-21",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "DNMR"
+    },
+    {
+      "accession": "0000950170-24-035357",
+      "ciks": [
+        "0001720580"
+      ],
+      "display_names": [
+        "Adicet Bio, Inc.  (ACET)  (CIK 0001720580)"
+      ],
+      "file_date": "2024-03-22",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "ACET"
+    },
+    {
+      "accession": "0001062993-24-004316",
+      "ciks": [
+        "0001715925"
+      ],
+      "display_names": [
+        "ImmunoPrecise Antibodies Ltd.  (IPA)  (CIK 0001715925)"
+      ],
+      "file_date": "2024-02-23",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "IPA"
+    },
+    {
+      "accession": "0001079973-24-000170",
+      "ciks": [
+        "0001870144"
+      ],
+      "display_names": [
+        "Cardio Diagnostics Holdings, Inc.  (CDIO, CDIOW)  (CIK 0001870144)"
+      ],
+      "file_date": "2024-02-01",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "CDIO"
+    },
+    {
+      "accession": "0001079973-24-000335",
+      "ciks": [
+        "0001476963"
+      ],
+      "display_names": [
+        "Scorpius Holdings, Inc.  (SCPX)  (CIK 0001476963)"
+      ],
+      "file_date": "2024-03-07",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "SCPX"
+    },
+    {
+      "accession": "0001104659-24-004465",
+      "ciks": [
+        "0001093691"
+      ],
+      "display_names": [
+        "PLUG POWER INC  (PLUG)  (CIK 0001093691)"
+      ],
+      "file_date": "2024-01-17",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "PLUG"
+    },
+    {
+      "accession": "0001104659-24-008571",
+      "ciks": [
+        "0001454789"
+      ],
+      "display_names": [
+        "Astria Therapeutics, Inc.  (ATXS)  (CIK 0001454789)"
+      ],
+      "file_date": "2024-01-31",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "ATXS"
+    },
+    {
+      "accession": "0001104659-24-025582",
+      "ciks": [
+        "0000740260"
+      ],
+      "display_names": [
+        "Ventas, Inc.  (VTR)  (CIK 0000740260)"
+      ],
+      "file_date": "2024-02-20",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "VTR"
+    },
+    {
+      "accession": "0001104659-24-027131",
+      "ciks": [
+        "0001093691"
+      ],
+      "display_names": [
+        "PLUG POWER INC  (PLUG)  (CIK 0001093691)"
+      ],
+      "file_date": "2024-02-23",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "PLUG"
+    },
+    {
+      "accession": "0001104659-24-027306",
+      "ciks": [
+        "0000744218"
+      ],
+      "display_names": [
+        "Celldex Therapeutics, Inc.  (CLDX)  (CIK 0000744218)"
+      ],
+      "file_date": "2024-02-26",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "CLDX"
+    },
+    {
+      "accession": "0001104659-24-027927",
+      "ciks": [
+        "0001773427"
+      ],
+      "display_names": [
+        "SpringWorks Therapeutics, Inc.  (SWTX)  (CIK 0001773427)"
+      ],
+      "file_date": "2024-02-27",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "SWTX"
+    },
+    {
+      "accession": "0001104659-24-028232",
+      "ciks": [
+        "0001056903"
+      ],
+      "display_names": [
+        "AMERICAN STATES WATER CO  (AWR)  (CIK 0001056903)"
+      ],
+      "file_date": "2024-02-27",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "AWR"
+    },
+    {
+      "accession": "0001104659-24-028709",
+      "ciks": [
+        "0001442836"
+      ],
+      "display_names": [
+        "Mersana Therapeutics, Inc.  (MRSN)  (CIK 0001442836)"
+      ],
+      "file_date": "2024-02-28",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "MRSN"
+    },
+    {
+      "accession": "0001104659-24-029375",
+      "ciks": [
+        "0001055160"
+      ],
+      "display_names": [
+        "MFA FINANCIAL, INC.  (MFA, MFAN, MFAO, MFA-PB, MFA-PC)  (CIK 0001055160)"
+      ],
+      "file_date": "2024-02-29",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "MFA"
+    },
+    {
+      "accession": "0001104659-24-029410",
+      "ciks": [
+        "0001649904"
+      ],
+      "display_names": [
+        "RHYTHM PHARMACEUTICALS, INC.  (RYTM)  (CIK 0001649904)"
+      ],
+      "file_date": "2024-02-29",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "RYTM"
+    },
+    {
+      "accession": "0001104659-24-030805",
+      "ciks": [
+        "0001558569"
+      ],
+      "display_names": [
+        "iSpecimen Inc.  (ISPC)  (CIK 0001558569)"
+      ],
+      "file_date": "2024-03-05",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "ISPC"
+    },
+    {
+      "accession": "0001104659-24-032965",
+      "ciks": [
+        "0001455365"
+      ],
+      "display_names": [
+        "COGNITION THERAPEUTICS INC  (CGTX)  (CIK 0001455365)"
+      ],
+      "file_date": "2024-03-11",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "CGTX"
+    },
+    {
+      "accession": "0001104659-24-033917",
+      "ciks": [
+        "0001455365"
+      ],
+      "display_names": [
+        "COGNITION THERAPEUTICS INC  (CGTX)  (CIK 0001455365)"
+      ],
+      "file_date": "2024-03-13",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "CGTX"
+    },
+    {
+      "accession": "0001104659-24-033986",
+      "ciks": [
+        "0001158114"
+      ],
+      "display_names": [
+        "APPLIED OPTOELECTRONICS, INC.  (AAOI)  (CIK 0001158114)"
+      ],
+      "file_date": "2024-03-13",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "AAOI"
+    },
+    {
+      "accession": "0001104659-24-035080",
+      "ciks": [
+        "0001806347"
+      ],
+      "display_names": [
+        "Westrock Coffee Co  (WEST, WESTW)  (CIK 0001806347)"
+      ],
+      "file_date": "2024-03-15",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "WEST"
+    },
+    {
+      "accession": "0001104659-24-035154",
+      "ciks": [
+        "0001434524"
+      ],
+      "display_names": [
+        "ClearSign Technologies Corp  (CLIR)  (CIK 0001434524)"
+      ],
+      "file_date": "2024-03-18",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "CLIR"
+    },
+    {
+      "accession": "0001104659-24-036890",
+      "ciks": [
+        "0001781193"
+      ],
+      "display_names": [
+        "QUHUO Ltd  (QH)  (CIK 0001781193)"
+      ],
+      "file_date": "2024-03-21",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "QH"
+    },
+    {
+      "accession": "0001104659-24-039691",
+      "ciks": [
+        "0001781193"
+      ],
+      "display_names": [
+        "QUHUO Ltd  (QH)  (CIK 0001781193)"
+      ],
+      "file_date": "2024-03-27",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "QH"
+    },
+    {
+      "accession": "0001104659-24-040129",
+      "ciks": [
+        "0001411579"
+      ],
+      "display_names": [
+        "AMC ENTERTAINMENT HOLDINGS, INC.  (AMC)  (CIK 0001411579)"
+      ],
+      "file_date": "2024-03-28",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "AMC"
+    },
+    {
+      "accession": "0001140361-24-008935",
+      "ciks": [
+        "0001104506"
+      ],
+      "display_names": [
+        "INSMED Inc  (INSM)  (CIK 0001104506)"
+      ],
+      "file_date": "2024-02-22",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "INSM"
+    },
+    {
+      "accession": "0001178913-24-001152",
+      "ciks": [
+        "0001574565"
+      ],
+      "display_names": [
+        "Evogene Ltd.  (EVGN)  (CIK 0001574565)"
+      ],
+      "file_date": "2024-03-28",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "EVGN"
+    },
+    {
+      "accession": "0001185185-24-000127",
+      "ciks": [
+        "0001326205"
+      ],
+      "display_names": [
+        "IGC Pharma, Inc.  (IGC)  (CIK 0001326205)"
+      ],
+      "file_date": "2024-01-31",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "IGC"
+    },
+    {
+      "accession": "0001185185-24-000300",
+      "ciks": [
+        "0001326205"
+      ],
+      "display_names": [
+        "IGC Pharma, Inc.  (IGC)  (CIK 0001326205)"
+      ],
+      "file_date": "2024-03-22",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "IGC"
+    },
+    {
+      "accession": "0001193125-24-000208",
+      "ciks": [
+        "0001705843"
+      ],
+      "display_names": [
+        "Cibus, Inc.  (CBUS)  (CIK 0001705843)"
+      ],
+      "file_date": "2024-01-02",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "CBUS"
+    },
+    {
+      "accession": "0001193125-24-003492",
+      "ciks": [
+        "0001750284"
+      ],
+      "display_names": [
+        "Olema Pharmaceuticals, Inc.  (OLMA)  (CIK 0001750284)"
+      ],
+      "file_date": "2024-01-05",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "OLMA"
+    },
+    {
+      "accession": "0001193125-24-006150",
+      "ciks": [
+        "0001130310"
+      ],
+      "display_names": [
+        "CENTERPOINT ENERGY INC  (CNP)  (CIK 0001130310)"
+      ],
+      "file_date": "2024-01-11",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "CNP"
+    },
+    {
+      "accession": "0001193125-24-006650",
+      "ciks": [
+        "0001820190"
+      ],
+      "display_names": [
+        "Scilex Holding Co  (SCLX, SCLXW)  (CIK 0001820190)"
+      ],
+      "file_date": "2024-01-11",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "SCLX"
+    },
+    {
+      "accession": "0001193125-24-011343",
+      "ciks": [
+        "0001676725"
+      ],
+      "display_names": [
+        "IDEAYA Biosciences, Inc.  (IDYA)  (CIK 0001676725)"
+      ],
+      "file_date": "2024-01-19",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "IDYA"
+    },
+    {
+      "accession": "0001193125-24-016847",
+      "ciks": [
+        "0000926617"
+      ],
+      "display_names": [
+        "Aspira Women's Health Inc.  (AWH)  (CIK 0000926617)"
+      ],
+      "file_date": "2024-01-26",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "AWH"
+    },
+    {
+      "accession": "0001193125-24-021918",
+      "ciks": [
+        "0001750149"
+      ],
+      "display_names": [
+        "Inhibikase Therapeutics, Inc.  (IKT)  (CIK 0001750149)"
+      ],
+      "file_date": "2024-02-01",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "IKT"
+    },
+    {
+      "accession": "0001193125-24-024867",
+      "ciks": [
+        "0001126956"
+      ],
+      "display_names": [
+        "SPIRE INC  (SR, SR-PA)  (CIK 0001126956)"
+      ],
+      "file_date": "2024-02-06",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "SR"
+    },
+    {
+      "accession": "0001193125-24-026769",
+      "ciks": [
+        "0001835597"
+      ],
+      "display_names": [
+        "PepGen Inc.  (PEPG)  (CIK 0001835597)"
+      ],
+      "file_date": "2024-02-07",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "PEPG"
+    },
+    {
+      "accession": "0001193125-24-028469",
+      "ciks": [
+        "0001497253"
+      ],
+      "display_names": [
+        "ORGANOVO HOLDINGS, INC.  (ONVO)  (CIK 0001497253)"
+      ],
+      "file_date": "2024-02-08",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "ONVO"
+    },
+    {
+      "accession": "0001193125-24-030080",
+      "ciks": [
+        "0001382101"
+      ],
+      "display_names": [
+        "SUTRO BIOPHARMA, INC.  (STRO)  (CIK 0001382101)"
+      ],
+      "file_date": "2024-02-09",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "STRO"
+    },
+    {
+      "accession": "0001193125-24-030132",
+      "ciks": [
+        "0001785530"
+      ],
+      "display_names": [
+        "Werewolf Therapeutics, Inc.  (HOWL)  (CIK 0001785530)"
+      ],
+      "file_date": "2024-02-09",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "HOWL"
+    },
+    {
+      "accession": "0001193125-24-036578",
+      "ciks": [
+        "0001348911"
+      ],
+      "display_names": [
+        "KalVista Pharmaceuticals, Inc.  (KALV)  (CIK 0001348911)"
+      ],
+      "file_date": "2024-02-14",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "KALV"
+    },
+    {
+      "accession": "0001193125-24-036598",
+      "ciks": [
+        "0001878313"
+      ],
+      "display_names": [
+        "MAIA Biotechnology, Inc.  (MAIA)  (CIK 0001878313)"
+      ],
+      "file_date": "2024-02-14",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "MAIA"
+    },
+    {
+      "accession": "0001193125-24-037468",
+      "ciks": [
+        "0000719413"
+      ],
+      "display_names": [
+        "HECLA MINING CO/DE/  (HL, HL-PB)  (CIK 0000719413)"
+      ],
+      "file_date": "2024-02-15",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "HL"
+    },
+    {
+      "accession": "0001193125-24-038515",
+      "ciks": [
+        "0001348911"
+      ],
+      "display_names": [
+        "KalVista Pharmaceuticals, Inc.  (KALV)  (CIK 0001348911)"
+      ],
+      "file_date": "2024-02-16",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "KALV"
+    },
+    {
+      "accession": "0001193125-24-044580",
+      "ciks": [
+        "0001418121"
+      ],
+      "display_names": [
+        "Apple Hospitality REIT, Inc.  (APLE)  (CIK 0001418121)"
+      ],
+      "file_date": "2024-02-23",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "APLE"
+    },
+    {
+      "accession": "0001193125-24-047936",
+      "ciks": [
+        "0001451809"
+      ],
+      "display_names": [
+        "SITIME Corp  (SITM)  (CIK 0001451809)"
+      ],
+      "file_date": "2024-02-27",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "SITM"
+    },
+    {
+      "accession": "0001193125-24-049449",
+      "ciks": [
+        "0001641489"
+      ],
+      "display_names": [
+        "vTv Therapeutics Inc.  (VTVT)  (CIK 0001641489)"
+      ],
+      "file_date": "2024-02-28",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "VTVT"
+    },
+    {
+      "accession": "0001193125-24-060784",
+      "ciks": [
+        "0001819989"
+      ],
+      "display_names": [
+        "Cipher Mining Inc.  (CIFR, CIFRW)  (CIK 0001819989)"
+      ],
+      "file_date": "2024-03-06",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "CIFR"
+    },
+    {
+      "accession": "0001193125-24-060906",
+      "ciks": [
+        "0001272842"
+      ],
+      "display_names": [
+        "AIRGAIN INC  (AIRG)  (CIK 0001272842)"
+      ],
+      "file_date": "2024-03-07",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "AIRG"
+    },
+    {
+      "accession": "0001193125-24-062152",
+      "ciks": [
+        "0001552797"
+      ],
+      "display_names": [
+        "Delek Logistics Partners, LP  (DKL)  (CIK 0001552797)"
+      ],
+      "file_date": "2024-03-07",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "DKL"
+    },
+    {
+      "accession": "0001193125-24-068638",
+      "ciks": [
+        "0001838359"
+      ],
+      "display_names": [
+        "Rigetti Computing, Inc.  (RGTI, RGTIW)  (CIK 0001838359)"
+      ],
+      "file_date": "2024-03-15",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "RGTI"
+    },
+    {
+      "accession": "0001193125-24-069651",
+      "ciks": [
+        "0001666071"
+      ],
+      "display_names": [
+        "Cardlytics, Inc.  (CDLX)  (CIK 0001666071)"
+      ],
+      "file_date": "2024-03-18",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "CDLX"
+    },
+    {
+      "accession": "0001193125-24-075377",
+      "ciks": [
+        "0001604950"
+      ],
+      "display_names": [
+        "scPharmaceuticals Inc.  (SCPH)  (CIK 0001604950)"
+      ],
+      "file_date": "2024-03-22",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "SCPH"
+    },
+    {
+      "accession": "0001193125-24-076472",
+      "ciks": [
+        "0001878313"
+      ],
+      "display_names": [
+        "MAIA Biotechnology, Inc.  (MAIA)  (CIK 0001878313)"
+      ],
+      "file_date": "2024-03-25",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "MAIA"
+    },
+    {
+      "accession": "0001193125-24-077675",
+      "ciks": [
+        "0001623526"
+      ],
+      "display_names": [
+        "Stoke Therapeutics, Inc.  (STOK)  (CIK 0001623526)"
+      ],
+      "file_date": "2024-03-26",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "STOK"
+    },
+    {
+      "accession": "0001193125-24-080800",
+      "ciks": [
+        "0001888654"
+      ],
+      "display_names": [
+        "5E Advanced Materials, Inc.  (FEAM, FEAV)  (CIK 0001888654)"
+      ],
+      "file_date": "2024-03-28",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "FEAM"
+    },
+    {
+      "accession": "0001193125-24-080832",
+      "ciks": [
+        "0000827876"
+      ],
+      "display_names": [
+        "CLEANSPARK, INC.  (CLSK)  (CIK 0000827876)"
+      ],
+      "file_date": "2024-03-28",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "CLSK"
+    },
+    {
+      "accession": "0001193125-24-080862",
+      "ciks": [
+        "0001623526"
+      ],
+      "display_names": [
+        "Stoke Therapeutics, Inc.  (STOK)  (CIK 0001623526)"
+      ],
+      "file_date": "2024-03-28",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "STOK"
+    },
+    {
+      "accession": "0001193125-24-081580",
+      "ciks": [
+        "0001534133"
+      ],
+      "display_names": [
+        "CalciMedica, Inc.  (CALC)  (CIK 0001534133)"
+      ],
+      "file_date": "2024-03-29",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "CALC"
+    },
+    {
+      "accession": "0001193125-24-082047",
+      "ciks": [
+        "0001796129"
+      ],
+      "display_names": [
+        "Vincerx Pharma, Inc.  (VINC)  (CIK 0001796129)"
+      ],
+      "file_date": "2024-03-29",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "VINC"
+    },
+    {
+      "accession": "0001213900-24-001524",
+      "ciks": [
+        "0001500198"
+      ],
+      "display_names": [
+        "NEUROONE MEDICAL TECHNOLOGIES Corp  (NMTC)  (CIK 0001500198)"
+      ],
+      "file_date": "2024-01-05",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "NMTC"
+    },
+    {
+      "accession": "0001213900-24-003397",
+      "ciks": [
+        "0001584371"
+      ],
+      "display_names": [
+        "IceCure Medical Ltd.  (ICCM)  (CIK 0001584371)"
+      ],
+      "file_date": "2024-01-12",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "ICCM"
+    },
+    {
+      "accession": "0001213900-24-004900",
+      "ciks": [
+        "0001601936"
+      ],
+      "display_names": [
+        "Altamira Therapeutics Ltd.  (CYTO)  (CIK 0001601936)"
+      ],
+      "file_date": "2024-01-19",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "CYTO"
+    },
+    {
+      "accession": "0001213900-24-013279",
+      "ciks": [
+        "0001158780"
+      ],
+      "display_names": [
+        "Pluri Inc.  (PLUR)  (CIK 0001158780)"
+      ],
+      "file_date": "2024-02-13",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "PLUR"
+    },
+    {
+      "accession": "0001213900-24-015045",
+      "ciks": [
+        "0001314196"
+      ],
+      "display_names": [
+        "OLB GROUP, INC.  (OLB)  (CIK 0001314196)"
+      ],
+      "file_date": "2024-02-20",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "OLB"
+    },
+    {
+      "accession": "0001213900-24-023564",
+      "ciks": [
+        "0001176309"
+      ],
+      "display_names": [
+        "ORAMED PHARMACEUTICALS INC.  (ORMP)  (CIK 0001176309)"
+      ],
+      "file_date": "2024-03-18",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "ORMP"
+    },
+    {
+      "accession": "0001213900-24-024155",
+      "ciks": [
+        "0001860657"
+      ],
+      "display_names": [
+        "Allarity Therapeutics, Inc.  (ALLR)  (CIK 0001860657)"
+      ],
+      "file_date": "2024-03-20",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "ALLR"
+    },
+    {
+      "accession": "0001214659-24-004375",
+      "ciks": [
+        "0000896493"
+      ],
+      "display_names": [
+        "Ault Alliance, Inc.  (AULT, AULT-PD)  (CIK 0000896493)"
+      ],
+      "file_date": "2024-03-12",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "AULT"
+    },
+    {
+      "accession": "0001437749-23-035620",
+      "ciks": [
+        "0001464343"
+      ],
+      "display_names": [
+        "Atlanticus Holdings Corp  (ATLC, ATLCL, ATLCP, ATLCZ)  (CIK 0001464343)"
+      ],
+      "file_date": "2024-01-02",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "ATLC"
+    },
+    {
+      "accession": "0001437749-24-001388",
+      "ciks": [
+        "0000946486"
+      ],
+      "display_names": [
+        "WINDTREE THERAPEUTICS INC /DE/  (WINT, WINTW)  (CIK 0000946486)"
+      ],
+      "file_date": "2024-01-16",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "WINT"
+    },
+    {
+      "accession": "0001437749-24-001529",
+      "ciks": [
+        "0000728387"
+      ],
+      "display_names": [
+        "Perspective Therapeutics, Inc.  (CATX)  (CIK 0000728387)"
+      ],
+      "file_date": "2024-01-17",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "CATX"
+    },
+    {
+      "accession": "0001437749-24-001643",
+      "ciks": [
+        "0000728387"
+      ],
+      "display_names": [
+        "Perspective Therapeutics, Inc.  (CATX)  (CIK 0000728387)"
+      ],
+      "file_date": "2024-01-18",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "CATX"
+    },
+    {
+      "accession": "0001437749-24-004666",
+      "ciks": [
+        "0001771885"
+      ],
+      "display_names": [
+        "FSD Pharma Inc.  (QNTM)  (CIK 0001771885)"
+      ],
+      "file_date": "2024-02-20",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "QNTM"
+    },
+    {
+      "accession": "0001437749-24-008699",
+      "ciks": [
+        "0001595248"
+      ],
+      "display_names": [
+        "Genprex, Inc.  (GNPX)  (CIK 0001595248)"
+      ],
+      "file_date": "2024-03-20",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "GNPX"
+    },
+    {
+      "accession": "0001477932-24-000577",
+      "ciks": [
+        "0001809750"
+      ],
+      "display_names": [
+        "Edible Garden AG Inc  (EDBL, EDBLW)  (CIK 0001809750)"
+      ],
+      "file_date": "2024-02-07",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "EDBL"
+    },
+    {
+      "accession": "0001477932-24-000622",
+      "ciks": [
+        "0001809750"
+      ],
+      "display_names": [
+        "Edible Garden AG Inc  (EDBL, EDBLW)  (CIK 0001809750)"
+      ],
+      "file_date": "2024-02-09",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "EDBL"
+    },
+    {
+      "accession": "0001493152-24-005039",
+      "ciks": [
+        "0000876343"
+      ],
+      "display_names": [
+        "Lineage Cell Therapeutics, Inc.  (LCTX)  (CIK 0000876343)"
+      ],
+      "file_date": "2024-02-06",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "LCTX"
+    },
+    {
+      "accession": "0001493152-24-006921",
+      "ciks": [
+        "0001812727"
+      ],
+      "display_names": [
+        "Reliance Global Group, Inc.  (RELI, RELIW)  (CIK 0001812727)"
+      ],
+      "file_date": "2024-02-16",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "RELI"
+    },
+    {
+      "accession": "0001493152-24-008509",
+      "ciks": [
+        "0001641631"
+      ],
+      "display_names": [
+        "Beyond Air, Inc.  (XAIR)  (CIK 0001641631)"
+      ],
+      "file_date": "2024-03-01",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "XAIR"
+    },
+    {
+      "accession": "0001493152-24-008779",
+      "ciks": [
+        "0000065770"
+      ],
+      "display_names": [
+        "MICROVISION, INC.  (MVIS)  (CIK 0000065770)"
+      ],
+      "file_date": "2024-03-05",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "MVIS"
+    },
+    {
+      "accession": "0001493152-24-009254",
+      "ciks": [
+        "0001512922"
+      ],
+      "display_names": [
+        "PetVivo Holdings, Inc.  (PETV, PETVW)  (CIK 0001512922)"
+      ],
+      "file_date": "2024-03-07",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "PETV"
+    },
+    {
+      "accession": "0001493152-24-009512",
+      "ciks": [
+        "0000890821"
+      ],
+      "display_names": [
+        "Enveric Biosciences, Inc.  (ENVB)  (CIK 0000890821)"
+      ],
+      "file_date": "2024-03-11",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "ENVB"
+    },
+    {
+      "accession": "0001493152-24-009844",
+      "ciks": [
+        "0001857044"
+      ],
+      "display_names": [
+        "Indaptus Therapeutics, Inc.  (INDP)  (CIK 0001857044)"
+      ],
+      "file_date": "2024-03-13",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "INDP"
+    },
+    {
+      "accession": "0001493152-24-010188",
+      "ciks": [
+        "0001862150"
+      ],
+      "display_names": [
+        "Cingulate Inc.  (CING, CINGW)  (CIK 0001862150)"
+      ],
+      "file_date": "2024-03-18",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "CING"
+    },
+    {
+      "accession": "0001493152-24-010396",
+      "ciks": [
+        "0001718405"
+      ],
+      "display_names": [
+        "HYCROFT MINING HOLDING CORP  (HYMC, HYMCL, HYMCW)  (CIK 0001718405)"
+      ],
+      "file_date": "2024-03-19",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "HYMC"
+    },
+    {
+      "accession": "0001493152-24-010477",
+      "ciks": [
+        "0000008504"
+      ],
+      "display_names": [
+        "AgEagle Aerial Systems Inc.  (UAVS)  (CIK 0000008504)"
+      ],
+      "file_date": "2024-03-19",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "UAVS"
+    },
+    {
+      "accession": "0001493152-24-010507",
+      "ciks": [
+        "0001566610"
+      ],
+      "display_names": [
+        "Verb Technology Company, Inc.  (VERB)  (CIK 0001566610)"
+      ],
+      "file_date": "2024-03-19",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "VERB"
+    },
+    {
+      "accession": "0001493152-24-010996",
+      "ciks": [
+        "0000876343"
+      ],
+      "display_names": [
+        "Lineage Cell Therapeutics, Inc.  (LCTX)  (CIK 0000876343)"
+      ],
+      "file_date": "2024-03-22",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "LCTX"
+    },
+    {
+      "accession": "0001493152-24-012023",
+      "ciks": [
+        "0001566610"
+      ],
+      "display_names": [
+        "Verb Technology Company, Inc.  (VERB)  (CIK 0001566610)"
+      ],
+      "file_date": "2024-03-29",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "VERB"
+    },
+    {
+      "accession": "0001558370-24-000116",
+      "ciks": [
+        "0001374339"
+      ],
+      "display_names": [
+        "ProMIS Neurosciences Inc.  (PMN)  (CIK 0001374339)"
+      ],
+      "file_date": "2024-01-05",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "PMN"
+    },
+    {
+      "accession": "0001558370-24-000476",
+      "ciks": [
+        "0001411906"
+      ],
+      "display_names": [
+        "Ampio Pharmaceuticals, Inc.  (AMPE)  (CIK 0001411906)"
+      ],
+      "file_date": "2024-01-24",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "AMPE"
+    },
+    {
+      "accession": "0001558370-24-000541",
+      "ciks": [
+        "0001411906"
+      ],
+      "display_names": [
+        "Ampio Pharmaceuticals, Inc.  (AMPE)  (CIK 0001411906)"
+      ],
+      "file_date": "2024-01-25",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "AMPE"
+    },
+    {
+      "accession": "0001558370-24-001713",
+      "ciks": [
+        "0001167419"
+      ],
+      "display_names": [
+        "Riot Platforms, Inc.  (RIOT)  (CIK 0001167419)"
+      ],
+      "file_date": "2024-02-26",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "RIOT"
+    },
+    {
+      "accession": "0001628280-24-002722",
+      "ciks": [
+        "0001825079"
+      ],
+      "display_names": [
+        "Velo3D, Inc.  (VLD, VLD-WT)  (CIK 0001825079)"
+      ],
+      "file_date": "2024-01-31",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "VLD"
+    },
+    {
+      "accession": "0001628280-24-003894",
+      "ciks": [
+        "0001787306"
+      ],
+      "display_names": [
+        "Arcutis Biotherapeutics, Inc.  (ARQT)  (CIK 0001787306)"
+      ],
+      "file_date": "2024-02-08",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "ARQT"
+    },
+    {
+      "accession": "0001628280-24-009428",
+      "ciks": [
+        "0001808805"
+      ],
+      "display_names": [
+        "Nautilus Biotechnology, Inc.  (NAUT)  (CIK 0001808805)"
+      ],
+      "file_date": "2024-03-06",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "NAUT"
+    },
+    {
+      "accession": "0001628280-24-012256",
+      "ciks": [
+        "0001087294"
+      ],
+      "display_names": [
+        "CUMBERLAND PHARMACEUTICALS INC  (CPIX)  (CIK 0001087294)"
+      ],
+      "file_date": "2024-03-20",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": "CPIX"
+    },
+    {
+      "accession": "0001654954-24-003439",
+      "ciks": [
+        "0001074828"
+      ],
+      "display_names": [
+        "KNOW LABS, INC.  (KNW)  (CIK 0001074828)"
+      ],
+      "file_date": "2024-03-20",
+      "form": "424B5",
+      "matched_documents": 1,
+      "parsed_ticker": null
+    }
+  ],
+  "summary": {
+    "discovery_frame_not_reviewed_cohort": true,
+    "fetched_document_hits": 100,
+    "phrase_hit_not_takedown_event": true,
+    "submissions_with_parsed_ticker": 99,
+    "unique_submissions": 100
+  }
+}

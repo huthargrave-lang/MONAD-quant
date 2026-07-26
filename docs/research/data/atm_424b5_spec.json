@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "spec_id": "di01-424b5-atm-2024q1-v1",
+  "raw_documents_committed": false,
+  "outcomes_assigned": false,
+  "search": {
+    "endpoint": "https://efts.sec.gov/LATEST/search-index",
+    "query": "\"at-the-market\"",
+    "forms": ["424B5"],
+    "start_date": "2024-01-01",
+    "end_date": "2024-03-31",
+    "sampling": "first_100_of_index",
+    "index_total": 463,
+    "response_sha256": "5cbec46bdfea4322396fce51bfe589e160305dbccc8aa7807a601da13039c4c7",
+    "bias_note": "phrase hit != ATM takedown event; many are shelf boilerplate"
+  }
+}

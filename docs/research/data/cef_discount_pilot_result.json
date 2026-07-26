@@ -1,0 +1,212 @@
+{
+  "artifact_sha256": "5a2e0e709c726acb85d9d41cacf5d4193026925d55314ef7f16ce01104adf1a6",
+  "lab_id": "CEF-DISCOUNT",
+  "price_only_controls": [
+    {
+      "corr_trail_fut": -0.1556,
+      "high_minus_low": -0.0101,
+      "high_quint_fut": -0.0065,
+      "low_quint_fut": 0.0036,
+      "n_pairs": 460,
+      "note": "negative high_minus_low is price MR; not the discount thesis",
+      "ticker": "PDI"
+    },
+    {
+      "corr_trail_fut": -0.2876,
+      "high_minus_low": -0.0235,
+      "high_quint_fut": 0.0019,
+      "low_quint_fut": 0.0254,
+      "n_pairs": 460,
+      "note": "negative high_minus_low is price MR; not the discount thesis",
+      "ticker": "BDJ"
+    },
+    {
+      "corr_trail_fut": -0.2605,
+      "high_minus_low": -0.0238,
+      "high_quint_fut": -0.0163,
+      "low_quint_fut": 0.0075,
+      "n_pairs": 460,
+      "note": "negative high_minus_low is price MR; not the discount thesis",
+      "ticker": "BBN"
+    },
+    {
+      "corr_trail_fut": -0.0589,
+      "high_minus_low": -0.0099,
+      "high_quint_fut": -0.0004,
+      "low_quint_fut": 0.0095,
+      "n_pairs": 460,
+      "note": "negative high_minus_low is price MR; not the discount thesis",
+      "ticker": "UTF"
+    },
+    {
+      "corr_trail_fut": -0.2968,
+      "high_minus_low": -0.0149,
+      "high_quint_fut": -0.0045,
+      "low_quint_fut": 0.0104,
+      "n_pairs": 460,
+      "note": "negative high_minus_low is price MR; not the discount thesis",
+      "ticker": "HYT"
+    },
+    {
+      "corr_trail_fut": -0.0068,
+      "high_minus_low": 0.0043,
+      "high_quint_fut": 0.0182,
+      "low_quint_fut": 0.0138,
+      "n_pairs": 460,
+      "note": "negative high_minus_low is price MR; not the discount thesis",
+      "ticker": "EOS"
+    },
+    {
+      "corr_trail_fut": -0.1817,
+      "high_minus_low": -0.01,
+      "high_quint_fut": -0.0001,
+      "low_quint_fut": 0.0099,
+      "n_pairs": 460,
+      "note": "negative high_minus_low is price MR; not the discount thesis",
+      "ticker": "NUV"
+    },
+    {
+      "corr_trail_fut": -0.2242,
+      "high_minus_low": -0.0324,
+      "high_quint_fut": -0.0053,
+      "low_quint_fut": 0.0271,
+      "n_pairs": 460,
+      "note": "negative high_minus_low is price MR; not the discount thesis",
+      "ticker": "RVT"
+    }
+  ],
+  "rows": [
+    {
+      "cheap_minus_rich_disc_chg": 0.0199,
+      "cheap_minus_rich_price": 0.0289,
+      "cheap_quint_fut_disc_chg": 0.0082,
+      "cheap_quint_fut_price": 0.0077,
+      "corr_discount_z_fut_price": -0.2812,
+      "last_discount": 0.0262,
+      "n_aligned": 501,
+      "n_pairs": 421,
+      "nav_ticker": "XPDIX",
+      "rich_quint_fut_disc_chg": -0.0117,
+      "rich_quint_fut_price": -0.0211,
+      "ticker": "PDI"
+    },
+    {
+      "cheap_minus_rich_disc_chg": 0.0108,
+      "cheap_minus_rich_price": 0.0451,
+      "cheap_quint_fut_disc_chg": 0.005,
+      "cheap_quint_fut_price": 0.0377,
+      "corr_discount_z_fut_price": -0.4787,
+      "last_discount": -0.068,
+      "n_aligned": 501,
+      "n_pairs": 421,
+      "nav_ticker": "XBDJX",
+      "rich_quint_fut_disc_chg": -0.0058,
+      "rich_quint_fut_price": -0.0073,
+      "ticker": "BDJ"
+    },
+    {
+      "cheap_minus_rich_disc_chg": 0.0217,
+      "cheap_minus_rich_price": 0.0214,
+      "cheap_quint_fut_disc_chg": 0.0127,
+      "cheap_quint_fut_price": 0.0133,
+      "corr_discount_z_fut_price": -0.1877,
+      "last_discount": -0.0508,
+      "n_aligned": 501,
+      "n_pairs": 421,
+      "nav_ticker": "XBBNX",
+      "rich_quint_fut_disc_chg": -0.0089,
+      "rich_quint_fut_price": -0.0081,
+      "ticker": "BBN"
+    },
+    {
+      "cheap_minus_rich_disc_chg": -0.0133,
+      "cheap_minus_rich_price": -0.0417,
+      "cheap_quint_fut_disc_chg": -0.0141,
+      "cheap_quint_fut_price": -0.0172,
+      "corr_discount_z_fut_price": 0.33,
+      "last_discount": -0.0226,
+      "n_aligned": 501,
+      "n_pairs": 421,
+      "nav_ticker": "XUTFX",
+      "rich_quint_fut_disc_chg": -0.0008,
+      "rich_quint_fut_price": 0.0246,
+      "ticker": "UTF"
+    },
+    {
+      "cheap_minus_rich_disc_chg": 0.019,
+      "cheap_minus_rich_price": 0.0176,
+      "cheap_quint_fut_disc_chg": 0.008,
+      "cheap_quint_fut_price": 0.0057,
+      "corr_discount_z_fut_price": -0.3544,
+      "last_discount": -0.0817,
+      "n_aligned": 501,
+      "n_pairs": 421,
+      "nav_ticker": "XHYTX",
+      "rich_quint_fut_disc_chg": -0.011,
+      "rich_quint_fut_price": -0.0119,
+      "ticker": "HYT"
+    },
+    {
+      "cheap_minus_rich_disc_chg": -0.007,
+      "cheap_minus_rich_price": 0.0134,
+      "cheap_quint_fut_disc_chg": -0.0024,
+      "cheap_quint_fut_price": 0.0134,
+      "corr_discount_z_fut_price": -0.1084,
+      "last_discount": -0.0876,
+      "n_aligned": 501,
+      "n_pairs": 421,
+      "nav_ticker": "XEOSX",
+      "rich_quint_fut_disc_chg": 0.0046,
+      "rich_quint_fut_price": 0.0,
+      "ticker": "EOS"
+    },
+    {
+      "cheap_minus_rich_disc_chg": 0.0124,
+      "cheap_minus_rich_price": 0.0113,
+      "cheap_quint_fut_disc_chg": 0.008,
+      "cheap_quint_fut_price": 0.0055,
+      "corr_discount_z_fut_price": -0.197,
+      "last_discount": 0.0111,
+      "n_aligned": 501,
+      "n_pairs": 421,
+      "nav_ticker": "XNUVX",
+      "rich_quint_fut_disc_chg": -0.0044,
+      "rich_quint_fut_price": -0.0058,
+      "ticker": "NUV"
+    },
+    {
+      "cheap_minus_rich_disc_chg": -0.001,
+      "cheap_minus_rich_price": 0.0445,
+      "cheap_quint_fut_disc_chg": 0.0005,
+      "cheap_quint_fut_price": 0.0341,
+      "corr_discount_z_fut_price": -0.2607,
+      "last_discount": -0.117,
+      "n_aligned": 501,
+      "n_pairs": 421,
+      "nav_ticker": "XRVTX",
+      "rich_quint_fut_disc_chg": 0.0015,
+      "rich_quint_fut_price": -0.0104,
+      "ticker": "RVT"
+    }
+  ],
+  "schema_version": 1,
+  "source": {
+    "bundle_path": "/private/tmp/monad-cef-pilot",
+    "nav_convention": "X{TICKER}X Yahoo NAV proxy",
+    "nav_endpoint": "https://query1.finance.yahoo.com/v8/finance/chart/{NAV_TICKER}",
+    "price_endpoint": "https://query1.finance.yahoo.com/v8/finance/chart/{TICKER}",
+    "raw_charts_committed": false
+  },
+  "spec_id": "cef-discount-pilot-yahoo-nav-2y-v1",
+  "summary": {
+    "caveat": "descriptive pilot on Yahoo NAV proxies; not tradable edge; UTF can flip sign; no costs/liquidity",
+    "first_cut_supports_long_cheap": true,
+    "horizon_bars": 20,
+    "mean_cheap_minus_rich_disc_chg": 0.0078,
+    "mean_cheap_minus_rich_price": 0.0176,
+    "mean_corr_discount_z_fut_price": -0.1923,
+    "mean_price_only_high_minus_low": -0.015,
+    "tickers": 8,
+    "z_lookback": 60
+  }
+}

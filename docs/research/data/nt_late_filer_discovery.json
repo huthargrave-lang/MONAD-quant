@@ -1,0 +1,2615 @@
+{
+  "artifact_sha256": "b2a51da807ae88318454197ca63d320597877669c7f2e91bf2c02a70a8ca7849",
+  "lab_id": "LF-01",
+  "outcomes_assigned": false,
+  "raw_documents_committed": false,
+  "schema_version": 1,
+  "search": {
+    "bias_note": "month caps avoid pure Dec newest bias; still not full population",
+    "endpoint": "https://efts.sec.gov/LATEST/search-index",
+    "forms": [
+      "NT 10-K"
+    ],
+    "index_year_total_from_full_search": 986,
+    "months": {
+      "2023-01": {
+        "fetched": 6,
+        "index_total": 6
+      },
+      "2023-03": {
+        "fetched": 100,
+        "index_total": 109
+      },
+      "2023-05": {
+        "fetched": 16,
+        "index_total": 16
+      },
+      "2023-07": {
+        "fetched": 6,
+        "index_total": 6
+      },
+      "2023-09": {
+        "fetched": 40,
+        "index_total": 40
+      },
+      "2023-11": {
+        "fetched": 2,
+        "index_total": 2
+      }
+    },
+    "response_sha256": "ad22bd267725c489ec997a66032af0af86062620917ce33733a6c56a7030a10f",
+    "sampling": "month_sliced_first_50_for_months_01_03_05_07_09_11"
+  },
+  "spec_id": "lf01-nt10k-2023-month-sliced-v1",
+  "submissions": [
+    {
+      "accession": "0000095953-23-000004",
+      "ciks": [
+        "0000095953"
+      ],
+      "display_names": [
+        "ASCENT INDUSTRIES CO.  (ACNT)  (CIK 0000095953)"
+      ],
+      "file_date": "2023-03-17",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0000701374-23-000014",
+      "ciks": [
+        "0000701374"
+      ],
+      "display_names": [
+        "Six Flags Entertainment Corp  (CIK 0000701374)"
+      ],
+      "file_date": "2023-03-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0000717538-23-000099",
+      "ciks": [
+        "0000717538"
+      ],
+      "display_names": [
+        "ARROW FINANCIAL CORP  (AROW)  (CIK 0000717538)"
+      ],
+      "file_date": "2023-03-16",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0000867773-23-000020",
+      "ciks": [
+        "0000867773"
+      ],
+      "display_names": [
+        "SUNPOWER CORP  (SPWRQ)  (CIK 0000867773)"
+      ],
+      "file_date": "2023-03-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0000929638-23-000862",
+      "ciks": [
+        "0001705338"
+      ],
+      "display_names": [
+        "Spark Networks SE  (CIK 0001705338)"
+      ],
+      "file_date": "2023-03-16",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0000929638-23-000865",
+      "ciks": [
+        "0001493761"
+      ],
+      "display_names": [
+        "Turtle Beach Corp  (HEAR)  (CIK 0001493761)"
+      ],
+      "file_date": "2023-03-16",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0000950103-23-004124",
+      "ciks": [
+        "0001712463"
+      ],
+      "display_names": [
+        "Ranpak Holdings Corp.  (PACK)  (CIK 0001712463)"
+      ],
+      "file_date": "2023-03-15",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0000950142-23-000558",
+      "ciks": [
+        "0001856314"
+      ],
+      "display_names": [
+        "Clear Secure, Inc.  (YOU)  (CIK 0001856314)"
+      ],
+      "file_date": "2023-03-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0000950142-23-001311",
+      "ciks": [
+        "0001083301"
+      ],
+      "display_names": [
+        "TERAWULF INC.  (WULF)  (CIK 0001083301)"
+      ],
+      "file_date": "2023-05-03",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0000950157-23-000474",
+      "ciks": [
+        "0001312109"
+      ],
+      "display_names": [
+        "Silvergate Capital Corp  (SICP)  (CIK 0001312109)"
+      ],
+      "file_date": "2023-05-11",
+      "file_types": {
+        "NT 10-K/A": 1
+      },
+      "form": "NT 10-K/A",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0000950170-23-008174",
+      "ciks": [
+        "0001592058"
+      ],
+      "display_names": [
+        "Party City Holdco Inc.  (CIK 0001592058)"
+      ],
+      "file_date": "2023-03-15",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0000950170-23-008562",
+      "ciks": [
+        "0001813914"
+      ],
+      "display_names": [
+        "CareMax, Inc.  (CMAX, CMAXW)  (CIK 0001813914)"
+      ],
+      "file_date": "2023-03-17",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0000950170-23-008574",
+      "ciks": [
+        "0001474464"
+      ],
+      "display_names": [
+        "New York REIT Liquidating LLC  (CIK 0001474464)"
+      ],
+      "file_date": "2023-03-17",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0000950170-23-009749",
+      "ciks": [
+        "0000862861"
+      ],
+      "display_names": [
+        "JanOne Inc.  (ALTS)  (CIK 0000862861)"
+      ],
+      "file_date": "2023-03-24",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0000950170-23-016726",
+      "ciks": [
+        "0001778129"
+      ],
+      "display_names": [
+        "TerrAscend Corp.  (TSNDF)  (CIK 0001778129)"
+      ],
+      "file_date": "2023-05-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0000950170-23-050174",
+      "ciks": [
+        "0001834045"
+      ],
+      "display_names": [
+        "Vintage Wine Estates, Inc.  (VWESQ, VWEWQ)  (CIK 0001834045)"
+      ],
+      "file_date": "2023-09-27",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001008654-23-000024",
+      "ciks": [
+        "0001008654"
+      ],
+      "display_names": [
+        "TUPPERWARE BRANDS CORP  (TUP)  (CIK 0001008654)"
+      ],
+      "file_date": "2023-03-16",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001020710-23-000020",
+      "ciks": [
+        "0001020710"
+      ],
+      "display_names": [
+        "DXP ENTERPRISES INC  (DXPE)  (CIK 0001020710)"
+      ],
+      "file_date": "2023-03-17",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001062993-23-005542",
+      "ciks": [
+        "0001385849"
+      ],
+      "display_names": [
+        "ENERGY FUELS INC  (UUUU)  (CIK 0001385849)"
+      ],
+      "file_date": "2023-03-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001091818-23-000169",
+      "ciks": [
+        "0001127993"
+      ],
+      "display_names": [
+        "GALAXY NEXT GENERATION, INC.  (GAXYQ)  (CIK 0001127993)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001096906-23-000514",
+      "ciks": [
+        "0001404804"
+      ],
+      "display_names": [
+        "Omnitek Engineering Corp  (OMTK)  (CIK 0001404804)"
+      ],
+      "file_date": "2023-03-13",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001096906-23-001861",
+      "ciks": [
+        "0000851726"
+      ],
+      "display_names": [
+        "Santa Fe Gold CORP  (CIK 0000851726)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001096906-23-001871",
+      "ciks": [
+        "0001755101"
+      ],
+      "display_names": [
+        "APPlife Digital Solutions Inc  (ALDS)  (CIK 0001755101)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001099910-23-000004",
+      "ciks": [
+        "0001468679"
+      ],
+      "display_names": [
+        "American CryoStem Corp  (CIK 0001468679)"
+      ],
+      "file_date": "2023-01-03",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001099910-23-000047",
+      "ciks": [
+        "0000726516"
+      ],
+      "display_names": [
+        "Direct Investment Holdings Group, Inc.  (CIK 0000726516)"
+      ],
+      "file_date": "2023-03-27",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001104659-23-027497",
+      "ciks": [
+        "0001828248"
+      ],
+      "display_names": [
+        "Churchill Capital Corp VII  (CIK 0001828248)"
+      ],
+      "file_date": "2023-03-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001104659-23-027911",
+      "ciks": [
+        "0001562528"
+      ],
+      "display_names": [
+        "Franklin BSP Realty Trust, Inc.  (FBRT, FBRT-PE)  (CIK 0001562528)"
+      ],
+      "file_date": "2023-03-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001104659-23-032900",
+      "ciks": [
+        "0000837852"
+      ],
+      "display_names": [
+        "IDEANOMICS, INC.  (IDEX)  (CIK 0000837852)"
+      ],
+      "file_date": "2023-03-15",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001104659-23-033352",
+      "ciks": [
+        "0001708055"
+      ],
+      "display_names": [
+        "Ribbon Communications Inc.  (RBBN)  (CIK 0001708055)"
+      ],
+      "file_date": "2023-03-16",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001104659-23-033480",
+      "ciks": [
+        "0001620179"
+      ],
+      "display_names": [
+        "Exela Technologies, Inc.  (XELA, XELAP)  (CIK 0001620179)"
+      ],
+      "file_date": "2023-03-17",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001104659-23-033524",
+      "ciks": [
+        "0001831617"
+      ],
+      "display_names": [
+        "Diversey Holdings, Ltd.  (CIK 0001831617)"
+      ],
+      "file_date": "2023-03-17",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001104659-23-033604",
+      "ciks": [
+        "0000827871"
+      ],
+      "display_names": [
+        "EAGLE PHARMACEUTICALS, INC.  (EGRX)  (CIK 0000827871)"
+      ],
+      "file_date": "2023-03-17",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001104659-23-033906",
+      "ciks": [
+        "0001762359"
+      ],
+      "display_names": [
+        "Acreage Holdings, Inc.  (ACRDF, ACRHF)  (CIK 0001762359)"
+      ],
+      "file_date": "2023-03-17",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001104659-23-033954",
+      "ciks": [
+        "0001819516"
+      ],
+      "display_names": [
+        "Wheels Up Experience Inc.  (UP, WSUPW)  (CIK 0001819516)"
+      ],
+      "file_date": "2023-03-17",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001104659-23-033961",
+      "ciks": [
+        "0001832511"
+      ],
+      "display_names": [
+        "P3 Health Partners Inc.  (PIII, PIIIW)  (CIK 0001832511)"
+      ],
+      "file_date": "2023-03-17",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001104659-23-034363",
+      "ciks": [
+        "0000786947"
+      ],
+      "display_names": [
+        "ACURA PHARMACEUTICALS, INC  (ACUR)  (CIK 0000786947)"
+      ],
+      "file_date": "2023-03-20",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001104659-23-036562",
+      "ciks": [
+        "0001418372"
+      ],
+      "display_names": [
+        "Salamander Innisbrook, LLC  (CIK 0001418372)"
+      ],
+      "file_date": "2023-03-24",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001104659-23-036643",
+      "ciks": [
+        "0001847440"
+      ],
+      "display_names": [
+        "Coliseum Acquisition Corp.  (MITA, MITAU, MITAW)  (CIK 0001847440)"
+      ],
+      "file_date": "2023-03-24",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001104659-23-037643",
+      "ciks": [
+        "0001865200"
+      ],
+      "display_names": [
+        "Southport Acquisition Corp  (PORT, PORTU, PORTW)  (CIK 0001865200)"
+      ],
+      "file_date": "2023-03-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001104659-23-054421",
+      "ciks": [
+        "0000870826"
+      ],
+      "display_names": [
+        "iMedia Brands, Inc.  (CIK 0000870826)"
+      ],
+      "file_date": "2023-05-01",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001104659-23-060882",
+      "ciks": [
+        "0001880151"
+      ],
+      "display_names": [
+        "Liberty Resources Acquisition Corp.  (CIK 0001880151)"
+      ],
+      "file_date": "2023-05-15",
+      "file_types": {
+        "NT 10-K/A": 1
+      },
+      "form": "NT 10-K/A",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001104659-23-100522",
+      "ciks": [
+        "0001823584"
+      ],
+      "display_names": [
+        "ALLIANCE ENTERTAINMENT HOLDING CORP  (AENT, AENTW)  (CIK 0001823584)"
+      ],
+      "file_date": "2023-09-14",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001104659-23-104763",
+      "ciks": [
+        "0001015155"
+      ],
+      "display_names": [
+        "CHARLES & COLVARD LTD  (CTHR)  (CIK 0001015155)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001104659-23-104786",
+      "ciks": [
+        "0001379006"
+      ],
+      "display_names": [
+        "NANOVIRICIDES, INC.  (NNVC)  (CIK 0001379006)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001140361-23-009515",
+      "ciks": [
+        "0001680062"
+      ],
+      "display_names": [
+        "ACM Research, Inc.  (ACMR)  (CIK 0001680062)"
+      ],
+      "file_date": "2023-03-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001140361-23-012271",
+      "ciks": [
+        "0001575051"
+      ],
+      "display_names": [
+        "Sisecam Resources LP  (CIK 0001575051)"
+      ],
+      "file_date": "2023-03-17",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001140361-23-012343",
+      "ciks": [
+        "0001828672"
+      ],
+      "display_names": [
+        "Boxed, Inc.  (CIK 0001828672)"
+      ],
+      "file_date": "2023-03-17",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001161697-23-000262",
+      "ciks": [
+        "0001438901"
+      ],
+      "display_names": [
+        "Auto Parts 4Less Group, Inc.  (FLES)  (CIK 0001438901)"
+      ],
+      "file_date": "2023-05-01",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001161697-23-000264",
+      "ciks": [
+        "0001512886"
+      ],
+      "display_names": [
+        "NEUTRA CORP.  (NTRR)  (CIK 0001512886)"
+      ],
+      "file_date": "2023-05-01",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001171843-23-001340",
+      "ciks": [
+        "0000910638"
+      ],
+      "display_names": [
+        "3D SYSTEMS CORP  (DDD)  (CIK 0000910638)"
+      ],
+      "file_date": "2023-03-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001174947-23-001111",
+      "ciks": [
+        "0000065312"
+      ],
+      "display_names": [
+        "EVI INDUSTRIES, INC.  (EVI)  (CIK 0000065312)"
+      ],
+      "file_date": "2023-09-14",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001185185-23-001002",
+      "ciks": [
+        "0001098009"
+      ],
+      "display_names": [
+        "America Great Health  (AAGH)  (CIK 0001098009)"
+      ],
+      "file_date": "2023-09-25",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001193125-23-056597",
+      "ciks": [
+        "0001800682"
+      ],
+      "display_names": [
+        "Cano Health, Inc.  (CIK 0001800682)"
+      ],
+      "file_date": "2023-03-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001193125-23-057358",
+      "ciks": [
+        "0001690680"
+      ],
+      "display_names": [
+        "NEWMARK GROUP, INC.  (NMRK)  (CIK 0001690680)"
+      ],
+      "file_date": "2023-03-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001193125-23-057403",
+      "ciks": [
+        "0000015615"
+      ],
+      "display_names": [
+        "MASTEC INC  (MTZ)  (CIK 0000015615)"
+      ],
+      "file_date": "2023-03-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001193125-23-058069",
+      "ciks": [
+        "0001616000"
+      ],
+      "display_names": [
+        "Xenia Hotels & Resorts, Inc.  (XHR)  (CIK 0001616000)"
+      ],
+      "file_date": "2023-03-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001193125-23-058103",
+      "ciks": [
+        "0001657573"
+      ],
+      "display_names": [
+        "Xometry, Inc.  (XMTR)  (CIK 0001657573)"
+      ],
+      "file_date": "2023-03-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001193125-23-058338",
+      "ciks": [
+        "0000065770"
+      ],
+      "display_names": [
+        "MICROVISION, INC.  (MVIS)  (CIK 0000065770)"
+      ],
+      "file_date": "2023-03-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001193125-23-067609",
+      "ciks": [
+        "0000706129"
+      ],
+      "display_names": [
+        "HORIZON BANCORP INC /IN/  (HBNC)  (CIK 0000706129)"
+      ],
+      "file_date": "2023-03-10",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001193125-23-068491",
+      "ciks": [
+        "0001391127"
+      ],
+      "display_names": [
+        "Edgio, Inc.  (EGIO)  (CIK 0001391127)"
+      ],
+      "file_date": "2023-03-13",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001193125-23-072566",
+      "ciks": [
+        "0001839839"
+      ],
+      "display_names": [
+        "Janus International Group, Inc.  (JBI)  (CIK 0001839839)"
+      ],
+      "file_date": "2023-03-16",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001193125-23-072672",
+      "ciks": [
+        "0001839341"
+      ],
+      "display_names": [
+        "Core Scientific, Inc./tx  (CORZ, CORZR, CORZW, CORZZ)  (CIK 0001839341)"
+      ],
+      "file_date": "2023-03-16",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001193125-23-073442",
+      "ciks": [
+        "0001813756"
+      ],
+      "display_names": [
+        "WeWork Inc.  (CIK 0001813756)"
+      ],
+      "file_date": "2023-03-17",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001193125-23-073841",
+      "ciks": [
+        "0001823652"
+      ],
+      "display_names": [
+        "Eve Holding, Inc.  (EVEX, EVEX-WT)  (CIK 0001823652)"
+      ],
+      "file_date": "2023-03-17",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001193125-23-132641",
+      "ciks": [
+        "0001777946"
+      ],
+      "display_names": [
+        "IronNet, Inc.  (CIK 0001777946)"
+      ],
+      "file_date": "2023-05-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001193125-23-155433",
+      "ciks": [
+        "0001737927"
+      ],
+      "display_names": [
+        "Canopy Growth Corp  (CGC)  (CIK 0001737927)"
+      ],
+      "file_date": "2023-05-26",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001193125-23-186941",
+      "ciks": [
+        "0001634117"
+      ],
+      "display_names": [
+        "Barnes & Noble Education, Inc.  (BNED)  (CIK 0001634117)"
+      ],
+      "file_date": "2023-07-14",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001213900-23-020615",
+      "ciks": [
+        "0001643953"
+      ],
+      "display_names": [
+        "Purple Innovation, Inc.  (PRPL)  (CIK 0001643953)"
+      ],
+      "file_date": "2023-03-16",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001213900-23-060789",
+      "ciks": [
+        "0001885336"
+      ],
+      "display_names": [
+        "SensaSure Technologies, Inc.  (FOMI)  (CIK 0001885336)"
+      ],
+      "file_date": "2023-07-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001213900-23-079964",
+      "ciks": [
+        "0001807166"
+      ],
+      "display_names": [
+        "Amesite Inc.  (AMST)  (CIK 0001807166)"
+      ],
+      "file_date": "2023-09-27",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001213900-23-080503",
+      "ciks": [
+        "0001865127"
+      ],
+      "display_names": [
+        "Lucy Scientific Discovery, Inc.  (LSDIF)  (CIK 0001865127)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001213900-23-080530",
+      "ciks": [
+        "0001892316"
+      ],
+      "display_names": [
+        "Longduoduo Co Ltd  (LDDD)  (CIK 0001892316)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001213900-23-080581",
+      "ciks": [
+        "0001309057"
+      ],
+      "display_names": [
+        "China Health Industries Holdings, Inc.  (CHHE)  (CIK 0001309057)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001356576-23-000013",
+      "ciks": [
+        "0001356576"
+      ],
+      "display_names": [
+        "SUPERNUS PHARMACEUTICALS, INC.  (SUPN)  (CIK 0001356576)"
+      ],
+      "file_date": "2023-03-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001393905-23-000389",
+      "ciks": [
+        "0000772263"
+      ],
+      "display_names": [
+        "NITCHES INC  (NICH)  (CIK 0000772263)"
+      ],
+      "file_date": "2023-11-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001395942-23-000020",
+      "ciks": [
+        "0001395942"
+      ],
+      "display_names": [
+        "KAR Auction Services, Inc.  (KAR)  (CIK 0001395942)"
+      ],
+      "file_date": "2023-03-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001410708-23-000038",
+      "ciks": [
+        "0001410708"
+      ],
+      "display_names": [
+        "Emo Capital Corp.  (NUVI)  (CIK 0001410708)"
+      ],
+      "file_date": "2023-11-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001437749-23-001162",
+      "ciks": [
+        "0001703956"
+      ],
+      "display_names": [
+        "Concrete Pumping Holdings, Inc.  (BBCP)  (CIK 0001703956)"
+      ],
+      "file_date": "2023-01-17",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001437749-23-005124",
+      "ciks": [
+        "0001220754"
+      ],
+      "display_names": [
+        "ModivCare Inc  (MODV)  (CIK 0001220754)"
+      ],
+      "file_date": "2023-03-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001437749-23-005208",
+      "ciks": [
+        "0000885275"
+      ],
+      "display_names": [
+        "WILSON BANK HOLDING CO  (WBHC)  (CIK 0000885275)"
+      ],
+      "file_date": "2023-03-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001437749-23-006754",
+      "ciks": [
+        "0000095574"
+      ],
+      "display_names": [
+        "SUPERIOR GROUP OF COMPANIES, INC.  (SGC)  (CIK 0000095574)"
+      ],
+      "file_date": "2023-03-16",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001437749-23-006929",
+      "ciks": [
+        "0001499422"
+      ],
+      "display_names": [
+        "RBB Bancorp  (RBB)  (CIK 0001499422)"
+      ],
+      "file_date": "2023-03-16",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001437749-23-006955",
+      "ciks": [
+        "0000894627"
+      ],
+      "display_names": [
+        "VAALCO ENERGY INC /DE/  (EGY)  (CIK 0000894627)"
+      ],
+      "file_date": "2023-03-17",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001437749-23-007049",
+      "ciks": [
+        "0000834365"
+      ],
+      "display_names": [
+        "BIOLIFE SOLUTIONS INC  (BLFS)  (CIK 0000834365)"
+      ],
+      "file_date": "2023-03-17",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001437749-23-007057",
+      "ciks": [
+        "0000834285"
+      ],
+      "display_names": [
+        "REPUBLIC FIRST BANCORP INC  (FRBK, FRBKQ)  (CIK 0000834285)"
+      ],
+      "file_date": "2023-03-17",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001437749-23-012113",
+      "ciks": [
+        "0000797465"
+      ],
+      "display_names": [
+        "HG Holdings, Inc.  (STLY)  (CIK 0000797465)"
+      ],
+      "file_date": "2023-05-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001476840-23-000027",
+      "ciks": [
+        "0001476840"
+      ],
+      "display_names": [
+        "Expensify, Inc.  (EXFY)  (CIK 0001476840)"
+      ],
+      "file_date": "2023-03-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001477932-23-001580",
+      "ciks": [
+        "0001648903"
+      ],
+      "display_names": [
+        "First Foods Group, Inc.  (FIFG)  (CIK 0001648903)"
+      ],
+      "file_date": "2023-03-20",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001477932-23-001773",
+      "ciks": [
+        "0001800373"
+      ],
+      "display_names": [
+        "GOLDENWELL BIOTECH, INC.  (GWLL)  (CIK 0001800373)"
+      ],
+      "file_date": "2023-03-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001477932-23-001815",
+      "ciks": [
+        "0001759424"
+      ],
+      "display_names": [
+        "Evil Empire Designs, Inc.  (EVVL)  (CIK 0001759424)"
+      ],
+      "file_date": "2023-03-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001477932-23-003016",
+      "ciks": [
+        "0001696025"
+      ],
+      "display_names": [
+        "Kindcard, Inc.  (KCRD)  (CIK 0001696025)"
+      ],
+      "file_date": "2023-05-01",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001477932-23-006589",
+      "ciks": [
+        "0001729637"
+      ],
+      "display_names": [
+        "Karbon-X Corp.  (KARX)  (CIK 0001729637)"
+      ],
+      "file_date": "2023-09-01",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001477932-23-006901",
+      "ciks": [
+        "0001437750"
+      ],
+      "display_names": [
+        "T-REX Acquisition Corp.  (TRXA)  (CIK 0001437750)"
+      ],
+      "file_date": "2023-09-15",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001477932-23-007150",
+      "ciks": [
+        "0001481504"
+      ],
+      "display_names": [
+        "XERIANT, INC.  (XERI)  (CIK 0001481504)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001477932-23-007152",
+      "ciks": [
+        "0001530425"
+      ],
+      "display_names": [
+        "Artisan Consumer Goods, Inc.  (ARRT)  (CIK 0001530425)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001477932-23-007171",
+      "ciks": [
+        "0001441082"
+      ],
+      "display_names": [
+        "Healing Co Inc.  (HLCO)  (CIK 0001441082)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001477932-23-007173",
+      "ciks": [
+        "0001331612"
+      ],
+      "display_names": [
+        "INNOVATIVE MEDTECH, INC.  (IMTH)  (CIK 0001331612)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001477932-23-007175",
+      "ciks": [
+        "0001650739"
+      ],
+      "display_names": [
+        "Ajia Innogroup Holdings, Ltd.  (CIK 0001650739)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001477932-23-007185",
+      "ciks": [
+        "0001775194"
+      ],
+      "display_names": [
+        "UPEXI, INC.  (UPXI)  (CIK 0001775194)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001493152-23-000060",
+      "ciks": [
+        "0001109486"
+      ],
+      "display_names": [
+        "Endexx Corp  (EDXC)  (CIK 0001109486)"
+      ],
+      "file_date": "2023-01-03",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001493152-23-006310",
+      "ciks": [
+        "0001900402"
+      ],
+      "display_names": [
+        "Evergreen Corp  (EVGR, EVGRU, EVGRW)  (CIK 0001900402)"
+      ],
+      "file_date": "2023-03-01",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001493152-23-006312",
+      "ciks": [
+        "0001900679"
+      ],
+      "display_names": [
+        "Technology & Telecommunication Acquisition Corp  (TETE, TETEU, TETEW)  (CIK 0001900679)"
+      ],
+      "file_date": "2023-03-01",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001493152-23-006471",
+      "ciks": [
+        "0001429764"
+      ],
+      "display_names": [
+        "Blink Charging Co.  (BLNK)  (CIK 0001429764)"
+      ],
+      "file_date": "2023-03-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001493152-23-007908",
+      "ciks": [
+        "0000894871"
+      ],
+      "display_names": [
+        "Arena Group Holdings, Inc.  (AREN)  (CIK 0000894871)"
+      ],
+      "file_date": "2023-03-16",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001493152-23-007914",
+      "ciks": [
+        "0001888734"
+      ],
+      "display_names": [
+        "GLOBALINK INVESTMENT INC.  (GLLI, GLLIR, GLLIU, GLLIW)  (CIK 0001888734)"
+      ],
+      "file_date": "2023-03-16",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001493152-23-007942",
+      "ciks": [
+        "0001774170"
+      ],
+      "display_names": [
+        "PowerFleet, Inc.  (AIOT)  (CIK 0001774170)"
+      ],
+      "file_date": "2023-03-16",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001493152-23-009218",
+      "ciks": [
+        "0001042187"
+      ],
+      "display_names": [
+        "Yunhong CTI Ltd.  (YHGJ)  (CIK 0001042187)"
+      ],
+      "file_date": "2023-03-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001493152-23-009226",
+      "ciks": [
+        "0001084475"
+      ],
+      "display_names": [
+        "Video River Networks, Inc.  (NIHK)  (CIK 0001084475)"
+      ],
+      "file_date": "2023-03-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001493152-23-009228",
+      "ciks": [
+        "0001049011"
+      ],
+      "display_names": [
+        "KID CASTLE EDUCATIONAL CORP  (KDCE)  (CIK 0001049011)"
+      ],
+      "file_date": "2023-03-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001493152-23-009230",
+      "ciks": [
+        "0001064722"
+      ],
+      "display_names": [
+        "GIVEMEPOWER CORP  (GMPW)  (CIK 0001064722)"
+      ],
+      "file_date": "2023-03-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001493152-23-009236",
+      "ciks": [
+        "0001331421"
+      ],
+      "display_names": [
+        "HALLMARK VENTURE GROUP, INC.  (HLLK)  (CIK 0001331421)"
+      ],
+      "file_date": "2023-03-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001493152-23-009309",
+      "ciks": [
+        "0001174891"
+      ],
+      "display_names": [
+        "CalEthos, Inc.  (GEDC)  (CIK 0001174891)"
+      ],
+      "file_date": "2023-03-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001493152-23-014989",
+      "ciks": [
+        "0001172178"
+      ],
+      "display_names": [
+        "LIBERTY STAR URANIUM & METALS CORP.  (LBSR)  (CIK 0001172178)"
+      ],
+      "file_date": "2023-05-01",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001493152-23-015719",
+      "ciks": [
+        "0001710495"
+      ],
+      "display_names": [
+        "PINEAPPLE EXPRESS CANNABIS Co  (PNXP)  (CIK 0001710495)"
+      ],
+      "file_date": "2023-05-08",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001493152-23-025744",
+      "ciks": [
+        "0000820771"
+      ],
+      "display_names": [
+        "Goliath Film & Media Holdings  (GFMH)  (CIK 0000820771)"
+      ],
+      "file_date": "2023-07-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001493152-23-025749",
+      "ciks": [
+        "0001823635"
+      ],
+      "display_names": [
+        "CXJ GROUP CO., Ltd  (ECXJ)  (CIK 0001823635)"
+      ],
+      "file_date": "2023-07-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001493152-23-034477",
+      "ciks": [
+        "0001008653"
+      ],
+      "display_names": [
+        "Ecomax, Inc  (EMAX)  (CIK 0001008653)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001493152-23-034519",
+      "ciks": [
+        "0000069422"
+      ],
+      "display_names": [
+        "INTERGROUP CORP  (INTG)  (CIK 0000069422)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001493152-23-034521",
+      "ciks": [
+        "0000079661"
+      ],
+      "display_names": [
+        "PORTSMOUTH SQUARE INC  (PRSI)  (CIK 0000079661)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001493152-23-034570",
+      "ciks": [
+        "0001832161"
+      ],
+      "display_names": [
+        "KeyStar Corp.  (KEYR)  (CIK 0001832161)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001493152-23-034620",
+      "ciks": [
+        "0000924095"
+      ],
+      "display_names": [
+        "Metavesco, Inc.  (MVCO)  (CIK 0000924095)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001493152-23-034626",
+      "ciks": [
+        "0000932021"
+      ],
+      "display_names": [
+        "GLOBAL TECHNOLOGIES LTD  (GTLL)  (CIK 0000932021)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001493152-23-034635",
+      "ciks": [
+        "0000704172"
+      ],
+      "display_names": [
+        "PHI GROUP INC  (PHIL)  (CIK 0000704172)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001515971-23-000025",
+      "ciks": [
+        "0001616736"
+      ],
+      "display_names": [
+        "Alpha Investment Inc.  (ALPC)  (CIK 0001616736)"
+      ],
+      "file_date": "2023-03-21",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001539894-23-000010",
+      "ciks": [
+        "0001539894"
+      ],
+      "display_names": [
+        "Atlas Financial Holdings, Inc.  (AFHIF)  (CIK 0001539894)"
+      ],
+      "file_date": "2023-03-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001550695-23-000009",
+      "ciks": [
+        "0001550695"
+      ],
+      "display_names": [
+        "Performant Financial Corp  (PFMT)  (CIK 0001550695)"
+      ],
+      "file_date": "2023-03-17",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001558370-23-002681",
+      "ciks": [
+        "0001167419"
+      ],
+      "display_names": [
+        "Riot Platforms, Inc.  (RIOT)  (CIK 0001167419)"
+      ],
+      "file_date": "2023-03-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001558370-23-002708",
+      "ciks": [
+        "0001479681"
+      ],
+      "display_names": [
+        "Nutex Health, Inc.  (NUTX)  (CIK 0001479681)"
+      ],
+      "file_date": "2023-03-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001558370-23-003492",
+      "ciks": [
+        "0001041657"
+      ],
+      "display_names": [
+        "URBAN ONE, INC.  (UONE, UONEK)  (CIK 0001041657)"
+      ],
+      "file_date": "2023-03-10",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001558370-23-011681",
+      "ciks": [
+        "0001009759"
+      ],
+      "display_names": [
+        "Capstone Green Energy Corp  (CIK 0001009759)"
+      ],
+      "file_date": "2023-07-05",
+      "file_types": {
+        "NT 10-K/A": 1
+      },
+      "form": "NT 10-K/A",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001558370-23-016104",
+      "ciks": [
+        "0001913838"
+      ],
+      "display_names": [
+        "VWF Bancorp, Inc.  (VWFB)  (CIK 0001913838)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001599916-23-000024",
+      "ciks": [
+        "0001813744"
+      ],
+      "display_names": [
+        "World Scan Project, Inc.  (WDSP)  (CIK 0001813744)"
+      ],
+      "file_date": "2023-01-27",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001599916-23-000164",
+      "ciks": [
+        "0001811530"
+      ],
+      "display_names": [
+        "Next Meats Holdings, Inc.  (NXMH)  (CIK 0001811530)"
+      ],
+      "file_date": "2023-07-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001607062-23-000446",
+      "ciks": [
+        "0000773318"
+      ],
+      "display_names": [
+        "VERITEC INC  (VRTC)  (CIK 0000773318)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001607062-23-000448",
+      "ciks": [
+        "0001683131"
+      ],
+      "display_names": [
+        "Forza Innovations Inc  (FORZ)  (CIK 0001683131)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001628280-23-006088",
+      "ciks": [
+        "0001820630"
+      ],
+      "display_names": [
+        "Proterra Inc  (CIK 0001820630)"
+      ],
+      "file_date": "2023-03-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001628280-23-006105",
+      "ciks": [
+        "0001895262"
+      ],
+      "display_names": [
+        "Noble Corp plc  (NE, NBLWF, NE-WT, NE-WTA)  (CIK 0001895262)"
+      ],
+      "file_date": "2023-03-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001628280-23-008191",
+      "ciks": [
+        "0001665988"
+      ],
+      "display_names": [
+        "Bioventus Inc.  (BVS)  (CIK 0001665988)"
+      ],
+      "file_date": "2023-03-16",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001628280-23-008291",
+      "ciks": [
+        "0001162461"
+      ],
+      "display_names": [
+        "CUTERA INC  (CUTR)  (CIK 0001162461)"
+      ],
+      "file_date": "2023-03-16",
+      "file_types": {
+        "NT 10-K/A": 1
+      },
+      "form": "NT 10-K/A",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001628280-23-008385",
+      "ciks": [
+        "0001801661"
+      ],
+      "display_names": [
+        "Skillz Inc.  (SKLZ)  (CIK 0001801661)"
+      ],
+      "file_date": "2023-03-17",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001628280-23-008503",
+      "ciks": [
+        "0001855457"
+      ],
+      "display_names": [
+        "KORE Group Holdings, Inc.  (KORE, KORGW)  (CIK 0001855457)"
+      ],
+      "file_date": "2023-03-17",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001628280-23-008504",
+      "ciks": [
+        "0001741231"
+      ],
+      "display_names": [
+        "Tattooed Chef, Inc.  (TTCFQ)  (CIK 0001741231)"
+      ],
+      "file_date": "2023-03-17",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001628280-23-032210",
+      "ciks": [
+        "0000896429"
+      ],
+      "display_names": [
+        "CANTALOUPE, INC.  (CTLP, CTLPP)  (CIK 0000896429)"
+      ],
+      "file_date": "2023-09-13",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001640334-23-000461",
+      "ciks": [
+        "0000895464"
+      ],
+      "display_names": [
+        "Yubo International Biotech Ltd  (YBGJ)  (CIK 0000895464)"
+      ],
+      "file_date": "2023-03-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001640334-23-000725",
+      "ciks": [
+        "0001803096"
+      ],
+      "display_names": [
+        "STARGUIDE GROUP, INC.  (STRG)  (CIK 0001803096)"
+      ],
+      "file_date": "2023-05-01",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001640334-23-001744",
+      "ciks": [
+        "0001506929"
+      ],
+      "display_names": [
+        "VERDE RESOURCES, INC.  (VRDR)  (CIK 0001506929)"
+      ],
+      "file_date": "2023-09-27",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001654954-23-000003",
+      "ciks": [
+        "0001407573"
+      ],
+      "display_names": [
+        "AmeriCrew Inc.  (CIK 0001407573)"
+      ],
+      "file_date": "2023-01-03",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001654954-23-003051",
+      "ciks": [
+        "0001606268"
+      ],
+      "display_names": [
+        "Via Renewables, Inc.  (VIASP)  (CIK 0001606268)"
+      ],
+      "file_date": "2023-03-16",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001654954-23-005649",
+      "ciks": [
+        "0000002186"
+      ],
+      "display_names": [
+        "BK Technologies Corp  (BKTI)  (CIK 0000002186)"
+      ],
+      "file_date": "2023-05-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001654954-23-012374",
+      "ciks": [
+        "0001815632"
+      ],
+      "display_names": [
+        "Tego Cyber, Inc.  (TGCB)  (CIK 0001815632)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001654954-23-012377",
+      "ciks": [
+        "0001374567"
+      ],
+      "display_names": [
+        "Luvu Brands, Inc.  (LUVU)  (CIK 0001374567)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001680873-23-000009",
+      "ciks": [
+        "0001680873"
+      ],
+      "display_names": [
+        "HF Foods Group Inc.  (HFFG)  (CIK 0001680873)"
+      ],
+      "file_date": "2023-03-16",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001683168-23-006786",
+      "ciks": [
+        "0001469115"
+      ],
+      "display_names": [
+        "Ridgedale Holdings Inc.  (CIK 0001469115)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001683168-23-006805",
+      "ciks": [
+        "0001443089"
+      ],
+      "display_names": [
+        "WEARABLE HEALTH SOLUTIONS, INC.  (WHSI)  (CIK 0001443089)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001683168-23-006807",
+      "ciks": [
+        "0001376793"
+      ],
+      "display_names": [
+        "Cavitation Technologies, Inc.  (CVAT)  (CIK 0001376793)"
+      ],
+      "file_date": "2023-09-28",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001691421-23-000026",
+      "ciks": [
+        "0001691421"
+      ],
+      "display_names": [
+        "Lemonade, Inc.  (LMND, LMND-WT)  (CIK 0001691421)"
+      ],
+      "file_date": "2023-03-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001697884-23-000004",
+      "ciks": [
+        "0001697884"
+      ],
+      "display_names": [
+        "VITASPRING BIOMEDICAL CO. LTD.  (CIK 0001697884)"
+      ],
+      "file_date": "2023-05-01",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001731122-23-000073",
+      "ciks": [
+        "0001190370"
+      ],
+      "display_names": [
+        "INNOVATIVE DESIGNS INC  (IVDN)  (CIK 0001190370)"
+      ],
+      "file_date": "2023-01-23",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001788717-23-000006",
+      "ciks": [
+        "0001788717"
+      ],
+      "display_names": [
+        "F45 Training Holdings Inc.  (FXLV)  (CIK 0001788717)"
+      ],
+      "file_date": "2023-03-16",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001805833-23-000011",
+      "ciks": [
+        "0001805833"
+      ],
+      "display_names": [
+        "System1, Inc.  (SST, SST-WT)  (CIK 0001805833)"
+      ],
+      "file_date": "2023-03-16",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001805833-23-000025",
+      "ciks": [
+        "0001805833"
+      ],
+      "display_names": [
+        "System1, Inc.  (SST, SST-WT)  (CIK 0001805833)"
+      ],
+      "file_date": "2023-03-17",
+      "file_types": {
+        "NT 10-K/A": 1
+      },
+      "form": "NT 10-K/A",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001816233-23-000047",
+      "ciks": [
+        "0001816233"
+      ],
+      "display_names": [
+        "Sharecare, Inc.  (SHCR, SHCRW)  (CIK 0001816233)"
+      ],
+      "file_date": "2023-03-22",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001819142-23-000011",
+      "ciks": [
+        "0001819142"
+      ],
+      "display_names": [
+        "SES AI Corp  (SES, SES-WT)  (CIK 0001819142)"
+      ],
+      "file_date": "2023-03-01",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001820721-23-000018",
+      "ciks": [
+        "0001820721"
+      ],
+      "display_names": [
+        "Array Technologies, Inc.  (ARRY)  (CIK 0001820721)"
+      ],
+      "file_date": "2023-03-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001820721-23-000045",
+      "ciks": [
+        "0001820721"
+      ],
+      "display_names": [
+        "Array Technologies, Inc.  (ARRY)  (CIK 0001820721)"
+      ],
+      "file_date": "2023-03-15",
+      "file_types": {
+        "NT 10-K/A": 1
+      },
+      "form": "NT 10-K/A",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001821850-23-000017",
+      "ciks": [
+        "0001821850"
+      ],
+      "display_names": [
+        "Sunlight Financial Holdings Inc.  (CIK 0001821850)"
+      ],
+      "file_date": "2023-03-17",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001829126-23-006292",
+      "ciks": [
+        "0001301991"
+      ],
+      "display_names": [
+        "SmartMetric, Inc.  (SMME)  (CIK 0001301991)"
+      ],
+      "file_date": "2023-09-27",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001830033-23-000010",
+      "ciks": [
+        "0001830033"
+      ],
+      "display_names": [
+        "PureCycle Technologies, Inc.  (PCT, PCTTU, PCTTW)  (CIK 0001830033)"
+      ],
+      "file_date": "2023-03-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001866633-23-000006",
+      "ciks": [
+        "0001866633"
+      ],
+      "display_names": [
+        "Consensus Cloud Solutions, Inc.  (CCSI)  (CIK 0001866633)"
+      ],
+      "file_date": "2023-03-02",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001903596-23-000699",
+      "ciks": [
+        "0001789330"
+      ],
+      "display_names": [
+        "MJ Harvest, Inc.  (MJHI)  (CIK 0001789330)"
+      ],
+      "file_date": "2023-09-07",
+      "file_types": {
+        "NT 10-K": 1
+      },
+      "form": "NT 10-K",
+      "matched_documents": 1
+    }
+  ],
+  "summary": {
+    "discovery_frame_not_reviewed_cohort": true,
+    "distress_outcomes_not_assigned": true,
+    "fetched_document_hits": 170,
+    "forms": {
+      "NT 10-K": 164,
+      "NT 10-K/A": 6
+    },
+    "structural_note": "NT 10-K filings cluster on the annual deadline (March); year-level newest-first caps over-weight Dec microcaps",
+    "submissions_by_month": {
+      "2023-01": 6,
+      "2023-03": 100,
+      "2023-05": 16,
+      "2023-07": 6,
+      "2023-09": 40,
+      "2023-11": 2
+    },
+    "unique_submissions": 170
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "spec_id": "ca-announce-pop-2023-01-discovery-v1",
+  "censor_on": "2025-01-01",
+  "raw_documents_committed": false,
+  "outcomes_assigned": false,
+  "research_status": "frozen_announcement_search_discovery_frame_not_reviewed_cohort",
+  "search": {
+    "endpoint": "https://efts.sec.gov/LATEST/search-index",
+    "query": "\"entered into an Agreement and Plan of Merger\"",
+    "start_date": "2023-01-01",
+    "end_date": "2023-01-31",
+    "forms": ["8-K"],
+    "expected_document_hits": 106,
+    "expected_unique_submissions": 93,
+    "response_sha256": "714ce403c957ccad585994e5d913ed7ac2a847568d96ff046d213c1ac425cea4"
+  },
+  "notes": [
+    "Phrase match is a discovery frame, not proof of a new announcement.",
+    "Item 1.01 presence is a tag, not a deal label.",
+    "SPAC-ish heuristic uses SIC 6770 and acquisition-corp name stems only.",
+    "No outcomes or censor labels are assigned in this artifact."
+  ]
+}
