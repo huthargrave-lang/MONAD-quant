@@ -504,7 +504,8 @@
         "tests/test_web_code_claims.py",
         "tests/test_web_integrity.py",
         "tests/test_research_ui.py",
-        "tests/test_f7_band_geometry.py"
+        "tests/test_f7_band_geometry.py",
+        "tests/test_web_link_escaping.py"
       ],
       "docs": [
         "docs/research/README.md",

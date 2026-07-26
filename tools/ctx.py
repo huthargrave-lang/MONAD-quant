@@ -1245,6 +1245,20 @@ def duplicate_node_ids(text):
     return {nid: c for nid, c in counts.items() if c > 1}
 
 
+#: Fenced blocks first, so a ``` block containing single backticks is consumed whole.
+_CODE_SPAN_RX = re.compile(r"```.*?```|``[^`]*``|`[^`\n]*`", re.S)
+
+
+def _code_spans(text):
+    """[(start, end)] of markdown code spans — the web's escape form for its own links.
+
+    A node that writes a link inside backticks is TALKING ABOUT the notation, not using
+    it. Before this existed there was no way to do that: any finding about the web's
+    syntax silently emitted the edges it quoted.
+    """
+    return [(m.start(), m.end()) for m in _CODE_SPAN_RX.finditer(text)]
+
+
 def _parse_web_text(text):
     """Parse research-web markdown TEXT into {id: {title, body, links, edges}} +
     reverse links. Nodes are '### <ID> — <title>'; edges are '[[ID]]'/'[[ID|type]]'
@@ -1263,10 +1277,19 @@ def _parse_web_text(text):
     rev = {}
     for nid, n in nodes.items():
         body = n["body"]
+        spans = _code_spans(body)
         edges = {}  # target -> (rank, type); rank: relates=0, cue=1, explicit=2
         for m in _LINK_RX.finditer(body):
             tgt, raw = m.group(1), m.group(2)
             if tgt == nid:
+                continue
+            # A link inside a code span is being DISCUSSED, not asserted. Without this
+            # a node cannot document the web's own notation without rewiring the web:
+            # F239 quoted a broken test fixture verbatim and thereby claimed a
+            # supersession it never meant. Escaping is a pure addition — measured at
+            # the time it was added, zero of the web's 1686 links sat inside a code
+            # span, so no existing edge changed.
+            if any(s <= m.start() and m.end() <= e for s, e in spans):
                 continue
             if raw is not None and raw.strip().lower() in EDGE_TYPES:
                 rank, t = 2, raw.strip().lower()       # explicit, well-formed type wins

@@ -150,9 +150,18 @@ def parse_web(text: str) -> Dict[str, Dict[str, object]]:
         resolved: Dict[str, Tuple[int, str]] = {}
         order: List[str] = []
         out_of_vocab: List[Tuple[str, str]] = []
+        # Code-span escaping, delegated to ctx rather than re-implemented. This lab
+        # keeps its OWN link regex on purpose — it is an independent reader, and
+        # `ParserAgreementTest` is what holds the two in step. That test caught this
+        # exact omission the moment ctx learned to skip escaped links and this lab did
+        # not: the two parsers disagreed at F239 by one accidental `supersedes` edge.
+        # F136 recorded the previous drift; the guard exists because of it.
+        code_spans = _ctx._code_spans(body)
         for lm in LINK_RE.finditer(body):
             target, raw_type = lm.group(1), lm.group(2)
             if target == node_id:
+                continue
+            if any(s <= lm.start() and lm.end() <= e for s, e in code_spans):
                 continue
             if raw_type and raw_type in _ctx.EDGE_TYPES:
                 rank, edge_type = 2, raw_type
