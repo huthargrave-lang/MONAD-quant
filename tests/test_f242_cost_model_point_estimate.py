@@ -30,8 +30,10 @@ WHAT IT SHOWS.
 
 3. **The error is not mean-zero over trades, because this strategy is a dip-buyer.** Over
    *bars* the mean error is essentially zero (−0.0015 pp, IBKR) — the median is doing its
-   job. Over the 65 *logged trades* it is a 10.7% understatement, with 62% of trades
-   under-charged, because RSI-dip entries sit below the bar median ($61.87 vs $64.79).
+   job. Over the 65 *logged trades* it is an 11.1% understatement, with 62% of trades
+   under-charged, because RSI-dip entries sit below the bar median ($61.76 vs $64.79).
+   (First shipped as 10.7% / $61.76→$61.87 from reading `return_pct` as a percent when it
+   is a fraction; F245 corrected the scale and every conclusion survived unchanged.)
    Spread-as-a-fraction-of-price rises as price falls, so a mean-reversion entry is
    selecting for exactly the bars the constant under-charges.
 
@@ -78,7 +80,14 @@ def _bars():
 
 
 def _trade_entries():
-    """Entry price recovered from the logged exit and return (long: exit = entry*(1+r))."""
+    """Entry price recovered from the logged exit and return (long: exit = entry*(1+r)).
+
+    `return_pct` is stored as a FRACTION despite its name — a target_hit at the 1% target
+    is logged as 0.01, while the event log prints the same quantity as "1.0010%". F245
+    caught this after F242 first shipped dividing by 100; the corrected entry median is
+    $61.76 rather than $61.87 and the understatement 11.1% rather than 10.7%, so every
+    conclusion held, but the arithmetic is right now.
+    """
     out = []
     for line in (RUN / "trades.jsonl").read_text().splitlines():
         if not line.strip():
@@ -86,7 +95,7 @@ def _trade_entries():
         t = json.loads(line)
         if t.get("exit_price") is None or t.get("return_pct") is None:
             continue
-        out.append(float(t["exit_price"]) / (1.0 + float(t["return_pct"]) / 100.0))
+        out.append(float(t["exit_price"]) / (1.0 + float(t["return_pct"])))
     return out
 
 
@@ -190,8 +199,8 @@ class ThePointEstimateMissesWhereTheStrategyTradesTests(unittest.TestCase):
             "the modelled cost no longer understates the true cost of real trades")
         understatement = 100 * (mean_true_trades - modelled) / modelled
         self.assertAlmostEqual(
-            understatement, 10.7, delta=1.5,
-            msg="trade-level understatement moved off 10.7% — if the sweep switched to "
+            understatement, 11.1, delta=1.5,
+            msg="trade-level understatement moved off 11.1% — if the sweep switched to "
                 "a per-trade cost, supersede F242 rather than retune this")
 
     def test_the_understatement_is_small_in_absolute_terms(self):
