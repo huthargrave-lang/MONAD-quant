@@ -469,7 +469,8 @@
         "tools/sec_failed_action_lab.py",
         "tools/sec_form25_population_lab.py",
         "tools/sec_fund_exit_lab.py",
-        "tools/shadow_replay.py"
+        "tools/shadow_replay.py",
+        "tools/research_ui.py"
       ],
       "entrypoints": [],
       "tests": [
@@ -494,7 +495,8 @@
         "tests/test_sec_fund_exit_lab.py",
         "tests/test_shadow_replay.py",
         "tests/test_web_code_claims.py",
-        "tests/test_web_integrity.py"
+        "tests/test_web_integrity.py",
+        "tests/test_research_ui.py"
       ],
       "docs": [
         "docs/research/README.md",
@@ -504,7 +506,8 @@
         "docs/research/EPI00_epistemic_audit.md",
         "docs/research/HANDOFF_2026-07-24.md",
         "docs/research/FD00_sec_filing_delta_lab.md",
-        "docs/research/IX00_index_membership_event_lab.md"
+        "docs/research/IX00_index_membership_event_lab.md",
+        "docs/research/UI_surface_unification.md"
       ],
       "do_not_touch_without_approval": false
     },

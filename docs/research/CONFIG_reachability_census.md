@@ -17,7 +17,8 @@ Three findings in this repository say the same thing about a single knob each:
 * [`F225`](../../RESEARCH_WEB.md) — the backlog's supersession filter read a key the
   parser never emits, so it never fired.
 
-Three anecdotes are a pattern claim without a denominator. Nobody had counted.
+Three anecdotes are a pattern claim without a denominator. Nobody had counted. The count
+below is [`F226`](../../RESEARCH_WEB.md), refined by [`F227`](../../RESEARCH_WEB.md).
 
 ## The census
 
@@ -25,9 +26,16 @@ Three anecdotes are a pattern claim without a denominator. Nobody had counted.
 |---|---:|---:|---|
 | static | 95 | 47% | a first-party module names it literally |
 | dynamic | 79 | 39% | reached via a `getattr(config, f"PREFIX_{mode}")` template WITH a resolvable suffix |
-| tests-only | 6 | 3% | named only under `tests/` |
-| unreferenced | 23 | 11% | named nowhere outside the config layer |
-| **dead to shipping** | **29** | **14%** | unreferenced + tests-only |
+| tests-only | 8 | 4% | named only under `tests/` — **not stable, see below** |
+| unreferenced | 21 | 10% | named nowhere outside the config layer — **not stable** |
+| **dead to shipping** | **29** | **14%** | unreferenced + tests-only — **the stable headline** |
+
+> **The split moved and the union did not, exactly as this study predicted.** This table
+> first read 6 / 23; a fresh run now reports 8 / 21, because two more dead constants were
+> named in guards written since. That is the observation-sensitivity described below, not
+> a correction: `tests-only` and `unreferenced` are a partition of the same 29 constants
+> and trade members whenever anyone writes a test. Only **29** is quotable. The two
+> sub-counts are as of the frozen artifact and will move again.
 
 **Modelling the dynamic dispatch is what makes the number honest.** A literal-name grep
 calls **108** constants dead. **29** actually are. The other 79 are resolved through
