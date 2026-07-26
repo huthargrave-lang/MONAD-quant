@@ -93,6 +93,36 @@ DEFERRED = {
 }
 
 
+# Items that cannot be STARTED here, as distinct from ones an owner has chosen not to
+# do. Every entry below needs a data source this environment cannot reach: SEC hosts
+# return `403` at the proxy CONNECT stage, and the market-data providers are blocked the
+# same way, so no filing corpus, XBRL fact, macro vintage or price panel can be fetched.
+# Surfacing them as "test or retire it" burns a cycle per item and produces the same
+# answer every time — the honest state is BLOCKED, not untested.
+#
+# This is deliberately a static list with a live re-check (`--recheck`) rather than a
+# probe on every run: a network call in a backlog listing would be slow and flaky, and a
+# silently-skipped item is worse than a slow one. If the block lifts, `--recheck` says so
+# and these come straight back into rotation.
+BLOCKED_ON_DATA = {
+    "unresolved:H46": ("RN-01 needs filing TEXT plus contemporaneous XBRL; it also sits "
+                       "downstream of FD-01, which needs the FD-00 corpus backfill.",
+                       "https://www.sec.gov/"),
+    "unresolved:H48": ("TA-01 needs multi-year cross-asset PRICE history (equities, ETFs, "
+                       "BTC); no panel is committed and the providers are unreachable.",
+                       "https://query1.finance.yahoo.com/"),
+    "unresolved:H49": ("EV-01/NG-00 needs ALFRED macro vintages, 8-K event codes, CFTC "
+                       "positioning, GDELT and SEC fails-to-deliver feeds.",
+                       "https://www.sec.gov/"),
+    "unresolved:H51": ("FD-NUM needs accession-scoped XBRL facts.",
+                       "https://data.sec.gov/"),
+    "unresolved:H52": ("FD-AMEND needs paired 10-K/A and 10-Q/A accessions and their "
+                       "originals.", "https://data.sec.gov/"),
+    "unresolved:H53": ("FD-GRAPH needs the filing ledger H51/H52 would produce, so it is "
+                       "blocked twice over.", "https://data.sec.gov/"),
+}
+
+
 def _git(*args: str) -> str:
     try:
         out = subprocess.run(["git", "-C", str(REPO), *args],
@@ -217,6 +247,19 @@ def source_uncited(nodes, limit: int = 8) -> List[dict]:
     return rows[:limit]
 
 
+# Edge types by which a Finding actually ANSWERS a hypothesis. `resolves` closes it;
+# `supports`/`contradicts` are evidence bearing on the claim, i.e. it was tested. The
+# rest are not answers: `relates` is the weakest link in the vocabulary, `builds_on` and
+# `drives` point forward rather than back, and `refines` NARROWS a hypothesis while
+# leaving it open — F194 refines H21 and H21's proposal is still untested.
+#
+# Counting ANY F->H edge as an answer hid 28 of 69 open hypotheses: 13 behind a bare
+# `relates`, 14 behind `refines`, 3 `drives`, 2 `supports`. The queue showed 17 while 45
+# had no `resolves` edge at all. Found the hard way — capturing a finding that said "H46
+# is BLOCKED, not tested" linked `H46:relates` and thereby marked H46 answered.
+ANSWERING_EDGES = {"resolves", "supports", "contradicts"}
+
+
 def source_unresolved(nodes, limit: int = 6) -> List[dict]:
     """Hypotheses no Finding ever answered."""
     cited_by_finding = set()
@@ -225,7 +268,8 @@ def source_unresolved(nodes, limit: int = 6) -> List[dict]:
         for target, etype in node.get("edges", []):
             if etype == "resolves":
                 resolved.add(target)
-            if nid.startswith("F") and target.startswith("H"):
+            if (nid.startswith("F") and target.startswith("H")
+                    and etype in ANSWERING_EDGES):
                 cited_by_finding.add(target)
     rows = []
     for nid, node in nodes.items():
@@ -241,7 +285,7 @@ def source_unresolved(nodes, limit: int = 6) -> List[dict]:
             "kind": "unresolved",
             "node": nid,
             "title": title[:90],
-            "evidence": "no resolves edge; no Finding cites it",
+            "evidence": "no resolves edge; no Finding supports or contradicts it",
             "leverage": 0.5,
             "tractability": 0.45,
             "action": ("Test {} or retire it. An untested hypothesis that is never "
@@ -402,8 +446,11 @@ def collect(skip_recent: bool = True) -> List[dict]:
         t["score"] = round(float(t["leverage"]) * float(t["tractability"]), 4)
         t["recently_touched"] = bool(subjects) and _recently_touched(t, subjects)
         t["deferred_reason"] = DEFERRED.get(str(t["key"]))
+        blocked = BLOCKED_ON_DATA.get(str(t["key"]))
+        t["blocked_reason"] = blocked[0] if blocked else None
     fresh = [t for t in tasks
-             if not t["recently_touched"] and not t["deferred_reason"]]
+             if not t["recently_touched"] and not t["deferred_reason"]
+             and not t["blocked_reason"]]
     fresh.sort(key=lambda t: (-t["score"], -t["tractability"], str(t["key"])))
     return fresh
 
@@ -411,10 +458,48 @@ def collect(skip_recent: bool = True) -> List[dict]:
 def deferred(skip_recent: bool = True) -> List[dict]:
     """Owner-deferred items, so a deferral is visible rather than a disappearance."""
     nodes = load_nodes()
-    tasks = (source_open_items() + source_uncited(nodes) + source_unguarded()
-             + source_unresolved(nodes) + source_blocked_labs())
+    big = 10_000
+    tasks = (source_open_items(big) + source_uncited(nodes, big) + source_unguarded(big)
+             + source_unresolved(nodes, big) + source_blocked_labs(big))
     return [dict(t, deferred_reason=DEFERRED[str(t["key"])])
             for t in tasks if str(t["key"]) in DEFERRED]
+
+
+def blocked_on_data() -> List[dict]:
+    """Items whose data this environment cannot reach — blocked, not untested.
+
+    Built from UNLIMITED sources. Filtering the ranked top-N would make a blocked item
+    invisible as soon as something older outranked it — which is how the count silently
+    went to zero the first time this ran, right after `ANSWERING_EDGES` widened the
+    unresolved queue from 17 to 43.
+    """
+    nodes = load_nodes()
+    big = 10_000
+    tasks = (source_open_items(big) + source_uncited(nodes, big) + source_unguarded(big)
+             + source_unresolved(nodes, big) + source_blocked_labs(big))
+    return [dict(t, blocked_reason=BLOCKED_ON_DATA[str(t["key"])][0],
+                 probe=BLOCKED_ON_DATA[str(t["key"])][1])
+            for t in tasks if str(t["key"]) in BLOCKED_ON_DATA]
+
+
+def recheck_blocks(timeout: float = 8.0) -> List[tuple]:
+    """Probe each distinct blocked host. Returns [(host, reachable, detail)].
+
+    A block that is never re-tested becomes a permanent excuse, so this exists and is
+    the only place the tool touches the network.
+    """
+    import urllib.error
+    import urllib.request
+    results = []
+    for host in sorted({url for _, url in BLOCKED_ON_DATA.values()}):
+        try:
+            req = urllib.request.Request(host, method="HEAD",
+                                         headers={"User-Agent": "monad-backlog-recheck"})
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                results.append((host, True, "HTTP {}".format(resp.status)))
+        except Exception as exc:                      # noqa: BLE001 — any failure is a block
+            results.append((host, False, type(exc).__name__ + ": " + str(exc)[:60]))
+    return results
 
 
 # --------------------------------------------------------------------------- #
@@ -432,7 +517,13 @@ def command_next(args) -> None:
     held = deferred()
     if held:
         print("  ({} item(s) owner-deferred and excluded — "
-              "`list --deferred` to see them)\n".format(len(held)))
+              "`list --deferred` to see them)".format(len(held)))
+    stuck = blocked_on_data()
+    if stuck:
+        print("  ({} item(s) blocked on unreachable data and excluded — "
+              "`list --blocked` / `list --blocked --recheck`)".format(len(stuck)))
+    if held or stuck:
+        print()
     t = tasks[0]
     print("NEXT  [{}]  score={:.2f}".format(t["kind"], t["score"]))
     print("  {}".format(t["title"]))
@@ -444,6 +535,21 @@ def command_next(args) -> None:
 
 
 def command_list(args) -> None:
+    if getattr(args, "blocked", False):
+        stuck = blocked_on_data()
+        if not stuck:
+            print("  nothing is blocked on data")
+        for t in stuck:
+            print("  [{}] {}".format(t["kind"], t["title"][:70]))
+            print("      {}".format(t["blocked_reason"]))
+        if getattr(args, "recheck", False):
+            print("\n  re-checking the hosts these wait on:")
+            for host, ok, detail in recheck_blocks():
+                print("    {:<40} {:<12} {}".format(
+                    host, "REACHABLE" if ok else "blocked", detail))
+            print("  (any REACHABLE host means its items can be un-blocked — remove "
+                  "them from BLOCKED_ON_DATA)")
+        return
     if getattr(args, "deferred", False):
         held = deferred()
         if not held:
@@ -478,6 +584,10 @@ def main(argv: Optional[Iterable[str]] = None) -> None:
     p.add_argument("-n", type=int, default=15)
     p.add_argument("--deferred", action="store_true",
                    help="show owner-deferred items and why")
+    p.add_argument("--blocked", action="store_true",
+                   help="show items blocked on unreachable data and why")
+    p.add_argument("--recheck", action="store_true",
+                   help="with --blocked: probe the hosts, in case the block lifted")
     p.set_defaults(func=command_list)
     p = sub.add_parser("json", help="machine-readable")
     p.set_defaults(func=command_json)
