@@ -1,0 +1,705 @@
+{
+  "schema_version": 1,
+  "artifact_id": "ca-announce-pop-2023-01-review-v2",
+  "generated_at": "2026-07-26T05:42:35.552406+00:00",
+  "research_status": "clock_joined_review_seed_raw_bytes_unvalidated",
+  "parent_discovery_id": "ca-announce-pop-2023-01-discovery-v1",
+  "censor_on": "2025-01-01",
+  "early_censor_on": "2023-04-01",
+  "raw_documents_committed": false,
+  "predictive_features_allowed": false,
+  "sources": [
+    {
+      "accession": "0001104659-23-001979",
+      "file_date": "2023-01-09",
+      "form": "8-K",
+      "ciks": [
+        "0001322505"
+      ],
+      "display_names": [
+        "ALBIREO PHARMA, INC.  (CIK 0001322505)"
+      ],
+      "items": [
+        "1.01",
+        "7.01",
+        "9.01"
+      ],
+      "has_item_1_01": true,
+      "review_role": "primary",
+      "deal_id": "albireo-ipsen",
+      "exclusion_reason": null,
+      "announcement_accepted_at": "2023-01-09T01:05:48-05:00",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001193125-23-004258",
+      "file_date": "2023-01-09",
+      "form": "8-K",
+      "ciks": [
+        "0001868734"
+      ],
+      "display_names": [
+        "CinCor Pharma, Inc.  (CIK 0001868734)"
+      ],
+      "items": [
+        "1.01",
+        "5.02",
+        "8.01",
+        "9.01"
+      ],
+      "has_item_1_01": true,
+      "review_role": "primary",
+      "deal_id": "cincor-astrazeneca",
+      "exclusion_reason": null,
+      "announcement_accepted_at": "2023-01-09T04:06:58-05:00",
+      "matched_documents": 2
+    },
+    {
+      "accession": "0001193125-23-005230",
+      "file_date": "2023-01-10",
+      "form": "8-K",
+      "ciks": [
+        "0001160951"
+      ],
+      "display_names": [
+        "DUCK CREEK TECHNOLOGIES, INC.  (CIK 0001160951)"
+      ],
+      "items": [
+        "1.01",
+        "9.01"
+      ],
+      "has_item_1_01": true,
+      "review_role": "primary",
+      "deal_id": "duckcreek-vista",
+      "exclusion_reason": null,
+      "announcement_accepted_at": "2023-01-10T04:21:34-05:00",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001193125-23-012554",
+      "file_date": "2023-01-23",
+      "form": "8-K",
+      "ciks": [
+        "0001604643"
+      ],
+      "display_names": [
+        "Evoqua Water Technologies Corp.  (CIK 0001604643)"
+      ],
+      "items": [
+        "1.01",
+        "8.01",
+        "9.01"
+      ],
+      "has_item_1_01": true,
+      "review_role": "primary",
+      "deal_id": "evoqua-xylem",
+      "exclusion_reason": null,
+      "announcement_accepted_at": "2023-01-23T02:04:35-05:00",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001193125-23-012563",
+      "file_date": "2023-01-23",
+      "form": "8-K",
+      "ciks": [
+        "0001524472"
+      ],
+      "display_names": [
+        "Xylem Inc.  (XYL)  (CIK 0001524472)"
+      ],
+      "items": [
+        "1.01",
+        "8.01",
+        "9.01"
+      ],
+      "has_item_1_01": true,
+      "review_role": "counterparty_duplicate",
+      "deal_id": "evoqua-xylem",
+      "exclusion_reason": null,
+      "announcement_accepted_at": null,
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001104659-23-005627",
+      "file_date": "2023-01-23",
+      "form": "8-K",
+      "ciks": [
+        "0001745041"
+      ],
+      "display_names": [
+        "IAA, Inc.  (CIK 0001745041)"
+      ],
+      "items": [
+        "1.01",
+        "2.02",
+        "9.01"
+      ],
+      "has_item_1_01": true,
+      "review_role": "primary",
+      "deal_id": "iaa-ritchie-bros",
+      "exclusion_reason": null,
+      "announcement_accepted_at": "2023-01-23T04:15:02-05:00",
+      "matched_documents": 2
+    },
+    {
+      "accession": "0001104659-23-005576",
+      "file_date": "2023-01-23",
+      "form": "8-K",
+      "ciks": [
+        "0001046102"
+      ],
+      "display_names": [
+        "RITCHIE BROS AUCTIONEERS INC  (RBA)  (CIK 0001046102)"
+      ],
+      "items": [
+        "1.01",
+        "2.02",
+        "8.01",
+        "9.01"
+      ],
+      "has_item_1_01": true,
+      "review_role": "counterparty_duplicate",
+      "deal_id": "iaa-ritchie-bros",
+      "exclusion_reason": null,
+      "announcement_accepted_at": null,
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001140361-23-001115",
+      "file_date": "2023-01-10",
+      "form": "8-K",
+      "ciks": [
+        "0001077771"
+      ],
+      "display_names": [
+        "UMPQUA HOLDINGS CORP  (CIK 0001077771)"
+      ],
+      "items": [
+        "1.01",
+        "3.01",
+        "8.01",
+        "9.01"
+      ],
+      "has_item_1_01": true,
+      "review_role": "primary",
+      "deal_id": "umpqua-columbia",
+      "exclusion_reason": null,
+      "announcement_accepted_at": "2023-01-09T15:01:52-05:00",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001193125-23-010719",
+      "file_date": "2023-01-19",
+      "form": "8-K",
+      "ciks": [
+        "0001367920"
+      ],
+      "display_names": [
+        "CONCERT PHARMACEUTICALS, INC.  (CIK 0001367920)"
+      ],
+      "items": [
+        "1.01",
+        "8.01",
+        "9.01"
+      ],
+      "has_item_1_01": true,
+      "review_role": "primary",
+      "deal_id": "concert-sun-pharma",
+      "exclusion_reason": null,
+      "announcement_accepted_at": "2023-01-19T04:23:33-05:00",
+      "matched_documents": 2
+    },
+    {
+      "accession": "0001408534-23-000003",
+      "file_date": "2023-01-09",
+      "form": "8-K",
+      "ciks": [
+        "0001408534"
+      ],
+      "display_names": [
+        "First Guaranty Bancshares, Inc.  (FGBI, FGBIP)  (CIK 0001408534)"
+      ],
+      "items": [
+        "1.01",
+        "7.01",
+        "9.01"
+      ],
+      "has_item_1_01": true,
+      "review_role": "primary",
+      "deal_id": "first-guaranty-lone-star",
+      "exclusion_reason": null,
+      "announcement_accepted_at": "2023-01-09T10:02:26-05:00",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001193125-23-003068",
+      "file_date": "2023-01-06",
+      "form": "8-K",
+      "ciks": [
+        "0001338065"
+      ],
+      "display_names": [
+        "DCP Midstream, LP  (CIK 0001338065)"
+      ],
+      "items": [
+        "1.01",
+        "5.07",
+        "7.01",
+        "9.01"
+      ],
+      "has_item_1_01": true,
+      "review_role": "primary",
+      "deal_id": "dcp-phillips66",
+      "exclusion_reason": null,
+      "announcement_accepted_at": "2023-01-06T04:03:09-05:00",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001193125-23-003066",
+      "file_date": "2023-01-06",
+      "form": "8-K",
+      "ciks": [
+        "0001534701"
+      ],
+      "display_names": [
+        "Phillips 66  (PSX)  (CIK 0001534701)"
+      ],
+      "items": [
+        "1.01",
+        "7.01",
+        "9.01"
+      ],
+      "has_item_1_01": true,
+      "review_role": "counterparty_duplicate",
+      "deal_id": "dcp-phillips66",
+      "exclusion_reason": null,
+      "announcement_accepted_at": "2023-01-06T09:00:55-05:00",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001193125-23-001940",
+      "file_date": "2023-01-05",
+      "form": "8-K",
+      "ciks": [
+        "0001618921"
+      ],
+      "display_names": [
+        "Walgreens Boots Alliance, Inc.  (WBA)  (CIK 0001618921)"
+      ],
+      "items": [
+        "1.01",
+        "2.01",
+        "8.01",
+        "9.01"
+      ],
+      "has_item_1_01": true,
+      "review_role": "primary",
+      "deal_id": "wba-jan2023-agreement",
+      "exclusion_reason": null,
+      "announcement_accepted_at": "2023-01-05T02:00:40-05:00",
+      "matched_documents": 2
+    },
+    {
+      "accession": "0001213900-23-006448",
+      "file_date": "2023-01-31",
+      "form": "8-K",
+      "ciks": [
+        "0001814114"
+      ],
+      "display_names": [
+        "Orchestra BioMed Holdings, Inc.  (OBIO)  (CIK 0001814114)"
+      ],
+      "items": [
+        "1.01",
+        "2.01",
+        "3.02",
+        "3.03",
+        "4.01",
+        "5.01",
+        "5.02",
+        "5.03",
+        "5.05",
+        "5.06",
+        "7.01",
+        "8.01",
+        "9.01"
+      ],
+      "has_item_1_01": true,
+      "review_role": "primary",
+      "deal_id": "orchestra-jan2023-agreement",
+      "exclusion_reason": null,
+      "announcement_accepted_at": "2023-01-31T16:49:37-05:00",
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001213900-23-004434",
+      "file_date": "2023-01-23",
+      "form": "8-K",
+      "ciks": [
+        "0001680139"
+      ],
+      "display_names": [
+        "HealthLynked Corp  (HLYK)  (CIK 0001680139)"
+      ],
+      "items": [
+        "1.01",
+        "8.01",
+        "9.01"
+      ],
+      "has_item_1_01": true,
+      "review_role": "excluded",
+      "deal_id": null,
+      "exclusion_reason": "no_resolution_signal_and_content_unvalidated_small_issuer_phrase_hit",
+      "announcement_accepted_at": null,
+      "matched_documents": 1
+    },
+    {
+      "accession": "0000897101-23-000052",
+      "file_date": "2023-01-31",
+      "form": "8-K",
+      "ciks": [
+        "0000351789"
+      ],
+      "display_names": [
+        "ELECTRO SENSORS INC  (ELSE)  (CIK 0000351789)"
+      ],
+      "items": [
+        "1.01",
+        "1.02",
+        "8.01",
+        "9.01"
+      ],
+      "has_item_1_01": true,
+      "review_role": "excluded",
+      "deal_id": null,
+      "exclusion_reason": "no_resolution_signal_and_content_unvalidated_small_issuer_phrase_hit",
+      "announcement_accepted_at": null,
+      "matched_documents": 1
+    },
+    {
+      "accession": "0001140361-23-000246",
+      "file_date": "2023-01-04",
+      "form": "8-K",
+      "ciks": [
+        "0001959472"
+      ],
+      "display_names": [
+        "Kimco Realty OP, LLC  (CIK 0001959472)"
+      ],
+      "items": [
+        "1.01",
+        "3.01",
+        "3.03",
+        "5.01",
+        "5.02",
+        "5.03",
+        "9.01"
+      ],
+      "has_item_1_01": true,
+      "review_role": "excluded",
+      "deal_id": null,
+      "exclusion_reason": "likely_non_target_operating_partnership_restructuring",
+      "announcement_accepted_at": null,
+      "matched_documents": 1
+    }
+  ],
+  "deals": [
+    {
+      "deal_id": "albireo-ipsen",
+      "target_name": "Albireo Pharma, Inc.",
+      "acquirer_name": "Ipsen",
+      "stratum": "classic_public_target",
+      "primary_accession": "0001104659-23-001979",
+      "announced_on": "2023-01-09",
+      "announcement_accepted_at": "2023-01-09T01:05:48-05:00",
+      "announcement_time_quality": "edgar_acceptance_exact",
+      "outcome": "close_as_announced",
+      "resolved_on": "2023-03-02",
+      "resolution_signal_accession": "0001354457-23-000140",
+      "resolution_signal_kind": "25-NSE",
+      "censor_on": "2025-01-01",
+      "survival": {
+        "event_observed": true,
+        "right_censored": false,
+        "time_to_event_or_censor_days": 52,
+        "open_at_early_censor": false
+      },
+      "notes": "Form 25-NSE on target CIK.",
+      "raw_content_hash_validated": false,
+      "predictive_for_outcome": false,
+      "label_only": true
+    },
+    {
+      "deal_id": "cincor-astrazeneca",
+      "target_name": "CinCor Pharma, Inc.",
+      "acquirer_name": "AstraZeneca",
+      "stratum": "classic_public_target",
+      "primary_accession": "0001193125-23-004258",
+      "announced_on": "2023-01-09",
+      "announcement_accepted_at": "2023-01-09T04:06:58-05:00",
+      "announcement_time_quality": "edgar_acceptance_exact",
+      "outcome": "close_as_announced",
+      "resolved_on": "2023-02-24",
+      "resolution_signal_accession": "0001354457-23-000111",
+      "resolution_signal_kind": "25-NSE",
+      "censor_on": "2025-01-01",
+      "survival": {
+        "event_observed": true,
+        "right_censored": false,
+        "time_to_event_or_censor_days": 46,
+        "open_at_early_censor": false
+      },
+      "notes": "Form 25-NSE on target CIK.",
+      "raw_content_hash_validated": false,
+      "predictive_for_outcome": false,
+      "label_only": true
+    },
+    {
+      "deal_id": "concert-sun-pharma",
+      "target_name": "Concert Pharmaceuticals, Inc.",
+      "acquirer_name": "Sun Pharmaceutical",
+      "stratum": "classic_public_target",
+      "primary_accession": "0001193125-23-010719",
+      "announced_on": "2023-01-19",
+      "announcement_accepted_at": "2023-01-19T04:23:33-05:00",
+      "announcement_time_quality": "edgar_acceptance_exact",
+      "outcome": "close_as_announced",
+      "resolved_on": "2023-03-06",
+      "resolution_signal_accession": "0001354457-23-000156",
+      "resolution_signal_kind": "25-NSE",
+      "censor_on": "2025-01-01",
+      "survival": {
+        "event_observed": true,
+        "right_censored": false,
+        "time_to_event_or_censor_days": 46,
+        "open_at_early_censor": false
+      },
+      "notes": "Form 25-NSE; provisional completion date corrected from 2023-03-31.",
+      "raw_content_hash_validated": false,
+      "predictive_for_outcome": false,
+      "label_only": true
+    },
+    {
+      "deal_id": "dcp-phillips66",
+      "target_name": "DCP Midstream, LP",
+      "acquirer_name": "Phillips 66",
+      "stratum": "classic_public_target",
+      "primary_accession": "0001193125-23-003068",
+      "announced_on": "2023-01-06",
+      "announcement_accepted_at": "2023-01-06T04:03:09-05:00",
+      "announcement_time_quality": "edgar_acceptance_exact",
+      "outcome": "close_as_announced",
+      "resolved_on": "2023-06-15",
+      "resolution_signal_accession": "0000876661-23-000495",
+      "resolution_signal_kind": "25-NSE",
+      "censor_on": "2025-01-01",
+      "survival": {
+        "event_observed": true,
+        "right_censored": false,
+        "time_to_event_or_censor_days": 160,
+        "open_at_early_censor": true
+      },
+      "notes": "Target is DCP (corrected from earlier PSX-as-primary mistake). Open at early censor.",
+      "raw_content_hash_validated": false,
+      "predictive_for_outcome": false,
+      "label_only": true
+    },
+    {
+      "deal_id": "duckcreek-vista",
+      "target_name": "Duck Creek Technologies, Inc.",
+      "acquirer_name": "Vista Equity Partners",
+      "stratum": "classic_public_target",
+      "primary_accession": "0001193125-23-005230",
+      "announced_on": "2023-01-10",
+      "announcement_accepted_at": "2023-01-10T04:21:34-05:00",
+      "announcement_time_quality": "edgar_acceptance_exact",
+      "outcome": "close_as_announced",
+      "resolved_on": "2023-03-30",
+      "resolution_signal_accession": "0001354457-23-000231",
+      "resolution_signal_kind": "25-NSE",
+      "censor_on": "2025-01-01",
+      "survival": {
+        "event_observed": true,
+        "right_censored": false,
+        "time_to_event_or_censor_days": 79,
+        "open_at_early_censor": false
+      },
+      "notes": "Take-private; Form 25-NSE on target CIK.",
+      "raw_content_hash_validated": false,
+      "predictive_for_outcome": false,
+      "label_only": true
+    },
+    {
+      "deal_id": "evoqua-xylem",
+      "target_name": "Evoqua Water Technologies Corp.",
+      "acquirer_name": "Xylem Inc.",
+      "stratum": "classic_public_target",
+      "primary_accession": "0001193125-23-012554",
+      "announced_on": "2023-01-23",
+      "announcement_accepted_at": "2023-01-23T02:04:35-05:00",
+      "announcement_time_quality": "edgar_acceptance_exact",
+      "outcome": "close_as_announced",
+      "resolved_on": "2023-05-24",
+      "resolution_signal_accession": "0000876661-23-000436",
+      "resolution_signal_kind": "25-NSE",
+      "censor_on": "2025-01-01",
+      "survival": {
+        "event_observed": true,
+        "right_censored": false,
+        "time_to_event_or_censor_days": 121,
+        "open_at_early_censor": true
+      },
+      "notes": "Open at early 2023-04-01 censor; completed later.",
+      "raw_content_hash_validated": false,
+      "predictive_for_outcome": false,
+      "label_only": true
+    },
+    {
+      "deal_id": "first-guaranty-lone-star",
+      "target_name": "First Guaranty Bancshares, Inc.",
+      "acquirer_name": "Lone Star",
+      "stratum": "classic_public_target",
+      "primary_accession": "0001408534-23-000003",
+      "announced_on": "2023-01-09",
+      "announcement_accepted_at": "2023-01-09T10:02:26-05:00",
+      "announcement_time_quality": "edgar_acceptance_exact",
+      "outcome": "negative_termination",
+      "resolved_on": "2023-07-10",
+      "resolution_signal_accession": "0001408534-23-000060",
+      "resolution_signal_kind": "8-K_item_1_02",
+      "censor_on": "2025-01-01",
+      "survival": {
+        "event_observed": true,
+        "right_censored": false,
+        "time_to_event_or_censor_days": 182,
+        "open_at_early_censor": true
+      },
+      "notes": "Bridged to CA-FAILFRAME; open at early 2023-04-01 censor.",
+      "raw_content_hash_validated": false,
+      "predictive_for_outcome": false,
+      "label_only": true
+    },
+    {
+      "deal_id": "iaa-ritchie-bros",
+      "target_name": "IAA, Inc.",
+      "acquirer_name": "Ritchie Bros. Auctioneers",
+      "stratum": "classic_public_target",
+      "primary_accession": "0001104659-23-005627",
+      "announced_on": "2023-01-23",
+      "announcement_accepted_at": "2023-01-23T04:15:02-05:00",
+      "announcement_time_quality": "edgar_acceptance_exact",
+      "outcome": "close_as_announced",
+      "resolved_on": "2023-03-21",
+      "resolution_signal_accession": "0000876661-23-000269",
+      "resolution_signal_kind": "25-NSE",
+      "censor_on": "2025-01-01",
+      "survival": {
+        "event_observed": true,
+        "right_censored": false,
+        "time_to_event_or_censor_days": 57,
+        "open_at_early_censor": false
+      },
+      "notes": "Form 25-NSE on target CIK (provisional date corrected from 2023-03-20).",
+      "raw_content_hash_validated": false,
+      "predictive_for_outcome": false,
+      "label_only": true
+    },
+    {
+      "deal_id": "orchestra-jan2023-agreement",
+      "target_name": "Orchestra BioMed Holdings, Inc.",
+      "acquirer_name": null,
+      "stratum": "other",
+      "primary_accession": "0001213900-23-006448",
+      "announced_on": "2023-01-31",
+      "announcement_accepted_at": "2023-01-31T16:49:37-05:00",
+      "announcement_time_quality": "edgar_acceptance_exact",
+      "outcome": "censored",
+      "resolved_on": null,
+      "resolution_signal_accession": null,
+      "resolution_signal_kind": null,
+      "censor_on": "2025-01-01",
+      "survival": {
+        "event_observed": false,
+        "right_censored": true,
+        "time_to_event_or_censor_days": 701,
+        "open_at_early_censor": true
+      },
+      "notes": "No resolution signal on or before 2025-01-01; first later 1.02 is 2025-10-28. May be non-classic agreement; kept to force right-censor mass into the frame.",
+      "raw_content_hash_validated": false,
+      "predictive_for_outcome": false,
+      "label_only": true
+    },
+    {
+      "deal_id": "umpqua-columbia",
+      "target_name": "Umpqua Holdings Corporation",
+      "acquirer_name": "Columbia Banking System",
+      "stratum": "classic_public_target",
+      "primary_accession": "0001140361-23-001115",
+      "announced_on": "2023-01-09",
+      "announcement_accepted_at": "2023-01-09T15:01:52-05:00",
+      "announcement_time_quality": "edgar_acceptance_exact",
+      "outcome": "close_as_announced",
+      "resolved_on": "2023-03-01",
+      "resolution_signal_accession": "0001354457-23-000133",
+      "resolution_signal_kind": "25-NSE",
+      "censor_on": "2025-01-01",
+      "survival": {
+        "event_observed": true,
+        "right_censored": false,
+        "time_to_event_or_censor_days": 51,
+        "open_at_early_censor": false
+      },
+      "notes": "Banking merger; Form 25-NSE on target CIK.",
+      "raw_content_hash_validated": false,
+      "predictive_for_outcome": false,
+      "label_only": true
+    },
+    {
+      "deal_id": "wba-jan2023-agreement",
+      "target_name": "Walgreens Boots Alliance, Inc.",
+      "acquirer_name": null,
+      "stratum": "other",
+      "primary_accession": "0001193125-23-001940",
+      "announced_on": "2023-01-05",
+      "announcement_accepted_at": "2023-01-05T02:00:40-05:00",
+      "announcement_time_quality": "edgar_acceptance_exact",
+      "outcome": "censored",
+      "resolved_on": null,
+      "resolution_signal_accession": null,
+      "resolution_signal_kind": null,
+      "censor_on": "2025-01-01",
+      "survival": {
+        "event_observed": false,
+        "right_censored": true,
+        "time_to_event_or_censor_days": 727,
+        "open_at_early_censor": true
+      },
+      "notes": "No target-CIK 1.02/2.01/Form25 signal on or before 2025-01-01; first later 1.02 is 2025-04-25. Identity of the January agreement vs later 1.02 remains content-unvalidated.",
+      "raw_content_hash_validated": false,
+      "predictive_for_outcome": false,
+      "label_only": true
+    }
+  ],
+  "summary": {
+    "classified_submissions": 17,
+    "submission_roles": {
+      "counterparty_duplicate": 3,
+      "excluded": 3,
+      "primary": 11
+    },
+    "deal_count": 11,
+    "outcome_counts": {
+      "censored": 2,
+      "close_as_announced": 8,
+      "negative_termination": 1
+    },
+    "right_censored_deals": 2,
+    "exact_announcement_clocks": 11,
+    "open_at_early_censor": 5,
+    "raw_content_hash_validated": false,
+    "includes_right_censored_observations": true,
+    "zero_censored_blocks_survival_claim": false
+  },
+  "sources_sha256": "69bb6705eca56a6bd7da460b1b23125dae0d02fa8bb3b3051f59893f081604e6",
+  "deals_sha256": "97dfafae6e1dee8b7445eb79116daec51604241b28ad55ceeb024e455d276600"
+}

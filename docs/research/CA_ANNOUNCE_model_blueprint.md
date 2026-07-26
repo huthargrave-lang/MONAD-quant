@@ -1,9 +1,11 @@
 # CA-ANNOUNCE — public deal-risk model blueprint
 
-**Status:** literature-grounded model and product contract; announcement-time
-cohort not yet built<br>
+**Status:** literature-grounded model and product contract; schema seed built in
+[CA_ANNOUNCE_cohort_seed.md](CA_ANNOUNCE_cohort_seed.md); population search and
+baselines remain open<br>
 **Parents:** [CA-FAILFRAME](CA_FAILFRAME_termination_seed.md),
 [CA-01](CA01_sec_form25_state_machine.md)<br>
+**Child:** [CA-ANNOUNCE cohort seed](CA_ANNOUNCE_cohort_seed.md)<br>
 **Research graph:** H71
 
 ## The actual prediction problem
@@ -221,9 +223,13 @@ Stop or narrow the model if:
 
 ## Immediate build sequence
 
-1. Freeze a small announcement-time 2023 cohort with a fixed 2025 censor date.
-2. Reuse CA-00/CA-01 rights and observation clocks.
-3. Add a market-implied baseline and three-class/time-to-event labels.
+1. ~~Freeze a small announcement-time cohort with a fixed 2025 censor date.~~
+   **Done as schema seed** ([CA_ANNOUNCE_cohort_seed.md](CA_ANNOUNCE_cohort_seed.md));
+   population-scale announcement search still open.
+2. Reuse CA-00/CA-01 rights and observation clocks — schema seed now has 6/6
+   exact announcement acceptance clocks via data.sec.gov.
+3. Add a market-implied baseline and three-class/time-to-event labels —
+   cash proxy seed exists; calibration and stock/mixed marking remain open.
 4. Publish deal cards in Context Web.
 5. Run logistic and survival baselines.
 6. Only then test structured filing/rhetoric deltas and an evidence-constrained

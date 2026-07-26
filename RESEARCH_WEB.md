@@ -3298,3 +3298,159 @@ _— captured claude/research-continuation-ca1242@2b01774, 2026-07-26_
 NO GATEWAY REQUIRED. H33 prescribes running tools/diagnose_brackets.py against a live IBKR gateway plus TWS/IBC logs; none is reachable here and none was needed. data/live_runs/archive_2026-06-18_pre_clean_run/ is a committed export of a 12-week live paper run - 149 monitor events, 65 trades, 2026-03-27 to 2026-06-17 - and the evidence was already in the repository, as it was for F242. TWO INDEPENDENT MODES, WHICH H33 CONFLATES. (a) IBKR CONNECTIVITY: 46 of the 55 logged cycle errors (84%) are ConnectionRefusedError / Connect call failed, over 9 distinct days between 2026-04-03 and 2026-05-27. This is the dominant live-ops failure BY VOLUME and is not a bracket problem at all. (b) BRACKET NON-EXECUTION: 6 CRITICAL events, all 'SOFTWARE STOP triggered: mark=X breached stop=Y but IBKR bracket did not execute', on 4 days in a 10-day May window. THEY DO NOT COINCIDE, WHICH IS THE LOAD-BEARING RESULT. The sceptical reading of 'the bracket did not execute' is that it DID and the bot could not see it because it was disconnected. The dates rule that out: connection-loss days are 04-03, 04-28, 05-04, 05-14, 05-19, 05-22, 05-25, 05-26, 05-27; bracket-failure days are 05-12, 05-18, 05-19, 05-21; the overlap is ONE of four. On 3 of 4 bracket-failure days the bot was connected, price breached the stop, and the bracket did not fire. MAGNITUDE. Breaches run 0.11% to 2.38% past the stop (worst 2026-05-12, mark 72.94 against stop 74.72), and the six resulting trades returned -0.52% to -3.08% against a configured 0.50% stop - the worst is 6.2x the intended loss. The software net caught them all, which is why the run survived, but it caught them late. WHAT IT NARROWS AND WHAT IT DOES NOT. Entries filled normally throughout, so submission works and the bracket was accepted - the order existed and did not trigger, which RULES OUT submission failure. It does NOT separate OCA-group handling from tif from paper-engine non-execution; that still needs TWS/IBC logs, so H33 stays OPEN for that question with a much smaller one to answer. A PROVENANCE COST NOBODY HAD COUNTED. 14 of 65 trades (21.5%) carry a return never read from a real fill: 6 target_hit INFERRED from the TP price (all six recorded at exactly +1.00%), 6 stop_hit from the software net, 2 estimated_close force-finalised after fill data never arrived; the genuine remainder is 41 bracket_exit plus 9 time_exit and 1 paper_reset. The synthetic part is not merely uncertain, it is BIASED IN OPPOSITE DIRECTIONS - inferred exits sit exactly on the target while software stops sit far past the stop - so any live-vs-backtest comparison drawn from this record compares against a fifth-part-synthetic sample. A CORRECTION TO F242. F242 recovered entry prices as exit_price/(1+return_pct/100), but return_pct is stored as a FRACTION despite its name (a 1% target exit is logged 0.01 while the event log prints '+1.0010%'). Corrected: trade entry median 61.76 not 61.87, cost understatement over trades 11.1% not 10.7%, under-charged trades identical at 40/65. Every conclusion survives - direction, mechanism and magnitude unchanged - and F242's guard is repinned. A THIRD DEFECT, HISTORICAL. Eight cycle errors on one day (2026-03-30) read Position.__init__() got an unexpected keyword argument 'pending_close_retries' - a migration that ran before the code reading it. live/state.py:183 now declares the field and :148 carries the migration, so it is fixed; recorded because it fired in the very retry path meant to recover from missing fills. NOTHING IN live/** WAS MODIFIED - this is a read of a committed archive. Guarded by tests/test_f245_bracket_nonfill_root_cause.py (11 tests), bidirectional: fails if the archive stops witnessing either mode, if the two modes coincide on more than one day (connectivity would then explain the non-fills after all), if the worst breach narrows from 2.38%, if the worst software-stop loss drops below 5x the configured stop, if the synthetic share changes, if the inferred target exits stop sitting exactly on the target, or if Position loses the field whose absence caused the crash; non-vacuity asserts the genuine bracket_exit majority (41 of 65) so 'a fifth is synthetic' means something. Full write-up in docs/research/F245_bracket_nonfill_root_cause.md.
 Links: [[H33|supports]] · [[F242|refines]] · [[F6|relates]] · [[D6|relates]].
 _— captured claude/research-continuation-ca1242@bef87f4, 2026-07-26_
+
+### E122 — CA-ANNOUNCE announcement-time cohort schema seed
+Freeze a six-deal announcement-time cohort schema with fixed censor_on=2025-01-01. Outcomes: 3 close_as_announced, 1 higher_bid, 2 negative_termination, 0 censored. Exact EDGAR announcement clocks only for ATVI/TWTR (from CA-01); four deals remain date-only manual review. Artifact marks baseline_ladder_ready=false and zero_censored_blocks_survival_claim=true. See docs/research/CA_ANNOUNCE_cohort_seed.md and tools/sec_announce_cohort_lab.py.
+Links: [[H71|relates]] · [[E110|builds_on]] · [[E109|builds_on]] · [[D16|relates]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F246 — Announcement cohort schema works; population and censor mass still missing
+The CA-ANNOUNCE schema can encode announcement clocks, three-class holder outcomes, and right-censoring without treating termination-search seeds as a failure population. Amedisys/Option Care must stay higher_bid, not negative_termination. The six-deal pilot is not a forecasting cohort: selection is reviewed/structural, 4/6 announcement clocks are date-only, and zero unresolved deals remain at the 2025-01-01 censor, so survival baselines are blocked until an announcement-search population includes right-censored observations.
+Links: [[E122|evidenced_by]] · [[H71|relates]] · [[F129|builds_on]] · [[D16|relates]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### H79 — CA-ANNOUNCE-POP freeze an SEC announcement-search population with unresolved deals
+Next gate after the schema seed: freeze a real Item 1.01 / definitive-agreement SEC full-text search response, review accession roles, join exact announcement clocks for date-only deals, and force inclusion of still-open deals at the fixed censor before any market-implied, logistic, or survival baseline. Kill if announcement selection depends on eventual resolution or if unresolved deals are dropped.
+Links: [[F246|builds_on]] · [[H71|refines]] · [[H72|relates]] · [[E122|builds_on]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### E123 — CA-ANNOUNCE-POP January 2023 announcement-search discovery frame
+Freeze SEC EFTS query "entered into an Agreement and Plan of Merger" for 8-K filings dated 2023-01-01..2023-01-31. Response sha256 714ce403c957ccad585994e5d913ed7ac2a847568d96ff046d213c1ac425cea4 yields 106 document hits collapsing to 93 unique submissions. Tags Item 1.01/1.02 and SPAC-ish heuristics only; outcomes_assigned=false and right_censor_population_still_open=true. See docs/research/CA_ANNOUNCE_POP_discovery.md.
+Links: [[H79|relates]] · [[E122|builds_on]] · [[F127|builds_on]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F247 — Announcement phrase hits are not entry events: only 47/93 January submissions carry Item 1.01
+The January 2023 announcement-language search collapses 106 docs to 93 submissions, but only 47 carry Item 1.01 and 27 are SPAC-ish by heuristic. Phrase presence therefore mixes true entry announcements with later status/completion quotations of the merger agreement. Extends F127: documents ≠ submissions ≠ deals, and announcement phrases ≠ announcement events. Content review of the Item 1.01 subset is required before outcomes or censor labels.
+Links: [[E123|evidenced_by]] · [[H79|relates]] · [[F127|builds_on]] · [[F246|builds_on]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### E124 — CA-ANNOUNCE cash market-implied proxy seed
+Implement baseline-ladder step 0 for pure-cash deals: p_proxy=clip((price-downside)/(cash-downside),0,1) with optional day-count discounting. Four transformed fixture snapshots on ATVI/TWTR/SGEN; every row marked is_probability_truth=false; stock/mixed unsupported. See docs/research/CA_ANNOUNCE_market_implied.md.
+Links: [[D16|relates]] · [[E122|builds_on]] · [[E110|builds_on]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F248 — Cash market-implied proxy is implementable but is not a calibrated probability
+The cash close-probability proxy formula is deterministic and unit-tested, but fixture prices/downsides are explicit assumptions rather than frozen vendor quotes, and the proxy is uncalibrated to outcomes. Useful only as the hard baseline a later model must beat after a true announcement population exists.
+Links: [[E124|evidenced_by]] · [[D16|relates]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### E125 — CA-RHETORIC transparent phrase-family delta seed
+Extract appeared/disappeared/unchanged deltas across frozen phrase families (closing window, certainty, regulatory, financing, litigation, board recommendation, explicit unknowns) on two synthetic deal chains. Six family-state changes observed. Embedding branch not run. See docs/research/CA_RHETORIC_delta_seed.md.
+Links: [[H72|relates]] · [[E122|builds_on]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F249 — Transparent rhetoric deltas are ready as a pre-embedding baseline
+Successive filings can be reduced to auditable family presence deltas without embeddings. This does not establish predictive value; kill if phrases are chosen after outcomes or if the delta layer cannot beat calibrated spread plus survival baselines on a real announcement population.
+Links: [[E125|evidenced_by]] · [[H72|relates]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F250 — Schema-seed announcement clocks are now exact for all six deals via data.sec.gov
+Joined data.sec.gov acceptance timestamps for SGEN (0001193125-23-068474), Amedisys (0001104659-23-055570), Adobe (0001140361-22-033412), and FHN (0000930413-22-000362) onto the CA-ANNOUNCE schema seed. Combined with CA-01 ATVI/TWTR clocks, exact_announcement_clocks=6/6. Archives.sec.gov raw bytes remain 403 in this environment; acceptance provenance is the submissions API, not committed raw filings.
+Links: [[E122|evidenced_by]] · [[F246|relates]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F251 — January Item 1.01 review can begin from 32 classic-ish submissions after SPAC heuristic tightening
+Tightened SPAC-ish name stems (Capital Corp / SPAC) so Pono Capital Corp leaves the classic-ish bucket. Discovery summary after rebuild: use ctx/artifact for exact counts. A provisional 12-row review spec covers 8 primary January deals (Albireo, CinCor, Duck Creek, Evoqua, IAA, Umpqua, Concert, First Guaranty, DCP) plus counterparties — labels pending raw hash validation and still include zero unresolved/censored deals.
+Links: [[E123|evidenced_by]] · [[F247|builds_on]] · [[H79|relates]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### H80 — CA-ANNOUNCE-REVIEW hash-validate provisional January deal labels and add unresolved censor cases
+Next after F251: validate the provisional January review spec against raw filing markers/acceptance clocks, expand beyond the nine primary deals, and deliberately include still-open deals at censor_on=2025-01-01. Kill if provisional outcomes are treated as final without content hashes or if the reviewed set remains resolution-conditioned.
+Links: [[F251|builds_on]] · [[H79|refines]] · [[E123|builds_on]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### E126 — First Guaranty announcement-to-termination bridge across CA-ANNOUNCE-POP and CA-FAILFRAME
+Join First Guaranty/Lone Star: January 2023 Item 1.01 announcement accession 0001408534-23-000003 (accepted 2023-01-09 via data.sec.gov) to CA-FAILFRAME termination accession 0001408534-23-000060. Same issuer appears in both the announcement-language discovery frame and the termination-language seed, proving the two entry points can meet on one deal without treating either search as a population by itself. Artifact: docs/research/data/ca_announce_failframe_bridge_fgbi.json.
+Links: [[E123|builds_on]] · [[E109|builds_on]] · [[F247|relates]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F252 — Announcement and termination searches can meet on the same deal without either being a cohort
+First Guaranty demonstrates a concrete announcement→termination path spanning CA-ANNOUNCE-POP and CA-FAILFRAME. That is necessary plumbing for population construction, not evidence of base rates: both source queries remain phrase-conditioned, and one bridged deal does not estimate failure probability.
+Links: [[E126|evidenced_by]] · [[H79|relates]] · [[F127|builds_on]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### E127 — CA-ANNOUNCE-REVIEW clock-joined January cohort with right-censor mass
+Build an 11-deal review cohort from the frozen January announcement discovery frame with data.sec.gov acceptance clocks. Outcomes: 8 close_as_announced, 1 negative_termination (First Guaranty), 2 censored at 2025-01-01 (WBA, Orchestra). Five deals remain open at early censor 2023-04-01. Raw EDGAR content hashes not validated. See docs/research/CA_ANNOUNCE_REVIEW_cohort.md.
+Links: [[H80|relates]] · [[E123|builds_on]] · [[F251|builds_on]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F253 — Right-censor mass exists in the January announcement frame: 2/11 deals open at 2025-01-01
+After clock-joining the January review cohort, two deals (WBA, Orchestra) have no target-CIK Form25/2.01/1.02 signal on or before censor_on=2025-01-01, and five of eleven were still open at a 90-day early censor. This flips zero_censored_blocks_survival_claim to false for the reviewed frame. Censored rows remain content-unvalidated and must not be treated as confirmed classic public-target mergers.
+Links: [[E127|evidenced_by]] · [[H80|relates]] · [[F246|builds_on]] · [[F247|builds_on]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F254 — DCP not Phillips 66 is the disappearing security in the January DCP/PSX announcement cluster
+The provisional review had Phillips 66 as primary. Target-CIK resolution scanning shows DCP Midstream carries the Form 25-NSE / completion path (first signal 2023-06-15). PSX is the acquirer counterparty duplicate. Announcement-population primary keys must follow the security whose public float disappears.
+Links: [[E127|evidenced_by]] · [[F112|relates]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### E128 — CA-ANNOUNCE Kaplan-Meier seed on the 11-deal right-censored review cohort
+Compute a descriptive Kaplan-Meier curve on the 11-deal CA-ANNOUNCE-REVIEW cohort (9 events, 2 censored). Median time-to-event-or-censor is 79 days. Artifact docs/research/data/ca_announce_population_km_seed.json is explicitly not_a_population_estimate. Demonstrates that survival tooling can consume the reviewed frame now that right-censor mass exists.
+Links: [[E127|builds_on]] · [[D16|relates]] · [[F253|builds_on]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F255 — Survival tooling can run once right-censor mass exists, but n=11 is not a rate
+The KM seed on CA-ANNOUNCE-REVIEW proves the cohort schema feeds time-to-event code paths. It does not estimate industry completion hazard: sample is hand-reviewed, non-random, content-unvalidated for censored rows, and tiny. Expand and hash-validate before any baseline comparison to market-implied probabilities.
+Links: [[E128|evidenced_by]] · [[F253|builds_on]] · [[D16|relates]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### E129 — FORM4-POP day-sliced Form 4 discovery frame
+Frozen Form 4 EFTS 2024-06-03..07: index 5637 docs/week; day-sliced first-100/day yields 500 submissions balanced across days. Flat from=0 window was newest-day biased (all 400 from 2024-06-07). q=* returns 0 hits. Archives raw.txt is 403 so transaction codes not parsed; open-market cluster labels not assigned. Spec form4_population_spec.json; lab tools/form4_discovery_lab.py; writeup FORM4_POP_discovery.md.
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F256 — Form 4 EFTS needs day-slicing; archives block code P labels
+FORM4-POP: multi-day uncapped from=0 pulls only the newest file_date. Day-sliced caps restore calendar mix for discovery but are not a full population. Raw ownership XML unavailable (sec.gov Archives 403) so transactionCode/open-market cluster thesis remains untested.
+Links: [[E129|evidenced_by]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### E130 — CEF-DISCOUNT Yahoo NAV cheap-minus-rich pilot
+Eight CEFs with Yahoo X{TICKER}X NAV proxies (PDI BDJ BBN UTF HYT EOS NUV RVT; ADX dropped). 60d discount z to 20d: mean cheap-minus-rich price +1.76%, mean corr -0.19, mean discount-change cheap-minus-rich +0.78%. Price-only control also shows MR (high-minus-low -1.50%). first_cut_supports_long_cheap=true but UTF flips sign; descriptive only, no costs. Lab tools/cef_discount_lab.py; artifact cef_discount_pilot_result.json.
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F257 — CEF discount z cheap beats rich on first cut; confounded by price MR
+CEF-DISCOUNT pilot: long-cheap vs rich on discount z is +1.76% over 20d across 8 names, but price-only trail MR is also present (-1.50% high-minus-low). Does not establish a tradable discount-staleness edge after beta/NAV residualization. UTF is a sign flip.
+Links: [[E130|evidenced_by]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### H81 — H81 Form 4 open-market clusters after drawdowns
+Preregister: once Form 4 XML is available, define clusters of open-market buys (code P) after issuer drawdowns and test forward returns. Blocked on archives access; discovery frame E129 only.
+Links: [[E129|builds_on]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### H82 — H82 CEF discount mean-reversion residualized kill
+Preregister: residualize CEF cheap-minus-rich on NAV change and equity beta; kill if residual edge is non-positive after costs proxy. Parent pilot E130.
+Links: [[E130|builds_on]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### E131 — LF-01 NT 10-K 2023 month-sliced discovery
+Month-sliced NT 10-K 2023 (odd months, cap 50/mo): 170 submissions; March deadline cluster dominates (100 of 170). Full-year index 986. Year-level newest-first caps overweight Dec microcaps. Outcomes not assigned. Lab tools/nt_late_filer_lab.py; writeup LF01_NT_late_filer_discovery.md.
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F258 — NT 10-K population is March-deadline clustered; year caps mis-sample
+LF-01: odd-month NT 10-K sample still puts most mass in March. Flat year from=0 discovery is the wrong frame for a late-filer kill test. Need full deadline-window census plus ticker/exchange join before returns.
+Links: [[E131|evidenced_by]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### E132 — DI-01 424B5 at-the-market Q1-2024 discovery and price pilot
+EFTS 424B5 + at-the-market 2024Q1: 463 index hits, capped 100 submissions. Price pilot n=19 vs SPY: median xs_10d -9.3%, median xs_20d -21.6%, 68% negative xs_10d; mean xs_10d +1.1% outlier-pulled. Phrase hit != confirmed ATM takedown. Lab tools/atm_424b5_lab.py.
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F259 — ATM phrase cohort shows median SPY underperformance; mean confounded
+DI-01 descriptive pilot: median excess return negative at 10d/20d on capped Q1 phrase hits, but mean flips positive and sample mixes REITs, biotech, and dead tickers. Not a tradable overhang claim until reviewed ATM subset + broader years.
+Links: [[E132|evidenced_by]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### H83 — H83 NT late-filer matched-control kill after deadline census
+Preregister: full March/extension NT census, liquid tickers only, T+1 to T+20 vs same-week controls; kill if median excess >= -1% or sign unstable 2023 vs 2024.
+Links: [[E131|builds_on]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### H84 — H84 ATM takedown overhang after phrase-to-event review
+Preregister: promote DI-01 phrase hits to reviewed ATM programs; kill if reviewed subset median xs_10d >= -2% and unstable across 2023-2024.
+Links: [[E132|builds_on]].
+_— captured research/ca-announce-cohort@8efe267, 2026-07-26_
+
+### F260 — A detector for values computed twice with different parameters — the question the dead-lever census cannot ask
+THE QUESTION F145 DOES NOT ASK. The dead-lever census asks 'is this knob read?' and cannot find the two most expensive defects in src/signals/, because those knobs ARE read: engine.py:35 forwards rsi_period, add_momentum_features honours it and writes a correct df['rsi'], and every artifact a reader would inspect - the column, the log, the dashboard - is right. The entry gate still ignores it, because momentum_signal() calls compute_rsi(close) a second time at the function's default period. THE CORRECTNESS OF THE VISIBLE ARTIFACT IS WHAT HIDES THE DIVERGENCE; nobody audits a value that is right. tools/recompute_audit.py asks the other question - does the value that is DISPLAYED equal the value that GOVERNS? - and detects the mechanical signature of a No: a second call to a compute_* that also has a canonical df[col] = ... assignment, supplying fewer PARAMETERS than that assignment does. WHAT IT FINDS. Exactly two divergences, both at src/signals/momentum.py:38-39 inside momentum_signal(): compute_rsi drops 'period' (canonical momentum.py:164), and compute_macd drops 'fast, slow, signal' (canonical momentum.py:165). Every hourly mode configures non-default values for BOTH, so on every hourly mode the indicators that are logged, charted and swept are not the indicators that decide trades. The RSI half was proven empirically in F244 (386/386 agreement with a default-period rule against 381/386 with the configured one); the MACD half is the identical code path. config.py already carries a THIRD wrong diagnosis of this family - 'MACD_FAST_TQQQ_HOURLY = 6  # DEAD LEVER (confirmed: same as QQQ/BTC hourly)' - attributing the deadness to a coincidence between modes rather than to the knob never reaching the gate. THE DETECTOR'S OWN FIRST VERSION WAS WRONG, AND THE WAY IT WAS WRONG IS THE POINT. It counted KEYWORD arguments only and reported a third finding, compute_bb_width inside volatility_regime(). That call forwards 'window' POSITIONALLY, which a keyword count cannot see. Binding positional arguments against the callee's signature removed the false positive and left the two real ones - and it is also why volume_signal() is correctly silent: it recomputes its inputs in exactly the same SHAPE as momentum_signal() but forwards its parameters. So momentum.py is the outlier precisely because it forwards NOTHING, which is a far stronger statement than 'this pattern is risky' and only the corrected detector can make it. Kept as a regression test, because the false-positive direction is the one that would make the tool useless: a census that cries wolf gets ignored, which is how F145's five dead knobs sat unexamined. PRECISION OVER RECALL, DELIBERATELY: not flagged are a compute_* backing no column, a helper called once, or a recomputation whose parameters match (reported separately as 'duplicate', never counted - five exist in src/signals/). NOT FIXED: src/signals/** is fenced and correcting either call changes which bars produce entries on every hourly mode; the swept parameters were selected UNDER the wrong indicators, so fixing invalidates them while leaving them means the knobs should be DELETED rather than tuned. Same owner decision as F244, now with two instances and a tool that will find the third. Guarded by tests/test_f246_recompute_audit.py (12 tests), bidirectional: fails if the divergence set changes (if one is FIXED, supersede rather than edit the expectation; a NEW one needs its own analysis); fails if compute_bb_width is flagged divergent again or volume_signal's benign recomputes start being flagged; NON-VACUITY ON SYNTHETIC SOURCE IN BOTH DIRECTIONS - a planted parameter-dropping recompute must be caught and a planted correct positional forward must not be, since a detector that only ever says one thing is not a detector; fails if any hourly mode starts configuring the MACD defaults, and asserts BTC daily genuinely matches them so the finding is not inherited as 'every mode is broken'; and fails if the CLI stops signalling through its exit code. Full write-up in docs/research/F260_recompute_audit.md.
+Links: [[F244|builds_on]] · [[F145|refines]] · [[F26|relates]].
+_— captured claude/research-continuation-ca1242@4ca6c1a, 2026-07-26_

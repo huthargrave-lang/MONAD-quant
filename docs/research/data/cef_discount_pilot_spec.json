@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "spec_id": "cef-discount-pilot-yahoo-nav-2y-v1",
+  "z_lookback": 60,
+  "horizon_bars": 20,
+  "tickers": [
+    {"ticker": "PDI", "nav_ticker": "XPDIX"},
+    {"ticker": "BDJ", "nav_ticker": "XBDJX"},
+    {"ticker": "BBN", "nav_ticker": "XBBNX"},
+    {"ticker": "UTF", "nav_ticker": "XUTFX"},
+    {"ticker": "HYT", "nav_ticker": "XHYTX"},
+    {"ticker": "EOS", "nav_ticker": "XEOSX"},
+    {"ticker": "NUV", "nav_ticker": "XNUVX"},
+    {"ticker": "RVT", "nav_ticker": "XRVTX"}
+  ]
+}
