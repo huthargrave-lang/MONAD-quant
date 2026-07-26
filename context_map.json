@@ -3,13 +3,26 @@
   "project": "MONAD-quant",
   "deploy_branch": "development",
   "context_docs": {
-    "strategy_why": ["CLAUDE.md", "AGENTS.md"],
-    "live_ops_how": ["OPERATIONS.md", "ops/README.md"],
-    "navigation": ["AGENT_INDEX.md", "AGENT_CONTEXT_PLAN.md", "CONTEXT_KIT.md"],
-    "roadmap": ["IMPROVEMENT_PLAN.md"],
-    "research_idea_web": ["RESEARCH_WEB.md"]
+    "strategy_why": [
+      "CLAUDE.md",
+      "AGENTS.md"
+    ],
+    "live_ops_how": [
+      "OPERATIONS.md",
+      "ops/README.md"
+    ],
+    "navigation": [
+      "AGENT_INDEX.md",
+      "AGENT_CONTEXT_PLAN.md",
+      "CONTEXT_KIT.md"
+    ],
+    "roadmap": [
+      "IMPROVEMENT_PLAN.md"
+    ],
+    "research_idea_web": [
+      "RESEARCH_WEB.md"
+    ]
   },
-
   "invariants": {
     "_note": "Source of truth is config.py; these are asserted equal by tests/test_context_map.py.",
     "paper_only": true,
@@ -31,218 +44,821 @@
     "max_trade_bars_live": "config.MAX_TRADE_BARS_LIVE",
     "software_take_profit": "config.USE_SOFTWARE_TAKE_PROFIT"
   },
-
   "param_claims": {
     "_README": "Drift-prone strategy params bound to their config.py source of truth — generalizes invariant_sources beyond the safety/identity invariants. Asserted by tests/test_context_map.py::TestParamClaims: each `source` must resolve and each `value` must equal the live config value, and any explicit `KEY=value` mention in CLAUDE.md/AGENTS.md must match. Query these (or `ctx config <KEY>` for the live value) instead of trusting prose — CLAUDE.md headline/§6 numbers are flagged stale. Changing a param means updating config.py AND `value` here; CI fails when they diverge.",
     "claims": [
-      {"key": "daily_max_trade_bars", "source": "config.MAX_TRADE_BARS", "value": 8,
-       "note": "Daily mean-reversion max hold. CLAUDE.md §6 still records 20 (stale, baselined in KNOWN_DOC_PARAM_DRIFT)."},
-      {"key": "strong_bull_max_trade_bars", "source": "config.MAX_TRADE_BARS_STRONG_BULL", "value": 30,
-       "note": "6-week max hold in STRONG_BULL."},
-      {"key": "daily_rsi_oversold", "source": "config.RSI_OVERSOLD", "value": 38,
-       "note": "BTC daily oversold threshold (38 not 30 — catches shallow bull dips)."},
-      {"key": "tqqq_hourly_rsi_oversold", "source": "config.RSI_OVERSOLD_TQQQ_HOURLY", "value": 80,
-       "note": "Active live mode (TQQQ_HOURLY) oversold threshold."},
-      {"key": "tqqq_hourly_target_pct", "source": "config.TARGET_GAIN_PCT_TQQQ_HOURLY", "value": 0.01,
-       "note": "Active live mode target (1.00%). NB config.py comment mislabels it 2.80% — see `ctx audit`."},
-      {"key": "tqqq_hourly_stop_pct", "source": "config.STOP_LOSS_PCT_TQQQ_HOURLY", "value": 0.005,
-       "note": "Active live mode stop (0.50%). NB config.py comment mislabels it 1.50% — see `ctx audit`."},
-      {"key": "gdxu_hourly_stop_pct", "source": "config.STOP_LOSS_PCT_GDXU_HOURLY", "value": 0.0046,
-       "note": "GDXU needs re-sweep; 0.46% realistic-sweep stop."},
-      {"key": "gdxu_hourly_rsi_oversold", "source": "config.RSI_OVERSOLD_GDXU_HOURLY", "value": 85,
-       "note": "GDXU RSI saturated; 85 optimal."}
+      {
+        "key": "daily_max_trade_bars",
+        "source": "config.MAX_TRADE_BARS",
+        "value": 8,
+        "note": "Daily mean-reversion max hold. CLAUDE.md §6 still records 20 (stale, baselined in KNOWN_DOC_PARAM_DRIFT)."
+      },
+      {
+        "key": "strong_bull_max_trade_bars",
+        "source": "config.MAX_TRADE_BARS_STRONG_BULL",
+        "value": 30,
+        "note": "6-week max hold in STRONG_BULL."
+      },
+      {
+        "key": "daily_rsi_oversold",
+        "source": "config.RSI_OVERSOLD",
+        "value": 38,
+        "note": "BTC daily oversold threshold (38 not 30 — catches shallow bull dips)."
+      },
+      {
+        "key": "tqqq_hourly_rsi_oversold",
+        "source": "config.RSI_OVERSOLD_TQQQ_HOURLY",
+        "value": 80,
+        "note": "Active live mode (TQQQ_HOURLY) oversold threshold."
+      },
+      {
+        "key": "tqqq_hourly_target_pct",
+        "source": "config.TARGET_GAIN_PCT_TQQQ_HOURLY",
+        "value": 0.01,
+        "note": "Active live mode target (1.00%). NB config.py comment mislabels it 2.80% — see `ctx audit`."
+      },
+      {
+        "key": "tqqq_hourly_stop_pct",
+        "source": "config.STOP_LOSS_PCT_TQQQ_HOURLY",
+        "value": 0.005,
+        "note": "Active live mode stop (0.50%). NB config.py comment mislabels it 1.50% — see `ctx audit`."
+      },
+      {
+        "key": "gdxu_hourly_stop_pct",
+        "source": "config.STOP_LOSS_PCT_GDXU_HOURLY",
+        "value": 0.0046,
+        "note": "GDXU needs re-sweep; 0.46% realistic-sweep stop."
+      },
+      {
+        "key": "gdxu_hourly_rsi_oversold",
+        "source": "config.RSI_OVERSOLD_GDXU_HOURLY",
+        "value": 85,
+        "note": "GDXU RSI saturated; 85 optimal."
+      }
     ]
   },
-
   "graph_bridges": {
     "_README": "Curated idea↔code edges linking RESEARCH_WEB.md nodes to the code/config they concern — the connective tissue that lets an agent editing a symbol discover the finding about it (and vice-versa). Asserted by tests/test_context_map.py::TestGraphBridges: every `node` must exist in the web and every `code` target must resolve (file::symbol defined, or config.KEY exists). Surfaced by `ctx web <node>`, `ctx impact <symbol|config.KEY>`, and the unified `ctx walk/why/neighbors`. relation ∈ {concerns, implemented_in, measured_by, gated_by}.",
     "bridges": [
-      {"node": "F17", "relation": "concerns",
-       "code": ["src/strategy/engine.py::compute_trade_returns", "config.STOP_LOSS_PCT_TQQQ_HOURLY", "config.TARGET_GAIN_PCT_TQQQ_HOURLY"],
-       "guarded_by": ["tests/test_f17_breakeven_arithmetic.py::TheDailyETFBandsAreNotTwoToOneTests",
-                      "tests/test_f17_breakeven_arithmetic.py::ATwoToOneBandCannotProduceTheCitedClaimTests"],
-       "note": "The fixed %-target/%-stop exit is the architectural flaw; a multi-day horizon exit would replace it here. NOTE (F179): F17's 'below the 2:1 breakeven' clause mislabels the band -- the daily ETF exits are 1.67:1 (breakeven 37.5%), not 2:1 (33.3%); the substance holds against the right band."},
-      {"node": "F7", "relation": "concerns",
-       "code": ["config.STOP_LOSS_PCT_TQQQ_HOURLY", "config.STOP_LOSS_PCT_GDXU_HOURLY"],
-       "note": "stop-vs-intrabar-noise ratio drives win rate — the stop pct is the lever (3x ETFs stop inside noise)."},
-      {"node": "F13", "relation": "concerns",
-       "code": ["live/signals.py::_fetch_recent_bars", "config.ACTIVE_MODE"],
-       "guarded_by": ["tests/test_f12_f13_fetch_span_bridge.py::TheLiveWindowIsShortTests"],
-       "note": "the live bot trades full sessions → flat; the hourly edge was a morning-only sampling artifact."},
-      {"node": "F12", "relation": "concerns",
-       "code": ["tools/fetch_fullsession.py::fetch_full", "live/signals.py::_fetch_recent_bars"],
-       "guarded_by": ["tests/test_f12_f13_fetch_span_bridge.py::TheLongSpanCallSitesWereNeverConvertedTests",
-                      "tests/test_f12_f13_fetch_span_bridge.py::TheQuirkDidNotBiteInTheMostRecentCommittedFetchTests"],
-       "note": "backtest↔live data mismatch root cause (710d fetch = morning-only) + the chunked re-pull fix. NOTE (F180): the fix was ADDITIVE -- sweep.py/instrument_screen.py still make 710d single-call 1h fetches; but the most recent committed manifest shows a 721d single call returning ~6.7 bars/day, so the quirk did not fire there."},
-      {"node": "F16", "relation": "concerns",
-       "code": ["src/strategy/engine.py::generate_trades"],
-       "guarded_by": ["tests/test_f16_mean_reversion_bridge.py::F16EntrySignExploitsMeanReversion"],
-       "note": "daily mean-reversion is a real serial-correlation property; the entry signal exploits it."},
-      {"node": "D4", "relation": "gated_by",
-       "code": ["config.ACTIVE_MODE", "src/strategy/engine.py::compute_trade_returns"],
-       "guarded_by": ["tests/test_d4_goal_bridge_and_passive_edges.py::D4sAnswerPredatesTheEvidenceTests",
-                      "tests/test_d4_goal_bridge_and_passive_edges.py::PassiveVoiceNoLongerInvertsAnEdgeTests"],
-       "note": "goal reachable only as diversified daily-MR + horizon exit — not the hourly %-stop bot; the exit is the highest-value change. STALE (F181): this answer predates F22 (the build does NOT beat buy&hold OOS), F41 (which RESOLVED D4 differently) and D6 — do not act on it without reading those."},
-      {"node": "D2", "relation": "concerns",
-       "code": ["src/optimization/walk_forward.py::walk_forward_optimize"],
-       "guarded_by": ["tests/test_d2_walkforward_selector.py::D2IsStillOpenTests"],
-       "note": "promote rolling-origin OOS to the sweep's primary selector."},
-      {"node": "F6", "relation": "concerns",
-       "code": ["config.ACTIVE_MODE", "config.STOP_LOSS_PCT_TQQQ_HOURLY"],
-       "guarded_by": ["tests/test_f6_fragile_instrument_bridge.py::F6PreconditionStillHolds"],
-       "note": "the live instrument (TQQQ) is fragile — collapses to t=0.37 on recent data."},
-      {"node": "F19", "relation": "concerns",
-       "code": ["src/strategy/engine.py::compute_trade_returns", "config.STOP_LOSS_PCT_TQQQ_HOURLY"],
-       "guarded_by": ["tests/test_f19_exit_lever_bridge.py::F19HoldsUnderTheHONESTFillRuleTests",
-                      "tests/test_f19_exit_lever_bridge.py::TheOptimisticFlagInvertsTheConclusionTests"],
-       "note": "independent confirmation that the %-stop exit destroys the edge a horizon exit captures -- but ONLY under worst_case_ambiguity=True; optimistic mode inverts the ranking (F174)."},
-      {"node": "F20", "relation": "concerns",
-       "code": ["src/strategy/sizing.py::adaptive_kelly_multiplier", "config.USE_ADAPTIVE_KELLY"],
-       "guarded_by": ["tests/test_f20_kelly_estimator_bridge.py::TheDriverIsTheWindowNotContinuityTests",
-                      "tests/test_f20_kelly_estimator_bridge.py::TheProjectsOwnKellyIsExpandingNotRollingTests",
-                      "tests/test_f20_kelly_estimator_bridge.py::NoneOfThisRunsOnTheDefaultPathTests"],
-       "note": "a noisy CONTINUOUS half-Kelly hurt Sharpe (0.72->0.48), but the project's coarse WR-TIERED adaptive_kelly_multiplier re-runs ~Sharpe-neutral (0.68 vs 0.72 fixed) — it does NOT collapse. Prefer vol-targeting, which actively helps. NOTE (F175): the variance driver is the 30-trade WINDOW, not the estimator's shape; the project's own kelly_mode='rolling' is unbounded/expanding and is MORE stable than the tier."},
-      {"node": "F21", "relation": "concerns",
-       "code": ["src/strategy/sizing.py::position_fraction"],
-       "guarded_by": ["tests/test_f21_vol_target_bridge.py::TheBridgedFunctionCannotVolTargetTests",
-                      "tests/test_f21_vol_target_bridge.py::TheRecommendedCombinationWasNeverRunTests",
-                      "tests/test_f21_vol_target_bridge.py::TheTwoLabsDisagreeOnMethodTests"],
-       "note": "vol-targeted sizing beat both fixed-Kelly and adaptive-Kelly on Sharpe; equal-weight beat 'smart' weighting. WARNING (F176): position_fraction implements NO vol-targeting, and the lab never ran equal-weight WITH vol-targeting -- it targeted the Sharpe-weighted arm that lost. F21's headline build is a composition of two rows, not a measurement."},
-      {"node": "D5", "relation": "gated_by",
-       "code": ["config.ACTIVE_MODE", "src/strategy/engine.py::compute_trade_returns"],
-       "guarded_by": ["tests/test_d5_recommendation_gap.py::EveryD5DropIsStillInForceTests",
-                      "tests/test_d5_recommendation_gap.py::ApplyingD5WouldTripTheLiveInvariantTests"],
-       "note": "recommended build = daily-MR + horizon exit + vol-target on un-leveraged equities; changing mode/exit needs sign-off (armed path). NOTE (F177): all four DROPs are still in force, and applying the first one would trip live/trader.py's _assert_mode_symbol_coherent, which literally matches an _HOURLY suffix."},
-      {"node": "D6", "relation": "gated_by",
-       "code": ["config.ACTIVE_MODE"],
-       "note": "go/no-go verdict: the active engine shows no demonstrated advantage over a static blend — recommend a static allocation; changing the live mode needs sign-off."},
-      {"node": "F11", "relation": "implemented_in",
-       "code": ["src/optimization/sweep_scoring.py::_apply_penalties"],
-       "guarded_by": ["tests/test_sweep_scoring.py::TestNegativeBasePenalties"],
-       "note": "the penalty-inversion fix lives here: the `if base <= 0: return base` guard skips the multiplicative penalties on net-negative configs (shrinking a negative base toward zero would otherwise IMPROVE losing configs). Fixed in 084f15e."},
-      {"node": "F23", "relation": "implemented_in", "guarded_by": ["tests/test_web_code_claims.py::F23PerModeWindowsClaim"],
-       "code": ["src/signals/momentum.py::momentum_signal", "live/signals.py::get_current_signal"],
-       "note": "momentum_signal recomputes RSI/MACD with HARDCODED defaults (compute_rsi/compute_macd take no period args → RSI 14, MACD 12/26/9), so the per-mode RSI_PERIOD_*/MACD_* config never reaches the entry signal — only the oversold/overbought THRESHOLDS are threaded through. The armed bot rides this path via get_current_signal → build_features → add_momentum_features. The config's 'DEAD LEVER' comments are empirically right but MISATTRIBUTE the cause to market structure rather than this code path."},
-      {"node": "D7", "relation": "implemented_in",
-       "code": ["tools/ctx.py::_GRAPH_HTML"],
-       "guarded_by": ["tests/test_research_web.py::TestGraphHtmlExplore"],
-       "note": "Selected-node Explore prompts are deterministic, static HTML/JS in the ctx graph template; no backend or LLM credentials are required for the first implementation."},
-      {"node": "D8", "relation": "implemented_in",
-       "code": ["tools/ctx.py::_GRAPH_HTML"],
-       "guarded_by": ["tests/test_research_web.py::TestGraphHtmlExplore"],
-       "note": "Shift-drag orbit around the current viewport center, focus-preserving flat camera reset, dark outer-space canvas, node-click continuous slow orbit cruise, deterministic per-node z/depth relaxation, soft layered SVG glow-orb node marks, collision-aware labels/tooltips, and fast-render motion quality are 3D-vector controls inside the static ctx graph template; motion mode disables distant blur filters, throttles depth/label work, skips fast zoom label recompute, and shortens force settling; node selection frames the selected node plus visible one-hop neighbors, and no synthetic non-node dots are drawn in the background."}
+      {
+        "node": "F17",
+        "relation": "concerns",
+        "code": [
+          "src/strategy/engine.py::compute_trade_returns",
+          "config.STOP_LOSS_PCT_TQQQ_HOURLY",
+          "config.TARGET_GAIN_PCT_TQQQ_HOURLY"
+        ],
+        "guarded_by": [
+          "tests/test_f17_breakeven_arithmetic.py::TheDailyETFBandsAreNotTwoToOneTests",
+          "tests/test_f17_breakeven_arithmetic.py::ATwoToOneBandCannotProduceTheCitedClaimTests"
+        ],
+        "note": "The fixed %-target/%-stop exit is the architectural flaw; a multi-day horizon exit would replace it here. NOTE (F179): F17's 'below the 2:1 breakeven' clause mislabels the band -- the daily ETF exits are 1.67:1 (breakeven 37.5%), not 2:1 (33.3%); the substance holds against the right band."
+      },
+      {
+        "node": "F7",
+        "relation": "concerns",
+        "code": [
+          "config.STOP_LOSS_PCT_TQQQ_HOURLY",
+          "config.STOP_LOSS_PCT_GDXU_HOURLY"
+        ],
+        "note": "stop-vs-intrabar-noise ratio drives win rate — the stop pct is the lever (3x ETFs stop inside noise)."
+      },
+      {
+        "node": "F13",
+        "relation": "concerns",
+        "code": [
+          "live/signals.py::_fetch_recent_bars",
+          "config.ACTIVE_MODE"
+        ],
+        "guarded_by": [
+          "tests/test_f12_f13_fetch_span_bridge.py::TheLiveWindowIsShortTests"
+        ],
+        "note": "the live bot trades full sessions → flat; the hourly edge was a morning-only sampling artifact."
+      },
+      {
+        "node": "F12",
+        "relation": "concerns",
+        "code": [
+          "tools/fetch_fullsession.py::fetch_full",
+          "live/signals.py::_fetch_recent_bars"
+        ],
+        "guarded_by": [
+          "tests/test_f12_f13_fetch_span_bridge.py::TheLongSpanCallSitesWereNeverConvertedTests",
+          "tests/test_f12_f13_fetch_span_bridge.py::TheQuirkDidNotBiteInTheMostRecentCommittedFetchTests"
+        ],
+        "note": "backtest↔live data mismatch root cause (710d fetch = morning-only) + the chunked re-pull fix. NOTE (F180): the fix was ADDITIVE -- sweep.py/instrument_screen.py still make 710d single-call 1h fetches; but the most recent committed manifest shows a 721d single call returning ~6.7 bars/day, so the quirk did not fire there."
+      },
+      {
+        "node": "F16",
+        "relation": "concerns",
+        "code": [
+          "src/strategy/engine.py::generate_trades"
+        ],
+        "guarded_by": [
+          "tests/test_f16_mean_reversion_bridge.py::F16EntrySignExploitsMeanReversion"
+        ],
+        "note": "daily mean-reversion is a real serial-correlation property; the entry signal exploits it."
+      },
+      {
+        "node": "D4",
+        "relation": "gated_by",
+        "code": [
+          "config.ACTIVE_MODE",
+          "src/strategy/engine.py::compute_trade_returns"
+        ],
+        "guarded_by": [
+          "tests/test_d4_goal_bridge_and_passive_edges.py::D4sAnswerPredatesTheEvidenceTests",
+          "tests/test_d4_goal_bridge_and_passive_edges.py::PassiveVoiceNoLongerInvertsAnEdgeTests"
+        ],
+        "note": "goal reachable only as diversified daily-MR + horizon exit — not the hourly %-stop bot; the exit is the highest-value change. STALE (F181): this answer predates F22 (the build does NOT beat buy&hold OOS), F41 (which RESOLVED D4 differently) and D6 — do not act on it without reading those."
+      },
+      {
+        "node": "D2",
+        "relation": "concerns",
+        "code": [
+          "src/optimization/walk_forward.py::walk_forward_optimize"
+        ],
+        "guarded_by": [
+          "tests/test_d2_walkforward_selector.py::D2IsStillOpenTests"
+        ],
+        "note": "promote rolling-origin OOS to the sweep's primary selector."
+      },
+      {
+        "node": "F6",
+        "relation": "concerns",
+        "code": [
+          "config.ACTIVE_MODE",
+          "config.STOP_LOSS_PCT_TQQQ_HOURLY"
+        ],
+        "guarded_by": [
+          "tests/test_f6_fragile_instrument_bridge.py::F6PreconditionStillHolds"
+        ],
+        "note": "the live instrument (TQQQ) is fragile — collapses to t=0.37 on recent data."
+      },
+      {
+        "node": "F19",
+        "relation": "concerns",
+        "code": [
+          "src/strategy/engine.py::compute_trade_returns",
+          "config.STOP_LOSS_PCT_TQQQ_HOURLY"
+        ],
+        "guarded_by": [
+          "tests/test_f19_exit_lever_bridge.py::F19HoldsUnderTheHONESTFillRuleTests",
+          "tests/test_f19_exit_lever_bridge.py::TheOptimisticFlagInvertsTheConclusionTests"
+        ],
+        "note": "independent confirmation that the %-stop exit destroys the edge a horizon exit captures -- but ONLY under worst_case_ambiguity=True; optimistic mode inverts the ranking (F174)."
+      },
+      {
+        "node": "F20",
+        "relation": "concerns",
+        "code": [
+          "src/strategy/sizing.py::adaptive_kelly_multiplier",
+          "config.USE_ADAPTIVE_KELLY"
+        ],
+        "guarded_by": [
+          "tests/test_f20_kelly_estimator_bridge.py::TheDriverIsTheWindowNotContinuityTests",
+          "tests/test_f20_kelly_estimator_bridge.py::TheProjectsOwnKellyIsExpandingNotRollingTests",
+          "tests/test_f20_kelly_estimator_bridge.py::NoneOfThisRunsOnTheDefaultPathTests"
+        ],
+        "note": "a noisy CONTINUOUS half-Kelly hurt Sharpe (0.72->0.48), but the project's coarse WR-TIERED adaptive_kelly_multiplier re-runs ~Sharpe-neutral (0.68 vs 0.72 fixed) — it does NOT collapse. Prefer vol-targeting, which actively helps. NOTE (F175): the variance driver is the 30-trade WINDOW, not the estimator's shape; the project's own kelly_mode='rolling' is unbounded/expanding and is MORE stable than the tier."
+      },
+      {
+        "node": "F21",
+        "relation": "concerns",
+        "code": [
+          "src/strategy/sizing.py::position_fraction"
+        ],
+        "guarded_by": [
+          "tests/test_f21_vol_target_bridge.py::TheBridgedFunctionCannotVolTargetTests",
+          "tests/test_f21_vol_target_bridge.py::TheRecommendedCombinationWasNeverRunTests",
+          "tests/test_f21_vol_target_bridge.py::TheTwoLabsDisagreeOnMethodTests"
+        ],
+        "note": "vol-targeted sizing beat both fixed-Kelly and adaptive-Kelly on Sharpe; equal-weight beat 'smart' weighting. WARNING (F176): position_fraction implements NO vol-targeting, and the lab never ran equal-weight WITH vol-targeting -- it targeted the Sharpe-weighted arm that lost. F21's headline build is a composition of two rows, not a measurement."
+      },
+      {
+        "node": "D5",
+        "relation": "gated_by",
+        "code": [
+          "config.ACTIVE_MODE",
+          "src/strategy/engine.py::compute_trade_returns"
+        ],
+        "guarded_by": [
+          "tests/test_d5_recommendation_gap.py::EveryD5DropIsStillInForceTests",
+          "tests/test_d5_recommendation_gap.py::ApplyingD5WouldTripTheLiveInvariantTests"
+        ],
+        "note": "recommended build = daily-MR + horizon exit + vol-target on un-leveraged equities; changing mode/exit needs sign-off (armed path). NOTE (F177): all four DROPs are still in force, and applying the first one would trip live/trader.py's _assert_mode_symbol_coherent, which literally matches an _HOURLY suffix."
+      },
+      {
+        "node": "D6",
+        "relation": "gated_by",
+        "code": [
+          "config.ACTIVE_MODE"
+        ],
+        "note": "go/no-go verdict: the active engine shows no demonstrated advantage over a static blend — recommend a static allocation; changing the live mode needs sign-off."
+      },
+      {
+        "node": "F11",
+        "relation": "implemented_in",
+        "code": [
+          "src/optimization/sweep_scoring.py::_apply_penalties"
+        ],
+        "guarded_by": [
+          "tests/test_sweep_scoring.py::TestNegativeBasePenalties"
+        ],
+        "note": "the penalty-inversion fix lives here: the `if base <= 0: return base` guard skips the multiplicative penalties on net-negative configs (shrinking a negative base toward zero would otherwise IMPROVE losing configs). Fixed in 084f15e."
+      },
+      {
+        "node": "F23",
+        "relation": "implemented_in",
+        "guarded_by": [
+          "tests/test_web_code_claims.py::F23PerModeWindowsClaim"
+        ],
+        "code": [
+          "src/signals/momentum.py::momentum_signal",
+          "live/signals.py::get_current_signal"
+        ],
+        "note": "momentum_signal recomputes RSI/MACD with HARDCODED defaults (compute_rsi/compute_macd take no period args → RSI 14, MACD 12/26/9), so the per-mode RSI_PERIOD_*/MACD_* config never reaches the entry signal — only the oversold/overbought THRESHOLDS are threaded through. The armed bot rides this path via get_current_signal → build_features → add_momentum_features. The config's 'DEAD LEVER' comments are empirically right but MISATTRIBUTE the cause to market structure rather than this code path."
+      },
+      {
+        "node": "D7",
+        "relation": "implemented_in",
+        "code": [
+          "tools/ctx.py::_GRAPH_HTML"
+        ],
+        "guarded_by": [
+          "tests/test_research_web.py::TestGraphHtmlExplore"
+        ],
+        "note": "Selected-node Explore prompts are deterministic, static HTML/JS in the ctx graph template; no backend or LLM credentials are required for the first implementation."
+      },
+      {
+        "node": "D8",
+        "relation": "implemented_in",
+        "code": [
+          "tools/ctx.py::_GRAPH_HTML"
+        ],
+        "guarded_by": [
+          "tests/test_research_web.py::TestGraphHtmlExplore"
+        ],
+        "note": "Shift-drag orbit around the current viewport center, focus-preserving flat camera reset, dark outer-space canvas, node-click continuous slow orbit cruise, deterministic per-node z/depth relaxation, soft layered SVG glow-orb node marks, collision-aware labels/tooltips, and fast-render motion quality are 3D-vector controls inside the static ctx graph template; motion mode disables distant blur filters, throttles depth/label work, skips fast zoom label recompute, and shortens force settling; node selection frames the selected node plus visible one-hop neighbors, and no synthetic non-node dots are drawn in the background."
+      }
     ]
   },
-
   "areas": {
     "live_trader": {
       "summary": "The hourly scheduler + entry/exit/reconcile loop that places paper bracket orders.",
-      "files": ["live/trader.py", "live/state.py", "live/broker.py", "live/signals.py", "live/alerts.py"],
-      "entrypoints": ["live/trader.py::_on_bar_inner", "live/trader.py::main", "live/state.py::init_db"],
-      "tests": ["tests/test_trader_reconcile.py", "tests/test_trader_flow.py", "tests/test_software_take_profit.py", "tests/test_state.py", "tests/test_execution_model.py", "tests/test_live_signals.py", "tests/test_trader_helpers.py", "tests/test_broker.py"],
-      "docs": ["OPERATIONS.md", "CLAUDE.md"],
+      "files": [
+        "live/trader.py",
+        "live/state.py",
+        "live/broker.py",
+        "live/signals.py",
+        "live/alerts.py"
+      ],
+      "entrypoints": [
+        "live/trader.py::_on_bar_inner",
+        "live/trader.py::main",
+        "live/state.py::init_db"
+      ],
+      "tests": [
+        "tests/test_trader_reconcile.py",
+        "tests/test_trader_flow.py",
+        "tests/test_software_take_profit.py",
+        "tests/test_state.py",
+        "tests/test_execution_model.py",
+        "tests/test_live_signals.py",
+        "tests/test_trader_helpers.py",
+        "tests/test_broker.py"
+      ],
+      "docs": [
+        "OPERATIONS.md",
+        "CLAUDE.md"
+      ],
       "do_not_touch_without_approval": true
     },
     "signals": {
       "summary": "Signal feature engineering: RSI/MACD/regime, VWAP z-score, ADX/Bollinger.",
-      "files": ["src/signals/momentum.py", "src/signals/volume.py", "src/signals/volatility.py"],
-      "entrypoints": ["src/signals/momentum.py::classify_regime", "src/signals/momentum.py::add_momentum_features"],
-      "tests": ["tests/test_signals.py"],
-      "docs": ["CLAUDE.md"],
+      "files": [
+        "src/signals/momentum.py",
+        "src/signals/volume.py",
+        "src/signals/volatility.py"
+      ],
+      "entrypoints": [
+        "src/signals/momentum.py::classify_regime",
+        "src/signals/momentum.py::add_momentum_features"
+      ],
+      "tests": [
+        "tests/test_signals.py"
+      ],
+      "docs": [
+        "CLAUDE.md"
+      ],
       "do_not_touch_without_approval": false
     },
     "strategy_engine": {
       "summary": "Feature orchestration, signal routing/regime gate, and trade-return simulation.",
-      "files": ["src/strategy/engine.py", "src/strategy/sizing.py", "config.py"],
-      "entrypoints": ["src/strategy/engine.py::build_features", "src/strategy/engine.py::generate_trades", "src/strategy/engine.py::compute_trade_returns", "src/strategy/sizing.py::position_fraction", "src/strategy/sizing.py::adaptive_kelly_multiplier"],
-      "tests": ["tests/test_execution_model.py", "tests/test_sizing.py", "tests/test_compute_returns_properties.py", "tests/test_fill_model.py"],
-      "docs": ["CLAUDE.md"],
+      "files": [
+        "src/strategy/engine.py",
+        "src/strategy/sizing.py",
+        "config.py"
+      ],
+      "entrypoints": [
+        "src/strategy/engine.py::build_features",
+        "src/strategy/engine.py::generate_trades",
+        "src/strategy/engine.py::compute_trade_returns",
+        "src/strategy/sizing.py::position_fraction",
+        "src/strategy/sizing.py::adaptive_kelly_multiplier"
+      ],
+      "tests": [
+        "tests/test_execution_model.py",
+        "tests/test_sizing.py",
+        "tests/test_compute_returns_properties.py",
+        "tests/test_fill_model.py"
+      ],
+      "docs": [
+        "CLAUDE.md"
+      ],
       "do_not_touch_without_approval": false
     },
     "backtest": {
       "summary": "Backtest loop + performance metrics + data ingestion; universal param sweep entrypoint.",
-      "files": ["src/backtest/runner.py", "src/backtest/metrics.py", "src/backtest/uncertainty.py", "src/data/fetcher.py", "tools/fetch_fullsession.py", "main.py", "sweep.py", "fee_analysis.py"],
-      "entrypoints": ["src/backtest/runner.py::run_backtest", "src/backtest/metrics.py::annualized_sharpe", "src/data/fetcher.py::fetch_yfinance", "tools/fetch_fullsession.py::fetch_full"],
-      "tests": ["tests/test_runner_metrics.py", "tests/test_fetcher.py", "tests/test_uncertainty.py"],
-      "docs": ["CLAUDE.md"],
+      "files": [
+        "src/backtest/runner.py",
+        "src/backtest/metrics.py",
+        "src/backtest/uncertainty.py",
+        "src/data/fetcher.py",
+        "tools/fetch_fullsession.py",
+        "main.py",
+        "sweep.py",
+        "fee_analysis.py"
+      ],
+      "entrypoints": [
+        "src/backtest/runner.py::run_backtest",
+        "src/backtest/metrics.py::annualized_sharpe",
+        "src/data/fetcher.py::fetch_yfinance",
+        "tools/fetch_fullsession.py::fetch_full"
+      ],
+      "tests": [
+        "tests/test_runner_metrics.py",
+        "tests/test_fetcher.py",
+        "tests/test_uncertainty.py"
+      ],
+      "docs": [
+        "CLAUDE.md"
+      ],
       "do_not_touch_without_approval": false
     },
     "optimization": {
       "summary": "Parameter-SELECTION decision layer: walk-forward optimizer + the sweep's scoring/sizing/cost/reproducibility helpers. This is what picks production params — test it, don't trust it blindly (its metrics were the misleading headline source).",
-      "files": ["src/optimization/walk_forward.py", "src/optimization/sweep_scoring.py", "src/optimization/sweep_sizing.py", "src/optimization/sweep_costs.py", "src/optimization/sweep_repro.py", "tools/walkforward_eval.py", "tools/instrument_screen.py", "src/optimization/funnel.py", "tools/strategy_funnel.py", "RESEARCH_WEB.md"],
-      "entrypoints": ["src/optimization/walk_forward.py::walk_forward_optimize", "src/optimization/sweep_scoring.py::live_score", "src/optimization/sweep_scoring.py::ev_score", "src/optimization/sweep_sizing.py::resolve_sizing", "src/optimization/sweep_costs.py::round_trip_cost_pct", "src/optimization/sweep_repro.py::data_fingerprint", "tools/walkforward_eval.py::walkforward", "tools/instrument_screen.py::screen"],
-      "tests": ["tests/test_walk_forward.py", "tests/test_sweep_scoring.py", "tests/test_sweep_sizing.py", "tests/test_sweep_costs.py", "tests/test_sweep_repro.py", "tests/test_funnel.py"],
-      "docs": ["CLAUDE.md", "IMPROVEMENT_PLAN.md"],
+      "files": [
+        "src/optimization/walk_forward.py",
+        "src/optimization/sweep_scoring.py",
+        "src/optimization/sweep_sizing.py",
+        "src/optimization/sweep_costs.py",
+        "src/optimization/sweep_repro.py",
+        "tools/walkforward_eval.py",
+        "tools/instrument_screen.py",
+        "src/optimization/funnel.py",
+        "tools/strategy_funnel.py",
+        "RESEARCH_WEB.md"
+      ],
+      "entrypoints": [
+        "src/optimization/walk_forward.py::walk_forward_optimize",
+        "src/optimization/sweep_scoring.py::live_score",
+        "src/optimization/sweep_scoring.py::ev_score",
+        "src/optimization/sweep_sizing.py::resolve_sizing",
+        "src/optimization/sweep_costs.py::round_trip_cost_pct",
+        "src/optimization/sweep_repro.py::data_fingerprint",
+        "tools/walkforward_eval.py::walkforward",
+        "tools/instrument_screen.py::screen"
+      ],
+      "tests": [
+        "tests/test_walk_forward.py",
+        "tests/test_sweep_scoring.py",
+        "tests/test_sweep_sizing.py",
+        "tests/test_sweep_costs.py",
+        "tests/test_sweep_repro.py",
+        "tests/test_funnel.py"
+      ],
+      "docs": [
+        "CLAUDE.md",
+        "IMPROVEMENT_PLAN.md"
+      ],
       "do_not_touch_without_approval": false
     },
     "research_labs": {
       "summary": "Point-in-time public-investment research labs: append-only event ledgers, SEC corporate-action state and outcome chains, index-membership event studies, and exploratory gap-risk measurement. These tools build auditable research projections; they do not place trades.",
-      "files": ["tools/ca_announce_cohort_lab.py", "tools/corporate_action_outcome_lab.py", "tools/data_cache.py", "tools/entry_gate_probe.py", "tools/epistemic_audit_lab.py", "tools/form25_timing_lab.py", "tools/index_membership_event_pilot.py", "tools/numeric_provenance_lab.py", "tools/overnight_gap_risk_study.py", "tools/research_backlog.py", "tools/return_convention_lab.py", "tools/research_event_ledger.py", "tools/shadow_replay.py", "tools/sec_action_chain_join_lab.py", "tools/sec_corporate_action_state_lab.py", "tools/sec_failed_action_lab.py", "tools/sec_form25_population_lab.py", "tools/sec_fund_exit_lab.py"],
+      "files": [
+        "tools/ca_announce_cohort_lab.py",
+        "tools/corporate_action_outcome_lab.py",
+        "tools/data_cache.py",
+        "tools/entry_gate_probe.py",
+        "tools/epistemic_audit_lab.py",
+        "tools/form25_timing_lab.py",
+        "tools/index_membership_event_pilot.py",
+        "tools/numeric_provenance_lab.py",
+        "tools/overnight_gap_risk_study.py",
+        "tools/research_backlog.py",
+        "tools/return_convention_lab.py",
+        "tools/research_event_ledger.py",
+        "tools/shadow_replay.py",
+        "tools/sec_action_chain_join_lab.py",
+        "tools/sec_corporate_action_state_lab.py",
+        "tools/sec_failed_action_lab.py",
+        "tools/sec_form25_population_lab.py",
+        "tools/sec_fund_exit_lab.py"
+      ],
       "entrypoints": [],
-      "tests": ["tests/test_ca_announce_cohort_lab.py", "tests/test_corporate_action_outcome_lab.py", "tests/test_data_cache.py", "tests/test_f26_entry_gate_wiring.py", "tests/test_epistemic_audit_lab.py", "tests/test_form25_timing_lab.py", "tests/test_web_code_claims.py", "tests/test_web_integrity.py", "tests/test_index_membership_event_pilot.py", "tests/test_numeric_provenance_lab.py", "tests/test_research_backlog.py", "tests/test_research_event_ledger.py", "tests/test_shadow_replay.py", "tests/test_return_convention_lab.py", "tests/test_sec_action_chain_join_lab.py", "tests/test_sec_corporate_action_state_lab.py", "tests/test_sec_failed_action_lab.py", "tests/test_sec_form25_population_lab.py", "tests/test_sec_fund_exit_lab.py"],
-      "docs": ["docs/research/README.md", "docs/research/PUBLIC_INVESTMENT_INTELLIGENCE_FRONTIER.md", "docs/research/CA_ANNOUNCE_model_blueprint.md", "docs/research/CA_ANNOUNCE_cohort_evaluation.md", "docs/research/EPI00_epistemic_audit.md", "docs/research/HANDOFF_2026-07-24.md", "docs/research/FD00_sec_filing_delta_lab.md", "docs/research/IX00_index_membership_event_lab.md"],
+      "tests": [
+        "tests/test_ca_announce_cohort_lab.py",
+        "tests/test_corporate_action_outcome_lab.py",
+        "tests/test_data_cache.py",
+        "tests/test_f26_entry_gate_wiring.py",
+        "tests/test_epistemic_audit_lab.py",
+        "tests/test_form25_timing_lab.py",
+        "tests/test_web_code_claims.py",
+        "tests/test_web_integrity.py",
+        "tests/test_index_membership_event_pilot.py",
+        "tests/test_numeric_provenance_lab.py",
+        "tests/test_research_backlog.py",
+        "tests/test_research_event_ledger.py",
+        "tests/test_shadow_replay.py",
+        "tests/test_return_convention_lab.py",
+        "tests/test_sec_action_chain_join_lab.py",
+        "tests/test_sec_corporate_action_state_lab.py",
+        "tests/test_sec_failed_action_lab.py",
+        "tests/test_sec_form25_population_lab.py",
+        "tests/test_sec_fund_exit_lab.py"
+      ],
+      "docs": [
+        "docs/research/README.md",
+        "docs/research/PUBLIC_INVESTMENT_INTELLIGENCE_FRONTIER.md",
+        "docs/research/CA_ANNOUNCE_model_blueprint.md",
+        "docs/research/CA_ANNOUNCE_cohort_evaluation.md",
+        "docs/research/EPI00_epistemic_audit.md",
+        "docs/research/HANDOFF_2026-07-24.md",
+        "docs/research/FD00_sec_filing_delta_lab.md",
+        "docs/research/IX00_index_membership_event_lab.md"
+      ],
       "do_not_touch_without_approval": false
     },
     "dashboard": {
       "summary": "Read-only FastAPI monitor; current/all/archive run-window view.",
-      "files": ["live/dashboard.py", "live/templates/dashboard.html", "src/analysis/run_window.py"],
-      "entrypoints": ["live/dashboard.py::dashboard", "src/analysis/run_window.py::filter_rows"],
-      "tests": ["tests/test_run_window.py", "tests/test_dashboard.py"],
-      "docs": ["OPERATIONS.md"],
+      "files": [
+        "live/dashboard.py",
+        "live/templates/dashboard.html",
+        "src/analysis/run_window.py"
+      ],
+      "entrypoints": [
+        "live/dashboard.py::dashboard",
+        "src/analysis/run_window.py::filter_rows"
+      ],
+      "tests": [
+        "tests/test_run_window.py",
+        "tests/test_dashboard.py"
+      ],
+      "docs": [
+        "OPERATIONS.md"
+      ],
       "do_not_touch_without_approval": false,
       "run_cmd": "venv/bin/python -m uvicorn live.dashboard:app --host 127.0.0.1 --port 8000"
     },
     "ops": {
       "summary": "Systemd timers + ops scripts for paper data collection, health, export, archive.",
-      "files": ["ops/", "ops/systemd/"],
-      "entrypoints": ["ops/status_check.sh", "ops/preflight_trader_start.sh", "ops/archive_and_start_new_run.py"],
+      "files": [
+        "ops/",
+        "ops/systemd/"
+      ],
+      "entrypoints": [
+        "ops/status_check.sh",
+        "ops/preflight_trader_start.sh",
+        "ops/archive_and_start_new_run.py"
+      ],
       "tests": [],
-      "docs": ["OPERATIONS.md", "ops/README.md"],
+      "docs": [
+        "OPERATIONS.md",
+        "ops/README.md"
+      ],
       "do_not_touch_without_approval": false
     },
     "config": {
       "summary": "Single source of truth for all tunable params and mode routing.",
-      "files": ["config.py", "config_modules/live.py", "config_modules/base.py", "config_modules/mode_config.py"],
+      "files": [
+        "config.py",
+        "config_modules/live.py",
+        "config_modules/base.py",
+        "config_modules/mode_config.py"
+      ],
       "entrypoints": [],
-      "tests": ["tests/test_config.py"],
-      "docs": ["CLAUDE.md"],
+      "tests": [
+        "tests/test_config.py"
+      ],
+      "docs": [
+        "CLAUDE.md"
+      ],
       "do_not_touch_without_approval": false
     }
   },
-
   "routing": [
-    {"keywords": ["corporate action", "merger", "form 25", "delisting", "sec filing", "filing delta", "index addition", "index removal", "index membership", "event ledger", "research lab"],
-     "read": ["docs/research/README.md", "docs/research/PUBLIC_INVESTMENT_INTELLIGENCE_FRONTIER.md", "RESEARCH_WEB.md (relevant node)"],
-     "run": ["ctx map research_labs", "ctx tests research_labs", "ctx web", "ctx related \"<task>\""],
-     "avoid": ["using outcome-time filings as predictive features", "treating unresolved or provider-missing outcomes as zero", "committing generated SQLite projections"]},
-    {"keywords": ["strategy", "signal", "param", "threshold", "rsi", "macd", "regime", "kelly", "sweep", "backtest"],
-     "read": ["CLAUDE.md (relevant section)", "config.py", "src/signals/", "src/strategy/engine.py"],
-     "run": ["python sweep.py TICKER"], "avoid": ["live/ trader/order paths"]},
-    {"keywords": ["objective", "live_score", "ev_score", "scoring", "sizing", "slippage", "cost", "spread", "fill model", "reproducib", "walk-forward", "walk forward", "optimizer", "selection", "overfit", "metrics", "sharpe", "leak-free", "oos", "out-of-sample", "edge", "validation", "research", "hypothesis", "idea", "findings", "web"],
-     "read": ["RESEARCH_WEB.md (run: ctx web)", "src/optimization/sweep_scoring.py", "src/optimization/sweep_sizing.py", "src/optimization/sweep_costs.py", "src/optimization/walk_forward.py", "tools/walkforward_eval.py", "src/backtest/metrics.py", "IMPROVEMENT_PLAN.md (Workstreams B/C)"],
-     "run": ["ctx web", "ctx map optimization", "venv/bin/python tools/walkforward_eval.py QQQ TQQQ --objective ev", "venv/bin/python tools/instrument_screen.py QQQ SPY TQQQ --stop 0.005", "python sweep.py TICKER --objective ev"],
-     "avoid": ["trusting holdout-selected sweep numbers (selection-biased) — prefer the leak-free walkforward_eval", "changing the default sweep objective/sizing/selection without sign-off"]},
-    {"keywords": ["trader", "live", "entry", "exit", "reconcile", "on_bar", "pending_close", "position"],
-     "read": ["OPERATIONS.md", "live/trader.py::_on_bar_inner", "tests/test_trader_reconcile.py"],
-     "run": ["bash ops/status_check.sh", "ctx status"], "avoid": ["strategy logic"]},
-    {"keywords": ["ibkr", "broker", "order", "bracket", "fill", "gateway"],
-     "read": ["live/broker.py", "OPERATIONS.md"],
-     "run": ["venv/bin/python tools/diagnose_brackets.py"], "avoid": ["order-submission logic without approval"]},
-    {"keywords": ["dashboard", "ui", "chart", "view", "run window", "equity curve", "uvicorn", "fastapi"],
-     "read": ["live/dashboard.py", "live/templates/dashboard.html", "src/analysis/run_window.py"],
-     "run": ["bash ops/dashboard_smoke_test.sh"], "avoid": ["live/state.py writers"]},
-    {"keywords": ["ops", "systemd", "deploy", "timer", "healthcheck", "export", "archive", "preflight"],
-     "read": ["OPERATIONS.md", "ops/README.md", "ops/systemd/"],
-     "run": ["systemctl list-timers 'monad-*' 'ibkr-*'", "ctx status"], "avoid": ["enabling trader autostart without approval"]},
-    {"keywords": ["db", "schema", "state.db", "table", "trades", "sqlite", "data model"],
-     "read": ["live/state.py::init_db"], "run": ["ctx schema"], "avoid": ["committing raw .db"]},
-    {"keywords": ["performance", "edge", "return", "win rate", "analysis", "benchmark", "confirmed"],
-     "read": ["RESEARCH_WEB.md (run: ctx web --live)", "data/live_runs/model_phase_recommendations.md"],
-     "run": ["ctx perf", "ctx web --live"], "avoid": ["CLAUDE.md headline numbers (superseded — see RESEARCH_WEB)"]},
-    {"keywords": ["status", "running", "current state", "health", "what is running"],
-     "read": [], "run": ["bash ops/status_check.sh", "ctx status"], "avoid": []}
+    {
+      "keywords": [
+        "corporate action",
+        "merger",
+        "form 25",
+        "delisting",
+        "sec filing",
+        "filing delta",
+        "index addition",
+        "index removal",
+        "index membership",
+        "event ledger",
+        "research lab"
+      ],
+      "read": [
+        "docs/research/README.md",
+        "docs/research/PUBLIC_INVESTMENT_INTELLIGENCE_FRONTIER.md",
+        "RESEARCH_WEB.md (relevant node)"
+      ],
+      "run": [
+        "ctx map research_labs",
+        "ctx tests research_labs",
+        "ctx web",
+        "ctx related \"<task>\""
+      ],
+      "avoid": [
+        "using outcome-time filings as predictive features",
+        "treating unresolved or provider-missing outcomes as zero",
+        "committing generated SQLite projections"
+      ]
+    },
+    {
+      "keywords": [
+        "strategy",
+        "signal",
+        "param",
+        "threshold",
+        "rsi",
+        "macd",
+        "regime",
+        "kelly",
+        "sweep",
+        "backtest"
+      ],
+      "read": [
+        "CLAUDE.md (relevant section)",
+        "config.py",
+        "src/signals/",
+        "src/strategy/engine.py"
+      ],
+      "run": [
+        "python sweep.py TICKER"
+      ],
+      "avoid": [
+        "live/ trader/order paths"
+      ]
+    },
+    {
+      "keywords": [
+        "objective",
+        "live_score",
+        "ev_score",
+        "scoring",
+        "sizing",
+        "slippage",
+        "cost",
+        "spread",
+        "fill model",
+        "reproducib",
+        "walk-forward",
+        "walk forward",
+        "optimizer",
+        "selection",
+        "overfit",
+        "metrics",
+        "sharpe",
+        "leak-free",
+        "oos",
+        "out-of-sample",
+        "edge",
+        "validation",
+        "research",
+        "hypothesis",
+        "idea",
+        "findings",
+        "web"
+      ],
+      "read": [
+        "RESEARCH_WEB.md (run: ctx web)",
+        "src/optimization/sweep_scoring.py",
+        "src/optimization/sweep_sizing.py",
+        "src/optimization/sweep_costs.py",
+        "src/optimization/walk_forward.py",
+        "tools/walkforward_eval.py",
+        "src/backtest/metrics.py",
+        "IMPROVEMENT_PLAN.md (Workstreams B/C)"
+      ],
+      "run": [
+        "ctx web",
+        "ctx map optimization",
+        "venv/bin/python tools/walkforward_eval.py QQQ TQQQ --objective ev",
+        "venv/bin/python tools/instrument_screen.py QQQ SPY TQQQ --stop 0.005",
+        "python sweep.py TICKER --objective ev"
+      ],
+      "avoid": [
+        "trusting holdout-selected sweep numbers (selection-biased) — prefer the leak-free walkforward_eval",
+        "changing the default sweep objective/sizing/selection without sign-off"
+      ]
+    },
+    {
+      "keywords": [
+        "trader",
+        "live",
+        "entry",
+        "exit",
+        "reconcile",
+        "on_bar",
+        "pending_close",
+        "position"
+      ],
+      "read": [
+        "OPERATIONS.md",
+        "live/trader.py::_on_bar_inner",
+        "tests/test_trader_reconcile.py"
+      ],
+      "run": [
+        "bash ops/status_check.sh",
+        "ctx status"
+      ],
+      "avoid": [
+        "strategy logic"
+      ]
+    },
+    {
+      "keywords": [
+        "ibkr",
+        "broker",
+        "order",
+        "bracket",
+        "fill",
+        "gateway"
+      ],
+      "read": [
+        "live/broker.py",
+        "OPERATIONS.md"
+      ],
+      "run": [
+        "venv/bin/python tools/diagnose_brackets.py"
+      ],
+      "avoid": [
+        "order-submission logic without approval"
+      ]
+    },
+    {
+      "keywords": [
+        "dashboard",
+        "ui",
+        "chart",
+        "view",
+        "run window",
+        "equity curve",
+        "uvicorn",
+        "fastapi"
+      ],
+      "read": [
+        "live/dashboard.py",
+        "live/templates/dashboard.html",
+        "src/analysis/run_window.py"
+      ],
+      "run": [
+        "bash ops/dashboard_smoke_test.sh"
+      ],
+      "avoid": [
+        "live/state.py writers"
+      ]
+    },
+    {
+      "keywords": [
+        "ops",
+        "systemd",
+        "deploy",
+        "timer",
+        "healthcheck",
+        "export",
+        "archive",
+        "preflight"
+      ],
+      "read": [
+        "OPERATIONS.md",
+        "ops/README.md",
+        "ops/systemd/"
+      ],
+      "run": [
+        "systemctl list-timers 'monad-*' 'ibkr-*'",
+        "ctx status"
+      ],
+      "avoid": [
+        "enabling trader autostart without approval"
+      ]
+    },
+    {
+      "keywords": [
+        "db",
+        "schema",
+        "state.db",
+        "table",
+        "trades",
+        "sqlite",
+        "data model"
+      ],
+      "read": [
+        "live/state.py::init_db"
+      ],
+      "run": [
+        "ctx schema"
+      ],
+      "avoid": [
+        "committing raw .db"
+      ]
+    },
+    {
+      "keywords": [
+        "performance",
+        "edge",
+        "return",
+        "win rate",
+        "analysis",
+        "benchmark",
+        "confirmed"
+      ],
+      "read": [
+        "RESEARCH_WEB.md (run: ctx web --live)",
+        "data/live_runs/model_phase_recommendations.md"
+      ],
+      "run": [
+        "ctx perf",
+        "ctx web --live"
+      ],
+      "avoid": [
+        "CLAUDE.md headline numbers (superseded — see RESEARCH_WEB)"
+      ]
+    },
+    {
+      "keywords": [
+        "status",
+        "running",
+        "current state",
+        "health",
+        "what is running"
+      ],
+      "read": [],
+      "run": [
+        "bash ops/status_check.sh",
+        "ctx status"
+      ],
+      "avoid": []
+    },
+    {
+      "keywords": [
+        "research web",
+        "idea web",
+        "finding",
+        "node",
+        "supersede",
+        "capture",
+        "guard",
+        "bidirectional",
+        "backlog",
+        "context map",
+        "stale",
+        "drift",
+        "provenance",
+        "citation",
+        "study doc",
+        "epistemic",
+        "uncited",
+        "ratchet"
+      ],
+      "read": [
+        "AGENT_INDEX.md",
+        "RESEARCH_WEB.md (run: ctx web <node>)",
+        "docs/research/README.md",
+        "tools/ctx.py",
+        "tools/note.py",
+        "tools/research_backlog.py"
+      ],
+      "run": [
+        "ctx health",
+        "ctx web --lint",
+        "ctx claims",
+        "ctx stale",
+        "ctx drift",
+        "python3 tools/research_backlog.py next"
+      ],
+      "avoid": [
+        "editing a guard test to make it pass — supersede the node instead",
+        "citing a figure with no artifact or document behind it",
+        "editing the edit_policy deny list"
+      ]
+    }
   ],
-
   "coverage_allowlist": {
     "_README": "First-party .py modules intentionally NOT owned by an 'areas' entry, with the reason. Enforced by tests/test_area_coverage.py: every first-party module must be claimed by an area OR listed here (so a NEW orphaned module fails CI and gets triaged, instead of silently going un-mapped). __init__.py are empty package markers; the read-only CLIs below are agent/diagnostic/research tools (ctx.py + diagnose_brackets.py are advertised in tools_readonly; mr_daily_lab.py is a network-fetching research harness, and the tools/*_study.py files are one-off RESEARCH_WEB study scripts of the same class; tools/graphify_bridge.py is a suggestions-only, read-only Graphify->Context-Web bridge), not strategy areas.",
     "modules": [
@@ -277,47 +893,227 @@
       "tools/graphify_bridge.py"
     ]
   },
-
   "edit_policy": {
     "_README": "Checked by `ctx can_edit <file>` and the (opt-in) PreToolUse hook ops/guard_edit.py. READ access is unrestricted; only WRITES are fenced. deny = armed-trader path + secrets + raw DBs + this policy file itself; warn = selection-of-record. context_map.json is denied so an agent can't silently neuter the fence by editing the deny list — for legitimate manifest maintenance (bridges/routing/areas), stop the trader, get explicit approval, and edit with the hook bypassed or the entry temporarily removed.",
-    "deny": ["live/", "config.py", "config_modules/", ".env", ".ibkr-paper.env", "*.db", "*.sqlite", "*.sqlite3", "ops/systemd/", "context_map.json"],
-    "warn": ["sweep.py", "main.py"],
+    "deny": [
+      "live/",
+      "config.py",
+      "config_modules/",
+      ".env",
+      ".ibkr-paper.env",
+      "*.db",
+      "*.sqlite",
+      "*.sqlite3",
+      "ops/systemd/",
+      "context_map.json"
+    ],
+    "warn": [
+      "sweep.py",
+      "main.py"
+    ],
     "allow_default": true
   },
-
   "routing_synonyms": {
     "_README": "concept -> keywords that exist in routing[].keywords. ctx route expands the query through these so plain-English questions reach the right rule.",
-    "stop loss": ["exit", "strategy", "trader"],
-    "take profit": ["exit", "strategy", "trader"],
-    "software stop": ["exit", "trader", "broker"],
-    "target": ["strategy", "exit"],
-    "position size": ["sizing", "kelly"],
-    "how big": ["sizing", "kelly"],
-    "trade size": ["sizing", "kelly"],
-    "risk": ["sizing", "kelly", "regime"],
-    "drawdown": ["performance", "edge"],
-    "add ticker": ["sweep", "backtest", "param"],
-    "new instrument": ["sweep", "backtest"],
-    "new mode": ["sweep", "param"],
-    "fee": ["cost", "slippage"],
-    "commission": ["cost", "slippage"],
-    "sell": ["exit", "trader"],
-    "buy": ["entry", "trader"],
-    "why did it exit": ["exit", "reconcile"],
-    "crash": ["ops", "status"],
-    "restart": ["ops", "status"],
-    "not running": ["status", "ops"],
-    "logs": ["ops", "status"],
-    "alert": ["ops"],
-    "secret": ["ops"],
-    "credential": ["ops"],
-    "tws": ["ibkr", "gateway"],
-    "adx": ["signal"],
-    "vwap": ["signal"],
-    "atr": ["signal"],
-    "edit": ["status"]
+    "stop loss": [
+      "exit",
+      "strategy",
+      "trader"
+    ],
+    "take profit": [
+      "exit",
+      "strategy",
+      "trader"
+    ],
+    "software stop": [
+      "exit",
+      "trader",
+      "broker"
+    ],
+    "target": [
+      "strategy",
+      "exit"
+    ],
+    "position size": [
+      "sizing",
+      "kelly"
+    ],
+    "how big": [
+      "sizing",
+      "kelly"
+    ],
+    "trade size": [
+      "sizing",
+      "kelly"
+    ],
+    "risk": [
+      "sizing",
+      "kelly",
+      "regime"
+    ],
+    "drawdown": [
+      "performance",
+      "edge"
+    ],
+    "add ticker": [
+      "sweep",
+      "backtest",
+      "param"
+    ],
+    "new instrument": [
+      "sweep",
+      "backtest"
+    ],
+    "new mode": [
+      "sweep",
+      "param"
+    ],
+    "fee": [
+      "cost",
+      "slippage"
+    ],
+    "commission": [
+      "cost",
+      "slippage"
+    ],
+    "sell": [
+      "exit",
+      "trader"
+    ],
+    "buy": [
+      "entry",
+      "trader"
+    ],
+    "why did it exit": [
+      "exit",
+      "reconcile"
+    ],
+    "crash": [
+      "ops",
+      "status"
+    ],
+    "restart": [
+      "ops",
+      "status"
+    ],
+    "not running": [
+      "status",
+      "ops"
+    ],
+    "logs": [
+      "ops",
+      "status"
+    ],
+    "alert": [
+      "ops"
+    ],
+    "secret": [
+      "ops"
+    ],
+    "credential": [
+      "ops"
+    ],
+    "tws": [
+      "ibkr",
+      "gateway"
+    ],
+    "adx": [
+      "signal"
+    ],
+    "vwap": [
+      "signal"
+    ],
+    "atr": [
+      "signal"
+    ],
+    "edit": [
+      "status"
+    ],
+    "study": [
+      "research",
+      "findings"
+    ],
+    "audit": [
+      "research",
+      "findings"
+    ],
+    "hypothesis": [
+      "research",
+      "findings"
+    ],
+    "supersede": [
+      "node",
+      "supersede"
+    ],
+    "capture": [
+      "capture",
+      "node"
+    ],
+    "guard test": [
+      "guard",
+      "bidirectional"
+    ],
+    "regression test": [
+      "guard"
+    ],
+    "agent context": [
+      "context map"
+    ],
+    "onboarding": [
+      "context map"
+    ],
+    "which files": [
+      "context map"
+    ],
+    "cite": [
+      "citation"
+    ],
+    "evidence": [
+      "citation",
+      "provenance"
+    ],
+    "reproduce": [
+      "provenance"
+    ],
+    "close": [
+      "node",
+      "supersede"
+    ],
+    "retire": [
+      "node",
+      "supersede"
+    ],
+    "gate": [
+      "entry",
+      "signal"
+    ],
+    "gap": [
+      "backlog"
+    ],
+    "next": [
+      "backlog"
+    ],
+    "what should i work on": [
+      "backlog"
+    ],
+    "review": [
+      "guard"
+    ],
+    "session": [
+      "status"
+    ],
+    "deployment": [
+      "deploy",
+      "ops"
+    ],
+    "update": [
+      "deploy"
+    ],
+    "close position": [
+      "exit",
+      "trader"
+    ]
   },
-
   "facts": {
     "deploy_state": "run: bash ops/status_check.sh   (or: ctx status)",
     "db_schema": "run: ctx schema",
@@ -332,45 +1128,148 @@
     "sweep_objective": "default 'sharpe' (live_score); '--objective ev' = net-of-cost EV, hard-rejects <34% WR (sweep_scoring.py, opt-in). Do NOT change the default selection without sign-off.",
     "sweep_cost_realism": "round-trip spread cost is baked into EV (sweep_costs.round_trip_cost_pct); scoring penalties are skipped on negative-base scores (else they perversely improve losing configs)."
   },
-
   "tools_readonly": [
-    {"cmd": "ctx route \"<task>\"", "returns": "which files to read + tools to run for a task"},
-    {"cmd": "ctx where <symbol>", "returns": "file:line where a function/class/config key is defined"},
-    {"cmd": "ctx find <text-or-regex>", "returns": "free-text/regex search over first-party code BODIES (find code by behavior when you don't know the symbol) → each hit's enclosing def/class + owning area + governing idea-bridge"},
-    {"cmd": "ctx usages <symbol>", "returns": "ALL references to a symbol across the repo, classified (def/import/assign/ref/attr)"},
-    {"cmd": "ctx defs <file>", "returns": "a file's symbol outline (imports + functions w/ args + classes/methods) without reading it"},
-    {"cmd": "ctx tree [path] [--tests]", "returns": "AST repomap: every first-party module → its docstring first line + top-level class/def names (+ one-line docstrings); optional path prefix filter"},
-    {"cmd": "ctx summary [area]", "returns": "per-area rollup of the repomap (one line per module) grouped by context_map.json areas"},
-    {"cmd": "ctx covers <symbol>", "returns": "which test(s) exercise a symbol: direct (tests/ grep) + the area tests that own the symbol's module"},
-    {"cmd": "ctx impact <file|symbol|config.KEY>", "returns": "blast radius: transitive reverse-deps + whether it reaches the live-trader boundary + covering tests"},
-    {"cmd": "ctx can_edit <file>", "returns": "edit-policy gate ALLOW/WARN/DENY (exit 0/2/1) — fences writes to the live path; read is always allowed"},
-    {"cmd": "ctx schema", "returns": "live/state.db tables, columns, row counts"},
-    {"cmd": "ctx events [N] [--level L] [--category C]", "returns": "recent monitor events (the trader's own narrative of what happened/broke), read-only + redacted"},
-    {"cmd": "ctx config <KEY>", "returns": "a config.py value + where it is set"},
-    {"cmd": "ctx perf", "returns": "headline metrics from state.db (compounded + confirmed-fill)"},
-    {"cmd": "ctx audit", "returns": "content drift the structure guards miss: config.py params whose inline %-comment disagrees with the value (exit 1 if any)"},
-    {"cmd": "ctx status", "returns": "ops/status_check.sh (deploy/runtime state)"},
-    {"cmd": "ctx recent [N]", "returns": "last N commits + changed files on the deploy branch"},
-    {"cmd": "ctx map [area]", "returns": "this manifest (or one area)"},
-    {"cmd": "ctx tests <area>", "returns": "the test files that cover an area (code->verification link)"},
-    {"cmd": "ctx brief [area] [--task ...]", "returns": "one-screen cold-start orientation packet (invariants + honest-state + area + task-route + recent); the recommended FIRST call"},
-    {"cmd": "ctx reverts [area]", "returns": "what we already tried and abandoned, mined from git (a self-maintaining 'What Failed')"},
-    {"cmd": "ctx web [node] [--live] [--lint]", "returns": "traverse the research idea web; --live hides superseded nodes; --lint checks graph integrity"},
-    {"cmd": "ctx neighbors <node>", "returns": "unified idea-graph neighbors (research nodes + idea↔code bridges), grouped by edge type and direction"},
-    {"cmd": "ctx walk <node> [--edge T] [--depth N]", "returns": "BFS the unified idea graph from a node along out-edges (optionally one edge type, e.g. a supersedes chain)"},
-    {"cmd": "ctx why <node>", "returns": "the node's grounding experiments + the decisions it bears on (provenance path, not a summary)"},
-    {"cmd": "ctx contradicts <node>", "returns": "what supersedes/contradicts a node and what it overturns"},
-    {"cmd": "ctx frontier \"<task>\" [--budget N]", "returns": "task-shaped progressive-disclosure packet: honest-state spine + activation-ranked idea-graph nodes (corrections pulled in first), budget-bounded — not a fixed summary"},
-    {"cmd": "ctx graph [--json|--html] [--ideas-only]", "returns": "the whole unified context map (research web + idea↔code bridges + auto-extracted code graph); --json = machine-readable, --html = self-contained interactive force-graph (open in a browser)"},
-    {"cmd": "ctx health", "returns": "context-map health score: code coverage (modules in an area), idea-graph freshness (superseded/dangling/stale-cites), bridge + lint integrity"},
-    {"cmd": "ctx claims", "returns": "test<->epistemic coverage: for each implemented_in finding (a claim about concrete code behavior), whether a designated guard TEST asserts the claim (GUARDED) or not (UNGUARDED) — catches the false-confidence trap where a symbol has tests but its claim is unguarded"},
-    {"cmd": "ctx delta [--since <date|rev>]", "returns": "git-based 'what changed' in the research web + manifest since a base revision (default HEAD~12): nodes added/amended/newly-superseded + new idea<->code bridges + the commits that touched them — a returning agent's orientation packet"},
-    {"cmd": "ctx related <node|query> [--top N]", "returns": "semantic search over the research web: nodes most similar to a node id or free-text query (pure-stdlib TF-IDF cosine, computed at query time), with a difflib title fallback"},
-    {"cmd": "ctx init [--write]", "returns": "scaffold a starter context layer for ANY repo (discovers areas + code graph → context_map.json + RESEARCH_WEB.md skeleton); dry-run unless --write, never overwrites — the kit's portability entrypoint"},
-    {"cmd": "bash ops/status_check.sh", "returns": "system + gateway + trader + data freshness"},
-    {"cmd": "venv/bin/python tools/diagnose_brackets.py", "returns": "IBKR connection + positions + brackets (read-only)"}
+    {
+      "cmd": "ctx route \"<task>\"",
+      "returns": "which files to read + tools to run for a task"
+    },
+    {
+      "cmd": "ctx where <symbol>",
+      "returns": "file:line where a function/class/config key is defined"
+    },
+    {
+      "cmd": "ctx find <text-or-regex>",
+      "returns": "free-text/regex search over first-party code BODIES (find code by behavior when you don't know the symbol) → each hit's enclosing def/class + owning area + governing idea-bridge"
+    },
+    {
+      "cmd": "ctx usages <symbol>",
+      "returns": "ALL references to a symbol across the repo, classified (def/import/assign/ref/attr)"
+    },
+    {
+      "cmd": "ctx defs <file>",
+      "returns": "a file's symbol outline (imports + functions w/ args + classes/methods) without reading it"
+    },
+    {
+      "cmd": "ctx tree [path] [--tests]",
+      "returns": "AST repomap: every first-party module → its docstring first line + top-level class/def names (+ one-line docstrings); optional path prefix filter"
+    },
+    {
+      "cmd": "ctx summary [area]",
+      "returns": "per-area rollup of the repomap (one line per module) grouped by context_map.json areas"
+    },
+    {
+      "cmd": "ctx covers <symbol>",
+      "returns": "which test(s) exercise a symbol: direct (tests/ grep) + the area tests that own the symbol's module"
+    },
+    {
+      "cmd": "ctx impact <file|symbol|config.KEY>",
+      "returns": "blast radius: transitive reverse-deps + whether it reaches the live-trader boundary + covering tests"
+    },
+    {
+      "cmd": "ctx can_edit <file>",
+      "returns": "edit-policy gate ALLOW/WARN/DENY (exit 0/2/1) — fences writes to the live path; read is always allowed"
+    },
+    {
+      "cmd": "ctx schema",
+      "returns": "live/state.db tables, columns, row counts"
+    },
+    {
+      "cmd": "ctx events [N] [--level L] [--category C]",
+      "returns": "recent monitor events (the trader's own narrative of what happened/broke), read-only + redacted"
+    },
+    {
+      "cmd": "ctx config <KEY>",
+      "returns": "a config.py value + where it is set"
+    },
+    {
+      "cmd": "ctx perf",
+      "returns": "headline metrics from state.db (compounded + confirmed-fill)"
+    },
+    {
+      "cmd": "ctx audit",
+      "returns": "content drift the structure guards miss: config.py params whose inline %-comment disagrees with the value (exit 1 if any)"
+    },
+    {
+      "cmd": "ctx status",
+      "returns": "ops/status_check.sh (deploy/runtime state)"
+    },
+    {
+      "cmd": "ctx recent [N]",
+      "returns": "last N commits + changed files on the deploy branch"
+    },
+    {
+      "cmd": "ctx map [area]",
+      "returns": "this manifest (or one area)"
+    },
+    {
+      "cmd": "ctx tests <area>",
+      "returns": "the test files that cover an area (code->verification link)"
+    },
+    {
+      "cmd": "ctx brief [area] [--task ...]",
+      "returns": "one-screen cold-start orientation packet (invariants + honest-state + area + task-route + recent); the recommended FIRST call"
+    },
+    {
+      "cmd": "ctx reverts [area]",
+      "returns": "what we already tried and abandoned, mined from git (a self-maintaining 'What Failed')"
+    },
+    {
+      "cmd": "ctx web [node] [--live] [--lint]",
+      "returns": "traverse the research idea web; --live hides superseded nodes; --lint checks graph integrity"
+    },
+    {
+      "cmd": "ctx neighbors <node>",
+      "returns": "unified idea-graph neighbors (research nodes + idea↔code bridges), grouped by edge type and direction"
+    },
+    {
+      "cmd": "ctx walk <node> [--edge T] [--depth N]",
+      "returns": "BFS the unified idea graph from a node along out-edges (optionally one edge type, e.g. a supersedes chain)"
+    },
+    {
+      "cmd": "ctx why <node>",
+      "returns": "the node's grounding experiments + the decisions it bears on (provenance path, not a summary)"
+    },
+    {
+      "cmd": "ctx contradicts <node>",
+      "returns": "what supersedes/contradicts a node and what it overturns"
+    },
+    {
+      "cmd": "ctx frontier \"<task>\" [--budget N]",
+      "returns": "task-shaped progressive-disclosure packet: honest-state spine + activation-ranked idea-graph nodes (corrections pulled in first), budget-bounded — not a fixed summary"
+    },
+    {
+      "cmd": "ctx graph [--json|--html] [--ideas-only]",
+      "returns": "the whole unified context map (research web + idea↔code bridges + auto-extracted code graph); --json = machine-readable, --html = self-contained interactive force-graph (open in a browser)"
+    },
+    {
+      "cmd": "ctx health",
+      "returns": "context-map health score: code coverage (modules in an area), idea-graph freshness (superseded/dangling/stale-cites), bridge + lint integrity"
+    },
+    {
+      "cmd": "ctx claims",
+      "returns": "test<->epistemic coverage: for each implemented_in finding (a claim about concrete code behavior), whether a designated guard TEST asserts the claim (GUARDED) or not (UNGUARDED) — catches the false-confidence trap where a symbol has tests but its claim is unguarded"
+    },
+    {
+      "cmd": "ctx delta [--since <date|rev>]",
+      "returns": "git-based 'what changed' in the research web + manifest since a base revision (default HEAD~12): nodes added/amended/newly-superseded + new idea<->code bridges + the commits that touched them — a returning agent's orientation packet"
+    },
+    {
+      "cmd": "ctx related <node|query> [--top N]",
+      "returns": "semantic search over the research web: nodes most similar to a node id or free-text query (pure-stdlib TF-IDF cosine, computed at query time), with a difflib title fallback"
+    },
+    {
+      "cmd": "ctx init [--write]",
+      "returns": "scaffold a starter context layer for ANY repo (discovers areas + code graph → context_map.json + RESEARCH_WEB.md skeleton); dry-run unless --write, never overwrites — the kit's portability entrypoint"
+    },
+    {
+      "cmd": "bash ops/status_check.sh",
+      "returns": "system + gateway + trader + data freshness"
+    },
+    {
+      "cmd": "venv/bin/python tools/diagnose_brackets.py",
+      "returns": "IBKR connection + positions + brackets (read-only)"
+    }
   ],
-
   "conventions": [
     "Read this manifest (or run `ctx`) first; drill into deep docs only at the cited section.",
     "Prefer a tool call over a file read for any computable fact (state, schema, symbol, diff).",

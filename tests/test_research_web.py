@@ -695,7 +695,19 @@ class TestFrontier(unittest.TestCase):
         self.assertIn("cfg:STOP_LOSS_PCT_TQQQ_HOURLY", out)  # the code bridge
 
     def test_no_match_is_graceful(self):
-        self.assertIn("no idea-graph match", self._run("zzzqqq xyzzy nonsense"))
+        # The query must be words the web CANNOT contain. The original ended in
+        # "nonsense", and F214 — a finding about the router answering nonsense —
+        # made it a real seed. A negative control has to stay negative, so the
+        # tokens here are non-words no prose would use.
+        query = "zzzqqq xyzzy plugh frotz"
+        with open(os.path.join(REPO, "RESEARCH_WEB.md"), encoding="utf-8") as fh:
+            web = fh.read()
+        for token in query.split():
+            self.assertNotIn(
+                token, web,
+                "the no-match control word {!r} now appears in the web — pick "
+                "another; a negative control has to stay negative".format(token))
+        self.assertIn("no idea-graph match", self._run(query))
 
     def test_stopwords_alone_do_not_seed(self):
         # regression on the stopword filter: bare 'the' must not seed every node.

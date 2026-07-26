@@ -75,32 +75,136 @@ def _route_tokens(text: str):
     return toks | {_stem(t) for t in toks}
 
 
+# Function words that carry no routing information. A multi-word key used to fire on
+# ANY of its tokens, so `on_bar` matched every sentence containing "on", `why did it
+# exit` matched every sentence containing "it", and `add ticker` matched "add". Measured
+# on 12 off-domain English sentences with nothing to do with this project, 5 routed —
+# "add the flour slowly while whisking the eggs" scored 3 on param/sweep/backtest, higher
+# than most real queries. A confident wrong READ list is worse than no route.
+_ROUTE_STOPWORDS = {
+    "a", "an", "the", "is", "are", "was", "were", "be", "been", "it", "its", "of", "to",
+    "in", "on", "at", "for", "and", "or", "not", "no", "do", "did", "does", "how",
+    "what", "why", "when", "where", "which", "my", "me", "i", "we", "you", "this",
+    "that", "with", "from", "by", "as", "so", "up", "out", "if",
+}
+
+
+def _key_tokens(key: str):
+    """The tokens a routing key must ALL match on, stopwords dropped.
+
+    Dropping stopwords first is what keeps `not running` firing on "running" and
+    `why did it exit` firing on "exit" while neither fires on an unrelated sentence
+    that merely contains "not" or "it". A key made entirely of stopwords keeps them,
+    so it degenerates to requiring the whole phrase rather than matching everything.
+    """
+    toks = re.findall(r"[a-z0-9]+", key.lower())
+    core = [t for t in toks if t not in _ROUTE_STOPWORDS]
+    return core or toks
+
+
 def _route_rules(task):
     """Score routing rules for a task string. Returns [(score, hits, rule), ...]
-    sorted desc. Tokenized + stemmed + synonym-expanded (shared by route & brief)."""
+    sorted desc. Tokenized + stemmed + synonym-expanded (shared by route & brief).
+
+    A key matches when EVERY one of its informative tokens is present. Matching on any
+    single token made common English words into routing triggers — see _ROUTE_STOPWORDS.
+    """
     task = task.lower()
     qtoks = _route_tokens(task)
     m = _manifest()
     synonyms = m.get("routing_synonyms", {})
+
+    def matches(key):
+        toks = _key_tokens(key)
+        return bool(toks) and all(({t} | {_stem(t)}) & qtoks for t in toks)
+
     expanded = set(task.split())
     for concept, kws in synonyms.items():
-        if any(t in qtoks for t in _route_tokens(concept)):
+        # `_README` documents the block; its value is prose, and `set.update(str)` would
+        # splice in one member per character.
+        if concept.startswith("_") or not isinstance(kws, list):
+            continue
+        if matches(concept):
             expanded.update(kws)
     scored = []
     for r in m["routing"]:
-        hits = []
-        for k in r["keywords"]:
-            phrase = " " in k or "-" in k
-            if (phrase and k in task) or (not phrase and (_route_tokens(k) & qtoks)) or (k in expanded):
-                hits.append(k)
-        score = sum(2 if (" " in h or "-" in h) else 1 for h in hits)
+        hits = [k for k in r["keywords"] if matches(k) or k in expanded]
+        score = sum(2 if len(_key_tokens(h)) > 1 else 1 for h in hits)
         if score:
             scored.append((score, hits, r))
     scored.sort(key=lambda x: -x[0])
     return scored
 
 
+# Off-domain English with nothing to do with this project. A router that answers these
+# is matching noise, and a confident wrong READ list costs more than a miss. Kept in the
+# tool rather than the test so `ctx route --audit` reports both error directions at once.
+ROUTE_NEGATIVE_CONTROLS = [
+    "the quick brown fox jumps over the lazy dog",
+    "preheat the oven to 200 degrees and butter the tin",
+    "trains to the coast leave every hour from platform nine",
+    "she returned the library books before the rain started",
+    "the committee postponed the vote until the following spring",
+    "paint the fence twice and let it dry overnight",
+    "he learned to play the cello at the age of forty",
+    "the museum opens at ten and closes at six on weekdays",
+    "add the flour slowly while whisking the eggs",
+    "the cat slept on the windowsill all afternoon",
+    "our flight was delayed because of fog in the valley",
+    "she wrote three chapters before breakfast every morning",
+]
+
+
+def route_audit(n_commits: int = 400):
+    """Measure the router against language written for other purposes.
+
+    Two corpora the routing table was NOT authored against — recent commit subjects and
+    research-web node titles — plus the off-domain negative controls. Returns miss rates
+    and the most common informative words in un-routed queries, which is the list of
+    synonyms worth adding next.
+    """
+    subjects = [l.strip() for l in _git("log", "--format=%s", "-n", str(n_commits))
+                .splitlines() if l.strip()]
+    titles = [m.group(1) for m in
+              re.finditer(r"^### [FHED]\d+ — (.+)$",
+                          open(os.path.join(REPO, "RESEARCH_WEB.md"),
+                               encoding="utf-8").read(), re.M)]
+    out = {}
+    for name, corpus in (("commit subjects", subjects), ("web node titles", titles)):
+        missed = [q for q in corpus if not _route_rules(q.lower())]
+        out[name] = {"n": len(corpus), "missed": len(missed),
+                     "miss_rate": len(missed) / len(corpus) if corpus else 0.0,
+                     "examples": missed[:5]}
+    false_pos = [q for q in ROUTE_NEGATIVE_CONTROLS if _route_rules(q)]
+    out["negative controls"] = {"n": len(ROUTE_NEGATIVE_CONTROLS),
+                                "routed": len(false_pos), "examples": false_pos}
+    import collections
+    counts = collections.Counter()
+    for q in [x for c in (subjects, titles) for x in c if not _route_rules(x.lower())]:
+        for tok in re.findall(r"[a-z]{4,}", q.lower()):
+            if tok not in _ROUTE_STOPWORDS:
+                counts[tok] += 1
+    out["unrouted_vocabulary"] = counts.most_common(20)
+    return out
+
+
 def cmd_route(args):
+    if getattr(args, "audit", False):
+        report = route_audit()
+        for name in ("commit subjects", "web node titles"):
+            r = report[name]
+            print("{:18s} miss {:>3}/{:<4} ({:.0%})".format(
+                name, r["missed"], r["n"], r["miss_rate"]))
+            for ex in r["examples"][:3]:
+                print("      unrouted: {}".format(ex[:88]))
+        nc = report["negative controls"]
+        print("{:18s} {}/{} off-domain sentences routed{}".format(
+            "false positives", nc["routed"], nc["n"],
+            " — " + "; ".join(nc["examples"]) if nc["examples"] else ""))
+        print("\nmost common words in unrouted queries (synonym candidates):")
+        print("  " + ", ".join("{} x{}".format(w, c)
+                               for w, c in report["unrouted_vocabulary"]))
+        return
     task = " ".join(args.task).lower()
     scored = _route_rules(task)
     if not scored:
@@ -3174,7 +3278,10 @@ def cmd_reverts(args):
 def main():
     p = argparse.ArgumentParser(description="ctx — read-only context query tool for agents")
     sub = p.add_subparsers(dest="cmd")
-    sp = sub.add_parser("route"); sp.add_argument("task", nargs="+"); sp.set_defaults(fn=cmd_route)
+    sp = sub.add_parser("route"); sp.add_argument("task", nargs="*")
+    sp.add_argument("--audit", action="store_true",
+                    help="measure miss rate + false positives instead of routing")
+    sp.set_defaults(fn=cmd_route)
     sp = sub.add_parser("where"); sp.add_argument("symbol"); sp.set_defaults(fn=cmd_where)
     sp = sub.add_parser("find"); sp.add_argument("query", nargs="+"); sp.set_defaults(fn=cmd_find)
     sp = sub.add_parser("usages"); sp.add_argument("symbol"); sp.set_defaults(fn=cmd_usages)
