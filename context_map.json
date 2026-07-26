@@ -13,7 +13,6 @@
     ],
     "navigation": [
       "AGENT_INDEX.md",
-      "AGENT_CONTEXT_PLAN.md",
       "CONTEXT_KIT.md"
     ],
     "roadmap": [
@@ -21,6 +20,9 @@
     ],
     "research_idea_web": [
       "RESEARCH_WEB.md"
+    ],
+    "executed_plan": [
+      "AGENT_CONTEXT_PLAN.md"
     ]
   },
   "invariants": {
@@ -1268,6 +1270,10 @@
     {
       "cmd": "venv/bin/python tools/diagnose_brackets.py",
       "returns": "IBKR connection + positions + brackets (read-only)"
+    },
+    {
+      "cmd": "ctx docs",
+      "returns": "doc-ownership topology from context_docs; flags stale/dangling references"
     }
   ],
   "conventions": [

@@ -991,6 +991,117 @@ def cmd_recent(args):
     print(_git("log", "--oneline", "-n", str(n), "--stat", "--no-decorate") or "(no git)")
 
 
+def doc_topology():
+    """The doc-ownership table, generated from `context_docs` (H39/DP-15).
+
+    The 'why vs how' split was hand-restated in four prose docs and machine-readably in
+    the manifest, with only the manifest CI-bound. Rather than test four prose tables
+    against each other, generate the one true table here and give the prose something to
+    point at. Also reports, per registered doc, which OTHER registered docs name it —
+    that is where restatement drift becomes visible.
+    """
+    m = _manifest()
+    groups = m.get("context_docs", {})
+    registered = [d for docs in groups.values() for d in docs]
+    text = {}
+    for doc in registered:
+        path = os.path.join(REPO, doc)
+        text[doc] = (open(path, encoding="utf-8").read()
+                     if os.path.exists(path) else None)
+    rows = []
+    for group, docs in groups.items():
+        for doc in docs:
+            body = text[doc]
+            named_by = sorted(other for other in registered
+                              if other != doc and text.get(other)
+                              and doc in text[other])
+            rows.append({
+                "group": group, "doc": doc,
+                "exists": body is not None,
+                "lines": len(body.splitlines()) if body else 0,
+                "named_by": named_by,
+            })
+    # A registered doc that points at a path which does not exist is a navigation
+    # hazard: an agent routed there looks for a file the repo never had. Two classes of
+    # false positive have to be excluded or the report is noise. RUNTIME paths
+    # (local_logs/, data/live_runs/…) are produced by a running bot and are absent by
+    # design in a clone. BARE FILENAMES are often written without their directory —
+    # `ix00_ndx_recent_complete_panel.json` lives under docs/research/data/ — so a
+    # basename that resolves anywhere in the repo is not dangling.
+    # A plan or a ledger is SUPPOSED to be able to name something that does not exist
+    # yet — IMPROVEMENT_PLAN proposes `src/analysis/performance.py`, and RESEARCH_WEB's
+    # F208 describes its absence. Reported separately so the navigation hazard is not
+    # buried under expected proposals. (Third place in this repo needing this split: a
+    # ledger must be able to DESCRIBE an absence without the detector reading it as a
+    # broken link.)
+    planning = {"IMPROVEMENT_PLAN.md", "AGENT_CONTEXT_PLAN.md", "VISION.md",
+                "RESEARCH_WEB.md"}
+    runtime_prefixes = ("local_logs/", "local_runtime/", "data/live_runs/", "venv/")
+    present_basenames = set()
+    for root, dirs, files in os.walk(REPO):
+        dirs[:] = [d for d in dirs if not d.startswith(".")
+                   and d not in ("venv", "__pycache__", "node_modules")]
+        present_basenames.update(files)
+    dangling = {}
+    for doc in registered:
+        if not text.get(doc):
+            continue
+        refs = re.findall(r"`([\w./-]+\.(?:py|json|yaml|yml|md))`", text[doc])
+        missing = sorted({
+            ref for ref in refs
+            if ("/" in ref or ref.endswith((".json", ".yaml", ".yml")))
+            and not ref.startswith(runtime_prefixes)
+            and not os.path.exists(os.path.join(REPO, ref))
+            and os.path.basename(ref) not in present_basenames})
+        if missing:
+            dangling[doc] = missing
+    # A plan naming something unbuilt is fine. A plan naming something that WAS built
+    # under a different extension is stale, not pending — `context_map.yaml` was shipped
+    # as `context_map.json`, and an agent sent there hunts a file that never existed.
+    stems = {os.path.splitext(b)[0]: b for b in present_basenames}
+    renamed = {}
+    for doc, refs in list(dangling.items()):
+        hits = {ref: stems[os.path.splitext(os.path.basename(ref))[0]]
+                for ref in refs
+                if os.path.splitext(os.path.basename(ref))[0] in stems}
+        if hits:
+            renamed[doc] = hits
+            rest = [r for r in refs if r not in hits]
+            if rest:
+                dangling[doc] = rest
+            else:
+                del dangling[doc]
+    proposed = {d: refs for d, refs in dangling.items() if os.path.basename(d) in planning}
+    dangling = {d: refs for d, refs in dangling.items() if d not in proposed}
+    return {"rows": rows, "dangling": dangling, "proposed": proposed, "renamed": renamed}
+
+
+def cmd_docs(args):
+    topo = doc_topology()
+    width = max(len(r["doc"]) for r in topo["rows"])
+    current = None
+    for row in sorted(topo["rows"], key=lambda r: (r["group"], r["doc"])):
+        if row["group"] != current:
+            current = row["group"]
+            print("\n{}".format(current))
+        print("  {:<{w}}  {:>5} lines  {}  named by: {}".format(
+            row["doc"], row["lines"], "ok " if row["exists"] else "MISSING",
+            ", ".join(row["named_by"]) or "— nothing", w=width))
+    if topo["dangling"]:
+        print("\nDANGLING (a navigation/ops doc names a path that does not exist):")
+        for doc, refs in sorted(topo["dangling"].items()):
+            print("  {} -> {}".format(doc, ", ".join(refs)))
+    if topo["renamed"]:
+        print("\nSTALE NAME (the artifact exists under a different extension):")
+        for doc, hits in sorted(topo["renamed"].items()):
+            for ref, actual in sorted(hits.items()):
+                print("  {} says {} — the repo has {}".format(doc, ref, actual))
+    if topo["proposed"]:
+        print("\nnamed-but-unbuilt in planning/ledger docs (expected — proposals):")
+        for doc, refs in sorted(topo["proposed"].items()):
+            print("  {} -> {}".format(doc, ", ".join(refs)))
+
+
 def cmd_map(args):
     m = _manifest()
     if args.area:
@@ -3303,6 +3414,7 @@ def main():
     sub.add_parser("audit").set_defaults(fn=cmd_audit)
     sub.add_parser("status").set_defaults(fn=cmd_status)
     sp = sub.add_parser("recent"); sp.add_argument("n", nargs="?", type=int, default=10); sp.set_defaults(fn=cmd_recent)
+    sp = sub.add_parser("docs"); sp.set_defaults(fn=cmd_docs)
     sp = sub.add_parser("map"); sp.add_argument("area", nargs="?"); sp.set_defaults(fn=cmd_map)
     sp = sub.add_parser("tests"); sp.add_argument("area"); sp.set_defaults(fn=cmd_tests)
     sp = sub.add_parser("web"); sp.add_argument("node", nargs="?")

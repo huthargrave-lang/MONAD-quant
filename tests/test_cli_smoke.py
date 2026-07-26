@@ -54,6 +54,7 @@ RUNS_CLEAN = {
     "status": [],
     "recent": ["5"],
     "map": [],
+    "docs": [],
     "tests": ["strategy_engine"],
     "web": ["F19"],
     "neighbors": ["F19"],

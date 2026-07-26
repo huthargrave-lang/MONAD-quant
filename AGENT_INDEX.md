@@ -23,6 +23,7 @@ venv/bin/python tools/ctx.py audit                 # content drift: config %-com
 venv/bin/python tools/ctx.py status                # live deploy/runtime state
 venv/bin/python tools/ctx.py recent [N]            # recent commits + changed files
 venv/bin/python tools/ctx.py map [area]            # the manifest (or one area)
+venv/bin/python tools/ctx.py docs                  # doc-ownership topology from context_docs; flags STALE/dangling refs
 venv/bin/python tools/ctx.py web [node]            # walk the research idea-web (findings→hypotheses→evidence)
 venv/bin/python tools/ctx.py neighbors <node>      # unified-graph neighbors (idea + code bridges) by edge type
 venv/bin/python tools/ctx.py walk <node> [--edge T --depth N]  # BFS the idea graph (e.g. follow a supersedes chain)
@@ -67,7 +68,9 @@ Machine-readable routing/invariants live in **`context_map.json`** (kept honest 
 
 ## Step 3 — the docs, layered (read only what you're routed to)
 
-- **`AGENT_INDEX.md`** (this) + **`context_map.json`** + **`AGENT_CONTEXT_PLAN.md`** — navigation/router.
+- **`AGENT_INDEX.md`** (this) + **`context_map.json`** + **`CONTEXT_KIT.md`** — navigation/router.
+  (`AGENT_CONTEXT_PLAN.md` is the *executed* design plan — history, not a router; it still
+  names the manifest `context_map.yaml`. Run `ctx docs` for the generated ownership table.)
 - **Area context (1 screen each):** `live/CONTEXT.md`, `src/CONTEXT.md`, `ops/README.md`.
 - **Deep "why":** `CLAUDE.md` / `AGENTS.md` (strategy/model). **Deep "how it runs":** `OPERATIONS.md` (live/ops).
 
