@@ -2715,3 +2715,29 @@ THE FIX IS TWO LINES AND NOT MINE TO MAKE: `df.index[0].normalize() <= start_dt`
 Guarded by tests/test_sweep_cache_guard.py (13 tests). A slice error in my first pass silently dropped zero bars and made the interior-hole case look like it passed for the wrong reason; the corrected test now asserts the hole is exactly 400 bars.
 Links: [[F167|refines]] · [[F12|relates]] · [[F204|builds_on]].
 _— captured claude/research-continuation-ca1242@2b9ad2e, 2026-07-25_
+
+### F208 — H34 understates it: SEVEN reporting views of one 65-trade run give SIX different answers, spanning 35 percentage points
+H34 records 'dashboard (compounded, 62 PROD trades) != alert path (simple-sum, 65 all trades)' and proposes one shared `src/analysis/performance.py` — which still does not exist (it is a roadmap proposal). The divergence is not two-way. Computed on the committed 65-trade archive:
+
+  live/state.py get_trade_summary    simple sum, ALL            +31.086%  n=65
+  ops/archive   alert_simple_sum     simple sum, ALL            +31.086%  n=65
+  ops/archive   dashboard_compounded compounded, PROD, notional +35.203%  n=62
+  ctx perf      ALL notional         compounded, ALL            +35.411%  n=65
+  ctx perf      ALL account          compounded, ALL, x10%       +3.149%  n=65
+  ops/analyze_run CONFIRMED          compounded, ACTUAL, notional +0.205%  n=47
+  ctx perf      CONFIRMED account    compounded, ACTUAL, x10%    +0.045%  n=47
+
+**Six distinct values, three trade populations (47/62/65), two unit conventions, 35.37pp of spread.**
+
+LIKE-FOR-LIKE, which is the honest way to state it:
+  - notional, compounded: ALL +35.411% vs CONFIRMED +0.205% — a factor of ~173.
+  - account, compounded: ALL +3.149% vs CONFIRMED +0.045% — a factor of ~70.
+Quoting +35.411% against +0.045% would cross BOTH the population and the unit boundary at once for a ~787x headline — the same arithmetic error the repo already recorded as F160, so it is deliberately not repeated.
+
+WHAT REACHES A HUMAN IS THE INFLATED END. `ops/archive_and_start_new_run.py` writes `dashboard_compounded_pct` (+35.203%) into every archived run headline — the durable record. `live/state.py::get_trade_summary` returns `total_ret` as a SIMPLE SUM over every trade (+31.086%), which is what `alerts.alert_exit` puts in Slack. The honest confirmed-fill account figure, **+0.045%**, appears in exactly one place: `ctx perf`.
+
+NOT FIXED, AND FOR A REASON THAT IS ITSELF A FINDING. The consolidation H34 asks for touches `live/state.py` (fenced) and the archive writer, and picking the ONE TRUE POPULATION is exactly the decision F202/F203 showed cannot be made correctly until fills carry provenance — `target_hit` and `stop_hit` are each written by both a real-fill path and an inference path. So H34 is blocked on H28, and this measurement gives that dependency a number.
+
+Guarded by tests/test_h34_reporting_divergence.py (14 tests), including a non-vacuity check that the two simple-sum paths DO agree with each other, so the divergence is specific rather than universal.
+Links: [[H34|refines]] · [[F203|builds_on]] · [[H28|relates]] · [[F160|relates]].
+_— captured claude/research-continuation-ca1242@3f3a176, 2026-07-26_
