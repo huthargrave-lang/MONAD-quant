@@ -463,7 +463,10 @@ class DeadSizingKnobTests(unittest.TestCase):
     # show the slope flags move it is evidence for that claim, not a counterexample.
     # Ratcheted below: this set must be exactly these files, and each must be shown to
     # never multiply anything by the knob.
-    OBSERVERS = {"tools/entry_gate_probe.py"}
+    # `column_reachability.py` names the knob in the `df.loc[df["adx"] < 20,
+    # "adx_kelly_mult"] = 0.8` example that motivated its read/write fix — the real
+    # code, and the clearest illustration of why only the subscript KEY is a write.
+    OBSERVERS = {"tools/entry_gate_probe.py", "tools/column_reachability.py"}
 
     def _read_sites(self, name, writers):
         """Files mentioning `name` that are not its declared writers or observers."""

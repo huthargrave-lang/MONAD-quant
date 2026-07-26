@@ -1,0 +1,378 @@
+{
+  "columns": {
+    "adx": {
+      "kind": "read",
+      "read_by": [
+        "src/strategy/engine.py"
+      ],
+      "read_within_producer": [
+        "src/signals/volatility.py"
+      ],
+      "written_by": [
+        "src/signals/volatility.py"
+      ]
+    },
+    "adx_kelly_mult": {
+      "kind": "write_only",
+      "read_by": [],
+      "read_within_producer": [],
+      "written_by": [
+        "src/signals/volatility.py"
+      ]
+    },
+    "atr": {
+      "kind": "read",
+      "read_by": [],
+      "read_within_producer": [
+        "src/signals/volatility.py"
+      ],
+      "written_by": [
+        "src/signals/volatility.py"
+      ]
+    },
+    "atr_pct": {
+      "kind": "read",
+      "read_by": [
+        "src/backtest/runner.py"
+      ],
+      "read_within_producer": [],
+      "written_by": [
+        "src/signals/volatility.py"
+      ]
+    },
+    "bb_lower": {
+      "kind": "write_only",
+      "read_by": [],
+      "read_within_producer": [],
+      "written_by": [
+        "src/signals/volatility.py"
+      ]
+    },
+    "bb_mid": {
+      "kind": "write_only",
+      "read_by": [],
+      "read_within_producer": [],
+      "written_by": [
+        "src/signals/volatility.py"
+      ]
+    },
+    "bb_position": {
+      "kind": "write_only",
+      "read_by": [],
+      "read_within_producer": [],
+      "written_by": [
+        "src/signals/volatility.py"
+      ]
+    },
+    "bb_upper": {
+      "kind": "write_only",
+      "read_by": [],
+      "read_within_producer": [],
+      "written_by": [
+        "src/signals/volatility.py"
+      ]
+    },
+    "bb_width": {
+      "kind": "write_only",
+      "read_by": [],
+      "read_within_producer": [],
+      "written_by": [
+        "src/signals/volatility.py"
+      ]
+    },
+    "bear_short_signal": {
+      "kind": "write_only",
+      "read_by": [],
+      "read_within_producer": [],
+      "written_by": [
+        "src/signals/momentum.py"
+      ]
+    },
+    "bull_breakout_signal": {
+      "kind": "write_only",
+      "read_by": [],
+      "read_within_producer": [],
+      "written_by": [
+        "src/strategy/engine.py"
+      ]
+    },
+    "close": {
+      "kind": "external",
+      "read_by": [
+        "live/broker.py",
+        "live/signals.py",
+        "src/backtest/runner.py",
+        "src/data/fetcher.py",
+        "src/signals/momentum.py",
+        "src/signals/volatility.py",
+        "src/signals/volume.py",
+        "src/strategy/engine.py",
+        "sweep.py",
+        "tools/diagnose_brackets.py",
+        "tools/entry_gate_probe.py",
+        "tools/instrument_screen.py",
+        "tools/live_backtest_reconciliation_study.py",
+        "tools/overnight_gap_risk_study.py",
+        "tools/strategy_funnel.py",
+        "tools/walkforward_eval.py"
+      ],
+      "read_within_producer": [],
+      "written_by": []
+    },
+    "entry_signal": {
+      "kind": "read",
+      "read_by": [
+        "live/signals.py",
+        "src/backtest/runner.py",
+        "src/optimization/walk_forward.py",
+        "tools/entry_gate_probe.py",
+        "tools/overnight_gap_risk_study.py"
+      ],
+      "read_within_producer": [
+        "src/strategy/engine.py"
+      ],
+      "written_by": [
+        "src/strategy/engine.py"
+      ]
+    },
+    "high": {
+      "kind": "external",
+      "read_by": [
+        "src/data/fetcher.py",
+        "src/signals/volatility.py",
+        "src/signals/volume.py",
+        "src/strategy/engine.py",
+        "tools/entry_gate_probe.py",
+        "tools/graphify_bridge.py",
+        "tools/instrument_screen.py",
+        "tools/overnight_gap_risk_study.py"
+      ],
+      "read_within_producer": [],
+      "written_by": []
+    },
+    "low": {
+      "kind": "external",
+      "read_by": [
+        "src/data/fetcher.py",
+        "src/signals/volatility.py",
+        "src/signals/volume.py",
+        "src/strategy/engine.py",
+        "tools/entry_gate_probe.py",
+        "tools/graphify_bridge.py",
+        "tools/instrument_screen.py",
+        "tools/overnight_gap_risk_study.py"
+      ],
+      "read_within_producer": [],
+      "written_by": []
+    },
+    "ma_50d": {
+      "kind": "read",
+      "read_by": [],
+      "read_within_producer": [
+        "src/strategy/engine.py"
+      ],
+      "written_by": [
+        "src/signals/momentum.py",
+        "src/strategy/engine.py"
+      ]
+    },
+    "ma_52w": {
+      "kind": "write_only",
+      "read_by": [],
+      "read_within_producer": [],
+      "written_by": [
+        "src/signals/momentum.py"
+      ]
+    },
+    "ma_regime": {
+      "kind": "write_only",
+      "read_by": [],
+      "read_within_producer": [],
+      "written_by": [
+        "src/signals/momentum.py"
+      ]
+    },
+    "ma_slope": {
+      "kind": "write_only",
+      "read_by": [],
+      "read_within_producer": [],
+      "written_by": [
+        "src/signals/momentum.py"
+      ]
+    },
+    "momentum_signal": {
+      "kind": "read",
+      "read_by": [
+        "live/signals.py",
+        "live/state.py",
+        "live/trader.py",
+        "src/backtest/runner.py",
+        "src/strategy/engine.py",
+        "tools/overnight_gap_risk_study.py"
+      ],
+      "read_within_producer": [],
+      "written_by": [
+        "src/signals/momentum.py"
+      ]
+    },
+    "obv": {
+      "kind": "write_only",
+      "read_by": [],
+      "read_within_producer": [],
+      "written_by": [
+        "src/signals/volume.py"
+      ]
+    },
+    "open": {
+      "kind": "external",
+      "read_by": [
+        "live/state.py",
+        "src/data/fetcher.py",
+        "src/strategy/engine.py",
+        "tools/entry_gate_probe.py",
+        "tools/overnight_gap_risk_study.py"
+      ],
+      "read_within_producer": [],
+      "written_by": []
+    },
+    "regime": {
+      "kind": "read",
+      "read_by": [
+        "src/optimization/walk_forward.py",
+        "src/strategy/engine.py",
+        "tools/entry_gate_probe.py"
+      ],
+      "read_within_producer": [
+        "src/signals/momentum.py"
+      ],
+      "written_by": [
+        "src/signals/momentum.py"
+      ]
+    },
+    "regime_kelly_mult": {
+      "kind": "read",
+      "read_by": [
+        "tools/entry_gate_probe.py"
+      ],
+      "read_within_producer": [
+        "src/strategy/engine.py"
+      ],
+      "written_by": [
+        "src/signals/momentum.py",
+        "src/strategy/engine.py"
+      ]
+    },
+    "rsi": {
+      "kind": "read",
+      "read_by": [
+        "live/dashboard.py",
+        "live/signals.py",
+        "live/state.py",
+        "live/trader.py",
+        "src/data/fetcher.py",
+        "sweep.py",
+        "tools/overnight_gap_risk_study.py",
+        "tools/shadow_replay.py"
+      ],
+      "read_within_producer": [
+        "src/signals/momentum.py"
+      ],
+      "written_by": [
+        "src/signals/momentum.py"
+      ]
+    },
+    "signal_vote": {
+      "kind": "read",
+      "read_by": [],
+      "read_within_producer": [
+        "src/strategy/engine.py"
+      ],
+      "written_by": [
+        "src/strategy/engine.py"
+      ]
+    },
+    "trend_direction": {
+      "kind": "read",
+      "read_by": [
+        "src/strategy/engine.py"
+      ],
+      "read_within_producer": [],
+      "written_by": [
+        "src/signals/volatility.py"
+      ]
+    },
+    "vol_ratio": {
+      "kind": "write_only",
+      "read_by": [],
+      "read_within_producer": [],
+      "written_by": [
+        "src/signals/volume.py"
+      ]
+    },
+    "vol_regime": {
+      "kind": "read",
+      "read_by": [
+        "src/strategy/engine.py"
+      ],
+      "read_within_producer": [],
+      "written_by": [
+        "src/signals/volatility.py"
+      ]
+    },
+    "volume": {
+      "kind": "external",
+      "read_by": [
+        "src/data/fetcher.py",
+        "src/signals/volume.py",
+        "tools/entry_gate_probe.py",
+        "tools/overnight_gap_risk_study.py"
+      ],
+      "read_within_producer": [],
+      "written_by": []
+    },
+    "volume_signal": {
+      "kind": "read",
+      "read_by": [
+        "live/signals.py",
+        "live/state.py",
+        "live/trader.py",
+        "src/backtest/runner.py",
+        "src/strategy/engine.py",
+        "tools/overnight_gap_risk_study.py"
+      ],
+      "read_within_producer": [],
+      "written_by": [
+        "src/signals/volume.py"
+      ]
+    },
+    "vwap": {
+      "kind": "read",
+      "read_by": [
+        "sweep.py"
+      ],
+      "read_within_producer": [],
+      "written_by": [
+        "src/signals/volume.py"
+      ]
+    },
+    "vwap_zscore": {
+      "kind": "read",
+      "read_by": [
+        "live/signals.py",
+        "live/state.py",
+        "live/trader.py",
+        "tools/overnight_gap_risk_study.py",
+        "tools/shadow_replay.py"
+      ],
+      "read_within_producer": [],
+      "written_by": [
+        "src/signals/volume.py"
+      ]
+    }
+  },
+  "counts": {
+    "external": 5,
+    "read": 15,
+    "write_only": 13
+  }
+}
