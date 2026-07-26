@@ -232,18 +232,34 @@ property.** So the port splits in two:
   `{gain, rsi, loss}` on the RSI subplot below it. Price and RSI are never checked
   against each other — `make_subplots(rows=2)` puts them on separate panels.
 
-### Reported, not silently redesigned
+### The red/green pair, and the one chart where it was load-bearing
 
 `gain` and `loss` are green and red, and that pair **fails CVD separation (ΔE 4.1
-deuteranopia)** — the classic P&L trap. It is pre-existing, it is the domain convention
-on a live trading view, and changing it changes how an operator reads P&L at a glance,
-so it is recorded here rather than swapped out under cover of a palette port.
+deuteranopia)** — the classic P&L trap. The hues themselves are pre-existing, they are
+the domain convention on a live trading view, and changing them changes how an operator
+reads P&L at a glance, so they were kept.
 
-Where sign is also carried by geometry the pair is legal: the scatter's y-position
-against its zero line, the triangle-up / triangle-down entry markers. **On the
-cumulative-equity line it is not** — there, marker colour is the only encoding of the
-individual trade's sign, since y is the running equity. That one chart needs a second
-channel (marker symbol, or a signed size) and is the concrete follow-up.
+What matters is whether colour is the *only* channel. On most of these charts it is not:
+the trade scatter's y-position against its dashed zero line already says whether a trade
+won, and the signal chart's entry markers are triangle-up for long and triangle-down for
+short. **On the cumulative-equity line it was** — there y is the running equity, so
+nothing but the marker's colour distinguished a winning trade from a losing one.
+
+**Fixed ([`F234`](../../RESEARCH_WEB.md)):** that chart's markers now carry the sign as
+**shape** — triangle-up for a gain, triangle-down for a loss — with colour as redundant
+reinforcement. Same vocabulary the signal chart already used. Markers went from size 7 to
+11, because a triangle needs more area than a disc before its direction reads, and 9 was
+rendered and looked at and still ambiguous against the line's own slope; the 2px ring
+(recoloured to the live surface by the page) lifts each marker off the line it sits on.
+
+`ui_tokens.sign_marker(gain)` returns **both channels from one call**, so a caller cannot
+colour a point one way and shape it the other. The trade scatter uses the same helper for
+its colour, so the two charts cannot disagree about which colour means a win.
+
+Verified by rendering, not asserted: the chart was built from real trade rows through
+`_build_returns_chart`, rendered self-contained, and screenshotted **fully desaturated** —
+stricter than deuteranopia, which retains a blue-yellow axis. Every trade's sign remains
+readable, and the up/down counts match the data (11 / 7).
 
 ### Two defects the port surfaced
 
@@ -256,19 +272,35 @@ channel (marker symbol, or a signed size) and is the concrete follow-up.
    merely ugly on the old fixed `#0b1020`; against the token plane it made the run-view
    switcher unreadable in dark. Found by rendering both themes and looking.
 
-### What could not be verified here
+### The verification gap, and closing it
 
-`fastapi` and `plotly` are not installed in this environment, so `live/dashboard.py`
-cannot be imported and the real figures cannot be built. The **template** was rendered
-directly through jinja2 with a mock context and plot slots stubbed, and inspected in
-both themes at 1320px and 420px — that is where the CSS port lives. **The plotly
-re-theming path was not executed.** Its guards assert the wiring, not the pixels.
+F233 shipped with a stated gap: `fastapi` and `plotly` were not installed here, so
+`live/dashboard.py` could not be imported and the real figures could not be built. Only
+the **template** was rendered (through jinja2, with a mock context and stubbed plot
+slots) — enough for the CSS, nothing for the charts.
+
+F234 closed it. Those packages install fine from this environment, and
+`plotly.offline.get_plotlyjs()` returns the whole JS bundle from the package — so the
+page renders **self-contained, with no CDN**, which is what made it verifiable at all
+here. With that:
+
+* the real figure builders run on real trade rows;
+* the runtime re-theming path **executes**, confirmed by reading `layout.font.color`
+  back out of the live plot — `#52514e` in light, `#b8b7b2` in dark, exactly the
+  `--ink-2` token values;
+* `tests/test_dashboard.py` — six tests that had been un-runnable for this whole line of
+  work — runs and passes.
+
+The lesson is worth more than the fix: *"the dependency isn't installed"* was treated as
+a property of the environment for three findings running. It was a property of nobody
+having tried.
 
 ## What this does not establish
 
 * It does **not** close either CDN dependency. F216 (d3) is still open, and the
   dashboard's plotly CDN is now recorded rather than fixed.
-* It does **not** fix the red/green polarity encoding, for the reasons above.
+* It does **not** change the green/red hues, only stop them from being the sole channel
+  on the one chart where they were.
 * It does **not** touch strategy code. No backtest or live number moves.
 * The chart patterns are a rendering vocabulary, not a claim about which is *best* for a
   node. A node supporting five renderings is not better evidenced than one supporting

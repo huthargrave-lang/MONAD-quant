@@ -157,6 +157,23 @@ PLOT = {
 }
 
 
+def sign_marker(gain):
+    """(colour, symbol) for a signed quantity — BOTH channels from one decision.
+
+    Returned as a pair rather than exposed as two lookups so a caller cannot colour a
+    point one way and shape it the other. The redundancy is the point: on the
+    cumulative-equity chart the y-value is running equity, so nothing but the marker
+    says whether an individual trade won, and green-against-red fails colourblind
+    separation (ΔE 4.1 deuteranopia). Rendered fully desaturated, the up/down triangles
+    still read — which is the check that matters, and is stricter than deuteranopia
+    since it removes the blue-yellow axis too.
+
+    Triangle-up / triangle-down is not an invention here: it is the vocabulary the
+    signal chart already uses for long and short entries.
+    """
+    return (PLOT["gain"], "triangle-up") if gain else (PLOT["loss"], "triangle-down")
+
+
 def plot_rgba(name, alpha):
     """`PLOT[name]` as an rgba() string — so a translucent fill of a series colour is
     derived from that series colour rather than hand-written next to it and left to

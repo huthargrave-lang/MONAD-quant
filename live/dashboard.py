@@ -306,6 +306,14 @@ def _build_returns_chart(trades: list[dict]) -> str:
     cumulative = []
     custom = []
     marker_colors = []
+    # SHAPE carries the sign, colour reinforces it. On this chart y is the RUNNING
+    # equity, so unlike the trade scatter — where a point's height above or below the
+    # zero line already says whether it won — nothing but the marker distinguished a
+    # winning trade from a losing one. Green against red fails colourblind separation
+    # (ΔE 4.1 deuteranopia), so a colour-only sign here was unreadable for roughly one
+    # man in twelve. Triangle up / triangle down is the same vocabulary the signal
+    # chart already uses for long and short entries.
+    marker_symbols = []
     equity = 1.0
     for row in rows:
         ts = row.get("exit_time") or row.get("entry_time")
@@ -314,7 +322,9 @@ def _build_returns_chart(trades: list[dict]) -> str:
         x.append(ts)
         cumulative.append((equity - 1.0) * 100.0)
         custom.append([ret * 100.0, row.get("exit_type") or "unknown"])
-        marker_colors.append(PLOT["gain"] if ret >= 0 else PLOT["loss"])
+        colour, symbol = ui_tokens.sign_marker(ret >= 0)
+        marker_colors.append(colour)
+        marker_symbols.append(symbol)
 
     line_color = PLOT["gain"] if cumulative[-1] >= 0 else PLOT["loss"]
     fill_color = ui_tokens.plot_rgba(
@@ -344,8 +354,13 @@ def _build_returns_chart(trades: list[dict]) -> str:
             x=x,
             y=cumulative,
             mode="markers",
-            marker=dict(color=marker_colors, size=7,
-                        line=dict(color=PLOT["transparent"], width=1)),
+            # 11, not the old 7: a triangle needs more area than a disc before its
+            # direction is legible, and the direction is now the PRIMARY channel — 9 was
+            # rendered and looked at, and the apex was still ambiguous against the line's
+            # own slope. The 2px ring (recoloured to the live surface by the page) is
+            # what lifts a marker off the equity line it sits on.
+            marker=dict(color=marker_colors, symbol=marker_symbols, size=11,
+                        line=dict(color=PLOT["transparent"], width=2)),
             customdata=custom,
             hovertemplate=hovertemplate,
             showlegend=False,
@@ -393,7 +408,10 @@ def _build_trade_scatter_chart(trades: list[dict]) -> str:
 
     x_bars = [point["bars_held"] for point in points]
     y_rets = [point["return_pct"] for point in points]
-    colors = [PLOT["gain"] if ret >= 0 else PLOT["loss"] for ret in y_rets]
+    # Colour only, and legitimately so: here y IS the return, so a point's height
+    # against the dashed zero line already carries the sign. Same helper regardless,
+    # so the two charts cannot disagree about which colour means a win.
+    colors = [ui_tokens.sign_marker(ret >= 0)[0] for ret in y_rets]
     custom = [[point["symbol"], point["exit_type"], point["exit_time"]] for point in points]
 
     fig = go.Figure()

@@ -19,6 +19,25 @@ The dashboard port is PRESENTATION ONLY, and a guard states that in the stronges
 available form — `live/dashboard.py` may not contain anything that places, sizes or
 cancels an order, or writes to the database it reads.
 
+F234 fixed the one chart the port had flagged and left. On the cumulative-equity chart y
+is the RUNNING equity, so nothing but marker colour distinguished a winning trade from a
+losing one — and green against red fails colourblind separation (ΔE 4.1 deuteranopia).
+Sign is now carried by SHAPE (triangle-up / triangle-down, the vocabulary the signal
+chart already used) with colour as redundant reinforcement. `ui_tokens.sign_marker`
+returns both channels from one call, so the two cannot drift apart; the guard that they
+differ is the non-vacuity, because if both signs ever share a symbol the chart is back
+to colour alone.
+
+It also closed the verification gap F233 shipped with. `plotly`, `fastapi` and
+`python-dotenv` install fine here, and `plotly.offline.get_plotlyjs()` embeds the whole
+bundle — so figures render self-contained with no CDN, the runtime re-theming path is
+observed to run (`layout.font.color` reads back as the `--ink-2` token in each theme),
+and `tests/test_dashboard.py` runs at last. "The dependency isn't installed" had been
+recorded as an environment limitation three findings running; it was a property of
+nobody having tried. The figure-building guard below therefore RUNS where the packages
+are present and skips with a stated reason where they are not — it never silently
+passes.
+
 The three `#080b12` lab pages had looked alike only because they were copied; by the
 time they were measured they had drifted to 444 / 463 / 476 characters. They differed in
 exactly one meaningful way — content width — which is now the `max_width` argument to
@@ -324,6 +343,55 @@ class TheLiveDashboardPortTests(unittest.TestCase):
         self.assertEqual(ui_tokens.PLOT["loss"], "#d03b3b")     # --critical, light
         self.assertEqual(ui_tokens.PLOT["price"], "#2a78d6")    # --accent, light
         self.assertEqual(ui_tokens.PLOT["transparent"], "rgba(0,0,0,0)")
+
+    def test_sign_is_carried_by_shape_not_colour_alone(self):
+        """The cumulative-equity chart's y is running equity, so nothing else says it.
+
+        Green-against-red fails colourblind separation (ΔE 4.1 deuteranopia), so a
+        colour-only sign on that chart was unreadable for roughly one man in twelve.
+        Colour and symbol come back from ONE call so a caller cannot colour a point one
+        way and shape it the other.
+        """
+        gain_colour, gain_symbol = ui_tokens.sign_marker(True)
+        loss_colour, loss_symbol = ui_tokens.sign_marker(False)
+        self.assertEqual((gain_colour, gain_symbol),
+                         (ui_tokens.PLOT["gain"], "triangle-up"))
+        self.assertEqual((loss_colour, loss_symbol),
+                         (ui_tokens.PLOT["loss"], "triangle-down"))
+        self.assertNotEqual(
+            gain_symbol, loss_symbol,
+            "the two signs now share a marker symbol — shape has stopped being a "
+            "channel and the chart is back to colour alone")
+
+    def test_the_equity_chart_uses_the_paired_helper(self):
+        self.assertIn("marker_symbols", self.py)
+        self.assertIn("ui_tokens.sign_marker(ret >= 0)", self.py)
+        self.assertIn("symbol=marker_symbols", self.py)
+        self.assertNotIn(
+            '"triangle-up" if', self.py,
+            "the symbol is being chosen inline again — route it through sign_marker so "
+            "it cannot drift out of step with the colour")
+
+    def test_the_figure_really_carries_per_point_symbols(self):
+        """Built for real when plotly is installed; skipped honestly when it is not."""
+        try:
+            from live.dashboard import _build_returns_chart
+        except Exception as exc:                        # pragma: no cover - env-dependent
+            raise unittest.SkipTest(
+                "live/dashboard.py is not importable here ({}) — the source-level "
+                "guards above still ran".format(type(exc).__name__))
+        returns = [0.011, -0.004, 0.008, -0.009, 0.021, -0.012, 0.017]
+        trades = [{"exit_time": "2026-07-{:02d}T15:30:00".format(2 + i),
+                   "return_pct": r, "exit_type": "target_hit" if r >= 0 else "stop_hit"}
+                  for i, r in enumerate(returns)]
+        html = _build_returns_chart(trades)
+        self.assertIn("triangle-up", html)
+        self.assertIn("triangle-down", html)
+        self.assertEqual(
+            html.count("triangle-up"), sum(1 for r in returns if r >= 0),
+            "the count of up-triangles no longer matches the count of winning trades")
+        self.assertEqual(
+            html.count("triangle-down"), sum(1 for r in returns if r < 0))
 
     def test_translucent_fills_are_derived_from_their_series(self):
         self.assertEqual(ui_tokens.plot_rgba("gain", 0.12), "rgba(12,163,12,0.12)")
