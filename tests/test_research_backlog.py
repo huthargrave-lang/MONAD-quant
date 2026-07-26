@@ -327,3 +327,88 @@ class ResolvedHandoffItemsDropOutTests(unittest.TestCase):
             self.assertEqual(
                 str(nodes[by].get("status", "current")), "current",
                 "{} is credited with resolving {} but is not current".format(by, target))
+
+
+class FiguresMeanMeasurementsNotDigitGroupsTests(unittest.TestCase):
+    """H45 topped the uncited queue with "11 figures" and had none.
+
+    Its numbers were `10-K`/`10-Q` (form names), `FD-00`/`FD-01` (artifact ids),
+    `1/5/20/60` (event horizons) and `2010/2018/2019/2022/2023` (train/select/holdout
+    split years). A pre-registered DESIGN has specifications, not claims; asking it to
+    cite evidence for `10-K` is noise, and noise at the top of the queue costs a whole
+    cycle.
+    """
+
+    def test_form_names_are_not_counted(self):
+        self.assertEqual(BL._figures("comparable 10-K and 10-Q filings"), set())
+
+    def test_artifact_and_node_ids_are_not_counted(self):
+        self.assertEqual(BL._figures("FD-00/FD-01 extend F105 and H44"), set())
+
+    def test_calendar_years_are_not_counted(self):
+        self.assertEqual(BL._figures("train 2010-2018, select 2019-2022"), set())
+
+    def test_real_measurements_ARE_still_counted(self):
+        """The filter must not silence the metric it exists to sharpen."""
+        figs = BL._figures("additions moved +10.8709% relative to SPY, 8.65x volume, "
+                           "win rate 48.9%")
+        self.assertIn("10.8709", figs)
+        self.assertIn("8.65", figs)
+        self.assertIn("48.9", figs)
+
+    def test_h45_no_longer_reaches_the_five_figure_floor(self):
+        nodes = BL.load_nodes()
+        if "H45" not in nodes:
+            self.skipTest("H45 is gone")
+        self.assertLess(
+            len(BL._figures(str(nodes["H45"].get("body", "")))), 5,
+            "H45 counts 5+ figures again — either its body gained real measurements "
+            "or the filter regressed")
+
+
+class EvidenceReachesUpstreamNotJustDownstreamTests(unittest.TestCase):
+    """The loop was re-queueing work it had already done.
+
+    A Finding that publishes a study and links `F113:supports` puts the document one
+    INBOUND hop from F113. Only `resolves` was followed inbound, so F111/F113/F114/F115
+    stayed flagged as uncited after their docs were written a few cycles earlier. This
+    metric asks whether a reader can REACH a document, so the traversal should be
+    symmetric across evidence-carrying edges; entailment is a different question and is
+    not what the floor measures.
+    """
+
+    def test_the_upstream_edge_set_covers_more_than_resolves(self):
+        self.assertIn("resolves", BL.UPSTREAM_EVIDENCE)
+        for etype in ("supports", "refines", "builds_on", "evidenced_by"):
+            self.assertIn(etype, BL.UPSTREAM_EVIDENCE,
+                          "{} no longer carries evidence upstream — nodes whose docs "
+                          "were published by a supporting Finding will be re-queued"
+                          .format(etype))
+
+    def test_nodes_whose_docs_were_published_upstream_are_cleared(self):
+        nodes = BL.load_nodes()
+        queued = {r["node"] for r in BL.source_uncited(nodes, limit=300)}
+        for nid in ("F111", "F113", "F114", "F115"):
+            if nid not in nodes:
+                continue
+            self.assertNotIn(
+                nid, queued,
+                "{} is queued as uncited although a supporting Finding cites its "
+                "published study — the direction-blindness is back".format(nid))
+
+    def test_the_clearing_edges_really_are_inbound(self):
+        """Non-vacuity: these nodes do NOT cite the doc themselves."""
+        nodes = BL.load_nodes()
+        if "F113" not in nodes:
+            self.skipTest("F113 is gone")
+        self.assertEqual(
+            BL.DOC_REF.findall(str(nodes["F113"].get("body", ""))), [],
+            "F113 now cites a doc directly, so the inbound path is untested here")
+
+    def test_the_queue_shrank_but_did_not_empty(self):
+        """Both directions: over-suppression is the starvation failure this engine
+        exists to avoid."""
+        rows = BL.source_uncited(BL.load_nodes(), limit=300)
+        self.assertGreater(len(rows), 20, "the uncited queue collapsed — check for "
+                                          "over-suppression")
+        self.assertLess(len(rows), 85, "the queue did not shrink; neither fix took")

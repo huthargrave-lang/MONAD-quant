@@ -58,6 +58,9 @@ if _TOOLS not in sys.path:
 import epistemic_audit_lab as _epi  # noqa: E402  (canonical web parser)
 
 RELIANCE = {"relies_on", "supports", "refines", "builds_on"}
+# Edge types that carry EVIDENCE upstream: if X--type-->Y and X cites a document, a
+# reader standing at Y is one hop from that document. Used for doc-REACHABILITY only.
+UPSTREAM_EVIDENCE = {"resolves", "supports", "refines", "builds_on", "evidenced_by"}
 DOC_REF = re.compile(r"docs/research/([A-Za-z0-9_\-]+\.md)")
 # A node naming a REPRODUCING TOOL is not uncited in the same sense as one naming
 # nothing: it gives a reader a way to regenerate the result, just not a document
@@ -104,9 +107,23 @@ def recent_subjects(n: int = RECENT_COMMITS) -> List[str]:
             _git("log", "--format=%s%n%b", "-n", str(n)).splitlines() if l.strip()]
 
 
+# Digits that are NOT measurements: SEC form names, artifact ids, years, node ids.
+# Counting these as "figures needing evidence" is how H45 — a pre-registered DESIGN
+# whose only numbers are `10-K`/`10-Q`, `FD-00`/`FD-01`, event horizons and train/select
+# split years — reached the top of the uncited queue with "11 figures". A design has
+# specifications, not claims, and asking it to cite evidence for `10-K` is noise.
+NOT_A_MEASUREMENT = re.compile(
+    r"\b(?:10-[KQ]|8-K|20-F|13[FDG]|S-\d|N-\d|Form\s+\d+)\b"     # SEC form names
+    r"|\b[A-Z]{2,10}-\d{2}\b"                                     # artifact ids: FD-00
+    r"|\b(?:19|20)\d{2}\b"                                        # calendar years
+    r"|\b[FDEH]\d+\b",                                            # node ids
+    re.I)
+
+
 def _figures(text: str) -> set:
     text = text.replace("−", "-").replace("–", "-").replace("—", "-")
     text = re.sub(r"(?<=\d),(?=\d\d\d)", "", text)
+    text = NOT_A_MEASUREMENT.sub(" ", text)
     return {m.group(1) for m in FIGURE.finditer(text)
             if len(m.group(1).replace("-", "").replace(".", "")) >= 2}
 
@@ -147,9 +164,16 @@ def source_uncited(nodes, limit: int = 8) -> List[dict]:
         # H node's evidence lives in the Finding that resolved it. Following only
         # outgoing edges left H50 flagged as uncited immediately after a resolving
         # Finding was attached to it, which is direction-blindness, not a real gap.
+        # ...and the same argument applies to every other UPSTREAM edge, not just
+        # `resolves`. A Finding that publishes a study and links `F113:supports` puts
+        # the document one inbound hop away; from F113 it was invisible, so the loop
+        # re-queued four nodes (F111/F113/F114/F115) whose docs it had itself written
+        # a few cycles earlier. This metric asks whether a reader can REACH a document
+        # from the node, so traversal should be symmetric — entailment is a different
+        # question and is not what the floor measures.
         for other in nodes.values():
             for target, etype in other.get("edges", []):
-                if target == nid and etype == "resolves":
+                if target == nid and etype in UPSTREAM_EVIDENCE:
                     reachable |= set(DOC_REF.findall(str(other.get("body", ""))))
         if reachable:
             continue

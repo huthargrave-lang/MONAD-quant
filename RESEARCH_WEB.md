@@ -2764,3 +2764,20 @@ NOT IMPLEMENTED. H36 says 'low priority — correctness first' and after this me
 Guarded by tests/test_h36_graph_cost_profile.py (11 tests). Timings are wall-clock and vary; the guard asserts RATIOS and uses medians of repeated runs, since the argument rests on proportions rather than absolute milliseconds.
 Links: [[H36|refines]] · [[F27|relates]].
 _— captured claude/research-continuation-ca1242@2183a06, 2026-07-26_
+
+### F210 — The loop's uncited metric counted '10-K' as a figure and could not see evidence published upstream — it was re-queueing work it had already done
+H45 topped the uncited queue with '11 figures, 0 reachable docs'. It has none. H45 is a pre-registered DESIGN, and its numbers are `10-K`/`10-Q` (SEC form names), `FD-00`/`FD-01` (artifact ids), 1/5/20/60 (event horizons) and 2010/2018/2019/2022/2023 (train/select/holdout split years). Not one is a measurement. A design has specifications, not claims; asking it to cite evidence for '10-K' is noise, and noise at the top of the queue costs a whole cycle. **The correct answer to 'locate the evidence for H45's figures' is that there are no figures.**
+
+TWO FIXES, BOTH MEASURED.
+
+1. FIGURES NOW MEAN MEASUREMENTS. `_figures` strips SEC form names, artifact ids, calendar years and node ids before counting. H45 goes 11 -> 3. Verified the filter does not silence real numbers: +10.8709%, 8.65x and 48.9% are all still counted.
+
+2. EVIDENCE REACHES UPSTREAM, NOT JUST DOWNSTREAM. A Finding that publishes a study and links `F113:supports` puts the document ONE INBOUND HOP from F113 — but only `resolves` was followed inbound, so **F111, F113, F114 and F115 stayed flagged as uncited after I had written their docs myself, in cycles 19-21**. The loop was re-queueing its own completed work. `UPSTREAM_EVIDENCE` now covers resolves/supports/refines/builds_on/evidenced_by. The metric asks whether a reader can REACH a document, so symmetric traversal is right; entailment is a different question and is not what the 5-figure floor measures.
+
+This is the SECOND time direction-blindness has surfaced in this engine — the first was `resolves` alone (fixed when H50 was flagged immediately after being closed). Fixing one edge type and not the rest left the same bug in four other edges.
+
+EFFECT: the uncited queue goes 91 -> 69 rows. Guarded in BOTH directions — a test asserts real measurements are still counted, and another that the queue shrank without collapsing, since over-suppression is the starvation failure this engine exists to avoid.
+
+Guarded by 9 new tests in tests/test_research_backlog.py.
+Links: [[H45|resolves]] · [[F142|refines]].
+_— captured claude/research-continuation-ca1242@13cf1d3, 2026-07-26_
