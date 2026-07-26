@@ -378,6 +378,60 @@ def _nodes_resolved_since(nodes: Mapping[str, dict]) -> set:
     return closed
 
 
+def _config_opposing_citation_is_disclaimed() -> bool:
+    """Is `config.py`'s EXIT_ON_OPPOSING_SIGNAL mention a warning rather than a claim?
+
+    Deliberately NOT `"EXIT_ON_OPPOSING_SIGNAL" not in config.py`. F200 fixed the comment
+    by *quoting the dead identifier inside a disclaimer*, so the symbol is still there and
+    a naive existence check answers the opposite of the truth. What actually resolved the
+    item is that the citation stopped asserting a live feature — plus the fact that live/
+    still has no such flag, which is the half that would matter if someone reverted it.
+    """
+    try:
+        config_src = (REPO / "config.py").read_text(encoding="utf-8")
+    except OSError:
+        return False
+    if "no such flag or behaviour exists" not in config_src:
+        return False
+    live = REPO / "live"
+    if not live.is_dir():
+        return False
+    return not any("EXIT_ON_OPPOSING_SIGNAL" in p.read_text(encoding="utf-8",
+                                                            errors="ignore")
+                   for p in live.rglob("*.py"))
+
+
+# Open-list items written as PROSE — naming no node id — whose resolution is nevertheless
+# decidable from the repository.
+#
+# `_nodes_resolved_since` closes items that NAME a node. F200 built that and deliberately
+# kept everything else, because most open items are prose tasks and dropping them by
+# default would silently empty the highest-leverage source. That left F200's own item
+# pinned to the top forever: "config.py:120 cites EXIT_ON_OPPOSING_SIGNAL" names no node,
+# so no `resolves` edge can ever reach it — even though F200 corrected the comment in the
+# same cycle that recorded it.
+#
+# Each entry is a PREDICATE, not a resolved-flag: the item must keep re-earning its
+# closure on every run, so reverting the underlying fix brings it straight back. Same
+# design as BLOCKED_ON_DATA's live `--recheck` — a static claim about the repo that is
+# never re-tested is the failure mode this whole file exists to avoid.
+PROSE_RESOLVED = {
+    "EXIT_ON_OPPOSING_SIGNAL": (
+        _config_opposing_citation_is_disclaimed,
+        "F200 rewrote the comment to mark the flag BACKTEST-ONLY and record that the "
+        "advertised identifier never existed; live/ still has no such flag.",
+    ),
+}
+
+
+def prose_resolution(head: str):
+    """Return (resolved, why) for a prose open item, or (False, None) if untracked."""
+    for fingerprint, (predicate, why) in PROSE_RESOLVED.items():
+        if fingerprint in head:
+            return (bool(predicate()), why)
+    return (False, None)
+
+
 def source_open_items(limit: int = 6) -> List[dict]:
     """The newest handoff's explicit open list. Human priorities outrank inference.
 
@@ -400,6 +454,8 @@ def source_open_items(limit: int = 6) -> List[dict]:
         named = set(re.findall(r"\b([FDEH]\d+)\b", head))
         if named and named <= resolved_ids:
             continue          # every node this item names has since been closed
+        if not named and prose_resolution(head)[0]:
+            continue          # names no node, but the repo says it is done (PROSE_RESOLVED)
         rows.append({
             "key": "open:{}".format(re.sub(r"\W+", "-", head.lower())[:40]),
             "kind": "open_item",
