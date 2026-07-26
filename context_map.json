@@ -123,7 +123,12 @@
           "config.STOP_LOSS_PCT_TQQQ_HOURLY",
           "config.STOP_LOSS_PCT_GDXU_HOURLY"
         ],
-        "note": "stop-vs-intrabar-noise ratio drives win rate — the stop pct is the lever (3x ETFs stop inside noise)."
+        "note": "stop-vs-intrabar-noise ratio drives win rate — the stop pct is the lever (3x ETFs stop inside noise). Guarded on the CHECKABLE half: the configured band geometry, and the fact that sweep.py's R:R search is seeded at 2:1 and structurally asymmetric. The noise-ratio figures themselves need market data no provider here will serve.",
+        "guarded_by": [
+          "tests/test_f7_band_geometry.py::ThePhase1aSearchIsPinnedToOneRatioTests",
+          "tests/test_f7_band_geometry.py::ThePhase1bReachIsCoupledToTheTargetTests",
+          "tests/test_f7_band_geometry.py::TheConfiguredBandsTests"
+        ]
       },
       {
         "node": "F13",
@@ -471,7 +476,8 @@
         "tools/sec_fund_exit_lab.py",
         "tools/shadow_replay.py",
         "tools/research_ui.py",
-        "tools/ui_tokens.py"
+        "tools/ui_tokens.py",
+        "tools/band_geometry.py"
       ],
       "entrypoints": [],
       "tests": [
@@ -497,7 +503,8 @@
         "tests/test_shadow_replay.py",
         "tests/test_web_code_claims.py",
         "tests/test_web_integrity.py",
-        "tests/test_research_ui.py"
+        "tests/test_research_ui.py",
+        "tests/test_f7_band_geometry.py"
       ],
       "docs": [
         "docs/research/README.md",
@@ -508,7 +515,8 @@
         "docs/research/HANDOFF_2026-07-24.md",
         "docs/research/FD00_sec_filing_delta_lab.md",
         "docs/research/IX00_index_membership_event_lab.md",
-        "docs/research/UI_surface_unification.md"
+        "docs/research/UI_surface_unification.md",
+        "docs/research/F7_band_geometry_and_search.md"
       ],
       "do_not_touch_without_approval": false
     },
