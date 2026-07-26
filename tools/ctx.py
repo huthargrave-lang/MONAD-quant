@@ -1221,6 +1221,30 @@ def _parse_web():
         return _parse_web_text(f.read())
 
 
+def _web_text():
+    """The working-tree research web as raw text (duplicate headings intact)."""
+    if not os.path.exists(WEB):
+        return ""
+    with open(WEB, encoding="utf-8") as fh:
+        return fh.read()
+
+
+def duplicate_node_ids(text):
+    """{node_id: count} for every ID declared more than once.
+
+    `_parse_web_text` keys nodes by ID, so a duplicate heading does not error — the
+    later definition REPLACES the earlier one and the first node vanishes from every
+    downstream view. This detects the condition on the raw text, before parsing.
+    """
+    counts = {}
+    hdr = re.compile(r"^###\s+([A-Za-z]+\d+)\s+[—-]\s+")
+    for line in text.splitlines():
+        m = hdr.match(line.rstrip())
+        if m:
+            counts[m.group(1)] = counts.get(m.group(1), 0) + 1
+    return {nid: c for nid, c in counts.items() if c > 1}
+
+
 def _parse_web_text(text):
     """Parse research-web markdown TEXT into {id: {title, body, links, edges}} +
     reverse links. Nodes are '### <ID> — <title>'; edges are '[[ID]]'/'[[ID|type]]'
@@ -1427,11 +1451,20 @@ def cmd_web(args):
     # citing its superseder (the supersession-propagation invariant). Historical/upstream
     # edges (supersedes/contradicts/produces/evidenced_by/resolves) are exempt.
     if getattr(args, "lint", False):
+        # Duplicate headings first, because every check below runs on the PARSED map and
+        # the parser keys nodes by ID — a second `### F1` silently replaces the first, so
+        # a lint that skipped this would validate a graph missing a node it never saw.
+        # (H41: exactly this happened at the 2026-07-06 merge, where a parallel session
+        # on a stale base allocated D7/D8 that were already taken.)
+        dupes = duplicate_node_ids(_web_text())
+        for nid, count in sorted(dupes.items()):
+            print(f"  PROBLEM duplicate: {nid} is defined {count} times — the parser "
+                  f"keeps only the LAST; renumber the later one(s)")
         dangling = [(nid, tgt) for nid, n in nodes.items()
                     for tgt in n["links"] if tgt not in nodes]
         for nid, tgt in dangling:
             print(f"  PROBLEM dangling: {nid} → [[{tgt}]] (no such node)")
-        problems = 0
+        problems = len(dupes)
         for nid, n in nodes.items():
             if _is_superseded(n) and not _superseder(n):
                 print(f"  PROBLEM: superseded node {nid} declares no `by:` superseder "

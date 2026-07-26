@@ -57,8 +57,39 @@ def existing_ids(text):
     return [m.group(1) for m in (HDR.match(l) for l in text.splitlines()) if m]
 
 
-def next_id(text, kind):
+def _remote_ids(kind):
+    """IDs of `kind` already taken on the deploy branch, if it is reachable offline.
+
+    H41: allocation read the LOCAL working tree only, so a session on a stale base
+    hands out an ID a parallel session already used. That happened at the 2026-07-06
+    merge — two sessions both allocated D7/D8, producing duplicate headings on
+    origin/development that had to be renumbered by hand. This consults the deploy
+    branch's committed web through `git show`, which needs no network: whatever was
+    last FETCHED is already in the object store. It cannot see a sibling's unpushed
+    work, so it narrows the window rather than closing it — a duplicate that slips
+    through is still caught by `ctx web --lint`, which now fails on duplicate headings.
+    """
+    branch = ctx._manifest().get("deploy_branch", "")
+    if not branch:
+        return []
+    for ref in (f"origin/{branch}", branch):
+        blob = ctx._git("show", f"{ref}:RESEARCH_WEB.md")
+        if blob:
+            return [int(i[1:]) for i in existing_ids(blob)
+                    if i[0] == kind and i[1:].isdigit()]
+    return []
+
+
+def next_id(text, kind, remote=False):
+    """One past the highest ID of `kind` in `text` — pure by default.
+
+    `remote=True` also consults the deploy branch (see `_remote_ids`). The default
+    stays pure because this lives under "pure helpers (unit-tested)" and callers that
+    want the collision-resistant answer should say so; `cmd_add` does.
+    """
     nums = [int(i[1:]) for i in existing_ids(text) if i[0] == kind and i[1:].isdigit()]
+    if remote:
+        nums += _remote_ids(kind)
     return f"{kind}{max(nums, default=0) + 1}"
 
 
@@ -314,7 +345,7 @@ def cmd_add(args):
             if ty in ctx.RELIANCE_EDGES and ctx._is_superseded(nodes[tid]):
                 sys.exit(f"reliance edge '{ty}' to superseded {tid} — use relates/supersedes/contradicts")
             links.append((tid, ty))
-        nid = next_id(text, args.kind)
+        nid = next_id(text, args.kind, remote=True)
         block = render_add(nid, title, args.body, links, datetime.date.today().isoformat())
         return text + block, block.strip(), f"add {nid}"
     return _locked_commit(real_target, build, 1, args.commit)
