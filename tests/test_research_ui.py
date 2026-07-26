@@ -399,6 +399,17 @@ class TheLiveDashboardPortTests(unittest.TestCase):
                          "a hand-written translucent green is back — derive it with "
                          "plot_rgba so it cannot drift from its series colour")
 
+    def test_the_rail_says_what_is_shared_not_only_what_is_fenced(self):
+        """"Fenced" alone was true and had stopped being the whole truth."""
+        _code, body, _ct = ui.route("/", {}, {})
+        self.assertIn("same palette", body)
+        self.assertIn("ui_tokens.py", body,
+                      "the rail no longer names what the dashboard shares, so the "
+                      "label reads as 'unrelated' again")
+        self.assertNotIn(
+            "never imports or serves", body,
+            "the old fenced-only wording is back; it omits that the palette IS shared")
+
     def test_the_cdn_dependency_is_no_longer_invisible(self):
         """It reaches the page through a template variable, and hid from the census."""
         row = {r["path"]: r for r in ui.surface_census()["surfaces"]}[

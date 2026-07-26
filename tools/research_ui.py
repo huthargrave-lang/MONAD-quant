@@ -1298,10 +1298,14 @@ def _nav(active, mounts):
             out.append('<a class="off" href="{}" title="pass the matching --*-db flag to '
                        'mount this">{}<span class="fence">no db</span></a>'.format(
                            href, esc(label)))
-    out.append("<h4>Not served here</h4>")
+    # "fenced" alone was true and had stopped being the whole truth: since F233 the
+    # dashboard draws from the same tools/ui_tokens.py as every page in this rail. The
+    # chip says what IS shared so the label cannot be read as "unrelated".
+    out.append("<h4>Shares the palette, served elsewhere</h4>")
     out.append('<a class="off" href="/surfaces" title="live/** is fenced: this server '
-               'never imports or serves the trading dashboard">Live monitor'
-               '<span class="fence">fenced</span></a>')
+               'never imports and never serves the trading dashboard. Since F233 it '
+               'draws from the same tools/ui_tokens.py — palette shared, nothing else.">'
+               'Live monitor<span class="fence">same palette</span></a>')
     out.append("</nav>")
     return "".join(out)
 
@@ -1337,7 +1341,8 @@ def page_overview(mounts):
     body.append('<p class="lede">This server does not re-implement the surfaces it '
                 'shows. It mounts them — <code>ctx.py</code>’s database route '
                 'adapters are called unchanged — under one shell that owns the tokens. '
-                'The live trading dashboard stays fenced and is listed, never served.</p>')
+                'The live trading dashboard shares the palette and nothing else — '
+                'it is never imported and never served from here.</p>')
     body.append('<div class="stats">')
     body.append(_stat(len(c.nodes), "research nodes"))
     body.append(_stat(superseded, "superseded"))
