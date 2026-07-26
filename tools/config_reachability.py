@@ -147,7 +147,8 @@ def census():
     # the union, and let the two sub-classes float.
     counts["dead_to_shipping"] = (counts.get("unreferenced", 0)
                                   + counts.get("tests-only", 0))
-    return {"prefixes": sorted(prefixes), "suffixes": sorted(suffixes),
+    return {"subject": "repository",  # not an observation of the world; see F230
+            "prefixes": sorted(prefixes), "suffixes": sorted(suffixes),
             "constants": result, "counts": counts}
 
 

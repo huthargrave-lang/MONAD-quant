@@ -72,9 +72,21 @@ def schema_keys(obj, out=None):
 
 
 def score_artifacts():
+    """PT-01's population: artifacts that record an observation of THE WORLD.
+
+    `docs/research/data/` also holds repo-introspection outputs — the config, column and
+    parity censuses, and the entry-gate probe. Those describe this repository, carry no
+    provenance because they have no external source, and would drag every coverage ratio
+    down as more of them are written. They declare `"subject": "repository"` and are
+    excluded here. Population drift is a real way for a metric to rot: this guard failed
+    once because three census files entered a denominator they never belonged to.
+    """
     scored = {}
     for path in sorted(DATA.glob("*.json")):
-        keys = " ".join(sorted(schema_keys(json.loads(path.read_text(encoding="utf-8")))))
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(payload, dict) and payload.get("subject") == "repository":
+            continue
+        keys = " ".join(sorted(schema_keys(payload)))
         scored[path.name] = {k for k, rx in COMPILED.items() if rx.search(keys)}
     return scored
 

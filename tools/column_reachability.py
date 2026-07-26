@@ -170,7 +170,8 @@ def census():
         result.setdefault(column, {"kind": "external", "written_by": [],
                                    "read_by": read_sites(column),
                                    "read_within_producer": []})
-    return {"columns": result,
+    return {"subject": "repository",  # not an observation of the world; see F230
+            "columns": result,
             "counts": dict(Counter(v["kind"] for v in result.values()))}
 
 

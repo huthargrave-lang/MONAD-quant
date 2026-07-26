@@ -833,6 +833,7 @@
     "VWAP_WINDOW",
     "VWAP_ZSCORE_THRESH"
   ],
+  "subject": "repository",
   "suffixes": [
     "BTC",
     "BTC_HOURLY",

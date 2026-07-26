@@ -374,5 +374,6 @@
     "external": 5,
     "read": 15,
     "write_only": 13
-  }
+  },
+  "subject": "repository"
 }
