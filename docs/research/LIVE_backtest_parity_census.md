@@ -39,11 +39,32 @@ coincidence of two independent definitions.
 **`MAX_TRADE_BARS = 8` versus `MAX_TRADE_BARS_LIVE = 10`.** The backtest closes a stale
 trade after 8 bars; the bot holds for 10. A **25%** difference in the time exit.
 
-That matters more here than it would elsewhere. The target and stop are narrow — 1.00% and
-0.50% on the live mode — so a large share of trades resolve on the clock rather than on a
-band. [`F17`](../../RESEARCH_WEB.md), the project's most actionable finding, is precisely
-*"replace the %-stop with a horizon/time exit"*. The horizon is the mechanism under active
-study, and the two paths use different ones.
+### …and then measured, which corrected the framing
+
+The first draft of this section argued the gap was a first-order driver *because* a narrow
+band means many trades resolve on the clock. **That was an assumption, and measurement
+refutes it** at the volatility this strategy trades. At 0.8%/bar with the live band, across
+four seeded panels:
+
+| σ/bar | trades ending on the clock (8 bars) | mean return, 10 bars − 8 bars |
+|---:|---:|---:|
+| 0.08% | 21.5% | +0.79 bp |
+| 0.15% | 14.9% | +1.72 bp |
+| 0.25% | 6.3% | +0.93 bp |
+| 0.40% | 2.0% | +0.24 bp |
+| **0.80%** | **0.2%** (3 of 1759) | **+0.05 bp** |
+| 1.10% | 0.2% | +0.04 bp |
+
+The row stays **DIVERGE** — the two configs really do disagree — but its behavioural cost
+today is about zero, and the *reason* is what to keep: **the bands resolve before the clock
+does.** That reason expires the moment the bands widen, which is why the finding is
+recorded rather than dropped.
+
+It also reframes [`F17`](../../RESEARCH_WEB.md), whose recommendation is to replace the
+%-stop with a horizon exit. At this volatility the horizon currently fires on roughly 1
+trade in 500. Adopting it is therefore not a tweak to an existing mechanism — it is a
+**replacement of the exit model**, and its effect cannot be extrapolated from how the time
+exit behaves now.
 
 ## The one that is quietly worse
 
@@ -79,8 +100,12 @@ capability.
 * It does **not** explain the flat live result. It establishes that the two paths are not
   comparable in at least three ways at once, so the backtest's number was never a
   prediction of the bot's.
-* It does **not** rank them. Which divergence costs the most is a question for a
-  measurement none of these cycles can run offline — every one needs market data.
+* It does **not** rank them by realised cost. It does now size them where a synthetic
+  panel can: the entry gate retains 4.0–20.9% of configured entries
+  ([`F211`](../../RESEARCH_WEB.md)), the UTC/ET gate keeps 2–3 of 7 session bars
+  ([`F148`](../../RESEARCH_WEB.md)), and the max-hold gap is worth ~0.05 bp above
+  0.4%/bar ([`F230`](../../RESEARCH_WEB.md), above). Which matters most *on real data*
+  still needs market data none of these cycles can reach.
 * Nothing was changed. `live/**` is fenced and `config.py` is fenced; aligning
   `MAX_TRADE_BARS_LIVE`, or making `get_position_plan` read the config, are one-line
   owner decisions that move live behaviour.

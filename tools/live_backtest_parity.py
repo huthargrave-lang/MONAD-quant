@@ -103,11 +103,55 @@ def time_gate():
 
 
 def max_hold():
+    """DIVERGE in the config, immaterial in practice — see `time_exit_bind_rate`.
+
+    Measured across four seeded panels at the live band (1.00%/0.50%): at 0.8%/bar the
+    time exit fires on 3 of 1759 trades and the mean-return difference between 8 and 10
+    bars is under 0.1 bp. It only starts to bind below about 0.4%/bar. So this row is a
+    real config divergence whose behavioural cost is ~zero at the volatility this
+    strategy trades — recorded rather than dropped, because the *reason* it is harmless
+    is that the bands resolve first, and that reason changes if the bands widen.
+    """
     import config
     bt = getattr(config, "MAX_TRADE_BARS", None)
     lv = getattr(config, "MAX_TRADE_BARS_LIVE", None)
     return ("MAX_TRADE_BARS={}".format(bt), "MAX_TRADE_BARS_LIVE={}".format(lv),
             AGREE if bt == lv else DIVERGE, None)
+
+
+def time_exit_bind_rate(sigma=0.008, bars=4000, target=0.010, stop=0.005):
+    """How often the clock, rather than a band, ends a trade — and what 8 vs 10 costs.
+
+    Returns {trades, time_exits_at_8, time_exits_at_10, mean_return_delta_bp}. Offline:
+    seeded synthetic panels, so it is a statement about the MECHANISM (a narrow band
+    resolves before a short clock), not a measurement of any instrument.
+    """
+    import collections
+
+    import entry_gate_probe as probe
+    from src.strategy.engine import (build_features, compute_trade_returns,
+                                     generate_trades)
+    totals = collections.Counter()
+    deltas = []
+    for _, seed, drift in probe.PANELS:
+        feat = build_features(probe.synth_panel(seed, drift, bars, "1h", sigma),
+                              timeframe="hourly")
+        trades = generate_trades(feat, require_signals=1, target_gain_pct=target,
+                                 stop_loss_pct=stop)
+        runs = {}
+        for hold in (8, 10):
+            runs[hold] = compute_trade_returns(trades, target_gain_pct=target,
+                                               stop_loss_pct=stop, max_trade_bars=hold)
+        totals["trades"] += len(runs[8])
+        for hold in (8, 10):
+            counts = collections.Counter(runs[hold]["exit_type"])
+            totals["time_exits_at_{}".format(hold)] += counts.get("time_exit", 0)
+        if len(runs[8]):
+            deltas.append(10000 * (runs[10]["return"].mean() - runs[8]["return"].mean()))
+    return {"trades": totals["trades"],
+            "time_exits_at_8": totals["time_exits_at_8"],
+            "time_exits_at_10": totals["time_exits_at_10"],
+            "mean_return_delta_bp": sum(deltas) / len(deltas) if deltas else 0.0}
 
 
 def position_size():

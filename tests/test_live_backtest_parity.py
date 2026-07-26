@@ -15,8 +15,29 @@ runs it at the signature default `True`, live passes `False`) and the intraday t
 (backtest slices UTC hours, live checks ET market hours). The third was not:
 
 * **max hold** — `MAX_TRADE_BARS = 8` in the backtest, `MAX_TRADE_BARS_LIVE = 10` live.
-  A 25% difference in the time exit, which for a mean-reversion strategy whose target and
-  stop are both narrow is a first-order driver of the trade population.
+  A 25% difference in the time exit.
+
+**And then measured, which corrected the framing.** The first version of this file argued
+the max-hold gap was a first-order driver *because* a narrow band means many trades resolve
+on the clock. That was an assumption, and it is false at the volatility this strategy
+trades. At 0.8%/bar with the live band (1.00%/0.50%), the time exit fires on **3 of 1759**
+trades and 8-vs-10 moves the mean return by **0.05 bp**. It only begins to bind below
+about **0.4%/bar**:
+
+    sigma/bar   time exits at 8    mean delta
+      0.08%          21.5%          +0.79 bp
+      0.15%          14.9%          +1.72 bp
+      0.25%           6.3%          +0.93 bp
+      0.40%           2.0%          +0.24 bp
+      0.80%           0.2%          +0.05 bp
+      1.10%           0.2%          +0.04 bp
+
+So the row stays DIVERGE — the configs really do disagree — but its behavioural cost today
+is ~zero, and the reason is worth keeping: **the bands resolve before the clock does.**
+That reason expires if the bands widen. It also reframes F17, whose recommendation is to
+replace the %-stop with a horizon exit: at this volatility the horizon currently fires
+almost never, so that is not a tweak to an existing mechanism — it is a replacement of the
+exit model.
 
 **Two coincident.** Same value today, read from different places, with nothing keeping
 them in step:
@@ -111,14 +132,36 @@ class TheThreeBehaviouralDivergencesTests(unittest.TestCase):
         self.assertEqual(getattr(config, "MAX_TRADE_BARS", None), 8)
         self.assertEqual(getattr(config, "MAX_TRADE_BARS_LIVE", None), 10)
 
-    def test_the_gap_is_material_relative_to_the_hold(self):
-        """25% is not a rounding difference on an 8-bar horizon."""
+    def test_the_gap_is_large_as_a_configuration(self):
         backtest = getattr(config, "MAX_TRADE_BARS")
         live = getattr(config, "MAX_TRADE_BARS_LIVE")
         self.assertGreater(
             abs(live - backtest) / backtest, 0.1,
             "the two max-hold settings converged to within 10% — re-measure before "
             "citing the 25% figure")
+
+    def test_but_the_time_exit_almost_never_fires_at_this_volatility(self):
+        """The correction: a 25% config gap with ~zero behavioural cost today."""
+        result = parity.time_exit_bind_rate(sigma=0.008)
+        share = result["time_exits_at_8"] / result["trades"]
+        self.assertGreater(result["trades"], 500, "too few trades to measure")
+        self.assertLess(
+            share, 0.02,
+            "the time exit now ends {:.1%} of trades at 0.8%/bar — it has become "
+            "material, so the 8-vs-10 divergence needs costing properly".format(share))
+        self.assertLess(
+            abs(result["mean_return_delta_bp"]), 0.5,
+            "8-vs-10 now moves the mean return by {:.2f} bp — re-measure and update "
+            "the study".format(result["mean_return_delta_bp"]))
+
+    def test_it_does_bind_at_low_volatility_so_the_check_is_not_vacuous(self):
+        result = parity.time_exit_bind_rate(sigma=0.0015)
+        share = result["time_exits_at_8"] / result["trades"]
+        self.assertGreater(
+            share, 0.05,
+            "the time exit no longer binds even at 0.15%/bar ({:.1%}) — then the "
+            "'bands resolve first' mechanism has no worked counter-example".format(
+                share))
 
 
 class ThePositionSizeIsDuplicatedNotSharedTests(unittest.TestCase):

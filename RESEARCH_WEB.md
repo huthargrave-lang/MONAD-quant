@@ -3076,3 +3076,16 @@ WHAT THIS DOES NOT ESTABLISH. It does not explain the flat live result - it esta
 Documented at docs/research/LIVE_backtest_parity_census.md, guarded by tests/test_live_backtest_parity.py (15 tests) which fail in BOTH directions - if a divergence is fixed (good news, supersede and re-baseline) and if a new one appears - plus a non-vacuity check that the dormant class has a worked example.
 Links: [[F141|builds_on]] · [[F148|relates]] · [[F26|relates]] · [[F228|builds_on]].
 _— captured claude/research-continuation-ca1242@8ffef38, 2026-07-26_
+
+### F230 — The 8-vs-10 bar divergence I just flagged is immaterial above 0.4%/bar: the bands resolve before the clock, 3 of 1759 trades — which reframes F17 as a replacement
+F229's parity census flagged MAX_TRADE_BARS=8 against MAX_TRADE_BARS_LIVE=10 as a behavioural divergence and argued it was first-order BECAUSE a narrow band means many trades resolve on the clock. That was an ASSUMPTION and I did not verify it. Measured, it is false at the volatility this strategy trades.
+
+MEASURED across four seeded hourly panels at the live band (target 1.00%, stop 0.50%), sweeping per-bar volatility: at 0.08% sigma the time exit ends 21.5% of trades and 10-vs-8 bars is worth +0.79 bp of mean return; at 0.15%, 14.9% and +1.72 bp; at 0.25%, 6.3% and +0.93 bp; at 0.40%, 2.0% and +0.24 bp; at 0.80%, 0.2% - THREE OF 1759 TRADES - and +0.05 bp; at 1.10%, 0.2% and +0.04 bp. So the divergence only begins to bind BELOW ABOUT 0.4%/BAR, and TQQQ hourly sits well above that (F194's own generator used 1.1%/bar for a 3x ETF).
+
+THE ROW STAYS 'DIVERGE' because the two configs really do disagree, but its behavioural cost today is about zero. What is worth keeping is the REASON: THE BANDS RESOLVE BEFORE THE CLOCK DOES. That reason expires the moment the bands widen, so the finding is recorded rather than dropped, and the guard asserts both directions - the bind rate must stay under 2% at 0.8%/bar, AND must exceed 5% at 0.15%/bar, so the 'bands resolve first' mechanism keeps a worked counter-example instead of becoming an untestable claim.
+
+IT ALSO REFRAMES F17, the project's most actionable finding, whose recommendation is to replace the %-stop with a horizon/time exit. At this volatility the horizon currently fires on roughly ONE TRADE IN FIVE HUNDRED. Adopting it is therefore not a tweak to an existing mechanism but a REPLACEMENT OF THE EXIT MODEL, and its effect cannot be extrapolated from how the time exit behaves now - any estimate that reasons from current time-exit statistics is reasoning from three trades.
+
+SCOPE: seeded synthetic panels, so this is a statement about the MECHANISM (a narrow band resolves before a short clock) and not a measurement of any instrument. The other two divergences are unchanged and were already sized elsewhere - the entry gate retains 4.0%-20.9% of configured entries (F211) and the UTC-vs-ET time gate keeps 2-3 of 7 session bars (F148). What this cycle adds is that the third divergence, the one F229 itself introduced, is the small one.
+Links: [[F229|refines]] · [[F17|relates]] · [[F211|relates]].
+_— captured claude/research-continuation-ca1242@3692a26, 2026-07-26_
