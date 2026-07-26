@@ -1,7 +1,26 @@
-"""Read-only monitoring dashboard for the live trading bot (v2 UI)."""
+"""Read-only monitoring dashboard for the live trading bot (v2 UI).
+
+PRESENTATION ONLY below the data layer: this module reads `live/state.db`, builds
+figures, and renders a template. It places no orders, holds no position state, and is
+never in the trading path.
+
+Its palette comes from `tools/ui_tokens.py` — the same one every other HTML surface in
+this repository uses (F232/F233). Two layers, because a plotting library and a
+stylesheet reach colour differently:
+
+* **CSS** — the tokens are passed into the template and the page's historic variable
+  names (`--bg`, `--panel`, `--text`, …) are aliased onto them, so the ~200 lines of
+  layout below the alias block are untouched.
+* **Figures** — plotly bakes literal colours into the figure at build time and cannot
+  read a custom property, so series colours come from `ui_tokens.PLOT` (validated
+  against BOTH card grounds) while the chart CHROME — background, font, grid, tick,
+  zero-line, marker ring — is left neutral here and pushed in by the page at run time
+  from the resolved variables. A server cannot know the viewer's theme; the page can.
+"""
 
 import sqlite3
 import subprocess
+import sys
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -19,6 +38,13 @@ from markupsafe import Markup
 import config
 from live import state
 from src.analysis import run_window
+
+_TOOLS = str(Path(__file__).resolve().parents[1] / "tools")
+if _TOOLS not in sys.path:
+    sys.path.insert(0, _TOOLS)
+import ui_tokens  # noqa: E402  — the one palette; see F233
+
+PLOT = ui_tokens.PLOT
 
 DB_PATH = Path(__file__).parent / "state.db"
 # Optional "current run" marker (gitignored runtime). When present, history
@@ -288,10 +314,11 @@ def _build_returns_chart(trades: list[dict]) -> str:
         x.append(ts)
         cumulative.append((equity - 1.0) * 100.0)
         custom.append([ret * 100.0, row.get("exit_type") or "unknown"])
-        marker_colors.append("#2ecc71" if ret >= 0 else "#e74c3c")
+        marker_colors.append(PLOT["gain"] if ret >= 0 else PLOT["loss"])
 
-    line_color = "#2ecc71" if cumulative[-1] >= 0 else "#ff5d5d"
-    fill_color = "rgba(46, 204, 113, 0.12)" if cumulative[-1] >= 0 else "rgba(255, 93, 93, 0.12)"
+    line_color = PLOT["gain"] if cumulative[-1] >= 0 else PLOT["loss"]
+    fill_color = ui_tokens.plot_rgba(
+        "gain" if cumulative[-1] >= 0 else "loss", 0.12)
     hovertemplate = (
         "%{x}<br>Cumulative %{y:.2f}%"
         "<br>Trade %{customdata[0]:+.3f}%"
@@ -317,7 +344,8 @@ def _build_returns_chart(trades: list[dict]) -> str:
             x=x,
             y=cumulative,
             mode="markers",
-            marker=dict(color=marker_colors, size=7, line=dict(color="#0b1020", width=1)),
+            marker=dict(color=marker_colors, size=7,
+                        line=dict(color=PLOT["transparent"], width=1)),
             customdata=custom,
             hovertemplate=hovertemplate,
             showlegend=False,
@@ -325,9 +353,9 @@ def _build_returns_chart(trades: list[dict]) -> str:
     )
     fig.update_layout(
         title="Cumulative Equity Curve",
-        paper_bgcolor="#121a2f",
-        plot_bgcolor="#121a2f",
-        font_color="#e8ecf6",
+        paper_bgcolor=PLOT["transparent"],
+        plot_bgcolor=PLOT["transparent"],
+        font_color=PLOT["ink"],
         margin=dict(l=60, r=20, t=40, b=50),
         height=300,
         xaxis_title="Exit time",
@@ -365,7 +393,7 @@ def _build_trade_scatter_chart(trades: list[dict]) -> str:
 
     x_bars = [point["bars_held"] for point in points]
     y_rets = [point["return_pct"] for point in points]
-    colors = ["#2ecc71" if ret >= 0 else "#e74c3c" for ret in y_rets]
+    colors = [PLOT["gain"] if ret >= 0 else PLOT["loss"] for ret in y_rets]
     custom = [[point["symbol"], point["exit_type"], point["exit_time"]] for point in points]
 
     fig = go.Figure()
@@ -373,7 +401,7 @@ def _build_trade_scatter_chart(trades: list[dict]) -> str:
     fig.add_hline(
         y=0,
         line_dash="dash",
-        line_color="rgba(255,255,255,0.2)",
+        line_color=ui_tokens.PLOT_AXIS,
         line_width=2,
     )
     fig.add_trace(
@@ -385,7 +413,7 @@ def _build_trade_scatter_chart(trades: list[dict]) -> str:
                 size=12,
                 color=colors,
                 opacity=0.85,
-                line=dict(width=1.5, color="#121a2f"),
+                line=dict(width=1.5, color=PLOT["transparent"]),
             ),
             customdata=custom,
             hovertemplate=(
@@ -400,9 +428,9 @@ def _build_trade_scatter_chart(trades: list[dict]) -> str:
     )
     fig.update_layout(
         title="Trade Efficiency",
-        paper_bgcolor="#121a2f",
-        plot_bgcolor="#121a2f",
-        font_color="#e8ecf6",
+        paper_bgcolor=PLOT["transparent"],
+        plot_bgcolor=PLOT["transparent"],
+        font_color=PLOT["ink"],
         margin=dict(l=60, r=20, t=40, b=40),
         height=300,
         xaxis_title="Duration (Bars)",
@@ -413,12 +441,12 @@ def _build_trade_scatter_chart(trades: list[dict]) -> str:
     fig.update_xaxes(
         automargin=True,
         range=[-1, max_x + (max_x * 0.1)],
-        gridcolor="rgba(152, 162, 179, 0.1)",
+        gridcolor=ui_tokens.PLOT_GRID,
         zeroline=False,
     )
     fig.update_yaxes(
         automargin=True,
-        gridcolor="rgba(152, 162, 179, 0.1)",
+        gridcolor=ui_tokens.PLOT_GRID,
         zeroline=False,
     )
     return _figure_to_html(fig, div_id="trade-scatter-chart")
@@ -479,7 +507,7 @@ def _build_signal_chart(
             y=close,
             mode="lines",
             name="Close",
-            line=dict(color="#4aa3ff", width=2),
+            line=dict(color=PLOT["price"], width=2),
             hovertemplate="%{x}<br>Close $%{y:.2f}<extra></extra>",
         ),
         row=1,
@@ -495,7 +523,7 @@ def _build_signal_chart(
             fig.add_hline(
                 y=target_price,
                 line_dash="dash",
-                line_color="rgba(46, 204, 113, 0.70)",
+                line_color=ui_tokens.plot_rgba("gain", 0.70),
                 annotation_text=f"Target ${target_price:.2f}",
                 annotation_position="top right",
                 row=1,
@@ -505,7 +533,7 @@ def _build_signal_chart(
             fig.add_hline(
                 y=entry_price,
                 line_dash="dot",
-                line_color="rgba(255, 255, 255, 0.40)",
+                line_color=ui_tokens.PLOT_AXIS,
                 annotation_text=f"Entry ${entry_price:.2f}",
                 annotation_position="top left",
                 row=1,
@@ -515,7 +543,7 @@ def _build_signal_chart(
             fig.add_hline(
                 y=stop_price,
                 line_dash="dash",
-                line_color="rgba(231, 76, 60, 0.70)",
+                line_color=ui_tokens.plot_rgba("loss", 0.70),
                 annotation_text=f"Stop ${stop_price:.2f}",
                 annotation_position="bottom right",
                 row=1,
@@ -541,7 +569,7 @@ def _build_signal_chart(
                 y=long_y,
                 mode="markers",
                 name="LONG",
-                marker=dict(symbol="triangle-up", color="#2ecc71", size=12),
+                marker=dict(symbol="triangle-up", color=PLOT["gain"], size=12),
                 hovertemplate="%{x}<br>LONG @ $%{y:.2f}<extra></extra>",
             ),
             row=1,
@@ -554,7 +582,7 @@ def _build_signal_chart(
                 y=short_y,
                 mode="markers",
                 name="SHORT",
-                marker=dict(symbol="triangle-down", color="#e74c3c", size=12),
+                marker=dict(symbol="triangle-down", color=PLOT["loss"], size=12),
                 hovertemplate="%{x}<br>SHORT @ $%{y:.2f}<extra></extra>",
             ),
             row=1,
@@ -567,7 +595,7 @@ def _build_signal_chart(
             y=rsi,
             mode="lines",
             name="RSI",
-            line=dict(color="#bb86fc", width=2),
+            line=dict(color=PLOT["rsi"], width=2),
             hovertemplate="%{x}<br>RSI %{y:.2f}<extra></extra>",
         ),
         row=2,
@@ -579,7 +607,7 @@ def _build_signal_chart(
     fig.add_hline(
         y=50,
         line_dash="dot",
-        line_color="rgba(255, 255, 255, 0.25)",
+        line_color=ui_tokens.PLOT_AXIS,
         row=2,
         col=1,
     )
@@ -588,7 +616,7 @@ def _build_signal_chart(
         fig.add_hline(
             y=rsi_oversold,
             line_dash="dash",
-            line_color="rgba(46, 204, 113, 0.55)",
+            line_color=ui_tokens.plot_rgba("gain", 0.55),
             annotation_text=f"Bot Long Limit ({rsi_oversold:g})",
             annotation_position="top left",
             row=2,
@@ -598,7 +626,7 @@ def _build_signal_chart(
         fig.add_hline(
             y=rsi_overbought,
             line_dash="dash",
-            line_color="rgba(231, 76, 60, 0.55)",
+            line_color=ui_tokens.plot_rgba("loss", 0.55),
             annotation_text=f"Bot Short Limit ({rsi_overbought:g})",
             annotation_position="bottom left",
             row=2,
@@ -607,9 +635,9 @@ def _build_signal_chart(
 
     fig.update_layout(
         title=f"{asset_label or 'Signal'} Price Action & RSI",
-        paper_bgcolor="#121a2f",
-        plot_bgcolor="#121a2f",
-        font_color="#e8ecf6",
+        paper_bgcolor=PLOT["transparent"],
+        plot_bgcolor=PLOT["transparent"],
+        font_color=PLOT["ink"],
         margin=dict(l=60, r=20, t=40, b=30),
         height=450,
         showlegend=False,
@@ -624,7 +652,7 @@ def _build_signal_chart(
     fig.update_xaxes(**xaxis_kwargs)
     fig.update_yaxes(
         title_text="Price",
-        gridcolor="rgba(152, 162, 179, 0.12)",
+        gridcolor=ui_tokens.PLOT_GRID,
         zeroline=False,
         automargin=True,
         row=1,
@@ -633,7 +661,7 @@ def _build_signal_chart(
     fig.update_yaxes(
         title_text="RSI",
         range=[0, 100],
-        gridcolor="rgba(152, 162, 179, 0.12)",
+        gridcolor=ui_tokens.PLOT_GRID,
         zeroline=False,
         automargin=True,
         row=2,
@@ -675,25 +703,26 @@ def _build_position_gauge(position: dict | None) -> str:
             domain={"x": [0.02, 0.98], "y": [0, 1]},
             gauge={
                 "shape": "bullet",
-                "axis": {"range": [lower, upper], "tickcolor": "#e8ecf6"},
+                "axis": {"range": [lower, upper], "tickcolor": PLOT["ink"]},
                 "threshold": {
-                    "line": {"color": "#4aa3ff", "width": 4},
+                    "line": {"color": PLOT["price"], "width": 4},
                     "thickness": 0.8,
                     "value": mark,
                 },
                 "steps": [
-                    {"range": [stop, entry], "color": "rgba(231, 76, 60, 0.25)"},
-                    {"range": [entry - line_half_width, entry + line_half_width], "color": "#e8ecf6"},
-                    {"range": [entry, target], "color": "rgba(46, 204, 113, 0.25)"},
+                    {"range": [stop, entry], "color": ui_tokens.plot_rgba("loss", 0.25)},
+                    {"range": [entry - line_half_width,
+                               entry + line_half_width], "color": PLOT["ink"]},
+                    {"range": [entry, target], "color": ui_tokens.plot_rgba("gain", 0.25)},
                 ],
                 "bar": {"color": "rgba(0,0,0,0)", "thickness": 0},
             },
         )
     )
     fig.update_layout(
-        paper_bgcolor="#121a2f",
-        plot_bgcolor="#121a2f",
-        font_color="#e8ecf6",
+        paper_bgcolor=PLOT["transparent"],
+        plot_bgcolor=PLOT["transparent"],
+        font_color=PLOT["ink"],
         margin=dict(t=20, b=20, l=10, r=20),
         height=120,
     )
@@ -902,6 +931,9 @@ def dashboard(request: Request, view: str = "current") -> HTMLResponse:
             "ui_version": UI_VERSION,
             "git_hash": _get_git_hash(),
             "plotly_js_url": _PLOTLY_JS_URL,
+            # The palette, passed in rather than restated in the template. A second copy
+            # in dashboard.html would be exactly the defect F231 catalogued.
+            "ui_tokens_css": Markup(ui_tokens.TOKENS),
             "status": status,
             "signal": signal,
             "signal_badge": signal_badge,

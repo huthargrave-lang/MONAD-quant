@@ -6,15 +6,20 @@
     <title>MONAD Bot Monitor</title>
     <script src="{{ plotly_js_url }}"></script>
     <style>
+      {{ ui_tokens_css }}
+      /* Local aliases onto the shared tokens (tools/ui_tokens.py, passed in as
+         `ui_tokens_css`). Aliasing rather than rewriting the ~200 rules below keeps
+         this port to one block with no layout change: the names on the left are this
+         page's history, the values on the right are the one palette. */
       :root {
-        --bg: #0b1020;
-        --panel: #121a2f;
-        --text: #e8ecf6;
-        --muted: #98a2b3;
-        --green: #27c17e;
-        --yellow: #ffb020;
-        --red: #ff5d5d;
-        --line: #28314c;
+        --bg: var(--plane);
+        --panel: var(--surface);
+        --text: var(--ink);
+        --muted: var(--ink-muted);
+        --green: var(--good);
+        --yellow: var(--warning);
+        --red: var(--critical);
+        --line: var(--rule);
       }
       * { box-sizing: border-box; }
       body {
@@ -22,8 +27,15 @@
         padding: 16px;
         background: var(--bg);
         color: var(--text);
-        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+        font-family: var(--sans);
       }
+      /* This page never styled links. On the old fixed dark ground the browser default
+         was merely ugly; against the token plane it is dark blue on near-black, which
+         is how the run-view switcher became unreadable. Found by rendering both themes
+         and looking. */
+      a { color: var(--accent); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
       .top {
         display: flex;
         justify-content: space-between;
@@ -40,7 +52,7 @@
         padding: 4px 10px;
         font-size: 12px;
         border: 1px solid var(--line);
-        background: #0f1530;
+        background: var(--plane);
       }
       .green { color: var(--green); }
       .yellow { color: var(--yellow); }
@@ -82,8 +94,8 @@
         flex-wrap: wrap;
         padding: 10px 12px;
         min-height: auto;
-        background: #0f1530;
-        border-color: rgba(39, 193, 126, 0.45);
+        background: var(--plane);
+        border-color: var(--good);
       }
       .metric-cell {
         text-align: center;
@@ -96,7 +108,7 @@
         flex-wrap: wrap;
       }
       .filter-btn {
-        background: #28314c;
+        background: var(--rule);
         border: 1px solid transparent;
         color: var(--text);
         padding: 4px 8px;
@@ -125,13 +137,13 @@
         position: absolute;
         right: 0;
         top: 24px;
-        background: #0f1530;
+        background: var(--plane);
         border: 1px solid var(--line);
         border-radius: 6px;
         padding: 4px;
         z-index: 100;
         min-width: 110px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        box-shadow: 0 4px 14px rgba(0,0,0,0.28);
       }
       .event-menu-panel.is-open {
         display: block;
@@ -144,26 +156,26 @@
         color: var(--text);
       }
       .event-menu-item:hover {
-        background: rgba(255,255,255,0.05);
+        background: var(--plane);
       }
       .event-menu-item.warning {
         color: var(--yellow);
       }
       .event-menu-item.warning:hover {
-        background: rgba(255,176,32,0.1);
+        background: var(--plane);
       }
       .event-menu-item.error {
         color: var(--red);
       }
       .event-menu-item.error:hover {
-        background: rgba(255,93,93,0.1);
+        background: var(--plane);
       }
       .fullscreen-btn {
         position: absolute;
         top: 12px;
         right: 12px;
-        background: #28314c;
-        border: 1px solid rgba(255,255,255,0.1);
+        background: var(--rule);
+        border: 1px solid var(--rule);
         color: var(--muted);
         padding: 4px 8px;
         border-radius: 4px;
@@ -174,7 +186,7 @@
       }
       .fullscreen-btn:hover {
         color: var(--text);
-        border-color: rgba(255,255,255,0.3);
+        border-color: var(--accent);
       }
       .interaction-shield {
         position: absolute;
@@ -319,7 +331,7 @@
         <h2>Current position</h2>
         {% if position %}
           {% if position.status == 'pending_close' %}
-          <div style="background:rgba(155,89,182,0.15);border:1px solid #9b59b6;border-radius:6px;padding:6px 10px;margin-bottom:8px;font-size:12px;color:#c39bd3;">
+          <div style="background:var(--surface);border-left:3px solid var(--serious);border-radius:0 6px 6px 0;padding:6px 10px;margin-bottom:8px;font-size:12px;color:var(--ink-2);">
             <strong>PENDING CLOSE</strong> — exit detected but fill not confirmed. Blocking new entries until reconciled.
             {% if position.estimated_exit_price %} Est. exit: ${{ '%.2f'|format(position.estimated_exit_price) }}{% endif %}
           </div>
@@ -335,7 +347,7 @@
               <td style="padding:2px 0;" id="live-mark-price">
                 {% if position.mark_price is not none %}
                   ${{ '%.2f'|format(position.mark_price) }}
-                  <span class="badge" style="font-size:10px;padding:1px 6px;margin-left:4px;{% if position.mark_source == 'live' %}color:var(--green){% elif position.mark_source == 'delayed' %}color:var(--yellow){% elif position.mark_source in ('last_close', 'entry') %}color:var(--muted){% elif position.mark_source == 'estimated' %}color:#9b59b6{% else %}color:var(--red){% endif %}">{{ position.mark_source }}</span>
+                  <span class="badge" style="font-size:10px;padding:1px 6px;margin-left:4px;{% if position.mark_source == 'live' %}color:var(--green){% elif position.mark_source == 'delayed' %}color:var(--yellow){% elif position.mark_source in ('last_close', 'entry') %}color:var(--muted){% elif position.mark_source == 'estimated' %}color:var(--serious){% else %}color:var(--red){% endif %}">{{ position.mark_source }}</span>
                 {% else %}
                   <span class="red">unavailable</span>
                 {% endif %}
@@ -404,7 +416,7 @@
       <section class="card span-3">
         <h2>Active Config <span class="badge" style="float:right;">{{ active_mode }}</span></h2>
         {% if config_mode_mismatch %}
-          <div style="background:rgba(255, 176, 32, 0.12);border:1px solid rgba(255, 176, 32, 0.45);border-radius:6px;padding:6px 10px;margin-bottom:8px;font-size:12px;color:var(--yellow);">
+          <div style="background:var(--surface);border-left:3px solid var(--warning);border-radius:0 6px 6px 0;padding:6px 10px;margin-bottom:8px;font-size:12px;color:var(--ink-2);">
             Dashboard mode resolves to <strong>{{ active_asset_key }}</strong>, but the trader is reporting symbol <strong>{{ status.live_symbol }}</strong>.
           </div>
         {% endif %}
@@ -759,6 +771,53 @@
         void updateLiveData();
       }, 3000);
       setTimeout(() => location.reload(), 300000);
+
+      /* Chart chrome follows the theme; series colours do not.
+         Plotly bakes literal colours into each figure when the SERVER builds it, and a
+         server cannot know the viewer's theme — so dashboard.py leaves the background
+         transparent and the chrome neutral, and the page pushes the resolved custom
+         properties in here. Series colours (gain/loss/price/RSI) stay fixed: they were
+         validated against BOTH card grounds, and re-deriving per-point marker colours
+         client-side would mean shipping a second colour model alongside the figures.
+         Axis keys are read off each figure's own layout rather than assumed, because
+         the signal chart has two subplots and the others have one. */
+      function applyPlotlyTheme() {
+        if (typeof Plotly === "undefined") return;
+        const cs = getComputedStyle(document.documentElement);
+        const ink = cs.getPropertyValue("--ink-2").trim();
+        const muted = cs.getPropertyValue("--ink-muted").trim();
+        const rule = cs.getPropertyValue("--rule").trim();
+        const surface = cs.getPropertyValue("--surface").trim();
+        if (!ink) return;
+        document.querySelectorAll(".js-plotly-plot").forEach((el) => {
+          const layout = el.layout || {};
+          const update = { "font.color": ink };
+          Object.keys(layout).forEach((key) => {
+            if (!/^[xy]axis\d*$/.test(key)) return;
+            update[key + ".gridcolor"] = rule;
+            update[key + ".linecolor"] = rule;
+            update[key + ".tickfont.color"] = muted;
+            update[key + ".zerolinecolor"] = rule;
+          });
+          try {
+            Plotly.relayout(el, update);
+            /* The 1–1.5px ring that separates overlapping markers must be the colour
+               of whatever the chart is sitting on, which is the card. */
+            Plotly.restyle(el, { "marker.line.color": surface });
+          } catch (err) {
+            console.warn("plotly re-theme skipped for", el.id, err);
+          }
+        });
+      }
+
+      applyPlotlyTheme();
+      window
+        .matchMedia("(prefers-color-scheme: dark)")
+        .addEventListener("change", applyPlotlyTheme);
+      new MutationObserver(applyPlotlyTheme).observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["data-theme"],
+      });
     </script>
   </body>
 </html>

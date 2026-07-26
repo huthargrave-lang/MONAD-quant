@@ -123,6 +123,54 @@ footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--rule);
 """
 
 
+#: Series colours for charts drawn by a plotting library, which bakes literal colours
+#: into the figure at BUILD time and so cannot read a CSS custom property.
+#:
+#: These are the LIGHT-theme token values, used unchanged in both themes. That is a
+#: measured choice, not a shortcut: the two sets that actually share a visual field on
+#: the live dashboard — `{gain, price, loss}` on the price subplot and
+#: `{gain, rsi, loss}` on the RSI subplot below it — pass every check of the palette
+#: validator against the light card (`#fcfcfb`) AND the dark card (`#15181d`). Price and
+#: RSI are never checked against each other because `make_subplots(rows=2)` puts them on
+#: separate panels; they never co-occur.
+#:
+#: WHAT DOES follow the theme is the chart CHROME — background, font, grid, tick,
+#: zero-line and the ring around overlapping markers. The page pushes those in at run
+#: time from the resolved custom properties, which is the only way a server that cannot
+#: know the viewer's theme can produce a chart that matches the page around it.
+#:
+#: KNOWN AND NOT FIXED HERE: `gain` and `loss` are green and red, and that pair fails
+#: CVD separation (ΔE 4.1 deuteranopia) — the classic profit-and-loss trap. It is
+#: pre-existing, it is the domain convention on a live trading view, and changing it
+#: changes how an operator reads P&L at a glance, so it is reported rather than
+#: silently redesigned. Where sign is also encoded by geometry (the scatter's y-position
+#: against its zero line, the triangle-up/triangle-down entry markers) the pair is
+#: legal; on the cumulative-equity line, where marker colour is the ONLY encoding of the
+#: individual trade's sign, it is not.
+PLOT = {
+    "gain": "#0ca30c",     # --good, light
+    "loss": "#d03b3b",     # --critical, light
+    "price": "#2a78d6",    # --accent, light
+    "rsi": "#7f77dd",      # the violet already used for Experiments in the context map
+    "ink": "#898781",      # --ink-muted, light — a legible default until the page re-themes
+    "transparent": "rgba(0,0,0,0)",
+}
+
+
+def plot_rgba(name, alpha):
+    """`PLOT[name]` as an rgba() string — so a translucent fill of a series colour is
+    derived from that series colour rather than hand-written next to it and left to
+    drift when the series moves."""
+    value = PLOT[name].lstrip("#")
+    r, g, b = (int(value[i:i + 2], 16) for i in (0, 2, 4))
+    return "rgba({},{},{},{})".format(r, g, b, alpha)
+
+
+#: Neutral chrome that must read on either ground before the page re-themes it.
+PLOT_AXIS = "rgba(137,135,129,0.38)"
+PLOT_GRID = "rgba(137,135,129,0.16)"
+
+
 def document_css(max_width="1100px"):
     """Tokens plus the shared document chrome, at a given content width.
 

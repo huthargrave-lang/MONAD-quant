@@ -1,19 +1,23 @@
-"""Seven UI surfaces, ONE palette — and a node view that admits when a chart can't apply.
+"""Seven UI surfaces, ONE ground — and a node view that admits when a chart can't apply.
 
 Tool: `tools/research_ui.py`. Palette: `tools/ui_tokens.py`.
 Study: `docs/research/UI_surface_unification.md`.
 
-F231 measured the fragmentation: six HTML surfaces, four grounds, five independently
--authored CSS blocks, zero shared tokens, zero pages answering `prefers-color-scheme`.
-F232 is the port. Every surface this repository controls now draws from
-`tools/ui_tokens.py`:
+Three stages. F231 measured the fragmentation: six HTML surfaces, four grounds, five
+independently-authored CSS blocks, zero shared tokens, zero pages answering
+`prefers-color-scheme`. F232 ported the five this repository controls. F233 ported the
+sixth — the live trading dashboard — under explicit owner approval, `live/**` being
+fenced by default:
 
-    7 surfaces · 2 grounds · 6 theme-aware · 6 share tokens · 0 copies of the lab sheet
+    7 surfaces · 1 ground · 7 theme-aware · 7 share tokens · 0 copies of the lab sheet
 
-The one remaining second ground is `live/templates/dashboard.html`, which is FENCED —
-`live/**` is not modifiable here — so it is measured and reported, never touched. That
-is why the counts below are 6-of-7 and not 7-of-7, and why a guard that reaches 7 means
-someone got approval and ported the trading dashboard.
+**Ported is not the same as mounted.** The research server shares the dashboard's
+palette and nothing else: it still never imports `fastapi`, never imports `live`, and
+never serves that page. A guard below asserts all three.
+
+The dashboard port is PRESENTATION ONLY, and a guard states that in the strongest
+available form — `live/dashboard.py` may not contain anything that places, sizes or
+cancels an order, or writes to the database it reads.
 
 The three `#080b12` lab pages had looked alike only because they were copied; by the
 time they were measured they had drifted to 444 / 463 / 476 characters. They differed in
@@ -58,12 +62,30 @@ verified here, because d3 comes from a CDN this environment cannot reach (F216) 
 page's own fail-loud banner is what renders instead. The chrome was verified in both
 themes; the canvas was not, and the guards below assert the wiring rather than the pixels.
 
-Guards fail in BOTH directions. They fail if the unification regresses (a third ground, a
-surface dropping the tokens, a re-forked stylesheet) and they fail if it ADVANCES past
-what is recorded (the fenced dashboard adopting the tokens, the CDN dependency
-disappearing) — because a census that quietly starts passing is as stale as one that
-quietly starts failing. Fix the surface, then supersede the finding; do not edit the
-number here.
+Porting the dashboard exposed a hole in the census itself. Its template says
+`<script src="{{ plotly_js_url }}">`, so the CDN it loads plotly from lives in
+`dashboard.py` — and a census reading only the template reported the page as having NO
+external dependency while it fetched executable code from the internet on every view.
+Surfaces may now name COMPANION files, and the count went from one external host to two.
+An invisible dependency is the same absence-flag failure as a silently-empty graph.
+
+It also exposed a defect the old fixed-dark ground had been hiding: the dashboard never
+styled links at all. Browser-default blue was merely ugly on `#0b1020`; on the token
+plane it made the run-view switcher unreadable. Found by rendering both themes and
+looking, which is the only way that class of bug is ever found.
+
+Guards fail in BOTH directions. They fail if the unification regresses (a second ground,
+a surface dropping the tokens, a re-forked stylesheet, a colour literal creeping back)
+and they fail if it ADVANCES past what is recorded (either CDN being vendored) — because
+a census that quietly starts passing is as stale as one that quietly starts failing. Fix
+the surface, then supersede the finding; do not edit the number here.
+
+One guard has now been rewritten twice for the opposite reason, and the third version is
+the lesson: the luminance non-vacuity check asserted that the live census contained both
+a single-theme and a dual-theme surface. Being FIXED destroyed that twice over — first
+when six surfaces became theme-aware, then when the seventh did. A converged population
+cannot demonstrate a discriminator. It now tests the function on synthetic inputs, which
+no amount of fixing can invalidate.
 """
 import json
 import re
@@ -127,67 +149,76 @@ class TheSurfaceCensusIsCompleteTests(unittest.TestCase):
             "provenance denominator, where an introspection artifact does not belong")
 
     def test_every_listed_surface_still_exists(self):
-        for rel, _role, _entry, _served in ui.SURFACES:
+        for rel, _role, _entry, _served, _c in ui.SURFACES:
             self.assertTrue((ROOT / rel).exists(),
                             "{} is in SURFACES but gone from disk".format(rel))
         self.assertEqual(len(self.census["surfaces"]), len(ui.SURFACES))
 
-    def test_only_the_fenced_dashboard_has_its_own_ground(self):
-        """Two grounds: the shared plane, and the one page nobody here may edit."""
+    def test_there_is_exactly_one_ground(self):
+        """The end state: every surface renders on the same plane, in both themes."""
         by_ground = {}
         for r in self.census["surfaces"]:
             by_ground.setdefault(r["ground"], []).append(r["path"])
         self.assertEqual(
-            self.census["counts"]["grounds"], 2,
-            "distinct page grounds moved to {} (was 2: the shared plane plus the fenced "
-            "dashboard). More means a surface invented its own palette; fewer means "
-            "live/** was ported, which needs owner approval and a new "
-            "measurement".format(self.census["counts"]["grounds"]))
-        odd = [g for g, paths in by_ground.items() if len(paths) == 1]
-        self.assertEqual(
-            [by_ground[g] for g in odd], [["live/templates/dashboard.html"]],
-            "the surface standing apart from the shared ground is no longer the fenced "
-            "dashboard: {}".format({g: by_ground[g] for g in odd}))
+            self.census["counts"]["grounds"], 1,
+            "distinct page grounds moved to {} (was 1). A surface invented its own "
+            "palette instead of importing tools/ui_tokens.py: {}".format(
+                self.census["counts"]["grounds"],
+                {g: p for g, p in by_ground.items() if len(p) < len(ui.SURFACES)}))
 
-    def test_every_unfenced_surface_is_theme_aware(self):
-        aware = {r["path"] for r in self.census["surfaces"] if r["theme_aware"]}
-        expected = {r["path"] for r in self.census["surfaces"] if r["served_here"]}
+    def test_every_surface_is_theme_aware(self):
+        not_aware = [r["path"] for r in self.census["surfaces"] if not r["theme_aware"]]
         self.assertEqual(
-            aware, expected,
-            "theme-aware surfaces are {} but the unfenced set is {} — a page either "
-            "lost its theme support or the fenced dashboard gained it (which would be "
-            "a real fix worth recording)".format(sorted(aware), sorted(expected)))
-        self.assertEqual(len(aware), 6)
+            not_aware, [],
+            "these surfaces no longer answer prefers-color-scheme: {}".format(not_aware))
 
-    def test_every_unfenced_surface_shares_the_tokens(self):
-        sharing = {r["path"] for r in self.census["surfaces"] if r["shares_tokens"]}
-        expected = {r["path"] for r in self.census["surfaces"] if r["served_here"]}
+    def test_every_surface_shares_the_tokens(self):
+        not_sharing = [r["path"] for r in self.census["surfaces"]
+                       if not r["shares_tokens"]]
         self.assertEqual(
-            sharing, expected,
-            "surfaces drawing from the shared palette are {}, expected {} — if a page "
-            "dropped ui_tokens that is a regression; if the fenced dashboard adopted "
-            "them, re-measure and supersede".format(sorted(sharing), sorted(expected)))
+            not_sharing, [],
+            "these surfaces stopped drawing from the shared palette: {}".format(
+                not_sharing))
 
-    def test_the_four_ported_labs_declare_no_colour_of_their_own(self):
-        """The strongest form of the claim: their source contains no hex at all."""
-        labs = ["tools/research_event_ledger.py",
-                "tools/corporate_action_outcome_lab.py",
-                "tools/sec_corporate_action_state_lab.py",
-                "tools/sec_form25_population_lab.py"]
-        for rel in labs:
+    def test_the_ported_pages_declare_no_colour_of_their_own(self):
+        """The strongest form of the claim: their source contains no hex at all.
+
+        `tools/ctx.py` is excluded and only `tools/ctx.py`: its node-kind palette is
+        DATA — the colours that distinguish a Finding from a Hypothesis on the map —
+        not styling, and it is the one file whose stylesheet was verified hex-free by
+        its own guard below.
+        """
+        for rel in ("tools/research_event_ledger.py",
+                    "tools/corporate_action_outcome_lab.py",
+                    "tools/sec_corporate_action_state_lab.py",
+                    "tools/sec_form25_population_lab.py",
+                    "live/templates/dashboard.html",
+                    "live/dashboard.py"):
             found = sorted(set(HEX.findall((ROOT / rel).read_text(encoding="utf-8"))))
             self.assertEqual(
                 found, [],
                 "{} declares colour(s) {} again — every colour on these pages must come "
                 "from tools/ui_tokens.py".format(rel, found))
 
-    def test_one_surface_still_needs_an_external_host(self):
-        """F216: `ctx graph` pulls d3 from a CDN this repo often cannot reach."""
+
+    def test_two_surfaces_still_need_an_external_host(self):
+        """Neither CDN was closed by the port; one of the two had been invisible.
+
+        `ctx graph` pulls d3 from cdnjs (F216, still open). The live dashboard pulls
+        plotly from cdn.plot.ly — which the census could not see until it learned to
+        follow `<script src="{{ plotly_js_url }}">` into the companion module. A page
+        that fetches executable code from the internet and reports no dependency is the
+        absence-flag failure, not a clean bill of health.
+        """
         external = {r["path"]: r["external_hosts"] for r in self.census["surfaces"]
                     if r["external_hosts"]}
         self.assertEqual(
-            external, {"tools/ctx.py": ["cdnjs.cloudflare.com"]},
-            "the set of surfaces with external dependencies changed: {}".format(external))
+            external,
+            {"tools/ctx.py": ["cdnjs.cloudflare.com"],
+             "live/templates/dashboard.html": ["cdn.plot.ly"]},
+            "the set of surfaces with external dependencies changed: {} — vendoring "
+            "either library closes a real problem and should be recorded".format(
+                external))
 
     def test_the_copied_lab_stylesheet_is_gone(self):
         variants = ui.css_block_variants()
@@ -197,31 +228,120 @@ class TheSurfaceCensusIsCompleteTests(unittest.TestCase):
             "unified onto tools/ui_tokens.py (F232) and a re-fork undoes it".format(
                 sorted(f for g in variants.values() for f in g)))
 
-    def test_the_live_dashboard_is_fenced_and_never_imported(self):
+    def test_the_live_dashboard_is_still_never_served_from_here(self):
+        """Ported is not the same as mounted. This server still refuses to serve it."""
         source = (ROOT / "tools" / "research_ui.py").read_text(encoding="utf-8")
         self.assertNotIn("import fastapi", source)
         self.assertNotIn("from live", source)
-        self.assertFalse(self.by_path["live/templates/dashboard.html"]["served_here"])
+        self.assertFalse(
+            self.by_path["live/templates/dashboard.html"]["served_here"],
+            "the research server now serves the trading dashboard — it shares the "
+            "dashboard's PALETTE, and nothing else")
 
     def test_luminance_decides_the_theme_not_a_hand_written_label(self):
-        """Non-vacuity: the derivation must still produce both outcomes.
+        """Non-vacuity, on the FUNCTION rather than the population.
 
-        Before the port this compared a light-only page against a dark-only one. After
-        it there are no light-only pages left — six respond to the media query and the
-        fenced dashboard is dark. So the discrimination to check is dual-theme against
-        single-theme; comparing two single-theme buckets now asserts something that
-        being FIXED made impossible, which is a guard passing for the wrong reason.
+        Two earlier versions of this check compared surfaces in the live census — a
+        light-only page against a dark-only one, then a dual-theme page against a
+        single-theme one. Both broke by being FIXED: first six surfaces became
+        theme-aware, then the seventh did, and a converged population can no longer
+        demonstrate a discriminator. Synthetic inputs can, permanently.
         """
         self.assertGreater(ui.relative_luminance("#f5f7fa"), 0.5)
         self.assertLess(ui.relative_luminance("#080b12"), 0.5)
-        both = [r for r in self.census["surfaces"] if len(r["themes"]) == 2]
-        single = [r for r in self.census["surfaces"] if len(r["themes"]) == 1]
-        self.assertTrue(
-            both and single,
-            "every surface landed in one theme bucket — the derivation is not "
-            "discriminating and the column means nothing")
-        self.assertEqual([r["path"] for r in single], ["live/templates/dashboard.html"])
+        self.assertEqual(ui.derive_themes("body{background:#080b12}", 0.003), ["dark"])
+        self.assertEqual(ui.derive_themes("body{background:#f5f7fa}", 0.928), ["light"])
+        for signal in ("@media (prefers-color-scheme: dark){}",
+                       ':root[data-theme="dark"]{}'):
+            self.assertEqual(ui.derive_themes(signal, 0.003), ["light", "dark"],
+                             "a page answering {} must report both themes".format(signal))
 
+    def test_every_surface_now_answers_rather_than_being_inferred(self):
+        """The population fact the old check was reaching for, stated directly."""
+        inferred = [r["path"] for r in self.census["surfaces"]
+                    if len(r["themes"]) == 1]
+        self.assertEqual(
+            inferred, [],
+            "these surfaces have their theme INFERRED from their ground rather than "
+            "declared, which means they answer neither prefers-color-scheme nor "
+            "data-theme: {}".format(inferred))
+
+
+class TheLiveDashboardPortTests(unittest.TestCase):
+    """`live/**` is fenced; this port was made under explicit owner approval.
+
+    It is PRESENTATION ONLY, and the guards say so in the strongest available form:
+    the diff may not introduce anything that could place, size or cancel an order.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.py = (ROOT / "live" / "dashboard.py").read_text(encoding="utf-8")
+        cls.tpl = (ROOT / "live" / "templates" / "dashboard.html").read_text(
+            encoding="utf-8")
+
+    def test_the_dashboard_stays_read_only(self):
+        for token in ("place_order", "placeOrder", "place_bracket_order", "cancelOrder",
+                      "mark_pending_close", "finalize_pending_close", "get_position_plan",
+                      "INSERT INTO", "UPDATE ", "DELETE FROM"):
+            self.assertNotIn(
+                token, self.py,
+                "live/dashboard.py now contains `{}` — this module reads state and "
+                "renders it, and the palette port must not have changed that".format(
+                    token))
+
+    def test_it_imports_the_shared_palette(self):
+        self.assertIn("import ui_tokens", self.py)
+        self.assertIn("ui_tokens.PLOT", self.py)
+
+    def test_the_template_receives_the_tokens_rather_than_restating_them(self):
+        self.assertIn("ui_tokens_css", self.py)
+        self.assertIn("{{ ui_tokens_css }}", self.tpl)
+        self.assertNotIn(
+            "--ink-on" + "-1:", self.tpl,
+            "the template declares its own token block — it must be passed in, or the "
+            "two copies drift")
+
+    def test_the_chart_chrome_is_left_for_the_page_to_theme(self):
+        """A server cannot know the viewer's theme, so it must not bake the chrome."""
+        self.assertNotIn("paper_bgcolor=\"#", self.py)
+        self.assertIn('paper_bgcolor=PLOT["transparent"]', self.py)
+        self.assertIn("applyPlotlyTheme", self.tpl)
+        for signal in ("prefers-color-scheme", "data-theme", "MutationObserver"):
+            self.assertIn(signal, self.tpl,
+                          "the dashboard lost `{}` — the charts would stay painted for "
+                          "whichever theme was current at load".format(signal))
+
+    def test_the_series_palette_is_the_light_token_values(self):
+        """Fixed across themes, because plotly bakes colours in at build time.
+
+        Validated with the dataviz palette checker against BOTH card grounds
+        (`#fcfcfb` and `#15181d`) for the two sets that actually co-occur:
+        {gain, price, loss} on the price subplot and {gain, rsi, loss} on the RSI
+        subplot below it. Changing a value invalidates that run.
+        """
+        self.assertEqual(ui_tokens.PLOT["gain"], "#0ca30c")     # --good, light
+        self.assertEqual(ui_tokens.PLOT["loss"], "#d03b3b")     # --critical, light
+        self.assertEqual(ui_tokens.PLOT["price"], "#2a78d6")    # --accent, light
+        self.assertEqual(ui_tokens.PLOT["transparent"], "rgba(0,0,0,0)")
+
+    def test_translucent_fills_are_derived_from_their_series(self):
+        self.assertEqual(ui_tokens.plot_rgba("gain", 0.12), "rgba(12,163,12,0.12)")
+        self.assertNotIn("rgba(46, 204, 113", self.py,
+                         "a hand-written translucent green is back — derive it with "
+                         "plot_rgba so it cannot drift from its series colour")
+
+    def test_the_cdn_dependency_is_no_longer_invisible(self):
+        """It reaches the page through a template variable, and hid from the census."""
+        row = {r["path"]: r for r in ui.surface_census()["surfaces"]}[
+            "live/templates/dashboard.html"]
+        self.assertEqual(
+            row["external_hosts"], ["cdn.plot.ly"],
+            "the dashboard's external hosts read {} — it loads plotly from a CDN via "
+            "`<script src=\"{{{{ plotly_js_url }}}}\">`, and a census that cannot "
+            "follow that indirection reports a dependency-free page".format(
+                row["external_hosts"]))
+        self.assertIn("live/dashboard.py", row["companions"])
 
 class ThePaletteHasExactlyOneDefinitionTests(unittest.TestCase):
     """One definition is the whole claim; two would be F231 again with better manners."""
@@ -338,12 +458,12 @@ class TheContextMapsLightPaletteIsReachableTests(unittest.TestCase):
 
     def test_the_cdn_dependency_is_still_the_open_one(self):
         """Scoped honestly: F232 ported the palette, not the offline problem (F216)."""
-        census = {r["path"]: r["external_hosts"] for r in ui.surface_census()["surfaces"]
-                  if r["external_hosts"]}
+        census = {r["path"]: r["external_hosts"] for r in ui.surface_census()["surfaces"]}
         self.assertEqual(
-            census, {"tools/ctx.py": ["cdnjs.cloudflare.com"]},
-            "external dependencies changed to {} — if d3 was vendored, F216 is closed "
-            "and this guard should be retired with it".format(census))
+            census["tools/ctx.py"], ["cdnjs.cloudflare.com"],
+            "ctx's external dependency changed to {} — if d3 was vendored, F216 is "
+            "closed and this guard should be retired with it".format(
+                census["tools/ctx.py"]))
 
 
 class TheRendererPredicatesAreRealPredicatesTests(unittest.TestCase):

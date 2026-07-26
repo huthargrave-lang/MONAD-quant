@@ -190,6 +190,22 @@ _GROUND = re.compile(
     r"body\s*\{\{?[^}]*?background(?:-color)?:\s*(#[0-9a-fA-F]{3,6}|var\(--[\w-]+\))")
 _BGVAR = re.compile(r"--(?:bg|plane|background)\s*:\s*(#[0-9a-fA-F]{3,6})")
 _HOST = re.compile(r"(?:src|href)=[\"']https?://([a-z0-9.\-]+)")
+#: `<script src="{{ plotly_js_url }}">` — the tag names a variable, and the URL lives in
+#: the companion module. Without resolving the indirection the live dashboard reported
+#: NO external dependency while loading plotly from a CDN on every page view.
+_INDIRECT_SRC = re.compile(r"(?:src|href)=[\"']\{\{\s*(\w+)\s*\}\}")
+
+
+def _external_hosts(source):
+    """Hosts this surface fetches from, including one level of template indirection."""
+    hosts = {m.group(1) for m in _HOST.finditer(source)}
+    for var in _INDIRECT_SRC.findall(source):
+        assign = re.search(
+            r"_?" + re.escape(var) + r"\s*(?::[^=]+)?=\s*f?[\"']https?://([a-z0-9.\-]+)",
+            source, re.I)
+        if assign:
+            hosts.add(assign.group(1))
+    return sorted(hosts)
 
 
 def _resolve_colour(value, text, depth=0):
@@ -221,17 +237,27 @@ SELF_REL = "tools/research_ui.py"
 TOKENS_MODULE = "tools/ui_tokens.py"
 
 #: Every HTML-emitting surface in the repository. `served` = this server can mount it.
+#:
+#: A surface may name COMPANIONS: files that contribute to what the page emits without
+#: being the page. The live dashboard is the case that forced this — its template says
+#: `<script src="{{ plotly_js_url }}">`, so its CDN dependency lives in `dashboard.py`
+#: and a census reading only the template reported it as having none. An external
+#: dependency that hides behind a template variable is still an external dependency;
+#: the same absence-flag family as F216's silently-empty graph.
 SURFACES = [
-    (SELF_REL, "unified shell + node view", "research_ui serve", True),
-    ("tools/ctx.py", "context map (d3 force graph)", "ctx graph --html · ctx serve", True),
-    ("tools/research_event_ledger.py", "research-event ledger", "research_event_ledger html", True),
+    (SELF_REL, "unified shell + node view", "research_ui serve", True, ()),
+    ("tools/ctx.py", "context map (d3 force graph)", "ctx graph --html · ctx serve",
+     True, ()),
+    ("tools/research_event_ledger.py", "research-event ledger",
+     "research_event_ledger html", True, ()),
     ("tools/corporate_action_outcome_lab.py", "corporate-action outcomes",
-     "corporate_action_outcome_lab html", True),
+     "corporate_action_outcome_lab html", True, ()),
     ("tools/sec_corporate_action_state_lab.py", "SEC action state vector",
-     "sec_corporate_action_state_lab html", True),
+     "sec_corporate_action_state_lab html", True, ()),
     ("tools/sec_form25_population_lab.py", "Form 25 population browser",
-     "sec_form25_population_lab query", True),
-    ("live/templates/dashboard.html", "live trading monitor", "live/dashboard.py (FastAPI)", False),
+     "sec_form25_population_lab query", True, ()),
+    ("live/templates/dashboard.html", "live trading monitor",
+     "live/dashboard.py (FastAPI)", False, ("live/dashboard.py",)),
 ]
 
 
@@ -242,6 +268,21 @@ def relative_luminance(hexcolor: str) -> float:
     parts = [int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)]
     lin = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in parts]
     return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+
+
+def derive_themes(css, ground_luminance):
+    """Which themes a page supports: answered, or inferred from its ground.
+
+    A separate pure function because its NON-VACUITY has to be checkable. The guard for
+    this used to compare a light-only surface against a dark-only one in the live
+    census, and it broke twice — once when six surfaces became theme-aware, again when
+    the seventh did. A population that has converged cannot demonstrate a discriminator;
+    only synthetic inputs can. A check that being FIXED makes impossible is a check
+    pointed at the wrong thing.
+    """
+    if "prefers-color-scheme" in css or "data-theme" in css:
+        return ["light", "dark"]
+    return ["light"] if ground_luminance > 0.5 else ["dark"]
 
 
 def _effective_css(text):
@@ -259,8 +300,8 @@ def _effective_css(text):
     return text
 
 
-def _surface_row(rel, role, entry, served):
-    """One surface, read from source.
+def _surface_row(rel, role, entry, served, companions=()):
+    """One surface, read from source (plus any companion that feeds the page).
 
     `themes` is derived, not declared: a page supports a theme if it either answers
     `prefers-color-scheme` / `data-theme`, or its ground sits on that side of the
@@ -272,6 +313,11 @@ def _surface_row(rel, role, entry, served):
         return None
     with open(path, encoding="utf-8") as fh:
         source = fh.read()
+    for companion in companions:
+        cpath = os.path.join(REPO, companion)
+        if os.path.exists(cpath):
+            with open(cpath, encoding="utf-8") as fh:
+                source += "\n" + fh.read()
     text = _effective_css(source)
     hexes = sorted({m.group(0).lower() for m in _HEX.finditer(text)})
     m = _GROUND.search(text)
@@ -282,19 +328,19 @@ def _surface_row(rel, role, entry, served):
     if len(ground) == 4:
         ground = "#" + "".join(c * 2 for c in ground[1:])
     lum = relative_luminance(ground)
-    responds = "prefers-color-scheme" in text or "data-theme" in text
-    themes = ["light", "dark"] if responds else (["light"] if lum > 0.5 else ["dark"])
+    themes = derive_themes(text, lum)
     return {
         "path": rel,
         "role": role,
         "entry": entry,
         "served_here": served,
+        "companions": list(companions),
         "ground": ground,
         "ground_luminance": round(lum, 4),
         "themes": themes,
         "theme_aware": len(themes) == 2,
         "distinct_hexes": len(hexes),
-        "external_hosts": sorted({m.group(1) for m in _HOST.finditer(source)}),
+        "external_hosts": _external_hosts(source),
         # Either route to the one palette counts: importing `ui_tokens` (the standalone
         # pages, which must inline their CSS) or linking the served stylesheet.
         "shares_tokens": "ui_tokens" in source or TOKENS_HREF in source,
@@ -335,7 +381,7 @@ def css_block_variants():
     finding — a shared look maintained by copying has already stopped being shared.
     """
     seen = {}
-    for rel, _role, _entry, _served in SURFACES:
+    for rel, _role, _entry, _served, _companions in SURFACES:
         if rel == SELF_REL:
             continue
         path = os.path.join(REPO, rel)

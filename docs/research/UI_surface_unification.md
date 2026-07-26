@@ -5,17 +5,23 @@
 **Run it:** `python3 tools/research_ui.py serve` → <http://127.0.0.1:8801/>
 **Re-measure:** `python3 tools/research_ui.py surfaces`
 
-> **Two stages.** [`F231`](../../RESEARCH_WEB.md) measured the fragmentation and built one
-> shell around it. [`F232`](../../RESEARCH_WEB.md) is the port: every surface this
-> repository controls now draws from one palette. The before/after:
+> **Three stages.** [`F231`](../../RESEARCH_WEB.md) measured the fragmentation and built
+> one shell around it. [`F232`](../../RESEARCH_WEB.md) ported the five surfaces this
+> repository controls. [`F233`](../../RESEARCH_WEB.md) ported the sixth — the live
+> trading dashboard — under explicit owner approval, `live/**` being fenced by default.
 >
-> | | surfaces | grounds | theme-aware | share tokens | copies of the lab sheet |
-> |---|---:|---:|---:|---:|---:|
-> | before (F231) | 7 | 5 | 1 | 1 | 3 |
-> | after (F232) | 7 | **2** | **6** | **6** | **0** |
+> | | surfaces | grounds | theme-aware | share tokens | copies of the lab sheet | external hosts |
+> |---|---:|---:|---:|---:|---:|---:|
+> | before (F231) | 7 | 5 | 1 | 1 | 3 | 1 |
+> | after (F232) | 7 | 2 | 6 | 6 | 0 | 1 |
+> | after (F233) | 7 | **1** | **7** | **7** | **0** | **2** |
 >
-> The one remaining second ground is `live/templates/dashboard.html`, which is **fenced**
-> — `live/**` is not modifiable here — so it is measured and reported, never touched.
+> The external-host count went **up**, and that is the point: the dashboard was already
+> loading plotly from a CDN and the census could not see it.
+>
+> **Ported is not mounted.** The research server shares the dashboard's palette and
+> nothing else — it still never imports `fastapi`, never imports `live`, and never
+> serves that page.
 
 ---
 
@@ -205,12 +211,64 @@ import that matters and measure the **composed** sheet. A measurement that reads
 the bytes live rather than what the page renders will invert on you the moment the code
 improves.
 
+## The live dashboard (F233)
+
+`live/**` is fenced. This port was made under explicit owner approval and is
+**presentation only**: a guard asserts `live/dashboard.py` contains nothing that places,
+sizes or cancels an order, and no write to the database it reads.
+
+A plotting library needs a different technique from a stylesheet, because **plotly bakes
+literal colours into each figure when the server builds it and cannot read a custom
+property.** So the port splits in two:
+
+* **Chrome** — background, font, grid, tick, zero-line, and the ring separating
+  overlapping markers — is left transparent/neutral server-side and pushed in by the
+  page at run time from the resolved variables, on load and on every theme change. A
+  server cannot know the viewer's theme; the page can. Axis keys are read off each
+  figure's own layout rather than assumed, because the signal chart has two subplots.
+* **Series colours** are fixed across themes, taken from `ui_tokens.PLOT`. Validated
+  with the palette checker against **both** card grounds (`#fcfcfb` and `#15181d`), for
+  the two sets that actually co-occur: `{gain, price, loss}` on the price subplot and
+  `{gain, rsi, loss}` on the RSI subplot below it. Price and RSI are never checked
+  against each other — `make_subplots(rows=2)` puts them on separate panels.
+
+### Reported, not silently redesigned
+
+`gain` and `loss` are green and red, and that pair **fails CVD separation (ΔE 4.1
+deuteranopia)** — the classic P&L trap. It is pre-existing, it is the domain convention
+on a live trading view, and changing it changes how an operator reads P&L at a glance,
+so it is recorded here rather than swapped out under cover of a palette port.
+
+Where sign is also carried by geometry the pair is legal: the scatter's y-position
+against its zero line, the triangle-up / triangle-down entry markers. **On the
+cumulative-equity line it is not** — there, marker colour is the only encoding of the
+individual trade's sign, since y is the running equity. That one chart needs a second
+channel (marker symbol, or a signed size) and is the concrete follow-up.
+
+### Two defects the port surfaced
+
+1. **An invisible CDN.** The template says `<script src="{{ plotly_js_url }}">`, so the
+   host lives in `dashboard.py`. The census read only the template and reported a page
+   fetching executable code from the internet as having **no external dependency**.
+   Surfaces can now name companion files; the external-host count went 1 → 2. Same
+   absence-flag family as a silently-empty graph.
+2. **Unstyled links.** The dashboard never set a link colour. Browser-default blue was
+   merely ugly on the old fixed `#0b1020`; against the token plane it made the run-view
+   switcher unreadable in dark. Found by rendering both themes and looking.
+
+### What could not be verified here
+
+`fastapi` and `plotly` are not installed in this environment, so `live/dashboard.py`
+cannot be imported and the real figures cannot be built. The **template** was rendered
+directly through jinja2 with a mock context and plot slots stubbed, and inspected in
+both themes at 1320px and 420px — that is where the CSS port lives. **The plotly
+re-theming path was not executed.** Its guards assert the wiring, not the pixels.
+
 ## What this does not establish
 
-* It does **not** cover `live/**`. The trading dashboard keeps its own palette because it
-  is fenced; porting it is a one-line owner decision plus a re-measurement, and the
-  guards are written to fail when it happens.
-* It does **not** close the CDN dependency. That is F216 and it is still open.
+* It does **not** close either CDN dependency. F216 (d3) is still open, and the
+  dashboard's plotly CDN is now recorded rather than fixed.
+* It does **not** fix the red/green polarity encoding, for the reasons above.
 * It does **not** touch strategy code. No backtest or live number moves.
 * The chart patterns are a rendering vocabulary, not a claim about which is *best* for a
   node. A node supporting five renderings is not better evidenced than one supporting
