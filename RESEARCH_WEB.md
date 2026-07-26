@@ -3182,3 +3182,22 @@ WHAT THIS DELIBERATELY DOES NOT CLAIM. F7's 'same fixed ~0.7% stop is used on ev
 NOTHING WAS CHANGED. sweep.py and config.py are untouched: the asymmetry is RECORDED, not fixed, because re-cutting the search moves every mode's parameters and that is an owner decision. This is a DIRECT OBSERVATION of the repository, not an experiment - every number is re-derived from source by `python3 tools/band_geometry.py`. Study: docs/research/F7_band_geometry_and_search.md. Guard: tests/test_f7_band_geometry.py (16 tests), now named in F7's bridge.
 Links: [[F7|refines]] · [[F2|builds_on]] · [[F220|relates]] · [[E6|derived_from]].
 _— captured claude/research-continuation-ca1242@75bd8b7, 2026-07-26_
+
+### F236 — F186 re-derived: the staleness ranking still puts all four hand-confirmed nodes in the top 6 after the overtaken population nearly doubled - and F10 is still unfixed
+F186 shipped ctx stale with six figures and NO reachable document, so the backlog flagged it uncited. Unlike F7, whose figures need market data nothing here can fetch, every one of F186's is computed from the research web BY A TOOL IN THIS REPOSITORY - fully recoverable. Re-derived, and the interesting part is that the web has moved since: F186 claimed the ranking agreed with hand judgement AT ONE MOMENT, and that claim has now been exposed to roughly 50 new nodes.
+
+THEN AND NOW, on 442 total nodes. Edge/status conflicts: 1 then, 1 NOW - same node, F10/F12. Decay list: 12 then, 19 NOW. Current F/D nodes: 194 then, 242 NOW. Current nodes overtaken by a strictly later node: 187 then, 355 NOW. D4/F12/F17/F47 all in the top 6: yes then, RANKS 1, 3, 4 AND 6 NOW.
+
+THE VALIDATION SURVIVED, AND IT IS THE STRONGER CLAIM NOW. F186's evidence that the ranking tracks something real was that its top entries - D4, F12, F17, F47 - were four nodes that session had independently read and amended as stale across cycles 16-21. At the time that was a single snapshot. It has since been tested by time: the population of OVERTAKEN nodes nearly doubled, 187 to 355, and ALL FOUR ARE STILL IN THE TOP 6. That is the claim that could most easily have decayed - a ranking merely correlated with node age would have been diluted by 48 new current F/D nodes. It was not.
+
+THE SCOPING HELD TOO. F186's design argument was that being refined by something later is healthy accumulation rather than staleness, so the predicate additionally requires 'cites no evidence of its own' AND 'never mentions the later node'. That filter now cuts 355 to 19, a retention of 5.4%, against F186's 187 to 12 at 6.4%. THE FILTER DID NOT LOOSEN AS THE CORPUS GREW; IT TIGHTENED SLIGHTLY.
+
+WHAT MOVED, AND THE UNCOMFORTABLE PART. The decay list grew 12 to 19 against a guard bound of 30 - 'a queue that long stops being read; tighten the predicate rather than raising the display limit' - so the growth tripped nothing, by design, but that bound is now 63% CONSUMED and worth knowing before it fires. Two nodes F186 never named now sit high: F27 at rank 2, overtaken by F216 across a gap of 189, and F28 at rank 5, overtaken by six later nodes. NEITHER HAS BEEN HAND-CHECKED; they are the detector's live output, not confirmed finds, and nothing here treats them as such.
+
+AND THE DETECTOR'S ONE HARD FIND IS STILL UNFIXED. F186 called F10/F12 'a real find' - F10 declares status: current while the web says F12 supersedes it. Roughly 50 nodes later IT STILL DOES. The detector worked; nobody acted on it. A finding that a tool reports something true and that the report changed nothing is a fact about the PROCESS, not about the tool.
+
+THREE OF F186'S SIX FIGURES ARE NOW STALE AS WRITTEN - 12, 194 and 187. They were true when captured. The study quotes each with its current value beside it rather than editing the node, which is this web's own supersede-don't-rewrite rule applied to its own measurement tooling.
+
+NO NEW GUARD WAS WRITTEN, deliberately. tests/test_ctx_semantic_staleness.py already pins the conflict, the list bound and the top-6 clustering, and it is sound: it bounds the decay list below 30 rather than at 12, which is why growth to 19 was absorbed instead of producing a false alarm. Adding a second guard would be exactly the duplication this project keeps finding elsewhere. This is a DIRECT OBSERVATION of the repository - every number is re-derived by `python3 tools/ctx.py stale`. Study: docs/research/F186_staleness_detector_revalidated.md.
+Links: [[F186|refines]] · [[F10|relates]].
+_— captured claude/research-continuation-ca1242@be03e27, 2026-07-26_
