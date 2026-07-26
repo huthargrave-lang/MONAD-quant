@@ -7,10 +7,20 @@ overtook it. H11 asked for a read-only `ctx stale` heuristic. Built as
 
 **`edge_status_conflict` — hard, not ranked.** A node that is the TARGET of a
 `supersedes` edge while still declaring `current`. The web contradicts itself about one
-node. Exactly one exists: **F10** ("all results are MORNING-ONLY"), which F12 supersedes
-while F10 declares current and carries no `by:`. It is genuinely stale twice over — F12
-replaced its mechanism, and F180 found the underlying vendor quirk did not fire in the
-most recent committed fetch.
+node.
+
+Exactly one existed: **F10** ("all results are MORNING-ONLY"), which F12 supersedes while
+F10 declared current with no `by:`. F186 called it a real find; F236 found it still
+unfixed roughly fifty nodes later and said so. **It has since been fixed** (F239) — F10
+declares `status: superseded; by: F12; reason: data-fixed`, and the conflict count is now
+**zero**. F12 did not merely comment on F10: it diagnosed the yfinance long-range quirk
+and shipped `tools/fetch_fullsession.py`, so F10's claim that *every* number in the web is
+morning-only stopped describing the data. The caveat is still true of the historic
+numbers, which is what `data-fixed` records rather than a deletion.
+
+A hard signal with nothing left to find is indistinguishable from a broken one, so the
+detector is now proved on synthetic input in both directions and the live web is checked
+for a clean bill.
 
 **`decay` — soft, ranked.** A current Finding/Decision that cites no evidence of its own,
 is refined/contradicted/superseded by a strictly later node, and never mentions that node.
@@ -102,25 +112,122 @@ class TheDetectorRunsAndIsScopedTests(unittest.TestCase):
         self.assertEqual(scores, sorted(scores, reverse=True))
 
 
+#: A two-node web where A supersedes B and B still declares current — the exact shape
+#: the hard signal exists to catch. Used because the real web no longer contains one.
+#: F1 deliberately links nothing back. Writing "Superseded by [[F2]]" in its body makes
+#: the cue-classifier type F1->F2 as `supersedes` too, and the pair then flags each
+#: other — a fixture that tested the detector's handling of a mutual supersession
+#: rather than the one-way case being claimed.
+_CONFLICTED_WEB = """
+### F1 — a caveat that was later fixed
+A claim about the data.
+
+### F2 — the fix
+Explains and fixes the cause. [[F1|supersedes]]
+"""
+
+_RESOLVED_WEB = """
+### F1 — a caveat that was later fixed
+<!-- status: superseded; by: F2; reason: data-fixed -->
+A claim about the data.
+
+### F2 — the fix
+Explains and fixes the cause. [[F1|supersedes]]
+"""
+
+
 class TheEdgeStatusConflictIsRealTests(unittest.TestCase):
+    """The hard signal — and it now has nothing to find, which is the point.
+
+    F186 reported exactly one conflict, F10/F12: F10 declared `current` while the web
+    carried an F12 `supersedes` edge pointing at it. F236 found it still unfixed roughly
+    fifty nodes later and said so — *"the detector worked; nobody acted"*. It has now
+    been acted on: F10 declares `status: superseded; by: F12; reason: data-fixed`, and
+    D1/F186/F236 gained the `[[F12]]` citation the web's integrity rule requires of
+    anything citing a superseded node.
+
+    So the assertion that used to anchor this class — "F10 is flagged" — is deliberately
+    gone, exactly as its own failure message instructed. What replaces it has to be
+    stronger, because **a detector with nothing left to detect is indistinguishable from
+    a broken one**. The live web is checked for a clean bill; the DETECTOR is checked
+    against synthetic input in both directions.
+    """
+
     @classmethod
     def setUpClass(cls):
         cls.conflicts, _ = ctx.semantic_staleness()
         cls.nodes, _ = ctx._parse_web()
 
-    def test_f10_is_flagged(self):
-        self.assertIn(
-            ("F10", "F12"), self.conflicts,
-            "F10/F12 is no longer flagged. If F10 was given a status comment, good — "
-            "remove it from this test. If the F12 edge was retyped, check that was "
-            "deliberate: F12 does supersede F10's caveat.")
+    def test_the_web_declares_no_conflicts(self):
+        """This is the check that caught the notation trap, minutes after the fix.
 
-    def test_f10_really_does_declare_current_with_no_superseder(self):
+        F239 documented a fixture bug by QUOTING the broken fixture, and the quote
+        contained wiki-style link syntax — so the parser emitted a real edge, and the
+        adjacent "Superseded by" prose cue typed it `supersedes`. The node asserted a
+        supersession it never meant, and this assertion went red on a conflict created
+        by the very cycle that had just cleared the previous one.
+
+        **The web has no escaping mechanism**: a node cannot discuss its own notation
+        without emitting the link, so any finding *about* the syntax silently rewires
+        the graph. Until an escape form exists, describe the notation rather than
+        quoting it. A narrower guard ("recent nodes must not emit `supersedes`") was
+        written and discarded — it fails on F232/F233, whose supersessions are real.
+        The invariant is not "no supersedes edges", it is "every supersedes edge has a
+        target that declares it", which is exactly this check.
+        """
+        self.assertEqual(
+            self.conflicts, [],
+            "an edge/status conflict is back: {}. The web contradicts itself about that "
+            "node — either give it a `status:` comment naming its superseder, or retype "
+            "the edge if the supersession is not real.".format(self.conflicts))
+
+    def test_f10_is_now_properly_declared(self):
+        """The specific fix, pinned so it cannot silently regress."""
         meta = ctx._node_meta(self.nodes["F10"])
-        self.assertEqual(meta["status"], "current")
-        self.assertIsNone(meta["by"])
+        self.assertEqual(meta["status"], "superseded")
+        self.assertEqual(meta["by"], "F12")
+        self.assertEqual(meta["reason"], "data-fixed")
 
-    def test_the_conflict_signal_is_narrow(self):
+    def test_the_three_nodes_that_needed_the_superseder_citation_have_it(self):
+        """The edits the supersession required, pinned individually.
+
+        `note.py supersede` refused the write until D1, F186 and F236 cited F12 —
+        those three, named by the lint itself. This asserts exactly that, and does NOT
+        re-derive which nodes *ought* to need it: two earlier drafts tried, one being
+        stricter than the lint (it failed on H5, which the lint never asks) and one
+        looser (it went vacuous). Reimplementing a rule in order to check it is how a
+        guard ends up testing its own restatement — the `ctx health` stale-cite count
+        is the real check and has its own test.
+        """
+        for nid in ("D1", "F186", "F236"):
+            targets = [e["target"] for e in self.nodes[nid]["edges"]]
+            self.assertIn("F10", targets,
+                          "{} no longer cites F10 at all".format(nid))
+            self.assertIn(
+                "F12", targets,
+                "{} cites superseded F10 without its superseder F12 — `note.py "
+                "supersede` required this edge before it would write".format(nid))
+
+    def test_the_detector_still_finds_a_conflict_when_one_exists(self):
+        """Non-vacuity. The real web is clean, so the signal is proved on synthetic input."""
+        nodes, _ = ctx._parse_web_text(_CONFLICTED_WEB)
+        conflicts, _ = ctx.semantic_staleness(nodes)
+        self.assertEqual(
+            conflicts, [("F1", "F2")],
+            "the hard signal no longer fires on a node that is the target of a "
+            "`supersedes` edge while declaring current — it has stopped working, and "
+            "the clean bill above would mean nothing")
+
+    def test_it_does_not_fire_once_the_status_is_declared(self):
+        """The other direction: declaring the status must actually clear the signal."""
+        nodes, _ = ctx._parse_web_text(_RESOLVED_WEB)
+        conflicts, _ = ctx.semantic_staleness(nodes)
+        self.assertEqual(
+            conflicts, [],
+            "the signal still fires after the node declares `status: superseded` — the "
+            "remedy it recommends does not resolve it")
+
+    def test_the_conflict_signal_stays_narrow(self):
         """A hard signal must not become a second decay list."""
         self.assertLessEqual(
             len(self.conflicts), 3,

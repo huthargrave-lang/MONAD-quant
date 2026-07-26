@@ -50,13 +50,19 @@ STORY = ["F13", "F14", "F15", "F16", "F17", "F19", "F22", "D6"]
 UNDATED = {
     "D1", "D2", "D3", "D4", "D6", "D7",
     "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "E9",
-    "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F10", "F11", "F12", "F13",
+    "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F11", "F12", "F13",
     "F14", "F16", "F17",
     "H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8",
 }
 
-# The two F-order inversions, both amendment timestamps rather than creation dates.
-AMENDED = {"F9", "F15"}
+# F-order inversions whose recorded date is an AMENDMENT timestamp rather than a
+# creation one. F10 joined when it was superseded (F239): `note.py supersede`
+# stamps `at:` into the status comment, which moves a node out of UNDATED and
+# gives it today's date — necessarily the latest, so it inverts against every
+# dated node after it. Its inversion happened to be excused already, because the
+# next dated F node (F15) is itself exempt; listing F10 explicitly makes the
+# exemption reflect why it applies instead of relying on a neighbour.
+AMENDED = {"F9", "F10", "F15"}
 
 
 def graph():

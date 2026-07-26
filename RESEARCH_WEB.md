@@ -76,6 +76,7 @@ independently corroborates QQQ. IWM (noise ratio ~1.0) lands mid-pack exactly as
 predicts. The noise-ratio→WR relationship is continuous, not a QQQ one-off. Source: [[E6]]. → [[D3]].
 
 ### F10 — DATA CAVEAT: all results are MORNING-ONLY
+<!-- status: superseded; by: F12; reason: data-fixed; at: 2026-07-26 -->
 The cached yfinance hourly data is truncated to ~3 bars/day (≈13–15 UTC / first 2 trading
 hours). Every number in this web is the **morning-session regime**. A full-session re-pull
 could shift magnitudes. → [[H5]], [[E7]].
@@ -242,6 +243,7 @@ per-instrument measurement is real but does NOT survive a static-blend benchmark
 NOT the hourly bot this gate was about.
 Overtaken in substance by the sobering update [[D4]] and the final go/no-go [[D6]] (the evidence-backed
 recommendation is a STATIC allocation, not the active engine).
+Links: [[F12|relates]].
 
 ### D2 — Promote walk-forward to primary selector (C5)
 Make the sweep select on rolling-origin OOS, not single-split holdout ([[H4]]). Now well-motivated
@@ -2333,7 +2335,7 @@ THE VALIDATION. The heuristic was written before comparing it to anything. Its t
 It stays a READING QUEUE, not a verdict — nothing edits a node or changes a status, and a test asserts the command leaves RESEARCH_WEB.md byte-identical.
 
 Guarded by tests/test_ctx_semantic_staleness.py (14 tests). Registered in AGENT_INDEX.md — caught by the pre-existing guard that every ctx subcommand must be listed there, which is the same class of check working as intended.
-Links: [[H11|resolves]] · [[F10|relates]] · [[F181|builds_on]].
+Links: [[H11|resolves]] · [[F10|relates]] · [[F181|builds_on]] · [[F12|relates]].
 _— captured claude/research-continuation-ca1242@4118788, 2026-07-25_
 
 ### F187 — H12 answered in two halves: CI now gates on context-layer lint, but the live preflight deliberately does NOT — and the CLI smoke test that was missing already caught a real bug
@@ -3199,7 +3201,7 @@ AND THE DETECTOR'S ONE HARD FIND IS STILL UNFIXED. F186 called F10/F12 'a real f
 THREE OF F186'S SIX FIGURES ARE NOW STALE AS WRITTEN - 12, 194 and 187. They were true when captured. The study quotes each with its current value beside it rather than editing the node, which is this web's own supersede-don't-rewrite rule applied to its own measurement tooling.
 
 NO NEW GUARD WAS WRITTEN, deliberately. tests/test_ctx_semantic_staleness.py already pins the conflict, the list bound and the top-6 clustering, and it is sound: it bounds the decay list below 30 rather than at 12, which is why growth to 19 was absorbed instead of producing a false alarm. Adding a second guard would be exactly the duplication this project keeps finding elsewhere. This is a DIRECT OBSERVATION of the repository - every number is re-derived by `python3 tools/ctx.py stale`. Study: docs/research/F186_staleness_detector_revalidated.md.
-Links: [[F186|refines]] · [[F10|relates]].
+Links: [[F186|refines]] · [[F10|relates]] · [[F12|relates]].
 _— captured claude/research-continuation-ca1242@be03e27, 2026-07-26_
 
 ### F237 — F185's nine figures reproduce - but only under its own method; two plausible wrong readings refute it, which is why an uncited figure is dangerous
@@ -3235,3 +3237,22 @@ WHAT THIS DOES AND DOES NOT SETTLE. It does NOT test H22's empirical core - whet
 NOT FIXED. The one-line change is to derive the floor from the candidate's own reward:risk rather than fixing it at 34 - but that changes which parameters every future sweep selects, which is a research decision rather than a cleanup, and src/optimization is where selection behaviour lives. Recorded, guarded bidirectionally (the guard fails if the floor becomes a function of R:R, which would be the fix, and fails if no configured band would be misjudged, which would make the defect dormant), and left for an owner. This is a DIRECT OBSERVATION of the repository - every figure is re-derived from source. Guard: tests/test_f7_band_geometry.py::TheEvObjectiveBakesInTheSameRatioTests.
 Links: [[H22|resolves]] · [[F235|builds_on]] · [[F26|relates]] · [[F168|relates]].
 _— captured claude/research-continuation-ca1242@f787eda, 2026-07-26_
+
+### F239 — Acted on the detector's one hard find: F10 declared superseded, conflicts now zero, and the guard inverted to prove the detector still works with nothing to find
+F236 ended by observing that the staleness detector's one HARD find - the edge/status conflict F186 called 'a real find' - had gone unfixed for roughly fifty nodes: 'the detector worked; nobody acted'. Acting on it is this node. F10 ('DATA CAVEAT: all results are MORNING-ONLY') declared status: current while the web carried an F12 supersedes edge pointing at it; the web contradicted itself about one node, and had for months.
+
+FIXED. F10 now declares `status: superseded; by: F12; reason: data-fixed`. That is the right reason code and not a formality: F12 did not merely comment on F10, it diagnosed the yfinance long-range quirk AND shipped the fix (tools/fetch_fullsession.py, chunked re-pull, ~3x the bars), so F10's claim that EVERY number in this web is the morning-session regime stopped describing the data. The caveat remains true of the historic numbers, which is exactly what a data-fixed supersession records rather than a deletion.
+
+THE WEB'S OWN INTEGRITY RULE MADE THE FIX COST THREE MORE EDITS. note.py supersede REFUSED the write until D1, F186 and F236 cited the superseder alongside the superseded node. Notably F186 and F236 both discussed F12 at length IN PROSE while carrying no [[F12]] edge at all - the finding named the superseder in its text and the graph did not know. Adding the edges is a formatting correction to what those bodies already asserted. EDGE/STATUS CONFLICTS ARE NOW ZERO.
+
+AND THE GUARD HAD TO BE INVERTED, WHICH IS THE INTERESTING PART. The old test asserted 'F10 is flagged', with a failure message that anticipated its own obsolescence: 'If F10 was given a status comment, good - remove it from this test.' Removing it leaves a hard signal with NOTHING LEFT TO FIND, and A DETECTOR WITH NOTHING TO DETECT IS INDISTINGUISHABLE FROM A BROKEN ONE. So the live web is now checked for a clean bill, and the DETECTOR is checked against synthetic input IN BOTH DIRECTIONS: it must still flag a two-node web where A supersedes B and B declares current, and it must stop flagging once B declares the status. Without the synthetic pair the clean bill would mean nothing.
+
+THREE FAILED DRAFTS OF ONE SUB-CHECK, RECORDED BECAUSE THE PATTERN IS THE POINT. Trying to assert the integrity rule generally, I wrote a check STRICTER than the lint - it demanded every citer of F10 also cite F12 and failed on H5, while ctx health reported zero stale-cite problems because the lint never asks that of H5. Scoping it to ctx's own RELIANCE_EDGES then made it VACUOUS - nothing relies on F10 by that edge type. A guard stricter than the rule it encodes fails on correct states; one looser passes on broken ones. The third version drops the re-derivation entirely and pins the three specific edges the lint actually demanded. REIMPLEMENTING A RULE IN ORDER TO CHECK IT IS HOW A GUARD ENDS UP TESTING ITS OWN RESTATEMENT - the same failure F237 recorded one node earlier, this time committed by the same author who had just written it down.
+
+Also fixed a fixture bug worth naming: the first synthetic web wrote a 'Superseded by' phrase next to a wiki-style link in the first node's body, and the prose cue-classifier typed that node's outgoing edge as supersedes as well, so the pair flagged EACH OTHER and the fixture tested mutual supersession rather than the one-way case being claimed. AND THAT SENTENCE ORIGINALLY REPRODUCED THE BROKEN FIXTURE VERBATIM, LINK SYNTAX INCLUDED - which made THIS node assert a supersedes edge it never meant, and `ctx stale` immediately flagged a brand-new edge/status conflict created by the very cycle that cleared the last one. There is no escaping mechanism: a node cannot discuss link syntax without emitting the link, so any finding ABOUT the web's notation silently rewires the web. Worked around here by describing the syntax instead of quoting it; the general fix (an inline-code or escape form the parser skips) is unbuilt.
+
+A SIDE EFFECT WORTH NAMING, and it is F185's own mechanism firing live: note.py supersede stamps `at:` into the status comment, so superseding a node MOVES IT OUT OF THE UNDATED SET and gives it today's date - necessarily the latest, so it inverts against every dated node after it. F185 identified exactly this class, 'nodes whose recorded date is an AMENDMENT timestamp rather than a creation one', as the only ID-order inversions in the web. F10 has now joined F9 and F15 there. The monotonicity guard passed anyway, but only INCIDENTALLY - F10's inversion was excused because its next dated neighbour F15 is itself exempt, not because F10 was recognised as amended. Listing F10 explicitly makes the exemption reflect why it applies rather than relying on a neighbour that could itself be re-dated. EVERY SUPERSESSION SLIGHTLY DEGRADES THE ID-ORDER NARRATION REMEDY F185 RECOMMENDED, which is a real cost of the cleanup, not an argument against it.
+
+WHAT THIS DOES NOT DO. It does not touch the decay list, which stands at 20 against a guard bound of 30. It changes no code and no measurement - only a status declaration, three citation edges, and the guard that watches them. Guard: tests/test_ctx_semantic_staleness.py (17 tests).
+Links: [[F236|refines]] · [[F10|relates]] · [[F12|relates]] · [[F237|relates]].
+_— captured claude/research-continuation-ca1242@0678c25, 2026-07-26_
