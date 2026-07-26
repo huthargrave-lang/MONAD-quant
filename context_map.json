@@ -472,6 +472,7 @@
         "tools/nt_late_filer_lab.py",
         "tools/numeric_provenance_lab.py",
         "tools/overnight_gap_risk_study.py",
+        "tools/recompute_audit.py",
         "tools/research_backlog.py",
         "tools/research_event_ledger.py",
         "tools/research_ui.py",
