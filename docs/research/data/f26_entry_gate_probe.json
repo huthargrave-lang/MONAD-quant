@@ -1,0 +1,622 @@
+{
+  "highvol_panels": [
+    {
+      "bars": 6000,
+      "combos": {
+        "slope=0,longs_only=0": {
+          "entry_hash": "6b4379c62f02707a",
+          "kelly_mult_hash": "eeacb3eaae054ce5",
+          "n_entries": 792
+        },
+        "slope=0,longs_only=1": {
+          "entry_hash": "6b4379c62f02707a",
+          "kelly_mult_hash": "eeacb3eaae054ce5",
+          "n_entries": 792
+        },
+        "slope=1,longs_only=0": {
+          "entry_hash": "6b4379c62f02707a",
+          "kelly_mult_hash": "fb5c6a915a3cbc94",
+          "n_entries": 792
+        },
+        "slope=1,longs_only=1": {
+          "entry_hash": "6b4379c62f02707a",
+          "kelly_mult_hash": "8169d1a3003ff000",
+          "n_entries": 792
+        }
+      },
+      "distinct_entry_hashes": 1,
+      "distinct_kelly_hashes": 3,
+      "has_regime_column": true,
+      "panel": "hv_seed3",
+      "regime_filter": {
+        "off_what_config_says": 3462,
+        "on_default_what_runner_gets": 792,
+        "retained_fraction": 0.2288,
+        "suppressed": 2670
+      },
+      "sigma_per_bar": 0.011,
+      "soft_50ma_gate": {
+        "blocked_else_branch": 192,
+        "blocked_taken_branch": 39,
+        "long_candidates_gate_disabled": 768,
+        "longs_else_branch": 576,
+        "longs_taken_branch": 729,
+        "strong_bull_bar_fraction": 0.1137
+      },
+      "timeframe": "hourly"
+    },
+    {
+      "bars": 6000,
+      "combos": {
+        "slope=0,longs_only=0": {
+          "entry_hash": "d575f90a085e7295",
+          "kelly_mult_hash": "90975bd63dc1f9ba",
+          "n_entries": 867
+        },
+        "slope=0,longs_only=1": {
+          "entry_hash": "d575f90a085e7295",
+          "kelly_mult_hash": "90975bd63dc1f9ba",
+          "n_entries": 867
+        },
+        "slope=1,longs_only=0": {
+          "entry_hash": "d575f90a085e7295",
+          "kelly_mult_hash": "f5230cec32791dc9",
+          "n_entries": 867
+        },
+        "slope=1,longs_only=1": {
+          "entry_hash": "d575f90a085e7295",
+          "kelly_mult_hash": "2543a8b9ba424993",
+          "n_entries": 867
+        }
+      },
+      "distinct_entry_hashes": 1,
+      "distinct_kelly_hashes": 3,
+      "has_regime_column": true,
+      "panel": "hv_seed5",
+      "regime_filter": {
+        "off_what_config_says": 3500,
+        "on_default_what_runner_gets": 867,
+        "retained_fraction": 0.2477,
+        "suppressed": 2633
+      },
+      "sigma_per_bar": 0.011,
+      "soft_50ma_gate": {
+        "blocked_else_branch": 262,
+        "blocked_taken_branch": 55,
+        "long_candidates_gate_disabled": 874,
+        "longs_else_branch": 612,
+        "longs_taken_branch": 819,
+        "strong_bull_bar_fraction": 0.178
+      },
+      "timeframe": "hourly"
+    },
+    {
+      "bars": 6000,
+      "combos": {
+        "slope=0,longs_only=0": {
+          "entry_hash": "263f7a5057a865da",
+          "kelly_mult_hash": "f4a103d87c38c2fb",
+          "n_entries": 743
+        },
+        "slope=0,longs_only=1": {
+          "entry_hash": "263f7a5057a865da",
+          "kelly_mult_hash": "f4a103d87c38c2fb",
+          "n_entries": 743
+        },
+        "slope=1,longs_only=0": {
+          "entry_hash": "263f7a5057a865da",
+          "kelly_mult_hash": "78b40ead422bad71",
+          "n_entries": 743
+        },
+        "slope=1,longs_only=1": {
+          "entry_hash": "263f7a5057a865da",
+          "kelly_mult_hash": "d02f9d11bfd0d552",
+          "n_entries": 743
+        }
+      },
+      "distinct_entry_hashes": 1,
+      "distinct_kelly_hashes": 3,
+      "has_regime_column": true,
+      "panel": "hv_seed9",
+      "regime_filter": {
+        "off_what_config_says": 3517,
+        "on_default_what_runner_gets": 743,
+        "retained_fraction": 0.2113,
+        "suppressed": 2774
+      },
+      "sigma_per_bar": 0.011,
+      "soft_50ma_gate": {
+        "blocked_else_branch": 103,
+        "blocked_taken_branch": 13,
+        "long_candidates_gate_disabled": 684,
+        "longs_else_branch": 581,
+        "longs_taken_branch": 671,
+        "strong_bull_bar_fraction": 0.1078
+      },
+      "timeframe": "hourly"
+    },
+    {
+      "bars": 6000,
+      "combos": {
+        "slope=0,longs_only=0": {
+          "entry_hash": "2b6d6f252b440637",
+          "kelly_mult_hash": "832bac2a58609aab",
+          "n_entries": 618
+        },
+        "slope=0,longs_only=1": {
+          "entry_hash": "2b6d6f252b440637",
+          "kelly_mult_hash": "832bac2a58609aab",
+          "n_entries": 618
+        },
+        "slope=1,longs_only=0": {
+          "entry_hash": "2b6d6f252b440637",
+          "kelly_mult_hash": "2bb877c17e2e0bd8",
+          "n_entries": 618
+        },
+        "slope=1,longs_only=1": {
+          "entry_hash": "2b6d6f252b440637",
+          "kelly_mult_hash": "c045a377833254bf",
+          "n_entries": 618
+        }
+      },
+      "distinct_entry_hashes": 1,
+      "distinct_kelly_hashes": 3,
+      "has_regime_column": true,
+      "panel": "hv_seed21",
+      "regime_filter": {
+        "off_what_config_says": 3414,
+        "on_default_what_runner_gets": 618,
+        "retained_fraction": 0.181,
+        "suppressed": 2796
+      },
+      "sigma_per_bar": 0.011,
+      "soft_50ma_gate": {
+        "blocked_else_branch": 126,
+        "blocked_taken_branch": 44,
+        "long_candidates_gate_disabled": 595,
+        "longs_else_branch": 469,
+        "longs_taken_branch": 551,
+        "strong_bull_bar_fraction": 0.2013
+      },
+      "timeframe": "hourly"
+    },
+    {
+      "bars": 6000,
+      "combos": {
+        "slope=0,longs_only=0": {
+          "entry_hash": "64797edf4c364cf1",
+          "kelly_mult_hash": "a5777da01735336b",
+          "n_entries": 780
+        },
+        "slope=0,longs_only=1": {
+          "entry_hash": "64797edf4c364cf1",
+          "kelly_mult_hash": "a5777da01735336b",
+          "n_entries": 780
+        },
+        "slope=1,longs_only=0": {
+          "entry_hash": "64797edf4c364cf1",
+          "kelly_mult_hash": "f4beb2fbdd81d043",
+          "n_entries": 780
+        },
+        "slope=1,longs_only=1": {
+          "entry_hash": "64797edf4c364cf1",
+          "kelly_mult_hash": "554e007c7c454a3f",
+          "n_entries": 780
+        }
+      },
+      "distinct_entry_hashes": 1,
+      "distinct_kelly_hashes": 3,
+      "has_regime_column": true,
+      "panel": "hv_seed33",
+      "regime_filter": {
+        "off_what_config_says": 3370,
+        "on_default_what_runner_gets": 780,
+        "retained_fraction": 0.2315,
+        "suppressed": 2590
+      },
+      "sigma_per_bar": 0.011,
+      "soft_50ma_gate": {
+        "blocked_else_branch": 193,
+        "blocked_taken_branch": 71,
+        "long_candidates_gate_disabled": 791,
+        "longs_else_branch": 598,
+        "longs_taken_branch": 720,
+        "strong_bull_bar_fraction": 0.1925
+      },
+      "timeframe": "hourly"
+    }
+  ],
+  "panels": [
+    {
+      "bars": 1500,
+      "combos": {
+        "slope=0,longs_only=0": {
+          "entry_hash": "02829fb8567f434f",
+          "kelly_mult_hash": "ceba8dc2394c5c02",
+          "n_entries": 181
+        },
+        "slope=0,longs_only=1": {
+          "entry_hash": "02829fb8567f434f",
+          "kelly_mult_hash": "ceba8dc2394c5c02",
+          "n_entries": 181
+        },
+        "slope=1,longs_only=0": {
+          "entry_hash": "02829fb8567f434f",
+          "kelly_mult_hash": "f60604bf24dba574",
+          "n_entries": 181
+        },
+        "slope=1,longs_only=1": {
+          "entry_hash": "02829fb8567f434f",
+          "kelly_mult_hash": "eb1299d3b1e17598",
+          "n_entries": 181
+        }
+      },
+      "distinct_entry_hashes": 1,
+      "distinct_kelly_hashes": 3,
+      "has_regime_column": true,
+      "panel": "drift_up",
+      "regime_filter": {
+        "off_what_config_says": 898,
+        "on_default_what_runner_gets": 181,
+        "retained_fraction": 0.2016,
+        "suppressed": 717
+      },
+      "sigma_per_bar": 0.006,
+      "soft_50ma_gate": {
+        "blocked_else_branch": 28,
+        "blocked_taken_branch": 0,
+        "long_candidates_gate_disabled": 161,
+        "longs_else_branch": 133,
+        "longs_taken_branch": 161,
+        "strong_bull_bar_fraction": 0.0
+      },
+      "timeframe": "hourly"
+    },
+    {
+      "bars": 1500,
+      "combos": {
+        "slope=0,longs_only=0": {
+          "entry_hash": "15f27a526565f72c",
+          "kelly_mult_hash": "45597aff0ecaf915",
+          "n_entries": 92
+        },
+        "slope=0,longs_only=1": {
+          "entry_hash": "15f27a526565f72c",
+          "kelly_mult_hash": "45597aff0ecaf915",
+          "n_entries": 92
+        },
+        "slope=1,longs_only=0": {
+          "entry_hash": "15f27a526565f72c",
+          "kelly_mult_hash": "399b82128e42ae4d",
+          "n_entries": 92
+        },
+        "slope=1,longs_only=1": {
+          "entry_hash": "15f27a526565f72c",
+          "kelly_mult_hash": "06705e7836419b57",
+          "n_entries": 92
+        }
+      },
+      "distinct_entry_hashes": 1,
+      "distinct_kelly_hashes": 3,
+      "has_regime_column": true,
+      "panel": "drift_down",
+      "regime_filter": {
+        "off_what_config_says": 908,
+        "on_default_what_runner_gets": 92,
+        "retained_fraction": 0.1013,
+        "suppressed": 816
+      },
+      "sigma_per_bar": 0.006,
+      "soft_50ma_gate": {
+        "blocked_else_branch": 0,
+        "blocked_taken_branch": 0,
+        "long_candidates_gate_disabled": 59,
+        "longs_else_branch": 59,
+        "longs_taken_branch": 59,
+        "strong_bull_bar_fraction": 0.0
+      },
+      "timeframe": "hourly"
+    },
+    {
+      "bars": 1500,
+      "combos": {
+        "slope=0,longs_only=0": {
+          "entry_hash": "236323698f488dd9",
+          "kelly_mult_hash": "30fe4921d1165070",
+          "n_entries": 138
+        },
+        "slope=0,longs_only=1": {
+          "entry_hash": "236323698f488dd9",
+          "kelly_mult_hash": "30fe4921d1165070",
+          "n_entries": 138
+        },
+        "slope=1,longs_only=0": {
+          "entry_hash": "236323698f488dd9",
+          "kelly_mult_hash": "8c8892ce895aafbd",
+          "n_entries": 138
+        },
+        "slope=1,longs_only=1": {
+          "entry_hash": "236323698f488dd9",
+          "kelly_mult_hash": "bc9d3506472e12f0",
+          "n_entries": 138
+        }
+      },
+      "distinct_entry_hashes": 1,
+      "distinct_kelly_hashes": 3,
+      "has_regime_column": true,
+      "panel": "flat",
+      "regime_filter": {
+        "off_what_config_says": 875,
+        "on_default_what_runner_gets": 138,
+        "retained_fraction": 0.1577,
+        "suppressed": 737
+      },
+      "sigma_per_bar": 0.006,
+      "soft_50ma_gate": {
+        "blocked_else_branch": 10,
+        "blocked_taken_branch": 0,
+        "long_candidates_gate_disabled": 126,
+        "longs_else_branch": 116,
+        "longs_taken_branch": 126,
+        "strong_bull_bar_fraction": 0.004
+      },
+      "timeframe": "hourly"
+    },
+    {
+      "bars": 1500,
+      "combos": {
+        "slope=0,longs_only=0": {
+          "entry_hash": "de68d5eae77f84aa",
+          "kelly_mult_hash": "aa4046c4be9f7c52",
+          "n_entries": 190
+        },
+        "slope=0,longs_only=1": {
+          "entry_hash": "de68d5eae77f84aa",
+          "kelly_mult_hash": "aa4046c4be9f7c52",
+          "n_entries": 190
+        },
+        "slope=1,longs_only=0": {
+          "entry_hash": "de68d5eae77f84aa",
+          "kelly_mult_hash": "4ae233d53c985e38",
+          "n_entries": 190
+        },
+        "slope=1,longs_only=1": {
+          "entry_hash": "de68d5eae77f84aa",
+          "kelly_mult_hash": "315a8a7aa756e1d8",
+          "n_entries": 190
+        }
+      },
+      "distinct_entry_hashes": 1,
+      "distinct_kelly_hashes": 3,
+      "has_regime_column": true,
+      "panel": "choppy",
+      "regime_filter": {
+        "off_what_config_says": 907,
+        "on_default_what_runner_gets": 190,
+        "retained_fraction": 0.2095,
+        "suppressed": 717
+      },
+      "sigma_per_bar": 0.006,
+      "soft_50ma_gate": {
+        "blocked_else_branch": 23,
+        "blocked_taken_branch": 1,
+        "long_candidates_gate_disabled": 174,
+        "longs_else_branch": 151,
+        "longs_taken_branch": 173,
+        "strong_bull_bar_fraction": 0.0493
+      },
+      "timeframe": "hourly"
+    },
+    {
+      "bars": 500,
+      "combos": {
+        "slope=0,longs_only=0": {
+          "entry_hash": "6a034dcbf2150c0c",
+          "kelly_mult_hash": "20263b79dd8a2546",
+          "n_entries": 22
+        },
+        "slope=0,longs_only=1": {
+          "entry_hash": "6a034dcbf2150c0c",
+          "kelly_mult_hash": "20263b79dd8a2546",
+          "n_entries": 22
+        },
+        "slope=1,longs_only=0": {
+          "entry_hash": "6a034dcbf2150c0c",
+          "kelly_mult_hash": "20263b79dd8a2546",
+          "n_entries": 22
+        },
+        "slope=1,longs_only=1": {
+          "entry_hash": "6a034dcbf2150c0c",
+          "kelly_mult_hash": "20263b79dd8a2546",
+          "n_entries": 22
+        }
+      },
+      "distinct_entry_hashes": 1,
+      "distinct_kelly_hashes": 1,
+      "has_regime_column": true,
+      "panel": "drift_up",
+      "regime_filter": {
+        "off_what_config_says": 139,
+        "on_default_what_runner_gets": 22,
+        "retained_fraction": 0.1583,
+        "suppressed": 117
+      },
+      "sigma_per_bar": 0.006,
+      "soft_50ma_gate": {
+        "blocked_else_branch": 0,
+        "blocked_taken_branch": 0,
+        "long_candidates_gate_disabled": 3,
+        "longs_else_branch": 3,
+        "longs_taken_branch": 3,
+        "strong_bull_bar_fraction": 0.0
+      },
+      "timeframe": "daily"
+    },
+    {
+      "bars": 500,
+      "combos": {
+        "slope=0,longs_only=0": {
+          "entry_hash": "4e0a319d4a5035ce",
+          "kelly_mult_hash": "bd365f8153e83ab4",
+          "n_entries": 4
+        },
+        "slope=0,longs_only=1": {
+          "entry_hash": "4e0a319d4a5035ce",
+          "kelly_mult_hash": "bd365f8153e83ab4",
+          "n_entries": 4
+        },
+        "slope=1,longs_only=0": {
+          "entry_hash": "4e0a319d4a5035ce",
+          "kelly_mult_hash": "271b1baefaf4ab18",
+          "n_entries": 4
+        },
+        "slope=1,longs_only=1": {
+          "entry_hash": "4e0a319d4a5035ce",
+          "kelly_mult_hash": "bd365f8153e83ab4",
+          "n_entries": 4
+        }
+      },
+      "distinct_entry_hashes": 1,
+      "distinct_kelly_hashes": 2,
+      "has_regime_column": true,
+      "panel": "drift_down",
+      "regime_filter": {
+        "off_what_config_says": 99,
+        "on_default_what_runner_gets": 4,
+        "retained_fraction": 0.0404,
+        "suppressed": 95
+      },
+      "sigma_per_bar": 0.006,
+      "soft_50ma_gate": {
+        "blocked_else_branch": 0,
+        "blocked_taken_branch": 0,
+        "long_candidates_gate_disabled": 1,
+        "longs_else_branch": 1,
+        "longs_taken_branch": 1,
+        "strong_bull_bar_fraction": 0.0
+      },
+      "timeframe": "daily"
+    },
+    {
+      "bars": 500,
+      "combos": {
+        "slope=0,longs_only=0": {
+          "entry_hash": "d15d1b61a385f360",
+          "kelly_mult_hash": "a99f2d88a081b0fb",
+          "n_entries": 16
+        },
+        "slope=0,longs_only=1": {
+          "entry_hash": "d15d1b61a385f360",
+          "kelly_mult_hash": "a99f2d88a081b0fb",
+          "n_entries": 16
+        },
+        "slope=1,longs_only=0": {
+          "entry_hash": "d15d1b61a385f360",
+          "kelly_mult_hash": "a99f2d88a081b0fb",
+          "n_entries": 16
+        },
+        "slope=1,longs_only=1": {
+          "entry_hash": "d15d1b61a385f360",
+          "kelly_mult_hash": "207f69fcfd1ae1b8",
+          "n_entries": 16
+        }
+      },
+      "distinct_entry_hashes": 1,
+      "distinct_kelly_hashes": 2,
+      "has_regime_column": true,
+      "panel": "flat",
+      "regime_filter": {
+        "off_what_config_says": 129,
+        "on_default_what_runner_gets": 16,
+        "retained_fraction": 0.124,
+        "suppressed": 113
+      },
+      "sigma_per_bar": 0.006,
+      "soft_50ma_gate": {
+        "blocked_else_branch": 5,
+        "blocked_taken_branch": 0,
+        "long_candidates_gate_disabled": 9,
+        "longs_else_branch": 4,
+        "longs_taken_branch": 9,
+        "strong_bull_bar_fraction": 0.012
+      },
+      "timeframe": "daily"
+    },
+    {
+      "bars": 500,
+      "combos": {
+        "slope=0,longs_only=0": {
+          "entry_hash": "934dec727d594bc3",
+          "kelly_mult_hash": "5f681f6f2dec544c",
+          "n_entries": 24
+        },
+        "slope=0,longs_only=1": {
+          "entry_hash": "934dec727d594bc3",
+          "kelly_mult_hash": "5f681f6f2dec544c",
+          "n_entries": 24
+        },
+        "slope=1,longs_only=0": {
+          "entry_hash": "934dec727d594bc3",
+          "kelly_mult_hash": "1832708667da9570",
+          "n_entries": 24
+        },
+        "slope=1,longs_only=1": {
+          "entry_hash": "934dec727d594bc3",
+          "kelly_mult_hash": "b59ace8c169d6328",
+          "n_entries": 24
+        }
+      },
+      "distinct_entry_hashes": 1,
+      "distinct_kelly_hashes": 3,
+      "has_regime_column": true,
+      "panel": "choppy",
+      "regime_filter": {
+        "off_what_config_says": 184,
+        "on_default_what_runner_gets": 24,
+        "retained_fraction": 0.1304,
+        "suppressed": 160
+      },
+      "sigma_per_bar": 0.006,
+      "soft_50ma_gate": {
+        "blocked_else_branch": 0,
+        "blocked_taken_branch": 0,
+        "long_candidates_gate_disabled": 3,
+        "longs_else_branch": 3,
+        "longs_taken_branch": 3,
+        "strong_bull_bar_fraction": 0.0
+      },
+      "timeframe": "daily"
+    }
+  ],
+  "runner_call": {
+    "keywords": [
+      "require_signals",
+      "stop_loss_pct",
+      "target_gain_pct",
+      "trade_hours"
+    ],
+    "line": 107
+  },
+  "structural": {
+    "all_slope_reads_after_last_entry_write": true,
+    "entry_signal_write_lines": [
+      151,
+      152,
+      153,
+      187
+    ],
+    "first_slope_flag_read": 190,
+    "last_entry_signal_write": 187,
+    "regime_kelly_mult_write_lines": [
+      195,
+      205,
+      206
+    ],
+    "slope_flag_read_lines": [
+      190,
+      190,
+      200,
+      200
+    ]
+  }
+}

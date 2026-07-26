@@ -1,4 +1,16 @@
-"""H21's soft 50-MA gate is live, gates everything, and its threshold is off by a timeframe.
+"""H21's soft 50-MA gate is live and its threshold is off by a timeframe.
+
+> **CORRECTION (see `docs/research/F26_entry_gate_wiring.md` and
+> `tests/test_f26_entry_gate_wiring.py`).** The second fact below — "there is no `regime`
+> column on the hourly path" — is **WRONG**. `add_momentum_features` writes `regime`
+> unconditionally, so every frame out of `build_features` carries it and the else-branch
+> never executes. The hourly gate is STRONG_BULL-conditional like the daily one, and
+> blocks **1.9%–9.0%** of entry candidates rather than the ~28%-of-bars / 42%-of-dip-bars
+> stated here — an overstatement of 2.7×–7.9×. The measurement below is of *bars sitting
+> below the MA*, which is an upper bound on the block rate; this file cited the bound as
+> the rate. Facts 1 and 3 stand, and the conclusion about H21 stands by a different route.
+> The assertions in this file were true then and remain true — none of them tested
+> reachability, which is why a passing guard coexisted with a false claim.
 
 H21 proposes raising `STRONG_BULL_SOFT_50MA_PCT` from 0.02 to 0.05 — "block STRONG_BULL
 entries only when price is >5% below the 50-MA" — citing daily observations: bad June-2024
@@ -10,25 +22,29 @@ measuring what H21 thinks it measures.
 **It is active, on the live mode.** `STRONG_BULL_SOFT_50MA_PCT = 0.02` and
 `generate_trades` applies it whenever the column exists.
 
-**On hourly it gates ALL longs, not just STRONG_BULL.** There is no `regime` column on
-the hourly path, so the code takes the else-branch and blocks every long entry deep below
-the MA — the regime-awareness H21 assumes is daily-only.
+**~~On hourly it gates ALL longs, not just STRONG_BULL.~~** *(retracted — see the
+correction above.)* There is no `regime` column on the hourly path, so the code takes the
+else-branch and blocks every long entry deep below the MA — the regime-awareness H21
+assumes is daily-only.
 
 **And `ma_50d` on hourly is a 50-HOUR mean.** `engine.py:50` says so in its own comment:
 *"For hourly bars, 50 periods ≈ ~2.5 trading days (vs 50 days for daily)."* So a threshold
 calibrated from distance-below-a-50-**day** MA is applied to distance-below-a-2.5-**day**
 MA, on a 3× ETF.
 
-**What that costs.** On a synthetic 3× hourly series (σ ≈ 1.1%/bar, TQQQ-like), 2% below
-the 50-bar MA covers **28% of all bars — and 42% of dip bars**, dip bars being exactly the
-mean-reversion entry candidates the strategy exists to take. CLAUDE.md §7 records that the
-*strict* any-touch version was reverted for filtering 71 of 83 trades; the current setting
-is far from that, but it is also nothing like the gentle filter H21 describes.
+**How wide the condition is.** On a synthetic 3× hourly series (σ ≈ 1.1%/bar, TQQQ-like),
+2% below the 50-bar MA covers **28% of all bars — and 42% of dip bars**, dip bars being
+exactly the mean-reversion entry candidates the strategy exists to take. *(This is the
+share of bars satisfying the distance condition — an UPPER BOUND on the block rate, not
+the block rate. The gate also requires STRONG_BULL; the realised figure is 1.9%–9.0%. See
+the correction above.)* CLAUDE.md §7 records that the *strict* any-touch version was
+reverted for filtering 71 of 83 trades.
 
 **So H21's direction is right and its reasoning does not transfer.** Raising 0.02 → 0.05
-would cut the hourly block rate from ~28% to ~11%, which is probably an improvement on the
-live path — but not because June-2024 dips sat 7–15% below a 50-day MA. Any recalibration
-has to be done in the timeframe the gate actually runs in.
+cuts the share of bars meeting the distance condition from ~28% to ~11%, but not because
+June-2024 dips sat 7–15% below a 50-day MA. Any recalibration has to be done in the
+timeframe the gate actually runs in — and against a gate that is nearer inert than this
+file originally implied.
 
 Percentages are from synthetic series with the stated volatilities; they illustrate the
 scale mismatch and are not measurements of TQQQ. The three structural facts are exact.
@@ -55,26 +71,29 @@ def below_ma(n, sigma, seed=9, window=50):
     return close, (ma - close) / close
 
 
-class TheGateIsLiveAndUngatedByRegimeOnHourlyTests(unittest.TestCase):
+class TheGateIsLiveOnTheHourlyModeTests(unittest.TestCase):
     def test_the_threshold_is_set_and_nonzero(self):
         self.assertAlmostEqual(
             getattr(config, "STRONG_BULL_SOFT_50MA_PCT", 0.0), 0.02, places=6,
             msg="the soft 50-MA threshold moved — H21 and the measurements below are "
                 "calibrated against 0.02; re-derive them")
 
-    def test_hourly_takes_the_else_branch_and_gates_ALL_longs(self):
+    def test_both_soft_50ma_branches_are_present_in_the_source(self):
+        """The else-branch is UNREACHABLE — see the correction at the top of this file
+        and tests/test_f26_entry_gate_wiring.py, which asserts which branch fires."""
         source = inspect.getsource(engine_mod.generate_trades)
         self.assertIn('gate_mask = long_mask & (df["regime"] == "STRONG_BULL") & deep_below',
-                      source, "the daily branch changed")
-        self.assertIn("# Hourly mode: gate all long entries (no regime column)", source)
+                      source, "the branch that actually runs changed")
+        self.assertIn("# Hourly mode: gate all long entries (no regime column)", source,
+                      "the misleading comment was corrected — good; drop this assertion "
+                      "and the retraction note it anchors")
         self.assertIn("gate_mask = long_mask & deep_below", source,
-                      "the hourly branch no longer gates every long — H21's "
-                      "'STRONG_BULL entries only' framing may now be accurate")
+                      "the unreachable else-branch was removed — retire this assertion")
 
-    def test_the_active_mode_is_one_without_a_regime_column(self):
+    def test_the_active_mode_is_hourly(self):
         self.assertTrue(
             config.ACTIVE_MODE.endswith("_HOURLY"),
-            "the active mode is no longer hourly, so the else-branch analysis may not "
+            "the active mode is no longer hourly, so the timeframe analysis may not "
             "apply to it")
 
     def test_the_hourly_ma_is_50_BARS_and_the_code_says_so(self):
@@ -115,8 +134,9 @@ class TheThresholdMeansSomethingDifferentPerTimeframeTests(unittest.TestCase):
             "longer be selecting against the strategy's own entries")
         self.assertGreater(
             rate_dip, 0.3,
-            "the gate now blocks under 30% of dip bars ({:.0%}); re-measure before "
-            "citing the 42% figure".format(rate_dip))
+            "under 30% of dip bars now sit below the MA ({:.0%}); re-measure before "
+            "citing the 42% upper bound (it is bars-below-MA, NOT the block rate — see "
+            "the correction at the top of this file)".format(rate_dip))
 
     def test_raising_it_to_five_percent_materially_loosens_the_hourly_gate(self):
         """H21's proposal, evaluated in the timeframe the gate actually runs in."""

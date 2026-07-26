@@ -458,16 +458,47 @@ class DeadSizingKnobTests(unittest.TestCase):
     in no code path, citing `volatility.py:133-135` in a 115-line file.
     """
 
+    # Files that read a dead knob in order to DEMONSTRATE it is dead. The claim is
+    # "no code path applies this to a position size"; a probe that hashes the column to
+    # show the slope flags move it is evidence for that claim, not a counterexample.
+    # Ratcheted below: this set must be exactly these files, and each must be shown to
+    # never multiply anything by the knob.
+    OBSERVERS = {"tools/entry_gate_probe.py"}
+
     def _read_sites(self, name, writers):
-        """Files mentioning `name` that are not its declared writers."""
+        """Files mentioning `name` that are not its declared writers or observers."""
         hits = []
         for path in _first_party_sources():
             rel = str(path.relative_to(ROOT))
-            if rel in writers:
+            if rel in writers or rel in self.OBSERVERS:
                 continue
             if name in path.read_text(encoding="utf-8"):
                 hits.append(rel)
         return hits
+
+    def test_the_observer_exemption_is_exactly_the_declared_files(self):
+        """A ratchet: fails if the set grows (new debt) and if it shrinks (stale list)."""
+        present = {rel for rel in self.OBSERVERS if (ROOT / rel).exists()}
+        self.assertEqual(
+            present, self.OBSERVERS,
+            "an exempted observer no longer exists — drop it from OBSERVERS rather "
+            "than leaving a dead exemption that could silently cover a real consumer")
+
+    def test_no_observer_multiplies_anything_by_a_dead_knob(self):
+        """The exemption is for reading, not for applying. This is what makes it safe."""
+        knobs = ("regime_kelly_mult", "adx_kelly_mult")
+        for rel in self.OBSERVERS:
+            tree = ast.parse((ROOT / rel).read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mult):
+                    text = ast.unparse(node)
+                    for knob in knobs:
+                        self.assertNotIn(
+                            knob, text,
+                            "{} multiplies by {} at line {} — that is applying the "
+                            "knob, not observing it. The exemption does not cover it; "
+                            "if the knob went live, supersede the web node.".format(
+                                rel, knob, node.lineno))
 
     def test_adx_kelly_mult_is_computed_and_consumed_by_nothing(self):
         hits = self._read_sites("adx_kelly_mult", {"src/signals/volatility.py"})
