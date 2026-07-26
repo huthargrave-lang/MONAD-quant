@@ -1,4 +1,4 @@
-# Config reachability census — 27 of 203 constants are unread by shipping code
+# Config reachability census — 29 of 203 constants are unread by shipping code
 
 **Status:** measured, re-runnable, guarded. **Tool:** `tools/config_reachability.py`
 (output frozen at `docs/research/data/config_reachability.json`).
@@ -24,13 +24,13 @@ Three anecdotes are a pattern claim without a denominator. Nobody had counted.
 | class | n | % | meaning |
 |---|---:|---:|---|
 | static | 95 | 47% | a first-party module names it literally |
-| dynamic | 81 | 40% | reached only via a `getattr(config, f"PREFIX_{mode}")` template |
+| dynamic | 79 | 39% | reached via a `getattr(config, f"PREFIX_{mode}")` template WITH a resolvable suffix |
 | tests-only | 6 | 3% | named only under `tests/` |
-| unreferenced | 21 | 10% | named nowhere outside the config layer |
-| **dead to shipping** | **27** | **13%** | unreferenced + tests-only |
+| unreferenced | 23 | 11% | named nowhere outside the config layer |
+| **dead to shipping** | **29** | **14%** | unreferenced + tests-only |
 
 **Modelling the dynamic dispatch is what makes the number honest.** A literal-name grep
-calls **108** constants dead. **27** actually are. The other 81 are resolved through
+calls **108** constants dead. **29** actually are. The other 79 are resolved through
 per-mode templates — `build_features` alone resolves nine parameters that way
 (`RSI_PERIOD_{suffix}`, `MACD_FAST_{suffix}`, `VWAP_ZSCORE_THRESH_{suffix}`, …), and
 `strategy_funnel.py`, `walkforward_eval.py` and `sweep.py` add more. Any audit of this
@@ -39,6 +39,13 @@ config that does not model the dispatch over-reports dead knobs by **4×**.
 `dynamic` is a *reachability* claim, not proof any run reads it: a per-mode constant for a
 mode nobody selects is reachable and unread. It is kept as its own class for that reason
 rather than folded into `static`.
+
+**And a prefix match alone is not reachability.** The first version of this census
+credited any name matching a template, which over-credited two constants whose suffix is a
+**regime**, not a mode — `TARGET_GAIN_PCT_STRONG_BULL` and `RSI_OVERSOLD_BEAR`. No code
+anywhere builds those names, because the only dispatch is mode-keyed. The suffix is now
+validated against `config.ASSETS`, which moved both into the dead set (27 → 29). See
+[`F227`](../../RESEARCH_WEB.md).
 
 ## Why the headline is a union
 

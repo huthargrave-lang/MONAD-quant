@@ -89,6 +89,19 @@ def config_constants():
     return consts
 
 
+def known_suffixes():
+    """Mode names a dispatch template can actually resolve to.
+
+    A prefix match is NOT a reachability proof. `TARGET_GAIN_PCT_STRONG_BULL` matches the
+    `TARGET_GAIN_PCT_` template, but STRONG_BULL is a REGIME, not a mode — no code builds
+    that name, and the constant is unreachable. Same for `RSI_OVERSOLD_BEAR`. The suffix
+    must be a configured mode (or the legacy bare `HOURLY` used by BTC_HOURLY).
+    """
+    sys.path.insert(0, REPO)
+    import config  # noqa: PLC0415 — deliberately late; this tool exists to inspect it
+    return set(getattr(config, "ASSETS", {})) | {"HOURLY"}
+
+
 def dynamic_prefixes(blob):
     """Prefixes of `getattr(config, f"PREFIX_{...}")`, plus the `{k}_{mode}` key lists.
 
@@ -107,13 +120,20 @@ def census():
     ship_blob = "\n".join(open(p, encoding="utf-8").read() for p in _py_files(*SHIPPING))
     test_blob = "\n".join(open(p, encoding="utf-8").read() for p in _py_files("tests"))
     prefixes = dynamic_prefixes(ship_blob)
+    suffixes = known_suffixes()
+
+    def resolvable(name):
+        for prefix in prefixes:
+            if name.startswith(prefix + "_"):
+                return name[len(prefix) + 1:] in suffixes
+        return False
 
     result = {}
     for name in consts:
         word = re.compile(r"\b" + re.escape(name) + r"\b")
         if word.search(ship_blob):
             kind = "static"
-        elif any(name.startswith(p + "_") for p in prefixes):
+        elif resolvable(name):
             kind = "dynamic"
         elif word.search(test_blob):
             kind = "tests-only"
@@ -127,7 +147,8 @@ def census():
     # the union, and let the two sub-classes float.
     counts["dead_to_shipping"] = (counts.get("unreferenced", 0)
                                   + counts.get("tests-only", 0))
-    return {"prefixes": sorted(prefixes), "constants": result, "counts": counts}
+    return {"prefixes": sorted(prefixes), "suffixes": sorted(suffixes),
+            "constants": result, "counts": counts}
 
 
 def main(argv=None):

@@ -3025,3 +3025,22 @@ WHAT THIS DOES NOT SAY. Not that the 27 are bugs: a reverted experiment leaving 
 One more instance of the observer class while building the tool: its own docstring shows getattr(config, f"PREFIX_{..}") as an example, and scanning tools/ made 'P' and 'PREFIX' into dispatch prefixes. It now excludes itself. Sixth time in this session that a detector has read its own explanation, or its own subject matter, as data.
 Links: [[F145|builds_on]] · [[F224|builds_on]] · [[F225|relates]].
 _— captured claude/research-continuation-ca1242@9f5dd66, 2026-07-26_
+
+### F227 — E19's reverted 5% target left a knob CLAUDE.md still advertises and no code can reach: its suffix is a regime, and every dispatch in this codebase is mode-keyed
+E19 is the consolidated 'tried and abandoned' ledger - strict 50-MA gate filtered 71/83 trades, a 5% STRONG_BULL target dropped WR 49.4% to 33.7%, RSI 38-42 extras dropped it 68.8% to 57.9%, and the opposing-signal exit hurt TQQQ at every overbought threshold. Those figures need multi-year BTC/TQQQ daily history, no panel is committed, the providers 403 at this environment's proxy and the runs wrote no artifacts, so they are UNVERIFIABLE from this repository - same as E18 and F176. The decidable half is what each reversal LEFT BEHIND, and the four left four different kinds of residue.
+
+STRICT 50-MA GATE: reverted AND REPLACED. STRONG_BULL_REQUIRE_50MA survives as a tests-only constant, but a successor shipped - STRONG_BULL_SOFT_50MA_PCT, which is live and which F211 showed is near-inert on the hourly path.
+
+RSI 38-42 EXTRAS: removed cleanly. No constant at all survives. This is the model - the experiment was reverted and its parameters went with it, so nothing remains to mislead a reader.
+
+OPPOSING-SIGNAL EXIT: off but genuinely wired. USE_OPPOSING_SIGNAL_EXIT and OPPOSING_SIGNAL_EXIT_MODES are both read at runner.py:143-145.
+
+5% STRONG_BULL TARGET: UNREACHABLE, AND STILL ADVERTISED. TARGET_GAIN_PCT_STRONG_BULL = 0.03 appears in CLAUDE.md section 11's 'Config flags quick reference' - the section an agent reads to learn which knobs matter - annotated '3% (not 5% - 5% killed win rate)'. That reads as a tuned load-bearing parameter with a documented reason. It is referenced in exactly ONE place in the repository: its own definition in config.py.
+
+WHY IT CANNOT BE REACHED. Its suffix is a REGIME, not a MODE. Every dynamic lookup in this codebase is mode-keyed - getattr(config, f"TARGET_GAIN_PCT_{mode}") where mode ranges over config.ASSETS - and there is no regime-keyed dispatch anywhere, so no code path can build that string. RSI_OVERSOLD_BEAR = 30 has the same shape and its case is worse: it is the threshold for BEAR_DEFENSIVE_LONGS, which CLAUDE.md section 6 credits with turning '0 trades in 2022 BEAR' into 'small longs at RSI<30'. That flag is read in exactly one place, inside a block guarded by use_slope_regime and longs_only - the flags F26/F211 showed no backtest ever passes. So the feature is ENABLED IN CONFIG, GATED BY FLAGS NOTHING SUPPLIES, AND PARAMETERISED BY A CONSTANT NOTHING READS.
+
+A CORRECTION TO F226, ONE CYCLE LATER. The census classified both of these as 'dynamic' - reachable - because their names match a dispatch prefix. A PREFIX MATCH IS NOT REACHABILITY. The census now validates the suffix against config.ASSETS, and both move into the dead set: static 95, dynamic 81 to 79, tests-only 6, unreferenced 21 to 23, dead 27 to 29 of 203. The 4x over-report of a naive literal-name census (108) is unaffected - modelling the dispatch was the right call, modelling it LOOSELY was not.
+
+Guarded by tests/test_e19_regime_keyed_knobs.py (14 tests) with a non-vacuity check that the prefix alone WOULD still have credited both, so the suffix validation is doing work rather than decorating. The guard also fails if CLAUDE.md stops advertising the knob, or if its VALUE is edited - the latter because tuning a knob that governs nothing is precisely the cost being recorded. Nothing was changed in config.py or src/strategy/**, both fenced: annotating the dead knob, deleting it, or adding a regime-keyed lookup are all owner decisions. And this says nothing about whether a 3% STRONG_BULL target is a good idea; it says the number in the file is not the number any code uses.
+Links: [[E19|refines]] · [[F226|refines]] · [[F224|builds_on]] · [[F211|relates]].
+_— captured claude/research-continuation-ca1242@a85f096, 2026-07-26_

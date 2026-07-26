@@ -554,7 +554,7 @@
     },
     "RSI_OVERSOLD_BEAR": {
       "defined_in": "config.py",
-      "kind": "dynamic"
+      "kind": "tests-only"
     },
     "RSI_OVERSOLD_GDXU_HOURLY": {
       "defined_in": "config.py",
@@ -686,7 +686,7 @@
     },
     "TARGET_GAIN_PCT_STRONG_BULL": {
       "defined_in": "config.py",
-      "kind": "dynamic"
+      "kind": "tests-only"
     },
     "TARGET_GAIN_PCT_TNA_HOURLY": {
       "defined_in": "config.py",
@@ -814,10 +814,10 @@
     }
   },
   "counts": {
-    "dead_to_shipping": 27,
-    "dynamic": 81,
+    "dead_to_shipping": 29,
+    "dynamic": 79,
     "static": 95,
-    "tests-only": 6,
+    "tests-only": 8,
     "unreferenced": 21
   },
   "prefixes": [
@@ -832,5 +832,18 @@
     "TARGET_GAIN_PCT",
     "VWAP_WINDOW",
     "VWAP_ZSCORE_THRESH"
+  ],
+  "suffixes": [
+    "BTC",
+    "BTC_HOURLY",
+    "GDXU_HOURLY",
+    "HOURLY",
+    "LABU_HOURLY",
+    "QQQ",
+    "QQQ_HOURLY",
+    "SOXL",
+    "SOXL_HOURLY",
+    "TNA_HOURLY",
+    "TQQQ_HOURLY"
   ]
 }
