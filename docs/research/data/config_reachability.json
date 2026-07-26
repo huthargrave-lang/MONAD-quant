@@ -1,0 +1,836 @@
+{
+  "constants": {
+    "ACTIVE_MODE": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "ADAPTIVE_KELLY_HIGH_CAP": {
+      "defined_in": "config_modules/base.py",
+      "kind": "static"
+    },
+    "ADAPTIVE_KELLY_HIGH_MULT": {
+      "defined_in": "config_modules/base.py",
+      "kind": "static"
+    },
+    "ADAPTIVE_KELLY_HIGH_WR": {
+      "defined_in": "config_modules/base.py",
+      "kind": "static"
+    },
+    "ADAPTIVE_KELLY_LOOKBACK": {
+      "defined_in": "config_modules/base.py",
+      "kind": "static"
+    },
+    "ADAPTIVE_KELLY_LOW_MULT": {
+      "defined_in": "config_modules/base.py",
+      "kind": "static"
+    },
+    "ADAPTIVE_KELLY_LOW_WR": {
+      "defined_in": "config_modules/base.py",
+      "kind": "static"
+    },
+    "ADAPTIVE_KELLY_PAUSE_MULT": {
+      "defined_in": "config_modules/base.py",
+      "kind": "static"
+    },
+    "ADAPTIVE_KELLY_PAUSE_WR": {
+      "defined_in": "config_modules/base.py",
+      "kind": "static"
+    },
+    "ADX_BREAKOUT_MIN": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "ADX_PERIOD": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "ADX_STRONG_THRESH": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "ADX_WEAK_THRESH": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "ASSETS": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "ATR_PERIOD": {
+      "defined_in": "config.py",
+      "kind": "unreferenced"
+    },
+    "ATR_STOP_CAP_PCT": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "ATR_STOP_MULT": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "BACKTEST_DEBUG": {
+      "defined_in": "config_modules/base.py",
+      "kind": "static"
+    },
+    "BACKTEST_END": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "BACKTEST_END_GDXU_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "unreferenced"
+    },
+    "BACKTEST_END_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "BACKTEST_END_LABU_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "unreferenced"
+    },
+    "BACKTEST_END_QQQ": {
+      "defined_in": "config.py",
+      "kind": "unreferenced"
+    },
+    "BACKTEST_END_QQQ_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "unreferenced"
+    },
+    "BACKTEST_END_SOXL_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "unreferenced"
+    },
+    "BACKTEST_END_TNA_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "unreferenced"
+    },
+    "BACKTEST_END_TQQQ_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "unreferenced"
+    },
+    "BACKTEST_MODE": {
+      "defined_in": "config_modules/base.py",
+      "kind": "static"
+    },
+    "BACKTEST_START": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "BACKTEST_START_GDXU_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "unreferenced"
+    },
+    "BACKTEST_START_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "BACKTEST_START_LABU_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "unreferenced"
+    },
+    "BACKTEST_START_QQQ": {
+      "defined_in": "config.py",
+      "kind": "unreferenced"
+    },
+    "BACKTEST_START_QQQ_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "unreferenced"
+    },
+    "BACKTEST_START_SOXL_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "unreferenced"
+    },
+    "BACKTEST_START_TNA_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "unreferenced"
+    },
+    "BACKTEST_START_TQQQ_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "unreferenced"
+    },
+    "BB_STD": {
+      "defined_in": "config.py",
+      "kind": "unreferenced"
+    },
+    "BB_WINDOW": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "BB_WINDOW_GDXU_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "BB_WINDOW_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "BB_WINDOW_LABU_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "BB_WINDOW_QQQ_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "BB_WINDOW_SOXL_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "BB_WINDOW_TNA_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "BB_WINDOW_TQQQ_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "BEAR_DEFENSIVE_LONGS": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "BEAR_MAX_TRADE_BARS": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "BEAR_SHORT_MAX_BARS": {
+      "defined_in": "config.py",
+      "kind": "tests-only"
+    },
+    "BEAR_SHORT_STOP_PCT": {
+      "defined_in": "config.py",
+      "kind": "tests-only"
+    },
+    "BREAKOUT_WINDOW": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "BULL_BREAKOUT_ENABLED": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "DEFAULT_ASSET": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "FIXED_POSITION_PCT": {
+      "defined_in": "config_modules/base.py",
+      "kind": "static"
+    },
+    "HOURLY_TRADE_FILTER": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "HOURLY_TRADE_HOURS_END": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "HOURLY_TRADE_HOURS_START": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "IBKR_CLIENT_ID": {
+      "defined_in": "config_modules/live.py",
+      "kind": "static"
+    },
+    "IBKR_HOST": {
+      "defined_in": "config_modules/live.py",
+      "kind": "static"
+    },
+    "IBKR_PORT_LIVE": {
+      "defined_in": "config_modules/live.py",
+      "kind": "static"
+    },
+    "IBKR_PORT_PAPER": {
+      "defined_in": "config_modules/live.py",
+      "kind": "static"
+    },
+    "INITIAL_CAPITAL": {
+      "defined_in": "config_modules/base.py",
+      "kind": "static"
+    },
+    "KELLY_CLAMP_MAX": {
+      "defined_in": "config_modules/base.py",
+      "kind": "static"
+    },
+    "KELLY_CLAMP_MIN": {
+      "defined_in": "config_modules/base.py",
+      "kind": "static"
+    },
+    "KELLY_MULTIPLIER": {
+      "defined_in": "config_modules/base.py",
+      "kind": "static"
+    },
+    "KELLY_MULT_BEAR": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "KELLY_MULT_BEAR_LONG": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "KELLY_MULT_BEAR_SHORT": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "KELLY_MULT_BULL": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "KELLY_MULT_RECOVERING": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "KELLY_MULT_STALLING": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "KELLY_MULT_STRONG_BEAR": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "KELLY_MULT_STRONG_BEAR_SHORT": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "KELLY_MULT_STRONG_BULL": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "LIVE_BOOTSTRAP": {
+      "defined_in": "config_modules/live.py",
+      "kind": "unreferenced"
+    },
+    "LIVE_DRY_RUN": {
+      "defined_in": "config_modules/live.py",
+      "kind": "static"
+    },
+    "LIVE_MAX_BAR_STALENESS_HOURS": {
+      "defined_in": "config_modules/live.py",
+      "kind": "static"
+    },
+    "LIVE_MIN_TRADES_FOR_ADAPTIVE": {
+      "defined_in": "config_modules/live.py",
+      "kind": "unreferenced"
+    },
+    "LIVE_MIN_WARMUP_BARS": {
+      "defined_in": "config_modules/live.py",
+      "kind": "static"
+    },
+    "LIVE_PAPER_MODE": {
+      "defined_in": "config_modules/live.py",
+      "kind": "static"
+    },
+    "LIVE_SIGNAL_FAIL_ALERT_THRESHOLD": {
+      "defined_in": "config_modules/live.py",
+      "kind": "static"
+    },
+    "LIVE_SYMBOL": {
+      "defined_in": "config_modules/live.py",
+      "kind": "static"
+    },
+    "LONGS_ONLY": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "MACD_FAST": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "MACD_FAST_GDXU_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "MACD_FAST_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "MACD_FAST_LABU_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "MACD_FAST_QQQ_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "MACD_FAST_SOXL_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "MACD_FAST_TNA_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "MACD_FAST_TQQQ_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "MACD_SIGNAL": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "MACD_SIGNAL_GDXU_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "MACD_SIGNAL_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "MACD_SIGNAL_LABU_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "MACD_SIGNAL_QQQ_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "MACD_SIGNAL_SOXL_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "MACD_SIGNAL_TNA_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "MACD_SIGNAL_TQQQ_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "MACD_SLOW": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "MACD_SLOW_GDXU_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "MACD_SLOW_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "MACD_SLOW_LABU_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "MACD_SLOW_QQQ_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "MACD_SLOW_SOXL_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "MACD_SLOW_TNA_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "MACD_SLOW_TQQQ_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "MAX_POSITION_PCT": {
+      "defined_in": "config_modules/base.py",
+      "kind": "static"
+    },
+    "MAX_POSITION_PCT_STRONG_BULL": {
+      "defined_in": "config.py",
+      "kind": "tests-only"
+    },
+    "MAX_TRADE_BARS": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "MAX_TRADE_BARS_LIVE": {
+      "defined_in": "config_modules/live.py",
+      "kind": "static"
+    },
+    "MAX_TRADE_BARS_QQQ": {
+      "defined_in": "config.py",
+      "kind": "unreferenced"
+    },
+    "MAX_TRADE_BARS_STRONG_BULL": {
+      "defined_in": "config.py",
+      "kind": "unreferenced"
+    },
+    "MA_REGIME_WINDOW": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "MA_SHORT_WINDOW": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "MA_SLOPE_WINDOW": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "MA_STRONG_BEAR_SLOPE": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "MA_STRONG_BULL_SLOPE": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "MIN_POSITION_PCT": {
+      "defined_in": "config_modules/base.py",
+      "kind": "static"
+    },
+    "OPPOSING_SIGNAL_EXIT_MODES": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "PENDING_CLOSE_MAX_RETRIES": {
+      "defined_in": "config_modules/live.py",
+      "kind": "static"
+    },
+    "PLOT_RESULTS": {
+      "defined_in": "config_modules/base.py",
+      "kind": "static"
+    },
+    "POSITION_SIZING_MODE": {
+      "defined_in": "config_modules/base.py",
+      "kind": "static"
+    },
+    "REQUIRE_SIGNALS": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "ROC_PERIOD": {
+      "defined_in": "config.py",
+      "kind": "tests-only"
+    },
+    "ROC_PERIOD_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "unreferenced"
+    },
+    "RSI_OVERBOUGHT": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "RSI_OVERBOUGHT_BEAR": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "RSI_OVERBOUGHT_GDXU_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "RSI_OVERBOUGHT_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "RSI_OVERBOUGHT_LABU_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "RSI_OVERBOUGHT_QQQ": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "RSI_OVERBOUGHT_QQQ_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "RSI_OVERBOUGHT_SOXL_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "RSI_OVERBOUGHT_STRONG_BEAR": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "RSI_OVERBOUGHT_TNA_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "RSI_OVERBOUGHT_TQQQ_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "RSI_OVERSOLD": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "RSI_OVERSOLD_BEAR": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "RSI_OVERSOLD_GDXU_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "RSI_OVERSOLD_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "RSI_OVERSOLD_LABU_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "RSI_OVERSOLD_QQQ": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "RSI_OVERSOLD_QQQ_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "RSI_OVERSOLD_SOXL_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "RSI_OVERSOLD_TNA_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "RSI_OVERSOLD_TQQQ_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "RSI_PERIOD": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "RSI_PERIOD_GDXU_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "RSI_PERIOD_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "RSI_PERIOD_LABU_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "RSI_PERIOD_QQQ_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "RSI_PERIOD_SOXL_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "RSI_PERIOD_TNA_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "RSI_PERIOD_TQQQ_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "STOP_LOSS_PCT": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "STOP_LOSS_PCT_GDXU_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "STOP_LOSS_PCT_LABU_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "STOP_LOSS_PCT_QQQ": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "STOP_LOSS_PCT_QQQ_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "STOP_LOSS_PCT_SOXL_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "STOP_LOSS_PCT_TNA_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "STOP_LOSS_PCT_TQQQ_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "STRONG_BULL_REQUIRE_50MA": {
+      "defined_in": "config.py",
+      "kind": "tests-only"
+    },
+    "STRONG_BULL_SOFT_50MA_PCT": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "TARGET_GAIN_PCT": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "TARGET_GAIN_PCT_GDXU_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "TARGET_GAIN_PCT_LABU_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "TARGET_GAIN_PCT_QQQ": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "TARGET_GAIN_PCT_QQQ_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "TARGET_GAIN_PCT_SOXL_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "TARGET_GAIN_PCT_STRONG_BULL": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "TARGET_GAIN_PCT_TNA_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "TARGET_GAIN_PCT_TQQQ_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "TRADER_ALLOW_SHORTS": {
+      "defined_in": "config_modules/live.py",
+      "kind": "static"
+    },
+    "USE_ADAPTIVE_KELLY": {
+      "defined_in": "config_modules/base.py",
+      "kind": "static"
+    },
+    "USE_ADX_SIZING": {
+      "defined_in": "config.py",
+      "kind": "tests-only"
+    },
+    "USE_ATR_DYNAMIC_STOPS": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "USE_MA_REGIME_FILTER": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "USE_OPPOSING_SIGNAL_EXIT": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "USE_REGIME_FILTER": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "USE_REGIME_FILTER_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "USE_SLOPE_REGIME": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "USE_SOFTWARE_TAKE_PROFIT": {
+      "defined_in": "config_modules/live.py",
+      "kind": "static"
+    },
+    "VERBOSE_SIGNALS": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "VWAP_WINDOW": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "VWAP_WINDOW_GDXU_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "VWAP_WINDOW_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "VWAP_WINDOW_LABU_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "VWAP_WINDOW_QQQ_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "VWAP_WINDOW_SOXL_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "VWAP_WINDOW_TNA_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "VWAP_WINDOW_TQQQ_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "VWAP_ZSCORE_THRESH": {
+      "defined_in": "config.py",
+      "kind": "static"
+    },
+    "VWAP_ZSCORE_THRESH_GDXU_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "VWAP_ZSCORE_THRESH_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "VWAP_ZSCORE_THRESH_LABU_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "VWAP_ZSCORE_THRESH_QQQ": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "VWAP_ZSCORE_THRESH_QQQ_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "VWAP_ZSCORE_THRESH_SOXL_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "VWAP_ZSCORE_THRESH_TNA_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "VWAP_ZSCORE_THRESH_TQQQ_HOURLY": {
+      "defined_in": "config.py",
+      "kind": "dynamic"
+    },
+    "_MODE_TO_ASSET": {
+      "defined_in": "config.py",
+      "kind": "static"
+    }
+  },
+  "counts": {
+    "dead_to_shipping": 27,
+    "dynamic": 81,
+    "static": 95,
+    "tests-only": 6,
+    "unreferenced": 21
+  },
+  "prefixes": [
+    "BB_WINDOW",
+    "MACD_FAST",
+    "MACD_SIGNAL",
+    "MACD_SLOW",
+    "RSI_OVERBOUGHT",
+    "RSI_OVERSOLD",
+    "RSI_PERIOD",
+    "STOP_LOSS_PCT",
+    "TARGET_GAIN_PCT",
+    "VWAP_WINDOW",
+    "VWAP_ZSCORE_THRESH"
+  ]
+}
