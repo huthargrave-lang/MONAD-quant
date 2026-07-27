@@ -1,0 +1,188 @@
+{
+  "bands": [
+    {
+      "breakeven_wr_pct": 33.33,
+      "mode": "BTC",
+      "reward_risk": 2.0,
+      "stop_pct": 1.5,
+      "target_pct": 3.0
+    },
+    {
+      "breakeven_wr_pct": 33.33,
+      "mode": "BTC_HOURLY",
+      "reward_risk": 2.0,
+      "stop_pct": 0.2,
+      "target_pct": 0.4
+    },
+    {
+      "breakeven_wr_pct": 14.11,
+      "mode": "GDXU_HOURLY",
+      "reward_risk": 6.087,
+      "stop_pct": 0.46,
+      "target_pct": 2.8
+    },
+    {
+      "breakeven_wr_pct": 26.32,
+      "mode": "LABU_HOURLY",
+      "reward_risk": 2.8,
+      "stop_pct": 0.25,
+      "target_pct": 0.7
+    },
+    {
+      "breakeven_wr_pct": 37.5,
+      "mode": "QQQ",
+      "reward_risk": 1.6667,
+      "stop_pct": 0.6,
+      "target_pct": 1.0
+    },
+    {
+      "breakeven_wr_pct": 33.33,
+      "mode": "QQQ_HOURLY",
+      "reward_risk": 2.0,
+      "stop_pct": 0.12,
+      "target_pct": 0.24
+    },
+    {
+      "breakeven_wr_pct": 37.5,
+      "mode": "SOXL",
+      "reward_risk": 1.6667,
+      "stop_pct": 1.2,
+      "target_pct": 2.0
+    },
+    {
+      "breakeven_wr_pct": 33.33,
+      "mode": "SOXL_HOURLY",
+      "reward_risk": 2.0,
+      "stop_pct": 0.45,
+      "target_pct": 0.9
+    },
+    {
+      "breakeven_wr_pct": 31.25,
+      "mode": "TNA_HOURLY",
+      "reward_risk": 2.2,
+      "stop_pct": 0.15,
+      "target_pct": 0.33
+    },
+    {
+      "breakeven_wr_pct": 33.33,
+      "mode": "TQQQ_HOURLY",
+      "reward_risk": 2.0,
+      "stop_pct": 0.5,
+      "target_pct": 1.0
+    }
+  ],
+  "counts": {
+    "modes": 10,
+    "modes_at_seed_ratio": 5,
+    "stop_spread_x": 12.5,
+    "targets_that_cannot_reach_seed": 3,
+    "targets_whose_incumbent_is_untested": 4
+  },
+  "modes_at_seed_ratio": [
+    "BTC",
+    "BTC_HOURLY",
+    "QQQ_HOURLY",
+    "SOXL_HOURLY",
+    "TQQQ_HOURLY"
+  ],
+  "seed_ratio": 2.0,
+  "subject": "repository",
+  "sweep_reach": [
+    {
+      "can_reach_seed_ratio": true,
+      "incumbent_stop_in_grid": true,
+      "rr_max": 2.0,
+      "rr_min": 1.2,
+      "target_pct": 0.3,
+      "usable_stops": 3
+    },
+    {
+      "can_reach_seed_ratio": true,
+      "incumbent_stop_in_grid": true,
+      "rr_max": 2.6667,
+      "rr_min": 1.1429,
+      "target_pct": 0.4,
+      "usable_stops": 5
+    },
+    {
+      "can_reach_seed_ratio": true,
+      "incumbent_stop_in_grid": true,
+      "rr_max": 3.3333,
+      "rr_min": 1.25,
+      "target_pct": 0.5,
+      "usable_stops": 6
+    },
+    {
+      "can_reach_seed_ratio": true,
+      "incumbent_stop_in_grid": true,
+      "rr_max": 4.0,
+      "rr_min": 1.2,
+      "target_pct": 0.6,
+      "usable_stops": 7
+    },
+    {
+      "can_reach_seed_ratio": true,
+      "incumbent_stop_in_grid": true,
+      "rr_max": 4.6667,
+      "rr_min": 1.1667,
+      "target_pct": 0.7,
+      "usable_stops": 8
+    },
+    {
+      "can_reach_seed_ratio": true,
+      "incumbent_stop_in_grid": true,
+      "rr_max": 5.3333,
+      "rr_min": 1.3333,
+      "target_pct": 0.8,
+      "usable_stops": 8
+    },
+    {
+      "can_reach_seed_ratio": true,
+      "incumbent_stop_in_grid": false,
+      "rr_max": 6.0,
+      "rr_min": 1.5,
+      "target_pct": 0.9,
+      "usable_stops": 8
+    },
+    {
+      "can_reach_seed_ratio": true,
+      "incumbent_stop_in_grid": true,
+      "rr_max": 6.6667,
+      "rr_min": 1.6667,
+      "target_pct": 1.0,
+      "usable_stops": 8
+    },
+    {
+      "can_reach_seed_ratio": true,
+      "incumbent_stop_in_grid": true,
+      "rr_max": 8.0,
+      "rr_min": 2.0,
+      "target_pct": 1.2,
+      "usable_stops": 8
+    },
+    {
+      "can_reach_seed_ratio": false,
+      "incumbent_stop_in_grid": false,
+      "rr_max": 9.3333,
+      "rr_min": 2.3333,
+      "target_pct": 1.4,
+      "usable_stops": 8
+    },
+    {
+      "can_reach_seed_ratio": false,
+      "incumbent_stop_in_grid": false,
+      "rr_max": 10.6667,
+      "rr_min": 2.6667,
+      "target_pct": 1.6,
+      "usable_stops": 8
+    },
+    {
+      "can_reach_seed_ratio": false,
+      "incumbent_stop_in_grid": false,
+      "rr_max": 13.3333,
+      "rr_min": 3.3333,
+      "target_pct": 2.0,
+      "usable_stops": 8
+    }
+  ]
+}

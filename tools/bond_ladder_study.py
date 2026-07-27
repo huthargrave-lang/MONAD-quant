@@ -42,6 +42,9 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import data_cache  # noqa: E402  (validated cache: never trust a stub, never write one)
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import static_product_study as sps   # noqa: E402  pmetrics / simple_ret
 
 CACHE_Y = "/tmp/bond_ladder_yields.csv"      # constant-maturity Treasury yields (^IRX/^FVX/^TNX/^TYX)
@@ -66,8 +69,17 @@ def _to_dt(df):
 
 
 def load_yields():
-    if os.path.exists(CACHE_Y):
-        return _to_dt(pd.read_csv(CACHE_Y, index_col=0))
+    def _fetch():
+        return _fetch_yields()
+
+    # Monthly series since ~1990 for the long tenors, so 200 months is a floor a
+    # real panel clears easily while a stub or partial fetch does not (F144).
+    return data_cache.load_cached_frame(
+        CACHE_Y, _fetch, min_rows=200, label="bond_ladder_yields",
+        read_csv=lambda path: _to_dt(pd.read_csv(path, index_col=0)))
+
+
+def _fetch_yields():
     import yfinance as yf
     cols = {}
     for t in YT:
@@ -75,9 +87,7 @@ def load_yields():
         h.index = pd.to_datetime(h.index, utc=True).tz_localize(None)
         cols[t] = h["Close"]
     y = pd.DataFrame(cols).dropna(how="all")
-    y = y.resample("ME").last() / 100.0       # month-end, decimal yields
-    y.to_csv(CACHE_Y)
-    return y
+    return y.resample("ME").last() / 100.0    # month-end, decimal yields
 
 
 def load_etfs():
@@ -85,14 +95,20 @@ def load_etfs():
           "IBDQ", "IBDR", "IBDS", "IBDT",                 # iBonds IG corp rungs (2025-2028)
           "BSCP", "BSCQ", "BSCR", "BSCS",                 # BulletShares IG corp rungs (2025-2028)
           "IEF", "IEI", "SHY", "BIL", "LQD", "SPY", "AGG"]  # const-maturity Tsy 7-10y/3-7y/1-3y/T-bill + IG + equity
+    # The column check below was already here and is kept — it re-fetches when a
+    # ticker is ADDED. What it could not catch is a header-only stub, which has
+    # every column and zero rows; required_cols + min_rows closes that.
+    def _fetch():
+        import yfinance as yf
+        return yf.download(tk, start="2014-01-01", end="2026-06-20", interval="1d",
+                           progress=False, auto_adjust=True)["Close"]
+
     if os.path.exists(CACHE_E):
         cached = pd.read_csv(CACHE_E, index_col=0, parse_dates=True)
-        if all(t in cached.columns for t in tk):
-            return cached                                 # cache hit only if it has every required ticker
-    import yfinance as yf                                 # else re-fetch (e.g. a ticker was added) and rewrite cache
-    raw = yf.download(tk, start="2014-01-01", end="2026-06-20", interval="1d",
-                      progress=False, auto_adjust=True)["Close"]
-    raw.to_csv(CACHE_E)
+        if not all(t in cached.columns for t in tk):
+            os.remove(CACHE_E)                            # a ticker was added: force a re-fetch
+    raw = data_cache.load_cached_frame(
+        CACHE_E, _fetch, min_rows=500, required_cols=tk, label="bond_ladder_etfs")
     return raw
 
 

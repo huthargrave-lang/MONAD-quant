@@ -18,6 +18,7 @@ being re-derived by the next agent (see CONTEXT_KIT.md). Safety by construction:
   venv/bin/python tools/note.py add --kind F --title "..." --body "..." \
       [--link E7:evidenced_by --link F13:supersedes] [--commit]
   venv/bin/python tools/note.py supersede F3 --by F13 --reason data-fixed [--commit]
+  venv/bin/python tools/note.py link F140 H27 --type supports [--commit]
 """
 from __future__ import annotations
 import argparse
@@ -57,8 +58,39 @@ def existing_ids(text):
     return [m.group(1) for m in (HDR.match(l) for l in text.splitlines()) if m]
 
 
-def next_id(text, kind):
+def _remote_ids(kind):
+    """IDs of `kind` already taken on the deploy branch, if it is reachable offline.
+
+    H41: allocation read the LOCAL working tree only, so a session on a stale base
+    hands out an ID a parallel session already used. That happened at the 2026-07-06
+    merge — two sessions both allocated D7/D8, producing duplicate headings on
+    origin/development that had to be renumbered by hand. This consults the deploy
+    branch's committed web through `git show`, which needs no network: whatever was
+    last FETCHED is already in the object store. It cannot see a sibling's unpushed
+    work, so it narrows the window rather than closing it — a duplicate that slips
+    through is still caught by `ctx web --lint`, which now fails on duplicate headings.
+    """
+    branch = ctx._manifest().get("deploy_branch", "")
+    if not branch:
+        return []
+    for ref in (f"origin/{branch}", branch):
+        blob = ctx._git("show", f"{ref}:RESEARCH_WEB.md")
+        if blob:
+            return [int(i[1:]) for i in existing_ids(blob)
+                    if i[0] == kind and i[1:].isdigit()]
+    return []
+
+
+def next_id(text, kind, remote=False):
+    """One past the highest ID of `kind` in `text` — pure by default.
+
+    `remote=True` also consults the deploy branch (see `_remote_ids`). The default
+    stays pure because this lives under "pure helpers (unit-tested)" and callers that
+    want the collision-resistant answer should say so; `cmd_add` does.
+    """
     nums = [int(i[1:]) for i in existing_ids(text) if i[0] == kind and i[1:].isdigit()]
+    if remote:
+        nums += _remote_ids(kind)
     return f"{kind}{max(nums, default=0) + 1}"
 
 
@@ -94,6 +126,40 @@ def apply_supersede(text, old, new, reason, date):
                 if re.match(r"^###\s+[A-Za-z]+\d+\s+[—-]", lines[j])), len(lines))
     if f"[[{old}" not in "".join(lines[ni:end]):     # ensure NEW carries the lineage edge
         lines.insert(end, f"Supersedes [[{old}|supersedes]].\n")
+    return "".join(lines)
+
+
+def apply_link(text, src, target, etype):
+    """Append `[[target|etype]]` to `src`'s node block, as a pure text transform.
+
+    The web had no way to say "this existing Finding answers that existing Hypothesis".
+    The only writers were `add` and `supersede`, so recording an answer meant minting a
+    NEW node whose whole content was an edge — which is why 26 of 43 queue items are
+    hypotheses a Finding already settled while linking them with `relates` (F222).
+
+    Appends to an existing `Links:` line when there is one, else adds a new one at the
+    end of the block, so the rendering matches `render_add`.
+    """
+    lines = text.splitlines(keepends=True)
+    rx = re.compile(rf"^###\s+{re.escape(src)}\s+[—-]\s+")
+    si = next((i for i, l in enumerate(lines) if rx.match(l)), None)
+    if si is None:
+        raise KeyError(src)
+    end = next((j for j in range(si + 1, len(lines))
+                if re.match(r"^###\s+[A-Za-z]+\d+\s+[—-]", lines[j])), len(lines))
+    edge = f"[[{target}|{etype}]]"
+    for i in range(si + 1, end):
+        if lines[i].startswith("Links:"):
+            body = lines[i].rstrip("\n").rstrip(".")
+            lines[i] = body + " · " + edge + ".\n"
+            return "".join(lines)
+    # No Links line: insert one before the trailing provenance italic, if present.
+    insert_at = end
+    for i in range(end - 1, si, -1):
+        if lines[i].strip():
+            insert_at = i if lines[i].startswith("_—") else i + 1
+            break
+    lines.insert(insert_at, f"Links: {edge}.\n")
     return "".join(lines)
 
 
@@ -314,7 +380,7 @@ def cmd_add(args):
             if ty in ctx.RELIANCE_EDGES and ctx._is_superseded(nodes[tid]):
                 sys.exit(f"reliance edge '{ty}' to superseded {tid} — use relates/supersedes/contradicts")
             links.append((tid, ty))
-        nid = next_id(text, args.kind)
+        nid = next_id(text, args.kind, remote=True)
         block = render_add(nid, title, args.body, links, datetime.date.today().isoformat())
         return text + block, block.strip(), f"add {nid}"
     return _locked_commit(real_target, build, 1, args.commit)
@@ -337,6 +403,48 @@ def cmd_supersede(args):
                    + (f" (reason: {reason})" if reason else "")
                    + f"; ensure {args.by} carries [[{args.old}|supersedes]]")
         return candidate, preview, f"supersede {args.old}"
+    return _locked_commit(real_target, build, 0, args.commit)
+
+
+def cmd_link(args):
+    """Add ONE typed edge to an existing node. Same fence, lock, lint and atomicity."""
+    etype = args.type.strip().lower()
+    if etype not in ctx.EDGE_TYPES:
+        sys.exit(f"--type must be one of {sorted(ctx.EDGE_TYPES)}")
+    real_repo, real_target = _fence()
+
+    def build(text):
+        nodes = _parse(text)[0]
+        for nid in (args.src, args.target):
+            if nid not in nodes:
+                sys.exit(f"{nid} does not exist")
+        if args.src == args.target:
+            sys.exit("a node cannot link to itself")
+        # Check by TARGET, not by (target, type). `_parse_web_text` keeps ONE edge per
+        # (source, target) pair — at equal rank a reliance edge beats a non-reliance
+        # one, and when BOTH are reliance edges the first simply wins. So writing a
+        # second type to a target that already has one produces a link the parser
+        # silently discards: the command reports success and nothing changes.
+        #
+        # That is not hypothetical. `note.py link F205 H31 --type supports` was run and
+        # reported "F205 --supports--> H31"; F205 already carried [[H31|refines]], both
+        # are reliance edges, so `refines` won and the new edge vanished. H31 therefore
+        # stayed on the backlog as "no Finding supports it" while an explicit supports
+        # link sat in the source. Five such conflicting pairs already exist in the web.
+        by_target = {e["target"]: e["type"] for e in nodes[args.src]["edges"]}
+        if args.target in by_target:
+            have = by_target[args.target]
+            if have == etype:
+                sys.exit(f"{args.src} already carries [[{args.target}|{etype}]]")
+            sys.exit(
+                f"{args.src} already carries [[{args.target}|{have}]]. The parser keeps "
+                f"ONE edge per target, so adding '{etype}' would be silently discarded. "
+                f"Edit the existing edge if '{etype}' is the truer relation.")
+        if etype in ctx.RELIANCE_EDGES and ctx._is_superseded(nodes[args.target]):
+            sys.exit(f"reliance edge '{etype}' to superseded {args.target}")
+        candidate = apply_link(text, args.src, args.target, etype)
+        return (candidate, f"{args.src} --{etype}--> {args.target}",
+                f"link {args.src}->{args.target}")
     return _locked_commit(real_target, build, 0, args.commit)
 
 
@@ -499,6 +607,13 @@ def main():
     s.add_argument("--reason", default=None, help="one of: " + ", ".join(sorted(ctx.REASON_CODES)))
     s.add_argument("--commit", action="store_true")
     s.set_defaults(fn=cmd_supersede)
+    ln = sub.add_parser("link", help="add ONE typed edge to an existing node")
+    ln.add_argument("src", help="the node the edge comes FROM")
+    ln.add_argument("target", help="the node the edge points AT")
+    ln.add_argument("--type", required=True,
+                    help="one of: " + ", ".join(sorted(ctx.EDGE_TYPES)))
+    ln.add_argument("--commit", action="store_true", help="actually write (default: dry run)")
+    ln.set_defaults(fn=cmd_link)
     dr = sub.add_parser("draft", help="print a ready-to-run `note.py add` command from the most recent experiments.jsonl entry")
     dr.add_argument("--entry", type=int, default=1, metavar="N",
                     help="which entry to use (1=most recent, 2=second-most-recent, …); default: 1")

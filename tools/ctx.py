@@ -75,32 +75,136 @@ def _route_tokens(text: str):
     return toks | {_stem(t) for t in toks}
 
 
+# Function words that carry no routing information. A multi-word key used to fire on
+# ANY of its tokens, so `on_bar` matched every sentence containing "on", `why did it
+# exit` matched every sentence containing "it", and `add ticker` matched "add". Measured
+# on 12 off-domain English sentences with nothing to do with this project, 5 routed —
+# "add the flour slowly while whisking the eggs" scored 3 on param/sweep/backtest, higher
+# than most real queries. A confident wrong READ list is worse than no route.
+_ROUTE_STOPWORDS = {
+    "a", "an", "the", "is", "are", "was", "were", "be", "been", "it", "its", "of", "to",
+    "in", "on", "at", "for", "and", "or", "not", "no", "do", "did", "does", "how",
+    "what", "why", "when", "where", "which", "my", "me", "i", "we", "you", "this",
+    "that", "with", "from", "by", "as", "so", "up", "out", "if",
+}
+
+
+def _key_tokens(key: str):
+    """The tokens a routing key must ALL match on, stopwords dropped.
+
+    Dropping stopwords first is what keeps `not running` firing on "running" and
+    `why did it exit` firing on "exit" while neither fires on an unrelated sentence
+    that merely contains "not" or "it". A key made entirely of stopwords keeps them,
+    so it degenerates to requiring the whole phrase rather than matching everything.
+    """
+    toks = re.findall(r"[a-z0-9]+", key.lower())
+    core = [t for t in toks if t not in _ROUTE_STOPWORDS]
+    return core or toks
+
+
 def _route_rules(task):
     """Score routing rules for a task string. Returns [(score, hits, rule), ...]
-    sorted desc. Tokenized + stemmed + synonym-expanded (shared by route & brief)."""
+    sorted desc. Tokenized + stemmed + synonym-expanded (shared by route & brief).
+
+    A key matches when EVERY one of its informative tokens is present. Matching on any
+    single token made common English words into routing triggers — see _ROUTE_STOPWORDS.
+    """
     task = task.lower()
     qtoks = _route_tokens(task)
     m = _manifest()
     synonyms = m.get("routing_synonyms", {})
+
+    def matches(key):
+        toks = _key_tokens(key)
+        return bool(toks) and all(({t} | {_stem(t)}) & qtoks for t in toks)
+
     expanded = set(task.split())
     for concept, kws in synonyms.items():
-        if any(t in qtoks for t in _route_tokens(concept)):
+        # `_README` documents the block; its value is prose, and `set.update(str)` would
+        # splice in one member per character.
+        if concept.startswith("_") or not isinstance(kws, list):
+            continue
+        if matches(concept):
             expanded.update(kws)
     scored = []
     for r in m["routing"]:
-        hits = []
-        for k in r["keywords"]:
-            phrase = " " in k or "-" in k
-            if (phrase and k in task) or (not phrase and (_route_tokens(k) & qtoks)) or (k in expanded):
-                hits.append(k)
-        score = sum(2 if (" " in h or "-" in h) else 1 for h in hits)
+        hits = [k for k in r["keywords"] if matches(k) or k in expanded]
+        score = sum(2 if len(_key_tokens(h)) > 1 else 1 for h in hits)
         if score:
             scored.append((score, hits, r))
     scored.sort(key=lambda x: -x[0])
     return scored
 
 
+# Off-domain English with nothing to do with this project. A router that answers these
+# is matching noise, and a confident wrong READ list costs more than a miss. Kept in the
+# tool rather than the test so `ctx route --audit` reports both error directions at once.
+ROUTE_NEGATIVE_CONTROLS = [
+    "the quick brown fox jumps over the lazy dog",
+    "preheat the oven to 200 degrees and butter the tin",
+    "trains to the coast leave every hour from platform nine",
+    "she returned the library books before the rain started",
+    "the committee postponed the vote until the following spring",
+    "paint the fence twice and let it dry overnight",
+    "he learned to play the cello at the age of forty",
+    "the museum opens at ten and closes at six on weekdays",
+    "add the flour slowly while whisking the eggs",
+    "the cat slept on the windowsill all afternoon",
+    "our flight was delayed because of fog in the valley",
+    "she wrote three chapters before breakfast every morning",
+]
+
+
+def route_audit(n_commits: int = 400):
+    """Measure the router against language written for other purposes.
+
+    Two corpora the routing table was NOT authored against — recent commit subjects and
+    research-web node titles — plus the off-domain negative controls. Returns miss rates
+    and the most common informative words in un-routed queries, which is the list of
+    synonyms worth adding next.
+    """
+    subjects = [l.strip() for l in _git("log", "--format=%s", "-n", str(n_commits))
+                .splitlines() if l.strip()]
+    titles = [m.group(1) for m in
+              re.finditer(r"^### [FHED]\d+ — (.+)$",
+                          open(os.path.join(REPO, "RESEARCH_WEB.md"),
+                               encoding="utf-8").read(), re.M)]
+    out = {}
+    for name, corpus in (("commit subjects", subjects), ("web node titles", titles)):
+        missed = [q for q in corpus if not _route_rules(q.lower())]
+        out[name] = {"n": len(corpus), "missed": len(missed),
+                     "miss_rate": len(missed) / len(corpus) if corpus else 0.0,
+                     "examples": missed[:5]}
+    false_pos = [q for q in ROUTE_NEGATIVE_CONTROLS if _route_rules(q)]
+    out["negative controls"] = {"n": len(ROUTE_NEGATIVE_CONTROLS),
+                                "routed": len(false_pos), "examples": false_pos}
+    import collections
+    counts = collections.Counter()
+    for q in [x for c in (subjects, titles) for x in c if not _route_rules(x.lower())]:
+        for tok in re.findall(r"[a-z]{4,}", q.lower()):
+            if tok not in _ROUTE_STOPWORDS:
+                counts[tok] += 1
+    out["unrouted_vocabulary"] = counts.most_common(20)
+    return out
+
+
 def cmd_route(args):
+    if getattr(args, "audit", False):
+        report = route_audit()
+        for name in ("commit subjects", "web node titles"):
+            r = report[name]
+            print("{:18s} miss {:>3}/{:<4} ({:.0%})".format(
+                name, r["missed"], r["n"], r["miss_rate"]))
+            for ex in r["examples"][:3]:
+                print("      unrouted: {}".format(ex[:88]))
+        nc = report["negative controls"]
+        print("{:18s} {}/{} off-domain sentences routed{}".format(
+            "false positives", nc["routed"], nc["n"],
+            " — " + "; ".join(nc["examples"]) if nc["examples"] else ""))
+        print("\nmost common words in unrouted queries (synonym candidates):")
+        print("  " + ", ".join("{} x{}".format(w, c)
+                               for w, c in report["unrouted_vocabulary"]))
+        return
     task = " ".join(args.task).lower()
     scored = _route_rules(task)
     if not scored:
@@ -795,6 +899,38 @@ def _compound(returns, fraction=1.0):
     return (e - 1) * 100
 
 
+def perf_summary():
+    """One line of live truth for the cold-start rider (H16/DP-9), or an explicit
+    statement that there is none.
+
+    `ctx perf` leads with the CONFIRMED edge, but `ctx brief`/`ctx frontier` pulled only
+    node counts, so the ALL-vs-CONFIRMED gap could be skimmed past at cold start — which
+    is the moment it matters most. This shares cmd_perf's ledger read so the rider and
+    the command cannot drift apart into two different numbers for the same thing.
+
+    The three states are all SPOKEN, never omitted: an absent ledger, an empty ledger,
+    and a measured edge read very differently, and a rider that simply drops the line
+    when state.db is missing leaves an agent unable to tell "no edge" from "nobody
+    looked" (the absence-flag failure of F155/F159/F188).
+    """
+    if not os.path.exists(DB):
+        return "live perf UNAVAILABLE here (no live/state.db — worktree/CI, not 'no edge')"
+    try:
+        conn = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
+        rows = conn.execute("SELECT return_pct, exit_type FROM trades").fetchall()
+    except Exception:
+        return "live perf UNAVAILABLE (state.db present but unreadable/unexpected schema)"
+    if not rows:
+        return "live edge UNMEASURED (state.db has 0 trades — an empty ledger is not evidence)"
+    allr = [r for r, _ in rows]
+    confr = [r for r, e in rows if e in CONFIRMED]
+    F = LIVE_POSITION_FRACTION
+    conf_c, all_c = _compound(confr, F), _compound(allr, F)
+    wr = (sum(1 for x in confr if x > 0) / len(confr) * 100) if confr else 0.0
+    return (f"live CONFIRMED n={len(confr)} WR={wr:.0f}% account={conf_c:+.2f}%"
+            f" (ALL {all_c:+.2f}% — cite CONFIRMED)")
+
+
 def cmd_perf(args):
     if not os.path.exists(DB):
         print("  ⚠ live/state.db not present — live performance is UNAVAILABLE here")
@@ -853,6 +989,117 @@ def cmd_status(args):
 def cmd_recent(args):
     n = args.n
     print(_git("log", "--oneline", "-n", str(n), "--stat", "--no-decorate") or "(no git)")
+
+
+def doc_topology():
+    """The doc-ownership table, generated from `context_docs` (H39/DP-15).
+
+    The 'why vs how' split was hand-restated in four prose docs and machine-readably in
+    the manifest, with only the manifest CI-bound. Rather than test four prose tables
+    against each other, generate the one true table here and give the prose something to
+    point at. Also reports, per registered doc, which OTHER registered docs name it —
+    that is where restatement drift becomes visible.
+    """
+    m = _manifest()
+    groups = m.get("context_docs", {})
+    registered = [d for docs in groups.values() for d in docs]
+    text = {}
+    for doc in registered:
+        path = os.path.join(REPO, doc)
+        text[doc] = (open(path, encoding="utf-8").read()
+                     if os.path.exists(path) else None)
+    rows = []
+    for group, docs in groups.items():
+        for doc in docs:
+            body = text[doc]
+            named_by = sorted(other for other in registered
+                              if other != doc and text.get(other)
+                              and doc in text[other])
+            rows.append({
+                "group": group, "doc": doc,
+                "exists": body is not None,
+                "lines": len(body.splitlines()) if body else 0,
+                "named_by": named_by,
+            })
+    # A registered doc that points at a path which does not exist is a navigation
+    # hazard: an agent routed there looks for a file the repo never had. Two classes of
+    # false positive have to be excluded or the report is noise. RUNTIME paths
+    # (local_logs/, data/live_runs/…) are produced by a running bot and are absent by
+    # design in a clone. BARE FILENAMES are often written without their directory —
+    # `ix00_ndx_recent_complete_panel.json` lives under docs/research/data/ — so a
+    # basename that resolves anywhere in the repo is not dangling.
+    # A plan or a ledger is SUPPOSED to be able to name something that does not exist
+    # yet — IMPROVEMENT_PLAN proposes `src/analysis/performance.py`, and RESEARCH_WEB's
+    # F208 describes its absence. Reported separately so the navigation hazard is not
+    # buried under expected proposals. (Third place in this repo needing this split: a
+    # ledger must be able to DESCRIBE an absence without the detector reading it as a
+    # broken link.)
+    planning = {"IMPROVEMENT_PLAN.md", "AGENT_CONTEXT_PLAN.md", "VISION.md",
+                "RESEARCH_WEB.md"}
+    runtime_prefixes = ("local_logs/", "local_runtime/", "data/live_runs/", "venv/")
+    present_basenames = set()
+    for root, dirs, files in os.walk(REPO):
+        dirs[:] = [d for d in dirs if not d.startswith(".")
+                   and d not in ("venv", "__pycache__", "node_modules")]
+        present_basenames.update(files)
+    dangling = {}
+    for doc in registered:
+        if not text.get(doc):
+            continue
+        refs = re.findall(r"`([\w./-]+\.(?:py|json|yaml|yml|md))`", text[doc])
+        missing = sorted({
+            ref for ref in refs
+            if ("/" in ref or ref.endswith((".json", ".yaml", ".yml")))
+            and not ref.startswith(runtime_prefixes)
+            and not os.path.exists(os.path.join(REPO, ref))
+            and os.path.basename(ref) not in present_basenames})
+        if missing:
+            dangling[doc] = missing
+    # A plan naming something unbuilt is fine. A plan naming something that WAS built
+    # under a different extension is stale, not pending — `context_map.yaml` was shipped
+    # as `context_map.json`, and an agent sent there hunts a file that never existed.
+    stems = {os.path.splitext(b)[0]: b for b in present_basenames}
+    renamed = {}
+    for doc, refs in list(dangling.items()):
+        hits = {ref: stems[os.path.splitext(os.path.basename(ref))[0]]
+                for ref in refs
+                if os.path.splitext(os.path.basename(ref))[0] in stems}
+        if hits:
+            renamed[doc] = hits
+            rest = [r for r in refs if r not in hits]
+            if rest:
+                dangling[doc] = rest
+            else:
+                del dangling[doc]
+    proposed = {d: refs for d, refs in dangling.items() if os.path.basename(d) in planning}
+    dangling = {d: refs for d, refs in dangling.items() if d not in proposed}
+    return {"rows": rows, "dangling": dangling, "proposed": proposed, "renamed": renamed}
+
+
+def cmd_docs(args):
+    topo = doc_topology()
+    width = max(len(r["doc"]) for r in topo["rows"])
+    current = None
+    for row in sorted(topo["rows"], key=lambda r: (r["group"], r["doc"])):
+        if row["group"] != current:
+            current = row["group"]
+            print("\n{}".format(current))
+        print("  {:<{w}}  {:>5} lines  {}  named by: {}".format(
+            row["doc"], row["lines"], "ok " if row["exists"] else "MISSING",
+            ", ".join(row["named_by"]) or "— nothing", w=width))
+    if topo["dangling"]:
+        print("\nDANGLING (a navigation/ops doc names a path that does not exist):")
+        for doc, refs in sorted(topo["dangling"].items()):
+            print("  {} -> {}".format(doc, ", ".join(refs)))
+    if topo["renamed"]:
+        print("\nSTALE NAME (the artifact exists under a different extension):")
+        for doc, hits in sorted(topo["renamed"].items()):
+            for ref, actual in sorted(hits.items()):
+                print("  {} says {} — the repo has {}".format(doc, ref, actual))
+    if topo["proposed"]:
+        print("\nnamed-but-unbuilt in planning/ledger docs (expected — proposals):")
+        for doc, refs in sorted(topo["proposed"].items()):
+            print("  {} -> {}".format(doc, ", ".join(refs)))
 
 
 def cmd_map(args):
@@ -918,12 +1165,34 @@ _EDGE_CUES = [
 _LINK_RX = re.compile(r"\[\[([A-Za-z]+\d+)(?:\|([^\]]*))?\]\]")
 
 
+# A cue inside a PASSIVE construction points the other way, and usually names a
+# different subject. "F15 is formally superseded by [[F22]]" means F22 supersedes F15
+# — not that the node whose body this is supersedes F22. The old inference produced
+# exactly that: D4 --supersedes--> F22 and D7 --supersedes--> F22, false on both the
+# direction and the subject, on the node recording the project's central question.
+# Declining to infer (falling back to `relates`) is the honest response: the prose
+# establishes a relation between two OTHER nodes, so nothing about THIS node's edge is
+# determined. Guessing the reverse type would be a second guess on top of the first.
+_PASSIVE_CUE = re.compile(
+    r"\b(?:is|are|was|were|be|been|being)\s+"
+    r"(?:\w+ly\s+|now\s+|already\s+|later\s+|then\s+){0,2}$")
+
+
+def _is_passive(window, pos, cue_len):
+    """True when the cue at `pos` sits in a '<be-verb> ... <cue> by' construction."""
+    if not _PASSIVE_CUE.search(window[:pos]):
+        return False
+    tail = window[pos + cue_len:]
+    return bool(re.match(r"\w*\s+by\b", tail))
+
+
 def _classify_edge(pre):
     """Infer an edge type from the prose immediately preceding a [[link]]. Looks
     only within the current sentence/line (no cross-clause bleed); matches cues on
-    word boundaries with a negation guard ('not'/'un' → skip), and lets a RELIANCE
-    verb win over a closer lineage cue so reliance-on-superseded stays decidable.
-    Returns a canonical type, default 'relates'."""
+    word boundaries with a negation guard ('not'/'un' → skip) and a PASSIVE-voice
+    guard ('X is superseded by [[Y]]' → decline, see _is_passive), and lets a
+    RELIANCE verb win over a closer lineage cue so reliance-on-superseded stays
+    decidable. Returns a canonical type, default 'relates'."""
     brk = max(pre.rfind(". "), pre.rfind("\n"), pre.rfind("; "), pre.rfind("! "))
     window = (pre[brk + 1:] if brk >= 0 else pre)[-90:].lower()
     reliance, other = (-1, None), (-1, None)   # (pos, type) of nearest reliance / lineage cue
@@ -934,6 +1203,8 @@ def _classify_edge(pre):
             if window[max(0, pos - 4):pos].endswith(("not ", "no ")) or \
                     window[max(0, pos - 2):pos] == "un":
                 continue  # negated reference ('not supported', 'unsupported') — not an edge
+            if _is_passive(window, pos, mm.end() - mm.start()):
+                continue  # direction reversed and subject is another node — decline
             if etype in RELIANCE_EDGES:
                 if pos > reliance[0]:
                     reliance = (pos, etype)
@@ -948,6 +1219,44 @@ def _parse_web():
         return {}, {}
     with open(WEB) as f:
         return _parse_web_text(f.read())
+
+
+def _web_text():
+    """The working-tree research web as raw text (duplicate headings intact)."""
+    if not os.path.exists(WEB):
+        return ""
+    with open(WEB, encoding="utf-8") as fh:
+        return fh.read()
+
+
+def duplicate_node_ids(text):
+    """{node_id: count} for every ID declared more than once.
+
+    `_parse_web_text` keys nodes by ID, so a duplicate heading does not error — the
+    later definition REPLACES the earlier one and the first node vanishes from every
+    downstream view. This detects the condition on the raw text, before parsing.
+    """
+    counts = {}
+    hdr = re.compile(r"^###\s+([A-Za-z]+\d+)\s+[—-]\s+")
+    for line in text.splitlines():
+        m = hdr.match(line.rstrip())
+        if m:
+            counts[m.group(1)] = counts.get(m.group(1), 0) + 1
+    return {nid: c for nid, c in counts.items() if c > 1}
+
+
+#: Fenced blocks first, so a ``` block containing single backticks is consumed whole.
+_CODE_SPAN_RX = re.compile(r"```.*?```|``[^`]*``|`[^`\n]*`", re.S)
+
+
+def _code_spans(text):
+    """[(start, end)] of markdown code spans — the web's escape form for its own links.
+
+    A node that writes a link inside backticks is TALKING ABOUT the notation, not using
+    it. Before this existed there was no way to do that: any finding about the web's
+    syntax silently emitted the edges it quoted.
+    """
+    return [(m.start(), m.end()) for m in _CODE_SPAN_RX.finditer(text)]
 
 
 def _parse_web_text(text):
@@ -968,10 +1277,19 @@ def _parse_web_text(text):
     rev = {}
     for nid, n in nodes.items():
         body = n["body"]
+        spans = _code_spans(body)
         edges = {}  # target -> (rank, type); rank: relates=0, cue=1, explicit=2
         for m in _LINK_RX.finditer(body):
             tgt, raw = m.group(1), m.group(2)
             if tgt == nid:
+                continue
+            # A link inside a code span is being DISCUSSED, not asserted. Without this
+            # a node cannot document the web's own notation without rewiring the web:
+            # F239 quoted a broken test fixture verbatim and thereby claimed a
+            # supersession it never meant. Escaping is a pure addition — measured at
+            # the time it was added, zero of the web's 1686 links sat inside a code
+            # span, so no existing edge changed.
+            if any(s <= m.start() and m.end() <= e for s, e in spans):
                 continue
             if raw is not None and raw.strip().lower() in EDGE_TYPES:
                 rank, t = 2, raw.strip().lower()       # explicit, well-formed type wins
@@ -1156,11 +1474,20 @@ def cmd_web(args):
     # citing its superseder (the supersession-propagation invariant). Historical/upstream
     # edges (supersedes/contradicts/produces/evidenced_by/resolves) are exempt.
     if getattr(args, "lint", False):
+        # Duplicate headings first, because every check below runs on the PARSED map and
+        # the parser keys nodes by ID — a second `### F1` silently replaces the first, so
+        # a lint that skipped this would validate a graph missing a node it never saw.
+        # (H41: exactly this happened at the 2026-07-06 merge, where a parallel session
+        # on a stale base allocated D7/D8 that were already taken.)
+        dupes = duplicate_node_ids(_web_text())
+        for nid, count in sorted(dupes.items()):
+            print(f"  PROBLEM duplicate: {nid} is defined {count} times — the parser "
+                  f"keeps only the LAST; renumber the later one(s)")
         dangling = [(nid, tgt) for nid, n in nodes.items()
                     for tgt in n["links"] if tgt not in nodes]
         for nid, tgt in dangling:
             print(f"  PROBLEM dangling: {nid} → [[{tgt}]] (no such node)")
-        problems = 0
+        problems = len(dupes)
         for nid, n in nodes.items():
             if _is_superseded(n) and not _superseder(n):
                 print(f"  PROBLEM: superseded node {nid} declares no `by:` superseder "
@@ -1560,8 +1887,13 @@ _GRAPH_HTML = r"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <title>__PROJECT__ — context map</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <style>
-:root{--bg:#03050a;--map:#02040a;--surf:#0d121d;--tx:#eef3ff;--mut:#a9b4c8;--bd:rgba(210,225,255,.16);--hi:#FAC775}
-*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--tx)}
+__TOKENS__
+/* Local aliases onto the shared tokens (tools/ui_tokens.py). Aliasing rather than
+   rewriting all thirty rules below keeps the port to one block with no behaviour
+   change: the names on the left are this page's history, the values on the right are
+   the one palette. */
+:root{--bg:var(--plane);--map:var(--plane);--surf:var(--surface);--tx:var(--ink);--mut:var(--ink-muted);--bd:var(--rule);--hi:var(--warning)}
+*{box-sizing:border-box}body{margin:0;font-family:var(--sans);background:var(--bg);color:var(--tx)}
 header{padding:12px 16px;border-bottom:.5px solid var(--bd)}h1{font-size:16px;font-weight:500;margin:0}
 .sub{font-size:12px;color:var(--mut);margin-top:3px}
 .bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 16px;font-size:12px;border-bottom:.5px solid var(--bd)}
@@ -1573,7 +1905,7 @@ svg.orbiting{cursor:grabbing}
 svg.fast-render .node-label{text-rendering:optimizeSpeed}
 .node-orb{paint-order:fill stroke}
 .node-halo,.node-corona,.node-core{pointer-events:none}
-.node-label{pointer-events:none;text-shadow:0 0 6px #02040a,0 0 12px #02040a}
+.node-label{pointer-events:none;text-shadow:0 0 6px var(--plane),0 0 12px var(--plane)}
 #tip{position:absolute;pointer-events:none;opacity:0;background:var(--bg);border:.5px solid var(--bd);border-radius:6px;padding:3px 7px;font-size:11px;max-width:300px}
 #match{color:var(--mut);min-width:72px;text-align:right}
 #detail{padding:10px 16px;font-size:13px;color:var(--mut);min-height:58px;max-height:30vh;overflow:auto;border-top:.5px solid var(--bd)}
@@ -1593,15 +1925,37 @@ svg.fast-render .node-label{text-rendering:optimizeSpeed}
 <header><h1>__PROJECT__ · context map</h1><div class="sub">research web &cup; idea&harr;code bridges &cup; auto-extracted code graph — generated by <code>ctx graph --html</code></div></header>
 <div class="bar"><span id="pills"></span><input id="q" placeholder="search…" style="margin-left:auto;width:170px"><span id="match"></span><button id="flat">flat</button><button id="fit">fit</button><button id="reset">reset</button></div>
 <div class="legend" id="legend"></div>
+<div id="offline" style="display:none;padding:14px 16px;margin:12px 16px;border-left:3px solid var(--warning);border-radius:0 8px 8px 0;background:var(--surface);color:var(--ink-2);font-size:13px;line-height:1.5"><b>The graph could not be drawn.</b> This page loads d3 from <code>cdnjs.cloudflare.com</code>, and that request did not succeed — so the map is empty, not empty-of-content. Common cause: no outbound network (this repo is often run network-blocked). The node data IS present in this page; only the layout library is missing.</div>
 <div id="wrap"><svg id="svg"></svg><div id="tip"></div></div>
 <div id="detail">Select a node to inspect its neighbours and explore prompts.</div>
 <script>
+/* Fail loud when the CDN is unreachable. Without this the page renders its whole
+   chrome — header, legend, controls — over an empty canvas, which reads as 'the
+   graph has no nodes' rather than 'the layout library never loaded'. Same absence
+   -flag family as F155/F159/F188/F204: a thing that is off looks like a thing that
+   is fine. */
+if (typeof d3 === 'undefined') {
+  document.getElementById('offline').style.display = 'block';
+  document.getElementById('wrap').style.display = 'none';
+  throw new Error('d3 failed to load from the CDN — see the banner above');
+}
 const D=__DATA__;
-const dark=true;
-const COL=dark?{F:'#5DCAA5',H:'#EF9F27',E:'#AFA9EC',D:'#F0997B',area:'#85B7EB',module:'#9a988f',config:'#97C459',code:'#85B7EB'}
-              :{F:'#1D9E75',H:'#BA7517',E:'#7F77DD',D:'#D85A30',area:'#185FA5',module:'#888780',config:'#639922',code:'#378ADD'};
+/* THE LIGHT PALETTE BELOW WAS ALREADY WRITTEN AND UNREACHABLE. Every colour here was
+   authored as `dark ? <dark> : <light>` and then pinned by `const dark=true`, so the
+   light half had never rendered — the same dead-lever shape as F145's no-reader knobs
+   and F224's compute-only flag, one layer up in the UI. Binding `dark` to the
+   environment is what makes the existing half reachable; no new colours were invented. */
+const _mq=window.matchMedia('(prefers-color-scheme: dark)');
+function themePref(){const a=document.documentElement.getAttribute('data-theme');return a?a==='dark':_mq.matches;}
+let dark=themePref();
+let COL,SUP,STROKE,MUT;
+function themeColors(){
+  COL=dark?{F:'#5DCAA5',H:'#EF9F27',E:'#AFA9EC',D:'#F0997B',area:'#85B7EB',module:'#9a988f',config:'#97C459',code:'#85B7EB'}
+          :{F:'#1D9E75',H:'#BA7517',E:'#7F77DD',D:'#D85A30',area:'#185FA5',module:'#888780',config:'#639922',code:'#378ADD'};
+  SUP=dark?'#6f6e6a':'#a8a7a0'; STROKE=dark?'#1b1b19':'#fff'; MUT=dark?'#a8a79f':'#5f5e5a';
+}
+themeColors();
 const LBL={F:'Findings',H:'Hypotheses',E:'Experiments',D:'Decisions',area:'Code areas',module:'Modules',config:'Config keys',code:'Code symbols'};
-const SUP=dark?'#6f6e6a':'#a8a7a0', STROKE=dark?'#1b1b19':'#fff', MUT=dark?'#a8a79f':'#5f5e5a';
 const idea=new Set(['F','H','E','D','area']);
 const Z={D:95,F:75,H:55,E:45,code:28,config:12,module:-45,area:-75};
 const nodes=D.n.map((d,i)=>({i,id:d[0],k:D.k[d[1]],sup:d[2],title:d[3]||d[0].replace(/^(mod|cfg|code):/,'')}));
@@ -1629,7 +1983,7 @@ const node=g.append('g').selectAll('g').data(nodes).join('g').attr('class','node
 /* The orbs were near-unhittable: at the default zoom (k~0.37) a 6px-radius orb is   ~2px on screen, so elementFromPoint at an orb returned the <svg>. Grabs therefore   missed the node, fell through to d3.zoom, and PANNED the whole canvas — which reads   as 'grabbing an orb moves all the orbs'. A transparent hit disc gives every node a   real target for drag, click and tooltip. */node.append('path').attr('class','node-hit').attr('d',orbPath).attr('fill','transparent').attr('pointer-events','all').attr('transform',d=>'scale('+(Math.max(16,rad(d)*3)/rad(d)).toFixed(3)+')');node.append('path').attr('class','node-halo').attr('d',orbPath).attr('fill',d=>d.sup?SUP:COL[d.k]).attr('opacity',d=>d.sup?0.16:0.3).attr('filter','url(#orbHalo)').attr('transform','scale(2.65)');
 node.append('path').attr('class','node-corona').attr('d',orbPath).attr('fill',d=>d.sup?SUP:COL[d.k]).attr('opacity',d=>d.sup?0.24:0.56).attr('filter','url(#orbGlow)').attr('transform','scale(1.5)');
 node.append('path').attr('class','node-orb mark').attr('d',orbPath).attr('fill',d=>d.sup?SUP:COL[d.k]).attr('stroke','none').attr('opacity',d=>d.sup?0.58:0.86).attr('filter','url(#orbGlow)');
-node.append('path').attr('class','node-core').attr('d',orbPath).attr('fill',d=>d.sup?'#d7d2c2':'#fff6c7').attr('opacity',d=>d.sup?0.3:0.72).attr('filter','url(#orbGlow)').attr('transform','scale(.34)');
+node.append('path').attr('class','node-core').attr('d',orbPath).attr('fill',d=>d.sup?(dark?'#d7d2c2':'#5f5e5a'):(dark?'#fff6c7':'#3a3730')).attr('opacity',d=>d.sup?0.3:0.72).attr('filter','url(#orbGlow)').attr('transform','scale(.34)');
 node.append('text').attr('class','node-label').text(labelText).attr('dominant-baseline','middle')
  .attr('font-size',d=>labelFont(d)+'px').attr('fill',d=>d.k==='area'?COL.area:MUT).attr('font-family','ui-monospace,monospace');
 const nodeEls=node.nodes(),linkEls=link.nodes();
@@ -1779,9 +2133,29 @@ svg.on('pointerdown.orbit',startOrbit).on('pointermove.orbit',moveOrbit).on('poi
 document.getElementById('flat').onclick=()=>flatView();
 document.getElementById('fit').onclick=()=>{stopCruise();fitVisible();};
 document.getElementById('reset').onclick=()=>{stopCruise();sel=null;query='';matchAt=-1;orbit.rx=0;orbit.ry=0;document.getElementById('q').value='';paint();fitVisible();};
-const pills=d3.select('#pills');Object.keys(LBL).filter(k=>nodes.some(n=>n.k===k)).forEach(k=>{const b=pills.append('button').html('<span class="dot" style="background:'+COL[k]+'"></span>'+LBL[k]);b.style('opacity',on[k]?1:.4);b.on('click',()=>{on[k]=!on[k];b.style('opacity',on[k]?1:.4);paint();});});
-const sb=pills.append('button').text('superseded');sb.on('click',()=>{on._sup=!on._sup;sb.style('opacity',on._sup?1:.4);paint();});
-const leg=d3.select('#legend');[['supersedes / contradicts',ecol('supersedes')],['finding concerns code',ecol('concerns')],['import',ecol('imports')],['other edge',ecol('relates')]].forEach(([t,c])=>leg.append('span').html('<span class="ln" style="border-color:'+c+'"></span>'+t));
+const pills=d3.select('#pills');
+function buildPills(){pills.html('');Object.keys(LBL).filter(k=>nodes.some(n=>n.k===k)).forEach(k=>{const b=pills.append('button').html('<span class="dot" style="background:'+COL[k]+'"></span>'+LBL[k]);b.style('opacity',on[k]?1:.4);b.on('click',()=>{on[k]=!on[k];b.style('opacity',on[k]?1:.4);paint();});});
+const sb=pills.append('button').text('superseded');sb.style('opacity',on._sup?1:.4);sb.on('click',()=>{on._sup=!on._sup;sb.style('opacity',on._sup?1:.4);paint();});}
+const leg=d3.select('#legend');
+function buildLegend(){leg.html('');[['supersedes / contradicts',ecol('supersedes')],['finding concerns code',ecol('concerns')],['import',ecol('imports')],['other edge',ecol('relates')]].forEach(([t,c])=>leg.append('span').html('<span class="ln" style="border-color:'+c+'"></span>'+t));}
+buildPills();buildLegend();
+/* Repaint on a theme change instead of only at load. The CSS tokens swap themselves;
+   these are the colours d3 wrote into attributes, which no stylesheet can reach. */
+function paintTheme(){
+  const next=themePref();
+  if(next===dark)return;
+  dark=next;themeColors();
+  link.attr('stroke',d=>ecol(d.tn));
+  node.select('.node-halo').attr('fill',d=>d.sup?SUP:COL[d.k]);
+  node.select('.node-corona').attr('fill',d=>d.sup?SUP:COL[d.k]);
+  node.select('.node-orb').attr('fill',d=>d.sup?SUP:COL[d.k]);
+  node.select('.node-core').attr('fill',d=>d.sup?(dark?'#d7d2c2':'#5f5e5a'):(dark?'#fff6c7':'#3a3730'));
+  node.select('.node-label').attr('fill',d=>d.k==='area'?COL.area:MUT);
+  buildPills();buildLegend();
+  selectNode(sel,false);
+}
+_mq.addEventListener('change',paintTheme);
+new MutationObserver(paintTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 function cycleMatch(dir){if(!matches.length)return;matchAt=(matchAt+dir+matches.length)%matches.length;selectNode(matches[matchAt].i,true);}
 document.getElementById('q').addEventListener('input',e=>{stopCruise();query=e.target.value.trim().toLowerCase();matchAt=-1;sel=null;paint();});
 document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();cycleMatch(e.shiftKey?-1:1);}if(e.key==='Escape'){e.currentTarget.value='';query='';sel=null;paint();}});
@@ -1818,7 +2192,23 @@ def _render_graph_html(G, adj):
     comp = json.dumps(comp_obj, separators=(",", ":"))
     proj = esc(_manifest().get("project", "project"))
     # substitute __PROJECT__ first so a title literally containing it isn't clobbered
-    return _GRAPH_HTML.replace("__PROJECT__", proj).replace("__DATA__", comp)
+    return (_GRAPH_HTML.replace("__PROJECT__", proj)
+            .replace("__TOKENS__", _ui_tokens().TOKENS)
+            .replace("__DATA__", comp))
+
+
+def _ui_tokens():
+    """The shared palette, imported lazily.
+
+    `tools/research_ui.py` imports this module, so importing it at ctx's top level
+    would close a cycle. `ui_tokens` itself imports nothing, which is why it is a
+    separate module rather than a constant living in either of its two consumers.
+    """
+    tools = os.path.join(REPO, "tools")
+    if tools not in sys.path:          # `ctx serve` calls this per request
+        sys.path.insert(0, tools)
+    import ui_tokens
+    return ui_tokens
 
 
 def _render_served_graph_html(
@@ -2273,33 +2663,352 @@ def _claim_guard_resolves(g):
     return os.path.exists(os.path.join(REPO, g))
 
 
+def behavior_asserting_bridges():
+    """Bridges whose claim is about CODE BEHAVIOR, so a guard test is meaningful.
+
+    `implemented_in` is the explicit case. But a `concerns`/`gated_by` bridge that names
+    a `file.py::symbol` is asserting something about that symbol just as strongly — F17
+    "concerns compute_trade_returns" is a claim about what that function does. Scoping
+    the audit to `implemented_in` alone (H13/DP-6) let 13 of 17 bridges sit permanently
+    unauditable, and made `ctx claims` print "0 UNGUARDED" while six behavior-asserting
+    bridges had no guard at all — a metric that lies by construction.
+
+    A bridge pointing only at `config.KEY` is excluded: naming a config value is not a
+    behavioral claim, and there is nothing for a guard to assert about it on its own.
+    """
+    out = []
+    for b in _graph_bridges():
+        if b.get("relation") == "implemented_in":
+            out.append(b)
+        elif any("::" in c for c in b.get("code", [])):
+            out.append(b)
+    return out
+
+
+NODE_ID_RX = re.compile(r"^([A-Za-z]+)(\d+)$")
+
+
+def _node_number(nid):
+    m = NODE_ID_RX.match(nid)
+    return int(m.group(2)) if m else -1
+
+
+def _inbound_edges(nodes):
+    from collections import defaultdict
+    inbound = defaultdict(list)
+    for nid, n in nodes.items():
+        for e in n.get("edges", []):
+            inbound[e["target"]].append((nid, e["type"]))
+    return inbound
+
+
+def _cites_evidence(node):
+    return (any(e["type"] == "evidenced_by" for e in node.get("edges", []))
+            or "Source:" in node.get("body", ""))
+
+
+def semantic_staleness(nodes=None):
+    """SEMANTIC staleness -- nodes that read as current but the web has moved past.
+
+    The epistemic layer detects DECLARED staleness: a node says `status: superseded`
+    and the lint follows. It is blind to a node that never declared anything while
+    later work overtook it (H11/DP-4). Two signals, deliberately different in kind:
+
+    * `edge_status_conflict` -- the node is the TARGET of a `supersedes` edge yet still
+      declares `current`. The web contradicts itself about one node; that is a hard
+      problem, not a ranking.
+    * `decay` -- a CURRENT Finding/Decision that cites no evidence of its own, is
+      refined/contradicted/superseded by a STRICTLY LATER node, and whose body never
+      mentions that node. Unacknowledged overtaking. Ranked by
+      `len(unacknowledged) * max_id_gap`, largest first.
+
+    Both are heuristics and are meant to be read, not obeyed. The decay list is scoped
+    hard on purpose: requiring "cites no evidence" AND "never mentions the later node"
+    takes 194 current F/D nodes down to a dozen. Refinement alone is normal accumulation
+    -- 187 nodes are refined by something later, which is healthy, not stale.
+
+    Returns (conflicts, decay_rows). Read-only.
+    """
+    if nodes is None:
+        nodes, _ = _parse_web()
+    inbound = _inbound_edges(nodes)
+    conflicts, decay = [], []
+    for nid, n in nodes.items():
+        if _is_superseded(n):
+            continue
+        for src, etype in inbound[nid]:
+            if etype == "supersedes":
+                conflicts.append((nid, src))
+        if nid[:1] not in ("F", "D") or _cites_evidence(n):
+            continue
+        later = [src for src, etype in inbound[nid]
+                 if etype in ("refines", "contradicts", "supersedes")
+                 and _node_number(src) > _node_number(nid)
+                 and src not in n.get("body", "")]
+        if later:
+            gap = max(_node_number(s) - _node_number(nid) for s in later)
+            decay.append({"node": nid, "score": len(later) * gap, "gap": gap,
+                          "by": sorted(later, key=_node_number),
+                          "title": n.get("title", "")})
+    decay.sort(key=lambda r: (-r["score"], r["node"]))
+    return sorted(set(conflicts)), decay
+
+
+def cmd_stale(args):
+    """Semantic-staleness decay list (H11/DP-4) -- findings the web has moved past
+    without anyone declaring it. Complements `--lint`, which only sees DECLARED
+    staleness. Read-only; nothing here is authoritative, it is a reading queue."""
+    conflicts, decay = semantic_staleness()
+    if conflicts:
+        print("  EDGE/STATUS CONFLICT -- the web says superseded, the node says current:")
+        for tgt, src in conflicts:
+            print(f"    {tgt} is superseded by {src} but declares status: current")
+            print(f"      -> set `<!-- status: superseded; by: {src}; reason: ... -->` "
+                  f"on {tgt}, or retype the edge if {src} does not actually supersede it")
+        print()
+    limit = getattr(args, "limit", None) or 15
+    print(f"  DECAY LIST -- current, self-uncited, overtaken by a later node ({len(decay)}):")
+    for row in decay[:limit]:
+        print(f"    {row['score']:5}  {row['node']:5} overtaken by {', '.join(row['by'])}"
+              f"  (gap {row['gap']})")
+        print(f"           {row['title'][:72]}")
+    if len(decay) > limit:
+        print(f"    ... {len(decay) - limit} more (--limit)")
+    if not conflicts and not decay:
+        print("  nothing flagged")
+
+
+_NODE_REF_RX = re.compile(r"\b([FDEH]\d+)\b")
+
+
+def _drift_stores():
+    """Which claim stores this checkout can actually read.
+
+    Three stores hold claims (H15/DP-8): the research web, the context-map bridges, and
+    `experiments.jsonl`, the sweep ledger. The third is **gitignored** (.gitignore:17),
+    so it is absent from every fresh clone and from CI. A cross-store checker that
+    silently skips it would report "no drift" about a store it never opened — the
+    absence-flag failure this project keeps re-learning (F155/F159/F167). So store
+    availability is reported first, and any check needing an unreadable store is
+    UNKNOWN, never clean.
+    """
+    stores = {}
+    stores["web"] = (os.path.exists(WEB), WEB)
+    manifest = os.path.join(REPO, "context_map.json")
+    stores["bridges"] = (os.path.exists(manifest), manifest)
+    ledger = os.path.join(REPO, "experiments.jsonl")
+    stores["ledger"] = (os.path.exists(ledger), ledger)
+    return stores
+
+
+def drift_report():
+    """(stores, problems, unknowns) — read-only cross-store consistency.
+
+    Problems are concrete and decidable. Unknowns are checks that could not run because
+    a store is unreadable; they are counted separately so an unreadable store can never
+    be mistaken for a clean one.
+    """
+    stores = _drift_stores()
+    problems, unknowns = [], []
+
+    if not stores["ledger"][0]:
+        unknowns.append(
+            "ledger: experiments.jsonl is absent (gitignored) — cannot check whether "
+            "any sweep row's headline contradicts a current Finding. This is UNKNOWN, "
+            "not clean. Un-ignoring the ledger (IMPROVEMENT_PLAN K2) would make it "
+            "checkable in CI.")
+
+    if not (stores["web"][0] and stores["bridges"][0]):
+        unknowns.append("bridges<->web: a store is missing; bridge checks skipped")
+        return stores, problems, unknowns
+
+    nodes, _ = _parse_web()
+    for b in _graph_bridges():
+        nid = b.get("node")
+        if nid not in nodes:
+            problems.append(f"bridge {nid} names a node that does not exist in the web")
+            continue
+        if _is_superseded(nodes[nid]):
+            problems.append(
+                f"bridge {nid} points at a SUPERSEDED node — `ctx impact` will surface "
+                f"a retracted finding as if it governed the code")
+        for ref in sorted(set(_NODE_REF_RX.findall(b.get("note", "")))):
+            if ref not in nodes:
+                problems.append(f"bridge {nid}'s note cites {ref}, which does not exist")
+            elif _is_superseded(nodes[ref]):
+                problems.append(
+                    f"bridge {nid}'s note cites {ref}, which is superseded")
+    return stores, problems, unknowns
+
+
+# Files a doc may legitimately name that are runtime artifacts, not repository content.
+# Flagging these would train a reader to ignore the linter.
+_RUNTIME_ARTIFACTS = {
+    "live/state.db", "state.db", "experiments.jsonl", "graph.json", ".mcp.json",
+    "local_logs/healthcheck.json", "local_runtime/current_run.json",
+    "sweep_results_TICKER.json",
+}
+_DOC_PATH_RX = re.compile(r"`([A-Za-z0-9_./-]+\.(?:py|sh|md|json|jsonl|yml|db|service|txt))`")
+
+
+def _repo_file_index():
+    names, relpaths = set(), set()
+    for dirpath, dirnames, filenames in os.walk(REPO):
+        dirnames[:] = [d for d in dirnames
+                       if d not in (".git", "venv", "__pycache__", ".pytest_cache")]
+        for fn in filenames:
+            names.add(fn)
+            relpaths.add(os.path.relpath(os.path.join(dirpath, fn), REPO))
+    return names, relpaths
+
+
+def operator_fact_drift():
+    """Repo facts hand-copied into operator docs (H17/DP-10).
+
+    H17's literal target is `.claude/memory/*.md`, which lives OUTSIDE the repository
+    and is absent from this checkout — so it is reported as an unknown, not as clean.
+    What IS checkable is the same failure in the in-repo docs: the branch model and CI
+    triggers are copied into prose in several places and synced only by convention.
+
+    The dangling-reference check needs two filters or it is unusable. A naive
+    "does this backticked path exist" scan produces ~40 hits here; resolving bare
+    basenames anywhere in the tree and allowlisting runtime artifacts takes that to a
+    handful. A linter with a 90% false-positive rate is a linter nobody runs.
+    """
+    problems, unknowns = [], []
+
+    memdir = os.path.join(os.path.expanduser("~"), ".claude", "memory")
+    if not os.path.isdir(memdir):
+        unknowns.append(
+            f"operator memory: {memdir} is absent (it lives outside the repo and is "
+            f"per-user) — copied repo facts there cannot be checked from a clone or "
+            f"from CI. UNKNOWN, not clean.")
+
+    # Branch model: four independent statements of one fact.
+    deploy = _manifest().get("deploy_branch")
+    pf = os.path.join(REPO, "ops", "preflight_trader_start.sh")
+    if deploy and os.path.exists(pf):
+        with open(pf, errors="ignore") as fh:
+            mm = re.search(r'^EXPECT_BRANCH="([^"]+)"', fh.read(), re.M)
+        if mm and mm.group(1) != deploy:
+            problems.append(
+                f"branch model: manifest deploy_branch={deploy!r} but the preflight "
+                f"gate enforces EXPECT_BRANCH={mm.group(1)!r}")
+    wf = os.path.join(REPO, ".github", "workflows", "test.yml")
+    if deploy and os.path.exists(wf):
+        with open(wf, errors="ignore") as fh:
+            text = fh.read()
+        if deploy not in text:
+            problems.append(
+                f"CI triggers: the workflow never mentions the deploy branch {deploy!r}, "
+                f"so pushes to it may not be tested")
+
+    # Dangling in-repo references in operator docs.
+    #
+    # PLANNING documents are excluded by name. A roadmap names files that do not exist
+    # yet -- that is what a roadmap is -- so demanding its references resolve asks a
+    # plan not to plan. Excluding them deliberately beats a fragile "is this sentence
+    # aspirational" heuristic; the same call as the smoke test's NOT_SMOKED list.
+    # RESEARCH_WEB.md joins them for a different reason: it is the FINDING LEDGER, and
+    # a finding routinely names a file that does not exist (that is often the finding).
+    # F208 records that `src/analysis/performance.py` is still only a proposal, and that
+    # sentence tripped this linter. Third time this exclusion has been needed — the
+    # branch-drift guard and the H32 risk-token grep both carry it too: a ledger must be
+    # able to DESCRIBE an absence without the absence-detector reading it as presence.
+    PLANNING_DOCS = {"IMPROVEMENT_PLAN.md", "AGENT_CONTEXT_PLAN.md", "VISION.md",
+                     "RESEARCH_WEB.md"}
+    names, relpaths = _repo_file_index()
+    docs = [f for f in os.listdir(REPO) if f.endswith(".md")]
+    docs += [os.path.join("ops", f) for f in os.listdir(os.path.join(REPO, "ops"))
+             if f.endswith(".md")] if os.path.isdir(os.path.join(REPO, "ops")) else []
+    for doc in sorted(docs):
+        if os.path.basename(doc) in PLANNING_DOCS:
+            continue
+        path = os.path.join(REPO, doc)
+        with open(path, errors="ignore") as fh:
+            text = fh.read()
+        for ref in sorted(set(_DOC_PATH_RX.findall(text))):
+            if ref in _RUNTIME_ARTIFACTS or ref in relpaths:
+                continue
+            if os.path.basename(ref) in names:
+                continue                       # named by basename; resolves elsewhere
+            if re.search(r"(no|NO|not|deferred|proposed|would|planned)[^.\n]{0,60}`"
+                         + re.escape(ref) + "`", text):
+                continue                       # a proposal or an explicit non-existence
+            problems.append(f"{doc} references `{ref}`, which does not exist")
+    return problems, unknowns
+
+
+def cmd_drift(args):
+    """Cross-store consistency (H15/DP-8): research web vs context-map bridges vs the
+    sweep ledger. Advisory by design — cross-store semantic matching is heuristic — but
+    an unreadable store is reported as UNKNOWN rather than passing silently."""
+    stores, problems, unknowns = drift_report()
+    # H17/DP-10 lands here rather than in a separate `ctx memory --lint`: this IS the
+    # cross-store consistency command, and a second overlapping checker is the drift
+    # this repo keeps finding (two paths, one fact, quietly diverging).
+    fact_problems, fact_unknowns = operator_fact_drift()
+    problems = problems + fact_problems
+    unknowns = unknowns + fact_unknowns
+    print("  STORES:")
+    for name, (ok, path) in sorted(stores.items()):
+        rel = os.path.relpath(path, REPO)
+        print(f"    {'readable  ' if ok else 'UNREADABLE'}  {name:8} {rel}")
+    print()
+    if problems:
+        print(f"  PROBLEM(S) ({len(problems)}):")
+        for p in problems:
+            print(f"    {p}")
+        print()
+    if unknowns:
+        print(f"  UNKNOWN ({len(unknowns)}) — checks that could not run:")
+        for u in unknowns:
+            print(f"    {u}")
+        print()
+    print(f"  {len(problems)} problem(s) · {len(unknowns)} unknown(s)")
+    if unknowns and not problems:
+        print("  NOTE: 0 problems does NOT mean consistent — see the unknowns above.")
+    # `main()` discards return values; every other exit-code-bearing command in this
+    # module signals with sys.exit, so do the same rather than documenting a contract
+    # that is not enforced. UNKNOWNs are advisory (H15 says so) and do not fail.
+    if problems:
+        sys.exit(1)
+
+
 def cmd_claims(args):
-    """Test↔epistemic coverage: for each `implemented_in` idea↔code bridge (a Finding
-    asserting concrete CODE BEHAVIOR), report whether a designated guard TEST asserts
-    that specific claim. `ctx covers <sym>` only shows tests that TOUCH a symbol — a
-    finding can look covered (the symbol has tests) while its claim is unguarded. The
-    live example: F23 claims momentum_signal ignores the per-mode RSI/MACD periods;
-    momentum_signal has tests, but none assert that claim → it shows UNGUARDED here."""
-    bridges = [b for b in _graph_bridges() if b.get("relation") == "implemented_in"]
+    """Test↔epistemic coverage: for each idea↔code bridge asserting concrete CODE
+    BEHAVIOR, report whether a designated guard TEST asserts that specific claim.
+    `ctx covers <sym>` only shows tests that TOUCH a symbol — a finding can look covered
+    (the symbol has tests) while its claim is unguarded. The live example: F23 claims
+    momentum_signal ignores the per-mode RSI/MACD periods; momentum_signal has tests,
+    but none assert that claim → it shows UNGUARDED here.
+
+    Covers `implemented_in` bridges AND any `concerns`/`gated_by` bridge naming a
+    `::symbol` (H13/DP-6) — see behavior_asserting_bridges()."""
+    bridges = behavior_asserting_bridges()
     if not bridges:
-        print("no implemented_in bridges (findings asserting concrete code behavior)")
+        print("no bridges asserting concrete code behavior")
         return
     nodes, _ = _parse_web()
     unguarded = 0
-    for b in sorted(bridges, key=lambda x: x["node"]):
+    for b in sorted(bridges, key=lambda x: (x.get("relation", ""), x["node"])):
         node, code = b["node"], ", ".join(b["code"])
+        rel = b.get("relation", "?")
         guards = b.get("guarded_by") or []
         resolved = [g for g in guards if _claim_guard_resolves(g)]
         if resolved:
-            print(f"  GUARDED    {node}  ({code})")
+            print(f"  GUARDED    {node}  [{rel}]  ({code})")
             for g in resolved:
                 print(f"             └ {g}")
         else:
             unguarded += 1
-            print(f"  UNGUARDED  {node} — {nodes.get(node, {}).get('title', '')[:58]}")
+            print(f"  UNGUARDED  {node}  [{rel}] — {nodes.get(node, {}).get('title', '')[:52]}")
             print(f"             claim about {code} has no test asserting it"
                   + (f"; declared guards {guards} do not resolve" if guards else ""))
-    print(f"\n  {len(bridges)} implemented_in claim(s) · {unguarded} UNGUARDED")
+    n_impl = sum(1 for b in bridges if b.get("relation") == "implemented_in")
+    print(f"\n  {len(bridges)} behavior-asserting claim(s) "
+          f"({n_impl} implemented_in, {len(bridges) - n_impl} concerns/gated_by) "
+          f"· {unguarded} UNGUARDED")
     if unguarded:
         print("  → write a test that ASSERTS the claim (not just exercises the symbol), "
               "then add `guarded_by: [tests/x.py::TestY]` to the bridge")
@@ -2687,6 +3396,9 @@ def _web_banner():
     n_sup = sum(1 for n in nodes.values() if _is_superseded(n))
     dates = [d for d in (_node_meta(n).get("at") for n in nodes.values()) if d]
     rider = f"[Auto] {len(nodes)} nodes, {n_sup} superseded" + (f" · latest dated node {max(dates)}" if dates else "")
+    # H16/DP-9: node counts alone let the ALL-vs-CONFIRMED gap be skimmed past at cold
+    # start. perf_summary() always returns a line — measured, unmeasured, or unavailable.
+    rider += f" · {perf_summary()}"
     return f"{banner}  {rider}" if banner else rider
 
 
@@ -2796,7 +3508,10 @@ def cmd_reverts(args):
 def main():
     p = argparse.ArgumentParser(description="ctx — read-only context query tool for agents")
     sub = p.add_subparsers(dest="cmd")
-    sp = sub.add_parser("route"); sp.add_argument("task", nargs="+"); sp.set_defaults(fn=cmd_route)
+    sp = sub.add_parser("route"); sp.add_argument("task", nargs="*")
+    sp.add_argument("--audit", action="store_true",
+                    help="measure miss rate + false positives instead of routing")
+    sp.set_defaults(fn=cmd_route)
     sp = sub.add_parser("where"); sp.add_argument("symbol"); sp.set_defaults(fn=cmd_where)
     sp = sub.add_parser("find"); sp.add_argument("query", nargs="+"); sp.set_defaults(fn=cmd_find)
     sp = sub.add_parser("usages"); sp.add_argument("symbol"); sp.set_defaults(fn=cmd_usages)
@@ -2818,6 +3533,7 @@ def main():
     sub.add_parser("audit").set_defaults(fn=cmd_audit)
     sub.add_parser("status").set_defaults(fn=cmd_status)
     sp = sub.add_parser("recent"); sp.add_argument("n", nargs="?", type=int, default=10); sp.set_defaults(fn=cmd_recent)
+    sp = sub.add_parser("docs"); sp.set_defaults(fn=cmd_docs)
     sp = sub.add_parser("map"); sp.add_argument("area", nargs="?"); sp.set_defaults(fn=cmd_map)
     sp = sub.add_parser("tests"); sp.add_argument("area"); sp.set_defaults(fn=cmd_tests)
     sp = sub.add_parser("web"); sp.add_argument("node", nargs="?")
@@ -2865,6 +3581,9 @@ def main():
     sp.set_defaults(fn=cmd_serve)
     sub.add_parser("health").set_defaults(fn=cmd_health)
     sub.add_parser("claims").set_defaults(fn=cmd_claims)
+    sp = sub.add_parser("stale"); sp.add_argument("--limit", type=int, default=15)
+    sub.add_parser("drift").set_defaults(fn=cmd_drift)
+    sp.set_defaults(fn=cmd_stale)
     sub.add_parser("uncaptured").set_defaults(fn=cmd_uncaptured)
     sp = sub.add_parser("delta"); sp.add_argument("--since", default=None,
         help="git date ('5 days ago') or revision; default HEAD~12"); sp.set_defaults(fn=cmd_delta)

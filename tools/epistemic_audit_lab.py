@@ -150,9 +150,18 @@ def parse_web(text: str) -> Dict[str, Dict[str, object]]:
         resolved: Dict[str, Tuple[int, str]] = {}
         order: List[str] = []
         out_of_vocab: List[Tuple[str, str]] = []
+        # Code-span escaping, delegated to ctx rather than re-implemented. This lab
+        # keeps its OWN link regex on purpose — it is an independent reader, and
+        # `ParserAgreementTest` is what holds the two in step. That test caught this
+        # exact omission the moment ctx learned to skip escaped links and this lab did
+        # not: the two parsers disagreed at F239 by one accidental `supersedes` edge.
+        # F136 recorded the previous drift; the guard exists because of it.
+        code_spans = _ctx._code_spans(body)
         for lm in LINK_RE.finditer(body):
             target, raw_type = lm.group(1), lm.group(2)
             if target == node_id:
+                continue
+            if any(s <= lm.start() and lm.end() <= e for s, e in code_spans):
                 continue
             if raw_type and raw_type in _ctx.EDGE_TYPES:
                 rank, edge_type = 2, raw_type
@@ -889,7 +898,15 @@ def full_report(repo: Path = REPO, path: str = "RESEARCH_WEB.md") -> Dict[str, o
     working_nodes = parse_web(working_text)
     uncommitted = sorted(set(working_nodes) - set(nodes))
 
-    life = node_lifecycles(repo, path)
+    # History can hold node ids the web no longer has — a node deleted, or renumbered
+    # to resolve a merge collision. `graph` reads HEAD while `life` replays every
+    # commit, so counting those would make the two describe different corpora and
+    # silently inflate every per-node exposure rate by the dead ids. They are dropped
+    # from the analysis and SURFACED, the same contract `uncommitted_nodes` follows:
+    # a corpus difference the report states is fine, one it hides is not.
+    life_all = node_lifecycles(repo, path)
+    retired = sorted(set(life_all) - set(nodes))
+    life = {k: v for k, v in life_all.items() if k in nodes}
     revision = revision_analysis(life)
     graph = graph_analysis(nodes)
     risk = risk_analysis(nodes, life, graph)
@@ -902,6 +919,7 @@ def full_report(repo: Path = REPO, path: str = "RESEARCH_WEB.md") -> Dict[str, o
         "repo_provenance": provenance,
         "commits_observed": len(commits),
         "uncommitted_nodes": uncommitted,
+        "retired_nodes": retired,
         "revision": revision,
         "graph": slim_graph,
         "risk": risk,

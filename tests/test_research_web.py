@@ -584,8 +584,14 @@ class TestGraphHtmlExplore(unittest.TestCase):
             "Config Value",
             "Code Impact",
             "Area Brief",
-            "--map:#02040a",
-            "const dark=true",
+            # Was `--map:#02040a` / `const dark=true` until F232 ported this page onto
+            # tools/ui_tokens.py. Both pinned the dark-only palette: the first hard-coded
+            # the canvas colour, the second pinned `dark` on and made the light branch —
+            # which was already written — unreachable. The replacements pin the port
+            # itself, so re-hardcoding either would fail here as well.
+            "--map:var(--plane)",
+            "let dark=themePref()",
+            "__TOKENS__",
             "function targetZ",
             "function nodeZ",
             "function init3D",
@@ -695,7 +701,19 @@ class TestFrontier(unittest.TestCase):
         self.assertIn("cfg:STOP_LOSS_PCT_TQQQ_HOURLY", out)  # the code bridge
 
     def test_no_match_is_graceful(self):
-        self.assertIn("no idea-graph match", self._run("zzzqqq xyzzy nonsense"))
+        # The query must be words the web CANNOT contain. The original ended in
+        # "nonsense", and F214 — a finding about the router answering nonsense —
+        # made it a real seed. A negative control has to stay negative, so the
+        # tokens here are non-words no prose would use.
+        query = "zzzqqq xyzzy plugh frotz"
+        with open(os.path.join(REPO, "RESEARCH_WEB.md"), encoding="utf-8") as fh:
+            web = fh.read()
+        for token in query.split():
+            self.assertNotIn(
+                token, web,
+                "the no-match control word {!r} now appears in the web — pick "
+                "another; a negative control has to stay negative".format(token))
+        self.assertIn("no idea-graph match", self._run(query))
 
     def test_stopwords_alone_do_not_seed(self):
         # regression on the stopword filter: bare 'the' must not seed every node.

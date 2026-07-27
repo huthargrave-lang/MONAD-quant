@@ -130,6 +130,34 @@ tree or language models; immutable point-in-time evidence; deal-grouped
 chronological splits; and a free public deal card with official-source links and
 visible uncertainty.
 
+The first implementation child,
+**[CA-ANNOUNCE cohort seed](CA_ANNOUNCE_cohort_seed.md)**, freezes a six-deal
+schema pilot with a 2025-01-01 censor, exact clocks for ATVI/TWTR, and an
+explicit higher-bid vs negative-termination split. It is not a population, has
+zero right-censored deals, and blocks survival claims until an announcement-search
+cohort includes unresolved observations.
+
+The population gate,
+**[CA-ANNOUNCE-POP](CA_ANNOUNCE_POP_discovery.md)**, freezes a January 2023
+`entered into an Agreement and Plan of Merger` SEC search (106 docs → 93
+submissions). Only 47 carry Item 1.01 — phrase hits are not entry events. No
+outcomes are assigned.
+
+Its review child,
+**[CA-ANNOUNCE-REVIEW](CA_ANNOUNCE_REVIEW_cohort.md)**, joins exact announcement
+clocks for 11 deals and forces two right-censored observations at 2025-01-01
+(WBA, Orchestra), unblocking survival framing while leaving raw content hashes
+open.
+
+Cash baseline step 0,
+**[CA-ANNOUNCE market-implied](CA_ANNOUNCE_market_implied.md)**, implements the
+clip((price−downside)/(cash−downside)) proxy on fixture snapshots.
+
+Rhetoric step 0,
+**[CA-RHETORIC](CA_RHETORIC_delta_seed.md)**, extracts transparent
+appeared/disappeared/unchanged deltas over a frozen phrase family on synthetic
+deal chains.
+
 > **Why this exists.** The headline performance in `CLAUDE.md` (Sharpe 25–94, "production-ready")
 > is **superseded** — it came from optimistic-mode backtests on morning-only data ([[F13]]), and
 > the live bot is flat. The go/no-go ([[D6]]) found the active engine has no risk-adjusted edge

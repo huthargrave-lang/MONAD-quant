@@ -1,0 +1,142 @@
+{
+  "counts": {
+    "css_block_variants": 0,
+    "fenced": 1,
+    "grounds": 1,
+    "surfaces": 7,
+    "theme_aware": 7,
+    "token_driven": 7,
+    "with_external_deps": 2
+  },
+  "grounds": [
+    "#f2f3f1"
+  ],
+  "subject": "repository",
+  "surfaces": [
+    {
+      "companions": [],
+      "distinct_hexes": 38,
+      "entry": "research_ui serve",
+      "external_hosts": [],
+      "ground": "#f2f3f1",
+      "ground_luminance": 0.8933,
+      "path": "tools/research_ui.py",
+      "role": "unified shell + node view",
+      "served_here": true,
+      "shares_tokens": true,
+      "theme_aware": true,
+      "themes": [
+        "light",
+        "dark"
+      ]
+    },
+    {
+      "companions": [],
+      "distinct_hexes": 63,
+      "entry": "ctx graph --html \u00b7 ctx serve",
+      "external_hosts": [
+        "cdnjs.cloudflare.com"
+      ],
+      "ground": "#f2f3f1",
+      "ground_luminance": 0.8933,
+      "path": "tools/ctx.py",
+      "role": "context map (d3 force graph)",
+      "served_here": true,
+      "shares_tokens": true,
+      "theme_aware": true,
+      "themes": [
+        "light",
+        "dark"
+      ]
+    },
+    {
+      "companions": [],
+      "distinct_hexes": 33,
+      "entry": "research_event_ledger html",
+      "external_hosts": [],
+      "ground": "#f2f3f1",
+      "ground_luminance": 0.8933,
+      "path": "tools/research_event_ledger.py",
+      "role": "research-event ledger",
+      "served_here": true,
+      "shares_tokens": true,
+      "theme_aware": true,
+      "themes": [
+        "light",
+        "dark"
+      ]
+    },
+    {
+      "companions": [],
+      "distinct_hexes": 33,
+      "entry": "corporate_action_outcome_lab html",
+      "external_hosts": [],
+      "ground": "#f2f3f1",
+      "ground_luminance": 0.8933,
+      "path": "tools/corporate_action_outcome_lab.py",
+      "role": "corporate-action outcomes",
+      "served_here": true,
+      "shares_tokens": true,
+      "theme_aware": true,
+      "themes": [
+        "light",
+        "dark"
+      ]
+    },
+    {
+      "companions": [],
+      "distinct_hexes": 33,
+      "entry": "sec_corporate_action_state_lab html",
+      "external_hosts": [],
+      "ground": "#f2f3f1",
+      "ground_luminance": 0.8933,
+      "path": "tools/sec_corporate_action_state_lab.py",
+      "role": "SEC action state vector",
+      "served_here": true,
+      "shares_tokens": true,
+      "theme_aware": true,
+      "themes": [
+        "light",
+        "dark"
+      ]
+    },
+    {
+      "companions": [],
+      "distinct_hexes": 33,
+      "entry": "sec_form25_population_lab query",
+      "external_hosts": [],
+      "ground": "#f2f3f1",
+      "ground_luminance": 0.8933,
+      "path": "tools/sec_form25_population_lab.py",
+      "role": "Form 25 population browser",
+      "served_here": true,
+      "shares_tokens": true,
+      "theme_aware": true,
+      "themes": [
+        "light",
+        "dark"
+      ]
+    },
+    {
+      "companions": [
+        "live/dashboard.py"
+      ],
+      "distinct_hexes": 33,
+      "entry": "live/dashboard.py (FastAPI)",
+      "external_hosts": [
+        "cdn.plot.ly"
+      ],
+      "ground": "#f2f3f1",
+      "ground_luminance": 0.8933,
+      "path": "live/templates/dashboard.html",
+      "role": "live trading monitor",
+      "served_here": false,
+      "shares_tokens": true,
+      "theme_aware": true,
+      "themes": [
+        "light",
+        "dark"
+      ]
+    }
+  ]
+}

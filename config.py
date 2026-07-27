@@ -117,7 +117,12 @@ ATR_STOP_CAP_PCT      = 0.04
 # Applied in compute_trade_returns() after TP/SL checks each bar (TP/SL always win).
 # Exit fills at the opposing-signal bar's NEXT open, matching entry convention.
 # Off by default — enable per-mode via OPPOSING_SIGNAL_EXIT_MODES or globally.
-# Live equivalent lives in live/trader.py behind EXIT_ON_OPPOSING_SIGNAL.
+# ⚠ BACKTEST-ONLY: there is NO live equivalent. live/trader.py never consults the
+# signal to exit — its exits are the bracket (target/stop, incl. inferred), the
+# software take-profit, MAX_TRADE_BARS_LIVE, and reconciliation. Enabling this makes
+# the backtest model an exit the bot cannot perform. (An earlier comment here pointed
+# at `EXIT_ON_OPPOSING_SIGNAL` in live/trader.py; no such flag or behaviour exists.)
+# Guarded by tests/test_opposing_exit_live_parity.py.
 USE_OPPOSING_SIGNAL_EXIT  = False
 # Optional per-mode override set: {"QQQ_HOURLY", "TQQQ_HOURLY", ...}.
 # When ACTIVE_MODE is in this set, opposing-signal exit is enabled for the run

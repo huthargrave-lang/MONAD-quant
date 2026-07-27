@@ -12,9 +12,12 @@ the repo root.
 
 ## Steps
 
-1. **Orient first** (use the `monad-orient` skill, or directly):
+1. **Orient first** — run the commands directly, do NOT invoke `monad-orient`:
+   that skill is now an autonomous continuous-research loop and would not return
+   here. Its Phase 0 is exactly the two lines below.
    ```bash
    venv/bin/python tools/ctx.py route "sweep params for <TICKER>"
+   venv/bin/python tools/ctx.py brief optimization --task "sweep <TICKER>"
    ```
 
 2. **Run the sweep:**

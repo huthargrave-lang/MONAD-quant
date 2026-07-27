@@ -1,0 +1,137 @@
+{
+  "schema_version": 1,
+  "fixture_id": "ca-announce-market-implied-cash-v1",
+  "price_source": "transformed_fixture_not_live_feed",
+  "notes": [
+    "Prices are transformed review fixtures for formula tests, not a live market feed.",
+    "Downside assumptions are explicit and replaceable; they are not estimated from data here.",
+    "p_close_proxy is not a true probability and is not calibrated to outcomes."
+  ],
+  "snapshots": [
+    {
+      "snapshot_id": "atvi-msft:2022-01-19",
+      "deal_id": "atvi-msft",
+      "as_of": "2022-01-19",
+      "target_symbol": "ATVI",
+      "consideration_family": "cash",
+      "target_price": 82.5,
+      "cash_usd_per_share": 95.0,
+      "downside_usd_per_share": 60.0,
+      "expected_days_to_close": 400,
+      "annual_discount_rate": 0.05,
+      "assumptions": [
+        "cash consideration remains $95",
+        "downside fixed at $60 pending a better break-price model",
+        "expected close ~400 calendar days from snapshot"
+      ]
+    },
+    {
+      "snapshot_id": "twtr-musk:2022-04-26",
+      "deal_id": "twtr-musk",
+      "as_of": "2022-04-26",
+      "target_symbol": "TWTR",
+      "consideration_family": "cash",
+      "target_price": 51.0,
+      "cash_usd_per_share": 54.2,
+      "downside_usd_per_share": 35.0,
+      "expected_days_to_close": 180,
+      "annual_discount_rate": 0.05,
+      "assumptions": [
+        "cash consideration remains $54.20",
+        "downside fixed at $35 pending a better break-price model"
+      ]
+    },
+    {
+      "snapshot_id": "sgen-pfe:2023-03-14",
+      "deal_id": "sgen-pfe",
+      "as_of": "2023-03-14",
+      "target_symbol": "SGEN",
+      "consideration_family": "cash",
+      "target_price": 215.0,
+      "cash_usd_per_share": 229.0,
+      "downside_usd_per_share": 160.0,
+      "expected_days_to_close": 270,
+      "annual_discount_rate": 0.05,
+      "assumptions": [
+        "cash consideration remains $229",
+        "downside fixed at $160 pending a better break-price model"
+      ]
+    },
+    {
+      "snapshot_id": "atvi-msft:2023-06-15-stress",
+      "deal_id": "atvi-msft",
+      "as_of": "2023-06-15",
+      "target_symbol": "ATVI",
+      "consideration_family": "cash",
+      "target_price": 78.0,
+      "cash_usd_per_share": 95.0,
+      "downside_usd_per_share": 60.0,
+      "expected_days_to_close": 150,
+      "annual_discount_rate": 0.05,
+      "assumptions": [
+        "regulatory-stress snapshot with wider gross spread",
+        "same downside assumption as announcement snapshot"
+      ]
+    },
+    {
+      "snapshot_id": "albireo-ipsen:2023-01-10",
+      "deal_id": "albireo-ipsen",
+      "as_of": "2023-01-10",
+      "target_symbol": "ALBO",
+      "consideration_family": "cash",
+      "target_price": 40.0,
+      "cash_usd_per_share": 42.0,
+      "downside_usd_per_share": 25.0,
+      "expected_days_to_close": 60,
+      "annual_discount_rate": 0.05,
+      "assumptions": [
+        "fixture prices; Ipsen cash term approx $42; CVR ignored in v1 cash proxy"
+      ]
+    },
+    {
+      "snapshot_id": "cincor-astrazeneca:2023-01-10",
+      "deal_id": "cincor-astrazeneca",
+      "as_of": "2023-01-10",
+      "target_symbol": "CINC",
+      "consideration_family": "cash",
+      "target_price": 24.5,
+      "cash_usd_per_share": 26.0,
+      "downside_usd_per_share": 15.0,
+      "expected_days_to_close": 45,
+      "annual_discount_rate": 0.05,
+      "assumptions": [
+        "fixture prices; AZ cash term $26"
+      ]
+    },
+    {
+      "snapshot_id": "duckcreek-vista:2023-01-11",
+      "deal_id": "duckcreek-vista",
+      "as_of": "2023-01-11",
+      "target_symbol": "DCT",
+      "consideration_family": "cash",
+      "target_price": 18.2,
+      "cash_usd_per_share": 19.0,
+      "downside_usd_per_share": 12.0,
+      "expected_days_to_close": 75,
+      "annual_discount_rate": 0.05,
+      "assumptions": [
+        "fixture prices; Vista take-private $19"
+      ]
+    },
+    {
+      "snapshot_id": "concert-sun-pharma:2023-01-20",
+      "deal_id": "concert-sun-pharma",
+      "as_of": "2023-01-20",
+      "target_symbol": "CNCE",
+      "consideration_family": "cash",
+      "target_price": 7.4,
+      "cash_usd_per_share": 8.0,
+      "downside_usd_per_share": 4.0,
+      "expected_days_to_close": 50,
+      "annual_discount_rate": 0.05,
+      "assumptions": [
+        "fixture prices; Sun Pharma cash term $8; CVR ignored"
+      ]
+    }
+  ]
+}

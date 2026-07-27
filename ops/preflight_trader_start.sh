@@ -25,6 +25,9 @@ ts() { date '+%Y-%m-%d %H:%M:%S %Z'; }
 note() { echo "$(ts) [preflight] $*" >> "$LOG"; }
 pass() { note "PASS: $1"; echo "[PASS] $1"; }
 fail() { note "FAIL: $1"; echo "[FAIL] $1"; fails=$((fails+1)); }
+# REPORT, not a check: states a fact without voting on the verdict. Used where the
+# operator needs to know something that must not block arming (see H31/F205).
+report() { note "INFO: $1"; echo "[INFO] $1"; }
 
 note "================ preflight start ================"
 
@@ -114,6 +117,20 @@ PY
     esac
 else
     pass "no healthcheck.json yet (treated as no recent failure)"
+fi
+
+# ── Alerting reachability — REPORTED, not gated ────────────────────────────
+# live/alerts.py no-ops silently when SLACK_WEBHOOK_URL is unset, so every CRITICAL
+# path can be correctly wired and still page nobody, with nothing anywhere saying so
+# (H31/F205). This makes the state observable. It deliberately does NOT vote: turning
+# it into a hard check would block arming on a missing env var, which is the owner's
+# call, not this script's.
+if [ -n "${SLACK_WEBHOOK_URL:-}" ]; then
+    report "CRITICAL alerting is configured (SLACK_WEBHOOK_URL set; value not logged)"
+else
+    report "CRITICAL alerting is NOT configured — SLACK_WEBHOOK_URL is unset, so \
+force-finalize / software-stop / desync-block / signal-failure alerts will be computed \
+and discarded. Not a failure; the trader will still start."
 fi
 
 if [ "$fails" -gt 0 ]; then

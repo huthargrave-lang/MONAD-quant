@@ -1,0 +1,263 @@
+#!/usr/bin/env python3
+"""Pilot CEF premium/discount mean-reversion from Yahoo price + NAV charts.
+
+Discount = price/NAV - 1. Cheap quintile = low 60d discount z-score. First cut
+asks whether cheap names beat rich names over the next 20 sessions on price and
+on discount change. Price-only MR is reported as a negative control, not the
+thesis test.
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import math
+from pathlib import Path
+from statistics import mean, pstdev
+from typing import Dict, List, Mapping, Sequence, Tuple
+
+
+REPO = Path(__file__).resolve().parents[1]
+DEFAULT_SPEC = REPO / "docs" / "research" / "data" / "cef_discount_pilot_spec.json"
+DEFAULT_OUTPUT = (
+    REPO / "docs" / "research" / "data" / "cef_discount_pilot_result.json"
+)
+DEFAULT_BUNDLE = Path("/private/tmp/monad-cef-pilot")
+SCHEMA_VERSION = 1
+
+
+def canonical_bytes(value: object) -> bytes:
+    return json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
+
+
+def sha256(value: object) -> str:
+    return hashlib.sha256(canonical_bytes(value)).hexdigest()
+
+
+def load_json(path: Path) -> Mapping[str, object]:
+    with path.open("r", encoding="utf-8") as handle:
+        value = json.load(handle)
+    if not isinstance(value, dict):
+        raise ValueError("{} must contain a JSON object".format(path))
+    return value
+
+
+def chart_close_map(path: Path) -> Dict[int, float]:
+    payload = load_json(path)
+    result = payload.get("chart", {}).get("result")
+    if not result:
+        raise ValueError("{}: missing chart.result".format(path))
+    row = result[0]
+    timestamps = row.get("timestamp") or []
+    closes = row.get("indicators", {}).get("quote", [{}])[0].get("close") or []
+    out: Dict[int, float] = {}
+    for ts, close in zip(timestamps, closes):
+        if close is not None:
+            out[int(ts)] = float(close)
+    return out
+
+
+def discount_series(
+    price: Mapping[int, float], nav: Mapping[int, float]
+) -> List[Tuple[int, float]]:
+    common = sorted(set(price) & set(nav))
+    return [(ts, price[ts] / nav[ts] - 1.0) for ts in common]
+
+
+def corr(xs: Sequence[float], ys: Sequence[float]) -> float:
+    if len(xs) < 2:
+        return float("nan")
+    mx = mean(xs)
+    my = mean(ys)
+    num = sum((a - mx) * (b - my) for a, b in zip(xs, ys))
+    den = math.sqrt(
+        sum((a - mx) ** 2 for a in xs) * sum((b - my) ** 2 for b in ys)
+    )
+    if den == 0:
+        return float("nan")
+    return num / den
+
+
+def evaluate_ticker(
+    ticker: str,
+    nav_ticker: str,
+    price_path: Path,
+    nav_path: Path,
+    z_lookback: int,
+    horizon: int,
+) -> Dict[str, object]:
+    price = chart_close_map(price_path)
+    nav = chart_close_map(nav_path)
+    disc = discount_series(price, nav)
+    pairs_px: List[Tuple[float, float]] = []
+    pairs_disc: List[Tuple[float, float]] = []
+    for i in range(z_lookback, len(disc) - horizon):
+        window = [d for _, d in disc[i - z_lookback : i]]
+        mu = mean(window)
+        sd = pstdev(window) or 1e-9
+        z = (disc[i][1] - mu) / sd
+        t0 = disc[i][0]
+        t1 = disc[i + horizon][0]
+        pret = price[t1] / price[t0] - 1.0
+        dchg = disc[i + horizon][1] - disc[i][1]
+        pairs_px.append((z, pret))
+        pairs_disc.append((z, dchg))
+    if len(pairs_px) < 30:
+        raise ValueError("{}: insufficient pairs ({})".format(ticker, len(pairs_px)))
+    ranked = sorted(pairs_px, key=lambda row: row[0])
+    q = max(1, len(ranked) // 5)
+    cheap_px = mean(b for _, b in ranked[:q])
+    rich_px = mean(b for _, b in ranked[-q:])
+    ranked_d = sorted(pairs_disc, key=lambda row: row[0])
+    cheap_d = mean(b for _, b in ranked_d[:q])
+    rich_d = mean(b for _, b in ranked_d[-q:])
+    zs = [a for a, _ in pairs_px]
+    futs = [b for _, b in pairs_px]
+    return {
+        "ticker": ticker,
+        "nav_ticker": nav_ticker,
+        "n_aligned": len(disc),
+        "n_pairs": len(pairs_px),
+        "last_discount": round(disc[-1][1], 4),
+        "corr_discount_z_fut_price": round(corr(zs, futs), 4),
+        "cheap_quint_fut_price": round(cheap_px, 4),
+        "rich_quint_fut_price": round(rich_px, 4),
+        "cheap_minus_rich_price": round(cheap_px - rich_px, 4),
+        "cheap_quint_fut_disc_chg": round(cheap_d, 4),
+        "rich_quint_fut_disc_chg": round(rich_d, 4),
+        "cheap_minus_rich_disc_chg": round(cheap_d - rich_d, 4),
+    }
+
+
+def price_only_control(
+    price_path: Path, trail: int, horizon: int
+) -> Dict[str, object]:
+    price = chart_close_map(price_path)
+    ts = sorted(price)
+    closes = [price[t] for t in ts]
+    rets = [
+        closes[i] / closes[i - 1] - 1.0
+        for i in range(1, len(closes))
+        if closes[i - 1]
+    ]
+    pairs = []
+    for i in range(trail, len(rets) - horizon):
+        trail_sum = sum(rets[i - trail : i])
+        fut = sum(rets[i : i + horizon])
+        pairs.append((trail_sum, fut))
+    ranked = sorted(pairs, key=lambda row: row[0])
+    q = max(1, len(ranked) // 5)
+    low = mean(b for _, b in ranked[:q])
+    high = mean(b for _, b in ranked[-q:])
+    return {
+        "n_pairs": len(pairs),
+        "corr_trail_fut": round(
+            corr([a for a, _ in pairs], [b for _, b in pairs]), 4
+        ),
+        "low_quint_fut": round(low, 4),
+        "high_quint_fut": round(high, 4),
+        "high_minus_low": round(high - low, 4),
+        "note": "negative high_minus_low is price MR; not the discount thesis",
+    }
+
+
+def build_artifact(spec: Mapping[str, object], bundle: Path) -> Dict[str, object]:
+    if int(spec.get("schema_version", -1)) != SCHEMA_VERSION:
+        raise ValueError("unsupported schema_version")
+    z_lookback = int(spec["z_lookback"])
+    horizon = int(spec["horizon_bars"])
+    rows = []
+    controls = []
+    for item in spec["tickers"]:
+        ticker = item["ticker"]
+        nav_ticker = item["nav_ticker"]
+        price_path = bundle / "{}_chart.json".format(ticker)
+        nav_path = bundle / "{}_nav.json".format(nav_ticker)
+        if not nav_path.is_file():
+            # accept XPDIX_nav.json naming from curl
+            nav_path = bundle / "{}_nav.json".format(nav_ticker)
+        row = evaluate_ticker(
+            ticker, nav_ticker, price_path, nav_path, z_lookback, horizon
+        )
+        rows.append(row)
+        controls.append(
+            {
+                "ticker": ticker,
+                **price_only_control(price_path, trail=20, horizon=horizon),
+            }
+        )
+    summary = {
+        "tickers": len(rows),
+        "z_lookback": z_lookback,
+        "horizon_bars": horizon,
+        "mean_corr_discount_z_fut_price": round(
+            mean(r["corr_discount_z_fut_price"] for r in rows), 4
+        ),
+        "mean_cheap_minus_rich_price": round(
+            mean(r["cheap_minus_rich_price"] for r in rows), 4
+        ),
+        "mean_cheap_minus_rich_disc_chg": round(
+            mean(r["cheap_minus_rich_disc_chg"] for r in rows), 4
+        ),
+        "mean_price_only_high_minus_low": round(
+            mean(c["high_minus_low"] for c in controls), 4
+        ),
+        "first_cut_supports_long_cheap": mean(
+            r["cheap_minus_rich_price"] for r in rows
+        )
+        > 0,
+        "caveat": (
+            "descriptive pilot on Yahoo NAV proxies; not tradable edge; "
+            "UTF can flip sign; no costs/liquidity"
+        ),
+    }
+    artifact = {
+        "schema_version": SCHEMA_VERSION,
+        "spec_id": spec["spec_id"],
+        "lab_id": "CEF-DISCOUNT",
+        "source": {
+            "price_endpoint": "https://query1.finance.yahoo.com/v8/finance/chart/{TICKER}",
+            "nav_endpoint": "https://query1.finance.yahoo.com/v8/finance/chart/{NAV_TICKER}",
+            "nav_convention": "X{TICKER}X Yahoo NAV proxy",
+            "raw_charts_committed": False,
+            "bundle_path": str(bundle),
+        },
+        "summary": summary,
+        "rows": rows,
+        "price_only_controls": controls,
+    }
+    artifact["artifact_sha256"] = sha256(
+        {k: v for k, v in artifact.items() if k != "artifact_sha256"}
+    )
+    return artifact
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--spec", type=Path, default=DEFAULT_SPEC)
+    parser.add_argument("--bundle", type=Path, default=DEFAULT_BUNDLE)
+    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    args = parser.parse_args(argv)
+    spec = load_json(args.spec)
+    artifact = build_artifact(spec, args.bundle)
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    with args.output.open("w", encoding="utf-8") as handle:
+        json.dump(artifact, handle, indent=2, sort_keys=True)
+        handle.write("\n")
+    print(
+        json.dumps(
+            {
+                "output": str(args.output),
+                "summary": artifact["summary"],
+                "artifact_sha256": artifact["artifact_sha256"],
+            },
+            indent=2,
+        )
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
