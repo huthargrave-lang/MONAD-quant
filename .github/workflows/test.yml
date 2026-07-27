@@ -10,7 +10,23 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
+      # fetch-depth: 0 is REQUIRED, not a nicety. The default is a depth-1,
+      # single-branch clone, and two guard families read git:
+      #   * tests/test_h41_id_collision.py — note._remote_ids() runs
+      #     `git show origin/development:RESEARCH_WEB.md` to avoid handing out an ID a
+      #     parallel session already took. A shallow single-branch checkout has no
+      #     origin/development in its object store, so it returned [] and the guard
+      #     that asserts the deploy-branch check still contributes failed.
+      #   * tests/test_h38_route_vocabulary_audit.py — measures the routing table's miss
+      #     rate over commit subjects. At depth 1 the corpus is ONE subject, so the miss
+      #     rate was 100% against a 20% bound.
+      # Both passed locally (full clone) and failed only here, which is why CI was red on
+      # every push while the suite was green. Skipping them when history is absent would
+      # be the wrong fix: a guard disabled by its environment is F234's shape — a
+      # limitation recorded rather than tested.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
