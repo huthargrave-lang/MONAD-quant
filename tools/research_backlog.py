@@ -96,6 +96,16 @@ RECENT_COMMITS = 40
 # entry is how a real blocker becomes invisible. Remove the entry when the block
 # lifts — a deferral is a pause, not a verdict.
 DEFERRED = {
+    "open:-sweep-py-has-the-same-cache-footgun": (
+        "Owner-deferred in the handoff that raised it: item 6 of HANDOFF_2026-07-25.md "
+        "reads 'fenced WARN (selection-of-record), so left alone'. The investigation is "
+        "DONE and guarded by tests/test_sweep_cache_guard.py, which found the handoff's "
+        "premise was partly inverted — the cache is usually REJECTED (the read guard "
+        "compares an intraday first bar against a midnight start), so the poison-cache "
+        "risk is mostly moot while the rate-limit protection it exists for is absent. "
+        "The residual is a one-line change to which data parameter selection sees, "
+        "which is a sign-off decision, not a research one."
+    ),
     "open:f148-the-utc-gate-": (
         "Owner-deferred 2026-07-25. Correcting either the timezone or the "
         "else-branch changes which bars produce entries, so every hourly backtest "
