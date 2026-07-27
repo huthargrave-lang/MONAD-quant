@@ -154,6 +154,55 @@ class TheRegistryIsWiredToRealItemsTests(unittest.TestCase):
                              "untracked item {!r} reports resolved".format(h[:50]))
 
 
+class EverySuppressionRegistryIsWiredTests(unittest.TestCase):
+    """The same dead-lever check, applied to the OTHER two registries.
+
+    F243 guarded PROSE_RESOLVED's fingerprints and left BLOCKED_ON_DATA and DEFERRED
+    unchecked. That gap bit immediately: an H29 entry was added to BLOCKED_ON_DATA whose
+    key matched no item, because a `supports` edge had already removed H29 from the
+    unresolved source. A suppression entry that suppresses nothing is exactly F145's
+    shape — a knob with no reader — and it is worse here than elsewhere, because it
+    reads as "this item is handled" while handling nothing.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        nodes = rb.load_nodes()
+        big = 10_000
+        cls.keys = {str(t["key"]) for t in (
+            rb.source_open_items(big) + rb.source_uncited(nodes, big)
+            + rb.source_unguarded(big) + rb.source_unresolved(nodes, big)
+            + rb.source_blocked_labs(big))}
+
+    def test_every_blocked_on_data_key_matches_a_real_item(self):
+        for key in rb.BLOCKED_ON_DATA:
+            with self.subTest(key=key):
+                self.assertIn(
+                    key, self.keys,
+                    "BLOCKED_ON_DATA carries '{}' which matches no queue item — it "
+                    "suppresses nothing. Either the item was resolved (drop the entry) "
+                    "or the key is wrong.".format(key))
+
+    def test_every_deferred_key_matches_a_real_item(self):
+        for key in rb.DEFERRED:
+            with self.subTest(key=key):
+                self.assertIn(
+                    key, self.keys,
+                    "DEFERRED carries '{}' which matches no queue item".format(key))
+
+    def test_the_registries_are_not_empty(self):
+        """Non-vacuity: an all-empty registry would pass the two checks above."""
+        self.assertTrue(rb.BLOCKED_ON_DATA)
+        self.assertTrue(rb.DEFERRED)
+
+    def test_every_entry_states_a_reason(self):
+        """An unexplained suppression is how a real blocker becomes invisible."""
+        for key, val in rb.BLOCKED_ON_DATA.items():
+            self.assertTrue(str(val[0]).strip(), "{} has no reason".format(key))
+        for key, val in rb.DEFERRED.items():
+            self.assertTrue(str(val).strip(), "{} has no reason".format(key))
+
+
 class TheQueueNoLongerSurfacesItTests(unittest.TestCase):
 
     def test_the_resolved_item_is_absent_from_the_open_list(self):
