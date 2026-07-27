@@ -420,9 +420,26 @@ def cmd_link(args):
                 sys.exit(f"{nid} does not exist")
         if args.src == args.target:
             sys.exit("a node cannot link to itself")
-        existing = {(e["target"], e["type"]) for e in nodes[args.src]["edges"]}
-        if (args.target, etype) in existing:
-            sys.exit(f"{args.src} already carries [[{args.target}|{etype}]]")
+        # Check by TARGET, not by (target, type). `_parse_web_text` keeps ONE edge per
+        # (source, target) pair — at equal rank a reliance edge beats a non-reliance
+        # one, and when BOTH are reliance edges the first simply wins. So writing a
+        # second type to a target that already has one produces a link the parser
+        # silently discards: the command reports success and nothing changes.
+        #
+        # That is not hypothetical. `note.py link F205 H31 --type supports` was run and
+        # reported "F205 --supports--> H31"; F205 already carried [[H31|refines]], both
+        # are reliance edges, so `refines` won and the new edge vanished. H31 therefore
+        # stayed on the backlog as "no Finding supports it" while an explicit supports
+        # link sat in the source. Five such conflicting pairs already exist in the web.
+        by_target = {e["target"]: e["type"] for e in nodes[args.src]["edges"]}
+        if args.target in by_target:
+            have = by_target[args.target]
+            if have == etype:
+                sys.exit(f"{args.src} already carries [[{args.target}|{etype}]]")
+            sys.exit(
+                f"{args.src} already carries [[{args.target}|{have}]]. The parser keeps "
+                f"ONE edge per target, so adding '{etype}' would be silently discarded. "
+                f"Edit the existing edge if '{etype}' is the truer relation.")
         if etype in ctx.RELIANCE_EDGES and ctx._is_superseded(nodes[args.target]):
             sys.exit(f"reliance edge '{etype}' to superseded {args.target}")
         candidate = apply_link(text, args.src, args.target, etype)

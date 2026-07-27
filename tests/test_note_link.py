@@ -105,8 +105,12 @@ class TheWriterRefusesTheDangerousCasesTests(unittest.TestCase):
         self.assertIn("already carries", out.stdout + out.stderr)
 
     def test_it_is_dry_run_by_default(self):
+        # F140->H27 was the original fixture and is no longer usable: F140 already
+        # carries [[H27|supports]], and F265 made `link` refuse a SECOND type to a
+        # target the parser would silently drop. The dry-run path needs a pair with no
+        # existing edge, or it exercises the refusal instead of the write.
         before = (ROOT / "RESEARCH_WEB.md").read_text(encoding="utf-8")
-        out = self._run("F140", "H27", "--type", "relates")
+        out = self._run("F140", "F172", "--type", "relates")
         after = (ROOT / "RESEARCH_WEB.md").read_text(encoding="utf-8")
         self.assertEqual(before, after,
                          "note.py link wrote without --commit")
