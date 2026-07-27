@@ -456,6 +456,7 @@
       "files": [
         "tools/atm_424b5_lab.py",
         "tools/band_geometry.py",
+        "tools/bar_continuity.py",
         "tools/ca_announce_cohort_lab.py",
         "tools/cef_discount_lab.py",
         "tools/column_reachability.py",
