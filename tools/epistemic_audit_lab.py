@@ -898,7 +898,15 @@ def full_report(repo: Path = REPO, path: str = "RESEARCH_WEB.md") -> Dict[str, o
     working_nodes = parse_web(working_text)
     uncommitted = sorted(set(working_nodes) - set(nodes))
 
-    life = node_lifecycles(repo, path)
+    # History can hold node ids the web no longer has — a node deleted, or renumbered
+    # to resolve a merge collision. `graph` reads HEAD while `life` replays every
+    # commit, so counting those would make the two describe different corpora and
+    # silently inflate every per-node exposure rate by the dead ids. They are dropped
+    # from the analysis and SURFACED, the same contract `uncommitted_nodes` follows:
+    # a corpus difference the report states is fine, one it hides is not.
+    life_all = node_lifecycles(repo, path)
+    retired = sorted(set(life_all) - set(nodes))
+    life = {k: v for k, v in life_all.items() if k in nodes}
     revision = revision_analysis(life)
     graph = graph_analysis(nodes)
     risk = risk_analysis(nodes, life, graph)
@@ -911,6 +919,7 @@ def full_report(repo: Path = REPO, path: str = "RESEARCH_WEB.md") -> Dict[str, o
         "repo_provenance": provenance,
         "commits_observed": len(commits),
         "uncommitted_nodes": uncommitted,
+        "retired_nodes": retired,
         "revision": revision,
         "graph": slim_graph,
         "risk": risk,

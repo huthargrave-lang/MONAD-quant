@@ -464,6 +464,33 @@ class ProductionWebTests(unittest.TestCase):
         self.assertEqual(report["graph"]["n_nodes"], report["revision"]["n_nodes"])
         self.assertIn("uncommitted_nodes", report)
 
+    def test_retired_node_ids_are_surfaced_not_silently_dropped(self):
+        """History can hold ids the web no longer has — a deletion, or a renumber
+        resolving a merge collision. Dropping them silently would inflate every
+        per-node exposure rate by dead ids; keeping them would make `graph` (HEAD)
+        and `revision` (all commits) describe different corpora. The report does
+        neither: it drops them from the analysis and lists them."""
+        report = LAB.full_report()
+        self.assertIn("retired_nodes", report)
+        retired = report["retired_nodes"]
+        self.assertIsInstance(retired, list)
+        head = set(LAB.parse_web(
+            (LAB.REPO / "RESEARCH_WEB.md").read_text(encoding="utf-8")))
+        for node_id in retired:
+            self.assertNotIn(
+                node_id, head,
+                "{} is listed as retired but is present in the web".format(node_id))
+
+    def test_retired_ids_do_not_reach_the_revision_denominator(self):
+        """Non-vacuity for the fix: the count must exclude them, not merely name
+        them. Only meaningful while some id is actually retired."""
+        report = LAB.full_report()
+        if not report["retired_nodes"]:
+            self.skipTest("no retired ids in this history — nothing to exclude")
+        self.assertEqual(
+            report["graph"]["n_nodes"], report["revision"]["n_nodes"],
+            "retired ids are back in the revision denominator")
+
     def test_integrity_checks_catch_supersedes_without_tombstone(self):
         nodes = LAB.parse_web(
             "### F1 — new\nSUPERSEDES [[F2|supersedes]].\n\n"
