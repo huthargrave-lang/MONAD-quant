@@ -113,6 +113,17 @@ def chart_closes(path: Path) -> Dict[str, float]:
 def forward_window(
     days: Sequence[str], file_date: str, horizon: int
 ) -> Optional[Tuple[str, str]]:
+    # The series must actually COVER the event. Without this, a chart bundle that
+    # starts after `file_date` makes days[0] the first day "> file_date", so the
+    # window silently anchors on the START OF THE DATA rather than on the event —
+    # identical for every ticker fetched over the same range. That is what produced
+    # the committed pilot's 19 rows sharing one entry_date (2024-07-25) against 19
+    # distinct file dates spanning Jan-Mar, and one SPY return for all of them: the
+    # "excess return" measured Aug 2024 microcap drift, not a reaction to a 424B5.
+    # Refuse rather than substitute — a returned pair is indistinguishable from a
+    # real one at every downstream call site.
+    if not days or file_date < days[0]:
+        return None
     start_idx = None
     for i, day in enumerate(days):
         if day > file_date:
