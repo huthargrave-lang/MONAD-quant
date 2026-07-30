@@ -1,0 +1,14 @@
+{
+  "name": "monad-quant",
+  "owner": {
+    "name": "hudson",
+    "email": "hut.hargrave@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "monad-quant",
+      "source": "./",
+      "description": "MONAD Quant research skills — orient, explore, test, validate-edge, preflight, sweep. Routes agents through the ctx tooling and enforces the repo invariants (paper port 7497; never the live trading/order/strategy path)."
+    }
+  ]
+}
