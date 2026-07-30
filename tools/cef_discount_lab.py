@@ -199,6 +199,58 @@ def price_only_control(
     }
 
 
+def cross_ticker_correlation(bundle: Path, tickers: Sequence[str]) -> Dict[str, object]:
+    """Mean pairwise correlation of daily returns across the universe.
+
+    Without this the artifact cannot support ANY significance statement. A sign test
+    over N tickers gives an exact p only if the tickers are independent; these are
+    same-market closed-end funds and plainly are not, so the honest reading of "8 of 8
+    negative" is a BOUND — p=0.0078 under independence, p=1.0 if they move as one —
+    and the artifact records nothing that narrows it.
+
+    Mean pairwise rho gives an effective sample size (Kish-style:
+    n_eff = n / (1 + (n-1) * rho)), which turns that bound into a number. Emitting it
+    costs one pass over series already loaded.
+    """
+    series: Dict[str, Dict[int, float]] = {}
+    for t in tickers:
+        path = bundle / "{}_chart.json".format(t)
+        if path.is_file():
+            series[t] = chart_close_map(path)
+    names = sorted(series)
+    rets: Dict[str, Dict[int, float]] = {}
+    for t in names:
+        ts = sorted(series[t])
+        rets[t] = {
+            ts[i]: series[t][ts[i]] / series[t][ts[i - 1]] - 1.0
+            for i in range(1, len(ts)) if series[t][ts[i - 1]]
+        }
+    pairs = []
+    for i, a in enumerate(names):
+        for b in names[i + 1:]:
+            shared = sorted(set(rets[a]) & set(rets[b]))
+            if len(shared) < 30:
+                continue
+            pairs.append(corr([rets[a][k] for k in shared],
+                              [rets[b][k] for k in shared]))
+    if not pairs:
+        return {"n_tickers": len(names), "mean_pairwise_rho": None,
+                "effective_n": None}
+    rho = mean(pairs)
+    n = len(names)
+    n_eff = n / (1.0 + (n - 1) * rho) if (1.0 + (n - 1) * rho) > 0 else None
+    return {
+        "n_tickers": n,
+        "n_pairs": len(pairs),
+        "mean_pairwise_rho": round(rho, 4),
+        "min_pairwise_rho": round(min(pairs), 4),
+        "max_pairwise_rho": round(max(pairs), 4),
+        "effective_n": round(n_eff, 2) if n_eff else None,
+        "note": ("sign tests over tickers must use effective_n, not n_tickers; "
+                 "these are same-market funds"),
+    }
+
+
 def build_artifact(spec: Mapping[str, object], bundle: Path) -> Dict[str, object]:
     if int(spec.get("schema_version", -1)) != SCHEMA_VERSION:
         raise ValueError("unsupported schema_version")
@@ -224,8 +276,11 @@ def build_artifact(spec: Mapping[str, object], bundle: Path) -> Dict[str, object
                 **price_only_control(price_path, trail=20, horizon=horizon),
             }
         )
+    cross = cross_ticker_correlation(
+        bundle, [item["ticker"] for item in spec["tickers"]])
     summary = {
         "tickers": len(rows),
+        "cross_ticker": cross,
         "z_lookback": z_lookback,
         "horizon_bars": horizon,
         "mean_corr_discount_z_fut_price": round(
