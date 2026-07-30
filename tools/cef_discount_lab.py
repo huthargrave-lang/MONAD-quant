@@ -13,7 +13,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
-from statistics import mean, pstdev
+from statistics import mean, pstdev, stdev
 from typing import Dict, List, Mapping, Sequence, Tuple
 
 
@@ -80,6 +80,35 @@ def corr(xs: Sequence[float], ys: Sequence[float]) -> float:
     return num / den
 
 
+def _quintile_spread(ranked: Sequence[Tuple[float, float]], q: int) -> Dict[str, object]:
+    """Low/high quintile means PLUS the dispersion a t-stat needs.
+
+    The pilot emitted means only. That makes the artifact descriptive by
+    construction: `cheap_minus_rich_price` of +1.76% cannot be distinguished from
+    noise without the spread of the underlying windows, and no later reader can
+    recover it because the raw charts are not committed
+    (`raw_charts_committed: false`). Recording the SD and the per-side n costs
+    nothing at write time and is the difference between "suggestive" and "settled" —
+    the same gap F262 found when F204's single RSI figure turned out to sit at the
+    97th percentile of its own distribution.
+
+    Windows OVERLAP (step 1, horizon 20), so `n` here is NOT an independent sample
+    size; `n_independent` reports the non-overlapping count, which is what a
+    standard error should actually be built on.
+    """
+    lo = [b for _, b in ranked[:q]]
+    hi = [b for _, b in ranked[-q:]]
+
+    def sd(xs):
+        return round(stdev(xs), 6) if len(xs) > 1 else None
+
+    return {
+        "low_mean": round(mean(lo), 4), "high_mean": round(mean(hi), 4),
+        "low_sd": sd(lo), "high_sd": sd(hi),
+        "low_n": len(lo), "high_n": len(hi),
+    }
+
+
 def evaluate_ticker(
     ticker: str,
     nav_ticker: str,
@@ -115,7 +144,12 @@ def evaluate_ticker(
     rich_d = mean(b for _, b in ranked_d[-q:])
     zs = [a for a, _ in pairs_px]
     futs = [b for _, b in pairs_px]
+    spread_px = _quintile_spread(ranked, q)
+    spread_d = _quintile_spread(ranked_d, q)
     return {
+        "dispersion_price": spread_px,
+        "dispersion_disc_chg": spread_d,
+        "n_independent": max(0, (len(disc) - z_lookback) // horizon),
         "ticker": ticker,
         "nav_ticker": nav_ticker,
         "n_aligned": len(disc),
@@ -153,6 +187,8 @@ def price_only_control(
     high = mean(b for _, b in ranked[-q:])
     return {
         "n_pairs": len(pairs),
+        "n_independent": max(0, (len(rets) - trail) // horizon),
+        "dispersion": _quintile_spread(ranked, q),
         "corr_trail_fut": round(
             corr([a for a, _ in pairs], [b for _, b in pairs]), 4
         ),
