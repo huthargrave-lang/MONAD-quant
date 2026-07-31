@@ -77,9 +77,21 @@ fi
 
 # ── 6. Unit tests ───────────────────────────────────────────────────
 echo "[6/7] Unit tests"
-if "$VENV_DIR/bin/python" -m unittest tests.test_state -q 2>&1 | tail -1 | grep -q "^OK"; then
-    TEST_COUNT=$("$VENV_DIR/bin/python" -m unittest tests.test_state -q 2>&1 | head -1 | grep -oP '\d+')
-    pass "All tests passed"
+# unittest writes its summary ("Ran N tests" / "OK") to STDERR, while
+# tests.test_state also prints diagnostics to STDOUT. Merging the two with
+# `2>&1` made this check both wrong and fatal:
+#   - stdout is block-buffered when piped, so its flush can land either side of
+#     "OK" — a `tail -1` match was a coin flip, reporting passing tests as failed
+#   - a non-numeric first line made `grep -oP '\d+'` exit 1, and under
+#     `set -euo pipefail` that failed command substitution killed the whole
+#     script before step 7 ever ran
+# Fix: keep stderr only (`2>&1 >/dev/null` — order matters), match a standalone
+# OK line anywhere in the summary rather than just the last line, and keep the
+# count extraction non-fatal. Also runs the suite once instead of twice.
+TEST_OUT=$("$VENV_DIR/bin/python" -m unittest tests.test_state -q 2>&1 >/dev/null) || true
+TEST_COUNT=$(echo "$TEST_OUT" | grep -oE 'Ran [0-9]+ test' | grep -oE '[0-9]+') || TEST_COUNT="?"
+if echo "$TEST_OUT" | grep -qE '^OK([[:space:]]|$)'; then
+    pass "All tests passed ($TEST_COUNT tests)"
 else
     fail "Unit tests failed"
 fi
