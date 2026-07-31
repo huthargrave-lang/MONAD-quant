@@ -1,0 +1,22 @@
+[Unit]
+Description=Poll every 10 min during the session to re-arm a cold MONAD trader
+
+[Timer]
+# Hours 10-15 ET only — deliberately AFTER the normal 09:22 ET cold start has
+# had its chance, so this never pre-empts or races the standard path. It is a
+# recovery mechanism, not a second scheduler.
+#
+# Every 10 min because the trigger is unpredictable: the GTC bracket closes the
+# position only when price touches TP or SL, which may be seconds after the
+# open or hours later. Whenever that happens, the next tick starts the trader,
+# which then picks up the following :32 bar cycle.
+#
+# 10 min also keeps attempts to at most one per monad-trader.service
+# StartLimitIntervalSec window (600s / StartLimitBurst=2), so a repeatedly
+# failing start can never latch the unit into 'failed' from this timer alone.
+OnCalendar=Mon..Fri 10..15:00/10 America/New_York
+Persistent=false
+Unit=monad-trader-rearm.service
+
+[Install]
+WantedBy=timers.target

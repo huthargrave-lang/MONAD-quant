@@ -1,0 +1,31 @@
+[Unit]
+# Recovery-only companion to monad-trader.service. Fires on a timer during the
+# session and starts the trader IFF a cold start would actually pass preflight.
+# Exists because preflight refuses a cold start while a position is open, so a
+# process death mid-overnight-hold (reboot/power loss) otherwise costs a whole
+# session. See ops/rearm_trader.sh for the full rationale.
+#
+# Deliberately declares NO dependency on monad-trader.service: this unit must
+# run precisely when the trader is NOT running, and must never pull it up
+# except through the guarded ops/rearm_trader.sh -> preflight path.
+Description=MONAD trader re-arm attempt (preflight-gated; no-op unless a cold start would succeed)
+After=network-online.target ibkr-gateway-paper.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=hudson
+Group=hudson
+WorkingDirectory=/home/hudson/MONAD-quant
+Environment=TZ=America/New_York
+
+# The script is a no-op unless ops/preflight_trader_start.sh exits 0. It never
+# edits or bypasses the armed start path — it only calls it.
+ExecStart=/home/hudson/MONAD-quant/ops/rearm_trader.sh
+
+StandardOutput=append:/home/hudson/MONAD-quant/local_logs/trader_rearm.log
+StandardError=append:/home/hudson/MONAD-quant/local_logs/trader_rearm.log
+SyslogIdentifier=monad-trader-rearm
+
+[Install]
+WantedBy=multi-user.target
