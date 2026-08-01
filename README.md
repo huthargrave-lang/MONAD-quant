@@ -116,13 +116,22 @@ picture of the graph:
   badges (stated *and* effective, naming the weakest link), supersession / disputed / fragile
   warnings, and the `ctx why` provenance chains: *grounded in* which experiments, *bears on*
   which decisions
-- **Search over prose** — matches body text, not just titles; `Enter` / `n` / `p` cycle matches
+- **Search over prose** — matches body text, not just titles, and lists the hits with the
+  matching sentence highlighted; `Enter` / `n` / `p` cycle them
+- **Related by content** — top TF-IDF neighbours per node (the `ctx related` model), i.e. the
+  connections nobody hand-authored a `[[link]]` for
+- **Open work** — live decisions/gates + `OPEN` / `IN PROGRESS` nodes, the same rule as
+  `ctx web --pending`
 - **Layer presets** — `ideas` / `code` / `all` to swap between the research web and the repo
 - **Deep links** — `…/#F13` opens straight onto a node; Back/Forward walk your path
 - **Keyboard** — `/` search · `f` fit · `g` flat · `r` reset · `?` shortcuts
 - **Offline-safe** — if the d3 CDN is unreachable the page degrades to a searchable node list
   with the same inspector, since all the research text is inlined
 - **Fresh on every load** — rebuilt from the manifest each request
+
+d3 is the only thing not inlined. To remove that dependency entirely — no network, and no CDN
+seeing a request for a private research page — drop a d3 v7 UMD build at
+`tools/vendor/d3.min.js` and it is inlined instead (nothing is downloaded for you).
 
 `GET /api/graph.json` returns the same map as data (nodes, edges, per-node details, summary)
 for other tools; `GET /health` is the liveness probe.

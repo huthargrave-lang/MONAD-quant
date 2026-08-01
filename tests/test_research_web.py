@@ -1052,6 +1052,44 @@ class TestGraphHtmlReader(unittest.TestCase):
         self.assertIn("'<b>'+esc(d.id)+'</b> '+d.title", ctx._GRAPH_HTML)
 
 
+class TestVendoredD3(unittest.TestCase):
+    """The layout library is the one thing the map doesn't inline. A vendored build
+    makes the page load with no network at all; without one it must still emit the
+    CDN tag (the page degrades to a readable list if that fails to load)."""
+
+    def _with_vendor(self, contents):
+        with tempfile.TemporaryDirectory() as td:
+            path = os.path.join(td, "d3.min.js")
+            with open(path, "w") as fh:
+                fh.write(contents)
+            old, ctx._VENDOR_D3 = ctx._VENDOR_D3, path
+            try:
+                return ctx._d3_script()
+            finally:
+                ctx._VENDOR_D3 = old
+
+    def test_falls_back_to_the_cdn_without_a_vendored_build(self):
+        old, ctx._VENDOR_D3 = ctx._VENDOR_D3, os.path.join(tempfile.gettempdir(), "no-such-d3.js")
+        try:
+            self.assertEqual(ctx._d3_script(), ctx._D3_CDN)
+        finally:
+            ctx._VENDOR_D3 = old
+
+    def test_vendored_build_is_inlined_instead_of_fetched(self):
+        tag = self._with_vendor("window.d3={version:'fake'};")
+        self.assertIn("window.d3={version:'fake'};", tag)
+        self.assertNotIn("cdnjs", tag)
+
+    def test_refuses_a_build_that_would_close_our_script_tag(self):
+        self.assertEqual(self._with_vendor("x=1;</script><script>evil()"), ctx._D3_CDN)
+
+    def test_the_real_page_substitutes_the_d3_placeholder(self):
+        G, adj = ctx.build_graph(include_code=True)
+        html = ctx._render_graph_html(G, adj)
+        self.assertNotIn("__D3__", html)
+        self.assertIn(ctx._d3_script()[:60], html)   # whichever source is in effect
+
+
 class TestServeRoutes(unittest.TestCase):
     """`ctx serve` route table — resolvable without opening a socket."""
 
