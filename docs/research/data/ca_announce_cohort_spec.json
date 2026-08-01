@@ -1,0 +1,272 @@
+{
+  "schema_version": 1,
+  "spec_id": "ca-announce-cohort-schema-seed-v1",
+  "censor_on": "2025-01-01",
+  "raw_documents_committed": false,
+  "predictive_features_allowed": false,
+  "research_status": "reviewed_announcement_schema_seed_not_population",
+  "cohort": {
+    "name": "ca-announce-schema-pilot",
+    "announcement_start": "2022-01-01",
+    "announcement_end": "2023-12-31",
+    "selection_rule": "Reviewed structural panel spanning three holder-outcome classes, reused from CA-00/CA-01/CA-FAILFRAME transformed facts. Not a frozen SEC announcement search population.",
+    "rights_tier": "public U.S. government filings; transformed facts and source links only"
+  },
+  "parent_docs": [
+    "docs/research/CA_ANNOUNCE_model_blueprint.md",
+    "docs/research/CA_FAILFRAME_termination_seed.md",
+    "docs/research/CA01_sec_form25_state_machine.md",
+    "docs/research/CA00_corporate_action_outcome_lab.md"
+  ],
+  "deals": [
+    {
+      "deal_id": "atvi-msft",
+      "target_name": "Activision Blizzard, Inc.",
+      "acquirer_name": "Microsoft Corporation",
+      "target_cik": "0000718877",
+      "acquirer_cik": "0000789019",
+      "event_symbol": "ATVI",
+      "stratum": "classic_public_target",
+      "announced_on": "2022-01-18",
+      "announcement": {
+        "observed_at": "2022-01-18T09:28:00-05:00",
+        "observation_time_quality": "edgar_acceptance_exact",
+        "accession": "0001104659-22-004729",
+        "form": "8-K",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/718877/000110465922004729/tm223212d1_8k.htm"
+      },
+      "announcement_terms": {
+        "consideration_family": "cash",
+        "cash_usd_per_share": 95.0
+      },
+      "conditions": {
+        "shareholder_vote": true,
+        "regulatory": true,
+        "financing": false,
+        "outside_date_known": false
+      },
+      "outcome": "close_as_announced",
+      "resolution": {
+        "resolved_on": "2023-10-13",
+        "resolved_observed_at": "2023-10-13T08:34:52-04:00",
+        "outcome_source_accession": "0001104659-23-108985",
+        "outcome_source_url": "https://www.sec.gov/Archives/edgar/data/718877/000110465923108985/tm2328253d1_8k.htm",
+        "next_counterparty": null,
+        "notes": "Issuer completion 8-K precedes Nasdaq Form 25; cash right remains $95."
+      },
+      "predictive_for_outcome": false,
+      "reuses_research_nodes": [
+        "E103",
+        "CA01",
+        "CA00"
+      ]
+    },
+    {
+      "deal_id": "twtr-musk",
+      "target_name": "Twitter, Inc.",
+      "acquirer_name": "Elon Musk / X Holdings",
+      "target_cik": "0001418091",
+      "acquirer_cik": null,
+      "event_symbol": "TWTR",
+      "stratum": "classic_public_target",
+      "announced_on": "2022-04-25",
+      "announcement": {
+        "observed_at": "2022-04-25T16:44:36-04:00",
+        "observation_time_quality": "edgar_acceptance_exact",
+        "accession": "0001193125-22-117720",
+        "form": "8-K/EX-99.1",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/1418091/000119312522117720/d319190dex991.htm"
+      },
+      "announcement_terms": {
+        "consideration_family": "cash",
+        "cash_usd_per_share": 54.2
+      },
+      "conditions": {
+        "shareholder_vote": true,
+        "regulatory": true,
+        "financing": true,
+        "outside_date_known": false
+      },
+      "outcome": "close_as_announced",
+      "resolution": {
+        "resolved_on": "2022-10-27",
+        "resolved_observed_at": "2022-10-28T08:31:19-04:00",
+        "outcome_source_accession": "0000876661-22-000890",
+        "outcome_source_url": "https://www.sec.gov/Archives/edgar/data/876661/000087666122000890/ruleprovisionnotice.htm",
+        "next_counterparty": null,
+        "notes": "NYSE Form 25 establishes completion before the issuer completion 8-K."
+      },
+      "predictive_for_outcome": false,
+      "reuses_research_nodes": [
+        "E103",
+        "CA01",
+        "CA00"
+      ]
+    },
+    {
+      "deal_id": "sgen-pfe",
+      "target_name": "Seagen Inc.",
+      "acquirer_name": "Pfizer Inc.",
+      "target_cik": "0001060736",
+      "acquirer_cik": "0000078003",
+      "event_symbol": "SGEN",
+      "stratum": "classic_public_target",
+      "announced_on": "2023-03-13",
+      "announcement": {
+        "observed_at": "2023-03-13T03:27:57-04:00",
+        "observation_time_quality": "edgar_acceptance_exact",
+        "accession": "0001193125-23-068474",
+        "form": "8-K",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/1060736/000119312523068474/0001193125-23-068474-index.htm"
+      },
+      "announcement_terms": {
+        "consideration_family": "cash",
+        "cash_usd_per_share": 229.0
+      },
+      "conditions": {
+        "shareholder_vote": true,
+        "regulatory": true,
+        "financing": false,
+        "outside_date_known": false
+      },
+      "outcome": "close_as_announced",
+      "resolution": {
+        "resolved_on": "2023-12-14",
+        "resolved_observed_at": null,
+        "outcome_source_accession": "0001193125-23-294930",
+        "outcome_source_url": "https://www.sec.gov/Archives/edgar/data/78003/000119312523294930/d553734d8k.htm",
+        "next_counterparty": null,
+        "notes": "Completion confirmation reused from CA-00; announcement clock is date-only until the announcement accession is joined."
+      },
+      "predictive_for_outcome": false,
+      "reuses_research_nodes": [
+        "E102",
+        "CA00"
+      ]
+    },
+    {
+      "deal_id": "adobe-figma",
+      "target_name": "Figma, Inc.",
+      "acquirer_name": "Adobe Inc.",
+      "target_cik": "0000796343",
+      "acquirer_cik": "0000796343",
+      "event_symbol": null,
+      "stratum": "other",
+      "announced_on": "2022-09-15",
+      "announcement": {
+        "observed_at": "2022-09-15T09:20:23-04:00",
+        "observation_time_quality": "edgar_acceptance_exact",
+        "accession": "0001140361-22-033412",
+        "form": "8-K",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/796343/000114036122033412/0001140361-22-033412-index.htm"
+      },
+      "announcement_terms": {
+        "consideration_family": "cash_and_stock",
+        "cash_usd_per_share": null
+      },
+      "conditions": {
+        "shareholder_vote": false,
+        "regulatory": true,
+        "financing": false,
+        "outside_date_known": false
+      },
+      "outcome": "negative_termination",
+      "resolution": {
+        "resolved_on": "2023-12-17",
+        "resolved_observed_at": "2023-12-18T08:01:03-05:00",
+        "outcome_source_accession": "0000796343-23-000254",
+        "outcome_source_url": "https://www.sec.gov/Archives/edgar/data/796343/000079634323000254/0000796343-23-000254.txt",
+        "next_counterparty": null,
+        "notes": "CA-FAILFRAME primary termination source; no higher competing bid for Figma holders."
+      },
+      "predictive_for_outcome": false,
+      "reuses_research_nodes": [
+        "E109",
+        "CA-FAILFRAME"
+      ]
+    },
+    {
+      "deal_id": "fhn-td",
+      "target_name": "First Horizon Corporation",
+      "acquirer_name": "Toronto-Dominion Bank",
+      "target_cik": "0000036966",
+      "acquirer_cik": null,
+      "event_symbol": "FHN",
+      "stratum": "classic_public_target",
+      "announced_on": "2022-02-28",
+      "announcement": {
+        "observed_at": "2022-02-28T07:05:48-05:00",
+        "observation_time_quality": "edgar_acceptance_exact",
+        "accession": "0000930413-22-000362",
+        "form": "8-K",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/36966/000093041322000362/0000930413-22-000362-index.htm"
+      },
+      "announcement_terms": {
+        "consideration_family": "stock",
+        "cash_usd_per_share": null
+      },
+      "conditions": {
+        "shareholder_vote": true,
+        "regulatory": true,
+        "financing": false,
+        "outside_date_known": false
+      },
+      "outcome": "negative_termination",
+      "resolution": {
+        "resolved_on": "2023-05-04",
+        "resolved_observed_at": "2023-05-04T06:21:38-04:00",
+        "outcome_source_accession": "0000036966-23-000042",
+        "outcome_source_url": "https://www.sec.gov/Archives/edgar/data/36966/000003696623000042/0000036966-23-000042.txt",
+        "next_counterparty": null,
+        "notes": "Regulatory-timing termination with cash payment to target company, not a higher-bid displacement."
+      },
+      "predictive_for_outcome": false,
+      "reuses_research_nodes": [
+        "E109",
+        "CA-FAILFRAME"
+      ]
+    },
+    {
+      "deal_id": "amedisys-option-care",
+      "target_name": "Amedisys, Inc.",
+      "acquirer_name": "Option Care Health, Inc.",
+      "target_cik": "0000896262",
+      "acquirer_cik": null,
+      "event_symbol": "AMED",
+      "stratum": "classic_public_target",
+      "announced_on": "2023-05-03",
+      "announcement": {
+        "observed_at": "2023-05-03T13:15:08-04:00",
+        "observation_time_quality": "edgar_acceptance_exact",
+        "accession": "0001104659-23-055570",
+        "form": "8-K",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/896262/000110465923055570/0001104659-23-055570-index.htm"
+      },
+      "announcement_terms": {
+        "consideration_family": "stock",
+        "cash_usd_per_share": null
+      },
+      "conditions": {
+        "shareholder_vote": true,
+        "regulatory": true,
+        "financing": false,
+        "outside_date_known": false
+      },
+      "outcome": "higher_bid",
+      "resolution": {
+        "resolved_on": "2023-06-26",
+        "resolved_observed_at": "2023-06-26T00:00:00-04:00",
+        "outcome_source_accession": "0001104659-23-074547",
+        "outcome_source_url": "https://www.sec.gov/Archives/edgar/data/884309/000110465923074547/0001104659-23-074547.txt",
+        "next_counterparty": "UnitedHealth Group Incorporated",
+        "notes": "Option Care deal terminated with fee; Amedisys immediately entered UnitedHealth merger. Not equivalent to Adobe/Figma-style negative termination."
+      },
+      "predictive_for_outcome": false,
+      "reuses_research_nodes": [
+        "E109",
+        "F129",
+        "CA-FAILFRAME"
+      ]
+    }
+  ]
+}

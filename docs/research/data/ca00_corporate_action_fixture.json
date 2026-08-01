@@ -1,0 +1,353 @@
+{
+  "schema_version": 1,
+  "fixture_id": "ca00-diverse-terminal-outcomes-v1",
+  "scope": "Transformed facts from official SEC filings for outcome-label validation; not a corporate-action master and not a predictive event sample.",
+  "rights_tier": "public U.S. government filings; transformed facts and source links only",
+  "raw_documents_committed": false,
+  "actions": [
+    {
+      "logical_action_id": "cash-merger:SGEN:2023-12-14",
+      "action_type": "cash_merger",
+      "subject": {
+        "security_id": "cik:0001060736:common",
+        "issuer_cik": "0001060736",
+        "security_name": "Seagen Inc. common stock",
+        "event_symbol": "SGEN",
+        "identity_quality": "cik_scoped_common_pending_security_master"
+      },
+      "source": {
+        "url": "https://www.sec.gov/Archives/edgar/data/78003/000119312523294930/d553734d8k.htm",
+        "accession": "0001193125-23-294930",
+        "source_time": "2023-12-14",
+        "source_time_quality": "filing_date_only",
+        "source_role": "completion_confirmation",
+        "raw_document_committed": false
+      },
+      "effective_time": "2023-12-14",
+      "effective_time_quality": "effective_date_only",
+      "last_regular_trading_session": "2023-12-13",
+      "terms": {
+        "cash_usd_per_share": 229.0,
+        "acquirer_entity_id": "cik:0000078003"
+      },
+      "outcome_model": {
+        "label_type": "terminal_cash_value",
+        "formula": "terminal_value_per_subject_share = 229.00 USD",
+        "post_effective_return_policy": "subject security has no continuing-equity return",
+        "value_completeness": "complete_for_standard_common_share"
+      },
+      "provider_queries": [
+        {
+          "role": "subject_pre_effective",
+          "symbols": ["SGEN"],
+          "required_session": "2023-12-13"
+        }
+      ]
+    },
+    {
+      "logical_action_id": "cash-merger:ATVI:2023-10-13",
+      "action_type": "cash_merger",
+      "subject": {
+        "security_id": "cik:0000718877:common",
+        "issuer_cik": "0000718877",
+        "security_name": "Activision Blizzard, Inc. common stock",
+        "event_symbol": "ATVI",
+        "identity_quality": "cik_scoped_common_pending_security_master"
+      },
+      "source": {
+        "url": "https://www.sec.gov/Archives/edgar/data/789019/000119312523255762/d537928d8k.htm",
+        "accession": "0001193125-23-255762",
+        "source_time": "2023-10-13T08:37:32-04:00",
+        "source_time_quality": "exact_sec_accepted",
+        "source_role": "completion_confirmation",
+        "raw_document_committed": false
+      },
+      "effective_time": "2023-10-13",
+      "effective_time_quality": "effective_date_only",
+      "last_regular_trading_session": "2023-10-12",
+      "terms": {
+        "cash_usd_per_share": 95.0,
+        "acquirer_entity_id": "cik:0000789019"
+      },
+      "outcome_model": {
+        "label_type": "terminal_cash_value",
+        "formula": "terminal_value_per_subject_share = 95.00 USD",
+        "post_effective_return_policy": "subject security has no continuing-equity return",
+        "value_completeness": "complete_for_standard_common_share"
+      },
+      "provider_queries": [
+        {
+          "role": "subject_pre_effective",
+          "symbols": ["ATVI"],
+          "required_session": "2023-10-12"
+        }
+      ]
+    },
+    {
+      "logical_action_id": "cash-merger:SPLK:2024-03-18",
+      "action_type": "cash_merger",
+      "subject": {
+        "security_id": "cik:0001353283:common",
+        "issuer_cik": "0001353283",
+        "security_name": "Splunk Inc. common stock",
+        "event_symbol": "SPLK",
+        "identity_quality": "cik_scoped_common_pending_security_master"
+      },
+      "source": {
+        "url": "https://www.sec.gov/Archives/edgar/data/858877/000119312524070175/d783088d8k.htm",
+        "accession": "0001193125-24-070175",
+        "source_time": "2024-03-18",
+        "source_time_quality": "filing_date_only",
+        "source_role": "completion_confirmation",
+        "raw_document_committed": false
+      },
+      "effective_time": "2024-03-18",
+      "effective_time_quality": "effective_date_only",
+      "last_regular_trading_session": "2024-03-15",
+      "terms": {
+        "cash_usd_per_share": 157.0,
+        "acquirer_entity_id": "cik:0000858877"
+      },
+      "outcome_model": {
+        "label_type": "terminal_cash_value",
+        "formula": "terminal_value_per_subject_share = 157.00 USD",
+        "post_effective_return_policy": "subject security has no continuing-equity return",
+        "value_completeness": "complete_for_standard_common_share"
+      },
+      "provider_queries": [
+        {
+          "role": "subject_pre_effective",
+          "symbols": ["SPLK"],
+          "required_session": "2024-03-15"
+        }
+      ]
+    },
+    {
+      "logical_action_id": "cash-merger:TWTR:2022-10-27",
+      "action_type": "cash_merger",
+      "subject": {
+        "security_id": "cik:0001418091:common",
+        "issuer_cik": "0001418091",
+        "security_name": "Twitter, Inc. common stock",
+        "event_symbol": "TWTR",
+        "identity_quality": "cik_scoped_common_pending_security_master"
+      },
+      "source": {
+        "url": "https://www.sec.gov/Archives/edgar/data/1418091/000119312522272772/d411753d8k.htm",
+        "accession": "0001193125-22-272772",
+        "source_time": "2022-10-28T20:22:36-04:00",
+        "source_time_quality": "exact_sec_accepted",
+        "source_role": "post_effective_completion_confirmation",
+        "raw_document_committed": false
+      },
+      "effective_time": "2022-10-27",
+      "effective_time_quality": "effective_date_only",
+      "last_regular_trading_session": "2022-10-27",
+      "terms": {
+        "cash_usd_per_share": 54.2,
+        "acquirer_entity_id": "private:X-Holdings-I"
+      },
+      "outcome_model": {
+        "label_type": "terminal_cash_value",
+        "formula": "terminal_value_per_subject_share = 54.20 USD",
+        "post_effective_return_policy": "subject security has no continuing-equity return",
+        "value_completeness": "complete_for_standard_common_share"
+      },
+      "provider_queries": [
+        {
+          "role": "subject_pre_effective",
+          "symbols": ["TWTR"],
+          "required_session": "2022-10-27"
+        }
+      ]
+    },
+    {
+      "logical_action_id": "stock-merger:XLNX:2022-02-14",
+      "action_type": "stock_merger",
+      "subject": {
+        "security_id": "cik:0000743988:common",
+        "issuer_cik": "0000743988",
+        "security_name": "Xilinx, Inc. common stock",
+        "event_symbol": "XLNX",
+        "identity_quality": "cik_scoped_common_pending_security_master"
+      },
+      "source": {
+        "url": "https://www.sec.gov/Archives/edgar/data/2488/000000248822000031/amd-20220214.htm",
+        "accession": "0000002488-22-000031",
+        "source_time": "2022-02-14T08:41:09-05:00",
+        "source_time_quality": "exact_sec_accepted",
+        "source_role": "completion_confirmation",
+        "raw_document_committed": false
+      },
+      "effective_time": "2022-02-14",
+      "effective_time_quality": "effective_date_only",
+      "last_regular_trading_session": "2022-02-11",
+      "terms": {
+        "successor_security_id": "cik:0000002488:common",
+        "successor_symbol": "AMD",
+        "successor_shares_per_subject_share": 1.7234,
+        "fractional_share_policy": "cash_in_lieu"
+      },
+      "outcome_model": {
+        "label_type": "successor_security_value",
+        "formula": "terminal_value_per_subject_share(t) = 1.7234 * AMD_price(t), plus applicable cash in lieu of fractional shares",
+        "post_effective_return_policy": "continue wealth through the mapped AMD shares, not the dead XLNX ticker",
+        "value_completeness": "complete_except_investor_specific_fractional_cash"
+      },
+      "provider_queries": [
+        {
+          "role": "subject_pre_effective",
+          "symbols": ["XLNX"],
+          "required_session": "2022-02-11"
+        },
+        {
+          "role": "successor_first_effective",
+          "symbols": ["AMD"],
+          "required_session": "2022-02-14"
+        }
+      ]
+    },
+    {
+      "logical_action_id": "spinoff:GE-GEV:2024-04-02",
+      "action_type": "spinoff",
+      "subject": {
+        "security_id": "cik:0000040545:common",
+        "issuer_cik": "0000040545",
+        "security_name": "General Electric Company common stock",
+        "event_symbol": "GE",
+        "identity_quality": "cik_scoped_common_pending_security_master"
+      },
+      "source": {
+        "url": "https://www.sec.gov/Archives/edgar/data/40545/000119312524084038/d792336d8k.htm",
+        "accession": "0001193125-24-084038",
+        "source_time": "2024-04-02",
+        "source_time_quality": "filing_date_only",
+        "source_role": "completion_confirmation",
+        "raw_document_committed": false
+      },
+      "effective_time": "2024-04-02T00:10:00-04:00",
+      "effective_time_quality": "exact_company_filing",
+      "last_regular_trading_session": "2024-04-01",
+      "terms": {
+        "parent_continues": true,
+        "distributed_security_id": "cik:0001996810:common",
+        "distributed_symbol": "GEV",
+        "distributed_shares_per_subject_share": 0.25,
+        "record_date": "2024-03-19",
+        "fractional_share_policy": "cash_in_lieu"
+      },
+      "outcome_model": {
+        "label_type": "retained_parent_plus_distributed_security",
+        "formula": "post_distribution_wealth_per_GE_share(t) = GE_price(t) + 0.25 * GEV_price(t), plus applicable fractional cash",
+        "post_effective_return_policy": "continue both retained GE and distributed GEV legs",
+        "value_completeness": "complete_except_investor_specific_fractional_cash"
+      },
+      "provider_queries": [
+        {
+          "role": "subject_pre_effective",
+          "symbols": ["GE"],
+          "required_session": "2024-04-01"
+        },
+        {
+          "role": "retained_parent_first_effective",
+          "symbols": ["GE"],
+          "required_session": "2024-04-02"
+        },
+        {
+          "role": "distributed_child_first_effective",
+          "symbols": ["GEV"],
+          "required_session": "2024-04-02"
+        }
+      ]
+    },
+    {
+      "logical_action_id": "cancellation:BBBYQ:2023-09-29",
+      "action_type": "bankruptcy_cancellation",
+      "subject": {
+        "security_id": "cik:0000886158:common",
+        "issuer_cik": "0000886158",
+        "security_name": "Bed Bath & Beyond Inc. common stock",
+        "event_symbol": "BBBYQ",
+        "identity_quality": "cik_scoped_common_pending_security_master"
+      },
+      "source": {
+        "url": "https://www.sec.gov/Archives/edgar/data/886158/000119312523247428/d579010d8k.htm",
+        "accession": "0001193125-23-247428",
+        "source_time": "2023-09-29T16:23:06-04:00",
+        "source_time_quality": "exact_sec_accepted",
+        "source_role": "effective_date_outcome_confirmation",
+        "raw_document_committed": false
+      },
+      "effective_time": "2023-09-29",
+      "effective_time_quality": "effectiveness_date_confirmed_by_post_effective_filing",
+      "last_regular_trading_session": null,
+      "terms": {
+        "security_rights_canceled": true,
+        "equity_canceled_without_consideration": true,
+        "issuer_stated_no_value": true,
+        "cash_usd_per_share": 0.0,
+        "successor_security_id": null,
+        "contingent_distribution_reviewed": true
+      },
+      "outcome_model": {
+        "label_type": "terminal_zero_value_confirmed_no_consideration",
+        "formula": "0.0 USD per common share, based on the issuer's effective-date statement that all equity interests were canceled without consideration and have no value",
+        "post_effective_return_policy": "no continuing-equity return",
+        "value_completeness": "complete_for_numeric_terminal_value"
+      },
+      "provider_queries": [
+        {
+          "role": "subject_pre_effective",
+          "symbols": ["BBBYQ", "BBBY"],
+          "required_session": "2023-09-28"
+        }
+      ]
+    },
+    {
+      "logical_action_id": "ticker-change:FB-META:2022-06-09",
+      "action_type": "ticker_change",
+      "subject": {
+        "security_id": "cik:0001326801:class-a-common",
+        "issuer_cik": "0001326801",
+        "security_name": "Meta Platforms, Inc. Class A common stock",
+        "event_symbol": "FB",
+        "identity_quality": "cik_and_unchanged_cusip_confirmed"
+      },
+      "source": {
+        "url": "https://www.sec.gov/Archives/edgar/data/1326801/000132680122000070/may312022-exhibit991.htm",
+        "accession": "0001326801-22-000070",
+        "source_time": "2022-05-31T16:18:52-04:00",
+        "source_time_quality": "exact_sec_accepted",
+        "source_role": "advance_effective_notice",
+        "raw_document_committed": false
+      },
+      "effective_time": "2022-06-09T09:30:00-04:00",
+      "effective_time_quality": "effective_prior_to_market_open",
+      "last_regular_trading_session": "2022-06-08",
+      "terms": {
+        "old_symbol": "FB",
+        "new_symbol": "META",
+        "cusip_unchanged": true,
+        "shareholder_action_required": false
+      },
+      "outcome_model": {
+        "label_type": "identity_continuity",
+        "formula": "same security; splice time-bounded symbols without an economic return event",
+        "post_effective_return_policy": "continue the same price series under META",
+        "value_completeness": "complete"
+      },
+      "provider_queries": [
+        {
+          "role": "old_symbol_pre_effective",
+          "symbols": ["FB", "META"],
+          "required_session": "2022-06-08"
+        },
+        {
+          "role": "same_security_current_mapping",
+          "symbols": ["META"],
+          "required_session": "2022-06-09"
+        }
+      ]
+    }
+  ]
+}

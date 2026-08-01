@@ -37,6 +37,7 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import static_product_study as sps   # noqa: E402  pmetrics / paired_boot / simple_ret / equity_blend
+import data_cache  # noqa: E402  (validated cache: never trust a stub, never write one)
 
 CACHE = "/tmp/gold_oos_close.csv"
 TICKERS = ["GLD", "SPY", "QQQ", "IWM", "DIA", "IEF"]
@@ -45,15 +46,16 @@ WGRID = [0.0, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30]
 
 
 def load():
-    if os.path.exists(CACHE):
-        df = pd.read_csv(CACHE, index_col=0, parse_dates=True)
-        if all(t in df.columns for t in TICKERS):
-            return df
-    import yfinance as yf
-    raw = yf.download(TICKERS, start="2004-01-01", end="2026-06-20", interval="1d",
-                      progress=False, auto_adjust=True)
-    df = raw["Close"][TICKERS].dropna(how="all")
-    df.to_csv(CACHE)
+    # NOTE: the previous guard here checked that every ticker COLUMN was present but
+    # never that any ROW was — a header-only stub has all its columns and passed.
+    def _fetch():
+        import yfinance as yf
+        raw = yf.download(TICKERS, start="2004-01-01", end="2026-06-20", interval="1d",
+                          progress=False, auto_adjust=True)
+        return raw["Close"][TICKERS].dropna(how="all")
+
+    df = data_cache.load_cached_frame(
+        CACHE, _fetch, min_rows=1000, required_cols=TICKERS, label="gold_oos")
     return df
 
 
@@ -187,7 +189,10 @@ def main():
     ap.add_argument("--json", metavar="PATH")
     a = ap.parse_args()
 
-    PX = load()
+    try:
+        PX = load()
+    except data_cache.MarketDataError as exc:
+        data_cache.fail_cleanly(exc)
     oos = window(PX, "OOS holdout (pre-2014, disjoint)", hi="2013-12-31")
     is_ = window(PX, "in-sample (2014-2026, reproduces study #5)", lo="2014-01-01")
     full = window(PX, "full window (2004-2026)")

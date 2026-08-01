@@ -1,0 +1,276 @@
+{
+  "schema_version": 1,
+  "spec_id": "ca-failframe-2023-mutual-termination-seed-v1",
+  "search": {
+    "endpoint": "https://efts.sec.gov/LATEST/search-index",
+    "query": "\"mutually agreed to terminate\" \"merger agreement\"",
+    "start_date": "2023-01-01",
+    "end_date": "2023-12-31",
+    "forms": ["8-K"],
+    "expected_document_hits": 31,
+    "expected_unique_submissions": 23,
+    "response_sha256": "4cebced1fdd0975b5a02b251fbe61fe84e9f37a6ee2517d23fbbcea214961009"
+  },
+  "research_status": "query_conditioned_review_seed_not_failure_population",
+  "raw_documents_committed": false,
+  "classifications": [
+    {"accession": "0000036966-23-000042", "role": "primary", "deal_id": "fhn-td"},
+    {"accession": "0000796343-23-000254", "role": "primary", "deal_id": "adobe-figma"},
+    {"accession": "0000950170-23-061206", "role": "excluded", "exclusion_reason": "historical_2021_transaction_mentioned_in_2023_filing"},
+    {"accession": "0001104659-23-011195", "role": "primary", "deal_id": "oceantech-majic-wheels"},
+    {"accession": "0001104659-23-024347", "role": "excluded", "exclusion_reason": "termination_effective_in_2022_filed_or_repeated_in_2023"},
+    {"accession": "0001104659-23-074547", "role": "primary", "deal_id": "amedisys-option-care"},
+    {"accession": "0001104659-23-074575", "role": "counterparty_duplicate", "deal_id": "amedisys-option-care"},
+    {"accession": "0001104659-23-097781", "role": "primary", "deal_id": "dhc-opi"},
+    {"accession": "0001104659-23-097782", "role": "counterparty_duplicate", "deal_id": "dhc-opi"},
+    {"accession": "0001104659-23-099996", "role": "primary", "deal_id": "growth-for-good-zeronox"},
+    {"accession": "0001104659-23-110488", "role": "primary", "deal_id": "great-ajax-ellington"},
+    {"accession": "0001104659-23-112642", "role": "primary", "deal_id": "artemis-danam"},
+    {"accession": "0001104659-23-113851", "role": "amendment_duplicate", "deal_id": "artemis-danam"},
+    {"accession": "0001104659-23-128237", "role": "excluded", "exclusion_reason": "employment_agreement_termination_not_deal_termination"},
+    {"accession": "0001193125-23-225725", "role": "excluded", "exclusion_reason": "collaboration_license_termination_not_deal_termination"},
+    {"accession": "0001213900-23-008028", "role": "primary", "deal_id": "10x-iii-sparks"},
+    {"accession": "0001213900-23-048572", "role": "primary", "deal_id": "malacca-indiev"},
+    {"accession": "0001213900-23-068961", "role": "primary", "deal_id": "genesis-nexttrip"},
+    {"accession": "0001213900-23-081947", "role": "primary", "deal_id": "industrial-tech-next"},
+    {"accession": "0001213900-23-091184", "role": "excluded", "exclusion_reason": "forward_purchase_transaction_termination_not_merger_termination"},
+    {"accession": "0001277902-23-000090", "role": "primary", "deal_id": "mvb-ifhi"},
+    {"accession": "0001408534-23-000060", "role": "primary", "deal_id": "first-guaranty-lone-star"},
+    {"accession": "0001411342-23-000170", "role": "counterparty_duplicate", "deal_id": "great-ajax-ellington"}
+  ],
+  "deals": [
+    {
+      "deal_id": "fhn-td",
+      "primary_accession": "0000036966-23-000042",
+      "target_or_subject": "First Horizon Corporation",
+      "other_party": "TD Bank",
+      "event_on": "2023-05-04",
+      "reason_family": "regulatory_timing_uncertainty",
+      "termination_terms": {
+        "cash_to_target_company_usd": 200000000,
+        "fee_reimbursement_usd": 25000000
+      },
+      "required_markers": [
+        "the parties mutually agreed to terminate the merger agreement",
+        "uncertainty as to when and if these regulatory approvals can be obtained",
+        "$200 million cash payment"
+      ]
+    },
+    {
+      "deal_id": "adobe-figma",
+      "primary_accession": "0000796343-23-000254",
+      "target_or_subject": "Figma, Inc.",
+      "other_party": "Adobe Inc.",
+      "event_on": "2023-12-17",
+      "reason_family": "regulatory_no_clear_path",
+      "termination_terms": {
+        "cash_to_target_company_usd": 1000000000
+      },
+      "required_markers": [
+        "mutually agreed to terminate the merger agreement",
+        "no clear path to receive necessary regulatory approvals",
+        "one billion dollars ($1,000,000,000)"
+      ]
+    },
+    {
+      "deal_id": "oceantech-majic-wheels",
+      "primary_accession": "0001104659-23-011195",
+      "target_or_subject": "Majic Wheels Corp.",
+      "other_party": "OceanTech Acquisitions I Corp.",
+      "event_on": "2023-02-03",
+      "reason_family": "mutual_unstated",
+      "termination_terms": {
+        "termination_fee_usd": 0
+      },
+      "required_markers": [
+        "oceantech and majic wheels mutually agreed to terminate the merger agreement",
+        "neither party will be required to pay the other a termination fee"
+      ]
+    },
+    {
+      "deal_id": "amedisys-option-care",
+      "primary_accession": "0001104659-23-074547",
+      "target_or_subject": "Amedisys, Inc.",
+      "other_party": "Option Care Health, Inc.",
+      "event_on": "2023-06-26",
+      "reason_family": "superior_proposal",
+      "termination_terms": {
+        "cash_to_counterparty_usd": 106000000,
+        "next_announced_counterparty": "UnitedHealth Group Incorporated"
+      },
+      "required_markers": [
+        "amedisys and opch have mutually agreed to terminate the opch merger agreement",
+        "$106 million termination fee",
+        "amedisys intends to enter into an agreement and plan of merger with unitedhealth group"
+      ]
+    },
+    {
+      "deal_id": "dhc-opi",
+      "primary_accession": "0001104659-23-097781",
+      "target_or_subject": "Diversified Healthcare Trust",
+      "other_party": "Office Properties Income Trust",
+      "event_on": "2023-09-01",
+      "reason_family": "mutual_unstated",
+      "termination_terms": {
+        "termination_fee_usd": 0
+      },
+      "required_markers": [
+        "we and opi mutually agreed to terminate the merger agreement",
+        "neither we nor opi will be required to pay any termination fee"
+      ]
+    },
+    {
+      "deal_id": "growth-for-good-zeronox",
+      "primary_accession": "0001104659-23-099996",
+      "target_or_subject": "ZeroNox, Inc.",
+      "other_party": "Growth for Good Acquisition Corp.",
+      "event_on": "2023-09-12",
+      "reason_family": "spac_deadline_liquidation",
+      "termination_terms": {
+        "sponsor_note_assumed_by_target_usd": 2530000,
+        "spac_liquidation": true
+      },
+      "required_markers": [
+        "the company and zeronox mutually agreed to terminate the merger agreement",
+        "the company will liquidate its assets and wind up",
+        "principal amount of $2,530,000.00"
+      ]
+    },
+    {
+      "deal_id": "great-ajax-ellington",
+      "primary_accession": "0001104659-23-110488",
+      "target_or_subject": "Great Ajax Corp.",
+      "other_party": "Ellington Financial Inc.",
+      "event_on": "2023-10-20",
+      "reason_family": "mutual_structured_settlement",
+      "termination_terms": {
+        "cash_to_target_company_usd": 5000000,
+        "counterparty_stock_purchase_usd": 11000000,
+        "target_shares_purchased": 1666666,
+        "purchase_price_per_share_usd": 6.6
+      },
+      "required_markers": [
+        "great ajax and efc mutually agreed to terminate the merger agreement",
+        "efc has agreed to pay great ajax $16 million",
+        "$5 million is payable in cash"
+      ]
+    },
+    {
+      "deal_id": "artemis-danam",
+      "primary_accession": "0001104659-23-112642",
+      "target_or_subject": "Danam Health, Inc.",
+      "other_party": "Artemis Strategic Investment Corporation",
+      "event_on": "2023-10-26",
+      "reason_family": "spac_deadline_liquidation",
+      "termination_terms": {
+        "public_share_redemption_formula": "pro_rata_trust_value_net_of_allowed_costs",
+        "public_warrants_expire_worthless": true
+      },
+      "required_markers": [
+        "effective as of october 26, 2023",
+        "due to its inability to complete an initial business combination",
+        "warrants, which will expire worthless"
+      ]
+    },
+    {
+      "deal_id": "10x-iii-sparks",
+      "primary_accession": "0001213900-23-008028",
+      "target_or_subject": "Sparks Energy, Inc.",
+      "other_party": "10X Capital Venture Acquisition Corp. III",
+      "event_on": "2023-02-02",
+      "reason_family": "litigation_settlement",
+      "termination_terms": {
+        "cost_reimbursement_usd": null,
+        "amount_status": "undisclosed_in_public_text"
+      },
+      "required_markers": [
+        "settlement agreement and mutual release",
+        "mutually agreed to terminate the agreement and plan of merger",
+        "intends to seek an alternative business combination"
+      ]
+    },
+    {
+      "deal_id": "malacca-indiev",
+      "primary_accession": "0001213900-23-048572",
+      "target_or_subject": "Indiev, Inc.",
+      "other_party": "Malacca Straits Acquisition Company Limited",
+      "event_on": "2023-06-08",
+      "reason_family": "spac_sponsor_funding_deadline_liquidation",
+      "termination_terms": {
+        "estimated_public_share_redemption_usd": 10.53,
+        "spac_liquidation": true
+      },
+      "required_markers": [
+        "effective as of june 8, 2023",
+        "not further extend the deadline date",
+        "approximately $10.53 per share"
+      ]
+    },
+    {
+      "deal_id": "genesis-nexttrip",
+      "primary_accession": "0001213900-23-068961",
+      "target_or_subject": "NextTrip Holdings, Inc.",
+      "other_party": "Genesis Growth Tech Acquisition Corp.",
+      "event_on": "2023-08-16",
+      "reason_family": "mutual_unstated",
+      "termination_terms": {
+        "public_amount_status": "no_transfer_amount_established"
+      },
+      "required_markers": [
+        "effective as of august 16, 2023",
+        "ggaa and nexttrip mutually agreed to terminate the plan of merger",
+        "released nexttrip"
+      ]
+    },
+    {
+      "deal_id": "industrial-tech-next",
+      "primary_accession": "0001213900-23-081947",
+      "target_or_subject": "NEXT Renewable Fuels, Inc.",
+      "other_party": "Industrial Tech Acquisitions II, Inc.",
+      "event_on": "2023-10-31",
+      "reason_family": "spac_deadline_liquidation",
+      "termination_terms": {
+        "sponsor_warrant_target_shares": 600000,
+        "sponsor_warrant_strike_usd": 26.1857,
+        "estimated_public_share_redemption_usd": 11.0
+      },
+      "required_markers": [
+        "mutually agreed to terminate their previously announced agreement and plan of merger",
+        "warrant to purchase 600,000 shares",
+        "estimated redemption price of approximately $11.00 per share"
+      ]
+    },
+    {
+      "deal_id": "mvb-ifhi",
+      "primary_accession": "0001277902-23-000090",
+      "target_or_subject": "Integrated Financial Holdings, Inc.",
+      "other_party": "MVB Financial Corp.",
+      "event_on": "2023-05-09",
+      "reason_family": "market_conditions_and_regulatory_delay",
+      "termination_terms": {
+        "termination_fee_usd": 0
+      },
+      "required_markers": [
+        "primarily due to changing market conditions",
+        "delays in regulatory processes",
+        "does not result in fees to either company"
+      ]
+    },
+    {
+      "deal_id": "first-guaranty-lone-star",
+      "primary_accession": "0001408534-23-000060",
+      "target_or_subject": "Lone Star Bank",
+      "other_party": "First Guaranty Bancshares, Inc.",
+      "event_on": "2023-07-10",
+      "reason_family": "challenging_bank_market",
+      "termination_terms": {
+        "public_amount_status": "no_payment_amount_established"
+      },
+      "required_markers": [
+        "market conditions have changed since january 6, 2023",
+        "not prudent to continue to pursue the combination",
+        "challenging banking industry environment"
+      ]
+    }
+  ]
+}

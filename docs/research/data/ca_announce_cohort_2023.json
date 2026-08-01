@@ -1,0 +1,588 @@
+{
+  "schema_version": 1,
+  "cohort_id": "ca-announce-2023-us-public-target-v1",
+  "frame": "announcement_forward_not_outcome_conditioned",
+  "selection_rule": "US public-company target acquisitions first announced in calendar 2023, enumerated by announcement rather than by outcome; the set spans completed, higher-bid-displaced, negatively-terminated, and still-pending deals so no stratum is selected on eventual resolution.",
+  "raw_documents_committed": false,
+  "external_retrieval": false,
+  "market_implied_inputs_are_proxy": true,
+  "default_censor_on": "2025-06-30",
+  "secondary_censor_on": "2024-03-31",
+  "outcome_classes": [
+    "close_as_announced",
+    "higher_bid_displacement",
+    "negative_termination"
+  ],
+  "provenance_legend": {
+    "frozen_upstream": "the fact is already SEC-verified in a committed sibling fixture (CA-00 / CA-FAILFRAME) with an exact accession; this cohort references it rather than re-freezing raw bytes.",
+    "public_record_unverified_offline": "the fact is drawn from the public record but its SEC accession, exact acceptance clock, and SHA-256 are NOT frozen in-repo; freezing requires an EDGAR fetch this offline environment cannot perform. needs_freeze lists exactly what to retrieve.",
+    "illustrative_proxy": "a forecast-time market input (price / spread / horizon) set to a directionally-plausible value for exercising the market-implied estimator ONLY; it is not a frozen quote and must not be read as truth. CA-00 established that free current-symbol providers systematically miss the predecessor leg, so real contemporaneous prices require a rights-cleared source."
+  },
+  "integrity": {
+    "features_from_ground_truth_are_barred": true,
+    "point_in_time_features_only": true,
+    "note": "ground_truth blocks supply labels and evaluation only. The lab's point_in_time_features() never reads any ground_truth field, and a validator asserts it. This encodes kill-criteria 1/6/8 of the CA-ANNOUNCE blueprint."
+  },
+  "deals": [
+    {
+      "deal_id": "seagen-pfizer",
+      "target": {"name": "Seagen Inc.", "ticker": "SGEN", "cik": "0001060736"},
+      "acquirer": {"name": "Pfizer Inc.", "ticker": "PFE", "cik": "0000078003"},
+      "announced_on": "2023-03-13",
+      "announcement_clock_quality": "date_only",
+      "consideration": {
+        "structure": "cash",
+        "cash_usd_per_share": 229.0,
+        "exchange_ratio": null,
+        "transaction_value_usd_bn": 43.0
+      },
+      "announcement_premium_pct": 0.327,
+      "conditions": {
+        "requires_target_vote": true,
+        "outside_date": "2024-03-13",
+        "regulatory_jurisdictions": ["US-HSR"],
+        "financing_condition": false,
+        "termination_fee_pct": 0.032,
+        "reverse_termination_fee_pct": null,
+        "conditions_clock_quality": "approximate_public_terms"
+      },
+      "market_implied": {
+        "as_of": "2023-05-01",
+        "target_price": 216.0,
+        "acquirer_price": null,
+        "downside_estimate": 160.0,
+        "expected_days_to_close": 220,
+        "proxy": true
+      },
+      "ground_truth": {
+        "outcome_class": "close_as_announced",
+        "resolution_on": "2023-12-14",
+        "terminal_holder_rights": {"type": "cash", "value_usd_per_share": 229.0}
+      },
+      "provenance": {
+        "terminal": {
+          "status": "frozen_upstream",
+          "fixture": "ca00_corporate_action_fixture.json",
+          "logical_action_id": "cash-merger:SGEN:2023-12-14",
+          "accession": "0001193125-23-294930",
+          "source_role": "completion_confirmation"
+        },
+        "announcement": {
+          "status": "public_record_unverified_offline",
+          "needs_freeze": ["SGEN/PFE merger-agreement announcement 8-K: accession, acceptance clock, sha256"]
+        },
+        "market_implied": {
+          "status": "illustrative_proxy",
+          "needs_freeze": ["SGEN close and pre-announcement price at as_of from a rights-cleared source"]
+        }
+      }
+    },
+    {
+      "deal_id": "splunk-cisco",
+      "target": {"name": "Splunk Inc.", "ticker": "SPLK", "cik": "0001353283"},
+      "acquirer": {"name": "Cisco Systems, Inc.", "ticker": "CSCO", "cik": "0000858877"},
+      "announced_on": "2023-09-21",
+      "announcement_clock_quality": "date_only",
+      "consideration": {
+        "structure": "cash",
+        "cash_usd_per_share": 157.0,
+        "exchange_ratio": null,
+        "transaction_value_usd_bn": 28.0
+      },
+      "announcement_premium_pct": 0.31,
+      "conditions": {
+        "requires_target_vote": true,
+        "outside_date": "2024-09-21",
+        "regulatory_jurisdictions": ["US-HSR", "EU", "UK"],
+        "financing_condition": false,
+        "termination_fee_pct": 0.031,
+        "reverse_termination_fee_pct": null,
+        "conditions_clock_quality": "approximate_public_terms"
+      },
+      "market_implied": {
+        "as_of": "2023-11-01",
+        "target_price": 147.5,
+        "acquirer_price": null,
+        "downside_estimate": 120.0,
+        "expected_days_to_close": 180,
+        "proxy": true
+      },
+      "ground_truth": {
+        "outcome_class": "close_as_announced",
+        "resolution_on": "2024-03-18",
+        "terminal_holder_rights": {"type": "cash", "value_usd_per_share": 157.0}
+      },
+      "provenance": {
+        "terminal": {
+          "status": "frozen_upstream",
+          "fixture": "ca00_corporate_action_fixture.json",
+          "logical_action_id": "cash-merger:SPLK:2024-03-18",
+          "accession": "0001193125-24-070175",
+          "source_role": "completion_confirmation"
+        },
+        "announcement": {
+          "status": "public_record_unverified_offline",
+          "needs_freeze": ["SPLK/CSCO merger-agreement announcement 8-K: accession, acceptance clock, sha256"]
+        },
+        "market_implied": {
+          "status": "illustrative_proxy",
+          "needs_freeze": ["SPLK close and pre-announcement price at as_of from a rights-cleared source"]
+        }
+      }
+    },
+    {
+      "deal_id": "amedisys-option-care",
+      "target": {"name": "Amedisys, Inc.", "ticker": "AMED", "cik": "0000896262"},
+      "acquirer": {"name": "Option Care Health, Inc.", "ticker": "OPCH", "cik": "0001014739"},
+      "announced_on": "2023-05-03",
+      "announcement_clock_quality": "date_only",
+      "consideration": {
+        "structure": "stock",
+        "cash_usd_per_share": null,
+        "exchange_ratio": 3.0213,
+        "transaction_value_usd_bn": 3.6
+      },
+      "announcement_premium_pct": 0.26,
+      "conditions": {
+        "requires_target_vote": true,
+        "outside_date": "2024-05-03",
+        "regulatory_jurisdictions": ["US-HSR"],
+        "financing_condition": false,
+        "termination_fee_pct": 0.03,
+        "reverse_termination_fee_pct": null,
+        "conditions_clock_quality": "approximate_public_terms"
+      },
+      "market_implied": {
+        "as_of": "2023-06-01",
+        "target_price": 92.0,
+        "acquirer_price": 32.0,
+        "downside_estimate": 82.0,
+        "expected_days_to_close": 240,
+        "proxy": true
+      },
+      "ground_truth": {
+        "outcome_class": "higher_bid_displacement",
+        "resolution_on": "2023-06-26",
+        "terminal_holder_rights": {"type": "displaced_to_competing_cash_bid", "note": "Amedisys terminated the Option Care stock deal to accept a competing UnitedHealth/Optum all-cash agreement at a higher price; target holders received a better outcome. This is NOT a negative termination."}
+      },
+      "provenance": {
+        "terminal": {
+          "status": "frozen_upstream",
+          "fixture": "ca_failframe_reviewed_seed.json",
+          "deal_id": "amedisys-option-care",
+          "accession": "0001104659-23-074547",
+          "reason_family": "superior_proposal",
+          "source_role": "termination_confirmation"
+        },
+        "announcement": {
+          "status": "public_record_unverified_offline",
+          "needs_freeze": ["AMED/OPCH merger-agreement announcement 8-K: accession, acceptance clock, sha256", "UnitedHealth/Optum competing-agreement 8-K for the displacing bid"]
+        },
+        "market_implied": {
+          "status": "illustrative_proxy",
+          "needs_freeze": ["AMED and OPCH prices at as_of from a rights-cleared source"]
+        }
+      }
+    },
+    {
+      "deal_id": "capri-tapestry",
+      "target": {"name": "Capri Holdings Limited", "ticker": "CPRI", "cik": "0001530238"},
+      "acquirer": {"name": "Tapestry, Inc.", "ticker": "TPR", "cik": "0001116132"},
+      "announced_on": "2023-08-10",
+      "announcement_clock_quality": "date_only",
+      "consideration": {
+        "structure": "cash",
+        "cash_usd_per_share": 57.0,
+        "exchange_ratio": null,
+        "transaction_value_usd_bn": 8.5
+      },
+      "announcement_premium_pct": 0.59,
+      "conditions": {
+        "requires_target_vote": true,
+        "outside_date": "2024-08-10",
+        "regulatory_jurisdictions": ["US-FTC", "EU", "Japan"],
+        "financing_condition": false,
+        "termination_fee_pct": 0.03,
+        "reverse_termination_fee_pct": 0.03,
+        "conditions_clock_quality": "approximate_public_terms"
+      },
+      "market_implied": {
+        "as_of": "2024-05-01",
+        "target_price": 44.0,
+        "acquirer_price": null,
+        "downside_estimate": 36.0,
+        "expected_days_to_close": 150,
+        "proxy": true
+      },
+      "ground_truth": {
+        "outcome_class": "negative_termination",
+        "resolution_on": "2024-11-14",
+        "terminal_holder_rights": {"type": "standalone_shares", "note": "FTC obtained a preliminary injunction (October 24, 2024); the parties terminated the deal on November 14, 2024. Target holders retained standalone Capri shares with no better bid."}
+      },
+      "provenance": {
+        "terminal": {
+          "status": "public_record_unverified_offline",
+          "needs_freeze": ["CPRI/TPR termination 8-K: accession, acceptance clock, sha256", "FTC v. Tapestry/Capri opinion date"]
+        },
+        "announcement": {
+          "status": "public_record_unverified_offline",
+          "needs_freeze": ["CPRI/TPR merger-agreement announcement 8-K: accession, acceptance clock, sha256"]
+        },
+        "market_implied": {
+          "status": "illustrative_proxy",
+          "needs_freeze": ["CPRI price at as_of from a rights-cleared source"]
+        }
+      }
+    },
+    {
+      "deal_id": "pioneer-exxonmobil",
+      "target": {"name": "Pioneer Natural Resources Company", "ticker": "PXD", "cik": "0001038357"},
+      "acquirer": {"name": "Exxon Mobil Corporation", "ticker": "XOM", "cik": "0000034088"},
+      "announced_on": "2023-10-11",
+      "announcement_clock_quality": "date_only",
+      "consideration": {
+        "structure": "stock",
+        "cash_usd_per_share": null,
+        "exchange_ratio": 2.3234,
+        "transaction_value_usd_bn": 59.5
+      },
+      "announcement_premium_pct": 0.18,
+      "conditions": {
+        "requires_target_vote": true,
+        "outside_date": "2024-10-11",
+        "regulatory_jurisdictions": ["US-FTC"],
+        "financing_condition": false,
+        "termination_fee_pct": 0.03,
+        "reverse_termination_fee_pct": null,
+        "conditions_clock_quality": "approximate_public_terms"
+      },
+      "market_implied": {
+        "as_of": "2023-12-01",
+        "target_price": 230.0,
+        "acquirer_price": 100.0,
+        "downside_estimate": 205.0,
+        "expected_days_to_close": 180,
+        "proxy": true
+      },
+      "ground_truth": {
+        "outcome_class": "close_as_announced",
+        "resolution_on": "2024-05-03",
+        "terminal_holder_rights": {"type": "successor_stock", "exchange_ratio": 2.3234, "note": "Closed after an FTC consent order that barred a Pioneer director from the Exxon board but did not block the merger."}
+      },
+      "provenance": {
+        "terminal": {
+          "status": "public_record_unverified_offline",
+          "needs_freeze": ["PXD/XOM completion 8-K: accession, acceptance clock, sha256"]
+        },
+        "announcement": {
+          "status": "public_record_unverified_offline",
+          "needs_freeze": ["PXD/XOM merger-agreement announcement 8-K: accession, acceptance clock, sha256"]
+        },
+        "market_implied": {
+          "status": "illustrative_proxy",
+          "needs_freeze": ["PXD and XOM prices at as_of from a rights-cleared source"]
+        }
+      }
+    },
+    {
+      "deal_id": "hess-chevron",
+      "target": {"name": "Hess Corporation", "ticker": "HES", "cik": "0000004447"},
+      "acquirer": {"name": "Chevron Corporation", "ticker": "CVX", "cik": "0000093410"},
+      "announced_on": "2023-10-23",
+      "announcement_clock_quality": "date_only",
+      "consideration": {
+        "structure": "stock",
+        "cash_usd_per_share": null,
+        "exchange_ratio": 1.025,
+        "transaction_value_usd_bn": 53.0
+      },
+      "announcement_premium_pct": 0.10,
+      "conditions": {
+        "requires_target_vote": true,
+        "outside_date": "2024-10-22",
+        "regulatory_jurisdictions": ["US-FTC", "ICC-arbitration-guyana-rofr"],
+        "financing_condition": false,
+        "termination_fee_pct": 0.03,
+        "reverse_termination_fee_pct": null,
+        "conditions_clock_quality": "approximate_public_terms"
+      },
+      "market_implied": {
+        "as_of": "2024-06-01",
+        "target_price": 158.0,
+        "acquirer_price": 155.0,
+        "downside_estimate": 138.0,
+        "expected_days_to_close": 300,
+        "proxy": true
+      },
+      "ground_truth": {
+        "outcome_class": "close_as_announced",
+        "resolution_on": "2025-07-18",
+        "terminal_holder_rights": {"type": "successor_stock", "exchange_ratio": 1.025, "note": "Closed only after an ICC arbitration panel rejected ExxonMobil/CNOOC's Guyana right-of-first-refusal claim; the merger completed July 18, 2025. This resolution is AFTER the default censor date, so at 2025-06-30 the deal is right-censored (still pending)."}
+      },
+      "provenance": {
+        "terminal": {
+          "status": "public_record_unverified_offline",
+          "needs_freeze": ["HES/CVX completion 8-K: accession, acceptance clock, sha256", "ICC arbitration award date"]
+        },
+        "announcement": {
+          "status": "public_record_unverified_offline",
+          "needs_freeze": ["HES/CVX merger-agreement announcement 8-K: accession, acceptance clock, sha256"]
+        },
+        "market_implied": {
+          "status": "illustrative_proxy",
+          "needs_freeze": ["HES and CVX prices at as_of from a rights-cleared source"]
+        }
+      }
+    },
+    {
+      "deal_id": "us-steel-nippon",
+      "target": {"name": "United States Steel Corporation", "ticker": "X", "cik": "0001163302"},
+      "acquirer": {"name": "Nippon Steel Corporation", "ticker": "NPSCY", "cik": null},
+      "announced_on": "2023-12-18",
+      "announcement_clock_quality": "date_only",
+      "consideration": {
+        "structure": "cash",
+        "cash_usd_per_share": 55.0,
+        "exchange_ratio": null,
+        "transaction_value_usd_bn": 14.9
+      },
+      "announcement_premium_pct": 0.40,
+      "conditions": {
+        "requires_target_vote": true,
+        "outside_date": "2024-12-18",
+        "regulatory_jurisdictions": ["US-HSR", "US-CFIUS", "EU", "UK", "Japan", "Mexico", "Serbia"],
+        "financing_condition": false,
+        "termination_fee_pct": 0.038,
+        "reverse_termination_fee_pct": 0.038,
+        "conditions_clock_quality": "approximate_public_terms"
+      },
+      "market_implied": {
+        "as_of": "2024-06-01",
+        "target_price": 42.0,
+        "acquirer_price": null,
+        "downside_estimate": 32.0,
+        "expected_days_to_close": 240,
+        "proxy": true
+      },
+      "ground_truth": {
+        "outcome_class": "close_as_announced",
+        "resolution_on": "2025-06-18",
+        "terminal_holder_rights": {"type": "cash", "value_usd_per_share": 55.0, "note": "A CFIUS review and a January 2025 blocking order forced a prolonged political/legal detour; the transaction ultimately completed on June 18, 2025 under a national-security agreement (a US-government 'golden share'). It resolved BEFORE the default censor (2025-06-30), so at that horizon it is a completed cash outcome; at the secondary 2024-03-31 horizon it is right-censored. The golden-share structure is annotated but per-share cash consideration to holders was $55."}
+      },
+      "provenance": {
+        "terminal": {
+          "status": "public_record_unverified_offline",
+          "needs_freeze": ["X/Nippon completion 8-K: accession, acceptance clock, sha256", "CFIUS national-security agreement summary"]
+        },
+        "announcement": {
+          "status": "public_record_unverified_offline",
+          "needs_freeze": ["X/Nippon merger-agreement announcement 8-K: accession, acceptance clock, sha256", "Nippon Steel merger-sub CIK"]
+        },
+        "market_implied": {
+          "status": "illustrative_proxy",
+          "needs_freeze": ["X price at as_of from a rights-cleared source"]
+        }
+      }
+    },
+    {
+      "deal_id": "focus-financial-cdr",
+      "target": {"name": "Focus Financial Partners Inc.", "ticker": "FOCS", "cik": "0001651052"},
+      "acquirer": {"name": "Clayton, Dubilier & Rice", "ticker": null, "cik": null},
+      "announced_on": "2023-02-27",
+      "announcement_clock_quality": "date_only",
+      "consideration": {
+        "structure": "cash",
+        "cash_usd_per_share": 53.0,
+        "exchange_ratio": null,
+        "transaction_value_usd_bn": 7.0
+      },
+      "announcement_premium_pct": 0.36,
+      "conditions": {
+        "requires_target_vote": true,
+        "outside_date": "2023-11-27",
+        "regulatory_jurisdictions": ["US-HSR"],
+        "financing_condition": true,
+        "termination_fee_pct": 0.03,
+        "reverse_termination_fee_pct": 0.06,
+        "conditions_clock_quality": "approximate_public_terms"
+      },
+      "market_implied": {
+        "as_of": "2023-04-01",
+        "target_price": 51.8,
+        "acquirer_price": null,
+        "downside_estimate": 38.0,
+        "expected_days_to_close": 150,
+        "proxy": true
+      },
+      "ground_truth": {
+        "outcome_class": "close_as_announced",
+        "resolution_on": "2023-08-31",
+        "terminal_holder_rights": {"type": "cash", "value_usd_per_share": 53.0, "note": "A go-shop and an upsized $53 price (from $52) preceded a clean private-equity close."}
+      },
+      "provenance": {
+        "terminal": {
+          "status": "public_record_unverified_offline",
+          "needs_freeze": ["FOCS/CD&R completion 8-K: accession, acceptance clock, sha256"]
+        },
+        "announcement": {
+          "status": "public_record_unverified_offline",
+          "needs_freeze": ["FOCS/CD&R merger-agreement announcement 8-K: accession, acceptance clock, sha256"]
+        },
+        "market_implied": {
+          "status": "illustrative_proxy",
+          "needs_freeze": ["FOCS price at as_of from a rights-cleared source"]
+        }
+      }
+    },
+    {
+      "deal_id": "univar-apollo",
+      "target": {"name": "Univar Solutions Inc.", "ticker": "UNVR", "cik": "0001494319"},
+      "acquirer": {"name": "Apollo Global Management (funds)", "ticker": null, "cik": null},
+      "announced_on": "2023-03-14",
+      "announcement_clock_quality": "date_only",
+      "consideration": {
+        "structure": "cash",
+        "cash_usd_per_share": 36.15,
+        "exchange_ratio": null,
+        "transaction_value_usd_bn": 8.1
+      },
+      "announcement_premium_pct": 0.20,
+      "conditions": {
+        "requires_target_vote": true,
+        "outside_date": "2023-12-14",
+        "regulatory_jurisdictions": ["US-HSR", "EU"],
+        "financing_condition": true,
+        "termination_fee_pct": 0.03,
+        "reverse_termination_fee_pct": 0.06,
+        "conditions_clock_quality": "approximate_public_terms"
+      },
+      "market_implied": {
+        "as_of": "2023-05-01",
+        "target_price": 35.3,
+        "acquirer_price": null,
+        "downside_estimate": 28.0,
+        "expected_days_to_close": 130,
+        "proxy": true
+      },
+      "ground_truth": {
+        "outcome_class": "close_as_announced",
+        "resolution_on": "2023-08-01",
+        "terminal_holder_rights": {"type": "cash", "value_usd_per_share": 36.15}
+      },
+      "provenance": {
+        "terminal": {
+          "status": "public_record_unverified_offline",
+          "needs_freeze": ["UNVR/Apollo completion 8-K: accession, acceptance clock, sha256"]
+        },
+        "announcement": {
+          "status": "public_record_unverified_offline",
+          "needs_freeze": ["UNVR/Apollo merger-agreement announcement 8-K: accession, acceptance clock, sha256"]
+        },
+        "market_implied": {
+          "status": "illustrative_proxy",
+          "needs_freeze": ["UNVR price at as_of from a rights-cleared source"]
+        }
+      }
+    },
+    {
+      "deal_id": "national-instruments-emerson",
+      "target": {"name": "National Instruments Corporation", "ticker": "NATI", "cik": "0000935494"},
+      "acquirer": {"name": "Emerson Electric Co.", "ticker": "EMR", "cik": "0000278791"},
+      "announced_on": "2023-04-12",
+      "announcement_clock_quality": "date_only",
+      "consideration": {
+        "structure": "cash",
+        "cash_usd_per_share": 60.0,
+        "exchange_ratio": null,
+        "transaction_value_usd_bn": 8.2
+      },
+      "announcement_premium_pct": 0.49,
+      "conditions": {
+        "requires_target_vote": true,
+        "outside_date": "2024-04-12",
+        "regulatory_jurisdictions": ["US-HSR", "EU"],
+        "financing_condition": false,
+        "termination_fee_pct": 0.03,
+        "reverse_termination_fee_pct": null,
+        "conditions_clock_quality": "approximate_public_terms"
+      },
+      "market_implied": {
+        "as_of": "2023-06-01",
+        "target_price": 58.2,
+        "acquirer_price": null,
+        "downside_estimate": 42.0,
+        "expected_days_to_close": 180,
+        "proxy": true
+      },
+      "ground_truth": {
+        "outcome_class": "close_as_announced",
+        "resolution_on": "2023-10-11",
+        "terminal_holder_rights": {"type": "cash", "value_usd_per_share": 60.0, "note": "Emerson prevailed after an earlier rejected approach and a target strategic review."}
+      },
+      "provenance": {
+        "terminal": {
+          "status": "public_record_unverified_offline",
+          "needs_freeze": ["NATI/EMR completion 8-K: accession, acceptance clock, sha256"]
+        },
+        "announcement": {
+          "status": "public_record_unverified_offline",
+          "needs_freeze": ["NATI/EMR merger-agreement announcement 8-K: accession, acceptance clock, sha256"]
+        },
+        "market_implied": {
+          "status": "illustrative_proxy",
+          "needs_freeze": ["NATI price at as_of from a rights-cleared source"]
+        }
+      }
+    },
+    {
+      "deal_id": "qualtrics-silverlake",
+      "target": {"name": "Qualtrics International Inc.", "ticker": "XM", "cik": "0001747748"},
+      "acquirer": {"name": "Silver Lake and CPP Investments", "ticker": null, "cik": null},
+      "announced_on": "2023-03-13",
+      "announcement_clock_quality": "date_only",
+      "consideration": {
+        "structure": "cash",
+        "cash_usd_per_share": 18.15,
+        "exchange_ratio": null,
+        "transaction_value_usd_bn": 12.5
+      },
+      "announcement_premium_pct": 0.44,
+      "conditions": {
+        "requires_target_vote": true,
+        "outside_date": "2023-12-13",
+        "regulatory_jurisdictions": ["US-HSR"],
+        "financing_condition": true,
+        "termination_fee_pct": 0.03,
+        "reverse_termination_fee_pct": 0.06,
+        "conditions_clock_quality": "approximate_public_terms"
+      },
+      "market_implied": {
+        "as_of": "2023-04-15",
+        "target_price": 17.85,
+        "acquirer_price": null,
+        "downside_estimate": 11.0,
+        "expected_days_to_close": 110,
+        "proxy": true
+      },
+      "ground_truth": {
+        "outcome_class": "close_as_announced",
+        "resolution_on": "2023-06-28",
+        "terminal_holder_rights": {"type": "cash", "value_usd_per_share": 18.15, "note": "Controlled by SAP (majority holder); a special-committee process and a majority-of-minority vote preceded the close."}
+      },
+      "provenance": {
+        "terminal": {
+          "status": "public_record_unverified_offline",
+          "needs_freeze": ["XM/Silver Lake completion 8-K: accession, acceptance clock, sha256"]
+        },
+        "announcement": {
+          "status": "public_record_unverified_offline",
+          "needs_freeze": ["XM/Silver Lake merger-agreement announcement 8-K: accession, acceptance clock, sha256"]
+        },
+        "market_implied": {
+          "status": "illustrative_proxy",
+          "needs_freeze": ["XM price at as_of from a rights-cleared source"]
+        }
+      }
+    }
+  ]
+}

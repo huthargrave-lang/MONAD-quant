@@ -9,7 +9,9 @@ Most facts are a command away (read-only, stdlib-only):
 venv/bin/python tools/ctx.py route "<your task>"   # which files to read + tools to run
 venv/bin/python tools/ctx.py where <symbol>        # file:line of a def/class/config key
 venv/bin/python tools/ctx.py find <text-or-regex>  # search code BODIES for behavior → enclosing symbol + governing finding
-venv/bin/python tools/ctx.py claims                # implemented_in findings: is each code-behavior claim GUARDED by a test?
+venv/bin/python tools/ctx.py claims                # behavior-asserting bridges: is each code claim GUARDED by a test?
+venv/bin/python tools/ctx.py stale [--limit N]     # SEMANTIC staleness: current findings the web has quietly moved past
+venv/bin/python tools/ctx.py drift                 # cross-store consistency (web vs bridges vs ledger); UNREADABLE stores reported, never assumed clean
 venv/bin/python tools/ctx.py delta [--since X]     # git-based 'what changed' in the web/manifest since a base rev (default HEAD~12)
 venv/bin/python tools/ctx.py tree [path]           # AST repomap: each module → docstring + class/def names
 venv/bin/python tools/ctx.py summary [area]        # per-area rollup of the repomap (one line/module)
@@ -21,6 +23,7 @@ venv/bin/python tools/ctx.py audit                 # content drift: config %-com
 venv/bin/python tools/ctx.py status                # live deploy/runtime state
 venv/bin/python tools/ctx.py recent [N]            # recent commits + changed files
 venv/bin/python tools/ctx.py map [area]            # the manifest (or one area)
+venv/bin/python tools/ctx.py docs                  # doc-ownership topology from context_docs; flags STALE/dangling refs
 venv/bin/python tools/ctx.py web [node]            # walk the research idea-web (findings→hypotheses→evidence)
 venv/bin/python tools/ctx.py neighbors <node>      # unified-graph neighbors (idea + code bridges) by edge type
 venv/bin/python tools/ctx.py walk <node> [--edge T --depth N]  # BFS the idea graph (e.g. follow a supersedes chain)
@@ -35,6 +38,7 @@ venv/bin/python tools/ctx.py uncaptured            # strategy/research commits s
 venv/bin/python tools/ctx.py init [--write]        # scaffold the context layer for a fresh repo (the kit's portability entrypoint)
 venv/bin/python tools/note.py add --kind F --title "..." --body "..." [--link ID:type] [--commit]   # capture a finding into the web (dry-run by default)
 venv/bin/python tools/note.py supersede <OLD> --by <NEW> [--reason <code>] [--commit]   # mark a node superseded (write-fenced, lint-gated)
+venv/bin/python tools/note.py link <SRC> <TGT> --type <edge> [--commit]   # add ONE typed edge to an existing node (e.g. F140 H27 --type supports)
 venv/bin/python tools/ctx.py brief <area> --task ".."  # ≤900-tok orientation packet (best first move)
 venv/bin/python tools/ctx.py impact <file|symbol|config.KEY>  # blast radius + ⛔ if it hits the live boundary
 venv/bin/python tools/ctx.py can_edit <file>       # edit gate ALLOW/WARN/DENY (exit 0/2/1, scriptable)
@@ -65,7 +69,9 @@ Machine-readable routing/invariants live in **`context_map.json`** (kept honest 
 
 ## Step 3 — the docs, layered (read only what you're routed to)
 
-- **`AGENT_INDEX.md`** (this) + **`context_map.json`** + **`AGENT_CONTEXT_PLAN.md`** — navigation/router.
+- **`AGENT_INDEX.md`** (this) + **`context_map.json`** + **`CONTEXT_KIT.md`** — navigation/router.
+  (`AGENT_CONTEXT_PLAN.md` is the *executed* design plan — history, not a router; it still
+  names the manifest `context_map.yaml`. Run `ctx docs` for the generated ownership table.)
 - **Area context (1 screen each):** `live/CONTEXT.md`, `src/CONTEXT.md`, `ops/README.md`.
 - **Deep "why":** `CLAUDE.md` / `AGENTS.md` (strategy/model). **Deep "how it runs":** `OPERATIONS.md` (live/ops).
 

@@ -1,0 +1,639 @@
+{
+  "schema_version": 1,
+  "fixture_id": "ca01-sec-state-machine-v1",
+  "as_of_date": "2026-07-24",
+  "raw_documents_committed": false,
+  "clock_policy": {
+    "decision_clock": "observed_at",
+    "event_clock": "effective_on plus optional effective_at",
+    "rule": "An assertion is invisible before its official source was accepted by EDGAR. A later filing may confirm an earlier effective event but may not be backdated into a predictive feature.",
+    "date_only_lag_policy": "Calendar-day lag is descriptive only. Intraday lag is emitted only when an effective_at boundary is present.",
+    "market_access_policy": "The fixture records EDGAR acceptance, not guaranteed investor ingestion or executable market access. Downstream studies must add dissemination, parsing, and next-tradable-time assumptions."
+  },
+  "chains": [
+    {
+      "chain_id": "cash-merger:TWTR:2022-10-27",
+      "issuer_cik": "0001418091",
+      "issuer_name": "Twitter, Inc.",
+      "event_symbol": "TWTR",
+      "action_family": "cash_merger",
+      "outcome_action_id": "cash-merger:TWTR:2022-10-27",
+      "assertions": [
+        {
+          "assertion_id": "TWTR:agreement-announced:2022-04-25",
+          "ordinal": 1,
+          "dimension": "transaction",
+          "state_value": "agreement_announced",
+          "effective_on": "2022-04-25",
+          "effective_at": null,
+          "effective_time_quality": "date_confirmed",
+          "observed_at": "2022-04-25T16:44:36-04:00",
+          "observation_time_quality": "edgar_acceptance_exact",
+          "knowledge_role": "predictive_status",
+          "predictive_for_downstream_transition": true,
+          "source": {
+            "accession": "0001193125-22-117720",
+            "form": "8-K/EX-99.1",
+            "actor": "issuer",
+            "document_url": "https://www.sec.gov/Archives/edgar/data/1418091/000119312522117720/d319190dex991.htm",
+            "filing_index_url": "https://www.sec.gov/Archives/edgar/data/1418091/000119312522117720/0001193125-22-117720-index.htm",
+            "raw_document_committed": false
+          },
+          "claim": "Twitter announced a definitive cash merger agreement at $54.20 per share."
+        },
+        {
+          "assertion_id": "TWTR:shareholder-approved:2022-09-13",
+          "ordinal": 2,
+          "dimension": "transaction",
+          "state_value": "shareholder_approved",
+          "effective_on": "2022-09-13",
+          "effective_at": null,
+          "effective_time_quality": "date_confirmed",
+          "observed_at": "2022-09-14T08:15:57-04:00",
+          "observation_time_quality": "edgar_acceptance_exact",
+          "knowledge_role": "predictive_status",
+          "predictive_for_downstream_transition": true,
+          "source": {
+            "accession": "0001193125-22-244289",
+            "form": "8-K",
+            "actor": "issuer",
+            "document_url": "https://www.sec.gov/Archives/edgar/data/1418091/000119312522244289/d403306d8k.htm",
+            "filing_index_url": "https://www.sec.gov/Archives/edgar/data/1418091/000119312522244289/0001193125-22-244289-index.htm",
+            "raw_document_committed": false
+          },
+          "claim": "Twitter reported that shareholders approved the merger agreement."
+        },
+        {
+          "assertion_id": "TWTR:merger-completed:2022-10-27",
+          "ordinal": 3,
+          "dimension": "transaction",
+          "state_value": "completed",
+          "effective_on": "2022-10-27",
+          "effective_at": null,
+          "effective_time_quality": "date_confirmed",
+          "observed_at": "2022-10-28T08:31:19-04:00",
+          "observation_time_quality": "edgar_acceptance_exact",
+          "knowledge_role": "post_effective_confirmation",
+          "predictive_for_downstream_transition": false,
+          "source": {
+            "accession": "0000876661-22-000890",
+            "form": "25-NSE/EX-99.25",
+            "actor": "exchange",
+            "document_url": "https://www.sec.gov/Archives/edgar/data/876661/000087666122000890/ruleprovisionnotice.htm",
+            "filing_index_url": "https://www.sec.gov/Archives/edgar/data/1418091/000087666122000890/0000876661-22-000890-index.htm",
+            "raw_document_committed": false
+          },
+          "claim": "NYSE stated that the Twitter merger became effective on October 27, 2022."
+        },
+        {
+          "assertion_id": "TWTR:cash-right-established:2022-10-27",
+          "ordinal": 4,
+          "dimension": "security_rights",
+          "state_value": "cash_claim_54_20_usd",
+          "effective_on": "2022-10-27",
+          "effective_at": null,
+          "effective_time_quality": "date_confirmed",
+          "observed_at": "2022-10-28T08:31:19-04:00",
+          "observation_time_quality": "edgar_acceptance_exact",
+          "knowledge_role": "outcome_label",
+          "predictive_for_downstream_transition": false,
+          "source": {
+            "accession": "0000876661-22-000890",
+            "form": "25-NSE/EX-99.25",
+            "actor": "exchange",
+            "document_url": "https://www.sec.gov/Archives/edgar/data/876661/000087666122000890/ruleprovisionnotice.htm",
+            "filing_index_url": "https://www.sec.gov/Archives/edgar/data/1418091/000087666122000890/0000876661-22-000890-index.htm",
+            "raw_document_committed": false
+          },
+          "claim": "Each common share was exchanged for $54.20 cash, subject to the stated deductions."
+        },
+        {
+          "assertion_id": "TWTR:trading-suspended:2022-10-28",
+          "ordinal": 5,
+          "dimension": "listing",
+          "state_value": "trading_suspended",
+          "effective_on": "2022-10-28",
+          "effective_at": "2022-10-28T09:30:00-04:00",
+          "effective_time_quality": "no_later_than_market_open",
+          "observed_at": "2022-10-28T08:31:19-04:00",
+          "observation_time_quality": "edgar_acceptance_exact",
+          "knowledge_role": "administrative_status",
+          "predictive_for_downstream_transition": false,
+          "source": {
+            "accession": "0000876661-22-000890",
+            "form": "25-NSE/EX-99.25",
+            "actor": "exchange",
+            "document_url": "https://www.sec.gov/Archives/edgar/data/876661/000087666122000890/ruleprovisionnotice.htm",
+            "filing_index_url": "https://www.sec.gov/Archives/edgar/data/1418091/000087666122000890/0000876661-22-000890-index.htm",
+            "raw_document_committed": false
+          },
+          "claim": "NYSE stated that trading was suspended before the October 28 market open."
+        },
+        {
+          "assertion_id": "TWTR:form25-filed:2022-10-28",
+          "ordinal": 6,
+          "dimension": "reporting",
+          "state_value": "form25_nse_filed",
+          "effective_on": "2022-10-28",
+          "effective_at": "2022-10-28T08:31:19-04:00",
+          "effective_time_quality": "edgar_acceptance_exact",
+          "observed_at": "2022-10-28T08:31:19-04:00",
+          "observation_time_quality": "edgar_acceptance_exact",
+          "knowledge_role": "administrative_status",
+          "predictive_for_downstream_transition": false,
+          "source": {
+            "accession": "0000876661-22-000890",
+            "form": "25-NSE",
+            "actor": "exchange",
+            "document_url": "https://www.sec.gov/Archives/edgar/data/1418091/000087666122000890/xslF25X02/primary_doc.xml",
+            "filing_index_url": "https://www.sec.gov/Archives/edgar/data/1418091/000087666122000890/0000876661-22-000890-index.htm",
+            "raw_document_committed": false
+          },
+          "claim": "NYSE filed Form 25-NSE for Twitter."
+        },
+        {
+          "assertion_id": "TWTR:listing-removal-scheduled:2022-11-08",
+          "ordinal": 7,
+          "dimension": "listing",
+          "state_value": "removal_scheduled",
+          "effective_on": "2022-11-08",
+          "effective_at": "2022-11-08T09:30:00-05:00",
+          "effective_time_quality": "market_open_boundary",
+          "observed_at": "2022-10-28T08:31:19-04:00",
+          "observation_time_quality": "edgar_acceptance_exact",
+          "knowledge_role": "administrative_status",
+          "predictive_for_downstream_transition": false,
+          "source": {
+            "accession": "0000876661-22-000890",
+            "form": "25-NSE/EX-99.25",
+            "actor": "exchange",
+            "document_url": "https://www.sec.gov/Archives/edgar/data/876661/000087666122000890/ruleprovisionnotice.htm",
+            "filing_index_url": "https://www.sec.gov/Archives/edgar/data/1418091/000087666122000890/0000876661-22-000890-index.htm",
+            "raw_document_committed": false
+          },
+          "claim": "NYSE scheduled removal from listing and registration for the opening of business on November 8."
+        },
+        {
+          "assertion_id": "TWTR:issuer-completion-confirmed:2022-10-28",
+          "ordinal": 8,
+          "dimension": "disclosure",
+          "state_value": "issuer_completion_8k_filed",
+          "effective_on": "2022-10-28",
+          "effective_at": "2022-10-28T20:22:36-04:00",
+          "effective_time_quality": "edgar_acceptance_exact",
+          "observed_at": "2022-10-28T20:22:36-04:00",
+          "observation_time_quality": "edgar_acceptance_exact",
+          "knowledge_role": "post_effective_confirmation",
+          "predictive_for_downstream_transition": false,
+          "source": {
+            "accession": "0001193125-22-272772",
+            "form": "8-K",
+            "actor": "issuer",
+            "document_url": "https://www.sec.gov/Archives/edgar/data/1418091/000119312522272772/d411753d8k.htm",
+            "filing_index_url": "https://www.sec.gov/Archives/edgar/data/1418091/000119312522272772/0001193125-22-272772-index.html",
+            "raw_document_committed": false
+          },
+          "claim": "Twitter filed its issuer completion and delisting report after the October 28 close."
+        },
+        {
+          "assertion_id": "TWTR:form15-filed:2022-11-07",
+          "ordinal": 9,
+          "dimension": "reporting",
+          "state_value": "form15_12g_filed",
+          "effective_on": "2022-11-07",
+          "effective_at": "2022-11-07T16:01:52-05:00",
+          "effective_time_quality": "edgar_acceptance_exact",
+          "observed_at": "2022-11-07T16:01:52-05:00",
+          "observation_time_quality": "edgar_acceptance_exact",
+          "knowledge_role": "administrative_status",
+          "predictive_for_downstream_transition": false,
+          "source": {
+            "accession": "0001193125-22-279042",
+            "form": "15-12G",
+            "actor": "issuer",
+            "document_url": "https://www.sec.gov/Archives/edgar/data/1418091/000119312522279042/d412732d1512g.htm",
+            "filing_index_url": "https://www.sec.gov/Archives/edgar/data/1418091/000119312522279042/0001193125-22-279042-index.htm",
+            "raw_document_committed": false
+          },
+          "claim": "Twitter filed Form 15 under Rule 12g-4(a)(1) and Rule 12h-3(b)(1)(i)."
+        }
+      ]
+    },
+    {
+      "chain_id": "cash-merger:ATVI:2023-10-13",
+      "issuer_cik": "0000718877",
+      "issuer_name": "Activision Blizzard, Inc.",
+      "event_symbol": "ATVI",
+      "action_family": "cash_merger",
+      "outcome_action_id": "cash-merger:ATVI:2023-10-13",
+      "assertions": [
+        {
+          "assertion_id": "ATVI:agreement-announced:2022-01-18",
+          "ordinal": 1,
+          "dimension": "transaction",
+          "state_value": "agreement_announced",
+          "effective_on": "2022-01-18",
+          "effective_at": null,
+          "effective_time_quality": "date_confirmed",
+          "observed_at": "2022-01-18T09:28:00-05:00",
+          "observation_time_quality": "edgar_acceptance_exact",
+          "knowledge_role": "predictive_status",
+          "predictive_for_downstream_transition": true,
+          "source": {
+            "accession": "0001104659-22-004729",
+            "form": "8-K",
+            "actor": "issuer",
+            "document_url": "https://www.sec.gov/Archives/edgar/data/718877/000110465922004729/tm223212d1_8k.htm",
+            "filing_index_url": "https://www.sec.gov/Archives/edgar/data/718877/000110465922004729/0001104659-22-004729-index.htm",
+            "raw_document_committed": false
+          },
+          "claim": "Activision announced a definitive agreement to be acquired by Microsoft."
+        },
+        {
+          "assertion_id": "ATVI:shareholder-approved:2022-04-28",
+          "ordinal": 2,
+          "dimension": "transaction",
+          "state_value": "shareholder_approved",
+          "effective_on": "2022-04-28",
+          "effective_at": null,
+          "effective_time_quality": "date_confirmed",
+          "observed_at": "2022-04-28T16:15:27-04:00",
+          "observation_time_quality": "edgar_acceptance_exact",
+          "knowledge_role": "predictive_status",
+          "predictive_for_downstream_transition": true,
+          "source": {
+            "accession": "0001104659-22-052250",
+            "form": "8-K",
+            "actor": "issuer",
+            "document_url": "https://www.sec.gov/Archives/edgar/data/718877/000110465922052250/tm2213809d1_8k.htm",
+            "filing_index_url": "https://www.sec.gov/Archives/edgar/data/718877/000110465922052250/0001104659-22-052250-index.htm",
+            "raw_document_committed": false
+          },
+          "claim": "Activision reported that shareholders approved the merger proposal."
+        },
+        {
+          "assertion_id": "ATVI:merger-completed:2023-10-13",
+          "ordinal": 3,
+          "dimension": "transaction",
+          "state_value": "completed",
+          "effective_on": "2023-10-13",
+          "effective_at": null,
+          "effective_time_quality": "date_confirmed",
+          "observed_at": "2023-10-13T08:34:52-04:00",
+          "observation_time_quality": "edgar_acceptance_exact",
+          "knowledge_role": "outcome_label",
+          "predictive_for_downstream_transition": false,
+          "source": {
+            "accession": "0001104659-23-108985",
+            "form": "8-K",
+            "actor": "issuer",
+            "document_url": "https://www.sec.gov/Archives/edgar/data/718877/000110465923108985/tm2328253d1_8k.htm",
+            "filing_index_url": "https://www.sec.gov/Archives/edgar/data/718877/000110465923108985/0001104659-23-108985-index.htm",
+            "raw_document_committed": false
+          },
+          "claim": "Activision reported completion of the Microsoft merger before the market open."
+        },
+        {
+          "assertion_id": "ATVI:cash-right-established:2023-10-13",
+          "ordinal": 4,
+          "dimension": "security_rights",
+          "state_value": "cash_claim_95_00_usd",
+          "effective_on": "2023-10-13",
+          "effective_at": null,
+          "effective_time_quality": "date_confirmed",
+          "observed_at": "2023-10-13T08:34:52-04:00",
+          "observation_time_quality": "edgar_acceptance_exact",
+          "knowledge_role": "outcome_label",
+          "predictive_for_downstream_transition": false,
+          "source": {
+            "accession": "0001104659-23-108985",
+            "form": "8-K",
+            "actor": "issuer",
+            "document_url": "https://www.sec.gov/Archives/edgar/data/718877/000110465923108985/tm2328253d1_8k.htm",
+            "filing_index_url": "https://www.sec.gov/Archives/edgar/data/718877/000110465923108985/0001104659-23-108985-index.htm",
+            "raw_document_committed": false
+          },
+          "claim": "Each eligible common share was converted into a $95.00 cash claim."
+        },
+        {
+          "assertion_id": "ATVI:trading-halted:2023-10-13",
+          "ordinal": 5,
+          "dimension": "listing",
+          "state_value": "trading_halt_requested",
+          "effective_on": "2023-10-13",
+          "effective_at": "2023-10-13T09:30:00-04:00",
+          "effective_time_quality": "no_later_than_market_open",
+          "observed_at": "2023-10-13T08:34:52-04:00",
+          "observation_time_quality": "edgar_acceptance_exact",
+          "knowledge_role": "administrative_status",
+          "predictive_for_downstream_transition": false,
+          "source": {
+            "accession": "0001104659-23-108985",
+            "form": "8-K",
+            "actor": "issuer",
+            "document_url": "https://www.sec.gov/Archives/edgar/data/718877/000110465923108985/tm2328253d1_8k.htm",
+            "filing_index_url": "https://www.sec.gov/Archives/edgar/data/718877/000110465923108985/0001104659-23-108985-index.htm",
+            "raw_document_committed": false
+          },
+          "claim": "Activision requested that Nasdaq halt trading before the October 13 open."
+        },
+        {
+          "assertion_id": "ATVI:form25-filed:2023-10-13",
+          "ordinal": 6,
+          "dimension": "reporting",
+          "state_value": "form25_nse_filed",
+          "effective_on": "2023-10-13",
+          "effective_at": "2023-10-13T09:01:06-04:00",
+          "effective_time_quality": "edgar_acceptance_exact",
+          "observed_at": "2023-10-13T09:01:06-04:00",
+          "observation_time_quality": "edgar_acceptance_exact",
+          "knowledge_role": "administrative_status",
+          "predictive_for_downstream_transition": false,
+          "source": {
+            "accession": "0001354457-23-000768",
+            "form": "25-NSE",
+            "actor": "exchange",
+            "document_url": "https://www.sec.gov/Archives/edgar/data/718877/000135445723000768/primary_doc.xml",
+            "filing_index_url": "https://www.sec.gov/Archives/edgar/data/718877/000135445723000768/0001354457-23-000768-index.html",
+            "raw_document_committed": false
+          },
+          "claim": "Nasdaq filed Form 25-NSE under Rule 12d2-2(a)(3)."
+        },
+        {
+          "assertion_id": "ATVI:form15-filed:2023-10-23",
+          "ordinal": 7,
+          "dimension": "reporting",
+          "state_value": "form15_12g_filed",
+          "effective_on": "2023-10-23",
+          "effective_at": "2023-10-23T17:25:43-04:00",
+          "effective_time_quality": "edgar_acceptance_exact",
+          "observed_at": "2023-10-23T17:25:43-04:00",
+          "observation_time_quality": "edgar_acceptance_exact",
+          "knowledge_role": "administrative_status",
+          "predictive_for_downstream_transition": false,
+          "source": {
+            "accession": "0001104659-23-110841",
+            "form": "15-12G",
+            "actor": "issuer",
+            "document_url": "https://www.sec.gov/Archives/edgar/data/718877/000110465923110841/tm2328977d1_1512g.htm",
+            "filing_index_url": "https://www.sec.gov/Archives/edgar/data/718877/000110465923110841/0001104659-23-110841-index.html",
+            "raw_document_committed": false
+          },
+          "claim": "Activision filed Form 15 ten calendar days after the merger close."
+        }
+      ]
+    },
+    {
+      "chain_id": "bankruptcy-cancellation:BBBYQ:2023-09-29",
+      "issuer_cik": "0000886158",
+      "issuer_name": "Bed Bath & Beyond Inc. / 20230930-DK-Butterfly-1, Inc.",
+      "event_symbol": "BBBYQ",
+      "action_family": "bankruptcy_cancellation",
+      "outcome_action_id": "bankruptcy-cancellation:BBBYQ:2023-09-29",
+      "assertions": [
+        {
+          "assertion_id": "BBBYQ:bankruptcy-petition:2023-04-23",
+          "ordinal": 1,
+          "dimension": "bankruptcy",
+          "state_value": "chapter11_petitioned",
+          "effective_on": "2023-04-23",
+          "effective_at": null,
+          "effective_time_quality": "date_confirmed",
+          "observed_at": "2023-04-24T07:34:00-04:00",
+          "observation_time_quality": "edgar_acceptance_exact",
+          "knowledge_role": "predictive_status",
+          "predictive_for_downstream_transition": true,
+          "source": {
+            "accession": "0001193125-23-111754",
+            "form": "8-K",
+            "actor": "issuer",
+            "document_url": "https://www.sec.gov/Archives/edgar/data/886158/000119312523111754/d465247d8k.htm",
+            "filing_index_url": "https://www.sec.gov/Archives/edgar/data/886158/000119312523111754/0001193125-23-111754-index.htm",
+            "raw_document_committed": false
+          },
+          "claim": "Bed Bath & Beyond reported its April 23 Chapter 11 petition."
+        },
+        {
+          "assertion_id": "BBBYQ:delisting-determined:2023-04-24",
+          "ordinal": 2,
+          "dimension": "listing",
+          "state_value": "delisting_determined_no_appeal",
+          "effective_on": "2023-04-24",
+          "effective_at": null,
+          "effective_time_quality": "date_confirmed",
+          "observed_at": "2023-04-25T17:16:59-04:00",
+          "observation_time_quality": "edgar_acceptance_exact",
+          "knowledge_role": "predictive_status",
+          "predictive_for_downstream_transition": true,
+          "source": {
+            "accession": "0001193125-23-115523",
+            "form": "8-K",
+            "actor": "issuer",
+            "document_url": "https://www.sec.gov/Archives/edgar/data/886158/000119312523115523/d89202d8k.htm",
+            "filing_index_url": "https://www.sec.gov/Archives/edgar/data/886158/000119312523115523/0001193125-23-115523-index.htm",
+            "raw_document_committed": false
+          },
+          "claim": "The issuer disclosed Nasdaq's delisting determination and said it would not appeal."
+        },
+        {
+          "assertion_id": "BBBYQ:suspension-scheduled:2023-05-03",
+          "ordinal": 3,
+          "dimension": "listing",
+          "state_value": "suspension_scheduled",
+          "effective_on": "2023-05-03",
+          "effective_at": "2023-05-03T09:30:00-04:00",
+          "effective_time_quality": "market_open_boundary",
+          "observed_at": "2023-04-25T17:16:59-04:00",
+          "observation_time_quality": "edgar_acceptance_exact",
+          "knowledge_role": "predictive_status",
+          "predictive_for_downstream_transition": true,
+          "source": {
+            "accession": "0001193125-23-115523",
+            "form": "8-K",
+            "actor": "issuer",
+            "document_url": "https://www.sec.gov/Archives/edgar/data/886158/000119312523115523/d89202d8k.htm",
+            "filing_index_url": "https://www.sec.gov/Archives/edgar/data/886158/000119312523115523/0001193125-23-115523-index.htm",
+            "raw_document_committed": false
+          },
+          "claim": "The issuer disclosed that Nasdaq trading would be suspended at the May 3 open."
+        },
+        {
+          "assertion_id": "BBBYQ:trading-suspended-confirmed:2023-05-03",
+          "ordinal": 4,
+          "dimension": "listing",
+          "state_value": "trading_suspended",
+          "effective_on": "2023-05-03",
+          "effective_at": "2023-05-03T09:30:00-04:00",
+          "effective_time_quality": "market_open_boundary",
+          "observed_at": "2023-07-10T06:03:40-04:00",
+          "observation_time_quality": "edgar_acceptance_exact",
+          "knowledge_role": "post_effective_confirmation",
+          "predictive_for_downstream_transition": false,
+          "source": {
+            "accession": "0001354457-23-000478",
+            "form": "25-NSE/EX-99.25",
+            "actor": "exchange",
+            "document_url": "https://www.sec.gov/Archives/edgar/data/886158/000135445723000478/bbbydelistreason.txt",
+            "filing_index_url": "https://www.sec.gov/Archives/edgar/data/886158/000135445723000478/0001354457-23-000478-index.htm",
+            "raw_document_committed": false
+          },
+          "claim": "Nasdaq's later Form 25 exhibit confirmed that securities were suspended on May 3."
+        },
+        {
+          "assertion_id": "BBBYQ:form25-filed:2023-07-10",
+          "ordinal": 5,
+          "dimension": "reporting",
+          "state_value": "form25_nse_filed",
+          "effective_on": "2023-07-10",
+          "effective_at": "2023-07-10T06:03:40-04:00",
+          "effective_time_quality": "edgar_acceptance_exact",
+          "observed_at": "2023-07-10T06:03:40-04:00",
+          "observation_time_quality": "edgar_acceptance_exact",
+          "knowledge_role": "administrative_status",
+          "predictive_for_downstream_transition": false,
+          "source": {
+            "accession": "0001354457-23-000478",
+            "form": "25-NSE",
+            "actor": "exchange",
+            "document_url": "https://www.sec.gov/Archives/edgar/data/886158/000135445723000478/xslF25X02/primary_doc.xml",
+            "filing_index_url": "https://www.sec.gov/Archives/edgar/data/886158/000135445723000478/0001354457-23-000478-index.htm",
+            "raw_document_committed": false
+          },
+          "claim": "Nasdaq filed Form 25-NSE for Bed Bath & Beyond."
+        },
+        {
+          "assertion_id": "BBBYQ:listing-removal-scheduled:2023-07-20",
+          "ordinal": 6,
+          "dimension": "listing",
+          "state_value": "removal_scheduled",
+          "effective_on": "2023-07-20",
+          "effective_at": "2023-07-20T09:30:00-04:00",
+          "effective_time_quality": "market_open_boundary",
+          "observed_at": "2023-07-10T06:03:40-04:00",
+          "observation_time_quality": "edgar_acceptance_exact",
+          "knowledge_role": "administrative_status",
+          "predictive_for_downstream_transition": false,
+          "source": {
+            "accession": "0001354457-23-000478",
+            "form": "25-NSE/EX-99.25",
+            "actor": "exchange",
+            "document_url": "https://www.sec.gov/Archives/edgar/data/886158/000135445723000478/bbbydelistreason.txt",
+            "filing_index_url": "https://www.sec.gov/Archives/edgar/data/886158/000135445723000478/0001354457-23-000478-index.htm",
+            "raw_document_committed": false
+          },
+          "claim": "Nasdaq scheduled removal from listing for the July 20 market open."
+        },
+        {
+          "assertion_id": "BBBYQ:plan-confirmed:2023-09-14",
+          "ordinal": 7,
+          "dimension": "bankruptcy",
+          "state_value": "plan_confirmed",
+          "effective_on": "2023-09-14",
+          "effective_at": null,
+          "effective_time_quality": "date_confirmed",
+          "observed_at": "2023-09-20T16:16:30-04:00",
+          "observation_time_quality": "edgar_acceptance_exact",
+          "knowledge_role": "predictive_status",
+          "predictive_for_downstream_transition": true,
+          "source": {
+            "accession": "0001193125-23-238592",
+            "form": "8-K",
+            "actor": "issuer",
+            "document_url": "https://www.sec.gov/Archives/edgar/data/886158/000119312523238592/d521320d8k.htm",
+            "filing_index_url": "https://www.sec.gov/Archives/edgar/data/886158/000119312523238592/0001193125-23-238592-index.htm",
+            "raw_document_committed": false
+          },
+          "claim": "The issuer reported that the bankruptcy court confirmed its liquidation plan."
+        },
+        {
+          "assertion_id": "BBBYQ:cancellation-expected:2023-09-30",
+          "ordinal": 8,
+          "dimension": "security_rights",
+          "state_value": "cancellation_expected_on_plan_effective_date",
+          "effective_on": "2023-09-30",
+          "effective_at": null,
+          "effective_time_quality": "issuer_anticipated_date",
+          "observed_at": "2023-09-20T16:16:30-04:00",
+          "observation_time_quality": "edgar_acceptance_exact",
+          "knowledge_role": "predictive_status",
+          "predictive_for_downstream_transition": true,
+          "source": {
+            "accession": "0001193125-23-238592",
+            "form": "8-K",
+            "actor": "issuer",
+            "document_url": "https://www.sec.gov/Archives/edgar/data/886158/000119312523238592/d521320d8k.htm",
+            "filing_index_url": "https://www.sec.gov/Archives/edgar/data/886158/000119312523238592/0001193125-23-238592-index.htm",
+            "raw_document_committed": false
+          },
+          "claim": "The issuer expected plan effectiveness around September 30, when common shares would be canceled."
+        },
+        {
+          "assertion_id": "BBBYQ:plan-effective:2023-09-29",
+          "ordinal": 9,
+          "dimension": "bankruptcy",
+          "state_value": "plan_effective",
+          "effective_on": "2023-09-29",
+          "effective_at": null,
+          "effective_time_quality": "date_confirmed",
+          "observed_at": "2023-09-29T16:23:06-04:00",
+          "observation_time_quality": "edgar_acceptance_exact",
+          "knowledge_role": "outcome_label",
+          "predictive_for_downstream_transition": false,
+          "source": {
+            "accession": "0001193125-23-247428",
+            "form": "8-K",
+            "actor": "issuer",
+            "document_url": "https://www.sec.gov/Archives/edgar/data/886158/000119312523247428/d579010d8k.htm",
+            "filing_index_url": "https://www.sec.gov/Archives/edgar/data/886158/000119312523247428/0001193125-23-247428-index.htm",
+            "raw_document_committed": false
+          },
+          "claim": "The confirmed bankruptcy plan became effective on September 29."
+        },
+        {
+          "assertion_id": "BBBYQ:rights-cancelled:2023-09-29",
+          "ordinal": 10,
+          "dimension": "security_rights",
+          "state_value": "cancelled_without_consideration",
+          "effective_on": "2023-09-29",
+          "effective_at": null,
+          "effective_time_quality": "date_confirmed",
+          "observed_at": "2023-09-29T16:23:06-04:00",
+          "observation_time_quality": "edgar_acceptance_exact",
+          "knowledge_role": "outcome_label",
+          "predictive_for_downstream_transition": false,
+          "source": {
+            "accession": "0001193125-23-247428",
+            "form": "8-K",
+            "actor": "issuer",
+            "document_url": "https://www.sec.gov/Archives/edgar/data/886158/000119312523247428/d579010d8k.htm",
+            "filing_index_url": "https://www.sec.gov/Archives/edgar/data/886158/000119312523247428/0001193125-23-247428-index.htm",
+            "raw_document_committed": false
+          },
+          "claim": "All common and preferred equity interests were canceled without consideration."
+        },
+        {
+          "assertion_id": "BBBYQ:form15-filed:2023-09-29",
+          "ordinal": 11,
+          "dimension": "reporting",
+          "state_value": "form15_12g_filed",
+          "effective_on": "2023-09-29",
+          "effective_at": "2023-09-29T16:47:56-04:00",
+          "effective_time_quality": "edgar_acceptance_exact",
+          "observed_at": "2023-09-29T16:47:56-04:00",
+          "observation_time_quality": "edgar_acceptance_exact",
+          "knowledge_role": "administrative_status",
+          "predictive_for_downstream_transition": false,
+          "source": {
+            "accession": "0001193125-23-247520",
+            "form": "15-12G",
+            "actor": "issuer",
+            "document_url": "https://www.sec.gov/Archives/edgar/data/886158/000119312523247520/d556807d1512g.htm",
+            "filing_index_url": "https://www.sec.gov/Archives/edgar/data/886158/000119312523247520/0001193125-23-247520-index.htm",
+            "raw_document_committed": false
+          },
+          "claim": "The renamed wind-down issuer filed Form 15 under Rule 12g-4(a)(1)."
+        }
+      ]
+    }
+  ]
+}

@@ -36,6 +36,21 @@ So the foundational question of [[D4]] re-opens at 2026 starting conditions: **w
 
 The 9.5% rode a secular bond bull + a QQQ growth tilt — the part that does NOT repeat ([[F38]]).
 
+> 📝 **PROVENANCE NOTE (2026-07-25 — `RESEARCH_WEB.md` F146). Flagged, deliberately NOT
+> corrected.** The `9.5% / 0.84` baseline above is the **composition variant** (all-TR ETF
+> basket) from `D6_static_product_study.md:36`, not the dividend-corrected 60/40, which is
+> `9.4% / 0.85` — the value `F38` actually records. This doc inherited the wrong row by
+> quoting the study's Finding, which itself mislabelled it (now corrected there). Note that
+> this document also uses **0.85** for the same static baseline at the Adversarial-review
+> bullet below, so the two figures are already inconsistent *within this file*.
+>
+> Left as-is because `9.5% / 0.84` is **load-bearing** here — the forward construct scales the
+> mean from it (`~9.5% → 5.9%`, `0.0588/0.1156 = 0.51`) — and the study cannot be re-run
+> offline (no market-data access; see `docs/research/REPRO00_market_data_reproducibility.md`).
+> Changing the input without re-running would be worse than recording the discrepancy. The
+> effect is small (0.1pp of CAGR, 0.01 of Sharpe) and changes **no conclusion**: the forward
+> Sharpe drop and the sign of every verdict survive either input.
+
 ### Forward expected 60/40 return — scenario matrix (0.6·equity + 0.4·bond), vs the 3.75% goal
 
 | equity ↓ / bond → | 3.5% | 4.2% | 5.0% |

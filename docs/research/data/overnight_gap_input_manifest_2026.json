@@ -1,0 +1,62 @@
+{
+  "captured_utc_date": "2026-07-23",
+  "vendor": "Yahoo Finance via yfinance",
+  "adjustment": "auto_adjust=False",
+  "raw_bytes_committed": false,
+  "inputs": [
+    {
+      "name": "TQQQ full-session hourly OHLCV",
+      "query": "TQQQ 1h, 2024-08-01 through 2026-07-22",
+      "runtime_cache": "/tmp/monad_tqqq_full_session_1h.csv",
+      "bytes": 361815,
+      "physical_lines": 3430,
+      "sha256": "0290d6756e82376fc650bbb28d86e2a289eaf69c040b9de88dceb2daa9c5650b"
+    },
+    {
+      "name": "TQQQ five-minute calibration OHLCV",
+      "query": "TQQQ 5m, 2026-05-25 through 2026-07-22",
+      "runtime_cache": "/tmp/monad_tqqq_5m_panel.csv",
+      "bytes": 320234,
+      "physical_lines": 3121,
+      "sha256": "3b6a91ebdc5b8b30dd51cb1f262dada5097819da8c98bfc79fbf2b7156845432",
+      "durable_derivative": "docs/research/data/entry_bar_5m_ordering_2026.csv"
+    },
+    {
+      "name": "cross-instrument daily OHLC panel",
+      "query": "SPY/SSO/UPRO/QQQ/QLD/TQQQ/SOXL/TNA 1d, 2010-02-12 through 2026-07-22",
+      "runtime_cache": "/tmp/monad_gap_daily_panel.csv",
+      "bytes": 1235057,
+      "physical_lines": 4135,
+      "sha256": "53a86106ce43319c151412f4fe194b0a0c1e3a4c8376a8a202c7e3e392bd924b"
+    },
+    {
+      "name": "TQQQ July 6 one-minute recovery window",
+      "query": "TQQQ 1m, 2026-07-06 through 2026-07-08",
+      "runtime_cache": "/tmp/monad_tqqq_1m_jul6_window.csv",
+      "bytes": 119372,
+      "physical_lines": 1173,
+      "sha256": "faf659ffd4add7e643e5eb321508dcb9f44ca39384e8d955fb2da812d4254576",
+      "durable_derivative": "docs/research/data/entry_bar_1m_resolution_2026.csv"
+    },
+    {
+      "name": "TQQQ daily corporate actions",
+      "query": "TQQQ 1d actions=True, 2010-02-12 through 2026-07-22, auto_adjust=False",
+      "runtime_cache": "/tmp/monad_tqqq_daily_actions.csv",
+      "bytes": 513993,
+      "physical_lines": 4137,
+      "sha256": "861f6206ab7a5df80e53129fb7c890e20e2d79b46ebff0e34122873f9c37ba87",
+      "durable_derivative": "docs/research/data/tqqq_corporate_actions_2010_2026.csv"
+    },
+    {
+      "name": "QQQ daily corporate actions",
+      "query": "QQQ 1d actions=True, 2010-02-12 through 2026-07-22, auto_adjust=False",
+      "runtime_cache": "/tmp/monad_qqq_daily_actions.csv",
+      "bytes": 501193,
+      "physical_lines": 4137,
+      "sha256": "7969bc74f7b5c77a24b53c9bdd0a8f4da98d617331d6ccda75e324b671ecdb94",
+      "durable_derivative": "docs/research/data/qqq_distributions_2010_2026.csv"
+    }
+  ],
+  "reproducibility_class": "Exact only while matching runtime caches remain available. The repository preserves code, hashes, lower-timeframe derived audits, and corporate-action derivatives, but not the hourly/daily raw vendor bytes.",
+  "revision_policy": "A refresh or vendor revision must receive a new hash and a result diff; revised bytes must not be silently labeled as the original pinned sample."
+}

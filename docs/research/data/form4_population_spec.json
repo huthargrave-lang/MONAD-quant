@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "spec_id": "form4-pop-2024-06-03_07-day-sliced-v1",
+  "raw_documents_committed": false,
+  "outcomes_assigned": false,
+  "search": {
+    "endpoint": "https://efts.sec.gov/LATEST/search-index",
+    "forms": ["4"],
+    "start_date": "2024-06-03",
+    "end_date": "2024-06-07",
+    "sampling": "day_sliced_first_100_per_day",
+    "query_note": "forms=4 only; q=* returns 0 hits on efts",
+    "index_totals_by_day": {
+      "2024-06-03": 983,
+      "2024-06-04": 1625,
+      "2024-06-05": 955,
+      "2024-06-06": 847,
+      "2024-06-07": 1227
+    },
+    "index_total_sum": 5637,
+    "response_sha256": "0614a7e312fd164af02e954f728f540c1e7040abdc5c516c15e9c5e56da77a47",
+    "archives_raw_status": "403_forbidden",
+    "bias_note": "first 100/day is not a full population; schema/discovery only"
+  }
+}

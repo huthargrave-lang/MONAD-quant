@@ -11,7 +11,7 @@ full strategy memory now lives in **one** place.
 |---|---|
 | Strategy / model "why" (signals, regimes, sweeps, what worked/failed) | **`CLAUDE.md`** (authoritative) |
 | Live deployment / ops "how it runs" | **`OPERATIONS.md`**, `ops/README.md` |
-| Navigation + task routing | **`AGENT_INDEX.md`**, `context_map.json`, `AGENT_CONTEXT_PLAN.md` |
+| Navigation + task routing | **`AGENT_INDEX.md`**, `context_map.json`, `CONTEXT_KIT.md` (run `ctx docs`) |
 | **Current parameters / facts** (don't trust prose — it can drift) | run **`tools/ctx.py`**: `ctx config <KEY>`, `ctx schema`, `ctx perf`, `ctx status` |
 
 ## Two facts every agent should internalize

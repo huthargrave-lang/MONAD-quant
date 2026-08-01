@@ -38,10 +38,18 @@ def _parse(ts):
         return None
 
 
-def _compound(rs):
+# `return_pct` is a PRICE return on a position sized at a fixed fraction of equity
+# (live/state.py: position_pct = 0.10), so compounding it raw gives a return on
+# 10%-of-equity NOTIONAL, not on the account -- about 10x the account effect.
+# See RESEARCH_WEB.md F160.
+LIVE_POSITION_FRACTION = 0.10
+
+
+def _compound(rs, fraction=1.0):
+    """Compound returns; `fraction` scales each into account units."""
     e = 1.0
     for r in rs:
-        e *= (1 + r)
+        e *= (1 + r * fraction)
     return (e - 1) * 100
 
 
@@ -127,7 +135,10 @@ def main():
         passed = passed and ok
     print(f"\n  VERDICT: {'CLEAN — performance is trustworthy' if passed else 'NOT yet clean — see FAILs above'}")
     if n_all:
-        print(f"  Honest edge (confirmed fills): {_compound(actual):+.3f}% compounded over {n_actual} trades")
+        print(f"  Honest edge (confirmed fills): {_compound(actual, LIVE_POSITION_FRACTION):+.3f}% "
+              f"ON THE ACCOUNT over {n_actual} trades")
+        print(f"    ({_compound(actual):+.3f}% on 10%-of-equity notional — the raw dashboard")
+        print(f"     convention, which reports ~10x the account effect; see F160)")
 
 
 if __name__ == "__main__":

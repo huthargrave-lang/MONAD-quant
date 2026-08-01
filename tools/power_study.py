@@ -49,6 +49,7 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import mr_daily_lab as lab  # noqa: E402  (canonical sleeve / load / COST)
+import data_cache  # noqa: E402  (validated cache: never trust a stub, never write one)
 
 ANN = 252
 BLOCK = 20          # trading-month blocks, matching the mr_daily_lab bootstrap
@@ -91,14 +92,18 @@ def load_2000() -> pd.DataFrame:
     """Mirror mr_daily_lab.cmd_gonogolong's own 2000-start cache (fetch if absent)."""
     cache = "/tmp/mr_daily_close_2000.csv"
     fetch = sorted({"^GSPC", "QQQ", "IWM", "DIA", "IEF"})
-    if os.path.exists(cache):
-        return pd.read_csv(cache, index_col=0, parse_dates=True)
-    import yfinance as yf
-    raw = yf.download(fetch, start="2000-01-01", end=lab.END, interval="1d",
-                      progress=False, auto_adjust=True)
-    px = raw["Close"][fetch].dropna(how="all")
-    px.to_csv(cache)
-    return px
+
+    def _fetch():
+        import yfinance as yf
+        raw = yf.download(fetch, start="2000-01-01", end=lab.END, interval="1d",
+                          progress=False, auto_adjust=True)
+        return raw["Close"][fetch].dropna(how="all")
+
+    # Shares the cache path with mr_daily_lab.cmd_gonogolong, so it must share the
+    # validation too — otherwise one lab's stub silently becomes the other's input.
+    return data_cache.load_cached_frame(
+        cache, _fetch, min_rows=lab.MIN_LONG_ROWS, required_cols=fetch,
+        label="power_study_2000")
 
 
 def build_legs(PX: pd.DataFrame, basket: list[str]):
@@ -206,9 +211,26 @@ def study_window(PX, basket, label):
     eq_t = [abs(acf[s]["t_robust"]) for s in basket if s in EQUITY_MR]
     min_abs_t_robust = min(eq_t) if eq_t else 0.0
 
-    # Capital-preservation: point maxDD gap vs its paired-bootstrap CI (vs static 50/50).
+    # Capital-preservation: point maxDD gap and its paired-bootstrap CI, BOTH against
+    # static 50/50 (F149).
+    #
+    # This used to take the point estimate against `bench` (100% equity) while the CI
+    # was bootstrapped against `static5050`. For SHARPE that swap is harmless — Sharpe
+    # is scale-invariant, so `bench` and `0.5*bench` score identically, and the study
+    # says so at the "≡ static 50/50, Sharpe-invariant" bullet. **maxDD is not
+    # scale-invariant**: on a representative path, halving the position takes maxDD from
+    # -59.6% to -36.4%. Carrying the Sharpe-path equivalence onto the drawdown path
+    # inflated the displayed gap by roughly 39% relative to the gap the interval was
+    # actually about, which is what made "far shallower at the point BUT the CI straddles
+    # 0" read as one quantity measured two ways.
+    #
+    # Anchored on static 50/50 because that is D6's own recommended blend: the
+    # decision-relevant question is whether the active engine beats what we would
+    # otherwise do, not whether it beats 100% equity, which D6 never recommends. The
+    # 100%-equity drawdown is still reported, as a separate, labelled reference.
     static5050 = 0.5 * bench
     dd_a, dd_bench = maxdd_pct(active), maxdd_pct(bench)
+    dd_static = maxdd_pct(static5050)
     dd_boot = paired_maxdd_diff_boot(active, static5050)
     dd_lo, dd_med, dd_hi = (float(x) for x in np.percentile(dd_boot, [2.5, 50, 97.5]))
     dd_significant = not (dd_lo < 0 < dd_hi)
@@ -229,6 +251,8 @@ def study_window(PX, basket, label):
         tost_equivalence={f"{m:.2f}": tost[m] for m in (0.20, 0.30, 0.50)},
         autocorr=acf, min_abs_t_robust=round(min_abs_t_robust, 2),
         maxdd_active=round(dd_a, 1), maxdd_bench=round(dd_bench, 1),
+        maxdd_static5050=round(dd_static, 1),
+        maxdd_comparator="static5050",
         maxdd_diff_ci=[round(dd_lo, 1), round(dd_med, 1), round(dd_hi, 1)],
         maxdd_edge_significant=dd_significant,
     )
@@ -270,9 +294,12 @@ def verdict(w12, w26, w0013):
         f"bar). The decision-relevant static 60/40 equity/bond (Sharpe ~0.86 > 0.80 per D6/F25) beats "
         f"active on Sharpe AND return, so against the recommended baseline active looks strictly worse.")
     bullets.append(
-        f"Capital-preservation is path-dependent: active maxDD far shallower at the point "
-        f"({w26['maxdd_active']:.0f}% vs {w26['maxdd_bench']:.0f}% buy&hold, 26.5yr) but the paired "
-        f"maxDD-gap bootstrap straddles 0 ({w26['maxdd_diff_ci']}) — real on average, not statistically reliable.")
+        f"Capital-preservation is path-dependent: active maxDD shallower at the point "
+        f"({w26['maxdd_active']:.0f}% vs {w26['maxdd_static5050']:.0f}% static 50/50, 26.5yr) but the "
+        f"paired maxDD-gap bootstrap against the SAME comparator straddles 0 "
+        f"({w26['maxdd_diff_ci']}) — real on average, not statistically reliable. "
+        f"(100% equity drew down {w26['maxdd_bench']:.0f}%, reported for reference only: maxDD is "
+        f"not scale-invariant, so it is not a valid stand-in for the 50/50 blend — F149.)")
     headline = (
         "D6 is CORRECT and mostly evidence-of-absence: no risk-adjusted edge over static is detected in "
         "any window (incl. the disjoint 2000-2013 slice), and TOST positively rules out any edge larger "
@@ -302,8 +329,9 @@ def fmt(w):
              f"   → smallest provable margin Δ*={w['equiv_margin_95']:.2f}")
     L.append(f"  lag-1 autocorrelation (signal): min equity |t_robust| = {w['min_abs_t_robust']:.2f}  " +
              "  ".join(f"{s}:{v['rho1']:+.3f}(t{v['t_robust']:+.1f})" for s, v in w['autocorr'].items()))
-    L.append(f"  capital-preservation: maxDD active {w['maxdd_active']:.0f}% vs bench "
-             f"{w['maxdd_bench']:.0f}%; paired maxDD-gap CI {w['maxdd_diff_ci']}  "
+    L.append(f"  capital-preservation: maxDD active {w['maxdd_active']:.0f}% vs static50/50 "
+             f"{w['maxdd_static5050']:.0f}% (100% equity {w['maxdd_bench']:.0f}%, reference); "
+             f"paired maxDD-gap CI {w['maxdd_diff_ci']}  "
              f"→ {'significant' if w['maxdd_edge_significant'] else 'path-dependent, NOT significant'}")
     return "\n".join(L)
 
@@ -313,7 +341,10 @@ def main():
     ap.add_argument("--json", metavar="PATH", help="also write the full result dict as JSON")
     a = ap.parse_args()
 
-    LPX = load_2000()
+    try:
+        LPX = load_2000()
+    except data_cache.MarketDataError as exc:
+        data_cache.fail_cleanly(exc)
     long_basket = ["^GSPC", "QQQ", "IWM", "DIA"]
     w12 = study_window(load_2014(), ["QQQ", "SPY", "IWM", "DIA", "GLD"], "2014-2026 standard basket")
     w26 = study_window(LPX, long_basket, "2000-2026 long-history basket")

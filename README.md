@@ -2,12 +2,16 @@
 
 > An open-source **research substrate for quantitative finance**: a queryable
 > **evidence graph** (Context Kit), a **validation funnel**, and a growing,
-> **adversarially-verified research library** — fifteen studies and counting —
+> **research library** — fifteen adversarially verified studies plus a 54-study,
+> cross-runtime-reproduced execution-risk program —
 > with a full trading stack (signals → backtest → sweep → live paper broker)
 > as the reference implementation that exercises it end-to-end.
 >
 > Direction: **[VISION.md](VISION.md)** · graph model: **[SCHEMA.md](SCHEMA.md)** ·
 > research compendium: **[docs/research/](docs/research/README.md)** ·
+> next-generation frontier: **[public investment intelligence](docs/research/PUBLIC_INVESTMENT_INTELLIGENCE_FRONTIER.md)** ·
+> first filing node: **[SEC Filing Delta Lab](docs/research/FD00_sec_filing_delta_lab.md)** ·
+> index-event node: **[Index Membership Event Lab](docs/research/IX00_index_membership_event_lab.md)** ·
 > agent entry point: **[AGENT_INDEX.md](AGENT_INDEX.md)**
 
 ---
@@ -16,7 +20,7 @@
 
 Most public quant repos publish a backtest. This repo publishes the **scrutiny**:
 every claim it has ever made is a node in a versioned knowledge graph
-([`RESEARCH_WEB.md`](RESEARCH_WEB.md), 134+ nodes) with typed evidence links —
+([`RESEARCH_WEB.md`](RESEARCH_WEB.md), 200+ nodes) with typed evidence links —
 and when a claim dies under testing, it is **superseded with a tombstone**, never
 silently edited. The headline result of that discipline is itself the best
 advertisement for it: this project's own early Sharpe-25 backtest was traced to a
@@ -28,7 +32,7 @@ kind that funds keep private. Here they are free:
 
 **The library so far** (each finding links to a deterministic, re-runnable study
 tool, a standalone writeup, and its graph nodes — see the
-[fifteen-study compendium](docs/research/README.md)):
+[sixty-nine-study compendium](docs/research/README.md)):
 
 | What we established | Why it matters beyond this repo | Nodes |
 |---|---|---|
@@ -42,6 +46,58 @@ tool, a standalone writeup, and its graph nodes — see the
 | Across the income-ETF universe, **high yield ≠ low drawdown** — nothing beats the 60/40 on both; the one structural escape (held-to-maturity ladder) has a **definitional, nominal-only** 0% drawdown | Distribution yield is not return; amortized-cost accounting is not safety | F44/F45 |
 | Everything above is **correlation-regime-conditional**: bonds hedged stocks in only ~22 of the last 64 years; in the 1965–81 inflation regime every bond-heavy mix lost purchasing power for a decade, and the conservative tilt's drawdown edge *inverts* in real terms | The stock-bond hedge is the exception, not the rule — and it flipped again in 2022 | F46 |
 | There is **no escape from the regime bet by composition**: a marked-to-market TIPS sleeve is duration-shortening in disguise (indistinguishable from a duration-matched nominal sleeve), and no fixed cash/bond blend or barbell dominates both correlation regimes — a 50/50 blend *halves* the worst-case bet, nothing removes it | Test any "inflation hedge" against a duration-matched control before crediting the label | F48/F49 |
+| A tight stop does **not** bound overnight risk in a 3× ETF: exact-stop accounting roughly halves observed two-year loss/drawdown versus open-aware fills; a scalar stop penalty matches the mean but misses the tail | Model session gaps at the open or remove the overnight exposure; spread/slippage scalars cannot represent jump risk | F47/F50 |
+| The research runner skips the live bracket's **entry hour**; the mismatch affects 64.6% of paired entries, but hourly dual-hit bars make its return sign unidentifiable | A simulator can be provably different from live while the apparent “correction” is still underidentified—use lower-timeframe/order-event evidence | F51 |
+| Clock cutoffs can look like risk controls while repeating the **morning-only selection artifact**; only direct EOD exposure removal cleanly eliminates the gap channel | Separate mechanism-pure risk removal from in-sample opportunity-set selection | F52 |
+| Leveraged-ETF gap tails scale near mechanically with leverage over 16 years (TQQQ/QQQ beta 2.95, R² .993) | A fixed stop cannot cap a discontinuous open; this is instrument structure, not one signal's bad luck | F53 |
+| Sixteen resolved five-minute events cannot calibrate the entry-ordering repair; exact-stop break-even is only 2.5pp from the observed rate, while the gap-aware path needs 52.17% target-first vs 28.57% observed | Quantify the value of additional data before turning a tiny microstructure sample into a simulator parameter | F54 |
+| Weekend/long closures produce 44% of gap damage but only 24% of gap events; targeting them uses 78% fewer closes than daily flatten but leaves most weekday risk | Partial tail controls should report both damage captured and event coverage—one can look excellent while the other fails | F55 |
+| A time-sensitive one-minute recovery resolved July 6 **stop-first**; the best audit is now 5 target-first / 12 stop-first / 2 unresolved, tightening the gap-aware P(positive) bound to 1.2%–9.9% | Preserve expiring lower-timeframe evidence with hashes and derived audits; do not impute the missing events | F56 |
+| Severe TQQQ gaps **cluster** (next-night risk 1.34× after a ≤−2% gap); lagged volatility captures them only by disabling most overnight exposure | Risk filters must report exposure removed alongside tail capture—a high recall score can be near-daily flatten in disguise | F57 |
+| Daily and 15%-volatility flatten survive same-path block stress, but auction-cost budgets are only ~35/61 bp per exit and the volatility threshold is post-selected | Freeze the hypothesis for forward paper-shadow fills; a selected backtest control is not production evidence | F58 |
+| The 20d/15% volatility classifier survives a 2010–2019 threshold split, but 10d fails the strategy gate and 40/60d approach daily-flatten turnover | Treat 20d/15% as one narrow forward hypothesis—not evidence that generic volatility timing works | F59 |
+| A frozen 20d/15% shadow needs ~115 new strategy gap events (~6.7 years iid; ~8.4–13.3 years under heuristic clustering effects) for 80% power, and IBKR paper lacks Auction orders/real fills | Use no-order paper shadow only to falsify the classifier/plumbing; it cannot approve real MOC cost or production | F60 |
+| Vol20's unconditional severe-gap capture lift (1.33×) is matched by trivial recent-gap rules (1.31×–1.38×), though vol20 aligns better with this selected strategy path | Benchmark every risk classifier against transparent clustering rules; the forward claim is strategy alignment, not unique prediction | F61 |
+| Vol20 flagged every 2022 night and ~84% of 2020/2023; in 2024 its capture lift fell below 1 despite 59% exposure | Report exposure and year-level lift beside capture; high raw recall can be blanket risk-off behavior rather than stable discrimination | F62 |
+| All six execution-study caches match embedded SHA-256 snapshots, but raw vendor bytes live only in `/tmp` | Separate deterministic code from self-contained data; every refresh needs a new hash and result diff | F63/F71 |
+| Vol20 has only 1.11× capture lift at the 0.5% stop but 1.57×–1.70× at 4%–8% gaps; unflagged worst remains −10.54% | Treat it as a catastrophic-state exposure control, never a precise stop predictor or loss bound | F64 |
+| Crediting TQQQ distributions removes only 2/1,289 raw ≥0.5% gaps, no severe gaps, and adds just +0.0338 pp to the negative strategy path | Use raw prices for stop triggers and distribution-inclusive wealth for returns; ex-dividend effects do not explain the tail | F65 |
+| The hourly cache has two corrupt full-day sessions; Feb 2 begins at 13:30 and its apparent open is 463.7 bp above the daily/public open | Validate every session against the exchange calendar and prefer daily open for gap fills; both correction sensitivities slightly worsen the result | F66 |
+| The joint corrected baseline is −10.1713% total / −10.2126% maxDD; vol15 and daily flatten retain only 62.58/34.89 bp cost ceilings | Consolidate valid corrections before comparing policies; never choose among accounting variants by which looks best | F67 |
+| Official daily versus last-hourly close changes mitigation totals by <0.08 pp and leaves both descriptive gates intact | Paired proxy robustness removes one fragility, but shared-vendor prints still cannot validate auction execution | F68 |
+| A standard Nasdaq MOC fill equals the Cross/NOCP price; 60 intended events test operational failure, not fill slippage | Reconcile Cross fills, count rejects/unfilled events in the denominator, and treat self-impact as unidentified | F78 |
+| The current trader is not MOC-ready, and its hard-coded 16:00 guard admits jobs after official 13:00 early closes | Require an exchange calendar and fail-closed deadline tests before any separately authorized auction work | F79 |
+| The pinned window has 162 off-calendar jobs: 65 overlap clean open-position state, and all 15 post-close early-session jobs reuse a processed bar | Gate the runtime on the official session calendar and make bar processing idempotent before protected-path remediation | F81 |
+| Sanitized Pi records confirm cycles ran on Good Friday and Memorial Day; all 22 rows failed at paper-port connection rather than a calendar guard | Treat the calendar defect as observed; separately investigate historical double writes without projecting them onto the current preflight-gated deployment | F82 |
+| Historical paired cycles were not cosmetic: 69/210 signals and 58/210 long-eligibility decisions disagree; seven entry minutes reached the bracket success path twice while local state kept only the later write | Require cycle/bar idempotency plus broker order/execution reconciliation; a one-row local trade table cannot prove exposure under concurrent submissions | F83 |
+| Live bar labels are UTC-naive but completion/staleness uses host-local-naive time; the DST archive matches the resulting current-tail race exactly | Normalize to one timezone-aware clock and test vendor-tail present/absent cases before any protected runtime remediation | F84 |
+| True-UTC aging finds 297/543 archived signals and at least 40/65 entry minutes used an in-progress hourly bar | Treat the historical live PnL as chronology-contaminated rather than completed-bar validation; require cycle-keyed bar-end evidence | F85 |
+| Only two of six trader launch paths reach the full preflight, and no path proves atomic process or per-bar order ownership | Use only the managed service path; require a process-lifetime lock plus durable broker-reconciled order intent before any production-readiness claim | F86 |
+| `ENTRY placed` follows three submission calls but zero broker acknowledgement/fill checks; `fill_basis` is a quote, and 0.435 bp of adverse entry-basis error flips the flat archive sign | Distinguish application-submitted, broker-accepted, and executed; call the old PnL bucket exit-confirmed until entry executions are durable | F87 |
+| A locally recorded but unfilled parent can later become an inferred TP/SL round trip because broker-flat is treated as bracket-exited; the archive has five execution-unverified inferred rows and three immediate re-entry events | Reconcile positions, active orders, and executions separately; missing evidence needs an `unverified` state, not forced PnL | F88 |
+| Exit recovery matches client order-number arithmetic, stores no permanent/execution identity or quantity, selects one partial price instead of VWAP, and its seven-day fallback cannot work on IB Gateway beyond midnight | Build a durable execution ledger before calling recovered prices fully attributable; broker retention is not local durability | F89 |
+| SQLite serializes writes but does not atomically claim a lifecycle: two connections can cache one position and sequentially commit two trade rows; a losing closer still cannot suppress alerts/re-entry | Enforce a unique lifecycle key and atomic claim, then gate every side effect on a typed winning-close result | F90 |
+| A stale cycle can attach old exit economics to a newer re-entry and then delete the newer row because close carries no expected lifecycle identity | Propagate one durable lifecycle ID through intent, broker order/execution, state, close, events, and exports; reject generation mismatches atomically | F91 |
+| The 1% target and 0.5% stop are quote-anchored: at the parent limit cap they become roughly +0.5%/−1.0% from fill, while bar-close sizing can exceed the planned notional | Report fill-relative geometry and actual filled notional; preserve a cycle-keyed chain from sizing bar through order and executions | F92 |
+| Force-close uses the full requested local quantity after only a nonzero broker-position test; partial fills or late child fills can overshoot flat into the opposite position | Cancel parent/children to terminal states, close the fresh signed broker residual, then verify exact broker flatness before deleting lifecycle state | F93 |
+| Force-close treats the first execution as completion, records one component price instead of VWAP, and deletes local state even after a ten-second no-fill timeout | Require cumulative filled quantity, zero remaining, execution VWAP, pending-close retention on uncertainty, and a fresh broker-flat check | F94 |
+| Same-cycle replacement entry checks net position but not whether old close/child orders are terminal; two archived entries followed explicit close timeouts | Require terminal prior orders plus exact broker flatness and an atomic lifecycle handoff before successor submission | F95 |
+| Account summary, position lookup, orders, and state carry no common account/model identity; callback order can select capital or direction in a multi-account session | Configure and validate one paper account/model, scope every query/order/lifecycle field, and fail closed on ambiguity | F96 |
+| Duplicate historical invocations advanced the shared holding counter twice: seven of nine time exits hit bar 10 after exactly five paired cycle minutes | Count unique completed bars through an atomic lifecycle+bar transition; do not use process invocations as holding age | F97 |
+| Order construction accepts prior-day close, out-of-spread last, or 15–20-minute delayed data without field/type/timestamp evidence; recent 15/20-minute TQQQ moves cross the 0.5% order offset in 32.1%/36.5% of exact pairs | Require timestamped, callback-typed, positive-size, side-aware live spread evidence; fail closed on prior close, delayed data, and last outside the spread | F98 |
+| Every entry obtains separate account-mark and bracket-price snapshots with no decision-age deadline; 22/72 archived application entries occurred at least 30 seconds after the nominal cycle anchor | Remove or safely reuse the redundant snapshot, impose a decision-to-submit deadline, and persist the full signal→quote→order→execution clock | F99 |
+| A green `live` mark does not prove real-time data: delayed and nominal-live broker branches collapse to one scalar and every successful scalar is labeled `live`; local `mark_time` is not quote time | Preserve callback-typed, field-level, source-timestamped provenance end to end; label missing provenance unknown | F100 |
+| Software risk triggers accept any non-null mark; all four uniquely joined archived stop exits remained economically beyond their stops, but two duplicate writers triggered again after the close record | Gate source/age, claim one lifecycle before ordering, retain execution identity, and verify exact broker flatness | F101 |
+| After broker failure, a daily yfinance close with no row-date/age check can drive intraday exits; under a prior-session-row counterfactual, 62–65/160 archived cycle slots falsely cross the stop proxy and 17 cross take-profit | Exclude daily historical closes from intraday triggers or require typed timestamped freshness plus one end-to-end deadline | F102 |
+| Paired historical writers supplied bar-close fallbacks on opposite sides of a risk boundary in ten archived position-cycle slots—five stop forks and five take-profit forks | Require one completed-bar identity and atomically claim one lifecycle/cycle owner before any forced exit | F103 |
+| Broker connection refusal bypasses every mark fallback and aborts before holding-age and software-risk checks; 33 archived abort events cover 17 position-open cycle slots | Normalize broker availability, record missed-risk-check state, and define recovery/holding age from completed-bar identity | F104 |
+| Distribution-inclusive QQQ returns flip only 5/4,113 vol15 labels and zero strategy decisions | Corporate-action-adjust classifier inputs even when the audit proves the current decision is unchanged | F70 |
+| Vol20 reproduces exactly from t−1 data; unshifted current-close lookahead flips 20 recent labels and worsens the path | Prove decision-time availability, not merely a `.shift(1)` in source code | F72 |
+| Every 14–16% quarter-point vol20 threshold retains the descriptive risk gate | A local robustness plateau rules out a threshold cliff, but cannot erase same-sample selection | F73 |
+| Vol15's fixed-cohort benefit (+4.1299 pp) matches its dynamic benefit (+4.1302 pp); daily replacement trades cost 0.7724 pp | Decompose direct risk removal from newly admitted opportunity paths before calling a policy causal | F74 |
+| Vol15's largest event contributes ~24% of direct benefit; removing top five still leaves +1.7657 pp | Report leave-largest-events-out results when tail-risk controls are expected to win through rare disasters | F75 |
+| Corrected fixed-cohort vol15 relative wealth is +4.5976%, with block-20 95% CI [+1.860%, +8.314%] | Dependence stress the direct mechanism itself, not only a dynamic policy path | F76 |
+| Vol15 improves 43/67 changed baseline trades; all 21 eventual gap stops benefit while all 24 eventual targets are harmed | Report intervention precision and sacrificed winners beside tail-loss magnitude | F77 |
 | Sweep/holdout winners are **selection-biased best-of-many**; live-vs-backtest gaps decompose into measurable causes (bar frequency dominated here) | Reconcile live to backtest quantitatively before blaming execution | F2/F28/F43 |
 
 ## The methodology (what makes the library trustworthy)
@@ -58,10 +114,11 @@ disciplines, enforced in code rather than promised in prose:
   corrections on any "clearly positive" result.
 - **Pre-registration** — pass criteria stated in the tool's docstring before the
   numbers are computed.
-- **Adversarial verification** — every study is attacked by an independent
-  multi-lens skeptic panel (data construction, math, statistics, interpretation)
-  that re-runs the code and tries to refute the verdict; forced corrections are
-  **folded into the tool, not caveated around**.
+- **Adversarial verification** — studies 1–15 were attacked by independent
+  multi-lens skeptic panels (data construction, math, statistics, interpretation).
+  Studies 16–69 use explicit paired controls, ordering bounds, lower-timeframe calibration,
+  long-history cross-instrument validation, and cross-runtime output; they do not claim panel
+  verification. Forced corrections are **folded into the tool, not caveated around**.
 - **Supersession, not revisionism** — overturned claims are tombstoned in the graph
   with a reason (`inverted`, `reversed`, …) and every citation is re-pointed;
   `ctx web --lint` fails the build on stale cites.
@@ -186,23 +243,30 @@ Switch modes by changing `ACTIVE_MODE` in `config.py`.
 
 ### Execution Model
 
-The backtest and live trading system share a unified execution rule:
+The backtest and live trading system target this execution rule:
 
 ```
 1. Signal fires on completed bar N (RSI, MACD, VWAP from bar N's OHLCV)
 2. Entry at the next tradeable price:
      Backtest: bar N+1's open
-     Live:     broker market price at order time (fill_basis)
-3. TP/SL bracket levels computed relative to the entry fill price
+     Live:     pre-submission broker quote (fill_basis; actual fill is not persisted)
+3. TP/SL bracket levels computed relative to that quote basis
 4. Exit: target hit  /  stop hit  /  time limit (MAX_TRADE_BARS)
 ```
 
-**Remaining structural differences** (inherent to backtest vs live):
+> **Known mismatch (studies #17/#20, F51/F54):** `compute_trade_returns()` currently begins
+> bracket scanning on N+2, while the live bracket can execute during entry bar N+1.
+> This affects 64.6% of paired entries. Hourly OHLC cannot identify the correction's
+> return sign because 157 entry bars hit both target and stop; do not describe the
+> current implementation as execution-identical or use a pessimistic N+1 replay as
+> a fully resolved repair.
+
+**Structural and known implementation differences:**
 
 | Aspect | Backtest | Live |
 |---|---|---|
-| Fill price | Deterministic (bar N+1 open) | Market price ± spread/slippage |
-| Exit monitoring | Bar-by-bar OHLC scan | Continuous IBKR bracket order |
+| Entry basis | Deterministic (bar N+1 open) | Pre-submission quote; actual parent fill is not persisted |
+| Exit monitoring | Bar-by-bar OHLC scan beginning N+2 (known mismatch) | Continuous IBKR bracket after parent fill |
 | Same-bar ambiguity | Configurable (pessimistic in `realistic` mode) | Resolved by actual order execution |
 | Time-exit fill | Last future bar's close | Market sell; reference price estimate if fill unavailable |
 | Monitoring cadence | Every bar | Hourly cycle (:32 past each hour) |
@@ -246,37 +310,81 @@ python -m live.trader
 # Override instrument
 python -m live.trader --symbol GDXU
 
-# REAL MONEY — requires explicit --live flag (port 7496)
-python -m live.trader --live
+# PROHIBITED BY PROJECT POLICY: do not use --live / port 7496
 ```
 
 ### Key Design Decisions
 
 **Fixed 10% sizing:** Live uses a fixed 10% position size, not Kelly. Backtest
 Kelly is intentionally disabled in the live path — a small live trade sample
-produces noisy Kelly estimates that could over-size positions. Fixed sizing
-is safe until the live trade log has enough data for reliable estimates.
+produces noisy Kelly estimates that could over-size positions. Fixed sizing is
+the current conservative paper configuration, not a proof that the strategy or
+deployment is safe.
 
-**Entry basis:** TP/SL brackets are computed from the broker's live market price
-at order time (`fill_basis`), not from the signal bar's close. The signal bar
-close is used only for qty estimation.
+**Entry basis:** TP/SL brackets are computed from the broker quote obtained
+before submission (`fill_basis`), not from the signal bar's close. Despite the
+name, `fill_basis` is not an execution price: the current entry path does not
+wait for or persist the parent fill. The signal bar close is used only for qty
+estimation. Consequently, the nominal 1% target / 0.5% stop are quote-relative:
+at the parent buy-limit cap they are approximately +0.5% / −1.0% from fill,
+and actual notional can differ from the bar-close plan. See Studies #52/#57
+and F87/F92.
 
-**Pending close / unresolved exits:** When a bracket exit is detected but IBKR
-fill data is unavailable (connection gap, session restart), the position is
-marked `pending_close` — it stays in the database and **blocks new entries**
-until reconciliation succeeds. On each subsequent cycle, the bot retries
-`get_bracket_fill()`. Only when actual fill data is found does the trade
-finalize with real exit price, real return, and real exit type. Estimated
-prices may appear in the dashboard UI but are never recorded as final PnL.
+**Missing bracket evidence:** For a normal open local position, a flat broker
+position plus unavailable child fill currently triggers immediate TP/SL
+inference from the stored boundaries, closes local state, and can allow another
+entry in the same cycle. It does not check whether the parent remains active,
+was rejected, or ever executed. Legacy rows already marked `pending_close`
+still use the retry/finalize branch. The local close is also not exactly once:
+two connections can cache one position and each append a trade, while callers
+cannot distinguish a winning close from an already-closed no-op. Worse, an old
+cycle can select a newer re-entry row, record old exit economics against its
+metadata, and delete it because close carries no expected lifecycle ID. See
+Studies #53/#55/#56 and F88/F90/F91.
+
+**Force-close quantity:** Software stop, software take-profit, and time exit
+currently forward the originally requested local quantity after checking only
+that broker quantity is nonzero. They do not cancel a partial parent remainder,
+wait for child-cancel confirmation, derive the close from a fresh signed broker
+position, or assert broker flat afterward. A partial or racing fill can therefore
+overshoot into the opposite position. See Study #58 / F93.
+
+**Force-close completion:** A nonempty close-order fill list is currently enough
+to return success; filled quantity, remaining quantity, terminal status, and
+post-close broker position are not checked, and one execution component is used
+instead of VWAP. A ten-second timeout returns `None`, after which all three callers
+still estimate PnL and delete local state. Four of nine archived time exits
+explicitly reached that uncertainty boundary. See Study #59 / F94.
+
+**Successor lifecycle handoff:** Force-close paths can evaluate a same-cycle
+replacement signal after deleting old local state. The entry guard verifies net
+broker position but not active old orders or terminal cancellation/completion.
+The archive has 32 back-to-back application entries, including two about 14
+seconds after explicit time-exit fill-unavailable warnings. This proves the
+boundary was crossed, not that a late old fill occurred. See Study #60 / F95.
+
+**Account/model scope:** Broker account summaries are reduced by tag without
+account/currency filtering, TQQQ position lookup returns the first symbol match,
+orders set no explicit destination, and local state stores no account identity.
+This is dormant in a single-account login but order-dependent in linked/model
+sessions; sanitized evidence intentionally cannot identify the current account
+structure. See Study #61 / F96.
+
+**Holding-clock compression:** `bar_count` increments once per trader invocation,
+not once per unique completed bar. Seven of nine archived time exits reached
+bar 10 through exactly five minute slots with two writes apiece; eight used
+fewer than ten distinct slots. This proves premature local time-exit triggering,
+not whether a longer hold would gain or lose. See Study #62 / F97.
 
 **Exit PnL sources by path:**
 
 | Exit path | PnL source | Accuracy |
 |---|---|---|
-| Bracket target/stop | Actual IBKR fill price | Exact |
-| Time-exit (fill confirmed) | Market sell fill price | Exact |
-| Time-exit (fill unavailable) | Reference price estimate | Approximate |
-| Pending close (unresolved) | Not recorded (0.0 placeholder) | Blocks until reconciled |
+| Retrieved bracket child fill | Retrieved exit execution; quote-derived entry basis | Entry not fill-confirmed |
+| Inferred bracket close | Stored TP/SL boundary; quote-derived entry basis | Execution-unverified |
+| Time-exit (any fill observed) | One market-close execution component; quote-derived entry basis | Neither full close nor VWAP confirmed |
+| Time-exit (fill unavailable) | Reference-price exit; quote-derived entry basis | Approximate |
+| Legacy pending close (unresolved) | Not recorded (0.0 placeholder) | Blocks until reconciled |
 
 **Dry-run mode:** Computes signals and updates operational UI state (signal
 snapshots, monitor status) but does **not** create fake trade-history records,
@@ -459,6 +567,9 @@ Entry at next tradeable price -> bracket order (TP + SL + time limit)
 
 ## Setup
 
+Python **3.11+** is required (the live Pi and CI both use 3.11; the codebase uses
+modern union/type syntax that does not import on Python 3.9).
+
 ```bash
 git clone <repo-url>
 cd MONAD-quant
@@ -550,8 +661,8 @@ MONAD-quant/
 ├── tools/
 │   ├── ctx.py              <- Context Kit CLI (query, graph, serve, guard)
 │   ├── note.py             <- Append/supersede research-web nodes
-│   └── *_study.py          <- The fifteen deterministic research-study tools
-├── docs/research/          <- Fifteen-study research program writeups + compendium
+│   └── *_study.py          <- Deterministic research-study tools (sixty-nine studies)
+├── docs/research/          <- Sixty-four-study research program writeups + compendium
 ├── experiments.jsonl        <- Experiment log (one JSON line per sweep run)
 ├── live/
 │   ├── trader.py           <- Scheduler + on_bar() loop, pending_close retry

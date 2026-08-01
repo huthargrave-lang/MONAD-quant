@@ -1,0 +1,102 @@
+{
+  "artifact": "IX-00 December 2025 Nasdaq-100 event-window replication",
+  "schema_version": 1,
+  "status": "descriptive cross-provider replication; no predictive edge claimed",
+  "retrieved_at_utc": "2026-07-24T14:52:42+00:00",
+  "provider": "Yahoo Finance via yfinance",
+  "provider_version": "1.2.0",
+  "raw_data_committed": false,
+  "normalized_input_sha256": "6761aadceaf13677efd9fefba0c4f1e6154edb71904e14de5ced56acf070ee71",
+  "derived_result_sha256": "b27565f0fc7f1fbec7504348825fd073a01f2669ebfdc863534446db6b765982",
+  "fingerprint_contract": {
+    "input_hash": "exact sorted normalized vendor frame; may expose provider revision or float jitter",
+    "derived_hash_returns": "percentage points rounded to 2 decimals",
+    "derived_hash_volume_ratio": "multiple rounded to 2 decimals",
+    "reason": "separate exact snapshot provenance from decision-level reproducibility"
+  },
+  "refresh_audit": {
+    "observed_exact_input_sha256": [
+      "6761aadceaf13677efd9fefba0c4f1e6154edb71904e14de5ced56acf070ee71",
+      "0f118d04bacc444d5b68186f5b0cd93cf415e49aceab11101c2e8af8bc66675e",
+      "55eba659da5d8fc63fbf3d262986d15732d2204a8ba7937ec356cfc22f413acd"
+    ],
+    "paired_derived_result_sha256": [
+      "b27565f0fc7f1fbec7504348825fd073a01f2669ebfdc863534446db6b765982",
+      "b27565f0fc7f1fbec7504348825fd073a01f2669ebfdc863534446db6b765982"
+    ],
+    "interpretation": "Exact vendor panels changed across consecutive refreshes while the decision-level result hash reproduced."
+  },
+  "official_source": "https://www.nasdaq.com/press-release/annual-changes-nasdaq-100-indexr-2025-12-13",
+  "coverage": {
+    "analyzed": 12,
+    "official_events": 12,
+    "complete": true
+  },
+  "event_clock": {
+    "announcement_source_at": "2025-12-12T20:00:00-05:00",
+    "announcement_time_quality": "exact_after_hours",
+    "historical_tradable_policy": "next regular-session open",
+    "first_tradable_session": "2025-12-15",
+    "implementation_session_close": "2025-12-19",
+    "implementation_time_quality": "inferred_prior_close_from_effective_pre_open",
+    "effective_session_open": "2025-12-22"
+  },
+  "group_summary_percent": {
+    "additions": {
+      "n": 6,
+      "announcement_close_to_first_open_relative": -0.060122,
+      "first_open_to_implementation_close_relative": -1.562714,
+      "implementation_close_to_effective_open_relative": 1.297792,
+      "implementation_volume_ratio_to_prior_20d_median": 17.137807,
+      "post_implementation_1_session_relative": -1.463101,
+      "post_implementation_5_sessions_relative": -2.053041,
+      "post_implementation_20_sessions_relative": 7.764328,
+      "post_implementation_60_sessions_relative": 20.315522
+    },
+    "deletions": {
+      "n": 6,
+      "announcement_close_to_first_open_relative": -0.506944,
+      "first_open_to_implementation_close_relative": -0.639425,
+      "implementation_close_to_effective_open_relative": -0.567424,
+      "implementation_volume_ratio_to_prior_20d_median": 8.601921,
+      "post_implementation_1_session_relative": -0.122985,
+      "post_implementation_5_sessions_relative": -0.754048,
+      "post_implementation_20_sessions_relative": 2.424564,
+      "post_implementation_60_sessions_relative": -3.298191
+    }
+  },
+  "security_contract": {
+    "additions": [
+      "ALNY",
+      "FER",
+      "INSM",
+      "MPWR",
+      "STX",
+      "WDC"
+    ],
+    "deletions": [
+      "BIIB",
+      "CDW",
+      "GFS",
+      "LULU",
+      "ON",
+      "TTD"
+    ],
+    "benchmark": "QQQ",
+    "transition_note": "Direct NDX entry/exit only; membership in other index families was not reconstructed."
+  },
+  "cross_batch_interpretation": [
+    "The S&P batch's large positive addition-versus-deletion announcement-to-implementation separation did not replicate.",
+    "Extreme implementation-session whole-day volume did replicate for both additions and deletions.",
+    "The addition group underperformed over the first five post-implementation sessions, consistent with short reversal but not sufficient to identify an auction-pressure mechanism.",
+    "Longer-horizon addition performance is highly dispersed and mechanically selected from strong prior winners; it is not evidence of index causality."
+  ],
+  "limitations": [
+    "One 12-security batch; group means are descriptive and receive no p-values.",
+    "The announcement time is exact, but daily OHLCV can trade only from the next regular-session open.",
+    "The implementation close is inferred from effectiveness before the following session open and the provider's quadruple-witching schedule.",
+    "Daily OHLCV cannot identify closing-auction imbalance, spread, auction-only volume, or implementation shortfall.",
+    "Yahoo Finance is a convenient pilot source, not a production market-data authority.",
+    "No point-in-time candidate universe or matched controls were constructed."
+  ]
+}

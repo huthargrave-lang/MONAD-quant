@@ -1,0 +1,2684 @@
+{
+  "schema_version": 1,
+  "artifact_id": "ca-announce-pop-2023-01-discovery-v1",
+  "generated_at": "2026-07-26T05:20:19.904265+00:00",
+  "research_status": "frozen_announcement_search_discovery_frame_not_reviewed_cohort",
+  "search": {
+    "endpoint": "https://efts.sec.gov/LATEST/search-index",
+    "query": "\"entered into an Agreement and Plan of Merger\"",
+    "start_date": "2023-01-01",
+    "end_date": "2023-01-31",
+    "forms": [
+      "8-K"
+    ],
+    "response_sha256": "714ce403c957ccad585994e5d913ed7ac2a847568d96ff046d213c1ac425cea4",
+    "raw_response_committed": false
+  },
+  "censor_on": "2025-01-01",
+  "raw_documents_committed": false,
+  "outcomes_assigned": false,
+  "predictive_features_allowed": false,
+  "submissions": [
+    {
+      "accession": "0000711669-23-000004",
+      "ciks": [
+        "0000711669"
+      ],
+      "file_date": "2023-01-26",
+      "form": "8-K",
+      "display_names": [
+        "COLONY BANKCORP INC  (CBAN)  (CIK 0000711669)"
+      ],
+      "items": [
+        "2.02",
+        "5.02",
+        "7.01",
+        "9.01"
+      ],
+      "sics": [
+        "6022"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "EX-10.1": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0000712537-23-000002",
+      "ciks": [
+        "0000712537"
+      ],
+      "file_date": "2023-01-20",
+      "form": "8-K",
+      "display_names": [
+        "FIRST COMMONWEALTH FINANCIAL CORP /PA/  (FCF)  (CIK 0000712537)"
+      ],
+      "items": [
+        "8.01"
+      ],
+      "sics": [
+        "6021"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0000897101-23-000052",
+      "ciks": [
+        "0000351789"
+      ],
+      "file_date": "2023-01-31",
+      "form": "8-K",
+      "display_names": [
+        "ELECTRO SENSORS INC  (ELSE)  (CIK 0000351789)"
+      ],
+      "items": [
+        "1.01",
+        "1.02",
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "3823"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": true,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0000950170-23-000128",
+      "ciks": [
+        "0001794621"
+      ],
+      "file_date": "2023-01-04",
+      "form": "8-K",
+      "display_names": [
+        "Quanergy Systems, Inc.  (CIK 0001794621)"
+      ],
+      "items": [
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "3714"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "EX-99.2": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0000950170-23-000623",
+      "ciks": [
+        "0001374535"
+      ],
+      "file_date": "2023-01-10",
+      "form": "8-K",
+      "display_names": [
+        "Altra Industrial Motion Corp.  (CIK 0001374535)"
+      ],
+      "items": [
+        "8.01"
+      ],
+      "sics": [
+        "3569"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001040130-23-000003",
+      "ciks": [
+        "0001040130"
+      ],
+      "file_date": "2023-01-17",
+      "form": "8-K",
+      "display_names": [
+        "PETMED EXPRESS INC  (PETS)  (CIK 0001040130)"
+      ],
+      "items": [
+        "1.01",
+        "7.01",
+        "9.01"
+      ],
+      "sics": [
+        "5912"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001104659-23-000109",
+      "ciks": [
+        "0001895249"
+      ],
+      "file_date": "2023-01-03",
+      "form": "8-K",
+      "display_names": [
+        "Monterey Capital Acquisition Corp  (CNTM)  (CIK 0001895249)"
+      ],
+      "items": [
+        "1.01",
+        "7.01",
+        "9.01"
+      ],
+      "sics": [
+        "6770"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001104659-23-000668",
+      "ciks": [
+        "0001843724"
+      ],
+      "file_date": "2023-01-04",
+      "form": "8-K",
+      "display_names": [
+        "AMCI Acquisition Corp. II  (LNZA, LNZAW)  (CIK 0001843724)"
+      ],
+      "items": [
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "2860"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001104659-23-000830",
+      "ciks": [
+        "0001823086"
+      ],
+      "file_date": "2023-01-04",
+      "form": "8-K",
+      "display_names": [
+        "Kingswood Acquisition Corp.  (CIK 0001823086)"
+      ],
+      "items": [
+        "1.01",
+        "5.02",
+        "9.01"
+      ],
+      "sics": [
+        "6770"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001104659-23-001979",
+      "ciks": [
+        "0001322505"
+      ],
+      "file_date": "2023-01-09",
+      "form": "8-K",
+      "display_names": [
+        "ALBIREO PHARMA, INC.  (CIK 0001322505)"
+      ],
+      "items": [
+        "1.01",
+        "7.01",
+        "9.01"
+      ],
+      "sics": [
+        "2834"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001104659-23-003483",
+      "ciks": [
+        "0001872356"
+      ],
+      "file_date": "2023-01-12",
+      "form": "8-K",
+      "display_names": [
+        "Molekule Group, Inc.  (CIK 0001872356)"
+      ],
+      "items": [
+        "1.01",
+        "2.01",
+        "2.03",
+        "5.02",
+        "5.03",
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "3564"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "EX-10.1": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001104659-23-003559",
+      "ciks": [
+        "0001831978"
+      ],
+      "file_date": "2023-01-13",
+      "form": "8-K",
+      "display_names": [
+        "Newbury Street Acquisition Corp  (NBST, NBSTU, NBSTW)  (CIK 0001831978)"
+      ],
+      "items": [
+        "7.01",
+        "9.01"
+      ],
+      "sics": [
+        "6770"
+      ],
+      "matched_documents": 2,
+      "file_types": {
+        "8-K": 1,
+        "EX-99.1": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001104659-23-003686",
+      "ciks": [
+        "0001831978"
+      ],
+      "file_date": "2023-01-13",
+      "form": "8-K",
+      "display_names": [
+        "Newbury Street Acquisition Corp  (NBST, NBSTU, NBSTW)  (CIK 0001831978)"
+      ],
+      "items": [
+        "7.01",
+        "9.01"
+      ],
+      "sics": [
+        "6770"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001104659-23-003956",
+      "ciks": [
+        "0001046102"
+      ],
+      "file_date": "2023-01-17",
+      "form": "8-K",
+      "display_names": [
+        "RITCHIE BROS AUCTIONEERS INC  (RBA)  (CIK 0001046102)"
+      ],
+      "items": [
+        "8.01"
+      ],
+      "sics": [
+        "7389"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001104659-23-003965",
+      "ciks": [
+        "0001745041"
+      ],
+      "file_date": "2023-01-17",
+      "form": "8-K",
+      "display_names": [
+        "IAA, Inc.  (CIK 0001745041)"
+      ],
+      "items": [
+        "8.01"
+      ],
+      "sics": [
+        "5500"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001104659-23-004275",
+      "ciks": [
+        "0001868419"
+      ],
+      "file_date": "2023-01-17",
+      "form": "8-K",
+      "display_names": [
+        "Western Acquisition Ventures Corp.  (WAVS, WAVSU, WAVSW)  (CIK 0001868419)"
+      ],
+      "items": [
+        "1.01",
+        "9.01"
+      ],
+      "sics": [
+        "6770"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "EX-10.1": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001104659-23-005499",
+      "ciks": [
+        "0001831978"
+      ],
+      "file_date": "2023-01-23",
+      "form": "8-K",
+      "display_names": [
+        "Newbury Street Acquisition Corp  (NBST, NBSTU, NBSTW)  (CIK 0001831978)"
+      ],
+      "items": [
+        "7.01",
+        "9.01"
+      ],
+      "sics": [
+        "6770"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001104659-23-005576",
+      "ciks": [
+        "0001046102"
+      ],
+      "file_date": "2023-01-23",
+      "form": "8-K",
+      "display_names": [
+        "RITCHIE BROS AUCTIONEERS INC  (RBA)  (CIK 0001046102)"
+      ],
+      "items": [
+        "1.01",
+        "2.02",
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "7389"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001104659-23-005627",
+      "ciks": [
+        "0001745041"
+      ],
+      "file_date": "2023-01-23",
+      "form": "8-K",
+      "display_names": [
+        "IAA, Inc.  (CIK 0001745041)"
+      ],
+      "items": [
+        "1.01",
+        "2.02",
+        "9.01"
+      ],
+      "sics": [
+        "5500"
+      ],
+      "matched_documents": 2,
+      "file_types": {
+        "8-K": 1,
+        "EX-10.1": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001104659-23-008575",
+      "ciks": [
+        "0001841024"
+      ],
+      "file_date": "2023-01-31",
+      "form": "8-K",
+      "display_names": [
+        "L Catterton Asia Acquisition Corp  (CIK 0001841024)"
+      ],
+      "items": [
+        "1.01",
+        "7.01",
+        "9.01"
+      ],
+      "sics": [
+        "6770"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "EX-10.4": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001140361-23-000181",
+      "ciks": [
+        "0001592016"
+      ],
+      "file_date": "2023-01-03",
+      "form": "8-K",
+      "display_names": [
+        "AgroFresh Solutions, Inc.  (CIK 0001592016)"
+      ],
+      "items": [
+        "5.02"
+      ],
+      "sics": [
+        "2870"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001140361-23-000246",
+      "ciks": [
+        "0001959472"
+      ],
+      "file_date": "2023-01-04",
+      "form": "8-K",
+      "display_names": [
+        "Kimco Realty OP, LLC  (CIK 0001959472)"
+      ],
+      "items": [
+        "1.01",
+        "3.01",
+        "3.03",
+        "5.01",
+        "5.02",
+        "5.03",
+        "9.01"
+      ],
+      "sics": [],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001140361-23-001115",
+      "ciks": [
+        "0001077771"
+      ],
+      "file_date": "2023-01-10",
+      "form": "8-K",
+      "display_names": [
+        "UMPQUA HOLDINGS CORP  (CIK 0001077771)"
+      ],
+      "items": [
+        "1.01",
+        "3.01",
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "6035"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001140361-23-001714",
+      "ciks": [
+        "0001601485"
+      ],
+      "file_date": "2023-01-17",
+      "form": "8-K",
+      "display_names": [
+        "Angion Biomedica Corp.  (ELTX)  (CIK 0001601485)"
+      ],
+      "items": [
+        "1.01",
+        "5.02",
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "2834"
+      ],
+      "matched_documents": 2,
+      "file_types": {
+        "8-K": 1,
+        "EX-10.4": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001140361-23-002749",
+      "ciks": [
+        "0000091928"
+      ],
+      "file_date": "2023-01-25",
+      "form": "8-K",
+      "display_names": [
+        "SOUTH JERSEY INDUSTRIES INC  (CIK 0000091928)"
+      ],
+      "items": [
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "4924"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001140361-23-002903",
+      "ciks": [
+        "0001801754"
+      ],
+      "file_date": "2023-01-26",
+      "form": "8-K",
+      "display_names": [
+        "Trean Insurance Group, Inc.  (CIK 0001801754)"
+      ],
+      "items": [
+        "8.01"
+      ],
+      "sics": [
+        "6331"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001140361-23-003608",
+      "ciks": [
+        "0001092662"
+      ],
+      "file_date": "2023-01-31",
+      "form": "8-K",
+      "display_names": [
+        "CHEMBIO DIAGNOSTICS, INC.  (CIK 0001092662)"
+      ],
+      "items": [
+        "1.01",
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "2834"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-000324",
+      "ciks": [
+        "0001720725"
+      ],
+      "file_date": "2023-01-03",
+      "form": "8-K",
+      "display_names": [
+        "Oyster Point Pharma, Inc.  (CIK 0001720725)"
+      ],
+      "items": [
+        "1.02",
+        "2.01",
+        "3.01",
+        "3.03",
+        "5.01",
+        "5.02",
+        "5.03",
+        "9.01"
+      ],
+      "sics": [
+        "2836"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": true,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-001582",
+      "ciks": [
+        "0001797336"
+      ],
+      "file_date": "2023-01-04",
+      "form": "8-K",
+      "display_names": [
+        "Ayala Pharmaceuticals, Inc.  (CIK 0001797336)"
+      ],
+      "items": [
+        "8.01"
+      ],
+      "sics": [
+        "2836"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-001940",
+      "ciks": [
+        "0001618921"
+      ],
+      "file_date": "2023-01-05",
+      "form": "8-K",
+      "display_names": [
+        "Walgreens Boots Alliance, Inc.  (WBA)  (CIK 0001618921)"
+      ],
+      "items": [
+        "1.01",
+        "2.01",
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "5912"
+      ],
+      "matched_documents": 2,
+      "file_types": {
+        "EX-10.1": 1,
+        "EX-2.3": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-002277",
+      "ciks": [
+        "0001865537"
+      ],
+      "file_date": "2023-01-05",
+      "form": "8-K",
+      "display_names": [
+        "DTRT Health Acquisition Corp.  (CIK 0001865537)"
+      ],
+      "items": [
+        "1.02"
+      ],
+      "sics": [
+        "6770"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": true,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-002762",
+      "ciks": [
+        "0001045609",
+        "0001045610"
+      ],
+      "file_date": "2023-01-06",
+      "form": "8-K",
+      "display_names": [
+        "Prologis, Inc.  (PLD, PLDGP)  (CIK 0001045609)",
+        "Prologis, L.P.  (CIK 0001045610)"
+      ],
+      "items": [
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "6500",
+        "6798"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "EX-99.2": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-003066",
+      "ciks": [
+        "0001534701"
+      ],
+      "file_date": "2023-01-06",
+      "form": "8-K",
+      "display_names": [
+        "Phillips 66  (PSX)  (CIK 0001534701)"
+      ],
+      "items": [
+        "1.01",
+        "7.01",
+        "9.01"
+      ],
+      "sics": [
+        "2911"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-003068",
+      "ciks": [
+        "0001338065"
+      ],
+      "file_date": "2023-01-06",
+      "form": "8-K",
+      "display_names": [
+        "DCP Midstream, LP  (CIK 0001338065)"
+      ],
+      "items": [
+        "1.01",
+        "5.07",
+        "7.01",
+        "9.01"
+      ],
+      "sics": [
+        "4922"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-004258",
+      "ciks": [
+        "0001868734"
+      ],
+      "file_date": "2023-01-09",
+      "form": "8-K",
+      "display_names": [
+        "CinCor Pharma, Inc.  (CIK 0001868734)"
+      ],
+      "items": [
+        "1.01",
+        "5.02",
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "2834"
+      ],
+      "matched_documents": 2,
+      "file_types": {
+        "8-K": 1,
+        "EX-2.1": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-004705",
+      "ciks": [
+        "0001855485"
+      ],
+      "file_date": "2023-01-09",
+      "form": "8-K",
+      "display_names": [
+        "First Light Acquisition Group, Inc.  (CLDI, CLDI-WT)  (CIK 0001855485)"
+      ],
+      "items": [
+        "1.01",
+        "7.01",
+        "9.01"
+      ],
+      "sics": [
+        "6770"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-005230",
+      "ciks": [
+        "0001160951"
+      ],
+      "file_date": "2023-01-10",
+      "form": "8-K",
+      "display_names": [
+        "DUCK CREEK TECHNOLOGIES, INC.  (CIK 0001160951)"
+      ],
+      "items": [
+        "1.01",
+        "9.01"
+      ],
+      "sics": [
+        "7372"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-006137",
+      "ciks": [
+        "0001623715"
+      ],
+      "file_date": "2023-01-11",
+      "form": "8-K",
+      "display_names": [
+        "Imago BioSciences, Inc.  (CIK 0001623715)"
+      ],
+      "items": [
+        "2.01",
+        "3.01",
+        "3.03",
+        "5.01",
+        "5.02",
+        "5.03",
+        "9.01"
+      ],
+      "sics": [
+        "2834"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-007412",
+      "ciks": [
+        "0001576169"
+      ],
+      "file_date": "2023-01-13",
+      "form": "8-K",
+      "display_names": [
+        "Benefitfocus, Inc.  (CIK 0001576169)"
+      ],
+      "items": [
+        "8.01"
+      ],
+      "sics": [
+        "7372"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-007528",
+      "ciks": [
+        "0001824153"
+      ],
+      "file_date": "2023-01-13",
+      "form": "8-K",
+      "display_names": [
+        "Leo Holdings Corp. II  (CIK 0001824153)"
+      ],
+      "items": [
+        "1.01",
+        "2.03",
+        "5.02",
+        "5.03",
+        "5.07",
+        "9.01"
+      ],
+      "sics": [
+        "6770"
+      ],
+      "matched_documents": 3,
+      "file_types": {
+        "8-K": 1,
+        "EX-10.1": 1,
+        "EX-2.1": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-007558",
+      "ciks": [
+        "0001847874"
+      ],
+      "file_date": "2023-01-13",
+      "form": "8-K",
+      "display_names": [
+        "Fifth Wall Acquisition Corp. III  (BEEP)  (CIK 0001847874)"
+      ],
+      "items": [
+        "7.01",
+        "9.01"
+      ],
+      "sics": [
+        "6770"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-008477",
+      "ciks": [
+        "0001720725"
+      ],
+      "file_date": "2023-01-13",
+      "form": "8-K/A",
+      "display_names": [
+        "Oyster Point Pharma, Inc.  (CIK 0001720725)"
+      ],
+      "items": [
+        "1.02",
+        "2.01",
+        "3.01",
+        "3.03",
+        "5.01",
+        "5.02",
+        "5.03",
+        "9.01"
+      ],
+      "sics": [
+        "2836"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K/A": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": true,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-008913",
+      "ciks": [
+        "0001705843"
+      ],
+      "file_date": "2023-01-17",
+      "form": "8-K",
+      "display_names": [
+        "Calyxt, Inc.  (CBUS)  (CIK 0001705843)"
+      ],
+      "items": [
+        "1.01",
+        "2.03",
+        "5.02",
+        "7.01",
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "2870"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-009540",
+      "ciks": [
+        "0001671858"
+      ],
+      "file_date": "2023-01-17",
+      "form": "8-K/A",
+      "display_names": [
+        "ARS Pharmaceuticals, Inc.  (SPRY)  (CIK 0001671858)"
+      ],
+      "items": [
+        "9.01"
+      ],
+      "sics": [
+        "2834"
+      ],
+      "matched_documents": 3,
+      "file_types": {
+        "EX-99.1": 1,
+        "EX-99.2": 1,
+        "EX-99.3": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-009921",
+      "ciks": [
+        "0001325879"
+      ],
+      "file_date": "2023-01-18",
+      "form": "8-K",
+      "display_names": [
+        "AVEO PHARMACEUTICALS, INC.  (CIK 0001325879)"
+      ],
+      "items": [
+        "8.01"
+      ],
+      "sics": [
+        "2834"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-010719",
+      "ciks": [
+        "0001367920"
+      ],
+      "file_date": "2023-01-19",
+      "form": "8-K",
+      "display_names": [
+        "CONCERT PHARMACEUTICALS, INC.  (CIK 0001367920)"
+      ],
+      "items": [
+        "1.01",
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "2834"
+      ],
+      "matched_documents": 2,
+      "file_types": {
+        "8-K": 1,
+        "EX-2.1": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-011176",
+      "ciks": [
+        "0001855631"
+      ],
+      "file_date": "2023-01-20",
+      "form": "8-K",
+      "display_names": [
+        "Pono Capital Corp  (AWIN, AWINW)  (CIK 0001855631)"
+      ],
+      "items": [
+        "1.01",
+        "9.01"
+      ],
+      "sics": [
+        "3721"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-012554",
+      "ciks": [
+        "0001604643"
+      ],
+      "file_date": "2023-01-23",
+      "form": "8-K",
+      "display_names": [
+        "Evoqua Water Technologies Corp.  (CIK 0001604643)"
+      ],
+      "items": [
+        "1.01",
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "3580"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-012563",
+      "ciks": [
+        "0001524472"
+      ],
+      "file_date": "2023-01-23",
+      "form": "8-K",
+      "display_names": [
+        "Xylem Inc.  (XYL)  (CIK 0001524472)"
+      ],
+      "items": [
+        "1.01",
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "3561"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-012610",
+      "ciks": [
+        "0001822312"
+      ],
+      "file_date": "2023-01-23",
+      "form": "8-K",
+      "display_names": [
+        "Jack Creek Investment Corp.  (CIK 0001822312)"
+      ],
+      "items": [
+        "1.01",
+        "8.01"
+      ],
+      "sics": [
+        "6770"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-014782",
+      "ciks": [
+        "0000709337"
+      ],
+      "file_date": "2023-01-25",
+      "form": "8-K",
+      "display_names": [
+        "FARMERS NATIONAL BANC CORP /OH/  (FMNB)  (CIK 0000709337)"
+      ],
+      "items": [
+        "2.02",
+        "9.01"
+      ],
+      "sics": [
+        "6022"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "EX-99.1": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-015167",
+      "ciks": [
+        "0001178970"
+      ],
+      "file_date": "2023-01-25",
+      "form": "8-K",
+      "display_names": [
+        "PROVIDENT FINANCIAL SERVICES INC  (PFS)  (CIK 0001178970)"
+      ],
+      "items": [
+        "8.01"
+      ],
+      "sics": [
+        "6035"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-015168",
+      "ciks": [
+        "0000846901"
+      ],
+      "file_date": "2023-01-25",
+      "form": "8-K",
+      "display_names": [
+        "LAKELAND BANCORP INC  (CIK 0000846901)"
+      ],
+      "items": [
+        "8.01"
+      ],
+      "sics": [
+        "6022"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-016850",
+      "ciks": [
+        "0001745317"
+      ],
+      "file_date": "2023-01-27",
+      "form": "8-K/A",
+      "display_names": [
+        "Velodyne Lidar, Inc.  (CIK 0001745317)"
+      ],
+      "items": [
+        "5.02",
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "3569"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K/A": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-018417",
+      "ciks": [
+        "0001855631"
+      ],
+      "file_date": "2023-01-30",
+      "form": "8-K",
+      "display_names": [
+        "Pono Capital Corp  (AWIN, AWINW)  (CIK 0001855631)"
+      ],
+      "items": [
+        "5.07"
+      ],
+      "sics": [
+        "3721"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001193125-23-019745",
+      "ciks": [
+        "0001745317"
+      ],
+      "file_date": "2023-01-31",
+      "form": "8-K/A",
+      "display_names": [
+        "Velodyne Lidar, Inc.  (CIK 0001745317)"
+      ],
+      "items": [
+        "5.02",
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "3569"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K/A": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001213900-23-000635",
+      "ciks": [
+        "0001837344"
+      ],
+      "file_date": "2023-01-04",
+      "form": "8-K",
+      "display_names": [
+        "Nocturne Acquisition Corp  (CIK 0001837344)"
+      ],
+      "items": [
+        "1.01",
+        "7.01",
+        "9.01"
+      ],
+      "sics": [
+        "6770"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001213900-23-000987",
+      "ciks": [
+        "0001829322"
+      ],
+      "file_date": "2023-01-05",
+      "form": "8-K",
+      "display_names": [
+        "Sizzle Acquisition Corp.  (CIK 0001829322)"
+      ],
+      "items": [
+        "1.01",
+        "9.01"
+      ],
+      "sics": [
+        "6770"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001213900-23-001400",
+      "ciks": [
+        "0001853651"
+      ],
+      "file_date": "2023-01-06",
+      "form": "8-K",
+      "display_names": [
+        "Alpine Acquisition Corp.  (CIK 0001853651)"
+      ],
+      "items": [
+        "7.01",
+        "9.01"
+      ],
+      "sics": [
+        "7990"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001213900-23-001509",
+      "ciks": [
+        "0001819881"
+      ],
+      "file_date": "2023-01-09",
+      "form": "8-K",
+      "display_names": [
+        "Paya Holdings Inc.  (CIK 0001819881)"
+      ],
+      "items": [
+        "1.01",
+        "1.02",
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "7389"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "EX-10.1": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": true,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001213900-23-001715",
+      "ciks": [
+        "0001837344"
+      ],
+      "file_date": "2023-01-09",
+      "form": "8-K",
+      "display_names": [
+        "Nocturne Acquisition Corp  (CIK 0001837344)"
+      ],
+      "items": [
+        "7.01",
+        "9.01"
+      ],
+      "sics": [
+        "6770"
+      ],
+      "matched_documents": 2,
+      "file_types": {
+        "8-K": 1,
+        "EX-10.3": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001213900-23-003082",
+      "ciks": [
+        "0001826671"
+      ],
+      "file_date": "2023-01-17",
+      "form": "8-K",
+      "display_names": [
+        "KLUDEIN I ACQUISITION CORP  (CIK 0001826671)"
+      ],
+      "items": [
+        "1.01",
+        "9.01"
+      ],
+      "sics": [
+        "7374"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001213900-23-003433",
+      "ciks": [
+        "0001819584"
+      ],
+      "file_date": "2023-01-18",
+      "form": "8-K",
+      "display_names": [
+        "Volta Inc.  (CIK 0001819584)"
+      ],
+      "items": [
+        "1.01",
+        "2.03",
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "3790"
+      ],
+      "matched_documents": 2,
+      "file_types": {
+        "8-K": 1,
+        "EX-10.1": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001213900-23-004434",
+      "ciks": [
+        "0001680139"
+      ],
+      "file_date": "2023-01-23",
+      "form": "8-K",
+      "display_names": [
+        "HealthLynked Corp  (HLYK)  (CIK 0001680139)"
+      ],
+      "items": [
+        "1.01",
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "8011"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001213900-23-005022",
+      "ciks": [
+        "0001814114"
+      ],
+      "file_date": "2023-01-25",
+      "form": "8-K",
+      "display_names": [
+        "Health Sciences Acquisitions Corp 2  (OBIO)  (CIK 0001814114)"
+      ],
+      "items": [
+        "5.02",
+        "5.07",
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "3841"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001213900-23-005120",
+      "ciks": [
+        "0001787518"
+      ],
+      "file_date": "2023-01-25",
+      "form": "8-K",
+      "display_names": [
+        "Brilliant Acquisition Corp  (NUKK, NUKKW)  (CIK 0001787518)"
+      ],
+      "items": [
+        "1.01",
+        "2.03",
+        "5.03",
+        "5.07",
+        "7.01",
+        "9.01"
+      ],
+      "sics": [
+        "6770"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001213900-23-005230",
+      "ciks": [
+        "0001592782"
+      ],
+      "file_date": "2023-01-26",
+      "form": "8-K",
+      "display_names": [
+        "Nukkleus Inc.  (CIK 0001592782)"
+      ],
+      "items": [
+        "1.01",
+        "9.01"
+      ],
+      "sics": [
+        "8742"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001213900-23-005492",
+      "ciks": [
+        "0001755953"
+      ],
+      "file_date": "2023-01-27",
+      "form": "8-K",
+      "display_names": [
+        "Akerna Corp.  (GRYP)  (CIK 0001755953)"
+      ],
+      "items": [
+        "1.01",
+        "3.03",
+        "7.01",
+        "9.01"
+      ],
+      "sics": [
+        "7374"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001213900-23-006448",
+      "ciks": [
+        "0001814114"
+      ],
+      "file_date": "2023-01-31",
+      "form": "8-K",
+      "display_names": [
+        "Orchestra BioMed Holdings, Inc.  (OBIO)  (CIK 0001814114)"
+      ],
+      "items": [
+        "1.01",
+        "2.01",
+        "3.02",
+        "3.03",
+        "4.01",
+        "5.01",
+        "5.02",
+        "5.03",
+        "5.05",
+        "5.06",
+        "7.01",
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "3841"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001277902-23-000005",
+      "ciks": [
+        "0001277902"
+      ],
+      "file_date": "2023-01-18",
+      "form": "8-K",
+      "display_names": [
+        "MVB FINANCIAL CORP  (MVBF)  (CIK 0001277902)"
+      ],
+      "items": [
+        "8.01"
+      ],
+      "sics": [
+        "6022"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001277902-23-000014",
+      "ciks": [
+        "0001277902"
+      ],
+      "file_date": "2023-01-19",
+      "form": "8-K",
+      "display_names": [
+        "MVB FINANCIAL CORP  (MVBF)  (CIK 0001277902)"
+      ],
+      "items": [
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "6022"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001408534-23-000003",
+      "ciks": [
+        "0001408534"
+      ],
+      "file_date": "2023-01-09",
+      "form": "8-K",
+      "display_names": [
+        "First Guaranty Bancshares, Inc.  (FGBI, FGBIP)  (CIK 0001408534)"
+      ],
+      "items": [
+        "1.01",
+        "7.01",
+        "9.01"
+      ],
+      "sics": [
+        "6035"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001437749-23-000215",
+      "ciks": [
+        "0001539850"
+      ],
+      "file_date": "2023-01-04",
+      "form": "8-K",
+      "display_names": [
+        "Starco Brands, Inc.  (STCB)  (CIK 0001539850)"
+      ],
+      "items": [
+        "1.01",
+        "2.01",
+        "3.02",
+        "9.01"
+      ],
+      "sics": [
+        "7311"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001472375-23-000014",
+      "ciks": [
+        "0001642985"
+      ],
+      "file_date": "2023-01-13",
+      "form": "8-K",
+      "display_names": [
+        "Mobile Infrastructure Corp  (CIK 0001642985)"
+      ],
+      "items": [
+        "7.01",
+        "9.01"
+      ],
+      "sics": [
+        "6798"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001493152-23-001438",
+      "ciks": [
+        "0001100397"
+      ],
+      "file_date": "2023-01-13",
+      "form": "8-K",
+      "display_names": [
+        "Advaxis, Inc.  (ADXS)  (CIK 0001100397)"
+      ],
+      "items": [
+        "5.07",
+        "7.01"
+      ],
+      "sics": [
+        "2834"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001493152-23-001461",
+      "ciks": [
+        "0001869974"
+      ],
+      "file_date": "2023-01-13",
+      "form": "8-K",
+      "display_names": [
+        "Aesther Healthcare Acquisition Corp.  (OCEA, OCEAW)  (CIK 0001869974)"
+      ],
+      "items": [
+        "7.01",
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "2834"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001493152-23-001905",
+      "ciks": [
+        "0001829999"
+      ],
+      "file_date": "2023-01-19",
+      "form": "8-K",
+      "display_names": [
+        "FoxWayne Enterprises Acquisition Corp.  (CIK 0001829999)"
+      ],
+      "items": [
+        "1.02",
+        "9.01"
+      ],
+      "sics": [
+        "6770"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": true,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001493152-23-002272",
+      "ciks": [
+        "0001869974"
+      ],
+      "file_date": "2023-01-24",
+      "form": "8-K",
+      "display_names": [
+        "Aesther Healthcare Acquisition Corp.  (OCEA, OCEAW)  (CIK 0001869974)"
+      ],
+      "items": [
+        "7.01",
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "2834"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001493152-23-002462",
+      "ciks": [
+        "0001100397"
+      ],
+      "file_date": "2023-01-25",
+      "form": "8-K",
+      "display_names": [
+        "Ayala Pharmaceuticals, Inc.  (ADXS)  (CIK 0001100397)"
+      ],
+      "items": [
+        "2.01",
+        "5.02",
+        "5.03",
+        "9.01"
+      ],
+      "sics": [
+        "2834"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001493152-23-002463",
+      "ciks": [
+        "0001797336"
+      ],
+      "file_date": "2023-01-25",
+      "form": "8-K",
+      "display_names": [
+        "Old Ayala, Inc  (CIK 0001797336)"
+      ],
+      "items": [
+        "2.01",
+        "3.01",
+        "3.03",
+        "5.01",
+        "5.02",
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "2836"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001493152-23-002750",
+      "ciks": [
+        "0000892482"
+      ],
+      "file_date": "2023-01-27",
+      "form": "8-K",
+      "display_names": [
+        "Qumu Corp  (CIK 0000892482)"
+      ],
+      "items": [
+        "3.01"
+      ],
+      "sics": [
+        "7372"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001493152-23-002865",
+      "ciks": [
+        "0001869974"
+      ],
+      "file_date": "2023-01-30",
+      "form": "8-K",
+      "display_names": [
+        "Aesther Healthcare Acquisition Corp.  (OCEA, OCEAW)  (CIK 0001869974)"
+      ],
+      "items": [
+        "7.01",
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "2834"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001493152-23-002970",
+      "ciks": [
+        "0001896212"
+      ],
+      "file_date": "2023-01-30",
+      "form": "8-K",
+      "display_names": [
+        "Murphy Canyon Acquisition Corp.  (CDT, CDTTW)  (CIK 0001896212)"
+      ],
+      "items": [
+        "1.01",
+        "9.01"
+      ],
+      "sics": [
+        "6770"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001538263-23-000002",
+      "ciks": [
+        "0001538263"
+      ],
+      "file_date": "2023-01-24",
+      "form": "8-K",
+      "display_names": [
+        "HomeTrust Bancshares, Inc.  (HTBI)  (CIK 0001538263)"
+      ],
+      "items": [
+        "2.02",
+        "9.01"
+      ],
+      "sics": [
+        "6035"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "EX-99.1": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001564590-23-000429",
+      "ciks": [
+        "0001716621"
+      ],
+      "file_date": "2023-01-13",
+      "form": "8-K",
+      "display_names": [
+        "Ra Medical Systems, Inc.  (VTAK)  (CIK 0001716621)"
+      ],
+      "items": [
+        "1.01",
+        "2.01",
+        "3.02",
+        "3.03",
+        "5.02",
+        "5.03",
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "3841"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "EX-10.1": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001564590-23-000454",
+      "ciks": [
+        "0001844149"
+      ],
+      "file_date": "2023-01-17",
+      "form": "8-K",
+      "display_names": [
+        "Perception Capital Corp. II  (SPEC, SPECW)  (CIK 0001844149)"
+      ],
+      "items": [
+        "1.01",
+        "7.01",
+        "9.01"
+      ],
+      "sics": [
+        "6770"
+      ],
+      "matched_documents": 2,
+      "file_types": {
+        "8-K": 1,
+        "EX-10.2": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001564590-23-000558",
+      "ciks": [
+        "0001716621"
+      ],
+      "file_date": "2023-01-19",
+      "form": "8-K/A",
+      "display_names": [
+        "Ra Medical Systems, Inc.  (VTAK)  (CIK 0001716621)"
+      ],
+      "items": [
+        "2.01",
+        "9.01"
+      ],
+      "sics": [
+        "3841"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "EX-99.1": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001575872-23-000144",
+      "ciks": [
+        "0001913577"
+      ],
+      "file_date": "2023-01-26",
+      "form": "8-K",
+      "display_names": [
+        "Denali Capital Acquisition Corp.  (DECA, DECAU, DECAW)  (CIK 0001913577)"
+      ],
+      "items": [
+        "1.01",
+        "7.01",
+        "9.01"
+      ],
+      "sics": [
+        "6770"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001575872-23-000150",
+      "ciks": [
+        "0001913577"
+      ],
+      "file_date": "2023-01-26",
+      "form": "8-K/A",
+      "display_names": [
+        "Denali Capital Acquisition Corp.  (DECA, DECAU, DECAW)  (CIK 0001913577)"
+      ],
+      "items": [
+        "1.01",
+        "7.01",
+        "9.01"
+      ],
+      "sics": [
+        "6770"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K/A": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": true,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001637655-23-000003",
+      "ciks": [
+        "0001637655"
+      ],
+      "file_date": "2023-01-03",
+      "form": "8-K",
+      "display_names": [
+        "Horizon Global Corp  (CIK 0001637655)"
+      ],
+      "items": [
+        "1.01",
+        "5.03",
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "3714"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001640334-23-000057",
+      "ciks": [
+        "0001715611"
+      ],
+      "file_date": "2023-01-17",
+      "form": "8-K/A",
+      "display_names": [
+        "BODY & MIND INC.  (BMMJ)  (CIK 0001715611)"
+      ],
+      "items": [
+        "1.01",
+        "2.01",
+        "2.03",
+        "3.02",
+        "8.01",
+        "9.01"
+      ],
+      "sics": [
+        "2834"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K/A": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001646972-23-000010",
+      "ciks": [
+        "0001646972"
+      ],
+      "file_date": "2023-01-10",
+      "form": "8-K",
+      "display_names": [
+        "Albertsons Companies, Inc.  (ACI)  (CIK 0001646972)"
+      ],
+      "items": [
+        "2.02",
+        "9.01"
+      ],
+      "sics": [
+        "5411"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "EX-99.1": 1
+      },
+      "has_item_1_01": false,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    },
+    {
+      "accession": "0001699136-23-000003",
+      "ciks": [
+        "0001699136"
+      ],
+      "file_date": "2023-01-03",
+      "form": "8-K",
+      "display_names": [
+        "Cactus, Inc.  (WHD)  (CIK 0001699136)"
+      ],
+      "items": [
+        "1.01",
+        "7.01",
+        "9.01"
+      ],
+      "sics": [
+        "3533"
+      ],
+      "matched_documents": 1,
+      "file_types": {
+        "8-K": 1
+      },
+      "has_item_1_01": true,
+      "has_item_1_02": false,
+      "spacish_heuristic": false,
+      "discovery_role": "unreviewed_candidate",
+      "outcome_assigned": false
+    }
+  ],
+  "summary": {
+    "search_document_hits": 106,
+    "unique_submissions": 93,
+    "submissions_with_item_1_01": 47,
+    "submissions_with_item_1_02": 6,
+    "submissions_with_both_1_01_and_1_02": 2,
+    "spacish_heuristic_submissions": 29,
+    "classicish_heuristic_submissions": 31,
+    "item_code_submission_counts": {
+      "1.01": 47,
+      "1.02": 6,
+      "2.01": 12,
+      "2.02": 6,
+      "2.03": 6,
+      "3.01": 7,
+      "3.02": 4,
+      "3.03": 8,
+      "4.01": 1,
+      "5.01": 6,
+      "5.02": 19,
+      "5.03": 11,
+      "5.05": 1,
+      "5.06": 1,
+      "5.07": 6,
+      "7.01": 29,
+      "8.01": 43,
+      "9.01": 76
+    },
+    "outcomes_assigned": false,
+    "discovery_frame_not_reviewed_cohort": true,
+    "right_censor_population_still_open": true
+  },
+  "submissions_sha256": "f4e6509a238c0efbcf92f6a8d9fcca53c2c6eac262e1a2a50517044c8d6bdcf7"
+}

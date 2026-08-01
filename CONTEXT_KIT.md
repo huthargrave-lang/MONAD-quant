@@ -85,7 +85,7 @@ without a human hand-editing markdown, and a bad capture can never corrupt the w
 - **Visual.** `ctx graph --html` emits a self-contained interactive force-graph of the whole map —
   with an inspector that shows each node's prose, its confidence/supersession state and its
   `ctx why` provenance chains, so the page can be read, not just looked at. `ctx serve` serves the
-  live version (plus `/api/graph.json`).
+  live version (the server also exposes the graph as JSON over HTTP; see AGENT_INDEX.md for the route).
 
 ## Design principles
 1. **Query > read** — expose a tool call for any computable fact; reserve prose for *why*.

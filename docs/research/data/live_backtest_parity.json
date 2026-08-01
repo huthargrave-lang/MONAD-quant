@@ -1,0 +1,60 @@
+{
+  "counts": {
+    "AGREE": 0,
+    "COINCIDENT": 2,
+    "DIVERGE": 3,
+    "DORMANT": 2
+  },
+  "rows": [
+    {
+      "backtest": "(omitted \u2192 default True)",
+      "dimension": "entry regime gate",
+      "live": "False",
+      "recorded_in": "F141",
+      "verdict": "DIVERGE"
+    },
+    {
+      "backtest": "omitted",
+      "dimension": "slope-regime flags",
+      "live": "explicit False",
+      "recorded_in": "F26",
+      "verdict": "COINCIDENT"
+    },
+    {
+      "backtest": "trade_hours=trade_hours",
+      "dimension": "intraday time gate",
+      "live": "_is_market_hours() in ET",
+      "recorded_in": "F148",
+      "verdict": "DIVERGE"
+    },
+    {
+      "backtest": "MAX_TRADE_BARS=8",
+      "dimension": "max hold (time exit)",
+      "live": "MAX_TRADE_BARS_LIVE=10",
+      "recorded_in": null,
+      "verdict": "DIVERGE"
+    },
+    {
+      "backtest": "config.FIXED_POSITION_PCT=0.1",
+      "dimension": "position size",
+      "live": "position_pct = 0.1 (literal)",
+      "recorded_in": null,
+      "verdict": "COINCIDENT"
+    },
+    {
+      "backtest": "supported (off)",
+      "dimension": "opposing-signal exit",
+      "live": "absent",
+      "recorded_in": null,
+      "verdict": "DORMANT"
+    },
+    {
+      "backtest": "supported (off)",
+      "dimension": "ATR dynamic stops",
+      "live": "absent",
+      "recorded_in": null,
+      "verdict": "DORMANT"
+    }
+  ],
+  "subject": "repository"
+}

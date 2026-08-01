@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "spec_id": "lf01-nt10k-2023-month-sliced-v1",
+  "raw_documents_committed": false,
+  "outcomes_assigned": false,
+  "search": {
+    "endpoint": "https://efts.sec.gov/LATEST/search-index",
+    "forms": ["NT 10-K"],
+    "sampling": "month_sliced_first_50_for_months_01_03_05_07_09_11",
+    "months": {
+      "2023-01": {"index_total": 6, "fetched": 6},
+      "2023-03": {"index_total": 109, "fetched": 100},
+      "2023-05": {"index_total": 16, "fetched": 16},
+      "2023-07": {"index_total": 6, "fetched": 6},
+      "2023-09": {"index_total": 40, "fetched": 40},
+      "2023-11": {"index_total": 2, "fetched": 2}
+    },
+    "index_year_total_from_full_search": 986,
+    "response_sha256": "ad22bd267725c489ec997a66032af0af86062620917ce33733a6c56a7030a10f",
+    "bias_note": "month caps avoid pure Dec newest bias; still not full population"
+  }
+}

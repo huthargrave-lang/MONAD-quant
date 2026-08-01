@@ -28,6 +28,9 @@ warnings.filterwarnings("ignore")
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import data_cache  # noqa: E402  (validated cache: never trust a stub, never write one)
+
 START, END, COST = "2014-01-01", "2026-06-20", 0.0005
 EQUITY = ["QQQ", "SPY", "IWM", "DIA"]
 DIVERS = EQUITY + ["GLD", "HYG", "IEF", "TLT"]
@@ -35,15 +38,23 @@ SECTORS = ["XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLU", "XLB"]
 UNIV = sorted(set(DIVERS + SECTORS))
 CACHE = "/tmp/mr_daily_close.csv"   # ephemeral; re-fetched if absent (no repo data committed)
 
+# Floors for cache validation. START is 2014 and 2000 respectively, so a real panel
+# clears these by an order of magnitude; anything below is a failed/partial fetch.
+MIN_DAILY_ROWS = 500
+MIN_LONG_ROWS = 2000
+
 
 def load():
-    if os.path.exists(CACHE):
-        return pd.read_csv(CACHE, index_col=0, parse_dates=True)
-    import yfinance as yf
-    raw = yf.download(UNIV, start=START, end=END, interval="1d", progress=False, auto_adjust=True)
-    px = raw["Close"][UNIV].dropna(how="all")
-    px.to_csv(CACHE)
-    return px
+    def _fetch():
+        import yfinance as yf
+        raw = yf.download(UNIV, start=START, end=END, interval="1d",
+                          progress=False, auto_adjust=True)
+        return raw["Close"][UNIV].dropna(how="all")
+
+    # Validated: a blocked fetch raises instead of writing a header-only stub that
+    # every later run would trust. See tools/data_cache.py for why this matters.
+    return data_cache.load_cached_frame(
+        CACHE, _fetch, min_rows=MIN_DAILY_ROWS, required_cols=UNIV, label="mr_daily")
 
 
 def perf(r, ann=252):
@@ -370,16 +381,19 @@ def cmd_gonogolong(PX):
     leg is full-weight ~79% of the time vs static's permanent half-weight, so missing dividends
     penalize the ACTIVE leg slightly MORE (≈+0.5%/yr to active vs +0.2%/yr to static if divs are
     added back) — i.e. the comparison is *conservative against* the active engine, not unfair."""
-    import yfinance as yf
     cache = "/tmp/mr_daily_close_2000.csv"
     basket = ["^GSPC", "QQQ", "IWM", "DIA"]
     fetch = sorted(set(basket + ["IEF"]))
-    if os.path.exists(cache):
-        LPX = pd.read_csv(cache, index_col=0, parse_dates=True)
-    else:
-        raw = yf.download(fetch, start="2000-01-01", end=END, interval="1d", progress=False, auto_adjust=True)
-        LPX = raw["Close"][fetch].dropna(how="all")
-        LPX.to_csv(cache)
+
+    def _fetch():
+        import yfinance as yf
+        raw = yf.download(fetch, start="2000-01-01", end=END, interval="1d",
+                          progress=False, auto_adjust=True)
+        return raw["Close"][fetch].dropna(how="all")
+
+    LPX = data_cache.load_cached_frame(
+        cache, _fetch, min_rows=MIN_LONG_ROWS, required_cols=fetch,
+        label="mr_daily_2000")
     print("  per-asset first date: " + "  ".join(
         f"{s}:{LPX[s].dropna().index[0].date()}" for s in fetch if s in LPX.columns))
     if "IEF" in LPX.columns and LPX["IEF"].dropna().index[0] > LPX.index[0]:
@@ -407,7 +421,10 @@ def main():
     ap = argparse.ArgumentParser(description="leverage-free daily mean-reversion research lab")
     ap.add_argument("cmd", nargs="?", default="all", choices=list(CMDS) + ["all"])
     a = ap.parse_args()
-    PX = load()
+    try:
+        PX = load()
+    except data_cache.MarketDataError as exc:
+        data_cache.fail_cleanly(exc)
     for name in (CMDS if a.cmd == "all" else {a.cmd: CMDS[a.cmd]}):
         print("=" * 64); CMDS[name](PX); print()
 

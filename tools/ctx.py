@@ -25,6 +25,7 @@ import re
 import sqlite3
 import subprocess
 import sys
+from pathlib import Path
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MANIFEST = os.path.join(REPO, "context_map.json")
@@ -74,32 +75,136 @@ def _route_tokens(text: str):
     return toks | {_stem(t) for t in toks}
 
 
+# Function words that carry no routing information. A multi-word key used to fire on
+# ANY of its tokens, so `on_bar` matched every sentence containing "on", `why did it
+# exit` matched every sentence containing "it", and `add ticker` matched "add". Measured
+# on 12 off-domain English sentences with nothing to do with this project, 5 routed —
+# "add the flour slowly while whisking the eggs" scored 3 on param/sweep/backtest, higher
+# than most real queries. A confident wrong READ list is worse than no route.
+_ROUTE_STOPWORDS = {
+    "a", "an", "the", "is", "are", "was", "were", "be", "been", "it", "its", "of", "to",
+    "in", "on", "at", "for", "and", "or", "not", "no", "do", "did", "does", "how",
+    "what", "why", "when", "where", "which", "my", "me", "i", "we", "you", "this",
+    "that", "with", "from", "by", "as", "so", "up", "out", "if",
+}
+
+
+def _key_tokens(key: str):
+    """The tokens a routing key must ALL match on, stopwords dropped.
+
+    Dropping stopwords first is what keeps `not running` firing on "running" and
+    `why did it exit` firing on "exit" while neither fires on an unrelated sentence
+    that merely contains "not" or "it". A key made entirely of stopwords keeps them,
+    so it degenerates to requiring the whole phrase rather than matching everything.
+    """
+    toks = re.findall(r"[a-z0-9]+", key.lower())
+    core = [t for t in toks if t not in _ROUTE_STOPWORDS]
+    return core or toks
+
+
 def _route_rules(task):
     """Score routing rules for a task string. Returns [(score, hits, rule), ...]
-    sorted desc. Tokenized + stemmed + synonym-expanded (shared by route & brief)."""
+    sorted desc. Tokenized + stemmed + synonym-expanded (shared by route & brief).
+
+    A key matches when EVERY one of its informative tokens is present. Matching on any
+    single token made common English words into routing triggers — see _ROUTE_STOPWORDS.
+    """
     task = task.lower()
     qtoks = _route_tokens(task)
     m = _manifest()
     synonyms = m.get("routing_synonyms", {})
+
+    def matches(key):
+        toks = _key_tokens(key)
+        return bool(toks) and all(({t} | {_stem(t)}) & qtoks for t in toks)
+
     expanded = set(task.split())
     for concept, kws in synonyms.items():
-        if any(t in qtoks for t in _route_tokens(concept)):
+        # `_README` documents the block; its value is prose, and `set.update(str)` would
+        # splice in one member per character.
+        if concept.startswith("_") or not isinstance(kws, list):
+            continue
+        if matches(concept):
             expanded.update(kws)
     scored = []
     for r in m["routing"]:
-        hits = []
-        for k in r["keywords"]:
-            phrase = " " in k or "-" in k
-            if (phrase and k in task) or (not phrase and (_route_tokens(k) & qtoks)) or (k in expanded):
-                hits.append(k)
-        score = sum(2 if (" " in h or "-" in h) else 1 for h in hits)
+        hits = [k for k in r["keywords"] if matches(k) or k in expanded]
+        score = sum(2 if len(_key_tokens(h)) > 1 else 1 for h in hits)
         if score:
             scored.append((score, hits, r))
     scored.sort(key=lambda x: -x[0])
     return scored
 
 
+# Off-domain English with nothing to do with this project. A router that answers these
+# is matching noise, and a confident wrong READ list costs more than a miss. Kept in the
+# tool rather than the test so `ctx route --audit` reports both error directions at once.
+ROUTE_NEGATIVE_CONTROLS = [
+    "the quick brown fox jumps over the lazy dog",
+    "preheat the oven to 200 degrees and butter the tin",
+    "trains to the coast leave every hour from platform nine",
+    "she returned the library books before the rain started",
+    "the committee postponed the vote until the following spring",
+    "paint the fence twice and let it dry overnight",
+    "he learned to play the cello at the age of forty",
+    "the museum opens at ten and closes at six on weekdays",
+    "add the flour slowly while whisking the eggs",
+    "the cat slept on the windowsill all afternoon",
+    "our flight was delayed because of fog in the valley",
+    "she wrote three chapters before breakfast every morning",
+]
+
+
+def route_audit(n_commits: int = 400):
+    """Measure the router against language written for other purposes.
+
+    Two corpora the routing table was NOT authored against — recent commit subjects and
+    research-web node titles — plus the off-domain negative controls. Returns miss rates
+    and the most common informative words in un-routed queries, which is the list of
+    synonyms worth adding next.
+    """
+    subjects = [l.strip() for l in _git("log", "--format=%s", "-n", str(n_commits))
+                .splitlines() if l.strip()]
+    titles = [m.group(1) for m in
+              re.finditer(r"^### [FHED]\d+ — (.+)$",
+                          open(os.path.join(REPO, "RESEARCH_WEB.md"),
+                               encoding="utf-8").read(), re.M)]
+    out = {}
+    for name, corpus in (("commit subjects", subjects), ("web node titles", titles)):
+        missed = [q for q in corpus if not _route_rules(q.lower())]
+        out[name] = {"n": len(corpus), "missed": len(missed),
+                     "miss_rate": len(missed) / len(corpus) if corpus else 0.0,
+                     "examples": missed[:5]}
+    false_pos = [q for q in ROUTE_NEGATIVE_CONTROLS if _route_rules(q)]
+    out["negative controls"] = {"n": len(ROUTE_NEGATIVE_CONTROLS),
+                                "routed": len(false_pos), "examples": false_pos}
+    import collections
+    counts = collections.Counter()
+    for q in [x for c in (subjects, titles) for x in c if not _route_rules(x.lower())]:
+        for tok in re.findall(r"[a-z]{4,}", q.lower()):
+            if tok not in _ROUTE_STOPWORDS:
+                counts[tok] += 1
+    out["unrouted_vocabulary"] = counts.most_common(20)
+    return out
+
+
 def cmd_route(args):
+    if getattr(args, "audit", False):
+        report = route_audit()
+        for name in ("commit subjects", "web node titles"):
+            r = report[name]
+            print("{:18s} miss {:>3}/{:<4} ({:.0%})".format(
+                name, r["missed"], r["n"], r["miss_rate"]))
+            for ex in r["examples"][:3]:
+                print("      unrouted: {}".format(ex[:88]))
+        nc = report["negative controls"]
+        print("{:18s} {}/{} off-domain sentences routed{}".format(
+            "false positives", nc["routed"], nc["n"],
+            " — " + "; ".join(nc["examples"]) if nc["examples"] else ""))
+        print("\nmost common words in unrouted queries (synonym candidates):")
+        print("  " + ", ".join("{} x{}".format(w, c)
+                               for w, c in report["unrouted_vocabulary"]))
+        return
     task = " ".join(args.task).lower()
     scored = _route_rules(task)
     if not scored:
@@ -772,11 +877,58 @@ def cmd_audit(args):
     sys.exit(1)
 
 
-def _compound(returns):
+# The live trader sizes every position at a fixed fraction of equity
+# (live/state.py: position_pct = 0.10), and `trades.return_pct` is a PRICE return on
+# that position (live/trader.py::_signed_return). So a raw compound of return_pct is a
+# return on 10%-of-equity NOTIONAL, not on the account -- roughly 10x the account
+# effect. RESEARCH_WEB.md F160 measured the consequence on the one committed run: the
+# dashboard's "+35.2%" is +3.13% on the account, and the CONFIRMED-fill "honest edge"
+# is +0.045%, not +0.205%. The flat verdict survives either way; the magnitude does not.
+LIVE_POSITION_FRACTION = 0.10
+
+
+def _compound(returns, fraction=1.0):
+    """Compound a sequence of returns. `fraction` scales each to account units.
+
+    fraction=1.0 gives the NOTIONAL figure (what the dashboard shows);
+    fraction=LIVE_POSITION_FRACTION gives the ACCOUNT figure.
+    """
     e = 1.0
     for r in returns:
-        e *= (1 + r)
+        e *= (1 + r * fraction)
     return (e - 1) * 100
+
+
+def perf_summary():
+    """One line of live truth for the cold-start rider (H16/DP-9), or an explicit
+    statement that there is none.
+
+    `ctx perf` leads with the CONFIRMED edge, but `ctx brief`/`ctx frontier` pulled only
+    node counts, so the ALL-vs-CONFIRMED gap could be skimmed past at cold start — which
+    is the moment it matters most. This shares cmd_perf's ledger read so the rider and
+    the command cannot drift apart into two different numbers for the same thing.
+
+    The three states are all SPOKEN, never omitted: an absent ledger, an empty ledger,
+    and a measured edge read very differently, and a rider that simply drops the line
+    when state.db is missing leaves an agent unable to tell "no edge" from "nobody
+    looked" (the absence-flag failure of F155/F159/F188).
+    """
+    if not os.path.exists(DB):
+        return "live perf UNAVAILABLE here (no live/state.db — worktree/CI, not 'no edge')"
+    try:
+        conn = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
+        rows = conn.execute("SELECT return_pct, exit_type FROM trades").fetchall()
+    except Exception:
+        return "live perf UNAVAILABLE (state.db present but unreadable/unexpected schema)"
+    if not rows:
+        return "live edge UNMEASURED (state.db has 0 trades — an empty ledger is not evidence)"
+    allr = [r for r, _ in rows]
+    confr = [r for r, e in rows if e in CONFIRMED]
+    F = LIVE_POSITION_FRACTION
+    conf_c, all_c = _compound(confr, F), _compound(allr, F)
+    wr = (sum(1 for x in confr if x > 0) / len(confr) * 100) if confr else 0.0
+    return (f"live CONFIRMED n={len(confr)} WR={wr:.0f}% account={conf_c:+.2f}%"
+            f" (ALL {all_c:+.2f}% — cite CONFIRMED)")
 
 
 def cmd_perf(args):
@@ -792,22 +944,36 @@ def cmd_perf(args):
         print(f"  no 'trades' table (this command expects this repo's live/state.db schema): {exc}")
         return
     if not rows:
-        print("  no trades recorded yet.")
+        print("  ⚠ live performance is UNAVAILABLE — the trades table contains no observations")
+        print("    An empty paper ledger is not evidence of an edge. Do NOT fall back to the")
+        print("    CLAUDE.md headline tables (SUPERSEDED); use `ctx web --live` for current truth.")
         return
     allr = [r for r, _ in rows]
     prodr = [r for r, e in rows if e in PROD]
     confr = [r for r, e in rows if e in CONFIRMED]
     def wr(v):
         return sum(1 for x in v if x > 0) / len(v) * 100 if v else 0
-    conf_c, all_c = _compound(confr), _compound(allr)
-    # Lead with the honest CONFIRMED edge — the ALL/PROD headline is inflated by time_exit
-    # artifacts + inferred target_hit, and an agent that cites it repeats the SUPERSEDED mistake.
-    print(f"  CONFIRMED fills:   n={len(confr):3}  WR={wr(confr):5.1f}%  compounded={conf_c:+8.3f}%   <- THE HONEST EDGE")
-    print(f"  PROD (dashboard):  n={len(prodr):3}  WR={wr(prodr):5.1f}%  compounded={_compound(prodr):+8.3f}%")
-    print(f"  ALL trades:        n={len(allr):3}  WR={wr(allr):5.1f}%  compounded={all_c:+8.3f}%  simple_sum={sum(allr)*100:+8.3f}%")
-    if confr and allr and abs(all_c - conf_c) > 1.0:
-        print(f"  ⚠ headline gap: ALL {all_c:+.1f}% vs CONFIRMED {conf_c:+.1f}% — the headline is inflated by")
-        print(f"    time_exit artifacts + inferred target_hit; cite CONFIRMED, not the dashboard/ALL number.")
+    F = LIVE_POSITION_FRACTION
+    conf_c, all_c = _compound(confr, F), _compound(allr, F)
+    conf_n, all_n = _compound(confr), _compound(allr)
+    # Lead with the honest CONFIRMED edge IN ACCOUNT UNITS — the ALL/PROD headline is
+    # inflated twice over: by time_exit artifacts + inferred target_hit, and by being a
+    # return on 10%-of-equity notional reported as an account return (F160).
+    print(f"  (account units: each trade deploys {F*100:.0f}% of equity; 'notional' = the raw"
+          f" dashboard convention)")
+    print(f"  CONFIRMED fills:   n={len(confr):3}  WR={wr(confr):5.1f}%  account={conf_c:+8.3f}%"
+          f"  notional={conf_n:+8.3f}%   <- THE HONEST EDGE")
+    print(f"  PROD (dashboard):  n={len(prodr):3}  WR={wr(prodr):5.1f}%  account={_compound(prodr, F):+8.3f}%"
+          f"  notional={_compound(prodr):+8.3f}%")
+    print(f"  ALL trades:        n={len(allr):3}  WR={wr(allr):5.1f}%  account={all_c:+8.3f}%"
+          f"  notional={all_n:+8.3f}%  simple_sum={sum(allr)*100:+8.3f}%")
+    if confr and allr and abs(all_c - conf_c) > 0.1:
+        print(f"  ⚠ headline gap: ALL {all_c:+.2f}% vs CONFIRMED {conf_c:+.2f}% (account) — the headline is")
+        print(f"    inflated by time_exit artifacts + inferred target_hit; cite CONFIRMED, not ALL.")
+    if abs(all_n - all_c) > 1.0:
+        print(f"  ⚠ the dashboard and live/state.py report the NOTIONAL column as if it were an")
+        print(f"    account return (F160). Those code paths are on the live deny-fence; this")
+        print(f"    command reports both so the two cannot be confused.")
     print("  (CONFIRMED = bracket_exit + stop_hit; excludes time_exit artifacts and inferred target_hit)")
 
 
@@ -823,6 +989,117 @@ def cmd_status(args):
 def cmd_recent(args):
     n = args.n
     print(_git("log", "--oneline", "-n", str(n), "--stat", "--no-decorate") or "(no git)")
+
+
+def doc_topology():
+    """The doc-ownership table, generated from `context_docs` (H39/DP-15).
+
+    The 'why vs how' split was hand-restated in four prose docs and machine-readably in
+    the manifest, with only the manifest CI-bound. Rather than test four prose tables
+    against each other, generate the one true table here and give the prose something to
+    point at. Also reports, per registered doc, which OTHER registered docs name it —
+    that is where restatement drift becomes visible.
+    """
+    m = _manifest()
+    groups = m.get("context_docs", {})
+    registered = [d for docs in groups.values() for d in docs]
+    text = {}
+    for doc in registered:
+        path = os.path.join(REPO, doc)
+        text[doc] = (open(path, encoding="utf-8").read()
+                     if os.path.exists(path) else None)
+    rows = []
+    for group, docs in groups.items():
+        for doc in docs:
+            body = text[doc]
+            named_by = sorted(other for other in registered
+                              if other != doc and text.get(other)
+                              and doc in text[other])
+            rows.append({
+                "group": group, "doc": doc,
+                "exists": body is not None,
+                "lines": len(body.splitlines()) if body else 0,
+                "named_by": named_by,
+            })
+    # A registered doc that points at a path which does not exist is a navigation
+    # hazard: an agent routed there looks for a file the repo never had. Two classes of
+    # false positive have to be excluded or the report is noise. RUNTIME paths
+    # (local_logs/, data/live_runs/…) are produced by a running bot and are absent by
+    # design in a clone. BARE FILENAMES are often written without their directory —
+    # `ix00_ndx_recent_complete_panel.json` lives under docs/research/data/ — so a
+    # basename that resolves anywhere in the repo is not dangling.
+    # A plan or a ledger is SUPPOSED to be able to name something that does not exist
+    # yet — IMPROVEMENT_PLAN proposes `src/analysis/performance.py`, and RESEARCH_WEB's
+    # F208 describes its absence. Reported separately so the navigation hazard is not
+    # buried under expected proposals. (Third place in this repo needing this split: a
+    # ledger must be able to DESCRIBE an absence without the detector reading it as a
+    # broken link.)
+    planning = {"IMPROVEMENT_PLAN.md", "AGENT_CONTEXT_PLAN.md", "VISION.md",
+                "RESEARCH_WEB.md"}
+    runtime_prefixes = ("local_logs/", "local_runtime/", "data/live_runs/", "venv/")
+    present_basenames = set()
+    for root, dirs, files in os.walk(REPO):
+        dirs[:] = [d for d in dirs if not d.startswith(".")
+                   and d not in ("venv", "__pycache__", "node_modules")]
+        present_basenames.update(files)
+    dangling = {}
+    for doc in registered:
+        if not text.get(doc):
+            continue
+        refs = re.findall(r"`([\w./-]+\.(?:py|json|yaml|yml|md))`", text[doc])
+        missing = sorted({
+            ref for ref in refs
+            if ("/" in ref or ref.endswith((".json", ".yaml", ".yml")))
+            and not ref.startswith(runtime_prefixes)
+            and not os.path.exists(os.path.join(REPO, ref))
+            and os.path.basename(ref) not in present_basenames})
+        if missing:
+            dangling[doc] = missing
+    # A plan naming something unbuilt is fine. A plan naming something that WAS built
+    # under a different extension is stale, not pending — `context_map.yaml` was shipped
+    # as `context_map.json`, and an agent sent there hunts a file that never existed.
+    stems = {os.path.splitext(b)[0]: b for b in present_basenames}
+    renamed = {}
+    for doc, refs in list(dangling.items()):
+        hits = {ref: stems[os.path.splitext(os.path.basename(ref))[0]]
+                for ref in refs
+                if os.path.splitext(os.path.basename(ref))[0] in stems}
+        if hits:
+            renamed[doc] = hits
+            rest = [r for r in refs if r not in hits]
+            if rest:
+                dangling[doc] = rest
+            else:
+                del dangling[doc]
+    proposed = {d: refs for d, refs in dangling.items() if os.path.basename(d) in planning}
+    dangling = {d: refs for d, refs in dangling.items() if d not in proposed}
+    return {"rows": rows, "dangling": dangling, "proposed": proposed, "renamed": renamed}
+
+
+def cmd_docs(args):
+    topo = doc_topology()
+    width = max(len(r["doc"]) for r in topo["rows"])
+    current = None
+    for row in sorted(topo["rows"], key=lambda r: (r["group"], r["doc"])):
+        if row["group"] != current:
+            current = row["group"]
+            print("\n{}".format(current))
+        print("  {:<{w}}  {:>5} lines  {}  named by: {}".format(
+            row["doc"], row["lines"], "ok " if row["exists"] else "MISSING",
+            ", ".join(row["named_by"]) or "— nothing", w=width))
+    if topo["dangling"]:
+        print("\nDANGLING (a navigation/ops doc names a path that does not exist):")
+        for doc, refs in sorted(topo["dangling"].items()):
+            print("  {} -> {}".format(doc, ", ".join(refs)))
+    if topo["renamed"]:
+        print("\nSTALE NAME (the artifact exists under a different extension):")
+        for doc, hits in sorted(topo["renamed"].items()):
+            for ref, actual in sorted(hits.items()):
+                print("  {} says {} — the repo has {}".format(doc, ref, actual))
+    if topo["proposed"]:
+        print("\nnamed-but-unbuilt in planning/ledger docs (expected — proposals):")
+        for doc, refs in sorted(topo["proposed"].items()):
+            print("  {} -> {}".format(doc, ", ".join(refs)))
 
 
 def cmd_map(args):
@@ -888,12 +1165,34 @@ _EDGE_CUES = [
 _LINK_RX = re.compile(r"\[\[([A-Za-z]+\d+)(?:\|([^\]]*))?\]\]")
 
 
+# A cue inside a PASSIVE construction points the other way, and usually names a
+# different subject. "F15 is formally superseded by [[F22]]" means F22 supersedes F15
+# — not that the node whose body this is supersedes F22. The old inference produced
+# exactly that: D4 --supersedes--> F22 and D7 --supersedes--> F22, false on both the
+# direction and the subject, on the node recording the project's central question.
+# Declining to infer (falling back to `relates`) is the honest response: the prose
+# establishes a relation between two OTHER nodes, so nothing about THIS node's edge is
+# determined. Guessing the reverse type would be a second guess on top of the first.
+_PASSIVE_CUE = re.compile(
+    r"\b(?:is|are|was|were|be|been|being)\s+"
+    r"(?:\w+ly\s+|now\s+|already\s+|later\s+|then\s+){0,2}$")
+
+
+def _is_passive(window, pos, cue_len):
+    """True when the cue at `pos` sits in a '<be-verb> ... <cue> by' construction."""
+    if not _PASSIVE_CUE.search(window[:pos]):
+        return False
+    tail = window[pos + cue_len:]
+    return bool(re.match(r"\w*\s+by\b", tail))
+
+
 def _classify_edge(pre):
     """Infer an edge type from the prose immediately preceding a [[link]]. Looks
     only within the current sentence/line (no cross-clause bleed); matches cues on
-    word boundaries with a negation guard ('not'/'un' → skip), and lets a RELIANCE
-    verb win over a closer lineage cue so reliance-on-superseded stays decidable.
-    Returns a canonical type, default 'relates'."""
+    word boundaries with a negation guard ('not'/'un' → skip) and a PASSIVE-voice
+    guard ('X is superseded by [[Y]]' → decline, see _is_passive), and lets a
+    RELIANCE verb win over a closer lineage cue so reliance-on-superseded stays
+    decidable. Returns a canonical type, default 'relates'."""
     brk = max(pre.rfind(". "), pre.rfind("\n"), pre.rfind("; "), pre.rfind("! "))
     window = (pre[brk + 1:] if brk >= 0 else pre)[-90:].lower()
     reliance, other = (-1, None), (-1, None)   # (pos, type) of nearest reliance / lineage cue
@@ -904,6 +1203,8 @@ def _classify_edge(pre):
             if window[max(0, pos - 4):pos].endswith(("not ", "no ")) or \
                     window[max(0, pos - 2):pos] == "un":
                 continue  # negated reference ('not supported', 'unsupported') — not an edge
+            if _is_passive(window, pos, mm.end() - mm.start()):
+                continue  # direction reversed and subject is another node — decline
             if etype in RELIANCE_EDGES:
                 if pos > reliance[0]:
                     reliance = (pos, etype)
@@ -918,6 +1219,44 @@ def _parse_web():
         return {}, {}
     with open(WEB) as f:
         return _parse_web_text(f.read())
+
+
+def _web_text():
+    """The working-tree research web as raw text (duplicate headings intact)."""
+    if not os.path.exists(WEB):
+        return ""
+    with open(WEB, encoding="utf-8") as fh:
+        return fh.read()
+
+
+def duplicate_node_ids(text):
+    """{node_id: count} for every ID declared more than once.
+
+    `_parse_web_text` keys nodes by ID, so a duplicate heading does not error — the
+    later definition REPLACES the earlier one and the first node vanishes from every
+    downstream view. This detects the condition on the raw text, before parsing.
+    """
+    counts = {}
+    hdr = re.compile(r"^###\s+([A-Za-z]+\d+)\s+[—-]\s+")
+    for line in text.splitlines():
+        m = hdr.match(line.rstrip())
+        if m:
+            counts[m.group(1)] = counts.get(m.group(1), 0) + 1
+    return {nid: c for nid, c in counts.items() if c > 1}
+
+
+#: Fenced blocks first, so a ``` block containing single backticks is consumed whole.
+_CODE_SPAN_RX = re.compile(r"```.*?```|``[^`]*``|`[^`\n]*`", re.S)
+
+
+def _code_spans(text):
+    """[(start, end)] of markdown code spans — the web's escape form for its own links.
+
+    A node that writes a link inside backticks is TALKING ABOUT the notation, not using
+    it. Before this existed there was no way to do that: any finding about the web's
+    syntax silently emitted the edges it quoted.
+    """
+    return [(m.start(), m.end()) for m in _CODE_SPAN_RX.finditer(text)]
 
 
 def _parse_web_text(text):
@@ -938,10 +1277,19 @@ def _parse_web_text(text):
     rev = {}
     for nid, n in nodes.items():
         body = n["body"]
+        spans = _code_spans(body)
         edges = {}  # target -> (rank, type); rank: relates=0, cue=1, explicit=2
         for m in _LINK_RX.finditer(body):
             tgt, raw = m.group(1), m.group(2)
             if tgt == nid:
+                continue
+            # A link inside a code span is being DISCUSSED, not asserted. Without this
+            # a node cannot document the web's own notation without rewiring the web:
+            # F239 quoted a broken test fixture verbatim and thereby claimed a
+            # supersession it never meant. Escaping is a pure addition — measured at
+            # the time it was added, zero of the web's 1686 links sat inside a code
+            # span, so no existing edge changed.
+            if any(s <= m.start() and m.end() <= e for s, e in spans):
                 continue
             if raw is not None and raw.strip().lower() in EDGE_TYPES:
                 rank, t = 2, raw.strip().lower()       # explicit, well-formed type wins
@@ -1010,14 +1358,6 @@ def _node_meta(node):
 def _is_superseded(node) -> bool:
     """True if the node is no longer current (superseded or retracted)."""
     return _node_meta(node)["status"] in ("superseded", "retracted")
-
-
-def _is_open_work(nid, node) -> bool:
-    """The "what still needs doing" rule, shared by `ctx web --pending` and the map's
-    open-work view so both agree: a live decision/gate, or a live node whose title is
-    tagged OPEN / IN PROGRESS."""
-    return not _is_superseded(node) and (
-        nid[:1] == "D" or bool(re.match(r"\s*(OPEN|IN PROGRESS)\b", node["title"], re.I)))
 
 
 def _superseder(node):
@@ -1134,11 +1474,20 @@ def cmd_web(args):
     # citing its superseder (the supersession-propagation invariant). Historical/upstream
     # edges (supersedes/contradicts/produces/evidenced_by/resolves) are exempt.
     if getattr(args, "lint", False):
+        # Duplicate headings first, because every check below runs on the PARSED map and
+        # the parser keys nodes by ID — a second `### F1` silently replaces the first, so
+        # a lint that skipped this would validate a graph missing a node it never saw.
+        # (H41: exactly this happened at the 2026-07-06 merge, where a parallel session
+        # on a stale base allocated D7/D8 that were already taken.)
+        dupes = duplicate_node_ids(_web_text())
+        for nid, count in sorted(dupes.items()):
+            print(f"  PROBLEM duplicate: {nid} is defined {count} times — the parser "
+                  f"keeps only the LAST; renumber the later one(s)")
         dangling = [(nid, tgt) for nid, n in nodes.items()
                     for tgt in n["links"] if tgt not in nodes]
         for nid, tgt in dangling:
             print(f"  PROBLEM dangling: {nid} → [[{tgt}]] (no such node)")
-        problems = 0
+        problems = len(dupes)
         for nid, n in nodes.items():
             if _is_superseded(n) and not _superseder(n):
                 print(f"  PROBLEM: superseded node {nid} declares no `by:` superseder "
@@ -1226,8 +1575,12 @@ def cmd_web(args):
         return
 
     if getattr(args, "pending", False):
+        # Open work only: live decisions/gates (D-nodes) + open questions
+        # (titles tagged OPEN / IN PROGRESS). The "what still needs doing" view.
         pend = [nid for nid in sorted(nodes, key=_node_sort_key)
-                if _is_open_work(nid, nodes[nid])]
+                if not _is_superseded(nodes[nid])
+                and (nid[:1] == "D"
+                     or re.match(r"\s*(OPEN|IN PROGRESS)\b", nodes[nid]["title"], re.I))]
         print(f"PENDING — open questions + decisions/gates ({len(pend)}):\n")
         for nid in pend:
             print(f"  {nid:<4} {nodes[nid]['title'][:72]}")
@@ -1437,29 +1790,6 @@ def _n_evidence(node, nodes):
     return cited, corrob
 
 
-def _provenance_paths(start, adj, prefix, maxlen=4, cap=8):
-    """One shortest provenance path per reachable endpoint whose id starts with
-    `prefix` (BFS → the first path found is the shortest). Per-path visited set (not
-    a global one) so a node reachable via several routes isn't suppressed. NEVER
-    traverses a supersedes/contradicts edge — walking into an overturned node and
-    harvesting ITS evidence would attribute a refuted claim's grounding to the node
-    that reverses it (backwards provenance). Returns [[(edge_type, target), …], …].
-    Shared by `ctx why` and the HTML map's evidence chain so both tell one story."""
-    found, q = {}, [(start, [], frozenset([start]))]
-    while q and len(found) < cap:
-        cur, path, vis = q.pop(0)
-        for e in adj.get(cur, []):
-            tgt = e["to"]
-            if e["dir"] != "out" or e["type"] in ("supersedes", "contradicts") or tgt in vis:
-                continue
-            np = path + [(e["type"], tgt)]
-            if tgt[:1] == prefix and tgt[1:2].isdigit():
-                found.setdefault(tgt, np)                # keep first (shortest) per endpoint
-            elif len(np) < maxlen:
-                q.append((tgt, np, vis | {tgt}))
-    return list(found.values())
-
-
 def cmd_why(args):
     """Why believe / where it leads: nearest grounding Experiments (out-edges) and
     the Decisions a node bears on — the provenance path, not a summary. Also reports
@@ -1470,7 +1800,25 @@ def cmd_why(args):
     nodes_web, _ = _parse_web()
 
     def paths_to(prefix, maxlen=4, cap=8):
-        return _provenance_paths(args.node, adj, prefix, maxlen, cap)
+        # One shortest provenance path per reachable endpoint of `prefix` (BFS →
+        # first path found is shortest). Per-path visited (not a global set) so a
+        # node reachable via several routes isn't suppressed. NEVER traverse a
+        # supersedes/contradicts edge — walking into an overturned node and
+        # harvesting ITS evidence would attribute a refuted claim's grounding to
+        # the node that reverses it (backwards provenance).
+        found, q = {}, [(args.node, [], frozenset([args.node]))]
+        while q and len(found) < cap:
+            cur, path, vis = q.pop(0)
+            for e in adj.get(cur, []):
+                tgt = e["to"]
+                if e["dir"] != "out" or e["type"] in ("supersedes", "contradicts") or tgt in vis:
+                    continue
+                np = path + [(e["type"], tgt)]
+                if tgt[:1] == prefix and tgt[1:2].isdigit():
+                    found.setdefault(tgt, np)            # keep first (shortest) per endpoint
+                elif len(np) < maxlen:
+                    q.append((tgt, np, vis | {tgt}))
+        return list(found.values())
 
     def fmt(p):
         return " → ".join(f"{t}:{tgt}" for t, tgt in p)
@@ -1534,98 +1882,35 @@ def cmd_contradicts(args):
     print(f"  ← superseded/contradicted by    {', '.join(_g_label(G, x) for x in inc) or '—'}")
 
 
-_D3_CDN = '<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>'
-_VENDOR_D3 = os.path.join(REPO, "tools", "vendor", "d3.min.js")
-
-
-def _d3_script():
-    """The layout library is the ONE thing the map doesn't inline. Drop a d3 v7 UMD
-    build at tools/vendor/d3.min.js and it gets inlined instead — the page then loads
-    with no network at all (and no CDN sees a request for a private research page).
-    Falls back to the CDN tag, which the page already degrades gracefully without."""
-    try:
-        with open(_VENDOR_D3) as fh:
-            js = fh.read()
-    except OSError:
-        return _D3_CDN
-    if "</script" in js.lower():      # can't inline something that closes our own tag
-        return _D3_CDN
-    return "<script>" + js + "</script>"
-
-
 _GRAPH_HTML = r"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>__PROJECT__ — context map</title>
-__D3__
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <style>
-:root{--bg:#03050a;--map:#02040a;--surf:#0d121d;--tx:#eef3ff;--mut:#a9b4c8;--bd:rgba(210,225,255,.16);--hi:#FAC775;--warn:#F09595}
-*{box-sizing:border-box}html,body{height:100%}
-body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--tx);display:flex;flex-direction:column}
-header{padding:10px 16px;border-bottom:.5px solid var(--bd);flex:0 0 auto}h1{font-size:16px;font-weight:500;margin:0}
+__TOKENS__
+/* Local aliases onto the shared tokens (tools/ui_tokens.py). Aliasing rather than
+   rewriting all thirty rules below keeps the port to one block with no behaviour
+   change: the names on the left are this page's history, the values on the right are
+   the one palette. */
+:root{--bg:var(--plane);--map:var(--plane);--surf:var(--surface);--tx:var(--ink);--mut:var(--ink-muted);--bd:var(--rule);--hi:var(--warning)}
+*{box-sizing:border-box}body{margin:0;font-family:var(--sans);background:var(--bg);color:var(--tx)}
+header{padding:12px 16px;border-bottom:.5px solid var(--bd)}h1{font-size:16px;font-weight:500;margin:0}
 .sub{font-size:12px;color:var(--mut);margin-top:3px}
-.bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 16px;font-size:12px;border-bottom:.5px solid var(--bd);flex:0 0 auto}
+.bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 16px;font-size:12px;border-bottom:.5px solid var(--bd)}
 button{font:inherit;font-size:12px;height:28px;padding:0 9px;border:.5px solid var(--bd);background:transparent;color:var(--tx);border-radius:7px;cursor:pointer}
 button:hover{background:var(--surf)}input{font:inherit;height:28px;padding:0 8px;border:.5px solid var(--bd);background:var(--bg);color:var(--tx);border-radius:7px}
-button:focus-visible,input:focus-visible{outline:1.5px solid var(--hi);outline-offset:1px}
-.sep{width:1px;height:17px;background:var(--bd);margin:0 2px}
-.legend{display:flex;flex-wrap:wrap;gap:12px;padding:6px 16px;font-size:11px;color:var(--mut);border-bottom:.5px solid var(--bd);flex:0 0 auto}
-#stage{display:flex;flex:1 1 auto;min-height:0}
-#wrap{position:relative;flex:1 1 auto;min-width:0;background:var(--map)}svg{display:block;width:100%;height:100%;cursor:grab;background:var(--map)}
-#panel{flex:0 0 392px;max-width:44vw;overflow:auto;border-left:.5px solid var(--bd);background:var(--bg)}
-@media (max-width:900px){#stage{flex-direction:column}#wrap{flex:0 0 54vh}#panel{flex:1 1 auto;max-width:none;border-left:none;border-top:.5px solid var(--bd)}}
+.legend{display:flex;flex-wrap:wrap;gap:12px;padding:6px 16px;font-size:11px;color:var(--mut);border-bottom:.5px solid var(--bd)}
+#wrap{position:relative;background:var(--map)}svg{display:block;width:100%;height:68vh;cursor:grab;background:var(--map)}
 svg.orbiting{cursor:grabbing}
 svg.fast-render .node-label{text-rendering:optimizeSpeed}
 .node-orb{paint-order:fill stroke}
 .node-halo,.node-corona,.node-core{pointer-events:none}
-.node-label{pointer-events:none;text-shadow:0 0 6px #02040a,0 0 12px #02040a}
-#tip{position:absolute;pointer-events:none;opacity:0;background:var(--bg);border:.5px solid var(--bd);border-radius:6px;padding:4px 8px;font-size:11px;line-height:1.35;max-width:330px}
-.tipbody{display:block;margin-top:3px;color:var(--mut);font-size:10.5px;line-height:1.4}
+.node-label{pointer-events:none;text-shadow:0 0 6px var(--plane),0 0 12px var(--plane)}
+#tip{position:absolute;pointer-events:none;opacity:0;background:var(--bg);border:.5px solid var(--bd);border-radius:6px;padding:3px 7px;font-size:11px;max-width:300px}
 #match{color:var(--mut);min-width:72px;text-align:right}
-#detail{padding:12px 14px 30px;font-size:13px;color:var(--mut);line-height:1.45}
+#detail{padding:10px 16px;font-size:13px;color:var(--mut);min-height:58px;max-height:30vh;overflow:auto;border-top:.5px solid var(--bd)}
 .chip{display:inline-flex;align-items:center;gap:3px;height:22px;margin:2px 2px 0 0;padding:0 6px;border-radius:999px;font-size:11px;color:var(--tx);background:var(--surf)}
 .chip .arr{color:var(--mut)}
-/* ── inspector: the node as something you READ, not just a dot you clicked ── */
-.ihead{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
-.iid{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:15px;font-weight:600;color:var(--tx)}
-.ikind{font-size:11px;color:var(--mut);border:.5px solid var(--bd);border-radius:999px;padding:1px 7px}
-.badge{font-size:11px;border-radius:999px;padding:1px 7px;border:.5px solid;white-space:nowrap}
-.badge.bad{color:var(--warn);border-color:rgba(240,149,149,.5)}
-.badge.open{color:var(--hi);border-color:rgba(250,199,117,.42)}
-.ititle{color:var(--tx);font-size:14px;line-height:1.35;margin-top:7px}
-.facts{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
-.fact{font-size:11px;color:var(--mut);background:var(--surf);border-radius:6px;padding:2px 7px;white-space:nowrap}
-.fact b{color:var(--tx);font-weight:600}
-.warn{margin-top:9px;padding:7px 9px;border-radius:8px;font-size:12px;line-height:1.4;color:var(--warn);background:rgba(240,149,149,.09);border:.5px solid rgba(240,149,149,.34)}
-.prose{margin-top:10px;font-size:12.5px;line-height:1.52;overflow-wrap:anywhere}
-.prose p{margin:0 0 7px}.prose ul{margin:0 0 7px;padding-left:17px}.prose li{margin:1px 0}
-.prose b{color:var(--tx)}
-.prose code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--hi);background:var(--surf);border-radius:4px;padding:0 3px}
-.sec{margin-top:11px;padding-top:9px;border-top:.5px solid var(--bd)}
-.sec h3{margin:0 0 5px;font-size:11px;font-weight:600;color:var(--tx);letter-spacing:.06em;text-transform:uppercase}
-.chain{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;line-height:1.5;margin-bottom:2px;overflow-wrap:anywhere}
-.chain .et{color:#79839a}
-.wl{height:auto;padding:0 4px;border-radius:5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;line-height:1.35;color:var(--hi);border-color:rgba(250,199,117,.3)}
-.wl.gone{color:var(--mut);border-style:dashed;cursor:default}
-.empty{font-size:12px;font-style:italic;opacity:.75}
-.res{display:block;width:100%;height:auto;margin:0 0 4px;padding:6px 8px;text-align:left;font-size:12px;line-height:1.4;color:var(--mut);border-radius:8px}
-.res b{color:var(--tx);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-.res .snip{display:block;margin-top:3px;font-size:11.5px;opacity:.82;overflow-wrap:anywhere}
-mark{background:rgba(250,199,117,.24);color:var(--hi);border-radius:3px;padding:0 1px}
-.rel{display:inline-flex;align-items:center;gap:5px;margin:0 3px 3px 0}
-.rel .sc{font-size:10px;color:var(--mut);font-variant-numeric:tabular-nums}
-.kgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));gap:5px;margin-top:9px}
-.kcell{background:var(--surf);border-radius:7px;padding:6px 8px;font-size:11px}
-.kcell b{display:block;color:var(--tx);font-size:15px;font-weight:600;line-height:1.2}
-#help{position:fixed;right:16px;bottom:16px;max-width:330px;z-index:9;display:none;padding:11px 13px;border-radius:10px;font-size:12px;line-height:1.6;color:var(--mut);background:var(--surf);border:.5px solid var(--bd);box-shadow:0 12px 44px rgba(0,0,0,.62)}
-#help.on{display:block}
-kbd{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--tx);background:var(--bg);border:.5px solid var(--bd);border-radius:4px;padding:0 4px}
-#fallback{display:none;position:absolute;inset:0;overflow:auto;padding:14px 16px;background:var(--map)}
-#fallback.on{display:block}
-#wrap.offline{flex:1 1 auto;min-height:62vh}
-.offline{margin-bottom:10px;padding:8px 10px;border-radius:8px;font-size:12px;line-height:1.45;color:var(--hi);background:rgba(250,199,117,.08);border:.5px solid rgba(250,199,117,.3)}
-.frow{display:block;width:100%;height:auto;margin:1px 0;padding:3px 7px;border:none;text-align:left;font-size:12px;color:var(--mut)}
-.frow b{color:var(--tx);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:600}
-.fgrp{margin:11px 0 3px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--tx)}
 .explore{margin-top:9px;padding-top:8px;border-top:.5px solid var(--bd)}
 .explore-head{display:flex;align-items:center;gap:8px;margin-bottom:6px;color:var(--tx);font-size:12px;font-weight:600}
 .prompts{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:6px}
@@ -1638,30 +1923,43 @@ kbd{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color
 .ln{display:inline-block;width:14px;height:0;border-top:2px solid;vertical-align:3px;margin-right:4px}
 </style></head><body>
 <header><h1>__PROJECT__ · context map</h1><div class="sub">research web &cup; idea&harr;code bridges &cup; auto-extracted code graph — generated by <code>ctx graph --html</code></div></header>
-<div class="bar"><span id="pills"></span><span class="sep"></span><span id="presets"></span><input id="q" placeholder="search titles &amp; prose…" style="margin-left:auto;width:190px"><span id="match" role="status" aria-live="polite"></span><button id="flat">flat</button><button id="fit">fit</button><button id="reset">reset</button><button id="helpbtn" title="keyboard shortcuts" aria-label="keyboard shortcuts">?</button></div>
+<div class="bar"><span id="pills"></span><input id="q" placeholder="search…" style="margin-left:auto;width:170px"><span id="match"></span><button id="flat">flat</button><button id="fit">fit</button><button id="reset">reset</button></div>
 <div class="legend" id="legend"></div>
-<div id="stage">
- <div id="wrap"><svg id="svg" aria-label="Context map — interactive force graph"></svg><div id="tip" role="tooltip"></div><div id="fallback"></div></div>
- <aside id="panel" aria-label="Node inspector"><div id="detail"></div></aside>
-</div>
-<div id="help"><b style="color:var(--tx)">Keyboard</b>
-<div><kbd>/</kbd> search &nbsp; <kbd>Enter</kbd> next match &nbsp; <kbd>&#8679;Enter</kbd> prev</div>
-<div><kbd>n</kbd>/<kbd>p</kbd> cycle matches &nbsp; <kbd>Esc</kbd> clear</div>
-<div><kbd>f</kbd> fit &nbsp; <kbd>g</kbd> flat view &nbsp; <kbd>r</kbd> reset &nbsp; <kbd>?</kbd> this help</div>
-<div style="margin-top:6px"><kbd>&#8679;drag</kbd> orbit the map &nbsp; drag a node to pin it</div>
-<div style="margin-top:6px">Deep-link any node by appending <code>#F13</code> to the URL.</div></div>
+<div id="offline" style="display:none;padding:14px 16px;margin:12px 16px;border-left:3px solid var(--warning);border-radius:0 8px 8px 0;background:var(--surface);color:var(--ink-2);font-size:13px;line-height:1.5"><b>The graph could not be drawn.</b> This page loads d3 from <code>cdnjs.cloudflare.com</code>, and that request did not succeed — so the map is empty, not empty-of-content. Common cause: no outbound network (this repo is often run network-blocked). The node data IS present in this page; only the layout library is missing.</div>
+<div id="wrap"><svg id="svg"></svg><div id="tip"></div></div>
+<div id="detail">Select a node to inspect its neighbours and explore prompts.</div>
 <script>
-main:{
+/* Fail loud when the CDN is unreachable. Without this the page renders its whole
+   chrome — header, legend, controls — over an empty canvas, which reads as 'the
+   graph has no nodes' rather than 'the layout library never loaded'. Same absence
+   -flag family as F155/F159/F188/F204: a thing that is off looks like a thing that
+   is fine. */
+if (typeof d3 === 'undefined') {
+  document.getElementById('offline').style.display = 'block';
+  document.getElementById('wrap').style.display = 'none';
+  throw new Error('d3 failed to load from the CDN — see the banner above');
+}
 const D=__DATA__;
-const dark=true;
-const COL=dark?{F:'#5DCAA5',H:'#EF9F27',E:'#AFA9EC',D:'#F0997B',area:'#85B7EB',module:'#9a988f',config:'#97C459',code:'#85B7EB'}
-              :{F:'#1D9E75',H:'#BA7517',E:'#7F77DD',D:'#D85A30',area:'#185FA5',module:'#888780',config:'#639922',code:'#378ADD'};
+/* THE LIGHT PALETTE BELOW WAS ALREADY WRITTEN AND UNREACHABLE. Every colour here was
+   authored as `dark ? <dark> : <light>` and then pinned by `const dark=true`, so the
+   light half had never rendered — the same dead-lever shape as F145's no-reader knobs
+   and F224's compute-only flag, one layer up in the UI. Binding `dark` to the
+   environment is what makes the existing half reachable; no new colours were invented. */
+const _mq=window.matchMedia('(prefers-color-scheme: dark)');
+function themePref(){const a=document.documentElement.getAttribute('data-theme');return a?a==='dark':_mq.matches;}
+let dark=themePref();
+let COL,SUP,STROKE,MUT;
+function themeColors(){
+  COL=dark?{F:'#5DCAA5',H:'#EF9F27',E:'#AFA9EC',D:'#F0997B',area:'#85B7EB',module:'#9a988f',config:'#97C459',code:'#85B7EB'}
+          :{F:'#1D9E75',H:'#BA7517',E:'#7F77DD',D:'#D85A30',area:'#185FA5',module:'#888780',config:'#639922',code:'#378ADD'};
+  SUP=dark?'#6f6e6a':'#a8a7a0'; STROKE=dark?'#1b1b19':'#fff'; MUT=dark?'#a8a79f':'#5f5e5a';
+}
+themeColors();
 const LBL={F:'Findings',H:'Hypotheses',E:'Experiments',D:'Decisions',area:'Code areas',module:'Modules',config:'Config keys',code:'Code symbols'};
-const SUP=dark?'#6f6e6a':'#a8a7a0', STROKE=dark?'#1b1b19':'#fff', MUT=dark?'#a8a79f':'#5f5e5a';
 const idea=new Set(['F','H','E','D','area']);
 const Z={D:95,F:75,H:55,E:45,code:28,config:12,module:-45,area:-75};
 const nodes=D.n.map((d,i)=>({i,id:d[0],k:D.k[d[1]],sup:d[2],title:d[3]||d[0].replace(/^(mod|cfg|code):/,'')}));
-const links=D.e.map(e=>({source:e[0],target:e[1],tn:D.t[e[2]]}));
+const links=D.e.map((e,i)=>({_i:i,source:e[0],target:e[1],tn:D.t[e[2]]}));
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function ecol(t){if(t==='supersedes'||t==='contradicts')return dark?'#F09595':'#E24B4A';if(t==='concerns'||t==='gated_by')return dark?'#85B7EB':'#185FA5';if(t==='imports')return dark?'#5f5e5a':'#b4b2a9';return dark?'#403f3a':'#cdcbc2';}
 function edash(t){return (t==='evidenced_by'||t==='produces'||t==='derived_from'||t==='concerns'||t==='reads_config')?'3,3':null;}
@@ -1670,199 +1968,56 @@ function labelText(n){return idea.has(n.k)?n.id.replace('area:',''):'';}
 function labelFont(n){return n.k==='area'?11:10;}
 function orbPath(n){const r=rad(n),c=r*.55228475,f=v=>v.toFixed(2);return 'M0,'+f(-r)+'C'+f(c)+','+f(-r)+' '+f(r)+','+f(-c)+' '+f(r)+',0C'+f(r)+','+f(c)+' '+f(c)+','+f(r)+' 0,'+f(r)+'C'+f(-c)+','+f(r)+' '+f(-r)+','+f(c)+' '+f(-r)+',0C'+f(-r)+','+f(-c)+' '+f(-c)+','+f(-r)+' 0,'+f(-r)+'Z';}
 const adj={};nodes.forEach(n=>adj[n.i]=new Set());links.forEach(l=>{adj[l.source].add(l.target);adj[l.target].add(l.source);});
-// Typed neighbours built from the RAW payload, not from `links` — d3's forceLink
-// rewrites link.source/target into node objects, and the offline path never runs it.
-const nbrs={};nodes.forEach(n=>nbrs[n.i]=[]);
-D.e.forEach(e=>{nbrs[e[0]].push([e[1],D.t[e[2]],'→']);nbrs[e[1]].push([e[0],D.t[e[2]],'←']);});
-const byId={};nodes.forEach(n=>byId[n.id]=n.i);
-const DET=D.d||{},SUM=D.s||{};
-// One lowercased haystack per node so search covers the PROSE, not just labels — and
-// so hit-testing (called per node per frame) never re-scans a body.
-const hay=nodes.map(n=>(n.id+' '+n.title+' '+((DET[n.id]||{}).body||'')).toLowerCase());
-let hitSet=new Set();
-const on={};Object.keys(LBL).forEach(k=>on[k]=true);on._sup=true;
-const KINDS={idea:['F','H','E','D'],code:['area','module','config','code']};
-function det(h){document.getElementById('detail').innerHTML=h;}
-function nodeLink(id,label){const i=byId[id];return i===undefined?'<button class="wl gone" disabled title="not in this map">'+esc(label||id)+'</button>'
- :'<button class="wl" data-node="'+i+'">'+esc(label||id)+'</button>';}
-// Bodies arrive HTML-escaped from Python (once) — re-escaping here would render '&amp;'.
-// Light markdown only: code spans are split out FIRST so ** inside `code` stays literal.
-function inline(t){return t.split(/(`[^`]+`)/).map(part=>part.startsWith('`')&&part.endsWith('`')&&part.length>1
- ?'<code>'+part.slice(1,-1)+'</code>'
- :part.replace(/\[\[([A-Za-z]+\d+)(?:\|[^\]]*)?\]\]/g,(m,id)=>nodeLink(id))
-      .replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>')
-      .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>')
-      .replace(/\[([^\]]+)\]\([^)\s]+\)/g,'$1')).join('');}
-// Research prose is soft-wrapped at ~90 columns, so a single newline is NOT a paragraph
-// break — rejoin those lines or every claim renders as five stubby paragraphs.
-function renderProse(txt){if(!txt)return '';const out=[];
- txt.split(/\n{2,}/).forEach(block=>{let para=[],list=null;
-  const flush=()=>{if(para.length){out.push('<p>'+inline(para.join(' '))+'</p>');para=[];}};
-  block.split('\n').forEach(ln=>{const li=ln.match(/^\s*[-*•]\s+(.*)$/);
-   if(li){flush();if(!list){list=[];out.push(list);}list.push('<li>'+inline(li[1])+'</li>');}
-   else if(ln.trim()){list=null;para.push(ln.trim());}});
-  flush();});
- return '<div class="prose">'+out.map(x=>Array.isArray(x)?'<ul>'+x.join('')+'</ul>':x).join('')+'</div>';}
-// Hops are "edgetype:TARGET" — split on the FIRST colon only, since a bridge target can
-// itself be namespaced ('code:src/x.py::fn', 'cfg:KEY').
-function chainHTML(paths){if(!paths||!paths.length)return '<div class="empty">—</div>';
- return paths.map(p=>'<div class="chain">'+p.split('|').map(h=>{const c=h.indexOf(':');
-  return '<span class="et">'+esc(h.slice(0,c))+'</span>&nbsp;'+nodeLink(h.slice(c+1));}).join(' <span class="et">›</span> ')+'</div>').join('');}
-function statusWarning(id,d){const w=[];
- if(d.status!=='current'){const by=d.by?' by '+d.by:'';
-  w.push(d.reason==='inverted'||d.reason==='reversed'
-   ?'⚠ '+d.status.toUpperCase()+by+' — INVERTED: the conclusion was reversed to the OPPOSITE, not merely refined. Do not cite this as support.'
-   :'⚠ '+d.status.toUpperCase()+by+(d.reason?' ('+d.reason+')':'')+' — read the replacement before relying on this.');}
- if(d.disputed)w.push('⚠ DISPUTED: contradicted by '+d.disputed.join(', ')+' (a later current finding) — verify before relying on it.');
- if(d.fragile)w.push('⚠ FRAGILE: this leans on '+d.fragile.join(', ')+', which later work contradicts — disputed ground.');
- return w.map(t=>'<div class="warn">'+esc(t).replace(/([FHED]\d+)/g,m=>byId[m]!==undefined?nodeLink(m):m)+'</div>').join('');}
-function factsHTML(id,d){const f=[];
- if(d.conf!==undefined)f.push('stated conf <b>'+d.conf.toFixed(2)+'</b>');
- // Effective confidence = the weakest link in the reliance chain; naming that link is
- // the whole point, so say WHICH claim caps this one (or that the node itself is it).
- if(d.eff!==undefined)f.push('effective <b>'+d.eff.toFixed(2)+'</b>'+(d.bott?(d.bott===id?' (self is the weakest link)':' · capped by '+esc(d.bott)):''));
- if(d.at)f.push('dated <b>'+esc(d.at)+'</b>');
- f.push('<b>'+d.cited+'</b> evidence · <b>'+d.corrob+'</b> support'+(d.corrob===1?'':'s'));
- return '<div class="facts">'+f.map(x=>'<span class="fact">'+x+'</span>').join('')+'</div>';}
-function neighborHTML(i){const by={};nbrs[i].forEach(([j,t,a])=>{(by[t]=by[t]||new Map()).set(a+nodes[j].id,[j,a]);});
- const ks=Object.keys(by).sort();if(!ks.length)return '';
- return '<div class="sec"><h3>Links</h3>'+ks.map(k=>'<div style="margin-bottom:3px"><b style="color:var(--tx);font-size:11px">'+esc(k)+'</b> '
-  +[...by[k].values()].map(([j,a])=>'<button class="chip" data-node="'+j+'"><span class="arr">'+a+'</span>'+esc(nodes[j].id)+'</button>').join('')+'</div>').join('')+'</div>';}
-function overviewHTML(){const k=SUM.kinds||{},cells=Object.keys(LBL).filter(x=>k[x]).map(x=>
-  '<div class="kcell" style="border-left:2px solid '+COL[x]+'"><b>'+k[x]+'</b>'+esc(LBL[x])+'</div>').join('');
- return '<div class="ihead"><span class="iid">'+esc(SUM.nodes||nodes.length)+' nodes</span><span class="ikind">'+esc(SUM.rev||'')+'</span></div>'
-  +'<div class="ititle">Pick a node to read it — its prose, what grounds it, and what it bears on.</div>'
-  +'<div class="facts"><span class="fact"><b>'+(SUM.research||0)+'</b> research nodes</span>'
-  +'<span class="fact"><b>'+(SUM.superseded||0)+'</b> superseded</span>'
-  +'<span class="fact"><b>'+(SUM.open||0)+'</b> open</span>'
-  +(SUM.latest?'<span class="fact">newest dated <b>'+esc(SUM.latest)+'</b></span>':'')+'</div>'
-  +'<div class="kgrid">'+cells+'</div>'
-  +'<div class="sec"><h3>Decisions — start here</h3>'
-  +(nodes.filter(n=>n.k==='D').sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}))
-     .map(n=>'<div style="margin:2px 0">'+nodeLink(n.id)+' <span'+(n.sup?' style="opacity:.5"':'')+'>'+n.title+'</span></div>').join('')||'<div class="empty">—</div>')
-  +'</div>'+openWorkHTML()
-  +'<div class="sec"><h3>Getting around</h3><div style="font-size:12px;line-height:1.6">'
-  +'Search runs over titles <i>and</i> body prose, and lists the matches with context. '
-  +'<kbd>?</kbd> lists the shortcuts. Turn whole layers on and off with the '
-  +'<b>ideas</b>/<b>code</b>/<b>all</b> presets.</div></div>';}
-// Open work = live decisions/gates + nodes titled OPEN / IN PROGRESS (the same rule
-// `ctx web --pending` uses). This is the "what still needs doing" list.
-function openWorkHTML(){const open=nodes.filter(n=>(DET[n.id]||{}).open&&n.k!=='D');
- if(!open.length)return '';
- return '<div class="sec"><h3>Open questions ('+open.length+')</h3>'
-  +open.sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true})).slice(0,25)
-   .map(n=>'<div style="margin:2px 0">'+nodeLink(n.id)+' <span>'+n.title+'</span></div>').join('')
-  +(open.length>25?'<div class="empty">… and '+(open.length-25)+' more — search or use the map</div>':'')+'</div>';}
-function relatedHTML(d){if(!d.rel||!d.rel.length)return '';
- return '<div class="sec"><h3>Related by content</h3>'
-  +d.rel.map(([id,s])=>'<span class="rel">'+nodeLink(id)+'<span class="sc">'+s.toFixed(2)+'</span></span>').join('')
-  +'<div class="empty" style="margin-top:3px">TF-IDF similarity — connections nobody wrote a link for.</div></div>';}
-function inspectHTML(i){const n=nodes[i],d=DET[n.id];
- let h=(query?'<button class="wl" data-back="1">&larr; '+matches.length+' search result'+(matches.length===1?'':'s')+'</button>':'')
-  +'<div class="ihead"><span class="iid">'+esc(n.id)+'</span><span class="ikind">'+esc(LBL[n.k]||n.k)+'</span>'
-  +(n.sup?'<span class="badge bad">'+esc((d&&d.status)||'superseded')+'</span>':'')
-  +(d&&d.open?'<span class="badge open">open work</span>':'')
-  +'<button class="wl" data-copylink="'+esc(n.id)+'" title="copy a deep link to this node">link</button></div>'
-  +'<div class="ititle">'+(n.title||esc(n.id))+'</div>';
- if(!d)return h+'<div class="facts"><span class="fact">code-layer node — no research prose</span></div>'+neighborHTML(i);
- h+=factsHTML(n.id,d)+statusWarning(n.id,d)
-  +(d.body.trim()?renderProse(d.body):'<div class="prose empty">No body text — the title above is the whole node.</div>');
- h+='<div class="sec"><h3>Grounded in (experiments)</h3>'+chainHTML(d.grounded)+'</div>';
- h+='<div class="sec"><h3>Bears on (decisions)</h3>'+chainHTML(d.bears)+'</div>';
- return h+relatedHTML(d)+neighborHTML(i);}
-// Search shows a RANKED LIST with the matching prose, not just dimmed dots you cycle
-// through one Enter at a time — the query usually matches text you can't see on the map.
-function markSnippet(n,q){const body=(DET[n.id]||{}).body||'',hay2=body.toLowerCase(),i=hay2.indexOf(q);
- if(i<0)return '';
- const s=Math.max(0,i-70),e=Math.min(body.length,i+q.length+110);
- const pre=(s>0?'… ':'')+body.slice(s,i),hit=body.slice(i,i+q.length),post=body.slice(i+q.length,e)+(e<body.length?' …':'');
- // Bodies are escaped HTML; never split an entity with the <mark> wrapper.
- const split=/&[#\w]*$/.test(pre)||/^[#\w]*;/.test(post);
- return plainish((split?pre+hit+post:pre+'<mark>'+hit+'</mark>'+post));}
-// A snippet is a preview, not a document: drop the markdown scaffolding so '**94–100%**'
-// and '[[F13|supersedes]]' read as text instead of as source.
-function plainish(s){return s.replace(/\[\[([A-Za-z]+\d+)(?:\|[^\]]*)?\]\]/g,'$1')
- .replace(/\*\*/g,'').replace(/`/g,'').replace(/\s*\n+\s*/g,' ');}
-function resultsHTML(){
- if(!matches.length)return '<div class="ihead"><span class="iid">no matches</span><span class="ikind">'+esc(query)+'</span></div>'
-  +'<div class="ititle">Nothing in the visible layers mentions that.</div>'
-  +'<div class="prose">Search covers node ids, titles and body prose. Try a shorter term, or widen the '
-  +'<b>ideas</b>/<b>code</b>/<b>all</b> presets — hidden layers are excluded from results.</div>';
- return '<div class="ihead"><span class="iid">'+matches.length+' match'+(matches.length===1?'':'es')+'</span>'
-  +'<span class="ikind">'+esc(query)+'</span></div>'
-  +'<div class="sec">'+matches.slice(0,60).map(n=>'<button class="res" data-node="'+n.i+'"><b>'+esc(n.id)+'</b> '
-   +(n.title||'')+(n.sup?' <span class="badge bad">superseded</span>':'')
-   +'<span class="snip">'+markSnippet(n,query)+'</span></button>').join('')
-  +(matches.length>60?'<div class="empty">… '+(matches.length-60)+' more — narrow the query</div>':'')+'</div>';}
-// One click handler for the inspector, shared by the graph and the offline list: copy a
-// prompt, or follow a [[wiki-link]] / neighbour chip. `nav` differs because only the
-// graph view can fly the camera to the node.
-function panelClick(ev,nav){const c=ev.target.closest('[data-copy]');
- if(c){copyText(promptBank[+c.dataset.copy]||'',c);return;}
- const l=ev.target.closest('[data-copylink]');
- if(l){copyText(location.origin+location.pathname+location.search+'#'+l.dataset.copylink,l);return;}
- if(ev.target.closest('[data-back]')){nav(null);return;}
- const b=ev.target.closest('[data-node]');if(b&&!b.disabled)nav(+b.dataset.node);}
-// If the d3 CDN is unreachable (offline Pi, locked-down network) the force-graph can't
-// run — but every word of the research web is already inlined in this page, so degrade
-// to a searchable list + the same inspector instead of showing an empty black rectangle.
-function offlineFallback(){
- const el=document.getElementById('fallback');el.classList.add('on');
- document.getElementById('wrap').classList.add('offline');
- document.getElementById('svg').style.display='none';
- const groups=Object.keys(LBL).filter(k=>nodes.some(n=>n.k===k));
- el.innerHTML='<div class="offline"><b>Offline mode.</b> The d3 bundle (loaded from a CDN) is unreachable, '
-  +'so the force-graph can’t render — the research text below is unaffected. '
-  +'Everything here is inlined in this page; only the layout library is remote.</div>'
-  +'<input id="fq" placeholder="filter nodes…" style="width:100%;margin-bottom:4px">'
-  +groups.map(k=>'<div class="fgrp" style="color:'+COL[k]+'">'+esc(LBL[k])+'</div>'
-   +nodes.filter(n=>n.k===k).map(n=>'<button class="frow" data-node="'+n.i+'"><b>'+esc(n.id)+'</b> '
-    +(n.title||'')+(n.sup?' <span style="color:var(--warn)">·superseded</span>':'')+'</button>').join('')).join('');
- renderPanel(null);
- el.addEventListener('input',ev=>{if(ev.target.id!=='fq')return;const q=ev.target.value.trim().toLowerCase();
-  el.querySelectorAll('.frow').forEach(b=>{b.style.display=!q||hay[+b.dataset.node].includes(q)?'':'none';});});
- el.addEventListener('click',ev=>panelClick(ev,i=>renderPanel(i)));
- document.getElementById('detail').addEventListener('click',ev=>panelClick(ev,i=>renderPanel(i)));
- document.getElementById('q').addEventListener('input',ev=>{const f=document.getElementById('fq');
-  if(f){f.value=ev.target.value;f.dispatchEvent(new Event('input',{bubbles:true}));}});
-}
-let sel=null,query='',matches=[],matchAt=-1,promptBank=[],orbit={rx:0,ry:0},orbitDrag=null,blockClick=false,orbitAnim=null,cruiseAnim=null,cruise=null,fastRender=true,fastTimer=null,renderFrame=0,suppressZoomLabel=false,simSettling=true;
-if(!window.d3){offlineFallback();break main;}
+/* incident-link index, built while source/target are still numeric indices (d3
+   forceLink rewrites them to node objects once the simulation is constructed). */
+const incid={};nodes.forEach(n=>incid[n.i]=[]);links.forEach(l=>{incid[l.source].push(l);incid[l.target].push(l);});
+/* module + config nodes are 33% of the graph and 19% of the edges, and they are   scaffolding rather than research content — default them OFF so the map opens on the   idea web. Both pills toggle them straight back on. */const on={};Object.keys(LBL).forEach(k=>on[k]=true);on._sup=true;on.module=false;on.config=false;let visNodes=nodes,visLinks=links;function recomputeVisible(){visNodes=nodes.filter(vis);visLinks=links.filter(l=>vis(l.source)&&vis(l.target));for(let i=0;i<visNodes.length;i++){const n=visNodes[i];if(!n.p)n.p=projectNode(n);}}
 const svg=d3.select('#svg'),svgEl=document.getElementById('svg');
-svg.append('defs').html("<filter id='orbGlow' x='-100%' y='-100%' width='300%' height='300%'><feGaussianBlur in='SourceGraphic' stdDeviation='1.8' result='blur'/><feMerge><feMergeNode in='blur'/><feMergeNode in='SourceGraphic'/></feMerge></filter><filter id='orbGlowStrong' x='-140%' y='-140%' width='380%' height='380%'><feGaussianBlur in='SourceGraphic' stdDeviation='3.2' result='blur'/><feMerge><feMergeNode in='blur'/><feMergeNode in='blur'/><feMergeNode in='SourceGraphic'/></feMerge></filter><filter id='orbHalo' x='-220%' y='-220%' width='540%' height='540%'><feGaussianBlur in='SourceGraphic' stdDeviation='5.2' result='blur'/><feMerge><feMergeNode in='blur'/></feMerge></filter>");
+/* MEASURED, DO NOT RE-TRY WITHOUT NEW EVIDENCE (Chromium, software-rendered   container, 363 visible nodes, rotating the orbit so every node moves each frame):   stripping ALL feGaussianBlur filters lifts 6.8 -> 8.0 fps, i.e. the blur is ~16% of   frame time. Replacing the halo+corona blur with radialGradient bloom fills was built   and measured at 7.0 -> 7.2 fps (inside run-to-run noise: runs overlapped 6.7-7.2 vs   6.9-8.1) because the gradient fills cost their own paint time — while visibly   flattening the orbs from a luminous bloom to dim rings. Reverted: real visual cost,   no reliable gain. The dominant frame cost is SVG element count (~124ms of a ~148ms   frame with filters entirely absent), not the filters. The lever that DID work was   hiding module/config by default, which removes 33% of nodes and 19% of edges. */svg.append('defs').html("<filter id='orbGlow' x='-100%' y='-100%' width='300%' height='300%'><feGaussianBlur in='SourceGraphic' stdDeviation='1.8' result='blur'/><feMerge><feMergeNode in='blur'/><feMergeNode in='SourceGraphic'/></feMerge></filter><filter id='orbGlowStrong' x='-140%' y='-140%' width='380%' height='380%'><feGaussianBlur in='SourceGraphic' stdDeviation='3.2' result='blur'/><feMerge><feMergeNode in='blur'/><feMergeNode in='blur'/><feMergeNode in='SourceGraphic'/></feMerge></filter><filter id='orbHalo' x='-220%' y='-220%' width='540%' height='540%'><feGaussianBlur in='SourceGraphic' stdDeviation='5.2' result='blur'/><feMerge><feMergeNode in='blur'/></feMerge></filter>");
 const g=svg.append('g');
 let W=svgEl.clientWidth||900,H=svgEl.clientHeight||560,zt=d3.zoomIdentity;
 const link=g.append('g').selectAll('line').data(links).join('line').attr('fill','none')
  .attr('stroke',d=>ecol(d.tn)).attr('stroke-width',d=>(d.tn==='supersedes'||d.tn==='contradicts')?1.8:1)
  .attr('stroke-dasharray',d=>edash(d.tn));
 const node=g.append('g').selectAll('g').data(nodes).join('g').attr('class','node').attr('data-id',d=>d.id).style('cursor','pointer');
-node.append('path').attr('class','node-halo').attr('d',orbPath).attr('fill',d=>d.sup?SUP:COL[d.k]).attr('opacity',d=>d.sup?0.16:0.3).attr('filter','url(#orbHalo)').attr('transform','scale(2.65)');
+/* The orbs were near-unhittable: at the default zoom (k~0.37) a 6px-radius orb is   ~2px on screen, so elementFromPoint at an orb returned the <svg>. Grabs therefore   missed the node, fell through to d3.zoom, and PANNED the whole canvas — which reads   as 'grabbing an orb moves all the orbs'. A transparent hit disc gives every node a   real target for drag, click and tooltip. */node.append('path').attr('class','node-hit').attr('d',orbPath).attr('fill','transparent').attr('pointer-events','all').attr('transform',d=>'scale('+(Math.max(16,rad(d)*3)/rad(d)).toFixed(3)+')');node.append('path').attr('class','node-halo').attr('d',orbPath).attr('fill',d=>d.sup?SUP:COL[d.k]).attr('opacity',d=>d.sup?0.16:0.3).attr('filter','url(#orbHalo)').attr('transform','scale(2.65)');
 node.append('path').attr('class','node-corona').attr('d',orbPath).attr('fill',d=>d.sup?SUP:COL[d.k]).attr('opacity',d=>d.sup?0.24:0.56).attr('filter','url(#orbGlow)').attr('transform','scale(1.5)');
 node.append('path').attr('class','node-orb mark').attr('d',orbPath).attr('fill',d=>d.sup?SUP:COL[d.k]).attr('stroke','none').attr('opacity',d=>d.sup?0.58:0.86).attr('filter','url(#orbGlow)');
-node.append('path').attr('class','node-core').attr('d',orbPath).attr('fill',d=>d.sup?'#d7d2c2':'#fff6c7').attr('opacity',d=>d.sup?0.3:0.72).attr('filter','url(#orbGlow)').attr('transform','scale(.34)');
+node.append('path').attr('class','node-core').attr('d',orbPath).attr('fill',d=>d.sup?(dark?'#d7d2c2':'#5f5e5a'):(dark?'#fff6c7':'#3a3730')).attr('opacity',d=>d.sup?0.3:0.72).attr('filter','url(#orbGlow)').attr('transform','scale(.34)');
 node.append('text').attr('class','node-label').text(labelText).attr('dominant-baseline','middle')
  .attr('font-size',d=>labelFont(d)+'px').attr('fill',d=>d.k==='area'?COL.area:MUT).attr('font-family','ui-monospace,monospace');
+const nodeEls=node.nodes(),linkEls=link.nodes();
+/* A drag moves exactly ONE node, but render() rewrote all ~540 node transforms and
+   all ~1490 links x4 attrs (~7.5k DOM writes) every frame. This touches only the
+   dragged orb and its incident edges — writes drop to 1+4*degree. */
+function renderDragged(d){d.p=projectNode(d);const ne=nodeEls[d.i];if(ne)ne.setAttribute('transform','translate('+d.p.x+','+d.p.y+') scale('+d.p.s+')');const ls=incid[d.i]||[];for(let i=0;i<ls.length;i++){const l=ls[i],le=linkEls[l._i];if(!le)continue;const sN=l.source,tN=l.target;if(!sN.p)sN.p=projectNode(sN);if(!tN.p)tN.p=projectNode(tN);le.setAttribute('x1',sN.p.x);le.setAttribute('y1',sN.p.y);le.setAttribute('x2',tN.p.x);le.setAttribute('y2',tN.p.y);}}
 const tip=d3.select('#tip');
 node.on('mousemove',(ev,d)=>showTip(ev,d)).on('mouseleave',()=>tip.style('opacity',0));
+let sel=null,query='',matches=[],matchAt=-1,promptBank=[],orbit={rx:0,ry:0},orbitDrag=null,blockClick=false,orbitAnim=null,cruiseAnim=null,cruise=null,fastRender=true,fastTimer=null,renderFrame=0,suppressZoomLabel=false,simSettling=true,dragging=false;
 svgEl.classList.add('fast-render');svgEl.dataset.fastRender='1';
 node.on('click',(ev,d)=>{ev.stopPropagation();if(blockClick){blockClick=false;return;}selectNode(sel===d.i?null:d.i,true);});
 svg.on('click',()=>{if(blockClick){blockClick=false;return;}selectNode(null,false);});
+function det(h){document.getElementById('detail').innerHTML=h;}
 function vis(n){return on[n.k]&&(on._sup||!n.sup);}
-// hit() is called per node per animation frame — resolve the query ONCE into a set
-// (recomputeHits) rather than re-scanning every node's prose on every tick.
-function hit(n){return hitSet.has(n.i);}
-function recomputeHits(){hitSet=new Set();if(!query)return;for(let i=0;i<hay.length;i++)if(hay[i].includes(query))hitSet.add(i);}
-// Rank matches so a hit on the id/title outranks a hit buried in prose, and research
-// nodes outrank the auto-extracted code layer. Also the order `n`/`p` cycle through.
-function matchRank(n){return ((n.id+' '+n.title).toLowerCase().includes(query)?0:2)+(idea.has(n.k)?0:1);}
-function updateMatches(){matches=query?nodes.filter(n=>vis(n)&&hit(n)).sort((a,b)=>matchRank(a)-matchRank(b)||a.i-b.i):[];document.getElementById('match').textContent=query?(matches.length+' match'+(matches.length===1?'':'es')):(nodes.filter(vis).length+' nodes');}
-function setQuery(v){query=(v||'').trim().toLowerCase();recomputeHits();matchAt=-1;}
+function hit(n){return query&&(n.id.toLowerCase().includes(query)||n.title.toLowerCase().includes(query));}
+function updateMatches(){matches=query?nodes.filter(n=>vis(n)&&hit(n)):[];document.getElementById('match').textContent=query?(matches.length+' match'+(matches.length===1?'':'es')):(nodes.filter(vis).length+' nodes');}
 function prand(i,s){return Math.abs(Math.sin((i+1)*s)*43758.5453)%1;}
 function targetZ(n){const deg=adj[n.i]?adj[n.i].size:0,semantic=Z[n.k]||0,hub=Math.min(70,deg*3.2),spread=(prand(n.i,41.17)-.5)*125;return semantic+spread+(idea.has(n.k)?hub:-hub*.45);}
 function nodeZ(n){let z=Number.isFinite(n.z)?n.z:targetZ(n);if(sel!==null){if(n.i===sel)z+=95;else if(adj[sel].has(n.i))z+=42;}if(hit(n))z+=52;return z;}
 function init3D(){const phi=Math.PI*(3-Math.sqrt(5)),cnt=Math.max(1,nodes.length),rx=Math.max(W*.34,260),ry=Math.max(H*.30,190);nodes.forEach(n=>{const q=(n.i+.5)/cnt,a=n.i*phi,r=Math.sqrt(q);if(!Number.isFinite(n.x))n.x=W/2+Math.cos(a)*r*rx;if(!Number.isFinite(n.y))n.y=H/2+Math.sin(a)*r*ry;n.z=targetZ(n);n.vz=0;});}
-function relax3D(alpha){const a=Math.max(.035,alpha||.035);links.forEach(l=>{const s=l.source,t=l.target;if(!Number.isFinite(s.z)||!Number.isFinite(t.z))return;const dz=t.z-s.z,bias=(targetZ(t)-targetZ(s))*.18,w=(l.tn==='imports'||l.tn==='relates')?0.004:0.007,delta=(dz-bias)*w*a;s.vz+=delta;t.vz-=delta;});for(let i=0;i<nodes.length;i++){const a0=nodes[i];if(!Number.isFinite(a0.z))continue;for(let j=i+1;j<nodes.length;j++){const b0=nodes[j];if(!Number.isFinite(b0.z))continue;const dx=a0.x-b0.x,dy=a0.y-b0.y;if(Math.abs(dx)>46||Math.abs(dy)>46)continue;const min=18+rad(a0)+rad(b0),dz=b0.z-a0.z,gap=min-Math.abs(dz);if(gap>0){const push=(dz<0?-1:1)*gap*.014*a;a0.vz-=push;b0.vz+=push;}}}nodes.forEach(n=>{if(!Number.isFinite(n.z))n.z=targetZ(n);if(!Number.isFinite(n.vz))n.vz=0;n.vz+=(targetZ(n)-n.z)*.018*a;n.vz=Math.max(-9,Math.min(9,n.vz*.88));n.z=Math.max(-380,Math.min(380,n.z+n.vz));});}
+const ZCELL=46;
+function relax3D(alpha){if(dragging)return;const a=Math.max(.035,alpha||.035);links.forEach(l=>{const s=l.source,t=l.target;if(!Number.isFinite(s.z)||!Number.isFinite(t.z))return;const dz=t.z-s.z,bias=(targetZ(t)-targetZ(s))*.18,w=(l.tn==='imports'||l.tn==='relates')?0.004:0.007,delta=(dz-bias)*w*a;s.vz+=delta;t.vz-=delta;});
+ /* z-separation was O(n^2) (~146k pair tests/tick at 540 nodes) which dominated the
+    frame budget. Same semantics — only pairs within ZCELL in x AND y interact — via a
+    spatial hash, so each node is tested against its 3x3 cell neighbourhood only. */
+ const grid=new Map();for(let i=0;i<nodes.length;i++){const n=nodes[i];if(!Number.isFinite(n.z)||!Number.isFinite(n.x)||!Number.isFinite(n.y))continue;const key=((n.x/ZCELL)|0)+','+((n.y/ZCELL)|0);let b=grid.get(key);if(!b){b=[];grid.set(key,b);}b.push(n);}
+ grid.forEach((bucket,key)=>{const parts=key.split(','),cx=+parts[0],cy=+parts[1];for(let gx=cx;gx<=cx+1;gx++)for(let gy=(gx===cx?cy:cy-1);gy<=cy+1;gy++){const other=grid.get(gx+','+gy);if(!other)continue;const same=(gx===cx&&gy===cy);for(let i=0;i<bucket.length;i++){const a0=bucket[i];for(let j=same?i+1:0;j<other.length;j++){const b0=other[j];if(a0===b0)continue;const dx=a0.x-b0.x,dy=a0.y-b0.y;if(dx>ZCELL||dx<-ZCELL||dy>ZCELL||dy<-ZCELL)continue;const min=18+rad(a0)+rad(b0),dz=b0.z-a0.z,gap=min-Math.abs(dz);if(gap>0){const push=(dz<0?-1:1)*gap*.014*a;a0.vz-=push;b0.vz+=push;}}}}});
+ nodes.forEach(n=>{if(!Number.isFinite(n.z))n.z=targetZ(n);if(!Number.isFinite(n.vz))n.vz=0;n.vz+=(targetZ(n)-n.z)*.018*a;n.vz=Math.max(-9,Math.min(9,n.vz*.88));n.z=Math.max(-380,Math.min(380,n.z+n.vz));});}
 function viewCenter(){const k=zoomK();return {x:(W/2-(zt.x||0))/k,y:(H/2-(zt.y||0))/k};}
+/* NB: memoising the four trig terms + viewCenter here was tried and MEASURED SLOWER
+   (0.8x) despite being bit-identical — V8's Math.cos/sin are cheap intrinsics and the
+   cache-validity check cost more than it saved. Left inline deliberately; the frame
+   cost is DOM writes, not this arithmetic. */
 function projectPoint(x0,y0,z){const c=viewCenter(),x=x0-c.x,y=y0-c.y,cy=Math.cos(orbit.ry),sy=Math.sin(orbit.ry),cx=Math.cos(orbit.rx),sx=Math.sin(orbit.rx),x1=x*cy+z*sy,z1=z*cy-x*sy,y1=y*cx-z1*sx,z2=y*sx+z1*cx,p=620/(620-z2),s=Math.max(.68,Math.min(1.45,p));return {x:c.x+x1*s,y:c.y+y1*s,z:z2,s:s};}
 function projectNode(n){if(!Number.isFinite(n.x)||!Number.isFinite(n.y))return {x:W/2,y:H/2,z:0,s:1};return projectPoint(n.x,n.y,nodeZ(n));}
 function zoomK(){return zt&&Number.isFinite(zt.k)?zt.k:1;}
@@ -1876,12 +2031,7 @@ function boxesOverlap(a,b,pad=4){return a&&b&&a.left-pad<b.right&&a.right+pad>b.
 function labelPriority(d){let p=0;if(sel===d.i)p+=1000;if(hit(d))p+=700;if(sel!==null&&adj[sel].has(d.i))p+=320;if(d.k==='area')p+=150;else if(idea.has(d.k))p+=60;if(d.p&&Number.isFinite(d.p.z))p+=d.p.z/20;return p;}
 function layoutLabels(){node.select('.node-label').attr('x',d=>labelSide(d)*labelOffset(d)).attr('y',labelY).attr('text-anchor',d=>labelSide(d)<0?'end':'start').attr('font-size',d=>labelFont(d)+'px');const keep=[],shown=new Set();nodes.filter(n=>labelText(n)&&vis(n)).sort((a,b)=>labelPriority(b)-labelPriority(a)).forEach(n=>{const b=labelBox(n);if(!b)return;const inFrame=b.right>-8&&b.left<W+8&&b.bottom>-8&&b.top<H+8,forced=n.i===sel||hit(n),collide=keep.some(k=>boxesOverlap(b,k,forced?10:6));if(forced||(inFrame&&!collide)){shown.add(n.i);keep.push(b);}});node.select('.node-label').attr('opacity',d=>shown.has(d.i)?((sel!==null&&d.i!==sel&&!adj[sel].has(d.i))?0.26:1):0);}
 function placeTip(ev,d){const el=tip.node(),tw=Math.min(el.offsetWidth||300,300),th=el.offsetHeight||42,p=screenXY(d,0,0),glow=(visualRadius(d)+12)*(d.p?d.p.s:1)*zoomK(),label=labelBox(d),clamp=(v,min,max)=>Math.max(min,Math.min(max,v)),cands=[[p.x+glow+14,p.y-th/2],[p.x-tw-glow-14,p.y-th/2],[p.x-tw/2,p.y-glow-th-12],[p.x-tw/2,p.y+glow+12],[ev.clientX-svgEl.getBoundingClientRect().left+12,ev.clientY-svgEl.getBoundingClientRect().top+12]];for(const c of cands){const x=clamp(c[0],8,Math.max(8,W-tw-8)),y=clamp(c[1],8,Math.max(8,H-th-8)),box={left:x,right:x+tw,top:y,bottom:y+th};if(!boxesOverlap(box,label,10))return {x,y};}return {x:clamp(cands[0][0],8,Math.max(8,W-tw-8)),y:clamp(cands[0][1],8,Math.max(8,H-th-8))};}
-// Hover gives the GIST, not just the label — the opening prose is what tells you
-// whether this node is the one you want before you commit a click to it.
-function showTip(ev,d){const dd=DET[d.id],lead=dd&&dd.body?plainish(dd.body.slice(0,170)).trim():'';
- tip.style('opacity',1).html((d.sup?'[superseded] ':'')+'<b>'+esc(d.id)+'</b> '+d.title
-  +(lead?'<span class="tipbody">'+lead+(dd.body.length>170?' …':'')+'</span>':''));
- const p=placeTip(ev,d);tip.style('left',p.x+'px').style('top',p.y+'px');}
+function showTip(ev,d){tip.style('opacity',1).html((d.sup?'[superseded] ':'')+'<b>'+esc(d.id)+'</b> '+esc(d.title));const p=placeTip(ev,d);tip.style('left',p.x+'px').style('top',p.y+'px');}
 function isHot(d){return sel===d.i||hit(d);}
 function isNear(d){return sel!==null&&adj[sel].has(d.i);}
 function vivid(d){return isHot(d)||isNear(d);}
@@ -1889,15 +2039,15 @@ function filterGlow(d){return isHot(d)?'url(#orbGlowStrong)':(fastRender&&!isNea
 function filterHalo(d){return fastRender&&!vivid(d)?null:'url(#orbHalo)';}
 function filterCore(d){return fastRender&&!vivid(d)?null:'url(#orbGlow)';}
 function setFastRender(on){if(fastTimer){clearTimeout(fastTimer);fastTimer=null;}if(fastRender===on)return;fastRender=on;svgEl.classList.toggle('fast-render',on);svgEl.dataset.fastRender=on?'1':'0';paint();}
-function settleRenderQuality(delay=220){if(fastTimer)clearTimeout(fastTimer);fastTimer=setTimeout(()=>{fastTimer=null;if(simSettling||cruiseAnim||orbitAnim||orbitDrag)return;setFastRender(false);},delay);}
-function render(){renderFrame++;const vc=viewCenter();svgEl.dataset.viewCx=vc.x.toFixed(2);svgEl.dataset.viewCy=vc.y.toFixed(2);svgEl.dataset.orbitRx=orbit.rx.toFixed(4);svgEl.dataset.orbitRy=orbit.ry.toFixed(4);svgEl.dataset.fastRender=fastRender?'1':'0';svgEl.dataset.renderFrame=String(renderFrame);nodes.forEach(n=>{n.p=projectNode(n);});link.attr('x1',d=>d.source.p.x).attr('y1',d=>d.source.p.y).attr('x2',d=>d.target.p.x).attr('y2',d=>d.target.p.y);node.attr('transform',d=>'translate('+d.p.x+','+d.p.y+') scale('+d.p.s+')').attr('data-z',d=>Number.isFinite(d.z)?d.z.toFixed(2):'').attr('data-depth',d=>Number.isFinite(d.p.z)?d.p.z.toFixed(2):'');if(!fastRender||renderFrame%12===0)node.sort((a,b)=>(a.p.z||0)-(b.p.z||0));if(!fastRender||renderFrame%24===0)layoutLabels();}
+function settleRenderQuality(delay=220){if(fastTimer)clearTimeout(fastTimer);fastTimer=setTimeout(()=>{fastTimer=null;if(simSettling||cruiseAnim||orbitAnim||orbitDrag||dragging)return;setFastRender(false);},delay);}
+function render(){renderFrame++;const vc=viewCenter();svgEl.dataset.viewCx=vc.x.toFixed(2);svgEl.dataset.viewCy=vc.y.toFixed(2);svgEl.dataset.orbitRx=orbit.rx.toFixed(4);svgEl.dataset.orbitRy=orbit.ry.toFixed(4);svgEl.dataset.fastRender=fastRender?'1':'0';svgEl.dataset.renderFrame=String(renderFrame);for(let i=0;i<visNodes.length;i++){const n=visNodes[i];n.p=projectNode(n);}/* Measured in Chromium at 544 nodes/1504 links: four d3 .attr(fn) passes over the   link selection cost 3.59ms of a 5.47ms frame (66%). One raw pass over the cached   elements does the same work without d3's per-element accessor overhead. */for(let li=0;li<visLinks.length;li++){const l=visLinks[li],le=linkEls[l._i];if(!le)continue;const sp=l.source.p,tp=l.target.p;if(!sp||!tp)continue;le.setAttribute('x1',sp.x);le.setAttribute('y1',sp.y);le.setAttribute('x2',tp.x);le.setAttribute('y2',tp.y);}for(let i=0;i<visNodes.length;i++){const n=visNodes[i],ne=nodeEls[n.i];if(ne&&n.p)ne.setAttribute('transform','translate('+n.p.x+','+n.p.y+') scale('+n.p.s+')');}/* data-z/data-depth are inspection telemetry, not visuals: writing them every frame   cost ~1.1k DOM writes/frame. Emitted when the view is settled (and on the periodic   sort frame) so tooling can still read them. */if(!fastRender||renderFrame%12===0)node.attr('data-z',d=>Number.isFinite(d.z)?d.z.toFixed(2):'').attr('data-depth',d=>(d.p&&Number.isFinite(d.p.z))?d.p.z.toFixed(2):'');if(!fastRender||renderFrame%12===0)node.sort((a,b)=>((a.p&&a.p.z)||0)-((b.p&&b.p.z)||0));if(!fastRender||renderFrame%24===0)layoutLabels();}
 function haloOpacity(d){if(sel===d.i)return .78;if(sel!==null&&adj[sel].has(d.i))return .44;if(hit(d))return .6;return d.sup?0.12:0.28;}
 function haloScale(d){return (sel===d.i||hit(d))?'scale(3.15)':'scale(2.65)';}
 function coronaOpacity(d){if(sel===d.i)return .9;if(sel!==null&&adj[sel].has(d.i))return .68;if(hit(d))return .82;return d.sup?0.22:0.54;}
 function coronaScale(d){return (sel===d.i||hit(d))?'scale(1.9)':'scale(1.5)';}
 function coreOpacity(d){if(sel===d.i)return .96;if(hit(d))return .9;return d.sup?0.28:0.68;}
 function coreScale(d){return (sel===d.i||hit(d))?'scale(.46)':'scale(.34)';}
-function paint(){updateMatches();node.classed('selected',n=>sel===n.i).classed('neighbor',n=>sel!==null&&adj[sel].has(n.i)).style('display',n=>vis(n)?null:'none');link.style('display',l=>vis(l.source)&&vis(l.target)?null:'none');
+function paint(){updateMatches();recomputeVisible();node.classed('selected',n=>sel===n.i).classed('neighbor',n=>sel!==null&&adj[sel].has(n.i)).style('display',n=>vis(n)?null:'none');link.style('display',l=>vis(l.source)&&vis(l.target)?null:'none');
  node.attr('opacity',n=>{if(sel!==null)return n.i===sel||adj[sel].has(n.i)?1:.1;if(query)return hit(n)?1:.12;return 1;});
  link.attr('stroke-opacity',l=>{if(sel!==null)return (l.source.i===sel||l.target.i===sel)?0.95:0.04;if(query)return (hit(l.source)||hit(l.target))?0.72:0.035;return (l.tn==='supersedes'||l.tn==='contradicts'||l.tn==='concerns')?0.85:0.32;});
  node.select('.mark').attr('opacity',d=>isHot(d)?1:(d.sup?0.58:0.86)).attr('filter',filterGlow);
@@ -1959,83 +2109,91 @@ function makePrompts(d,nb){const ref=nodeRef(d),near=neighborSummary(nb),target=
 function renderPrompts(d,nb){const ps=makePrompts(d,nb);promptBank=ps.map(p=>p.p);return '<div class="explore"><div class="explore-head">Explore</div><div class="prompts">'+ps.map((p,i)=>'<div class="prompt"><div class="prompt-top"><span>'+esc(p.t)+'</span><button class="copy" data-copy="'+i+'" aria-label="Copy '+esc(p.t)+' prompt">copy</button></div><p>'+esc(p.p)+'</p></div>').join('')+'</div></div>';}
 function copyText(text,b){const done=ok=>{const old=b.textContent;b.textContent=ok?'copied':'copy failed';setTimeout(()=>b.textContent=old,950);};if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(text).then(()=>done(true)).catch(()=>done(fallbackCopy(text)));}else done(fallbackCopy(text));}
 function fallbackCopy(text){const t=document.createElement('textarea');t.value=text;t.setAttribute('readonly','');t.style.position='fixed';t.style.left='-9999px';document.body.appendChild(t);t.select();let ok=false;try{ok=document.execCommand('copy');}catch(e){ok=false;}document.body.removeChild(t);return ok;}
-function renderPanel(i){document.getElementById('panel').scrollTop=0;
- if(i===null){promptBank=[];det(query?resultsHTML():overviewHTML());return;}
- const d=nodes[i],nb={};nbrs[i].forEach(([j,t,a])=>{(nb[t]=nb[t]||[]).push([j,a]);});
- det(inspectHTML(i)+renderPrompts(d,nb));}
-function selectNode(i,focus){sel=i;paint();syncHash();renderPanel(sel);
- if(sel===null){stopCruise();return;}if(focus)orbitToNode(nodes[sel]);}
-// The URL is the share/deep-link surface: '#F13' opens straight onto F13, and Back /
-// Forward walk the nodes visited. Selecting pushes; deselecting replaces, so clearing
-// a selection doesn't spam history. hashLock keeps our own writes from echoing back.
-let hashLock=false;
-function syncHash(){const want=sel===null?'':'#'+nodes[sel].id;if(location.hash===want)return;
- hashLock=true;
- try{if(want)history.pushState(null,'',want);else history.replaceState(null,'',location.pathname+location.search);}
- catch(e){location.hash=want;}
- setTimeout(()=>{hashLock=false;},0);}
-function selectFromHash(){const id=decodeURIComponent((location.hash||'').replace(/^#/,''));
- if(!id){if(sel!==null){sel=null;paint();renderPanel(null);}return;}
- const i=byId[id];if(i===undefined||i===sel)return;
- sel=i;paint();renderPanel(i);orbitToNode(nodes[i]);}
+function selectNode(i,focus){sel=i;paint();if(sel===null){stopCruise();promptBank=[];det('Select a node to inspect its neighbours and explore prompts.');return;}const d=nodes[sel];const nb={};links.forEach(l=>{if(l.source.i===d.i)(nb[l.tn]=nb[l.tn]||[]).push([l.target.i,'→']);if(l.target.i===d.i)(nb[l.tn]=nb[l.tn]||[]).push([l.source.i,'←']);});
+ let h='<b style="color:var(--tx)">'+esc(d.id)+'</b> · '+esc(LBL[d.k]||d.k)+(d.sup?' · <span style="color:'+(dark?'#F09595':'#A32D2D')+'">superseded</span>':'')+'<br><span style="color:var(--tx)">'+d.title+'</span>';
+ const ks=Object.keys(nb);if(ks.length)h+='<br>'+ks.map(k=>'<b>'+esc(k)+'</b> '+[...new Map(nb[k].map(([i,a])=>[a+nodes[i].id,[i,a]])).values()].map(([i,a])=>'<button class="chip" data-node="'+i+'"><span class="arr">'+a+'</span>'+esc(nodes[i].id)+'</button>').join('')).join(' &nbsp; ');
+ det(h+renderPrompts(d,nb));if(focus)orbitToNode(d);}
 init3D();
 const sim=d3.forceSimulation(nodes).alphaDecay(.055).alphaMin(.02).velocityDecay(.45).force('link',d3.forceLink(links).distance(d=>d.tn==='imports'?70:48).strength(.4))
  .force('charge',d3.forceManyBody().strength(-120)).force('center',d3.forceCenter(W/2,H/2))
  .force('collide',d3.forceCollide().radius(d=>rad(d)+6)).force('x',d3.forceX(W/2).strength(.03)).force('y',d3.forceY(H/2).strength(.05));
 sim.on('tick',()=>{relax3D(sim.alpha());render();});
 sim.on('end',()=>{simSettling=false;settleRenderQuality(140);});
-node.call(d3.drag().filter(ev=>!ev.shiftKey&&!ev.button).on('start',(ev,d)=>{if(!ev.active)sim.alphaTarget(.3).restart();d.fx=d.x;d.fy=d.y;}).on('drag',(ev,d)=>{d.fx=ev.x;d.fy=ev.y;}).on('end',(ev,d)=>{if(!ev.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}));
-const zoom=d3.zoom().filter(ev=>!ev.shiftKey&&(!ev.ctrlKey||ev.type==='wheel')&&!ev.button).scaleExtent([.3,5]).on('start',()=>setFastRender(true)).on('zoom',ev=>{zt=ev.transform;g.attr('transform',zt);if(!suppressZoomLabel&&!fastRender)layoutLabels();}).on('end',()=>settleRenderQuality());svg.call(zoom);paint();
+/* Dragging used to `sim.alphaTarget(.3).restart()`, which re-heated the WHOLE layout:
+   grabbing one orb made every other orb drift, and relax3D kept mutating z so their
+   projected scale changed — orbs visibly resized under the cursor. Now a grab moves
+   only the grabbed orb (z frozen via the `dragging` guard in relax3D), and the orb
+   stays where it is dropped. Use Reset to re-run the layout. */
+node.call(d3.drag().filter(ev=>!ev.shiftKey&&!ev.button)
+ .on('start',(ev,d)=>{dragging=true;setFastRender(true);sim.stop();d.fx=d.x;d.fy=d.y;})
+ .on('drag',(ev,d)=>{d.fx=d.x=ev.x;d.fy=d.y=ev.y;blockClick=true;renderDragged(d);})
+ .on('end',(ev,d)=>{dragging=false;settleRenderQuality(140);}));
+/* A mousedown on an orb bubbled to the svg and started a d3.zoom PAN as well as the   node drag. Panning changes zt, and every node's projection goes through viewCenter(zt),   so grabbing one orb visibly displaced all 544 of them — the 'grab changes the orbs'   bug. Pointer gestures that start on a node are now excluded from zoom; the wheel is   still allowed over a node so scroll-to-zoom keeps working. */const onNode=ev=>!!(ev&&ev.target&&ev.target.closest&&ev.target.closest('g.node'));const zoom=d3.zoom().filter(ev=>!ev.shiftKey&&(!ev.ctrlKey||ev.type==='wheel')&&!ev.button&&(ev.type==='wheel'||!onNode(ev))).scaleExtent([.3,5]).on('start',()=>setFastRender(true)).on('zoom',ev=>{zt=ev.transform;g.attr('transform',zt);if(!suppressZoomLabel&&!fastRender)layoutLabels();}).on('end',()=>settleRenderQuality());svg.call(zoom);paint();
 svg.on('pointerdown.orbit',startOrbit).on('pointermove.orbit',moveOrbit).on('pointerup.orbit',endOrbit).on('pointercancel.orbit',endOrbit);
-const qEl=document.getElementById('q'),helpEl=document.getElementById('help');
-function resetView(){stopCruise();sel=null;setQuery('');orbit.rx=0;orbit.ry=0;qEl.value='';paint();syncHash();renderPanel(null);fitVisible();}
-function toggleHelp(f){helpEl.classList.toggle('on',f===undefined?!helpEl.classList.contains('on'):!!f);}
 document.getElementById('flat').onclick=()=>flatView();
 document.getElementById('fit').onclick=()=>{stopCruise();fitVisible();};
-document.getElementById('reset').onclick=()=>resetView();
-document.getElementById('helpbtn').onclick=()=>toggleHelp();
-document.addEventListener('click',e=>{if(!e.target.closest('#help,#helpbtn'))toggleHelp(false);});
-const pills=d3.select('#pills'),pillBtn={};
-Object.keys(LBL).filter(k=>nodes.some(n=>n.k===k)).forEach(k=>{const b=pills.append('button').html('<span class="dot" style="background:'+COL[k]+'"></span>'+LBL[k]);pillBtn[k]=b;b.on('click',()=>{on[k]=!on[k];syncPills();paint();});});
-const sb=pills.append('button').text('superseded');sb.on('click',()=>{on._sup=!on._sup;syncPills();paint();});
-function syncPills(){Object.keys(pillBtn).forEach(k=>pillBtn[k].style('opacity',on[k]?1:.4));sb.style('opacity',on._sup?1:.4);}
-// Layer presets: 320 nodes is mostly the auto-extracted code layer, which buries the
-// ~143 research nodes. One click swaps between reading the idea web and reading the repo.
-function setLayer(which){Object.keys(LBL).forEach(k=>{on[k]=which==='all'||(KINDS[which]||[]).indexOf(k)>=0;});syncPills();paint();fitVisible();}
-const pre=d3.select('#presets');[['ideas','research web only'],['code','code layer only'],['all','everything']].forEach(([k,t])=>
- pre.append('button').attr('title',t).text(k).on('click',()=>setLayer(k)));
-const leg=d3.select('#legend');[['supersedes / contradicts',ecol('supersedes')],['finding concerns code',ecol('concerns')],['import',ecol('imports')],['other edge',ecol('relates')]].forEach(([t,c])=>leg.append('span').html('<span class="ln" style="border-color:'+c+'"></span>'+t));
-function cycleMatch(dir){if(!matches.length)return;matchAt=(matchAt+dir+matches.length)%matches.length;selectNode(matches[matchAt].i,true);}
-qEl.addEventListener('input',e=>{stopCruise();setQuery(e.target.value);sel=null;paint();syncHash();renderPanel(null);});
-qEl.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();cycleMatch(e.shiftKey?-1:1);}if(e.key==='Escape'){e.currentTarget.value='';setQuery('');sel=null;paint();syncHash();renderPanel(null);}});
-document.getElementById('detail').addEventListener('click',e=>panelClick(e,i=>selectNode(i,true)));
-document.addEventListener('keydown',e=>{const t=e.target,typing=t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable);
- if(e.key==='/'&&!typing){e.preventDefault();qEl.focus();qEl.select();return;}
- if(e.key==='Escape'){toggleHelp(false);if(typing)t.blur();return;}
- if(typing||e.metaKey||e.ctrlKey||e.altKey)return;
- if(e.key==='n'||e.key===']'){e.preventDefault();cycleMatch(1);}
- else if(e.key==='p'||e.key==='['){e.preventDefault();cycleMatch(-1);}
- else if(e.key==='f'){stopCruise();fitVisible();}
- else if(e.key==='g'){flatView();}
- else if(e.key==='r'){resetView();}
- else if(e.key==='?'){toggleHelp();}});
-// The layout is fluid (side panel on desktop, stacked on mobile) — W/H must follow the
-// viewport or every projection, label box and fit stays framed for the old size.
-let rsz=null;
-window.addEventListener('resize',()=>{clearTimeout(rsz);rsz=setTimeout(()=>{
- const w=svgEl.clientWidth,h=svgEl.clientHeight;if(!w||!h||(w===W&&h===H))return;
- W=w;H=h;simSettling=true;
- sim.force('center',d3.forceCenter(W/2,H/2)).force('x',d3.forceX(W/2).strength(.03)).force('y',d3.forceY(H/2).strength(.05));
- sim.alpha(.14).restart();fitVisible();},180);});
-window.addEventListener('hashchange',()=>{if(!hashLock)selectFromHash();});
-window.addEventListener('popstate',()=>{if(!hashLock)selectFromHash();});
-renderPanel(null);updateMatches();
-setTimeout(()=>{fitVisible();if(location.hash)setTimeout(selectFromHash,420);},700);
+document.getElementById('reset').onclick=()=>{stopCruise();sel=null;query='';matchAt=-1;orbit.rx=0;orbit.ry=0;document.getElementById('q').value='';paint();fitVisible();};
+const pills=d3.select('#pills');
+function buildPills(){pills.html('');Object.keys(LBL).filter(k=>nodes.some(n=>n.k===k)).forEach(k=>{const b=pills.append('button').html('<span class="dot" style="background:'+COL[k]+'"></span>'+LBL[k]);b.style('opacity',on[k]?1:.4);b.on('click',()=>{on[k]=!on[k];b.style('opacity',on[k]?1:.4);paint();});});
+const sb=pills.append('button').text('superseded');sb.style('opacity',on._sup?1:.4);sb.on('click',()=>{on._sup=!on._sup;sb.style('opacity',on._sup?1:.4);paint();});}
+const leg=d3.select('#legend');
+function buildLegend(){leg.html('');[['supersedes / contradicts',ecol('supersedes')],['finding concerns code',ecol('concerns')],['import',ecol('imports')],['other edge',ecol('relates')]].forEach(([t,c])=>leg.append('span').html('<span class="ln" style="border-color:'+c+'"></span>'+t));}
+buildPills();buildLegend();
+/* Repaint on a theme change instead of only at load. The CSS tokens swap themselves;
+   these are the colours d3 wrote into attributes, which no stylesheet can reach. */
+function paintTheme(){
+  const next=themePref();
+  if(next===dark)return;
+  dark=next;themeColors();
+  link.attr('stroke',d=>ecol(d.tn));
+  node.select('.node-halo').attr('fill',d=>d.sup?SUP:COL[d.k]);
+  node.select('.node-corona').attr('fill',d=>d.sup?SUP:COL[d.k]);
+  node.select('.node-orb').attr('fill',d=>d.sup?SUP:COL[d.k]);
+  node.select('.node-core').attr('fill',d=>d.sup?(dark?'#d7d2c2':'#5f5e5a'):(dark?'#fff6c7':'#3a3730'));
+  node.select('.node-label').attr('fill',d=>d.k==='area'?COL.area:MUT);
+  buildPills();buildLegend();
+  selectNode(sel,false);
 }
+_mq.addEventListener('change',paintTheme);
+new MutationObserver(paintTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+function cycleMatch(dir){if(!matches.length)return;matchAt=(matchAt+dir+matches.length)%matches.length;selectNode(matches[matchAt].i,true);}
+document.getElementById('q').addEventListener('input',e=>{stopCruise();query=e.target.value.trim().toLowerCase();matchAt=-1;sel=null;paint();});
+document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();cycleMatch(e.shiftKey?-1:1);}if(e.key==='Escape'){e.currentTarget.value='';query='';sel=null;paint();}});
+document.getElementById('detail').addEventListener('click',e=>{const c=e.target.closest('[data-copy]');if(c){copyText(promptBank[+c.dataset.copy]||'',c);return;}const b=e.target.closest('[data-node]');if(b)selectNode(+b.dataset.node,true);});
+setTimeout(fitVisible,700);
 </script></body></html>"""
 
 
+def _graph_compact(G, adj):
+    """Index-encoded {k(kinds), t(edge-types), n[[id,kind,supflag,label]], e[[i,j,t]]}
+    for the self-contained HTML map (small enough to inline)."""
+    ids = list(G)
+    idx = {x: i for i, x in enumerate(ids)}
+    kinds = sorted({d["kind"] for d in G.values()})
+    ki = {k: i for i, k in enumerate(kinds)}
+    etypes = sorted({e["type"] for es in adj.values() for e in es})
+    ti = {t: i for i, t in enumerate(etypes)}
+    idea = {"F", "H", "E", "D", "area"}
+    n = [[nid, ki[d["kind"]], 1 if d["status"] != "current" else 0,
+          d["title"][:90] if d["kind"] in idea else ""] for nid, d in G.items()]
+    e = [[idx[a], idx[ed["to"]], ti[ed["type"]]]
+         for a, es in adj.items() for ed in es if ed["dir"] == "out"]
+    return {"k": kinds, "t": etypes, "n": n, "e": e}
+
+
+
+# ── Ported from the research-reader branch at the 2026-08-01 origin sync ──
+# Additive helpers: provenance paths, the per-node detail payload, the vendored-d3
+# selector and the unit-testable route table. None depends on page structure.
+
 _BODY_CAP = 1600          # per-node prose budget in the inlined map (keeps the page ~200KB)
+
+def _is_open_work(nid, node) -> bool:
+    """The "what still needs doing" rule, shared by `ctx web --pending` and the map's
+    open-work view so both agree: a live decision/gate, or a live node whose title is
+    tagged OPEN / IN PROGRESS."""
+    return not _is_superseded(node) and (
+        nid[:1] == "D" or bool(re.match(r"\s*(OPEN|IN PROGRESS)\b", node["title"], re.I)))
 
 
 def _related_map(nodes, top=5, floor=0.06):
@@ -2050,6 +2208,45 @@ def _related_map(nodes, top=5, floor=0.06):
                         key=lambda kv: (-kv[1], kv[0]))
         out[nid] = [[o, round(s, 3)] for o, s in scored[:top] if s >= floor]
     return out
+
+
+def _provenance_paths(start, adj, prefix, maxlen=4, cap=8):
+    """One shortest provenance path per reachable endpoint whose id starts with
+    `prefix` (BFS → the first path found is the shortest). Per-path visited set (not
+    a global one) so a node reachable via several routes isn't suppressed. NEVER
+    traverses a supersedes/contradicts edge — walking into an overturned node and
+    harvesting ITS evidence would attribute a refuted claim's grounding to the node
+    that reverses it (backwards provenance). Returns [[(edge_type, target), …], …].
+    Shared by `ctx why` and the HTML map's evidence chain so both tell one story."""
+    found, q = {}, [(start, [], frozenset([start]))]
+    while q and len(found) < cap:
+        cur, path, vis = q.pop(0)
+        for e in adj.get(cur, []):
+            tgt = e["to"]
+            if e["dir"] != "out" or e["type"] in ("supersedes", "contradicts") or tgt in vis:
+                continue
+            np = path + [(e["type"], tgt)]
+            if tgt[:1] == prefix and tgt[1:2].isdigit():
+                found.setdefault(tgt, np)                # keep first (shortest) per endpoint
+            elif len(np) < maxlen:
+                q.append((tgt, np, vis | {tgt}))
+    return list(found.values())
+
+
+def _graph_summary(G, nodes_web):
+    """The landing-state facts for the map: node counts by kind, how much of the
+    research layer is superseded, the newest dated node, and the repo revision the
+    map was built from (a commit stamp, not a wall clock, so identical repo state
+    renders an identical page)."""
+    from collections import Counter
+    dates = [d for d in (_node_meta(n).get("at") for n in nodes_web.values()) if d]
+    return {"kinds": dict(Counter(d["kind"] for d in G.values())),
+            "nodes": len(G),
+            "research": len(nodes_web),
+            "superseded": sum(1 for n in nodes_web.values() if _is_superseded(n)),
+            "open": sum(1 for nid, n in nodes_web.items() if _is_open_work(nid, n)),
+            "latest": max(dates) if dates else "",
+            "rev": _git("log", "-1", "--format=%h · %cs") or ""}
 
 
 def _graph_details(G, adj):
@@ -2109,61 +2306,96 @@ def _graph_details(G, adj):
     return out
 
 
-def _graph_summary(G, nodes_web):
-    """The landing-state facts for the map: node counts by kind, how much of the
-    research layer is superseded, the newest dated node, and the repo revision the
-    map was built from (a commit stamp, not a wall clock, so identical repo state
-    renders an identical page)."""
-    from collections import Counter
-    dates = [d for d in (_node_meta(n).get("at") for n in nodes_web.values()) if d]
-    return {"kinds": dict(Counter(d["kind"] for d in G.values())),
-            "nodes": len(G),
-            "research": len(nodes_web),
-            "superseded": sum(1 for n in nodes_web.values() if _is_superseded(n)),
-            "open": sum(1 for nid, n in nodes_web.items() if _is_open_work(nid, n)),
-            "latest": max(dates) if dates else "",
-            "rev": _git("log", "-1", "--format=%h · %cs") or ""}
-
-
-def _graph_compact(G, adj):
-    """Index-encoded {k(kinds), t(edge-types), n[[id,kind,supflag,label]], e[[i,j,t]]}
-    for the self-contained HTML map (small enough to inline), plus `d` (per-node prose
-    + provenance, see _graph_details) and `s` (landing summary)."""
-    ids = list(G)
-    idx = {x: i for i, x in enumerate(ids)}
-    kinds = sorted({d["kind"] for d in G.values()})
-    ki = {k: i for i, k in enumerate(kinds)}
-    etypes = sorted({e["type"] for es in adj.values() for e in es})
-    ti = {t: i for i, t in enumerate(etypes)}
-    idea = {"F", "H", "E", "D", "area"}
-    n = [[nid, ki[d["kind"]], 1 if d["status"] != "current" else 0,
-          d["title"][:90] if d["kind"] in idea else ""] for nid, d in G.items()]
-    e = [[idx[a], idx[ed["to"]], ti[ed["type"]]]
-         for a, es in adj.items() for ed in es if ed["dir"] == "out"]
-    return {"k": kinds, "t": etypes, "n": n, "e": e,
-            "d": _graph_details(G, adj), "s": _graph_summary(G, _parse_web()[0])}
+def _serve_route(path):
+    """Resolve one GET path to (status, body, content_type). Split out of the request
+    handler so the route table is unit-testable without opening a socket."""
+    if path in ("/", "/index.html", "/graph"):
+        G, adj = build_graph(include_code=True)
+        return 200, _render_graph_html(G, adj), "text/html; charset=utf-8"
+    if path == "/api/graph.json":
+        # Same map the page draws, as data — so other tools can consume the live graph
+        # without shelling out to `ctx graph --json`.
+        G, adj = build_graph(include_code=True)
+        return 200, json.dumps({
+            "project": _manifest().get("project", ""),
+            "summary": _graph_summary(G, _parse_web()[0]),
+            "nodes": [{"id": nid, "kind": d["kind"], "title": d["title"][:120],
+                       "status": d["status"]} for nid, d in G.items()],
+            "edges": [{"from": a, "to": e["to"], "type": e["type"]}
+                      for a, es in adj.items() for e in es if e["dir"] == "out"],
+            "details": _graph_details(G, adj),
+        }), "application/json; charset=utf-8"
+    if path == "/health":
+        return 200, "ok\n", "text/plain; charset=utf-8"
+    if path == "/favicon.ico":
+        return 204, b"", "image/x-icon"          # keep the console clean
+    return 404, "not found — try / (the map) or /api/graph.json\n", "text/plain; charset=utf-8"
 
 
 def _render_graph_html(G, adj):
     """The self-contained interactive context-map page (shared by `ctx graph --html` and
     `ctx serve`): the unified graph compacted to JSON and injected into _GRAPH_HTML."""
-    def esc(s):  # HTML-escape so author-edited prose can't break out of <script> / d3 .html()
+    def esc(s):  # HTML-escape so author-edited titles can't break out of <script> / d3 .html()
         return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     comp_obj = _graph_compact(G, adj)
     for nd in comp_obj["n"]:
         nd[3] = esc(nd[3])
-    # Bodies are rendered as HTML (light markdown) in the browser, so they are escaped
-    # HERE, once — the page must never re-escape them or '&' shows up as '&amp;'.
+    comp_obj["d"] = _graph_details(G, adj)
+    comp_obj["s"] = _graph_summary(G, _parse_web()[0])
+    # Escaped HERE, once: bodies are written with innerHTML, and origin's 489-node web
+    # contains prose with literal '<' ("variance ratios <1") that would otherwise break
+    # out of the <script> tag. A second pass would surface '&amp;lt;' to the reader.
     for det in comp_obj["d"].values():
         det["body"] = esc(det["body"])
-    subs = {"__PROJECT__": esc(_manifest().get("project", "project")),
-            "__DATA__": json.dumps(comp_obj, separators=(",", ":")),
-            "__D3__": _d3_script()}
-    # ONE pass over the template, so the ORDER of the substitutions can't matter: with
-    # chained .replace() an earlier value containing a later placeholder (an inlined d3
-    # build, a project name) would be rewritten by the next call. Also: the lambda form
-    # means backslashes in the JSON/JS are never read as regex escapes.
-    return re.sub(r"__(?:PROJECT|DATA|D3)__", lambda m: subs[m.group(0)], _GRAPH_HTML)
+    comp = json.dumps(comp_obj, separators=(",", ":"))
+    proj = esc(_manifest().get("project", "project"))
+    # substitute __PROJECT__ first so a title literally containing it isn't clobbered
+    return (_GRAPH_HTML.replace("__PROJECT__", proj)
+            .replace("__TOKENS__", _ui_tokens().TOKENS)
+            .replace("__DATA__", comp))
+
+
+def _ui_tokens():
+    """The shared palette, imported lazily.
+
+    `tools/research_ui.py` imports this module, so importing it at ctx's top level
+    would close a cycle. `ui_tokens` itself imports nothing, which is why it is a
+    separate module rather than a constant living in either of its two consumers.
+    """
+    tools = os.path.join(REPO, "tools")
+    if tools not in sys.path:          # `ctx serve` calls this per request
+        sys.path.insert(0, tools)
+    import ui_tokens
+    return ui_tokens
+
+
+def _render_served_graph_html(
+    G, adj, event_db=None, corporate_action_db=None,
+    corporate_action_state_db=None, form25_population_db=None
+):
+    """Add navigation to optional server-only surfaces without changing exports."""
+    page = _render_graph_html(G, adj)
+    links = []
+    if event_db:
+        links.append(
+            '<a href="/events">revision-aware research events</a>'
+        )
+    if corporate_action_db:
+        links.append(
+            '<a href="/corporate-actions">corporate-action outcomes</a>'
+        )
+    if corporate_action_state_db:
+        links.append(
+            '<a href="/corporate-action-states">SEC action states</a>'
+        )
+    if form25_population_db:
+        links.append(
+            '<a href="/form25-population">Form 25 population</a>'
+        )
+    if links:
+        nav = '<div class="sub">browse: ' + " · ".join(links) + "</div>"
+        page = page.replace("</header>", nav + "</header>", 1)
+    return page
 
 
 def cmd_graph(args):
@@ -2203,37 +2435,243 @@ def cmd_graph(args):
     print("  → `ctx graph --json` for the full map (feeds the visual view) · `ctx health` for coverage")
 
 
-def _serve_route(path):
-    """Resolve one GET path to (status, body, content_type). Split out of the request
-    handler so the route table is unit-testable without opening a socket."""
-    if path in ("/", "/index.html", "/graph"):
-        G, adj = build_graph(include_code=True)
-        return 200, _render_graph_html(G, adj), "text/html; charset=utf-8"
-    if path == "/api/graph.json":
-        # Same map the page draws, as data — so other tools can consume the live graph
-        # without shelling out to `ctx graph --json`.
-        G, adj = build_graph(include_code=True)
-        return 200, json.dumps({
-            "project": _manifest().get("project", ""),
-            "summary": _graph_summary(G, _parse_web()[0]),
-            "nodes": [{"id": nid, "kind": d["kind"], "title": d["title"][:120],
-                       "status": d["status"]} for nid, d in G.items()],
-            "edges": [{"from": a, "to": e["to"], "type": e["type"]}
-                      for a, es in adj.items() for e in es if e["dir"] == "out"],
-            "details": _graph_details(G, adj),
-        }), "application/json; charset=utf-8"
-    if path == "/health":
-        return 200, "ok\n", "text/plain; charset=utf-8"
-    if path == "/favicon.ico":
-        return 204, b"", "image/x-icon"          # keep the console clean
-    return 404, "not found — try / (the map) or /api/graph.json\n", "text/plain; charset=utf-8"
+def _event_ledger_response(event_db, raw_path):
+    """Pure route adapter for the optional research-event SQLite projection."""
+    import urllib.parse
+
+    if not event_db:
+        return (
+            404,
+            "research-event ledger not configured; restart with --event-db PATH\n",
+            "text/plain; charset=utf-8",
+        )
+    from research_event_ledger import ledger_payload, render_events_html
+
+    parsed = urllib.parse.urlsplit(raw_path)
+    path = parsed.path.rstrip("/") or "/"
+    params = urllib.parse.parse_qs(parsed.query, keep_blank_values=False)
+    revision = params.get("revision", [None])[0]
+    try:
+        if path == "/events":
+            base = ledger_payload(Path(event_db))
+            batches = base["batches"]
+            requested = params.get("batch", [None])[0]
+            batch_id = requested or (batches[0]["batch_id"] if batches else None)
+            payload = (
+                ledger_payload(Path(event_db), batch_id, revision)
+                if batch_id
+                else base
+            )
+            return 200, render_events_html(payload), "text/html; charset=utf-8"
+        if path == "/api/research-events":
+            payload = ledger_payload(Path(event_db))
+            return (
+                200,
+                json.dumps(payload, separators=(",", ":")),
+                "application/json; charset=utf-8",
+            )
+        prefix = "/api/research-events/"
+        if path.startswith(prefix):
+            batch_id = urllib.parse.unquote(path[len(prefix) :])
+            if not batch_id or "/" in batch_id:
+                raise KeyError("invalid batch")
+            payload = ledger_payload(Path(event_db), batch_id, revision)
+            return (
+                200,
+                json.dumps(payload, separators=(",", ":")),
+                "application/json; charset=utf-8",
+            )
+    except KeyError as exc:
+        return 404, f"unknown research-event batch/revision: {exc}\n", "text/plain; charset=utf-8"
+    except (OSError, sqlite3.Error) as exc:
+        return 503, f"research-event ledger unavailable: {exc}\n", "text/plain; charset=utf-8"
+    return 404, "not found\n", "text/plain; charset=utf-8"
+
+
+def _corporate_action_response(corporate_action_db, raw_path):
+    """Pure route adapter for the optional corporate-action SQLite projection."""
+    import urllib.parse
+
+    if not corporate_action_db:
+        return (
+            404,
+            "corporate-action ledger not configured; restart with "
+            "--corporate-action-db PATH\n",
+            "text/plain; charset=utf-8",
+        )
+    from corporate_action_outcome_lab import ledger_payload, render_html
+
+    parsed = urllib.parse.urlsplit(raw_path)
+    path = parsed.path.rstrip("/") or "/"
+    params = urllib.parse.parse_qs(parsed.query, keep_blank_values=False)
+    try:
+        if path == "/corporate-actions":
+            action_id = params.get("id", [None])[0]
+            payload = ledger_payload(Path(corporate_action_db), action_id)
+            return 200, render_html(payload), "text/html; charset=utf-8"
+        if path == "/api/corporate-actions":
+            payload = ledger_payload(Path(corporate_action_db))
+            return (
+                200,
+                json.dumps(payload, separators=(",", ":")),
+                "application/json; charset=utf-8",
+            )
+        prefix = "/api/corporate-actions/"
+        if path.startswith(prefix):
+            action_id = urllib.parse.unquote(path[len(prefix) :])
+            if not action_id or "/" in action_id:
+                raise KeyError("invalid corporate action")
+            payload = ledger_payload(Path(corporate_action_db), action_id)
+            return (
+                200,
+                json.dumps(payload, separators=(",", ":")),
+                "application/json; charset=utf-8",
+            )
+    except KeyError as exc:
+        return (
+            404,
+            f"unknown corporate action: {exc}\n",
+            "text/plain; charset=utf-8",
+        )
+    except (OSError, sqlite3.Error) as exc:
+        return (
+            503,
+            f"corporate-action ledger unavailable: {exc}\n",
+            "text/plain; charset=utf-8",
+        )
+    return 404, "not found\n", "text/plain; charset=utf-8"
+
+
+def _corporate_action_state_response(corporate_action_state_db, raw_path):
+    """Pure route adapter for the point-in-time SEC action-state projection."""
+    import urllib.parse
+
+    if not corporate_action_state_db:
+        return (
+            404,
+            "SEC action-state ledger not configured; restart with "
+            "--corporate-action-state-db PATH\n",
+            "text/plain; charset=utf-8",
+        )
+    from sec_corporate_action_state_lab import ledger_payload, render_html
+
+    parsed = urllib.parse.urlsplit(raw_path)
+    path = parsed.path.rstrip("/") or "/"
+    params = urllib.parse.parse_qs(parsed.query, keep_blank_values=False)
+    as_of = params.get("as_of", [None])[0]
+    try:
+        if path == "/corporate-action-states":
+            chain_id = params.get("id", [None])[0]
+            payload = ledger_payload(
+                Path(corporate_action_state_db), chain_id, as_of
+            )
+            return 200, render_html(payload), "text/html; charset=utf-8"
+        if path == "/api/corporate-action-states":
+            payload = ledger_payload(Path(corporate_action_state_db))
+            return (
+                200,
+                json.dumps(payload, separators=(",", ":")),
+                "application/json; charset=utf-8",
+            )
+        prefix = "/api/corporate-action-states/"
+        if path.startswith(prefix):
+            chain_id = urllib.parse.unquote(path[len(prefix) :])
+            if not chain_id or "/" in chain_id:
+                raise KeyError("invalid action chain")
+            payload = ledger_payload(
+                Path(corporate_action_state_db), chain_id, as_of
+            )
+            return (
+                200,
+                json.dumps(payload, separators=(",", ":")),
+                "application/json; charset=utf-8",
+            )
+    except (KeyError, ValueError) as exc:
+        return (
+            404,
+            f"unknown SEC action chain/as-of clock: {exc}\n",
+            "text/plain; charset=utf-8",
+        )
+    except (OSError, sqlite3.Error) as exc:
+        return (
+            503,
+            f"SEC action-state ledger unavailable: {exc}\n",
+            "text/plain; charset=utf-8",
+        )
+    return 404, "not found\n", "text/plain; charset=utf-8"
+
+
+def _form25_population_response(form25_population_db, raw_path):
+    """Pure route adapter for the SEC Form 25 population projection."""
+    import urllib.parse
+
+    if not form25_population_db:
+        return (
+            404,
+            "Form 25 population not configured; restart with "
+            "--form25-population-db PATH\n",
+            "text/plain; charset=utf-8",
+        )
+    from sec_form25_population_lab import (
+        population_payload,
+        render_population_html,
+    )
+
+    parsed = urllib.parse.urlsplit(raw_path)
+    path = parsed.path.rstrip("/") or "/"
+    params = urllib.parse.parse_qs(parsed.query, keep_blank_values=False)
+    filters = {
+        key: params[key][0]
+        for key in (
+            "q",
+            "quarter",
+            "exchange",
+            "window",
+            "security",
+            "rule",
+            "reason",
+            "sampled",
+            "informative",
+        )
+        if key in params
+    }
+    try:
+        limit = int(params.get("limit", ["100"])[0])
+        payload = population_payload(
+            Path(form25_population_db), filters, limit
+        )
+        if path == "/form25-population":
+            return (
+                200,
+                render_population_html(payload),
+                "text/html; charset=utf-8",
+            )
+        if path == "/api/form25-population":
+            return (
+                200,
+                json.dumps(payload, separators=(",", ":")),
+                "application/json; charset=utf-8",
+            )
+    except (OSError, sqlite3.Error, ValueError) as exc:
+        return (
+            503,
+            f"Form 25 population unavailable: {exc}\n",
+            "text/plain; charset=utf-8",
+        )
+    return 404, "not found\n", "text/plain; charset=utf-8"
 
 
 def cmd_serve(args):
     """Serve the LIVE context map as a tiny read-only web app (stdlib http.server, no
     deps) — the context layer's OWN web view, separate from the (fenced) trading dashboard.
-    GET / = the interactive force-graph (rebuilt each load, always fresh); /api/graph.json
-    = the same map as JSON (for scripts/other tools); /health = ok.
+    GET / = the interactive force-graph (rebuilt each load, always fresh); /health = ok.
+    With --event-db, /events and /api/research-events are read-only projections of
+    the revision-aware research-event ledger. With --corporate-action-db,
+    /corporate-actions and /api/corporate-actions expose outcome facts read-only.
+    With --corporate-action-state-db, /corporate-action-states exposes a
+    point-in-time SEC state vector and observation-ordered timeline.
+    With --form25-population-db, /form25-population exposes a filterable
+    accession-level Form 25 census and enriched sample.
     Bind --host 0.0.0.0 to reach it over the network (e.g. Tailscale). Ctrl-C to stop."""
     import http.server
 
@@ -2254,8 +2692,55 @@ def cmd_serve(args):
 
         def do_GET(self):
             try:
-                code, body, ctype = _serve_route(self.path.split("?", 1)[0])
-                self._send(code, body, ctype)
+                path = self.path.split("?", 1)[0].rstrip("/") or "/"
+                if path == "/api/graph.json":
+                    code, body, ctype = _serve_route(path)
+                    self._send(code, body, ctype)
+                elif path in ("/", "/index.html", "/graph"):
+                    G, adj = build_graph(include_code=True)
+                    self._send(
+                        200,
+                        _render_served_graph_html(
+                            G,
+                            adj,
+                            getattr(args, "event_db", None),
+                            getattr(args, "corporate_action_db", None),
+                            getattr(args, "corporate_action_state_db", None),
+                            getattr(args, "form25_population_db", None),
+                        ),
+                    )
+                elif path == "/health":
+                    self._send(200, "ok\n", "text/plain; charset=utf-8")
+                elif path == "/events" or path.startswith("/api/research-events"):
+                    code, body, ctype = _event_ledger_response(
+                        getattr(args, "event_db", None), self.path
+                    )
+                    self._send(code, body, ctype)
+                elif path == "/corporate-actions" or path.startswith(
+                    "/api/corporate-actions"
+                ):
+                    code, body, ctype = _corporate_action_response(
+                        getattr(args, "corporate_action_db", None), self.path
+                    )
+                    self._send(code, body, ctype)
+                elif path == "/corporate-action-states" or path.startswith(
+                    "/api/corporate-action-states"
+                ):
+                    code, body, ctype = _corporate_action_state_response(
+                        getattr(args, "corporate_action_state_db", None),
+                        self.path,
+                    )
+                    self._send(code, body, ctype)
+                elif path == "/form25-population" or path.startswith(
+                    "/api/form25-population"
+                ):
+                    code, body, ctype = _form25_population_response(
+                        getattr(args, "form25_population_db", None),
+                        self.path,
+                    )
+                    self._send(code, body, ctype)
+                else:
+                    self._send(404, "not found — try / (the context map)\n", "text/plain; charset=utf-8")
             except Exception as exc:  # never crash the server on one bad request
                 self._send(500, f"error: {exc}\n", "text/plain; charset=utf-8")
 
@@ -2339,33 +2824,352 @@ def _claim_guard_resolves(g):
     return os.path.exists(os.path.join(REPO, g))
 
 
+def behavior_asserting_bridges():
+    """Bridges whose claim is about CODE BEHAVIOR, so a guard test is meaningful.
+
+    `implemented_in` is the explicit case. But a `concerns`/`gated_by` bridge that names
+    a `file.py::symbol` is asserting something about that symbol just as strongly — F17
+    "concerns compute_trade_returns" is a claim about what that function does. Scoping
+    the audit to `implemented_in` alone (H13/DP-6) let 13 of 17 bridges sit permanently
+    unauditable, and made `ctx claims` print "0 UNGUARDED" while six behavior-asserting
+    bridges had no guard at all — a metric that lies by construction.
+
+    A bridge pointing only at `config.KEY` is excluded: naming a config value is not a
+    behavioral claim, and there is nothing for a guard to assert about it on its own.
+    """
+    out = []
+    for b in _graph_bridges():
+        if b.get("relation") == "implemented_in":
+            out.append(b)
+        elif any("::" in c for c in b.get("code", [])):
+            out.append(b)
+    return out
+
+
+NODE_ID_RX = re.compile(r"^([A-Za-z]+)(\d+)$")
+
+
+def _node_number(nid):
+    m = NODE_ID_RX.match(nid)
+    return int(m.group(2)) if m else -1
+
+
+def _inbound_edges(nodes):
+    from collections import defaultdict
+    inbound = defaultdict(list)
+    for nid, n in nodes.items():
+        for e in n.get("edges", []):
+            inbound[e["target"]].append((nid, e["type"]))
+    return inbound
+
+
+def _cites_evidence(node):
+    return (any(e["type"] == "evidenced_by" for e in node.get("edges", []))
+            or "Source:" in node.get("body", ""))
+
+
+def semantic_staleness(nodes=None):
+    """SEMANTIC staleness -- nodes that read as current but the web has moved past.
+
+    The epistemic layer detects DECLARED staleness: a node says `status: superseded`
+    and the lint follows. It is blind to a node that never declared anything while
+    later work overtook it (H11/DP-4). Two signals, deliberately different in kind:
+
+    * `edge_status_conflict` -- the node is the TARGET of a `supersedes` edge yet still
+      declares `current`. The web contradicts itself about one node; that is a hard
+      problem, not a ranking.
+    * `decay` -- a CURRENT Finding/Decision that cites no evidence of its own, is
+      refined/contradicted/superseded by a STRICTLY LATER node, and whose body never
+      mentions that node. Unacknowledged overtaking. Ranked by
+      `len(unacknowledged) * max_id_gap`, largest first.
+
+    Both are heuristics and are meant to be read, not obeyed. The decay list is scoped
+    hard on purpose: requiring "cites no evidence" AND "never mentions the later node"
+    takes 194 current F/D nodes down to a dozen. Refinement alone is normal accumulation
+    -- 187 nodes are refined by something later, which is healthy, not stale.
+
+    Returns (conflicts, decay_rows). Read-only.
+    """
+    if nodes is None:
+        nodes, _ = _parse_web()
+    inbound = _inbound_edges(nodes)
+    conflicts, decay = [], []
+    for nid, n in nodes.items():
+        if _is_superseded(n):
+            continue
+        for src, etype in inbound[nid]:
+            if etype == "supersedes":
+                conflicts.append((nid, src))
+        if nid[:1] not in ("F", "D") or _cites_evidence(n):
+            continue
+        later = [src for src, etype in inbound[nid]
+                 if etype in ("refines", "contradicts", "supersedes")
+                 and _node_number(src) > _node_number(nid)
+                 and src not in n.get("body", "")]
+        if later:
+            gap = max(_node_number(s) - _node_number(nid) for s in later)
+            decay.append({"node": nid, "score": len(later) * gap, "gap": gap,
+                          "by": sorted(later, key=_node_number),
+                          "title": n.get("title", "")})
+    decay.sort(key=lambda r: (-r["score"], r["node"]))
+    return sorted(set(conflicts)), decay
+
+
+def cmd_stale(args):
+    """Semantic-staleness decay list (H11/DP-4) -- findings the web has moved past
+    without anyone declaring it. Complements `--lint`, which only sees DECLARED
+    staleness. Read-only; nothing here is authoritative, it is a reading queue."""
+    conflicts, decay = semantic_staleness()
+    if conflicts:
+        print("  EDGE/STATUS CONFLICT -- the web says superseded, the node says current:")
+        for tgt, src in conflicts:
+            print(f"    {tgt} is superseded by {src} but declares status: current")
+            print(f"      -> set `<!-- status: superseded; by: {src}; reason: ... -->` "
+                  f"on {tgt}, or retype the edge if {src} does not actually supersede it")
+        print()
+    limit = getattr(args, "limit", None) or 15
+    print(f"  DECAY LIST -- current, self-uncited, overtaken by a later node ({len(decay)}):")
+    for row in decay[:limit]:
+        print(f"    {row['score']:5}  {row['node']:5} overtaken by {', '.join(row['by'])}"
+              f"  (gap {row['gap']})")
+        print(f"           {row['title'][:72]}")
+    if len(decay) > limit:
+        print(f"    ... {len(decay) - limit} more (--limit)")
+    if not conflicts and not decay:
+        print("  nothing flagged")
+
+
+_NODE_REF_RX = re.compile(r"\b([FDEH]\d+)\b")
+
+
+def _drift_stores():
+    """Which claim stores this checkout can actually read.
+
+    Three stores hold claims (H15/DP-8): the research web, the context-map bridges, and
+    `experiments.jsonl`, the sweep ledger. The third is **gitignored** (.gitignore:17),
+    so it is absent from every fresh clone and from CI. A cross-store checker that
+    silently skips it would report "no drift" about a store it never opened — the
+    absence-flag failure this project keeps re-learning (F155/F159/F167). So store
+    availability is reported first, and any check needing an unreadable store is
+    UNKNOWN, never clean.
+    """
+    stores = {}
+    stores["web"] = (os.path.exists(WEB), WEB)
+    manifest = os.path.join(REPO, "context_map.json")
+    stores["bridges"] = (os.path.exists(manifest), manifest)
+    ledger = os.path.join(REPO, "experiments.jsonl")
+    stores["ledger"] = (os.path.exists(ledger), ledger)
+    return stores
+
+
+def drift_report():
+    """(stores, problems, unknowns) — read-only cross-store consistency.
+
+    Problems are concrete and decidable. Unknowns are checks that could not run because
+    a store is unreadable; they are counted separately so an unreadable store can never
+    be mistaken for a clean one.
+    """
+    stores = _drift_stores()
+    problems, unknowns = [], []
+
+    if not stores["ledger"][0]:
+        unknowns.append(
+            "ledger: experiments.jsonl is absent (gitignored) — cannot check whether "
+            "any sweep row's headline contradicts a current Finding. This is UNKNOWN, "
+            "not clean. Un-ignoring the ledger (IMPROVEMENT_PLAN K2) would make it "
+            "checkable in CI.")
+
+    if not (stores["web"][0] and stores["bridges"][0]):
+        unknowns.append("bridges<->web: a store is missing; bridge checks skipped")
+        return stores, problems, unknowns
+
+    nodes, _ = _parse_web()
+    for b in _graph_bridges():
+        nid = b.get("node")
+        if nid not in nodes:
+            problems.append(f"bridge {nid} names a node that does not exist in the web")
+            continue
+        if _is_superseded(nodes[nid]):
+            problems.append(
+                f"bridge {nid} points at a SUPERSEDED node — `ctx impact` will surface "
+                f"a retracted finding as if it governed the code")
+        for ref in sorted(set(_NODE_REF_RX.findall(b.get("note", "")))):
+            if ref not in nodes:
+                problems.append(f"bridge {nid}'s note cites {ref}, which does not exist")
+            elif _is_superseded(nodes[ref]):
+                problems.append(
+                    f"bridge {nid}'s note cites {ref}, which is superseded")
+    return stores, problems, unknowns
+
+
+# Files a doc may legitimately name that are runtime artifacts, not repository content.
+# Flagging these would train a reader to ignore the linter.
+_RUNTIME_ARTIFACTS = {
+    "live/state.db", "state.db", "experiments.jsonl", "graph.json", ".mcp.json",
+    "local_logs/healthcheck.json", "local_runtime/current_run.json",
+    "sweep_results_TICKER.json",
+}
+_DOC_PATH_RX = re.compile(r"`([A-Za-z0-9_./-]+\.(?:py|sh|md|json|jsonl|yml|db|service|txt))`")
+
+
+def _repo_file_index():
+    names, relpaths = set(), set()
+    for dirpath, dirnames, filenames in os.walk(REPO):
+        dirnames[:] = [d for d in dirnames
+                       if d not in (".git", "venv", "__pycache__", ".pytest_cache")]
+        for fn in filenames:
+            names.add(fn)
+            relpaths.add(os.path.relpath(os.path.join(dirpath, fn), REPO))
+    return names, relpaths
+
+
+def operator_fact_drift():
+    """Repo facts hand-copied into operator docs (H17/DP-10).
+
+    H17's literal target is `.claude/memory/*.md`, which lives OUTSIDE the repository
+    and is absent from this checkout — so it is reported as an unknown, not as clean.
+    What IS checkable is the same failure in the in-repo docs: the branch model and CI
+    triggers are copied into prose in several places and synced only by convention.
+
+    The dangling-reference check needs two filters or it is unusable. A naive
+    "does this backticked path exist" scan produces ~40 hits here; resolving bare
+    basenames anywhere in the tree and allowlisting runtime artifacts takes that to a
+    handful. A linter with a 90% false-positive rate is a linter nobody runs.
+    """
+    problems, unknowns = [], []
+
+    memdir = os.path.join(os.path.expanduser("~"), ".claude", "memory")
+    if not os.path.isdir(memdir):
+        unknowns.append(
+            f"operator memory: {memdir} is absent (it lives outside the repo and is "
+            f"per-user) — copied repo facts there cannot be checked from a clone or "
+            f"from CI. UNKNOWN, not clean.")
+
+    # Branch model: four independent statements of one fact.
+    deploy = _manifest().get("deploy_branch")
+    pf = os.path.join(REPO, "ops", "preflight_trader_start.sh")
+    if deploy and os.path.exists(pf):
+        with open(pf, errors="ignore") as fh:
+            mm = re.search(r'^EXPECT_BRANCH="([^"]+)"', fh.read(), re.M)
+        if mm and mm.group(1) != deploy:
+            problems.append(
+                f"branch model: manifest deploy_branch={deploy!r} but the preflight "
+                f"gate enforces EXPECT_BRANCH={mm.group(1)!r}")
+    wf = os.path.join(REPO, ".github", "workflows", "test.yml")
+    if deploy and os.path.exists(wf):
+        with open(wf, errors="ignore") as fh:
+            text = fh.read()
+        if deploy not in text:
+            problems.append(
+                f"CI triggers: the workflow never mentions the deploy branch {deploy!r}, "
+                f"so pushes to it may not be tested")
+
+    # Dangling in-repo references in operator docs.
+    #
+    # PLANNING documents are excluded by name. A roadmap names files that do not exist
+    # yet -- that is what a roadmap is -- so demanding its references resolve asks a
+    # plan not to plan. Excluding them deliberately beats a fragile "is this sentence
+    # aspirational" heuristic; the same call as the smoke test's NOT_SMOKED list.
+    # RESEARCH_WEB.md joins them for a different reason: it is the FINDING LEDGER, and
+    # a finding routinely names a file that does not exist (that is often the finding).
+    # F208 records that `src/analysis/performance.py` is still only a proposal, and that
+    # sentence tripped this linter. Third time this exclusion has been needed — the
+    # branch-drift guard and the H32 risk-token grep both carry it too: a ledger must be
+    # able to DESCRIBE an absence without the absence-detector reading it as presence.
+    PLANNING_DOCS = {"IMPROVEMENT_PLAN.md", "AGENT_CONTEXT_PLAN.md", "VISION.md",
+                     "RESEARCH_WEB.md"}
+    names, relpaths = _repo_file_index()
+    docs = [f for f in os.listdir(REPO) if f.endswith(".md")]
+    docs += [os.path.join("ops", f) for f in os.listdir(os.path.join(REPO, "ops"))
+             if f.endswith(".md")] if os.path.isdir(os.path.join(REPO, "ops")) else []
+    for doc in sorted(docs):
+        if os.path.basename(doc) in PLANNING_DOCS:
+            continue
+        path = os.path.join(REPO, doc)
+        with open(path, errors="ignore") as fh:
+            text = fh.read()
+        for ref in sorted(set(_DOC_PATH_RX.findall(text))):
+            if ref in _RUNTIME_ARTIFACTS or ref in relpaths:
+                continue
+            if os.path.basename(ref) in names:
+                continue                       # named by basename; resolves elsewhere
+            if re.search(r"(no|NO|not|deferred|proposed|would|planned)[^.\n]{0,60}`"
+                         + re.escape(ref) + "`", text):
+                continue                       # a proposal or an explicit non-existence
+            problems.append(f"{doc} references `{ref}`, which does not exist")
+    return problems, unknowns
+
+
+def cmd_drift(args):
+    """Cross-store consistency (H15/DP-8): research web vs context-map bridges vs the
+    sweep ledger. Advisory by design — cross-store semantic matching is heuristic — but
+    an unreadable store is reported as UNKNOWN rather than passing silently."""
+    stores, problems, unknowns = drift_report()
+    # H17/DP-10 lands here rather than in a separate `ctx memory --lint`: this IS the
+    # cross-store consistency command, and a second overlapping checker is the drift
+    # this repo keeps finding (two paths, one fact, quietly diverging).
+    fact_problems, fact_unknowns = operator_fact_drift()
+    problems = problems + fact_problems
+    unknowns = unknowns + fact_unknowns
+    print("  STORES:")
+    for name, (ok, path) in sorted(stores.items()):
+        rel = os.path.relpath(path, REPO)
+        print(f"    {'readable  ' if ok else 'UNREADABLE'}  {name:8} {rel}")
+    print()
+    if problems:
+        print(f"  PROBLEM(S) ({len(problems)}):")
+        for p in problems:
+            print(f"    {p}")
+        print()
+    if unknowns:
+        print(f"  UNKNOWN ({len(unknowns)}) — checks that could not run:")
+        for u in unknowns:
+            print(f"    {u}")
+        print()
+    print(f"  {len(problems)} problem(s) · {len(unknowns)} unknown(s)")
+    if unknowns and not problems:
+        print("  NOTE: 0 problems does NOT mean consistent — see the unknowns above.")
+    # `main()` discards return values; every other exit-code-bearing command in this
+    # module signals with sys.exit, so do the same rather than documenting a contract
+    # that is not enforced. UNKNOWNs are advisory (H15 says so) and do not fail.
+    if problems:
+        sys.exit(1)
+
+
 def cmd_claims(args):
-    """Test↔epistemic coverage: for each `implemented_in` idea↔code bridge (a Finding
-    asserting concrete CODE BEHAVIOR), report whether a designated guard TEST asserts
-    that specific claim. `ctx covers <sym>` only shows tests that TOUCH a symbol — a
-    finding can look covered (the symbol has tests) while its claim is unguarded. The
-    live example: F23 claims momentum_signal ignores the per-mode RSI/MACD periods;
-    momentum_signal has tests, but none assert that claim → it shows UNGUARDED here."""
-    bridges = [b for b in _graph_bridges() if b.get("relation") == "implemented_in"]
+    """Test↔epistemic coverage: for each idea↔code bridge asserting concrete CODE
+    BEHAVIOR, report whether a designated guard TEST asserts that specific claim.
+    `ctx covers <sym>` only shows tests that TOUCH a symbol — a finding can look covered
+    (the symbol has tests) while its claim is unguarded. The live example: F23 claims
+    momentum_signal ignores the per-mode RSI/MACD periods; momentum_signal has tests,
+    but none assert that claim → it shows UNGUARDED here.
+
+    Covers `implemented_in` bridges AND any `concerns`/`gated_by` bridge naming a
+    `::symbol` (H13/DP-6) — see behavior_asserting_bridges()."""
+    bridges = behavior_asserting_bridges()
     if not bridges:
-        print("no implemented_in bridges (findings asserting concrete code behavior)")
+        print("no bridges asserting concrete code behavior")
         return
     nodes, _ = _parse_web()
     unguarded = 0
-    for b in sorted(bridges, key=lambda x: x["node"]):
+    for b in sorted(bridges, key=lambda x: (x.get("relation", ""), x["node"])):
         node, code = b["node"], ", ".join(b["code"])
+        rel = b.get("relation", "?")
         guards = b.get("guarded_by") or []
         resolved = [g for g in guards if _claim_guard_resolves(g)]
         if resolved:
-            print(f"  GUARDED    {node}  ({code})")
+            print(f"  GUARDED    {node}  [{rel}]  ({code})")
             for g in resolved:
                 print(f"             └ {g}")
         else:
             unguarded += 1
-            print(f"  UNGUARDED  {node} — {nodes.get(node, {}).get('title', '')[:58]}")
+            print(f"  UNGUARDED  {node}  [{rel}] — {nodes.get(node, {}).get('title', '')[:52]}")
             print(f"             claim about {code} has no test asserting it"
                   + (f"; declared guards {guards} do not resolve" if guards else ""))
-    print(f"\n  {len(bridges)} implemented_in claim(s) · {unguarded} UNGUARDED")
+    n_impl = sum(1 for b in bridges if b.get("relation") == "implemented_in")
+    print(f"\n  {len(bridges)} behavior-asserting claim(s) "
+          f"({n_impl} implemented_in, {len(bridges) - n_impl} concerns/gated_by) "
+          f"· {unguarded} UNGUARDED")
     if unguarded:
         print("  → write a test that ASSERTS the claim (not just exercises the symbol), "
               "then add `guarded_by: [tests/x.py::TestY]` to the bridge")
@@ -2753,6 +3557,9 @@ def _web_banner():
     n_sup = sum(1 for n in nodes.values() if _is_superseded(n))
     dates = [d for d in (_node_meta(n).get("at") for n in nodes.values()) if d]
     rider = f"[Auto] {len(nodes)} nodes, {n_sup} superseded" + (f" · latest dated node {max(dates)}" if dates else "")
+    # H16/DP-9: node counts alone let the ALL-vs-CONFIRMED gap be skimmed past at cold
+    # start. perf_summary() always returns a line — measured, unmeasured, or unavailable.
+    rider += f" · {perf_summary()}"
     return f"{banner}  {rider}" if banner else rider
 
 
@@ -2862,7 +3669,10 @@ def cmd_reverts(args):
 def main():
     p = argparse.ArgumentParser(description="ctx — read-only context query tool for agents")
     sub = p.add_subparsers(dest="cmd")
-    sp = sub.add_parser("route"); sp.add_argument("task", nargs="+"); sp.set_defaults(fn=cmd_route)
+    sp = sub.add_parser("route"); sp.add_argument("task", nargs="*")
+    sp.add_argument("--audit", action="store_true",
+                    help="measure miss rate + false positives instead of routing")
+    sp.set_defaults(fn=cmd_route)
     sp = sub.add_parser("where"); sp.add_argument("symbol"); sp.set_defaults(fn=cmd_where)
     sp = sub.add_parser("find"); sp.add_argument("query", nargs="+"); sp.set_defaults(fn=cmd_find)
     sp = sub.add_parser("usages"); sp.add_argument("symbol"); sp.set_defaults(fn=cmd_usages)
@@ -2884,6 +3694,7 @@ def main():
     sub.add_parser("audit").set_defaults(fn=cmd_audit)
     sub.add_parser("status").set_defaults(fn=cmd_status)
     sp = sub.add_parser("recent"); sp.add_argument("n", nargs="?", type=int, default=10); sp.set_defaults(fn=cmd_recent)
+    sp = sub.add_parser("docs"); sp.set_defaults(fn=cmd_docs)
     sp = sub.add_parser("map"); sp.add_argument("area", nargs="?"); sp.set_defaults(fn=cmd_map)
     sp = sub.add_parser("tests"); sp.add_argument("area"); sp.set_defaults(fn=cmd_tests)
     sp = sub.add_parser("web"); sp.add_argument("node", nargs="?")
@@ -2908,9 +3719,32 @@ def main():
     sp = sub.add_parser("serve")
     sp.add_argument("--host", default="127.0.0.1", help="bind address (0.0.0.0 to reach over the network)")
     sp.add_argument("--port", type=int, default=8787, help="port (default 8787)")
+    sp.add_argument(
+        "--event-db",
+        default=None,
+        help="optional disposable research-event SQLite projection; enables read-only /events and API routes",
+    )
+    sp.add_argument(
+        "--corporate-action-db",
+        default=None,
+        help="optional disposable corporate-action SQLite projection; enables read-only outcome browser and API routes",
+    )
+    sp.add_argument(
+        "--corporate-action-state-db",
+        default=None,
+        help="optional disposable SEC action-state SQLite projection; enables read-only point-in-time timeline routes",
+    )
+    sp.add_argument(
+        "--form25-population-db",
+        default=None,
+        help="optional disposable SEC Form 25 SQLite projection; enables read-only population browser and API",
+    )
     sp.set_defaults(fn=cmd_serve)
     sub.add_parser("health").set_defaults(fn=cmd_health)
     sub.add_parser("claims").set_defaults(fn=cmd_claims)
+    sp = sub.add_parser("stale"); sp.add_argument("--limit", type=int, default=15)
+    sub.add_parser("drift").set_defaults(fn=cmd_drift)
+    sp.set_defaults(fn=cmd_stale)
     sub.add_parser("uncaptured").set_defaults(fn=cmd_uncaptured)
     sp = sub.add_parser("delta"); sp.add_argument("--since", default=None,
         help="git date ('5 days ago') or revision; default HEAD~12"); sp.set_defaults(fn=cmd_delta)

@@ -585,8 +585,14 @@ class TestGraphHtmlExplore(unittest.TestCase):
             "Config Value",
             "Code Impact",
             "Area Brief",
-            "--map:#02040a",
-            "const dark=true",
+            # Was `--map:#02040a` / `const dark=true` until F232 ported this page onto
+            # tools/ui_tokens.py. Both pinned the dark-only palette: the first hard-coded
+            # the canvas colour, the second pinned `dark` on and made the light branch —
+            # which was already written — unreachable. The replacements pin the port
+            # itself, so re-hardcoding either would fail here as well.
+            "--map:var(--plane)",
+            "let dark=themePref()",
+            "__TOKENS__",
             "function targetZ",
             "function nodeZ",
             "function init3D",
@@ -648,6 +654,25 @@ class TestGraphHtmlExplore(unittest.TestCase):
             "cruiseAnim=requestAnimationFrame(step)",
             "if(sel!==null){const d=nodes[sel],frame=()=>applyEgoFrame",
             "animateOrbit(0,0,420);",
+            # Orbs must stay grabbable: at the default zoom (k~0.37) a 6px orb is ~2px
+            # on screen, so without a generous transparent hit target elementFromPoint
+            # returns the <svg>, the grab falls through to d3.zoom and PANS the canvas —
+            # which reads as "grabbing one orb moves all the orbs". Verified in Chromium:
+            # 544/544 orbs displaced before, exactly 1 after.
+            "node-hit",
+            "pointer-events','all'",
+            # A drag must not re-heat the layout, and relax3D must not mutate z mid-drag
+            # (that resized orbs under the cursor).
+            "function renderDragged",
+            "if(dragging)return",
+            # module + config nodes are scaffolding, not research content: 181 of 544
+            # nodes and 291 of 1504 edges. Hidden by default so the map opens on the idea
+            # web; both pills toggle them back on. Hiding only pays off because render()
+            # iterates the visible subset — display:none elements were previously still
+            # written every frame.
+            "on.module=false;on.config=false",
+            "function recomputeVisible",
+            "visNodes.length",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, html)
@@ -677,7 +702,19 @@ class TestFrontier(unittest.TestCase):
         self.assertIn("cfg:STOP_LOSS_PCT_TQQQ_HOURLY", out)  # the code bridge
 
     def test_no_match_is_graceful(self):
-        self.assertIn("no idea-graph match", self._run("zzzqqq xyzzy nonsense"))
+        # The query must be words the web CANNOT contain. The original ended in
+        # "nonsense", and F214 — a finding about the router answering nonsense —
+        # made it a real seed. A negative control has to stay negative, so the
+        # tokens here are non-words no prose would use.
+        query = "zzzqqq xyzzy plugh frotz"
+        with open(os.path.join(REPO, "RESEARCH_WEB.md"), encoding="utf-8") as fh:
+            web = fh.read()
+        for token in query.split():
+            self.assertNotIn(
+                token, web,
+                "the no-match control word {!r} now appears in the web — pick "
+                "another; a negative control has to stay negative".format(token))
+        self.assertIn("no idea-graph match", self._run(query))
 
     def test_stopwords_alone_do_not_seed(self):
         # regression on the stopword filter: bare 'the' must not seed every node.
@@ -930,8 +967,11 @@ class TestGraphDetailPayload(unittest.TestCase):
         # The <!-- status: … --> block is structured metadata rendered as badges, not
         # prose. (Nodes may still DISCUSS status in their text — that's real content.)
         for nid, d in self.det.items():
+            # Opener only. _META_RX strips the whole <!-- … --> pair, so a leak cannot
+            # leave a lone closer — while a bare "-->" IS legitimate prose in the merged
+            # corpus (F136 quotes an edge as `H2 --supports--> F9`). Asserting the closer
+            # flags real content as a leak, which is worse than the leak it guards.
             self.assertNotIn("<!--", d["body"], f"{nid} leaks its status comment")
-            self.assertNotIn("-->", d["body"], f"{nid} leaks its status comment")
         self.assertNotIn("by: F13", self.det["F3"]["body"])
 
     def test_section_headings_do_not_leak_into_the_last_node(self):
@@ -1005,6 +1045,15 @@ class TestGraphDetailPayload(unittest.TestCase):
             self.assertNotIn("&amp;lt;", d["body"], f"{nid} body is double-escaped")
 
 
+@unittest.skip("the two-pane research reader is deferred at the 2026-08-01 origin "
+                "sync. Its ~98 affordances (stage/panel, renderProse, syncHash deep "
+                "links, toggleHelp, setLayer, offlineFallback) are bound to a page "
+                "this tree no longer renders: origin's ctx.py carries a week of "
+                "tooling the reader branch lacks entirely (_code_spans, "
+                "semantic_staleness, drift_report, doc_topology, route_audit — 107 "
+                "tests on _code_spans alone), so origin is the base. The reader is "
+                "preserved at tag sync/pre-20260801T222602Z and is a port, not a "
+                "revert. Un-skip when it is rebuilt on this page.")
 class TestGraphHtmlReader(unittest.TestCase):
     """The map is a research READER: prose, provenance, deep links, keyboard nav and a
     usable page even when the d3 CDN is unreachable. Template-level, like the sibling
@@ -1052,6 +1101,12 @@ class TestGraphHtmlReader(unittest.TestCase):
         self.assertIn("'<b>'+esc(d.id)+'</b> '+d.title", ctx._GRAPH_HTML)
 
 
+@unittest.skip("vendored-d3 is deferred at the 2026-08-01 origin sync: inlining the "
+                "library removes the literal CDN tag from _GRAPH_HTML, which is the "
+                "artifact H40 audits (tests/test_h40_served_map_dependency.py asserts "
+                "the served page has exactly one external origin). Landing it would "
+                "silently supersede a documented security finding — a research "
+                "decision, not a merge one. Re-enable together with H40.")
 class TestVendoredD3(unittest.TestCase):
     """The layout library is the one thing the map doesn't inline. A vendored build
     makes the page load with no network at all; without one it must still emit the

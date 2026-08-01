@@ -1,0 +1,81 @@
+{
+  "artifact": "IX-01 December 2023 Nasdaq-100 revision diagnostic",
+  "schema_version": 1,
+  "status": "one tradable addition plus one cash-merger exit; descriptive and barred from pooled directional inference",
+  "official_revision_source": "https://www.nasdaq.com/press-release/update%3A-annual-changes-to-the-nasdaq-100r-index-2023-12-12",
+  "corporate_action_source": "https://www.sec.gov/Archives/edgar/data/78003/000119312523294930/d553734d8k.htm",
+  "provider": "Yahoo Finance via yfinance",
+  "provider_version": "1.2.0",
+  "raw_data_committed": false,
+  "retrieved_at_utc": "2026-07-24T15:24:10+00:00",
+  "event_clock": {
+    "revision_published_at": "2023-12-12T18:00:00-05:00",
+    "revision_first_tradable_session": "2023-12-13",
+    "cash_merger_effective_session": "2023-12-14",
+    "implementation_session_close": "2023-12-15",
+    "index_effective_session_open": "2023-12-18"
+  },
+  "coverage": {
+    "official_revision_events": 2,
+    "continuing_equity_return_events": 1,
+    "cash_merger_terminal_events": 1,
+    "complete_for_pooled_return_inference": false
+  },
+  "ttwo": {
+    "action": "addition",
+    "transition": "corporate_action_replacement",
+    "benchmark": "QQQ",
+    "horizon_dates": {
+      "post_implementation_1_session": "2023-12-18",
+      "post_implementation_5_sessions": "2023-12-22",
+      "post_implementation_20_sessions": "2024-01-17",
+      "post_implementation_60_sessions": "2024-03-14"
+    },
+    "relative_return_percent": {
+      "announcement_close_to_first_tradable_open": 2.263,
+      "first_tradable_open_to_implementation_close": -1.986,
+      "implementation_close_to_effective_open": 0.114,
+      "post_implementation_1_session": -1.637,
+      "post_implementation_5_sessions": 0.14,
+      "post_implementation_20_sessions": -0.598,
+      "post_implementation_60_sessions": -17.372
+    },
+    "raw_return_percent": {
+      "announcement_close_to_first_tradable_open": 2.506,
+      "first_tradable_open_to_implementation_close": -0.583,
+      "implementation_close_to_effective_open": 0.212,
+      "post_implementation_1_session": -1.017,
+      "post_implementation_5_sessions": 1.092,
+      "post_implementation_20_sessions": 0.112,
+      "post_implementation_60_sessions": -10.256
+    },
+    "implementation_volume_ratio_to_prior_20d_median": 9.47
+  },
+  "sgen": {
+    "action": "deletion",
+    "transition": "corporate_action_replacement",
+    "outcome_type": "cash_merger_terminal_value",
+    "merger_consideration_usd_per_share": 229.0,
+    "merger_effective_session": "2023-12-14",
+    "continuing_equity_return": null,
+    "exclusion_reason": "A continuing-equity return is the wrong label after the merger became effective. The current free provider also does not expose a durable delisted history through the study path. A future corporate-action label must join the last tradable price to the $229 cash consideration."
+  },
+  "refresh_audit": {
+    "paired_derived_result_sha256": [
+      "2e626a1e83641b8793615a9d58933e6107e3f885c8d2cfd9e16703571cda1d72",
+      "2e626a1e83641b8793615a9d58933e6107e3f885c8d2cfd9e16703571cda1d72"
+    ],
+    "observed_exact_input_sha256": [
+      "b7dafa63c219d4135571b7f550d9052ed8e22963885ab338ed6ad42c5114d209",
+      "1f2b098f001b5a2471a17a37bc6eca18bf9cac0e34293d9f2c27a195e1b56cc5"
+    ],
+    "interpretation": "Exact provider snapshots differed while the displayed-precision result hash reproduced."
+  },
+  "limitations": [
+    "TTWO is one event and cannot establish a revision premium, price-pressure effect, or trading rule.",
+    "The revision was caused by a known acquisition, so revision surprise and corporate-action news are inseparable in this case.",
+    "Daily OHLCV cannot isolate the closing auction or passive-fund demand.",
+    "SGEN requires a terminal cash-consideration outcome, not an ordinary post-event return.",
+    "Long-horizon TTWO performance is company-specific and not evidence of an index effect."
+  ]
+}

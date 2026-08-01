@@ -1,0 +1,113 @@
+{
+  "artifact": "CA-00 free-provider inactive-security coverage audit",
+  "schema_version": 1,
+  "fixture_id": "ca00-diverse-terminal-outcomes-v1",
+  "status": "coverage diagnostic; no price correctness or return claim",
+  "provider": "Yahoo Finance via yfinance 1.2.0",
+  "raw_data_committed": false,
+  "retrieved_at_utc": [
+    "2026-07-24T15:48:36+00:00",
+    "2026-07-24T15:48:51+00:00"
+  ],
+  "required_price_roles": 12,
+  "resolved_price_roles": 7,
+  "role_coverage_rate": 0.5833333333333334,
+  "actions_complete": 3,
+  "actions_total": 8,
+  "paired_coverage_decision_sha256": [
+    "171209f521de252d4b94f5e3139c23fad290b2d4a88c2ce25b3eb749b6b43fcf",
+    "171209f521de252d4b94f5e3139c23fad290b2d4a88c2ce25b3eb749b6b43fcf"
+  ],
+  "action_decisions": [
+    {
+      "event_symbol": "SGEN",
+      "action_type": "cash_merger",
+      "roles_resolved": 0,
+      "roles_required": 1,
+      "complete": false,
+      "missing": ["subject_pre_effective"]
+    },
+    {
+      "event_symbol": "ATVI",
+      "action_type": "cash_merger",
+      "roles_resolved": 0,
+      "roles_required": 1,
+      "complete": false,
+      "missing": ["subject_pre_effective"]
+    },
+    {
+      "event_symbol": "SPLK",
+      "action_type": "cash_merger",
+      "roles_resolved": 0,
+      "roles_required": 1,
+      "complete": false,
+      "missing": ["subject_pre_effective"]
+    },
+    {
+      "event_symbol": "TWTR",
+      "action_type": "cash_merger",
+      "roles_resolved": 0,
+      "roles_required": 1,
+      "complete": false,
+      "missing": ["subject_pre_effective"]
+    },
+    {
+      "event_symbol": "XLNX",
+      "action_type": "stock_merger",
+      "roles_resolved": 1,
+      "roles_required": 2,
+      "complete": false,
+      "resolved": ["successor_first_effective:AMD"],
+      "missing": ["subject_pre_effective"]
+    },
+    {
+      "event_symbol": "GE",
+      "action_type": "spinoff",
+      "roles_resolved": 3,
+      "roles_required": 3,
+      "complete": true,
+      "resolved": [
+        "subject_pre_effective:GE",
+        "retained_parent_first_effective:GE",
+        "distributed_child_first_effective:GEV"
+      ],
+      "missing": []
+    },
+    {
+      "event_symbol": "BBBYQ",
+      "action_type": "bankruptcy_cancellation",
+      "roles_resolved": 1,
+      "roles_required": 1,
+      "complete": true,
+      "resolved": ["subject_pre_effective:BBBY"],
+      "missing": []
+    },
+    {
+      "event_symbol": "FB",
+      "action_type": "ticker_change",
+      "roles_resolved": 2,
+      "roles_required": 2,
+      "complete": true,
+      "resolved": [
+        "old_symbol_pre_effective:META",
+        "same_security_current_mapping:META"
+      ],
+      "missing": []
+    }
+  ],
+  "findings": [
+    "All four fixed-cash merger subjects were unavailable under their inactive event symbols.",
+    "The stock-merger successor AMD was available while the disappearing XLNX subject was not.",
+    "The GE/GEV spinoff supplied all three required price roles.",
+    "BBBYQ was unavailable, but Yahoo exposed the required pre-cancellation session under the older BBBY symbol.",
+    "FB was unavailable, but current symbol META exposed both pre- and post-change history, demonstrating why time-bounded symbol aliases matter.",
+    "Two refreshes produced the same coverage-decision fingerprint."
+  ],
+  "limitations": [
+    "Availability from one free current-symbol provider is not proof that a security never traded.",
+    "Coverage metadata do not establish price correctness, corporate-action adjustment correctness, or redistribution rights.",
+    "BBBY history under BBBY rather than BBBYQ requires security-master validation before return research.",
+    "A complete price-role check does not make the bankruptcy terminal value complete; plan distribution rights remain unresolved.",
+    "A rights-cleared inactive-security source or retained contemporaneous snapshot is required for cash-merger spread research."
+  ]
+}
