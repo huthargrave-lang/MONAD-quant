@@ -562,7 +562,8 @@
         "ops/systemd/",
         "tools/arm_check.py",
         "tools/armed_closure.py",
-        "tools/drift_render.py"
+        "tools/drift_render.py",
+        "tools/web_merge_driver.py"
       ],
       "entrypoints": [
         "ops/status_check.sh",

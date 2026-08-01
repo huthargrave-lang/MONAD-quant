@@ -81,7 +81,7 @@ def _remote_ids(kind):
     return []
 
 
-def next_id(text, kind, remote=False):
+def next_id(text, kind, remote=False, _branch=None):
     """One past the highest ID of `kind` in `text` — pure by default.
 
     `remote=True` also consults the deploy branch (see `_remote_ids`). The default
@@ -91,7 +91,63 @@ def next_id(text, kind, remote=False):
     nums = [int(i[1:]) for i in existing_ids(text) if i[0] == kind and i[1:].isdigit()]
     if remote:
         nums += _remote_ids(kind)
+    branch = _branch if _branch is not None else (_current_branch() if remote else "")
+    lo, hi = id_block(branch)
+    if lo:
+        # Off the deploy branch: allocate inside this branch's own disjoint block, so a
+        # sibling session cannot hand out the same number no matter what either has
+        # pushed. _remote_ids only NARROWS that window (it cannot see unpushed work);
+        # arithmetic closes it.
+        mine = [n for n in nums if lo <= n <= hi]
+        nxt = max(mine, default=lo - 1) + 1
+        if nxt > hi:
+            raise SystemExit(
+                f"note: id block [{lo}-{hi}] for branch '{branch}' is "
+                f"exhausted ({hi - lo + 1} ids). Allocate a second block rather than "
+                f"letting allocation wrap into a neighbouring branch's range — a wrap "
+                f"is a silent cross-branch collision, which is the thing blocks exist "
+                f"to prevent.")
+        return f"{kind}{nxt}"
     return f"{kind}{max(nums, default=0) + 1}"
+
+
+
+# ── Disjoint per-branch ID blocks (W6) ───────────────────────────────────────
+# H41 narrowed cross-branch collisions by consulting the deploy branch's committed
+# web before allocating (see _remote_ids). It cannot close them: a sibling session
+# that has not pushed is invisible, so two branches on the same fetched base still
+# hand out the same number. That is a race, and races are not fixed by looking
+# harder — they are fixed by making the answer arithmetic.
+#
+# The deploy branch keeps the legacy dense range so every existing id and every
+# bare reference in the corpus keeps its meaning; only side branches move into
+# blocks. Blocks are 100 wide and derived from the branch name, so two branches
+# collide only if their names hash alike — and exhaustion FAILS CLOSED rather than
+# wrapping into a neighbour, because a silent wrap is exactly the collision this
+# exists to prevent.
+_BLOCK_BASE = 10000
+_BLOCK_SIZE = 100
+_BLOCK_COUNT = 4096
+
+
+def _current_branch():
+    out = ctx._git("rev-parse", "--abbrev-ref", "HEAD")
+    return (out or "").strip()
+
+
+def id_block(branch):
+    """(lo, hi) inclusive for `branch`, or (0, 0) for the deploy branch/unknown.
+
+    (0, 0) means "use the legacy dense range" — the deploy branch must keep
+    allocating F266, F267, … so the 3,716 bracketed and 6,279 bare references in
+    the corpus continue to resolve.
+    """
+    deploy = ctx._manifest().get("deploy_branch", "")
+    if not branch or branch == deploy or branch == "HEAD":
+        return (0, 0)
+    h = int(hashlib.sha1(branch.encode()).hexdigest()[:5], 16) % _BLOCK_COUNT
+    lo = _BLOCK_BASE + h * _BLOCK_SIZE
+    return (lo, lo + _BLOCK_SIZE - 1)
 
 
 def _provenance(date):

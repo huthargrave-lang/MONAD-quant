@@ -1,0 +1,12 @@
+# RESEARCH_WEB.md is a node graph, not prose: two branches appending different
+# nodes must merge silently, while two branches editing the SAME node must
+# conflict. Git's default line merge conflicts on adjacent appends; `merge=union`
+# resolves them but manufactures duplicate `### F2` headings when both sides edit
+# one node — and ctx's parser overwrites on duplicate ids, so a [SUPERSEDED by …]
+# marker disappears without a word. tools/web_merge_driver.py merges per node.
+#
+# Git does not read driver definitions from a tracked file, so each clone needs:
+#   git config merge.researchweb.name "node-aware RESEARCH_WEB.md merge"
+#   git config merge.researchweb.driver "venv/bin/python tools/web_merge_driver.py %O %A %B"
+# Without that config git falls back to the normal text merge — safe, just noisier.
+RESEARCH_WEB.md merge=researchweb
