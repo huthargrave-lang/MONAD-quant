@@ -1433,6 +1433,29 @@ def _n_evidence(node, nodes):
     return cited, corrob
 
 
+def _provenance_paths(start, adj, prefix, maxlen=4, cap=8):
+    """One shortest provenance path per reachable endpoint whose id starts with
+    `prefix` (BFS → the first path found is the shortest). Per-path visited set (not
+    a global one) so a node reachable via several routes isn't suppressed. NEVER
+    traverses a supersedes/contradicts edge — walking into an overturned node and
+    harvesting ITS evidence would attribute a refuted claim's grounding to the node
+    that reverses it (backwards provenance). Returns [[(edge_type, target), …], …].
+    Shared by `ctx why` and the HTML map's evidence chain so both tell one story."""
+    found, q = {}, [(start, [], frozenset([start]))]
+    while q and len(found) < cap:
+        cur, path, vis = q.pop(0)
+        for e in adj.get(cur, []):
+            tgt = e["to"]
+            if e["dir"] != "out" or e["type"] in ("supersedes", "contradicts") or tgt in vis:
+                continue
+            np = path + [(e["type"], tgt)]
+            if tgt[:1] == prefix and tgt[1:2].isdigit():
+                found.setdefault(tgt, np)                # keep first (shortest) per endpoint
+            elif len(np) < maxlen:
+                q.append((tgt, np, vis | {tgt}))
+    return list(found.values())
+
+
 def cmd_why(args):
     """Why believe / where it leads: nearest grounding Experiments (out-edges) and
     the Decisions a node bears on — the provenance path, not a summary. Also reports
@@ -1443,25 +1466,7 @@ def cmd_why(args):
     nodes_web, _ = _parse_web()
 
     def paths_to(prefix, maxlen=4, cap=8):
-        # One shortest provenance path per reachable endpoint of `prefix` (BFS →
-        # first path found is shortest). Per-path visited (not a global set) so a
-        # node reachable via several routes isn't suppressed. NEVER traverse a
-        # supersedes/contradicts edge — walking into an overturned node and
-        # harvesting ITS evidence would attribute a refuted claim's grounding to
-        # the node that reverses it (backwards provenance).
-        found, q = {}, [(args.node, [], frozenset([args.node]))]
-        while q and len(found) < cap:
-            cur, path, vis = q.pop(0)
-            for e in adj.get(cur, []):
-                tgt = e["to"]
-                if e["dir"] != "out" or e["type"] in ("supersedes", "contradicts") or tgt in vis:
-                    continue
-                np = path + [(e["type"], tgt)]
-                if tgt[:1] == prefix and tgt[1:2].isdigit():
-                    found.setdefault(tgt, np)            # keep first (shortest) per endpoint
-                elif len(np) < maxlen:
-                    q.append((tgt, np, vis | {tgt}))
-        return list(found.values())
+        return _provenance_paths(args.node, adj, prefix, maxlen, cap)
 
     def fmt(p):
         return " → ".join(f"{t}:{tgt}" for t, tgt in p)
@@ -1530,15 +1535,21 @@ _GRAPH_HTML = r"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <title>__PROJECT__ — context map</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <style>
-:root{--bg:#03050a;--map:#02040a;--surf:#0d121d;--tx:#eef3ff;--mut:#a9b4c8;--bd:rgba(210,225,255,.16);--hi:#FAC775}
-*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--tx)}
-header{padding:12px 16px;border-bottom:.5px solid var(--bd)}h1{font-size:16px;font-weight:500;margin:0}
+:root{--bg:#03050a;--map:#02040a;--surf:#0d121d;--tx:#eef3ff;--mut:#a9b4c8;--bd:rgba(210,225,255,.16);--hi:#FAC775;--warn:#F09595}
+*{box-sizing:border-box}html,body{height:100%}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--tx);display:flex;flex-direction:column}
+header{padding:10px 16px;border-bottom:.5px solid var(--bd);flex:0 0 auto}h1{font-size:16px;font-weight:500;margin:0}
 .sub{font-size:12px;color:var(--mut);margin-top:3px}
-.bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 16px;font-size:12px;border-bottom:.5px solid var(--bd)}
+.bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 16px;font-size:12px;border-bottom:.5px solid var(--bd);flex:0 0 auto}
 button{font:inherit;font-size:12px;height:28px;padding:0 9px;border:.5px solid var(--bd);background:transparent;color:var(--tx);border-radius:7px;cursor:pointer}
 button:hover{background:var(--surf)}input{font:inherit;height:28px;padding:0 8px;border:.5px solid var(--bd);background:var(--bg);color:var(--tx);border-radius:7px}
-.legend{display:flex;flex-wrap:wrap;gap:12px;padding:6px 16px;font-size:11px;color:var(--mut);border-bottom:.5px solid var(--bd)}
-#wrap{position:relative;background:var(--map)}svg{display:block;width:100%;height:68vh;cursor:grab;background:var(--map)}
+button:focus-visible,input:focus-visible{outline:1.5px solid var(--hi);outline-offset:1px}
+.sep{width:1px;height:17px;background:var(--bd);margin:0 2px}
+.legend{display:flex;flex-wrap:wrap;gap:12px;padding:6px 16px;font-size:11px;color:var(--mut);border-bottom:.5px solid var(--bd);flex:0 0 auto}
+#stage{display:flex;flex:1 1 auto;min-height:0}
+#wrap{position:relative;flex:1 1 auto;min-width:0;background:var(--map)}svg{display:block;width:100%;height:100%;cursor:grab;background:var(--map)}
+#panel{flex:0 0 392px;max-width:44vw;overflow:auto;border-left:.5px solid var(--bd);background:var(--bg)}
+@media (max-width:900px){#stage{flex-direction:column}#wrap{flex:0 0 54vh}#panel{flex:1 1 auto;max-width:none;border-left:none;border-top:.5px solid var(--bd)}}
 svg.orbiting{cursor:grabbing}
 svg.fast-render .node-label{text-rendering:optimizeSpeed}
 .node-orb{paint-order:fill stroke}
@@ -1546,9 +1557,44 @@ svg.fast-render .node-label{text-rendering:optimizeSpeed}
 .node-label{pointer-events:none;text-shadow:0 0 6px #02040a,0 0 12px #02040a}
 #tip{position:absolute;pointer-events:none;opacity:0;background:var(--bg);border:.5px solid var(--bd);border-radius:6px;padding:3px 7px;font-size:11px;max-width:300px}
 #match{color:var(--mut);min-width:72px;text-align:right}
-#detail{padding:10px 16px;font-size:13px;color:var(--mut);min-height:58px;max-height:30vh;overflow:auto;border-top:.5px solid var(--bd)}
+#detail{padding:12px 14px 30px;font-size:13px;color:var(--mut);line-height:1.45}
 .chip{display:inline-flex;align-items:center;gap:3px;height:22px;margin:2px 2px 0 0;padding:0 6px;border-radius:999px;font-size:11px;color:var(--tx);background:var(--surf)}
 .chip .arr{color:var(--mut)}
+/* ── inspector: the node as something you READ, not just a dot you clicked ── */
+.ihead{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+.iid{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:15px;font-weight:600;color:var(--tx)}
+.ikind{font-size:11px;color:var(--mut);border:.5px solid var(--bd);border-radius:999px;padding:1px 7px}
+.badge{font-size:11px;border-radius:999px;padding:1px 7px;border:.5px solid;white-space:nowrap}
+.badge.bad{color:var(--warn);border-color:rgba(240,149,149,.5)}
+.ititle{color:var(--tx);font-size:14px;line-height:1.35;margin-top:7px}
+.facts{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.fact{font-size:11px;color:var(--mut);background:var(--surf);border-radius:6px;padding:2px 7px;white-space:nowrap}
+.fact b{color:var(--tx);font-weight:600}
+.warn{margin-top:9px;padding:7px 9px;border-radius:8px;font-size:12px;line-height:1.4;color:var(--warn);background:rgba(240,149,149,.09);border:.5px solid rgba(240,149,149,.34)}
+.prose{margin-top:10px;font-size:12.5px;line-height:1.52;overflow-wrap:anywhere}
+.prose p{margin:0 0 7px}.prose ul{margin:0 0 7px;padding-left:17px}.prose li{margin:1px 0}
+.prose b{color:var(--tx)}
+.prose code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--hi);background:var(--surf);border-radius:4px;padding:0 3px}
+.sec{margin-top:11px;padding-top:9px;border-top:.5px solid var(--bd)}
+.sec h3{margin:0 0 5px;font-size:11px;font-weight:600;color:var(--tx);letter-spacing:.06em;text-transform:uppercase}
+.chain{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;line-height:1.5;margin-bottom:2px;overflow-wrap:anywhere}
+.chain .et{color:#79839a}
+.wl{height:auto;padding:0 4px;border-radius:5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;line-height:1.35;color:var(--hi);border-color:rgba(250,199,117,.3)}
+.wl.gone{color:var(--mut);border-style:dashed;cursor:default}
+.empty{font-size:12px;font-style:italic;opacity:.75}
+.kgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));gap:5px;margin-top:9px}
+.kcell{background:var(--surf);border-radius:7px;padding:6px 8px;font-size:11px}
+.kcell b{display:block;color:var(--tx);font-size:15px;font-weight:600;line-height:1.2}
+#help{position:fixed;right:16px;bottom:16px;max-width:330px;z-index:9;display:none;padding:11px 13px;border-radius:10px;font-size:12px;line-height:1.6;color:var(--mut);background:var(--surf);border:.5px solid var(--bd);box-shadow:0 12px 44px rgba(0,0,0,.62)}
+#help.on{display:block}
+kbd{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--tx);background:var(--bg);border:.5px solid var(--bd);border-radius:4px;padding:0 4px}
+#fallback{display:none;position:absolute;inset:0;overflow:auto;padding:14px 16px;background:var(--map)}
+#fallback.on{display:block}
+#wrap.offline{flex:1 1 auto;min-height:62vh}
+.offline{margin-bottom:10px;padding:8px 10px;border-radius:8px;font-size:12px;line-height:1.45;color:var(--hi);background:rgba(250,199,117,.08);border:.5px solid rgba(250,199,117,.3)}
+.frow{display:block;width:100%;height:auto;margin:1px 0;padding:3px 7px;border:none;text-align:left;font-size:12px;color:var(--mut)}
+.frow b{color:var(--tx);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:600}
+.fgrp{margin:11px 0 3px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--tx)}
 .explore{margin-top:9px;padding-top:8px;border-top:.5px solid var(--bd)}
 .explore-head{display:flex;align-items:center;gap:8px;margin-bottom:6px;color:var(--tx);font-size:12px;font-weight:600}
 .prompts{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:6px}
@@ -1561,11 +1607,20 @@ svg.fast-render .node-label{text-rendering:optimizeSpeed}
 .ln{display:inline-block;width:14px;height:0;border-top:2px solid;vertical-align:3px;margin-right:4px}
 </style></head><body>
 <header><h1>__PROJECT__ · context map</h1><div class="sub">research web &cup; idea&harr;code bridges &cup; auto-extracted code graph — generated by <code>ctx graph --html</code></div></header>
-<div class="bar"><span id="pills"></span><input id="q" placeholder="search…" style="margin-left:auto;width:170px"><span id="match"></span><button id="flat">flat</button><button id="fit">fit</button><button id="reset">reset</button></div>
+<div class="bar"><span id="pills"></span><span class="sep"></span><span id="presets"></span><input id="q" placeholder="search titles &amp; prose…" style="margin-left:auto;width:190px"><span id="match"></span><button id="flat">flat</button><button id="fit">fit</button><button id="reset">reset</button><button id="helpbtn" title="keyboard shortcuts" aria-label="keyboard shortcuts">?</button></div>
 <div class="legend" id="legend"></div>
-<div id="wrap"><svg id="svg"></svg><div id="tip"></div></div>
-<div id="detail">Select a node to inspect its neighbours and explore prompts.</div>
+<div id="stage">
+ <div id="wrap"><svg id="svg"></svg><div id="tip"></div><div id="fallback"></div></div>
+ <aside id="panel"><div id="detail"></div></aside>
+</div>
+<div id="help"><b style="color:var(--tx)">Keyboard</b>
+<div><kbd>/</kbd> search &nbsp; <kbd>Enter</kbd> next match &nbsp; <kbd>&#8679;Enter</kbd> prev</div>
+<div><kbd>n</kbd>/<kbd>p</kbd> cycle matches &nbsp; <kbd>Esc</kbd> clear</div>
+<div><kbd>f</kbd> fit &nbsp; <kbd>g</kbd> flat view &nbsp; <kbd>r</kbd> reset &nbsp; <kbd>?</kbd> this help</div>
+<div style="margin-top:6px"><kbd>&#8679;drag</kbd> orbit the map &nbsp; drag a node to pin it</div>
+<div style="margin-top:6px">Deep-link any node by appending <code>#F13</code> to the URL.</div></div>
 <script>
+main:{
 const D=__DATA__;
 const dark=true;
 const COL=dark?{F:'#5DCAA5',H:'#EF9F27',E:'#AFA9EC',D:'#F0997B',area:'#85B7EB',module:'#9a988f',config:'#97C459',code:'#85B7EB'}
@@ -1584,7 +1639,119 @@ function labelText(n){return idea.has(n.k)?n.id.replace('area:',''):'';}
 function labelFont(n){return n.k==='area'?11:10;}
 function orbPath(n){const r=rad(n),c=r*.55228475,f=v=>v.toFixed(2);return 'M0,'+f(-r)+'C'+f(c)+','+f(-r)+' '+f(r)+','+f(-c)+' '+f(r)+',0C'+f(r)+','+f(c)+' '+f(c)+','+f(r)+' 0,'+f(r)+'C'+f(-c)+','+f(r)+' '+f(-r)+','+f(c)+' '+f(-r)+',0C'+f(-r)+','+f(-c)+' '+f(-c)+','+f(-r)+' 0,'+f(-r)+'Z';}
 const adj={};nodes.forEach(n=>adj[n.i]=new Set());links.forEach(l=>{adj[l.source].add(l.target);adj[l.target].add(l.source);});
+// Typed neighbours built from the RAW payload, not from `links` — d3's forceLink
+// rewrites link.source/target into node objects, and the offline path never runs it.
+const nbrs={};nodes.forEach(n=>nbrs[n.i]=[]);
+D.e.forEach(e=>{nbrs[e[0]].push([e[1],D.t[e[2]],'→']);nbrs[e[1]].push([e[0],D.t[e[2]],'←']);});
+const byId={};nodes.forEach(n=>byId[n.id]=n.i);
+const DET=D.d||{},SUM=D.s||{};
+// One lowercased haystack per node so search covers the PROSE, not just labels — and
+// so hit-testing (called per node per frame) never re-scans a body.
+const hay=nodes.map(n=>(n.id+' '+n.title+' '+((DET[n.id]||{}).body||'')).toLowerCase());
+let hitSet=new Set();
 const on={};Object.keys(LBL).forEach(k=>on[k]=true);on._sup=true;
+const KINDS={idea:['F','H','E','D'],code:['area','module','config','code']};
+function det(h){document.getElementById('detail').innerHTML=h;}
+function nodeLink(id,label){const i=byId[id];return i===undefined?'<button class="wl gone" disabled title="not in this map">'+esc(label||id)+'</button>'
+ :'<button class="wl" data-node="'+i+'">'+esc(label||id)+'</button>';}
+// Bodies arrive HTML-escaped from Python (once) — re-escaping here would render '&amp;'.
+// Light markdown only: code spans are split out FIRST so ** inside `code` stays literal.
+function inline(t){return t.split(/(`[^`]+`)/).map(part=>part.startsWith('`')&&part.endsWith('`')&&part.length>1
+ ?'<code>'+part.slice(1,-1)+'</code>'
+ :part.replace(/\[\[([A-Za-z]+\d+)(?:\|[^\]]*)?\]\]/g,(m,id)=>nodeLink(id))
+      .replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>')
+      .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>')
+      .replace(/\[([^\]]+)\]\([^)\s]+\)/g,'$1')).join('');}
+// Research prose is soft-wrapped at ~90 columns, so a single newline is NOT a paragraph
+// break — rejoin those lines or every claim renders as five stubby paragraphs.
+function renderProse(txt){if(!txt)return '';const out=[];
+ txt.split(/\n{2,}/).forEach(block=>{let para=[],list=null;
+  const flush=()=>{if(para.length){out.push('<p>'+inline(para.join(' '))+'</p>');para=[];}};
+  block.split('\n').forEach(ln=>{const li=ln.match(/^\s*[-*•]\s+(.*)$/);
+   if(li){flush();if(!list){list=[];out.push(list);}list.push('<li>'+inline(li[1])+'</li>');}
+   else if(ln.trim()){list=null;para.push(ln.trim());}});
+  flush();});
+ return '<div class="prose">'+out.map(x=>Array.isArray(x)?'<ul>'+x.join('')+'</ul>':x).join('')+'</div>';}
+// Hops are "edgetype:TARGET" — split on the FIRST colon only, since a bridge target can
+// itself be namespaced ('code:src/x.py::fn', 'cfg:KEY').
+function chainHTML(paths){if(!paths||!paths.length)return '<div class="empty">—</div>';
+ return paths.map(p=>'<div class="chain">'+p.split('|').map(h=>{const c=h.indexOf(':');
+  return '<span class="et">'+esc(h.slice(0,c))+'</span>&nbsp;'+nodeLink(h.slice(c+1));}).join(' <span class="et">›</span> ')+'</div>').join('');}
+function statusWarning(id,d){const w=[];
+ if(d.status!=='current'){const by=d.by?' by '+d.by:'';
+  w.push(d.reason==='inverted'||d.reason==='reversed'
+   ?'⚠ '+d.status.toUpperCase()+by+' — INVERTED: the conclusion was reversed to the OPPOSITE, not merely refined. Do not cite this as support.'
+   :'⚠ '+d.status.toUpperCase()+by+(d.reason?' ('+d.reason+')':'')+' — read the replacement before relying on this.');}
+ if(d.disputed)w.push('⚠ DISPUTED: contradicted by '+d.disputed.join(', ')+' (a later current finding) — verify before relying on it.');
+ if(d.fragile)w.push('⚠ FRAGILE: this leans on '+d.fragile.join(', ')+', which later work contradicts — disputed ground.');
+ return w.map(t=>'<div class="warn">'+esc(t).replace(/([FHED]\d+)/g,m=>byId[m]!==undefined?nodeLink(m):m)+'</div>').join('');}
+function factsHTML(id,d){const f=[];
+ if(d.conf!==undefined)f.push('stated conf <b>'+d.conf.toFixed(2)+'</b>');
+ // Effective confidence = the weakest link in the reliance chain; naming that link is
+ // the whole point, so say WHICH claim caps this one (or that the node itself is it).
+ if(d.eff!==undefined)f.push('effective <b>'+d.eff.toFixed(2)+'</b>'+(d.bott?(d.bott===id?' (self is the weakest link)':' · capped by '+esc(d.bott)):''));
+ if(d.at)f.push('dated <b>'+esc(d.at)+'</b>');
+ f.push('<b>'+d.cited+'</b> evidence · <b>'+d.corrob+'</b> support'+(d.corrob===1?'':'s'));
+ return '<div class="facts">'+f.map(x=>'<span class="fact">'+x+'</span>').join('')+'</div>';}
+function neighborHTML(i){const by={};nbrs[i].forEach(([j,t,a])=>{(by[t]=by[t]||new Map()).set(a+nodes[j].id,[j,a]);});
+ const ks=Object.keys(by).sort();if(!ks.length)return '';
+ return '<div class="sec"><h3>Links</h3>'+ks.map(k=>'<div style="margin-bottom:3px"><b style="color:var(--tx);font-size:11px">'+esc(k)+'</b> '
+  +[...by[k].values()].map(([j,a])=>'<button class="chip" data-node="'+j+'"><span class="arr">'+a+'</span>'+esc(nodes[j].id)+'</button>').join('')+'</div>').join('')+'</div>';}
+function overviewHTML(){const k=SUM.kinds||{},cells=Object.keys(LBL).filter(x=>k[x]).map(x=>
+  '<div class="kcell" style="border-left:2px solid '+COL[x]+'"><b>'+k[x]+'</b>'+esc(LBL[x])+'</div>').join('');
+ return '<div class="ihead"><span class="iid">'+esc(SUM.nodes||nodes.length)+' nodes</span><span class="ikind">'+esc(SUM.rev||'')+'</span></div>'
+  +'<div class="ititle">Pick a node to read it — its prose, what grounds it, and what it bears on.</div>'
+  +'<div class="facts"><span class="fact"><b>'+(SUM.research||0)+'</b> research nodes</span>'
+  +'<span class="fact"><b>'+(SUM.superseded||0)+'</b> superseded</span>'
+  +(SUM.latest?'<span class="fact">newest dated <b>'+esc(SUM.latest)+'</b></span>':'')+'</div>'
+  +'<div class="kgrid">'+cells+'</div>'
+  +'<div class="sec"><h3>Decisions — start here</h3>'
+  +(nodes.filter(n=>n.k==='D').sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}))
+     .map(n=>'<div style="margin:2px 0">'+nodeLink(n.id)+' <span'+(n.sup?' style="opacity:.5"':'')+'>'+n.title+'</span></div>').join('')||'<div class="empty">—</div>')
+  +'</div><div class="sec"><h3>Getting around</h3><div style="font-size:12px;line-height:1.6">'
+  +'Search runs over titles <i>and</i> body prose. <kbd>?</kbd> lists the shortcuts. '
+  +'Turn whole layers on and off with the <b>ideas</b>/<b>code</b>/<b>all</b> presets.</div></div>';}
+function inspectHTML(i){const n=nodes[i],d=DET[n.id];
+ let h='<div class="ihead"><span class="iid">'+esc(n.id)+'</span><span class="ikind">'+esc(LBL[n.k]||n.k)+'</span>'
+  +(n.sup?'<span class="badge bad">'+esc((d&&d.status)||'superseded')+'</span>':'')+'</div>'
+  +'<div class="ititle">'+(n.title||esc(n.id))+'</div>';
+ if(!d)return h+'<div class="facts"><span class="fact">code-layer node — no research prose</span></div>'+neighborHTML(i);
+ h+=factsHTML(n.id,d)+statusWarning(n.id,d)
+  +(d.body.trim()?renderProse(d.body):'<div class="prose empty">No body text — the title above is the whole node.</div>');
+ h+='<div class="sec"><h3>Grounded in (experiments)</h3>'+chainHTML(d.grounded)+'</div>';
+ h+='<div class="sec"><h3>Bears on (decisions)</h3>'+chainHTML(d.bears)+'</div>';
+ return h+neighborHTML(i);}
+// One click handler for the inspector, shared by the graph and the offline list: copy a
+// prompt, or follow a [[wiki-link]] / neighbour chip. `nav` differs because only the
+// graph view can fly the camera to the node.
+function panelClick(ev,nav){const c=ev.target.closest('[data-copy]');
+ if(c){copyText(promptBank[+c.dataset.copy]||'',c);return;}
+ const b=ev.target.closest('[data-node]');if(b&&!b.disabled)nav(+b.dataset.node);}
+// If the d3 CDN is unreachable (offline Pi, locked-down network) the force-graph can't
+// run — but every word of the research web is already inlined in this page, so degrade
+// to a searchable list + the same inspector instead of showing an empty black rectangle.
+function offlineFallback(){
+ const el=document.getElementById('fallback');el.classList.add('on');
+ document.getElementById('wrap').classList.add('offline');
+ document.getElementById('svg').style.display='none';
+ const groups=Object.keys(LBL).filter(k=>nodes.some(n=>n.k===k));
+ el.innerHTML='<div class="offline"><b>Offline mode.</b> The d3 bundle (loaded from a CDN) is unreachable, '
+  +'so the force-graph can’t render — the research text below is unaffected. '
+  +'Everything here is inlined in this page; only the layout library is remote.</div>'
+  +'<input id="fq" placeholder="filter nodes…" style="width:100%;margin-bottom:4px">'
+  +groups.map(k=>'<div class="fgrp" style="color:'+COL[k]+'">'+esc(LBL[k])+'</div>'
+   +nodes.filter(n=>n.k===k).map(n=>'<button class="frow" data-node="'+n.i+'"><b>'+esc(n.id)+'</b> '
+    +(n.title||'')+(n.sup?' <span style="color:var(--warn)">·superseded</span>':'')+'</button>').join('')).join('');
+ renderPanel(null);
+ el.addEventListener('input',ev=>{if(ev.target.id!=='fq')return;const q=ev.target.value.trim().toLowerCase();
+  el.querySelectorAll('.frow').forEach(b=>{b.style.display=!q||hay[+b.dataset.node].includes(q)?'':'none';});});
+ el.addEventListener('click',ev=>panelClick(ev,i=>renderPanel(i)));
+ document.getElementById('detail').addEventListener('click',ev=>panelClick(ev,i=>renderPanel(i)));
+ document.getElementById('q').addEventListener('input',ev=>{const f=document.getElementById('fq');
+  if(f){f.value=ev.target.value;f.dispatchEvent(new Event('input',{bubbles:true}));}});
+}
+let sel=null,query='',matches=[],matchAt=-1,promptBank=[],orbit={rx:0,ry:0},orbitDrag=null,blockClick=false,orbitAnim=null,cruiseAnim=null,cruise=null,fastRender=true,fastTimer=null,renderFrame=0,suppressZoomLabel=false,simSettling=true;
+if(!window.d3){offlineFallback();break main;}
 const svg=d3.select('#svg'),svgEl=document.getElementById('svg');
 svg.append('defs').html("<filter id='orbGlow' x='-100%' y='-100%' width='300%' height='300%'><feGaussianBlur in='SourceGraphic' stdDeviation='1.8' result='blur'/><feMerge><feMergeNode in='blur'/><feMergeNode in='SourceGraphic'/></feMerge></filter><filter id='orbGlowStrong' x='-140%' y='-140%' width='380%' height='380%'><feGaussianBlur in='SourceGraphic' stdDeviation='3.2' result='blur'/><feMerge><feMergeNode in='blur'/><feMergeNode in='blur'/><feMergeNode in='SourceGraphic'/></feMerge></filter><filter id='orbHalo' x='-220%' y='-220%' width='540%' height='540%'><feGaussianBlur in='SourceGraphic' stdDeviation='5.2' result='blur'/><feMerge><feMergeNode in='blur'/></feMerge></filter>");
 const g=svg.append('g');
@@ -1601,14 +1768,16 @@ node.append('text').attr('class','node-label').text(labelText).attr('dominant-ba
  .attr('font-size',d=>labelFont(d)+'px').attr('fill',d=>d.k==='area'?COL.area:MUT).attr('font-family','ui-monospace,monospace');
 const tip=d3.select('#tip');
 node.on('mousemove',(ev,d)=>showTip(ev,d)).on('mouseleave',()=>tip.style('opacity',0));
-let sel=null,query='',matches=[],matchAt=-1,promptBank=[],orbit={rx:0,ry:0},orbitDrag=null,blockClick=false,orbitAnim=null,cruiseAnim=null,cruise=null,fastRender=true,fastTimer=null,renderFrame=0,suppressZoomLabel=false,simSettling=true;
 svgEl.classList.add('fast-render');svgEl.dataset.fastRender='1';
 node.on('click',(ev,d)=>{ev.stopPropagation();if(blockClick){blockClick=false;return;}selectNode(sel===d.i?null:d.i,true);});
 svg.on('click',()=>{if(blockClick){blockClick=false;return;}selectNode(null,false);});
-function det(h){document.getElementById('detail').innerHTML=h;}
 function vis(n){return on[n.k]&&(on._sup||!n.sup);}
-function hit(n){return query&&(n.id.toLowerCase().includes(query)||n.title.toLowerCase().includes(query));}
+// hit() is called per node per animation frame — resolve the query ONCE into a set
+// (recomputeHits) rather than re-scanning every node's prose on every tick.
+function hit(n){return hitSet.has(n.i);}
+function recomputeHits(){hitSet=new Set();if(!query)return;for(let i=0;i<hay.length;i++)if(hay[i].includes(query))hitSet.add(i);}
 function updateMatches(){matches=query?nodes.filter(n=>vis(n)&&hit(n)):[];document.getElementById('match').textContent=query?(matches.length+' match'+(matches.length===1?'':'es')):(nodes.filter(vis).length+' nodes');}
+function setQuery(v){query=(v||'').trim().toLowerCase();recomputeHits();matchAt=-1;}
 function prand(i,s){return Math.abs(Math.sin((i+1)*s)*43758.5453)%1;}
 function targetZ(n){const deg=adj[n.i]?adj[n.i].size:0,semantic=Z[n.k]||0,hub=Math.min(70,deg*3.2),spread=(prand(n.i,41.17)-.5)*125;return semantic+spread+(idea.has(n.k)?hub:-hub*.45);}
 function nodeZ(n){let z=Number.isFinite(n.z)?n.z:targetZ(n);if(sel!==null){if(n.i===sel)z+=95;else if(adj[sel].has(n.i))z+=42;}if(hit(n))z+=52;return z;}
@@ -1628,7 +1797,7 @@ function boxesOverlap(a,b,pad=4){return a&&b&&a.left-pad<b.right&&a.right+pad>b.
 function labelPriority(d){let p=0;if(sel===d.i)p+=1000;if(hit(d))p+=700;if(sel!==null&&adj[sel].has(d.i))p+=320;if(d.k==='area')p+=150;else if(idea.has(d.k))p+=60;if(d.p&&Number.isFinite(d.p.z))p+=d.p.z/20;return p;}
 function layoutLabels(){node.select('.node-label').attr('x',d=>labelSide(d)*labelOffset(d)).attr('y',labelY).attr('text-anchor',d=>labelSide(d)<0?'end':'start').attr('font-size',d=>labelFont(d)+'px');const keep=[],shown=new Set();nodes.filter(n=>labelText(n)&&vis(n)).sort((a,b)=>labelPriority(b)-labelPriority(a)).forEach(n=>{const b=labelBox(n);if(!b)return;const inFrame=b.right>-8&&b.left<W+8&&b.bottom>-8&&b.top<H+8,forced=n.i===sel||hit(n),collide=keep.some(k=>boxesOverlap(b,k,forced?10:6));if(forced||(inFrame&&!collide)){shown.add(n.i);keep.push(b);}});node.select('.node-label').attr('opacity',d=>shown.has(d.i)?((sel!==null&&d.i!==sel&&!adj[sel].has(d.i))?0.26:1):0);}
 function placeTip(ev,d){const el=tip.node(),tw=Math.min(el.offsetWidth||300,300),th=el.offsetHeight||42,p=screenXY(d,0,0),glow=(visualRadius(d)+12)*(d.p?d.p.s:1)*zoomK(),label=labelBox(d),clamp=(v,min,max)=>Math.max(min,Math.min(max,v)),cands=[[p.x+glow+14,p.y-th/2],[p.x-tw-glow-14,p.y-th/2],[p.x-tw/2,p.y-glow-th-12],[p.x-tw/2,p.y+glow+12],[ev.clientX-svgEl.getBoundingClientRect().left+12,ev.clientY-svgEl.getBoundingClientRect().top+12]];for(const c of cands){const x=clamp(c[0],8,Math.max(8,W-tw-8)),y=clamp(c[1],8,Math.max(8,H-th-8)),box={left:x,right:x+tw,top:y,bottom:y+th};if(!boxesOverlap(box,label,10))return {x,y};}return {x:clamp(cands[0][0],8,Math.max(8,W-tw-8)),y:clamp(cands[0][1],8,Math.max(8,H-th-8))};}
-function showTip(ev,d){tip.style('opacity',1).html((d.sup?'[superseded] ':'')+'<b>'+esc(d.id)+'</b> '+esc(d.title));const p=placeTip(ev,d);tip.style('left',p.x+'px').style('top',p.y+'px');}
+function showTip(ev,d){tip.style('opacity',1).html((d.sup?'[superseded] ':'')+'<b>'+esc(d.id)+'</b> '+d.title);const p=placeTip(ev,d);tip.style('left',p.x+'px').style('top',p.y+'px');}
 function isHot(d){return sel===d.i||hit(d);}
 function isNear(d){return sel!==null&&adj[sel].has(d.i);}
 function vivid(d){return isHot(d)||isNear(d);}
@@ -1706,10 +1875,25 @@ function makePrompts(d,nb){const ref=nodeRef(d),near=neighborSummary(nb),target=
 function renderPrompts(d,nb){const ps=makePrompts(d,nb);promptBank=ps.map(p=>p.p);return '<div class="explore"><div class="explore-head">Explore</div><div class="prompts">'+ps.map((p,i)=>'<div class="prompt"><div class="prompt-top"><span>'+esc(p.t)+'</span><button class="copy" data-copy="'+i+'" aria-label="Copy '+esc(p.t)+' prompt">copy</button></div><p>'+esc(p.p)+'</p></div>').join('')+'</div></div>';}
 function copyText(text,b){const done=ok=>{const old=b.textContent;b.textContent=ok?'copied':'copy failed';setTimeout(()=>b.textContent=old,950);};if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(text).then(()=>done(true)).catch(()=>done(fallbackCopy(text)));}else done(fallbackCopy(text));}
 function fallbackCopy(text){const t=document.createElement('textarea');t.value=text;t.setAttribute('readonly','');t.style.position='fixed';t.style.left='-9999px';document.body.appendChild(t);t.select();let ok=false;try{ok=document.execCommand('copy');}catch(e){ok=false;}document.body.removeChild(t);return ok;}
-function selectNode(i,focus){sel=i;paint();if(sel===null){stopCruise();promptBank=[];det('Select a node to inspect its neighbours and explore prompts.');return;}const d=nodes[sel];const nb={};links.forEach(l=>{if(l.source.i===d.i)(nb[l.tn]=nb[l.tn]||[]).push([l.target.i,'→']);if(l.target.i===d.i)(nb[l.tn]=nb[l.tn]||[]).push([l.source.i,'←']);});
- let h='<b style="color:var(--tx)">'+esc(d.id)+'</b> · '+esc(LBL[d.k]||d.k)+(d.sup?' · <span style="color:'+(dark?'#F09595':'#A32D2D')+'">superseded</span>':'')+'<br><span style="color:var(--tx)">'+d.title+'</span>';
- const ks=Object.keys(nb);if(ks.length)h+='<br>'+ks.map(k=>'<b>'+esc(k)+'</b> '+[...new Map(nb[k].map(([i,a])=>[a+nodes[i].id,[i,a]])).values()].map(([i,a])=>'<button class="chip" data-node="'+i+'"><span class="arr">'+a+'</span>'+esc(nodes[i].id)+'</button>').join('')).join(' &nbsp; ');
- det(h+renderPrompts(d,nb));if(focus)orbitToNode(d);}
+function renderPanel(i){document.getElementById('panel').scrollTop=0;
+ if(i===null){promptBank=[];det(overviewHTML());return;}
+ const d=nodes[i],nb={};nbrs[i].forEach(([j,t,a])=>{(nb[t]=nb[t]||[]).push([j,a]);});
+ det(inspectHTML(i)+renderPrompts(d,nb));}
+function selectNode(i,focus){sel=i;paint();syncHash();renderPanel(sel);
+ if(sel===null){stopCruise();return;}if(focus)orbitToNode(nodes[sel]);}
+// The URL is the share/deep-link surface: '#F13' opens straight onto F13, and Back /
+// Forward walk the nodes visited. Selecting pushes; deselecting replaces, so clearing
+// a selection doesn't spam history. hashLock keeps our own writes from echoing back.
+let hashLock=false;
+function syncHash(){const want=sel===null?'':'#'+nodes[sel].id;if(location.hash===want)return;
+ hashLock=true;
+ try{if(want)history.pushState(null,'',want);else history.replaceState(null,'',location.pathname+location.search);}
+ catch(e){location.hash=want;}
+ setTimeout(()=>{hashLock=false;},0);}
+function selectFromHash(){const id=decodeURIComponent((location.hash||'').replace(/^#/,''));
+ if(!id){if(sel!==null){sel=null;paint();renderPanel(null);}return;}
+ const i=byId[id];if(i===undefined||i===sel)return;
+ sel=i;paint();renderPanel(i);orbitToNode(nodes[i]);}
 init3D();
 const sim=d3.forceSimulation(nodes).alphaDecay(.055).alphaMin(.02).velocityDecay(.45).force('link',d3.forceLink(links).distance(d=>d.tn==='imports'?70:48).strength(.4))
  .force('charge',d3.forceManyBody().strength(-120)).force('center',d3.forceCenter(W/2,H/2))
@@ -1719,23 +1903,127 @@ sim.on('end',()=>{simSettling=false;settleRenderQuality(140);});
 node.call(d3.drag().filter(ev=>!ev.shiftKey&&!ev.button).on('start',(ev,d)=>{if(!ev.active)sim.alphaTarget(.3).restart();d.fx=d.x;d.fy=d.y;}).on('drag',(ev,d)=>{d.fx=ev.x;d.fy=ev.y;}).on('end',(ev,d)=>{if(!ev.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}));
 const zoom=d3.zoom().filter(ev=>!ev.shiftKey&&(!ev.ctrlKey||ev.type==='wheel')&&!ev.button).scaleExtent([.3,5]).on('start',()=>setFastRender(true)).on('zoom',ev=>{zt=ev.transform;g.attr('transform',zt);if(!suppressZoomLabel&&!fastRender)layoutLabels();}).on('end',()=>settleRenderQuality());svg.call(zoom);paint();
 svg.on('pointerdown.orbit',startOrbit).on('pointermove.orbit',moveOrbit).on('pointerup.orbit',endOrbit).on('pointercancel.orbit',endOrbit);
+const qEl=document.getElementById('q'),helpEl=document.getElementById('help');
+function resetView(){stopCruise();sel=null;setQuery('');orbit.rx=0;orbit.ry=0;qEl.value='';paint();syncHash();renderPanel(null);fitVisible();}
+function toggleHelp(f){helpEl.classList.toggle('on',f===undefined?!helpEl.classList.contains('on'):!!f);}
 document.getElementById('flat').onclick=()=>flatView();
 document.getElementById('fit').onclick=()=>{stopCruise();fitVisible();};
-document.getElementById('reset').onclick=()=>{stopCruise();sel=null;query='';matchAt=-1;orbit.rx=0;orbit.ry=0;document.getElementById('q').value='';paint();fitVisible();};
-const pills=d3.select('#pills');Object.keys(LBL).filter(k=>nodes.some(n=>n.k===k)).forEach(k=>{const b=pills.append('button').html('<span class="dot" style="background:'+COL[k]+'"></span>'+LBL[k]);b.on('click',()=>{on[k]=!on[k];b.style('opacity',on[k]?1:.4);paint();});});
-const sb=pills.append('button').text('superseded');sb.on('click',()=>{on._sup=!on._sup;sb.style('opacity',on._sup?1:.4);paint();});
+document.getElementById('reset').onclick=()=>resetView();
+document.getElementById('helpbtn').onclick=()=>toggleHelp();
+document.addEventListener('click',e=>{if(!e.target.closest('#help,#helpbtn'))toggleHelp(false);});
+const pills=d3.select('#pills'),pillBtn={};
+Object.keys(LBL).filter(k=>nodes.some(n=>n.k===k)).forEach(k=>{const b=pills.append('button').html('<span class="dot" style="background:'+COL[k]+'"></span>'+LBL[k]);pillBtn[k]=b;b.on('click',()=>{on[k]=!on[k];syncPills();paint();});});
+const sb=pills.append('button').text('superseded');sb.on('click',()=>{on._sup=!on._sup;syncPills();paint();});
+function syncPills(){Object.keys(pillBtn).forEach(k=>pillBtn[k].style('opacity',on[k]?1:.4));sb.style('opacity',on._sup?1:.4);}
+// Layer presets: 320 nodes is mostly the auto-extracted code layer, which buries the
+// ~143 research nodes. One click swaps between reading the idea web and reading the repo.
+function setLayer(which){Object.keys(LBL).forEach(k=>{on[k]=which==='all'||(KINDS[which]||[]).indexOf(k)>=0;});syncPills();paint();fitVisible();}
+const pre=d3.select('#presets');[['ideas','research web only'],['code','code layer only'],['all','everything']].forEach(([k,t])=>
+ pre.append('button').attr('title',t).text(k).on('click',()=>setLayer(k)));
 const leg=d3.select('#legend');[['supersedes / contradicts',ecol('supersedes')],['finding concerns code',ecol('concerns')],['import',ecol('imports')],['other edge',ecol('relates')]].forEach(([t,c])=>leg.append('span').html('<span class="ln" style="border-color:'+c+'"></span>'+t));
 function cycleMatch(dir){if(!matches.length)return;matchAt=(matchAt+dir+matches.length)%matches.length;selectNode(matches[matchAt].i,true);}
-document.getElementById('q').addEventListener('input',e=>{stopCruise();query=e.target.value.trim().toLowerCase();matchAt=-1;sel=null;paint();});
-document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();cycleMatch(e.shiftKey?-1:1);}if(e.key==='Escape'){e.currentTarget.value='';query='';sel=null;paint();}});
-document.getElementById('detail').addEventListener('click',e=>{const c=e.target.closest('[data-copy]');if(c){copyText(promptBank[+c.dataset.copy]||'',c);return;}const b=e.target.closest('[data-node]');if(b)selectNode(+b.dataset.node,true);});
-setTimeout(fitVisible,700);
+qEl.addEventListener('input',e=>{stopCruise();setQuery(e.target.value);sel=null;paint();syncHash();renderPanel(null);});
+qEl.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();cycleMatch(e.shiftKey?-1:1);}if(e.key==='Escape'){e.currentTarget.value='';setQuery('');sel=null;paint();syncHash();renderPanel(null);}});
+document.getElementById('detail').addEventListener('click',e=>panelClick(e,i=>selectNode(i,true)));
+document.addEventListener('keydown',e=>{const t=e.target,typing=t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable);
+ if(e.key==='/'&&!typing){e.preventDefault();qEl.focus();qEl.select();return;}
+ if(e.key==='Escape'){toggleHelp(false);if(typing)t.blur();return;}
+ if(typing||e.metaKey||e.ctrlKey||e.altKey)return;
+ if(e.key==='n'||e.key===']'){e.preventDefault();cycleMatch(1);}
+ else if(e.key==='p'||e.key==='['){e.preventDefault();cycleMatch(-1);}
+ else if(e.key==='f'){stopCruise();fitVisible();}
+ else if(e.key==='g'){flatView();}
+ else if(e.key==='r'){resetView();}
+ else if(e.key==='?'){toggleHelp();}});
+// The layout is fluid (side panel on desktop, stacked on mobile) — W/H must follow the
+// viewport or every projection, label box and fit stays framed for the old size.
+let rsz=null;
+window.addEventListener('resize',()=>{clearTimeout(rsz);rsz=setTimeout(()=>{
+ const w=svgEl.clientWidth,h=svgEl.clientHeight;if(!w||!h||(w===W&&h===H))return;
+ W=w;H=h;simSettling=true;
+ sim.force('center',d3.forceCenter(W/2,H/2)).force('x',d3.forceX(W/2).strength(.03)).force('y',d3.forceY(H/2).strength(.05));
+ sim.alpha(.14).restart();fitVisible();},180);});
+window.addEventListener('hashchange',()=>{if(!hashLock)selectFromHash();});
+window.addEventListener('popstate',()=>{if(!hashLock)selectFromHash();});
+renderPanel(null);updateMatches();
+setTimeout(()=>{fitVisible();if(location.hash)setTimeout(selectFromHash,420);},700);
+}
 </script></body></html>"""
+
+
+_BODY_CAP = 1600          # per-node prose budget in the inlined map (keeps the page ~200KB)
+
+
+def _graph_details(G, adj):
+    """Per-node reading material for the HTML map: each research node's own PROSE plus
+    the provenance facts `ctx why` computes — status/superseder/reason, stated and
+    effective confidence, evidence counts, disputes, and the grounded-in / bears-on
+    paths. Shipping these means the browser can ANSWER "what does this say and why
+    believe it" instead of only printing a `ctx` command to go run elsewhere.
+    Keyed by node id; only research nodes (F/H/E/D) have prose to carry."""
+    nodes, _ = _parse_web()
+    contra = _contradicted_by(nodes)
+    out = {}
+    for nid, n in nodes.items():
+        if nid not in G:
+            continue
+        # Nodes are '### ID — title', so every line up to the NEXT '###' is this node's
+        # body — which means a following '## Section' divider or '---' rule gets swept
+        # into the last node of each section. Real prose, not those; drop them for display.
+        body = "\n".join(ln for ln in _META_RX.sub("", n["body"]).splitlines()
+                         if not re.match(r"\s*(#{1,2}\s|-{3,}\s*$|={3,}\s*$)", ln))
+        body = _redact(re.sub(r"\n{3,}", "\n\n", body.strip()))
+        meta = _node_meta(n)
+        eff, bott = _effective_conf(nid, nodes, adj)
+        cited, corrob = _n_evidence(nid, nodes)
+        # Paths ride as "type:TARGET|type:TARGET" strings — same information as nested
+        # arrays at ~half the bytes, and this payload is inlined into every page load.
+        def hops(prefix):
+            return ["|".join(f"{t}:{tgt}" for t, tgt in p)
+                    for p in _provenance_paths(nid, adj, prefix, cap=6)]
+        d = {"body": body[:_BODY_CAP] + (" …" if len(body) > _BODY_CAP else ""),
+             "status": meta["status"], "cited": cited, "corrob": corrob,
+             "grounded": hops("E"), "bears": hops("D")}
+        for key in ("by", "reason", "at"):
+            if meta.get(key):
+                d[key] = meta[key]
+        if meta.get("conf") is not None:
+            d["conf"] = meta["conf"]
+        if eff is not None:
+            d["eff"], d["bott"] = eff, bott
+        # A still-'current' node a later current finding contradicts reads as settled
+        # unless the UI says otherwise (same fragility warning `ctx why` prints).
+        if meta["status"] == "current" and nid in contra:
+            d["disputed"] = contra[nid]
+        # …and the mirror case: this node LEANS on disputed ground.
+        fragile = sorted({e["target"] for e in n.get("edges", [])
+                          if e["type"] not in _PROPAGATION_EXEMPT
+                          and e["target"] != nid and e["target"] in contra})
+        if fragile:
+            d["fragile"] = fragile
+        out[nid] = d
+    return out
+
+
+def _graph_summary(G, nodes_web):
+    """The landing-state facts for the map: node counts by kind, how much of the
+    research layer is superseded, the newest dated node, and the repo revision the
+    map was built from (a commit stamp, not a wall clock, so identical repo state
+    renders an identical page)."""
+    from collections import Counter
+    dates = [d for d in (_node_meta(n).get("at") for n in nodes_web.values()) if d]
+    return {"kinds": dict(Counter(d["kind"] for d in G.values())),
+            "nodes": len(G),
+            "research": len(nodes_web),
+            "superseded": sum(1 for n in nodes_web.values() if _is_superseded(n)),
+            "latest": max(dates) if dates else "",
+            "rev": _git("log", "-1", "--format=%h · %cs") or ""}
 
 
 def _graph_compact(G, adj):
     """Index-encoded {k(kinds), t(edge-types), n[[id,kind,supflag,label]], e[[i,j,t]]}
-    for the self-contained HTML map (small enough to inline)."""
+    for the self-contained HTML map (small enough to inline), plus `d` (per-node prose
+    + provenance, see _graph_details) and `s` (landing summary)."""
     ids = list(G)
     idx = {x: i for i, x in enumerate(ids)}
     kinds = sorted({d["kind"] for d in G.values()})
@@ -1747,17 +2035,22 @@ def _graph_compact(G, adj):
           d["title"][:90] if d["kind"] in idea else ""] for nid, d in G.items()]
     e = [[idx[a], idx[ed["to"]], ti[ed["type"]]]
          for a, es in adj.items() for ed in es if ed["dir"] == "out"]
-    return {"k": kinds, "t": etypes, "n": n, "e": e}
+    return {"k": kinds, "t": etypes, "n": n, "e": e,
+            "d": _graph_details(G, adj), "s": _graph_summary(G, _parse_web()[0])}
 
 
 def _render_graph_html(G, adj):
     """The self-contained interactive context-map page (shared by `ctx graph --html` and
     `ctx serve`): the unified graph compacted to JSON and injected into _GRAPH_HTML."""
-    def esc(s):  # HTML-escape so author-edited titles can't break out of <script> / d3 .html()
+    def esc(s):  # HTML-escape so author-edited prose can't break out of <script> / d3 .html()
         return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     comp_obj = _graph_compact(G, adj)
     for nd in comp_obj["n"]:
         nd[3] = esc(nd[3])
+    # Bodies are rendered as HTML (light markdown) in the browser, so they are escaped
+    # HERE, once — the page must never re-escape them or '&' shows up as '&amp;'.
+    for det in comp_obj["d"].values():
+        det["body"] = esc(det["body"])
     comp = json.dumps(comp_obj, separators=(",", ":"))
     proj = esc(_manifest().get("project", "project"))
     # substitute __PROJECT__ first so a title literally containing it isn't clobbered
@@ -1801,10 +2094,37 @@ def cmd_graph(args):
     print("  → `ctx graph --json` for the full map (feeds the visual view) · `ctx health` for coverage")
 
 
+def _serve_route(path):
+    """Resolve one GET path to (status, body, content_type). Split out of the request
+    handler so the route table is unit-testable without opening a socket."""
+    if path in ("/", "/index.html", "/graph"):
+        G, adj = build_graph(include_code=True)
+        return 200, _render_graph_html(G, adj), "text/html; charset=utf-8"
+    if path == "/api/graph.json":
+        # Same map the page draws, as data — so other tools can consume the live graph
+        # without shelling out to `ctx graph --json`.
+        G, adj = build_graph(include_code=True)
+        return 200, json.dumps({
+            "project": _manifest().get("project", ""),
+            "summary": _graph_summary(G, _parse_web()[0]),
+            "nodes": [{"id": nid, "kind": d["kind"], "title": d["title"][:120],
+                       "status": d["status"]} for nid, d in G.items()],
+            "edges": [{"from": a, "to": e["to"], "type": e["type"]}
+                      for a, es in adj.items() for e in es if e["dir"] == "out"],
+            "details": _graph_details(G, adj),
+        }), "application/json; charset=utf-8"
+    if path == "/health":
+        return 200, "ok\n", "text/plain; charset=utf-8"
+    if path == "/favicon.ico":
+        return 204, b"", "image/x-icon"          # keep the console clean
+    return 404, "not found — try / (the map) or /api/graph.json\n", "text/plain; charset=utf-8"
+
+
 def cmd_serve(args):
     """Serve the LIVE context map as a tiny read-only web app (stdlib http.server, no
     deps) — the context layer's OWN web view, separate from the (fenced) trading dashboard.
-    GET / = the interactive force-graph (rebuilt each load, always fresh); /health = ok.
+    GET / = the interactive force-graph (rebuilt each load, always fresh); /api/graph.json
+    = the same map as JSON (for scripts/other tools); /health = ok.
     Bind --host 0.0.0.0 to reach it over the network (e.g. Tailscale). Ctrl-C to stop."""
     import http.server
 
@@ -1825,14 +2145,8 @@ def cmd_serve(args):
 
         def do_GET(self):
             try:
-                path = self.path.split("?", 1)[0]
-                if path in ("/", "/index.html", "/graph"):
-                    G, adj = build_graph(include_code=True)
-                    self._send(200, _render_graph_html(G, adj))
-                elif path == "/health":
-                    self._send(200, "ok\n", "text/plain; charset=utf-8")
-                else:
-                    self._send(404, "not found — try / (the context map)\n", "text/plain; charset=utf-8")
+                code, body, ctype = _serve_route(self.path.split("?", 1)[0])
+                self._send(code, body, ctype)
             except Exception as exc:  # never crash the server on one bad request
                 self._send(500, f"error: {exc}\n", "text/plain; charset=utf-8")
 

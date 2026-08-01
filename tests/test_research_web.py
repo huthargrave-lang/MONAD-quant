@@ -13,6 +13,7 @@ Gates the UNAMBIGUOUS invariants so an agent can trust `ctx web`:
 (Stale-citation detection — a live node relying on a superseded one — is left as an
 advisory in `ctx web --lint` until typed edges can distinguish provenance from reliance.)
 """
+import json
 import os
 import re
 import sys
@@ -856,6 +857,187 @@ class TestGraphHtml(unittest.TestCase):
         self.assertNotIn("__DATA__", html)      # graph data injected
         self.assertNotIn("__PROJECT__", html)
         self.assertIn('"n":', html)             # compact graph payload present
+        self.assertIn('"d":', html)             # per-node prose + provenance present
+        self.assertIn('"s":', html)             # landing summary present
+
+
+class TestProvenancePathsHelper(unittest.TestCase):
+    """`ctx why` and the HTML map's evidence chain must be the SAME traversal — a
+    shared helper, so the browser can never tell a different provenance story than
+    the CLI."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.G, cls.adj = ctx.build_graph()
+
+    def test_cmd_why_uses_the_shared_helper(self):
+        # The paths cmd_why prints for F13 must be exactly what the helper returns.
+        import contextlib
+        import io
+        import types
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ctx.cmd_why(types.SimpleNamespace(node="F13"))
+        out = buf.getvalue()
+        paths = ctx._provenance_paths("F13", self.adj, "E")
+        self.assertTrue(paths, "F13 should reach at least one experiment")
+        for p in paths:
+            self.assertIn(" → ".join(f"{t}:{tgt}" for t, tgt in p), out)
+
+    def test_never_traverses_supersedes(self):
+        # F13 supersedes F3; grounding must not be harvested through that edge.
+        for p in ctx._provenance_paths("F13", self.adj, "E"):
+            self.assertNotIn("F3", [tgt for _, tgt in p],
+                             "walked into the node it overturns — backwards provenance")
+
+    def test_endpoints_match_requested_prefix(self):
+        for nid in ("F16", "F13", "H7"):
+            for p in ctx._provenance_paths(nid, self.adj, "D"):
+                self.assertRegex(p[-1][1], r"^D\d+$")
+
+
+class TestGraphDetailPayload(unittest.TestCase):
+    """The map ships the research PROSE and the `ctx why` facts, not just labels —
+    that is what makes the page readable instead of a pretty dot cloud."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.G, cls.adj = ctx.build_graph(include_code=True)
+        cls.det = ctx._graph_details(cls.G, cls.adj)
+        cls.nodes, _ = ctx._parse_web()
+
+    def test_every_research_node_has_a_detail_entry(self):
+        self.assertEqual(set(self.det), set(self.nodes))
+        for nid, d in self.det.items():
+            for key in ("body", "status", "cited", "corrob", "grounded", "bears"):
+                self.assertIn(key, d, f"{nid} missing {key}")
+
+    def test_bodies_carry_real_prose_and_wiki_links(self):
+        f13 = self.det["F13"]["body"]
+        self.assertIn("[[F12]]", f13)                  # links survive for the UI to wire up
+        self.assertGreater(len(f13), 200)
+
+    def test_status_metadata_rides_along(self):
+        f3 = self.det["F3"]
+        self.assertEqual(f3["status"], "superseded")
+        self.assertEqual(f3["by"], "F13")
+        self.assertEqual(f3["reason"], "inverted")
+        self.assertAlmostEqual(f3["conf"], 0.2)
+        self.assertIn("eff", f3)                       # effective confidence precomputed
+        self.assertIn("bott", f3)
+
+    def test_metadata_comments_are_stripped_from_prose(self):
+        # The <!-- status: … --> block is structured metadata rendered as badges, not
+        # prose. (Nodes may still DISCUSS status in their text — that's real content.)
+        for nid, d in self.det.items():
+            self.assertNotIn("<!--", d["body"], f"{nid} leaks its status comment")
+            self.assertNotIn("-->", d["body"], f"{nid} leaks its status comment")
+        self.assertNotIn("by: F13", self.det["F3"]["body"])
+
+    def test_section_headings_do_not_leak_into_the_last_node(self):
+        # Nodes run '### ID' → next '###', so a following '## Section' divider lands in
+        # the previous node's body. F11 sits right before '## Hypotheses'.
+        self.assertNotIn("## Hypotheses", self.det["F11"]["body"])
+        for nid, d in self.det.items():
+            for line in d["body"].splitlines():
+                self.assertFalse(line.startswith("#"), f"{nid} kept a markdown heading: {line}")
+
+    def test_bodies_are_bounded(self):
+        for nid, d in self.det.items():
+            self.assertLessEqual(len(d["body"]), ctx._BODY_CAP + 2, nid)
+
+    def test_provenance_hops_are_type_colon_target(self):
+        for nid, d in self.det.items():
+            for path in d["grounded"] + d["bears"]:
+                for hop in path.split("|"):
+                    self.assertIn(":", hop, f"{nid}: unparseable hop {hop!r}")
+                    etype, target = hop.split(":", 1)
+                    self.assertTrue(etype and target, hop)
+                    self.assertIn(target, self.G, f"{nid}: hop to unknown node {target}")
+
+    def test_summary_counts_match_the_graph(self):
+        s = ctx._graph_summary(self.G, self.nodes)
+        self.assertEqual(s["nodes"], len(self.G))
+        self.assertEqual(s["research"], len(self.nodes))
+        self.assertEqual(s["superseded"],
+                         sum(1 for n in self.nodes.values() if ctx._is_superseded(n)))
+        self.assertEqual(sum(s["kinds"].values()), len(self.G))
+
+    def test_bodies_are_html_escaped_exactly_once(self):
+        # Bodies are inlined into a <script> and later written with innerHTML, so Python
+        # escapes them once; a second pass would surface literal '&amp;lt;' to the reader.
+        html = ctx._render_graph_html(self.G, self.adj)
+        payload = json.loads(html.split("const D=", 1)[1].split(";\n", 1)[0])
+        for nid, d in payload["d"].items():
+            self.assertNotIn("<", d["body"], f"{nid} body can break out of the script tag")
+            self.assertNotIn("&amp;lt;", d["body"], f"{nid} body is double-escaped")
+
+
+class TestGraphHtmlReader(unittest.TestCase):
+    """The map is a research READER: prose, provenance, deep links, keyboard nav and a
+    usable page even when the d3 CDN is unreachable. Template-level, like the sibling
+    prompt-drawer test — the page ships as one self-contained blob."""
+
+    def test_reader_affordances_are_embedded(self):
+        html = ctx._GRAPH_HTML
+        for needle in (
+            # two-pane layout + inspector
+            'id="stage"', 'id="panel"', "function inspectHTML", "function renderPanel",
+            "function overviewHTML", "function factsHTML", "function neighborHTML",
+            "function statusWarning", "function chainHTML",
+            "Grounded in (experiments)", "Bears on (decisions)",
+            # prose rendering with clickable [[wiki links]]
+            "function renderProse", "function inline", "function nodeLink",
+            "class=\"prose\"", "self is the weakest link",
+            # search over prose, not just labels
+            "const hay=nodes.map", "function recomputeHits", "function setQuery",
+            "hitSet.has(n.i)",
+            # deep links + history
+            "function syncHash", "function selectFromHash", "hashchange", "popstate",
+            "history.pushState", "history.replaceState",
+            # keyboard + help
+            'id="help"', 'id="helpbtn"', "function toggleHelp", "e.key==='/'",
+            "cycleMatch(1)", "cycleMatch(-1)",
+            # layer presets + responsive resize
+            'id="presets"', "function setLayer", "function syncPills",
+            "window.addEventListener('resize'", "d3.forceCenter(W/2,H/2)",
+            # offline degradation
+            "function offlineFallback", "if(!window.d3)", "break main;", "main:{",
+            "function panelClick",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, html)
+
+    def test_titles_are_not_double_escaped_in_the_tooltip(self):
+        # Titles are escaped once in Python; the tooltip must not run esc() over them
+        # again or an '&' in a title renders as '&amp;'.
+        self.assertIn("'<b>'+esc(d.id)+'</b> '+d.title", ctx._GRAPH_HTML)
+
+
+class TestServeRoutes(unittest.TestCase):
+    """`ctx serve` route table — resolvable without opening a socket."""
+
+    def test_map_and_health(self):
+        code, body, ctype = ctx._serve_route("/")
+        self.assertEqual(code, 200)
+        self.assertIn("text/html", ctype)
+        self.assertTrue(body.startswith("<!DOCTYPE html>"))
+        self.assertEqual(ctx._serve_route("/health")[0], 200)
+        self.assertEqual(ctx._serve_route("/favicon.ico")[0], 204)
+
+    def test_json_api_carries_nodes_edges_and_details(self):
+        code, body, ctype = ctx._serve_route("/api/graph.json")
+        self.assertEqual(code, 200)
+        self.assertIn("application/json", ctype)
+        data = json.loads(body)
+        self.assertEqual(set(data), {"project", "summary", "nodes", "edges", "details"})
+        self.assertTrue(data["nodes"] and data["edges"] and data["details"])
+        self.assertEqual(data["summary"]["nodes"], len(data["nodes"]))
+
+    def test_unknown_path_is_404_with_a_hint(self):
+        code, body, _ = ctx._serve_route("/nope")
+        self.assertEqual(code, 404)
+        self.assertIn("/api/graph.json", body)
 
 
 if __name__ == "__main__":

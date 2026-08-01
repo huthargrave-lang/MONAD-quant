@@ -108,12 +108,24 @@ venv/bin/python tools/ctx.py serve --host 127.0.0.1 --port 8001
 # → http://127.0.0.1:8001/
 ```
 
-The map is a self-contained D3/SVG page (no backend credentials):
+The map is a self-contained D3/SVG page (no backend credentials) — a *reader*, not just a
+picture of the graph:
 
 - **Dark 3D layout** — deterministic depth, shift-drag to orbit, click a node for a slow cruise
-- **Explore drawer** — kind-specific prompts (evidence chain, config impact, area brief, …) with copy-to-clipboard
-- **Search / fit / flat** — filter nodes, frame selection + one-hop neighbors, reset camera
+- **Inspector panel** — the node's actual prose with clickable `[[ID]]` links, status/confidence
+  badges (stated *and* effective, naming the weakest link), supersession / disputed / fragile
+  warnings, and the `ctx why` provenance chains: *grounded in* which experiments, *bears on*
+  which decisions
+- **Search over prose** — matches body text, not just titles; `Enter` / `n` / `p` cycle matches
+- **Layer presets** — `ideas` / `code` / `all` to swap between the research web and the repo
+- **Deep links** — `…/#F13` opens straight onto a node; Back/Forward walk your path
+- **Keyboard** — `/` search · `f` fit · `g` flat · `r` reset · `?` shortcuts
+- **Offline-safe** — if the d3 CDN is unreachable the page degrades to a searchable node list
+  with the same inspector, since all the research text is inlined
 - **Fresh on every load** — rebuilt from the manifest each request
+
+`GET /api/graph.json` returns the same map as data (nodes, edges, per-node details, summary)
+for other tools; `GET /health` is the liveness probe.
 
 On the Pi this runs as a separate read-only service on `:8001`, deliberately isolated
 from the trading dashboard. See `OPERATIONS.md` and `deploy/monad-ctxweb.service`.

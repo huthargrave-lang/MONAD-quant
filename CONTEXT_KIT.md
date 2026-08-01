@@ -82,7 +82,10 @@ without a human hand-editing markdown, and a bad capture can never corrupt the w
   config, bridges resolve, the web has no dangling/stale-cite edges, and every module is mapped.
 - **Self-measuring.** `ctx health` scores coverage + freshness + integrity, so the map's quality
   is a number, not a feeling.
-- **Visual.** `ctx graph --html` emits a self-contained interactive force-graph of the whole map.
+- **Visual.** `ctx graph --html` emits a self-contained interactive force-graph of the whole map —
+  with an inspector that shows each node's prose, its confidence/supersession state and its
+  `ctx why` provenance chains, so the page can be read, not just looked at. `ctx serve` serves the
+  live version (plus `/api/graph.json`).
 
 ## Design principles
 1. **Query > read** — expose a tool call for any computable fact; reserve prose for *why*.
