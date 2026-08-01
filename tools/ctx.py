@@ -1012,6 +1012,14 @@ def _is_superseded(node) -> bool:
     return _node_meta(node)["status"] in ("superseded", "retracted")
 
 
+def _is_open_work(nid, node) -> bool:
+    """The "what still needs doing" rule, shared by `ctx web --pending` and the map's
+    open-work view so both agree: a live decision/gate, or a live node whose title is
+    tagged OPEN / IN PROGRESS."""
+    return not _is_superseded(node) and (
+        nid[:1] == "D" or bool(re.match(r"\s*(OPEN|IN PROGRESS)\b", node["title"], re.I)))
+
+
 def _superseder(node):
     """The id of the node that supersedes/retracts this one (status meta 'by'), or None."""
     return _node_meta(node).get("by")
@@ -1218,12 +1226,8 @@ def cmd_web(args):
         return
 
     if getattr(args, "pending", False):
-        # Open work only: live decisions/gates (D-nodes) + open questions
-        # (titles tagged OPEN / IN PROGRESS). The "what still needs doing" view.
         pend = [nid for nid in sorted(nodes, key=_node_sort_key)
-                if not _is_superseded(nodes[nid])
-                and (nid[:1] == "D"
-                     or re.match(r"\s*(OPEN|IN PROGRESS)\b", nodes[nid]["title"], re.I))]
+                if _is_open_work(nid, nodes[nid])]
         print(f"PENDING — open questions + decisions/gates ({len(pend)}):\n")
         for nid in pend:
             print(f"  {nid:<4} {nodes[nid]['title'][:72]}")
@@ -1566,6 +1570,7 @@ svg.fast-render .node-label{text-rendering:optimizeSpeed}
 .ikind{font-size:11px;color:var(--mut);border:.5px solid var(--bd);border-radius:999px;padding:1px 7px}
 .badge{font-size:11px;border-radius:999px;padding:1px 7px;border:.5px solid;white-space:nowrap}
 .badge.bad{color:var(--warn);border-color:rgba(240,149,149,.5)}
+.badge.open{color:var(--hi);border-color:rgba(250,199,117,.42)}
 .ititle{color:var(--tx);font-size:14px;line-height:1.35;margin-top:7px}
 .facts{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
 .fact{font-size:11px;color:var(--mut);background:var(--surf);border-radius:6px;padding:2px 7px;white-space:nowrap}
@@ -1582,6 +1587,12 @@ svg.fast-render .node-label{text-rendering:optimizeSpeed}
 .wl{height:auto;padding:0 4px;border-radius:5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;line-height:1.35;color:var(--hi);border-color:rgba(250,199,117,.3)}
 .wl.gone{color:var(--mut);border-style:dashed;cursor:default}
 .empty{font-size:12px;font-style:italic;opacity:.75}
+.res{display:block;width:100%;height:auto;margin:0 0 4px;padding:6px 8px;text-align:left;font-size:12px;line-height:1.4;color:var(--mut);border-radius:8px}
+.res b{color:var(--tx);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.res .snip{display:block;margin-top:3px;font-size:11.5px;opacity:.82;overflow-wrap:anywhere}
+mark{background:rgba(250,199,117,.24);color:var(--hi);border-radius:3px;padding:0 1px}
+.rel{display:inline-flex;align-items:center;gap:5px;margin:0 3px 3px 0}
+.rel .sc{font-size:10px;color:var(--mut);font-variant-numeric:tabular-nums}
 .kgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));gap:5px;margin-top:9px}
 .kcell{background:var(--surf);border-radius:7px;padding:6px 8px;font-size:11px}
 .kcell b{display:block;color:var(--tx);font-size:15px;font-weight:600;line-height:1.2}
@@ -1703,29 +1714,74 @@ function overviewHTML(){const k=SUM.kinds||{},cells=Object.keys(LBL).filter(x=>k
   +'<div class="ititle">Pick a node to read it — its prose, what grounds it, and what it bears on.</div>'
   +'<div class="facts"><span class="fact"><b>'+(SUM.research||0)+'</b> research nodes</span>'
   +'<span class="fact"><b>'+(SUM.superseded||0)+'</b> superseded</span>'
+  +'<span class="fact"><b>'+(SUM.open||0)+'</b> open</span>'
   +(SUM.latest?'<span class="fact">newest dated <b>'+esc(SUM.latest)+'</b></span>':'')+'</div>'
   +'<div class="kgrid">'+cells+'</div>'
   +'<div class="sec"><h3>Decisions — start here</h3>'
   +(nodes.filter(n=>n.k==='D').sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}))
      .map(n=>'<div style="margin:2px 0">'+nodeLink(n.id)+' <span'+(n.sup?' style="opacity:.5"':'')+'>'+n.title+'</span></div>').join('')||'<div class="empty">—</div>')
-  +'</div><div class="sec"><h3>Getting around</h3><div style="font-size:12px;line-height:1.6">'
-  +'Search runs over titles <i>and</i> body prose. <kbd>?</kbd> lists the shortcuts. '
-  +'Turn whole layers on and off with the <b>ideas</b>/<b>code</b>/<b>all</b> presets.</div></div>';}
+  +'</div>'+openWorkHTML()
+  +'<div class="sec"><h3>Getting around</h3><div style="font-size:12px;line-height:1.6">'
+  +'Search runs over titles <i>and</i> body prose, and lists the matches with context. '
+  +'<kbd>?</kbd> lists the shortcuts. Turn whole layers on and off with the '
+  +'<b>ideas</b>/<b>code</b>/<b>all</b> presets.</div></div>';}
+// Open work = live decisions/gates + nodes titled OPEN / IN PROGRESS (the same rule
+// `ctx web --pending` uses). This is the "what still needs doing" list.
+function openWorkHTML(){const open=nodes.filter(n=>(DET[n.id]||{}).open&&n.k!=='D');
+ if(!open.length)return '';
+ return '<div class="sec"><h3>Open questions ('+open.length+')</h3>'
+  +open.sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true})).slice(0,25)
+   .map(n=>'<div style="margin:2px 0">'+nodeLink(n.id)+' <span>'+n.title+'</span></div>').join('')
+  +(open.length>25?'<div class="empty">… and '+(open.length-25)+' more — search or use the map</div>':'')+'</div>';}
+function relatedHTML(d){if(!d.rel||!d.rel.length)return '';
+ return '<div class="sec"><h3>Related by content</h3>'
+  +d.rel.map(([id,s])=>'<span class="rel">'+nodeLink(id)+'<span class="sc">'+s.toFixed(2)+'</span></span>').join('')
+  +'<div class="empty" style="margin-top:3px">TF-IDF similarity — connections nobody wrote a link for.</div></div>';}
 function inspectHTML(i){const n=nodes[i],d=DET[n.id];
- let h='<div class="ihead"><span class="iid">'+esc(n.id)+'</span><span class="ikind">'+esc(LBL[n.k]||n.k)+'</span>'
-  +(n.sup?'<span class="badge bad">'+esc((d&&d.status)||'superseded')+'</span>':'')+'</div>'
+ let h=(query?'<button class="wl" data-back="1">&larr; '+matches.length+' search result'+(matches.length===1?'':'s')+'</button>':'')
+  +'<div class="ihead"><span class="iid">'+esc(n.id)+'</span><span class="ikind">'+esc(LBL[n.k]||n.k)+'</span>'
+  +(n.sup?'<span class="badge bad">'+esc((d&&d.status)||'superseded')+'</span>':'')
+  +(d&&d.open?'<span class="badge open">open work</span>':'')
+  +'<button class="wl" data-copylink="'+esc(n.id)+'" title="copy a deep link to this node">link</button></div>'
   +'<div class="ititle">'+(n.title||esc(n.id))+'</div>';
  if(!d)return h+'<div class="facts"><span class="fact">code-layer node — no research prose</span></div>'+neighborHTML(i);
  h+=factsHTML(n.id,d)+statusWarning(n.id,d)
   +(d.body.trim()?renderProse(d.body):'<div class="prose empty">No body text — the title above is the whole node.</div>');
  h+='<div class="sec"><h3>Grounded in (experiments)</h3>'+chainHTML(d.grounded)+'</div>';
  h+='<div class="sec"><h3>Bears on (decisions)</h3>'+chainHTML(d.bears)+'</div>';
- return h+neighborHTML(i);}
+ return h+relatedHTML(d)+neighborHTML(i);}
+// Search shows a RANKED LIST with the matching prose, not just dimmed dots you cycle
+// through one Enter at a time — the query usually matches text you can't see on the map.
+function markSnippet(n,q){const body=(DET[n.id]||{}).body||'',hay2=body.toLowerCase(),i=hay2.indexOf(q);
+ if(i<0)return '';
+ const s=Math.max(0,i-70),e=Math.min(body.length,i+q.length+110);
+ const pre=(s>0?'… ':'')+body.slice(s,i),hit=body.slice(i,i+q.length),post=body.slice(i+q.length,e)+(e<body.length?' …':'');
+ // Bodies are escaped HTML; never split an entity with the <mark> wrapper.
+ const split=/&[#\w]*$/.test(pre)||/^[#\w]*;/.test(post);
+ return plainish((split?pre+hit+post:pre+'<mark>'+hit+'</mark>'+post));}
+// A snippet is a preview, not a document: drop the markdown scaffolding so '**94–100%**'
+// and '[[F13|supersedes]]' read as text instead of as source.
+function plainish(s){return s.replace(/\[\[([A-Za-z]+\d+)(?:\|[^\]]*)?\]\]/g,'$1')
+ .replace(/\*\*/g,'').replace(/`/g,'').replace(/\s*\n+\s*/g,' ');}
+function resultsHTML(){
+ if(!matches.length)return '<div class="ihead"><span class="iid">no matches</span><span class="ikind">'+esc(query)+'</span></div>'
+  +'<div class="ititle">Nothing in the visible layers mentions that.</div>'
+  +'<div class="prose">Search covers node ids, titles and body prose. Try a shorter term, or widen the '
+  +'<b>ideas</b>/<b>code</b>/<b>all</b> presets — hidden layers are excluded from results.</div>';
+ return '<div class="ihead"><span class="iid">'+matches.length+' match'+(matches.length===1?'':'es')+'</span>'
+  +'<span class="ikind">'+esc(query)+'</span></div>'
+  +'<div class="sec">'+matches.slice(0,60).map(n=>'<button class="res" data-node="'+n.i+'"><b>'+esc(n.id)+'</b> '
+   +(n.title||'')+(n.sup?' <span class="badge bad">superseded</span>':'')
+   +'<span class="snip">'+markSnippet(n,query)+'</span></button>').join('')
+  +(matches.length>60?'<div class="empty">… '+(matches.length-60)+' more — narrow the query</div>':'')+'</div>';}
 // One click handler for the inspector, shared by the graph and the offline list: copy a
 // prompt, or follow a [[wiki-link]] / neighbour chip. `nav` differs because only the
 // graph view can fly the camera to the node.
 function panelClick(ev,nav){const c=ev.target.closest('[data-copy]');
  if(c){copyText(promptBank[+c.dataset.copy]||'',c);return;}
+ const l=ev.target.closest('[data-copylink]');
+ if(l){copyText(location.origin+location.pathname+location.search+'#'+l.dataset.copylink,l);return;}
+ if(ev.target.closest('[data-back]')){nav(null);return;}
  const b=ev.target.closest('[data-node]');if(b&&!b.disabled)nav(+b.dataset.node);}
 // If the d3 CDN is unreachable (offline Pi, locked-down network) the force-graph can't
 // run — but every word of the research web is already inlined in this page, so degrade
@@ -1776,7 +1832,10 @@ function vis(n){return on[n.k]&&(on._sup||!n.sup);}
 // (recomputeHits) rather than re-scanning every node's prose on every tick.
 function hit(n){return hitSet.has(n.i);}
 function recomputeHits(){hitSet=new Set();if(!query)return;for(let i=0;i<hay.length;i++)if(hay[i].includes(query))hitSet.add(i);}
-function updateMatches(){matches=query?nodes.filter(n=>vis(n)&&hit(n)):[];document.getElementById('match').textContent=query?(matches.length+' match'+(matches.length===1?'':'es')):(nodes.filter(vis).length+' nodes');}
+// Rank matches so a hit on the id/title outranks a hit buried in prose, and research
+// nodes outrank the auto-extracted code layer. Also the order `n`/`p` cycle through.
+function matchRank(n){return ((n.id+' '+n.title).toLowerCase().includes(query)?0:2)+(idea.has(n.k)?0:1);}
+function updateMatches(){matches=query?nodes.filter(n=>vis(n)&&hit(n)).sort((a,b)=>matchRank(a)-matchRank(b)||a.i-b.i):[];document.getElementById('match').textContent=query?(matches.length+' match'+(matches.length===1?'':'es')):(nodes.filter(vis).length+' nodes');}
 function setQuery(v){query=(v||'').trim().toLowerCase();recomputeHits();matchAt=-1;}
 function prand(i,s){return Math.abs(Math.sin((i+1)*s)*43758.5453)%1;}
 function targetZ(n){const deg=adj[n.i]?adj[n.i].size:0,semantic=Z[n.k]||0,hub=Math.min(70,deg*3.2),spread=(prand(n.i,41.17)-.5)*125;return semantic+spread+(idea.has(n.k)?hub:-hub*.45);}
@@ -1876,7 +1935,7 @@ function renderPrompts(d,nb){const ps=makePrompts(d,nb);promptBank=ps.map(p=>p.p
 function copyText(text,b){const done=ok=>{const old=b.textContent;b.textContent=ok?'copied':'copy failed';setTimeout(()=>b.textContent=old,950);};if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(text).then(()=>done(true)).catch(()=>done(fallbackCopy(text)));}else done(fallbackCopy(text));}
 function fallbackCopy(text){const t=document.createElement('textarea');t.value=text;t.setAttribute('readonly','');t.style.position='fixed';t.style.left='-9999px';document.body.appendChild(t);t.select();let ok=false;try{ok=document.execCommand('copy');}catch(e){ok=false;}document.body.removeChild(t);return ok;}
 function renderPanel(i){document.getElementById('panel').scrollTop=0;
- if(i===null){promptBank=[];det(overviewHTML());return;}
+ if(i===null){promptBank=[];det(query?resultsHTML():overviewHTML());return;}
  const d=nodes[i],nb={};nbrs[i].forEach(([j,t,a])=>{(nb[t]=nb[t]||[]).push([j,a]);});
  det(inspectHTML(i)+renderPrompts(d,nb));}
 function selectNode(i,focus){sel=i;paint();syncHash();renderPanel(sel);
@@ -1954,6 +2013,20 @@ setTimeout(()=>{fitVisible();if(location.hash)setTimeout(selectFromHash,420);},7
 _BODY_CAP = 1600          # per-node prose budget in the inlined map (keeps the page ~200KB)
 
 
+def _related_map(nodes, top=5, floor=0.06):
+    """{node: [[other, score], …]} — the top content-similar nodes per research node,
+    by the same TF-IDF cosine `ctx related` uses. Precomputed once for the map so the
+    inspector can show "related by content" (links nobody hand-authored) without
+    shipping the whole term-vector model to the browser."""
+    vecs, _ = _tfidf(nodes)
+    out = {}
+    for nid in nodes:
+        scored = sorted(((other, _cos(vecs[nid], v)) for other, v in vecs.items() if other != nid),
+                        key=lambda kv: (-kv[1], kv[0]))
+        out[nid] = [[o, round(s, 3)] for o, s in scored[:top] if s >= floor]
+    return out
+
+
 def _graph_details(G, adj):
     """Per-node reading material for the HTML map: each research node's own PROSE plus
     the provenance facts `ctx why` computes — status/superseder/reason, stated and
@@ -1963,6 +2036,7 @@ def _graph_details(G, adj):
     Keyed by node id; only research nodes (F/H/E/D) have prose to carry."""
     nodes, _ = _parse_web()
     contra = _contradicted_by(nodes)
+    related = _related_map(nodes)
     out = {}
     for nid, n in nodes.items():
         if nid not in G:
@@ -1983,7 +2057,12 @@ def _graph_details(G, adj):
                     for p in _provenance_paths(nid, adj, prefix, cap=6)]
         d = {"body": body[:_BODY_CAP] + (" …" if len(body) > _BODY_CAP else ""),
              "status": meta["status"], "cited": cited, "corrob": corrob,
-             "grounded": hops("E"), "bears": hops("D")}
+             "grounded": hops("E"), "bears": hops("D"),
+             # Content-similar nodes (`ctx related`): surfaces neighbours nobody wrote a
+             # [[link]] for — the ones you'd otherwise only find by reading everything.
+             "rel": related.get(nid, [])}
+        if _is_open_work(nid, n):
+            d["open"] = True
         for key in ("by", "reason", "at"):
             if meta.get(key):
                 d[key] = meta[key]
@@ -2016,6 +2095,7 @@ def _graph_summary(G, nodes_web):
             "nodes": len(G),
             "research": len(nodes_web),
             "superseded": sum(1 for n in nodes_web.values() if _is_superseded(n)),
+            "open": sum(1 for nid, n in nodes_web.items() if _is_open_work(nid, n)),
             "latest": max(dates) if dates else "",
             "rev": _git("log", "-1", "--format=%h · %cs") or ""}
 

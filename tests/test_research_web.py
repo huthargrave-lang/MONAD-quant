@@ -962,6 +962,38 @@ class TestGraphDetailPayload(unittest.TestCase):
         self.assertEqual(s["superseded"],
                          sum(1 for n in self.nodes.values() if ctx._is_superseded(n)))
         self.assertEqual(sum(s["kinds"].values()), len(self.G))
+        self.assertEqual(s["open"], sum(1 for d in self.det.values() if d.get("open")))
+
+    def test_open_work_flag_matches_the_pending_view(self):
+        # The map's "open work" and `ctx web --pending` must be the same rule, or the
+        # two views disagree about what still needs doing.
+        import contextlib
+        import io
+        import types
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ctx.cmd_web(types.SimpleNamespace(node=None, pending=True, live=False,
+                                              lint=False, bridges=False))
+        listed = set(re.findall(r"^  ([A-Z]\d+) ", buf.getvalue(), re.M))
+        self.assertTrue(listed)
+        self.assertEqual({nid for nid, d in self.det.items() if d.get("open")}, listed)
+
+    def test_related_nodes_are_real_and_ranked(self):
+        for nid, d in self.det.items():
+            self.assertIn("rel", d)
+            scores = [s for _, s in d["rel"]]
+            self.assertEqual(scores, sorted(scores, reverse=True), f"{nid} rel not ranked")
+            for other, score in d["rel"]:
+                self.assertIn(other, self.nodes, f"{nid} related to unknown {other}")
+                self.assertNotEqual(other, nid, "a node is not related to itself")
+                self.assertGreaterEqual(score, 0.06)
+            self.assertLessEqual(len(d["rel"]), 5)
+
+    def test_related_surfaces_the_same_neighbourhood_as_ctx_related(self):
+        # F13 (morning-only data reversal) should sit next to the data-caveat cluster.
+        top = {other for other, _ in self.det["F13"]["rel"]}
+        self.assertTrue(top & {"F10", "F12", "H5"},
+                        f"F13's content neighbours look wrong: {top}")
 
     def test_bodies_are_html_escaped_exactly_once(self):
         # Bodies are inlined into a <script> and later written with innerHTML, so Python
@@ -1004,6 +1036,12 @@ class TestGraphHtmlReader(unittest.TestCase):
             # offline degradation
             "function offlineFallback", "if(!window.d3)", "break main;", "main:{",
             "function panelClick",
+            # search results list with prose snippets, ranked
+            "function resultsHTML", "function markSnippet", "function matchRank",
+            "<mark>", "data-back", "query?resultsHTML():overviewHTML()",
+            # content-similarity + open work + shareable links
+            "function relatedHTML", "function openWorkHTML", "Related by content",
+            "Open questions", "data-copylink",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, html)
