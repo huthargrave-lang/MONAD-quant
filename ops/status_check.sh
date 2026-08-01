@@ -20,6 +20,17 @@ echo "  load=$(cut -d' ' -f1-3 /proc/loadavg)"
 echo "-- repo --"
 cd "$REPO" 2>/dev/null && echo "  branch=$(git branch --show-current)  clean=$([ -z "$(git status --porcelain)" ] && echo yes || echo no)"
 
+# Deploy sync — READ-ONLY consumer of local_logs/git_drift.json (ops/git_drift.sh).
+# Renders here because `branch=development clean=yes` looked perfectly healthy for
+# the seven days this checkout sat 129 commits behind origin. Absence renders as
+# loudly as divergence: no artifact, or a stale one, prints UNKNOWN rather than
+# nothing, because a surface that goes quiet when its sensor dies is the bug.
+# This script is read-only and nothing gates on its exit status, so this cannot
+# affect arming.
+printf '  sync='
+"$REPO/venv/bin/python" "$REPO/tools/drift_render.py" "$REPO/local_logs/git_drift.json" \
+    2>/dev/null || echo "UNKNOWN (drift renderer unavailable)"
+
 echo "-- gateway --"
 pgrep -f "ibcalpha.ibc.IbcGateway" >/dev/null 2>&1 && echo "  gateway: RUNNING" || echo "  gateway: down"
 if (exec 3<>/dev/tcp/127.0.0.1/7497) 2>/dev/null; then exec 3>&-; echo "  port 7497 (paper): OPEN"; else echo "  port 7497 (paper): closed"; fi
