@@ -12,7 +12,13 @@ __pycache__/
 # regenerated offline. Committing them is the one action that restores it.
 !docs/research/data/*.csv
 .DS_Store
+venv
 venv/
+# Both forms on purpose. `venv/` alone matches only a DIRECTORY, so a symlink
+# named `venv` — which is exactly what a scratch worktree needs, since the real
+# venv is untracked — slips past it and can be committed by `git add -A`. When
+# that lands, checkout replaces the real venv/ with a self-referential symlink
+# and destroys the interpreter the trader runs from.
 *.egg-info/
 experiments.jsonl
 sweep_results_*.json
