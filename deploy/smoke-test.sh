@@ -51,12 +51,33 @@ else
 fi
 
 # ── 4. State DB can be initialized ──────────────────────────────────
+# Against a THROWAWAY database — never live/state.db.
+#
+# `live.state.init_db()` uses the hardcoded live/state.py _DB_PATH and applies
+# conditional `ALTER TABLE` migrations to position, trades and signal_snapshot.
+# Calling it from a smoke test therefore opens the LIVE trading database for
+# write, and takes a lock on it, potentially while the trader is mid-cycle
+# holding a real position. A pre-flight check must not be able to disturb the
+# thing it is checking. _conn() reads the module global at call time, so
+# redirecting it here is sufficient and needs no change to the fenced live/ path.
 echo "[4/7] SQLite state database"
-if "$VENV_DIR/bin/python" -c "import live.state; live.state.init_db(); print('ok')" 2>/dev/null | grep -q ok; then
-    pass "state.db initialized successfully"
+SMOKE_DB_DIR="$(mktemp -d)"
+if "$VENV_DIR/bin/python" - "$SMOKE_DB_DIR/state.db" <<'PY' 2>/dev/null | grep -q ok
+import pathlib
+import sys
+
+import live.state
+
+live.state._DB_PATH = pathlib.Path(sys.argv[1])
+live.state.init_db()
+print("ok")
+PY
+then
+    pass "schema initialises cleanly (throwaway DB — live trading state untouched)"
 else
     fail "state.db initialization failed"
 fi
+rm -rf "$SMOKE_DB_DIR"
 
 # ── 5. Config is valid ──────────────────────────────────────────────
 echo "[5/7] Config validation"
