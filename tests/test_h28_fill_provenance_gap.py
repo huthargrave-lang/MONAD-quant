@@ -86,13 +86,20 @@ class ExitTypeConflatesMechanismWithProvenanceTests(unittest.TestCase):
                       "exit_types can be actual")
 
     def test_the_trader_emits_the_SAME_strings_by_inference(self):
+        # 2026-08-02: the leg decision moved into _first_touch_from_bars (path-based
+        # first touch) because the old point-in-time inference booked a stop fill as
+        # target_hit across an overnight gap. That fixed CORRECTNESS, not PROVENANCE:
+        # an inferred stop_hit is still written as the string "stop_hit", byte-identical
+        # to a broker-confirmed one, so this finding survives unchanged. Scan the whole
+        # inference path rather than one function, so the next refactor cannot make the
+        # finding look resolved by moving a literal.
         trader = (ROOT / "live" / "trader.py").read_text(encoding="utf-8")
-        start = trader.index("def _infer_bracket_exit")
-        body = trader[start:trader.index("\ndef ", start + 5)]
+        start = trader.index("def _first_touch_from_bars")
+        body = trader[start:trader.index("\ndef ", trader.index("def _infer_bracket_exit") + 5)]
         for kind in sorted(INFERRED_TYPES):
             self.assertIn(
                 '"{}"'.format(kind), body,
-                "_infer_bracket_exit no longer emits {} — the ambiguity may be "
+                "the inference path no longer emits {} — the ambiguity may be "
                 "resolved".format(kind))
 
     def test_estimated_close_by_contrast_announces_itself(self):
@@ -151,7 +158,11 @@ class TheContaminationIsBoundedByTheEventLogTests(unittest.TestCase):
             "_infer_bracket_exit now writes a monitor event — provenance became "
             "recoverable from the durable log; re-read this finding")
         trader = (ROOT / "live" / "trader.py").read_text(encoding="utf-8")
-        self.assertIn('log.info(f"Infer exit', trader,
+        # The log line was renamed to "Path inference: …" on 2026-08-02. Still log.info,
+        # still not a monitor_event, so the trace is still non-durable and the finding
+        # holds. Assert the property (an info-level inference log) rather than the
+        # wording, which is what actually makes this a provenance gap.
+        self.assertIn('log.info(f"Path inference:', trader,
                       "the inference log line moved; check whether it is now durable")
 
     def test_a_meaningful_share_of_confirmed_is_unverifiable(self):

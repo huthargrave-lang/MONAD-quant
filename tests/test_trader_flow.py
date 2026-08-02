@@ -227,40 +227,54 @@ class TestPendingClose(_Base):
 
 
 class TestInferBracketExit(unittest.TestCase):
-    """_infer_bracket_exit decides the recorded exit price/type when IBKR fill
-    data is unavailable — it directly sets estimated live PnL, so pin it.
+    """_infer_bracket_exit sets recorded live PnL, so pin its CONTRACT.
+
+    That contract changed on 2026-08-02. These tests previously asserted the old
+    one — that a single current price above TP means target_hit, and that when the
+    price sits between the levels you pick whichever is nearer. Both are category
+    errors: fill data is only missing when the fill happened on a PREVIOUS trading
+    day, and an overnight gap moves the current price arbitrarily far from wherever
+    the bracket actually filled.
+
+    Live consequence, which is why these were rewritten rather than adjusted: TQQQ
+    gapped 63.44 -> 65.74 and a stop fill at 63.46 was booked `target_hit +1.0034%`,
+    turning a -0.5% loss into a +1.0% win in the rolling win rate that sizing reads.
+
+    The new contract is first-touch along the price path since entry; when the path
+    cannot answer, `estimated_close` — never a named leg. Path behaviour is covered
+    in tests/test_infer_bracket_exit.py. What is pinned HERE is the half that used
+    to be wrong: with no usable price path, no leg may be inferred from ref_price.
     """
     def _pos(self, entry=80.0, tp=81.6, sl=79.6, direction="long"):
         return types.SimpleNamespace(entry_price=entry, target_price=tp,
                                       stop_price=sl, direction=direction)
 
-    def test_long_target(self):
-        self.assertEqual(trader._infer_bracket_exit(self._pos(), 82.0), (81.6, "target_hit"))
+    def test_no_price_path_never_names_a_leg(self):
+        for ref in (82.0, 79.0, 81.4, 79.9):
+            with self.subTest(ref=ref):
+                price, kind = trader._infer_bracket_exit(self._pos(), ref)
+                self.assertEqual(kind, "estimated_close")
+                self.assertEqual(price, ref)
 
-    def test_long_stop(self):
-        self.assertEqual(trader._infer_bracket_exit(self._pos(), 79.0), (79.6, "stop_hit"))
-
-    def test_short_target(self):
+    def test_short_side_also_never_guesses(self):
         p = self._pos(tp=78.4, sl=80.4, direction="short")
-        self.assertEqual(trader._infer_bracket_exit(p, 78.0), (78.4, "target_hit"))
+        for ref in (78.0, 81.0):
+            with self.subTest(ref=ref):
+                self.assertEqual(trader._infer_bracket_exit(p, ref)[1], "estimated_close")
 
-    def test_short_stop(self):
-        p = self._pos(tp=78.4, sl=80.4, direction="short")
-        self.assertEqual(trader._infer_bracket_exit(p, 81.0), (80.4, "stop_hit"))
+    def test_a_malformed_position_degrades_instead_of_raising(self):
+        """This runs inside the reconcile cycle; an exception here would take the
+        trader down mid-session."""
+        p = types.SimpleNamespace(entry_price=80.0, target_price=81.6,
+                                  stop_price=79.6, direction="long")
+        price, kind = trader._infer_bracket_exit(p, 82.0)   # no symbol, no entry_time
+        self.assertEqual(kind, "estimated_close")
+        self.assertEqual(price, 82.0)
 
-    def test_long_ambiguous_closer_to_tp(self):
-        # ref between sl and tp, nearer tp -> target_hit
-        self.assertEqual(trader._infer_bracket_exit(self._pos(), 81.4), (81.6, "target_hit"))
-
-    def test_long_ambiguous_closer_to_sl(self):
-        self.assertEqual(trader._infer_bracket_exit(self._pos(), 79.9), (79.6, "stop_hit"))
-
-    def test_legacy_no_tp_sl_uses_reference(self):
+    def test_legacy_no_tp_sl_is_not_a_guess_either(self):
         p = types.SimpleNamespace(entry_price=80.0, target_price=None,
                                   stop_price=None, direction="long")
-        self.assertEqual(trader._infer_bracket_exit(p, 82.0), (82.0, "target_hit"))
-        self.assertEqual(trader._infer_bracket_exit(p, 78.0), (78.0, "stop_hit"))
-
+        self.assertEqual(trader._infer_bracket_exit(p, 82.0)[1], "estimated_close")
 
 class TestTimeExit(_Base):
     def test_time_exit_closes_at_bar_limit(self):

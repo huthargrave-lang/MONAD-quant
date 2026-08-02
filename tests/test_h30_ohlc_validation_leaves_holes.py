@@ -195,7 +195,7 @@ class TheDropLeavesNoDurableTraceTests(unittest.TestCase):
     def test_the_sibling_cases_are_still_present_to_compare_against(self):
         """F172 and F202's paths, so 'third instance' stays checkable."""
         trader = (ROOT / "live" / "trader.py").read_text(encoding="utf-8")
-        self.assertIn('log.info(f"Infer exit', trader,
+        self.assertIn('log.info(f"Path inference:', trader,
                       "the F202 inference log line moved — re-check whether it became "
                       "durable")
 

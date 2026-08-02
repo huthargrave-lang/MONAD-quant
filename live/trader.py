@@ -26,10 +26,11 @@ Usage:
 import argparse
 import logging
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import config
+from src.data.fetcher import fetch_yfinance
 from live import alerts, broker, signals, state
 
 logging.basicConfig(
@@ -53,57 +54,105 @@ def _get_git_hash() -> str:
         return "unknown"
 
 
-def _infer_bracket_exit(position, ref_price: float) -> tuple[float, str]:
-    """Infer which bracket leg (TP or SL) filled when IBKR fill data is unavailable.
+def _first_touch_from_bars(position, direction: str):
+    """Which bracket leg was touched FIRST, read off the price path since entry.
 
-    Direction-aware. For longs: TP > entry > SL, target is "above", stop is "below".
-    For shorts: TP < entry < SL, target is "below", stop is "above". The
-    ordering is inferred from the stored TP/SL values rather than the direction
-    column so legacy positions without `direction` still work.
+    Returns (price, exit_type) or None when the bars cannot answer.
+
+    This is the only honest way to answer the question after a gap. The previous
+    implementation compared a single CURRENT price against TP/SL, which says
+    nothing about what happened while we were not looking: on 2026-07-31 TQQQ
+    gapped from a 63.44 close to a 65.74 open, so the current price sat above the
+    64.42 target and the trade was booked target_hit +1.00% — when the tape shows
+    the 15:32-16:00 session low was 63.26, through the 63.46 stop, and the high
+    was 63.63, never within 79 cents of the target. A real -0.5% loss was recorded
+    as a +1.0% win.
+
+    Same-bar ambiguity resolves to the stop, matching the backtest fill model
+    (src/strategy/engine.py:247, "assume the stop was hit (pessimistic)"): intrabar
+    ordering is unknowable from OHLC, so the engine and the live book must guess
+    the same way or they stop being comparable.
     """
-    tp = position.target_price
-    sl = position.stop_price
+    tp, sl = position.target_price, position.stop_price
+    if tp is None or sl is None:
+        return None
+    try:
+        entry_dt = datetime.fromisoformat(position.entry_time)
+        if entry_dt.tzinfo is None:
+            entry_dt = entry_dt.replace(tzinfo=timezone.utc)
+        # Pad both ends: the entry bar itself can contain the touch, and yfinance
+        # excludes the `end` date.
+        start = (entry_dt - timedelta(days=1)).strftime("%Y-%m-%d")
+        end = (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%Y-%m-%d")
+        symbol = getattr(position, "symbol", None) or config.LIVE_SYMBOL
+        df = fetch_yfinance(symbol, start=start, end=end, interval="1h")
+    except Exception as exc:  # noqa: BLE001 — a probe must not break the cycle
+        log.warning(f"Path inference: bars unavailable ({type(exc).__name__}: {exc})")
+        return None
+    if df is None or df.empty:
+        return None
+
+    idx = df.index
+    if getattr(idx, "tz", None) is None:
+        idx = idx.tz_localize("UTC")
+    else:
+        idx = idx.tz_convert("UTC")
+    df = df.copy()
+    df.index = idx
+    df = df[df.index >= entry_dt.replace(minute=0, second=0, microsecond=0)]
+    if df.empty:
+        return None
+
+    for ts, row in df.iterrows():
+        hi, lo = float(row["high"]), float(row["low"])
+        if direction == "long":
+            hit_sl, hit_tp = lo <= sl, hi >= tp
+        else:
+            hit_sl, hit_tp = hi >= sl, lo <= tp
+        if hit_sl:                      # stop wins ties, per the backtest model
+            log.info(f"Path inference: bar {ts} touched SL={sl:.2f} "
+                     f"(bar low={lo:.2f} high={hi:.2f}) → stop_hit")
+            return sl, "stop_hit"
+        if hit_tp:
+            log.info(f"Path inference: bar {ts} touched TP={tp:.2f} "
+                     f"(bar low={lo:.2f} high={hi:.2f}) → target_hit")
+            return tp, "target_hit"
+    log.warning("Path inference: no bar since entry touched either bracket leg")
+    return None
+
+
+def _infer_bracket_exit(position, ref_price: float) -> tuple[float, str]:
+    """Infer which bracket leg filled when IBKR fill data is unavailable.
+
+    Fill data is only unavailable in one situation: the fill happened on a previous
+    trading day, because ib.trades()/ib.fills() are both current-day scoped. That is
+    exactly the situation in which a single current price is worthless — an
+    overnight gap moves it arbitrarily far from wherever the bracket actually
+    filled. So this reads the PATH since entry and takes the first leg touched.
+
+    When the path cannot answer — bars unavailable, or no bar touched either leg —
+    this returns `estimated_close` at the reference price rather than naming a leg.
+    Recording an honest "we do not know, here is our best price" is strictly better
+    than a confident wrong leg: a false target_hit does not just misstate one
+    trade's P&L, it inverts a loss into a win in the win-rate that sizing reads.
+    """
+    tp, sl = position.target_price, position.stop_price
     entry = position.entry_price
     direction = getattr(position, "direction", None) or (
         "long" if (tp is not None and sl is not None and tp >= sl) else "long"
     )
 
-    if tp is None or sl is None:
-        # Legacy position without stored TP/SL — use reference price
-        if direction == "long":
-            exit_type = "target_hit" if ref_price >= entry else "stop_hit"
-        else:
-            exit_type = "target_hit" if ref_price <= entry else "stop_hit"
-        log.info(f"Infer exit (no TP/SL stored, {direction}): ref={ref_price:.2f}, entry={entry:.2f} → {exit_type}")
-        return ref_price, exit_type
+    touched = _first_touch_from_bars(position, direction)
+    if touched is not None:
+        return touched
 
-    if direction == "long":
-        # TP is above entry, SL is below entry.
-        if ref_price >= tp:
-            log.info(f"Infer exit (long): ref={ref_price:.2f} >= TP={tp:.2f} → target_hit")
-            return tp, "target_hit"
-        if ref_price <= sl:
-            log.info(f"Infer exit (long): ref={ref_price:.2f} <= SL={sl:.2f} → stop_hit")
-            return sl, "stop_hit"
-    else:  # short
-        # TP is below entry, SL is above entry.
-        if ref_price <= tp:
-            log.info(f"Infer exit (short): ref={ref_price:.2f} <= TP={tp:.2f} → target_hit")
-            return tp, "target_hit"
-        if ref_price >= sl:
-            log.info(f"Infer exit (short): ref={ref_price:.2f} >= SL={sl:.2f} → stop_hit")
-            return sl, "stop_hit"
-
-    # Ambiguous: price is between SL and TP. Use distance to decide.
-    dist_to_tp = abs(ref_price - tp)
-    dist_to_sl = abs(ref_price - sl)
-    if dist_to_tp <= dist_to_sl:
-        log.info(f"Infer exit (ambiguous {direction}, closer to TP): ref={ref_price:.2f}, TP={tp:.2f}, SL={sl:.2f} → target_hit")
-        return tp, "target_hit"
-    else:
-        log.info(f"Infer exit (ambiguous {direction}, closer to SL): ref={ref_price:.2f}, TP={tp:.2f}, SL={sl:.2f} → stop_hit")
-        return sl, "stop_hit"
-
+    log.critical(
+        f"Cannot infer which bracket leg filled for {getattr(position, 'symbol', '?')} "
+        f"(entry={entry:.2f} TP={tp} SL={sl}): the price path is unavailable and a "
+        f"point-in-time price cannot answer this after a gap. Recording "
+        f"estimated_close @ {ref_price:.2f} — this trade's exit_type is NOT evidence."
+    )
+    return ref_price, "estimated_close"
 
 def _get_asset_config() -> dict:
     """Returns the ASSETS dict entry for the current LIVE_SYMBOL."""
