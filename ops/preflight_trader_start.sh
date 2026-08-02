@@ -133,6 +133,24 @@ force-finalize / software-stop / desync-block / signal-failure alerts will be co
 and discarded. Not a failure; the trader will still start."
 fi
 
+# ── Deploy sync — REPORTED, deliberately not gated ──────────────────────────
+# Uses report(), which logs INFO without touching `fails` (the H31/F205 precedent
+# directly above). Drift must never become a reason the bot refuses to start:
+# preflight is ExecStartPre, so a veto here stops the 09:22 timer AND
+# ops/rearm_trader.sh, which gates on this same exit code — one stale checkout
+# would cost a whole session.
+#
+# The probe runs in a subshell with `set +u`, a hard timeout and `|| true`, so it
+# cannot change this script's exit status by ANY route. Under `set -uo pipefail`
+# an unbound expansion aborts the script before its `exit 0` — blocking arming
+# without ever calling fail(), a veto with no verdict and no log line. Measured:
+#   bash -c 'set -uo pipefail; echo A; echo "${NOPE}"; echo B; exit 0'
+# never reaches B. Note also that `fail` called from inside a subshell cannot
+# increment the parent's counter, so a subshell could not vote even if it tried.
+drift_line=$( ( set +u; timeout 5 "$REPO/venv/bin/python" \
+    "$REPO/tools/drift_render.py" "$LOG_DIR/git_drift.json" ) 2>/dev/null ) || true
+report "deploy sync: ${drift_line:-UNKNOWN (drift probe unavailable)}"
+
 if [ "$fails" -gt 0 ]; then
     note "================ preflight FAILED ($fails check(s)) — trader will NOT start ================"
     echo "PREFLIGHT FAILED ($fails check(s)). See $LOG"

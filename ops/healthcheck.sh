@@ -84,6 +84,48 @@ fi
 disk_pct=$(df --output=pcent "$REPO" 2>/dev/null | tail -1 | tr -dc '0-9')
 [ "${disk_pct:-0}" -ge 90 ] 2>/dev/null && add_problem "disk_full(${disk_pct}%)"
 
+# ── Deploy sync — RECORDED, never voted on ───────────────────────────────────
+# New top-level keys only. NEVER add_problem(): that sets warn=1 -> status="warn"
+# -> preflight check 10 fails -> the trader does not start, on BOTH cold-start
+# paths. Being behind origin is a fact to report, not a safety fault, and the bot
+# not trading is a real cost. Follows this file's own precedent: trader_active and
+# state_db_age_min are recorded and never vote.
+#
+# The three variables are initialised BEFORE the probe, and that is load-bearing.
+# The JSON below is a heredoc: under `set -u` an unbound expansion aborts the
+# script BEFORE `cat > "$JSON"` runs, so healthcheck.json is never written — and
+# preflight check 10 treats a missing file as a PASS. A bug here would therefore
+# silently disable the entire health gate (gateway-down, port-closed, disk-full
+# all stop voting) while arming proceeds: the incident's own shape, reproduced
+# inside the fix. Bounded by timeout, errors swallowed, defaults always defined.
+drift_verdict="unknown"; drift_behind="null"; drift_armed="null"
+_drift_raw=$(timeout 5 "$REPO/venv/bin/python" -c '
+import json, sys
+try:
+    o = json.load(open(sys.argv[1]))
+    b, a = o.get("behind"), o.get("armed_behind")
+    v = o.get("verdict")
+    # Whitelist: a value the oracle never emits (wrong type, unknown string) must
+    # degrade to "unknown", not be echoed into the record as if it were a verdict.
+    if v not in ("in_sync", "behind", "ahead", "diverged", "unknown"):
+        v = "unknown"
+    print(v,
+          b if isinstance(b, int) else "null",
+          a if isinstance(a, int) else "null")
+except Exception:
+    print("unknown", "null", "null")
+' "$LOG_DIR/git_drift.json" 2>/dev/null) || true
+if [ -n "${_drift_raw:-}" ]; then
+    drift_verdict=$(printf '%s' "${_drift_raw}" | awk '{print $1}')
+    drift_behind=$(printf '%s' "${_drift_raw}" | awk '{print $2}')
+    drift_armed=$(printf '%s' "${_drift_raw}" | awk '{print $3}')
+fi
+# Re-assert defaults: awk on malformed input can yield empty, and an empty
+# expansion would emit invalid JSON, which preflight's parser treats as a PASS.
+[ -n "${drift_verdict:-}" ] || drift_verdict="unknown"
+[ -n "${drift_behind:-}" ]  || drift_behind="null"
+[ -n "${drift_armed:-}" ]   || drift_armed="null"
+
 status="ok"; [ "$warn" -eq 1 ] && status="warn"
 
 cat > "$JSON" <<JSON
@@ -97,7 +139,10 @@ cat > "$JSON" <<JSON
   "recent_connection_refused": ${conn_refused:-0},
   "recent_order_failures": ${order_fail:-0},
   "disk_used_pct": ${disk_pct:-null},
-  "problems": "$problems"
+  "problems": "$problems",
+  "git_drift_verdict": "$drift_verdict",
+  "git_drift_behind": $drift_behind,
+  "git_drift_armed_behind": $drift_armed
 }
 JSON
 echo "$now_utc status=$status gw=$gw port=$port trader=$trader db_age_min=$db_age_min connrefused=${conn_refused:-0} orderfail=${order_fail:-0} disk=${disk_pct:-?}% ${problems:+| $problems}" >> "$LOG"
