@@ -1,0 +1,26 @@
+[Unit]
+Description=Check local-vs-origin drift every 15 minutes, around the clock
+
+[Timer]
+# 24/7, NOT market hours. This is the point of a separate unit rather than
+# hanging the fetch off monad-healthcheck.timer, which runs Mon..Fri 09..16:00 ET.
+# The incident this exists to prevent accumulated 129 commits over seven days and
+# was discovered on a Saturday; the divergence that matters is created by agent
+# sessions, which run whenever someone is working — overwhelmingly outside market
+# hours. A market-hours-only drift check would have been blind for the entire
+# window in which the drift appeared.
+#
+# 15 minutes against a 90-minute staleness threshold (MONAD_DRIFT_MAX_AGE_SEC)
+# leaves five consecutive failures of head-room before the verdict degrades to
+# UNKNOWN — so a transient network outage does not flip the banner, while a
+# genuinely dead fetch still surfaces within the hour.
+OnCalendar=*:0/15
+# Catch up after a reboot: the Pi loses power, and a stale drift verdict after a
+# restart is precisely when the checkout is most likely to be wrong. Harmless —
+# the unit only fetches and writes a JSON file.
+Persistent=true
+RandomizedDelaySec=60
+Unit=monad-gitdrift.service
+
+[Install]
+WantedBy=timers.target

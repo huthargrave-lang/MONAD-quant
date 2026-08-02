@@ -1,0 +1,37 @@
+[Unit]
+# Refreshes the answer to "is this checkout the code we think it is?".
+#
+# Runs ops/fetch_origin.sh then ops/git_drift.sh, which together write
+# local_logs/git_drift.json. Nothing else fetches, so without this unit the drift
+# verdict correctly but uselessly reports UNKNOWN forever — and an always-UNKNOWN
+# alarm is habituated to exactly as the old silent `clean=yes` was.
+#
+# DELIBERATELY INDEPENDENT OF THE TRADER. It is not ordered against
+# monad-trader.service, does not consume its state, and writes only its own
+# artifact. Both scripts exit 0 unconditionally and have no path into
+# ops/healthcheck.sh's warn logic or ops/preflight_trader_start.sh's verdict, so
+# this cannot become a new reason the bot fails to arm. Being behind origin is a
+# fact to report, never a reason to stop trading.
+Description=Refresh the MONAD git drift oracle (local vs origin/development)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=hudson
+Group=hudson
+WorkingDirectory=/home/hudson/MONAD-quant
+
+# fetch_origin.sh is flock'd, non-interactive (GIT_TERMINAL_PROMPT=0, ssh
+# BatchMode) and bounded by its own timeout, so a network stall cannot wedge the
+# timer. TimeoutStartSec is the backstop.
+ExecStart=/home/hudson/MONAD-quant/ops/fetch_origin.sh
+ExecStart=/home/hudson/MONAD-quant/ops/git_drift.sh
+TimeoutStartSec=180
+
+StandardOutput=append:/home/hudson/MONAD-quant/local_logs/git_drift.log
+StandardError=append:/home/hudson/MONAD-quant/local_logs/git_drift.log
+SyslogIdentifier=monad-gitdrift
+
+[Install]
+WantedBy=multi-user.target
