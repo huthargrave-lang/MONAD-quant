@@ -261,7 +261,12 @@
         "code": [
           "config.ACTIVE_MODE"
         ],
-        "note": "go/no-go verdict: the active engine shows no demonstrated advantage over a static blend — recommend a static allocation; changing the live mode needs sign-off."
+        "note": "go/no-go verdict: the active engine shows no demonstrated advantage over a static blend — recommend a static allocation; changing the live mode needs sign-off.",
+        "guarded_by": [
+          "tests/test_d6_active_mode_bridge.py::TheBridgeExists",
+          "tests/test_d6_active_mode_bridge.py::TheWebNodeIsStillLive",
+          "tests/test_d6_active_mode_bridge.py::TheRecommendationIsStillUnapplied"
+        ]
       },
       {
         "node": "F11",
