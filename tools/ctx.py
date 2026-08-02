@@ -3603,6 +3603,43 @@ def cmd_uncaptured(args):
         print(f"      … and {n - len(sample)} more")
 
 
+def _main_worktree():
+    """The PRIMARY checkout, even when ctx is invoked from a linked worktree.
+
+    local_logs/ is gitignored, so it exists only in the main working tree. Agent
+    sessions frequently run in worktrees (five have existed in this repo), and
+    resolving the drift artifact against __file__ would make them read a path that
+    is never populated — reporting UNKNOWN forever. That is technically correct and
+    operationally useless, which is precisely the failure this line exists to end.
+    """
+    common = _git("rev-parse", "--git-common-dir")
+    if not common:
+        return REPO
+    common = common.strip()
+    path = common if os.path.isabs(common) else os.path.abspath(os.path.join(REPO, common))
+    return os.path.dirname(path) if os.path.basename(path) == ".git" else REPO
+
+
+def _drift_line():
+    """One line describing this checkout vs origin, via the shared renderer.
+
+    Shared deliberately: ops/status_check.sh renders the same artifact through the
+    same function, so the two surfaces cannot drift apart and disagree. Never
+    raises and never returns empty — a surface that goes quiet when its sensor dies
+    reads exactly like a surface saying "fine".
+    """
+    try:
+        tools_dir = os.path.join(REPO, "tools")
+        if tools_dir not in sys.path:
+            sys.path.insert(0, tools_dir)
+        import drift_render
+        return drift_render.render(
+            os.path.join(_main_worktree(), "local_logs", "git_drift.json"))
+    except Exception as exc:  # noqa: BLE001 — this runs in a SessionStart hook
+        return f"UNKNOWN — drift renderer unavailable ({type(exc).__name__})"
+
+
+
 def cmd_brief(args):
     """One-screen cold-start orientation packet (composed from the manifest + git +
     research web). Safety + honest-state first, then area/task, then a drill menu."""
@@ -3619,6 +3656,9 @@ def cmd_brief(args):
         print(f"INVARIANT: don't edit {', '.join(fenced)} without approval — `ctx can_edit <file>`\n")
     else:
         print("INVARIANT: respect do_not_touch_without_approval areas — `ctx can_edit <file>`\n")
+    # Before HONEST STATE on purpose: everything below describes a checkout, and
+    # this says whether the checkout is the code anyone else is looking at.
+    print(f"DEPLOY SYNC: {_drift_line()}\n")
     banner = _web_banner()
     if banner:
         print(f"HONEST STATE: {banner}\n  → run `ctx perf` · `ctx web --live`\n")
