@@ -3519,3 +3519,53 @@ _— captured development@5cf8326, 2026-08-03_
 Tested H4 (promote walk-forward to the sweep primary selector) on the live TQQQ 1h panel, 3425 bars 2024-07 to 2026-06, 24 target/stop combinations through the production engine. State first: sweep.py still selects by holdout score and references neither src/optimization/walk_forward.py nor tools/walkforward_eval.py, so H4 is entirely unwired. The measurement separates two claims H4 runs together. CLAIM 1, the reported holdout number is inflated: true by construction and not in dispute (F2) — picking the winner BY the holdout score makes that score a best-of-many. CLAIM 2, therefore holdout selection is a bad SELECTOR: this is H4 leap, and the data contradicts it here. Rolling-origin, 6 folds of 550 bars selecting and the next 550 evaluating: the holdout-chosen parameter set landed at a mean rank percentile of 18.8% out of sample, where 50% would mean selection carries no information, and it beat the grid median out-of-sample in 6 of 6 folds. So the selector generalises on this panel even though the number it reports does not. A single 60/20/20 three-way split, choosing on the middle slice and scoring on a slice used for neither training nor selection, gave rank 12 of 24 — median, no information. That disagrees with the rolling result and the disagreement is the point: one split is a single high-variance draw, and it happened to land on the weakest fold. That argues FOR H4 method (rolling origin is the honest lens) while arguing AGAINST its stated premise (that holdout selection is biased in the sense of picking badly). Recommendation: de-bias the reported NUMBER by scoring the winner on data used for neither training nor selection, and keep holdout selection as the selector until something beats it — the current H4 framing would replace a selector that measurably works, on the strength of a bias that affects the reporting rather than the choice. CAVEATS, load-bearing: 6 overlapping folds on one instrument and one 2-year period, not independent; and the winner is the grid corner target 0.0200 stop 0.0025 in 4 of 6 folds, a boundary solution on both axes, so the true optimum may sit outside the grid and that 8:1 reward-to-risk shape differs sharply from the deployed 2:1 (target 0.0100 stop 0.0050). Widening the grid before acting is the obvious next step.
 Links: [[H4|relates]] · [[F2|refines]] · [[D2|relates]].
 _— captured development@61abc1b, 2026-08-03_
+
+### H18500 — event-state model factories can diversify MONAD beyond price-indicator research
+EIF-00. Treat public information as append-only state transitions with source event, publication, collector-first-seen, conservative tradable, revision, entity, issuer and date-valid security identity. Require each source family to predict a non-price operational or fundamental outcome beyond a transparent baseline before inspecting returns. The initial independent families are clinical/FDA catalysts, government award obligations, 13D intent transitions and item-specific 8-K shocks; delayed comment cycles become labels and Reg SHO begins as a guarded null. Full preregistration: docs/research/EVENT_INTELLIGENCE_FRONTIER_2026.md and docs/research/data/event_intelligence_frontier_2026.json.
+Links: [[H44|builds_on]] · [[F219|builds_on]].
+_— captured codex/event-intelligence-frontiers@9f8efe2, 2026-08-03_
+
+### H18501 — point-in-time clinical catalyst states predict outcomes beyond phase and indication
+BIOCAT-01. Join versioned ClinicalTrials.gov state, FDA outcome records and the issuer's first public SEC disclosure while retaining each clock. First predict trial success/failure/termination and next-milestone hazard with phase, indication, intervention type, sponsor class, issuer size and pre-event state as the baseline; only then test financing, peer and return labels. Kill if historical registry versions are unavailable, reviewed sponsor-to-issuer precision is below 95%, the later-era issuer-grouped holdout does not beat baseline, or delaying all features to collector first-seen removes the result.
+Links: [[H18500|builds_on]] · [[H49|builds_on]].
+_— captured codex/event-intelligence-frontiers@9f8efe2, 2026-08-03_
+
+### H18502 — funded government award transitions predict public-parent backlog and supplier outcomes
+GOVCON-01. Model USAspending transactions as new awards, incremental obligations, de-obligations, option exercises and modifications; do not substitute headline ceiling values. Preserve action, record-update and collector-first-seen clocks and audited recipient/subsidiary/public-parent identity. First predict next-two-quarter backlog or revenue revision beyond scaled obligation, agency, award type, industry and prior contractor relationship; then test supplier/competitor propagation. Kill below 95% reviewed parent mapping, if modifications cannot be separated, or if first-seen timing and scaled baselines erase the effect.
+Links: [[H18500|builds_on]] · [[H49|builds_on]].
+_— captured codex/event-intelligence-frontiers@9f8efe2, 2026-08-03_
+
+### H18503 — Schedule 13D intent transitions predict campaign outcomes beyond stake size
+OWNERSHIP-01. Use accepted-at-time versions of initial 13D, 13G-to-13D, Item 4 purpose, ownership, derivatives and group deltas; model the 2024 deadline and structured-data regime break separately. First predict concession, escalation, withdrawal and time to amendment. The baseline is stake size, filer identity/history, issuer size and initial event return. Kill if purpose-language deltas do not beat that baseline, if mixed filing regimes drive the result, or if campaign outcomes cannot be labeled independently of returns.
+Links: [[H18500|builds_on]] · [[H49|builds_on]].
+_— captured codex/event-intelligence-frontiers@9f8efe2, 2026-08-03_
+
+### H18504 — item-specific 8-K shock models predict operational outcomes beyond item codes
+8K-SHOCK-01. Preserve EDGAR accepted-at clock, item, mandatory/voluntary context and amendment lineage for contract termination, cyber incident, default, exit plan, impairment, auditor and executive events. Share a filing encoder but keep separate outcome heads for quantification/amendment, distress/financing, impairment/restructuring and peer effects. Kill if language does not beat item, issuer and pre-event state in a later-era holdout, or if amendments leak into the initial event.
+Links: [[H18500|builds_on]] · [[H49|builds_on]].
+_— captured codex/event-intelligence-frontiers@9f8efe2, 2026-08-03_
+
+### F18500 — ClinicalTrials live snapshots require version capture before point-in-time catalyst research
+ClinicalTrials.gov API v2 exposes current records and a dataset timestamp, while record history lives on the site's history/archive surface and registry updates follow a posting workflow distinct from the sponsor's underlying event. Therefore a current snapshot cannot reconstruct prior public knowledge and registry-post time cannot automatically stand in for first issuer disclosure. BIOCAT must store source versions plus registry posted, collector first-seen, SEC accepted-at and conservative tradable clocks; delayed-clock and later-snapshot leakage tests are mandatory. Official contracts are cited in EVENT_INTELLIGENCE_FRONTIER_2026.md.
+Links: [[H18501|supports]] · [[F219|builds_on]] · [[E18500|evidenced_by]].
+_— captured codex/event-intelligence-frontiers@9f8efe2, 2026-08-03_
+
+### F18501 — public SEC comment correspondence is a delayed label rather than its private letter-date signal
+SEC EDGAR correspondence guidance says Corp Fin correspondence is released publicly only after review is complete and at least 20 business days have passed. UPLOAD/CORRESP rounds can label filing complexity, amendment or restatement risk, but a trading study may not backdate availability to the private letter date. Use public release/collector first-seen for live features or use the completed cycle as a later supervisory label for features that were public earlier.
+Links: [[H18500|refines]] · [[H49|builds_on]] · [[E18500|evidenced_by]].
+_— captured codex/event-intelligence-frontiers@9f8efe2, 2026-08-03_
+
+### F18502 — Reg SHO threshold and daily short-volume fields do not establish the popular squeeze narrative
+SEC guidance states fails to deliver can result from long or short sales and threshold status is not proof of naked short selling. FINRA daily short-sale volume is transaction flow, not the twice-monthly outstanding short-interest stock. A defensible node studies threshold-list entry, persistence, exit and delayed FTD against liquidity or settlement outcomes with corporate-action controls; it must not label raw daily short volume as short interest or infer manipulation from FTD.
+Links: [[H18500|refines]] · [[H49|builds_on]] · [[E18500|evidenced_by]].
+_— captured codex/event-intelligence-frontiers@9f8efe2, 2026-08-03_
+
+### D18500 — prioritize clinical catalysts and government obligations as the first event-intelligence pilots
+Build 100-record reviewed source-contract samples for BIOCAT-01 and GOVCON-01 before market-return models. Each must reach at least 95% audited sponsor/recipient-to-public-issuer identity precision, preserve revision and collector-first-seen clocks, and beat a transparent baseline on a non-price outcome. Keep 13D and item-specific 8-K next; treat comment cycles as delayed labels and settlement stress as null-first. This order maximizes new child-study surface while directly exercising the identity and trial-registry gaps measured by F219.
+Links: [[H18501|drives]] · [[H18502|drives]] · [[H18503|relates]] · [[H18504|relates]] · [[F219|builds_on]].
+_— captured codex/event-intelligence-frontiers@9f8efe2, 2026-08-03_
+
+### E18500 — official-source contract reconnaissance for six public-event model families
+EIF-SOURCES. Reviewed primary contracts for SEC beneficial ownership modernization, Form 8-K interpretations, delayed EDGAR correspondence release, Regulation SHO, FINRA short-sale volume, ClinicalTrials.gov API/version posting, openFDA Drugs@FDA, USAspending API/data linkage and SEC EDGAR APIs. The durable source register and exact URLs are in docs/research/EVENT_INTELLIGENCE_FRONTIER_2026.md; the machine-readable program-specific contracts, clocks, baselines and kill gates are in docs/research/data/event_intelligence_frontier_2026.json. This is source/design evidence, not a measured return experiment.
+Links: [[H18500|produces]].
+_— captured codex/event-intelligence-frontiers@9f8efe2, 2026-08-03_
