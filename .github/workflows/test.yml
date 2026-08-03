@@ -59,6 +59,7 @@ jobs:
           if [ "$GITHUB_WORKSPACE" != "$HOME/MONAD-quant" ]; then
             ln -s "$GITHUB_WORKSPACE" "$HOME/MONAD-quant"
           fi
+          MONAD_REPO="$GITHUB_WORKSPACE" bash ops/git_drift.sh
 
       # H12/DP-5: context-layer integrity is asserted by the test suite, but the
       # LINT EXIT CODE is not — `ctx web --lint` returns non-zero when the research
