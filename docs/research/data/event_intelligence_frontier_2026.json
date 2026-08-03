@@ -1,0 +1,321 @@
+{
+  "schema_version": 1,
+  "artifact_id": "event-intelligence-frontier-2026-08-03",
+  "artifact_role": "preregistered research-program registry; not a result or trading mandate",
+  "created_at": "2026-08-03",
+  "design_principle": "Predict an economically meaningful outcome from a point-in-time public event state before testing returns.",
+  "shared_gates": {
+    "knowledge_clock": [
+      "source_event_at",
+      "source_published_at",
+      "collector_first_seen_at",
+      "conservative_first_tradable_at",
+      "source_revision_id"
+    ],
+    "identity": [
+      "source_entity_id",
+      "issuer_cik_or_public_parent_id",
+      "security_id_valid_at_event",
+      "mapping_method",
+      "mapping_confidence"
+    ],
+    "evaluation": [
+      "chronological holdout",
+      "issuer-grouped folds",
+      "sector and era slices",
+      "multiple-hypothesis correction within each family",
+      "transaction-cost and availability sensitivity"
+    ],
+    "minimum_baselines": [
+      "event-class prior",
+      "size and industry controls",
+      "pre-event price and volatility state",
+      "source-specific mechanical fields without text"
+    ],
+    "forbidden_shortcuts": [
+      "current snapshots used as historical point-in-time records",
+      "backdating a later public release to an earlier document date",
+      "joining on ticker without date-valid identity",
+      "using revised outcomes as contemporaneous features",
+      "selecting a return horizon after viewing the return panel"
+    ]
+  },
+  "agent_roles": [
+    {
+      "role": "clock_auditor",
+      "responsibility": "Derive the conservative first-tradable time and quarantine ambiguous or revised records."
+    },
+    {
+      "role": "identity_resolver",
+      "responsibility": "Map source entities, subsidiaries and sponsors to date-valid issuers and securities with an auditable method."
+    },
+    {
+      "role": "state_builder",
+      "responsibility": "Turn append-only source versions into explicit event-state transitions without overwriting history."
+    },
+    {
+      "role": "outcome_labeler",
+      "responsibility": "Build future fundamental, operational and price labels only after the feature cutoff."
+    },
+    {
+      "role": "baseline_challenger",
+      "responsibility": "Try to explain the result with mechanical fields, common risk factors, publicity and selection effects before accepting language or graph features."
+    },
+    {
+      "role": "falsifier",
+      "responsibility": "Run placebo clocks, shuffled identity, delayed-availability and revision-leakage tests; publish failures as durable outcomes."
+    }
+  ],
+  "programs": [
+    {
+      "id": "BIOCAT-01",
+      "name": "Biotechnology catalyst state machine",
+      "priority": 1,
+      "status": "design_ready_data_build_required",
+      "economic_question": "Do point-in-time changes in trial status, results and regulatory state predict the next clinical or fundamental outcome beyond phase, disease, sponsor class and market-implied expectations?",
+      "sources": [
+        {
+          "name": "ClinicalTrials.gov API v2",
+          "official_url": "https://clinicaltrials.gov/data-api/api",
+          "key_contract": "The live API is a current-record interface refreshed on weekdays; historical reconstruction requires captured versions or the record-history/archive surface.",
+          "clock_fields": [
+            "registry_version_posted_at",
+            "collector_first_seen_at",
+            "api_data_timestamp"
+          ]
+        },
+        {
+          "name": "Drugs@FDA/openFDA",
+          "official_url": "https://open.fda.gov/apis/drug/drugsfda/how-to-use-the-endpoint/",
+          "key_contract": "Approval records identify regulatory outcomes but do not by themselves identify the first public market clock."
+        },
+        {
+          "name": "SEC EDGAR",
+          "official_url": "https://www.sec.gov/search-filings/edgar-application-programming-interfaces",
+          "key_contract": "Use accepted-at timestamps and issuer identity for contemporaneous sponsor disclosures."
+        }
+      ],
+      "state_transitions": [
+        "recruiting status change",
+        "primary completion date revision",
+        "enrollment revision",
+        "primary endpoint change",
+        "results first posted or materially revised",
+        "FDA application or approval state",
+        "issuer first public disclosure"
+      ],
+      "first_prediction_targets": [
+        "trial success, failure or termination",
+        "time to next clinical milestone",
+        "next-quarter research expense or financing need",
+        "post-event analyst or guidance revision",
+        "peer read-through within target and indication"
+      ],
+      "minimum_baseline": "phase + indication + intervention type + sponsor class + market capitalization + pre-event return and volatility",
+      "candidate_model_families": [
+        "transparent discrete-time hazard model",
+        "version-delta text and structured-field model",
+        "sponsor-target-indication graph with time-respecting message passing"
+      ],
+      "kill_criteria": [
+        "historical versions cannot be reconstructed without using later snapshots",
+        "sponsor-to-public-issuer mapping precision is below 95% on a reviewed sample",
+        "the model cannot beat the phase-and-indication baseline on a later-era holdout",
+        "performance disappears when the feature time is delayed to collector first-seen"
+      ]
+    },
+    {
+      "id": "GOVCON-01",
+      "name": "Government award obligation and supplier-propagation model",
+      "priority": 2,
+      "status": "design_ready_identity_build_required",
+      "economic_question": "Do newly public federal obligations and modifications predict backlog, revenue revisions or supply-chain spillovers after controlling for recipient size, agency, award type and publicity?",
+      "sources": [
+        {
+          "name": "USAspending API v2",
+          "official_url": "https://api.usaspending.gov/docs/endpoints",
+          "key_contract": "Treat transactions and obligations as the observation unit; action date, record update and collector first-seen are distinct clocks."
+        },
+        {
+          "name": "USAspending data-source guide",
+          "official_url": "https://www.usaspending.gov/data/data-sources-download.pdf",
+          "key_contract": "Coverage and linkage are not complete for every agency or award; missingness must be measured by agency and era."
+        },
+        {
+          "name": "SEC EDGAR",
+          "official_url": "https://www.sec.gov/search-filings/edgar-application-programming-interfaces",
+          "key_contract": "Use filings for public-parent identity, revenue/backlog labels and competing disclosure clocks."
+        }
+      ],
+      "state_transitions": [
+        "new award",
+        "incremental funded obligation",
+        "de-obligation",
+        "option exercise",
+        "period-of-performance extension",
+        "recipient or place-of-performance change"
+      ],
+      "first_prediction_targets": [
+        "next-two-quarter revenue or backlog surprise",
+        "guidance initiation or revision",
+        "supplier and competitor read-through",
+        "contract continuation, modification or cancellation hazard"
+      ],
+      "minimum_baseline": "obligation divided by public-parent revenue and market value + agency + award type + recipient industry + prior contractor relationship",
+      "candidate_model_families": [
+        "sparse panel regression with recipient fixed effects",
+        "contract continuation hazard",
+        "agency-recipient-supplier temporal graph"
+      ],
+      "kill_criteria": [
+        "public-parent mapping precision is below 95% on a reviewed sample",
+        "new awards cannot be separated reliably from modifications and ceiling-value headlines",
+        "the effect vanishes after obligation scaling and pre-existing contractor controls",
+        "action-date results do not survive collector-first-seen timing"
+      ]
+    },
+    {
+      "id": "OWNERSHIP-01",
+      "name": "Schedule 13D intent-transition model",
+      "priority": 3,
+      "status": "design_ready",
+      "economic_question": "Do purpose-language changes, passive-to-active transitions and exposure changes predict campaign outcomes beyond stake size and filer history?",
+      "sources": [
+        {
+          "name": "SEC beneficial-ownership modernization rule",
+          "official_url": "https://www.sec.gov/rules-regulations/2023/10/33-11180",
+          "key_contract": "Model the 2024 deadline and structured-data regime break explicitly; use EDGAR accepted-at time rather than signature date."
+        }
+      ],
+      "state_transitions": [
+        "initial Schedule 13D",
+        "Schedule 13G to 13D transition",
+        "Item 4 purpose-language delta",
+        "ownership and derivative-exposure delta",
+        "group-membership delta",
+        "settlement, board seat, tender or withdrawal outcome"
+      ],
+      "first_prediction_targets": [
+        "board or strategic concession",
+        "campaign escalation or withdrawal",
+        "subsequent operating or capital-allocation change",
+        "time to next amendment"
+      ],
+      "minimum_baseline": "stake size + filer identity/history + issuer size + initial 13D event return",
+      "kill_criteria": [
+        "text features do not beat stake and filer-history baselines",
+        "results depend on mixing pre- and post-modernization filing regimes",
+        "campaign outcomes cannot be labeled independently of subsequent returns"
+      ]
+    },
+    {
+      "id": "8K-SHOCK-01",
+      "name": "Structured 8-K operational-shock taxonomy",
+      "priority": 4,
+      "status": "design_ready",
+      "economic_question": "Can a shared filing-state encoder improve item-specific predictions for operational distress and recovery without pooling economically incompatible events?",
+      "sources": [
+        {
+          "name": "SEC Form 8-K compliance and disclosure interpretations",
+          "official_url": "https://www.sec.gov/rules-regulations/staff-guidance/compliance-disclosure-interpretations/exchange-act-form-8-k",
+          "key_contract": "Preserve item number, mandatory versus voluntary context, amendment lineage and EDGAR accepted-at clock."
+        }
+      ],
+      "state_transitions": [
+        "Item 1.02 material contract termination",
+        "Item 1.05 material cybersecurity incident",
+        "Item 2.04 triggering event or default",
+        "Item 2.05 exit or disposal plan",
+        "Item 2.06 material impairment",
+        "Item 4.01 auditor change",
+        "Item 5.02 executive transition"
+      ],
+      "first_prediction_targets": [
+        "next filing amendment or quantified update",
+        "restatement, default or financing hazard",
+        "future impairment or restructuring charge",
+        "peer and supplier spillover"
+      ],
+      "minimum_baseline": "item code + issuer size + industry + leverage + pre-event return and volatility",
+      "kill_criteria": [
+        "a shared encoder underperforms separate transparent item models",
+        "language adds no later-era value beyond item and issuer fields",
+        "amendments or voluntary disclosures leak outcome information into the initial event"
+      ]
+    },
+    {
+      "id": "COMMENT-LABEL-01",
+      "name": "SEC comment-cycle risk labels",
+      "priority": 5,
+      "status": "label_factory_not_live_signal",
+      "economic_question": "Can review rounds, response latency and topics provide delayed supervisory labels for future filing-quality and restatement models?",
+      "sources": [
+        {
+          "name": "SEC EDGAR correspondence search guidance",
+          "official_url": "https://www.sec.gov/search-filings/edgar-search-assistance/how-search-edgar-correspondence",
+          "key_contract": "Public correspondence is released only after the review is complete and at least 20 business days have passed; never backdate public availability to the letter date."
+        }
+      ],
+      "state_transitions": [
+        "UPLOAD letter",
+        "CORRESP response",
+        "round count and response latency",
+        "filing amendment",
+        "review completion and later public release"
+      ],
+      "first_prediction_targets": [
+        "future amendment or restatement",
+        "recurring disclosure topic",
+        "subsequent review intensity"
+      ],
+      "minimum_baseline": "form type + issuer size + industry + filing complexity + prior review history",
+      "kill_criteria": [
+        "any study treats the private letter date as a public trading clock",
+        "round and topic features do not beat filing-complexity and prior-review baselines"
+      ]
+    },
+    {
+      "id": "SETTLE-STRESS-01",
+      "name": "Reg SHO settlement-stress state",
+      "priority": 6,
+      "status": "guarded_null_first",
+      "economic_question": "Does threshold-list persistence add information about liquidity stress after controlling for corporate actions, liquidity and delayed fails-to-deliver data?",
+      "sources": [
+        {
+          "name": "SEC Regulation SHO investor bulletin",
+          "official_url": "https://www.sec.gov/investor/pubs/regsho.htm",
+          "key_contract": "Threshold status and fails to deliver do not establish naked shorting; preserve list effective dates and FTD publication delay."
+        },
+        {
+          "name": "FINRA short-sale volume",
+          "official_url": "https://www.finra.org/finra-data/browse-catalog/short-sale-volume",
+          "key_contract": "Daily short-sale volume is a trade-flow measure, not the twice-monthly outstanding short-interest stock."
+        }
+      ],
+      "state_transitions": [
+        "first threshold-list appearance",
+        "threshold persistence and exit",
+        "published FTD age and magnitude",
+        "corporate-action and lending-state controls"
+      ],
+      "first_prediction_targets": [
+        "future liquidity and borrow stress",
+        "settlement normalization",
+        "return only as a secondary null test"
+      ],
+      "minimum_baseline": "size + liquidity + volatility + corporate actions + outstanding short interest when contemporaneously available",
+      "kill_criteria": [
+        "the thesis relies on interpreting FTD as proof of naked short selling",
+        "daily short volume is substituted for outstanding short interest",
+        "threshold persistence adds no information beyond liquidity and corporate-action controls"
+      ]
+    }
+  ],
+  "portfolio_policy": {
+    "stage_1": "Pass source-clock and identity audits independently for each program.",
+    "stage_2": "Beat transparent source-specific baselines on non-price outcomes.",
+    "stage_3": "Test market and cross-asset labels with horizons frozen in advance.",
+    "stage_4": "Combine only programs with independent holdout evidence and non-duplicative economic mechanisms.",
+    "do_not_do": "Train one opaque model over all events before each source earns its own clock, identity and baseline pass."
+  }
+}

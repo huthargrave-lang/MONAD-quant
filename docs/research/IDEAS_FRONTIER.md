@@ -32,6 +32,26 @@ lab + durable JSON + writeup. Not a trading mandate.
 | 7 | FINRA SI days-to-cover null | Narrative kill | Top-decile ≤0 after size/mom controls |
 | 8 | Earnings 8-K acceptance-clock asymmetry | FD-00 hardening | Pre-open vs post-close gap after controls |
 
+## Event-intelligence expansion (2026-08-03)
+
+The next frontier is a set of public-event **model factories**, not further
+mean-reversion variants. The durable architecture and preregistration live in
+`EVENT_INTELLIGENCE_FRONTIER_2026.md` and
+`data/event_intelligence_frontier_2026.json`.
+
+| Rank | Program | First prediction (before returns) | Critical kill gate |
+|---:|---|---|---|
+| 1 | BIOCAT-01 trial/FDA state machine | trial outcome and milestone hazard | historical versions + ≥95% sponsor→issuer mapping |
+| 2 | GOVCON-01 obligation/supplier graph | backlog or revenue revision | distinguish obligations/modifications + ≥95% parent mapping |
+| 3 | OWNERSHIP-01 13D intent transitions | campaign outcome / amendment hazard | language must beat stake + filer history |
+| 4 | 8K-SHOCK-01 operational taxonomy | amendment, distress or recovery | item-specific heads beat mechanical item baseline |
+| 5 | COMMENT-LABEL-01 review cycles | later filing-quality risk label | never backdate delayed public correspondence |
+| 6 | SETTLE-STRESS-01 Reg SHO state | liquidity/settlement normalization | no naked-short inference; short volume ≠ short interest |
+
+This changes the earlier ordering without erasing it: comment letters remain useful,
+but chiefly as delayed supervisory labels; 13D/A and item-specific 8-K studies become
+children of a shared clock/identity/outcome architecture.
+
 ## Backlog (lower priority)
 
 - CFO exit without named successor (Item 5.02)
