@@ -41,7 +41,7 @@ mean-reversion variants. The durable architecture and preregistration live in
 
 | Rank | Program | First prediction (before returns) | Critical kill gate |
 |---:|---|---|---|
-| 1 | BIOCAT-01 trial/FDA state machine | trial outcome and milestone hazard | historical versions + ≥95% sponsor→issuer mapping |
+| 1 | BIOCAT-01 trial/FDA state machine ([source-contract audit](BIOCAT_SOURCE_CONTRACT_2026.md)) | trial outcome and milestone hazard | version capture works only through a fragile `/api/int` route; exact SEC-name coverage was 30%, so historical entity resolution blocks modeling |
 | 2 | GOVCON-01 obligation/supplier graph | backlog or revenue revision | distinguish obligations/modifications + ≥95% parent mapping |
 | 3 | OWNERSHIP-01 13D intent transitions | campaign outcome / amendment hazard | language must beat stake + filer history |
 | 4 | 8K-SHOCK-01 operational taxonomy | amendment, distress or recovery | item-specific heads beat mechanical item baseline |

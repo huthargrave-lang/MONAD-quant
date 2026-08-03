@@ -3569,3 +3569,48 @@ _— captured codex/event-intelligence-frontiers@9f8efe2, 2026-08-03_
 EIF-SOURCES. Reviewed primary contracts for SEC beneficial ownership modernization, Form 8-K interpretations, delayed EDGAR correspondence release, Regulation SHO, FINRA short-sale volume, ClinicalTrials.gov API/version posting, openFDA Drugs@FDA, USAspending API/data linkage and SEC EDGAR APIs. The durable source register and exact URLs are in docs/research/EVENT_INTELLIGENCE_FRONTIER_2026.md; the machine-readable program-specific contracts, clocks, baselines and kill gates are in docs/research/data/event_intelligence_frontier_2026.json. This is source/design evidence, not a measured return experiment.
 Links: [[H18500|produces]].
 _— captured codex/event-intelligence-frontiers@9f8efe2, 2026-08-03_
+
+### E253200 — BIOCAT-01 official-source discovery cohort and version audit
+Queried ClinicalTrials.gov API v2.0.5 (dataTimestamp 2026-08-03T09:00:05) for Phase 3, industry-sponsored, has-results, completed/terminated trials: population 11,133; audited first 25 default-order records as a discovery sample. The site's machine-readable /api/int history returned 25/25 records with 5-94 versions. Also probed SEC company_tickers_exchange (10,412 rows) and five Drugs@FDA intervention names. Durable methods, source URLs, row-level derivatives and caveats: docs/research/BIOCAT_SOURCE_CONTRACT_2026.md and docs/research/data/biocat_source_discovery_2026.json. No returns were inspected.
+Links: [[H18501|produces]].
+_— captured codex/biocat-source-contract@faeb9ba, 2026-08-03_
+
+### F253200 — BIOCAT current trial snapshots are label-leaky histories
+In E253200, 24/25 trials changed enrollment between the initial and current record and 2/25 were revised from COMPLETED to TERMINATED. NCT02691182 was COMPLETED in 2020 but changed to TERMINATED with a lack-of-efficacy reason when results were added in 2024. Current-row features or labels therefore backdate later corrections; every BIOCAT feature must be versioned and constrained by first-seen/public clocks.
+Links: [[E253200|evidenced_by]] · [[H18501|supports]] · [[F18500|builds_on]].
+_— captured codex/biocat-source-contract@faeb9ba, 2026-08-03_
+
+### F253201 — BIOCAT registry results are delayed labels, not a default catalyst clock
+E253200 measured approximate primary-completion-to-results-post lags of 11-199 months (median 23); 12/25 exceeded 24 months. History change dates are not proven public timestamps. Registry results should label outcomes unless they are the earliest verified public disclosure; reaction work must join issuer filings/releases, FDA actions, publications and conference records and retain each source clock.
+Links: [[E253200|evidenced_by]] · [[H18501|refines]] · [[F18500|builds_on]].
+_— captured codex/biocat-source-contract@faeb9ba, 2026-08-03_
+
+### F253202 — BIOCAT sponsor and product strings do not identify a tradable issuer
+Only 6/20 unique sponsors in E253200 exactly matched SEC company names after conservative normalization (30% coverage); naive fuzzy candidates included multiple false entities. Drugs@FDA generic-name search could rank an ANDA ahead of the originator and a development code returned no record. Build effective-dated sponsor-parent-security and product-lineage graphs, and report reviewed precision separately from coverage; reject ambiguous joins.
+Links: [[E253200|evidenced_by]] · [[H18501|refines]] · [[F219|builds_on]].
+_— captured codex/biocat-source-contract@faeb9ba, 2026-08-03_
+
+### D253200 — BIOCAT modeling remains blocked; build the immutable event ledger first
+Proceed with versioned source collection and entity-resolution discovery, but do not train or test return models yet. Minimum gate: cached registry versions with ingestion hashes/times, earliest-public disclosure ordering, effective-dated sponsor-parent-security mappings with >=95% reviewed precision plus explicit coverage, and NDA/BLA/ANDA-aware product lineage. Pause if the undocumented history route cannot be archived or a simpler filing/news ledger has better event-time completeness.
+Links: [[H18501|drives]] · [[E253200|evidenced_by]].
+_— captured codex/biocat-source-contract@faeb9ba, 2026-08-03_
+
+### H253200 — BIOCAT disclosure order predicts residual reaction and information decay
+For a reviewed trial-event cohort, order issuer filing/release, conference abstract, publication, registry result and FDA action by earliest verified public timestamp. Predict the next source's incremental outcome information and residual abnormal move using event type, phase, indication, issuer size and first-source surprise as baseline. Separate after-hours events and impose executable delay. Kill if later sources add no out-of-sample information or residual return after the first source and costs.
+Links: [[H18501|builds_on]] · [[F253201|builds_on]].
+_— captured codex/biocat-source-contract@faeb9ba, 2026-08-03_
+
+### H253201 — BIOCAT registry revision hazard predicts trial failure beyond phase and sponsor
+Using only versions observable before the label, test enrollment haircut, completion-date slippage, endpoint churn, location contraction, recruitment-state reversals and update cadence against later termination or primary-outcome failure. Baseline: phase, indication, intervention type, sponsor size/history and trial age; split by issuer and later era. Kill if revision features do not beat baseline or effect is driven by reporting-era/schema changes.
+Links: [[H18501|builds_on]] · [[F253200|builds_on]].
+_— captured codex/biocat-source-contract@faeb9ba, 2026-08-03_
+
+### H253202 — BIOCAT sponsor reporting behavior is a reusable prior across new trials
+Estimate sponsor-level pre-trial histories of results delay, status corrections, enrollment error, endpoint edits and disclosure ordering, with shrinkage for sparse sponsors. Test whether this prior improves later trial-outcome and milestone-hazard prediction beyond sponsor size and therapeutic area in sponsor-grouped holdouts. Kill if gains vanish under acquisition-aware identities or are dominated by a few prolific sponsors.
+Links: [[H18501|builds_on]] · [[F253200|builds_on]] · [[F253202|builds_on]].
+_— captured codex/biocat-source-contract@faeb9ba, 2026-08-03_
+
+### H253203 — BIOCAT issuer rhetoric diverging from registry state predicts adverse revisions
+At each 8-K/6-K/10-Q release, compare program-specific efficacy, enrollment and timeline language with the latest then-public registry state and its recent deltas. Predict adverse registry revision, program discontinuation or financing need; baseline is filing sentiment, trial phase, cash runway and recent registry changes separately. Kill if cross-source divergence does not beat both single-source baselines in issuer-grouped later-era holdouts.
+Links: [[H18501|builds_on]] · [[F253200|builds_on]] · [[F253202|builds_on]].
+_— captured codex/biocat-source-contract@faeb9ba, 2026-08-03_
