@@ -1,0 +1,299 @@
+{
+  "schema_version": "1.0.0",
+  "artifact_id": "BIOCAT-DISCLOSURE-ORDER-PILOT-2026-08-03",
+  "captured_at_utc": "2026-08-03T21:12:46Z",
+  "purpose": "Selected five-event discovery pilot for H253200; tests source order, label scope, announcement purity, and daily reaction measurement hazards. Not a representative sample, backtest, or trading recommendation.",
+  "selection": {
+    "parent_artifact": "biocat_source_discovery_2026.json",
+    "rule": "Five trials from the 25-row source-discovery cohort with conservative public-issuer matches and a manually located issuer disclosure.",
+    "bias_warning": "Selection conditions on finding a public issuer and disclosure. Ordering rates and reactions cannot be generalized to the trial population. The search was not an exhaustive reconstruction of every conference, publication, FDA, or wire event."
+  },
+  "definitions": {
+    "first_verified_public_at": "Earliest timestamp found in this audit for a disclosure containing the relevant exact-trial, related-trial, or program information; not a claim of exhaustive global first publication.",
+    "lead_days": "Calendar days from first verified public disclosure date to ClinicalTrials.gov ResultsFirstPostDate.",
+    "event_session_return_pct": "Adjusted event-session close divided by prior-session adjusted close minus one; an after-hours disclosure uses the next trading session.",
+    "open_gap_pct": "Adjusted event-session open divided by prior-session adjusted close minus one.",
+    "intraday_return_pct": "Adjusted event-session close divided by adjusted event-session open minus one.",
+    "excess_spy_pct": "Issuer return minus SPY return over matching endpoints; a diagnostic, not a factor-adjusted abnormal return.",
+    "label_scope_values": [
+      "trial_exact",
+      "related_trial",
+      "program",
+      "regulatory_or_compliance"
+    ],
+    "event_bundle_values": [
+      "single_trial",
+      "multi_trial",
+      "earnings",
+      "financing",
+      "regulatory",
+      "other"
+    ]
+  },
+  "sources": {
+    "clinicaltrials": {
+      "api": "https://clinicaltrials.gov/api/v2/studies/{nct_id}",
+      "fields": [
+        "NCTId",
+        "OrgStudyIdInfo",
+        "OverallStatus",
+        "WhyStopped",
+        "ResultsFirstPostDate"
+      ]
+    },
+    "sec": {
+      "filing_index_template": "https://www.sec.gov/Archives/edgar/data/{cik}/{accession_no_dashes}/{accession}-index.htm",
+      "clock": "EDGAR accepted timestamp"
+    },
+    "issuer_disclosures": [
+      "https://www.sec.gov/Archives/edgar/data/1427925/0001437749-16-037360-index.htm",
+      "https://ir.supernus.com/node/11506",
+      "https://www.globenewswire.com/news-release/2020/04/06/2011946/0/en/Axsome-Therapeutics-Announces-AXS-07-Achieves-Both-Co-Primary-Endpoints-and-Prevents-Migraine-Pain-Progression-in-the-INTERCEPT-Phase-3-Trial-in-the-Early-Treatment-of-Migraine.html",
+      "https://news.abbvie.com/2021-10-29-AbbVies-Cariprazine-VRAYLAR-R-Met-Primary-Endpoint-in-Phase-3-Study-as-an-Adjunctive-Treatment-for-Major-Depressive-Disorder",
+      "https://investor.lilly.com/news-releases/news-release-details/tirzepatide-demonstrated-significant-and-superior-weight-loss"
+    ],
+    "fda_supernus_pre_notice": {
+      "url": "https://www.fda.gov/media/172473/download?attachment=",
+      "signed_date": "2023-08-01",
+      "reference": "CDER-2023-127 / Reference ID 5218683",
+      "interpretation_limit": "The letter establishes potential noncompliance and a request for prompt submission. Temporal ordering alone does not prove it caused the 2024 registry posting."
+    },
+    "market_data": {
+      "provider": "Yahoo Finance via yfinance 1.2.0",
+      "adjustment": "auto-adjusted daily OHLC",
+      "benchmark": "SPY",
+      "retention": "Only derived prices and returns are stored; no raw provider payload is committed."
+    }
+  },
+  "aggregates": {
+    "selected_events": 5,
+    "issuer_disclosure_preceded_registry_results": 5,
+    "lead_days_min": 300,
+    "lead_days_median": 430,
+    "lead_days_max": 2123,
+    "exact_trial_disclosures": 4,
+    "related_trial_or_program_disclosures": 1,
+    "single_trial_without_earnings_or_second_trial": 2,
+    "events_with_earnings_or_multi_trial_bundle": 3,
+    "interpretation": "Descriptive counts in a selected discovery cohort; no inference about population prevalence or alpha."
+  },
+  "rows": [
+    {
+      "nct_id": "NCT02447848",
+      "org_study_id": "SAP302",
+      "trial_name": "SAP302",
+      "issuer": "AcelRx Pharmaceuticals, Inc. (now Talphera, Inc.)",
+      "cik": "0001427925",
+      "ticker_at_event": "ACRX",
+      "current_ticker_in_sec_file": "TLPH",
+      "first_verified_public_at": "2016-08-15T07:02:26-04:00",
+      "public_clock_basis": "SEC 8-K accepted timestamp; filing furnished the SAP302 slide presentation and same-day press release.",
+      "disclosure_url": "https://www.sec.gov/Archives/edgar/data/1427925/0001437749-16-037360-index.htm",
+      "sec_accession": "0001437749-16-037360",
+      "mapping_evidence": "Exact organization study ID SAP302 in the 8-K and registry.",
+      "label_scope": "trial_exact",
+      "event_bundle": [
+        "single_trial"
+      ],
+      "announcement_purity": "high",
+      "outcome_disclosed": "Met primary endpoint",
+      "registry_results_first_post": "2017-10-19",
+      "lead_days": 430,
+      "reaction": {
+        "event_session": "2016-08-15",
+        "timing": "premarket",
+        "open_gap_pct": 0.536,
+        "event_session_return_pct": -1.609,
+        "event_session_excess_spy_pct": -1.897,
+        "intraday_return_pct": -2.133,
+        "return_5_sessions_pct": -9.383,
+        "excess_spy_5_sessions_pct": -9.42,
+        "return_20_sessions_pct": -10.992,
+        "excess_spy_20_sessions_pct": -10.022
+      },
+      "confounds": [
+        "Small, historically renamed issuer; adjusted historical prices and event-time security identity require explicit validation.",
+        "Presentation and release were furnished together, so source order within the package is not identified."
+      ]
+    },
+    {
+      "nct_id": "NCT02691182",
+      "org_study_id": "810P304",
+      "trial_name": "CHIME 4",
+      "issuer": "Supernus Pharmaceuticals, Inc.",
+      "cik": "0001356576",
+      "ticker_at_event": "SUPN",
+      "current_ticker_in_sec_file": "SUPN",
+      "first_verified_public_at": "2020-02-25T16:40:00-05:00",
+      "public_clock_basis": "Issuer investor-relations release timestamp; later 8-K was accepted 2020-02-27T16:22:08-05:00.",
+      "disclosure_url": "https://ir.supernus.com/node/11506",
+      "sec_accession": "0001104659-20-026188",
+      "mapping_evidence": "Release reported related Phase 3 P302 failure and halt of all SPN-810 development; selected registry record is 810P304/CHIME 4, not P302.",
+      "label_scope": "program",
+      "causal_trial_mapping": "related_trial",
+      "event_bundle": [
+        "earnings",
+        "other"
+      ],
+      "announcement_purity": "low",
+      "outcome_disclosed": "P302 missed its primary endpoint; all SPN-810 development halted.",
+      "registry_current_why_stopped": "The program was shut down due to a lack of efficacy.",
+      "registry_results_first_post": "2024-05-16",
+      "lead_days": 1542,
+      "fda_pre_notice_signed": "2023-08-01",
+      "reaction": {
+        "event_session": "2020-02-26",
+        "timing": "prior-day after-hours",
+        "open_gap_pct": -10.985,
+        "event_session_return_pct": -14.908,
+        "event_session_excess_spy_pct": -14.541,
+        "intraday_return_pct": -4.407,
+        "return_5_sessions_pct": -20.532,
+        "excess_spy_5_sessions_pct": -16.563,
+        "return_20_sessions_pct": -25.85,
+        "excess_spy_20_sessions_pct": -4.078
+      },
+      "confounds": [
+        "The selected NCT record is not the failed P302 efficacy trial.",
+        "Release bundled quarterly earnings, pipeline updates, related-trial failure, and program halt.",
+        "Event occurred during the COVID-19 market selloff.",
+        "FDA letter preceded registry posting, but causality is not established."
+      ]
+    },
+    {
+      "nct_id": "NCT04163185",
+      "org_study_id": "AXS-07-303",
+      "trial_name": "INTERCEPT",
+      "issuer": "Axsome Therapeutics, Inc.",
+      "cik": "0001579428",
+      "ticker_at_event": "AXSM",
+      "current_ticker_in_sec_file": "AXSM",
+      "first_verified_public_at": "2020-04-06T06:00:00-04:00",
+      "public_clock_basis": "Issuer-distributed GlobeNewswire release timestamp; SEC 8-K accepted later at 2020-04-06T08:18:35-04:00.",
+      "disclosure_url": "https://www.globenewswire.com/news-release/2020/04/06/2011946/0/en/Axsome-Therapeutics-Announces-AXS-07-Achieves-Both-Co-Primary-Endpoints-and-Prevents-Migraine-Pain-Progression-in-the-INTERCEPT-Phase-3-Trial-in-the-Early-Treatment-of-Migraine.html",
+      "sec_accession": "0001558370-20-003618",
+      "mapping_evidence": "Exact INTERCEPT acronym and AXS-07 intervention; release describes a 302-patient trial matching the registry record.",
+      "label_scope": "trial_exact",
+      "event_bundle": [
+        "single_trial"
+      ],
+      "announcement_purity": "high",
+      "outcome_disclosed": "Met both co-primary endpoints",
+      "registry_results_first_post": "2026-01-28",
+      "lead_days": 2123,
+      "reaction": {
+        "event_session": "2020-04-06",
+        "timing": "premarket",
+        "open_gap_pct": 4.962,
+        "event_session_return_pct": -2.672,
+        "event_session_excess_spy_pct": -9.388,
+        "intraday_return_pct": -7.273,
+        "return_5_sessions_pct": 9.124,
+        "excess_spy_5_sessions_pct": -1.944,
+        "return_20_sessions_pct": 66.703,
+        "excess_spy_20_sessions_pct": 52.448
+      },
+      "confounds": [
+        "COVID-19 market regime.",
+        "Positive opening gap faded intraday, demonstrating that daily close-to-close return is not an immediate-reaction label.",
+        "Twenty-session move is too long for clean attribution."
+      ]
+    },
+    {
+      "nct_id": "NCT03738215",
+      "org_study_id": "3111-301-001",
+      "trial_name": "Cariprazine adjunctive MDD study 3111-301-001",
+      "issuer": "AbbVie Inc.",
+      "cik": "0001551152",
+      "ticker_at_event": "ABBV",
+      "current_ticker_in_sec_file": "ABBV",
+      "first_verified_public_at": "2021-10-29T07:50:00-04:00",
+      "public_clock_basis": "Issuer/PRNewswire exact-trial release. The 07:42:43 ET earnings 8-K and exhibit were checked and did not disclose the trial result.",
+      "disclosure_url": "https://news.abbvie.com/2021-10-29-AbbVies-Cariprazine-VRAYLAR-R-Met-Primary-Endpoint-in-Phase-3-Study-as-an-Adjunctive-Treatment-for-Major-Depressive-Disorder",
+      "concurrent_sec_accession": "0001551152-21-000028",
+      "concurrent_sec_accepted_at": "2021-10-29T07:42:43-04:00",
+      "concurrent_sec_disclosed_trial_result": false,
+      "mapping_evidence": "Exact organization study ID 3111-301-001 in issuer release and registry.",
+      "label_scope": "trial_exact",
+      "event_bundle": [
+        "multi_trial",
+        "earnings"
+      ],
+      "announcement_purity": "medium_low",
+      "outcome_disclosed": "3111-301-001 met its primary endpoint; 3111-302-001 did not.",
+      "registry_results_first_post": "2022-10-25",
+      "lead_days": 361,
+      "reaction": {
+        "event_session": "2021-10-29",
+        "timing": "premarket",
+        "open_gap_pct": 2.207,
+        "event_session_return_pct": 4.559,
+        "event_session_excess_spy_pct": 4.356,
+        "intraday_return_pct": 2.302,
+        "return_5_sessions_pct": 6.738,
+        "excess_spy_5_sessions_pct": 4.864,
+        "return_20_sessions_pct": 6.237,
+        "excess_spy_20_sessions_pct": 6.095
+      },
+      "confounds": [
+        "Release bundled one positive and one negative Phase 3 study.",
+        "Quarterly earnings were disclosed minutes earlier.",
+        "Issuer size makes program-specific attribution difficult."
+      ]
+    },
+    {
+      "nct_id": "NCT04660643",
+      "org_study_id": "17247",
+      "trial_name": "SURMOUNT-4",
+      "issuer": "Eli Lilly and Company",
+      "cik": "0000059478",
+      "ticker_at_event": "LLY",
+      "current_ticker_in_sec_file": "LLY",
+      "first_verified_public_at": "2023-07-27T06:48:00-04:00",
+      "public_clock_basis": "Issuer-distributed PRNewswire release timestamp; no same-day 8-K was identified in the issuer submissions list.",
+      "disclosure_url": "https://investor.lilly.com/news-releases/news-release-details/tirzepatide-demonstrated-significant-and-superior-weight-loss",
+      "mapping_evidence": "Issuer release explicitly names SURMOUNT-4 and NCT04660643.",
+      "label_scope": "trial_exact",
+      "event_bundle": [
+        "multi_trial"
+      ],
+      "announcement_purity": "medium",
+      "outcome_disclosed": "SURMOUNT-4 and SURMOUNT-3 met primary and key secondary objectives",
+      "registry_results_first_post": "2024-05-22",
+      "lead_days": 300,
+      "reaction": {
+        "event_session": "2023-07-27",
+        "timing": "premarket",
+        "open_gap_pct": -0.06,
+        "event_session_return_pct": 0.309,
+        "event_session_excess_spy_pct": 0.972,
+        "intraday_return_pct": 0.368,
+        "return_5_sessions_pct": 0.196,
+        "excess_spy_5_sessions_pct": 1.377,
+        "return_20_sessions_pct": 22.257,
+        "excess_spy_20_sessions_pct": 24.997
+      },
+      "confounds": [
+        "Release bundled SURMOUNT-3 and SURMOUNT-4.",
+        "Twenty-session window crosses Lilly's 2023-08-08 earnings and other issuer news."
+      ]
+    }
+  ],
+  "decision": {
+    "status": "GO_FOR_REVIEWED_DISCLOSURE_LEDGER_ONLY",
+    "reaction_model_blocked": true,
+    "findings": [
+      "Issuer disclosures preceded registry results by 300 to 2123 days in all five selected cases.",
+      "Registry termination language can describe a program decision caused by a different trial, so trial-level failure labels require provenance review.",
+      "Same-day SEC filings must be content-checked; acceptance time alone can precede the actual catalyst.",
+      "Daily close-to-close returns can invert the sign of the immediate opening reaction and long windows are highly contaminated."
+    ],
+    "requirements_before_reaction_model": [
+      "Build a 100-event reviewed source-order census with explicit search completeness.",
+      "Reach at least 95% reviewed precision for exact-trial and clean-announcement classifications.",
+      "Acquire intraday or auction-quality public timestamps/prices for immediate-reaction targets.",
+      "Censor or label concurrent and intervening issuer events.",
+      "Split exact-trial outcomes from related-trial, program, and compliance labels."
+    ]
+  }
+}

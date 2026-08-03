@@ -6,12 +6,13 @@ H44 proposes a point-in-time event/outcome ledger with nine components and sets 
 its first gate: adversarial SEC acceptance fixtures plus source-specific tradable-time
 rules, passing on *exact point-in-time reconstruction and deterministic labels*.
 
-Scored across the 27 committed artifacts under `docs/research/data/`, on schema **keys**:
+Scored across the 49 committed world-observation artifacts under
+`docs/research/data/`, on schema **keys**:
 
-    revision / vintage identity   24        multi-horizon labels     6
-    payload hashes                18        rights metadata          4
-    source timestamp               8        durable entity identity  2
-    first-seen timestamp           7        trial registry           1
+    revision / vintage identity   46        multi-horizon labels     6
+    payload hashes                32        rights metadata          6
+    source timestamp               9        durable entity identity  2
+    first-seen timestamp          11        trial registry           2
     conservative tradable time     6
 
 **No artifact carries all nine; the best is 6**, reached by the four IX-00 index-event
@@ -158,10 +159,13 @@ class ProvenanceIsBuiltAndIdentityIsNotTests(unittest.TestCase):
             "preregistered claim hold' query may be answerable; re-measure".format(
                 self.coverage["trial_registry"], self.n))
 
-    def test_the_one_registry_artifact_is_the_lead_lag_summary(self):
+    def test_the_two_registry_artifacts_are_the_measured_carriers(self):
         scored = score_artifacts()
         carriers = sorted(n for n, h in scored.items() if "trial_registry" in h)
-        self.assertEqual(carriers, ["pn00_daily_lead_lag_summary_2026.json"],
+        self.assertEqual(carriers, [
+            "biocat_disclosure_order_pilot_2026.json",
+            "pn00_daily_lead_lag_summary_2026.json",
+        ],
                          "the trial-registry carrier set changed: {}".format(carriers))
 
 
