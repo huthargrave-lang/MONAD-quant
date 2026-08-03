@@ -45,6 +45,22 @@ jobs:
           # possible, so the CI install is kept lean and explicit.
           pip install pandas numpy fastapi httpx ib_insync yfinance apscheduler
 
+      # Several deployment-surface tests deliberately execute the same paths used
+      # on the Pi instead of mocking them.  A clean Actions checkout lacks the
+      # ignored runtime layout those paths require: deploy/smoke-test.sh invokes
+      # REPO/venv/bin/python, while the health/preflight probes resolve the primary
+      # checkout as $HOME/MONAD-quant and write audited artifacts under local_logs/.
+      # Recreate only that layout here.  --system-site-packages exposes the packages
+      # installed above without downloading a second copy into the disposable venv.
+      - name: Create deployment-compatible CI runtime layout
+        run: |
+          python -m venv --system-site-packages venv
+          mkdir -p local_logs
+          if [ "$GITHUB_WORKSPACE" != "$HOME/MONAD-quant" ]; then
+            ln -s "$GITHUB_WORKSPACE" "$HOME/MONAD-quant"
+          fi
+          MONAD_REPO="$GITHUB_WORKSPACE" bash ops/git_drift.sh
+
       # H12/DP-5: context-layer integrity is asserted by the test suite, but the
       # LINT EXIT CODE is not — `ctx web --lint` returns non-zero when the research
       # web has dangling links, an undeclared superseder, or a live node relying on a
