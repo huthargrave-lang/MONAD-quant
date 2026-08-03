@@ -3614,3 +3614,33 @@ _— captured codex/biocat-source-contract@faeb9ba, 2026-08-03_
 At each 8-K/6-K/10-Q release, compare program-specific efficacy, enrollment and timeline language with the latest then-public registry state and its recent deltas. Predict adverse registry revision, program discontinuation or financing need; baseline is filing sentiment, trial phase, cash runway and recent registry changes separately. Kill if cross-source divergence does not beat both single-source baselines in issuer-grouped later-era holdouts.
 Links: [[H18501|builds_on]] · [[F253200|builds_on]] · [[F253202|builds_on]].
 _— captured codex/biocat-source-contract@faeb9ba, 2026-08-03_
+
+### E13300 — BIOCAT five-event disclosure-order and reaction-purity pilot
+Manually joined five public-issuer trials from E253200 to exact issuer/SEC disclosure clocks, registry results dates, label scope, announcement bundles, and adjusted daily issuer/SPY diagnostics. Issuer disclosure led registry results by 300-2123 calendar days. One row exposed a related-trial/program label mismatch; three events bundled earnings or another trial; the clean Axsome readout opened positive but closed negative. Methods, sources, derived rows, and caveats are in docs/research/BIOCAT_DISCLOSURE_ORDER_PILOT_2026.md and docs/research/data/biocat_disclosure_order_pilot_2026.json.
+Links: [[H253200|produces]] · [[E253200|derived_from]].
+_— captured codex/biocat-disclosure-order@01d9176, 2026-08-03_
+
+### F13300 — BIOCAT issuer disclosures led registry results by years in the selected pilot
+In E13300 all 5 selected issuer disclosures preceded ClinicalTrials.gov ResultsFirstPostDate, with leads of 300, 361, 430, 1542, and 2123 calendar days (median 430). This selected cohort conditions on a located public disclosure, so 5/5 is not a population rate. It does establish that registry results are delayed labels for these cases and that reaction research must reconstruct the earliest public issuer clock.
+Links: [[E13300|evidenced_by]] · [[F253201|supports]] · [[H253200|supports]].
+_— captured codex/biocat-disclosure-order@01d9176, 2026-08-03_
+
+### F13301 — BIOCAT termination reasons can be program labels caused by a different trial
+NCT02691182 is organization study 810P304/CHIME 4, but Supernus's 2020 disclosure reported failure of P302 and halted all SPN-810 development. The current NCT02691182 reason says the program stopped for lack of efficacy. Coding that row as an exact-trial efficacy failure would fabricate a label: preserve trial_exact, related_trial, program, and regulatory/compliance scope separately.
+Links: [[E13300|evidenced_by]] · [[F253200|refines]] · [[H253201|relates]].
+_— captured codex/biocat-disclosure-order@01d9176, 2026-08-03_
+
+### F13302 — BIOCAT daily returns can invert the immediate catalyst reaction
+The clean Axsome INTERCEPT readout in E13300 opened about +4.96% from the prior adjusted close but finished about -2.67% close-to-close and -9.39 percentage points versus SPY; the intraday move was -7.27%. Other pilot rows bundle earnings or multiple trials, and long windows cross unrelated news. Immediate reaction requires premarket/after-hours, opening-auction, and intraday clocks plus contamination labels; daily and 20-session returns remain diagnostics only.
+Links: [[E13300|evidenced_by]] · [[H253200|refines]].
+_— captured codex/biocat-disclosure-order@01d9176, 2026-08-03_
+
+### H13300 — BIOCAT announcement purity predicts which trial reactions are attributable
+Classify candidate disclosures by mapping_scope (exact trial, related trial, program) and bundle (single trial, multi-trial, earnings, financing, regulatory) before reaction modeling. Train only after a reviewed 100-event ledger; require at least 95% precision on the exact-trial/single-event stratum and report coverage separately. Then test whether purity strata explain gap-to-close decay and residual reaction beyond disclosed outcome, issuer size, liquidity, and market regime. Kill if automated purity cannot meet precision or if clean-event reaction is indistinguishable from contaminated-event baselines.
+Links: [[H253200|derived_from]] · [[F13301|builds_on]] · [[F13302|builds_on]].
+_— captured codex/biocat-disclosure-order@01d9176, 2026-08-03_
+
+### D13300 — BIOCAT disclosure-order survives as a reviewed ledger, not yet a return model
+E13300 advances H253200 only to a 100-event source-order census with explicit search completeness, mapping scope, announcement bundles, and concurrent-news flags. Train outcome/source-order models before returns. Block reaction claims until exact-trial/clean-event precision is at least 95%, intraday or auction-quality data defines the immediate target, and intervening news is censored. Registry results remain labels unless proven first.
+Links: [[H253200|drives]] · [[E13300|evidenced_by]] · [[F13300|builds_on]] · [[F13301|builds_on]] · [[F13302|builds_on]].
+_— captured codex/biocat-disclosure-order@01d9176, 2026-08-03_
