@@ -2909,6 +2909,7 @@ Links: [[H41|resolves]] · [[H15|relates]] · [[F215|relates]].
 _— captured claude/research-continuation-ca1242@83612d3, 2026-07-26_
 
 ### F219 — H44's PT-01 gate fails on two specific grounds, but the unglamorous half of its substrate is already built: vintage identity on 24 of 27 artifacts, entity identity on 2, a trial registry on 1
+<!-- status: superseded; by: F13303; reason: data-revised; at: 2026-08-03 -->
 H44 proposes a point-in-time event/outcome ledger with nine components and sets PT-01 as its first gate: adversarial SEC acceptance/dissemination fixtures plus source-specific tradable-time rules, passing on 'exact point-in-time reconstruction and deterministic labels'. Audited against what is actually committed. Documented at docs/research/PT01_substrate_readiness.md, guarded by tests/test_h44_pt01_readiness.py (18 tests).
 
 FIELD COVERAGE ACROSS THE 27 COMMITTED ARTIFACTS, scored on schema KEYS: revision/vintage identity 24, payload hashes 18, source timestamp 8, first-seen 7, conservative tradable time 6, multi-horizon labels 6, rights metadata 4, durable entity identity 2, trial registry 1. NO ARTIFACT CARRIES ALL NINE; the best is 6 of 9, reached by the four IX-00 index-event batches, each missing entity identity, rights and any registry link. So PT-01's pass condition cannot be EVALUATED on a single record - no record carries source time, first-seen, tradable time, identity and labels together.
@@ -2948,7 +2949,7 @@ THE GAP IN THE QUEUE. The backlog already distinguishes ONE non-runnable state: 
 A BLOCK THAT IS NEVER RE-TESTED IS A PERMANENT EXCUSE. 'list --blocked --recheck' probes each distinct host and prints reachability per host; any REACHABLE line means those items can be un-blocked by deleting one registry entry. It is NOT run automatically - a network call inside a plain listing would be slow and flaky - and the guard asserts that collect(), blocked_on_data() and command_next() never call it, and that recheck_blocks is the ONLY place this otherwise-offline tool touches the network (exactly one urlopen in the file).
 
 NOT CLAIMED: anything about whether H46's hypothesis is TRUE - it is untested and remains so. The block is environmental rather than a judgement about SEC or any provider: the 403 comes from this environment's egress proxy at the CONNECT stage, before any request reaches them. And six entries is a snapshot - a new frontier child needs a new entry, which is a deliberate cost, because adding one should be a decision someone makes and explains rather than something the tool infers. Documented at docs/research/BACKLOG_blocked_on_data.md, guarded by tests/test_h46_blocked_queue.py (14 tests) including a non-vacuity check that the exclusion does not swallow the queue.
-Links: [[H46|relates]] · [[H44|relates]] · [[F219|builds_on]] · [[F210|relates]].
+Links: [[H46|relates]] · [[H44|relates]] · [[F13303|builds_on]] · [[F210|relates]].
 _— captured claude/research-continuation-ca1242@b866863, 2026-07-26_
 
 ### F222 — Mentioning a hypothesis counted as answering it: the unresolved queue hid 26 open hypotheses behind bare 'relates' and 'refines' edges
@@ -3522,7 +3523,7 @@ _— captured development@61abc1b, 2026-08-03_
 
 ### H18500 — event-state model factories can diversify MONAD beyond price-indicator research
 EIF-00. Treat public information as append-only state transitions with source event, publication, collector-first-seen, conservative tradable, revision, entity, issuer and date-valid security identity. Require each source family to predict a non-price operational or fundamental outcome beyond a transparent baseline before inspecting returns. The initial independent families are clinical/FDA catalysts, government award obligations, 13D intent transitions and item-specific 8-K shocks; delayed comment cycles become labels and Reg SHO begins as a guarded null. Full preregistration: docs/research/EVENT_INTELLIGENCE_FRONTIER_2026.md and docs/research/data/event_intelligence_frontier_2026.json.
-Links: [[H44|builds_on]] · [[F219|builds_on]].
+Links: [[H44|builds_on]] · [[F13303|builds_on]].
 _— captured codex/event-intelligence-frontiers@9f8efe2, 2026-08-03_
 
 ### H18501 — point-in-time clinical catalyst states predict outcomes beyond phase and indication
@@ -3547,7 +3548,7 @@ _— captured codex/event-intelligence-frontiers@9f8efe2, 2026-08-03_
 
 ### F18500 — ClinicalTrials live snapshots require version capture before point-in-time catalyst research
 ClinicalTrials.gov API v2 exposes current records and a dataset timestamp, while record history lives on the site's history/archive surface and registry updates follow a posting workflow distinct from the sponsor's underlying event. Therefore a current snapshot cannot reconstruct prior public knowledge and registry-post time cannot automatically stand in for first issuer disclosure. BIOCAT must store source versions plus registry posted, collector first-seen, SEC accepted-at and conservative tradable clocks; delayed-clock and later-snapshot leakage tests are mandatory. Official contracts are cited in EVENT_INTELLIGENCE_FRONTIER_2026.md.
-Links: [[H18501|supports]] · [[F219|builds_on]] · [[E18500|evidenced_by]].
+Links: [[H18501|supports]] · [[F13303|builds_on]] · [[E18500|evidenced_by]].
 _— captured codex/event-intelligence-frontiers@9f8efe2, 2026-08-03_
 
 ### F18501 — public SEC comment correspondence is a delayed label rather than its private letter-date signal
@@ -3561,8 +3562,8 @@ Links: [[H18500|refines]] · [[H49|builds_on]] · [[E18500|evidenced_by]].
 _— captured codex/event-intelligence-frontiers@9f8efe2, 2026-08-03_
 
 ### D18500 — prioritize clinical catalysts and government obligations as the first event-intelligence pilots
-Build 100-record reviewed source-contract samples for BIOCAT-01 and GOVCON-01 before market-return models. Each must reach at least 95% audited sponsor/recipient-to-public-issuer identity precision, preserve revision and collector-first-seen clocks, and beat a transparent baseline on a non-price outcome. Keep 13D and item-specific 8-K next; treat comment cycles as delayed labels and settlement stress as null-first. This order maximizes new child-study surface while directly exercising the identity and trial-registry gaps measured by F219.
-Links: [[H18501|drives]] · [[H18502|drives]] · [[H18503|relates]] · [[H18504|relates]] · [[F219|builds_on]].
+Build 100-record reviewed source-contract samples for BIOCAT-01 and GOVCON-01 before market-return models. Each must reach at least 95% audited sponsor/recipient-to-public-issuer identity precision, preserve revision and collector-first-seen clocks, and beat a transparent baseline on a non-price outcome. Keep 13D and item-specific 8-K next; treat comment cycles as delayed labels and settlement stress as null-first. This order maximizes new child-study surface while directly exercising the identity and trial-registry gaps measured by F13303.
+Links: [[H18501|drives]] · [[H18502|drives]] · [[H18503|relates]] · [[H18504|relates]] · [[F13303|builds_on]].
 _— captured codex/event-intelligence-frontiers@9f8efe2, 2026-08-03_
 
 ### E18500 — official-source contract reconnaissance for six public-event model families
@@ -3587,7 +3588,7 @@ _— captured codex/biocat-source-contract@faeb9ba, 2026-08-03_
 
 ### F253202 — BIOCAT sponsor and product strings do not identify a tradable issuer
 Only 6/20 unique sponsors in E253200 exactly matched SEC company names after conservative normalization (30% coverage); naive fuzzy candidates included multiple false entities. Drugs@FDA generic-name search could rank an ANDA ahead of the originator and a development code returned no record. Build effective-dated sponsor-parent-security and product-lineage graphs, and report reviewed precision separately from coverage; reject ambiguous joins.
-Links: [[E253200|evidenced_by]] · [[H18501|refines]] · [[F219|builds_on]].
+Links: [[E253200|evidenced_by]] · [[H18501|refines]] · [[F13303|builds_on]].
 _— captured codex/biocat-source-contract@faeb9ba, 2026-08-03_
 
 ### D253200 — BIOCAT modeling remains blocked; build the immutable event ledger first
@@ -3615,32 +3616,37 @@ At each 8-K/6-K/10-Q release, compare program-specific efficacy, enrollment and 
 Links: [[H18501|builds_on]] · [[F253200|builds_on]] · [[F253202|builds_on]].
 _— captured codex/biocat-source-contract@faeb9ba, 2026-08-03_
 
-### E13300 — BIOCAT five-event disclosure-order and reaction-purity pilot
+### E13300 — BIOCAT research pilot: disclosure order and reaction purity
 Manually joined five public-issuer trials from E253200 to exact issuer/SEC disclosure clocks, registry results dates, label scope, announcement bundles, and adjusted daily issuer/SPY diagnostics. Issuer disclosure led registry results by 300-2123 calendar days. One row exposed a related-trial/program label mismatch; three events bundled earnings or another trial; the clean Axsome readout opened positive but closed negative. Methods, sources, derived rows, and caveats are in docs/research/BIOCAT_DISCLOSURE_ORDER_PILOT_2026.md and docs/research/data/biocat_disclosure_order_pilot_2026.json.
 Links: [[H253200|produces]] · [[E253200|derived_from]].
 _— captured codex/biocat-disclosure-order@01d9176, 2026-08-03_
 
-### F13300 — BIOCAT issuer disclosures led registry results by years in the selected pilot
+### F13300 — Finding: BIOCAT issuer disclosures led registry results by years
 In E13300 all 5 selected issuer disclosures preceded ClinicalTrials.gov ResultsFirstPostDate, with leads of 300, 361, 430, 1542, and 2123 calendar days (median 430). This selected cohort conditions on a located public disclosure, so 5/5 is not a population rate. It does establish that registry results are delayed labels for these cases and that reaction research must reconstruct the earliest public issuer clock.
 Links: [[E13300|evidenced_by]] · [[F253201|supports]] · [[H253200|supports]].
 _— captured codex/biocat-disclosure-order@01d9176, 2026-08-03_
 
-### F13301 — BIOCAT termination reasons can be program labels caused by a different trial
+### F13301 — Finding: BIOCAT program termination labels can come from another trial
 NCT02691182 is organization study 810P304/CHIME 4, but Supernus's 2020 disclosure reported failure of P302 and halted all SPN-810 development. The current NCT02691182 reason says the program stopped for lack of efficacy. Coding that row as an exact-trial efficacy failure would fabricate a label: preserve trial_exact, related_trial, program, and regulatory/compliance scope separately.
 Links: [[E13300|evidenced_by]] · [[F253200|refines]] · [[H253201|relates]].
 _— captured codex/biocat-disclosure-order@01d9176, 2026-08-03_
 
-### F13302 — BIOCAT daily returns can invert the immediate catalyst reaction
+### F13302 — Finding: BIOCAT daily returns can invert the immediate catalyst reaction
 The clean Axsome INTERCEPT readout in E13300 opened about +4.96% from the prior adjusted close but finished about -2.67% close-to-close and -9.39 percentage points versus SPY; the intraday move was -7.27%. Other pilot rows bundle earnings or multiple trials, and long windows cross unrelated news. Immediate reaction requires premarket/after-hours, opening-auction, and intraday clocks plus contamination labels; daily and 20-session returns remain diagnostics only.
 Links: [[E13300|evidenced_by]] · [[H253200|refines]].
 _— captured codex/biocat-disclosure-order@01d9176, 2026-08-03_
 
-### H13300 — BIOCAT announcement purity predicts which trial reactions are attributable
+### H13300 — Hypothesis: BIOCAT announcement purity predicts attributable reactions
 Classify candidate disclosures by mapping_scope (exact trial, related trial, program) and bundle (single trial, multi-trial, earnings, financing, regulatory) before reaction modeling. Train only after a reviewed 100-event ledger; require at least 95% precision on the exact-trial/single-event stratum and report coverage separately. Then test whether purity strata explain gap-to-close decay and residual reaction beyond disclosed outcome, issuer size, liquidity, and market regime. Kill if automated purity cannot meet precision or if clean-event reaction is indistinguishable from contaminated-event baselines.
 Links: [[H253200|derived_from]] · [[F13301|builds_on]] · [[F13302|builds_on]].
 _— captured codex/biocat-disclosure-order@01d9176, 2026-08-03_
 
-### D13300 — BIOCAT disclosure-order survives as a reviewed ledger, not yet a return model
+### D13300 — Research decision: BIOCAT disclosure order needs a reviewed ledger first
 E13300 advances H253200 only to a 100-event source-order census with explicit search completeness, mapping scope, announcement bundles, and concurrent-news flags. Train outcome/source-order models before returns. Block reaction claims until exact-trial/clean-event precision is at least 95%, intraday or auction-quality data defines the immediate target, and intervening news is censored. Registry results remain labels unless proven first.
 Links: [[H253200|drives]] · [[E13300|evidenced_by]] · [[F13300|builds_on]] · [[F13301|builds_on]] · [[F13302|builds_on]].
 _— captured codex/biocat-disclosure-order@01d9176, 2026-08-03_
+
+### F13303 — PT-01 provenance audit now spans 49 artifacts; the gate still fails
+Re-ran the schema-key audit after E13300 entered the corpus. Across 49 world-observation JSON artifacts: revision/vintage 46, payload hashes 32, source time 9, first-seen 11, tradable time 6, multi-horizon labels 6, rights 6, entity identity 2, trial registry 2. The best remains 6 of 9 and the same four IX-00 artifacts lead. BIOCAT adds the second registry carrier but still has neither durable entity identity nor a complete point-in-time record. FD-00 clock fixtures still have no src/tool consumer. F219's counts are stale, while its PT-01-fails conclusion survives.
+Links: [[H44|refines]] · [[E13300|evidenced_by]] · [[F219|supersedes]].
+_— captured codex/biocat-disclosure-order@782f00c, 2026-08-03_

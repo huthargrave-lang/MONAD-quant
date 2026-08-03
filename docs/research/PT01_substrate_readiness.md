@@ -23,17 +23,17 @@ audited."*
 Every committed artifact under `docs/research/data/` was scored on **schema keys**
 (values excluded — see the note at the end), one point per field class present:
 
-| field class | artifacts carrying it (of 27) |
+| field class | artifacts carrying it (of 49) |
 |---|---:|
-| revision / vintage identity | **24** |
-| payload hashes | **18** |
-| source timestamp | 8 |
-| first-seen timestamp | 7 |
+| revision / vintage identity | **46** |
+| payload hashes | **32** |
+| source timestamp | 9 |
+| first-seen timestamp | 11 |
 | conservative tradable timestamp | 6 |
 | multi-horizon labels | 6 |
-| rights metadata | 4 |
+| rights metadata | 6 |
 | durable entity identity | **2** |
-| trial registry | **1** |
+| trial registry | **2** |
 
 **No artifact carries all nine.** The best score is **6 of 9**, reached by the four IX-00
 index-event batches, each missing entity identity, rights metadata and any trial-registry
@@ -42,9 +42,9 @@ evaluated on a single record, because no record carries source time, first-seen,
 time, identity and labels together.
 
 The shape of that table is the useful part. **The provenance half of the substrate is
-genuinely built**: vintage identity on 24 of 27 artifacts and payload hashes on 18 is a
+genuinely built**: vintage identity on 46 of 49 artifacts and payload hashes on 32 is a
 real, unusual discipline, and it is why the IX-00 and CA-00 reconciliations in this
-repository work at all. **The identity and registry half barely exists** — 2 and 1.
+repository work at all. **The identity and registry half barely exists** — 2 and 2.
 
 ## The clock rules have no consumer
 
@@ -82,9 +82,10 @@ The honest re-scope, in dependency order:
    pilot already shows the shape — `event_symbol`, `provider_symbol`, an `identity_note`
    recording `SATS`→`ECHO` with the CUSIP unchanged. It just is not standard.
 3. **A trial registry** — one machine-readable record per preregistered study with its
-   outcome. Exactly one artifact carries a `preregistered_pass` field today; the study
-   queue lives in prose in the frontier document, so "did the preregistered claim hold?"
-   is not a query anyone can run.
+   outcome. Two artifacts now carry registry-shaped keys: PN-00's lead-lag summary and
+   BIOCAT's five-event disclosure pilot. That is progress from the original one, but it
+   is not a general registry and neither artifact joins the full point-in-time field set,
+   so "did the preregistered claim hold?" is still not a corpus-wide query.
 
 Only then is the "cheap to test" claim in H44 testable at all — it asserts a *rate*
 (ideas per unit effort) and nothing in the repository currently measures that.
@@ -93,7 +94,8 @@ Only then is the "cheap to test" claim in H44 testable at all — it asserts a *
 
 The first pass of this audit scored artifacts on raw text and reported 4 artifacts with a
 trial registry. Three of those matched **"Industrial"**, which contains "trial". Rescoring
-on schema **keys** with word boundaries gives 1. That is the fourth time this session a
-substring inside a name has been counted as the thing itself (SEC form names, index names,
+on schema **keys** with word boundaries originally gave 1; the current 49-artifact corpus
+gives 2 after BIOCAT. The original false count was the fourth time a substring inside a
+name had been counted as the thing itself (SEC form names, index names,
 ISO timestamps, and now this) — the rule that keeps earning its keep is: *match structure,
 not text.*
