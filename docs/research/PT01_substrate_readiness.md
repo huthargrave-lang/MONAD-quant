@@ -23,17 +23,17 @@ audited."*
 Every committed artifact under `docs/research/data/` was scored on **schema keys**
 (values excluded — see the note at the end), one point per field class present:
 
-| field class | artifacts carrying it (of 50) |
+| field class | artifacts carrying it (of 56) |
 |---|---:|
-| revision / vintage identity | **47** |
-| payload hashes | **33** |
-| source timestamp | 10 |
-| first-seen timestamp | 12 |
+| revision / vintage identity | **53** |
+| payload hashes | **38** |
+| source timestamp | 12 |
+| first-seen timestamp | 14 |
 | conservative tradable timestamp | 6 |
-| multi-horizon labels | 7 |
-| rights metadata | 7 |
+| multi-horizon labels | 8 |
+| rights metadata | 8 |
 | durable entity identity | **2** |
-| trial registry | **3** |
+| trial registry | **5** |
 
 **No artifact carries all nine.** The best score is now **7 of 9**, reached by the BIOCAT
 FDA pre-notice census. It carries explicit revision/vintage, payload hashes, source and
@@ -44,10 +44,12 @@ reconstruction* — still cannot be evaluated on a single record, but the missin
 narrowed from three classes on the old leaders to two on a population artifact.
 
 The shape of that table is the useful part. **The provenance half of the substrate is
-genuinely built**: vintage identity on 47 of 50 artifacts and payload hashes on 33 is a
+genuinely built**: vintage identity on 53 of 56 artifacts and payload hashes on 38 is a
 real, unusual discipline, and it is why the IX-00 and CA-00 reconciliations in this
-repository work at all. **Durable identity still barely exists** at 2 of 50, while trial
-registry coverage has advanced to 3 and now includes one population census.
+repository work at all. **Durable identity still barely exists** at 2 of 56, while trial
+registry coverage has advanced to 5. Two of those five files are the reviewed seed and
+derived projection of the same three-case BIOCAT-FINANCE-01 pilot, so file coverage is
+not independent-study count.
 
 ## The clock rules have no consumer
 
@@ -85,13 +87,15 @@ The honest re-scope, in dependency order:
    pilot already shows the shape — `event_symbol`, `provider_symbol`, an `identity_note`
    recording `SATS`→`ECHO` with the CUSIP unchanged. It just is not standard.
 3. **Extend the trial registry** — one machine-readable record per preregistered study
-   with its outcome. Three artifacts now carry registry-shaped keys: PN-00's lead-lag
-   summary, BIOCAT's five-event disclosure pilot, and BIOCAT's 315-row FDA pre-notice
-   census. The last is the first population artifact to join registry identity to source
-   hashes, source/first-seen clocks, rights posture, and right-censored horizons. It still
-   lacks durable sponsor/issuer identity and a market tradability clock, so "did the
-   preregistered claim hold for this security at this time?" is not yet a corpus-wide
-   query.
+   with its outcome. Five artifacts now carry registry-shaped keys: PN-00's lead-lag
+   summary, BIOCAT's five-event disclosure pilot, BIOCAT's 315-row FDA pre-notice census,
+   and the seed plus derived projection of BIOCAT-FINANCE-01's three reviewed cases. The
+   FDA census remains the first population artifact to join registry identity to source
+   hashes, source/first-seen clocks, rights posture, and right-censored horizons. The new
+   financing pilot adds a point-in-time registry/SEC join but not a population result;
+   durable sponsor/issuer identity and a market tradability clock are still absent, so
+   "did the preregistered claim hold for this security at this time?" is not yet a
+   corpus-wide query.
 
 Only then is the "cheap to test" claim in H44 testable at all — it asserts a *rate*
 (ideas per unit effort) and nothing in the repository currently measures that.
@@ -100,8 +104,9 @@ Only then is the "cheap to test" claim in H44 testable at all — it asserts a *
 
 The first pass of this audit scored artifacts on raw text and reported 4 artifacts with a
 trial registry. Three of those matched **"Industrial"**, which contains "trial". Rescoring
-on schema **keys** with word boundaries originally gave 1; the current 50-artifact corpus
-gives 3 after the two BIOCAT studies. The original false count was the fourth time a substring inside a
+on schema **keys** with word boundaries originally gave 1; the current 56-artifact corpus
+gives 5 after the BIOCAT studies and the seed/projection pair for BIOCAT-FINANCE-01. The
+original false count was the fourth time a substring inside a
 name had been counted as the thing itself (SEC form names, index names,
 ISO timestamps, and now this) — the rule that keeps earning its keep is: *match structure,
 not text.*

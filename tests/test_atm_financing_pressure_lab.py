@@ -18,6 +18,8 @@ sys.modules[SPEC.name] = LAB
 SPEC.loader.exec_module(LAB)
 LEDGER_SEED = ROOT / "docs/research/data/atm_fp01_gold_seed.json"
 LEDGER_ARTIFACT = ROOT / "docs/research/data/atm_fp01_gold_ledger.json"
+BIOCAT_FINANCE_SEED = ROOT / "docs/research/data/biocat_finance_01_gold_seed.json"
+BIOCAT_FINANCE_ARTIFACT = ROOT / "docs/research/data/biocat_finance_01_gold_pilot.json"
 
 
 class AtmFinancingPressureLabTests(unittest.TestCase):
@@ -136,6 +138,64 @@ class AtmFp01LedgerTests(unittest.TestCase):
         claimed = artifact.pop("artifact_sha256")
         self.assertEqual(claimed, LAB.sha256(artifact))
         self.assertFalse(artifact["training_features_built"])
+
+
+class BiocatFinance01Tests(unittest.TestCase):
+    def test_joined_fixture_preserves_components_and_rejects_brittle_product(self):
+        artifact = LAB.build_biocat_finance_artifact(LAB.load_json(BIOCAT_FINANCE_SEED))
+        cases = {row["issuer"]["ticker_at_cutoff"]: row for row in artifact["cases"]}
+        self.assertEqual(cases["ACRX"]["derived"]["completion_slip_days"], 243)
+        self.assertEqual(cases["SUPN"]["derived"]["completion_slip_days"], 366)
+        self.assertEqual(cases["AXSM"]["derived"]["completion_slip_days"], 0)
+        self.assertEqual(cases["AXSM"]["derived"]["prior_atm_utilization_fraction"], 0.402)
+        self.assertEqual(cases["AXSM"]["derived"]["runway_gap_days"], 0)
+        self.assertIsNone(cases["AXSM"]["derived"]["multiplicative_pressure"])
+        self.assertIn("must not erase", cases["AXSM"]["derived"]["multiplicative_pressure_reason"])
+
+    def test_financial_runway_is_derived_from_as_of_periods(self):
+        artifact = LAB.build_biocat_finance_artifact(LAB.load_json(BIOCAT_FINANCE_SEED))
+        cases = {row["issuer"]["ticker_at_cutoff"]: row for row in artifact["cases"]}
+        self.assertAlmostEqual(cases["ACRX"]["derived"]["estimated_runway_days"], 1056.96, places=2)
+        self.assertTrue(cases["SUPN"]["derived"]["cash_generating"])
+        self.assertIsNone(cases["SUPN"]["derived"]["estimated_runway_days"])
+        self.assertAlmostEqual(cases["AXSM"]["derived"]["estimated_runway_days"], 413.57, places=2)
+        self.assertEqual(artifact["summary"]["cases_with_positive_runway_gap"], 0)
+
+    def test_outcomes_and_non_exact_trial_labels_are_quarantined(self):
+        artifact = LAB.build_biocat_finance_artifact(LAB.load_json(BIOCAT_FINANCE_SEED))
+        for row in artifact["cases"]:
+            self.assertGreater(row["outcome"]["public_at"], row["feature_cutoff_at"])
+            self.assertFalse(row["outcome"]["predictive_features_allowed"])
+        supn = next(row for row in artifact["cases"] if row["issuer"]["ticker_at_cutoff"] == "SUPN")
+        self.assertEqual(supn["outcome"]["label_scope"], "program")
+        self.assertFalse(supn["outcome"]["trainable"])
+
+    def test_validator_rejects_future_sec_facts_and_bad_atm_arithmetic(self):
+        seed = copy.deepcopy(LAB.load_json(BIOCAT_FINANCE_SEED))
+        seed["cases"][0]["sources"]["sec_facts"]["available_at"] = "2017-01-01T09:30:00-05:00"
+        with self.assertRaisesRegex(ValueError, "SEC facts cross"):
+            LAB.validate_biocat_finance_seed(seed)
+        seed = copy.deepcopy(LAB.load_json(BIOCAT_FINANCE_SEED))
+        seed["cases"][2]["atm_features"]["remaining_capacity_usd"] = 30000000
+        with self.assertRaisesRegex(ValueError, "ATM capacity does not reconcile"):
+            LAB.validate_biocat_finance_seed(seed)
+
+    def test_validator_requires_the_declared_source_domains(self):
+        seed = copy.deepcopy(LAB.load_json(BIOCAT_FINANCE_SEED))
+        seed["cases"][0]["sources"]["registry_history"]["url"] = (
+            "https://example.com/history"
+        )
+        with self.assertRaisesRegex(ValueError, "clinicaltrials.gov"):
+            LAB.validate_biocat_finance_seed(seed)
+
+    def test_committed_biocat_finance_artifact_is_self_hashed(self):
+        if not BIOCAT_FINANCE_ARTIFACT.is_file():
+            self.skipTest("BIOCAT-FINANCE-01 artifact has not been generated")
+        artifact = json.loads(BIOCAT_FINANCE_ARTIFACT.read_text())
+        claimed = artifact.pop("artifact_sha256")
+        self.assertEqual(claimed, LAB.sha256(artifact))
+        self.assertFalse(artifact["return_labels_inspected"])
+        self.assertFalse(artifact["model_trained"])
 
 
 if __name__ == "__main__":
