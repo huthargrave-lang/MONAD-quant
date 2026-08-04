@@ -3433,10 +3433,12 @@ Links: [[E131|evidenced_by]].
 _— captured research/ca-announce-cohort@8efe267, 2026-07-26_
 
 ### E132 — DI-01 424B5 at-the-market Q1-2024 discovery and price pilot
+<!-- status: superseded; by: E253201; reason: data-fixed; at: 2026-08-03 -->
 EFTS 424B5 + at-the-market 2024Q1: 463 index hits, capped 100 submissions. Price pilot n=19 vs SPY: median xs_10d -9.3%, median xs_20d -21.6%, 68% negative xs_10d; mean xs_10d +1.1% outlier-pulled. Phrase hit != confirmed ATM takedown. Lab tools/atm_424b5_lab.py.
 _— captured research/ca-announce-cohort@8efe267, 2026-07-26_
 
 ### F259 — ATM phrase cohort shows median SPY underperformance; mean confounded
+<!-- status: superseded; by: F253203; reason: data-fixed; at: 2026-08-03 -->
 DI-01 descriptive pilot: median excess return negative at 10d/20d on capped Q1 phrase hits, but mean flips positive and sample mixes REITs, biotech, and dead tickers. Not a tradable overhang claim until reviewed ATM subset + broader years.
 Links: [[E132|evidenced_by]].
 _— captured research/ca-announce-cohort@8efe267, 2026-07-26_
@@ -3447,6 +3449,7 @@ Links: [[E131|builds_on]].
 _— captured research/ca-announce-cohort@8efe267, 2026-07-26_
 
 ### H84 — H84 ATM takedown overhang after phrase-to-event review
+<!-- status: superseded; by: H253205; reason: refined; at: 2026-08-03 -->
 Preregister: promote DI-01 phrase hits to reviewed ATM programs; kill if reviewed subset median xs_10d >= -2% and unstable across 2023-2024.
 Links: [[E132|builds_on]].
 _— captured research/ca-announce-cohort@8efe267, 2026-07-26_
@@ -3709,3 +3712,18 @@ _— captured codex/biocat-compliance-hazard@202cf8e, 2026-08-03_
 One hundred unranked, testable correlation seeds now span rates, macro, filings, rhetoric, passive flows, microstructure, physical infrastructure, government events, digital activity, and strange cross-asset networks. Narrow later by reusable point-in-time source contracts and forward-validatable exposure maps, not by familiarity or an attractive in-sample correlation. Memo: docs/research/CORRELATION_IDEA_ATLAS_100_2026.md.
 Links: [[H18500|refines]] · [[H44|relates]].
 _— captured development@e0bf9db, 2026-08-03_
+
+### E253201 — ATM-FP-01 corrected 2024Q1 phrase-cohort price audit
+Collapsed 100 capped 424B5 phrase hits into 91 ticker episodes and obtained honest event-time adjusted prices for 76. Median SPY excess was -2.16% at 5 sessions, -3.86% at 10, -6.73% at 20, and -14.93% at 60; the 10-session bootstrap interval includes zero. This remains unmatched, search-order biased, microcap-heavy, and neither reviewed-program nor confirmed-sales evidence. Artifact: docs/research/data/atm_financing_pressure_corrected_2024q1.json; method: docs/research/ATM_FINANCING_PRESSURE_DEEP_DIVE_2026.md.
+Links: [[E132|contradicts]] · [[H84|relates]] · [[H253205|relates]].
+_— captured development@9a875bd, 2026-08-03_
+
+### F253203 — DI-01 ATM return headline was a late-cache event-window artifact
+All 19 legacy price rows entered on 2024-07-25 although their filings were in January-March. The cache began months late and forward_window accepted its first observation as the post-filing session, so median xs_10d -9.3% and xs_20d -21.6% are withdrawn. The window now rejects entry more than seven calendar days after file_date; a regression test pins the exact failure. Deep dive: docs/research/ATM_FINANCING_PRESSURE_DEEP_DIVE_2026.md.
+Links: [[E253201|evidenced_by]] · [[F259|contradicts]] · [[H84|relates]] · [[H253205|relates]].
+_— captured development@9a875bd, 2026-08-03_
+
+### H253205 — Financing gap plus active ATM capacity predicts next-period utilization and dilution
+Model future ATM use as a latent financing decision, not a known execution-day event. Predict next-quarter shares/proceeds relative to float, market cap, and ADV from point-in-time cash burn, unrestricted cash, debt due, capex commitments, usable Form S-3 capacity, prior utilization, price run-up, volatility, and industry. Require issuer-grouped forward improvement over transparent utilization and issuer-propensity baselines before inspecting returns. Deep dive: docs/research/ATM_FINANCING_PRESSURE_DEEP_DIVE_2026.md.
+Links: [[E253201|evidenced_by]] · [[H84|supersedes]] · [[H18500|builds_on]].
+_— captured development@9a875bd, 2026-08-03_

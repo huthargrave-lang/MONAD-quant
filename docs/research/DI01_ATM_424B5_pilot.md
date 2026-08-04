@@ -34,22 +34,30 @@ Raw sha256:
 5cbec46bdfea4322396fce51bfe589e160305dbccc8aa7807a601da13039c4c7
 ```
 
-## Price pilot (descriptive)
+## Price pilot (invalidated 2026-08-03)
+
+The table below is retained as a failure record, **not evidence**. Every one of the
+19 rows entered on 2024-07-25 even though the filings occurred from January through
+March. The downloaded charts began months after the events, and the original window
+function silently treated the first cached price as the next post-filing session.
+Consequently these statistics describe a shared late-July window, not ATM filing
+reactions. `forward_window` now rejects an entry more than seven calendar days after
+the filing, and a regression test pins the exact failure mode.
 
 Yahoo charts joined where available (20 tickers attempted; dead tickers skip).
 
 | Metric | Value |
 |---|---:|
 | Events with price | 19 |
-| Median SPY-excess 10d | **−9.3%** |
+| Median SPY-excess 10d | −9.3% (**invalid**) |
 | Mean SPY-excess 10d | +1.1% (outlier-pulled) |
 | Fraction xs_10d < 0 | 68% |
-| Median SPY-excess 20d | **−21.6%** |
+| Median SPY-excess 20d | −21.6% (**invalid**) |
 
-## Interpretation
+## Superseded interpretation
 
-- Sign of the **median** matches an overhang story; the **mean** does not —
-  fat right tail / survivors.
+- No return statistic in this pilot can support an overhang story because the event
+  clock was not represented in the price cache.
 - Phrase hits include shelf boilerplate and REITs (e.g. APLE) alongside microcap
   biotech — not a homogeneous ATM-takedown cohort.
 - Newest-first Q1 cap + microcap death (404 charts) bias the pilot.
@@ -62,6 +70,8 @@ Yahoo charts joined where available (20 tickers attempted; dead tickers skip).
 
 ## Next
 
-1. Text-review / exhibit parse for true ATM program vs boilerplate.
-2. Broader random sample across 2023–2024, not newest 100.
-3. Kill if reviewed ATM subset median xs_10d ≥ −2% and unstable across years.
+The original return branch is superseded by `ATM-FP-01`. See
+`docs/research/ATM_FINANCING_PRESSURE_DEEP_DIVE_2026.md` for the corrected 76-episode
+audit and the future-utilization model specification. The next gate is a reviewed,
+point-in-time active-program ledger with next-period sales/no-sales labels; returns
+remain closed until that model beats financing-need and issuer-propensity baselines.
