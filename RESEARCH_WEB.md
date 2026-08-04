@@ -3732,3 +3732,28 @@ _— captured development@9a875bd, 2026-08-03_
 Implemented an append-only SEC ATM program ledger on three manually reviewed issuers: APLE contributes an explicit zero-sales period label with USD 500 million remaining capacity; AIMD contributes 262,383 shares and USD 719,358 net proceeds for 2025H1; ADIL contributes a terminated-and-replaced program chain whose inception-to-termination total is mechanically quarantined from quarter training. Exact and date-only clocks remain distinct, labels become available only after disclosure, and a disposable SQLite projection refuses overwrite. This is a schema seed, not a population or edge. Artifact: docs/research/data/atm_fp01_gold_ledger.json; memo: docs/research/ATM_FP01_LEDGER_2026.md.
 Links: [[H253205|builds_on]] · [[H68|relates]] · [[E109|relates]] · [[E128|relates]] · [[D13300|relates]].
 _— captured development@6919327, 2026-08-03_
+
+### E265500 — BIOCAT-FINANCE-01 reviewed point-in-time join pilot
+Joined three reviewed public-issuer trial version cutoffs to prior SEC cash-flow facts and one reviewed ATM state. ACRX and SUPN carried 243- and 366-day completion slippage; all three had zero modeled runway gap and zero lower-bound financing need at the selected cutoffs. AXSM nevertheless had used USD 20.1M, or 40.2%, of a USD 50M ATM while its modeled cash runway exceeded the registry milestone. The executable seed, derived artifact, exact clocks, hashes, missingness and formulas are in docs/research/BIOCAT_FINANCE_01_2026.md and docs/research/data/biocat_finance_01_gold_pilot.json. No returns were inspected and no model was fitted.
+Links: [[H253205|relates]] · [[H253201|relates]].
+_— captured codex/biocat-finance-12@9eed12c, 2026-08-04_
+
+### F265500 — BIOCAT financing propensity cannot be reduced to a hard runway-gap interaction
+In E265500, AXSM's as-of November 2019 features produced zero runway gap and zero lower-bound financing need because estimated cash runway extended about 414 days versus 137 days to the registry milestone. The same eligible filing reported USD 20.1M of gross sales under a USD 50M ATM, leaving USD 29.9M. Therefore a literal runway_gap x trial_slippage x financing_need score erases observed opportunistic financing behavior. This three-case selected fixture does not estimate prevalence or predictive power; it falsifies the product as a sufficient standalone ranking and requires main effects plus training-fold-only interactions.
+Links: [[E265500|evidenced_by]].
+_— captured codex/biocat-finance-12@9eed12c, 2026-08-04_
+
+### H265500 — Opportunistic biotech issuance is a separate state from financing necessity
+Conditional on an active ATM or shelf, prior price run-up, volatility, liquidity, management issuance propensity, and capacity may predict 90/180-day financing even when modeled runway gap is zero. Test as a competing channel beside financing necessity, not as a replacement; use issuer-grouped later-period holdouts and explicit zero-utilization labels. A useful child outcome is financing terms and dilution severity, which may respond to trial slippage even when financing incidence does not.
+Links: [[E265500|derived_from]] · [[H253205|refines]].
+_— captured codex/biocat-finance-12@9eed12c, 2026-08-04_
+
+### D265500 — BIOCAT-FINANCE retains main effects and delays percentile interactions
+Build the first population model with separate trial-slippage components, runway, liquid assets, burn, debt, active capacity, and prior utilization. Fit financing-need percentiles within training folds only; group holdouts by issuer and time; compare issuer-propensity, utilization, runway-only, and slippage-only baselines. Keep market returns closed until 90/180-day financing and trial-exact non-price outcomes beat those baselines. Require 50 issuers, 95% reviewed identity precision, explicit no-financing labels, and complete availability clocks before fitting.
+Links: [[F265500|derived_from]] · [[H253205|refines]] · [[H265500|drives]].
+_— captured codex/biocat-finance-12@9eed12c, 2026-08-04_
+
+### F265501 — PT-01 audit advances to five trial-registry artifacts but not five independent studies
+Re-ran the schema-key readiness audit across 56 world-observation artifacts after BIOCAT-FINANCE-01. Coverage is revision/vintage 53, hashes 38, source time 12, first-seen 14, tradable time 6, labels 8, rights 8, entity identity 2, and registry 5. The seed and derived projection are two artifact representations of the same three reviewed cases, so file coverage is not independent evidence. The seven-of-nine FDA census remains the leader; PT-01 still fails because no record carries all nine fields and FD-00 clock rules still have no callable consumer.
+Links: [[E265500|evidenced_by]] · [[F248102|refines]] · [[H44|relates]].
+_— captured codex/biocat-finance-12@9eed12c, 2026-08-04_

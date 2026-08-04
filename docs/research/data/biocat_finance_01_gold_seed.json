@@ -1,0 +1,250 @@
+{
+  "schema_version": 1,
+  "fixture_id": "BIOCAT-FINANCE-01-GOLD-PILOT-2026-08-04",
+  "research_status": "three_case_reviewed_feasibility_pilot_not_population_or_model",
+  "reviewed_at": "2026-08-04T00:00:00-04:00",
+  "slippage_weights": {
+    "completion_date_slip": 0.4,
+    "enrollment_haircut": 0.25,
+    "endpoint_revision": 0.25,
+    "registry_staleness": 0.1
+  },
+  "cases": [
+    {
+      "case_id": "tlph-nct02447848-v4",
+      "nct_id": "NCT02447848",
+      "issuer": {
+        "cik": "0001427925",
+        "name_at_cutoff": "AcelRx Pharmaceuticals, Inc.",
+        "ticker_at_cutoff": "ACRX",
+        "mapping_quality": "reviewed_exact_org_study_id_and_sec_cik"
+      },
+      "feature_cutoff_at": "2016-01-25T09:30:00-05:00",
+      "sources": {
+        "registry_history": {
+          "url": "https://clinicaltrials.gov/api/int/studies/NCT02447848/history",
+          "response_sha256": "75d356944526eea3c7b0b14376a29f270008071d3d1a4237621be5a84a9edbfc",
+          "collected_at": "2026-08-04T00:00:00-04:00",
+          "contract_quality": "fragile_internal_machine_readable_history"
+        },
+        "baseline_version": {
+          "version": 0,
+          "url": "https://clinicaltrials.gov/api/int/studies/NCT02447848/history/0",
+          "response_sha256": "3309fee9e952baa2deb79030b04f0c8e835422e36fd1686af7b26084bf5de13e",
+          "public_at": "2015-05-19T23:59:59-04:00",
+          "clock_quality": "registry_post_date_end_of_day_conservative"
+        },
+        "feature_version": {
+          "version": 4,
+          "url": "https://clinicaltrials.gov/api/int/studies/NCT02447848/history/4",
+          "response_sha256": "91a73bf56afcb01b190b6b6b257ecf5af9e63a1f002c141235f26352320a2718",
+          "public_at": "2016-01-22T23:59:59-05:00",
+          "clock_quality": "registry_post_date_end_of_day_conservative"
+        },
+        "sec_facts": {
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001427925.json",
+          "response_sha256": "11567fed543e9adafc46f8f9419ad9478c50b3a97ca1dd442c803ad72b44f8bf",
+          "accession": "0001437749-15-019387",
+          "filing_url": "https://www.sec.gov/Archives/edgar/data/1427925/000143774915019387/acrx20150930_10q.htm",
+          "filed_on": "2015-11-03",
+          "available_at": "2015-11-04T09:30:00-05:00",
+          "clock_quality": "filing_date_next_regular_session_conservative"
+        }
+      },
+      "trial_features": {
+        "baseline_completion_date": "2015-10",
+        "feature_completion_date": "2016-06",
+        "completion_date_precision": "month_upper_bound",
+        "baseline_enrollment": 40,
+        "feature_enrollment": 120,
+        "endpoint_revision_severity": 0.0,
+        "endpoint_revision_basis": "same single SPID1 primary outcome; wording-only edit",
+        "feature_status": "ACTIVE_NOT_RECRUITING"
+      },
+      "financial_features": {
+        "cash_usd": 95042000,
+        "cash_xbrl_tag": "us-gaap:CashAndCashEquivalentsAtCarryingValue",
+        "marketable_securities_usd": 9291000,
+        "marketable_securities_xbrl_tag": "us-gaap:ShortTermInvestments",
+        "operating_cash_flow_usd": -26948000,
+        "operating_cash_flow_xbrl_tag": "us-gaap:NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+        "cash_flow_direction": "used",
+        "cash_flow_period_start": "2015-01-01",
+        "cash_flow_period_end": "2015-09-30",
+        "debt_due_within_year_usd": null,
+        "disclosed_trial_spend_usd": null,
+        "market_cap_usd": null
+      },
+      "atm_features": null,
+      "outcome": {
+        "public_at": "2016-08-15T07:02:26-04:00",
+        "label_scope": "trial_exact",
+        "outcome_class": "primary_endpoint_met",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/1427925/000143774916037360/0001437749-16-037360-index.htm",
+        "trainable": true,
+        "predictive_features_allowed": false
+      },
+      "financing_outcome_review_status": "not_reviewed"
+    },
+    {
+      "case_id": "supn-nct02691182-v2",
+      "nct_id": "NCT02691182",
+      "issuer": {
+        "cik": "0001356576",
+        "name_at_cutoff": "Supernus Pharmaceuticals, Inc.",
+        "ticker_at_cutoff": "SUPN",
+        "mapping_quality": "reviewed_exact_sponsor_and_sec_cik"
+      },
+      "feature_cutoff_at": "2019-04-05T09:30:00-04:00",
+      "sources": {
+        "registry_history": {
+          "url": "https://clinicaltrials.gov/api/int/studies/NCT02691182/history",
+          "response_sha256": "b83d4d9d1852110472507f496d05f76dd2b5e81a7c2ed8f2c1fcea2fae6c22bc",
+          "collected_at": "2026-08-04T00:00:00-04:00",
+          "contract_quality": "fragile_internal_machine_readable_history"
+        },
+        "baseline_version": {
+          "version": 0,
+          "url": "https://clinicaltrials.gov/api/int/studies/NCT02691182/history/0",
+          "response_sha256": "92a2905bed40d7b3e8d64cdc32b46a11d61701b9395081a654ac4be8e2df5297",
+          "public_at": "2016-02-25T23:59:59-05:00",
+          "clock_quality": "registry_post_date_end_of_day_conservative"
+        },
+        "feature_version": {
+          "version": 2,
+          "url": "https://clinicaltrials.gov/api/int/studies/NCT02691182/history/2",
+          "response_sha256": "be63152804957d4f0b908d87754fb94c7f0d1c06aa79211578e33dea43310e4e",
+          "public_at": "2019-04-04T23:59:59-04:00",
+          "clock_quality": "registry_post_date_end_of_day_conservative"
+        },
+        "sec_facts": {
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001356576.json",
+          "response_sha256": "e4ffe1415c2b501e2c67d7dc14c0bfee891abde97e80adbe5035738fc4156668",
+          "accession": "0001047469-19-000828",
+          "filing_url": "https://www.sec.gov/Archives/edgar/data/1356576/000104746919000828/a2237577z10-k.htm",
+          "filed_on": "2019-03-01",
+          "available_at": "2019-03-04T09:30:00-05:00",
+          "clock_quality": "filing_date_next_regular_session_conservative"
+        }
+      },
+      "trial_features": {
+        "baseline_completion_date": "2019-03",
+        "feature_completion_date": "2020-03",
+        "completion_date_precision": "month_upper_bound",
+        "baseline_enrollment": 400,
+        "feature_enrollment": 400,
+        "endpoint_revision_severity": 0.0,
+        "endpoint_revision_basis": "six primary safety outcomes unchanged through version 2",
+        "feature_status": "RECRUITING"
+      },
+      "financial_features": {
+        "cash_usd": 192248000,
+        "cash_xbrl_tag": "us-gaap:CashAndCashEquivalentsAtCarryingValue",
+        "marketable_securities_usd": 163770000,
+        "marketable_securities_xbrl_tag": "us-gaap:MarketableSecuritiesCurrent",
+        "operating_cash_flow_usd": 128986000,
+        "operating_cash_flow_xbrl_tag": "us-gaap:NetCashProvidedByUsedInOperatingActivities",
+        "cash_flow_direction": "provided",
+        "cash_flow_period_start": "2018-01-01",
+        "cash_flow_period_end": "2018-12-31",
+        "debt_due_within_year_usd": null,
+        "disclosed_trial_spend_usd": null,
+        "market_cap_usd": null
+      },
+      "atm_features": null,
+      "outcome": {
+        "public_at": "2020-02-25T16:40:00-05:00",
+        "label_scope": "program",
+        "outcome_class": "related_trial_failed_and_program_halted",
+        "source_url": "https://ir.supernus.com/node/11506",
+        "trainable": false,
+        "predictive_features_allowed": false
+      },
+      "financing_outcome_review_status": "not_reviewed"
+    },
+    {
+      "case_id": "axsm-nct04163185-v0",
+      "nct_id": "NCT04163185",
+      "issuer": {
+        "cik": "0001579428",
+        "name_at_cutoff": "Axsome Therapeutics, Inc.",
+        "ticker_at_cutoff": "AXSM",
+        "mapping_quality": "reviewed_exact_org_study_id_and_sec_cik"
+      },
+      "feature_cutoff_at": "2019-11-15T09:30:00-05:00",
+      "sources": {
+        "registry_history": {
+          "url": "https://clinicaltrials.gov/api/int/studies/NCT04163185/history",
+          "response_sha256": "1d16726045beabf7529082fdb44321cb3475b7b7ba37bc00d84610487fa04092",
+          "collected_at": "2026-08-04T00:00:00-04:00",
+          "contract_quality": "fragile_internal_machine_readable_history"
+        },
+        "baseline_version": {
+          "version": 0,
+          "url": "https://clinicaltrials.gov/api/int/studies/NCT04163185/history/0",
+          "response_sha256": "9316b94d84c4c6ee4f3922d918015dc3775806b4d234f8d9a7e90576ed9cd8b3",
+          "public_at": "2019-11-14T23:59:59-05:00",
+          "clock_quality": "registry_post_date_end_of_day_conservative"
+        },
+        "feature_version": {
+          "version": 0,
+          "url": "https://clinicaltrials.gov/api/int/studies/NCT04163185/history/0",
+          "response_sha256": "9316b94d84c4c6ee4f3922d918015dc3775806b4d234f8d9a7e90576ed9cd8b3",
+          "public_at": "2019-11-14T23:59:59-05:00",
+          "clock_quality": "registry_post_date_end_of_day_conservative"
+        },
+        "sec_facts": {
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001579428.json",
+          "response_sha256": "af922e2a036e486c559b78bcd6abfb378af584a3359b070e447b2c49f8159197",
+          "accession": "0001558370-19-010432",
+          "filing_url": "https://www.sec.gov/Archives/edgar/data/1579428/000155837019010432/axsm-20190930x10q.htm",
+          "filed_on": "2019-11-07",
+          "available_at": "2019-11-08T09:30:00-05:00",
+          "clock_quality": "filing_date_next_regular_session_conservative"
+        }
+      },
+      "trial_features": {
+        "baseline_completion_date": "2020-03",
+        "feature_completion_date": "2020-03",
+        "completion_date_precision": "month_upper_bound",
+        "baseline_enrollment": 300,
+        "feature_enrollment": 300,
+        "endpoint_revision_severity": 0.0,
+        "endpoint_revision_basis": "initial registry version; two co-primary endpoints",
+        "feature_status": "RECRUITING"
+      },
+      "financial_features": {
+        "cash_usd": 43641861,
+        "cash_xbrl_tag": "us-gaap:Cash",
+        "marketable_securities_usd": 0,
+        "marketable_securities_xbrl_tag": null,
+        "operating_cash_flow_usd": -28807908,
+        "operating_cash_flow_xbrl_tag": "us-gaap:NetCashProvidedByUsedInOperatingActivities",
+        "cash_flow_direction": "used",
+        "cash_flow_period_start": "2019-01-01",
+        "cash_flow_period_end": "2019-09-30",
+        "debt_due_within_year_usd": 648523,
+        "disclosed_trial_spend_usd": null,
+        "market_cap_usd": null
+      },
+      "atm_features": {
+        "program_id": "axsm-leerink-2019",
+        "available_at": "2019-11-08T09:30:00-05:00",
+        "gross_capacity_usd": 50000000,
+        "gross_sold_to_date_usd": 20100000,
+        "remaining_capacity_usd": 29900000,
+        "remaining_capacity_quality": "mechanically_differenced_from_same_filing",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/1579428/000155837019010432/axsm-20190930x10q.htm"
+      },
+      "outcome": {
+        "public_at": "2020-04-06T06:00:00-04:00",
+        "label_scope": "trial_exact",
+        "outcome_class": "both_co_primary_endpoints_met",
+        "source_url": "https://www.globenewswire.com/news-release/2020/04/06/2011946/0/en/Axsome-Therapeutics-Announces-AXS-07-Achieves-Both-Co-Primary-Endpoints-and-Prevents-Migraine-Pain-Progression-in-the-INTERCEPT-Phase-3-Trial-in-the-Early-Treatment-of-Migraine.html",
+        "trainable": true,
+        "predictive_features_allowed": false
+      },
+      "financing_outcome_review_status": "not_reviewed"
+    }
+  ]
+}
