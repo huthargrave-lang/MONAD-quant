@@ -6,13 +6,13 @@ H44 proposes a point-in-time event/outcome ledger with nine components and sets 
 its first gate: adversarial SEC acceptance fixtures plus source-specific tradable-time
 rules, passing on *exact point-in-time reconstruction and deterministic labels*.
 
-Scored across the 56 committed world-observation artifacts under
+Scored across the 58 committed world-observation artifacts under
 `docs/research/data/`, on schema **keys**:
 
-    revision / vintage identity   53        multi-horizon labels     8
-    payload hashes                38        rights metadata          8
-    source timestamp              12        durable entity identity  2
-    first-seen timestamp          14        trial registry           5
+    revision / vintage identity   55        multi-horizon labels     8
+    payload hashes                40        rights metadata         10
+    source timestamp              14        durable entity identity  2
+    first-seen timestamp          16        trial registry           5
     conservative tradable time     6
 
 **No artifact carries all nine; the best is 7**, reached by the BIOCAT FDA pre-notice
@@ -25,8 +25,8 @@ is a *test*. Nothing under `src/`, no tool. There is no function that takes a fi
 returns its conservative tradable time — the rules exist as assertions about a fixture,
 the same dead-wiring family as F26 and F176.
 
-The shape of the table is the useful half: vintage identity on 53 of 56 and payload hashes
-on 38 is real discipline, and it is why the IX-00 and CA-00 reconciliations work at all.
+The shape of the table is the useful half: vintage identity on 55 of 58 and payload hashes
+on 40 is real discipline, and it is why the IX-00 and CA-00 reconciliations work at all.
 So H44 is re-scoped rather than retired.
 
 Guards below are bidirectional. They fail if the substrate REGRESSES (provenance coverage

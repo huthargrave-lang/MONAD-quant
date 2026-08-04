@@ -1,0 +1,353 @@
+{
+  "schema_version": 1,
+  "fixture_id": "OPPORTUNISTIC-ATM-01-GOLD-PILOT-2026-08-04",
+  "research_status": "three_case_selected_reviewed_forward_pilot_not_population_model_or_edge",
+  "reviewed_at": "2026-08-04T00:00:00-04:00",
+  "outcome_horizons": {
+    "maximum_calendar_days": 90,
+    "zero_case_observed_calendar_days": 68,
+    "population_target": [90, 180],
+    "caveat": "Selected pilot labels events within 90 days; the exact no-sale case is right-censored at its fiscal period end and is not a full 90-day zero."
+  },
+  "opportunity_thresholds": {
+    "xbi_excess_return_63s_min": 0.2,
+    "price_to_63s_high_min": 0.95,
+    "status": "transparent_pilot_rule_not_fitted_or_validated"
+  },
+  "sources": {
+    "rytm-2024q3-10q": {
+      "source_type": "sec_filing",
+      "url": "https://www.sec.gov/Archives/edgar/data/1649904/000155837024014532/rytm-20240930x10q.htm",
+      "response_sha256": "a98637efbd58b810894d556b653425e877b6f4d90c5082c47cf2d2a2e268a20c",
+      "accepted_at": "2024-11-06T08:20:29-05:00",
+      "conservative_tradable_at": "2024-11-06T09:30:00-05:00",
+      "rights_tier": "official_public_filing"
+    },
+    "rytm-2024-10k": {
+      "source_type": "sec_filing",
+      "url": "https://www.sec.gov/Archives/edgar/data/1649904/000155837025001889/rytm-20241231x10k.htm",
+      "response_sha256": "5b4a35218a8a1d3940e4c166049f5c1633ad79a391db7c8c3d797f6670e60d10",
+      "accepted_at": "2025-02-28T08:19:11-05:00",
+      "conservative_tradable_at": "2025-02-28T09:30:00-05:00",
+      "rights_tier": "official_public_filing"
+    },
+    "vktx-2024q3-10q": {
+      "source_type": "sec_filing",
+      "url": "https://www.sec.gov/Archives/edgar/data/1607678/000095017024116708/vktx-20240930.htm",
+      "response_sha256": "5877574c6113d34bbdc8482bb6d32c42effa27895c55ddde03641eada03e1830",
+      "accepted_at": "2024-10-23T17:00:19-04:00",
+      "conservative_tradable_at": "2024-10-24T09:30:00-04:00",
+      "rights_tier": "official_public_filing"
+    },
+    "vktx-2024-10k": {
+      "source_type": "sec_filing",
+      "url": "https://www.sec.gov/Archives/edgar/data/1607678/000095017025027824/vktx-20241231.htm",
+      "response_sha256": "237cc957acdc724d2319d4db56bd0dacc7db038492b662e1ad46a2c534850e99",
+      "accepted_at": "2025-02-26T16:32:42-05:00",
+      "conservative_tradable_at": "2025-02-27T09:30:00-05:00",
+      "rights_tier": "official_public_filing"
+    },
+    "srrk-2024q2-10q": {
+      "source_type": "sec_filing",
+      "url": "https://www.sec.gov/Archives/edgar/data/1727196/000155837024011461/srrk-20240630x10q.htm",
+      "response_sha256": "7190a1565fb25b801048ca68ca7b8a3a3f4d8fb6da2d38147f393b6df6e6bdd9",
+      "accepted_at": "2024-08-08T07:15:26-04:00",
+      "conservative_tradable_at": "2024-08-08T09:30:00-04:00",
+      "rights_tier": "official_public_filing"
+    },
+    "srrk-2024-catalyst-8k": {
+      "source_type": "sec_filing",
+      "url": "https://www.sec.gov/Archives/edgar/data/1727196/000110465924106461/tm2425688d7_8k.htm",
+      "response_sha256": "3406f372c66340d1816cf41855e571160827773d64db7cef1329fb47a6a0bab7",
+      "accepted_at": "2024-10-07T08:00:33-04:00",
+      "conservative_tradable_at": "2024-10-07T09:30:00-04:00",
+      "rights_tier": "official_public_filing"
+    },
+    "srrk-2024-offering-launch": {
+      "source_type": "sec_filing",
+      "url": "https://www.sec.gov/Archives/edgar/data/1727196/000110465924106713/tm2425688-11_424b5.htm",
+      "response_sha256": "ce5646117b813da9489ed7431b237274a0b4a7272afdf6992b9376f10e487f87",
+      "accepted_at": "2024-10-07T16:55:16-04:00",
+      "conservative_tradable_at": "2024-10-08T09:30:00-04:00",
+      "rights_tier": "official_public_filing"
+    },
+    "srrk-2024-offering-terms": {
+      "source_type": "sec_filing",
+      "url": "https://www.sec.gov/Archives/edgar/data/1727196/000110465924107346/tm2425688-13_424b5.htm",
+      "response_sha256": "aa1a297094bb69665dba3fb5263fbe0bd07d29f0348cd57f651caa26075fdf04",
+      "accepted_at": "2024-10-09T16:20:21-04:00",
+      "conservative_tradable_at": "2024-10-10T09:30:00-04:00",
+      "rights_tier": "official_public_filing"
+    },
+    "srrk-2024-10k": {
+      "source_type": "sec_filing",
+      "url": "https://www.sec.gov/Archives/edgar/data/1727196/000155837025001682/srrk-20241231x10k.htm",
+      "response_sha256": "7aee2dda662494cd89882f6047c5520de5f8f88098e65ac4a48b77a9f2a32606",
+      "accepted_at": "2025-02-27T07:20:57-05:00",
+      "conservative_tradable_at": "2025-02-27T09:30:00-05:00",
+      "rights_tier": "official_public_filing"
+    },
+    "yahoo-rytm-2024": {
+      "source_type": "yahoo_chart",
+      "url": "https://query1.finance.yahoo.com/v8/finance/chart/RYTM?period1=1704067200&period2=1740787200&interval=1d&events=div%2Csplits",
+      "response_sha256": "af4d0f645227c52ce2c37a2c449f9f2f7a8df9fcf3e79b63122eb63c66b5ab35",
+      "retrieved_at": "2026-08-04T00:00:00-04:00",
+      "rights_tier": "research_only_nonredistributable"
+    },
+    "yahoo-vktx-2024": {
+      "source_type": "yahoo_chart",
+      "url": "https://query1.finance.yahoo.com/v8/finance/chart/VKTX?period1=1704067200&period2=1740787200&interval=1d&events=div%2Csplits",
+      "response_sha256": "7d5b3314a178da6e4b7207963b208749e718d993a42d40cfc2fac7dbff2614a3",
+      "retrieved_at": "2026-08-04T00:00:00-04:00",
+      "rights_tier": "research_only_nonredistributable"
+    },
+    "yahoo-srrk-2024": {
+      "source_type": "yahoo_chart",
+      "url": "https://query1.finance.yahoo.com/v8/finance/chart/SRRK?period1=1704067200&period2=1740787200&interval=1d&events=div%2Csplits",
+      "response_sha256": "c0687c5493c3631cec5ce19d0ff7924bdc656f51927e50df98ff83d2ed877493",
+      "retrieved_at": "2026-08-04T00:00:00-04:00",
+      "rights_tier": "research_only_nonredistributable"
+    },
+    "yahoo-xbi-2024": {
+      "source_type": "yahoo_chart",
+      "url": "https://query1.finance.yahoo.com/v8/finance/chart/XBI?period1=1704067200&period2=1740787200&interval=1d&events=div%2Csplits",
+      "response_sha256": "357c48320accbbbc383c173734931da810c07d601cb2a378d743d64cb6839840",
+      "retrieved_at": "2026-08-04T00:00:00-04:00",
+      "rights_tier": "research_only_nonredistributable"
+    }
+  },
+  "cases": [
+    {
+      "case_id": "rytm-2024q3-forward90",
+      "issuer": {
+        "cik": "0001649904",
+        "name_at_cutoff": "Rhythm Pharmaceuticals, Inc.",
+        "ticker_at_cutoff": "RYTM",
+        "shares_outstanding_at_cutoff": 61436251,
+        "mapping_quality": "reviewed_exact_sec_cik_and_cover_share_count"
+      },
+      "feature_cutoff_at": "2024-11-06T09:30:00-05:00",
+      "feature_source_id": "rytm-2024q3-10q",
+      "financial_features": {
+        "cash_usd": 47521000,
+        "marketable_securities_usd": 250869000,
+        "operating_cash_flow_usd": -95034000,
+        "cash_flow_direction": "used",
+        "cash_flow_period_start": "2024-01-01",
+        "cash_flow_period_end": "2024-09-30",
+        "management_runway_statement": "funds operations into 2026",
+        "reviewed_adequate_near_term_runway": true
+      },
+      "atm_features": {
+        "program_id": "rytm-cowen-2024",
+        "active_at_cutoff": true,
+        "gross_capacity_usd": 200000000,
+        "remaining_capacity_usd": 200000000,
+        "capacity_quality": "explicit_new_program_capacity_excluding_prior_program_sales"
+      },
+      "market_snapshots": [
+        {
+          "snapshot_id": "rytm-pre-filing-2024-11-05",
+          "state_reason": "last_close_before_feature_cutoff",
+          "source_id": "yahoo-rytm-2024",
+          "benchmark_source_id": "yahoo-xbi-2024",
+          "available_at": "2024-11-05T16:05:00-05:00",
+          "inputs": {
+            "session_count": 63,
+            "start_date": "2024-08-07",
+            "end_date": "2024-11-05",
+            "security_start_adjusted_close": 43.560001373291016,
+            "security_end_adjusted_close": 56.25,
+            "security_end_close": 56.25,
+            "security_63s_high": 56.25,
+            "xbi_start_adjusted_close": 91.90951538085938,
+            "xbi_end_adjusted_close": 100.14402770996094,
+            "median_20s_dollar_volume_usd": 14634335.67829132
+          }
+        }
+      ],
+      "outcome": {
+        "horizon_end": "2025-02-04",
+        "observed_calendar_days": 90,
+        "any_financing": true,
+        "instrument": "atm",
+        "outcome_clock_at": "2024-12-10T09:30:00-05:00",
+        "outcome_clock_quality": "economic_sale_window_start_disclosed_later_not_public_at_that_time",
+        "label_available_at": "2025-02-28T09:30:00-05:00",
+        "source_ids": ["rytm-2024-10k"],
+        "net_proceeds_usd": 73300000,
+        "amount_observation_end": "2025-01-21",
+        "amount_interval_censored": true,
+        "shares_or_prefunded_warrants": 1332105,
+        "atm_sales_summary": "$41.2M net through Dec. 31 plus $32.1M through Jan. 21",
+        "financing_motive_label": "latent_not_ground_truth",
+        "predictive_features_allowed": false
+      }
+    },
+    {
+      "case_id": "vktx-2024q3-forward68-censored",
+      "issuer": {
+        "cik": "0001607678",
+        "name_at_cutoff": "Viking Therapeutics, Inc.",
+        "ticker_at_cutoff": "VKTX",
+        "shares_outstanding_at_cutoff": 111436384,
+        "mapping_quality": "reviewed_exact_sec_cik_and_cover_share_count"
+      },
+      "feature_cutoff_at": "2024-10-24T09:30:00-04:00",
+      "feature_source_id": "vktx-2024q3-10q",
+      "financial_features": {
+        "cash_usd": 50347000,
+        "marketable_securities_usd": 880093000,
+        "operating_cash_flow_usd": -56609000,
+        "cash_flow_direction": "used",
+        "cash_flow_period_start": "2024-01-01",
+        "cash_flow_period_end": "2024-09-30",
+        "management_runway_statement": "funded through at least December 31, 2025",
+        "reviewed_adequate_near_term_runway": true
+      },
+      "atm_features": {
+        "program_id": "vktx-stifel-2024",
+        "active_at_cutoff": true,
+        "gross_capacity_usd": 200000000,
+        "remaining_capacity_usd": 151900000,
+        "capacity_quality": "explicit_remaining_capacity"
+      },
+      "market_snapshots": [
+        {
+          "snapshot_id": "vktx-pre-filing-2024-10-23",
+          "state_reason": "last_close_before_after-hours-filing",
+          "source_id": "yahoo-vktx-2024",
+          "benchmark_source_id": "yahoo-xbi-2024",
+          "available_at": "2024-10-23T16:05:00-04:00",
+          "inputs": {
+            "session_count": 63,
+            "start_date": "2024-07-25",
+            "end_date": "2024-10-23",
+            "security_start_adjusted_close": 64.68000030517578,
+            "security_end_adjusted_close": 60.38999938964844,
+            "security_end_close": 60.38999938964844,
+            "security_63s_high": 70.47000122070312,
+            "xbi_start_adjusted_close": 100.48748016357422,
+            "xbi_end_adjusted_close": 96.21269989013672,
+            "median_20s_dollar_volume_usd": 120962964.80941772
+          }
+        }
+      ],
+      "outcome": {
+        "horizon_end": "2024-12-31",
+        "observed_calendar_days": 68,
+        "any_financing": false,
+        "instrument": "none",
+        "outcome_clock_at": "2024-12-31T16:00:00-05:00",
+        "outcome_clock_quality": "fiscal_period_end_observed_only_when_later_10k_became_public",
+        "label_available_at": "2025-02-27T09:30:00-05:00",
+        "source_ids": ["vktx-2024-10k"],
+        "net_proceeds_usd": 0,
+        "amount_observation_end": "2024-12-31",
+        "amount_interval_censored": false,
+        "zero_atm_reconciliation": {
+          "start_cumulative_shares": 1426303,
+          "end_cumulative_shares": 1426303,
+          "start_remaining_capacity_usd": 151900000,
+          "end_remaining_capacity_usd": 151900000,
+          "quality": "compatible_program_cumulative_share_and_capacity_difference"
+        },
+        "financing_motive_label": "latent_not_ground_truth",
+        "predictive_features_allowed": false
+      }
+    },
+    {
+      "case_id": "srrk-2024q2-forward90",
+      "issuer": {
+        "cik": "0001727196",
+        "name_at_cutoff": "Scholar Rock Holding Corporation",
+        "ticker_at_cutoff": "SRRK",
+        "shares_outstanding_at_cutoff": 80032623,
+        "mapping_quality": "reviewed_exact_sec_cik_and_cover_share_count"
+      },
+      "feature_cutoff_at": "2024-08-08T09:30:00-04:00",
+      "feature_source_id": "srrk-2024q2-10q",
+      "financial_features": {
+        "cash_usd": 93372000,
+        "marketable_securities_usd": 97122000,
+        "operating_cash_flow_usd": -98981000,
+        "cash_flow_direction": "used",
+        "cash_flow_period_start": "2024-01-01",
+        "cash_flow_period_end": "2024-06-30",
+        "management_runway_statement": "into second half 2025, with substantial doubt beyond one year",
+        "reviewed_adequate_near_term_runway": false
+      },
+      "atm_features": {
+        "program_id": "srrk-jefferies-2022",
+        "active_at_cutoff": true,
+        "gross_capacity_usd": 100000000,
+        "remaining_capacity_usd": null,
+        "capacity_quality": "not_computable_gross_vs_net",
+        "cumulative_net_proceeds_usd": 5200000,
+        "no_sales_first_half_2024": true
+      },
+      "market_snapshots": [
+        {
+          "snapshot_id": "srrk-pre-filing-2024-08-07",
+          "state_reason": "last_close_before-feature-cutoff",
+          "source_id": "yahoo-srrk-2024",
+          "benchmark_source_id": "yahoo-xbi-2024",
+          "available_at": "2024-08-07T16:05:00-04:00",
+          "inputs": {
+            "session_count": 63,
+            "start_date": "2024-05-07",
+            "end_date": "2024-08-07",
+            "security_start_adjusted_close": 14.6899995803833,
+            "security_end_adjusted_close": 8.25,
+            "security_end_close": 8.25,
+            "security_63s_high": 14.550000190734863,
+            "xbi_start_adjusted_close": 89.87691497802734,
+            "xbi_end_adjusted_close": 91.90951538085938,
+            "median_20s_dollar_volume_usd": 5887967.01130867
+          }
+        },
+        {
+          "snapshot_id": "srrk-post-catalyst-2024-10-07",
+          "state_reason": "positive-phase-3-topline-after-close-before-offering-launch",
+          "source_id": "yahoo-srrk-2024",
+          "benchmark_source_id": "yahoo-xbi-2024",
+          "available_at": "2024-10-07T16:05:00-04:00",
+          "material_event_source_id": "srrk-2024-catalyst-8k",
+          "inputs": {
+            "session_count": 63,
+            "start_date": "2024-07-09",
+            "end_date": "2024-10-07",
+            "security_start_adjusted_close": 7.880000114440918,
+            "security_end_adjusted_close": 34.279998779296875,
+            "security_end_close": 34.279998779296875,
+            "security_63s_high": 34.279998779296875,
+            "xbi_start_adjusted_close": 93.90972137451172,
+            "xbi_end_adjusted_close": 95.87430572509766,
+            "median_20s_dollar_volume_usd": 7535059.046888351
+          }
+        }
+      ],
+      "outcome": {
+        "horizon_end": "2024-11-06",
+        "observed_calendar_days": 90,
+        "any_financing": true,
+        "instrument": "underwritten",
+        "outcome_clock_at": "2024-10-07T16:55:16-04:00",
+        "outcome_clock_quality": "exact_sec_acceptance_time_of_preliminary_offering_prospectus",
+        "label_available_at": "2025-02-27T09:30:00-05:00",
+        "source_ids": ["srrk-2024-offering-launch", "srrk-2024-offering-terms", "srrk-2024-10k"],
+        "net_proceeds_usd": 324400000,
+        "amount_observation_end": "2024-10-09",
+        "amount_interval_censored": true,
+        "common_shares": 11858408,
+        "prefunded_warrants": 353983,
+        "offer_price_usd": 28.25,
+        "pre_launch_close_usd": 34.28,
+        "launch_close_discount": -0.175904,
+        "atm_sales_during_2024": 0,
+        "financing_motive_label": "latent_not_ground_truth",
+        "predictive_features_allowed": false
+      }
+    }
+  ]
+}

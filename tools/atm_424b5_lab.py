@@ -37,6 +37,12 @@ DEFAULT_BIOCAT_FINANCE_SEED = (
 DEFAULT_BIOCAT_FINANCE_OUTPUT = (
     REPO / "docs/research/data/biocat_finance_01_gold_pilot.json"
 )
+DEFAULT_OPPORTUNISTIC_ATM_SEED = (
+    REPO / "docs/research/data/opportunistic_atm_01_gold_seed.json"
+)
+DEFAULT_OPPORTUNISTIC_ATM_OUTPUT = (
+    REPO / "docs/research/data/opportunistic_atm_01_gold_pilot.json"
+)
 DEFAULT_SEARCH_RESPONSE = Path(
     "/private/tmp/monad-atm-pilot/search-424b5-atm-2024q1.json"
 )
@@ -46,6 +52,7 @@ FINANCING_HORIZONS = (1, 5, 10, 20, 60)
 TICKER_RE = re.compile(r"\(([A-Z][A-Z0-9.\-]{0,6})(?:,|\))")
 ATM_LEDGER_ASSERTION_TYPES = {"program_status", "remaining_capacity_usd"}
 ATM_LEDGER_STATUS_VALUES = {"active", "suspended", "exhausted", "terminated"}
+OPPORTUNISTIC_ATM_INSTRUMENTS = {"atm", "underwritten", "none"}
 
 
 def canonical_bytes(value: object) -> bytes:
@@ -1072,6 +1079,339 @@ def build_biocat_finance_artifact(seed: Mapping[str, object]) -> Dict[str, objec
     return artifact
 
 
+def _opportunistic_parse_clock(value: str) -> datetime:
+    return datetime.fromisoformat(value)
+
+
+def _opportunistic_period_days(start: str, end: str) -> int:
+    return (date.fromisoformat(end) - date.fromisoformat(start)).days + 1
+
+
+def _opportunistic_require_hash(value: object, label: str) -> None:
+    if not isinstance(value, str) or len(value) != 64:
+        raise ValueError("{} must carry a SHA-256".format(label))
+    int(value, 16)
+
+
+def validate_opportunistic_atm_seed(seed: Mapping[str, object]) -> None:
+    if seed.get("schema_version") != SCHEMA_VERSION:
+        raise ValueError("unsupported schema_version")
+    thresholds = seed.get("opportunity_thresholds", {})
+    if not 0 < float(thresholds.get("xbi_excess_return_63s_min", 0)) < 1:
+        raise ValueError("invalid excess-return threshold")
+    if not 0 < float(thresholds.get("price_to_63s_high_min", 0)) <= 1:
+        raise ValueError("invalid price-to-high threshold")
+
+    sources = seed.get("sources", {})
+    if not isinstance(sources, dict) or not sources:
+        raise ValueError("sources must be a non-empty object")
+    for source_id, source in sources.items():
+        url = str(source.get("url", ""))
+        _opportunistic_require_hash(
+            source.get("response_sha256"), "source {}".format(source_id)
+        )
+        if source.get("rights_tier") not in {
+            "official_public_filing",
+            "research_only_nonredistributable",
+        }:
+            raise ValueError("source {} lacks a reviewed rights tier".format(source_id))
+        if source.get("source_type") == "sec_filing":
+            if "sec.gov/Archives/edgar/data/" not in url:
+                raise ValueError("SEC source {} must use official EDGAR".format(source_id))
+            accepted = _opportunistic_parse_clock(str(source["accepted_at"]))
+            tradable = _opportunistic_parse_clock(
+                str(source["conservative_tradable_at"])
+            )
+            if tradable < accepted:
+                raise ValueError("tradable clock precedes SEC acceptance")
+        elif source.get("source_type") == "yahoo_chart":
+            if "query1.finance.yahoo.com/v8/finance/chart/" not in url:
+                raise ValueError(
+                    "market source {} must use frozen chart URL".format(source_id)
+                )
+            _opportunistic_parse_clock(str(source["retrieved_at"]))
+        else:
+            raise ValueError("unsupported source_type for {}".format(source_id))
+
+    cases = seed.get("cases", [])
+    if len(cases) != 3 or len({row.get("case_id") for row in cases}) != 3:
+        raise ValueError("pilot requires three unique reviewed cases")
+    for row in cases:
+        ticker = row.get("issuer", {}).get("ticker_at_cutoff")
+        cik = str(row.get("issuer", {}).get("cik", ""))
+        if len(cik) != 10 or not cik.isdigit():
+            raise ValueError("{} CIK must be zero-padded to ten digits".format(ticker))
+        cutoff = _opportunistic_parse_clock(str(row["feature_cutoff_at"]))
+        feature_source = sources[row["feature_source_id"]]
+        if (
+            _opportunistic_parse_clock(
+                str(feature_source["conservative_tradable_at"])
+            )
+            > cutoff
+        ):
+            raise ValueError("{} feature source crosses cutoff".format(ticker))
+
+        financial = row["financial_features"]
+        if date.fromisoformat(financial["cash_flow_period_end"]) >= cutoff.date():
+            raise ValueError("{} cash-flow period is not prior".format(ticker))
+        for key in ("cash_usd", "marketable_securities_usd"):
+            if float(financial[key]) < 0:
+                raise ValueError("{} {} cannot be negative".format(ticker, key))
+        if financial["cash_flow_direction"] != "used" or float(
+            financial["operating_cash_flow_usd"]
+        ) >= 0:
+            raise ValueError("pilot expects a signed operating cash outflow")
+
+        atm = row["atm_features"]
+        if not atm.get("active_at_cutoff") or float(atm["gross_capacity_usd"]) <= 0:
+            raise ValueError("{} must have an active ATM".format(ticker))
+        remaining = atm.get("remaining_capacity_usd")
+        if remaining is not None and not 0 <= float(remaining) <= float(
+            atm["gross_capacity_usd"]
+        ):
+            raise ValueError("{} ATM remaining capacity is invalid".format(ticker))
+        if (
+            remaining is None
+            and atm.get("capacity_quality") != "not_computable_gross_vs_net"
+        ):
+            raise ValueError("unknown remaining capacity needs an explicit reason")
+
+        snapshots = row.get("market_snapshots", [])
+        if not snapshots:
+            raise ValueError("{} lacks a market snapshot".format(ticker))
+        prior_at = None
+        for snapshot_number, snapshot in enumerate(snapshots):
+            if (
+                snapshot["source_id"] not in sources
+                or snapshot["benchmark_source_id"] not in sources
+            ):
+                raise ValueError("{} market or benchmark source is missing".format(ticker))
+            event_source_id = snapshot.get("material_event_source_id")
+            if event_source_id and event_source_id not in sources:
+                raise ValueError("{} material-event source is missing".format(ticker))
+            available = _opportunistic_parse_clock(str(snapshot["available_at"]))
+            if snapshot_number == 0 and available > cutoff:
+                raise ValueError("{} initial market state crosses cutoff".format(ticker))
+            if available > cutoff and not event_source_id:
+                raise ValueError("{} refresh lacks a material-event source".format(ticker))
+            if event_source_id:
+                event_tradable = _opportunistic_parse_clock(
+                    str(sources[event_source_id]["conservative_tradable_at"])
+                )
+                if event_tradable > available:
+                    raise ValueError("{} refresh precedes its material event".format(ticker))
+            if prior_at is not None and available <= prior_at:
+                raise ValueError("{} market snapshots are not ordered".format(ticker))
+            prior_at = available
+            values = snapshot["inputs"]
+            if int(values["session_count"]) != 63:
+                raise ValueError("{} snapshot must contain 63 sessions".format(ticker))
+            for key in (
+                "security_start_adjusted_close",
+                "security_end_adjusted_close",
+                "xbi_start_adjusted_close",
+                "xbi_end_adjusted_close",
+                "security_63s_high",
+                "median_20s_dollar_volume_usd",
+            ):
+                if float(values[key]) <= 0:
+                    raise ValueError("{} {} must be positive".format(ticker, key))
+            if float(values["security_end_close"]) > float(
+                values["security_63s_high"]
+            ):
+                raise ValueError("{} end close exceeds declared window high".format(ticker))
+
+        outcome = row["outcome"]
+        if outcome["instrument"] not in OPPORTUNISTIC_ATM_INSTRUMENTS:
+            raise ValueError("{} outcome instrument is invalid".format(ticker))
+        if outcome.get("financing_motive_label") != "latent_not_ground_truth":
+            raise ValueError("financing motive must remain latent")
+        if outcome.get("predictive_features_allowed") is not False:
+            raise ValueError("outcomes must be quarantined from features")
+        if not outcome.get("source_ids") or any(
+            source_id not in sources for source_id in outcome.get("source_ids", [])
+        ):
+            raise ValueError("{} outcome source is missing".format(ticker))
+        if _opportunistic_parse_clock(str(outcome["label_available_at"])) <= cutoff:
+            raise ValueError("{} outcome is not forward".format(ticker))
+        if prior_at >= _opportunistic_parse_clock(str(outcome["outcome_clock_at"])):
+            raise ValueError("{} latest market snapshot crosses event".format(ticker))
+        horizon_end = date.fromisoformat(str(outcome["horizon_end"]))
+        observed_days = (horizon_end - cutoff.date()).days
+        if (
+            int(outcome["observed_calendar_days"]) != observed_days
+            or not 1 <= observed_days <= 90
+        ):
+            raise ValueError("{} outcome horizon is inconsistent".format(ticker))
+        if bool(outcome["any_financing"]) != (outcome["instrument"] != "none"):
+            raise ValueError("{} financing flag and instrument disagree".format(ticker))
+        if (outcome["instrument"] == "none") != (
+            float(outcome.get("net_proceeds_usd") or 0) == 0
+        ):
+            raise ValueError("{} financing proceeds and instrument disagree".format(ticker))
+        amount_end = date.fromisoformat(str(outcome["amount_observation_end"]))
+        if amount_end > horizon_end:
+            raise ValueError("{} amount observation crosses its horizon".format(ticker))
+        expected_censoring = amount_end < horizon_end and outcome["instrument"] != "none"
+        if bool(outcome["amount_interval_censored"]) != expected_censoring:
+            raise ValueError("{} amount censoring flag is inconsistent".format(ticker))
+        zero = outcome.get("zero_atm_reconciliation")
+        if outcome["instrument"] == "none":
+            if (
+                not zero
+                or zero["start_cumulative_shares"] != zero["end_cumulative_shares"]
+                or zero["start_remaining_capacity_usd"]
+                != zero["end_remaining_capacity_usd"]
+            ):
+                raise ValueError("zero financing requires compatible cumulative ATM evidence")
+
+
+def derive_opportunistic_market_snapshot(
+    snapshot: Mapping[str, object], thresholds: Mapping[str, object]
+) -> Dict[str, object]:
+    values = snapshot["inputs"]
+    security_return = (
+        float(values["security_end_adjusted_close"])
+        / float(values["security_start_adjusted_close"])
+        - 1.0
+    )
+    xbi_return = (
+        float(values["xbi_end_adjusted_close"])
+        / float(values["xbi_start_adjusted_close"])
+        - 1.0
+    )
+    excess = security_return - xbi_return
+    price_to_high = float(values["security_end_close"]) / float(
+        values["security_63s_high"]
+    )
+    high = (
+        excess >= float(thresholds["xbi_excess_return_63s_min"])
+        and price_to_high >= float(thresholds["price_to_63s_high_min"])
+    )
+    return {
+        **snapshot,
+        "derived": {
+            "security_return_63s": round(security_return, 6),
+            "xbi_return_63s": round(xbi_return, 6),
+            "xbi_excess_return_63s": round(excess, 6),
+            "price_to_63s_high": round(price_to_high, 6),
+            "opportunity_state": "high" if high else "low",
+            "threshold_rule_only_not_fitted": True,
+        },
+    }
+
+
+def derive_opportunistic_atm_case(
+    row: Mapping[str, object], thresholds: Mapping[str, object]
+) -> Dict[str, object]:
+    financial = row["financial_features"]
+    days = _opportunistic_period_days(
+        financial["cash_flow_period_start"], financial["cash_flow_period_end"]
+    )
+    liquid = float(financial["cash_usd"]) + float(
+        financial["marketable_securities_usd"]
+    )
+    annualized_burn = -float(financial["operating_cash_flow_usd"]) / days * 365.0
+    runway = liquid / (annualized_burn / 365.0)
+    snapshots = [
+        derive_opportunistic_market_snapshot(item, thresholds)
+        for item in row["market_snapshots"]
+    ]
+    latest = snapshots[-1]
+    latest_inputs = latest["inputs"]
+    market_cap = float(latest_inputs["security_end_close"]) * float(
+        row["issuer"]["shares_outstanding_at_cutoff"]
+    )
+    remaining = row["atm_features"].get("remaining_capacity_usd")
+    outcome = row["outcome"]
+    amount = float(outcome.get("net_proceeds_usd") or 0)
+    dvol = float(latest_inputs["median_20s_dollar_volume_usd"])
+    adequate = bool(financial["reviewed_adequate_near_term_runway"])
+    return {
+        **row,
+        "market_snapshots": snapshots,
+        "derived": {
+            "cash_flow_period_days_inclusive": days,
+            "liquid_assets_usd": round(liquid, 2),
+            "annualized_operating_burn_usd": round(annualized_burn, 2),
+            "estimated_runway_days": round(runway, 2),
+            "necessity_state": "low_near_term" if adequate else "elevated",
+            "latest_opportunity_state": latest["derived"]["opportunity_state"],
+            "latest_market_cap_usd": round(market_cap, 2),
+            "remaining_atm_capacity_to_market_cap": (
+                round(float(remaining) / market_cap, 6)
+                if remaining is not None
+                else None
+            ),
+            "financing_net_proceeds_to_market_cap": (
+                round(amount / market_cap, 6) if amount else 0.0
+            ),
+            "financing_net_proceeds_in_median_20s_dollar_volume_days": (
+                round(amount / dvol, 4) if amount else 0.0
+            ),
+        },
+    }
+
+
+def build_opportunistic_atm_artifact(seed: Mapping[str, object]) -> Dict[str, object]:
+    validate_opportunistic_atm_seed(seed)
+    thresholds = seed["opportunity_thresholds"]
+    cases = [derive_opportunistic_atm_case(row, thresholds) for row in seed["cases"]]
+    instruments = {
+        name: sum(c["outcome"]["instrument"] == name for c in cases)
+        for name in sorted(OPPORTUNISTIC_ATM_INSTRUMENTS)
+    }
+    high_cases = [
+        c for c in cases if c["derived"]["latest_opportunity_state"] == "high"
+    ]
+    flips = [
+        c["case_id"]
+        for c in cases
+        if c["market_snapshots"][0]["derived"]["opportunity_state"]
+        != c["market_snapshots"][-1]["derived"]["opportunity_state"]
+    ]
+    artifact: Dict[str, object] = {
+        "schema_version": SCHEMA_VERSION,
+        "fixture_id": seed["fixture_id"],
+        "subject": "external_world_observations",
+        "research_status": seed["research_status"],
+        "reviewed_at": seed["reviewed_at"],
+        "rights_tier": "mixed_official_public_and_research_only_nonredistributable",
+        "outcome_horizons": seed["outcome_horizons"],
+        "opportunity_thresholds": thresholds,
+        "sources": seed["sources"],
+        "cases": cases,
+        "summary": {
+            "case_count": len(cases),
+            "adequate_runway_cases": sum(
+                c["financial_features"]["reviewed_adequate_near_term_runway"]
+                for c in cases
+            ),
+            "latest_high_opportunity_cases": len(high_cases),
+            "high_opportunity_cases_with_financing": sum(
+                c["outcome"]["any_financing"] for c in high_cases
+            ),
+            "instrument_counts": instruments,
+            "opportunity_state_flips_after_material_event": flips,
+            "median_selected_case_runway_days": round(
+                median(c["derived"]["estimated_runway_days"] for c in cases), 2
+            ),
+            "selected_case_result": (
+                "Both selected high-opportunity cases financed, but one used an ATM "
+                "and one used an underwritten offering; the low-opportunity case did "
+                "not finance."
+            ),
+        },
+        "market_features_inspected": True,
+        "future_return_labels_inspected": False,
+        "financing_motive_labels_created": False,
+        "model_trained": False,
+        "population_inference_allowed": False,
+    }
+    artifact["artifact_sha256"] = sha256(artifact)
+    return artifact
+
+
 def build_artifact(
     response_path: Path,
     spec: Mapping[str, object],
@@ -1161,7 +1501,33 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--biocat-finance-output", type=Path, default=DEFAULT_BIOCAT_FINANCE_OUTPUT
     )
+    parser.add_argument(
+        "--build-opportunistic-atm",
+        action="store_true",
+        help="validate and build the OPPORTUNISTIC-ATM-01 forward pilot",
+    )
+    parser.add_argument(
+        "--opportunistic-atm-seed", type=Path, default=DEFAULT_OPPORTUNISTIC_ATM_SEED
+    )
+    parser.add_argument(
+        "--opportunistic-atm-output", type=Path, default=DEFAULT_OPPORTUNISTIC_ATM_OUTPUT
+    )
     args = parser.parse_args(argv)
+    if args.build_opportunistic_atm:
+        artifact = build_opportunistic_atm_artifact(
+            load_json(args.opportunistic_atm_seed)
+        )
+        args.opportunistic_atm_output.parent.mkdir(parents=True, exist_ok=True)
+        with args.opportunistic_atm_output.open("w", encoding="utf-8") as handle:
+            json.dump(artifact, handle, indent=2, sort_keys=True)
+            handle.write("\n")
+        print(
+            json.dumps(
+                {"output": str(args.opportunistic_atm_output), **artifact["summary"]},
+                indent=2,
+            )
+        )
+        return 0
     if args.build_biocat_finance:
         artifact = build_biocat_finance_artifact(load_json(args.biocat_finance_seed))
         args.biocat_finance_output.parent.mkdir(parents=True, exist_ok=True)
