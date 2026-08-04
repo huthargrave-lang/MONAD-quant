@@ -78,6 +78,17 @@ class NtLateFilerLabTests(unittest.TestCase):
 
 
 class Atm424b5LabTests(unittest.TestCase):
+    def test_forward_window_rejects_a_cache_that_starts_months_late(self):
+        days = ["2024-07-25", "2024-07-26", "2024-07-29"]
+        self.assertIsNone(ATM.forward_window(days, "2024-03-01", 2))
+
+    def test_forward_window_allows_the_next_session_after_a_weekend(self):
+        days = ["2024-03-01", "2024-03-04", "2024-03-05"]
+        self.assertEqual(
+            ATM.forward_window(days, "2024-03-01", 2),
+            ("2024-03-04", "2024-03-05"),
+        )
+
     def test_discovery_and_optional_price_pilot(self):
         response = Path(
             "/private/tmp/monad-atm-pilot/search-424b5-atm-2024q1.json"

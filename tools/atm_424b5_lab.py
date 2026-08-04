@@ -9,11 +9,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
+import random
 import re
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from statistics import mean, median
-from typing import Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 
 REPO = Path(__file__).resolve().parents[1]
@@ -21,11 +23,15 @@ DEFAULT_SPEC = REPO / "docs" / "research" / "data" / "atm_424b5_spec.json"
 DEFAULT_OUTPUT = (
     REPO / "docs" / "research" / "data" / "atm_424b5_discovery.json"
 )
+DEFAULT_CORRECTED_OUTPUT = (
+    REPO / "docs/research/data/atm_financing_pressure_corrected_2024q1.json"
+)
 DEFAULT_SEARCH_RESPONSE = Path(
     "/private/tmp/monad-atm-pilot/search-424b5-atm-2024q1.json"
 )
 DEFAULT_BUNDLE = Path("/private/tmp/monad-atm-pilot")
 SCHEMA_VERSION = 1
+FINANCING_HORIZONS = (1, 5, 10, 20, 60)
 TICKER_RE = re.compile(r"\(([A-Z][A-Z0-9.\-]{0,6})(?:,|\))")
 
 
@@ -111,8 +117,17 @@ def chart_closes(path: Path) -> Dict[str, float]:
 
 
 def forward_window(
-    days: Sequence[str], file_date: str, horizon: int
+    days: Sequence[str],
+    file_date: str,
+    horizon: int,
+    max_entry_lag_days: int = 7,
 ) -> Optional[Tuple[str, str]]:
+    """Return a conservative post-filing window only when coverage is contiguous.
+
+    A historical price cache that starts months after ``file_date`` must not silently
+    turn its first available observation into the event entry.  Seven calendar days
+    permits ordinary weekends and long market holidays while rejecting stale caches.
+    """
     start_idx = None
     for i, day in enumerate(days):
         if day > file_date:
@@ -122,6 +137,10 @@ def forward_window(
         return None
     end_idx = start_idx + horizon - 1
     if end_idx >= len(days):
+        return None
+    entry = datetime.strptime(days[start_idx], "%Y-%m-%d").date()
+    event = datetime.strptime(file_date, "%Y-%m-%d").date()
+    if (entry - event).days > max_entry_lag_days:
         return None
     return days[start_idx], days[end_idx]
 
@@ -188,6 +207,212 @@ def price_pilot(
     return {"summary": summary, "rows": rows}
 
 
+def episode_events(
+    submissions: Iterable[Mapping[str, object]], gap_days: int = 30
+) -> List[Dict[str, object]]:
+    """Collapse clustered supplements for one ticker into program episodes."""
+    candidates = sorted(
+        (
+            {
+                "ticker": str(row["parsed_ticker"]),
+                "file_date": str(row["file_date"]),
+                "accession": str(row["accession"]),
+                "ciks": list(row.get("ciks", [])),
+            }
+            for row in submissions
+            if row.get("parsed_ticker") and row.get("file_date")
+        ),
+        key=lambda row: (row["ticker"], row["file_date"], row["accession"]),
+    )
+    retained: List[Dict[str, object]] = []
+    last: Dict[str, date] = {}
+    for row in candidates:
+        event = date.fromisoformat(str(row["file_date"]))
+        prior = last.get(str(row["ticker"]))
+        if prior is not None and (event - prior).days <= gap_days:
+            continue
+        retained.append(row)
+        last[str(row["ticker"])] = event
+    return retained
+
+
+def _clean_series(series) -> Dict[str, float]:
+    out: Dict[str, float] = {}
+    for stamp, value in series.dropna().items():
+        day = stamp.date().isoformat() if hasattr(stamp, "date") else str(stamp)[:10]
+        out[day] = float(value)
+    return out
+
+
+def download_adjusted_closes(
+    tickers: Sequence[str], start: str, end: str, chunk_size: int = 25
+) -> Tuple[Dict[str, Dict[str, float]], str]:
+    """Download split/dividend-adjusted closes and hash the used price panel."""
+    import yfinance as yf
+
+    symbols = sorted(set(tickers) | {"SPY"})
+    closes: Dict[str, Dict[str, float]] = {}
+    for offset in range(0, len(symbols), chunk_size):
+        chunk = symbols[offset : offset + chunk_size]
+        frame = yf.download(
+            chunk,
+            start=start,
+            end=end,
+            auto_adjust=True,
+            actions=False,
+            progress=False,
+            threads=True,
+            group_by="ticker",
+        )
+        if frame.empty:
+            continue
+        if len(chunk) == 1:
+            closes[chunk[0]] = _clean_series(frame["Close"])
+            continue
+        for ticker in chunk:
+            try:
+                closes[ticker] = _clean_series(frame[ticker]["Close"])
+            except (KeyError, TypeError):
+                continue
+    panel = {ticker: rows for ticker, rows in sorted(closes.items()) if rows}
+    return panel, sha256(panel)
+
+
+def financing_pressure_event_return(
+    event: Mapping[str, object],
+    prices: Mapping[str, Mapping[str, float]],
+    horizons: Sequence[int] = FINANCING_HORIZONS,
+    max_entry_lag_days: int = 7,
+) -> Optional[Dict[str, object]]:
+    """Measure from the first post-filing close and reject stale price coverage."""
+    ticker = str(event["ticker"])
+    stock = prices.get(ticker, {})
+    spy = prices.get("SPY", {})
+    days = sorted(stock)
+    event_day = date.fromisoformat(str(event["file_date"]))
+    start_idx = next((i for i, day in enumerate(days) if day > str(event_day)), None)
+    if start_idx is None:
+        return None
+    entry_day = date.fromisoformat(days[start_idx])
+    if (entry_day - event_day).days > max_entry_lag_days:
+        return None
+    entry_key = entry_day.isoformat()
+    if entry_key not in spy:
+        return None
+    row: Dict[str, object] = dict(event)
+    row["entry_date"] = entry_key
+    row["entry_lag_calendar_days"] = (entry_day - event_day).days
+    for horizon in horizons:
+        end_idx = start_idx + int(horizon)
+        if end_idx >= len(days):
+            continue
+        end = days[end_idx]
+        if end not in spy:
+            continue
+        stock_return = stock[end] / stock[entry_key] - 1.0
+        spy_return = spy[end] / spy[entry_key] - 1.0
+        row[f"end_{horizon}d"] = end
+        row[f"ret_{horizon}d"] = round(stock_return, 6)
+        row[f"spy_{horizon}d"] = round(spy_return, 6)
+        row[f"xs_{horizon}d"] = round(stock_return - spy_return, 6)
+    return row if any(f"xs_{h}d" in row for h in horizons) else None
+
+
+def bootstrap_median_ci(
+    values: Sequence[float], seed: int = 253204, draws: int = 5000
+) -> Optional[List[float]]:
+    if not values:
+        return None
+    rng = random.Random(seed)
+    samples = sorted(
+        median([rng.choice(values) for _ in values]) for _ in range(draws)
+    )
+    lo = samples[int(0.025 * (draws - 1))]
+    hi = samples[int(0.975 * (draws - 1))]
+    return [round(float(lo), 6), round(float(hi), 6)]
+
+
+def wilson_interval(negative: int, total: int) -> Optional[List[float]]:
+    if total <= 0:
+        return None
+    z = 1.959963984540054
+    p = negative / total
+    denom = 1 + z * z / total
+    centre = (p + z * z / (2 * total)) / denom
+    half = z * math.sqrt((p * (1 - p) + z * z / (4 * total)) / total) / denom
+    return [round(centre - half, 6), round(centre + half, 6)]
+
+
+def summarize_financing_pressure(
+    rows: Sequence[Mapping[str, object]],
+) -> Dict[str, object]:
+    horizons: Dict[str, object] = {}
+    for horizon in FINANCING_HORIZONS:
+        key = f"xs_{horizon}d"
+        values = [float(row[key]) for row in rows if key in row]
+        if not values:
+            continue
+        negative = sum(value < 0 for value in values)
+        horizons[str(horizon)] = {
+            "n": len(values),
+            "median_spy_excess": round(median(values), 6),
+            "median_bootstrap_95pct": bootstrap_median_ci(values),
+            "mean_spy_excess": round(mean(values), 6),
+            "fraction_negative": round(negative / len(values), 6),
+            "fraction_negative_wilson_95pct": wilson_interval(negative, len(values)),
+        }
+    return {
+        "priced_episodes": len(rows),
+        "max_entry_lag_calendar_days": max(
+            (int(row["entry_lag_calendar_days"]) for row in rows), default=None
+        ),
+        "horizons": horizons,
+    }
+
+
+def build_financing_pressure_artifact(
+    discovery_path: Path,
+    prices: Mapping[str, Mapping[str, float]],
+    price_panel_sha256: str,
+) -> Dict[str, object]:
+    discovery = load_json(discovery_path)
+    events = episode_events(discovery.get("submissions", []))
+    rows = [financing_pressure_event_return(event, prices) for event in events]
+    priced = sorted(
+        (row for row in rows if row is not None),
+        key=lambda row: (row["file_date"], row["ticker"]),
+    )
+    artifact: Dict[str, object] = {
+        "schema_version": SCHEMA_VERSION,
+        "study_id": "ATM-FP-01",
+        "source_discovery_sha256": file_sha256(discovery_path),
+        "price_panel_sha256": price_panel_sha256,
+        "source_class": "424B5_phrase_hit",
+        "confirmed_atm_program": False,
+        "confirmed_atm_sales": False,
+        "outcome_role": "corrected_descriptive_price_audit",
+        "clock": {
+            "source": "SEC file_date; accepted-at absent",
+            "entry": "first adjusted close strictly after file_date",
+            "max_entry_lag_calendar_days": 7,
+        },
+        "episode_policy": "first ticker event after a gap greater than 30 days",
+        "input_unique_submissions": len(discovery.get("submissions", [])),
+        "candidate_episodes": len(events),
+        "summary": summarize_financing_pressure(priced),
+        "rows": priced,
+        "caveats": [
+            "phrase hit is neither a reviewed ATM program nor evidence of shares sold",
+            "first 100 of 463 Q1 hits is capped and search-order biased",
+            "ticker mapping is parsed from current display names and is not a security master",
+            "Yahoo adjusted history is convenient discovery data, not licensed production data",
+            "SPY excess does not control size, industry, cash burn, volatility, or issuance propensity",
+        ],
+    }
+    artifact["artifact_sha256"] = sha256(artifact)
+    return artifact
+
+
 def build_artifact(
     response_path: Path,
     spec: Mapping[str, object],
@@ -251,7 +476,41 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--bundle", type=Path, default=DEFAULT_BUNDLE)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--no-price", action="store_true")
+    parser.add_argument(
+        "--financing-pressure",
+        action="store_true",
+        help="build the corrected event-time financing-pressure audit",
+    )
+    parser.add_argument("--discovery", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--corrected-output", type=Path, default=DEFAULT_CORRECTED_OUTPUT)
     args = parser.parse_args(argv)
+    if args.financing_pressure:
+        discovery = load_json(args.discovery)
+        events = episode_events(discovery.get("submissions", []))
+        dates = [date.fromisoformat(str(event["file_date"])) for event in events]
+        start = (min(dates) - timedelta(days=10)).isoformat()
+        end = (max(dates) + timedelta(days=120)).isoformat()
+        prices, panel_hash = download_adjusted_closes(
+            [str(event["ticker"]) for event in events], start, end
+        )
+        corrected = build_financing_pressure_artifact(
+            args.discovery, prices, panel_hash
+        )
+        corrected["retrieved_at"] = datetime.now(timezone.utc).isoformat()
+        corrected["artifact_sha256"] = sha256(
+            {key: value for key, value in corrected.items() if key != "artifact_sha256"}
+        )
+        args.corrected_output.parent.mkdir(parents=True, exist_ok=True)
+        with args.corrected_output.open("w", encoding="utf-8") as handle:
+            json.dump(corrected, handle, indent=2, sort_keys=True)
+            handle.write("\n")
+        print(
+            json.dumps(
+                {"output": str(args.corrected_output), **corrected["summary"]},
+                indent=2,
+            )
+        )
+        return 0
     spec = load_json(args.spec)
     bundle = None if args.no_price else args.bundle
     artifact = build_artifact(args.response, spec, bundle=bundle)
