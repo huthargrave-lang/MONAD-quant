@@ -12,6 +12,8 @@ import json
 import math
 import random
 import re
+import sqlite3
+import tempfile
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from statistics import mean, median
@@ -26,6 +28,9 @@ DEFAULT_OUTPUT = (
 DEFAULT_CORRECTED_OUTPUT = (
     REPO / "docs/research/data/atm_financing_pressure_corrected_2024q1.json"
 )
+DEFAULT_LEDGER_SEED = REPO / "docs/research/data/atm_fp01_gold_seed.json"
+DEFAULT_LEDGER_OUTPUT = REPO / "docs/research/data/atm_fp01_gold_ledger.json"
+DEFAULT_LEDGER_DB = Path(tempfile.gettempdir()) / "monad-atm-fp01.sqlite3"
 DEFAULT_SEARCH_RESPONSE = Path(
     "/private/tmp/monad-atm-pilot/search-424b5-atm-2024q1.json"
 )
@@ -33,6 +38,8 @@ DEFAULT_BUNDLE = Path("/private/tmp/monad-atm-pilot")
 SCHEMA_VERSION = 1
 FINANCING_HORIZONS = (1, 5, 10, 20, 60)
 TICKER_RE = re.compile(r"\(([A-Z][A-Z0-9.\-]{0,6})(?:,|\))")
+ATM_LEDGER_ASSERTION_TYPES = {"program_status", "remaining_capacity_usd"}
+ATM_LEDGER_STATUS_VALUES = {"active", "suspended", "exhausted", "terminated"}
 
 
 def canonical_bytes(value: object) -> bytes:
@@ -413,6 +420,348 @@ def build_financing_pressure_artifact(
     return artifact
 
 
+def _parse_ledger_date(value: object, field: str) -> date:
+    try:
+        return date.fromisoformat(str(value))
+    except ValueError as exc:
+        raise ValueError(f"{field}: invalid ISO date {value!r}") from exc
+
+
+def _parse_ledger_datetime(value: object, field: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(str(value))
+    except ValueError as exc:
+        raise ValueError(f"{field}: invalid ISO datetime {value!r}") from exc
+    if parsed.tzinfo is None:
+        raise ValueError(f"{field}: timezone offset required")
+    return parsed
+
+
+def validate_atm_ledger_seed(seed: Mapping[str, object]) -> None:
+    """Validate reviewed facts and enforce outcome-clock leakage barriers."""
+    if seed.get("schema_version") != SCHEMA_VERSION:
+        raise ValueError("unsupported ATM ledger schema_version")
+    if seed.get("raw_documents_committed") is not False:
+        raise ValueError("raw_documents_committed must be false")
+    if not str(seed.get("fixture_id", "")).strip():
+        raise ValueError("fixture_id is required")
+    _parse_ledger_datetime(seed.get("reviewed_at"), "reviewed_at")
+
+    issuers = list(seed.get("issuers", []))
+    sources = list(seed.get("sources", []))
+    programs = list(seed.get("programs", []))
+    assertions = list(seed.get("assertions", []))
+    labels = list(seed.get("utilization_labels", []))
+    collections = [
+        ("issuer", issuers, "issuer_id"),
+        ("source", sources, "source_id"),
+        ("program", programs, "program_id"),
+        ("assertion", assertions, "assertion_id"),
+        ("label", labels, "label_id"),
+    ]
+    for kind, rows, key in collections:
+        ids = [str(row.get(key, "")) for row in rows]
+        if not rows or any(not value for value in ids):
+            raise ValueError(f"ATM ledger requires non-empty {kind} records with {key}")
+        if len(ids) != len(set(ids)):
+            raise ValueError(f"duplicate {key}")
+
+    issuer_by_id = {str(row["issuer_id"]): row for row in issuers}
+    source_by_id = {str(row["source_id"]): row for row in sources}
+    program_by_id = {str(row["program_id"]): row for row in programs}
+
+    for issuer in issuers:
+        cik = str(issuer.get("cik", ""))
+        if not re.fullmatch(r"\d{10}", cik):
+            raise ValueError(f"{issuer['issuer_id']}: CIK must be ten digits")
+        for field in ("name", "security_id", "ticker", "identity_quality"):
+            if not str(issuer.get(field, "")).strip():
+                raise ValueError(f"{issuer['issuer_id']}: missing {field}")
+
+    for source in sources:
+        source_id = str(source["source_id"])
+        accession = str(source.get("accession", ""))
+        if not re.fullmatch(r"\d{10}-\d{2}-\d{6}", accession):
+            raise ValueError(f"{source_id}: invalid accession")
+        if accession.replace("-", "") not in str(source.get("document_url", "")):
+            raise ValueError(f"{source_id}: accession absent from document_url")
+        filed = _parse_ledger_date(source.get("file_date"), f"{source_id}.file_date")
+        tradable = _parse_ledger_datetime(
+            source.get("conservative_tradable_at"),
+            f"{source_id}.conservative_tradable_at",
+        )
+        quality = source.get("source_time_quality")
+        accepted = source.get("accepted_at")
+        if quality == "edgar_acceptance_exact":
+            accepted_dt = _parse_ledger_datetime(accepted, f"{source_id}.accepted_at")
+            if tradable <= accepted_dt:
+                raise ValueError(f"{source_id}: tradable clock must follow acceptance")
+        elif quality == "file_date_only":
+            if accepted is not None:
+                raise ValueError(f"{source_id}: date-only source cannot claim accepted_at")
+            if tradable.date() <= filed:
+                raise ValueError(f"{source_id}: date-only source must trade next day or later")
+        else:
+            raise ValueError(f"{source_id}: unsupported source_time_quality")
+        if not str(source.get("reviewed_excerpt", "")).strip():
+            raise ValueError(f"{source_id}: reviewed_excerpt required")
+        if source.get("raw_content_hash_validated") is not False:
+            raise ValueError(f"{source_id}: raw hash validation must stay false")
+
+    for program in programs:
+        program_id = str(program["program_id"])
+        issuer_id = str(program.get("issuer_id", ""))
+        if issuer_id not in issuer_by_id:
+            raise ValueError(f"{program_id}: unknown issuer")
+        agreement = program.get("agreement_date")
+        if agreement is not None:
+            _parse_ledger_date(agreement, f"{program_id}.agreement_date")
+        capacity = program.get("initial_capacity_usd")
+        if capacity is not None and float(capacity) < 0:
+            raise ValueError(f"{program_id}: negative initial capacity")
+        prior_id = program.get("supersedes_program_id")
+        if prior_id is not None:
+            if prior_id not in program_by_id or prior_id == program_id:
+                raise ValueError(f"{program_id}: invalid supersedes_program_id")
+            if program_by_id[prior_id]["issuer_id"] != issuer_id:
+                raise ValueError(f"{program_id}: cannot supersede another issuer")
+
+    for assertion in assertions:
+        assertion_id = str(assertion["assertion_id"])
+        if assertion.get("program_id") not in program_by_id:
+            raise ValueError(f"{assertion_id}: unknown program")
+        if assertion.get("source_id") not in source_by_id:
+            raise ValueError(f"{assertion_id}: unknown source")
+        kind = assertion.get("assertion_type")
+        if kind not in ATM_LEDGER_ASSERTION_TYPES:
+            raise ValueError(f"{assertion_id}: unsupported assertion_type")
+        _parse_ledger_date(assertion.get("effective_on"), f"{assertion_id}.effective_on")
+        if kind == "program_status" and assertion.get("value") not in ATM_LEDGER_STATUS_VALUES:
+            raise ValueError(f"{assertion_id}: invalid program status")
+        if kind == "remaining_capacity_usd" and float(assertion.get("value", -1)) < 0:
+            raise ValueError(f"{assertion_id}: negative remaining capacity")
+
+    for label in labels:
+        label_id = str(label["label_id"])
+        if label.get("program_id") not in program_by_id:
+            raise ValueError(f"{label_id}: unknown program")
+        source_id = str(label.get("source_id", ""))
+        if source_id not in source_by_id:
+            raise ValueError(f"{label_id}: unknown source")
+        start = _parse_ledger_date(label.get("period_start"), f"{label_id}.period_start")
+        end = _parse_ledger_date(label.get("period_end"), f"{label_id}.period_end")
+        if start > end:
+            raise ValueError(f"{label_id}: period_start after period_end")
+        if end >= _parse_ledger_date(source_by_id[source_id]["file_date"], source_id):
+            raise ValueError(f"{label_id}: label must be disclosed after period end")
+        if label.get("label_scope") not in {"period", "cumulative"}:
+            raise ValueError(f"{label_id}: invalid label_scope")
+        if label.get("predictive_features_allowed") is not False:
+            raise ValueError(f"{label_id}: outcome cannot be a predictive feature")
+        if label.get("quarter_trainable") is True and label.get("label_scope") != "period":
+            raise ValueError(f"{label_id}: cumulative label cannot train a quarter model")
+        for field in (
+            "shares_sold",
+            "gross_proceeds_usd",
+            "net_proceeds_usd",
+            "weighted_average_price_usd",
+            "remaining_capacity_usd",
+        ):
+            value = label.get(field)
+            if value is not None and float(value) < 0:
+                raise ValueError(f"{label_id}: negative {field}")
+
+
+def build_atm_ledger_artifact(seed: Mapping[str, object]) -> Dict[str, object]:
+    validate_atm_ledger_seed(seed)
+    sources = []
+    source_by_id: Dict[str, Mapping[str, object]] = {}
+    for row in seed["sources"]:
+        source = dict(row)
+        source["reviewed_excerpt_sha256"] = sha256(source["reviewed_excerpt"])
+        sources.append(source)
+        source_by_id[str(source["source_id"])] = source
+    labels = []
+    for row in seed["utilization_labels"]:
+        label = dict(row)
+        source = source_by_id[str(label["source_id"])]
+        label["label_available_at"] = source["conservative_tradable_at"]
+        label["interval_censored"] = True
+        labels.append(label)
+    artifact: Dict[str, object] = {
+        "schema_version": SCHEMA_VERSION,
+        "artifact_id": seed["fixture_id"],
+        "research_status": seed["research_status"],
+        "reviewed_at": seed["reviewed_at"],
+        "raw_documents_committed": False,
+        "training_features_built": False,
+        "issuers": list(seed["issuers"]),
+        "sources": sources,
+        "programs": list(seed["programs"]),
+        "assertions": list(seed["assertions"]),
+        "utilization_labels": labels,
+        "summary": {
+            "issuer_count": len(seed["issuers"]),
+            "source_count": len(sources),
+            "program_count": len(seed["programs"]),
+            "assertion_count": len(seed["assertions"]),
+            "utilization_label_count": len(labels),
+            "quarter_trainable_label_count": sum(
+                row["quarter_trainable"] is True for row in labels
+            ),
+            "positive_period_labels": sum(
+                row["label_scope"] == "period" and row["shares_sold"] > 0
+                for row in labels
+            ),
+            "zero_period_labels": sum(
+                row["label_scope"] == "period" and row["shares_sold"] == 0
+                for row in labels
+            ),
+            "cumulative_labels_quarantined": sum(
+                row["label_scope"] == "cumulative"
+                and row["quarter_trainable"] is False
+                for row in labels
+            ),
+            "exact_acceptance_clocks": sum(
+                row["source_time_quality"] == "edgar_acceptance_exact"
+                for row in sources
+            ),
+            "date_only_clocks": sum(
+                row["source_time_quality"] == "file_date_only" for row in sources
+            ),
+        },
+    }
+    artifact["artifact_sha256"] = sha256(artifact)
+    return artifact
+
+
+ATM_LEDGER_SQL = """
+PRAGMA foreign_keys = ON;
+PRAGMA journal_mode = DELETE;
+PRAGMA synchronous = FULL;
+CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT;
+CREATE TABLE issuers (
+    issuer_id TEXT PRIMARY KEY, cik TEXT NOT NULL, name TEXT NOT NULL,
+    security_id TEXT NOT NULL, ticker TEXT NOT NULL, identity_quality TEXT NOT NULL
+) STRICT;
+CREATE TABLE sources (
+    source_id TEXT PRIMARY KEY, accession TEXT NOT NULL, form TEXT NOT NULL,
+    document_url TEXT NOT NULL, file_date TEXT NOT NULL, accepted_at TEXT,
+    source_time_quality TEXT NOT NULL, conservative_tradable_at TEXT NOT NULL,
+    reviewed_excerpt_sha256 TEXT NOT NULL, raw_content_hash_validated INTEGER NOT NULL
+) STRICT;
+CREATE TABLE programs (
+    program_id TEXT PRIMARY KEY, issuer_id TEXT NOT NULL REFERENCES issuers(issuer_id),
+    agent TEXT, agreement_date TEXT, agreement_date_quality TEXT NOT NULL,
+    initial_capacity_usd REAL, ib6_limited INTEGER,
+    supersedes_program_id TEXT REFERENCES programs(program_id)
+) STRICT;
+CREATE TABLE assertions (
+    assertion_id TEXT PRIMARY KEY,
+    program_id TEXT NOT NULL REFERENCES programs(program_id),
+    source_id TEXT NOT NULL REFERENCES sources(source_id),
+    assertion_type TEXT NOT NULL, effective_on TEXT NOT NULL, value_json TEXT NOT NULL
+) STRICT;
+CREATE TABLE utilization_labels (
+    label_id TEXT PRIMARY KEY,
+    program_id TEXT NOT NULL REFERENCES programs(program_id),
+    source_id TEXT NOT NULL REFERENCES sources(source_id),
+    period_start TEXT NOT NULL, period_end TEXT NOT NULL, label_scope TEXT NOT NULL,
+    shares_sold INTEGER NOT NULL, gross_proceeds_usd REAL, net_proceeds_usd REAL,
+    weighted_average_price_usd REAL, remaining_capacity_usd REAL,
+    label_available_at TEXT NOT NULL, interval_censored INTEGER NOT NULL,
+    quarter_trainable INTEGER NOT NULL, predictive_features_allowed INTEGER NOT NULL
+) STRICT;
+CREATE VIEW latest_program_status AS
+WITH ranked AS (
+    SELECT a.*, ROW_NUMBER() OVER (
+        PARTITION BY program_id ORDER BY effective_on DESC, assertion_id DESC
+    ) AS rank
+    FROM assertions a WHERE assertion_type = 'program_status'
+)
+SELECT program_id, source_id, effective_on, value_json AS status_json
+FROM ranked WHERE rank = 1;
+CREATE VIEW quarter_label_outcomes AS
+SELECT label_id, program_id, period_start, period_end, shares_sold,
+       net_proceeds_usd, label_available_at
+FROM utilization_labels
+WHERE quarter_trainable = 1 AND label_scope = 'period';
+"""
+
+
+def build_atm_ledger_db(artifact: Mapping[str, object], path: Path) -> None:
+    """Build a disposable SQLite read model; the reviewed JSON stays authoritative."""
+    if path.exists():
+        raise FileExistsError(f"refusing to overwrite existing ledger DB: {path}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    con = sqlite3.connect(str(path))
+    try:
+        con.executescript(ATM_LEDGER_SQL)
+        con.executemany(
+            "INSERT INTO metadata(key, value) VALUES (?, ?)",
+            [
+                ("artifact_id", str(artifact["artifact_id"])),
+                ("artifact_sha256", str(artifact["artifact_sha256"])),
+                ("authoritative_store", "reviewed_json_fixture"),
+            ],
+        )
+        for row in artifact["issuers"]:
+            con.execute(
+                "INSERT INTO issuers VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    row["issuer_id"], row["cik"], row["name"], row["security_id"],
+                    row["ticker"], row["identity_quality"],
+                ),
+            )
+        for row in artifact["sources"]:
+            con.execute(
+                "INSERT INTO sources VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    row["source_id"], row["accession"], row["form"],
+                    row["document_url"], row["file_date"], row["accepted_at"],
+                    row["source_time_quality"], row["conservative_tradable_at"],
+                    row["reviewed_excerpt_sha256"],
+                    int(row["raw_content_hash_validated"]),
+                ),
+            )
+        for row in artifact["programs"]:
+            con.execute(
+                "INSERT INTO programs VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    row["program_id"], row["issuer_id"], row["agent"],
+                    row["agreement_date"], row["agreement_date_quality"],
+                    row["initial_capacity_usd"],
+                    None if row["ib6_limited"] is None else int(row["ib6_limited"]),
+                    row["supersedes_program_id"],
+                ),
+            )
+        for row in artifact["assertions"]:
+            con.execute(
+                "INSERT INTO assertions VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    row["assertion_id"], row["program_id"], row["source_id"],
+                    row["assertion_type"], row["effective_on"],
+                    json.dumps(row["value"], sort_keys=True),
+                ),
+            )
+        for row in artifact["utilization_labels"]:
+            con.execute(
+                "INSERT INTO utilization_labels VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    row["label_id"], row["program_id"], row["source_id"],
+                    row["period_start"], row["period_end"], row["label_scope"],
+                    row["shares_sold"], row["gross_proceeds_usd"],
+                    row["net_proceeds_usd"], row["weighted_average_price_usd"],
+                    row["remaining_capacity_usd"], row["label_available_at"],
+                    int(row["interval_censored"]), int(row["quarter_trainable"]),
+                    int(row["predictive_features_allowed"]),
+                ),
+            )
+        con.commit()
+    finally:
+        con.close()
+
+
 def build_artifact(
     response_path: Path,
     spec: Mapping[str, object],
@@ -483,7 +832,33 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--discovery", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--corrected-output", type=Path, default=DEFAULT_CORRECTED_OUTPUT)
+    parser.add_argument(
+        "--build-ledger",
+        action="store_true",
+        help="validate the reviewed FP-01 seed and build JSON/SQLite projections",
+    )
+    parser.add_argument("--ledger-seed", type=Path, default=DEFAULT_LEDGER_SEED)
+    parser.add_argument("--ledger-output", type=Path, default=DEFAULT_LEDGER_OUTPUT)
+    parser.add_argument("--ledger-db", type=Path, default=DEFAULT_LEDGER_DB)
     args = parser.parse_args(argv)
+    if args.build_ledger:
+        ledger = build_atm_ledger_artifact(load_json(args.ledger_seed))
+        args.ledger_output.parent.mkdir(parents=True, exist_ok=True)
+        with args.ledger_output.open("w", encoding="utf-8") as handle:
+            json.dump(ledger, handle, indent=2, sort_keys=True)
+            handle.write("\n")
+        build_atm_ledger_db(ledger, args.ledger_db)
+        print(
+            json.dumps(
+                {
+                    "output": str(args.ledger_output),
+                    "sqlite": str(args.ledger_db),
+                    **ledger["summary"],
+                },
+                indent=2,
+            )
+        )
+        return 0
     if args.financing_pressure:
         discovery = load_json(args.discovery)
         events = episode_events(discovery.get("submissions", []))

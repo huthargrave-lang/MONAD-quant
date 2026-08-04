@@ -1,7 +1,10 @@
 """Regression and integrity tests for the ATM financing-pressure audit."""
 import importlib.util
+import copy
 import json
+import sqlite3
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -13,6 +16,8 @@ SPEC = importlib.util.spec_from_file_location(
 LAB = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = LAB
 SPEC.loader.exec_module(LAB)
+LEDGER_SEED = ROOT / "docs/research/data/atm_fp01_gold_seed.json"
+LEDGER_ARTIFACT = ROOT / "docs/research/data/atm_fp01_gold_ledger.json"
 
 
 class AtmFinancingPressureLabTests(unittest.TestCase):
@@ -69,6 +74,68 @@ class AtmFinancingPressureLabTests(unittest.TestCase):
         self.assertEqual(artifact["input_unique_submissions"], 100)
         self.assertEqual(artifact["candidate_episodes"], 91)
         self.assertEqual(artifact["summary"]["priced_episodes"], 76)
+
+
+class AtmFp01LedgerTests(unittest.TestCase):
+    def test_reviewed_seed_has_both_period_outcomes_and_a_quarantined_cumulative(self):
+        artifact = LAB.build_atm_ledger_artifact(LAB.load_json(LEDGER_SEED))
+        self.assertEqual(artifact["summary"]["issuer_count"], 3)
+        self.assertEqual(artifact["summary"]["program_count"], 4)
+        self.assertEqual(artifact["summary"]["positive_period_labels"], 1)
+        self.assertEqual(artifact["summary"]["zero_period_labels"], 1)
+        self.assertEqual(artifact["summary"]["cumulative_labels_quarantined"], 1)
+
+    def test_labels_are_available_only_after_period_end_and_never_features(self):
+        artifact = LAB.build_atm_ledger_artifact(LAB.load_json(LEDGER_SEED))
+        for label in artifact["utilization_labels"]:
+            self.assertGreater(label["label_available_at"][:10], label["period_end"])
+            self.assertFalse(label["predictive_features_allowed"])
+            self.assertTrue(label["interval_censored"])
+
+    def test_cumulative_label_cannot_train_a_quarter_model(self):
+        seed = copy.deepcopy(LAB.load_json(LEDGER_SEED))
+        seed["utilization_labels"][-1]["quarter_trainable"] = True
+        with self.assertRaisesRegex(ValueError, "cumulative label cannot train"):
+            LAB.validate_atm_ledger_seed(seed)
+
+    def test_exact_acceptance_clock_must_precede_tradable_clock(self):
+        seed = copy.deepcopy(LAB.load_json(LEDGER_SEED))
+        seed["sources"][1]["conservative_tradable_at"] = seed["sources"][1][
+            "accepted_at"
+        ]
+        with self.assertRaisesRegex(ValueError, "must follow acceptance"):
+            LAB.validate_atm_ledger_seed(seed)
+
+    def test_sqlite_projection_is_rebuildable_and_exposes_only_period_labels(self):
+        artifact = LAB.build_atm_ledger_artifact(LAB.load_json(LEDGER_SEED))
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "atm.sqlite3"
+            LAB.build_atm_ledger_db(artifact, path)
+            con = sqlite3.connect(str(path))
+            try:
+                labels = con.execute(
+                    "SELECT label_id, shares_sold FROM quarter_label_outcomes "
+                    "ORDER BY label_id"
+                ).fetchall()
+                states = con.execute(
+                    "SELECT program_id, status_json FROM latest_program_status "
+                    "ORDER BY program_id"
+                ).fetchall()
+            finally:
+                con.close()
+            self.assertEqual(len(labels), 2)
+            self.assertEqual({row[1] for row in labels}, {0, 262383})
+            self.assertEqual(len(states), 4)
+            with self.assertRaises(FileExistsError):
+                LAB.build_atm_ledger_db(artifact, path)
+
+    def test_committed_ledger_artifact_is_self_hashed(self):
+        if not LEDGER_ARTIFACT.is_file():
+            self.skipTest("ATM FP-01 ledger artifact has not been generated")
+        artifact = json.loads(LEDGER_ARTIFACT.read_text())
+        claimed = artifact.pop("artifact_sha256")
+        self.assertEqual(claimed, LAB.sha256(artifact))
+        self.assertFalse(artifact["training_features_built"])
 
 
 if __name__ == "__main__":
