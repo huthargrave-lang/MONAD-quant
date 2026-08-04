@@ -3704,3 +3704,8 @@ _— captured codex/biocat-compliance-hazard@202cf8e, 2026-08-03_
 Do not trade the public-data auction/neocloud association. Build a stop-yield-minus-12:59 when-issued shock with exact release clocks, then interact it with SEC-timestamped financing exposure and require issuer-grouped forward improvement over TLT alone. Preserve core neocloud and adjacent infrastructure cohorts separately.
 Links: [[E248101|derived_from]] · [[F248103|derived_from]] · [[F248104|derived_from]] · [[H248101|drives]].
 _— captured codex/biocat-compliance-hazard@202cf8e, 2026-08-03_
+
+### H253204 — Hypothesis: the 100-seed correlation atlas can spawn diversified model factories
+One hundred unranked, testable correlation seeds now span rates, macro, filings, rhetoric, passive flows, microstructure, physical infrastructure, government events, digital activity, and strange cross-asset networks. Narrow later by reusable point-in-time source contracts and forward-validatable exposure maps, not by familiarity or an attractive in-sample correlation. Memo: docs/research/CORRELATION_IDEA_ATLAS_100_2026.md.
+Links: [[H18500|refines]] · [[H44|relates]].
+_— captured development@e0bf9db, 2026-08-03_
