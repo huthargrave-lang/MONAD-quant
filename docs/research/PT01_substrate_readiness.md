@@ -23,28 +23,31 @@ audited."*
 Every committed artifact under `docs/research/data/` was scored on **schema keys**
 (values excluded — see the note at the end), one point per field class present:
 
-| field class | artifacts carrying it (of 49) |
+| field class | artifacts carrying it (of 50) |
 |---|---:|
-| revision / vintage identity | **46** |
-| payload hashes | **32** |
-| source timestamp | 9 |
-| first-seen timestamp | 11 |
+| revision / vintage identity | **47** |
+| payload hashes | **33** |
+| source timestamp | 10 |
+| first-seen timestamp | 12 |
 | conservative tradable timestamp | 6 |
-| multi-horizon labels | 6 |
-| rights metadata | 6 |
+| multi-horizon labels | 7 |
+| rights metadata | 7 |
 | durable entity identity | **2** |
-| trial registry | **2** |
+| trial registry | **3** |
 
-**No artifact carries all nine.** The best score is **6 of 9**, reached by the four IX-00
-index-event batches, each missing entity identity, rights metadata and any trial-registry
-link. So PT-01's pass condition — *exact point-in-time reconstruction* — cannot even be
-evaluated on a single record, because no record carries source time, first-seen, tradable
-time, identity and labels together.
+**No artifact carries all nine.** The best score is now **7 of 9**, reached by the BIOCAT
+FDA pre-notice census. It carries explicit revision/vintage, payload hashes, source and
+first-seen clocks, rights posture, right-censored horizons, and a trial-registry contract;
+it lacks durable entity identity and conservative tradable time. The four IX-00 index
+event batches remain at 6 of 9. So PT-01's pass condition — *exact point-in-time
+reconstruction* — still cannot be evaluated on a single record, but the missing set has
+narrowed from three classes on the old leaders to two on a population artifact.
 
 The shape of that table is the useful part. **The provenance half of the substrate is
-genuinely built**: vintage identity on 46 of 49 artifacts and payload hashes on 32 is a
+genuinely built**: vintage identity on 47 of 50 artifacts and payload hashes on 33 is a
 real, unusual discipline, and it is why the IX-00 and CA-00 reconciliations in this
-repository work at all. **The identity and registry half barely exists** — 2 and 2.
+repository work at all. **Durable identity still barely exists** at 2 of 50, while trial
+registry coverage has advanced to 3 and now includes one population census.
 
 ## The clock rules have no consumer
 
@@ -81,11 +84,14 @@ The honest re-scope, in dependency order:
 2. **Entity identity in the artifact schema** (2 → all event artifacts). The IX-00 S&P
    pilot already shows the shape — `event_symbol`, `provider_symbol`, an `identity_note`
    recording `SATS`→`ECHO` with the CUSIP unchanged. It just is not standard.
-3. **A trial registry** — one machine-readable record per preregistered study with its
-   outcome. Two artifacts now carry registry-shaped keys: PN-00's lead-lag summary and
-   BIOCAT's five-event disclosure pilot. That is progress from the original one, but it
-   is not a general registry and neither artifact joins the full point-in-time field set,
-   so "did the preregistered claim hold?" is still not a corpus-wide query.
+3. **Extend the trial registry** — one machine-readable record per preregistered study
+   with its outcome. Three artifacts now carry registry-shaped keys: PN-00's lead-lag
+   summary, BIOCAT's five-event disclosure pilot, and BIOCAT's 315-row FDA pre-notice
+   census. The last is the first population artifact to join registry identity to source
+   hashes, source/first-seen clocks, rights posture, and right-censored horizons. It still
+   lacks durable sponsor/issuer identity and a market tradability clock, so "did the
+   preregistered claim hold for this security at this time?" is not yet a corpus-wide
+   query.
 
 Only then is the "cheap to test" claim in H44 testable at all — it asserts a *rate*
 (ideas per unit effort) and nothing in the repository currently measures that.
@@ -94,8 +100,8 @@ Only then is the "cheap to test" claim in H44 testable at all — it asserts a *
 
 The first pass of this audit scored artifacts on raw text and reported 4 artifacts with a
 trial registry. Three of those matched **"Industrial"**, which contains "trial". Rescoring
-on schema **keys** with word boundaries originally gave 1; the current 49-artifact corpus
-gives 2 after BIOCAT. The original false count was the fourth time a substring inside a
+on schema **keys** with word boundaries originally gave 1; the current 50-artifact corpus
+gives 3 after the two BIOCAT studies. The original false count was the fourth time a substring inside a
 name had been counted as the thing itself (SEC form names, index names,
 ISO timestamps, and now this) — the rule that keeps earning its keep is: *match structure,
 not text.*
