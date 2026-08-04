@@ -3727,3 +3727,8 @@ _— captured development@9a875bd, 2026-08-03_
 Model future ATM use as a latent financing decision, not a known execution-day event. Predict next-quarter shares/proceeds relative to float, market cap, and ADV from point-in-time cash burn, unrestricted cash, debt due, capex commitments, usable Form S-3 capacity, prior utilization, price run-up, volatility, and industry. Require issuer-grouped forward improvement over transparent utilization and issuer-propensity baselines before inspecting returns. Deep dive: docs/research/ATM_FINANCING_PRESSURE_DEEP_DIVE_2026.md.
 Links: [[E253201|evidenced_by]] · [[H84|supersedes]] · [[H18500|builds_on]].
 _— captured development@9a875bd, 2026-08-03_
+
+### E253202 — ATM-FP-01 reviewed utilization-ledger seed
+Implemented an append-only SEC ATM program ledger on three manually reviewed issuers: APLE contributes an explicit zero-sales period label with USD 500 million remaining capacity; AIMD contributes 262,383 shares and USD 719,358 net proceeds for 2025H1; ADIL contributes a terminated-and-replaced program chain whose inception-to-termination total is mechanically quarantined from quarter training. Exact and date-only clocks remain distinct, labels become available only after disclosure, and a disposable SQLite projection refuses overwrite. This is a schema seed, not a population or edge. Artifact: docs/research/data/atm_fp01_gold_ledger.json; memo: docs/research/ATM_FP01_LEDGER_2026.md.
+Links: [[H253205|builds_on]] · [[H68|relates]] · [[E109|relates]] · [[E128|relates]] · [[D13300|relates]].
+_— captured development@6919327, 2026-08-03_

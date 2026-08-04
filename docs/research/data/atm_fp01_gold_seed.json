@@ -1,0 +1,211 @@
+{
+  "schema_version": 1,
+  "fixture_id": "ATM-FP01-GOLD-SEED-2026-08-04",
+  "research_status": "manually_reviewed_schema_seed_not_population",
+  "reviewed_at": "2026-08-04T00:00:00-04:00",
+  "raw_documents_committed": false,
+  "issuers": [
+    {
+      "issuer_id": "cik-0001418121",
+      "cik": "0001418121",
+      "name": "Apple Hospitality REIT, Inc.",
+      "security_id": "cik-0001418121-common",
+      "ticker": "APLE",
+      "ticker_valid_from": null,
+      "ticker_valid_to": null,
+      "identity_quality": "cik_and_filing_cover_ticker"
+    },
+    {
+      "issuer_id": "cik-0001014763",
+      "cik": "0001014763",
+      "name": "Ainos, Inc.",
+      "security_id": "cik-0001014763-common",
+      "ticker": "AIMD",
+      "ticker_valid_from": null,
+      "ticker_valid_to": null,
+      "identity_quality": "cik_and_filing_cover_ticker"
+    },
+    {
+      "issuer_id": "cik-0001513525",
+      "cik": "0001513525",
+      "name": "Adial Pharmaceuticals, Inc.",
+      "security_id": "cik-0001513525-common",
+      "ticker": "ADIL",
+      "ticker_valid_from": null,
+      "ticker_valid_to": null,
+      "identity_quality": "cik_and_filing_cover_ticker"
+    }
+  ],
+  "sources": [
+    {
+      "source_id": "sec-0000950170-24-120710-ex99-1",
+      "accession": "0000950170-24-120710",
+      "form": "8-K/EX-99.1",
+      "document_url": "https://www.sec.gov/Archives/edgar/data/1418121/000095017024120710/aple-ex99_1.htm",
+      "file_date": "2024-11-04",
+      "accepted_at": null,
+      "source_time_quality": "file_date_only",
+      "conservative_tradable_at": "2024-11-05T09:30:00-05:00",
+      "reviewed_excerpt": "As of September 30, 2024, the Company had $500 million remaining under its ATM Program. No shares were sold under the current or prior ATM Program during the three and nine months ended September 30, 2024.",
+      "source_span": "ATM Program section, filing text lines 610-612",
+      "raw_content_hash_validated": false
+    },
+    {
+      "source_id": "sec-0001493152-25-011908-10q",
+      "accession": "0001493152-25-011908",
+      "form": "10-Q",
+      "document_url": "https://www.sec.gov/Archives/edgar/data/1014763/000149315225011908/form10-q.htm",
+      "file_date": "2025-08-13",
+      "accepted_at": "2025-08-13T16:15:47-04:00",
+      "source_time_quality": "edgar_acceptance_exact",
+      "conservative_tradable_at": "2025-08-14T09:30:00-04:00",
+      "reviewed_excerpt": "As of June 30, 2025, the Company sold an aggregate of 262,383 shares of the Company's common stock under the ATM facility, and received $719,358 in net proceeds, after deducting commissions and expenses.",
+      "source_span": "Note 1, At The Market Offering Agreement; filing text lines 330-338",
+      "raw_content_hash_validated": false
+    },
+    {
+      "source_id": "sec-0001213900-25-070671-8k",
+      "accession": "0001213900-25-070671",
+      "form": "8-K",
+      "document_url": "https://www.sec.gov/Archives/edgar/data/1513525/000121390025070671/ea0251183-8k_adial.htm",
+      "file_date": "2025-08-01",
+      "accepted_at": "2025-08-01T16:51:58-04:00",
+      "source_time_quality": "edgar_acceptance_exact",
+      "conservative_tradable_at": "2025-08-04T09:30:00-04:00",
+      "reviewed_excerpt": "The HCW Sales Agreement was terminated, effective as of July 31, 2025. In the aggregate, the Company sold 2,348,520 shares of common stock through Wainwright for net proceeds of approximately $4,000,000. The ATM Sales Agreement will replace and supersede the terminated HCW Sales Agreement and offers up to $4,983,000 through A.G.P.",
+      "source_span": "Items 1.01 and 1.02; filing text lines 105-134",
+      "raw_content_hash_validated": false
+    }
+  ],
+  "programs": [
+    {
+      "program_id": "aple-atm-current-2024q3",
+      "issuer_id": "cik-0001418121",
+      "agent": null,
+      "agreement_date": null,
+      "agreement_date_quality": "unknown_existing_at_period_end",
+      "initial_capacity_usd": null,
+      "ib6_limited": null,
+      "supersedes_program_id": null
+    },
+    {
+      "program_id": "aimd-hcw-2024",
+      "issuer_id": "cik-0001014763",
+      "agent": "H.C. Wainwright & Co., LLC",
+      "agreement_date": "2024-05-31",
+      "agreement_date_quality": "issuer_disclosed_exact_date",
+      "initial_capacity_usd": 1840350,
+      "ib6_limited": true,
+      "supersedes_program_id": null
+    },
+    {
+      "program_id": "adil-hcw-2024",
+      "issuer_id": "cik-0001513525",
+      "agent": "H.C. Wainwright & Co., LLC",
+      "agreement_date": "2024-04-18",
+      "agreement_date_quality": "issuer_disclosed_exact_date",
+      "initial_capacity_usd": null,
+      "ib6_limited": null,
+      "supersedes_program_id": null
+    },
+    {
+      "program_id": "adil-agp-2025",
+      "issuer_id": "cik-0001513525",
+      "agent": "A.G.P./Alliance Global Partners",
+      "agreement_date": "2025-08-01",
+      "agreement_date_quality": "issuer_disclosed_exact_date",
+      "initial_capacity_usd": 4983000,
+      "ib6_limited": true,
+      "supersedes_program_id": "adil-hcw-2024"
+    }
+  ],
+  "assertions": [
+    {
+      "assertion_id": "aple-active-2024q3",
+      "program_id": "aple-atm-current-2024q3",
+      "source_id": "sec-0000950170-24-120710-ex99-1",
+      "assertion_type": "program_status",
+      "effective_on": "2024-09-30",
+      "value": "active"
+    },
+    {
+      "assertion_id": "aple-remaining-2024q3",
+      "program_id": "aple-atm-current-2024q3",
+      "source_id": "sec-0000950170-24-120710-ex99-1",
+      "assertion_type": "remaining_capacity_usd",
+      "effective_on": "2024-09-30",
+      "value": 500000000
+    },
+    {
+      "assertion_id": "aimd-active-2025q2",
+      "program_id": "aimd-hcw-2024",
+      "source_id": "sec-0001493152-25-011908-10q",
+      "assertion_type": "program_status",
+      "effective_on": "2025-06-30",
+      "value": "active"
+    },
+    {
+      "assertion_id": "adil-hcw-terminated",
+      "program_id": "adil-hcw-2024",
+      "source_id": "sec-0001213900-25-070671-8k",
+      "assertion_type": "program_status",
+      "effective_on": "2025-07-31",
+      "value": "terminated"
+    },
+    {
+      "assertion_id": "adil-agp-active",
+      "program_id": "adil-agp-2025",
+      "source_id": "sec-0001213900-25-070671-8k",
+      "assertion_type": "program_status",
+      "effective_on": "2025-08-01",
+      "value": "active"
+    }
+  ],
+  "utilization_labels": [
+    {
+      "label_id": "aple-2024ytd-zero",
+      "program_id": "aple-atm-current-2024q3",
+      "source_id": "sec-0000950170-24-120710-ex99-1",
+      "period_start": "2024-01-01",
+      "period_end": "2024-09-30",
+      "label_scope": "period",
+      "shares_sold": 0,
+      "gross_proceeds_usd": 0,
+      "net_proceeds_usd": 0,
+      "weighted_average_price_usd": null,
+      "remaining_capacity_usd": 500000000,
+      "quarter_trainable": true,
+      "predictive_features_allowed": false
+    },
+    {
+      "label_id": "aimd-2025h1-utilization",
+      "program_id": "aimd-hcw-2024",
+      "source_id": "sec-0001493152-25-011908-10q",
+      "period_start": "2025-01-01",
+      "period_end": "2025-06-30",
+      "label_scope": "period",
+      "shares_sold": 262383,
+      "gross_proceeds_usd": null,
+      "net_proceeds_usd": 719358,
+      "weighted_average_price_usd": null,
+      "remaining_capacity_usd": null,
+      "quarter_trainable": true,
+      "predictive_features_allowed": false
+    },
+    {
+      "label_id": "adil-hcw-inception-to-termination",
+      "program_id": "adil-hcw-2024",
+      "source_id": "sec-0001213900-25-070671-8k",
+      "period_start": "2024-04-18",
+      "period_end": "2025-07-31",
+      "label_scope": "cumulative",
+      "shares_sold": 2348520,
+      "gross_proceeds_usd": null,
+      "net_proceeds_usd": 4000000,
+      "weighted_average_price_usd": null,
+      "remaining_capacity_usd": null,
+      "quarter_trainable": false,
+      "predictive_features_allowed": false
+    }
+  ]
+}
