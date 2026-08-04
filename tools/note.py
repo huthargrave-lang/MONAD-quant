@@ -19,6 +19,7 @@ being re-derived by the next agent (see CONTEXT_KIT.md). Safety by construction:
       [--link E7:evidenced_by --link F13:supersedes] [--commit]
   venv/bin/python tools/note.py supersede F3 --by F13 --reason data-fixed [--commit]
   venv/bin/python tools/note.py link F140 H27 --type supports [--commit]
+  venv/bin/python tools/note.py retype F140 H27 --type supports [--commit]
 """
 from __future__ import annotations
 import argparse
@@ -216,6 +217,25 @@ def apply_link(text, src, target, etype):
             insert_at = i if lines[i].startswith("_—") else i + 1
             break
     lines.insert(insert_at, f"Links: {edge}.\n")
+    return "".join(lines)
+
+
+def apply_retype(text, src, target, old_type, new_type):
+    """Replace one existing typed edge without hand-editing the fenced web."""
+    lines = text.splitlines(keepends=True)
+    rx = re.compile(rf"^###\s+{re.escape(src)}\s+[—-]\s+")
+    si = next((i for i, line in enumerate(lines) if rx.match(line)), None)
+    if si is None:
+        raise KeyError(src)
+    end = next((j for j in range(si + 1, len(lines))
+                if re.match(r"^###\s+[A-Za-z]+\d+\s+[—-]", lines[j])), len(lines))
+    old = f"[[{target}|{old_type}]]"
+    new = f"[[{target}|{new_type}]]"
+    hits = [i for i in range(si + 1, end) if old in lines[i]]
+    if len(hits) != 1:
+        raise ValueError(
+            f"expected exactly one {old} in {src}, found {len(hits)}")
+    lines[hits[0]] = lines[hits[0]].replace(old, new, 1)
     return "".join(lines)
 
 
@@ -504,6 +524,38 @@ def cmd_link(args):
     return _locked_commit(real_target, build, 0, args.commit)
 
 
+def cmd_retype(args):
+    """Change ONE existing edge type under the same fence/lock/lint discipline."""
+    etype = args.type.strip().lower()
+    if etype not in ctx.EDGE_TYPES:
+        sys.exit(f"--type must be one of {sorted(ctx.EDGE_TYPES)}")
+    real_repo, real_target = _fence()
+
+    def build(text):
+        nodes = _parse(text)[0]
+        for nid in (args.src, args.target):
+            if nid not in nodes:
+                sys.exit(f"{nid} does not exist")
+        current = [e["type"] for e in nodes[args.src]["edges"]
+                   if e["target"] == args.target]
+        if len(current) != 1:
+            sys.exit(
+                f"{args.src} must carry exactly one parsed edge to {args.target}; "
+                f"found {current}")
+        old_type = current[0]
+        if old_type == etype:
+            sys.exit(f"{args.src} already carries [[{args.target}|{etype}]]")
+        if etype in ctx.RELIANCE_EDGES and ctx._is_superseded(nodes[args.target]):
+            sys.exit(f"reliance edge '{etype}' to superseded {args.target}")
+        candidate = apply_retype(text, args.src, args.target, old_type, etype)
+        return (
+            candidate,
+            f"{args.src} --{old_type}--> {args.target} becomes --{etype}-->",
+            f"retype {args.src}->{args.target}",
+        )
+    return _locked_commit(real_target, build, 0, args.commit)
+
+
 def cmd_draft(args):
     """Read experiments.jsonl and print a ready-to-run `note.py add` command."""
     import json as _json
@@ -670,6 +722,13 @@ def main():
                     help="one of: " + ", ".join(sorted(ctx.EDGE_TYPES)))
     ln.add_argument("--commit", action="store_true", help="actually write (default: dry run)")
     ln.set_defaults(fn=cmd_link)
+    rt = sub.add_parser("retype", help="change the type of ONE existing edge")
+    rt.add_argument("src", help="the node the edge comes FROM")
+    rt.add_argument("target", help="the existing edge target")
+    rt.add_argument("--type", required=True,
+                    help="replacement type; one of: " + ", ".join(sorted(ctx.EDGE_TYPES)))
+    rt.add_argument("--commit", action="store_true", help="actually write (default: dry run)")
+    rt.set_defaults(fn=cmd_retype)
     dr = sub.add_parser("draft", help="print a ready-to-run `note.py add` command from the most recent experiments.jsonl entry")
     dr.add_argument("--entry", type=int, default=1, metavar="N",
                     help="which entry to use (1=most recent, 2=second-most-recent, …); default: 1")

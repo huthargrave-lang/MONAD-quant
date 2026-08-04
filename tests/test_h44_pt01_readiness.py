@@ -6,17 +6,18 @@ H44 proposes a point-in-time event/outcome ledger with nine components and sets 
 its first gate: adversarial SEC acceptance fixtures plus source-specific tradable-time
 rules, passing on *exact point-in-time reconstruction and deterministic labels*.
 
-Scored across the 49 committed world-observation artifacts under
+Scored across the 50 committed world-observation artifacts under
 `docs/research/data/`, on schema **keys**:
 
-    revision / vintage identity   46        multi-horizon labels     6
-    payload hashes                32        rights metadata          6
-    source timestamp               9        durable entity identity  2
-    first-seen timestamp          11        trial registry           2
+    revision / vintage identity   47        multi-horizon labels     7
+    payload hashes                33        rights metadata          7
+    source timestamp              10        durable entity identity  2
+    first-seen timestamp          12        trial registry           3
     conservative tradable time     6
 
-**No artifact carries all nine; the best is 6**, reached by the four IX-00 index-event
-batches. So the gate's pass condition cannot be evaluated on any single record.
+**No artifact carries all nine; the best is 7**, reached by the BIOCAT FDA pre-notice
+census. It lacks durable entity identity and conservative tradable time, so the gate's
+pass condition still cannot be evaluated on any single record.
 
 **And the tradable-time rules have no consumer.** FD-00 froze eight of them in
 `fd00_sec_event_clock_fixtures_2026.json`; the only file in the repository that reads it
@@ -110,19 +111,19 @@ class TheGateCannotBeEvaluatedOnAnyRecordTests(unittest.TestCase):
             "re-run the audit in docs/research/PT01_substrate_readiness.md and "
             "supersede the finding".format(complete))
 
-    def test_the_best_artifact_reaches_six(self):
+    def test_the_best_artifact_reaches_seven(self):
         best = max(len(h) for h in self.scored.values())
         self.assertEqual(
-            best, 6,
-            "the best artifact now scores {} of 9 (was 6) — the readiness table is "
+            best, 7,
+            "the best artifact now scores {} of 9 (was 7) — the readiness table is "
             "stale; re-measure".format(best))
 
-    def test_the_leaders_are_the_index_event_batches(self):
-        leaders = {n for n, h in self.scored.items() if len(h) == 6}
-        self.assertTrue(
-            all(n.startswith("ix00_") for n in leaders),
-            "a non-IX-00 artifact reached the top score ({}) — the study attributes "
-            "the lead to the index-event batches".format(sorted(leaders)))
+    def test_the_leader_is_the_fda_pre_notice_census(self):
+        leaders = {n for n, h in self.scored.items() if len(h) == 7}
+        self.assertEqual(
+            leaders, {"biocat_fda_pre_notice_census_2026.json"},
+            "the 7/9 leader set changed ({}) — re-measure the readiness study".format(
+                sorted(leaders)))
 
 
 class ProvenanceIsBuiltAndIdentityIsNotTests(unittest.TestCase):
@@ -159,11 +160,12 @@ class ProvenanceIsBuiltAndIdentityIsNotTests(unittest.TestCase):
             "preregistered claim hold' query may be answerable; re-measure".format(
                 self.coverage["trial_registry"], self.n))
 
-    def test_the_two_registry_artifacts_are_the_measured_carriers(self):
+    def test_the_three_registry_artifacts_are_the_measured_carriers(self):
         scored = score_artifacts()
         carriers = sorted(n for n, h in scored.items() if "trial_registry" in h)
         self.assertEqual(carriers, [
             "biocat_disclosure_order_pilot_2026.json",
+            "biocat_fda_pre_notice_census_2026.json",
             "pn00_daily_lead_lag_summary_2026.json",
         ],
                          "the trial-registry carrier set changed: {}".format(carriers))

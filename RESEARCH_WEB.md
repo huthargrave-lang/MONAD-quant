@@ -3650,3 +3650,57 @@ _— captured codex/biocat-disclosure-order@01d9176, 2026-08-03_
 Re-ran the schema-key audit after E13300 entered the corpus. Across 49 world-observation JSON artifacts: revision/vintage 46, payload hashes 32, source time 9, first-seen 11, tradable time 6, multi-horizon labels 6, rights 6, entity identity 2, trial registry 2. The best remains 6 of 9 and the same four IX-00 artifacts lead. BIOCAT adds the second registry carrier but still has neither durable entity identity nor a complete point-in-time record. FD-00 clock fixtures still have no src/tool consumer. F219's counts are stale, while its PT-01-fails conclusion survives.
 Links: [[H44|refines]] · [[E13300|evidenced_by]] · [[F219|supersedes]].
 _— captured codex/biocat-disclosure-order@782f00c, 2026-08-03_
+
+### E248100 — BIOCAT FDA pre-notice compliance-response population census
+Official FDA pre-notice letters through June 2026 were joined to the ClinicalTrials.gov API v2 snapshot dated 2026-08-03. The census preserves letter scope, 30/60/90/180/365-day right-censored submission/QC/posting hazards, sponsor class, formal violation annotations, malformed identifiers, and raw-source hashes in docs/research/data/biocat_fda_pre_notice_census_2026.json. It is descriptive because FDA targets potentially noncompliant trials.
+Links: [[E13300|builds_on]] · [[H253202|relates]].
+_— captured codex/biocat-compliance-hazard@202cf8e, 2026-08-03_
+
+### F248100 — Finding: FDA results submission and public registry posting are different compliance clocks
+Among 249 linked trial rows whose FDA letter text explicitly alleged missing results, 54.2% had ResultsFirstSubmitDate within 30 days but only 10.8% had a QC-accepted submission and 3.2% were publicly posted. Median post-notice submission was 24 days versus 122 days to posting; submit-to-QC and submit-to-post medians were 64 and 85 days. ResultsFirstPostDate therefore mixes sponsor behavior with NLM quality-control latency and must not label 30-day sponsor response.
+Links: [[E248100|evidenced_by]] · [[F13300|builds_on]].
+_— captured codex/biocat-compliance-hazard@202cf8e, 2026-08-03_
+
+### F248101 — Finding: formal FDA trial-reporting escalation sits in the slow-response tail
+The current ClinicalTrials.gov snapshot carries eight FDAAA 801/formal violation-annotation rows, matching the eight formal Notice of Noncompliance cases published by FDA as of the audit. Zero of those eight had ResultsFirstSubmitDate within 180 days of their pre-notice; lags were 279, 282, 295, 408, 502, and 684 days for six, while two still had no submission date. This is a descriptive downstream association, not a prospective classifier result.
+Links: [[E248100|evidenced_by]] · [[F248100|relates]].
+_— captured codex/biocat-compliance-hazard@202cf8e, 2026-08-03_
+
+### H248100 — Hypothesis: FDA notice response latency is a reusable sponsor compliance prior
+A point-in-time sponsor prior built from prior pre-notice response, grouped trial burden, sponsor class, completion age, registry revision history, and earlier reporting behavior may predict prompt submission and formal escalation on future obligations. Evaluate by notice-date walk-forward with every responsible party confined to one fold; beat notice-year and sponsor-class base rates on calibration and recall of the slow tail. Kill if the gain disappears under grouped out-of-sponsor validation or if history cannot be reconstructed at notice time.
+Links: [[F248100|supports]] · [[F248101|supports]] · [[H253202|refines]].
+_— captured codex/biocat-compliance-hazard@202cf8e, 2026-08-03_
+
+### D248100 — Research decision: FDA pre-notices model compliance behavior, not default price catalysts
+Continue the node as an open public compliance monitor and sponsor-behavior prior. Do not infer that FDA caused submissions from the targeted census, do not use ResultsFirstPostDate as the sponsor-response clock, and do not backtest registry posting returns until issuer disclosures prove residual information. The next causal test requires version-reconstructed matched overdue controls; the next prediction test requires sponsor-grouped walk-forward validation.
+Links: [[E248100|derived_from]] · [[F248100|derived_from]] · [[F248101|derived_from]] · [[H248100|drives]].
+_— captured codex/biocat-compliance-hazard@202cf8e, 2026-08-03_
+
+### F248102 — PT-01 provenance audit advances to a seven-of-nine trial-registry carrier
+The FDA compliance census raises the world-observation corpus to 50 artifacts and is the first 7/9 PT-01 carrier: revision/vintage, payload hashes, source time, first-seen, rights, multi-horizon labels, and trial-registry identity. Corpus coverage is revision 47, hashes 33, source time 10, first-seen 12, tradable time 6, labels 7, rights 7, entity identity 2, registry 3. PT-01 still cannot pass because the leader lacks durable entity identity and conservative tradable time, and FD-00 clock rules still have no callable consumer.
+Links: [[E248100|evidenced_by]] · [[F13303|refines]] · [[H44|relates]].
+_— captured codex/biocat-compliance-hazard@202cf8e, 2026-08-03_
+
+### H248101 — Hypothesis: auction-rate transmission scales with point-in-time AI-infrastructure financing exposure
+A true Treasury auction shock should affect AI-infrastructure equities conditionally, with larger abnormal responses when point-in-time filings show greater refinancing, floating-rate, maturity, or unfunded-capex exposure. The interaction must beat the realized TLT move alone in issuer-grouped forward validation; a static neocloud label is not the model.
+_— captured codex/biocat-compliance-hazard@202cf8e, 2026-08-03_
+
+### E248101 — BOND-NEOCLOUD-01 Treasury coupon auction-demand event study
+Joined official nominal 2/3/5/7/10/20/30-year coupon auctions to hourly CRWV, NBIS, APLD, IREN, QQQ, SOXX, TLT, and IEF bars. The 103-event sample uses original_security_term for reopenings, trailing-tenor demand baselines, a coarse 12:30-13:30 ET window, temporal halves, ticker/tenor stress tests, and a 13-event 5-minute timing pilot. Memo: docs/research/BOND_AUCTION_NEOCLOUD_2026.md; aggregate artifact: docs/research/data/bond_auction_neocloud_2026.json.
+Links: [[H248101|relates]].
+_— captured codex/biocat-compliance-hazard@202cf8e, 2026-08-03_
+
+### F248103 — Treasury historical-relative demand predicts the rate proxy, not a stable neocloud edge
+Across 103 one-p.m. coupon auctions, the trailing-tenor demand score correlated 0.467 with the 12:30-13:30 TLT return (Spearman 0.509; high-minus-low tercile +29.6 bp). TLT correlations remained 0.534 and 0.436 in the early and late halves. Core CRWV/NBIS and adjacent APLD/IREN abnormal-return correlations were 0.224 and 0.292 in aggregate but are not stable enough for promotion.
+Links: [[E248101|evidenced_by]] · [[H248101|supports]].
+_— captured codex/biocat-compliance-hazard@202cf8e, 2026-08-03_
+
+### F248104 — Neocloud auction loading decays out of time and fails the recent five-minute confirmation
+Core/adjacent demand correlations fell from 0.289/0.439 in Apr-Nov 2025 to 0.121/0.105 in Nov 2025-Jul 2026 while demand-to-TLT remained positive. In the 13-event 12:55-13:10 pilot, demand-to-core/adjacent correlations were only 0.189/0.037, and delayed-hour or next-close continuation was weak. The coarse-hour equity result is a regime lead, not a trade.
+Links: [[E248101|evidenced_by]] · [[F248103|relates]] · [[H248101|supports]].
+_— captured codex/biocat-compliance-hazard@202cf8e, 2026-08-03_
+
+### D248101 — Research decision: retain auction demand as macro state; require a true tail and financing panel
+Do not trade the public-data auction/neocloud association. Build a stop-yield-minus-12:59 when-issued shock with exact release clocks, then interact it with SEC-timestamped financing exposure and require issuer-grouped forward improvement over TLT alone. Preserve core neocloud and adjacent infrastructure cohorts separately.
+Links: [[E248101|derived_from]] · [[F248103|derived_from]] · [[F248104|derived_from]] · [[H248101|drives]].
+_— captured codex/biocat-compliance-hazard@202cf8e, 2026-08-03_

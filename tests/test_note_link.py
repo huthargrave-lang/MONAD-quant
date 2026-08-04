@@ -75,6 +75,16 @@ class TheTextTransformIsCorrectTests(unittest.TestCase):
         self.assertEqual(sorted(nodes), ["F1", "F2"])
         self.assertIn("supports", {e["type"] for e in nodes["F1"]["edges"]})
 
+    def test_retype_replaces_one_existing_edge_without_duplication(self):
+        out = note.apply_retype(SAMPLE, "F1", "F2", "relates", "refines")
+        block = out[:out.index("### F2 ")]
+        self.assertIn("[[F2|refines]]", block)
+        self.assertNotIn("[[F2|relates]]", block)
+
+    def test_retype_refuses_an_absent_old_edge(self):
+        with self.assertRaisesRegex(ValueError, "found 0"):
+            note.apply_retype(SAMPLE, "F1", "F2", "supports", "refines")
+
 
 class TheWriterRefusesTheDangerousCasesTests(unittest.TestCase):
     """Dry-run only — none of these touch the file."""
@@ -136,6 +146,14 @@ class ItGoesThroughTheSameFenceAsTheOtherWritersTests(unittest.TestCase):
     def test_it_refuses_a_reliance_edge_into_a_superseded_node(self):
         import inspect
         self.assertIn("RELIANCE_EDGES", inspect.getsource(note.cmd_link))
+
+    def test_retype_uses_the_same_fence_lock_and_node_count_guard(self):
+        import inspect
+        source = inspect.getsource(note.cmd_retype)
+        self.assertIn("_fence()", source)
+        self.assertIn("_locked_commit", source)
+        self.assertIn("build, 0,", source)
+        self.assertIn("RELIANCE_EDGES", source)
 
 
 class TheCaseThatSurfacedItIsRecordedTests(unittest.TestCase):
