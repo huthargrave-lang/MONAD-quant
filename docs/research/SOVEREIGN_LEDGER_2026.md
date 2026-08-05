@@ -3,7 +3,9 @@
 **Research node:** `SL-2026-08`
 **Date:** 2026-08-05
 **Status:** living field manual — not investment advice; every name is a research object
-**Companion:** [`SOVEREIGN_LEDGER_CHAOS_BUCKETS_2026.md`](./SOVEREIGN_LEDGER_CHAOS_BUCKETS_2026.md) — Book II: *if everything goes to shit, what goes up*
+**Companions:**
+- Book II — [`SOVEREIGN_LEDGER_CHAOS_BUCKETS_2026.md`](./SOVEREIGN_LEDGER_CHAOS_BUCKETS_2026.md) — *if everything goes to shit, what goes up*
+- Book III — [`SOVEREIGN_LEDGER_DEPTH_AND_UI_2026.md`](./SOVEREIGN_LEDGER_DEPTH_AND_UI_2026.md) — depth, data clocks, **UI surfacing design (research only)**
 **Purpose:** map small/speculative equities that can reprice when governments rewrite
 supply chains — the same pattern that turned USA Rare Earth (USAR) from a story into
 a Brazil-linked, offtake-scaffolded geopolitical option
@@ -345,5 +347,6 @@ Until then, the Ledger’s working assumption stands:
 |---|---|---|
 | 0.1 | 2026-08-05 | Initial Ledger: S.P.A.R.K., six archetypes, active dossiers, catalyst calendar |
 | 0.2 | 2026-08-05 | Linked Book II Chaos Buckets (war hedges vs safe havens; shock matrix) |
+| 0.3 | 2026-08-05 | Linked Book III depth + UI surfacing research (no implementation) |
 
 Next increment candidates: numeric dilution tables; ownership/% interest clarification for AREC–ReElement; CADE docket tracker for USAR; EXIM status page for NB.

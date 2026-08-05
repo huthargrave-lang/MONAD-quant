@@ -3,6 +3,7 @@
 **Research node:** `SL-CB-2026-08`
 **Date:** 2026-08-05
 **Parent:** [`SOVEREIGN_LEDGER_2026.md`](./SOVEREIGN_LEDGER_2026.md) (Book I — supply-chain sovereignty)
+**Companion:** [`SOVEREIGN_LEDGER_DEPTH_AND_UI_2026.md`](./SOVEREIGN_LEDGER_DEPTH_AND_UI_2026.md) (Book III — episode depth, clocks, UI design)
 **Status:** living map — not investment advice
 **Purpose:** answer the blunt question — *if everything goes to shit, what actually goes up?*
 
@@ -308,5 +309,6 @@ Example: Hormuz spike → oil/tankers (Book II) *and* renewed urgency for non-Ch
 | Ver | Date | Change |
 |---|---|---|
 | 0.1 | 2026-08-05 | Initial twelve Chaos Buckets, shock matrix, three templates, anti-buckets |
+| 0.2 | 2026-08-05 | Cross-link Book III (GPR threat/act, episode ledger, UI surfacing design) |
 
 Next increments: numeric “trigger levels” for war-risk premiums; paper portfolio log; Taiwan victim-vs-hedge issuer map.

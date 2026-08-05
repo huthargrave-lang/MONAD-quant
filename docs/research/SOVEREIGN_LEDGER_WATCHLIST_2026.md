@@ -2,6 +2,10 @@
 
 Not advice. Re-score monthly.
 
+Books: [I](./SOVEREIGN_LEDGER_2026.md) · [II Chaos](./SOVEREIGN_LEDGER_CHAOS_BUCKETS_2026.md) · [III Depth & UI](./SOVEREIGN_LEDGER_DEPTH_AND_UI_2026.md)
+
+**Clocks:** T0 liquidity → T1 mechanism → T2 structure. UI (later) lives on research rail only — never live dashboard.
+
 ## Book I — Sovereignty names
 
 | Tier | Ticker | Archetype | SPARK | Next binary |
