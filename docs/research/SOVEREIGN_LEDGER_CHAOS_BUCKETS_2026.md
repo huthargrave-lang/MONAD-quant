@@ -310,5 +310,22 @@ Example: Hormuz spike → oil/tankers (Book II) *and* renewed urgency for non-Ch
 |---|---|---|
 | 0.1 | 2026-08-05 | Initial twelve Chaos Buckets, shock matrix, three templates, anti-buckets |
 | 0.2 | 2026-08-05 | Cross-link Book III (GPR threat/act, episode ledger, UI surfacing design) |
+| 0.3 | 2026-08-05 | Buckets 13–20 added in screener mock + watchlist (copper, silver, EU defense, naval, refiners, softs, steel, grid) |
+
+**Expanded bucket list (13–20)** — full ticker tables live in
+[`SOVEREIGN_LEDGER_WATCHLIST_2026.md`](./SOVEREIGN_LEDGER_WATCHLIST_2026.md) and the
+[`SOVEREIGN_LEDGER_OPTIONS_MOCK.html`](./SOVEREIGN_LEDGER_OPTIONS_MOCK.html) screener
+(theme-matched to `research_ui` / `ui_tokens`).
+
+| # | Bucket | Shock affinity |
+|---|---|---|
+| 13 | Copper / grid | AI power, China minerals, Taiwan |
+| 14 | Silver | Liquidity washout + industrial |
+| 15 | EU defense | Russia / NATO rearmament |
+| 16 | Naval / yards | Hormuz, Taiwan, Russia |
+| 17 | Refiners / midstream | Hormuz cracks |
+| 18 | Softs / grain | Russia / Red Sea food routes |
+| 19 | Steel / met coal | Wartime industrial |
+| 20 | Grid / power infra | AI load, nuclear utilities |
 
 Next increments: numeric “trigger levels” for war-risk premiums; paper portfolio log; Taiwan victim-vs-hedge issuer map.
