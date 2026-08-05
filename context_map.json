@@ -493,6 +493,7 @@
         "tools/sec_fund_exit_lab.py",
         "tools/sec_rhetoric_delta_lab.py",
         "tools/shadow_replay.py",
+        "tools/stock_screener.py",
         "tools/ui_tokens.py"
       ],
       "entrypoints": [],

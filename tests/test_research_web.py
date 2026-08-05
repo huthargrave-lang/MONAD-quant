@@ -638,7 +638,7 @@ class TestGraphHtmlExplore(unittest.TestCase):
             ".attr('data-z'",
             ".attr('data-depth'",
             "init3D();",
-            "sim.on('tick',()=>{relax3D(sim.alpha());render();});",
+            "sim.on('tick',()=>{relax3D(sim.alpha());if(!simSettling||settleTick++%3===0)render();});",
             "pointerdown.orbit",
             "!ev.shiftKey",
             'id="flat"',
