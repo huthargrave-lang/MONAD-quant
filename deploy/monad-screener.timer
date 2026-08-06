@@ -1,0 +1,19 @@
+[Unit]
+Description=Refresh the MONAD screener snapshot after the US close
+
+[Timer]
+# 17:30 ET, weekdays. After the close and after monad-daily-export (16:15 ET), so the
+# vendor's fundamentals have settled and this never overlaps the export or the trading
+# session. Timezone is named explicitly because the Pi clock is Europe/London.
+OnCalendar=Mon..Fri 17:30 America/New_York
+
+# The Pi is not always up. A missed run should still produce a snapshot rather than
+# leave the page a day stale.
+Persistent=true
+
+# Reddit and yfinance both rate-limit per IP. Arriving at the same second every day is
+# the easiest pattern for a vendor to throttle, and nothing here needs a precise time.
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

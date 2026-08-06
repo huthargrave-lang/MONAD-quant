@@ -8,11 +8,20 @@ mounts, an unhardened stdlib http.server) for zero freshness gain. A static expo
 no process to exploit and nothing private on the box, because there is no box.
 
 What is exported (deliberately narrow):
-  * index.html                 — fundamental screener (Screener | Buckets toggle)
-  * buckets.html               — Sovereign Ledger OPTIONS_MOCK wireframe
+  * index.html                 — the screener: lens bubbles, filter row, widget board,
+                                 tone columns. Its snapshot is BAKED IN at build time,
+                                 because the server that normally injects it is not here.
+  * lenses.html                — the older preset-only screener, kept addressable
   * screen-<preset>.html       — one page per fundamental lens (buttons become links)
+  * buckets.html               — Sovereign Ledger OPTIONS_MOCK wireframe
+  * recommend.html             — the recommendation form (browser-local, as on the server)
   * map.html                   — the self-contained interactive context map
   * static/ui.css              — the shared palette, same path shape the server uses
+
+What is deliberately WITHHELD from the baked payload: Bloomberg/Reddit headline TEXT.
+Tone scores and coverage counts are this repo's own derived numbers and ship; the
+third-party documents behind them do not, because rendering them locally from a cache
+and republishing them on a public site are different acts.
 
 What is NOT exported: the research-web browser and node views (hundreds of pages —
 add them when someone wants them), and anything under live/** (fenced: broker state
@@ -61,10 +70,12 @@ def _static_nav(active="screener"):
             '<h4>Views</h4>'
             '{s}{b}'
             '<a href="map.html">Context map</a>'
+            '<h4>Contribute</h4>{r}'
             '<h4>Source</h4>'
             '<a href="{u}">GitHub repository</a></nav>').format(
         s=link("index.html", "Screener", "screener"),
         b=link("buckets.html", "Buckets", "buckets"),
+        r=link("recommend.html", "Create a recommendation", "recommend"),
         u=REPO_URL)
 
 
@@ -77,12 +88,32 @@ def _staticise(html, built, active="screener"):
         html = html.replace('href="/lenses?preset={}"'.format(key),
                             'href="screen-{}.html"'.format(key))
     html = html.replace('href="/screener/buckets"', 'href="buckets.html"')
-    html = html.replace('href="/screener"', 'href="index.html"')
+    # Any remaining /screener?preset=… (the "+ custom" lens, or a preset carrying extra
+    # query state) has no static page of its own — a lens is a server query. Point them
+    # at the index rather than leaving an absolute route that 404s on Pages.
+    html = re.sub(r'href="/screener\?[^"]*"', 'href="index.html"', html)
+    html = html.replace('href="/screener/draft"', 'href="index.html"')
+    html = html.replace('href="/recommend"', 'href="recommend.html"')
+    html = html.replace('href="/screener"', 'href="lenses.html"')
+    # The dropdown filter form is server-side; on Pages it degrades to a reload.
+    html = html.replace('action="/screener"', 'action="index.html"')
+    # /sentiment is deliberately NOT exported: it renders tools/screener_lab.py's
+    # snapshot, which is a gitignored local cache, so a published copy would be a frozen
+    # tone reading with no way to tell how stale it is. Cross-references to it become
+    # source links — honest about where the surface actually lives.
+    html = re.sub(r'href="/sentiment[^"]*"', 'href="{}"'.format(REPO_URL), html)
     html = html.replace('href="/lenses"', 'href="index.html"')
     html = html.replace('href="/screen"', 'href="index.html"')
     html = _NAV.sub(_static_nav(active), html, count=1)
     # The server footer's claim ("rendered … at request time") would be FALSE here.
-    html = html.replace(_FOOT, "static snapshot built {} UTC".format(built))
+    stamp = "static snapshot built {} UTC".format(built)
+    if _FOOT in html:
+        html = html.replace(_FOOT, stamp)
+    else:
+        # A page carrying its own footer (the screener mock) never made the request-time
+        # claim, so there is nothing to correct — but a published page still has to date
+        # itself, or a reader cannot tell a fresh build from a year-old one.
+        html = html.replace("</footer>", " · " + stamp + "</footer>", 1)
     return html
 
 
@@ -102,18 +133,39 @@ def export(out_dir):
         code, body, _ct = research_ui.route("/screener", {"preset": key}, {})
         assert code == 200, key
         write("screen-{}.html".format(key), _staticise(body, built, "screener"))
+    # The preset-only page keeps a published copy under its own name; the rail no longer
+    # offers it, but the per-lens pages above link back to it.
     code, body, _ct = research_ui.route("/screener", {}, {})
+    assert code == 200
+    write("lenses.html", _staticise(body, built, "screener"))
+
+    # The screener surface itself. Its data is normally injected by the server, so for a
+    # static build the snapshot is baked in at export time — otherwise the published page
+    # would render its own "no payload reached this page" absence state forever.
+    #
+    # Headline TEXT is dropped first. Tone scores and coverage counts are this repo's own
+    # derived numbers and belong on the page, but the documents behind them are verbatim
+    # Bloomberg editorial and Reddit post titles: rendering third-party text locally from a
+    # cache is not the same act as republishing it on a public site, and only the second
+    # one is happening here.
+    payload = research_ui._screener_combined_draft_payload()
+    payload["headlines"] = {"bloomberg": {}, "reddit": {}}
+    payload["headlines_withheld"] = (
+        "Headline text is not republished on the static site; tone scores and coverage "
+        "counts are. Run the server locally to read the documents behind a score.")
+    code, body, _ct = research_ui._screener_combined_draft_html({}, payload=payload)
     assert code == 200
     write("index.html", _staticise(body, built, "screener"))
 
+    code, body, _ct = research_ui.route("/recommend", {}, {})
+    assert code == 200
+    write("recommend.html", _staticise(body, built, "recommend"))
+
     code, body, _ct = research_ui.route("/screener/buckets", {}, {})
     assert code == 200
-    # Standalone HTML mock has its own shell; still rewrite absolute research_ui hrefs
-    # and drop any leftover server paths the toggle uses.
-    buckets = body.replace('href="/screener/buckets"', 'href="buckets.html"')
-    buckets = buckets.replace('href="/screener"', 'href="index.html"')
-    buckets = buckets.replace('href="/screen"', 'href="index.html"')
-    write("buckets.html", buckets)
+    # The server already swaps the mock's standalone rail for the shared nav, so the
+    # page staticises exactly like every other one (nav swap + href rewrites).
+    write("buckets.html", _staticise(body, built, "buckets"))
 
     G, adj = ctx.build_graph(include_code=True)
     write("map.html", ctx._render_graph_html(G, adj))

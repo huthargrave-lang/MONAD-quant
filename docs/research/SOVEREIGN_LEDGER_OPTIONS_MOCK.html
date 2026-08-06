@@ -57,16 +57,17 @@ code,.mono,th,td.num{font-family:var(--mono)}
 .rail a{display:block;padding:5px 18px;color:var(--ink-2);font-size:14px;cursor:pointer;border:0;background:none;width:100%;text-align:left;font:inherit}
 .rail a:hover,.rail button.nav:hover{background:var(--plane);text-decoration:none;color:var(--ink)}
 .rail a.on,.rail button.nav.on{color:var(--ink);border-left:2px solid var(--accent);padding-left:16px;background:var(--plane)}
+.rail a.off{color:var(--ink-muted)}
 .rail .fence{font-size:10px;font-family:var(--mono);color:var(--ink-muted);
   border:1px solid var(--rule);border-radius:3px;padding:0 4px;margin-left:5px}
-main{min-width:0;padding:26px 30px 90px;max-width:1180px}
+main{min-width:0;padding:26px 34px 90px;width:100%;zoom:1.2}
 h1{font-size:23px;line-height:1.25;margin:0 0 6px;font-weight:640;text-wrap:balance;letter-spacing:-.012em}
 h2{font-size:15px;margin:28px 0 10px;font-weight:640;letter-spacing:-.005em}
 h3{font-size:13px;margin:0 0 4px;font-weight:640}
 p{margin:0 0 12px;color:var(--ink-2);max-width:68ch}
 .lede{font-size:15px;color:var(--ink-2);max-width:70ch}
 .crumb{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--ink-muted);margin-bottom:9px}
+  color:var(--ink-muted);margin-bottom:9px;text-align:center}
 .panel{background:var(--surface);border:1px solid var(--rule);border-radius:9px;
   padding:18px 20px;margin:0 0 18px}
 .panel > figcaption{margin-bottom:14px}
@@ -103,7 +104,7 @@ tbody tr.on{background:var(--plane)}
   border-radius:0 6px 6px 0;color:var(--ink-2);font-size:13.5px;margin:0 0 16px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(176px,1fr));gap:8px}
 .bucket{text-align:left;background:var(--plane);border:1px solid var(--rule);border-radius:9px;
-  padding:12px 12px 10px;cursor:pointer;min-height:124px;display:flex;flex-direction:column;gap:5px;
+  padding:11px 12px 9px;cursor:pointer;min-height:108px;display:flex;flex-direction:column;gap:4px;
   font:inherit;color:inherit;width:100%}
 .bucket:hover{border-color:var(--accent)}
 .bucket.selected{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--surface)}
@@ -117,7 +118,12 @@ tbody tr.on{background:var(--plane)}
 .heat.h2 > i{width:50%;background:var(--ord-2)}
 .heat.h3 > i{width:75%;background:var(--warning)}
 .heat.h4 > i{width:100%;background:var(--critical)}
-.layout{display:grid;grid-template-columns:1.15fr .85fr;gap:14px}
+.layout{display:grid;grid-template-columns:1.1fr .9fr;gap:14px;align-items:start}
+/* Selection-driven tables scroll in place instead of stretching the page: 36 tickers
+   must not push Book I (and the footer) a full screen further down. */
+#watch .scroller{max-height:404px;overflow-y:auto}
+#book1 .scroller{max-height:380px;overflow-y:auto}
+.scroller thead th{position:sticky;top:0;background:var(--surface);z-index:1}
 @media (max-width:980px){
   .shell{grid-template-columns:1fr}
   .rail{border-right:0;border-bottom:1px solid var(--rule);padding-bottom:14px}
@@ -143,15 +149,18 @@ footer{margin-top:44px;padding-top:14px;border-top:1px solid var(--rule);font-si
 .instr{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);line-height:1.45;word-break:break-word}
 
 /* centered chrome + Screener/Buckets toggle */
-.screen-center{text-align:center;max-width:1040px;margin:0 auto}
+.screen-center{text-align:center;width:100%;margin:0 auto}
 .screen-center .lede{margin-left:auto;margin-right:auto}
 .screen-center .note{text-align:left}
 .screen-center .panel{text-align:left}
-.screen-center .stats{max-width:640px;margin-left:auto;margin-right:auto}
+.screen-center .stats{max-width:720px;margin-left:auto;margin-right:auto}
 .screen-center .legend{justify-content:center}
 .screen-center .tabs{justify-content:center}
 .screen-center .filters,.screen-center .controls{justify-content:center}
+.screen-center .layout{text-align:left}
+.screen-center .grid{text-align:left}
 .screen-center h1,.screen-center h2{text-align:center}
+.screen-center .count{margin-left:0}
 .view-toggle{display:flex;width:fit-content;gap:0;margin:0 auto 18px;border:1px solid var(--rule);
   border-radius:9px;overflow:hidden}
 .view-toggle a{padding:8px 20px;font:13px var(--sans);color:var(--ink-2);background:var(--surface);
@@ -184,30 +193,6 @@ footer{margin-top:44px;padding-top:14px;border-top:1px solid var(--rule);font-si
 
   <main>
     <div class="screen-center">
-    <div class="crumb">Research · Sovereign Ledger · study objects</div>
-    <div class="view-toggle" role="tablist" aria-label="Screener views">
-      <a href="/screener">Screener</a>
-      <a class="on" href="/screener/buckets" aria-current="page">Buckets</a>
-    </div>
-    <h1>Chaos bucket screener</h1>
-    <p class="lede">
-      Pick a shock, clock, and buckets. Tickers are study objects for free daily history
-      (yfinance cache) — not live-bot signals. Theme matches <code>research_ui</code> / <code>ui_tokens</code>.
-      Fundamental screener: <a href="/screener"><code>/screener</code></a>.
-    </p>
-
-    <div class="note">
-      <strong>Mock prices.</strong> Sparklines and charts are deterministic demo walks shaped like a nightly Yahoo cache.
-      Served at <code>/screener/buckets</code> from <code>docs/research/SOVEREIGN_LEDGER_OPTIONS_MOCK.html</code>.
-    </div>
-
-    <div class="stats" id="stats">
-      <div class="stat"><b id="statBuckets">20</b><span>buckets</span></div>
-      <div class="stat"><b id="statTickers">0</b><span>tickers in view</span></div>
-      <div class="stat"><b id="statSel">0</b><span>buckets selected</span></div>
-      <div class="stat"><b id="statClock">T1</b><span>active clock</span></div>
-    </div>
-
     <div class="filters" id="controls">
       <label>Shock
         <select id="shock">
@@ -601,10 +586,13 @@ function renderWatch(){
     });
   });
   const seen=new Set(); const uniq=rows.filter(r=>{if(seen.has(r.t))return false;seen.add(r.t);return true});
-  document.getElementById("statTickers").textContent=String(uniq.length);
-  document.getElementById("statSel").textContent=String(selected.size);
-  document.getElementById("statClock").textContent=document.getElementById("clock").value;
-  document.getElementById("statBuckets").textContent=String(BUCKETS.length);
+  // The stats strip was removed from the page; keep the setters harmless in case a
+  // variant of this mock still carries it.
+  const setStat=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v};
+  setStat("statTickers",String(uniq.length));
+  setStat("statSel",String(selected.size));
+  setStat("statClock",document.getElementById("clock").value);
+  setStat("statBuckets",String(BUCKETS.length));
   document.getElementById("watchHint").textContent=uniq.length
     ? `${uniq.length} tickers · ${selected.size} buckets · ${n}d window · demo cache`
     : "Select buckets to fill rows.";
@@ -684,7 +672,10 @@ document.getElementById("topHeat").onclick=()=>{
   BUCKETS.map(b=>({b,h:heatOf(b)})).sort((a,c)=>c.h-a.h).slice(0,4).forEach(x=>selected.add(x.b.id));
   activeTicker=null; renderAll();
 };
-document.getElementById("themeBtn").onclick=()=>{
+// Standalone file only — the served page swaps this rail for the shared _nav(),
+// which has no theme button (theme follows prefers-color-scheme there).
+const themeBtn=document.getElementById("themeBtn");
+if(themeBtn) themeBtn.onclick=()=>{
   const r=document.documentElement;
   const cur=r.getAttribute("data-theme");
   if(cur==="dark") r.setAttribute("data-theme","light");

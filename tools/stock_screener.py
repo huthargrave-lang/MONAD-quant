@@ -38,9 +38,11 @@ Design rules, in line with the rest of this repo:
 
 Units (normalised in `_normalise_row`, asserted nowhere else):
   * `dividend_yield`, `earnings_growth`, `revenue_growth`, `profit_margin`,
-    `range_52w_pct` are FRACTIONS (0.03 = 3%). yfinance has shipped `dividendYield`
-    both as a fraction (0.03) and as percent points (3.0) across versions; values
-    above 0.5 are treated as percent points — no common stock yields 50%.
+    `range_52w_pct` are FRACTIONS (0.03 = 3%). Prefer `dividendRate`/`price` (or
+    trailing rate), then `trailingAnnualDividendYield` (already a fraction). Yahoo's
+    `dividendYield` is percent points (0.35 = 0.35%, 6.2 = 6.2%) — always /100 when
+    used as fallback. The old ">0.5 ⇒ percent points" heuristic left AAPL/NVDA/etc.
+    showing 35–47% yields.
   * `debt_to_equity` stays in yfinance's percent points (95.0 = 0.95x equity).
   * `pe` prefers trailing, falls back to forward; non-positive P/E is stored as None
     (loss-makers have no meaningful P/E, and a preset that asks for one skips them).
@@ -245,6 +247,25 @@ SHADOW_DEBT_BLURBS = {
                   "constraints bind the whole stack.",
 }
 
+#: How badly a bucket compromises the REPORTED debt/equity number. This is an ORDINAL
+#: editorial judgement, deliberately not a notional: the repo has no free source for SPV
+#: debt outstanding (see docs/research/OFF_BALANCE_SHEET_DEBT_QUANT_2026.md), and
+#: inventing "+60 D/E points" would be fabricating the very figure the lens exists to say
+#: is missing. Sponsors rank highest because they are the party whose own statements omit
+#: the project debt; a supplier selling into the buildout carries demand risk, not an
+#: off-balance-sheet leg of its own.
+SHADOW_DEBT_SEVERITY = {
+    "spv_sponsor": "high",
+    "capex_burn": "high",
+    "grid_power": "medium",
+    "supply_chain": "low",
+}
+
+#: Ordinal form so a preset can gate on it. 0 means "carries no tag on THIS editorial
+#: list" — it is not evidence that a company has no off-balance-sheet exposure, and no
+#: rule here may be read as certifying one.
+SHADOW_SEVERITY_RANK = {None: 0, "low": 1, "medium": 2, "high": 3}
+
 #: ticker → shadow-debt bucket. Hyperscalers tagged spv_sponsor on industry practice
 #: (Meta's Louisiana SPV is documented; peers are standardizing similar structures).
 SHADOW_DEBT = {
@@ -312,7 +333,7 @@ validate_universe()
 METRIC_KEYS = (
     "price", "market_cap", "pe", "earnings_growth", "revenue_growth", "growth",
     "dividend_yield", "debt_to_equity", "beta", "avg_volume", "dollar_volume",
-    "range_52w_pct", "profit_margin",
+    "range_52w_pct", "profit_margin", "shadow_severity_rank",
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -345,9 +366,13 @@ PRESETS = {
     "safety_low_debt": {
         "title": "Safety · low debt",
         "blurb": "Balance-sheet screen: debt under 80% of equity, beta under 0.9, and "
-                 "a real profit margin — the sit-through-a-storm cohort.",
+                 "a real profit margin — the sit-through-a-storm cohort. Names carrying "
+                 "a high-severity AI shadow-debt tag are excluded even when their "
+                 "reported D/E is low, because for those names the reported figure is "
+                 "known to omit a financing leg (see the AI shadow-debt lens).",
         "require": [("debt_to_equity", "<=", 80.0), ("beta", "<=", 0.9),
-                    ("profit_margin", ">=", 0.08)],
+                    ("profit_margin", ">=", 0.08),
+                    ("shadow_severity_rank", "<=", 2)],
         "rank": ("debt_to_equity", "asc"),
         "x": ("debt_to_equity", "debt / equity (%)"),
         "y": ("beta", "beta vs S&P 500"),
@@ -439,7 +464,7 @@ _OPS = {
 
 #: Editorial tag metrics: absence is a valid value (untagged), not missing data —
 #: rules on these never send a row to the "no data" bin.
-CATEGORICAL = ("ai", "bucket", "shadow_debt")
+CATEGORICAL = ("ai", "bucket", "shadow_debt", "shadow_severity")
 
 
 def validate_presets():
@@ -475,6 +500,28 @@ def _num(value):
     return v if math.isfinite(v) else None
 
 
+def _dividend_yield_fraction(info, price):
+    """Return dividend yield as a fraction (0.03 = 3%), or None if unknown.
+
+    Yahoo's `dividendYield` is percent points (0.35 = 0.35%). Prefer rate/price or
+    `trailingAnnualDividendYield` (already a fraction) so low-yield names are not
+    shown as 35%+.
+    """
+    rate = _num(info.get("dividendRate"))
+    if rate is None:
+        rate = _num(info.get("trailingAnnualDividendRate"))
+    if rate is not None and price and price > 0 and rate >= 0:
+        return rate / price
+    tady = _num(info.get("trailingAnnualDividendYield"))
+    if tady is not None and tady >= 0:
+        # Rare vendors ship this as percent points too (e.g. 2.64); fractions stay.
+        return tady / 100.0 if tady > 1.0 else tady
+    raw = _num(info.get("dividendYield"))
+    if raw is None or raw < 0:
+        return None
+    return raw / 100.0
+
+
 def _normalise_row(ticker, name, sector, ai, info, bucket=None):
     price = _num(info.get("currentPrice")) or _num(info.get("regularMarketPrice"))
     pe = _num(info.get("trailingPE"))
@@ -482,9 +529,7 @@ def _normalise_row(ticker, name, sector, ai, info, bucket=None):
         pe = _num(info.get("forwardPE"))
     if pe is not None and pe <= 0:
         pe = None
-    dy = _num(info.get("dividendYield"))
-    if dy is not None and dy > 0.5:      # percent-points variant of yfinance
-        dy = dy / 100.0
+    dy = _dividend_yield_fraction(info, price)
     eg = _num(info.get("earningsGrowth"))
     rg = _num(info.get("revenueGrowth"))
     avg_vol = _num(info.get("averageVolume"))
@@ -518,8 +563,7 @@ def fetch_snapshot(out_path=SNAPSHOT_PATH):
     for ticker, name, sector, ai, bucket in universe_rows():
         try:
             info = yf.Ticker(ticker).info or {}
-            row = _normalise_row(ticker, name, sector, ai, info, bucket)
-            row["shadow_debt"] = SHADOW_DEBT.get(ticker)
+            row = enrich_row(_normalise_row(ticker, name, sector, ai, info, bucket))
             rows.append(row)
         except Exception as exc:               # noqa: BLE001 — record and continue
             errors[ticker] = str(exc)
@@ -541,7 +585,10 @@ def fetch_snapshot(out_path=SNAPSHOT_PATH):
 def enrich_row(row):
     """Join editorial shadow-debt tags onto a snapshot row (works on old caches)."""
     out = dict(row)
-    out["shadow_debt"] = SHADOW_DEBT.get(out.get("ticker"))
+    tag = SHADOW_DEBT.get(out.get("ticker"))
+    out["shadow_debt"] = tag
+    out["shadow_severity"] = SHADOW_DEBT_SEVERITY.get(tag)
+    out["shadow_severity_rank"] = SHADOW_SEVERITY_RANK[out["shadow_severity"]]
     return out
 
 
@@ -575,6 +622,11 @@ def apply_preset(rows, preset_key):
     p = PRESETS[preset_key]
     matches, no_data = [], []
     for row in rows:
+        # The shadow fields are DERIVED from the editorial tag table, never fetched, so a
+        # row that predates them is stale rather than missing data — deriving it here
+        # keeps an old cache (or a hand-built row) from being reported as unscreenable.
+        if row.get("shadow_severity_rank") is None:
+            row = enrich_row(row)
         missing = [m for m, _op, _v in p["require"]
                    if m not in CATEGORICAL and row.get(m) is None]
         if missing:

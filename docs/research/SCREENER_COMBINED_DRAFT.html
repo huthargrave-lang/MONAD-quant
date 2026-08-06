@@ -1,0 +1,3392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Screener</title>
+<style>
+:root{
+  --plane:#f2f3f1; --surface:#fcfcfb; --ink:#0b0b0b; --ink-2:#52514e;
+  --ink-muted:#898781; --rule:#e1e0d9; --axis:#c3c2b7; --accent:#2a78d6;
+  --ord-1:#86b6ef; --ord-2:#3987e5; --ord-3:#1c5cab; --ord-4:#0d366b;
+  --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+  --ink-on-4:#f7f7f5;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --plane:#0d0f12; --surface:#15181d; --ink:#f4f4f2; --ink-2:#b8b7b2;
+    --ink-muted:#83827d; --rule:#282c33; --axis:#3d424b; --accent:#6ba7f0;
+    --ord-1:#184f95; --ord-2:#2f79d4; --ord-3:#74aaee; --ord-4:#b7d3f6;
+    --good:#3fbf3f; --warning:#e5b23c; --serious:#f09268; --critical:#ef6a6a;
+    --ink-on-4:#0b0b0b;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--plane);color:var(--ink);font:15px/1.55 var(--sans);
+  -webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+code{font-family:var(--mono);font-size:12px}
+
+.shell{display:grid;grid-template-columns:232px minmax(0,1fr);gap:0;min-height:100vh}
+.rail{border-right:1px solid var(--rule);background:var(--surface);padding:20px 0 40px}
+.rail .brand{padding:0 18px 16px;border-bottom:1px solid var(--rule);margin-bottom:14px}
+.rail .brand b{display:block;font-family:var(--mono);font-size:13px;letter-spacing:.06em;
+  text-transform:uppercase}
+.rail .brand span{display:block;font-size:12px;color:var(--ink-muted);margin-top:3px}
+.rail h4{margin:16px 0 6px;padding:0 18px;font-size:11px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--ink-muted);font-weight:600}
+.rail a{display:block;padding:5px 18px;color:var(--ink-2);font-size:14px}
+.rail a:hover{background:var(--plane);text-decoration:none;color:var(--ink)}
+.rail a.on{color:var(--ink);border-left:2px solid var(--accent);padding-left:16px;background:var(--plane)}
+
+main{min-width:0;padding:22px 28px 70px;width:100%;max-width:none}
+.note-banner{border:1px dashed var(--warning);background:var(--surface);border-radius:9px;
+  padding:10px 14px;margin:0 0 18px;font-size:13px;color:var(--ink-2)}
+.note-banner b{color:var(--ink)}
+.crumb{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-muted);margin-bottom:8px}
+h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing:-.012em}
+.lede{font-size:14.5px;color:var(--ink-2);max-width:82ch;margin:0 0 16px}
+
+.view-toggle{display:flex;width:fit-content;gap:0;margin:0 0 16px;border:1px solid var(--rule);
+  border-radius:9px;overflow:hidden}
+.view-toggle button,.view-toggle a{padding:7px 16px;font:13px var(--sans);color:var(--ink-2);
+  background:var(--surface);border:0;border-right:1px solid var(--rule);cursor:pointer;
+  text-decoration:none}
+.view-toggle button:last-child,.view-toggle a:last-child{border-right:0}
+.view-toggle .on{color:var(--ink);font-weight:600;background:var(--plane);
+  box-shadow:inset 0 -2px 0 var(--accent)}
+
+.presets{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
+.presets button{font:13px var(--sans);line-height:28px;padding:0 12px;border:1px solid var(--rule);
+  border-radius:999px;background:var(--surface);color:var(--ink-2);cursor:pointer}
+.presets button.on{border-color:var(--accent);color:var(--ink);background:var(--plane);font-weight:600}
+.presets button.custom{border-style:dashed;color:var(--accent)}
+.presets button.custom.on{border-style:solid}
+/* A custom lens bubble is a group of real buttons rather than one button with clickable
+   spans inside it: every control stays tab-reachable, and delete cannot be hit by aiming
+   at the label. */
+.presets .lens-chip{display:inline-flex;align-items:center;border:1px solid var(--rule);
+  border-radius:999px;background:var(--surface);overflow:hidden}
+.presets .lens-chip.on{border-color:var(--accent);background:var(--plane)}
+.presets .lens-chip button{border:0;border-radius:0;background:transparent}
+.presets .lens-chip button.on{background:transparent;color:var(--ink);font-weight:600}
+.presets .lens-chip .lens-edit,.presets .lens-chip .lens-del{
+  padding:0 9px;border-left:1px solid var(--rule);color:var(--ink-muted);font-size:12px}
+.presets .lens-chip .lens-edit:hover{color:var(--accent)}
+.presets .lens-chip .lens-del:hover{color:var(--critical)}
+.lens-note{margin:0 0 14px;padding:9px 12px;border:1px solid var(--warning);border-radius:9px;
+  background:var(--surface);font-size:12.8px;color:var(--ink-2)}
+.lens-note[hidden]{display:none}
+.lens-note b{color:var(--ink)}
+
+.stats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;
+  background:var(--rule);border:1px solid var(--rule);border-radius:9px;overflow:hidden;
+  margin-bottom:14px}
+.stat{background:var(--surface);padding:12px 14px}
+.stat b{display:block;font-family:var(--mono);font-size:22px;line-height:1.1}
+.stat span{display:block;font-size:11px;color:var(--ink-muted);margin-top:3px}
+
+.providers{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 16px}
+.prov{border:1px solid var(--rule);border-radius:9px;background:var(--surface);padding:12px 14px}
+.prov.partial{border-style:dashed}
+.prov h3{margin:0 0 4px;font-size:13px;display:flex;align-items:center;gap:8px}
+.prov p{margin:0;font-size:12.5px;color:var(--ink-2)}
+.chip{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:11px;
+  padding:2px 7px;border-radius:999px;border:1px solid var(--rule);color:var(--ink-2);
+  background:var(--plane);white-space:nowrap}
+.chip .dot{width:7px;height:7px;border-radius:50%}
+.chip.good .dot{background:var(--good)} .chip.warning .dot{background:var(--warning)}
+.chip.critical .dot{background:var(--critical)} .chip.neutral .dot{background:var(--axis)}
+
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin:0 0 16px}
+.filters label,.lens-grid label,.lens-name,.prop-field{display:flex;flex-direction:column;gap:4px;
+  font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted)}
+.filters select,.filters input,.lens-grid select,.lens-name input,
+.prop-field select,.prop-field input,.prop-field textarea{font:13px var(--sans);
+  height:30px;padding:0 8px;border:1px solid var(--rule);border-radius:6px;
+  background:var(--surface);color:var(--ink);min-width:110px}
+/* No .filters variant: the filter row has no primary action, because it has no action. */
+.btn-row button.primary{height:30px;padding:0 14px;border-radius:6px;
+  border:1px solid var(--accent);background:var(--accent);color:var(--ink-on-4);
+  font:13px var(--sans);cursor:pointer}
+.tone-toggle{display:inline-flex;border:1px solid var(--rule);border-radius:8px;overflow:hidden}
+.tone-toggle button{height:30px;padding:0 12px;border:0;border-right:1px solid var(--rule);
+  background:var(--surface);color:var(--ink-2);font:13px var(--sans);cursor:pointer}
+.tone-toggle button:last-child{border-right:0}
+.tone-toggle button.on{background:var(--plane);color:var(--ink);font-weight:600;
+  box-shadow:inset 0 -2px 0 var(--accent)}
+/* Every filter takes effect on `change`, so the row needs a running count in it — otherwise
+   the only feedback that a dropdown did anything is a table far below the fold. */
+.filter-count{flex:1 0 100%;margin:2px 0 0;font:12px var(--sans);color:var(--ink-2)}
+.filter-count b{font-family:var(--mono)}
+
+/* Shown only when no snapshot reached the page. It names the missing source and the command
+   that produces it, because a screener with nothing in it is otherwise indistinguishable
+   from a screener that is broken. */
+.no-data{border:1px solid var(--warning);border-radius:9px;background:var(--surface);
+  padding:14px 16px;margin:0 0 16px}
+.no-data h2{margin:0 0 6px;font-size:15px}
+.no-data p{margin:0 0 9px;font-size:13px;color:var(--ink-2);max-width:90ch}
+.no-data ul{margin:0 0 4px;padding-left:17px;font-size:13px;color:var(--ink-2)}
+.no-data li{margin-bottom:6px}
+.no-data code{font:12px var(--mono);background:var(--plane);border:1px solid var(--rule);
+  border-radius:4px;padding:1px 5px}
+
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:9px;
+  padding:14px 16px;margin:0 0 16px}
+.panel h2{margin:0 0 4px;font-size:15px}
+.panel .why{margin:0 0 12px;font-size:13px;color:var(--ink-2);max-width:90ch}
+.legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:10px;font-size:12px;color:var(--ink-muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.legend .ring{box-shadow:0 0 0 2px var(--ink);border-radius:50%}
+
+/* Split-tree board. Every pane's rect is derived from its parent split node, so a pane
+   cannot exist without a parent handing it space — free space is structurally impossible
+   and removing a leaf hands its rect straight back to its sibling. */
+.board{
+  position:relative;height:min(51vh, 660px);min-height:420px;width:100%;
+  margin:0 0 16px;box-sizing:border-box;
+  border:1px dashed var(--rule);border-radius:10px;background:var(--plane);
+}
+.board-empty{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  color:var(--ink-muted);font:12.5px var(--sans);text-align:center;padding:0 24px;
+}
+/* Grip for dragging the whole board taller. It sits below the board rather than inside it
+   so it can never overlap a pane's own splitter or a tile's drop bands. */
+.prop-listhead{
+  margin:16px 0 6px;padding-top:12px;border-top:1px solid var(--rule);
+  font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted);
+}
+.board-resize{
+  display:block;width:100%;height:14px;margin:-10px 0 14px;padding:0;
+  border:0;background:none;cursor:ns-resize;position:relative;
+}
+.board-resize::after{
+  content:"";position:absolute;left:50%;top:5px;width:54px;height:4px;
+  transform:translateX(-50%);border-radius:99px;background:var(--rule);
+}
+.board-resize:hover::after,.board-resize:focus-visible::after,
+.board-resize.dragging::after{background:var(--accent)}
+.board-resize:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (max-width:1100px){ .board-resize{display:none} }
+/* The tray sits ABOVE the board so a parked chart is always reachable without scrolling. */
+.tray{
+  display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:0 0 8px;
+  padding:5px 8px;border:1px solid var(--rule);border-radius:9px;
+  background:var(--surface);min-height:38px;
+}
+.tray-label{font:10.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-muted)}
+.tray-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:0}
+.tray-chip{
+  font:12px var(--sans);height:26px;padding:0 10px;border:1px solid var(--rule);
+  border-radius:999px;background:var(--plane);color:var(--ink-2);cursor:grab;
+  display:inline-flex;align-items:center;gap:6px;user-select:none;touch-action:none;
+}
+.tray-chip:hover{border-color:var(--accent);color:var(--ink)}
+.tray-chip:active{cursor:grabbing}
+.tray-chip.dragging{opacity:.45}
+.tray-chip .dot{width:7px;height:7px;border-radius:50%;background:var(--ord-2);flex:0 0 auto}
+.tray-empty{font-size:12px;color:var(--ink-muted)}
+/* Charts whose data source is not wired yet are kept out of the ordinary tray so the tray
+   only offers things that would actually draw. They stay reachable behind this disclosure —
+   parked is not deleted, and the reader may still place one deliberately. */
+.parked{flex:1 0 100%;order:2;font-size:12px}
+.parked > summary{cursor:pointer;font:11px var(--mono);letter-spacing:.05em;
+  color:var(--ink-muted);list-style:none;display:inline-flex;align-items:center;gap:6px}
+.parked > summary::-webkit-details-marker{display:none}
+.parked > summary::before{content:"▸";font-size:10px}
+.parked[open] > summary::before{content:"▾"}
+.parked > summary:hover{color:var(--ink-2)}
+.parked-body{margin:7px 0 3px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.parked-why{flex:1 0 100%;margin:0 0 4px;font-size:11.5px;color:var(--ink-muted);max-width:80ch}
+.parked .tray-chip{border-style:dashed}
+.parked .tray-chip .dot{background:var(--warning)}
+/* A parked chart still renders — what it renders is the reason it is parked. */
+.absent{margin:0;font-size:12.5px;color:var(--ink-2);line-height:1.5}
+.absent b{color:var(--ink)}
+.absent code{font:11.5px var(--mono);background:var(--plane);border:1px solid var(--rule);
+  border-radius:4px;padding:1px 5px}
+.board-hint{margin-left:auto;display:inline-flex;align-items:center;gap:6px;
+  font:11px var(--mono);color:var(--ink-muted)}
+.board-hint button{
+  font:11px var(--mono);height:22px;padding:0 8px;
+  border:1px solid var(--rule);border-radius:5px;background:var(--plane);color:var(--ink-2);
+  cursor:pointer;
+}
+.board-hint button:hover{border-color:var(--accent);color:var(--ink)}
+/* One splitter per internal split node — dragging it writes that node's ratio and
+   nothing else, which is why it moves only the two panes it separates. */
+.board-splitter{position:absolute;z-index:3;border-radius:6px;background:var(--rule);
+  touch-action:none}
+.board-splitter[data-dir="row"]{cursor:col-resize}
+.board-splitter[data-dir="col"]{cursor:row-resize}
+.board-splitter:hover,.board-splitter.dragging{background:var(--accent)}
+.drop-preview{
+  position:absolute;z-index:6;pointer-events:none;border-radius:9px;
+  border:2px solid var(--accent);
+  background:color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.tile{
+  position:absolute;box-sizing:border-box;display:flex;flex-direction:column;
+  background:var(--surface);border:1px solid var(--rule);border-radius:9px;
+  padding:10px 12px 12px;overflow:hidden;
+}
+.tile.dragging{opacity:.55}
+.tile-close{
+  flex:0 0 auto;width:20px;height:20px;padding:0;line-height:1;border-radius:5px;
+  border:1px solid transparent;background:transparent;color:var(--ink-muted);
+  font:14px var(--sans);cursor:pointer;
+}
+.tile-close:hover{border-color:var(--rule);background:var(--plane);color:var(--critical)}
+.tile-bar{
+  display:flex;align-items:center;gap:8px;margin:0 0 6px;padding:2px 0 6px;
+  border-bottom:1px solid var(--rule);cursor:grab;user-select:none;flex:0 0 auto;
+  touch-action:none;
+}
+.tile-bar:active{cursor:grabbing}
+.tile-grip{font:12px var(--mono);color:var(--ink-muted);letter-spacing:.12em}
+.tile-bar h2{margin:0;font-size:14px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.tile-meta{font:11px var(--mono);color:var(--ink-muted);white-space:nowrap}
+.tile-body{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.tile-body .why{margin:0 0 8px;font-size:12.5px;color:var(--ink-2);flex:0 0 auto}
+.chart-host{width:100%;min-height:0;flex:1;position:relative}
+.chart-host svg{width:100%;height:100%;max-width:none;display:block}
+.chart-host .mark{cursor:pointer}
+.legend{flex:0 0 auto;display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;font-size:12px;color:var(--ink-muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.legend .ring{box-shadow:0 0 0 2px var(--ink);border-radius:50%}
+.shadow-cell{cursor:help;border-bottom:1px dotted var(--ink-muted)}
+.tone-stack{display:flex;flex-direction:column;gap:8px;max-height:none;overflow:auto;flex:1;min-height:0}
+.tone-card{border:1px solid var(--rule);border-radius:8px;padding:10px 12px;background:var(--plane)}
+.tone-card .tk{font-family:var(--mono);font-size:12px;color:var(--accent)}
+.tone-card .hd{font-size:13px;color:var(--ink);margin:3px 0}
+.tone-card .meta{font-size:11.5px;color:var(--ink-muted)}
+
+
+.qmark{
+  flex:0 0 auto;width:17px;height:17px;padding:0;line-height:15px;text-align:center;
+  border-radius:50%;border:1px solid var(--rule);background:var(--surface);
+  color:var(--ink-muted);font:11px var(--sans);cursor:pointer;vertical-align:middle;
+}
+.qmark:hover,.qmark[aria-expanded="true"]{border-color:var(--accent);color:var(--accent)}
+th .qmark{margin-left:4px}
+.filters label .qmark{position:relative;top:1px;margin-left:4px}
+.explain{
+  position:fixed;z-index:40;width:min(540px, calc(100vw - 32px));
+  max-height:min(74vh, 620px);overflow:auto;background:var(--surface);
+  border:1px solid var(--rule);border-radius:11px;padding:14px 16px 16px;
+  box-shadow:0 12px 34px color-mix(in srgb, var(--ink) 22%, transparent);
+}
+.explain[hidden]{display:none}
+.explain h3{margin:0 0 7px;font-size:14.5px;padding-right:26px}
+.explain p{margin:0 0 9px;font-size:12.8px;color:var(--ink-2)}
+.explain ul{margin:0 0 9px;padding-left:17px;font-size:12.8px;color:var(--ink-2)}
+.explain li{margin-bottom:5px}
+.explain b{color:var(--ink)}
+.explain .explain-close{
+  position:absolute;right:11px;top:11px;width:22px;height:22px;padding:0;line-height:1;
+  border:1px solid var(--rule);border-radius:6px;background:var(--plane);
+  color:var(--ink-2);font:13px var(--sans);cursor:pointer;
+}
+.explain .explain-close:hover{border-color:var(--accent);color:var(--ink)}
+.explain .caveat{
+  border-left:3px solid var(--warning);padding-left:10px;margin:0 0 9px;
+  font-size:12.8px;color:var(--ink);
+}
+.explain .tagname{font-family:var(--mono);font-size:11.5px;color:var(--accent)}
+.explain .src{font-size:11.5px;color:var(--ink-muted);margin:0}
+
+/* Shared controls for the two option panels. They borrow the bubble/chip language already
+   used by .presets so a panel does not read as a second design. */
+.explain h4.opt-head{margin:13px 0 6px;font-size:10.5px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--ink-muted);font-weight:600}
+.explain .opt-list{margin:0 0 4px}
+.explain .opt-list label{display:flex;gap:9px;align-items:flex-start;padding:7px 0;
+  border-bottom:1px solid var(--rule);font-size:12.5px;color:var(--ink-2);cursor:pointer}
+.explain .opt-list label:last-child{border-bottom:0}
+.explain .opt-list input{margin:3px 0 0;flex:0 0 auto}
+.explain .opt-list b{display:block;color:var(--ink)}
+.explain .opt-row{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 9px}
+.explain .opt-row button,.explain .opt-pill{font:12px var(--sans);height:28px;padding:0 11px;
+  border:1px solid var(--rule);border-radius:999px;background:var(--plane);color:var(--ink-2);
+  cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.explain .opt-row button:hover,.explain .opt-pill:hover{border-color:var(--accent);color:var(--ink)}
+.explain .opt-pill input{margin:0;flex:0 0 auto}
+/* The pictogram is the control: the caption under it is a label, not the thing you aim at. */
+.explain .arrange-grid{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 9px}
+.explain .arrange-grid button{display:flex;flex-direction:column;align-items:center;gap:5px;
+  padding:7px 7px 6px;border:1px solid var(--rule);border-radius:8px;background:var(--plane);
+  color:var(--ink-muted);font:10.5px var(--sans);cursor:pointer}
+.explain .arrange-grid button svg{display:block;width:64px;height:40px}
+.explain .arrange-grid button rect{fill:var(--surface);stroke:var(--rule);stroke-width:2}
+.explain .arrange-grid button:hover,.explain .arrange-grid button:focus-visible{
+  border-color:var(--accent);color:var(--ink)}
+.explain .arrange-grid button:hover rect,.explain .arrange-grid button:focus-visible rect{
+  stroke:var(--accent)}
+.explain .arrange-grid button.on{border-color:var(--accent);color:var(--ink);
+  background:var(--surface);font-weight:600}
+.explain .arrange-grid button.on rect{stroke:var(--accent);
+  fill:color-mix(in srgb, var(--accent) 16%, transparent)}
+.lens-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:0 0 4px}
+.lens-name{margin:0 0 9px}
+.lens-grid select,.lens-name input{width:100%;min-width:0;text-transform:none;
+  letter-spacing:normal}
+.lens-error{margin:0 0 9px;padding:7px 10px;background:var(--plane);
+  border-left:3px solid var(--critical);font-size:12.5px;color:var(--ink)}
+.lens-error[hidden]{display:none}
+.btn-row{display:flex;gap:8px;margin-top:13px}
+.btn-row button{height:30px;padding:0 14px;border-radius:6px;border:1px solid var(--rule);
+  background:var(--plane);color:var(--ink-2);font:13px var(--sans);cursor:pointer}
+.btn-row button:hover{border-color:var(--accent);color:var(--ink)}
+
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:8px 10px 8px 0;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted);font-weight:600}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:12.5px}
+.muted-cell{color:var(--ink-muted);font-size:11.5px}
+.bar{display:block;height:3px;border-radius:2px;background:var(--ord-2);margin-top:4px;min-width:2px}
+.sev{border-left:3px solid transparent;padding-left:9px}
+.sev.good{border-color:var(--good)} .sev.warning{border-color:var(--warning)}
+.sev.neutral{border-color:var(--axis)}
+.sticky thead th{position:sticky;top:0;background:var(--surface);z-index:1}
+.scroller{max-height:420px;overflow:auto}
+footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-size:12px;
+  color:var(--ink-muted)}
+
+/* Detail card. A pane, not a table row: the point is reading one name in full without
+   scrolling to the results table, so the fields get room to be labelled. */
+.detail-card{flex:1;min-height:0;overflow:auto}
+.dc-head{display:flex;align-items:baseline;flex-wrap:wrap;gap:8px;margin:0 0 8px}
+.dc-head code{font-family:var(--mono);font-size:15px;color:var(--accent)}
+.dc-head .nm{font-size:14px;font-weight:640}
+.dc-head .sec{font-size:12px;color:var(--ink-muted)}
+/* Rules are drawn by the cells, not by a background showing through the gaps: the last row
+   is usually short, and a gap-drawn grid would paint the leftover tracks as a phantom cell
+   that reads like a field with no value in it. */
+.dc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));
+  border-top:1px solid var(--rule);border-left:1px solid var(--rule);
+  border-radius:8px;overflow:hidden}
+.dc-cell{background:var(--surface);padding:7px 9px;min-width:0;
+  border-right:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+.dc-cell b{display:block;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-muted);font-weight:600}
+/* Classed rather than a bare `span` so a chip or a score bar dropped into the same cell
+   keeps its own display mode instead of being flattened into a block. */
+.dc-cell .val{display:block;font-family:var(--mono);font-size:13.5px;margin-top:2px;
+  overflow-wrap:anywhere}
+.dc-cell .chip{margin-top:4px}
+.dc-block{margin-top:8px;border:1px solid var(--rule);border-radius:8px;padding:8px 10px;
+  background:var(--plane)}
+.dc-block h5{margin:0 0 4px;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-muted);font-weight:600}
+.dc-tone{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px}
+.dc-cov{display:block;margin-top:4px;font-size:11.5px;color:var(--ink-muted)}
+.dc-note{margin:8px 0 0;font-size:11.5px;color:var(--ink-muted)}
+.dc-empty{margin:0;font-size:12.5px;color:var(--ink-2)}
+
+/* Propose block in the rail. Scoped to its own classes so the rail's link styling, which
+   the rest of the sidebar depends on, is left exactly as it was. */
+.rail-block{padding:0 18px}
+.rail-btn{width:100%;text-align:left;font:13px var(--sans);height:30px;padding:0 10px;
+  border:1px dashed var(--rule);border-radius:8px;background:var(--plane);color:var(--accent);
+  cursor:pointer}
+.rail-btn:hover,.rail-btn[aria-expanded="true"]{border-color:var(--accent);border-style:solid}
+.rail-list{list-style:none;margin:9px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;
+  max-height:236px;overflow:auto}
+.rail-list li{border:1px solid var(--rule);border-radius:8px;background:var(--plane);
+  padding:6px 8px;min-width:0}
+.rail-list li.rail-empty{border:0;background:transparent;padding:0;font-size:11.5px;
+  color:var(--ink-muted)}
+.rail-list .kind{display:block;font:10px var(--mono);letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-muted)}
+.rail-list .ttl{display:block;font-size:12.5px;color:var(--ink);overflow-wrap:anywhere}
+.rail-list .acts{display:flex;gap:4px;margin-top:5px}
+.rail-list .acts button{font:11px var(--sans);height:22px;padding:0 8px;border:1px solid var(--rule);
+  border-radius:5px;background:var(--surface);color:var(--ink-2);cursor:pointer}
+.rail-list .acts button:hover{border-color:var(--accent);color:var(--ink)}
+.rail-list .acts button.del:hover{border-color:var(--critical);color:var(--critical)}
+
+.prop-field{margin:0 0 9px}
+.prop-field select,.prop-field input,.prop-field textarea{width:100%;min-width:0;
+  text-transform:none;letter-spacing:normal}
+.prop-field textarea{height:auto;min-height:80px;padding:7px 8px;resize:vertical;
+  line-height:1.45;font-family:var(--sans)}
+.prop-fallback{margin-top:12px;border-top:1px solid var(--rule);padding-top:10px}
+.prop-fallback[hidden]{display:none}
+.prop-fallback textarea{width:100%;min-height:150px;font:12px var(--mono);line-height:1.45;
+  padding:8px;border:1px solid var(--warning);border-radius:6px;background:var(--plane);
+  color:var(--ink)}
+/* Below tablet width a split tree has no room to be one; fall back to a plain stack.
+   !important is required because the layout walk writes the rects as inline styles. */
+@media (max-width:1100px){
+  .providers,.stats{grid-template-columns:1fr}
+  .shell{grid-template-columns:1fr}
+  .board{height:auto;min-height:0;padding:8px}
+  .board .tile{
+    position:relative!important;left:auto!important;top:auto!important;
+    width:auto!important;height:330px!important;margin:0 0 10px;
+  }
+  .board-splitter,.drop-preview{display:none}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="rail">
+    <div class="brand"><b>MONAD research</b><span>one server · one token system</span></div>
+    <h4>Views</h4>
+    <a href="/">Overview</a>
+    <a href="/web">Research web</a>
+    <a class="on" href="/screener">Screener</a>
+    <a href="/sentiment">Sentiment</a>
+    <a href="/screener/buckets">Buckets</a>
+
+    <h4>Contribute</h4>
+    <div class="rail-block">
+      <button type="button" class="rail-btn" id="proposeOpen" data-panel-open="proposePanel"
+        aria-expanded="false">Create a recommendation</button>
+    </div>
+  </aside>
+
+  <main>
+    <!-- Written as the no-snapshot state on purpose: this is what a reader sees when the page
+         is opened straight off disk, and it must not describe data that is not there.
+         applyLivePayload() replaces it with the snapshot's own dates when one is injected. -->
+    <div class="note-banner" id="dataBanner"><b>No snapshot reached this page.</b> Every number
+      on this surface comes from a snapshot on disk — fundamentals from <code>stock_screener</code>,
+      Bloomberg/Reddit tone from <code>screener_lab</code>. Opened as a file, or served with
+      neither snapshot built, the page has nothing to show and says so rather than standing in
+      figures of its own. Board: drag a card header onto the edge of another pane to split it
+      there, onto its centre to swap, <b>×</b> to park it in the tray above, and drag any
+      boundary to resize just the two panes it separates.</div>
+
+    <div class="crumb">Research · screener</div>
+    <h1>Cheap &amp; growing — fundamentals with tone kept honest</h1>
+    <p class="lede">One surface. The cloud is still P/E × growth (bubbles = composite rank).
+      Tone is a separate column and a ring on the plot — never blended into the fill unless
+      you ask. No coverage, untoned, and scored zero stay three different marks.</p>
+
+    <div class="presets" id="presets">
+      <button type="button" class="on" data-p="low_pe_high_growth">Low P/E · high growth</button>
+      <button type="button" data-p="low_pe_high_dividend">Low P/E · high dividend</button>
+      <button type="button" data-p="safety_low_debt">Safety · low debt</button>
+      <button type="button" data-p="high_ai_exposure">High AI exposure</button>
+      <button type="button" data-p="ai_shadow_debt">AI shadow debt</button>
+      <button type="button" data-p="low_ai_exposure">Low AI exposure</button>
+      <button type="button" data-p="most_volatile">Most volatile</button>
+      <button type="button" data-p="most_active">Most active</button>
+      <button type="button" data-p="sovereign_ledger">Sovereign Ledger</button>
+      <button type="button" data-p="chaos_hedges">Chaos hedges</button>
+      <button type="button" data-p="bloomberg_tone">Bloomberg tone</button>
+      <button type="button" data-p="reddit_tone">Reddit tone</button>
+      <button type="button" data-p="custom" class="custom" aria-expanded="false">+ custom</button>
+    </div>
+
+    <p class="lens-note" id="lensNote" hidden></p>
+
+    <!-- Provider cards are written by applyLivePayload() from the snapshot's own provider
+         lines. Feed counts and states are facts about a fetch, so none are spelled out here:
+         with no snapshot there is no fetch to describe. -->
+    <div class="providers" id="providers">
+      <div class="prov partial">
+        <h3>Providers <span class="chip warning"><span class="dot"></span>no snapshot</span></h3>
+        <p>Provider status is read from the snapshot that produced the rows. Nothing has been
+          loaded, so there is no fetch to report on.</p>
+      </div>
+    </div>
+
+    <!-- Unhidden by render() whenever ROWS is empty. -->
+    <section class="no-data" id="noData" hidden>
+      <h2 id="noDataTitle">No data on this page</h2>
+      <p id="noDataLede">This surface reads two snapshots off disk and draws nothing of its
+        own. Neither is present, so there is nothing to screen. No rows are invented to fill
+        the gap.</p>
+      <ul id="noDataFixes"></ul>
+      <p class="src">Both commands write into <code>data/cache/</code>; reload this page once
+        they finish. The page must be <b>served</b> — opened as a <code>file://</code> path it
+        has no way to reach either snapshot.</p>
+    </section>
+
+    <!-- No apply control. Every input here re-renders on `change`, so the row and the results
+         cannot disagree about what is being screened. Each threshold keeps "any" as its
+         default so an untouched row screens nothing out. -->
+    <form class="filters" id="filters" onsubmit="return false">
+      <label>Max P/E
+        <select id="maxPe">
+          <option value="any" selected>any</option>
+          <option value="8">≤ 8</option>
+          <option value="10">≤ 10</option>
+          <option value="12">≤ 12</option>
+          <option value="15">≤ 15</option>
+          <option value="18">≤ 18</option>
+          <option value="20">≤ 20</option>
+          <option value="25">≤ 25</option>
+          <option value="30">≤ 30</option>
+          <option value="35">≤ 35</option>
+          <option value="40">≤ 40</option>
+          <option value="60">≤ 60</option>
+          <option value="80">≤ 80</option>
+          <option value="120">≤ 120</option>
+        </select>
+      </label>
+      <label>Min growth
+        <select id="minG">
+          <option value="any" selected>any</option>
+          <option value="0">≥ 0% (not shrinking)</option>
+          <option value="0.02">≥ 2%</option>
+          <option value="0.05">≥ 5%</option>
+          <option value="0.1">≥ 10%</option>
+          <option value="0.15">≥ 15%</option>
+          <option value="0.25">≥ 25%</option>
+          <option value="0.4">≥ 40%</option>
+          <option value="0.6">≥ 60%</option>
+          <option value="1">≥ 100%</option>
+          <option value="2">≥ 200%</option>
+        </select>
+      </label>
+      <label><span>Max on-BS D/E <button type="button" class="qmark" data-explain
+          aria-expanded="false" aria-label="What AI shadow debt means">?</button></span>
+        <select id="maxShadow" title="Filters on the reported on-balance-sheet debt/equity %; “tagged only” keeps the editorially shadow-tagged names whatever that number says">
+          <option value="any" selected>any</option>
+          <option value="10">≤ 10</option>
+          <option value="25">≤ 25</option>
+          <option value="50">≤ 50</option>
+          <option value="75">≤ 75</option>
+          <option value="100">≤ 100</option>
+          <option value="150">≤ 150</option>
+          <option value="200">≤ 200</option>
+          <option value="300">≤ 300</option>
+          <option value="tagged">tagged only</option>
+        </select>
+      </label>
+      <label>Max beta
+        <select id="maxBeta" title="Trailing beta from the fundamentals snapshot; a name that reports no beta cannot pass a beta test">
+          <option value="any" selected>any</option>
+          <option value="0.5">≤ 0.50</option>
+          <option value="0.75">≤ 0.75</option>
+          <option value="1">≤ 1.00</option>
+          <option value="1.25">≤ 1.25</option>
+          <option value="1.5">≤ 1.50</option>
+          <option value="2">≤ 2.00</option>
+          <option value="2.5">≤ 2.50</option>
+          <option value="3">≤ 3.00</option>
+        </select>
+      </label>
+      <label>Sector
+        <!-- Options are built from the sectors the snapshot actually carries; a hardcoded list
+             would offer sectors no loaded row belongs to. -->
+        <select id="sector"><option value="any" selected>every sector</option></select>
+      </label>
+      <label>Tone source
+        <span class="tone-toggle" id="toneSrc">
+          <button type="button" class="on" data-src="bloomberg">Bloomberg</button>
+          <button type="button" data-src="reddit">Reddit</button>
+          <button type="button" data-src="both">Both</button>
+          <button type="button" data-src="none">None</button>
+        </span>
+      </label>
+      <label>Tone in rank
+        <select id="weight" title="Blends the tone reading into the rank used by the results table; names with no coverage keep their unblended score rather than being blended against a zero">
+          <option value="0" selected>display only</option>
+          <option value="0.1">10% of rank</option>
+          <option value="0.2">20% of rank</option>
+          <option value="0.35">35% of rank</option>
+          <option value="0.5">50% of rank</option>
+        </select>
+      </label>
+      <p class="filter-count" id="filterCount"></p>
+    </form>
+
+    <div class="tray" id="tray">
+      <span class="tray-label">Unplaced</span>
+      <div class="tray-chips" id="trayChips"></div>
+      <span class="board-hint">
+        <button type="button" id="boardEdit" data-panel-open="layoutPanel" aria-expanded="false"
+          title="Choose which charts sit on the board and how they are arranged">edit layout</button>
+        <button type="button" id="boardReset" title="Restore this lens's default layout">reset layout</button>
+      </span>
+      <details class="parked" id="parkedTray" hidden>
+        <summary id="parkedSummary">Parked — no data source yet</summary>
+        <div class="parked-body" id="parkedChips"></div>
+      </details>
+    </div>
+
+    <div class="board" id="board">
+      <article class="tile" data-id="plot" id="tile-plot">
+        <div class="tile-bar" data-drag>
+          <span class="tile-grip">⋮⋮</span>
+          <h2 id="plotTitle">The screen’s two axes</h2>
+          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
+        </div>
+        <div class="tile-body">
+          <div class="chart-host" id="plot"></div>
+          <div class="legend" id="plotLegend"></div>
+        </div>
+      </article>
+
+      <article class="tile" data-id="price" id="tile-price">
+        <div class="tile-bar" data-drag>
+          <span class="tile-grip">⋮⋮</span>
+          <h2 id="priceTitle">Price history</h2>
+          <div class="tile-meta" id="priceMeta">—</div>
+          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
+        </div>
+        <!-- No compare chips and no range buttons: both configure a series, and no series
+             exists to configure. They come back with the data, not before it. -->
+        <div class="tile-body">
+          <div class="chart-host" id="priceChart"></div>
+        </div>
+      </article>
+
+      <article class="tile" data-id="tone" id="tile-tone">
+        <div class="tile-bar" data-drag>
+          <span class="tile-grip">⋮⋮</span>
+          <h2 id="headlinesTitle">Headlines &amp; tone</h2>
+          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
+        </div>
+        <div class="tile-body">
+          <div class="tone-stack" id="headlines"></div>
+        </div>
+      </article>
+
+      <article class="tile" data-id="rank" id="tile-rank">
+        <div class="tile-bar" data-drag>
+          <span class="tile-grip">⋮⋮</span>
+          <h2 id="rankTitle">Ranked</h2>
+          <div class="tile-meta" id="rankMeta">—</div>
+          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
+        </div>
+        <div class="tile-body">
+          <div class="chart-host" id="rankChart"></div>
+        </div>
+      </article>
+
+      <article class="tile" data-id="dist" id="tile-dist">
+        <div class="tile-bar" data-drag>
+          <span class="tile-grip">⋮⋮</span>
+          <h2 id="distTitle">Distribution</h2>
+          <div class="tile-meta" id="distMeta">—</div>
+          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
+        </div>
+        <div class="tile-body">
+          <div class="chart-host" id="distChart"></div>
+          <div class="legend" id="distLegend"></div>
+        </div>
+      </article>
+
+      <article class="tile" data-id="shadow" id="tile-shadow">
+        <div class="tile-bar" data-drag>
+          <span class="tile-grip">⋮⋮</span>
+          <h2 id="shadowTitle">AI shadow · measured leg</h2>
+          <button type="button" class="qmark" data-explain aria-expanded="false"
+            aria-label="What AI shadow debt means">?</button>
+          <div class="tile-meta" id="shadowMeta">—</div>
+          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
+        </div>
+        <div class="tile-body">
+          <div class="chart-host" id="shadowChart"></div>
+          <div class="legend" id="shadowLegend"></div>
+        </div>
+      </article>
+
+      <article class="tile" data-id="card" id="tile-card">
+        <div class="tile-bar" data-drag>
+          <span class="tile-grip">⋮⋮</span>
+          <h2 id="cardTitle">Stock detail</h2>
+          <div class="tile-meta" id="cardMeta">—</div>
+          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
+        </div>
+        <div class="tile-body">
+          <div class="detail-card" id="detailCard"></div>
+        </div>
+      </article>
+    </div>
+    <button type="button" class="board-resize" id="boardResize"
+            aria-label="Drag to resize the widget area; arrow keys also work"
+            title="Drag to make the widget area taller or shorter"></button>
+
+    <div class="panel">
+      <h2>Results</h2>
+      <p class="why" id="resultsWhy">Same columns as the fundamental screener — plus <b>AI shadow</b> as a
+        numeric parameter (like P/E), with the editorial bucket under it when tagged.
+        Tone stays its own column. Click a preset bubble to change this list; click a
+        mark to pin price + headlines.</p>
+      <div class="scroller">
+        <table class="sticky">
+          <thead>
+            <tr>
+              <th class="num">#</th>
+              <th>Ticker</th>
+              <th>Name</th>
+              <th>Sector</th>
+              <th>AI</th>
+              <th>Bucket</th>
+              <th class="num">P/E</th>
+              <th class="num">Growth</th>
+              <th class="num">Div yield</th>
+              <th class="num">On-BS debt/eq %</th>
+              <th class="num">AI shadow<button type="button" class="qmark" data-explain
+                aria-expanded="false" aria-label="What AI shadow debt means">?</button></th>
+              <th class="num">Beta</th>
+              <th class="num">$ vol/day</th>
+              <th class="num">Score</th>
+              <th id="toneCol">Bloomberg tone</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <footer>Fundamentals from <code>stock_screener</code>, tone from <code>screener_lab</code> ·
+      shadow-debt tags are editorial study objects, not measured notionals · not investment advice</footer>
+  </main>
+</div>
+
+<div class="explain" id="shadowExplain" role="dialog" aria-modal="false"
+     aria-labelledby="shadowExplainTitle" hidden>
+  <button type="button" class="explain-close" id="shadowExplainClose" data-panel-close
+    aria-label="Close">×</button>
+  <h3 id="shadowExplainTitle">What “AI shadow debt” means on this screen</h3>
+  <p>The <b>on-BS debt/equity %</b> that vendors report is the <b>on-balance-sheet leg only</b>.
+    It is a real number and it is incomplete.</p>
+  <p>AI data-centre buildouts are increasingly financed through <b>SPVs, joint ventures and
+    project finance</b> — structures that keep large project liabilities off the sponsor's
+    primary consolidating statements. The public archetype is Meta's ~<b>$27B Hyperion</b>
+    campus in Richland Parish, Louisiana, funded through a JV with Blue Owl in which Meta
+    retains roughly a <b>20% stake</b> and leases the campus back: Meta effectively drives the
+    project, while the project debt sits on the SPV rather than on Meta's balance sheet.
+    So a low reported D/E sitting next to an SPV-sponsor tag is the <em>point</em> of this
+    frame, not a contradiction in it.</p>
+  <p>Four editorial buckets mark <b>where to look</b>, one per leg of the financing bet:</p>
+  <ul>
+    <li><span class="tagname">spv_sponsor</span> — hyperscaler / platform that can park project
+      debt in an SPV or JV below the consolidation threshold.</li>
+    <li><span class="tagname">capex_burn</span> — AI-native spender whose cash is being drained
+      by infrastructure; leverage can rise while reported D/E still looks tame.</li>
+    <li><span class="tagname">supply_chain</span> — chips, servers, equipment selling into the
+      buildout; less sponsor risk, high cyclical risk if the financing stalls.</li>
+    <li><span class="tagname">grid_power</span> — power, cooling and electrical capacity.
+      Watts bound the whole stack.</li>
+  </ul>
+  <p class="caveat">These tags are <b>editorial study objects</b>. They are not measured
+    off-balance-sheet notionals, not scraped from 10-K footnotes, not a claim that every
+    tagged name runs a Hyperion-class vehicle today, and <b>not a trading signal</b>. Nothing
+    here is investment advice.</p>
+  <p class="src">Source: <code>docs/research/AI_SHADOW_DEBT_LENS_2026.md</code> · bucket
+    definitions live in <code>tools/stock_screener.py</code>.</p>
+</div>
+
+<div class="explain" id="layoutPanel" role="dialog" aria-modal="false"
+     aria-labelledby="layoutPanelTitle" hidden>
+  <button type="button" class="explain-close" data-panel-close aria-label="Close">×</button>
+  <h3 id="layoutPanelTitle">Widget options</h3>
+  <p>Tick a chart to put it on the board; untick it to park it in the tray. Nothing is
+    thrown away either way — a parked chart keeps its state and comes back where you drop it.</p>
+  <div class="opt-list" id="layoutTiles"></div>
+  <details class="parked" id="layoutParked" hidden>
+    <summary id="layoutParkedSummary">Parked — no data source yet</summary>
+    <p class="parked-why">These charts are parked because nothing in the loaded snapshot feeds
+      them — not because they are broken. Tick one to place it anyway; it will say in its own
+      body what is missing. Each leaves this group by itself the moment its data appears in
+      the payload.</p>
+    <div class="opt-list" id="layoutParkedTiles"></div>
+  </details>
+  <h4 class="opt-head">Arrangement</h4>
+  <div class="arrange-grid" id="layoutArrange"></div>
+  <p class="src">Arrangements rearrange what is already on the board. <b>One pane</b> keeps the
+    first placed chart and parks the rest; <b>stack</b> gives every chart the full width, one
+    above another. A pane is never squeezed below its readable minimum — when a column asks
+    for more room than the board has, the board grows and the page scrolls.</p>
+</div>
+
+<div class="explain" id="proposePanel" role="dialog" aria-modal="false"
+     aria-labelledby="proposePanelTitle" hidden>
+  <button type="button" class="explain-close" data-panel-close aria-label="Close">×</button>
+  <h3 id="proposePanelTitle">Create a recommendation</h3>
+  <p class="caveat">This page is a <b>static mock with no backend</b>. Nothing typed here is
+    submitted anywhere: a saved proposal sits in this browser's local storage and nobody else
+    can see it. <b>Copy as text</b> is the real submission path today — paste it into a GitHub
+    issue or into <code>RESEARCH_WEB.md</code>.</p>
+  <form id="proposeFormEl" novalidate>
+    <p class="lens-error" id="proposeError" role="alert" hidden></p>
+    <label class="prop-field">Kind
+      <select id="proposeKind">
+        <option value="ui">UI — layout, widgets, a surface</option>
+        <option value="research" selected>Research — a question or hypothesis</option>
+        <option value="engine">Engine — strategy, sizing, backtest</option>
+        <option value="bucket">Bucket — chaos / sovereign tagging</option>
+        <option value="screener">Screener — a lens, metric or filter</option>
+        <option value="data">Data source — something to pull in</option>
+        <option value="bug">Bug — something is wrong</option>
+      </select>
+    </label>
+    <label class="prop-field">Title — one line
+      <input type="text" id="proposeTitle" maxlength="90" autocomplete="off"
+        placeholder="e.g. Show document count next to every tone reading" />
+    </label>
+    <label class="prop-field">Detail
+      <textarea id="proposeDetail" maxlength="1200"
+        placeholder="What should change, and why it matters. Link the file or the finding if there is one."></textarea>
+    </label>
+    <label class="prop-field">Your name — optional
+      <input type="text" id="proposeWho" maxlength="40" autocomplete="off"
+        placeholder="so the note has an author when it is pasted" />
+    </label>
+    <div class="btn-row">
+      <button type="submit" class="primary" id="proposeSave">Save proposal</button>
+      <button type="button" id="proposeCopy">Copy as text</button>
+      <button type="button" data-panel-close>Cancel</button>
+    </div>
+  </form>
+  <div class="prop-fallback" id="proposeFallback" hidden>
+    <p>The clipboard is not available here — a page opened from <code>file://</code> is often
+      refused it. Select this text and copy it by hand.</p>
+    <textarea id="proposeFallbackText" readonly aria-label="Proposal text to copy by hand"></textarea>
+  </div>
+  <!-- The list lives in the panel, not the rail: research_ui.py swaps this page's rail for
+       the shared nav when it serves it, so anything rail-mounted vanishes on the server. -->
+  <h4 class="prop-listhead">Recommendations on this browser</h4>
+  <ul class="rail-list" id="proposalList"></ul>
+</div>
+
+<div class="explain" id="lensForm" role="dialog" aria-modal="false"
+     aria-labelledby="lensFormTitle" hidden>
+  <button type="button" class="explain-close" data-panel-close aria-label="Close">×</button>
+  <h3 id="lensFormTitle">New lens</h3>
+  <p>What are you looking for? Everything but the name defaults to <b>any</b>, so an
+    otherwise empty form gives you a named view of the whole list.</p>
+  <form id="lensFormEl" novalidate>
+    <label class="lens-name">Name
+      <input type="text" id="lensName" maxlength="40" autocomplete="off"
+        placeholder="e.g. Cheap cash machines" />
+    </label>
+    <p class="lens-error" id="lensError" role="alert" hidden></p>
+    <div class="lens-grid">
+      <label>What matters most
+        <select id="lensRank">
+          <option value="score" selected>best overall (composite score)</option>
+          <option value="pe">cheapest (lowest P/E)</option>
+          <option value="g">fastest growth</option>
+          <option value="dy">most income (dividend yield)</option>
+          <option value="de">safest balance sheet (lowest on-BS D/E)</option>
+          <option value="vol">most traded ($ volume/day)</option>
+        </select>
+      </label>
+      <label>Sector
+        <select id="lensSector"><option value="any" selected>any sector</option></select>
+      </label>
+      <!-- Same ladders as the filter row, so a threshold means the same thing whichever
+           control the reader reaches for. -->
+      <label>Max P/E
+        <select id="lensMaxPe">
+          <option value="any" selected>any</option>
+          <option value="8">≤ 8</option>
+          <option value="10">≤ 10</option>
+          <option value="12">≤ 12</option>
+          <option value="15">≤ 15</option>
+          <option value="18">≤ 18</option>
+          <option value="20">≤ 20</option>
+          <option value="25">≤ 25</option>
+          <option value="30">≤ 30</option>
+          <option value="35">≤ 35</option>
+          <option value="40">≤ 40</option>
+          <option value="60">≤ 60</option>
+          <option value="80">≤ 80</option>
+          <option value="120">≤ 120</option>
+        </select>
+      </label>
+      <label>Min growth
+        <select id="lensMinG">
+          <option value="any" selected>any</option>
+          <option value="0">≥ 0% (not shrinking)</option>
+          <option value="0.02">≥ 2%</option>
+          <option value="0.05">≥ 5%</option>
+          <option value="0.1">≥ 10%</option>
+          <option value="0.15">≥ 15%</option>
+          <option value="0.25">≥ 25%</option>
+          <option value="0.4">≥ 40%</option>
+          <option value="0.6">≥ 60%</option>
+          <option value="1">≥ 100%</option>
+          <option value="2">≥ 200%</option>
+        </select>
+      </label>
+      <label>Min dividend yield
+        <select id="lensMinDy">
+          <option value="any" selected>any</option>
+          <option value="0.005">≥ 0.5%</option>
+          <option value="0.01">≥ 1%</option>
+          <option value="0.02">≥ 2%</option>
+          <option value="0.03">≥ 3%</option>
+          <option value="0.04">≥ 4%</option>
+          <option value="0.05">≥ 5%</option>
+          <option value="0.07">≥ 7%</option>
+          <option value="0.1">≥ 10%</option>
+        </select>
+      </label>
+      <label>Max on-BS debt/equity
+        <select id="lensMaxDe">
+          <option value="any" selected>any</option>
+          <option value="10">≤ 10</option>
+          <option value="25">≤ 25</option>
+          <option value="50">≤ 50</option>
+          <option value="75">≤ 75</option>
+          <option value="100">≤ 100</option>
+          <option value="150">≤ 150</option>
+          <option value="200">≤ 200</option>
+          <option value="300">≤ 300</option>
+        </select>
+      </label>
+      <label>Max beta
+        <select id="lensMaxBeta">
+          <option value="any" selected>any</option>
+          <option value="0.5">≤ 0.50</option>
+          <option value="0.75">≤ 0.75</option>
+          <option value="1">≤ 1.00</option>
+          <option value="1.25">≤ 1.25</option>
+          <option value="1.5">≤ 1.50</option>
+          <option value="2">≤ 2.00</option>
+          <option value="2.5">≤ 2.50</option>
+          <option value="3">≤ 3.00</option>
+        </select>
+      </label>
+      <label>AI exposure
+        <select id="lensAi">
+          <option value="any" selected>any</option>
+          <option value="high">high</option>
+          <option value="medium">medium</option>
+          <option value="low">low</option>
+        </select>
+      </label>
+      <label>AI shadow debt
+        <select id="lensShadow">
+          <option value="any" selected>any — no shadow filter</option>
+          <option value="not_high">exclude high-severity tags</option>
+          <option value="untagged">exclude anything tagged</option>
+        </select>
+      </label>
+    </div>
+    <p class="caveat">The shadow options filter on <b>editorial tags</b>, not on a measured
+      off-balance-sheet amount. Excluding a tagged name is a judgement that its <em>reported</em>
+      debt/equity is incomplete — it is not a reading that says the name owes more.</p>
+    <h4 class="opt-head">Charts this lens opens with</h4>
+    <div class="opt-row" id="lensViews"></div>
+    <div class="btn-row">
+      <button type="submit" class="primary" id="lensSubmit">Create lens</button>
+      <button type="button" data-panel-close>Cancel</button>
+    </div>
+  </form>
+</div>
+<script>
+/* Rows arrive from the injected snapshot payload and from nowhere else. An empty ROWS is
+   this page's honest state with no snapshot on disk, not a bug — renderNoData() names the
+   two commands that produce one. */
+let ROWS = [];
+let preset = "low_pe_high_growth";
+let source = "bloomberg";
+/** The pinned name, read by the detail card, the tone tile and the distribution marker.
+    null means nothing is pinned, which is the state before any row exists to pin. */
+let selected = null;
+/** tk -> array of closes, straight from the payload. Empty until a history is wired in. */
+let PRICES = {};
+
+/* Which tiles have a source in the loaded payload. Recomputed from the payload itself in
+   applyLivePayload() rather than listed by hand, so a tile stops being parked the moment its
+   data actually turns up and nobody has to remember to edit a list. */
+let DATA_PRESENT = {price:false, tone:false};
+
+function pinTicker(tk){ selected = tk; }
+
+/* The price tile draws only what the payload hands it. Nothing here interpolates, walks or
+   otherwise manufactures a series: the fields this page does carry (price, beta, score) are
+   a snapshot of one instant and cannot be turned into a history without inventing the middle.
+   Contract: live.price_history = {TICKER: [close, close, ...]} in chronological order. */
+function priceSeries(tk){
+  const raw = PRICES[tk];
+  if(!Array.isArray(raw)) return null;
+  const out = raw.map(Number).filter(v => isFinite(v) && v > 0);
+  return out.length >= 2 ? out : null;
+}
+
+function drawPrice(){
+  const host = document.getElementById("priceChart");
+  if(!host) return;
+  const title = document.getElementById("priceTitle");
+  const meta = document.getElementById("priceMeta");
+  const s = selected ? priceSeries(selected) : null;
+  if(!s){
+    title.textContent = "Price history";
+    meta.textContent = DATA_PRESENT.price ? "none for this name" : "no source";
+    host.innerHTML = DATA_PRESENT.price
+      ? '<p class="absent"><b>' + esc(selected || "This name")
+        + ' has no price history in the loaded snapshot.</b> Other names do — pin one of'
+        + ' those, or refetch so this ticker is covered too. Nothing is drawn here from'
+        + ' the fields that are present.</p>'
+      : '<p class="absent"><b>No price history is wired into this page.</b> '
+        + (window.__DRAFT_LIVE__
+            ? 'The injected payload carries fundamentals and tone documents only'
+            : 'No payload reached the page at all, and even the served one carries no history')
+        + ' \u2014 there is no series here to plot, and one will not be derived from price, beta'
+        + ' or score, which are single instants rather than a history.'
+        + '<br><b>Missing:</b> a per-ticker close history (<code>price_history</code>) in the'
+        + ' draft payload. Adding one to the payload built in'
+        + ' <code>tools/research_ui.py</code> is what would make this chart draw; until then'
+        + ' it is parked rather than filled with a shape.</p>';
+    return;
+  }
+  // Parked in the tray the host has no box to size against, and the ResizeObserver redraws it
+  // the moment it lands on the board.
+  if(!host.clientWidth || !host.clientHeight) return;
+  const base = s[0];
+  const idx = s.map(v => 100 * v / base);
+  const hi = Math.max.apply(null, idx), lo = Math.min.apply(null, idx);
+  const W = Math.max(260, Math.floor(host.clientWidth));
+  const H = Math.max(120, Math.floor(host.clientHeight));
+  const L = 36, R = 12, T = 16, B = 24;
+  const span = Math.max(hi - lo, 1e-6);
+  const sx = i => L + i / Math.max(idx.length - 1, 1) * (W - L - R);
+  const sy = v => H - B - (v - lo) / span * (H - T - B);
+  let d = "M " + sx(0).toFixed(1) + " " + sy(idx[0]).toFixed(1);
+  for(let j = 1; j < idx.length; j++) d += " L " + sx(j).toFixed(1) + " " + sy(idx[j]).toFixed(1);
+  const chg = idx[idx.length - 1] - 100;
+  title.textContent = "Price · " + selected;
+  meta.innerHTML = '<span style="color:' + (chg >= 0 ? "var(--good)" : "var(--critical)")
+    + '">' + (chg >= 0 ? "+" : "") + chg.toFixed(1) + '%</span> \u00b7 indexed to 100';
+  host.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="'
+    + escAttr(selected + " price, indexed to 100") + '" preserveAspectRatio="xMidYMid meet">'
+    + '<line x1="' + L + '" y1="' + sy(100).toFixed(1) + '" x2="' + (W-R) + '" y2="'
+      + sy(100).toFixed(1) + '" stroke="var(--axis)" stroke-dasharray="3 3"/>'
+    + '<line x1="' + L + '" y1="' + (H-B) + '" x2="' + (W-R) + '" y2="' + (H-B)
+      + '" stroke="var(--axis)"/>'
+    + '<path d="' + d + '" fill="none" stroke="var(--accent)" stroke-width="2"/>'
+    + '<text x="' + (W-R) + '" y="' + (H-4) + '" text-anchor="end" fill="var(--ink-muted)"'
+      + ' font-size="10" font-family="var(--mono)">idx 100 \u00b7 ' + idx.length + ' bars</text>'
+    + '<text x="' + L + '" y="' + (T+2) + '" fill="var(--ink-muted)" font-size="10"'
+      + ' font-family="var(--mono)">' + hi.toFixed(0) + '</text>'
+    + '<text x="' + L + '" y="' + (H-B-4) + '" fill="var(--ink-muted)" font-size="10"'
+      + ' font-family="var(--mono)">' + lo.toFixed(0) + '</text>'
+    + '</svg>';
+}
+
+/* ── Board: a recursive binary split tree ──────────────────────────────────
+   {type:'leaf',  tile:'plot'}
+   {type:'split', dir:'row'|'col', ratio:0..1, a:node, b:node}
+   'row' seats its children side by side (vertical boundary); 'col' stacks them.
+   Every leaf's rect is derived from its parent's, so free space cannot appear and
+   the arrangement is not limited to a fixed set of bays. */
+const TILE_IDS = ["plot","price","tone","rank","dist","shadow","card"];
+const TILE_LABELS = {
+  plot:"P/E × growth", price:"Price history", tone:"Headlines & tone",
+  rank:"Ranked by lens", dist:"Distribution", shadow:"AI shadow",
+  card:"Stock detail"
+};
+const TILE_NOTES = {
+  plot:  "Every name as P/E against growth; the lens's matches are the coloured marks.",
+  price: "The pinned name's closes, indexed to 100 — drawn only from a history in the payload.",
+  tone:  "Headline cards and tone for the pinned name, from the chosen source.",
+  rank:  "The lens's matches sorted by whatever that lens ranks on.",
+  dist:  "Where the matches sit inside the wider distribution of one field.",
+  shadow:"Reported on-BS debt/equity for editorially shadow-tagged names.",
+  card:  "The pinned name's whole results-table row, read without scrolling down to it."
+};
+/* What each chart needs before it has anything true to draw, and the one line the tray shows
+   when it does not have it. A tile absent from this map is never parked. */
+const TILE_NEEDS = {
+  price: "a per-ticker price history in the payload",
+  tone:  "a tone snapshot with headline documents",
+};
+/* The tiles that currently have no source. Recomputed from the payload, so this shrinks by
+   itself when data appears — nothing here is a hand-maintained list of what is broken. */
+function parkedTiles(){
+  return TILE_IDS.filter(id => id in TILE_NEEDS && !DATA_PRESENT[id]);
+}
+function tileHasData(id){ return !(id in TILE_NEEDS) || !!DATA_PRESENT[id]; }
+/* A lens must not open with a pane that can only say "no data". Filtering here rather than
+   editing LENS_VIEWS keeps every lens's intended view-set intact for the day the data lands. */
+function withData(ids){
+  const keep = ids.filter(tileHasData);
+  // A lens whose every chart is parked still has to put something on the board.
+  return keep.length ? keep : ids.filter(id => !(id in TILE_NEEDS));
+}
+/* v7: v6 boards were saved with the price tile placed by the old default layout, and that
+   tile has no data source. Bumping the key retires them rather than resurrecting a pane that
+   can only report its own absence. */
+const BOARD_KEY = "monad.screener.draft.board.v7";
+const GAP = 10;            // px between panes, applied as a GAP/2 inset on every pane edge
+const MIN_PANE_PX = 120;   // a pane thinner than this cannot render a readable chart
+const MIN_PANE_FRAC = 0.12;
+const EDGE_BAND = 0.3;     // outer 30% of a pane on each side splits; the middle swaps
+
+const DEFAULT_VIEW = ["plot","price","tone"];
+/* Charts each lens brings up. Every lens shows at least two, and the AI/shadow lenses
+   always include the shadow chart. First id gets the large left pane.
+   Custom lenses add their own entry here under a "custom:" key when they are registered;
+   "custom" itself is the builder button and is never an active lens. */
+const LENS_VIEWS = {
+  low_pe_high_growth:   ["plot","rank","dist"],
+  low_pe_high_dividend: ["plot","rank","price"],
+  safety_low_debt:      ["plot","dist","rank"],
+  high_ai_exposure:     ["plot","shadow","rank"],
+  ai_shadow_debt:       ["shadow","plot","rank"],
+  low_ai_exposure:      ["plot","dist","price"],
+  most_volatile:        ["plot","dist","price"],
+  most_active:          ["plot","rank","price"],
+  sovereign_ledger:     ["plot","shadow","tone"],
+  chaos_hedges:         ["plot","rank","tone"],
+  // A tone lens turns on how much was said about one name, so the card takes the large pane:
+  // its coverage counts are the reading, and stacked beside a chart it would have to be
+  // scrolled to be read at all. The ranking and the documents behind it sit alongside.
+  bloomberg_tone:       ["card","rank","tone"],
+  reddit_tone:          ["card","rank","tone"],
+};
+
+let boardTree = null;
+let draggingSplit = null;
+
+function leafNode(id){ return {type:"leaf", tile:id}; }
+function stackNodes(ids){
+  if(ids.length === 1) return leafNode(ids[0]);
+  return {type:"split", dir:"col", ratio:1/ids.length,
+    a:leafNode(ids[0]), b:stackNodes(ids.slice(1))};
+}
+function buildTree(ids){
+  ids = ids.filter(id => TILE_IDS.includes(id));
+  if(!ids.length) return null;
+  if(ids.length === 1) return leafNode(ids[0]);
+  return {type:"split", dir:"row", ratio:0.62,
+    a:leafNode(ids[0]), b:stackNodes(ids.slice(1))};
+}
+function treeTiles(node, out){
+  out = out || [];
+  if(!node) return out;
+  if(node.type === "leaf"){ out.push(node.tile); return out; }
+  treeTiles(node.a, out); treeTiles(node.b, out);
+  return out;
+}
+function leafNodes(node, out){
+  out = out || [];
+  if(!node) return out;
+  if(node.type === "leaf"){ out.push(node); return out; }
+  leafNodes(node.a, out); leafNodes(node.b, out);
+  return out;
+}
+/* Unplaced charts that would actually draw. Parked ones are unplaced too, but they live in
+   their own disclosure so the tray only offers things with something to show. */
+function trayTiles(){
+  const placed = treeTiles(boardTree);
+  return TILE_IDS.filter(id => !placed.includes(id) && tileHasData(id));
+}
+function lensViews(){ return withData(LENS_VIEWS[preset] || DEFAULT_VIEW); }
+
+/* Removing a leaf collapses its parent split into the surviving sibling. That is the
+   whole mechanism behind "free space auto-fills" — the sibling inherits the parent's
+   rect, so there is no cell left to go empty. */
+function dropLeaf(node, tile){
+  if(!node) return null;
+  if(node.type === "leaf") return node.tile === tile ? null : node;
+  const a = dropLeaf(node.a, tile);
+  const b = dropLeaf(node.b, tile);
+  if(!a) return b;
+  if(!b) return a;
+  node.a = a; node.b = b;
+  return node;
+}
+function splitLeaf(node, targetTile, side, newTile){
+  if(!node) return null;
+  if(node.type === "leaf"){
+    if(node.tile !== targetTile) return node;
+    const first = (side === "left" || side === "top");
+    const added = leafNode(newTile);
+    return {type:"split", dir:(side === "left" || side === "right") ? "row" : "col",
+      ratio:0.5, a:first ? added : node, b:first ? node : added};
+  }
+  node.a = splitLeaf(node.a, targetTile, side, newTile);
+  node.b = splitLeaf(node.b, targetTile, side, newTile);
+  return node;
+}
+function placeTile(newTile, targetTile, zone){
+  if(!boardTree){ boardTree = leafNode(newTile); return; }
+  if(newTile === targetTile) return;
+  if(zone === "center"){
+    const leaves = leafNodes(boardTree);
+    const src = leaves.find(n => n.tile === newTile);
+    const tgt = leaves.find(n => n.tile === targetTile);
+    if(!tgt) return;
+    if(src) src.tile = targetTile;   // with no src the displaced chart falls back to the tray
+    tgt.tile = newTile;
+    return;
+  }
+  boardTree = dropLeaf(boardTree, newTile);
+  if(!boardTree){ boardTree = leafNode(newTile); return; }
+  boardTree = splitLeaf(boardTree, targetTile, zone, newTile);
+}
+
+/* A ratio is clamped against the node's own measured span, so the minimum is a real
+   pane size rather than a fraction that shrinks with the parent. */
+function clampRatio(node, w, h, boardRect){
+  const px = node.dir === "row" ? boardRect.width * w / 100 : boardRect.height * h / 100;
+  let min = px > 0 ? Math.max(MIN_PANE_FRAC, MIN_PANE_PX / px) : MIN_PANE_FRAC;
+  if(min > 0.45) min = 0.45;
+  return Math.max(min, Math.min(1 - min, node.ratio));
+}
+
+/* How many panes deep the tallest column of this tree is. Purely structural — a dragged
+   ratio must not change it, or dragging a splitter would resize the board. */
+function stackDepth(node){
+  if(!node) return 0;
+  if(node.type === "leaf") return 1;
+  return node.dir === "col"
+    ? stackDepth(node.a) + stackDepth(node.b)
+    : Math.max(stackDepth(node.a), stackDepth(node.b));
+}
+
+function layoutBoard(){
+  const board = document.getElementById("board");
+  if(!board) return;
+  board.querySelectorAll(".board-splitter").forEach(el => el.remove());
+  board.querySelector(".board-empty")?.remove();
+  // A deep column cannot be squeezed below MIN_PANE_PX just because the board has a fixed
+  // height: the board grows and the page scrolls instead of the panes going unreadable.
+  // Below the split-tree breakpoint the panes stack in flow and the height must stay auto.
+  board.style.height = "";
+  if(!window.matchMedia("(max-width:1100px)").matches){
+    const need = stackDepth(boardTree) * (MIN_PANE_PX + GAP);
+    // A height the user dragged wins over the CSS default in BOTH directions — a grip that
+    // only ever grows reads as broken. `need` is still a hard floor: the pane minimum is
+    // what keeps a chart readable, so a deep stack overrides a too-small dragged height.
+    if(boardHeight) board.style.height = Math.ceil(Math.max(need, boardHeight)) + "px";
+    else if(need > board.getBoundingClientRect().height)
+      board.style.height = Math.ceil(need) + "px";
+  }
+  const br = board.getBoundingClientRect();
+  const half = GAP / 2;
+  const placed = new Set();
+  const splitters = [];
+
+  (function walk(node, x, y, w, h){
+    if(!node) return;
+    if(node.type === "leaf"){
+      const el = document.getElementById("tile-" + node.tile);
+      if(!el) return;
+      placed.add(node.tile);
+      el.style.display = "";
+      el.style.left   = "calc(" + x.toFixed(4) + "% + " + half + "px)";
+      el.style.top    = "calc(" + y.toFixed(4) + "% + " + half + "px)";
+      el.style.width  = "calc(" + w.toFixed(4) + "% - " + GAP + "px)";
+      el.style.height = "calc(" + h.toFixed(4) + "% - " + GAP + "px)";
+      return;
+    }
+    node.ratio = clampRatio(node, w, h, br);
+    const r = node.ratio;
+    if(node.dir === "row"){
+      walk(node.a, x, y, w * r, h);
+      walk(node.b, x + w * r, y, w * (1 - r), h);
+      splitters.push({node, rect:{x, y, w, h}, style:{
+        left:   "calc(" + (x + w * r).toFixed(4) + "% - " + half + "px)",
+        top:    "calc(" + y.toFixed(4) + "% + " + half + "px)",
+        width:  GAP + "px",
+        height: "calc(" + h.toFixed(4) + "% - " + GAP + "px)"}});
+    } else {
+      walk(node.a, x, y, w, h * r);
+      walk(node.b, x, y + h * r, w, h * (1 - r));
+      splitters.push({node, rect:{x, y, w, h}, style:{
+        top:    "calc(" + (y + h * r).toFixed(4) + "% - " + half + "px)",
+        left:   "calc(" + x.toFixed(4) + "% + " + half + "px)",
+        height: GAP + "px",
+        width:  "calc(" + w.toFixed(4) + "% - " + GAP + "px)"}});
+    }
+  })(boardTree, 0, 0, 100, 100);
+
+  TILE_IDS.forEach(id => {
+    if(placed.has(id)) return;
+    const el = document.getElementById("tile-" + id);
+    if(el) el.style.display = "none";
+  });
+
+  splitters.forEach(s => {
+    const el = document.createElement("div");
+    el.className = "board-splitter";
+    el.dataset.dir = s.node.dir;
+    el.title = "Drag to resize these two panes";
+    Object.assign(el.style, s.style);
+    el._node = s.node;
+    el._rect = s.rect;
+    if(s.node === draggingSplit) el.classList.add("dragging");
+    board.appendChild(el);
+  });
+
+  if(!boardTree){
+    const empty = document.createElement("div");
+    empty.className = "board-empty";
+    empty.textContent = "Every chart is parked — drag a chip from the tray above, or click one.";
+    board.appendChild(empty);
+  }
+  renderTray();
+}
+
+function trayChip(id, why){
+  return '<button type="button" class="tray-chip" data-tray="' + id + '" title="'
+    + escAttr(why || "Drag onto the edge of a pane to open a new bay, or click to place it")
+    + '"><span class="dot"></span>' + esc(TILE_LABELS[id]) + '</button>';
+}
+function renderTray(){
+  const host = document.getElementById("trayChips");
+  if(!host) return;
+  const ids = trayTiles();
+  host.innerHTML = ids.length
+    ? ids.map(id => trayChip(id)).join("")
+    : '<span class="tray-empty">every chart with data is on the board — press × on a card to park it here</span>';
+  renderParkedTray();
+  syncLayoutPanel();
+}
+/* Parked charts stay reachable, and the disclosure says why they are set aside so nobody
+   reads their absence from the tray as them being broken. */
+function renderParkedTray(){
+  const box = document.getElementById("parkedTray");
+  const chips = document.getElementById("parkedChips");
+  if(!box || !chips) return;
+  const placed = treeTiles(boardTree);
+  const ids = parkedTiles();
+  box.hidden = !ids.length;
+  if(!ids.length) return;
+  document.getElementById("parkedSummary").textContent =
+    "Parked — no data source yet (" + ids.length + ")";
+  chips.innerHTML =
+    '<p class="parked-why">Kept off the board because nothing in the loaded snapshot feeds'
+    + ' them, not because they are broken. Place one anyway and it will say what it is'
+    + ' waiting for. Each returns to the tray on its own once its data is in the payload.</p>'
+    + ids.map(id => placed.includes(id)
+        ? '<span class="tray-empty">' + esc(TILE_LABELS[id]) + ' — on the board · needs '
+          + esc(TILE_NEEDS[id]) + '</span>'
+        : trayChip(id, "Needs " + TILE_NEEDS[id] + " — place it anyway and it will say so"))
+      .join("");
+}
+
+/* v5 stored {slots,stack,leftFrac,topFrac}; that shape cannot describe a tree, so a new
+   key is used and any old state is simply left behind rather than migrated. */
+function sanitizeTree(node, seen){
+  seen = seen || new Set();
+  if(!node || typeof node !== "object") return null;
+  if(node.type === "leaf"){
+    if(!TILE_IDS.includes(node.tile) || seen.has(node.tile)) return null;
+    seen.add(node.tile);
+    return leafNode(node.tile);
+  }
+  if(node.type !== "split") return null;
+  const a = sanitizeTree(node.a, seen);
+  const b = sanitizeTree(node.b, seen);
+  if(!a) return b;
+  if(!b) return a;
+  const ratio = (typeof node.ratio === "number" && node.ratio > 0 && node.ratio < 1)
+    ? node.ratio : 0.5;
+  return {type:"split", dir:node.dir === "col" ? "col" : "row", ratio, a, b};
+}
+function saveBoard(){
+  try{
+    localStorage.setItem(BOARD_KEY,
+      JSON.stringify({v:7, tree:boardTree, h:boardHeight || 0}));
+  }catch(e){}
+}
+function loadBoard(){
+  try{
+    const raw = localStorage.getItem(BOARD_KEY);
+    if(!raw) return null;
+    const parsed = JSON.parse(raw);
+    if(!parsed || parsed.v !== 7) return null;
+    boardHeight = (typeof parsed.h === "number" && isFinite(parsed.h) && parsed.h > 0)
+      ? Math.min(Math.max(parsed.h, BOARD_MIN_H), BOARD_MAX_H) : 0;
+    return sanitizeTree(parsed.tree);
+  }catch(e){ return null; }
+}
+
+/* Dragging the board's bottom edge sets an explicit height. Bounded at both ends: below
+   BOARD_MIN_H the charts stop being readable, and above BOARD_MAX_H the results table is
+   pushed so far down that the board stops behaving like part of a page. */
+const BOARD_MIN_H = 300;
+const BOARD_MAX_H = 2000;
+let boardHeight = 0;          // 0 = follow the CSS default
+
+function initBoardResize(){
+  const board = document.getElementById("board");
+  const grip = document.getElementById("boardResize");
+  if(!board || !grip) return;
+  let start = null;
+  grip.addEventListener("pointerdown", (ev)=>{
+    if(ev.button !== 0) return;
+    start = {y: ev.clientY, h: board.getBoundingClientRect().height};
+    grip.setPointerCapture?.(ev.pointerId);
+    grip.classList.add("dragging");
+    ev.preventDefault();
+  });
+  window.addEventListener("pointermove", (ev)=>{
+    if(!start) return;
+    boardHeight = Math.min(BOARD_MAX_H,
+      Math.max(BOARD_MIN_H, start.h + (ev.clientY - start.y)));
+    layoutBoard();
+    scheduleChartReflow();
+  });
+  window.addEventListener("pointerup", ()=>{
+    if(!start) return;
+    start = null;
+    grip.classList.remove("dragging");
+    saveBoard();
+    scheduleChartReflow();
+  });
+  // Keyboard parity: the grip is a real control, so it must be operable without a pointer.
+  grip.addEventListener("keydown", (ev)=>{
+    const step = ev.shiftKey ? 100 : 20;
+    if(ev.key !== "ArrowUp" && ev.key !== "ArrowDown") return;
+    const now = board.getBoundingClientRect().height;
+    boardHeight = Math.min(BOARD_MAX_H, Math.max(BOARD_MIN_H,
+      now + (ev.key === "ArrowDown" ? step : -step)));
+    layoutBoard();
+    scheduleChartReflow();
+    saveBoard();
+    ev.preventDefault();
+  });
+}
+
+/* A hand-made arrangement is only overwritten when the incoming lens needs a chart that
+   is not already on the board — rearranging is the user's, not the lens's, decision. */
+function syncBoardToLens(){
+  const want = lensViews();
+  const placed = treeTiles(boardTree);
+  if(want.every(id => placed.includes(id))) return false;
+  boardTree = buildTree(want);
+  layoutBoard();
+  saveBoard();
+  return true;
+}
+
+function paneHits(){
+  return treeTiles(boardTree).map(id => {
+    const el = document.getElementById("tile-" + id);
+    return el ? {id, r:el.getBoundingClientRect()} : null;
+  }).filter(Boolean);
+}
+function dropTargetAt(x, y){
+  const board = document.getElementById("board");
+  if(!board) return null;
+  const b = board.getBoundingClientRect();
+  if(x < b.left || x > b.right || y < b.top || y > b.bottom) return null;
+  if(!boardTree) return {tile:null, zone:"root", rect:b};
+  // Nearest pane rather than strict containment, so the gaps between panes still resolve.
+  let hit = null, best = Infinity;
+  paneHits().forEach(p => {
+    const dx = Math.max(p.r.left - x, 0, x - p.r.right);
+    const dy = Math.max(p.r.top - y, 0, y - p.r.bottom);
+    const d = dx * dx + dy * dy;
+    if(d < best){ best = d; hit = p; }
+  });
+  if(!hit) return null;
+  const fx = (x - hit.r.left) / Math.max(hit.r.width, 1);
+  const fy = (y - hit.r.top) / Math.max(hit.r.height, 1);
+  const bands = [["left", fx], ["right", 1 - fx], ["top", fy], ["bottom", 1 - fy]];
+  bands.sort((p, q) => p[1] - q[1]);
+  return {tile:hit.id, zone:bands[0][1] < EDGE_BAND ? bands[0][0] : "center", rect:hit.r};
+}
+function showPreview(target){
+  const board = document.getElementById("board");
+  let el = board.querySelector(".drop-preview");
+  if(!target){ if(el) el.remove(); return; }
+  if(!el){
+    el = document.createElement("div");
+    el.className = "drop-preview";
+    board.appendChild(el);
+  }
+  const b = board.getBoundingClientRect();
+  const r = target.rect;
+  let x = r.left - b.left, y = r.top - b.top, w = r.width, h = r.height;
+  if(target.zone === "root"){ x += GAP/2; y += GAP/2; w -= GAP; h -= GAP; }
+  else if(target.zone === "left"){ w /= 2; }
+  else if(target.zone === "right"){ x += w / 2; w /= 2; }
+  else if(target.zone === "top"){ h /= 2; }
+  else if(target.zone === "bottom"){ y += h / 2; h /= 2; }
+  el.style.left = x.toFixed(1) + "px";
+  el.style.top = y.toFixed(1) + "px";
+  el.style.width = Math.max(w, 0).toFixed(1) + "px";
+  el.style.height = Math.max(h, 0).toFixed(1) + "px";
+}
+function clearPreview(){
+  const el = document.querySelector("#board .drop-preview");
+  if(el) el.remove();
+}
+function placeIntoLargestPane(id){
+  const panes = paneHits();
+  if(!boardTree || !panes.length){ boardTree = leafNode(id); return; }
+  const big = panes.reduce((m, p) =>
+    p.r.width * p.r.height > m.r.width * m.r.height ? p : m);
+  placeTile(id, big.id, big.r.width >= big.r.height ? "right" : "bottom");
+}
+
+/* ── Widget options: which charts are on the board, and how they sit ──────────
+   Each arrangement builds a fresh tree out of the tiles already placed, in their current
+   order. layoutBoard clamps every ratio afterwards, so an arrangement may ask for panes
+   narrower than MIN_PANE_PX and still come out readable. */
+function columnsTree(ids){
+  if(ids.length < 2) return buildTree(ids);
+  const half = Math.ceil(ids.length / 2);
+  return {type:"split", dir:"row", ratio:0.5,
+    a:stackNodes(ids.slice(0, half)), b:stackNodes(ids.slice(half))};
+}
+function rowOfStacks(groups){
+  if(groups.length === 1) return stackNodes(groups[0]);
+  // 1/len at each level is what makes the columns come out equal rather than halving.
+  return {type:"split", dir:"row", ratio:1 / groups.length,
+    a:stackNodes(groups[0]), b:rowOfStacks(groups.slice(1))};
+}
+/* The board is far wider than it is tall, so the grid grows sideways first and never past
+   three columns — a fourth column is narrower than a chart can label itself in. */
+function gridTree(ids){
+  if(ids.length < 2) return buildTree(ids);
+  const cols = ids.length <= 3 ? ids.length : Math.min(3, Math.ceil(ids.length / 2));
+  const per = Math.ceil(ids.length / cols);
+  const groups = [];
+  for(let i = 0; i < ids.length; i += per) groups.push(ids.slice(i, i + per));
+  return rowOfStacks(groups);
+}
+/* One place that turns an arrangement key into a tree, so the panel's pictograms, the
+   "which arrangement is this board in" check and the click handler cannot drift apart. */
+function arrangeTree(kind, ids){
+  if(!ids.length) return null;
+  if(kind === "single") return leafNode(ids[0]);   // the rest fall back to the tray
+  if(kind === "columns") return columnsTree(ids);
+  if(kind === "main") return buildTree(ids);
+  if(kind === "grid") return gridTree(ids);
+  if(kind === "stack") return stackNodes(ids);     // full-width panes, one above another
+  return null;
+}
+function arrangeBoard(kind){
+  const tree = arrangeTree(kind, treeTiles(boardTree));
+  if(!tree) return;
+  boardTree = tree;
+  layoutBoard();
+  saveBoard();
+  scheduleChartReflow();
+}
+function setTilePlaced(id, on){
+  if(on){
+    if(treeTiles(boardTree).includes(id)) return;
+    placeIntoLargestPane(id);   // the same path a tray chip click takes
+  } else {
+    boardTree = dropLeaf(boardTree, id);
+  }
+  layoutBoard();
+  saveBoard();
+  scheduleChartReflow();
+}
+/* The picture is the control. Each entry carries the boxes its own arrangement produces,
+   drawn as fractions of the board so the pictogram cannot claim a split the tree does not
+   make. `stack` draws three full-width bars because three is what the diagram can show —
+   the arrangement itself takes however many panes are placed. */
+const ARRANGEMENTS = [
+  {key:"single",  label:"One pane",   aria:"Arrange as one pane",
+   boxes:[[0,0,1,1]]},
+  {key:"columns", label:"Columns",    aria:"Arrange as two columns",
+   boxes:[[0,0,.5,1],[.5,0,.5,1]]},
+  {key:"main",    label:"Main + side", aria:"Arrange as a main pane with a side column",
+   boxes:[[0,0,.62,1],[.62,0,.38,.5],[.62,.5,.38,.5]]},
+  {key:"grid",    label:"Grid",       aria:"Arrange as an even grid",
+   boxes:[[0,0,.5,.5],[.5,0,.5,.5],[0,.5,.5,.5],[.5,.5,.5,.5]]},
+  {key:"stack",   label:"Stack",      aria:"Arrange as a full-width vertical stack",
+   boxes:[[0,0,1,1/3],[0,1/3,1,1/3],[0,2/3,1,1/3]]},
+];
+/* Structure only, no ratios: dragging a splitter changes how a board looks but not which
+   arrangement it is, so the marked pictogram survives a resize. */
+function treeShape(node){
+  if(!node) return "";
+  if(node.type === "leaf") return "L";
+  return (node.dir === "col" ? "C(" : "R(") + treeShape(node.a) + "," + treeShape(node.b) + ")";
+}
+function arrangeDiagram(boxes){
+  const W = 64, H = 40, P = 1.5;
+  const rects = boxes.map(b =>
+    '<rect x="' + (P + b[0] * (W - 2 * P)).toFixed(1) + '" y="' + (P + b[1] * (H - 2 * P)).toFixed(1)
+    + '" width="' + Math.max(b[2] * (W - 2 * P) - 2, 1).toFixed(1)
+    + '" height="' + Math.max(b[3] * (H - 2 * P) - 2, 1).toFixed(1) + '" rx="2"/>').join("");
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true" focusable="false">'
+    + rects + '</svg>';
+}
+
+/* The label wraps a description as well as the name, so the accessible name is set explicitly
+   rather than left to the whole paragraph of label text. */
+function tileOption(id, note){
+  return '<label><input type="checkbox" data-tile="' + id + '" aria-label="'
+    + escAttr(TILE_LABELS[id]) + ' on the board" />'
+    + '<span><b>' + esc(TILE_LABELS[id]) + '</b>' + esc(note || TILE_NOTES[id])
+    + '</span></label>';
+}
+function renderLayoutTiles(){
+  const host = document.getElementById("layoutTiles");
+  if(!host) return;
+  const parked = parkedTiles();
+  host.innerHTML = TILE_IDS.filter(id => !parked.includes(id)).map(id => tileOption(id)).join("");
+  const box = document.getElementById("layoutParked");
+  box.hidden = !parked.length;
+  if(!parked.length) return;
+  document.getElementById("layoutParkedSummary").textContent =
+    "Parked — no data source yet (" + parked.length + ")";
+  document.getElementById("layoutParkedTiles").innerHTML = parked.map(id =>
+    tileOption(id, "Waiting on " + TILE_NEEDS[id] + ". " + TILE_NOTES[id])).join("");
+}
+
+function buildLayoutPanel(){
+  const host = document.getElementById("layoutTiles");
+  if(!host) return;
+  document.getElementById("layoutArrange").innerHTML = ARRANGEMENTS.map(a =>
+    '<button type="button" data-arrange="' + a.key + '" aria-label="' + escAttr(a.aria) + '"'
+    + ' title="' + escAttr(a.aria) + '">' + arrangeDiagram(a.boxes)
+    + '<span aria-hidden="true">' + esc(a.label) + '</span></button>').join("");
+  renderLayoutTiles();
+  // Delegated on the panel so the parked list, which is rebuilt whenever the payload changes
+  // what has data, does not need a listener of its own.
+  document.getElementById("layoutPanel").addEventListener("change", (ev)=>{
+    const cb = ev.target.closest("input[data-tile]");
+    if(cb) setTilePlaced(cb.dataset.tile, cb.checked);
+  });
+  document.getElementById("layoutArrange").addEventListener("click", (ev)=>{
+    const btn = ev.target.closest("button[data-arrange]");
+    if(btn) arrangeBoard(btn.dataset.arrange);
+  });
+  syncLayoutPanel();
+}
+/* Only the checked flags are written back, never the markup: the panel stays open while the
+   board changes under it, and rebuilding the list would drop focus mid-interaction. */
+function syncLayoutPanel(){
+  const placed = treeTiles(boardTree);
+  document.querySelectorAll("#layoutPanel input[data-tile]").forEach(cb =>
+    { cb.checked = placed.includes(cb.dataset.tile); });
+  const shape = treeShape(boardTree);
+  document.querySelectorAll("#layoutArrange button[data-arrange]").forEach(btn =>
+    // With one pane placed every arrangement produces the same board; only "one pane" is
+    // an honest description of it.
+    { btn.classList.toggle("on",
+        placed.length > (btn.dataset.arrange === "single" ? 0 : 1)
+        && treeShape(arrangeTree(btn.dataset.arrange, placed)) === shape); });
+}
+
+function initBoard(){
+  const board = document.getElementById("board");
+  let drag = null;
+
+  board.addEventListener("pointerdown", (ev)=>{
+    if(ev.button !== 0) return;
+    const sp = ev.target.closest(".board-splitter");
+    if(sp){
+      draggingSplit = sp._node;
+      drag = {kind:"splitter", node:sp._node, rect:sp._rect};
+      sp.classList.add("dragging");
+      ev.preventDefault();
+      return;
+    }
+    const bar = ev.target.closest(".tile-bar[data-drag]");
+    if(!bar) return;
+    if(ev.target.closest("[data-close]") || ev.target.closest("[data-explain]")) return;
+    const tile = bar.closest(".tile");
+    if(!tile) return;
+    drag = {kind:"tile", tileId:tile.dataset.id, fromTray:false, moved:false,
+            el:tile, x0:ev.clientX, y0:ev.clientY};
+    tile.classList.add("dragging");
+    ev.preventDefault();
+  });
+
+  board.addEventListener("click", (ev)=>{
+    const close = ev.target.closest("[data-close]");
+    if(!close) return;
+    const tile = close.closest(".tile");
+    if(!tile) return;
+    boardTree = dropLeaf(boardTree, tile.dataset.id);
+    layoutBoard();
+    saveBoard();
+    scheduleChartReflow();
+  });
+
+  // Bound on the whole tray, not just the chip row, so a chip in the parked disclosure is
+  // draggable on exactly the same path as an ordinary one.
+  document.getElementById("tray").addEventListener("pointerdown", (ev)=>{
+    if(ev.button !== 0) return;
+    const chip = ev.target.closest("[data-tray]");
+    if(!chip) return;
+    drag = {kind:"tile", tileId:chip.dataset.tray, fromTray:true, moved:false,
+            el:chip, x0:ev.clientX, y0:ev.clientY};
+    chip.classList.add("dragging");
+    ev.preventDefault();
+  });
+
+  window.addEventListener("pointermove", (ev)=>{
+    if(!drag) return;
+    if(drag.kind === "splitter"){
+      const br = board.getBoundingClientRect();
+      const rc = drag.rect;
+      if(drag.node.dir === "row"){
+        const x0 = br.left + br.width * rc.x / 100;
+        drag.node.ratio = (ev.clientX - x0) / Math.max(br.width * rc.w / 100, 1);
+      } else {
+        const y0 = br.top + br.height * rc.y / 100;
+        drag.node.ratio = (ev.clientY - y0) / Math.max(br.height * rc.h / 100, 1);
+      }
+      layoutBoard();
+      return;
+    }
+    if(Math.abs(ev.clientX - drag.x0) > 3 || Math.abs(ev.clientY - drag.y0) > 3)
+      drag.moved = true;
+    showPreview(dropTargetAt(ev.clientX, ev.clientY));
+  });
+
+  window.addEventListener("pointerup", (ev)=>{
+    if(!drag) return;
+    const d = drag;
+    drag = null;
+    if(d.kind === "splitter"){
+      draggingSplit = null;
+      board.querySelectorAll(".board-splitter").forEach(el => el.classList.remove("dragging"));
+      saveBoard();
+      scheduleChartReflow();
+      return;
+    }
+    if(d.el) d.el.classList.remove("dragging");
+    clearPreview();
+    const target = dropTargetAt(ev.clientX, ev.clientY);
+    if(target && target.zone === "root"){
+      boardTree = leafNode(d.tileId);
+    } else if(target && target.tile){
+      placeTile(d.tileId, target.tile, target.zone);
+    } else if(d.fromTray && !d.moved){
+      placeIntoLargestPane(d.tileId);   // a plain click on a chip still has to place it
+    } else {
+      return;                           // released off the board: the layout is unchanged
+    }
+    layoutBoard();
+    saveBoard();
+    scheduleChartReflow();
+  });
+
+  // Charts are sized from their host box, so they must be redrawn when a pane resizes.
+  if(typeof ResizeObserver !== "undefined"){
+    ["plot","priceChart","rankChart","distChart","shadowChart"].forEach(id=>{
+      const el = document.getElementById(id);
+      if(el) new ResizeObserver(()=>scheduleChartReflow()).observe(el);
+    });
+  }
+  window.addEventListener("resize", ()=>{ layoutBoard(); scheduleChartReflow(); });
+}
+
+let _reflowRaf = 0;
+function scheduleChartReflow(){
+  cancelAnimationFrame(_reflowRaf);
+  _reflowRaf = requestAnimationFrame(()=>{
+    [drawPlot, drawPrice, drawRank, drawDist, drawShadow].forEach(fn=>{
+      try{ fn(); }catch(e){ console.error(e); }
+    });
+  });
+}
+
+/* ── Lens metrics ─────────────────────────────────────────────────────────── */
+function volNum(v){
+  if(v == null) return null;
+  const m = String(v).trim().match(/^([\d.]+)\s*([KMBT])?$/i);
+  if(!m) return null;
+  const mult = {K:1e3, M:1e6, B:1e9, T:1e12}[(m[2] || "").toUpperCase()] || 1;
+  return parseFloat(m[1]) * mult;
+}
+function fmtBig(v){
+  if(v == null) return "—";
+  const units = [[1e12,"T"],[1e9,"B"],[1e6,"M"],[1e3,"K"]];
+  for(const u of units)
+    if(Math.abs(v) >= u[0]) return (v/u[0]).toFixed(Math.abs(v/u[0]) < 10 ? 1 : 0) + u[1];
+  return v.toFixed(0);
+}
+/* Coverage and tone are two different facts, and the whole tone design rests on not letting
+   them collapse into one. A ticker no document named has no tone at all — "nobody said
+   anything" — which is not the same reading as "opinion balanced to zero" off twenty
+   headlines. Every lens, chart and card asks these three functions, so the distinction
+   cannot hold in one place and quietly lapse in another. */
+function toneCov(r, src){ return (src === "reddit" ? r.rd_c : r.bb_c) || 0; }
+function toneCovered(r, src){
+  const t = src === "reddit" ? r.rd : r.bb;
+  return t != null && toneCov(r, src) > 0;
+}
+function toneMetric(r, src){
+  return toneCovered(r, src) ? (src === "reddit" ? r.rd : r.bb) : null;
+}
+function fmtTone(v){ return (v > 0 ? "+" : "") + v.toFixed(2); }
+function fmtDocs(n){ return n + (n === 1 ? " doc" : " docs"); }
+
+/* `sub` is the second fact a tone bar cannot carry on its own: +0.50 off one headline and
+   +0.50 off twenty are not the same evidence, so the count travels with the number. */
+const METRICS = {
+  pe:    {label:"P/E",                 get:r=>r.pe,          fmt:v=>v.toFixed(1)},
+  g:     {label:"growth y/y",          get:r=>r.g,           fmt:v=>(v*100).toFixed(0)+"%"},
+  dy:    {label:"dividend yield",      get:r=>r.dy,          fmt:v=>(v*100).toFixed(1)+"%"},
+  de:    {label:"on-BS debt/equity %", get:r=>r.de,          fmt:v=>v.toFixed(0)},
+  beta:  {label:"beta",                get:r=>r.beta,        fmt:v=>v.toFixed(2)},
+  vol:   {label:"$ volume/day",        get:r=>volNum(r.vol), fmt:v=>fmtBig(v)},
+  score: {label:"composite score",     get:r=>r.score,       fmt:v=>v.toFixed(3)},
+  bb:    {label:"Bloomberg headline tone", get:r=>toneMetric(r,"bloomberg"), fmt:fmtTone,
+          sub:r=>fmtDocs(toneCov(r,"bloomberg"))},
+  rd:    {label:"Reddit post tone",        get:r=>toneMetric(r,"reddit"),    fmt:fmtTone,
+          sub:r=>fmtDocs(toneCov(r,"reddit"))},
+};
+/* rank = what the lens sorts on; x = the axis the lens is arguing about. */
+const LENS_SPEC = {
+  low_pe_high_growth:   {rank:"g",     x:"pe"},
+  low_pe_high_dividend: {rank:"dy",    x:"pe"},
+  safety_low_debt:      {rank:"de",    x:"de", asc:true},
+  high_ai_exposure:     {rank:"score", x:"pe"},
+  ai_shadow_debt:       {rank:"de",    x:"de"},
+  low_ai_exposure:      {rank:"score", x:"pe"},
+  most_volatile:        {rank:"beta",  x:"beta"},
+  most_active:          {rank:"vol",   x:"vol"},
+  sovereign_ledger:     {rank:"score", x:"pe"},
+  chaos_hedges:         {rank:"beta",  x:"pe"},
+  bloomberg_tone:       {rank:"bb",    x:"bb"},
+  reddit_tone:          {rank:"rd",    x:"rd"},
+};
+/* The two lenses whose membership test is coverage rather than a threshold. Keyed by the
+   tone source so the source toggle, the headline tile and the lens cannot disagree. */
+const TONE_LENSES = {bloomberg_tone:"bloomberg", reddit_tone:"reddit"};
+function toneLensSrc(){ return TONE_LENSES[preset] || null; }
+function lensSpec(){ return LENS_SPEC[preset] || {rank:"score", x:"pe"}; }
+function esc(s){
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+/* Names are user-typed and land inside quoted attributes, so quotes have to go too. */
+function escAttr(s){
+  return esc(s).replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+
+/* ── Custom lenses ────────────────────────────────────────────────────────────
+   A custom lens is made of the same three parts every built-in lens is made of — a row
+   filter, a LENS_SPEC entry and a LENS_VIEWS entry — so nothing downstream has to know
+   whether the active lens was written here or typed by the user. */
+const LENS_KEY = "monad.screener.draft.lenses.v1";
+const LENS_NAME_MAX = 40;
+const FALLBACK_PRESET = "low_pe_high_growth";
+const RANK_FIELDS = ["score","pe","g","dy","de","vol"];
+/* Cheap and safe are the two questions whose good answer is a small number. */
+const RANK_ASC = {pe:true, de:true};
+const AI_LEVELS = ["any","high","medium","low"];
+const SHADOW_MODES = ["any","not_high","untagged"];
+const LENS_NUM_FIELDS = ["maxPe","minG","minDy","maxDe","maxBeta"];
+const DEFAULT_LENS_VIEWS = ["plot","rank","dist"];
+
+let CUSTOM_LENSES = [];
+let editingLensId = null;
+
+function customLens(key){ return CUSTOM_LENSES.find(l => l.id === key) || null; }
+
+function registerLens(l){
+  LENS_VIEWS[l.id] = l.views.slice();
+  // A composite score has no distribution worth binning on its own, so the axis the lens
+  // argues about falls back to P/E — the field the widest part of the snapshot reports.
+  LENS_SPEC[l.id] = {rank:l.rank, x:(l.rank === "score" ? "pe" : l.rank),
+                     asc:!!RANK_ASC[l.rank]};
+}
+
+/* Every field is re-derived from the stored blob rather than trusted. A hand-edited or
+   half-written value must degrade to "no custom lenses", never to a throw that would take
+   the rest of the page's init down with it. */
+function sanitizeLens(raw, seenIds, seenNames){
+  if(!raw || typeof raw !== "object") return null;
+  const id = (typeof raw.id === "string" && raw.id.indexOf("custom:") === 0) ? raw.id : null;
+  if(!id || seenIds.has(id)) return null;
+  const name = typeof raw.name === "string" ? raw.name.trim().slice(0, LENS_NAME_MAX) : "";
+  if(!name || seenNames.has(name.toLowerCase())) return null;
+  const lens = {
+    id, name,
+    rank:   RANK_FIELDS.includes(raw.rank) ? raw.rank : "score",
+    ai:     AI_LEVELS.includes(raw.ai) ? raw.ai : "any",
+    shadow: SHADOW_MODES.includes(raw.shadow) ? raw.shadow : "any",
+    sector: (typeof raw.sector === "string" && raw.sector) ? raw.sector : "any",
+    views:  Array.isArray(raw.views)
+      ? raw.views.filter((t, i, a) => TILE_IDS.includes(t) && a.indexOf(t) === i)
+      : []
+  };
+  if(!lens.views.length) lens.views = DEFAULT_LENS_VIEWS.slice();
+  LENS_NUM_FIELDS.forEach(f=>{
+    const v = raw[f];
+    lens[f] = (typeof v === "number" && isFinite(v)) ? v : null;
+  });
+  seenIds.add(id);
+  seenNames.add(name.toLowerCase());
+  return lens;
+}
+function loadCustomLenses(){
+  try{
+    const parsed = JSON.parse(localStorage.getItem(LENS_KEY) || "[]");
+    if(!Array.isArray(parsed)) return [];
+    const ids = new Set(), names = new Set();
+    return parsed.map(x => sanitizeLens(x, ids, names)).filter(Boolean).slice(0, 24);
+  }catch(e){ return []; }
+}
+function saveCustomLenses(){
+  try{ localStorage.setItem(LENS_KEY, JSON.stringify(CUSTOM_LENSES)); }catch(e){}
+}
+
+/* A threshold is a test the name has to pass, and a missing number cannot pass one — so
+   absence fails the test instead of slipping through as a zero. */
+function lensAccepts(l, r){
+  if(l.maxPe   != null && !(r.pe   != null && r.pe   <= l.maxPe))   return false;
+  if(l.minG    != null && !(r.g    != null && r.g    >= l.minG))    return false;
+  if(l.minDy   != null && !(r.dy   != null && r.dy   >= l.minDy))   return false;
+  if(l.maxDe   != null && !(r.de   != null && r.de   <= l.maxDe))   return false;
+  if(l.maxBeta != null && !(r.beta != null && r.beta <= l.maxBeta)) return false;
+  if(l.ai !== "any" && r.ai !== l.ai) return false;
+  if(l.sector !== "any" && r.sector !== l.sector) return false;
+  // Same judgement as safety_low_debt: a high-severity tag says the reported D/E is known
+  // to omit a financing leg, so the name cannot be read as clean on that number.
+  if(l.shadow === "not_high" && shadowRank(r) >= 3) return false;
+  if(l.shadow === "untagged" && r.shadow_tag) return false;
+  return true;
+}
+
+function activeLensLabel(){
+  const btn = document.querySelector("#presets button.on");
+  return btn ? btn.textContent.trim() : preset;
+}
+function builtinLensNames(){
+  return Array.from(document.querySelectorAll("#presets > button[data-p]"))
+    .filter(b => b.dataset.p !== "custom").map(b => b.textContent.trim());
+}
+function lensNameTaken(name, exceptId){
+  const key = name.toLowerCase();
+  return builtinLensNames().some(n => n.toLowerCase() === key)
+    || CUSTOM_LENSES.some(l => l.id !== exceptId && l.name.toLowerCase() === key);
+}
+function markActivePreset(){
+  document.querySelectorAll("#presets button[data-p]").forEach(b =>
+    b.classList.toggle("on", b.dataset.p === preset));
+  document.querySelectorAll("#presets .lens-chip").forEach(c =>
+    c.classList.toggle("on", !!c.querySelector("button.on")));
+}
+function renderCustomBubbles(){
+  const host = document.getElementById("presets");
+  const anchor = host.querySelector('button[data-p="custom"]');
+  host.querySelectorAll(".lens-chip").forEach(el => el.remove());
+  CUSTOM_LENSES.forEach(l=>{
+    const chip = document.createElement("span");
+    chip.className = "lens-chip";
+    chip.innerHTML =
+      '<button type="button" data-p="' + escAttr(l.id) + '">' + esc(l.name) + '</button>'
+      + '<button type="button" class="lens-edit" data-lens-edit="' + escAttr(l.id) + '"'
+      + ' aria-expanded="false" title="Edit this lens"'
+      + ' aria-label="Edit lens ' + escAttr(l.name) + '">✎</button>'
+      + '<button type="button" class="lens-del" data-lens-del="' + escAttr(l.id) + '"'
+      + ' title="Delete this lens" aria-label="Delete lens ' + escAttr(l.name) + '">×</button>';
+    host.insertBefore(chip, anchor);
+  });
+  markActivePreset();
+}
+function selectPreset(key){
+  preset = key;
+  markActivePreset();
+  // A tone lens is a lens on ONE provider, so the tone controls follow it — otherwise the
+  // headlines tile it opens with would be showing the other provider's documents.
+  const wantSrc = TONE_LENSES[key];
+  if(wantSrc && source !== wantSrc) setToneSource(wantSrc);
+  const m = matchedRows();
+  if(m.length && !m.some(r => r.tk === selected)) pinTicker(m[0].tk);
+  syncBoardToLens();
+  render();
+}
+
+function lensFormError(msg){
+  const el = document.getElementById("lensError");
+  el.textContent = msg;
+  el.hidden = false;
+  document.getElementById("lensName").focus();
+}
+function fillSectorOptions(){
+  const sel = document.getElementById("lensSector");
+  const sectors = Array.from(new Set(ROWS.map(r => r.sector).filter(Boolean))).sort();
+  sel.innerHTML = '<option value="any">any sector</option>'
+    + sectors.map(s => '<option value="' + escAttr(s) + '">' + esc(s) + '</option>').join("");
+}
+function fillViewPills(){
+  document.getElementById("lensViews").innerHTML = TILE_IDS.map(id =>
+    '<label class="opt-pill"><input type="checkbox" value="' + id + '" aria-label="'
+    + escAttr(TILE_LABELS[id]) + '" />' + esc(TILE_LABELS[id]) + '</label>').join("");
+}
+function setSelectValue(id, v){
+  const sel = document.getElementById(id);
+  sel.value = (v == null) ? "any" : String(v);
+  if(sel.selectedIndex < 0) sel.value = "any";   // a stored value whose option is gone
+}
+function numSelect(id){
+  const v = document.getElementById(id).value;
+  return v === "any" ? null : parseFloat(v);
+}
+function openLensForm(id, trigger){
+  const l = id ? customLens(id) : null;
+  editingLensId = l ? l.id : null;
+  document.getElementById("lensFormTitle").textContent = l ? "Edit lens" : "New lens";
+  document.getElementById("lensSubmit").textContent = l ? "Save lens" : "Create lens";
+  document.getElementById("lensError").hidden = true;
+  fillSectorOptions();
+  document.getElementById("lensName").value = l ? l.name : "";
+  setSelectValue("lensRank",    l ? l.rank   : "score");
+  setSelectValue("lensSector",  l ? l.sector : "any");
+  setSelectValue("lensAi",      l ? l.ai     : "any");
+  setSelectValue("lensShadow",  l ? l.shadow : "any");
+  setSelectValue("lensMaxPe",   l ? l.maxPe   : null);
+  setSelectValue("lensMinG",    l ? l.minG    : null);
+  setSelectValue("lensMinDy",   l ? l.minDy   : null);
+  setSelectValue("lensMaxDe",   l ? l.maxDe   : null);
+  setSelectValue("lensMaxBeta", l ? l.maxBeta : null);
+  const views = l ? l.views : DEFAULT_LENS_VIEWS;
+  document.querySelectorAll("#lensViews input").forEach(cb =>
+    { cb.checked = views.includes(cb.value); });
+  panelOpen(document.getElementById("lensForm"), trigger || null,
+            document.getElementById("lensName"));
+}
+function submitLensForm(){
+  const name = (document.getElementById("lensName").value || "")
+    .trim().replace(/\s+/g, " ").slice(0, LENS_NAME_MAX);
+  if(!name) return lensFormError("Give the lens a name — it becomes the bubble label.");
+  if(lensNameTaken(name, editingLensId))
+    return lensFormError("There is already a lens called “" + name + "”.");
+  const views = Array.from(document.querySelectorAll("#lensViews input:checked"))
+    .map(cb => cb.value);
+  if(!views.length)
+    return lensFormError("Pick at least one chart for this lens to open with.");
+  const lens = {
+    id: editingLensId
+      || ("custom:" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7)),
+    name,
+    rank:    document.getElementById("lensRank").value,
+    sector:  document.getElementById("lensSector").value,
+    ai:      document.getElementById("lensAi").value,
+    shadow:  document.getElementById("lensShadow").value,
+    maxPe:   numSelect("lensMaxPe"),
+    minG:    numSelect("lensMinG"),
+    minDy:   numSelect("lensMinDy"),
+    maxDe:   numSelect("lensMaxDe"),
+    maxBeta: numSelect("lensMaxBeta"),
+    views
+  };
+  const i = CUSTOM_LENSES.findIndex(l => l.id === lens.id);
+  if(i >= 0) CUSTOM_LENSES[i] = lens; else CUSTOM_LENSES.push(lens);
+  registerLens(lens);
+  saveCustomLenses();
+  panelClose();
+  renderCustomBubbles();
+  selectPreset(lens.id);
+}
+function deleteCustomLens(id){
+  const i = CUSTOM_LENSES.findIndex(l => l.id === id);
+  if(i < 0) return;
+  CUSTOM_LENSES.splice(i, 1);
+  delete LENS_VIEWS[id];
+  delete LENS_SPEC[id];
+  saveCustomLenses();
+  if(editingLensId === id) panelClose();
+  renderCustomBubbles();
+  // A deleted lens cannot stay the active one, so the board falls back to a built-in.
+  if(preset === id) selectPreset(FALLBACK_PRESET);
+  else { markActivePreset(); render(); }
+}
+
+/* A short lens on a thin window has to account for who is missing, by name — otherwise the
+   reader fills the gap with an assumption, and the assumption is always "scored zero". */
+function toneLensNote(src){
+  const label = src === "reddit" ? "Reddit" : "Bloomberg";
+  const covered = ROWS.filter(r => toneCovered(r, src));
+  const silent  = ROWS.filter(r => !toneCovered(r, src) && !toneCov(r, src));
+  const untoned = ROWS.filter(r => !toneCovered(r, src) && toneCov(r, src));
+  let s = "<b>" + covered.length + " of " + ROWS.length + " names carry " + label
+    + " coverage in this snapshot.</b> A lens on tone can only hold names some document"
+    + " actually named. <b>No coverage is not a tone of 0.00</b> — an unmentioned name is"
+    + " absent from this lens rather than scored zero, and the list is never padded to look"
+    + " fuller.";
+  if(silent.length)
+    s += " Absent, nothing named them: <b>" + silent.map(r => esc(r.tk)).join(", ") + "</b>.";
+  if(untoned.length)
+    s += " Absent, named but no tone word: <b>" + untoned.map(r => esc(r.tk)).join(", ")
+      + "</b>.";
+  if(!silent.length && !untoned.length)
+    s += " Every loaded name carries coverage in this window — unusual, and worth checking"
+      + " against the provider counts above before it is read as normal.";
+  return s + " Tone is lexicon tone over the fetched documents, not a vendor sentiment"
+    + " score; every reading is shown with the document count behind it.";
+}
+/* Zero matches is a result, not a rendering failure — it is said in words here and in each
+   chart rather than left as a frame with nothing in it. */
+function renderLensNote(){
+  const el = document.getElementById("lensNote");
+  if(!el) return;
+  // With no snapshot the note would be arguing about a lens over nothing; the empty-state
+  // panel above already names the missing source, so this stays out of the way.
+  if(!ROWS.length){ el.hidden = true; el.innerHTML = ""; return; }
+  const src = toneLensSrc();
+  const n = matchedRows().length;
+  if(n && !src){ el.hidden = true; el.innerHTML = ""; return; }
+  el.hidden = false;
+  el.innerHTML = n ? toneLensNote(src)
+    : ("<b>Nothing matches.</b> No name in the " + ROWS.length
+      + "-name snapshot clears every condition in <b>" + esc(activeLensLabel())
+      + "</b>" + (activeFilterCount() ? " together with the filters set above" : "")
+      + ". The charts and the table below are empty for that reason — not because the"
+      + " data is missing. " + (src
+        ? "Nothing in the fetched window named any of them; that is absence of coverage, not"
+          + " a set of zeroes."
+        : "Loosen a threshold, or edit the lens."));
+}
+/* Two different empty reasons, never merged: a lens that excluded everything is a result,
+   and a page with no snapshot behind it is not. */
+function lensEmptyMsg(){
+  return ROWS.length
+    ? '<p class="muted-cell">No name matches this lens — nothing is drawn rather than'
+      + ' an empty frame with axes on it.</p>'
+    : '<p class="absent"><b>No rows are loaded.</b> Run'
+      + ' <code>venv/bin/python tools/stock_screener.py fetch</code> and reload; nothing is'
+      + ' drawn from an absent snapshot.</p>';
+}
+
+function bindMarks(host){
+  host.querySelectorAll(".mark[data-tk]").forEach(el=>{
+    el.onclick = ()=>{
+      pinTicker(el.dataset.tk);
+      render();
+    };
+  });
+}
+
+function drawRank(){
+  const host = document.getElementById("rankChart");
+  if(!host || !host.clientWidth || !host.clientHeight) return;
+  const spec = lensSpec(), m = METRICS[spec.rank];
+  const matches = matchedRows();
+  const all = matches.map(r=>({r, v:m.get(r)}))
+    .filter(o => o.v != null && isFinite(o.v));
+  all.sort((a, b) => spec.asc ? a.v - b.v : b.v - a.v);
+  const rows = all.slice(0, 12);
+  document.getElementById("rankTitle").textContent = "Ranked · " + m.label;
+  document.getElementById("rankMeta").textContent = rows.length
+    ? rows.length + " of " + all.length + " matches · " + (spec.asc ? "lowest" : "highest") + " first"
+    : "no matches";
+  if(!rows.length){
+    host.innerHTML = matches.length
+      ? '<p class="muted-cell">No match in this lens reports ' + esc(m.label) + '.</p>'
+      : lensEmptyMsg();
+    return;
+  }
+  const W = Math.max(220, Math.floor(host.clientWidth));
+  const H = Math.max(110, Math.floor(host.clientHeight));
+  // The right margin has to hold whatever the value label says, and a tone label says the
+  // number AND the document count behind it.
+  const L = 44, R = m.sub ? 104 : 54, T = 4, B = 4;
+  const rowH = (H - T - B) / rows.length;
+  const barH = Math.max(4, Math.min(20, rowH - 5));
+  const vmax = Math.max.apply(null, rows.map(o => Math.abs(o.v))) || 1;
+  const span = W - L - R;
+  const parts = ['<line x1="'+L+'" y1="'+T+'" x2="'+L+'" y2="'+(H-B)+'" stroke="var(--axis)"/>'];
+  rows.forEach((o, i)=>{
+    const cy = T + rowH * i + rowH / 2;
+    const w = Math.max(1, Math.abs(o.v) / vmax * span);
+    const on = o.r.tk === selected;
+    const fill = o.v < 0 ? "var(--critical)" : (on ? "var(--accent)" : "var(--ord-2)");
+    const val = m.fmt(o.v) + (m.sub ? " · " + m.sub(o.r) : "");
+    parts.push('<g class="mark" data-tk="' + o.r.tk + '">'
+      + '<title>' + esc(o.r.tk + " · " + o.r.name + " · " + m.label + " " + val) + '</title>'
+      + '<rect x="' + L + '" y="' + (cy - barH/2).toFixed(1) + '" width="' + w.toFixed(1)
+        + '" height="' + barH.toFixed(1) + '" rx="2" fill="' + fill + '" fill-opacity="'
+        + (on ? 1 : 0.82) + '" stroke="' + (on ? "var(--ink)" : "none") + '" stroke-width="'
+        + (on ? 1.4 : 0) + '"/>'
+      + '<text x="' + (L - 6) + '" y="' + (cy + 3.5).toFixed(1) + '" text-anchor="end"'
+        + ' font-size="10.5" font-family="var(--mono)" fill="'
+        + (on ? "var(--ink)" : "var(--ink-2)") + '" font-weight="' + (on ? 700 : 400) + '">'
+        + o.r.tk + '</text>'
+      + '<text x="' + (L + w + 5).toFixed(1) + '" y="' + (cy + 3.5).toFixed(1) + '"'
+        + ' font-size="10" font-family="var(--mono)" fill="var(--ink-muted)">'
+        + esc(val) + '</text>'
+      + '</g>');
+  });
+  host.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet"'
+    + ' role="img" aria-label="ranked by ' + esc(m.label) + '">' + parts.join("") + '</svg>';
+  bindMarks(host);
+}
+
+function drawDist(){
+  const host = document.getElementById("distChart");
+  if(!host || !host.clientWidth || !host.clientHeight) return;
+  const spec = lensSpec(), m = METRICS[spec.x];
+  const matched = new Set(matchedRows().map(r => r.tk));
+  if(!matched.size){
+    document.getElementById("distTitle").textContent = "Distribution · no match";
+    document.getElementById("distMeta").textContent = "0 in lens";
+    host.innerHTML = lensEmptyMsg();
+    document.getElementById("distLegend").innerHTML = "";
+    return;
+  }
+  const pool = [];
+  ROWS.forEach(r=>{
+    const v = m.get(r);
+    if(v != null && isFinite(v)) pool.push({v, tk:r.tk, match:matched.has(r.tk)});
+  });
+  // The bins hold the loaded names that report this field and nothing else. The pool is never
+  // topped up to make the histogram look denser than the snapshot is.
+  document.getElementById("distTitle").textContent = "Distribution · " + m.label;
+  const hits = pool.filter(p => p.match).length;
+  document.getElementById("distMeta").textContent = hits + " in lens of " + pool.length
+    + " reporting";
+  if(pool.length < 2){
+    host.innerHTML = '<p class="muted-cell">Not enough names to bin.</p>';
+    return;
+  }
+  const sorted = pool.map(p => p.v).sort((a, b) => a - b);
+  let lo = percentile(sorted, 0.02), hi = percentile(sorted, 0.98);
+  if(!(hi > lo)){ lo = sorted[0]; hi = sorted[sorted.length - 1]; }
+  if(!(hi > lo)) hi = lo + 1;
+  const NB = 16;
+  const bins = [];
+  for(let i = 0; i < NB; i++) bins.push({n:0, hit:0});
+  pool.forEach(p=>{
+    const k = Math.min(NB - 1, Math.max(0, Math.floor((p.v - lo) / (hi - lo) * NB)));
+    bins[k].n++;
+    if(p.match) bins[k].hit++;
+  });
+  const W = Math.max(220, Math.floor(host.clientWidth));
+  const H = Math.max(110, Math.floor(host.clientHeight));
+  const L = 30, R = 10, T = 10, B = 22;
+  const maxN = Math.max.apply(null, bins.map(b => b.n)) || 1;
+  const bw = (W - L - R) / NB;
+  const parts = [];
+  bins.forEach((b, i)=>{
+    const x = L + bw * i + 1;
+    const w = Math.max(1, bw - 2);
+    const ht = b.n / maxN * (H - T - B);
+    parts.push('<rect x="' + x.toFixed(1) + '" y="' + (H - B - ht).toFixed(1) + '" width="'
+      + w.toFixed(1) + '" height="' + ht.toFixed(1)
+      + '" fill="var(--axis)" fill-opacity=".45"><title>' + b.n + ' names</title></rect>');
+    if(b.hit){
+      const hh = b.hit / maxN * (H - T - B);
+      parts.push('<rect x="' + x.toFixed(1) + '" y="' + (H - B - hh).toFixed(1) + '" width="'
+        + w.toFixed(1) + '" height="' + hh.toFixed(1)
+        + '" fill="var(--accent)"><title>' + b.hit + ' in this lens</title></rect>');
+    }
+  });
+  parts.push('<line x1="' + L + '" y1="' + (H-B) + '" x2="' + (W-R) + '" y2="' + (H-B)
+    + '" stroke="var(--axis)"/>');
+  [0, 0.5, 1].forEach(f=>{
+    const x = L + (W - L - R) * f;
+    parts.push('<text x="' + x.toFixed(1) + '" y="' + (H - 8) + '" text-anchor="'
+      + (f === 0 ? "start" : (f === 1 ? "end" : "middle"))
+      + '" font-size="9.5" font-family="var(--mono)" fill="var(--ink-muted)">'
+      + esc(m.fmt(lo + (hi - lo) * f)) + '</text>');
+  });
+  parts.push('<text x="' + (L - 6) + '" y="' + (T + 8) + '" text-anchor="end" font-size="9.5"'
+    + ' font-family="var(--mono)" fill="var(--ink-muted)">' + maxN + '</text>');
+  const selRow = ROWS.find(r => r.tk === selected);
+  const sv = selRow ? m.get(selRow) : null;
+  if(sv != null && isFinite(sv)){
+    const x = L + Math.min(Math.max((sv - lo) / (hi - lo), 0), 1) * (W - L - R);
+    parts.push('<line x1="' + x.toFixed(1) + '" y1="' + T + '" x2="' + x.toFixed(1) + '" y2="'
+      + (H - B) + '" stroke="var(--ink)" stroke-width="1.2" stroke-dasharray="3 3"/>');
+    parts.push('<text x="' + x.toFixed(1) + '" y="' + (T + 7) + '" text-anchor="middle"'
+      + ' font-size="9.5" font-weight="600" font-family="var(--mono)" fill="var(--ink)">'
+      + esc(selected) + '</text>');
+  }
+  host.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet"'
+    + ' role="img" aria-label="distribution of ' + esc(m.label) + '">' + parts.join("") + '</svg>';
+  // The bins hold only names the field exists for, so on a tone axis the bar heights are a
+  // count of covered names — the silent ones are missing from the histogram, not sitting in
+  // a bin at zero.
+  const poolNote = (spec.x === "bb" || spec.x === "rd")
+    ? "names with coverage only — no-coverage names are absent, not binned at 0.00"
+    : "loaded names that report this field — the rest are absent, not binned at 0";
+  document.getElementById("distLegend").innerHTML =
+    '<span><i style="background:var(--axis);opacity:.45"></i>loaded names</span>'
+    + '<span><i style="background:var(--accent)"></i>in this lens</span>'
+    + '<span style="color:var(--ink-muted)">2–98th pctile · ' + NB + ' bins · '
+    + poolNote + '</span>';
+}
+
+function drawShadow(){
+  const host = document.getElementById("shadowChart");
+  if(!host || !host.clientWidth || !host.clientHeight) return;
+  let rows = matchedRows().filter(r => r.shadow_tag);
+  const scoped = rows.length > 0;
+  if(!scoped) rows = ROWS.filter(r => r.shadow_tag);
+  rows = rows.slice().sort((a, b) => (b.de || 0) - (a.de || 0)).slice(0, 10);
+  document.getElementById("shadowMeta").textContent = rows.length
+    ? (scoped ? rows.length + " tagged in lens" : rows.length + " tagged · none in this lens")
+    : "no tagged names";
+  const legend = document.getElementById("shadowLegend");
+  if(!rows.length){
+    // "No tagged name" and "no snapshot" are different findings, and only the first is a
+    // statement about the market.
+    host.innerHTML = ROWS.length
+      ? '<p class="muted-cell">No name in the snapshot carries an editorial AI shadow-debt'
+        + ' tag.</p>'
+      : lensEmptyMsg();
+    legend.innerHTML = "";
+    return;
+  }
+  const W = Math.max(220, Math.floor(host.clientWidth));
+  const H = Math.max(110, Math.floor(host.clientHeight));
+  const L = 46, R = 14, T = 4, B = 4;
+  const rowH = (H - T - B) / rows.length;
+  const barH = Math.max(4, Math.min(18, rowH - 6));
+  const demax = Math.max.apply(null, rows.map(r => r.de || 0)) || 1;
+  // The measured bar deliberately never fills the frame: the rest of the width is the
+  // off-BS leg, which this repo does not measure and must not draw as a quantity.
+  const measured = (W - L - R) * 0.6;
+  const parts = ['<line x1="'+L+'" y1="'+T+'" x2="'+L+'" y2="'+(H-B)+'" stroke="var(--axis)"/>'];
+  rows.forEach((r, i)=>{
+    const cy = T + rowH * i + rowH / 2;
+    const w = Math.max(1, (r.de || 0) / demax * measured);
+    const on = r.tk === selected;
+    const fill = shadowFill(r.shadow_tag);
+    let g = '<g class="mark" data-tk="' + r.tk + '">'
+      + '<title>' + esc(shadowTitle(r)) + '</title>'
+      + '<rect x="' + L + '" y="' + (cy - barH/2).toFixed(1) + '" width="' + w.toFixed(1)
+        + '" height="' + barH.toFixed(1) + '" rx="2" fill="' + fill + '" fill-opacity="'
+        + (on ? 1 : 0.85) + '" stroke="' + (on ? "var(--ink)" : "none") + '" stroke-width="'
+        + (on ? 1.4 : 0) + '"/>'
+      + '<text x="' + (L - 6) + '" y="' + (cy + 3.5).toFixed(1) + '" text-anchor="end"'
+        + ' font-size="10.5" font-family="var(--mono)" fill="'
+        + (on ? "var(--ink)" : "var(--ink-2)") + '" font-weight="' + (on ? 700 : 400) + '">'
+        + r.tk + '</text>'
+      + '<text x="' + (L + w + 5).toFixed(1) + '" y="' + (cy + 3.5).toFixed(1) + '"'
+        + ' font-size="10" font-family="var(--mono)" fill="var(--ink-muted)">'
+        + (r.de == null ? "—" : r.de.toFixed(0)) + '</text>';
+    const dashFrom = L + w + 34;
+    if(dashFrom < W - R - 12){
+      g += '<line x1="' + dashFrom.toFixed(1) + '" y1="' + cy.toFixed(1) + '" x2="'
+        + (W - R - 10) + '" y2="' + cy.toFixed(1) + '" stroke="' + fill
+        + '" stroke-width="1.1" stroke-dasharray="2 4" opacity=".75"/>'
+        + '<text x="' + (W - R) + '" y="' + (cy + 3.5).toFixed(1) + '" text-anchor="end"'
+        + ' font-size="10" font-family="var(--mono)" fill="var(--ink-muted)">?</text>';
+    }
+    parts.push(g + '</g>');
+  });
+  host.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet"'
+    + ' role="img" aria-label="reported on-balance-sheet debt to equity for shadow-tagged names">'
+    + parts.join("") + '</svg>';
+  bindMarks(host);
+  legend.innerHTML =
+    '<span><i style="background:var(--critical)"></i>SPV sponsor</span>'
+    + '<span><i style="background:var(--serious)"></i>Capex burn</span>'
+    + '<span><i style="background:var(--accent)"></i>Supply chain</span>'
+    + '<span><i style="background:var(--ord-3)"></i>Grid / power</span>'
+    + '<span style="color:var(--ink-muted)">solid = reported on-BS D/E · dashed “?” = the'
+    + ' off-BS SPV / JV leg, an editorial flag and not a measured amount</span>';
+}
+
+/* ── Propose ──────────────────────────────────────────────────────────────────
+   This page is a static file with no backend, so "submitting" a proposal cannot mean sending
+   it anywhere. It is stored in this browser and nowhere else, and the copy action is the
+   honest submission path: plain text to paste into a GitHub issue or RESEARCH_WEB.md. */
+const PROPOSAL_KEY = "monad.screener.draft.proposals.v1";
+const PROPOSAL_KINDS = {
+  ui:"UI", research:"Research", engine:"Engine", bucket:"Bucket",
+  screener:"Screener", data:"Data source", bug:"Bug"
+};
+const PROPOSAL_TITLE_MAX = 90;
+const PROPOSAL_DETAIL_MAX = 1200;
+const PROPOSAL_WHO_MAX = 40;
+const PROPOSAL_LIMIT = 40;
+
+let PROPOSALS = [];
+
+/* Same discipline as the custom-lens store: every field is re-derived from the blob rather
+   than trusted, so a hand-edited or half-written value degrades to "no proposals" instead of
+   throwing on init and taking the rest of the page down with it. */
+function sanitizeProposal(raw, seen){
+  if(!raw || typeof raw !== "object") return null;
+  const id = (typeof raw.id === "string" && raw.id.indexOf("prop:") === 0) ? raw.id : null;
+  if(!id || seen.has(id)) return null;
+  const title = typeof raw.title === "string"
+    ? raw.title.trim().replace(/\s+/g, " ").slice(0, PROPOSAL_TITLE_MAX) : "";
+  if(!title) return null;
+  seen.add(id);
+  return {
+    id, title,
+    kind:   PROPOSAL_KINDS[raw.kind] ? raw.kind : "research",
+    detail: typeof raw.detail === "string" ? raw.detail.trim().slice(0, PROPOSAL_DETAIL_MAX) : "",
+    who:    typeof raw.who === "string" ? raw.who.trim().slice(0, PROPOSAL_WHO_MAX) : "",
+    at:     typeof raw.at === "string" ? raw.at.slice(0, 10) : ""
+  };
+}
+function loadProposals(){
+  try{
+    const parsed = JSON.parse(localStorage.getItem(PROPOSAL_KEY) || "[]");
+    if(!Array.isArray(parsed)) return [];
+    const seen = new Set();
+    return parsed.map(x => sanitizeProposal(x, seen)).filter(Boolean).slice(0, PROPOSAL_LIMIT);
+  }catch(e){ return []; }
+}
+function saveProposals(){
+  try{ localStorage.setItem(PROPOSAL_KEY, JSON.stringify(PROPOSALS)); }catch(e){}
+}
+
+/* Newest first is the stored order, so the rail can render the array as it comes. */
+function renderProposals(){
+  const host = document.getElementById("proposalList");
+  if(!host) return;
+  host.innerHTML = PROPOSALS.length
+    ? PROPOSALS.map(p =>
+        '<li><span class="kind">' + esc(PROPOSAL_KINDS[p.kind] || p.kind)
+        + (p.at ? " · " + esc(p.at) : "") + '</span>'
+        + '<span class="ttl">' + esc(p.title) + '</span>'
+        + '<span class="acts">'
+        + '<button type="button" data-prop-copy="' + escAttr(p.id) + '"'
+        + ' title="Copy this proposal as plain text">copy</button>'
+        + '<button type="button" class="del" data-prop-del="' + escAttr(p.id) + '"'
+        + ' title="Delete this proposal" aria-label="Delete proposal '
+        + escAttr(p.title) + '">delete</button>'
+        + '</span></li>').join("")
+    : '<li class="rail-empty">No proposals yet. Nothing is sent anywhere — they are stored'
+      + ' in this browser only.</li>';
+}
+
+function proposalText(p){
+  return [
+    "MONAD screener — proposal",
+    "Kind:  " + (PROPOSAL_KINDS[p.kind] || p.kind),
+    "Title: " + p.title,
+    "From:  " + (p.who || "(not given)"),
+    "Date:  " + (p.at || "(not recorded)"),
+    "",
+    p.detail || "(no detail given)",
+    "",
+    "Filed from the screener page — stored in this browser only, not submitted anywhere."
+  ].join("\n");
+}
+function flashCopied(trigger){
+  if(!trigger) return;
+  const was = trigger.textContent;
+  trigger.textContent = "copied";
+  setTimeout(()=>{ if(document.contains(trigger)) trigger.textContent = was; }, 1400);
+}
+/* An unavailable or refused clipboard must not look like a silent success, so the text is
+   put on screen to be selected by hand instead — a file:// page is often denied the API. */
+function showCopyFallback(text, trigger){
+  const pop = document.getElementById("proposePanel");
+  const box = document.getElementById("proposeFallbackText");
+  box.value = text;
+  document.getElementById("proposeFallback").hidden = false;
+  if(!activePanel || activePanel.pop !== pop)
+    panelOpen(pop, trigger || document.getElementById("proposeOpen"), box);
+  box.focus();
+  box.select();
+}
+function copyProposalText(text, trigger){
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText)
+      navigator.clipboard.writeText(text).then(
+        ()=>flashCopied(trigger), ()=>showCopyFallback(text, trigger));
+    else showCopyFallback(text, trigger);
+  }catch(e){ showCopyFallback(text, trigger); }
+}
+
+function proposeError(msg){
+  const el = document.getElementById("proposeError");
+  el.textContent = msg;
+  el.hidden = false;
+  document.getElementById("proposeTitle").focus();
+}
+function resetProposeForm(){
+  document.getElementById("proposeError").hidden = true;
+  document.getElementById("proposeFallback").hidden = true;
+  document.getElementById("proposeKind").value = "research";
+  ["proposeTitle","proposeDetail","proposeWho"].forEach(id =>
+    { document.getElementById(id).value = ""; });
+}
+function readProposeForm(){
+  const val = id => (document.getElementById(id).value || "").trim();
+  return {
+    id:     "prop:" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+    kind:   document.getElementById("proposeKind").value,
+    title:  val("proposeTitle").replace(/\s+/g, " ").slice(0, PROPOSAL_TITLE_MAX),
+    detail: val("proposeDetail").slice(0, PROPOSAL_DETAIL_MAX),
+    who:    val("proposeWho").slice(0, PROPOSAL_WHO_MAX),
+    at:     new Date().toISOString().slice(0, 10)
+  };
+}
+function submitProposal(){
+  const p = readProposeForm();
+  if(!p.title) return proposeError("Give it a one-line title — that is what the rail lists.");
+  PROPOSALS.unshift(p);
+  PROPOSALS = PROPOSALS.slice(0, PROPOSAL_LIMIT);
+  saveProposals();
+  renderProposals();
+  panelClose();
+}
+function deleteProposal(id){
+  const i = PROPOSALS.findIndex(p => p.id === id);
+  if(i < 0) return;
+  PROPOSALS.splice(i, 1);
+  saveProposals();
+  renderProposals();
+}
+
+/* ── Panels: shadow explainer, widget options, lens builder, propose ─────────
+   One controller for all three. They anchor to their trigger, clamp into the viewport, and
+   dismiss on Esc, on the close button and on a click outside — so a panel can never be left
+   floating over a page that has moved on. */
+const PANEL_TRIGGERS =
+  '[data-explain],[data-panel-open],[data-lens-edit],#presets button[data-p="custom"]';
+let activePanel = null;
+
+function placePanel(pop, trigger){
+  const r = trigger ? trigger.getBoundingClientRect()
+    : {left:(window.innerWidth - pop.offsetWidth) / 2, top:90, bottom:82};
+  const left = Math.max(10, Math.min(r.left - 8, window.innerWidth - pop.offsetWidth - 10));
+  let top = r.bottom + 8;
+  if(top + pop.offsetHeight > window.innerHeight - 10) top = r.top - pop.offsetHeight - 8;
+  // The trigger can be scrolled out of view (the table heading is far down the page), so the
+  // panel is clamped to the viewport rather than left to follow its anchor off-screen.
+  top = Math.max(10, Math.min(top, window.innerHeight - pop.offsetHeight - 10));
+  pop.style.left = left.toFixed(0) + "px";
+  pop.style.top = top.toFixed(0) + "px";
+}
+function panelOpen(pop, trigger, focusEl){
+  if(activePanel && activePanel.pop !== pop) panelClose();
+  pop.hidden = false;
+  placePanel(pop, trigger);
+  document.querySelectorAll(PANEL_TRIGGERS).forEach(b=>b.setAttribute("aria-expanded","false"));
+  if(trigger) trigger.setAttribute("aria-expanded", "true");
+  activePanel = {pop, trigger};
+  (focusEl || pop.querySelector(".explain-close")).focus();
+}
+function panelClose(){
+  if(!activePanel) return;
+  const pop = activePanel.pop, trigger = activePanel.trigger;
+  activePanel = null;
+  pop.hidden = true;
+  document.querySelectorAll(PANEL_TRIGGERS).forEach(b=>b.setAttribute("aria-expanded","false"));
+  // The trigger can be a bubble that was deleted while its own panel was open, so focus
+  // only goes back to it while it is still in the document.
+  if(trigger && document.contains(trigger)) trigger.focus();
+}
+document.addEventListener("click", (ev)=>{
+  // The rail's proposal actions are handled here, alongside the panel triggers, because the
+  // outside-click rule at the bottom of this listener would otherwise close the panel that
+  // the copy fallback has just opened.
+  const pcopy = ev.target.closest("[data-prop-copy]");
+  if(pcopy){
+    const p = PROPOSALS.find(x => x.id === pcopy.dataset.propCopy);
+    if(p) copyProposalText(proposalText(p), pcopy);
+    return;
+  }
+  const pdel = ev.target.closest("[data-prop-del]");
+  if(pdel){ deleteProposal(pdel.dataset.propDel); return; }
+  const q = ev.target.closest("[data-explain]");
+  if(q){
+    ev.preventDefault();
+    if(activePanel && activePanel.trigger === q) panelClose();
+    else panelOpen(document.getElementById("shadowExplain"), q);
+    return;
+  }
+  const opt = ev.target.closest("[data-panel-open]");
+  if(opt){
+    if(activePanel && activePanel.trigger === opt){ panelClose(); return; }
+    const pop = document.getElementById(opt.dataset.panelOpen);
+    if(!pop) return;
+    // Each panel prepares itself and keeps its own first field: focus has to land inside the
+    // panel that opened, not in whichever panel happens to own the first control on the page.
+    if(pop.id === "layoutPanel") syncLayoutPanel();
+    if(pop.id === "proposePanel") resetProposeForm();
+    panelOpen(pop, opt, pop.querySelector("input,select,textarea"));
+    return;
+  }
+  const edit = ev.target.closest("[data-lens-edit]");
+  if(edit){ openLensForm(edit.dataset.lensEdit, edit); return; }
+  const mk = ev.target.closest('#presets button[data-p="custom"]');
+  if(mk){
+    if(activePanel && activePanel.trigger === mk) panelClose();
+    else openLensForm(null, mk);
+    return;
+  }
+  if(ev.target.closest("[data-panel-close]")){ panelClose(); return; }
+  if(activePanel && !ev.target.closest(".explain")) panelClose();
+});
+document.addEventListener("keydown", (ev)=>{
+  if(ev.key === "Escape") panelClose();
+});
+
+function sourceLabel(){
+  return ({bloomberg:"Bloomberg", reddit:"Reddit", both:"Both", none:"None"})[source] || source;
+}
+/* The toggle's pressed state and the `source` variable are one fact, so they are written in
+   one place — a lens can switch the source without the buttons falling out of step. */
+function setToneSource(src){
+  source = src;
+  document.querySelectorAll("#toneSrc button").forEach(b =>
+    b.classList.toggle("on", b.dataset.src === src));
+}
+
+function toneOf(r, src){
+  src = src || source;
+  if(src==="none") return {tone:null, cov:0, toned:0, off:true};
+  if(src==="bloomberg") return {tone:r.bb, cov:r.bb_c||0, toned:r.bb_t||0};
+  if(src==="reddit") return {tone:r.rd, cov:r.rd_c||0, toned:r.rd_t||0};
+  // both: prefer a reading if either side has one; flag hasTone if either toned
+  const bb={tone:r.bb, cov:r.bb_c||0, toned:r.bb_t||0};
+  const rd={tone:r.rd, cov:r.rd_c||0, toned:r.rd_t||0};
+  const has = bb.tone!=null || rd.tone!=null;
+  return {
+    tone: has ? ((bb.tone||0)+(rd.tone||0))/((bb.tone!=null?1:0)+(rd.tone!=null?1:0)) : null,
+    cov: bb.cov+rd.cov,
+    toned: (bb.toned||0)+(rd.toned||0),
+    bb, rd, both:true
+  };
+}
+
+/* One threshold table for the chip colour, so the table cell and the detail card cannot end
+   up calling the same reading positive in one place and neutral in the other. */
+function toneSev(v){ return v > 0.15 ? "good" : (v < -0.15 ? "critical" : "neutral"); }
+
+function toneChip(t){
+  if(t.tone==null && !t.cov)
+    return `<span class="chip" title="No document mentioned this ticker">no coverage</span>`;
+  if(t.tone==null)
+    return `<span class="chip warning"><span class="dot"></span>untoned</span><br>
+      <span class="muted-cell">${t.cov} item(s), no tone word</span>`;
+  return `<span class="chip ${toneSev(t.tone)}"><span class="dot"></span>${fmtTone(t.tone)}</span><br>
+    <span class="muted-cell">${t.toned} of ${t.cov} toned</span>`;
+}
+
+function toneCell(r){
+  if(source==="none")
+    return `<span class="muted-cell">—</span>`;
+  if(source==="both"){
+    const bb=toneOf(r,"bloomberg"), rd=toneOf(r,"reddit");
+    return `<div style="display:flex;flex-direction:column;gap:6px">
+      <div><span class="muted-cell">BB </span>${toneChip(bb)}</div>
+      <div><span class="muted-cell">RD </span>${toneChip(rd)}</div>
+    </div>`;
+  }
+  return toneChip(toneOf(r));
+}
+
+/* A name the snapshot could not score has no score, and an unscored name must not be drawn
+   as a short bar next to names that genuinely scored low. */
+function scoreCell(s){
+  if(s == null)
+    return '<span class="muted-cell" title="The snapshot could not compute a composite score'
+      + ' for this name — no reading, not a zero.">—</span>';
+  return `${s.toFixed(3)}<span class="bar" style="width:${Math.max(2,s*100)}%"></span>`;
+}
+
+function percentile(sorted, p){
+  if(!sorted.length) return 0;
+  const k=(sorted.length-1)*p, f=Math.floor(k), c=Math.ceil(k);
+  if(f===c) return sorted[f];
+  return sorted[f]+(sorted[c]-sorted[f])*(k-f);
+}
+function shadowFill(tag){
+  return ({spv_sponsor:"var(--critical)", capex_burn:"var(--serious)",
+           supply_chain:"var(--accent)", grid_power:"var(--ord-3)"})[tag] || "var(--accent)";
+}
+function bucketMark(cx, cy, fill, title){
+  // Open-top trapezoid — same silhouette as /screener ai_shadow_debt marks.
+  const body = `M ${(cx-7).toFixed(1)},${(cy-4).toFixed(1)} L ${(cx+7).toFixed(1)},${(cy-4).toFixed(1)} L ${(cx+5.5).toFixed(1)},${(cy+7).toFixed(1)} L ${(cx-5.5).toFixed(1)},${(cy+7).toFixed(1)} Z`;
+  const rim = `M ${(cx-8.5).toFixed(1)},${(cy-5.5).toFixed(1)} L ${(cx+8.5).toFixed(1)},${(cy-5.5).toFixed(1)}`;
+  return `<g class="mark" data-tk="${title.split(" · ")[0]}" style="cursor:pointer">
+    <title>${title}</title>
+    <path d="${body}" fill="${fill}" stroke="var(--surface)" stroke-width="1.2"/>
+    <path d="${rim}" fill="none" stroke="${fill}" stroke-width="1.6" stroke-linecap="round"/>
+  </g>`;
+}
+/* ── Filter row ───────────────────────────────────────────────────────────────
+   Read straight off the controls each time rather than mirrored into state, so there is no
+   second copy of the filter to fall out of step with the row the reader is looking at. A
+   control left on "any" contributes no test at all. */
+function selNum(id){
+  const el = document.getElementById(id);
+  if(!el || el.value === "any") return null;
+  const v = parseFloat(el.value);
+  return isFinite(v) ? v : null;
+}
+function selStr(id){
+  const el = document.getElementById(id);
+  return (!el || el.value === "any") ? null : el.value;
+}
+function filterState(){
+  return {
+    maxPe:   selNum("maxPe"),
+    minG:    selNum("minG"),
+    maxBeta: selNum("maxBeta"),
+    sector:  selStr("sector"),
+    shadow:  selStr("maxShadow"),
+  };
+}
+function activeFilterCount(){
+  const f = filterState();
+  return Object.keys(f).filter(k => f[k] != null).length;
+}
+/* A threshold is a test, and a row missing the field cannot pass one: absence fails, and it
+   is never stood in for by 0. `<=` against null would be true in JS, which is exactly the
+   collapse this page exists to avoid, so every test names the null case first. */
+function passesFilters(r){
+  const f = filterState();
+  if(f.maxPe   != null && !(r.pe   != null && r.pe   <= f.maxPe))   return false;
+  if(f.minG    != null && !(r.g    != null && r.g    >= f.minG))    return false;
+  if(f.maxBeta != null && !(r.beta != null && r.beta <= f.maxBeta)) return false;
+  if(f.sector  != null && r.sector !== f.sector) return false;
+  if(f.shadow === "tagged") return !!r.shadow_tag;
+  if(f.shadow != null){
+    const cap = parseFloat(f.shadow);
+    if(!(r.de != null && r.de <= cap)) return false;
+  }
+  return true;
+}
+
+/* The lens decides membership; the filter row narrows it. Both run here so the charts, the
+   counts and the table are looking at one list — a filter that only bit in the table would
+   let the plot and the results disagree about what is being screened. */
+function lensRows(){
+  const custom = customLens(preset);
+  if(custom) return ROWS.filter(r=>lensAccepts(custom, r));
+  if(preset==="ai_shadow_debt") return ROWS.filter(r=>r.shadow_tag);
+  if(preset==="high_ai_exposure") return ROWS.filter(r=>r.ai==="high");
+  if(preset==="low_ai_exposure") return ROWS.filter(r=>r.ai==="low");
+  if(preset==="low_pe_high_dividend")
+    return ROWS.filter(r=>r.dy!=null && r.dy>=0.03 && r.pe!=null && r.pe<=25);
+  // A high-severity shadow tag disqualifies the name even on a flattering on-BS number:
+  // there the reported D/E is known to omit a financing leg, so "low debt" is unproven.
+  if(preset==="safety_low_debt")
+    return ROWS.filter(r=>r.de!=null && r.de<=50 && shadowRank(r)<=2);
+  // Ranking on a field a name does not report would seat it in the list on a stand-in value,
+  // so these two lenses hold only the names that report the field they rank on.
+  if(preset==="most_volatile")
+    return ROWS.filter(r=>r.beta!=null).sort((a,b)=>b.beta-a.beta).slice(0,8);
+  if(preset==="most_active")
+    return ROWS.filter(r=>volNum(r.vol)!=null)
+      .sort((a,b)=>volNum(b.vol)-volNum(a.vol)).slice(0,8);
+  if(preset==="chaos_hedges"||preset==="sovereign_ledger")
+    return ROWS.filter(r=>r.bucket || r.sector==="Energy" || r.sector==="Utilities");
+  // Coverage IS the membership test. A name nothing mentioned has no tone to rank, so it is
+  // absent from the lens — never carried in at 0.00, and never padded back in to make the
+  // result set look fuller than the window really was.
+  const toneSrcForLens = TONE_LENSES[preset];
+  if(toneSrcForLens)
+    return ROWS.filter(r=>toneCovered(r, toneSrcForLens))
+      .sort((a,b)=>toneMetric(b, toneSrcForLens) - toneMetric(a, toneSrcForLens));
+  return ROWS.slice();
+}
+function matchedRows(){ return lensRows().filter(passesFilters); }
+function drawPlot(){
+  const matches = matchedRows();
+  const matched = new Set(matches.map(r=>r.tk));
+  const useBuckets = preset==="ai_shadow_debt";
+  const host=document.getElementById("plot");
+  if(!matches.length){
+    document.getElementById("plotTitle").textContent = "No match in this lens";
+    host.innerHTML = lensEmptyMsg();
+    document.getElementById("plotLegend").innerHTML = "";
+    return;
+  }
+  const W=Math.max(480, Math.floor(host.clientWidth)||1160);
+  // The floor only bites in a short pane, where a viewBox taller than its box would be
+  // letterboxed to a postage stamp by preserveAspectRatio — a stacked pane is wide and low.
+  const H=Math.max(150, Math.floor(host.clientHeight)||520);
+  const L=64, R=18, T=20, B=44;
+  // Only the loaded rows are plotted. Growth is capped so base-effect prints don't crush the
+  // frame (the live screen does the same 5–95 clip); a name missing either axis is left out
+  // rather than seated at an invented coordinate.
+  const pts = ROWS.filter(r=>r.pe!=null && r.g!=null)
+    .map(r=>({tk:r.tk, pe:r.pe, g:Math.min(r.g, 4.5), match:matched.has(r.tk), row:r}));
+  if(!pts.length){
+    document.getElementById("plotTitle").textContent = "No name reports both axes";
+    host.innerHTML = '<p class="muted-cell">No loaded name reports both a P/E and a growth'
+      + ' rate, so there is nothing to place on these axes.</p>';
+    document.getElementById("plotLegend").innerHTML = "";
+    return;
+  }
+  let xs=pts.map(p=>p.pe), ys=pts.map(p=>p.g);
+  let x0=Math.min(...xs), x1=Math.max(...xs), y0=Math.min(...ys), y1=Math.max(...ys);
+  let clipped=false;
+  if(pts.length>=20){
+    const sx0=percentile([...xs].sort((a,b)=>a-b),0.05), sx1=percentile([...xs].sort((a,b)=>a-b),0.95);
+    const sy0=percentile([...ys].sort((a,b)=>a-b),0.05), sy1=percentile([...ys].sort((a,b)=>a-b),0.95);
+    if(sx1>sx0){ x0=sx0; x1=sx1; clipped=true; }
+    if(sy1>sy0){ y0=sy0; y1=sy1; clipped=true; }
+  }
+  const padX=(x1-x0)*0.05||0.5, padY=(y1-y0)*0.05||0.05;
+  x0-=padX; x1+=padX; y0-=padY; y1+=padY;
+  const sx=v=>L+(Math.min(Math.max(v,x0),x1)-x0)/(x1-x0)*(W-L-R);
+  const sy=v=>H-B-(Math.min(Math.max(v,y0),y1)-y0)/(y1-y0)*(H-T-B);
+  let parts=[];
+  for(let i=0;i<5;i++){
+    const gx=x0+(x1-x0)*i/4, gy=y0+(y1-y0)*i/4;
+    const px=L+(gx-x0)/(x1-x0)*(W-L-R), py=H-B-(gy-y0)/(y1-y0)*(H-T-B);
+    parts.push(`<line x1="${px.toFixed(1)}" y1="${T}" x2="${px.toFixed(1)}" y2="${H-B}" stroke="var(--rule)"/>`);
+    parts.push(`<line x1="${L}" y1="${py.toFixed(1)}" x2="${W-R}" y2="${py.toFixed(1)}" stroke="var(--rule)"/>`);
+    parts.push(`<text x="${px.toFixed(1)}" y="${H-B+16}" text-anchor="middle" fill="var(--ink-muted)" font-size="9.5" font-family="var(--mono)">${gx<10?gx.toFixed(1):gx.toFixed(0)}</text>`);
+    parts.push(`<text x="${L-8}" y="${(py+3.5).toFixed(1)}" text-anchor="end" fill="var(--ink-muted)" font-size="9.5" font-family="var(--mono)">${(gy*100).toFixed(0)}%</text>`);
+  }
+  parts.push(`<text x="${(L+W-R)/2}" y="${H-6}" text-anchor="middle" fill="var(--ink-2)" font-size="10.5">P/E (trailing, forward fallback)</text>`);
+  parts.push(`<g transform="translate(14,${((T+H-B)/2).toFixed(1)}) rotate(-90)"><text text-anchor="middle" fill="var(--ink-2)" font-size="10.5" font-family="var(--sans)">earnings growth y/y (revenue fallback)</text></g>`);
+  if(clipped){
+    parts.push(`<text x="${W-R}" y="${T+6}" text-anchor="end" fill="var(--ink-muted)" font-size="9.5" font-family="var(--mono)">axes clipped to 5–95th pctile · edge marks lie beyond — hover for the name</text>`);
+  }
+  // Muted universe first
+  pts.filter(p=>!p.match).forEach(p=>{
+    parts.push(`<circle cx="${sx(p.pe).toFixed(1)}" cy="${sy(p.g).toFixed(1)}" r="5" fill="var(--axis)" opacity=".45"><title>${p.tk}</title></circle>`);
+  });
+  const taken=[];
+  pts.filter(p=>p.match).forEach(p=>{
+    const r=p.row, cx=sx(p.pe), cy=sy(p.g);
+    const t=toneOf(r);
+    const toned=source!=="none" && t.tone!=null;
+    const tag=r.shadow_tag;
+    const fill=useBuckets ? shadowFill(tag) : "var(--accent)";
+    const label=tag ? `${r.tk} · ${SHADOW_LABELS[tag]||tag}` : r.tk;
+    if(useBuckets){
+      parts.push(bucketMark(cx, cy, fill, label));
+    } else {
+      parts.push(`<circle class="mark" data-tk="${r.tk}" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}"
+        r="${selected===r.tk?9:(toned?7.5:7)}" fill="${fill}" fill-opacity="0.92"
+        stroke="${toned||selected===r.tk?'var(--ink)':'var(--surface)'}"
+        stroke-width="${selected===r.tk?2.2:(toned?1.8:1.5)}" style="cursor:pointer">
+        <title>${label}</title></circle>`);
+    }
+    const box=[cx+8, cy-10, cx+8+7*r.tk.length, cy+4];
+    if(!taken.some(b=>b[0]<box[2]&&box[0]<b[2]&&b[1]<box[3]&&box[1]<b[3])){
+      taken.push(box);
+      parts.push(`<text x="${(cx+9).toFixed(1)}" y="${(cy+3.5).toFixed(1)}" fill="var(--ink)" font-size="10" font-weight="600" font-family="var(--sans)">${r.tk}</text>`);
+    }
+  });
+  document.getElementById("plot").innerHTML =
+    `<svg class="screen-plot" viewBox="0 0 ${W} ${H}" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" role="img">${parts.join("")}</svg>`;
+  bindMarks(document.getElementById("plot"));
+  document.getElementById("plotTitle").textContent =
+    useBuckets ? "AI shadow debt · on-BS D/E is incomplete" : "The screen’s two axes";
+  document.getElementById("plotLegend").innerHTML = useBuckets
+    ? `<span><i style="background:var(--critical)"></i>SPV sponsor</span>
+       <span><i style="background:var(--serious)"></i>Capex burn</span>
+       <span><i style="background:var(--accent)"></i>Supply chain</span>
+       <span><i style="background:var(--ord-3)"></i>Grid / power</span>
+       <span style="color:var(--ink-muted)">bucket marks · editorial tags · on-BS D/E is incomplete</span>`
+    : `<span><i style="background:var(--axis);opacity:.45"></i>loaded, outside this lens</span>
+       <span><i style="background:var(--accent)"></i>match</span>
+       <span><i class="ring" style="background:var(--accent)"></i>has tone</span>
+       <span id="legSrc">source: ${sourceLabel()}</span>`;
+}
+
+const SHADOW_LABELS = {
+  spv_sponsor:"SPV sponsor", capex_burn:"Capex burn",
+  supply_chain:"Supply chain", grid_power:"Grid / power"
+};
+
+/* Mirrors SHADOW_DEBT_SEVERITY in tools/stock_screener.py. Ordinal, never a notional:
+   a sponsor is the party whose own statements omit the project debt, while a supplier
+   selling into the buildout carries demand risk rather than an off-BS leg of its own. */
+const SHADOW_SEVERITY = {
+  spv_sponsor:"high", capex_burn:"high", grid_power:"medium", supply_chain:"low"
+};
+const SHADOW_RANK = {high:3, medium:2, low:1};
+function shadowRank(r){ return SHADOW_RANK[SHADOW_SEVERITY[r.shadow_tag]] || 0; }
+
+function fmtGrowth(g){
+  if(g==null) return "—";
+  const pct = g*100;
+  if(Math.abs(pct)>=100) return pct.toFixed(1)+"%";
+  return pct.toFixed(0)+"%";
+}
+const SHADOW_BLURBS = {
+  spv_sponsor: "May park data-center / project liabilities in SPVs below consolidation — on-BS debt understates exposure.",
+  capex_burn: "AI infra capex is consuming cash; leverage may rise even when reported D/E still looks tame.",
+  supply_chain: "Sells into the buildout — less SPV-sponsor risk, high cyclical demand risk if financing stalls.",
+  grid_power: "Power / electrical capacity is one leg of the AI financing bet; grid constraints bind the stack."
+};
+
+function shadowTitle(r){
+  if(!r.shadow_tag){
+    return "Not tagged for AI shadow-debt risk. The number is blank on purpose — absence, not zero.";
+  }
+  const tag = SHADOW_LABELS[r.shadow_tag]||r.shadow_tag;
+  const blurb = SHADOW_BLURBS[r.shadow_tag]||"";
+  const num = r.de==null ? "no on-BS D/E in the snapshot" :
+    ("on-BS debt/equity "+r.de.toFixed(1)+"% from the vendor");
+  return tag+". "+num+" — that is the incomplete VISIBLE leg only. "+blurb
+    +" Off-BS SPV/project notionals are not measured here (editorial study object, not a live signal).";
+}
+function fmtShadow(r){
+  if(!r.shadow_tag)
+    return `<span class="muted-cell" title="${shadowTitle(r).replace(/"/g,'&quot;')}">—</span>`;
+  const tag = SHADOW_LABELS[r.shadow_tag]||r.shadow_tag;
+  const num = r.de==null ? "—" : r.de.toFixed(1);
+  return `<span class="shadow-cell" title="${shadowTitle(r).replace(/"/g,'&quot;')}">${num}<br><span class="muted-cell">${tag}</span></span>`;
+}
+function fmtDy(v){
+  if(v==null) return "—";
+  return (v*100).toFixed(1)+"%";
+}
+
+/* "Tone in rank" blends the tone reading into the rank, and the blend has to survive the
+   absence rule: a name nobody covered has no tone, so it keeps its own score rather than
+   being averaged against a zero it never scored. Unblended names are marked in the cell —
+   two rows sorted next to each other must not hide that they were ranked by different sums. */
+function toneWeight(){
+  const el = document.getElementById("weight");
+  const w = el ? parseFloat(el.value) : 0;
+  return isFinite(w) ? w : 0;
+}
+function rankScore(r){
+  const w = toneWeight();
+  if(!w || r.score == null) return r.score;
+  const t = toneOf(r);
+  if(t.tone == null) return r.score;
+  return r.score * (1 - w) + ((t.tone + 1) / 2) * w;   // tone is −1..+1, score is 0..1
+}
+
+function renderTable(){
+  const sorted = matchedRows().slice().sort((a, b)=>{
+    // An unscored name cannot be placed against scored ones on a number it does not have, so
+    // it sinks to the end of the list instead of sorting as if it scored zero.
+    const av = rankScore(a), bv = rankScore(b);
+    if(av == null && bv == null) return a.tk < b.tk ? -1 : 1;
+    if(av == null) return 1;
+    if(bv == null) return -1;
+    return bv - av;
+  });
+  const w = toneWeight();
+  const presetLabel = activeLensLabel();
+  const nFilters = activeFilterCount();
+  const filterPhrase = nFilters
+    ? ` and the ${nFilters} filter${nFilters === 1 ? "" : "s"} set above` : "";
+  const why = document.getElementById("resultsWhy");
+  if(why){
+    if(!ROWS.length){
+      why.innerHTML = `<b>No rows are loaded.</b> Nothing is listed because no snapshot `
+        + `reached this page — see the panel above for the commands that build one.`;
+    } else {
+      why.innerHTML = sorted.length
+        ? `<b>${sorted.length}</b> of <b>${ROWS.length}</b> loaded names clear `
+          + `<b>${esc(presetLabel)}</b>${filterPhrase} — the same list as the highlighted `
+          + `marks on the chart. Click a row or a mark to pin that name.`
+        : `<b>0</b> of <b>${ROWS.length}</b> loaded names clear <b>${esc(presetLabel)}</b>`
+          + `${filterPhrase} — the list below is empty for that reason, not because the `
+          + `fields are missing.`;
+      if(w)
+        why.innerHTML += ` Rank blends <b>${(w * 100).toFixed(0)}%</b> tone into the composite`
+          + ` score; names with no coverage keep their unblended score and are marked`
+          + ` <span class="muted-cell">no tone</span> in the score cell.`;
+      const toneSrc = toneLensSrc();
+      if(toneSrc)
+        why.innerHTML += ` Names no ${toneSrc === "reddit" ? "Reddit post" : "Bloomberg headline"}`
+          + ` mentioned are <b>missing from this list</b> rather than listed at 0.00 — the tone`
+          + ` column carries the document count so a reading off one item cannot be mistaken`
+          + ` for a reading off twenty.`;
+    }
+  }
+  document.getElementById("tbody").innerHTML=sorted.map((r,i)=>{
+    const rv=rankScore(r);
+    const sev=rv==null?"":(rv>=0.75?"good":(rv>=0.55?"neutral":"warning"));
+    const on=r.tk===selected?' style="background:var(--plane)"':'';
+    const flag=r.flag?`<br><span class="chip warning"><span class="dot"></span>${esc(r.flag)}</span>`:"";
+    const blended=w && rv!=null && rv!==r.score;
+    const note=w && r.score!=null && !blended
+      ? `<br><span class="muted-cell">no tone</span>` : "";
+    return `<tr data-tk="${escAttr(r.tk)}"${on} style="cursor:pointer">
+      <td class="num">${i+1}</td>
+      <td class="sev ${sev}"><code>${esc(r.tk)}</code></td>
+      <td>${esc(r.name||"—")}</td>
+      <td>${esc(r.sector||"—")}</td>
+      <td>${esc(r.ai||"—")}</td>
+      <td>${esc(r.bucket||"—")}</td>
+      <td class="num">${r.pe==null?"—":r.pe.toFixed(2)}</td>
+      <td class="num">${fmtGrowth(r.g)}${flag}</td>
+      <td class="num">${fmtDy(r.dy)}</td>
+      <td class="num">${r.de==null?"—":r.de.toFixed(2)}</td>
+      <td class="num">${fmtShadow(r)}</td>
+      <td class="num">${r.beta==null?"—":r.beta.toFixed(2)}</td>
+      <td class="num">${esc(r.vol||"—")}</td>
+      <td class="num">${scoreCell(rv)}${note}</td>
+      <td>${toneCell(r)}</td>
+    </tr>`;
+  }).join("") || `<tr><td colspan="15" class="muted-cell">${ROWS.length
+      ? `No name clears every condition in <b>${esc(presetLabel)}</b>${filterPhrase} —
+         nothing to rank.`
+      : `No rows are loaded — there is nothing to rank. Build a fundamentals snapshot with
+         <code>venv/bin/python tools/stock_screener.py fetch</code>.`}</td></tr>`;
+  document.querySelectorAll("#tbody tr[data-tk]").forEach(tr=>{
+    tr.onclick=()=>{ pinTicker(tr.dataset.tk); render(); };
+  });
+}
+
+/* ── Detail card ──────────────────────────────────────────────────────────────
+   Everything the pinned name's results-table row carries, in a shape that can be read at a
+   glance. It exists so clicking a mark answers "what is this name?" on the board, instead of
+   sending the reader down the page to find one row in the table. */
+const DC_SEV_CHIP = {high:"critical", medium:"warning", low:"neutral"};
+
+function dcCell(label, value, extra){
+  return '<div class="dc-cell"><b>' + esc(label) + '</b><span class="val">' + value + '</span>'
+    + (extra || "") + '</div>';
+}
+/* Absence keeps its meaning here too: a null tone is "no coverage", never a printed 0.00. */
+function dcTone(r, src){
+  const t = toneOf(r, src);
+  const label = src === "reddit" ? "Reddit tone" : "Bloomberg tone";
+  let body;
+  if(toneCovered(r, src))
+    body = '<span class="chip ' + toneSev(t.tone) + '"><span class="dot"></span>'
+      + fmtTone(t.tone) + '</span>'
+      + '<span class="dc-cov">' + fmtDocs(t.cov) + ' mentioned it · ' + t.toned
+      + ' carried a tone word</span>';
+  else if(t.cov)
+    body = '<span class="chip warning"><span class="dot"></span>untoned</span>'
+      + '<span class="dc-cov">' + fmtDocs(t.cov) + ' named it, none carried a tone word —'
+      + ' no reading, not 0.00</span>';
+  else
+    body = '<span class="chip">no coverage</span>'
+      + '<span class="dc-cov">nobody named this ticker in the fetched window. Absent, not'
+      + ' 0.00.</span>';
+  return '<div class="dc-block"><h5>' + label + '</h5>' + body + '</div>';
+}
+function dcShadow(r){
+  if(!r.shadow_tag)
+    return '<div class="dc-block"><h5>AI shadow</h5>'
+      + '<span class="muted-cell" title="' + escAttr(shadowTitle(r)) + '">— not tagged</span>'
+      + '<span class="dc-cov">Absence, not zero: this name is not marked as a leg of the AI'
+      + ' financing bet.</span></div>';
+  const sev = SHADOW_SEVERITY[r.shadow_tag] || "low";
+  return '<div class="dc-block"><h5>AI shadow</h5>'
+    + '<span class="chip ' + DC_SEV_CHIP[sev] + '" title="' + escAttr(shadowTitle(r)) + '">'
+    + '<span class="dot"></span>' + esc(SHADOW_LABELS[r.shadow_tag] || r.shadow_tag) + ' · '
+    + sev + ' severity</span>'
+    + '<span class="dc-cov">' + esc(SHADOW_BLURBS[r.shadow_tag] || "")
+    + ' Editorial study object — not a measured off-balance-sheet notional.</span></div>';
+}
+
+function drawCard(){
+  const host = document.getElementById("detailCard");
+  if(!host) return;
+  const title = document.getElementById("cardTitle");
+  const meta = document.getElementById("cardMeta");
+  const r = ROWS.find(x => x.tk === selected);
+  if(!r){
+    title.textContent = "Stock detail";
+    meta.textContent = ROWS.length ? "nothing pinned" : "no rows loaded";
+    host.innerHTML = ROWS.length
+      ? '<p class="dc-empty">Nothing is pinned. <b>Click a mark</b> on any chart'
+        + ' — or a <b>row in the results table</b> — and this card fills with that name\'s full'
+        + ' detail, so you do not have to scroll down to read it.</p>'
+      : '<p class="dc-empty"><b>No rows are loaded</b>, so there is no name to pin. Run'
+        + ' <code>venv/bin/python tools/stock_screener.py fetch</code> and reload.</p>';
+    return;
+  }
+  title.textContent = "Stock detail · " + r.tk;
+  meta.textContent = matchedRows().some(x => x.tk === r.tk)
+    ? "in this lens" : "pinned · outside this lens";
+  const flag = r.flag
+    ? '<span class="chip warning" title="Growth measured off a depressed base year">'
+      + '<span class="dot"></span>' + esc(r.flag) + '</span>' : "";
+  host.innerHTML =
+    '<div class="dc-head"><code>' + esc(r.tk) + '</code>'
+      + '<span class="nm">' + esc(r.name || "—") + '</span>'
+      + '<span class="sec">' + esc(r.sector || "sector unknown") + '</span></div>'
+    + '<div class="dc-grid">'
+      + dcCell("P/E",           r.pe == null ? "—" : r.pe.toFixed(2))
+      + dcCell("Growth y/y",    fmtGrowth(r.g), flag)
+      + dcCell("Div yield",     fmtDy(r.dy))
+      + dcCell("On-BS debt/eq %", r.de == null ? "—" : r.de.toFixed(2))
+      + dcCell("Beta",          r.beta == null ? "—" : r.beta.toFixed(2))
+      + dcCell("$ vol/day",     esc(r.vol || "—"))
+      + dcCell("Score",         r.score == null ? "—" : scoreCell(r.score))
+      + dcCell("AI exposure",   esc(r.ai || "—"))
+      + dcCell("Bucket",        esc(r.bucket || "—"))
+    + '</div>'
+    + dcShadow(r)
+    + '<div class="dc-tone">' + dcTone(r, "bloomberg") + dcTone(r, "reddit") + '</div>'
+    + '<p class="dc-note">Both sources show regardless of the Tone-source toggle — this card'
+    + ' is the whole row. Lexicon tone over fetched documents, not a vendor score.</p>';
+}
+
+/* Headline documents, keyed source → ticker, straight from the tone snapshot. Empty until one
+   is injected: a headline is a thing somebody published, and there is no honest placeholder
+   for one. */
+let HEADLINES = {bloomberg:{}, reddit:{}};
+
+/* The tone tile's own account of why it is empty. It is parked when the payload carries no
+   tone snapshot at all, so this is what the reader sees if they place it regardless. */
+function toneAbsentBody(){
+  return '<p class="absent"><b>No tone snapshot reached this page.</b> Headline cards and'
+    + ' tone readings both come from documents fetched by <code>screener_lab</code>, and none'
+    + ' were loaded.<br><b>Missing:</b> a tone snapshot with headline documents. Run'
+    + ' <code>venv/bin/python tools/screener_lab.py refresh</code> and reload — nothing here'
+    + ' is stood in for in the meantime.</p>';
+}
+
+function renderHeadlines(){
+  const box=document.getElementById("headlines");
+  const r=ROWS.find(x=>x.tk===selected);
+  if(!DATA_PRESENT.tone){
+    document.getElementById("headlinesTitle").textContent = "Headlines & tone · no source";
+    box.innerHTML = toneAbsentBody();
+    return;
+  }
+  if(!r){
+    document.getElementById("headlinesTitle").textContent = "Headlines & tone";
+    box.innerHTML = '<p class="absent">Nothing is pinned. Click a mark on a chart, or a row'
+      + ' in the results table, to read that name\'s documents.</p>';
+    return;
+  }
+  if(source==="none"){
+    document.getElementById("headlinesTitle").textContent = "Tone off · "+selected;
+    box.innerHTML=`<div class="tone-card"><div class="tk">${selected}</div>
+      <div class="hd"><span class="muted-cell">Tone hidden</span></div>
+      <div class="meta">Pick Bloomberg, Reddit, or Both to show document tone again.</div></div>`;
+    return;
+  }
+  if(source==="both"){
+    document.getElementById("headlinesTitle").textContent = "Both sources · "+selected;
+    const parts=[];
+    for(const src of ["bloomberg","reddit"]){
+      const bag=(HEADLINES[src]||{})[selected];
+      const t=toneOf(r||{}, src);
+      const tag=src==="bloomberg"?"BB":"RD";
+      if(!bag){
+        parts.push(`<div class="tone-card"><div class="tk">${tag} · ${selected}</div>
+          <div class="hd">${t.tone==null && !t.cov?'<span class="chip">no coverage</span>':
+            (t.tone==null?'<span class="chip warning"><span class="dot"></span>untoned</span>':
+            `${t.tone>0?"+":""}${t.tone.toFixed(2)}`)}</div>
+          <div class="meta">${src} — no document in this snapshot names ${esc(selected)}.</div></div>`);
+      } else {
+        const head=t.tone!=null?`${tag} · ${selected} · ${t.tone>0?"+":""}${t.tone.toFixed(2)}`:`${tag} · ${selected}`;
+        // Headline text is feed copy, not this page's own markup.
+        bag.forEach(d=>parts.push(`<div class="tone-card"><div class="tk">${head}</div>
+          <div class="hd">${esc(d.h)}</div><div class="meta">${src} · ${esc(d.m||"")}</div></div>`));
+      }
+    }
+    box.innerHTML=parts.join("");
+    return;
+  }
+  const bag=(HEADLINES[source]||{})[selected];
+  const t=toneOf(r||{});
+  document.getElementById("headlinesTitle").textContent =
+    sourceLabel()+" · "+selected;
+  if(!bag){
+    if(t.tone==null && !(t.cov)){
+      box.innerHTML=`<div class="tone-card"><div class="tk">${selected}</div>
+        <div class="hd"><span class="chip">no coverage</span></div>
+        <div class="meta">Nobody named this ticker in the fetched window.</div></div>`;
+    } else if(t.tone==null){
+      box.innerHTML=`<div class="tone-card"><div class="tk">${selected}</div>
+        <div class="hd"><span class="chip warning"><span class="dot"></span>untoned</span></div>
+        <div class="meta">${t.cov} item(s) matched, none carried a tone word.</div></div>`;
+    } else {
+      // A reading with no documents behind it in the payload: the tone is real, the packing
+      // step just did not carry the items it was computed from. Say that, do not invent them.
+      box.innerHTML=`<div class="tone-card"><div class="tk">${esc(selected)} · ${t.tone>0?"+":""}${t.tone.toFixed(2)}</div>
+        <div class="hd">Reading present, documents not carried</div>
+        <div class="meta">${t.toned} of ${t.cov} item(s) carried a tone word, but the snapshot
+          did not pack the items themselves for this ticker.</div></div>`;
+    }
+    return;
+  }
+  const head=t.tone!=null?`${esc(selected)} · ${t.tone>0?"+":""}${t.tone.toFixed(2)}`:esc(selected);
+  box.innerHTML=bag.map(d=>`<div class="tone-card"><div class="tk">${head}</div>
+    <div class="hd">${esc(d.h)}</div><div class="meta">${esc(d.m||"")}</div></div>`).join("");
+}
+
+/* The running count that replaces the apply button: it is written on every render, so the
+   filter row always states the size of the list the rest of the page is showing. */
+function renderFilterCount(){
+  const el = document.getElementById("filterCount");
+  if(!el) return;
+  if(!ROWS.length){
+    el.innerHTML = "No rows loaded — nothing to filter.";
+    return;
+  }
+  const lens = lensRows().length;
+  const shown = matchedRows().length;
+  const n = activeFilterCount();
+  el.innerHTML = "<b>" + shown + "</b> of <b>" + lens + "</b> names in "
+    + esc(activeLensLabel()) + " (of " + ROWS.length + " loaded) · "
+    + (n ? n + " filter" + (n === 1 ? "" : "s") + " active — every change applies at once"
+         : "no filter set — every change applies at once")
+    + " · a name that does not report the field a filter tests cannot pass it";
+}
+
+/* The empty state is a fact about which snapshots reached the page, so it is written from the
+   payload flags rather than from whether a render happened to produce rows. */
+function renderNoData(){
+  const box = document.getElementById("noData");
+  if(!box) return;
+  box.hidden = ROWS.length > 0;
+  if(ROWS.length) return;
+  const live = window.__DRAFT_LIVE__ || null;
+  const fixes = [];
+  if(!live || !live.has_fundamentals)
+    fixes.push("<b>Fundamentals</b> — P/E, growth, dividend yield, on-BS debt/equity, beta,"
+      + " dollar volume, sector and the AI-shadow tags. Build with"
+      + " <code>venv/bin/python tools/stock_screener.py fetch</code>.");
+  if(!live || !live.has_sentiment)
+    fixes.push("<b>Bloomberg / Reddit tone</b> — headline documents and the lexicon tone"
+      + " readings over them. Build with <code>"
+      + esc((live && live.refresh_cmd) || "venv/bin/python tools/screener_lab.py refresh")
+      + "</code>.");
+  document.getElementById("noDataFixes").innerHTML =
+    fixes.map(f => "<li>" + f + "</li>").join("");
+  document.getElementById("noDataLede").innerHTML = live
+    ? "A payload reached this page but carried no rows, so there is nothing to screen. No rows"
+      + " are invented to fill the gap."
+    : "This surface reads two snapshots off disk and draws nothing of its own. No payload"
+      + " reached it at all — it is being read as a file rather than served. No rows are"
+      + " invented to fill the gap.";
+}
+
+function render(){
+  const col = source==="none" ? "Tone" :
+    (source==="both" ? "Tone (BB · RD)" : sourceLabel()+" tone");
+  document.getElementById("toneCol").textContent=col;
+  renderNoData();
+  renderFilterCount();
+  renderLensNote();
+  drawPlot();
+  drawPrice();
+  drawRank();
+  drawDist();
+  drawShadow();
+  drawCard();
+  renderTable();
+  renderHeadlines();
+}
+
+/* Which tiles the payload actually feeds. Read off the payload, never asserted: `tone` is on
+   when some document or coverage count came through, `price` when a history did. */
+function readDataPresence(live){
+  const hist = (live && live.price_history) || null;
+  const hasPrice = !!hist && Object.keys(hist).some(
+    tk => Array.isArray(hist[tk]) && hist[tk].length >= 2);
+  const docs = (live && live.headlines) || {};
+  const hasDocs = ["bloomberg", "reddit"].some(
+    src => docs[src] && Object.keys(docs[src]).length);
+  const hasCoverage = ROWS.some(r => (r.bb_c || 0) > 0 || (r.rd_c || 0) > 0);
+  return {price: hasPrice, tone: hasDocs || hasCoverage};
+}
+
+function applyLivePayload(){
+  const live = window.__DRAFT_LIVE__;
+  if(!live) return;
+  // Rows are taken exactly as the payload states them. A null stays null and a 0 stays 0 —
+  // the page's job is to refuse to print one as the other, not to rewrite either.
+  if(live.rows && live.rows.length){
+    ROWS = live.rows;
+    if(!ROWS.some(r=>r.tk===selected)) selected = ROWS[0].tk;
+  }
+  if(live.headlines) HEADLINES = live.headlines;
+  if(live.price_history) PRICES = live.price_history;
+  DATA_PRESENT = readDataPresence(live);
+  fillFilterSectors();
+  const ban = document.getElementById("dataBanner");
+  if(ban){
+    const tone = live.has_sentiment
+      ? `Tone snapshot ${esc(live.sentiment_age||"ready")} (${esc(live.sentiment_built||"?")}).`
+      : `No tone snapshot — run <code>${esc(live.refresh_cmd||"venv/bin/python tools/screener_lab.py refresh")}</code>.`;
+    const fund = live.has_fundamentals
+      ? `Fundamentals as of ${esc(live.fund_as_of||"?")}.`
+      : `No fundamentals snapshot — run <code>venv/bin/python tools/stock_screener.py fetch</code>.`;
+    ban.innerHTML = `<b>${ROWS.length} names loaded from disk.</b> ${fund} ${tone}
+      AI shadow = on-BS debt/equity % + editorial tag — hover a cell for the meaning.
+      Filters apply as you change them; charts with no source sit in the tray's
+      <b>no data source yet</b> group rather than on the board.`;
+  }
+  // Every provider line the snapshot carries is shown, in the snapshot's own words. Nothing
+  // is named here that the payload did not name.
+  const prov = live.providers || {};
+  const keys = Object.keys(prov);
+  const word = s => s==="live"?"live":(s==="degraded"?"partial":"off");
+  const sev = s => s==="live"?"good":(s==="degraded"?"warning":"critical");
+  const panels = document.getElementById("providers");
+  if(panels && keys.length){
+    panels.innerHTML = keys.map(k=>{
+      const p = prov[k] || {};
+      return `<div class="prov ${p.state&&p.state!=="live"?"partial":""}">
+        <h3>${esc(p.label||k)} <span class="chip ${sev(p.state)}"><span class="dot"></span>${esc(word(p.state))}</span></h3>
+        <p>${esc(p.headline||p.detail||"No provider line in the snapshot.")}</p>
+      </div>`;
+    }).join("");
+  }
+}
+
+/* Sector options are the sectors the loaded rows belong to, so the dropdown cannot offer a
+   sector that would match nothing. */
+function fillFilterSectors(){
+  const sel = document.getElementById("sector");
+  if(!sel) return;
+  const keep = sel.value;
+  const sectors = Array.from(new Set(ROWS.map(r => r.sector).filter(Boolean))).sort();
+  sel.innerHTML = '<option value="any">every sector</option>'
+    + sectors.map(s => '<option value="' + escAttr(s) + '">' + esc(s) + '</option>').join("");
+  sel.value = keep;
+  if(sel.selectedIndex < 0) sel.value = "any";
+}
+
+applyLivePayload();
+
+// Restored lenses have to be registered before the first render: LENS_VIEWS decides the
+// opening layout and LENS_SPEC drives the ranked/distribution charts.
+CUSTOM_LENSES = loadCustomLenses();
+CUSTOM_LENSES.forEach(registerLens);
+renderCustomBubbles();
+fillViewPills();
+buildLayoutPanel();
+
+fillFilterSectors();
+boardTree = loadBoard() || buildTree(lensViews());
+layoutBoard();
+initBoard();
+initBoardResize();
+document.getElementById("lensFormEl").addEventListener("submit", (ev)=>{
+  ev.preventDefault();
+  submitLensForm();
+});
+
+PROPOSALS = loadProposals();
+renderProposals();
+/* research_ui.py rewrites this page's rail when it serves it, so the nav's "Create a
+   recommendation" entry can only reach the form through the URL. No trigger element
+   exists in that case — placePanel centres the panel when the anchor is absent. */
+if(location.hash === "#propose"){
+  const proposePanelEl = document.getElementById("proposePanel");
+  if(proposePanelEl) panelOpen(proposePanelEl);
+}
+document.getElementById("proposeFormEl").addEventListener("submit", (ev)=>{
+  ev.preventDefault();
+  submitProposal();
+});
+// Copies what is in the form right now — a proposal can be pasted into an issue without
+// being stored in this browser at all.
+document.getElementById("proposeCopy").addEventListener("click", (ev)=>{
+  copyProposalText(proposalText(readProposeForm()), ev.currentTarget);
+});
+document.getElementById("boardReset")?.addEventListener("click", ()=>{
+  boardTree = buildTree(lensViews());
+  layoutBoard();
+  saveBoard();
+  scheduleChartReflow();
+});
+
+/* One delegated `change` for the whole filter row, which is why there is no apply button:
+   a control that only takes effect on a second click can be read while it is lying about
+   what the table below it contains. */
+document.getElementById("filters").addEventListener("change", ()=>render());
+document.querySelectorAll("#toneSrc button").forEach(btn=>{
+  btn.onclick=()=>{ setToneSource(btn.dataset.src); render(); };
+});
+// Delegated, because custom bubbles come and go under this row.
+document.getElementById("presets").addEventListener("click", (ev)=>{
+  const del = ev.target.closest("[data-lens-del]");
+  if(del){ deleteCustomLens(del.dataset.lensDel); return; }
+  const btn = ev.target.closest("button[data-p]");
+  // "+ custom" opens the builder rather than selecting anything — the panel controller has it.
+  if(!btn || btn.dataset.p === "custom") return;
+  selectPreset(btn.dataset.p);
+});
+render();
+</script>
+</body>
+</html>

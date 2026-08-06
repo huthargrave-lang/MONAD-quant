@@ -4,8 +4,8 @@ The failure modes these hold shut:
   * a preset rule naming a typo'd metric filters every row to zero SILENTLY;
   * a missing snapshot rendering as an empty universe instead of an absence panel;
   * rows missing a required metric being dropped without being reported;
-  * the two yfinance dividendYield conventions (fraction vs percent points) drifting
-    apart across snapshot versions.
+  * Yahoo's dividendYield percent-points field being treated as a fraction (AAPL
+    showing 35% instead of ~0.35%).
 """
 import os
 import sys
@@ -57,6 +57,45 @@ class PresetDefinitionTests(unittest.TestCase):
         self.assertIn("AI_SHADOW_DEBT_LENS_2026.md", p["blurb"])
         self.assertIn("spv_sponsor", sc.SHADOW_DEBT_BUCKETS)
         self.assertEqual(sc.SHADOW_DEBT["META"], "spv_sponsor")
+
+    def test_a_high_shadow_debt_name_cannot_pass_the_low_debt_lens(self):
+        """The whole point of the lens: reported D/E omits the SPV leg, so a sponsor
+        with a flattering on-BS number must not read as 'safe, low debt'. META's real
+        on-BS D/E is ~43 against a ~$27B off-balance-sheet JV."""
+        meta = sc.enrich_row(_row(ticker="META", debt_to_equity=43.0, beta=0.5,
+                                  profit_margin=0.30))
+        self.assertEqual(meta["shadow_severity"], "high")
+        clean = sc.enrich_row(_row(ticker="JNJ", debt_to_equity=57.0, beta=0.5,
+                                   profit_margin=0.30))
+        self.assertIsNone(clean["shadow_severity"])
+        matches, no_data = sc.apply_preset([meta, clean], "safety_low_debt")
+        self.assertEqual([r["ticker"] for r in matches], ["JNJ"])
+        self.assertEqual(no_data, [])   # excluded on a RULE, never as missing data
+
+    def test_a_supply_chain_tag_is_not_treated_as_a_sponsor(self):
+        """Severity is ordinal, not a blanket AI ban — a supplier selling into the
+        buildout carries demand risk, not an off-balance-sheet leg of its own."""
+        nvda = sc.enrich_row(_row(ticker="NVDA", debt_to_equity=6.0, beta=0.5,
+                                  profit_margin=0.30))
+        self.assertEqual(nvda["shadow_severity"], "low")
+        matches, _ = sc.apply_preset([nvda], "safety_low_debt")
+        self.assertEqual([r["ticker"] for r in matches], ["NVDA"])
+
+    def test_a_row_predating_the_shadow_fields_is_screened_not_dropped(self):
+        """Derived-from-a-table fields are stale on an old cache, never 'no data'."""
+        stale = _row(ticker="JNJ", debt_to_equity=57.0, beta=0.5, profit_margin=0.30)
+        self.assertNotIn("shadow_severity_rank", stale)
+        matches, no_data = sc.apply_preset([stale], "safety_low_debt")
+        self.assertEqual([r["ticker"] for r in matches], ["JNJ"])
+        self.assertEqual(no_data, [])
+
+    def test_severity_ranks_stay_ordinal_and_cover_every_bucket(self):
+        for bucket in sc.SHADOW_DEBT_BUCKETS:
+            self.assertIn(bucket, sc.SHADOW_DEBT_SEVERITY, bucket)
+            self.assertIn(sc.SHADOW_DEBT_SEVERITY[bucket], sc.SHADOW_SEVERITY_RANK)
+        self.assertEqual(sc.SHADOW_SEVERITY_RANK[None], 0)   # untagged is a real state
+        self.assertLess(sc.SHADOW_SEVERITY_RANK["low"],
+                        sc.SHADOW_SEVERITY_RANK["high"])
 
     def test_shadow_debt_enrichment_joins_old_snapshots(self):
         row = sc.enrich_row(_row(ticker="META", debt_to_equity=20.0))
@@ -158,13 +197,31 @@ class ApplyPresetTests(unittest.TestCase):
 
 
 class NormalisationTests(unittest.TestCase):
-    def test_percent_points_dividend_yield_is_normalised_to_a_fraction(self):
-        row = sc._normalise_row("T", "T", "S", "low", {"dividendYield": 8.0})
-        self.assertAlmostEqual(row["dividend_yield"], 0.08)
+    def test_dividend_yield_prefers_rate_over_price(self):
+        # AAPL-shaped: Yahoo dividendYield=0.35 means 0.35%, not 35%.
+        row = sc._normalise_row("AAPL", "AAPL", "S", "low", {
+            "currentPrice": 200.0,
+            "dividendRate": 1.00,
+            "dividendYield": 0.35,
+            "trailingAnnualDividendYield": 0.004,
+        })
+        self.assertAlmostEqual(row["dividend_yield"], 0.005)
 
-    def test_fraction_dividend_yield_is_kept(self):
-        row = sc._normalise_row("T", "T", "S", "low", {"dividendYield": 0.08})
-        self.assertAlmostEqual(row["dividend_yield"], 0.08)
+    def test_trailing_annual_yield_used_when_no_rate(self):
+        row = sc._normalise_row("T", "T", "S", "low", {
+            "trailingAnnualDividendYield": 0.048,
+            "dividendYield": 4.8,
+        })
+        self.assertAlmostEqual(row["dividend_yield"], 0.048)
+
+    def test_dividend_yield_percent_points_fallback(self):
+        # Yahoo dividendYield is percent points for both high and low yields.
+        self.assertAlmostEqual(
+            sc._normalise_row("T", "T", "S", "low",
+                              {"dividendYield": 8.0})["dividend_yield"], 0.08)
+        self.assertAlmostEqual(
+            sc._normalise_row("AAPL", "AAPL", "S", "low",
+                              {"dividendYield": 0.35})["dividend_yield"], 0.0035)
 
     def test_no_dividend_reads_as_zero_not_unknown(self):
         row = sc._normalise_row("T", "T", "S", "low", {})
@@ -202,7 +259,7 @@ class ScreenPageTests(unittest.TestCase):
         self.assertEqual(code, 200)
         self.assertIn("No snapshot fetched", body)
         self.assertIn("stock_screener.py fetch", body)
-        self.assertIn("view-toggle", body)
+        # The rail (not an in-page toggle) navigates to the buckets surface.
         self.assertIn('href="/screener/buckets"', body)
 
     def test_every_preset_button_is_on_the_page(self):

@@ -1,0 +1,45 @@
+[Unit]
+Description=MONAD screener snapshot refresh (read-only research; no broker, no orders)
+After=network-online.target
+Wants=network-online.target
+# Never contend with the trader. This is research data collection: if it does not run,
+# the /screener page renders a stale-but-labelled snapshot, which is a normal state it
+# is designed for — nothing downstream breaks.
+StartLimitIntervalSec=3600
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+User=hudson
+Group=hudson
+WorkingDirectory=/home/hudson/MONAD-quant
+Environment=PYTHONUNBUFFERED=1
+# ProtectSystem=strict below makes the repo read-only, so a .pyc write would fail on
+# every import. Python degrades gracefully, but silently — saying "don't" is clearer
+# than relying on it to shrug.
+Environment=PYTHONDONTWRITEBYTECODE=1
+
+# Fund snapshot (~full curated universe) then tone snapshot (S&P subset + RSS).
+# /screener joins both; either alone still renders with an absence/partial provider line.
+# ~0.4s per ticker for fundamentals, plus Reddit's rate-limit pacing. 250 names is a
+# Pi-friendly tone balance; raise --limit toward 500 if the box has the time.
+ExecStart=/bin/bash -c '/home/hudson/MONAD-quant/venv/bin/python /home/hudson/MONAD-quant/tools/stock_screener.py fetch && /home/hudson/MONAD-quant/venv/bin/python /home/hudson/MONAD-quant/tools/screener_lab.py refresh --limit 250'
+
+# The trader owns this machine. A research fetch must be invisible to it: lowest CPU
+# priority, idle I/O class, and a hard ceiling so a hung vendor call cannot leave a
+# python process resident into the next trading session.
+Nice=15
+IOSchedulingClass=idle
+CPUSchedulingPolicy=idle
+TimeoutStartSec=1800
+
+# Writes gitignored snapshot caches only — never state.db, live/**, config.py, or the
+# broker. Production /screener joins both files: fund universe + tone.
+ProtectSystem=strict
+ReadWritePaths=/home/hudson/MONAD-quant/data/cache /home/hudson/MONAD-quant/data/screener
+PrivateTmp=true
+NoNewPrivileges=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=monad-screener

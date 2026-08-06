@@ -3757,3 +3757,57 @@ _— captured codex/biocat-finance-12@9eed12c, 2026-08-04_
 Re-ran the schema-key readiness audit across 56 world-observation artifacts after BIOCAT-FINANCE-01. Coverage is revision/vintage 53, hashes 38, source time 12, first-seen 14, tradable time 6, labels 8, rights 8, entity identity 2, and registry 5. The seed and derived projection are two artifact representations of the same three reviewed cases, so file coverage is not independent evidence. The seven-of-nine FDA census remains the leader; PT-01 still fails because no record carries all nine fields and FD-00 clock rules still have no callable consumer.
 Links: [[E265500|evidenced_by]] · [[F248102|refines]] · [[H44|relates]].
 _— captured codex/biocat-finance-12@9eed12c, 2026-08-04_
+
+### F265502 — A value/growth screen's four columns are four epistemic states; collapsing them is the defect
+Built /screener (tools/screener_lab.py + research_ui page, docs/research/SCREENER_value_growth_sentiment.md). Three findings, each from running it on live vendor data rather than from reading code.
+
+(1) SOURCE AVAILABILITY IS NOT UNIFORM. yfinance fundamentals and Bloomberg's six PUBLIC RSS feeds (~120 items) are live here; Reddit's anonymous API is 403 across www/old/api/oauth hosts under two user-agents (OAuth is required for reads, so no header fixes it) and Bloomberg's Terminal NEWS analytic needs blpapi + a licence. The screen therefore carries a live column, a live-but-narrower-than-it-sounds column, and a wired-but-dormant column. Each states its own state; none is defaulted to 0.
+
+(2) None != 0.0, AND IT IS LOAD-BEARING. 'no document mentioned this ticker', 'documents exist but carried no tone word', and 'tone words cancelled to zero' are three states a naive screener renders identically as 0.00. That is the absence-flag family (F155/F159/F188/F204) applied to a data source. Guarded: no zero-coverage row may render a tone number. With a sentiment weight applied, an uncovered row keeps its value+growth score rather than being blended toward neutral.
+
+(3) THE VENDOR'S 'GROWTH' IS MOSTLY BASE EFFECTS AT LARGE-CAP SCALE. First real run ranked AFL first at '2434% growth' - earnings lapping a depressed base quarter on 27.9% revenue growth. Two defects: earningsGrowth and earningsQuarterlyGrowth are near-duplicates (AFL 3860/3414, BMY 153.1/153.2), so averaging all three vendor fields gave earnings 2 votes to revenue's 1; and nothing separated a grower from a company lapping a bad year. Fix: collapse earnings to one component before blending, and rank a flagged row on REVENUE growth with the raw figure still printed beside the flag. The flag is a RATIO test (earnings > 100% AND earnings > 4x max(revenue, 5%)) - an absolute revenue floor was tried first and missed AFL itself, whose 27.9% cleared every sane floor. Effect: ALL/AES/BMY/BRK-B left the top ten, CINF/AIZ/C/CFG/BAC took their place, GOOGL stayed (ranked on 24.2% revenue, not its 294% earnings print). 7 of the top 12 still carry a flag - that is what the field IS, and the page says so.
+
+Also fixed in passing: one-token company aliases invented coverage (General Motors -> alias 'general' attached three 'Attorney General' headlines to GM). Aliases are now conjunctive; match rule (cashtag/symbol/name) travels with each document so a surprising cell is auditable. Accepted cost: recall on names like 'Ford' for Ford Motor Co., which now show as no coverage rather than as a guess.
+
+Not a signal: nothing here touches live/**, config.py or the engine. 66 guard tests, full suite at baseline (9F/47E before and after).
+Links: [[F155|builds_on]] · [[F159|builds_on]].
+_— captured development@9eed12c, 2026-08-04_
+
+### F265503 — A 403 on one endpoint family is not evidence a source is closed: Reddit's Atom feeds answer 200 anonymously
+Correction to F265502, which reported the Reddit column as unavailable-pending-credentials. That was an over-generalisation from a real but narrow observation.
+
+WHAT WAS OBSERVED: Reddit's JSON API returns 403 to anonymous requests across www.reddit.com, api.reddit.com, oauth.reddit.com (and old.reddit.com returns a 200 HTML interstitial, not JSON), under both a browser and a script user-agent. All true, all reproducible.
+
+WHAT WAS CONCLUDED, WRONGLY: 'Reddit requires OAuth for reads, so the column is dark without credentials.' Four consistent 403s across every JSON host read as a site-wide policy. It is not one. https://www.reddit.com/r/<sub>/new.rss returns 200 with 25 Atom entries to the same anonymous client. The column shipped dark for a day on an inference never tested against a second endpoint family. Cost of the test: one request.
+
+WHAT SHIPPED: both paths wired - public Atom RSS by default (no credentials), OAuth when REDDIT_CLIENT_ID/SECRET exist (higher limits, richer data). The provider label always names which path ran, since coverage differs. RSS rate-limits hard per IP (a burst of 4 feeds earns 429s for minutes), so each sub gets 3 attempts with pauses and a throttled sub is NAMED in the provider line rather than silently contributing nothing; a typical pull is 1-2 of 4 subs.
+
+THREE ATTRIBUTION FAILURES, in increasing subtlety, all found by reading first output:
+(a) WRONG MATCH: one-token aliases - 'General Motors' -> 'general' collected Attorney General headlines. Fixed: conjunctive aliases.
+(b) WRONG MATCH BEHIND A GENERIC WORD: 'CVS Health' -> sole alias 'health' collected a salmonella story; 'CMS Energy' -> 'energy'. Cause was the 4-char token floor dropping 'cvs'/'cms'. Lowered to 3 on the reasoning that once matching is CONJUNCTIVE an extra required token can only tighten a match - the floor was a leftover from the disjunctive design and was removing evidence.
+(c) CORRECT MATCH, UNSUPPORTABLE ATTRIBUTION: one r/stocks post ('Need help consolidating my stock list') named 18 of 150 screened tickers and all 18 inherited its +0.50, a score built from 'growth' appearing twice in a request for advice. Every mention was correct; there was no wrong match to find. Fixed: a document naming >5 screened tickers is dropped from tone (it is an inventory, not commentary), and each source reports how many it lost. Covered tickers went 23 -> 9 -> 6.
+
+RESIDUAL, MEASURED AND NOT FIXED: a name reducing to one ordinary word ('Booking Holdings' -> 'booking') still collects posts about booking profits. Two oracles were tried and BOTH REJECTED ON EVIDENCE: a system dictionary is exactly backwards here (flags 'apple' and 'coherent', two correct matches; misses 'app', an incorrect one), and requiring the symbol as corroboration would drop a correct Apple match on a headline that never printed AAPL. Reported instead: every cell prints the rule that caught it. ~2 questionable attributions in 6 on 25 social posts.
+
+METHOD NOTE: also caught a test reaching the live network (fetch_reddit with no injected fetcher became a real call once the RSS fallback landed - 104s suite, result dependent on Reddit's rate limiter), and a build_snapshot injection seam that stopped one level short, leaving 9s of real time.sleep per run. Both guarded. 83 tests, full suite 8F/47E vs 9F/47E baseline.
+Links: [[F265502|refines]].
+_— captured development@9eed12c, 2026-08-04_
+
+### F265504 — Four screener inputs presented as facts were not facts: a dead filter row, two absence-as-zero collapses, and a rail the server threw away
+Built the combined screener (docs/research/SCREENER_COMBINED_DRAFT.html, served /screener/draft) by merging the preset bubbles with the /sentiment tone columns. Four defects found by running it on live snapshots rather than by reading it, each one a thing the UI asserted that was not true.
+
+(1) THE FILTER ROW WAS WIRED TO NOTHING. Max P/E, min growth, sector and tone-weight were read by no code on any path; only the shadow filter did anything, and only inside renderTable. Four controls had been shipping as decoration - a user narrowing to "P/E <= 15" got the unfiltered 123 names and no indication otherwise. Now one delegated change listener drives matchedRows() = lensRows() n passesFilters(), so plot, ranked bars, distribution, detail card and table screen off ONE list. Also the apply step is gone: a filter that needs a second click to take effect is a filter whose displayed state and actual state disagree between the two clicks.
+
+(2) A MISSING P/E ARRIVED AS 0.0. _screener_combined_draft_payload emitted `pe if pe is not None else 0` (and the same for growth). On a "cheapest first" lens zero sorts FIRST, so the six names the vendor could not price - LAC, UAMY, NB, UEC, USAR, AREC - presented as the best value on the page. This is F155/F159/F188/F204 again, one layer further out: not a source reporting silence as neutrality, but a VIEW MODEL manufacturing a value the source never gave. None now travels to the client and renders as absent.
+
+(3) A MISSING SCORE ARRIVED AS 0.5. Same function defaulted the composite to a midpoint, which ranks an unscorable name above everything genuinely scored below average - a fabricated opinion with a plausible shape. Now null. The client had to be repaired to match: scoreCell called .toFixed on it, the table sort produced NaN comparisons, and `(r.de||999)`, `(r.dy||0)` and `null <= 25` (silently TRUE) all did the same collapse in the other direction. The lesson is that removing an absence-as-zero at the source EXPOSES every consumer that was relying on it, and each one must be found.
+
+(4) THE SERVER THREW AWAY A FEATURE MOUNTED IN THE RAIL. research_ui.py rewrites this page's <aside class="rail"> with _nav() at request time, so the whole propose/recommendations block - form, list, storage - existed only when the file was opened directly and vanished on the served page. It was reported working because it WAS working, in the only place it had been looked at. Anything a mock mounts in the rail is unreachable once served; the fix moved state into the page body and made the entry a real route (/recommend).
+
+Also: the AI shadow-debt tag was decoration until it carried weight. META (on-BS D/E 43.0), GOOGL 18.9, MSFT 29.1, AMZN 45.6, PLTR 2.1, NOW 67.5 and IBM all clear safety_low_debt's D/E <= 80 rule on the very number the lens exists to call incomplete; they were excluded only incidentally, by the beta cut, and NOW sat at beta 0.93 against a 0.9 threshold. SHADOW_DEBT_SEVERITY is ordinal (high/medium/low), NOT a notional - there is no free source for SPV debt outstanding, so a "+60 D/E points" premium would fabricate the exact figure the lens reports as missing.
+
+NOT MEASURED, STATED: there is no price history anywhere in this system. The price widget was a deterministic random walk presented beside real fundamentals; it is deleted and the widget is parked with an explicit absence. Tone coverage is genuinely thin - 2 of 123 Bloomberg, 4 of 123 Reddit - and the lens states the counts and names the uncovered rather than padding.
+
+Not a signal: nothing here touches live/**, config.py or the engine. 199 tests green.
+Links: [[F155|builds_on]] · [[F159|builds_on]] · [[F265502|builds_on]] · [[F265503|relates]].
+_— captured cursor/screener-buckets-toggle-45c8, 2026-08-06_

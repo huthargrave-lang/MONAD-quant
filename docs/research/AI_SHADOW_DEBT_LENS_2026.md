@@ -42,6 +42,30 @@ A break in any leg reprices both the SPV sponsors and the supply chain that feed
 Tags live in `tools/stock_screener.py` and are joined onto snapshot rows at load time
 (so an old `fundamentals.json` still gets the overlay without a re-fetch).
 
+## Severity — what gives the tag screening weight
+
+A tag that only coloured a dot was decoration: on the current snapshot **META (on-BS D/E
+43.0), GOOGL (18.9), MSFT (29.1), AMZN (45.6), PLTR (2.1) and NOW (67.5) all clear the
+`safety_low_debt` rule of D/E ≤ 80** on the very number this lens exists to call
+incomplete. They were kept out of that lens only incidentally, by its beta cut.
+
+So each bucket carries an **ordinal** severity (`SHADOW_DEBT_SEVERITY`), and
+`safety_low_debt` now requires `shadow_severity_rank <= 2` — a high-severity name is
+excluded on a *rule*, and is reported as screened-and-rejected, never as missing data.
+
+| Bucket | Severity | Why |
+|---|---|---|
+| `spv_sponsor` | **high** | The sponsor is the party whose own statements omit the project debt |
+| `capex_burn` | **high** | Cash drain; leverage can rise while reported D/E still looks tame |
+| `grid_power` | medium | Capital-heavy and financing-linked, but not the sponsor |
+| `supply_chain` | low | Sells *into* the buildout — demand risk, not an off-BS leg of its own |
+
+Severity is ordinal on purpose. There is no free source for SPV debt outstanding
+([`OFF_BALANCE_SHEET_DEBT_QUANT_2026.md`](OFF_BALANCE_SHEET_DEBT_QUANT_2026.md)), and
+inventing a "+60 D/E points" premium would fabricate the exact figure the lens exists to
+report as missing. Rank `0` means "carries no tag on this editorial list" — **not**
+evidence that a company has no off-balance-sheet exposure.
+
 ## What the UI shows
 
 - Matches draw as **bucket silhouettes** (not dots), colored by shadow-debt tier.

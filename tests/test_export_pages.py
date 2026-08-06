@@ -39,8 +39,8 @@ class ExportTests(unittest.TestCase):
         cls.td.cleanup()
 
     def test_every_preset_gets_a_page_plus_index_buckets_map_and_css(self):
-        expected = {"index.html", "buckets.html", "map.html",
-                    os.path.join("static", "ui.css")}
+        expected = {"index.html", "lenses.html", "buckets.html", "recommend.html",
+                    "map.html", os.path.join("static", "ui.css")}
         expected |= {"screen-{}.html".format(k) for k in sc.PRESETS}
         self.assertEqual(set(self.written), expected)
 
@@ -55,16 +55,31 @@ class ExportTests(unittest.TestCase):
         for key in sc.PRESETS:
             self.assertIn('href="screen-{}.html"'.format(key), text)
 
-    def test_the_index_is_the_fundamental_screener_with_buckets_toggle(self):
+    def test_the_index_is_the_combined_screener_with_its_data_baked_in(self):
+        """The server injects the snapshot at request time; nothing does that on Pages,
+        so an un-baked export would publish the page's own absence state forever."""
         text = self.pages["index.html"]
-        self.assertIn("view-toggle", text)
         self.assertIn('href="buckets.html"', text)
         self.assertIn("Low P/E", text)
+        self.assertIn("__DRAFT_LIVE__", text)
+
+    def test_no_third_party_headline_text_is_republished(self):
+        """Tone scores are ours and ship; the Bloomberg/Reddit documents behind them are
+        not ours to publish on a public site, so the baked payload carries none."""
+        import json
+        import re as _re
+        m = _re.search(r"window\.__DRAFT_LIVE__ = (\{.*?\});</script>",
+                       self.pages["index.html"], _re.S)
+        self.assertIsNotNone(m)
+        payload = json.loads(m.group(1))
+        for source, by_ticker in (payload.get("headlines") or {}).items():
+            self.assertEqual(
+                [d for docs in by_ticker.values() for d in docs], [], source)
 
     def test_buckets_page_is_the_sovereign_html_wireframe(self):
         text = self.pages["buckets.html"]
         self.assertIn("bucketGrid", text)
-        self.assertIn("Mock prices", text)
+        self.assertIn("Select top heat", text)
 
     def test_the_footer_tells_the_truth_about_being_a_snapshot(self):
         for name, text in self.pages.items():
