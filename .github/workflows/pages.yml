@@ -48,6 +48,12 @@ jobs:
         continue-on-error: true
         run: python tools/stock_screener.py fetch
 
+      - name: Fetch screener prices (best effort)
+        # Same contract as the fundamentals fetch: a throttled price endpoint must not
+        # block publishing. Without it the price widget parks itself and says so.
+        continue-on-error: true
+        run: python tools/stock_screener.py prices
+
       - name: Export static site
         run: python tools/export_pages.py --out _site
 

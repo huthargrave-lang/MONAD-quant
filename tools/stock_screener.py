@@ -657,11 +657,80 @@ def fmt_metric(row, metric):
     return "{:.2f}".format(v)
 
 
+#: Daily closes per ticker. A SEPARATE file from the fundamentals snapshot on purpose:
+#: prices are ~130 numbers a name and churn every session, while fundamentals are a
+#: handful of slow-moving fields — bundling them would rewrite the whole snapshot daily
+#: and make a fundamentals fetch fail whenever Yahoo throttles the price endpoint.
+PRICES_PATH = os.path.join(REPO, "data", "screener", "prices.json")
+
+#: ~6 months of sessions. Long enough to read a trend, short enough that the whole
+#: universe still fits in a page payload without becoming the page's dominant weight.
+PRICE_BARS = 126
+
+
+def fetch_prices(out_path=PRICES_PATH, bars=PRICE_BARS):
+    """Daily closes for the universe, batched. Needs network.
+
+    Closes only, rounded to cents: the screener plots an indexed line, so OHLCV would be
+    an order of magnitude more payload for detail nothing on the page reads."""
+    import yfinance as yf   # deferred: every read path must work without it
+
+    tickers = [t for t, *_ in UNIVERSE]
+    frame = yf.download(tickers, period="1y", interval="1d",
+                        auto_adjust=True, progress=False, threads=True)
+    closes = frame["Close"] if "Close" in frame else frame
+    series, errors = {}, {}
+    for ticker in tickers:
+        try:
+            col = closes[ticker] if ticker in getattr(closes, "columns", []) else None
+            if col is None:
+                errors[ticker] = "no column in the download"
+                continue
+            vals = [round(float(v), 2) for v in col.tolist()[-bars:]
+                    if v == v and v is not None]      # v != v filters NaN
+            if len(vals) < 2:
+                errors[ticker] = "fewer than two closes returned"
+                continue
+            series[ticker] = vals
+        except Exception as exc:                       # noqa: BLE001 — record, continue
+            errors[ticker] = str(exc)
+    payload = {
+        "as_of": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "source": "yfinance daily closes, auto-adjusted",
+        "bars": bars,
+        "errors": errors,
+        "series": series,
+    }
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, sort_keys=True)
+        fh.write("\n")
+    return payload
+
+
+def load_prices(path=None):
+    """The cached closes, or None. Absence is the caller's to render, as with the
+    fundamentals snapshot — a missing price file is not an empty market."""
+    if path is None:
+        path = PRICES_PATH
+    try:
+        with open(path, encoding="utf-8") as fh:
+            payload = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(payload.get("series"), dict):
+        return None
+    return payload
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd")
     f = sub.add_parser("fetch", help="fetch fundamentals and write the snapshot")
     f.add_argument("--out", default=SNAPSHOT_PATH)
+    p = sub.add_parser("prices", help="fetch daily closes for the universe")
+    p.add_argument("--out", default=PRICES_PATH)
+    p.add_argument("--bars", type=int, default=PRICE_BARS)
     sub.add_parser("list", help="list the presets")
     s = sub.add_parser("show", help="apply one preset to the cached snapshot")
     s.add_argument("preset", choices=sorted(PRESETS))
@@ -673,6 +742,13 @@ def main(argv=None):
         print("wrote {} — {} rows, {} errors".format(
             args.out, len(snap["rows"]), len(snap["errors"])))
         for tk, err in snap["errors"].items():
+            print("  {}: {}".format(tk, err))
+        return 0
+    if args.cmd == "prices":
+        payload = fetch_prices(args.out, args.bars)
+        print("wrote {} — {} series, {} errors".format(
+            args.out, len(payload["series"]), len(payload["errors"])))
+        for tk, err in list(payload["errors"].items())[:10]:
             print("  {}: {}".format(tk, err))
         return 0
     if args.cmd == "list":

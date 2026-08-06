@@ -138,6 +138,40 @@ class PresetDefinitionTests(unittest.TestCase):
                 self.assertIn(b, sc.CHAOS_BUCKETS, t)
 
 
+class PriceHistoryTests(unittest.TestCase):
+    """The price widget was a random walk until this existed; the guard is that a
+    missing or malformed cache reads as absence, never as a flat or invented series."""
+
+    def test_a_missing_price_cache_is_none_not_an_empty_market(self):
+        self.assertIsNone(sc.load_prices(os.path.join(REPO, "no", "such", "prices.json")))
+
+    def test_a_malformed_cache_is_rejected_rather_than_half_read(self):
+        import json
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            path = os.path.join(td, "prices.json")
+            for blob in ('{"series": []}', '{"series": "nope"}', "{}", "not json"):
+                with open(path, "w", encoding="utf-8") as fh:
+                    fh.write(blob)
+                self.assertIsNone(sc.load_prices(path), blob)
+
+    def test_a_well_formed_cache_round_trips(self):
+        import json
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            path = os.path.join(td, "prices.json")
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump({"as_of": "TEST", "bars": 3,
+                           "series": {"AAA": [1.0, 2.0, 3.0]}}, fh)
+            loaded = sc.load_prices(path)
+            self.assertEqual(loaded["series"]["AAA"], [1.0, 2.0, 3.0])
+
+    def test_the_price_cache_is_a_separate_file_from_the_fundamentals_snapshot(self):
+        """Bundling them would rewrite every fundamental daily and make a fundamentals
+        fetch fail whenever Yahoo throttles the price endpoint."""
+        self.assertNotEqual(sc.PRICES_PATH, sc.SNAPSHOT_PATH)
+
+
 class ApplyPresetTests(unittest.TestCase):
     def test_matches_pass_every_rule(self):
         rows = [_row(ticker="A", pe=10.0, growth=0.30),

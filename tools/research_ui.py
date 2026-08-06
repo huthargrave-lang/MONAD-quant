@@ -3745,6 +3745,7 @@ def _screener_combined_draft_payload():
     """
     fund = stock_screener.load_snapshot()
     sent = screener_lab.load_snapshot()
+    prices = stock_screener.load_prices()
     sent_by = {r["ticker"]: r for r in (sent or {}).get("rows") or []}
     headlines = {"bloomberg": {}, "reddit": {}}
 
@@ -3848,6 +3849,12 @@ def _screener_combined_draft_payload():
         "has_sentiment": bool(sent),
         "has_fundamentals": bool(fund),
         "refresh_cmd": screener_lab.REFRESH_CMD,
+        # Only the screened names travel: the price file covers the whole universe, and
+        # shipping series the page cannot plot would be dead weight in every payload.
+        "price_history": {r["tk"]: prices["series"][r["tk"]] for r in rows
+                          if r["tk"] in prices["series"]} if prices else {},
+        "price_as_of": (prices or {}).get("as_of"),
+        "price_cmd": "venv/bin/python tools/stock_screener.py prices",
     }
 
 
