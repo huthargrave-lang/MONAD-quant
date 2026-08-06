@@ -1,0 +1,37 @@
+[Unit]
+Description=MONAD research UI (read-only: research web, node views, screener, surfaces)
+After=network-online.target
+Wants=network-online.target
+# Read-only daemon (no DB writes, no broker, no secrets) — safe to restart freely,
+# exactly like monad-ctxweb.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=hudson
+Group=hudson
+WorkingDirectory=/home/hudson/MONAD-quant
+Environment=PYTHONUNBUFFERED=1
+
+# Port 8002: :8000 is the (fenced) trading dashboard, :8001 is monad-ctxweb. This is a
+# third, separate read-only process — the fencing between the research surfaces and the
+# trading dashboard is process-level, not just a code convention.
+#
+# It renders the screener SNAPSHOT and never fetches during a request, so a page load
+# costs no vendor calls no matter who is browsing. monad-screener.timer produces the
+# snapshot; a missing one renders an absence panel naming the refresh command.
+ExecStart=/home/hudson/MONAD-quant/venv/bin/python /home/hudson/MONAD-quant/tools/research_ui.py serve --host 0.0.0.0 --port 8002
+
+Restart=on-failure
+RestartSec=10
+
+Nice=10
+NoNewPrivileges=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=monad-researchui
+
+[Install]
+WantedBy=multi-user.target

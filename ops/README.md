@@ -37,6 +37,49 @@ sudo systemctl enable --now monad-healthcheck.timer monad-daily-export.timer
 > The trader autostart below is **preflight-gated** and ships **disabled**. Install/enable
 > it only after you have verified a clean paper run.
 
+### Screener snapshot refresh (safe: read-only research, no broker)
+
+`monad-screener.timer` refreshes the `/screener` snapshot at **17:30 ET, weekdays** —
+after the close and after `monad-daily-export` (16:15 ET), so it never overlaps the
+export or a trading session. It runs `tools/screener_lab.py refresh`, which fetches
+vendor fundamentals plus Bloomberg and Reddit public feeds and writes **one gitignored
+file**, `data/cache/screener_snapshot.json`. It never touches `state.db`, `live/**`,
+`config.py`, or the broker.
+
+```bash
+sudo cp ~/MONAD-quant/deploy/monad-screener.* /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now monad-screener.timer
+systemctl list-timers monad-screener.timer      # confirm the next run
+sudo systemctl start monad-screener.service     # run once now, to check it
+journalctl -u monad-screener -n 40 --no-pager
+```
+
+It is deliberately unobtrusive on the trading host: `Nice=15`, idle CPU and I/O
+classes, a 30-minute `TimeoutStartSec` ceiling, and `ProtectSystem=strict` with
+`data/cache` as the only writable path. `Persistent=true` catches up a run missed while
+the Pi was off; `RandomizedDelaySec=600` avoids hitting rate-limited vendors at the same
+second daily. If it does not run at all, the page renders a stale-but-labelled snapshot
+— a state it is designed for.
+
+**Reddit needs no credentials.** The fetcher uses the public Atom feeds and paces itself
+from Reddit's own `x-ratelimit-reset` header (7–60s), which is why a full run takes a
+few minutes and is mostly waiting. Setting `REDDIT_CLIENT_ID`/`REDDIT_CLIENT_SECRET` in
+`.env` switches it to the higher-limit OAuth path; nothing else changes.
+
+### Research UI (separate read-only service, :8002)
+
+The same read-only pattern as `monad-ctxweb` (:8001), one port up — the research web,
+node views, UI-surface census and the screener. It **renders the snapshot and never
+fetches during a request**, so page loads cost no vendor calls.
+
+```bash
+sudo cp ~/MONAD-quant/deploy/monad-researchui.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now monad-researchui
+```
+Then browse via Tailscale: `http://100.76.6.75:8002/screener`. Use
+`--host 100.76.6.75` in the unit to keep it tailnet-only (off the LAN).
+
 ### Preflight-gated trader autostart (install only after approval)
 
 `monad-trader.service` runs `preflight_trader_start.sh` as a hard `ExecStartPre`

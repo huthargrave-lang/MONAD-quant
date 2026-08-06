@@ -3732,3 +3732,38 @@ _— captured development@9a875bd, 2026-08-03_
 Implemented an append-only SEC ATM program ledger on three manually reviewed issuers: APLE contributes an explicit zero-sales period label with USD 500 million remaining capacity; AIMD contributes 262,383 shares and USD 719,358 net proceeds for 2025H1; ADIL contributes a terminated-and-replaced program chain whose inception-to-termination total is mechanically quarantined from quarter training. Exact and date-only clocks remain distinct, labels become available only after disclosure, and a disposable SQLite projection refuses overwrite. This is a schema seed, not a population or edge. Artifact: docs/research/data/atm_fp01_gold_ledger.json; memo: docs/research/ATM_FP01_LEDGER_2026.md.
 Links: [[H253205|builds_on]] · [[H68|relates]] · [[E109|relates]] · [[E128|relates]] · [[D13300|relates]].
 _— captured development@6919327, 2026-08-03_
+
+### F265502 — A value/growth screen's four columns are four epistemic states; collapsing them is the defect
+Built /screener (tools/screener_lab.py + research_ui page, docs/research/SCREENER_value_growth_sentiment.md). Three findings, each from running it on live vendor data rather than from reading code.
+
+(1) SOURCE AVAILABILITY IS NOT UNIFORM. yfinance fundamentals and Bloomberg's six PUBLIC RSS feeds (~120 items) are live here; Reddit's anonymous API is 403 across www/old/api/oauth hosts under two user-agents (OAuth is required for reads, so no header fixes it) and Bloomberg's Terminal NEWS analytic needs blpapi + a licence. The screen therefore carries a live column, a live-but-narrower-than-it-sounds column, and a wired-but-dormant column. Each states its own state; none is defaulted to 0.
+
+(2) None != 0.0, AND IT IS LOAD-BEARING. 'no document mentioned this ticker', 'documents exist but carried no tone word', and 'tone words cancelled to zero' are three states a naive screener renders identically as 0.00. That is the absence-flag family (F155/F159/F188/F204) applied to a data source. Guarded: no zero-coverage row may render a tone number. With a sentiment weight applied, an uncovered row keeps its value+growth score rather than being blended toward neutral.
+
+(3) THE VENDOR'S 'GROWTH' IS MOSTLY BASE EFFECTS AT LARGE-CAP SCALE. First real run ranked AFL first at '2434% growth' - earnings lapping a depressed base quarter on 27.9% revenue growth. Two defects: earningsGrowth and earningsQuarterlyGrowth are near-duplicates (AFL 3860/3414, BMY 153.1/153.2), so averaging all three vendor fields gave earnings 2 votes to revenue's 1; and nothing separated a grower from a company lapping a bad year. Fix: collapse earnings to one component before blending, and rank a flagged row on REVENUE growth with the raw figure still printed beside the flag. The flag is a RATIO test (earnings > 100% AND earnings > 4x max(revenue, 5%)) - an absolute revenue floor was tried first and missed AFL itself, whose 27.9% cleared every sane floor. Effect: ALL/AES/BMY/BRK-B left the top ten, CINF/AIZ/C/CFG/BAC took their place, GOOGL stayed (ranked on 24.2% revenue, not its 294% earnings print). 7 of the top 12 still carry a flag - that is what the field IS, and the page says so.
+
+Also fixed in passing: one-token company aliases invented coverage (General Motors -> alias 'general' attached three 'Attorney General' headlines to GM). Aliases are now conjunctive; match rule (cashtag/symbol/name) travels with each document so a surprising cell is auditable. Accepted cost: recall on names like 'Ford' for Ford Motor Co., which now show as no coverage rather than as a guess.
+
+Not a signal: nothing here touches live/**, config.py or the engine. 66 guard tests, full suite at baseline (9F/47E before and after).
+Links: [[F155|builds_on]] · [[F159|builds_on]].
+_— captured development@9eed12c, 2026-08-04_
+
+### F265503 — A 403 on one endpoint family is not evidence a source is closed: Reddit's Atom feeds answer 200 anonymously
+Correction to F265502, which reported the Reddit column as unavailable-pending-credentials. That was an over-generalisation from a real but narrow observation.
+
+WHAT WAS OBSERVED: Reddit's JSON API returns 403 to anonymous requests across www.reddit.com, api.reddit.com, oauth.reddit.com (and old.reddit.com returns a 200 HTML interstitial, not JSON), under both a browser and a script user-agent. All true, all reproducible.
+
+WHAT WAS CONCLUDED, WRONGLY: 'Reddit requires OAuth for reads, so the column is dark without credentials.' Four consistent 403s across every JSON host read as a site-wide policy. It is not one. https://www.reddit.com/r/<sub>/new.rss returns 200 with 25 Atom entries to the same anonymous client. The column shipped dark for a day on an inference never tested against a second endpoint family. Cost of the test: one request.
+
+WHAT SHIPPED: both paths wired - public Atom RSS by default (no credentials), OAuth when REDDIT_CLIENT_ID/SECRET exist (higher limits, richer data). The provider label always names which path ran, since coverage differs. RSS rate-limits hard per IP (a burst of 4 feeds earns 429s for minutes), so each sub gets 3 attempts with pauses and a throttled sub is NAMED in the provider line rather than silently contributing nothing; a typical pull is 1-2 of 4 subs.
+
+THREE ATTRIBUTION FAILURES, in increasing subtlety, all found by reading first output:
+(a) WRONG MATCH: one-token aliases - 'General Motors' -> 'general' collected Attorney General headlines. Fixed: conjunctive aliases.
+(b) WRONG MATCH BEHIND A GENERIC WORD: 'CVS Health' -> sole alias 'health' collected a salmonella story; 'CMS Energy' -> 'energy'. Cause was the 4-char token floor dropping 'cvs'/'cms'. Lowered to 3 on the reasoning that once matching is CONJUNCTIVE an extra required token can only tighten a match - the floor was a leftover from the disjunctive design and was removing evidence.
+(c) CORRECT MATCH, UNSUPPORTABLE ATTRIBUTION: one r/stocks post ('Need help consolidating my stock list') named 18 of 150 screened tickers and all 18 inherited its +0.50, a score built from 'growth' appearing twice in a request for advice. Every mention was correct; there was no wrong match to find. Fixed: a document naming >5 screened tickers is dropped from tone (it is an inventory, not commentary), and each source reports how many it lost. Covered tickers went 23 -> 9 -> 6.
+
+RESIDUAL, MEASURED AND NOT FIXED: a name reducing to one ordinary word ('Booking Holdings' -> 'booking') still collects posts about booking profits. Two oracles were tried and BOTH REJECTED ON EVIDENCE: a system dictionary is exactly backwards here (flags 'apple' and 'coherent', two correct matches; misses 'app', an incorrect one), and requiring the symbol as corroboration would drop a correct Apple match on a headline that never printed AAPL. Reported instead: every cell prints the rule that caught it. ~2 questionable attributions in 6 on 25 social posts.
+
+METHOD NOTE: also caught a test reaching the live network (fetch_reddit with no injected fetcher became a real call once the RSS fallback landed - 104s suite, result dependent on Reddit's rate limiter), and a build_snapshot injection seam that stopped one level short, leaving 9s of real time.sleep per run. Both guarded. 83 tests, full suite 8F/47E vs 9F/47E baseline.
+Links: [[F265502|refines]].
+_— captured development@9eed12c, 2026-08-04_

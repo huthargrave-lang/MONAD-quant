@@ -44,6 +44,13 @@ data/funnel_runs/
 # Graphify ingestion output + the bridge's suggestions (never auto-committed)
 graphify-out/
 data/graphify_suggestions/
+# Screener caches (tools/screener_lab.py). Regenerable by `screener_lab refresh`, and
+# they churn every run — a snapshot is a CACHE, not a provenance artifact, and the
+# distinction is the whole subject of tools/data_cache.py. The sibling *.csv panels
+# here were already covered by the blanket rule at the top; these are JSON and were
+# not, so `git add -A` would have committed 150 rows of vendor data on every refresh.
+data/cache/screener_snapshot.json
+data/cache/sp500_universe.json
 
 # Coverage artifacts (CI/dev only — see .github/workflows/test.yml)
 .coverage

@@ -55,6 +55,7 @@ for _p in (REPO, TOOLS):
         sys.path.insert(0, _p)
 
 import ctx  # noqa: E402  — the context layer; reused, never duplicated
+import screener_lab  # noqa: E402  — the screen's engine; this file renders, never fetches
 import ui_tokens  # noqa: E402  — the one palette; this file holds no second copy
 
 
@@ -96,7 +97,11 @@ code,.mono,th,td.num{font-family:var(--mono)}
 .rail a.off{color:var(--ink-muted)}
 .rail .fence{font-size:10px;font-family:var(--mono);color:var(--ink-muted);
   border:1px solid var(--rule);border-radius:3px;padding:0 4px;margin-left:5px}
-main{min-width:0;padding:26px 30px 90px;max-width:1180px}
+/* 1180px left better than half a 2000px window empty while a 12-column results table
+   scrolled sideways inside it. The cap now applies to PROSE, which needs ~70ch to stay
+   readable, not to the page — so tables and charts get the width and paragraphs do not
+   turn into 200-character lines. */
+main{min-width:0;padding:26px 34px 90px;max-width:1680px}
 h1{font-size:23px;line-height:1.25;margin:0 0 6px;font-weight:640;text-wrap:balance;
   letter-spacing:-.012em}
 h2{font-size:15px;margin:34px 0 10px;font-weight:640;letter-spacing:-.005em}
@@ -111,10 +116,12 @@ p{margin:0 0 12px;color:var(--ink-2);max-width:68ch}
   padding:18px 20px;margin:0 0 18px}
 .panel > figcaption{margin-bottom:14px}
 .panel .why{font-size:13px;color:var(--ink-2);margin:0;max-width:66ch}
-/* Charts are authored at a 720-unit viewBox and capped there. Letting them stretch to
-   a 1180px main column scales every glyph ~1.6x and destroys the density the mark
-   sizes were chosen for. */
+/* Charts are authored at a 720-unit viewBox and capped near it. Letting them stretch to
+   the full main column scales every glyph ~2x and destroys the density the mark sizes
+   were chosen for. A chart that wants more room is AUTHORED wider (`.plot.wide`, a
+   1040-unit viewBox) rather than stretched — same principle, more canvas. */
 .plot{width:100%;max-width:740px;height:auto;display:block;overflow:visible}
+.plot.wide{max-width:1060px}
 .scroller{overflow-x:auto}
 /* Long file paths must be breakable in prose, but a node id must NOT be: `code`
    breaking anywhere rendered F26 as "F2 / 6" across two lines in the browser table. */
@@ -129,6 +136,10 @@ td code,th code,.chip code{white-space:nowrap;overflow-wrap:normal}
 .absent{border-style:dashed;background:transparent}
 .absent h3{color:var(--ink-muted)}
 .absent .why{color:var(--ink-muted)}
+/* An absent number is set in muted ink and NOT in the tabular numeric face, so a
+   missing P/E cannot be skimmed as though it were a small one. The screener leans on
+   this: `—` and `0.00` have to look like different kinds of thing at a glance. */
+.muted-cell{color:var(--ink-muted);font-size:11.5px;font-family:var(--sans)}
 
 /* ── chips, stats, tables ──────────────────────────────────────────────── */
 .chip{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:11px;
@@ -145,6 +156,12 @@ td code,th code,.chip code{white-space:nowrap;overflow-wrap:normal}
 .stat b{display:block;font-family:var(--mono);font-size:25px;line-height:1.1;
   font-variant-numeric:tabular-nums;letter-spacing:-.02em}
 .stat span{display:block;font-size:11.5px;color:var(--ink-muted);margin-top:3px}
+/* A wide results table is easier to read across when the header stays put and the
+   identifying column stays visible — both are pure affordance, no data changes. */
+.sticky thead th{position:sticky;top:0;z-index:2;background:var(--surface);
+  box-shadow:inset 0 -1px 0 var(--rule)}
+.sticky tbody tr:hover{background:var(--plane)}
+.tnum{font-variant-numeric:tabular-nums}
 table{border-collapse:collapse;width:100%;font-size:13px}
 th,td{text-align:left;padding:7px 11px 7px 0;border-bottom:1px solid var(--rule);
   vertical-align:top}
@@ -156,12 +173,23 @@ tbody tr:hover{background:var(--plane)}
 .sev.critical{border-color:var(--critical)} .sev.serious{border-color:var(--serious)}
 .sev.warning{border-color:var(--warning)} .sev.good{border-color:var(--good)}
 .sev.neutral{border-color:var(--axis)}
-.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:16px}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-bottom:16px;
+  background:var(--surface);border:1px solid var(--rule);border-radius:9px;
+  padding:12px 14px}
 .filters input,.filters select{font:13px var(--sans);height:30px;padding:0 8px;
-  border:1px solid var(--rule);border-radius:6px;background:var(--surface);color:var(--ink)}
-.filters button{font:13px var(--sans);height:30px;padding:0 11px;border:1px solid var(--rule);
+  border:1px solid var(--rule);border-radius:6px;background:var(--plane);color:var(--ink)}
+.filters button{font:13px var(--sans);height:30px;padding:0 13px;border:1px solid var(--rule);
   border-radius:6px;background:var(--surface);color:var(--ink);cursor:pointer}
 .filters button:hover{border-color:var(--accent)}
+/* A placeholder vanishes the moment the field is filled, so a form of bare inputs
+   becomes unreadable exactly when it holds the values you want to check. */
+.field{display:flex;flex-direction:column;gap:4px}
+.field > span{font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-muted);font-weight:600}
+/* Rank as a length as well as a number — the column is what the table is sorted on,
+   and a bare 0.943 next to 0.929 does not read as an ordering at a glance. */
+.bar{display:block;height:3px;border-radius:2px;background:var(--ord-2);margin-top:4px;
+  min-width:2px}
 .count{font-family:var(--mono);font-size:12px;color:var(--ink-muted);margin-left:auto}
 .body-text{white-space:pre-wrap;font-size:13.5px;color:var(--ink-2);max-width:74ch;
   margin:0 0 12px}
@@ -760,10 +788,11 @@ def _source_note(caption, source):
         esc(caption or "table"), esc(source))
 
 
-def _svg(width, height, body, label):
-    return ('<div class="scroller"><svg class="plot" viewBox="0 0 {w} {h}" '
+def _svg(width, height, body, label, cls=""):
+    return ('<div class="scroller"><svg class="plot{c}" viewBox="0 0 {w} {h}" '
             'width="{w}" height="{h}" role="img" aria-label="{a}">{b}</svg></div>'
-            ).format(w=width, h=height, b=body, a=esc(label))
+            ).format(w=width, h=height, b=body, a=esc(label),
+                     c=(" " + cls) if cls else "")
 
 
 def _txt(x, y, s, size=11, fill="var(--ink-2)", anchor="start", weight="400",
@@ -1282,7 +1311,7 @@ def applicable_keys(nctx):
 # ─────────────────────────────────────────────────────────────────────────────
 def _nav(active, mounts):
     items = [("/", "Overview"), ("/web", "Research web"), ("/graph", "Context map"),
-             ("/surfaces", "UI surfaces")]
+             ("/screener", "Screener"), ("/surfaces", "UI surfaces")]
     out = ['<nav class="rail"><div class="brand"><b>MONAD research</b>'
            '<span>one server · one token system</span></div>']
     out.append("<h4>Views</h4>")
@@ -1360,6 +1389,14 @@ def page_overview(mounts):
                 "<a href=\"/node/F211\">F211</a> (range dot plot). "
                 "<a href=\"/web?sort=renderings\">Browse all nodes by how many renderings "
                 "they support</a>.</p>")
+    body.append("<h2>The screener</h2>")
+    body.append('<p><a href="/screener">Low P/E, high growth</a> over the S&amp;P 500, '
+                'with Bloomberg and Reddit tone in their own columns rather than folded '
+                'into the rank. It renders a snapshot written by '
+                '<code>tools/screener_lab.py</code> — the page never fetches, and every '
+                'source states whether it was live when the snapshot was built, which '
+                'path produced it, and what it missed. A ticker nothing was written '
+                'about reads <em>no coverage</em>, never 0.00.</p>')
     body.append("<h2>Node kinds</h2><div class=\"stats\">")
     for letter, name in (("F", "Findings"), ("H", "Hypotheses"), ("E", "Experiments"),
                          ("D", "Gates")):
@@ -1491,6 +1528,456 @@ def page_web(mounts, query):
     return page("Research web", "/web", "".join(body), mounts, "browse")
 
 
+# ── the screener ─────────────────────────────────────────────────────────────
+# This page RENDERS a snapshot; it never fetches. Screening the S&P 500 is ~500 vendor
+# round-trips, and this server answers requests synchronously on one thread — a page
+# that fetched would hang every other view behind it for minutes. `screener_lab refresh`
+# writes the snapshot; the page shows its age and says so when it is missing.
+_STATE_SEV = {screener_lab.LIVE: "good", screener_lab.DEGRADED: "warning",
+              screener_lab.UNAVAILABLE: "critical"}
+_STATE_WORD = {screener_lab.LIVE: "live", screener_lab.DEGRADED: "partial",
+               screener_lab.UNAVAILABLE: "off"}
+
+
+def _num(value, spec="{:.2f}"):
+    """A number, or an em-dash that is NOT a zero. Used for every numeric cell here."""
+    return '<span class="muted-cell">—</span>' if value is None else esc(spec.format(value))
+
+
+def _tone_cell(row, source):
+    """The three states a sentiment cell can be in, drawn so they cannot be confused.
+
+    A screener that prints 0.00 for "nobody wrote about it", 0.00 for "the articles
+    carried no tone words", and 0.00 for "praise and criticism cancelled" has thrown
+    away the reader's most important distinction and kept the least important one. Each
+    gets its own mark here, and only the third is a number.
+    """
+    tone = row.get(source + "_tone")
+    coverage = row.get(source + "_coverage", 0) or 0
+    if tone is None and not coverage:
+        return ('<td><span class="chip" title="No document from this source mentioned '
+                'this ticker in the fetched window. This is missing data, not a '
+                'neutral reading.">no coverage</span></td>')
+    if tone is None:
+        return ('<td><span class="chip warning"><span class="dot"></span>untoned</span>'
+                '<br><span class="muted-cell">{} item(s), no tone word</span></td>'
+                .format(coverage))
+    sev = "good" if tone > 0.15 else ("critical" if tone < -0.15 else "neutral")
+    docs = row.get(source + "_docs") or []
+    tip = " · ".join("[{}] {}".format(d.get("rule", "?"), d.get("title", ""))
+                     for d in docs[:4]) or "no titles recorded"
+    # The match rule is printed, not just hovered. It is the reader's only handle on
+    # the residual false-positive class — a one-word company name ("Booking Holdings"
+    # → `booking`) can still collect an article about booking profits, and a `name`
+    # match is the one worth a second look. Hiding that behind a tooltip puts the
+    # weakest evidence and the strongest on the same footing.
+    rules = sorted({d.get("rule", "?") for d in docs})
+    return ('<td><span class="chip {sev}" title="{tip}"><span class="dot"></span>'
+            '{v:+.2f}</span><br><span class="muted-cell">{n} of {c} toned · via {r}'
+            '</span></td>').format(sev=sev, tip=esc(tip), v=tone,
+                                   n=row.get(source + "_toned", 0), c=coverage,
+                                   r=esc("/".join(rules) or "?"))
+
+
+def _score_cell(score):
+    """The composite rank as a number AND a length.
+
+    The table is sorted on this column, and 0.943 beside 0.929 does not read as an
+    ordering at a glance — the eye has to parse two decimals per row to see the shape
+    of the ranking. The bar is redundant encoding of a value already present, which is
+    the safe kind: it adds no claim.
+    """
+    if score is None:
+        return '<span class="muted-cell">—</span>'
+    return ('{v:.3f}<span class="bar" style="width:{w:.0f}%"></span>'.format(
+        v=score, w=max(2.0, min(1.0, score) * 100)))
+
+
+def _growth_flag_chip(row):
+    """The flag that says the printed growth figure is not the one that ranked the row.
+
+    Drawn IN the growth cell rather than in a column of its own, because the whole
+    point is that the number beside it cannot be read at face value — a flag one column
+    away gets skimmed past.
+    """
+    flag = row.get("growth_flag")
+    if not flag:
+        return ""
+    return ('<br><span class="chip warning" title="{}"><span class="dot"></span>{}'
+            '</span>').format(
+                esc("Ranked on: {}. Printed figure is the raw vendor blend.".format(
+                    row.get("growth_basis") or "unknown")), esc(flag))
+
+
+def _provider_panels(providers):
+    """One panel per source that is NOT fully live, in the `.absent` style the node view
+    uses. Listing them as a row of chips alone was not enough — the remedy is the part
+    a reader needs, and a chip has no room for it."""
+    out = []
+    for provider in providers:
+        if provider.is_live:
+            continue
+        out.append(
+            '<figure class="panel absent"><figcaption>'
+            '<h3>{label} — {word}</h3><p class="why">{detail}</p></figcaption>'
+            '{remedy}</figure>'.format(
+                label=esc(provider.label), word=esc(_STATE_WORD.get(provider.state, "?")),
+                detail=esc(provider.detail),
+                remedy=('<dl class="notes"><div><dt>To enable</dt><dd>{}</dd></div></dl>'
+                        .format(esc(provider.remedy)) if provider.remedy else "")))
+    return "".join(out)
+
+
+def _screener_scatter(rows, source):
+    """P/E against growth for the rows that passed — the screen's own two axes.
+
+    Points are filled by composite rank on the one ordinal ramp, and a point whose
+    ticker HAS a tone reading carries a ring. Ring rather than a second hue because the
+    fill already spends the ramp on rank; adding a colour would make two variables
+    compete for one channel.
+    """
+    # The y-axis plots `growth_ranked`, NOT the printed blend. Two attempts got this
+    # wrong before it was looked at: the raw blend put Aflac's 1832% base-effect print
+    # at the top and smeared every other row along the floor, and clipping at the 95th
+    # percentile barely helped, because with ~36 passing rows the base-effect prints ARE
+    # the tail (95th pct = 1111%). The screen already decided those figures are not
+    # growth — it ranks them on revenue instead — so charting the number the screen
+    # itself distrusts was the error. Plotting what actually ranked the row bounds the
+    # axis at the 100% cap for free, and the raw print stays one hover away.
+    points = [r for r in rows
+              if r.get("pe_used") and r.get("growth_ranked") is not None]
+    if len(points) < 3:
+        return ('<p class="why">Fewer than three rows carry both a P/E and a growth '
+                'figure, so there is no cloud to draw. The table below is the whole '
+                'result.</p>')
+    W, H, L, R, T, B = 1040, 400, 58, 18, 22, 48
+
+    def clip_at(values, quantile=0.95):
+        """The frame edge, at a quantile — never at the extreme.
+
+        Only the x-axis got this treatment at first, and the y-axis paid for it: Aflac's
+        1832% base-effect print set the top of the scale, so every other row — the
+        entire population the screen is about — was crushed into the bottom eighth of
+        the plot and the chart showed one outlier and a horizontal smear. Both axes are
+        framed on the bulk now, and anything outside is drawn ON the edge with a marker
+        rather than dropped, because a removed outlier is an invisible edit to the
+        population being shown.
+        """
+        ordered = sorted(values)
+        return ordered[min(len(ordered) - 1, int(len(ordered) * quantile))]
+
+    pes = [r["pe_used"] for r in points]
+    growths = [r["growth_ranked"] for r in points]
+    x_max = max(clip_at(pes), 1e-6)
+    y_hi = clip_at(growths)
+    y_lo = min(min(growths), 0.0)
+    if y_hi <= y_lo:
+        y_hi = y_lo + 1e-6
+    y_span = y_hi - y_lo
+    sx = lambda v: L + min(v, x_max) / x_max * (W - L - R)
+    sy = lambda v: H - B - (min(max(v, y_lo), y_hi) - y_lo) / y_span * (H - T - B)
+    parts = []
+    # Gridlines first, so marks sit on top of them.
+    for fraction in (0.25, 0.5, 0.75, 1.0):
+        gy = H - B - fraction * (H - T - B)
+        parts.append('<line x1="{}" y1="{y:.1f}" x2="{}" y2="{y:.1f}" '
+                     'stroke="var(--rule)"/>'.format(L, W - R, y=gy))
+        parts.append(_txt(L - 8, gy + 3.5, "{:.0%}".format(y_lo + fraction * y_span),
+                          10, "var(--ink-muted)", anchor="end"))
+    parts.append('<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="var(--axis)"/>'.format(
+        L, H - B, W - R, H - B))
+    parts.append('<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="var(--axis)"/>'.format(
+        L, T, L, H - B))
+    if y_lo < 0 < y_hi:
+        parts.append('<line x1="{}" y1="{y:.1f}" x2="{}" y2="{y:.1f}" '
+                     'stroke="var(--axis)" stroke-dasharray="3,3"/>'.format(
+                         L, W - R, y=sy(0)))
+        parts.append(_txt(W - R - 4, sy(0) - 5, "no growth", 9.5, "var(--ink-muted)",
+                          anchor="end"))
+    for fraction in (0, 0.25, 0.5, 0.75, 1.0):
+        x = L + fraction * (W - L - R)
+        parts.append(_txt(x, H - B + 16, "{:.0f}".format(x_max * fraction), 10,
+                          "var(--ink-muted)", anchor="middle"))
+    parts.append(_txt((L + W - R) / 2, H - B + 32, "trailing P/E  →  cheaper is left",
+                      10, "var(--ink-muted)", anchor="middle"))
+    parts.append(_txt(-(T + H - B) / 2, 14, "growth used for ranking  →  faster is up", 10,
+                      "var(--ink-muted)", anchor="middle",
+                      extra='transform="rotate(-90)"'))
+    off_x = off_y = 0
+    for row in sorted(points, key=lambda r: r.get("screen_score") or 0):
+        x, y = sx(row["pe_used"]), sy(row["growth_ranked"])
+        score = row.get("screen_score") or 0
+        fill = "var(--ord-{})".format(1 + min(3, int(score * 4)))
+        toned = row.get(source + "_tone") is not None
+        clipped_x = row["pe_used"] > x_max
+        clipped_y = row["growth_ranked"] > y_hi
+        off_x += clipped_x
+        off_y += clipped_y
+        note = ""
+        if clipped_x or clipped_y:
+            note = " — off-scale, drawn on the edge"
+        # Slight transparency so the dense cheap-and-flat corner reads as dense rather
+        # than as one blob; the ring on toned points still reads through it.
+        parts.append(
+            '<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{f}" fill-opacity="0.82" '
+            'stroke="{s}" stroke-width="{sw}"><title>{t}</title></circle>'.format(
+                x=x, y=y, r=6.5 if toned else 5, f=fill,
+                s="var(--ink)" if toned else "var(--surface)", sw=1.7 if toned else 1,
+                t=esc("{} — P/E {:.1f}, plotted at {:.1%} ({}); printed growth "
+                      "{:.1%}{}".format(
+                          row["ticker"], row["pe_used"], row["growth_ranked"],
+                          row.get("growth_basis") or "blend", row["growth_blend"],
+                          note))))
+        if clipped_x:
+            parts.append('<path d="M{:.1f},{:.1f} l7,-4.5 l0,9 Z" '
+                         'fill="var(--serious)"/>'.format(x + 7, y))
+        if clipped_y:
+            parts.append('<path d="M{:.1f},{:.1f} l-4.5,7 l9,0 Z" '
+                         'fill="var(--serious)"/>'.format(x, y - 7))
+    for row in sorted(points, key=lambda r: -(r.get("screen_score") or 0))[:10]:
+        parts.append(_txt(sx(row["pe_used"]) + 9, sy(row["growth_ranked"]) - 8,
+                          row["ticker"], 10, "var(--ink-2)", weight="600"))
+    legend = ("filled by composite rank, pale = weaker · ringed = has a {} tone reading"
+              .format(source))
+    if off_x or off_y:
+        legend += " · {} off-scale, drawn on the edge with a marker".format(off_x + off_y)
+    parts.append(_txt(L, H - 8, legend, 10, "var(--ink-muted)"))
+    return _svg(W, H, "".join(parts), "P/E against growth for the passing rows", "wide")
+
+
+def page_screener(mounts, query):
+    snapshot = screener_lab.load_snapshot()
+    body = ["<h1>Low P/E, high growth — with sentiment kept in its own column</h1>"]
+    if snapshot is None:
+        body.append(
+            '<figure class="panel absent"><figcaption><h3>No snapshot yet</h3>'
+            '<p class="why">This page renders a snapshot written by the lab; it never '
+            'fetches during a request, because screening the S&amp;P 500 is roughly '
+            '500 vendor round-trips and this server answers on one thread.</p>'
+            '</figcaption><dl class="notes"><div><dt>Build one</dt>'
+            '<dd><code>{}</code></dd></div><div><dt>Takes</dt><dd>about 0.4s per '
+            'ticker, so ~50s for the default 120</dd></div></dl></figure>'.format(
+                esc(screener_lab.REFRESH_CMD + " --limit 120")))
+        return page("Screener", "/screener", "".join(body), mounts, "screen")
+
+    providers = screener_lab.providers_from_snapshot(snapshot)
+    source = query.get("source") or "bloomberg"
+    if source not in ("bloomberg", "reddit"):
+        source = "bloomberg"
+
+    def number(key, default=None):
+        raw = (query.get(key) or "").strip()
+        if not raw:
+            return default
+        try:
+            return float(raw)
+        except ValueError:
+            return default
+
+    max_pe = number("max_pe")
+    min_growth = number("min_growth")
+    weight = min(1.0, max(0.0, number("weight", 0.0) or 0.0))
+    sector = (query.get("sector") or "").strip()
+    ranked, excluded = screener_lab.screen(
+        snapshot["rows"], max_pe=max_pe, min_growth=min_growth, sector=sector or None,
+        sentiment_weight=weight, sentiment_source=source)
+    _delta, age = screener_lab.snapshot_age(snapshot)
+    covered = sum(1 for r in ranked if r.get(source + "_tone") is not None)
+
+    body.append(
+        '<p class="lede">Two of these columns are measured and two are read from text, '
+        'and they are not the same kind of fact. P/E and growth come from the vendor '
+        'record; tone is a weighted finance lexicon over named documents — no model, '
+        'every score decomposable into the words that produced it. Tone does not enter '
+        'the ranking unless you give it a weight below.</p>')
+
+    body.append('<div class="stats">')
+    body.append(_stat(snapshot.get("screened", 0), "tickers in snapshot"))
+    body.append(_stat(len(ranked), "pass the filters"))
+    body.append(_stat(len(excluded), "excluded"))
+    body.append(_stat("{}/{}".format(covered, len(ranked)) if ranked else "0",
+                      "have {} tone".format(source)))
+    body.append(_stat(age, "snapshot age"))
+    body.append("</div>")
+
+    body.append("<h2>Where each column comes from</h2>")
+    body.append('<div class="scroller"><table><thead><tr><th>Source</th><th>State</th>'
+                '<th class="num">Items</th><th>What it is</th></tr></thead><tbody>')
+    for provider in providers:
+        sev = _STATE_SEV.get(provider.state, "neutral")
+        # The one-line headline, NOT `detail`. Printing detail here put the same
+        # paragraph in the table and again in the panel below it — the same fact on two
+        # paths, on one screen, in the server whose whole subject is that defect.
+        body.append(
+            '<tr><td class="sev {sev}">{label}</td>'
+            '<td><span class="chip {sev}"><span class="dot"></span>{word}</span></td>'
+            '<td class="num">{n}</td><td>{headline}</td></tr>'.format(
+                sev=sev, label=esc(provider.label),
+                word=esc(_STATE_WORD.get(provider.state, "?")),
+                n=provider.documents or 0, headline=esc(provider.headline)))
+    body.append("</tbody></table></div>")
+    body.append(_provider_panels(providers))
+
+    sectors = sorted({(r.get("sector") or "") for r in snapshot["rows"]} - {""})
+    body.append('<form class="filters" method="get" action="/screener">')
+    body.append('<label class="field"><span>Max P/E</span>'
+                '<input type="text" name="max_pe" placeholder="any" size="7" '
+                'value="{}"></label>'.format(esc(query.get("max_pe") or "")))
+    body.append('<label class="field"><span>Min growth</span>'
+                '<input type="text" name="min_growth" placeholder="e.g. 0.15" size="9" '
+                'value="{}"></label>'.format(esc(query.get("min_growth") or "")))
+    body.append('<label class="field"><span>Sector</span>'
+                '<select name="sector"><option value="">every sector</option>')
+    for name in sectors:
+        body.append('<option value="{v}"{s}>{v}</option>'.format(
+            v=esc(name), s=" selected" if sector == name else ""))
+    body.append("</select></label>")
+    body.append('<label class="field"><span>Tone source</span><select name="source">')
+    for key, label in (("bloomberg", "Bloomberg"), ("reddit", "Reddit")):
+        body.append('<option value="{k}"{s}>{l}</option>'.format(
+            k=key, l=label, s=" selected" if source == key else ""))
+    body.append("</select></label>")
+    body.append('<label class="field"><span>Tone in rank</span><select name="weight">')
+    for value, label in ((0.0, "display only"), (0.2, "20% of rank"),
+                         (0.35, "35% of rank")):
+        body.append('<option value="{v}"{s}>{l}</option>'.format(
+            v=value, l=label, s=" selected" if abs(weight - value) < 1e-9 else ""))
+    body.append("</select></label>")
+    body.append('<button type="submit">Screen</button>')
+    body.append('<a href="/screener" class="chip" style="height:30px">reset</a>')
+    body.append('<span class="count">{} of {} pass</span></form>'.format(
+        len(ranked), snapshot.get("screened", 0)))
+
+    if weight:
+        body.append('<p class="why">Tone is carrying <b>{:.0%}</b> of the ranking. Rows '
+                    'with no {} coverage keep their value+growth score unchanged rather '
+                    'than being scored as neutral — so they are neither rewarded nor '
+                    'punished for an absence, and the "blend" column says which.</p>'
+                    .format(weight, source))
+
+    body.append('<figure class="panel"><figcaption><h3>The screen\'s two axes</h3>'
+                '<p class="why">Cheapness runs left, growth runs up — so the top-left '
+                'corner is the screen\'s thesis and everything else is a trade-off '
+                'against it.</p></figcaption>{}</figure>'.format(
+                    _screener_scatter(ranked, source)))
+
+    body.append("<h2>Results</h2>")
+    if not ranked:
+        body.append('<figure class="panel absent"><figcaption><h3>Nothing passed</h3>'
+                    '<p class="why">Every row was excluded. The breakdown below says '
+                    'by what — if it is mostly “vendor supplied no …”, that is a data '
+                    'gap rather than a verdict on the market.</p></figcaption></figure>')
+    else:
+        body.append('<div class="scroller"><table class="sticky"><thead><tr>'
+                    '<th class="num">#</th>'
+                    '<th>Ticker</th><th class="num">P/E</th><th class="num">Fwd P/E</th>'
+                    '<th class="num">Growth</th><th class="num">P/E÷growth</th>'
+                    '<th class="num">Score</th><th>{} tone</th><th>Sector</th>'
+                    '</tr></thead><tbody>'.format(esc(source)))
+        for row in ranked[:250]:
+            score = row.get("blended_score") or row.get("screen_score") or 0
+            sev = "good" if score >= 0.66 else ("neutral" if score >= 0.4 else "warning")
+            body.append(
+                '<tr><td class="num">{rank}</td>'
+                '<td class="sev {sev}"><code>{tk}</code><br>'
+                '<span class="muted-cell">{name}</span></td>'
+                '<td class="num">{pe}</td><td class="num">{fpe}</td>'
+                '<td class="num">{g}{flag}</td><td class="num">{peg}</td>'
+                '<td class="num">{sc}</td>{tone}<td>{sector}</td></tr>'.format(
+                    rank=row.get("rank", "—"), sev=sev, tk=esc(row["ticker"]),
+                    name=esc((row.get("name") or "")[:34]),
+                    pe=_num(row.get("pe_used")), fpe=_num(row.get("forward_pe")),
+                    g=_num(row.get("growth_blend"), "{:.1%}"),
+                    flag=_growth_flag_chip(row),
+                    peg=_num(row.get("pe_to_growth"), "{:.2f}"),
+                    sc=_score_cell(score), tone=_tone_cell(row, source),
+                    sector=esc(row.get("sector") or "—")))
+        body.append("</tbody></table></div>")
+        if len(ranked) > 250:
+            body.append("<p>{} further rows not shown — tighten the filters.</p>".format(
+                len(ranked) - 250))
+
+    body.append("<h2>What the screen removed, and why</h2>")
+    body.append('<p class="why">Shown because a list of survivors with no account of '
+                'the rejects invites the reader to assume they failed the stated '
+                'filters — usually most of them failed on a missing vendor field, '
+                'which is a different fact.</p>')
+    body.append('<div class="scroller"><table><thead><tr><th class="num">Rows</th>'
+                '<th>Reason</th></tr></thead><tbody>')
+    for reason, count in screener_lab.exclusion_summary(excluded):
+        sev = "warning" if reason.startswith("vendor") or reason.startswith("negative") \
+            else "neutral"
+        body.append('<tr><td class="num">{}</td><td class="sev {}">{}</td></tr>'.format(
+            count, sev, esc(reason)))
+    if not excluded:
+        body.append('<tr><td class="num">0</td><td>nothing was excluded</td></tr>')
+    body.append("</tbody></table></div>")
+
+    flagged = [r for r in ranked if r.get("growth_flag")]
+    if flagged:
+        body.append("<h2>Why “growth” needed a flag</h2>")
+        body.append(
+            '<p class="why">{n} of the {t} passing rows print a growth figure that did '
+            '<b>not</b> rank them. Running this screen on real vendor data put Aflac on '
+            'top at “2434% growth” — earnings off a depressed base quarter, on 27.9% '
+            'revenue growth. Two corrections followed, and both are visible rather than '
+            'silent: <code>earningsGrowth</code> and <code>earningsQuarterlyGrowth</code> '
+            'are near-duplicates, so they are collapsed to one component before blending '
+            'with revenue (otherwise earnings outvotes revenue two to one); and a row '
+            'whose earnings moved while revenue did not is ranked on <b>revenue growth</b> '
+            'instead, which is the component still worth trusting. Hover a flag for the '
+            'basis used.</p>'.format(n=len(flagged), t=len(ranked)))
+        body.append('<div class="scroller"><table><thead><tr><th>Ticker</th>'
+                    '<th class="num">Printed growth</th><th class="num">Revenue growth</th>'
+                    '<th>Flag</th><th>Ranked on</th></tr></thead><tbody>')
+        for row in flagged[:40]:
+            body.append(
+                '<tr><td class="sev warning"><code>{tk}</code></td>'
+                '<td class="num">{g}</td><td class="num">{rev}</td>'
+                '<td>{flag}</td><td>{basis}</td></tr>'.format(
+                    tk=esc(row["ticker"]),
+                    g=_num(row.get("growth_blend"), "{:.1%}"),
+                    rev=_num(row.get("revenue_growth"), "{:.1%}"),
+                    flag=esc(row.get("growth_flag") or ""),
+                    basis=esc(row.get("growth_basis") or "")))
+        body.append("</tbody></table></div>")
+
+    body.append("<h2>How tone is computed</h2>")
+    body.append('<p>A weighted finance lexicon of {} terms, with a {}-token negation '
+                'window ("not a strong quarter" scores negative) and bounded '
+                'intensifiers. No model — the constraint that governs the strategy '
+                '(explainability) governs this too. Decompose any score from the '
+                'command line:</p>'.format(len(screener_lab.LEXICON),
+                                           screener_lab.NEGATION_WINDOW))
+    body.append('<p><code>venv/bin/python tools/screener_lab.py tone "Pfizer raises '
+                'guidance on strong demand"</code></p>')
+    body.append('<p class="why">A document matches a ticker by cashtag ($NVDA), by an '
+                'exact-case symbol token, or by ALL of the distinctive tokens in its '
+                'company name — conjunctive, because matching on one token alone scored '
+                'three articles about an Attorney General as General Motors coverage, '
+                'and a salmonella story as CVS Health. Each cell prints the rule that '
+                'caught it; hover for the headlines. A <code>name</code> match is the '
+                'one worth a second look — a company whose name reduces to a single '
+                'ordinary word ("Booking Holdings" → <code>booking</code>) can still '
+                'collect an article about booking profits. The cost of the strictness '
+                'is recall: "Ford" alone no longer reaches Ford Motor Co., which shows '
+                'as no coverage rather than as a guess.</p>')
+    body.append('<p class="why">A document naming more than {} of the screened tickers '
+                'is dropped from tone entirely. One r/stocks post — “Need help '
+                'consolidating my stock list” — named 18 of them, and every one had '
+                'inherited its +0.50. Those mentions were all <em>correct</em>, which '
+                'is what made it worse than a false positive: there was no wrong match '
+                'to find, only a right match carrying an attribution it could not '
+                'support. Each source reports above how many of its documents this '
+                'removed.</p>'.format(screener_lab.MAX_TICKERS_PER_DOC))
+    body.append('<footer style="border:0;margin-top:8px;padding:0">Snapshot built '
+                '{built} · refresh with <code>{cmd}</code></footer>'.format(
+                    built=esc(snapshot.get("built_at", "?")),
+                    cmd=esc(snapshot.get("refresh_command",
+                                         screener_lab.REFRESH_CMD))))
+    return page("Screener", "/screener", "".join(body), mounts, "screen")
+
+
 def page_node(nid, mounts):
     nctx = node_context(nid)
     if nctx is None:
@@ -1597,6 +2084,25 @@ def route(path, query, opts):
         return 200, page_surfaces(mounts), HTML
     if path == "/web":
         return 200, page_web(mounts, query), HTML
+    if path == "/screener":
+        return 200, page_screener(mounts, query), HTML
+    if path == "/api/screener":
+        snapshot = screener_lab.load_snapshot()
+        if snapshot is None:
+            return 503, json.dumps({
+                "error": "no snapshot",
+                "remedy": screener_lab.REFRESH_CMD}, indent=2), JSONC
+        ranked, excluded = screener_lab.screen(
+            snapshot["rows"],
+            max_pe=float(query["max_pe"]) if query.get("max_pe") else None,
+            min_growth=float(query["min_growth"]) if query.get("min_growth") else None,
+            sector=query.get("sector") or None)
+        return 200, json.dumps({
+            "built_at": snapshot.get("built_at"),
+            "providers": snapshot.get("providers", []),
+            "passing": ranked,
+            "excluded": [{"ticker": r["ticker"], "reason": why} for r, why in excluded],
+        }, indent=2, sort_keys=True, default=str), JSONC
     if path == "/api/surfaces":
         return 200, json.dumps(surface_census(), indent=2, sort_keys=True), JSONC
     if path.startswith("/node/") or path.startswith("/api/node/"):
@@ -1621,7 +2127,8 @@ def route(path, query, opts):
                 return (503, "{} is not mounted — restart with --{}=PATH\n".format(
                     href, attr.replace("_", "-")), TEXT)
             return fn(db, path if not query else path + "?" + _unparse(query))
-    return 404, "not found — try / (overview), /web, /node/F230, /surfaces\n", TEXT
+    return 404, ("not found — try / (overview), /web, /node/F230, /screener, "
+                 "/surfaces\n"), TEXT
 
 
 def _unparse(query):

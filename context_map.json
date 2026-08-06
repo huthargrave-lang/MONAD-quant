@@ -483,6 +483,7 @@
         "tools/research_event_ledger.py",
         "tools/research_ui.py",
         "tools/return_convention_lab.py",
+        "tools/screener_lab.py",
         "tools/sec_action_chain_join_lab.py",
         "tools/sec_announce_cohort_lab.py",
         "tools/sec_announce_population_lab.py",
@@ -521,7 +522,8 @@
         "tests/test_web_integrity.py",
         "tests/test_research_ui.py",
         "tests/test_f7_band_geometry.py",
-        "tests/test_web_link_escaping.py"
+        "tests/test_web_link_escaping.py",
+        "tests/test_screener_lab.py"
       ],
       "docs": [
         "docs/research/README.md",
@@ -535,7 +537,8 @@
         "docs/research/UI_surface_unification.md",
         "docs/research/F7_band_geometry_and_search.md",
         "docs/research/F186_staleness_detector_revalidated.md",
-        "docs/research/F185_narrative_traversal_rederived.md"
+        "docs/research/F185_narrative_traversal_rederived.md",
+        "docs/research/SCREENER_value_growth_sentiment.md"
       ],
       "do_not_touch_without_approval": false
     },
