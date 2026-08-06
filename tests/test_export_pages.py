@@ -50,9 +50,13 @@ class ExportTests(unittest.TestCase):
             self.assertEqual(re.findall(r'href="/[^"]*"', text), [], name)
 
     def test_preset_buttons_link_the_static_files(self):
-        text = self.pages["index.html"]
+        text = self.pages["screen-low_pe_high_growth.html"]
         for key in sc.PRESETS:
             self.assertIn('href="screen-{}.html"'.format(key), text)
+
+    def test_the_index_is_the_chaos_screener(self):
+        self.assertIn("bucketGrid", self.pages["index.html"])
+        self.assertIn("Mock prices", self.pages["index.html"])   # demo data stays labeled
 
     def test_the_footer_tells_the_truth_about_being_a_snapshot(self):
         for name, text in self.pages.items():
@@ -75,7 +79,8 @@ class ExportTests(unittest.TestCase):
 
     def test_missing_snapshot_exports_the_absence_panel_not_an_empty_table(self):
         if sc.load_snapshot() is None:
-            self.assertIn("No snapshot fetched", self.pages["index.html"])
+            self.assertIn("No snapshot fetched",
+                          self.pages["screen-low_pe_high_growth.html"])
 
 
 class WorkflowTests(unittest.TestCase):

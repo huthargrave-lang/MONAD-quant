@@ -8,8 +8,9 @@ mounts, an unhardened stdlib http.server) for zero freshness gain. A static expo
 no process to exploit and nothing private on the box, because there is no box.
 
 What is exported (deliberately narrow):
-  * index.html                 — the stock screener, default preset
-  * screen-<preset>.html       — one page per screener preset (buttons become links)
+  * index.html                 — the chaos-bucket screener (fully client-side, so the
+                                 interactive mock-derived page works as a static file)
+  * screen-<preset>.html       — one page per fundamental lens (buttons become links)
   * map.html                   — the self-contained interactive context map
   * static/ui.css              — the shared palette, same path shape the server uses
 
@@ -55,7 +56,8 @@ def _static_nav():
     return ('<nav class="rail"><div class="brand"><b>MONAD research</b>'
             '<span>static snapshot · GitHub Pages</span></div>'
             '<h4>Views</h4>'
-            '<a class="on" href="index.html">Stock screener</a>'
+            '<a class="on" href="index.html">Chaos screener</a>'
+            '<a href="screen-low_pe_high_growth.html">Fundamental lenses</a>'
             '<a href="map.html">Context map</a>'
             '<h4>Source</h4>'
             '<a href="{u}">GitHub repository</a></nav>').format(u=REPO_URL)
@@ -65,8 +67,9 @@ def _staticise(html, built):
     """Server page → static page: relative links, static rail, honest footer."""
     html = html.replace('href="/static/ui.css"', 'href="static/ui.css"')
     for key in stock_screener.PRESETS:
-        html = html.replace('href="/screen?preset={}"'.format(key),
+        html = html.replace('href="/lenses?preset={}"'.format(key),
                             'href="screen-{}.html"'.format(key))
+    html = html.replace('href="/lenses"', 'href="screen-low_pe_high_growth.html"')
     html = html.replace('href="/screen"', 'href="index.html"')
     html = _NAV.sub(_static_nav(), html, count=1)
     # The server footer's claim ("rendered … at request time") would be FALSE here.
@@ -87,7 +90,7 @@ def export(out_dir):
 
     write(os.path.join("static", "ui.css"), research_ui.UI_CSS)
     for key in stock_screener.PRESETS:
-        code, body, _ct = research_ui.route("/screen", {"preset": key}, {})
+        code, body, _ct = research_ui.route("/lenses", {"preset": key}, {})
         assert code == 200, key
         write("screen-{}.html".format(key), _staticise(body, built))
     code, body, _ct = research_ui.route("/screen", {}, {})

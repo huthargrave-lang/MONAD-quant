@@ -182,19 +182,19 @@ class ScreenPageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             with mock.patch.object(sc, "SNAPSHOT_PATH",
                                    os.path.join(td, "none.json")):
-                code, body, _ct = self.ru.route("/screen", {}, {})
+                code, body, _ct = self.ru.route("/lenses", {}, {})
         self.assertEqual(code, 200)
         self.assertIn("No snapshot fetched", body)
         self.assertIn("stock_screener.py fetch", body)
 
     def test_every_preset_button_is_on_the_page(self):
-        code, body, _ct = self.ru.route("/screen", {}, {})
+        code, body, _ct = self.ru.route("/lenses", {}, {})
         self.assertEqual(code, 200)
         for key, preset in sc.PRESETS.items():
-            self.assertIn('href="/screen?preset={}"'.format(key), body)
+            self.assertIn('href="/lenses?preset={}"'.format(key), body)
 
     def test_an_unknown_preset_falls_back_rather_than_erroring(self):
-        code, _body, _ct = self.ru.route("/screen", {"preset": "nope"}, {})
+        code, _body, _ct = self.ru.route("/lenses", {"preset": "nope"}, {})
         self.assertEqual(code, 200)
 
     def test_a_populated_snapshot_draws_matches_in_accent_over_muted_context(self):
@@ -211,7 +211,7 @@ class ScreenPageTests(unittest.TestCase):
                 json.dump({"as_of": "TEST", "source": "synthetic", "rows": rows}, fh)
             with mock.patch.object(sc, "SNAPSHOT_PATH", path):
                 code, body, _ct = self.ru.route(
-                    "/screen", {"preset": "low_pe_high_growth"}, {})
+                    "/lenses", {"preset": "low_pe_high_growth"}, {})
         self.assertEqual(code, 200)
         self.assertEqual(body.count('fill="var(--accent)"'), 2)     # AAA, CCC
         self.assertEqual(body.count('fill="var(--axis)"'), 2)       # BBB, DDD muted
