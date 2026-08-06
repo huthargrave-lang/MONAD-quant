@@ -169,7 +169,7 @@ tbody tr:hover{background:var(--plane)}
 .count{font-family:var(--mono);font-size:12px;color:var(--ink-muted);margin-left:auto}
 /* ── sovereign screener (ported from docs/research/SOVEREIGN_LEDGER_OPTIONS_MOCK.html;
      every colour stays a token — the mock's one literal hex became var(--ink-on-4)) ── */
-.filters.controls{align-items:flex-end}
+.filters.controls{align-items:flex-end;justify-content:center}
 .filters label{display:flex;flex-direction:column;gap:4px;font-size:10.5px;letter-spacing:.08em;
   text-transform:uppercase;color:var(--ink-muted)}
 .filters button.primary{background:var(--accent);color:var(--ink-on-4);border-color:var(--accent)}
@@ -198,8 +198,8 @@ tbody tr:hover{background:var(--plane)}
 .chart-box svg{width:100%;height:100%;display:block}
 .spark{width:80px;height:26px;display:block}
 .up{color:var(--good)} .dn{color:var(--critical)}
-.legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
-.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+.legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;justify-content:center}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px;justify-content:center}
 .tabs button{font:13px var(--sans);height:28px;padding:0 10px;border:1px solid var(--rule);
   border-radius:6px;background:var(--surface);color:var(--ink);cursor:pointer}
 .tabs button.on{border-color:var(--accent)}
@@ -209,6 +209,30 @@ tbody tr:hover{background:var(--plane)}
 .tag{font-size:10px;font-family:var(--mono);color:var(--ink-muted)}
 .instr{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);line-height:1.45;word-break:break-word}
 tbody tr.on{background:var(--plane)}
+/* centered screener chrome */
+.screen-center{text-align:center;max-width:1040px;margin:0 auto}
+.screen-center .lede{margin-left:auto;margin-right:auto}
+.screen-center .note{text-align:left}
+.screen-center .panel{text-align:left}
+.screen-center .stats{max-width:640px;margin-left:auto;margin-right:auto}
+.screen-center .count{margin-left:0}
+.screen-center h1{text-align:center}
+.screen-center h2{text-align:center}
+.screen-center #shockHint{text-align:center}
+.screen-center .legend{justify-content:center}
+.view-toggle{display:inline-flex;gap:0;margin:0 auto 18px;border:1px solid var(--rule);
+  border-radius:9px;overflow:hidden;vertical-align:middle}
+.view-toggle a{padding:8px 20px;font:13px var(--sans);color:var(--ink-2);background:var(--surface);
+  border-right:1px solid var(--rule);text-decoration:none}
+.view-toggle a:last-child{border-right:0}
+.view-toggle a:hover{color:var(--ink);background:var(--plane);text-decoration:none}
+.view-toggle a.on{color:var(--ink);font-weight:600;background:var(--plane);
+  box-shadow:inset 0 -2px 0 var(--accent)}
+.screen-center .layout{margin-left:auto;margin-right:auto}
+.screen-center .tabs{justify-content:center}
+.screen-center .filters{justify-content:center}
+.screen-center .view-toggle{display:inline-flex}
+.screen-center > .view-toggle{display:flex;width:fit-content}
 .presets{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px}
 .presets a{font:13px var(--sans);line-height:28px;padding:0 12px;border:1px solid var(--rule);
   border-radius:999px;background:var(--surface);color:var(--ink-2)}
@@ -1342,7 +1366,7 @@ def applicable_keys(nctx):
 # ─────────────────────────────────────────────────────────────────────────────
 def _nav(active, mounts):
     items = [("/", "Overview"), ("/web", "Research web"), ("/screen", "Chaos screener"),
-             ("/screen/mock", "Sovereign HTML mock"),
+             ("/screener/buckets", "Buckets HTML"),
              ("/lenses", "Fundamental lenses"), ("/graph", "Context map"),
              ("/surfaces", "UI surfaces")]
     out = ['<nav class="rail"><div class="brand"><b>MONAD research</b>'
@@ -1754,14 +1778,20 @@ def page_screen(mounts, query):
 #: theme). Prices are still the mock's deterministic demo walks, said so on the page —
 #: the real feed is a future yfinance daily cache (Book III / handoff, not built yet).
 SOVEREIGN_SCREEN_BODY = """
+<div class="screen-center">
+  <div class="view-toggle" role="tablist" aria-label="Screener views">
+    <a class="on" href="/screen" aria-current="page">Screener</a>
+    <a href="/screener/buckets">Buckets</a>
+  </div>
+
 <h1>Chaos bucket screener</h1>
 <p class="lede">
   Pick a shock, clock, and buckets. Tickers are study objects — not live-bot signals.
   Buckets and Book I names come from the Sovereign Ledger
   (<code>docs/research/SOVEREIGN_LEDGER_CHAOS_BUCKETS_2026.md</code>); the
   <a href="/lenses">fundamental lenses</a> screen the same universe by P/E, yield and AI tags.
-  Standalone wireframe HTML (same content, self-contained):
-  <a href="/screen/mock"><code>/screen/mock</code></a>
+  Full buckets HTML wireframe:
+  <a href="/screener/buckets"><code>/screener/buckets</code></a>
   ← <code>docs/research/SOVEREIGN_LEDGER_OPTIONS_MOCK.html</code>.
 </p>
 
@@ -2248,6 +2278,7 @@ document.getElementById("topHeat").onclick=()=>{
 };
 renderAll();
 </script>
+</div>
 """
 
 
@@ -2347,6 +2378,17 @@ def _mount_state(opts):
     return [(href, label, bool(opts.get(attr))) for href, label, attr, _fn in MOUNTS]
 
 
+
+def _sovereign_buckets_html():
+    """Serve docs/research/SOVEREIGN_LEDGER_OPTIONS_MOCK.html at /screener/buckets."""
+    if not os.path.isfile(SOVEREIGN_MOCK_HTML):
+        return (404,
+                "missing docs/research/SOVEREIGN_LEDGER_OPTIONS_MOCK.html "
+                "in the working tree\n", TEXT)
+    with open(SOVEREIGN_MOCK_HTML, encoding="utf-8") as f:
+        return 200, f.read(), HTML
+
+
 def route(path, query, opts):
     """(status, body, content-type) for a GET. Pure over its arguments, so the whole
     route table is testable without binding a socket."""
@@ -2364,13 +2406,8 @@ def route(path, query, opts):
         return 200, page_web(mounts, query), HTML
     if path == "/screen":
         return 200, page_screen_sovereign(mounts), HTML
-    if path == "/screen/mock":
-        if not os.path.isfile(SOVEREIGN_MOCK_HTML):
-            return (404,
-                    "missing docs/research/SOVEREIGN_LEDGER_OPTIONS_MOCK.html "
-                    "in the working tree\n", TEXT)
-        with open(SOVEREIGN_MOCK_HTML, encoding="utf-8") as f:
-            return 200, f.read(), HTML
+    if path in ("/screener/buckets", "/screen/mock"):
+        return _sovereign_buckets_html()
     if path == "/screener":
         # Old fundamental-screener path — lenses live here now; chaos is /screen.
         return (200,
@@ -2378,8 +2415,8 @@ def route(path, query, opts):
                 '<title>moved</title><link rel="stylesheet" href="/static/ui.css">'
                 '</head><body style="font:15px var(--sans);padding:40px">'
                 '<h1>That path moved</h1>'
-                '<p>Chaos / Sovereign Ledger: <a href="/screen">/screen</a></p>'
-                '<p>Standalone HTML mock: <a href="/screen/mock">/screen/mock</a></p>'
+                '<p>Chaos / Sovereign Ledger screener: <a href="/screen">/screen</a></p>'
+                '<p>Buckets HTML: <a href="/screener/buckets">/screener/buckets</a></p>'
                 '<p>Fundamental lenses: <a href="/lenses">/lenses</a></p>'
                 '</body></html>',
                 HTML)
@@ -2423,7 +2460,7 @@ def route(path, query, opts):
                     href, attr.replace("_", "-")), TEXT)
             return fn(db, path if not query else path + "?" + _unparse(query))
     return (404,
-            "not found — try / (overview), /web, /screen, /screen/mock, "
+            "not found — try / (overview), /web, /screen, /screener/buckets, "
             "/lenses, /node/F230, /surfaces\n", TEXT)
 
 

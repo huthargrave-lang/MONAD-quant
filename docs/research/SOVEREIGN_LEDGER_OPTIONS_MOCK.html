@@ -141,6 +141,25 @@ footer{margin-top:44px;padding-top:14px;border-top:1px solid var(--rule);font-si
   border:1px solid var(--rule);border-radius:6px;background:var(--plane);color:var(--ink);cursor:pointer}
 .tag{font-size:10px;font-family:var(--mono);color:var(--ink-muted)}
 .instr{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);line-height:1.45;word-break:break-word}
+
+/* centered chrome + Screener/Buckets toggle */
+.screen-center{text-align:center;max-width:1040px;margin:0 auto}
+.screen-center .lede{margin-left:auto;margin-right:auto}
+.screen-center .note{text-align:left}
+.screen-center .panel{text-align:left}
+.screen-center .stats{max-width:640px;margin-left:auto;margin-right:auto}
+.screen-center .legend{justify-content:center}
+.screen-center .tabs{justify-content:center}
+.screen-center .filters,.screen-center .controls{justify-content:center}
+.screen-center h1,.screen-center h2{text-align:center}
+.view-toggle{display:flex;width:fit-content;gap:0;margin:0 auto 18px;border:1px solid var(--rule);
+  border-radius:9px;overflow:hidden}
+.view-toggle a{padding:8px 20px;font:13px var(--sans);color:var(--ink-2);background:var(--surface);
+  border-right:1px solid var(--rule);text-decoration:none}
+.view-toggle a:last-child{border-right:0}
+.view-toggle a:hover{color:var(--ink);background:var(--plane);text-decoration:none}
+.view-toggle a.on{color:var(--ink);font-weight:600;background:var(--plane);
+  box-shadow:inset 0 -2px 0 var(--accent)}
 </style>
 </head>
 <body>
@@ -151,7 +170,8 @@ footer{margin-top:44px;padding-top:14px;border-top:1px solid var(--rule);font-si
       <span>Sovereign Ledger screener</span>
     </div>
     <h4>Surfaces</h4>
-    <a class="on" href="#buckets">Chaos buckets</a>
+    <a class="on" href="/screener/buckets">Buckets HTML</a>
+    <a href="/screen">Screener</a>
     <a href="#watch">Watchlist</a>
     <a href="#book1">Book I Keel / Sail</a>
     <a href="#gen">Price feed</a>
@@ -163,16 +183,22 @@ footer{margin-top:44px;padding-top:14px;border-top:1px solid var(--rule);font-si
   </aside>
 
   <main>
+    <div class="screen-center">
     <div class="crumb">Research · Sovereign Ledger · study objects</div>
+    <div class="view-toggle" role="tablist" aria-label="Screener views">
+      <a href="/screen">Screener</a>
+      <a class="on" href="/screener/buckets" aria-current="page">Buckets</a>
+    </div>
     <h1>Chaos bucket screener</h1>
     <p class="lede">
       Pick a shock, clock, and buckets. Tickers are study objects for free daily history
       (yfinance cache) — not live-bot signals. Theme matches <code>research_ui</code> / <code>ui_tokens</code>.
+      Interactive shell: <a href="/screen"><code>/screen</code></a>.
     </p>
 
     <div class="note">
       <strong>Mock prices.</strong> Sparklines and charts are deterministic demo walks shaped like a nightly Yahoo cache.
-      Open via <code>http://127.0.0.1:8765/SOVEREIGN_LEDGER_OPTIONS_MOCK.html</code> — clicking the file shows source.
+      Served at <code>/screener/buckets</code> from <code>docs/research/SOVEREIGN_LEDGER_OPTIONS_MOCK.html</code>.
     </div>
 
     <div class="stats" id="stats">
@@ -308,6 +334,7 @@ for sym in WATCH:
       Matches <code>tools/research_ui.py</code> shell + <code>tools/ui_tokens.py</code> palette ·
       not investment advice · live dashboard stays fenced
     </footer>
+    </div>
   </main>
 </div>
 
