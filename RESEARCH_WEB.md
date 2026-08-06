@@ -3757,3 +3757,33 @@ _— captured codex/biocat-finance-12@9eed12c, 2026-08-04_
 Re-ran the schema-key readiness audit across 56 world-observation artifacts after BIOCAT-FINANCE-01. Coverage is revision/vintage 53, hashes 38, source time 12, first-seen 14, tradable time 6, labels 8, rights 8, entity identity 2, and registry 5. The seed and derived projection are two artifact representations of the same three reviewed cases, so file coverage is not independent evidence. The seven-of-nine FDA census remains the leader; PT-01 still fails because no record carries all nine fields and FD-00 clock rules still have no callable consumer.
 Links: [[E265500|evidenced_by]] · [[F248102|refines]] · [[H44|relates]].
 _— captured codex/biocat-finance-12@9eed12c, 2026-08-04_
+
+### E376100 — Selected forward financing pilot separates occurrence from instrument
+OPPORTUNISTIC-ATM-01 freezes three reviewed issuer-period cases with exact SEC clocks, hashed sources, active ATM states, slow financial need, fast XBI-relative opportunity, and quarantined outcomes. RYTM had low near-term need/high opportunity then about USD 73.3 million of net ATM sales; VKTX had low need/low opportunity and an exact zero through quarter-end (68 days, not a full 90-day zero); SRRK had elevated need and became high-opportunity after a catalyst, then raised about USD 324.4 million net underwritten while recording no 2024 ATM sales. Selected feasibility evidence only; no model or population inference.
+Links: [[H265500|supports]] · [[E253202|builds_on]].
+_— captured codex/opportunistic-atm-12@e01a507, 2026-08-04_
+
+### F376100 — Quarterly opportunity state goes stale across biotech catalysts
+OPPORTUNISTIC-ATM-01's selected SRRK case moved from -46.10% 63-session XBI excess and 56.70% of its window high at the Q2 filing cutoff to +332.93% excess and the window high after the October 7 Phase 3 catalyst, before the 16:55 preliminary offering prospectus. A filing-frozen market state would misdescribe the financing decision; refresh opportunity daily and after material public events. Three-case mechanism pilot only, not a population effect.
+Links: [[E376100|evidenced_by]] · [[H265500|derived_from]] · [[D265500|refines]].
+_— captured codex/opportunistic-atm-12@e01a507, 2026-08-04_
+
+### F376101 — Opportunity opened two selected financing windows but did not choose the instrument
+In OPPORTUNISTIC-ATM-01, both selected cases meeting the transparent high-opportunity rule financed, while the selected low-opportunity case did not; RYTM used its ATM and SRRK used an underwritten offering. This cannot estimate predictiveness in a selected n=3 pilot, but it falsifies treating high opportunity as an ATM-specific label. Estimate any-financing hazard first and instrument choice conditional on financing.
+Links: [[E376100|evidenced_by]] · [[F265500|builds_on]].
+_— captured codex/opportunistic-atm-12@e01a507, 2026-08-04_
+
+### H376100 — Raise size relative to executable capacity selects ATM versus underwritten
+Conditional on a financing window being open, desired net proceeds relative to verified remaining ATM capacity, market capitalization, and trailing dollar volume may predict ATM versus underwritten execution. In the selected SRRK case, the underwritten net raise was about 11.82% of post-catalyst market cap and 43.05 median trailing dollar-volume days; exact ATM remaining capacity was not computable because the filing mixed gross authorization with net proceeds. Test this on a reviewed active-capacity population.
+Links: [[E376100|derived_from]] · [[H265500|builds_on]] · [[H253205|builds_on]].
+_— captured codex/opportunistic-atm-12@e01a507, 2026-08-04_
+
+### D376100 — Use financing hazard then conditional instrument and terms heads
+The next biotech capital-formation model will use a hierarchy: discrete-time any-financing hazard at 90/180 days from separate necessity, opportunity, propensity, and regime blocks; competing instrument choice conditional on financing; then size and shareholder terms conditional on instrument. Refresh market opportunity daily and after exact-clock material events. Keep financing motive latent until separately reviewed rhetoric labels exist.
+Links: [[E376100|evidenced_by]] · [[H376100|drives]] · [[F376100|derived_from]] · [[F376101|derived_from]] · [[H265500|resolves]].
+_— captured codex/opportunistic-atm-12@e01a507, 2026-08-04_
+
+### F376102 — OPPORTUNISTIC-ATM provenance advances PT-01 counts without passing its gate
+Re-scoring 58 world-observation artifacts after OPPORTUNISTIC-ATM-01 gives revision/vintage 55, payload hashes 40, source time 14, first-seen 16, tradable time 6, labels 8, rights 10, entity identity 2, and trial registry 5. The seed/projection pair is one three-case study represented twice. Neither artifact adds durable identity, schema-detected tradable time, labels, or registry coverage, so PT-01 still fails and the seven-of-nine FDA census remains the sole leader.
+Links: [[E376100|evidenced_by]] · [[F265501|refines]] · [[H44|relates]].
+_— captured codex/opportunistic-atm-12@e01a507, 2026-08-04_

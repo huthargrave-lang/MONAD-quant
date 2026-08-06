@@ -23,15 +23,15 @@ audited."*
 Every committed artifact under `docs/research/data/` was scored on **schema keys**
 (values excluded — see the note at the end), one point per field class present:
 
-| field class | artifacts carrying it (of 56) |
+| field class | artifacts carrying it (of 58) |
 |---|---:|
-| revision / vintage identity | **53** |
-| payload hashes | **38** |
-| source timestamp | 12 |
-| first-seen timestamp | 14 |
+| revision / vintage identity | **55** |
+| payload hashes | **40** |
+| source timestamp | 14 |
+| first-seen timestamp | 16 |
 | conservative tradable timestamp | 6 |
 | multi-horizon labels | 8 |
-| rights metadata | 8 |
+| rights metadata | 10 |
 | durable entity identity | **2** |
 | trial registry | **5** |
 
@@ -44,12 +44,16 @@ reconstruction* — still cannot be evaluated on a single record, but the missin
 narrowed from three classes on the old leaders to two on a population artifact.
 
 The shape of that table is the useful part. **The provenance half of the substrate is
-genuinely built**: vintage identity on 53 of 56 artifacts and payload hashes on 38 is a
+genuinely built**: vintage identity on 55 of 58 artifacts and payload hashes on 40 is a
 real, unusual discipline, and it is why the IX-00 and CA-00 reconciliations in this
-repository work at all. **Durable identity still barely exists** at 2 of 56, while trial
+repository work at all. **Durable identity still barely exists** at 2 of 58, while trial
 registry coverage has advanced to 5. Two of those five files are the reviewed seed and
 derived projection of the same three-case BIOCAT-FINANCE-01 pilot, so file coverage is
 not independent-study count.
+
+The OPPORTUNISTIC-ATM-01 seed/projection pair accounts for the latest two-file increase
+in vintage, hash, source-time, first-seen, and rights coverage. It is likewise one
+three-case study represented twice for reproducibility, not two independent studies.
 
 ## The clock rules have no consumer
 
@@ -104,7 +108,7 @@ Only then is the "cheap to test" claim in H44 testable at all — it asserts a *
 
 The first pass of this audit scored artifacts on raw text and reported 4 artifacts with a
 trial registry. Three of those matched **"Industrial"**, which contains "trial". Rescoring
-on schema **keys** with word boundaries originally gave 1; the current 56-artifact corpus
+on schema **keys** with word boundaries originally gave 1; the current 58-artifact corpus
 gives 5 after the BIOCAT studies and the seed/projection pair for BIOCAT-FINANCE-01. The
 original false count was the fourth time a substring inside a
 name had been counted as the thing itself (SEC form names, index names,
