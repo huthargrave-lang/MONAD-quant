@@ -1975,6 +1975,13 @@ const incid={};nodes.forEach(n=>incid[n.i]=[]);links.forEach(l=>{incid[l.source]
 const svg=d3.select('#svg'),svgEl=document.getElementById('svg');
 /* MEASURED, DO NOT RE-TRY WITHOUT NEW EVIDENCE (Chromium, software-rendered   container, 363 visible nodes, rotating the orbit so every node moves each frame):   stripping ALL feGaussianBlur filters lifts 6.8 -> 8.0 fps, i.e. the blur is ~16% of   frame time. Replacing the halo+corona blur with radialGradient bloom fills was built   and measured at 7.0 -> 7.2 fps (inside run-to-run noise: runs overlapped 6.7-7.2 vs   6.9-8.1) because the gradient fills cost their own paint time — while visibly   flattening the orbs from a luminous bloom to dim rings. Reverted: real visual cost,   no reliable gain. The dominant frame cost is SVG element count (~124ms of a ~148ms   frame with filters entirely absent), not the filters. The lever that DID work was   hiding module/config by default, which removes 33% of nodes and 19% of edges. */svg.append('defs').html("<filter id='orbGlow' x='-100%' y='-100%' width='300%' height='300%'><feGaussianBlur in='SourceGraphic' stdDeviation='1.8' result='blur'/><feMerge><feMergeNode in='blur'/><feMergeNode in='SourceGraphic'/></feMerge></filter><filter id='orbGlowStrong' x='-140%' y='-140%' width='380%' height='380%'><feGaussianBlur in='SourceGraphic' stdDeviation='3.2' result='blur'/><feMerge><feMergeNode in='blur'/><feMergeNode in='blur'/><feMergeNode in='SourceGraphic'/></feMerge></filter><filter id='orbHalo' x='-220%' y='-220%' width='540%' height='540%'><feGaussianBlur in='SourceGraphic' stdDeviation='5.2' result='blur'/><feMerge><feMergeNode in='blur'/></feMerge></filter>");
 const g=svg.append('g');
+/* The svg was a fixed 68vh, which left a dead black band under the hint line whenever
+   nothing was selected. Size it to the real viewport instead: fill everything above
+   the detail strip — a slim one-liner when no node is selected, up to 30vh of
+   inspector when one is. Sized BEFORE W/H are captured so the initial force layout
+   centres on the canvas it will actually live on. */
+function fitMapHeight(){const top=svgEl.getBoundingClientRect().top,det=document.getElementById('detail');svgEl.style.height=Math.max(340,window.innerHeight-top-det.offsetHeight-1)+'px';}
+fitMapHeight();
 let W=svgEl.clientWidth||900,H=svgEl.clientHeight||560,zt=d3.zoomIdentity;
 const link=g.append('g').selectAll('line').data(links).join('line').attr('fill','none')
  .attr('stroke',d=>ecol(d.tn)).attr('stroke-width',d=>(d.tn==='supersedes'||d.tn==='contradicts')?1.8:1)
@@ -1997,7 +2004,7 @@ let sel=null,query='',matches=[],matchAt=-1,promptBank=[],orbit={rx:0,ry:0},orbi
 svgEl.classList.add('fast-render');svgEl.dataset.fastRender='1';
 node.on('click',(ev,d)=>{ev.stopPropagation();if(blockClick){blockClick=false;return;}selectNode(sel===d.i?null:d.i,true);});
 svg.on('click',()=>{if(blockClick){blockClick=false;return;}selectNode(null,false);});
-function det(h){document.getElementById('detail').innerHTML=h;}
+function det(h){document.getElementById('detail').innerHTML=h;sizeMap();}
 function vis(n){return on[n.k]&&(on._sup||!n.sup);}
 function hit(n){return query&&(n.id.toLowerCase().includes(query)||n.title.toLowerCase().includes(query));}
 function updateMatches(){matches=query?nodes.filter(n=>vis(n)&&hit(n)):[];document.getElementById('match').textContent=query?(matches.length+' match'+(matches.length===1?'':'es')):(nodes.filter(vis).length+' nodes');}
@@ -2050,15 +2057,20 @@ function render(){renderFrame++;const vc=viewCenter();svgEl.dataset.viewCx=vc.x.
    (5.6 -> 4.9-5.6 fps, inside noise) because the dominant cost was zero-opacity
    <text> paint — see layoutLabels. WITH that fixed, culling is worth its keep:
    cruise 26.1 fps without it, 30.2-33.2 with it (~+20%), fit-zoom shift-drag
-   unchanged (~22 fps both ways). End state vs the pre-optimisation page: cruise
-   5.6 -> ~31 fps, shift-drag orbit 4.8 -> ~21 fps, load->settled 18.5s -> ~7s. */
+   unchanged (~22 fps both ways). End state vs the pre-optimisation page (with the
+   halo/corona layers restored during motion — see the paint-quality pass): cruise
+   5.6 -> ~32 fps, shift-drag orbit 4.8 -> ~22-27 fps, load->settled 18.5s -> ~7s. */
 function _vpOutcode(sx,sy,m){let c=0;if(sx<-m)c|=1;else if(sx>W+m)c|=2;if(sy<-m)c|=4;else if(sy>H+m)c|=8;return c;}
 function updateCulling(){const m=90,k=zt.k,ox=zt.x,oy=zt.y;
  for(let i=0;i<visNodes.length;i++){const n=visNodes[i];if(!n.p)continue;n._oc=_vpOutcode(k*n.p.x+ox,k*n.p.y+oy,m);const ne=nodeEls[n.i];if(!ne)continue;const off=n._oc!==0;if(off!==(ne.__culled||false)){ne.__culled=off;ne.style.display=off?'none':'';}}
  for(let li=0;li<visLinks.length;li++){const l=visLinks[li],le=linkEls[l._i];if(!le)continue;const off=((l.source._oc||0)&(l.target._oc||0))!==0;if(off!==(le.__culled||false)){le.__culled=off;le.style.display=off?'none':'';}}}
-function haloOpacity(d){if(fastRender&&!vivid(d))return 0;if(sel===d.i)return .78;if(sel!==null&&adj[sel].has(d.i))return .44;if(hit(d))return .6;return d.sup?0.12:0.28;}
+/* W/H feed the projection centre AND the culling bounds — a resize that skipped this
+   would keep painting for the old canvas and cull nodes standing in the new area. */
+function sizeMap(){fitMapHeight();const nw=svgEl.clientWidth||W,nh=svgEl.clientHeight||H;if(nw!==W||nh!==H){W=nw;H=nh;render();}}
+window.addEventListener('resize',sizeMap);
+function haloOpacity(d){if(sel===d.i)return .78;if(sel!==null&&adj[sel].has(d.i))return .44;if(hit(d))return .6;return d.sup?0.12:0.28;}
 function haloScale(d){return (sel===d.i||hit(d))?'scale(3.15)':'scale(2.65)';}
-function coronaOpacity(d){if(fastRender&&!vivid(d))return 0;if(sel===d.i)return .9;if(sel!==null&&adj[sel].has(d.i))return .68;if(hit(d))return .82;return d.sup?0.22:0.54;}
+function coronaOpacity(d){if(sel===d.i)return .9;if(sel!==null&&adj[sel].has(d.i))return .68;if(hit(d))return .82;return d.sup?0.22:0.54;}
 function coronaScale(d){return (sel===d.i||hit(d))?'scale(1.9)':'scale(1.5)';}
 function coreOpacity(d){if(sel===d.i)return .96;if(hit(d))return .9;return d.sup?0.28:0.68;}
 function coreScale(d){return (sel===d.i||hit(d))?'scale(.46)':'scale(.34)';}
@@ -2066,8 +2078,12 @@ function paint(){updateMatches();recomputeVisible();node.classed('selected',n=>s
  node.attr('opacity',n=>{if(sel!==null)return n.i===sel||adj[sel].has(n.i)?1:.1;if(query)return hit(n)?1:.12;return 1;});
  link.attr('stroke-opacity',l=>{if(sel!==null)return (l.source.i===sel||l.target.i===sel)?0.95:0.04;if(query)return (hit(l.source)||hit(l.target))?0.72:0.035;return (l.tn==='supersedes'||l.tn==='contradicts'||l.tn==='concerns')?0.85:0.32;});
  node.select('.mark').attr('opacity',d=>isHot(d)?1:(d.sup?0.58:0.86)).attr('filter',filterGlow);
- node.select('.node-halo').style('display',d=>fastRender&&!vivid(d)?'none':null).attr('opacity',haloOpacity).attr('transform',haloScale).attr('filter',filterHalo);
- node.select('.node-corona').style('display',d=>fastRender&&!vivid(d)?'none':null).attr('opacity',coronaOpacity).attr('transform',coronaScale).attr('filter',d=>fastRender&&!vivid(d)?null:'url(#orbGlow)');
+/* Halo/corona stay PAINTED during motion (their blur filters still drop, as before):
+   a display:none variant was tried and reverted — grabbing an orb visibly stripped
+   the glow off the whole map, a real visual cost for a minor win once the label
+   display:none fix (the actual bottleneck) had landed. */
+ node.select('.node-halo').attr('opacity',haloOpacity).attr('transform',haloScale).attr('filter',filterHalo);
+ node.select('.node-corona').attr('opacity',coronaOpacity).attr('transform',coronaScale).attr('filter',d=>fastRender&&!vivid(d)?null:'url(#orbGlow)');
  node.select('.node-core').attr('opacity',coreOpacity).attr('transform',coreScale).attr('filter',filterCore);render();}
 function visibleFinite(n){return vis(n)&&Number.isFinite(n.x)&&Number.isFinite(n.y)&&Number.isFinite(nodeZ(n));}
 function egoNodes(d){const ns=nodes.filter(n=>visibleFinite(n)&&(n.i===d.i||adj[d.i].has(n.i)));return ns.length?ns:(visibleFinite(d)?[d]:[]);}
@@ -2084,7 +2100,14 @@ function easeOut(t){return 1-Math.pow(1-t,3);}
 function easeInOut(t){return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}
 function animateOrbit(rx,ry,dur=520,done,tick){if(orbitAnim)cancelAnimationFrame(orbitAnim);setFastRender(true);const sx=orbit.rx,sy=orbit.ry,dy=normAngle(ry-sy),t0=performance.now();function step(now){const p=Math.min(1,(now-t0)/dur),e=easeOut(p);setOrbit(sx+(rx-sx)*e,sy+dy*e);if(tick)tick(e,p);if(p<1){orbitAnim=requestAnimationFrame(step);}else{orbitAnim=null;if(done)done();settleRenderQuality();}}orbitAnim=requestAnimationFrame(step);}
 function stopCruise(){if(cruiseAnim)cancelAnimationFrame(cruiseAnim);cruiseAnim=null;cruise=null;settleRenderQuality(160);}
-function cruiseOrbit(d){stopCruise();setFastRender(true);if(orbitAnim)cancelAnimationFrame(orbitAnim);orbitAnim=null;const ns=egoNodes(d),dir=(d.x||0)<W/2?1:-1,base=orbit.ry,depth=Math.max(-.42,Math.min(.42,nodeZ(d)/420)),pitch=Math.max(-.72,Math.min(.72,((d.y||H/2)-H/2)/H*.65+.34+depth*.22)),span=Math.max(2.1,Math.min(3.35,1.9+ns.length*.13)),v0={rx:pitch*.30,ry:base+dir*span*.08};const views=[v0,{rx:-pitch*.48-.18,ry:base+dir*span*.23},{rx:pitch*.74+.16,ry:base+dir*span*.42},{rx:-pitch*.36+.28,ry:base+dir*span*.61},{rx:pitch*.55-.18,ry:base+dir*span*.80},{rx:v0.rx,ry:v0.ry+dir*Math.PI*2}],t0=performance.now(),dur=52000,segs=views.length-1;let cruiseFrame=0;cruise={node:d,views,t0,dur};function step(now){if(!cruise||cruise.node!==d||sel!==d.i)return;const ts=Number.isFinite(now)?now:performance.now(),loop=((Math.max(0,ts-t0)%dur)/dur),scaled=loop*segs,i=Math.max(0,Math.min(segs-1,Math.floor(scaled))),a=views[i]||views[0],b=views[i+1]||views[0],local=Math.max(0,Math.min(1,scaled-i)),e=easeInOut(local),dy=normAngle(b.ry-a.ry);setOrbit(a.rx+(b.rx-a.rx)*e,a.ry+dy*e,false);if(cruiseFrame++%3===0)applyEgoFrame(d,142-16*Math.sin(loop*Math.PI*2),1.84+.14*Math.sin(loop*Math.PI*2+1.1),true);render();cruiseAnim=requestAnimationFrame(step);}applyEgoFrame(d,132,1.98,true);render();cruiseAnim=requestAnimationFrame(step);}
+/* The cruise used to be five ease-in-out keyframe segments with the ego zoom
+   re-applied every 3rd frame. At the old ~5 fps that read as motion; at ~30 fps the
+   angular velocity hitting ZERO at every segment joint and the zoom stepping at a
+   third of the orbit rate read as a visible lurch. One revolution at constant angular
+   velocity instead, with a smooth sinusoidal pitch nod and the ego frame re-applied
+   every frame — every derivative continuous, nothing to hitch on. Starts from the
+   CURRENT ry so engaging the cruise cannot jump-cut. */
+function cruiseOrbit(d){stopCruise();setFastRender(true);if(orbitAnim)cancelAnimationFrame(orbitAnim);orbitAnim=null;const dir=(d.x||0)<W/2?1:-1,base=orbit.ry,depth=Math.max(-.42,Math.min(.42,nodeZ(d)/420)),pitch=Math.max(-.72,Math.min(.72,((d.y||H/2)-H/2)/H*.65+.34+depth*.22)),t0=performance.now(),dur=52000;cruise={node:d,t0,dur};function step(now){if(!cruise||cruise.node!==d||sel!==d.i)return;const ts=Number.isFinite(now)?now:performance.now(),loop=((Math.max(0,ts-t0)%dur)/dur),ang=loop*Math.PI*2;setOrbit(pitch*.30+.34*Math.sin(ang*2),base+dir*ang,false);applyEgoFrame(d,142-16*Math.sin(ang),1.84+.14*Math.sin(ang+1.1),true);render();cruiseAnim=requestAnimationFrame(step);}applyEgoFrame(d,142,1.84,true);render();cruiseAnim=requestAnimationFrame(step);}
 function flatView(){stopCruise();if(sel!==null){const d=nodes[sel],frame=()=>applyEgoFrame(d,125,2.0);animateOrbit(0,0,420,frame,frame);return;}animateOrbit(0,0,420);}
 function orbitToNode(d){cruiseOrbit(d);}
 function startOrbit(ev){if(!ev.shiftKey||ev.button!==0)return;stopCruise();setFastRender(true);ev.preventDefault();ev.stopPropagation();orbitDrag={x:ev.clientX,y:ev.clientY,rx:orbit.rx,ry:orbit.ry,moved:false,pid:ev.pointerId};try{svgEl.setPointerCapture(ev.pointerId);}catch(e){}svgEl.classList.add('orbiting');}
@@ -2161,6 +2184,9 @@ const sb=pills.append('button').text('superseded');sb.style('opacity',on._sup?1:
 const leg=d3.select('#legend');
 function buildLegend(){leg.html('');[['supersedes / contradicts',ecol('supersedes')],['finding concerns code',ecol('concerns')],['import',ecol('imports')],['other edge',ecol('relates')]].forEach(([t,c])=>leg.append('span').html('<span class="ln" style="border-color:'+c+'"></span>'+t));}
 buildPills();buildLegend();
+/* The pills can wrap the bar taller than it was when fitMapHeight first ran (before
+   they were built), leaving the page ~46px overflowed. Re-measure once they exist. */
+sizeMap();
 /* Repaint on a theme change instead of only at load. The CSS tokens swap themselves;
    these are the colours d3 wrote into attributes, which no stylesheet can reach. */
 function paintTheme(){
