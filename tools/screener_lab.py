@@ -1348,6 +1348,59 @@ def build_snapshot(limit=120, universe=None, progress=None, env=None,
     }
 
 
+def build_tone_snapshot(universe, get=_http_get, env=None, sleep=None):
+    """Tone for a caller-supplied universe, with NO fundamentals fetch.
+
+    Attribution only ever needed the ticker and the company name; the per-ticker vendor
+    loop is what makes a full refresh minutes long, and the combined screener does not
+    read this snapshot's P/E or growth anyway — it takes those from stock_screener. So a
+    build that skips the loop covers every name the screener actually shows, in the time
+    the RSS pulls take on their own, which is what makes tone affordable in CI.
+
+    The fundamentals provider is still reported, as UNAVAILABLE with the reason. A
+    snapshot that silently omitted a source would read as one that found nothing there.
+    """
+    started = time.time()
+    rows = [{"ticker": t, "name": n, "sector": s} for t, n, s in universe]
+    bloomberg_docs, bloomberg_provider = fetch_bloomberg(get=get)
+    reddit_docs, reddit_provider = fetch_reddit(get=get, env=env, sleep=sleep)
+    for docs, provider, key in ((bloomberg_docs, bloomberg_provider, "bloomberg"),
+                                (reddit_docs, reddit_provider, "reddit")):
+        stats = attach_sentiment(rows, docs, key)
+        if stats["broadcast_dropped"]:
+            provider.detail += (
+                "  {} of {} document(s) named more than {} of the screened tickers and "
+                "were dropped from tone — a post listing {} companies says nothing "
+                "evaluative about any one of them.".format(
+                    stats["broadcast_dropped"], stats["documents"],
+                    MAX_TICKERS_PER_DOC, stats["widest_document"]))
+    fundamentals_provider = Provider(
+        "fundamentals", "Fundamentals (yfinance)", UNAVAILABLE,
+        "Not fetched: this is a tone-only build, so no row here carries a P/E or growth "
+        "figure. The screener reads those from stock_screener's own snapshot; nothing is "
+        "defaulted to 0 in their absence.",
+        "{} --limit 150".format(REFRESH_CMD), _stamp(), 0,
+        "not fetched in a tone-only build")
+    universe_provider = Provider(
+        "universe", "Universe", LIVE,
+        "{} names supplied by the caller.".format(len(rows)),
+        "", _stamp(), len(rows), "{} names supplied by the caller".format(len(rows)))
+    providers = [universe_provider, fundamentals_provider, bloomberg_provider,
+                 reddit_provider]
+    return {
+        "version": SNAPSHOT_VERSION,
+        "built_at": _stamp(),
+        "build_seconds": round(time.time() - started, 1),
+        "universe_size": len(rows),
+        "screened": len(rows),
+        "tone_only": True,
+        "rows": rows,
+        "providers": [p.as_dict() for p in providers],
+        "lexicon_terms": len(LEXICON),
+        "refresh_command": "{} --tone-only".format(REFRESH_CMD),
+    }
+
+
 def write_snapshot(snapshot, path=SNAPSHOT_PATH):
     """Atomic write — an interrupted refresh must not leave a half-parsed snapshot that
     the server would then render as though it were a complete screen."""
@@ -1435,6 +1488,10 @@ def main(argv=None):
     refresh.add_argument("--tickers", default=None,
                          help="comma-separated tickers instead of the S&P 500")
     refresh.add_argument("--out", default=SNAPSHOT_PATH)
+    refresh.add_argument("--tone-only", action="store_true",
+                         help="skip the per-ticker vendor loop and score tone over the "
+                              "screener's own universe — minutes faster, and what the "
+                              "combined screener actually consumes")
 
     screen_cmd = sub.add_parser("screen", help="rank the snapshot")
     screen_cmd.add_argument("--max-pe", type=float, default=None)
@@ -1455,6 +1512,25 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     if args.cmd == "refresh":
+        if args.tone_only:
+            # The screener's universe, not the S&P 500 pull: tone is only useful on names
+            # the page can show, and matching the two lists is what took coverage from a
+            # partial overlap to every screened name being eligible.
+            import stock_screener   # noqa: PLC0415 — CLI-local, keeps the module standalone
+            universe = [(t, n, sec) for t, n, sec, _ai, _b
+                        in stock_screener.universe_rows()]
+            if args.tickers:
+                want = {t.strip().upper() for t in args.tickers.split(",") if t.strip()}
+                universe = [u for u in universe if u[0] in want]
+            snapshot = build_tone_snapshot(universe)
+            path = write_snapshot(snapshot, args.out)
+            covered = sum(1 for r in snapshot["rows"]
+                          if r.get("bloomberg_tone") is not None
+                          or r.get("reddit_tone") is not None)
+            print("wrote {}  ({} names, {} with tone, {:.0f}s)".format(
+                path, snapshot["screened"], covered, snapshot["build_seconds"]))
+            _print_providers(providers_from_snapshot(snapshot))
+            return 0
         universe = None
         if args.tickers:
             universe = [(t.strip().upper(), t.strip().upper(), "")

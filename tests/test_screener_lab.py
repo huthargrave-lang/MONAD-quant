@@ -887,5 +887,55 @@ class TheLabTouchesNothingItShouldNot(unittest.TestCase):
                                                                    "cache")))
 
 
+class ToneOnlyBuildTests(unittest.TestCase):
+    """The tone-only build exists so CI can afford tone at all. Its risk is that a build
+    without fundamentals quietly implies it has them."""
+
+    def _universe(self):
+        return [("AAA", "Alpha Corp", "Technology"), ("BBB", "Beta Inc", "Energy")]
+
+    def test_it_scores_tone_without_touching_the_vendor_loop(self):
+        called = []
+
+        def factory(_ticker):            # would be the yfinance call
+            called.append(_ticker)
+            raise AssertionError("a tone-only build must not fetch fundamentals")
+
+        snap = lab.build_tone_snapshot(
+            self._universe(), get=lambda *a, **k: FakeResponse(200, REDDIT_ATOM),
+            env={}, sleep=lambda _s: None)
+        self.assertEqual(called, [])
+        self.assertEqual(snap["screened"], 2)
+        self.assertTrue(snap["tone_only"])
+
+    def test_no_row_carries_an_invented_fundamental(self):
+        snap = lab.build_tone_snapshot(
+            self._universe(), get=lambda *a, **k: FakeResponse(200, REDDIT_ATOM),
+            env={}, sleep=lambda _s: None)
+        for row in snap["rows"]:
+            self.assertNotIn("trailing_pe", row)
+            self.assertIsNone(row.get("bloomberg_tone", None) or None)
+
+    def test_the_missing_fundamentals_source_is_reported_not_omitted(self):
+        """A source left out of the list reads as a source that found nothing."""
+        snap = lab.build_tone_snapshot(
+            self._universe(), get=lambda *a, **k: FakeResponse(200, REDDIT_ATOM),
+            env={}, sleep=lambda _s: None)
+        by_key = {p["key"]: p for p in snap["providers"]}
+        self.assertIn("fundamentals", by_key)
+        self.assertEqual(by_key["fundamentals"]["state"], lab.UNAVAILABLE)
+        self.assertIn("tone-only", by_key["fundamentals"]["detail"])
+
+    def test_the_snapshot_still_loads_through_the_normal_reader(self):
+        import tempfile
+        snap = lab.build_tone_snapshot(
+            self._universe(), get=lambda *a, **k: FakeResponse(200, REDDIT_ATOM),
+            env={}, sleep=lambda _s: None)
+        with tempfile.TemporaryDirectory() as td:
+            path = os.path.join(td, "snap.json")
+            lab.write_snapshot(snap, path)
+            self.assertEqual(lab.load_snapshot(path)["screened"], 2)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
