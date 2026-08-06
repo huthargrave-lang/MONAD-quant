@@ -38,8 +38,9 @@ class ExportTests(unittest.TestCase):
     def tearDownClass(cls):
         cls.td.cleanup()
 
-    def test_every_preset_gets_a_page_plus_index_map_and_css(self):
-        expected = {"index.html", "map.html", os.path.join("static", "ui.css")}
+    def test_every_preset_gets_a_page_plus_index_buckets_map_and_css(self):
+        expected = {"index.html", "buckets.html", "map.html",
+                    os.path.join("static", "ui.css")}
         expected |= {"screen-{}.html".format(k) for k in sc.PRESETS}
         self.assertEqual(set(self.written), expected)
 
@@ -54,14 +55,21 @@ class ExportTests(unittest.TestCase):
         for key in sc.PRESETS:
             self.assertIn('href="screen-{}.html"'.format(key), text)
 
-    def test_the_index_is_the_chaos_screener(self):
-        self.assertIn("bucketGrid", self.pages["index.html"])
-        self.assertIn("Mock prices", self.pages["index.html"])   # demo data stays labeled
+    def test_the_index_is_the_fundamental_screener_with_buckets_toggle(self):
+        text = self.pages["index.html"]
+        self.assertIn("view-toggle", text)
+        self.assertIn('href="buckets.html"', text)
+        self.assertIn("Low P/E", text)
+
+    def test_buckets_page_is_the_sovereign_html_wireframe(self):
+        text = self.pages["buckets.html"]
+        self.assertIn("bucketGrid", text)
+        self.assertIn("Mock prices", text)
 
     def test_the_footer_tells_the_truth_about_being_a_snapshot(self):
         for name, text in self.pages.items():
-            if name == "map.html":
-                continue
+            if name in ("map.html", "buckets.html"):
+                continue  # map is self-contained; buckets is the standalone mock HTML
             self.assertNotIn("at request time", text, name)
             self.assertIn("static snapshot built", text, name)
 

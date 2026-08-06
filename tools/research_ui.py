@@ -100,7 +100,7 @@ code,.mono,th,td.num{font-family:var(--mono)}
 .rail a.off{color:var(--ink-muted)}
 .rail .fence{font-size:10px;font-family:var(--mono);color:var(--ink-muted);
   border:1px solid var(--rule);border-radius:3px;padding:0 4px;margin-left:5px}
-main{min-width:0;padding:26px 30px 90px;max-width:1180px}
+main{min-width:0;padding:26px 30px 90px;max-width:1180px;width:100%;justify-self:center}
 h1{font-size:23px;line-height:1.25;margin:0 0 6px;font-weight:640;text-wrap:balance;
   letter-spacing:-.012em}
 h2{font-size:15px;margin:34px 0 10px;font-weight:640;letter-spacing:-.005em}
@@ -231,6 +231,10 @@ tbody tr.on{background:var(--plane)}
 .screen-center .layout{margin-left:auto;margin-right:auto}
 .screen-center .tabs{justify-content:center}
 .screen-center .filters{justify-content:center}
+.screen-center .presets{justify-content:center}
+.screen-center .plot{margin-left:auto;margin-right:auto}
+.screen-center .why{margin-left:auto;margin-right:auto;text-align:center;max-width:70ch}
+.screen-center .scroller{text-align:left}
 .screen-center .view-toggle{display:inline-flex}
 .screen-center > .view-toggle{display:flex;width:fit-content}
 .presets{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px}
@@ -1365,9 +1369,9 @@ def applicable_keys(nctx):
 # 5. Pages.
 # ─────────────────────────────────────────────────────────────────────────────
 def _nav(active, mounts):
-    items = [("/", "Overview"), ("/web", "Research web"), ("/screen", "Chaos screener"),
-             ("/screener/buckets", "Buckets HTML"),
-             ("/lenses", "Fundamental lenses"), ("/graph", "Context map"),
+    items = [("/", "Overview"), ("/web", "Research web"),
+             ("/screener", "Screener"), ("/screener/buckets", "Buckets"),
+             ("/screen", "Chaos buckets"), ("/graph", "Context map"),
              ("/surfaces", "UI surfaces")]
     out = ['<nav class="rail"><div class="brand"><b>MONAD research</b>'
            '<span>one server · one token system</span></div>']
@@ -1704,6 +1708,18 @@ def _render_screen_scatter(rows, matches, preset):
                                                    len(pts)))
 
 
+
+def _screener_view_toggle(active):
+    """Screener | Buckets switch — active is 'screener' or 'buckets'."""
+    def cell(key, href, label):
+        on = ' class="on" aria-current="page"' if active == key else ''
+        return '<a{on} href="{href}">{label}</a>'.format(on=on, href=href, label=label)
+    return ('<div class="view-toggle" role="tablist" aria-label="Screener views">'
+            '{a}{b}</div>').format(
+        a=cell("screener", "/screener", "Screener"),
+        b=cell("buckets", "/screener/buckets", "Buckets"))
+
+
 def page_screen(mounts, query):
     presets = stock_screener.PRESETS
     key = query.get("preset") or "low_pe_high_growth"
@@ -1711,16 +1727,19 @@ def page_screen(mounts, query):
         key = "low_pe_high_growth"
     preset = presets[key]
     snap = stock_screener.load_snapshot()
-    body = ["<h1>Fundamental lenses</h1>",
+    body = ['<div class="screen-center">',
+            _screener_view_toggle("screener"),
+            "<h1>Screener</h1>",
             '<p class="lede">Not one strict filter — {} preset lenses over one cached '
             'fundamental snapshot of {} liquid names. Pick a lens; matches draw in '
             'accent on the dot plot, the rest of the universe stays visible as muted '
             'context. AI-exposure tags are editorial, held in '
-            '<code>tools/stock_screener.py</code>.</p>'.format(
+            '<code>tools/stock_screener.py</code>. Chaos-bucket wireframe: '
+            '<a href="/screener/buckets"><code>/screener/buckets</code></a>.</p>'.format(
                 len(presets), len(stock_screener.UNIVERSE))]
     body.append('<div class="presets">')
     for pk in presets:
-        body.append('<a class="{}" href="/lenses?preset={}">{}</a>'.format(
+        body.append('<a class="{}" href="/screener?preset={}">{}</a>'.format(
             "on" if pk == key else "", pk, esc(presets[pk]["title"])))
     body.append("</div>")
     body.append('<p class="why"><b>{}</b> — {}</p>'.format(
@@ -1733,7 +1752,8 @@ def page_screen(mounts, query):
             'of data, not an empty screen. Fetch one (needs network):</p>'
             '</figcaption><pre><code>venv/bin/python tools/stock_screener.py fetch'
             '</code></pre></figure>')
-        return page("Fundamental lenses", "/lenses", "".join(body), mounts, "screen · lenses")
+        body.append("</div>")
+        return page("Screener", "/screener", "".join(body), mounts, "screen")
     rows = snap["rows"]
     matches, no_data = stock_screener.apply_preset(rows, key)
     body.append(_source_note(
@@ -1768,7 +1788,8 @@ def page_screen(mounts, query):
                     'required metric): {}</p>'.format(
                         len(no_data),
                         ", ".join(esc(r["ticker"]) for r, _m in no_data)))
-    return page("Fundamental lenses", "/lenses", "".join(body), mounts, "screen · lenses")
+    body.append("</div>")
+    return page("Screener", "/screener", "".join(body), mounts, "screen")
 
 
 #: The chaos-bucket screener, ported from docs/research/SOVEREIGN_LEDGER_OPTIONS_MOCK.html
@@ -1780,7 +1801,7 @@ def page_screen(mounts, query):
 SOVEREIGN_SCREEN_BODY = """
 <div class="screen-center">
   <div class="view-toggle" role="tablist" aria-label="Screener views">
-    <a class="on" href="/screen" aria-current="page">Screener</a>
+    <a href="/screener">Screener</a>
     <a href="/screener/buckets">Buckets</a>
   </div>
 
@@ -2408,19 +2429,7 @@ def route(path, query, opts):
         return 200, page_screen_sovereign(mounts), HTML
     if path in ("/screener/buckets", "/screen/mock"):
         return _sovereign_buckets_html()
-    if path == "/screener":
-        # Old fundamental-screener path — lenses live here now; chaos is /screen.
-        return (200,
-                '<!doctype html><html lang="en"><head><meta charset="utf-8">'
-                '<title>moved</title><link rel="stylesheet" href="/static/ui.css">'
-                '</head><body style="font:15px var(--sans);padding:40px">'
-                '<h1>That path moved</h1>'
-                '<p>Chaos / Sovereign Ledger screener: <a href="/screen">/screen</a></p>'
-                '<p>Buckets HTML: <a href="/screener/buckets">/screener/buckets</a></p>'
-                '<p>Fundamental lenses: <a href="/lenses">/lenses</a></p>'
-                '</body></html>',
-                HTML)
-    if path == "/lenses":
+    if path in ("/screener", "/lenses"):
         return 200, page_screen(mounts, query), HTML
     if path == "/api/screen":
         key = query.get("preset") or "low_pe_high_growth"

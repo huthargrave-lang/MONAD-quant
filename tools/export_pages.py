@@ -8,8 +8,8 @@ mounts, an unhardened stdlib http.server) for zero freshness gain. A static expo
 no process to exploit and nothing private on the box, because there is no box.
 
 What is exported (deliberately narrow):
-  * index.html                 — the chaos-bucket screener (fully client-side, so the
-                                 interactive mock-derived page works as a static file)
+  * index.html                 — fundamental screener (Screener | Buckets toggle)
+  * buckets.html               — Sovereign Ledger OPTIONS_MOCK wireframe
   * screen-<preset>.html       — one page per fundamental lens (buttons become links)
   * map.html                   — the self-contained interactive context map
   * static/ui.css              — the shared palette, same path shape the server uses
@@ -52,26 +52,35 @@ _NAV = re.compile(r'<nav class="rail">.*?</nav>', re.S)
 _FOOT = "rendered from the working tree at request time"
 
 
-def _static_nav():
+def _static_nav(active="screener"):
+    def link(href, label, key):
+        cls = ' class="on"' if active == key else ""
+        return '<a{} href="{}">{}</a>'.format(cls, href, label)
     return ('<nav class="rail"><div class="brand"><b>MONAD research</b>'
             '<span>static snapshot · GitHub Pages</span></div>'
             '<h4>Views</h4>'
-            '<a class="on" href="index.html">Chaos screener</a>'
-            '<a href="screen-low_pe_high_growth.html">Fundamental lenses</a>'
+            '{s}{b}'
             '<a href="map.html">Context map</a>'
             '<h4>Source</h4>'
-            '<a href="{u}">GitHub repository</a></nav>').format(u=REPO_URL)
+            '<a href="{u}">GitHub repository</a></nav>').format(
+        s=link("index.html", "Screener", "screener"),
+        b=link("buckets.html", "Buckets", "buckets"),
+        u=REPO_URL)
 
 
-def _staticise(html, built):
+def _staticise(html, built, active="screener"):
     """Server page → static page: relative links, static rail, honest footer."""
     html = html.replace('href="/static/ui.css"', 'href="static/ui.css"')
     for key in stock_screener.PRESETS:
+        html = html.replace('href="/screener?preset={}"'.format(key),
+                            'href="screen-{}.html"'.format(key))
         html = html.replace('href="/lenses?preset={}"'.format(key),
                             'href="screen-{}.html"'.format(key))
-    html = html.replace('href="/lenses"', 'href="screen-low_pe_high_growth.html"')
+    html = html.replace('href="/screener/buckets"', 'href="buckets.html"')
+    html = html.replace('href="/screener"', 'href="index.html"')
+    html = html.replace('href="/lenses"', 'href="index.html"')
     html = html.replace('href="/screen"', 'href="index.html"')
-    html = _NAV.sub(_static_nav(), html, count=1)
+    html = _NAV.sub(_static_nav(active), html, count=1)
     # The server footer's claim ("rendered … at request time") would be FALSE here.
     html = html.replace(_FOOT, "static snapshot built {} UTC".format(built))
     return html
@@ -90,12 +99,21 @@ def export(out_dir):
 
     write(os.path.join("static", "ui.css"), research_ui.UI_CSS)
     for key in stock_screener.PRESETS:
-        code, body, _ct = research_ui.route("/lenses", {"preset": key}, {})
+        code, body, _ct = research_ui.route("/screener", {"preset": key}, {})
         assert code == 200, key
-        write("screen-{}.html".format(key), _staticise(body, built))
-    code, body, _ct = research_ui.route("/screen", {}, {})
+        write("screen-{}.html".format(key), _staticise(body, built, "screener"))
+    code, body, _ct = research_ui.route("/screener", {}, {})
     assert code == 200
-    write("index.html", _staticise(body, built))
+    write("index.html", _staticise(body, built, "screener"))
+
+    code, body, _ct = research_ui.route("/screener/buckets", {}, {})
+    assert code == 200
+    # Standalone HTML mock has its own shell; still rewrite absolute research_ui hrefs
+    # and drop any leftover server paths the toggle uses.
+    buckets = body.replace('href="/screener/buckets"', 'href="buckets.html"')
+    buckets = buckets.replace('href="/screener"', 'href="index.html"')
+    buckets = buckets.replace('href="/screen"', 'href="index.html"')
+    write("buckets.html", buckets)
 
     G, adj = ctx.build_graph(include_code=True)
     write("map.html", ctx._render_graph_html(G, adj))
