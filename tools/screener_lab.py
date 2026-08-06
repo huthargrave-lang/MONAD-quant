@@ -787,10 +787,11 @@ def fetch_reddit(subreddits=REDDIT_SUBS, limit=100, get=_http_get, env=None,
 # ─────────────────────────────────────────────────────────────────────────────
 WIKI_SP500 = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
 
-#: Used only when the universe cannot be fetched AND no cache exists, so that a screen
-#: still runs offline-ish rather than showing nothing. Deliberately labelled in the
-#: provider detail so a reader never mistakes 30 names for the S&P 500.
-FALLBACK_UNIVERSE = [
+#: Used only when the universe cannot be fetched AND no cache exists. Prefers the
+#: curated `stock_screener` research universe (full tagged list) so offline/degraded
+#: runs are not a 30-name megacap stub mistaken for coverage. Labelled in the provider
+#: detail so a reader never mistakes it for the S&P 500.
+_MINI_FALLBACK_UNIVERSE = [
     ("AAPL", "Apple Inc.", "Technology"), ("MSFT", "Microsoft Corp.", "Technology"),
     ("NVDA", "NVIDIA Corp.", "Technology"), ("GOOGL", "Alphabet Inc.", "Communication"),
     ("AMZN", "Amazon.com Inc.", "Consumer Cyclical"), ("META", "Meta Platforms Inc.",
@@ -816,6 +817,18 @@ FALLBACK_UNIVERSE = [
     ("T", "AT&T Inc.", "Communication"), ("GM", "General Motors Co.",
                                           "Consumer Cyclical"),
 ]
+
+
+def _fallback_universe():
+    """Full curated list when possible; mini megacaps only if stock_screener is unavailable."""
+    try:
+        import stock_screener as sc
+        return [(t, n, s) for t, n, s, _ai, _b in sc.universe_rows()]
+    except Exception:
+        return list(_MINI_FALLBACK_UNIVERSE)
+
+
+FALLBACK_UNIVERSE = _fallback_universe()
 
 
 def fetch_universe(get=_http_get, cache_path=UNIVERSE_CACHE, use_cache=True):
@@ -942,18 +955,22 @@ def fetch_fundamentals(universe, limit=None, progress=None, ticker_factory=None)
     for a P/E would read as "free" and sort straight to the top of a low-P/E screen —
     the single most consequential way a value screener can lie.
     """
-    try:
-        import yfinance
-    except ImportError:
-        return [], Provider("fundamentals", "Fundamentals (yfinance)", UNAVAILABLE,
-                            "yfinance is not installed, so no P/E or growth data exists "
-                            "for any row.",
-                            "pip install -r requirements.txt", _stamp(), 0,
-                            "yfinance is not installed")
-    factory = ticker_factory or yfinance.Ticker
+    if ticker_factory is None:
+        try:
+            import yfinance
+        except ImportError:
+            return [], Provider("fundamentals", "Fundamentals (yfinance)", UNAVAILABLE,
+                                "yfinance is not installed, so no P/E or growth data exists "
+                                "for any row.",
+                                "pip install -r requirements.txt", _stamp(), 0,
+                                "yfinance is not installed")
+        factory = yfinance.Ticker
+    else:
+        factory = ticker_factory
     selected = list(universe)[:limit] if limit else list(universe)
     rows, failures = [], 0
-    for index, (ticker, name, sector) in enumerate(selected):
+    for index, entry in enumerate(selected):
+        ticker, name, sector = entry[:3]
         if progress and index % 25 == 0:
             progress(index, len(selected))
         try:

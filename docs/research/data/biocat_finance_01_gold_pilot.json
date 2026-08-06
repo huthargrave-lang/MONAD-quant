@@ -1,0 +1,353 @@
+{
+  "artifact_id": "BIOCAT-FINANCE-01-GOLD-PILOT-2026-08-04",
+  "artifact_sha256": "5d0f6a139a23216bd11b9bbd59ed0486551a3fc07d080e85ce164d623c845236",
+  "cases": [
+    {
+      "atm_features": null,
+      "case_id": "tlph-nct02447848-v4",
+      "derived": {
+        "annualized_operating_burn_usd": 36029377.29,
+        "atm_capacity_to_market_cap": null,
+        "cash_flow_period_days": 273,
+        "cash_generating": false,
+        "completion_slip_days": 243,
+        "days_to_registry_milestone_upper_bound": 157,
+        "endpoint_revision_severity": 0.0,
+        "enrollment_haircut_fraction": 0.0,
+        "estimated_runway_days": 1056.96,
+        "financing_need_lower_bound_usd": 0.0,
+        "financing_need_missing_components": [
+          "debt_due_within_year_usd",
+          "disclosed_trial_spend_usd"
+        ],
+        "liquid_assets_usd": 104333000.0,
+        "multiplicative_pressure": null,
+        "multiplicative_pressure_reason": "Requires a training-fold financing-need percentile; never rank on this reviewed fixture or on future outcomes. Preserve main effects because zero runway gap must not erase observed financing behavior.",
+        "prior_atm_utilization_fraction": null,
+        "registry_staleness_days": 3,
+        "remaining_atm_capacity_usd": null,
+        "runway_gap_days": 0.0,
+        "slippage_components_normalized": {
+          "completion_date_slip": 0.665753,
+          "endpoint_revision": 0.0,
+          "enrollment_haircut": 0.0,
+          "registry_staleness": 0.0
+        },
+        "trial_slippage_index_unvalidated": 0.266301
+      },
+      "feature_cutoff_at": "2016-01-25T09:30:00-05:00",
+      "financial_features": {
+        "cash_flow_direction": "used",
+        "cash_flow_period_end": "2015-09-30",
+        "cash_flow_period_start": "2015-01-01",
+        "cash_usd": 95042000,
+        "cash_xbrl_tag": "us-gaap:CashAndCashEquivalentsAtCarryingValue",
+        "debt_due_within_year_usd": null,
+        "disclosed_trial_spend_usd": null,
+        "market_cap_usd": null,
+        "marketable_securities_usd": 9291000,
+        "marketable_securities_xbrl_tag": "us-gaap:ShortTermInvestments",
+        "operating_cash_flow_usd": -26948000,
+        "operating_cash_flow_xbrl_tag": "us-gaap:NetCashProvidedByUsedInOperatingActivitiesContinuingOperations"
+      },
+      "financing_outcome_review_status": "not_reviewed",
+      "issuer": {
+        "cik": "0001427925",
+        "mapping_quality": "reviewed_exact_org_study_id_and_sec_cik",
+        "name_at_cutoff": "AcelRx Pharmaceuticals, Inc.",
+        "ticker_at_cutoff": "ACRX"
+      },
+      "nct_id": "NCT02447848",
+      "outcome": {
+        "label_scope": "trial_exact",
+        "outcome_class": "primary_endpoint_met",
+        "predictive_features_allowed": false,
+        "public_at": "2016-08-15T07:02:26-04:00",
+        "source_url": "https://www.sec.gov/Archives/edgar/data/1427925/000143774916037360/0001437749-16-037360-index.htm",
+        "trainable": true
+      },
+      "sources": {
+        "baseline_version": {
+          "clock_quality": "registry_post_date_end_of_day_conservative",
+          "public_at": "2015-05-19T23:59:59-04:00",
+          "response_sha256": "3309fee9e952baa2deb79030b04f0c8e835422e36fd1686af7b26084bf5de13e",
+          "url": "https://clinicaltrials.gov/api/int/studies/NCT02447848/history/0",
+          "version": 0
+        },
+        "feature_version": {
+          "clock_quality": "registry_post_date_end_of_day_conservative",
+          "public_at": "2016-01-22T23:59:59-05:00",
+          "response_sha256": "91a73bf56afcb01b190b6b6b257ecf5af9e63a1f002c141235f26352320a2718",
+          "url": "https://clinicaltrials.gov/api/int/studies/NCT02447848/history/4",
+          "version": 4
+        },
+        "registry_history": {
+          "collected_at": "2026-08-04T00:00:00-04:00",
+          "contract_quality": "fragile_internal_machine_readable_history",
+          "response_sha256": "75d356944526eea3c7b0b14376a29f270008071d3d1a4237621be5a84a9edbfc",
+          "url": "https://clinicaltrials.gov/api/int/studies/NCT02447848/history"
+        },
+        "sec_facts": {
+          "accession": "0001437749-15-019387",
+          "available_at": "2015-11-04T09:30:00-05:00",
+          "clock_quality": "filing_date_next_regular_session_conservative",
+          "filed_on": "2015-11-03",
+          "filing_url": "https://www.sec.gov/Archives/edgar/data/1427925/000143774915019387/acrx20150930_10q.htm",
+          "response_sha256": "11567fed543e9adafc46f8f9419ad9478c50b3a97ca1dd442c803ad72b44f8bf",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001427925.json"
+        }
+      },
+      "trial_features": {
+        "baseline_completion_date": "2015-10",
+        "baseline_enrollment": 40,
+        "completion_date_precision": "month_upper_bound",
+        "endpoint_revision_basis": "same single SPID1 primary outcome; wording-only edit",
+        "endpoint_revision_severity": 0.0,
+        "feature_completion_date": "2016-06",
+        "feature_enrollment": 120,
+        "feature_status": "ACTIVE_NOT_RECRUITING"
+      }
+    },
+    {
+      "atm_features": null,
+      "case_id": "supn-nct02691182-v2",
+      "derived": {
+        "annualized_operating_burn_usd": 0.0,
+        "atm_capacity_to_market_cap": null,
+        "cash_flow_period_days": 365,
+        "cash_generating": true,
+        "completion_slip_days": 366,
+        "days_to_registry_milestone_upper_bound": 361,
+        "endpoint_revision_severity": 0.0,
+        "enrollment_haircut_fraction": 0.0,
+        "estimated_runway_days": null,
+        "financing_need_lower_bound_usd": 0.0,
+        "financing_need_missing_components": [
+          "debt_due_within_year_usd",
+          "disclosed_trial_spend_usd"
+        ],
+        "liquid_assets_usd": 356018000.0,
+        "multiplicative_pressure": null,
+        "multiplicative_pressure_reason": "Requires a training-fold financing-need percentile; never rank on this reviewed fixture or on future outcomes. Preserve main effects because zero runway gap must not erase observed financing behavior.",
+        "prior_atm_utilization_fraction": null,
+        "registry_staleness_days": 1,
+        "remaining_atm_capacity_usd": null,
+        "runway_gap_days": 0.0,
+        "slippage_components_normalized": {
+          "completion_date_slip": 1.0,
+          "endpoint_revision": 0.0,
+          "enrollment_haircut": 0.0,
+          "registry_staleness": 0.0
+        },
+        "trial_slippage_index_unvalidated": 0.4
+      },
+      "feature_cutoff_at": "2019-04-05T09:30:00-04:00",
+      "financial_features": {
+        "cash_flow_direction": "provided",
+        "cash_flow_period_end": "2018-12-31",
+        "cash_flow_period_start": "2018-01-01",
+        "cash_usd": 192248000,
+        "cash_xbrl_tag": "us-gaap:CashAndCashEquivalentsAtCarryingValue",
+        "debt_due_within_year_usd": null,
+        "disclosed_trial_spend_usd": null,
+        "market_cap_usd": null,
+        "marketable_securities_usd": 163770000,
+        "marketable_securities_xbrl_tag": "us-gaap:MarketableSecuritiesCurrent",
+        "operating_cash_flow_usd": 128986000,
+        "operating_cash_flow_xbrl_tag": "us-gaap:NetCashProvidedByUsedInOperatingActivities"
+      },
+      "financing_outcome_review_status": "not_reviewed",
+      "issuer": {
+        "cik": "0001356576",
+        "mapping_quality": "reviewed_exact_sponsor_and_sec_cik",
+        "name_at_cutoff": "Supernus Pharmaceuticals, Inc.",
+        "ticker_at_cutoff": "SUPN"
+      },
+      "nct_id": "NCT02691182",
+      "outcome": {
+        "label_scope": "program",
+        "outcome_class": "related_trial_failed_and_program_halted",
+        "predictive_features_allowed": false,
+        "public_at": "2020-02-25T16:40:00-05:00",
+        "source_url": "https://ir.supernus.com/node/11506",
+        "trainable": false
+      },
+      "sources": {
+        "baseline_version": {
+          "clock_quality": "registry_post_date_end_of_day_conservative",
+          "public_at": "2016-02-25T23:59:59-05:00",
+          "response_sha256": "92a2905bed40d7b3e8d64cdc32b46a11d61701b9395081a654ac4be8e2df5297",
+          "url": "https://clinicaltrials.gov/api/int/studies/NCT02691182/history/0",
+          "version": 0
+        },
+        "feature_version": {
+          "clock_quality": "registry_post_date_end_of_day_conservative",
+          "public_at": "2019-04-04T23:59:59-04:00",
+          "response_sha256": "be63152804957d4f0b908d87754fb94c7f0d1c06aa79211578e33dea43310e4e",
+          "url": "https://clinicaltrials.gov/api/int/studies/NCT02691182/history/2",
+          "version": 2
+        },
+        "registry_history": {
+          "collected_at": "2026-08-04T00:00:00-04:00",
+          "contract_quality": "fragile_internal_machine_readable_history",
+          "response_sha256": "b83d4d9d1852110472507f496d05f76dd2b5e81a7c2ed8f2c1fcea2fae6c22bc",
+          "url": "https://clinicaltrials.gov/api/int/studies/NCT02691182/history"
+        },
+        "sec_facts": {
+          "accession": "0001047469-19-000828",
+          "available_at": "2019-03-04T09:30:00-05:00",
+          "clock_quality": "filing_date_next_regular_session_conservative",
+          "filed_on": "2019-03-01",
+          "filing_url": "https://www.sec.gov/Archives/edgar/data/1356576/000104746919000828/a2237577z10-k.htm",
+          "response_sha256": "e4ffe1415c2b501e2c67d7dc14c0bfee891abde97e80adbe5035738fc4156668",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001356576.json"
+        }
+      },
+      "trial_features": {
+        "baseline_completion_date": "2019-03",
+        "baseline_enrollment": 400,
+        "completion_date_precision": "month_upper_bound",
+        "endpoint_revision_basis": "six primary safety outcomes unchanged through version 2",
+        "endpoint_revision_severity": 0.0,
+        "feature_completion_date": "2020-03",
+        "feature_enrollment": 400,
+        "feature_status": "RECRUITING"
+      }
+    },
+    {
+      "atm_features": {
+        "available_at": "2019-11-08T09:30:00-05:00",
+        "gross_capacity_usd": 50000000,
+        "gross_sold_to_date_usd": 20100000,
+        "program_id": "axsm-leerink-2019",
+        "remaining_capacity_quality": "mechanically_differenced_from_same_filing",
+        "remaining_capacity_usd": 29900000,
+        "source_url": "https://www.sec.gov/Archives/edgar/data/1579428/000155837019010432/axsm-20190930x10q.htm"
+      },
+      "case_id": "axsm-nct04163185-v0",
+      "derived": {
+        "annualized_operating_burn_usd": 38516067.47,
+        "atm_capacity_to_market_cap": null,
+        "cash_flow_period_days": 273,
+        "cash_generating": false,
+        "completion_slip_days": 0,
+        "days_to_registry_milestone_upper_bound": 137,
+        "endpoint_revision_severity": 0.0,
+        "enrollment_haircut_fraction": 0.0,
+        "estimated_runway_days": 413.57,
+        "financing_need_lower_bound_usd": 0.0,
+        "financing_need_missing_components": [
+          "disclosed_trial_spend_usd"
+        ],
+        "liquid_assets_usd": 43641861.0,
+        "multiplicative_pressure": null,
+        "multiplicative_pressure_reason": "Requires a training-fold financing-need percentile; never rank on this reviewed fixture or on future outcomes. Preserve main effects because zero runway gap must not erase observed financing behavior.",
+        "prior_atm_utilization_fraction": 0.402,
+        "registry_staleness_days": 1,
+        "remaining_atm_capacity_usd": 29900000.0,
+        "runway_gap_days": 0.0,
+        "slippage_components_normalized": {
+          "completion_date_slip": 0.0,
+          "endpoint_revision": 0.0,
+          "enrollment_haircut": 0.0,
+          "registry_staleness": 0.0
+        },
+        "trial_slippage_index_unvalidated": 0.0
+      },
+      "feature_cutoff_at": "2019-11-15T09:30:00-05:00",
+      "financial_features": {
+        "cash_flow_direction": "used",
+        "cash_flow_period_end": "2019-09-30",
+        "cash_flow_period_start": "2019-01-01",
+        "cash_usd": 43641861,
+        "cash_xbrl_tag": "us-gaap:Cash",
+        "debt_due_within_year_usd": 648523,
+        "disclosed_trial_spend_usd": null,
+        "market_cap_usd": null,
+        "marketable_securities_usd": 0,
+        "marketable_securities_xbrl_tag": null,
+        "operating_cash_flow_usd": -28807908,
+        "operating_cash_flow_xbrl_tag": "us-gaap:NetCashProvidedByUsedInOperatingActivities"
+      },
+      "financing_outcome_review_status": "not_reviewed",
+      "issuer": {
+        "cik": "0001579428",
+        "mapping_quality": "reviewed_exact_org_study_id_and_sec_cik",
+        "name_at_cutoff": "Axsome Therapeutics, Inc.",
+        "ticker_at_cutoff": "AXSM"
+      },
+      "nct_id": "NCT04163185",
+      "outcome": {
+        "label_scope": "trial_exact",
+        "outcome_class": "both_co_primary_endpoints_met",
+        "predictive_features_allowed": false,
+        "public_at": "2020-04-06T06:00:00-04:00",
+        "source_url": "https://www.globenewswire.com/news-release/2020/04/06/2011946/0/en/Axsome-Therapeutics-Announces-AXS-07-Achieves-Both-Co-Primary-Endpoints-and-Prevents-Migraine-Pain-Progression-in-the-INTERCEPT-Phase-3-Trial-in-the-Early-Treatment-of-Migraine.html",
+        "trainable": true
+      },
+      "sources": {
+        "baseline_version": {
+          "clock_quality": "registry_post_date_end_of_day_conservative",
+          "public_at": "2019-11-14T23:59:59-05:00",
+          "response_sha256": "9316b94d84c4c6ee4f3922d918015dc3775806b4d234f8d9a7e90576ed9cd8b3",
+          "url": "https://clinicaltrials.gov/api/int/studies/NCT04163185/history/0",
+          "version": 0
+        },
+        "feature_version": {
+          "clock_quality": "registry_post_date_end_of_day_conservative",
+          "public_at": "2019-11-14T23:59:59-05:00",
+          "response_sha256": "9316b94d84c4c6ee4f3922d918015dc3775806b4d234f8d9a7e90576ed9cd8b3",
+          "url": "https://clinicaltrials.gov/api/int/studies/NCT04163185/history/0",
+          "version": 0
+        },
+        "registry_history": {
+          "collected_at": "2026-08-04T00:00:00-04:00",
+          "contract_quality": "fragile_internal_machine_readable_history",
+          "response_sha256": "1d16726045beabf7529082fdb44321cb3475b7b7ba37bc00d84610487fa04092",
+          "url": "https://clinicaltrials.gov/api/int/studies/NCT04163185/history"
+        },
+        "sec_facts": {
+          "accession": "0001558370-19-010432",
+          "available_at": "2019-11-08T09:30:00-05:00",
+          "clock_quality": "filing_date_next_regular_session_conservative",
+          "filed_on": "2019-11-07",
+          "filing_url": "https://www.sec.gov/Archives/edgar/data/1579428/000155837019010432/axsm-20190930x10q.htm",
+          "response_sha256": "af922e2a036e486c559b78bcd6abfb378af584a3359b070e447b2c49f8159197",
+          "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001579428.json"
+        }
+      },
+      "trial_features": {
+        "baseline_completion_date": "2020-03",
+        "baseline_enrollment": 300,
+        "completion_date_precision": "month_upper_bound",
+        "endpoint_revision_basis": "initial registry version; two co-primary endpoints",
+        "endpoint_revision_severity": 0.0,
+        "feature_completion_date": "2020-03",
+        "feature_enrollment": 300,
+        "feature_status": "RECRUITING"
+      }
+    }
+  ],
+  "model_trained": false,
+  "raw_documents_committed": false,
+  "research_status": "three_case_reviewed_feasibility_pilot_not_population_or_model",
+  "return_labels_inspected": false,
+  "reviewed_at": "2026-08-04T00:00:00-04:00",
+  "schema_version": 1,
+  "slippage_weights": {
+    "completion_date_slip": 0.4,
+    "endpoint_revision": 0.25,
+    "enrollment_haircut": 0.25,
+    "registry_staleness": 0.1
+  },
+  "summary": {
+    "case_count": 3,
+    "cases_with_positive_financing_need_lower_bound": 0,
+    "cases_with_positive_runway_gap": 0,
+    "cases_with_positive_slippage": 2,
+    "cases_with_prior_atm_utilization": 1,
+    "cases_with_reviewed_atm_state": 1,
+    "key_falsification": "A pure runway_gap x slippage x financing_need product is not an adequate standalone ranking: the AXSM case has zero modeled runway gap but 40.2% prior utilization of its reviewed 2019 ATM capacity.",
+    "outcomes_excluded_from_predictive_features": 3
+  }
+}

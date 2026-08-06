@@ -3733,6 +3733,31 @@ Implemented an append-only SEC ATM program ledger on three manually reviewed iss
 Links: [[H253205|builds_on]] · [[H68|relates]] · [[E109|relates]] · [[E128|relates]] · [[D13300|relates]].
 _— captured development@6919327, 2026-08-03_
 
+### E265500 — BIOCAT-FINANCE-01 reviewed point-in-time join pilot
+Joined three reviewed public-issuer trial version cutoffs to prior SEC cash-flow facts and one reviewed ATM state. ACRX and SUPN carried 243- and 366-day completion slippage; all three had zero modeled runway gap and zero lower-bound financing need at the selected cutoffs. AXSM nevertheless had used USD 20.1M, or 40.2%, of a USD 50M ATM while its modeled cash runway exceeded the registry milestone. The executable seed, derived artifact, exact clocks, hashes, missingness and formulas are in docs/research/BIOCAT_FINANCE_01_2026.md and docs/research/data/biocat_finance_01_gold_pilot.json. No returns were inspected and no model was fitted.
+Links: [[H253205|relates]] · [[H253201|relates]].
+_— captured codex/biocat-finance-12@9eed12c, 2026-08-04_
+
+### F265500 — BIOCAT financing propensity cannot be reduced to a hard runway-gap interaction
+In E265500, AXSM's as-of November 2019 features produced zero runway gap and zero lower-bound financing need because estimated cash runway extended about 414 days versus 137 days to the registry milestone. The same eligible filing reported USD 20.1M of gross sales under a USD 50M ATM, leaving USD 29.9M. Therefore a literal runway_gap x trial_slippage x financing_need score erases observed opportunistic financing behavior. This three-case selected fixture does not estimate prevalence or predictive power; it falsifies the product as a sufficient standalone ranking and requires main effects plus training-fold-only interactions.
+Links: [[E265500|evidenced_by]].
+_— captured codex/biocat-finance-12@9eed12c, 2026-08-04_
+
+### H265500 — Opportunistic biotech issuance is a separate state from financing necessity
+Conditional on an active ATM or shelf, prior price run-up, volatility, liquidity, management issuance propensity, and capacity may predict 90/180-day financing even when modeled runway gap is zero. Test as a competing channel beside financing necessity, not as a replacement; use issuer-grouped later-period holdouts and explicit zero-utilization labels. A useful child outcome is financing terms and dilution severity, which may respond to trial slippage even when financing incidence does not.
+Links: [[E265500|derived_from]] · [[H253205|refines]].
+_— captured codex/biocat-finance-12@9eed12c, 2026-08-04_
+
+### D265500 — BIOCAT-FINANCE retains main effects and delays percentile interactions
+Build the first population model with separate trial-slippage components, runway, liquid assets, burn, debt, active capacity, and prior utilization. Fit financing-need percentiles within training folds only; group holdouts by issuer and time; compare issuer-propensity, utilization, runway-only, and slippage-only baselines. Keep market returns closed until 90/180-day financing and trial-exact non-price outcomes beat those baselines. Require 50 issuers, 95% reviewed identity precision, explicit no-financing labels, and complete availability clocks before fitting.
+Links: [[F265500|derived_from]] · [[H253205|refines]] · [[H265500|drives]].
+_— captured codex/biocat-finance-12@9eed12c, 2026-08-04_
+
+### F265501 — PT-01 audit advances to five trial-registry artifacts but not five independent studies
+Re-ran the schema-key readiness audit across 56 world-observation artifacts after BIOCAT-FINANCE-01. Coverage is revision/vintage 53, hashes 38, source time 12, first-seen 14, tradable time 6, labels 8, rights 8, entity identity 2, and registry 5. The seed and derived projection are two artifact representations of the same three reviewed cases, so file coverage is not independent evidence. The seven-of-nine FDA census remains the leader; PT-01 still fails because no record carries all nine fields and FD-00 clock rules still have no callable consumer.
+Links: [[E265500|evidenced_by]] · [[F248102|refines]] · [[H44|relates]].
+_— captured codex/biocat-finance-12@9eed12c, 2026-08-04_
+
 ### F265502 — A value/growth screen's four columns are four epistemic states; collapsing them is the defect
 Built /screener (tools/screener_lab.py + research_ui page, docs/research/SCREENER_value_growth_sentiment.md). Three findings, each from running it on live vendor data rather than from reading code.
 
@@ -3767,3 +3792,22 @@ RESIDUAL, MEASURED AND NOT FIXED: a name reducing to one ordinary word ('Booking
 METHOD NOTE: also caught a test reaching the live network (fetch_reddit with no injected fetcher became a real call once the RSS fallback landed - 104s suite, result dependent on Reddit's rate limiter), and a build_snapshot injection seam that stopped one level short, leaving 9s of real time.sleep per run. Both guarded. 83 tests, full suite 8F/47E vs 9F/47E baseline.
 Links: [[F265502|refines]].
 _— captured development@9eed12c, 2026-08-04_
+
+### F265504 — Four screener inputs presented as facts were not facts: a dead filter row, two absence-as-zero collapses, and a rail the server threw away
+Built the combined screener (docs/research/SCREENER_COMBINED_DRAFT.html, served /screener/draft) by merging the preset bubbles with the /sentiment tone columns. Four defects found by running it on live snapshots rather than by reading it, each one a thing the UI asserted that was not true.
+
+(1) THE FILTER ROW WAS WIRED TO NOTHING. Max P/E, min growth, sector and tone-weight were read by no code on any path; only the shadow filter did anything, and only inside renderTable. Four controls had been shipping as decoration - a user narrowing to "P/E <= 15" got the unfiltered 123 names and no indication otherwise. Now one delegated change listener drives matchedRows() = lensRows() n passesFilters(), so plot, ranked bars, distribution, detail card and table screen off ONE list. Also the apply step is gone: a filter that needs a second click to take effect is a filter whose displayed state and actual state disagree between the two clicks.
+
+(2) A MISSING P/E ARRIVED AS 0.0. _screener_combined_draft_payload emitted `pe if pe is not None else 0` (and the same for growth). On a "cheapest first" lens zero sorts FIRST, so the six names the vendor could not price - LAC, UAMY, NB, UEC, USAR, AREC - presented as the best value on the page. This is F155/F159/F188/F204 again, one layer further out: not a source reporting silence as neutrality, but a VIEW MODEL manufacturing a value the source never gave. None now travels to the client and renders as absent.
+
+(3) A MISSING SCORE ARRIVED AS 0.5. Same function defaulted the composite to a midpoint, which ranks an unscorable name above everything genuinely scored below average - a fabricated opinion with a plausible shape. Now null. The client had to be repaired to match: scoreCell called .toFixed on it, the table sort produced NaN comparisons, and `(r.de||999)`, `(r.dy||0)` and `null <= 25` (silently TRUE) all did the same collapse in the other direction. The lesson is that removing an absence-as-zero at the source EXPOSES every consumer that was relying on it, and each one must be found.
+
+(4) THE SERVER THREW AWAY A FEATURE MOUNTED IN THE RAIL. research_ui.py rewrites this page's <aside class="rail"> with _nav() at request time, so the whole propose/recommendations block - form, list, storage - existed only when the file was opened directly and vanished on the served page. It was reported working because it WAS working, in the only place it had been looked at. Anything a mock mounts in the rail is unreachable once served; the fix moved state into the page body and made the entry a real route (/recommend).
+
+Also: the AI shadow-debt tag was decoration until it carried weight. META (on-BS D/E 43.0), GOOGL 18.9, MSFT 29.1, AMZN 45.6, PLTR 2.1, NOW 67.5 and IBM all clear safety_low_debt's D/E <= 80 rule on the very number the lens exists to call incomplete; they were excluded only incidentally, by the beta cut, and NOW sat at beta 0.93 against a 0.9 threshold. SHADOW_DEBT_SEVERITY is ordinal (high/medium/low), NOT a notional - there is no free source for SPV debt outstanding, so a "+60 D/E points" premium would fabricate the exact figure the lens reports as missing.
+
+NOT MEASURED, STATED: there is no price history anywhere in this system. The price widget was a deterministic random walk presented beside real fundamentals; it is deleted and the widget is parked with an explicit absence. Tone coverage is genuinely thin - 2 of 123 Bloomberg, 4 of 123 Reddit - and the lens states the counts and names the uncovered rather than padding.
+
+Not a signal: nothing here touches live/**, config.py or the engine. 199 tests green.
+Links: [[F155|builds_on]] · [[F159|builds_on]] · [[F265502|builds_on]] · [[F265503|relates]].
+_— captured cursor/screener-buckets-toggle-45c8, 2026-08-06_

@@ -44,18 +44,26 @@ import ast
 import functools
 import html
 import json
+import math
 import os
 import re
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TOOLS = os.path.join(REPO, "tools")
+SOVEREIGN_MOCK_HTML = os.path.join(
+    REPO, "docs", "research", "SOVEREIGN_LEDGER_OPTIONS_MOCK.html")
+RESEARCH_GROUPS_MOCK_HTML = os.path.join(
+    REPO, "docs", "research", "RESEARCH_WEB_GROUPS_MOCK.html")
+SCREENER_COMBINED_DRAFT_HTML = os.path.join(
+    REPO, "docs", "research", "SCREENER_COMBINED_DRAFT.html")
 for _p in (REPO, TOOLS):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
 import ctx  # noqa: E402  — the context layer; reused, never duplicated
-import screener_lab  # noqa: E402  — the screen's engine; this file renders, never fetches
+import stock_screener  # noqa: E402  — presets + snapshot; all HTML for it lives here
+import screener_lab  # noqa: E402  — the sentiment screen's engine; renders, never fetches
 import ui_tokens  # noqa: E402  — the one palette; this file holds no second copy
 
 
@@ -97,11 +105,7 @@ code,.mono,th,td.num{font-family:var(--mono)}
 .rail a.off{color:var(--ink-muted)}
 .rail .fence{font-size:10px;font-family:var(--mono);color:var(--ink-muted);
   border:1px solid var(--rule);border-radius:3px;padding:0 4px;margin-left:5px}
-/* 1180px left better than half a 2000px window empty while a 12-column results table
-   scrolled sideways inside it. The cap now applies to PROSE, which needs ~70ch to stay
-   readable, not to the page — so tables and charts get the width and paragraphs do not
-   turn into 200-character lines. */
-main{min-width:0;padding:26px 34px 90px;max-width:1680px}
+main{min-width:0;padding:26px 30px 90px;max-width:1180px;width:100%;justify-self:center}
 h1{font-size:23px;line-height:1.25;margin:0 0 6px;font-weight:640;text-wrap:balance;
   letter-spacing:-.012em}
 h2{font-size:15px;margin:34px 0 10px;font-weight:640;letter-spacing:-.005em}
@@ -116,12 +120,31 @@ p{margin:0 0 12px;color:var(--ink-2);max-width:68ch}
   padding:18px 20px;margin:0 0 18px}
 .panel > figcaption{margin-bottom:14px}
 .panel .why{font-size:13px;color:var(--ink-2);margin:0;max-width:66ch}
-/* Charts are authored at a 720-unit viewBox and capped near it. Letting them stretch to
-   the full main column scales every glyph ~2x and destroys the density the mark sizes
-   were chosen for. A chart that wants more room is AUTHORED wider (`.plot.wide`, a
-   1040-unit viewBox) rather than stretched — same principle, more canvas. */
+/* Charts are authored at a 720-unit viewBox and capped there. Letting them stretch to
+   a 1180px main column scales every glyph ~1.6x and destroys the density the mark
+   sizes were chosen for. */
 .plot{width:100%;max-width:740px;height:auto;display:block;overflow:visible}
+/* The screener scatter is authored at a 1160-unit viewBox for a full-width main —
+   the 740 cap above is for the dense 720-unit research charts, not this one. */
+.screen-plot{max-width:none}
 .plot.wide{max-width:1060px}
+/* Full-screen surfaces (screener) — same sizing as the buckets mock page. */
+main.wide{max-width:none;zoom:1.2}
+/* An absent number is set in muted ink and NOT in the tabular numeric face, so a
+   missing P/E cannot be skimmed as though it were a small one. The sentiment screen
+   leans on this: `—` and `0.00` have to look like different kinds of thing. */
+.muted-cell{color:var(--ink-muted);font-size:11.5px;font-family:var(--sans)}
+.sticky thead th{position:sticky;top:0;z-index:2;background:var(--surface);
+  box-shadow:inset 0 -1px 0 var(--rule)}
+.sticky tbody tr:hover{background:var(--plane)}
+.tnum{font-variant-numeric:tabular-nums}
+.field{display:flex;flex-direction:column;gap:4px}
+.field > span{font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-muted);font-weight:600}
+/* Rank as a length as well as a number — the score column is what the table is
+   sorted on, and 0.943 next to 0.929 does not read as an ordering at a glance. */
+.bar{display:block;height:3px;border-radius:2px;background:var(--ord-2);margin-top:4px;
+  min-width:2px}
 .scroller{overflow-x:auto}
 /* Long file paths must be breakable in prose, but a node id must NOT be: `code`
    breaking anywhere rendered F26 as "F2 / 6" across two lines in the browser table. */
@@ -136,10 +159,6 @@ td code,th code,.chip code{white-space:nowrap;overflow-wrap:normal}
 .absent{border-style:dashed;background:transparent}
 .absent h3{color:var(--ink-muted)}
 .absent .why{color:var(--ink-muted)}
-/* An absent number is set in muted ink and NOT in the tabular numeric face, so a
-   missing P/E cannot be skimmed as though it were a small one. The screener leans on
-   this: `—` and `0.00` have to look like different kinds of thing at a glance. */
-.muted-cell{color:var(--ink-muted);font-size:11.5px;font-family:var(--sans)}
 
 /* ── chips, stats, tables ──────────────────────────────────────────────── */
 .chip{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:11px;
@@ -156,12 +175,6 @@ td code,th code,.chip code{white-space:nowrap;overflow-wrap:normal}
 .stat b{display:block;font-family:var(--mono);font-size:25px;line-height:1.1;
   font-variant-numeric:tabular-nums;letter-spacing:-.02em}
 .stat span{display:block;font-size:11.5px;color:var(--ink-muted);margin-top:3px}
-/* A wide results table is easier to read across when the header stays put and the
-   identifying column stays visible — both are pure affordance, no data changes. */
-.sticky thead th{position:sticky;top:0;z-index:2;background:var(--surface);
-  box-shadow:inset 0 -1px 0 var(--rule)}
-.sticky tbody tr:hover{background:var(--plane)}
-.tnum{font-variant-numeric:tabular-nums}
 table{border-collapse:collapse;width:100%;font-size:13px}
 th,td{text-align:left;padding:7px 11px 7px 0;border-bottom:1px solid var(--rule);
   vertical-align:top}
@@ -173,34 +186,173 @@ tbody tr:hover{background:var(--plane)}
 .sev.critical{border-color:var(--critical)} .sev.serious{border-color:var(--serious)}
 .sev.warning{border-color:var(--warning)} .sev.good{border-color:var(--good)}
 .sev.neutral{border-color:var(--axis)}
-.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-bottom:16px;
-  background:var(--surface);border:1px solid var(--rule);border-radius:9px;
-  padding:12px 14px}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:16px}
 .filters input,.filters select{font:13px var(--sans);height:30px;padding:0 8px;
-  border:1px solid var(--rule);border-radius:6px;background:var(--plane);color:var(--ink)}
-.filters button{font:13px var(--sans);height:30px;padding:0 13px;border:1px solid var(--rule);
+  border:1px solid var(--rule);border-radius:6px;background:var(--surface);color:var(--ink)}
+.filters button{font:13px var(--sans);height:30px;padding:0 11px;border:1px solid var(--rule);
   border-radius:6px;background:var(--surface);color:var(--ink);cursor:pointer}
 .filters button:hover{border-color:var(--accent)}
-/* A placeholder vanishes the moment the field is filled, so a form of bare inputs
-   becomes unreadable exactly when it holds the values you want to check. */
-.field{display:flex;flex-direction:column;gap:4px}
-.field > span{font-size:10px;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--ink-muted);font-weight:600}
-/* Rank as a length as well as a number — the column is what the table is sorted on,
-   and a bare 0.943 next to 0.929 does not read as an ordering at a glance. */
-.bar{display:block;height:3px;border-radius:2px;background:var(--ord-2);margin-top:4px;
-  min-width:2px}
 .count{font-family:var(--mono);font-size:12px;color:var(--ink-muted);margin-left:auto}
+/* ── sovereign screener (ported from docs/research/SOVEREIGN_LEDGER_OPTIONS_MOCK.html;
+     every colour stays a token — the mock's one literal hex became var(--ink-on-4)) ── */
+.filters.controls{align-items:flex-end;justify-content:center}
+.filters label{display:flex;flex-direction:column;gap:4px;font-size:10.5px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-muted)}
+.filters button.primary{background:var(--accent);color:var(--ink-on-4);border-color:var(--accent)}
+.filters button.on{border-color:var(--accent)}
+.filters a.clear{font:13px var(--sans);line-height:28px;height:30px;padding:0 11px;
+  border:1px solid var(--rule);border-radius:6px;background:var(--surface);
+  color:var(--ink);display:inline-block}
+.filters a.clear:hover{border-color:var(--accent);text-decoration:none}
+.note{padding:10px 12px;border-left:3px solid var(--warning);background:var(--plane);
+  border-radius:0 6px 6px 0;color:var(--ink-2);font-size:13.5px;margin:0 0 16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(176px,1fr));gap:8px}
+.bucket{text-align:left;background:var(--plane);border:1px solid var(--rule);border-radius:9px;
+  padding:12px 12px 10px;cursor:pointer;min-height:124px;display:flex;flex-direction:column;gap:5px;
+  font:inherit;color:inherit;width:100%}
+.bucket:hover{border-color:var(--accent)}
+.bucket.selected{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--surface)}
+.bucket .id{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--ink-muted)}
+.bucket .name{font-weight:640;font-size:13.5px;letter-spacing:-.01em}
+.bucket .blurb{font-size:12px;color:var(--ink-2);flex:1;line-height:1.4}
+.bucket .meta{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:2px}
+.heat{height:3px;border-radius:99px;background:var(--rule);overflow:hidden;margin-top:2px}
+.heat > i{display:block;height:100%;width:0;background:var(--axis)}
+.heat.h1 > i{width:25%;background:var(--ord-1)}
+.heat.h2 > i{width:50%;background:var(--ord-2)}
+.heat.h3 > i{width:75%;background:var(--warning)}
+.heat.h4 > i{width:100%;background:var(--critical)}
+.layout{display:grid;grid-template-columns:1.15fr .85fr;gap:14px}
+@media (max-width:980px){.layout{grid-template-columns:1fr}}
+.chart-box{height:280px;border:1px solid var(--rule);border-radius:8px;background:var(--plane);padding:8px}
+.chart-box svg{width:100%;height:100%;display:block}
+.spark{width:80px;height:26px;display:block}
+.up{color:var(--good)} .dn{color:var(--critical)}
+.legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;justify-content:center}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px;justify-content:center}
+.tabs button{font:13px var(--sans);height:28px;padding:0 10px;border:1px solid var(--rule);
+  border-radius:6px;background:var(--surface);color:var(--ink);cursor:pointer}
+.tabs button.on{border-color:var(--accent)}
+.kvs{display:grid;grid-template-columns:110px 1fr;gap:4px 12px;font-size:13px;margin:0 0 12px}
+.kvs dt{color:var(--ink-muted);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;padding-top:3px}
+.kvs dd{margin:0;color:var(--ink-2)}
+.tag{font-size:10px;font-family:var(--mono);color:var(--ink-muted)}
+.instr{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);line-height:1.45;word-break:break-word}
+tbody tr.on{background:var(--plane)}
+tbody tr.node-row{cursor:pointer}
+tbody tr.node-row:hover{background:var(--plane)}
+tbody tr.node-row:focus{outline:2px solid var(--accent);outline-offset:-2px}
+/* centered screener chrome */
+.screen-center{text-align:center;max-width:1040px;margin:0 auto}
+.screen-center .lede{margin-left:auto;margin-right:auto}
+.screen-center .note{text-align:left}
+.screen-center .panel{text-align:left}
+.presets a.on{border-color:var(--accent);color:var(--ink);background:var(--plane);
+  font-weight:600}
+.presets a.custom{border-style:dashed;color:var(--accent)}
+.presets a.custom.on{border-style:solid}
+.screen-combined{width:100%}
+.screen-combined .providers{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 14px}
+.screen-combined .prov{border:1px solid var(--rule);border-radius:9px;background:var(--surface);
+  padding:12px 14px}
+.screen-combined .prov.partial{border-style:dashed}
+.screen-combined .prov h3{margin:0 0 4px;font-size:13px;display:flex;align-items:center;gap:8px}
+.screen-combined .prov p{margin:0;font-size:12.5px;color:var(--ink-2)}
+.screen-layout{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(280px,.55fr);
+  gap:12px;margin:0 0 16px}
+.screen-plot-wrap{min-width:0}
+.screen-side{display:flex;flex-direction:column;gap:12px;min-width:0}
+.screen-side .panel{margin:0}
+.screen-side .panel h2{margin:0 0 6px;font-size:15px}
+.price-print{font-family:var(--mono);font-size:28px;margin:8px 0 0;letter-spacing:-.02em}
+.tone-stack{display:flex;flex-direction:column;gap:8px;max-height:280px;overflow:auto}
+.tone-card{border:1px solid var(--rule);border-radius:8px;padding:10px 12px;background:var(--plane)}
+.tone-card .tk{font-family:var(--mono);font-size:12px;color:var(--accent)}
+.tone-card .hd{font-size:13px;color:var(--ink);margin:3px 0}
+.tone-card .meta{font-size:11.5px;color:var(--ink-muted)}
+.shadow-cell{cursor:help;border-bottom:1px dotted var(--ink-muted)}
+tbody tr.node-row,tbody tr[data-t]{cursor:pointer}
+tbody tr[data-t].on{background:var(--plane)}
+@media (max-width:1100px){
+  .screen-layout,.screen-combined .providers{grid-template-columns:1fr}
+}
+.screen-center .stats{max-width:640px;margin-left:auto;margin-right:auto}
+.screen-center .count{margin-left:0}
+.screen-center h1{text-align:center}
+.screen-center h2{text-align:center}
+.screen-center #shockHint{text-align:center}
+.screen-center .legend{justify-content:center}
+.view-toggle{display:inline-flex;gap:0;margin:0 auto 18px;border:1px solid var(--rule);
+  border-radius:9px;overflow:hidden;vertical-align:middle}
+.view-toggle a{padding:8px 20px;font:13px var(--sans);color:var(--ink-2);background:var(--surface);
+  border-right:1px solid var(--rule);text-decoration:none}
+.view-toggle a:last-child{border-right:0}
+.view-toggle a:hover{color:var(--ink);background:var(--plane);text-decoration:none}
+.view-toggle a.on{color:var(--ink);font-weight:600;background:var(--plane);
+  box-shadow:inset 0 -2px 0 var(--accent)}
+.screen-center .layout{margin-left:auto;margin-right:auto}
+.screen-center .tabs{justify-content:center}
+.screen-center .filters{justify-content:center}
+.screen-center .presets{justify-content:center}
+.screen-center .plot{margin-left:auto;margin-right:auto}
+.screen-center .why{margin-left:auto;margin-right:auto;text-align:center;max-width:70ch}
+.screen-center .scroller{text-align:left}
+.screen-center .view-toggle{display:inline-flex}
+.screen-center > .view-toggle{display:flex;width:fit-content}
+.presets{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px}
+.presets a{font:13px var(--sans);line-height:28px;padding:0 12px;border:1px solid var(--rule);
+  border-radius:999px;background:var(--surface);color:var(--ink-2)}
+.presets a:hover{border-color:var(--accent);text-decoration:none;color:var(--ink)}
+.presets a.on{border-color:var(--accent);color:var(--ink);background:var(--plane);
+  font-weight:600}
+.presets a.custom{border-style:dashed;color:var(--accent)}
+.presets a.custom.on{border-style:solid}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;
+  margin:0 0 8px}
+.cards a.hl{display:block;background:var(--surface);border:1px solid var(--rule);
+  border-radius:9px;padding:12px 14px;color:var(--ink-2);min-width:0}
+.cards a.hl:hover{border-color:var(--accent);text-decoration:none}
+.cards .hl-id{display:flex;gap:8px;align-items:center;font-family:var(--mono);font-size:11px;
+  color:var(--ink-muted);margin-bottom:5px}
+.cards .hl-title{font-size:13px;color:var(--ink);line-height:1.4}
 .body-text{white-space:pre-wrap;font-size:13.5px;color:var(--ink-2);max-width:74ch;
   margin:0 0 12px}
-.edge{display:flex;gap:9px;align-items:baseline;padding:4px 0;font-size:13px;
+.edge{display:flex;gap:9px;align-items:baseline;padding:6px 8px;margin:0 -8px;
+  font-size:13px;border-radius:6px;cursor:pointer;color:inherit;text-decoration:none;
   border-bottom:1px solid var(--rule)}
+.edge:hover{background:var(--plane);text-decoration:none;color:inherit}
 .edge .type{font-family:var(--mono);font-size:11px;color:var(--ink-muted);
   min-width:96px;flex:0 0 auto}
-.edge > a{flex:0 0 auto}
-.edge code{overflow-wrap:normal;white-space:nowrap}
+.edge code{color:var(--accent);overflow-wrap:normal;white-space:nowrap}
+.ov-hero{margin:0 0 22px}
+.ov-charts{display:grid;grid-template-columns:1.2fr .8fr;gap:12px;margin:0 0 28px}
+.ov-charts .panel{margin:0;min-width:0}
+.ov-charts .panel h3{margin:0 0 4px;font-size:14px}
+.ov-hbar{width:100%;height:auto;display:block}
+.digest-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));
+  gap:12px;margin:0 0 22px}
+.digest{display:flex;flex-direction:column;gap:8px;background:var(--surface);
+  border:1px solid var(--rule);border-radius:10px;padding:14px 16px;min-width:0;
+  color:inherit;text-decoration:none}
+.digest:hover{border-color:var(--accent);text-decoration:none}
+.digest .meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;
+  font-family:var(--mono);font-size:11px;color:var(--ink-muted)}
+.digest h3{margin:0;font-size:15px;line-height:1.3;font-weight:640;color:var(--ink);
+  letter-spacing:-.01em}
+.digest .blurb{margin:0;font-size:13.5px;color:var(--ink-2);line-height:1.45;flex:1}
+.digest .chart-cap{margin:4px 0 0;font-size:10.5px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-muted);font-weight:600}
+.digest-chart{border:1px solid var(--rule);border-radius:8px;background:var(--plane);
+  padding:8px 10px;max-height:210px;overflow:auto;margin-top:2px}
+.digest-chart .scroller{overflow:visible}
+.digest-chart svg{max-width:100%;height:auto}
+.digest .more{font-size:12.5px;color:var(--accent);margin-top:2px}
+.ov-section h2{margin:28px 0 6px}
+.ov-section > .sub{margin:0 0 14px;font-size:13.5px;color:var(--ink-2);max-width:78ch}
 footer{margin-top:44px;padding-top:14px;border-top:1px solid var(--rule);
   font-size:12px;color:var(--ink-muted)}
+@media (max-width:980px){.ov-charts{grid-template-columns:1fr}}
 @media (max-width:820px){
   .shell{grid-template-columns:1fr}
   .rail{border-right:0;border-bottom:1px solid var(--rule);padding-bottom:14px}
@@ -788,11 +940,10 @@ def _source_note(caption, source):
         esc(caption or "table"), esc(source))
 
 
-def _svg(width, height, body, label, cls=""):
-    return ('<div class="scroller"><svg class="plot{c}" viewBox="0 0 {w} {h}" '
+def _svg(width, height, body, label, cls="plot"):
+    return ('<div class="scroller"><svg class="{c}" viewBox="0 0 {w} {h}" '
             'width="{w}" height="{h}" role="img" aria-label="{a}">{b}</svg></div>'
-            ).format(w=width, h=height, b=body, a=esc(label),
-                     c=(" " + cls) if cls else "")
+            ).format(c=cls, w=width, h=height, b=body, a=esc(label))
 
 
 def _txt(x, y, s, size=11, fill="var(--ink-2)", anchor="start", weight="400",
@@ -1310,8 +1461,16 @@ def applicable_keys(nctx):
 # 5. Pages.
 # ─────────────────────────────────────────────────────────────────────────────
 def _nav(active, mounts):
-    items = [("/", "Overview"), ("/web", "Research web"), ("/graph", "Context map"),
-             ("/screener", "Screener"), ("/surfaces", "UI surfaces")]
+    # "Screener" is the combined surface at /screener/draft — it carries the lens bubbles,
+    # the tone columns and the widget board. The older preset-only page at /screener still
+    # answers (a bookmark must not 404) but is no longer offered in the rail.
+    # /sentiment is no longer offered in the rail: its Bloomberg/Reddit tone now reads on
+    # the screener itself (tone lenses, tone columns, per-name coverage), so a second page
+    # showing the same snapshot was a second path to one fact. The route still answers.
+    items = [("/", "Overview"), ("/web", "Research web"),
+             ("/web/groups", "Web groups"),
+             ("/screener/draft", "Screener"), ("/screener/buckets", "Buckets"),
+             ("/graph", "Context map"), ("/surfaces", "UI surfaces")]
     out = ['<nav class="rail"><div class="brand"><b>MONAD research</b>'
            '<span>one server · one token system</span></div>']
     out.append("<h4>Views</h4>")
@@ -1335,19 +1494,29 @@ def _nav(active, mounts):
                'never imports and never serves the trading dashboard. Since F233 it '
                'draws from the same tools/ui_tokens.py — palette shared, nothing else.">'
                'Live monitor<span class="fence">same palette</span></a>')
+    # The form itself lives in the screener page body, so this is a link into that page
+    # rather than a route of its own — the rail is rewritten per-page and cannot carry it.
+    out.append("<h4>Contribute</h4>")
+    out.append('<a class="{}" href="/recommend" title="Propose a UI, research, engine, '
+               'bucket or screener change. Held in your browser — copy the text to file '
+               'it for real.">Create a recommendation</a>'.format(
+                   "on" if active == "/recommend" else ""))
     out.append("</nav>")
     return "".join(out)
 
 
-def page(title, active, body, mounts, crumb=""):
+def page(title, active, body, mounts, crumb="", wide=False):
+    # wide: drop the 1180px main cap and scale 1.2× — the sizing the buckets mock uses,
+    # so the two screener surfaces read as one app.
     return ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width,initial-scale=1">'
             '<title>{t}</title><link rel="stylesheet" href="{css}"></head><body>'
-            '<div class="shell">{nav}<main>{crumb}{body}'
+            '<div class="shell">{nav}<main{w}>{crumb}{body}'
             '<footer>read-only · rendered from the working tree at request time · '
             'palette from <code>{css}</code></footer>'
             '</main></div></body></html>').format(
         t=esc(title), css=TOKENS_HREF, nav=_nav(active, mounts),
+        w=' class="wide"' if wide else "",
         crumb='<div class="crumb">{}</div>'.format(esc(crumb)) if crumb else "",
         body=body)
 
@@ -1356,53 +1525,436 @@ def _stat(value, label):
     return '<div class="stat"><b>{}</b><span>{}</span></div>'.format(esc(value), esc(label))
 
 
+_KIND_NAME = {"F": "Finding", "H": "Hypothesis", "E": "Experiment", "D": "Gate"}
+_KIND_PLURAL = {"F": "Findings", "H": "Hypotheses", "E": "Experiments", "D": "Gates"}
+_KIND_COLORS = {"F": "var(--accent)", "H": "var(--ord-3)", "E": "var(--warning)",
+                "D": "var(--serious)"}
+
+#: Title-keyword themes for the overview "what the web is about" chart — measured from
+#: titles, never a hand-kept node list.
+_OVERVIEW_THEMES = [
+    ("mean reversion", re.compile(
+        r"\b(mean.?reversion|MR\b|RSI.?dip|oversold|hourly|sampling|morning.?only)\b", re.I)),
+    ("static blend / D6", re.compile(
+        r"\b(60/?40|static.?blend|static.?alloc|go.?no.?go|D6|bond.?alt)\b", re.I)),
+    ("walk-forward / sizing", re.compile(
+        r"\b(walk.?forward|holdout|sweep|Kelly|sizing)\b", re.I)),
+    ("live / fills", re.compile(
+        r"\b(live|trader|IBKR|fill|bracket|pending.?close|paper)\b", re.I)),
+    ("SEC / Form 25", re.compile(
+        r"\b(Form.?25|SEC|Form.?4|8.?K|announce|rhetoric|deal.?risk)\b", re.I)),
+    ("clinical / BIOCAT", re.compile(
+        r"\b(BIOCAT|clinical|FDA|trial|catalyst)\b", re.I)),
+    ("ATM / financing", re.compile(
+        r"\b(ATM|financing|424B5|dilution|neocloud)\b", re.I)),
+    ("ctx / tooling", re.compile(
+        r"\b(ctx|census|reachability|research.?web|note\.py|context.?map)\b", re.I)),
+]
+
+
+def _theme_of_title(title):
+    for label, rx in _OVERVIEW_THEMES:
+        if rx.search(title):
+            return label
+    return None
+
+
+def _node_blurb(body, limit=260):
+    text = re.sub(r"<!--.*?-->", " ", body or "", flags=re.S)
+    text = re.sub(r"\[\[([^|\]]+)(?:\|[^\]]+)?\]\]", r"\1", text)
+    text = re.sub(r"`([^`]+)`", r"\1", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    if len(text) <= limit:
+        return text
+    return text[:limit].rsplit(" ", 1)[0] + "…"
+
+
+def _overview_hbar(items, colors=None, width=640, label_w=150):
+    """Compact labeled horizontal bars for overview corpus charts."""
+    items = [it for it in items if it[1] > 0]
+    if not items:
+        return '<p class="why">Nothing to chart yet.</p>'
+    row_h, top, bot, right = 26, 6, 6, 52
+    height = top + bot + row_h * len(items)
+    inner = width - label_w - right
+    max_v = max(v for _, v in items)
+    parts = []
+    for i, (label, value) in enumerate(items):
+        y = top + i * row_h
+        w = max(2.0, inner * value / max_v)
+        col = (colors[i] if colors and i < len(colors)
+               else "var(--ord-{})".format(min(4, 1 + i % 4)))
+        parts.append(_txt(label_w - 10, y + 13, label, size=12, fill="var(--ink-2)",
+                          anchor="end", mono=False))
+        parts.append(
+            '<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="16" '
+            'rx="4" fill="{c}"/>'.format(x=label_w, y=y, w=w, c=col))
+        parts.append(_txt(label_w + w + 8, y + 13, str(value), size=12,
+                          fill="var(--ink)", weight="600"))
+    return ('<svg class="ov-hbar" viewBox="0 0 {w} {h}" width="100%" '
+            'role="img" aria-label="bar chart">{b}</svg>').format(
+        w=width, h=height, b="".join(parts))
+
+
+def _first_content_chart(nctx):
+    """First applicable non-provenance rendering, if any — for digest cards."""
+    for renderer, reason in applicable(nctx):
+        if reason is None and renderer["key"] != "provenance":
+            try:
+                return renderer["title"], renderer["render"](nctx)
+            except Exception:
+                return None, None
+    return None, None
+
+
+def _hl_card(c, nid):
+    """Compact fallback card (still used when a digest cannot be built)."""
+    node = c.nodes[nid]
+    st = ctx._node_meta(node)["status"]
+    sev = {"current": "good", "superseded": "warning",
+           "retracted": "critical"}.get(st, "neutral")
+    title = node["title"]
+    return ('<a class="hl" href="/node/{n}"><span class="hl-id"><code>{n}</code>'
+            '<span class="chip {sev}"><span class="dot"></span>{kind}</span>'
+            '<span>{cites} citing</span></span>'
+            '<span class="hl-title">{t}</span></a>').format(
+        n=nid, sev=sev, kind=_KIND_NAME.get(nid[0], nid[0]),
+        cites=len(c.rev.get(nid, [])),
+        t=esc(title if len(title) <= 110 else title[:109] + "…"))
+
+
+def _digest_card(c, nid):
+    """Shop-window card: brief claim + a real chart when the node supports one."""
+    nctx = node_context(nid)
+    if nctx is None:
+        return _hl_card(c, nid)
+    st = nctx["status"]
+    sev = {"current": "good", "superseded": "warning",
+           "retracted": "critical"}.get(st, "neutral")
+    title = nctx["title"]
+    if len(title) > 140:
+        title = title[:139] + "…"
+    blurb = _node_blurb(nctx["body"])
+    chart_title, chart_html = _first_content_chart(nctx)
+    chart_block = ""
+    if chart_html:
+        chart_block = (
+            '<div class="chart-cap">{cap}</div>'
+            '<div class="digest-chart">{chart}</div>'.format(
+                cap=esc(chart_title), chart=chart_html))
+    return (
+        '<a class="digest" href="/node/{n}">'
+        '<span class="meta"><code>{n}</code>'
+        '<span class="chip {sev}"><span class="dot"></span>{kind}</span>'
+        '<span>{cites} citing</span>'
+        '<span>{arts} artifact(s)</span></span>'
+        '<h3>{t}</h3>'
+        '<p class="blurb">{b}</p>'
+        '{chart}'
+        '<span class="more">Open node overview →</span></a>'.format(
+            n=nid, sev=sev, kind=_KIND_NAME.get(nid[0], nid[0]),
+            cites=len(c.rev.get(nid, [])), arts=len(nctx["artifacts"]),
+            t=esc(title), b=esc(blurb), chart=chart_block))
+
+
+def _pick_highlight_ids(c, per_group=6):
+    current = [nid for nid, node in c.nodes.items()
+               if ctx._node_meta(node)["status"] == "current"]
+    number = lambda nid: int(re.sub(r"\D", "", nid) or 0)
+    new_leads = sorted(current, key=number, reverse=True)[:per_group]
+    cited = sorted(current, key=lambda n: (-len(c.rev.get(n, [])),
+                                           ctx._node_sort_key(n)))[:per_group]
+    return new_leads, cited
+
+
+def highlighted_research(c, per_group=6):
+    """The shop window: new leads and load-bearing nodes, picked by measurable
+    properties of the web (recency of id, in-degree) — never by a hand-kept list,
+    which would rot the day after it was written. Each card shows a brief claim and,
+    when the node supports one, a real content chart from the node view."""
+    new_leads, cited = _pick_highlight_ids(c, per_group)
+    body = ['<div class="ov-section">',
+            "<h2>Highlighted research</h2>",
+            '<p class="sub">Picked by the web itself — newest current nodes (leads still '
+            'warm) and the most-cited ones (what the rest of the web stands on). Each card '
+            'carries a short claim and, when the data exists, a chart of what was found or '
+            'tested. Click any card for the full node overview.</p>',
+            "<h3>New leads</h3>",
+            '<div class="digest-grid">' + "".join(_digest_card(c, n) for n in new_leads)
+            + "</div>",
+            "<h3>Load-bearing</h3>",
+            '<div class="digest-grid">' + "".join(_digest_card(c, n) for n in cited)
+            + "</div></div>"]
+    return "".join(body)
+
+
+def corpus_shape(c):
+    """Program-level charts: kind mix + what titles are actually about."""
+    from collections import Counter
+    kinds = Counter()
+    themes = Counter()
+    status = Counter()
+    for nid, node in c.nodes.items():
+        kinds[nid[0]] += 1
+        st = ctx._node_meta(node)["status"]
+        status[st] += 1
+        theme = _theme_of_title(node["title"])
+        if theme:
+            themes[theme] += 1
+    kind_items = [(_KIND_PLURAL[k], kinds.get(k, 0)) for k in "FHED"]
+    kind_cols = [_KIND_COLORS[k] for k in "FHED"]
+    theme_items = themes.most_common(8)
+    status_items = [(s, status[s]) for s in ("current", "superseded", "retracted")
+                    if status.get(s)]
+    status_cols = {"current": "var(--good)", "superseded": "var(--warning)",
+                   "retracted": "var(--critical)"}
+    return (
+        '<div class="ov-section"><h2>What’s in the research web</h2>'
+        '<p class="sub">Shape of the corpus — kinds of claim, and the topics titles '
+        'actually talk about (keyword tags on titles, not a hand-curated list).</p>'
+        '<div class="ov-charts">'
+        '<figure class="panel"><h3>Topics in titles</h3>'
+        '<p class="why">Mean reversion, SEC clocks, BIOCAT, tooling — what the nodes '
+        'are about at a glance.</p>{themes}</figure>'
+        '<figure class="panel"><h3>Node kinds</h3>'
+        '<p class="why">Findings, hypotheses, experiments, gates.</p>{kinds}'
+        '<h3 style="margin-top:16px">Status</h3>{status}</figure>'
+        '</div></div>'.format(
+            themes=_overview_hbar(theme_items, width=700, label_w=148),
+            kinds=_overview_hbar(kind_items, colors=kind_cols, width=420, label_w=110),
+            status=_overview_hbar(
+                status_items,
+                colors=[status_cols[s] for s, _ in status_items],
+                width=420, label_w=110)))
+
+
 def page_overview(mounts):
     c = corpus()
     cen = surface_census()
-    kinds = {}
-    superseded = 0
-    for nid, node in c.nodes.items():
-        kinds[nid[0]] = kinds.get(nid[0], 0) + 1
-        if ctx._is_superseded(node):
-            superseded += 1
+    superseded = sum(1 for node in c.nodes.values() if ctx._is_superseded(node))
     counts = cen["counts"]
-    body = ["<h1>Every read-only view in this repository, behind one palette</h1>"]
-    body.append('<p class="lede">This server does not re-implement the surfaces it '
-                'shows. It mounts them — <code>ctx.py</code>’s database route '
-                'adapters are called unchanged — under one shell that owns the tokens. '
-                'The live trading dashboard shares the palette and nothing else — '
-                'it is never imported and never served from here.</p>')
-    body.append('<div class="stats">')
-    body.append(_stat(len(c.nodes), "research nodes"))
-    body.append(_stat(superseded, "superseded"))
-    body.append(_stat(counts["surfaces"], "UI surfaces"))
-    body.append(_stat(counts["grounds"], "distinct grounds"))
-    body.append(_stat("{}/{}".format(counts["theme_aware"], counts["surfaces"]),
-                      "theme-aware"))
-    body.append(_stat("{}/{}".format(counts["token_driven"], counts["surfaces"]),
-                      "share tokens"))
-    body.append("</div>")
-    body.append("<h2>Start here</h2>")
-    body.append("<p>The node view is the new surface: <a href=\"/node/F229\">F229</a> "
-                "(verdict matrix + ratchets), <a href=\"/node/F230\">F230</a> (threshold "
-                "curve), <a href=\"/node/F226\">F226</a> (reachability bar), "
-                "<a href=\"/node/F211\">F211</a> (range dot plot). "
-                "<a href=\"/web?sort=renderings\">Browse all nodes by how many renderings "
-                "they support</a>.</p>")
-    body.append("<h2>The screener</h2>")
-    body.append('<p><a href="/screener">Low P/E, high growth</a> over the S&amp;P 500, '
-                'with Bloomberg and Reddit tone in their own columns rather than folded '
-                'into the rank. It renders a snapshot written by '
-                '<code>tools/screener_lab.py</code> — the page never fetches, and every '
-                'source states whether it was live when the snapshot was built, which '
-                'path produced it, and what it missed. A ticker nothing was written '
-                'about reads <em>no coverage</em>, never 0.00.</p>')
-    body.append("<h2>Node kinds</h2><div class=\"stats\">")
-    for letter, name in (("F", "Findings"), ("H", "Hypotheses"), ("E", "Experiments"),
-                         ("D", "Gates")):
-        body.append(_stat(kinds.get(letter, 0), name))
-    body.append("</div>")
-    return page("MONAD research UI", "/", "".join(body), mounts)
+    body = [
+        '<div class="ov-hero">',
+        "<h1>Research web — what’s been found, what’s still open</h1>",
+        '<p class="lede">One palette for every read-only surface in the repo. Below: the '
+        'shape of the web, then digests of the newest leads and the nodes everything else '
+        'stands on — each with a short claim and a chart when the evidence supports one. '
+        'The live trading dashboard shares tokens only; it is never imported or served '
+        'from here.</p>',
+        '<div class="stats">',
+        _stat(len(c.nodes), "research nodes"),
+        _stat(superseded, "superseded"),
+        _stat(counts["surfaces"], "UI surfaces"),
+        _stat("{}/{}".format(counts["theme_aware"], counts["surfaces"]), "theme-aware"),
+        _stat("{}/{}".format(counts["token_driven"], counts["surfaces"]), "share tokens"),
+        "</div></div>",
+        corpus_shape(c),
+        highlighted_research(c),
+        '<div class="ov-section"><h2>Start here</h2>',
+        "<p>Browse by topic on <a href=\"/web/groups\">Web groups</a>, or open nodes "
+        "that already carry rich charts: "
+        "<a href=\"/web?sort=renderings\">sorted by how many renderings they support</a>. "
+        "The node view is the deep surface — claim, sources, and every applicable chart."
+        "</p></div>",
+    ]
+    return page("MONAD research UI", "/", "".join(body), mounts, wide=True)
+
+
+#: Client half of /recommend. Storage is per-browser: this server never writes, so the
+#: page must not imply that saving files anything anywhere.
+RECOMMEND_JS = """<script>
+(function(){
+  var KEY = "monad.recommendations.v1";
+  var LIMIT = 60;
+  var KINDS = %s;
+  function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+  function load(){
+    try{
+      var raw = localStorage.getItem(KEY);
+      if(!raw) return [];
+      var arr = JSON.parse(raw);
+      if(!Array.isArray(arr)) return [];
+      // Field-by-field: a corrupt or hand-edited blob must degrade to nothing rather
+      // than render whatever shape it happens to have.
+      return arr.filter(function(r){ return r && typeof r === "object"; }).map(function(r){
+        return {
+          id: typeof r.id === "string" ? r.id : String(Math.random()).slice(2),
+          kind: KINDS.indexOf(r.kind) >= 0 ? r.kind : "ui",
+          title: typeof r.title === "string" ? r.title.slice(0,90) : "",
+          detail: typeof r.detail === "string" ? r.detail.slice(0,4000) : "",
+          who: typeof r.who === "string" ? r.who.slice(0,40) : "",
+          at: typeof r.at === "string" ? r.at : ""
+        };
+      }).filter(function(r){ return r.title; }).slice(0, LIMIT);
+    }catch(e){ return []; }
+  }
+  function save(list){
+    try{ localStorage.setItem(KEY, JSON.stringify(list)); }catch(e){}
+  }
+  var items = load();
+  function label(kind){
+    var el = document.querySelector('#recKind option[value="'+kind+'"]');
+    return el ? el.textContent.split(" \\u2014 ")[0] : kind;
+  }
+  function asText(r){
+    return ["MONAD recommendation",
+      "Touches: " + label(r.kind),
+      "Title:   " + r.title,
+      r.who ? "From:    " + r.who : "From:    (not given)",
+      r.at ? "Date:    " + r.at : "",
+      "", r.detail || "(no detail given)", "",
+      "Filed from /recommend - held in one browser, not submitted anywhere."
+    ].filter(Boolean).join("\\n");
+  }
+  function msg(t){
+    var m = document.getElementById("recMsg");
+    m.textContent = t;
+    if(t) setTimeout(function(){ if(m.textContent === t) m.textContent = ""; }, 2600);
+  }
+  function render(){
+    var host = document.getElementById("recList");
+    if(!items.length){
+      host.innerHTML = '<figure class="panel absent"><figcaption><h3>Nothing saved yet'
+        + '</h3><p class="why">Recommendations you save appear here, newest first.</p>'
+        + '</figcaption></figure>';
+      return;
+    }
+    host.innerHTML = '<div class="scroller"><table><thead><tr><th>Touches</th>'
+      + '<th>Title</th><th>From</th><th>Saved</th><th></th></tr></thead><tbody>'
+      + items.map(function(r){
+        return '<tr><td><span class="chip"><span class="dot"></span>' + esc(label(r.kind))
+          + '</span></td><td>' + esc(r.title)
+          + (r.detail ? '<br><span class="muted-cell">' + esc(r.detail.slice(0,140))
+             + (r.detail.length > 140 ? "\\u2026" : "") + '</span>' : "")
+          + '</td><td>' + esc(r.who || "\\u2014") + '</td><td>' + esc(r.at || "\\u2014")
+          + '</td><td><button type="button" data-copy="' + esc(r.id) + '">copy</button> '
+          + '<button type="button" data-del="' + esc(r.id) + '">delete</button></td></tr>';
+      }).join("") + "</tbody></table></div>";
+  }
+  function copyText(text){
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(function(){ msg("copied"); },
+        function(){ fallback(text); });
+    } else { fallback(text); }
+  }
+  function fallback(text){
+    // file:// and some browsers refuse clipboard writes outright, so the text still has
+    // to be reachable by hand or the copy path is a dead end.
+    var host = document.getElementById("recList");
+    var ta = document.createElement("textarea");
+    ta.readOnly = true; ta.value = text; ta.rows = 10;
+    ta.style.cssText = "width:100%%;margin:0 0 12px;font:12.5px var(--mono);padding:10px;"
+      + "border:1px solid var(--rule);border-radius:8px;background:var(--surface);"
+      + "color:var(--ink);box-sizing:border-box";
+    host.parentNode.insertBefore(ta, host);
+    ta.focus(); ta.select();
+    msg("clipboard blocked - select and copy");
+  }
+  function current(){
+    return {
+      id: String(Date.now()) + String(Math.random()).slice(2,7),
+      kind: document.getElementById("recKind").value,
+      title: document.getElementById("recTitle").value.trim().replace(/\\s+/g," "),
+      detail: document.getElementById("recDetail").value.trim(),
+      who: document.getElementById("recWho").value.trim(),
+      at: new Date().toISOString().slice(0,10)
+    };
+  }
+  document.getElementById("recSave").addEventListener("click", function(){
+    var r = current();
+    if(!r.title){ msg("a title is required"); document.getElementById("recTitle").focus();
+      return; }
+    items.unshift(r); items = items.slice(0, LIMIT); save(items); render();
+    document.getElementById("recTitle").value = "";
+    document.getElementById("recDetail").value = "";
+    msg("saved to this browser");
+  });
+  document.getElementById("recCopy").addEventListener("click", function(){
+    var r = current();
+    if(!r.title){ msg("a title is required"); document.getElementById("recTitle").focus();
+      return; }
+    copyText(asText(r));
+  });
+  document.getElementById("recList").addEventListener("click", function(ev){
+    var c = ev.target.closest("[data-copy]"), d = ev.target.closest("[data-del]");
+    if(c){ var hit = items.filter(function(r){ return r.id === c.dataset.copy; })[0];
+      if(hit) copyText(asText(hit)); return; }
+    if(d){ items = items.filter(function(r){ return r.id !== d.dataset.del; });
+      save(items); render(); msg("deleted"); }
+  });
+  render();
+})();
+</script>"""
+
+
+#: Kinds a recommendation can carry. The value is what a filed proposal is tagged with;
+#: the hint says which part of the system the author is aiming at, because "UI" and
+#: "Engine" land on completely different review paths.
+RECOMMEND_KINDS = [
+    ("ui", "UI", "A layout, a widget, a surface, something that reads wrong"),
+    ("research", "Research", "A question, a hypothesis, something worth measuring"),
+    ("engine", "Engine", "Strategy, sizing, regime, the backtest itself"),
+    ("bucket", "Bucket", "Chaos / sovereign bucket tagging and membership"),
+    ("screener", "Screener", "A lens, a metric, a filter, a column"),
+    ("data", "Data source", "Something to pull in that is not wired yet"),
+    ("bug", "Bug", "Something is wrong and should not be"),
+]
+
+
+def page_recommend(mounts):
+    """A full page, not a popover: a recommendation is a considered thing to write, and a
+    dialog that vanishes on a stray click is the wrong container for it.
+
+    Nothing here reaches a server. This process is read-only by design (OPERATIONS.md), so
+    a filed recommendation is held in the author's own browser and the page's job is to
+    hand back text worth pasting into an issue — the real intake path today. Saying that
+    plainly beats a Submit button that quietly drops the work on the floor."""
+    body = ["<h1>Create a recommendation</h1>",
+            '<p class="lede">Propose a change to any part of MONAD — the interface, a '
+            'research question, the engine, a bucket, the screener, or a bug. Pick what '
+            'it touches, say it in one line, then explain it in as much detail as you '
+            'want.</p>']
+    body.append(
+        '<figure class="panel absent"><figcaption><h3>Where this goes</h3>'
+        '<p class="why">This server is read-only: it renders the repository and never '
+        'writes to it, so nothing typed here is submitted anywhere. Your entries are '
+        'kept in <b>this browser only</b> — nobody else can see them and clearing site '
+        'data removes them. <b>Copy as text</b> is the real intake path: paste the '
+        'result into a GitHub issue, or straight into <code>RESEARCH_WEB.md</code> if it '
+        'is a research node.</p></figcaption></figure>')
+    body.append('<form class="filters" id="recForm" autocomplete="off">')
+    body.append('<label class="field"><span>What does it touch</span>'
+                '<select id="recKind">')
+    for value, label, hint in RECOMMEND_KINDS:
+        body.append('<option value="{v}" title="{h}">{l} — {h}</option>'.format(
+            v=value, l=esc(label), h=esc(hint)))
+    body.append('</select></label>')
+    body.append('<label class="field" style="flex:1 1 320px"><span>Title — one line</span>'
+                '<input type="text" id="recTitle" maxlength="90" '
+                'placeholder="What should change?"></label>')
+    body.append('<label class="field"><span>Your name (optional)</span>'
+                '<input type="text" id="recWho" maxlength="40" size="14"></label>')
+    body.append("</form>")
+    body.append('<label class="field" style="display:block;margin:0 0 14px">'
+                '<span style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;'
+                'color:var(--ink-muted);font-weight:600">Detail — why, and what you expect '
+                'to change</span>'
+                '<textarea id="recDetail" rows="7" maxlength="4000" style="width:100%;'
+                'font:13.5px var(--sans);padding:10px;border:1px solid var(--rule);'
+                'border-radius:8px;background:var(--surface);color:var(--ink);'
+                'box-sizing:border-box" placeholder="Be concrete. What is wrong or '
+                'missing now, what would it look like instead, and how would you know it '
+                'worked?"></textarea></label>')
+    body.append('<div class="filters" style="margin-bottom:18px">'
+                '<button type="button" class="primary" id="recSave">Save to this browser'
+                '</button>'
+                '<button type="button" id="recCopy">Copy as text</button>'
+                '<span class="count" id="recMsg" role="status"></span></div>')
+    body.append('<h2>Saved in this browser</h2>')
+    body.append('<div id="recList"></div>')
+    body.append(RECOMMEND_JS % json.dumps([k for k, _l, _h in RECOMMEND_KINDS]))
+    return page("Create a recommendation", "/recommend", "".join(body), mounts)
 
 
 def page_surfaces(mounts):
@@ -1511,7 +2063,11 @@ def page_web(mounts, query):
         nid, title, st, out_n, in_n = row[:5]
         sev = {"current": "good", "superseded": "warning",
                "retracted": "critical"}.get(st, "neutral")
-        cells = ('<tr><td class="sev {sev}"><a href="/node/{n}"><code>{n}</code></a></td>'
+        cells = ('<tr class="node-row" tabindex="0" data-href="/node/{n}" '
+                 'onclick="location.href=this.dataset.href" '
+                 'onkeydown="if(event.key===\'Enter\')location.href=this.dataset.href">'
+                 '<td class="sev {sev}"><a href="/node/{n}" '
+                 'onclick="event.stopPropagation()"><code>{n}</code></a></td>'
                  '<td><span class="chip {sev}"><span class="dot"></span>{st}</span></td>'
                  '<td class="num">{i}</td><td class="num">{o}</td>').format(
             sev=sev, n=nid, st=st, i=in_n, o=out_n)
@@ -1528,7 +2084,170 @@ def page_web(mounts, query):
     return page("Research web", "/web", "".join(body), mounts, "browse")
 
 
-# ── the screener ─────────────────────────────────────────────────────────────
+def _screen_tick_label(metric, value):
+    if metric in ("dividend_yield", "growth", "earnings_growth", "revenue_growth",
+                  "profit_margin", "range_52w_pct"):
+        return "{:.0%}".format(value) if abs(value) >= 0.1 else "{:.1%}".format(value)
+    if metric in ("dollar_volume", "market_cap"):
+        return "${:.0f}B".format(value / 1e9) if value >= 1e9 else \
+            "${:.0f}M".format(value / 1e6)
+    return "{:g}".format(round(value, 2))
+
+
+def _bucket_mark(cx, cy, fill, title, stroke="var(--surface)"):
+    """Small bucket silhouette — used when a preset asks for mark=bucket so AI /
+    shadow-debt matches read as risk buckets, not anonymous dots."""
+    # Open-top trapezoid with a rim, centered on (cx, cy).
+    body = ("M {:.1f},{:.1f} L {:.1f},{:.1f} L {:.1f},{:.1f} L {:.1f},{:.1f} Z"
+            .format(cx - 7, cy - 4, cx + 7, cy - 4, cx + 5.5, cy + 7, cx - 5.5, cy + 7))
+    rim = ("M {:.1f},{:.1f} L {:.1f},{:.1f}"
+           .format(cx - 8.5, cy - 5.5, cx + 8.5, cy - 5.5))
+    return ('<g><title>{}</title>'
+            '<path d="{}" fill="{}" stroke="{}" stroke-width="1.2"/>'
+            '<path d="{}" fill="none" stroke="{}" stroke-width="1.6" '
+            'stroke-linecap="round"/></g>'.format(
+                esc(title), body, fill, stroke, rim, fill))
+
+
+def _shadow_debt_fill(tag):
+    return {
+        "spv_sponsor": "var(--critical)",
+        "capex_burn": "var(--serious)",
+        "supply_chain": "var(--accent)",
+        "grid_power": "var(--ord-3)",
+    }.get(tag, "var(--accent)")
+
+
+def _percentile(sorted_vals, p):
+    """Linear-interpolated percentile over an already-sorted list."""
+    k = (len(sorted_vals) - 1) * p
+    f, c = int(math.floor(k)), int(math.ceil(k))
+    if f == c:
+        return sorted_vals[f]
+    return sorted_vals[f] + (sorted_vals[c] - sorted_vals[f]) * (k - f)
+
+
+def _render_screen_scatter(rows, matches, preset):
+    """One dot per screenable name; the preset's matches draw in accent with ticker
+    labels, the rest of the universe stays as muted context — a filter that hid the
+    non-matches entirely would make every preset look like the whole market."""
+    x_metric, x_label = preset["x"][0], preset["x"][1]
+    x_log = len(preset["x"]) > 2 and preset["x"][2] == "log"
+    y_metric, y_label = preset["y"][0], preset["y"][1]
+    pts = [r for r in rows
+           if r.get(x_metric) is not None and r.get(y_metric) is not None
+           and (not x_log or r[x_metric] > 0)]
+    if len(pts) < 3:
+        return ('<figure class="panel absent"><figcaption><h3>Dot plot — not drawable'
+                '</h3><p class="why">fewer than three rows carry both axis metrics'
+                '</p></figcaption></figure>')
+    matched = {r["ticker"] for r in matches}
+    tx = (lambda v: math.log10(v)) if x_log else (lambda v: v)
+    xs = [tx(r[x_metric]) for r in pts]
+    ys = [r[y_metric] for r in pts]
+    x0, x1 = min(xs), max(xs)
+    y0, y1 = min(ys), max(ys)
+    L, R, T, B, W, H = 64, 18, 20, 44, 1160, 520
+    # A linear axis over the full range lets one 1500%-growth outlier crush the rest of
+    # the universe into a corner of cramped dots. With enough points, clip each axis to
+    # the 5–95th percentile and pin outliers to the edge — their <title> keeps the
+    # real value reachable, and a caption says the axis is clipped.
+    clipped = False
+    if len(pts) >= 20:
+        cx0, cx1 = _percentile(sorted(xs), .05), _percentile(sorted(xs), .95)
+        cy0, cy1 = _percentile(sorted(ys), .05), _percentile(sorted(ys), .95)
+        if cx1 > cx0 and (cx0 > x0 or cx1 < x1):
+            x0, x1, clipped = cx0, cx1, True
+        if cy1 > cy0 and (cy0 > y0 or cy1 < y1):
+            y0, y1, clipped = cy0, cy1, True
+    pad_x = (x1 - x0) * 0.05 or 0.5
+    pad_y = (y1 - y0) * 0.05 or 0.5
+    x0, x1 = x0 - pad_x, x1 + pad_x
+    y0, y1 = y0 - pad_y, y1 + pad_y
+    sx = lambda v: L + (min(max(tx(v), x0), x1) - x0) / (x1 - x0) * (W - L - R)
+    sy = lambda v: H - B - (min(max(v, y0), y1) - y0) / (y1 - y0) * (H - T - B)
+    parts = []
+    for i in range(5):
+        gx = x0 + (x1 - x0) * i / 4
+        gy = y0 + (y1 - y0) * i / 4
+        px = L + (gx - x0) / (x1 - x0) * (W - L - R)
+        py = H - B - (gy - y0) / (y1 - y0) * (H - T - B)
+        parts.append('<line x1="{x:.1f}" y1="{t}" x2="{x:.1f}" y2="{b}" '
+                     'stroke="var(--rule)" stroke-width="1"/>'.format(
+                         x=px, t=T, b=H - B))
+        parts.append('<line x1="{l}" y1="{y:.1f}" x2="{r}" y2="{y:.1f}" '
+                     'stroke="var(--rule)" stroke-width="1"/>'.format(
+                         l=L, r=W - R, y=py))
+        parts.append(_txt(px, H - B + 16, _screen_tick_label(
+            x_metric, (10 ** gx) if x_log else gx), 9.5, "var(--ink-muted)", "middle"))
+        parts.append(_txt(L - 8, py + 3.5, _screen_tick_label(y_metric, gy), 9.5,
+                          "var(--ink-muted)", "end"))
+    parts.append(_txt((L + W - R) / 2, H - 6, x_label + (" (log)" if x_log else ""),
+                      10.5, "var(--ink-2)", "middle"))
+    if clipped:
+        parts.append(_txt(W - R, T + 6, "axes clipped to 5–95th pctile · "
+                          "edge marks lie beyond — hover for the name", 9.5,
+                          "var(--ink-muted)", "end"))
+    parts.append('<g transform="translate(14,{:.1f}) rotate(-90)">{}</g>'.format(
+        (T + H - B) / 2, _txt(0, 0, y_label, 10.5, "var(--ink-2)", "middle")))
+    # Muted context first, so accent dots always paint on top.
+    for r in pts:
+        if r["ticker"] in matched:
+            continue
+        parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="5" fill="var(--axis)" '
+                     'opacity=".45"><title>{}</title></circle>'.format(
+                         sx(r[x_metric]), sy(r[y_metric]), esc(r["ticker"])))
+    use_buckets = preset.get("mark") == "bucket"
+    taken = []
+    for r in pts:
+        if r["ticker"] not in matched:
+            continue
+        cx, cy = sx(r[x_metric]), sy(r[y_metric])
+        tag = r.get("shadow_debt")
+        fill = _shadow_debt_fill(tag) if use_buckets else "var(--accent)"
+        label = r["ticker"]
+        if tag:
+            label = "{} · {}".format(
+                r["ticker"],
+                stock_screener.SHADOW_DEBT_LABELS.get(tag, tag))
+        if use_buckets:
+            parts.append(_bucket_mark(cx, cy, fill, label))
+        else:
+            parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="7" fill="var(--accent)" '
+                         'stroke="var(--surface)" stroke-width="1.5">'
+                         '<title>{}</title></circle>'.format(
+                             cx, cy, esc(label)))
+        # Greedy label collision pass — an overlapped label is dropped, never stacked;
+        # the mark's <title> still names the ticker on hover.
+        box = (cx + 8, cy - 10, cx + 8 + 7 * len(r["ticker"]), cy + 4)
+        if not any(b[0] < box[2] and box[0] < b[2] and b[1] < box[3] and box[1] < b[3]
+                   for b in taken):
+            taken.append(box)
+            parts.append(_txt(cx + 9, cy + 3.5, r["ticker"], 10, "var(--ink)",
+                              weight="600"))
+    if use_buckets:
+        legend = (
+            '<div class="legend" style="justify-content:center;margin:8px 0 0">'
+            '<span><i style="background:var(--critical)"></i>SPV sponsor</span>'
+            '<span><i style="background:var(--serious)"></i>Capex burn</span>'
+            '<span><i style="background:var(--accent)"></i>Supply chain</span>'
+            '<span><i style="background:var(--ord-3)"></i>Grid / power</span>'
+            '<span style="color:var(--ink-muted);font-size:12px">'
+            'bucket marks · editorial tags · on-BS D/E is incomplete</span></div>'
+        )
+        return (_svg(W, H, "".join(parts),
+                     "{} — {} of {} names match".format(
+                         preset["title"], len(matched), len(pts)),
+                     cls="plot screen-plot")
+                + legend)
+    return _svg(W, H, "".join(parts),
+                "{} — {} of {} names match".format(preset["title"], len(matched),
+                                                   len(pts)),
+                cls="plot screen-plot")
+
+
+
+# ── the sentiment screener (screener_lab) ─────────────────────────────────────────────────────────────
 # This page RENDERS a snapshot; it never fetches. Screening the S&P 500 is ~500 vendor
 # round-trips, and this server answers requests synchronously on one thread — a page
 # that fetched would hang every other view behind it for minutes. `screener_lab refresh`
@@ -1742,10 +2461,10 @@ def _screener_scatter(rows, source):
     if off_x or off_y:
         legend += " · {} off-scale, drawn on the edge with a marker".format(off_x + off_y)
     parts.append(_txt(L, H - 8, legend, 10, "var(--ink-muted)"))
-    return _svg(W, H, "".join(parts), "P/E against growth for the passing rows", "wide")
+    return _svg(W, H, "".join(parts), "P/E against growth for the passing rows", cls="plot wide")
 
 
-def page_screener(mounts, query):
+def page_sentiment(mounts, query):
     snapshot = screener_lab.load_snapshot()
     body = ["<h1>Low P/E, high growth — with sentiment kept in its own column</h1>"]
     if snapshot is None:
@@ -1758,7 +2477,7 @@ def page_screener(mounts, query):
             '<dd><code>{}</code></dd></div><div><dt>Takes</dt><dd>about 0.4s per '
             'ticker, so ~50s for the default 120</dd></div></dl></figure>'.format(
                 esc(screener_lab.REFRESH_CMD + " --limit 120")))
-        return page("Screener", "/screener", "".join(body), mounts, "screen")
+        return page("Sentiment", "/sentiment", "".join(body), mounts, wide=True)
 
     providers = screener_lab.providers_from_snapshot(snapshot)
     source = query.get("source") or "bloomberg"
@@ -1785,11 +2504,13 @@ def page_screener(mounts, query):
     covered = sum(1 for r in ranked if r.get(source + "_tone") is not None)
 
     body.append(
-        '<p class="lede">Two of these columns are measured and two are read from text, '
-        'and they are not the same kind of fact. P/E and growth come from the vendor '
-        'record; tone is a weighted finance lexicon over named documents — no model, '
-        'every score decomposable into the words that produced it. Tone does not enter '
-        'the ranking unless you give it a weight below.</p>')
+        '<p class="lede">Tone ranking over the sentiment snapshot. For the production '
+        'combined surface — full fund universe, shadow-debt tags, Bloomberg/Reddit tone '
+        'join, preset scatter — use <a href="/screener">/screener</a>. Here, P/E and '
+        'growth come from the vendor record; tone is a weighted finance lexicon over '
+        'named documents — no model, every score decomposable into the words that '
+        'produced it. Tone does not enter the ranking unless you give it a weight '
+        'below.</p>')
 
     body.append('<div class="stats">')
     body.append(_stat(snapshot.get("screened", 0), "tickers in snapshot"))
@@ -1819,7 +2540,7 @@ def page_screener(mounts, query):
     body.append(_provider_panels(providers))
 
     sectors = sorted({(r.get("sector") or "") for r in snapshot["rows"]} - {""})
-    body.append('<form class="filters" method="get" action="/screener">')
+    body.append('<form class="filters" method="get" action="/sentiment">')
     body.append('<label class="field"><span>Max P/E</span>'
                 '<input type="text" name="max_pe" placeholder="any" size="7" '
                 'value="{}"></label>'.format(esc(query.get("max_pe") or "")))
@@ -1844,7 +2565,7 @@ def page_screener(mounts, query):
             v=value, l=label, s=" selected" if abs(weight - value) < 1e-9 else ""))
     body.append("</select></label>")
     body.append('<button type="submit">Screen</button>')
-    body.append('<a href="/screener" class="chip" style="height:30px">reset</a>')
+    body.append('<a href="/sentiment" class="chip" style="height:30px">reset</a>')
     body.append('<span class="count">{} of {} pass</span></form>'.format(
         len(ranked), snapshot.get("screened", 0)))
 
@@ -1975,7 +2696,915 @@ def page_screener(mounts, query):
                     built=esc(snapshot.get("built_at", "?")),
                     cmd=esc(snapshot.get("refresh_command",
                                          screener_lab.REFRESH_CMD))))
-    return page("Screener", "/screener", "".join(body), mounts, "screen")
+    return page("Sentiment", "/sentiment", "".join(body), mounts, wide=True)
+
+
+def _sentiment_by_ticker():
+    """Map ticker → screener_lab row (tone + docs), or {} if no snapshot."""
+    snap = screener_lab.load_snapshot()
+    if not snap:
+        return {}, None
+    return {r["ticker"]: r for r in snap.get("rows") or [] if r.get("ticker")}, snap
+
+
+def _shadow_cell_html(row):
+    """On-BS D/E when tagged + editorial label; hover explains the number."""
+    tag = row.get("shadow_debt")
+    de = row.get("debt_to_equity")
+    if not tag:
+        tip = ("Not tagged for AI shadow-debt risk. Blank is absence, not zero — "
+               "see docs/research/AI_SHADOW_DEBT_LENS_2026.md.")
+        return ('<td class="num"><span class="muted-cell" title="{}">—</span></td>'
+                .format(esc(tip)))
+    label = stock_screener.SHADOW_DEBT_LABELS.get(tag, tag)
+    blurb = stock_screener.SHADOW_DEBT_BLURBS.get(tag, "")
+    sev = row.get("shadow_severity") or stock_screener.SHADOW_DEBT_SEVERITY.get(tag)
+    num = "—" if de is None else "{:.1f}".format(de)
+    gate = (" A high-severity tag disqualifies the name from the low-debt safety lens: "
+            "there the reported number is known to omit a financing leg."
+            if sev == "high" else "")
+    tip = ("{lab} · {sev} severity. Number is on-balance-sheet debt/equity % from the "
+           "vendor — the incomplete VISIBLE leg only. {blurb}{gate} Off-BS SPV/project "
+           "notionals are not measured here (editorial study object, not a live signal)."
+           .format(lab=label, sev=sev or "unranked", blurb=blurb, gate=gate))
+    chip = {"high": "critical", "medium": "warning"}.get(sev, "neutral")
+    return ('<td class="num"><span class="shadow-cell" title="{tip}">{num}</span>'
+            '<br><span class="chip {chip}"><span class="dot"></span>{lab}</span></td>'
+            .format(tip=esc(tip), num=esc(num), chip=chip, lab=esc(label)))
+
+
+def _tone_inner(row, source):
+    """Tone chip HTML without the wrapping <td> — for stacking BB+RD."""
+    cell = _tone_cell(row, source)
+    return cell[4:-5] if cell.startswith("<td>") and cell.endswith("</td>") else cell
+
+
+def _tone_cell_for_joined(sent_row, source):
+    """Tone cell over a joined screener_lab row; supports both/none."""
+    row = sent_row or {}
+    if source == "none":
+        return '<td><span class="muted-cell">—</span></td>'
+    if source == "both":
+        return ("<td><div style=\"display:flex;flex-direction:column;gap:6px\">"
+                "<div><span class=\"muted-cell\">BB </span>{}</div>"
+                "<div><span class=\"muted-cell\">RD </span>{}</div></div></td>".format(
+                    _tone_inner(row, "bloomberg"), _tone_inner(row, "reddit")))
+    return _tone_cell(row, source)
+
+
+def _headlines_html(sent_row, source, ticker):
+    """Decomposable documents for the selected name — real RSS titles when present."""
+    if source == "none":
+        return ('<div class="tone-card"><div class="tk">{}</div>'
+                '<div class="hd"><span class="muted-cell">Tone hidden</span></div>'
+                '<div class="meta">Pick Bloomberg, Reddit, or Both.</div></div>'
+                .format(esc(ticker)))
+    sources = ("bloomberg", "reddit") if source == "both" else (source,)
+    parts = []
+    for src in sources:
+        docs = (sent_row or {}).get(src + "_docs") or []
+        tag = "BB" if src == "bloomberg" else "RD"
+        tone = (sent_row or {}).get(src + "_tone")
+        cov = (sent_row or {}).get(src + "_coverage") or 0
+        if not docs:
+            if tone is None and not cov:
+                parts.append(
+                    '<div class="tone-card"><div class="tk">{} · {}</div>'
+                    '<div class="hd"><span class="chip">no coverage</span></div>'
+                    '<div class="meta">No {} document named this ticker in the '
+                    'fetched window.</div></div>'.format(esc(tag), esc(ticker), esc(src)))
+            elif tone is None:
+                parts.append(
+                    '<div class="tone-card"><div class="tk">{} · {}</div>'
+                    '<div class="hd"><span class="chip warning"><span class="dot"></span>'
+                    'untoned</span></div>'
+                    '<div class="meta">{} item(s), no tone word.</div></div>'
+                    .format(esc(tag), esc(ticker), cov))
+            else:
+                parts.append(
+                    '<div class="tone-card"><div class="tk">{} · {} · {:+.2f}</div>'
+                    '<div class="hd">Score present — titles not retained.</div></div>'
+                    .format(esc(tag), esc(ticker), tone))
+            continue
+        head = ("{} · {} · {:+.2f}".format(tag, ticker, tone) if tone is not None
+                else "{} · {}".format(tag, ticker))
+        for d in docs[:4]:
+            terms = ", ".join(str(t) for t in (d.get("terms") or [])[:4])
+            meta = "via {}{}".format(d.get("rule") or "?",
+                                     (" · " + terms) if terms else "")
+            parts.append(
+                '<div class="tone-card"><div class="tk">{}</div>'
+                '<div class="hd">{}</div><div class="meta">{}</div></div>'.format(
+                    esc(head), esc(d.get("title") or "(no title)"), esc(meta)))
+    return "".join(parts) or '<div class="muted-cell">No documents.</div>'
+
+
+def page_screen(mounts, query):
+    """Production screener: full fund universe + Bloomberg/Reddit tone join.
+
+    Renders from snapshots only (never fetches). Preset matching stays
+    stock_screener.apply_preset; tone cells come from screener_lab when that
+    snapshot exists. Scatter is server-drawn so provenance and marks stay in HTML.
+    """
+    presets = stock_screener.PRESETS
+    key = query.get("preset") or "low_pe_high_growth"
+    custom = key == "custom"
+    if not custom and key not in presets:
+        key = "low_pe_high_growth"
+    preset = (presets[key] if not custom else {
+        "title": "+ custom",
+        "blurb": "No preset rules — only the dropdown filters below.",
+        "x": ("pe", "P/E (trailing, forward fallback)"),
+        "y": ("growth", "earnings growth y/y (revenue fallback)"),
+        "mark": None,
+    })
+    source = query.get("source") or "bloomberg"
+    if source not in ("bloomberg", "reddit", "both", "none"):
+        source = "bloomberg"
+
+    snap = stock_screener.load_snapshot()
+    sent_by, sent_snap = _sentiment_by_ticker()
+
+    body = ['<div class="screen-combined">']
+    body.append('<div class="presets">')
+    for pk in presets:
+        q = {"preset": pk}
+        if source != "bloomberg":
+            q["source"] = source
+        href = "/screener?" + "&".join("{}={}".format(k, v) for k, v in q.items())
+        body.append('<a class="{}" href="{}">{}</a>'.format(
+            "on" if pk == key else "", href, esc(presets[pk]["title"])))
+    cust_q = "preset=custom" + (("&source=" + source) if source != "bloomberg" else "")
+    body.append('<a class="custom {}" href="/screener?{}">+ custom</a>'.format(
+        "on" if custom else "", cust_q))
+    body.append("</div>")
+
+    if snap is None:
+        body.append(
+            '<figure class="panel absent"><figcaption><h3>No snapshot fetched</h3>'
+            '<p class="why">The screener renders from a cached snapshot and none '
+            'exists at <code>data/screener/fundamentals.json</code> — this is absence '
+            'of data, not an empty screen. Fetch one (needs network):</p>'
+            '</figcaption><pre><code>venv/bin/python tools/stock_screener.py fetch'
+            '</code></pre></figure></div>')
+        return page("Screener", "/screener", "".join(body), mounts, wide=True)
+
+    rows = snap["rows"]
+    # Ensure shadow tags are present even on older snapshots.
+    for r in rows:
+        if r.get("shadow_debt") is None:
+            r["shadow_debt"] = stock_screener.SHADOW_DEBT.get(r.get("ticker"))
+
+    if custom:
+        matches, no_data = list(rows), []
+    else:
+        matches, no_data = stock_screener.apply_preset(rows, key)
+
+    sel = {k: (query.get(k) or "") for k in ("sector", "ai", "bucket")}
+    opts = {
+        "sector": sorted({r["sector"] for r in rows if r.get("sector")}),
+        "ai": [a for a in ("low", "medium", "high")
+               if any(r.get("ai") == a for r in rows)],
+        "bucket": sorted({r["bucket"] for r in rows if r.get("bucket")}),
+    }
+
+    def dropdown(name, label):
+        out = ['<label>{}<select name="{}">'.format(esc(label), name),
+               '<option value="">All</option>']
+        for o in opts[name]:
+            out.append('<option value="{v}"{s}>{v}</option>'.format(
+                v=esc(o), s=" selected" if o == sel[name] else ""))
+        out.append("</select></label>")
+        return "".join(out)
+
+    NUM_FILTERS = [
+        ("max_pe", "Max P/E", "pe",
+         [("10", "≤ 10"), ("15", "≤ 15"), ("20", "≤ 20"), ("25", "≤ 25"),
+          ("35", "≤ 35"), ("50", "≤ 50")],
+         lambda r, b: r.get("pe") is not None and r["pe"] <= b),
+        ("min_growth", "Min growth", "growth",
+         [("0.05", "≥ 5%"), ("0.10", "≥ 10%"), ("0.20", "≥ 20%"), ("0.50", "≥ 50%")],
+         lambda r, b: r.get("growth") is not None and r["growth"] >= b),
+        ("min_yield", "Min div yield", "dividend_yield",
+         [("0.01", "≥ 1%"), ("0.02", "≥ 2%"), ("0.04", "≥ 4%"), ("0.06", "≥ 6%")],
+         lambda r, b: r.get("dividend_yield") is not None
+                      and r["dividend_yield"] >= b),
+        ("max_de", "Max debt/eq %", "debt_to_equity",
+         [("50", "≤ 50"), ("100", "≤ 100"), ("200", "≤ 200")],
+         lambda r, b: r.get("debt_to_equity") is not None
+                      and r["debt_to_equity"] <= b),
+    ]
+    num_sel = {}
+    for name, _label, _metric, choices, _test in NUM_FILTERS:
+        raw = (query.get(name) or "").strip()
+        num_sel[name] = raw if raw in {v for v, _ in choices} else ""
+
+    def num_dropdown(name, label, choices):
+        out = ['<label>{}<select name="{}">'.format(esc(label), name),
+               '<option value="">Any</option>']
+        for v, text in choices:
+            out.append('<option value="{v}"{s}>{t}</option>'.format(
+                v=v, t=esc(text), s=" selected" if v == num_sel[name] else ""))
+        out.append("</select></label>")
+        return "".join(out)
+
+    # Provider status (real screener_lab lines when snapshot exists).
+    body.append('<div class="providers">')
+    if sent_snap:
+        for key_p in ("bloomberg", "reddit"):
+            prov = next((p for p in sent_snap.get("providers") or []
+                         if p.get("key") == key_p), None)
+            if not prov:
+                continue
+            sev = _STATE_SEV.get(prov.get("state"), "neutral")
+            word = _STATE_WORD.get(prov.get("state"), "?")
+            body.append(
+                '<div class="prov {}"><h3>{} <span class="chip {}">'
+                '<span class="dot"></span>{}</span></h3><p>{}</p></div>'.format(
+                    "partial" if prov.get("state") != screener_lab.LIVE else "",
+                    esc(prov.get("label") or key_p), sev, esc(word),
+                    esc(prov.get("headline") or prov.get("detail") or "")))
+    else:
+        body.append(
+            '<div class="prov partial"><h3>Bloomberg / Reddit tone '
+            '<span class="chip warning"><span class="dot"></span>off</span></h3>'
+            '<p>No sentiment snapshot — tone columns stay blank until '
+            '<code>{}</code>.</p></div>'.format(esc(screener_lab.REFRESH_CMD)))
+    body.append("</div>")
+
+    body.append(
+        '<form class="filters" method="get" action="/screener">'
+        '<input type="hidden" name="preset" value="{k}">'
+        '{s}{a}{b}{n}'
+        '<label>Tone source<select name="source">'
+        '<option value="bloomberg"{sb}>Bloomberg</option>'
+        '<option value="reddit"{sr}>Reddit</option>'
+        '<option value="both"{sbo}>Both</option>'
+        '<option value="none"{sn}>None</option>'
+        '</select></label>'
+        '<button class="primary" type="submit">Apply</button>'
+        '<a class="clear" href="/screener?preset={k}">Clear</a></form>'.format(
+            k=esc(key),
+            s=dropdown("sector", "Sector"),
+            a=dropdown("ai", "AI exposure"),
+            b=dropdown("bucket", "Bucket"),
+            n="".join(num_dropdown(name, label, choices)
+                      for name, label, _m, choices, _t in NUM_FILTERS),
+            sb=" selected" if source == "bloomberg" else "",
+            sr=" selected" if source == "reddit" else "",
+            sbo=" selected" if source == "both" else "",
+            sn=" selected" if source == "none" else ""))
+
+    for k, v in sel.items():
+        if v:
+            matches = [r for r in matches if r.get(k) == v]
+    for name, _label, _metric, _choices, test in NUM_FILTERS:
+        if num_sel[name]:
+            bound = float(num_sel[name])
+            matches = [r for r in matches if test(r, bound)]
+    filtered = any(sel.values()) or any(num_sel.values())
+
+    body.append(_source_note(
+        "snapshot {} · {} of {} names match{} · source {}{}".format(
+            snap.get("as_of", "?"), len(matches), len(rows),
+            " (dropdown-filtered)" if filtered else "",
+            snap.get("source", "?"),
+            (" · tone " + (sent_snap.get("built_at") if sent_snap else "off"))),
+        "data/screener/fundamentals.json"))
+
+    if key == "ai_shadow_debt":
+        body.append(
+            '<div class="note"><strong>Hidden debt frame.</strong> Reported debt/equity '
+            'is the on-balance-sheet leg only. AI data-center buildouts increasingly use '
+            'SPVs / project finance that can keep liabilities off the primary statements '
+            '(Meta Project Beignet is the public archetype; peers are standardizing). '
+            'Shadow-debt tags are editorial study objects — not measured notionals and '
+            'not bot signals. Full write-up: '
+            '<code>docs/research/AI_SHADOW_DEBT_LENS_2026.md</code>.</div>')
+
+    selected = (query.get("t") or (matches[0]["ticker"] if matches else
+                                   (rows[0]["ticker"] if rows else "")))
+    selected_row = next((r for r in rows if r.get("ticker") == selected), None)
+    selected_sent = sent_by.get(selected, {})
+
+    body.append('<div class="screen-layout">')
+    body.append('<div class="screen-plot-wrap">')
+    body.append(_render_screen_scatter(rows, matches, preset))
+    body.append("</div>")
+    body.append('<aside class="screen-side">')
+    price = (selected_row or {}).get("price")
+    body.append(
+        '<figure class="panel"><h2 id="selTitle">{}</h2>'
+        '<p class="why">Last print from the fundamentals snapshot — this server does '
+        'not fetch history on request.</p>'
+        '<p class="price-print">{}</p></figure>'.format(
+            esc("{} · {}".format(selected, (selected_row or {}).get("name") or "")),
+            ("${:.2f}".format(price) if price is not None
+             else '<span class="muted-cell">—</span>')))
+    body.append(
+        '<figure class="panel"><h2>{} tone</h2>'
+        '<div class="tone-stack">{}</div>'
+        '<p class="why" style="margin-top:10px">Methodology: '
+        '<a href="/sentiment">/sentiment</a></p></figure>'.format(
+            esc({"bloomberg": "Bloomberg", "reddit": "Reddit", "both": "Both",
+                 "none": "Tone off"}.get(source, source)),
+            _headlines_html(selected_sent, source, selected or "—")))
+    body.append("</aside></div>")
+
+    # Results — full fundamental columns + shadow + tone; clickable rows.
+    cols = ["pe", "growth", "dividend_yield", "debt_to_equity", "beta", "dollar_volume"]
+    heads = {"pe": "P/E", "growth": "growth", "dividend_yield": "div yield",
+             "debt_to_equity": "on-BS debt/eq %", "beta": "beta",
+             "dollar_volume": "$ volume/day"}
+    tone_h = {"bloomberg": "Bloomberg tone", "reddit": "Reddit tone",
+              "both": "Tone (BB · RD)", "none": "Tone"}[source]
+    body.append('<h2>Results · {} of {}</h2>'.format(len(matches), len(rows)))
+    body.append(
+        '<p class="why">Full universe snapshot; table shows the active preset matches. '
+        'Shadow debt number = on-BS D/E % when tagged — hover for what that means. '
+        'Tone is lexicon-scored RSS, not Terminal analytics.</p>')
+    body.append(
+        '<div class="scroller"><table class="sticky"><thead><tr>'
+        '<th>Ticker</th><th>Name</th><th>Sector</th><th>AI</th>'
+        '<th title="On-BS debt/equity % when tagged; hover a cell for the full '
+        'explanation.">Shadow debt</th><th>Bucket</th>'
+        + "".join('<th class="num">{}</th>'.format(heads[c]) for c in cols)
+        + '<th>{}</th></tr></thead><tbody>'.format(esc(tone_h)))
+
+    detail = {}
+    for r in matches:
+        tk = r["ticker"]
+        sr = sent_by.get(tk, {})
+        detail[tk] = {
+            "name": r.get("name") or tk,
+            "price": r.get("price"),
+            "head_html": _headlines_html(sr, source, tk),
+        }
+        on = ' class="on"' if tk == selected else ""
+        cells = [
+            '<tr data-t="{tk}"{on} style="cursor:pointer">'
+            '<td class="sev good"><code>{tk}</code></td><td>{name}</td>'
+            '<td>{sec}</td><td>{ai}</td>'.format(
+                tk=esc(tk), on=on, name=esc(r.get("name") or ""),
+                sec=esc(r.get("sector") or "—"), ai=esc(r.get("ai") or "—")),
+            _shadow_cell_html(r),
+            '<td>{}</td>'.format(esc(r.get("bucket") or "—")),
+            "".join('<td class="num">{}</td>'.format(
+                esc(stock_screener.fmt_metric(r, c))) for c in cols),
+            _tone_cell_for_joined(sr, source),
+            "</tr>",
+        ]
+        body.append("".join(cells))
+    body.append("</tbody></table></div>")
+
+    if not matches:
+        body.append('<p class="why">No names pass this preset in the current '
+                    'snapshot — the rules are in <code>tools/stock_screener.py</code> '
+                    'and are meant to be tuned.</p>')
+    if no_data:
+        body.append('<p class="why">{} names could not be screened (missing a '
+                    'required metric): {}</p>'.format(
+                        len(no_data),
+                        ", ".join(esc(r["ticker"]) for r, _m in no_data[:40])))
+
+    body.append(
+        '<script>window.__SCREEN_DETAIL__={};'
+        '(function(){{'
+        'const D=window.__SCREEN_DETAIL__||{{}};'
+        'function show(t){{'
+        '  const d=D[t]; if(!d) return;'
+        '  const title=document.getElementById("selTitle");'
+        '  if(title) title.textContent=t+" · "+(d.name||"");'
+        '  const pp=document.querySelector(".price-print");'
+        '  if(pp) pp.innerHTML=d.price!=null?("$"+Number(d.price).toFixed(2)):"—";'
+        '  const stack=document.querySelector(".screen-side .tone-stack");'
+        '  if(stack) stack.innerHTML=d.head_html||"";'
+        '  document.querySelectorAll("tr[data-t]").forEach(tr=>'
+        '    tr.classList.toggle("on", tr.dataset.t===t));'
+        '}}'
+        'document.querySelectorAll("tr[data-t]").forEach(tr=>'
+        '  tr.addEventListener("click",()=>show(tr.dataset.t)));'
+        '}})();</script>'.format(
+            json.dumps(detail).replace("<", "\\u003c")))
+
+    body.append("</div>")
+    return page("Screener", "/screener", "".join(body), mounts, wide=True)
+
+
+#: The chaos-bucket screener, ported from docs/research/SOVEREIGN_LEDGER_OPTIONS_MOCK.html
+#: (PR #56) onto this server's shell. The mock IS the wireframe — content and behaviour
+#: are kept verbatim where possible; its inline palette was dropped (this page links the
+#: shared stylesheet) and its theme button removed (the shell already follows the OS
+#: theme). Prices are still the mock's deterministic demo walks, said so on the page —
+#: the real feed is a future yfinance daily cache (Book III / handoff, not built yet).
+SOVEREIGN_SCREEN_BODY = """
+<div class="screen-center">
+  <div class="view-toggle" role="tablist" aria-label="Screener views">
+    <a href="/screener">Screener</a>
+    <a href="/screener/buckets">Buckets</a>
+  </div>
+
+<h1>Chaos bucket screener</h1>
+<p class="lede">
+  Pick a shock, clock, and buckets. Tickers are study objects — not live-bot signals.
+  Buckets and Book I names come from the Sovereign Ledger
+  (<code>docs/research/SOVEREIGN_LEDGER_CHAOS_BUCKETS_2026.md</code>); the
+  <a href="/screener">fundamental screener</a> screens the same universe by P/E, yield and AI tags.
+  Full buckets HTML wireframe:
+  <a href="/screener/buckets"><code>/screener/buckets</code></a>
+  ← <code>docs/research/SOVEREIGN_LEDGER_OPTIONS_MOCK.html</code>.
+</p>
+
+<div class="note">
+  <strong>Mock prices.</strong> Sparklines and charts are deterministic demo walks shaped
+  like the intended nightly yfinance daily cache — the real cache is not built yet, so
+  every number here is layout, not data.
+</div>
+
+<div class="stats" id="stats">
+  <div class="stat"><b id="statBuckets">20</b><span>buckets</span></div>
+  <div class="stat"><b id="statTickers">0</b><span>tickers in view</span></div>
+  <div class="stat"><b id="statSel">0</b><span>buckets selected</span></div>
+  <div class="stat"><b id="statClock">T1</b><span>active clock</span></div>
+</div>
+
+<div class="filters controls" id="controls">
+  <label>Shock
+    <select id="shock">
+      <option value="unknown">Unknown / explore</option>
+      <option value="hormuz" selected>Hormuz / Gulf energy</option>
+      <option value="taiwan">Taiwan Strait</option>
+      <option value="china_min">China mineral ban</option>
+      <option value="liquidity">Margin / everything down</option>
+      <option value="russia">Russia / Europe</option>
+      <option value="ai_grid">AI power / grid crunch</option>
+    </select>
+  </label>
+  <label>Clock
+    <select id="clock">
+      <option value="T0">T0 Liquidity</option>
+      <option value="T1" selected>T1 Mechanism</option>
+      <option value="T2">T2 Structure</option>
+    </select>
+  </label>
+  <label>Window
+    <select id="window">
+      <option value="63">3M</option>
+      <option value="126" selected>6M</option>
+      <option value="252">1Y</option>
+      <option value="756">3Y</option>
+    </select>
+  </label>
+  <label>Tier filter
+    <select id="tier">
+      <option value="all">All tickers</option>
+      <option value="liquid">Liquid only</option>
+      <option value="satellite">Satellites only</option>
+    </select>
+  </label>
+  <label>Search
+    <input id="q" type="search" placeholder="ticker or bucket…" style="width:140px" />
+  </label>
+  <button type="button" class="primary" id="applyBtn">Apply</button>
+  <button type="button" id="clearBtn">Clear</button>
+  <button type="button" id="topHeat">Select top heat</button>
+  <span class="count" id="countLabel"></span>
+</div>
+<p class="lede" id="shockHint" style="margin-top:-6px;font-size:13.5px"></p>
+
+<div class="panel" id="buckets">
+  <figcaption>
+    <h2 style="margin:0 0 4px">Buckets</h2>
+    <p class="lede" style="margin:0;font-size:13px">Click to multi-select. Heat = demo relevance under shock × clock.</p>
+  </figcaption>
+  <div class="grid" id="bucketGrid"></div>
+</div>
+
+<div class="layout">
+  <div class="panel">
+    <div class="tabs">
+      <button type="button" class="on" data-tab="chart">History</button>
+      <button type="button" data-tab="detail">Bucket detail</button>
+      <button type="button" data-tab="gen">Price feed</button>
+    </div>
+    <div id="tab-chart">
+      <h3 id="chartTitle">Select a bucket</h3>
+      <p class="lede" id="chartSub" style="font-size:13px;margin-bottom:10px">Normalized to 100 · demo series</p>
+      <div class="chart-box" id="chartBox"></div>
+      <div class="legend" id="chartLegend"></div>
+    </div>
+    <div id="tab-detail" hidden>
+      <h3 id="detailTitle">—</h3>
+      <dl class="kvs" id="detailKvs"></dl>
+      <h3>Fails when</h3>
+      <p id="detailFails"></p>
+      <h3>Liquid</h3>
+      <p class="instr" id="detailLiq"></p>
+      <h3>Satellites</h3>
+      <p class="instr" id="detailSat"></p>
+    </div>
+    <div id="tab-gen" hidden>
+      <h3>Free historical pricing</h3>
+      <p>Same path as the noise screener / live quote path: <code>fetch_yfinance</code> daily → disk cache → this UI. No Yahoo hit per click.</p>
+<pre style="white-space:pre-wrap;font:12px/1.45 var(--mono);background:var(--plane);padding:12px;border-radius:8px;border:1px solid var(--rule);margin:0">WATCH = liquid + satellite tickers from selected buckets
+for sym in WATCH:
+    df = fetch_yfinance(sym, start, end, interval="1d")  # free / unofficial
+    upsert research_prices(symbol, date, close, source="yfinance")
+
+# UI: GET /api/sovereign/history?symbols=UAMY,XLE&amp;window=126  (cache only)
+# Fallback: Stooq CSV if Yahoo 429. Macro: FRED. AWRP: event rows, not a series.</pre>
+    </div>
+  </div>
+
+  <div class="panel" id="watch">
+    <h2 style="margin-top:0">Watchlist</h2>
+    <p class="lede" id="watchHint" style="font-size:13px">Select buckets to fill rows.</p>
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Tier</th>
+            <th>Bucket</th>
+            <th>Spark</th>
+            <th class="num">Last</th>
+            <th class="num">Window</th>
+          </tr>
+        </thead>
+        <tbody id="watchBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="panel" id="book1">
+  <h2 style="margin-top:0">Book I · Keel / Sail</h2>
+  <p class="lede" style="font-size:13px">Sovereignty names — always listed; Bucket 11 pulls many of these in.</p>
+  <div class="scroller">
+    <table>
+      <thead>
+        <tr><th>Tier</th><th>Ticker</th><th>Archetype</th><th>SPARK</th><th>Next binary</th><th>Spark</th></tr>
+      </thead>
+      <tbody id="book1Body"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const BUCKETS = [
+  {id:"01", name:"Liquid Fear", blurb:"Cash / T-bills in a margin spiral.", duration:"scare",
+   lights:["liquidity"], fails:"You needed return, not powder.",
+   liquid:["SGOV","BIL","SHV","JPST"], satellite:["TFLO","ICSH"],
+   heat:{unknown:1,hormuz:1,taiwan:3,china_min:1,liquidity:4,russia:2,ai_grid:1}},
+  {id:"02", name:"Oil / Hormuz", blurb:"Non-Gulf crude on supply shock.", duration:"insurance",
+   lights:["hormuz"], fails:"Short war + SPR crush the spike.",
+   liquid:["XLE","XOP","XOM","CVX","COP","EOG","FANG","OXY","CL=F"],
+   satellite:["DVN","MRO","APA","PR","SM"],
+   heat:{unknown:2,hormuz:4,taiwan:1,china_min:1,liquidity:1,russia:3,ai_grid:1}},
+  {id:"03", name:"LNG", blurb:"US export replaces Gulf / RU gas.", duration:"insurance",
+   lights:["hormuz","russia"], fails:"Warm winter; Qatar online.",
+   liquid:["LNG","NFE","GLNG","NEXT"], satellite:["TELL","FLNG"],
+   heat:{unknown:1,hormuz:3,taiwan:1,china_min:0,liquidity:1,russia:3,ai_grid:1}},
+  {id:"04", name:"Tankers", blurb:"Ton-miles + war-risk premiums.", duration:"insurance",
+   lights:["hormuz","taiwan"], fails:"Ceasefire; premiums fade slowly.",
+   liquid:["FRO","DHT","STNG","EURN","INSW","TNK","ASC"],
+   satellite:["NAT","SFL","TRMD"],
+   heat:{unknown:2,hormuz:4,taiwan:2,china_min:0,liquidity:1,russia:2,ai_grid:0}},
+  {id:"05", name:"Munitions US", blurb:"Primes + missile defense restock.", duration:"restock",
+   lights:["hormuz","taiwan","russia"], fails:"Budget freeze; T0 washout.",
+   liquid:["ITA","PPA","XAR","LMT","RTX","NOC","GD","LHX","HWM"],
+   satellite:["CW","AXON","MRC","SPR"],
+   heat:{unknown:2,hormuz:3,taiwan:3,china_min:1,liquidity:1,russia:4,ai_grid:1}},
+  {id:"06", name:"Drones / UAS", blurb:"Attritable mass + counter-UAS.", duration:"restock",
+   lights:["taiwan","russia"], fails:"Contract drought; meme multiples.",
+   liquid:["AVAV","KTOS","RCAT","ONDS"], satellite:["IRDM","BKSY"],
+   heat:{unknown:1,hormuz:1,taiwan:3,china_min:1,liquidity:1,russia:3,ai_grid:1}},
+  {id:"07", name:"Cyber / space", blurb:"Gray-zone, ISR, launch.", duration:"restock",
+   lights:["taiwan"], fails:"Commercial cyber multiple crush.",
+   liquid:["CRWD","PANW","ZS","S","FTNT","RKLB","PL","LUNR"],
+   satellite:["SAIC","LDOS","BAH"],
+   heat:{unknown:1,hormuz:1,taiwan:4,china_min:2,liquidity:1,russia:2,ai_grid:2}},
+  {id:"08", name:"Gold (washout)", blurb:"After T0 dump if conflict persists.", duration:"order",
+   lights:["liquidity","hormuz","russia"], fails:"Real rates rip; crowded long.",
+   liquid:["GLD","IAU","GLDM","GDX","GDXJ","NEM","AEM","GOLD","GC=F"],
+   satellite:["WPM","FNV","RGLD","AGI"],
+   heat:{unknown:2,hormuz:2,taiwan:2,china_min:1,liquidity:3,russia:3,ai_grid:1}},
+  {id:"09", name:"Uranium / fuel", blurb:"Energy security + HALEU path.", duration:"order",
+   lights:["hormuz","russia","ai_grid"], fails:"Spot flush; reactor delays.",
+   liquid:["URA","URNM","NLR","CCJ","UEC","NXE","DNN","LEU","SMR"],
+   satellite:["URG","UUUU","OKLO","NNE"],
+   heat:{unknown:1,hormuz:2,taiwan:1,china_min:1,liquidity:1,russia:3,ai_grid:4}},
+  {id:"10", name:"Fertilizer", blurb:"Gas → ammonia → food prices.", duration:"insurance",
+   lights:["hormuz","russia"], fails:"Gas normalizes; big harvest.",
+   liquid:["CF","NTR","MOS","IPI"], satellite:["SMG"],
+   heat:{unknown:1,hormuz:3,taiwan:0,china_min:0,liquidity:1,russia:3,ai_grid:0}},
+  {id:"11", name:"Wartime elements", blurb:"Export bans → Book I midstream.", duration:"order",
+   lights:["china_min","taiwan"], fails:"China dump + floors vanish.",
+   liquid:["MP","USAR","UUUU","UAMY","REMX","SETM","AREC","NB"],
+   satellite:["LRV.AX","NSRCF","LAC","LAR","CRIT"],
+   heat:{unknown:2,hormuz:1,taiwan:3,china_min:4,liquidity:1,russia:1,ai_grid:3}},
+  {id:"12", name:"Silicon siege", blurb:"Taiwan — equipment, not victims.", duration:"scare",
+   lights:["taiwan"], fails:"You bought fabless Taiwan risk.",
+   liquid:["AMAT","LRCX","KLAC","ASML","TER","ENTG"],
+   satellite:["ACLS","ONTO","AMKR"],
+   heat:{unknown:1,hormuz:0,taiwan:4,china_min:2,liquidity:2,russia:0,ai_grid:2}},
+  {id:"13", name:"Copper / grid", blurb:"AI power, defense, LatAm supply.", duration:"order",
+   lights:["ai_grid","china_min","taiwan"], fails:"China demand shock crushes Cu.",
+   liquid:["COPX","FCX","SCCO","TECK","CPER","JJC","AA","CENX"],
+   satellite:["HBM","ERO","CSAN","BHP","RIO"],
+   heat:{unknown:2,hormuz:1,taiwan:2,china_min:3,liquidity:1,russia:1,ai_grid:4}},
+  {id:"14", name:"Silver", blurb:"Monetary + solar/defense industrial.", duration:"order",
+   lights:["liquidity","ai_grid"], fails:"Industrial recession hits Ag hard.",
+   liquid:["SLV","SIVR","SIL","SILJ","PAAS","CDE","AG"],
+   satellite:["HL","SVM","EXK"],
+   heat:{unknown:2,hormuz:1,taiwan:1,china_min:1,liquidity:3,russia:2,ai_grid:2}},
+  {id:"15", name:"EU defense", blurb:"NATO rearmament, EU primes/ETFs.", duration:"restock",
+   lights:["russia"], fails:"Peace dividend narrative; FX.",
+   liquid:["WDEF","DFEN","BAESY","EADSY","RNMBY","FINMY","SAABY","THLLY"],
+   satellite:["HO.PA","RHM.DE","LDO.MI"],
+   heat:{unknown:2,hormuz:2,taiwan:1,china_min:0,liquidity:1,russia:4,ai_grid:0}},
+  {id:"16", name:"Naval / yards", blurb:"Shipbuilding, subs, sealift.", duration:"restock",
+   lights:["hormuz","taiwan","russia"], fails:"Program slips; continuing resolutions.",
+   liquid:["HII","GD","BA","TXT","CW","TDG"],
+   satellite:["MRC","AIR"],
+   heat:{unknown:1,hormuz:3,taiwan:3,china_min:0,liquidity:1,russia:3,ai_grid:0}},
+  {id:"17", name:"Refiners / midstream", blurb:"Crack spikes + pipe optionality.", duration:"insurance",
+   lights:["hormuz"], fails:"Demand destruction kills cracks.",
+   liquid:["VLO","MPC","PSX","PBF","DK","EPD","ET","KMI","WMB","OKE"],
+   satellite:["PAA","MMP"],
+   heat:{unknown:1,hormuz:4,taiwan:0,china_min:0,liquidity:1,russia:2,ai_grid:0}},
+  {id:"18", name:"Softs / grain", blurb:"Black Sea / Red Sea food routes.", duration:"insurance",
+   lights:["russia","hormuz"], fails:"Bumper harvest; export bans reverse.",
+   liquid:["DBA","WEAT","CORN","SOYB","ADM","BG","INGR"],
+   satellite:["DE","AGCO"],
+   heat:{unknown:1,hormuz:2,taiwan:0,china_min:0,liquidity:1,russia:3,ai_grid:0}},
+  {id:"19", name:"Steel / met coal", blurb:"Wartime industrial + armor plate.", duration:"restock",
+   lights:["russia","taiwan"], fails:"China steel dump; housing bust.",
+   liquid:["X","NUE","CLF","STLD","RS","HCC","ARCH","BTU","XME"],
+   satellite:["CMC","ZEUS"],
+   heat:{unknown:1,hormuz:1,taiwan:2,china_min:1,liquidity:1,russia:3,ai_grid:2}},
+  {id:"20", name:"Grid / power infra", blurb:"AI load, transformers, uranium utilities.", duration:"order",
+   lights:["ai_grid"], fails:"Rate shock kills utility multiples.",
+   liquid:["VST","CEG","NRG","ETR","SRE","PWR","ETN","GEV","POWL","VRT"],
+   satellite:["MYRG","PRIM","FLR"],
+   heat:{unknown:2,hormuz:1,taiwan:1,china_min:1,liquidity:1,russia:1,ai_grid:4}},
+];
+
+const BOOK1 = [
+  {tier:"Keel", t:"MP", arch:"Magnet", spark:9, bin:"Apple recycling + 10X"},
+  {tier:"Keel", t:"UUUU", arch:"Magnet", spark:8, bin:"VAC close; Donald FID"},
+  {tier:"Keel", t:"LEU", arch:"Fuel Cell", spark:8, bin:"Piketon lease / HALEU"},
+  {tier:"Keel", t:"LAC", arch:"Li Fortress", spark:7, bin:"Thacker Pass capex"},
+  {tier:"Sail A", t:"UAMY", arch:"Sb Fortress", spark:10, bin:"DLA order pace"},
+  {tier:"Sail A", t:"LRV.AX", arch:"Allied Bridge", spark:7, bin:"Hillgrove first Sb"},
+  {tier:"Sail B", t:"AREC", arch:"Urban Mine", spark:7, bin:"Marion Ge Q3'26"},
+  {tier:"Sail B", t:"NSRCF", arch:"Graphite Bridge", spark:6, bin:"UAE BAF / Mitsubishi"},
+  {tier:"Sail C", t:"USAR", arch:"Bridge+Magnet", spark:9, bin:"CADE + Serra Verde"},
+  {tier:"Sail C", t:"NB", arch:"Quiet Alloy", spark:6, bin:"Traxys + EXIM"},
+  {tier:"Sail C", t:"LAR", arch:"LatAm Bridge", spark:5, bin:"RIGI Stage 2"},
+  {tier:"ETF", t:"REMX", arch:"RE / strategic", spark:7, bin:"Policy + China ban beta"},
+  {tier:"ETF", t:"SETM", arch:"Critical materials", spark:7, bin:"Broad mineral beta"},
+];
+
+const HINTS = {
+  unknown: "Explore — heats are baseline, not a live alert.",
+  hormuz: "Focus 02·03·04·17 → then 05·16·10·08.",
+  taiwan: "01 cash first, then 05·07·11·12·16. Avoid fabless victims.",
+  china_min: "11 + Book I + 13 copper. Midstream > explorers.",
+  liquidity: "Only 01 until washout ends — then 08 / war hedges.",
+  russia: "05·15·03·09·10·18·19.",
+  ai_grid: "20 grid · 09 uranium · 13 copper · 11 magnets.",
+};
+
+const selected = new Set(["02","04","17"]);
+let activeTicker = null;
+
+function mulberry32(a){return function(){let t=a+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296}}
+function hashStr(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
+/* Approx trading days ending at the mock "as of". */
+const AS_OF = new Date(Date.UTC(2026, 7, 5));
+function tradingDates(n){
+  const dates=[]; let d=new Date(AS_OF);
+  while(dates.length<n){
+    const wd=d.getUTCDay();
+    if(wd!==0 && wd!==6) dates.push(new Date(d));
+    d.setUTCDate(d.getUTCDate()-1);
+  }
+  return dates.reverse();
+}
+function fmtDate(d, short){
+  const m=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getUTCMonth()];
+  if(short) return m+" "+d.getUTCDate();
+  return m+" "+d.getUTCDate()+", "+d.getUTCFullYear();
+}
+function genSeries(symbol,n){
+  const rnd=mulberry32(hashStr(symbol)^0x51ed9e);
+  let px=20+(hashStr(symbol)%80); const out=[];
+  for(let i=0;i<n;i++){px=Math.max(1.2,px*(1+(rnd()-0.48)*0.035));out.push(+px.toFixed(2))}
+  return out;
+}
+function pct(a,b){return ((b/a)-1)*100}
+function sparkSVG(series,w=80,h=26){
+  const min=Math.min(...series),max=Math.max(...series),span=max-min||1;
+  const pts=series.map((v,i)=>{
+    const x=(i/(series.length-1))*(w-2)+1;
+    const y=h-2-((v-min)/span)*(h-4);
+    return x.toFixed(1)+","+y.toFixed(1);
+  }).join(" ");
+  const col=series.at(-1)>=series[0]?"var(--good)":"var(--critical)";
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}"><polyline fill="none" stroke="${col}" stroke-width="1.5" points="${pts}"/></svg>`;
+}
+/* Distinct series colors (coordinate with legend). Up/down stays on % chips only. */
+const SERIES_COLORS=["var(--accent)","var(--serious)","var(--ord-3)","var(--warning)","var(--ord-2)","var(--good)"];
+function seriesColor(i){ return SERIES_COLORS[i % SERIES_COLORS.length]; }
+
+/* Larger history chart: date axis + per-ticker colors. */
+function lineChart(seriesMap,n){
+  const w=720, h=250, padL=36, padR=14, padT=16, padB=36;
+  const keys=Object.keys(seriesMap);
+  if(!keys.length){
+    return `<svg viewBox="0 0 ${w} ${h}"><text x="24" y="40" fill="var(--ink-muted)" font-size="13">Select buckets to plot liquid tickers (normalized).</text></svg>`;
+  }
+  const dates=tradingDates(n);
+  const norms={};
+  keys.forEach(k=>{
+    const s=seriesMap[k].slice(-n);
+    const b=s[0]||1;
+    norms[k]=s.map(v=>100*(v/b));
+  });
+  const all=keys.flatMap(k=>norms[k]);
+  const min=Math.min(...all), max=Math.max(...all), span=max-min||1;
+  const plotW=w-padL-padR, plotH=h-padT-padB;
+  const X=i=>padL+(i/Math.max(1,n-1))*plotW;
+  const Y=v=>padT+plotH-((v-min)/span)*plotH;
+  let base="";
+  if(min<=100 && max>=100){
+    base=`<line x1="${padL}" x2="${w-padR}" y1="${Y(100)}" y2="${Y(100)}" stroke="var(--axis)" stroke-dasharray="3,3"/>`;
+  }
+  const yTicks=[0,.25,.5,.75,1].map(f=>{
+    const val=min+f*span, yy=Y(val);
+    return `<line x1="${padL}" x2="${w-padR}" y1="${yy}" y2="${yy}" stroke="var(--rule)"/>
+      <text x="${padL-6}" y="${yy+3.5}" text-anchor="end" font-size="10" fill="var(--ink-muted)" font-family="var(--mono)">${val.toFixed(0)}</text>`;
+  }).join("");
+  const labelN=Math.min(5, n);
+  const xTicks=[];
+  for(let i=0;i<labelN;i++){
+    const idx=labelN===1?0:Math.round(i*(n-1)/(labelN-1));
+    const xx=X(idx);
+    xTicks.push(`<line x1="${xx}" x2="${xx}" y1="${padT+plotH}" y2="${padT+plotH+4}" stroke="var(--axis)"/>
+      <text x="${xx}" y="${h-10}" text-anchor="middle" font-size="10" fill="var(--ink-muted)" font-family="var(--mono)">${fmtDate(dates[idx], true)}</text>`);
+  }
+  const paths=keys.map((k,i)=>{
+    const col=seriesColor(i);
+    const pts=norms[k].map((v,j)=>`${X(j).toFixed(1)},${Y(v).toFixed(1)}`).join(" ");
+    const last=norms[k].length-1;
+    return `<polyline fill="none" stroke="${col}" stroke-width="2.25" stroke-linejoin="round" stroke-linecap="round" points="${pts}"/>
+      <circle cx="${X(last).toFixed(1)}" cy="${Y(norms[k][last]).toFixed(1)}" r="3.2" fill="${col}" stroke="var(--surface)" stroke-width="1.5"/>`;
+  }).join("");
+  const rangeNote=`<text x="${padL}" y="12" font-size="10" fill="var(--ink-muted)" font-family="var(--mono)">${fmtDate(dates[0])} → ${fmtDate(dates[n-1])} · indexed to 100</text>`;
+  return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Normalized price history with dates">${yTicks}${base}${xTicks}${paths}${rangeNote}</svg>`;
+}
+function seriesChg(series){ return pct(series[0], series.at(-1)); }
+function heatOf(b){
+  const shock=document.getElementById("shock").value;
+  const clock=document.getElementById("clock").value;
+  let h=b.heat[shock]??1;
+  if(clock==="T0"&&["01","08","14"].includes(b.id)) h=Math.min(4,h+1);
+  if(clock==="T1"&&["02","03","04","10","17","18"].includes(b.id)) h=Math.min(4,h+1);
+  if(clock==="T2"&&["05","09","11","13","15","16","19","20"].includes(b.id)) h=Math.min(4,h+1);
+  return h;
+}
+function tickersOf(b){
+  const tier=document.getElementById("tier").value;
+  if(tier==="liquid") return b.liquid.map(t=>({t,tier:"liquid"}));
+  if(tier==="satellite") return b.satellite.map(t=>({t,tier:"satellite"}));
+  return [...b.liquid.map(t=>({t,tier:"liquid"})),...b.satellite.map(t=>({t,tier:"satellite"}))];
+}
+function renderBuckets(){
+  const q=document.getElementById("q").value.trim().toLowerCase();
+  const grid=document.getElementById("bucketGrid"); grid.innerHTML="";
+  let shown=0;
+  BUCKETS.forEach(b=>{
+    const h=heatOf(b);
+    const hay=(b.id+b.name+b.blurb+b.liquid.join(" ")+b.satellite.join(" ")).toLowerCase();
+    if(q && !hay.includes(q)) return;
+    shown++;
+    const btn=document.createElement("button");
+    btn.type="button"; btn.className="bucket"+(selected.has(b.id)?" selected":"");
+    btn.innerHTML=`<span class="id">BUCKET ${b.id}</span><span class="name">${b.name}</span>
+      <span class="blurb">${b.blurb}</span>
+      <span class="meta"><span class="chip ${h>=3?"serious":h>=2?"warning":"neutral"}"><span class="dot"></span>${b.duration}</span>
+      <span class="tag">${b.liquid.length}+${b.satellite.length}</span></span>
+      <span class="heat h${h}"><i></i></span>`;
+    btn.onclick=()=>{if(selected.has(b.id))selected.delete(b.id);else selected.add(b.id);renderAll()};
+    grid.appendChild(btn);
+  });
+  document.getElementById("shockHint").textContent=HINTS[document.getElementById("shock").value]||"";
+  document.getElementById("countLabel").textContent=shown+" buckets shown";
+}
+function selectedBuckets(){return BUCKETS.filter(b=>selected.has(b.id))}
+function renderWatch(){
+  const n=+document.getElementById("window").value;
+  const rows=[];
+  selectedBuckets().forEach(b=>{
+    tickersOf(b).forEach(({t,tier})=>{
+      const s=genSeries(t,n);
+      rows.push({t,tier,bucket:b.id,name:b.name,s,last:s.at(-1),chg:pct(s[0],s.at(-1))});
+    });
+  });
+  const seen=new Set(); const uniq=rows.filter(r=>{if(seen.has(r.t))return false;seen.add(r.t);return true});
+  document.getElementById("statTickers").textContent=String(uniq.length);
+  document.getElementById("statSel").textContent=String(selected.size);
+  document.getElementById("statClock").textContent=document.getElementById("clock").value;
+  document.getElementById("statBuckets").textContent=String(BUCKETS.length);
+  document.getElementById("watchHint").textContent=uniq.length
+    ? `${uniq.length} tickers · ${selected.size} buckets · ${n}d window · demo cache`
+    : "Select buckets to fill rows.";
+  document.getElementById("watchBody").innerHTML=uniq.map(r=>`
+    <tr class="${activeTicker===r.t?"on":""}" data-t="${r.t}" style="cursor:pointer">
+      <td><code>${r.t}</code></td>
+      <td class="tag">${r.tier}</td>
+      <td class="muted">${r.bucket} ${r.name}</td>
+      <td>${sparkSVG(r.s)}</td>
+      <td class="num">${r.last.toFixed(2)}</td>
+      <td class="num ${r.chg>=0?"up":"dn"}">${r.chg>=0?"+":""}${r.chg.toFixed(1)}%</td>
+    </tr>`).join("")||`<tr><td colspan="6" class="muted">No selection</td></tr>`;
+  document.querySelectorAll("#watchBody tr[data-t]").forEach(tr=>{
+    tr.onclick=()=>{activeTicker=tr.dataset.t;renderChart();renderWatch()};
+  });
+}
+function renderChart(){
+  const n=+document.getElementById("window").value;
+  const bucks=selectedBuckets();
+  const map={};
+  if(activeTicker){map[activeTicker]=genSeries(activeTicker,n);document.getElementById("chartTitle").textContent=activeTicker+" · demo history"}
+  else if(bucks.length){
+    const ts=[]; bucks.forEach(b=>b.liquid.forEach(t=>{if(!ts.includes(t))ts.push(t)}));
+    ts.slice(0,5).forEach(t=>map[t]=genSeries(t,n));
+    document.getElementById("chartTitle").textContent=bucks.map(b=>b.id).join(", ")+" · normalized";
+  } else document.getElementById("chartTitle").textContent="Select a bucket";
+  document.getElementById("chartBox").innerHTML=lineChart(map,n);
+  const dates=tradingDates(n);
+  document.getElementById("chartSub").textContent=
+    fmtDate(dates[0])+" → "+fmtDate(dates[n-1])+" · normalized to 100 · line color = ticker · % chip = window return";
+  document.getElementById("chartLegend").innerHTML=Object.keys(map).map((k,i)=>{
+    const s=map[k], chg=seriesChg(s), up=chg>=0, col=seriesColor(i);
+    return `<span class="chip ${up?"good":"critical"}"><span class="dot" style="background:${col}"></span>${k} ${chg>=0?"+":""}${chg.toFixed(1)}%</span>`;
+  }).join("");
+  const b=bucks[0];
+  if(b){
+    document.getElementById("detailTitle").textContent=`Bucket ${b.id} — ${b.name}`;
+    document.getElementById("detailKvs").innerHTML=`
+      <dt>Duration</dt><dd>${b.duration}</dd>
+      <dt>Lights when</dt><dd>${b.lights.join(", ")}</dd>
+      <dt>Heat now</dt><dd>${heatOf(b)} / 4</dd>
+      <dt>Feed</dt><dd>yfinance daily → cache (free)</dd>`;
+    document.getElementById("detailFails").textContent=b.fails;
+    document.getElementById("detailLiq").textContent=b.liquid.join(" · ");
+    document.getElementById("detailSat").textContent=b.satellite.join(" · ")||"—";
+  } else {
+    document.getElementById("detailTitle").textContent="No bucket selected";
+    document.getElementById("detailKvs").innerHTML="";
+    document.getElementById("detailFails").textContent="";
+    document.getElementById("detailLiq").textContent="";
+    document.getElementById("detailSat").textContent="";
+  }
+}
+function renderBook1(){
+  const n=Math.min(+document.getElementById("window").value,126);
+  document.getElementById("book1Body").innerHTML=BOOK1.map(r=>{
+    const s=genSeries(r.t,n);
+    return `<tr><td>${r.tier}</td><td><code>${r.t}</code></td><td>${r.arch}</td>
+      <td class="num">${r.spark}</td><td class="muted">${r.bin}</td><td>${sparkSVG(s)}</td></tr>`;
+  }).join("");
+}
+function renderAll(){renderBuckets();renderWatch();renderChart();renderBook1()}
+
+document.querySelectorAll(".tabs button").forEach(btn=>{
+  btn.onclick=()=>{
+    document.querySelectorAll(".tabs button").forEach(b=>b.classList.remove("on"));
+    btn.classList.add("on");
+    ["chart","detail","gen"].forEach(id=>{document.getElementById("tab-"+id).hidden=btn.dataset.tab!==id});
+  };
+});
+["applyBtn"].forEach(id=>document.getElementById(id).onclick=renderAll);
+["shock","clock","window","tier"].forEach(id=>document.getElementById(id).onchange=renderAll);
+document.getElementById("q").oninput=renderAll;
+document.getElementById("clearBtn").onclick=()=>{selected.clear();activeTicker=null;renderAll()};
+document.getElementById("topHeat").onclick=()=>{
+  selected.clear();
+  BUCKETS.map(b=>({b,h:heatOf(b)})).sort((a,c)=>c.h-a.h).slice(0,4).forEach(x=>selected.add(x.b.id));
+  activeTicker=null; renderAll();
+};
+renderAll();
+</script>
+</div>
+"""
+
+
+def page_screen_sovereign(mounts):
+    return page("Chaos bucket screener", "/screen", SOVEREIGN_SCREEN_BODY, mounts,
+                "research · sovereign ledger · study objects")
 
 
 def page_node(nid, mounts):
@@ -2035,13 +3664,15 @@ def page_node(nid, mounts):
     if nctx["in_edges"] or nctx["out_edges"]:
         body.append("<h2>Edges</h2>")
         for e in nctx["out_edges"]:
-            body.append('<div class="edge"><span class="type">{t}</span>'
-                        '<a href="/node/{n}"><code>{n}</code></a><span>{ti}</span></div>'
-                        .format(t=esc(e["type"]), n=esc(e["target"]), ti=esc(e["title"])))
+            body.append(
+                '<a class="edge" href="/node/{n}"><span class="type">{t}</span>'
+                '<code>{n}</code><span>{ti}</span></a>'.format(
+                    t=esc(e["type"]), n=esc(e["target"]), ti=esc(e["title"])))
         for e in nctx["in_edges"]:
-            body.append('<div class="edge"><span class="type">&larr; {t}</span>'
-                        '<a href="/node/{n}"><code>{n}</code></a><span>{ti}</span></div>'
-                        .format(t=esc(e["type"]), n=esc(e["source"]), ti=esc(e["title"])))
+            body.append(
+                '<a class="edge" href="/node/{n}"><span class="type">&larr; {t}</span>'
+                '<code>{n}</code><span>{ti}</span></a>'.format(
+                    t=esc(e["type"]), n=esc(e["source"]), ti=esc(e["title"])))
     return page("{} — {}".format(nid, nctx["title"][:60]), "/web", "".join(body),
                 mounts, "{} · {}".format(nid, nctx["kind"]))
 
@@ -2069,6 +3700,175 @@ def _mount_state(opts):
     return [(href, label, bool(opts.get(attr))) for href, label, attr, _fn in MOUNTS]
 
 
+
+#: The mock file carries its own rail so it stays viewable as a standalone file; when
+#: SERVED it must show the same sidebar as every other page, so the rail is swapped
+#: for _nav() at request time (same pattern export_pages.py uses for its static rail).
+_MOCK_RAIL = re.compile(r'<aside class="rail">.*?</aside>', re.S)
+
+
+def _sovereign_buckets_html(mounts):
+    """Serve docs/research/SOVEREIGN_LEDGER_OPTIONS_MOCK.html at /screener/buckets."""
+    if not os.path.isfile(SOVEREIGN_MOCK_HTML):
+        return (404,
+                "missing docs/research/SOVEREIGN_LEDGER_OPTIONS_MOCK.html "
+                "in the working tree\n", TEXT)
+    with open(SOVEREIGN_MOCK_HTML, encoding="utf-8") as f:
+        html = f.read()
+    return 200, _MOCK_RAIL.sub(_nav("/screener/buckets", mounts), html, count=1), HTML
+
+
+def _research_groups_html(mounts):
+    """Draft topic-shelf mock for the research web — not wired into page_web yet."""
+    if not os.path.isfile(RESEARCH_GROUPS_MOCK_HTML):
+        return (404,
+                "missing docs/research/RESEARCH_WEB_GROUPS_MOCK.html "
+                "in the working tree\n", TEXT)
+    with open(RESEARCH_GROUPS_MOCK_HTML, encoding="utf-8") as f:
+        html = f.read()
+    return 200, _MOCK_RAIL.sub(_nav("/web/groups", mounts), html, count=1), HTML
+
+
+def _screener_combined_draft_payload():
+    """Join fund + sentiment snapshots into the draft's row/headline shape.
+
+    Tone cells come from screener_lab (Bloomberg/Reddit RSS lexicon scores). Fundamentals
+    and shadow-debt tags come from stock_screener. The shadow number in the table is
+    on-BS debt/equity % — the incomplete visible leg — not a fabricated multiple.
+    """
+    fund = stock_screener.load_snapshot()
+    sent = screener_lab.load_snapshot()
+    sent_by = {r["ticker"]: r for r in (sent or {}).get("rows") or []}
+    headlines = {"bloomberg": {}, "reddit": {}}
+
+    def pack_docs(docs, limit=4):
+        out = []
+        for d in (docs or [])[:limit]:
+            terms = d.get("terms") or []
+            term_s = ", ".join(str(t) for t in terms[:4])
+            meta = "via {}{}".format(
+                d.get("rule") or "?",
+                (" · " + term_s) if term_s else "")
+            out.append({"h": d.get("title") or "(no title)", "m": meta,
+                        "tone": d.get("tone")})
+        return out
+
+    rows = []
+    if fund and fund.get("rows"):
+        source_rows = fund["rows"]
+    elif sent and sent.get("rows"):
+        source_rows = sent["rows"]
+    else:
+        source_rows = []
+
+    for fr in source_rows:
+        tk = fr.get("ticker")
+        if not tk:
+            continue
+        sr = sent_by.get(tk, {})
+        tag = fr.get("shadow_debt") or stock_screener.SHADOW_DEBT.get(tk)
+        pe = fr.get("pe")
+        if pe is None:
+            pe = sr.get("trailing_pe") or sr.get("forward_pe")
+        g = fr.get("growth")
+        if g is None:
+            g = sr.get("earnings_growth")
+            if g is None:
+                g = sr.get("revenue_growth")
+        de = fr.get("debt_to_equity")
+        dy = fr.get("dividend_yield")
+        # No midpoint default: a 0.5 for a name missing P/E or growth is a manufactured
+        # opinion, and it ranks that name above everything genuinely scored below average.
+        score = None
+        if pe and pe > 0 and g is not None:
+            score = max(0.05, min(0.99, (max(g, 0) / (pe / 15.0 + 0.5))))
+        vol = fr.get("dollar_volume")
+        if vol is not None:
+            vol_s = stock_screener.fmt_metric({"dollar_volume": vol}, "dollar_volume")
+        else:
+            vol_s = "—"
+        bb_docs = sr.get("bloomberg_docs") or []
+        rd_docs = sr.get("reddit_docs") or []
+        if bb_docs:
+            headlines["bloomberg"][tk] = pack_docs(bb_docs)
+        if rd_docs:
+            headlines["reddit"][tk] = pack_docs(rd_docs)
+        rows.append({
+            "tk": tk,
+            "name": fr.get("name") or sr.get("name") or tk,
+            "sector": fr.get("sector") or sr.get("sector") or "—",
+            "ai": fr.get("ai") or "—",
+            "bucket": fr.get("bucket"),
+            # A vendor that supplied no P/E must NOT arrive as 0.0: on a "cheapest first"
+            # lens a zero sorts to the top, so an unpriceable company would present as the
+            # best value on the page. None travels; the UI renders it as absent.
+            "pe": pe,
+            "g": g,
+            "dy": dy,
+            "de": de,
+            "beta": fr.get("beta"),
+            "vol": vol_s,
+            "price": fr.get("price") or sr.get("price"),
+            "shadow": de if tag else None,
+            "shadow_tag": tag,
+            "score": score,
+            "bb": sr.get("bloomberg_tone"),
+            "bb_c": sr.get("bloomberg_coverage") or 0,
+            "bb_t": sr.get("bloomberg_toned") or 0,
+            "rd": sr.get("reddit_tone"),
+            "rd_c": sr.get("reddit_coverage") or 0,
+            "rd_t": sr.get("reddit_toned") or 0,
+            "flag": None,
+        })
+
+    providers = {}
+    for p in (sent or {}).get("providers") or []:
+        providers[p.get("key")] = {
+            "label": p.get("label"), "state": p.get("state"),
+            "headline": p.get("headline"), "detail": p.get("detail"),
+            "documents": p.get("documents"),
+        }
+    age = None
+    if sent:
+        _d, age = screener_lab.snapshot_age(sent)
+    return {
+        "rows": rows,
+        "headlines": headlines,
+        "providers": providers,
+        "sentiment_built": (sent or {}).get("built_at"),
+        "fund_as_of": (fund or {}).get("as_of"),
+        "sentiment_age": age,
+        "has_sentiment": bool(sent),
+        "has_fundamentals": bool(fund),
+        "refresh_cmd": screener_lab.REFRESH_CMD,
+    }
+
+
+def _screener_combined_draft_html(mounts, payload=None):
+    """Draft merge of /screener bubbles + /sentiment Bloomberg/Reddit tone chrome.
+
+    When snapshots exist on disk, live fund + tone rows are injected so Bloomberg/Reddit
+    cells are real lexicon scores — not the stub numbers in the static file. Stub ROWS
+    remain as fallback when neither snapshot is present.
+    """
+    if not os.path.isfile(SCREENER_COMBINED_DRAFT_HTML):
+        return (404,
+                "missing docs/research/SCREENER_COMBINED_DRAFT.html "
+                "in the working tree\n", TEXT)
+    with open(SCREENER_COMBINED_DRAFT_HTML, encoding="utf-8") as f:
+        html = f.read()
+    html = _MOCK_RAIL.sub(_nav("/screener/draft", mounts), html, count=1)
+    payload = _screener_combined_draft_payload() if payload is None else payload
+    inject = ("<script>window.__DRAFT_LIVE__ = {};</script>\n".format(
+        json.dumps(payload, default=str).replace("<", "\\u003c")))
+    # Must run BEFORE the page script so applyLivePayload() sees the payload.
+    if "<script>" in html:
+        html = html.replace("<script>", inject + "<script>", 1)
+    else:
+        html = html + inject
+    return 200, html, HTML
+
+
 def route(path, query, opts):
     """(status, body, content-type) for a GET. Pure over its arguments, so the whole
     route table is testable without binding a socket."""
@@ -2084,9 +3884,19 @@ def route(path, query, opts):
         return 200, page_surfaces(mounts), HTML
     if path == "/web":
         return 200, page_web(mounts, query), HTML
-    if path == "/screener":
-        return 200, page_screener(mounts, query), HTML
-    if path == "/api/screener":
+    if path == "/web/groups":
+        return _research_groups_html(mounts)
+    if path == "/screen":
+        return 200, page_screen_sovereign(mounts), HTML
+    if path in ("/screener/buckets", "/screen/mock"):
+        return _sovereign_buckets_html(mounts)
+    if path == "/screener/draft":
+        return _screener_combined_draft_html(mounts)
+    if path == "/recommend":
+        return 200, page_recommend(mounts), HTML
+    if path == "/sentiment":
+        return 200, page_sentiment(mounts, query), HTML
+    if path == "/api/sentiment":
         snapshot = screener_lab.load_snapshot()
         if snapshot is None:
             return 503, json.dumps({
@@ -2101,8 +3911,24 @@ def route(path, query, opts):
             "built_at": snapshot.get("built_at"),
             "providers": snapshot.get("providers", []),
             "passing": ranked,
-            "excluded": [{"ticker": r["ticker"], "reason": why} for r, why in excluded],
+            "excluded": [{"ticker": r["ticker"], "reason": why}
+                         for r, why in excluded],
         }, indent=2, sort_keys=True, default=str), JSONC
+    if path in ("/screener", "/lenses"):
+        return 200, page_screen(mounts, query), HTML
+    if path == "/api/screen":
+        key = query.get("preset") or "low_pe_high_growth"
+        if key not in stock_screener.PRESETS:
+            return 404, "no such preset: {}\n".format(key), TEXT
+        snap = stock_screener.load_snapshot()
+        if snap is None:
+            return (503, "no snapshot — run: python tools/stock_screener.py fetch\n",
+                    TEXT)
+        matches, no_data = stock_screener.apply_preset(snap["rows"], key)
+        payload = {"preset": key, "as_of": snap.get("as_of"),
+                   "matches": matches,
+                   "no_data": {r["ticker"]: m for r, m in no_data}}
+        return 200, json.dumps(payload, indent=2, sort_keys=True), JSONC
     if path == "/api/surfaces":
         return 200, json.dumps(surface_census(), indent=2, sort_keys=True), JSONC
     if path.startswith("/node/") or path.startswith("/api/node/"):
@@ -2127,8 +3953,9 @@ def route(path, query, opts):
                 return (503, "{} is not mounted — restart with --{}=PATH\n".format(
                     href, attr.replace("_", "-")), TEXT)
             return fn(db, path if not query else path + "?" + _unparse(query))
-    return 404, ("not found — try / (overview), /web, /node/F230, /screener, "
-                 "/surfaces\n"), TEXT
+    return (404,
+            "not found — try / (overview), /web, /screener, /screener/buckets, "
+            "/screen, /node/F230, /surfaces\n", TEXT)
 
 
 def _unparse(query):

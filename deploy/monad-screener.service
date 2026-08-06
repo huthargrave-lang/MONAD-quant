@@ -19,11 +19,11 @@ Environment=PYTHONUNBUFFERED=1
 # than relying on it to shrug.
 Environment=PYTHONDONTWRITEBYTECODE=1
 
-# ~0.4s per ticker for fundamentals, plus Reddit's own rate-limit pacing (the feeds
-# report `x-ratelimit-reset` of 7-60s and the fetcher honours it, so four subreddits
-# cost roughly two minutes of mostly-waiting). 250 names is a Pi-friendly balance;
-# raise it toward 500 for the full index if the box has the time.
-ExecStart=/home/hudson/MONAD-quant/venv/bin/python /home/hudson/MONAD-quant/tools/screener_lab.py refresh --limit 250
+# Fund snapshot (~full curated universe) then tone snapshot (S&P subset + RSS).
+# /screener joins both; either alone still renders with an absence/partial provider line.
+# ~0.4s per ticker for fundamentals, plus Reddit's rate-limit pacing. 250 names is a
+# Pi-friendly tone balance; raise --limit toward 500 if the box has the time.
+ExecStart=/bin/bash -c '/home/hudson/MONAD-quant/venv/bin/python /home/hudson/MONAD-quant/tools/stock_screener.py fetch && /home/hudson/MONAD-quant/venv/bin/python /home/hudson/MONAD-quant/tools/screener_lab.py refresh --limit 250'
 
 # The trader owns this machine. A research fetch must be invisible to it: lowest CPU
 # priority, idle I/O class, and a hard ceiling so a hung vendor call cannot leave a
@@ -33,11 +33,10 @@ IOSchedulingClass=idle
 CPUSchedulingPolicy=idle
 TimeoutStartSec=1800
 
-# Writes exactly one file — data/cache/screener_snapshot.json, which is gitignored, so
-# an unattended refresh cannot dirty the working tree and trip the git-drift check.
-# Never touches state.db, live/**, config.py, or the broker.
+# Writes gitignored snapshot caches only — never state.db, live/**, config.py, or the
+# broker. Production /screener joins both files: fund universe + tone.
 ProtectSystem=strict
-ReadWritePaths=/home/hudson/MONAD-quant/data/cache
+ReadWritePaths=/home/hudson/MONAD-quant/data/cache /home/hudson/MONAD-quant/data/screener
 PrivateTmp=true
 NoNewPrivileges=true
 

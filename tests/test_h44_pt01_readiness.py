@@ -6,13 +6,13 @@ H44 proposes a point-in-time event/outcome ledger with nine components and sets 
 its first gate: adversarial SEC acceptance fixtures plus source-specific tradable-time
 rules, passing on *exact point-in-time reconstruction and deterministic labels*.
 
-Scored across the 50 committed world-observation artifacts under
+Scored across the 56 committed world-observation artifacts under
 `docs/research/data/`, on schema **keys**:
 
-    revision / vintage identity   47        multi-horizon labels     7
-    payload hashes                33        rights metadata          7
-    source timestamp              10        durable entity identity  2
-    first-seen timestamp          12        trial registry           3
+    revision / vintage identity   53        multi-horizon labels     8
+    payload hashes                38        rights metadata          8
+    source timestamp              12        durable entity identity  2
+    first-seen timestamp          14        trial registry           5
     conservative tradable time     6
 
 **No artifact carries all nine; the best is 7**, reached by the BIOCAT FDA pre-notice
@@ -25,8 +25,8 @@ is a *test*. Nothing under `src/`, no tool. There is no function that takes a fi
 returns its conservative tradable time — the rules exist as assertions about a fixture,
 the same dead-wiring family as F26 and F176.
 
-The shape of the table is the useful half: vintage identity on 24 of 27 and payload hashes
-on 18 is real discipline, and it is why the IX-00 and CA-00 reconciliations work at all.
+The shape of the table is the useful half: vintage identity on 53 of 56 and payload hashes
+on 38 is real discipline, and it is why the IX-00 and CA-00 reconciliations work at all.
 So H44 is re-scoped rather than retired.
 
 Guards below are bidirectional. They fail if the substrate REGRESSES (provenance coverage
@@ -155,17 +155,19 @@ class ProvenanceIsBuiltAndIdentityIsNotTests(unittest.TestCase):
 
     def test_a_trial_registry_barely_exists(self):
         self.assertLessEqual(
-            self.coverage["trial_registry"], 3,
+            self.coverage["trial_registry"], 5,
             "a trial registry now appears on {}/{} artifacts — the 'did the "
             "preregistered claim hold' query may be answerable; re-measure".format(
                 self.coverage["trial_registry"], self.n))
 
-    def test_the_three_registry_artifacts_are_the_measured_carriers(self):
+    def test_the_five_registry_artifacts_are_the_measured_carriers(self):
         scored = score_artifacts()
         carriers = sorted(n for n, h in scored.items() if "trial_registry" in h)
         self.assertEqual(carriers, [
             "biocat_disclosure_order_pilot_2026.json",
             "biocat_fda_pre_notice_census_2026.json",
+            "biocat_finance_01_gold_pilot.json",
+            "biocat_finance_01_gold_seed.json",
             "pn00_daily_lead_lag_summary_2026.json",
         ],
                          "the trial-registry carrier set changed: {}".format(carriers))

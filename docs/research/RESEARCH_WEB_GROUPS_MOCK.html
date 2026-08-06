@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Research web · topic shelves</title>
+<style>
+:root{
+  --plane:#f2f3f1; --surface:#fcfcfb; --ink:#0b0b0b; --ink-2:#52514e;
+  --ink-muted:#898781; --rule:#e1e0d9; --axis:#c3c2b7; --accent:#2a78d6;
+  --ord-1:#86b6ef; --ord-2:#3987e5; --ord-3:#1c5cab; --ord-4:#0d366b;
+  --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --plane:#0d0f12; --surface:#15181d; --ink:#f4f4f2; --ink-2:#b8b7b2;
+    --ink-muted:#83827d; --rule:#282c33; --axis:#3d424b; --accent:#6ba7f0;
+    --ord-1:#184f95; --ord-2:#2f79d4; --ord-3:#74aaee; --ord-4:#b7d3f6;
+    --good:#3fbf3f; --warning:#e5b23c; --serious:#f09268; --critical:#ef6a6a;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--plane);color:var(--ink);font:15px/1.55 var(--sans);
+  -webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+code{font-family:var(--mono);font-size:12px}
+
+.shell{display:grid;grid-template-columns:232px minmax(0,1fr);gap:0;min-height:100vh}
+.rail{border-right:1px solid var(--rule);background:var(--surface);padding:20px 0 40px}
+.rail .brand{padding:0 18px 16px;border-bottom:1px solid var(--rule);margin-bottom:14px}
+.rail .brand b{display:block;font-family:var(--mono);font-size:13px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink)}
+.rail .brand span{display:block;font-size:12px;color:var(--ink-muted);margin-top:3px}
+.rail h4{margin:16px 0 6px;padding:0 18px;font-size:11px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--ink-muted);font-weight:600}
+.rail a{display:block;padding:5px 18px;color:var(--ink-2);font-size:14px}
+.rail a:hover{background:var(--plane);text-decoration:none;color:var(--ink)}
+.rail a.on{color:var(--ink);border-left:2px solid var(--accent);padding-left:16px;background:var(--plane)}
+
+main{min-width:0;padding:22px 28px 70px;width:100%}
+.crumb{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-muted);margin-bottom:8px;text-align:center}
+h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing:-.012em;text-align:center}
+.lede{font-size:14.5px;color:var(--ink-2);max-width:72ch;margin:0 auto 16px;text-align:center}
+.view-toggle{display:flex;width:fit-content;gap:0;margin:0 auto 18px;border:1px solid var(--rule);
+  border-radius:9px;overflow:hidden}
+.view-toggle button{padding:7px 16px;font:13px var(--sans);color:var(--ink-2);background:var(--surface);
+  border:0;border-right:1px solid var(--rule);cursor:pointer}
+.view-toggle button:last-child{border-right:0}
+.view-toggle button.on{color:var(--ink);font-weight:600;background:var(--plane);
+  box-shadow:inset 0 -2px 0 var(--accent)}
+
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:9px;
+  padding:16px 18px;margin:0 0 16px;width:100%}
+.panel > figcaption{margin-bottom:12px;text-align:center}
+.panel h2{font-size:15px;margin:0 0 4px;font-weight:640}
+.panel .sub{margin:0;font-size:13px;color:var(--ink-2)}
+
+.grid-wrap{display:flex;justify-content:center;width:100%}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(176px,200px));gap:8px;
+  width:100%;max-width:100%;justify-content:center}
+.bucket{text-align:left;background:var(--plane);border:1px solid var(--rule);border-radius:9px;
+  padding:11px 12px 9px;cursor:pointer;min-height:124px;display:flex;flex-direction:column;gap:4px;
+  font:inherit;color:inherit;width:100%}
+.bucket:hover{border-color:var(--accent)}
+.bucket.selected{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--surface)}
+.bucket .id{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--ink-muted)}
+.bucket .name{font-weight:640;font-size:13.5px;letter-spacing:-.01em;line-height:1.25}
+.bucket .blurb{font-size:12px;color:var(--ink-2);flex:1;line-height:1.4}
+.bucket .meta{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:2px;flex-wrap:wrap}
+.bucket .meta .kinds{display:flex;flex-wrap:wrap;gap:3px}
+.bucket .count{font-family:var(--mono);font-size:12px;color:var(--ink-muted);white-space:nowrap}
+.chip{display:inline-flex;align-items:center;gap:3px;font-family:var(--mono);font-size:10px;
+  padding:1px 5px;border-radius:999px;border:1px solid var(--rule);color:var(--ink-2);background:var(--surface)}
+.chip .dot{width:6px;height:6px;border-radius:50%;background:var(--axis)}
+.chip.good .dot{background:var(--good)} .chip.warn .dot{background:var(--warning)}
+.heat{height:3px;border-radius:99px;background:var(--rule);overflow:hidden;margin-top:2px}
+.heat > i{display:block;height:100%;width:0;background:var(--axis)}
+.heat.h1 > i{width:25%;background:var(--ord-1)}
+.heat.h2 > i{width:50%;background:var(--ord-2)}
+.heat.h3 > i{width:75%;background:var(--warning)}
+.heat.h4 > i{width:100%;background:var(--critical)}
+
+#detail{display:none;width:100%}
+#detail.show{display:block}
+.charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:14px 0 0}
+.chart-box{border:1px solid var(--rule);border-radius:8px;background:var(--plane);padding:12px 14px;min-width:0}
+.chart-box.wide{grid-column:1 / -1}
+.chart-box h4{margin:0 0 4px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-muted);font-weight:600}
+.chart-box .hint{margin:0 0 10px;font-size:12.5px;color:var(--ink-2)}
+.chart-box svg{width:100%;height:auto;display:block}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+.tabs span{font:13px var(--sans);height:28px;line-height:26px;padding:0 10px;border:1px solid var(--accent);
+  border-radius:6px;background:var(--surface);color:var(--ink)}
+.scroller{max-height:480px;overflow:auto;width:100%}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:7px 10px 7px 0;border-bottom:1px solid var(--rule);vertical-align:middle}
+th{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted);font-weight:600;
+  position:sticky;top:0;background:var(--surface);z-index:1}
+tbody tr.node-row{cursor:pointer}
+tbody tr.node-row:hover{background:var(--plane)}
+tbody tr.node-row:focus{outline:2px solid var(--accent);outline-offset:-2px}
+footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-size:12px;
+  color:var(--ink-muted);text-align:center}
+@media (max-width:980px){
+  .shell{grid-template-columns:1fr}
+  .rail{border-right:0;border-bottom:1px solid var(--rule);padding-bottom:14px}
+  main{padding:18px 14px 60px}
+  .charts{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="rail">
+    <div class="brand">
+      <b>MONAD research</b>
+      <span>one server · one token system</span>
+    </div>
+    <h4>Views</h4>
+    <a href="/web">Research web</a>
+    <a class="on" href="/web/groups">Web groups</a>
+    <a href="/screener">Screener</a>
+    <a href="/screener/buckets">Buckets</a>
+    <a href="/graph">Context map</a>
+  </aside>
+
+  <main>
+    <div class="crumb">Research · shelves by topic</div>
+    <h1>Research, grouped by topic</h1>
+    <p class="lede">Park each node on the shelf it belongs to — strategy, live ops, SEC clocks, BIOCAT, tooling — instead of one flat table. Click a shelf for theme charts and exemplars.</p>
+
+    <div class="view-toggle" role="tablist">
+      <button type="button" class="on" data-view="topics">By topic</button>
+      <button type="button" data-view="kind">By kind (F/H/E/D)</button>
+      <button type="button" data-view="flat">Flat</button>
+    </div>
+
+    <div class="panel" id="shelvesPanel">
+      <figcaption>
+        <h2 id="shelvesTitle">Topic shelves</h2>
+        <p class="sub" id="shelvesSub">Click to select. Heat = relative shelf size.</p>
+      </figcaption>
+      <div class="grid-wrap"><div class="grid" id="grid"></div></div>
+    </div>
+
+    <div id="detail">
+      <div class="panel">
+        <div class="tabs"><span>Theme overview</span></div>
+        <h3 id="detailTitle" style="margin:0 0 6px;font-size:16px">Select a shelf</h3>
+        <p class="lede" id="detailBlurb" style="text-align:left;margin:0;max-width:none"></p>
+        <div class="charts">
+          <div class="chart-box wide">
+            <h4 id="chartMainTitle">What’s inside</h4>
+            <p class="hint" id="chartMainHint">Labeled counts of what this shelf actually contains.</p>
+            <div id="chartMain"></div>
+          </div>
+          <div class="chart-box">
+            <h4 id="chartSideTitle">Kind mix</h4>
+            <p class="hint" id="chartSideHint">Findings / hypotheses / experiments / gates</p>
+            <div id="chartSide"></div>
+          </div>
+          <div class="chart-box">
+            <h4>Status</h4>
+            <p class="hint">Current vs superseded</p>
+            <div id="chartStatus"></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2 style="margin:0 0 4px;font-size:15px">Exemplars</h2>
+        <p class="sub" id="detailHint" style="margin:0 0 12px">Select a shelf to list sample nodes.</p>
+        <div class="scroller">
+          <table>
+            <thead><tr><th>Node</th><th>Kind</th><th>Status</th><th>Title</th></tr></thead>
+            <tbody id="detailBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="flatPanel" hidden></div>
+    <footer>Research web · topic shelves · from RESEARCH_WEB.md</footer>
+  </main>
+</div>
+<script>
+const GROUPS = [{"id": "strategy", "title": "Strategy \u00b7 D6 go/no-go", "blurb": "Honest edge vs static blend, timescale, and sampling artifacts that shaped the go/no-go.", "short": "mean reversion", "nodes": [{"id": "D1", "title": "Edge go/no-go (roadmap gate #1) \u2014 UPDATED", "status": "current", "kind": "D"}, {"id": "D3", "title": "Adopt the noise-ratio instrument rule; make QQQ/SPY first-class candidates", "status": "current", "kind": "D"}, {"id": "D6", "title": "GO/NO-GO: the active engine is not justified \u2014 recommend a static allocation", "status": "current", "kind": "D"}, {"id": "E8", "title": "DONE: noise-ratio instrument screener", "status": "current", "kind": "E"}, {"id": "E12", "title": "Go/no-go: active daily-MR vs static blends (head-to-head)", "status": "current", "kind": "E"}, {"id": "E13", "title": "RSI-conditioned go/no-go: the entry signal D6 never tested", "status": "current", "kind": "E"}, {"id": "E14", "title": "long-history (2000-2026) go/no-go + 26yr autocorrelation + capital-preservation bootstrap", "status": "current", "kind": "E"}, {"id": "E20", "title": "DONE: mr_daily_lab adversarial-panel hardening of Exp#1/#7 before the D6 closure", "status": "current", "kind": "E"}, {"id": "E25", "title": "power & equivalence study: is D6 'no edge' evidence-of-absence or underpowered?", "status": "current", "kind": "E"}, {"id": "E26", "title": "study #2: active daily-MR power/equivalence vs the DECISION-RELEVANT static 60/40 equity/bond", "status": "current", "kind": "E"}, {"id": "E28", "title": "study #4 (constructive capstone): does an active OVERLAY (constant-weight or regime-conditional) improve a static 60/40 ", "status": "current", "kind": "E"}, {"id": "E29", "title": "study #5 (constructive pivot): characterize & try to improve the recommended static 60/40 product", "status": "current", "kind": "E"}], "count": 65, "kinds": {"F": 44, "H": 4, "E": 14, "D": 3}, "status": {"current": 63, "superseded": 2, "retracted": 0}, "themes": [{"label": "hourly / sampling", "value": 23}, {"label": "static 60/40", "value": 12}, {"label": "noise / instrument", "value": 7}, {"label": "mean reversion", "value": 7}, {"label": "walk-forward", "value": 1}, {"label": "regime / slope", "value": 1}, {"label": "dashboard / state", "value": 1}]}, {"id": "product", "title": "Income product \u00b7 static blend", "blurb": "Bond-alternative product shape: ladders, TIPS sleeves, overlays, and the income universe.", "short": "income / blend", "nodes": [{"id": "D10", "title": "Context-map Explore prompts live in the static graph UI", "status": "current", "kind": "D"}, {"id": "D11", "title": "Shift-drag 3D map uses static SVG projection", "status": "current", "kind": "D"}, {"id": "E33", "title": "study #9: goal-optimal static equity/bond mix (weight sweep + per-mix forward Monte-Carlo) vs the 3.75% goal", "status": "current", "kind": "E"}, {"id": "E35", "title": "Income product universe survey (study #11)", "status": "current", "kind": "E"}, {"id": "E36", "title": "Held-to-maturity bond ladder study (study #12)", "status": "current", "kind": "E"}, {"id": "E37", "title": "study #13: bonds-dont-hedge regime stress (positive stock-bond correlation / inflation) of the recommended static produc", "status": "current", "kind": "E"}, {"id": "E38", "title": "study #14: TIPS sleeve inside the static mix (TIP/STIP/VTIP 5-20% carved from the IEF leg) under study #5 discipline", "status": "current", "kind": "E"}, {"id": "F48", "title": "No TIPS sleeve earns a place in the static mix: the short-TIPS benefit is duration-shortening in disguise (duration-matc", "status": "current", "kind": "F"}, {"id": "F199", "title": "F149's open question answered: maxDD is NOT scale-invariant, so the Sharpe-path equivalence was invalid on the drawdown ", "status": "current", "kind": "F"}, {"id": "H10", "title": "OPEN [ctx]: DP-3 \u2014 add reversal-arc edges so ctx walk/why narrates Sharpe-94 -> static-allocation end-to-end", "status": "current", "kind": "H"}, {"id": "H42", "title": "OPEN: study #14 candidate - a TIPS sleeve INSIDE the static mix (not the ladder) under study #5 discipline", "status": "current", "kind": "H"}], "count": 11, "kinds": {"F": 2, "H": 2, "E": 5, "D": 2}, "status": {"current": 11, "superseded": 0, "retracted": 0}, "themes": [{"label": "ctx / census", "value": 2}, {"label": "walk-forward", "value": 1}, {"label": "static 60/40", "value": 1}, {"label": "regime / slope", "value": 1}]}, {"id": "sweeps", "title": "Walk-forward \u00b7 sweeps \u00b7 sizing", "blurb": "Param selection, Kelly vs fixed sizing, and holdout versus walk-forward evidence.", "short": "sweeps / sizing", "nodes": [{"id": "D2", "title": "Promote walk-forward to primary selector (C5)", "status": "current", "kind": "D"}, {"id": "E1", "title": "Documented optimistic sweep (historical) \u2192 artifact, feeds [[F1]].", "status": "current", "kind": "E"}, {"id": "E2", "title": "Fixed-10% realistic HOLDOUT sweep (2026-06-19)", "status": "current", "kind": "E"}, {"id": "E3", "title": "Leak-free walk-forward (PRIMARY evidence)", "status": "current", "kind": "E"}, {"id": "E11", "title": "Out-of-sample / walk-forward stress test of the D5 build", "status": "current", "kind": "E"}, {"id": "E30", "title": "study #6: out-of-sample (2004-2013 holdout) test of study #5's 10% gold sleeve", "status": "current", "kind": "E"}, {"id": "E81", "title": "study #57: quote-anchored bracket geometry and bar-close sizing audit", "status": "current", "kind": "E"}, {"id": "F2", "title": "Holdout-selection bias inflates the sweep", "status": "current", "kind": "F"}, {"id": "F28", "title": "The backtest is structurally disconnected from live (sweep optimized a sizing model the live trader doesn't use)", "status": "current", "kind": "F"}, {"id": "F96", "title": "Broker account identity is implicit, so multi-account callback order can select sizing capital or position direction", "status": "current", "kind": "F"}, {"id": "F140", "title": "The web's code-claims are mechanically decidable, and two load-bearing ones are confirmed: the backtest ignores USE_REGI", "status": "current", "kind": "F"}, {"id": "F143", "title": "The regime-gate divergence is not backtest-vs-walkforward: the runner is the odd one out of FOUR call sites, and it prin", "status": "current", "kind": "F"}], "count": 27, "kinds": {"F": 14, "H": 6, "E": 6, "D": 1}, "status": {"current": 27, "superseded": 0, "retracted": 0}, "themes": [{"label": "walk-forward", "value": 18}, {"label": "sizing / Kelly", "value": 5}]}, {"id": "live", "title": "Live trader \u00b7 paper ops", "blurb": "IBKR paper trading, fills, brackets, dashboard, and the state ledger.", "short": "live ops", "nodes": [{"id": "D9", "title": "OPEN: Branch hygiene (I1) \u2014 main still ships the desync & bracket bugs", "status": "current", "kind": "D"}, {"id": "E7", "title": "IN PROGRESS: full-session data re-pull & re-validate (now matches live)", "status": "current", "kind": "E"}, {"id": "E23", "title": "DONE: [ctx] ctx serve \u2014 the context map as a live read-only web app", "status": "current", "kind": "E"}, {"id": "E34", "title": "study #10: live<->backtest reconciliation (read-only forensic) - why is the live bot flat?", "status": "current", "kind": "E"}, {"id": "E41", "title": "study #17: backtest-to-live execution-semantics waterfall and entry-bar ordering audit", "status": "current", "kind": "E"}, {"id": "E73", "title": "study #49: live bar-completion timezone and DST natural-experiment audit", "status": "current", "kind": "E"}, {"id": "E75", "title": "study #51: trader singleton and launch-safety audit", "status": "current", "kind": "E"}, {"id": "E78", "title": "study #54: bracket-fill identity, partial aggregation, and Gateway retention audit", "status": "current", "kind": "E"}, {"id": "E82", "title": "study #58: partial-fill and force-close quantity safety audit", "status": "current", "kind": "E"}, {"id": "F15", "title": "The edge is REAL at ~3 bars/day; the live bot just trades the wrong frequency", "status": "superseded", "kind": "F"}, {"id": "F47", "title": "Live gap-through-stop: overnight hold turned a 0.5% stop into a -4.007% realized loss (backtest never models this)", "status": "current", "kind": "F"}, {"id": "F54", "title": "Entry ordering can flip the exact-stop result, but cannot plausibly rescue the gap-aware live-shaped path on current cal", "status": "current", "kind": "F"}], "count": 60, "kinds": {"F": 46, "H": 5, "E": 8, "D": 1}, "status": {"current": 58, "superseded": 2, "retracted": 0}, "themes": [{"label": "fills / brackets", "value": 24}, {"label": "dashboard / state", "value": 6}, {"label": "hourly / sampling", "value": 2}, {"label": "ctx / census", "value": 2}, {"label": "regime / slope", "value": 1}, {"label": "FDA / trial", "value": 1}]}, {"id": "ca", "title": "Corporate actions \u00b7 SEC clocks", "blurb": "Form 25, announce cohorts, rhetoric deltas, and deal-risk clocks.", "short": "SEC / CA", "nodes": [{"id": "D14", "title": "corporate-action research continues wealth through typed consideration legs", "status": "current", "kind": "D"}, {"id": "D15", "title": "corporate-action features enter at observation time while schedules and outcomes remain separate", "status": "current", "kind": "D"}, {"id": "D16", "title": "Deal-risk models must beat calibrated spread on grouped chronological forecasts", "status": "current", "kind": "D"}, {"id": "E55", "title": "study #31: TQQQ corporate-action and ex-dividend gap audit", "status": "current", "kind": "E"}, {"id": "E96", "title": "FD-00 SEC filing clock and source-contract audit", "status": "current", "kind": "E"}, {"id": "E102", "title": "CA-00 corporate-action outcome ledger and eight-case official fixture", "status": "current", "kind": "E"}, {"id": "E103", "title": "CA-01 point-in-time SEC corporate-action state vector", "status": "current", "kind": "E"}, {"id": "E104", "title": "CA-CLOCK100 Form 25-NSE population backbone", "status": "current", "kind": "E"}, {"id": "E109", "title": "CA-FAILFRAME 2023 mutual-termination review seed", "status": "current", "kind": "E"}, {"id": "E110", "title": "CA-ANNOUNCE deal-risk literature and model blueprint", "status": "current", "kind": "E"}, {"id": "E111", "title": "CA-ANNOUNCE announcement-forward cohort, baselines, and evaluator", "status": "current", "kind": "E"}, {"id": "E117", "title": "F25-TIME empirical study of Form 25 delisting-notification timing on the committed 2023 SEC fixture", "status": "current", "kind": "E"}], "count": 52, "kinds": {"F": 22, "H": 10, "E": 17, "D": 3}, "status": {"current": 51, "superseded": 1, "retracted": 0}, "themes": [{"label": "SEC filings", "value": 25}, {"label": "Form 25 / clocks", "value": 18}, {"label": "noise / instrument", "value": 1}]}, {"id": "biocat", "title": "BIOCAT \u00b7 clinical finance", "blurb": "Trial catalysts, FDA notices, and financing around clinical events.", "short": "clinical", "nodes": [{"id": "D13300", "title": "Research decision: BIOCAT disclosure order needs a reviewed ledger first", "status": "current", "kind": "D"}, {"id": "D18500", "title": "prioritize clinical catalysts and government obligations as the first event-intelligence pilots", "status": "current", "kind": "D"}, {"id": "D248100", "title": "Research decision: FDA pre-notices model compliance behavior, not default price catalysts", "status": "current", "kind": "D"}, {"id": "D253200", "title": "BIOCAT modeling remains blocked; build the immutable event ledger first", "status": "current", "kind": "D"}, {"id": "D265500", "title": "BIOCAT-FINANCE retains main effects and delays percentile interactions", "status": "current", "kind": "D"}, {"id": "E13300", "title": "BIOCAT research pilot: disclosure order and reaction purity", "status": "current", "kind": "E"}, {"id": "E248100", "title": "BIOCAT FDA pre-notice compliance-response population census", "status": "current", "kind": "E"}, {"id": "E253200", "title": "BIOCAT-01 official-source discovery cohort and version audit", "status": "current", "kind": "E"}, {"id": "E265500", "title": "BIOCAT-FINANCE-01 reviewed point-in-time join pilot", "status": "current", "kind": "E"}, {"id": "F219", "title": "H44's PT-01 gate fails on two specific grounds, but the unglamorous half of its substrate is already built: vintage iden", "status": "superseded", "kind": "F"}, {"id": "F13300", "title": "Finding: BIOCAT issuer disclosures led registry results by years", "status": "current", "kind": "F"}, {"id": "F13302", "title": "Finding: BIOCAT daily returns can invert the immediate catalyst reaction", "status": "current", "kind": "F"}], "count": 26, "kinds": {"F": 11, "H": 6, "E": 4, "D": 5}, "status": {"current": 25, "superseded": 1, "retracted": 0}, "themes": [{"label": "FDA / trial", "value": 24}, {"label": "Form 25 / clocks", "value": 1}]}, {"id": "atm", "title": "ATM \u00b7 financing pressure", "blurb": "ATM utilization, 424B5 cohorts, and auction / neocloud financing pressure.", "short": "ATM / financing", "nodes": [{"id": "D248101", "title": "Research decision: retain auction demand as macro state; require a true tail and financing panel", "status": "current", "kind": "D"}, {"id": "E132", "title": "DI-01 424B5 at-the-market Q1-2024 discovery and price pilot", "status": "superseded", "kind": "E"}, {"id": "E248101", "title": "BOND-NEOCLOUD-01 Treasury coupon auction-demand event study", "status": "current", "kind": "E"}, {"id": "E253201", "title": "ATM-FP-01 corrected 2024Q1 phrase-cohort price audit", "status": "current", "kind": "E"}, {"id": "E253202", "title": "ATM-FP-01 reviewed utilization-ledger seed", "status": "current", "kind": "E"}, {"id": "F259", "title": "ATM phrase cohort shows median SPY underperformance; mean confounded", "status": "superseded", "kind": "F"}, {"id": "F248103", "title": "Treasury historical-relative demand predicts the rate proxy, not a stable neocloud edge", "status": "current", "kind": "F"}, {"id": "F248104", "title": "Neocloud auction loading decays out of time and fails the recent five-minute confirmation", "status": "current", "kind": "F"}, {"id": "F253203", "title": "DI-01 ATM return headline was a late-cache event-window artifact", "status": "current", "kind": "F"}, {"id": "H84", "title": "H84 ATM takedown overhang after phrase-to-event review", "status": "superseded", "kind": "H"}, {"id": "H248101", "title": "Hypothesis: auction-rate transmission scales with point-in-time AI-infrastructure financing exposure", "status": "current", "kind": "H"}, {"id": "H253205", "title": "Financing gap plus active ATM capacity predicts next-period utilization and dilution", "status": "current", "kind": "H"}], "count": 13, "kinds": {"F": 4, "H": 4, "E": 4, "D": 1}, "status": {"current": 10, "superseded": 3, "retracted": 0}, "themes": [{"label": "ATM / dilution", "value": 11}, {"label": "SEC filings", "value": 1}]}, {"id": "tooling", "title": "Context kit \u00b7 census \u00b7 web", "blurb": "ctx tooling, research web, reachability censuses, and epistemic guards.", "short": "tooling", "nodes": [{"id": "D7", "title": "RESOLVED [ctx]: VD-2 \u2014 F15 formally superseded by F22 (reason: reversed)", "status": "current", "kind": "D"}, {"id": "E16", "title": "DONE: [ctx] context-layer audit + hardening this session (SF-1..4, VD-3a/b, VD-4/5, DP-1)", "status": "current", "kind": "E"}, {"id": "E21", "title": "DONE: [ctx] DP-13 \u2014 ctx uncaptured nudge (shipped)", "status": "current", "kind": "E"}, {"id": "E22", "title": "DONE: [ctx] SessionStart hook auto-orients new chats via the context map", "status": "current", "kind": "E"}, {"id": "E112", "title": "EPI-00 epistemic audit of the research web (git archaeology + revision hazard + structural risk)", "status": "current", "kind": "E"}, {"id": "F27", "title": "[ctx] The context layer is a stdlib, read-only, CI-guarded ctx CLI by design \u2014 not a vector DB or MCP", "status": "current", "kind": "F"}, {"id": "F136", "title": "A second parser is a second source of truth: the audit's own cue classifier drifted from ctx.py and corrupted its relian", "status": "current", "kind": "F"}, {"id": "F141", "title": "Every code-claim in the web now verified and guarded: F23 confirmed (per-mode windows never reach the entry signal), F29", "status": "current", "kind": "F"}, {"id": "F186", "title": "H11 shipped: ctx stale finds semantic staleness, and its blind ranking reproduces four staleness judgements this session", "status": "current", "kind": "F"}, {"id": "F202", "title": "CORRECTION to F189: ctx perf's CONFIRMED set is wrong in both directions \u2014 it includes possibly-INFERRED stop_hit and ex", "status": "current", "kind": "F"}, {"id": "F209", "title": "H36's cache proposal targets 2% of the cost and its own estimate is 2.3x stale \u2014 the epistemic layer is the half that mu", "status": "current", "kind": "F"}, {"id": "F218", "title": "H41 confirmed and fixed: a duplicate research-web heading silently DELETED the first node and the whole integrity lint t", "status": "current", "kind": "F"}], "count": 29, "kinds": {"F": 11, "H": 13, "E": 4, "D": 1}, "status": {"current": 27, "superseded": 2, "retracted": 0}, "themes": [{"label": "ctx / census", "value": 25}, {"label": "regime / slope", "value": 1}]}, {"id": "dead", "title": "Dead ends \u00b7 superseded", "blurb": "Tried-and-failed paths and nodes formally superseded by later evidence.", "short": "dead ends", "nodes": [{"id": "E17", "title": "DEAD-END: Bear shorts (Phase A) \u2014 0% WR in 2022", "status": "current", "kind": "E"}, {"id": "E18", "title": "DEAD-END: Bull breakout signal (Phase B) \u2014 momentum trap at ATH", "status": "current", "kind": "E"}, {"id": "E19", "title": "DEAD-END: four reverted tuning attempts (strict 50-MA gate / 5% target / RSI 38-42 extras / opposing-signal exit)", "status": "current", "kind": "E"}, {"id": "F3", "title": "[SUPERSEDED by F13] The honest edge is small but real (and decaying)", "status": "superseded", "kind": "F"}, {"id": "F8", "title": "[SUPERSEDED by F13] The QQQ edge is a signal property, not an optimizer artifact", "status": "superseded", "kind": "F"}, {"id": "F9", "title": "SPY corroborates; un-leveraged broad indices are the right class", "status": "superseded", "kind": "F"}, {"id": "F80", "title": "The 2026 weekday-only runtime admits 76 off-exchange-calendar cycles and can count the same bar repeatedly", "status": "superseded", "kind": "F"}, {"id": "F225", "title": "The backlog's superseded-node filter read a key the parser never emits, so it never fired: three retracted findings were", "status": "current", "kind": "F"}, {"id": "F239", "title": "Acted on the detector's one hard find: F10 declared superseded, conflicts now zero, and the guard inverted to prove the ", "status": "current", "kind": "F"}, {"id": "F268", "title": "E19's dead-end ledger is 3/4 unreproducible \u2014 the mechanism it measured was deleted", "status": "current", "kind": "F"}], "count": 10, "kinds": {"F": 7, "H": 0, "E": 3, "D": 0}, "status": {"current": 6, "superseded": 4, "retracted": 0}, "themes": [{"label": "noise / instrument", "value": 2}]}, {"id": "other", "title": "Unsorted \u00b7 needs a home", "blurb": "Nodes that do not yet match a topic shelf \u2014 candidates for a new shelf or a retag.", "short": "unsorted", "nodes": [{"id": "D4", "title": "is the original ~3.75% APY conservative goal achievable? \u2014 UPDATED (sobering)", "status": "current", "kind": "D"}, {"id": "D5", "title": "Recommended next architecture (the leverage-free daily-MR product)", "status": "current", "kind": "D"}, {"id": "D8", "title": "OPEN: Honest fallback (D7) \u2014 accept a capital-preservation vehicle if nothing clears 0.5%/mo net OOS", "status": "current", "kind": "D"}, {"id": "D12", "title": "Public positioning: research substrate first, trading bot as reference implementation (README repositioned)", "status": "current", "kind": "D"}, {"id": "D13", "title": "versioned fixtures remain authoritative while SQLite is a disposable read projection", "status": "current", "kind": "D"}, {"id": "E4", "title": "RESOLVED: edge robustness & confidence", "status": "current", "kind": "E"}, {"id": "E5", "title": "RESOLVED: edge-lift levers", "status": "current", "kind": "E"}, {"id": "E6", "title": "RESOLVED: QQQ structural deep-dive + SPY/IWM", "status": "current", "kind": "E"}, {"id": "E9", "title": "DONE (part 1): edge vs bar-duration on resampled full-session data", "status": "current", "kind": "E"}, {"id": "E10", "title": "Independent daily-MR replication + strategy lab", "status": "current", "kind": "E"}, {"id": "E15", "title": "engine.py slope-regime wiring audit (git archaeology + 4-combo entry test)", "status": "current", "kind": "E"}, {"id": "E24", "title": "DONE: uncertainty bands are now first-class in the backtest report (CI on every headline)", "status": "current", "kind": "E"}], "count": 251, "kinds": {"F": 130, "H": 45, "E": 71, "D": 5}, "status": {"current": 251, "superseded": 0, "retracted": 0}, "themes": [{"label": "regime / slope", "value": 9}, {"label": "mean reversion", "value": 7}, {"label": "Form 25 / clocks", "value": 7}, {"label": "ATM / dilution", "value": 5}, {"label": "noise / instrument", "value": 4}, {"label": "hourly / sampling", "value": 4}, {"label": "SEC filings", "value": 4}]}];
+const KIND_EXEMPLARS = {"F": [{"id": "F1", "title": "Three numbers, three stories", "status": "current", "kind": "F", "group": "Unsorted \u00b7 needs a home"}, {"id": "F2", "title": "Holdout-selection bias inflates the sweep", "status": "current", "kind": "F", "group": "Walk-forward \u00b7 sweeps \u00b7 sizing"}, {"id": "F3", "title": "[SUPERSEDED by F13] The honest edge is small but real (and decaying)", "status": "superseded", "kind": "F", "group": "Dead ends \u00b7 superseded"}, {"id": "F4", "title": "[SUPERSEDED by F13] QQQ (un-leveraged) is the best risk-adjusted instrument \u2014 structurally", "status": "superseded", "kind": "F", "group": "Strategy \u00b7 D6 go/no-go"}, {"id": "F5", "title": "Methodology note: short-slice warmup bug (fixed)", "status": "current", "kind": "F", "group": "Unsorted \u00b7 needs a home"}, {"id": "F6", "title": "The live instrument (TQQQ) is fragile", "status": "current", "kind": "F", "group": "Strategy \u00b7 D6 go/no-go"}, {"id": "F7", "title": "THE MECHANISM: stop-vs-intrabar-noise ratio drives win rate", "status": "current", "kind": "F", "group": "Strategy \u00b7 D6 go/no-go"}, {"id": "F8", "title": "[SUPERSEDED by F13] The QQQ edge is a signal property, not an optimizer artifact", "status": "superseded", "kind": "F", "group": "Dead ends \u00b7 superseded"}, {"id": "F9", "title": "SPY corroborates; un-leveraged broad indices are the right class", "status": "superseded", "kind": "F", "group": "Dead ends \u00b7 superseded"}, {"id": "F10", "title": "DATA CAVEAT: all results are MORNING-ONLY", "status": "superseded", "kind": "F", "group": "Strategy \u00b7 D6 go/no-go"}, {"id": "F11", "title": "Penalty-inversion selection bug (fixed)", "status": "current", "kind": "F", "group": "Unsorted \u00b7 needs a home"}, {"id": "F12", "title": "ROOT CAUSE of the morning-only data + a backtest\u2194live data mismatch", "status": "current", "kind": "F", "group": "Strategy \u00b7 D6 go/no-go"}], "H": [{"id": "H1", "title": "RESOLVED: edge is sample-luck? \u2192 NO for QQQ, YES for TQQQ", "status": "current", "kind": "H", "group": "Unsorted \u00b7 needs a home"}, {"id": "H2", "title": "RESOLVED then REVERSED by F13: un-leveraged indices generalize the edge? \u2192 NO", "status": "current", "kind": "H", "group": "Unsorted \u00b7 needs a home"}, {"id": "H3", "title": "RESOLVED: edge can be cheaply lifted (ATR stops / entry quality)? \u2192 NO", "status": "current", "kind": "H", "group": "Unsorted \u00b7 needs a home"}, {"id": "H4", "title": "OPEN: walk-forward should be the sweep's PRIMARY selector (C5)", "status": "current", "kind": "H", "group": "Walk-forward \u00b7 sweeps \u00b7 sizing"}, {"id": "H5", "title": "OPEN: does the edge hold on FULL-session data (not morning-only)?", "status": "current", "kind": "H", "group": "Strategy \u00b7 D6 go/no-go"}, {"id": "H6", "title": "OPEN: screen instruments by noise-ratio to find where the signal works", "status": "current", "kind": "H", "group": "Strategy \u00b7 D6 go/no-go"}, {"id": "H7", "title": "OPEN (most promising): the edge lives at the DAILY timescale, not hourly", "status": "current", "kind": "H", "group": "Strategy \u00b7 D6 go/no-go"}, {"id": "H8", "title": "OPEN (the path to the goal): diversified daily-MR sleeves with a horizon exit", "status": "current", "kind": "H", "group": "Unsorted \u00b7 needs a home"}, {"id": "H9", "title": "OPEN [ctx]: VD-1 \u2014 F23 armed RSI/MACD config-ignored bug is UNGUARDED; write an asserting test", "status": "current", "kind": "H", "group": "Context kit \u00b7 census \u00b7 web"}, {"id": "H10", "title": "OPEN [ctx]: DP-3 \u2014 add reversal-arc edges so ctx walk/why narrates Sharpe-94 -> static-allocation end-to-end", "status": "current", "kind": "H", "group": "Income product \u00b7 static blend"}, {"id": "H11", "title": "OPEN [ctx]: DP-4 \u2014 ctx stale, a semantic-staleness detector independent of author declaration", "status": "current", "kind": "H", "group": "Context kit \u00b7 census \u00b7 web"}, {"id": "H12", "title": "OPEN [ctx]: DP-5 \u2014 gate the live-trader preflight + CI on context-layer health (ctx health / web --lint)", "status": "current", "kind": "H", "group": "Live trader \u00b7 paper ops"}], "E": [{"id": "E1", "title": "Documented optimistic sweep (historical) \u2192 artifact, feeds [[F1]].", "status": "current", "kind": "E", "group": "Walk-forward \u00b7 sweeps \u00b7 sizing"}, {"id": "E2", "title": "Fixed-10% realistic HOLDOUT sweep (2026-06-19)", "status": "current", "kind": "E", "group": "Walk-forward \u00b7 sweeps \u00b7 sizing"}, {"id": "E3", "title": "Leak-free walk-forward (PRIMARY evidence)", "status": "current", "kind": "E", "group": "Walk-forward \u00b7 sweeps \u00b7 sizing"}, {"id": "E4", "title": "RESOLVED: edge robustness & confidence", "status": "current", "kind": "E", "group": "Unsorted \u00b7 needs a home"}, {"id": "E5", "title": "RESOLVED: edge-lift levers", "status": "current", "kind": "E", "group": "Unsorted \u00b7 needs a home"}, {"id": "E6", "title": "RESOLVED: QQQ structural deep-dive + SPY/IWM", "status": "current", "kind": "E", "group": "Unsorted \u00b7 needs a home"}, {"id": "E7", "title": "IN PROGRESS: full-session data re-pull & re-validate (now matches live)", "status": "current", "kind": "E", "group": "Live trader \u00b7 paper ops"}, {"id": "E8", "title": "DONE: noise-ratio instrument screener", "status": "current", "kind": "E", "group": "Strategy \u00b7 D6 go/no-go"}, {"id": "E9", "title": "DONE (part 1): edge vs bar-duration on resampled full-session data", "status": "current", "kind": "E", "group": "Unsorted \u00b7 needs a home"}, {"id": "E10", "title": "Independent daily-MR replication + strategy lab", "status": "current", "kind": "E", "group": "Unsorted \u00b7 needs a home"}, {"id": "E11", "title": "Out-of-sample / walk-forward stress test of the D5 build", "status": "current", "kind": "E", "group": "Walk-forward \u00b7 sweeps \u00b7 sizing"}, {"id": "E12", "title": "Go/no-go: active daily-MR vs static blends (head-to-head)", "status": "current", "kind": "E", "group": "Strategy \u00b7 D6 go/no-go"}], "D": [{"id": "D1", "title": "Edge go/no-go (roadmap gate #1) \u2014 UPDATED", "status": "current", "kind": "D", "group": "Strategy \u00b7 D6 go/no-go"}, {"id": "D2", "title": "Promote walk-forward to primary selector (C5)", "status": "current", "kind": "D", "group": "Walk-forward \u00b7 sweeps \u00b7 sizing"}, {"id": "D3", "title": "Adopt the noise-ratio instrument rule; make QQQ/SPY first-class candidates", "status": "current", "kind": "D", "group": "Strategy \u00b7 D6 go/no-go"}, {"id": "D4", "title": "is the original ~3.75% APY conservative goal achievable? \u2014 UPDATED (sobering)", "status": "current", "kind": "D", "group": "Unsorted \u00b7 needs a home"}, {"id": "D5", "title": "Recommended next architecture (the leverage-free daily-MR product)", "status": "current", "kind": "D", "group": "Unsorted \u00b7 needs a home"}, {"id": "D6", "title": "GO/NO-GO: the active engine is not justified \u2014 recommend a static allocation", "status": "current", "kind": "D", "group": "Strategy \u00b7 D6 go/no-go"}, {"id": "D7", "title": "RESOLVED [ctx]: VD-2 \u2014 F15 formally superseded by F22 (reason: reversed)", "status": "current", "kind": "D", "group": "Context kit \u00b7 census \u00b7 web"}, {"id": "D8", "title": "OPEN: Honest fallback (D7) \u2014 accept a capital-preservation vehicle if nothing clears 0.5%/mo net OOS", "status": "current", "kind": "D", "group": "Unsorted \u00b7 needs a home"}, {"id": "D9", "title": "OPEN: Branch hygiene (I1) \u2014 main still ships the desync & bracket bugs", "status": "current", "kind": "D", "group": "Live trader \u00b7 paper ops"}, {"id": "D10", "title": "Context-map Explore prompts live in the static graph UI", "status": "current", "kind": "D", "group": "Income product \u00b7 static blend"}, {"id": "D11", "title": "Shift-drag 3D map uses static SVG projection", "status": "current", "kind": "D", "group": "Income product \u00b7 static blend"}, {"id": "D12", "title": "Public positioning: research substrate first, trading bot as reference implementation (README repositioned)", "status": "current", "kind": "D", "group": "Unsorted \u00b7 needs a home"}]};
+const KIND_STATS = {"F": {"current": 279, "superseded": 12, "retracted": 0, "count": 291, "by_shelf": [{"label": "unsorted", "value": 130}, {"label": "live ops", "value": 46}, {"label": "mean reversion", "value": 44}, {"label": "SEC / CA", "value": 22}, {"label": "sweeps / sizing", "value": 14}, {"label": "tooling", "value": 11}, {"label": "clinical", "value": 11}, {"label": "dead ends", "value": 7}, {"label": "ATM / financing", "value": 4}, {"label": "income / blend", "value": 2}], "themes": [{"label": "hourly / sampling", "value": 21}, {"label": "fills / brackets", "value": 20}, {"label": "Form 25 / clocks", "value": 14}, {"label": "SEC filings", "value": 11}, {"label": "FDA / trial", "value": 11}, {"label": "walk-forward", "value": 9}, {"label": "ctx / census", "value": 9}, {"label": "static 60/40", "value": 9}, {"label": "noise / instrument", "value": 8}, {"label": "mean reversion", "value": 7}, {"label": "regime / slope", "value": 6}, {"label": "dashboard / state", "value": 5}, {"label": "sizing / Kelly", "value": 4}, {"label": "ATM / dilution", "value": 4}]}, "H": {"current": 93, "superseded": 2, "retracted": 0, "count": 95, "by_shelf": [{"label": "unsorted", "value": 45}, {"label": "tooling", "value": 13}, {"label": "SEC / CA", "value": 10}, {"label": "sweeps / sizing", "value": 6}, {"label": "clinical", "value": 6}, {"label": "live ops", "value": 5}, {"label": "mean reversion", "value": 4}, {"label": "ATM / financing", "value": 4}, {"label": "income / blend", "value": 2}], "themes": [{"label": "ctx / census", "value": 13}, {"label": "SEC filings", "value": 9}, {"label": "FDA / trial", "value": 6}, {"label": "walk-forward", "value": 4}, {"label": "ATM / dilution", "value": 4}, {"label": "mean reversion", "value": 3}, {"label": "regime / slope", "value": 3}, {"label": "noise / instrument", "value": 2}, {"label": "hourly / sampling", "value": 2}, {"label": "dashboard / state", "value": 2}, {"label": "fills / brackets", "value": 2}, {"label": "Form 25 / clocks", "value": 2}, {"label": "sizing / Kelly", "value": 1}]}, "E": {"current": 135, "superseded": 1, "retracted": 0, "count": 136, "by_shelf": [{"label": "unsorted", "value": 71}, {"label": "SEC / CA", "value": 17}, {"label": "mean reversion", "value": 14}, {"label": "live ops", "value": 8}, {"label": "sweeps / sizing", "value": 6}, {"label": "income / blend", "value": 5}, {"label": "tooling", "value": 4}, {"label": "ATM / financing", "value": 4}, {"label": "clinical", "value": 4}, {"label": "dead ends", "value": 3}], "themes": [{"label": "SEC filings", "value": 10}, {"label": "Form 25 / clocks", "value": 9}, {"label": "ATM / dilution", "value": 7}, {"label": "walk-forward", "value": 6}, {"label": "hourly / sampling", "value": 6}, {"label": "ctx / census", "value": 5}, {"label": "static 60/40", "value": 5}, {"label": "noise / instrument", "value": 4}, {"label": "regime / slope", "value": 4}, {"label": "FDA / trial", "value": 4}, {"label": "mean reversion", "value": 3}, {"label": "fills / brackets", "value": 2}, {"label": "dashboard / state", "value": 1}, {"label": "sizing / Kelly", "value": 1}]}, "D": {"current": 22, "superseded": 0, "retracted": 0, "count": 22, "by_shelf": [{"label": "unsorted", "value": 5}, {"label": "clinical", "value": 5}, {"label": "mean reversion", "value": 3}, {"label": "SEC / CA", "value": 3}, {"label": "income / blend", "value": 2}, {"label": "sweeps / sizing", "value": 1}, {"label": "tooling", "value": 1}, {"label": "live ops", "value": 1}, {"label": "ATM / financing", "value": 1}], "themes": [{"label": "FDA / trial", "value": 5}, {"label": "ctx / census", "value": 2}, {"label": "walk-forward", "value": 1}, {"label": "noise / instrument", "value": 1}, {"label": "mean reversion", "value": 1}, {"label": "fills / brackets", "value": 1}, {"label": "Form 25 / clocks", "value": 1}, {"label": "ATM / dilution", "value": 1}]}};
+const KIND_NAME = {F:"Findings", H:"Hypotheses", E:"Experiments", D:"Gates"};
+const KIND_ORDER = ["F","H","E","D"];
+const KIND_COLORS = {F:"var(--accent)", H:"var(--ord-3)", E:"var(--warning)", D:"var(--serious)"};
+const THEME_COLORS = ["var(--accent)","var(--ord-3)","var(--warning)","var(--serious)",
+  "var(--ord-2)","var(--good)","var(--critical)","var(--ord-4)","var(--axis)"];
+const MAX = Math.max(...GROUPS.map(g=>g.count), 1);
+
+function sev(st){return st==="current"?"good":st==="superseded"?"warn":""}
+function kindChips(kinds){
+  return KIND_ORDER.filter(k=>kinds[k]).map(k=>
+    `<span class="chip">${k} ${kinds[k]}</span>`).join("");
+}
+function heatClass(count){
+  const r = count / MAX;
+  if(r >= 0.75) return "h4";
+  if(r >= 0.45) return "h3";
+  if(r >= 0.2) return "h2";
+  return "h1";
+}
+function shelfId(i){ return String(i+1).padStart(2,"0"); }
+
+let active = null;
+let cards = GROUPS;
+
+function hBarChart(items, opts){
+  opts = opts || {};
+  const W = opts.width || 900;
+  const rowH = 28;
+  const H = Math.max(100, items.length * rowH + 12);
+  const L = opts.labelW || 140;
+  const R = 56, T = 6, B = 6;
+  const max = Math.max(...items.map(i=>i.value), 1);
+  const inner = W - L - R;
+  let parts = [];
+  items.forEach((it,i)=>{
+    const y = T + i*rowH;
+    const h = 18;
+    const w = inner * it.value / max;
+    const col = it.color || THEME_COLORS[i % THEME_COLORS.length];
+    parts.push(`<text x="${L-10}" y="${y+13}" text-anchor="end" fill="var(--ink-2)" font-size="12.5" font-family="var(--sans)">${it.label}</text>`);
+    parts.push(`<rect x="${L}" y="${y}" width="${Math.max(w,2).toFixed(1)}" height="${h}" fill="${col}" rx="4"/>`);
+    parts.push(`<text x="${(L+w+8).toFixed(1)}" y="${y+13}" fill="var(--ink)" font-size="13" font-weight="650" font-family="var(--mono)">${it.value}</text>`);
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="bar chart">${parts.join("")}</svg>`;
+}
+
+function vBarChart(items){
+  const W=340, H=170, L=28, R=12, T=24, B=38;
+  const n=Math.max(items.length,1);
+  const max=Math.max(...items.map(i=>i.value),1);
+  const bw=(W-L-R)/n;
+  let parts=[];
+  items.forEach((it,i)=>{
+    const h=(it.value/max)*(H-T-B);
+    const x=L+i*bw+bw*0.15;
+    const y=H-B-h;
+    const w=bw*0.7;
+    const col=it.color||THEME_COLORS[i%THEME_COLORS.length];
+    parts.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(h,0).toFixed(1)}" fill="${col}" rx="3"/>`);
+    parts.push(`<text x="${(x+w/2).toFixed(1)}" y="${H-14}" text-anchor="middle" fill="var(--ink-muted)" font-size="11" font-family="var(--mono)">${it.label}</text>`);
+    parts.push(`<text x="${(x+w/2).toFixed(1)}" y="${(y-5).toFixed(1)}" text-anchor="middle" fill="var(--ink)" font-size="12" font-weight="650" font-family="var(--mono)">${it.value}</text>`);
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" role="img">${parts.join("")}</svg>`;
+}
+
+function bucketCard(g, i){
+  const sel = active===g.id ? " selected" : "";
+  return `<button type="button" class="bucket${sel}" data-id="${g.id}">
+    <span class="id">SHELF · ${shelfId(i)}</span>
+    <span class="name">${g.title}</span>
+    <span class="blurb">${g.blurb}</span>
+    <div class="meta">
+      <span class="kinds">${kindChips(g.kinds)}</span>
+      <span class="count">${g.count}</span>
+    </div>
+    <div class="heat ${heatClass(g.count)}"><i></i></div>
+  </button>`;
+}
+
+function bindCards(){
+  document.querySelectorAll(".bucket").forEach(el=>{
+    el.onclick = ()=>openDetail(el.dataset.id);
+  });
+}
+
+function renderTopics(){
+  cards = GROUPS;
+  active = null;
+  document.getElementById("detail").classList.remove("show");
+  document.getElementById("shelvesPanel").hidden = false;
+  document.getElementById("flatPanel").hidden = true;
+  document.getElementById("shelvesTitle").textContent = "Topic shelves";
+  document.getElementById("shelvesSub").textContent = "Click to select. Heat = relative shelf size.";
+  document.getElementById("grid").innerHTML = GROUPS.map((g,i)=>bucketCard(g,i)).join("");
+  bindCards();
+}
+
+function renderKind(){
+  const byKind = KIND_ORDER.map((k)=>{
+    const st = KIND_STATS[k] || {count:0,current:0,superseded:0,retracted:0,by_shelf:[],themes:[]};
+    return {
+      id:k, title:KIND_NAME[k],
+      blurb:"Nodes whose id prefix marks them as "+KIND_NAME[k].toLowerCase()+" — what the node is, across every topic.",
+      count: st.count,
+      kinds:{F:0,H:0,E:0,D:0,[k]:st.count},
+      status:{current:st.current||0,superseded:st.superseded||0,retracted:st.retracted||0},
+      themes: st.themes || [],
+      byShelf: st.by_shelf || [],
+      isKind: true,
+      nodes: (KIND_EXEMPLARS[k]||[]).map(n=>({...n}))
+    };
+  });
+  cards = byKind;
+  active = null;
+  document.getElementById("detail").classList.remove("show");
+  document.getElementById("shelvesPanel").hidden = false;
+  document.getElementById("flatPanel").hidden = true;
+  document.getElementById("shelvesTitle").textContent = "Kind shelves";
+  document.getElementById("shelvesSub").textContent = "Findings, hypotheses, experiments, and gates — click for content charts.";
+  document.getElementById("grid").innerHTML = byKind.map((g,i)=>bucketCard(g,i)).join("");
+  bindCards();
+}
+
+function nodeRow(n, extraCols){
+  return `<tr class="node-row" tabindex="0" data-href="/node/${n.id}">
+    <td><a href="/node/${n.id}" onclick="event.stopPropagation()"><code>${n.id}</code></a></td>
+    ${extraCols}
+  </tr>`;
+}
+
+function bindNodeRows(root){
+  (root || document).querySelectorAll("tr.node-row").forEach(tr=>{
+    tr.onclick = ()=>{ location.href = tr.dataset.href; };
+    tr.onkeydown = (ev)=>{ if(ev.key==="Enter") location.href = tr.dataset.href; };
+  });
+}
+
+function renderFlat(){
+  active = null;
+  document.getElementById("detail").classList.remove("show");
+  document.getElementById("shelvesPanel").hidden = true;
+  const rows = [];
+  GROUPS.forEach(g=>g.nodes.forEach(n=>rows.push({...n, group:g.title})));
+  const flat = document.getElementById("flatPanel");
+  flat.hidden = false;
+  flat.innerHTML = `
+    <div class="panel">
+      <figcaption>
+        <h2>Flat list</h2>
+        <p class="sub">One table across shelves — useful for lookup. Prefer topic shelves to see program shape. Click a row for the node overview.</p>
+      </figcaption>
+      <div class="scroller" style="max-height:560px">
+        <table>
+          <thead><tr><th>Node</th><th>Status</th><th>Shelf</th><th>Title</th></tr></thead>
+          <tbody>${rows.map(n=>nodeRow(n, `
+              <td><span class="chip ${sev(n.status)}"><span class="dot"></span>${n.status}</span></td>
+              <td>${n.group}</td>
+              <td>${n.title}</td>`)).join("")}</tbody>
+        </table>
+      </div>
+      <p class="sub" style="margin-top:10px">Full browser with search and filters: <a href="/web">/web</a></p>
+    </div>`;
+  bindNodeRows(flat);
+}
+
+function openDetail(id){
+  const g = cards.find(x=>x.id===id);
+  if(!g) return;
+  active = id;
+  document.querySelectorAll(".bucket").forEach(el=>el.classList.toggle("selected", el.dataset.id===id));
+  document.getElementById("detail").classList.add("show");
+  document.getElementById("detailTitle").textContent = g.title + " · " + g.count + " nodes";
+  document.getElementById("detailBlurb").textContent = g.blurb;
+
+  const themes = (g.themes || []).filter(t=>t.value>0);
+  if(g.isKind){
+    document.getElementById("chartMainTitle").textContent = g.title + " by theme";
+    document.getElementById("chartMainHint").textContent =
+      "What these " + g.title.toLowerCase() + " are about — e.g. mean reversion, SEC filings, clinical.";
+    document.getElementById("chartSideTitle").textContent = g.title + " by topic shelf";
+    document.getElementById("chartSideHint").textContent = "Which program shelf they sit on.";
+    document.getElementById("chartMain").innerHTML = themes.length
+      ? hBarChart(themes.map((t,i)=>({label:t.label, value:t.value, color:THEME_COLORS[i%THEME_COLORS.length]})))
+      : `<p class="hint">No tagged themes.</p>`;
+    const shelves = (g.byShelf || []).filter(t=>t.value>0);
+    document.getElementById("chartSide").innerHTML = shelves.length
+      ? hBarChart(shelves.map((t,i)=>({label:t.label, value:t.value, color:THEME_COLORS[i%THEME_COLORS.length]})), {width:420, labelW:110})
+      : `<p class="hint">No shelf mix.</p>`;
+  } else {
+    document.getElementById("chartMainTitle").textContent = "Themes inside " + (g.short || g.title);
+    document.getElementById("chartMainHint").textContent =
+      "Keyword themes inside this shelf — what the research is actually about.";
+    document.getElementById("chartSideTitle").textContent = "Kind mix";
+    document.getElementById("chartSideHint").textContent = "Findings / hypotheses / experiments / gates";
+    document.getElementById("chartMain").innerHTML = themes.length
+      ? hBarChart(themes.map((t,i)=>({label:t.label, value:t.value, color:THEME_COLORS[i%THEME_COLORS.length]})))
+      : `<p class="hint">No theme breakdown for this shelf.</p>`;
+    const kindItems = KIND_ORDER.map(k=>({
+      label:k, value:g.kinds[k]||0, color:KIND_COLORS[k]
+    })).filter(i=>i.value>0);
+    document.getElementById("chartSide").innerHTML = vBarChart(kindItems);
+  }
+
+  const st = g.status || {};
+  const statusItems = [
+    {label:"current", value:st.current||0, color:"var(--good)"},
+    {label:"superseded", value:st.superseded||0, color:"var(--warning)"},
+    {label:"retracted", value:st.retracted||0, color:"var(--critical)"}
+  ].filter(i=>i.value>0);
+  document.getElementById("chartStatus").innerHTML = vBarChart(statusItems);
+
+  document.getElementById("detailHint").textContent =
+    `Showing ${g.nodes.length} of ${g.count} nodes. Click a row for the node overview.`;
+  document.getElementById("detailBody").innerHTML = g.nodes.map(n=>nodeRow(n, `
+      <td>${KIND_NAME[n.kind]||n.kind}</td>
+      <td><span class="chip ${sev(n.status)}"><span class="dot"></span>${n.status}</span></td>
+      <td>${n.title}${n.group?` <span style="color:var(--ink-muted)">· ${n.group}</span>`:""}</td>`
+  )).join("") || `<tr><td colspan="4" style="color:var(--ink-muted)">No exemplars.</td></tr>`;
+  bindNodeRows(document.getElementById("detail"));
+  document.getElementById("detail").scrollIntoView({behavior:"smooth", block:"nearest"});
+}
+
+document.querySelectorAll(".view-toggle button").forEach(btn=>{
+  btn.onclick = ()=>{
+    document.querySelectorAll(".view-toggle button").forEach(b=>b.classList.remove("on"));
+    btn.classList.add("on");
+    const view = btn.dataset.view;
+    if(view==="topics") renderTopics();
+    else if(view==="kind") renderKind();
+    else renderFlat();
+  };
+});
+renderTopics();
+</script>
+</body>
+</html>

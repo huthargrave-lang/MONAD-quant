@@ -31,6 +31,12 @@ DEFAULT_CORRECTED_OUTPUT = (
 DEFAULT_LEDGER_SEED = REPO / "docs/research/data/atm_fp01_gold_seed.json"
 DEFAULT_LEDGER_OUTPUT = REPO / "docs/research/data/atm_fp01_gold_ledger.json"
 DEFAULT_LEDGER_DB = Path(tempfile.gettempdir()) / "monad-atm-fp01.sqlite3"
+DEFAULT_BIOCAT_FINANCE_SEED = (
+    REPO / "docs/research/data/biocat_finance_01_gold_seed.json"
+)
+DEFAULT_BIOCAT_FINANCE_OUTPUT = (
+    REPO / "docs/research/data/biocat_finance_01_gold_pilot.json"
+)
 DEFAULT_SEARCH_RESPONSE = Path(
     "/private/tmp/monad-atm-pilot/search-424b5-atm-2024q1.json"
 )
@@ -762,6 +768,310 @@ def build_atm_ledger_db(artifact: Mapping[str, object], path: Path) -> None:
         con.close()
 
 
+def _upper_bound_date(value: object, field: str) -> date:
+    """Normalize an exact, month, or year precision date to its upper bound."""
+    text = str(value or "")
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
+        return date.fromisoformat(text)
+    if re.fullmatch(r"\d{4}-\d{2}", text):
+        year, month = (int(part) for part in text.split("-"))
+        if month == 12:
+            return date(year, 12, 31)
+        return date(year, month + 1, 1) - timedelta(days=1)
+    if re.fullmatch(r"\d{4}", text):
+        return date(int(text), 12, 31)
+    raise ValueError(f"{field}: expected YYYY, YYYY-MM, or YYYY-MM-DD")
+
+
+def _is_sha256(value: object) -> bool:
+    return bool(re.fullmatch(r"[0-9a-f]{64}", str(value or "")))
+
+
+def validate_biocat_finance_seed(seed: Mapping[str, object]) -> None:
+    """Enforce point-in-time clocks for the BIOCAT x financing pilot."""
+    if int(seed.get("schema_version", -1)) != SCHEMA_VERSION:
+        raise ValueError("unsupported BIOCAT finance schema_version")
+    weights = seed.get("slippage_weights", {})
+    required_weights = {
+        "completion_date_slip",
+        "enrollment_haircut",
+        "endpoint_revision",
+        "registry_staleness",
+    }
+    if set(weights) != required_weights:
+        raise ValueError("BIOCAT finance slippage weights are incomplete")
+    if any(float(value) < 0 for value in weights.values()) or not math.isclose(
+        sum(float(value) for value in weights.values()), 1.0
+    ):
+        raise ValueError("BIOCAT finance slippage weights must be nonnegative and sum to one")
+
+    cases = list(seed.get("cases", []))
+    case_ids = [str(row.get("case_id", "")) for row in cases]
+    if not cases or any(not value for value in case_ids):
+        raise ValueError("BIOCAT finance requires non-empty cases with case_id")
+    if len(case_ids) != len(set(case_ids)):
+        raise ValueError("duplicate BIOCAT finance case_id")
+
+    for row in cases:
+        case_id = str(row["case_id"])
+        if not re.fullmatch(r"NCT\d{8}", str(row.get("nct_id", ""))):
+            raise ValueError(f"{case_id}: invalid nct_id")
+        cik = str(row.get("issuer", {}).get("cik", ""))
+        if not re.fullmatch(r"\d{10}", cik):
+            raise ValueError(f"{case_id}: CIK must be ten digits")
+        cutoff = _parse_ledger_datetime(
+            row.get("feature_cutoff_at"), f"{case_id}.feature_cutoff_at"
+        )
+        sources = row.get("sources", {})
+        for source_name in ("registry_history", "baseline_version", "feature_version", "sec_facts"):
+            source = sources.get(source_name, {})
+            source_url = str(source.get("url", ""))
+            required_prefix = (
+                "https://data.sec.gov/"
+                if source_name == "sec_facts"
+                else "https://clinicaltrials.gov/"
+            )
+            if not source_url.startswith(required_prefix):
+                raise ValueError(
+                    f"{case_id}.{source_name}: expected source under {required_prefix}"
+                )
+            if not _is_sha256(source.get("response_sha256")):
+                raise ValueError(f"{case_id}.{source_name}: response_sha256 required")
+        baseline_at = _parse_ledger_datetime(
+            sources["baseline_version"].get("public_at"),
+            f"{case_id}.baseline_version.public_at",
+        )
+        feature_at = _parse_ledger_datetime(
+            sources["feature_version"].get("public_at"),
+            f"{case_id}.feature_version.public_at",
+        )
+        sec_at = _parse_ledger_datetime(
+            sources["sec_facts"].get("available_at"),
+            f"{case_id}.sec_facts.available_at",
+        )
+        if not baseline_at <= feature_at <= cutoff:
+            raise ValueError(f"{case_id}: registry versions cross the feature cutoff")
+        if sec_at > cutoff:
+            raise ValueError(f"{case_id}: SEC facts cross the feature cutoff")
+
+        trial = row.get("trial_features", {})
+        _upper_bound_date(trial.get("baseline_completion_date"), case_id)
+        _upper_bound_date(trial.get("feature_completion_date"), case_id)
+        for field in ("baseline_enrollment", "feature_enrollment"):
+            if int(trial.get(field, 0)) <= 0:
+                raise ValueError(f"{case_id}: {field} must be positive")
+        severity = float(trial.get("endpoint_revision_severity", -1))
+        if not 0 <= severity <= 1:
+            raise ValueError(f"{case_id}: endpoint severity must be in [0, 1]")
+
+        finance = row.get("financial_features", {})
+        for field in ("cash_usd", "marketable_securities_usd"):
+            if float(finance.get(field, -1)) < 0:
+                raise ValueError(f"{case_id}: {field} cannot be negative")
+        cash_flow = float(finance.get("operating_cash_flow_usd", 0))
+        start = _parse_ledger_date(finance.get("cash_flow_period_start"), case_id)
+        end = _parse_ledger_date(finance.get("cash_flow_period_end"), case_id)
+        if start > end or end >= sec_at.date():
+            raise ValueError(f"{case_id}: invalid or unavailable cash-flow period")
+        for optional in ("debt_due_within_year_usd", "disclosed_trial_spend_usd", "market_cap_usd"):
+            value = finance.get(optional)
+            if value is not None and float(value) < 0:
+                raise ValueError(f"{case_id}: {optional} cannot be negative")
+        if cash_flow > 0 and finance.get("cash_flow_direction") != "provided":
+            raise ValueError(f"{case_id}: positive operating cash flow must be provided")
+        if cash_flow < 0 and finance.get("cash_flow_direction") != "used":
+            raise ValueError(f"{case_id}: negative operating cash flow must be used")
+
+        atm = row.get("atm_features")
+        if atm is not None:
+            atm_at = _parse_ledger_datetime(
+                atm.get("available_at"), f"{case_id}.atm_features.available_at"
+            )
+            if atm_at > cutoff:
+                raise ValueError(f"{case_id}: ATM features cross the feature cutoff")
+            for field in ("gross_capacity_usd", "gross_sold_to_date_usd", "remaining_capacity_usd"):
+                if float(atm.get(field, -1)) < 0:
+                    raise ValueError(f"{case_id}: {field} cannot be negative")
+            if not math.isclose(
+                float(atm["gross_capacity_usd"]),
+                float(atm["gross_sold_to_date_usd"]) + float(atm["remaining_capacity_usd"]),
+                abs_tol=1.0,
+            ):
+                raise ValueError(f"{case_id}: ATM capacity does not reconcile")
+
+        outcome = row.get("outcome")
+        if outcome is not None:
+            public_at = _parse_ledger_datetime(
+                outcome.get("public_at"), f"{case_id}.outcome.public_at"
+            )
+            if public_at <= cutoff:
+                raise ValueError(f"{case_id}: outcome crosses the feature cutoff")
+            if outcome.get("predictive_features_allowed") is not False:
+                raise ValueError(f"{case_id}: outcome cannot be a predictive feature")
+            if outcome.get("label_scope") != "trial_exact" and outcome.get("trainable") is not False:
+                raise ValueError(f"{case_id}: non-exact trial outcome must be quarantined")
+
+
+def derive_biocat_finance_case(
+    row: Mapping[str, object], weights: Mapping[str, object]
+) -> Dict[str, object]:
+    """Build transparent, non-price features from one reviewed as-of case."""
+    cutoff = _parse_ledger_datetime(row["feature_cutoff_at"], "feature_cutoff_at")
+    sources = row["sources"]
+    feature_posted = _parse_ledger_datetime(
+        sources["feature_version"]["public_at"], "feature_version.public_at"
+    )
+    trial = row["trial_features"]
+    baseline_completion = _upper_bound_date(
+        trial["baseline_completion_date"], "baseline_completion_date"
+    )
+    feature_completion = _upper_bound_date(
+        trial["feature_completion_date"], "feature_completion_date"
+    )
+    completion_slip_days = max(0, (feature_completion - baseline_completion).days)
+    baseline_enrollment = int(trial["baseline_enrollment"])
+    enrollment_haircut = max(
+        0.0,
+        (baseline_enrollment - int(trial["feature_enrollment"])) / baseline_enrollment,
+    )
+    registry_staleness_days = max(0, (cutoff.date() - feature_posted.date()).days)
+    components = {
+        "completion_date_slip": min(completion_slip_days / 365.0, 1.0),
+        "enrollment_haircut": min(enrollment_haircut, 1.0),
+        "endpoint_revision": float(trial["endpoint_revision_severity"]),
+        # A newly posted version can be one to three calendar days old at the next
+        # tradable session.  Do not call ordinary dissemination/weekend delay stale.
+        "registry_staleness": min(max(registry_staleness_days - 30, 0) / 335.0, 1.0),
+    }
+    slippage_index = sum(float(weights[key]) * value for key, value in components.items())
+
+    finance = row["financial_features"]
+    liquid_assets = float(finance["cash_usd"]) + float(finance["marketable_securities_usd"])
+    flow_start = _parse_ledger_date(finance["cash_flow_period_start"], "cash_flow_period_start")
+    flow_end = _parse_ledger_date(finance["cash_flow_period_end"], "cash_flow_period_end")
+    flow_days = (flow_end - flow_start).days + 1
+    burn_total = max(0.0, -float(finance["operating_cash_flow_usd"]))
+    daily_burn = burn_total / flow_days
+    annualized_burn = daily_burn * 365.0
+    cash_generating = float(finance["operating_cash_flow_usd"]) >= 0
+    runway_days = None if daily_burn == 0 else liquid_assets / daily_burn
+    milestone_days = max(0, (feature_completion - cutoff.date()).days)
+    runway_gap_days = 0.0 if runway_days is None else max(0.0, milestone_days - runway_days)
+    debt = finance.get("debt_due_within_year_usd")
+    trial_spend = finance.get("disclosed_trial_spend_usd")
+    lower_bound_need = max(
+        0.0,
+        annualized_burn
+        + (0.0 if debt is None else float(debt))
+        + (0.0 if trial_spend is None else float(trial_spend))
+        - liquid_assets,
+    )
+
+    atm = row.get("atm_features")
+    market_cap = finance.get("market_cap_usd")
+    atm_capacity_to_market_cap = None
+    prior_atm_utilization = None
+    if atm is not None:
+        prior_atm_utilization = float(atm["gross_sold_to_date_usd"]) / float(
+            atm["gross_capacity_usd"]
+        )
+        if market_cap not in (None, 0):
+            atm_capacity_to_market_cap = float(atm["remaining_capacity_usd"]) / float(
+                market_cap
+            )
+
+    derived = {
+        "completion_slip_days": completion_slip_days,
+        "enrollment_haircut_fraction": round(enrollment_haircut, 6),
+        "endpoint_revision_severity": float(trial["endpoint_revision_severity"]),
+        "registry_staleness_days": registry_staleness_days,
+        "slippage_components_normalized": {
+            key: round(value, 6) for key, value in components.items()
+        },
+        "trial_slippage_index_unvalidated": round(slippage_index, 6),
+        "liquid_assets_usd": round(liquid_assets, 2),
+        "cash_flow_period_days": flow_days,
+        "annualized_operating_burn_usd": round(annualized_burn, 2),
+        "cash_generating": cash_generating,
+        "estimated_runway_days": None if runway_days is None else round(runway_days, 2),
+        "days_to_registry_milestone_upper_bound": milestone_days,
+        "runway_gap_days": round(runway_gap_days, 2),
+        "financing_need_lower_bound_usd": round(lower_bound_need, 2),
+        "financing_need_missing_components": [
+            name
+            for name, value in (
+                ("debt_due_within_year_usd", debt),
+                ("disclosed_trial_spend_usd", trial_spend),
+            )
+            if value is None
+        ],
+        "remaining_atm_capacity_usd": None
+        if atm is None
+        else float(atm["remaining_capacity_usd"]),
+        "prior_atm_utilization_fraction": None
+        if prior_atm_utilization is None
+        else round(prior_atm_utilization, 6),
+        "atm_capacity_to_market_cap": None
+        if atm_capacity_to_market_cap is None
+        else round(atm_capacity_to_market_cap, 6),
+        "multiplicative_pressure": None,
+        "multiplicative_pressure_reason": (
+            "Requires a training-fold financing-need percentile; never rank on this "
+            "reviewed fixture or on future outcomes. Preserve main effects because zero "
+            "runway gap must not erase observed financing behavior."
+        ),
+    }
+    result = dict(row)
+    result["derived"] = derived
+    return result
+
+
+def build_biocat_finance_artifact(seed: Mapping[str, object]) -> Dict[str, object]:
+    validate_biocat_finance_seed(seed)
+    weights = seed["slippage_weights"]
+    cases = [derive_biocat_finance_case(row, weights) for row in seed["cases"]]
+    artifact: Dict[str, object] = {
+        "schema_version": SCHEMA_VERSION,
+        "artifact_id": seed["fixture_id"],
+        "research_status": seed["research_status"],
+        "reviewed_at": seed["reviewed_at"],
+        "raw_documents_committed": False,
+        "return_labels_inspected": False,
+        "model_trained": False,
+        "slippage_weights": dict(weights),
+        "cases": cases,
+        "summary": {
+            "case_count": len(cases),
+            "cases_with_positive_slippage": sum(
+                row["derived"]["trial_slippage_index_unvalidated"] > 0 for row in cases
+            ),
+            "cases_with_positive_runway_gap": sum(
+                row["derived"]["runway_gap_days"] > 0 for row in cases
+            ),
+            "cases_with_positive_financing_need_lower_bound": sum(
+                row["derived"]["financing_need_lower_bound_usd"] > 0 for row in cases
+            ),
+            "cases_with_reviewed_atm_state": sum(
+                row.get("atm_features") is not None for row in cases
+            ),
+            "cases_with_prior_atm_utilization": sum(
+                (row["derived"]["prior_atm_utilization_fraction"] or 0) > 0
+                for row in cases
+            ),
+            "outcomes_excluded_from_predictive_features": sum(
+                row.get("outcome") is not None for row in cases
+            ),
+            "key_falsification": (
+                "A pure runway_gap x slippage x financing_need product is not an "
+                "adequate standalone ranking: the AXSM case has zero modeled runway gap "
+                "but 40.2% prior utilization of its reviewed 2019 ATM capacity."
+            ),
+        },
+    }
+    artifact["artifact_sha256"] = sha256(artifact)
+    return artifact
+
+
 def build_artifact(
     response_path: Path,
     spec: Mapping[str, object],
@@ -840,7 +1150,26 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--ledger-seed", type=Path, default=DEFAULT_LEDGER_SEED)
     parser.add_argument("--ledger-output", type=Path, default=DEFAULT_LEDGER_OUTPUT)
     parser.add_argument("--ledger-db", type=Path, default=DEFAULT_LEDGER_DB)
+    parser.add_argument(
+        "--build-biocat-finance",
+        action="store_true",
+        help="validate and build the BIOCAT-FINANCE-01 joined pilot",
+    )
+    parser.add_argument(
+        "--biocat-finance-seed", type=Path, default=DEFAULT_BIOCAT_FINANCE_SEED
+    )
+    parser.add_argument(
+        "--biocat-finance-output", type=Path, default=DEFAULT_BIOCAT_FINANCE_OUTPUT
+    )
     args = parser.parse_args(argv)
+    if args.build_biocat_finance:
+        artifact = build_biocat_finance_artifact(load_json(args.biocat_finance_seed))
+        args.biocat_finance_output.parent.mkdir(parents=True, exist_ok=True)
+        with args.biocat_finance_output.open("w", encoding="utf-8") as handle:
+            json.dump(artifact, handle, indent=2, sort_keys=True)
+            handle.write("\n")
+        print(json.dumps({"output": str(args.biocat_finance_output), **artifact["summary"]}, indent=2))
+        return 0
     if args.build_ledger:
         ledger = build_atm_ledger_artifact(load_json(args.ledger_seed))
         args.ledger_output.parent.mkdir(parents=True, exist_ok=True)

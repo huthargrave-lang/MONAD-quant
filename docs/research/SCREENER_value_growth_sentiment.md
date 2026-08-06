@@ -1,13 +1,13 @@
 # A low-P/E, high-growth screen whose four columns admit they are four different facts
 
 **Tool:** [`tools/screener_lab.py`](../../tools/screener_lab.py) ·
-**Page:** `/screener` in [`tools/research_ui.py`](../../tools/research_ui.py) ·
+**Page:** `/sentiment` in [`tools/research_ui.py`](../../tools/research_ui.py) ·
 **Guards:** [`tests/test_screener_lab.py`](../../tests/test_screener_lab.py) (66 tests)
 
 ```bash
 venv/bin/python tools/screener_lab.py refresh --limit 150   # ~55s, writes the snapshot
 venv/bin/python tools/screener_lab.py screen --max-pe 25 --min-growth 0.10
-venv/bin/python tools/research_ui.py serve                  # then open /screener
+venv/bin/python tools/research_ui.py serve                  # then open /sentiment
 ```
 
 ---

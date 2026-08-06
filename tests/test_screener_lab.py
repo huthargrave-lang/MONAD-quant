@@ -1,7 +1,7 @@
 """A screen whose four columns are four different kinds of fact — and the guards that
 keep them from collapsing into one.
 
-Tool: `tools/screener_lab.py`. Page: `/screener` in `tools/research_ui.py`.
+Tool: `tools/screener_lab.py`. Page: `/sentiment` in `tools/research_ui.py`.
 Study: `docs/research/SCREENER_value_growth_sentiment.md`.
 
 The screen asks for cheap, fast-growing companies and reads sentiment about them from

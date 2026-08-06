@@ -39,12 +39,13 @@ sudo systemctl enable --now monad-healthcheck.timer monad-daily-export.timer
 
 ### Screener snapshot refresh (safe: read-only research, no broker)
 
-`monad-screener.timer` refreshes the `/screener` snapshot at **17:30 ET, weekdays** —
+`monad-screener.timer` refreshes the screener snapshots at **17:30 ET, weekdays** —
 after the close and after `monad-daily-export` (16:15 ET), so it never overlaps the
-export or a trading session. It runs `tools/screener_lab.py refresh`, which fetches
-vendor fundamentals plus Bloomberg and Reddit public feeds and writes **one gitignored
-file**, `data/cache/screener_snapshot.json`. It never touches `state.db`, `live/**`,
-`config.py`, or the broker.
+export or a trading session. It runs `tools/stock_screener.py fetch` (full curated fund
+universe → `data/screener/fundamentals.json`) then `tools/screener_lab.py refresh`
+(vendor fundamentals + Bloomberg/Reddit public feeds → `data/cache/screener_snapshot.json`).
+Production `/screener` joins both; neither touches `state.db`, `live/**`, `config.py`,
+or the broker.
 
 ```bash
 sudo cp ~/MONAD-quant/deploy/monad-screener.* /etc/systemd/system/
@@ -57,10 +58,10 @@ journalctl -u monad-screener -n 40 --no-pager
 
 It is deliberately unobtrusive on the trading host: `Nice=15`, idle CPU and I/O
 classes, a 30-minute `TimeoutStartSec` ceiling, and `ProtectSystem=strict` with
-`data/cache` as the only writable path. `Persistent=true` catches up a run missed while
-the Pi was off; `RandomizedDelaySec=600` avoids hitting rate-limited vendors at the same
-second daily. If it does not run at all, the page renders a stale-but-labelled snapshot
-— a state it is designed for.
+`data/cache` and `data/screener` as the only writable paths. `Persistent=true` catches
+up a run missed while the Pi was off; `RandomizedDelaySec=600` avoids hitting
+rate-limited vendors at the same second daily. If it does not run at all, the page
+renders a stale-but-labelled snapshot — a state it is designed for.
 
 **Reddit needs no credentials.** The fetcher uses the public Atom feeds and paces itself
 from Reddit's own `x-ratelimit-reset` header (7–60s), which is why a full run takes a
