@@ -61,20 +61,35 @@ _NAV = re.compile(r'<nav class="rail">.*?</nav>', re.S)
 _FOOT = "rendered from the working tree at request time"
 
 
+#: The published rail mirrors the server's Views list one-for-one, so the site does not
+#: read as a different application from the one it was built from. What is NOT carried
+#: over is the server's "Mounted data" block: those views render optional SQLite mounts
+#: that only exist when the server is started with the matching --*-db flag, so on a
+#: static host every one of them would be a link to an absence. Same for the fenced live
+#: monitor, which this build has no business pointing at.
+_STATIC_VIEWS = [
+    ("overview.html", "Overview", "overview"),
+    ("web.html", "Research web", "web"),
+    ("web-groups.html", "Web groups", "groups"),
+    ("index.html", "Screener", "screener"),
+    ("buckets.html", "Buckets", "buckets"),
+    ("map.html", "Context map", "map"),
+    ("surfaces.html", "UI surfaces", "surfaces"),
+]
+
+
 def _static_nav(active="screener"):
     def link(href, label, key):
         cls = ' class="on"' if active == key else ""
         return '<a{} href="{}">{}</a>'.format(cls, href, label)
+    views = "".join(link(h, l, k) for h, l, k in _STATIC_VIEWS)
     return ('<nav class="rail"><div class="brand"><b>MONAD research</b>'
             '<span>static snapshot · GitHub Pages</span></div>'
-            '<h4>Views</h4>'
-            '{s}{b}'
-            '<a href="map.html">Context map</a>'
+            '<h4>Views</h4>{v}'
             '<h4>Contribute</h4>{r}'
             '<h4>Source</h4>'
             '<a href="{u}">GitHub repository</a></nav>').format(
-        s=link("index.html", "Screener", "screener"),
-        b=link("buckets.html", "Buckets", "buckets"),
+        v=views,
         r=link("recommend.html", "Create a recommendation", "recommend"),
         u=REPO_URL)
 
@@ -104,6 +119,20 @@ def _staticise(html, built, active="screener"):
     html = re.sub(r'href="/sentiment[^"]*"', 'href="{}"'.format(REPO_URL), html)
     html = html.replace('href="/lenses"', 'href="index.html"')
     html = html.replace('href="/screen"', 'href="index.html"')
+    # Node drill-down: every node the browser links to is exported, so these stay internal.
+    html = re.sub(r'href="/(?:api/)?node/([A-Za-z0-9]+)"', r'href="node-\1.html"', html)
+    # The groups view builds its node links in JS, so the href only exists at runtime and
+    # a plain rewrite cannot see it — the template itself has to be retargeted.
+    html = re.sub(r'href="/node/\$\{([^}"]+)\}"', r'href="node-${\1}.html"', html)
+    # Longest path first — /web/groups must not be eaten by the /web rule.
+    html = html.replace('href="/web/groups"', 'href="web-groups.html"')
+    # The web browser's filters (kind/status/sort) are server queries with no static
+    # equivalent; they collapse to the unfiltered page rather than to a dead route.
+    html = re.sub(r'href="/web\?[^"]*"', 'href="web.html"', html)
+    html = html.replace('href="/web"', 'href="web.html"')
+    html = html.replace('href="/surfaces"', 'href="surfaces.html"')
+    html = html.replace('href="/graph"', 'href="map.html"')
+    html = html.replace('href="/"', 'href="overview.html"')
     html = _NAV.sub(_static_nav(active), html, count=1)
     # The server footer's claim ("rendered … at request time") would be FALSE here.
     stamp = "static snapshot built {} UTC".format(built)
@@ -166,6 +195,24 @@ def export(out_dir):
     # The server already swaps the mock's standalone rail for the shared nav, so the
     # page staticises exactly like every other one (nav swap + href rewrites).
     write("buckets.html", _staticise(body, built, "buckets"))
+
+    # The rest of the server's Views list, so the published rail is not advertising pages
+    # that do not exist. Node pages follow the browser that links them: a research web you
+    # cannot drill into is a table of contents, not the web.
+    for route_path, name, active in (("/", "overview.html", "overview"),
+                                     ("/web", "web.html", "web"),
+                                     ("/web/groups", "web-groups.html", "groups"),
+                                     ("/surfaces", "surfaces.html", "surfaces")):
+        code, body, _ct = research_ui.route(route_path, {}, {})
+        assert code == 200, route_path
+        write(name, _staticise(body, built, active))
+
+    linked = sorted(set(re.findall(r'href="/node/([A-Za-z0-9]+)"',
+                                   research_ui.route("/web", {}, {})[1])))
+    for nid in linked:
+        code, body, _ct = research_ui.route("/node/" + nid, {}, {})
+        assert code == 200, nid
+        write("node-{}.html".format(nid), _staticise(body, built, "web"))
 
     G, adj = ctx.build_graph(include_code=True)
     write("map.html", ctx._render_graph_html(G, adj))

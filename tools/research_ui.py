@@ -1460,6 +1460,16 @@ def applicable_keys(nctx):
 # ─────────────────────────────────────────────────────────────────────────────
 # 5. Pages.
 # ─────────────────────────────────────────────────────────────────────────────
+def _nav_view_items():
+    """The Views block, as (href, label). Split out so the static Pages export can assert
+    it publishes the same list — a site offering different views from the app it was built
+    from reads as a different application, which is how it drifted the first time."""
+    return [("/", "Overview"), ("/web", "Research web"),
+            ("/web/groups", "Web groups"),
+            ("/screener/draft", "Screener"), ("/screener/buckets", "Buckets"),
+            ("/graph", "Context map"), ("/surfaces", "UI surfaces")]
+
+
 def _nav(active, mounts):
     # "Screener" is the combined surface at /screener/draft — it carries the lens bubbles,
     # the tone columns and the widget board. The older preset-only page at /screener still
@@ -1467,10 +1477,7 @@ def _nav(active, mounts):
     # /sentiment is no longer offered in the rail: its Bloomberg/Reddit tone now reads on
     # the screener itself (tone lenses, tone columns, per-name coverage), so a second page
     # showing the same snapshot was a second path to one fact. The route still answers.
-    items = [("/", "Overview"), ("/web", "Research web"),
-             ("/web/groups", "Web groups"),
-             ("/screener/draft", "Screener"), ("/screener/buckets", "Buckets"),
-             ("/graph", "Context map"), ("/surfaces", "UI surfaces")]
+    items = _nav_view_items()
     out = ['<nav class="rail"><div class="brand"><b>MONAD research</b>'
            '<span>one server · one token system</span></div>']
     out.append("<h4>Views</h4>")

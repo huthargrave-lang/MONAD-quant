@@ -38,11 +38,25 @@ class ExportTests(unittest.TestCase):
     def tearDownClass(cls):
         cls.td.cleanup()
 
-    def test_every_preset_gets_a_page_plus_index_buckets_map_and_css(self):
+    def test_every_preset_gets_a_page_plus_the_surfaces_the_rail_offers(self):
         expected = {"index.html", "lenses.html", "buckets.html", "recommend.html",
+                    "overview.html", "web.html", "web-groups.html", "surfaces.html",
                     "map.html", os.path.join("static", "ui.css")}
         expected |= {"screen-{}.html".format(k) for k in sc.PRESETS}
-        self.assertEqual(set(self.written), expected)
+        nodes = {n for n in self.written if n.startswith("node-")}
+        self.assertTrue(nodes, "the research web must be drillable, not a contents page")
+        self.assertEqual(set(self.written) - nodes, expected)
+
+    def test_the_published_rail_matches_the_servers_views(self):
+        """A published site that lists different views from the app it was built from
+        reads as a different application. The one deliberate omission is Mounted data:
+        those views need optional SQLite mounts that cannot exist on a static host."""
+        import research_ui  # noqa: PLC0415 — test-local, keeps module import cheap
+        served = [label for _href, label in research_ui._nav_view_items()]
+        published = [label for _href, label, _key in export_pages._STATIC_VIEWS]
+        self.assertEqual(served, published)
+        for page in ("index.html", "overview.html", "web.html"):
+            self.assertNotIn("no db", self.pages[page], page)
 
     def test_no_page_still_links_a_server_route(self):
         for name, text in self.pages.items():
