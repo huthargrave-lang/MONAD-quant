@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sovereign Ledger · research screener</title>
+<style>
+/* House palette — tools/ui_tokens.py (same as research_ui screener shell) */
+:root{
+  --plane:#f2f3f1; --surface:#fcfcfb; --ink:#0b0b0b; --ink-2:#52514e;
+  --ink-muted:#898781; --rule:#e1e0d9; --axis:#c3c2b7; --accent:#2a78d6;
+  --ord-1:#86b6ef; --ord-2:#3987e5; --ord-3:#1c5cab; --ord-4:#0d366b;
+  --ink-on-1:#0b0b0b; --ink-on-4:#ffffff;
+  --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:where(:not([data-theme="light"])){
+    --plane:#0d0f12; --surface:#15181d; --ink:#f4f4f2; --ink-2:#b8b7b2;
+    --ink-muted:#83827d; --rule:#282c33; --axis:#3d424b; --accent:#6ba7f0;
+    --ord-1:#184f95; --ord-2:#2f79d4; --ord-3:#74aaee; --ord-4:#b7d3f6;
+    --ink-on-1:#ffffff; --ink-on-4:#0b0b0b;
+    --good:#3fbf3f; --warning:#e5b23c; --serious:#f09268; --critical:#ef6a6a;
+  }
+}
+:root[data-theme="dark"]{
+  --plane:#0d0f12; --surface:#15181d; --ink:#f4f4f2; --ink-2:#b8b7b2;
+  --ink-muted:#83827d; --rule:#282c33; --axis:#3d424b; --accent:#6ba7f0;
+  --ord-1:#184f95; --ord-2:#2f79d4; --ord-3:#74aaee; --ord-4:#b7d3f6;
+  --ink-on-1:#ffffff; --ink-on-4:#0b0b0b;
+  --good:#3fbf3f; --warning:#e5b23c; --serious:#f09268; --critical:#ef6a6a;
+}
+:root[data-theme="light"]{
+  --plane:#f2f3f1; --surface:#fcfcfb; --ink:#0b0b0b; --ink-2:#52514e;
+  --ink-muted:#898781; --rule:#e1e0d9; --axis:#c3c2b7; --accent:#2a78d6;
+  --ord-1:#86b6ef; --ord-2:#3987e5; --ord-3:#1c5cab; --ord-4:#0d366b;
+  --ink-on-1:#0b0b0b; --ink-on-4:#ffffff;
+  --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--plane);color:var(--ink);font:15px/1.55 var(--sans);
+  -webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code,.mono,th,td.num{font-family:var(--mono)}
+
+/* research_ui shell */
+.shell{display:grid;grid-template-columns:232px minmax(0,1fr);gap:0;min-height:100vh}
+.rail{border-right:1px solid var(--rule);background:var(--surface);padding:20px 0 40px}
+.rail .brand{padding:0 18px 16px;border-bottom:1px solid var(--rule);margin-bottom:14px}
+.rail .brand b{display:block;font-family:var(--mono);font-size:13px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink)}
+.rail .brand span{display:block;font-size:12px;color:var(--ink-muted);margin-top:3px}
+.rail h4{margin:16px 0 6px;padding:0 18px;font-size:11px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--ink-muted);font-weight:600}
+.rail a{display:block;padding:5px 18px;color:var(--ink-2);font-size:14px;cursor:pointer;border:0;background:none;width:100%;text-align:left;font:inherit}
+.rail a:hover,.rail button.nav:hover{background:var(--plane);text-decoration:none;color:var(--ink)}
+.rail a.on,.rail button.nav.on{color:var(--ink);border-left:2px solid var(--accent);padding-left:16px;background:var(--plane)}
+.rail .fence{font-size:10px;font-family:var(--mono);color:var(--ink-muted);
+  border:1px solid var(--rule);border-radius:3px;padding:0 4px;margin-left:5px}
+main{min-width:0;padding:26px 30px 90px;max-width:1180px}
+h1{font-size:23px;line-height:1.25;margin:0 0 6px;font-weight:640;text-wrap:balance;letter-spacing:-.012em}
+h2{font-size:15px;margin:28px 0 10px;font-weight:640;letter-spacing:-.005em}
+h3{font-size:13px;margin:0 0 4px;font-weight:640}
+p{margin:0 0 12px;color:var(--ink-2);max-width:68ch}
+.lede{font-size:15px;color:var(--ink-2);max-width:70ch}
+.crumb{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-muted);margin-bottom:9px}
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:9px;
+  padding:18px 20px;margin:0 0 18px}
+.panel > figcaption{margin-bottom:14px}
+.chip{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:11px;
+  padding:2px 7px;border-radius:999px;border:1px solid var(--rule);color:var(--ink-2);
+  background:var(--plane);white-space:nowrap}
+.chip .dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto;background:var(--axis)}
+.chip.good .dot{background:var(--good)} .chip.warning .dot{background:var(--warning)}
+.chip.serious .dot{background:var(--serious)} .chip.critical .dot{background:var(--critical)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:1px;
+  background:var(--rule);border:1px solid var(--rule);border-radius:9px;overflow:hidden;
+  margin-bottom:22px}
+.stat{background:var(--surface);padding:13px 15px}
+.stat b{display:block;font-family:var(--mono);font-size:25px;line-height:1.1;
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.stat span{display:block;font-size:11.5px;color:var(--ink-muted);margin-top:3px}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-bottom:16px}
+.filters label{display:flex;flex-direction:column;gap:4px;font-size:10.5px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-muted)}
+.filters input,.filters select,.filters button{font:13px var(--sans);height:30px;padding:0 8px;
+  border:1px solid var(--rule);border-radius:6px;background:var(--surface);color:var(--ink)}
+.filters button{cursor:pointer;padding:0 11px}
+.filters button:hover,.filters button.on{border-color:var(--accent)}
+.filters button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.count{font-family:var(--mono);font-size:12px;color:var(--ink-muted);margin-left:auto;align-self:center}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:7px 11px 7px 0;border-bottom:1px solid var(--rule);vertical-align:middle}
+th{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted);font-weight:600;white-space:nowrap}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;padding-right:14px}
+tbody tr:hover{background:var(--plane)}
+tbody tr.on{background:var(--plane)}
+.scroller{overflow-x:auto}
+.note{padding:10px 12px;border-left:3px solid var(--warning);background:var(--plane);
+  border-radius:0 6px 6px 0;color:var(--ink-2);font-size:13.5px;margin:0 0 16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(176px,1fr));gap:8px}
+.bucket{text-align:left;background:var(--plane);border:1px solid var(--rule);border-radius:9px;
+  padding:12px 12px 10px;cursor:pointer;min-height:124px;display:flex;flex-direction:column;gap:5px;
+  font:inherit;color:inherit;width:100%}
+.bucket:hover{border-color:var(--accent)}
+.bucket.selected{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--surface)}
+.bucket .id{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--ink-muted)}
+.bucket .name{font-weight:640;font-size:13.5px;letter-spacing:-.01em}
+.bucket .blurb{font-size:12px;color:var(--ink-2);flex:1;line-height:1.4}
+.bucket .meta{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:2px}
+.heat{height:3px;border-radius:99px;background:var(--rule);overflow:hidden;margin-top:2px}
+.heat > i{display:block;height:100%;width:0;background:var(--axis)}
+.heat.h1 > i{width:25%;background:var(--ord-1)}
+.heat.h2 > i{width:50%;background:var(--ord-2)}
+.heat.h3 > i{width:75%;background:var(--warning)}
+.heat.h4 > i{width:100%;background:var(--critical)}
+.layout{display:grid;grid-template-columns:1.15fr .85fr;gap:14px}
+@media (max-width:980px){
+  .shell{grid-template-columns:1fr}
+  .rail{border-right:0;border-bottom:1px solid var(--rule);padding-bottom:14px}
+  .layout{grid-template-columns:1fr}
+  main{padding:20px 16px 70px}
+}
+.chart-box{height:280px;border:1px solid var(--rule);border-radius:8px;background:var(--plane);padding:8px}
+.chart-box svg{width:100%;height:100%;display:block}
+.spark{width:80px;height:26px;display:block}
+.up{color:var(--good)} .dn{color:var(--critical)}
+.legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+.tabs button{font:13px var(--sans);height:28px;padding:0 10px;border:1px solid var(--rule);
+  border-radius:6px;background:var(--surface);color:var(--ink);cursor:pointer}
+.tabs button.on{border-color:var(--accent)}
+.kvs{display:grid;grid-template-columns:110px 1fr;gap:4px 12px;font-size:13px;margin:0 0 12px}
+.kvs dt{color:var(--ink-muted);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;padding-top:3px}
+.kvs dd{margin:0;color:var(--ink-2)}
+footer{margin-top:44px;padding-top:14px;border-top:1px solid var(--rule);font-size:12px;color:var(--ink-muted)}
+.theme-btn{margin:10px 18px 0;font:12px var(--sans);height:28px;padding:0 10px;
+  border:1px solid var(--rule);border-radius:6px;background:var(--plane);color:var(--ink);cursor:pointer}
+.tag{font-size:10px;font-family:var(--mono);color:var(--ink-muted)}
+.instr{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);line-height:1.45;word-break:break-word}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="rail">
+    <div class="brand">
+      <b>MONAD research</b>
+      <span>Sovereign Ledger screener</span>
+    </div>
+    <h4>Surfaces</h4>
+    <a class="on" href="#buckets">Chaos buckets</a>
+    <a href="#watch">Watchlist</a>
+    <a href="#book1">Book I Keel / Sail</a>
+    <a href="#gen">Price feed</a>
+    <h4>Other rails</h4>
+    <a class="off" tabindex="-1">Research web <span class="fence">mock</span></a>
+    <a class="off" tabindex="-1">Live dashboard <span class="fence">fenced</span></a>
+    <h4>Theme</h4>
+    <button type="button" class="theme-btn" id="themeBtn">Toggle light / dark</button>
+  </aside>
+
+  <main>
+    <div class="crumb">Research · Sovereign Ledger · study objects</div>
+    <h1>Chaos bucket screener</h1>
+    <p class="lede">
+      Pick a shock, clock, and buckets. Tickers are study objects for free daily history
+      (yfinance cache) — not live-bot signals. Theme matches <code>research_ui</code> / <code>ui_tokens</code>.
+    </p>
+
+    <div class="note">
+      <strong>Mock prices.</strong> Sparklines and charts are deterministic demo walks shaped like a nightly Yahoo cache.
+      Open via <code>http://127.0.0.1:8765/SOVEREIGN_LEDGER_OPTIONS_MOCK.html</code> — clicking the file shows source.
+    </div>
+
+    <div class="stats" id="stats">
+      <div class="stat"><b id="statBuckets">20</b><span>buckets</span></div>
+      <div class="stat"><b id="statTickers">0</b><span>tickers in view</span></div>
+      <div class="stat"><b id="statSel">0</b><span>buckets selected</span></div>
+      <div class="stat"><b id="statClock">T1</b><span>active clock</span></div>
+    </div>
+
+    <div class="filters" id="controls">
+      <label>Shock
+        <select id="shock">
+          <option value="unknown">Unknown / explore</option>
+          <option value="hormuz" selected>Hormuz / Gulf energy</option>
+          <option value="taiwan">Taiwan Strait</option>
+          <option value="china_min">China mineral ban</option>
+          <option value="liquidity">Margin / everything down</option>
+          <option value="russia">Russia / Europe</option>
+          <option value="ai_grid">AI power / grid crunch</option>
+        </select>
+      </label>
+      <label>Clock
+        <select id="clock">
+          <option value="T0">T0 Liquidity</option>
+          <option value="T1" selected>T1 Mechanism</option>
+          <option value="T2">T2 Structure</option>
+        </select>
+      </label>
+      <label>Window
+        <select id="window">
+          <option value="63">3M</option>
+          <option value="126" selected>6M</option>
+          <option value="252">1Y</option>
+          <option value="756">3Y</option>
+        </select>
+      </label>
+      <label>Tier filter
+        <select id="tier">
+          <option value="all">All tickers</option>
+          <option value="liquid">Liquid only</option>
+          <option value="satellite">Satellites only</option>
+        </select>
+      </label>
+      <label>Search
+        <input id="q" type="search" placeholder="ticker or bucket…" style="width:140px" />
+      </label>
+      <button type="button" class="primary" id="applyBtn">Apply</button>
+      <button type="button" id="clearBtn">Clear</button>
+      <button type="button" id="topHeat">Select top heat</button>
+      <span class="count" id="countLabel"></span>
+    </div>
+    <p class="lede" id="shockHint" style="margin-top:-6px;font-size:13.5px"></p>
+
+    <div class="panel" id="buckets">
+      <figcaption>
+        <h2 style="margin:0 0 4px">Buckets</h2>
+        <p class="lede" style="margin:0;font-size:13px">Click to multi-select. Heat = demo relevance under shock × clock.</p>
+      </figcaption>
+      <div class="grid" id="bucketGrid"></div>
+    </div>
+
+    <div class="layout">
+      <div class="panel">
+        <div class="tabs">
+          <button type="button" class="on" data-tab="chart">History</button>
+          <button type="button" data-tab="detail">Bucket detail</button>
+          <button type="button" data-tab="gen">Price feed</button>
+        </div>
+        <div id="tab-chart">
+          <h3 id="chartTitle">Select a bucket</h3>
+          <p class="lede" id="chartSub" style="font-size:13px;margin-bottom:10px">Normalized to 100 · demo series</p>
+          <div class="chart-box" id="chartBox"></div>
+          <div class="legend" id="chartLegend"></div>
+        </div>
+        <div id="tab-detail" hidden>
+          <h3 id="detailTitle">—</h3>
+          <dl class="kvs" id="detailKvs"></dl>
+          <h3>Fails when</h3>
+          <p id="detailFails"></p>
+          <h3>Liquid</h3>
+          <p class="instr" id="detailLiq"></p>
+          <h3>Satellites</h3>
+          <p class="instr" id="detailSat"></p>
+        </div>
+        <div id="tab-gen" hidden>
+          <h3>Free historical pricing</h3>
+          <p>Same path as the noise screener / live quote path: <code>fetch_yfinance</code> daily → disk/SQLite cache → this UI. No Yahoo hit per click.</p>
+<pre style="white-space:pre-wrap;font:12px/1.45 var(--mono);background:var(--plane);padding:12px;border-radius:8px;border:1px solid var(--rule);margin:0">WATCH = liquid + satellite tickers from selected buckets
+for sym in WATCH:
+    df = fetch_yfinance(sym, start, end, interval="1d")  # free / unofficial
+    upsert research_prices(symbol, date, close, source="yfinance")
+
+# UI: GET /api/sovereign/history?symbols=UAMY,XLE&amp;window=126  (cache only)
+# Fallback: Stooq CSV if Yahoo 429. Macro: FRED. AWRP: event rows, not a series.</pre>
+        </div>
+      </div>
+
+      <div class="panel" id="watch">
+        <h2 style="margin-top:0">Watchlist</h2>
+        <p class="lede" id="watchHint" style="font-size:13px">Select buckets to fill rows.</p>
+        <div class="scroller">
+          <table>
+            <thead>
+              <tr>
+                <th>Ticker</th>
+                <th>Tier</th>
+                <th>Bucket</th>
+                <th>Spark</th>
+                <th class="num">Last</th>
+                <th class="num">Window</th>
+              </tr>
+            </thead>
+            <tbody id="watchBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="book1">
+      <h2 style="margin-top:0">Book I · Keel / Sail</h2>
+      <p class="lede" style="font-size:13px">Sovereignty names — always listed; Bucket 11 pulls many of these in.</p>
+      <div class="scroller">
+        <table>
+          <thead>
+            <tr><th>Tier</th><th>Ticker</th><th>Archetype</th><th>SPARK</th><th>Next binary</th><th>Spark</th></tr>
+          </thead>
+          <tbody id="book1Body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <footer>
+      Matches <code>tools/research_ui.py</code> shell + <code>tools/ui_tokens.py</code> palette ·
+      not investment advice · live dashboard stays fenced
+    </footer>
+  </main>
+</div>
+
+<script>
+const BUCKETS = [
+  {id:"01", name:"Liquid Fear", blurb:"Cash / T-bills in a margin spiral.", duration:"scare",
+   lights:["liquidity"], fails:"You needed return, not powder.",
+   liquid:["SGOV","BIL","SHV","JPST"], satellite:["TFLO","ICSH"],
+   heat:{unknown:1,hormuz:1,taiwan:3,china_min:1,liquidity:4,russia:2,ai_grid:1}},
+  {id:"02", name:"Oil / Hormuz", blurb:"Non-Gulf crude on supply shock.", duration:"insurance",
+   lights:["hormuz"], fails:"Short war + SPR crush the spike.",
+   liquid:["XLE","XOP","XOM","CVX","COP","EOG","FANG","OXY","CL=F"],
+   satellite:["DVN","MRO","APA","PR","SM"],
+   heat:{unknown:2,hormuz:4,taiwan:1,china_min:1,liquidity:1,russia:3,ai_grid:1}},
+  {id:"03", name:"LNG", blurb:"US export replaces Gulf / RU gas.", duration:"insurance",
+   lights:["hormuz","russia"], fails:"Warm winter; Qatar online.",
+   liquid:["LNG","NFE","GLNG","NEXT"], satellite:["TELL","FLNG"],
+   heat:{unknown:1,hormuz:3,taiwan:1,china_min:0,liquidity:1,russia:3,ai_grid:1}},
+  {id:"04", name:"Tankers", blurb:"Ton-miles + war-risk premiums.", duration:"insurance",
+   lights:["hormuz","taiwan"], fails:"Ceasefire; premiums fade slowly.",
+   liquid:["FRO","DHT","STNG","EURN","INSW","TNK","ASC"],
+   satellite:["NAT","SFL","TRMD"],
+   heat:{unknown:2,hormuz:4,taiwan:2,china_min:0,liquidity:1,russia:2,ai_grid:0}},
+  {id:"05", name:"Munitions US", blurb:"Primes + missile defense restock.", duration:"restock",
+   lights:["hormuz","taiwan","russia"], fails:"Budget freeze; T0 washout.",
+   liquid:["ITA","PPA","XAR","LMT","RTX","NOC","GD","LHX","HWM"],
+   satellite:["CW","AXON","MRC","SPR"],
+   heat:{unknown:2,hormuz:3,taiwan:3,china_min:1,liquidity:1,russia:4,ai_grid:1}},
+  {id:"06", name:"Drones / UAS", blurb:"Attritable mass + counter-UAS.", duration:"restock",
+   lights:["taiwan","russia"], fails:"Contract drought; meme multiples.",
+   liquid:["AVAV","KTOS","RCAT","ONDS"], satellite:["IRDM","BKSY"],
+   heat:{unknown:1,hormuz:1,taiwan:3,china_min:1,liquidity:1,russia:3,ai_grid:1}},
+  {id:"07", name:"Cyber / space", blurb:"Gray-zone, ISR, launch.", duration:"restock",
+   lights:["taiwan"], fails:"Commercial cyber multiple crush.",
+   liquid:["CRWD","PANW","ZS","S","FTNT","RKLB","PL","LUNR"],
+   satellite:["SAIC","LDOS","BAH"],
+   heat:{unknown:1,hormuz:1,taiwan:4,china_min:2,liquidity:1,russia:2,ai_grid:2}},
+  {id:"08", name:"Gold (washout)", blurb:"After T0 dump if conflict persists.", duration:"order",
+   lights:["liquidity","hormuz","russia"], fails:"Real rates rip; crowded long.",
+   liquid:["GLD","IAU","GLDM","GDX","GDXJ","NEM","AEM","GOLD","GC=F"],
+   satellite:["WPM","FNV","RGLD","AGI"],
+   heat:{unknown:2,hormuz:2,taiwan:2,china_min:1,liquidity:3,russia:3,ai_grid:1}},
+  {id:"09", name:"Uranium / fuel", blurb:"Energy security + HALEU path.", duration:"order",
+   lights:["hormuz","russia","ai_grid"], fails:"Spot flush; reactor delays.",
+   liquid:["URA","URNM","NLR","CCJ","UEC","NXE","DNN","LEU","SMR"],
+   satellite:["URG","UUUU","OKLO","NNE"],
+   heat:{unknown:1,hormuz:2,taiwan:1,china_min:1,liquidity:1,russia:3,ai_grid:4}},
+  {id:"10", name:"Fertilizer", blurb:"Gas → ammonia → food prices.", duration:"insurance",
+   lights:["hormuz","russia"], fails:"Gas normalizes; big harvest.",
+   liquid:["CF","NTR","MOS","IPI"], satellite:["SMG"],
+   heat:{unknown:1,hormuz:3,taiwan:0,china_min:0,liquidity:1,russia:3,ai_grid:0}},
+  {id:"11", name:"Wartime elements", blurb:"Export bans → Book I midstream.", duration:"order",
+   lights:["china_min","taiwan"], fails:"China dump + floors vanish.",
+   liquid:["MP","USAR","UUUU","UAMY","REMX","SETM","AREC","NB"],
+   satellite:["LRV.AX","NSRCF","LAC","LAR","CRIT"],
+   heat:{unknown:2,hormuz:1,taiwan:3,china_min:4,liquidity:1,russia:1,ai_grid:3}},
+  {id:"12", name:"Silicon siege", blurb:"Taiwan — equipment, not victims.", duration:"scare",
+   lights:["taiwan"], fails:"You bought fabless Taiwan risk.",
+   liquid:["AMAT","LRCX","KLAC","ASML","TER","ENTG"],
+   satellite:["ACLS","ONTO","AMKR"],
+   heat:{unknown:1,hormuz:0,taiwan:4,china_min:2,liquidity:2,russia:0,ai_grid:2}},
+  {id:"13", name:"Copper / grid", blurb:"AI power, defense, LatAm supply.", duration:"order",
+   lights:["ai_grid","china_min","taiwan"], fails:"China demand shock crushes Cu.",
+   liquid:["COPX","FCX","SCCO","TECK","CPER","JJC","AA","CENX"],
+   satellite:["HBM","ERO","CSAN","BHP","RIO"],
+   heat:{unknown:2,hormuz:1,taiwan:2,china_min:3,liquidity:1,russia:1,ai_grid:4}},
+  {id:"14", name:"Silver", blurb:"Monetary + solar/defense industrial.", duration:"order",
+   lights:["liquidity","ai_grid"], fails:"Industrial recession hits Ag hard.",
+   liquid:["SLV","SIVR","SIL","SILJ","PAAS","CDE","AG"],
+   satellite:["HL","SVM","EXK"],
+   heat:{unknown:2,hormuz:1,taiwan:1,china_min:1,liquidity:3,russia:2,ai_grid:2}},
+  {id:"15", name:"EU defense", blurb:"NATO rearmament, EU primes/ETFs.", duration:"restock",
+   lights:["russia"], fails:"Peace dividend narrative; FX.",
+   liquid:["WDEF","DFEN","BAESY","EADSY","RNMBY","FINMY","SAABY","THLLY"],
+   satellite:["HO.PA","RHM.DE","LDO.MI"],
+   heat:{unknown:2,hormuz:2,taiwan:1,china_min:0,liquidity:1,russia:4,ai_grid:0}},
+  {id:"16", name:"Naval / yards", blurb:"Shipbuilding, subs, sealift.", duration:"restock",
+   lights:["hormuz","taiwan","russia"], fails:"Program slips; continuing resolutions.",
+   liquid:["HII","GD","BA","TXT","CW","TDG"],
+   satellite:["MRC","AIR"],
+   heat:{unknown:1,hormuz:3,taiwan:3,china_min:0,liquidity:1,russia:3,ai_grid:0}},
+  {id:"17", name:"Refiners / midstream", blurb:"Crack spikes + pipe optionality.", duration:"insurance",
+   lights:["hormuz"], fails:"Demand destruction kills cracks.",
+   liquid:["VLO","MPC","PSX","PBF","DK","EPD","ET","KMI","WMB","OKE"],
+   satellite:["PAA","MMP"],
+   heat:{unknown:1,hormuz:4,taiwan:0,china_min:0,liquidity:1,russia:2,ai_grid:0}},
+  {id:"18", name:"Softs / grain", blurb:"Black Sea / Red Sea food routes.", duration:"insurance",
+   lights:["russia","hormuz"], fails:"Bumper harvest; export bans reverse.",
+   liquid:["DBA","WEAT","CORN","SOYB","ADM","BG","INGR"],
+   satellite:["DE","AGCO"],
+   heat:{unknown:1,hormuz:2,taiwan:0,china_min:0,liquidity:1,russia:3,ai_grid:0}},
+  {id:"19", name:"Steel / met coal", blurb:"Wartime industrial + armor plate.", duration:"restock",
+   lights:["russia","taiwan"], fails:"China steel dump; housing bust.",
+   liquid:["X","NUE","CLF","STLD","RS","HCC","ARCH","BTU","XME"],
+   satellite:["CMC","ZEUS"],
+   heat:{unknown:1,hormuz:1,taiwan:2,china_min:1,liquidity:1,russia:3,ai_grid:2}},
+  {id:"20", name:"Grid / power infra", blurb:"AI load, transformers, uranium utilities.", duration:"order",
+   lights:["ai_grid"], fails:"Rate shock kills utility multiples.",
+   liquid:["VST","CEG","NRG","ETR","SRE","PWR","ETN","GEV","POWL","VRT"],
+   satellite:["MYRG","PRIM","FLR"],
+   heat:{unknown:2,hormuz:1,taiwan:1,china_min:1,liquidity:1,russia:1,ai_grid:4}},
+];
+
+const BOOK1 = [
+  {tier:"Keel", t:"MP", arch:"Magnet", spark:9, bin:"Apple recycling + 10X"},
+  {tier:"Keel", t:"UUUU", arch:"Magnet", spark:8, bin:"VAC close; Donald FID"},
+  {tier:"Keel", t:"LEU", arch:"Fuel Cell", spark:8, bin:"Piketon lease / HALEU"},
+  {tier:"Keel", t:"LAC", arch:"Li Fortress", spark:7, bin:"Thacker Pass capex"},
+  {tier:"Sail A", t:"UAMY", arch:"Sb Fortress", spark:10, bin:"DLA order pace"},
+  {tier:"Sail A", t:"LRV.AX", arch:"Allied Bridge", spark:7, bin:"Hillgrove first Sb"},
+  {tier:"Sail B", t:"AREC", arch:"Urban Mine", spark:7, bin:"Marion Ge Q3'26"},
+  {tier:"Sail B", t:"NSRCF", arch:"Graphite Bridge", spark:6, bin:"UAE BAF / Mitsubishi"},
+  {tier:"Sail C", t:"USAR", arch:"Bridge+Magnet", spark:9, bin:"CADE + Serra Verde"},
+  {tier:"Sail C", t:"NB", arch:"Quiet Alloy", spark:6, bin:"Traxys + EXIM"},
+  {tier:"Sail C", t:"LAR", arch:"LatAm Bridge", spark:5, bin:"RIGI Stage 2"},
+  {tier:"ETF", t:"REMX", arch:"RE / strategic", spark:7, bin:"Policy + China ban beta"},
+  {tier:"ETF", t:"SETM", arch:"Critical materials", spark:7, bin:"Broad mineral beta"},
+];
+
+const HINTS = {
+  unknown: "Explore — heats are baseline, not a live alert.",
+  hormuz: "Focus 02·03·04·17 → then 05·16·10·08.",
+  taiwan: "01 cash first, then 05·07·11·12·16. Avoid fabless victims.",
+  china_min: "11 + Book I + 13 copper. Midstream > explorers.",
+  liquidity: "Only 01 until washout ends — then 08 / war hedges.",
+  russia: "05·15·03·09·10·18·19.",
+  ai_grid: "20 grid · 09 uranium · 13 copper · 11 magnets.",
+};
+
+const selected = new Set(["02","04","17"]);
+let activeTicker = null;
+
+function mulberry32(a){return function(){let t=a+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296}}
+function hashStr(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
+/** Approx trading days ending 2026-08-05 (mock "as of"). */
+const AS_OF = new Date(Date.UTC(2026, 7, 5));
+function tradingDates(n){
+  const dates=[]; let d=new Date(AS_OF);
+  while(dates.length<n){
+    const wd=d.getUTCDay();
+    if(wd!==0 && wd!==6) dates.push(new Date(d));
+    d.setUTCDate(d.getUTCDate()-1);
+  }
+  return dates.reverse();
+}
+function fmtDate(d, short){
+  const m=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getUTCMonth()];
+  if(short) return m+" "+d.getUTCDate();
+  return m+" "+d.getUTCDate()+", "+d.getUTCFullYear();
+}
+function genSeries(symbol,n){
+  const rnd=mulberry32(hashStr(symbol)^0x51ed9e);
+  let px=20+(hashStr(symbol)%80); const out=[];
+  for(let i=0;i<n;i++){px=Math.max(1.2,px*(1+(rnd()-0.48)*0.035));out.push(+px.toFixed(2))}
+  return out;
+}
+function pct(a,b){return ((b/a)-1)*100}
+function sparkSVG(series,w=80,h=26){
+  const min=Math.min(...series),max=Math.max(...series),span=max-min||1;
+  const pts=series.map((v,i)=>{
+    const x=(i/(series.length-1))*(w-2)+1;
+    const y=h-2-((v-min)/span)*(h-4);
+    return x.toFixed(1)+","+y.toFixed(1);
+  }).join(" ");
+  const col=series.at(-1)>=series[0]?"var(--good)":"var(--critical)";
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}"><polyline fill="none" stroke="${col}" stroke-width="1.5" points="${pts}"/></svg>`;
+}
+/** Distinct series colors (coordinate with legend). Up/down stays on % chips only. */
+const SERIES_COLORS=["var(--accent)","var(--serious)","var(--ord-3)","var(--warning)","var(--ord-2)","var(--good)"];
+function seriesColor(i){ return SERIES_COLORS[i % SERIES_COLORS.length]; }
+
+/** Larger history chart: date axis + per-ticker colors. */
+function lineChart(seriesMap,n){
+  const w=720, h=250, padL=36, padR=14, padT=16, padB=36;
+  const keys=Object.keys(seriesMap);
+  if(!keys.length){
+    return `<svg viewBox="0 0 ${w} ${h}"><text x="24" y="40" fill="var(--ink-muted)" font-size="13">Select buckets to plot liquid tickers (normalized).</text></svg>`;
+  }
+  const dates=tradingDates(n);
+  const norms={};
+  keys.forEach(k=>{
+    const s=seriesMap[k].slice(-n);
+    const b=s[0]||1;
+    norms[k]=s.map(v=>100*(v/b));
+  });
+  const all=keys.flatMap(k=>norms[k]);
+  const min=Math.min(...all), max=Math.max(...all), span=max-min||1;
+  const plotW=w-padL-padR, plotH=h-padT-padB;
+  const X=i=>padL+(i/Math.max(1,n-1))*plotW;
+  const Y=v=>padT+plotH-((v-min)/span)*plotH;
+  let base="";
+  if(min<=100 && max>=100){
+    base=`<line x1="${padL}" x2="${w-padR}" y1="${Y(100)}" y2="${Y(100)}" stroke="var(--axis)" stroke-dasharray="3,3"/>`;
+  }
+  const yTicks=[0,.25,.5,.75,1].map(f=>{
+    const val=min+f*span, yy=Y(val);
+    return `<line x1="${padL}" x2="${w-padR}" y1="${yy}" y2="${yy}" stroke="var(--rule)"/>
+      <text x="${padL-6}" y="${yy+3.5}" text-anchor="end" font-size="10" fill="var(--ink-muted)" font-family="var(--mono)">${val.toFixed(0)}</text>`;
+  }).join("");
+  const labelN=Math.min(5, n);
+  const xTicks=[];
+  for(let i=0;i<labelN;i++){
+    const idx=labelN===1?0:Math.round(i*(n-1)/(labelN-1));
+    const xx=X(idx);
+    xTicks.push(`<line x1="${xx}" x2="${xx}" y1="${padT+plotH}" y2="${padT+plotH+4}" stroke="var(--axis)"/>
+      <text x="${xx}" y="${h-10}" text-anchor="middle" font-size="10" fill="var(--ink-muted)" font-family="var(--mono)">${fmtDate(dates[idx], true)}</text>`);
+  }
+  const paths=keys.map((k,i)=>{
+    const col=seriesColor(i);
+    const pts=norms[k].map((v,j)=>`${X(j).toFixed(1)},${Y(v).toFixed(1)}`).join(" ");
+    const last=norms[k].length-1;
+    return `<polyline fill="none" stroke="${col}" stroke-width="2.25" stroke-linejoin="round" stroke-linecap="round" points="${pts}"/>
+      <circle cx="${X(last).toFixed(1)}" cy="${Y(norms[k][last]).toFixed(1)}" r="3.2" fill="${col}" stroke="var(--surface)" stroke-width="1.5"/>`;
+  }).join("");
+  const rangeNote=`<text x="${padL}" y="12" font-size="10" fill="var(--ink-muted)" font-family="var(--mono)">${fmtDate(dates[0])} → ${fmtDate(dates[n-1])} · indexed to 100</text>`;
+  return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Normalized price history with dates">${yTicks}${base}${xTicks}${paths}${rangeNote}</svg>`;
+}
+function seriesChg(series){ return pct(series[0], series.at(-1)); }
+function heatOf(b){
+  const shock=document.getElementById("shock").value;
+  const clock=document.getElementById("clock").value;
+  let h=b.heat[shock]??1;
+  if(clock==="T0"&&["01","08","14"].includes(b.id)) h=Math.min(4,h+1);
+  if(clock==="T1"&&["02","03","04","10","17","18"].includes(b.id)) h=Math.min(4,h+1);
+  if(clock==="T2"&&["05","09","11","13","15","16","19","20"].includes(b.id)) h=Math.min(4,h+1);
+  return h;
+}
+function tickersOf(b){
+  const tier=document.getElementById("tier").value;
+  if(tier==="liquid") return b.liquid.map(t=>({t,tier:"liquid"}));
+  if(tier==="satellite") return b.satellite.map(t=>({t,tier:"satellite"}));
+  return [...b.liquid.map(t=>({t,tier:"liquid"})),...b.satellite.map(t=>({t,tier:"satellite"}))];
+}
+function renderBuckets(){
+  const q=document.getElementById("q").value.trim().toLowerCase();
+  const grid=document.getElementById("bucketGrid"); grid.innerHTML="";
+  let shown=0;
+  BUCKETS.forEach(b=>{
+    const h=heatOf(b);
+    const hay=(b.id+b.name+b.blurb+b.liquid.join(" ")+b.satellite.join(" ")).toLowerCase();
+    if(q && !hay.includes(q)) return;
+    shown++;
+    const btn=document.createElement("button");
+    btn.type="button"; btn.className="bucket"+(selected.has(b.id)?" selected":"");
+    btn.innerHTML=`<span class="id">BUCKET ${b.id}</span><span class="name">${b.name}</span>
+      <span class="blurb">${b.blurb}</span>
+      <span class="meta"><span class="chip ${h>=3?"serious":h>=2?"warning":"neutral"}"><span class="dot"></span>${b.duration}</span>
+      <span class="tag">${b.liquid.length}+${b.satellite.length}</span></span>
+      <span class="heat h${h}"><i></i></span>`;
+    btn.onclick=()=>{if(selected.has(b.id))selected.delete(b.id);else selected.add(b.id);renderAll()};
+    grid.appendChild(btn);
+  });
+  document.getElementById("shockHint").textContent=HINTS[document.getElementById("shock").value]||"";
+  document.getElementById("countLabel").textContent=shown+" buckets shown";
+}
+function selectedBuckets(){return BUCKETS.filter(b=>selected.has(b.id))}
+function renderWatch(){
+  const n=+document.getElementById("window").value;
+  const rows=[];
+  selectedBuckets().forEach(b=>{
+    tickersOf(b).forEach(({t,tier})=>{
+      const s=genSeries(t,n);
+      rows.push({t,tier,bucket:b.id,name:b.name,s,last:s.at(-1),chg:pct(s[0],s.at(-1))});
+    });
+  });
+  const seen=new Set(); const uniq=rows.filter(r=>{if(seen.has(r.t))return false;seen.add(r.t);return true});
+  document.getElementById("statTickers").textContent=String(uniq.length);
+  document.getElementById("statSel").textContent=String(selected.size);
+  document.getElementById("statClock").textContent=document.getElementById("clock").value;
+  document.getElementById("statBuckets").textContent=String(BUCKETS.length);
+  document.getElementById("watchHint").textContent=uniq.length
+    ? `${uniq.length} tickers · ${selected.size} buckets · ${n}d window · demo cache`
+    : "Select buckets to fill rows.";
+  document.getElementById("watchBody").innerHTML=uniq.map(r=>`
+    <tr class="${activeTicker===r.t?"on":""}" data-t="${r.t}" style="cursor:pointer">
+      <td><code>${r.t}</code></td>
+      <td class="tag">${r.tier}</td>
+      <td class="muted">${r.bucket} ${r.name}</td>
+      <td>${sparkSVG(r.s)}</td>
+      <td class="num">${r.last.toFixed(2)}</td>
+      <td class="num ${r.chg>=0?"up":"dn"}">${r.chg>=0?"+":""}${r.chg.toFixed(1)}%</td>
+    </tr>`).join("")||`<tr><td colspan="6" class="muted">No selection</td></tr>`;
+  document.querySelectorAll("#watchBody tr[data-t]").forEach(tr=>{
+    tr.onclick=()=>{activeTicker=tr.dataset.t;renderChart();renderWatch()};
+  });
+}
+function renderChart(){
+  const n=+document.getElementById("window").value;
+  const bucks=selectedBuckets();
+  const map={};
+  if(activeTicker){map[activeTicker]=genSeries(activeTicker,n);document.getElementById("chartTitle").textContent=activeTicker+" · demo history"}
+  else if(bucks.length){
+    const ts=[]; bucks.forEach(b=>b.liquid.forEach(t=>{if(!ts.includes(t))ts.push(t)}));
+    ts.slice(0,5).forEach(t=>map[t]=genSeries(t,n));
+    document.getElementById("chartTitle").textContent=bucks.map(b=>b.id).join(", ")+" · normalized";
+  } else document.getElementById("chartTitle").textContent="Select a bucket";
+  document.getElementById("chartBox").innerHTML=lineChart(map,n);
+  const dates=tradingDates(n);
+  document.getElementById("chartSub").textContent=
+    fmtDate(dates[0])+" → "+fmtDate(dates[n-1])+" · normalized to 100 · line color = ticker · % chip = window return";
+  document.getElementById("chartLegend").innerHTML=Object.keys(map).map((k,i)=>{
+    const s=map[k], chg=seriesChg(s), up=chg>=0, col=seriesColor(i);
+    return `<span class="chip ${up?"good":"critical"}"><span class="dot" style="background:${col}"></span>${k} ${chg>=0?"+":""}${chg.toFixed(1)}%</span>`;
+  }).join("");
+  const b=bucks[0];
+  if(b){
+    document.getElementById("detailTitle").textContent=`Bucket ${b.id} — ${b.name}`;
+    document.getElementById("detailKvs").innerHTML=`
+      <dt>Duration</dt><dd>${b.duration}</dd>
+      <dt>Lights when</dt><dd>${b.lights.join(", ")}</dd>
+      <dt>Heat now</dt><dd>${heatOf(b)} / 4</dd>
+      <dt>Feed</dt><dd>yfinance daily → cache (free)</dd>`;
+    document.getElementById("detailFails").textContent=b.fails;
+    document.getElementById("detailLiq").textContent=b.liquid.join(" · ");
+    document.getElementById("detailSat").textContent=b.satellite.join(" · ")||"—";
+  } else {
+    document.getElementById("detailTitle").textContent="No bucket selected";
+    document.getElementById("detailKvs").innerHTML="";
+    document.getElementById("detailFails").textContent="";
+    document.getElementById("detailLiq").textContent="";
+    document.getElementById("detailSat").textContent="";
+  }
+}
+function renderBook1(){
+  const n=Math.min(+document.getElementById("window").value,126);
+  document.getElementById("book1Body").innerHTML=BOOK1.map(r=>{
+    const s=genSeries(r.t,n);
+    return `<tr><td>${r.tier}</td><td><code>${r.t}</code></td><td>${r.arch}</td>
+      <td class="num">${r.spark}</td><td class="muted">${r.bin}</td><td>${sparkSVG(s)}</td></tr>`;
+  }).join("");
+}
+function renderAll(){renderBuckets();renderWatch();renderChart();renderBook1()}
+
+document.querySelectorAll(".tabs button").forEach(btn=>{
+  btn.onclick=()=>{
+    document.querySelectorAll(".tabs button").forEach(b=>b.classList.remove("on"));
+    btn.classList.add("on");
+    ["chart","detail","gen"].forEach(id=>{document.getElementById("tab-"+id).hidden=btn.dataset.tab!==id});
+  };
+});
+["applyBtn"].forEach(id=>document.getElementById(id).onclick=renderAll);
+["shock","clock","window","tier"].forEach(id=>document.getElementById(id).onchange=renderAll);
+document.getElementById("q").oninput=renderAll;
+document.getElementById("clearBtn").onclick=()=>{selected.clear();activeTicker=null;renderAll()};
+document.getElementById("topHeat").onclick=()=>{
+  selected.clear();
+  BUCKETS.map(b=>({b,h:heatOf(b)})).sort((a,c)=>c.h-a.h).slice(0,4).forEach(x=>selected.add(x.b.id));
+  activeTicker=null; renderAll();
+};
+document.getElementById("themeBtn").onclick=()=>{
+  const r=document.documentElement;
+  const cur=r.getAttribute("data-theme");
+  if(cur==="dark") r.setAttribute("data-theme","light");
+  else if(cur==="light") r.removeAttribute("data-theme");
+  else r.setAttribute("data-theme","dark");
+};
+renderAll();
+</script>
+</body>
+</html>
