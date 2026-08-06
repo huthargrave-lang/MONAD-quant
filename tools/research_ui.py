@@ -51,6 +51,8 @@ import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TOOLS = os.path.join(REPO, "tools")
+SOVEREIGN_MOCK_HTML = os.path.join(
+    REPO, "docs", "research", "SOVEREIGN_LEDGER_OPTIONS_MOCK.html")
 for _p in (REPO, TOOLS):
     if _p not in sys.path:
         sys.path.insert(0, _p)
@@ -1340,6 +1342,7 @@ def applicable_keys(nctx):
 # ─────────────────────────────────────────────────────────────────────────────
 def _nav(active, mounts):
     items = [("/", "Overview"), ("/web", "Research web"), ("/screen", "Chaos screener"),
+             ("/screen/mock", "Sovereign HTML mock"),
              ("/lenses", "Fundamental lenses"), ("/graph", "Context map"),
              ("/surfaces", "UI surfaces")]
     out = ['<nav class="rail"><div class="brand"><b>MONAD research</b>'
@@ -1757,6 +1760,9 @@ SOVEREIGN_SCREEN_BODY = """
   Buckets and Book I names come from the Sovereign Ledger
   (<code>docs/research/SOVEREIGN_LEDGER_CHAOS_BUCKETS_2026.md</code>); the
   <a href="/lenses">fundamental lenses</a> screen the same universe by P/E, yield and AI tags.
+  Standalone wireframe HTML (same content, self-contained):
+  <a href="/screen/mock"><code>/screen/mock</code></a>
+  ← <code>docs/research/SOVEREIGN_LEDGER_OPTIONS_MOCK.html</code>.
 </p>
 
 <div class="note">
@@ -2358,6 +2364,25 @@ def route(path, query, opts):
         return 200, page_web(mounts, query), HTML
     if path == "/screen":
         return 200, page_screen_sovereign(mounts), HTML
+    if path == "/screen/mock":
+        if not os.path.isfile(SOVEREIGN_MOCK_HTML):
+            return (404,
+                    "missing docs/research/SOVEREIGN_LEDGER_OPTIONS_MOCK.html "
+                    "in the working tree\n", TEXT)
+        with open(SOVEREIGN_MOCK_HTML, encoding="utf-8") as f:
+            return 200, f.read(), HTML
+    if path == "/screener":
+        # Old fundamental-screener path — lenses live here now; chaos is /screen.
+        return (200,
+                '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+                '<title>moved</title><link rel="stylesheet" href="/static/ui.css">'
+                '</head><body style="font:15px var(--sans);padding:40px">'
+                '<h1>That path moved</h1>'
+                '<p>Chaos / Sovereign Ledger: <a href="/screen">/screen</a></p>'
+                '<p>Standalone HTML mock: <a href="/screen/mock">/screen/mock</a></p>'
+                '<p>Fundamental lenses: <a href="/lenses">/lenses</a></p>'
+                '</body></html>',
+                HTML)
     if path == "/lenses":
         return 200, page_screen(mounts, query), HTML
     if path == "/api/screen":
@@ -2397,7 +2422,9 @@ def route(path, query, opts):
                 return (503, "{} is not mounted — restart with --{}=PATH\n".format(
                     href, attr.replace("_", "-")), TEXT)
             return fn(db, path if not query else path + "?" + _unparse(query))
-    return 404, "not found — try / (overview), /web, /node/F230, /surfaces\n", TEXT
+    return (404,
+            "not found — try / (overview), /web, /screen, /screen/mock, "
+            "/lenses, /node/F230, /surfaces\n", TEXT)
 
 
 def _unparse(query):
