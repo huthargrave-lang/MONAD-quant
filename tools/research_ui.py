@@ -199,6 +199,7 @@ tbody tr:hover{background:var(--plane)}
 .spark{width:80px;height:26px;display:block}
 .up{color:var(--good)} .dn{color:var(--critical)}
 .legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;justify-content:center}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle}
 .tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px;justify-content:center}
 .tabs button{font:13px var(--sans);height:28px;padding:0 10px;border:1px solid var(--rule);
   border-radius:6px;background:var(--surface);color:var(--ink);cursor:pointer}
@@ -1633,6 +1634,30 @@ def _screen_tick_label(metric, value):
     return "{:g}".format(round(value, 2))
 
 
+def _bucket_mark(cx, cy, fill, title, stroke="var(--surface)"):
+    """Small bucket silhouette — used when a preset asks for mark=bucket so AI /
+    shadow-debt matches read as risk buckets, not anonymous dots."""
+    # Open-top trapezoid with a rim, centered on (cx, cy).
+    body = ("M {:.1f},{:.1f} L {:.1f},{:.1f} L {:.1f},{:.1f} L {:.1f},{:.1f} Z"
+            .format(cx - 7, cy - 4, cx + 7, cy - 4, cx + 5.5, cy + 7, cx - 5.5, cy + 7))
+    rim = ("M {:.1f},{:.1f} L {:.1f},{:.1f}"
+           .format(cx - 8.5, cy - 5.5, cx + 8.5, cy - 5.5))
+    return ('<g><title>{}</title>'
+            '<path d="{}" fill="{}" stroke="{}" stroke-width="1.2"/>'
+            '<path d="{}" fill="none" stroke="{}" stroke-width="1.6" '
+            'stroke-linecap="round"/></g>'.format(
+                esc(title), body, fill, stroke, rim, fill))
+
+
+def _shadow_debt_fill(tag):
+    return {
+        "spv_sponsor": "var(--critical)",
+        "capex_burn": "var(--serious)",
+        "supply_chain": "var(--accent)",
+        "grid_power": "var(--ord-3)",
+    }.get(tag, "var(--accent)")
+
+
 def _render_screen_scatter(rows, matches, preset):
     """One dot per screenable name; the preset's matches draw in accent with ticker
     labels, the rest of the universe stays as muted context — a filter that hid the
@@ -1687,22 +1712,48 @@ def _render_screen_scatter(rows, matches, preset):
         parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="4" fill="var(--axis)" '
                      'opacity=".38"><title>{}</title></circle>'.format(
                          sx(r[x_metric]), sy(r[y_metric]), esc(r["ticker"])))
+    use_buckets = preset.get("mark") == "bucket"
     taken = []
     for r in pts:
         if r["ticker"] not in matched:
             continue
         cx, cy = sx(r[x_metric]), sy(r[y_metric])
-        parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="6" fill="var(--accent)" '
-                     'stroke="var(--surface)" stroke-width="1.5">'
-                     '<title>{}</title></circle>'.format(cx, cy, esc(r["ticker"])))
+        tag = r.get("shadow_debt")
+        fill = _shadow_debt_fill(tag) if use_buckets else "var(--accent)"
+        label = r["ticker"]
+        if tag:
+            label = "{} · {}".format(
+                r["ticker"],
+                stock_screener.SHADOW_DEBT_LABELS.get(tag, tag))
+        if use_buckets:
+            parts.append(_bucket_mark(cx, cy, fill, label))
+        else:
+            parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="6" fill="var(--accent)" '
+                         'stroke="var(--surface)" stroke-width="1.5">'
+                         '<title>{}</title></circle>'.format(
+                             cx, cy, esc(label)))
         # Greedy label collision pass — an overlapped label is dropped, never stacked;
-        # the dot's <title> still names the ticker on hover.
+        # the mark's <title> still names the ticker on hover.
         box = (cx + 8, cy - 10, cx + 8 + 7 * len(r["ticker"]), cy + 4)
         if not any(b[0] < box[2] and box[0] < b[2] and b[1] < box[3] and box[1] < b[3]
                    for b in taken):
             taken.append(box)
             parts.append(_txt(cx + 9, cy + 3.5, r["ticker"], 10, "var(--ink)",
                               weight="600"))
+    if use_buckets:
+        legend = (
+            '<div class="legend" style="justify-content:center;margin:8px 0 0">'
+            '<span><i style="background:var(--critical)"></i>SPV sponsor</span>'
+            '<span><i style="background:var(--serious)"></i>Capex burn</span>'
+            '<span><i style="background:var(--accent)"></i>Supply chain</span>'
+            '<span><i style="background:var(--ord-3)"></i>Grid / power</span>'
+            '<span style="color:var(--ink-muted);font-size:12px">'
+            'bucket marks · editorial tags · on-BS D/E is incomplete</span></div>'
+        )
+        return (_svg(W, H, "".join(parts),
+                     "{} — {} of {} names match".format(
+                         preset["title"], len(matched), len(pts)))
+                + legend)
     return _svg(W, H, "".join(parts),
                 "{} — {} of {} names match".format(preset["title"], len(matched),
                                                    len(pts)))
@@ -1761,23 +1812,44 @@ def page_screen(mounts, query):
             snap.get("as_of", "?"), len(matches), len(rows),
             snap.get("source", "?")),
         "data/screener/fundamentals.json"))
+    if key == "ai_shadow_debt":
+        body.append(
+            '<div class="note"><strong>Hidden debt frame.</strong> Reported debt/equity '
+            'is the on-balance-sheet leg only. AI data-center buildouts increasingly use '
+            'SPVs / project finance that can keep liabilities off the primary statements '
+            '(Meta Project Beignet is the public archetype; peers are standardizing). '
+            'Shadow-debt tags are editorial study objects — not measured notionals and '
+            'not bot signals. Full write-up: '
+            '<code>docs/research/AI_SHADOW_DEBT_LENS_2026.md</code>.</div>')
     body.append(_render_screen_scatter(rows, matches, preset))
     cols = ["pe", "growth", "dividend_yield", "debt_to_equity", "beta", "dollar_volume"]
     heads = {"pe": "P/E", "growth": "growth", "dividend_yield": "div yield",
-             "debt_to_equity": "debt/eq %", "beta": "beta",
+             "debt_to_equity": "on-BS debt/eq %", "beta": "beta",
              "dollar_volume": "$ volume/day"}
-    body.append('<div class="scroller"><table><thead><tr><th>Ticker</th><th>Name</th>'
-                '<th>Sector</th><th>AI</th><th>Bucket</th>' + "".join(
-                    '<th class="num">{}</th>'.format(heads[c]) for c in cols)
-                + "</tr></thead><tbody>")
+    show_shadow = key in ("ai_shadow_debt", "high_ai_exposure")
+    head = ('<div class="scroller"><table><thead><tr><th>Ticker</th><th>Name</th>'
+            '<th>Sector</th><th>AI</th>')
+    if show_shadow:
+        head += '<th>Shadow debt</th>'
+    head += '<th>Bucket</th>' + "".join(
+        '<th class="num">{}</th>'.format(heads[c]) for c in cols) + "</tr></thead><tbody>"
+    body.append(head)
     for r in matches:
-        body.append('<tr><td class="sev good"><code>{}</code></td><td>{}</td>'
-                    '<td>{}</td><td>{}</td><td>{}</td>'.format(
-                        esc(r["ticker"]), esc(r["name"]), esc(r["sector"]),
-                        esc(r["ai"]), esc(r.get("bucket") or "—")) + "".join(
-                        '<td class="num">{}</td>'.format(
-                            esc(stock_screener.fmt_metric(r, c))) for c in cols)
-                    + "</tr>")
+        shadow = r.get("shadow_debt")
+        shadow_cell = (stock_screener.SHADOW_DEBT_LABELS.get(shadow, shadow)
+                       if shadow else "—")
+        cells = ['<tr><td class="sev good"><code>{}</code></td><td>{}</td>'
+                 '<td>{}</td><td>{}</td>'.format(
+                     esc(r["ticker"]), esc(r["name"]), esc(r["sector"]),
+                     esc(r["ai"]))]
+        if show_shadow:
+            cells.append('<td>{}</td>'.format(esc(shadow_cell)))
+        cells.append('<td>{}</td>'.format(esc(r.get("bucket") or "—")))
+        cells.append("".join(
+            '<td class="num">{}</td>'.format(esc(stock_screener.fmt_metric(r, c)))
+            for c in cols))
+        cells.append("</tr>")
+        body.append("".join(cells))
     body.append("</tbody></table></div>")
     if not matches:
         body.append('<p class="why">No names pass this preset in the current '
@@ -1810,7 +1882,7 @@ SOVEREIGN_SCREEN_BODY = """
   Pick a shock, clock, and buckets. Tickers are study objects — not live-bot signals.
   Buckets and Book I names come from the Sovereign Ledger
   (<code>docs/research/SOVEREIGN_LEDGER_CHAOS_BUCKETS_2026.md</code>); the
-  <a href="/lenses">fundamental lenses</a> screen the same universe by P/E, yield and AI tags.
+  <a href="/screener">fundamental screener</a> screens the same universe by P/E, yield and AI tags.
   Full buckets HTML wireframe:
   <a href="/screener/buckets"><code>/screener/buckets</code></a>
   ← <code>docs/research/SOVEREIGN_LEDGER_OPTIONS_MOCK.html</code>.
@@ -2469,8 +2541,8 @@ def route(path, query, opts):
                     href, attr.replace("_", "-")), TEXT)
             return fn(db, path if not query else path + "?" + _unparse(query))
     return (404,
-            "not found — try / (overview), /web, /screen, /screener/buckets, "
-            "/lenses, /node/F230, /surfaces\n", TEXT)
+            "not found — try / (overview), /web, /screener, /screener/buckets, "
+            "/screen, /node/F230, /surfaces\n", TEXT)
 
 
 def _unparse(query):

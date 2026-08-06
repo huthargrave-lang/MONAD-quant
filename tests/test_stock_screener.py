@@ -46,9 +46,25 @@ class PresetDefinitionTests(unittest.TestCase):
 
     def test_the_user_requested_lenses_all_exist(self):
         for key in ("low_pe_high_growth", "low_pe_high_dividend", "safety_low_debt",
-                    "high_ai_exposure", "low_ai_exposure", "most_volatile",
-                    "most_active", "sovereign_ledger", "chaos_hedges"):
+                    "high_ai_exposure", "low_ai_exposure", "ai_shadow_debt",
+                    "most_volatile", "most_active", "sovereign_ledger", "chaos_hedges"):
             self.assertIn(key, sc.PRESETS)
+
+    def test_ai_shadow_debt_lens_is_honest_about_being_editorial(self):
+        p = sc.PRESETS["ai_shadow_debt"]
+        self.assertEqual(p["mark"], "bucket")
+        self.assertIn("not live-bot signals", p["blurb"])
+        self.assertIn("AI_SHADOW_DEBT_LENS_2026.md", p["blurb"])
+        self.assertIn("spv_sponsor", sc.SHADOW_DEBT_BUCKETS)
+        self.assertEqual(sc.SHADOW_DEBT["META"], "spv_sponsor")
+
+    def test_shadow_debt_enrichment_joins_old_snapshots(self):
+        row = sc.enrich_row(_row(ticker="META", debt_to_equity=20.0))
+        self.assertEqual(row["shadow_debt"], "spv_sponsor")
+        matches, no_data = sc.apply_preset(
+            [row, sc.enrich_row(_row(ticker="JNJ"))], "ai_shadow_debt")
+        self.assertEqual([r["ticker"] for r in matches], ["META"])
+        self.assertEqual(no_data, [])
 
     def test_the_sovereign_lenses_defer_to_the_books(self):
         """The docs are the source of truth; the lens must say so on its face."""
@@ -218,6 +234,30 @@ class ScreenPageTests(unittest.TestCase):
         self.assertEqual(body.count('fill="var(--accent)"'), 2)     # AAA, CCC
         self.assertEqual(body.count('fill="var(--axis)"'), 2)       # BBB, DDD muted
         self.assertIn("data/screener/fundamentals.json", body)      # provenance line
+
+    def test_ai_shadow_debt_draws_bucket_marks_not_dots(self):
+        import json
+        import tempfile
+        from unittest import mock
+        rows = [
+            _row(ticker="META", pe=25.0, growth=0.20, debt_to_equity=15.0, ai="high"),
+            _row(ticker="NVDA", pe=40.0, growth=0.50, debt_to_equity=10.0, ai="high"),
+            _row(ticker="JNJ", pe=18.0, growth=0.05, debt_to_equity=40.0, ai="low"),
+            _row(ticker="PG", pe=22.0, growth=0.04, debt_to_equity=60.0, ai="low"),
+        ]
+        with tempfile.TemporaryDirectory() as td:
+            path = os.path.join(td, "snap.json")
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump({"as_of": "TEST", "source": "synthetic", "rows": rows}, fh)
+            with mock.patch.object(sc, "SNAPSHOT_PATH", path):
+                code, body, _ct = self.ru.route(
+                    "/screener", {"preset": "ai_shadow_debt"}, {})
+        self.assertEqual(code, 200)
+        self.assertIn("Hidden debt frame", body)
+        self.assertIn("Shadow debt", body)
+        self.assertIn("SPV sponsor", body)
+        self.assertGreaterEqual(body.count("<path d="), 2)   # bucket silhouettes
+        self.assertNotIn('r="6" fill="var(--accent)"', body)  # no accent dots for matches
 
     def test_the_api_returns_the_same_matches_as_the_page(self):
         import json

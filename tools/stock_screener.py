@@ -5,7 +5,8 @@ The screener is deliberately NOT one strict filter. It is a set of PRESETS — b
 the UI — each of which is a declarative rule list over one shared metric snapshot:
 
     low_pe_high_growth · low_pe_high_dividend · safety_low_debt · high_ai_exposure
-    low_ai_exposure · most_volatile · most_active · sovereign_ledger · chaos_hedges
+    low_ai_exposure · ai_shadow_debt · most_volatile · most_active · sovereign_ledger
+    · chaos_hedges
 
 The last two surface the Sovereign Ledger research program (PR #56): Book I
 critical-minerals sovereignty names and the liquid tickers of Book II's Chaos
@@ -30,6 +31,10 @@ Design rules, in line with the rest of this repo:
   * AI-exposure tags are EDITORIAL: a hand-coded judgment of how much of the business
     rides on AI demand ("high"), touches it ("medium"), or is largely orthogonal to it
     ("low"). They are data to be edited, not scraped truth.
+  * AI shadow-debt buckets are ALSO EDITORIAL: they flag names whose AI-infra funding
+    may sit in SPVs / project finance / off-balance-sheet structures (or feed that
+    buildout). yfinance `debtToEquity` is ON-balance-sheet only — the lens exists
+    because that number is incomplete for risk assessment. Study objects, not signals.
 
 Units (normalised in `_normalise_row`, asserted nowhere else):
   * `dividend_yield`, `earnings_growth`, `revenue_growth`, `profit_margin`,
@@ -213,6 +218,64 @@ CHAOS_BUCKETS = (
     "fertilizer", "steel", "softs", "grid/power", "chip equipment", "cyber/space",
 )
 
+#: Editorial AI-infra financing risk buckets. Not scraped: filings/SPV detail is not in
+#: the yfinance snapshot. Tags flag WHERE to look, not a measured notional.
+#:   spv_sponsor   — hyperscaler / platform that can park project debt in SPVs
+#:                   (Meta Project Beignet is the public archetype)
+#:   capex_burn    — AI-native spenders whose cash is being drained by infra buildout
+#:   supply_chain  — chips / servers / equipment feeding the buildout (demand risk)
+#:   grid_power    — power / cooling / electrical (the grid leg of the four-legged bet)
+SHADOW_DEBT_BUCKETS = ("spv_sponsor", "capex_burn", "supply_chain", "grid_power")
+
+SHADOW_DEBT_LABELS = {
+    "spv_sponsor": "SPV sponsor",
+    "capex_burn": "Capex burn",
+    "supply_chain": "Supply chain",
+    "grid_power": "Grid / power",
+}
+
+SHADOW_DEBT_BLURBS = {
+    "spv_sponsor": "May keep data-center / project liabilities in SPVs below consolidation "
+                   "thresholds — on-BS debt understates exposure.",
+    "capex_burn": "AI infra capex is consuming cash reserves; leverage may rise even when "
+                  "reported D/E still looks tame.",
+    "supply_chain": "Sells into the buildout — less SPV sponsor risk, high cyclical demand "
+                    "risk if financing stalls.",
+    "grid_power": "Power / electrical capacity is one leg of the AI financing bet; grid "
+                  "constraints bind the whole stack.",
+}
+
+#: ticker → shadow-debt bucket. Hyperscalers tagged spv_sponsor on industry practice
+#: (Meta's Louisiana SPV is documented; peers are standardizing similar structures).
+SHADOW_DEBT = {
+    "META": "spv_sponsor",
+    "MSFT": "spv_sponsor",
+    "GOOGL": "spv_sponsor",
+    "AMZN": "spv_sponsor",
+    "ORCL": "spv_sponsor",
+    "NVDA": "supply_chain",
+    "AMD": "supply_chain",
+    "AVGO": "supply_chain",
+    "TSM": "supply_chain",
+    "MU": "supply_chain",
+    "INTC": "supply_chain",
+    "ANET": "supply_chain",
+    "DELL": "supply_chain",
+    "SMCI": "supply_chain",
+    "AMAT": "supply_chain",
+    "LRCX": "supply_chain",
+    "KLAC": "supply_chain",
+    "ASML": "supply_chain",
+    "PLTR": "capex_burn",
+    "NOW": "capex_burn",
+    "CEG": "grid_power",
+    "VST": "grid_power",
+    "VRT": "grid_power",
+    "GEV": "grid_power",
+    "ETN": "grid_power",
+    "PWR": "grid_power",
+}
+
 
 def universe_rows():
     """[(ticker, name, sector, ai, bucket)] — entries may omit the bucket."""
@@ -235,6 +298,11 @@ def validate_universe():
             raise ValueError("{}: unknown ai tag {!r}".format(ticker, ai))
         if bucket is not None and bucket not in CHAOS_BUCKETS:
             raise ValueError("{}: unknown chaos bucket {!r}".format(ticker, bucket))
+    for ticker, tag in SHADOW_DEBT.items():
+        if ticker not in seen:
+            raise ValueError("SHADOW_DEBT ticker {!r} not in UNIVERSE".format(ticker))
+        if tag not in SHADOW_DEBT_BUCKETS:
+            raise ValueError("{}: unknown shadow-debt bucket {!r}".format(ticker, tag))
 
 
 validate_universe()
@@ -287,11 +355,27 @@ PRESETS = {
     "high_ai_exposure": {
         "title": "High AI exposure",
         "blurb": "Editorial tag: businesses whose demand is driven by the AI buildout "
-                 "(chips, hyperscalers, AI-native software).",
+                 "(chips, hyperscalers, AI-native software). Matches draw as buckets — "
+                 "pair with the AI shadow-debt lens for off-balance-sheet financing risk.",
         "require": [("ai", "==", "high")],
         "rank": ("growth", "desc"),
         "x": ("pe", "P/E (trailing, forward fallback)"),
         "y": ("growth", "earnings growth y/y (revenue fallback)"),
+        "mark": "bucket",
+    },
+    "ai_shadow_debt": {
+        "title": "AI shadow debt",
+        "blurb": "Editorial risk buckets for AI-infra financing that may sit off the "
+                 "primary balance sheet (SPVs / project finance). On-BS debt/equity from "
+                 "yfinance is plotted on the x-axis — it is the VISIBLE leg only. Tags "
+                 "are study objects (Meta Beignet-class structures), not measured "
+                 "notionals and not live-bot signals. See docs/research/"
+                 "AI_SHADOW_DEBT_LENS_2026.md.",
+        "require": [("shadow_debt", "!=", None)],
+        "rank": ("debt_to_equity", "desc"),
+        "x": ("debt_to_equity", "on-BS debt / equity (%)"),
+        "y": ("growth", "earnings growth y/y (revenue fallback)"),
+        "mark": "bucket",
     },
     "low_ai_exposure": {
         "title": "Low AI exposure",
@@ -355,7 +439,7 @@ _OPS = {
 
 #: Editorial tag metrics: absence is a valid value (untagged), not missing data —
 #: rules on these never send a row to the "no data" bin.
-CATEGORICAL = ("ai", "bucket")
+CATEGORICAL = ("ai", "bucket", "shadow_debt")
 
 
 def validate_presets():
@@ -434,7 +518,9 @@ def fetch_snapshot(out_path=SNAPSHOT_PATH):
     for ticker, name, sector, ai, bucket in universe_rows():
         try:
             info = yf.Ticker(ticker).info or {}
-            rows.append(_normalise_row(ticker, name, sector, ai, info, bucket))
+            row = _normalise_row(ticker, name, sector, ai, info, bucket)
+            row["shadow_debt"] = SHADOW_DEBT.get(ticker)
+            rows.append(row)
         except Exception as exc:               # noqa: BLE001 — record and continue
             errors[ticker] = str(exc)
     snapshot = {
@@ -451,6 +537,18 @@ def fetch_snapshot(out_path=SNAPSHOT_PATH):
     return snapshot
 
 
+
+def enrich_row(row):
+    """Join editorial shadow-debt tags onto a snapshot row (works on old caches)."""
+    out = dict(row)
+    out["shadow_debt"] = SHADOW_DEBT.get(out.get("ticker"))
+    return out
+
+
+def enrich_rows(rows):
+    return [enrich_row(r) for r in rows]
+
+
 def load_snapshot(path=None):
     """The cached snapshot, or None — the caller renders the absence, not this module.
     `SNAPSHOT_PATH` is resolved at call time so tests can point it elsewhere."""
@@ -461,7 +559,11 @@ def load_snapshot(path=None):
             snap = json.load(fh)
     except (OSError, ValueError):
         return None
-    return snap if isinstance(snap.get("rows"), list) else None
+    if not isinstance(snap.get("rows"), list):
+        return None
+    snap = dict(snap)
+    snap["rows"] = enrich_rows(snap["rows"])
+    return snap
 
 
 # ─────────────────────────────────────────────────────────────────────────────
