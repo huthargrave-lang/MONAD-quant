@@ -45,6 +45,9 @@ data/funnel_runs/
 graphify-out/
 data/graphify_suggestions/
 
+# Static GitHub Pages export (built in CI by .github/workflows/pages.yml)
+_site/
+
 # Coverage artifacts (CI/dev only — see .github/workflows/test.yml)
 .coverage
 .coverage.*
