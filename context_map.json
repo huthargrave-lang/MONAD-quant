@@ -471,6 +471,7 @@
         "tools/deal_market_implied_baseline.py",
         "tools/entry_gate_probe.py",
         "tools/epistemic_audit_lab.py",
+        "tools/export_pages.py",
         "tools/form25_timing_lab.py",
         "tools/form4_discovery_lab.py",
         "tools/index_membership_event_pilot.py",
@@ -493,6 +494,7 @@
         "tools/sec_fund_exit_lab.py",
         "tools/sec_rhetoric_delta_lab.py",
         "tools/shadow_replay.py",
+        "tools/stock_screener.py",
         "tools/ui_tokens.py"
       ],
       "entrypoints": [],

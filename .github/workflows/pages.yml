@@ -1,0 +1,63 @@
+name: Publish GitHub Pages
+
+# Static snapshot of the public read-only surfaces (stock screener + context map),
+# built by tools/export_pages.py. Static on purpose: the data changes only on commit,
+# so a live server would add attack surface (public process, SQLite mounts) for zero
+# freshness gain. live/** is fenced and never published.
+#
+# The weekly cron exists for the SCREENER DATA, not the code: fundamentals rot even
+# when the repo is idle, and each run re-fetches them best-effort. A failed fetch
+# publishes the absence panel — never a stale table dressed up as fresh.
+
+on:
+  push:
+    branches: [development]
+  schedule:
+    - cron: "17 11 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # yfinance brings pandas/numpy; the export itself is stdlib-only.
+      - name: Install fetch dependency
+        run: pip install yfinance
+
+      - name: Fetch screener fundamentals (best effort)
+        # Yahoo throttles CI runners sometimes. continue-on-error is deliberate:
+        # the export renders an honest absence panel when the snapshot is missing.
+        continue-on-error: true
+        run: python tools/stock_screener.py fetch
+
+      - name: Export static site
+        run: python tools/export_pages.py --out _site
+
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -44,6 +44,7 @@ import ast
 import functools
 import html
 import json
+import math
 import os
 import re
 import sys
@@ -55,6 +56,7 @@ for _p in (REPO, TOOLS):
         sys.path.insert(0, _p)
 
 import ctx  # noqa: E402  — the context layer; reused, never duplicated
+import stock_screener  # noqa: E402  — presets + snapshot; all HTML for it lives here
 import ui_tokens  # noqa: E402  — the one palette; this file holds no second copy
 
 
@@ -163,6 +165,20 @@ tbody tr:hover{background:var(--plane)}
   border-radius:6px;background:var(--surface);color:var(--ink);cursor:pointer}
 .filters button:hover{border-color:var(--accent)}
 .count{font-family:var(--mono);font-size:12px;color:var(--ink-muted);margin-left:auto}
+.presets{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px}
+.presets a{font:13px var(--sans);line-height:28px;padding:0 12px;border:1px solid var(--rule);
+  border-radius:999px;background:var(--surface);color:var(--ink-2)}
+.presets a:hover{border-color:var(--accent);text-decoration:none;color:var(--ink)}
+.presets a.on{border-color:var(--accent);color:var(--ink);background:var(--plane);
+  font-weight:600}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;
+  margin:0 0 8px}
+.cards a.hl{display:block;background:var(--surface);border:1px solid var(--rule);
+  border-radius:9px;padding:12px 14px;color:var(--ink-2);min-width:0}
+.cards a.hl:hover{border-color:var(--accent);text-decoration:none}
+.cards .hl-id{display:flex;gap:8px;align-items:center;font-family:var(--mono);font-size:11px;
+  color:var(--ink-muted);margin-bottom:5px}
+.cards .hl-title{font-size:13px;color:var(--ink);line-height:1.4}
 .body-text{white-space:pre-wrap;font-size:13.5px;color:var(--ink-2);max-width:74ch;
   margin:0 0 12px}
 .edge{display:flex;gap:9px;align-items:baseline;padding:4px 0;font-size:13px;
@@ -1281,8 +1297,8 @@ def applicable_keys(nctx):
 # 5. Pages.
 # ─────────────────────────────────────────────────────────────────────────────
 def _nav(active, mounts):
-    items = [("/", "Overview"), ("/web", "Research web"), ("/graph", "Context map"),
-             ("/surfaces", "UI surfaces")]
+    items = [("/", "Overview"), ("/web", "Research web"), ("/screen", "Stock screener"),
+             ("/graph", "Context map"), ("/surfaces", "UI surfaces")]
     out = ['<nav class="rail"><div class="brand"><b>MONAD research</b>'
            '<span>one server · one token system</span></div>']
     out.append("<h4>Views</h4>")
@@ -1327,6 +1343,47 @@ def _stat(value, label):
     return '<div class="stat"><b>{}</b><span>{}</span></div>'.format(esc(value), esc(label))
 
 
+_KIND_NAME = {"F": "Finding", "H": "Hypothesis", "E": "Experiment", "D": "Gate"}
+
+
+def _hl_card(c, nid):
+    node = c.nodes[nid]
+    st = ctx._node_meta(node)["status"]
+    sev = {"current": "good", "superseded": "warning",
+           "retracted": "critical"}.get(st, "neutral")
+    title = node["title"]
+    return ('<a class="hl" href="/node/{n}"><span class="hl-id"><code>{n}</code>'
+            '<span class="chip {sev}"><span class="dot"></span>{kind}</span>'
+            '<span>{cites} citing</span></span>'
+            '<span class="hl-title">{t}</span></a>').format(
+        n=nid, sev=sev, kind=_KIND_NAME.get(nid[0], nid[0]),
+        cites=len(c.rev.get(nid, [])),
+        t=esc(title if len(title) <= 110 else title[:109] + "…"))
+
+
+def highlighted_research(c, per_group=6):
+    """The shop window: new leads and load-bearing nodes, picked by measurable
+    properties of the web (recency of id, in-degree) — never by a hand-kept list,
+    which would rot the day after it was written."""
+    current = [nid for nid, node in c.nodes.items()
+               if ctx._node_meta(node)["status"] == "current"]
+    number = lambda nid: int(re.sub(r"\D", "", nid) or 0)
+    new_leads = sorted(current, key=number, reverse=True)[:per_group]
+    cited = sorted(current, key=lambda n: (-len(c.rev.get(n, [])),
+                                           ctx._node_sort_key(n)))[:per_group]
+    body = ["<h2>Highlighted research</h2>",
+            '<p>Picked by the web itself, not by hand: the newest current nodes '
+            '(leads still warm) and the most-cited ones (what the rest of the web '
+            'stands on). Click through for the charts and the full story.</p>']
+    body.append("<h3>New leads</h3>")
+    body.append('<div class="cards">' + "".join(_hl_card(c, n) for n in new_leads)
+                + "</div>")
+    body.append("<h3>Load-bearing</h3>")
+    body.append('<div class="cards">' + "".join(_hl_card(c, n) for n in cited)
+                + "</div>")
+    return "".join(body)
+
+
 def page_overview(mounts):
     c = corpus()
     cen = surface_census()
@@ -1353,6 +1410,7 @@ def page_overview(mounts):
     body.append(_stat("{}/{}".format(counts["token_driven"], counts["surfaces"]),
                       "share tokens"))
     body.append("</div>")
+    body.append(highlighted_research(c))
     body.append("<h2>Start here</h2>")
     body.append("<p>The node view is the new surface: <a href=\"/node/F229\">F229</a> "
                 "(verdict matrix + ratchets), <a href=\"/node/F230\">F230</a> (threshold "
@@ -1491,6 +1549,158 @@ def page_web(mounts, query):
     return page("Research web", "/web", "".join(body), mounts, "browse")
 
 
+def _screen_tick_label(metric, value):
+    if metric in ("dividend_yield", "growth", "earnings_growth", "revenue_growth",
+                  "profit_margin", "range_52w_pct"):
+        return "{:.0%}".format(value) if abs(value) >= 0.1 else "{:.1%}".format(value)
+    if metric in ("dollar_volume", "market_cap"):
+        return "${:.0f}B".format(value / 1e9) if value >= 1e9 else \
+            "${:.0f}M".format(value / 1e6)
+    return "{:g}".format(round(value, 2))
+
+
+def _render_screen_scatter(rows, matches, preset):
+    """One dot per screenable name; the preset's matches draw in accent with ticker
+    labels, the rest of the universe stays as muted context — a filter that hid the
+    non-matches entirely would make every preset look like the whole market."""
+    x_metric, x_label = preset["x"][0], preset["x"][1]
+    x_log = len(preset["x"]) > 2 and preset["x"][2] == "log"
+    y_metric, y_label = preset["y"][0], preset["y"][1]
+    pts = [r for r in rows
+           if r.get(x_metric) is not None and r.get(y_metric) is not None
+           and (not x_log or r[x_metric] > 0)]
+    if len(pts) < 3:
+        return ('<figure class="panel absent"><figcaption><h3>Dot plot — not drawable'
+                '</h3><p class="why">fewer than three rows carry both axis metrics'
+                '</p></figcaption></figure>')
+    matched = {r["ticker"] for r in matches}
+    tx = (lambda v: math.log10(v)) if x_log else (lambda v: v)
+    xs = [tx(r[x_metric]) for r in pts]
+    ys = [r[y_metric] for r in pts]
+    x0, x1 = min(xs), max(xs)
+    y0, y1 = min(ys), max(ys)
+    L, R, T, B, W, H = 64, 18, 16, 44, 740, 440
+    pad_x = (x1 - x0) * 0.05 or 0.5
+    pad_y = (y1 - y0) * 0.05 or 0.5
+    x0, x1 = x0 - pad_x, x1 + pad_x
+    y0, y1 = y0 - pad_y, y1 + pad_y
+    sx = lambda v: L + (tx(v) - x0) / (x1 - x0) * (W - L - R)
+    sy = lambda v: H - B - (v - y0) / (y1 - y0) * (H - T - B)
+    parts = []
+    for i in range(5):
+        gx = x0 + (x1 - x0) * i / 4
+        gy = y0 + (y1 - y0) * i / 4
+        px = L + (gx - x0) / (x1 - x0) * (W - L - R)
+        py = H - B - (gy - y0) / (y1 - y0) * (H - T - B)
+        parts.append('<line x1="{x:.1f}" y1="{t}" x2="{x:.1f}" y2="{b}" '
+                     'stroke="var(--rule)" stroke-width="1"/>'.format(
+                         x=px, t=T, b=H - B))
+        parts.append('<line x1="{l}" y1="{y:.1f}" x2="{r}" y2="{y:.1f}" '
+                     'stroke="var(--rule)" stroke-width="1"/>'.format(
+                         l=L, r=W - R, y=py))
+        parts.append(_txt(px, H - B + 16, _screen_tick_label(
+            x_metric, (10 ** gx) if x_log else gx), 9.5, "var(--ink-muted)", "middle"))
+        parts.append(_txt(L - 8, py + 3.5, _screen_tick_label(y_metric, gy), 9.5,
+                          "var(--ink-muted)", "end"))
+    parts.append(_txt((L + W - R) / 2, H - 6, x_label + (" (log)" if x_log else ""),
+                      10.5, "var(--ink-2)", "middle"))
+    parts.append('<g transform="translate(14,{:.1f}) rotate(-90)">{}</g>'.format(
+        (T + H - B) / 2, _txt(0, 0, y_label, 10.5, "var(--ink-2)", "middle")))
+    # Muted context first, so accent dots always paint on top.
+    for r in pts:
+        if r["ticker"] in matched:
+            continue
+        parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="4" fill="var(--axis)" '
+                     'opacity=".38"><title>{}</title></circle>'.format(
+                         sx(r[x_metric]), sy(r[y_metric]), esc(r["ticker"])))
+    taken = []
+    for r in pts:
+        if r["ticker"] not in matched:
+            continue
+        cx, cy = sx(r[x_metric]), sy(r[y_metric])
+        parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="6" fill="var(--accent)" '
+                     'stroke="var(--surface)" stroke-width="1.5">'
+                     '<title>{}</title></circle>'.format(cx, cy, esc(r["ticker"])))
+        # Greedy label collision pass — an overlapped label is dropped, never stacked;
+        # the dot's <title> still names the ticker on hover.
+        box = (cx + 8, cy - 10, cx + 8 + 7 * len(r["ticker"]), cy + 4)
+        if not any(b[0] < box[2] and box[0] < b[2] and b[1] < box[3] and box[1] < b[3]
+                   for b in taken):
+            taken.append(box)
+            parts.append(_txt(cx + 9, cy + 3.5, r["ticker"], 10, "var(--ink)",
+                              weight="600"))
+    return _svg(W, H, "".join(parts),
+                "{} — {} of {} names match".format(preset["title"], len(matched),
+                                                   len(pts)))
+
+
+def page_screen(mounts, query):
+    presets = stock_screener.PRESETS
+    key = query.get("preset") or "low_pe_high_growth"
+    if key not in presets:
+        key = "low_pe_high_growth"
+    preset = presets[key]
+    snap = stock_screener.load_snapshot()
+    body = ["<h1>Stock screener</h1>",
+            '<p class="lede">Not one strict filter — {} preset lenses over one cached '
+            'fundamental snapshot of {} liquid names. Pick a lens; matches draw in '
+            'accent on the dot plot, the rest of the universe stays visible as muted '
+            'context. AI-exposure tags are editorial, held in '
+            '<code>tools/stock_screener.py</code>.</p>'.format(
+                len(presets), len(stock_screener.UNIVERSE))]
+    body.append('<div class="presets">')
+    for pk in presets:
+        body.append('<a class="{}" href="/screen?preset={}">{}</a>'.format(
+            "on" if pk == key else "", pk, esc(presets[pk]["title"])))
+    body.append("</div>")
+    body.append('<p class="why"><b>{}</b> — {}</p>'.format(
+        esc(preset["title"]), esc(preset["blurb"])))
+    if snap is None:
+        body.append(
+            '<figure class="panel absent"><figcaption><h3>No snapshot fetched</h3>'
+            '<p class="why">The screener renders from a cached snapshot and none '
+            'exists at <code>data/screener/fundamentals.json</code> — this is absence '
+            'of data, not an empty screen. Fetch one (needs network):</p>'
+            '</figcaption><pre><code>venv/bin/python tools/stock_screener.py fetch'
+            '</code></pre></figure>')
+        return page("Stock screener", "/screen", "".join(body), mounts, "screen")
+    rows = snap["rows"]
+    matches, no_data = stock_screener.apply_preset(rows, key)
+    body.append(_source_note(
+        "snapshot {} · {} of {} names match · source {}".format(
+            snap.get("as_of", "?"), len(matches), len(rows),
+            snap.get("source", "?")),
+        "data/screener/fundamentals.json"))
+    body.append(_render_screen_scatter(rows, matches, preset))
+    cols = ["pe", "growth", "dividend_yield", "debt_to_equity", "beta", "dollar_volume"]
+    heads = {"pe": "P/E", "growth": "growth", "dividend_yield": "div yield",
+             "debt_to_equity": "debt/eq %", "beta": "beta",
+             "dollar_volume": "$ volume/day"}
+    body.append('<div class="scroller"><table><thead><tr><th>Ticker</th><th>Name</th>'
+                '<th>Sector</th><th>AI</th><th>Bucket</th>' + "".join(
+                    '<th class="num">{}</th>'.format(heads[c]) for c in cols)
+                + "</tr></thead><tbody>")
+    for r in matches:
+        body.append('<tr><td class="sev good"><code>{}</code></td><td>{}</td>'
+                    '<td>{}</td><td>{}</td><td>{}</td>'.format(
+                        esc(r["ticker"]), esc(r["name"]), esc(r["sector"]),
+                        esc(r["ai"]), esc(r.get("bucket") or "—")) + "".join(
+                        '<td class="num">{}</td>'.format(
+                            esc(stock_screener.fmt_metric(r, c))) for c in cols)
+                    + "</tr>")
+    body.append("</tbody></table></div>")
+    if not matches:
+        body.append('<p class="why">No names pass this preset in the current '
+                    'snapshot — the rules are in <code>tools/stock_screener.py</code> '
+                    'and are meant to be tuned.</p>')
+    if no_data:
+        body.append('<p class="why">{} names could not be screened (missing a '
+                    'required metric): {}</p>'.format(
+                        len(no_data),
+                        ", ".join(esc(r["ticker"]) for r, _m in no_data)))
+    return page("Stock screener", "/screen", "".join(body), mounts, "screen")
+
+
 def page_node(nid, mounts):
     nctx = node_context(nid)
     if nctx is None:
@@ -1597,6 +1807,21 @@ def route(path, query, opts):
         return 200, page_surfaces(mounts), HTML
     if path == "/web":
         return 200, page_web(mounts, query), HTML
+    if path == "/screen":
+        return 200, page_screen(mounts, query), HTML
+    if path == "/api/screen":
+        key = query.get("preset") or "low_pe_high_growth"
+        if key not in stock_screener.PRESETS:
+            return 404, "no such preset: {}\n".format(key), TEXT
+        snap = stock_screener.load_snapshot()
+        if snap is None:
+            return (503, "no snapshot — run: python tools/stock_screener.py fetch\n",
+                    TEXT)
+        matches, no_data = stock_screener.apply_preset(snap["rows"], key)
+        payload = {"preset": key, "as_of": snap.get("as_of"),
+                   "matches": matches,
+                   "no_data": {r["ticker"]: m for r, m in no_data}}
+        return 200, json.dumps(payload, indent=2, sort_keys=True), JSONC
     if path == "/api/surfaces":
         return 200, json.dumps(surface_census(), indent=2, sort_keys=True), JSONC
     if path.startswith("/node/") or path.startswith("/api/node/"):
