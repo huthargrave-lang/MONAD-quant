@@ -5,7 +5,13 @@ The screener is deliberately NOT one strict filter. It is a set of PRESETS — b
 the UI — each of which is a declarative rule list over one shared metric snapshot:
 
     low_pe_high_growth · low_pe_high_dividend · safety_low_debt · high_ai_exposure
-    low_ai_exposure · most_volatile · most_active
+    low_ai_exposure · most_volatile · most_active · sovereign_ledger · chaos_hedges
+
+The last two surface the Sovereign Ledger research program (PR #56): Book I
+critical-minerals sovereignty names and the liquid tickers of Book II's Chaos
+Buckets. The BOOKS are the source of truth — S.P.A.R.K. scores, bucket definitions,
+shock matrices all live in docs/research/SOVEREIGN_LEDGER_*.md; this module carries
+only tickers plus an editorial `bucket` tag, the same shape as the AI-exposure tag.
 
 Design rules, in line with the rest of this repo:
 
@@ -53,7 +59,11 @@ SNAPSHOT_PATH = os.path.join(REPO, "data", "screener", "fundamentals.json")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 1. Universe — liquid US large/mid caps across sectors, with editorial AI tags.
-#    (ticker, name, sector, ai_exposure)
+#    (ticker, name, sector, ai_exposure[, chaos_bucket])
+#    The optional 5th element ties a name to a Sovereign Ledger chaos bucket
+#    (Book II, docs/research/SOVEREIGN_LEDGER_CHAOS_BUCKETS_2026.md). Liquid
+#    US-listed stocks only — the watchlist's futures, foreign listings and ETFs
+#    stay in the docs, since this screener runs on per-company fundamentals.
 # ─────────────────────────────────────────────────────────────────────────────
 UNIVERSE = [
     # Megacap tech / semis — the AI-demand complex
@@ -75,7 +85,7 @@ UNIVERSE = [
     ("NOW", "ServiceNow", "Technology", "high"),
     ("CRM", "Salesforce", "Technology", "medium"),
     ("ADBE", "Adobe", "Technology", "medium"),
-    ("PANW", "Palo Alto Networks", "Technology", "medium"),
+    ("PANW", "Palo Alto Networks", "Technology", "medium", "cyber/space"),
     ("QCOM", "Qualcomm", "Technology", "medium"),
     ("TXN", "Texas Instruments", "Technology", "medium"),
     ("IBM", "IBM", "Technology", "medium"),
@@ -122,9 +132,9 @@ UNIVERSE = [
     ("TGT", "Target", "Consumer Defensive", "low"),
     ("DIS", "Disney", "Communication Services", "low"),
     # Energy
-    ("XOM", "Exxon Mobil", "Energy", "low"),
-    ("CVX", "Chevron", "Energy", "low"),
-    ("COP", "ConocoPhillips", "Energy", "low"),
+    ("XOM", "Exxon Mobil", "Energy", "low", "oil shock"),
+    ("CVX", "Chevron", "Energy", "low", "oil shock"),
+    ("COP", "ConocoPhillips", "Energy", "low", "oil shock"),
     # Utilities / telecom / REIT
     ("NEE", "NextEra Energy", "Utilities", "low"),
     ("SO", "Southern Company", "Utilities", "low"),
@@ -137,14 +147,97 @@ UNIVERSE = [
     ("DE", "Deere", "Industrials", "low"),
     ("UNP", "Union Pacific", "Industrials", "low"),
     ("GE", "GE Aerospace", "Industrials", "low"),
-    ("BA", "Boeing", "Industrials", "low"),
-    ("LMT", "Lockheed Martin", "Industrials", "low"),
-    ("RTX", "RTX", "Industrials", "low"),
+    ("BA", "Boeing", "Industrials", "low", "naval"),
+    ("LMT", "Lockheed Martin", "Industrials", "low", "defense US"),
+    ("RTX", "RTX", "Industrials", "low", "defense US"),
     ("F", "Ford", "Consumer Cyclical", "low"),
     ("GM", "General Motors", "Consumer Cyclical", "low"),
+    # ── Sovereign Ledger (PR #56) — Book I sovereignty names (bucket 11) and the
+    #    liquid stock legs of Book II's chaos buckets. Bucket tags are editorial and
+    #    re-scored in the Books, not here.
+    ("MP", "MP Materials", "Basic Materials", "low", "wartime elements"),
+    ("UUUU", "Energy Fuels", "Energy", "low", "wartime elements"),
+    ("LEU", "Centrus Energy", "Energy", "low", "wartime elements"),
+    ("LAC", "Lithium Americas", "Basic Materials", "low", "wartime elements"),
+    ("UAMY", "US Antimony", "Basic Materials", "low", "wartime elements"),
+    ("USAR", "USA Rare Earth", "Basic Materials", "low", "wartime elements"),
+    ("AREC", "American Resources", "Basic Materials", "low", "wartime elements"),
+    ("NB", "NioCorp", "Basic Materials", "low", "wartime elements"),
+    ("NOC", "Northrop Grumman", "Industrials", "low", "defense US"),
+    ("GD", "General Dynamics", "Industrials", "low", "defense US"),
+    ("AVAV", "AeroVironment", "Industrials", "low", "drones"),
+    ("KTOS", "Kratos Defense", "Industrials", "low", "drones"),
+    ("HII", "Huntington Ingalls", "Industrials", "low", "naval"),
+    ("BAESY", "BAE Systems ADR", "Industrials", "low", "EU defense"),
+    ("NEM", "Newmont", "Basic Materials", "low", "gold"),
+    ("AEM", "Agnico Eagle", "Basic Materials", "low", "gold"),
+    ("GOLD", "Barrick Gold", "Basic Materials", "low", "gold"),
+    ("CCJ", "Cameco", "Energy", "low", "uranium"),
+    ("UEC", "Uranium Energy", "Energy", "low", "uranium"),
+    ("FCX", "Freeport-McMoRan", "Basic Materials", "low", "copper/grid"),
+    ("SCCO", "Southern Copper", "Basic Materials", "low", "copper/grid"),
+    ("PAAS", "Pan American Silver", "Basic Materials", "low", "silver"),
+    ("LNG", "Cheniere Energy", "Energy", "low", "LNG"),
+    ("FRO", "Frontline", "Energy", "low", "tankers"),
+    ("STNG", "Scorpio Tankers", "Energy", "low", "tankers"),
+    ("VLO", "Valero", "Energy", "low", "refiners"),
+    ("MPC", "Marathon Petroleum", "Energy", "low", "refiners"),
+    ("PSX", "Phillips 66", "Energy", "low", "refiners"),
+    ("CF", "CF Industries", "Basic Materials", "low", "fertilizer"),
+    ("NTR", "Nutrien", "Basic Materials", "low", "fertilizer"),
+    ("MOS", "Mosaic", "Basic Materials", "low", "fertilizer"),
+    ("NUE", "Nucor", "Basic Materials", "low", "steel"),
+    ("STLD", "Steel Dynamics", "Basic Materials", "low", "steel"),
+    ("CLF", "Cleveland-Cliffs", "Basic Materials", "low", "steel"),
+    ("ADM", "Archer-Daniels-Midland", "Consumer Defensive", "low", "softs"),
+    ("VST", "Vistra", "Utilities", "medium", "grid/power"),
+    ("CEG", "Constellation Energy", "Utilities", "medium", "grid/power"),
+    ("GEV", "GE Vernova", "Industrials", "medium", "grid/power"),
+    ("PWR", "Quanta Services", "Industrials", "low", "grid/power"),
+    ("ETN", "Eaton", "Industrials", "medium", "grid/power"),
+    ("VRT", "Vertiv", "Industrials", "high", "grid/power"),
+    ("AMAT", "Applied Materials", "Technology", "high", "chip equipment"),
+    ("LRCX", "Lam Research", "Technology", "high", "chip equipment"),
+    ("KLAC", "KLA", "Technology", "high", "chip equipment"),
+    ("ASML", "ASML ADR", "Technology", "high", "chip equipment"),
 ]
 
 AI_TAGS = ("high", "medium", "low")
+
+#: Legal chaos-bucket tags — the liquid-stock subset of Book II's 20 buckets plus
+#: "wartime elements" (bucket 11), which doubles as the Book I sovereignty set.
+#: Definitions and shock matrices live in the Sovereign Ledger docs, not here.
+CHAOS_BUCKETS = (
+    "wartime elements", "oil shock", "defense US", "drones", "naval", "EU defense",
+    "gold", "uranium", "copper/grid", "silver", "LNG", "tankers", "refiners",
+    "fertilizer", "steel", "softs", "grid/power", "chip equipment", "cyber/space",
+)
+
+
+def universe_rows():
+    """[(ticker, name, sector, ai, bucket)] — entries may omit the bucket."""
+    out = []
+    for entry in UNIVERSE:
+        ticker, name, sector, ai = entry[:4]
+        out.append((ticker, name, sector, ai, entry[4] if len(entry) > 4 else None))
+    return out
+
+
+def validate_universe():
+    """Raise on a duplicate ticker, unknown AI tag, or typo'd bucket — a bucket that
+    matches no preset would silently vanish from the sovereign lenses."""
+    seen = set()
+    for ticker, _name, _sector, ai, bucket in universe_rows():
+        if ticker in seen:
+            raise ValueError("duplicate ticker {!r}".format(ticker))
+        seen.add(ticker)
+        if ai not in AI_TAGS:
+            raise ValueError("{}: unknown ai tag {!r}".format(ticker, ai))
+        if bucket is not None and bucket not in CHAOS_BUCKETS:
+            raise ValueError("{}: unknown chaos bucket {!r}".format(ticker, bucket))
+
+
+validate_universe()
 
 #: Metric keys every snapshot row carries (value: float or None). A preset rule may
 #: only name one of these — enforced by `validate_presets()` and the guard test.
@@ -227,6 +320,28 @@ PRESETS = {
         "x": ("dollar_volume", "avg daily dollar volume", "log"),
         "y": ("range_52w_pct", "52-week range / price"),
     },
+    "sovereign_ledger": {
+        "title": "Sovereign Ledger",
+        "blurb": "Book I sovereignty names — chokepoint mineral + allied feedstock + "
+                 "government scaffolding (the USAR pattern). S.P.A.R.K. scores and "
+                 "binaries live in docs/research/SOVEREIGN_LEDGER_2026.md; re-score "
+                 "there, not here. Study objects, not signals.",
+        "require": [("bucket", "==", "wartime elements")],
+        "rank": ("dollar_volume", "desc"),
+        "x": ("dollar_volume", "avg daily dollar volume", "log"),
+        "y": ("range_52w_pct", "52-week range / price"),
+    },
+    "chaos_hedges": {
+        "title": "Chaos hedges",
+        "blurb": "Liquid stock legs of Book II's Chaos Buckets — defense, energy "
+                 "shocks, gold, uranium, copper, grid. Safe haven ≠ war hedge: see "
+                 "docs/research/SOVEREIGN_LEDGER_CHAOS_BUCKETS_2026.md for clocks "
+                 "and the shock matrix. Study objects, not signals.",
+        "require": [("bucket", "!=", None)],
+        "rank": ("dollar_volume", "desc"),
+        "x": ("dollar_volume", "avg daily dollar volume", "log"),
+        "y": ("range_52w_pct", "52-week range / price"),
+    },
 }
 
 _OPS = {
@@ -235,13 +350,18 @@ _OPS = {
     ">": lambda a, b: a > b,
     ">=": lambda a, b: a >= b,
     "==": lambda a, b: a == b,
+    "!=": lambda a, b: a != b,
 }
+
+#: Editorial tag metrics: absence is a valid value (untagged), not missing data —
+#: rules on these never send a row to the "no data" bin.
+CATEGORICAL = ("ai", "bucket")
 
 
 def validate_presets():
     """Raise if any preset rule/rank/axis names an unknown metric or op — the silent
     failure this prevents is a typo'd key filtering every row to zero."""
-    legal = set(METRIC_KEYS) | {"ai"}
+    legal = set(METRIC_KEYS) | set(CATEGORICAL)
     for key, p in PRESETS.items():
         for metric, op, _value in p["require"]:
             if metric not in legal:
@@ -271,7 +391,7 @@ def _num(value):
     return v if math.isfinite(v) else None
 
 
-def _normalise_row(ticker, name, sector, ai, info):
+def _normalise_row(ticker, name, sector, ai, info, bucket=None):
     price = _num(info.get("currentPrice")) or _num(info.get("regularMarketPrice"))
     pe = _num(info.get("trailingPE"))
     if pe is None or pe <= 0:
@@ -289,6 +409,7 @@ def _normalise_row(ticker, name, sector, ai, info):
     rng = ((hi - lo) / price) if (hi is not None and lo is not None and price) else None
     return {
         "ticker": ticker, "name": name, "sector": sector, "ai": ai,
+        "bucket": bucket,
         "price": price,
         "market_cap": _num(info.get("marketCap")),
         "pe": pe,
@@ -310,10 +431,10 @@ def fetch_snapshot(out_path=SNAPSHOT_PATH):
     Needs network; per-ticker failures are recorded, never fatal."""
     import yfinance as yf   # deferred: every read path must work without it
     rows, errors = [], {}
-    for ticker, name, sector, ai in UNIVERSE:
+    for ticker, name, sector, ai, bucket in universe_rows():
         try:
             info = yf.Ticker(ticker).info or {}
-            rows.append(_normalise_row(ticker, name, sector, ai, info))
+            rows.append(_normalise_row(ticker, name, sector, ai, info, bucket))
         except Exception as exc:               # noqa: BLE001 — record and continue
             errors[ticker] = str(exc)
     snapshot = {
@@ -353,7 +474,7 @@ def apply_preset(rows, preset_key):
     matches, no_data = [], []
     for row in rows:
         missing = [m for m, _op, _v in p["require"]
-                   if m != "ai" and row.get(m) is None]
+                   if m not in CATEGORICAL and row.get(m) is None]
         if missing:
             no_data.append((row, missing))
             continue

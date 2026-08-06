@@ -1677,14 +1677,14 @@ def page_screen(mounts, query):
              "debt_to_equity": "debt/eq %", "beta": "beta",
              "dollar_volume": "$ volume/day"}
     body.append('<div class="scroller"><table><thead><tr><th>Ticker</th><th>Name</th>'
-                '<th>Sector</th><th>AI</th>' + "".join(
+                '<th>Sector</th><th>AI</th><th>Bucket</th>' + "".join(
                     '<th class="num">{}</th>'.format(heads[c]) for c in cols)
                 + "</tr></thead><tbody>")
     for r in matches:
         body.append('<tr><td class="sev good"><code>{}</code></td><td>{}</td>'
-                    '<td>{}</td><td>{}</td>'.format(
+                    '<td>{}</td><td>{}</td><td>{}</td>'.format(
                         esc(r["ticker"]), esc(r["name"]), esc(r["sector"]),
-                        esc(r["ai"])) + "".join(
+                        esc(r["ai"]), esc(r.get("bucket") or "—")) + "".join(
                         '<td class="num">{}</td>'.format(
                             esc(stock_screener.fmt_metric(r, c))) for c in cols)
                     + "</tr>")

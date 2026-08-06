@@ -36,7 +36,7 @@ class PresetDefinitionTests(unittest.TestCase):
         sc.validate_presets()   # raises on a typo'd metric, op, rank or axis
 
     def test_every_rule_metric_is_a_real_snapshot_key(self):
-        legal = set(sc.METRIC_KEYS) | {"ai"}
+        legal = set(sc.METRIC_KEYS) | set(sc.CATEGORICAL)
         for key, preset in sc.PRESETS.items():
             for metric, _op, _v in preset["require"]:
                 self.assertIn(metric, legal, key)
@@ -47,21 +47,40 @@ class PresetDefinitionTests(unittest.TestCase):
     def test_the_user_requested_lenses_all_exist(self):
         for key in ("low_pe_high_growth", "low_pe_high_dividend", "safety_low_debt",
                     "high_ai_exposure", "low_ai_exposure", "most_volatile",
-                    "most_active"):
+                    "most_active", "sovereign_ledger", "chaos_hedges"):
             self.assertIn(key, sc.PRESETS)
 
-    def test_every_universe_entry_carries_a_legal_ai_tag(self):
-        for ticker, _name, _sector, ai in sc.UNIVERSE:
-            self.assertIn(ai, sc.AI_TAGS, ticker)
+    def test_the_sovereign_lenses_defer_to_the_books(self):
+        """The docs are the source of truth; the lens must say so on its face."""
+        for key in ("sovereign_ledger", "chaos_hedges"):
+            self.assertIn("docs/research/SOVEREIGN_LEDGER", sc.PRESETS[key]["blurb"])
+            self.assertIn("not signals", sc.PRESETS[key]["blurb"])
+
+    def test_every_universe_entry_carries_legal_tags(self):
+        sc.validate_universe()   # duplicate ticker, unknown ai tag, typo'd bucket
 
     def test_universe_tickers_are_unique(self):
         tickers = [t for t, *_ in sc.UNIVERSE]
         self.assertEqual(len(tickers), len(set(tickers)))
 
     def test_both_ai_poles_are_populated(self):
-        tags = {ai for *_x, ai in sc.UNIVERSE}
+        tags = {ai for _t, _n, _s, ai, _b in sc.universe_rows()}
         self.assertIn("high", tags)
         self.assertIn("low", tags)
+
+    def test_the_book_one_sovereignty_names_are_all_tagged(self):
+        """The Book I set from docs/research/SOVEREIGN_LEDGER_WATCHLIST_2026.md
+        (PR #56) IS the "wartime elements" bucket — a dropped name would silently
+        vanish from the sovereign_ledger lens."""
+        tagged = {t for t, _n, _s, _a, b in sc.universe_rows()
+                  if b == "wartime elements"}
+        self.assertEqual(tagged, {"MP", "UUUU", "LEU", "LAC", "UAMY", "USAR",
+                                  "AREC", "NB"})
+
+    def test_every_bucket_tag_is_a_declared_bucket(self):
+        for t, _n, _s, _a, b in sc.universe_rows():
+            if b is not None:
+                self.assertIn(b, sc.CHAOS_BUCKETS, t)
 
 
 class ApplyPresetTests(unittest.TestCase):
@@ -98,6 +117,28 @@ class ApplyPresetTests(unittest.TestCase):
         lo, _ = sc.apply_preset(rows, "low_ai_exposure")
         self.assertEqual([r["ticker"] for r in hi], ["HI"])
         self.assertEqual([r["ticker"] for r in lo], ["LO"])
+
+    def test_sovereign_ledger_is_exactly_the_wartime_bucket(self):
+        rows = [_row(ticker="MP", bucket="wartime elements", dollar_volume=2e8),
+                _row(ticker="NEM", bucket="gold", dollar_volume=9e8),
+                _row(ticker="AAPL", bucket=None)]
+        matches, no_data = sc.apply_preset(rows, "sovereign_ledger")
+        self.assertEqual([r["ticker"] for r in matches], ["MP"])
+        self.assertEqual(no_data, [])
+
+    def test_chaos_hedges_takes_every_tagged_row_and_no_untagged_one(self):
+        rows = [_row(ticker="MP", bucket="wartime elements", dollar_volume=2e8),
+                _row(ticker="NEM", bucket="gold", dollar_volume=9e8),
+                _row(ticker="AAPL", bucket=None, dollar_volume=5e10)]
+        matches, no_data = sc.apply_preset(rows, "chaos_hedges")
+        self.assertEqual([r["ticker"] for r in matches], ["NEM", "MP"])  # $vol rank
+        self.assertEqual(no_data, [])
+
+    def test_an_untagged_row_is_not_reported_as_missing_data(self):
+        """bucket is categorical: absence means untagged, never 'no data'."""
+        matches, no_data = sc.apply_preset([_row(ticker="AAPL")], "chaos_hedges")
+        self.assertEqual(matches, [])
+        self.assertEqual(no_data, [])
 
 
 class NormalisationTests(unittest.TestCase):
