@@ -1635,6 +1635,13 @@ let source = "bloomberg";
 let selected = null;
 /** tk -> array of closes, straight from the payload. Empty until a history is wired in. */
 let PRICES = {};
+/** Why the headline documents are absent, when they were withheld ON PURPOSE rather than
+    never fetched. Set only by the static export. Empty string means "not withheld" — the
+    documents are missing for some other reason, and the tile must say that instead.
+    Withheld and absent are different facts: the first is a decision this project made about
+    republishing third-party copy, the second is a gap in the data. A reader looking at an
+    empty tile beside a tone of +0.43 over 18 documents is owed the first answer. */
+let HEADLINES_WITHHELD = "";
 /** When those closes were fetched. Shipped in the payload as `price_as_of` and, until now,
     read by nothing — so the page drew real prices with no way to tell how old they were, and
     a stale cache would have been indistinguishable from a fresh one. */
@@ -6062,16 +6069,19 @@ function renderHeadlines(){
         // Three different absences, and the third is not an absence at all: a reading with
         // no documents beside it means the payload carried the score and withheld the text
         // (the published build does exactly that), which must not read as "nothing found".
-        const why = t.tone!=null
-          ? `${t.toned} of ${t.cov} item(s) carried a tone word; this build did not pack the
-             items themselves.`
-          : (t.cov ? `${t.cov} item(s) ${arrivedVerb(src)}, none carried a tone word.`
-                   : `no document in this snapshot ${filedVerb(src)} ${esc(selected)}.`);
+        const held = t.cov ? HEADLINES_WITHHELD : "";
+        const why = !t.cov
+          ? `no document in this snapshot ${filedVerb(src)} ${esc(selected)}.`
+          : (held || (t.tone!=null
+              ? `${t.toned} of ${t.cov} item(s) carried a tone word; this build did not pack
+                 the items themselves.`
+              : `${t.cov} item(s) ${arrivedVerb(src)}, none carried a tone word.`));
         parts.push(`<div class="tone-card"><div class="tk">${tag} · ${selected}</div>
           <div class="hd">${t.tone==null && !t.cov?'<span class="chip">no coverage</span>':
-            (t.tone==null?'<span class="chip warning"><span class="dot"></span>untoned</span>':
+            (held?'<span class="chip">documents withheld</span> ':'')
+            + (t.tone==null?'<span class="chip warning"><span class="dot"></span>untoned</span>':
             `${t.tone>0?"+":""}${t.tone.toFixed(2)}`)}</div>
-          <div class="meta">${esc(TONE_FIELDS[src].label)} — ${why}</div></div>`);
+          <div class="meta">${esc(TONE_FIELDS[src].label)} — ${esc(why)}</div></div>`);
       } else {
         const head=t.tone!=null?`${tag} · ${selected} · ${t.tone>0?"+":""}${t.tone.toFixed(2)}`:`${tag} · ${selected}`;
         // Headline text is feed copy, not this page's own markup.
@@ -6096,15 +6106,19 @@ function renderHeadlines(){
           : "Nobody named this ticker in the fetched window."}</div></div>`;
     } else if(t.tone==null){
       box.innerHTML=`<div class="tone-card"><div class="tk">${selected}</div>
-        <div class="hd"><span class="chip warning"><span class="dot"></span>untoned</span></div>
-        <div class="meta">${t.cov} item(s) ${arrivedVerb(source)}, none carried a tone word.</div></div>`;
+        <div class="hd">${HEADLINES_WITHHELD?'<span class="chip">documents withheld</span> ':''}
+          <span class="chip warning"><span class="dot"></span>untoned</span></div>
+        <div class="meta">${t.cov} item(s) ${arrivedVerb(source)}, none carried a tone word.${
+          HEADLINES_WITHHELD ? " " + esc(HEADLINES_WITHHELD) : ""}</div></div>`;
     } else {
-      // A reading with no documents behind it in the payload: the tone is real, the packing
-      // step just did not carry the items it was computed from. Say that, do not invent them.
+      // A reading with no documents behind it. Two different reasons, and the published
+      // build is always the first: the text was withheld on purpose, not lost.
+      const held = HEADLINES_WITHHELD;
       box.innerHTML=`<div class="tone-card"><div class="tk">${esc(selected)} · ${t.tone>0?"+":""}${t.tone.toFixed(2)}</div>
-        <div class="hd">Reading present, documents not carried</div>
-        <div class="meta">${t.toned} of ${t.cov} item(s) carried a tone word, but the snapshot
-          did not pack the items themselves for this ticker.</div></div>`;
+        <div class="hd">${held ? "Documents withheld" : "Reading present, documents not carried"}</div>
+        <div class="meta">${esc(held || (t.toned + " of " + t.cov
+          + " item(s) carried a tone word, but the snapshot did not pack the items"
+          + " themselves for this ticker."))}</div></div>`;
     }
     return;
   }
@@ -6226,6 +6240,7 @@ function applyLivePayload(){
     if(!ROWS.some(r=>r.tk===selected)) selected = ROWS[0].tk;
   }
   if(live.headlines) HEADLINES = live.headlines;
+  if(live.headlines_withheld) HEADLINES_WITHHELD = live.headlines_withheld;
   if(live.price_history) PRICES = live.price_history;
   if(live.price_as_of) PRICE_ASOF = live.price_as_of;
   if(live.price_cmd) PRICE_CMD = live.price_cmd;

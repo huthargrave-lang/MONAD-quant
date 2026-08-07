@@ -188,16 +188,29 @@ def export(out_dir):
     # static build the snapshot is baked in at export time — otherwise the published page
     # would render its own "no payload reached this page" absence state forever.
     #
-    # Headline TEXT is dropped first. Tone scores and coverage counts are this repo's own
-    # derived numbers and belong on the page, but the documents behind them are verbatim
-    # Bloomberg editorial and Reddit post titles: rendering third-party text locally from a
-    # cache is not the same act as republishing it on a public site, and only the second
-    # one is happening here.
+    # Headline TEXT is withheld for EVERY source. Tone scores and coverage counts are this
+    # repo's own derived numbers and belong on the page; the documents behind them are
+    # third-party copy, and rendering it locally from a cache is not the same act as
+    # republishing it on a public site. Only the second one would be happening here.
+    #
+    # All three, and Yahoo is not a special case: its per-ticker RSS carries syndicated
+    # headlines from Motley Fool, Benzinga, Reuters and others — the same kind of text as a
+    # Bloomberg headline, arriving by a different route. It used to be dropped anyway, but as
+    # COLLATERAL of assigning a two-key literal over the whole dict rather than as policy:
+    # the comment justified withholding Bloomberg and Reddit and said nothing about the 123
+    # tickers and 69 KB of Yahoo text that also disappeared. A rule that happens to produce
+    # the right output for a reason it does not state is one edit from producing the wrong one.
+    #
+    # Every source key is preserved so the page can tell "withheld" from "this source was
+    # never fetched" — an empty dict for a source that exists is not the same fact as a
+    # missing source, and the page renders them differently.
     payload = research_ui._screener_combined_draft_payload()
-    payload["headlines"] = {"bloomberg": {}, "reddit": {}}
+    payload["headlines"] = {src: {} for src in (payload.get("headlines") or {})}
     payload["headlines_withheld"] = (
-        "Headline text is not republished on the static site; tone scores and coverage "
-        "counts are. Run the server locally to read the documents behind a score.")
+        "Headline text is not republished on this static site — the documents are "
+        "third-party copy. The tone scores and coverage counts beside them are this repo's "
+        "own numbers and are published in full. Run the server locally "
+        "(venv/bin/python tools/research_ui.py serve) to read the documents behind a score.")
     code, body, _ct = research_ui._screener_combined_draft_html({}, payload=payload)
     assert code == 200
     write("index.html", _staticise(body, built, "screener"))

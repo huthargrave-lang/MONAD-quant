@@ -20,6 +20,7 @@ for _p in (REPO, os.path.join(REPO, "tools")):
         sys.path.insert(0, _p)
 
 import export_pages  # noqa: E402
+import research_ui  # noqa: E402
 import stock_screener as sc  # noqa: E402
 
 
@@ -77,18 +78,75 @@ class ExportTests(unittest.TestCase):
         self.assertIn("Low P/E", text)
         self.assertIn("__DRAFT_LIVE__", text)
 
-    def test_no_third_party_headline_text_is_republished(self):
-        """Tone scores are ours and ship; the Bloomberg/Reddit documents behind them are
-        not ours to publish on a public site, so the baked payload carries none."""
+    def _baked_payload(self):
         import json
         import re as _re
         m = _re.search(r"window\.__DRAFT_LIVE__ = (\{.*?\});</script>",
                        self.pages["index.html"], _re.S)
-        self.assertIsNotNone(m)
-        payload = json.loads(m.group(1))
+        self.assertIsNotNone(m, "no payload baked into index.html")
+        return json.loads(m.group(1))
+
+    def test_no_third_party_headline_text_is_republished(self):
+        """Tone scores are ours and ship; the documents behind them are third-party copy and
+        are not ours to publish on a public site, so the baked payload carries none."""
+        payload = self._baked_payload()
         for source, by_ticker in (payload.get("headlines") or {}).items():
             self.assertEqual(
                 [d for docs in by_ticker.values() for d in docs], [], source)
+
+    def test_every_source_survives_the_withholding(self):
+        """This is what the test above cannot see. It iterates whatever sources ARE in the
+        exported dict, so a source dropped entirely passes it vacuously — which is exactly
+        what happened: the withholding was `= {"bloomberg": {}, "reddit": {}}`, a whole-dict
+        assignment, and Yahoo's 123 tickers of text vanished as COLLATERAL rather than by the
+        stated policy. Withheld and never-fetched are different facts and the page renders
+        them differently, so every source the server has must still be a key here."""
+        live = research_ui._screener_combined_draft_payload()
+        self.assertEqual(
+            sorted((self._baked_payload().get("headlines") or {})),
+            sorted((live.get("headlines") or {})),
+            "the exported build dropped a whole headline source instead of emptying it")
+
+    def test_the_withheld_notice_is_carried_and_rendered(self):
+        """A promise the code does not keep is worse than no promise: `headlines_withheld`
+        was written by this exporter and read by nothing, so a static reader saw empty tiles
+        with no account of why. It has to reach the payload AND be rendered."""
+        notice = self._baked_payload().get("headlines_withheld")
+        self.assertTrue(notice, "no withheld notice in the baked payload")
+        page = self.pages["index.html"]
+        self.assertIn("HEADLINES_WITHHELD", page,
+                      "the page does not read the notice it is shipped")
+        self.assertIn("live.headlines_withheld", page,
+                      "the notice is never ingested from the payload")
+        self.assertIn("documents withheld", page,
+                      "no rendered state distinguishes withheld from absent")
+
+    def test_a_source_either_carries_documents_or_carries_the_notice(self):
+        """Per source, and this is the contract the whole change exists to hold: a reader
+        looking at a tone of +0.30 over 12 documents and an empty tile must be told which of
+        the two reasons applies."""
+        payload = self._baked_payload()
+        notice = payload.get("headlines_withheld")
+        for source, by_ticker in (payload.get("headlines") or {}).items():
+            docs = [d for docs in by_ticker.values() for d in docs]
+            self.assertTrue(
+                docs or notice,
+                "{} carries neither its documents nor an explanation of their "
+                "absence".format(source))
+
+    def test_no_headline_string_survives_anywhere_in_the_page(self):
+        """The payload is not the only way text could reach the file — a rendered card, an
+        aria-label or a title attribute would republish it just as publicly."""
+        live = research_ui._screener_combined_draft_payload()
+        page = self.pages["index.html"]
+        leaked = []
+        for source, by_ticker in (live.get("headlines") or {}).items():
+            for ticker, docs in by_ticker.items():
+                for doc in docs:
+                    head = (doc.get("h") or "")[:40]
+                    if len(head) > 20 and head in page:
+                        leaked.append("{}/{}: {}".format(source, ticker, head))
+        self.assertEqual(leaked[:5], [], "headline text reached the published page")
 
     def test_buckets_page_is_the_sovereign_html_wireframe(self):
         text = self.pages["buckets.html"]
