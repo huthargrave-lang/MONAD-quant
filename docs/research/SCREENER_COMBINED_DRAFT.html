@@ -74,6 +74,21 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
    channel is how a row of chips stops being readable at a glance. */
 .presets .lens-chip.starred,.presets button.starred{
   border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+/* The screener had panels but no modal. A dialog for one row wants the page dimmed:
+   the row is the subject for as long as it is open, unlike a panel you read alongside. */
+.modal[hidden]{display:none}
+.modal{position:fixed;inset:0;z-index:60;display:flex;align-items:center;
+  justify-content:center;padding:26px}
+.modal-scrim{position:absolute;inset:0;background:rgba(0,0,0,.55)}
+.modal-card{position:relative;z-index:1;width:min(940px,94vw);max-height:88vh;overflow:auto;
+  background:var(--surface);border:1px solid var(--rule);border-radius:12px;
+  padding:16px 20px 20px;box-shadow:0 18px 60px rgba(0,0,0,.45)}
+.modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
+  margin:0 0 12px}
+.modal-head h3{margin:0}
+.tk-open{border:0;background:transparent;padding:0;cursor:pointer;font:inherit;color:inherit;
+  text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}
+.tk-open:hover code,.tk-open:focus-visible code{color:var(--accent)}
 .opt-list label{position:relative}
 .opt-list .tile-star{
   position:absolute;top:10px;right:2px;border:0;background:transparent;padding:2px 4px;
@@ -858,6 +873,18 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
     for more room than the board has, the board grows and the page scrolls.</p>
 </div>
 
+<div class="modal" id="stockModal" hidden>
+  <div class="modal-scrim" data-stock-close></div>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="stockModalTitle">
+    <div class="modal-head">
+      <div><h3 id="stockModalTitle">Stock detail</h3>
+        <span class="tile-meta" id="stockModalMeta"></span></div>
+      <button type="button" class="expand" id="stockModalClose" data-stock-close>Close</button>
+    </div>
+    <div id="stockModalBody"></div>
+  </div>
+</div>
+
 <div class="explain" id="proposePanel" role="dialog" aria-modal="false"
      aria-labelledby="proposePanelTitle" hidden>
   <button type="button" class="explain-close" data-panel-close aria-label="Close">×</button>
@@ -1053,7 +1080,39 @@ let PRICES = {};
    data actually turns up and nobody has to remember to edit a list. */
 let DATA_PRESENT = {price:false, tone:false};
 
+/* Tickers are vendor strings and land inside a selector; BRK-B and CL=F are already in
+   the universe. CSS.escape is not on every engine this has to open in. */
+function cssEscape(v){
+  return window.CSS && CSS.escape ? CSS.escape(v) : String(v).replace(/["\\]/g, "\\$&");
+}
 function pinTicker(tk){ selected = tk; }
+/* Clicking the ticker opens the whole row at size AND pins it, so the charts follow what
+   is being inspected. Clicking anywhere else in the row pins without interrupting. */
+/* The TICKER is remembered, not the element: opening pins the name, which re-renders the
+   results table, so the button that was clicked is already detached by the time the modal
+   closes. Holding the node would silently drop focus on the floor every time. */
+let stockModalReturn = null;
+function openStockModal(tk, trigger){
+  const r = ROWS.find(x => x.tk === tk);
+  const m = document.getElementById("stockModal");
+  if(!r || !m) return;
+  stockModalReturn = tk;
+  document.getElementById("stockModalTitle").textContent = "Stock detail · " + r.tk;
+  document.getElementById("stockModalMeta").textContent = rowStanding(r);
+  document.getElementById("stockModalBody").innerHTML = cardBody(r);
+  m.hidden = false;
+  document.getElementById("stockModalClose").focus();
+}
+function closeStockModal(){
+  const m = document.getElementById("stockModal");
+  if(!m || m.hidden) return;
+  m.hidden = true;
+  // Re-found by ticker, because the row it lived in has been re-rendered since.
+  const back = stockModalReturn
+    && document.querySelector('#tbody [data-open="' + cssEscape(stockModalReturn) + '"]');
+  if(back) back.focus();
+  stockModalReturn = null;
+}
 
 /* The price tile draws only what the payload hands it. Nothing here interpolates, walks or
    otherwise manufactures a series: the fields this page does carry (price, beta, score) are
@@ -2496,6 +2555,8 @@ function bindMarks(host){
   host.querySelectorAll(".mark[data-tk]").forEach(el=>{
     el.onclick = ()=>{
       pinTicker(el.dataset.tk);
+      // A mark is the same subject as a table row, so it offers the same full read.
+      if(ev && ev.detail === 2) openStockModal(el.dataset.tk, null);
       render();
     };
   });
@@ -2911,6 +2972,7 @@ function panelClose(){
   if(trigger && document.contains(trigger)) trigger.focus();
 }
 document.addEventListener("click", (ev)=>{
+  if(ev.target.closest("[data-stock-close]")){ closeStockModal(); return; }
   // The rail's proposal actions are handled here, alongside the panel triggers, because the
   // outside-click rule at the bottom of this listener would otherwise close the panel that
   // the copy fallback has just opened.
@@ -2955,7 +3017,12 @@ document.addEventListener("click", (ev)=>{
   if(activePanel && !ev.target.closest(".explain")) panelClose();
 });
 document.addEventListener("keydown", (ev)=>{
-  if(ev.key === "Escape") panelClose();
+  if(ev.key !== "Escape") return;
+  // The modal is on top, so it takes Escape first — closing the panel underneath while a
+  // dialog covers it would dismiss something the reader cannot see.
+  const m = document.getElementById("stockModal");
+  if(m && !m.hidden){ closeStockModal(); return; }
+  panelClose();
 });
 
 function sourceLabel(){
@@ -3348,7 +3415,8 @@ function renderTable(){
       ? `<br><span class="muted-cell">no tone</span>` : "";
     return `<tr data-tk="${escAttr(r.tk)}"${on} style="cursor:pointer">
       <td class="num">${i+1}</td>
-      <td class="sev ${sev}"><code>${esc(r.tk)}</code></td>
+      <td class="sev ${sev}"><button type="button" class="tk-open" data-open="${escAttr(r.tk)}"
+        title="Open ${escAttr(r.tk)} in full" aria-label="Open ${escAttr(r.tk)} in full"><code>${esc(r.tk)}</code></button></td>
       <td>${esc(r.name||"—")}</td>
       <td>${esc(r.sector||"—")}</td>
       <td>${esc(r.ai||"—")}</td>
@@ -3370,7 +3438,12 @@ function renderTable(){
       : `No rows are loaded — there is nothing to rank. Build a fundamentals snapshot with
          <code>venv/bin/python tools/stock_screener.py fetch</code>.`}</td></tr>`;
   document.querySelectorAll("#tbody tr[data-tk]").forEach(tr=>{
-    tr.onclick=()=>{ pinTicker(tr.dataset.tk); render(); };
+    tr.onclick=(ev)=>{
+      const open = ev.target.closest("[data-open]");
+      pinTicker(tr.dataset.tk);
+      render();
+      if(open) openStockModal(open.dataset.open, open);
+    };
   });
 }
 
@@ -3443,13 +3516,20 @@ function drawCard(){
     return;
   }
   title.textContent = "Stock detail · " + r.tk;
-  meta.textContent = matchedRows().some(x => x.tk === r.tk)
-    ? "in this lens" : "pinned · outside this lens";
+  meta.textContent = rowStanding(r);
+  host.innerHTML = cardBody(r);
+}
+function rowStanding(r){
+  return matchedRows().some(x => x.tk === r.tk) ? "in this lens"
+                                                : "pinned · outside this lens";
+}
+/* One builder for the inline card and the modal. Two copies of this markup would drift,
+   and the modal exists precisely so the same row can be read without scrolling. */
+function cardBody(r){
   const flag = r.flag
     ? '<span class="chip warning" title="Growth measured off a depressed base year">'
       + '<span class="dot"></span>' + esc(r.flag) + '</span>' : "";
-  host.innerHTML =
-    '<div class="dc-head"><code>' + esc(r.tk) + '</code>'
+  return '<div class="dc-head"><code>' + esc(r.tk) + '</code>'
       + '<span class="nm">' + esc(r.name || "—") + '</span>'
       + '<span class="sec">' + esc(r.sector || "sector unknown") + '</span></div>'
     + '<div class="dc-grid">'
