@@ -46,7 +46,11 @@ a:hover{text-decoration:underline}
 code,.mono,th,td.num{font-family:var(--mono)}
 
 /* research_ui shell */
-.shell{display:grid;grid-template-columns:232px minmax(0,1fr);gap:0;min-height:100vh}
+/* 70%, matching every other surface. On the shell rather than on main so the rail
+   scales with the body — a full-size rail beside a shrunken page reads as broken.
+   min-height compensates for the scale so the shell still fills the viewport. */
+.shell{display:grid;grid-template-columns:232px minmax(0,1fr);gap:0;
+  zoom:.7;min-height:calc(100vh / .7)}
 .rail{border-right:1px solid var(--rule);background:var(--surface);padding:20px 0 40px}
 .rail .brand{padding:0 18px 16px;border-bottom:1px solid var(--rule);margin-bottom:14px}
 .rail .brand b{display:block;font-family:var(--mono);font-size:13px;letter-spacing:.06em;
@@ -60,7 +64,7 @@ code,.mono,th,td.num{font-family:var(--mono)}
 .rail a.off{color:var(--ink-muted)}
 .rail .fence{font-size:10px;font-family:var(--mono);color:var(--ink-muted);
   border:1px solid var(--rule);border-radius:3px;padding:0 4px;margin-left:5px}
-main{min-width:0;padding:26px 34px 90px;width:100%;zoom:1.2}
+main{min-width:0;padding:26px 34px 90px;width:100%}
 h1{font-size:23px;line-height:1.25;margin:0 0 6px;font-weight:640;text-wrap:balance;letter-spacing:-.012em}
 h2{font-size:15px;margin:28px 0 10px;font-weight:640;letter-spacing:-.005em}
 h3{font-size:13px;margin:0 0 4px;font-weight:640}

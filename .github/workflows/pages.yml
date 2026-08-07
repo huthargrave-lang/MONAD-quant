@@ -54,11 +54,17 @@ jobs:
         continue-on-error: true
         run: python tools/stock_screener.py prices
 
-      - name: Fetch Bloomberg/Reddit tone (best effort)
+      - name: Fetch Bloomberg/Reddit/Yahoo tone (best effort)
         # Tone-only: scores the screener's own universe from the public RSS feeds and
-        # skips the per-ticker vendor loop, which is the part that costs minutes. Reddit
-        # rate-limits per IP, so a runner may get fewer subreddits than a laptop does —
-        # that lands as reported coverage, never as a tone of 0.00.
+        # skips the per-ticker FUNDAMENTALS loop, which is the part that costs minutes.
+        # Reddit rate-limits per IP, so a runner may get fewer subreddits than a laptop
+        # does — that lands as reported coverage, never as a tone of 0.00.
+        #
+        # The Yahoo leg is itself one request per screened ticker (~5 min for 123 names,
+        # measured), which is what buys near-universal coverage where the two firehose
+        # feeds reach ~15%. It is inside this same step and needs no new one; a runner
+        # that gets throttled gives up after 8 consecutive failures and publishes the
+        # tickers it did reach, with the rest reported as not attempted.
         continue-on-error: true
         run: python tools/screener_lab.py refresh --tone-only
 

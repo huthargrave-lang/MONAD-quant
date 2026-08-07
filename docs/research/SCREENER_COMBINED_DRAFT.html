@@ -100,6 +100,8 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
 .prov.partial{border-style:dashed}
 .prov h3{margin:0 0 4px;font-size:13px;display:flex;align-items:center;gap:8px}
 .prov p{margin:0;font-size:12.5px;color:var(--ink-2)}
+.prov .src{margin-top:6px;font-size:11.5px;color:var(--ink-muted)}
+.prov .src code{font-family:var(--mono);font-size:11px}
 .chip{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:11px;
   padding:2px 7px;border-radius:999px;border:1px solid var(--rule);color:var(--ink-2);
   background:var(--plane);white-space:nowrap}
@@ -465,8 +467,9 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
          is opened straight off disk, and it must not describe data that is not there.
          applyLivePayload() replaces it with the snapshot's own dates when one is injected. -->
     <div class="note-banner" id="dataBanner"><b>No snapshot reached this page.</b> Every number
-      on this surface comes from a snapshot on disk — fundamentals from <code>stock_screener</code>,
-      Bloomberg/Reddit tone from <code>screener_lab</code>. Opened as a file, or served with
+      on this surface comes from a snapshot on disk — fundamentals and prices from
+      <code>stock_screener</code>, Bloomberg/Reddit/Yahoo tone from <code>screener_lab</code>.
+      Opened as a file, or served with
       neither snapshot built, the page has nothing to show and says so rather than standing in
       figures of its own. Board: drag a card header onto the edge of another pane to split it
       there, onto its centre to swap, <b>×</b> to park it in the tray above, and drag any
@@ -476,7 +479,11 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
     <h1>Cheap &amp; growing — fundamentals with tone kept honest</h1>
     <p class="lede">One surface. The cloud is still P/E × growth (bubbles = composite rank).
       Tone is a separate column and a ring on the plot — never blended into the fill unless
-      you ask. No coverage, untoned, and scored zero stay three different marks.</p>
+      you ask. No coverage, untoned, and scored zero stay three different marks.
+      Three tone sources, and they are not the same kind of evidence: Bloomberg and Reddit are
+      broad feeds that reach a ticker only when the text names it, while Yahoo's headline RSS
+      is requested <em>per ticker</em>, so nearly every name has a reading — bought by asking
+      the source directly, not by reading it better.</p>
 
     <div class="presets" id="presets">
       <button type="button" class="on" data-p="low_pe_high_growth">Low P/E · high growth</button>
@@ -491,6 +498,7 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
       <button type="button" data-p="chaos_hedges">Chaos hedges</button>
       <button type="button" data-p="bloomberg_tone">Bloomberg tone</button>
       <button type="button" data-p="reddit_tone">Reddit tone</button>
+      <button type="button" data-p="yahoo_tone">Yahoo tone</button>
       <button type="button" data-p="custom" class="custom" aria-expanded="false">+ custom</button>
     </div>
 
@@ -590,10 +598,16 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
         <select id="sector"><option value="any" selected>every sector</option></select>
       </label>
       <label>Tone source
+        <!-- Each button names a VENDOR, never a quality: Yahoo reaches nearly every
+             ticker because its feed is keyed by ticker, which is a fact about plumbing
+             and not about the reading. "All" stacks the three rather than merging them,
+             because three counts behind one averaged number is the collapse this page
+             exists to refuse. -->
         <span class="tone-toggle" id="toneSrc">
           <button type="button" class="on" data-src="bloomberg">Bloomberg</button>
           <button type="button" data-src="reddit">Reddit</button>
-          <button type="button" data-src="both">Both</button>
+          <button type="button" data-src="yahoo">Yahoo</button>
+          <button type="button" data-src="all">All</button>
           <button type="button" data-src="none">None</button>
         </span>
       </label>
@@ -750,7 +764,10 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
       </div>
     </div>
 
-    <footer>Fundamentals from <code>stock_screener</code>, tone from <code>screener_lab</code> ·
+    <footer>Fundamentals and prices from <code>stock_screener</code>, tone from
+      <code>screener_lab</code> — Bloomberg public RSS, Reddit public Atom feeds, and Yahoo
+      Finance's public per-ticker headline RSS, each scored by the same finance lexicon ·
+      no vendor sentiment score is involved, and no model ·
       shadow-debt tags are editorial study objects, not measured notionals · not investment advice</footer>
   </main>
 </div>
@@ -1139,7 +1156,11 @@ const LENS_VIEWS = {
   low_pe_high_dividend: ["plot","rank","price"],
   safety_low_debt:      ["plot","dist","rank"],
   high_ai_exposure:     ["plot","shadow","rank"],
-  ai_shadow_debt:       ["shadow","plot","rank"],
+  // Not "rank": this lens ranks on `de`, which is exactly what the shadow chart's solid
+  // bars already plot, in the same order — the pane re-drew that chart minus the bucket
+  // colours and the unmeasured-leg marker. The distribution answers a different question
+  // about the same field: where the tagged names sit against the whole universe.
+  ai_shadow_debt:       ["shadow","plot","dist"],
   low_ai_exposure:      ["plot","dist","price"],
   most_volatile:        ["plot","dist","price"],
   most_active:          ["plot","rank","price"],
@@ -1150,6 +1171,7 @@ const LENS_VIEWS = {
   // scrolled to be read at all. The ranking and the documents behind it sit alongside.
   bloomberg_tone:       ["card","rank","tone"],
   reddit_tone:          ["card","rank","tone"],
+  yahoo_tone:           ["card","rank","tone"],
 };
 
 let boardTree = null;
@@ -1813,13 +1835,23 @@ function fmtBig(v){
    anything" — which is not the same reading as "opinion balanced to zero" off twenty
    headlines. Every lens, chart and card asks these three functions, so the distinction
    cannot hold in one place and quietly lapse in another. */
-function toneCov(r, src){ return (src === "reddit" ? r.rd_c : r.bb_c) || 0; }
+/* One table mapping a source to its three payload fields. Two sources fitted in a ternary;
+   three do not, and the failure mode of a ternary edited in nine places is a page that
+   half-knows about a source — the plot ringing covered names while the lens excludes them,
+   with nothing to say which is right. */
+const TONE_FIELDS = {
+  bloomberg: {tone:"bb", cov:"bb_c", toned:"bb_t", label:"Bloomberg", tag:"BB"},
+  reddit:    {tone:"rd", cov:"rd_c", toned:"rd_t", label:"Reddit",    tag:"RD"},
+  yahoo:     {tone:"yh", cov:"yh_c", toned:"yh_t", label:"Yahoo",     tag:"YH"},
+};
+const TONE_SOURCES = Object.keys(TONE_FIELDS);
+function toneField(src){ return TONE_FIELDS[src] || TONE_FIELDS.bloomberg; }
+function toneCov(r, src){ return r[toneField(src).cov] || 0; }
 function toneCovered(r, src){
-  const t = src === "reddit" ? r.rd : r.bb;
-  return t != null && toneCov(r, src) > 0;
+  return r[toneField(src).tone] != null && toneCov(r, src) > 0;
 }
 function toneMetric(r, src){
-  return toneCovered(r, src) ? (src === "reddit" ? r.rd : r.bb) : null;
+  return toneCovered(r, src) ? r[toneField(src).tone] : null;
 }
 function fmtTone(v){ return (v > 0 ? "+" : "") + v.toFixed(2); }
 function fmtDocs(n){ return n + (n === 1 ? " doc" : " docs"); }
@@ -1838,6 +1870,8 @@ const METRICS = {
           sub:r=>fmtDocs(toneCov(r,"bloomberg"))},
   rd:    {label:"Reddit post tone",        get:r=>toneMetric(r,"reddit"),    fmt:fmtTone,
           sub:r=>fmtDocs(toneCov(r,"reddit"))},
+  yh:    {label:"Yahoo headline tone",     get:r=>toneMetric(r,"yahoo"),     fmt:fmtTone,
+          sub:r=>fmtDocs(toneCov(r,"yahoo"))},
 };
 /* rank = what the lens sorts on; x = the axis the lens is arguing about. */
 const LENS_SPEC = {
@@ -1853,10 +1887,12 @@ const LENS_SPEC = {
   chaos_hedges:         {rank:"beta",  x:"pe"},
   bloomberg_tone:       {rank:"bb",    x:"bb"},
   reddit_tone:          {rank:"rd",    x:"rd"},
+  yahoo_tone:           {rank:"yh",    x:"yh"},
 };
-/* The two lenses whose membership test is coverage rather than a threshold. Keyed by the
-   tone source so the source toggle, the headline tile and the lens cannot disagree. */
-const TONE_LENSES = {bloomberg_tone:"bloomberg", reddit_tone:"reddit"};
+/* The lenses whose membership test is coverage rather than a threshold. Keyed by the tone
+   source so the source toggle, the headline tile and the lens cannot disagree. */
+const TONE_LENSES = {bloomberg_tone:"bloomberg", reddit_tone:"reddit",
+                     yahoo_tone:"yahoo"};
 function toneLensSrc(){ return TONE_LENSES[preset] || null; }
 function lensSpec(){ return LENS_SPEC[preset] || {rank:"score", x:"pe"}; }
 function esc(s){
@@ -2101,26 +2137,45 @@ function deleteCustomLens(id){
 /* A short lens on a thin window has to account for who is missing, by name — otherwise the
    reader fills the gap with an assumption, and the assumption is always "scored zero". */
 function toneLensNote(src){
-  const label = src === "reddit" ? "Reddit" : "Bloomberg";
+  const label = toneField(src).label;
   const covered = ROWS.filter(r => toneCovered(r, src));
   const silent  = ROWS.filter(r => !toneCovered(r, src) && !toneCov(r, src));
   const untoned = ROWS.filter(r => !toneCovered(r, src) && toneCov(r, src));
   let s = "<b>" + covered.length + " of " + ROWS.length + " names carry " + label
     + " coverage in this snapshot.</b> A lens on tone can only hold names some document"
-    + " actually named. <b>No coverage is not a tone of 0.00</b> — an unmentioned name is"
+    + (src === "yahoo" ? " was filed under." : " actually named.")
+    + " <b>No coverage is not a tone of 0.00</b> — an uncovered name is"
     + " absent from this lens rather than scored zero, and the list is never padded to look"
     + " fuller.";
   if(silent.length)
-    s += " Absent, nothing named them: <b>" + silent.map(r => esc(r.tk)).join(", ") + "</b>.";
+    s += (src === "yahoo" ? " Absent, their own feed returned nothing: <b>"
+                          : " Absent, nothing named them: <b>")
+      + silent.map(r => esc(r.tk)).join(", ") + "</b>.";
   if(untoned.length)
-    s += " Absent, named but no tone word: <b>" + untoned.map(r => esc(r.tk)).join(", ")
-      + "</b>.";
+    s += (src === "yahoo" ? " Absent, filed but no tone word: <b>"
+                          : " Absent, named but no tone word: <b>")
+      + untoned.map(r => esc(r.tk)).join(", ") + "</b>.";
   if(!silent.length && !untoned.length)
-    s += " Every loaded name carries coverage in this window — unusual, and worth checking"
-      + " against the provider counts above before it is read as normal.";
-  return s + " Tone is lexicon tone over the fetched documents, not a vendor sentiment"
+    s += " Every loaded name carries coverage in this window — expected on Yahoo, whose feed"
+      + " is keyed by ticker; on a firehose source it would be worth checking against the"
+      + " provider counts above before it is read as normal.";
+  s += " Tone is lexicon tone over the fetched documents, not a vendor sentiment"
     + " score; every reading is shown with the document count behind it.";
+  return s + (src === "yahoo" ? " " + YAHOO_ATTRIBUTION_NOTE : "");
 }
+/* Said wherever the Yahoo number is read at scale, not once in a footnote. The per-ticker
+   feed removes the guess about WHICH company an item belongs to; it does not establish that
+   the item is ABOUT that company, and the round-ups are the standing counter-example. */
+const YAHOO_ATTRIBUTION_NOTE =
+  "Yahoo's items arrive <b>filed under the ticker by Yahoo</b> rather than matched to it by"
+  + " this page — which is why coverage is near-universal, and it is a narrower claim than"
+  + " accuracy. Yahoo files sector and market round-ups under individual symbols"
+  + " (“Sector Update: Energy Stocks Mixed” under a coal miner, a nuclear round-up under"
+  + " NVDA). An item filed under more than three screened names is dropped as a round-up;"
+  + " one filed under a single name is <b>kept and indistinguishable</b>, so a reading here"
+  + " can rest on sector news. Each document card says whether the text also names the"
+  + " company (<code>ticker-feed+named</code>) or rests on the feed key alone"
+  + " (<code>ticker-feed</code>).";
 /* Zero matches is a result, not a rendering failure — it is said in words here and in each
    chart rather than left as a frame with nothing in it. */
 function renderLensNote(){
@@ -2619,7 +2674,9 @@ document.addEventListener("keydown", (ev)=>{
 });
 
 function sourceLabel(){
-  return ({bloomberg:"Bloomberg", reddit:"Reddit", both:"Both", none:"None"})[source] || source;
+  if(source === "all") return "All";
+  if(source === "none") return "None";
+  return TONE_FIELDS[source] ? TONE_FIELDS[source].label : source;
 }
 /* The toggle's pressed state and the `source` variable are one fact, so they are written in
    one place — a lens can switch the source without the buttons falling out of step. */
@@ -2632,18 +2689,24 @@ function setToneSource(src){
 function toneOf(r, src){
   src = src || source;
   if(src==="none") return {tone:null, cov:0, toned:0, off:true};
-  if(src==="bloomberg") return {tone:r.bb, cov:r.bb_c||0, toned:r.bb_t||0};
-  if(src==="reddit") return {tone:r.rd, cov:r.rd_c||0, toned:r.rd_t||0};
-  // both: prefer a reading if either side has one; flag hasTone if either toned
-  const bb={tone:r.bb, cov:r.bb_c||0, toned:r.bb_t||0};
-  const rd={tone:r.rd, cov:r.rd_c||0, toned:r.rd_t||0};
-  const has = bb.tone!=null || rd.tone!=null;
-  return {
-    tone: has ? ((bb.tone||0)+(rd.tone||0))/((bb.tone!=null?1:0)+(rd.tone!=null?1:0)) : null,
-    cov: bb.cov+rd.cov,
-    toned: (bb.toned||0)+(rd.toned||0),
-    bb, rd, both:true
-  };
+  if(TONE_FIELDS[src]){
+    const f = TONE_FIELDS[src];
+    return {tone:r[f.tone], cov:r[f.cov]||0, toned:r[f.toned]||0};
+  }
+  // "all": the mean of the readings that EXIST. A source that said nothing contributes no
+  // term to the average rather than a 0 — averaging in an absence is exactly the collapse
+  // the rest of this page refuses, and it would drag every reading toward neutral.
+  const parts = {};
+  let sum = 0, n = 0, cov = 0, toned = 0;
+  TONE_SOURCES.forEach(s=>{
+    const f = TONE_FIELDS[s];
+    const one = {tone:r[f.tone], cov:r[f.cov]||0, toned:r[f.toned]||0};
+    parts[s] = one;
+    if(one.tone != null){ sum += one.tone; n += 1; }
+    cov += one.cov;
+    toned += one.toned;
+  });
+  return {tone: n ? sum/n : null, cov, toned, parts, sources:n, all:true};
 }
 
 /* One threshold table for the chip colour, so the table cell and the detail card cannot end
@@ -2663,13 +2726,12 @@ function toneChip(t){
 function toneCell(r){
   if(source==="none")
     return `<span class="muted-cell">—</span>`;
-  if(source==="both"){
-    const bb=toneOf(r,"bloomberg"), rd=toneOf(r,"reddit");
-    return `<div style="display:flex;flex-direction:column;gap:6px">
-      <div><span class="muted-cell">BB </span>${toneChip(bb)}</div>
-      <div><span class="muted-cell">RD </span>${toneChip(rd)}</div>
-    </div>`;
-  }
+  if(source==="all")
+    // Stacked, never merged into one chip: three sources with three coverage counts are
+    // three readings, and a single averaged number would hide which one is carrying it.
+    return `<div style="display:flex;flex-direction:column;gap:6px">` + TONE_SOURCES.map(s=>
+      `<div><span class="muted-cell">${TONE_FIELDS[s].tag} </span>${toneChip(toneOf(r,s))}</div>`
+    ).join("") + `</div>`;
   return toneChip(toneOf(r));
 }
 
@@ -2980,8 +3042,10 @@ function renderTable(){
           + ` <span class="muted-cell">no tone</span> in the score cell.`;
       const toneSrc = toneLensSrc();
       if(toneSrc)
-        why.innerHTML += ` Names no ${toneSrc === "reddit" ? "Reddit post" : "Bloomberg headline"}`
-          + ` mentioned are <b>missing from this list</b> rather than listed at 0.00 — the tone`
+        why.innerHTML += ` Names ${toneSrc === "yahoo"
+            ? "whose own Yahoo feed returned nothing"
+            : "no " + toneField(toneSrc).label + " document mentioned"}`
+          + ` are <b>missing from this list</b> rather than listed at 0.00 — the tone`
           + ` column carries the document count so a reading off one item cannot be mistaken`
           + ` for a reading off twenty.`;
     }
@@ -3034,21 +3098,27 @@ function dcCell(label, value, extra){
 /* Absence keeps its meaning here too: a null tone is "no coverage", never a printed 0.00. */
 function dcTone(r, src){
   const t = toneOf(r, src);
-  const label = src === "reddit" ? "Reddit tone" : "Bloomberg tone";
+  const label = toneField(src).label + " tone";
+  // Yahoo's documents arrive filed under the ticker rather than matched to it, so "named
+  // it" would be the wrong verb for that card — and the difference is the whole reason the
+  // two attributions are worth telling apart at the point the number is read.
+  const verb = src === "yahoo" ? "filed under it" : "mentioned it";
   let body;
   if(toneCovered(r, src))
     body = '<span class="chip ' + toneSev(t.tone) + '"><span class="dot"></span>'
       + fmtTone(t.tone) + '</span>'
-      + '<span class="dc-cov">' + fmtDocs(t.cov) + ' mentioned it · ' + t.toned
+      + '<span class="dc-cov">' + fmtDocs(t.cov) + ' ' + verb + ' · ' + t.toned
       + ' carried a tone word</span>';
   else if(t.cov)
     body = '<span class="chip warning"><span class="dot"></span>untoned</span>'
-      + '<span class="dc-cov">' + fmtDocs(t.cov) + ' named it, none carried a tone word —'
-      + ' no reading, not 0.00</span>';
+      + '<span class="dc-cov">' + fmtDocs(t.cov) + ' ' + verb + ', none carried a tone'
+      + ' word — no reading, not 0.00</span>';
   else
     body = '<span class="chip">no coverage</span>'
-      + '<span class="dc-cov">nobody named this ticker in the fetched window. Absent, not'
-      + ' 0.00.</span>';
+      + '<span class="dc-cov">' + (src === "yahoo"
+          ? 'this ticker\'s own feed returned nothing in this snapshot'
+          : 'nobody named this ticker in the fetched window')
+      + '. Absent, not 0.00.</span>';
   return '<div class="dc-block"><h5>' + label + '</h5>' + body + '</div>';
 }
 function dcShadow(r){
@@ -3105,15 +3175,25 @@ function drawCard(){
       + dcCell("Bucket",        esc(r.bucket || "—"))
     + '</div>'
     + dcShadow(r)
-    + '<div class="dc-tone">' + dcTone(r, "bloomberg") + dcTone(r, "reddit") + '</div>'
-    + '<p class="dc-note">Both sources show regardless of the Tone-source toggle — this card'
-    + ' is the whole row. Lexicon tone over fetched documents, not a vendor score.</p>';
+    + '<div class="dc-tone">' + TONE_SOURCES.map(s => dcTone(r, s)).join("") + '</div>'
+    + '<p class="dc-note">All three sources show regardless of the Tone-source toggle — this'
+    + ' card is the whole row. Lexicon tone over fetched documents, not a vendor score.'
+    + ' Bloomberg and Reddit reach a ticker by naming it; Yahoo\'s items are filed under the'
+    + ' ticker by Yahoo, which is why its coverage is wide and why a sector round-up filed'
+    + ' under one name can still sit behind its reading.</p>';
 }
 
 /* Headline documents, keyed source → ticker, straight from the tone snapshot. Empty until one
    is injected: a headline is a thing somebody published, and there is no honest placeholder
    for one. */
-let HEADLINES = {bloomberg:{}, reddit:{}};
+let HEADLINES = {bloomberg:{}, reddit:{}, yahoo:{}};
+
+/* How a document came to be attached to this ticker, in words, per source. Bloomberg and
+   Reddit MATCH text; Yahoo's feed is keyed by ticker and the item is FILED there. Reading a
+   filed item as "it named the company" is the overclaim this source most invites, so the
+   two never share a sentence. */
+function arrivedVerb(src){ return src === "yahoo" ? "were filed under it" : "matched"; }
+function filedVerb(src){ return src === "yahoo" ? "is filed under" : "names"; }
 
 /* The tone tile's own account of why it is empty. It is parked when the payload carries no
    tone snapshot at all, so this is what the reader sees if they place it regardless. */
@@ -3143,27 +3223,36 @@ function renderHeadlines(){
     document.getElementById("headlinesTitle").textContent = "Tone off · "+selected;
     box.innerHTML=`<div class="tone-card"><div class="tk">${selected}</div>
       <div class="hd"><span class="muted-cell">Tone hidden</span></div>
-      <div class="meta">Pick Bloomberg, Reddit, or Both to show document tone again.</div></div>`;
+      <div class="meta">Pick Bloomberg, Reddit, Yahoo or All to show document tone again.</div></div>`;
     return;
   }
-  if(source==="both"){
-    document.getElementById("headlinesTitle").textContent = "Both sources · "+selected;
+  if(source==="all"){
+    document.getElementById("headlinesTitle").textContent = "All sources · "+selected;
     const parts=[];
-    for(const src of ["bloomberg","reddit"]){
+    for(const src of TONE_SOURCES){
       const bag=(HEADLINES[src]||{})[selected];
       const t=toneOf(r||{}, src);
-      const tag=src==="bloomberg"?"BB":"RD";
+      const tag=TONE_FIELDS[src].tag;
       if(!bag){
+        // Three different absences, and the third is not an absence at all: a reading with
+        // no documents beside it means the payload carried the score and withheld the text
+        // (the published build does exactly that), which must not read as "nothing found".
+        const why = t.tone!=null
+          ? `${t.toned} of ${t.cov} item(s) carried a tone word; this build did not pack the
+             items themselves.`
+          : (t.cov ? `${t.cov} item(s) ${arrivedVerb(src)}, none carried a tone word.`
+                   : `no document in this snapshot ${filedVerb(src)} ${esc(selected)}.`);
         parts.push(`<div class="tone-card"><div class="tk">${tag} · ${selected}</div>
           <div class="hd">${t.tone==null && !t.cov?'<span class="chip">no coverage</span>':
             (t.tone==null?'<span class="chip warning"><span class="dot"></span>untoned</span>':
             `${t.tone>0?"+":""}${t.tone.toFixed(2)}`)}</div>
-          <div class="meta">${src} — no document in this snapshot names ${esc(selected)}.</div></div>`);
+          <div class="meta">${esc(TONE_FIELDS[src].label)} — ${why}</div></div>`);
       } else {
         const head=t.tone!=null?`${tag} · ${selected} · ${t.tone>0?"+":""}${t.tone.toFixed(2)}`:`${tag} · ${selected}`;
         // Headline text is feed copy, not this page's own markup.
         bag.forEach(d=>parts.push(`<div class="tone-card"><div class="tk">${head}</div>
-          <div class="hd">${esc(d.h)}</div><div class="meta">${src} · ${esc(d.m||"")}</div></div>`));
+          <div class="hd">${esc(d.h)}</div>
+          <div class="meta">${esc(TONE_FIELDS[src].label)} · ${esc(d.m||"")}</div></div>`));
       }
     }
     box.innerHTML=parts.join("");
@@ -3177,11 +3266,13 @@ function renderHeadlines(){
     if(t.tone==null && !(t.cov)){
       box.innerHTML=`<div class="tone-card"><div class="tk">${selected}</div>
         <div class="hd"><span class="chip">no coverage</span></div>
-        <div class="meta">Nobody named this ticker in the fetched window.</div></div>`;
+        <div class="meta">${source==="yahoo"
+          ? "This ticker’s own feed returned nothing in the fetched window."
+          : "Nobody named this ticker in the fetched window."}</div></div>`;
     } else if(t.tone==null){
       box.innerHTML=`<div class="tone-card"><div class="tk">${selected}</div>
         <div class="hd"><span class="chip warning"><span class="dot"></span>untoned</span></div>
-        <div class="meta">${t.cov} item(s) matched, none carried a tone word.</div></div>`;
+        <div class="meta">${t.cov} item(s) ${arrivedVerb(source)}, none carried a tone word.</div></div>`;
     } else {
       // A reading with no documents behind it in the payload: the tone is real, the packing
       // step just did not carry the items it was computed from. Say that, do not invent them.
@@ -3230,8 +3321,8 @@ function renderNoData(){
       + " dollar volume, sector and the AI-shadow tags. Build with"
       + " <code>venv/bin/python tools/stock_screener.py fetch</code>.");
   if(!live || !live.has_sentiment)
-    fixes.push("<b>Bloomberg / Reddit tone</b> — headline documents and the lexicon tone"
-      + " readings over them. Build with <code>"
+    fixes.push("<b>Bloomberg / Reddit / Yahoo tone</b> — headline documents and the lexicon"
+      + " tone readings over them. Build with <code>"
       + esc((live && live.refresh_cmd) || "venv/bin/python tools/screener_lab.py refresh")
       + "</code>.");
   document.getElementById("noDataFixes").innerHTML =
@@ -3246,7 +3337,9 @@ function renderNoData(){
 
 function render(){
   const col = source==="none" ? "Tone" :
-    (source==="both" ? "Tone (BB · RD)" : sourceLabel()+" tone");
+    (source==="all"
+      ? "Tone (" + TONE_SOURCES.map(s=>TONE_FIELDS[s].tag).join(" · ") + ")"
+      : sourceLabel()+" tone");
   document.getElementById("toneCol").textContent=col;
   renderNoData();
   renderFilterCount();
@@ -3268,9 +3361,9 @@ function readDataPresence(live){
   const hasPrice = !!hist && Object.keys(hist).some(
     tk => Array.isArray(hist[tk]) && hist[tk].length >= 2);
   const docs = (live && live.headlines) || {};
-  const hasDocs = ["bloomberg", "reddit"].some(
+  const hasDocs = TONE_SOURCES.some(
     src => docs[src] && Object.keys(docs[src]).length);
-  const hasCoverage = ROWS.some(r => (r.bb_c || 0) > 0 || (r.rd_c || 0) > 0);
+  const hasCoverage = ROWS.some(r => TONE_SOURCES.some(src => toneCov(r, src) > 0));
   return {price: hasPrice, tone: hasDocs || hasCoverage};
 }
 
@@ -3310,9 +3403,13 @@ function applyLivePayload(){
   if(panels && keys.length){
     panels.innerHTML = keys.map(k=>{
       const p = prov[k] || {};
+      // The remedy prints only when the source carries one — a card that says "off" and
+      // nothing else sends the reader to the vendor to find out what to do about it.
+      const fix = p.remedy
+        ? `<p class="src">Fix: <code>${esc(p.remedy)}</code></p>` : "";
       return `<div class="prov ${p.state&&p.state!=="live"?"partial":""}">
         <h3>${esc(p.label||k)} <span class="chip ${sev(p.state)}"><span class="dot"></span>${esc(word(p.state))}</span></h3>
-        <p>${esc(p.headline||p.detail||"No provider line in the snapshot.")}</p>
+        <p>${esc(p.headline||p.detail||"No provider line in the snapshot.")}</p>${fix}
       </div>`;
     }).join("");
   }

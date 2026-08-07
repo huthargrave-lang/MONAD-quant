@@ -27,7 +27,11 @@ body{margin:0;background:var(--plane);color:var(--ink);font:15px/1.55 var(--sans
 a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
 code{font-family:var(--mono);font-size:12px}
 
-.shell{display:grid;grid-template-columns:232px minmax(0,1fr);gap:0;min-height:100vh}
+/* 70%, matching every other surface. On the shell rather than on main so the rail
+   scales with the body — a full-size rail beside a shrunken page reads as broken.
+   min-height compensates for the scale so the shell still fills the viewport. */
+.shell{display:grid;grid-template-columns:232px minmax(0,1fr);gap:0;
+  zoom:.7;min-height:calc(100vh / .7)}
 .rail{border-right:1px solid var(--rule);background:var(--surface);padding:20px 0 40px}
 .rail .brand{padding:0 18px 16px;border-bottom:1px solid var(--rule);margin-bottom:14px}
 .rail .brand b{display:block;font-family:var(--mono);font-size:13px;letter-spacing:.06em;

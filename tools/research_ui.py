@@ -90,7 +90,13 @@ a:hover{text-decoration:underline}
 code,.mono,th,td.num{font-family:var(--mono)}
 
 /* ── shell ─────────────────────────────────────────────────────────────── */
-.shell{display:grid;grid-template-columns:232px minmax(0,1fr);gap:0;min-height:100vh}
+/* Every surface renders at 70%. On the shell rather than on main so the rail scales with
+   the body — a full-size rail beside a shrunken page reads as broken. min-height
+   compensates for the scale so the shell still fills the viewport. The context map is
+   deliberately NOT scaled here: it runs its own d3 zoom/pan, and a CSS zoom on top makes
+   the two coordinate systems disagree, which breaks orb hit-testing. */
+.shell{display:grid;grid-template-columns:232px minmax(0,1fr);gap:0;
+  zoom:.7;min-height:calc(100vh / .7)}
 .rail{border-right:1px solid var(--rule);background:var(--surface);padding:20px 0 40px}
 .rail .brand{padding:0 18px 16px;border-bottom:1px solid var(--rule);margin-bottom:14px}
 .rail .brand b{display:block;font-family:var(--mono);font-size:13px;letter-spacing:.06em;
@@ -129,7 +135,7 @@ p{margin:0 0 12px;color:var(--ink-2);max-width:68ch}
 .screen-plot{max-width:none}
 .plot.wide{max-width:1060px}
 /* Full-screen surfaces (screener) — same sizing as the buckets mock page. */
-main.wide{max-width:none;zoom:1.2}
+main.wide{max-width:none}
 /* An absent number is set in muted ink and NOT in the tabular numeric face, so a
    missing P/E cannot be skimmed as though it were a small one. The sentiment screen
    leans on this: `—` and `0.00` have to look like different kinds of thing. */
@@ -2488,7 +2494,7 @@ def page_sentiment(mounts, query):
 
     providers = screener_lab.providers_from_snapshot(snapshot)
     source = query.get("source") or "bloomberg"
-    if source not in ("bloomberg", "reddit"):
+    if source not in screener_lab.TONE_SOURCES:
         source = "bloomberg"
 
     def number(key, default=None):
@@ -2561,7 +2567,8 @@ def page_sentiment(mounts, query):
             v=esc(name), s=" selected" if sector == name else ""))
     body.append("</select></label>")
     body.append('<label class="field"><span>Tone source</span><select name="source">')
-    for key, label in (("bloomberg", "Bloomberg"), ("reddit", "Reddit")):
+    for key, label in (("bloomberg", "Bloomberg"), ("reddit", "Reddit"),
+                       ("yahoo", "Yahoo (per-ticker)")):
         body.append('<option value="{k}"{s}>{l}</option>'.format(
             k=key, l=label, s=" selected" if source == key else ""))
     body.append("</select></label>")
@@ -3736,18 +3743,94 @@ def _research_groups_html(mounts):
     return 200, _MOCK_RAIL.sub(_nav("/web/groups", mounts), html, count=1), HTML
 
 
+#: screener_lab's own provider list describes how ITS snapshot was built. On this page
+#: that snapshot supplies tone and nothing else, so its fundamentals leg — deliberately
+#: skipped in a tone-only build, and correctly reported as such on `/sentiment` — has no
+#: business in a panel sitting above 123 rows of live P/E, growth and beta. Published
+#: as-is it read "Fundamentals (yfinance) · off" beside a working fundamentals table, and
+#: a reader can only conclude one of the two is lying. The page names its own sources
+#: below; this one is filtered out rather than reworded, because the wording is right
+#: where it belongs and wrong only here.
+_SENTIMENT_ONLY_PROVIDERS = ("fundamentals",)
+
+
+def _provider_card(label, state, headline, detail, remedy="", documents=0):
+    return {"label": label, "state": state, "headline": headline, "detail": detail,
+            "remedy": remedy, "documents": documents}
+
+
+def _combined_draft_providers(fund, prices, sent):
+    """What actually feeds THIS page, each leg with its own measured state.
+
+    Three sources, three owners: fundamentals and price history come from
+    `stock_screener`'s caches, tone comes from `screener_lab`. A leg that is genuinely
+    missing is still LISTED, marked off, and given the command that fixes it — an absent
+    source that vanishes from the panel reads as a source that found nothing.
+    """
+    providers = {}
+    if fund:
+        rows = fund.get("rows") or []
+        providers["fundamentals"] = _provider_card(
+            "Fundamentals (stock_screener)", screener_lab.LIVE,
+            "{} rows as of {} — P/E, growth, dividend, debt/equity, beta, $ volume".format(
+                len(rows), fund.get("as_of") or "?"),
+            "Read from stock_screener's own snapshot on disk; this page never fetches "
+            "while it is being served. A field the vendor did not supply stays absent on "
+            "the row rather than defaulting to 0.", "", len(rows))
+    else:
+        providers["fundamentals"] = _provider_card(
+            "Fundamentals (stock_screener)", screener_lab.UNAVAILABLE,
+            "no fundamentals snapshot on disk — every P/E, growth and beta cell is absent",
+            "The page reads this snapshot off disk and draws nothing of its own, so with "
+            "it missing there is no value or growth reading for any name.",
+            "venv/bin/python tools/stock_screener.py fetch", 0)
+    if prices:
+        series = prices.get("series") or {}
+        shown = sum(1 for tk in series if tk)
+        providers["prices"] = _provider_card(
+            "Price history (stock_screener)", screener_lab.LIVE,
+            "{} series as of {} — {} daily closes each".format(
+                shown, prices.get("as_of") or "?", prices.get("bars") or "?"),
+            "Daily closes for the screened names, indexed to 100 on the price tile. "
+            "A name with no series is left undrawn rather than interpolated.", "", shown)
+    else:
+        providers["prices"] = _provider_card(
+            "Price history (stock_screener)", screener_lab.UNAVAILABLE,
+            "no price cache on disk — the price tile has no series to draw",
+            "The price tile parks itself and says so; no history is derived from the "
+            "single-instant fields the rows do carry.",
+            "venv/bin/python tools/stock_screener.py prices", 0)
+    if not sent:
+        providers["tone"] = _provider_card(
+            "Tone (screener_lab)", screener_lab.UNAVAILABLE,
+            "no tone snapshot on disk — every tone cell is absent, none is 0.00",
+            "Bloomberg, Reddit and Yahoo tone all come from one snapshot written by "
+            "screener_lab. With none built, no name has a reading — which is not the "
+            "same as every name reading neutral.",
+            screener_lab.REFRESH_CMD + " --tone-only", 0)
+        return providers
+    for p in sent.get("providers") or []:
+        key = p.get("key")
+        if key in _SENTIMENT_ONLY_PROVIDERS:
+            continue
+        providers[key] = _provider_card(
+            p.get("label"), p.get("state"), p.get("headline"), p.get("detail"),
+            p.get("remedy") or "", p.get("documents") or 0)
+    return providers
+
+
 def _screener_combined_draft_payload():
     """Join fund + sentiment snapshots into the draft's row/headline shape.
 
-    Tone cells come from screener_lab (Bloomberg/Reddit RSS lexicon scores). Fundamentals
-    and shadow-debt tags come from stock_screener. The shadow number in the table is
-    on-BS debt/equity % — the incomplete visible leg — not a fabricated multiple.
+    Tone cells come from screener_lab (Bloomberg, Reddit and Yahoo lexicon scores).
+    Fundamentals and shadow-debt tags come from stock_screener. The shadow number in the
+    table is on-BS debt/equity % — the incomplete visible leg — not a fabricated multiple.
     """
     fund = stock_screener.load_snapshot()
     sent = screener_lab.load_snapshot()
     prices = stock_screener.load_prices()
     sent_by = {r["ticker"]: r for r in (sent or {}).get("rows") or []}
-    headlines = {"bloomberg": {}, "reddit": {}}
+    headlines = {source: {} for source in screener_lab.TONE_SOURCES}
 
     def pack_docs(docs, limit=4):
         out = []
@@ -3795,12 +3878,10 @@ def _screener_combined_draft_payload():
             vol_s = stock_screener.fmt_metric({"dollar_volume": vol}, "dollar_volume")
         else:
             vol_s = "—"
-        bb_docs = sr.get("bloomberg_docs") or []
-        rd_docs = sr.get("reddit_docs") or []
-        if bb_docs:
-            headlines["bloomberg"][tk] = pack_docs(bb_docs)
-        if rd_docs:
-            headlines["reddit"][tk] = pack_docs(rd_docs)
+        for source in screener_lab.TONE_SOURCES:
+            docs = sr.get(source + "_docs") or []
+            if docs:
+                headlines[source][tk] = pack_docs(docs)
         rows.append({
             "tk": tk,
             "name": fr.get("name") or sr.get("name") or tk,
@@ -3820,22 +3901,22 @@ def _screener_combined_draft_payload():
             "shadow": de if tag else None,
             "shadow_tag": tag,
             "score": score,
+            # A missing tone travels as null and is rendered as an absence. `_c`/`_t` are
+            # counts of things that were fetched, so 0 is the true reading for a name
+            # nothing covered — the pair is what stops a null tone being read as neutral.
             "bb": sr.get("bloomberg_tone"),
             "bb_c": sr.get("bloomberg_coverage") or 0,
             "bb_t": sr.get("bloomberg_toned") or 0,
             "rd": sr.get("reddit_tone"),
             "rd_c": sr.get("reddit_coverage") or 0,
             "rd_t": sr.get("reddit_toned") or 0,
+            "yh": sr.get("yahoo_tone"),
+            "yh_c": sr.get("yahoo_coverage") or 0,
+            "yh_t": sr.get("yahoo_toned") or 0,
             "flag": None,
         })
 
-    providers = {}
-    for p in (sent or {}).get("providers") or []:
-        providers[p.get("key")] = {
-            "label": p.get("label"), "state": p.get("state"),
-            "headline": p.get("headline"), "detail": p.get("detail"),
-            "documents": p.get("documents"),
-        }
+    providers = _combined_draft_providers(fund, prices, sent)
     age = None
     if sent:
         _d, age = screener_lab.snapshot_age(sent)

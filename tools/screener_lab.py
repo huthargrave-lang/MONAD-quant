@@ -11,6 +11,8 @@ from being read as one:
     bloomberg  headline tone, Bloomberg public RSS  feeds.bloomberg  LIVE
     reddit     post tone, public Atom feeds         reddit.com/*.rss LIVE, rate-limited
                (richer via OAuth when credentials exist)
+    yahoo      headline tone, per-TICKER public RSS feeds.finance    LIVE, one call per
+               (the only broad-coverage source)     .yahoo.com       ticker
 
 The last row carries the lesson. Reddit's anonymous JSON API answers **403** here —
 verified against `www.reddit.com`, `old.reddit.com`, `api.reddit.com` and
@@ -30,6 +32,29 @@ The same rule applies one level down. A ticker no Bloomberg headline mentions ha
 `tone=None, coverage=0` — NOT `tone=0.0`. A headline containing no lexicon term scores
 `None`, not neutral. "Nobody said anything" and "opinion balanced to zero" are opposite
 findings and must not share a cell.
+
+TWO KINDS OF ATTRIBUTION, KEPT APART
+------------------------------------
+Bloomberg and Reddit are FIREHOSES: ~120 headlines and ~100 posts about everything, and a
+ticker is scored only if the text happens to name it. That match is an inference, and it
+is where this module's worst defects have come from (see §3). Coverage is consequently
+thin — most screened names get none.
+
+Yahoo's headline feed is keyed BY TICKER: the request is `?s=NVDA` and the source itself
+says which company the item is filed under. Nothing is inferred, so nothing is matched,
+so the name-matching rules do not run over it at all — `attach_prefiled_sentiment()` is a
+separate path, and each document records that it arrived through the ticker's own feed so
+a surprising cell is still auditable.
+
+That is a narrower claim than "attribution is now exact", and the difference matters.
+Yahoo files SECTOR AND MARKET ROUNDUPS under individual tickers: "Sector Update: Energy
+Stocks Mixed Late Afternoon" is filed under AREC, and a nuclear-stocks round-up is filed
+under NVDA. The item is about the sector, not the company — the same weakness as a bad
+name match, wearing a different hat. What is done about it: an item filed under more than
+`MAX_FEEDS_PER_DOC` of the screened names is dropped from tone entirely, exactly as a
+Reddit post naming six tickers is. What that does NOT fix: a roundup filed under only one
+or two screened names is indistinguishable, from the feed alone, from a story about that
+company, and it is kept. The page says so where the number is read, not only here.
 
 WHAT "BLOOMBERG SENTIMENT" MEANS HERE, EXACTLY
 ---------------------------------------------
@@ -456,12 +481,16 @@ def _http_get(url, headers=None, timeout=20, data=None, auth=None):
     return requests.get(url, headers=head, timeout=timeout)
 
 
-def parse_rss(xml_text, feed_name):
+def parse_rss(xml_text, feed_name, source="bloomberg"):
     """RSS items as dicts, via stdlib ElementTree.
 
     `feedparser` is not installed and is not added: ElementTree parses this shape, and a
     new third-party dependency for six well-formed feeds is a cost with no return. CDATA
     is transparent to the parser, so titles arrive already unwrapped.
+
+    `source` is a parameter rather than the constant it started as because Yahoo serves
+    the identical RSS 2.0 shape. A second near-copy of this function would have been a
+    second place for a vendor's format change to be half-fixed.
     """
     import xml.etree.ElementTree as ET
     out = []
@@ -476,7 +505,7 @@ def parse_rss(xml_text, feed_name):
         title = field("title")
         if not title:
             continue
-        out.append({"source": "bloomberg", "feed": feed_name, "title": title,
+        out.append({"source": source, "feed": feed_name, "title": title,
                     "body": field("description"), "url": field("link"),
                     "published": field("pubDate")})
     return out
@@ -782,6 +811,132 @@ def fetch_reddit(subreddits=REDDIT_SUBS, limit=100, get=_http_get, env=None,
                               len(docs), len(subreddits) - len(failed)))
 
 
+YAHOO_FEED = ("https://feeds.finance.yahoo.com/rss/2.0/headline"
+              "?s={}&region=US&lang=en-US")
+
+#: Politeness, not throttle-avoidance: no response carries a rate-limit header, and every
+#: ticker probed — megacaps and thin small caps alike — answered 200 with 20 items. The
+#: pause is what keeps 123 sequential requests from arriving as a burst.
+#:
+#: It is NOT what makes the pull slow, and the difference matters for anyone tempted to
+#: tune it. An 8-ticker probe ran at ~0.36 s per request; the full 123-ticker run measured
+#: ~2.4 s per request end to end (318 s), of which this pause is 0.2. The endpoint gets
+#: slower under a sustained sequential pull; dropping the pause would buy back 25 seconds
+#: of five minutes.
+YAHOO_PAUSE_SECONDS = 0.2
+
+#: Below the module default because this is 123 sequential requests: at 20 s, two hung
+#: feeds cost more than the entire pacing budget. One did hang in the first live run.
+YAHOO_TIMEOUT = 10
+
+#: A source that is down should be reported in seconds, not walked ticker by ticker for
+#: two minutes to prove it. Consecutive failures — never a scattered few — mean the
+#: endpoint is gone, and the remaining tickers are reported as NOT ATTEMPTED rather than
+#: quietly folded in with the ones that genuinely answered nothing.
+YAHOO_GIVE_UP_AFTER = 8
+
+#: One megacap and one thin small cap, because "the endpoint answers" and "the endpoint
+#: answers for names nobody covers" are different questions and only the second one is
+#: interesting about a per-ticker feed.
+YAHOO_PROBE_TICKERS = ("NVDA", "UAMY")
+
+YAHOO_CAVEAT = (
+    "Yahoo Finance's PUBLIC per-ticker headline RSS — title + description of the ~20 most "
+    "recent items filed under each symbol. This is headline tone over a small recent "
+    "window, scored by the same lexicon as the other two sources; it is NOT a vendor "
+    "sentiment score and Yahoo does not supply one here. Because the feed is keyed by "
+    "ticker, coverage is near-universal rather than incidental — but Yahoo also files "
+    "SECTOR AND MARKET ROUND-UPS under individual symbols, so a reading can rest on an "
+    "item that is about the sector rather than the company.")
+
+
+def fetch_yahoo(tickers, get=_http_get, sleep=None, pause=YAHOO_PAUSE_SECONDS,
+                give_up_after=YAHOO_GIVE_UP_AFTER):
+    """Yahoo per-ticker headline documents + this run's provider state.
+
+    One request per ticker — which is the whole point, and the whole cost. Bloomberg and
+    Reddit are broad pulls that reach a ticker only by accident of mention; this asks the
+    source directly, so a name is covered because it exists rather than because something
+    happened to write about it that hour.
+
+    `sleep` is injectable for the same reason it is on the Reddit path: a seam that stops
+    one level short of the bottom is not a seam, and a suite that genuinely waits 25
+    seconds pacing a faked fetcher has bought nothing with the fake.
+    """
+    wait = sleep if sleep is not None else time.sleep
+    docs, failed, consecutive = [], [], 0
+    tickers = [t for t in (tickers or []) if t]
+    attempted = 0
+    for index, ticker in enumerate(tickers):
+        if index:
+            wait(pause)
+        attempted += 1
+        try:
+            response = get(YAHOO_FEED.format(ticker), timeout=YAHOO_TIMEOUT)
+            if response.status_code != 200:
+                failed.append("{} HTTP {}".format(ticker, response.status_code))
+                consecutive += 1
+            else:
+                got = parse_rss(response.text, "yahoo/" + ticker, source="yahoo")
+                for doc in got:
+                    # The attribution itself, carried on the document: this item is here
+                    # because Yahoo filed it under `ticker`, not because anything matched.
+                    doc["ticker"] = ticker
+                if got:
+                    docs.extend(got)
+                    consecutive = 0
+                else:
+                    failed.append("{} parsed 0 items".format(ticker))
+                    consecutive += 1
+        except Exception as exc:                     # network shape varies; state does not
+            failed.append("{} {}".format(ticker, type(exc).__name__))
+            consecutive += 1
+        if give_up_after and consecutive >= give_up_after:
+            break
+    not_attempted = len(tickers) - attempted
+    answered = attempted - len(failed)
+    if not docs:
+        return [], Provider(
+            "yahoo", "Yahoo Finance (per-ticker RSS)", UNAVAILABLE,
+            "{} of {} ticker feed(s) attempted, none returned an item: {}. The tickers "
+            "below have NO Yahoo reading — missing data, not neutral sentiment.".format(
+                attempted, len(tickers), _summarise(failed)),
+            "Check outbound HTTPS to feeds.finance.yahoo.com, then re-run `{}`.".format(
+                REFRESH_CMD),
+            _stamp(), 0,
+            "0 of {} ticker feeds returned an item".format(attempted))
+    state = DEGRADED if (failed or not_attempted) else LIVE
+    headline = "{} items from {}/{} ticker feeds — headline tone, not a vendor score".\
+        format(len(docs), answered, len(tickers))
+    if failed:
+        headline += " · {} feed(s) failed".format(len(failed))
+    detail = "{} items from {}/{} ticker feeds. {}".format(
+        len(docs), answered, len(tickers), YAHOO_CAVEAT)
+    if failed:
+        detail += "  Failed: " + _summarise(failed)
+    if not_attempted:
+        detail += ("  Stopped after {} consecutive failures: {} ticker(s) were NOT "
+                   "ATTEMPTED and are uncovered for that reason, not because their feeds "
+                   "were empty.".format(give_up_after, not_attempted))
+        headline += " · {} not attempted".format(not_attempted)
+    return docs, Provider("yahoo", "Yahoo Finance (per-ticker RSS)", state, detail, "",
+                          _stamp(), len(docs), headline)
+
+
+def _summarise(failures, keep=6):
+    """A failure list a human will actually read.
+
+    123 per-ticker failures rendered verbatim is a paragraph nobody finishes, printed in
+    a panel whose job is to be read at a glance. The count is the fact; the examples are
+    the lead to pull on.
+    """
+    if not failures:
+        return "unknown"
+    if len(failures) <= keep:
+        return "; ".join(failures)
+    return "{}; … and {} more".format("; ".join(failures[:keep]), len(failures) - keep)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 5. Universe + fundamentals.
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1015,6 +1170,13 @@ def _as_float(value):
 # ─────────────────────────────────────────────────────────────────────────────
 # 6. Attaching sentiment to rows.
 # ─────────────────────────────────────────────────────────────────────────────
+#: The tone sources, in the order the snapshot writes them. Kept as data because the CLI
+#: summary, the tests and the UI all have to agree on the list — three hand-typed copies
+#: is how a fourth source ends up live in the snapshot and invisible on the page.
+TONE_SOURCES = ("bloomberg", "reddit", "yahoo")
+
+
+
 #: A tone mean built from a single lexicon term is one editor's verb, not a reading.
 #: Rows below this are reported as low-confidence rather than dropped, because dropping
 #: them would look identical to no coverage at all.
@@ -1087,6 +1249,104 @@ def attach_sentiment(rows, documents, source_key):
             for doc, tone, rule in matched[:6]]
     return {"documents": len(prepared), "broadcast_dropped": len(broadcast),
             "widest_document": max(breadth) if breadth else 0}
+
+
+#: The rule recorded on a document that arrived through the ticker's OWN feed. It is a
+#: different kind of evidence from `cashtag`/`symbol`/`name` — not stronger in every
+#: respect, just differently sourced — so it gets its own name rather than borrowing one
+#: that would imply the text was matched.
+FILED = "ticker-feed"
+#: The same, where the text ALSO names the company by the ordinary rules. Corroboration,
+#: recorded because it is the one thing that separates a story about the company from a
+#: sector round-up filed under it, and the reader chasing a surprising cell needs it.
+FILED_NAMED = "ticker-feed+named"
+
+#: A per-ticker feed's version of MAX_TICKERS_PER_DOC. Yahoo cross-files sector and market
+#: round-ups under the individual symbols they mention, so the same item arrives under
+#: several tickers at once — and an item the SOURCE filed under six companies is an
+#: inventory of a sector, not commentary on any one of them.
+#:
+#: Three, not five: being filed under N symbols is a stronger broadcast signal than being
+#: mentioned in one post, because the filing is the vendor's own act. A merger story
+#: legitimately lands under two, an earnings-day comparison under three; past that the
+#: live pull is round-ups almost without exception.
+MAX_FEEDS_PER_DOC = 3
+
+
+def attach_prefiled_sentiment(rows, documents, source_key):
+    """`attach_sentiment` for documents that arrive ALREADY attributed to a ticker.
+
+    Separate function, not a flag, because the two paths disagree about what a document
+    is. `attach_sentiment` walks every row against every document and infers a link from
+    the text; here the link is given, and running the text rules over it would only be
+    able to DELETE correct attributions the source already made — which is how the CVS
+    and General Motors defects (§3) got their shape in the first place.
+
+    What the text rules are still used for is corroboration, recorded per document as
+    `ticker-feed` versus `ticker-feed+named` and never used as a gate. Gating on it would
+    throw away every honest story that names the company once in a headline this feed
+    truncates, and would collapse this source back into the matched one it exists to
+    complement.
+
+    The absence rule is identical to the matched path, because it is not a property of
+    either path: coverage is stored even at 0, tone is `None` in exactly that case, and a
+    tone of 0.0 with coverage means terms matched and cancelled.
+    """
+    by_ticker = {}
+    for doc in documents:
+        ticker = doc.get("ticker")
+        if ticker:
+            by_ticker.setdefault(ticker, []).append(doc)
+    # Breadth is a property of the whole pull, so it is counted before any row is walked:
+    # the same item under many symbols is a round-up whichever row is being built.
+    filings = {}
+    for ticker, docs in by_ticker.items():
+        for doc in docs:
+            filings.setdefault(_doc_identity(doc), set()).add(ticker)
+    broadcast = {key for key, tickers in filings.items()
+                 if len(tickers) > MAX_FEEDS_PER_DOC}
+    widest = max((len(t) for t in filings.values()), default=0)
+    corroborated, kept = 0, 0
+    for row in rows:
+        matched = []
+        for doc in by_ticker.get(row["ticker"], []):
+            if _doc_identity(doc) in broadcast:
+                continue
+            text = "{} {}".format(doc.get("title", ""), doc.get("body", ""))
+            named = mention_rule(text, row["ticker"], row.get("name"))
+            rule = FILED_NAMED if named else FILED
+            if named:
+                corroborated += 1
+            kept += 1
+            matched.append((doc, score_tone(text), rule))
+        toned = [(doc, tone, rule) for doc, tone, rule in matched if not tone.is_absent]
+        row[source_key + "_coverage"] = len(matched)
+        row[source_key + "_toned"] = len(toned)
+        if toned:
+            row[source_key + "_tone"] = round(
+                sum(tone.score for _d, tone, _r in toned) / len(toned), 4)
+            row[source_key + "_terms"] = sum(tone.n_terms for _d, tone, _r in toned)
+        else:
+            row[source_key + "_tone"] = None
+            row[source_key + "_terms"] = 0
+        row[source_key + "_docs"] = [
+            {"title": doc.get("title", "")[:180], "url": doc.get("url", ""),
+             "feed": doc.get("feed", ""), "published": doc.get("published", ""),
+             "rule": rule, "tone": tone.score,
+             "terms": [t["term"] for t in tone.terms][:8]}
+            for doc, tone, rule in matched[:6]]
+    return {"documents": len(documents), "broadcast_dropped": len(broadcast),
+            "widest_document": widest, "corroborated": corroborated, "kept": kept}
+
+
+def _doc_identity(doc):
+    """What makes two filings the same item — the article URL, or its headline.
+
+    URL first because a round-up carries one canonical link however many symbols it is
+    filed under. Title is the fallback for a feed that omits or per-symbol-tags the link,
+    where identity would otherwise fragment and every round-up would read as unique.
+    """
+    return (doc.get("url") or "").strip() or (doc.get("title") or "").strip()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1299,6 +1559,44 @@ def exclusion_summary(excluded):
 SNAPSHOT_VERSION = 1
 
 
+def _note_breadth_drop(provider, stats):
+    """Say, in the provider's own line, what its documents lost to the breadth rule.
+
+    A filter nobody can see reads as "there was nothing there", and the two are opposite
+    findings: one is a judgement this module made, the other is the market being quiet.
+    """
+    if not stats["broadcast_dropped"]:
+        return
+    provider.detail += (
+        "  {} of {} document(s) named more than {} of the screened tickers and were "
+        "dropped from tone — a post listing {} companies says nothing evaluative about "
+        "any one of them.".format(stats["broadcast_dropped"], stats["documents"],
+                                  MAX_TICKERS_PER_DOC, stats["widest_document"]))
+
+
+def _note_filed_breadth_drop(provider, stats):
+    """The same accounting for a pre-filed source, plus the corroboration split.
+
+    The split is reported because it is the honest reading of this source's strength: the
+    feed key is a fact, "the story is about this company" is not, and the fraction of
+    items whose text also names the company is the only measurement of the gap that the
+    documents themselves can supply.
+    """
+    if stats["broadcast_dropped"]:
+        provider.detail += (
+            "  {} item(s) were filed under more than {} of the screened tickers — one "
+            "reached {} — and were dropped from tone as sector or market round-ups "
+            "rather than company news.".format(stats["broadcast_dropped"],
+                                               MAX_FEEDS_PER_DOC,
+                                               stats["widest_document"]))
+    if stats["kept"]:
+        provider.detail += (
+            "  {} of {} kept filing(s) also name the company in their own text; the rest "
+            "sit on the feed key alone, which a sector round-up filed under one or two "
+            "symbols also satisfies. Every document card states which.".format(
+                stats["corroborated"], stats["kept"]))
+
+
 def build_snapshot(limit=120, universe=None, progress=None, env=None,
                    get=_http_get, ticker_factory=None, sleep=None):
     """Fetch every source once and return the JSON-shaped snapshot.
@@ -1321,20 +1619,18 @@ def build_snapshot(limit=120, universe=None, progress=None, env=None,
         universe, limit=limit, progress=progress, ticker_factory=ticker_factory)
     bloomberg_docs, bloomberg_provider = fetch_bloomberg(get=get)
     reddit_docs, reddit_provider = fetch_reddit(get=get, env=env, sleep=sleep)
+    yahoo_docs, yahoo_provider = fetch_yahoo([r["ticker"] for r in rows], get=get,
+                                             sleep=sleep)
     # A filter nobody can see reads as "there was nothing there". Each provider's own
     # line reports what its documents lost to the breadth rule.
     for docs, provider, key in ((bloomberg_docs, bloomberg_provider, "bloomberg"),
                                 (reddit_docs, reddit_provider, "reddit")):
         stats = attach_sentiment(rows, docs, key)
-        if stats["broadcast_dropped"]:
-            provider.detail += (
-                "  {} of {} document(s) named more than {} of the screened tickers and "
-                "were dropped from tone — a post listing {} companies says nothing "
-                "evaluative about any one of them.".format(
-                    stats["broadcast_dropped"], stats["documents"],
-                    MAX_TICKERS_PER_DOC, stats["widest_document"]))
+        _note_breadth_drop(provider, stats)
+    _note_filed_breadth_drop(yahoo_provider,
+                             attach_prefiled_sentiment(rows, yahoo_docs, "yahoo"))
     providers = [universe_provider, fundamentals_provider, bloomberg_provider,
-                 reddit_provider]
+                 reddit_provider, yahoo_provider]
     return {
         "version": SNAPSHOT_VERSION,
         "built_at": _stamp(),
@@ -1364,16 +1660,14 @@ def build_tone_snapshot(universe, get=_http_get, env=None, sleep=None):
     rows = [{"ticker": t, "name": n, "sector": s} for t, n, s in universe]
     bloomberg_docs, bloomberg_provider = fetch_bloomberg(get=get)
     reddit_docs, reddit_provider = fetch_reddit(get=get, env=env, sleep=sleep)
+    yahoo_docs, yahoo_provider = fetch_yahoo([r["ticker"] for r in rows], get=get,
+                                             sleep=sleep)
     for docs, provider, key in ((bloomberg_docs, bloomberg_provider, "bloomberg"),
                                 (reddit_docs, reddit_provider, "reddit")):
         stats = attach_sentiment(rows, docs, key)
-        if stats["broadcast_dropped"]:
-            provider.detail += (
-                "  {} of {} document(s) named more than {} of the screened tickers and "
-                "were dropped from tone — a post listing {} companies says nothing "
-                "evaluative about any one of them.".format(
-                    stats["broadcast_dropped"], stats["documents"],
-                    MAX_TICKERS_PER_DOC, stats["widest_document"]))
+        _note_breadth_drop(provider, stats)
+    _note_filed_breadth_drop(yahoo_provider,
+                             attach_prefiled_sentiment(rows, yahoo_docs, "yahoo"))
     fundamentals_provider = Provider(
         "fundamentals", "Fundamentals (yfinance)", UNAVAILABLE,
         "Not fetched: this is a tone-only build, so no row here carries a P/E or growth "
@@ -1386,7 +1680,7 @@ def build_tone_snapshot(universe, get=_http_get, env=None, sleep=None):
         "{} names supplied by the caller.".format(len(rows)),
         "", _stamp(), len(rows), "{} names supplied by the caller".format(len(rows)))
     providers = [universe_provider, fundamentals_provider, bloomberg_provider,
-                 reddit_provider]
+                 reddit_provider, yahoo_provider]
     return {
         "version": SNAPSHOT_VERSION,
         "built_at": _stamp(),
@@ -1499,7 +1793,7 @@ def main(argv=None):
                             help="fraction, e.g. 0.15 for 15%%")
     screen_cmd.add_argument("--sector", default=None)
     screen_cmd.add_argument("--sentiment-source", default="bloomberg",
-                            choices=("bloomberg", "reddit"))
+                            choices=("bloomberg", "reddit", "yahoo"))
     screen_cmd.add_argument("--sentiment-weight", type=float, default=0.0,
                             help="0 keeps tone out of the ranking (default)")
     screen_cmd.add_argument("--top", type=int, default=25)
@@ -1525,10 +1819,14 @@ def main(argv=None):
             snapshot = build_tone_snapshot(universe)
             path = write_snapshot(snapshot, args.out)
             covered = sum(1 for r in snapshot["rows"]
-                          if r.get("bloomberg_tone") is not None
-                          or r.get("reddit_tone") is not None)
-            print("wrote {}  ({} names, {} with tone, {:.0f}s)".format(
-                path, snapshot["screened"], covered, snapshot["build_seconds"]))
+                          if any(r.get(s + "_tone") is not None for s in TONE_SOURCES))
+            per_source = "  ".join(
+                "{} {}".format(s, sum(1 for r in snapshot["rows"]
+                                      if r.get(s + "_tone") is not None))
+                for s in TONE_SOURCES)
+            print("wrote {}  ({} names, {} with tone from any source [{}], {:.0f}s)".format(
+                path, snapshot["screened"], covered, per_source,
+                snapshot["build_seconds"]))
             _print_providers(providers_from_snapshot(snapshot))
             return 0
         universe = None
@@ -1559,7 +1857,13 @@ def main(argv=None):
         print("\nlive probe:")
         _, bloomberg = fetch_bloomberg()
         _, reddit = fetch_reddit()
-        _print_providers([bloomberg, reddit])
+        # A SAMPLE for Yahoo, and the line says so: the real fetch is one request per
+        # screened ticker, and a `providers` call is meant to answer "is the endpoint up"
+        # in seconds rather than re-run a two-minute pull to find out.
+        _, yahoo = fetch_yahoo(YAHOO_PROBE_TICKERS)
+        yahoo.headline = "probe of {} ticker(s), not the full pull — {}".format(
+            len(YAHOO_PROBE_TICKERS), yahoo.headline)
+        _print_providers([bloomberg, reddit, yahoo])
         return 0
 
     if args.cmd == "tone":

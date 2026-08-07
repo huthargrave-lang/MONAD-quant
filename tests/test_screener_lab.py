@@ -318,6 +318,269 @@ class SentimentAttachmentRecordsCoverage(unittest.TestCase):
         self.assertIsNone(rows[0]["bloomberg_tone"])
 
 
+class PreFiledSentimentIsAttributedByTheFeedNotTheText(unittest.TestCase):
+    """Yahoo's feed is keyed by ticker, which changes what the attribution IS — and the
+    risk that comes with it.
+
+    The gain is real: `?s=UAMY` answers 200 with 20 items for a name no Bloomberg
+    headline and no r/stocks post has ever mentioned, so coverage stops being a lottery
+    on what the wires wrote that hour. The overclaim to guard against is treating "filed
+    under" as "about": Yahoo files sector and market round-ups under the individual
+    symbols they touch, so a coal miner's feed carries "Sector Update: Energy Stocks
+    Mixed" and NVDA's carries a nuclear-stocks round-up. That is the SAME defect as the
+    Attorney-General/General-Motors match wearing a different hat, and the only part of
+    it the documents themselves can settle is cross-filing.
+    """
+
+    def _docs(self, *pairs):
+        return [{"source": "yahoo", "feed": "yahoo/" + tk, "ticker": tk,
+                 "title": title, "body": body, "url": url, "published": ""}
+                for tk, title, body, url in pairs]
+
+    def test_the_feed_key_attributes_the_document_no_text_match_needed(self):
+        """The whole point: a headline that never spells the company out is still that
+        company's news, because the source filed it there."""
+        rows = [{"ticker": "UAMY", "name": "United States Antimony Corporation"}]
+        lab.attach_prefiled_sentiment(rows, self._docs(
+            ("UAMY", "Shares surge after a record quarter", "Output beat plan.",
+             "https://y/1")), "yahoo")
+        self.assertEqual(rows[0]["yahoo_coverage"], 1)
+        self.assertGreater(rows[0]["yahoo_tone"], 0)
+        self.assertEqual(rows[0]["yahoo_docs"][0]["rule"], lab.FILED)
+
+    def test_a_document_whose_text_also_names_the_company_says_so(self):
+        """Corroboration is recorded, not required. It is the one thing that separates a
+        story about the company from a round-up filed under it, and the reader chasing a
+        surprising cell needs to see which one they are looking at."""
+        rows = [{"ticker": "AREC", "name": "American Resources Corporation"}]
+        lab.attach_prefiled_sentiment(rows, self._docs(
+            ("AREC", "American Resources Corp approves special dividend",
+             "The board approved a special cash dividend.", "https://y/2")), "yahoo")
+        self.assertEqual(rows[0]["yahoo_docs"][0]["rule"], lab.FILED_NAMED)
+
+    def test_a_round_up_cross_filed_under_many_tickers_is_dropped(self):
+        """One item, one URL, filed under five names: an inventory of a sector, not
+        commentary on any company in it."""
+        wide = [("T{}".format(i), "Sector Update: Energy Stocks Mixed Late Afternoon",
+                 "The NYSE Energy Sector Index slipped.", "https://y/sector")
+                for i in range(5)]
+        rows = [{"ticker": "T{}".format(i), "name": "Company {}".format(i)}
+                for i in range(5)]
+        stats = lab.attach_prefiled_sentiment(rows, self._docs(*wide), "yahoo")
+        self.assertEqual(stats["broadcast_dropped"], 1)
+        self.assertEqual(stats["widest_document"], 5)
+        for row in rows:
+            self.assertEqual(row["yahoo_coverage"], 0, row["ticker"])
+            self.assertIsNone(row["yahoo_tone"], row["ticker"])
+
+    def test_a_story_filed_under_two_names_is_still_attributed(self):
+        """Non-vacuity: a rule that dropped every shared item would empty the column and
+        still pass the test above. A merger legitimately lands under both sides."""
+        pair = [("AAA", "AAA agrees to buy BBB in a record deal", "", "https://y/deal"),
+                ("BBB", "AAA agrees to buy BBB in a record deal", "", "https://y/deal")]
+        rows = [{"ticker": "AAA", "name": "Alpha Corp"},
+                {"ticker": "BBB", "name": "Beta Inc"}]
+        stats = lab.attach_prefiled_sentiment(rows, self._docs(*pair), "yahoo")
+        self.assertEqual(stats["broadcast_dropped"], 0)
+        for row in rows:
+            self.assertEqual(row["yahoo_coverage"], 1)
+            self.assertIsNotNone(row["yahoo_tone"])
+
+    def test_a_round_up_filed_under_one_ticker_is_kept_and_the_limit_is_stated(self):
+        """The residual, asserted rather than described. Cross-filing is the only
+        round-up signal the feed carries; an item filed under a single screened name is
+        indistinguishable from that company's news and IS scored. The provider line and
+        the page say so — this test exists so the claim cannot quietly become "solved"."""
+        rows = [{"ticker": "AREC", "name": "American Resources Corporation"}]
+        lab.attach_prefiled_sentiment(rows, self._docs(
+            ("AREC", "Sector Update: Energy Stocks Mixed Late Afternoon",
+             "The NYSE Energy Sector Index slipped.", "https://y/sector")), "yahoo")
+        self.assertEqual(rows[0]["yahoo_coverage"], 1)
+        self.assertEqual(rows[0]["yahoo_docs"][0]["rule"], lab.FILED,
+                         "an uncorroborated filing must not be labelled as named")
+
+    def test_uncovered_ticker_is_none_never_zero(self):
+        rows = [{"ticker": "AAA", "name": "Alpha Corp"},
+                {"ticker": "ZZZZ", "name": "Nonexistent Holdings"}]
+        lab.attach_prefiled_sentiment(rows, self._docs(
+            ("AAA", "Alpha Corp profit beats", "", "https://y/3")), "yahoo")
+        self.assertEqual(rows[1]["yahoo_coverage"], 0)
+        self.assertIsNone(rows[1]["yahoo_tone"])
+        self.assertNotEqual(rows[1]["yahoo_tone"], 0.0)
+
+    def test_covered_but_untoned_is_its_own_state(self):
+        rows = [{"ticker": "AAA", "name": "Alpha Corp"}]
+        lab.attach_prefiled_sentiment(rows, self._docs(
+            ("AAA", "Alpha Corp schedules its annual meeting", "", "https://y/4")),
+            "yahoo")
+        self.assertEqual(rows[0]["yahoo_coverage"], 1)
+        self.assertEqual(rows[0]["yahoo_toned"], 0)
+        self.assertIsNone(rows[0]["yahoo_tone"])
+
+    def test_a_genuine_zero_survives_with_its_coverage(self):
+        """The other half of the absence rule, and the half that is easy to lose: terms
+        matched and cancelled is a READING. It must arrive as 0.0 with coverage, never be
+        rounded off into the same cell as "nobody said anything"."""
+        rows = [{"ticker": "AAA", "name": "Alpha Corp"}]
+        lab.attach_prefiled_sentiment(rows, self._docs(
+            ("AAA", "Alpha Corp shares higher", "", "https://y/up"),
+            ("AAA", "Alpha Corp shares lower", "", "https://y/down")), "yahoo")
+        self.assertEqual(rows[0]["yahoo_coverage"], 2)
+        self.assertEqual(rows[0]["yahoo_toned"], 2)
+        self.assertEqual(rows[0]["yahoo_tone"], 0.0)
+        self.assertIsNotNone(rows[0]["yahoo_tone"])
+
+    def test_the_text_rules_can_never_delete_a_filing(self):
+        """The reason this is a separate function rather than a flag on the matched
+        path. Running the name rules as a GATE could only remove attributions the source
+        itself made — and those rules are where every past attribution defect came
+        from."""
+        rows = [{"ticker": "GM", "name": "General Motors Company"}]
+        lab.attach_prefiled_sentiment(rows, self._docs(
+            ("GM", "Quarterly deliveries rose", "", "https://y/5")), "yahoo")
+        self.assertEqual(rows[0]["yahoo_coverage"], 1)
+
+    def test_identity_falls_back_to_the_title_when_a_feed_omits_the_link(self):
+        """Without a fallback, identity fragments and every round-up reads as unique —
+        the breadth rule would silently stop firing."""
+        wide = [("T{}".format(i), "Market Update: Stocks Mixed", "", "")
+                for i in range(5)]
+        rows = [{"ticker": "T{}".format(i), "name": "Company {}".format(i)}
+                for i in range(5)]
+        stats = lab.attach_prefiled_sentiment(rows, self._docs(*wide), "yahoo")
+        self.assertEqual(stats["broadcast_dropped"], 1)
+
+
+YAHOO_XML = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<rss version="2.0"><channel>
+<description>Latest Financial News for AAA</description>
+<item><description>The company beat estimates and raised guidance.</description>
+<guid isPermaLink="false">abc</guid>
+<link>https://finance.yahoo.com/news/a.html</link>
+<pubDate>Fri, 24 Jul 2026 19:59:51 +0000</pubDate>
+<title>Alpha Corp profit surges on strong demand</title></item>
+</channel></rss>"""
+
+
+class YahooFetchReportsItsStateAndNeverReachesTheNetworkInTests(unittest.TestCase):
+    """One request per ticker is the cost of the coverage, so the pacing, the failure
+    accounting and the give-up rule are all part of the contract."""
+
+    def test_it_fetches_one_feed_per_ticker_and_tags_each_document(self):
+        seen = []
+
+        def get(url, *args, **kwargs):
+            seen.append(url)
+            return FakeResponse(200, YAHOO_XML)
+
+        docs, provider = lab.fetch_yahoo(("AAA", "BBB"), get=get, sleep=lambda _s: None)
+        self.assertEqual(len(seen), 2)
+        self.assertIn("s=AAA", seen[0])
+        self.assertEqual(provider.state, lab.LIVE)
+        self.assertEqual([d["ticker"] for d in docs], ["AAA", "BBB"])
+        self.assertEqual(docs[0]["source"], "yahoo")
+        self.assertEqual(docs[0]["feed"], "yahoo/AAA")
+
+    def test_the_getter_is_the_only_way_out_and_nothing_else_is_called(self):
+        """The injection seam, asserted directly: with a getter supplied, a `requests`
+        import inside the fetcher would be the bug this catches."""
+        calls = []
+        lab.fetch_yahoo(("AAA",), get=lambda *a, **k: calls.append(a) or
+                        FakeResponse(200, YAHOO_XML), sleep=lambda _s: None)
+        self.assertEqual(len(calls), 1)
+
+    def test_pacing_is_injectable_all_the_way_down(self):
+        """Written after the Reddit path taught it: a seam that stops one level short of
+        the bottom is not a seam. With `get` faked and `sleep` real, a 123-ticker pull
+        would sit in the suite genuinely waiting half a minute."""
+        waits = []
+        lab.fetch_yahoo(("AAA", "BBB", "CCC"),
+                        get=lambda *a, **k: FakeResponse(200, YAHOO_XML),
+                        sleep=waits.append)
+        self.assertEqual(len(waits), 2, "no pause before the first request, one between")
+        for wait in waits:
+            self.assertEqual(wait, lab.YAHOO_PAUSE_SECONDS)
+
+    def test_a_404_degrades_the_provider_and_names_the_ticker(self):
+        """A ticker whose feed 404s has NO reading. It must not arrive as a tone of 0.00,
+        and the run must not be reported as clean."""
+        def get(url, *args, **kwargs):
+            return FakeResponse(404 if "s=BBB" in url else 200, YAHOO_XML)
+
+        docs, provider = lab.fetch_yahoo(("AAA", "BBB"), get=get, sleep=lambda _s: None)
+        self.assertEqual(provider.state, lab.DEGRADED)
+        self.assertIn("BBB HTTP 404", provider.detail)
+        self.assertEqual([d["ticker"] for d in docs], ["AAA"])
+
+    def test_a_total_429_is_unavailable_and_says_it_is_missing_data(self):
+        _docs, provider = lab.fetch_yahoo(
+            ("AAA", "BBB", "CCC"), get=lambda *a, **k: FakeResponse(429, ""),
+            sleep=lambda _s: None)
+        self.assertEqual(provider.state, lab.UNAVAILABLE)
+        self.assertIn("429", provider.detail)
+        self.assertIn("not neutral sentiment", provider.detail)
+        self.assertEqual(provider.documents, 0)
+
+    def test_a_dead_endpoint_is_reported_in_seconds_not_walked_for_two_minutes(self):
+        """123 sequential requests to prove a host is down is a wasted CI run, and the
+        tickers never tried must be reported as NOT ATTEMPTED rather than folded in with
+        the ones that genuinely answered nothing."""
+        tickers = tuple("T{}".format(i) for i in range(40))
+        attempts = []
+
+        def get(url, *args, **kwargs):
+            attempts.append(url)
+            return FakeResponse(503, "")
+
+        _docs, provider = lab.fetch_yahoo(tickers, get=get, sleep=lambda _s: None,
+                                          give_up_after=5)
+        self.assertEqual(len(attempts), 5)
+        self.assertIn("5 of 40", provider.detail)
+
+    def test_partial_failure_still_reports_what_was_not_attempted(self):
+        responses = [FakeResponse(200, YAHOO_XML)] + [FakeResponse(500, "")] * 20
+
+        def get(*args, **kwargs):
+            return responses.pop(0) if responses else FakeResponse(500, "")
+
+        _docs, provider = lab.fetch_yahoo(
+            tuple("T{}".format(i) for i in range(20)), get=get, sleep=lambda _s: None,
+            give_up_after=3)
+        self.assertEqual(provider.state, lab.DEGRADED)
+        self.assertIn("NOT ATTEMPTED", provider.detail)
+
+    def test_the_failure_list_stays_readable_at_universe_scale(self):
+        """123 verbatim failures in a panel meant to be read at a glance is a paragraph
+        nobody finishes — the count is the fact, the examples are the lead."""
+        _docs, provider = lab.fetch_yahoo(
+            tuple("T{}".format(i) for i in range(30)),
+            get=lambda *a, **k: FakeResponse(200, "<rss><channel></channel></rss>"),
+            sleep=lambda _s: None, give_up_after=0)
+        self.assertIn("and 24 more", provider.detail)
+
+    def test_the_provider_line_refuses_the_vendor_sentiment_reading(self):
+        _docs, provider = lab.fetch_yahoo(
+            ("AAA",), get=lambda *a, **k: FakeResponse(200, YAHOO_XML),
+            sleep=lambda _s: None)
+        self.assertIn("NOT a vendor sentiment score", provider.detail)
+        self.assertIn("ROUND-UPS", provider.detail)
+
+    def test_malformed_xml_is_a_reported_failure_not_an_exception(self):
+        _docs, provider = lab.fetch_yahoo(
+            ("AAA",), get=lambda *a, **k: FakeResponse(200, "<not xml"),
+            sleep=lambda _s: None)
+        self.assertEqual(provider.state, lab.UNAVAILABLE)
+        self.assertIn("parsed 0 items", provider.detail)
+
+    def test_a_raising_getter_is_a_state_not_a_traceback(self):
+        def get(*args, **kwargs):
+            raise OSError("connection reset")
+
+        _docs, provider = lab.fetch_yahoo(("AAA",), get=get, sleep=lambda _s: None)
+        self.assertEqual(provider.state, lab.UNAVAILABLE)
+        self.assertIn("OSError", provider.detail)
+
+
 class GrowthIsNotDoubleCountedOrFakedByABaseEffect(unittest.TestCase):
     """The Aflac regression: what the vendor calls growth mostly is not."""
 
@@ -782,7 +1045,8 @@ class SnapshotIsTheContractWithTheServer(unittest.TestCase):
             ticker_factory=FakeTicker, sleep=lambda _s: None)
         self.assertEqual(snapshot["screened"], 1)
         keys = {p["key"] for p in snapshot["providers"]}
-        self.assertEqual(keys, {"universe", "fundamentals", "bloomberg", "reddit"})
+        self.assertEqual(keys, {"universe", "fundamentals", "bloomberg", "reddit",
+                                "yahoo"})
         states = {p["key"]: p["state"] for p in snapshot["providers"]}
         self.assertEqual(states["reddit"], lab.UNAVAILABLE)
         row = snapshot["rows"][0]
@@ -862,8 +1126,9 @@ class TheLabTouchesNothingItShouldNot(unittest.TestCase):
         import ast
         with open(__file__, encoding="utf-8") as handle:
             tree = ast.parse(handle.read())
-        fetching = {"fetch_reddit", "fetch_reddit_rss", "fetch_bloomberg",
-                    "fetch_universe", "fetch_fundamentals", "build_snapshot"}
+        fetching = {"fetch_reddit", "fetch_reddit_rss", "fetch_bloomberg", "fetch_yahoo",
+                    "fetch_universe", "fetch_fundamentals", "build_snapshot",
+                    "build_tone_snapshot"}
         offenders = []
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
@@ -935,6 +1200,105 @@ class ToneOnlyBuildTests(unittest.TestCase):
             path = os.path.join(td, "snap.json")
             lab.write_snapshot(snap, path)
             self.assertEqual(lab.load_snapshot(path)["screened"], 2)
+
+    def test_every_tone_source_reaches_the_tone_only_build(self):
+        """`refresh --tone-only` is what CI runs, so a source wired into the full build
+        and forgotten here would be live on a laptop and absent on the published page —
+        where it would read as a source that found nothing."""
+        snap = lab.build_tone_snapshot(
+            self._universe(), get=lambda *a, **k: FakeResponse(200, YAHOO_XML),
+            env={}, sleep=lambda _s: None)
+        keys = {p["key"] for p in snap["providers"]}
+        for source in lab.TONE_SOURCES:
+            self.assertIn(source, keys)
+            for row in snap["rows"]:
+                self.assertIn(source + "_coverage", row, source)
+
+    def test_the_yahoo_leg_scores_the_universe_it_was_handed(self):
+        """Non-vacuity for the wiring above: the fetcher is called with the build's own
+        tickers, not an empty list that would silently produce universal absence."""
+        snap = lab.build_tone_snapshot(
+            [("AAA", "Alpha Corp", "Technology")],
+            get=lambda *a, **k: FakeResponse(200, YAHOO_XML), env={},
+            sleep=lambda _s: None)
+        row = snap["rows"][0]
+        self.assertEqual(row["yahoo_coverage"], 1)
+        self.assertGreater(row["yahoo_tone"], 0)
+
+
+class ALabProviderMustNotSpeakForAPageItDoesNotFeed(unittest.TestCase):
+    """A provider line is scoped to the snapshot that produced it, and the combined
+    screener is where that stopped being true.
+
+    `build_tone_snapshot` deliberately skips fundamentals and reports the leg as
+    UNAVAILABLE — correct on `/sentiment`, where screener_lab IS the fundamentals source.
+    Passed through unfiltered, that line rendered "Fundamentals (yfinance) · off" at the
+    top of a page carrying 123 rows of live P/E, growth and beta from `stock_screener`,
+    which leaves the reader to work out which of the two is lying. The rule that comes
+    out of it: a panel names the sources that feed THAT page, with each leg's own state —
+    and a genuinely missing leg is still listed, marked off, and given its command,
+    because a source that vanishes reads as one that found nothing.
+
+    These run over plain dicts: no disk, no network, no server.
+    """
+
+    def setUp(self):
+        import research_ui
+        self.ui = research_ui
+        self.tone_only = {"providers": [
+            {"key": "fundamentals", "label": "Fundamentals (yfinance)",
+             "state": lab.UNAVAILABLE, "headline": "not fetched in a tone-only build",
+             "detail": "tone-only build", "remedy": "x", "documents": 0},
+            {"key": "bloomberg", "label": "Bloomberg (public RSS)", "state": lab.LIVE,
+             "headline": "120 items", "detail": "", "remedy": "", "documents": 120},
+            {"key": "reddit", "label": "Reddit (public RSS)", "state": lab.LIVE,
+             "headline": "100 posts", "detail": "", "remedy": "", "documents": 100},
+            {"key": "yahoo", "label": "Yahoo Finance (per-ticker RSS)",
+             "state": lab.DEGRADED, "headline": "2353 items", "detail": "",
+             "remedy": "", "documents": 2353},
+        ]}
+        self.fund = {"as_of": "2026-08-06T16:50:08Z", "rows": [{"ticker": "AAA"}]}
+        self.prices = {"as_of": "2026-08-06T22:56:19Z", "bars": 126,
+                       "series": {"AAA": [1.0, 2.0]}}
+
+    def test_the_tone_only_fundamentals_line_never_reaches_the_combined_panel(self):
+        got = self.ui._combined_draft_providers(self.fund, self.prices, self.tone_only)
+        self.assertNotIn("tone-only", json.dumps(got))
+        self.assertNotIn("yfinance", got["fundamentals"]["label"])
+
+    def test_fundamentals_are_reported_from_the_snapshot_that_actually_feeds_the_page(self):
+        got = self.ui._combined_draft_providers(self.fund, self.prices,
+                                                self.tone_only)["fundamentals"]
+        self.assertEqual(got["state"], lab.LIVE)
+        self.assertIn("2026-08-06T16:50:08Z", got["headline"])
+        self.assertEqual(got["documents"], 1)
+
+    def test_a_missing_leg_is_listed_and_off_with_its_command_not_dropped(self):
+        got = self.ui._combined_draft_providers(None, None, self.tone_only)
+        for key, command in (("fundamentals", "stock_screener.py fetch"),
+                             ("prices", "stock_screener.py prices")):
+            self.assertIn(key, got, "an absent source must still be listed")
+            self.assertEqual(got[key]["state"], lab.UNAVAILABLE)
+            self.assertIn(command, got[key]["remedy"])
+
+    def test_price_history_is_a_source_of_its_own_and_was_never_reported_before(self):
+        got = self.ui._combined_draft_providers(self.fund, self.prices,
+                                                self.tone_only)["prices"]
+        self.assertEqual(got["state"], lab.LIVE)
+        self.assertIn("126", got["headline"])
+
+    def test_every_tone_source_passes_through_in_the_labs_own_words(self):
+        got = self.ui._combined_draft_providers(self.fund, self.prices, self.tone_only)
+        for source in lab.TONE_SOURCES:
+            self.assertIn(source, got)
+        self.assertEqual(got["yahoo"]["state"], lab.DEGRADED)
+        self.assertEqual(got["yahoo"]["headline"], "2353 items")
+
+    def test_no_tone_snapshot_is_one_honest_absence_not_three_silent_ones(self):
+        got = self.ui._combined_draft_providers(self.fund, self.prices, None)
+        self.assertEqual(got["tone"]["state"], lab.UNAVAILABLE)
+        self.assertIn("--tone-only", got["tone"]["remedy"])
+        self.assertIn("none is 0.00", got["tone"]["headline"])
 
 
 if __name__ == "__main__":
