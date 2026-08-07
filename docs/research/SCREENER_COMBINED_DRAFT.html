@@ -550,6 +550,13 @@ th .qmark{margin-left:4px}
 .lens-error{margin:0 0 9px;padding:7px 10px;background:var(--plane);
   border-left:3px solid var(--critical);font-size:12.5px;color:var(--ink)}
 .lens-error[hidden]{display:none}
+/* The way out of an empty intersection. Inline in the sentence that reports it, because a
+   control placed anywhere else would be a control the reader has to go looking for at the
+   exact moment the page has stopped showing them anything. */
+.way-out{font:12px var(--sans);padding:3px 10px;margin:0 4px 0 0;cursor:pointer;
+  border:1px solid var(--accent);border-radius:999px;background:var(--surface);
+  color:var(--ink)}
+.way-out:hover{background:color-mix(in srgb, var(--accent) 16%, var(--surface))}
 .btn-row{display:flex;gap:8px;margin-top:13px}
 .btn-row button{height:30px;padding:0 14px;border-radius:6px;border:1px solid var(--rule);
   background:var(--plane);color:var(--ink-2);font:13px var(--sans);cursor:pointer}
@@ -3524,7 +3531,53 @@ function lensAccepts(l, r){
   return true;
 }
 
+/* When the table is empty, say which constraint to drop — MEASURED, not guessed.
+   Three things narrow this list now (lens, filter row, bucket) and an empty intersection can
+   be caused by any pair of them. The page knows how many names each admits on its own, so it
+   can name the one that is actually blocking instead of leaving the reader to bisect it by
+   clicking things off. This is the specific confusion the bay created: pick a lens, scroll
+   down, pick a thesis, and the table empties with nothing on screen saying the lens is still
+   there. */
+function emptyWayOut(){
+  const outs = [];
+  if(preset != null){
+    // The lens alone, against the same filters and bucket.
+    const was = preset;
+    preset = null;
+    const n = matchedRows().length;
+    preset = was;
+    if(n) outs.push({n: n, what: "the <b>" + esc(activeLensLabel()) + "</b> lens",
+                     act: '<button type="button" class="way-out" data-clear="lens">'
+                          + "clear the lens</button>"});
+  }
+  if(BUCKET_SEL.size){
+    const was = new Set(BUCKET_SEL);
+    BUCKET_SEL.clear(); _bnCache = null;
+    const n = matchedRows().length;
+    BUCKET_SEL = was; _bnCache = null;
+    if(n) outs.push({n: n, what: "the bucket selection",
+                     act: '<button type="button" class="way-out" data-clear="buckets">'
+                          + "clear the buckets</button>"});
+  }
+  if(activeFilterCount()){
+    const was = filterState;
+    filterState = () => ({});
+    const n = matchedRows().length;
+    filterState = was;
+    if(n) outs.push({n: n, what: "the filter row",
+                     act: '<button type="button" class="way-out" data-clear="filters">'
+                          + "clear the filters</button>"});
+  }
+  if(!outs.length) return "";
+  // Biggest first: the constraint whose removal opens the most is the one most likely to be
+  // the one the reader forgot about.
+  outs.sort((a, b) => b.n - a.n);
+  return " Dropping " + outs.map(o =>
+    o.what + " would leave <b>" + o.n + "</b>").join(", and dropping ")
+    + ". " + outs.map(o => o.act).join(" ");
+}
 function activeLensLabel(){
+  if(preset == null) return "no lens";
   const btn = document.querySelector("#presets button.on");
   return btn ? btn.textContent.trim() : preset;
 }
@@ -3625,8 +3678,17 @@ function starButton(key, name){
   return s;
 }
 function markActivePreset(){
-  document.querySelectorAll("#presets button[data-p]").forEach(b =>
-    b.classList.toggle("on", b.dataset.p === preset));
+  document.querySelectorAll("#presets button[data-p]").forEach(b => {
+    const on = b.dataset.p === preset;
+    b.classList.toggle("on", on);
+    // aria-pressed, and a title that says the second click clears it. A lens you can only
+    // exchange for another lens has no "show me everything" state, which is the state a
+    // bucket needs to be read on its own.
+    if(b.dataset.p !== "custom"){
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+      b.title = on ? "Selected — click again to clear this lens" : "";
+    }
+  });
   document.querySelectorAll("#presets .lens-chip, #presets .lens-wrap").forEach(c =>
     c.classList.toggle("on", !!c.querySelector("button.on")));
 }
@@ -3652,7 +3714,9 @@ function renderCustomBubbles(){
   markActivePreset();
 }
 function selectPreset(key){
-  preset = key;
+  // Clicking the lens that is already on turns it off. A bubble that can only ever be
+  // exchanged for another bubble is a radio group pretending to be a filter.
+  preset = (preset === key) ? null : key;
   markActivePreset();
   // A tone lens argues about a particular set of documents, so the tone controls follow it —
   // otherwise the headlines tile it opens with would be showing another provider's documents,
@@ -4689,6 +4753,11 @@ function lensNoData(){
 
 function lensRows(pool){
   const rows = pool || ROWS;
+  // No lens is a REAL state, not the absence of one. Every bubble used to be permanently on
+  // — one of them always selected — so a bucket could only ever be read THROUGH whichever
+  // screen was picked earlier, often down to zero, with nothing on the page offering to drop
+  // it. "Show me this thesis" was not expressible.
+  if(preset == null) return rows;
   const custom = customLens(preset);
   if(custom) return rows.filter(r=>lensAccepts(custom, r));
   if(PRESET_RULES[preset]) return canonicalRows(preset, rows);
@@ -5041,13 +5110,23 @@ function renderTable(){
       why.innerHTML = `<b>No rows are loaded.</b> Nothing is listed because no snapshot `
         + `reached this page — see the panel above for the commands that build one.`;
     } else {
+      // With no lens the sentence cannot say names "clear" one — there is nothing to clear.
+      // It says what is actually true: every loaded name, narrowed only by whatever else is
+      // set. Reusing the lens phrasing produced "38 of 123 loaded names clear no lens".
+      const lensPhrase = preset == null
+        ? (filterPhrase ? `<b>every loaded name</b>${filterPhrase}`
+                        : `<b>every loaded name</b>, with no screen set`)
+        : `<b>${esc(presetLabel)}</b>${filterPhrase}`;
       why.innerHTML = sorted.length
-        ? `<b>${sorted.length}</b> of <b>${ROWS.length}</b> loaded names clear `
-          + `<b>${esc(presetLabel)}</b>${filterPhrase} — the same list as the highlighted `
-          + `marks on the chart. Click a row or a mark to pin that name.`
-        : `<b>0</b> of <b>${ROWS.length}</b> loaded names clear <b>${esc(presetLabel)}</b>`
-          + `${filterPhrase} — the list below is empty for that reason, not because the `
-          + `fields are missing.`;
+        ? `<b>${sorted.length}</b> of <b>${ROWS.length}</b> loaded names — ${lensPhrase} `
+          + `— the same list as the highlighted marks on the chart. Click a row or a mark to `
+          + `pin that name.`
+        : `<b>0</b> of <b>${ROWS.length}</b> loaded names — ${lensPhrase}. The list below is `
+          + `empty for that reason, not because the fields are missing.`
+          // An empty intersection is the one place the reader needs to be told what to DO,
+          // and which constraint to drop is a question the page can answer better than they
+          // can: it knows how many names each one admits on its own.
+          + emptyWayOut();
       // Unscreenable names are REPORTED, not dropped. A name the vendor left a required
       // field blank for was never judged by this lens, and silently omitting it would let
       // "did not qualify" and "could not be asked" share one absence — on the safety lens
@@ -6132,7 +6211,25 @@ buildPriceWindowPicker();
    modal — so binding them per-element would rebind on every draw and leak a listener each
    time. What matters here is stopping the click before it reaches the results row underneath,
    which would pin the name as a side effect of watching it. */
+/* Delegated on the document: the way-out buttons are written into the RESULTS panel, and
+   this was first bound to the #presets listener — where the lens bubbles live — so the
+   button rendered, looked live, and did nothing. */
 document.addEventListener("click", (ev)=>{
+  const wo = ev.target.closest("[data-clear]");
+  if(wo){
+    ev.preventDefault();
+    if(wo.dataset.clear === "lens"){ preset = null; markActivePreset(); }
+    else if(wo.dataset.clear === "buckets"){ BUCKET_SEL.clear(); _bnCache = null; }
+    else if(wo.dataset.clear === "filters"){
+      document.querySelectorAll("#filters select").forEach(sel => {
+        if(sel.querySelector('option[value="any"]')) sel.value = "any";
+        else if(sel.options.length) sel.selectedIndex = 0;
+      });
+    }
+    resetPriceLit();
+    render();
+    return;
+  }
   const add = ev.target.closest("[data-watch-add]");
   if(add){ ev.preventDefault(); ev.stopPropagation(); toggleWatch(add.dataset.watchAdd); return; }
   const drop = ev.target.closest("[data-watch-drop]");

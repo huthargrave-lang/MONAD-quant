@@ -395,6 +395,62 @@ class TheCentredPanelsClearTheirAnchor(unittest.TestCase):
                          "the lens builder is a form, not a tooltip — it must centre")
 
 
+class TheLensCanBeCleared(unittest.TestCase):
+    """A bucket has to be readable on its own.
+
+    Every bubble was permanently on — one of them always selected — so a thesis could only
+    ever be read THROUGH whichever screen had been picked earlier, often down to zero, with
+    nothing on the page saying the lens was still there. "Show me this bucket" was not an
+    expressible request. That is a gap the shared filter state created, and it is the reason
+    scrolling back up to find an old lens still narrowing everything was so confusing.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.html = _page()
+
+    def test_no_lens_is_a_real_state(self):
+        self.assertRegex(
+            self.html, r"function lensRows\(pool\)\{[\s\S]{0,400}?if\(preset == null\) return rows;",
+            "a null preset must pass every row rather than falling through to a rule lookup")
+
+    def test_clicking_the_active_lens_clears_it(self):
+        self.assertRegex(
+            self.html, r"preset = \(preset === key\) \? null : key;",
+            "a bubble that can only be exchanged for another bubble is a radio group")
+
+    def test_the_bubbles_report_that_they_can_be_turned_off(self):
+        self.assertRegex(self.html, r'b\.setAttribute\("aria-pressed", on \? "true" : "false"\)')
+        self.assertRegex(self.html, r"click again to clear")
+
+    def test_the_no_lens_sentence_does_not_claim_names_cleared_one(self):
+        """"38 of 123 loaded names clear no lens" is a sentence about nothing."""
+        self.assertRegex(self.html, r"const lensPhrase = preset == null")
+        self.assertIn("every loaded name", self.html)
+
+    def test_the_empty_message_measures_each_way_out(self):
+        """Three constraints narrow this list and any pair can empty it. The page knows how
+        many names each admits alone, so it names the one actually blocking instead of leaving
+        the reader to bisect it by clicking things off."""
+        body = re.search(r"function emptyWayOut\(\)\{(.*?)\n\}", self.html, re.S)
+        self.assertIsNotNone(body, "emptyWayOut is gone")
+        code = body.group(1)
+        for probe in ("preset = null;", "BUCKET_SEL.clear();", "filterState = () => ({});"):
+            self.assertIn(probe, code,
+                          "the way-out must MEASURE {} rather than assume it".format(probe))
+        # It only offers drops that actually open something.
+        self.assertIn("if(n) outs.push", code)
+        self.assertIn("outs.sort((a, b) => b.n - a.n)", code)
+
+    def test_each_probe_restores_what_it_changed(self):
+        """These run inside a render. A probe that left preset or BUCKET_SEL altered would
+        make the sentence describe a state the rest of the page is not in."""
+        code = re.search(r"function emptyWayOut\(\)\{(.*?)\n\}", self.html, re.S).group(1)
+        self.assertIn("preset = was;", code)
+        self.assertIn("BUCKET_SEL = was;", code)
+        self.assertIn("filterState = was;", code)
+
+
 class TheToneLensesAreAllReachable(unittest.TestCase):
     """Every tone lens must appear in the source map, or selecting it leaves the toggle on
     another source and the lens prints "no coverage" for names it admitted on coverage."""
