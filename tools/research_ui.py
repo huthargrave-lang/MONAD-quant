@@ -3940,9 +3940,18 @@ def _screener_combined_draft_payload():
             "de": de,
             "beta": fr.get("beta"),
             "vol": vol_s,
+            # The rank/membership value, beside the display string. `vol` is
+            # fmt_metric output ("14.9B") and 38 of 123 names share a formatted string,
+            # so a lens that ranks on volume cannot rank on it.
+            "dollar_volume": vol,
             # Size is the context every other column is read against: a P/E of 12 means
             # something different on a $2B name than on a $2T one.
             "mcap": fr.get("market_cap"),
+            # Every remaining field the canonical PRESETS rules test, so the page can
+            # evaluate them instead of keeping its own drifting copy of the thresholds.
+            "profit_margin": fr.get("profit_margin"),
+            "shadow_severity": fr.get("shadow_severity"),
+            "shadow_severity_rank": fr.get("shadow_severity_rank"),
             "price": fr.get("price") or sr.get("price"),
             "shadow": de if tag else None,
             "shadow_tag": tag,
@@ -3976,6 +3985,21 @@ def _screener_combined_draft_payload():
         "has_sentiment": bool(sent),
         "has_fundamentals": bool(fund),
         "refresh_cmd": screener_lab.REFRESH_CMD,
+        # THE lens definitions — not a copy. The page evaluates these rather than
+        # reimplementing the thresholds, because a second copy of a rule is a defect
+        # even while it still agrees: seven of them had already drifted, and the default
+        # lens had drifted all the way to screening nothing.
+        "presets": {
+            key: {
+                "title": p["title"],
+                "blurb": p["blurb"],
+                "require": [list(rule) for rule in p["require"]],
+                "rank": list(p["rank"]),
+                "top": p.get("top"),
+            }
+            for key, p in stock_screener.PRESETS.items()
+        },
+        "categorical": list(stock_screener.CATEGORICAL),
         # Only the screened names travel: the price file covers the whole universe, and
         # shipping series the page cannot plot would be dead weight in every payload.
         "price_history": {r["tk"]: prices["series"][r["tk"]] for r in rows

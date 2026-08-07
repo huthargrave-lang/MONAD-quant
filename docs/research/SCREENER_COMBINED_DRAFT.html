@@ -158,6 +158,10 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
 .prop-field select,.prop-field input,.prop-field textarea{font:13px var(--sans);
   height:30px;padding:0 8px;border:1px solid var(--rule);border-radius:6px;
   background:var(--surface);color:var(--ink);min-width:110px}
+/* The explicit colour above outlives the UA's disabled styling, so a control with nothing to
+   act on would otherwise look live — and a live control that moves no number reads as a
+   broken page rather than an inapplicable one. */
+.filters select:disabled{background:var(--plane);color:var(--ink-muted);cursor:not-allowed}
 /* No .filters variant: the filter row has no primary action, because it has no action. */
 .btn-row button.primary{height:30px;padding:0 14px;border-radius:6px;
   border:1px solid var(--accent);background:var(--accent);color:var(--ink-on-4);
@@ -222,7 +226,8 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
 .board-resize:hover::after,.board-resize:focus-visible::after,
 .board-resize.dragging::after{background:var(--accent)}
 .board-resize:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-@media (max-width:1100px){ .board-resize{display:none} }
+/* Nothing to drag once the panes stack in flow — same breakpoint as the stack fallback. */
+@media (max-width:770px){ .board-resize{display:none} }
 /* The tray sits ABOVE the board so a parked chart is always reachable without scrolling. */
 .tray{
   display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:0 0 8px;
@@ -473,8 +478,12 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
   padding:8px;border:1px solid var(--warning);border-radius:6px;background:var(--plane);
   color:var(--ink)}
 /* Below tablet width a split tree has no room to be one; fall back to a plain stack.
+   770px of viewport is the 1100 CSS px of layout the tree needs, because .shell renders at
+   zoom:.7 — a media query can only ask about the viewport, so the number is converted here
+   and STACK_MQ in the script carries the same 770 (it must, or the walk keeps positioning
+   panes the CSS has already stacked).
    !important is required because the layout walk writes the rects as inline styles. */
-@media (max-width:1100px){
+@media (max-width:770px){
   .providers,.stats{grid-template-columns:1fr}
   .shell{grid-template-columns:1fr}
   .board{height:auto;min-height:0;padding:8px}
@@ -869,8 +878,10 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
   <div class="arrange-grid" id="layoutArrange"></div>
   <p class="src">Arrangements rearrange what is already on the board. <b>One pane</b> keeps the
     first placed chart and parks the rest; <b>stack</b> gives every chart the full width, one
-    above another. A pane is never squeezed below its readable minimum — when a column asks
-    for more room than the board has, the board grows and the page scrolls.</p>
+    above another. No pane is squeezed below its readable height — when a column asks for more
+    height than the board has, the board grows and the page scrolls. Width is whatever the
+    board itself has, so a row split past what fits shares the shortfall across every pane
+    in it rather than starving the last one.</p>
 </div>
 
 <div class="modal" id="stockModal" hidden>
@@ -1278,10 +1289,24 @@ function withData(ids){
    tile has no data source. Bumping the key retires them rather than resurrecting a pane that
    can only report its own absence. */
 const BOARD_KEY = "monad.screener.draft.board.v7";
-const GAP = 10;            // px between panes, applied as a GAP/2 inset on every pane edge
-const MIN_PANE_PX = 120;   // a pane thinner than this cannot render a readable chart
+const GAP = 10;            // CSS px between panes, applied as a GAP/2 inset on every pane edge
+const MIN_PANE_PX = 120;   // a pane thinner than this cannot render a readable chart (CSS px)
 const MIN_PANE_FRAC = 0.12;
 const EDGE_BAND = 0.3;     // outer 30% of a pane on each side splits; the middle swaps
+/* Where the split tree gives up and the panes fall back to a plain stack. "Too narrow to be
+   a split tree" is a question about the LAYOUT width the board is handed, not about the
+   viewport: .shell renders at zoom:.7, so the 1100 CSS px the tree needs is a 770 px
+   viewport. The `@media (max-width:770px)` rules carry the other half of this number — the
+   CSS is what actually stacks the tiles, so the two must move together. */
+/* The requirement is a LAYOUT width: below this many CSS px the split tree has no room and
+   the panes stack in flow. The viewport figure differs because .shell renders zoomed, so it is
+   derived from the live zoom rather than written down — a literal encodes the zoom, and
+   changing .shell{zoom} would leave the geometry adapting while the breakpoint silently did
+   not. The CSS carries the same number by necessity; a test recomputes it from the stylesheet
+   and fails if the two ever disagree. */
+const MIN_TREE_CSS_PX = 1100;
+function stackBreakpointPx(){ return Math.round(MIN_TREE_CSS_PX * shellZoom()); }
+const STACK_MQ = "(max-width:" + stackBreakpointPx() + "px)";
 
 const DEFAULT_VIEW = ["plot","price","tone"];
 /* Charts each lens brings up. Every lens shows at least two, and the AI/shadow lenses
@@ -1396,23 +1421,50 @@ function placeTile(newTile, targetTile, zone){
   boardTree = splitLeaf(boardTree, targetTile, zone, newTile);
 }
 
-/* A ratio is clamped against the node's own measured span, so the minimum is a real
-   pane size rather than a fraction that shrinks with the parent. */
-function clampRatio(node, w, h, boardRect){
-  const px = node.dir === "row" ? boardRect.width * w / 100 : boardRect.height * h / 100;
-  let min = px > 0 ? Math.max(MIN_PANE_FRAC, MIN_PANE_PX / px) : MIN_PANE_FRAC;
-  if(min > 0.45) min = 0.45;
-  return Math.max(min, Math.min(1 - min, node.ratio));
+/* .shell renders at zoom:.7, so getBoundingClientRect() and pointer coordinates come back in
+   rendered px while inline styles, offsetWidth/offsetHeight and every px constant in this
+   file are CSS px. Board geometry is CSS px throughout and converts once, here at the
+   measuring boundary — a rect written straight into a style is a 0.7x layout. */
+function shellZoom(){
+  const shell = document.querySelector(".shell");
+  const z = shell ? parseFloat(getComputedStyle(shell).zoom) : 1;
+  return (isFinite(z) && z > 0) ? z : 1;
+}
+function cssPx(rendered){ return rendered / shellZoom(); }
+function cssRect(el){
+  const r = el.getBoundingClientRect(), z = shellZoom();
+  return {left:r.left / z, top:r.top / z, right:r.right / z, bottom:r.bottom / z,
+          width:r.width / z, height:r.height / z};
 }
 
-/* How many panes deep the tallest column of this tree is. Purely structural — a dragged
-   ratio must not change it, or dragging a splitter would resize the board. */
-function stackDepth(node){
+/* CSS px a subtree needs along `dir` for every pane inside it to clear MIN_PANE_PX. Each
+   pane is inset by GAP, so the span it has to be handed is MIN_PANE_PX + GAP. Purely
+   structural — a dragged ratio must not change it, or dragging a splitter would resize
+   the board. */
+function minSpan(node, dir){
   if(!node) return 0;
-  if(node.type === "leaf") return 1;
-  return node.dir === "col"
-    ? stackDepth(node.a) + stackDepth(node.b)
-    : Math.max(stackDepth(node.a), stackDepth(node.b));
+  if(node.type === "leaf") return MIN_PANE_PX + GAP;
+  return node.dir === dir
+    ? minSpan(node.a, dir) + minSpan(node.b, dir)
+    : Math.max(minSpan(node.a, dir), minSpan(node.b, dir));
+}
+
+/* A ratio is clamped against what each CHILD SUBTREE needs, not against one pane: a child
+   holding a stack of four has to keep four panes readable out of its share. Measured in CSS
+   px against the node's own span, so the minimum is a real pane size rather than a fraction
+   that shrinks with the parent. The result is used for THIS layout only and is never written
+   back onto the node — a split squeezed on a small board would otherwise stay squeezed after
+   the board grows, and the squeezed value is what gets saved. */
+function clampRatio(node, spanPx){
+  let minA = MIN_PANE_FRAC, minB = MIN_PANE_FRAC;
+  if(spanPx > 0){
+    minA = Math.max(minA, minSpan(node.a, node.dir) / spanPx);
+    minB = Math.max(minB, minSpan(node.b, node.dir) / spanPx);
+  }
+  // Both floors cannot fit: divide the span in proportion to what each side asked for, so
+  // the shortfall is shared rather than paid entirely by whichever side is clamped last.
+  if(minA + minB > 1) return minA / (minA + minB);
+  return Math.max(minA, Math.min(1 - minB, node.ratio));
 }
 
 function layoutBoard(){
@@ -1424,16 +1476,16 @@ function layoutBoard(){
   // height: the board grows and the page scrolls instead of the panes going unreadable.
   // Below the split-tree breakpoint the panes stack in flow and the height must stay auto.
   board.style.height = "";
-  if(!window.matchMedia("(max-width:1100px)").matches){
-    const need = stackDepth(boardTree) * (MIN_PANE_PX + GAP);
+  if(!window.matchMedia(STACK_MQ).matches){
+    const need = minSpan(boardTree, "col");
     // A height the user dragged wins over the CSS default in BOTH directions — a grip that
     // only ever grows reads as broken. `need` is still a hard floor: the pane minimum is
     // what keeps a chart readable, so a deep stack overrides a too-small dragged height.
     if(boardHeight) board.style.height = Math.ceil(Math.max(need, boardHeight)) + "px";
-    else if(need > board.getBoundingClientRect().height)
+    else if(need > cssRect(board).height)
       board.style.height = Math.ceil(need) + "px";
   }
-  const br = board.getBoundingClientRect();
+  const br = cssRect(board);
   const half = GAP / 2;
   const placed = new Set();
   const splitters = [];
@@ -1451,8 +1503,11 @@ function layoutBoard(){
       el.style.height = "calc(" + h.toFixed(4) + "% - " + GAP + "px)";
       return;
     }
-    node.ratio = clampRatio(node, w, h, br);
-    const r = node.ratio;
+    // What the split asks for is the user's; a drag past either end is still stored as a
+    // ratio, so it survives a reload instead of being rejected as out of range on load.
+    node.ratio = Math.min(0.95, Math.max(0.05, node.ratio));
+    const r = clampRatio(node,
+      node.dir === "row" ? br.width * w / 100 : br.height * h / 100);
     if(node.dir === "row"){
       walk(node.a, x, y, w * r, h);
       walk(node.b, x + w * r, y, w * (1 - r), h);
@@ -1574,10 +1629,12 @@ function loadBoard(){
   }catch(e){ return null; }
 }
 
-/* Dragging the board's bottom edge sets an explicit height. Bounded at both ends: below
-   BOARD_MIN_H the charts stop being readable, and above BOARD_MAX_H the results table is
-   pushed so far down that the board stops behaving like part of a page. */
-const BOARD_MIN_H = 300;
+/* Dragging the board's bottom edge sets an explicit height, in CSS px. Bounded at both ends:
+   below BOARD_MIN_H the charts stop being readable, and above BOARD_MAX_H the results table
+   is pushed so far down that the board stops behaving like part of a page. BOARD_MIN_H is
+   the `min-height` on `.board` — a JS floor below the CSS one is a range the grip can be
+   dragged through with nothing moving. */
+const BOARD_MIN_H = 420;
 const BOARD_MAX_H = 2000;
 let boardHeight = 0;          // 0 = follow the CSS default
 
@@ -1588,7 +1645,7 @@ function initBoardResize(){
   let start = null;
   grip.addEventListener("pointerdown", (ev)=>{
     if(ev.button !== 0) return;
-    start = {y: ev.clientY, h: board.getBoundingClientRect().height};
+    start = {y: cssPx(ev.clientY), h: cssRect(board).height};
     grip.setPointerCapture?.(ev.pointerId);
     grip.classList.add("dragging");
     ev.preventDefault();
@@ -1596,7 +1653,7 @@ function initBoardResize(){
   window.addEventListener("pointermove", (ev)=>{
     if(!start) return;
     boardHeight = Math.min(BOARD_MAX_H,
-      Math.max(BOARD_MIN_H, start.h + (ev.clientY - start.y)));
+      Math.max(BOARD_MIN_H, start.h + (cssPx(ev.clientY) - start.y)));
     layoutBoard();
     scheduleChartReflow();
   });
@@ -1611,7 +1668,7 @@ function initBoardResize(){
   grip.addEventListener("keydown", (ev)=>{
     const step = ev.shiftKey ? 100 : 20;
     if(ev.key !== "ArrowUp" && ev.key !== "ArrowDown") return;
-    const now = board.getBoundingClientRect().height;
+    const now = cssRect(board).height;
     boardHeight = Math.min(BOARD_MAX_H, Math.max(BOARD_MIN_H,
       now + (ev.key === "ArrowDown" ? step : -step)));
     layoutBoard();
@@ -1636,13 +1693,16 @@ function syncBoardToLens(){
 function paneHits(){
   return treeTiles(boardTree).map(id => {
     const el = document.getElementById("tile-" + id);
-    return el ? {id, r:el.getBoundingClientRect()} : null;
+    return el ? {id, r:cssRect(el)} : null;
   }).filter(Boolean);
 }
-function dropTargetAt(x, y){
+/* Takes pointer coordinates (rendered px, as the events deliver them) and converts once, so
+   the rect handed back is CSS px and can be written straight into a style by showPreview. */
+function dropTargetAt(clientX, clientY){
   const board = document.getElementById("board");
   if(!board) return null;
-  const b = board.getBoundingClientRect();
+  const b = cssRect(board);
+  const x = cssPx(clientX), y = cssPx(clientY);
   if(x < b.left || x > b.right || y < b.top || y > b.bottom) return null;
   if(!boardTree) return {tile:null, zone:"root", rect:b};
   // Nearest pane rather than strict containment, so the gaps between panes still resolve.
@@ -1669,7 +1729,7 @@ function showPreview(target){
     el.className = "drop-preview";
     board.appendChild(el);
   }
-  const b = board.getBoundingClientRect();
+  const b = cssRect(board);
   const r = target.rect;
   let x = r.left - b.left, y = r.top - b.top, w = r.width, h = r.height;
   if(target.zone === "root"){ x += GAP/2; y += GAP/2; w -= GAP; h -= GAP; }
@@ -1755,7 +1815,10 @@ function sideMainTree(ids){
   return {type:"split", dir:"row", ratio:0.34,
     a:stackNodes(side), b:stackNodes(main)};
 }
-/* One place that turns an arrangement key into a tree, so the panel's pictograms, the
+/* A pictogram is a promise about the tree its key builds, and Grid's quad is honest only at
+   four tiles — at three it builds three columns of one, at five and seven three columns of
+   stacks. Its diagram now shows the balanced two-row form it converges on.
+   One place that turns an arrangement key into a tree, so the panel's pictograms, the
    "which arrangement is this board in" check and the click handler cannot drift apart. */
 function arrangeTree(kind, ids){
   if(!ids.length) return null;
@@ -1764,7 +1827,6 @@ function arrangeTree(kind, ids){
   if(kind === "main") return buildTree(ids);
   if(kind === "grid") return gridTree(ids);
   if(kind === "stack") return stackNodes(ids);     // full-width panes, one above another
-  if(kind === "thirds") return colsOf(ids, 3);
   if(kind === "rows") return rowsTree(ids);
   if(kind === "banner") return bannerTree(ids);
   if(kind === "sidemain") return sideMainTree(ids);
@@ -1804,8 +1866,6 @@ const ARRANGEMENTS = [
    boxes:[[0,0,.5,.5],[.5,0,.5,.5],[0,.5,.5,.5],[.5,.5,.5,.5]]},
   {key:"stack",   label:"Stack",      aria:"Arrange as a full-width vertical stack",
    boxes:[[0,0,1,1/3],[0,1/3,1,1/3],[0,2/3,1,1/3]]},
-  {key:"thirds",  label:"Thirds",     aria:"Arrange as three equal columns",
-   boxes:[[0,0,1/3,1],[1/3,0,1/3,1],[2/3,0,1/3,1]]},
   {key:"rows",    label:"Rows",       aria:"Arrange as two full-width rows",
    boxes:[[0,0,1,.5],[0,.5,1,.5]]},
   {key:"banner",  label:"Banner",     aria:"Arrange as one wide pane over a row",
@@ -1815,6 +1875,18 @@ const ARRANGEMENTS = [
 ];
 /* Structure only, no ratios: dragging a splitter changes how a board looks but not which
    arrangement it is, so the marked pictogram survives a resize. */
+/* Shape alone cannot identify an arrangement: at two tiles columns, main, grid and sidemain
+   all produce R(L,L), so a shape comparison lit four buttons at once and told the reader the
+   board was four arrangements simultaneously. Ratios are what distinguish them, so the whole
+   tree is compared — with a tolerance, because a dragged splitter should un-highlight the
+   arrangement it moved away from but a float round-trip should not. */
+function sameTree(a, b){
+  if(!a || !b) return false;
+  if(a.type !== b.type) return false;
+  if(a.type === "leaf") return a.tile === b.tile;
+  return a.dir === b.dir && Math.abs((a.ratio||0) - (b.ratio||0)) < 0.005
+    && sameTree(a.a, b.a) && sameTree(a.b, b.b);
+}
 function treeShape(node){
   if(!node) return "";
   if(node.type === "leaf") return "L";
@@ -1924,7 +1996,7 @@ function syncLayoutPanel(){
     // an honest description of it.
     { btn.classList.toggle("on",
         placed.length > (btn.dataset.arrange === "single" ? 0 : 1)
-        && treeShape(arrangeTree(btn.dataset.arrange, placed)) === shape); });
+        && sameTree(arrangeTree(btn.dataset.arrange, placed), boardTree)); });
 }
 
 function initBoard(){
@@ -1978,14 +2050,14 @@ function initBoard(){
   window.addEventListener("pointermove", (ev)=>{
     if(!drag) return;
     if(drag.kind === "splitter"){
-      const br = board.getBoundingClientRect();
+      const br = cssRect(board);
       const rc = drag.rect;
       if(drag.node.dir === "row"){
         const x0 = br.left + br.width * rc.x / 100;
-        drag.node.ratio = (ev.clientX - x0) / Math.max(br.width * rc.w / 100, 1);
+        drag.node.ratio = (cssPx(ev.clientX) - x0) / Math.max(br.width * rc.w / 100, 1);
       } else {
         const y0 = br.top + br.height * rc.y / 100;
-        drag.node.ratio = (ev.clientY - y0) / Math.max(br.height * rc.h / 100, 1);
+        drag.node.ratio = (cssPx(ev.clientY) - y0) / Math.max(br.height * rc.h / 100, 1);
       }
       layoutBoard();
       return;
@@ -2117,13 +2189,17 @@ const METRICS = {
   vol:   {label:"$ volume/day",        get:r=>volNum(r.vol), fmt:v=>fmtBig(v)},
   mcap:  {label:"market cap",          get:r=>r.mcap,        fmt:v=>fmtBig(v)},
   score: {label:"composite score",     get:r=>r.score,       fmt:v=>v.toFixed(3)},
+  // `tone:true` is what marks a metric as coverage-gated, so anything explaining a chart's
+  // pool asks the metric instead of listing tone keys \u2014 a list of keys is how the fourth
+  // tone metric ended up captioned as an ordinary field.
   bb:    {label:"Bloomberg headline tone", get:r=>toneMetric(r,"bloomberg"), fmt:fmtTone,
-          sub:r=>fmtDocs(toneCov(r,"bloomberg"))},
+          tone:true, sub:r=>fmtDocs(toneCov(r,"bloomberg"))},
   rd:    {label:"Reddit post tone",        get:r=>toneMetric(r,"reddit"),    fmt:fmtTone,
-          sub:r=>fmtDocs(toneCov(r,"reddit"))},
+          tone:true, sub:r=>fmtDocs(toneCov(r,"reddit"))},
   yh:    {label:"Yahoo headline tone",     get:r=>toneMetric(r,"yahoo"),     fmt:fmtTone,
-          sub:r=>fmtDocs(toneCov(r,"yahoo"))},
+          tone:true, sub:r=>fmtDocs(toneCov(r,"yahoo"))},
   all:   {label:"social sentiment (all sources)", get:toneAll, fmt:fmtTone,
+          tone:true, combined:true,
           sub:r=>fmtDocs(toneAllDocs(r)) + " \u00b7 "
                  + toneAllSrcs(r).length + "/" + TONE_SOURCES.length + " sources"},
 };
@@ -2144,14 +2220,22 @@ const LENS_SPEC = {
   yahoo_tone:           {rank:"yh",    x:"yh"},
   social_tone:          {rank:"all",   x:"all"},
 };
-/* The lenses whose membership test is coverage rather than a threshold. Keyed by the tone
-   source so the source toggle, the headline tile and the lens cannot disagree. */
+/* The lenses that are a lens on ONE provider, keyed by that provider so the source toggle,
+   the headline tile and the lens cannot disagree. `social_tone` is deliberately not here:
+   its membership is coverage from any source, so there is no single source to filter or
+   sort it on, and entering it would silently fall back to Bloomberg through toneField(). */
 const TONE_LENSES = {bloomberg_tone:"bloomberg", reddit_tone:"reddit",
                      yahoo_tone:"yahoo"};
+/* Where the tone toggle has to sit for each tone lens — the social lens reads all three at
+   once, so it takes "all". Left on one provider it would head the tone column with that
+   provider's name and print "no coverage" against names the lens admitted on ANOTHER
+   source's coverage, which is the page's cardinal sin stated in two places at once. */
+const TONE_LENS_SRC = Object.assign({social_tone:"all"}, TONE_LENSES);
 /* Membership is coverage from ANY source, not all three: requiring all three would empty
    the lens to the handful of names the two firehoses happen to reach. */
 function inSocialLens(r){ return toneAll(r) != null; }
 function toneLensSrc(){ return TONE_LENSES[preset] || null; }
+function isSocialLens(){ return preset === "social_tone"; }
 function lensSpec(){ return LENS_SPEC[preset] || {rank:"score", x:"pe"}; }
 function esc(s){
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
@@ -2250,9 +2334,15 @@ function activeLensLabel(){
   const btn = document.querySelector("#presets button.on");
   return btn ? btn.textContent.trim() : preset;
 }
+/* A built-in is identified by where it is NOT — outside a .lens-chip, which is the custom
+   lenses' wrapper. Matching on direct children of #presets instead would miss every built-in
+   the moment decoratePresets() wraps it in a .lens-wrap, and a duplicate name checked against
+   an empty list is always free: two chips would then carry one label, and every readout that
+   names the active lens could no longer say which one it meant. */
 function builtinLensNames(){
-  return Array.from(document.querySelectorAll("#presets > button[data-p]"))
-    .filter(b => b.dataset.p !== "custom").map(b => b.textContent.trim());
+  return Array.from(document.querySelectorAll("#presets button[data-p]"))
+    .filter(b => b.dataset.p !== "custom" && !b.closest(".lens-chip"))
+    .map(b => b.textContent.trim());
 }
 function lensNameTaken(name, exceptId){
   const key = name.toLowerCase();
@@ -2370,9 +2460,10 @@ function renderCustomBubbles(){
 function selectPreset(key){
   preset = key;
   markActivePreset();
-  // A tone lens is a lens on ONE provider, so the tone controls follow it — otherwise the
-  // headlines tile it opens with would be showing the other provider's documents.
-  const wantSrc = TONE_LENSES[key];
+  // A tone lens argues about a particular set of documents, so the tone controls follow it —
+  // otherwise the headlines tile it opens with would be showing another provider's documents,
+  // and the tone column would be answering a question the lens did not ask.
+  const wantSrc = TONE_LENS_SRC[key];
   if(wantSrc && source !== wantSrc) setToneSource(wantSrc);
   const m = matchedRows();
   if(m.length && !m.some(r => r.tk === selected)) pinTicker(m[0].tk);
@@ -2505,6 +2596,33 @@ function toneLensNote(src){
     + " score; every reading is shown with the document count behind it.";
   return s + (src === "yahoo" ? " " + YAHOO_ATTRIBUTION_NOTE : "");
 }
+/* The combined lens owes the same account, and its exclusion is the strongest one on the
+   page: a name missing from it was reached by NO source at all. Left without a note it was
+   the one tone lens that never named who it left out. */
+function socialLensNote(){
+  const covered = ROWS.filter(inSocialLens);
+  const silent  = ROWS.filter(r => !inSocialLens(r) && !toneAllDocs(r));
+  const untoned = ROWS.filter(r => !inSocialLens(r) && toneAllDocs(r));
+  let s = "<b>" + covered.length + " of " + ROWS.length + " names carry tone from at least"
+    + " one of the " + TONE_SOURCES.length + " sources.</b> Membership is coverage from ANY"
+    + " source, not all three, so a name absent from this lens was reached by <b>none</b> of"
+    + " them — Bloomberg did not name it, Reddit did not name it, and its own Yahoo feed"
+    + " returned nothing. <b>That is not a combined tone of 0.00</b>; it is absent rather"
+    + " than scored zero.";
+  if(silent.length)
+    s += " Absent, no source reached them at all: <b>"
+      + silent.map(r => esc(r.tk)).join(", ") + "</b>.";
+  if(untoned.length)
+    s += " Absent, documents arrived but none of them carried a tone word: <b>"
+      + untoned.map(r => esc(r.tk)).join(", ") + "</b>.";
+  if(!silent.length && !untoned.length)
+    s += " No loaded name is excluded here, which is a fact about plumbing rather than about"
+      + " consensus: Yahoo's feed is keyed by ticker and reaches nearly everything, so it"
+      + " alone carries most of these names in — read the per-source counts in the tone"
+      + " column before reading breadth as agreement.";
+  s += " " + TONE_COMBINE_NOTE;
+  return s + " " + YAHOO_ATTRIBUTION_NOTE;
+}
 /* Said wherever the Yahoo number is read at scale, not once in a footnote. The per-ticker
    feed removes the guess about WHICH company an item belongs to; it does not establish that
    the item is ABOUT that company, and the round-ups are the standing counter-example. */
@@ -2518,6 +2636,15 @@ const YAHOO_ATTRIBUTION_NOTE =
   + " can rest on sector news. Each document card says whether the text also names the"
   + " company (<code>ticker-feed+named</code>) or rests on the feed key alone"
   + " (<code>ticker-feed</code>).";
+/* The weight floor in toneAll() is a real thumb on the scale, so it is stated wherever the
+   combined number is used rather than left to be discovered in the code. */
+const TONE_COMBINE_NOTE =
+  "The combined reading averages the covered sources <b>weighted by the documents that"
+  + " actually carried a tone word</b>, so one headline cannot outvote twenty, and a source"
+  + " that said nothing contributes no term at all rather than a 0. The weighting has a"
+  + " floor: a covered source reporting <b>zero</b> toned documents still enters at weight 1"
+  + " rather than dropping out, so it counts as one document's worth against sources"
+  + " carrying twenty.";
 /* Zero matches is a result, not a rendering failure — it is said in words here and in each
    chart rather than left as a frame with nothing in it. */
 function renderLensNote(){
@@ -2527,15 +2654,19 @@ function renderLensNote(){
   // panel above already names the missing source, so this stays out of the way.
   if(!ROWS.length){ el.hidden = true; el.innerHTML = ""; return; }
   const src = toneLensSrc();
+  const social = isSocialLens();
   const n = matchedRows().length;
-  if(n && !src){ el.hidden = true; el.innerHTML = ""; return; }
+  if(n && !src && !social){ el.hidden = true; el.innerHTML = ""; return; }
   el.hidden = false;
-  el.innerHTML = n ? toneLensNote(src)
+  el.innerHTML = n ? (social ? socialLensNote() : toneLensNote(src))
     : ("<b>Nothing matches.</b> No name in the " + ROWS.length
       + "-name snapshot clears every condition in <b>" + esc(activeLensLabel())
       + "</b>" + (activeFilterCount() ? " together with the filters set above" : "")
       + ". The charts and the table below are empty for that reason — not because the"
-      + " data is missing. " + (src
+      + " data is missing. " + (social
+        ? "No source in the fetched window reached any of them; that is absence of coverage"
+          + " on every source at once, not a set of zeroes."
+        : src
         ? "Nothing in the fetched window named any of them; that is absence of coverage, not"
           + " a set of zeroes."
         : "Loosen a threshold, or edit the lens."));
@@ -2574,9 +2705,18 @@ function drawRank(){
   all.sort((a, b) => spec.asc ? a.v - b.v : b.v - a.v);
   const rows = all.slice(0, 12);
   document.getElementById("rankTitle").textContent = "Ranked · " + m.label;
+  // The denominator here is not the match count the filter row prints: a name that does not
+  // report the ranked field cannot be placed on this axis and is left out rather than drawn
+  // at zero. Both numbers are on screen at once, so the line names the field they differ by
+  // and counts the names it dropped — otherwise the two readouts simply contradict.
+  const unranked = matches.length - all.length;
   document.getElementById("rankMeta").textContent = rows.length
-    ? rows.length + " of " + all.length + " matches · " + (spec.asc ? "lowest" : "highest") + " first"
-    : "no matches";
+    ? rows.length + " of " + all.length + " matches reporting " + m.label
+      + (unranked ? " · " + unranked + " of " + matches.length + " report none" : "")
+      + " · " + (spec.asc ? "lowest" : "highest") + " first"
+    : matches.length
+      ? "none of " + matches.length + " matches report " + m.label
+      : "no matches";
   if(!rows.length){
     host.innerHTML = matches.length
       ? '<p class="muted-cell">No match in this lens reports ' + esc(m.label) + '.</p>'
@@ -2704,7 +2844,9 @@ function drawDist(){
   // The bins hold only names the field exists for, so on a tone axis the bar heights are a
   // count of covered names — the silent ones are missing from the histogram, not sitting in
   // a bin at zero.
-  const poolNote = (spec.x === "bb" || spec.x === "rd")
+  const poolNote = m.combined
+    ? "names reached by at least one source — names no source reached are absent, not binned at 0.00"
+    : m.tone
     ? "names with coverage only — no-coverage names are absent, not binned at 0.00"
     : "loaded names that report this field — the rest are absent, not binned at 0";
   document.getElementById("distLegend").innerHTML =
@@ -3032,6 +3174,10 @@ function sourceLabel(){
   if(source === "none") return "None";
   return TONE_FIELDS[source] ? TONE_FIELDS[source].label : source;
 }
+/* "The reader turned tone off" and "the documents did not reach this name" are two different
+   facts, and only the second is a statement about coverage. Everything that would otherwise
+   report an absent reading asks this first. */
+function toneSourceOff(){ return source === "none"; }
 /* The toggle's pressed state and the `source` variable are one fact, so they are written in
    one place — a lens can switch the source without the buttons falling out of step. */
 function setToneSource(src){
@@ -3169,40 +3315,95 @@ function passesFilters(r){
 /* The lens decides membership; the filter row narrows it. Both run here so the charts, the
    counts and the table are looking at one list — a filter that only bit in the table would
    let the plot and the results disagree about what is being screened. */
-function lensRows(){
+/* The canonical lens definitions, shipped by tools/stock_screener.py in the payload. The
+   page used to reimplement these thresholds and seven of them drifted — the default lens
+   drifted all the way to screening nothing, and Sovereign Ledger to 6.9x its membership.
+   A second copy of a rule is a defect while it still agrees, because agreement is the
+   state it decays from. Only the tone lenses stay page-native below: tone belongs to
+   screener_lab, not to stock_screener, so it has no canonical preset to consume. */
+let PRESET_RULES = {};
+let CATEGORICAL_FIELDS = ["ai", "bucket", "shadow_debt", "shadow_severity"];
+
+/* Canonical metric name -> the field name that metric travels under on a payload row. */
+const CANON_FIELD = {
+  pe:"pe", growth:"g", dividend_yield:"dy", debt_to_equity:"de", beta:"beta",
+  dollar_volume:"dollar_volume", market_cap:"mcap", profit_margin:"profit_margin",
+  price:"price", ai:"ai", bucket:"bucket", shadow_debt:"shadow_tag",
+  shadow_severity:"shadow_severity", shadow_severity_rank:"shadow_severity_rank",
+};
+function canonValue(row, metric){
+  const f = CANON_FIELD[metric];
+  return f ? row[f] : row[metric];
+}
+const CANON_OPS = {
+  "<":  (a,b)=>a <  b, "<=": (a,b)=>a <= b,
+  ">":  (a,b)=>a >  b, ">=": (a,b)=>a >= b,
+  "==": (a,b)=>a === b, "!=": (a,b)=>a !== b,
+};
+
+/* Mirrors stock_screener.apply_preset, including its no-data bin: a row missing a metric a
+   rule tests is UNSCREENABLE, not a failure. Dropping it silently would hide 14 names on
+   the safety lens — the same order as the 14 it admits — and would make this page disagree
+   with the published screen-*.html about which names could not be judged. */
+function canonicalScreen(key, rows){
+  const p = PRESET_RULES[key];
+  if(!p) return {matches:rows.slice(), noData:[]};
+  const matches = [], noData = [];
+  rows.forEach(r=>{
+    const missing = p.require
+      .filter(rule => CATEGORICAL_FIELDS.indexOf(rule[0]) === -1
+                      && canonValue(r, rule[0]) == null)
+      .map(rule => rule[0]);
+    if(missing.length){ noData.push({row:r, missing:missing}); return; }
+    const ok = p.require.every(rule=>{
+      const op = CANON_OPS[rule[1]];
+      return op ? op(canonValue(r, rule[0]), rule[2]) : false;
+    });
+    if(ok) matches.push(r);
+  });
+  const metric = p.rank && p.rank[0], asc = p.rank && p.rank[1] === "asc";
+  matches.sort((a,b)=>{
+    const av = canonValue(a, metric), bv = canonValue(b, metric);
+    // A name that does not report the ranking field sinks, rather than seating itself on a
+    // stand-in value at whichever end of the list zero happens to be.
+    if(av == null && bv == null) return 0;
+    if(av == null) return 1;
+    if(bv == null) return -1;
+    return asc ? av - bv : bv - av;
+  });
+  return {matches:matches, noData:noData};
+}
+/* The cap applies to what SURVIVED the filters. Slicing first made "Most volatile" plus a
+   beta filter return nothing and then report that as a fact about the market. */
+function canonicalRows(key, rows){
+  const out = canonicalScreen(key, rows);
+  const top = PRESET_RULES[key] && PRESET_RULES[key].top;
+  return top ? out.matches.slice(0, top) : out.matches;
+}
+function lensNoData(){
+  const key = PRESET_RULES[preset] ? preset : null;
+  return key ? canonicalScreen(key, ROWS.filter(passesFilters)).noData : [];
+}
+
+function lensRows(pool){
+  const rows = pool || ROWS;
   const custom = customLens(preset);
-  if(custom) return ROWS.filter(r=>lensAccepts(custom, r));
-  if(preset==="ai_shadow_debt") return ROWS.filter(r=>r.shadow_tag);
-  if(preset==="high_ai_exposure") return ROWS.filter(r=>r.ai==="high");
-  if(preset==="low_ai_exposure") return ROWS.filter(r=>r.ai==="low");
-  if(preset==="low_pe_high_dividend")
-    return ROWS.filter(r=>r.dy!=null && r.dy>=0.03 && r.pe!=null && r.pe<=25);
-  // A high-severity shadow tag disqualifies the name even on a flattering on-BS number:
-  // there the reported D/E is known to omit a financing leg, so "low debt" is unproven.
-  if(preset==="safety_low_debt")
-    return ROWS.filter(r=>r.de!=null && r.de<=50 && shadowRank(r)<=2);
-  // Ranking on a field a name does not report would seat it in the list on a stand-in value,
-  // so these two lenses hold only the names that report the field they rank on.
-  if(preset==="most_volatile")
-    return ROWS.filter(r=>r.beta!=null).sort((a,b)=>b.beta-a.beta).slice(0,8);
-  if(preset==="most_active")
-    return ROWS.filter(r=>volNum(r.vol)!=null)
-      .sort((a,b)=>volNum(b.vol)-volNum(a.vol)).slice(0,8);
-  if(preset==="chaos_hedges"||preset==="sovereign_ledger")
-    return ROWS.filter(r=>r.bucket || r.sector==="Energy" || r.sector==="Utilities");
-  // Coverage IS the membership test. A name nothing mentioned has no tone to rank, so it is
-  // absent from the lens — never carried in at 0.00, and never padded back in to make the
-  // result set look fuller than the window really was.
-  // Same rule as the single-source tone lenses, applied across all of them: a name no
-  // source covered has no combined tone either, so it is absent rather than scored 0.00.
-  if(preset==="social_tone") return ROWS.filter(inSocialLens);
+  if(custom) return rows.filter(r=>lensAccepts(custom, r));
+  if(PRESET_RULES[preset]) return canonicalRows(preset, rows);
+  if(preset==="social_tone") return rows.filter(inSocialLens);
   const toneSrcForLens = TONE_LENSES[preset];
   if(toneSrcForLens)
-    return ROWS.filter(r=>toneCovered(r, toneSrcForLens))
+    return rows.filter(r=>toneCovered(r, toneSrcForLens))
       .sort((a,b)=>toneMetric(b, toneSrcForLens) - toneMetric(a, toneSrcForLens));
-  return ROWS.slice();
+  return rows.slice();
 }
-function matchedRows(){ return lensRows().filter(passesFilters); }
+/* The filter row bites BEFORE the lens runs, not after — this is what hands `canonicalRows`
+   a pool that is already filtered, so a preset carrying a `top` cap ranks what survived the
+   filters. Ranking the whole snapshot first would cut to the cap and then delete the names
+   the filters excluded, reporting "nothing matches" about a list that was never screened.
+   Every other lens is a per-row test, where the order of the two passes cannot change the
+   set, so running both here costs those lenses nothing. */
+function matchedRows(){ return lensRows(ROWS.filter(passesFilters)); }
 function drawPlot(){
   const matches = matchedRows();
   const matched = new Set(matches.map(r=>r.tk));
@@ -3307,14 +3508,16 @@ const SHADOW_LABELS = {
   supply_chain:"Supply chain", grid_power:"Grid / power"
 };
 
-/* Mirrors SHADOW_DEBT_SEVERITY in tools/stock_screener.py. Ordinal, never a notional:
-   a sponsor is the party whose own statements omit the project debt, while a supplier
-   selling into the buildout carries demand risk rather than an off-BS leg of its own. */
-const SHADOW_SEVERITY = {
-  spv_sponsor:"high", capex_burn:"high", grid_power:"medium", supply_chain:"low"
-};
-const SHADOW_RANK = {high:3, medium:2, low:1};
-function shadowRank(r){ return SHADOW_RANK[SHADOW_SEVERITY[r.shadow_tag]] || 0; }
+/* Severity is decided in tools/stock_screener.py (SHADOW_DEBT_SEVERITY) and travels on the
+   row. This file used to keep its own copy of that table — a third one — which is the same
+   defect as the lens thresholds: a duplicate is wrong the moment the canonical side moves,
+   and nothing would have said so. The fallback covers a row from a snapshot built before the
+   field existed; it derives the label rather than inventing a rank. */
+function shadowSeverity(r){ return r.shadow_severity || null; }
+function shadowRank(r){
+  const rank = r.shadow_severity_rank;
+  return typeof rank === "number" ? rank : 0;
+}
 
 function fmtGrowth(g){
   if(g==null) return "—";
@@ -3361,6 +3564,20 @@ function toneWeight(){
   const w = el ? parseFloat(el.value) : 0;
   return isFinite(w) ? w : 0;
 }
+/* With the tone source off there is no reading to blend into anything, so the control is
+   disabled rather than left live and inert. The enabled wording lives in the markup and is
+   captured once here — a second copy of it would drift from the one the reader hovers. */
+function syncWeightControl(){
+  const el = document.getElementById("weight");
+  if(!el) return;
+  if(el.dataset.titleOn == null) el.dataset.titleOn = el.title;
+  const off = toneSourceOff();
+  el.disabled = off;
+  el.title = off
+    ? "The tone source is off, so there is no reading to blend — pick Bloomberg, Reddit,"
+      + " Yahoo or All to use this"
+    : el.dataset.titleOn;
+}
 function rankScore(r){
   const w = toneWeight();
   if(!w || r.score == null) return r.score;
@@ -3397,10 +3614,35 @@ function renderTable(){
         : `<b>0</b> of <b>${ROWS.length}</b> loaded names clear <b>${esc(presetLabel)}</b>`
           + `${filterPhrase} — the list below is empty for that reason, not because the `
           + `fields are missing.`;
-      if(w)
-        why.innerHTML += ` Rank blends <b>${(w * 100).toFixed(0)}%</b> tone into the composite`
+      // Unscreenable names are REPORTED, not dropped. A name the vendor left a required
+      // field blank for was never judged by this lens, and silently omitting it would let
+      // "did not qualify" and "could not be asked" share one absence — on the safety lens
+      // that is 14 names, the same order as the 14 it admits. Named, as /screen names them.
+      const unscreened = lensNoData();
+      if(unscreened.length){
+        const by = {};
+        unscreened.forEach(o=>o.missing.forEach(f=>{ (by[f] = by[f] || []).push(o.row.tk); }));
+        why.innerHTML += `<br><span class="muted-cell">${unscreened.length} name(s) could not be `
+          + `screened by this lens — the vendor reported no `
+          + Object.keys(by).map(f=>`<b>${esc(METRICS[CANON_FIELD[f]] ? METRICS[CANON_FIELD[f]].label : f)}</b> for ${by[f].map(esc).join(", ")}`).join("; ")
+          + `. Not judged, rather than judged and rejected.</span>`;
+      }
+      // With the source off there is no reading to blend, and every row's score is its own.
+      // Saying "no coverage" here would report a fact about the documents when the only fact
+      // is about the toggle — including for names all three sources cover.
+      if(w && toneSourceOff())
+        why.innerHTML += ` Tone in rank is set to <b>${(w * 100).toFixed(0)}%</b> but the tone`
+          + ` source is <b>off</b>, so nothing is blended and this rank is the composite score`
+          + ` alone — that is the toggle, not a statement about coverage. Pick a source to`
+          + ` apply the weight.`;
+      else if(w)
+        why.innerHTML += ` Rank blends <b>${(w * 100).toFixed(0)}%</b>`
+          + ` ${source === "all" ? "combined" : esc(sourceLabel())} tone into the composite`
           + ` score; names with no coverage keep their unblended score and are marked`
-          + ` <span class="muted-cell">no tone</span> in the score cell.`;
+          + ` <span class="muted-cell">no tone</span> in the score cell.`
+          // The social lens note already spells the combined rule out above; twice on one
+          // screen is noise, and the reader on any other lens has not been told at all.
+          + (source === "all" && !isSocialLens() ? ` ${TONE_COMBINE_NOTE}` : ``);
       const toneSrc = toneLensSrc();
       if(toneSrc)
         why.innerHTML += ` Names ${toneSrc === "yahoo"
@@ -3417,7 +3659,10 @@ function renderTable(){
     const on=r.tk===selected?' style="background:var(--plane)"':'';
     const flag=r.flag?`<br><span class="chip warning"><span class="dot"></span>${esc(r.flag)}</span>`:"";
     const blended=w && rv!=null && rv!==r.score;
-    const note=w && r.score!=null && !blended
+    // "no tone" is a coverage marker, so it is only earned while a source is on. With the
+    // source off no row is blended, and marking all of them would tell the reader that names
+    // with three sources of coverage have none.
+    const note=w && !toneSourceOff() && r.score!=null && !blended
       ? `<br><span class="muted-cell">no tone</span>` : "";
     return `<tr data-tk="${escAttr(r.tk)}"${on} style="cursor:pointer">
       <td class="num">${i+1}</td>
@@ -3495,7 +3740,7 @@ function dcShadow(r){
       + '<span class="muted-cell" title="' + escAttr(shadowTitle(r)) + '">— not tagged</span>'
       + '<span class="dc-cov">Absence, not zero: this name is not marked as a leg of the AI'
       + ' financing bet.</span></div>';
-  const sev = SHADOW_SEVERITY[r.shadow_tag] || "low";
+  const sev = shadowSeverity(r) || "low";
   return '<div class="dc-block"><h5>AI shadow</h5>'
     + '<span class="chip ' + DC_SEV_CHIP[sev] + '" title="' + escAttr(shadowTitle(r)) + '">'
     + '<span class="dot"></span>' + esc(SHADOW_LABELS[r.shadow_tag] || r.shadow_tag) + ' · '
@@ -3674,11 +3919,21 @@ function renderFilterCount(){
     el.innerHTML = "No rows loaded — nothing to filter.";
     return;
   }
-  const lens = lensRows().length;
-  const shown = matchedRows().length;
+  const lens = lensRows();
+  const shown = matchedRows();
+  // A lens that cuts to a top N is re-cut by the filters, not trimmed by them: it comes back
+  // the same size holding different names, and "8 of 8" beside "1 filter active" would read
+  // as a filter that bit on nothing. Asked of the two lists rather than of a list of lens
+  // names, so a lens added later is described correctly without being registered here.
+  const inLens = new Set(lens.map(r => r.tk));
+  const recut = shown.some(r => !inLens.has(r.tk));
   const n = activeFilterCount();
-  el.innerHTML = "<b>" + shown + "</b> of <b>" + lens + "</b> names in "
-    + esc(activeLensLabel()) + " (of " + ROWS.length + " loaded) · "
+  el.innerHTML = (recut
+      ? "<b>" + shown.length + "</b> names in " + esc(activeLensLabel())
+        + " — it ranks, so the filters re-cut it rather than trim it"
+      : "<b>" + shown.length + "</b> of <b>" + lens.length + "</b> names in "
+        + esc(activeLensLabel()))
+    + " (of " + ROWS.length + " loaded) · "
     + (n ? n + " filter" + (n === 1 ? "" : "s") + " active — every change applies at once"
          : "no filter set — every change applies at once")
     + " · a name that does not report the field a filter tests cannot pass it";
@@ -3713,12 +3968,15 @@ function renderNoData(){
 }
 
 function render(){
-  const col = source==="none" ? "Tone" :
+  // The header names the source the cells below it were read from, and "off" is one of the
+  // answers — an unqualified "Tone" over a column of dashes reads as absent documents.
+  const col = toneSourceOff() ? "Tone · source off" :
     (source==="all"
       ? "Tone (" + TONE_SOURCES.map(s=>TONE_FIELDS[s].tag).join(" · ") + ")"
       : sourceLabel()+" tone");
   document.getElementById("toneCol").textContent=col;
   renderNoData();
+  syncWeightControl();
   renderFilterCount();
   renderLensNote();
   drawPlot();
@@ -3751,6 +4009,8 @@ function applyLivePayload(){
   // the page's job is to refuse to print one as the other, not to rewrite either.
   if(live.rows && live.rows.length){
     ROWS = live.rows;
+    if(live.presets) PRESET_RULES = live.presets;
+    if(Array.isArray(live.categorical)) CATEGORICAL_FIELDS = live.categorical;
     if(!ROWS.some(r=>r.tk===selected)) selected = ROWS[0].tk;
   }
   if(live.headlines) HEADLINES = live.headlines;
