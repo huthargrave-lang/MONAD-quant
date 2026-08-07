@@ -69,6 +69,24 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
 .presets button{font:13px var(--sans);line-height:28px;padding:0 12px;border:1px solid var(--rule);
   border-radius:999px;background:var(--surface);color:var(--ink-2);cursor:pointer}
 .presets button.on{border-color:var(--accent);color:var(--ink);background:var(--plane);font-weight:600}
+/* A starred lens is OUTLINED rather than filled: the filled treatment already means
+   "this is the lens you are looking at", and two different meanings on one visual
+   channel is how a row of chips stops being readable at a glance. */
+.presets .lens-chip.starred,.presets button.starred{
+  border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.presets .lens-star{
+  padding:0 8px 0 9px;border:0;background:transparent;cursor:pointer;line-height:1;
+  color:var(--ink-muted);font-size:13px;opacity:.45;transition:opacity .12s,color .12s}
+.presets .lens-star:hover,.presets .lens-star:focus-visible{opacity:1;color:var(--accent)}
+.presets .lens-star[aria-pressed="true"]{opacity:1;color:var(--warning)}
+/* The star is a quiet control until it is used or reached for — a row of 14 bright stars
+   competes with the lens names, which are the thing being chosen. */
+.presets .lens-wrap{display:inline-flex;align-items:center;border:1px solid var(--rule);
+  border-radius:999px;background:var(--surface);overflow:hidden}
+.presets .lens-wrap.on{border-color:var(--accent);background:var(--plane)}
+.presets .lens-wrap > button[data-p]{border:0;border-radius:0;background:transparent;
+  padding-left:2px}
+.presets .lens-wrap > button[data-p].on{background:transparent;color:var(--ink);font-weight:600}
 .presets button.custom{border-style:dashed;color:var(--accent)}
 .presets button.custom.on{border-style:solid}
 /* A custom lens bubble is a group of real buttons rather than one button with clickable
@@ -1110,11 +1128,11 @@ function drawPrice(){
       + '" stroke="var(--axis)"/>'
     + paths
     + '<text x="' + (W-R) + '" y="' + (H-4) + '" text-anchor="end" fill="var(--ink-muted)"'
-      + ' font-size="10" font-family="var(--mono)">idx 100 · '
+      + ' font-size="13" font-family="var(--mono)">idx 100 · '
       + series[0].idx.length + ' bars</text>'
-    + '<text x="' + L + '" y="' + (T+2) + '" fill="var(--ink-muted)" font-size="10"'
+    + '<text x="' + L + '" y="' + (T+4) + '" fill="var(--ink-muted)" font-size="13"'
       + ' font-family="var(--mono)">' + hi.toFixed(0) + '</text>'
-    + '<text x="' + L + '" y="' + (H-B-4) + '" fill="var(--ink-muted)" font-size="10"'
+    + '<text x="' + L + '" y="' + (H-B-4) + '" fill="var(--ink-muted)" font-size="13"'
       + ' font-family="var(--mono)">' + lo.toFixed(0) + '</text>'
     + '</svg>';
 }
@@ -2084,13 +2102,96 @@ function lensNameTaken(name, exceptId){
   return builtinLensNames().some(n => n.toLowerCase() === key)
     || CUSTOM_LENSES.some(l => l.id !== exceptId && l.name.toLowerCase() === key);
 }
+const STAR_KEY = "monad.screener.draft.starred.v1";
+let STARRED = loadStars();
+function loadStars(){
+  try{
+    const raw = localStorage.getItem(STAR_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    // A hand-edited or corrupt blob must degrade to "nothing starred", never throw and
+    // never leave a half-read list that reorders the row unpredictably.
+    return Array.isArray(arr) ? arr.filter(x => typeof x === "string").slice(0, 40) : [];
+  }catch(e){ return []; }
+}
+function saveStars(){
+  try{ localStorage.setItem(STAR_KEY, JSON.stringify(STARRED)); }catch(e){}
+}
+function isStarred(key){ return STARRED.indexOf(key) !== -1; }
+function toggleStar(key){
+  const i = STARRED.indexOf(key);
+  if(i === -1) STARRED.push(key); else STARRED.splice(i, 1);
+  saveStars();
+  orderPresets();
+}
+/* Starred lenses move to the FRONT, keeping the order they were starred in, and the rest
+   keep their authored order. Reordering the live DOM rather than re-rendering keeps the
+   custom chips' own edit/delete handlers and the active selection intact. */
+function orderPresets(){
+  const host = document.getElementById("presets");
+  if(!host) return;
+  const add = host.querySelector('button[data-p="custom"]');
+  const units = Array.from(host.children).filter(el => el !== add);
+  units.forEach(el => {
+    const key = lensKeyOf(el);
+    const on = key && isStarred(key);
+    el.classList.toggle("starred", !!on);
+    const star = el.querySelector(".lens-star");
+    if(star) star.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+  const rank = el => {
+    const key = lensKeyOf(el);
+    const i = key ? STARRED.indexOf(key) : -1;
+    return i === -1 ? Infinity : i;
+  };
+  units.slice().sort((a, b) => rank(a) - rank(b)).forEach(el => host.appendChild(el));
+  if(add) host.appendChild(add);          // "+ custom" stays last, always
+}
+function lensKeyOf(el){
+  const b = el.matches("button[data-p]") ? el : el.querySelector("button[data-p]");
+  return b && b.dataset.p !== "custom" ? b.dataset.p : null;
+}
+/* Every lens bubble gets a star. Built-ins are authored as bare buttons, so each is
+   wrapped once into the same chip shape the custom lenses already use — one visual
+   language for both, and the star is a real button so it stays tab-reachable. */
+function decoratePresets(){
+  const host = document.getElementById("presets");
+  if(!host) return;
+  host.querySelectorAll('button[data-p]').forEach(btn => {
+    if(btn.dataset.p === "custom") return;
+    if(btn.closest(".lens-wrap") || btn.closest(".lens-chip")) return;
+    const wrap = document.createElement("span");
+    wrap.className = "lens-wrap";
+    btn.parentNode.insertBefore(wrap, btn);
+    wrap.appendChild(starButton(btn.dataset.p, btn.textContent.trim()));
+    wrap.appendChild(btn);
+  });
+  host.querySelectorAll(".lens-chip").forEach(chip => {
+    if(chip.querySelector(".lens-star")) return;
+    const b = chip.querySelector("button[data-p]");
+    if(b) chip.insertBefore(starButton(b.dataset.p, b.textContent.trim()), chip.firstChild);
+  });
+  orderPresets();
+}
+function starButton(key, name){
+  const s = document.createElement("button");
+  s.type = "button";
+  s.className = "lens-star";
+  s.dataset.star = key;
+  s.setAttribute("aria-pressed", isStarred(key) ? "true" : "false");
+  s.setAttribute("aria-label", "Pin " + name + " to the front");
+  s.title = "Pin to the front";
+  s.textContent = "\u2605";
+  return s;
+}
 function markActivePreset(){
   document.querySelectorAll("#presets button[data-p]").forEach(b =>
     b.classList.toggle("on", b.dataset.p === preset));
-  document.querySelectorAll("#presets .lens-chip").forEach(c =>
+  document.querySelectorAll("#presets .lens-chip, #presets .lens-wrap").forEach(c =>
     c.classList.toggle("on", !!c.querySelector("button.on")));
 }
 function renderCustomBubbles(){
+  // Rebuilding the custom chips drops their stars and their place in the order, so the
+  // decoration is re-applied at the end of this function rather than only at startup.
   const host = document.getElementById("presets");
   const anchor = host.querySelector('button[data-p="custom"]');
   host.querySelectorAll(".lens-chip").forEach(el => el.remove());
@@ -2106,6 +2207,7 @@ function renderCustomBubbles(){
       + ' title="Delete this lens" aria-label="Delete lens ' + escAttr(l.name) + '">×</button>';
     host.insertBefore(chip, anchor);
   });
+  decoratePresets();
   markActivePreset();
 }
 function selectPreset(key){
@@ -2743,6 +2845,8 @@ document.addEventListener("click", (ev)=>{
   }
   const edit = ev.target.closest("[data-lens-edit]");
   if(edit){ openLensForm(edit.dataset.lensEdit, edit); return; }
+  const star = ev.target.closest('#presets .lens-star');
+  if(star){ toggleStar(star.dataset.star); return; }
   const mk = ev.target.closest('#presets button[data-p="custom"]');
   if(mk){
     if(activePanel && activePanel.trigger === mk) panelClose();
@@ -3520,7 +3624,7 @@ applyLivePayload();
 // opening layout and LENS_SPEC drives the ranked/distribution charts.
 CUSTOM_LENSES = loadCustomLenses();
 CUSTOM_LENSES.forEach(registerLens);
-renderCustomBubbles();
+renderCustomBubbles();   // decorates the built-ins and applies the starred order too
 fillViewPills();
 buildLayoutPanel();
 
