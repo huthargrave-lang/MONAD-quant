@@ -591,6 +591,29 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
   color:var(--ink-muted)}
 .dc-empty{margin:0;font-size:calc(12.5px * var(--dcs));color:var(--ink-2)}
 
+/* The bucket grid. Cards rather than chips: each carries a thesis blurb, a holding period and
+   its own priced-of-total coverage, and none of that survives being squeezed into a pill. */
+.bk-grid{display:grid;gap:calc(8px * var(--dcs,1));
+  grid-template-columns:repeat(auto-fill,minmax(calc(178px * var(--dcs,1)),1fr))}
+.bk{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;
+  padding:calc(9px * var(--dcs,1)) calc(11px * var(--dcs,1));cursor:pointer;
+  border:1px solid var(--rule);border-radius:9px;background:var(--surface);
+  font:inherit;color:var(--ink-2);transition:border-color .12s,background .12s}
+.bk:hover{border-color:var(--ink-muted)}
+.bk.on{border-color:var(--accent);color:var(--ink);
+  background:color-mix(in srgb, var(--accent) 12%, var(--surface));
+  box-shadow:0 0 0 1px var(--accent)}
+.bk-id{font:calc(10px * var(--dcs,1)) var(--mono);letter-spacing:.1em;color:var(--ink-muted)}
+.bk-name{font-size:calc(13.5px * var(--dcs,1));font-weight:640;color:var(--ink)}
+.bk-blurb{font-size:calc(11.5px * var(--dcs,1));line-height:1.4}
+.bk-foot{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px}
+.bk-cov{font:calc(10.5px * var(--dcs,1)) var(--mono);color:var(--ink-muted)}
+/* The heat bar is a bar and not a number on purpose: it is authored relevance under a chosen
+   shock, on the same footing as the AI-shadow severity tags — ordinal and comparable within
+   one shock, and not a quantity of anything. */
+.bk-heat{flex:1 0 40px;height:3px;border-radius:2px;background:var(--rule);overflow:hidden}
+.bk-heat i{display:block;height:100%;background:var(--warning)}
+
 /* Watchlist rows. A row is a name plus the CURRENT lens's ranking value, so the kept set is
    read in the same terms as the screen it sits beside. */
 .watch-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;
@@ -982,6 +1005,66 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
         </div>
       </article>
 
+      <!-- ── The chaos buckets, as three tiles on the same board ───────────────────────
+           A bucket and a lens are different kinds of thing and the board keeps them apart. A
+           lens is a RULE — membership is computed from fields and changes when the data does.
+           A bucket is a LIST — someone decided these names belong to a thesis, and wrote down
+           what would make that wrong. Because they are different kinds they intersect rather
+           than compete, which is why the buckets live here beside the lenses instead of on a
+           page of their own: "of the names I decided are the tankers trade, which clear a
+           debt screen" is the actual question, and neither surface could ask it alone. -->
+      <article class="tile" data-id="buckets" id="tile-buckets">
+        <div class="tile-bar" data-drag>
+          <span class="tile-grip">⋮⋮</span>
+          <h2 id="bucketsTitle">Buckets</h2>
+          <label class="tile-ctl" data-nodrag>shock
+            <select id="bucketShock" data-nodrag aria-label="Order buckets by heat under this shock">
+              <option value="">none — by number</option>
+              <option value="hormuz">Hormuz / Gulf energy</option>
+              <option value="taiwan">Taiwan</option>
+              <option value="china_min">China minerals</option>
+              <option value="liquidity">Liquidity</option>
+              <option value="russia">Russia</option>
+              <option value="ai_grid">AI / grid</option>
+              <option value="unknown">Unknown</option>
+            </select></label>
+          <label class="tile-ctl" data-nodrag>tier
+            <select id="bucketTier" data-nodrag aria-label="Which tier of constituent counts">
+              <option value="all">all tickers</option>
+              <option value="liquid">liquid only</option>
+              <option value="satellite">satellites only</option>
+            </select></label>
+          <div class="tile-meta" id="bucketsMeta" data-nodrag>—</div>
+          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
+        </div>
+        <div class="tile-body">
+          <div class="detail-card" id="bucketGrid"></div>
+        </div>
+      </article>
+
+      <article class="tile" data-id="thesis" id="tile-thesis">
+        <div class="tile-bar" data-drag>
+          <span class="tile-grip">⋮⋮</span>
+          <h2 id="thesisTitle">Bucket thesis</h2>
+          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
+        </div>
+        <div class="tile-body">
+          <div class="detail-card" id="thesisCard"></div>
+        </div>
+      </article>
+
+      <article class="tile" data-id="members" id="tile-members">
+        <div class="tile-bar" data-drag>
+          <span class="tile-grip">⋮⋮</span>
+          <h2 id="membersTitle">Constituents</h2>
+          <div class="tile-meta" id="membersMeta" data-nodrag>—</div>
+          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
+        </div>
+        <div class="tile-body">
+          <div class="detail-card" id="membersList"></div>
+        </div>
+      </article>
+
       <article class="tile" data-id="watch" id="tile-watch">
         <div class="tile-bar" data-drag>
           <span class="tile-grip">⋮⋮</span>
@@ -1300,6 +1383,16 @@ let source = "bloomberg";
 let selected = null;
 /** tk -> array of closes, straight from the payload. Empty until a history is wired in. */
 let PRICES = {};
+/** The chaos buckets, from tools/sovereign_buckets.py via the payload. Empty until one
+    arrives — the bucket tiles say so rather than drawing an empty grid. */
+let BUCKETS = [];
+/** ticker -> why it has no price series. Delisting and absence are different answers. */
+let DELISTED = {};
+/** Which buckets are selected. A Set because selection is multiple: two theses can be
+    compared on one chart, which is most of the reason to have them on this board. */
+let BUCKET_SEL = new Set();
+let bucketShock = "";      // orders the grid by that shock's heat; "" keeps bucket order
+let bucketTier = "all";    // all | liquid | satellite
 /** Which row field colours the scatter's marks. See PLOT_GROUPS. */
 let plotGroup = "sector";
 /** Tickers lit on the price chart, chosen by clicking their legend chips.
@@ -1586,6 +1679,21 @@ function priceCohort(cap){
   const max = cap || PRICE_COHORT_MAX;
   const spec = lensSpec(), m = METRICS[spec.rank];
   const out = [], seen = new Set();
+  // A selected bucket OWNS the chart. It is the more specific request — the reader named
+  // these companies — and drawing the lens's leaders over a chosen thesis would answer a
+  // question nobody asked. The pin still travels, so clicking a constituent keeps working.
+  if(BUCKET_SEL.size){
+    const push = tk => {
+      if(!tk || seen.has(tk) || out.length >= max) return;
+      const s = priceSeries(tk);
+      if(s){ seen.add(tk); out.push({tk: tk, s: s}); }
+    };
+    push(selected);
+    bucketNames().forEach(push);
+    if(out.length) return out;
+    // Every constituent unpriced: fall through rather than return empty, so the chart shows
+    // the lens instead of an empty frame the reader would read as "the bucket did nothing".
+  }
   function push(tk){
     if(!tk || seen.has(tk) || out.length >= max) return;
     const s = priceSeries(tk);
@@ -1609,11 +1717,13 @@ function priceCohort(cap){
    'row' seats its children side by side (vertical boundary); 'col' stacks them.
    Every leaf's rect is derived from its parent's, so free space cannot appear and
    the arrangement is not limited to a fixed set of bays. */
-const TILE_IDS = ["plot","price","tone","rank","dist","shadow","card","watch"];
+const TILE_IDS = ["plot","price","tone","rank","dist","shadow","card","watch",
+                  "buckets","thesis","members"];
 const TILE_LABELS = {
   plot:"P/E × growth", price:"Price history", tone:"Headlines & tone",
   rank:"Ranked by lens", dist:"Distribution", shadow:"AI shadow",
-  card:"Stock detail", watch:"Watchlist"
+  card:"Stock detail", watch:"Watchlist",
+  buckets:"Chaos buckets", thesis:"Bucket thesis", members:"Constituents"
 };
 const TILE_NOTES = {
   plot:  "Every name as P/E against growth; the lens's matches are the coloured marks.",
@@ -1623,7 +1733,10 @@ const TILE_NOTES = {
   dist:  "Where the matches sit inside the wider distribution of one field.",
   shadow:"Reported on-BS debt/equity for editorially shadow-tagged names.",
   card:  "The pinned name's whole results-table row, read without scrolling down to it.",
-  watch: "Names you kept, with the lens's own ranking metric — survives lens changes and reload."
+  watch: "Names you kept, with the lens's own ranking metric — survives lens changes and reload.",
+  buckets:"The 20 Sovereign Ledger theses. Pick one or several; every other card follows.",
+  thesis: "What the selected bucket claims, how long it is held, and what would make it wrong.",
+  members:"Its liquid and satellite names — including the ones this snapshot cannot price."
 };
 /* What each chart needs before it has anything true to draw, and the one line the tray shows
    when it does not have it. A tile absent from this map is never parked. */
@@ -4491,6 +4604,142 @@ function dcShadow(r){
     + ' Editorial study object — not a measured off-balance-sheet notional.</span></div>';
 }
 
+/* ── Chaos buckets ───────────────────────────────────────────────────────────────────────
+   Three tiles over one selection. `bucketNames()` is the seam every other card reads, so
+   "which names is the board looking at" has exactly one answer whichever tile asked. */
+function selectedBuckets(){ return BUCKETS.filter(b => BUCKET_SEL.has(b.id)); }
+function bucketMembers(b){
+  return bucketTier === "liquid" ? b.liquid
+       : bucketTier === "satellite" ? b.satellite
+       : b.liquid.concat(b.satellite);
+}
+/** Every ticker in the selected buckets, deduplicated, in selection order. */
+function bucketNames(){
+  const seen = new Set(), out = [];
+  selectedBuckets().forEach(b => bucketMembers(b).forEach(t => {
+    if(!seen.has(t)){ seen.add(t); out.push(t); }
+  }));
+  return out;
+}
+/** Why a listed constituent has no line. Delisting and absence are different answers: the
+    first says "this cannot be fetched", the second says "this was not". */
+function whyNoSeries(tk){
+  return DELISTED[tk] ? "delisted — " + DELISTED[tk]
+       : DATA_PRESENT.price ? "not in this price snapshot"
+       : "no price snapshot is loaded";
+}
+function toggleBucket(id){
+  if(BUCKET_SEL.has(id)) BUCKET_SEL.delete(id); else BUCKET_SEL.add(id);
+  // Selecting a bucket re-aims the price chart at it, so a stale per-ticker toggle would
+  // dim every line of the bucket that was just chosen.
+  PRICE_LIT = [];
+  render();
+}
+function drawBuckets(){
+  const host = document.getElementById("bucketGrid");
+  if(!host) return;
+  const meta = document.getElementById("bucketsMeta");
+  if(!BUCKETS.length){
+    meta.textContent = "no bucket table";
+    host.innerHTML = '<p class="dc-empty"><b>No bucket table reached this page.</b> The'
+      + ' buckets are defined in <code>tools/sovereign_buckets.py</code> and travel in the'
+      + ' payload; opened as a bare file there is none. Nothing here is drawn from a'
+      + ' fallback list.</p>';
+    return;
+  }
+  const order = BUCKETS.slice();
+  // Heat is EDITORIAL relevance under a shock, so it orders the grid and never scores a
+  // name. Sorting is the whole of its effect here, exactly as on the buckets page.
+  if(bucketShock) order.sort((a,b) => (b.heat[bucketShock]||0) - (a.heat[bucketShock]||0));
+  const priced = t => !!priceSeries(t);
+  meta.textContent = BUCKET_SEL.size
+    ? BUCKET_SEL.size + " selected · " + bucketNames().length + " names"
+    : BUCKETS.length + " buckets · none selected";
+  host.innerHTML = '<div class="bk-grid">' + order.map(b => {
+    const mem = bucketMembers(b), have = mem.filter(priced).length;
+    const heat = bucketShock ? (b.heat[bucketShock] || 0) : null;
+    return '<button type="button" class="bk' + (BUCKET_SEL.has(b.id) ? " on" : "") + '"'
+      + ' data-bucket="' + escAttr(b.id) + '" aria-pressed="'
+      + (BUCKET_SEL.has(b.id) ? "true" : "false") + '">'
+      + '<span class="bk-id">' + esc(b.id) + '</span>'
+      + '<span class="bk-name">' + esc(b.name) + '</span>'
+      + '<span class="bk-blurb">' + esc(b.blurb) + '</span>'
+      + '<span class="bk-foot"><span class="chip">' + esc(b.duration) + '</span>'
+      // Priced-of-total, not just the total: a bucket the snapshot can only half draw
+      // should say so on its own face rather than at the point the chart comes up short.
+      + '<span class="bk-cov">' + have + '/' + mem.length + ' priced</span>'
+      + (heat == null ? "" : '<span class="bk-heat" title="editorial heat under '
+          + escAttr(bucketShock) + '"><i style="width:' + (heat * 25)
+          + '%"></i></span>')
+      + '</span></button>';
+  }).join("") + "</div>";
+}
+function drawThesis(){
+  const host = document.getElementById("thesisCard");
+  if(!host) return;
+  const title = document.getElementById("thesisTitle");
+  const sel = selectedBuckets();
+  if(!sel.length){
+    title.textContent = "Bucket thesis";
+    host.innerHTML = '<p class="dc-empty"><b>No bucket selected.</b> Pick one on the'
+      + ' <b>Chaos buckets</b> card and its claim, holding period and failure condition'
+      + ' appear here. A lens cannot carry a <code>fails when</code> — that is the one thing'
+      + ' a declared list has and a computed screen does not.</p>';
+    return;
+  }
+  title.textContent = sel.length === 1 ? "Thesis · " + sel[0].name
+                                       : "Thesis · " + sel.length + " buckets";
+  host.innerHTML = sel.map(b =>
+    '<div class="dc-block"><h5>' + esc(b.id) + " · " + esc(b.name) + '</h5>'
+    + '<p style="margin:0 0 6px">' + esc(b.blurb) + '</p>'
+    + '<div class="dc-grid">'
+    + dcCell("Held as", esc(b.duration))
+    + dcCell("Responds to", esc(b.lights.join(", ") || "—"))
+    + dcCell("Names", bucketMembers(b).length)
+    + '</div>'
+    + '<p class="dc-cov" style="margin-top:7px"><b>Fails when:</b> ' + esc(b.fails) + '</p>'
+    + '</div>').join("");
+}
+function drawMembers(){
+  const host = document.getElementById("membersList");
+  if(!host) return;
+  const meta = document.getElementById("membersMeta");
+  const sel = selectedBuckets();
+  if(!sel.length){
+    meta.textContent = "—";
+    host.innerHTML = '<p class="dc-empty"><b>No bucket selected.</b> Its liquid and satellite'
+      + ' names will be listed here, each one clickable into the rest of the board.</p>';
+    return;
+  }
+  const inLens = new Set(matchedRows().map(r => r.tk));
+  const names = bucketNames();
+  const withRow = names.filter(t => ROWS.some(r => r.tk === t)).length;
+  const withPx = names.filter(t => priceSeries(t)).length;
+  meta.textContent = names.length + " names · " + withPx + " priced · " + withRow + " screened";
+  host.innerHTML = '<ul class="watch-list">' + names.map(tk => {
+    const row = ROWS.find(r => r.tk === tk);
+    const px = priceSeries(tk);
+    // Three separate facts, never collapsed: whether the snapshot can price it, whether it
+    // carries fundamentals at all, and whether it clears the current lens. An ETF has no
+    // P/E and that is not a failure; a delisted name has no price and that is not either.
+    return '<li class="watch-row' + (inLens.has(tk) ? " is-in" : "")
+      + (px ? "" : " is-gone") + (selected === tk ? " is-pinned" : "") + '">'
+      + '<button type="button" class="wl-pin" data-watch-pin="' + escAttr(tk) + '">'
+      + '<code>' + esc(tk) + '</code> <span class="wl-nm">'
+      + esc(row ? (row.name || "") : "") + '</span></button>'
+      + '<span class="wl-val">' + (px
+          ? ((px[px.length-1]/px[0] - 1) * 100).toFixed(1) + "%" : "—") + '</span>'
+      + '<span class="wl-note">' + (px ? (row ? (inLens.has(tk) ? "in lens" : "screened")
+                                              : "priced, no fundamentals")
+                                       : esc(whyNoSeries(tk))) + '</span>'
+      + '</li>';
+  }).join("") + "</ul>"
+    + '<p class="dc-note">Return is over the loaded window. <b>' + (names.length - withRow)
+    + '</b> of these carry no fundamentals row — ETFs, futures and foreign listings are in'
+    + ' the buckets because the thesis holds them, and the screener\'s universe is'
+    + ' deliberately operating companies. That is an absence, not a zero.</p>';
+}
+
 /* ── Watchlist ───────────────────────────────────────────────────────────────────────────
    A kept set of names, independent of the lens. The lens answers "what passes this screen
    right now"; the watchlist answers "what am I following", which has to survive changing the
@@ -4808,6 +5057,9 @@ function render(){
   drawShadow();
   drawCard();
   drawWatch();
+  drawBuckets();
+  drawThesis();
+  drawMembers();
   renderTable();
   renderHeadlines();
 }
@@ -4838,6 +5090,11 @@ function applyLivePayload(){
   }
   if(live.headlines) HEADLINES = live.headlines;
   if(live.price_history) PRICES = live.price_history;
+  // Taken as shipped. The bucket table is authored judgement from sovereign_buckets.py, and
+  // this page's job is to draw it, never to supply a default for it — an empty grid that
+  // says so is the correct rendering of a payload that carries none.
+  if(Array.isArray(live.buckets)) BUCKETS = live.buckets;
+  if(live.delisted) DELISTED = live.delisted;
   // The window options are a function of the series just loaded, so they are rebuilt here
   // rather than once at startup, when PRICES is still the empty default.
   buildPriceWindowPicker();
@@ -4968,7 +5225,17 @@ document.addEventListener("click", (ev)=>{
   // watch controls are. It lives in the tile bar, which is a drag handle — the chip carries
   // data-nodrag so a click on it does not start moving the tile instead.
   const litc = ev.target.closest("[data-price-lit]");
-  if(litc){ ev.preventDefault(); ev.stopPropagation(); togglePriceLit(litc.dataset.priceLit); }
+  if(litc){ ev.preventDefault(); ev.stopPropagation(); togglePriceLit(litc.dataset.priceLit); return; }
+  const bk = ev.target.closest("[data-bucket]");
+  if(bk){ ev.preventDefault(); ev.stopPropagation(); toggleBucket(bk.dataset.bucket); }
+});
+document.getElementById("bucketShock").addEventListener("change", (ev)=>{
+  bucketShock = ev.target.value; drawBuckets();
+});
+document.getElementById("bucketTier").addEventListener("change", (ev)=>{
+  // Tier changes WHICH names are in the selection, so every card that reads bucketNames()
+  // has to redraw — not just the grid whose control it is.
+  bucketTier = ev.target.value; render();
 });
 document.querySelectorAll("#toneSrc button").forEach(btn=>{
   btn.onclick=()=>{ setToneSource(btn.dataset.src); render(); };

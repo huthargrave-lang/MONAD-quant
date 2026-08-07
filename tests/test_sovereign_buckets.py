@@ -157,6 +157,78 @@ class TheAbsentAreNamedNotDropped(unittest.TestCase):
                           "{} was removed from its bucket instead of flagged".format(ticker))
 
 
+class TheBucketsAreOnTheScreenerBoard(unittest.TestCase):
+    """The point of moving them here is that a bucket and a lens can be used together. Two
+    pages cannot intersect; two cards on one board can."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(REPO, "docs", "research",
+                               "SCREENER_COMBINED_DRAFT.html"), encoding="utf-8") as fh:
+            cls.html = fh.read()
+        cls.payload = research_ui._screener_combined_draft_payload()
+
+    def test_the_table_reaches_the_screener_unchanged(self):
+        self.assertEqual([b["id"] for b in self.payload["buckets"]],
+                         [b["id"] for b in sb.BUCKETS])
+        self.assertEqual(self.payload["delisted"], dict(sb.DELISTED))
+
+    def test_the_bucket_cards_are_widget_options(self):
+        """The ask was for them in edit-layout, not bolted to the page — a card that cannot
+        be parked, moved or arranged is not on this board, it is merely on this page."""
+        ids = re.search(r"const TILE_IDS = \[(.*?)\];", self.html, re.S).group(1)
+        for tile in ("buckets", "thesis", "members"):
+            self.assertIn('"{}"'.format(tile), ids,
+                          "{} is not a placeable tile".format(tile))
+            self.assertRegex(self.html, r'data-id="{}"'.format(tile))
+            self.assertRegex(self.html, r"{}\s*:".format(tile),
+                             "{} has no label/note entry".format(tile))
+
+    def test_constituent_series_travel_not_just_screened_ones(self):
+        """53 of 202 constituents are in the fundamentals universe. Shipping only screened
+        rows would leave three quarters of every bucket unplottable on the page meant to
+        plot it."""
+        shipped = set(self.payload["price_history"])
+        priceable = set(sb.price_tickers())
+        covered = priceable & shipped
+        self.assertGreater(
+            len(covered), len(priceable) * 0.9,
+            "only {} of {} tradeable constituents have a series in the screener "
+            "payload".format(len(covered), len(priceable)))
+
+    def test_a_selected_bucket_owns_the_price_chart(self):
+        """It is the more specific request — the reader named these companies — so drawing
+        the lens's leaders over a chosen thesis would answer a question nobody asked."""
+        self.assertRegex(
+            self.html, r"if\(BUCKET_SEL\.size\)\{[\s\S]{0,600}?bucketNames\(\)\.forEach\(push\)")
+
+    def test_an_all_unpriced_bucket_falls_through_rather_than_emptying_the_chart(self):
+        self.assertRegex(
+            self.html, r"if\(out\.length\) return out;",
+            "a bucket whose names are all unpriced must fall back to the lens, or the empty "
+            "frame reads as 'this bucket did nothing'")
+
+    def test_the_member_list_keeps_three_states_apart(self):
+        """Priced, carries fundamentals, and clears the lens are three different facts. An
+        ETF with no P/E is not a failure and a delisted name with no price is not either."""
+        self.assertIn("priced, no fundamentals", self.html)
+        self.assertRegex(self.html, r"function whyNoSeries\(tk\)\{")
+        self.assertRegex(self.html, r'DELISTED\[tk\] \? "delisted — " \+ DELISTED\[tk\]')
+
+    def test_the_page_supplies_no_default_bucket_table(self):
+        """Authored judgement travels or it does not exist. A built-in fallback list would
+        let the page draw buckets nobody wrote."""
+        self.assertRegex(self.html, re.compile(r"^let BUCKETS = \[\];$", re.M),
+                         "BUCKETS must start empty and be filled only from the payload")
+
+    def test_heat_orders_and_never_scores(self):
+        """Heat is editorial relevance under a chosen shock, on the same footing as the
+        shadow-severity tags — ordinal and authored, not a quantity to rank names by."""
+        body = re.search(r"function drawBuckets\(\)\{(.*?)\n\}", self.html, re.S).group(1)
+        self.assertIn("order.sort", body)
+        self.assertNotRegex(body, r"heat[\s\S]{0,40}[-+*/]\s*(?:score|rank|pe|beta)")
+
+
 class ThePriceUniverseCoversTheBuckets(unittest.TestCase):
     def test_every_tradeable_constituent_is_requested(self):
         missing = sorted(set(sb.price_tickers()) - set(sc.price_universe()))

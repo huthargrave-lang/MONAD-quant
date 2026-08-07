@@ -3991,10 +3991,21 @@ def _screener_combined_draft_payload():
             for key, p in stock_screener.PRESETS.items()
         },
         "categorical": list(stock_screener.CATEGORICAL),
-        # Only the screened names travel: the price file covers the whole universe, and
-        # shipping series the page cannot plot would be dead weight in every payload.
-        "price_history": {r["tk"]: prices["series"][r["tk"]] for r in rows
-                          if r["tk"] in prices["series"]} if prices else {},
+        # The chaos buckets, from the canonical module. The screener needs them because a
+        # bucket is a second way to choose names — declared membership beside the lenses'
+        # computed membership — and doing that on one board is the whole point of moving them
+        # here rather than linking to a second page.
+        "buckets": sovereign_buckets.BUCKETS,
+        "delisted": dict(sovereign_buckets.DELISTED),
+        # Series for the screened rows AND for every bucket constituent. The two sets barely
+        # overlap — 53 of 202 constituents are in the fundamentals universe — so restricting
+        # this to screened rows would leave three quarters of every bucket unplottable on the
+        # page that is meant to plot it.
+        "price_history": {
+            tk: prices["series"][tk]
+            for tk in ({r["tk"] for r in rows} | set(sovereign_buckets.all_tickers()))
+            if tk in prices["series"]
+        } if prices else {},
         "price_as_of": (prices or {}).get("as_of"),
         "price_cmd": "venv/bin/python tools/stock_screener.py prices",
     }
