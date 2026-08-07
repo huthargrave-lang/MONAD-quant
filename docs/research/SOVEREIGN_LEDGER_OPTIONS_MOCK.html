@@ -111,6 +111,21 @@ tbody tr.on{background:var(--plane)}
 .bucket{text-align:left;background:var(--plane);border:1px solid var(--rule);border-radius:9px;
   padding:11px 12px 9px;cursor:pointer;min-height:108px;display:flex;flex-direction:column;gap:4px;
   font:inherit;color:inherit;width:100%}
+/* The card is a button, so the star cannot live inside it — nested buttons are invalid
+   and browsers swallow the inner one's clicks. The wrapper carries both as siblings, so
+   each stays a real, tab-reachable control. */
+.bucket-wrap{position:relative;display:flex}
+.bucket-star{
+  position:absolute;top:6px;right:6px;z-index:2;border:0;background:transparent;padding:2px 3px;
+  line-height:1;cursor:pointer;color:var(--ink-muted);font-size:12px;opacity:.4;
+  transition:opacity .12s,color .12s}
+.bucket-star:hover,.bucket-star:focus-visible{opacity:1;color:var(--accent)}
+.bucket-star[aria-pressed="true"]{opacity:1;color:var(--warning)}
+/* Starred and selected are different facts and must stay separable: selection already
+   owns the accent border and the lifted background, so starred takes the warning ring
+   the star glyph is drawn in. A card that is both shows both. */
+.bucket.starred{box-shadow:inset 0 0 0 1px var(--warning)}
+.bucket.starred.selected{box-shadow:inset 0 0 0 1px var(--accent),0 0 0 2px var(--warning)}
 .bucket:hover{border-color:var(--accent)}
 .bucket.selected{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--surface)}
 .bucket .id{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--ink-muted)}
@@ -666,24 +681,61 @@ function tickersOf(b){
   if(tier==="satellite") return b.satellite.map(t=>({t,tier:"satellite"}));
   return [...b.liquid.map(t=>({t,tier:"liquid"})),...b.satellite.map(t=>({t,tier:"satellite"}))];
 }
+const BSTAR_KEY="monad.buckets.starred.v1";
+let STARRED_BUCKETS=loadBucketStars();
+function loadBucketStars(){
+  try{
+    const raw=localStorage.getItem(BSTAR_KEY);
+    const arr=raw?JSON.parse(raw):[];
+    // A corrupt or hand-edited blob degrades to nothing starred rather than throwing or
+    // half-ordering the grid.
+    return Array.isArray(arr)?arr.filter(x=>typeof x==="string").slice(0,20):[];
+  }catch(e){return[]}
+}
+function saveBucketStars(){
+  try{localStorage.setItem(BSTAR_KEY,JSON.stringify(STARRED_BUCKETS))}catch(e){}
+}
+function bucketStarred(id){return STARRED_BUCKETS.indexOf(id)!==-1}
+function toggleBucketStar(id){
+  const i=STARRED_BUCKETS.indexOf(id);
+  if(i===-1)STARRED_BUCKETS.push(id);else STARRED_BUCKETS.splice(i,1);
+  saveBucketStars();renderBuckets();
+}
+/* Starred buckets lead, in the order they were starred; the rest keep their authored
+   numbering, which is what the shock cheat-sheet refers to. */
+function bucketOrder(list){
+  const rank=b=>{const i=STARRED_BUCKETS.indexOf(b.id);return i===-1?Infinity:i};
+  return list.slice().sort((a,b)=>rank(a)-rank(b));
+}
 function renderBuckets(){
   const q=document.getElementById("q").value.trim().toLowerCase();
   const grid=document.getElementById("bucketGrid"); grid.innerHTML="";
   let shown=0;
-  BUCKETS.forEach(b=>{
+  bucketOrder(BUCKETS).forEach(b=>{
     const h=heatOf(b);
     const hay=(b.id+b.name+b.blurb+b.liquid.join(" ")+b.satellite.join(" ")).toLowerCase();
     if(q && !hay.includes(q)) return;
     shown++;
+    const wrap=document.createElement("div");
+    wrap.className="bucket-wrap";
+    const star=document.createElement("button");
+    star.type="button"; star.className="bucket-star";
+    star.setAttribute("aria-pressed",bucketStarred(b.id)?"true":"false");
+    star.setAttribute("aria-label","Pin bucket "+b.id+" "+b.name+" to the front");
+    star.title="Pin to the front";
+    star.textContent="\u2605";
+    star.onclick=ev=>{ev.stopPropagation();toggleBucketStar(b.id)};
     const btn=document.createElement("button");
-    btn.type="button"; btn.className="bucket"+(selected.has(b.id)?" selected":"");
+    btn.type="button"; btn.className="bucket"+(selected.has(b.id)?" selected":"")
+      +(bucketStarred(b.id)?" starred":"");
     btn.innerHTML=`<span class="id">BUCKET ${b.id}</span><span class="name">${b.name}</span>
       <span class="blurb">${b.blurb}</span>
       <span class="meta"><span class="chip ${h>=3?"serious":h>=2?"warning":"neutral"}"><span class="dot"></span>${b.duration}</span>
       <span class="tag">${b.liquid.length}+${b.satellite.length}</span></span>
       <span class="heat h${h}"><i></i></span>`;
     btn.onclick=()=>{if(selected.has(b.id))selected.delete(b.id);else selected.add(b.id);renderAll()};
-    grid.appendChild(btn);
+    wrap.appendChild(btn); wrap.appendChild(star);
+    grid.appendChild(wrap);
   });
   document.getElementById("shockHint").textContent=HINTS[document.getElementById("shock").value]||"";
   document.getElementById("countLabel").textContent=shown+" buckets shown";
