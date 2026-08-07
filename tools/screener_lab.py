@@ -413,6 +413,37 @@ def name_aliases(company_name):
     return sorted(out, key=len, reverse=True)[:2]
 
 
+#: Compiled matchers per (ticker, company_name), built once and kept.
+#:
+#: `re` memoises compiled patterns, but its cache holds 512 and is cleared WHOLESALE when it
+#: overflows. Each name here needs up to three patterns, so the universe passes 512 at about
+#: 170 tickers — and past that every call in the O(documents x rows) loop recompiles, because
+#: the entry it wants was evicted by the row before it. Measured on this machine: 0.00140
+#: s/row at 175 rows, 0.02204 s/row at 200. A 15.7x step, and nothing about the data changes
+#: across it.
+#:
+#: Holding the compiled objects here rather than raising `re._MAXCACHE` — that is a private
+#: implementation detail of the standard library, and a fix that reaches into one is a fix
+#: that stops working without warning.
+_MENTION_CACHE = {}
+
+
+def _mention_matchers(symbol, company_name):
+    key = (symbol, company_name)
+    hit = _MENTION_CACHE.get(key)
+    if hit is None:
+        cashtag = re.compile(r"\$" + re.escape(symbol) + r"\b")
+        # Case-sensitive: `\b` alone would match "It" for ticker IT.
+        bare = (re.compile(r"(?<![A-Za-z0-9$])" + re.escape(symbol) + r"(?![A-Za-z0-9])")
+                if symbol not in ACRONYM_STOPLIST and len(symbol) >= 2 else None)
+        aliases = tuple(
+            re.compile(r"(?<![a-z])" + re.escape(alias) + r"(?![a-z])", re.IGNORECASE)
+            for alias in (name_aliases(company_name) or ()))
+        hit = (cashtag, bare, aliases)
+        _MENTION_CACHE[key] = hit
+    return hit
+
+
 def mention_rule(text, ticker, company_name=None):
     """Which rule (if any) says this document is about `ticker` — else None.
 
@@ -426,18 +457,12 @@ def mention_rule(text, ticker, company_name=None):
     symbol = str(ticker).upper().strip()
     if not symbol:
         return None
-    if re.search(r"\$" + re.escape(symbol) + r"\b", body):
+    cashtag, bare, aliases = _mention_matchers(symbol, company_name)
+    if cashtag.search(body):
         return CASHTAG
-    if symbol not in ACRONYM_STOPLIST and len(symbol) >= 2:
-        # Case-sensitive: `\b` alone would match "It" for ticker IT.
-        if re.search(r"(?<![A-Za-z0-9$])" + re.escape(symbol) + r"(?![A-Za-z0-9])",
-                     body):
-            return SYMBOL
-    aliases = name_aliases(company_name)
-    if aliases and all(
-            re.search(r"(?<![a-z])" + re.escape(alias) + r"(?![a-z])", body,
-                      re.IGNORECASE)
-            for alias in aliases):
+    if bare is not None and bare.search(body):
+        return SYMBOL
+    if aliases and all(a.search(body) for a in aliases):
         return NAME
     return None
 

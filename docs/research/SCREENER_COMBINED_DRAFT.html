@@ -1718,38 +1718,47 @@ function togglePlotGrp(v){
   if(PLOT_GRP_ON.has(v)) PLOT_GRP_ON.delete(v); else PLOT_GRP_ON.add(v);
   drawPlot();
 }
-/** Tickers lit on the price chart, once the reader has used the legend chips. Meaningless on
-    its own — read it through priceLit(), which resolves the untouched default. */
-let PRICE_LIT = [];
-/** Whether the reader has used the legend chips at all. Untouched, the chart lights every
-    series; once a chip is clicked PRICE_LIT is the whole answer. The two states are
-    different: "I have not chosen" is not "I chose nothing". */
-let PRICE_LIT_TOUCHED = false;
+/** Tickers the reader has explicitly switched OFF on the price chart.
+
+    A hidden set rather than a lit set, and the inversion is the point: "all lit" becomes the
+    shape of the empty state instead of a branch that has to be reached. The allow-list
+    version had to be reset by hand from every control that changed the cohort, and it was
+    reset from four of about eight — so a filter change or a tier change left a stale list
+    that either dimmed the name the reader had just pinned or, when nothing in it survived
+    into the new cohort, made every chip read "off" while every line drew bright.
+    A hidden entry that is not in the current cohort is simply irrelevant, so nothing has to
+    remember to clear it and the stale case resolves itself. */
+let PRICE_HIDDEN = new Set();
 /** Whether `selected` was set by a reader or by the page. applyLivePayload auto-pins the
     first row when nothing valid is pinned, and treating that as a choice meant the chart
     opened with one line lit and four dimmed — a highlight nobody asked for, which is why
     the default never looked like "all". */
 let PIN_IS_DELIBERATE = false;
 function priceLit(cohort){
-  if(PRICE_LIT_TOUCHED) return PRICE_LIT.filter(tk => cohort.indexOf(tk) !== -1);
-  // A deliberate pin narrows to that name; otherwise everything is lit.
+  // Most specific wins. Switching chips off is the reader's most recent and most explicit
+  // statement about this chart, so it outranks a pin made elsewhere; a pin outranks the
+  // default; the default is everything.
+  const shown = cohort.filter(tk => !PRICE_HIDDEN.has(tk));
+  if(shown.length !== cohort.length) return shown;
   if(PIN_IS_DELIBERATE && selected && cohort.indexOf(selected) !== -1) return [selected];
   return cohort.slice();
 }
 function togglePriceLit(tk){
-  // The first click starts from what is currently lit — everything, or the pinned name — so
-  // clicking a chip turns THAT one off rather than turning all the others off.
-  if(!PRICE_LIT_TOUCHED){
-    PRICE_LIT = priceLit(priceCohort().map(p => p.tk));
-    PRICE_LIT_TOUCHED = true;
+  // Clicking a lit chip hides that one. Clicking the only lit chip left would hide everything
+  // and draw an empty frame, so it resets instead — an empty chart is never what a click on
+  // the last visible series is asking for.
+  if(PRICE_HIDDEN.has(tk)){ PRICE_HIDDEN.delete(tk); }
+  else {
+    const cohort = priceCohort().map(p => p.tk);
+    if(cohort.filter(t => !PRICE_HIDDEN.has(t)).length <= 1) PRICE_HIDDEN.clear();
+    else PRICE_HIDDEN.add(tk);
   }
-  const i = PRICE_LIT.indexOf(tk);
-  if(i === -1) PRICE_LIT.push(tk); else PRICE_LIT.splice(i, 1);
   drawPrice();
 }
-/** Back to the default: every series lit. Called whenever the COHORT changes, because a
-    toggle set names tickers, and the tickers on the chart have just been replaced. */
-function resetPriceLit(){ PRICE_LIT = []; PRICE_LIT_TOUCHED = false; }
+/** Back to the default: every series lit. Still called where a control means "start over"
+    (Clear, Select top heat), but no longer load-bearing — a hidden entry that is not in the
+    cohort has no effect, so the stale case that used to need this is gone. */
+function resetPriceLit(){ PRICE_HIDDEN.clear(); }
 /** Bars shown by the price chart, counted back from the most recent close. null = all of
     them. The OPTIONS are derived from the series actually loaded (priceWindows), never
     listed by hand — offering "1Y" against 126 daily closes would answer a question the
@@ -1770,6 +1779,17 @@ function cssEscape(v){
    constituent click. The payload's fallback pin assigns `selected` directly and does NOT
    come through here, which is exactly the distinction the price chart needs. */
 function pinTicker(tk){ selected = tk; PIN_IS_DELIBERATE = true; }
+/* The PAGE choosing a pin because the old one fell out of view — not the reader choosing one.
+   Written twice before, at two call sites that had already diverged: applyLivePayload assigned
+   `selected` directly (so the flag stayed false and the chart opened correctly all-lit) while
+   selectPreset routed the identical decision through pinTicker (so the flag went true and the
+   first lens click collapsed the chart to one line). One function, and it never sets the flag,
+   because a pin the page picked is not a request to see one name. */
+function fallbackPin(rows){
+  if(!rows.length) return;
+  if(rows.some(r => r.tk === selected)) return;
+  selected = rows[0].tk;
+}
 /* Clicking the ticker opens the whole row at size AND pins it, so the charts follow what
    is being inspected. Clicking anywhere else in the row pins without interrupting. */
 /* The TICKER is remembered, not the element: opening pins the name, which re-renders the
@@ -3640,6 +3660,27 @@ function emptyWayOut(){
 /* The sentence has to account for the listed-only rows, or the count above the table and the
    number of rows in it disagree — which is the same "the page is describing a list it is not
    showing" defect the bucket search count already fixed. */
+/* A lens that gates on the editorial shadow tag has to say when that gate did nothing.
+   `SHADOW_SEVERITY_RANK[None] = 0` puts an unassessed name BELOW "low", so it clears a
+   `rank <= 2` gate trivially — and stock_screener.py:267 says in as many words that 0 means
+   "carries no tag on this editorial list" and that no rule may be read as certifying an
+   absence of exposure. Today every one of the 14 names that clear Safety · low debt is
+   unassessed, so the gate excluded none of them. The rule is right — it does exclude the
+   known-high names, of which there are 26 assessed — but a reader seeing a lens whose name
+   promises safety is owed the fact that the shadow leg of it was never asked here. */
+function shadowGateNote(rows){
+  const p = PRESET_RULES[preset];
+  if(!p || !p.require.some(r => r[0] === "shadow_severity_rank")) return "";
+  if(!rows.length) return "";
+  const unassessed = rows.filter(r => !r.shadow_severity).length;
+  if(!unassessed) return "";
+  return unassessed === rows.length
+    ? ` <b>None</b> of these has been assessed for AI shadow debt, so that gate excluded`
+      + ` nothing here — they clear the measured criteria, and the editorial list simply does`
+      + ` not cover them. Absence of a tag is not evidence of no exposure.`
+    : ` <b>${unassessed}</b> of them carry no AI shadow-debt assessment, so the gate did not`
+      + ` judge those — absence of a tag is not evidence of no exposure.`;
+}
 function listedNote(n){
   if(!n) return "";
   return ` <b>${n}</b> more name${n === 1 ? " is" : "s are"} listed below: the thesis holds `
@@ -3811,7 +3852,7 @@ function selectPreset(key){
   const wantSrc = TONE_LENS_SRC[key];
   if(wantSrc && source !== wantSrc) setToneSource(wantSrc);
   const m = matchedRows();
-  if(m.length && !m.some(r => r.tk === selected)) pinTicker(m[0].tk);
+  fallbackPin(m);
   syncBoardToLens();
   render();
 }
@@ -5245,6 +5286,7 @@ function renderTable(){
           + `— the same list as the highlighted marks on the chart. Click a row or a mark to `
           + `pin that name.`
           + listedNote(listedOnly.length)
+          + shadowGateNote(sorted)
         : `<b>0</b> of <b>${ROWS.length}</b> loaded names — ${lensPhrase}. The list below is `
           + `empty for that reason, not because the fields are missing.`
           + listedNote(listedOnly.length)
@@ -6237,7 +6279,7 @@ function applyLivePayload(){
     ROWS = live.rows;
     if(live.presets) PRESET_RULES = live.presets;
     if(Array.isArray(live.categorical)) CATEGORICAL_FIELDS = live.categorical;
-    if(!ROWS.some(r=>r.tk===selected)) selected = ROWS[0].tk;
+    fallbackPin(ROWS);
   }
   if(live.headlines) HEADLINES = live.headlines;
   if(live.headlines_withheld) HEADLINES_WITHHELD = live.headlines_withheld;

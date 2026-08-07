@@ -245,19 +245,30 @@ class TheSelectedSeriesSeparates(unittest.TestCase):
             "the unpicked paths must be concatenated before the picked one")
 
     def test_nothing_outside_the_cohort_can_be_lit(self):
-        """`selected` — and a stale entry in PRICE_LIT — can name a ticker that draws no
-        line. Treating one as lit dims every series and highlights none, which reads as a
-        broken chart rather than as no selection."""
+        """`selected` — and a stale hidden entry — can name a ticker that draws no line.
+        Treating one as lit dims every series and highlights none, which reads as a broken
+        chart rather than as no selection.
+
+        The mechanism changed from an allow-list to a hidden set, so this asserts the
+        PROPERTY rather than the old spelling: every value priceLit returns is derived from
+        the cohort it was handed, and a pin is checked for membership before it can win."""
         body = re.search(r"function priceLit\(cohort\)\{(.*?)\n\}", self.html, re.S)
         self.assertIsNotNone(body, "priceLit must take the cohort it is resolving against")
-        self.assertRegex(
-            body.group(1),
-            r"PRICE_LIT\.filter\(tk => cohort\.indexOf\(tk\) !== -1\)",
-            "an explicit toggle set must still be narrowed to the current cohort")
-        self.assertRegex(
-            body.group(1),
-            r"cohort\.indexOf\(selected\) !== -1",
-            "a pin outside the cohort must not be treated as lit")
+        code = body.group(1)
+        self.assertRegex(code, r"cohort\.filter\(tk => !PRICE_HIDDEN\.has\(tk\)\)",
+                         "the lit set must be built FROM the cohort, never from a stored list")
+        self.assertRegex(code, r"cohort\.indexOf\(selected\) !== -1",
+                         "a pin outside the cohort must not be treated as lit")
+        # Every value it can return traces back to `cohort` — either the filtered local, the
+        # whole cohort, or the pin that was just membership-checked. Checked as a closed SET
+        # of allowed returns rather than by matching "cohort" in each one, which would only
+        # be re-asserting the spelling of a local variable.
+        derived = set(re.findall(r"const (\w+) = cohort\.", code))
+        allowed = derived | {"cohort.slice()", "[selected]"}
+        for ret in (r.strip() for r in re.findall(r"return ([^;]+);", code)):
+            self.assertIn(ret, allowed,
+                          "priceLit can return {!r}, which is not derived from the cohort "
+                          "it was handed".format(ret))
 
     def test_white_is_reserved_for_a_lone_selection(self):
         """Two white lines are two lines the reader cannot tell apart — the same collision
@@ -270,18 +281,18 @@ class TheSelectedSeriesSeparates(unittest.TestCase):
             "a lit line may only take --cat-on when it is the ONLY lit line")
 
     def test_untouched_means_every_series_is_lit(self):
-        """"I have not chosen" is not "I chose nothing". Untouched, the chart lights every
-        series; the page auto-pins its first row, so reading that pin as a choice opened the
-        chart with one line lit and four dimmed — a highlight nobody asked for."""
+        """"I have not chosen" is not "I chose nothing". With nothing hidden the chart lights
+        every series — and that is now the FALL-THROUGH rather than a branch, which is what
+        stopped a stale set from ever producing an all-dark chart."""
         body = re.search(r"function priceLit\(cohort\)\{(.*?)\n\}", self.html, re.S).group(1)
         self.assertRegex(body, r"return cohort\.slice\(\);",
                          "the untouched default must light the whole cohort")
-        self.assertRegex(body, r"if\(PRICE_LIT_TOUCHED\) return",
-                         "an explicit toggle set must win over the default")
+        self.assertTrue(body.rstrip().endswith("return cohort.slice();"),
+                        "all-lit must be the last thing priceLit can do, so every path that "
+                        "chooses nothing else arrives at it")
         self.assertRegex(
             self.html, r"function pinTicker\(tk\)\{ selected = tk; PIN_IS_DELIBERATE = true; \}",
-            "only a reader's pin may narrow the chart; the payload's fallback assigns "
-            "`selected` directly and must not")
+            "only a reader's pin may narrow the chart")
 
 
 class TheArrangementMenuIsWired(unittest.TestCase):
@@ -604,6 +615,87 @@ class TheLegendSwatchesAreControls(unittest.TestCase):
     def test_changing_the_grouping_clears_the_selection(self):
         """The chosen values name the OLD field; carried over, they would hide everything."""
         self.assertRegex(self.html, r"plotGroup = ev\.target\.value; PLOT_GRP_ON\.clear\(\)")
+
+
+class ThePriceChartDefaultsToAllLit(unittest.TestCase):
+    """Hudson's rule: all series lit unless a stock is selected elsewhere or names are
+    un-toggled on the chart. It held at load and broke on the first lens click."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.html = _page()
+
+    def test_the_fallback_pin_is_written_once_and_is_never_deliberate(self):
+        """The same decision — the page picking a pin because the old one fell out of view —
+        was written at two call sites that had diverged: one assigned `selected` directly
+        (flag stayed false, chart opened correctly) and one routed it through pinTicker (flag
+        went true, first lens click collapsed the chart to one line)."""
+        self.assertRegex(self.html, r"function fallbackPin\(rows\)\{")
+        body = re.search(r"function fallbackPin\(rows\)\{(.*?)\n\}", self.html, re.S).group(1)
+        self.assertNotIn("pinTicker", body,
+                         "a pin the page picked is not a request to see one name")
+        self.assertNotIn("PIN_IS_DELIBERATE", body)
+        # Scoped to the CALL SITES, not to the shapes the old code happened to have: a
+        # freshly hand-rolled `if(m.length) pinTicker(m[0].tk)` is the same defect wearing
+        # different syntax, and a negative match on the old spelling would let it back in.
+        for fn in ("selectPreset", "applyLivePayload"):
+            body = re.search(r"function {}\(.*?\)\{{(.*?)\n\}}".format(fn),
+                             self.html, re.S)
+            self.assertIsNotNone(body, fn)
+            self.assertNotIn(
+                "pinTicker", body.group(1),
+                "{} must route its fallback through fallbackPin — pinTicker marks the pin as "
+                "the reader's, and this one is the page's".format(fn))
+            self.assertIn("fallbackPin(", body.group(1),
+                          "{} no longer uses the shared fallback rule".format(fn))
+
+    def test_the_set_is_hidden_not_lit(self):
+        """An allow-list has to be reset by hand from every control that changes the cohort,
+        and it was reset from four of about eight. A hidden entry that is not in the current
+        cohort is simply irrelevant, so the stale case resolves itself."""
+        self.assertRegex(self.html, r"let PRICE_HIDDEN = new Set\(\);")
+        self.assertNotIn("PRICE_LIT_TOUCHED", self.html)
+        body = re.search(r"function priceLit\(cohort\)\{(.*?)\n\}", self.html, re.S).group(1)
+        self.assertIn("cohort.filter(tk => !PRICE_HIDDEN.has(tk))", body)
+        self.assertIn("return cohort.slice();", body)
+
+    def test_chips_outrank_a_pin_which_outranks_the_default(self):
+        body = re.search(r"function priceLit\(cohort\)\{(.*?)\n\}", self.html, re.S).group(1)
+        self.assertLess(body.index("shown.length !== cohort.length"),
+                        body.index("PIN_IS_DELIBERATE"),
+                        "an explicit chip choice must win over a pin made elsewhere")
+
+    def test_hiding_the_last_visible_series_resets_rather_than_emptying(self):
+        """An empty chart is never what a click on the last visible line is asking for."""
+        body = re.search(r"function togglePriceLit\(tk\)\{(.*?)\n\}", self.html, re.S).group(1)
+        self.assertRegex(body, r"<= 1\) PRICE_HIDDEN\.clear\(\)")
+
+
+class TheShadowGateSaysWhenItDidNothing(unittest.TestCase):
+    """stock_screener.py declares that rank 0 means "carries no tag on this editorial list"
+    and that no rule may be read as certifying an absence of exposure. `safety_low_debt`
+    gates on `rank <= 2`, which an unassessed name clears trivially — and today all 14 of its
+    matches are unassessed, so the gate excluded none of them."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.html = _page()
+
+    def test_the_note_exists_and_is_scoped_to_gated_lenses(self):
+        self.assertRegex(self.html, r"function shadowGateNote\(rows\)\{")
+        body = re.search(r"function shadowGateNote\(rows\)\{(.*?)\n\}", self.html, re.S).group(1)
+        self.assertIn('r[0] === "shadow_severity_rank"', body,
+                      "the note must only appear on a lens that actually gates on the tag")
+        self.assertIn("!r.shadow_severity", body)
+
+    def test_it_distinguishes_none_assessed_from_some(self):
+        body = re.search(r"function shadowGateNote\(rows\)\{(.*?)\n\}", self.html, re.S).group(1)
+        self.assertIn("unassessed === rows.length", body)
+        self.assertIn("excluded", body)
+        self.assertIn("not evidence of no exposure", body)
+
+    def test_it_is_wired_into_the_results_sentence(self):
+        self.assertRegex(self.html, r"\+ shadowGateNote\(sorted\)")
 
 
 class TheToneLensesAreAllReachable(unittest.TestCase):
