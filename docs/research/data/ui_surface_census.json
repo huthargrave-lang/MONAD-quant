@@ -3,9 +3,9 @@
     "css_block_variants": 0,
     "fenced": 1,
     "grounds": 1,
-    "surfaces": 7,
-    "theme_aware": 7,
-    "token_driven": 7,
+    "surfaces": 8,
+    "theme_aware": 8,
+    "token_driven": 8,
     "with_external_deps": 1
   },
   "grounds": [
@@ -107,6 +107,23 @@
       "ground_luminance": 0.8933,
       "path": "tools/sec_form25_population_lab.py",
       "role": "Form 25 population browser",
+      "served_here": true,
+      "shares_tokens": true,
+      "theme_aware": true,
+      "themes": [
+        "light",
+        "dark"
+      ]
+    },
+    {
+      "companions": [],
+      "distinct_hexes": 39,
+      "entry": "build_bucket_proposal",
+      "external_hosts": [],
+      "ground": "#f2f3f1",
+      "ground_luminance": 0.8933,
+      "path": "tools/build_bucket_proposal.py",
+      "role": "buckets-in-screener proposal",
       "served_here": true,
       "shares_tokens": true,
       "theme_aware": true,

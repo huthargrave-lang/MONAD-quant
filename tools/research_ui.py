@@ -90,13 +90,18 @@ a:hover{text-decoration:underline}
 code,.mono,th,td.num{font-family:var(--mono)}
 
 /* ── shell ─────────────────────────────────────────────────────────────── */
-/* Every surface renders at 70%. On the shell rather than on main so the rail scales with
+/* Every surface renders at 77%. On the shell rather than on main so the rail scales with
    the body — a full-size rail beside a shrunken page reads as broken. min-height
    compensates for the scale so the shell still fills the viewport. The context map is
    deliberately NOT scaled here: it runs its own d3 zoom/pan, and a CSS zoom on top makes
-   the two coordinate systems disagree, which breaks orb hit-testing. */
+   the two coordinate systems disagree, which breaks orb hit-testing.
+
+   .77, not the .7 this was: the buckets mock had already been raised to .77 on its own, so
+   the shared rail rendered visibly smaller on every surface that actually used the shared
+   shell than on the one page that overrode it. One number, in one place, and it is the
+   larger one. Guarded by tests/test_shell_scale.py so the two cannot part again. */
 .shell{display:grid;grid-template-columns:232px minmax(0,1fr);gap:0;
-  zoom:.7;min-height:calc(100vh / .7)}
+  zoom:.77;min-height:calc(100vh / .77)}
 .rail{border-right:1px solid var(--rule);background:var(--surface);padding:20px 0 40px}
 .rail .brand{padding:0 18px 16px;border-bottom:1px solid var(--rule);margin-bottom:14px}
 .rail .brand b{display:block;font-family:var(--mono);font-size:13px;letter-spacing:.06em;
@@ -442,6 +447,8 @@ SURFACES = [
      "sec_corporate_action_state_lab html", True, ()),
     ("tools/sec_form25_population_lab.py", "Form 25 population browser",
      "sec_form25_population_lab query", True, ()),
+    ("tools/build_bucket_proposal.py", "buckets-in-screener proposal",
+     "build_bucket_proposal", True, ()),
     ("live/templates/dashboard.html", "live trading monitor",
      "live/dashboard.py (FastAPI)", False, ("live/dashboard.py",)),
 ]

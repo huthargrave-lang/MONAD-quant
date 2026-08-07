@@ -28,6 +28,13 @@
   /* Groups past the palette pool here. A neutral that is deliberately NOT one of the ten:
      "these were not given a colour" must not look like a category. */
   --cat-rest:#9a9a94;
+  /* The one place the shell scale is written. It was a literal .7 in the CSS, a literal .7
+     in three comments, and a 770 in two media queries — six copies of one decision, which is
+     how the rail ended up smaller here than on the buckets page while both claimed to be
+     "the shared shell". Raised to .77 to match, so every surface is the same size.
+     `shellZoom()` reads the computed value back rather than repeating it, and the stacking
+     breakpoint is derived from it in the script. */
+  --shell-zoom:.77;
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
 }
@@ -56,7 +63,7 @@ code{font-family:var(--mono);font-size:12px}
    scales with it — a full-size rail beside a shrunken body reads as a broken layout.
    min-height compensates for the scale so the shell still fills the viewport. */
 .shell{display:grid;grid-template-columns:232px minmax(0,1fr);gap:0;
-  zoom:.7;min-height:calc(100vh / .7)}
+  zoom:var(--shell-zoom);min-height:calc(100vh / var(--shell-zoom))}
 .rail{border-right:1px solid var(--rule);background:var(--surface);padding:20px 0 40px}
 .rail .brand{padding:0 18px 16px;border-bottom:1px solid var(--rule);margin-bottom:14px}
 .rail .brand b{display:block;font-family:var(--mono);font-size:13px;letter-spacing:.06em;
@@ -276,7 +283,7 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
 .board-resize.dragging::after{background:var(--accent)}
 .board-resize:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 /* Nothing to drag once the panes stack in flow — same breakpoint as the stack fallback. */
-@media (max-width:770px){ .board-resize{display:none} }
+@media (max-width:847px){ .board-resize{display:none} }
 /* The tray sits ABOVE the board so a parked chart is always reachable without scrolling. */
 .tray{
   display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:0 0 8px;
@@ -366,8 +373,14 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
    title, so the title lost the space every time there was something to compare. */
 .tile-meta{font:13px var(--mono);color:var(--ink-muted);
   order:4;flex:1 1 auto;min-width:0;display:flex;flex-wrap:wrap;gap:5px;margin-top:3px}
-.tile-meta .chip{font-size:12.5px;padding:2px 8px}
-.tile-meta .chip .dot{width:9px;height:9px}
+/* The chips are buttons — they toggle which series is lit — so they take a pointer and a
+   focus ring rather than inheriting the drag-handle's `grab`. Sized as controls rather than
+   as captions: they were 12.5px text in a 2px-tall pill, which is a hard target to hit and
+   an easy one to read as a label you cannot press. */
+.tile-meta .chip{font-size:16px;padding:6px 14px;cursor:pointer;gap:8px;
+  transition:opacity .12s,border-color .12s,background .12s}
+.tile-meta .chip .dot{width:12px;height:12px}
+.tile-meta .chip:hover{border-color:var(--ink-muted);background:var(--surface)}
 .tile-meta .chip.chip-on{border-color:var(--cat-on);color:var(--ink)}
 /* A control living in the drag handle. `cursor:default` overrides the bar's `grab` so it does
    not advertise a drag it is excluded from, and the pointerdown handler skips [data-nodrag]. */
@@ -398,6 +411,9 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
   padding:5px 9px;font:12px var(--sans);color:var(--ink);white-space:nowrap;
   box-shadow:0 6px 22px rgba(0,0,0,.4);opacity:0;transition:opacity .1s}
 .mark-tip[data-on]{opacity:1}
+/* Flipped under the mark when there is no room above it. The transform is what makes the
+   `top` this code sets mean "the tip's bottom edge", so flipping has to undo it. */
+.mark-tip.below{transform:translate(-50%,0)}
 .mark-tip b{font-size:13px}
 .mark-tip .tip-grp{color:var(--ink-muted);font-family:var(--mono);font-size:11px}
 /* --dcs is declared on the BODY, not on one card inside it, so every tile that is mostly
@@ -638,12 +654,12 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
   padding:8px;border:1px solid var(--warning);border-radius:6px;background:var(--plane);
   color:var(--ink)}
 /* Below tablet width a split tree has no room to be one; fall back to a plain stack.
-   770px of viewport is the 1100 CSS px of layout the tree needs, because .shell renders at
-   zoom:.7 — a media query can only ask about the viewport, so the number is converted here
-   and STACK_MQ in the script carries the same 770 (it must, or the walk keeps positioning
+   847px of viewport is the 1100 CSS px of layout the tree needs, because .shell renders at
+   zoom:.77 — a media query can only ask about the viewport, so the number is converted here
+   and STACK_MQ in the script carries the same 847 (it must, or the walk keeps positioning
    panes the CSS has already stacked).
    !important is required because the layout walk writes the rects as inline styles. */
-@media (max-width:770px){
+@media (max-width:847px){
   .providers,.stats{grid-template-columns:1fr}
   .shell{grid-template-columns:1fr}
   .board{height:auto;min-height:0;padding:8px}
@@ -893,7 +909,7 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
           <label class="tile-ctl" data-nodrag>window
             <select id="priceWin" data-nodrag aria-label="Length of the price window"></select>
           </label>
-          <div class="tile-meta" id="priceMeta">—</div>
+          <div class="tile-meta" id="priceMeta" data-nodrag>—</div>
           <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
         </div>
         <!-- No compare chips and no range buttons: both configure a series, and no series
@@ -1286,6 +1302,20 @@ let selected = null;
 let PRICES = {};
 /** Which row field colours the scatter's marks. See PLOT_GROUPS. */
 let plotGroup = "sector";
+/** Tickers lit on the price chart, chosen by clicking their legend chips.
+    EMPTY means "follow the pin" rather than "nothing is lit" — the two are different states
+    and collapsing them would make the chart forget the pinned name the first time a chip was
+    un-toggled. priceLit() is the one place that resolves it. */
+let PRICE_LIT = [];
+function priceLit(){ return PRICE_LIT.length ? PRICE_LIT : (selected ? [selected] : []); }
+function togglePriceLit(tk){
+  // First click on a chip starts from what is currently lit — the pinned name — so clicking
+  // a second chip ADDS to the pin rather than silently replacing it.
+  if(!PRICE_LIT.length) PRICE_LIT = priceLit().slice();
+  const i = PRICE_LIT.indexOf(tk);
+  if(i === -1) PRICE_LIT.push(tk); else PRICE_LIT.splice(i, 1);
+  drawPrice();
+}
 /** Bars shown by the price chart, counted back from the most recent close. null = all of
     them. The OPTIONS are derived from the series actually loaded (priceWindows), never
     listed by hand — offering "1Y" against 126 daily closes would answer a question the
@@ -1430,25 +1460,28 @@ function drawPrice(){
   // spread over the full width on its own bar count rather than truncating the others.
   const sx = (i, len) => L + i / Math.max(len - 1, 1) * (W - L - R);
   const sy = v => H - B - (v - lo) / span * (H - T - B);
-  // Only a name actually IN the cohort counts as picked. Pinning a name with no history
-  // leaves `selected` set to a ticker that draws no line, and reading that as a selection
-  // would dim all five and highlight nothing — the chart would look broken rather than
-  // unchanged.
-  const picked = series.some(x => x.tk === selected) ? selected : null;
+  // Only names actually IN the cohort count. A pin (or a stale toggle) naming a ticker that
+  // draws no line would otherwise dim every series and highlight none — the chart would look
+  // broken rather than unchanged.
+  const inCohort = new Set(series.map(x => x.tk));
+  const lit = priceLit().filter(tk => inCohort.has(tk));
+  const solo = lit.length === 1 ? lit[0] : null;
+  const litSet = new Set(lit);
   const drawn = series.map((x, k) => {
     let d = "M " + sx(0, x.idx.length).toFixed(1) + " " + sy(x.idx[0]).toFixed(1);
     for(let j = 1; j < x.idx.length; j++)
       d += " L " + sx(j, x.idx.length).toFixed(1) + " " + sy(x.idx[j]).toFixed(1);
-    const on = x.tk === picked;
-    // The picked line is redrawn at full contrast rather than merely thickened: against five
-    // saturated hues a sixth saturated hue is just a sixth line, so it takes the one value no
-    // series can hold. The rest fall far enough back to read as context, not as peers — 0.72
-    // was too small a step to see at all, which is why picking a name looked like nothing
-    // happened.
+    const on = litSet.has(x.tk);
+    // White is what ONE line takes, and only one. It is the maximum-contrast value, so it
+    // separates a single pick from all five hues at once — but two white lines are two lines
+    // the reader cannot tell apart, which is worse than the two-blues collision this palette
+    // was built to fix. With more than one lit, each keeps its own hue at full strength and
+    // the separation comes from the unlit ones falling back instead.
+    const stroke = (on && solo === x.tk) ? "var(--cat-on)" : priceColor(k);
     return {on: on, k: k, svg:
-      '<path d="' + d + '" fill="none" stroke="' + (on ? "var(--cat-on)" : priceColor(k))
-      + '" stroke-width="' + (on ? 3 : (picked ? 1.3 : 1.8)) + '" opacity="'
-      + (on || !picked ? 1 : 0.2) + '" stroke-linejoin="round"/>'};
+      '<path d="' + d + '" fill="none" stroke="' + stroke
+      + '" stroke-width="' + (on ? 3 : (lit.length ? 1.3 : 1.8)) + '" opacity="'
+      + (on || !lit.length ? 1 : 0.2) + '" stroke-linejoin="round"/>'};
   });
   // Painter's order, not cohort order: an SVG path drawn later sits on top, so leaving the
   // picked line where the cohort put it let dimmed lines cross over the very line the pick
@@ -1463,13 +1496,18 @@ function drawPrice(){
   // would be a key to a chart that is no longer drawn.
   meta.innerHTML = series.map((x, k) => {
     const chg = x.idx[x.idx.length - 1] - 100;
-    const on = x.tk === picked;
-    return '<span class="chip' + (on ? " chip-on" : "") + '"'
-      + (on || !picked ? '' : ' style="opacity:.45"')
+    const on = litSet.has(x.tk);
+    // The chip IS the control, not a caption beside one. Its dot carries the same colour its
+    // line is drawn in — including the white a solo pick takes — so the key never describes a
+    // chart that is no longer on screen.
+    return '<button type="button" class="chip' + (on ? " chip-on" : "") + '"'
+      + ' data-price-lit="' + escAttr(x.tk) + '" aria-pressed="' + (on ? "true" : "false") + '"'
+      + (on || !lit.length ? '' : ' style="opacity:.45"')
       + '><span class="dot" style="background:'
-      + (on ? "var(--cat-on)" : priceColor(k)) + '"></span>' + esc(x.tk) + ' <span style="color:'
+      + ((on && solo === x.tk) ? "var(--cat-on)" : priceColor(k)) + '"></span>'
+      + esc(x.tk) + ' <span style="color:'
       + (chg >= 0 ? "var(--good)" : "var(--critical)") + '">' + (chg >= 0 ? "+" : "")
-      + chg.toFixed(1) + '%</span></span>';
+      + chg.toFixed(1) + '%</span></button>';
   }).join("");
   host.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="'
     + escAttr(series.map(x => x.tk).join(", ") + " price, indexed to 100")
@@ -1616,8 +1654,8 @@ const MIN_PANE_FRAC = 0.12;
 const EDGE_BAND = 0.3;     // outer 30% of a pane on each side splits; the middle swaps
 /* Where the split tree gives up and the panes fall back to a plain stack. "Too narrow to be
    a split tree" is a question about the LAYOUT width the board is handed, not about the
-   viewport: .shell renders at zoom:.7, so the 1100 CSS px the tree needs is a 770 px
-   viewport. The `@media (max-width:770px)` rules carry the other half of this number — the
+   viewport: .shell renders at zoom:.77, so the 1100 CSS px the tree needs is an 847 px
+   viewport. The `@media (max-width:847px)` rules carry the other half of this number — the
    CSS is what actually stacks the tiles, so the two must move together. */
 /* The requirement is a LAYOUT width: below this many CSS px the split tree has no room and
    the panes stack in flow. The viewport figure differs because .shell renders zoomed, so it is
@@ -1742,7 +1780,7 @@ function placeTile(newTile, targetTile, zone){
   boardTree = splitLeaf(boardTree, targetTile, zone, newTile);
 }
 
-/* .shell renders at zoom:.7, so getBoundingClientRect() and pointer coordinates come back in
+/* .shell renders at zoom:.77, so getBoundingClientRect() and pointer coordinates come back in
    rendered px while inline styles, offsetWidth/offsetHeight and every px constant in this
    file are CSS px. Board geometry is CSS px throughout and converts once, here at the
    measuring boundary — a rect written straight into a style is a 0.7x layout. */
@@ -3236,13 +3274,34 @@ function showMarkTip(host, tip, el){
   tip.innerHTML = "<b>" + esc(el.dataset.tk) + "</b>"
     + (row && row.name ? " " + esc(row.name) : "")
     + (el.dataset.grp ? '<br><span class="tip-grp">' + esc(el.dataset.grp) + "</span>" : "");
-  // The mark's box and the host's box are both read through getBoundingClientRect, so both
-  // are in the SAME scaled space — the shell's `zoom` scales one exactly as it scales the
-  // other, and their difference is therefore a correct offset. Mixing a rect with an
-  // offsetLeft here would be off by the zoom factor.
-  const hb = host.getBoundingClientRect(), mb = el.getBoundingClientRect();
-  tip.style.left = (mb.left - hb.left + mb.width / 2) + "px";
-  tip.style.top  = (mb.top - hb.top - 6) + "px";
+  // cssRect, not getBoundingClientRect. Both boxes being in one space is necessary but not
+  // sufficient: the numbers computed from them are written back as `style.left`/`style.top`,
+  // and inline px inside the zoomed shell are CSS px while rects are device px. Taking the
+  // difference of two rects gives a correct OFFSET in the wrong UNIT, so the tip landed at
+  // 0.77x of where it belonged and fell off the left edge of the host.
+  const hb = cssRect(host), mb = cssRect(el);
+  const x = mb.left - hb.left + mb.width / 2;
+  const above = mb.top - hb.top - 6;
+  // The tip is translated up by its own height, so `above` is where its BOTTOM sits and it
+  // needs that much room. The tile body clips overflow, so a mark near the top of the plot
+  // had its label cut in half — flip below the mark instead. The plot also reserves
+  // headroom (see PLOT_TIP_HEADROOM) so the common case never has to flip; this is the
+  // guarantee for the case where the pane is too short for headroom to help.
+  // The tip's own box, measured the SAME way as the two above. offsetHeight/offsetWidth are
+  // CSS px while every rect here is zoom-scaled, so comparing `above` (scaled) against
+  // offsetHeight (unscaled) asks whether 6 is less than 40 in two different units — it read
+  // the tip as ~0 tall, never flipped, and clipped every top-edge label. This is the same
+  // trap as placePanel; the rule is to pick one space and stay in it.
+  const tb = cssRect(tip);
+  const flip = above < tb.height + 4;
+  tip.classList.toggle("below", flip);
+  tip.style.left = x + "px";
+  tip.style.top  = (flip ? mb.bottom - hb.top + 6 : above) + "px";
+  // Clamped horizontally for the same reason: a mark at either edge would otherwise push
+  // half its label outside the host and lose it to the same clip.
+  const half = tb.width / 2;
+  if(x - half < 2) tip.style.left = (half + 2) + "px";
+  else if(x + half > hb.width - 2) tip.style.left = (hb.width - half - 2) + "px";
   tip.setAttribute("data-on", "");
 }
 
@@ -4008,7 +4067,17 @@ function drawPlot(){
   // The floor only bites in a short pane, where a viewBox taller than its box would be
   // letterboxed to a postage stamp by preserveAspectRatio — a stacked pane is wide and low.
   const H=Math.max(150, Math.floor(host.clientHeight)||520);
-  const L=64, R=18, T=20, B=44;
+  // T carries the hover label's headroom as well as the axis clearance. Without it the
+  // topmost marks sit flush against the plot's upper edge, and their labels — which are
+  // drawn ABOVE the mark — were cut off by the tile body, which clips overflow. The tip
+  // flips below the mark when even this is not enough, so this is what makes the common
+  // case look right rather than what makes it correct.
+  // 52, because the label is two lines — ticker + name over the group — and clearing it
+  // means clearing its whole height plus the 6px offset, not just giving it a gap. At 30 the
+  // topmost mark was no longer flush against the edge but the tip still flipped underneath,
+  // which is the same answer as no headroom at all.
+  const PLOT_TIP_HEADROOM = 52;
+  const L=64, R=18, T=20 + PLOT_TIP_HEADROOM, B=44;
   // Only the loaded rows are plotted. Growth is capped so base-effect prints don't crush the
   // frame (the live screen does the same 5–95 clip); a name missing either axis is left out
   // rather than seated at an invented coordinate.
@@ -4894,7 +4963,12 @@ document.addEventListener("click", (ev)=>{
   const drop = ev.target.closest("[data-watch-drop]");
   if(drop){ ev.preventDefault(); ev.stopPropagation(); toggleWatch(drop.dataset.watchDrop); return; }
   const pin = ev.target.closest("[data-watch-pin]");
-  if(pin){ ev.preventDefault(); pinTicker(pin.dataset.watchPin); render(); }
+  if(pin){ ev.preventDefault(); pinTicker(pin.dataset.watchPin); render(); return; }
+  // Legend chips are rebuilt on every draw, so this is delegated for the same reason the
+  // watch controls are. It lives in the tile bar, which is a drag handle — the chip carries
+  // data-nodrag so a click on it does not start moving the tile instead.
+  const litc = ev.target.closest("[data-price-lit]");
+  if(litc){ ev.preventDefault(); ev.stopPropagation(); togglePriceLit(litc.dataset.priceLit); }
 });
 document.querySelectorAll("#toneSrc button").forEach(btn=>{
   btn.onclick=()=>{ setToneSource(btn.dataset.src); render(); };

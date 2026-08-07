@@ -23,9 +23,13 @@ Tone scores and coverage counts are this repo's own derived numbers and ship; th
 third-party documents behind them do not, because rendering them locally from a cache
 and republishing them on a public site are different acts.
 
-What is NOT exported: the research-web browser and node views (hundreds of pages —
-add them when someone wants them), and anything under live/** (fenced: broker state
-never gets a public URL, see OPERATIONS.md).
+What is NOT exported: anything under live/** (fenced: broker state never gets a public
+URL, see OPERATIONS.md). The research-web browser and its node views ARE exported — all
+547 of them, one per node in the web, not the subset some page links. Crawling hrefs
+instead missed the overview's "new leads" strip and the groups view, which builds its
+links in JS and so has no href to crawl; both published live "Open node overview →"
+buttons onto 404s. Exporting the whole set costs a few hundred small files and makes
+"did we export the right ones" a question that cannot be got wrong.
 
 The pages come out of the SAME pure `route()` table the server uses — this file adds
 no second rendering path, it post-processes hrefs (absolute server routes → relative
@@ -219,9 +223,13 @@ def export(out_dir):
         assert code == 200, route_path
         write(name, _staticise(body, built, active))
 
-    linked = sorted(set(re.findall(r'href="/node/([A-Za-z0-9]+)"',
-                                   research_ui.route("/web", {}, {})[1])))
-    for nid in linked:
+    # EVERY node, not the ones some page happened to link. Crawling hrefs missed two whole
+    # classes: the overview's "new leads" strip (the newest findings — precisely what a reader
+    # clicks first, and every one of them a 404), and the groups view, which builds its links
+    # in JS from the node id, so the href does not exist until the page runs and no crawl of
+    # the served HTML can ever see it. Exporting the whole set costs a few hundred small files
+    # and makes the question "did we export the right ones" not arise.
+    for nid in sorted(ctx._parse_web()[0]):
         code, body, _ct = research_ui.route("/node/" + nid, {}, {})
         assert code == 200, nid
         write("node-{}.html".format(nid), _staticise(body, built, "web"))
@@ -232,8 +240,10 @@ def export(out_dir):
     write("map.html", ctx._render_graph_html(G, adj)
           .replace('id="back" href="/screener/draft"', 'id="back" href="index.html"'))
 
-    # Nothing may still point at a server route — a dead absolute link on Pages is a
-    # silent 404, so it fails the build instead.
+    # Nothing may still point at a server route, and nothing may point at a file the build
+    # did not write — a dead link on Pages is a silent 404, so it fails the build instead.
+    have = set(written)
+    dangling = []
     for name in written:
         if not name.endswith(".html"):
             continue
@@ -244,6 +254,20 @@ def export(out_dir):
             if leftovers:
                 raise SystemExit("{} still links server routes: {}".format(
                     name, sorted(set(leftovers))))
+        # A rewritten link is not the same as a working one. The rule above only proved no
+        # href still starts with "/", which was true of every 404 this check was added for:
+        # `href="/node/F265500"` became `href="node-F265500.html"`, passed, and pointed at a
+        # file the build never wrote. A relative href must resolve to something exported.
+        for target in re.findall(r'href="([^"#?:]+\.html)(?:[#?][^"]*)?"', text):
+            # `node-${n.id}.html` is a JS template resolved in the browser, so there is no
+            # target to check here. It is safe only because EVERY node is exported above —
+            # which is the reason that loop does not crawl.
+            if "${" in target or target in have:
+                continue
+            dangling.append("{} -> {}".format(name, target))
+    if dangling:
+        raise SystemExit("dangling internal links ({}):\n  {}".format(
+            len(dangling), "\n  ".join(sorted(set(dangling))[:20])))
     return written
 
 

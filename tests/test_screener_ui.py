@@ -133,8 +133,16 @@ class TheDerivedConstantsAreRecomputed(unittest.TestCase):
         cls.html = _page()
 
     def _zoom(self):
-        m = re.search(r"\.shell\{[^}]*zoom:\s*([0-9.]+)", self.html, re.S)
-        self.assertIsNotNone(m, "no zoom found on .shell")
+        """The scale is declared once as --shell-zoom and referenced by .shell. Resolved
+        here rather than matched as a literal, so this test keeps measuring the real number
+        after the rule stopped containing one."""
+        m = re.search(r"--shell-zoom:\s*([0-9.]+)", self.html)
+        self.assertIsNotNone(m, "no --shell-zoom declared")
+        rule = re.search(r"\.shell\{[^}]*\}", self.html, re.S)
+        self.assertIsNotNone(rule, "no .shell rule")
+        self.assertIn("var(--shell-zoom)", rule.group(0),
+                      ".shell no longer reads the declared scale, so this number is not the "
+                      "one the page renders at")
         return float(m.group(1))
 
     def test_the_script_derives_the_breakpoint_rather_than_hardcoding_it(self):
@@ -236,12 +244,32 @@ class TheSelectedSeriesSeparates(unittest.TestCase):
             r"drawn\.filter\(p => !p\.on\)[\s\S]{0,120}?drawn\.filter\(p => p\.on\)",
             "the unpicked paths must be concatenated before the picked one")
 
-    def test_a_pin_with_no_history_is_not_treated_as_a_pick(self):
-        """`selected` can name a ticker with no series. Reading that as a selection dims all
-        five lines and highlights none, which reads as a broken chart rather than no pick."""
+    def test_nothing_outside_the_cohort_can_be_lit(self):
+        """`selected` — and a stale entry in PRICE_LIT — can name a ticker that draws no
+        line. Treating one as lit dims every series and highlights none, which reads as a
+        broken chart rather than as no selection."""
         self.assertRegex(
             self.html,
-            r"const picked = series\.some\(x => x\.tk === selected\) \? selected : null;")
+            r"const lit = priceLit\(\)\.filter\(tk => inCohort\.has\(tk\)\);",
+            "the lit set must be filtered to names actually in the cohort")
+
+    def test_white_is_reserved_for_a_lone_selection(self):
+        """Two white lines are two lines the reader cannot tell apart — the same collision
+        the categorical palette was introduced to end. White is the max-contrast value, so it
+        only separates when exactly one line holds it."""
+        self.assertRegex(self.html, r"const solo = lit\.length === 1 \? lit\[0\] : null;")
+        self.assertRegex(
+            self.html,
+            r'\(on && solo === x\.tk\) \? "var\(--cat-on\)" : priceColor\(k\)',
+            "a lit line may only take --cat-on when it is the ONLY lit line")
+
+    def test_an_empty_toggle_set_falls_back_to_the_pin(self):
+        """Empty means "follow the pin", not "nothing is lit". Collapsing the two would make
+        the chart forget the pinned name the first time a chip was un-toggled."""
+        self.assertRegex(
+            self.html,
+            r"function priceLit\(\)\{ return PRICE_LIT\.length \? PRICE_LIT : "
+            r"\(selected \? \[selected\] : \[\]\); \}")
 
 
 class TheArrangementMenuIsWired(unittest.TestCase):
