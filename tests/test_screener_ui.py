@@ -451,6 +451,161 @@ class TheLensCanBeCleared(unittest.TestCase):
         self.assertIn("filterState = was;", code)
 
 
+class TheGrowthAxisShowsItsTrueRange(unittest.TestCase):
+    """Growth ran from about -92% to +1580% and the chart showed neither end: the point data
+    was capped at `Math.min(r.g, 4.5)` — a 1580% name drawn at 450% — and the axis then
+    clipped to the 5-95th percentile on top of that. Two truncations, neither visible."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.html = _page()
+
+    def test_the_growth_cap_is_gone(self):
+        """Matched as CODE, not as a word: the comment recording what was removed names the
+        old expression on purpose, and forbidding the string would forbid the explanation."""
+        pts = re.search(r"const pts = ROWS\.filter\(.*?\n.*?;", self.html, re.S).group(0)
+        self.assertNotIn("Math.min", pts, "a capped coordinate is a fabricated one")
+        self.assertIn("g:r.g,", pts)
+
+    def test_the_axis_is_symmetric_log_not_log(self):
+        """Growth goes negative, and log of a negative is nothing."""
+        self.assertRegex(
+            self.html,
+            r"const symlog = v => Math\.sign\(v\) \* Math\.log10\(1 \+ Math\.abs\(v\) / YLIN\)")
+        self.assertRegex(self.html, r"const YLIN = ")
+
+    def test_y_is_no_longer_percentile_clipped(self):
+        """X keeps its clip — a P/E tail is not worth three orders of magnitude — but the
+        growth axis must reach the real max or the top edge is a pile of unrelated names."""
+        body = re.search(r"if\(pts\.length>=20\)\{(.*?)\n  \}", self.html, re.S).group(1)
+        self.assertIn("sx0", body)
+        self.assertNotIn("sy0", body, "the y axis is being percentile-clipped again")
+
+    def test_the_ticks_are_round_growths(self):
+        """Even fractions of a log range print things like 412%."""
+        self.assertRegex(self.html, r"const Y_STOPS = \[")
+        self.assertRegex(self.html, r"if\(t < yA \|\| t > yB\) return;",
+                         "a stop outside the data's span would imply a reading nothing reaches")
+
+    def test_the_caption_no_longer_claims_both_axes_are_clipped(self):
+        self.assertNotIn("axes clipped to 5–95th pctile", self.html)
+        self.assertIn("growth axis is symmetric-log", self.html)
+
+
+class ADroppedModuleCanSpanTheBoard(unittest.TestCase):
+    def test_the_board_has_its_own_bottom_band(self):
+        """Dropping on a PANE's bottom edge splits that pane, so a full-width strip under
+        everything was unreachable on a two-column board — there was no gesture for it."""
+        html = _page()
+        self.assertRegex(html, r'zone:"board-bottom"')
+        self.assertRegex(html, r"const BOARD_EDGE_PX = ")
+
+    def test_it_wraps_the_whole_tree_rather_than_one_leaf(self):
+        html = _page()
+        self.assertRegex(
+            html,
+            r'if\(target && target\.zone === "board-bottom"\)\{[\s\S]{0,500}?'
+            r"const rest = dropLeaf\(boardTree, d\.tileId\);",
+            "the tile must be removed from where it was, or it appears twice")
+        self.assertRegex(
+            html, r'\{type:"split", dir:"col", ratio:1 - BOARD_EDGE_FRAC, a:rest,')
+
+    def test_the_band_is_tested_before_the_panes(self):
+        """A pointer in the band is nearer some pane than others; letting proximity win would
+        make one gesture do different things depending on which column it was over."""
+        html = _page()
+        band = html.index('zone:"board-bottom"')
+        panes = html.index("paneHits().forEach(p =>")
+        self.assertLess(band, panes)
+
+
+class TheEmptyStateNamesWhatActuallyNarrowed(unittest.TestCase):
+    def test_no_card_hardcodes_the_lens_as_the_cause(self):
+        """"No match in this lens" was a lie the moment the lens was cleared and a bucket or a
+        filter was doing the excluding."""
+        html = _page()
+        self.assertNotIn('"No match in this lens"', html)
+        self.assertRegex(html, r"function narrowingPhrase\(\)\{")
+        self.assertRegex(html, r'emptyTitle\("Two axes"\)')
+
+    def test_the_phrase_lists_only_what_is_set(self):
+        html = _page()
+        body = re.search(r"function narrowingPhrase\(\)\{(.*?)\n\}", html, re.S).group(1)
+        self.assertIn("if(preset != null)", body)
+        self.assertIn("activeFilterCount()", body)
+        self.assertIn("selectedBuckets()", body)
+
+
+class ABucketPopulatesTheResults(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.html = _page()
+
+    def test_constituents_with_no_row_are_listed(self):
+        """Most of what a thesis holds is outside the fundamentals universe by design, so
+        intersecting emptied the table while the bay below listed six names."""
+        self.assertRegex(
+            self.html,
+            r"const listedOnly = BUCKET_SEL\.size[\s\S]{0,200}?"
+            r"bucketRows\(\)\.filter\(m => !ROWS\.some\(r => r\.tk === m\.tk\)\)")
+        self.assertIn('class="listed-only"', self.html)
+
+    def test_they_are_never_ranked_among_the_screened(self):
+        """They were not judged, so they have no rank to hold."""
+        self.assertRegex(self.html, r'\}\)\.join\(""\) \+ listedHTML')
+        self.assertRegex(self.html, r'<td class="num muted-cell">·</td>',
+                         "a listed-only row must not carry a rank number")
+
+    def test_the_count_above_the_table_includes_them(self):
+        """Otherwise the sentence describes a list the table is not showing."""
+        self.assertRegex(self.html, r"function listedNote\(n\)\{")
+        self.assertRegex(self.html, r"listedNote\(listedOnly\.length\)")
+
+    def test_none_appear_with_no_bucket_selected(self):
+        self.assertRegex(self.html, r"const listedOnly = BUCKET_SEL\.size\s*\n?\s*\?")
+
+
+class TheBayCardIsNotCalledWatchlist(unittest.TestCase):
+    def test_the_two_cards_have_different_names(self):
+        """The bay card lists what a thesis holds; the Watchlist is the names you kept. Two
+        cards called Watchlist meaning different things is the whole confusion."""
+        html = _page()
+        self.assertIn('bwatch:"Bucket constituents"', html)
+        self.assertRegex(html, r'id="tile-bwatch"[\s\S]{0,400}?<h2>Constituents</h2>')
+        self.assertRegex(html, r'id="tile-watch"[\s\S]{0,400}?<h2 id="watchTitle">Watchlist</h2>')
+
+    def test_the_real_watchlist_still_reads_only_kept_names(self):
+        html = _page()
+        self.assertRegex(html, r"function drawWatch\(\)\{[\s\S]{0,900}?WATCHED\.map\(")
+
+
+class TheLegendSwatchesAreControls(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.html = _page()
+
+    def test_a_swatch_is_a_button(self):
+        """A key you can only read is a key that makes you count dots."""
+        self.assertRegex(self.html, r'class="leg-grp\$\{plotGrpShown\(v\) \? "" : " off"\}"')
+        self.assertRegex(self.html, r'data-plot-grp="')
+
+    def test_a_switched_off_group_is_not_drawn_at_all(self):
+        """Dimming is the wrong answer: the reader asked to see one group, and a faint
+        version of everything else is still everything else."""
+        self.assertRegex(
+            self.html,
+            r'if\(scale\.key !== "none" && !plotGrpShown\(scale\.of\(r\)\)\) return;')
+
+    def test_empty_means_all_not_none(self):
+        self.assertRegex(
+            self.html,
+            r"function plotGrpShown\(v\)\{ return !PLOT_GRP_ON\.size \|\| PLOT_GRP_ON\.has\(v\); \}")
+
+    def test_changing_the_grouping_clears_the_selection(self):
+        """The chosen values name the OLD field; carried over, they would hide everything."""
+        self.assertRegex(self.html, r"plotGroup = ev\.target\.value; PLOT_GRP_ON\.clear\(\)")
+
+
 class TheToneLensesAreAllReachable(unittest.TestCase):
     """Every tone lens must appear in the source map, or selecting it leaves the toggle on
     another source and the lens prints "no coverage" for names it admitted on coverage."""

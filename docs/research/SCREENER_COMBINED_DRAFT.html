@@ -257,6 +257,14 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
 .legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:10px;font-size:12px;color:var(--ink-muted)}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle}
 .legend .ring{box-shadow:0 0 0 2px var(--ink);border-radius:50%}
+/* The legend swatch is the control. Clicking one shows that group alone; clicking it again
+   brings the rest back. A key you can only read is a key that makes you count dots. */
+.legend .leg-grp{display:inline-flex;align-items:center;border:1px solid transparent;
+  border-radius:999px;padding:1px 8px 1px 5px;background:transparent;cursor:pointer;
+  font:inherit;color:inherit}
+.legend .leg-grp:hover{border-color:var(--rule);background:var(--surface)}
+.legend .leg-grp[aria-pressed="true"]{border-color:var(--accent);color:var(--ink)}
+.legend .leg-grp.off{opacity:.4}
 
 /* Split-tree board. Every pane's rect is derived from its parent split node, so a pane
    cannot exist without a parent handing it space — free space is structurally impossible
@@ -553,6 +561,10 @@ th .qmark{margin-left:4px}
 /* The way out of an empty intersection. Inline in the sentence that reports it, because a
    control placed anywhere else would be a control the reader has to go looking for at the
    exact moment the page has stopped showing them anything. */
+/* Listed but never screened. Muted and rule-marked so they cannot be mistaken for names that
+   cleared something — they were not judged at all. */
+tbody tr.listed-only td{color:var(--ink-muted);background:color-mix(in srgb, var(--plane) 60%, transparent)}
+tbody tr.listed-only td:first-child{box-shadow:inset 3px 0 0 var(--axis)}
 .way-out{font:12px var(--sans);padding:3px 10px;margin:0 4px 0 0;cursor:pointer;
   border:1px solid var(--accent);border-radius:999px;background:var(--surface);
   color:var(--ink)}
@@ -1323,7 +1335,7 @@ table.bwatch .spark{width:80px;height:26px;display:block}
       <article class="tile" data-id="bwatch" id="tile-bwatch">
         <div class="tile-bar" data-drag>
           <span class="tile-grip">⋮⋮</span>
-          <h2>Watchlist</h2>
+          <h2>Constituents</h2>
           <button type="button" class="tile-close" data-close aria-label="Park this card">×</button>
         </div>
         <div class="tile-body">
@@ -1689,6 +1701,16 @@ function heatOf(b){
 }
 /** Which row field colours the scatter's marks. See PLOT_GROUPS. */
 let plotGroup = "sector";
+/** Groups the scatter is showing, chosen by clicking their legend swatches. EMPTY means all
+    of them — "I have not chosen" is not "I chose nothing", the same distinction the price
+    chart's chips make. Cleared whenever the GROUPING changes, because the names in it belong
+    to a field that is no longer the one being drawn. */
+let PLOT_GRP_ON = new Set();
+function plotGrpShown(v){ return !PLOT_GRP_ON.size || PLOT_GRP_ON.has(v); }
+function togglePlotGrp(v){
+  if(PLOT_GRP_ON.has(v)) PLOT_GRP_ON.delete(v); else PLOT_GRP_ON.add(v);
+  drawPlot();
+}
 /** Tickers lit on the price chart, once the reader has used the legend chips. Meaningless on
     its own — read it through priceLit(), which resolves the untouched default. */
 let PRICE_LIT = [];
@@ -2065,7 +2087,7 @@ const TILE_LABELS = {
   rank:"Ranked by lens", dist:"Distribution", shadow:"AI shadow",
   card:"Stock detail", watch:"Watchlist",
   bucketctl:"Shock & clock", buckets:"Chaos buckets",
-  bpanel:"Bucket panel", bwatch:"Bucket watchlist"
+  bpanel:"Bucket panel", bwatch:"Bucket constituents"
 };
 const TILE_NOTES = {
   plot:  "Every name as P/E against growth; the lens's matches are the coloured marks.",
@@ -2079,7 +2101,8 @@ const TILE_NOTES = {
   bucketctl:"Shock, clock, tier and search — what the bucket heat is read under.",
   buckets:"The 20 Sovereign Ledger theses. Pick one or several; every other card follows.",
   bpanel: "History, thesis, price feed and Book I for the selection — four readings, one card.",
-  bwatch: "Every constituent with its tier, bucket, spark, last close and window return."
+  bwatch: "Every name the selected theses hold — tier, bucket, shape, last close, return. "
+          + "Not the Watchlist: that card is the names you kept."
 };
 /* What each chart needs before it has anything true to draw, and the one line the tray shows
    when it does not have it. A tile absent from this map is never parked. */
@@ -2107,7 +2130,12 @@ const BOARD_KEY = "monad.screener.draft.board.v7";
 const GAP = 10;            // CSS px between panes, applied as a GAP/2 inset on every pane edge
 const MIN_PANE_PX = 120;   // a pane thinner than this cannot render a readable chart (CSS px)
 const MIN_PANE_FRAC = 0.12;
-const EDGE_BAND = 0.3;     // outer 30% of a pane on each side splits; the middle swaps
+const EDGE_BAND = 0.3;
+/* The board-level bottom band: how deep the drop zone is, and how much of the board the new
+   full-width row takes. 28 CSS px is about a tile header — deep enough to aim at without a
+   steady hand, shallow enough that dropping INTO the lowest pane is still the common case. */
+const BOARD_EDGE_PX = 28;
+const BOARD_EDGE_FRAC = 0.3;     // outer 30% of a pane on each side splits; the middle swaps
 /* Where the split tree gives up and the panes fall back to a plain stack. "Too narrow to be
    a split tree" is a question about the LAYOUT width the board is handed, not about the
    viewport: .shell renders at zoom:.77, so the 1100 CSS px the tree needs is an 847 px
@@ -2610,6 +2638,17 @@ function dropTargetAt(clientX, clientY){
   const x = cssPx(clientX), y = cssPx(clientY);
   if(x < b.left || x > b.right || y < b.top || y > b.bottom) return null;
   if(!boardTree) return {tile:null, zone:"root", rect:b};
+  /* A band along the BOARD's own bottom edge, tested before any pane. Dropping on a pane's
+     bottom edge splits that pane, so a full-width strip underneath everything was only
+     reachable when a single pane already spanned the width — on a two-column board there was
+     no gesture for it at all. This one wraps the whole tree instead of one leaf.
+     Full width, and outside the pane search: a pointer here is nearer some pane than others,
+     and letting proximity win would make the same gesture do different things depending on
+     which column it was over. */
+  if(y > b.bottom - BOARD_EDGE_PX && treeTiles(boardTree).length > 1)
+    return {tile:null, zone:"board-bottom",
+            rect:{left:b.left, top:b.bottom - b.height * BOARD_EDGE_FRAC,
+                  width:b.width, height:b.height * BOARD_EDGE_FRAC}};
   // Nearest pane rather than strict containment, so the gaps between panes still resolve.
   let hit = null, best = Infinity;
   paneHits().forEach(p => {
@@ -2637,7 +2676,9 @@ function showPreview(target){
   const b = cssRect(board);
   const r = target.rect;
   let x = r.left - b.left, y = r.top - b.top, w = r.width, h = r.height;
-  if(target.zone === "root"){ x += GAP/2; y += GAP/2; w -= GAP; h -= GAP; }
+  if(target.zone === "board-bottom" || target.zone === "root"){
+    x += GAP/2; y += GAP/2; w -= GAP; h -= GAP;
+  }
   else if(target.zone === "left"){ w /= 2; }
   else if(target.zone === "right"){ x += w / 2; w /= 2; }
   else if(target.zone === "top"){ h /= 2; }
@@ -3257,7 +3298,16 @@ function initBoard(){
     if(d.el) d.el.classList.remove("dragging");
     clearPreview();
     const target = dropTargetAt(ev.clientX, ev.clientY);
-    if(target && target.zone === "root"){
+    if(target && target.zone === "board-bottom"){
+      /* Wrap the WHOLE tree, rather than splitting whichever pane the pointer was over. That
+         is the difference between "put this under that chart" and "put this under everything",
+         and only the second gives a band the full width of the board. The tile is pulled out
+         of wherever it was first, or it would appear twice. */
+      const rest = dropLeaf(boardTree, d.tileId);
+      boardTree = rest
+        ? {type:"split", dir:"col", ratio:1 - BOARD_EDGE_FRAC, a:rest, b:leafNode(d.tileId)}
+        : leafNode(d.tileId);
+    } else if(target && target.zone === "root"){
       boardTree = leafNode(d.tileId);
     } else if(target && target.tile){
       placeTile(d.tileId, target.tile, target.zone);
@@ -3575,6 +3625,36 @@ function emptyWayOut(){
   return " Dropping " + outs.map(o =>
     o.what + " would leave <b>" + o.n + "</b>").join(", and dropping ")
     + ". " + outs.map(o => o.act).join(" ");
+}
+/* What is actually narrowing the list right now, as a phrase. The charts each had their own
+   hardcoded "in this lens", which was a lie the moment the lens was cleared and a bucket or a
+   filter was doing the excluding — and it is the exact question a reader asks when a card
+   comes up empty. */
+/* The sentence has to account for the listed-only rows, or the count above the table and the
+   number of rows in it disagree — which is the same "the page is describing a list it is not
+   showing" defect the bucket search count already fixed. */
+function listedNote(n){
+  if(!n) return "";
+  return ` <b>${n}</b> more name${n === 1 ? " is" : "s are"} listed below: the thesis holds `
+    + `${n === 1 ? "it" : "them"} but the screener's universe carries no fundamentals row, so `
+    + `${n === 1 ? "it was" : "they were"} never judged by any screen. Prices where there are `
+    + `prices; dashes are absent, not zero.`;
+}
+function narrowingPhrase(){
+  const bits = [];
+  if(preset != null) bits.push("the " + activeLensLabel() + " lens");
+  const n = activeFilterCount();
+  if(n) bits.push(n + " filter" + (n === 1 ? "" : "s"));
+  const b = selectedBuckets();
+  if(b.length) bits.push(b.length === 1 ? "the " + b[0].name + " bucket"
+                                        : b.length + " buckets");
+  if(!bits.length) return "";
+  return bits.length === 1 ? bits[0]
+       : bits.slice(0, -1).join(", ") + " and " + bits[bits.length - 1];
+}
+function emptyTitle(what){
+  const p = narrowingPhrase();
+  return p ? what + " · nothing under " + p : what + " · nothing loaded";
 }
 function activeLensLabel(){
   if(preset == null) return "no lens";
@@ -4044,7 +4124,8 @@ function drawRank(){
       : "no matches";
   if(!rows.length){
     host.innerHTML = matches.length
-      ? '<p class="muted-cell">No match in this lens reports ' + esc(m.label) + '.</p>'
+      ? '<p class="muted-cell">Nothing under ' + esc(narrowingPhrase() || "the current view")
+        + ' reports ' + esc(m.label) + '.</p>'
       : lensEmptyMsg();
     return;
   }
@@ -4810,7 +4891,7 @@ function drawPlot(){
   const useBuckets = preset==="ai_shadow_debt";
   const host=document.getElementById("plot");
   if(!matches.length){
-    document.getElementById("plotTitle").textContent = "No match in this lens";
+    document.getElementById("plotTitle").textContent = emptyTitle("Two axes");
     host.innerHTML = lensEmptyMsg();
     document.getElementById("plotLegend").innerHTML = "";
     return;
@@ -4830,11 +4911,13 @@ function drawPlot(){
   // which is the same answer as no headroom at all.
   const PLOT_TIP_HEADROOM = 52;
   const L=64, R=18, T=20 + PLOT_TIP_HEADROOM, B=44;
-  // Only the loaded rows are plotted. Growth is capped so base-effect prints don't crush the
-  // frame (the live screen does the same 5–95 clip); a name missing either axis is left out
-  // rather than seated at an invented coordinate.
+  // Only the loaded rows are plotted, at their REAL growth. It used to be
+  // `Math.min(r.g, 4.5)` — a 1368% name drawn at 450%, silently, on an axis that gave no
+  // sign it had been truncated. A cap is a fabricated coordinate, which is the one thing
+  // this page does not do; the symlog axis below is what makes the cap unnecessary.
+  // A name missing either axis is left out rather than seated at an invented coordinate.
   const pts = ROWS.filter(r=>r.pe!=null && r.g!=null)
-    .map(r=>({tk:r.tk, pe:r.pe, g:Math.min(r.g, 4.5), match:matched.has(r.tk), row:r}));
+    .map(r=>({tk:r.tk, pe:r.pe, g:r.g, match:matched.has(r.tk), row:r}));
   if(!pts.length){
     document.getElementById("plotTitle").textContent = "No name reports both axes";
     host.innerHTML = '<p class="muted-cell">No loaded name reports both a P/E and a growth'
@@ -4843,31 +4926,52 @@ function drawPlot(){
     return;
   }
   let xs=pts.map(p=>p.pe), ys=pts.map(p=>p.g);
-  let x0=Math.min(...xs), x1=Math.max(...xs), y0=Math.min(...ys), y1=Math.max(...ys);
+  let x0=Math.min(...xs), x1=Math.max(...xs);
   let clipped=false;
+  // X keeps the 5–95 clip: P/E is a ratio with a long right tail and no reason to be read
+  // across three orders of magnitude, and edge marks are still hoverable.
   if(pts.length>=20){
     const sx0=percentile([...xs].sort((a,b)=>a-b),0.05), sx1=percentile([...xs].sort((a,b)=>a-b),0.95);
-    const sy0=percentile([...ys].sort((a,b)=>a-b),0.05), sy1=percentile([...ys].sort((a,b)=>a-b),0.95);
     if(sx1>sx0){ x0=sx0; x1=sx1; clipped=true; }
-    if(sy1>sy0){ y0=sy0; y1=sy1; clipped=true; }
   }
-  const padX=(x1-x0)*0.05||0.5, padY=(y1-y0)*0.05||0.05;
-  x0-=padX; x1+=padX; y0-=padY; y1+=padY;
+  const padX=(x1-x0)*0.05||0.5;
+  x0-=padX; x1+=padX;
+  /* Y is SYMLOG over the true range — no clip, no cap. Growth here runs from about −50% to
+     several thousand percent, and on a linear axis the whole population is a stripe along
+     the bottom while three base-effect names own the frame.
+     Symmetric-log, not log: growth goes NEGATIVE, and log of a negative is nothing. It is
+     linear within ±YLIN of zero and logarithmic outside, so a −44% and a +1368% are both
+     placed honestly and the crowd in between gets most of the height. */
+  const YLIN = 0.25;                       // ±25% is where the axis stops being linear
+  const symlog = v => Math.sign(v) * Math.log10(1 + Math.abs(v) / YLIN);
+  let y0=Math.min(...ys), y1=Math.max(...ys);
+  const sy0v=symlog(y0), sy1v=symlog(y1);
+  const syPad=(sy1v-sy0v)*0.06||0.1;
+  const yA=sy0v-syPad, yB=sy1v+syPad;
   const sx=v=>L+(Math.min(Math.max(v,x0),x1)-x0)/(x1-x0)*(W-L-R);
-  const sy=v=>H-B-(Math.min(Math.max(v,y0),y1)-y0)/(y1-y0)*(H-T-B);
+  const sy=v=>H-B-(symlog(v)-yA)/(yB-yA)*(H-T-B);
   let parts=[];
   for(let i=0;i<5;i++){
-    const gx=x0+(x1-x0)*i/4, gy=y0+(y1-y0)*i/4;
-    const px=L+(gx-x0)/(x1-x0)*(W-L-R), py=H-B-(gy-y0)/(y1-y0)*(H-T-B);
+    const gx=x0+(x1-x0)*i/4;
+    const px=L+(gx-x0)/(x1-x0)*(W-L-R);
     parts.push(`<line x1="${px.toFixed(1)}" y1="${T}" x2="${px.toFixed(1)}" y2="${H-B}" stroke="var(--rule)"/>`);
-    parts.push(`<line x1="${L}" y1="${py.toFixed(1)}" x2="${W-R}" y2="${py.toFixed(1)}" stroke="var(--rule)"/>`);
     parts.push(`<text x="${px.toFixed(1)}" y="${H-B+16}" text-anchor="middle" fill="var(--ink-muted)" font-size="9.5" font-family="var(--mono)">${gx<10?gx.toFixed(1):gx.toFixed(0)}</text>`);
-    parts.push(`<text x="${L-8}" y="${(py+3.5).toFixed(1)}" text-anchor="end" fill="var(--ink-muted)" font-size="9.5" font-family="var(--mono)">${(gy*100).toFixed(0)}%</text>`);
   }
+  /* Y gridlines at readable ROUND growths rather than at even fractions of a log range,
+     which would print things like 412%. Only the stops inside the data's own span are drawn,
+     so the axis never implies a reading nothing reaches. */
+  const Y_STOPS = [-0.5, -0.25, 0, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100];
+  Y_STOPS.forEach(g=>{
+    const t = symlog(g);
+    if(t < yA || t > yB) return;
+    const py = H-B-(t-yA)/(yB-yA)*(H-T-B);
+    parts.push(`<line x1="${L}" y1="${py.toFixed(1)}" x2="${W-R}" y2="${py.toFixed(1)}" stroke="var(--rule)"${g===0?' stroke-dasharray="3 3"':''}/>`);
+    parts.push(`<text x="${L-8}" y="${(py+3.5).toFixed(1)}" text-anchor="end" fill="var(--ink-muted)" font-size="9.5" font-family="var(--mono)">${(g*100).toFixed(0)}%</text>`);
+  });
   parts.push(`<text x="${(L+W-R)/2}" y="${H-6}" text-anchor="middle" fill="var(--ink-2)" font-size="10.5">P/E (trailing, forward fallback)</text>`);
-  parts.push(`<g transform="translate(14,${((T+H-B)/2).toFixed(1)}) rotate(-90)"><text text-anchor="middle" fill="var(--ink-2)" font-size="10.5" font-family="var(--sans)">earnings growth y/y (revenue fallback)</text></g>`);
+  parts.push(`<g transform="translate(14,${((T+H-B)/2).toFixed(1)}) rotate(-90)"><text text-anchor="middle" fill="var(--ink-2)" font-size="10.5" font-family="var(--sans)">earnings growth y/y (revenue fallback) · symlog</text></g>`);
   if(clipped){
-    parts.push(`<text x="${W-R}" y="${T+6}" text-anchor="end" fill="var(--ink-muted)" font-size="9.5" font-family="var(--mono)">axes clipped to 5–95th pctile · edge marks lie beyond — hover for the name</text>`);
+    parts.push(`<text x="${W-R}" y="${T+6}" text-anchor="end" fill="var(--ink-muted)" font-size="9.5" font-family="var(--mono)">P/E clipped to 5–95th pctile · growth axis is symmetric-log to its true max</text>`);
   }
   // Muted universe first
   pts.filter(p=>!p.match).forEach(p=>{
@@ -4876,6 +4980,9 @@ function drawPlot(){
   const scale = groupScale(matches, useBuckets ? "shadow" : plotGroup);
   pts.filter(p=>p.match).forEach(p=>{
     const r=p.row, cx=sx(p.pe), cy=sy(p.g);
+    // A group switched off is not drawn at all, rather than dimmed: the reader asked to see
+    // one group, and a faint version of everything else is still everything else.
+    if(scale.key !== "none" && !plotGrpShown(scale.of(r))) return;
     const t=toneOf(r);
     const toned=source!=="none" && t.tone!=null;
     const tag=r.shadow_tag;
@@ -4922,8 +5029,11 @@ function drawPlot(){
        ${scale.key === "none"
           ? `<span><i style="background:var(--accent)"></i>match</span>`
           : scale.values.map(v =>
-              `<span><i style="background:${scale.color.get(v)}"></i>${esc(String(scale.name(v)))}`
-              + ` <span style="opacity:.6">${scale.counts.get(v)}</span></span>`).join("")}
+              `<button type="button" class="leg-grp${plotGrpShown(v) ? "" : " off"}"`
+              + ` data-plot-grp="${escAttr(String(v))}" aria-pressed="${
+                  PLOT_GRP_ON.has(v) ? "true" : "false"}">`
+              + `<i style="background:${scale.color.get(v)}"></i>${esc(String(scale.name(v)))}`
+              + ` <span style="opacity:.6">${scale.counts.get(v)}</span></button>`).join("")}
        ${scale.missing
           ? `<span><i style="background:var(--cat-rest)"></i>no ${esc(scale.label)}`
             + ` reported <span style="opacity:.6">${scale.missing}</span></span>` : ""}
@@ -5090,6 +5200,12 @@ function renderTable(){
     if(bv == null) return -1;
     return bv - av;
   });
+  /* Constituents of the selected buckets that carry no fundamentals row. Declared here,
+     above the sentence that counts them: it was below, and `const` has no hoisting, so the
+     sentence threw before the table ever rendered. */
+  const listedOnly = BUCKET_SEL.size
+    ? bucketRows().filter(m => !ROWS.some(r => r.tk === m.tk))
+    : [];
   const w = toneWeight();
   const presetLabel = activeLensLabel();
   const nFilters = activeFilterCount();
@@ -5121,8 +5237,10 @@ function renderTable(){
         ? `<b>${sorted.length}</b> of <b>${ROWS.length}</b> loaded names — ${lensPhrase} `
           + `— the same list as the highlighted marks on the chart. Click a row or a mark to `
           + `pin that name.`
+          + listedNote(listedOnly.length)
         : `<b>0</b> of <b>${ROWS.length}</b> loaded names — ${lensPhrase}. The list below is `
           + `empty for that reason, not because the fields are missing.`
+          + listedNote(listedOnly.length)
           // An empty intersection is the one place the reader needs to be told what to DO,
           // and which constraint to drop is a question the page can answer better than they
           // can: it knows how many names each one admits on its own.
@@ -5166,6 +5284,31 @@ function renderTable(){
           + ` for a reading off twenty.`;
     }
   }
+  /* A selected bucket POPULATES this table, it does not merely narrow it. Most of what a
+     thesis holds is outside the fundamentals universe by design — ETFs, futures, foreign
+     listings — so intersecting with a screen left the table empty while the bay below listed
+     six names, and the reader was told the bucket had nothing in it.
+     Those names are appended, after the screened ones, visibly marked and never sorted among
+     them: they were not judged, so they have no rank to hold. Every metric cell is an em dash
+     because the vendor reports nothing for them here — that is the absence this page already
+     spells out everywhere else, not a zero. */
+  const listedHTML = listedOnly.map(m => {
+    const px = winSeries(m.tk);
+    const chg = px ? ((px[px.length-1]/px[0] - 1) * 100).toFixed(1) + "%" : null;
+    return `<tr class="listed-only" data-tk="${escAttr(m.tk)}" style="cursor:pointer">
+      <td class="num muted-cell">·</td>
+      <td><button type="button" class="tk-open" data-open="${escAttr(m.tk)}"
+        title="Open ${escAttr(m.tk)}" aria-label="Open ${escAttr(m.tk)}"><code>${esc(m.tk)}</code></button></td>
+      <td colspan="4" class="muted-cell">in <b>${esc(m.bucketId)} ${esc(m.bucket)}</b>
+        (${esc(m.tier)}) — no fundamentals row in this snapshot${
+          px ? `, last close <b>${px[px.length-1].toFixed(2)}</b>, window ${chg}`
+             : `, ${esc(whyNoSeries(m.tk))}`}</td>
+      <td class="num muted-cell">—</td><td class="num muted-cell">—</td>
+      <td class="num muted-cell">—</td><td class="num muted-cell">—</td>
+      <td class="num muted-cell">—</td><td class="num muted-cell">—</td>
+      <td class="num muted-cell">—</td><td class="num muted-cell">—</td>
+      <td class="muted-cell">—</td></tr>`;
+  }).join("");
   document.getElementById("tbody").innerHTML=sorted.map((r,i)=>{
     const rv=rankScore(r);
     const sev=rv==null?"":(rv>=0.75?"good":(rv>=0.55?"neutral":"warning"));
@@ -5196,7 +5339,11 @@ function renderTable(){
       <td class="num">${scoreCell(rv)}${note}</td>
       <td>${toneCell(r)}</td>
     </tr>`;
-  }).join("") || `<tr><td colspan="16" class="muted-cell">${ROWS.length
+  }).join("") + listedHTML
+    // The fallback row is for a table with NOTHING in it. Listed-only rows are something, so
+    // an empty screened set beside six listed names must not print "nothing to rank" over
+    // six visible rows.
+    || `<tr><td colspan="16" class="muted-cell">${ROWS.length
       ? `No name clears every condition in <b>${esc(presetLabel)}</b>${filterPhrase} —
          nothing to rank.`
       : `No rows are loaded — there is nothing to rank. Build a fundamentals snapshot with
@@ -5618,7 +5765,7 @@ function drawMembers(){
   const hint = document.getElementById("bWatchHint");
   const sel = selectedBuckets();
   if(!sel.length){
-    if(hint) hint.textContent = "Select buckets to fill rows.";
+    if(hint) hint.textContent = "Select a thesis to list what it holds.";
     host.innerHTML = '<p class="dc-empty"><b>No bucket selected.</b> Every constituent will'
       + ' be listed here with its tier, its bucket, its shape over the window, its last close'
       + ' and its return.</p>';
@@ -5628,8 +5775,9 @@ function drawMembers(){
   const rows = bucketRows();
   const withPx = rows.filter(m => winSeries(m.tk)).length;
   const bars = (winSeries(rows.map(r => r.tk).find(t => winSeries(t))) || []).length;
-  if(hint) hint.textContent = rows.length + " tickers · " + sel.length + " buckets · "
-    + (bars ? bars + "d window · " : "") + withPx + " priced from yfinance closes"
+  if(hint) hint.textContent = rows.length + " constituents · " + sel.length + " bucket"
+    + (sel.length === 1 ? "" : "s") + " · " + (bars ? bars + "d window · " : "")
+    + withPx + " priced from yfinance closes"
     + (PRICE_ASOF ? " as of " + PRICE_ASOF.slice(0, 10) : "");
   host.innerHTML = '<table class="bwatch"><thead><tr>'
     + '<th>Ticker</th><th>Tier</th><th>Bucket</th><th>Spark</th>'
@@ -6196,7 +6344,12 @@ document.getElementById("filters").addEventListener("change", ()=>render());
    pass the lens — they change how the chart draws the names that already did. Putting them
    in #filters would have said the opposite. */
 document.getElementById("plotGroup").addEventListener("change", (ev)=>{
-  plotGroup = ev.target.value; drawPlot();
+  // The chosen groups name values of the OLD field; carrying them over would hide everything.
+  plotGroup = ev.target.value; PLOT_GRP_ON.clear(); drawPlot();
+});
+document.getElementById("plotLegend").addEventListener("click", (ev)=>{
+  const g = ev.target.closest("[data-plot-grp]");
+  if(g){ ev.preventDefault(); togglePlotGrp(g.dataset.plotGrp); }
 });
 document.getElementById("priceWin").addEventListener("change", (ev)=>{
   priceWindow = ev.target.value === "" ? null : parseInt(ev.target.value, 10);
