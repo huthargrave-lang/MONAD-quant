@@ -248,10 +248,16 @@ class TheSelectedSeriesSeparates(unittest.TestCase):
         """`selected` — and a stale entry in PRICE_LIT — can name a ticker that draws no
         line. Treating one as lit dims every series and highlights none, which reads as a
         broken chart rather than as no selection."""
+        body = re.search(r"function priceLit\(cohort\)\{(.*?)\n\}", self.html, re.S)
+        self.assertIsNotNone(body, "priceLit must take the cohort it is resolving against")
         self.assertRegex(
-            self.html,
-            r"const lit = priceLit\(\)\.filter\(tk => inCohort\.has\(tk\)\);",
-            "the lit set must be filtered to names actually in the cohort")
+            body.group(1),
+            r"PRICE_LIT\.filter\(tk => cohort\.indexOf\(tk\) !== -1\)",
+            "an explicit toggle set must still be narrowed to the current cohort")
+        self.assertRegex(
+            body.group(1),
+            r"cohort\.indexOf\(selected\) !== -1",
+            "a pin outside the cohort must not be treated as lit")
 
     def test_white_is_reserved_for_a_lone_selection(self):
         """Two white lines are two lines the reader cannot tell apart — the same collision
@@ -263,13 +269,19 @@ class TheSelectedSeriesSeparates(unittest.TestCase):
             r'\(on && solo === x\.tk\) \? "var\(--cat-on\)" : priceColor\(k\)',
             "a lit line may only take --cat-on when it is the ONLY lit line")
 
-    def test_an_empty_toggle_set_falls_back_to_the_pin(self):
-        """Empty means "follow the pin", not "nothing is lit". Collapsing the two would make
-        the chart forget the pinned name the first time a chip was un-toggled."""
+    def test_untouched_means_every_series_is_lit(self):
+        """"I have not chosen" is not "I chose nothing". Untouched, the chart lights every
+        series; the page auto-pins its first row, so reading that pin as a choice opened the
+        chart with one line lit and four dimmed — a highlight nobody asked for."""
+        body = re.search(r"function priceLit\(cohort\)\{(.*?)\n\}", self.html, re.S).group(1)
+        self.assertRegex(body, r"return cohort\.slice\(\);",
+                         "the untouched default must light the whole cohort")
+        self.assertRegex(body, r"if\(PRICE_LIT_TOUCHED\) return",
+                         "an explicit toggle set must win over the default")
         self.assertRegex(
-            self.html,
-            r"function priceLit\(\)\{ return PRICE_LIT\.length \? PRICE_LIT : "
-            r"\(selected \? \[selected\] : \[\]\); \}")
+            self.html, r"function pinTicker\(tk\)\{ selected = tk; PIN_IS_DELIBERATE = true; \}",
+            "only a reader's pin may narrow the chart; the payload's fallback assigns "
+            "`selected` directly and must not")
 
 
 class TheArrangementMenuIsWired(unittest.TestCase):

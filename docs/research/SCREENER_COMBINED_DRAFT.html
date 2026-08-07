@@ -609,10 +609,38 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
   border:1px solid var(--rule);border-radius:10px;background:var(--surface);padding:11px 13px}
 .bucket-bay #tile-bucketctl{grid-area:ctl}
 .bucket-bay #tile-buckets{grid-area:grid}
-.bucket-bay #tile-thesis{grid-area:chart}
-.bucket-bay #tile-members{grid-area:side1}
-.bucket-bay #tile-feed{grid-area:side2}
-.bucket-bay #tile-book1{grid-area:side3}
+.bucket-bay #tile-bpanel{grid-area:chart}
+.bucket-bay #tile-bwatch{grid-area:side1/side1/side3/side3}
+/* Expand: the panel takes the width and the watchlist drops under it. */
+.bucket-bay.panel-wide .bay-grid{grid-template-areas:"ctl ctl" "grid grid" "chart chart" "side1 side1"}
+/* Tabs. The buckets page's own: pill buttons in the card head, the active one filled. */
+.btabs{display:flex;flex-wrap:wrap;gap:6px;flex:1;min-width:0}
+.btabs button{font:12.5px var(--sans);padding:4px 11px;cursor:pointer;
+  border:1px solid var(--rule);border-radius:999px;background:var(--plane);color:var(--ink-2)}
+.btabs button:hover{border-color:var(--accent);color:var(--ink)}
+.btabs button.on{border-color:var(--accent);color:var(--ink);
+  background:color-mix(in srgb, var(--accent) 14%, var(--surface));font-weight:600}
+.btab-expand{font:12.5px var(--sans);padding:4px 11px;cursor:pointer;flex:0 0 auto;
+  border:1px solid var(--rule);border-radius:8px;background:var(--plane);color:var(--ink-2)}
+.btab-expand:hover{border-color:var(--accent);color:var(--ink)}
+.btab-expand[aria-pressed="true"]{border-color:var(--accent);color:var(--ink)}
+#bPanelBody > section[hidden]{display:none}
+#bPanelBody h3{margin:0 0 3px;font-size:14.5px}
+.bchart-sub{margin:0 0 8px;font-size:12px;color:var(--ink-muted)}
+.bchart{height:300px}
+.bwatch-hint{margin:0 0 8px;font-size:12px;color:var(--ink-muted);flex:0 0 auto}
+/* The watchlist table, with the buckets page's six columns. */
+table.bwatch{width:100%;border-collapse:collapse;font-size:12.5px}
+table.bwatch th{text-align:left;font:10.5px var(--mono);letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-muted);font-weight:600;padding:5px 7px;
+  border-bottom:1px solid var(--rule);position:sticky;top:0;background:var(--surface)}
+table.bwatch td{padding:5px 7px;border-bottom:1px solid var(--rule);vertical-align:middle;
+  color:var(--ink-2)}
+table.bwatch td.num{text-align:right;font-family:var(--mono)}
+table.bwatch td.tierc{font-family:var(--mono);font-size:11px;color:var(--ink-muted)}
+table.bwatch tr.is-in td:first-child{box-shadow:inset 3px 0 0 var(--good)}
+table.bwatch tr.is-pinned{background:var(--plane)}
+table.bwatch .spark{width:80px;height:26px;display:block}
 /* The grip is the board's drag affordance and these cards are not on the board; leaving it
    would advertise a drag that does nothing. */
 .bucket-bay .tile-grip{display:none}
@@ -1224,53 +1252,49 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
         </div>
       </article>
 
-      <article class="tile" data-id="feed" id="tile-feed">
+      <!-- The buckets page puts its lower half in a tabbed panel beside a watchlist, and
+           this reproduces that. Tabs here, where the board above deliberately has none:
+           these four are one subject read four ways — the same selection as a chart, as a
+           thesis, as a price list, as a ranking — and the buckets page's reader already
+           knows where they are. The board's panes are for different subjects side by side. -->
+      <article class="tile" data-id="bpanel" id="tile-bpanel">
         <div class="tile-bar" data-drag>
-          <span class="tile-grip">⋮⋮</span>
-          <h2 id="feedTitle">Price feed</h2>
-          <div class="tile-meta" id="feedMeta" data-nodrag>—</div>
-          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
+          <div class="btabs" id="bTabs" data-nodrag>
+            <button type="button" class="on" data-btab="chart">History</button>
+            <button type="button" data-btab="detail">Bucket detail</button>
+            <button type="button" data-btab="feed">Price feed</button>
+            <button type="button" data-btab="book1">Book I · Keel / Sail</button>
+          </div>
+          <button type="button" class="btab-expand" id="bExpand" data-nodrag
+                  aria-label="Expand this panel">⛶ Expand</button>
+          <button type="button" class="tile-close" data-close aria-label="Park this card">×</button>
         </div>
         <div class="tile-body">
-          <div class="detail-card" id="feedList"></div>
+          <div class="detail-card" id="bPanelBody">
+            <section data-bpane="chart">
+              <h3 id="bChartTitle">Select a bucket</h3>
+              <p class="bchart-sub" id="bChartSub"></p>
+              <div class="chart-host bchart" id="bChart"></div>
+              <div class="legend" id="bChartLegend"></div>
+            </section>
+            <section data-bpane="detail" hidden><div id="thesisCard"></div></section>
+            <section data-bpane="feed" hidden><div id="feedList"></div></section>
+            <section data-bpane="book1" hidden><div id="book1List"></div></section>
+          </div>
         </div>
       </article>
 
-      <article class="tile" data-id="book1" id="tile-book1">
+      <article class="tile" data-id="bwatch" id="tile-bwatch">
         <div class="tile-bar" data-drag>
           <span class="tile-grip">⋮⋮</span>
-          <h2>Book I · Keel / Sail</h2>
-          <div class="tile-meta" id="book1Meta" data-nodrag>—</div>
-          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
+          <h2>Watchlist</h2>
+          <button type="button" class="tile-close" data-close aria-label="Park this card">×</button>
         </div>
         <div class="tile-body">
-          <div class="detail-card" id="book1List"></div>
-        </div>
-      </article>
-
-      <article class="tile" data-id="thesis" id="tile-thesis">
-        <div class="tile-bar" data-drag>
-          <span class="tile-grip">⋮⋮</span>
-          <h2 id="thesisTitle">Bucket thesis</h2>
-          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
-        </div>
-        <div class="tile-body">
-          <div class="detail-card" id="thesisCard"></div>
-        </div>
-      </article>
-
-      <article class="tile" data-id="members" id="tile-members">
-        <div class="tile-bar" data-drag>
-          <span class="tile-grip">⋮⋮</span>
-          <h2 id="membersTitle">Constituents</h2>
-          <div class="tile-meta" id="membersMeta" data-nodrag>—</div>
-          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
-        </div>
-        <div class="tile-body">
+          <p class="bwatch-hint" id="bWatchHint"></p>
           <div class="detail-card" id="membersList"></div>
         </div>
       </article>
-
       </div>
     </section>
 
@@ -1542,6 +1566,12 @@ let source = "bloomberg";
 let selected = null;
 /** tk -> array of closes, straight from the payload. Empty until a history is wired in. */
 let PRICES = {};
+/** When those closes were fetched. Shipped in the payload as `price_as_of` and, until now,
+    read by nothing — so the page drew real prices with no way to tell how old they were, and
+    a stale cache would have been indistinguishable from a fresh one. */
+let PRICE_ASOF = "";
+/** The command that refreshes them, so a page with no prices can say what to run. */
+let PRICE_CMD = "";
 /** The chaos buckets, from tools/sovereign_buckets.py via the payload. Empty until one
     arrives — the bucket tiles say so rather than drawing an empty grid. */
 let BUCKETS = [];
@@ -1602,20 +1632,38 @@ function heatOf(b){
 }
 /** Which row field colours the scatter's marks. See PLOT_GROUPS. */
 let plotGroup = "sector";
-/** Tickers lit on the price chart, chosen by clicking their legend chips.
-    EMPTY means "follow the pin" rather than "nothing is lit" — the two are different states
-    and collapsing them would make the chart forget the pinned name the first time a chip was
-    un-toggled. priceLit() is the one place that resolves it. */
+/** Tickers lit on the price chart, once the reader has used the legend chips. Meaningless on
+    its own — read it through priceLit(), which resolves the untouched default. */
 let PRICE_LIT = [];
-function priceLit(){ return PRICE_LIT.length ? PRICE_LIT : (selected ? [selected] : []); }
+/** Whether the reader has used the legend chips at all. Untouched, the chart lights every
+    series; once a chip is clicked PRICE_LIT is the whole answer. The two states are
+    different: "I have not chosen" is not "I chose nothing". */
+let PRICE_LIT_TOUCHED = false;
+/** Whether `selected` was set by a reader or by the page. applyLivePayload auto-pins the
+    first row when nothing valid is pinned, and treating that as a choice meant the chart
+    opened with one line lit and four dimmed — a highlight nobody asked for, which is why
+    the default never looked like "all". */
+let PIN_IS_DELIBERATE = false;
+function priceLit(cohort){
+  if(PRICE_LIT_TOUCHED) return PRICE_LIT.filter(tk => cohort.indexOf(tk) !== -1);
+  // A deliberate pin narrows to that name; otherwise everything is lit.
+  if(PIN_IS_DELIBERATE && selected && cohort.indexOf(selected) !== -1) return [selected];
+  return cohort.slice();
+}
 function togglePriceLit(tk){
-  // First click on a chip starts from what is currently lit — the pinned name — so clicking
-  // a second chip ADDS to the pin rather than silently replacing it.
-  if(!PRICE_LIT.length) PRICE_LIT = priceLit().slice();
+  // The first click starts from what is currently lit — everything, or the pinned name — so
+  // clicking a chip turns THAT one off rather than turning all the others off.
+  if(!PRICE_LIT_TOUCHED){
+    PRICE_LIT = priceLit(priceCohort().map(p => p.tk));
+    PRICE_LIT_TOUCHED = true;
+  }
   const i = PRICE_LIT.indexOf(tk);
   if(i === -1) PRICE_LIT.push(tk); else PRICE_LIT.splice(i, 1);
   drawPrice();
 }
+/** Back to the default: every series lit. Called whenever the COHORT changes, because a
+    toggle set names tickers, and the tickers on the chart have just been replaced. */
+function resetPriceLit(){ PRICE_LIT = []; PRICE_LIT_TOUCHED = false; }
 /** Bars shown by the price chart, counted back from the most recent close. null = all of
     them. The OPTIONS are derived from the series actually loaded (priceWindows), never
     listed by hand — offering "1Y" against 126 daily closes would answer a question the
@@ -1632,7 +1680,10 @@ let DATA_PRESENT = {price:false, tone:false};
 function cssEscape(v){
   return window.CSS && CSS.escape ? CSS.escape(v) : String(v).replace(/["\\]/g, "\\$&");
 }
-function pinTicker(tk){ selected = tk; }
+/* Every call site of this is a reader action — a row click, a mark click, a watchlist or
+   constituent click. The payload's fallback pin assigns `selected` directly and does NOT
+   come through here, which is exactly the distinction the price chart needs. */
+function pinTicker(tk){ selected = tk; PIN_IS_DELIBERATE = true; }
 /* Clicking the ticker opens the whole row at size AND pins it, so the charts follow what
    is being inspected. Clicking anywhere else in the row pins without interrupting. */
 /* The TICKER is remembered, not the element: opening pins the name, which re-renders the
@@ -1763,8 +1814,8 @@ function drawPrice(){
   // Only names actually IN the cohort count. A pin (or a stale toggle) naming a ticker that
   // draws no line would otherwise dim every series and highlight none — the chart would look
   // broken rather than unchanged.
-  const inCohort = new Set(series.map(x => x.tk));
-  const lit = priceLit().filter(tk => inCohort.has(tk));
+  const cohort = series.map(x => x.tk);
+  const lit = priceLit(cohort);
   const solo = lit.length === 1 ? lit[0] : null;
   const litSet = new Set(lit);
   const drawn = series.map((x, k) => {
@@ -1909,7 +1960,11 @@ function priceCohort(cap){
       const s = priceSeries(tk);
       if(s){ seen.add(tk); out.push({tk: tk, s: s}); }
     };
-    push(selected);
+    // The pin travels ONLY if it is in the bucket. Pushing it unconditionally put the
+    // auto-pinned first row — NVDA — onto a chart of the Oil/Hormuz and Tankers theses,
+    // where it is not a constituent and its line means nothing. A bucket chart shows the
+    // bucket; a name outside it is a different question and has the board's own price card.
+    if(selected && bucketNameSet().has(selected)) push(selected);
     bucketNames().forEach(push);
     if(out.length) return out;
     // Every constituent unpriced: fall through rather than return empty, so the chart shows
@@ -1944,15 +1999,15 @@ function priceCohort(cap){
    single list would have made the whole buckets section vanish on the first layout pass.
    Both are offered in Widget options; ticking a bay tile shows it in the bay. */
 const TILE_IDS = ["plot","price","tone","rank","dist","shadow","card","watch"];
-const BAY_IDS  = ["bucketctl","buckets","thesis","members","feed","book1"];
+const BAY_IDS  = ["bucketctl","buckets","bpanel","bwatch"];
 const ALL_TILE_IDS = TILE_IDS.concat(BAY_IDS);
 function isBayTile(id){ return BAY_IDS.indexOf(id) !== -1; }
 const TILE_LABELS = {
   plot:"P/E × growth", price:"Price history", tone:"Headlines & tone",
   rank:"Ranked by lens", dist:"Distribution", shadow:"AI shadow",
   card:"Stock detail", watch:"Watchlist",
-  bucketctl:"Shock & clock", buckets:"Chaos buckets", thesis:"Bucket thesis",
-  members:"Constituents", feed:"Price feed", book1:"Book I · Keel / Sail"
+  bucketctl:"Shock & clock", buckets:"Chaos buckets",
+  bpanel:"Bucket panel", bwatch:"Bucket watchlist"
 };
 const TILE_NOTES = {
   plot:  "Every name as P/E against growth; the lens's matches are the coloured marks.",
@@ -1965,10 +2020,8 @@ const TILE_NOTES = {
   watch: "Names you kept, with the lens's own ranking metric — survives lens changes and reload.",
   bucketctl:"Shock, clock, tier and search — what the bucket heat is read under.",
   buckets:"The 20 Sovereign Ledger theses. Pick one or several; every other card follows.",
-  thesis: "What the selected bucket claims, how long it is held, and what would make it wrong.",
-  members:"Its liquid and satellite names — including the ones this snapshot cannot price.",
-  feed:   "Last close and window return for every constituent of the selected buckets.",
-  book1:  "The ledger's own Keel / Sail ranking, with each name's next binary event."
+  bpanel: "History, thesis, price feed and Book I for the selection — four readings, one card.",
+  bwatch: "Every constituent with its tier, bucket, spark, last close and window return."
 };
 /* What each chart needs before it has anything true to draw, and the one line the tray shows
    when it does not have it. A tile absent from this map is never parked. */
@@ -4969,7 +5022,7 @@ function toggleBucket(id){
   if(BUCKET_SEL.has(id)) BUCKET_SEL.delete(id); else BUCKET_SEL.add(id);
   // Selecting a bucket re-aims the price chart at it, so a stale per-ticker toggle would
   // dim every line of the bucket that was just chosen.
-  PRICE_LIT = [];
+  resetPriceLit();
   render();
 }
 function drawBuckets(){
@@ -5050,6 +5103,94 @@ function drawBuckets(){
       + ' to the front">★</button></div>';
   }).join("") + "</div>";
 }
+/* A sparkline, as the buckets page draws one: a bare polyline, green up and red down over
+   the window. It is a SHAPE, and that is the whole point — a single percentage cannot tell a
+   steady climb from a round trip that ended where it started, and the watchlist's job is to
+   let twenty of them be compared at a glance. */
+function sparkSVG(series, w, h){
+  w = w || 80; h = h || 26;
+  const min = Math.min.apply(null, series), max = Math.max.apply(null, series);
+  const span = (max - min) || 1;
+  const pts = series.map((v, i) =>
+    ((i / Math.max(series.length - 1, 1)) * (w - 2) + 1).toFixed(1) + ","
+    + (h - 2 - ((v - min) / span) * (h - 4)).toFixed(1)).join(" ");
+  return '<svg class="spark" viewBox="0 0 ' + w + ' ' + h + '" aria-hidden="true">'
+    + '<polyline fill="none" stroke="'
+    + (series[series.length-1] >= series[0] ? "var(--good)" : "var(--critical)")
+    + '" stroke-width="1.5" points="' + pts + '"/></svg>';
+}
+/* The bay's own chart: the selected buckets' names, indexed to 100. Separate from the board's
+   price card because the two answer to different selections — the board's follows the pin and
+   the lens, this one follows the buckets — and one chart cannot be both without lying to one
+   of its readers about what it is showing. */
+function drawBucketChart(){
+  const host = document.getElementById("bChart");
+  if(!host) return;
+  const title = document.getElementById("bChartTitle");
+  const sub = document.getElementById("bChartSub");
+  const leg = document.getElementById("bChartLegend");
+  const sel = selectedBuckets();
+  if(!sel.length){
+    title.textContent = "Select a bucket";
+    sub.textContent = "";
+    host.innerHTML = '<p class="dc-empty">Pick one or more theses above and their names are'
+      + ' drawn here, each indexed to 100 so shapes can be compared across price levels.</p>';
+    leg.innerHTML = "";
+    return;
+  }
+  const picks = [];
+  let unpriced = 0;
+  bucketRows().forEach(m => {
+    if(picks.length >= PRICE_COHORT_MAX) return;
+    const s = winSeries(m.tk);
+    if(s) picks.push({tk: m.tk, s: s}); else unpriced++;
+  });
+  title.textContent = sel.map(b => b.id).join(", ") + " · normalized";
+  if(!picks.length){
+    sub.textContent = "";
+    host.innerHTML = '<p class="dc-empty"><b>No name in this selection has a price series.</b>'
+      + ' The thesis and its members are still listed on the other tabs — this is an absence'
+      + ' of prices, not of the bucket.</p>';
+    leg.innerHTML = "";
+    return;
+  }
+  const bars = picks[0].s.length;
+  sub.textContent = bars + " bars · indexed to 100 · line colour = ticker · % chip = window"
+    + " return" + (unpriced ? " · " + unpriced + " unpriced, not drawn" : "");
+  if(!host.clientWidth || !host.clientHeight) return;
+  const series = picks.map(p => ({tk: p.tk, idx: p.s.map(v => 100 * v / p.s[0])}));
+  const flat = series.reduce((a, x) => a.concat(x.idx), []);
+  const hi = Math.max.apply(null, flat), lo = Math.min.apply(null, flat);
+  const W = Math.max(260, Math.floor(host.clientWidth));
+  const H = Math.max(120, Math.floor(host.clientHeight));
+  const L = 38, R = 12, T = 14, B = 22, span = Math.max(hi - lo, 1e-6);
+  const sx = (i, n) => L + i / Math.max(n - 1, 1) * (W - L - R);
+  const sy = v => H - B - (v - lo) / span * (H - T - B);
+  host.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="'
+    + escAttr(series.map(x => x.tk).join(", ") + " indexed to 100")
+    + '" preserveAspectRatio="xMidYMid meet">'
+    + '<line x1="' + L + '" y1="' + sy(100).toFixed(1) + '" x2="' + (W-R) + '" y2="'
+      + sy(100).toFixed(1) + '" stroke="var(--axis)" stroke-dasharray="3 3"/>'
+    + series.map((x, k) => {
+        let d = "M " + sx(0, x.idx.length).toFixed(1) + " " + sy(x.idx[0]).toFixed(1);
+        for(let j = 1; j < x.idx.length; j++)
+          d += " L " + sx(j, x.idx.length).toFixed(1) + " " + sy(x.idx[j]).toFixed(1);
+        return '<path d="' + d + '" fill="none" stroke="' + priceColor(k)
+          + '" stroke-width="1.8" stroke-linejoin="round"/>';
+      }).join("")
+    + '<text x="' + L + '" y="' + (T+4) + '" fill="var(--ink-muted)" font-size="11"'
+      + ' font-family="var(--mono)">' + hi.toFixed(0) + '</text>'
+    + '<text x="' + L + '" y="' + (H-B-3) + '" fill="var(--ink-muted)" font-size="11"'
+      + ' font-family="var(--mono)">' + lo.toFixed(0) + '</text>'
+    + '</svg>';
+  leg.innerHTML = series.map((x, k) => {
+    const chg = x.idx[x.idx.length-1] - 100;
+    return '<span class="chip"><span class="dot" style="background:' + priceColor(k)
+      + '"></span>' + esc(x.tk) + ' <span style="color:'
+      + (chg >= 0 ? "var(--good)" : "var(--critical)") + '">' + (chg >= 0 ? "+" : "")
+      + chg.toFixed(1) + '%</span></span>';
+  }).join("");
+}
 function drawBucketCtl(){
   const hint = document.getElementById("bucketHint");
   const meta = document.getElementById("bucketCtlMeta");
@@ -5069,9 +5210,10 @@ function drawFeed(){
   const host = document.getElementById("feedList");
   if(!host) return;
   const meta = document.getElementById("feedMeta");
+  const setMeta = t => { if(meta) meta.textContent = t; };
   const names = bucketNames();
   if(!names.length){
-    meta.textContent = "—";
+    setMeta("—");
     host.innerHTML = '<p class="dc-empty"><b>No bucket selected.</b> Last close and window'
       + ' return for every constituent will be listed here.</p>';
     return;
@@ -5079,7 +5221,7 @@ function drawFeed(){
   const rows = bucketRows().map(m => Object.assign({}, m, {s: winSeries(m.tk)}));
   const withPx = rows.filter(r => r.s);
   const multi = selectedBuckets().length > 1;
-  meta.textContent = withPx.length + " of " + rows.length + " priced";
+  setMeta(withPx.length + " of " + rows.length + " priced");
   // Sorted by return, best first — but only among the priced. An unpriced name has no
   // return to sort ON, so it sits at the end rather than at whichever end a 0 would put it.
   withPx.sort((a, b) => (b.s[b.s.length-1]/b.s[0]) - (a.s[a.s.length-1]/a.s[0]));
@@ -5108,15 +5250,16 @@ function drawBook1(){
   const host = document.getElementById("book1List");
   if(!host) return;
   const meta = document.getElementById("book1Meta");
+  const setMeta = t => { if(meta) meta.textContent = t; };
   if(!BOOK1.length){
-    meta.textContent = "—";
+    setMeta("—");
     host.innerHTML = '<p class="dc-empty"><b>Book I did not travel in this payload.</b>'
       + ' It is authored in <code>tools/sovereign_buckets.py</code>; nothing here is drawn'
       + ' from a fallback.</p>';
     return;
   }
   const priced = BOOK1.filter(r => winSeries(r.t)).length;
-  meta.textContent = BOOK1.length + " names · " + priced + " priced";
+  setMeta(BOOK1.length + " names · " + priced + " priced");
   // Grouped by tier because Keel and Sail are the ledger's own ordering and the whole point
   // of the table; a flat list would be the same names with the ranking thrown away.
   const tiers = [];
@@ -5149,17 +5292,18 @@ function drawThesis(){
   const host = document.getElementById("thesisCard");
   if(!host) return;
   const title = document.getElementById("thesisTitle");
+  const setTitle = t => { if(title) title.textContent = t; };
   const sel = selectedBuckets();
   if(!sel.length){
-    title.textContent = "Bucket thesis";
+    setTitle("Bucket thesis");
     host.innerHTML = '<p class="dc-empty"><b>No bucket selected.</b> Pick one on the'
       + ' <b>Chaos buckets</b> card and its claim, holding period and failure condition'
       + ' appear here. A lens cannot carry a <code>fails when</code> — that is the one thing'
       + ' a declared list has and a computed screen does not.</p>';
     return;
   }
-  title.textContent = sel.length === 1 ? "Thesis · " + sel[0].name
-                                       : "Thesis · " + sel.length + " buckets";
+  setTitle(sel.length === 1 ? "Thesis · " + sel[0].name
+                            : "Thesis · " + sel.length + " buckets");
   host.innerHTML = sel.map(b =>
     '<div class="dc-block"><h5>' + esc(b.id) + " · " + esc(b.name) + '</h5>'
     + '<p style="margin:0 0 6px">' + esc(b.blurb) + '</p>'
@@ -5174,54 +5318,51 @@ function drawThesis(){
 function drawMembers(){
   const host = document.getElementById("membersList");
   if(!host) return;
-  const meta = document.getElementById("membersMeta");
+  const hint = document.getElementById("bWatchHint");
   const sel = selectedBuckets();
   if(!sel.length){
-    meta.textContent = "—";
-    host.innerHTML = '<p class="dc-empty"><b>No bucket selected.</b> Its liquid and satellite'
-      + ' names will be listed here, each one clickable into the rest of the board.</p>';
+    if(hint) hint.textContent = "Select buckets to fill rows.";
+    host.innerHTML = '<p class="dc-empty"><b>No bucket selected.</b> Every constituent will'
+      + ' be listed here with its tier, its bucket, its shape over the window, its last close'
+      + ' and its return.</p>';
     return;
   }
   const inLens = new Set(matchedRows().map(r => r.tk));
   const rows = bucketRows();
-  const withRow = rows.filter(m => ROWS.some(r => r.tk === m.tk)).length;
   const withPx = rows.filter(m => winSeries(m.tk)).length;
-  const gone = rows.filter(m => DELISTED[m.tk]).length;
-  const multi = selectedBuckets().length > 1;
-  meta.textContent = rows.length + " names · " + withPx + " priced · " + withRow + " screened";
-  host.innerHTML = '<ul class="watch-list">' + rows.map(m => {
-    const row = ROWS.find(r => r.tk === m.tk);
-    const px = winSeries(m.tk);
-    // Three separate facts, never collapsed: whether the snapshot can price it, whether it
-    // carries fundamentals at all, and whether it clears the current lens. An ETF has no
-    // P/E and that is not a failure; a delisted name has no price and that is not either.
-    return '<li class="watch-row' + (inLens.has(m.tk) ? " is-in" : "")
-      + (px ? "" : " is-gone") + (selected === m.tk ? " is-pinned" : "") + '">'
-      + '<button type="button" class="wl-pin" data-watch-pin="' + escAttr(m.tk) + '">'
-      + '<code>' + esc(m.tk) + '</code> <span class="wl-nm">'
-      + esc(row ? (row.name || "") : "") + '</span></button>'
-      // The ledger's own tier split. It is the reason a name is in the list at all, and a
-      // bare ticker threw it away.
-      + '<span class="wl-note tierc">' + esc(m.tier) + '</span>'
-      // Which thesis it came from — only when more than one is selected, or it would repeat
-      // the tile's own title on every row.
-      + (multi ? '<span class="wl-note">' + esc(m.bucket)
-          + (m.also.length ? " +" + m.also.length : "") + '</span>' : "")
-      + '<span class="wl-val">' + (px
-          ? ((px[px.length-1]/px[0] - 1) * 100).toFixed(1) + "%" : "—") + '</span>'
-      + '<span class="wl-note">' + (px ? (row ? (inLens.has(m.tk) ? "in lens" : "screened")
-                                              : "priced, no fundamentals")
-                                       : esc(whyNoSeries(m.tk))) + '</span>'
-      + '</li>';
-  }).join("") + "</ul>"
-    + '<p class="dc-note">Return over the window set on the price card. <b>'
-    + (rows.length - withRow) + '</b> of these carry no fundamentals row'
-    // The reason is COUNTED, not asserted. The old sentence blamed all of them on "ETFs,
-    // futures and foreign listings", which quietly mislabelled every delisted name and any
-    // ordinary operating company the universe simply does not reach.
-    + (gone ? ', <b>' + gone + '</b> of them because they no longer trade' : '')
-    + ' — the screener\'s universe is deliberately operating companies while a bucket holds'
-    + ' whatever the thesis holds. That is an absence, not a zero.</p>';
+  const bars = (winSeries(rows.map(r => r.tk).find(t => winSeries(t))) || []).length;
+  if(hint) hint.textContent = rows.length + " tickers · " + sel.length + " buckets · "
+    + (bars ? bars + "d window · " : "") + withPx + " priced from yfinance closes"
+    + (PRICE_ASOF ? " as of " + PRICE_ASOF.slice(0, 10) : "");
+  host.innerHTML = '<table class="bwatch"><thead><tr>'
+    + '<th>Ticker</th><th>Tier</th><th>Bucket</th><th>Spark</th>'
+    + '<th class="num">Last</th><th class="num">Window</th></tr></thead><tbody>'
+    + rows.map(m => {
+        const px = winSeries(m.tk);
+        const row = ROWS.find(r => r.tk === m.tk);
+        const chg = px ? (px[px.length-1]/px[0] - 1) * 100 : null;
+        return '<tr class="' + (inLens.has(m.tk) ? "is-in " : "")
+          + (selected === m.tk ? "is-pinned" : "") + '">'
+          + '<td><button type="button" class="wl-pin" data-watch-pin="' + escAttr(m.tk)
+          + '"><code>' + esc(m.tk) + '</code></button>'
+          + (row && row.name ? ' <span class="wl-nm">' + esc(row.name) + '</span>' : '')
+          + '</td>'
+          + '<td class="tierc">' + esc(m.tier) + '</td>'
+          + '<td class="muted-cell">' + esc(m.bucketId) + ' ' + esc(m.bucket)
+          + (m.also.length ? ' <span class="wl-note">+' + m.also.length + '</span>' : '')
+          + '</td>'
+          // Three columns collapse to one sentence when there is no series, rather than
+          // three dashes: a dash in a Last column is a price, and there is not one.
+          + (px
+              ? '<td>' + sparkSVG(px) + '</td>'
+                + '<td class="num">' + px[px.length-1].toFixed(2) + '</td>'
+                + '<td class="num" style="color:'
+                + (chg >= 0 ? "var(--good)" : "var(--critical)") + '">'
+                + (chg >= 0 ? "+" : "") + chg.toFixed(1) + '%</td>'
+              : '<td colspan="3" class="muted-cell">' + esc(whyNoSeries(m.tk)) + '</td>')
+          + '</tr>';
+      }).join("")
+    + '</tbody></table>';
 }
 
 /* ── Watchlist ───────────────────────────────────────────────────────────────────────────
@@ -5548,6 +5689,7 @@ function render(){
   drawMembers();
   drawFeed();
   drawBook1();
+  drawBucketChart();
   renderTable();
   renderHeadlines();
 }
@@ -5578,6 +5720,8 @@ function applyLivePayload(){
   }
   if(live.headlines) HEADLINES = live.headlines;
   if(live.price_history) PRICES = live.price_history;
+  if(live.price_as_of) PRICE_ASOF = live.price_as_of;
+  if(live.price_cmd) PRICE_CMD = live.price_cmd;
   // Taken as shipped. The bucket table is authored judgement from sovereign_buckets.py, and
   // this page's job is to draw it, never to supply a default for it — an empty grid that
   // says so is the correct rendering of a payload that carries none.
@@ -5725,6 +5869,28 @@ document.addEventListener("click", (ev)=>{
   const bk = ev.target.closest("[data-bucket]");
   if(bk){ ev.preventDefault(); ev.stopPropagation(); toggleBucket(bk.dataset.bucket); }
 });
+/* The panel's tabs. Four readings of one selection, and the chart has to be REDRAWN when its
+   pane appears rather than only when the data changes: an SVG sized from a hidden host comes
+   out zero-by-zero, so a chart drawn while its tab was closed is an empty box when it opens. */
+document.getElementById("bTabs").addEventListener("click", (ev)=>{
+  const b = ev.target.closest("[data-btab]");
+  if(!b) return;
+  ev.preventDefault(); ev.stopPropagation();
+  document.querySelectorAll("#bTabs [data-btab]").forEach(x =>
+    x.classList.toggle("on", x === b));
+  document.querySelectorAll("#bPanelBody [data-bpane]").forEach(p =>
+    { p.hidden = p.dataset.bpane !== b.dataset.btab; });
+  if(b.dataset.btab === "chart") drawBucketChart();
+});
+/* Expand is a size, not a mode: the panel takes the bay's full width and the watchlist drops
+   below it. A modal would have put the chart on top of the grid that chose what it shows. */
+document.getElementById("bExpand").addEventListener("click", (ev)=>{
+  ev.preventDefault(); ev.stopPropagation();
+  const bay = document.getElementById("bucketBay");
+  const on = bay.classList.toggle("panel-wide");
+  ev.currentTarget.setAttribute("aria-pressed", on ? "true" : "false");
+  drawBucketChart();
+});
 document.getElementById("bucketShock").addEventListener("change", (ev)=>{
   bucketShock = ev.target.value; drawBucketCtl(); drawBuckets();
 });
@@ -5746,7 +5912,7 @@ document.getElementById("bucketClear").addEventListener("click", ()=>{
   BUCKET_SEL.clear();
   bucketQuery = "";
   document.getElementById("bucketQ").value = "";
-  PRICE_LIT = [];
+  resetPriceLit();
   render();
 });
 document.getElementById("bucketTop").addEventListener("click", ()=>{
@@ -5755,7 +5921,7 @@ document.getElementById("bucketTop").addEventListener("click", ()=>{
   BUCKET_SEL.clear();
   BUCKETS.slice().sort((a, b) => heatOf(b) - heatOf(a)).slice(0, 4)
     .forEach(b => BUCKET_SEL.add(b.id));
-  PRICE_LIT = [];
+  resetPriceLit();
   render();
 });
 document.querySelectorAll("#toneSrc button").forEach(btn=>{

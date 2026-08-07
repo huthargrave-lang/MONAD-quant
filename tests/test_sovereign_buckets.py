@@ -182,7 +182,7 @@ class TheBucketsAreOnTheScreenerBoard(unittest.TestCase):
         did not place — one shared list made the whole buckets section vanish on the first
         layout pass. Widget options offers both registries."""
         bay = re.search(r"const BAY_IDS  = \[(.*?)\];", self.html, re.S).group(1)
-        for tile in ("bucketctl", "buckets", "thesis", "members", "feed", "book1"):
+        for tile in ("bucketctl", "buckets", "bpanel", "bwatch"):
             self.assertIn('"{}"'.format(tile), bay,
                           "{} is not a bay tile".format(tile))
             self.assertRegex(self.html, r'data-id="{}"'.format(tile))
@@ -228,7 +228,16 @@ class TheBucketsAreOnTheScreenerBoard(unittest.TestCase):
         """It is the more specific request — the reader named these companies — so drawing
         the lens's leaders over a chosen thesis would answer a question nobody asked."""
         self.assertRegex(
-            self.html, r"if\(BUCKET_SEL\.size\)\{[\s\S]{0,600}?bucketNames\(\)\.forEach\(push\)")
+            self.html,
+            r"if\(BUCKET_SEL\.size\)\{[\s\S]{0,900}?bucketNames\(\)\.forEach\(push\)")
+
+    def test_a_pin_outside_the_bucket_does_not_ride_along(self):
+        """The pin was pushed into the cohort unconditionally, which put the auto-pinned
+        first row on a chart of theses it is not a constituent of — NVDA on Oil/Hormuz."""
+        self.assertRegex(
+            self.html,
+            r"if\(selected && bucketNameSet\(\)\.has\(selected\)\) push\(selected\);",
+            "only a pin that is IN the selected buckets may join the bucket chart")
 
     def test_an_all_unpriced_bucket_falls_through_rather_than_emptying_the_chart(self):
         self.assertRegex(
@@ -239,9 +248,16 @@ class TheBucketsAreOnTheScreenerBoard(unittest.TestCase):
     def test_the_member_list_keeps_three_states_apart(self):
         """Priced, carries fundamentals, and clears the lens are three different facts. An
         ETF with no P/E is not a failure and a delisted name with no price is not either."""
-        self.assertIn("priced, no fundamentals", self.html)
         self.assertRegex(self.html, r"function whyNoSeries\(tk\)\{")
         self.assertRegex(self.html, r'DELISTED\[tk\] \? "delisted — " \+ DELISTED\[tk\]')
+        # An unpriced row collapses its three price columns into one reason rather than
+        # printing three dashes: a dash in a "Last" column is a price, and there is not one.
+        self.assertRegex(
+            self.html,
+            r"'<td colspan=\"3\" class=\"muted-cell\">' \+ esc\(whyNoSeries\(m\.tk\)\)",
+            "an unpriced constituent must state its reason across the price columns")
+        # Lens membership is shown, never used to filter the list.
+        self.assertRegex(self.html, r'inLens\.has\(m\.tk\) \? "is-in " : ""')
 
     def test_the_page_supplies_no_default_bucket_table(self):
         """Authored judgement travels or it does not exist. A built-in fallback list would
