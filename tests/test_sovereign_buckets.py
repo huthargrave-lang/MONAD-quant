@@ -175,14 +175,42 @@ class TheBucketsAreOnTheScreenerBoard(unittest.TestCase):
 
     def test_the_bucket_cards_are_widget_options(self):
         """The ask was for them in edit-layout, not bolted to the page — a card that cannot
-        be parked, moved or arranged is not on this board, it is merely on this page."""
-        ids = re.search(r"const TILE_IDS = \[(.*?)\];", self.html, re.S).group(1)
-        for tile in ("buckets", "thesis", "members"):
-            self.assertIn('"{}"'.format(tile), ids,
-                          "{} is not a placeable tile".format(tile))
+        be closed or brought back is not a module, it is furniture.
+
+        They live in BAY_IDS rather than TILE_IDS: the bay below the results table is a
+        different region from the split-tree board, and layoutBoard HIDES every TILE_ID it
+        did not place — one shared list made the whole buckets section vanish on the first
+        layout pass. Widget options offers both registries."""
+        bay = re.search(r"const BAY_IDS  = \[(.*?)\];", self.html, re.S).group(1)
+        for tile in ("bucketctl", "buckets", "thesis", "members", "feed", "book1"):
+            self.assertIn('"{}"'.format(tile), bay,
+                          "{} is not a bay tile".format(tile))
             self.assertRegex(self.html, r'data-id="{}"'.format(tile))
             self.assertRegex(self.html, r"{}\s*:".format(tile),
                              "{} has no label/note entry".format(tile))
+        self.assertRegex(
+            self.html, r"tileOrder\(ALL_TILE_IDS\.filter\(id => !parked\.includes\(id\)\)\)",
+            "the widget panel must offer both registries, or a bay card cannot be reopened")
+
+    def test_a_bay_tile_never_goes_onto_the_split_tree(self):
+        """placeIntoLargestPane would drop a bucket card into the analysis board, and then
+        layoutBoard would position it absolutely inside a container it is not a child of."""
+        self.assertRegex(
+            self.html,
+            r"if\(isBayTile\(id\)\)\{ setBayShown\(id, on\); return; \}",
+            "setTilePlaced must route bay tiles to the bay")
+
+    def test_the_bay_sits_below_the_results_table(self):
+        results = self.html.index("<h2>Results</h2>")
+        bay = self.html.index('id="bucketBay"')
+        self.assertLess(results, bay,
+                        "the buckets bay must come after the results table, not before it")
+
+    def test_the_bay_reproduces_the_buckets_page_layout(self):
+        """Controls across the top, grid under them, chart beside the supporting cards."""
+        areas = re.search(r'grid-template-areas:(.*?)\}', self.html, re.S).group(1)
+        for want in ('"ctl ctl"', '"grid grid"', '"chart side1"'):
+            self.assertIn(want, areas, "bay layout lost {}".format(want))
 
     def test_constituent_series_travel_not_just_screened_ones(self):
         """53 of 202 constituents are in the fundamentals universe. Shipping only screened
@@ -258,7 +286,18 @@ class TheBucketsAreOnTheScreenerBoard(unittest.TestCase):
         """The heat table is authored on a 0-4 scale. Letting the clock bump run past it
         would invent a fifth level of a judgement that only has four."""
         self.assertRegex(self.html, r"const HEAT_MAX = 4;")
-        self.assertRegex(self.html, r"h = Math\.min\(HEAT_MAX, h \+ 1\)")
+        self.assertRegex(self.html, r"Math\.min\(HEAT_MAX, h \+ 1\)")
+
+    def test_the_clock_bump_cannot_create_relevance_from_nothing(self):
+        """A bucket the ledger scored 0 under a shock stays 0. The clock says which theses
+        LEAD at a stage, not that an irrelevant one becomes relevant — lifting 0 to 1 drew a
+        heat bar on a bucket explicitly marked as not applying, and let it outrank buckets the
+        ledger had scored above it."""
+        body = re.search(r"function heatOf\(b\)\{(.*?)\n\}", self.html, re.S).group(1)
+        self.assertRegex(body, r"if\(h === 0\) return 0;",
+                         "the bump must not apply to an authored zero")
+        self.assertLess(body.index("if(h === 0) return 0;"), body.index("CLOCK_LEADS"),
+                        "the zero check must run before the bump, not after it")
 
     def test_the_clock_leads_match_the_buckets_page(self):
         """Both surfaces must rank the theses identically, or the same shock and clock give
