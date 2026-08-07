@@ -220,21 +220,18 @@ class TheSurfaceCensusIsCompleteTests(unittest.TestCase):
                 "from tools/ui_tokens.py".format(rel, found))
 
 
-    def test_two_surfaces_still_need_an_external_host(self):
-        """Neither CDN was closed by the port; one of the two had been invisible.
-
-        `ctx graph` pulls d3 from cdnjs (F216, still open). The live dashboard pulls
-        plotly from cdn.plot.ly — which the census could not see until it learned to
-        follow `<script src="{{ plotly_js_url }}">` into the companion module. A page
-        that fetches executable code from the internet and reports no dependency is the
-        absence-flag failure, not a clean bill of health.
+    def test_one_surface_still_needs_an_external_host(self):
+        """`ctx graph` vendored its d3, so cdnjs is gone. The live dashboard still pulls
+        plotly from cdn.plot.ly — a dependency the census could not see at all until it
+        learned to follow `<script src="{{ plotly_js_url }}">` into the companion
+        module. A page that fetches executable code from the internet and reports no
+        dependency is the absence-flag failure, not a clean bill of health.
         """
         external = {r["path"]: r["external_hosts"] for r in self.census["surfaces"]
                     if r["external_hosts"]}
         self.assertEqual(
             external,
-            {"tools/ctx.py": ["cdnjs.cloudflare.com"],
-             "live/templates/dashboard.html": ["cdn.plot.ly"]},
+            {"live/templates/dashboard.html": ["cdn.plot.ly"]},
             "the set of surfaces with external dependencies changed: {} — vendoring "
             "either library closes a real problem and should be recorded".format(
                 external))
@@ -535,13 +532,19 @@ class TheContextMapsLightPaletteIsReachableTests(unittest.TestCase):
             "the map's stylesheet declares colour(s) {} — it aliases the shared tokens "
             "instead".format(found))
 
-    def test_the_cdn_dependency_is_still_the_open_one(self):
-        """Scoped honestly: F232 ported the palette, not the offline problem (F216)."""
+    def test_the_context_map_no_longer_reaches_the_internet(self):
+        """F216 closed: d3 is vendored at tools/vendor/ and inlined into the page.
+
+        The old guard here asserted the CDN dependency was still open and said, in its
+        own failure message, to retire it once d3 was vendored. It correctly failed the
+        moment that happened. This is the inverse: the map's correctness must not depend
+        on a third party being reachable when someone opens it — a slow or blocked fetch
+        used to render a page whose data was fully present as "0 nodes"."""
         census = {r["path"]: r["external_hosts"] for r in ui.surface_census()["surfaces"]}
         self.assertEqual(
-            census["tools/ctx.py"], ["cdnjs.cloudflare.com"],
-            "ctx's external dependency changed to {} — if d3 was vendored, F216 is "
-            "closed and this guard should be retired with it".format(
+            census["tools/ctx.py"], [],
+            "the context map reaches {} again — the map ships its own d3, and a page "
+            "that fetches executable code at read time can render empty".format(
                 census["tools/ctx.py"]))
 
 

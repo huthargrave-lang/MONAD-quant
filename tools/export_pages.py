@@ -227,7 +227,10 @@ def export(out_dir):
         write("node-{}.html".format(nid), _staticise(body, built, "web"))
 
     G, adj = ctx.build_graph(include_code=True)
-    write("map.html", ctx._render_graph_html(G, adj))
+    # The map is self-contained and skips _staticise, so its one internal link — back to
+    # the screener — has to be retargeted here or it 404s on Pages.
+    write("map.html", ctx._render_graph_html(G, adj)
+          .replace('id="back" href="/screener/draft"', 'id="back" href="index.html"'))
 
     # Nothing may still point at a server route — a dead absolute link on Pages is a
     # silent 404, so it fails the build instead.

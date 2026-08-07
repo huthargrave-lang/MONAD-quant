@@ -6,7 +6,7 @@
     "surfaces": 7,
     "theme_aware": 7,
     "token_driven": 7,
-    "with_external_deps": 2
+    "with_external_deps": 1
   },
   "grounds": [
     "#f2f3f1"
@@ -34,9 +34,7 @@
       "companions": [],
       "distinct_hexes": 63,
       "entry": "ctx graph --html \u00b7 ctx serve",
-      "external_hosts": [
-        "cdnjs.cloudflare.com"
-      ],
+      "external_hosts": [],
       "ground": "#f2f3f1",
       "ground_luminance": 0.8933,
       "path": "tools/ctx.py",

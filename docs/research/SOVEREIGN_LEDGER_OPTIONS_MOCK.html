@@ -294,6 +294,7 @@ footer{margin-top:44px;padding-top:14px;border-top:1px solid var(--rule);font-si
             <button type="button" class="on" data-tab="chart">History</button>
             <button type="button" data-tab="detail">Bucket detail</button>
             <button type="button" data-tab="gen">Price feed</button>
+            <button type="button" data-tab="book1">Book I · Keel / Sail</button>
           </div>
           <button type="button" class="expand" id="chartExpand" aria-haspopup="dialog">
             <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor"
@@ -316,6 +317,25 @@ footer{margin-top:44px;padding-top:14px;border-top:1px solid var(--rule);font-si
           <p class="instr" id="detailLiq"></p>
           <h3>Satellites</h3>
           <p class="instr" id="detailSat"></p>
+        </div>
+        <div id="tab-book1" hidden>
+          <h3>Book I · Keel / Sail</h3>
+          <!-- The barbell from docs/research/SOVEREIGN_LEDGER_2026.md: Keel names are
+               liquid policy-beta that already hold contracts and are meant to survive;
+               Sails are small satellites where one binary can re-rate the thesis. Named
+               here because "Keel" and "Sail" mean nothing without it. -->
+          <p class="lede" style="font-size:13px">Sovereignty names, always listed — Bucket 11
+            pulls many of these in. <b>Keel</b> = liquid policy-beta that already has
+            contracts written (survive); <b>Sail</b> = small satellites where one binary can
+            2–10× the thesis (asymmetry). SPARK is a research score, not advice.</p>
+          <div class="scroller">
+            <table>
+              <thead>
+                <tr><th>Tier</th><th>Ticker</th><th>Archetype</th><th>SPARK</th><th>Next binary</th><th>Spark</th></tr>
+              </thead>
+              <tbody id="book1Body"></tbody>
+            </table>
+          </div>
         </div>
         <div id="tab-gen" hidden>
           <h3>Free historical pricing</h3>
@@ -351,18 +371,6 @@ for sym in WATCH:
       </div>
     </div>
 
-    <div class="panel" id="book1">
-      <h2 style="margin-top:0">Book I · Keel / Sail</h2>
-      <p class="lede" style="font-size:13px">Sovereignty names — always listed; Bucket 11 pulls many of these in.</p>
-      <div class="scroller">
-        <table>
-          <thead>
-            <tr><th>Tier</th><th>Ticker</th><th>Archetype</th><th>SPARK</th><th>Next binary</th><th>Spark</th></tr>
-          </thead>
-          <tbody id="book1Body"></tbody>
-        </table>
-      </div>
-    </div>
 
     <footer>
       Matches <code>tools/research_ui.py</code> shell + <code>tools/ui_tokens.py</code> palette ·
@@ -787,7 +795,7 @@ document.querySelectorAll(".tabs button").forEach(btn=>{
   btn.onclick=()=>{
     document.querySelectorAll(".tabs button").forEach(b=>b.classList.remove("on"));
     btn.classList.add("on");
-    ["chart","detail","gen"].forEach(id=>{document.getElementById("tab-"+id).hidden=btn.dataset.tab!==id});
+    ["chart","detail","gen","book1"].forEach(id=>{document.getElementById("tab-"+id).hidden=btn.dataset.tab!==id});
     // Expand belongs to the chart, not to the panel — offering it over the feed tab would
     // open a dialog for something the reader is not looking at.
     document.getElementById("chartExpand").hidden=btn.dataset.tab!=="chart";
