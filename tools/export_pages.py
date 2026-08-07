@@ -94,6 +94,17 @@ def _static_nav(active="screener"):
         u=REPO_URL)
 
 
+#: The project inbox is a LOCAL convenience. Publishing it would put a personal address
+#: on a public site for anything that crawls, so the static build empties the list rather
+#: than obfuscating it — the page then drops its own mail controls and says why. Matching
+#: the list literally (not the address) keeps this working if the address ever changes.
+_INBOX_LIST = re.compile(r'var INBOX = \[[^\]]*\];')
+
+
+def _strip_inbox(html):
+    return _INBOX_LIST.sub("var INBOX = [];", html)
+
+
 def _staticise(html, built, active="screener"):
     """Server page → static page: relative links, static rail, honest footer."""
     html = html.replace('href="/static/ui.css"', 'href="static/ui.css"')
@@ -133,6 +144,7 @@ def _staticise(html, built, active="screener"):
     html = html.replace('href="/surfaces"', 'href="surfaces.html"')
     html = html.replace('href="/graph"', 'href="map.html"')
     html = html.replace('href="/"', 'href="overview.html"')
+    html = _strip_inbox(html)
     html = _NAV.sub(_static_nav(active), html, count=1)
     # The server footer's claim ("rendered … at request time") would be FALSE here.
     stamp = "static snapshot built {} UTC".format(built)

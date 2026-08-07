@@ -46,11 +46,12 @@ a:hover{text-decoration:underline}
 code,.mono,th,td.num{font-family:var(--mono)}
 
 /* research_ui shell */
-/* 70%, matching every other surface. On the shell rather than on main so the rail
-   scales with the body — a full-size rail beside a shrunken page reads as broken.
-   min-height compensates for the scale so the shell still fills the viewport. */
+/* .77 — a tenth larger than the 70% every other surface uses. This page is mostly
+   20 bucket cards and two tables, which stay legible bigger, where the screener has to
+   fit a board plus a 15-column table in one view. On the shell rather than on main so
+   the rail scales with the body; min-height compensates so it still fills the viewport. */
 .shell{display:grid;grid-template-columns:232px minmax(0,1fr);gap:0;
-  zoom:.7;min-height:calc(100vh / .7)}
+  zoom:.77;min-height:calc(100vh / .77)}
 .rail{border-right:1px solid var(--rule);background:var(--surface);padding:20px 0 40px}
 .rail .brand{padding:0 18px 16px;border-bottom:1px solid var(--rule);margin-bottom:14px}
 .rail .brand b{display:block;font-family:var(--mono);font-size:13px;letter-spacing:.06em;
@@ -134,8 +135,20 @@ tbody tr.on{background:var(--plane)}
   .layout{grid-template-columns:1fr}
   main{padding:20px 16px 70px}
 }
-.chart-box{height:280px;border:1px solid var(--rule);border-radius:8px;background:var(--plane);padding:8px}
-.chart-box svg{width:100%;height:100%;display:block}
+/* The chart carries no intrinsic height: it is the one elastic element in its column, so
+   it absorbs the row height the taller Watchlist sets rather than leaving the panel short.
+   The floor keeps the axis + 100 baseline readable if the row ever collapses. */
+.chart-panel{display:flex;flex-direction:column;align-self:stretch}
+#tab-chart:not([hidden]){display:flex;flex-direction:column;flex:1;min-height:0}
+.chart-box{--chart-pad:8px;position:relative;border:1px solid var(--rule);border-radius:8px;
+  background:var(--plane);padding:var(--chart-pad)}
+#tab-chart .chart-box{flex:1;min-height:240px}
+/* Out of flow on purpose: a viewBox gives the SVG an intrinsic aspect ratio, and in flow
+   the height it was just drawn at would feed back as the height of the box that sized it.
+   Sized explicitly rather than by insets, because `auto` on a replaced element resolves to
+   that same intrinsic size instead of stretching to the offsets. */
+.chart-box svg{position:absolute;top:var(--chart-pad);left:var(--chart-pad);display:block;
+  width:calc(100% - 2*var(--chart-pad));height:calc(100% - 2*var(--chart-pad))}
 .spark{width:80px;height:26px;display:block}
 .up{color:var(--good)} .dn{color:var(--critical)}
 .legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
@@ -143,6 +156,31 @@ tbody tr.on{background:var(--plane)}
 .tabs button{font:13px var(--sans);height:28px;padding:0 10px;border:1px solid var(--rule);
   border-radius:6px;background:var(--surface);color:var(--ink);cursor:pointer}
 .tabs button.on{border-color:var(--accent)}
+/* Expand sits beside the tab strip, not in it — the tabs are a one-of-three group and the
+   existing `.tabs button` handler treats every button in there as a tab. */
+.chart-head{display:flex;align-items:center;gap:10px;margin:0 0 12px;flex-wrap:wrap}
+.chart-head .tabs{margin:0}
+.expand{display:inline-flex;align-items:center;gap:6px;font:13px var(--sans);height:28px;
+  padding:0 10px;border:1px solid var(--rule);border-radius:6px;background:var(--surface);
+  color:var(--ink-2);cursor:pointer}
+.expand:hover{border-color:var(--accent);color:var(--ink)}
+.expand svg{width:12px;height:12px;display:block;flex:0 0 auto}
+
+/* Chart modal */
+.modal{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;
+  padding:28px}
+.modal[hidden]{display:none}
+.modal-scrim{position:absolute;inset:0;background:var(--plane);opacity:.86}
+.modal-card{position:relative;display:flex;flex-direction:column;
+  width:min(1360px,94vw);height:min(940px,90vh);
+  background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:18px 22px 20px;
+  box-shadow:0 20px 60px color-mix(in srgb, var(--axis) 55%, transparent)}
+.modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;
+  margin-bottom:12px}
+.modal-head h3{font-size:15px;margin:0 0 3px}
+.modal-head p{margin:0;font-size:13px}
+.modal .chart-box{flex:1;min-height:0}
+.modal .legend{justify-content:center}
 .kvs{display:grid;grid-template-columns:110px 1fr;gap:4px 12px;font-size:13px;margin:0 0 12px}
 .kvs dt{color:var(--ink-muted);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;padding-top:3px}
 .kvs dd{margin:0;color:var(--ink-2)}
@@ -250,11 +288,18 @@ footer{margin-top:44px;padding-top:14px;border-top:1px solid var(--rule);font-si
     </div>
 
     <div class="layout">
-      <div class="panel">
-        <div class="tabs">
-          <button type="button" class="on" data-tab="chart">History</button>
-          <button type="button" data-tab="detail">Bucket detail</button>
-          <button type="button" data-tab="gen">Price feed</button>
+      <div class="panel chart-panel">
+        <div class="chart-head">
+          <div class="tabs">
+            <button type="button" class="on" data-tab="chart">History</button>
+            <button type="button" data-tab="detail">Bucket detail</button>
+            <button type="button" data-tab="gen">Price feed</button>
+          </div>
+          <button type="button" class="expand" id="chartExpand" aria-haspopup="dialog">
+            <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor"
+                 stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6.5 2H2v4.5M9.5 14H14V9.5M14 6.5V2H9.5M2 9.5V14h4.5" />
+            </svg>Expand</button>
         </div>
         <div id="tab-chart">
           <h3 id="chartTitle">Select a bucket</h3>
@@ -325,6 +370,24 @@ for sym in WATCH:
     </footer>
     </div>
   </main>
+</div>
+
+<!-- Outside .shell deliberately: the shell's zoom:.77 scales everything inside it, including
+     position:fixed boxes and their vw/vh, so an overlay nested there could not cover the
+     viewport or show the chart at true size. -->
+<div class="modal" id="chartModal" hidden>
+  <div class="modal-scrim" data-modal-close></div>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="chartModalTitle">
+    <div class="modal-head">
+      <div>
+        <h3 id="chartModalTitle">Select a bucket</h3>
+        <p class="lede" id="chartModalSub">Normalized to 100 · demo series</p>
+      </div>
+      <button type="button" class="expand" id="chartModalClose" data-modal-close>Close</button>
+    </div>
+    <div class="chart-box" id="chartModalBox"></div>
+    <div class="legend" id="chartModalLegend"></div>
+  </div>
 </div>
 
 <script>
@@ -495,12 +558,16 @@ function sparkSVG(series,w=80,h=26){
 const SERIES_COLORS=["var(--accent)","var(--serious)","var(--ord-3)","var(--warning)","var(--ord-2)","var(--good)"];
 function seriesColor(i){ return SERIES_COLORS[i % SERIES_COLORS.length]; }
 
-/** Larger history chart: date axis + per-ticker colors. */
-function lineChart(seriesMap,n){
-  const w=720, h=250, padL=36, padR=14, padT=16, padB=36;
+/** History chart: date axis + per-ticker colors, authored at the caller's pixel size.
+    A fixed viewBox would letterbox inside any box of a different aspect and shrink the
+    axis type with it, so w/h come from the live host box (see drawChart). */
+function lineChart(seriesMap,n,w,h){
+  const padL=36, padR=14, padT=16, padB=36;
+  // Axis type steps up once the plot is wide enough that 10px reads as noise beside it.
+  const fs=w>=980?12:10;
   const keys=Object.keys(seriesMap);
   if(!keys.length){
-    return `<svg viewBox="0 0 ${w} ${h}"><text x="24" y="40" fill="var(--ink-muted)" font-size="13">Select buckets to plot liquid tickers (normalized).</text></svg>`;
+    return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="No tickers selected"><text x="${padL}" y="${Math.round(h/2)}" fill="var(--ink-muted)" font-size="13">Select buckets to plot liquid tickers (normalized).</text></svg>`;
   }
   const dates=tradingDates(n);
   const norms={};
@@ -518,18 +585,24 @@ function lineChart(seriesMap,n){
   if(min<=100 && max>=100){
     base=`<line x1="${padL}" x2="${w-padR}" y1="${Y(100)}" y2="${Y(100)}" stroke="var(--axis)" stroke-dasharray="3,3"/>`;
   }
-  const yTicks=[0,.25,.5,.75,1].map(f=>{
+  // Tick counts track the plot box so gridlines stay ~50px apart and date labels ~140px
+  // apart at any size — fixed counts either crowd a small box or strand a large one.
+  const yN=Math.max(3,Math.min(8,Math.round(plotH/50)));
+  const yTicks=Array.from({length:yN+1},(_,i)=>i/yN).map(f=>{
     const val=min+f*span, yy=Y(val);
     return `<line x1="${padL}" x2="${w-padR}" y1="${yy}" y2="${yy}" stroke="var(--rule)"/>
-      <text x="${padL-6}" y="${yy+3.5}" text-anchor="end" font-size="10" fill="var(--ink-muted)" font-family="var(--mono)">${val.toFixed(0)}</text>`;
+      <text x="${padL-6}" y="${yy+fs*0.35}" text-anchor="end" font-size="${fs}" fill="var(--ink-muted)" font-family="var(--mono)">${val.toFixed(0)}</text>`;
   }).join("");
-  const labelN=Math.min(5, n);
+  const labelN=Math.max(2,Math.min(n,Math.round(plotW/140)));
   const xTicks=[];
   for(let i=0;i<labelN;i++){
     const idx=labelN===1?0:Math.round(i*(n-1)/(labelN-1));
     const xx=X(idx);
+    // The end labels sit on the plot edges, so centering them would hang half the date
+    // outside the viewBox and clip it.
+    const anchor=i===0?"start":(i===labelN-1?"end":"middle");
     xTicks.push(`<line x1="${xx}" x2="${xx}" y1="${padT+plotH}" y2="${padT+plotH+4}" stroke="var(--axis)"/>
-      <text x="${xx}" y="${h-10}" text-anchor="middle" font-size="10" fill="var(--ink-muted)" font-family="var(--mono)">${fmtDate(dates[idx], true)}</text>`);
+      <text x="${xx}" y="${h-10}" text-anchor="${anchor}" font-size="${fs}" fill="var(--ink-muted)" font-family="var(--mono)">${fmtDate(dates[idx], true)}</text>`);
   }
   const paths=keys.map((k,i)=>{
     const col=seriesColor(i);
@@ -538,8 +611,36 @@ function lineChart(seriesMap,n){
     return `<polyline fill="none" stroke="${col}" stroke-width="2.25" stroke-linejoin="round" stroke-linecap="round" points="${pts}"/>
       <circle cx="${X(last).toFixed(1)}" cy="${Y(norms[k][last]).toFixed(1)}" r="3.2" fill="${col}" stroke="var(--surface)" stroke-width="1.5"/>`;
   }).join("");
-  const rangeNote=`<text x="${padL}" y="12" font-size="10" fill="var(--ink-muted)" font-family="var(--mono)">${fmtDate(dates[0])} → ${fmtDate(dates[n-1])} · indexed to 100</text>`;
+  const rangeNote=`<text x="${padL}" y="${padT-4}" font-size="${fs}" fill="var(--ink-muted)" font-family="var(--mono)">${fmtDate(dates[0])} → ${fmtDate(dates[n-1])} · indexed to 100</text>`;
   return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Normalized price history with dates">${yTicks}${base}${xTicks}${paths}${rangeNote}</svg>`;
+}
+/** Content-box of a chart host, in the host's own (pre-zoom) pixels — the same units the
+    SVG viewBox uses, so one measured unit is one drawn unit. */
+function chartHostSize(el){
+  const cs=getComputedStyle(el);
+  return {
+    w:Math.round(el.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight)),
+    h:Math.round(el.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom)),
+  };
+}
+const chartDrawnAt=new WeakMap();
+/** Single draw path for every host (inline panel, modal) so the two can never drift. */
+function drawChart(host,map,n){
+  const {w,h}=chartHostSize(host);
+  // A host in a hidden tab or a closed modal measures 0. Keep the last good drawing and
+  // let the ResizeObserver redraw once the box exists again.
+  if(w<=0||h<=0) return;
+  chartDrawnAt.set(host,w+"x"+h);
+  host.innerHTML=lineChart(map,n,w,h);
+}
+/** Redraw only when the host's box actually changed — the size guard is what stops a
+    redraw from re-triggering the observer that caused it. */
+function observeChartHost(host){
+  new ResizeObserver(()=>{
+    const {w,h}=chartHostSize(host);
+    if(w<=0||h<=0||chartDrawnAt.get(host)===w+"x"+h) return;
+    renderChart();
+  }).observe(host);
 }
 function seriesChg(series){ return pct(series[0], series.at(-1)); }
 function heatOf(b){
@@ -613,24 +714,46 @@ function renderWatch(){
     tr.onclick=()=>{activeTicker=tr.dataset.t;renderChart();renderWatch()};
   });
 }
-function renderChart(){
+/** What the chart is showing right now. Split out so the inline panel and the modal render
+    from one description of the selection rather than two. */
+function chartModel(){
   const n=+document.getElementById("window").value;
   const bucks=selectedBuckets();
   const map={};
-  if(activeTicker){map[activeTicker]=genSeries(activeTicker,n);document.getElementById("chartTitle").textContent=activeTicker+" · demo history"}
-  else if(bucks.length){
+  let title="Select a bucket";
+  if(activeTicker){
+    map[activeTicker]=genSeries(activeTicker,n);
+    title=activeTicker+" · demo history";
+  } else if(bucks.length){
     const ts=[]; bucks.forEach(b=>b.liquid.forEach(t=>{if(!ts.includes(t))ts.push(t)}));
     ts.slice(0,5).forEach(t=>map[t]=genSeries(t,n));
-    document.getElementById("chartTitle").textContent=bucks.map(b=>b.id).join(", ")+" · normalized";
-  } else document.getElementById("chartTitle").textContent="Select a bucket";
-  document.getElementById("chartBox").innerHTML=lineChart(map,n);
+    title=bucks.map(b=>b.id).join(", ")+" · normalized";
+  }
   const dates=tradingDates(n);
-  document.getElementById("chartSub").textContent=
-    fmtDate(dates[0])+" → "+fmtDate(dates[n-1])+" · normalized to 100 · line color = ticker · % chip = window return";
-  document.getElementById("chartLegend").innerHTML=Object.keys(map).map((k,i)=>{
-    const s=map[k], chg=seriesChg(s), up=chg>=0, col=seriesColor(i);
+  const sub=fmtDate(dates[0])+" → "+fmtDate(dates[n-1])
+    +" · normalized to 100 · line color = ticker · % chip = window return";
+  return {map,n,title,sub,bucks};
+}
+function legendHTML(map){
+  return Object.keys(map).map((k,i)=>{
+    const chg=seriesChg(map[k]), up=chg>=0, col=seriesColor(i);
     return `<span class="chip ${up?"good":"critical"}"><span class="dot" style="background:${col}"></span>${k} ${chg>=0?"+":""}${chg.toFixed(1)}%</span>`;
   }).join("");
+}
+function renderChart(){
+  const {map,n,title,sub,bucks}=chartModel();
+  // Titles and legend first: they are siblings of the chart in a column that shares one
+  // height, so measuring the box before they settle draws at a size that no longer exists.
+  document.getElementById("chartTitle").textContent=title;
+  document.getElementById("chartSub").textContent=sub;
+  document.getElementById("chartLegend").innerHTML=legendHTML(map);
+  drawChart(document.getElementById("chartBox"),map,n);
+  if(!chartModal.hidden){
+    document.getElementById("chartModalTitle").textContent=title;
+    document.getElementById("chartModalSub").textContent=sub;
+    document.getElementById("chartModalLegend").innerHTML=legendHTML(map);
+    drawChart(document.getElementById("chartModalBox"),map,n);
+  }
   const b=bucks[0];
   if(b){
     document.getElementById("detailTitle").textContent=`Bucket ${b.id} — ${b.name}`;
@@ -665,6 +788,9 @@ document.querySelectorAll(".tabs button").forEach(btn=>{
     document.querySelectorAll(".tabs button").forEach(b=>b.classList.remove("on"));
     btn.classList.add("on");
     ["chart","detail","gen"].forEach(id=>{document.getElementById("tab-"+id).hidden=btn.dataset.tab!==id});
+    // Expand belongs to the chart, not to the panel — offering it over the feed tab would
+    // open a dialog for something the reader is not looking at.
+    document.getElementById("chartExpand").hidden=btn.dataset.tab!=="chart";
   };
 });
 ["applyBtn"].forEach(id=>document.getElementById(id).onclick=renderAll);
@@ -686,6 +812,47 @@ if(themeBtn) themeBtn.onclick=()=>{
   else if(cur==="light") r.removeAttribute("data-theme");
   else r.setAttribute("data-theme","dark");
 };
+
+/* Expanded chart. Same series, same legend, same drawing routine — only the host box
+   differs, so the modal is a bigger read of the panel rather than a second chart. */
+const chartModal=document.getElementById("chartModal");
+const chartModalCard=chartModal.querySelector(".modal-card");
+const FOCUSABLE="button,[href],input,select,textarea,[tabindex]:not([tabindex='-1'])";
+let modalOpener=null;
+function openChartModal(){
+  if(!chartModal.hidden) return;
+  modalOpener=document.activeElement;
+  chartModal.hidden=false;
+  // Scroll position is untouched; only the scrollbar goes, so the page behind cannot be
+  // scrolled out from under the dialog.
+  document.body.style.overflow="hidden";
+  renderChart();
+  document.getElementById("chartModalClose").focus();
+}
+function closeChartModal(){
+  if(chartModal.hidden) return;
+  chartModal.hidden=true;
+  document.body.style.overflow="";
+  if(modalOpener && modalOpener.isConnected) modalOpener.focus();
+  modalOpener=null;
+}
+document.getElementById("chartExpand").onclick=openChartModal;
+chartModal.querySelectorAll("[data-modal-close]")
+  .forEach(el=>el.addEventListener("click",closeChartModal));
+document.addEventListener("keydown",e=>{
+  if(chartModal.hidden) return;
+  if(e.key==="Escape"){e.preventDefault();closeChartModal();return}
+  if(e.key!=="Tab") return;
+  // The page behind is inert while the dialog is up, so tabbing must not walk out of it.
+  const f=[...chartModalCard.querySelectorAll(FOCUSABLE)];
+  if(!f.length) return;
+  const first=f[0], last=f[f.length-1];
+  if(e.shiftKey && document.activeElement===first){e.preventDefault();last.focus()}
+  else if(!e.shiftKey && document.activeElement===last){e.preventDefault();first.focus()}
+});
+observeChartHost(document.getElementById("chartBox"));
+observeChartHost(document.getElementById("chartModalBox"));
+
 renderAll();
 </script>
 </body>

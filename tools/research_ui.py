@@ -1842,6 +1842,8 @@ RECOMMEND_JS = """<script>
              + (r.detail.length > 140 ? "\\u2026" : "") + '</span>' : "")
           + '</td><td>' + esc(r.who || "\\u2014") + '</td><td>' + esc(r.at || "\\u2014")
           + '</td><td><button type="button" data-copy="' + esc(r.id) + '">copy</button> '
+          + (inboxConfigured()
+             ? '<button type="button" data-mail="' + esc(r.id) + '">email</button> ' : '')
           + '<button type="button" data-del="' + esc(r.id) + '">delete</button></td></tr>';
       }).join("") + "</tbody></table></div>";
   }
@@ -1889,8 +1891,42 @@ RECOMMEND_JS = """<script>
       return; }
     copyText(asText(r));
   });
+  // The project inbox, in parts. Two reasons it is not a literal mailto: href in the
+  // markup: a crawler reads that, and — the part that actually matters — the static Pages
+  // build replaces this list with an empty one, so the published copy carries no address
+  // at all. Obfuscation would still be readable by a person; removal is not.
+  var INBOX = ["hut.hargrave", "gmail.com"];
+  function inbox(){ return INBOX.join("\u0040"); }
+  function inboxConfigured(){ return INBOX.length === 2 && !!INBOX[0]; }
+  function mailto(r){
+    // Opens the author's own mail client with everything filled in; nothing is sent from
+    // here. A static page has no server to send through, and a page that claimed to send
+    // would be lying about where the work went.
+    return "mailto:" + inbox()
+      + "?subject=" + encodeURIComponent("[MONAD-QUANT] " + label(r.kind) + " - " + r.title)
+      + "&body=" + encodeURIComponent(asText(r));
+  }
+  // No inbox in this build: the button would otherwise be a control that cannot work.
+  if(!inboxConfigured()){
+    var mailBtn = document.getElementById("recMail");
+    if(mailBtn) mailBtn.remove();
+    var note = document.getElementById("recMailNote");
+    if(note) note.textContent = "Email is configured on the local server only \u2014 this "
+      + "published copy carries no address. Use Copy as text and send it yourself.";
+  }
+  document.getElementById("recMail") && document.getElementById("recMail").addEventListener("click", function(){
+    var r = current();
+    if(!r.title){ msg("a title is required"); document.getElementById("recTitle").focus();
+      return; }
+    window.location.href = mailto(r);
+    msg("opening your mail app");
+  });
   document.getElementById("recList").addEventListener("click", function(ev){
     var c = ev.target.closest("[data-copy]"), d = ev.target.closest("[data-del]");
+    var m = ev.target.closest("[data-mail]");
+    if(m){ var hitM = items.filter(function(r){ return r.id === m.dataset.mail; })[0];
+      if(hitM){ window.location.href = mailto(hitM); msg("opening your mail app"); }
+      return; }
     if(c){ var hit = items.filter(function(r){ return r.id === c.dataset.copy; })[0];
       if(hit) copyText(asText(hit)); return; }
     if(d){ items = items.filter(function(r){ return r.id !== d.dataset.del; });
@@ -1935,7 +1971,12 @@ def page_recommend(mounts):
         'kept in <b>this browser only</b> — nobody else can see them and clearing site '
         'data removes them. <b>Copy as text</b> is the real intake path: paste the '
         'result into a GitHub issue, or straight into <code>RESEARCH_WEB.md</code> if it '
-        'is a research node.</p></figcaption></figure>')
+        'is a research node.</p>'
+        '<p class="why"><b>Email it</b> opens your own mail client addressed to the '
+        'project inbox with the subject prefixed <code>[MONAD-QUANT]</code>, so it '
+        'threads and filters on arrival. It does not send by itself — you review and '
+        'press send, and this page never had a server to send through.</p>'
+        '</figcaption></figure>')
     body.append('<form class="filters" id="recForm" autocomplete="off">')
     body.append('<label class="field"><span>What does it touch</span>'
                 '<select id="recKind">')
@@ -1963,7 +2004,9 @@ def page_recommend(mounts):
                 '<button type="button" class="primary" id="recSave">Save to this browser'
                 '</button>'
                 '<button type="button" id="recCopy">Copy as text</button>'
-                '<span class="count" id="recMsg" role="status"></span></div>')
+                '<button type="button" id="recMail">Email it</button>'
+                '<span class="count" id="recMsg" role="status"></span></div>'
+                '<p class="why" id="recMailNote" style="margin:-8px 0 16px"></p>')
     body.append('<h2>Saved in this browser</h2>')
     body.append('<div id="recList"></div>')
     body.append(RECOMMEND_JS % json.dumps([k for k, _l, _h in RECOMMEND_KINDS]))

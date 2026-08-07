@@ -499,6 +499,7 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
       <button type="button" data-p="bloomberg_tone">Bloomberg tone</button>
       <button type="button" data-p="reddit_tone">Reddit tone</button>
       <button type="button" data-p="yahoo_tone">Yahoo tone</button>
+      <button type="button" data-p="social_tone">Social sentiment</button>
       <button type="button" data-p="custom" class="custom" aria-expanded="false">+ custom</button>
     </div>
 
@@ -1042,15 +1043,18 @@ function drawPrice(){
   if(!host) return;
   const title = document.getElementById("priceTitle");
   const meta = document.getElementById("priceMeta");
-  const s = selected ? priceSeries(selected) : null;
-  if(!s){
+  // Comparing several names is the point of an indexed chart: one line indexed to 100 says
+  // only "it went up", while the lens's leaders on one axis say which of them went up. The
+  // pinned name always travels, so clicking a mark still answers "and where is this one".
+  const picks = priceCohort();
+  if(!picks.length){
     title.textContent = "Price history";
-    meta.textContent = DATA_PRESENT.price ? "none for this name" : "no source";
+    meta.textContent = DATA_PRESENT.price ? "none for these names" : "no source";
     host.innerHTML = DATA_PRESENT.price
-      ? '<p class="absent"><b>' + esc(selected || "This name")
-        + ' has no price history in the loaded snapshot.</b> Other names do — pin one of'
-        + ' those, or refetch so this ticker is covered too. Nothing is drawn here from'
-        + ' the fields that are present.</p>'
+      ? '<p class="absent"><b>No name in this lens has price history in the loaded'
+        + ' snapshot.</b> Other names do — switch lens or pin one of those, or refetch so'
+        + ' these tickers are covered too. Nothing is drawn here from the fields that are'
+        + ' present.</p>'
       : '<p class="absent"><b>No price history is wired into this page.</b> '
         + (window.__DRAFT_LIVE__
             ? 'The injected payload carries fundamentals and tone documents only'
@@ -1066,35 +1070,81 @@ function drawPrice(){
   // Parked in the tray the host has no box to size against, and the ResizeObserver redraws it
   // the moment it lands on the board.
   if(!host.clientWidth || !host.clientHeight) return;
-  const base = s[0];
-  const idx = s.map(v => 100 * v / base);
-  const hi = Math.max.apply(null, idx), lo = Math.min.apply(null, idx);
+  // Each line is indexed to its OWN first close, so the chart compares shape rather than
+  // level: a $400 name and a $9 name are otherwise incomparable on one axis.
+  const series = picks.map(p => ({tk: p.tk, idx: p.s.map(v => 100 * v / p.s[0])}));
+  const flat = series.reduce((a, x) => a.concat(x.idx), []);
+  const hi = Math.max.apply(null, flat), lo = Math.min.apply(null, flat);
   const W = Math.max(260, Math.floor(host.clientWidth));
   const H = Math.max(120, Math.floor(host.clientHeight));
   const L = 36, R = 12, T = 16, B = 24;
   const span = Math.max(hi - lo, 1e-6);
-  const sx = i => L + i / Math.max(idx.length - 1, 1) * (W - L - R);
+  // Series lengths can differ when a ticker listed part-way through the window; each is
+  // spread over the full width on its own bar count rather than truncating the others.
+  const sx = (i, len) => L + i / Math.max(len - 1, 1) * (W - L - R);
   const sy = v => H - B - (v - lo) / span * (H - T - B);
-  let d = "M " + sx(0).toFixed(1) + " " + sy(idx[0]).toFixed(1);
-  for(let j = 1; j < idx.length; j++) d += " L " + sx(j).toFixed(1) + " " + sy(idx[j]).toFixed(1);
-  const chg = idx[idx.length - 1] - 100;
-  title.textContent = "Price · " + selected;
-  meta.innerHTML = '<span style="color:' + (chg >= 0 ? "var(--good)" : "var(--critical)")
-    + '">' + (chg >= 0 ? "+" : "") + chg.toFixed(1) + '%</span> \u00b7 indexed to 100';
+  const paths = series.map((x, k) => {
+    let d = "M " + sx(0, x.idx.length).toFixed(1) + " " + sy(x.idx[0]).toFixed(1);
+    for(let j = 1; j < x.idx.length; j++)
+      d += " L " + sx(j, x.idx.length).toFixed(1) + " " + sy(x.idx[j]).toFixed(1);
+    const on = x.tk === selected;
+    return '<path d="' + d + '" fill="none" stroke="' + priceColor(k) + '" stroke-width="'
+      + (on ? 2.6 : 1.6) + '" opacity="' + (on || !selected ? 1 : 0.72) + '"/>';
+  }).join("");
+  title.textContent = series.length === 1
+    ? "Price · " + series[0].tk
+    : "Price · " + series.length + " names";
+  meta.innerHTML = series.map((x, k) => {
+    const chg = x.idx[x.idx.length - 1] - 100;
+    return '<span class="chip" style="margin-right:4px"><span class="dot" style="background:'
+      + priceColor(k) + '"></span>' + esc(x.tk) + ' <span style="color:'
+      + (chg >= 0 ? "var(--good)" : "var(--critical)") + '">' + (chg >= 0 ? "+" : "")
+      + chg.toFixed(1) + '%</span></span>';
+  }).join("");
   host.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="'
-    + escAttr(selected + " price, indexed to 100") + '" preserveAspectRatio="xMidYMid meet">'
+    + escAttr(series.map(x => x.tk).join(", ") + " price, indexed to 100")
+    + '" preserveAspectRatio="xMidYMid meet">'
     + '<line x1="' + L + '" y1="' + sy(100).toFixed(1) + '" x2="' + (W-R) + '" y2="'
       + sy(100).toFixed(1) + '" stroke="var(--axis)" stroke-dasharray="3 3"/>'
     + '<line x1="' + L + '" y1="' + (H-B) + '" x2="' + (W-R) + '" y2="' + (H-B)
       + '" stroke="var(--axis)"/>'
-    + '<path d="' + d + '" fill="none" stroke="var(--accent)" stroke-width="2"/>'
+    + paths
     + '<text x="' + (W-R) + '" y="' + (H-4) + '" text-anchor="end" fill="var(--ink-muted)"'
-      + ' font-size="10" font-family="var(--mono)">idx 100 \u00b7 ' + idx.length + ' bars</text>'
+      + ' font-size="10" font-family="var(--mono)">idx 100 · '
+      + series[0].idx.length + ' bars</text>'
     + '<text x="' + L + '" y="' + (T+2) + '" fill="var(--ink-muted)" font-size="10"'
       + ' font-family="var(--mono)">' + hi.toFixed(0) + '</text>'
     + '<text x="' + L + '" y="' + (H-B-4) + '" fill="var(--ink-muted)" font-size="10"'
       + ' font-family="var(--mono)">' + lo.toFixed(0) + '</text>'
     + '</svg>';
+}
+
+const PRICE_COLORS = ["var(--accent)", "var(--ord-3)", "var(--good)", "var(--warning)",
+                      "var(--serious)"];
+function priceColor(i){ return PRICE_COLORS[i % PRICE_COLORS.length]; }
+
+/* The lens's leaders on its own ranking metric, plus whatever is pinned. A name with no
+   series is skipped rather than drawn flat — an absent history is not a price that
+   did not move. */
+function priceCohort(cap){
+  const max = cap || 5;
+  const spec = lensSpec(), m = METRICS[spec.rank];
+  const out = [], seen = new Set();
+  function push(tk){
+    if(!tk || seen.has(tk) || out.length >= max) return;
+    const s = priceSeries(tk);
+    if(s){ seen.add(tk); out.push({tk: tk, s: s}); }
+  }
+  push(selected);
+  const matches = matchedRows();
+  const ranked = matches.map(r => ({r: r, v: m && m.get(r)}))
+    .filter(o => o.v != null && isFinite(o.v));
+  ranked.sort((a, b) => spec.asc ? a.v - b.v : b.v - a.v);
+  ranked.forEach(o => push(o.r.tk));
+  // A lens whose rank metric nobody reports still deserves a chart, so fall back to its
+  // own membership order rather than rendering the no-history panel.
+  matches.forEach(r => push(r.tk));
+  return out;
 }
 
 /* ── Board: a recursive binary split tree ──────────────────────────────────
@@ -1152,15 +1202,18 @@ const DEFAULT_VIEW = ["plot","price","tone"];
    Custom lenses add their own entry here under a "custom:" key when they are registered;
    "custom" itself is the builder button and is never an active lens. */
 const LENS_VIEWS = {
-  low_pe_high_growth:   ["plot","rank","dist"],
+  low_pe_high_growth:   ["plot","rank","price"],
   low_pe_high_dividend: ["plot","rank","price"],
-  safety_low_debt:      ["plot","dist","rank"],
-  high_ai_exposure:     ["plot","shadow","rank"],
+  // Price, not "dist": this lens ranks on `de` and binned on `de`, so two of its three
+  // panes argued about one field. A price comparison is the axis the debt screen cannot
+  // show — whether the sit-through-a-storm cohort actually sat through anything.
+  safety_low_debt:      ["plot","rank","price"],
+  high_ai_exposure:     ["plot","shadow","price"],
   // Not "rank": this lens ranks on `de`, which is exactly what the shadow chart's solid
   // bars already plot, in the same order — the pane re-drew that chart minus the bucket
   // colours and the unmeasured-leg marker. The distribution answers a different question
   // about the same field: where the tagged names sit against the whole universe.
-  ai_shadow_debt:       ["shadow","plot","dist"],
+  ai_shadow_debt:       ["shadow","plot","price"],
   low_ai_exposure:      ["plot","dist","price"],
   most_volatile:        ["plot","dist","price"],
   most_active:          ["plot","rank","price"],
@@ -1169,6 +1222,7 @@ const LENS_VIEWS = {
   // A tone lens turns on how much was said about one name, so the card takes the large pane:
   // its coverage counts are the reading, and stacked beside a chart it would have to be
   // scrolled to be read at all. The ranking and the documents behind it sit alongside.
+  social_tone:          ["rank","card","price"],
   bloomberg_tone:       ["card","rank","tone"],
   reddit_tone:          ["card","rank","tone"],
   yahoo_tone:           ["card","rank","tone"],
@@ -1853,6 +1907,28 @@ function toneCovered(r, src){
 function toneMetric(r, src){
   return toneCovered(r, src) ? r[toneField(src).tone] : null;
 }
+
+/* Combined tone across every source, weighted by the number of documents that actually
+   carried a tone word. A plain mean would let one headline outvote twenty, and would also
+   let a source with no coverage drag a name toward zero — the average of "+0.4" and
+   "nothing was said" is not "+0.2", it is "+0.4 on the evidence there is". Sources with no
+   coverage are therefore left out of the sum rather than entered as 0. */
+function toneAll(r){
+  let num = 0, den = 0;
+  TONE_SOURCES.forEach(function(src){
+    if(!toneCovered(r, src)) return;
+    const w = Math.max(r[toneField(src).toned] || 0, 1);
+    num += r[toneField(src).tone] * w;
+    den += w;
+  });
+  return den ? num / den : null;
+}
+function toneAllDocs(r){
+  return TONE_SOURCES.reduce(function(n, src){ return n + toneCov(r, src); }, 0);
+}
+function toneAllSrcs(r){
+  return TONE_SOURCES.filter(function(src){ return toneCovered(r, src); });
+}
 function fmtTone(v){ return (v > 0 ? "+" : "") + v.toFixed(2); }
 function fmtDocs(n){ return n + (n === 1 ? " doc" : " docs"); }
 
@@ -1872,6 +1948,9 @@ const METRICS = {
           sub:r=>fmtDocs(toneCov(r,"reddit"))},
   yh:    {label:"Yahoo headline tone",     get:r=>toneMetric(r,"yahoo"),     fmt:fmtTone,
           sub:r=>fmtDocs(toneCov(r,"yahoo"))},
+  all:   {label:"social sentiment (all sources)", get:toneAll, fmt:fmtTone,
+          sub:r=>fmtDocs(toneAllDocs(r)) + " \u00b7 "
+                 + toneAllSrcs(r).length + "/" + TONE_SOURCES.length + " sources"},
 };
 /* rank = what the lens sorts on; x = the axis the lens is arguing about. */
 const LENS_SPEC = {
@@ -1888,11 +1967,15 @@ const LENS_SPEC = {
   bloomberg_tone:       {rank:"bb",    x:"bb"},
   reddit_tone:          {rank:"rd",    x:"rd"},
   yahoo_tone:           {rank:"yh",    x:"yh"},
+  social_tone:          {rank:"all",   x:"all"},
 };
 /* The lenses whose membership test is coverage rather than a threshold. Keyed by the tone
    source so the source toggle, the headline tile and the lens cannot disagree. */
 const TONE_LENSES = {bloomberg_tone:"bloomberg", reddit_tone:"reddit",
                      yahoo_tone:"yahoo"};
+/* Membership is coverage from ANY source, not all three: requiring all three would empty
+   the lens to the handful of names the two firehoses happen to reach. */
+function inSocialLens(r){ return toneAll(r) != null; }
 function toneLensSrc(){ return TONE_LENSES[preset] || null; }
 function lensSpec(){ return LENS_SPEC[preset] || {rank:"score", x:"pe"}; }
 function esc(s){
@@ -2835,6 +2918,9 @@ function lensRows(){
   // Coverage IS the membership test. A name nothing mentioned has no tone to rank, so it is
   // absent from the lens — never carried in at 0.00, and never padded back in to make the
   // result set look fuller than the window really was.
+  // Same rule as the single-source tone lenses, applied across all of them: a name no
+  // source covered has no combined tone either, so it is absent rather than scored 0.00.
+  if(preset==="social_tone") return ROWS.filter(inSocialLens);
   const toneSrcForLens = TONE_LENSES[preset];
   if(toneSrcForLens)
     return ROWS.filter(r=>toneCovered(r, toneSrcForLens))
