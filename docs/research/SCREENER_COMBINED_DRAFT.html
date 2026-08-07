@@ -11,6 +11,23 @@
   --ord-1:#86b6ef; --ord-2:#3987e5; --ord-3:#1c5cab; --ord-4:#0d366b;
   --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
   --ink-on-4:#f7f7f5;
+  /* ONE categorical palette, kept apart from the two ramps above on purpose. The ordinal ramp
+     (--ord-1..4) encodes MORE and LESS of one thing, and the semantic four encode GOOD and
+     BAD; neither is what "this is a different ticker" or "this is a different sector" means.
+     Borrowing from those ramps is what put --accent (#2a78d6) and --ord-3 (#1c5cab) on two
+     lines of the same chart, one blue apart. Ordered by hue distance from its predecessors,
+     so a chart taking the first N of them gets the most separable N — the price lines take
+     five, the scatter's groups take as many as the grouping has. Two palettes would have let
+     the two charts colour the same ticker differently on one board. */
+  --cat-1:#1f6fd0; --cat-2:#b06a06; --cat-3:#0f8a4a; --cat-4:#7d3fc0; --cat-5:#c53060;
+  --cat-6:#0e7d90; --cat-7:#a8460f; --cat-8:#4756c0; --cat-9:#6f7f10; --cat-10:#b8338f;
+  /* Selection is drawn at maximum contrast against the board rather than in one more hue, so
+     it separates from every category at once however many are in play. On a light board that
+     is near-black; the dark block below flips it to pure white. */
+  --cat-on:#000000;
+  /* Groups past the palette pool here. A neutral that is deliberately NOT one of the ten:
+     "these were not given a colour" must not look like a category. */
+  --cat-rest:#9a9a94;
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
 }
@@ -21,6 +38,10 @@
     --ord-1:#184f95; --ord-2:#2f79d4; --ord-3:#74aaee; --ord-4:#b7d3f6;
     --good:#3fbf3f; --warning:#e5b23c; --serious:#f09268; --critical:#ef6a6a;
     --ink-on-4:#0b0b0b;
+    --cat-1:#6ba7f0; --cat-2:#f0a840; --cat-3:#4fc98a; --cat-4:#c98af0; --cat-5:#f06a8a;
+    --cat-6:#45c2d4; --cat-7:#f2855a; --cat-8:#8f9bf5; --cat-9:#c3cf5c; --cat-10:#ee7fd0;
+    --cat-on:#ffffff;
+    --cat-rest:#6d6c68;
   }
 }
 *{box-sizing:border-box}
@@ -55,6 +76,17 @@ main{min-width:0;padding:22px 28px 70px;width:100%;max-width:none}
   color:var(--ink-muted);margin-bottom:8px}
 h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing:-.012em}
 .lede{font-size:14.5px;color:var(--ink-2);max-width:82ch;margin:0 0 16px}
+/* Method text, collapsed. The summary is a single quiet line; opening it gives back the
+   paragraph at the size it was always meant to be read at. */
+.prose{margin:0 0 14px}
+.prose > summary{cursor:pointer;font-size:12.5px;color:var(--ink-muted);
+  list-style:none;display:inline-flex;align-items:center;gap:6px;padding:2px 0}
+.prose > summary::-webkit-details-marker{display:none}
+.prose > summary::before{content:"›";display:inline-block;transition:transform .12s;
+  font-size:14px;line-height:1}
+.prose[open] > summary::before{transform:rotate(90deg)}
+.prose > summary:hover,.prose > summary:focus-visible{color:var(--ink-2)}
+.prose > p{font-size:14.5px;color:var(--ink-2);max-width:82ch;margin:6px 0 0}
 
 .view-toggle{display:flex;width:fit-content;gap:0;margin:0 0 16px;border:1px solid var(--rule);
   border-radius:9px;overflow:hidden}
@@ -90,17 +122,22 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
   text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}
 .tk-open:hover code,.tk-open:focus-visible code{color:var(--accent)}
 .opt-list label{position:relative}
+/* .75, not the .4 this shipped at. A control at 40% of a muted grey on a dark panel is not a
+   subtle affordance, it is an invisible one — the star was reported as missing from a list it
+   was already on. An unstarred star still has to look like a button you could press. */
 .opt-list .tile-star{
-  position:absolute;top:10px;right:2px;border:0;background:transparent;padding:2px 4px;
-  line-height:1;cursor:pointer;color:var(--ink-muted);font-size:13px;opacity:.4;
+  position:absolute;top:8px;right:2px;border:0;background:transparent;padding:2px 5px;
+  line-height:1;cursor:pointer;color:var(--ink-2);font-size:17px;opacity:.75;
   transition:opacity .12s,color .12s}
 .opt-list .tile-star:hover,.opt-list .tile-star:focus-visible{opacity:1;color:var(--accent)}
 .opt-list .tile-star[aria-pressed="true"]{opacity:1;color:var(--warning)}
-.opt-list label.starred{box-shadow:inset 2px 0 0 var(--warning);padding-left:8px;
-  border-radius:0 6px 6px 0}
+/* No padding here: the row's gutters are declared once, on the .explain .opt-list label rule
+   further down that owns the shorthand. Setting padding-left here would be overridden by it
+   anyway — same specificity, later in the sheet. */
+.opt-list label.starred{box-shadow:inset 3px 0 0 var(--warning);border-radius:0 6px 6px 0}
 .presets .lens-star{
   padding:0 8px 0 9px;border:0;background:transparent;cursor:pointer;line-height:1;
-  color:var(--ink-muted);font-size:13px;opacity:.45;transition:opacity .12s,color .12s}
+  color:var(--ink-2);font-size:16px;opacity:.7;transition:opacity .12s,color .12s}
 .presets .lens-star:hover,.presets .lens-star:focus-visible{opacity:1;color:var(--accent)}
 .presets .lens-star[aria-pressed="true"]{opacity:1;color:var(--warning)}
 /* The star is a quiet control until it is used or reached for — a row of 14 bright stars
@@ -126,9 +163,21 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
 .presets .lens-chip .lens-edit:hover{color:var(--accent)}
 .presets .lens-chip .lens-del:hover{color:var(--critical)}
 .lens-note{margin:0 0 14px;padding:9px 12px;border:1px solid var(--warning);border-radius:9px;
-  background:var(--surface);font-size:12.8px;color:var(--ink-2)}
+  background:var(--surface);font-size:13.5px;color:var(--ink-2)}
 .lens-note[hidden]{display:none}
 .lens-note b{color:var(--ink)}
+.lens-note > summary{cursor:pointer;list-style:none;display:block;position:relative;
+  padding-right:20px}
+.lens-note > summary::-webkit-details-marker{display:none}
+/* The marker is drawn only when there IS a remainder to open. splitNote sets .no-more when a
+   note is one sentence long, and an arrow that opens onto nothing is a broken control. */
+.lens-note > summary::after{content:"›";position:absolute;right:2px;top:0;
+  transition:transform .12s;color:var(--ink-muted)}
+.lens-note[open] > summary::after{transform:rotate(90deg)}
+.lens-note.no-more > summary{cursor:default;padding-right:0}
+.lens-note.no-more > summary::after{content:none}
+.lens-note > div{margin-top:7px;padding-top:7px;border-top:1px solid var(--rule);
+  max-width:104ch}
 
 .stats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;
   background:var(--rule);border:1px solid var(--rule);border-radius:9px;overflow:hidden;
@@ -280,7 +329,11 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
   touch-action:none}
 .board-splitter[data-dir="row"]{cursor:col-resize}
 .board-splitter[data-dir="col"]{cursor:row-resize}
-.board-splitter:hover,.board-splitter.dragging{background:var(--accent)}
+.board-splitter:hover,.board-splitter.dragging,
+.board-splitter:focus-visible{background:var(--accent)}
+/* A splitter is only a few px wide, so the ring sits outside it rather than on its edge —
+   an outline drawn inside a 6px bar is indistinguishable from the bar. */
+.board-splitter:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .drop-preview{
   position:absolute;z-index:6;pointer-events:none;border-radius:9px;
   border:2px solid var(--accent);
@@ -301,14 +354,58 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
 .tile-bar{
   display:flex;align-items:center;gap:8px;margin:0 0 6px;padding:2px 0 6px;
   border-bottom:1px solid var(--rule);cursor:grab;user-select:none;flex:0 0 auto;
-  touch-action:none;
+  touch-action:none;flex-wrap:wrap;
 }
 .tile-bar:active{cursor:grabbing}
-.tile-grip{font:12px var(--mono);color:var(--ink-muted);letter-spacing:.12em}
-.tile-bar h2{margin:0;font-size:14px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;
+.tile-grip{font:13px var(--mono);color:var(--ink-muted);letter-spacing:.12em}
+.tile-bar h2{margin:0;font-size:17px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;
   text-overflow:ellipsis}
-.tile-meta{font:11px var(--mono);color:var(--ink-muted);white-space:nowrap}
-.tile-body{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+/* The legend takes its own row (order puts it after the close button, the 100% basis breaks
+   the line) rather than competing with the title for the first one. Sharing a row is what
+   truncated "Price · 5 names" to "Price · 5 na…": five ticker chips will always out-demand a
+   title, so the title lost the space every time there was something to compare. */
+.tile-meta{font:13px var(--mono);color:var(--ink-muted);
+  order:4;flex:1 1 auto;min-width:0;display:flex;flex-wrap:wrap;gap:5px;margin-top:3px}
+.tile-meta .chip{font-size:12.5px;padding:2px 8px}
+.tile-meta .chip .dot{width:9px;height:9px}
+.tile-meta .chip.chip-on{border-color:var(--cat-on);color:var(--ink)}
+/* A control living in the drag handle. `cursor:default` overrides the bar's `grab` so it does
+   not advertise a drag it is excluded from, and the pointerdown handler skips [data-nodrag]. */
+/* A zero-height full-width item at order:2 forces a line break, so everything at order 3 or
+   more starts on row two. `order` alone was not enough: flex only wraps when an item does not
+   FIT, and a 130px control fits happily next to a title it has squeezed to 71px — the title
+   truncated to "Price ·…" while the control sat beside it looking fine.
+   Scoped with :has so bars without a control do not pay for an empty second line; the bar's
+   8px gap applies to rows as well as columns, so an unconditional break would add 8px of
+   dead height to every tile on the board. */
+.tile-bar:has(.tile-ctl)::after{content:"";flex:0 0 100%;height:0;order:2;margin:0}
+/* order:3 puts it on the second row with the legend, never on the title's row. Sharing row
+   one re-truncated the title the moment a control was added to it — "Price · 5 names" became
+   "Price ·…" again — and a title is the one thing in a tile bar that cannot be guessed from
+   what is left of it. */
+.tile-ctl{display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;cursor:default;
+  order:3;margin-top:3px;
+  font:11px var(--mono);color:var(--ink-muted);text-transform:uppercase;letter-spacing:.06em}
+.tile-ctl[hidden]{display:none}
+.tile-ctl select{font:12px var(--mono);padding:2px 4px;cursor:pointer;
+  background:var(--plane);color:var(--ink);border:1px solid var(--rule);border-radius:5px}
+/* The scatter's hover label. An HTML overlay rather than SVG text because SVG has no
+   z-index — a label drawn inside the chart is painted over by every mark emitted after it,
+   which in a crowded cloud is most of them. Positioned against .chart-host, which is
+   already position:relative. */
+.mark-tip{position:absolute;z-index:5;pointer-events:none;transform:translate(-50%,-100%);
+  background:var(--surface);border:1px solid var(--rule);border-radius:7px;
+  padding:5px 9px;font:12px var(--sans);color:var(--ink);white-space:nowrap;
+  box-shadow:0 6px 22px rgba(0,0,0,.4);opacity:0;transition:opacity .1s}
+.mark-tip[data-on]{opacity:1}
+.mark-tip b{font-size:13px}
+.mark-tip .tip-grp{color:var(--ink-muted);font-family:var(--mono);font-size:11px}
+/* --dcs is declared on the BODY, not on one card inside it, so every tile that is mostly
+   text — the detail card, the tone stack, a chart's own captions — grows with its pane off
+   the same number. Declaring it per-card is what would let two cards in one pane end up at
+   different scales. */
+.tile-body{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;
+  --dcs:var(--tile-scale,1)}
 .tile-body .why{margin:0 0 8px;font-size:12.5px;color:var(--ink-2);flex:0 0 auto}
 .chart-host{width:100%;min-height:0;flex:1;position:relative}
 .chart-host svg{width:100%;height:100%;max-width:none;display:block}
@@ -317,11 +414,18 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
 .legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle}
 .legend .ring{box-shadow:0 0 0 2px var(--ink);border-radius:50%}
 .shadow-cell{cursor:help;border-bottom:1px dotted var(--ink-muted)}
-.tone-stack{display:flex;flex-direction:column;gap:8px;max-height:none;overflow:auto;flex:1;min-height:0}
-.tone-card{border:1px solid var(--rule);border-radius:8px;padding:10px 12px;background:var(--plane)}
-.tone-card .tk{font-family:var(--mono);font-size:12px;color:var(--accent)}
-.tone-card .hd{font-size:13px;color:var(--ink);margin:3px 0}
-.tone-card .meta{font-size:11.5px;color:var(--ink-muted)}
+.tone-stack{display:flex;flex-direction:column;gap:calc(8px * var(--dcs,1));max-height:none;
+  overflow:auto;flex:1;min-height:0}
+/* Base sizes raised (12→13, 13→14.5, 11.5→12.5) AND scaled. The two do different jobs: the
+   base is what the card reads at in a small pane, the scale is what it grows to in a large
+   one. Only scaling left a tile that was too small to read comfortably at every size below
+   the reference; only raising the base left the same tile wasting half its height whenever
+   the pane was generous. */
+.tone-card{border:1px solid var(--rule);border-radius:8px;background:var(--plane);
+  padding:calc(10px * var(--dcs,1)) calc(12px * var(--dcs,1))}
+.tone-card .tk{font-family:var(--mono);font-size:calc(13px * var(--dcs,1));color:var(--accent)}
+.tone-card .hd{font-size:calc(14.5px * var(--dcs,1));color:var(--ink);margin:3px 0}
+.tone-card .meta{font-size:calc(12.5px * var(--dcs,1));color:var(--ink-muted)}
 
 
 .qmark{
@@ -339,6 +443,11 @@ th .qmark{margin-left:4px}
   box-shadow:0 12px 34px color-mix(in srgb, var(--ink) 22%, transparent);
 }
 .explain[hidden]{display:none}
+/* Centred by CSS so the transform resolves in the same space the panel is laid out in. The
+   inline left/top a previous anchored open may have written are overridden, or a panel that
+   was once anchored would keep those coordinates and translate away from centre. */
+.explain.is-centered{left:50%;top:50%;transform:translate(-50%,-50%);
+  max-height:min(86vh,860px)}
 .explain h3{margin:0 0 7px;font-size:14.5px;padding-right:26px}
 .explain p{margin:0 0 9px;font-size:12.8px;color:var(--ink-2)}
 .explain ul{margin:0 0 9px;padding-left:17px;font-size:12.8px;color:var(--ink-2)}
@@ -362,7 +471,12 @@ th .qmark{margin-left:4px}
 .explain h4.opt-head{margin:13px 0 6px;font-size:10.5px;letter-spacing:.09em;
   text-transform:uppercase;color:var(--ink-muted);font-weight:600}
 .explain .opt-list{margin:0 0 4px}
-.explain .opt-list label{display:flex;gap:9px;align-items:flex-start;padding:7px 0;
+/* Both gutters are reserved on EVERY row, not added to the starred one. Padding applied only
+   to .starred drew the yellow rule hard against the checkbox with nothing between them, and
+   shifted the row's contents sideways the moment it was starred — the list jumped under the
+   pointer at the instant of clicking. The right gutter is the star's, for the same reason:
+   space the row owns, rather than an overlay on label text that happens to be short today. */
+.explain .opt-list label{display:flex;gap:9px;align-items:flex-start;padding:7px 30px 7px 12px;
   border-bottom:1px solid var(--rule);font-size:12.5px;color:var(--ink-2);cursor:pointer}
 .explain .opt-list label:last-child{border-bottom:0}
 .explain .opt-list input{margin:3px 0 0;flex:0 0 auto}
@@ -377,15 +491,22 @@ th .qmark{margin-left:4px}
 .explain .arrange-grid{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 9px}
 .explain .arrange-grid button{display:flex;flex-direction:column;align-items:center;gap:5px;
   padding:7px 7px 6px;border:1px solid var(--rule);border-radius:8px;background:var(--plane);
-  color:var(--ink-muted);font:10.5px var(--sans);cursor:pointer}
-.explain .arrange-grid button svg{display:block;width:64px;height:40px}
+  color:var(--ink-muted);font:12px var(--sans);cursor:pointer}
+.explain .arrange-grid button svg{display:block;width:78px;height:49px}
 .explain .arrange-grid button rect{fill:var(--surface);stroke:var(--rule);stroke-width:2}
+/* Hover and selected used to land on the same accent border, so hovering any button made the
+   panel read as two arrangements at once — the exact confusion `sameTree` was written to end,
+   reintroduced in CSS. Hover is a dotted outline and a lift; selected is a filled chip. */
 .explain .arrange-grid button:hover,.explain .arrange-grid button:focus-visible{
-  border-color:var(--accent);color:var(--ink)}
+  border-style:dashed;border-color:var(--ink-muted);color:var(--ink)}
 .explain .arrange-grid button:hover rect,.explain .arrange-grid button:focus-visible rect{
-  stroke:var(--accent)}
-.explain .arrange-grid button.on{border-color:var(--accent);color:var(--ink);
-  background:var(--surface);font-weight:600}
+  stroke:var(--ink-muted)}
+/* Selected wins on two channels at once — a solid ring AND a tinted body — so it stays the
+   obvious one even while the pointer is somewhere else in the grid. */
+.explain .arrange-grid button.on{border-color:var(--accent);border-style:solid;
+  color:var(--ink);background:color-mix(in srgb, var(--accent) 14%, var(--surface));
+  font-weight:600;box-shadow:0 0 0 1px var(--accent)}
+.explain .arrange-grid button.on:hover{border-style:solid;border-color:var(--accent)}
 .explain .arrange-grid button.on rect{stroke:var(--accent);
   fill:color-mix(in srgb, var(--accent) 16%, transparent)}
 .lens-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:0 0 4px}
@@ -416,34 +537,73 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
 
 /* Detail card. A pane, not a table row: the point is reading one name in full without
    scrolling to the results table, so the fields get room to be labelled. */
-.detail-card{flex:1;min-height:0;overflow:auto}
+/* Every size here is declared AT the reference pane and multiplied by --tile-scale, which
+   fitTileText() sets from the pane's measured box. The card is nearly all text, so it was the
+   one tile that gained nothing from being given more room: it kept 9.5px labels in a pane
+   twice the size it needed and left the bottom half empty. Scaling in one place, off one
+   variable, is what stops the head, the cells and the tone blocks growing out of step. */
+.detail-card{flex:1;min-height:0;overflow:auto;--dcs:var(--tile-scale,1)}
 .dc-head{display:flex;align-items:baseline;flex-wrap:wrap;gap:8px;margin:0 0 8px}
-.dc-head code{font-family:var(--mono);font-size:15px;color:var(--accent)}
-.dc-head .nm{font-size:14px;font-weight:640}
-.dc-head .sec{font-size:12px;color:var(--ink-muted)}
+.dc-head code{font-family:var(--mono);font-size:calc(15px * var(--dcs));color:var(--accent)}
+.dc-head .nm{font-size:calc(14px * var(--dcs));font-weight:640}
+.dc-head .sec{font-size:calc(12px * var(--dcs));color:var(--ink-muted)}
 /* Rules are drawn by the cells, not by a background showing through the gaps: the last row
    is usually short, and a gap-drawn grid would paint the leftover tracks as a phantom cell
    that reads like a field with no value in it. */
-.dc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));
+.dc-grid{display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(calc(104px * var(--dcs)),1fr));
   border-top:1px solid var(--rule);border-left:1px solid var(--rule);
   border-radius:8px;overflow:hidden}
-.dc-cell{background:var(--surface);padding:7px 9px;min-width:0;
-  border-right:1px solid var(--rule);border-bottom:1px solid var(--rule)}
-.dc-cell b{display:block;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--ink-muted);font-weight:600}
+.dc-cell{background:var(--surface);padding:calc(7px * var(--dcs)) calc(9px * var(--dcs));
+  min-width:0;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+.dc-cell b{display:block;font-size:calc(9.5px * var(--dcs));letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-muted);font-weight:600}
 /* Classed rather than a bare `span` so a chip or a score bar dropped into the same cell
    keeps its own display mode instead of being flattened into a block. */
-.dc-cell .val{display:block;font-family:var(--mono);font-size:13.5px;margin-top:2px;
-  overflow-wrap:anywhere}
-.dc-cell .chip{margin-top:4px}
-.dc-block{margin-top:8px;border:1px solid var(--rule);border-radius:8px;padding:8px 10px;
-  background:var(--plane)}
-.dc-block h5{margin:0 0 4px;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--ink-muted);font-weight:600}
-.dc-tone{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px}
-.dc-cov{display:block;margin-top:4px;font-size:11.5px;color:var(--ink-muted)}
-.dc-note{margin:8px 0 0;font-size:11.5px;color:var(--ink-muted)}
-.dc-empty{margin:0;font-size:12.5px;color:var(--ink-2)}
+.dc-cell .val{display:block;font-family:var(--mono);font-size:calc(13.5px * var(--dcs));
+  margin-top:2px;overflow-wrap:anywhere}
+.dc-cell .chip{margin-top:4px;font-size:calc(11px * var(--dcs))}
+.dc-block{margin-top:calc(8px * var(--dcs));border:1px solid var(--rule);border-radius:8px;
+  padding:calc(8px * var(--dcs)) calc(10px * var(--dcs));background:var(--plane)}
+.dc-block h5{margin:0 0 4px;font-size:calc(9.5px * var(--dcs));letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-muted);font-weight:600}
+.dc-tone{display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(calc(190px * var(--dcs)),1fr));gap:8px}
+.dc-cov{display:block;margin-top:4px;font-size:calc(11.5px * var(--dcs));
+  color:var(--ink-muted)}
+.dc-note{margin:calc(8px * var(--dcs)) 0 0;font-size:calc(11.5px * var(--dcs));
+  color:var(--ink-muted)}
+.dc-empty{margin:0;font-size:calc(12.5px * var(--dcs));color:var(--ink-2)}
+
+/* Watchlist rows. A row is a name plus the CURRENT lens's ranking value, so the kept set is
+   read in the same terms as the screen it sits beside. */
+.watch-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;
+  border-top:1px solid var(--rule)}
+.watch-row{display:flex;align-items:baseline;gap:calc(9px * var(--dcs,1));
+  padding:calc(6px * var(--dcs,1)) calc(4px * var(--dcs,1));
+  border-bottom:1px solid var(--rule);font-size:calc(12.5px * var(--dcs,1))}
+/* Membership of the current lens is shown as a left rule rather than by hiding the outsiders:
+   a watchlist that quietly dropped everything the lens excludes would be the lens again. */
+.watch-row.is-in{box-shadow:inset 3px 0 0 var(--good)}
+.watch-row.is-pinned{background:var(--surface)}
+.watch-row.is-gone{color:var(--ink-muted)}
+.wl-pin{flex:1;min-width:0;display:flex;align-items:baseline;gap:7px;border:0;padding:0;
+  background:transparent;cursor:pointer;font:inherit;color:inherit;text-align:left}
+.wl-pin code{font-family:var(--mono);font-size:calc(13px * var(--dcs,1));color:var(--accent)}
+.wl-pin .wl-nm{color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wl-pin:hover .wl-nm,.wl-pin:focus-visible .wl-nm{color:var(--ink)}
+.wl-val{font-family:var(--mono);flex:0 0 auto}
+.wl-note{flex:0 0 auto;color:var(--ink-muted);font-size:calc(11px * var(--dcs,1))}
+.wl-drop{flex:0 0 auto;border:0;background:transparent;color:var(--ink-muted);cursor:pointer;
+  font-size:calc(15px * var(--dcs,1));line-height:1;padding:0 2px}
+.wl-drop:hover,.wl-drop:focus-visible{color:var(--critical)}
+/* The add control, wherever a single name is shown. `aria-pressed` carries the state so the
+   button says whether the name is already kept rather than only what pressing it does. */
+.watch-btn{border:1px solid var(--rule);border-radius:999px;background:var(--plane);
+  color:var(--ink-2);font:calc(11px * var(--dcs,1)) var(--sans);padding:2px 9px;
+  cursor:pointer;white-space:nowrap}
+.watch-btn:hover,.watch-btn:focus-visible{border-color:var(--accent);color:var(--ink)}
+.watch-btn[aria-pressed="true"]{border-color:var(--warning);color:var(--warning)}
 
 /* Propose block in the rail. Scoped to its own classes so the rail's link styling, which
    the rest of the sidebar depends on, is left exactly as it was. */
@@ -528,13 +688,22 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
 
     <div class="crumb">Research · screener</div>
     <h1>Cheap &amp; growing — fundamentals with tone kept honest</h1>
-    <p class="lede">One surface. The cloud is still P/E × growth (bubbles = composite rank).
+    <!-- Collapsed, not deleted. Every paragraph here states a rule the numbers below actually
+         follow — that a ring is coverage rather than tone, that Yahoo's near-universal
+         coverage is bought by asking per ticker rather than by reading better. Deleting it
+         would leave the marks meaning the same thing with nothing on the page saying so. What
+         was wrong was the ordering: three hundred words of method stood between the reader and
+         the first number, every visit, forever. Now it is one line you open once. -->
+    <details class="prose">
+      <summary>How to read this surface</summary>
+      <p>One surface. The cloud is still P/E × growth (bubbles = composite rank).
       Tone is a separate column and a ring on the plot — never blended into the fill unless
       you ask. No coverage, untoned, and scored zero stay three different marks.
       Three tone sources, and they are not the same kind of evidence: Bloomberg and Reddit are
       broad feeds that reach a ticker only when the text names it, while Yahoo's headline RSS
       is requested <em>per ticker</em>, so nearly every name has a reading — bought by asking
       the source directly, not by reading it better.</p>
+    </details>
 
     <div class="presets" id="presets">
       <button type="button" class="on" data-p="low_pe_high_growth">Low P/E · high growth</button>
@@ -554,7 +723,14 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
       <button type="button" data-p="custom" class="custom" aria-expanded="false">+ custom</button>
     </div>
 
-    <p class="lens-note" id="lensNote" hidden></p>
+    <!-- The note keeps its own `hidden`, set by renderLensNote — a lens with nothing to
+         qualify still shows no strip at all. When there IS something, it is a headline and a
+         disclosure rather than a paragraph: "nothing matches" is the part that changes what
+         the reader does, and the reason it matches nothing is the part they open. -->
+    <details class="lens-note" id="lensNote" hidden>
+      <summary id="lensNoteHead"></summary>
+      <div id="lensNoteBody"></div>
+    </details>
 
     <!-- Provider cards are written by applyLivePayload() from the snapshot's own provider
          lines. Feed counts and states are facts about a fetch, so none are spelled out here:
@@ -694,6 +870,14 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
         <div class="tile-bar" data-drag>
           <span class="tile-grip">⋮⋮</span>
           <h2 id="plotTitle">The screen’s two axes</h2>
+          <label class="tile-ctl" data-nodrag>colour by
+            <select id="plotGroup" data-nodrag aria-label="Colour the marks by">
+              <option value="sector">sector</option>
+              <option value="ai">AI exposure</option>
+              <option value="shadow">AI shadow tag</option>
+              <option value="bucket">bucket</option>
+              <option value="none">nothing</option>
+            </select></label>
           <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
         </div>
         <div class="tile-body">
@@ -706,6 +890,9 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
         <div class="tile-bar" data-drag>
           <span class="tile-grip">⋮⋮</span>
           <h2 id="priceTitle">Price history</h2>
+          <label class="tile-ctl" data-nodrag>window
+            <select id="priceWin" data-nodrag aria-label="Length of the price window"></select>
+          </label>
           <div class="tile-meta" id="priceMeta">—</div>
           <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
         </div>
@@ -776,6 +963,18 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
         </div>
         <div class="tile-body">
           <div class="detail-card" id="detailCard"></div>
+        </div>
+      </article>
+
+      <article class="tile" data-id="watch" id="tile-watch">
+        <div class="tile-bar" data-drag>
+          <span class="tile-grip">⋮⋮</span>
+          <h2 id="watchTitle">Watchlist</h2>
+          <div class="tile-meta" id="watchMeta">—</div>
+          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
+        </div>
+        <div class="tile-body">
+          <div class="detail-card" id="watchList"></div>
         </div>
       </article>
     </div>
@@ -947,7 +1146,7 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
 </div>
 
 <div class="explain" id="lensForm" role="dialog" aria-modal="false"
-     aria-labelledby="lensFormTitle" hidden>
+     aria-labelledby="lensFormTitle" data-center hidden>
   <button type="button" class="explain-close" data-panel-close aria-label="Close">×</button>
   <h3 id="lensFormTitle">New lens</h3>
   <p>What are you looking for? Everything but the name defaults to <b>any</b>, so an
@@ -1085,6 +1284,13 @@ let source = "bloomberg";
 let selected = null;
 /** tk -> array of closes, straight from the payload. Empty until a history is wired in. */
 let PRICES = {};
+/** Which row field colours the scatter's marks. See PLOT_GROUPS. */
+let plotGroup = "sector";
+/** Bars shown by the price chart, counted back from the most recent close. null = all of
+    them. The OPTIONS are derived from the series actually loaded (priceWindows), never
+    listed by hand — offering "1Y" against 126 daily closes would answer a question the
+    payload cannot answer and silently show six months labelled as a year. */
+let priceWindow = null;
 
 /* Which tiles have a source in the loaded payload. Recomputed from the payload itself in
    applyLivePayload() rather than listed by hand, so a tile stops being parked the moment its
@@ -1103,6 +1309,27 @@ function pinTicker(tk){ selected = tk; }
    results table, so the button that was clicked is already detached by the time the modal
    closes. Holding the node would silently drop focus on the floor every time. */
 let stockModalReturn = null;
+/* aria-modal="true" is a claim that nothing outside the dialog can be reached, and a claim a
+   screen reader acts on: it stops announcing the rest of the page. Without this the page
+   behind stayed fully focusable and tabbing off Close walked straight into the dimmed
+   filters, so the markup and the behaviour disagreed. `inert` is what makes the claim true —
+   it removes the background from the tab order, from hit-testing and from the accessibility
+   tree in one move. */
+function setPageInert(on){
+  const m = document.getElementById("stockModal");
+  Array.prototype.forEach.call(document.body.children, el => {
+    if(el === m) return;
+    if(on) el.setAttribute("inert", ""); else el.removeAttribute("inert");
+  });
+}
+const MODAL_FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),'
+  + 'select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+function modalFocusables(){
+  const card = document.querySelector("#stockModal .modal-card");
+  if(!card) return [];
+  return Array.prototype.filter.call(card.querySelectorAll(MODAL_FOCUSABLE),
+    el => el.getClientRects().length > 0);
+}
 function openStockModal(tk, trigger){
   const r = ROWS.find(x => x.tk === tk);
   const m = document.getElementById("stockModal");
@@ -1112,18 +1339,37 @@ function openStockModal(tk, trigger){
   document.getElementById("stockModalMeta").textContent = rowStanding(r);
   document.getElementById("stockModalBody").innerHTML = cardBody(r);
   m.hidden = false;
+  setPageInert(true);
   document.getElementById("stockModalClose").focus();
 }
 function closeStockModal(){
   const m = document.getElementById("stockModal");
   if(!m || m.hidden) return;
   m.hidden = true;
+  // The page has to come back before anything in it can be focused: an inert element cannot
+  // take focus, so restoring the caret first would silently drop it.
+  setPageInert(false);
   // Re-found by ticker, because the row it lived in has been re-rendered since.
   const back = stockModalReturn
     && document.querySelector('#tbody [data-open="' + cssEscape(stockModalReturn) + '"]');
   if(back) back.focus();
   stockModalReturn = null;
 }
+/* Tab wraps within the card rather than leaving through the browser chrome and re-entering
+   from the other end — inert already keeps the page out of reach, this keeps the cycle short
+   enough that the dialog reads as a closed loop. */
+document.getElementById("stockModal").addEventListener("keydown", (ev)=>{
+  if(ev.key !== "Tab") return;
+  const items = modalFocusables();
+  if(!items.length) return;
+  const first = items[0], last = items[items.length - 1];
+  const at = document.activeElement;
+  if(ev.shiftKey && (at === first || !items.includes(at))){
+    last.focus(); ev.preventDefault();
+  } else if(!ev.shiftKey && at === last){
+    first.focus(); ev.preventDefault();
+  }
+});
 
 /* The price tile draws only what the payload hands it. Nothing here interpolates, walks or
    otherwise manufactures a series: the fields this page does carry (price, beta, score) are
@@ -1170,7 +1416,10 @@ function drawPrice(){
   if(!host.clientWidth || !host.clientHeight) return;
   // Each line is indexed to its OWN first close, so the chart compares shape rather than
   // level: a $400 name and a $9 name are otherwise incomparable on one axis.
-  const series = picks.map(p => ({tk: p.tk, idx: p.s.map(v => 100 * v / p.s[0])}));
+  const series = picks.map(p => {
+    const w = windowed(p.s);
+    return {tk: p.tk, idx: w.map(v => 100 * v / w[0])};
+  });
   const flat = series.reduce((a, x) => a.concat(x.idx), []);
   const hi = Math.max.apply(null, flat), lo = Math.min.apply(null, flat);
   const W = Math.max(260, Math.floor(host.clientWidth));
@@ -1181,21 +1430,44 @@ function drawPrice(){
   // spread over the full width on its own bar count rather than truncating the others.
   const sx = (i, len) => L + i / Math.max(len - 1, 1) * (W - L - R);
   const sy = v => H - B - (v - lo) / span * (H - T - B);
-  const paths = series.map((x, k) => {
+  // Only a name actually IN the cohort counts as picked. Pinning a name with no history
+  // leaves `selected` set to a ticker that draws no line, and reading that as a selection
+  // would dim all five and highlight nothing — the chart would look broken rather than
+  // unchanged.
+  const picked = series.some(x => x.tk === selected) ? selected : null;
+  const drawn = series.map((x, k) => {
     let d = "M " + sx(0, x.idx.length).toFixed(1) + " " + sy(x.idx[0]).toFixed(1);
     for(let j = 1; j < x.idx.length; j++)
       d += " L " + sx(j, x.idx.length).toFixed(1) + " " + sy(x.idx[j]).toFixed(1);
-    const on = x.tk === selected;
-    return '<path d="' + d + '" fill="none" stroke="' + priceColor(k) + '" stroke-width="'
-      + (on ? 2.6 : 1.6) + '" opacity="' + (on || !selected ? 1 : 0.72) + '"/>';
-  }).join("");
+    const on = x.tk === picked;
+    // The picked line is redrawn at full contrast rather than merely thickened: against five
+    // saturated hues a sixth saturated hue is just a sixth line, so it takes the one value no
+    // series can hold. The rest fall far enough back to read as context, not as peers — 0.72
+    // was too small a step to see at all, which is why picking a name looked like nothing
+    // happened.
+    return {on: on, k: k, svg:
+      '<path d="' + d + '" fill="none" stroke="' + (on ? "var(--cat-on)" : priceColor(k))
+      + '" stroke-width="' + (on ? 3 : (picked ? 1.3 : 1.8)) + '" opacity="'
+      + (on || !picked ? 1 : 0.2) + '" stroke-linejoin="round"/>'};
+  });
+  // Painter's order, not cohort order: an SVG path drawn later sits on top, so leaving the
+  // picked line where the cohort put it let dimmed lines cross over the very line the pick
+  // was meant to bring forward.
+  const paths = drawn.filter(p => !p.on).map(p => p.svg).join("")
+    + drawn.filter(p => p.on).map(p => p.svg).join("");
   title.textContent = series.length === 1
     ? "Price · " + series[0].tk
     : "Price · " + series.length + " names";
+  // The legend is the key to the lines, so it takes the SAME two states — white dot for the
+  // picked name, the rest faded. A legend that stayed uniformly bright while the lines dimmed
+  // would be a key to a chart that is no longer drawn.
   meta.innerHTML = series.map((x, k) => {
     const chg = x.idx[x.idx.length - 1] - 100;
-    return '<span class="chip" style="margin-right:4px"><span class="dot" style="background:'
-      + priceColor(k) + '"></span>' + esc(x.tk) + ' <span style="color:'
+    const on = x.tk === picked;
+    return '<span class="chip' + (on ? " chip-on" : "") + '"'
+      + (on || !picked ? '' : ' style="opacity:.45"')
+      + '><span class="dot" style="background:'
+      + (on ? "var(--cat-on)" : priceColor(k)) + '"></span>' + esc(x.tk) + ' <span style="color:'
       + (chg >= 0 ? "var(--good)" : "var(--critical)") + '">' + (chg >= 0 ? "+" : "")
       + chg.toFixed(1) + '%</span></span>';
   }).join("");
@@ -1217,15 +1489,63 @@ function drawPrice(){
     + '</svg>';
 }
 
-const PRICE_COLORS = ["var(--accent)", "var(--ord-3)", "var(--good)", "var(--warning)",
-                      "var(--serious)"];
+const PRICE_COLORS = ["var(--cat-1)", "var(--cat-2)", "var(--cat-3)",
+                      "var(--cat-4)", "var(--cat-5)"];
 function priceColor(i){ return PRICE_COLORS[i % PRICE_COLORS.length]; }
+/* The cohort cap IS the palette length rather than a five that happens to match it. When the
+   two were independent numbers, widening the cohort would have wrapped `i % length` and drawn
+   two names in one colour — and a doubled colour does not look like a bug, it looks like one
+   name. Pinned by tests/test_screener_ui.py so the pair cannot drift apart again. */
+const PRICE_COHORT_MAX = PRICE_COLORS.length;
+
+/* Candidate windows in trading days. A window is offered only if the LONGEST loaded series
+   can actually fill it — the chart would otherwise relabel whatever it has as a period it is
+   not, which is the same defect as an absent value drawn as zero. "All" always appears and
+   names its own length, so the reader can see what the longest option really is. */
+const PRICE_WINDOWS = [
+  {bars:21,  label:"1 month"}, {bars:63,  label:"3 months"},
+  {bars:126, label:"6 months"}, {bars:252, label:"1 year"},
+  {bars:504, label:"2 years"}, {bars:1260, label:"5 years"}
+];
+function longestSeries(){
+  let n = 0;
+  for(const tk in PRICES){ const s = PRICES[tk]; if(s && s.length > n) n = s.length; }
+  return n;
+}
+function priceWindows(){
+  const have = longestSeries();
+  return PRICE_WINDOWS.filter(w => w.bars < have)
+    .concat([{bars:null, label:"all (" + have + " bars)"}]);
+}
+function buildPriceWindowPicker(){
+  const sel = document.getElementById("priceWin");
+  if(!sel) return;
+  const opts = priceWindows();
+  // A picker with one option is a control that cannot be used; hide it rather than show a
+  // dropdown whose only entry is the state the chart is already in.
+  const wrap = sel.closest(".tile-ctl");
+  if(wrap) wrap.hidden = opts.length < 2;
+  sel.innerHTML = opts.map(w =>
+    '<option value="' + (w.bars == null ? "" : w.bars) + '">' + esc(w.label)
+    + "</option>").join("");
+  // A window that survives a payload change only if the new payload can still fill it.
+  if(priceWindow != null && !opts.some(w => w.bars === priceWindow)) priceWindow = null;
+  sel.value = priceWindow == null ? "" : String(priceWindow);
+}
+/* The last `priceWindow` closes. Taken from the END because the recent window is the one a
+   reader means by "3 months", and indexing happens AFTER this cut so every line is indexed
+   to the first close IN VIEW — indexing to a close scrolled off the left would put the 100
+   line somewhere off the chart and make the percentages answer a different question. */
+function windowed(s){
+  if(priceWindow == null || s.length <= priceWindow) return s;
+  return s.slice(s.length - priceWindow);
+}
 
 /* The lens's leaders on its own ranking metric, plus whatever is pinned. A name with no
    series is skipped rather than drawn flat — an absent history is not a price that
    did not move. */
 function priceCohort(cap){
-  const max = cap || 5;
+  const max = cap || PRICE_COHORT_MAX;
   const spec = lensSpec(), m = METRICS[spec.rank];
   const out = [], seen = new Set();
   function push(tk){
@@ -1251,11 +1571,11 @@ function priceCohort(cap){
    'row' seats its children side by side (vertical boundary); 'col' stacks them.
    Every leaf's rect is derived from its parent's, so free space cannot appear and
    the arrangement is not limited to a fixed set of bays. */
-const TILE_IDS = ["plot","price","tone","rank","dist","shadow","card"];
+const TILE_IDS = ["plot","price","tone","rank","dist","shadow","card","watch"];
 const TILE_LABELS = {
   plot:"P/E × growth", price:"Price history", tone:"Headlines & tone",
   rank:"Ranked by lens", dist:"Distribution", shadow:"AI shadow",
-  card:"Stock detail"
+  card:"Stock detail", watch:"Watchlist"
 };
 const TILE_NOTES = {
   plot:  "Every name as P/E against growth; the lens's matches are the coloured marks.",
@@ -1264,7 +1584,8 @@ const TILE_NOTES = {
   rank:  "The lens's matches sorted by whatever that lens ranks on.",
   dist:  "Where the matches sit inside the wider distribution of one field.",
   shadow:"Reported on-BS debt/equity for editorially shadow-tagged names.",
-  card:  "The pinned name's whole results-table row, read without scrolling down to it."
+  card:  "The pinned name's whole results-table row, read without scrolling down to it.",
+  watch: "Names you kept, with the lens's own ranking metric — survives lens changes and reload."
 };
 /* What each chart needs before it has anything true to draw, and the one line the tray shows
    when it does not have it. A tile absent from this map is never parked. */
@@ -1470,6 +1791,12 @@ function clampRatio(node, spanPx){
 function layoutBoard(){
   const board = document.getElementById("board");
   if(!board) return;
+  // Every splitter is thrown away and rebuilt on each layout, including the one an arrow key
+  // just moved. The node it belongs to survives, so the caret is put back on whichever new
+  // splitter carries the same node — otherwise one keypress resizes a pane and drops focus.
+  const focusedSplit = document.activeElement
+    && document.activeElement.classList.contains("board-splitter")
+    ? document.activeElement._node : null;
   board.querySelectorAll(".board-splitter").forEach(el => el.remove());
   board.querySelector(".board-empty")?.remove();
   // A deep column cannot be squeezed below MIN_PANE_PX just because the board has a fixed
@@ -1511,7 +1838,7 @@ function layoutBoard(){
     if(node.dir === "row"){
       walk(node.a, x, y, w * r, h);
       walk(node.b, x + w * r, y, w * (1 - r), h);
-      splitters.push({node, rect:{x, y, w, h}, style:{
+      splitters.push({node, rect:{x, y, w, h}, ratio:r, style:{
         left:   "calc(" + (x + w * r).toFixed(4) + "% - " + half + "px)",
         top:    "calc(" + y.toFixed(4) + "% + " + half + "px)",
         width:  GAP + "px",
@@ -1519,7 +1846,7 @@ function layoutBoard(){
     } else {
       walk(node.a, x, y, w, h * r);
       walk(node.b, x, y + h * r, w, h * (1 - r));
-      splitters.push({node, rect:{x, y, w, h}, style:{
+      splitters.push({node, rect:{x, y, w, h}, ratio:r, style:{
         top:    "calc(" + (y + h * r).toFixed(4) + "% - " + half + "px)",
         left:   "calc(" + x.toFixed(4) + "% + " + half + "px)",
         height: GAP + "px",
@@ -1537,12 +1864,26 @@ function layoutBoard(){
     const el = document.createElement("div");
     el.className = "board-splitter";
     el.dataset.dir = s.node.dir;
-    el.title = "Drag to resize these two panes";
+    el.title = "Drag to resize these two panes; arrow keys also work";
+    // A window splitter, exposed as one: focusable, named, and reporting where it sits, so
+    // the share between two panes is readable and changeable without a pointer. The
+    // orientation is the SEPARATOR's own — panes side by side are divided vertically.
+    el.tabIndex = 0;
+    el.setAttribute("role", "separator");
+    el.setAttribute("aria-orientation", s.node.dir === "row" ? "vertical" : "horizontal");
+    el.setAttribute("aria-label", s.node.dir === "row"
+      ? "Resize the panes either side of this divider"
+      : "Resize the panes above and below this divider");
+    el.setAttribute("aria-valuemin", "5");
+    el.setAttribute("aria-valuemax", "95");
+    el.setAttribute("aria-valuenow", String(Math.round(s.ratio * 100)));
     Object.assign(el.style, s.style);
     el._node = s.node;
     el._rect = s.rect;
+    el._ratio = s.ratio;
     if(s.node === draggingSplit) el.classList.add("dragging");
     board.appendChild(el);
+    if(s.node === focusedSplit) el.focus();
   });
 
   if(!boardTree){
@@ -1562,7 +1903,10 @@ function trayChip(id, why){
 function renderTray(){
   const host = document.getElementById("trayChips");
   if(!host) return;
-  const ids = trayTiles();
+  // Pinned to the front means the front of every list that offers the chart, or the star is a
+  // promise the tray breaks: the options panel led with a starred chart while the tray still
+  // had it fifth.
+  const ids = tileOrder(trayTiles());
   host.innerHTML = ids.length
     ? ids.map(id => trayChip(id)).join("")
     : '<span class="tray-empty">every chart with data is on the board — press × on a card to park it here</span>';
@@ -1576,7 +1920,7 @@ function renderParkedTray(){
   const chips = document.getElementById("parkedChips");
   if(!box || !chips) return;
   const placed = treeTiles(boardTree);
-  const ids = parkedTiles();
+  const ids = tileOrder(parkedTiles());
   box.hidden = !ids.length;
   if(!ids.length) return;
   document.getElementById("parkedSummary").textContent =
@@ -1770,34 +2114,49 @@ function rowOfStacks(groups){
   return {type:"split", dir:"row", ratio:1 / groups.length,
     a:stackNodes(groups[0]), b:rowOfStacks(groups.slice(1))};
 }
-/* The board is far wider than it is tall, so the grid grows sideways first and never past
-   three columns — a fourth column is narrower than a chart can label itself in. */
-function gridTree(ids){
-  if(ids.length < 2) return buildTree(ids);
-  const cols = ids.length <= 3 ? ids.length : Math.min(3, Math.ceil(ids.length / 2));
-  const per = Math.ceil(ids.length / cols);
-  const groups = [];
-  for(let i = 0; i < ids.length; i += per) groups.push(ids.slice(i, i + per));
-  return rowOfStacks(groups);
+/* The horizontal twin of stackNodes: one band, its panes side by side at equal widths. */
+function rowNodes(ids){
+  if(ids.length === 1) return leafNode(ids[0]);
+  return {type:"split", dir:"row", ratio:1 / ids.length,
+    a:leafNode(ids[0]), b:rowNodes(ids.slice(1))};
 }
-/* Split `ids` into `n` equal columns, each column a stack. Fewer tiles than columns just
+/* Contiguous chunks whose sizes differ by at most one, so tiles keep the order they were
+   placed in and every column asked for gets one. Dividing what is left by the columns still
+   to fill is what guarantees that count: a flat ceil(n/cols) stride returns FEWER groups than
+   asked for — four tiles into three columns lands as two — which collapses one arrangement
+   onto another. */
+function balancedGroups(ids, cols){
+  const groups = [];
+  let i = 0;
+  for(let c = 0; c < cols; c++){
+    const take = Math.ceil((ids.length - i) / (cols - c));
+    groups.push(ids.slice(i, i + take));
+    i += take;
+  }
+  return groups;
+}
+/* Split `ids` into at most `n` columns, each column a stack. Fewer tiles than columns just
    yields fewer columns rather than empty ones — a pane with nothing in it is not a
    layout, it is a hole, and the split tree has no way to express one. */
 function colsOf(ids, n){
   if(ids.length < 2) return buildTree(ids);
-  const cols = Math.min(n, ids.length);
-  const per = Math.ceil(ids.length / cols);
-  const groups = [];
-  for(let i = 0; i < ids.length; i += per) groups.push(ids.slice(i, i + per));
-  return rowOfStacks(groups);
+  return rowOfStacks(balancedGroups(ids, Math.min(n, ids.length)));
 }
-/* Two full-width rows: the horizontal counterpart of `columns`, for charts that read
-   wide — a ranked bar list and a table row are both wider than they are tall. */
+/* The board is far wider than it is tall, so the grid grows sideways first and never past
+   three columns — a fourth column is narrower than a chart can label itself in. Three is
+   also what keeps it distinct from `columns`: at four tiles a two-column grid IS `columns`,
+   and two menu entries that build one board are one entry wearing two names. */
+function gridTree(ids){
+  return colsOf(ids, 3);
+}
+/* Two full-width bands, each band laying its own tiles out side by side — the horizontal
+   counterpart of `columns`, for charts that read wide. Stacking inside a band instead would
+   make this `stack` with extra steps, since every pane would again span the full width. */
 function rowsTree(ids){
   if(ids.length < 2) return buildTree(ids);
   const half = Math.ceil(ids.length / 2);
   return {type:"split", dir:"col", ratio:0.5,
-    a:rowOfStacks([ids.slice(0, half)]), b:rowOfStacks([ids.slice(half)])};
+    a:rowNodes(ids.slice(0, half)), b:rowNodes(ids.slice(half))};
 }
 /* One wide pane across the top with the rest in a row beneath it. The scatter and the
    price comparison both want width more than height; their supporting charts do not. */
@@ -1805,6 +2164,51 @@ function bannerTree(ids){
   if(ids.length < 2) return buildTree(ids);
   return {type:"split", dir:"col", ratio:0.55,
     a:leafNode(ids[0]), b:colsOf(ids.slice(1), Math.min(3, ids.length - 1))};
+}
+/* Bands of `perRow` stacked down the page, so the board grows TALLER as charts are added
+   rather than dividing a fixed height into ever-thinner slices. `layoutBoard` sums the
+   per-band minimums down the column, so each band keeps a readable height and the page
+   scrolls — which is the only way to have many cards above and below each other and still
+   read any of them.
+
+   Row-major, and that is the whole difference from `columns`. Columns fills down the left and
+   then down the right, so the pane beside a chart is unrelated to it; this fills left-to-right
+   so each band is a pair meant to be read together. At an even count the two tile the board
+   into the same rectangles — at an odd one they do not, and the pictogram shows that case:
+   five charts come out 2 + 2 + 1 with a full-width pane at the bottom, where columns gives an
+   uneven 3 + 2. */
+function bandsDown(bands){
+  if(bands.length === 1) return rowNodes(bands[0]);
+  return {type:"split", dir:"col", ratio:1 / bands.length,
+    a:rowNodes(bands[0]), b:bandsDown(bands.slice(1))};
+}
+function rowsOf(ids, perRow){
+  if(ids.length < 2) return buildTree(ids);
+  const bands = [];
+  for(let i = 0; i < ids.length; i += perRow) bands.push(ids.slice(i, i + perRow));
+  return bandsDown(bands);
+}
+function pairsTree(ids){ return rowsOf(ids, 2); }
+
+/* `banner` and `main` both hand roughly 60% of the board to their big pane, which is a
+   compromise: enough for the hero, enough for three readable supporters. These two are the
+   uncompromised versions — the hero takes about three-quarters and the rest becomes a strip.
+   They exist because the price chart with five names in it, or the scatter with a hundred
+   marks, stops being readable at 55% of a 70%-zoomed board; the supporting charts are
+   glanceable at a size the hero is not.
+
+   The ratios are deliberately far from the ones above (.78 vs .55, .74 vs .62) rather than
+   nudged: `sameTree` identifies an arrangement by its ratios, so a near-miss would make two
+   menu entries fight over the highlight on the same board. */
+function focusTree(ids){        // wide hero across the top, strip beneath
+  if(ids.length < 2) return buildTree(ids);
+  return {type:"split", dir:"col", ratio:0.78,
+    a:leafNode(ids[0]), b:colsOf(ids.slice(1), Math.min(3, ids.length - 1))};
+}
+function featureTree(ids){      // tall hero on the left, narrow column beside it
+  if(ids.length < 2) return buildTree(ids);
+  return {type:"split", dir:"row", ratio:0.74,
+    a:leafNode(ids[0]), b:stackNodes(ids.slice(1))};
 }
 /* The mirror of `main`: the tall pane on the right, its supporting charts stacked left.
    Useful when the big chart is the conclusion rather than the starting point. */
@@ -1815,10 +2219,7 @@ function sideMainTree(ids){
   return {type:"split", dir:"row", ratio:0.34,
     a:stackNodes(side), b:stackNodes(main)};
 }
-/* A pictogram is a promise about the tree its key builds, and Grid's quad is honest only at
-   four tiles — at three it builds three columns of one, at five and seven three columns of
-   stacks. Its diagram now shows the balanced two-row form it converges on.
-   One place that turns an arrangement key into a tree, so the panel's pictograms, the
+/* One place that turns an arrangement key into a tree, so the panel's pictograms, the
    "which arrangement is this board in" check and the click handler cannot drift apart. */
 function arrangeTree(kind, ids){
   if(!ids.length) return null;
@@ -1830,15 +2231,40 @@ function arrangeTree(kind, ids){
   if(kind === "rows") return rowsTree(ids);
   if(kind === "banner") return bannerTree(ids);
   if(kind === "sidemain") return sideMainTree(ids);
+  if(kind === "focus") return focusTree(ids);
+  if(kind === "feature") return featureTree(ids);
+  if(kind === "pairs") return pairsTree(ids);
   return null;
 }
+/* How many panes an arrangement is drawn holding. The pictogram is already the declaration of
+   that — reading it here is what stops the picture and the fill from disagreeing, the same
+   reason `arrangeTree` is the one place a key becomes a tree. */
+function arrangeCapacity(kind){
+  const a = ARRANGEMENTS.find(x => x.key === kind);
+  return a ? a.boxes.length : 0;
+}
+/* Arrangements used to rearrange only what was already placed, so picking a six-pane layout
+   with two charts on the board drew two panes and left the picture a promise. They now fill
+   from the tray up to the capacity the pictogram shows.
+   Starred first, in star order: a star is the reader saying "this is the one I care about",
+   and the only other candidate order — whatever the tray happened to be in — encodes nothing
+   at all. Only tiles with data are eligible; `trayTiles` already excludes the parked ones, so
+   a chart with no source is never auto-placed and then left to explain its own emptiness. */
+function fillFor(kind, placed){
+  const want = arrangeCapacity(kind);
+  if(placed.length >= want) return placed;
+  return placed.concat(tileOrder(trayTiles()).slice(0, want - placed.length));
+}
 function arrangeBoard(kind){
-  const tree = arrangeTree(kind, treeTiles(boardTree));
+  const tree = arrangeTree(kind, fillFor(kind, treeTiles(boardTree)));
   if(!tree) return;
   boardTree = tree;
   layoutBoard();
   saveBoard();
   scheduleChartReflow();
+  // The panel is open while this runs, and the checkboxes are what say which charts are on
+  // the board. Auto-filling without this left them unticked for tiles now clearly placed.
+  syncLayoutPanel();
 }
 function setTilePlaced(id, on){
   if(on){
@@ -1853,8 +2279,10 @@ function setTilePlaced(id, on){
 }
 /* The picture is the control. Each entry carries the boxes its own arrangement produces,
    drawn as fractions of the board so the pictogram cannot claim a split the tree does not
-   make. `stack` draws three full-width bars because three is what the diagram can show —
-   the arrangement itself takes however many panes are placed. */
+   make. A diagram can only show one tile count, so each shows the smallest count at which its
+   arrangement is fully itself — `stack` three bars, `grid` its six-tile 3×2, `rows` the
+   five-tile 3-over-2 that no other arrangement builds. The arrangement itself takes however
+   many panes are placed. */
 const ARRANGEMENTS = [
   {key:"single",  label:"One pane",   aria:"Arrange as one pane",
    boxes:[[0,0,1,1]]},
@@ -1862,19 +2290,24 @@ const ARRANGEMENTS = [
    boxes:[[0,0,.5,1],[.5,0,.5,1]]},
   {key:"main",    label:"Main + side", aria:"Arrange as a main pane with a side column",
    boxes:[[0,0,.62,1],[.62,0,.38,.5],[.62,.5,.38,.5]]},
-  {key:"grid",    label:"Grid",       aria:"Arrange as an even grid",
-   boxes:[[0,0,.5,.5],[.5,0,.5,.5],[0,.5,.5,.5],[.5,.5,.5,.5]]},
+  {key:"grid",    label:"Grid",       aria:"Arrange as a grid of up to three columns",
+   boxes:[[0,0,1/3,.5],[0,.5,1/3,.5],[1/3,0,1/3,.5],[1/3,.5,1/3,.5],
+          [2/3,0,1/3,.5],[2/3,.5,1/3,.5]]},
   {key:"stack",   label:"Stack",      aria:"Arrange as a full-width vertical stack",
    boxes:[[0,0,1,1/3],[0,1/3,1,1/3],[0,2/3,1,1/3]]},
-  {key:"rows",    label:"Rows",       aria:"Arrange as two full-width rows",
-   boxes:[[0,0,1,.5],[0,.5,1,.5]]},
+  {key:"rows",    label:"Rows",       aria:"Arrange as two rows of side-by-side panes",
+   boxes:[[0,0,1/3,.5],[1/3,0,1/3,.5],[2/3,0,1/3,.5],[0,.5,.5,.5],[.5,.5,.5,.5]]},
   {key:"banner",  label:"Banner",     aria:"Arrange as one wide pane over a row",
    boxes:[[0,0,1,.55],[0,.55,1/3,.45],[1/3,.55,1/3,.45],[2/3,.55,1/3,.45]]},
   {key:"sidemain",label:"Side + main", aria:"Arrange as a side column with a main pane",
    boxes:[[0,0,.34,.5],[0,.5,.34,.5],[.34,0,.66,1]]},
+  {key:"focus",   label:"Focus",      aria:"Arrange as one tall pane over a thin strip",
+   boxes:[[0,0,1,.78],[0,.78,1/3,.22],[1/3,.78,1/3,.22],[2/3,.78,1/3,.22]]},
+  {key:"feature", label:"Feature",    aria:"Arrange as one wide pane beside a narrow column",
+   boxes:[[0,0,.74,1],[.74,0,.26,1/3],[.74,1/3,.26,1/3],[.74,2/3,.26,1/3]]},
+  {key:"pairs",   label:"Pairs",      aria:"Arrange as pairs stacked down a taller board",
+   boxes:[[0,0,.5,1/3],[.5,0,.5,1/3],[0,1/3,.5,1/3],[.5,1/3,.5,1/3],[0,2/3,1,1/3]]},
 ];
-/* Structure only, no ratios: dragging a splitter changes how a board looks but not which
-   arrangement it is, so the marked pictogram survives a resize. */
 /* Shape alone cannot identify an arrangement: at two tiles columns, main, grid and sidemain
    all produce R(L,L), so a shape comparison lit four buttons at once and told the reader the
    board was four arrangements simultaneously. Ratios are what distinguish them, so the whole
@@ -1886,11 +2319,6 @@ function sameTree(a, b){
   if(a.type === "leaf") return a.tile === b.tile;
   return a.dir === b.dir && Math.abs((a.ratio||0) - (b.ratio||0)) < 0.005
     && sameTree(a.a, b.a) && sameTree(a.b, b.b);
-}
-function treeShape(node){
-  if(!node) return "";
-  if(node.type === "leaf") return "L";
-  return (node.dir === "col" ? "C(" : "R(") + treeShape(node.a) + "," + treeShape(node.b) + ")";
 }
 function arrangeDiagram(boxes){
   const W = 64, H = 40, P = 1.5;
@@ -1955,7 +2383,7 @@ function renderLayoutTiles(){
   if(!parked.length) return;
   document.getElementById("layoutParkedSummary").textContent =
     "Parked — no data source yet (" + parked.length + ")";
-  document.getElementById("layoutParkedTiles").innerHTML = parked.map(id =>
+  document.getElementById("layoutParkedTiles").innerHTML = tileOrder(parked).map(id =>
     tileOption(id, "Waiting on " + TILE_NEEDS[id] + ". " + TILE_NOTES[id])).join("");
 }
 
@@ -1973,7 +2401,9 @@ function buildLayoutPanel(){
     const cb = ev.target.closest("input[data-tile]");
     if(cb) setTilePlaced(cb.dataset.tile, cb.checked);
   });
-  document.getElementById("layoutTiles").addEventListener("click", (ev)=>{
+  // Delegated on the panel for the same reason the change handler is: the parked list carries
+  // identical star markup, and bound to the placed list alone its stars did nothing at all.
+  document.getElementById("layoutPanel").addEventListener("click", (ev)=>{
     const st = ev.target.closest("[data-tile-star]");
     // A star inside a <label> would otherwise toggle the checkbox it sits in.
     if(st){ ev.preventDefault(); ev.stopPropagation(); toggleTileStar(st.dataset.tileStar); }
@@ -1990,13 +2420,16 @@ function syncLayoutPanel(){
   const placed = treeTiles(boardTree);
   document.querySelectorAll("#layoutPanel input[data-tile]").forEach(cb =>
     { cb.checked = placed.includes(cb.dataset.tile); });
-  const shape = treeShape(boardTree);
+  // With one pane placed every arrangement produces the same board; only "one pane" is an
+  // honest description of it. At two tiles a board can only be one row or one column, so
+  // Columns and Grid describe the same board and so do Stack and Rows — lighting both of a
+  // pair would say the board is two arrangements at once, so the first menu entry that
+  // builds it takes the mark and the rest stay dark.
+  const marked = ARRANGEMENTS.find(a =>
+    placed.length > (a.key === "single" ? 0 : 1)
+    && sameTree(arrangeTree(a.key, placed), boardTree));
   document.querySelectorAll("#layoutArrange button[data-arrange]").forEach(btn =>
-    // With one pane placed every arrangement produces the same board; only "one pane" is
-    // an honest description of it.
-    { btn.classList.toggle("on",
-        placed.length > (btn.dataset.arrange === "single" ? 0 : 1)
-        && sameTree(arrangeTree(btn.dataset.arrange, placed), boardTree)); });
+    { btn.classList.toggle("on", !!marked && btn.dataset.arrange === marked.key); });
 }
 
 function initBoard(){
@@ -2015,6 +2448,10 @@ function initBoard(){
     }
     const bar = ev.target.closest(".tile-bar[data-drag]");
     if(!bar) return;
+    // [data-nodrag] is the general form of the two exceptions below it: a control that lives
+    // in the drag handle needs its own clicks, and a <select> that starts a tile drag on
+    // pointerdown never opens.
+    if(ev.target.closest("[data-nodrag]")) return;
     if(ev.target.closest("[data-close]") || ev.target.closest("[data-explain]")) return;
     const tile = bar.closest(".tile");
     if(!tile) return;
@@ -2035,6 +2472,30 @@ function initBoard(){
     scheduleChartReflow();
   });
 
+  // Keyboard parity with the board's own resize grip: same 20px step, same 100px with Shift,
+  // so a divider moves by a distance rather than by an abstract fraction. The step is
+  // measured against the span this split governs, which is why it feels the same on a narrow
+  // nested pane as on the whole board. It starts from the ratio the layout is actually
+  // drawing, not the stored one — a squeezed split would otherwise jump on the first press.
+  board.addEventListener("keydown", (ev)=>{
+    const sp = ev.target.closest(".board-splitter");
+    if(!sp || !sp._node) return;
+    const row = sp._node.dir === "row";
+    const back = row ? "ArrowLeft" : "ArrowUp";
+    const fwd  = row ? "ArrowRight" : "ArrowDown";
+    if(ev.key !== back && ev.key !== fwd) return;
+    ev.preventDefault();
+    const br = cssRect(board);
+    const span = Math.max(1, row ? br.width * sp._rect.w / 100
+                                 : br.height * sp._rect.h / 100);
+    const step = (ev.shiftKey ? 100 : 20) / span;
+    sp._node.ratio = Math.min(0.95, Math.max(0.05,
+      sp._ratio + (ev.key === fwd ? step : -step)));
+    layoutBoard();
+    saveBoard();
+    scheduleChartReflow();
+  });
+
   // Bound on the whole tray, not just the chip row, so a chip in the parked disclosure is
   // draggable on exactly the same path as an ordinary one.
   document.getElementById("tray").addEventListener("pointerdown", (ev)=>{
@@ -2045,6 +2506,25 @@ function initBoard(){
             el:chip, x0:ev.clientX, y0:ev.clientY};
     chip.classList.add("dragging");
     ev.preventDefault();
+  });
+
+  // A chip is a real button and offers "or click to place it", but placement hangs off
+  // pointerup, which a keypress never produces. Enter/Space is handled here rather than by
+  // listening for `click`, because a mouse click raises both and the tile would be placed
+  // twice. Space is also the page's scroll key, so the default has to go.
+  document.getElementById("tray").addEventListener("keydown", (ev)=>{
+    if(ev.key !== "Enter" && ev.key !== " " && ev.key !== "Spacebar") return;
+    const chip = ev.target.closest("[data-tray]");
+    if(!chip) return;
+    ev.preventDefault();
+    placeIntoLargestPane(chip.dataset.tray);
+    layoutBoard();
+    saveBoard();
+    scheduleChartReflow();
+    // The chip it was placed from no longer exists — the tray is rebuilt without it — so the
+    // caret goes to the pane that was just opened rather than being dropped on the body.
+    document.getElementById("tile-" + chip.dataset.tray)
+      ?.querySelector("[data-close]")?.focus();
   });
 
   window.addEventListener("pointermove", (ev)=>{
@@ -2101,14 +2581,39 @@ function initBoard(){
       const el = document.getElementById(id);
       if(el) new ResizeObserver(()=>scheduleChartReflow()).observe(el);
     });
+    // The TILES too, not just the chart hosts. A tile whose body is text — the detail card —
+    // has no chart host, so dragging a splitter to give it half the board fired nothing at
+    // all and it kept the type it had at a quarter of the size.
+    document.querySelectorAll(".tile").forEach(el =>
+      new ResizeObserver(()=>scheduleChartReflow()).observe(el));
   }
   window.addEventListener("resize", ()=>{ layoutBoard(); scheduleChartReflow(); });
+}
+
+/* The pane size at which the card's declared type is already right. Bigger than this and the
+   text grows with the pane; smaller and it does NOT shrink — a card too small to read is a
+   card that should be resized, not one that should whisper. Measured on the two axes and the
+   smaller ratio wins, so a wide-but-short pane (what `stack` produces) does not scale type up
+   into a box with no room for the extra line height. */
+const TILE_FIT = {w: 380, h: 330, max: 1.7};
+function fitTileText(){
+  document.querySelectorAll(".tile").forEach(el=>{
+    if(el.style.display === "none"){ el.style.removeProperty("--tile-scale"); return; }
+    const b = cssRect(el);
+    if(!b.width || !b.height) return;
+    const s = Math.min(b.width / TILE_FIT.w, b.height / TILE_FIT.h);
+    el.style.setProperty("--tile-scale",
+      Math.max(1, Math.min(TILE_FIT.max, s)).toFixed(3));
+  });
 }
 
 let _reflowRaf = 0;
 function scheduleChartReflow(){
   cancelAnimationFrame(_reflowRaf);
   _reflowRaf = requestAnimationFrame(()=>{
+    // Before the charts: the charts size themselves from their host box, and a type change
+    // is what moves that box when the body has text above the chart.
+    try{ fitTileText(); }catch(e){ console.error(e); }
     [drawPlot, drawPrice, drawRank, drawDist, drawShadow].forEach(fn=>{
       try{ fn(); }catch(e){ console.error(e); }
     });
@@ -2649,16 +3154,21 @@ const TONE_COMBINE_NOTE =
    chart rather than left as a frame with nothing in it. */
 function renderLensNote(){
   const el = document.getElementById("lensNote");
-  if(!el) return;
+  const head = document.getElementById("lensNoteHead");
+  const body = document.getElementById("lensNoteBody");
+  if(!el || !head || !body) return;
+  const clear = ()=>{ el.hidden = true; head.textContent = ""; body.innerHTML = ""; };
   // With no snapshot the note would be arguing about a lens over nothing; the empty-state
   // panel above already names the missing source, so this stays out of the way.
-  if(!ROWS.length){ el.hidden = true; el.innerHTML = ""; return; }
+  if(!ROWS.length){ clear(); return; }
   const src = toneLensSrc();
   const social = isSocialLens();
   const n = matchedRows().length;
-  if(n && !src && !social){ el.hidden = true; el.innerHTML = ""; return; }
+  if(n && !src && !social){ clear(); return; }
   el.hidden = false;
-  el.innerHTML = n ? (social ? socialLensNote() : toneLensNote(src))
+  // The first sentence is the summary and the rest is the disclosure. Split on the sentence
+  // rather than written twice, so the two cannot say different things.
+  const full = n ? (social ? socialLensNote() : toneLensNote(src))
     : ("<b>Nothing matches.</b> No name in the " + ROWS.length
       + "-name snapshot clears every condition in <b>" + esc(activeLensLabel())
       + "</b>" + (activeFilterCount() ? " together with the filters set above" : "")
@@ -2670,6 +3180,17 @@ function renderLensNote(){
         ? "Nothing in the fetched window named any of them; that is absence of coverage, not"
           + " a set of zeroes."
         : "Loosen a threshold, or edit the lens."));
+  splitNote(full, head, body);
+}
+/* First sentence to the summary, remainder to the body. Boundary is a full stop followed by a
+   space and a capital or a tag — so "3 sources." ends a sentence and "0.00." inside a number
+   does not. A note with no boundary at all becomes a summary with an empty body, and the
+   disclosure marker is hidden for it: an arrow that opens onto nothing is a broken control. */
+function splitNote(html, head, body){
+  const m = html.match(/^([\s\S]*?[.!?])(\s+)(?=[A-Z<])/);
+  head.innerHTML = m ? m[1] : html;
+  body.innerHTML = m ? html.slice(m[0].length) : "";
+  head.parentNode.classList.toggle("no-more", !body.innerHTML.trim());
 }
 /* Two different empty reasons, never merged: a lens that excluded everything is a result,
    and a page with no snapshot behind it is not. */
@@ -2683,6 +3204,7 @@ function lensEmptyMsg(){
 }
 
 function bindMarks(host){
+  const tip = markTip(host);
   host.querySelectorAll(".mark[data-tk]").forEach(el=>{
     el.onclick = (ev)=>{
       pinTicker(el.dataset.tk);
@@ -2692,7 +3214,36 @@ function bindMarks(host){
       if(ev && ev.detail === 2) openStockModal(el.dataset.tk, null);
       render();
     };
+    if(!tip) return;
+    el.onpointerenter = ()=>{ showMarkTip(host, tip, el); };
+    el.onpointerleave = ()=>{ tip.removeAttribute("data-on"); };
   });
+}
+/* One overlay per chart host, created once and reused. Rebuilding it per draw would leave the
+   previous one orphaned inside a host whose innerHTML is replaced on every render. */
+function markTip(host){
+  if(!host) return null;
+  let tip = host.querySelector(":scope > .mark-tip");
+  if(!tip){
+    tip = document.createElement("div");
+    tip.className = "mark-tip";
+    host.appendChild(tip);
+  }
+  return tip;
+}
+function showMarkTip(host, tip, el){
+  const row = ROWS.find(x => x.tk === el.dataset.tk);
+  tip.innerHTML = "<b>" + esc(el.dataset.tk) + "</b>"
+    + (row && row.name ? " " + esc(row.name) : "")
+    + (el.dataset.grp ? '<br><span class="tip-grp">' + esc(el.dataset.grp) + "</span>" : "");
+  // The mark's box and the host's box are both read through getBoundingClientRect, so both
+  // are in the SAME scaled space — the shell's `zoom` scales one exactly as it scales the
+  // other, and their difference is therefore a correct offset. Mixing a rect with an
+  // offsetLeft here would be off by the zoom factor.
+  const hb = host.getBoundingClientRect(), mb = el.getBoundingClientRect();
+  tip.style.left = (mb.left - hb.left + mb.width / 2) + "px";
+  tip.style.top  = (mb.top - hb.top - 6) + "px";
+  tip.setAttribute("data-on", "");
 }
 
 function drawRank(){
@@ -2859,21 +3410,39 @@ function drawDist(){
 function drawShadow(){
   const host = document.getElementById("shadowChart");
   if(!host || !host.clientWidth || !host.clientHeight) return;
-  let rows = matchedRows().filter(r => r.shadow_tag);
-  const scoped = rows.length > 0;
-  if(!scoped) rows = ROWS.filter(r => r.shadow_tag);
-  rows = rows.slice().sort((a, b) => (b.de || 0) - (a.de || 0)).slice(0, 10);
-  document.getElementById("shadowMeta").textContent = rows.length
-    ? (scoped ? rows.length + " tagged in lens" : rows.length + " tagged · none in this lens")
+  let tagged = matchedRows().filter(r => r.shadow_tag);
+  const scoped = tagged.length > 0;
+  if(!scoped) tagged = ROWS.filter(r => r.shadow_tag);
+  // The tag says where to look; the bar is the vendor's reported on-BS D/E. A tagged name the
+  // vendor left blank has no measured leg at all, so it cannot be ranked against names that
+  // have one — ordered as if it were zero it sorted last, reading as the least levered name
+  // on a leverage chart, and drew a bar the eye reads as a quantity. It is named in the meta
+  // line instead, so its absence is reported rather than rendered.
+  const unmeasured = tagged.filter(r => r.de == null);
+  const rows = tagged.filter(r => r.de != null)
+    .sort((a, b) => b.de - a.de).slice(0, 10);
+  const absentNote = unmeasured.length
+    ? " · " + unmeasured.length + " tagged with no reported D/E ("
+      + unmeasured.slice(0, 4).map(r => r.tk).join(", ")
+      + (unmeasured.length > 4 ? " +" + (unmeasured.length - 4) + " more" : "") + ")"
+    : "";
+  document.getElementById("shadowMeta").textContent = tagged.length
+    ? rows.length + " of " + tagged.length
+      + (scoped ? " tagged in lens" : " tagged · none in this lens") + absentNote
     : "no tagged names";
   const legend = document.getElementById("shadowLegend");
   if(!rows.length){
-    // "No tagged name" and "no snapshot" are different findings, and only the first is a
-    // statement about the market.
-    host.innerHTML = ROWS.length
-      ? '<p class="muted-cell">No name in the snapshot carries an editorial AI shadow-debt'
-        + ' tag.</p>'
-      : lensEmptyMsg();
+    // Three different findings sit behind an empty frame, and only the first is a statement
+    // about the market: nothing is tagged, nothing is loaded, or every tagged name is missing
+    // the one number this chart draws.
+    host.innerHTML = !ROWS.length
+      ? lensEmptyMsg()
+      : tagged.length
+        ? '<p class="absent"><b>Every shadow-tagged name here is missing its reported on-BS'
+          + ' debt/equity</b> — ' + esc(unmeasured.map(r => r.tk).join(", ")) + '. There is no'
+          + ' measured leg to draw for them, which is absent data and not a reading of zero.</p>'
+        : '<p class="muted-cell">No name in the snapshot carries an editorial AI shadow-debt'
+          + ' tag.</p>';
     legend.innerHTML = "";
     return;
   }
@@ -2882,14 +3451,15 @@ function drawShadow(){
   const L = 46, R = 14, T = 4, B = 4;
   const rowH = (H - T - B) / rows.length;
   const barH = Math.max(4, Math.min(18, rowH - 6));
-  const demax = Math.max.apply(null, rows.map(r => r.de || 0)) || 1;
+  const demax = Math.max.apply(null, rows.map(r => r.de)) || 1;
   // The measured bar deliberately never fills the frame: the rest of the width is the
   // off-BS leg, which this repo does not measure and must not draw as a quantity.
   const measured = (W - L - R) * 0.6;
   const parts = ['<line x1="'+L+'" y1="'+T+'" x2="'+L+'" y2="'+(H-B)+'" stroke="var(--axis)"/>'];
   rows.forEach((r, i)=>{
     const cy = T + rowH * i + rowH / 2;
-    const w = Math.max(1, (r.de || 0) / demax * measured);
+    const w = Math.max(1, r.de / demax * measured);
+    const label = fmtDe(r.de);
     const on = r.tk === selected;
     const fill = shadowFill(r.shadow_tag);
     let g = '<g class="mark" data-tk="' + r.tk + '">'
@@ -2904,8 +3474,10 @@ function drawShadow(){
         + r.tk + '</text>'
       + '<text x="' + (L + w + 5).toFixed(1) + '" y="' + (cy + 3.5).toFixed(1) + '"'
         + ' font-size="10" font-family="var(--mono)" fill="var(--ink-muted)">'
-        + (r.de == null ? "—" : r.de.toFixed(0)) + '</text>';
-    const dashFrom = L + w + 34;
+        + label + '</text>';
+    // The dash starts clear of the value, whose width follows its digit count — a fixed
+    // offset put a long reading underneath the dashed leg it is supposed to sit beside.
+    const dashFrom = L + w + 13 + label.length * 6;
     if(dashFrom < W - R - 12){
       g += '<line x1="' + dashFrom.toFixed(1) + '" y1="' + cy.toFixed(1) + '" x2="'
         + (W - R - 10) + '" y2="' + cy.toFixed(1) + '" stroke="' + fill
@@ -3085,6 +3657,23 @@ const PANEL_TRIGGERS =
 let activePanel = null;
 
 function placePanel(pop, trigger){
+  // A panel that is a FORM is centred; a panel that explains one control stays beside it.
+  // The lens builder is nine fields and a submit — anchoring that under "+ custom" pinned a
+  // tall dialog to the left margin and pushed its Save button off the bottom of the screen,
+  // and the reader has no reason to relate its position to the button anyway.
+  // Centring is done in CSS, not here: this function mixes `offsetWidth` (unscaled CSS px)
+  // with `window.innerWidth` (the viewport), and the shell's `zoom` makes those two different
+  // spaces — arithmetic across them lands a "centred" panel off-centre by the zoom factor.
+  if(pop.hasAttribute("data-center")){
+    // Cleared, not overridden with !important: an inline left/top beats any class rule, so a
+    // panel opened anchored once would stay at those coordinates and then translate away
+    // from centre by half its own size.
+    pop.style.removeProperty("left");
+    pop.style.removeProperty("top");
+    pop.classList.add("is-centered");
+    return;
+  }
+  pop.classList.remove("is-centered");
   const r = trigger ? trigger.getBoundingClientRect()
     : {left:(window.innerWidth - pop.offsetWidth) / 2, top:90, bottom:82};
   const left = Math.max(10, Math.min(r.left - 8, window.innerWidth - pop.offsetWidth - 10));
@@ -3463,29 +4052,40 @@ function drawPlot(){
   pts.filter(p=>!p.match).forEach(p=>{
     parts.push(`<circle cx="${sx(p.pe).toFixed(1)}" cy="${sy(p.g).toFixed(1)}" r="5" fill="var(--axis)" opacity=".45"><title>${p.tk}</title></circle>`);
   });
-  const taken=[];
+  const scale = groupScale(matches, useBuckets ? "shadow" : plotGroup);
   pts.filter(p=>p.match).forEach(p=>{
     const r=p.row, cx=sx(p.pe), cy=sy(p.g);
     const t=toneOf(r);
     const toned=source!=="none" && t.tone!=null;
     const tag=r.shadow_tag;
-    const fill=useBuckets ? shadowFill(tag) : "var(--accent)";
+    const gv=scale.of(r);
+    const fill=scale.key==="none" ? "var(--accent)" : scale.fill(r);
     const label=tag ? `${r.tk} · ${SHADOW_LABELS[tag]||tag}` : r.tk;
+    // data-grp travels to the hover overlay so the tip can say WHICH group's colour this is;
+    // a coloured dot the reader has to match against a legend by eye is half an answer.
+    const grp=scale.key==="none" ? "" : ` data-grp="${escAttr(gv==null
+      ? "no " + scale.label + " reported" : String(scale.name(gv)))}"`;
     if(useBuckets){
       parts.push(bucketMark(cx, cy, fill, label));
     } else {
-      parts.push(`<circle class="mark" data-tk="${r.tk}" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}"
+      parts.push(`<circle class="mark" data-tk="${r.tk}"${grp} cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}"
         r="${selected===r.tk?9:(toned?7.5:7)}" fill="${fill}" fill-opacity="0.92"
-        stroke="${toned||selected===r.tk?'var(--ink)':'var(--surface)'}"
-        stroke-width="${selected===r.tk?2.2:(toned?1.8:1.5)}" style="cursor:pointer">
+        stroke="${selected===r.tk?'var(--cat-on)':(toned?'var(--ink)':'var(--surface)')}"
+        stroke-width="${selected===r.tk?2.6:(toned?1.8:1.5)}" style="cursor:pointer">
         <title>${label}</title></circle>`);
     }
-    const box=[cx+8, cy-10, cx+8+7*r.tk.length, cy+4];
-    if(!taken.some(b=>b[0]<box[2]&&box[0]<b[2]&&b[1]<box[3]&&box[1]<b[3])){
-      taken.push(box);
-      parts.push(`<text x="${(cx+9).toFixed(1)}" y="${(cy+3.5).toFixed(1)}" fill="var(--ink)" font-size="10" font-weight="600" font-family="var(--sans)">${r.tk}</text>`);
-    }
   });
+  // Only the pinned name keeps a permanent label. Labelling every match packed 86 of them
+  // into one cloud, where the collision test could seat a label next to a mark it did not
+  // belong to and most names were covered anyway — a label you cannot trust to point at its
+  // own mark is worse than no label. The rest are read by hovering.
+  const pin = pts.find(p => p.match && p.tk === selected);
+  if(pin){
+    parts.push(`<text x="${(sx(pin.pe)+12).toFixed(1)}" y="${(sy(pin.g)+4).toFixed(1)}"
+      fill="var(--ink)" font-size="12" font-weight="700" font-family="var(--sans)"
+      stroke="var(--surface)" stroke-width="3.5" paint-order="stroke"
+      >${esc(pin.tk)}</text>`);
+  }
   document.getElementById("plot").innerHTML =
     `<svg class="screen-plot" viewBox="0 0 ${W} ${H}" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" role="img">${parts.join("")}</svg>`;
   bindMarks(document.getElementById("plot"));
@@ -3498,9 +4098,76 @@ function drawPlot(){
        <span><i style="background:var(--ord-3)"></i>Grid / power</span>
        <span style="color:var(--ink-muted)">bucket marks · editorial tags · on-BS D/E is incomplete</span>`
     : `<span><i style="background:var(--axis);opacity:.45"></i>loaded, outside this lens</span>
-       <span><i style="background:var(--accent)"></i>match</span>
-       <span><i class="ring" style="background:var(--accent)"></i>has tone</span>
+       ${scale.key === "none"
+          ? `<span><i style="background:var(--accent)"></i>match</span>`
+          : scale.values.map(v =>
+              `<span><i style="background:${scale.color.get(v)}"></i>${esc(String(scale.name(v)))}`
+              + ` <span style="opacity:.6">${scale.counts.get(v)}</span></span>`).join("")}
+       ${scale.missing
+          ? `<span><i style="background:var(--cat-rest)"></i>no ${esc(scale.label)}`
+            + ` reported <span style="opacity:.6">${scale.missing}</span></span>` : ""}
+       ${scale.pooled
+          ? `<span style="color:var(--ink-muted)">${scale.pooled} more ${esc(scale.label)}(s)`
+            + ` share the neutral — past ten, colour stops telling them apart</span>` : ""}
+       <span><i class="ring" style="background:transparent"></i>has tone</span>
        <span id="legSrc">source: ${sourceLabel()}</span>`;
+}
+
+/* ── Colouring the scatter by a group ────────────────────────────────────────────────────
+   Every match used to be one accent blue, so a hundred marks said only "these hundred
+   qualified" — the chart had no way to show that the qualifiers split into energy names and
+   staples, or that the AI-shadow names sit in one corner. Colour is the free channel here;
+   position is already spent on the two axes.
+
+   Each grouping names the row field it reads and how an absent value is spelled. Absence is a
+   group of its own ("not reported"), never folded into the smallest real one — the same rule
+   the rest of the page follows for a missing metric. */
+const PLOT_GROUPS = {
+  sector: {label:"sector",        of: r => r.sector || null},
+  ai:     {label:"AI exposure",   of: r => r.ai || null,
+           // Low/medium/high is ordered, so it takes the ORDINAL ramp rather than the
+           // categorical palette: three unrelated hues would hide that these are one scale.
+           fixed: {low:"var(--ord-1)", medium:"var(--ord-2)", high:"var(--ord-4)"},
+           order: ["low","medium","high"]},
+  shadow: {label:"AI shadow tag", of: r => r.shadow_tag || null,
+           // The four tags already have colours elsewhere on this page; reusing them keeps
+           // one tag one colour across the board rather than per-chart.
+           fixed: {spv_sponsor:"var(--critical)", capex_burn:"var(--serious)",
+                   supply_chain:"var(--accent)", grid_power:"var(--ord-3)"},
+           name: t => SHADOW_LABELS[t] || t},
+  bucket: {label:"bucket",        of: r => r.bucket || null},
+  none:   {label:"nothing",       of: () => null}
+};
+const CAT_COLORS = ["var(--cat-1)","var(--cat-2)","var(--cat-3)","var(--cat-4)","var(--cat-5)",
+                    "var(--cat-6)","var(--cat-7)","var(--cat-8)","var(--cat-9)","var(--cat-10)"];
+/* Assign a colour per group value present in THESE rows. Ordered by size so the biggest
+   groups get the most separable colours, and capped at the palette: past it, colour has
+   stopped distinguishing anything and pretending otherwise is worse than pooling. What is
+   pooled is counted and named in the legend — 20 buckets silently collapsed to 10 would read
+   as "there are ten buckets". */
+function groupScale(rows, key){
+  const g = PLOT_GROUPS[key] || PLOT_GROUPS.none;
+  const counts = new Map();
+  rows.forEach(r => { const v = g.of(r); if(v != null) counts.set(v, (counts.get(v)||0) + 1); });
+  let vals = Array.from(counts.keys());
+  if(g.order) vals.sort((a,b) => g.order.indexOf(a) - g.order.indexOf(b));
+  else vals.sort((a,b) => counts.get(b) - counts.get(a) || String(a).localeCompare(String(b)));
+  const color = new Map();
+  let pooled = 0;
+  vals.forEach((v,i) => {
+    if(g.fixed) color.set(v, g.fixed[v] || "var(--cat-rest)");
+    else if(i < CAT_COLORS.length) color.set(v, CAT_COLORS[i]);
+    else { color.set(v, "var(--cat-rest)"); pooled++; }
+  });
+  return {
+    key: key, label: g.label, values: vals, color: color, pooled: pooled,
+    counts: counts,
+    of: g.of,
+    name: v => (g.name ? g.name(v) : v),
+    // A row whose group field is absent is drawn in the neutral and SAID to be absent.
+    fill: r => { const v = g.of(r); return v == null ? "var(--cat-rest)" : color.get(v); },
+    missing: rows.filter(r => g.of(r) == null).length
+  };
 }
 
 const SHADOW_LABELS = {
@@ -3532,6 +4199,12 @@ const SHADOW_BLURBS = {
   grid_power: "Power / electrical capacity is one leg of the AI financing bet; grid constraints bind the stack."
 };
 
+/* One reading, one precision. Debt/equity is printed in the results column, in the AI-shadow
+   cell beside it, in that cell's tooltip and on the shadow chart's bars; rounding to a
+   different place in each made one row read as several different numbers depending on which
+   column the eye landed in. Absence keeps its own glyph — it is not a rounded zero. */
+function fmtDe(v){ return v == null ? "—" : v.toFixed(2); }
+
 function shadowTitle(r){
   if(!r.shadow_tag){
     return "Not tagged for AI shadow-debt risk. The number is blank on purpose — absence, not zero.";
@@ -3539,7 +4212,7 @@ function shadowTitle(r){
   const tag = SHADOW_LABELS[r.shadow_tag]||r.shadow_tag;
   const blurb = SHADOW_BLURBS[r.shadow_tag]||"";
   const num = r.de==null ? "no on-BS D/E in the snapshot" :
-    ("on-BS debt/equity "+r.de.toFixed(1)+"% from the vendor");
+    ("on-BS debt/equity "+fmtDe(r.de)+"% from the vendor");
   return tag+". "+num+" — that is the incomplete VISIBLE leg only. "+blurb
     +" Off-BS SPV/project notionals are not measured here (editorial study object, not a live signal).";
 }
@@ -3547,7 +4220,7 @@ function fmtShadow(r){
   if(!r.shadow_tag)
     return `<span class="muted-cell" title="${shadowTitle(r).replace(/"/g,'&quot;')}">—</span>`;
   const tag = SHADOW_LABELS[r.shadow_tag]||r.shadow_tag;
-  const num = r.de==null ? "—" : r.de.toFixed(1);
+  const num = fmtDe(r.de);
   return `<span class="shadow-cell" title="${shadowTitle(r).replace(/"/g,'&quot;')}">${num}<br><span class="muted-cell">${tag}</span></span>`;
 }
 function fmtDy(v){
@@ -3675,7 +4348,7 @@ function renderTable(){
       <td class="num">${r.pe==null?"—":r.pe.toFixed(2)}</td>
       <td class="num">${fmtGrowth(r.g)}${flag}</td>
       <td class="num">${fmtDy(r.dy)}</td>
-      <td class="num">${r.de==null?"—":r.de.toFixed(2)}</td>
+      <td class="num">${fmtDe(r.de)}</td>
       <td class="num">${fmtShadow(r)}</td>
       <td class="num">${r.beta==null?"—":r.beta.toFixed(2)}</td>
       <td class="num">${r.mcap!=null?esc(fmtBig(r.mcap)):'<span class="muted-cell">—</span>'}</td>
@@ -3683,7 +4356,7 @@ function renderTable(){
       <td class="num">${scoreCell(rv)}${note}</td>
       <td>${toneCell(r)}</td>
     </tr>`;
-  }).join("") || `<tr><td colspan="15" class="muted-cell">${ROWS.length
+  }).join("") || `<tr><td colspan="16" class="muted-cell">${ROWS.length
       ? `No name clears every condition in <b>${esc(presetLabel)}</b>${filterPhrase} —
          nothing to rank.`
       : `No rows are loaded — there is nothing to rank. Build a fundamentals snapshot with
@@ -3749,6 +4422,77 @@ function dcShadow(r){
     + ' Editorial study object — not a measured off-balance-sheet notional.</span></div>';
 }
 
+/* ── Watchlist ───────────────────────────────────────────────────────────────────────────
+   A kept set of names, independent of the lens. The lens answers "what passes this screen
+   right now"; the watchlist answers "what am I following", which has to survive changing the
+   lens, changing the filters and closing the tab — otherwise it is just a second selection.
+   Stored as tickers only. Storing the ROWS would freeze a P/E from whenever the name was
+   added and redisplay it as current after the next fetch; the row is looked up fresh on every
+   draw, and a ticker no longer in the payload is SAID to be missing rather than dropped. */
+const WATCH_KEY = "monad.screener.draft.watch.v1";
+let WATCHED = loadWatch();
+function loadWatch(){
+  try{
+    const raw = localStorage.getItem(WATCH_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr.filter(x => typeof x === "string").slice(0, 100) : [];
+  }catch(e){ return []; }
+}
+function saveWatch(){
+  try{ localStorage.setItem(WATCH_KEY, JSON.stringify(WATCHED)); }catch(e){}
+}
+function isWatched(tk){ return WATCHED.indexOf(tk) !== -1; }
+function toggleWatch(tk){
+  const i = WATCHED.indexOf(tk);
+  if(i === -1) WATCHED.push(tk); else WATCHED.splice(i, 1);
+  saveWatch();
+  render();
+}
+function drawWatch(){
+  const host = document.getElementById("watchList");
+  if(!host) return;
+  const title = document.getElementById("watchTitle");
+  const meta = document.getElementById("watchMeta");
+  title.textContent = "Watchlist";
+  if(!WATCHED.length){
+    meta.textContent = "empty";
+    host.innerHTML = '<p class="dc-empty"><b>Nothing on the watchlist yet.</b> Press the'
+      + ' <b>+ watch</b> button on a results row, on the stock detail card, or in the stock'
+      + ' modal. What you keep here is yours — it does not change when the lens does, and it'
+      + ' is still here after a reload.</p>';
+    return;
+  }
+  const spec = lensSpec(), m = METRICS[spec.rank];
+  const inLens = new Set(matchedRows().map(r => r.tk));
+  const rows = WATCHED.map(tk => ({tk: tk, r: ROWS.find(x => x.tk === tk)}));
+  const missing = rows.filter(o => !o.r).length;
+  meta.textContent = WATCHED.length + " kept · " + rows.filter(o => o.r && inLens.has(o.tk)).length
+    + " in this lens";
+  host.innerHTML = '<ul class="watch-list">' + rows.map(o => {
+    // A ticker the payload no longer carries is named and kept, not silently removed: the
+    // reader put it there, and "this snapshot does not cover it" is the useful answer.
+    if(!o.r) return '<li class="watch-row is-gone"><code>' + esc(o.tk) + '</code>'
+      + '<span class="wl-note">not in this snapshot</span>'
+      + '<button type="button" class="wl-drop" data-watch-drop="' + escAttr(o.tk)
+      + '" aria-label="Remove ' + escAttr(o.tk) + ' from the watchlist">×</button></li>';
+    const v = m && m.get(o.r);
+    return '<li class="watch-row' + (inLens.has(o.tk) ? " is-in" : "")
+      + (selected === o.tk ? " is-pinned" : "") + '">'
+      + '<button type="button" class="wl-pin" data-watch-pin="' + escAttr(o.tk) + '">'
+      + '<code>' + esc(o.tk) + '</code> <span class="wl-nm">' + esc(o.r.name || "") + '</span>'
+      + '</button>'
+      + '<span class="wl-val">' + (v == null || !isFinite(v) ? "—" : m.fmt(v)) + '</span>'
+      + '<span class="wl-note">' + (inLens.has(o.tk) ? "in lens" : "outside") + '</span>'
+      + '<button type="button" class="wl-drop" data-watch-drop="' + escAttr(o.tk)
+      + '" aria-label="Remove ' + escAttr(o.tk) + ' from the watchlist">×</button></li>';
+  }).join("") + "</ul>"
+    + '<p class="dc-note">Ranked column is <b>' + esc(m ? m.label : "—")
+    + '</b> — whatever the current lens ranks on, so the watchlist is read in the same terms'
+    + ' as the screen beside it.'
+    + (missing ? ' <b>' + missing + '</b> kept name(s) are not in this snapshot.' : '')
+    + '</p>';
+}
+
 function drawCard(){
   const host = document.getElementById("detailCard");
   if(!host) return;
@@ -3776,18 +4520,27 @@ function rowStanding(r){
 }
 /* One builder for the inline card and the modal. Two copies of this markup would drift,
    and the modal exists precisely so the same row can be read without scrolling. */
+/* One builder, so the button on the detail card and the one in the stock modal cannot end up
+   with different labels or different state for the same name. */
+function watchButton(tk){
+  const on = isWatched(tk);
+  return '<button type="button" class="watch-btn" data-watch-add="' + escAttr(tk) + '"'
+    + ' aria-pressed="' + (on ? "true" : "false") + '">'
+    + (on ? "✓ watching" : "+ watch") + "</button>";
+}
 function cardBody(r){
   const flag = r.flag
     ? '<span class="chip warning" title="Growth measured off a depressed base year">'
       + '<span class="dot"></span>' + esc(r.flag) + '</span>' : "";
   return '<div class="dc-head"><code>' + esc(r.tk) + '</code>'
       + '<span class="nm">' + esc(r.name || "—") + '</span>'
-      + '<span class="sec">' + esc(r.sector || "sector unknown") + '</span></div>'
+      + '<span class="sec">' + esc(r.sector || "sector unknown") + '</span>'
+      + watchButton(r.tk) + '</div>'
     + '<div class="dc-grid">'
       + dcCell("P/E",           r.pe == null ? "—" : r.pe.toFixed(2))
       + dcCell("Growth y/y",    fmtGrowth(r.g), flag)
       + dcCell("Div yield",     fmtDy(r.dy))
-      + dcCell("On-BS debt/eq %", r.de == null ? "—" : r.de.toFixed(2))
+      + dcCell("On-BS debt/eq %", fmtDe(r.de))
       + dcCell("Beta",          r.beta == null ? "—" : r.beta.toFixed(2))
       + dcCell("Market cap",    r.mcap != null ? esc(fmtBig(r.mcap))
                                  : '<span class="muted-cell">—</span>')
@@ -3985,6 +4738,7 @@ function render(){
   drawDist();
   drawShadow();
   drawCard();
+  drawWatch();
   renderTable();
   renderHeadlines();
 }
@@ -4015,6 +4769,9 @@ function applyLivePayload(){
   }
   if(live.headlines) HEADLINES = live.headlines;
   if(live.price_history) PRICES = live.price_history;
+  // The window options are a function of the series just loaded, so they are rebuilt here
+  // rather than once at startup, when PRICES is still the empty default.
+  buildPriceWindowPicker();
   DATA_PRESENT = readDataPresence(live);
   fillFilterSectors();
   const ban = document.getElementById("dataBanner");
@@ -4114,6 +4871,31 @@ document.getElementById("boardReset")?.addEventListener("click", ()=>{
    a control that only takes effect on a second click can be read while it is lying about
    what the table below it contains. */
 document.getElementById("filters").addEventListener("change", ()=>render());
+/* Both live in a tile bar rather than the filter row, because neither changes WHICH names
+   pass the lens — they change how the chart draws the names that already did. Putting them
+   in #filters would have said the opposite. */
+document.getElementById("plotGroup").addEventListener("change", (ev)=>{
+  plotGroup = ev.target.value; drawPlot();
+});
+document.getElementById("priceWin").addEventListener("change", (ev)=>{
+  priceWindow = ev.target.value === "" ? null : parseInt(ev.target.value, 10);
+  drawPrice();
+});
+buildPriceWindowPicker();
+
+/* One delegated handler on the document for every watch control. The buttons live in three
+   places that are all rebuilt by render() — the detail card, the watchlist tile and the stock
+   modal — so binding them per-element would rebind on every draw and leak a listener each
+   time. What matters here is stopping the click before it reaches the results row underneath,
+   which would pin the name as a side effect of watching it. */
+document.addEventListener("click", (ev)=>{
+  const add = ev.target.closest("[data-watch-add]");
+  if(add){ ev.preventDefault(); ev.stopPropagation(); toggleWatch(add.dataset.watchAdd); return; }
+  const drop = ev.target.closest("[data-watch-drop]");
+  if(drop){ ev.preventDefault(); ev.stopPropagation(); toggleWatch(drop.dataset.watchDrop); return; }
+  const pin = ev.target.closest("[data-watch-pin]");
+  if(pin){ ev.preventDefault(); pinTicker(pin.dataset.watchPin); render(); }
+});
 document.querySelectorAll("#toneSrc button").forEach(btn=>{
   btn.onclick=()=>{ setToneSource(btn.dataset.src); render(); };
 });
