@@ -595,14 +595,40 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
    its own priced-of-total coverage, and none of that survives being squeezed into a pill. */
 .bk-grid{display:grid;gap:calc(8px * var(--dcs,1));
   grid-template-columns:repeat(auto-fill,minmax(calc(178px * var(--dcs,1)),1fr))}
-.bk{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;
-  padding:calc(9px * var(--dcs,1)) calc(11px * var(--dcs,1));cursor:pointer;
+/* The star is a sibling of the card, not a child of it: a <button> inside a <button> is
+   invalid HTML and browsers reparent it, which silently moves the star out of the card. */
+.bk-wrap{position:relative;display:flex}
+.bk{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:3px;
+  text-align:left;padding:calc(9px * var(--dcs,1)) calc(26px * var(--dcs,1))
+  calc(9px * var(--dcs,1)) calc(11px * var(--dcs,1));cursor:pointer;
   border:1px solid var(--rule);border-radius:9px;background:var(--surface);
   font:inherit;color:var(--ink-2);transition:border-color .12s,background .12s}
 .bk:hover{border-color:var(--ink-muted)}
-.bk.on{border-color:var(--accent);color:var(--ink);
+.bk-wrap.on .bk{border-color:var(--accent);color:var(--ink);
   background:color-mix(in srgb, var(--accent) 12%, var(--surface));
   box-shadow:0 0 0 1px var(--accent)}
+.bk-star{position:absolute;top:6px;right:5px;border:0;background:transparent;padding:2px 4px;
+  line-height:1;cursor:pointer;color:var(--ink-2);font-size:calc(15px * var(--dcs,1));
+  opacity:.7;transition:opacity .12s,color .12s}
+.bk-star:hover,.bk-star:focus-visible{opacity:1;color:var(--accent)}
+.bk-star[aria-pressed="true"]{opacity:1;color:var(--warning)}
+/* The control row. Wraps rather than scrolls, so a narrow pane stacks the controls instead
+   of hiding the ones on the right behind an edge nothing indicates. */
+.bkc-row{display:flex;flex-wrap:wrap;gap:calc(9px * var(--dcs,1));align-items:flex-end}
+.bkc-row label{display:flex;flex-direction:column;gap:3px;
+  font:calc(10.5px * var(--dcs,1)) var(--mono);letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-muted)}
+.bkc-row select,.bkc-row input{font:calc(12.5px * var(--dcs,1)) var(--sans);
+  padding:calc(4px * var(--dcs,1)) calc(7px * var(--dcs,1));background:var(--plane);
+  color:var(--ink);border:1px solid var(--rule);border-radius:6px;text-transform:none;
+  letter-spacing:normal}
+.bkc-q{flex:1 1 130px;min-width:0}
+.bkc-q input{width:100%}
+.bkc-row button{font:calc(12.5px * var(--dcs,1)) var(--sans);
+  padding:calc(5px * var(--dcs,1)) calc(12px * var(--dcs,1));cursor:pointer;
+  border:1px solid var(--rule);border-radius:999px;background:var(--surface);
+  color:var(--ink-2)}
+.bkc-row button:hover{border-color:var(--accent);color:var(--ink)}
 .bk-id{font:calc(10px * var(--dcs,1)) var(--mono);letter-spacing:.1em;color:var(--ink-muted)}
 .bk-name{font-size:calc(13.5px * var(--dcs,1));font-weight:640;color:var(--ink)}
 .bk-blurb{font-size:calc(11.5px * var(--dcs,1));line-height:1.4}
@@ -1013,32 +1039,85 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
            than compete, which is why the buckets live here beside the lenses instead of on a
            page of their own: "of the names I decided are the tankers trade, which clear a
            debt screen" is the actual question, and neither surface could ask it alone. -->
+      <article class="tile" data-id="bucketctl" id="tile-bucketctl">
+        <div class="tile-bar" data-drag>
+          <span class="tile-grip">⋮⋮</span>
+          <h2>Shock &amp; clock</h2>
+          <div class="tile-meta" id="bucketCtlMeta" data-nodrag>—</div>
+          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
+        </div>
+        <div class="tile-body">
+          <div class="detail-card">
+            <div class="bkc-row">
+              <label>Shock
+                <select id="bucketShock" aria-label="Which shock the heat is read under">
+                  <option value="unknown">Unknown / explore</option>
+                  <option value="hormuz">Hormuz / Gulf energy</option>
+                  <option value="taiwan">Taiwan</option>
+                  <option value="china_min">China minerals</option>
+                  <option value="liquidity">Liquidity</option>
+                  <option value="russia">Russia</option>
+                  <option value="ai_grid">AI / grid</option>
+                </select></label>
+              <label>Clock
+                <select id="bucketClock" aria-label="Which stage of the clock leads">
+                  <option value="T0">T0 Liquidity</option>
+                  <option value="T1" selected>T1 Mechanism</option>
+                  <option value="T2">T2 Industrial</option>
+                </select></label>
+              <label>Tier
+                <select id="bucketTier" aria-label="Which tier of constituent counts">
+                  <option value="all">All tickers</option>
+                  <option value="liquid">Liquid only</option>
+                  <option value="satellite">Satellites only</option>
+                </select></label>
+              <label class="bkc-q">Search
+                <input id="bucketQ" type="search" placeholder="ticker or bucket…"
+                       aria-label="Filter buckets by ticker or name" /></label>
+              <!-- No Apply. Every control on this page takes effect as it changes, on
+                   purpose: a control that only lands on a second click can be read while it
+                   is lying about the cards under it. -->
+              <button type="button" id="bucketClear">Clear</button>
+              <button type="button" id="bucketTop">Select top heat</button>
+            </div>
+            <p class="dc-note" id="bucketHint"></p>
+          </div>
+        </div>
+      </article>
+
       <article class="tile" data-id="buckets" id="tile-buckets">
         <div class="tile-bar" data-drag>
           <span class="tile-grip">⋮⋮</span>
           <h2 id="bucketsTitle">Buckets</h2>
-          <label class="tile-ctl" data-nodrag>shock
-            <select id="bucketShock" data-nodrag aria-label="Order buckets by heat under this shock">
-              <option value="">none — by number</option>
-              <option value="hormuz">Hormuz / Gulf energy</option>
-              <option value="taiwan">Taiwan</option>
-              <option value="china_min">China minerals</option>
-              <option value="liquidity">Liquidity</option>
-              <option value="russia">Russia</option>
-              <option value="ai_grid">AI / grid</option>
-              <option value="unknown">Unknown</option>
-            </select></label>
-          <label class="tile-ctl" data-nodrag>tier
-            <select id="bucketTier" data-nodrag aria-label="Which tier of constituent counts">
-              <option value="all">all tickers</option>
-              <option value="liquid">liquid only</option>
-              <option value="satellite">satellites only</option>
-            </select></label>
           <div class="tile-meta" id="bucketsMeta" data-nodrag>—</div>
           <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
         </div>
         <div class="tile-body">
           <div class="detail-card" id="bucketGrid"></div>
+        </div>
+      </article>
+
+      <article class="tile" data-id="feed" id="tile-feed">
+        <div class="tile-bar" data-drag>
+          <span class="tile-grip">⋮⋮</span>
+          <h2 id="feedTitle">Price feed</h2>
+          <div class="tile-meta" id="feedMeta" data-nodrag>—</div>
+          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
+        </div>
+        <div class="tile-body">
+          <div class="detail-card" id="feedList"></div>
+        </div>
+      </article>
+
+      <article class="tile" data-id="book1" id="tile-book1">
+        <div class="tile-bar" data-drag>
+          <span class="tile-grip">⋮⋮</span>
+          <h2>Book I · Keel / Sail</h2>
+          <div class="tile-meta" id="book1Meta" data-nodrag>—</div>
+          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
+        </div>
+        <div class="tile-body">
+          <div class="detail-card" id="book1List"></div>
         </div>
       </article>
 
@@ -1391,8 +1470,51 @@ let DELISTED = {};
 /** Which buckets are selected. A Set because selection is multiple: two theses can be
     compared on one chart, which is most of the reason to have them on this board. */
 let BUCKET_SEL = new Set();
-let bucketShock = "";      // orders the grid by that shock's heat; "" keeps bucket order
-let bucketTier = "all";    // all | liquid | satellite
+let bucketShock = "unknown";  // which shock the heat is read under
+let bucketClock = "T1";       // T0 / T1 / T2 — bumps the buckets that lead at that stage
+let bucketTier = "all";       // all | liquid | satellite
+let bucketQuery = "";         // free text over id, name, blurb and constituents
+/** Book I — the Sovereign Ledger's own Keel/Sail ranking, shipped with the buckets. */
+let BOOK1 = [];
+/** One line per shock, from the ledger: which buckets to reach for first under it. */
+let BUCKET_HINTS = {};
+/** Which buckets are pinned to the front of the grid. Same affordance as the lens and
+    widget stars, and the same storage shape, so starring means one thing on this page. */
+const BSTAR_KEY = "monad.screener.draft.bucketstars.v1";
+let STARRED_BUCKETS = loadBucketStars();
+function loadBucketStars(){
+  try{
+    const raw = localStorage.getItem(BSTAR_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr.filter(x => typeof x === "string").slice(0, 20) : [];
+  }catch(e){ return []; }
+}
+function saveBucketStars(){
+  try{ localStorage.setItem(BSTAR_KEY, JSON.stringify(STARRED_BUCKETS)); }catch(e){}
+}
+function bucketStarred(id){ return STARRED_BUCKETS.indexOf(id) !== -1; }
+function toggleBucketStar(id){
+  const i = STARRED_BUCKETS.indexOf(id);
+  if(i === -1) STARRED_BUCKETS.push(id); else STARRED_BUCKETS.splice(i, 1);
+  saveBucketStars();
+  drawBuckets();
+}
+/* Heat under shock AND clock, ported from the buckets page so the two surfaces rank the
+   theses identically. The clock bump is authored: at T0 the cash and washout buckets lead,
+   at T1 the energy and supply-shock ones, at T2 the industrial restock. Capped at 4 because
+   that is the scale the table is authored on — letting a bump run past it would invent a
+   fifth level of an editorial judgement that only has four. */
+const CLOCK_LEADS = {
+  T0: ["01","08","14"],
+  T1: ["02","03","04","10","17","18"],
+  T2: ["05","09","11","13","15","16","19","20"]
+};
+const HEAT_MAX = 4;
+function heatOf(b){
+  let h = (b.heat && b.heat[bucketShock]) || 0;
+  if((CLOCK_LEADS[bucketClock] || []).indexOf(b.id) !== -1) h = Math.min(HEAT_MAX, h + 1);
+  return h;
+}
 /** Which row field colours the scatter's marks. See PLOT_GROUPS. */
 let plotGroup = "sector";
 /** Tickers lit on the price chart, chosen by clicking their legend chips.
@@ -1718,12 +1840,13 @@ function priceCohort(cap){
    Every leaf's rect is derived from its parent's, so free space cannot appear and
    the arrangement is not limited to a fixed set of bays. */
 const TILE_IDS = ["plot","price","tone","rank","dist","shadow","card","watch",
-                  "buckets","thesis","members"];
+                  "bucketctl","buckets","thesis","members","feed","book1"];
 const TILE_LABELS = {
   plot:"P/E × growth", price:"Price history", tone:"Headlines & tone",
   rank:"Ranked by lens", dist:"Distribution", shadow:"AI shadow",
   card:"Stock detail", watch:"Watchlist",
-  buckets:"Chaos buckets", thesis:"Bucket thesis", members:"Constituents"
+  bucketctl:"Shock & clock", buckets:"Chaos buckets", thesis:"Bucket thesis",
+  members:"Constituents", feed:"Price feed", book1:"Book I · Keel / Sail"
 };
 const TILE_NOTES = {
   plot:  "Every name as P/E against growth; the lens's matches are the coloured marks.",
@@ -1734,9 +1857,12 @@ const TILE_NOTES = {
   shadow:"Reported on-BS debt/equity for editorially shadow-tagged names.",
   card:  "The pinned name's whole results-table row, read without scrolling down to it.",
   watch: "Names you kept, with the lens's own ranking metric — survives lens changes and reload.",
+  bucketctl:"Shock, clock, tier and search — what the bucket heat is read under.",
   buckets:"The 20 Sovereign Ledger theses. Pick one or several; every other card follows.",
   thesis: "What the selected bucket claims, how long it is held, and what would make it wrong.",
-  members:"Its liquid and satellite names — including the ones this snapshot cannot price."
+  members:"Its liquid and satellite names — including the ones this snapshot cannot price.",
+  feed:   "Last close and window return for every constituent of the selected buckets.",
+  book1:  "The ledger's own Keel / Sail ranking, with each name's next binary event."
 };
 /* What each chart needs before it has anything true to draw, and the one line the tray shows
    when it does not have it. A tile absent from this map is never parked. */
@@ -4647,32 +4773,139 @@ function drawBuckets(){
       + ' fallback list.</p>';
     return;
   }
-  const order = BUCKETS.slice();
-  // Heat is EDITORIAL relevance under a shock, so it orders the grid and never scores a
-  // name. Sorting is the whole of its effect here, exactly as on the buckets page.
-  if(bucketShock) order.sort((a,b) => (b.heat[bucketShock]||0) - (a.heat[bucketShock]||0));
+  // Search first, then star order, then heat. Starred buckets lead because a star is the
+  // reader saying "this one" and outranks any ordering the page computed for them.
+  const q = bucketQuery.trim().toLowerCase();
+  const match = b => !q || (b.id + " " + b.name + " " + b.blurb + " "
+      + b.liquid.join(" ") + " " + b.satellite.join(" ")).toLowerCase().indexOf(q) !== -1;
+  const shown = BUCKETS.filter(match);
+  const order = shown.slice().sort((a, b) => {
+    const sa = bucketStarred(a.id), sb = bucketStarred(b.id);
+    if(sa !== sb) return sa ? -1 : 1;
+    const d = heatOf(b) - heatOf(a);
+    return d || a.id.localeCompare(b.id);
+  });
   const priced = t => !!priceSeries(t);
-  meta.textContent = BUCKET_SEL.size
-    ? BUCKET_SEL.size + " selected · " + bucketNames().length + " names"
-    : BUCKETS.length + " buckets · none selected";
+  meta.textContent = (BUCKET_SEL.size
+      ? BUCKET_SEL.size + " selected · " + bucketNames().length + " names"
+      : "none selected")
+    // The count says how many are SHOWN when a search is on, because "20 buckets" over a
+    // filtered grid of three is the page describing a list it is not displaying.
+    + " · " + shown.length + (q ? " shown of " + BUCKETS.length : " buckets");
+  if(!shown.length){
+    host.innerHTML = '<p class="dc-empty">No bucket matches <b>' + esc(bucketQuery)
+      + '</b> by id, name, thesis or constituent.</p>';
+    return;
+  }
   host.innerHTML = '<div class="bk-grid">' + order.map(b => {
     const mem = bucketMembers(b), have = mem.filter(priced).length;
-    const heat = bucketShock ? (b.heat[bucketShock] || 0) : null;
-    return '<button type="button" class="bk' + (BUCKET_SEL.has(b.id) ? " on" : "") + '"'
-      + ' data-bucket="' + escAttr(b.id) + '" aria-pressed="'
-      + (BUCKET_SEL.has(b.id) ? "true" : "false") + '">'
-      + '<span class="bk-id">' + esc(b.id) + '</span>'
+    const heat = heatOf(b), on = BUCKET_SEL.has(b.id);
+    return '<div class="bk-wrap' + (on ? " on" : "") + '">'
+      + '<button type="button" class="bk" data-bucket="' + escAttr(b.id) + '"'
+      + ' aria-pressed="' + (on ? "true" : "false") + '">'
+      + '<span class="bk-id">bucket ' + esc(b.id) + '</span>'
       + '<span class="bk-name">' + esc(b.name) + '</span>'
       + '<span class="bk-blurb">' + esc(b.blurb) + '</span>'
       + '<span class="bk-foot"><span class="chip">' + esc(b.duration) + '</span>'
+      + '<span class="bk-cov">' + b.liquid.length + "+" + b.satellite.length + '</span>'
       // Priced-of-total, not just the total: a bucket the snapshot can only half draw
       // should say so on its own face rather than at the point the chart comes up short.
-      + '<span class="bk-cov">' + have + '/' + mem.length + ' priced</span>'
-      + (heat == null ? "" : '<span class="bk-heat" title="editorial heat under '
-          + escAttr(bucketShock) + '"><i style="width:' + (heat * 25)
-          + '%"></i></span>')
-      + '</span></button>';
+      + '<span class="bk-cov">' + have + '/' + mem.length + ' priced</span></span>'
+      + '<span class="bk-heat" title="editorial heat under ' + escAttr(bucketShock)
+      + ' at ' + escAttr(bucketClock) + '"><i style="width:'
+      + (heat / HEAT_MAX * 100) + '%"></i></span>'
+      + '</button>'
+      + '<button type="button" class="bk-star" data-bucket-star="' + escAttr(b.id) + '"'
+      + ' aria-pressed="' + (bucketStarred(b.id) ? "true" : "false") + '"'
+      + ' title="Pin to the front" aria-label="Pin ' + escAttr(b.name)
+      + ' to the front">★</button></div>';
   }).join("") + "</div>";
+}
+function drawBucketCtl(){
+  const hint = document.getElementById("bucketHint");
+  const meta = document.getElementById("bucketCtlMeta");
+  if(!hint || !meta) return;
+  const led = (CLOCK_LEADS[bucketClock] || []).length;
+  meta.textContent = bucketShock + " · " + bucketClock;
+  // The ledger's own line for this shock. Absent for a shock nobody wrote one for, which is
+  // said rather than filled with a generic sentence.
+  hint.innerHTML = (BUCKET_HINTS[bucketShock]
+      ? "<b>" + esc(BUCKET_HINTS[bucketShock]) + "</b> "
+      : "<b>No reach-for-first line is written for this shock.</b> ")
+    + "Heat is authored relevance, read under the chosen shock and lifted one step for the "
+    + led + " bucket(s) that lead at " + esc(bucketClock)
+    + ". It orders these cards and scores no company.";
+}
+function drawFeed(){
+  const host = document.getElementById("feedList");
+  if(!host) return;
+  const meta = document.getElementById("feedMeta");
+  const names = bucketNames();
+  if(!names.length){
+    meta.textContent = "—";
+    host.innerHTML = '<p class="dc-empty"><b>No bucket selected.</b> Last close and window'
+      + ' return for every constituent will be listed here.</p>';
+    return;
+  }
+  const rows = names.map(tk => ({tk: tk, s: priceSeries(tk)}));
+  const withPx = rows.filter(r => r.s);
+  meta.textContent = withPx.length + " of " + rows.length + " priced";
+  // Sorted by return, best first — but only among the priced. An unpriced name has no
+  // return to sort ON, so it sits at the end rather than at whichever end a 0 would put it.
+  withPx.sort((a, b) => (b.s[b.s.length-1]/b.s[0]) - (a.s[a.s.length-1]/a.s[0]));
+  const line = r => {
+    const chg = (r.s[r.s.length-1]/r.s[0] - 1) * 100;
+    return '<li class="watch-row"><button type="button" class="wl-pin"'
+      + ' data-watch-pin="' + escAttr(r.tk) + '"><code>' + esc(r.tk) + '</code></button>'
+      + '<span class="wl-val">' + r.s[r.s.length-1].toFixed(2) + '</span>'
+      + '<span class="wl-val" style="color:' + (chg >= 0 ? "var(--good)" : "var(--critical)")
+      + '">' + (chg >= 0 ? "+" : "") + chg.toFixed(1) + '%</span></li>';
+  };
+  host.innerHTML = '<ul class="watch-list">' + withPx.map(line).join("")
+    + rows.filter(r => !r.s).map(r =>
+        '<li class="watch-row is-gone"><code>' + esc(r.tk) + '</code>'
+        + '<span class="wl-note">' + esc(whyNoSeries(r.tk)) + '</span></li>').join("")
+    + "</ul>"
+    + '<p class="dc-note">Close and return over the loaded window, from the same fetched'
+    + ' series the chart draws. Unpriced names are listed last with their reason, not'
+    + ' sorted as if they returned nothing.</p>';
+}
+function drawBook1(){
+  const host = document.getElementById("book1List");
+  if(!host) return;
+  const meta = document.getElementById("book1Meta");
+  if(!BOOK1.length){
+    meta.textContent = "—";
+    host.innerHTML = '<p class="dc-empty"><b>Book I did not travel in this payload.</b>'
+      + ' It is authored in <code>tools/sovereign_buckets.py</code>; nothing here is drawn'
+      + ' from a fallback.</p>';
+    return;
+  }
+  const priced = BOOK1.filter(r => priceSeries(r.t)).length;
+  meta.textContent = BOOK1.length + " names · " + priced + " priced";
+  // Grouped by tier because Keel and Sail are the ledger's own ordering and the whole point
+  // of the table; a flat list would be the same names with the ranking thrown away.
+  const tiers = [];
+  BOOK1.forEach(r => { if(tiers.indexOf(r.tier) === -1) tiers.push(r.tier); });
+  host.innerHTML = tiers.map(tier =>
+    '<div class="dc-block"><h5>' + esc(tier) + '</h5><ul class="watch-list">'
+    + BOOK1.filter(r => r.tier === tier).map(r => {
+        const s = priceSeries(r.t);
+        const chg = s ? (s[s.length-1]/s[0] - 1) * 100 : null;
+        return '<li class="watch-row' + (s ? "" : " is-gone")
+          + (selected === r.t ? " is-pinned" : "") + '">'
+          + '<button type="button" class="wl-pin" data-watch-pin="' + escAttr(r.t) + '">'
+          + '<code>' + esc(r.t) + '</code> <span class="wl-nm">' + esc(r.arch)
+          + '</span></button>'
+          + '<span class="wl-val">' + (chg == null ? "—"
+              : (chg >= 0 ? "+" : "") + chg.toFixed(1) + "%") + '</span>'
+          + '<span class="wl-note">spark ' + esc(String(r.spark)) + '</span>'
+          + '<span class="wl-note">' + (s ? esc(r.bin) : esc(whyNoSeries(r.t)))
+          + '</span></li>';
+      }).join("") + "</ul></div>").join("")
+    + '<p class="dc-note"><b>Spark</b> is the ledger\'s own 1–10 conviction number and'
+    + ' <b>next binary</b> is the event it turns on — both authored, neither derived from any'
+    + ' price on this page.</p>';
 }
 function drawThesis(){
   const host = document.getElementById("thesisCard");
@@ -5057,9 +5290,12 @@ function render(){
   drawShadow();
   drawCard();
   drawWatch();
+  drawBucketCtl();
   drawBuckets();
   drawThesis();
   drawMembers();
+  drawFeed();
+  drawBook1();
   renderTable();
   renderHeadlines();
 }
@@ -5094,6 +5330,8 @@ function applyLivePayload(){
   // this page's job is to draw it, never to supply a default for it — an empty grid that
   // says so is the correct rendering of a payload that carries none.
   if(Array.isArray(live.buckets)) BUCKETS = live.buckets;
+  if(Array.isArray(live.book1)) BOOK1 = live.book1;
+  if(live.shock_hints) BUCKET_HINTS = live.shock_hints;
   if(live.delisted) DELISTED = live.delisted;
   // The window options are a function of the series just loaded, so they are rebuilt here
   // rather than once at startup, when PRICES is still the empty default.
@@ -5226,16 +5464,45 @@ document.addEventListener("click", (ev)=>{
   // data-nodrag so a click on it does not start moving the tile instead.
   const litc = ev.target.closest("[data-price-lit]");
   if(litc){ ev.preventDefault(); ev.stopPropagation(); togglePriceLit(litc.dataset.priceLit); return; }
+  // The star sits INSIDE the bucket card's wrapper, so it must be tested before the card or
+  // starring a bucket would also select it.
+  const bs = ev.target.closest("[data-bucket-star]");
+  if(bs){ ev.preventDefault(); ev.stopPropagation(); toggleBucketStar(bs.dataset.bucketStar); return; }
   const bk = ev.target.closest("[data-bucket]");
   if(bk){ ev.preventDefault(); ev.stopPropagation(); toggleBucket(bk.dataset.bucket); }
 });
 document.getElementById("bucketShock").addEventListener("change", (ev)=>{
-  bucketShock = ev.target.value; drawBuckets();
+  bucketShock = ev.target.value; drawBucketCtl(); drawBuckets();
+});
+document.getElementById("bucketClock").addEventListener("change", (ev)=>{
+  bucketClock = ev.target.value; drawBucketCtl(); drawBuckets();
 });
 document.getElementById("bucketTier").addEventListener("change", (ev)=>{
   // Tier changes WHICH names are in the selection, so every card that reads bucketNames()
   // has to redraw — not just the grid whose control it is.
   bucketTier = ev.target.value; render();
+});
+// `input`, not `change`: the grid filters as it is typed, like the rest of this page.
+document.getElementById("bucketQ").addEventListener("input", (ev)=>{
+  bucketQuery = ev.target.value; drawBuckets();
+});
+document.getElementById("bucketClear").addEventListener("click", ()=>{
+  // Clears the SELECTION and the search, not the stars: a star is a standing preference and
+  // wiping it from a button labelled "Clear" would destroy something the reader set once.
+  BUCKET_SEL.clear();
+  bucketQuery = "";
+  document.getElementById("bucketQ").value = "";
+  PRICE_LIT = [];
+  render();
+});
+document.getElementById("bucketTop").addEventListener("click", ()=>{
+  // The four hottest under the CURRENT shock and clock — so the button follows the controls
+  // rather than a fixed favourite set.
+  BUCKET_SEL.clear();
+  BUCKETS.slice().sort((a, b) => heatOf(b) - heatOf(a)).slice(0, 4)
+    .forEach(b => BUCKET_SEL.add(b.id));
+  PRICE_LIT = [];
+  render();
 });
 document.querySelectorAll("#toneSrc button").forEach(btn=>{
   btn.onclick=()=>{ setToneSource(btn.dataset.src); render(); };

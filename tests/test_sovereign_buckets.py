@@ -223,10 +223,58 @@ class TheBucketsAreOnTheScreenerBoard(unittest.TestCase):
 
     def test_heat_orders_and_never_scores(self):
         """Heat is editorial relevance under a chosen shock, on the same footing as the
-        shadow-severity tags — ordinal and authored, not a quantity to rank names by."""
+        shadow-severity tags — ordinal and authored, not a quantity to rank COMPANIES by.
+
+        The invariant is asserted, not the spelling: an earlier version of this test pinned
+        the local variable name `order`, which broke on a rename while the property it was
+        guarding was untouched. What must be true is that heatOf feeds a comparator and never
+        reaches a per-company number."""
         body = re.search(r"function drawBuckets\(\)\{(.*?)\n\}", self.html, re.S).group(1)
-        self.assertIn("order.sort", body)
-        self.assertNotRegex(body, r"heat[\s\S]{0,40}[-+*/]\s*(?:score|rank|pe|beta)")
+        self.assertRegex(body, r"\.sort\(\(a, b\) => \{[\s\S]{0,300}?heatOf\(b\) - heatOf\(a\)",
+                         "heat must order the grid through a sort comparator")
+        # It may size its own bar and it may sort. It may not touch a company's metrics.
+        self.assertNotRegex(body, r"heatOf\([^)]*\)\s*[*/+-]\s*(?:r\.|score|rank|pe|beta)")
+        self.assertNotRegex(self.html, r"(?:score|rank|pe|beta)\s*[*/+-]\s*heatOf\(")
+
+    def test_the_shock_menu_the_heat_table_and_the_hints_agree(self):
+        """Three lists that must be the same list. A shock in the menu with no heat key
+        silently reads every bucket as 0 and flattens the grid; a heat key with no menu entry
+        is a shock nobody can select; a hint for neither is guidance for a state that cannot
+        be reached."""
+        keys = set()
+        for b in sb.BUCKETS:
+            keys |= set(b["heat"])
+        menu = set(re.findall(
+            r'<option value="(\w+)"',
+            re.search(r'id="bucketShock".*?</select>', self.html, re.S).group(0)))
+        self.assertEqual(sorted(menu - keys), [],
+                         "selectable shocks with no heat data: every bucket would read 0")
+        self.assertEqual(sorted(keys - menu), [],
+                         "heat data for shocks nobody can select")
+        self.assertEqual(sorted(set(sb.SHOCK_HINTS) - menu), [],
+                         "hints for shocks that are not in the menu")
+
+    def test_the_clock_bump_cannot_exceed_the_authored_scale(self):
+        """The heat table is authored on a 0-4 scale. Letting the clock bump run past it
+        would invent a fifth level of a judgement that only has four."""
+        self.assertRegex(self.html, r"const HEAT_MAX = 4;")
+        self.assertRegex(self.html, r"h = Math\.min\(HEAT_MAX, h \+ 1\)")
+
+    def test_the_clock_leads_match_the_buckets_page(self):
+        """Both surfaces must rank the theses identically, or the same shock and clock give
+        two different answers depending on which page you opened."""
+        with open(os.path.join(REPO, "tools", "research_ui.py"), encoding="utf-8") as fh:
+            src = fh.read()
+        original = dict(re.findall(
+            r'clock==="(T\d)"&&\[([^\]]+)\]\.includes\(b\.id\)', src))
+        self.assertTrue(original, "the buckets page's clock bump is gone — re-derive this")
+        ported = re.search(r"const CLOCK_LEADS = \{(.*?)\n\};", self.html, re.S).group(1)
+        for clock, ids in original.items():
+            want = sorted(re.findall(r'"(\d+)"', ids))
+            got = re.search(r"{}: \[([^\]]+)\]".format(clock), ported)
+            self.assertIsNotNone(got, "{} missing from CLOCK_LEADS".format(clock))
+            self.assertEqual(sorted(re.findall(r'"(\d+)"', got.group(1))), want,
+                             "{} leads differ between the two surfaces".format(clock))
 
 
 class ThePriceUniverseCoversTheBuckets(unittest.TestCase):

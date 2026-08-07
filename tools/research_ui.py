@@ -3996,6 +3996,8 @@ def _screener_combined_draft_payload():
         # computed membership — and doing that on one board is the whole point of moving them
         # here rather than linking to a second page.
         "buckets": sovereign_buckets.BUCKETS,
+        "book1": sovereign_buckets.BOOK1,
+        "shock_hints": dict(sovereign_buckets.SHOCK_HINTS),
         "delisted": dict(sovereign_buckets.DELISTED),
         # Series for the screened rows AND for every bucket constituent. The two sets barely
         # overlap — 53 of 202 constituents are in the fundamentals universe — so restricting

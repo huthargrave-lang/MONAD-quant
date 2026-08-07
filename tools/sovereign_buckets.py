@@ -270,14 +270,59 @@ BUCKETS = [
 ]
 
 
+# ── Book I · Keel / Sail ─────────────────────────────────────────────────────
+# The ledger's own conviction ranking of the critical-minerals names, separate from the
+# buckets. `spark` is an authored 1-10 conviction number and `bin` is the next binary event
+# it turns on — neither is derived from a price, and nothing on any page may treat them as
+# if they were. Kept here rather than in a page for the same reason the buckets are.
+BOOK1 = [
+    {'tier': 'Keel', 't': 'MP', 'arch': 'Magnet', 'spark': 9, 'bin': 'Apple recycling + 10X'},
+    {'tier': 'Keel', 't': 'UUUU', 'arch': 'Magnet', 'spark': 8, 'bin': 'VAC close; Donald FID'},
+    {'tier': 'Keel', 't': 'LEU', 'arch': 'Fuel Cell', 'spark': 8, 'bin': 'Piketon lease / HALEU'},
+    {'tier': 'Keel', 't': 'LAC', 'arch': 'Li Fortress', 'spark': 7, 'bin': 'Thacker Pass capex'},
+    {'tier': 'Sail A', 't': 'UAMY', 'arch': 'Sb Fortress', 'spark': 10, 'bin': 'DLA order pace'},
+    {'tier': 'Sail A', 't': 'LRV.AX', 'arch': 'Allied Bridge', 'spark': 7, 'bin': 'Hillgrove first Sb'},
+    {'tier': 'Sail B', 't': 'AREC', 'arch': 'Urban Mine', 'spark': 7, 'bin': "Marion Ge Q3'26"},
+    {'tier': 'Sail B', 't': 'NSRCF', 'arch': 'Graphite Bridge', 'spark': 6, 'bin': 'UAE BAF / Mitsubishi'},
+    {'tier': 'Sail C', 't': 'USAR', 'arch': 'Bridge+Magnet', 'spark': 9, 'bin': 'CADE + Serra Verde'},
+    {'tier': 'Sail C', 't': 'NB', 'arch': 'Quiet Alloy', 'spark': 6, 'bin': 'Traxys + EXIM'},
+    {'tier': 'Sail C', 't': 'LAR', 'arch': 'LatAm Bridge', 'spark': 5, 'bin': 'RIGI Stage 2'},
+    {'tier': 'ETF', 't': 'REMX', 'arch': 'RE / strategic', 'spark': 7, 'bin': 'Policy + China ban beta'},
+    {'tier': 'ETF', 't': 'SETM', 'arch': 'Critical materials', 'spark': 7, 'bin': 'Broad mineral beta'},
+]
+
+# One line per shock: which buckets to reach for first under it. Authored guidance, shown
+# beside the controls. A shock with no line says so rather than getting a generic sentence.
+SHOCK_HINTS = {
+    'unknown': 'Explore — heats are baseline, not a live alert.',
+    'hormuz': 'Focus 02·03·04·17 → then 05·16·10·08.',
+    'taiwan': '01 cash first, then 05·07·11·12·16. Avoid fabless victims.',
+    'china_min': '11 + Book I + 13 copper. Midstream > explorers.',
+    'liquidity': 'Only 01 until washout ends — then 08 / war hedges.',
+    'russia': '05·15·03·09·10·18·19.',
+    'ai_grid': '20 grid · 09 uranium · 13 copper · 11 magnets.',
+}
+
+
 def all_tickers():
-    """Every constituent, deduplicated, in bucket order. Includes the delisted."""
+    """Every name the ledger names — bucket constituents AND Book I — deduplicated, in
+    bucket order then Book I order. Includes the delisted.
+
+    Book I is folded in because it is a table of tickers like any other and its rows draw
+    returns on the same pages. Leaving it out would have meant a Book I name that appears in
+    no bucket was never fetched, and the table would have reported "no data" for a company
+    that trades perfectly well — an absence manufactured by the ticker list rather than by
+    the market."""
     seen, out = set(), []
     for b in BUCKETS:
         for t in b["liquid"] + b["satellite"]:
             if t not in seen:
                 seen.add(t)
                 out.append(t)
+    for row in BOOK1:
+        if row["t"] not in seen:
+            seen.add(row["t"])
+            out.append(row["t"])
     return out
 
 
