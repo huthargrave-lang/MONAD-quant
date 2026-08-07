@@ -3940,6 +3940,9 @@ def _screener_combined_draft_payload():
             "de": de,
             "beta": fr.get("beta"),
             "vol": vol_s,
+            # Size is the context every other column is read against: a P/E of 12 means
+            # something different on a $2B name than on a $2T one.
+            "mcap": fr.get("market_cap"),
             "price": fr.get("price") or sr.get("price"),
             "shadow": de if tag else None,
             "shadow_tag": tag,

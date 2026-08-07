@@ -74,6 +74,15 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
    channel is how a row of chips stops being readable at a glance. */
 .presets .lens-chip.starred,.presets button.starred{
   border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.opt-list label{position:relative}
+.opt-list .tile-star{
+  position:absolute;top:10px;right:2px;border:0;background:transparent;padding:2px 4px;
+  line-height:1;cursor:pointer;color:var(--ink-muted);font-size:13px;opacity:.4;
+  transition:opacity .12s,color .12s}
+.opt-list .tile-star:hover,.opt-list .tile-star:focus-visible{opacity:1;color:var(--accent)}
+.opt-list .tile-star[aria-pressed="true"]{opacity:1;color:var(--warning)}
+.opt-list label.starred{box-shadow:inset 2px 0 0 var(--warning);padding-left:8px;
+  border-radius:0 6px 6px 0}
 .presets .lens-star{
   padding:0 8px 0 9px;border:0;background:transparent;cursor:pointer;line-height:1;
   color:var(--ink-muted);font-size:13px;opacity:.45;transition:opacity .12s,color .12s}
@@ -371,10 +380,10 @@ th .qmark{margin-left:4px}
   background:var(--plane);color:var(--ink-2);font:13px var(--sans);cursor:pointer}
 .btn-row button:hover{border-color:var(--accent);color:var(--ink)}
 
-table{border-collapse:collapse;width:100%;font-size:13px}
+table{border-collapse:collapse;width:100%;font-size:15px}
 th,td{text-align:left;padding:8px 10px 8px 0;border-bottom:1px solid var(--rule);vertical-align:top}
-th{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted);font-weight:600}
-td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:12.5px}
+th{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted);font-weight:600}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:14px}
 .muted-cell{color:var(--ink-muted);font-size:11.5px}
 .bar{display:block;height:3px;border-radius:2px;background:var(--ord-2);margin-top:4px;min-width:2px}
 .sev{border-left:3px solid transparent;padding-left:9px}
@@ -773,6 +782,7 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
               <th class="num">AI shadow<button type="button" class="qmark" data-explain
                 aria-expanded="false" aria-label="What AI shadow debt means">?</button></th>
               <th class="num">Beta</th>
+              <th class="num">Market cap</th>
               <th class="num">$ vol/day</th>
               <th class="num">Score</th>
               <th id="toneCol">Bloomberg tone</th>
@@ -1651,6 +1661,41 @@ function gridTree(ids){
   for(let i = 0; i < ids.length; i += per) groups.push(ids.slice(i, i + per));
   return rowOfStacks(groups);
 }
+/* Split `ids` into `n` equal columns, each column a stack. Fewer tiles than columns just
+   yields fewer columns rather than empty ones — a pane with nothing in it is not a
+   layout, it is a hole, and the split tree has no way to express one. */
+function colsOf(ids, n){
+  if(ids.length < 2) return buildTree(ids);
+  const cols = Math.min(n, ids.length);
+  const per = Math.ceil(ids.length / cols);
+  const groups = [];
+  for(let i = 0; i < ids.length; i += per) groups.push(ids.slice(i, i + per));
+  return rowOfStacks(groups);
+}
+/* Two full-width rows: the horizontal counterpart of `columns`, for charts that read
+   wide — a ranked bar list and a table row are both wider than they are tall. */
+function rowsTree(ids){
+  if(ids.length < 2) return buildTree(ids);
+  const half = Math.ceil(ids.length / 2);
+  return {type:"split", dir:"col", ratio:0.5,
+    a:rowOfStacks([ids.slice(0, half)]), b:rowOfStacks([ids.slice(half)])};
+}
+/* One wide pane across the top with the rest in a row beneath it. The scatter and the
+   price comparison both want width more than height; their supporting charts do not. */
+function bannerTree(ids){
+  if(ids.length < 2) return buildTree(ids);
+  return {type:"split", dir:"col", ratio:0.55,
+    a:leafNode(ids[0]), b:colsOf(ids.slice(1), Math.min(3, ids.length - 1))};
+}
+/* The mirror of `main`: the tall pane on the right, its supporting charts stacked left.
+   Useful when the big chart is the conclusion rather than the starting point. */
+function sideMainTree(ids){
+  if(ids.length < 2) return buildTree(ids);
+  const side = ids.slice(0, Math.max(1, Math.min(3, ids.length - 1)));
+  const main = ids.slice(side.length);
+  return {type:"split", dir:"row", ratio:0.34,
+    a:stackNodes(side), b:stackNodes(main)};
+}
 /* One place that turns an arrangement key into a tree, so the panel's pictograms, the
    "which arrangement is this board in" check and the click handler cannot drift apart. */
 function arrangeTree(kind, ids){
@@ -1660,6 +1705,10 @@ function arrangeTree(kind, ids){
   if(kind === "main") return buildTree(ids);
   if(kind === "grid") return gridTree(ids);
   if(kind === "stack") return stackNodes(ids);     // full-width panes, one above another
+  if(kind === "thirds") return colsOf(ids, 3);
+  if(kind === "rows") return rowsTree(ids);
+  if(kind === "banner") return bannerTree(ids);
+  if(kind === "sidemain") return sideMainTree(ids);
   return null;
 }
 function arrangeBoard(kind){
@@ -1696,6 +1745,14 @@ const ARRANGEMENTS = [
    boxes:[[0,0,.5,.5],[.5,0,.5,.5],[0,.5,.5,.5],[.5,.5,.5,.5]]},
   {key:"stack",   label:"Stack",      aria:"Arrange as a full-width vertical stack",
    boxes:[[0,0,1,1/3],[0,1/3,1,1/3],[0,2/3,1,1/3]]},
+  {key:"thirds",  label:"Thirds",     aria:"Arrange as three equal columns",
+   boxes:[[0,0,1/3,1],[1/3,0,1/3,1],[2/3,0,1/3,1]]},
+  {key:"rows",    label:"Rows",       aria:"Arrange as two full-width rows",
+   boxes:[[0,0,1,.5],[0,.5,1,.5]]},
+  {key:"banner",  label:"Banner",     aria:"Arrange as one wide pane over a row",
+   boxes:[[0,0,1,.55],[0,.55,1/3,.45],[1/3,.55,1/3,.45],[2/3,.55,1/3,.45]]},
+  {key:"sidemain",label:"Side + main", aria:"Arrange as a side column with a main pane",
+   boxes:[[0,0,.34,.5],[0,.5,.34,.5],[.34,0,.66,1]]},
 ];
 /* Structure only, no ratios: dragging a splitter changes how a board looks but not which
    arrangement it is, so the marked pictogram survives a resize. */
@@ -1717,16 +1774,51 @@ function arrangeDiagram(boxes){
 /* The label wraps a description as well as the name, so the accessible name is set explicitly
    rather than left to the whole paragraph of label text. */
 function tileOption(id, note){
-  return '<label><input type="checkbox" data-tile="' + id + '" aria-label="'
+  const on = tileStarred(id);
+  return '<label' + (on ? ' class="starred"' : '') + '>'
+    + '<input type="checkbox" data-tile="' + id + '" aria-label="'
     + escAttr(TILE_LABELS[id]) + ' on the board" />'
     + '<span><b>' + esc(TILE_LABELS[id]) + '</b>' + esc(note || TILE_NOTES[id])
-    + '</span></label>';
+    + '</span>'
+    + '<button type="button" class="tile-star" data-tile-star="' + id + '"'
+    + ' aria-pressed="' + (on ? "true" : "false") + '"'
+    + ' title="Pin to the front" aria-label="Pin ' + escAttr(TILE_LABELS[id])
+    + ' to the front">\u2605</button></label>';
+}
+const TSTAR_KEY = "monad.screener.draft.tilestars.v1";
+let STARRED_TILES = loadTileStars();
+function loadTileStars(){
+  try{
+    const raw = localStorage.getItem(TSTAR_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr.filter(x => typeof x === "string").slice(0, 12) : [];
+  }catch(e){ return []; }
+}
+function saveTileStars(){
+  try{ localStorage.setItem(TSTAR_KEY, JSON.stringify(STARRED_TILES)); }catch(e){}
+}
+function tileStarred(id){ return STARRED_TILES.indexOf(id) !== -1; }
+function toggleTileStar(id){
+  const i = STARRED_TILES.indexOf(id);
+  if(i === -1) STARRED_TILES.push(id); else STARRED_TILES.splice(i, 1);
+  saveTileStars();
+  renderLayoutTiles();
+  renderTray();   // the tray offers the same charts, so it takes the same order
+}
+/* Starred widgets lead, in the order they were starred; the rest keep TILE_IDS order. */
+function tileOrder(ids){
+  const rank = id => {
+    const i = STARRED_TILES.indexOf(id);
+    return i === -1 ? Infinity : i;
+  };
+  return ids.slice().sort((a, b) => rank(a) - rank(b));
 }
 function renderLayoutTiles(){
   const host = document.getElementById("layoutTiles");
   if(!host) return;
   const parked = parkedTiles();
-  host.innerHTML = TILE_IDS.filter(id => !parked.includes(id)).map(id => tileOption(id)).join("");
+  host.innerHTML = tileOrder(TILE_IDS.filter(id => !parked.includes(id)))
+    .map(id => tileOption(id)).join("");
   const box = document.getElementById("layoutParked");
   box.hidden = !parked.length;
   if(!parked.length) return;
@@ -1749,6 +1841,11 @@ function buildLayoutPanel(){
   document.getElementById("layoutPanel").addEventListener("change", (ev)=>{
     const cb = ev.target.closest("input[data-tile]");
     if(cb) setTilePlaced(cb.dataset.tile, cb.checked);
+  });
+  document.getElementById("layoutTiles").addEventListener("click", (ev)=>{
+    const st = ev.target.closest("[data-tile-star]");
+    // A star inside a <label> would otherwise toggle the checkbox it sits in.
+    if(st){ ev.preventDefault(); ev.stopPropagation(); toggleTileStar(st.dataset.tileStar); }
   });
   document.getElementById("layoutArrange").addEventListener("click", (ev)=>{
     const btn = ev.target.closest("button[data-arrange]");
@@ -1959,6 +2056,7 @@ const METRICS = {
   de:    {label:"on-BS debt/equity %", get:r=>r.de,          fmt:v=>v.toFixed(0)},
   beta:  {label:"beta",                get:r=>r.beta,        fmt:v=>v.toFixed(2)},
   vol:   {label:"$ volume/day",        get:r=>volNum(r.vol), fmt:v=>fmtBig(v)},
+  mcap:  {label:"market cap",          get:r=>r.mcap,        fmt:v=>fmtBig(v)},
   score: {label:"composite score",     get:r=>r.score,       fmt:v=>v.toFixed(3)},
   bb:    {label:"Bloomberg headline tone", get:r=>toneMetric(r,"bloomberg"), fmt:fmtTone,
           sub:r=>fmtDocs(toneCov(r,"bloomberg"))},
@@ -3261,6 +3359,7 @@ function renderTable(){
       <td class="num">${r.de==null?"—":r.de.toFixed(2)}</td>
       <td class="num">${fmtShadow(r)}</td>
       <td class="num">${r.beta==null?"—":r.beta.toFixed(2)}</td>
+      <td class="num">${r.mcap!=null?esc(fmtBig(r.mcap)):'<span class="muted-cell">—</span>'}</td>
       <td class="num">${esc(r.vol||"—")}</td>
       <td class="num">${scoreCell(rv)}${note}</td>
       <td>${toneCell(r)}</td>
@@ -3359,6 +3458,8 @@ function drawCard(){
       + dcCell("Div yield",     fmtDy(r.dy))
       + dcCell("On-BS debt/eq %", r.de == null ? "—" : r.de.toFixed(2))
       + dcCell("Beta",          r.beta == null ? "—" : r.beta.toFixed(2))
+      + dcCell("Market cap",    r.mcap != null ? esc(fmtBig(r.mcap))
+                                 : '<span class="muted-cell">—</span>')
       + dcCell("$ vol/day",     esc(r.vol || "—"))
       + dcCell("Score",         r.score == null ? "—" : scoreCell(r.score))
       + dcCell("AI exposure",   esc(r.ai || "—"))
