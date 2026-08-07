@@ -346,6 +346,50 @@ class TheBucketsAreOnTheScreenerBoard(unittest.TestCase):
                              "{} leads differ between the two surfaces".format(clock))
 
 
+class ThePinnedCardsFollowABucketName(unittest.TestCase):
+    """Clicking a constituent pins it and the charts move — the cards at the top must point at
+    it too. 149 of 202 constituents are outside the fundamentals universe by design, so this
+    is the common case rather than the edge one."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(REPO, "docs", "research",
+                               "SCREENER_COMBINED_DRAFT.html"), encoding="utf-8") as fh:
+            cls.html = fh.read()
+
+    def test_a_pinned_name_with_no_row_is_not_reported_as_nothing_pinned(self):
+        """The detail card had two branches for three states, so pinning IRDM moved the price
+        chart onto it and left the card beside that chart saying nothing was pinned."""
+        for fn in ("drawCard", "renderHeadlines"):
+            body = re.search(r"function {}\(\)\{{(.*?)\n\}}".format(fn),
+                             self.html, re.S)
+            self.assertIsNotNone(body, fn)
+            self.assertRegex(
+                body.group(1), r"if\(!r && selected\)\{",
+                "{} must separate 'nothing pinned' from 'pinned, no fundamentals "
+                "row'".format(fn))
+
+    def test_it_shows_what_it_does_know(self):
+        """Absence of a fundamentals row is not absence of everything: the price, the bucket
+        and the tier are all present and are what the reader clicked for."""
+        body = re.search(r"function drawCard\(\)\{(.*?)\n\}", self.html, re.S).group(1)
+        for cell in ("Window return", "Last close", "Bucket", "Tier"):
+            self.assertIn(cell, body, "the no-row card drops {}".format(cell))
+        self.assertIn("is pinned", body)
+        self.assertIn("absence, not a zero", body)
+
+    def test_pinning_from_the_bay_brings_the_cards_into_view(self):
+        """The bay is a page-scroll below the board, so a click that only changed something
+        off-screen read as a click that did nothing."""
+        self.assertRegex(
+            self.html, r'if\(pin\.closest\("#bucketBay"\)\) revealCards\(\);')
+        body = re.search(r"function revealCards\(\)\{(.*?)\n\}", self.html, re.S)
+        self.assertIsNotNone(body, "revealCards is gone")
+        self.assertIn("if(seen) return;", body.group(1),
+                      "scrolling a card that is already in front of the reader is its own "
+                      "kind of broken")
+
+
 class ThePriceUniverseCoversTheBuckets(unittest.TestCase):
     def test_every_tradeable_constituent_is_requested(self):
         missing = sorted(set(sb.price_tickers()) - set(sc.price_universe()))

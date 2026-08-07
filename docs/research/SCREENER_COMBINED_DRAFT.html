@@ -360,11 +360,21 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
   padding:10px 12px 12px;overflow:hidden;
 }
 .tile.dragging{opacity:.55}
+/* Pinned to the tile's own top-right corner, not left in the flex flow. As a flex item it
+   landed wherever the bar's wrapping put it — after the title on a bare tile, but BEFORE the
+   meta on any tile that has one, so "Buckets  x  4 selected · 35 names" put the close control
+   in the middle of its own header. A close button is a fixed affordance: it belongs in the
+   same place on every card, and that place is the corner.
+
+   The right padding on the bar reserves the space, so a long title runs under the button on
+   no tile rather than on most of them. */
 .tile-close{
-  flex:0 0 auto;width:20px;height:20px;padding:0;line-height:1;border-radius:5px;
+  position:absolute;top:6px;right:6px;z-index:3;
+  width:20px;height:20px;padding:0;line-height:1;border-radius:5px;
   border:1px solid transparent;background:transparent;color:var(--ink-muted);
   font:14px var(--sans);cursor:pointer;
 }
+.tile-bar{padding-right:26px}
 .tile-close:hover{border-color:var(--rule);background:var(--plane);color:var(--critical)}
 .tile-bar{
   display:flex;align-items:center;gap:8px;margin:0 0 6px;padding:2px 0 6px;
@@ -611,7 +621,9 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
 .bucket-bay .bay-grid{display:grid;gap:10px;
   grid-template-columns:minmax(0,1.62fr) minmax(0,1fr);
   grid-template-areas:"ctl ctl" "grid grid" "chart side1" "chart side2" "chart side3"}
-.bucket-bay .tile{position:static;display:flex;flex-direction:column;
+/* relative, not static: the close button is absolutely positioned against its
+   own tile, and a static parent would have sent it to the section instead. */
+.bucket-bay .tile{position:relative;display:flex;flex-direction:column;
   border:1px solid var(--rule);border-radius:10px;background:var(--surface);padding:11px 13px}
 .bucket-bay #tile-bucketctl{grid-area:ctl}
 .bucket-bay #tile-buckets{grid-area:grid}
@@ -626,7 +638,9 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
 .btabs button:hover{border-color:var(--accent);color:var(--ink)}
 .btabs button.on{border-color:var(--accent);color:var(--ink);
   background:color-mix(in srgb, var(--accent) 14%, var(--surface));font-weight:600}
+/* margin-right clears the absolutely-positioned close button in the corner. */
 .btab-expand{font:12.5px var(--sans);padding:4px 11px;cursor:pointer;flex:0 0 auto;
+  margin-right:22px;
   border:1px solid var(--rule);border-radius:8px;background:var(--plane);color:var(--ink-2)}
 .btab-expand:hover{border-color:var(--accent);color:var(--ink)}
 .btab-expand[aria-pressed="true"]{border-color:var(--accent);color:var(--ink)}
@@ -3030,15 +3044,17 @@ function initBoard(){
     ev.preventDefault();
   });
 
-  board.addEventListener("click", (ev)=>{
+  /* Delegated on the DOCUMENT, not on #board. Bound to the board it reached the eight tiles
+     inside it and silently missed every card in the buckets bay, whose x was a button that
+     did nothing — and a control that looks live and is not is worse than no control.
+     setTilePlaced already routes each id to its own region. */
+  document.addEventListener("click", (ev)=>{
     const close = ev.target.closest("[data-close]");
     if(!close) return;
     const tile = close.closest(".tile");
     if(!tile) return;
-    boardTree = dropLeaf(boardTree, tile.dataset.id);
-    layoutBoard();
-    saveBoard();
-    scheduleChartReflow();
+    setTilePlaced(tile.dataset.id, false);
+    syncLayoutPanel();
   });
 
   // Keyboard parity with the board's own resize grip: same 20px step, same 100px with Shift,
@@ -5531,12 +5547,63 @@ function drawWatch(){
     + '</p>';
 }
 
+/* Scroll the pinned name's cards into view, if any are placed and none is already visible.
+   Prefers the detail card, then the tone card, then the price chart — the order in which
+   they answer "what did I just click". */
+function revealCards(){
+  const ids = ["card", "tone", "price"];
+  const placed = ids.filter(id => {
+    const el = document.getElementById("tile-" + id);
+    return el && el.style.display !== "none";
+  });
+  if(!placed.length) return;
+  const vh = window.innerHeight;
+  const seen = placed.some(id => {
+    const r = document.getElementById("tile-" + id).getBoundingClientRect();
+    return r.top < vh * 0.9 && r.bottom > vh * 0.1;
+  });
+  if(seen) return;
+  document.getElementById("tile-" + placed[0])
+    .scrollIntoView({block: "center", behavior: "smooth"});
+}
 function drawCard(){
   const host = document.getElementById("detailCard");
   if(!host) return;
   const title = document.getElementById("cardTitle");
   const meta = document.getElementById("cardMeta");
   const r = ROWS.find(x => x.tk === selected);
+  // THREE states, not two. "Nothing is pinned" and "the pinned name has no fundamentals row"
+  // were sharing one branch, so clicking a bucket constituent like IRDM pinned it, moved the
+  // price chart onto it, and left this card saying nothing was pinned — the card flatly
+  // contradicting the chart beside it. Most bucket names are in this position: 149 of 202
+  // constituents are outside the fundamentals universe by design.
+  if(!r && selected){
+    const px = winSeries(selected);
+    const bk = bucketRows().find(m => m.tk === selected);
+    title.textContent = "Stock detail · " + selected;
+    meta.textContent = "no fundamentals row";
+    host.innerHTML = '<div class="dc-head"><code>' + esc(selected) + '</code>'
+      + '<span class="sec">outside the screener universe</span>'
+      + watchButton(selected) + '</div>'
+      + '<div class="dc-grid">'
+      + dcCell("Window return", px
+          ? ((px[px.length-1]/px[0] - 1) * 100).toFixed(1) + "%"
+          : '<span class="muted-cell">—</span>')
+      + dcCell("Last close", px ? px[px.length-1].toFixed(2)
+          : '<span class="muted-cell">—</span>')
+      + dcCell("Bucket", bk ? esc(bk.bucketId + " " + bk.bucket)
+          : '<span class="muted-cell">—</span>')
+      + dcCell("Tier", bk ? esc(bk.tier) : '<span class="muted-cell">—</span>')
+      + '</div>'
+      + '<p class="dc-note"><b>' + esc(selected) + ' is pinned</b>, and the charts are'
+      + ' following it — but the screener\'s universe is deliberately liquid US-listed'
+      + ' operating companies, and this name is not one. ETFs, futures and foreign listings'
+      + ' are in the buckets because the thesis holds them; they have real prices and no'
+      + ' P/E. That is an absence, not a zero'
+      + (px ? '.' : ', and ' + esc(whyNoSeries(selected)) + '.')
+      + '</p>';
+    return;
+  }
   if(!r){
     title.textContent = "Stock detail";
     meta.textContent = ROWS.length ? "nothing pinned" : "no rows loaded";
@@ -5624,6 +5691,17 @@ function renderHeadlines(){
   if(!DATA_PRESENT.tone){
     document.getElementById("headlinesTitle").textContent = "Headlines & tone · no source";
     box.innerHTML = toneAbsentBody();
+    return;
+  }
+  // Same three-way split as the detail card: a pinned bucket constituent outside the
+  // universe is not "nothing pinned", and saying so contradicted the chart following it.
+  if(!r && selected){
+    document.getElementById("headlinesTitle").textContent = "Headlines & tone · " + selected;
+    box.innerHTML = '<p class="absent"><b>' + esc(selected) + ' is pinned</b>, but the tone'
+      + ' snapshot only covers the screener\'s own universe, and this name is outside it.'
+      + ' Bloomberg and Reddit reach a ticker by naming it and Yahoo is requested per ticker'
+      + ' — none of the three was asked about this one. That is absence of coverage, not a'
+      + ' tone of zero.</p>';
     return;
   }
   if(!r){
@@ -5952,7 +6030,17 @@ document.addEventListener("click", (ev)=>{
   const drop = ev.target.closest("[data-watch-drop]");
   if(drop){ ev.preventDefault(); ev.stopPropagation(); toggleWatch(drop.dataset.watchDrop); return; }
   const pin = ev.target.closest("[data-watch-pin]");
-  if(pin){ ev.preventDefault(); pinTicker(pin.dataset.watchPin); render(); return; }
+  if(pin){
+    ev.preventDefault();
+    pinTicker(pin.dataset.watchPin);
+    render();
+    // Pinning from the BAY moves cards that are a page-scroll away, so the click looked like
+    // it did nothing. Bring them into view — but only from the bay, and only if they are
+    // actually off-screen: scrolling the page under someone who clicked a row already in
+    // front of them is its own kind of broken.
+    if(pin.closest("#bucketBay")) revealCards();
+    return;
+  }
   // Legend chips are rebuilt on every draw, so this is delegated for the same reason the
   // watch controls are. It lives in the tile bar, which is a drag handle — the chip carries
   // data-nodrag so a click on it does not start moving the tile instead.
