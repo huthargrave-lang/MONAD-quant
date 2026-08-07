@@ -625,10 +625,10 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
    own tile, and a static parent would have sent it to the section instead. */
 .bucket-bay .tile{position:relative;display:flex;flex-direction:column;
   border:1px solid var(--rule);border-radius:10px;background:var(--surface);padding:11px 13px}
-.bucket-bay #tile-bucketctl{grid-area:ctl}
-.bucket-bay #tile-buckets{grid-area:grid}
-.bucket-bay #tile-bpanel{grid-area:chart}
-.bucket-bay #tile-bwatch{grid-area:side1/side1/side3/side3}
+/* Grid areas are assigned by SLOT, written inline by layoutBay from BAY_ORDER — not pinned
+   to an id here. Pinning them meant the four cards could never change places, and a card you
+   cannot move is not a module. The slots keep their shapes; which card sits in which is the
+   reader's. */
 /* Expand: the panel takes the width and the watchlist drops under it. */
 .bucket-bay.panel-wide .bay-grid{grid-template-areas:"ctl ctl" "grid grid" "chart chart" "side1 side1"}
 /* Tabs. The buckets page's own: pill buttons in the card head, the active one filled. */
@@ -663,8 +663,12 @@ table.bwatch tr.is-pinned{background:var(--plane)}
 table.bwatch .spark{width:80px;height:26px;display:block}
 /* The grip is the board's drag affordance and these cards are not on the board; leaving it
    would advertise a drag that does nothing. */
-.bucket-bay .tile-grip{display:none}
-.bucket-bay .tile-bar{cursor:default}
+.bucket-bay .tile-bar{cursor:grab}
+.bucket-bay .tile-bar:active{cursor:grabbing}
+.bucket-bay .tile.bay-drag{opacity:.5}
+/* The card a drop would land on. Same accent ring the board's drop preview uses, so the two
+   regions answer a drag the same way. */
+.bucket-bay .tile.bay-over{box-shadow:0 0 0 2px var(--accent)}
 .bucket-bay .detail-card{max-height:none}
 .bucket-bay #tile-buckets .detail-card{max-height:none;overflow:visible}
 .bucket-bay #tile-members .detail-card,
@@ -969,7 +973,7 @@ table.bwatch .spark{width:80px;height:26px;display:block}
           <option value="2">≥ 200%</option>
         </select>
       </label>
-      <label><span>Max on-BS D/E <button type="button" class="qmark" data-explain
+      <label><span>Max on-BS D/E <button type="button" class="qmark" data-explain="shadowExplain"
           aria-expanded="false" aria-label="What AI shadow debt means">?</button></span>
         <select id="maxShadow" title="Filters on the reported on-balance-sheet debt/equity %; “tagged only” keeps the editorially shadow-tagged names whatever that number says">
           <option value="any" selected>any</option>
@@ -1120,7 +1124,7 @@ table.bwatch .spark{width:80px;height:26px;display:block}
         <div class="tile-bar" data-drag>
           <span class="tile-grip">⋮⋮</span>
           <h2 id="shadowTitle">AI shadow · measured leg</h2>
-          <button type="button" class="qmark" data-explain aria-expanded="false"
+          <button type="button" class="qmark" data-explain="shadowExplain" aria-expanded="false"
             aria-label="What AI shadow debt means">?</button>
           <div class="tile-meta" id="shadowMeta">—</div>
           <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
@@ -1176,10 +1180,12 @@ table.bwatch .spark{width:80px;height:26px;display:block}
               <th>AI</th>
               <th>Bucket</th>
               <th class="num">P/E</th>
-              <th class="num">Growth</th>
+              <th class="num">Growth<button type="button" class="qmark"
+                data-explain="growthExplain" aria-expanded="false"
+                aria-label="What the growth column measures">?</button></th>
               <th class="num">Div yield</th>
               <th class="num">On-BS debt/eq %</th>
-              <th class="num">AI shadow<button type="button" class="qmark" data-explain
+              <th class="num">AI shadow<button type="button" class="qmark" data-explain="shadowExplain"
                 aria-expanded="false" aria-label="What AI shadow debt means">?</button></th>
               <th class="num">Beta</th>
               <th class="num">Market cap</th>
@@ -1327,6 +1333,27 @@ table.bwatch .spark{width:80px;height:26px;display:block}
       no vendor sentiment score is involved, and no model ·
       shadow-debt tags are editorial study objects, not measured notionals · not investment advice</footer>
   </main>
+</div>
+
+<div class="explain" id="growthExplain" role="dialog" aria-modal="false"
+     aria-labelledby="growthExplainTitle" hidden>
+  <button type="button" class="explain-close" data-panel-close aria-label="Close">×</button>
+  <h3 id="growthExplainTitle">What "growth" is here</h3>
+  <p><b>Earnings growth year on year, from yfinance</b> (<code>earningsGrowth</code>) — and
+  when the vendor does not report that, <b>revenue growth</b> (<code>revenueGrowth</code>)
+  instead. One column, two possible sources, and the row does not say which one it used.</p>
+  <p>That fallback is why the numbers can look extreme. Earnings are a <em>difference</em>,
+  so growth measured off a small or depressed base year runs to hundreds or thousands of
+  percent without the business having changed by anything like that much: a company earning
+  0.05 a share last year and 0.70 this year is up 1,300%, and that is arithmetic about a
+  base, not a description of a business. Revenue growth almost never does this, so two rows
+  in this column can be quantities of different scales.</p>
+  <p>Rows where this is likely carry a <b>base-effect flag</b> next to the number. The axis
+  on the scatter is <b>clipped to the 5th–95th percentile</b> for the same reason — otherwise
+  three base-effect names set the scale and the other hundred sit in a stripe.</p>
+  <p><b>An empty cell is absent, not zero.</b> The vendor reported neither figure, so this
+  name was never judged by any lens that tests growth — it is listed in the unscreenable
+  count under the results, not silently dropped and not scored 0%.</p>
 </div>
 
 <div class="explain" id="shadowExplain" role="dialog" aria-modal="false"
@@ -2838,19 +2865,48 @@ function setBayShown(id, on){
   scheduleChartReflow();
 }
 /* The bay is a flow layout, not a positioned one: the buckets page stacks its sections and
-   so does this. Each card's grid area is fixed by its role, which is what "match the buckets
-   page" means — the control row spans the top, the grid spans under it, the chart takes the
-   wide left cell and the three supporting cards stack down the right. */
+   so does this. Four fixed SLOTS — a full-width control row, a full-width grid, a wide left
+   cell and a right column — and BAY_ORDER says which card is in which. The shapes are the
+   buckets page's; which card takes which shape is the reader's, because a card that cannot
+   move is not a module however many other module properties it has. */
+const BAY_SLOTS = ["ctl", "grid", "chart", "side1 / side1 / side3 / side3"];
+const BAY_ORDER_KEY = "monad.screener.draft.bayorder.v1";
+let BAY_ORDER = loadBayOrder();
+function loadBayOrder(){
+  try{
+    const raw = localStorage.getItem(BAY_ORDER_KEY);
+    const arr = raw ? JSON.parse(raw) : null;
+    // Repaired, not trusted: a stored order from before a card existed would leave that card
+    // with no slot and it would vanish. Known ids in their stored order, then any missing.
+    if(Array.isArray(arr)){
+      const keep = arr.filter(id => BAY_IDS.indexOf(id) !== -1);
+      return keep.concat(BAY_IDS.filter(id => keep.indexOf(id) === -1));
+    }
+  }catch(e){}
+  return BAY_IDS.slice();
+}
+function saveBayOrder(){
+  try{ localStorage.setItem(BAY_ORDER_KEY, JSON.stringify(BAY_ORDER)); }catch(e){}
+}
 function layoutBay(){
   const bay = document.getElementById("bucketBay");
   if(!bay) return;
   let anyShown = false;
-  BAY_IDS.forEach(id => {
+  // Slots are handed out to the cards that are SHOWING, in order. A hidden card does not
+  // hold its slot open, or closing the control row would leave a gap where it used to be.
+  let slot = 0;
+  BAY_ORDER.forEach(id => {
     const el = document.getElementById("tile-" + id);
     if(!el) return;
     const show = bayShown(id) && tileHasData(id);
     el.style.display = show ? "" : "none";
-    if(show) anyShown = true;
+    if(show){
+      el.style.gridArea = BAY_SLOTS[Math.min(slot, BAY_SLOTS.length - 1)];
+      slot++;
+      anyShown = true;
+    } else {
+      el.style.removeProperty("grid-area");
+    }
   });
   // The whole section goes when nothing in it is showing, rather than leaving a titled
   // panel with nothing under it.
@@ -2859,6 +2915,54 @@ function layoutBay(){
   if(note) note.textContent = BUCKET_SEL.size
     ? " — " + BUCKET_SEL.size + " selected, filtering everything above"
     : " — select a thesis to filter the whole screener by it";
+}
+/* Drag a bay card's header onto another and they swap slots. A swap rather than an insert
+   because the four slots are different SHAPES — a full-width control row and a tall right
+   column are not interchangeable positions in a list — so "put this one where that one is"
+   is the move that has an unambiguous result. */
+function initBayDrag(){
+  const bay = document.getElementById("bucketBay");
+  if(!bay) return;
+  let from = null;
+  const tileOf = el => el && el.closest(".tile");
+  bay.addEventListener("pointerdown", (ev)=>{
+    if(ev.button !== 0) return;
+    if(ev.target.closest("[data-nodrag],[data-close],button,select,input,a")) return;
+    const bar = ev.target.closest(".tile-bar");
+    if(!bar) return;
+    from = tileOf(bar);
+    if(!from) return;
+    from.classList.add("bay-drag");
+    bay.setPointerCapture?.(ev.pointerId);
+    ev.preventDefault();
+  });
+  bay.addEventListener("pointermove", (ev)=>{
+    if(!from) return;
+    const over = tileOf(document.elementFromPoint(ev.clientX, ev.clientY));
+    bay.querySelectorAll(".tile.bay-over").forEach(t => t.classList.remove("bay-over"));
+    if(over && over !== from) over.classList.add("bay-over");
+  });
+  const end = (ev)=>{
+    if(!from) return;
+    const over = tileOf(document.elementFromPoint(ev.clientX, ev.clientY));
+    from.classList.remove("bay-drag");
+    bay.querySelectorAll(".tile.bay-over").forEach(t => t.classList.remove("bay-over"));
+    if(over && over !== from){
+      const a = BAY_ORDER.indexOf(from.dataset.id), b = BAY_ORDER.indexOf(over.dataset.id);
+      if(a !== -1 && b !== -1){
+        BAY_ORDER[a] = over.dataset.id;
+        BAY_ORDER[b] = from.dataset.id;
+        saveBayOrder();
+        layoutBay();
+        // The panel's chart is sized from its host box, and it has just been given a
+        // different one.
+        drawBucketChart();
+      }
+    }
+    from = null;
+  };
+  bay.addEventListener("pointerup", end);
+  bay.addEventListener("pointercancel", end);
 }
 /* The picture is the control. Each entry carries the boxes its own arrangement produces,
    drawn as fractions of the board so the pictogram cannot claim a split the tree does not
@@ -4327,7 +4431,10 @@ document.addEventListener("click", (ev)=>{
   if(q){
     ev.preventDefault();
     if(activePanel && activePanel.trigger === q) panelClose();
-    else panelOpen(document.getElementById("shadowExplain"), q);
+    // The button names its own panel. Every "?" used to open shadowExplain regardless, which
+    // was right while all three were about shadow debt and silently wrong the moment one was
+    // not — a "?" that explains a different column is worse than no "?" at all.
+    else panelOpen(document.getElementById(q.dataset.explain || "shadowExplain"), q);
     return;
   }
   const opt = ev.target.closest("[data-panel-open]");
@@ -5971,6 +6078,7 @@ layoutBoard();
 initBoard();
 initBoardResize();
 initResultsResize();
+initBayDrag();
 document.getElementById("lensFormEl").addEventListener("submit", (ev)=>{
   ev.preventDefault();
   submitLensForm();

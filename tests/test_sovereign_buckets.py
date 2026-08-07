@@ -390,6 +390,69 @@ class ThePinnedCardsFollowABucketName(unittest.TestCase):
                       "kind of broken")
 
 
+class TheBayCardsCanBeMoved(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(REPO, "docs", "research",
+                               "SCREENER_COMBINED_DRAFT.html"), encoding="utf-8") as fh:
+            cls.html = fh.read()
+
+    def test_slots_are_assigned_by_order_not_pinned_to_an_id(self):
+        """`#tile-buckets{grid-area:grid}` meant the four cards could never change places,
+        and a card that cannot move is not a module however many other module properties it
+        has."""
+        self.assertNotRegex(self.html, r"\.bucket-bay #tile-\w+\{grid-area:")
+        self.assertRegex(self.html, r"const BAY_SLOTS = \[")
+        self.assertRegex(self.html, r"el\.style\.gridArea = BAY_SLOTS\[")
+
+    def test_a_hidden_card_does_not_hold_its_slot_open(self):
+        """Otherwise closing the control row leaves a gap where it used to be."""
+        body = re.search(r"function layoutBay\(\)\{(.*?)\n\}", self.html, re.S).group(1)
+        self.assertIn("slot++", body)
+        self.assertIn('el.style.removeProperty("grid-area")', body)
+
+    def test_a_stored_order_is_repaired_rather_than_trusted(self):
+        """An order saved before a card existed would leave that card with no slot, and it
+        would simply not appear."""
+        body = re.search(r"function loadBayOrder\(\)\{(.*?)\n\}", self.html, re.S).group(1)
+        self.assertRegex(body, r"BAY_IDS\.indexOf\(id\) !== -1")
+        self.assertRegex(body, r"keep\.concat\(BAY_IDS\.filter")
+
+
+class EveryQuestionMarkExplainsItsOwnColumn(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(REPO, "docs", "research",
+                               "SCREENER_COMBINED_DRAFT.html"), encoding="utf-8") as fh:
+            cls.html = fh.read()
+
+    def test_each_button_names_the_panel_it_opens(self):
+        """They all opened shadowExplain regardless of what they were attached to — right
+        while all three were about shadow debt, and silently wrong the moment one was not. A
+        "?" that explains a different column is worse than no "?" at all."""
+        self.assertNotRegex(self.html, r'class="qmark" data-explain[ \n]+aria',
+                            "a question mark with no named panel is left")
+        self.assertRegex(
+            self.html,
+            r'panelOpen\(document\.getElementById\(q\.dataset\.explain \|\| "shadowExplain"\)')
+
+    def test_every_named_panel_exists(self):
+        named = set(re.findall(r'data-explain="(\w+)"', self.html))
+        self.assertTrue(named, "no question mark names a panel")
+        for pid in sorted(named):
+            self.assertRegex(self.html, r'id="{}"'.format(pid),
+                             "no panel with id {}".format(pid))
+
+    def test_the_growth_column_explains_its_fallback(self):
+        """The column is earningsGrowth OR revenueGrowth and the row does not say which, which
+        is why a base-effect name can read 1368%. Both halves have to be stated."""
+        panel = re.search(r'id="growthExplain".*?</div>', self.html, re.S).group(0)
+        self.assertIn("earningsGrowth", panel)
+        self.assertIn("revenueGrowth", panel)
+        self.assertIn("base", panel)
+        self.assertIn("absent, not zero", panel.replace("</b>", "").replace("<b>", ""))
+
+
 class ThePriceUniverseCoversTheBuckets(unittest.TestCase):
     def test_every_tradeable_constituent_is_requested(self):
         missing = sorted(set(sb.price_tickers()) - set(sc.price_universe()))
