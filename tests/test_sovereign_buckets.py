@@ -229,7 +229,21 @@ class TheBucketsAreOnTheScreenerBoard(unittest.TestCase):
         the lens's leaders over a chosen thesis would answer a question nobody asked."""
         self.assertRegex(
             self.html,
-            r"if\(BUCKET_SEL\.size\)\{[\s\S]{0,900}?bucketNames\(\)\.forEach\(push\)")
+            r"if\(BUCKET_SEL\.size\)\{[\s\S]{0,900}?"
+            r"bucketRowsSpread\(\)\.forEach\(r => push\(r\.tk\)\)")
+
+    def test_the_chart_spreads_across_the_selected_buckets(self):
+        """Bucket-major order is right for a list and wrong for a five-line chart. With
+        Liquid Fear selected the cohort was SGOV, BIL, SHV, JPST, TFLO — five T-bill ETFs
+        from one thesis, flat and drawn on top of each other, with no slot left for anything
+        else the reader had chosen."""
+        body = re.search(r"function bucketRowsSpread\(\)\{(.*?)\n\}", self.html, re.S)
+        self.assertIsNotNone(body, "the chart cohort must interleave the selected buckets")
+        self.assertRegex(body.group(1), r"lists\.forEach\(l => \{ if\(i < l\.length\)")
+        # The LIST keeps bucket-major order; only the chart spreads.
+        self.assertRegex(
+            self.html, r"function bucketNames\(\)\{ return bucketRows\(\)\.map",
+            "membership order must stay bucket-major for the constituents list")
 
     def test_a_pin_outside_the_bucket_does_not_ride_along(self):
         """The pin was pushed into the cohort unconditionally, which put the auto-pinned

@@ -280,6 +280,9 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
   display:block;width:100%;height:14px;margin:-10px 0 14px;padding:0;
   border:0;background:none;cursor:ns-resize;position:relative;
 }
+/* The results grip sits UNDER its table rather than between two sections, so it does not
+   pull upward into the element above it the way the board's does. */
+#resultsResize{margin:6px 0 -6px}
 .board-resize::after{
   content:"";position:absolute;left:50%;top:5px;width:54px;height:4px;
   transform:translateX(-50%);border-radius:99px;background:var(--rule);
@@ -552,7 +555,10 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;font-family:var
 .sev.good{border-color:var(--good)} .sev.warning{border-color:var(--warning)}
 .sev.neutral{border-color:var(--axis)}
 .sticky thead th{position:sticky;top:0;background:var(--surface);z-index:1}
-.scroller{max-height:420px;overflow:auto}
+/* The results table's own height, driven by its grip. A variable rather than a literal so
+   the grip and the CSS cannot disagree about what the current height is — the grip writes it
+   and the rule reads it, which is one number in one place. */
+.scroller{max-height:var(--results-h,420px);overflow:auto}
 footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-size:12px;
   color:var(--ink-muted)}
 
@@ -1171,6 +1177,9 @@ table.bwatch .spark{width:80px;height:26px;display:block}
           <tbody id="tbody"></tbody>
         </table>
       </div>
+      <button type="button" class="board-resize" id="resultsResize"
+              aria-label="Drag to resize the results table; arrow keys also work"
+              title="Drag to make the results table taller or shorter"></button>
     </div>
 
 
@@ -1965,7 +1974,8 @@ function priceCohort(cap){
     // where it is not a constituent and its line means nothing. A bucket chart shows the
     // bucket; a name outside it is a different question and has the board's own price card.
     if(selected && bucketNameSet().has(selected)) push(selected);
-    bucketNames().forEach(push);
+    // Spread, not bucket-major: see bucketRowsSpread.
+    bucketRowsSpread().forEach(r => push(r.tk));
     if(out.length) return out;
     // Every constituent unpriced: fall through rather than return empty, so the chart shows
     // the lens instead of an empty frame the reader would read as "the bucket did nothing".
@@ -2454,6 +2464,73 @@ function initBoardResize(){
     layoutBoard();
     scheduleChartReflow();
     saveBoard();
+    ev.preventDefault();
+  });
+}
+
+/* ── The results table's own height ──────────────────────────────────────────────────────
+   The table was fixed at 420px, which is fine for the ten names a tight lens returns and
+   useless for the eighty-six a loose one does — and the tone column stacks three sources per
+   row, so 420px is four rows when tone is on. It gets the same grip the board has, for the
+   same reason: how much of a list you want on screen is the reader's call, not a constant.
+
+   Floor and ceiling are its own. 160 is about three rows with tone showing, below which the
+   scrollbar is doing all the work; 2400 is past any screen, so the ceiling only stops a
+   runaway drag rather than expressing a view about how tall is sensible. */
+const RESULTS_MIN_H = 160, RESULTS_MAX_H = 2400, RESULTS_DEF_H = 420;
+const RESULTS_KEY = "monad.screener.draft.resultsh.v1";
+let resultsHeight = loadResultsHeight();
+function loadResultsHeight(){
+  try{
+    const v = parseFloat(localStorage.getItem(RESULTS_KEY));
+    return (isFinite(v) && v > 0)
+      ? Math.min(RESULTS_MAX_H, Math.max(RESULTS_MIN_H, v)) : 0;
+  }catch(e){ return 0; }
+}
+function applyResultsHeight(){
+  // 0 means "follow the CSS default", the same convention boardHeight uses. Writing 420 in
+  // instead would freeze today's default into every reader's storage, so changing the
+  // default later would silently not reach anyone who had ever loaded the page.
+  const el = document.querySelector(".scroller");
+  if(el) el.style.setProperty("--results-h", (resultsHeight || RESULTS_DEF_H) + "px");
+}
+function saveResultsHeight(){
+  try{ localStorage.setItem(RESULTS_KEY, String(resultsHeight || 0)); }catch(e){}
+}
+function initResultsResize(){
+  const grip = document.getElementById("resultsResize");
+  const el = document.querySelector(".scroller");
+  if(!grip || !el) return;
+  applyResultsHeight();
+  let start = null;
+  const setH = h => {
+    resultsHeight = Math.min(RESULTS_MAX_H, Math.max(RESULTS_MIN_H, h));
+    applyResultsHeight();
+  };
+  grip.addEventListener("pointerdown", (ev)=>{
+    if(ev.button !== 0) return;
+    start = {y: cssPx(ev.clientY), h: cssRect(el).height};
+    grip.setPointerCapture?.(ev.pointerId);
+    grip.classList.add("dragging");
+    ev.preventDefault();
+  });
+  window.addEventListener("pointermove", (ev)=>{
+    if(!start) return;
+    setH(start.h + (cssPx(ev.clientY) - start.y));
+  });
+  window.addEventListener("pointerup", ()=>{
+    if(!start) return;
+    start = null;
+    grip.classList.remove("dragging");
+    saveResultsHeight();
+  });
+  // Keyboard parity, as the board's grip has: a control that only a pointer can reach is a
+  // control some readers do not have.
+  grip.addEventListener("keydown", (ev)=>{
+    if(ev.key !== "ArrowUp" && ev.key !== "ArrowDown") return;
+    const step = ev.shiftKey ? 100 : 20;
+    setH(cssRect(el).height + (ev.key === "ArrowDown" ? step : -step));
+    saveResultsHeight();
     ev.preventDefault();
   });
 }
@@ -5011,6 +5088,24 @@ function bucketRows(){
 }
 /** The same set as bare tickers, for the callers that only need membership. */
 function bucketNames(){ return bucketRows().map(r => r.tk); }
+/** The same rows, one bucket at a time, round-robin.
+    Bucket-major order is right for a LIST — the constituents card groups by thesis — and
+    wrong for a five-line chart, which takes the first five it is handed. With Liquid Fear
+    selected that was SGOV, BIL, SHV and JPST: four T-bill ETFs whose lines are flat and
+    identical, stacked on each other so only the last-drawn is visible, and one slot left for
+    everything else the reader selected. Interleaving spends the five slots across the theses
+    that were actually chosen. */
+function bucketRowsSpread(){
+  const byBucket = new Map();
+  bucketRows().forEach(r => {
+    if(!byBucket.has(r.bucketId)) byBucket.set(r.bucketId, []);
+    byBucket.get(r.bucketId).push(r);
+  });
+  const lists = Array.from(byBucket.values()), out = [];
+  for(let i = 0; lists.some(l => i < l.length); i++)
+    lists.forEach(l => { if(i < l.length) out.push(l[i]); });
+  return out;
+}
 /** Why a listed constituent has no line. Delisting and absence are different answers: the
     first says "this cannot be fetched", the second says "this was not". */
 function whyNoSeries(tk){
@@ -5140,7 +5235,7 @@ function drawBucketChart(){
   }
   const picks = [];
   let unpriced = 0;
-  bucketRows().forEach(m => {
+  bucketRowsSpread().forEach(m => {
     if(picks.length >= PRICE_COHORT_MAX) return;
     const s = winSeries(m.tk);
     if(s) picks.push({tk: m.tk, s: s}); else unpriced++;
@@ -5797,6 +5892,7 @@ boardTree = loadBoard() || buildTree(lensViews());
 layoutBoard();
 initBoard();
 initBoardResize();
+initResultsResize();
 document.getElementById("lensFormEl").addEventListener("submit", (ev)=>{
   ev.preventDefault();
   submitLensForm();
