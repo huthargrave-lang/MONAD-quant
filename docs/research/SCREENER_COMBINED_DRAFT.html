@@ -2553,9 +2553,11 @@ function lensEmptyMsg(){
 
 function bindMarks(host){
   host.querySelectorAll(".mark[data-tk]").forEach(el=>{
-    el.onclick = ()=>{
+    el.onclick = (ev)=>{
       pinTicker(el.dataset.tk);
       // A mark is the same subject as a table row, so it offers the same full read.
+      // `ev.detail` is the click count; the handler must take the event to read it, and
+      // referencing it without the parameter threw before render() on EVERY mark click.
       if(ev && ev.detail === 2) openStockModal(el.dataset.tk, null);
       render();
     };
@@ -3045,20 +3047,24 @@ function toneOf(r, src){
     const f = TONE_FIELDS[src];
     return {tone:r[f.tone], cov:r[f.cov]||0, toned:r[f.toned]||0};
   }
-  // "all": the mean of the readings that EXIST. A source that said nothing contributes no
-  // term to the average rather than a 0 — averaging in an absence is exactly the collapse
-  // the rest of this page refuses, and it would drag every reading toward neutral.
+  // "all": one definition, shared with METRICS.all — toneAll() weights each source by the
+  // documents that actually carried a tone word, so one headline cannot outvote twenty.
+  // This used to compute its own PLAIN mean, so the ranked chart and the score column
+  // printed different combined numbers for the same row on the same screen (TGT read
+  // +0.52 in one and scored off +0.31 in the other). A source that said nothing still
+  // contributes no term rather than a 0 — averaging in an absence is the collapse the
+  // rest of this page refuses.
   const parts = {};
-  let sum = 0, n = 0, cov = 0, toned = 0;
+  let cov = 0, toned = 0, n = 0;
   TONE_SOURCES.forEach(s=>{
     const f = TONE_FIELDS[s];
     const one = {tone:r[f.tone], cov:r[f.cov]||0, toned:r[f.toned]||0};
     parts[s] = one;
-    if(one.tone != null){ sum += one.tone; n += 1; }
+    if(toneCovered(r, s)) n += 1;
     cov += one.cov;
     toned += one.toned;
   });
-  return {tone: n ? sum/n : null, cov, toned, parts, sources:n, all:true};
+  return {tone: toneAll(r), cov, toned, parts, sources:n, all:true};
 }
 
 /* One threshold table for the chip colour, so the table cell and the detail card cannot end
