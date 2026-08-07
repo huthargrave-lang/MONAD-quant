@@ -61,6 +61,9 @@ import os
 import sys
 from datetime import datetime, timezone
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sovereign_buckets  # noqa: E402  — the canonical chaos-bucket table
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SNAPSHOT_PATH = os.path.join(REPO, "data", "screener", "fundamentals.json")
 
@@ -668,14 +671,35 @@ PRICES_PATH = os.path.join(REPO, "data", "screener", "prices.json")
 PRICE_BARS = 126
 
 
+def price_universe():
+    """Every ticker worth asking a price vendor for: the fundamentals universe PLUS the
+    chaos-bucket constituents.
+
+    These are two different questions and the second is much wider. `UNIVERSE` is deliberately
+    liquid US-listed operating companies, because it exists to carry per-company fundamentals
+    and an ETF has no P/E — but SGOV, XLE, GLD and CL=F all have perfectly real closes, and a
+    bucket chart that omitted them would be drawing a fraction of the bucket. Keeping the two
+    lists separate is what lets a bucket constituent have a price and no P/E without either
+    being invented: the fundamentals row is simply absent, and the page already knows how to
+    say so.
+
+    Order matters only for reproducibility of the batch request; duplicates are dropped."""
+    seen, out = set(), []
+    for ticker in [t for t, *_ in UNIVERSE] + sovereign_buckets.price_tickers():
+        if ticker not in seen:
+            seen.add(ticker)
+            out.append(ticker)
+    return out
+
+
 def fetch_prices(out_path=PRICES_PATH, bars=PRICE_BARS):
-    """Daily closes for the universe, batched. Needs network.
+    """Daily closes for every priceable ticker, batched. Needs network.
 
     Closes only, rounded to cents: the screener plots an indexed line, so OHLCV would be
     an order of magnitude more payload for detail nothing on the page reads."""
     import yfinance as yf   # deferred: every read path must work without it
 
-    tickers = [t for t, *_ in UNIVERSE]
+    tickers = price_universe()
     frame = yf.download(tickers, period="1y", interval="1d",
                         auto_adjust=True, progress=False, threads=True)
     closes = frame["Close"] if "Close" in frame else frame
@@ -699,6 +723,10 @@ def fetch_prices(out_path=PRICES_PATH, bars=PRICE_BARS):
         "source": "yfinance daily closes, auto-adjusted",
         "bars": bars,
         "errors": errors,
+        # Not requested, and not an error either. A reader looking for EURN on a tankers
+        # chart needs to be told it was renamed, which is a different answer from "the fetch
+        # failed" and a very different one from a line drawn anyway.
+        "delisted": dict(sovereign_buckets.DELISTED),
         "series": series,
     }
     os.makedirs(os.path.dirname(out_path), exist_ok=True)

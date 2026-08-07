@@ -64,6 +64,7 @@ for _p in (REPO, TOOLS):
 import ctx  # noqa: E402  — the context layer; reused, never duplicated
 import stock_screener  # noqa: E402  — presets + snapshot; all HTML for it lives here
 import screener_lab  # noqa: E402  — the sentiment screen's engine; renders, never fetches
+import sovereign_buckets  # noqa: E402  — the canonical chaos-bucket table; serialised, not copied
 import ui_tokens  # noqa: E402  — the one palette; this file holds no second copy
 
 
@@ -3180,9 +3181,17 @@ SOVEREIGN_SCREEN_BODY = """
 </p>
 
 <div class="note">
-  <strong>Mock prices.</strong> Sparklines and charts are deterministic demo walks shaped
-  like the intended nightly yfinance daily cache — the real cache is not built yet, so
-  every number here is layout, not data.
+  <strong>Real prices.</strong> Every sparkline, chart and return on this page is drawn from
+  yfinance daily closes cached in <code>data/screener/prices.json</code>
+  (<code>stock_screener.py prices</code>), auto-adjusted, __PRICE_COUNT__ series covering
+  the screener universe and every chaos-bucket constituent that still trades.
+  <span id="priceStamp"></span>
+  A constituent with no line says why in place of the line: the fetch found
+  <strong>__DELISTED_COUNT__</strong> names that no longer quote at all
+  (X to Nippon Steel, MRO to ConocoPhillips, EURN renamed CMB.TECH, and eight more).
+  Until 2026-08-07 these numbers were a seeded random walk over a hash of the ticker — which
+  is why this banner used to say the opposite, and why it had SHV, a 1&ndash;3 month Treasury
+  ETF, up 175% in six months. It returned 1.7%.
 </div>
 
 <div class="stats" id="stats">
@@ -3315,104 +3324,7 @@ for sym in WATCH:
 </div>
 
 <script>
-const BUCKETS = [
-  {id:"01", name:"Liquid Fear", blurb:"Cash / T-bills in a margin spiral.", duration:"scare",
-   lights:["liquidity"], fails:"You needed return, not powder.",
-   liquid:["SGOV","BIL","SHV","JPST"], satellite:["TFLO","ICSH"],
-   heat:{unknown:1,hormuz:1,taiwan:3,china_min:1,liquidity:4,russia:2,ai_grid:1}},
-  {id:"02", name:"Oil / Hormuz", blurb:"Non-Gulf crude on supply shock.", duration:"insurance",
-   lights:["hormuz"], fails:"Short war + SPR crush the spike.",
-   liquid:["XLE","XOP","XOM","CVX","COP","EOG","FANG","OXY","CL=F"],
-   satellite:["DVN","MRO","APA","PR","SM"],
-   heat:{unknown:2,hormuz:4,taiwan:1,china_min:1,liquidity:1,russia:3,ai_grid:1}},
-  {id:"03", name:"LNG", blurb:"US export replaces Gulf / RU gas.", duration:"insurance",
-   lights:["hormuz","russia"], fails:"Warm winter; Qatar online.",
-   liquid:["LNG","NFE","GLNG","NEXT"], satellite:["TELL","FLNG"],
-   heat:{unknown:1,hormuz:3,taiwan:1,china_min:0,liquidity:1,russia:3,ai_grid:1}},
-  {id:"04", name:"Tankers", blurb:"Ton-miles + war-risk premiums.", duration:"insurance",
-   lights:["hormuz","taiwan"], fails:"Ceasefire; premiums fade slowly.",
-   liquid:["FRO","DHT","STNG","EURN","INSW","TNK","ASC"],
-   satellite:["NAT","SFL","TRMD"],
-   heat:{unknown:2,hormuz:4,taiwan:2,china_min:0,liquidity:1,russia:2,ai_grid:0}},
-  {id:"05", name:"Munitions US", blurb:"Primes + missile defense restock.", duration:"restock",
-   lights:["hormuz","taiwan","russia"], fails:"Budget freeze; T0 washout.",
-   liquid:["ITA","PPA","XAR","LMT","RTX","NOC","GD","LHX","HWM"],
-   satellite:["CW","AXON","MRC","SPR"],
-   heat:{unknown:2,hormuz:3,taiwan:3,china_min:1,liquidity:1,russia:4,ai_grid:1}},
-  {id:"06", name:"Drones / UAS", blurb:"Attritable mass + counter-UAS.", duration:"restock",
-   lights:["taiwan","russia"], fails:"Contract drought; meme multiples.",
-   liquid:["AVAV","KTOS","RCAT","ONDS"], satellite:["IRDM","BKSY"],
-   heat:{unknown:1,hormuz:1,taiwan:3,china_min:1,liquidity:1,russia:3,ai_grid:1}},
-  {id:"07", name:"Cyber / space", blurb:"Gray-zone, ISR, launch.", duration:"restock",
-   lights:["taiwan"], fails:"Commercial cyber multiple crush.",
-   liquid:["CRWD","PANW","ZS","S","FTNT","RKLB","PL","LUNR"],
-   satellite:["SAIC","LDOS","BAH"],
-   heat:{unknown:1,hormuz:1,taiwan:4,china_min:2,liquidity:1,russia:2,ai_grid:2}},
-  {id:"08", name:"Gold (washout)", blurb:"After T0 dump if conflict persists.", duration:"order",
-   lights:["liquidity","hormuz","russia"], fails:"Real rates rip; crowded long.",
-   liquid:["GLD","IAU","GLDM","GDX","GDXJ","NEM","AEM","GOLD","GC=F"],
-   satellite:["WPM","FNV","RGLD","AGI"],
-   heat:{unknown:2,hormuz:2,taiwan:2,china_min:1,liquidity:3,russia:3,ai_grid:1}},
-  {id:"09", name:"Uranium / fuel", blurb:"Energy security + HALEU path.", duration:"order",
-   lights:["hormuz","russia","ai_grid"], fails:"Spot flush; reactor delays.",
-   liquid:["URA","URNM","NLR","CCJ","UEC","NXE","DNN","LEU","SMR"],
-   satellite:["URG","UUUU","OKLO","NNE"],
-   heat:{unknown:1,hormuz:2,taiwan:1,china_min:1,liquidity:1,russia:3,ai_grid:4}},
-  {id:"10", name:"Fertilizer", blurb:"Gas → ammonia → food prices.", duration:"insurance",
-   lights:["hormuz","russia"], fails:"Gas normalizes; big harvest.",
-   liquid:["CF","NTR","MOS","IPI"], satellite:["SMG"],
-   heat:{unknown:1,hormuz:3,taiwan:0,china_min:0,liquidity:1,russia:3,ai_grid:0}},
-  {id:"11", name:"Wartime elements", blurb:"Export bans → Book I midstream.", duration:"order",
-   lights:["china_min","taiwan"], fails:"China dump + floors vanish.",
-   liquid:["MP","USAR","UUUU","UAMY","REMX","SETM","AREC","NB"],
-   satellite:["LRV.AX","NSRCF","LAC","LAR","CRIT"],
-   heat:{unknown:2,hormuz:1,taiwan:3,china_min:4,liquidity:1,russia:1,ai_grid:3}},
-  {id:"12", name:"Silicon siege", blurb:"Taiwan — equipment, not victims.", duration:"scare",
-   lights:["taiwan"], fails:"You bought fabless Taiwan risk.",
-   liquid:["AMAT","LRCX","KLAC","ASML","TER","ENTG"],
-   satellite:["ACLS","ONTO","AMKR"],
-   heat:{unknown:1,hormuz:0,taiwan:4,china_min:2,liquidity:2,russia:0,ai_grid:2}},
-  {id:"13", name:"Copper / grid", blurb:"AI power, defense, LatAm supply.", duration:"order",
-   lights:["ai_grid","china_min","taiwan"], fails:"China demand shock crushes Cu.",
-   liquid:["COPX","FCX","SCCO","TECK","CPER","JJC","AA","CENX"],
-   satellite:["HBM","ERO","CSAN","BHP","RIO"],
-   heat:{unknown:2,hormuz:1,taiwan:2,china_min:3,liquidity:1,russia:1,ai_grid:4}},
-  {id:"14", name:"Silver", blurb:"Monetary + solar/defense industrial.", duration:"order",
-   lights:["liquidity","ai_grid"], fails:"Industrial recession hits Ag hard.",
-   liquid:["SLV","SIVR","SIL","SILJ","PAAS","CDE","AG"],
-   satellite:["HL","SVM","EXK"],
-   heat:{unknown:2,hormuz:1,taiwan:1,china_min:1,liquidity:3,russia:2,ai_grid:2}},
-  {id:"15", name:"EU defense", blurb:"NATO rearmament, EU primes/ETFs.", duration:"restock",
-   lights:["russia"], fails:"Peace dividend narrative; FX.",
-   liquid:["WDEF","DFEN","BAESY","EADSY","RNMBY","FINMY","SAABY","THLLY"],
-   satellite:["HO.PA","RHM.DE","LDO.MI"],
-   heat:{unknown:2,hormuz:2,taiwan:1,china_min:0,liquidity:1,russia:4,ai_grid:0}},
-  {id:"16", name:"Naval / yards", blurb:"Shipbuilding, subs, sealift.", duration:"restock",
-   lights:["hormuz","taiwan","russia"], fails:"Program slips; continuing resolutions.",
-   liquid:["HII","GD","BA","TXT","CW","TDG"],
-   satellite:["MRC","AIR"],
-   heat:{unknown:1,hormuz:3,taiwan:3,china_min:0,liquidity:1,russia:3,ai_grid:0}},
-  {id:"17", name:"Refiners / midstream", blurb:"Crack spikes + pipe optionality.", duration:"insurance",
-   lights:["hormuz"], fails:"Demand destruction kills cracks.",
-   liquid:["VLO","MPC","PSX","PBF","DK","EPD","ET","KMI","WMB","OKE"],
-   satellite:["PAA","MMP"],
-   heat:{unknown:1,hormuz:4,taiwan:0,china_min:0,liquidity:1,russia:2,ai_grid:0}},
-  {id:"18", name:"Softs / grain", blurb:"Black Sea / Red Sea food routes.", duration:"insurance",
-   lights:["russia","hormuz"], fails:"Bumper harvest; export bans reverse.",
-   liquid:["DBA","WEAT","CORN","SOYB","ADM","BG","INGR"],
-   satellite:["DE","AGCO"],
-   heat:{unknown:1,hormuz:2,taiwan:0,china_min:0,liquidity:1,russia:3,ai_grid:0}},
-  {id:"19", name:"Steel / met coal", blurb:"Wartime industrial + armor plate.", duration:"restock",
-   lights:["russia","taiwan"], fails:"China steel dump; housing bust.",
-   liquid:["X","NUE","CLF","STLD","RS","HCC","ARCH","BTU","XME"],
-   satellite:["CMC","ZEUS"],
-   heat:{unknown:1,hormuz:1,taiwan:2,china_min:1,liquidity:1,russia:3,ai_grid:2}},
-  {id:"20", name:"Grid / power infra", blurb:"AI load, transformers, uranium utilities.", duration:"order",
-   lights:["ai_grid"], fails:"Rate shock kills utility multiples.",
-   liquid:["VST","CEG","NRG","ETR","SRE","PWR","ETN","GEV","POWL","VRT"],
-   satellite:["MYRG","PRIM","FLR"],
-   heat:{unknown:2,hormuz:1,taiwan:1,china_min:1,liquidity:1,russia:1,ai_grid:4}},
-];
+__BUCKETS_JS__
 
 const BOOK1 = [
   {tier:"Keel", t:"MP", arch:"Magnet", spark:9, bin:"Apple recycling + 10X"},
@@ -3443,10 +3355,13 @@ const HINTS = {
 const selected = new Set(["02","04","17"]);
 let activeTicker = null;
 
-function mulberry32(a){return function(){let t=a+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296}}
-function hashStr(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
-/* Approx trading days ending at the mock "as of". */
-const AS_OF = new Date(Date.UTC(2026, 7, 5));
+/* Approximate trading days back from the fetch's own as-of. Approximate is honest here and
+   was not before: the closes are real and dated by the vendor, but this page ships only the
+   values, so the axis reconstructs weekdays rather than reading dates it does not have. It
+   can therefore be off by a holiday. Anchoring it to PRICE_ASOF at least makes the right-hand
+   end correct; it used to be a hardcoded date that stayed put while the data moved.
+   (mulberry32/hashStr went with genSeries — nothing on this page is generated any more.) */
+const AS_OF = PRICE_ASOF ? new Date(PRICE_ASOF) : new Date();
 function tradingDates(n){
   const dates=[]; let d=new Date(AS_OF);
   while(dates.length<n){
@@ -3461,11 +3376,29 @@ function fmtDate(d, short){
   if(short) return m+" "+d.getUTCDate();
   return m+" "+d.getUTCDate()+", "+d.getUTCFullYear();
 }
+/* Real closes. `PRICES` is injected by page_screen_sovereign from the fetch cached in
+   data/screener/prices.json. This replaced a seeded random walk — `mulberry32(hashStr(symbol))`
+   — that drew a confident, smooth, entirely fictional history for any string handed to it.
+
+   It was labelled "demo cache", so it was not dishonest — but it was undetectable, and the
+   scale of what it invented is worth recording: it had SHV, a 1–3 month Treasury ETF,
+   returning +175.1% over the window. The real figure is +1.7%. It also drew two years of
+   price action for EURN, MRO, X and eight other names that no longer trade at all, because a
+   hash of a delisted ticker hashes exactly as well as a live one.
+
+   Returns null rather than a series when the ticker was not fetched. Null is what the callers
+   check; a zero-filled or flat array here would be the same invented history in a quieter
+   costume, and every one of them already knows how to say "no data". */
 function genSeries(symbol,n){
-  const rnd=mulberry32(hashStr(symbol)^0x51ed9e);
-  let px=20+(hashStr(symbol)%80); const out=[];
-  for(let i=0;i<n;i++){px=Math.max(1.2,px*(1+(rnd()-0.48)*0.035));out.push(+px.toFixed(2))}
-  return out;
+  const s = PRICES[symbol];
+  if(!s || !s.length) return null;
+  return n && n < s.length ? s.slice(s.length - n) : s.slice();
+}
+/* Why a listed constituent has no line. Absence and delisting are different answers and the
+   reader needs the second one: "EURN is missing" invites a refetch, "EURN was renamed
+   CMB.TECH" does not. */
+function whyNoSeries(symbol){
+  return DELISTED[symbol] ? "delisted — " + DELISTED[symbol] : "not in the fetched snapshot";
 }
 function pct(a,b){return ((b/a)-1)*100}
 function sparkSVG(series,w=80,h=26){
@@ -3573,7 +3506,12 @@ function renderWatch(){
   selectedBuckets().forEach(b=>{
     tickersOf(b).forEach(({t,tier})=>{
       const s=genSeries(t,n);
-      rows.push({t,tier,bucket:b.id,name:b.name,s,last:s.at(-1),chg:pct(s[0],s.at(-1))});
+      // An unpriced name keeps its row and carries its reason. Dropping it would make the
+      // watchlist quietly shorter than the buckets it claims to list, and a bucket that
+      // silently omits its delisted members misreports what it held.
+      rows.push(s
+        ? {t,tier,bucket:b.id,name:b.name,s,last:s.at(-1),chg:pct(s[0],s.at(-1))}
+        : {t,tier,bucket:b.id,name:b.name,s:null,why:whyNoSeries(t)});
     });
   });
   const seen=new Set(); const uniq=rows.filter(r=>{if(seen.has(r.t))return false;seen.add(r.t);return true});
@@ -3582,16 +3520,20 @@ function renderWatch(){
   document.getElementById("statClock").textContent=document.getElementById("clock").value;
   document.getElementById("statBuckets").textContent=String(BUCKETS.length);
   document.getElementById("watchHint").textContent=uniq.length
-    ? `${uniq.length} tickers · ${selected.size} buckets · ${n}d window · demo cache`
+    ? `${uniq.length} tickers · ${selected.size} buckets · ${n}d window · `
+      + `${uniq.filter(r=>r.s).length} priced from yfinance closes`
+      + (PRICE_ASOF ? ` as of ${PRICE_ASOF.slice(0,10)}` : "")
     : "Select buckets to fill rows.";
   document.getElementById("watchBody").innerHTML=uniq.map(r=>`
     <tr class="${activeTicker===r.t?"on":""}" data-t="${r.t}" style="cursor:pointer">
       <td><code>${r.t}</code></td>
       <td class="tag">${r.tier}</td>
       <td class="muted">${r.bucket} ${r.name}</td>
-      <td>${sparkSVG(r.s)}</td>
-      <td class="num">${r.last.toFixed(2)}</td>
-      <td class="num ${r.chg>=0?"up":"dn"}">${r.chg>=0?"+":""}${r.chg.toFixed(1)}%</td>
+      ${r.s
+        ? `<td>${sparkSVG(r.s)}</td>
+           <td class="num">${r.last.toFixed(2)}</td>
+           <td class="num ${r.chg>=0?"up":"dn"}">${r.chg>=0?"+":""}${r.chg.toFixed(1)}%</td>`
+        : `<td colspan="3" class="muted">${r.why}</td>`}
     </tr>`).join("")||`<tr><td colspan="6" class="muted">No selection</td></tr>`;
   document.querySelectorAll("#watchBody tr[data-t]").forEach(tr=>{
     tr.onclick=()=>{activeTicker=tr.dataset.t;renderChart();renderWatch()};
@@ -3601,11 +3543,26 @@ function renderChart(){
   const n=+document.getElementById("window").value;
   const bucks=selectedBuckets();
   const map={};
-  if(activeTicker){map[activeTicker]=genSeries(activeTicker,n);document.getElementById("chartTitle").textContent=activeTicker+" · demo history"}
+  let skipped = 0;
+  if(activeTicker){
+    const s=genSeries(activeTicker,n);
+    if(s) map[activeTicker]=s;
+    document.getElementById("chartTitle").textContent = s
+      ? activeTicker+" · daily closes"
+      : activeTicker+" · "+whyNoSeries(activeTicker);
+  }
   else if(bucks.length){
     const ts=[]; bucks.forEach(b=>b.liquid.forEach(t=>{if(!ts.includes(t))ts.push(t)}));
-    ts.slice(0,5).forEach(t=>map[t]=genSeries(t,n));
-    document.getElementById("chartTitle").textContent=bucks.map(b=>b.id).join(", ")+" · normalized";
+    // Take the first five that HAVE a series rather than the first five outright: slicing
+    // before checking spent a chart slot on a name that draws nothing, so a bucket led by a
+    // delisted ticker came out with four lines and no explanation for the fifth.
+    ts.forEach(t=>{
+      if(Object.keys(map).length >= 5) return;
+      const s=genSeries(t,n);
+      if(s) map[t]=s; else skipped++;
+    });
+    document.getElementById("chartTitle").textContent=bucks.map(b=>b.id).join(", ")+" · normalized"
+      + (skipped ? " · "+skipped+" unpriced" : "");
   } else document.getElementById("chartTitle").textContent="Select a bucket";
   document.getElementById("chartBox").innerHTML=lineChart(map,n);
   const dates=tradingDates(n);
@@ -3639,10 +3596,16 @@ function renderBook1(){
   document.getElementById("book1Body").innerHTML=BOOK1.map(r=>{
     const s=genSeries(r.t,n);
     return `<tr><td>${r.tier}</td><td><code>${r.t}</code></td><td>${r.arch}</td>
-      <td class="num">${r.spark}</td><td class="muted">${r.bin}</td><td>${sparkSVG(s)}</td></tr>`;
+      <td class="num">${r.spark}</td><td class="muted">${r.bin}</td>
+      <td>${s ? sparkSVG(s) : `<span class="muted">${whyNoSeries(r.t)}</span>`}</td></tr>`;
   }).join("");
 }
 function renderAll(){renderBuckets();renderWatch();renderChart();renderBook1()}
+/* The fetch's own timestamp, in the banner. A page that says "real prices" without saying
+   WHEN is one stale cache away from being wrong in a way nobody can see. */
+document.getElementById("priceStamp").textContent =
+  PRICE_ASOF ? "Fetched " + PRICE_ASOF.replace("T", " ").replace("Z", " UTC") + "."
+             : "No price cache is on disk in this checkout — run stock_screener.py prices.";
 
 document.querySelectorAll(".tabs button").forEach(btn=>{
   btn.onclick=()=>{
@@ -3667,7 +3630,28 @@ renderAll();
 
 
 def page_screen_sovereign(mounts):
-    return page("Chaos bucket screener", "/screen", SOVEREIGN_SCREEN_BODY, mounts,
+    # The bucket table is substituted at render time from tools/sovereign_buckets.py rather
+    # than held as a literal in the body above. It was a byte-identical copy of the one in
+    # SOVEREIGN_LEDGER_OPTIONS_MOCK.html, which is the state every duplicate in this repo has
+    # been in right up until the edit that made it wrong.
+    prices = stock_screener.load_prices() or {}
+    series = prices.get("series") or {}
+    # The banner counts what was actually loaded rather than asserting a number. With no
+    # prices.json on disk it therefore reads "0 series", which is the true state of a checkout
+    # that has not run the fetch — not a claim that the data is fake.
+    body = SOVEREIGN_SCREEN_BODY.replace(
+        "__PRICE_COUNT__", str(len(series))).replace(
+        "__DELISTED_COUNT__", str(len(sovereign_buckets.DELISTED))).replace(
+        "__BUCKETS_JS__",
+        sovereign_buckets.as_js()
+        + "\nconst PRICES = " + json.dumps(prices.get("series") or {},
+                                           separators=(",", ":")) + ";"
+        # The delisted table travels with the prices because it answers the question the
+        # prices raise: a constituent with no series either was not fetched or cannot be.
+        + "\nconst DELISTED = " + json.dumps(sovereign_buckets.DELISTED,
+                                             separators=(",", ":")) + ";"
+        + "\nconst PRICE_ASOF = " + json.dumps(prices.get("as_of") or "") + ";")
+    return page("Chaos bucket screener", "/screen", body, mounts,
                 "research · sovereign ledger · study objects")
 
 
