@@ -1685,27 +1685,14 @@ function toggleBucketStar(id){
   saveBucketStars();
   drawBuckets();
 }
-/* Heat under shock AND clock, ported from the buckets page so the two surfaces rank the
-   theses identically. The clock bump is authored: at T0 the cash and washout buckets lead,
-   at T1 the energy and supply-shock ones, at T2 the industrial restock. Capped at 4 because
-   that is the scale the table is authored on — letting a bump run past it would invent a
-   fifth level of an editorial judgement that only has four. */
-const CLOCK_LEADS = {
-  T0: ["01","08","14"],
-  T1: ["02","03","04","10","17","18"],
-  T2: ["05","09","11","13","15","16","19","20"]
-};
-const HEAT_MAX = 4;
-function heatOf(b){
-  const h = (b.heat && b.heat[bucketShock]) || 0;
-  // A bucket the ledger scored 0 under this shock stays 0. The clock says which theses lead
-  // at a stage, not that an irrelevant one becomes relevant — lifting 0 to 1 gave a bucket
-  // explicitly marked as not applying a heat bar, and let it outrank buckets the ledger had
-  // scored above it. The bump amplifies an authored signal; it does not create one.
-  if(h === 0) return 0;
-  return (CLOCK_LEADS[bucketClock] || []).indexOf(b.id) !== -1
-    ? Math.min(HEAT_MAX, h + 1) : h;
-}
+/* Heat under shock AND clock. The rule and its constants — LEDGER.CLOCK_LEADS,
+   LEDGER.HEAT_MAX, LEDGER.bucketHeat() — arrive with the served payload from
+   tools/sovereign_buckets.py, which is also where the buckets page gets them. This file used to carry its own copy "ported from
+   the buckets page", and the two had already stopped agreeing: 16 of the 420
+   bucket x shock x clock states differed over whether an authored 0 could be bumped to 1.
+   Opened as a bare file with no payload there is no rule and no BUCKETS either, so nothing
+   calls this — an absent reading is never a wrong one. */
+function heatOf(b){ return LEDGER.bucketHeat(b, bucketShock, bucketClock); }
 /** Which row field colours the scatter's marks. See PLOT_GROUPS. */
 let plotGroup = "sector";
 /** Groups the scatter is showing, chosen by clicking their legend swatches. EMPTY means all
@@ -5587,7 +5574,7 @@ function drawBuckets(){
       // own ladder and it carries a colour per step as well as a width. An inline width would
       // have overridden the class and left every bar the same colour.
       + '<span class="bk-heat h' + heat + '" title="editorial heat ' + heat + ' of '
-      + HEAT_MAX + ' under ' + escAttr(bucketShock) + ' at ' + escAttr(bucketClock)
+      + LEDGER.HEAT_MAX + ' under ' + escAttr(bucketShock) + ' at ' + escAttr(bucketClock)
       + '"><i></i></span>'
       + '</button>'
       + '<button type="button" class="bk-star" data-bucket-star="' + escAttr(b.id) + '"'
@@ -5688,16 +5675,24 @@ function drawBucketCtl(){
   const hint = document.getElementById("bucketHint");
   const meta = document.getElementById("bucketCtlMeta");
   if(!hint || !meta) return;
-  const led = (CLOCK_LEADS[bucketClock] || []).length;
+  const leads = LEDGER.CLOCK_LEADS[bucketClock] || [];
+  // Count the buckets that are actually lifted, not the ones that lead. A lead the ledger
+  // scored 0 under this shock stays 0 — the clock says WHEN an implicated thesis bites, so it
+  // cannot implicate one — and under china_min three of the six T1 leads are exactly that.
+  // Reporting all six would describe a rule the page does not run.
+  const lifted = leads.filter(id => {
+    const b = BUCKETS.find(x => x.id === id);
+    return b && ((b.heat && b.heat[bucketShock]) || 0) > 0;
+  }).length;
   meta.textContent = bucketShock + " · " + bucketClock;
   // The ledger's own line for this shock. Absent for a shock nobody wrote one for, which is
   // said rather than filled with a generic sentence.
   hint.innerHTML = (BUCKET_HINTS[bucketShock]
       ? "<b>" + esc(BUCKET_HINTS[bucketShock]) + "</b> "
       : "<b>No reach-for-first line is written for this shock.</b> ")
-    + "Heat is authored relevance, read under the chosen shock and lifted one step for the "
-    + led + " bucket(s) that lead at " + esc(bucketClock)
-    + ". It orders these cards and scores no company.";
+    + "Heat is authored relevance, read under the chosen shock and lifted one step for "
+    + lifted + " of the " + leads.length + " bucket(s) leading at " + esc(bucketClock)
+    + " — the ones this shock scores above zero. It orders these cards and scores no company.";
 }
 function drawFeed(){
   const host = document.getElementById("feedList");

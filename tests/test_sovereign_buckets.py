@@ -46,13 +46,32 @@ def _served():
 
 class TheTableHasOneSource(unittest.TestCase):
     def test_research_ui_holds_no_literal_of_its_own(self):
+        """Not the bucket table alone. `BOOK1` and `HINTS` sat in research_ui as
+        byte-identical copies for as long as this guard only watched `BUCKETS` — the guard
+        was narrower than the module's claim, so the parts it did not name drifted out from
+        under it. Every table the module owns is named here."""
         with open(os.path.join(REPO, "tools", "research_ui.py"), encoding="utf-8") as fh:
             src = fh.read()
-        self.assertNotIn(
-            "const BUCKETS = [\n", src,
-            "the bucket table is written down in research_ui again — it must be serialised "
-            "from sovereign_buckets.as_js() at render time")
-        self.assertIn("sovereign_buckets.as_js()", src)
+        for var in ("BUCKETS", "BOOK1", "HINTS", "DELISTED"):
+            self.assertNotRegex(
+                src, r"(?:const|let|var)\s+{}\s*=\s*[\[{{]".format(var),
+                "{} is written down in research_ui again — every table the ledger owns must "
+                "be serialised from sovereign_buckets.runtime_js() at render time".format(var))
+        self.assertIn("sovereign_buckets.runtime_js()", src)
+
+    def test_every_name_the_module_emits_is_one_a_surface_asked_for(self):
+        """The emit is a namespace, so a name dropped from it fails at the destructuring
+        rather than quietly reading undefined — but only if the returned object and the
+        literals it is built from stay in step, which is itself two lists."""
+        js = sb.runtime_js()
+        # Scoped to the emit's own top level (two spaces). `bucketHeat` has a `const h`
+        # inside it, and a bare scan would demand the module export a local.
+        declared = (set(re.findall(r"^  const (\w+) = ", js, re.M))
+                    | set(re.findall(r"^  function (\w+)\(", js, re.M)))
+        returned = set(re.findall(
+            r"\w+", re.search(r"return \{(.*?)\};", js).group(1)))
+        self.assertEqual(declared, returned,
+                         "runtime_js declares and returns different names")
 
     def test_the_served_page_gets_the_canonical_table(self):
         m = re.search(r"const BUCKETS = (\[.*?\]);\n", _served(), re.S)
@@ -315,35 +334,81 @@ class TheBucketsAreOnTheScreenerBoard(unittest.TestCase):
     def test_the_clock_bump_cannot_exceed_the_authored_scale(self):
         """The heat table is authored on a 0-4 scale. Letting the clock bump run past it
         would invent a fifth level of a judgement that only has four."""
-        self.assertRegex(self.html, r"const HEAT_MAX = 4;")
-        self.assertRegex(self.html, r"Math\.min\(HEAT_MAX, h \+ 1\)")
+        highest = max(v for b in sb.BUCKETS for v in b["heat"].values())
+        self.assertEqual(sb.HEAT_MAX, highest,
+                         "the ceiling and the table it caps have come apart")
+        self.assertIn("Math.min(HEAT_MAX, h + 1)", sb.runtime_js())
+
+    def test_no_surface_restates_the_ceiling(self):
+        """`heat / 4` reads correctly and is a second copy of HEAT_MAX. It stops reading
+        correctly the moment the table gains a fifth level, and it does so silently."""
+        for path in (os.path.join(REPO, "tools", "research_ui.py"),
+                     os.path.join(REPO, "docs", "research",
+                                  "SCREENER_COMBINED_DRAFT.html")):
+            with open(path, encoding="utf-8") as fh:
+                src = fh.read()
+            self.assertNotRegex(
+                src, r"heatOf\([^)]*\)\}? ?/ ?\d",
+                "{} divides a heat by a hard-coded ceiling; use HEAT_MAX".format(
+                    os.path.basename(path)))
 
     def test_the_clock_bump_cannot_create_relevance_from_nothing(self):
         """A bucket the ledger scored 0 under a shock stays 0. The clock says which theses
         LEAD at a stage, not that an irrelevant one becomes relevant — lifting 0 to 1 drew a
         heat bar on a bucket explicitly marked as not applying, and let it outrank buckets the
-        ledger had scored above it."""
-        body = re.search(r"function heatOf\(b\)\{(.*?)\n\}", self.html, re.S).group(1)
-        self.assertRegex(body, r"if\(h === 0\) return 0;",
-                         "the bump must not apply to an authored zero")
-        self.assertLess(body.index("if(h === 0) return 0;"), body.index("CLOCK_LEADS"),
+        ledger had scored above it.
+
+        Every (bucket, shock) pair is authored, so this is not a guess about missing data:
+        a 0 here is someone writing zero."""
+        self.assertEqual(
+            [(b["id"], s) for b in sb.BUCKETS
+             for s in sb.SHOCK_HINTS if s not in b["heat"]], [],
+            "a heat is missing, so a 0 no longer unambiguously means 'scored zero'")
+        rule = re.search(r"function bucketHeat\(.*?\n  \}", sb.runtime_js(), re.S).group(0)
+        self.assertIn("if(h === 0) return 0;", rule,
+                      "the bump must not apply to an authored zero")
+        self.assertLess(rule.index("if(h === 0) return 0;"), rule.index("CLOCK_LEADS"),
                         "the zero check must run before the bump, not after it")
 
-    def test_the_clock_leads_match_the_buckets_page(self):
-        """Both surfaces must rank the theses identically, or the same shock and clock give
-        two different answers depending on which page you opened."""
-        with open(os.path.join(REPO, "tools", "research_ui.py"), encoding="utf-8") as fh:
-            src = fh.read()
-        original = dict(re.findall(
-            r'clock==="(T\d)"&&\[([^\]]+)\]\.includes\(b\.id\)', src))
-        self.assertTrue(original, "the buckets page's clock bump is gone — re-derive this")
-        ported = re.search(r"const CLOCK_LEADS = \{(.*?)\n\};", self.html, re.S).group(1)
-        for clock, ids in original.items():
-            want = sorted(re.findall(r'"(\d+)"', ids))
-            got = re.search(r"{}: \[([^\]]+)\]".format(clock), ported)
-            self.assertIsNotNone(got, "{} missing from CLOCK_LEADS".format(clock))
-            self.assertEqual(sorted(re.findall(r'"(\d+)"', got.group(1))), want,
-                             "{} leads differ between the two surfaces".format(clock))
+    def test_neither_surface_can_answer_this_for_itself(self):
+        """The two surfaces used to hold the rule separately and had already stopped agreeing
+        — 16 of the 420 bucket x shock x clock states differed. Equality between two copies is
+        not the property worth guarding; having one copy is. Nothing here compares the pages,
+        because there is no longer anything on either page to compare."""
+        for path in (os.path.join(REPO, "tools", "research_ui.py"),
+                     os.path.join(REPO, "docs", "research",
+                                  "SCREENER_COMBINED_DRAFT.html")):
+            with open(path, encoding="utf-8") as fh:
+                src = fh.read()
+            name = os.path.basename(path)
+            # Declarations AND uses. Watching only declarations let two bare `HEAT_MAX`
+            # references survive the move to the shared rule: source-reading tests passed
+            # and the served page threw ReferenceError on first draw. A name this file no
+            # longer declares may only be reached through the namespace.
+            # A name is legitimately bare only if the file took it out of the namespace by
+            # destructuring. Otherwise every read must be qualified.
+            taken = set()
+            for grab in re.finditer(r"\{([^{}]*)\}\s*=\s*window\.LEDGER", src):
+                taken |= set(re.findall(r"\w+", grab.group(1)))
+            for owned in ("CLOCK_LEADS", "HEAT_MAX", "bucketHeat"):
+                self.assertNotRegex(
+                    src, r"(?:const|let|var|function)\s+{}\b".format(owned),
+                    "{} defines {}, which the ledger owns".format(name, owned))
+                if owned in taken:
+                    continue
+                for use in re.finditer(r"(?<![.\w]){}\b".format(owned), src):
+                    line = src[src.rfind("\n", 0, use.start()) + 1:use.start()]
+                    if line.lstrip().startswith(("*", "//", "#", "/*")):
+                        continue   # prose naming the constant, not reading it
+                    self.fail(
+                        "{} reads a bare {} it neither declares nor destructures from "
+                        "window.LEDGER: {!r}".format(name, owned, line.strip()[:70]))
+            self.assertNotRegex(src, r'clock\s*===\s*"T\d"',
+                                "{} bumps by clock itself".format(name))
+            body = re.search(r"function heatOf\(b\)\s*\{(.*?)\n?\}", src, re.S)
+            self.assertIsNotNone(body, "{} has no heatOf".format(name))
+            self.assertIn("bucketHeat(", body.group(1),
+                          "{}'s heatOf must delegate to the shared rule".format(name))
 
 
 class ThePinnedCardsFollowABucketName(unittest.TestCase):

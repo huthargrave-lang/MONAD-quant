@@ -304,6 +304,33 @@ SHOCK_HINTS = {
 }
 
 
+# ── The heat rule ────────────────────────────────────────────────────────────
+# Heat is authored per (bucket, shock) above; the clock then promotes the buckets that lead
+# at that horizon. Both halves live here because the promotion is a READING of the authored
+# numbers, not a presentation choice — two surfaces showing the same bucket under the same
+# shock and clock at different heats are not styled differently, they disagree about the
+# ledger.
+HEAT_MAX = 4
+
+CLOCK_LEADS = {
+    "T0": ["01", "08", "14"],
+    "T1": ["02", "03", "04", "10", "17", "18"],
+    "T2": ["05", "09", "11", "13", "15", "16", "19", "20"],
+}
+
+# A scored zero stays zero. Every one of the 140 (bucket, shock) pairs above carries a heat —
+# none is absent — so a 0 is an author writing "this shock does not implicate this bucket",
+# not a gap. Promoting it to 1 because the clock leads that bucket would contradict them: the
+# clock says WHEN an implicated bucket bites, so it can sharpen an implication and cannot
+# manufacture one. This is the one place the two surfaces used to differ (16 of 420 states).
+_HEAT_RULE_JS = """
+  function bucketHeat(b, shock, clock){
+    const h = (b.heat && b.heat[shock]) || 0;
+    if(h === 0) return 0;
+    return (CLOCK_LEADS[clock] || []).indexOf(b.id) !== -1 ? Math.min(HEAT_MAX, h + 1) : h;
+  }"""
+
+
 def all_tickers():
     """Every name the ledger names — bucket constituents AND Book I — deduplicated, in
     bucket order then Book I order. Includes the delisted.
@@ -343,3 +370,38 @@ def as_js(var="BUCKETS"):
     this function at render time."""
     import json
     return "const {} = {};".format(var, json.dumps(BUCKETS, separators=(",", ":")))
+
+
+def runtime_js():
+    """Everything a surface needs to READ the ledger: the two tables it draws, the shock
+    lines, and the heat rule with its constants.
+
+    `as_js()` covers the bucket table alone, which was enough while the buckets page still
+    held its own `BOOK1`, its own `HINTS`, and its own copy of the heat arithmetic. Those
+    copies agreed on the tables and disagreed on the arithmetic — the exact failure this
+    module was written to end, arriving in the one part that was left out of it. A surface
+    now takes the whole reading or none of it.
+
+    Emitted as one `window.LEDGER` object rather than loose `const`s. The draft screener
+    already declares `BUCKETS`, `BOOK1` and `DELISTED` at its own top level and fills them
+    from its payload, and a second top-level `const BUCKETS` in any script on that page is a
+    redeclaration that stops the file executing. A namespace lets a surface take only the
+    parts it lacks — the draft needs the rule alone — without either side having to know what
+    the other declared."""
+    import json
+
+    def lit(name, value):
+        return "  const {} = {};".format(name, json.dumps(value, separators=(",", ":")))
+
+    return "\n".join([
+        "window.LEDGER = (function(){",
+        lit("BUCKETS", BUCKETS),
+        lit("BOOK1", BOOK1),
+        lit("HINTS", SHOCK_HINTS),
+        lit("DELISTED", DELISTED),
+        lit("HEAT_MAX", HEAT_MAX),
+        lit("CLOCK_LEADS", CLOCK_LEADS),
+        _HEAT_RULE_JS.strip("\n"),
+        "  return {BUCKETS, BOOK1, HINTS, DELISTED, HEAT_MAX, CLOCK_LEADS, bucketHeat};",
+        "})();",
+    ])

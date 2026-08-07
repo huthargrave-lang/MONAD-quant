@@ -3325,32 +3325,12 @@ for sym in WATCH:
 
 <script>
 __BUCKETS_JS__
+/* The whole reading of the ledger — both tables, the shock lines, the heat rule and its
+   ceiling — comes from tools/sovereign_buckets.py. This page draws it; it does not define
+   any of it. */
+const {BUCKETS, BOOK1, HINTS, DELISTED, HEAT_MAX, bucketHeat} = window.LEDGER;
 
-const BOOK1 = [
-  {tier:"Keel", t:"MP", arch:"Magnet", spark:9, bin:"Apple recycling + 10X"},
-  {tier:"Keel", t:"UUUU", arch:"Magnet", spark:8, bin:"VAC close; Donald FID"},
-  {tier:"Keel", t:"LEU", arch:"Fuel Cell", spark:8, bin:"Piketon lease / HALEU"},
-  {tier:"Keel", t:"LAC", arch:"Li Fortress", spark:7, bin:"Thacker Pass capex"},
-  {tier:"Sail A", t:"UAMY", arch:"Sb Fortress", spark:10, bin:"DLA order pace"},
-  {tier:"Sail A", t:"LRV.AX", arch:"Allied Bridge", spark:7, bin:"Hillgrove first Sb"},
-  {tier:"Sail B", t:"AREC", arch:"Urban Mine", spark:7, bin:"Marion Ge Q3'26"},
-  {tier:"Sail B", t:"NSRCF", arch:"Graphite Bridge", spark:6, bin:"UAE BAF / Mitsubishi"},
-  {tier:"Sail C", t:"USAR", arch:"Bridge+Magnet", spark:9, bin:"CADE + Serra Verde"},
-  {tier:"Sail C", t:"NB", arch:"Quiet Alloy", spark:6, bin:"Traxys + EXIM"},
-  {tier:"Sail C", t:"LAR", arch:"LatAm Bridge", spark:5, bin:"RIGI Stage 2"},
-  {tier:"ETF", t:"REMX", arch:"RE / strategic", spark:7, bin:"Policy + China ban beta"},
-  {tier:"ETF", t:"SETM", arch:"Critical materials", spark:7, bin:"Broad mineral beta"},
-];
 
-const HINTS = {
-  unknown: "Explore — heats are baseline, not a live alert.",
-  hormuz: "Focus 02·03·04·17 → then 05·16·10·08.",
-  taiwan: "01 cash first, then 05·07·11·12·16. Avoid fabless victims.",
-  china_min: "11 + Book I + 13 copper. Midstream > explorers.",
-  liquidity: "Only 01 until washout ends — then 08 / war hedges.",
-  russia: "05·15·03·09·10·18·19.",
-  ai_grid: "20 grid · 09 uranium · 13 copper · 11 magnets.",
-};
 
 const selected = new Set(["02","04","17"]);
 let activeTicker = null;
@@ -3462,14 +3442,12 @@ function lineChart(seriesMap,n){
   return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Normalized price history with dates">${yTicks}${base}${xTicks}${paths}${rangeNote}</svg>`;
 }
 function seriesChg(series){ return pct(series[0], series.at(-1)); }
+/* Reads this page's two controls and hands them to the shared rule. The arithmetic used to
+   live here as well as on the draft, and the two had already diverged on authored zeros — so
+   the only thing this page is allowed to own is which <select> holds the shock. */
 function heatOf(b){
-  const shock=document.getElementById("shock").value;
-  const clock=document.getElementById("clock").value;
-  let h=b.heat[shock]??1;
-  if(clock==="T0"&&["01","08","14"].includes(b.id)) h=Math.min(4,h+1);
-  if(clock==="T1"&&["02","03","04","10","17","18"].includes(b.id)) h=Math.min(4,h+1);
-  if(clock==="T2"&&["05","09","11","13","15","16","19","20"].includes(b.id)) h=Math.min(4,h+1);
-  return h;
+  return bucketHeat(b, document.getElementById("shock").value,
+                       document.getElementById("clock").value);
 }
 function tickersOf(b){
   const tier=document.getElementById("tier").value;
@@ -3578,7 +3556,7 @@ function renderChart(){
     document.getElementById("detailKvs").innerHTML=`
       <dt>Duration</dt><dd>${b.duration}</dd>
       <dt>Lights when</dt><dd>${b.lights.join(", ")}</dd>
-      <dt>Heat now</dt><dd>${heatOf(b)} / 4</dd>
+      <dt>Heat now</dt><dd>${heatOf(b)} / ${HEAT_MAX}</dd>
       <dt>Feed</dt><dd>yfinance daily → cache (free)</dd>`;
     document.getElementById("detailFails").textContent=b.fails;
     document.getElementById("detailLiq").textContent=b.liquid.join(" · ");
@@ -3643,13 +3621,9 @@ def page_screen_sovereign(mounts):
         "__PRICE_COUNT__", str(len(series))).replace(
         "__DELISTED_COUNT__", str(len(sovereign_buckets.DELISTED))).replace(
         "__BUCKETS_JS__",
-        sovereign_buckets.as_js()
+        sovereign_buckets.runtime_js()
         + "\nconst PRICES = " + json.dumps(prices.get("series") or {},
                                            separators=(",", ":")) + ";"
-        # The delisted table travels with the prices because it answers the question the
-        # prices raise: a constituent with no series either was not fetched or cannot be.
-        + "\nconst DELISTED = " + json.dumps(sovereign_buckets.DELISTED,
-                                             separators=(",", ":")) + ";"
         + "\nconst PRICE_ASOF = " + json.dumps(prices.get("as_of") or "") + ";")
     return page("Chaos bucket screener", "/screen", body, mounts,
                 "research · sovereign ledger · study objects")
@@ -4028,7 +4002,13 @@ def _screener_combined_draft_html(mounts, payload=None):
         html = f.read()
     html = _MOCK_RAIL.sub(_nav("/screener/draft", mounts), html, count=1)
     payload = _screener_combined_draft_payload() if payload is None else payload
-    inject = ("<script>window.__DRAFT_LIVE__ = {};</script>\n".format(
+    # Two different things, deliberately kept apart. The payload is a SNAPSHOT — rows, tone,
+    # prices, all of it dated and refetchable. window.LEDGER is the ledger's own reading:
+    # authored tables plus the heat rule, which is code and cannot travel as JSON. The draft
+    # holds neither; it used to hold the rule, and that copy had already drifted from the
+    # buckets page over whether an authored 0 can be bumped to 1.
+    inject = ("<script>{}</script>\n<script>window.__DRAFT_LIVE__ = {};</script>\n".format(
+        sovereign_buckets.runtime_js(),
         json.dumps(payload, default=str).replace("<", "\\u003c")))
     # Must run BEFORE the page script so applyLivePayload() sees the payload.
     if "<script>" in html:
