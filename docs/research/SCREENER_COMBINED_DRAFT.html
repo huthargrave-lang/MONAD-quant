@@ -206,6 +206,11 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
 .chip .dot{width:7px;height:7px;border-radius:50%}
 .chip.good .dot{background:var(--good)} .chip.warning .dot{background:var(--warning)}
 .chip.critical .dot{background:var(--critical)} .chip.neutral .dot{background:var(--axis)}
+/* `serious` sits between warning and critical on the buckets page's scale. It was the one
+   step of that ladder this page had never needed, so a chip asking for it silently fell
+   through to the uncoloured default — which reads as "no severity", the value furthest from
+   what it was asking for. */
+.chip.serious .dot{background:var(--serious)}
 
 .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin:0 0 16px}
 .filters label,.lens-grid label,.lens-name,.prop-field{display:flex;flex-direction:column;gap:4px;
@@ -633,21 +638,23 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
    to three and turned four rows into seven, so a taller pane showed FEWER buckets. Fixed
    columns mean a wider pane gets more of them. */
 .bk-grid{--dcs:1;display:grid;gap:8px;
-  grid-template-columns:repeat(auto-fill,minmax(178px,1fr))}
+  grid-template-columns:repeat(auto-fill,minmax(176px,1fr))}
 /* The star is a sibling of the card, not a child of it: a <button> inside a <button> is
    invalid HTML and browsers reparent it, which silently moves the star out of the card. */
 .bk-wrap{position:relative;display:flex}
-.bk{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:3px;
-  text-align:left;padding:calc(9px * var(--dcs,1)) calc(26px * var(--dcs,1))
-  calc(9px * var(--dcs,1)) calc(11px * var(--dcs,1));cursor:pointer;
-  border:1px solid var(--rule);border-radius:9px;background:var(--surface);
-  font:inherit;color:var(--ink-2);transition:border-color .12s,background .12s}
-.bk:hover{border-color:var(--ink-muted)}
-.bk-wrap.on .bk{border-color:var(--accent);color:var(--ink);
-  background:color-mix(in srgb, var(--accent) 12%, var(--surface));
-  box-shadow:0 0 0 1px var(--accent)}
+/* Metrics and colours taken from the buckets page's own `.bucket` rule so the two look like
+   one product: plane ground rather than surface, 176px minimum, 124px floor, 12px padding,
+   and `inset 0 0 0 1px` on the selected state rather than an outer ring. The only additions
+   are the right gutter the star needs and the star itself, which that page did not have. */
+.bk{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:5px;
+  text-align:left;padding:12px 26px 10px 12px;cursor:pointer;min-height:124px;
+  border:1px solid var(--rule);border-radius:9px;background:var(--plane);
+  font:inherit;color:inherit;transition:border-color .12s,background .12s}
+.bk:hover{border-color:var(--accent)}
+.bk-wrap.on .bk{border-color:var(--accent);background:var(--surface);
+  box-shadow:inset 0 0 0 1px var(--accent)}
 .bk-star{position:absolute;top:6px;right:5px;border:0;background:transparent;padding:2px 4px;
-  line-height:1;cursor:pointer;color:var(--ink-2);font-size:calc(15px * var(--dcs,1));
+  line-height:1;cursor:pointer;color:var(--ink-2);font-size:15px;
   opacity:.7;transition:opacity .12s,color .12s}
 .bk-star:hover,.bk-star:focus-visible{opacity:1;color:var(--accent)}
 .bk-star[aria-pressed="true"]{opacity:1;color:var(--warning)}
@@ -668,16 +675,30 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
   border:1px solid var(--rule);border-radius:999px;background:var(--surface);
   color:var(--ink-2)}
 .bkc-row button:hover{border-color:var(--accent);color:var(--ink)}
-.bk-id{font:calc(10px * var(--dcs,1)) var(--mono);letter-spacing:.1em;color:var(--ink-muted)}
-.bk-name{font-size:calc(13.5px * var(--dcs,1));font-weight:640;color:var(--ink)}
-.bk-blurb{font-size:calc(11.5px * var(--dcs,1));line-height:1.4}
-.bk-foot{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px}
-.bk-cov{font:calc(10.5px * var(--dcs,1)) var(--mono);color:var(--ink-muted)}
+/* Type sizes and colours are the buckets page's, not scaled: .bk-grid sets --dcs to 1, and
+   these are the literals from its `.bucket .id / .name / .blurb / .meta` rules. */
+.bk-id{font:10.5px var(--mono);letter-spacing:.06em;color:var(--ink-muted)}
+.bk-name{font-size:13.5px;font-weight:640;letter-spacing:-.01em;color:var(--ink)}
+.bk-blurb{font-size:12px;color:var(--ink-2);line-height:1.4;flex:1}
+.bk-foot{display:flex;justify-content:space-between;align-items:center;gap:6px;
+  flex-wrap:wrap;margin-top:2px;width:100%}
+.bk-cov{font:10.5px var(--mono);color:var(--ink-muted)}
 /* The heat bar is a bar and not a number on purpose: it is authored relevance under a chosen
    shock, on the same footing as the AI-shadow severity tags — ordinal and comparable within
-   one shock, and not a quantity of anything. */
-.bk-heat{flex:1 0 40px;height:3px;border-radius:2px;background:var(--rule);overflow:hidden}
-.bk-heat i{display:block;height:100%;background:var(--warning)}
+   one shock, and not a quantity of anything.
+
+   The four steps carry the buckets page's own colours, and they are an ORDINAL ramp on
+   purpose — --ord-1, --ord-2, then warning, then critical. Heat 1 and 2 are two shades of the
+   same blue because they are two steps of one scale; 3 and 4 break to amber and red because
+   the ledger treats those as "act on this". A categorical palette here would say the four
+   levels are four unrelated kinds, which is the opposite of what they are. */
+.bk-heat{width:100%;height:3px;border-radius:99px;background:var(--rule);overflow:hidden;
+  margin-top:2px}
+.bk-heat i{display:block;height:100%;width:0;background:var(--axis)}
+.bk-heat.h1 i{width:25%;background:var(--ord-1)}
+.bk-heat.h2 i{width:50%;background:var(--ord-2)}
+.bk-heat.h3 i{width:75%;background:var(--warning)}
+.bk-heat.h4 i{width:100%;background:var(--critical)}
 
 /* Watchlist rows. A row is a name plus the CURRENT lens's ranking value, so the kept set is
    read in the same terms as the screen it sits beside. */
@@ -4997,7 +5018,13 @@ function drawBuckets(){
       + '<span class="bk-id">bucket ' + esc(b.id) + '</span>'
       + '<span class="bk-name">' + esc(b.name) + '</span>'
       + '<span class="bk-blurb">' + esc(b.blurb) + '</span>'
-      + '<span class="bk-foot"><span class="chip">' + esc(b.duration) + '</span>'
+      // The duration chip's dot is tinted by heat, exactly as on the buckets page: the same
+      // three-band split (serious at 3+, warning at 2, neutral below) so a card reads the
+      // same on both surfaces. The chip says the HOLDING PERIOD; the colour says how hot the
+      // bucket is under the chosen shock, which is why they can differ.
+      + '<span class="bk-foot"><span class="chip '
+      + (heat >= 3 ? "serious" : heat >= 2 ? "warning" : "neutral")
+      + '"><span class="dot"></span>' + esc(b.duration) + '</span>'
       // Both counts are over the SAME set. The liquid+satellite tag ignored the tier filter
       // while the priced count honoured it, so a bucket under "liquid only" read "9+5"
       // beside "9/9 priced" — two denominators on one card, neither labelled.
@@ -5010,9 +5037,12 @@ function drawBuckets(){
       // same fact and only one of them is worth a refetch.
       + '<span class="bk-cov">' + have + '/' + mem.length + ' priced'
       + (gone ? ' · ' + gone + ' delisted' : '') + '</span></span>'
-      + '<span class="bk-heat" title="editorial heat under ' + escAttr(bucketShock)
-      + ' at ' + escAttr(bucketClock) + '"><i style="width:'
-      + (heat / HEAT_MAX * 100) + '%"></i></span>'
+      // The width comes from the class, not an inline style — h1..h4 is the buckets page's
+      // own ladder and it carries a colour per step as well as a width. An inline width would
+      // have overridden the class and left every bar the same colour.
+      + '<span class="bk-heat h' + heat + '" title="editorial heat ' + heat + ' of '
+      + HEAT_MAX + ' under ' + escAttr(bucketShock) + ' at ' + escAttr(bucketClock)
+      + '"><i></i></span>'
       + '</button>'
       + '<button type="button" class="bk-star" data-bucket-star="' + escAttr(b.id) + '"'
       + ' aria-pressed="' + (bucketStarred(b.id) ? "true" : "false") + '"'
