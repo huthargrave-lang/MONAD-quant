@@ -95,6 +95,71 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
 .prose > summary:hover,.prose > summary:focus-visible{color:var(--ink-2)}
 .prose > p{font-size:14.5px;color:var(--ink-2);max-width:82ch;margin:6px 0 0}
 
+/* ── Command bar ────────────────────────────────────────────────────────────────────────
+   The page's control hierarchy in one strip: CONTEXT (what am I analysing) · LENS (how) ·
+   filters · data health · modules. It replaces 674 CSS px of stacked chrome — banner,
+   prose, 15 lens pills, six provider cards, the filter row and the tray — with ~96, by
+   putting each of those behind a disclosure rather than deleting any of them.
+
+   Sticky in CSS px. The shell runs under `zoom:var(--shell-zoom)`, and zoom does not rescale
+   viewport units, so a bar authored at 96px presents at 74 device px and `top:0` still
+   resolves against the real viewport. Heights here are deliberately NOT in vh for that
+   reason — the same trap that leaves `.board{height:min(51vh,660px)}` inert. */
+/* A section heading that can be collapsed. The COUNT sentence stays visible when the body is
+   folded — a collapsed Results that said nothing would hide the one number the whole page is
+   computing, and the reader collapsed the table, not the answer. */
+.sec-head{display:flex;align-items:center;gap:8px}
+.sec-head h2{margin:0}
+.sec-toggle{border:1px solid var(--rule);background:var(--surface);color:var(--ink-2);
+  border-radius:6px;line-height:20px;width:22px;padding:0;cursor:pointer;font-size:11px}
+.sec-toggle:hover,.sec-toggle:focus-visible{border-color:var(--accent);color:var(--ink)}
+.sec-toggle[aria-expanded="false"]{transform:rotate(-90deg)}
+[hidden]{display:none !important}
+
+.cmdbar{position:sticky;top:0;z-index:30;margin:0 0 14px;padding:8px 0 9px;
+  background:var(--plane);border-bottom:1px solid var(--rule)}
+.cmd-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.cmd-row + .cmd-row{margin-top:7px}
+.cmd{display:inline-flex;align-items:baseline;gap:7px;font:13px var(--sans);line-height:26px;
+  padding:0 10px;border:1px solid var(--rule);border-radius:7px;background:var(--surface);
+  color:var(--ink);cursor:pointer;max-width:100%}
+.cmd:hover,.cmd:focus-visible{border-color:var(--accent)}
+.cmd[aria-expanded="true"]{border-color:var(--accent);background:var(--plane)}
+/* The key is the quiet half of the pair: "Context" is a label, the bucket name is the answer.
+   Same weight on both made the reader hunt for which word was the state. */
+.cmd-k{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-muted)}
+.cmd-v{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:30ch}
+.cmd-sub{font-family:var(--mono);font-size:11px;color:var(--ink-muted);white-space:nowrap}
+.cmd-caret{font-size:10px;color:var(--ink-muted)}
+/* A context that is narrowing the page is drawn as ON, the same treatment an active lens
+   gets, because it is the same kind of fact: a constraint the reader chose. */
+.cmd.narrowed{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.cmd-clear{font:13px var(--sans);line-height:26px;padding:0 9px;border:1px solid var(--rule);
+  border-radius:7px;background:var(--surface);color:var(--ink-2);cursor:pointer}
+.cmd-clear:hover,.cmd-clear:focus-visible{border-color:var(--critical);color:var(--ink)}
+.cmd-clear[hidden]{display:none}
+.cmd-dot{width:7px;height:7px;border-radius:50%;background:var(--good);align-self:center}
+.cmd-dot.warning{background:var(--warning)} .cmd-dot.critical{background:var(--critical)}
+.cmd-spacer{flex:1 1 auto}
+/* Favourites are a SHORTCUT, not a second copy of the lens control. The full cluster — star,
+   edit, delete — lives once, in the lens panel; these are jump buttons over the same state.
+   Two DOM copies of one control is the duplication this repo keeps paying for. */
+.lens-fav{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.lens-fav button{font:12.5px var(--sans);line-height:24px;padding:0 10px;border:1px solid var(--rule);
+  border-radius:999px;background:var(--surface);color:var(--ink-2);cursor:pointer}
+.lens-fav button.on{border-color:var(--accent);color:var(--ink);background:var(--plane);font-weight:600}
+.lens-fav .fav-k{font-size:11px;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.04em}
+.lens-fav .fav-none{font-size:12px;color:var(--ink-muted)}
+/* Grouped lens menu. Headings are the only structure — a 15-row flat list is what the pill
+   row already was, wearing a different shape. */
+.lensgroup{margin:10px 0 0}
+.lensgroup h4{margin:0 0 5px;font-size:11px;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--ink-muted);font-weight:600}
+.mini-why{border:1px solid var(--rule);background:var(--surface);color:var(--ink-muted);
+  border-radius:50%;width:15px;height:15px;line-height:1;font-size:10px;padding:0;cursor:help;
+  vertical-align:middle}
+.mini-why:hover{color:var(--accent);border-color:var(--accent)}
+
 .view-toggle{display:flex;width:fit-content;gap:0;margin:0 0 16px;border:1px solid var(--rule);
   border-radius:9px;overflow:hidden}
 .view-toggle button,.view-toggle a{padding:7px 16px;font:13px var(--sans);color:var(--ink-2);
@@ -269,8 +334,14 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
 /* Split-tree board. Every pane's rect is derived from its parent split node, so a pane
    cannot exist without a parent handing it space — free space is structurally impossible
    and removing a leaf hands its rect straight back to its sibling. */
+/* `51vh` was inert. `zoom` does not rescale viewport units, so 51vh resolved to 51% of the
+   REAL viewport expressed in the pre-zoom space the rest of this file is authored in — 408
+   CSS px at 800px tall, under the 420 floor — and the board sat at its minimum while
+   presenting at 39% of the screen, not the 51% the rule asks for. Dividing by the zoom
+   converts the viewport unit into the same space as every other length here. Derived rather
+   than hand-computed to 66vh, so changing --shell-zoom moves it. */
 .board{
-  position:relative;height:min(51vh, 660px);min-height:420px;width:100%;
+  position:relative;height:min(calc(51vh / var(--shell-zoom)), 660px);min-height:420px;width:100%;
   margin:0 0 16px;box-sizing:border-box;
   border:1px dashed var(--rule);border-radius:10px;background:var(--plane);
 }
@@ -417,7 +488,14 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
    Scoped with :has so bars without a control do not pay for an empty second line; the bar's
    8px gap applies to rows as well as columns, so an unconditional break would add 8px of
    dead height to every tile on the board. */
-.tile-bar:has(.tile-ctl)::after{content:"";flex:0 0 100%;height:0;order:2;margin:0}
+/* Any tile with a caption, not only the ones that also carry a control. The rule was
+   written for the price tile and scoped to `.tile-ctl`, so "Ranked · growth y/y" — which
+   has a caption and no control — kept sharing the row and lost: its 52-character meta
+   claimed 436 of 486px on `flex-basis:auto` while the title, on `flex-basis:0`, was left
+   21px and rendered as "R..". A pane whose name has been ellipsed to one letter while its
+   caption is fully legible has its priorities backwards. */
+.tile-bar:has(.tile-ctl)::after,.tile-bar:has(.tile-meta)::after{
+  content:"";flex:0 0 100%;height:0;order:2;margin:0}
 /* order:3 puts it on the second row with the legend, never on the title's row. Sharing row
    one re-truncated the title the moment a control was added to it — "Price · 5 names" became
    "Price ·…" again — and a title is the one thing in a tile bar that cannot be guessed from
@@ -877,15 +955,7 @@ table.bwatch .spark{width:80px;height:26px;display:block}
     <!-- Written as the no-snapshot state on purpose: this is what a reader sees when the page
          is opened straight off disk, and it must not describe data that is not there.
          applyLivePayload() replaces it with the snapshot's own dates when one is injected. -->
-    <div class="note-banner" id="dataBanner"><b>No snapshot reached this page.</b> Every number
-      on this surface comes from a snapshot on disk — fundamentals and prices from
-      <code>stock_screener</code>, Bloomberg/Reddit/Yahoo tone from <code>screener_lab</code>.
-      Opened as a file, or served with
-      neither snapshot built, the page has nothing to show and says so rather than standing in
-      figures of its own. Board: drag a card header onto the edge of another pane to split it
-      there, onto its centre to swap, <b>×</b> to park it in the tray above, and drag any
-      boundary to resize just the two panes it separates.</div>
-
+  
     <div class="crumb">Research · screener</div>
     <h1>Cheap &amp; growing — fundamentals with tone kept honest</h1>
     <!-- Collapsed, not deleted. Every paragraph here states a rule the numbers below actually
@@ -905,22 +975,54 @@ table.bwatch .spark{width:80px;height:26px;display:block}
       the source directly, not by reading it better.</p>
     </details>
 
-    <div class="presets" id="presets">
-      <button type="button" class="on" data-p="low_pe_high_growth">Low P/E · high growth</button>
-      <button type="button" data-p="low_pe_high_dividend">Low P/E · high dividend</button>
-      <button type="button" data-p="safety_low_debt">Safety · low debt</button>
-      <button type="button" data-p="high_ai_exposure">High AI exposure</button>
-      <button type="button" data-p="ai_shadow_debt">AI shadow debt</button>
-      <button type="button" data-p="low_ai_exposure">Low AI exposure</button>
-      <button type="button" data-p="most_volatile">Most volatile</button>
-      <button type="button" data-p="most_active">Most active</button>
-      <button type="button" data-p="sovereign_ledger">Sovereign Ledger</button>
-      <button type="button" data-p="chaos_hedges">Chaos hedges</button>
-      <button type="button" data-p="bloomberg_tone">Bloomberg tone</button>
-      <button type="button" data-p="reddit_tone">Reddit tone</button>
-      <button type="button" data-p="yahoo_tone">Yahoo tone</button>
-      <button type="button" data-p="social_tone">Social sentiment</button>
-      <button type="button" data-p="custom" class="custom" aria-expanded="false">+ custom</button>
+
+    <!-- ── Command bar ──────────────────────────────────────────────────────────────────
+         CONTEXT -> LENS -> workspace, as one strip. Each chip is a disclosure over a block
+         that used to sit in the page flow: the lens pills, the provider cards, the filter
+         row and the module tray are all still here, in the panels below, unedited. Nothing
+         about what they DO changed; only where the reader finds them when they want them. -->
+    <div class="cmdbar" id="cmdbar">
+      <div class="cmd-row">
+        <button type="button" class="cmd" id="ctxChip" data-panel-open="ctxPanel"
+                aria-expanded="false" aria-label="Context — what is being analysed">
+          <span class="cmd-k">Context</span>
+          <span class="cmd-v" id="ctxValue">All securities</span>
+          <span class="cmd-sub" id="ctxSub"></span>
+          <span class="cmd-caret" aria-hidden="true">&#9662;</span>
+        </button>
+        <button type="button" class="cmd-clear" id="ctxClear" hidden
+                title="Analyse all securities again">&#215;</button>
+        <button type="button" class="cmd" id="lensChip" data-panel-open="lensPanel"
+                aria-expanded="false" aria-label="Lens — how it is being analysed">
+          <span class="cmd-k">Lens</span>
+          <span class="cmd-v" id="lensValue">Low P/E &#183; high growth</span>
+          <span class="cmd-caret" aria-hidden="true">&#9662;</span>
+        </button>
+        <button type="button" class="cmd" id="filterChip" data-panel-open="filterPanel"
+                aria-expanded="false" aria-label="Filters">
+          <span class="cmd-k">Filters</span>
+          <span class="cmd-v" id="filterValue">0</span>
+          <span class="cmd-caret" aria-hidden="true">&#9662;</span>
+        </button>
+        <span class="cmd-spacer"></span>
+        <button type="button" class="cmd" id="dataChip" data-panel-open="dataPanel"
+                aria-expanded="false" aria-label="Data sources and freshness">
+          <span class="cmd-k">Data</span>
+          <span class="cmd-dot" id="dataDot" aria-hidden="true"></span>
+          <span class="cmd-v" id="dataValue">&#8212;</span>
+          <span class="cmd-sub" id="dataSub"></span>
+          <span class="cmd-caret" aria-hidden="true">&#9662;</span>
+        </button>
+        <button type="button" class="cmd" id="modChip" data-panel-open="layoutPanel"
+                aria-expanded="false" aria-label="Modules on the board">
+          <span class="cmd-k">Modules</span>
+          <span class="cmd-v" id="modValue">&#8212;</span>
+          <span class="cmd-caret" aria-hidden="true">&#9662;</span>
+        </button>
+      </div>
+      <!-- Starred lenses only. The full cluster (star, edit, delete) lives once, in the lens
+           panel; these are jump buttons over the same `preset` state. -->
+      <div class="cmd-row lens-fav" id="lensFav"></div>
     </div>
 
     <!-- The note keeps its own `hidden`, set by renderLensNote — a lens with nothing to
@@ -935,13 +1037,6 @@ table.bwatch .spark{width:80px;height:26px;display:block}
     <!-- Provider cards are written by applyLivePayload() from the snapshot's own provider
          lines. Feed counts and states are facts about a fetch, so none are spelled out here:
          with no snapshot there is no fetch to describe. -->
-    <div class="providers" id="providers">
-      <div class="prov partial">
-        <h3>Providers <span class="chip warning"><span class="dot"></span>no snapshot</span></h3>
-        <p>Provider status is read from the snapshot that produced the rows. Nothing has been
-          loaded, so there is no fetch to report on.</p>
-      </div>
-    </div>
 
     <!-- Unhidden by render() whenever ROWS is empty. -->
     <section class="no-data" id="noData" hidden>
@@ -958,112 +1053,7 @@ table.bwatch .spark{width:80px;height:26px;display:block}
     <!-- No apply control. Every input here re-renders on `change`, so the row and the results
          cannot disagree about what is being screened. Each threshold keeps "any" as its
          default so an untouched row screens nothing out. -->
-    <form class="filters" id="filters" onsubmit="return false">
-      <label>Max P/E
-        <select id="maxPe">
-          <option value="any" selected>any</option>
-          <option value="8">≤ 8</option>
-          <option value="10">≤ 10</option>
-          <option value="12">≤ 12</option>
-          <option value="15">≤ 15</option>
-          <option value="18">≤ 18</option>
-          <option value="20">≤ 20</option>
-          <option value="25">≤ 25</option>
-          <option value="30">≤ 30</option>
-          <option value="35">≤ 35</option>
-          <option value="40">≤ 40</option>
-          <option value="60">≤ 60</option>
-          <option value="80">≤ 80</option>
-          <option value="120">≤ 120</option>
-        </select>
-      </label>
-      <label>Min growth
-        <select id="minG">
-          <option value="any" selected>any</option>
-          <option value="0">≥ 0% (not shrinking)</option>
-          <option value="0.02">≥ 2%</option>
-          <option value="0.05">≥ 5%</option>
-          <option value="0.1">≥ 10%</option>
-          <option value="0.15">≥ 15%</option>
-          <option value="0.25">≥ 25%</option>
-          <option value="0.4">≥ 40%</option>
-          <option value="0.6">≥ 60%</option>
-          <option value="1">≥ 100%</option>
-          <option value="2">≥ 200%</option>
-        </select>
-      </label>
-      <label><span>Max on-BS D/E <button type="button" class="qmark" data-explain="shadowExplain"
-          aria-expanded="false" aria-label="What AI shadow debt means">?</button></span>
-        <select id="maxShadow" title="Filters on the reported on-balance-sheet debt/equity %; “tagged only” keeps the editorially shadow-tagged names whatever that number says">
-          <option value="any" selected>any</option>
-          <option value="10">≤ 10</option>
-          <option value="25">≤ 25</option>
-          <option value="50">≤ 50</option>
-          <option value="75">≤ 75</option>
-          <option value="100">≤ 100</option>
-          <option value="150">≤ 150</option>
-          <option value="200">≤ 200</option>
-          <option value="300">≤ 300</option>
-          <option value="tagged">tagged only</option>
-        </select>
-      </label>
-      <label>Max beta
-        <select id="maxBeta" title="Trailing beta from the fundamentals snapshot; a name that reports no beta cannot pass a beta test">
-          <option value="any" selected>any</option>
-          <option value="0.5">≤ 0.50</option>
-          <option value="0.75">≤ 0.75</option>
-          <option value="1">≤ 1.00</option>
-          <option value="1.25">≤ 1.25</option>
-          <option value="1.5">≤ 1.50</option>
-          <option value="2">≤ 2.00</option>
-          <option value="2.5">≤ 2.50</option>
-          <option value="3">≤ 3.00</option>
-        </select>
-      </label>
-      <label>Sector
-        <!-- Options are built from the sectors the snapshot actually carries; a hardcoded list
-             would offer sectors no loaded row belongs to. -->
-        <select id="sector"><option value="any" selected>every sector</option></select>
-      </label>
-      <label>Tone source
-        <!-- Each button names a VENDOR, never a quality: Yahoo reaches nearly every
-             ticker because its feed is keyed by ticker, which is a fact about plumbing
-             and not about the reading. "All" stacks the three rather than merging them,
-             because three counts behind one averaged number is the collapse this page
-             exists to refuse. -->
-        <span class="tone-toggle" id="toneSrc">
-          <button type="button" class="on" data-src="bloomberg">Bloomberg</button>
-          <button type="button" data-src="reddit">Reddit</button>
-          <button type="button" data-src="yahoo">Yahoo</button>
-          <button type="button" data-src="all">All</button>
-          <button type="button" data-src="none">None</button>
-        </span>
-      </label>
-      <label>Tone in rank
-        <select id="weight" title="Blends the tone reading into the rank used by the results table; names with no coverage keep their unblended score rather than being blended against a zero">
-          <option value="0" selected>display only</option>
-          <option value="0.1">10% of rank</option>
-          <option value="0.2">20% of rank</option>
-          <option value="0.35">35% of rank</option>
-          <option value="0.5">50% of rank</option>
-        </select>
-      </label>
-      <p class="filter-count" id="filterCount"></p>
-    </form>
 
-    <div class="tray" id="tray">
-      <span class="tray-label">Unplaced</span>
-      <div class="tray-chips" id="trayChips"></div>
-      <span class="board-hint">
-        <button type="button" id="boardEdit" data-panel-open="layoutPanel" aria-expanded="false"
-          title="Choose which charts sit on the board and how they are arranged">edit layout</button>
-        <button type="button" id="boardReset" title="Restore this lens's default layout">reset layout</button>
-      </span>
-      <details class="parked" id="parkedTray" hidden>
-        <summary id="parkedSummary">Parked — no data source yet</summary>
-        <div class="parked-body" id="parkedChips"></div>
-      </details>
-    </div>
 
     <div class="board" id="board">
       <article class="tile" data-id="plot" id="tile-plot">
@@ -1183,11 +1173,16 @@ table.bwatch .spark{width:80px;height:26px;display:block}
             title="Drag to make the widget area taller or shorter"></button>
 
     <div class="panel">
-      <h2>Results</h2>
+      <div class="sec-head">
+        <h2>Results</h2>
+        <button type="button" class="sec-toggle" id="resultsToggle" aria-expanded="true"
+          aria-controls="resultsBody" title="Collapse the table — the count stays">&#9662;</button>
+      </div>
       <p class="why" id="resultsWhy">Same columns as the fundamental screener — plus <b>AI shadow</b> as a
         numeric parameter (like P/E), with the editorial bucket under it when tagged.
         Tone stays its own column. Click a preset bubble to change this list; click a
         mark to pin price + headlines.</p>
+      <div id="resultsBody">
       <div class="scroller">
         <table class="sticky">
           <thead>
@@ -1215,6 +1210,7 @@ table.bwatch .spark{width:80px;height:26px;display:block}
           </thead>
           <tbody id="tbody"></tbody>
         </table>
+      </div>
       </div>
       <button type="button" class="board-resize" id="resultsResize"
               aria-label="Drag to resize the results table; arrow keys also work"
@@ -1351,7 +1347,156 @@ table.bwatch .spark{width:80px;height:26px;display:block}
       Finance's public per-ticker headline RSS, each scored by the same finance lexicon ·
       no vendor sentiment score is involved, and no model ·
       shadow-debt tags are editorial study objects, not measured notionals · not investment advice</footer>
-  </main>
+  
+<!-- ── Command-bar panels ────────────────────────────────────────────────────────────────
+     Each holds a block that used to sit in the page flow, moved verbatim. The lens pill row
+     keeps its id and every button, so decoratePresets / orderPresets / markActivePreset /
+     builtinLensNames all keep working against it unchanged. -->
+<div class="explain" id="ctxPanel" role="dialog" aria-modal="false"
+     aria-labelledby="ctxPanelTitle" hidden>
+  <button type="button" class="explain-close" data-panel-close aria-label="Close">&#215;</button>
+  <h3 id="ctxPanelTitle">Context &#183; what is being analysed</h3>
+  <div id="ctxList"></div>
+</div>
+
+<div class="explain" id="lensPanel" role="dialog" aria-modal="false"
+     aria-labelledby="lensPanelTitle" hidden>
+  <button type="button" class="explain-close" data-panel-close aria-label="Close">&#215;</button>
+  <h3 id="lensPanelTitle">Lens &#183; how it is being analysed</h3>
+  <p>Star a lens to pin it to the bar. Clicking the lens you are already on turns it off, which
+    is a real state &#8212; every row passes and the board shows the whole context.</p>
+  <div id="lensGroups"></div>
+    <div class="presets" id="presets">
+      <button type="button" class="on" data-p="low_pe_high_growth">Low P/E · high growth</button>
+      <button type="button" data-p="low_pe_high_dividend">Low P/E · high dividend</button>
+      <button type="button" data-p="safety_low_debt">Safety · low debt</button>
+      <button type="button" data-p="high_ai_exposure">High AI exposure</button>
+      <button type="button" data-p="ai_shadow_debt">AI shadow debt</button>
+      <button type="button" data-p="low_ai_exposure">Low AI exposure</button>
+      <button type="button" data-p="most_volatile">Most volatile</button>
+      <button type="button" data-p="most_active">Most active</button>
+      <button type="button" data-p="sovereign_ledger">Sovereign Ledger</button>
+      <button type="button" data-p="chaos_hedges">Chaos hedges</button>
+      <button type="button" data-p="bloomberg_tone">Bloomberg tone</button>
+      <button type="button" data-p="reddit_tone">Reddit tone</button>
+      <button type="button" data-p="yahoo_tone">Yahoo tone</button>
+      <button type="button" data-p="social_tone">Social sentiment</button>
+      <button type="button" data-p="custom" class="custom" aria-expanded="false">+ custom</button>
+    </div>
+</div>
+
+<div class="explain" id="filterPanel" role="dialog" aria-modal="false"
+     aria-labelledby="filterPanelTitle" hidden>
+  <button type="button" class="explain-close" data-panel-close aria-label="Close">&#215;</button>
+  <h3 id="filterPanelTitle">Filters</h3>
+    <form class="filters" id="filters" onsubmit="return false">
+      <label>Max P/E
+        <select id="maxPe">
+          <option value="any" selected>any</option>
+          <option value="8">≤ 8</option>
+          <option value="10">≤ 10</option>
+          <option value="12">≤ 12</option>
+          <option value="15">≤ 15</option>
+          <option value="18">≤ 18</option>
+          <option value="20">≤ 20</option>
+          <option value="25">≤ 25</option>
+          <option value="30">≤ 30</option>
+          <option value="35">≤ 35</option>
+          <option value="40">≤ 40</option>
+          <option value="60">≤ 60</option>
+          <option value="80">≤ 80</option>
+          <option value="120">≤ 120</option>
+        </select>
+      </label>
+      <label>Min growth
+        <select id="minG">
+          <option value="any" selected>any</option>
+          <option value="0">≥ 0% (not shrinking)</option>
+          <option value="0.02">≥ 2%</option>
+          <option value="0.05">≥ 5%</option>
+          <option value="0.1">≥ 10%</option>
+          <option value="0.15">≥ 15%</option>
+          <option value="0.25">≥ 25%</option>
+          <option value="0.4">≥ 40%</option>
+          <option value="0.6">≥ 60%</option>
+          <option value="1">≥ 100%</option>
+          <option value="2">≥ 200%</option>
+        </select>
+      </label>
+      <label><span>Max on-BS D/E <button type="button" class="qmark" data-explain="shadowExplain"
+          aria-expanded="false" aria-label="What AI shadow debt means">?</button></span>
+        <select id="maxShadow" title="Filters on the reported on-balance-sheet debt/equity %; “tagged only” keeps the editorially shadow-tagged names whatever that number says">
+          <option value="any" selected>any</option>
+          <option value="10">≤ 10</option>
+          <option value="25">≤ 25</option>
+          <option value="50">≤ 50</option>
+          <option value="75">≤ 75</option>
+          <option value="100">≤ 100</option>
+          <option value="150">≤ 150</option>
+          <option value="200">≤ 200</option>
+          <option value="300">≤ 300</option>
+          <option value="tagged">tagged only</option>
+        </select>
+      </label>
+      <label>Max beta
+        <select id="maxBeta" title="Trailing beta from the fundamentals snapshot; a name that reports no beta cannot pass a beta test">
+          <option value="any" selected>any</option>
+          <option value="0.5">≤ 0.50</option>
+          <option value="0.75">≤ 0.75</option>
+          <option value="1">≤ 1.00</option>
+          <option value="1.25">≤ 1.25</option>
+          <option value="1.5">≤ 1.50</option>
+          <option value="2">≤ 2.00</option>
+          <option value="2.5">≤ 2.50</option>
+          <option value="3">≤ 3.00</option>
+        </select>
+      </label>
+      <label>Sector
+        <!-- Options are built from the sectors the snapshot actually carries; a hardcoded list
+             would offer sectors no loaded row belongs to. -->
+        <select id="sector"><option value="any" selected>every sector</option></select>
+      </label>
+      <label>Tone source
+        <!-- Each button names a VENDOR, never a quality: Yahoo reaches nearly every
+             ticker because its feed is keyed by ticker, which is a fact about plumbing
+             and not about the reading. "All" stacks the three rather than merging them,
+             because three counts behind one averaged number is the collapse this page
+             exists to refuse. -->
+        <span class="tone-toggle" id="toneSrc">
+          <button type="button" class="on" data-src="bloomberg">Bloomberg</button>
+          <button type="button" data-src="reddit">Reddit</button>
+          <button type="button" data-src="yahoo">Yahoo</button>
+          <button type="button" data-src="all">All</button>
+          <button type="button" data-src="none">None</button>
+        </span>
+      </label>
+      <label>Tone in rank
+        <select id="weight" title="Blends the tone reading into the rank used by the results table; names with no coverage keep their unblended score rather than being blended against a zero">
+          <option value="0" selected>display only</option>
+          <option value="0.1">10% of rank</option>
+          <option value="0.2">20% of rank</option>
+          <option value="0.35">35% of rank</option>
+          <option value="0.5">50% of rank</option>
+        </select>
+      </label>
+      <p class="filter-count" id="filterCount"></p>
+    </form>
+</div>
+
+<div class="explain" id="dataPanel" role="dialog" aria-modal="false"
+     aria-labelledby="dataPanelTitle" hidden>
+  <button type="button" class="explain-close" data-panel-close aria-label="Close">&#215;</button>
+  <h3 id="dataPanelTitle">Data &#183; sources and freshness</h3>
+  <div id="dataBanner" class="note-banner"></div>
+    <div class="providers" id="providers">
+      <div class="prov partial">
+        <h3>Providers <span class="chip warning"><span class="dot"></span>no snapshot</span></h3>
+        <p>Provider status is read from the snapshot that produced the rows. Nothing has been
+          loaded, so there is no fetch to report on.</p>
+      </div>
+    </div>
+</div>
+</main>
 </div>
 
 <div class="explain" id="growthExplain" role="dialog" aria-modal="false"
@@ -1416,6 +1561,20 @@ table.bwatch .spark{width:80px;height:26px;display:block}
   <p>Tick a chart to put it on the board; untick it to park it in the tray. Nothing is
     thrown away either way — a parked chart keeps its state and comes back where you drop it.</p>
   <div class="opt-list" id="layoutTiles"></div>
+  <!-- The tray, moved here from the page flow. "edit layout" opened this panel from inside the
+       tray; now the tray lives in the panel, so that button would open the panel it is in —
+       it is dropped, and the Modules chip is the one way in. Everything else is unchanged. -->
+  <div class="tray" id="tray">
+    <span class="tray-label">Unplaced</span>
+    <div class="tray-chips" id="trayChips"></div>
+    <span class="board-hint">
+      <button type="button" id="boardReset" title="Restore this lens's default layout">reset layout</button>
+    </span>
+    <details class="parked" id="parkedTray" hidden>
+      <summary id="parkedSummary">Parked — no data source yet</summary>
+      <div class="parked-body" id="parkedChips"></div>
+    </details>
+  </div>
   <details class="parked" id="layoutParked" hidden>
     <summary id="layoutParkedSummary">Parked — no data source yet</summary>
     <p class="parked-why">These charts are parked because nothing in the loaded snapshot feeds
@@ -3710,11 +3869,7 @@ function emptyTitle(what){
   const p = narrowingPhrase();
   return p ? what + " · nothing under " + p : what + " · nothing loaded";
 }
-function activeLensLabel(){
-  if(preset == null) return "no lens";
-  const btn = document.querySelector("#presets button.on");
-  return btn ? btn.textContent.trim() : preset;
-}
+function activeLensLabel(){ return lensTitle(preset); }
 /* A built-in is identified by where it is NOT — outside a .lens-chip, which is the custom
    lenses' wrapper. Matching on direct children of #presets instead would miss every built-in
    the moment decoratePresets() wraps it in a .lens-wrap, and a duplicate name checked against
@@ -4644,12 +4799,30 @@ document.addEventListener("click", (ev)=>{
     // Each panel prepares itself and keeps its own first field: focus has to land inside the
     // panel that opened, not in whichever panel happens to own the first control on the page.
     if(pop.id === "layoutPanel") syncLayoutPanel();
+    if(pop.id === "ctxPanel") drawContextPanel();
+    if(pop.id === "lensPanel") drawLensPanel();
     if(pop.id === "proposePanel") resetProposeForm();
     panelOpen(pop, opt, pop.querySelector("input,select,textarea"));
     return;
   }
   const edit = ev.target.closest("[data-lens-edit]");
   if(edit){ openLensForm(edit.dataset.lensEdit, edit); return; }
+  // Command-bar controls. Each writes through the setter the old control used, so the
+  // pill row, the bucket grid and the bar can never disagree about what is selected.
+  const go = ev.target.closest("[data-lens-go]");
+  if(go){ selectPreset(go.dataset.lensGo); render(); return; }
+  if(ev.target.closest("[data-ctx-all]")){
+    BUCKET_SEL.clear(); resetPriceLit(); render(); drawContextPanel(); return;
+  }
+  const cb = ev.target.closest("[data-ctx-bucket]");
+  if(cb){ toggleBucket(cb.dataset.ctxBucket); drawContextPanel(); return; }
+  if(ev.target.closest("#ctxClear")){
+    BUCKET_SEL.clear(); resetPriceLit(); render();
+    // Focus does not vanish with the button: the chip the × belonged to is still there and
+    // is what the reader was operating.
+    const chip = document.getElementById("ctxChip"); if(chip) chip.focus();
+    return;
+  }
   const star = ev.target.closest('#presets .lens-star');
   if(star){ toggleStar(star.dataset.star); return; }
   const mk = ev.target.closest('#presets button[data-p="custom"]');
@@ -4658,6 +4831,7 @@ document.addEventListener("click", (ev)=>{
     else openLensForm(null, mk);
     return;
   }
+  if(ev.target.closest("#resultsToggle")){ toggleResults(); return; }
   if(ev.target.closest("[data-panel-close]")){ panelClose(); return; }
   if(activePanel && !ev.target.closest(".explain")) panelClose();
 });
@@ -4883,7 +5057,10 @@ function canonicalRows(key, rows){
 }
 function lensNoData(){
   const key = PRESET_RULES[preset] ? preset : null;
-  return key ? canonicalScreen(key, ROWS.filter(passesFilters)).noData : [];
+  // The CONTEXT universe, not the snapshot. Dropping the bucket leg here named 19 tickers as
+  // "could not be screened by this lens" that were not in the selected bucket at all — the
+  // same 19 whether a bucket was selected or not.
+  return key ? canonicalScreen(key, contextUniverse()).noData : [];
 }
 
 function lensRows(pool){
@@ -4936,8 +5113,61 @@ function bucketNameSet(){
   _bnCache = new Set(bucketNames());
   return _bnCache;
 }
-function matchedRows(){
-  return lensRows(ROWS.filter(r => passesFilters(r) && inSelectedBuckets(r)));
+/* ── CONTEXT ────────────────────────────────────────────────────────────────────────────
+   WHAT is being analysed, as one thing with named readings, so the page cannot hold four
+   opinions of it at once. Before this existed the same (lens, buckets, filters) state gave
+   four different answers in four places: this function intersected, `priceCohort` let the
+   bucket win, `renderTable` unioned in the unscreenable constituents, and `lensNoData` and
+   `renderFilterCount` each dropped a leg entirely and said so in prose. Three of those were
+   deliberate and are kept — as NAMED readings below. Two were defects.
+
+   The universe is memoised for the duration of one render() and nowhere else. `passesFilters`
+   reads the live DOM, so a memo that outlived a render would answer with the filter row as it
+   was; a memo that never existed cost 6 recomputations and ~1577 DOM reads per render. */
+let _inRender = false, _universeMemo = null;
+function contextUniverse(){
+  if(_inRender && _universeMemo) return _universeMemo;
+  const rows = ROWS.filter(r => passesFilters(r) && inSelectedBuckets(r));
+  if(_inRender) _universeMemo = rows;
+  return rows;
+}
+/* The reading almost everything wants: the universe, screened by the lens. */
+function matchedRows(){ return lensRows(contextUniverse()); }
+/* Is a bucket constraining the universe? Distinct from "a bucket is selected", because the
+   bucket search box can hide every card while the selection still narrows everything above. */
+function contextIsBucket(){ return BUCKET_SEL.size > 0; }
+/* What the reader is analysing, in words, derived from STATE.
+   `activeLensLabel` used to read `#presets button.on` out of the DOM. That was survivable
+   while the only way to change the lens was to click that button; it stops being survivable
+   the moment a context control sets `preset` directly, because every sentence naming the
+   constraint would keep naming the old one while the rows below it were already the new. */
+function lensTitle(key){
+  if(key == null) return "no lens";
+  const custom = customLens(key);
+  if(custom) return custom.name;
+  if(PRESET_RULES[key] && PRESET_RULES[key].title) return PRESET_RULES[key].title;
+  const tone = TONE_LENSES[key];
+  if(tone) return toneField(tone).label + " tone";
+  if(key === "social_tone") return "Social tone";
+  return key;
+}
+function contextLabel(){
+  if(!contextIsBucket()) return "All securities";
+  const ids = Array.from(BUCKET_SEL).sort();
+  if(ids.length === 1){
+    const b = BUCKETS.find(x => x.id === ids[0]);
+    return b ? b.name : "Bucket " + ids[0];
+  }
+  return ids.length + " buckets";
+}
+/* Screenable, not "held". A bucket names companies the fundamentals universe may not carry —
+   funds and futures have no P/E to screen on — and reporting the held count next to a table
+   that can never show them is the misread this whole surface exists to prevent. */
+function contextCounts(){
+  if(!contextIsBucket()) return {screenable: ROWS.length, held: ROWS.length};
+  const held = bucketNames().length;
+  const set = bucketNameSet();
+  return {screenable: ROWS.filter(r => set.has(r.tk)).length, held: held};
 }
 function drawPlot(){
   const matches = matchedRows();
@@ -5289,8 +5519,11 @@ function renderTable(){
         : `<b>${esc(presetLabel)}</b>${filterPhrase}`;
       why.innerHTML = sorted.length
         ? `<b>${sorted.length}</b> of <b>${ROWS.length}</b> loaded names — ${lensPhrase} `
-          + `— the same list as the highlighted marks on the chart. Click a row or a mark to `
-          + `pin that name.`
+          // The interaction instruction moves to a `?`: it never changes, it is learned once,
+          // and it sat between the reader and the two clauses below it that DO change.
+          + ` <button type="button" class="mini-why" title="This is the same list as the`
+          + ` highlighted marks on the chart. Click a row or a mark to pin that name."`
+          + ` aria-label="How this list relates to the chart">?</button>`
           + listedNote(listedOnly)
           + shadowGateNote(sorted)
         : `<b>0</b> of <b>${ROWS.length}</b> loaded names — ${lensPhrase}. The list below is `
@@ -5726,9 +5959,13 @@ function drawBucketCtl(){
   hint.innerHTML = (BUCKET_HINTS[bucketShock]
       ? "<b>" + esc(BUCKET_HINTS[bucketShock]) + "</b> "
       : "<b>No reach-for-first line is written for this shock.</b> ")
-    + "Heat is authored relevance, read under the chosen shock and lifted one step for "
-    + lifted + " of the " + leads.length + " bucket(s) leading at " + esc(bucketClock)
-    + " — the ones this shock scores above zero. It orders these cards and scores no company.";
+    // The counts are live and stay; the RULE behind them never changes and moves to a `?`.
+    + "Lifted one step for <b>" + lifted + "</b> of the " + leads.length
+    + " bucket(s) leading at " + esc(bucketClock)
+    + ' <button type="button" class="mini-why" title="Heat is authored relevance, read under'
+    + ' the chosen shock and lifted one step for the leading buckets this shock scores above'
+    + ' zero. It orders these cards and scores no company."'
+    + ' aria-label="What heat means">?</button>';
 }
 function drawFeed(){
   const host = document.getElementById("feedList");
@@ -6070,11 +6307,15 @@ function cardBody(r){
     + '</div>'
     + dcShadow(r)
     + '<div class="dc-tone">' + TONE_SOURCES.map(s => dcTone(r, s)).join("") + '</div>'
-    + '<p class="dc-note">All three sources show regardless of the Tone-source toggle — this'
-    + ' card is the whole row. Lexicon tone over fetched documents, not a vendor score.'
-    + ' Bloomberg and Reddit reach a ticker by naming it; Yahoo\'s items are filed under the'
-    + ' ticker by Yahoo, which is why its coverage is wide and why a sector round-up filed'
-    + ' under one name can still sit behind its reading.</p>';
+    // 66 words that never change, on a card the reader opens to read three numbers. Kept
+    // verbatim, one hover away, rather than printed above the numbers every time.
+    + '<p class="dc-note"><button type="button" class="mini-why" title="All three sources show'
+    + ' regardless of the Tone-source toggle — this card is the whole row. Lexicon tone over'
+    + ' fetched documents, not a vendor score. Bloomberg and Reddit reach a ticker by naming'
+    + ' it; Yahoo&#39;s items are filed under the ticker by Yahoo, which is why its coverage is'
+    + ' wide and why a sector round-up filed under one name can still sit behind its reading."'
+    + ' aria-label="How the three tone sources differ">?</button> three sources, always all'
+    + ' three</p>';
 }
 
 /* Headline documents, keyed source → ticker, straight from the tone snapshot. Empty until one
@@ -6209,7 +6450,11 @@ function renderFilterCount(){
     el.innerHTML = "No rows loaded — nothing to filter.";
     return;
   }
-  const lens = lensRows();
+  // The lens over the CONTEXT universe, not over the whole snapshot. `lensRows()` with no
+  // argument falls back to all of ROWS, so with a bucket selected this denominator counted
+  // names the bucket had already excluded: bucket 01 (6 names) rendered "0 of 76 names".
+  // The numerator was right and the denominator was measuring a different universe.
+  const lens = lensRows(contextUniverse());
   const shown = matchedRows();
   // A lens that cuts to a top N is re-cut by the filters, not trimmed by them: it comes back
   // the same size holding different names, and "8 of 8" beside "1 filter active" would read
@@ -6224,9 +6469,14 @@ function renderFilterCount(){
       : "<b>" + shown.length + "</b> of <b>" + lens.length + "</b> names in "
         + esc(activeLensLabel()))
     + " (of " + ROWS.length + " loaded) · "
-    + (n ? n + " filter" + (n === 1 ? "" : "s") + " active — every change applies at once"
-         : "no filter set — every change applies at once")
-    + " · a name that does not report the field a filter tests cannot pass it";
+    + (n ? n + " filter" + (n === 1 ? "" : "s") + " active" : "no filter set")
+    // "every change applies at once" and the missing-field rule were 21 tokens repeated on
+    // every render of every lens forever. The first restates what the reader just watched
+    // happen; the second is a real caveat and moves to the row's own tooltip, where it is
+    // read once by someone asking why a name is absent.
+    + ' <button type="button" class="mini-why" data-help="filters"'
+    + ' title="Every change applies at once. A name that does not report the field a filter'
+    + ' tests cannot pass it — absent is not zero." aria-label="How the filters behave">?</button>';
 }
 
 /* The empty state is a fact about which snapshots reached the page, so it is written from the
@@ -6257,7 +6507,181 @@ function renderNoData(){
       + " invented to fill the gap.";
 }
 
+/* ── Command bar ────────────────────────────────────────────────────────────────────────
+   Five readouts over state that already existed. Nothing here owns anything: the bar reads
+   `preset`, `BUCKET_SEL`, the filter row and DATA_PRESENT, and writes through the same
+   setters the old controls used. */
+
+/* Which group each lens belongs to in the menu. Page-side because it has to cover all three
+   lens registries at once — ten canonical presets from stock_screener, four tone lenses the
+   page owns, and the reader's own — and only one of those three ships a category. Guarded:
+   a lens missing from here would silently vanish from the only place all of them are listed. */
+const LENS_GROUPS = [
+  {title: "Fundamentals", keys: ["low_pe_high_growth", "low_pe_high_dividend",
+                                "safety_low_debt", "most_volatile", "most_active"]},
+  {title: "AI & infrastructure", keys: ["high_ai_exposure", "ai_shadow_debt", "low_ai_exposure"]},
+  {title: "Macro & thematic", keys: ["sovereign_ledger", "chaos_hedges"]},
+  {title: "Sentiment", keys: ["bloomberg_tone", "reddit_tone", "yahoo_tone", "social_tone"]},
+];
+function builtinLensKeys(){
+  return Array.from(document.querySelectorAll('#presets button[data-p]'))
+    .map(b => b.dataset.p).filter(k => k !== "custom");
+}
+/* Every built-in lands in exactly one group, or the menu is not the full set it claims to be.
+   Returns the ungrouped keys so the panel can show them rather than drop them. */
+function ungroupedLensKeys(){
+  const grouped = new Set(LENS_GROUPS.flatMap(g => g.keys));
+  return builtinLensKeys().filter(k => !grouped.has(k));
+}
+function drawLensPanel(){
+  const host = document.getElementById("lensGroups");
+  if(!host) return;
+  const groups = LENS_GROUPS.slice();
+  const loose = ungroupedLensKeys();
+  if(loose.length) groups.push({title: "Ungrouped", keys: loose});
+  const custom = CUSTOM_LENSES.map(l => l.id);
+  if(custom.length) groups.push({title: "Custom", keys: custom});
+  host.innerHTML = groups.map(g => {
+    const rows = g.keys.map(k =>
+      '<button type="button" class="lens-jump' + (preset === k ? " on" : "") + '"'
+      + ' data-lens-go="' + escAttr(k) + '">' + esc(lensTitle(k)) + '</button>').join(" ");
+    return '<div class="lensgroup"><h4>' + esc(g.title) + '</h4>'
+         + '<div class="lens-fav">' + rows + '</div></div>';
+  }).join("");
+}
+/* The favourites strip: starred lenses, in the order they were starred, capped so the bar
+   cannot grow a second row of its own. The overflow is not hidden — it is one click away in
+   the panel, and the count says how many are there. */
+const FAV_MAX = 6;
+function drawLensFav(){
+  const host = document.getElementById("lensFav");
+  if(!host) return;
+  const known = new Set(builtinLensKeys().concat(CUSTOM_LENSES.map(l => l.id)));
+  const fav = STARRED.filter(k => known.has(k));
+  const shown = fav.slice(0, FAV_MAX);
+  host.innerHTML = '<span class="fav-k">Pinned</span>'
+    + (shown.length
+        ? shown.map(k => '<button type="button" class="lens-jump'
+            + (preset === k ? " on" : "") + '" data-lens-go="' + escAttr(k) + '">'
+            + esc(lensTitle(k)) + '</button>').join("")
+        : '<span class="fav-none">none — star a lens in the Lens menu to pin it here</span>')
+    + (fav.length > shown.length
+        ? '<span class="fav-none">+' + (fav.length - shown.length) + ' more in the menu</span>'
+        : "");
+}
+/* The context readout. Says what is being analysed and how much of it can be screened —
+   held and screenable are different numbers for a bucket holding funds, and the table can
+   only ever show the second. */
+function drawContextChip(){
+  const chip = document.getElementById("ctxChip");
+  const val = document.getElementById("ctxValue");
+  const sub = document.getElementById("ctxSub");
+  const clear = document.getElementById("ctxClear");
+  if(!chip || !val) return;
+  const on = contextIsBucket();
+  const c = contextCounts();
+  val.textContent = contextLabel();
+  sub.textContent = on
+    ? c.screenable + " of " + c.held + " screenable · " + bucketShock + "/" + bucketClock
+    : c.screenable + " names";
+  chip.classList.toggle("narrowed", on);
+  clear.hidden = !on;
+  // Shock and clock ORDER the bucket cards; they do not narrow the universe. Stated on the
+  // chip that shows them, because a scenario named beside a row count reads as its cause.
+  chip.title = on
+    ? contextLabel() + " constrains every card above. Shock and clock order the bucket cards"
+      + " and colour their heat — they do not narrow the universe."
+    : "Every loaded name. Select a bucket to analyse one thesis.";
+}
+function drawLensChip(){
+  const v = document.getElementById("lensValue");
+  if(v) v.textContent = activeLensLabel();
+  const chip = document.getElementById("lensChip");
+  if(chip) chip.classList.toggle("narrowed", preset != null);
+}
+function drawFilterChip(){
+  const v = document.getElementById("filterValue");
+  const chip = document.getElementById("filterChip");
+  if(!v) return;
+  const n = activeFilterCount();
+  v.textContent = n ? String(n) : "0";
+  if(chip) chip.classList.toggle("narrowed", n > 0);
+}
+/* Data health at a glance. The dot is the worst state any provider is in, so a stale or dead
+   feed is visible without opening anything — the compact state has to be able to say "not
+   fine", or it is decoration. */
+function drawDataChip(){
+  const dot = document.getElementById("dataDot");
+  const val = document.getElementById("dataValue");
+  const sub = document.getElementById("dataSub");
+  if(!val) return;
+  const cards = Array.from(document.querySelectorAll("#providers .prov"));
+  const live = cards.filter(c => c.querySelector(".chip.good")).length;
+  const bad = cards.filter(c => c.querySelector(".chip.critical")).length;
+  const warn = cards.filter(c => c.querySelector(".chip.warning")).length;
+  val.textContent = cards.length ? live + "/" + cards.length : "—";
+  if(dot) dot.className = "cmd-dot" + (bad ? " critical" : (warn || live < cards.length ? " warning" : ""));
+  if(sub) sub.textContent = cards.length ? (bad ? bad + " down" : (warn ? warn + " stale" : "live")) : "no snapshot";
+}
+function drawModChip(){
+  const v = document.getElementById("modValue");
+  if(!v) return;
+  const placed = treeTiles(boardTree).length;
+  const tray = trayTiles().length;
+  v.textContent = placed + " on board" + (tray ? " · " + tray + " unplaced" : "");
+}
+function drawCmdBar(){
+  drawContextChip(); drawLensChip(); drawFilterChip(); drawDataChip(); drawModChip();
+  drawLensFav(); drawLensPanel();
+}
+/* The context picker: every bucket, with how much of it the screener can actually judge. */
+function drawContextPanel(){
+  const host = document.getElementById("ctxList");
+  if(!host) return;
+  const set = bucketNameSet;
+  const rows = BUCKETS.map(b => {
+    const names = b.liquid.concat(b.satellite);
+    const n = ROWS.filter(r => names.indexOf(r.tk) !== -1).length;
+    const on = BUCKET_SEL.has(b.id);
+    return '<button type="button" class="lens-jump' + (on ? " on" : "") + '"'
+      + ' data-ctx-bucket="' + escAttr(b.id) + '">' + esc(b.id + " " + b.name)
+      + ' <span class="cmd-sub">' + n + " of " + names.length + '</span></button>';
+  }).join(" ");
+  host.innerHTML =
+    '<div class="lensgroup"><div class="lens-fav">'
+    + '<button type="button" class="lens-jump' + (contextIsBucket() ? "" : " on")
+    + '" data-ctx-all="1">All securities <span class="cmd-sub">' + ROWS.length + '</span></button>'
+    + '</div></div>'
+    + '<div class="lensgroup"><h4>Buckets — screenable of held</h4>'
+    + '<div class="lens-fav">' + rows + '</div></div>'
+    + '<p>A bucket names companies; the screener judges the ones it carries fundamentals for.'
+    + ' Funds and futures are held by a thesis and can never be screened — the difference is'
+    + ' the two numbers on each row. The full explorer, with heat, history and constituents,'
+    + ' is <a href="#bucketBay">further down this page</a>.</p>';
+}
+
+/* Results collapse. The body folds; the count sentence and the resize handle stay, because
+   the sentence is the answer and the handle is how you get the table back to a useful size. */
+function toggleResults(){
+  const body = document.getElementById("resultsBody");
+  const btn = document.getElementById("resultsToggle");
+  const rz = document.getElementById("resultsResize");
+  if(!body || !btn) return;
+  const open = btn.getAttribute("aria-expanded") === "true";
+  btn.setAttribute("aria-expanded", open ? "false" : "true");
+  body.hidden = open;
+  if(rz) rz.hidden = open;
+  btn.title = open ? "Show the table again" : "Collapse the table — the count stays";
+}
+
 function render(){
+  // One universe per render. Set here rather than inside contextUniverse() so the memo can
+  // never outlive the pass that built it: `passesFilters` reads the live filter row, and a
+  // memo that survived a render would answer with the row as it used to be.
+  _inRender = true; _universeMemo = null;
+  try { renderInner(); } finally { _inRender = false; _universeMemo = null; }
+}
+function renderInner(){
   // The header names the source the cells below it were read from, and "off" is one of the
   // answers — an unqualified "Tone" over a column of dashes reads as absent documents.
   const col = toneSourceOff() ? "Tone · source off" :
@@ -6267,6 +6691,7 @@ function render(){
   document.getElementById("toneCol").textContent=col;
   renderNoData();
   syncWeightControl();
+  drawCmdBar();
   renderFilterCount();
   renderLensNote();
   drawPlot();

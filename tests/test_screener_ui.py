@@ -723,3 +723,105 @@ class TheToneLensesAreAllReachable(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TheCommandBarReadsStateNotTheDom(unittest.TestCase):
+    """The bar names the constraint the page is applying. That only stays true if it reads the
+    same variables the rows are computed from.
+
+    `activeLensLabel()` used to be `document.querySelector("#presets button.on").textContent`.
+    Survivable while the only way to change the lens was to click that button; not survivable
+    once a Context control sets `preset` directly, because every sentence naming the lens kept
+    naming the old one while the rows below were already the new one. Measured before the fix:
+    `preset = "safety_low_debt"` gave 30 safety rows under the label "Low P/E · high growth"."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(REPO, "docs", "research",
+                               "SCREENER_COMBINED_DRAFT.html"), encoding="utf-8") as fh:
+            cls.html = fh.read()
+
+    def test_the_lens_label_is_derived_from_preset(self):
+        body = re.search(r"function activeLensLabel\(\)\{(.*?)\}", self.html, re.S).group(1)
+        self.assertNotIn("querySelector", body,
+                         "the lens label reads the DOM again — a state-only lens change will "
+                         "leave every sentence naming the previous lens")
+        self.assertIn("preset", body)
+
+    def test_no_readout_recovers_the_lens_name_from_a_button(self):
+        for m in re.finditer(r'querySelector\((["\'])#presets button\.on\1\)', self.html):
+            line = self.html[:m.start()].count("\n") + 1
+            self.fail("line {}: the active lens is read off the pill row".format(line))
+
+    def test_the_universe_has_one_definition(self):
+        """Four functions used to answer "which rows" from the same state and disagree. The
+        two that were wrong are named here; the two deliberate readings are kept but must go
+        through the shared universe rather than re-derive it from raw globals."""
+        self.assertRegex(self.html, r"function contextUniverse\(\)\{")
+        self.assertRegex(
+            self.html, r"function matchedRows\(\)\{ return lensRows\(contextUniverse\(\)\); \}",
+            "matchedRows must be the lens over the shared universe")
+        # the two former defects, by the shape that made them wrong
+        self.assertNotRegex(
+            self.html, r"canonicalScreen\(key, ROWS\.filter\(passesFilters\)\)",
+            "the unscreened-names list drops the bucket leg again")
+        self.assertNotRegex(
+            self.html, r"const lens = lensRows\(\);",
+            "the running count's denominator ignores the context again")
+
+    def test_the_memo_cannot_outlive_one_render(self):
+        """`passesFilters` reads the live filter row, so a universe memo that survived a render
+        would answer with the row as it used to be."""
+        self.assertIn("_inRender = true; _universeMemo = null;", self.html)
+        self.assertRegex(self.html, r"finally \{ _inRender = false; _universeMemo = null; \}")
+
+    def test_every_lens_is_reachable_from_the_grouped_menu(self):
+        """The menu replaced a flat row that showed all of them at once. A lens missing from
+        LENS_GROUPS would be reachable from nowhere except a pinned star it may not have."""
+        groups = re.search(r"const LENS_GROUPS = \[(.*?)\n\];", self.html, re.S).group(1)
+        grouped = set(re.findall(r'"([a-z_]+)"', groups))
+        buttons = set(re.findall(r'<button type="button"[^>]*data-p="([a-z_]+)"', self.html))
+        buttons.discard("custom")
+        self.assertEqual(sorted(buttons - grouped), [],
+                         "lenses that exist but are in no menu group")
+        self.assertEqual(sorted(grouped - buttons), [],
+                         "menu groups naming lenses that do not exist")
+
+    def test_the_relocated_blocks_still_exist(self):
+        """Moved into disclosures, not deleted. Each keeps its id so the code that renders it
+        keeps working — this is a relocation, and a missing id here means a lost feature."""
+        for pid, inner in (("lensPanel", 'id="presets"'), ("filterPanel", 'id="filters"'),
+                           ("dataPanel", 'id="providers"'), ("layoutPanel", 'id="tray"')):
+            panel = re.search(r'<div class="explain" id="%s".*?\n</div>' % pid,
+                              self.html, re.S)
+            self.assertIsNotNone(panel, pid)
+            self.assertIn(inner, panel.group(0),
+                          "{} no longer contains {}".format(pid, inner))
+
+    def test_the_context_reports_screenable_and_held_separately(self):
+        """A bucket names companies the fundamentals universe may not carry. Reporting the held
+        count beside a table that can never show them is the misread this surface exists to
+        prevent — bucket 01 holds six names and none of them can be screened."""
+        body = re.search(r"function contextCounts\(\)\{(.*?)\n\}", self.html, re.S).group(1)
+        self.assertIn("screenable", body)
+        self.assertIn("held", body)
+
+    def test_the_conditional_honesty_notes_all_survive(self):
+        """Static boilerplate moved to tooltips. These are the ones that fire only when they
+        have something real to report, and every one of them must still be called."""
+        for fn in ("listedNote", "shadowGateNote", "emptyWayOut", "renderLensNote",
+                   "whyNotScreened"):
+            self.assertRegex(self.html, re.escape(fn) + r"\s*\(",
+                             "{} is no longer called".format(fn))
+
+    def test_the_board_height_is_derived_from_the_shell_zoom(self):
+        """`51vh` was inert: zoom does not rescale viewport units, so it resolved below the
+        420px floor and the board sat at its minimum while presenting at 39% of the screen.
+        Derived rather than hand-computed to 66vh, so changing the zoom moves it."""
+        # Anchored to a rule at column 0. An unanchored search matched the `.board{...}`
+        # inside the comment that explains this very fix — a test that passes by reading the
+        # prose about the code instead of the code.
+        m = re.search(r"^\.board\{[^}]*?height:min\(([^;]+?)\);", self.html, re.M | re.S)
+        self.assertIsNotNone(m, "the board height rule moved")
+        self.assertIn("var(--shell-zoom)", m.group(1),
+                      "the board height is a bare vh again, which this zoom makes inert")
