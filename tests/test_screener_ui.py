@@ -927,3 +927,58 @@ class TheMarkupIsWellFormed(unittest.TestCase):
                          "the page shell is nested inside the context section")
         self.assertNotIn('id="cmdbar"', sec.group(1),
                          "the command bar is nested inside the context section")
+
+
+class TheContextMatchesTheBucketsPage(unittest.TestCase):
+    """The grid is meant to read like the buckets page it came from. Two properties carry
+    that, and both were wrong: the cards sat on the same colour as the thing containing them,
+    so they separated only by a hairline and the whole block looked flat; and the control row
+    was left-aligned with a greedy search box, so six related controls rendered as two
+    clusters a screen apart with the first label flush against an edge the cards were inset
+    from."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(REPO, "docs", "research",
+                               "SCREENER_COMBINED_DRAFT.html"), encoding="utf-8") as fh:
+            cls.html = fh.read()
+
+    def _rule(self, selector):
+        """Anchored at column 0, so `.bk` finds the card rule and not the `.bk-grid .bk`
+        helper further down — an unanchored search reads whichever rule mentions the
+        selector first, which is how this asserted against `height:100%`."""
+        m = re.search(r"^" + re.escape(selector) + r"\{([^}]*)\}", self.html, re.M | re.S)
+        self.assertIsNotNone(m, "{} has no rule at the top level".format(selector))
+        return m.group(1)
+
+    def test_the_cards_sit_on_a_lighter_panel(self):
+        """The buckets page's relationship: container --surface, cards --plane. Same colour on
+        both is what made this look flat beside the original."""
+        panel = self._rule(".ctx-grid")
+        card = self._rule(".bk")
+        self.assertIn("background:var(--surface)", panel,
+                      "the grid panel must be one step lighter than the cards on it")
+        self.assertIn("background:var(--plane)", card)
+
+    def test_the_control_row_is_centred_and_the_search_is_not_greedy(self):
+        row = self._rule(".ctx-controls")
+        self.assertIn("justify-content:center", row,
+                      "the control row reads as two clusters when left-aligned")
+        search = self._rule(".ctx-controls .bkc-q")
+        self.assertNotRegex(
+            search, r"flex:\s*1\b",
+            "the search box grows into the slack again and shoves the buttons to the edge")
+
+    def test_the_context_bands_share_one_inset(self):
+        """Head, controls and grid are stacked bands of one section; three different insets is
+        what made the row look cut off against the cards."""
+        insets = []
+        for sel in (".ctx-head", ".ctx-controls", ".ctx-focus"):
+            m = re.search(r"padding:([^;}]+)", self._rule(sel))
+            self.assertIsNotNone(m, sel)
+            parts = m.group(1).split()
+            # CSS shorthand: 1 value is all sides, 2+ puts the horizontal second. Taking the
+            # last value read the BOTTOM padding on the three-value rules.
+            insets.append(parts[1] if len(parts) > 1 else parts[0])
+        self.assertEqual(len(set(insets)), 1,
+                         "the context bands use different horizontal insets: {}".format(insets))
