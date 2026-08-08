@@ -119,7 +119,11 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
 /* ── Context section ────────────────────────────────────────────────────────────────────
    The bucket workspace, framed as the universe layer. The head is a summary line that never
    folds; the body is the bay exactly as it was. */
-.ctx-section{border:1px solid var(--rule);border-radius:11px;background:var(--plane);
+/* --axis, not --rule. This is the boundary of the context LAYER, and at --rule it was the
+   same hairline every card on the page draws, so the one container that means "everything
+   below is scoped by this" looked like one more card. A step up the same neutral ramp —
+   still restrained, no new hue. */
+.ctx-section{border:1px solid var(--axis);border-radius:11px;background:var(--plane);
   margin:0 0 14px}
 .ctx-head{display:flex;align-items:baseline;gap:9px;padding:9px 16px;flex-wrap:wrap}
 .ctx-section.open .ctx-head{border-bottom:1px solid var(--rule)}
@@ -162,8 +166,11 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
    the container is --surface and the cards are --plane, so the cards read as objects ON a
    surface; both being --plane left them separated only by a hairline border, which is what
    made this look flat next to the original. */
-.ctx-grid{background:var(--surface);border:1px solid var(--rule);border-radius:9px;
-  padding:12px;margin:0 16px 16px}
+/* Background, no border. Three nested rounded outlines — section, panel, card — read as a
+   card inside a card inside a card; the panel only ever needed to be a surface for the cards
+   to sit on, and the colour step does that on its own. */
+.ctx-grid{background:var(--surface);border-radius:9px;padding:12px;margin:0 16px 16px;
+  container-type:inline-size}
 
 .cmdbar{position:sticky;top:0;z-index:30;margin:0 0 14px;padding:8px 0 9px;
   background:var(--plane);border-bottom:1px solid var(--rule)}
@@ -823,12 +830,19 @@ table.bwatch .spark{width:80px;height:26px;display:block}
    every breakpoint gives full rows — there is no three-column step because 20/3 does not.
    Media queries read the REAL viewport; `zoom` does not rescale them, so these thresholds
    are device px while the card sizes around them are CSS px. */
+/* Container queries, not media queries. The column count is a fact about how wide the GRID
+   is, and a media query answers a different question — how wide the window is — which then
+   has to be guessed back through the sidebar, the section insets and the shell's 0.77 zoom.
+   That guess was wrong: a window that looked wide enough for ten columns rendered five,
+   because the breakpoint was compared against the viewport rather than the 1600px of grid
+   inside it. Container width is the number that actually decides whether ten cards fit.
+   10 / 5 / 4 / 2 / 1 — every count divides twenty, so no breakpoint leaves a ragged row. */
 .bk-grid{--dcs:1;display:grid;gap:8px;
-  grid-template-columns:repeat(10,minmax(0,1fr));grid-auto-rows:minmax(124px,auto)}
-@media (max-width:1800px){ .bk-grid{grid-template-columns:repeat(5,minmax(0,1fr))} }
-@media (max-width:1200px){ .bk-grid{grid-template-columns:repeat(4,minmax(0,1fr))} }
-@media (max-width:847px){  .bk-grid{grid-template-columns:repeat(2,minmax(0,1fr))} }
-@media (max-width:560px){  .bk-grid{grid-template-columns:minmax(0,1fr)} }
+  grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:minmax(124px,auto)}
+@container (min-width:640px){  .bk-grid{grid-template-columns:repeat(4,minmax(0,1fr))} }
+@container (min-width:900px){  .bk-grid{grid-template-columns:repeat(5,minmax(0,1fr))} }
+@container (min-width:1360px){ .bk-grid{grid-template-columns:repeat(10,minmax(0,1fr))} }
+@container (max-width:400px){  .bk-grid{grid-template-columns:minmax(0,1fr)} }
 /* Equal heights need the card to fill the track it was given, not just start in it. */
 .bk-grid .bk-wrap,.bk-grid .bk{height:100%}
 /* The star is a sibling of the card, not a child of it: a <button> inside a <button> is

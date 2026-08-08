@@ -184,20 +184,58 @@ class TheDerivedConstantsAreRecomputed(unittest.TestCase):
             "keep positioning panes the CSS has already stacked".format(
                 sorted(set(stackers)), declared, self._zoom(), expected))
 
+    def test_the_grid_sizes_itself_from_its_own_width(self):
+        """A media query answers how wide the WINDOW is; the column count depends on how wide
+        the GRID is. Deriving one from the other means guessing back through the sidebar, the
+        section insets and the shell's 0.77 zoom — and that guess was wrong in practice: a
+        window wide enough for ten columns rendered five."""
+        self.assertIn("container-type:inline-size", self.html,
+                      "the grid's container is not queryable")
+        # EVERY breakpoint, not just one of them. Asserting that a container query exists
+        # somewhere let the others quietly regress to `@media` one at a time.
+        # ANY @media, either direction. `_media_blocks` only reads max-width, which is the
+        # form the stacking breakpoint uses — a min-width media query walked straight past it.
+        for m in re.finditer(r"@media\s*\(([^)]*)\)\s*\{", self.html):
+            i, depth = m.end(), 1
+            while depth and i < len(self.html):
+                if self.html[i] == "{":
+                    depth += 1
+                elif self.html[i] == "}":
+                    depth -= 1
+                i += 1
+            self.assertNotRegex(
+                self.html[m.end():i - 1], r"\.bk-grid\{[^}]*grid-template-columns",
+                "the `{}` media query sets bucket columns; column count is a fact about the "
+                "grid's width, and the shell's zoom makes that wider than the viewport it "
+                "would be compared against".format(m.group(1).strip()))
+        self.assertGreaterEqual(
+            len(re.findall(r"@container \([^)]*\)\{\s*\.bk-grid\{", self.html)), 3,
+            "the column ladder is not carried by container queries")
+
     def test_the_bucket_grid_column_counts_divide_twenty(self):
         """Twenty buckets. The grid is a deliberate matrix, so every breakpoint picks a column
         count that leaves no ragged last row — 5 and 4 divide 20 exactly, and 3/2/1 are the
         narrow fallbacks where a rectangle stops being achievable anyway. `auto-fill` is what
         this replaced: it chose whatever fitted, so the same twenty cards landed 7+7+6 at one
         width and 5+5+5+5 at another."""
+        # Every column count anywhere, whatever kind of query holds it. This scanned only
+        # `@media` blocks, so when the breakpoints moved to `@container` it kept passing
+        # while checking nothing but the base rule — a guard that survives the change it was
+        # written for by no longer looking at it.
+        # Scan each `.bk-grid{...}` rule whole: the base one declares other properties before
+        # its columns, so a pattern anchored right after the brace saw only the breakpoints.
         cols = []
-        for _px, body in self._media_blocks():
-            for m in re.finditer(r"\.bk-grid\{grid-template-columns:repeat\((\d+)", body):
+        for body in re.findall(r"\.bk-grid\{([^}]*)\}", self.html):
+            m = re.search(r"grid-template-columns:\s*repeat\((\d+)", body)
+            if m:
                 cols.append(int(m.group(1)))
-        base = re.search(r"^\.bk-grid\{[^}]*grid-template-columns:repeat\((\d+)",
-                         self.html, re.M)
-        self.assertIsNotNone(base, "the bucket grid has no explicit column count")
-        cols.append(int(base.group(1)))
+            elif "grid-template-columns:minmax(" in body.replace(" ", ""):
+                cols.append(1)
+        self.assertGreaterEqual(len(cols), 4,
+                                "the grid has lost its responsive column ladder")
+        self.assertTrue(
+            re.search(r"^\.bk-grid\{[^}]*grid-template-columns:repeat\(", self.html, re.M),
+            "the bucket grid has no explicit base column count")
         self.assertNotRegex(self.html, r"\.bk-grid\{[^}]*auto-fill",
                             "the bucket grid pours again instead of forming a matrix")
         for n in cols:
