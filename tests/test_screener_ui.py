@@ -150,16 +150,60 @@ class TheDerivedConstantsAreRecomputed(unittest.TestCase):
             self.html, r"const STACK_MQ = \"\(max-width:\" \+ stackBreakpointPx\(\)",
             "STACK_MQ must be derived from the declared layout width and the live zoom")
 
+    def _media_blocks(self):
+        """(max-width px, block body) for every media query, with braces balanced so a block
+        containing nested rules is not cut short at its first `}`."""
+        out = []
+        for m in re.finditer(r"@media \(max-width:(\d+)px\)\s*\{", self.html):
+            i, depth = m.end(), 1
+            while depth and i < len(self.html):
+                if self.html[i] == "{":
+                    depth += 1
+                elif self.html[i] == "}":
+                    depth -= 1
+                i += 1
+            out.append((int(m.group(1)), self.html[m.end():i - 1]))
+        return out
+
     def test_the_css_breakpoint_equals_the_declared_width_times_the_zoom(self):
+        """Scoped to the blocks that actually STACK. This used to assert that every
+        `max-width` in the file equalled the stacking breakpoint, which held only while there
+        was one breakpoint in the file — it failed the moment the bucket grid needed its own
+        column-count breakpoints, which are a different constant for a different job. The
+        property worth guarding is unchanged: wherever the CSS takes over the layout, the
+        tree must have stopped positioning at the same width, or panes get positioned by both
+        at once."""
         declared = int(re.search(r"const MIN_TREE_CSS_PX = (\d+)", self.html).group(1))
         expected = round(declared * self._zoom())
-        found = {int(px) for px in re.findall(r"@media \(max-width:(\d+)px\)", self.html)}
-        self.assertTrue(found, "no stacking media query found")
+        stackers = [px for px, body in self._media_blocks()
+                    if ".board{height:auto" in body or "board-resize" in body]
+        self.assertTrue(stackers, "no stacking media query found")
         self.assertEqual(
-            found, {expected},
+            sorted(set(stackers)), [expected],
             "the CSS stacking breakpoint(s) {} do not equal {} x {} = {}; the tree would "
             "keep positioning panes the CSS has already stacked".format(
-                sorted(found), declared, self._zoom(), expected))
+                sorted(set(stackers)), declared, self._zoom(), expected))
+
+    def test_the_bucket_grid_column_counts_divide_twenty(self):
+        """Twenty buckets. The grid is a deliberate matrix, so every breakpoint picks a column
+        count that leaves no ragged last row — 5 and 4 divide 20 exactly, and 3/2/1 are the
+        narrow fallbacks where a rectangle stops being achievable anyway. `auto-fill` is what
+        this replaced: it chose whatever fitted, so the same twenty cards landed 7+7+6 at one
+        width and 5+5+5+5 at another."""
+        cols = []
+        for _px, body in self._media_blocks():
+            for m in re.finditer(r"\.bk-grid\{grid-template-columns:repeat\((\d+)", body):
+                cols.append(int(m.group(1)))
+        base = re.search(r"^\.bk-grid\{[^}]*grid-template-columns:repeat\((\d+)",
+                         self.html, re.M)
+        self.assertIsNotNone(base, "the bucket grid has no explicit column count")
+        cols.append(int(base.group(1)))
+        self.assertNotRegex(self.html, r"\.bk-grid\{[^}]*auto-fill",
+                            "the bucket grid pours again instead of forming a matrix")
+        for n in cols:
+            if n > 2:
+                self.assertEqual(20 % n, 0,
+                                 "{} columns leaves a ragged row of twenty buckets".format(n))
 
 
 class ThePageDoesNotRestateWhatPythonDefines(unittest.TestCase):

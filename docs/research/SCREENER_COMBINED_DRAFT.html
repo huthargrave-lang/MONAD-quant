@@ -736,9 +736,12 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
    board's absolute positioning, because this layout is FIXED — it reproduces a specific
    page — and a flow layout lets every card be as tall as its content instead of being
    clipped to a share of a height somebody dragged. */
-.bucket-bay .bay-grid{display:grid;gap:10px;
-  grid-template-columns:minmax(0,1.62fr) minmax(0,1fr);
-  grid-template-areas:"ctl ctl" "grid grid" "chart side1" "chart side2" "chart side3"}
+/* Two stacked rows, because the context owns exactly two things now: the controls that frame
+   the reading, and the grid you choose from. The chart / side1..side3 areas went with the
+   analysis tiles onto the board — a context that laid out four analysis panes was a second
+   dashboard wearing an accordion. */
+.bucket-bay .bay-grid{display:grid;gap:10px;grid-template-columns:minmax(0,1fr);
+  grid-template-areas:"ctl" "grid"}
 /* relative, not static: the close button is absolutely positioned against its
    own tile, and a static parent would have sent it to the section instead. */
 .bucket-bay .tile{position:relative;display:flex;flex-direction:column;
@@ -748,7 +751,6 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
    cannot move is not a module. The slots keep their shapes; which card sits in which is the
    reader's. */
 /* Expand: the panel takes the width and the watchlist drops under it. */
-.bucket-bay.panel-wide .bay-grid{grid-template-areas:"ctl ctl" "grid grid" "chart chart" "side1 side1"}
 /* Tabs. The buckets page's own: pill buttons in the card head, the active one filled. */
 .btabs{display:flex;flex-wrap:wrap;gap:6px;flex:1;min-width:0}
 .btabs button{font:12.5px var(--sans);padding:4px 11px;cursor:pointer;
@@ -796,7 +798,7 @@ table.bwatch .spark{width:80px;height:26px;display:block}
 .bucket-bay[hidden]{display:none}
 @media (max-width:847px){
   .bucket-bay .bay-grid{grid-template-columns:minmax(0,1fr);
-    grid-template-areas:"ctl" "grid" "chart" "side1" "side2" "side3"}
+    grid-template-areas:"ctl" "grid"}
 }
 
 /* The bucket grid. Cards rather than chips: each carries a thesis blurb, a holding period and
@@ -807,8 +809,23 @@ table.bwatch .spark{width:80px;height:26px;display:block}
    At --dcs 1.54 the 178px minimum became 274px, which dropped a 1023px pane from five columns
    to three and turned four rows into seven, so a taller pane showed FEWER buckets. Fixed
    columns mean a wider pane gets more of them. */
+/* A deliberate rectangle, not a fluid pour. `auto-fill,minmax(176px,1fr)` chose whatever
+   column count happened to fit, so twenty cards landed 7+7+6 at one width and 5+5+5+5 at
+   another, and the last row was ragged either way. Twenty divides cleanly by five and four,
+   so the breakpoints pick those: 5x4 wide, 4x5 at laptop, then 3, 2, 1. Column counts are
+   named rather than derived from a card width, which is what makes the matrix square.
+   `grid-auto-rows:1fr` equalises heights across a row; the 124px floor is the buckets page's
+   own `.bucket{min-height:124px}`, kept so the density does not drift from the original. */
 .bk-grid{--dcs:1;display:grid;gap:8px;
-  grid-template-columns:repeat(auto-fill,minmax(176px,1fr))}
+  grid-template-columns:repeat(5,minmax(0,1fr));grid-auto-rows:minmax(124px,auto)}
+@media (max-width:1500px){ .bk-grid{grid-template-columns:repeat(4,minmax(0,1fr))} }
+/* No three-column step: 20/3 is 6 rows with a two-card orphan, and four columns still hold
+   ~250px cards at 1100 — wider than the buckets page's own 176px floor. The ladder is
+   5 / 4 / 2 / 1 because every one of those divides twenty exactly. */
+@media (max-width:847px){  .bk-grid{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@media (max-width:560px){  .bk-grid{grid-template-columns:minmax(0,1fr)} }
+/* Equal heights need the card to fill the track it was given, not just start in it. */
+.bk-grid .bk-wrap,.bk-grid .bk{height:100%}
 /* The star is a sibling of the card, not a child of it: a <button> inside a <button> is
    invalid HTML and browsers reparent it, which silently moves the star out of the card. */
 .bk-wrap{position:relative;display:flex}
@@ -1027,7 +1044,9 @@ table.bwatch .spark{width:80px;height:26px;display:block}
       </div>
       <div id="contextBody">
         <section class="panel bucket-bay" id="bucketBay">
-      <h2>Buckets<span class="bay-note" id="bayNote"></span></h2>
+      <!-- The section header two lines up already says CONTEXT and names the selection, and
+           the card below is titled "Buckets". A third heading between them said the same thing
+           a third time and explained a causation the layout now shows. -->
       <div class="bay-grid">
       <!-- ── The chaos buckets, as three tiles on the same board ───────────────────────
            A bucket and a lens are different kinds of thing and the board keeps them apart. A
@@ -1100,60 +1119,17 @@ table.bwatch .spark{width:80px;height:26px;display:block}
            these four are one subject read four ways — the same selection as a chart, as a
            thesis, as a price list, as a ranking — and the buckets page's reader already
            knows where they are. The board's panes are for different subjects side by side. -->
-      <article class="tile" data-id="bpanel" id="tile-bpanel">
-        <div class="tile-bar" data-drag>
-          <div class="btabs" id="bTabs" data-nodrag>
-            <button type="button" class="on" data-btab="chart">History</button>
-            <button type="button" data-btab="detail">Bucket detail</button>
-            <button type="button" data-btab="feed">Price feed</button>
-            <button type="button" data-btab="book1">Book I · Keel / Sail</button>
-          </div>
-          <button type="button" class="btab-expand" id="bExpand" data-nodrag
-                  aria-label="Expand this panel">⛶ Expand</button>
-          <button type="button" class="tile-close" data-close aria-label="Park this card">×</button>
-        </div>
-        <div class="tile-body">
-          <div class="detail-card" id="bPanelBody">
-            <section data-bpane="chart">
-              <h3 id="bChartTitle">Select a bucket</h3>
-              <p class="bchart-sub" id="bChartSub"></p>
-              <div class="chart-host bchart" id="bChart"></div>
-              <div class="legend" id="bChartLegend"></div>
-            </section>
-            <section data-bpane="detail" hidden><div id="thesisCard"></div></section>
-            <section data-bpane="feed" hidden><div id="feedList"></div></section>
-            <section data-bpane="book1" hidden><div id="book1List"></div></section>
-          </div>
-        </div>
-      </article>
 
-      <article class="tile" data-id="bwatch" id="tile-bwatch">
-        <div class="tile-bar" data-drag>
-          <span class="tile-grip">⋮⋮</span>
-          <h2>Constituents</h2>
-          <button type="button" class="tile-close" data-close aria-label="Park this card">×</button>
-        </div>
-        <div class="tile-body">
-          <p class="bwatch-hint" id="bWatchHint"></p>
-          <div class="detail-card" id="membersList"></div>
-        </div>
-      </article>
       </div>
         </section>
       </div>
     </section>
 
     <div class="cmdbar" id="cmdbar">
+      <!-- No Context control here. The section header above is the single canonical one;
+           a second readout of the same state two lines below it was the page saying one thing
+           twice, and a second way to CHANGE it would have been two states to keep in step. -->
       <div class="cmd-row">
-        <button type="button" class="cmd" id="ctxChip"
-                aria-label="Context — jump to the context workspace">
-          <span class="cmd-k">Context</span>
-          <span class="cmd-v" id="ctxValue">All securities</span>
-          <span class="cmd-sub" id="ctxSub"></span>
-          <span class="cmd-caret" aria-hidden="true">&#9662;</span>
-        </button>
-        <button type="button" class="cmd-clear" id="ctxClear" hidden
-                title="Analyse all securities again">&#215;</button>
         <button type="button" class="cmd" id="lensChip" data-panel-open="lensPanel"
                 aria-expanded="false" aria-label="Lens — how it is being analysed">
           <span class="cmd-k">Lens</span>
@@ -1218,6 +1194,43 @@ table.bwatch .spark{width:80px;height:26px;display:block}
 
 
     <div class="board" id="board">
+      <article class="tile" data-id="bpanel" id="tile-bpanel">
+        <div class="tile-bar" data-drag>
+          <div class="btabs" id="bTabs" data-nodrag>
+            <button type="button" class="on" data-btab="chart">History</button>
+            <button type="button" data-btab="detail">Bucket detail</button>
+            <button type="button" data-btab="feed">Price feed</button>
+            <button type="button" data-btab="book1">Book I · Keel / Sail</button>
+          </div>
+          <button type="button" class="btab-expand" id="bExpand" data-nodrag
+                  aria-label="Expand this panel">⛶ Expand</button>
+          <button type="button" class="tile-close" data-close aria-label="Park this card">×</button>
+        </div>
+        <div class="tile-body">
+          <div class="detail-card" id="bPanelBody">
+            <section data-bpane="chart">
+              <h3 id="bChartTitle">Select a bucket in Context</h3>
+              <p class="bchart-sub" id="bChartSub"></p>
+              <div class="chart-host bchart" id="bChart"></div>
+              <div class="legend" id="bChartLegend"></div>
+            </section>
+            <section data-bpane="detail" hidden><div id="thesisCard"></div></section>
+            <section data-bpane="feed" hidden><div id="feedList"></div></section>
+            <section data-bpane="book1" hidden><div id="book1List"></div></section>
+          </div>
+        </div>
+      </article>
+      <article class="tile" data-id="bwatch" id="tile-bwatch">
+        <div class="tile-bar" data-drag>
+          <span class="tile-grip">⋮⋮</span>
+          <h2>Constituents</h2>
+          <button type="button" class="tile-close" data-close aria-label="Park this card">×</button>
+        </div>
+        <div class="tile-body">
+          <p class="bwatch-hint" id="bWatchHint"></p>
+          <div class="detail-card" id="membersList"></div>
+        </div>
+      </article>
       <article class="tile" data-id="plot" id="tile-plot">
         <div class="tile-bar" data-drag>
           <span class="tile-grip">⋮⋮</span>
@@ -2298,8 +2311,14 @@ function priceCohort(cap){
    hides every TILE_ID it did not place, and a bay tile is never placed on the board — so a
    single list would have made the whole buckets section vanish on the first layout pass.
    Both are offered in Widget options; ticking a bay tile shows it in the bay. */
-const TILE_IDS = ["plot","price","tone","rank","dist","shadow","card","watch"];
-const BAY_IDS  = ["bucketctl","buckets","bpanel","bwatch"];
+/* Board modules. `bpanel` and `bwatch` are here rather than in the context because they are
+   analytical OUTPUTS about a chosen universe, not controls that choose one — the same kind of
+   thing as the scatter and the ranking, and placed, dragged and resized by the same system.
+   Keeping them in the context turned it into a second dashboard. */
+const TILE_IDS = ["plot","price","tone","rank","dist","shadow","card","watch","bpanel","bwatch"];
+/* What the CONTEXT section owns: the controls that DEFINE the universe, and nothing that
+   analyses it. */
+const BAY_IDS  = ["bucketctl","buckets"];
 const ALL_TILE_IDS = TILE_IDS.concat(BAY_IDS);
 function isBayTile(id){ return BAY_IDS.indexOf(id) !== -1; }
 const TILE_LABELS = {
@@ -2654,6 +2673,11 @@ function renderTray(){
     : '<span class="tray-empty">every chart with data is on the board — press × on a card to park it here</span>';
   renderParkedTray();
   syncLayoutPanel();
+  // The Modules chip counts the same two lists this function just rebuilt. Placing a tile
+  // from the tray calls layoutBoard/saveBoard but not render(), so a chip that only refreshed
+  // on render read "3 on board" with four placed — a counter that is wrong is worse than no
+  // counter. Updated here, where the thing it counts changes.
+  drawModChip();
 }
 /* Parked charts stay reachable, and the disclosure says why they are set aside so nobody
    reads their absence from the tray as them being broken. */
@@ -3137,7 +3161,9 @@ function setBayShown(id, on){
    cell and a right column — and BAY_ORDER says which card is in which. The shapes are the
    buckets page's; which card takes which shape is the reader's, because a card that cannot
    move is not a module however many other module properties it has. */
-const BAY_SLOTS = ["ctl", "grid", "chart", "side1 / side1 / side3 / side3"];
+/* Two slots for two context controls. The four-slot version described a layout that held
+   analysis panes; those are board modules now. */
+const BAY_SLOTS = ["ctl", "grid"];
 const BAY_ORDER_KEY = "monad.screener.draft.bayorder.v1";
 let BAY_ORDER = loadBayOrder();
 function loadBayOrder(){
@@ -3179,15 +3205,15 @@ function layoutBay(){
   // The whole section goes when nothing in it is showing, rather than leaving a titled
   // panel with nothing under it.
   bay.hidden = !anyShown;
-  const note = document.getElementById("bayNote");
-  if(note) note.textContent = BUCKET_SEL.size
-    ? " — " + BUCKET_SEL.size + " selected, filtering everything above"
-    : " — select a thesis to filter the whole screener by it";
+  // The note that lived here said which direction the causation ran ("filtering everything
+  // above"). The layout says it now — the context sits above what it constrains — and the
+  // section header states the selection and its count. Removed rather than kept as a third
+  // copy of the same sentence.
 }
-/* Drag a bay card's header onto another and they swap slots. A swap rather than an insert
-   because the four slots are different SHAPES — a full-width control row and a tall right
-   column are not interchangeable positions in a list — so "put this one where that one is"
-   is the move that has an unambiguous result. */
+/* Drag a context card's header onto the other and they swap. A swap rather than an insert
+   because the two slots are different SHAPES — a control row and a card grid are not
+   interchangeable positions in a list — so "put this one where that one is" is the move with
+   an unambiguous result. */
 function initBayDrag(){
   const bay = document.getElementById("bucketBay");
   if(!bay) return;
@@ -4856,13 +4882,6 @@ document.addEventListener("click", (ev)=>{
   // pill row, the bucket grid and the bar can never disagree about what is selected.
   const go = ev.target.closest("[data-lens-go]");
   if(go){ selectPreset(go.dataset.lensGo); render(); return; }
-  if(ev.target.closest("#ctxClear")){
-    BUCKET_SEL.clear(); resetPriceLit(); render();
-    // Focus does not vanish with the button: the chip the × belonged to is still there and
-    // is what the reader was operating.
-    const chip = document.getElementById("ctxChip"); if(chip) chip.focus();
-    return;
-  }
   const star = ev.target.closest('#presets .lens-star');
   if(star){ toggleStar(star.dataset.star); return; }
   const mk = ev.target.closest('#presets button[data-p="custom"]');
@@ -4873,14 +4892,6 @@ document.addEventListener("click", (ev)=>{
   }
   if(ev.target.closest("#resultsToggle")){ toggleResults(); return; }
   if(ev.target.closest("#ctxToggle")){ toggleCtx(); return; }
-  if(ev.target.closest("#ctxChip")){
-    // A shortcut back to the workspace, not a second way to choose. It expands what is
-    // collapsed and takes the reader there; the choosing happens on the cards.
-    setCtxOpen(true);
-    const sec = document.getElementById("contextSection");
-    if(sec) sec.scrollIntoView({block:"start"});
-    return;
-  }
   if(ev.target.closest("#ctxHeadClear")){
     BUCKET_SEL.clear(); resetPriceLit(); render();
     const t = document.getElementById("ctxToggle"); if(t) t.focus();
@@ -5934,7 +5945,7 @@ function drawBucketChart(){
   const leg = document.getElementById("bChartLegend");
   const sel = selectedBuckets();
   if(!sel.length){
-    title.textContent = "Select a bucket";
+    title.textContent = "Select a bucket in Context";
     sub.textContent = "";
     host.innerHTML = '<p class="dc-empty">Pick one or more theses above and their names are'
       + ' drawn here, each indexed to 100 so shapes can be compared across price levels.</p>';
@@ -6029,7 +6040,7 @@ function drawFeed(){
   const names = bucketNames();
   if(!names.length){
     setMeta("—");
-    host.innerHTML = '<p class="dc-empty"><b>No bucket selected.</b> Last close and window'
+    host.innerHTML = '<p class="dc-empty"><b>Select a bucket in Context.</b> Last close and window'
       + ' return for every constituent will be listed here.</p>';
     return;
   }
@@ -6111,8 +6122,7 @@ function drawThesis(){
   const sel = selectedBuckets();
   if(!sel.length){
     setTitle("Bucket thesis");
-    host.innerHTML = '<p class="dc-empty"><b>No bucket selected.</b> Pick one on the'
-      + ' <b>Chaos buckets</b> card and its claim, holding period and failure condition'
+    host.innerHTML = '<p class="dc-empty"><b>Select a bucket in Context.</b> Its claim, holding period and failure condition'
       + ' appear here. A lens cannot carry a <code>fails when</code> — that is the one thing'
       + ' a declared list has and a computed screen does not.</p>';
     return;
@@ -6136,8 +6146,8 @@ function drawMembers(){
   const hint = document.getElementById("bWatchHint");
   const sel = selectedBuckets();
   if(!sel.length){
-    if(hint) hint.textContent = "Select a thesis to list what it holds.";
-    host.innerHTML = '<p class="dc-empty"><b>No bucket selected.</b> Every constituent will'
+    if(hint) hint.textContent = "Select a bucket in Context.";
+    host.innerHTML = '<p class="dc-empty"><b>Select a bucket in Context.</b> Every constituent will'
       + ' be listed here with its tier, its bucket, its shape over the window, its last close'
       + ' and its return.</p>';
     return;
@@ -6623,32 +6633,6 @@ function drawLensFav(){
         ? '<span class="fav-none">+' + (fav.length - shown.length) + ' more in the menu</span>'
         : "");
 }
-/* The context readout. Says what is being analysed and how much of it can be screened —
-   held and screenable are different numbers for a bucket holding funds, and the table can
-   only ever show the second. */
-function drawContextChip(){
-  const chip = document.getElementById("ctxChip");
-  const val = document.getElementById("ctxValue");
-  const sub = document.getElementById("ctxSub");
-  const clear = document.getElementById("ctxClear");
-  if(!chip || !val) return;
-  const on = contextIsBucket();
-  const c = contextCounts();
-  val.textContent = contextLabel();
-  // Deliberately SHORTER than the section head above it. Both read the same state, and the
-  // bar printing the head's sentence back verbatim two lines below it was the page telling
-  // the reader the same thing twice in the same breath. This one is the compact indicator
-  // that survives scrolling; the head is the full readout.
-  sub.textContent = c.screenable + " names";
-  chip.classList.toggle("narrowed", on);
-  clear.hidden = !on;
-  // Shock and clock ORDER the bucket cards; they do not narrow the universe. Stated on the
-  // chip that shows them, because a scenario named beside a row count reads as its cause.
-  chip.title = on
-    ? contextLabel() + " is constraining every card below. Click to open the context"
-      + " workspace, where the buckets are chosen."
-    : "Every loaded name. Click to open the context workspace and pick a thesis.";
-}
 function drawLensChip(){
   const v = document.getElementById("lensValue");
   if(v) v.textContent = activeLensLabel();
@@ -6687,7 +6671,7 @@ function drawModChip(){
   v.textContent = placed + " on board" + (tray ? " · " + tray + " unplaced" : "");
 }
 function drawCmdBar(){
-  drawContextChip(); drawLensChip(); drawFilterChip(); drawDataChip(); drawModChip();
+  drawLensChip(); drawFilterChip(); drawDataChip(); drawModChip();
   drawLensFav(); drawLensPanel();
 }
 

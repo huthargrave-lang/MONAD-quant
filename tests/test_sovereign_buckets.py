@@ -194,19 +194,42 @@ class TheBucketsAreOnTheScreenerBoard(unittest.TestCase):
 
     def test_the_bucket_cards_are_widget_options(self):
         """The ask was for them in edit-layout, not bolted to the page — a card that cannot
-        be closed or brought back is not a module, it is furniture.
-
-        They live in BAY_IDS rather than TILE_IDS: the bay below the results table is a
-        different region from the split-tree board, and layoutBoard HIDES every TILE_ID it
-        did not place — one shared list made the whole buckets section vanish on the first
-        layout pass. Widget options offers both registries."""
-        bay = re.search(r"const BAY_IDS  = \[(.*?)\];", self.html, re.S).group(1)
+        be closed or brought back is not a module, it is furniture. All four are still
+        offered; what changed is WHICH registry each is in."""
         for tile in ("bucketctl", "buckets", "bpanel", "bwatch"):
-            self.assertIn('"{}"'.format(tile), bay,
-                          "{} is not a bay tile".format(tile))
             self.assertRegex(self.html, r'data-id="{}"'.format(tile))
             self.assertRegex(self.html, r"{}\s*:".format(tile),
                              "{} has no label/note entry".format(tile))
+        self.assertRegex(
+            self.html, r"tileOrder\(ALL_TILE_IDS\.filter",
+            "widget options must offer both registries, or a hidden card cannot be reopened")
+
+    def test_the_context_owns_controls_and_the_board_owns_the_analysis(self):
+        """The split that stops the context becoming a second dashboard. A control DEFINES the
+        universe; a panel ANALYSES one. Shock & clock and the card grid define; the history,
+        detail, price-feed, Book I tabs and the constituents table analyse, so they are board
+        modules placed, dragged and resized by the same system as the scatter and the ranking
+        — not a second special chart area that only buckets get."""
+        bay = re.search(r"const BAY_IDS  = \[(.*?)\];", self.html, re.S).group(1)
+        tiles = re.search(r"const TILE_IDS = \[(.*?)\];", self.html, re.S).group(1)
+        for control in ("bucketctl", "buckets"):
+            self.assertIn('"{}"'.format(control), bay,
+                          "{} defines the context and belongs to it".format(control))
+            self.assertNotIn('"{}"'.format(control), tiles)
+        for analysis in ("bpanel", "bwatch"):
+            self.assertIn('"{}"'.format(analysis), tiles,
+                          "{} analyses a universe and belongs on the board".format(analysis))
+            self.assertNotIn('"{}"'.format(analysis), bay)
+
+    def test_the_analysis_modules_sit_in_the_board_container(self):
+        """Markup, not just the registry: layoutBoard positions its children absolutely, so a
+        tile listed as a board module but parked in the context markup would be positioned
+        against a container it is not inside."""
+        board = re.search(r'<div class="board" id="board">(.*?)\n    </div>', self.html, re.S)
+        self.assertIsNotNone(board)
+        for analysis in ("bpanel", "bwatch"):
+            self.assertIn('data-id="{}"'.format(analysis), board.group(1),
+                          "{} is a board module but is not in the board".format(analysis))
         self.assertRegex(
             self.html, r"tileOrder\(ALL_TILE_IDS\.filter\(id => !parked\.includes\(id\)\)\)",
             "the widget panel must offer both registries, or a bay card cannot be reopened")
@@ -267,11 +290,19 @@ class TheBucketsAreOnTheScreenerBoard(unittest.TestCase):
         self.assertIsNotNone(obs)
         self.assertIn("bChart", obs.group(0), "the bay chart is not observed for resize")
 
-    def test_the_bay_reproduces_the_buckets_page_layout(self):
-        """Controls across the top, grid under them, chart beside the supporting cards."""
-        areas = re.search(r'grid-template-areas:(.*?)\}', self.html, re.S).group(1)
-        for want in ('"ctl ctl"', '"grid grid"', '"chart side1"'):
-            self.assertIn(want, areas, "bay layout lost {}".format(want))
+    def test_the_context_lays_out_as_controls_over_grid(self):
+        """Two rows, because the context owns two things. The chart / side1..side3 areas went
+        with the analysis tiles onto the board; a context that laid out four analysis panes
+        was a second dashboard wearing an accordion."""
+        areas = re.search(r'\.bucket-bay \.bay-grid\{[^}]*grid-template-areas:([^}]*)\}',
+                          self.html, re.S).group(1)
+        self.assertIn('"ctl"', areas)
+        self.assertIn('"grid"', areas)
+        for gone in ('"chart side1"', '"chart side2"', '"chart side3"'):
+            self.assertNotIn(gone, areas,
+                             "the context still lays out an analysis pane: {}".format(gone))
+        slots = re.search(r"const BAY_SLOTS = \[(.*?)\];", self.html, re.S).group(1)
+        self.assertNotIn("chart", slots, "BAY_SLOTS still hands out an analysis slot")
 
     def test_constituent_series_travel_not_just_screened_ones(self):
         """53 of 202 constituents are in the fundamentals universe. Shipping only screened
