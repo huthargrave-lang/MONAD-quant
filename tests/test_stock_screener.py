@@ -16,6 +16,7 @@ for _p in (REPO, os.path.join(REPO, "tools")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
+import sovereign_buckets
 import stock_screener as sc  # noqa: E402
 
 
@@ -124,13 +125,23 @@ class PresetDefinitionTests(unittest.TestCase):
         self.assertIn("low", tags)
 
     def test_the_book_one_sovereignty_names_are_all_tagged(self):
-        """The Book I set from docs/research/SOVEREIGN_LEDGER_WATCHLIST_2026.md
-        (PR #56) IS the "wartime elements" bucket — a dropped name would silently
-        vanish from the sovereign_ledger lens."""
+        """The Book I set from docs/research/SOVEREIGN_LEDGER_WATCHLIST_2026.md (PR #56) IS
+        the "wartime elements" bucket — a dropped name silently vanishes from the
+        sovereign_ledger lens, which is the lens that exists to show Book I.
+
+        Stated against Book I rather than a frozen list of eight tickers. The frozen list WAS
+        the bug: Book I has thirteen rows and the hand-kept tag carried eight, so LAR, LRV.AX
+        and NSRCF were absent from the lens named after them and the test agreed with the
+        omission. REMX and SETM are the two remaining, and they are funds — the lens screens
+        companies, and `NOT_COMPANIES` says why rather than leaving them unaccounted."""
         tagged = {t for t, _n, _s, _a, b in sc.universe_rows()
                   if b == "wartime elements"}
-        self.assertEqual(tagged, {"MP", "UUUU", "LEU", "LAC", "UAMY", "USAR",
-                                  "AREC", "NB"})
+        book1 = {r["t"] for r in sovereign_buckets.BOOK1}
+        missing = book1 - tagged - set(sovereign_buckets.NOT_COMPANIES)
+        self.assertEqual(sorted(missing), [],
+                         "Book I names missing from the sovereign_ledger lens")
+        self.assertEqual(sorted(tagged - book1), [],
+                         "names tagged Book I that Book I does not list")
 
     def test_every_bucket_tag_is_a_declared_bucket(self):
         for t, _n, _s, _a, b in sc.universe_rows():

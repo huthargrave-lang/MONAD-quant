@@ -550,3 +550,100 @@ class ThePriceUniverseCoversTheBuckets(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EveryConstituentIsScreenedOrExplained(unittest.TestCase):
+    """Selecting two buckets emptied the whole board, and the page said "no match in this
+    lens" about names no lens had ever seen. 149 of the 202 constituents carried no
+    fundamentals row, so a bucket could be plotted and not screened — and the two states were
+    reported with the same sentence.
+
+    The rule this encodes: a constituent is either in the fundamentals universe or there is a
+    recorded reason it cannot be. There is no third state, because the third state is what
+    reads as "the screener found nothing"."""
+
+    def test_no_constituent_is_silently_unscreenable(self):
+        universe = {r[0] for r in sc.universe_rows()}
+        unexplained = [
+            t for t in sb.all_tickers()
+            if t not in universe and t not in sb.DELISTED and t not in sb.NOT_COMPANIES]
+        self.assertEqual(
+            unexplained, [],
+            "these constituents are in no bucket lens and no absence table — the page can "
+            "only say 'no fundamentals row', which reads as an unrun fetch")
+
+    def test_the_two_absence_tables_do_not_overlap(self):
+        """A name is delisted or it is not a company. Both would let the page pick whichever
+        reason it looked up first, and the two sentences tell a reader to do different
+        things."""
+        both = sorted(set(sb.DELISTED) & set(sb.NOT_COMPANIES))
+        self.assertEqual(both, [], "recorded as delisted AND as not-a-company")
+
+    def test_nothing_is_excused_that_is_not_a_constituent(self):
+        """An absence table entry for a name no bucket holds is a stale exemption: it excuses
+        nothing, and it would go on excusing a ticker after the bucket dropped it."""
+        named = set(sb.all_tickers())
+        for table, label in ((sb.DELISTED, "DELISTED"), (sb.NOT_COMPANIES, "NOT_COMPANIES")):
+            stray = sorted(t for t in table if t not in named)
+            self.assertEqual(stray, [], "{} excuses names no bucket holds".format(label))
+
+    def test_a_fund_never_enters_the_fundamentals_universe(self):
+        """The universe exists to carry per-company fundamentals. A fund in it would be
+        fetched, come back with no P/E and no sector, and then be indistinguishable from a
+        company the vendor happened to have nothing for."""
+        universe = {r[0] for r in sc.universe_rows()}
+        wrong = sorted(universe & set(sb.NOT_COMPANIES))
+        self.assertEqual(wrong, [], "not-a-company entries are in the fundamentals universe")
+
+    def test_the_screener_tag_of_every_constituent_is_a_real_bucket_tag(self):
+        for ticker, _ai in sc.BUCKET_CONSTITUENTS:
+            tag = sb.screen_tag_for(ticker)
+            self.assertIsNotNone(tag, "{} has no bucket screen_tag".format(ticker))
+            self.assertIn(tag, sc.CHAOS_BUCKETS, ticker)
+
+    def test_the_two_bucket_vocabularies_are_one(self):
+        """CHAOS_BUCKETS was a hand-kept list of 19 strings naming the same 20 buckets the
+        ledger defines. Derived now, so a renamed bucket cannot leave a screener tag behind
+        pointing at a bucket that no longer answers to it."""
+        with open(os.path.join(REPO, "tools", "stock_screener.py"), encoding="utf-8") as fh:
+            src = fh.read()
+        self.assertNotRegex(
+            src, r"CHAOS_BUCKETS = \(\s*\"",
+            "CHAOS_BUCKETS is written out again instead of read off sovereign_buckets")
+        self.assertEqual(
+            set(sc.CHAOS_BUCKETS),
+            {b["screen_tag"] for b in sb.BUCKETS if b["screen_tag"]})
+
+
+class TheUniverseSaysWhereItsJudgementsCameFrom(unittest.TestCase):
+    """The `ai` tag is editorial. 123 of them were authored by hand and 102 by agents against
+    those as the standard; both are judgement and both are editable, but a reader deciding
+    whether to trust one has to be able to tell which they are looking at."""
+
+    def test_the_two_lists_stay_separate(self):
+        authored = {e[0] for e in sc.UNIVERSE}
+        derived = {t for t, _ai in sc.BUCKET_CONSTITUENTS}
+        self.assertEqual(sorted(authored & derived), [],
+                         "a ticker is in both lists — its provenance is now ambiguous")
+
+    def test_the_derived_rows_carry_no_transcribed_name_or_sector(self):
+        """Vendor-sourced, per the fetch. A hand-typed name here would be a second spelling of
+        something the same API response already carries."""
+        for ticker, name, sector, _ai, _b in sc.universe_rows():
+            if ticker in {t for t, _ in sc.BUCKET_CONSTITUENTS}:
+                self.assertIsNone(name, ticker)
+                self.assertIsNone(sector, ticker)
+
+    def test_every_constituent_tag_is_legal(self):
+        for ticker, ai in sc.BUCKET_CONSTITUENTS:
+            self.assertIn(ai, sc.AI_TAGS, ticker)
+
+    def test_the_technology_floor_the_adjudication_relied_on_still_holds(self):
+        """One classification dispute was settled by measuring that no Technology-sector name
+        in the authored universe is tagged `low` — ZS was held at medium on that basis. If
+        that floor ever moves, the reasoning behind that tag is gone and it should be
+        revisited rather than silently inherited."""
+        tech_low = [e[0] for e in sc.UNIVERSE if e[2] == "Technology" and e[3] == "low"]
+        self.assertEqual(
+            tech_low, [],
+            "a Technology name is now tagged low; ZS was held at medium because none was")

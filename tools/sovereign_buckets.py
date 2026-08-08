@@ -46,9 +46,62 @@ DELISTED = {
     "ZEUS": "no longer quoted",
 }
 
+# ── Constituents that are not companies ──────────────────────────────────────
+# Found the same way DELISTED was — by asking the vendor, on 2026-08-07 — and written down
+# for the same reason: the answer is stable, and re-deriving it at render time would mean a
+# page that cannot say WHY a name has no P/E without a network call.
+#
+# The distinction this encodes is not cosmetic. "No fundamentals row in this snapshot" invites
+# a refetch; for a fund or a futures contract no fetch will ever produce one, because a P/E of
+# a basket is not a number that exists. Saying the first about the second sends a reader to
+# re-run a job that cannot help them.
+#
+# WDEF is here despite the vendor reporting `quoteType: EQUITY` for it. It is the WisdomTree
+# Europe Defense Fund, and the vendor has no sector, no market cap and no P/E for it either —
+# the quoteType was the only field that said equity, and it was the only field that was wrong.
+NOT_COMPANIES = {
+    'BIL'     : 'fund',
+    'CL=F'    : 'futures contract',
+    'COPX'    : 'fund',
+    'CORN'    : 'fund',
+    'CPER'    : 'fund',
+    'DBA'     : 'fund',
+    'DFEN'    : 'fund',
+    'GC=F'    : 'futures contract',
+    'GDX'     : 'fund',
+    'GDXJ'    : 'fund',
+    'GLD'     : 'fund',
+    'GLDM'    : 'fund',
+    'IAU'     : 'fund',
+    'ICSH'    : 'fund',
+    'ITA'     : 'fund',
+    'JPST'    : 'fund',
+    'NLR'     : 'fund',
+    'PPA'     : 'fund',
+    'REMX'    : 'fund',
+    'SETM'    : 'fund',
+    'SGOV'    : 'fund',
+    'SHV'     : 'fund',
+    'SIL'     : 'fund',
+    'SILJ'    : 'fund',
+    'SIVR'    : 'fund',
+    'SLV'     : 'fund',
+    'SOYB'    : 'fund',
+    'TFLO'    : 'fund',
+    'URA'     : 'fund',
+    'URNM'    : 'fund',
+    'WDEF'    : 'fund',
+    'WEAT'    : 'fund',
+    'XAR'     : 'fund',
+    'XLE'     : 'fund',
+    'XME'     : 'fund',
+    'XOP'     : 'fund',
+}
+
 BUCKETS = [
     {
      'id': '01',
+     'screen_tag': None,
      'name': 'Liquid Fear',
      'blurb': 'Cash / T-bills in a margin spiral.',
      'duration': 'scare',
@@ -60,6 +113,7 @@ BUCKETS = [
     },
     {
      'id': '02',
+     'screen_tag': 'oil shock',
      'name': 'Oil / Hormuz',
      'blurb': 'Non-Gulf crude on supply shock.',
      'duration': 'insurance',
@@ -71,6 +125,7 @@ BUCKETS = [
     },
     {
      'id': '03',
+     'screen_tag': 'LNG',
      'name': 'LNG',
      'blurb': 'US export replaces Gulf / RU gas.',
      'duration': 'insurance',
@@ -82,6 +137,7 @@ BUCKETS = [
     },
     {
      'id': '04',
+     'screen_tag': 'tankers',
      'name': 'Tankers',
      'blurb': 'Ton-miles + war-risk premiums.',
      'duration': 'insurance',
@@ -93,6 +149,7 @@ BUCKETS = [
     },
     {
      'id': '05',
+     'screen_tag': 'defense US',
      'name': 'Munitions US',
      'blurb': 'Primes + missile defense restock.',
      'duration': 'restock',
@@ -104,6 +161,7 @@ BUCKETS = [
     },
     {
      'id': '06',
+     'screen_tag': 'drones',
      'name': 'Drones / UAS',
      'blurb': 'Attritable mass + counter-UAS.',
      'duration': 'restock',
@@ -115,6 +173,7 @@ BUCKETS = [
     },
     {
      'id': '07',
+     'screen_tag': 'cyber/space',
      'name': 'Cyber / space',
      'blurb': 'Gray-zone, ISR, launch.',
      'duration': 'restock',
@@ -126,6 +185,7 @@ BUCKETS = [
     },
     {
      'id': '08',
+     'screen_tag': 'gold',
      'name': 'Gold (washout)',
      'blurb': 'After T0 dump if conflict persists.',
      'duration': 'order',
@@ -137,6 +197,7 @@ BUCKETS = [
     },
     {
      'id': '09',
+     'screen_tag': 'uranium',
      'name': 'Uranium / fuel',
      'blurb': 'Energy security + HALEU path.',
      'duration': 'order',
@@ -148,6 +209,7 @@ BUCKETS = [
     },
     {
      'id': '10',
+     'screen_tag': 'fertilizer',
      'name': 'Fertilizer',
      'blurb': 'Gas → ammonia → food prices.',
      'duration': 'insurance',
@@ -159,6 +221,7 @@ BUCKETS = [
     },
     {
      'id': '11',
+     'screen_tag': 'wartime elements',
      'name': 'Wartime elements',
      'blurb': 'Export bans → Book I midstream.',
      'duration': 'order',
@@ -170,6 +233,7 @@ BUCKETS = [
     },
     {
      'id': '12',
+     'screen_tag': 'chip equipment',
      'name': 'Silicon siege',
      'blurb': 'Taiwan — equipment, not victims.',
      'duration': 'scare',
@@ -181,6 +245,7 @@ BUCKETS = [
     },
     {
      'id': '13',
+     'screen_tag': 'copper/grid',
      'name': 'Copper / grid',
      'blurb': 'AI power, defense, LatAm supply.',
      'duration': 'order',
@@ -192,6 +257,7 @@ BUCKETS = [
     },
     {
      'id': '14',
+     'screen_tag': 'silver',
      'name': 'Silver',
      'blurb': 'Monetary + solar/defense industrial.',
      'duration': 'order',
@@ -203,6 +269,7 @@ BUCKETS = [
     },
     {
      'id': '15',
+     'screen_tag': 'EU defense',
      'name': 'EU defense',
      'blurb': 'NATO rearmament, EU primes/ETFs.',
      'duration': 'restock',
@@ -214,6 +281,7 @@ BUCKETS = [
     },
     {
      'id': '16',
+     'screen_tag': 'naval',
      'name': 'Naval / yards',
      'blurb': 'Shipbuilding, subs, sealift.',
      'duration': 'restock',
@@ -225,6 +293,7 @@ BUCKETS = [
     },
     {
      'id': '17',
+     'screen_tag': 'refiners',
      'name': 'Refiners / midstream',
      'blurb': 'Crack spikes + pipe optionality.',
      'duration': 'insurance',
@@ -236,6 +305,7 @@ BUCKETS = [
     },
     {
      'id': '18',
+     'screen_tag': 'softs',
      'name': 'Softs / grain',
      'blurb': 'Black Sea / Red Sea food routes.',
      'duration': 'insurance',
@@ -247,6 +317,7 @@ BUCKETS = [
     },
     {
      'id': '19',
+     'screen_tag': 'steel',
      'name': 'Steel / met coal',
      'blurb': 'Wartime industrial + armor plate.',
      'duration': 'restock',
@@ -258,6 +329,7 @@ BUCKETS = [
     },
     {
      'id': '20',
+     'screen_tag': 'grid/power',
      'name': 'Grid / power infra',
      'blurb': 'AI load, transformers, uranium utilities.',
      'duration': 'order',
@@ -351,6 +423,20 @@ def all_tickers():
             seen.add(row["t"])
             out.append(row["t"])
     return out
+
+
+def screen_tag_for(ticker):
+    """The screener's bucket tag for a constituent, or None if no bucket holding it has one.
+
+    Derived from membership rather than restated per ticker: the buckets already say who is
+    in them, and a second per-ticker list of the same fact is the duplicate this module
+    exists to prevent. First match wins — a handful of names sit in two buckets (CW is in
+    both Munitions US and Naval / yards) and the screener's `bucket` field holds one tag, so
+    the tie is broken by bucket order rather than left to whichever list was read last."""
+    for b in BUCKETS:
+        if b["screen_tag"] is not None and ticker in b["liquid"] + b["satellite"]:
+            return b["screen_tag"]
+    return None
 
 
 def price_tickers():

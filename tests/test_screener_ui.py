@@ -568,9 +568,16 @@ class ABucketPopulatesTheResults(unittest.TestCase):
                          "a listed-only row must not carry a rank number")
 
     def test_the_count_above_the_table_includes_them(self):
-        """Otherwise the sentence describes a list the table is not showing."""
-        self.assertRegex(self.html, r"function listedNote\(n\)\{")
-        self.assertRegex(self.html, r"listedNote\(listedOnly\.length\)")
+        """Otherwise the sentence describes a list the table is not showing.
+
+        Asserted on the ARGUMENT, not the parameter name: the note is fed the same array the
+        table renders, so the two cannot disagree about how many there are or what they are.
+        Pinning `listedNote(n)` pinned a signature, and the signature changed the moment the
+        note had to split its count by reason."""
+        self.assertRegex(self.html, r"function listedNote\(\w+\)\{")
+        self.assertRegex(self.html, r"listedNote\(listedOnly\)",
+                         "the note must be given the rows themselves, not just a count")
+        self.assertNotRegex(self.html, r"listedNote\(listedOnly\.length\)")
 
     def test_none_appear_with_no_bucket_selected(self):
         self.assertRegex(self.html, r"const listedOnly = BUCKET_SEL\.size\s*\n?\s*\?")

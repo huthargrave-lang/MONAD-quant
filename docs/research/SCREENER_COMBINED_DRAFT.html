@@ -1653,6 +1653,11 @@ let PRICE_CMD = "";
 let BUCKETS = [];
 /** ticker -> why it has no price series. Delisting and absence are different answers. */
 let DELISTED = {};
+/** ticker -> what it is, for constituents that are not companies: funds and futures.
+    A THIRD answer, and the only one that changes what a reader should do about it. "No
+    fundamentals row in this snapshot" reads as "go fetch it" — for SGOV or CL=F no fetch will
+    ever produce a P/E, because a basket does not have one. */
+let NOT_COMPANIES = {};
 /** Which buckets are selected. A Set because selection is multiple: two theses can be
     compared on one chart, which is most of the reason to have them on this board. */
 let BUCKET_SEL = new Set();
@@ -3668,12 +3673,26 @@ function shadowGateNote(rows){
     : ` <b>${unassessed}</b> of them carry no AI shadow-debt assessment, so the gate did not`
       + ` judge those — absence of a tag is not evidence of no exposure.`;
 }
-function listedNote(n){
+/* The unscreened constituents, split by WHY. "The universe carries no fundamentals row" was
+   one sentence covering three situations, and it was the wrong sentence for two of them: a
+   fund or a futures contract has no P/E to carry, and a delisted name stopped having one. It
+   only reads as a gap worth closing for the third, and after the constituents entered the
+   universe that third case is normally empty. Counted rather than asserted, so if a real gap
+   ever appears it is the part of this sentence that grows. */
+function listedNote(rows){
+  const n = rows.length;
   if(!n) return "";
-  return ` <b>${n}</b> more name${n === 1 ? " is" : "s are"} listed below: the thesis holds `
-    + `${n === 1 ? "it" : "them"} but the screener's universe carries no fundamentals row, so `
-    + `${n === 1 ? "it was" : "they were"} never judged by any screen. Prices where there are `
-    + `prices; dashes are absent, not zero.`;
+  const kinds = rows.filter(m => NOT_COMPANIES[m.tk]).length;
+  const gone = rows.filter(m => !NOT_COMPANIES[m.tk] && DELISTED[m.tk]).length;
+  const gap = n - kinds - gone;
+  const bits = [];
+  if(kinds) bits.push(`<b>${kinds}</b> ${kinds === 1 ? "is a fund or futures contract" :
+      "are funds or futures contracts"}, which have no per-company fundamentals to screen`);
+  if(gone) bits.push(`<b>${gone}</b> no longer trade${gone === 1 ? "s" : ""}`);
+  if(gap) bits.push(`<b>${gap}</b> ${gap === 1 ? "is" : "are"} missing from the snapshot — `
+    + `a real gap, and a fetch would close it`);
+  return ` <b>${n}</b> more name${n === 1 ? " is" : "s are"} listed below rather than screened: `
+    + bits.join("; ") + `. Prices where there are prices; dashes are absent, not zero.`;
 }
 function narrowingPhrase(){
   const bits = [];
@@ -5272,11 +5291,11 @@ function renderTable(){
         ? `<b>${sorted.length}</b> of <b>${ROWS.length}</b> loaded names — ${lensPhrase} `
           + `— the same list as the highlighted marks on the chart. Click a row or a mark to `
           + `pin that name.`
-          + listedNote(listedOnly.length)
+          + listedNote(listedOnly)
           + shadowGateNote(sorted)
         : `<b>0</b> of <b>${ROWS.length}</b> loaded names — ${lensPhrase}. The list below is `
           + `empty for that reason, not because the fields are missing.`
-          + listedNote(listedOnly.length)
+          + listedNote(listedOnly)
           // An empty intersection is the one place the reader needs to be told what to DO,
           // and which constraint to drop is a question the page can answer better than they
           // can: it knows how many names each one admits on its own.
@@ -5331,14 +5350,19 @@ function renderTable(){
   const listedHTML = listedOnly.map(m => {
     const px = winSeries(m.tk);
     const chg = px ? ((px[px.length-1]/px[0] - 1) * 100).toFixed(1) + "%" : null;
+    // Two absences on one row: no fundamentals, and possibly no price either. They usually
+    // have different causes and both are worth saying — but for a delisted name they are the
+    // same cause, and printing both gave "delisted — ETN wound up, delisted — ETN wound up".
+    const noFund = whyNotScreened(m.tk);
+    const noPx = px ? null : whyNoSeries(m.tk);
+    const tail = px ? `, last close <b>${px[px.length-1].toFixed(2)}</b>, window ${chg}`
+                    : (noPx === noFund ? "" : `, ${esc(noPx)}`);
     return `<tr class="listed-only" data-tk="${escAttr(m.tk)}" style="cursor:pointer">
       <td class="num muted-cell">·</td>
       <td><button type="button" class="tk-open" data-open="${escAttr(m.tk)}"
         title="Open ${escAttr(m.tk)}" aria-label="Open ${escAttr(m.tk)}"><code>${esc(m.tk)}</code></button></td>
       <td colspan="4" class="muted-cell">in <b>${esc(m.bucketId)} ${esc(m.bucket)}</b>
-        (${esc(m.tier)}) — no fundamentals row in this snapshot${
-          px ? `, last close <b>${px[px.length-1].toFixed(2)}</b>, window ${chg}`
-             : `, ${esc(whyNoSeries(m.tk))}`}</td>
+        (${esc(m.tier)}) — ${esc(noFund)}${tail}</td>
       <td class="num muted-cell">—</td><td class="num muted-cell">—</td>
       <td class="num muted-cell">—</td><td class="num muted-cell">—</td>
       <td class="num muted-cell">—</td><td class="num muted-cell">—</td>
@@ -5493,6 +5517,18 @@ function bucketRowsSpread(){
 }
 /** Why a listed constituent has no line. Delisting and absence are different answers: the
     first says "this cannot be fetched", the second says "this was not". */
+/* Why a constituent carries no fundamentals row. Three answers, and they are not
+   interchangeable: a fund never had a P/E, a delisted name had one and stopped, and anything
+   else is a genuine gap in the snapshot that a fetch would close. The universe used to hold
+   123 names against the buckets' 202, so this said "no fundamentals row in this snapshot" 149
+   times — true, and it read as a fetch that had not been run rather than as a universe that
+   did not reach. With the constituents in, the third case should be empty; if a reader ever
+   sees it, it means what it says. */
+function whyNotScreened(tk){
+  if(NOT_COMPANIES[tk]) return "a " + NOT_COMPANIES[tk] + " — no per-company fundamentals exist for it";
+  if(DELISTED[tk]) return "delisted — " + DELISTED[tk];
+  return "no fundamentals row in this snapshot";
+}
 function whyNoSeries(tk){
   return DELISTED[tk] ? "delisted — " + DELISTED[tk]
        : DATA_PRESENT.price ? "not in this price snapshot"
@@ -6288,6 +6324,7 @@ function applyLivePayload(){
   if(Array.isArray(live.book1)) BOOK1 = live.book1;
   if(live.shock_hints) BUCKET_HINTS = live.shock_hints;
   if(live.delisted) DELISTED = live.delisted;
+  if(live.not_companies) NOT_COMPANIES = live.not_companies;
   // The window options are a function of the series just loaded, so they are rebuilt here
   // rather than once at startup, when PRICES is still the empty default.
   buildPriceWindowPicker();

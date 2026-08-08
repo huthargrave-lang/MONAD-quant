@@ -212,16 +212,188 @@ UNIVERSE = [
     ("ASML", "ASML ADR", "Technology", "high", "chip equipment"),
 ]
 
+
+#: Chaos-bucket constituents pulled into the fundamentals universe so a bucket can be
+#: screened, not just plotted. `(ticker, ai)` only — name and sector come from the vendor in
+#: the same response as the P/E, so they are not transcribed here.
+#:
+#: WHY THIS LIST EXISTS. Selecting two buckets on the screener used to empty every card on the
+#: board. The buckets name 202 companies; UNIVERSE held 123 of which only 53 overlapped, so
+#: 149 constituents carried no fundamentals row and could not be judged by any lens — not
+#: rejected by one, absent from all of them. Buckets 11 and 13 offered 26 names of which 9
+#: were screenable, and the low-P/E lens then removed those 9 on their merits. The board read
+#: "no match" for a thesis that had simply never been screened.
+#:
+#: WHAT IS STILL NOT HERE, and why it is not a gap. 34 ETFs, 2 futures (CL=F, GC=F) and the
+#: 11 delisted names stay out: a fund has no P/E and no earnings growth, and inventing one
+#: would be worse than the absence. They keep their prices — see `price_universe()`, which
+#: draws exactly this distinction. WDEF is out for the same reason despite the vendor
+#: reporting `quoteType: EQUITY` for it; it is the WisdomTree Europe Defense Fund, and the
+#: tell is that the vendor has no sector, no market cap and no P/E for it either.
+#:
+#: PROVENANCE OF THE `ai` TAGS. Every tag above this list was authored by hand. These 102 were
+#: classified by agents against the existing tags as the calibration standard, adversarially
+#: rechecked name by name, and the five disagreements settled here — four in the challenger's
+#: favour (ENTG and TER down from high, RS down to low, FTNT up from low) and one against it
+#: (ZS held at medium: demoting it would have made the first Technology-sector `low` in the
+#: universe, and 27 of 27 Technology names are medium or high). They are judgement, like the
+#: originals, and the `why` on each row is the judgement's reason rather than decoration.
+#: Correct any of them freely — a wrong tag here is a wrong tag, not a data error.
+BUCKET_CONSTITUENTS = [
+    # 02 Oil / Hormuz -> 'oil shock'
+    ('EOG', 'low'),         # shale oil E&P; crude prices drive revenue
+    ('FANG', 'low'),        # Permian oil E&P; revenue tracks crude and gas prices, orthogonal to the AI buildout
+    ('OXY', 'low'),         # Oil and gas E&P; all producers are LOW
+    ('DVN', 'low'),         # shale oil and gas E&P; hydrocarbon prices drive revenue
+    ('APA', 'low'),         # Oil and gas E&P; every E&P and refiner in the list is LOW
+    ('PR', 'low'),          # Oil and gas E&P; all producers are LOW
+    ('SM', 'low'),          # Permian/Uinta oil and gas E&P; revenue is crude and gas realizations
+
+    # 03 LNG -> 'LNG'
+    ('NFE', 'low'),         # LNG terminals and power for emerging markets; energy supply, not sales into the AI buildout
+    ('GLNG', 'low'),        # FLNG vessel tolling fees; liquefaction economics, no AI exposure
+    ('NEXT', 'low'),        # Rio Grande LNG export developer; commodity export with no AI demand link
+    ('FLNG', 'low'),        # LNG carrier charters; earnings driven by shipping rates, no AI demand link
+
+    # 04 Tankers -> 'tankers'
+    ('DHT', 'low'),         # VLCC crude tanker operator earning day-rates, orthogonal to the AI trade
+    ('INSW', 'low'),        # Crude and product tanker day rates; every tanker name in the tag set is low
+    ('TNK', 'low'),         # Crude tanker charter rates; oil shipping is orthogonal to the AI trade
+    ('ASC', 'low'),         # Product tanker operator driven by freight rates; matches FRO and STNG
+    ('NAT', 'low'),         # Suezmax spot tanker rates; tankers are all low
+    ('SFL', 'low'),         # Ship owner/lessor on long-term charters; earnings track seaborne trade and charter rates
+    ('TRMD', 'low'),        # Product tanker charter rates; refined-product shipping is orthogonal to the AI trade
+
+    # 05 Munitions US -> 'defense US'
+    ('LHX', 'low'),         # US defence prime in comms and munitions; every prime in the list is low
+    ('HWM', 'low'),         # Aero engine castings and fasteners; commercial aerospace cycle drives demand, not AI
+    ('CW', 'low'),          # defence, naval and nuclear components; every prime in the calibration is low
+    ('AXON', 'low'),        # Tasers, body cams and police software; demand is law-enforcement budgets, AI is a product feature
+
+    # 06 Drones / UAS -> 'drones'
+    ('RCAT', 'low'),        # Small-UAS maker selling to defense/border programs; demand is procurement budgets, not AI capex
+    ('ONDS', 'low'),        # Drone and rail wireless networks; no identifiable AI-compute revenue line
+    ('IRDM', 'low'),        # L-band satellite voice/IoT subscriptions; no identifiable AI-compute revenue line
+    ('BKSY', 'low'),        # Satellite imagery for government and defence ISR; follows the defence and space names to LOW
+
+    # 07 Cyber / space -> 'cyber/space'
+    ('CRWD', 'medium'),     # endpoint/cloud security platform on PANW's tier: AI is a real but minority revenue driver
+    ('ZS', 'medium'),       # Zero-trust cloud security; AI security is a minority attach — capped at PANW's medium, not above
+    ('S', 'medium'),        # AI-native endpoint/SIEM platform sold on security budgets — PANW-tier, not an AI-buildout supplier
+    ('FTNT', 'medium'),     # Enterprise security platform judged at PANW's level; no Technology name in the universe is low
+    ('RKLB', 'low'),        # Launch and satellite systems for gov/commercial space; no material AI-compute revenue line yet
+    ('PL', 'low'),          # Satellite imagery sold to defence and government; space names follow the primes at LOW
+    ('LUNR', 'low'),        # Lunar lander and space services on NASA contracts; no material AI-compute revenue
+    ('SAIC', 'low'),        # Federal IT services on government contracts; no disclosed AI revenue line like ACN's
+    ('LDOS', 'low'),        # US gov IT services on cost-plus contracts; no broken-out AI line, so below ACN's medium
+    ('BAH', 'low'),         # Federal consulting with a real AI practice, but demand is US government budgets; takes the lower tag
+
+    # 08 Gold (washout) -> 'gold'
+    ('WPM', 'low'),         # Precious-metals streamer; royalty cash flows track gold/silver prices, not AI demand
+    ('FNV', 'low'),         # Gold royalty and streaming; revenue is metal price, unrelated to AI demand
+    ('RGLD', 'low'),        # Gold royalty/streaming; revenue tracks metal price and mine output — every miner is low
+    ('AGI', 'low'),         # Gold miner; matches every gold name already tagged LOW
+
+    # 09 Uranium / fuel -> 'uranium'
+    ('NXE', 'low'),         # Uranium developer; all uranium names (CCJ, UEC, LEU) are LOW
+    ('DNN', 'low'),         # uranium developer; AI power demand is the bull case but uranium miners are all low
+    ('SMR', 'low'),         # SMR developer; data-centre power deals are pre-revenue aspiration, so take the lower level
+    ('URG', 'low'),         # Uranium miner; datacentre power demand is the bull case but all uranium names tag low
+    ('OKLO', 'low'),        # Pre-revenue SMR with data-centre LOIs but no operating plant; supplying power alone is not medium
+    ('NNE', 'low'),         # Pre-revenue SMR developer; nuclear/power supply sits LOW like LEU/CCJ despite the data-centre bull case
+
+    # 10 Fertilizer -> 'fertilizer'
+    ('IPI', 'low'),         # Potash/Trio fertiliser priced off the ag cycle; fertiliser names are all low
+    ('SMG', 'low'),         # Lawn, garden and hydroponics consumer products; orthogonal to the AI trade
+
+    # 11 Wartime elements -> 'wartime elements'
+    ('LRV.AX', 'low'),      # Antimony/gold developer — a wartime-elements miner, and all miners are low
+    ('NSRCF', 'low'),       # Graphite miner; every miner is LOW even when the bull case is AI-adjacent demand
+    ('LAR', 'low'),         # Lithium brine developer levered to EV batteries; every miner is tagged low
+
+    # 12 Silicon siege -> 'chip equipment'
+    ('TER', 'medium'),      # Back-end ATE: HBM/SoC test is real, but mobile test and the Robotics segment are not AI demand
+    ('ENTG', 'medium'),     # Semicap consumables — filtration, slurries, gases — tracking total wafer starts, a step behind WFE
+    ('ACLS', 'medium'),     # Ion-implant semicap, but revenue skews mature-node power/auto, not leading-edge logic or HBM
+    ('ONTO', 'high'),       # Metrology/inspection for leading-edge logic and HBM advanced packaging; direct peer of KLAC and AMAT
+    ('AMKR', 'medium'),     # OSAT: AI/HPC advanced packaging is a real line but minority vs phones and auto, so medium not high
+
+    # 13 Copper / grid -> 'copper/grid'
+    ('TECK', 'low'),        # Copper/zinc miner; datacentre copper demand is the bull case but miners still tag low
+    ('AA', 'low'),          # Aluminium smelter selling a commodity input; every miner in the calibration list is LOW
+    ('CENX', 'low'),        # aluminium smelter; LME price and power costs drive it, same commodity treatment as every miner
+    ('HBM', 'low'),         # Copper/zinc miner; FCX and SCCO are LOW despite the grid and data-centre demand story
+    ('ERO', 'low'),         # copper miner; calibration explicitly keeps data-centre copper demand at low
+    ('CSAN', 'low'),        # Brazilian fuel distribution, sugar-ethanol and rail logistics conglomerate
+    ('BHP', 'low'),         # Diversified miner incl. copper; miners stay LOW even when the bull case is AI power demand
+    ('RIO', 'low'),         # Iron ore and copper miner; commodity consumed by data centres is not enough for medium
+
+    # 14 Silver -> 'silver'
+    ('CDE', 'low'),         # silver-gold miner; metal prices drive revenue, and every miner in the calibration is low
+    ('AG', 'low'),          # Silver miner; all miners tag LOW regardless of any AI power-demand bull case
+    ('HL', 'low'),          # Silver/gold miner; miners are LOW in the calibration regardless of industrial demand narrative
+    ('SVM', 'low'),         # Silver miner; commodity output with no AI-buildout revenue line — every miner tags low per calibration
+    ('EXK', 'low'),         # Silver miner; every miner in the calibration set is LOW regardless of AI power-demand bull case
+
+    # 15 EU defense -> 'EU defense'
+    ('EADSY', 'low'),       # commercial jets plus EU defence; no identifiable AI-compute revenue line
+    ('RNMBY', 'low'),       # ADR of the same EU defense prime as RHM.DE; rearmament budgets, not the AI buildout
+    ('FINMY', 'low'),       # EU defence prime; no material AI-compute revenue line, so follows the US primes at LOW
+    ('SAABY', 'low'),       # EU defense prime (Gripen, sensors); rearmament budgets drive demand, same as the US primes
+    ('THLLY', 'low'),       # EU defence prime — radar, avionics, cyber; no material AI-compute revenue line
+    ('HO.PA', 'low'),       # EU defence prime; defence electronics and avionics, no material AI-compute revenue line
+    ('RHM.DE', 'low'),      # EU defense prime; European rearmament budgets drive demand, no material AI-compute revenue line
+    ('LDO.MI', 'low'),      # EU defence prime in helicopters and electronics; follows LMT/BAESY at low
+
+    # 16 Naval / yards -> 'naval'
+    ('TXT', 'low'),         # Business jets, Bell rotorcraft and defence programs; no identifiable AI-compute revenue
+    ('TDG', 'low'),         # Aerospace aftermarket parts for commercial and defence fleets; no AI-compute revenue
+    ('AIR', 'low'),         # Aviation aftermarket parts and MRO for airlines and defence; no AI-compute revenue
+
+    # 17 Refiners / midstream -> 'refiners'
+    ('PBF', 'low'),         # Refiner; all refiners are LOW
+    ('DK', 'low'),          # refining and fuel marketing; crack spreads drive earnings
+    ('EPD', 'low'),         # NGL and gas midstream pipelines on volume/fee economics
+    ('ET', 'low'),          # Fee-based gas midstream; supplying data-centre power is commodity delivery, LOW like other pipelines
+    ('KMI', 'low'),         # Gas pipeline tolls; data-centre gas demand is the commodity-consumed case that stays low, cf. PWR
+    ('WMB', 'low'),         # Gas midstream; datacentre power deals exist but midstream tags low, same bar as PWR
+    ('OKE', 'low'),         # Gas midstream; all pipeline/midstream names are LOW
+    ('PAA', 'low'),         # Crude midstream; all pipeline names are LOW
+
+    # 18 Softs / grain -> 'softs'
+    ('BG', 'low'),          # Agri trading and oilseed processing; orthogonal to the AI trade like ADM
+    ('INGR', 'low'),        # Starch and sweetener ingredients sold to food/beverage makers; no data-centre demand link at all
+    ('AGCO', 'low'),        # Farm and construction machinery sold to agriculture; no data-centre revenue line
+
+    # 19 Steel / met coal -> 'steel'
+    ('RS', 'low'),          # Metals service centre distributing steel into general industrial channels, like NUE and STLD
+    ('HCC', 'low'),         # Met coal for steelmaking; priced off steel demand, no AI exposure
+    ('BTU', 'low'),         # Thermal and met coal; supplying power to data centres is not enough for medium, same as PWR
+    ('CMC', 'low'),         # rebar and steel fabrication on the construction cycle, like NUE/STLD/CLF
+
+    # 20 Grid / power infra -> 'grid/power'
+    ('NRG', 'medium'),      # Merchant IPP selling contracted power to hyperscalers like VST/CEG, though retail energy is the bulk
+    ('ETR', 'low'),         # Regulated electric utility like NEE/SO/DUK; data-centre load growth is rate base, not AI sales
+    ('SRE', 'low'),         # Regulated CA utility plus Oncor and LNG; regulated utilities stay low despite data-centre load
+    ('POWL', 'medium'),     # Switchgear with a named data-centre order line like ETN/GEV, though oil, gas and utility still dominate
+    ('MYRG', 'low'),        # Electrical T&D construction — the direct PWR comp, and PWR is explicitly low
+    ('PRIM', 'low'),        # Utility and energy E&C contractor, direct analog to PWR (Quanta), which is explicitly LOW
+    ('FLR', 'low'),         # E&C contractor; even data-centre work is construction, and PWR sets that precedent at LOW
+
+]
+
 AI_TAGS = ("high", "medium", "low")
 
-#: Legal chaos-bucket tags — the liquid-stock subset of Book II's 20 buckets plus
-#: "wartime elements" (bucket 11), which doubles as the Book I sovereignty set.
+#: Legal chaos-bucket tags — the screener's name for each of Book II's 20 buckets.
 #: Definitions and shock matrices live in the Sovereign Ledger docs, not here.
-CHAOS_BUCKETS = (
-    "wartime elements", "oil shock", "defense US", "drones", "naval", "EU defense",
-    "gold", "uranium", "copper/grid", "silver", "LNG", "tankers", "refiners",
-    "fertilizer", "steel", "softs", "grid/power", "chip equipment", "cyber/space",
-)
+#:
+#: Read off `sovereign_buckets.BUCKETS` rather than written down again. This was a hand-kept
+#: list of nineteen strings describing the same twenty buckets that module already defines —
+#: a second vocabulary for one set of things, which is the state a disagreement starts from.
+#: Bucket 01 (Liquid Fear) contributes nothing because it is entirely cash ETFs, and
+#: `screen_tag: None` says so at the bucket rather than by a name's absence from a list here.
+CHAOS_BUCKETS = tuple(
+    b["screen_tag"] for b in sovereign_buckets.BUCKETS if b["screen_tag"] is not None)
 
 #: Editorial AI-infra financing risk buckets. Not scraped: filings/SPV detail is not in
 #: the yfinance snapshot. Tags flag WHERE to look, not a measured notional.
@@ -302,11 +474,17 @@ SHADOW_DEBT = {
 
 
 def universe_rows():
-    """[(ticker, name, sector, ai, bucket)] — entries may omit the bucket."""
+    """[(ticker, name, sector, ai, bucket)] over BOTH lists.
+
+    `name` and `sector` come back None for every BUCKET_CONSTITUENTS entry — the fetch fills
+    them from the vendor. None here means "ask", and a row whose name is still None after a
+    fetch means the vendor had none, which the page reports rather than papers over."""
     out = []
     for entry in UNIVERSE:
         ticker, name, sector, ai = entry[:4]
         out.append((ticker, name, sector, ai, entry[4] if len(entry) > 4 else None))
+    for ticker, ai in BUCKET_CONSTITUENTS:
+        out.append((ticker, None, None, ai, sovereign_buckets.screen_tag_for(ticker)))
     return out
 
 
@@ -322,6 +500,13 @@ def validate_universe():
             raise ValueError("{}: unknown ai tag {!r}".format(ticker, ai))
         if bucket is not None and bucket not in CHAOS_BUCKETS:
             raise ValueError("{}: unknown chaos bucket {!r}".format(ticker, bucket))
+    # A constituent whose bucket carries no screen_tag would enter the universe untagged and
+    # drop silently out of `chaos_hedges`, which is the lens that exists to hold it.
+    for ticker, _ai in BUCKET_CONSTITUENTS:
+        if sovereign_buckets.screen_tag_for(ticker) is None:
+            raise ValueError(
+                "{}: in the fundamentals universe but no bucket of it carries a "
+                "screen_tag".format(ticker))
     for ticker, tag in SHADOW_DEBT.items():
         if ticker not in seen:
             raise ValueError("SHADOW_DEBT ticker {!r} not in UNIVERSE".format(ticker))
@@ -526,6 +711,13 @@ def _dividend_yield_fraction(info, price):
 
 
 def _normalise_row(ticker, name, sector, ai, info, bucket=None):
+    # None means "the universe did not author one, ask the vendor" — the shape every
+    # BUCKET_CONSTITUENTS row arrives in. Hand-transcribing a name and a sector for a hundred
+    # companies is a hundred chances to mistype something the vendor already ships in the same
+    # response as the P/E. `or None` rather than `or ""`: a vendor with no sector leaves the
+    # field absent, and the page draws absent and blank differently on purpose.
+    name = name or info.get("longName") or info.get("shortName") or None
+    sector = sector or info.get("sector") or None
     price = _num(info.get("currentPrice")) or _num(info.get("regularMarketPrice"))
     pe = _num(info.get("trailingPE"))
     if pe is None or pe <= 0:
@@ -573,7 +765,10 @@ def fetch_snapshot(out_path=SNAPSHOT_PATH):
     snapshot = {
         "as_of": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "source": "yfinance Ticker.info",
-        "universe_size": len(UNIVERSE),
+        # Both lists. Counting UNIVERSE alone reported 123 for a universe of 225 the moment
+        # the bucket constituents were added — a stated size that quietly stopped matching
+        # the thing it sizes.
+        "universe_size": len(universe_rows()),
         "errors": errors,
         "rows": rows,
     }
@@ -727,6 +922,10 @@ def fetch_prices(out_path=PRICES_PATH, bars=PRICE_BARS):
         # chart needs to be told it was renamed, which is a different answer from "the fetch
         # failed" and a very different one from a line drawn anyway.
         "delisted": dict(sovereign_buckets.DELISTED),
+        # Why a constituent has no fundamentals row, when the reason is its KIND rather
+        # than a gap. Travels with `delisted` because the page has to tell three
+        # absences apart: never fetched, no longer trades, and never had a P/E to fetch.
+        "not_companies": dict(sovereign_buckets.NOT_COMPANIES),
         "series": series,
     }
     os.makedirs(os.path.dirname(out_path), exist_ok=True)

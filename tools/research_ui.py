@@ -3973,6 +3973,10 @@ def _screener_combined_draft_payload():
         "book1": sovereign_buckets.BOOK1,
         "shock_hints": dict(sovereign_buckets.SHOCK_HINTS),
         "delisted": dict(sovereign_buckets.DELISTED),
+        # Why a constituent has no fundamentals row, when the reason is its KIND rather
+        # than a gap. Travels with `delisted` because the page has to tell three
+        # absences apart: never fetched, no longer trades, and never had a P/E to fetch.
+        "not_companies": dict(sovereign_buckets.NOT_COMPANIES),
         # Series for the screened rows AND for every bucket constituent. The two sets barely
         # overlap — 53 of 202 constituents are in the fundamentals universe — so restricting
         # this to screened rows would leave three quarters of every bucket unplottable on the
