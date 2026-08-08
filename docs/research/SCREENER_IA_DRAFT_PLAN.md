@@ -1,6 +1,12 @@
 # Screener IA reorganization — draft plan
 
-Status: DRAFT, 2026-08-08. Layout-only where possible. Every capability preserved.
+Status: DRAFT, 2026-08-08, revised. Layout-only where possible. Every capability preserved.
+
+REVISION: the first pass read "Context" as a control and reduced the buckets to a dropdown
+picker. Wrong. The bucket system IS the context layer — it answers "what world am I
+researching" — so it moved to the TOP of the page as a collapsible workspace with its card
+grid, Shock & clock, heat ordering, tabs and constituents intact. The compact chip in the bar
+is a shortcut back to it, not a second way to choose.
 
 ## The measured problem
 
@@ -30,7 +36,14 @@ Two findings sharpen it:
   selected bucket *adds* ~600 px at the bottom. You set the context at the bottom and read
   the result at the top.
 
-## Proposed hierarchy
+## Page order
+
+    CONTEXT     the bucket workspace — collapsible, summary always visible
+    LENS        the command bar: lens, filters, data, modules
+    WORKSPACE   the board
+    RESULTS     the table
+
+## Command bar
 
 One sticky command bar (~96 CSS px, two rows) replaces 674 px of stacked chrome:
 

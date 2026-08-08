@@ -219,11 +219,53 @@ class TheBucketsAreOnTheScreenerBoard(unittest.TestCase):
             r"if\(isBayTile\(id\)\)\{ setBayShown\(id, on\); return; \}",
             "setTilePlaced must route bay tiles to the bay")
 
-    def test_the_bay_sits_below_the_results_table(self):
-        results = self.html.index("<h2>Results</h2>")
-        bay = self.html.index('id="bucketBay"')
-        self.assertLess(results, bay,
-                        "the buckets bay must come after the results table, not before it")
+    def test_the_context_layer_comes_before_what_it_constrains(self):
+        """The bay used to sit under Results, so the reader chose the universe below the fold
+        and read the consequence above it. It is the CONTEXT layer — what world am I
+        researching — and the page now reads in the order the question is asked:
+        context, then lens, then workspace, then results."""
+        # Markup, not stylesheet. `cmdbar` first appears in a CSS rule 58k characters before
+        # the element it styles, so a bare substring search ordered the sheet, not the page.
+        order = ['id="contextSection"', 'id="bucketBay"', 'id="cmdbar"',
+                 'class="board" id="board"', "<h2>Results</h2>"]
+        seen = [(name, self.html.index(name)) for name in order]
+        for (an, ai), (bn, bi) in zip(seen, seen[1:]):
+            self.assertLess(ai, bi, "{} must come before {}".format(an, bn))
+
+    def test_the_context_body_folds_but_the_summary_never_does(self):
+        """A collapsed context still has to say what it is constraining. The one thing a
+        reader must not expand a section to discover is that a section is narrowing their
+        results."""
+        head = re.search(r'<div class="ctx-head">(.*?)</div>', self.html, re.S)
+        self.assertIsNotNone(head, "the context summary line is gone")
+        for el in ("ctxHeadValue", "ctxHeadSub", "ctxScenario"):
+            self.assertIn(el, head.group(1), "{} is not in the always-visible head".format(el))
+        body = re.search(r'<div id="contextBody">(.*?)\n      </div>', self.html, re.S)
+        self.assertIsNotNone(body, "the context body wrapper is gone")
+        self.assertIn('id="bucketBay"', body.group(1),
+                      "the bay must be inside the foldable body, not the head")
+
+    def test_the_grid_is_still_cards_not_a_list(self):
+        """The rich card grid is the point of this surface — being able to scan twenty theses
+        and see their relative heat at once. A dropdown of bucket names is not a substitute
+        and was explicitly rejected."""
+        self.assertRegex(self.html, r'class="bk-grid"', "the bucket card grid is gone")
+        self.assertRegex(self.html, r'class="bk-heat h', "bucket heat bars are gone")
+        self.assertIn('id="bucketGrid"', self.html)
+
+    def test_the_bay_chart_is_in_the_reflow_graph(self):
+        """The context workspace can now be folded, reopened and resized, so its chart has to
+        redraw with the others. It was in neither the reflow list nor the ResizeObserver's:
+        measured at 796 -> 1314px wide against an unchanged viewBox."""
+        fns = re.search(r"\[drawPlot, drawPrice, drawRank, drawDist, drawShadow[^\]]*\]",
+                        self.html)
+        self.assertIsNotNone(fns)
+        self.assertIn("drawBucketChart", fns.group(0),
+                      "the bay chart still will not redraw when its box changes")
+        obs = re.search(r'\["plot","priceChart","rankChart","distChart","shadowChart"[^\]]*\]',
+                        self.html)
+        self.assertIsNotNone(obs)
+        self.assertIn("bChart", obs.group(0), "the bay chart is not observed for resize")
 
     def test_the_bay_reproduces_the_buckets_page_layout(self):
         """Controls across the top, grid under them, chart beside the supporting cards."""

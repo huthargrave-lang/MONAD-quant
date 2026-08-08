@@ -116,6 +116,27 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
 .sec-toggle[aria-expanded="false"]{transform:rotate(-90deg)}
 [hidden]{display:none !important}
 
+/* ── Context section ────────────────────────────────────────────────────────────────────
+   The bucket workspace, framed as the universe layer. The head is a summary line that never
+   folds; the body is the bay exactly as it was. */
+.ctx-section{border:1px solid var(--rule);border-radius:11px;background:var(--plane);
+  margin:0 0 14px}
+.ctx-head{display:flex;align-items:baseline;gap:9px;padding:9px 12px;flex-wrap:wrap}
+.ctx-section.open .ctx-head{border-bottom:1px solid var(--rule)}
+/* Drawn as ON when it is narrowing, the same treatment an active lens gets — a context that
+   is constraining the page and one that is not are different facts and must look different. */
+.ctx-section.narrowed{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.ctx-k{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-muted)}
+.ctx-v{font-size:15px;font-weight:600;color:var(--ink)}
+.ctx-sub,.ctx-scenario{font-family:var(--mono);font-size:11.5px;color:var(--ink-muted)}
+.ctx-toggle{border:1px solid var(--rule);background:var(--surface);color:var(--ink-2);
+  border-radius:6px;line-height:20px;width:22px;padding:0;cursor:pointer;font-size:11px;
+  align-self:center}
+.ctx-toggle:hover,.ctx-toggle:focus-visible{border-color:var(--accent);color:var(--ink)}
+.ctx-toggle[aria-expanded="false"]{transform:rotate(-90deg)}
+/* The bay keeps its own look; inside the section it drops the doubled border and radius. */
+.ctx-section .bucket-bay{border:0;border-radius:0;margin:0;background:transparent}
+
 .cmdbar{position:sticky;top:0;z-index:30;margin:0 0 14px;padding:8px 0 9px;
   background:var(--plane);border-bottom:1px solid var(--rule)}
 .cmd-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
@@ -981,10 +1002,151 @@ table.bwatch .spark{width:80px;height:26px;display:block}
          that used to sit in the page flow: the lens pills, the provider cards, the filter
          row and the module tray are all still here, in the panels below, unedited. Nothing
          about what they DO changed; only where the reader finds them when they want them. -->
+    <!-- ── CONTEXT ───────────────────────────────────────────────────────────────────────
+         The bucket system IS the context layer: it answers "what world am I researching",
+         which is the question that has to be settled before the lens below it means anything.
+         It used to sit under Results, so the reader chose the universe 1339px below the fold
+         and read the consequence above it — the inverse of the order they think in.
+
+         Collapsing folds the BODY, never the summary: a collapsed context still says what it
+         is constraining, because the one thing a reader must not have to expand a section to
+         discover is that a section is narrowing their results. The card grid, the shock and
+         clock controls, the heat ordering, the tabs and the constituents table are all exactly
+         as they were — this moved them, it did not redesign them. -->
+    <section class="ctx-section" id="contextSection">
+      <div class="ctx-head">
+        <button type="button" class="ctx-toggle" id="ctxToggle" aria-expanded="true"
+                aria-controls="contextBody" title="Collapse the context workspace">&#9662;</button>
+        <span class="ctx-k">Context</span>
+        <span class="ctx-v" id="ctxHeadValue">All securities</span>
+        <span class="ctx-sub" id="ctxHeadSub"></span>
+        <span class="ctx-scenario" id="ctxScenario"></span>
+        <span class="cmd-spacer"></span>
+        <button type="button" class="cmd-clear" id="ctxHeadClear" hidden
+                title="Analyse all securities again">clear</button>
+      </div>
+      <div id="contextBody">
+        <section class="panel bucket-bay" id="bucketBay">
+      <h2>Buckets<span class="bay-note" id="bayNote"></span></h2>
+      <div class="bay-grid">
+      <!-- ── The chaos buckets, as three tiles on the same board ───────────────────────
+           A bucket and a lens are different kinds of thing and the board keeps them apart. A
+           lens is a RULE — membership is computed from fields and changes when the data does.
+           A bucket is a LIST — someone decided these names belong to a thesis, and wrote down
+           what would make that wrong. Because they are different kinds they intersect rather
+           than compete, which is why the buckets live here beside the lenses instead of on a
+           page of their own: "of the names I decided are the tankers trade, which clear a
+           debt screen" is the actual question, and neither surface could ask it alone. -->
+      <article class="tile" data-id="bucketctl" id="tile-bucketctl">
+        <div class="tile-bar" data-drag>
+          <span class="tile-grip">⋮⋮</span>
+          <h2>Shock &amp; clock</h2>
+          <div class="tile-meta" id="bucketCtlMeta" data-nodrag>—</div>
+          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
+        </div>
+        <div class="tile-body">
+          <div class="detail-card">
+            <div class="bkc-row">
+              <label>Shock
+                <select id="bucketShock" aria-label="Which shock the heat is read under">
+                  <option value="unknown">Unknown / explore</option>
+                  <option value="hormuz">Hormuz / Gulf energy</option>
+                  <option value="taiwan">Taiwan</option>
+                  <option value="china_min">China minerals</option>
+                  <option value="liquidity">Liquidity</option>
+                  <option value="russia">Russia</option>
+                  <option value="ai_grid">AI / grid</option>
+                </select></label>
+              <label>Clock
+                <select id="bucketClock" aria-label="Which stage of the clock leads">
+                  <option value="T0">T0 Liquidity</option>
+                  <option value="T1" selected>T1 Mechanism</option>
+                  <option value="T2">T2 Industrial</option>
+                </select></label>
+              <label>Tier
+                <select id="bucketTier" aria-label="Which tier of constituent counts">
+                  <option value="all">All tickers</option>
+                  <option value="liquid">Liquid only</option>
+                  <option value="satellite">Satellites only</option>
+                </select></label>
+              <label class="bkc-q">Search
+                <input id="bucketQ" type="search" placeholder="ticker or bucket…"
+                       aria-label="Filter buckets by ticker or name" /></label>
+              <!-- No Apply. Every control on this page takes effect as it changes, on
+                   purpose: a control that only lands on a second click can be read while it
+                   is lying about the cards under it. -->
+              <button type="button" id="bucketClear">Clear</button>
+              <button type="button" id="bucketTop">Select top heat</button>
+            </div>
+            <p class="dc-note" id="bucketHint"></p>
+          </div>
+        </div>
+      </article>
+
+      <article class="tile" data-id="buckets" id="tile-buckets">
+        <div class="tile-bar" data-drag>
+          <span class="tile-grip">⋮⋮</span>
+          <h2 id="bucketsTitle">Buckets</h2>
+          <div class="tile-meta" id="bucketsMeta" data-nodrag>—</div>
+          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
+        </div>
+        <div class="tile-body">
+          <div class="detail-card" id="bucketGrid"></div>
+        </div>
+      </article>
+
+      <!-- The buckets page puts its lower half in a tabbed panel beside a watchlist, and
+           this reproduces that. Tabs here, where the board above deliberately has none:
+           these four are one subject read four ways — the same selection as a chart, as a
+           thesis, as a price list, as a ranking — and the buckets page's reader already
+           knows where they are. The board's panes are for different subjects side by side. -->
+      <article class="tile" data-id="bpanel" id="tile-bpanel">
+        <div class="tile-bar" data-drag>
+          <div class="btabs" id="bTabs" data-nodrag>
+            <button type="button" class="on" data-btab="chart">History</button>
+            <button type="button" data-btab="detail">Bucket detail</button>
+            <button type="button" data-btab="feed">Price feed</button>
+            <button type="button" data-btab="book1">Book I · Keel / Sail</button>
+          </div>
+          <button type="button" class="btab-expand" id="bExpand" data-nodrag
+                  aria-label="Expand this panel">⛶ Expand</button>
+          <button type="button" class="tile-close" data-close aria-label="Park this card">×</button>
+        </div>
+        <div class="tile-body">
+          <div class="detail-card" id="bPanelBody">
+            <section data-bpane="chart">
+              <h3 id="bChartTitle">Select a bucket</h3>
+              <p class="bchart-sub" id="bChartSub"></p>
+              <div class="chart-host bchart" id="bChart"></div>
+              <div class="legend" id="bChartLegend"></div>
+            </section>
+            <section data-bpane="detail" hidden><div id="thesisCard"></div></section>
+            <section data-bpane="feed" hidden><div id="feedList"></div></section>
+            <section data-bpane="book1" hidden><div id="book1List"></div></section>
+          </div>
+        </div>
+      </article>
+
+      <article class="tile" data-id="bwatch" id="tile-bwatch">
+        <div class="tile-bar" data-drag>
+          <span class="tile-grip">⋮⋮</span>
+          <h2>Constituents</h2>
+          <button type="button" class="tile-close" data-close aria-label="Park this card">×</button>
+        </div>
+        <div class="tile-body">
+          <p class="bwatch-hint" id="bWatchHint"></p>
+          <div class="detail-card" id="membersList"></div>
+        </div>
+      </article>
+      </div>
+        </section>
+      </div>
+    </section>
+
     <div class="cmdbar" id="cmdbar">
       <div class="cmd-row">
-        <button type="button" class="cmd" id="ctxChip" data-panel-open="ctxPanel"
-                aria-expanded="false" aria-label="Context — what is being analysed">
+        <button type="button" class="cmd" id="ctxChip"
+                aria-label="Context — jump to the context workspace">
           <span class="cmd-k">Context</span>
           <span class="cmd-v" id="ctxValue">All securities</span>
           <span class="cmd-sub" id="ctxSub"></span>
@@ -1227,120 +1389,6 @@ table.bwatch .spark{width:80px;height:26px;display:block}
          should not have the other rearranged under them.
          The filter state is shared, though, which is the point: a bucket selected here
          narrows the table above it and every card on the board. -->
-    <section class="panel bucket-bay" id="bucketBay">
-      <h2>Buckets<span class="bay-note" id="bayNote"></span></h2>
-      <div class="bay-grid">
-      <!-- ── The chaos buckets, as three tiles on the same board ───────────────────────
-           A bucket and a lens are different kinds of thing and the board keeps them apart. A
-           lens is a RULE — membership is computed from fields and changes when the data does.
-           A bucket is a LIST — someone decided these names belong to a thesis, and wrote down
-           what would make that wrong. Because they are different kinds they intersect rather
-           than compete, which is why the buckets live here beside the lenses instead of on a
-           page of their own: "of the names I decided are the tankers trade, which clear a
-           debt screen" is the actual question, and neither surface could ask it alone. -->
-      <article class="tile" data-id="bucketctl" id="tile-bucketctl">
-        <div class="tile-bar" data-drag>
-          <span class="tile-grip">⋮⋮</span>
-          <h2>Shock &amp; clock</h2>
-          <div class="tile-meta" id="bucketCtlMeta" data-nodrag>—</div>
-          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
-        </div>
-        <div class="tile-body">
-          <div class="detail-card">
-            <div class="bkc-row">
-              <label>Shock
-                <select id="bucketShock" aria-label="Which shock the heat is read under">
-                  <option value="unknown">Unknown / explore</option>
-                  <option value="hormuz">Hormuz / Gulf energy</option>
-                  <option value="taiwan">Taiwan</option>
-                  <option value="china_min">China minerals</option>
-                  <option value="liquidity">Liquidity</option>
-                  <option value="russia">Russia</option>
-                  <option value="ai_grid">AI / grid</option>
-                </select></label>
-              <label>Clock
-                <select id="bucketClock" aria-label="Which stage of the clock leads">
-                  <option value="T0">T0 Liquidity</option>
-                  <option value="T1" selected>T1 Mechanism</option>
-                  <option value="T2">T2 Industrial</option>
-                </select></label>
-              <label>Tier
-                <select id="bucketTier" aria-label="Which tier of constituent counts">
-                  <option value="all">All tickers</option>
-                  <option value="liquid">Liquid only</option>
-                  <option value="satellite">Satellites only</option>
-                </select></label>
-              <label class="bkc-q">Search
-                <input id="bucketQ" type="search" placeholder="ticker or bucket…"
-                       aria-label="Filter buckets by ticker or name" /></label>
-              <!-- No Apply. Every control on this page takes effect as it changes, on
-                   purpose: a control that only lands on a second click can be read while it
-                   is lying about the cards under it. -->
-              <button type="button" id="bucketClear">Clear</button>
-              <button type="button" id="bucketTop">Select top heat</button>
-            </div>
-            <p class="dc-note" id="bucketHint"></p>
-          </div>
-        </div>
-      </article>
-
-      <article class="tile" data-id="buckets" id="tile-buckets">
-        <div class="tile-bar" data-drag>
-          <span class="tile-grip">⋮⋮</span>
-          <h2 id="bucketsTitle">Buckets</h2>
-          <div class="tile-meta" id="bucketsMeta" data-nodrag>—</div>
-          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
-        </div>
-        <div class="tile-body">
-          <div class="detail-card" id="bucketGrid"></div>
-        </div>
-      </article>
-
-      <!-- The buckets page puts its lower half in a tabbed panel beside a watchlist, and
-           this reproduces that. Tabs here, where the board above deliberately has none:
-           these four are one subject read four ways — the same selection as a chart, as a
-           thesis, as a price list, as a ranking — and the buckets page's reader already
-           knows where they are. The board's panes are for different subjects side by side. -->
-      <article class="tile" data-id="bpanel" id="tile-bpanel">
-        <div class="tile-bar" data-drag>
-          <div class="btabs" id="bTabs" data-nodrag>
-            <button type="button" class="on" data-btab="chart">History</button>
-            <button type="button" data-btab="detail">Bucket detail</button>
-            <button type="button" data-btab="feed">Price feed</button>
-            <button type="button" data-btab="book1">Book I · Keel / Sail</button>
-          </div>
-          <button type="button" class="btab-expand" id="bExpand" data-nodrag
-                  aria-label="Expand this panel">⛶ Expand</button>
-          <button type="button" class="tile-close" data-close aria-label="Park this card">×</button>
-        </div>
-        <div class="tile-body">
-          <div class="detail-card" id="bPanelBody">
-            <section data-bpane="chart">
-              <h3 id="bChartTitle">Select a bucket</h3>
-              <p class="bchart-sub" id="bChartSub"></p>
-              <div class="chart-host bchart" id="bChart"></div>
-              <div class="legend" id="bChartLegend"></div>
-            </section>
-            <section data-bpane="detail" hidden><div id="thesisCard"></div></section>
-            <section data-bpane="feed" hidden><div id="feedList"></div></section>
-            <section data-bpane="book1" hidden><div id="book1List"></div></section>
-          </div>
-        </div>
-      </article>
-
-      <article class="tile" data-id="bwatch" id="tile-bwatch">
-        <div class="tile-bar" data-drag>
-          <span class="tile-grip">⋮⋮</span>
-          <h2>Constituents</h2>
-          <button type="button" class="tile-close" data-close aria-label="Park this card">×</button>
-        </div>
-        <div class="tile-body">
-          <p class="bwatch-hint" id="bWatchHint"></p>
-          <div class="detail-card" id="membersList"></div>
-        </div>
-      </article>
-      </div>
-    </section>
 
     <footer>Fundamentals and prices from <code>stock_screener</code>, tone from
       <code>screener_lab</code> — Bloomberg public RSS, Reddit public Atom feeds, and Yahoo
@@ -1352,12 +1400,6 @@ table.bwatch .spark{width:80px;height:26px;display:block}
      Each holds a block that used to sit in the page flow, moved verbatim. The lens pill row
      keeps its id and every button, so decoratePresets / orderPresets / markActivePreset /
      builtinLensNames all keep working against it unchanged. -->
-<div class="explain" id="ctxPanel" role="dialog" aria-modal="false"
-     aria-labelledby="ctxPanelTitle" hidden>
-  <button type="button" class="explain-close" data-panel-close aria-label="Close">&#215;</button>
-  <h3 id="ctxPanelTitle">Context &#183; what is being analysed</h3>
-  <div id="ctxList"></div>
-</div>
 
 <div class="explain" id="lensPanel" role="dialog" aria-modal="false"
      aria-labelledby="lensPanelTitle" hidden>
@@ -3501,7 +3543,7 @@ function initBoard(){
 
   // Charts are sized from their host box, so they must be redrawn when a pane resizes.
   if(typeof ResizeObserver !== "undefined"){
-    ["plot","priceChart","rankChart","distChart","shadowChart"].forEach(id=>{
+    ["plot","priceChart","rankChart","distChart","shadowChart","bChart"].forEach(id=>{
       const el = document.getElementById(id);
       if(el) new ResizeObserver(()=>scheduleChartReflow()).observe(el);
     });
@@ -3538,7 +3580,11 @@ function scheduleChartReflow(){
     // Before the charts: the charts size themselves from their host box, and a type change
     // is what moves that box when the body has text above the chart.
     try{ fitTileText(); }catch(e){ console.error(e); }
-    [drawPlot, drawPrice, drawRank, drawDist, drawShadow].forEach(fn=>{
+    // The bay's chart belongs here too. It was in neither this list nor the ResizeObserver's,
+    // so its box could change while its viewBox did not — measured at 796 -> 1314px wide
+    // against an unchanged viewBox. Harmless while the bay never moved; not harmless now the
+    // context workspace it lives in can be folded, reopened and resized.
+    [drawPlot, drawPrice, drawRank, drawDist, drawShadow, drawBucketChart].forEach(fn=>{
       try{ fn(); }catch(e){ console.error(e); }
     });
   });
@@ -4799,7 +4845,6 @@ document.addEventListener("click", (ev)=>{
     // Each panel prepares itself and keeps its own first field: focus has to land inside the
     // panel that opened, not in whichever panel happens to own the first control on the page.
     if(pop.id === "layoutPanel") syncLayoutPanel();
-    if(pop.id === "ctxPanel") drawContextPanel();
     if(pop.id === "lensPanel") drawLensPanel();
     if(pop.id === "proposePanel") resetProposeForm();
     panelOpen(pop, opt, pop.querySelector("input,select,textarea"));
@@ -4811,11 +4856,6 @@ document.addEventListener("click", (ev)=>{
   // pill row, the bucket grid and the bar can never disagree about what is selected.
   const go = ev.target.closest("[data-lens-go]");
   if(go){ selectPreset(go.dataset.lensGo); render(); return; }
-  if(ev.target.closest("[data-ctx-all]")){
-    BUCKET_SEL.clear(); resetPriceLit(); render(); drawContextPanel(); return;
-  }
-  const cb = ev.target.closest("[data-ctx-bucket]");
-  if(cb){ toggleBucket(cb.dataset.ctxBucket); drawContextPanel(); return; }
   if(ev.target.closest("#ctxClear")){
     BUCKET_SEL.clear(); resetPriceLit(); render();
     // Focus does not vanish with the button: the chip the × belonged to is still there and
@@ -4832,6 +4872,20 @@ document.addEventListener("click", (ev)=>{
     return;
   }
   if(ev.target.closest("#resultsToggle")){ toggleResults(); return; }
+  if(ev.target.closest("#ctxToggle")){ toggleCtx(); return; }
+  if(ev.target.closest("#ctxChip")){
+    // A shortcut back to the workspace, not a second way to choose. It expands what is
+    // collapsed and takes the reader there; the choosing happens on the cards.
+    setCtxOpen(true);
+    const sec = document.getElementById("contextSection");
+    if(sec) sec.scrollIntoView({block:"start"});
+    return;
+  }
+  if(ev.target.closest("#ctxHeadClear")){
+    BUCKET_SEL.clear(); resetPriceLit(); render();
+    const t = document.getElementById("ctxToggle"); if(t) t.focus();
+    return;
+  }
   if(ev.target.closest("[data-panel-close]")){ panelClose(); return; }
   if(activePanel && !ev.target.closest(".explain")) panelClose();
 });
@@ -6581,17 +6635,19 @@ function drawContextChip(){
   const on = contextIsBucket();
   const c = contextCounts();
   val.textContent = contextLabel();
-  sub.textContent = on
-    ? c.screenable + " of " + c.held + " screenable · " + bucketShock + "/" + bucketClock
-    : c.screenable + " names";
+  // Deliberately SHORTER than the section head above it. Both read the same state, and the
+  // bar printing the head's sentence back verbatim two lines below it was the page telling
+  // the reader the same thing twice in the same breath. This one is the compact indicator
+  // that survives scrolling; the head is the full readout.
+  sub.textContent = c.screenable + " names";
   chip.classList.toggle("narrowed", on);
   clear.hidden = !on;
   // Shock and clock ORDER the bucket cards; they do not narrow the universe. Stated on the
   // chip that shows them, because a scenario named beside a row count reads as its cause.
   chip.title = on
-    ? contextLabel() + " constrains every card above. Shock and clock order the bucket cards"
-      + " and colour their heat — they do not narrow the universe."
-    : "Every loaded name. Select a bucket to analyse one thesis.";
+    ? contextLabel() + " is constraining every card below. Click to open the context"
+      + " workspace, where the buckets are chosen."
+    : "Every loaded name. Click to open the context workspace and pick a thesis.";
 }
 function drawLensChip(){
   const v = document.getElementById("lensValue");
@@ -6634,31 +6690,6 @@ function drawCmdBar(){
   drawContextChip(); drawLensChip(); drawFilterChip(); drawDataChip(); drawModChip();
   drawLensFav(); drawLensPanel();
 }
-/* The context picker: every bucket, with how much of it the screener can actually judge. */
-function drawContextPanel(){
-  const host = document.getElementById("ctxList");
-  if(!host) return;
-  const set = bucketNameSet;
-  const rows = BUCKETS.map(b => {
-    const names = b.liquid.concat(b.satellite);
-    const n = ROWS.filter(r => names.indexOf(r.tk) !== -1).length;
-    const on = BUCKET_SEL.has(b.id);
-    return '<button type="button" class="lens-jump' + (on ? " on" : "") + '"'
-      + ' data-ctx-bucket="' + escAttr(b.id) + '">' + esc(b.id + " " + b.name)
-      + ' <span class="cmd-sub">' + n + " of " + names.length + '</span></button>';
-  }).join(" ");
-  host.innerHTML =
-    '<div class="lensgroup"><div class="lens-fav">'
-    + '<button type="button" class="lens-jump' + (contextIsBucket() ? "" : " on")
-    + '" data-ctx-all="1">All securities <span class="cmd-sub">' + ROWS.length + '</span></button>'
-    + '</div></div>'
-    + '<div class="lensgroup"><h4>Buckets — screenable of held</h4>'
-    + '<div class="lens-fav">' + rows + '</div></div>'
-    + '<p>A bucket names companies; the screener judges the ones it carries fundamentals for.'
-    + ' Funds and futures are held by a thesis and can never be screened — the difference is'
-    + ' the two numbers on each row. The full explorer, with heat, history and constituents,'
-    + ' is <a href="#bucketBay">further down this page</a>.</p>';
-}
 
 /* Results collapse. The body folds; the count sentence and the resize handle stay, because
    the sentence is the answer and the handle is how you get the table back to a useful size. */
@@ -6672,6 +6703,52 @@ function toggleResults(){
   body.hidden = open;
   if(rz) rz.hidden = open;
   btn.title = open ? "Show the table again" : "Collapse the table — the count stays";
+}
+
+/* ── Context section ────────────────────────────────────────────────────────────────────
+   One canonical selection, two places that show it: this workspace and the summary chip in
+   the bar. Neither owns it — both read BUCKET_SEL. */
+const CTX_OPEN_KEY = "monad.screener.draft.ctxopen.v1";
+function ctxIsOpen(){
+  try { return localStorage.getItem(CTX_OPEN_KEY) !== "0"; } catch(e){ return true; }
+}
+function setCtxOpen(open){
+  const sec = document.getElementById("contextSection");
+  const body = document.getElementById("contextBody");
+  const btn = document.getElementById("ctxToggle");
+  if(!sec || !body || !btn) return;
+  sec.classList.toggle("open", open);
+  body.hidden = !open;
+  btn.setAttribute("aria-expanded", open ? "true" : "false");
+  btn.title = open ? "Collapse the context workspace" : "Expand the context workspace";
+  try { localStorage.setItem(CTX_OPEN_KEY, open ? "1" : "0"); } catch(e){}
+  // The bay's cards are sized by a grid whose tracks only resolve while it is displayed, and
+  // its chart reads its own box at draw time. Re-expanding without this leaves the grid at
+  // whatever widths it had when it was hidden and the chart at a stale viewBox.
+  if(open){ layoutBay(); fitTileText(); drawBucketChart(); scheduleChartReflow(); }
+}
+function toggleCtx(){ setCtxOpen(document.getElementById("contextBody").hidden); }
+/* The summary line above the workspace. Says the same thing the chip in the bar says, from
+   the same state, so a reader who has scrolled past one still knows what is constraining. */
+function drawContextHead(){
+  const v = document.getElementById("ctxHeadValue");
+  const sub = document.getElementById("ctxHeadSub");
+  const scen = document.getElementById("ctxScenario");
+  const clear = document.getElementById("ctxHeadClear");
+  const sec = document.getElementById("contextSection");
+  if(!v) return;
+  const on = contextIsBucket();
+  const c = contextCounts();
+  v.textContent = contextLabel();
+  sub.textContent = on ? c.screenable + " of " + c.held + " securities screenable"
+                       : c.screenable + " securities";
+  // Framing, not a constraint. Named as framing on the line where it appears, because a
+  // scenario printed beside a row count reads as its cause.
+  scen.textContent = "Scenario: " + bucketShock + " / " + bucketClock + " framing";
+  scen.title = "Shock and clock order the bucket cards and colour their heat. They do not "
+             + "narrow the security universe.";
+  clear.hidden = !on;
+  if(sec) sec.classList.toggle("narrowed", on);
 }
 
 function render(){
@@ -6692,6 +6769,7 @@ function renderInner(){
   renderNoData();
   syncWeightControl();
   drawCmdBar();
+  drawContextHead();
   renderFilterCount();
   renderLensNote();
   drawPlot();
@@ -6992,6 +7070,9 @@ document.getElementById("presets").addEventListener("click", (ev)=>{
   if(!btn || btn.dataset.p === "custom") return;
   selectPreset(btn.dataset.p);
 });
+// The reader's last choice about the context workspace, before the first render, so the bay
+// never draws into a hidden box and then has to be told about it.
+setCtxOpen(ctxIsOpen());
 render();
 </script>
 </body>
