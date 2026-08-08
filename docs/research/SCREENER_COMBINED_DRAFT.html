@@ -135,7 +135,23 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
 .ctx-toggle:hover,.ctx-toggle:focus-visible{border-color:var(--accent);color:var(--ink)}
 .ctx-toggle[aria-expanded="false"]{transform:rotate(-90deg)}
 /* The bay keeps its own look; inside the section it drops the doubled border and radius. */
-.ctx-section .bucket-bay{border:0;border-radius:0;margin:0;background:transparent}
+
+/* The context's own control row and grid, styled off the buckets page rather than off the
+   tile system they used to live in. One inline row, labels above their controls, the bucket
+   count trailing at the end and the shock's focus line under it — the reference layout. */
+.ctx-controls{display:flex;flex-wrap:wrap;gap:9px;align-items:flex-end;padding:0 12px 8px}
+.ctx-controls label{display:flex;flex-direction:column;gap:3px;font:10.5px var(--mono);
+  letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted)}
+.ctx-controls select,.ctx-controls input{font:12.5px var(--sans);padding:4px 7px;
+  background:var(--plane);color:var(--ink);border:1px solid var(--rule);border-radius:6px;
+  text-transform:none;letter-spacing:normal}
+.ctx-controls .bkc-q{flex:1 1 130px;min-width:0}
+.ctx-controls button{font:12.5px var(--sans);padding:5px 11px;background:var(--surface);
+  color:var(--ink-2);border:1px solid var(--rule);border-radius:6px;cursor:pointer}
+.ctx-controls button:hover,.ctx-controls button:focus-visible{border-color:var(--accent);color:var(--ink)}
+.ctx-count{font:11.5px var(--mono);color:var(--ink-muted);margin-left:auto;padding-bottom:5px}
+.ctx-focus{margin:0;padding:0 12px 9px;font-size:12px;color:var(--ink-2)}
+.ctx-grid{padding:0 12px 12px}
 
 .cmdbar{position:sticky;top:0;z-index:30;margin:0 0 14px;padding:8px 0 9px;
   background:var(--plane);border-bottom:1px solid var(--rule)}
@@ -740,16 +756,6 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
    the reading, and the grid you choose from. The chart / side1..side3 areas went with the
    analysis tiles onto the board — a context that laid out four analysis panes was a second
    dashboard wearing an accordion. */
-.bucket-bay .bay-grid{display:grid;gap:10px;grid-template-columns:minmax(0,1fr);
-  grid-template-areas:"ctl" "grid"}
-/* relative, not static: the close button is absolutely positioned against its
-   own tile, and a static parent would have sent it to the section instead. */
-.bucket-bay .tile{position:relative;display:flex;flex-direction:column;
-  border:1px solid var(--rule);border-radius:10px;background:var(--surface);padding:11px 13px}
-/* Grid areas are assigned by SLOT, written inline by layoutBay from BAY_ORDER — not pinned
-   to an id here. Pinning them meant the four cards could never change places, and a card you
-   cannot move is not a module. The slots keep their shapes; which card sits in which is the
-   reader's. */
 /* Expand: the panel takes the width and the watchlist drops under it. */
 /* Tabs. The buckets page's own: pill buttons in the card head, the active one filled. */
 .btabs{display:flex;flex-wrap:wrap;gap:6px;flex:1;min-width:0}
@@ -759,11 +765,6 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);font-si
 .btabs button.on{border-color:var(--accent);color:var(--ink);
   background:color-mix(in srgb, var(--accent) 14%, var(--surface));font-weight:600}
 /* margin-right clears the absolutely-positioned close button in the corner. */
-.btab-expand{font:12.5px var(--sans);padding:4px 11px;cursor:pointer;flex:0 0 auto;
-  margin-right:22px;
-  border:1px solid var(--rule);border-radius:8px;background:var(--plane);color:var(--ink-2)}
-.btab-expand:hover{border-color:var(--accent);color:var(--ink)}
-.btab-expand[aria-pressed="true"]{border-color:var(--accent);color:var(--ink)}
 #bPanelBody > section[hidden]{display:none}
 #bPanelBody h3{margin:0 0 3px;font-size:14.5px}
 .bchart-sub{margin:0 0 8px;font-size:12px;color:var(--ink-muted)}
@@ -783,23 +784,10 @@ table.bwatch tr.is-pinned{background:var(--plane)}
 table.bwatch .spark{width:80px;height:26px;display:block}
 /* The grip is the board's drag affordance and these cards are not on the board; leaving it
    would advertise a drag that does nothing. */
-.bucket-bay .tile-bar{cursor:grab}
-.bucket-bay .tile-bar:active{cursor:grabbing}
-.bucket-bay .tile.bay-drag{opacity:.5}
 /* The card a drop would land on. Same accent ring the board's drop preview uses, so the two
    regions answer a drag the same way. */
-.bucket-bay .tile.bay-over{box-shadow:0 0 0 2px var(--accent)}
-.bucket-bay .detail-card{max-height:none}
-.bucket-bay #tile-buckets .detail-card{max-height:none;overflow:visible}
-.bucket-bay #tile-members .detail-card,
-.bucket-bay #tile-feed .detail-card,
-.bucket-bay #tile-book1 .detail-card{max-height:340px;overflow:auto}
 .bay-note{font-weight:400;font-size:13px;color:var(--ink-muted)}
-.bucket-bay[hidden]{display:none}
-@media (max-width:847px){
-  .bucket-bay .bay-grid{grid-template-columns:minmax(0,1fr);
-    grid-template-areas:"ctl" "grid"}
-}
+@media (max-width:847px){}
 
 /* The bucket grid. Cards rather than chips: each carries a thesis blurb, a holding period and
    its own priced-of-total coverage, and none of that survives being squeezed into a pill. */
@@ -816,12 +804,17 @@ table.bwatch .spark{width:80px;height:26px;display:block}
    named rather than derived from a card width, which is what makes the matrix square.
    `grid-auto-rows:1fr` equalises heights across a row; the 124px floor is the buckets page's
    own `.bucket{min-height:124px}`, kept so the density does not drift from the original. */
+/* Ten across on a wide screen, which is what the buckets page produces at that width and
+   what makes twenty cards read as two scannable rows rather than a block. The counts are
+   named rather than poured: `auto-fill,minmax(176px,1fr)` landed 7+7+6 at one width and
+   5+5+5+5 at another, ragged either way. 10 / 5 / 4 / 2 / 1 all divide twenty exactly, so
+   every breakpoint gives full rows — there is no three-column step because 20/3 does not.
+   Media queries read the REAL viewport; `zoom` does not rescale them, so these thresholds
+   are device px while the card sizes around them are CSS px. */
 .bk-grid{--dcs:1;display:grid;gap:8px;
-  grid-template-columns:repeat(5,minmax(0,1fr));grid-auto-rows:minmax(124px,auto)}
-@media (max-width:1500px){ .bk-grid{grid-template-columns:repeat(4,minmax(0,1fr))} }
-/* No three-column step: 20/3 is 6 rows with a two-card orphan, and four columns still hold
-   ~250px cards at 1100 — wider than the buckets page's own 176px floor. The ladder is
-   5 / 4 / 2 / 1 because every one of those divides twenty exactly. */
+  grid-template-columns:repeat(10,minmax(0,1fr));grid-auto-rows:minmax(124px,auto)}
+@media (max-width:1800px){ .bk-grid{grid-template-columns:repeat(5,minmax(0,1fr))} }
+@media (max-width:1200px){ .bk-grid{grid-template-columns:repeat(4,minmax(0,1fr))} }
 @media (max-width:847px){  .bk-grid{grid-template-columns:repeat(2,minmax(0,1fr))} }
 @media (max-width:560px){  .bk-grid{grid-template-columns:minmax(0,1fr)} }
 /* Equal heights need the card to fill the track it was given, not just start in it. */
@@ -1043,85 +1036,44 @@ table.bwatch .spark{width:80px;height:26px;display:block}
                 title="Analyse all securities again">clear</button>
       </div>
       <div id="contextBody">
-        <section class="panel bucket-bay" id="bucketBay">
-      <!-- The section header two lines up already says CONTEXT and names the selection, and
-           the card below is titled "Buckets". A third heading between them said the same thing
-           a third time and explained a causation the layout now shows. -->
-      <div class="bay-grid">
-      <!-- ── The chaos buckets, as three tiles on the same board ───────────────────────
-           A bucket and a lens are different kinds of thing and the board keeps them apart. A
-           lens is a RULE — membership is computed from fields and changes when the data does.
-           A bucket is a LIST — someone decided these names belong to a thesis, and wrote down
-           what would make that wrong. Because they are different kinds they intersect rather
-           than compete, which is why the buckets live here beside the lenses instead of on a
-           page of their own: "of the names I decided are the tankers trade, which clear a
-           debt screen" is the actual question, and neither surface could ask it alone. -->
-      <article class="tile" data-id="bucketctl" id="tile-bucketctl">
-        <div class="tile-bar" data-drag>
-          <span class="tile-grip">⋮⋮</span>
-          <h2>Shock &amp; clock</h2>
-          <div class="tile-meta" id="bucketCtlMeta" data-nodrag>—</div>
-          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
+        <!-- Not tiles. These are the controls that DEFINE the universe, so they are not
+             closeable, not draggable and not parkable — a reader who pressed x on the shock
+             row lost the only way to change the framing, and `BAY_HIDDEN` persisted it. -->
+        <div class="ctx-controls">
+          <label>Shock
+            <select id="bucketShock" aria-label="Which shock the heat is read under">
+              <option value="unknown">Unknown / explore</option>
+              <option value="hormuz">Hormuz / Gulf energy</option>
+              <option value="taiwan">Taiwan</option>
+              <option value="china_min">China minerals</option>
+              <option value="liquidity">Liquidity</option>
+              <option value="russia">Russia</option>
+              <option value="ai_grid">AI / grid</option>
+            </select></label>
+          <label>Clock
+            <select id="bucketClock" aria-label="Which stage of the clock leads">
+              <option value="T0">T0 Liquidity</option>
+              <option value="T1" selected>T1 Mechanism</option>
+              <option value="T2">T2 Industrial</option>
+            </select></label>
+          <label>Tier filter
+            <select id="bucketTier" aria-label="Which tier of constituent counts">
+              <option value="all">All tickers</option>
+              <option value="liquid">Liquid only</option>
+              <option value="satellite">Satellites only</option>
+            </select></label>
+          <label class="bkc-q">Search
+            <input id="bucketQ" type="search" placeholder="ticker or bucket…"
+                   aria-label="Filter buckets by ticker or name" /></label>
+          <!-- No Apply. Every control here takes effect as it changes, on purpose: a control
+               that only lands on a second click can be read while it is lying about the cards
+               under it. -->
+          <button type="button" id="bucketClear">Clear</button>
+          <button type="button" id="bucketTop">Select top heat</button>
+          <span class="ctx-count" id="bucketsMeta">—</span>
         </div>
-        <div class="tile-body">
-          <div class="detail-card">
-            <div class="bkc-row">
-              <label>Shock
-                <select id="bucketShock" aria-label="Which shock the heat is read under">
-                  <option value="unknown">Unknown / explore</option>
-                  <option value="hormuz">Hormuz / Gulf energy</option>
-                  <option value="taiwan">Taiwan</option>
-                  <option value="china_min">China minerals</option>
-                  <option value="liquidity">Liquidity</option>
-                  <option value="russia">Russia</option>
-                  <option value="ai_grid">AI / grid</option>
-                </select></label>
-              <label>Clock
-                <select id="bucketClock" aria-label="Which stage of the clock leads">
-                  <option value="T0">T0 Liquidity</option>
-                  <option value="T1" selected>T1 Mechanism</option>
-                  <option value="T2">T2 Industrial</option>
-                </select></label>
-              <label>Tier
-                <select id="bucketTier" aria-label="Which tier of constituent counts">
-                  <option value="all">All tickers</option>
-                  <option value="liquid">Liquid only</option>
-                  <option value="satellite">Satellites only</option>
-                </select></label>
-              <label class="bkc-q">Search
-                <input id="bucketQ" type="search" placeholder="ticker or bucket…"
-                       aria-label="Filter buckets by ticker or name" /></label>
-              <!-- No Apply. Every control on this page takes effect as it changes, on
-                   purpose: a control that only lands on a second click can be read while it
-                   is lying about the cards under it. -->
-              <button type="button" id="bucketClear">Clear</button>
-              <button type="button" id="bucketTop">Select top heat</button>
-            </div>
-            <p class="dc-note" id="bucketHint"></p>
-          </div>
-        </div>
-      </article>
-
-      <article class="tile" data-id="buckets" id="tile-buckets">
-        <div class="tile-bar" data-drag>
-          <span class="tile-grip">⋮⋮</span>
-          <h2 id="bucketsTitle">Buckets</h2>
-          <div class="tile-meta" id="bucketsMeta" data-nodrag>—</div>
-          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
-        </div>
-        <div class="tile-body">
-          <div class="detail-card" id="bucketGrid"></div>
-        </div>
-      </article>
-
-      <!-- The buckets page puts its lower half in a tabbed panel beside a watchlist, and
-           this reproduces that. Tabs here, where the board above deliberately has none:
-           these four are one subject read four ways — the same selection as a chart, as a
-           thesis, as a price list, as a ranking — and the buckets page's reader already
-           knows where they are. The board's panes are for different subjects side by side. -->
-
-      </div>
-        </section>
+        <p class="ctx-focus" id="bucketHint"></p>
+        <div class="ctx-grid" id="bucketGrid"></div>
       </div>
     </section>
 
@@ -1202,8 +1154,6 @@ table.bwatch .spark{width:80px;height:26px;display:block}
             <button type="button" data-btab="feed">Price feed</button>
             <button type="button" data-btab="book1">Book I · Keel / Sail</button>
           </div>
-          <button type="button" class="btab-expand" id="bExpand" data-nodrag
-                  aria-label="Expand this panel">⛶ Expand</button>
           <button type="button" class="tile-close" data-close aria-label="Park this card">×</button>
         </div>
         <div class="tile-body">
@@ -2306,11 +2256,8 @@ function priceCohort(cap){
    'row' seats its children side by side (vertical boundary); 'col' stacks them.
    Every leaf's rect is derived from its parent's, so free space cannot appear and
    the arrangement is not limited to a fixed set of bays. */
-/* Two regions, two registries. TILE_IDS is what the split-tree BOARD positions; BAY_IDS is
-   what the buckets bay below the results table holds. They are separate because layoutBoard
-   hides every TILE_ID it did not place, and a bay tile is never placed on the board — so a
-   single list would have made the whole buckets section vanish on the first layout pass.
-   Both are offered in Widget options; ticking a bay tile shows it in the bay. */
+/* One registry. Every module the reader can place, drag, resize or park is here, positioned
+   by the split-tree board; the context's controls are not modules and are not in it. */
 /* Board modules. `bpanel` and `bwatch` are here rather than in the context because they are
    analytical OUTPUTS about a chosen universe, not controls that choose one — the same kind of
    thing as the scatter and the ranking, and placed, dragged and resized by the same system.
@@ -2318,9 +2265,11 @@ function priceCohort(cap){
 const TILE_IDS = ["plot","price","tone","rank","dist","shadow","card","watch","bpanel","bwatch"];
 /* What the CONTEXT section owns: the controls that DEFINE the universe, and nothing that
    analyses it. */
-const BAY_IDS  = ["bucketctl","buckets"];
-const ALL_TILE_IDS = TILE_IDS.concat(BAY_IDS);
-function isBayTile(id){ return BAY_IDS.indexOf(id) !== -1; }
+/* There is no second region any more. The context's controls and card grid are plain content
+   inside the context section — not closeable, not draggable, not parkable — because they are
+   how the reader states what they are looking at, and a control that can be hidden is a way
+   to lose the framing with no way back. Everything that IS a module is on the board. */
+const ALL_TILE_IDS = TILE_IDS.slice();
 const TILE_LABELS = {
   plot:"P/E × growth", price:"Price history", tone:"Headlines & tone",
   rank:"Ranked by lens", dist:"Distribution", shadow:"AI shadow",
@@ -3123,7 +3072,6 @@ function setTilePlaced(id, on){
   // A bay tile is not on the split tree, so placing it is showing it. Routing it through
   // placeIntoLargestPane would have put a bucket card into the analysis board — and then
   // layoutBoard would have positioned it absolutely inside a container it does not belong to.
-  if(isBayTile(id)){ setBayShown(id, on); return; }
   if(on){
     if(treeTiles(boardTree).includes(id)) return;
     placeIntoLargestPane(id);   // the same path a tray chip click takes
@@ -3133,130 +3081,6 @@ function setTilePlaced(id, on){
   layoutBoard();
   saveBoard();
   scheduleChartReflow();
-}
-/* Which bay cards are showing. Persisted like the board is, so closing Book I stays closed. */
-const BAY_KEY = "monad.screener.draft.bay.v1";
-let BAY_HIDDEN = loadBayHidden();
-function loadBayHidden(){
-  try{
-    const raw = localStorage.getItem(BAY_KEY);
-    const arr = raw ? JSON.parse(raw) : [];
-    return Array.isArray(arr) ? arr.filter(x => BAY_IDS.indexOf(x) !== -1) : [];
-  }catch(e){ return []; }
-}
-function saveBayHidden(){
-  try{ localStorage.setItem(BAY_KEY, JSON.stringify(BAY_HIDDEN)); }catch(e){}
-}
-function bayShown(id){ return BAY_HIDDEN.indexOf(id) === -1; }
-function setBayShown(id, on){
-  const i = BAY_HIDDEN.indexOf(id);
-  if(on && i !== -1) BAY_HIDDEN.splice(i, 1);
-  else if(!on && i === -1) BAY_HIDDEN.push(id);
-  saveBayHidden();
-  layoutBay();
-  scheduleChartReflow();
-}
-/* The bay is a flow layout, not a positioned one: the buckets page stacks its sections and
-   so does this. Four fixed SLOTS — a full-width control row, a full-width grid, a wide left
-   cell and a right column — and BAY_ORDER says which card is in which. The shapes are the
-   buckets page's; which card takes which shape is the reader's, because a card that cannot
-   move is not a module however many other module properties it has. */
-/* Two slots for two context controls. The four-slot version described a layout that held
-   analysis panes; those are board modules now. */
-const BAY_SLOTS = ["ctl", "grid"];
-const BAY_ORDER_KEY = "monad.screener.draft.bayorder.v1";
-let BAY_ORDER = loadBayOrder();
-function loadBayOrder(){
-  try{
-    const raw = localStorage.getItem(BAY_ORDER_KEY);
-    const arr = raw ? JSON.parse(raw) : null;
-    // Repaired, not trusted: a stored order from before a card existed would leave that card
-    // with no slot and it would vanish. Known ids in their stored order, then any missing.
-    if(Array.isArray(arr)){
-      const keep = arr.filter(id => BAY_IDS.indexOf(id) !== -1);
-      return keep.concat(BAY_IDS.filter(id => keep.indexOf(id) === -1));
-    }
-  }catch(e){}
-  return BAY_IDS.slice();
-}
-function saveBayOrder(){
-  try{ localStorage.setItem(BAY_ORDER_KEY, JSON.stringify(BAY_ORDER)); }catch(e){}
-}
-function layoutBay(){
-  const bay = document.getElementById("bucketBay");
-  if(!bay) return;
-  let anyShown = false;
-  // Slots are handed out to the cards that are SHOWING, in order. A hidden card does not
-  // hold its slot open, or closing the control row would leave a gap where it used to be.
-  let slot = 0;
-  BAY_ORDER.forEach(id => {
-    const el = document.getElementById("tile-" + id);
-    if(!el) return;
-    const show = bayShown(id) && tileHasData(id);
-    el.style.display = show ? "" : "none";
-    if(show){
-      el.style.gridArea = BAY_SLOTS[Math.min(slot, BAY_SLOTS.length - 1)];
-      slot++;
-      anyShown = true;
-    } else {
-      el.style.removeProperty("grid-area");
-    }
-  });
-  // The whole section goes when nothing in it is showing, rather than leaving a titled
-  // panel with nothing under it.
-  bay.hidden = !anyShown;
-  // The note that lived here said which direction the causation ran ("filtering everything
-  // above"). The layout says it now — the context sits above what it constrains — and the
-  // section header states the selection and its count. Removed rather than kept as a third
-  // copy of the same sentence.
-}
-/* Drag a context card's header onto the other and they swap. A swap rather than an insert
-   because the two slots are different SHAPES — a control row and a card grid are not
-   interchangeable positions in a list — so "put this one where that one is" is the move with
-   an unambiguous result. */
-function initBayDrag(){
-  const bay = document.getElementById("bucketBay");
-  if(!bay) return;
-  let from = null;
-  const tileOf = el => el && el.closest(".tile");
-  bay.addEventListener("pointerdown", (ev)=>{
-    if(ev.button !== 0) return;
-    if(ev.target.closest("[data-nodrag],[data-close],button,select,input,a")) return;
-    const bar = ev.target.closest(".tile-bar");
-    if(!bar) return;
-    from = tileOf(bar);
-    if(!from) return;
-    from.classList.add("bay-drag");
-    bay.setPointerCapture?.(ev.pointerId);
-    ev.preventDefault();
-  });
-  bay.addEventListener("pointermove", (ev)=>{
-    if(!from) return;
-    const over = tileOf(document.elementFromPoint(ev.clientX, ev.clientY));
-    bay.querySelectorAll(".tile.bay-over").forEach(t => t.classList.remove("bay-over"));
-    if(over && over !== from) over.classList.add("bay-over");
-  });
-  const end = (ev)=>{
-    if(!from) return;
-    const over = tileOf(document.elementFromPoint(ev.clientX, ev.clientY));
-    from.classList.remove("bay-drag");
-    bay.querySelectorAll(".tile.bay-over").forEach(t => t.classList.remove("bay-over"));
-    if(over && over !== from){
-      const a = BAY_ORDER.indexOf(from.dataset.id), b = BAY_ORDER.indexOf(over.dataset.id);
-      if(a !== -1 && b !== -1){
-        BAY_ORDER[a] = over.dataset.id;
-        BAY_ORDER[b] = from.dataset.id;
-        saveBayOrder();
-        layoutBay();
-        // The panel's chart is sized from its host box, and it has just been given a
-        // different one.
-        drawBucketChart();
-      }
-    }
-    from = null;
-  };
-  bay.addEventListener("pointerup", end);
-  bay.addEventListener("pointercancel", end);
 }
 /* The picture is the control. Each entry carries the boxes its own arrangement produces,
    drawn as fractions of the board so the pictogram cannot claim a split the tree does not
@@ -6007,8 +5831,9 @@ function drawBucketChart(){
 }
 function drawBucketCtl(){
   const hint = document.getElementById("bucketHint");
-  const meta = document.getElementById("bucketCtlMeta");
-  if(!hint || !meta) return;
+  // The scenario lives on the section header now; this used to also require a tile-meta
+  // element and return early without it, which would have silently stopped writing the hint.
+  if(!hint) return;
   const leads = LEDGER.CLOCK_LEADS[bucketClock] || [];
   // Count the buckets that are actually lifted, not the ones that lead. A lead the ledger
   // scored 0 under this shock stays 0 — the clock says WHEN an implicated thesis bites, so it
@@ -6018,7 +5843,6 @@ function drawBucketCtl(){
     const b = BUCKETS.find(x => x.id === id);
     return b && ((b.heat && b.heat[bucketShock]) || 0) > 0;
   }).length;
-  meta.textContent = bucketShock + " · " + bucketClock;
   // The ledger's own line for this shock. Absent for a shock nobody wrote one for, which is
   // said rather than filled with a generic sentence.
   hint.innerHTML = (BUCKET_HINTS[bucketShock]
@@ -6262,25 +6086,6 @@ function drawWatch(){
     + '</p>';
 }
 
-/* Scroll the pinned name's cards into view, if any are placed and none is already visible.
-   Prefers the detail card, then the tone card, then the price chart — the order in which
-   they answer "what did I just click". */
-function revealCards(){
-  const ids = ["card", "tone", "price"];
-  const placed = ids.filter(id => {
-    const el = document.getElementById("tile-" + id);
-    return el && el.style.display !== "none";
-  });
-  if(!placed.length) return;
-  const vh = window.innerHeight;
-  const seen = placed.some(id => {
-    const r = document.getElementById("tile-" + id).getBoundingClientRect();
-    return r.top < vh * 0.9 && r.bottom > vh * 0.1;
-  });
-  if(seen) return;
-  document.getElementById("tile-" + placed[0])
-    .scrollIntoView({block: "center", behavior: "smooth"});
-}
 function drawCard(){
   const host = document.getElementById("detailCard");
   if(!host) return;
@@ -6709,7 +6514,9 @@ function setCtxOpen(open){
   // The bay's cards are sized by a grid whose tracks only resolve while it is displayed, and
   // its chart reads its own box at draw time. Re-expanding without this leaves the grid at
   // whatever widths it had when it was hidden and the chart at a stale viewBox.
-  if(open){ layoutBay(); fitTileText(); drawBucketChart(); scheduleChartReflow(); }
+  // The grid's tracks only resolve while it is displayed, and the bay chart reads its own
+  // box at draw time, so re-expanding has to re-run both.
+  if(open){ fitTileText(); drawBucketChart(); scheduleChartReflow(); }
 }
 function toggleCtx(){ setCtxOpen(document.getElementById("contextBody").hidden); }
 /* The summary line above the workspace. Says the same thing the chip in the bar says, from
@@ -6763,7 +6570,6 @@ function renderInner(){
   drawShadow();
   drawCard();
   drawWatch();
-  layoutBay();
   drawBucketCtl();
   drawBuckets();
   drawThesis();
@@ -6881,7 +6687,6 @@ layoutBoard();
 initBoard();
 initBoardResize();
 initResultsResize();
-initBayDrag();
 document.getElementById("lensFormEl").addEventListener("submit", (ev)=>{
   ev.preventDefault();
   submitLensForm();
@@ -6968,11 +6773,6 @@ document.addEventListener("click", (ev)=>{
     ev.preventDefault();
     pinTicker(pin.dataset.watchPin);
     render();
-    // Pinning from the BAY moves cards that are a page-scroll away, so the click looked like
-    // it did nothing. Bring them into view — but only from the bay, and only if they are
-    // actually off-screen: scrolling the page under someone who clicked a row already in
-    // front of them is its own kind of broken.
-    if(pin.closest("#bucketBay")) revealCards();
     return;
   }
   // Legend chips are rebuilt on every draw, so this is delegated for the same reason the
@@ -6999,15 +6799,6 @@ document.getElementById("bTabs").addEventListener("click", (ev)=>{
   document.querySelectorAll("#bPanelBody [data-bpane]").forEach(p =>
     { p.hidden = p.dataset.bpane !== b.dataset.btab; });
   if(b.dataset.btab === "chart") drawBucketChart();
-});
-/* Expand is a size, not a mode: the panel takes the bay's full width and the watchlist drops
-   below it. A modal would have put the chart on top of the grid that chose what it shows. */
-document.getElementById("bExpand").addEventListener("click", (ev)=>{
-  ev.preventDefault(); ev.stopPropagation();
-  const bay = document.getElementById("bucketBay");
-  const on = bay.classList.toggle("panel-wide");
-  ev.currentTarget.setAttribute("aria-pressed", on ? "true" : "false");
-  drawBucketChart();
 });
 document.getElementById("bucketShock").addEventListener("change", (ev)=>{
   bucketShock = ev.target.value; drawBucketCtl(); drawBuckets();

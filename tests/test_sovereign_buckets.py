@@ -196,7 +196,7 @@ class TheBucketsAreOnTheScreenerBoard(unittest.TestCase):
         """The ask was for them in edit-layout, not bolted to the page — a card that cannot
         be closed or brought back is not a module, it is furniture. All four are still
         offered; what changed is WHICH registry each is in."""
-        for tile in ("bucketctl", "buckets", "bpanel", "bwatch"):
+        for tile in ("bpanel", "bwatch"):
             self.assertRegex(self.html, r'data-id="{}"'.format(tile))
             self.assertRegex(self.html, r"{}\s*:".format(tile),
                              "{} has no label/note entry".format(tile))
@@ -206,20 +206,31 @@ class TheBucketsAreOnTheScreenerBoard(unittest.TestCase):
 
     def test_the_context_owns_controls_and_the_board_owns_the_analysis(self):
         """The split that stops the context becoming a second dashboard. A control DEFINES the
-        universe; a panel ANALYSES one. Shock & clock and the card grid define; the history,
-        detail, price-feed, Book I tabs and the constituents table analyse, so they are board
-        modules placed, dragged and resized by the same system as the scatter and the ranking
-        — not a second special chart area that only buckets get."""
-        bay = re.search(r"const BAY_IDS  = \[(.*?)\];", self.html, re.S).group(1)
+        universe; a panel ANALYSES one. Shock, clock, tier, search and the card grid define,
+        and they are plain content — not modules — because a control that can be closed is a
+        way to lose the framing with no way back, and the hidden set was persisted. The
+        history, detail, price-feed, Book I tabs and the constituents table analyse, so they
+        are board modules placed by the same system as the scatter and the ranking."""
         tiles = re.search(r"const TILE_IDS = \[(.*?)\];", self.html, re.S).group(1)
-        for control in ("bucketctl", "buckets"):
-            self.assertIn('"{}"'.format(control), bay,
-                          "{} defines the context and belongs to it".format(control))
-            self.assertNotIn('"{}"'.format(control), tiles)
         for analysis in ("bpanel", "bwatch"):
             self.assertIn('"{}"'.format(analysis), tiles,
                           "{} analyses a universe and belongs on the board".format(analysis))
-            self.assertNotIn('"{}"'.format(analysis), bay)
+        for control in ("bucketctl", "buckets"):
+            self.assertNotIn('"{}"'.format(control), tiles,
+                             "{} is a context control, not a placeable module".format(control))
+        self.assertNotIn("BAY_IDS", self.html,
+                         "a second tile registry is back; there is one board")
+        self.assertRegex(self.html, r"const ALL_TILE_IDS = TILE_IDS\.slice\(\);")
+
+    def test_the_context_controls_cannot_be_closed_away(self):
+        """`BAY_HIDDEN` persisted, so pressing x on the shock row removed the only way to
+        change the framing and it stayed gone across reloads."""
+        body = re.search(r'<div class="ctx-controls">(.*?)</div>', self.html, re.S).group(1)
+        self.assertNotIn("tile-close", body)
+        self.assertNotIn("data-close", body)
+        self.assertNotIn("bayShown", self.html)
+        self.assertNotIn("BAY_HIDDEN", self.html.split("-->")[-1],
+                         "the hidden-set machinery is back")
 
     def test_the_analysis_modules_sit_in_the_board_container(self):
         """Markup, not just the registry: layoutBoard positions its children absolutely, so a
@@ -234,13 +245,11 @@ class TheBucketsAreOnTheScreenerBoard(unittest.TestCase):
             self.html, r"tileOrder\(ALL_TILE_IDS\.filter\(id => !parked\.includes\(id\)\)\)",
             "the widget panel must offer both registries, or a bay card cannot be reopened")
 
-    def test_a_bay_tile_never_goes_onto_the_split_tree(self):
-        """placeIntoLargestPane would drop a bucket card into the analysis board, and then
-        layoutBoard would position it absolutely inside a container it is not a child of."""
-        self.assertRegex(
-            self.html,
-            r"if\(isBayTile\(id\)\)\{ setBayShown\(id, on\); return; \}",
-            "setTilePlaced must route bay tiles to the bay")
+    def test_nothing_routes_around_the_board(self):
+        """`setTilePlaced` used to divert bay ids to a second show/hide path. With one
+        registry there is nothing to divert, and a special case that still existed would be a
+        way for a module to be placed somewhere the board does not manage."""
+        self.assertNotRegex(self.html, r"if\(isBayTile\(id\)\)")
 
     def test_the_context_layer_comes_before_what_it_constrains(self):
         """The bay used to sit under Results, so the reader chose the universe below the fold
@@ -249,7 +258,7 @@ class TheBucketsAreOnTheScreenerBoard(unittest.TestCase):
         context, then lens, then workspace, then results."""
         # Markup, not stylesheet. `cmdbar` first appears in a CSS rule 58k characters before
         # the element it styles, so a bare substring search ordered the sheet, not the page.
-        order = ['id="contextSection"', 'id="bucketBay"', 'id="cmdbar"',
+        order = ['id="contextSection"', 'id="bucketGrid"', 'id="cmdbar"',
                  'class="board" id="board"', "<h2>Results</h2>"]
         seen = [(name, self.html.index(name)) for name in order]
         for (an, ai), (bn, bi) in zip(seen, seen[1:]):
@@ -265,8 +274,10 @@ class TheBucketsAreOnTheScreenerBoard(unittest.TestCase):
             self.assertIn(el, head.group(1), "{} is not in the always-visible head".format(el))
         body = re.search(r'<div id="contextBody">(.*?)\n      </div>', self.html, re.S)
         self.assertIsNotNone(body, "the context body wrapper is gone")
-        self.assertIn('id="bucketBay"', body.group(1),
-                      "the bay must be inside the foldable body, not the head")
+        for part in ('id="bucketShock"', 'id="bucketClock"', 'id="bucketTop"',
+                     'id="bucketGrid"'):
+            self.assertIn(part, body.group(1),
+                          "{} must be inside the foldable body".format(part))
 
     def test_the_grid_is_still_cards_not_a_list(self):
         """The rich card grid is the point of this surface — being able to scan twenty theses
@@ -291,18 +302,14 @@ class TheBucketsAreOnTheScreenerBoard(unittest.TestCase):
         self.assertIn("bChart", obs.group(0), "the bay chart is not observed for resize")
 
     def test_the_context_lays_out_as_controls_over_grid(self):
-        """Two rows, because the context owns two things. The chart / side1..side3 areas went
-        with the analysis tiles onto the board; a context that laid out four analysis panes
-        was a second dashboard wearing an accordion."""
-        areas = re.search(r'\.bucket-bay \.bay-grid\{[^}]*grid-template-areas:([^}]*)\}',
-                          self.html, re.S).group(1)
-        self.assertIn('"ctl"', areas)
-        self.assertIn('"grid"', areas)
-        for gone in ('"chart side1"', '"chart side2"', '"chart side3"'):
-            self.assertNotIn(gone, areas,
-                             "the context still lays out an analysis pane: {}".format(gone))
-        slots = re.search(r"const BAY_SLOTS = \[(.*?)\];", self.html, re.S).group(1)
-        self.assertNotIn("chart", slots, "BAY_SLOTS still hands out an analysis slot")
+        """One control row, then the grid. No slot table, no grid-areas, no drag-to-swap —
+        the context holds two things in a fixed order, and the machinery that arranged four
+        panes in a second region went with the panes."""
+        body = re.search(r'<div id="contextBody">(.*?)\n      </div>', self.html, re.S).group(1)
+        self.assertLess(body.index('class="ctx-controls"'), body.index('id="bucketGrid"'),
+                        "the controls must sit above the grid they frame")
+        for gone in ("BAY_SLOTS", "layoutBay", "initBayDrag", "bay-grid"):
+            self.assertNotIn(gone, self.html, "{} survived the dissolution".format(gone))
 
     def test_constituent_series_travel_not_just_screened_ones(self):
         """53 of 202 constituents are in the fundamentals universe. Shipping only screened
@@ -516,45 +523,52 @@ class ThePinnedCardsFollowABucketName(unittest.TestCase):
         self.assertIn("is pinned", body)
         self.assertIn("absence, not a zero", body)
 
-    def test_pinning_from_the_bay_brings_the_cards_into_view(self):
-        """The bay is a page-scroll below the board, so a click that only changed something
-        off-screen read as a click that did nothing."""
-        self.assertRegex(
-            self.html, r'if\(pin\.closest\("#bucketBay"\)\) revealCards\(\);')
-        body = re.search(r"function revealCards\(\)\{(.*?)\n\}", self.html, re.S)
-        self.assertIsNotNone(body, "revealCards is gone")
-        self.assertIn("if(seen) return;", body.group(1),
-                      "scrolling a card that is already in front of the reader is its own "
-                      "kind of broken")
+    def test_pinning_a_constituent_does_not_need_the_page_scrolled(self):
+        """This used to assert that clicking a constituent scrolled the top cards into view,
+        because the constituents table lived in a region a page-scroll below the board and a
+        click that only changed something off-screen read as a click that did nothing.
+
+        The table is a board module now, sitting among the cards it updates, so the scroll —
+        and `revealCards`, which existed only for it — is gone. Guarded as the property that
+        replaced it: the module is on the board, so there is nowhere for the pin to happen
+        out of sight."""
+        self.assertNotIn("revealCards", self.html,
+                         "a scroll-into-view helper is back; the constituents module should "
+                         "be adjacent to what it pins")
+        board = re.search(r'<div class="board" id="board">(.*?)\n    </div>', self.html, re.S)
+        self.assertIn('data-id="bwatch"', board.group(1))
 
 
-class TheBayCardsCanBeMoved(unittest.TestCase):
+class TheContextHasNoSecondLayoutSystem(unittest.TestCase):
+    """Three tests used to live here guarding the bay's slot table: that slots were assigned
+    by order rather than pinned per id, that a hidden card did not hold its slot open, and
+    that a stored order was repaired rather than trusted. Every one of those hazards existed
+    because the bay was a second region with its own arrangement machinery.
+
+    The context holds a control row and a grid, in that order, always both. There is no slot
+    to assign, no card to hide and no order to store — so the tests are replaced by the
+    property that makes them unnecessary rather than deleted quietly."""
+
     @classmethod
     def setUpClass(cls):
         with open(os.path.join(REPO, "docs", "research",
                                "SCREENER_COMBINED_DRAFT.html"), encoding="utf-8") as fh:
             cls.html = fh.read()
 
-    def test_slots_are_assigned_by_order_not_pinned_to_an_id(self):
-        """`#tile-buckets{grid-area:grid}` meant the four cards could never change places,
-        and a card that cannot move is not a module however many other module properties it
-        has."""
-        self.assertNotRegex(self.html, r"\.bucket-bay #tile-\w+\{grid-area:")
-        self.assertRegex(self.html, r"const BAY_SLOTS = \[")
-        self.assertRegex(self.html, r"el\.style\.gridArea = BAY_SLOTS\[")
+    def test_there_is_one_arrangement_system(self):
+        for gone in ("BAY_SLOTS", "BAY_ORDER", "loadBayOrder", "layoutBay", "initBayDrag",
+                     "bayShown", "setBayShown", "isBayTile"):
+            self.assertNotIn(gone, self.html,
+                             "{} is back — the context has grown a second layout system "
+                             "again".format(gone))
 
-    def test_a_hidden_card_does_not_hold_its_slot_open(self):
-        """Otherwise closing the control row leaves a gap where it used to be."""
-        body = re.search(r"function layoutBay\(\)\{(.*?)\n\}", self.html, re.S).group(1)
-        self.assertIn("slot++", body)
-        self.assertIn('el.style.removeProperty("grid-area")', body)
-
-    def test_a_stored_order_is_repaired_rather_than_trusted(self):
-        """An order saved before a card existed would leave that card with no slot, and it
-        would simply not appear."""
-        body = re.search(r"function loadBayOrder\(\)\{(.*?)\n\}", self.html, re.S).group(1)
-        self.assertRegex(body, r"BAY_IDS\.indexOf\(id\) !== -1")
-        self.assertRegex(body, r"keep\.concat\(BAY_IDS\.filter")
+    def test_the_context_content_is_not_addressable_as_tiles(self):
+        """A grid-area pinned per id was what made the old cards immovable. Nothing in the
+        context is positioned by id now because nothing in it is positioned at all."""
+        self.assertNotRegex(self.html, r"#tile-buckets\{grid-area:")
+        self.assertNotRegex(self.html, r"#tile-bucketctl\{grid-area:")
+        self.assertNotIn('data-id="bucketctl"', self.html)
+        self.assertNotIn('data-id="buckets"', self.html)
 
 
 class EveryQuestionMarkExplainsItsOwnColumn(unittest.TestCase):

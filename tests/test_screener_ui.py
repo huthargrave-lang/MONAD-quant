@@ -869,3 +869,61 @@ class TheCommandBarReadsStateNotTheDom(unittest.TestCase):
         self.assertIsNotNone(m, "the board height rule moved")
         self.assertIn("var(--shell-zoom)", m.group(1),
                       "the board height is a bare vh again, which this zoom makes inert")
+
+
+class TheMarkupIsWellFormed(unittest.TestCase):
+    """This page is edited by pattern-matching on its text — it is 6800 lines and there is no
+    template — and a replacement whose closing tag matched one nesting level too shallow left
+    a stray `</section></div>` behind. The document still parsed: browsers repair it silently,
+    so `<main>` simply acquired a nested copy of the page shell, everything below the context
+    header stopped painting, and no test noticed because every other assertion is a substring
+    search that does not care about nesting. Cheap to check, and it catches the whole class."""
+
+    VOID = {"br", "img", "input", "hr", "meta", "link", "source", "col", "area", "base",
+            "embed", "param", "track", "wbr"}
+
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(REPO, "docs", "research",
+                               "SCREENER_COMBINED_DRAFT.html"), encoding="utf-8") as fh:
+            html = fh.read()
+        body = html[html.index("<body"):]
+        # Script and style hold `<` in JS/CSS that is not markup; comments hold example tags.
+        for pat in (r"<script\b.*?</script>", r"<style\b.*?</style>", r"<!--.*?-->",
+                    r"<svg\b.*?</svg>"):
+            body = re.sub(pat, "", body, flags=re.S)
+        cls.body = body
+
+    def test_every_element_is_closed_in_the_order_it_was_opened(self):
+        stack, problems = [], []
+        for m in re.finditer(r"<(/?)([a-zA-Z][\w-]*)([^>]*?)(/?)>", self.body):
+            closing, tag, _attrs, selfclosing = m.groups()
+            tag = tag.lower()
+            if tag in self.VOID or selfclosing == "/":
+                continue
+            line = self.body[:m.start()].count("\n") + 1
+            if closing:
+                if stack and stack[-1][0] == tag:
+                    stack.pop()
+                elif tag == "html":
+                    continue
+                else:
+                    problems.append("line {}: </{}> closes nothing (open: {})".format(
+                        line, tag, [t for t, _ in stack[-3:]]))
+            else:
+                stack.append((tag, line))
+        self.assertEqual(problems, [], "\n".join(problems))
+        self.assertEqual(
+            [(t, ln) for t, ln in stack if t != "body"], [],
+            "elements opened and never closed: {}".format(stack[:5]))
+
+    def test_the_context_section_contains_its_own_body(self):
+        """The specific nesting the break inverted: the shell must not end up inside main."""
+        sec = re.search(r'<section class="ctx-section" id="contextSection">(.*?)\n    </section>',
+                        self.body, re.S)
+        self.assertIsNotNone(sec, "the context section is not closed at its own indent level")
+        self.assertIn('id="contextBody"', sec.group(1))
+        self.assertNotIn('class="shell"', sec.group(1),
+                         "the page shell is nested inside the context section")
+        self.assertNotIn('id="cmdbar"', sec.group(1),
+                         "the command bar is nested inside the context section")
