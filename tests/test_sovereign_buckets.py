@@ -44,6 +44,15 @@ def _served():
     return body
 
 
+def _served_buckets():
+    """The OTHER bucket surface. `NothingOnThePageIsGenerated` asserted its rules against
+    `/screen` while the seeded price walk lived on `/screener/buckets` — the guard was green
+    and the counterexample was published, for months, on the page the nav points at."""
+    code, body, _ct = research_ui.route("/screener/buckets", {}, {})
+    assert code == 200
+    return body
+
+
 class TheTableHasOneSource(unittest.TestCase):
     def test_research_ui_holds_no_literal_of_its_own(self):
         """Not the bucket table alone. `BOOK1` and `HINTS` sat in research_ui as
@@ -647,3 +656,76 @@ class TheUniverseSaysWhereItsJudgementsCameFrom(unittest.TestCase):
         self.assertEqual(
             tech_low, [],
             "a Technology name is now tagged low; ZS was held at medium because none was")
+
+
+class TheBucketsPageDrawsWhatWasFetched(unittest.TestCase):
+    """`genSeries()` on this page was `mulberry32(hashStr(symbol))` — a seeded random walk over
+    a hash of the ticker string, with a +0.02 per-step drift baked in, under a caption stating
+    the numbers came down the yfinance path. It drew SHV, a 1-3 month Treasury ETF, at +18.0%
+    over six months against a real +1.7%, and two confident years of price action for EURN, X
+    and MRO, which no longer trade — a hash of a delisted ticker hashes exactly as well as a
+    live one.
+
+    The rule: a page draws a number it FETCHED or says it has none. There is no third option,
+    and "shaped like the real thing" is the most dangerous version of the third because it
+    survives review."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.page = _served_buckets()
+
+    def test_the_seeded_walk_is_gone(self):
+        """Matched as CODE, not as a word: the comment recording what was removed names
+        mulberry32 on purpose, and a test forbidding the name would forbid the explanation."""
+        self.assertNotRegex(self.page, r"function mulberry32\(",
+                            "the seeded price generator is back on the buckets page")
+        self.assertNotRegex(self.page, r"function hashStr\(")
+        self.assertNotRegex(self.page, r"function genSeries\(")
+        self.assertNotRegex(self.page, r"Math\.random\(")
+
+    def test_the_series_come_from_the_fetched_cache(self):
+        body = re.search(r"function seriesFor\(symbol, n\)\{(.*?)\n\}", self.page, re.S)
+        self.assertIsNotNone(body, "seriesFor is gone")
+        body = body.group(1)
+        self.assertIn("const s = PRICES[symbol];", body,
+                      "the series must be read from the injected cache and nothing else")
+        # The absence path, asserted explicitly. Matching only the opening lines let a
+        # hardcoded `return [50,51,52]` through — a fabricated series is exactly the defect
+        # this class exists to catch, and it would have been caught by nothing.
+        self.assertRegex(body, r"length < 2\) return null;",
+                         "a ticker with no usable series must return null, not a stand-in")
+        for ret in re.findall(r"return ([^;]+);", body):
+            self.assertNotRegex(ret.strip(), r"^\[",
+                                "seriesFor returns a literal array: {}".format(ret.strip()))
+        self.assertRegex(self.page, r"const PRICES = \{", "no price cache was injected")
+
+    def test_a_ticker_with_no_series_gets_a_reason_not_a_line(self):
+        """Three absences, and they send a reader to different places: a fetch closes the
+        first, nothing closes the other two."""
+        self.assertRegex(self.page, r"function whyNoSeries\(symbol\)\{")
+        for reason in ("no per-company price here", "delisted", "not in the fetched snapshot"):
+            self.assertIn(reason, self.page, "missing absence reason: {}".format(reason))
+
+    def test_the_page_no_longer_claims_a_live_quote_path(self):
+        """The caption asserted `fetch_yfinance daily -> disk/SQLite cache -> this UI` over
+        numbers that had never been near yfinance. It is true now, and it says what it is:
+        daily closes as of a stamped fetch, not a live quote."""
+        self.assertNotRegex(self.page, r"Same path as the noise screener / live quote path")
+        self.assertIn("Not a live quote path", self.page)
+
+    def test_the_real_closes_actually_reach_the_page(self):
+        """The strongest form of the check: a cash ETF has to look like a cash ETF. The PRNG
+        drew SHV at +18.0% over six months; T-bill funds do not do that."""
+        import json as _json
+        m = re.search(r"const PRICES = (\{.*?\});", self.page, re.S)
+        self.assertIsNotNone(m, "no injected price cache")
+        prices = _json.loads(m.group(1))
+        if not prices:
+            self.skipTest("no prices.json in this checkout — nothing to verify against")
+        for tk in ("SHV", "BIL", "SGOV"):
+            series = prices.get(tk)
+            self.assertTrue(series and len(series) > 2, "{} has no series".format(tk))
+            ret = (series[-1] / series[0] - 1) * 100
+            self.assertLess(abs(ret), 8.0,
+                            "{} moved {:.1f}% over the window — a 1-3 month T-bill fund does "
+                            "not, so this is not a real series".format(tk, ret))

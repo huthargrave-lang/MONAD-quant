@@ -297,7 +297,7 @@ footer{margin-top:44px;padding-top:14px;border-top:1px solid var(--rule);font-si
     <div class="panel" id="buckets">
       <figcaption>
         <h2 style="margin:0 0 4px">Buckets</h2>
-        <p class="lede" style="margin:0;font-size:13px">Click to multi-select. Heat = demo relevance under shock × clock.</p>
+        <p class="lede" style="margin:0;font-size:13px">Click to multi-select. Heat is authored relevance under shock × clock — editorial judgement from the ledger, not a measurement.</p>
       </figcaption>
       <div class="grid" id="bucketGrid"></div>
     </div>
@@ -354,7 +354,11 @@ footer{margin-top:44px;padding-top:14px;border-top:1px solid var(--rule);font-si
         </div>
         <div id="tab-gen" hidden>
           <h3>Free historical pricing</h3>
-          <p>Same path as the noise screener / live quote path: <code>fetch_yfinance</code> daily → disk/SQLite cache → this UI. No Yahoo hit per click.</p>
+          <p>Daily closes only, fetched by <code>tools/stock_screener.py fetch-prices</code> into
+            <code>data/screener/prices.json</code> and served with this page — the same snapshot the
+            screener draws. Not a live quote path: the page makes no request per click and the closes
+            are as old as the last fetch, which is stamped above the table. A constituent with no
+            series says which of the three reasons applies rather than showing a line.</p>
 <pre style="white-space:pre-wrap;font:12px/1.45 var(--mono);background:var(--plane);padding:12px;border-radius:8px;border:1px solid var(--rule);margin:0">WATCH = liquid + satellite tickers from selected buckets
 for sym in WATCH:
     df = fetch_yfinance(sym, start, end, interval="1d")  # free / unofficial
@@ -542,10 +546,34 @@ const HINTS = {
 const selected = new Set(["02","04","17"]);
 let activeTicker = null;
 
-function mulberry32(a){return function(){let t=a+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296}}
-function hashStr(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
-/** Approx trading days ending 2026-08-05 (mock "as of"). */
-const AS_OF = new Date(Date.UTC(2026, 7, 5));
+/* The prices are FETCHED. `genSeries()` used to live here: `mulberry32(hashStr(symbol))`, a
+   seeded random walk over a hash of the ticker string. It was captioned "demo cache", so it
+   was not exactly a lie, but it was undetectable and it was not small — it drew SHV, a 1-3
+   month Treasury ETF, at +18.0% over six months against a real +1.7%, and it drew two
+   confident years of price action for EURN, X and MRO, companies that no longer trade,
+   because a hash of a delisted ticker hashes exactly as well as a live one. The caption
+   above the page asserted the numbers came down the yfinance path. They did not. They do now.
+
+   A ticker with no series returns null and every caller says so rather than drawing
+   something. Absence is a real answer here and there are three kinds of it: never fetched,
+   no longer trades, and never had a price to fetch. */
+const AS_OF = PRICE_ASOF ? new Date(PRICE_ASOF) : new Date();
+function seriesFor(symbol, n){
+  const s = PRICES[symbol];
+  if(!Array.isArray(s) || s.length < 2) return null;
+  return n && n < s.length ? s.slice(s.length - n) : s.slice();
+}
+/* Why a constituent has no line. The three answers send a reader to different places: a fetch
+   would close the first, nothing closes the other two. */
+function whyNoSeries(symbol){
+  if(NOT_COMPANIES[symbol]) return "a " + NOT_COMPANIES[symbol] + " — no per-company price here";
+  // LEDGER.DELISTED, not a bare DELISTED: the ledger's tables arrive namespaced so they
+  // cannot collide with this page's own top-level declarations. Reaching for the bare name
+  // threw on the first delisted constituent and took the whole watch table with it.
+  const gone = (window.LEDGER && LEDGER.DELISTED) || {};
+  if(gone[symbol]) return "delisted — " + gone[symbol];
+  return PRICE_ASOF ? "not in the fetched snapshot" : "no price snapshot is loaded";
+}
 function tradingDates(n){
   const dates=[]; let d=new Date(AS_OF);
   while(dates.length<n){
@@ -559,12 +587,6 @@ function fmtDate(d, short){
   const m=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getUTCMonth()];
   if(short) return m+" "+d.getUTCDate();
   return m+" "+d.getUTCDate()+", "+d.getUTCFullYear();
-}
-function genSeries(symbol,n){
-  const rnd=mulberry32(hashStr(symbol)^0x51ed9e);
-  let px=20+(hashStr(symbol)%80); const out=[];
-  for(let i=0;i<n;i++){px=Math.max(1.2,px*(1+(rnd()-0.48)*0.035));out.push(+px.toFixed(2))}
-  return out;
 }
 function pct(a,b){return ((b/a)-1)*100}
 function sparkSVG(series,w=80,h=26){
@@ -746,8 +768,12 @@ function renderWatch(){
   const rows=[];
   selectedBuckets().forEach(b=>{
     tickersOf(b).forEach(({t,tier})=>{
-      const s=genSeries(t,n);
-      rows.push({t,tier,bucket:b.id,name:b.name,s,last:s.at(-1),chg:pct(s[0],s.at(-1))});
+      // A constituent with no series is still a constituent. Listing it with its reason is
+      // the whole point: dropping it would misreport what the thesis holds, and drawing it
+      // would misreport the market.
+      const s=seriesFor(t,n);
+      rows.push({t,tier,bucket:b.id,name:b.name,s,
+                 last:s?s.at(-1):null, chg:s?pct(s[0],s.at(-1)):null});
     });
   });
   const seen=new Set(); const uniq=rows.filter(r=>{if(seen.has(r.t))return false;seen.add(r.t);return true});
@@ -758,17 +784,20 @@ function renderWatch(){
   setStat("statSel",String(selected.size));
   setStat("statClock",document.getElementById("clock").value);
   setStat("statBuckets",String(BUCKETS.length));
+  const priced=uniq.filter(r=>r.s).length;
   document.getElementById("watchHint").textContent=uniq.length
-    ? `${uniq.length} tickers · ${selected.size} buckets · ${n}d window · demo cache`
+    ? `${uniq.length} tickers · ${priced} priced · ${selected.size} buckets · ${n}d window`
+      + (PRICE_ASOF ? ` · closes as of ${PRICE_ASOF.slice(0,10)}` : " · no price snapshot loaded")
     : "Select buckets to fill rows.";
   document.getElementById("watchBody").innerHTML=uniq.map(r=>`
     <tr class="${activeTicker===r.t?"on":""}" data-t="${r.t}" style="cursor:pointer">
       <td><code>${r.t}</code></td>
       <td class="tag">${r.tier}</td>
       <td class="muted">${r.bucket} ${r.name}</td>
-      <td>${sparkSVG(r.s)}</td>
-      <td class="num">${r.last.toFixed(2)}</td>
-      <td class="num ${r.chg>=0?"up":"dn"}">${r.chg>=0?"+":""}${r.chg.toFixed(1)}%</td>
+      <td>${r.s?sparkSVG(r.s):`<span class="muted">${whyNoSeries(r.t)}</span>`}</td>
+      <td class="num">${r.s?r.last.toFixed(2):"—"}</td>
+      <td class="num ${r.s?(r.chg>=0?"up":"dn"):"muted"}">${
+        r.s?(r.chg>=0?"+":"")+r.chg.toFixed(1)+"%":"—"}</td>
     </tr>`).join("")||`<tr><td colspan="6" class="muted">No selection</td></tr>`;
   document.querySelectorAll("#watchBody tr[data-t]").forEach(tr=>{
     tr.onclick=()=>{activeTicker=tr.dataset.t;renderChart();renderWatch()};
@@ -782,11 +811,15 @@ function chartModel(){
   const map={};
   let title="Select a bucket";
   if(activeTicker){
-    map[activeTicker]=genSeries(activeTicker,n);
-    title=activeTicker+" · demo history";
+    const one=seriesFor(activeTicker,n);
+    if(one) map[activeTicker]=one;
+    title=activeTicker+(one?" · price history":" · "+whyNoSeries(activeTicker));
   } else if(bucks.length){
     const ts=[]; bucks.forEach(b=>b.liquid.forEach(t=>{if(!ts.includes(t))ts.push(t)}));
-    ts.slice(0,5).forEach(t=>map[t]=genSeries(t,n));
+    // Take the first five that HAVE a series rather than the first five named: five slots
+    // spent on unpriced tickers drew an empty chart for a bucket that had prices behind it.
+    let filled=0;
+    ts.forEach(t=>{ if(filled>=5) return; const one=seriesFor(t,n); if(one){ map[t]=one; filled++; } });
     title=bucks.map(b=>b.id).join(", ")+" · normalized";
   }
   const dates=tradingDates(n);
@@ -836,9 +869,10 @@ function renderChart(){
 function renderBook1(){
   const n=Math.min(+document.getElementById("window").value,126);
   document.getElementById("book1Body").innerHTML=BOOK1.map(r=>{
-    const s=genSeries(r.t,n);
+    const s=seriesFor(r.t,n);
     return `<tr><td>${r.tier}</td><td><code>${r.t}</code></td><td>${r.arch}</td>
-      <td class="num">${r.spark}</td><td class="muted">${r.bin}</td><td>${sparkSVG(s)}</td></tr>`;
+      <td class="num">${r.spark}</td><td class="muted">${r.bin}</td>
+      <td>${s?sparkSVG(s):`<span class="muted">${whyNoSeries(r.t)}</span>`}</td></tr>`;
   }).join("");
 }
 function renderAll(){renderBuckets();renderWatch();renderChart();renderBook1()}

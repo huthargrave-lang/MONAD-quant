@@ -462,6 +462,7 @@
         "tools/atm_424b5_lab.py",
         "tools/band_geometry.py",
         "tools/bar_continuity.py",
+        "tools/build_bucket_proposal.py",
         "tools/ca_announce_cohort_lab.py",
         "tools/cef_discount_lab.py",
         "tools/column_reachability.py",
@@ -495,6 +496,7 @@
         "tools/sec_fund_exit_lab.py",
         "tools/sec_rhetoric_delta_lab.py",
         "tools/shadow_replay.py",
+        "tools/sovereign_buckets.py",
         "tools/stock_screener.py",
         "tools/ui_tokens.py"
       ],

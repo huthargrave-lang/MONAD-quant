@@ -3737,7 +3737,24 @@ def _sovereign_buckets_html(mounts):
                 "in the working tree\n", TEXT)
     with open(SOVEREIGN_MOCK_HTML, encoding="utf-8") as f:
         html = f.read()
-    return 200, _MOCK_RAIL.sub(_nav("/screener/buckets", mounts), html, count=1), HTML
+    # Real closes, the same ones /screen draws. This page used to generate its own from a
+    # PRNG over a hash of the ticker string — plausible, confident and entirely fictional,
+    # under a caption claiming the numbers came from yfinance. The ledger tables and the heat
+    # rule come from the same module for the same reason: a surface draws what was fetched or
+    # says it has none.
+    prices = stock_screener.load_prices() or {}
+    inject = "<script>\n{}\nconst PRICES = {};\nconst PRICE_ASOF = {};\nconst NOT_COMPANIES = {};\n</script>\n".format(
+        sovereign_buckets.runtime_js(),
+        json.dumps(prices.get("series") or {}, separators=(",", ":")),
+        json.dumps(prices.get("as_of") or ""),
+        json.dumps(dict(sovereign_buckets.NOT_COMPANIES), separators=(",", ":")))
+    html = _MOCK_RAIL.sub(_nav("/screener/buckets", mounts), html, count=1)
+    # Before the page script, so its first render already has them.
+    if "<script>" in html:
+        html = html.replace("<script>", inject + "<script>", 1)
+    else:
+        html = html + inject
+    return 200, html, HTML
 
 
 def _research_groups_html(mounts):
