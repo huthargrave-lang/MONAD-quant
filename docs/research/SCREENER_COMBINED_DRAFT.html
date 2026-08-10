@@ -2629,7 +2629,9 @@ function layoutBoard(){
   if(!boardTree){
     const empty = document.createElement("div");
     empty.className = "board-empty";
-    empty.textContent = "Every chart is parked — drag a chip from the tray above, or click one.";
+    // The tray moved into the Modules panel, so "the tray above" names something that is no
+    // longer above anything — an instruction pointing at empty space is worse than none.
+    empty.textContent = "Every chart is parked — open Modules to put one back on the board.";
     board.appendChild(empty);
   }
   renderTray();
@@ -5053,6 +5055,12 @@ function lensTitle(key){
   const custom = customLens(key);
   if(custom) return custom.name;
   if(PRESET_RULES[key] && PRESET_RULES[key].title) return PRESET_RULES[key].title;
+  // PRESET_RULES is only populated when the payload carried rows, so with no snapshot every
+  // sentence naming the lens printed the raw key — "nothing under the low_pe_high_growth
+  // lens". The pill row still holds the authored label in that state; it is a fallback, not
+  // the source, so it is read only when the canonical title is genuinely absent.
+  const pill = document.querySelector('#presets button[data-p="' + key + '"]');
+  if(pill) return pill.textContent.trim();
   const tone = TONE_LENSES[key];
   if(tone) return toneField(tone).label + " tone";
   if(key === "social_tone") return "Social tone";

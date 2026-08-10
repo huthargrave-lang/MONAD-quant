@@ -273,8 +273,9 @@ footer{margin-top:44px;padding-top:14px;border-top:1px solid var(--rule);font-si
         <select id="window">
           <option value="63">3M</option>
           <option value="126" selected>6M</option>
-          <option value="252">1Y</option>
-          <option value="756">3Y</option>
+          <!-- 1Y and 3Y were removed: the fetch is capped at PRICE_BARS=126, so both drew the
+               same ~121 closes across an axis labelled a year or three — real numbers on a
+               manufactured range, which reads as data the page does not have. -->
         </select>
       </label>
       <label>Tier filter
@@ -354,7 +355,7 @@ footer{margin-top:44px;padding-top:14px;border-top:1px solid var(--rule);font-si
         </div>
         <div id="tab-gen" hidden>
           <h3>Free historical pricing</h3>
-          <p>Daily closes only, fetched by <code>tools/stock_screener.py fetch-prices</code> into
+          <p>Daily closes only, fetched by <code>tools/stock_screener.py prices</code> into
             <code>data/screener/prices.json</code> and served with this page — the same snapshot the
             screener draws. Not a live quote path: the page makes no request per click and the closes
             are as old as the last fetch, which is stamped above the table. A constituent with no
@@ -557,6 +558,13 @@ let activeTicker = null;
    A ticker with no series returns null and every caller says so rather than drawing
    something. Absence is a real answer here and there are three kinds of it: never fetched,
    no longer trades, and never had a price to fetch. */
+/* Defaulted, so the file still runs when it is opened straight off disk with no server to
+   inject them. Read bare, `PRICE_ASOF` threw a ReferenceError on the first line of the script
+   and the whole page rendered blank — which cost it the ability to say it had no data, the
+   one thing it must always be able to say. */
+const PRICES = (typeof window !== "undefined" && window.PRICES) || {};
+const PRICE_ASOF = (typeof window !== "undefined" && window.PRICE_ASOF) || "";
+const NOT_COMPANIES = (typeof window !== "undefined" && window.NOT_COMPANIES) || {};
 const AS_OF = PRICE_ASOF ? new Date(PRICE_ASOF) : new Date();
 function seriesFor(symbol, n){
   const s = PRICES[symbol];
@@ -566,6 +574,10 @@ function seriesFor(symbol, n){
 /* Why a constituent has no line. The three answers send a reader to different places: a fetch
    would close the first, nothing closes the other two. */
 function whyNoSeries(symbol){
+  // Order matters. With no snapshot at all, NOTHING has a series, and "a fund — no
+  // per-company price here" states a permanent fact about the ticker when the real cause is a
+  // fetch that has not run. The transient reason goes first: it explains every absence at once.
+  if(!PRICE_ASOF || !Object.keys(PRICES).length) return "no price snapshot is loaded";
   if(NOT_COMPANIES[symbol]) return "a " + NOT_COMPANIES[symbol] + " — no per-company price here";
   // LEDGER.DELISTED, not a bare DELISTED: the ledger's tables arrive namespaced so they
   // cannot collide with this page's own top-level declarations. Reaching for the bare name
@@ -689,13 +701,12 @@ function observeChartHost(host){
 }
 function seriesChg(series){ return pct(series[0], series.at(-1)); }
 function heatOf(b){
-  const shock=document.getElementById("shock").value;
-  const clock=document.getElementById("clock").value;
-  let h=b.heat[shock]??1;
-  if(clock==="T0"&&["01","08","14"].includes(b.id)) h=Math.min(4,h+1);
-  if(clock==="T1"&&["02","03","04","10","17","18"].includes(b.id)) h=Math.min(4,h+1);
-  if(clock==="T2"&&["05","09","11","13","15","16","19","20"].includes(b.id)) h=Math.min(4,h+1);
-  return h;
+  // The canonical rule, injected with the ledger tables. This page kept its own copy with a
+  // `?? 1` default that lifted an authored 0 to 1, so it disagreed with /screen and the draft
+  // screener on 16 of the 420 bucket x shock x clock states — the same number, two answers,
+  // both published. LEDGER.bucketHeat is the one reading.
+  return LEDGER.bucketHeat(b, document.getElementById("shock").value,
+                              document.getElementById("clock").value);
 }
 function tickersOf(b){
   const tier=document.getElementById("tier").value;
