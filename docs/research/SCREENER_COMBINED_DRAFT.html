@@ -1976,6 +1976,15 @@ function fallbackPin(rows){
   if(rows.some(r => r.tk === selected)) return;
   selected = rows[0].tk;
 }
+/* Re-run on every render, because the context can move out from under a pin the PAGE chose.
+   Selecting four buckets left the detail and tone cards headed "NVDA" — a name the reader
+   never picked and which the chosen theses do not contain — while the price chart beside them
+   was drawing MP, COPX, SLV, VST and USAR. A pin the reader made is left exactly where they
+   put it, in or out of context; that is their statement, not the page's. */
+function syncFallbackPin(){
+  if(PIN_IS_DELIBERATE) return;
+  fallbackPin(matchedRows());
+}
 /* Clicking the ticker opens the whole row at size AND pins it, so the charts follow what
    is being inspected. Clicking anywhere else in the row pins without interrupting. */
 /* The TICKER is remembered, not the element: opening pins the name, which re-renders the
@@ -6140,7 +6149,10 @@ function drawCard(){
   if(!r && selected){
     const px = winSeries(selected);
     const bk = bucketRows().find(m => m.tk === selected);
-    title.textContent = "Stock detail · " + selected;
+    // "· first in context" is not decoration: this card said "Stock detail · NVDA" on a
+    // fresh load with nothing clicked, which is a claim about the reader, not the data.
+    title.textContent = "Stock detail · " + selected
+      + (PIN_IS_DELIBERATE ? "" : " · first in context");
     meta.textContent = "no fundamentals row";
     host.innerHTML = '<div class="dc-head"><code>' + esc(selected) + '</code>'
       + '<span class="sec">outside the screener universe</span>'
@@ -6175,7 +6187,8 @@ function drawCard(){
         + ' <code>venv/bin/python tools/stock_screener.py fetch</code> and reload.</p>';
     return;
   }
-  title.textContent = "Stock detail · " + r.tk;
+  title.textContent = "Stock detail · " + r.tk
+    + (PIN_IS_DELIBERATE ? "" : " · first in context");
   meta.textContent = rowStanding(r);
   host.innerHTML = cardBody(r);
 }
@@ -6282,7 +6295,8 @@ function renderHeadlines(){
     return;
   }
   if(source==="all"){
-    document.getElementById("headlinesTitle").textContent = "All sources · "+selected;
+    document.getElementById("headlinesTitle").textContent = "All sources · " + selected
+      + (PIN_IS_DELIBERATE ? "" : " · first in context");
     const parts=[];
     for(const src of TONE_SOURCES){
       const bag=(HEADLINES[src]||{})[selected];
@@ -6457,27 +6471,60 @@ function drawLensPanel(){
   if(loose.length) groups.push({title: "Ungrouped", keys: loose});
   const custom = CUSTOM_LENSES.map(l => l.id);
   if(custom.length) groups.push({title: "Custom", keys: custom});
-  /* The pills are MOVED into the groups, not copied. Rendering a parallel list of plain
-     buttons put 28 controls in the panel for 14 lenses, built from two different name sources
-     — and they disagreed: the pill read "Social sentiment" while every readout wired to
-     lensTitle() read "Social tone", so the panel showed one lens under two names with nothing
-     to say they were the same. Moving the real pills keeps one list, one label, and the star,
-     edit and delete affordances that only exist on the pill. */
-  host.innerHTML = groups.map(g =>
-    '<div class="lensgroup"><h4>' + esc(g.title) + '</h4>'
-    + '<div class="lens-fav" data-group="' + escAttr(g.title) + '"></div></div>').join("");
-  groups.forEach(g => {
-    const box = host.querySelector('[data-group="' + escAttr(g.title) + '"]');
+
+  /* The pills are MOVED into the groups, not copied — one list, one label, and the star, edit
+     and delete affordances that only exist on a pill. Which means this function must never
+     destroy a container that is holding them.
+
+     It used to open with `host.innerHTML = groups.map(...)`, on a function called from
+     drawCmdBar on EVERY render. The first render moved fourteen pills in; the second wiped
+     the containers and every pill inside them, then looked for the survivors in `#presets`,
+     where they no longer were. Nine of the fourteen lenses were destroyed and the panel
+     showed five under a run of empty headings. Containers are created once and reused, and a
+     pill is looked up wherever it currently lives. */
+  const seen = new Set();
+  groups.forEach((g, gi) => {
+    seen.add(String(gi));
+    /* Indexed by POSITION, not by title. `escAttr` escapes for an HTML attribute, so
+       "AI & infrastructure" became `data-group="AI &amp; infrastructure"` in the selector and
+       matched nothing — every render created another container for the two groups whose names
+       contain an ampersand, and the panel grew a fresh pair of empty headings each time. An
+       integer needs no escaping and cannot collide. */
+    let box = host.querySelector('[data-group-index="' + gi + '"]');
+    if(!box){
+      const wrap = document.createElement("div");
+      wrap.className = "lensgroup";
+      const h = document.createElement("h4");
+      h.textContent = g.title;
+      box = document.createElement("div");
+      box.className = "lens-fav";
+      box.dataset.groupIndex = gi;
+      wrap.appendChild(h);
+      wrap.appendChild(box);
+      host.appendChild(wrap);
+    }
     g.keys.forEach(k => {
-      const btn = pills.querySelector('button[data-p="' + k + '"]');
-      if(!btn || !box) return;
-      box.appendChild(btn.closest(".lens-wrap") || btn.closest(".lens-chip") || btn);
+      const btn = document.querySelector('#presets button[data-p="' + k + '"], '
+                                       + '#lensGroups button[data-p="' + k + '"]');
+      if(!btn) return;
+      const unit = btn.closest(".lens-wrap") || btn.closest(".lens-chip") || btn;
+      // appendChild on an element already in place is a no-op move, so re-running is free;
+      // the guard is only to avoid churning the DOM on every render.
+      if(unit.parentElement !== box) box.appendChild(unit);
     });
   });
-  // Whatever the grouping did not claim stays in the original row, which is also where
-  // "+ custom" lives — an unclaimed lens is visible rather than lost.
-  pills.hidden = !pills.querySelector("button[data-p]:not([data-p='custom'])")
-                 && !pills.querySelector('button[data-p="custom"]') ? true : false;
+  /* A group whose definition is gone — the last custom lens was deleted — is removed, but
+     only after its pills have been rehomed above. Anything still inside it goes back to the
+     pill row rather than being dropped with the container. */
+  Array.from(host.querySelectorAll(".lensgroup")).forEach(wrap => {
+    const box = wrap.querySelector("[data-group-index]");
+    if(!box || seen.has(box.dataset.groupIndex)) return;
+    Array.from(box.children).forEach(unit => pills.appendChild(unit));
+    wrap.remove();
+  });
+  // "+ custom" and anything no group claimed stay in the original row, which is why it is
+  // never hidden: an unclaimed lens has to remain reachable.
+  pills.hidden = false;
 }
 /* The favourites strip: starred lenses, in the order they were starred, capped so the bar
    cannot grow a second row of its own. The overflow is not hidden — it is one click away in
@@ -6613,7 +6660,7 @@ function render(){
   // never outlive the pass that built it: `passesFilters` reads the live filter row, and a
   // memo that survived a render would answer with the row as it used to be.
   _inRender = true; _universeMemo = null;
-  try { renderInner(); } finally { _inRender = false; _universeMemo = null; }
+  try { syncFallbackPin(); renderInner(); } finally { _inRender = false; _universeMemo = null; }
 }
 function renderInner(){
   // The header names the source the cells below it were read from, and "off" is one of the

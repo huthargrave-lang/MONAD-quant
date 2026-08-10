@@ -1167,3 +1167,120 @@ class ThePageScriptParses(unittest.TestCase):
                     proc.returncode, 0,
                     "{} inline script #{} does not parse — every function on the page would "
                     "be undefined:\n{}".format(name, i, proc.stderr[:600]))
+
+
+class TheLensPanelGroupingSurvivesRerendering(unittest.TestCase):
+    """Two bugs, both only visible on the SECOND render, and both invisible to a test that
+    reads this file as text — so these are asserted on the mechanism instead.
+
+    (1) The function MOVES the pills into group containers and used to open by wiping the host
+    with `innerHTML`. It is called from drawCmdBar on every render, so the second render
+    destroyed the fourteen pills the first had moved in, then looked for survivors in
+    `#presets`, where they no longer were. Nine lenses were destroyed and the panel showed
+    five under a run of empty headings.
+
+    (2) The rebuilt version looked up its containers with `escAttr(title)` in a CSS attribute
+    selector. escAttr escapes for HTML, so "AI & infrastructure" became `AI &amp;
+    infrastructure` and matched nothing — a new container was created on every render for
+    exactly the two groups whose names contain an ampersand."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(REPO, "docs", "research",
+                               "SCREENER_COMBINED_DRAFT.html"), encoding="utf-8") as fh:
+            cls.html = fh.read()
+        m = re.search(r"function drawLensPanel\(\)\{(.*?)\n\}", cls.html, re.S)
+        assert m, "drawLensPanel is gone"
+        # CODE only. The comment above explains the removed `host.innerHTML = ...` by name, so
+        # a scan over the raw body flagged the explanation as the defect — the same mistake
+        # this file has made four times now: matching prose about the code, not the code.
+        body = re.sub(r"/\*.*?\*/", "", m.group(1), flags=re.S)
+        cls.body = "\n".join(l for l in body.splitlines()
+                              if not l.lstrip().startswith("//"))
+
+    def test_it_never_wipes_the_container_holding_the_pills(self):
+        self.assertNotRegex(
+            self.body, r"host\.innerHTML\s*=",
+            "drawLensPanel wipes its host again — it holds the only copy of every lens "
+            "control, so the next render destroys them")
+
+    def test_containers_are_looked_up_by_something_that_needs_no_escaping(self):
+        self.assertNotRegex(
+            self.body, r'querySelector\([^)]*escAttr',
+            "an HTML-escaped title in a CSS selector never matches a name containing '&', so "
+            "every render creates another container for those groups")
+        self.assertRegex(self.body, r'data-group-index="\' \+ gi',
+            "containers should be indexed by position, which cannot collide or need escaping")
+
+    def test_a_group_that_goes_away_rehomes_its_pills_first(self):
+        """Deleting the last custom lens removes its group. Removing the container with the
+        pills still inside would delete controls the reader never asked to lose."""
+        tail = self.body[self.body.index("querySelectorAll(\".lensgroup\")"):]
+        self.assertLess(tail.index("pills.appendChild"), tail.index("wrap.remove()"),
+                        "the group is removed before its contents are rehomed")
+
+    def test_every_built_in_lens_lands_in_exactly_one_group(self):
+        """The grouping is the only place all fourteen are listed, so a lens missing from
+        LENS_GROUPS is reachable from nowhere but a star it may not have."""
+        groups = re.search(r"const LENS_GROUPS = \[(.*?)\n\];", self.html, re.S).group(1)
+        grouped = re.findall(r'"([a-z_]+)"', groups)
+        self.assertEqual(len(grouped), len(set(grouped)), "a lens is in two groups")
+        buttons = set(re.findall(r'<button type="button"[^>]*data-p="([a-z_]+)"', self.html))
+        buttons.discard("custom")
+        self.assertEqual(sorted(buttons - set(grouped)), [], "lenses in no group")
+
+
+class APageChosenPinIsNotASelection(unittest.TestCase):
+    """Two different things wear the same word. `pinTicker` is the reader saying "show me this
+    name"; `fallbackPin` is the page picking something so the cards are not empty. Conflating
+    them produced a report of a chart "showing as if I selected a stock" when nothing had been
+    clicked at all.
+
+    Measured on the deployed page before the fix: a fresh load with zero interaction had
+    `selected = "NVDA"`, and after selecting four buckets the detail and tone cards were still
+    headed NVDA — a name the reader never picked and which none of the chosen theses contain —
+    while the price chart beside them drew MP, COPX, SLV, VST, USAR."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(REPO, "docs", "research",
+                               "SCREENER_COMBINED_DRAFT.html"), encoding="utf-8") as fh:
+            cls.html = fh.read()
+
+    def test_a_page_chosen_pin_never_claims_to_be_deliberate(self):
+        body = re.search(r"function fallbackPin\(rows\)\{(.*?)\n\}", self.html, re.S).group(1)
+        self.assertNotIn("PIN_IS_DELIBERATE", body,
+                         "the page's own fallback must not mark the pin as the reader's")
+        self.assertRegex(self.html,
+                         r"function pinTicker\(tk\)\{ selected = tk; PIN_IS_DELIBERATE = true; \}")
+
+    def test_the_fallback_follows_the_context_and_a_real_pin_does_not(self):
+        body = re.search(r"function syncFallbackPin\(\)\{(.*?)\n\}", self.html, re.S)
+        self.assertIsNotNone(body, "nothing re-homes the fallback pin when the context moves")
+        body = body.group(1)
+        self.assertRegex(body, r"if\(PIN_IS_DELIBERATE\) return;",
+                         "a pin the reader made must survive a context change")
+        self.assertIn("matchedRows()", body,
+                      "the fallback must be re-picked from the CURRENT context, not ROWS")
+        self.assertRegex(self.html, r"try \{ syncFallbackPin\(\); renderInner\(\);",
+                         "it has to run before the cards draw, on every render")
+
+    def test_the_cards_say_when_the_name_was_not_chosen(self):
+        """Three headers name the pinned ticker. Each has to distinguish a pin from a
+        placeholder, or it is asserting something about the reader that is not true."""
+        # The BOARD cards only. `stockModalTitle` is excluded on purpose: the modal opens
+        # from an explicit click on a ticker, so its header is always describing a real
+        # choice and qualifying it would be noise. Anchored per element for that reason —
+        # searching for the shared string found the modal first and failed on it.
+        for element, anchor in (("cardTitle-ish", 'title.textContent = "Stock detail · " + selected'),
+                                ("drawCard row", 'title.textContent = "Stock detail · " + r.tk'),
+                                ("headlinesTitle", '"All sources · " + selected')):
+            i = self.html.find(anchor)
+            self.assertNotEqual(i, -1, "header moved: {} ({})".format(anchor, element))
+            self.assertIn("PIN_IS_DELIBERATE", self.html[i:i + 260],
+                          "{} claims a selection that may never have happened".format(element))
+        # and the modal, which IS always deliberate, stays unqualified
+        i = self.html.find('"stockModalTitle").textContent = "Stock detail · " + r.tk')
+        self.assertNotEqual(i, -1)
+        self.assertNotIn("first in context", self.html[i:i + 160],
+                         "the modal only opens from a real click; qualifying it is noise")
