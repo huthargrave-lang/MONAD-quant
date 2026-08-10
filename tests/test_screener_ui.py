@@ -150,16 +150,98 @@ class TheDerivedConstantsAreRecomputed(unittest.TestCase):
             self.html, r"const STACK_MQ = \"\(max-width:\" \+ stackBreakpointPx\(\)",
             "STACK_MQ must be derived from the declared layout width and the live zoom")
 
+    def _media_blocks(self):
+        """(max-width px, block body) for every media query, with braces balanced so a block
+        containing nested rules is not cut short at its first `}`."""
+        out = []
+        for m in re.finditer(r"@media \(max-width:(\d+)px\)\s*\{", self.html):
+            i, depth = m.end(), 1
+            while depth and i < len(self.html):
+                if self.html[i] == "{":
+                    depth += 1
+                elif self.html[i] == "}":
+                    depth -= 1
+                i += 1
+            out.append((int(m.group(1)), self.html[m.end():i - 1]))
+        return out
+
     def test_the_css_breakpoint_equals_the_declared_width_times_the_zoom(self):
+        """Scoped to the blocks that actually STACK. This used to assert that every
+        `max-width` in the file equalled the stacking breakpoint, which held only while there
+        was one breakpoint in the file — it failed the moment the bucket grid needed its own
+        column-count breakpoints, which are a different constant for a different job. The
+        property worth guarding is unchanged: wherever the CSS takes over the layout, the
+        tree must have stopped positioning at the same width, or panes get positioned by both
+        at once."""
         declared = int(re.search(r"const MIN_TREE_CSS_PX = (\d+)", self.html).group(1))
         expected = round(declared * self._zoom())
-        found = {int(px) for px in re.findall(r"@media \(max-width:(\d+)px\)", self.html)}
-        self.assertTrue(found, "no stacking media query found")
+        stackers = [px for px, body in self._media_blocks()
+                    if ".board{height:auto" in body or "board-resize" in body]
+        self.assertTrue(stackers, "no stacking media query found")
         self.assertEqual(
-            found, {expected},
+            sorted(set(stackers)), [expected],
             "the CSS stacking breakpoint(s) {} do not equal {} x {} = {}; the tree would "
             "keep positioning panes the CSS has already stacked".format(
-                sorted(found), declared, self._zoom(), expected))
+                sorted(set(stackers)), declared, self._zoom(), expected))
+
+    def test_the_grid_sizes_itself_from_its_own_width(self):
+        """A media query answers how wide the WINDOW is; the column count depends on how wide
+        the GRID is. Deriving one from the other means guessing back through the sidebar, the
+        section insets and the shell's 0.77 zoom — and that guess was wrong in practice: a
+        window wide enough for ten columns rendered five."""
+        self.assertIn("container-type:inline-size", self.html,
+                      "the grid's container is not queryable")
+        # EVERY breakpoint, not just one of them. Asserting that a container query exists
+        # somewhere let the others quietly regress to `@media` one at a time.
+        # ANY @media, either direction. `_media_blocks` only reads max-width, which is the
+        # form the stacking breakpoint uses — a min-width media query walked straight past it.
+        for m in re.finditer(r"@media\s*\(([^)]*)\)\s*\{", self.html):
+            i, depth = m.end(), 1
+            while depth and i < len(self.html):
+                if self.html[i] == "{":
+                    depth += 1
+                elif self.html[i] == "}":
+                    depth -= 1
+                i += 1
+            self.assertNotRegex(
+                self.html[m.end():i - 1], r"\.bk-grid\{[^}]*grid-template-columns",
+                "the `{}` media query sets bucket columns; column count is a fact about the "
+                "grid's width, and the shell's zoom makes that wider than the viewport it "
+                "would be compared against".format(m.group(1).strip()))
+        self.assertGreaterEqual(
+            len(re.findall(r"@container \([^)]*\)\{\s*\.bk-grid\{", self.html)), 3,
+            "the column ladder is not carried by container queries")
+
+    def test_the_bucket_grid_column_counts_divide_twenty(self):
+        """Twenty buckets. The grid is a deliberate matrix, so every breakpoint picks a column
+        count that leaves no ragged last row — 5 and 4 divide 20 exactly, and 3/2/1 are the
+        narrow fallbacks where a rectangle stops being achievable anyway. `auto-fill` is what
+        this replaced: it chose whatever fitted, so the same twenty cards landed 7+7+6 at one
+        width and 5+5+5+5 at another."""
+        # Every column count anywhere, whatever kind of query holds it. This scanned only
+        # `@media` blocks, so when the breakpoints moved to `@container` it kept passing
+        # while checking nothing but the base rule — a guard that survives the change it was
+        # written for by no longer looking at it.
+        # Scan each `.bk-grid{...}` rule whole: the base one declares other properties before
+        # its columns, so a pattern anchored right after the brace saw only the breakpoints.
+        cols = []
+        for body in re.findall(r"\.bk-grid\{([^}]*)\}", self.html):
+            m = re.search(r"grid-template-columns:\s*repeat\((\d+)", body)
+            if m:
+                cols.append(int(m.group(1)))
+            elif "grid-template-columns:minmax(" in body.replace(" ", ""):
+                cols.append(1)
+        self.assertGreaterEqual(len(cols), 4,
+                                "the grid has lost its responsive column ladder")
+        self.assertTrue(
+            re.search(r"^\.bk-grid\{[^}]*grid-template-columns:repeat\(", self.html, re.M),
+            "the bucket grid has no explicit base column count")
+        self.assertNotRegex(self.html, r"\.bk-grid\{[^}]*auto-fill",
+                            "the bucket grid pours again instead of forming a matrix")
+        for n in cols:
+            if n > 2:
+                self.assertEqual(20 % n, 0,
+                                 "{} columns leaves a ragged row of twenty buckets".format(n))
 
 
 class ThePageDoesNotRestateWhatPythonDefines(unittest.TestCase):
@@ -723,3 +805,321 @@ class TheToneLensesAreAllReachable(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TheCommandBarReadsStateNotTheDom(unittest.TestCase):
+    """The bar names the constraint the page is applying. That only stays true if it reads the
+    same variables the rows are computed from.
+
+    `activeLensLabel()` used to be `document.querySelector("#presets button.on").textContent`.
+    Survivable while the only way to change the lens was to click that button; not survivable
+    once a Context control sets `preset` directly, because every sentence naming the lens kept
+    naming the old one while the rows below were already the new one. Measured before the fix:
+    `preset = "safety_low_debt"` gave 30 safety rows under the label "Low P/E · high growth"."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(REPO, "docs", "research",
+                               "SCREENER_COMBINED_DRAFT.html"), encoding="utf-8") as fh:
+            cls.html = fh.read()
+
+    def test_the_lens_label_is_derived_from_preset(self):
+        body = re.search(r"function activeLensLabel\(\)\{(.*?)\}", self.html, re.S).group(1)
+        self.assertNotIn("querySelector", body,
+                         "the lens label reads the DOM again — a state-only lens change will "
+                         "leave every sentence naming the previous lens")
+        self.assertIn("preset", body)
+
+    def test_no_readout_recovers_the_lens_name_from_a_button(self):
+        for m in re.finditer(r'querySelector\((["\'])#presets button\.on\1\)', self.html):
+            line = self.html[:m.start()].count("\n") + 1
+            self.fail("line {}: the active lens is read off the pill row".format(line))
+
+    def test_the_universe_has_one_definition(self):
+        """Four functions used to answer "which rows" from the same state and disagree. The
+        two that were wrong are named here; the two deliberate readings are kept but must go
+        through the shared universe rather than re-derive it from raw globals."""
+        self.assertRegex(self.html, r"function contextUniverse\(\)\{")
+        self.assertRegex(
+            self.html, r"function matchedRows\(\)\{ return lensRows\(contextUniverse\(\)\); \}",
+            "matchedRows must be the lens over the shared universe")
+        # the two former defects, by the shape that made them wrong
+        self.assertNotRegex(
+            self.html, r"canonicalScreen\(key, ROWS\.filter\(passesFilters\)\)",
+            "the unscreened-names list drops the bucket leg again")
+        self.assertNotRegex(
+            self.html, r"const lens = lensRows\(\);",
+            "the running count's denominator ignores the context again")
+
+    def test_the_memo_cannot_outlive_one_render(self):
+        """`passesFilters` reads the live filter row, so a universe memo that survived a render
+        would answer with the row as it used to be."""
+        self.assertIn("_inRender = true; _universeMemo = null;", self.html)
+        self.assertRegex(self.html, r"finally \{ _inRender = false; _universeMemo = null; \}")
+
+    def test_every_lens_is_reachable_from_the_grouped_menu(self):
+        """The menu replaced a flat row that showed all of them at once. A lens missing from
+        LENS_GROUPS would be reachable from nowhere except a pinned star it may not have."""
+        groups = re.search(r"const LENS_GROUPS = \[(.*?)\n\];", self.html, re.S).group(1)
+        grouped = set(re.findall(r'"([a-z_]+)"', groups))
+        buttons = set(re.findall(r'<button type="button"[^>]*data-p="([a-z_]+)"', self.html))
+        buttons.discard("custom")
+        self.assertEqual(sorted(buttons - grouped), [],
+                         "lenses that exist but are in no menu group")
+        self.assertEqual(sorted(grouped - buttons), [],
+                         "menu groups naming lenses that do not exist")
+
+    def test_the_relocated_blocks_still_exist(self):
+        """Moved into disclosures, not deleted. Each keeps its id so the code that renders it
+        keeps working — this is a relocation, and a missing id here means a lost feature."""
+        for pid, inner in (("lensPanel", 'id="presets"'), ("filterPanel", 'id="filters"'),
+                           ("dataPanel", 'id="providers"'), ("layoutPanel", 'id="tray"')):
+            panel = re.search(r'<div class="explain" id="%s".*?\n</div>' % pid,
+                              self.html, re.S)
+            self.assertIsNotNone(panel, pid)
+            self.assertIn(inner, panel.group(0),
+                          "{} no longer contains {}".format(pid, inner))
+
+    def test_the_context_reports_screenable_and_held_separately(self):
+        """A bucket names companies the fundamentals universe may not carry. Reporting the held
+        count beside a table that can never show them is the misread this surface exists to
+        prevent — bucket 01 holds six names and none of them can be screened."""
+        body = re.search(r"function contextCounts\(\)\{(.*?)\n\}", self.html, re.S).group(1)
+        self.assertIn("screenable", body)
+        self.assertIn("held", body)
+
+    def test_the_conditional_honesty_notes_all_survive(self):
+        """Static boilerplate moved to tooltips. These are the ones that fire only when they
+        have something real to report, and every one of them must still be called."""
+        for fn in ("listedNote", "shadowGateNote", "emptyWayOut", "renderLensNote",
+                   "whyNotScreened"):
+            self.assertRegex(self.html, re.escape(fn) + r"\s*\(",
+                             "{} is no longer called".format(fn))
+
+    def test_the_board_height_is_derived_from_the_shell_zoom(self):
+        """`51vh` was inert: zoom does not rescale viewport units, so it resolved below the
+        420px floor and the board sat at its minimum while presenting at 39% of the screen.
+        Derived rather than hand-computed to 66vh, so changing the zoom moves it."""
+        # Anchored to a rule at column 0. An unanchored search matched the `.board{...}`
+        # inside the comment that explains this very fix — a test that passes by reading the
+        # prose about the code instead of the code.
+        m = re.search(r"^\.board\{[^}]*?height:min\(([^;]+?)\);", self.html, re.M | re.S)
+        self.assertIsNotNone(m, "the board height rule moved")
+        self.assertIn("var(--shell-zoom)", m.group(1),
+                      "the board height is a bare vh again, which this zoom makes inert")
+
+
+class TheMarkupIsWellFormed(unittest.TestCase):
+    """This page is edited by pattern-matching on its text — it is 6800 lines and there is no
+    template — and a replacement whose closing tag matched one nesting level too shallow left
+    a stray `</section></div>` behind. The document still parsed: browsers repair it silently,
+    so `<main>` simply acquired a nested copy of the page shell, everything below the context
+    header stopped painting, and no test noticed because every other assertion is a substring
+    search that does not care about nesting. Cheap to check, and it catches the whole class."""
+
+    VOID = {"br", "img", "input", "hr", "meta", "link", "source", "col", "area", "base",
+            "embed", "param", "track", "wbr"}
+
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(REPO, "docs", "research",
+                               "SCREENER_COMBINED_DRAFT.html"), encoding="utf-8") as fh:
+            html = fh.read()
+        body = html[html.index("<body"):]
+        # Script and style hold `<` in JS/CSS that is not markup; comments hold example tags.
+        for pat in (r"<script\b.*?</script>", r"<style\b.*?</style>", r"<!--.*?-->",
+                    r"<svg\b.*?</svg>"):
+            body = re.sub(pat, "", body, flags=re.S)
+        cls.body = body
+
+    def test_every_element_is_closed_in_the_order_it_was_opened(self):
+        stack, problems = [], []
+        for m in re.finditer(r"<(/?)([a-zA-Z][\w-]*)([^>]*?)(/?)>", self.body):
+            closing, tag, _attrs, selfclosing = m.groups()
+            tag = tag.lower()
+            if tag in self.VOID or selfclosing == "/":
+                continue
+            line = self.body[:m.start()].count("\n") + 1
+            if closing:
+                if stack and stack[-1][0] == tag:
+                    stack.pop()
+                elif tag == "html":
+                    continue
+                else:
+                    problems.append("line {}: </{}> closes nothing (open: {})".format(
+                        line, tag, [t for t, _ in stack[-3:]]))
+            else:
+                stack.append((tag, line))
+        self.assertEqual(problems, [], "\n".join(problems))
+        self.assertEqual(
+            [(t, ln) for t, ln in stack if t != "body"], [],
+            "elements opened and never closed: {}".format(stack[:5]))
+
+    def test_the_context_section_contains_its_own_body(self):
+        """The specific nesting the break inverted: the shell must not end up inside main."""
+        sec = re.search(r'<section class="ctx-section" id="contextSection">(.*?)\n    </section>',
+                        self.body, re.S)
+        self.assertIsNotNone(sec, "the context section is not closed at its own indent level")
+        self.assertIn('id="contextBody"', sec.group(1))
+        self.assertNotIn('class="shell"', sec.group(1),
+                         "the page shell is nested inside the context section")
+        self.assertNotIn('id="cmdbar"', sec.group(1),
+                         "the command bar is nested inside the context section")
+
+
+class TheContextMatchesTheBucketsPage(unittest.TestCase):
+    """The grid is meant to read like the buckets page it came from. Two properties carry
+    that, and both were wrong: the cards sat on the same colour as the thing containing them,
+    so they separated only by a hairline and the whole block looked flat; and the control row
+    was left-aligned with a greedy search box, so six related controls rendered as two
+    clusters a screen apart with the first label flush against an edge the cards were inset
+    from."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(REPO, "docs", "research",
+                               "SCREENER_COMBINED_DRAFT.html"), encoding="utf-8") as fh:
+            cls.html = fh.read()
+
+    def _rule(self, selector):
+        """Anchored at column 0, so `.bk` finds the card rule and not the `.bk-grid .bk`
+        helper further down — an unanchored search reads whichever rule mentions the
+        selector first, which is how this asserted against `height:100%`."""
+        m = re.search(r"^" + re.escape(selector) + r"\{([^}]*)\}", self.html, re.M | re.S)
+        self.assertIsNotNone(m, "{} has no rule at the top level".format(selector))
+        return m.group(1)
+
+    def test_the_cards_sit_on_a_lighter_panel(self):
+        """The buckets page's relationship: container --surface, cards --plane. Same colour on
+        both is what made this look flat beside the original."""
+        panel = self._rule(".ctx-grid")
+        card = self._rule(".bk")
+        self.assertIn("background:var(--surface)", panel,
+                      "the grid panel must be one step lighter than the cards on it")
+        self.assertIn("background:var(--plane)", card)
+
+    def test_the_control_row_is_centred_and_the_search_is_not_greedy(self):
+        row = self._rule(".ctx-controls")
+        self.assertIn("justify-content:center", row,
+                      "the control row reads as two clusters when left-aligned")
+        search = self._rule(".ctx-controls .bkc-q")
+        self.assertNotRegex(
+            search, r"flex:\s*1\b",
+            "the search box grows into the slack again and shoves the buttons to the edge")
+
+    def test_the_context_bands_share_one_inset(self):
+        """Head, controls and grid are stacked bands of one section; three different insets is
+        what made the row look cut off against the cards."""
+        insets = []
+        for sel in (".ctx-head", ".ctx-controls", ".ctx-focus"):
+            m = re.search(r"padding:([^;}]+)", self._rule(sel))
+            self.assertIsNotNone(m, sel)
+            parts = m.group(1).split()
+            # CSS shorthand: 1 value is all sides, 2+ puts the horizontal second. Taking the
+            # last value read the BOTTOM padding on the three-value rules.
+            insets.append(parts[1] if len(parts) > 1 else parts[0])
+        self.assertEqual(len(set(insets)), 1,
+                         "the context bands use different horizontal insets: {}".format(insets))
+
+
+class TheMemoDoesNotDefeatTheProbes(unittest.TestCase):
+    """The universe memo made two of `emptyWayOut`'s three counterfactuals unanswerable. It
+    measures "what would dropping this leave?" by unsetting a constraint and re-asking — and a
+    memo built from the ORIGINAL constraints answers the original question every time, so both
+    the bucket and filter probes returned the count the table already had (zero, since the
+    probe only runs on the empty branch) and `if(n)` discarded them. Selecting a bucket whose
+    constituents carry no fundamentals emptied the table and offered no way out at all: the
+    page kept the sentence and silently lost the escape."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(REPO, "docs", "research",
+                               "SCREENER_COMBINED_DRAFT.html"), encoding="utf-8") as fh:
+            cls.html = fh.read()
+
+    def test_every_counterfactual_suspends_the_memo(self):
+        body = re.search(r"function emptyWayOut\(\)\{(.*?)\n\}", self.html, re.S).group(1)
+        probes = re.findall(r"const n = ([^;]+);", body)
+        self.assertEqual(len(probes), 3, "emptyWayOut no longer has three probes")
+        for p in probes:
+            self.assertIn("withFreshUniverse", p,
+                          "a counterfactual reads the memo it is supposed to be varying: "
+                          + p.strip())
+
+    def test_the_helper_restores_what_it_suspended(self):
+        body = re.search(r"function withFreshUniverse\(fn\)\{(.*?)\n\}", self.html, re.S).group(1)
+        self.assertIn("finally", body,
+                      "the memo must be restored even when the probe throws")
+        self.assertRegex(body, r"_inRender = was", "the render flag is not restored")
+        self.assertRegex(body, r"_universeMemo = memo", "the memo is not restored")
+
+
+class TheRunningCountMeasuresTheFilters(unittest.TestCase):
+    """Two mistakes in a row on one readout. `lensRows()` with no argument counted names the
+    bucket had already excluded — "0 of 76" for a six-name bucket. The fix then made the
+    denominator `lensRows(contextUniverse())`, which is exactly what `matchedRows()` is, so it
+    printed "N of N" forever and the "it ranks, so the filters re-cut it" branch became
+    unreachable from any state. The denominator is the bucket-constrained universe BEFORE the
+    filter row, because that difference is the only thing the ratio measures."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(REPO, "docs", "research",
+                               "SCREENER_COMBINED_DRAFT.html"), encoding="utf-8") as fh:
+            cls.html = fh.read()
+
+    def test_the_denominator_is_not_the_numerator(self):
+        body = re.search(r"function renderFilterCount\(\)\{(.*?)\n\}", self.html, re.S).group(1)
+        denom = re.search(r"const lens = ([^;]+);", body).group(1).strip()
+        numer = re.search(r"const shown = ([^;]+);", body).group(1).strip()
+        self.assertNotEqual(denom, numer,
+                            "numerator and denominator are the same expression, so the strip "
+                            "can only ever print 'N of N'")
+        matched = re.search(r"function matchedRows\(\)\{ return ([^;]+); \}", self.html)
+        self.assertIsNotNone(matched)
+        self.assertNotEqual(denom, matched.group(1).strip(),
+                            "the denominator is matchedRows() spelled out longhand")
+
+    def test_the_denominator_excludes_the_filter_row(self):
+        body = re.search(r"function renderFilterCount\(\)\{(.*?)\n\}", self.html, re.S).group(1)
+        denom = re.search(r"const lens = ([^;]+);", body).group(1)
+        self.assertNotIn("passesFilters", denom)
+        self.assertNotIn("contextUniverse", denom,
+                         "contextUniverse applies the filter row, which the denominator must "
+                         "not — it is the thing being measured")
+        self.assertIn("inSelectedBuckets", denom,
+                      "the denominator must still respect the bucket context")
+
+
+class TheLensMenuListsEachLensOnce(unittest.TestCase):
+    """Custom lenses render into `#presets` too, wrapped in `.lens-chip`. Without excluding
+    them, `builtinLensKeys()` returned them alongside the built-ins, so `drawLensPanel` listed
+    a reader's own lens twice — once under "Ungrouped" (because it is in no LENS_GROUPS entry)
+    and once under "Custom" — two rows in the one menu that claims to be the full set, each
+    toggling the same state."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(REPO, "docs", "research",
+                               "SCREENER_COMBINED_DRAFT.html"), encoding="utf-8") as fh:
+            cls.html = fh.read()
+
+    def test_the_builtin_scan_excludes_custom_chips(self):
+        body = re.search(r"function builtinLensKeys\(\)\{(.*?)\n\}",
+                         self.html, re.S).group(1)
+        # The CALL, not the word. The comment above the filter explains why `.lens-chip` is
+        # excluded, so an `assertIn("lens-chip", body)` passed with the filter deleted — the
+        # test read the prose about the code instead of the code.
+        code = "\n".join(ln for ln in body.splitlines()
+                         if not ln.strip().startswith("//"))
+        self.assertRegex(
+            code, r"\.filter\([^)]*closest\((['\"])\.lens-chip\1\)",
+            "custom lenses are not excluded, so each is listed twice in the menu")
+
+    def test_the_ungrouped_bucket_is_fed_by_the_builtin_scan(self):
+        """`ungroupedLensKeys` exists to surface a built-in nobody put in a group. Fed by a
+        scan that includes custom lenses, it surfaces every custom lens instead — which is the
+        duplication wearing a different name."""
+        body = re.search(r"function ungroupedLensKeys\(\)\{(.*?)\n\}",
+                         self.html, re.S).group(1)
+        self.assertIn("builtinLensKeys()", body)
