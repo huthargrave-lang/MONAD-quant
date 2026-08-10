@@ -1920,19 +1920,33 @@ let PRICE_HIDDEN = new Set();
     opened with one line lit and four dimmed — a highlight nobody asked for, which is why
     the default never looked like "all". */
 let PIN_IS_DELIBERATE = false;
+/* Whether the PIN is still what drives this chart. Separate from PIN_IS_DELIBERATE, which
+   says whether the reader chose the name at all — that governs the card titles and has to
+   stay true. This one is about who is steering the lines, and touching a chip takes it over.
+
+   Without the split the precedence was chips > pin > default, evaluated fresh every draw, so
+   the pin re-asserted the moment the chips stopped disagreeing with it. Un-hiding the LAST
+   hidden chip therefore did not return the chart to all-lit: `shown.length` became equal to
+   `cohort.length`, the chip rule stopped applying, and the pin immediately soloed its own
+   name. Clicking LNG to bring it back turned every other line off instead — the reader's
+   click did the opposite of what it asked for. */
+let PIN_OWNS_CHART = false;
 function priceLit(cohort){
-  // Most specific wins. Switching chips off is the reader's most recent and most explicit
-  // statement about this chart, so it outranks a pin made elsewhere; a pin outranks the
-  // default; the default is everything.
+  // Most specific wins. Chips are the reader's most recent and most explicit statement about
+  // THIS chart, so once they have used them the pin no longer drives it; a pin the reader
+  // made outranks the default; the default is everything.
   const shown = cohort.filter(tk => !PRICE_HIDDEN.has(tk));
   if(shown.length !== cohort.length) return shown;
-  if(PIN_IS_DELIBERATE && selected && cohort.indexOf(selected) !== -1) return [selected];
+  if(PIN_OWNS_CHART && selected && cohort.indexOf(selected) !== -1) return [selected];
   return cohort.slice();
 }
 function togglePriceLit(tk){
   // Clicking a lit chip hides that one. Clicking the only lit chip left would hide everything
   // and draw an empty frame, so it resets instead — an empty chart is never what a click on
   // the last visible series is asking for.
+  // Touching a chip hands the chart to the chips. The pin stays a pin — the cards still name
+  // it and it still travels — it just stops deciding which lines are lit.
+  PIN_OWNS_CHART = false;
   if(PRICE_HIDDEN.has(tk)){ PRICE_HIDDEN.delete(tk); }
   else {
     const cohort = priceCohort().map(p => p.tk);
@@ -1944,7 +1958,7 @@ function togglePriceLit(tk){
 /** Back to the default: every series lit. Still called where a control means "start over"
     (Clear, Select top heat), but no longer load-bearing — a hidden entry that is not in the
     cohort has no effect, so the stale case that used to need this is gone. */
-function resetPriceLit(){ PRICE_HIDDEN.clear(); }
+function resetPriceLit(){ PRICE_HIDDEN.clear(); PIN_OWNS_CHART = false; }
 /** Bars shown by the price chart, counted back from the most recent close. null = all of
     them. The OPTIONS are derived from the series actually loaded (priceWindows), never
     listed by hand — offering "1Y" against 126 daily closes would answer a question the
@@ -1964,7 +1978,10 @@ function cssEscape(v){
 /* Every call site of this is a reader action — a row click, a mark click, a watchlist or
    constituent click. The payload's fallback pin assigns `selected` directly and does NOT
    come through here, which is exactly the distinction the price chart needs. */
-function pinTicker(tk){ selected = tk; PIN_IS_DELIBERATE = true; }
+function pinTicker(tk){
+  // Picking a name is a request to see it, so it takes the chart back from the chips.
+  selected = tk; PIN_IS_DELIBERATE = true; PIN_OWNS_CHART = true; PRICE_HIDDEN.clear();
+}
 /* The PAGE choosing a pin because the old one fell out of view — not the reader choosing one.
    Written twice before, at two call sites that had already diverged: applyLivePayload assigned
    `selected` directly (so the flag stayed false and the chart opened correctly all-lit) while
@@ -2140,9 +2157,19 @@ function drawPrice(){
   // was meant to bring forward.
   const paths = drawn.filter(p => !p.on).map(p => p.svg).join("")
     + drawn.filter(p => p.on).map(p => p.svg).join("");
+  /* Name the SET, not just the count. With a bucket selected the chart deliberately draws the
+     bucket's constituents while Results draws the lens ∩ filters ∩ bucket — so "Price · 5
+     names" sat beside "1 of 225 loaded names" with nothing to say they were answering
+     different questions, and the five looked like a contradiction of the one. */
+  const fromBucket = BUCKET_SEL.size > 0 && series.every(x => bucketNameSet().has(x.tk));
+  const whose = fromBucket ? " in the selected buckets" : " in this lens";
   title.textContent = series.length === 1
     ? "Price · " + series[0].tk
-    : "Price · " + series.length + " names";
+    : "Price · " + series.length + " names" + whose;
+  title.title = fromBucket
+    ? "The chart draws the chosen theses' constituents, which is a wider set than Results: "
+      + "Results also applies the lens and the filter row."
+    : "The lens's leaders by rank. Results applies the filter row on top of them.";
   // The legend is the key to the lines, so it takes the SAME two states — white dot for the
   // picked name, the rest faded. A legend that stayed uniformly bright while the lines dimmed
   // would be a key to a chart that is no longer drawn.
@@ -2202,10 +2229,25 @@ function longestSeries(){
   for(const tk in PRICES){ const s = PRICES[tk]; if(s && s.length > n) n = s.length; }
   return n;
 }
+/* Daily closes, so a bar is a trading day: ~21 a month, ~252 a year. Reported as "about",
+   and derived from the bar count rather than from dates, because the payload ships closes
+   without them — a span stated to the day would be a precision the data does not carry.
+   "124 bars" is exact and answers a question nobody asks; "about 6 months" is approximate
+   and answers the one they do, so the label carries both. */
+function barsAsTime(bars){
+  if(bars >= 252){
+    const y = bars / 252;
+    return "about " + (y >= 1.95 ? Math.round(y) + " years" : "a year");
+  }
+  const months = Math.round(bars / 21);
+  if(months >= 2) return "about " + months + " months";
+  if(months === 1) return "about a month";
+  return "about " + Math.max(1, Math.round(bars / 5)) + " weeks";
+}
 function priceWindows(){
   const have = longestSeries();
   return PRICE_WINDOWS.filter(w => w.bars < have)
-    .concat([{bars:null, label:"all (" + have + " bars)"}]);
+    .concat([{bars:null, label:"all (" + barsAsTime(have) + " · " + have + " bars)"}]);
 }
 function buildPriceWindowPicker(){
   const sel = document.getElementById("priceWin");

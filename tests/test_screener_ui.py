@@ -375,9 +375,14 @@ class TheSelectedSeriesSeparates(unittest.TestCase):
         self.assertTrue(body.rstrip().endswith("return cohort.slice();"),
                         "all-lit must be the last thing priceLit can do, so every path that "
                         "chooses nothing else arrives at it")
-        self.assertRegex(
-            self.html, r"function pinTicker\(tk\)\{ selected = tk; PIN_IS_DELIBERATE = true; \}",
-            "only a reader's pin may narrow the chart")
+        # Only a reader's pin may narrow the chart, and only while it still owns it. The
+        # one-line spelling this used to match went away when "the reader chose this name"
+        # was split from "this pin drives the chart" — the invariant is the same.
+        pin = re.search(r"function pinTicker\(tk\)\{(.*?)\n\}", self.html, re.S).group(1)
+        self.assertIn("PIN_OWNS_CHART = true", pin, "only a reader's pin may narrow the chart")
+        fb = re.search(r"function fallbackPin\(rows\)\{(.*?)\n\}", self.html, re.S).group(1)
+        self.assertNotIn("PIN_OWNS_CHART", fb,
+                         "a pin the PAGE chose must never narrow the chart")
 
 
 class TheArrangementMenuIsWired(unittest.TestCase):
@@ -430,7 +435,10 @@ class TheOfferedWindowsAreOnesTheDataCanFill(unittest.TestCase):
             "every candidate window must be tested against the longest loaded series")
 
     def test_all_names_its_own_length(self):
-        self.assertRegex(self.html, r'"all \(" \+ have \+ " bars\)"',
+        # The count is still derived from the data; a human-readable span was added in front
+        # of it. The invariant is unchanged — "all" names its own length rather than a fixed
+        # number — so the assertion moves to the derivation, not the exact string.
+        self.assertRegex(self.html, r'have \+ " bars\)"',
                          "the 'all' option must say how many bars it actually is")
 
     def test_a_stale_selection_is_dropped_when_the_payload_shrinks(self):
@@ -753,8 +761,10 @@ class ThePriceChartDefaultsToAllLit(unittest.TestCase):
 
     def test_chips_outrank_a_pin_which_outranks_the_default(self):
         body = re.search(r"function priceLit\(cohort\)\{(.*?)\n\}", self.html, re.S).group(1)
+        # PIN_OWNS_CHART, not PIN_IS_DELIBERATE: the two were one flag, which is what let the
+        # pin re-assert the moment the chips stopped disagreeing with it.
         self.assertLess(body.index("shown.length !== cohort.length"),
-                        body.index("PIN_IS_DELIBERATE"),
+                        body.index("PIN_OWNS_CHART"),
                         "an explicit chip choice must win over a pin made elsewhere")
 
     def test_hiding_the_last_visible_series_resets_rather_than_emptying(self):
@@ -1251,8 +1261,11 @@ class APageChosenPinIsNotASelection(unittest.TestCase):
         body = re.search(r"function fallbackPin\(rows\)\{(.*?)\n\}", self.html, re.S).group(1)
         self.assertNotIn("PIN_IS_DELIBERATE", body,
                          "the page's own fallback must not mark the pin as the reader's")
-        self.assertRegex(self.html,
-                         r"function pinTicker\(tk\)\{ selected = tk; PIN_IS_DELIBERATE = true; \}")
+        # pinTicker grew a body when the chart flag was split out of the card flag, so this
+        # asserts what it must DO rather than how it used to be spelled.
+        pin = re.search(r"function pinTicker\(tk\)\{(.*?)\n\}", self.html, re.S).group(1)
+        self.assertIn("PIN_IS_DELIBERATE = true", pin)
+        self.assertIn("PIN_OWNS_CHART = true", pin)
 
     def test_the_fallback_follows_the_context_and_a_real_pin_does_not(self):
         body = re.search(r"function syncFallbackPin\(\)\{(.*?)\n\}", self.html, re.S)
@@ -1284,3 +1297,84 @@ class APageChosenPinIsNotASelection(unittest.TestCase):
         self.assertNotEqual(i, -1)
         self.assertNotIn("first in context", self.html[i:i + 160],
                          "the modal only opens from a real click; qualifying it is noise")
+
+
+class TheChartSaysWhichSetItDraws(unittest.TestCase):
+    """"Price · 5 names" sat beside "1 of 225 loaded names" and the five read as a
+    contradiction of the one. They answer different questions: with a bucket selected the
+    chart deliberately draws the bucket's constituents, while Results applies the lens and the
+    filter row on top. That divergence is documented and kept — what was missing is the card
+    saying so."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(REPO, "docs", "research",
+                               "SCREENER_COMBINED_DRAFT.html"), encoding="utf-8") as fh:
+            cls.html = fh.read()
+
+    def test_the_title_names_the_set_not_only_the_count(self):
+        i = self.html.find('title.textContent = series.length === 1')
+        self.assertNotEqual(i, -1, "the price title moved")
+        window = self.html[i - 700:i + 400]
+        self.assertIn("in the selected buckets", window)
+        self.assertIn("in this lens", window)
+        self.assertIn("bucketNameSet()", window,
+                      "the two cases must be told apart by membership, not guessed")
+
+    def test_the_window_labels_state_a_span_of_time(self):
+        """"all (124 bars)" is exact and answers a question nobody asks."""
+        body = re.search(r"function priceWindows\(\)\{(.*?)\n\}", self.html, re.S).group(1)
+        self.assertIn("barsAsTime(have)", body,
+                      "the all-window label must carry a time span, not only a bar count")
+        self.assertIn('have + " bars)"', body,
+                      "the exact bar count stays — the span is approximate and says so")
+
+    def test_the_span_is_marked_approximate(self):
+        """Closes ship without dates, so a span stated to the day would be a precision the
+        data does not carry."""
+        body = re.search(r"function barsAsTime\(bars\)\{(.*?)\n\}", self.html, re.S).group(1)
+        self.assertIn('"about ', body, "an unhedged span claims precision the payload lacks")
+        for bars, want in ((252, "year"), (126, "months"), (21, "month")):
+            self.assertRegex(body, r"\d+", "bars->time must be computed, not tabulated")
+
+
+class TheLegendChipsOwnTheChartOnceTouched(unittest.TestCase):
+    """Clicking a hidden chip to bring its line back turned every OTHER line off instead.
+
+    The precedence — chips, then pin, then default — was re-evaluated from scratch on every
+    draw, so the pin re-asserted the moment the chips stopped disagreeing with it. Un-hiding
+    the last hidden chip made `shown.length` equal `cohort.length`, the chip rule stopped
+    applying, and the pin soloed its own name. The reader's click did the opposite of what it
+    asked for.
+
+    So "the reader chose this name" and "the pin is what drives this chart" are two facts, not
+    one. The first governs the card titles and must survive; the second is handed over the
+    moment a chip is touched."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(REPO, "docs", "research",
+                               "SCREENER_COMBINED_DRAFT.html"), encoding="utf-8") as fh:
+            cls.html = fh.read()
+
+    def test_the_chart_rule_is_not_the_card_rule(self):
+        body = re.search(r"function priceLit\(cohort\)\{(.*?)\n\}", self.html, re.S).group(1)
+        self.assertIn("PIN_OWNS_CHART", body,
+                      "lighting must key off who is steering the chart")
+        self.assertNotIn("PIN_IS_DELIBERATE", body,
+                         "PIN_IS_DELIBERATE governs the card titles; using it here is what "
+                         "let the pin re-assert over the reader's chips")
+
+    def test_touching_a_chip_hands_the_chart_to_the_chips(self):
+        body = re.search(r"function togglePriceLit\(tk\)\{(.*?)\n\}", self.html, re.S).group(1)
+        self.assertRegex(body, r"PIN_OWNS_CHART = false;",
+                         "a chip click must take the chart off the pin")
+        self.assertNotIn("PIN_IS_DELIBERATE = false", body,
+                         "the pin is still the reader's choice — only the chart changes hands")
+
+    def test_pinning_takes_the_chart_back(self):
+        body = re.search(r"function pinTicker\(tk\)\{(.*?)\n\}", self.html, re.S).group(1)
+        for flag in ("PIN_IS_DELIBERATE = true", "PIN_OWNS_CHART = true"):
+            self.assertIn(flag, body)
+        self.assertIn("PRICE_HIDDEN.clear()", body,
+                      "a fresh pick should not be read through the previous pick's hidden set")
