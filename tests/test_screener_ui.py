@@ -1378,3 +1378,35 @@ class TheLegendChipsOwnTheChartOnceTouched(unittest.TestCase):
             self.assertIn(flag, body)
         self.assertIn("PRICE_HIDDEN.clear()", body,
                       "a fresh pick should not be read through the previous pick's hidden set")
+
+
+class NoHandlerIsBoundToAnElementThatIsNotThere(unittest.TestCase):
+    """Removing the bucket row's duplicate Clear button left its `addEventListener` behind.
+    `getElementById("bucketClear")` returned null, the boot script threw at that line, and
+    everything after it — including the first `render()` — never ran. The page loaded with an
+    empty pinned strip, no clear buttons, and no console output unless you went looking.
+
+    `node --check` cannot see this: the syntax is fine. The text-contract tests cannot either:
+    the string is present, it just names an element that is not. This is the cheap check that
+    can — every unguarded `getElementById("x").` must have a matching `id="x"` in the page."""
+
+    IDS = re.compile(r'\sid="([\w-]+)"')
+    USES = re.compile(r'getElementById\("([\w-]+)"\)\s*\.')
+
+    def _check(self, name):
+        path = os.path.join(REPO, "docs", "research", name)
+        with open(path, encoding="utf-8") as fh:
+            html = fh.read()
+        present = set(self.IDS.findall(html))
+        missing = []
+        for m in self.USES.finditer(html):
+            if m.group(1) not in present:
+                line = html[:m.start()].count("\n") + 1
+                missing.append("{}:{} -> #{}".format(name, line, m.group(1)))
+        self.assertEqual(missing, [], "\n".join(missing))
+
+    def test_the_screener_binds_only_to_elements_it_has(self):
+        self._check("SCREENER_COMBINED_DRAFT.html")
+
+    def test_the_buckets_page_binds_only_to_elements_it_has(self):
+        self._check("SOVEREIGN_LEDGER_OPTIONS_MOCK.html")

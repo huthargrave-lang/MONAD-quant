@@ -263,11 +263,11 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
    further down that owns the shorthand. Setting padding-left here would be overridden by it
    anyway — same specificity, later in the sheet. */
 .opt-list label.starred{box-shadow:inset 3px 0 0 var(--warning);border-radius:0 6px 6px 0}
-.presets .lens-star{
+.lens-star{
   padding:0 8px 0 9px;border:0;background:transparent;cursor:pointer;line-height:1;
   color:var(--ink-2);font-size:16px;opacity:.7;transition:opacity .12s,color .12s}
-.presets .lens-star:hover,.presets .lens-star:focus-visible{opacity:1;color:var(--accent)}
-.presets .lens-star[aria-pressed="true"]{opacity:1;color:var(--warning)}
+.lens-star:hover,.lens-star:focus-visible{opacity:1;color:var(--accent)}
+.lens-star[aria-pressed="true"]{opacity:1;color:var(--warning)}
 /* The star is a quiet control until it is used or reached for — a row of 14 bright stars
    competes with the lens names, which are the thing being chosen. */
 .presets .lens-wrap{display:inline-flex;align-items:center;border:1px solid var(--rule);
@@ -1058,7 +1058,10 @@ table.bwatch .spark{width:80px;height:26px;display:block}
         <span class="ctx-sub" id="ctxHeadSub"></span>
         <span class="ctx-scenario" id="ctxScenario"></span>
         <span class="cmd-spacer"></span>
-        <button type="button" class="cmd-clear" id="ctxHeadClear" hidden
+        <!-- Same rule as the lens and filter clears: one handler, three constraints. This
+             used to carry its own, which is how a page ends up with three ways to undo three
+             things that are the same kind of thing. -->
+        <button type="button" class="cmd-clear" id="ctxHeadClear" data-clear="buckets" hidden
                 title="Analyse all securities again">clear</button>
       </div>
       <div id="contextBody">
@@ -1094,7 +1097,10 @@ table.bwatch .spark{width:80px;height:26px;display:block}
           <!-- No Apply. Every control here takes effect as it changes, on purpose: a control
                that only lands on a second click can be read while it is lying about the cards
                under it. -->
-          <button type="button" id="bucketClear">Clear</button>
+          <!-- No Clear here. The context header carries one, top right, and two buttons that
+               both mean "stop narrowing by bucket" is one more thing to reconcile than the
+               state deserves. "Select top heat" stays: it CHOOSES a selection, it does not
+               undo one. -->
           <button type="button" id="bucketTop">Select top heat</button>
           <span class="ctx-count" id="bucketsMeta">—</span>
         </div>
@@ -1114,12 +1120,16 @@ table.bwatch .spark{width:80px;height:26px;display:block}
           <span class="cmd-v" id="lensValue">Low P/E &#183; high growth</span>
           <span class="cmd-caret" aria-hidden="true">&#9662;</span>
         </button>
+        <button type="button" class="cmd-clear" id="lensClear" data-clear="lens" hidden
+                title="Turn the lens off — every row passes">clear</button>
         <button type="button" class="cmd" id="filterChip" data-panel-open="filterPanel"
                 aria-expanded="false" aria-label="Filters">
           <span class="cmd-k">Filters</span>
           <span class="cmd-v" id="filterValue">0</span>
           <span class="cmd-caret" aria-hidden="true">&#9662;</span>
         </button>
+        <button type="button" class="cmd-clear" id="filterClear" data-clear="filters" hidden
+                title="Reset every filter to any">clear</button>
         <span class="cmd-spacer"></span>
         <button type="button" class="cmd" id="dataChip" data-panel-open="dataPanel"
                 aria-expanded="false" aria-label="Data sources and freshness">
@@ -3872,6 +3882,10 @@ function toggleStar(key){
   if(i === -1) STARRED.push(key); else STARRED.splice(i, 1);
   saveStars();
   orderPresets();
+  // The star's whole promise is "pin it to the bar", so the bar has to redraw. It did not,
+  // and the pinned strip kept reading "none — star a lens in the Lens menu to pin it here"
+  // with a starred lens sitting open in the menu above it.
+  drawLensFav();
 }
 /* Starred lenses move to the FRONT, keeping the order they were starred in, and the rest
    keep their authored order. Reordering the live DOM rather than re-rendering keeps the
@@ -3880,7 +3894,11 @@ function orderPresets(){
   const host = document.getElementById("presets");
   if(!host) return;
   const add = host.querySelector('button[data-p="custom"]');
-  const units = Array.from(host.children).filter(el => el !== add);
+  // Every unit, wherever it lives, so the starred flag and the pressed state stay right on a
+  // pill that has been moved into a group. Sorting is then done per container below.
+  const units = Array.from(document.querySelectorAll(LENS_UNIT_SEL))
+    .filter(b => b.dataset.p !== "custom")
+    .map(b => b.closest(".lens-wrap") || b.closest(".lens-chip") || b);
   units.forEach(el => {
     const key = lensKeyOf(el);
     const on = key && isStarred(key);
@@ -3893,7 +3911,16 @@ function orderPresets(){
     const i = key ? STARRED.indexOf(key) : -1;
     return i === -1 ? Infinity : i;
   };
-  units.slice().sort((a, b) => rank(a) - rank(b)).forEach(el => host.appendChild(el));
+  // Starred first WITHIN each group — moving them across groups would undo the sorting the
+  // reader asked for in the menu.
+  const byParent = new Map();
+  units.forEach(el => {
+    if(!byParent.has(el.parentElement)) byParent.set(el.parentElement, []);
+    byParent.get(el.parentElement).push(el);
+  });
+  byParent.forEach((els, parent) => {
+    els.slice().sort((a, b) => rank(a) - rank(b)).forEach(el => parent.appendChild(el));
+  });
   if(add) host.appendChild(add);          // "+ custom" stays last, always
 }
 function lensKeyOf(el){
@@ -4777,7 +4804,7 @@ document.addEventListener("click", (ev)=>{
   // pill row, the bucket grid and the bar can never disagree about what is selected.
   const go = ev.target.closest("[data-lens-go]");
   if(go){ selectPreset(go.dataset.lensGo); render(); return; }
-  const star = ev.target.closest('#presets .lens-star');
+  const star = ev.target.closest('.lens-star');
   if(star){ toggleStar(star.dataset.star); return; }
   const mk = ev.target.closest('#presets button[data-p="custom"]');
   if(mk){
@@ -4787,11 +4814,6 @@ document.addEventListener("click", (ev)=>{
   }
   if(ev.target.closest("#resultsToggle")){ toggleResults(); return; }
   if(ev.target.closest("#ctxToggle")){ toggleCtx(); return; }
-  if(ev.target.closest("#ctxHeadClear")){
-    BUCKET_SEL.clear(); resetPriceLit(); render();
-    const t = document.getElementById("ctxToggle"); if(t) t.focus();
-    return;
-  }
   if(ev.target.closest("[data-panel-close]")){ panelClose(); return; }
   if(activePanel && !ev.target.closest(".explain")) panelClose();
 });
@@ -6490,11 +6512,16 @@ const LENS_GROUPS = [
   {title: "Macro & thematic", keys: ["sovereign_ledger", "chaos_hedges"]},
   {title: "Sentiment", keys: ["bloomberg_tone", "reddit_tone", "yahoo_tone", "social_tone"]},
 ];
+/* Both containers. drawLensPanel MOVES the pills out of #presets into #lensGroups, so every
+   query anchored to #presets alone returned nothing once the panel had drawn: the star click
+   never matched, the pinned strip could not see a built-in, and orderPresets had no children
+   to reorder. Starring a lens did nothing at all. */
+const LENS_UNIT_SEL = '#presets button[data-p], #lensGroups button[data-p]';
 function builtinLensKeys(){
-  // Custom lenses render into #presets too, wrapped in .lens-chip. Without that exclusion a
-  // reader's own lens was "ungrouped" AND "custom" — listed twice in the one menu that is
-  // supposed to be the full set, each copy toggling the same state.
-  return Array.from(document.querySelectorAll('#presets button[data-p]'))
+  // Custom lenses render alongside the built-ins, wrapped in .lens-chip. Without that
+  // exclusion a reader's own lens was "ungrouped" AND "custom" — listed twice in the one menu
+  // that is supposed to be the full set, each copy toggling the same state.
+  return Array.from(document.querySelectorAll(LENS_UNIT_SEL))
     .filter(b => !b.closest(".lens-chip"))
     .map(b => b.dataset.p).filter(k => k !== "custom");
 }
@@ -6593,6 +6620,10 @@ function drawLensChip(){
   if(v) v.textContent = activeLensLabel();
   const chip = document.getElementById("lensChip");
   if(chip) chip.classList.toggle("narrowed", preset != null);
+  // Hidden when there is nothing to clear, the same rule the context clear follows: a control
+  // that is always there but does nothing most of the time teaches the reader to ignore it.
+  const c = document.getElementById("lensClear");
+  if(c) c.hidden = preset == null;
 }
 function drawFilterChip(){
   const v = document.getElementById("filterValue");
@@ -6601,6 +6632,8 @@ function drawFilterChip(){
   const n = activeFilterCount();
   v.textContent = n ? String(n) : "0";
   if(chip) chip.classList.toggle("narrowed", n > 0);
+  const c = document.getElementById("filterClear");
+  if(c) c.hidden = n === 0;
 }
 /* Data health at a glance. The dot is the worst state any provider is in, so a stale or dead
    feed is visible without opening anything — the compact state has to be able to say "not
@@ -6908,7 +6941,17 @@ document.addEventListener("click", (ev)=>{
   if(wo){
     ev.preventDefault();
     if(wo.dataset.clear === "lens"){ preset = null; markActivePreset(); }
-    else if(wo.dataset.clear === "buckets"){ BUCKET_SEL.clear(); _bnCache = null; }
+    else if(wo.dataset.clear === "buckets"){
+      BUCKET_SEL.clear(); _bnCache = null;
+      // The search goes with the selection. It used to, on the control row's own Clear
+      // button; that button was removed so the context has one clear, and dropping the
+      // behaviour with it would leave a query still hiding cards after a "clear".
+      // Stars are NOT touched: a star is a standing preference, and wiping it from a button
+      // labelled "clear" would destroy something the reader set once.
+      bucketQuery = "";
+      const q = document.getElementById("bucketQ");
+      if(q) q.value = "";
+    }
     else if(wo.dataset.clear === "filters"){
       document.querySelectorAll("#filters select").forEach(sel => {
         if(sel.querySelector('option[value="any"]')) sel.value = "any";
@@ -6969,15 +7012,6 @@ document.getElementById("bucketTier").addEventListener("change", (ev)=>{
 // `input`, not `change`: the grid filters as it is typed, like the rest of this page.
 document.getElementById("bucketQ").addEventListener("input", (ev)=>{
   bucketQuery = ev.target.value; drawBuckets();
-});
-document.getElementById("bucketClear").addEventListener("click", ()=>{
-  // Clears the SELECTION and the search, not the stars: a star is a standing preference and
-  // wiping it from a button labelled "Clear" would destroy something the reader set once.
-  BUCKET_SEL.clear();
-  bucketQuery = "";
-  document.getElementById("bucketQ").value = "";
-  resetPriceLit();
-  render();
 });
 document.getElementById("bucketTop").addEventListener("click", ()=>{
   // The four hottest under the CURRENT shock and clock — so the button follows the controls
