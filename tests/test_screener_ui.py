@@ -24,6 +24,9 @@ import os
 import re
 import sys
 import unittest
+import shutil
+import subprocess
+import tempfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 for _p in (REPO, os.path.join(REPO, "tools")):
@@ -1123,3 +1126,44 @@ class TheLensMenuListsEachLensOnce(unittest.TestCase):
         body = re.search(r"function ungroupedLensKeys\(\)\{(.*?)\n\}",
                          self.html, re.S).group(1)
         self.assertIn("builtinLensKeys()", body)
+
+
+class ThePageScriptParses(unittest.TestCase):
+    """A regex edit left `const pill` declared twice in one function. The whole script failed
+    to parse, so NOT ONE function on the page was defined and it rendered as static markup —
+    and every text-contract test over this file still passed, because they read it as a string.
+    The HTML tag-balance guard did not see it either: the markup was fine, the script was not.
+
+    `node --check` answers this in milliseconds. Skipped rather than failed where node is
+    absent, so a checkout without it is not blocked — an unrunnable check is not a failing one."""
+
+    @classmethod
+    def setUpClass(cls):
+        if shutil.which("node") is None:
+            raise unittest.SkipTest("node is not available to parse the page script")
+
+    def _scripts(self, path):
+        with open(path, encoding="utf-8") as fh:
+            html = fh.read()
+        # Inline scripts only — a src= tag has no body to check.
+        return [m.group(1) for m in
+                re.finditer(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", html, re.S)
+                if m.group(1).strip()]
+
+    def test_every_inline_script_parses(self):
+        for name in ("SCREENER_COMBINED_DRAFT.html", "SOVEREIGN_LEDGER_OPTIONS_MOCK.html"):
+            path = os.path.join(REPO, "docs", "research", name)
+            for i, body in enumerate(self._scripts(path)):
+                with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False,
+                                                 encoding="utf-8") as fh:
+                    fh.write(body)
+                    tmp = fh.name
+                try:
+                    proc = subprocess.run(["node", "--check", tmp],
+                                          capture_output=True, text=True)
+                finally:
+                    os.unlink(tmp)
+                self.assertEqual(
+                    proc.returncode, 0,
+                    "{} inline script #{} does not parse — every function on the page would "
+                    "be undefined:\n{}".format(name, i, proc.stderr[:600]))

@@ -3376,6 +3376,19 @@ function initBoard(){
     }
     if(d.el) d.el.classList.remove("dragging");
     clearPreview();
+    /* A click that never moved is a CLICK, whatever is under the pointer. This test used to
+       come last, after the geometric ones, which was harmless while the tray sat above the
+       board and a chip could not be over it. The tray now lives in the Modules panel — which
+       `placePanel` anchors to a chip directly above the board, so it is painted on top of it —
+       and `dropTargetAt` is pure board geometry with no notion of a fixed panel over it. So a
+       plain click on a chip resolved to a drop on whichever pane was underneath the panel and
+       silently evicted it: the board went plot|rank|price -> plot|bwatch|price with Ranked
+       pushed to the tray, and the Modules counter reported no change. */
+    if(d.fromTray && !d.moved){
+      placeIntoLargestPane(d.tileId);
+      layoutBoard(); saveBoard(); scheduleChartReflow();
+      return;
+    }
     const target = dropTargetAt(ev.clientX, ev.clientY);
     if(target && target.zone === "board-bottom"){
       /* Wrap the WHOLE tree, rather than splitting whichever pane the pointer was over. That
@@ -3390,8 +3403,6 @@ function initBoard(){
       boardTree = leafNode(d.tileId);
     } else if(target && target.tile){
       placeTile(d.tileId, target.tile, target.zone);
-    } else if(d.fromTray && !d.moved){
-      placeIntoLargestPane(d.tileId);   // a plain click on a chip still has to place it
     } else {
       return;                           // released off the board: the layout is unchanged
     }
@@ -5055,15 +5066,18 @@ function lensTitle(key){
   const custom = customLens(key);
   if(custom) return custom.name;
   if(PRESET_RULES[key] && PRESET_RULES[key].title) return PRESET_RULES[key].title;
-  // PRESET_RULES is only populated when the payload carried rows, so with no snapshot every
-  // sentence naming the lens printed the raw key — "nothing under the low_pe_high_growth
-  // lens". The pill row still holds the authored label in that state; it is a fallback, not
-  // the source, so it is read only when the canonical title is genuinely absent.
-  const pill = document.querySelector('#presets button[data-p="' + key + '"]');
+  /* The control's own label. Two reasons, one lookup. PRESET_RULES is only populated when the
+     payload carried rows, so with no snapshot every sentence naming the lens printed the raw
+     key — "nothing under the low_pe_high_growth lens". And `social_tone` is never in
+     PRESET_RULES at all (the tone lenses are page-native), so a hardcoded fallback named it
+     "Social tone" while the only control offering it said "Social sentiment": one lens, two
+     names, and nothing to tell a reader they were the same. Searched in both places because
+     drawLensPanel MOVES the pills into the grouped list. */
+  const pill = document.querySelector('#presets button[data-p="' + key + '"], '
+                                    + '#lensGroups button[data-p="' + key + '"]');
   if(pill) return pill.textContent.trim();
   const tone = TONE_LENSES[key];
   if(tone) return toneField(tone).label + " tone";
-  if(key === "social_tone") return "Social tone";
   return key;
 }
 function contextLabel(){
@@ -6436,19 +6450,34 @@ function ungroupedLensKeys(){
 }
 function drawLensPanel(){
   const host = document.getElementById("lensGroups");
-  if(!host) return;
+  const pills = document.getElementById("presets");
+  if(!host || !pills) return;
   const groups = LENS_GROUPS.slice();
   const loose = ungroupedLensKeys();
   if(loose.length) groups.push({title: "Ungrouped", keys: loose});
   const custom = CUSTOM_LENSES.map(l => l.id);
   if(custom.length) groups.push({title: "Custom", keys: custom});
-  host.innerHTML = groups.map(g => {
-    const rows = g.keys.map(k =>
-      '<button type="button" class="lens-jump' + (preset === k ? " on" : "") + '"'
-      + ' data-lens-go="' + escAttr(k) + '">' + esc(lensTitle(k)) + '</button>').join(" ");
-    return '<div class="lensgroup"><h4>' + esc(g.title) + '</h4>'
-         + '<div class="lens-fav">' + rows + '</div></div>';
-  }).join("");
+  /* The pills are MOVED into the groups, not copied. Rendering a parallel list of plain
+     buttons put 28 controls in the panel for 14 lenses, built from two different name sources
+     — and they disagreed: the pill read "Social sentiment" while every readout wired to
+     lensTitle() read "Social tone", so the panel showed one lens under two names with nothing
+     to say they were the same. Moving the real pills keeps one list, one label, and the star,
+     edit and delete affordances that only exist on the pill. */
+  host.innerHTML = groups.map(g =>
+    '<div class="lensgroup"><h4>' + esc(g.title) + '</h4>'
+    + '<div class="lens-fav" data-group="' + escAttr(g.title) + '"></div></div>').join("");
+  groups.forEach(g => {
+    const box = host.querySelector('[data-group="' + escAttr(g.title) + '"]');
+    g.keys.forEach(k => {
+      const btn = pills.querySelector('button[data-p="' + k + '"]');
+      if(!btn || !box) return;
+      box.appendChild(btn.closest(".lens-wrap") || btn.closest(".lens-chip") || btn);
+    });
+  });
+  // Whatever the grouping did not claim stays in the original row, which is also where
+  // "+ custom" lives — an unclaimed lens is visible rather than lost.
+  pills.hidden = !pills.querySelector("button[data-p]:not([data-p='custom'])")
+                 && !pills.querySelector('button[data-p="custom"]') ? true : false;
 }
 /* The favourites strip: starred lenses, in the order they were starred, capped so the bar
    cannot grow a second row of its own. The overflow is not hidden — it is one click away in
