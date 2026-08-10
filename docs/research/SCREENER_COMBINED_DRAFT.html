@@ -4195,13 +4195,40 @@ function emptyTitle(what){
   return p ? what + " · nothing under " + p : what + " · nothing loaded";
 }
 function activeLensLabel(){ return lensTitle(preset); }
+
+/* ── WHERE A LENS PILL LIVES ────────────────────────────────────────────────────────────
+   In TWO places, and which one is not knowable from the pill. `#presets` is where every pill
+   is authored; `drawLensPanel` then MOVES it into a group inside `#lensGroups`, on the first
+   render and every render after. So `#presets` holds only "+ custom" and anything no group
+   claimed, and a query anchored to `#presets` alone reaches no lens at all.
+
+   That single fact has now produced FOUR separate defects in this file — the star click did
+   nothing, the pill drew as two bubbles, the module tray's drag died, and clicking a lens in
+   the menu did not change the lens — each fixed in isolation, each time by widening one
+   selector. So the hosts are declared ONCE here and every selector is derived from them:
+   there is no second place to forget. Anything reaching for a lens pill uses `lensSel`. The
+   only legitimate `#presets`-only selector left is the "+ custom" builder button, which
+   really does stay put — and a test enforces exactly that. */
+const LENS_HOST_IDS = ["presets", "lensGroups"];
+const LENS_HOST_SEL = LENS_HOST_IDS.map(id => "#" + id).join(", ");
+function lensSel(inner){ return LENS_HOST_IDS.map(id => "#" + id + " " + inner).join(", "); }
+const LENS_UNIT_SEL = lensSel("button[data-p]");
+const LENS_BUBBLE_SEL = lensSel(".lens-chip") + ", " + lensSel(".lens-wrap");
+/* One pill by key. A key interpolated into an attribute selector would need CSS escaping, not
+   the HTML escaping this file has — and a custom lens id carries a colon. Comparing the value
+   in JS cannot be malformed by the value. */
+function lensPill(key){
+  return Array.from(document.querySelectorAll(LENS_UNIT_SEL))
+    .find(b => b.dataset.p === key) || null;
+}
+
 /* A built-in is identified by where it is NOT — outside a .lens-chip, which is the custom
-   lenses' wrapper. Matching on direct children of #presets instead would miss every built-in
+   lenses' wrapper. Matching on direct children of a host instead would miss every built-in
    the moment decoratePresets() wraps it in a .lens-wrap, and a duplicate name checked against
    an empty list is always free: two chips would then carry one label, and every readout that
    names the active lens could no longer say which one it meant. */
 function builtinLensNames(){
-  return Array.from(document.querySelectorAll("#presets button[data-p]"))
+  return Array.from(document.querySelectorAll(LENS_UNIT_SEL))
     .filter(b => b.dataset.p !== "custom" && !b.closest(".lens-chip"))
     .map(b => b.textContent.trim());
 }
@@ -4279,9 +4306,10 @@ function lensKeyOf(el){
    wrapped once into the same chip shape the custom lenses already use — one visual
    language for both, and the star is a real button so it stays tab-reachable. */
 function decoratePresets(){
-  const host = document.getElementById("presets");
-  if(!host) return;
-  host.querySelectorAll('button[data-p]').forEach(btn => {
+  // Both hosts: a lens edited after the panel has drawn is re-rendered into #presets and then
+  // moved, but an EXISTING chip already sitting in a group still has to be found here or it
+  // would lose its star the first time this runs after a move.
+  document.querySelectorAll(LENS_UNIT_SEL).forEach(btn => {
     if(btn.dataset.p === "custom") return;
     if(btn.closest(".lens-wrap") || btn.closest(".lens-chip")) return;
     const wrap = document.createElement("span");
@@ -4290,7 +4318,7 @@ function decoratePresets(){
     wrap.appendChild(starButton(btn.dataset.p, btn.textContent.trim()));
     wrap.appendChild(btn);
   });
-  host.querySelectorAll(".lens-chip").forEach(chip => {
+  document.querySelectorAll(lensSel(".lens-chip")).forEach(chip => {
     if(chip.querySelector(".lens-star")) return;
     const b = chip.querySelector("button[data-p]");
     if(b) chip.insertBefore(starButton(b.dataset.p, b.textContent.trim()), chip.firstChild);
@@ -4309,7 +4337,11 @@ function starButton(key, name){
   return s;
 }
 function markActivePreset(){
-  document.querySelectorAll("#presets button[data-p]").forEach(b => {
+  /* Every host. Anchored to #presets alone this looked RIGHT and was dead: the .on class had
+     been written before drawLensPanel moved the pills, and travelled with the moved node — so
+     the menu kept showing whichever lens was active at first render and never updated again,
+     while the command bar showed the real one. A stale highlight is worse than none. */
+  document.querySelectorAll(LENS_UNIT_SEL).forEach(b => {
     const on = b.dataset.p === preset;
     b.classList.toggle("on", on);
     // aria-pressed, and a title that says the second click clears it. A lens you can only
@@ -4320,7 +4352,7 @@ function markActivePreset(){
       b.title = on ? "Selected — click again to clear this lens" : "";
     }
   });
-  document.querySelectorAll("#presets .lens-chip, #presets .lens-wrap").forEach(c =>
+  document.querySelectorAll(LENS_BUBBLE_SEL).forEach(c =>
     c.classList.toggle("on", !!c.querySelector("button.on")));
 }
 function renderCustomBubbles(){
@@ -4328,7 +4360,12 @@ function renderCustomBubbles(){
   // decoration is re-applied at the end of this function rather than only at startup.
   const host = document.getElementById("presets");
   const anchor = host.querySelector('button[data-p="custom"]');
-  host.querySelectorAll(".lens-chip").forEach(el => el.remove());
+  /* Cleared from EVERY host, not just the one they are re-created in. Once drawLensPanel has
+     moved a chip into the Custom group, `host.querySelectorAll(".lens-chip")` matches nothing
+     — so this did not replace the old chips, it added a second set beside them, two bubbles
+     for one lens both writing the same state. New chips still go into #presets; the panel
+     moves them on the next draw. */
+  document.querySelectorAll(lensSel(".lens-chip")).forEach(el => el.remove());
   CUSTOM_LENSES.forEach(l=>{
     const chip = document.createElement("span");
     chip.className = "lens-chip";
@@ -5156,8 +5193,11 @@ document.addEventListener("click", (ev)=>{
   if(edit){ openLensForm(edit.dataset.lensEdit, edit); return; }
   // Command-bar controls. Each writes through the setter the old control used, so the
   // pill row, the bucket grid and the bar can never disagree about what is selected.
+  // selectPreset renders. The extra render() that used to be here drew the whole page a
+  // second time for every pinned-lens click — and rebuilt the pinned strip twice, so the
+  // button the reader pressed was destroyed and replaced twice over.
   const go = ev.target.closest("[data-lens-go]");
-  if(go){ selectPreset(go.dataset.lensGo); render(); return; }
+  if(go){ selectPreset(go.dataset.lensGo); return; }
   const star = ev.target.closest('.lens-star');
   if(star){ toggleStar(star.dataset.star); return; }
   const mk = ev.target.closest('#presets button[data-p="custom"]');
@@ -5500,8 +5540,7 @@ function lensTitle(key){
      "Social tone" while the only control offering it said "Social sentiment": one lens, two
      names, and nothing to tell a reader they were the same. Searched in both places because
      drawLensPanel MOVES the pills into the grouped list. */
-  const pill = document.querySelector('#presets button[data-p="' + key + '"], '
-                                    + '#lensGroups button[data-p="' + key + '"]');
+  const pill = lensPill(key);
   if(pill) return pill.textContent.trim();
   const tone = TONE_LENSES[key];
   if(tone) return toneField(tone).label + " tone";
@@ -6866,11 +6905,10 @@ const LENS_GROUPS = [
   {title: "Macro & thematic", keys: ["sovereign_ledger", "chaos_hedges"]},
   {title: "Sentiment", keys: ["bloomberg_tone", "reddit_tone", "yahoo_tone", "social_tone"]},
 ];
-/* Both containers. drawLensPanel MOVES the pills out of #presets into #lensGroups, so every
-   query anchored to #presets alone returned nothing once the panel had drawn: the star click
-   never matched, the pinned strip could not see a built-in, and orderPresets had no children
-   to reorder. Starring a lens did nothing at all. */
-const LENS_UNIT_SEL = '#presets button[data-p], #lensGroups button[data-p]';
+/* LENS_UNIT_SEL is declared once, up with LENS_HOST_IDS, and derived from them. It was
+   declared HERE as a literal naming both containers — a second statement of the same fact,
+   far from the functions that most needed it, which is why four of them went on using
+   `#presets` alone. */
 function builtinLensKeys(){
   // Custom lenses render alongside the built-ins, wrapped in .lens-chip. Without that
   // exclusion a reader's own lens was "ungrouped" AND "custom" — listed twice in the one menu
@@ -6932,8 +6970,7 @@ function drawLensPanel(){
       host.appendChild(wrap);
     }
     g.keys.forEach(k => {
-      const btn = document.querySelector('#presets button[data-p="' + k + '"], '
-                                       + '#lensGroups button[data-p="' + k + '"]');
+      const btn = lensPill(k);
       if(!btn) return;
       const unit = btn.closest(".lens-wrap") || btn.closest(".lens-chip") || btn;
       // appendChild on an element already in place is a no-op move, so re-running is free;
@@ -6961,6 +6998,14 @@ const FAV_MAX = 6;
 function drawLensFav(){
   const host = document.getElementById("lensFav");
   if(!host) return;
+  /* The strip is a stateless projection of STARRED, so it is genuinely rebuilt rather than
+     moved — but pressing one of its buttons runs render(), which lands here and destroys the
+     button that was pressed. A pointer user never notices; a keyboard user's caret fell to
+     <body> and they had to tab from the top of the page to reach the next pinned lens. The
+     buttons are identified by the lens they jump to, which survives the rebuild. */
+  const held = document.activeElement;
+  const refocus = held && held.closest && held.closest("#lensFav [data-lens-go]");
+  const wasOn = refocus ? refocus.dataset.lensGo : null;
   const known = new Set(builtinLensKeys().concat(CUSTOM_LENSES.map(l => l.id)));
   const fav = STARRED.filter(k => known.has(k));
   const shown = fav.slice(0, FAV_MAX);
@@ -6973,6 +7018,13 @@ function drawLensFav(){
     + (fav.length > shown.length
         ? '<span class="fav-none">+' + (fav.length - shown.length) + ' more in the menu</span>'
         : "");
+  if(wasOn){
+    // Unstarring the lens you were standing on legitimately removes the button; the caret
+    // then goes to the strip rather than to the top of the document.
+    const back = Array.from(host.querySelectorAll("[data-lens-go]"))
+      .find(b => b.dataset.lensGo === wasOn) || host.querySelector("[data-lens-go]");
+    if(back) back.focus({preventScroll: true});
+  }
 }
 function drawLensChip(){
   const v = document.getElementById("lensValue");
@@ -7384,8 +7436,14 @@ document.getElementById("bucketTop").addEventListener("click", ()=>{
 document.querySelectorAll("#toneSrc button").forEach(btn=>{
   btn.onclick=()=>{ setToneSource(btn.dataset.src); render(); };
 });
-// Delegated, because custom bubbles come and go under this row.
-document.getElementById("presets").addEventListener("click", (ev)=>{
+/* Delegated on the DOCUMENT, gated to the lens hosts, because custom bubbles come and go and
+   — the part that broke — because drawLensPanel moves every pill out of #presets and into a
+   group in #lensGroups. Bound to #presets this handler was left holding an almost empty row:
+   clicking any lens in the menu did nothing at all, and a custom lens could not be deleted,
+   while the pinned strip kept working because it is handled elsewhere. The gate names both
+   hosts through the one place that knows them. */
+document.addEventListener("click", (ev)=>{
+  if(!ev.target.closest(LENS_HOST_SEL)) return;
   const del = ev.target.closest("[data-lens-del]");
   if(del){ deleteCustomLens(del.dataset.lensDel); return; }
   const btn = ev.target.closest("button[data-p]");

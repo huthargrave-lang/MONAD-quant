@@ -1602,3 +1602,104 @@ class TheActiveStateIsThePagesColourNotTheReaders(unittest.TestCase):
         self.assertIsNotNone(m, "no accent-color is declared, so the OS picks it")
         self.assertEqual(m.group(1).strip(), "var(--accent)",
                          "the checkbox accent is not the page's own accent")
+
+
+class NoLensQueryIsAnchoredToAContainerThePillsLeft(unittest.TestCase):
+    """`drawLensPanel` MOVES every lens pill out of `#presets` into a group inside
+    `#lensGroups`, on the first render and every render after. After it runs, `#presets` holds
+    only the "+ custom" builder button.
+
+    That one fact has produced FOUR separate shipped defects in this file:
+
+      1. the star click selector matched nothing, so starring a lens did nothing;
+      2. the bubble CSS matched nothing, so a lens drew as two bubbles and a custom lens four;
+      3. the module tray's listener (same class, different container);
+      4. the lens click handler was bound to `#presets`, so clicking a lens in the menu did
+         not change the lens and a custom lens could not be deleted.
+
+    Each was fixed by widening one selector, which is why there was a fourth. The fix that
+    ends it is that the hosts are named ONCE (`LENS_HOST_IDS`) and every selector is derived
+    from them. This test enforces that: in executable code, `#presets` may only appear where
+    it means the leftover row itself — the "+ custom" button, which really does stay put."""
+
+    # `#presets` is legitimate only when it qualifies the custom-lens builder button, which is
+    # the one control that is never moved into a group.
+    ALLOWED = re.compile(r'#presets button\[data-p="custom"\]')
+
+    def setUp(self):
+        html = _page()
+        script = re.search(r"<script>(.*?)</script>", html, re.S)
+        self.assertIsNotNone(script)
+        # Comments carry the history of this bug and name #presets constantly; a guard that
+        # reads prose about the code instead of the code is how guards in this file have gone
+        # quiet before.
+        self.js = re.sub(r"/\*.*?\*/|//[^\n]*", "", script.group(1), flags=re.S)
+
+    def test_the_hosts_are_declared_once_and_everything_derives_from_them(self):
+        self.assertEqual(len(re.findall(r"const LENS_HOST_IDS = ", self.js)), 1,
+                         "the lens hosts are declared more than once")
+        self.assertEqual(len(re.findall(r"const LENS_UNIT_SEL = ", self.js)), 1,
+                         "LENS_UNIT_SEL is declared more than once")
+        m = re.search(r"const LENS_UNIT_SEL = ([^\n;]+);", self.js)
+        self.assertIsNotNone(m)
+        self.assertIn("lensSel(", m.group(1),
+                      "LENS_UNIT_SEL restates the hosts instead of deriving from them")
+
+    def test_no_executable_selector_reaches_for_a_pill_through_one_host(self):
+        bad = []
+        for line in self.js.splitlines():
+            if "#presets" not in line:
+                continue
+            if self.ALLOWED.search(line):
+                continue
+            bad.append(line.strip())
+        self.assertEqual(bad, [], "selectors anchored to #presets alone:\n" + "\n".join(bad))
+
+    def test_no_listener_is_bound_to_the_pill_row(self):
+        """`getElementById("presets").addEventListener` is the exact shape of defect 4."""
+        self.assertNotRegex(
+            self.js, r'getElementById\("presets"\)\.addEventListener',
+            "a listener is bound to the row the pills are moved out of")
+
+    def test_the_lens_click_handler_covers_every_host(self):
+        m = re.search(r'document\.addEventListener\("click", \(ev\)=>\{\s*'
+                      r'if\(!ev\.target\.closest\((\w+)\)\) return;', self.js)
+        self.assertIsNotNone(m, "the lens click handler is not gated on the host constant")
+        self.assertEqual(m.group(1), "LENS_HOST_SEL")
+
+    def test_the_functions_that_broke_all_read_the_shared_selector(self):
+        """Named individually because each was a separate shipped bug: the active-lens
+        highlight froze at whatever was selected on first render, the duplicate-name check
+        compared against an empty list, and rebuilding the custom chips duplicated them
+        instead of replacing them."""
+        for fn in ("markActivePreset", "builtinLensNames", "decoratePresets",
+                   "renderCustomBubbles", "orderPresets"):
+            body = re.search(r"function %s\(\)\{(.*?)\n\}" % fn, self.js, re.S)
+            self.assertIsNotNone(body, fn + " is gone")
+            src = body.group(1)
+            self.assertNotIn("#presets", src.replace('#presets button[data-p="custom"]', ""),
+                             fn + " still reaches for pills through #presets alone")
+            self.assertTrue(
+                any(t in src for t in ("LENS_UNIT_SEL", "LENS_BUBBLE_SEL", "lensSel(",
+                                       "lensPill(", "orderPresets(")),
+                fn + " does not use the shared lens-host selectors")
+
+    def test_activating_a_pinned_lens_does_not_destroy_the_caret(self):
+        """The pinned strip is rebuilt wholesale by drawLensFav, which render() reaches — so
+        pressing one of its buttons destroys the button that was pressed. A pointer user never
+        notices; a keyboard user's caret fell to <body> and they had to tab from the top of the
+        page to reach the next pinned lens."""
+        body = re.search(r"function drawLensFav\(\)\{(.*?)\n\}", self.js, re.S)
+        self.assertIsNotNone(body)
+        self.assertIn("document.activeElement", body.group(1),
+                      "drawLensFav rebuilds the strip without noticing what had focus")
+        self.assertIn(".focus(", body.group(1),
+                      "drawLensFav never restores the caret it destroys")
+
+    def test_a_pinned_lens_click_renders_once(self):
+        """selectPreset already renders. The extra render() drew the whole page twice and
+        rebuilt the pinned strip twice for one click."""
+        m = re.search(r'closest\("\[data-lens-go\]"\);\s*\n\s*if\(go\)\{([^}]*)\}', self.js)
+        self.assertIsNotNone(m, "the pinned-lens handler is gone")
+        self.assertNotIn("render()", m.group(1),
+                         "the pinned-lens handler renders on top of selectPreset's render")
