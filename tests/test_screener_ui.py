@@ -1020,3 +1020,106 @@ class TheContextMatchesTheBucketsPage(unittest.TestCase):
             insets.append(parts[1] if len(parts) > 1 else parts[0])
         self.assertEqual(len(set(insets)), 1,
                          "the context bands use different horizontal insets: {}".format(insets))
+
+
+class TheMemoDoesNotDefeatTheProbes(unittest.TestCase):
+    """The universe memo made two of `emptyWayOut`'s three counterfactuals unanswerable. It
+    measures "what would dropping this leave?" by unsetting a constraint and re-asking — and a
+    memo built from the ORIGINAL constraints answers the original question every time, so both
+    the bucket and filter probes returned the count the table already had (zero, since the
+    probe only runs on the empty branch) and `if(n)` discarded them. Selecting a bucket whose
+    constituents carry no fundamentals emptied the table and offered no way out at all: the
+    page kept the sentence and silently lost the escape."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(REPO, "docs", "research",
+                               "SCREENER_COMBINED_DRAFT.html"), encoding="utf-8") as fh:
+            cls.html = fh.read()
+
+    def test_every_counterfactual_suspends_the_memo(self):
+        body = re.search(r"function emptyWayOut\(\)\{(.*?)\n\}", self.html, re.S).group(1)
+        probes = re.findall(r"const n = ([^;]+);", body)
+        self.assertEqual(len(probes), 3, "emptyWayOut no longer has three probes")
+        for p in probes:
+            self.assertIn("withFreshUniverse", p,
+                          "a counterfactual reads the memo it is supposed to be varying: "
+                          + p.strip())
+
+    def test_the_helper_restores_what_it_suspended(self):
+        body = re.search(r"function withFreshUniverse\(fn\)\{(.*?)\n\}", self.html, re.S).group(1)
+        self.assertIn("finally", body,
+                      "the memo must be restored even when the probe throws")
+        self.assertRegex(body, r"_inRender = was", "the render flag is not restored")
+        self.assertRegex(body, r"_universeMemo = memo", "the memo is not restored")
+
+
+class TheRunningCountMeasuresTheFilters(unittest.TestCase):
+    """Two mistakes in a row on one readout. `lensRows()` with no argument counted names the
+    bucket had already excluded — "0 of 76" for a six-name bucket. The fix then made the
+    denominator `lensRows(contextUniverse())`, which is exactly what `matchedRows()` is, so it
+    printed "N of N" forever and the "it ranks, so the filters re-cut it" branch became
+    unreachable from any state. The denominator is the bucket-constrained universe BEFORE the
+    filter row, because that difference is the only thing the ratio measures."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(REPO, "docs", "research",
+                               "SCREENER_COMBINED_DRAFT.html"), encoding="utf-8") as fh:
+            cls.html = fh.read()
+
+    def test_the_denominator_is_not_the_numerator(self):
+        body = re.search(r"function renderFilterCount\(\)\{(.*?)\n\}", self.html, re.S).group(1)
+        denom = re.search(r"const lens = ([^;]+);", body).group(1).strip()
+        numer = re.search(r"const shown = ([^;]+);", body).group(1).strip()
+        self.assertNotEqual(denom, numer,
+                            "numerator and denominator are the same expression, so the strip "
+                            "can only ever print 'N of N'")
+        matched = re.search(r"function matchedRows\(\)\{ return ([^;]+); \}", self.html)
+        self.assertIsNotNone(matched)
+        self.assertNotEqual(denom, matched.group(1).strip(),
+                            "the denominator is matchedRows() spelled out longhand")
+
+    def test_the_denominator_excludes_the_filter_row(self):
+        body = re.search(r"function renderFilterCount\(\)\{(.*?)\n\}", self.html, re.S).group(1)
+        denom = re.search(r"const lens = ([^;]+);", body).group(1)
+        self.assertNotIn("passesFilters", denom)
+        self.assertNotIn("contextUniverse", denom,
+                         "contextUniverse applies the filter row, which the denominator must "
+                         "not — it is the thing being measured")
+        self.assertIn("inSelectedBuckets", denom,
+                      "the denominator must still respect the bucket context")
+
+
+class TheLensMenuListsEachLensOnce(unittest.TestCase):
+    """Custom lenses render into `#presets` too, wrapped in `.lens-chip`. Without excluding
+    them, `builtinLensKeys()` returned them alongside the built-ins, so `drawLensPanel` listed
+    a reader's own lens twice — once under "Ungrouped" (because it is in no LENS_GROUPS entry)
+    and once under "Custom" — two rows in the one menu that claims to be the full set, each
+    toggling the same state."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(REPO, "docs", "research",
+                               "SCREENER_COMBINED_DRAFT.html"), encoding="utf-8") as fh:
+            cls.html = fh.read()
+
+    def test_the_builtin_scan_excludes_custom_chips(self):
+        body = re.search(r"function builtinLensKeys\(\)\{(.*?)\n\}",
+                         self.html, re.S).group(1)
+        # The CALL, not the word. The comment above the filter explains why `.lens-chip` is
+        # excluded, so an `assertIn("lens-chip", body)` passed with the filter deleted — the
+        # test read the prose about the code instead of the code.
+        code = "\n".join(ln for ln in body.splitlines()
+                         if not ln.strip().startswith("//"))
+        self.assertRegex(
+            code, r"\.filter\([^)]*closest\((['\"])\.lens-chip\1\)",
+            "custom lenses are not excluded, so each is listed twice in the menu")
+
+    def test_the_ungrouped_bucket_is_fed_by_the_builtin_scan(self):
+        """`ungroupedLensKeys` exists to surface a built-in nobody put in a group. Fed by a
+        scan that includes custom lenses, it surfaces every custom lens instead — which is the
+        duplication wearing a different name."""
+        body = re.search(r"function ungroupedLensKeys\(\)\{(.*?)\n\}",
+                         self.html, re.S).group(1)
+        self.assertIn("builtinLensKeys()", body)

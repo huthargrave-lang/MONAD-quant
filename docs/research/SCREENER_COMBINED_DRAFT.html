@@ -1390,6 +1390,16 @@ table.bwatch .spark{width:80px;height:26px;display:block}
      keeps its id and every button, so decoratePresets / orderPresets / markActivePreset /
      builtinLensNames all keep working against it unchanged. -->
 
+
+
+</main>
+</div>
+
+<!-- Siblings of .shell, not children of it. `placePanel` measures with getBoundingClientRect
+     (device px, post-zoom) and writes style.top/left (CSS px), so a panel INSIDE the 0.77
+     zoom is positioned in one space and measured in another: the flip-above branch computed
+     a negative top, clamped to 10, and the panel landed over the page header instead of
+     under its chip. Every panel that already worked was out here; these three now are too. -->
 <div class="explain" id="lensPanel" role="dialog" aria-modal="false"
      aria-labelledby="lensPanelTitle" hidden>
   <button type="button" class="explain-close" data-panel-close aria-label="Close">&#215;</button>
@@ -1415,7 +1425,6 @@ table.bwatch .spark{width:80px;height:26px;display:block}
       <button type="button" data-p="custom" class="custom" aria-expanded="false">+ custom</button>
     </div>
 </div>
-
 <div class="explain" id="filterPanel" role="dialog" aria-modal="false"
      aria-labelledby="filterPanelTitle" hidden>
   <button type="button" class="explain-close" data-panel-close aria-label="Close">&#215;</button>
@@ -1513,23 +1522,19 @@ table.bwatch .spark{width:80px;height:26px;display:block}
       <p class="filter-count" id="filterCount"></p>
     </form>
 </div>
-
 <div class="explain" id="dataPanel" role="dialog" aria-modal="false"
      aria-labelledby="dataPanelTitle" hidden>
   <button type="button" class="explain-close" data-panel-close aria-label="Close">&#215;</button>
   <h3 id="dataPanelTitle">Data &#183; sources and freshness</h3>
   <div id="dataBanner" class="note-banner"></div>
     <div class="providers" id="providers">
-      <div class="prov partial">
+      <div class="prov partial" data-placeholder>
         <h3>Providers <span class="chip warning"><span class="dot"></span>no snapshot</span></h3>
         <p>Provider status is read from the snapshot that produced the rows. Nothing has been
           loaded, so there is no fetch to report on.</p>
       </div>
     </div>
 </div>
-</main>
-</div>
-
 <div class="explain" id="growthExplain" role="dialog" aria-modal="false"
      aria-labelledby="growthExplainTitle" hidden>
   <button type="button" class="explain-close" data-panel-close aria-label="Close">×</button>
@@ -1601,10 +1606,9 @@ table.bwatch .spark{width:80px;height:26px;display:block}
     <span class="board-hint">
       <button type="button" id="boardReset" title="Restore this lens's default layout">reset layout</button>
     </span>
-    <details class="parked" id="parkedTray" hidden>
-      <summary id="parkedSummary">Parked — no data source yet</summary>
-      <div class="parked-body" id="parkedChips"></div>
-    </details>
+    <!-- The tray's own parked disclosure was removed when the tray moved in here: this panel
+         already has one (#layoutParked, just below), and the two rendered the same list one
+         above the other, both reading "Parked — no data source yet (2)". -->
   </div>
   <details class="parked" id="layoutParked" hidden>
     <summary id="layoutParkedSummary">Parked — no data source yet</summary>
@@ -2646,35 +2650,12 @@ function renderTray(){
   host.innerHTML = ids.length
     ? ids.map(id => trayChip(id)).join("")
     : '<span class="tray-empty">every chart with data is on the board — press × on a card to park it here</span>';
-  renderParkedTray();
   syncLayoutPanel();
   // The Modules chip counts the same two lists this function just rebuilt. Placing a tile
   // from the tray calls layoutBoard/saveBoard but not render(), so a chip that only refreshed
   // on render read "3 on board" with four placed — a counter that is wrong is worse than no
   // counter. Updated here, where the thing it counts changes.
   drawModChip();
-}
-/* Parked charts stay reachable, and the disclosure says why they are set aside so nobody
-   reads their absence from the tray as them being broken. */
-function renderParkedTray(){
-  const box = document.getElementById("parkedTray");
-  const chips = document.getElementById("parkedChips");
-  if(!box || !chips) return;
-  const placed = treeTiles(boardTree);
-  const ids = tileOrder(parkedTiles());
-  box.hidden = !ids.length;
-  if(!ids.length) return;
-  document.getElementById("parkedSummary").textContent =
-    "Parked — no data source yet (" + ids.length + ")";
-  chips.innerHTML =
-    '<p class="parked-why">Kept off the board because nothing in the loaded snapshot feeds'
-    + ' them, not because they are broken. Place one anyway and it will say what it is'
-    + ' waiting for. Each returns to the tray on its own once its data is in the payload.</p>'
-    + ids.map(id => placed.includes(id)
-        ? '<span class="tray-empty">' + esc(TILE_LABELS[id]) + ' — on the board · needs '
-          + esc(TILE_NEEDS[id]) + '</span>'
-        : trayChip(id, "Needs " + TILE_NEEDS[id] + " — place it anyway and it will say so"))
-      .join("");
 }
 
 /* v5 stored {slots,stack,leftFrac,topFrac}; that shape cannot describe a tree, so a new
@@ -3694,7 +3675,7 @@ function emptyWayOut(){
     // The lens alone, against the same filters and bucket.
     const was = preset;
     preset = null;
-    const n = matchedRows().length;
+    const n = withFreshUniverse(() => matchedRows().length);
     preset = was;
     if(n) outs.push({n: n, what: "the <b>" + esc(activeLensLabel()) + "</b> lens",
                      act: '<button type="button" class="way-out" data-clear="lens">'
@@ -3703,7 +3684,7 @@ function emptyWayOut(){
   if(BUCKET_SEL.size){
     const was = new Set(BUCKET_SEL);
     BUCKET_SEL.clear(); _bnCache = null;
-    const n = matchedRows().length;
+    const n = withFreshUniverse(() => matchedRows().length);
     BUCKET_SEL = was; _bnCache = null;
     if(n) outs.push({n: n, what: "the bucket selection",
                      act: '<button type="button" class="way-out" data-clear="buckets">'
@@ -3712,7 +3693,7 @@ function emptyWayOut(){
   if(activeFilterCount()){
     const was = filterState;
     filterState = () => ({});
-    const n = matchedRows().length;
+    const n = withFreshUniverse(() => matchedRows().length);
     filterState = was;
     if(n) outs.push({n: n, what: "the filter row",
                      act: '<button type="button" class="way-out" data-clear="filters">'
@@ -5040,6 +5021,17 @@ function bucketNameSet(){
    reads the live DOM, so a memo that outlived a render would answer with the filter row as it
    was; a memo that never existed cost 6 recomputations and ~1577 DOM reads per render. */
 let _inRender = false, _universeMemo = null;
+/* Run fn with the universe memo suspended. `emptyWayOut` answers "what would dropping this
+   constraint leave?" by unsetting one and re-asking — and a memo built from the ORIGINAL
+   constraints answers the original question every time. Two of its three counterfactuals
+   silently became "0", so a bucket that emptied the table offered no way out at all: the
+   page kept the sentence and lost the escape. Named rather than left implicit, because the
+   next probe someone writes will hit exactly this. */
+function withFreshUniverse(fn){
+  const was = _inRender, memo = _universeMemo;
+  _inRender = false; _universeMemo = null;
+  try { return fn(); } finally { _inRender = was; _universeMemo = memo; }
+}
 function contextUniverse(){
   if(_inRender && _universeMemo) return _universeMemo;
   const rows = ROWS.filter(r => passesFilters(r) && inSelectedBuckets(r));
@@ -6345,11 +6337,13 @@ function renderFilterCount(){
     el.innerHTML = "No rows loaded — nothing to filter.";
     return;
   }
-  // The lens over the CONTEXT universe, not over the whole snapshot. `lensRows()` with no
-  // argument falls back to all of ROWS, so with a bucket selected this denominator counted
-  // names the bucket had already excluded: bucket 01 (6 names) rendered "0 of 76 names".
-  // The numerator was right and the denominator was measuring a different universe.
-  const lens = lensRows(contextUniverse());
+  // The lens over the CONTEXT, with the FILTER ROW left out — that difference is the only
+  // thing the ratio measures. Two mistakes have been made here in a row: `lensRows()` with no
+  // argument counted names the bucket had already excluded ("0 of 76" for a six-name bucket),
+  // and then `lensRows(contextUniverse())` made the denominator identical to the numerator,
+  // so it read "N of N" forever and the "it ranks, so the filters re-cut it" branch became
+  // unreachable. The denominator is the bucket-constrained universe before filters.
+  const lens = lensRows(ROWS.filter(inSelectedBuckets));
   const shown = matchedRows();
   // A lens that cuts to a top N is re-cut by the filters, not trimmed by them: it comes back
   // the same size holding different names, and "8 of 8" beside "1 filter active" would read
@@ -6419,7 +6413,11 @@ const LENS_GROUPS = [
   {title: "Sentiment", keys: ["bloomberg_tone", "reddit_tone", "yahoo_tone", "social_tone"]},
 ];
 function builtinLensKeys(){
+  // Custom lenses render into #presets too, wrapped in .lens-chip. Without that exclusion a
+  // reader's own lens was "ungrouped" AND "custom" — listed twice in the one menu that is
+  // supposed to be the full set, each copy toggling the same state.
   return Array.from(document.querySelectorAll('#presets button[data-p]'))
+    .filter(b => !b.closest(".lens-chip"))
     .map(b => b.dataset.p).filter(k => k !== "custom");
 }
 /* Every built-in lands in exactly one group, or the menu is not the full set it claims to be.
@@ -6486,7 +6484,12 @@ function drawDataChip(){
   const val = document.getElementById("dataValue");
   const sub = document.getElementById("dataSub");
   if(!val) return;
-  const cards = Array.from(document.querySelectorAll("#providers .prov"));
+  // The no-snapshot card is a PLACEHOLDER, not a provider. Counting it made the chip read
+  // "0/1 · 1 stale" — a page with no data at all reporting one degraded feed — and made the
+  // honest "no snapshot" branch below unreachable, which is the state a reader sees when the
+  // file is opened straight off disk.
+  const cards = Array.from(
+    document.querySelectorAll("#providers .prov:not([data-placeholder])"));
   const live = cards.filter(c => c.querySelector(".chip.good")).length;
   const bad = cards.filter(c => c.querySelector(".chip.critical")).length;
   const warn = cards.filter(c => c.querySelector(".chip.warning")).length;
