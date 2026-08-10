@@ -35,6 +35,11 @@
      `shellZoom()` reads the computed value back rather than repeating it, and the stacking
      breakpoint is derived from it in the script. */
   --shell-zoom:.77;
+  /* Form controls ran at `accent-color:auto`, which means the READER'S operating-system
+     accent — a ticked checkbox came out magenta on one machine and blue on another. A page
+     cannot have a colour for "this is on" and also let the OS pick it; this is the one place
+     that decides, and it is the same blue every other active state uses. */
+  accent-color:var(--accent);
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
 }
@@ -207,10 +212,22 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
 .lens-fav .fav-k{font-size:11px;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.04em}
 .lens-fav .fav-none{font-size:12px;color:var(--ink-muted)}
 /* Grouped lens menu. Headings are the only structure — a 15-row flat list is what the pill
-   row already was, wearing a different shape. */
+   row already was, wearing a different shape.
+
+   The group boxes carry `.presets`, the SAME class the pill row has, because they hold the
+   same pills. They were `.lens-fav`, whose `button` rule gives every descendant button its
+   own bordered pill — so a lens arrived as TWO bubbles, a round star beside a round name, and
+   a custom lens as FOUR. The unifying border lives on `.presets .lens-wrap`/`.lens-chip`,
+   which matched nothing once the pills had moved out of `.presets`. Styling scoped to a
+   container its subjects have left is the same bug that unwired the star click. */
 .lensgroup{margin:10px 0 0}
 .lensgroup h4{margin:0 0 5px;font-size:11px;letter-spacing:.05em;text-transform:uppercase;
   color:var(--ink-muted);font-weight:600}
+/* The row's own 14px bottom margin would double the gap the group wrap already sets. */
+.lensgroup .presets{margin:0}
+/* "+ custom" and anything ungrouped stay in #presets, which sits under the last group. With
+   no separation the dashed builder button read as a member of whatever group ended above it. */
+#lensPanel > #presets{margin-top:12px;padding-top:10px;border-top:1px solid var(--rule)}
 .mini-why{border:1px solid var(--rule);background:var(--surface);color:var(--ink-muted);
   border-radius:50%;width:15px;height:15px;line-height:1;font-size:10px;padding:0;cursor:help;
   vertical-align:middle}
@@ -273,8 +290,12 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
 .presets .lens-wrap{display:inline-flex;align-items:center;border:1px solid var(--rule);
   border-radius:999px;background:var(--surface);overflow:hidden}
 .presets .lens-wrap.on{border-color:var(--accent);background:var(--plane)}
-.presets .lens-wrap > button[data-p]{border:0;border-radius:0;background:transparent;
-  padding-left:2px}
+/* EVERY button in the unit, not just the one carrying data-p. `.lens-star` sets border:0 but
+   `.presets button` is a class-plus-element selector and outranks it, so the star drew its own
+   round border inside the wrap's — two concentric bubbles for one control. The chip rule below
+   already spells it this way; the wrap rule did not, which is why only the wrap was wrong. */
+.presets .lens-wrap button{border:0;border-radius:0;background:transparent}
+.presets .lens-wrap > button[data-p]{padding-left:2px}
 .presets .lens-wrap > button[data-p].on{background:transparent;color:var(--ink);font-weight:600}
 .presets button.custom{border-style:dashed;color:var(--accent)}
 .presets button.custom.on{border-style:solid}
@@ -427,39 +448,19 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
 .board-resize:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 /* Nothing to drag once the panes stack in flow — same breakpoint as the stack fallback. */
 @media (max-width:847px){ .board-resize{display:none} }
-/* The tray sits ABOVE the board so a parked chart is always reachable without scrolling. */
-.tray{
-  display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:0 0 8px;
-  padding:5px 8px;border:1px solid var(--rule);border-radius:9px;
-  background:var(--surface);min-height:38px;
-}
-.tray-label{font:10.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;
-  color:var(--ink-muted)}
-.tray-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:0}
-.tray-chip{
-  font:12px var(--sans);height:26px;padding:0 10px;border:1px solid var(--rule);
-  border-radius:999px;background:var(--plane);color:var(--ink-2);cursor:grab;
-  display:inline-flex;align-items:center;gap:6px;user-select:none;touch-action:none;
-}
-.tray-chip:hover{border-color:var(--accent);color:var(--ink)}
-.tray-chip:active{cursor:grabbing}
-.tray-chip.dragging{opacity:.45}
-.tray-chip .dot{width:7px;height:7px;border-radius:50%;background:var(--ord-2);flex:0 0 auto}
-.tray-empty{font-size:12px;color:var(--ink-muted)}
-/* Charts whose data source is not wired yet are kept out of the ordinary tray so the tray
-   only offers things that would actually draw. They stay reachable behind this disclosure —
-   parked is not deleted, and the reader may still place one deliberately. */
-.parked{flex:1 0 100%;order:2;font-size:12px}
+/* The tray's own styles are gone with the tray. Its chips were a second rendering of the set
+   the option rows already listed, so a widget appeared twice in the one panel whose job is to
+   say where each widget is; the drag and the Enter-to-place moved onto the rows as .tile-grip.
+   Charts whose data source is not wired yet stay behind this disclosure — parked is not
+   deleted, and the reader may still place one deliberately. */
+.parked{font-size:12px;margin-top:10px}
 .parked > summary{cursor:pointer;font:11px var(--mono);letter-spacing:.05em;
   color:var(--ink-muted);list-style:none;display:inline-flex;align-items:center;gap:6px}
 .parked > summary::-webkit-details-marker{display:none}
 .parked > summary::before{content:"▸";font-size:10px}
 .parked[open] > summary::before{content:"▾"}
 .parked > summary:hover{color:var(--ink-2)}
-.parked-body{margin:7px 0 3px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.parked-why{flex:1 0 100%;margin:0 0 4px;font-size:11.5px;color:var(--ink-muted);max-width:80ch}
-.parked .tray-chip{border-style:dashed}
-.parked .tray-chip .dot{background:var(--warning)}
+.parked-why{margin:0 0 4px;font-size:11.5px;color:var(--ink-muted);max-width:80ch}
 /* A parked chart still renders — what it renders is the reason it is parked. */
 .absent{margin:0;font-size:12.5px;color:var(--ink-2);line-height:1.5}
 .absent b{color:var(--ink)}
@@ -655,8 +656,82 @@ th .qmark{margin-left:4px}
 .explain .opt-list label{display:flex;gap:9px;align-items:flex-start;padding:7px 30px 7px 12px;
   border-bottom:1px solid var(--rule);font-size:12.5px;color:var(--ink-2);cursor:pointer}
 .explain .opt-list label:last-child{border-bottom:0}
+/* `hidden` is a UA rule at the lowest specificity, and the display:flex above outranks it —
+   a searched-out row stayed on screen with the attribute set. Anything that filters by
+   toggling [hidden] on these rows needs this line to actually filter. */
+.explain .opt-list label[hidden]{display:none}
 .explain .opt-list input{margin:3px 0 0;flex:0 0 auto}
 .explain .opt-list b{display:block;color:var(--ink)}
+
+/* ── Widget options: two tabs, a sticky head and a sticky foot ──────────────────────────
+   Same panel, same density, same bubble language — the panel is tall enough that Close and
+   Reset used to scroll out of reach, and the two tasks it holds are different questions. */
+.explain.opt-panel{width:min(580px, calc(100vw - 32px));padding-top:0;padding-bottom:0}
+/* Negative margins so the sticky bands span the panel's own gutters and nothing shows
+   through beside them as the list scrolls under. */
+.opt-panel .opt-top{position:sticky;top:0;z-index:3;background:var(--surface);
+  margin:0 -16px;padding:13px 16px 0;border-bottom:1px solid var(--rule)}
+.opt-panel .opt-top .explain-close{top:11px;right:13px}
+.opt-panel .opt-top h3{margin:0 0 4px}
+.explain .opt-sum{margin:0 0 9px;font:11.5px var(--mono);color:var(--ink-muted);
+  letter-spacing:.02em}
+.explain .opt-sum b{color:var(--ink-2);font-weight:600}
+.opt-tabs{display:flex;gap:2px}
+.opt-tabs button{font:12.5px var(--sans);line-height:26px;padding:0 13px;border:0;
+  background:transparent;color:var(--ink-muted);cursor:pointer;border-radius:6px 6px 0 0;
+  border-bottom:2px solid transparent;margin-bottom:-1px}
+.opt-tabs button:hover{color:var(--ink-2)}
+/* The restrained blue the rest of the page uses for "this is the one you are on". */
+.opt-tabs button[aria-selected="true"]{color:var(--ink);font-weight:600;
+  background:var(--plane);border-bottom-color:var(--accent)}
+.opt-pane[hidden]{display:none}
+.opt-pane{padding:11px 0 4px}
+.opt-search{width:100%;box-sizing:border-box;font:12.5px var(--sans);line-height:26px;
+  padding:0 10px;border:1px solid var(--rule);border-radius:7px;background:var(--plane);
+  color:var(--ink);text-transform:none;letter-spacing:normal}
+.opt-search::placeholder{color:var(--ink-muted)}
+.opt-search:focus-visible{outline:0;border-color:var(--accent)}
+.explain .opt-none{margin:9px 0 0;font-size:12.5px;color:var(--ink-muted)}
+.optgroup h5{margin:9px 0 3px;font:10.5px var(--mono);letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-muted);font-weight:600}
+.optgroup[hidden]{display:none}
+/* The drag handle. It is what the tray chip was — same [data-tray], same pointerdown, same
+   Enter-to-place — moved onto the row so the panel has one list per widget, not two. */
+.explain .opt-list .tile-grip{
+  flex:0 0 auto;border:0;background:transparent;padding:1px 2px 0;margin:0;line-height:1;
+  color:var(--ink-muted);font-size:13px;cursor:grab;opacity:.65;transition:opacity .12s,color .12s}
+.explain .opt-list .tile-grip:hover,.explain .opt-list .tile-grip:focus-visible{
+  opacity:1;color:var(--accent)}
+.explain .opt-list .tile-grip.dragging{cursor:grabbing;opacity:1;color:var(--accent)}
+/* Reserves the grip's width on an on-board row too, so a row does not shift sideways at the
+   moment it is ticked — the same reason both gutters are reserved above. */
+.explain .opt-list .grip-gap{flex:0 0 auto;width:15px}
+/* The name and its brief take the slack, so the state label lands at the row's end rather
+   than trailing the text — a status that moves with the length of the sentence beside it is
+   not a column the eye can run down. */
+.explain .opt-list label > span:not(.grip-gap):not(.opt-state){flex:1 1 auto;min-width:0}
+.explain .opt-brief{display:block;font-style:normal;color:var(--ink-2);margin-top:1px}
+/* Restrained by construction: mono, uppercase, muted, no fill, and never wider than its two
+   words. It states which of two states the row is in — not a badge competing with the name. */
+.opt-state{flex:0 0 auto;align-self:flex-start;margin-top:2px;font:9.5px var(--mono);
+  letter-spacing:.07em;text-transform:uppercase;color:var(--ink-muted);white-space:nowrap}
+.opt-list label.on .opt-state{color:var(--accent)}
+.explain .opt-help{margin:4px 0 0;font-size:12px}
+.explain .opt-help > summary{cursor:pointer;color:var(--ink-muted);font-size:11.5px;
+  list-style:none;display:inline-flex;align-items:center;gap:5px}
+.explain .opt-help > summary::-webkit-details-marker{display:none}
+.explain .opt-help > summary::before{content:"?";border:1px solid var(--rule);
+  border-radius:50%;width:14px;height:14px;display:inline-flex;align-items:center;
+  justify-content:center;font-size:9.5px;line-height:1}
+.explain .opt-help > summary:hover{color:var(--ink-2)}
+.explain .opt-help p{margin:6px 0 0}
+.opt-panel .opt-foot{position:sticky;bottom:0;z-index:3;display:flex;align-items:center;
+  gap:8px;background:var(--surface);margin:0 -16px;padding:9px 16px 11px;
+  border-top:1px solid var(--rule)}
+.opt-panel .opt-foot button{font:12px var(--sans);line-height:26px;padding:0 12px;
+  border:1px solid var(--rule);border-radius:7px;background:var(--plane);color:var(--ink-2);
+  cursor:pointer}
+.opt-panel .opt-foot button:hover{border-color:var(--accent);color:var(--ink)}
 .explain .opt-row{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 9px}
 .explain .opt-row button,.explain .opt-pill{font:12px var(--sans);height:28px;padding:0 11px;
   border:1px solid var(--rule);border-radius:999px;background:var(--plane);color:var(--ink-2);
@@ -1600,42 +1675,74 @@ table.bwatch .spark{width:80px;height:26px;display:block}
     definitions live in <code>tools/stock_screener.py</code>.</p>
 </div>
 
-<div class="explain" id="layoutPanel" role="dialog" aria-modal="false"
+<!-- Two tasks, two tabs. WHICH widgets are on the board is a different question from HOW the
+     board is arranged, and the flat panel interleaved them: the layout reset used to sit
+     between the widget list and the arrangement grid.
+
+     The old "Unplaced" tray is gone as a separate list — not as a capability. It rendered the
+     same set the unchecked rows already showed, one as chips and one as rows, so a widget
+     appeared twice in a panel whose whole job is to say where each widget is. Its drag and
+     its keyboard placement moved onto the rows themselves, as the ≡ grip. -->
+<div class="explain opt-panel" id="layoutPanel" role="dialog" aria-modal="false"
      aria-labelledby="layoutPanelTitle" hidden>
-  <button type="button" class="explain-close" data-panel-close aria-label="Close">×</button>
-  <h3 id="layoutPanelTitle">Widget options</h3>
-  <p>Tick a chart to put it on the board; untick it to park it in the tray. Nothing is
-    thrown away either way — a parked chart keeps its state and comes back where you drop it.</p>
-  <div class="opt-list" id="layoutTiles"></div>
-  <!-- The tray, moved here from the page flow. "edit layout" opened this panel from inside the
-       tray; now the tray lives in the panel, so that button would open the panel it is in —
-       it is dropped, and the Modules chip is the one way in. Everything else is unchanged. -->
-  <div class="tray" id="tray">
-    <span class="tray-label">Unplaced</span>
-    <div class="tray-chips" id="trayChips"></div>
-    <span class="board-hint">
-      <button type="button" id="boardReset" title="Restore this lens's default layout">reset layout</button>
-    </span>
-    <!-- The tray's own parked disclosure was removed when the tray moved in here: this panel
-         already has one (#layoutParked, just below), and the two rendered the same list one
-         above the other, both reading "Parked — no data source yet (2)". -->
+  <!-- Sticky. The close button was position:absolute against a panel that scrolls, so it left
+       with the first screenful; anchored inside the sticky head it stays reachable. -->
+  <div class="opt-top">
+    <button type="button" class="explain-close" data-panel-close aria-label="Close">×</button>
+    <h3 id="layoutPanelTitle">Widget options</h3>
+    <p class="opt-sum" id="layoutSummary"></p>
+    <div class="opt-tabs" role="tablist" aria-label="Widget options">
+      <button type="button" role="tab" id="optTabWidgets" data-opt-tab="widgets"
+              aria-selected="true" aria-controls="optPaneWidgets">Widgets</button>
+      <button type="button" role="tab" id="optTabLayout" data-opt-tab="layout"
+              aria-selected="false" aria-controls="optPaneLayout">Layout</button>
+    </div>
   </div>
-  <details class="parked" id="layoutParked" hidden>
-    <summary id="layoutParkedSummary">Parked — no data source yet</summary>
-    <p class="parked-why">These charts are parked because nothing in the loaded snapshot feeds
-      them — not because they are broken. Tick one to place it anyway; it will say in its own
-      body what is missing. Each leaves this group by itself the moment its data appears in
-      the payload.</p>
-    <div class="opt-list" id="layoutParkedTiles"></div>
-  </details>
-  <h4 class="opt-head">Arrangement</h4>
-  <div class="arrange-grid" id="layoutArrange"></div>
-  <p class="src">Arrangements rearrange what is already on the board. <b>One pane</b> keeps the
-    first placed chart and parks the rest; <b>stack</b> gives every chart the full width, one
-    above another. No pane is squeezed below its readable height — when a column asks for more
-    height than the board has, the board grows and the page scrolls. Width is whatever the
-    board itself has, so a row split past what fits shares the shortfall across every pane
-    in it rather than starving the last one.</p>
+
+  <div class="opt-pane" id="optPaneWidgets" role="tabpanel" aria-labelledby="optTabWidgets">
+    <input type="search" class="opt-search" id="layoutSearch" autocomplete="off"
+           placeholder="Search widgets…"
+           aria-label="Search widgets by name, description or group" />
+    <h4 class="opt-head" id="layoutOnHead">On board</h4>
+    <div class="opt-list" id="layoutOn"></div>
+    <h4 class="opt-head" id="layoutAvailHead">Available</h4>
+    <div id="layoutAvail"></div>
+    <details class="parked" id="layoutParked" hidden>
+      <summary id="layoutParkedSummary">Parked — no data source yet</summary>
+      <p class="parked-why">These charts are parked because nothing in the loaded snapshot feeds
+        them — not because they are broken. Tick one to place it anyway; it will say in its own
+        body what is missing. Each leaves this group by itself the moment its data appears in
+        the payload.</p>
+      <div class="opt-list" id="layoutParkedTiles"></div>
+    </details>
+    <p class="opt-none" id="layoutNoMatch" hidden></p>
+  </div>
+
+  <div class="opt-pane" id="optPaneLayout" role="tabpanel" aria-labelledby="optTabLayout" hidden>
+    <p class="opt-sum" id="layoutNow"></p>
+    <div class="arrange-grid" id="layoutArrange"></div>
+    <!-- The six-line paragraph this replaces was permanently on screen above the widget list.
+         Kept in full, one disclosure away, because it answers a real question — what happens
+         to a chart an arrangement has no pane for — just not before it is asked. -->
+    <details class="opt-help">
+      <summary>What an arrangement does</summary>
+      <p class="src">Arrangements rearrange what is already on the board. <b>One pane</b> keeps the
+        first placed chart and parks the rest; <b>stack</b> gives every chart the full width, one
+        above another. No pane is squeezed below its readable height — when a column asks for more
+        height than the board has, the board grows and the page scrolls. Width is whatever the
+        board itself has, so a row split past what fits shares the shortfall across every pane
+        in it rather than starving the last one.</p>
+    </details>
+  </div>
+
+  <!-- Sticky, and shared by both tabs: reset is a workspace action, not a layout-tab one, and
+       it was previously buried inside the tray between the two lists. -->
+  <div class="opt-foot">
+    <button type="button" id="boardReset"
+            title="Restore this lens's default layout">Reset layout</button>
+    <span class="cmd-spacer"></span>
+    <button type="button" data-panel-close>Close</button>
+  </div>
 </div>
 
 <div class="modal" id="stockModal" hidden>
@@ -2690,34 +2797,26 @@ function layoutBoard(){
   if(!boardTree){
     const empty = document.createElement("div");
     empty.className = "board-empty";
-    // The tray moved into the Modules panel, so "the tray above" names something that is no
-    // longer above anything — an instruction pointing at empty space is worse than none.
-    empty.textContent = "Every chart is parked — open Modules to put one back on the board.";
+    // Names where the way back actually is. "The tray above" pointed at empty space once the
+    // tray moved into the panel, and the tray itself is now the panel's Widgets tab.
+    empty.textContent =
+      "Every chart is parked — open Modules → Widgets to put one back on the board.";
     board.appendChild(empty);
   }
-  renderTray();
+  boardChanged();
 }
 
-function trayChip(id, why){
-  return '<button type="button" class="tray-chip" data-tray="' + id + '" title="'
-    + escAttr(why || "Drag onto the edge of a pane to open a new bay, or click to place it")
-    + '"><span class="dot"></span>' + esc(TILE_LABELS[id]) + '</button>';
-}
-function renderTray(){
-  const host = document.getElementById("trayChips");
-  if(!host) return;
-  // Pinned to the front means the front of every list that offers the chart, or the star is a
-  // promise the tray breaks: the options panel led with a starred chart while the tray still
-  // had it fifth.
-  const ids = tileOrder(trayTiles());
-  host.innerHTML = ids.length
-    ? ids.map(id => trayChip(id)).join("")
-    : '<span class="tray-empty">every chart with data is on the board — press × on a card to park it here</span>';
+/* Was renderTray, which rebuilt a chip row showing the same set the panel's unchecked rows
+   already showed. The rows carry the drag now, so there is one list per widget; what remains
+   is the part that was never about the chips — telling the panel and the Modules counter that
+   the board moved. Renamed with it: "renderTray" would have named a thing that is gone.
+   Rebuilds no markup, so the panel survives a splitter drag with focus intact. */
+function boardChanged(){
   syncLayoutPanel();
-  // The Modules chip counts the same two lists this function just rebuilt. Placing a tile
-  // from the tray calls layoutBoard/saveBoard but not render(), so a chip that only refreshed
-  // on render read "3 on board" with four placed — a counter that is wrong is worse than no
-  // counter. Updated here, where the thing it counts changes.
+  // The Modules chip counts what this function just re-read. Placing a tile from the panel
+  // calls layoutBoard/saveBoard but not render(), so a chip that only refreshed on render read
+  // "3 on board" with four placed — a counter that is wrong is worse than no counter. Updated
+  // here, where the thing it counts changes.
   drawModChip();
 }
 
@@ -3209,16 +3308,66 @@ function arrangeDiagram(boxes){
    rather than left to the whole paragraph of label text. */
 function tileOption(id, note){
   const on = tileStarred(id);
-  return '<label' + (on ? ' class="starred"' : '') + '>'
+  const full = note || TILE_NOTES[id];
+  /* The row carries its group and its searchable text as data, so the filter reads what the
+     row IS rather than scraping the text it happens to render \u2014 a row whose brief is hidden
+     behind a truncation would otherwise stop matching its own description. */
+  return '<label' + (on ? ' class="starred"' : '') + ' data-tile-row="' + id + '"'
+    + ' data-find="' + escAttr((TILE_LABELS[id] + " " + TILE_BRIEF[id] + " " + full + " "
+                                + tileGroupOf(id)).toLowerCase()) + '"'
+    // The full sentence, on the row rather than permanently under the name. The brief below
+    // is what is on screen; this is the detail, one hover away.
+    + ' title="' + escAttr(full) + '">'
+    /* The drag handle \u2014 literally the old tray chip's contract, [data-tray] and all, so the
+       board's pointerdown and its Enter-to-place both find it unchanged. Rendered only on a
+       row that is off the board: a placed chart is dragged on the board itself, and a second
+       way to "place" something already placed is a control with nothing to do. */
+    + '<button type="button" class="tile-grip" data-tray="' + id + '"'
+    + ' title="Drag onto the edge of a pane to open a new bay, or press Enter to place it"'
+    + ' aria-label="Place ' + escAttr(TILE_LABELS[id]) + ' on the board">\u2261</button>'
+    + '<span class="grip-gap" aria-hidden="true"></span>'
     + '<input type="checkbox" data-tile="' + id + '" aria-label="'
     + escAttr(TILE_LABELS[id]) + ' on the board" />'
-    + '<span><b>' + esc(TILE_LABELS[id]) + '</b>' + esc(note || TILE_NOTES[id])
-    + '</span>'
+    + '<span><b>' + esc(TILE_LABELS[id]) + '</b>'
+    + '<i class="opt-brief">' + esc(TILE_BRIEF[id]) + '</i></span>'
+    + '<span class="opt-state" data-state></span>'
     + '<button type="button" class="tile-star" data-tile-star="' + id + '"'
     + ' aria-pressed="' + (on ? "true" : "false") + '"'
-    + ' title="Pin to the front" aria-label="Pin ' + escAttr(TILE_LABELS[id])
-    + ' to the front">\u2605</button></label>';
+    + ' title="Pin to quick access" aria-label="Pin ' + escAttr(TILE_LABELS[id])
+    + ' to quick access">\u2605</button></label>';
 }
+/* Which section of the panel each widget belongs to. Derived from TILE_IDS, never a second
+   registry: a widget in no group is surfaced under "Ungrouped" rather than dropped, and a
+   guard fails if one ever is \u2014 the same discipline LENS_GROUPS carries.
+
+   Shock & clock is deliberately absent: it stopped being a module when the context became
+   plain content, and Bucket history / detail / price feed / Book I are four TABS INSIDE
+   `bpanel`, not four widgets. Listing them here would invent registry entries. */
+const TILE_GROUPS = [
+  {title:"Core analysis",  keys:["plot", "rank", "dist", "price"]},
+  {title:"Research",       keys:["tone", "shadow", "card", "watch"]},
+  {title:"Context \u00b7 buckets", keys:["bpanel", "bwatch"]},
+];
+const UNGROUPED_TITLE = "Ungrouped";
+function tileGroupOf(id){
+  const g = TILE_GROUPS.find(x => x.keys.indexOf(id) !== -1);
+  return g ? g.title : UNGROUPED_TITLE;
+}
+/* One line each, which is what is on screen. TILE_NOTES stays as the full explanation and is
+   the row's title text \u2014 a summary and its detail are two contents, not one duplicated. Both
+   are guarded: every widget needs both, and a brief long enough to wrap is not a brief. */
+const TILE_BRIEF = {
+  plot:  "Valuation against growth, across the active universe.",
+  price: "Indexed price history for the pinned names.",
+  tone:  "Headline cards and tone for the pinned name.",
+  rank:  "Current matches, ranked by the selected lens.",
+  dist:  "Where the matches sit in one field's distribution.",
+  shadow:"Reported debt/equity for shadow-tagged names.",
+  card:  "The pinned name's whole results-table row.",
+  watch: "Names you kept, with the lens's ranking metric.",
+  bpanel:"History, thesis, price feed and Book I for the selection.",
+  bwatch:"Members of the selected buckets, with price and return.",
+};
 const TSTAR_KEY = "monad.screener.draft.tilestars.v1";
 let STARRED_TILES = loadTileStars();
 function loadTileStars(){
@@ -3236,8 +3385,17 @@ function toggleTileStar(id){
   const i = STARRED_TILES.indexOf(id);
   if(i === -1) STARRED_TILES.push(id); else STARRED_TILES.splice(i, 1);
   saveTileStars();
-  renderLayoutTiles();
-  renderTray();   // the tray offers the same charts, so it takes the same order
+  /* The row is UPDATED, not rebuilt. renderLayoutTiles used to redraw the whole list here,
+     which threw away the star the pointer was on — the button that was just pressed no longer
+     existed, so focus fell to the body and a second press needed a fresh tab through the
+     panel. syncLayoutPanel re-sorts it into place afterwards. */
+  const row = document.querySelector('#layoutPanel [data-tile-row="' + CSS.escape(id) + '"]');
+  if(row){
+    row.classList.toggle("starred", tileStarred(id));
+    const st = row.querySelector("[data-tile-star]");
+    if(st) st.setAttribute("aria-pressed", tileStarred(id) ? "true" : "false");
+  }
+  boardChanged();
 }
 /* Starred widgets lead, in the order they were starred; the rest keep TILE_IDS order. */
 function tileOrder(ids){
@@ -3247,29 +3405,103 @@ function tileOrder(ids){
   };
   return ids.slice().sort((a, b) => rank(a) - rank(b));
 }
+/* Every row is built ONCE, here, and afterwards only moved between the "on board" list and
+   its group. Rebuilding on each sync is what destroyed the pill row in the lens panel and the
+   star in this one; a moved node keeps its focus, its checkbox and its identity. Called again
+   only when the PAYLOAD changes which widgets have a data source. */
+function tileRow(id){
+  return document.querySelector('#optPaneWidgets [data-tile-row="' + CSS.escape(id) + '"]');
+}
 function renderLayoutTiles(){
-  const host = document.getElementById("layoutTiles");
-  if(!host) return;
+  const onHost = document.getElementById("layoutOn");
+  const availHost = document.getElementById("layoutAvail");
+  if(!onHost || !availHost) return;
+
+  // One container per group, created once and indexed by POSITION — a title used inside a
+  // selector needs escaping, and "Context · buckets" is exactly the kind of title that then
+  // matches nothing and grows a fresh empty heading on every render. The title is carried as
+  // data too, because routing a row back to its group is a string comparison, not a query.
+  const groups = TILE_GROUPS.map(g => g.title);
+  if(ALL_TILE_IDS.some(id => tileGroupOf(id) === UNGROUPED_TITLE)) groups.push(UNGROUPED_TITLE);
+  groups.forEach((title, gi) => {
+    if(availHost.querySelector('[data-tilegroup="' + gi + '"]')) return;
+    const wrap = document.createElement("div");
+    wrap.className = "optgroup";
+    const h = document.createElement("h5");
+    h.textContent = title;
+    const box = document.createElement("div");
+    box.className = "opt-list";
+    box.dataset.tilegroup = gi;
+    box.dataset.groupTitle = title;
+    wrap.appendChild(h); wrap.appendChild(box);
+    availHost.appendChild(wrap);
+  });
+
+  // Every row, once. A no-source widget gets its full note prefixed with what it is waiting
+  // on; that is a payload fact, fixed for the life of the page, so it belongs at creation.
   const parked = parkedTiles();
-  host.innerHTML = tileOrder(ALL_TILE_IDS.filter(id => !parked.includes(id)))
-    .map(id => tileOption(id)).join("");
-  const box = document.getElementById("layoutParked");
-  box.hidden = !parked.length;
-  if(!parked.length) return;
-  document.getElementById("layoutParkedSummary").textContent =
-    "Parked — no data source yet (" + parked.length + ")";
-  document.getElementById("layoutParkedTiles").innerHTML = tileOrder(parked).map(id =>
-    tileOption(id, "Waiting on " + TILE_NEEDS[id] + ". " + TILE_NOTES[id])).join("");
+  ALL_TILE_IDS.forEach(id => {
+    if(tileRow(id)) return;
+    const note = parked.includes(id)
+      ? "Waiting on " + TILE_NEEDS[id] + ". " + TILE_NOTES[id] : null;
+    availHost.querySelector('[data-tilegroup="0"]').insertAdjacentHTML(
+      "beforeend", tileOption(id, note));
+  });
+  syncLayoutPanel();
+}
+
+/* Which tab is showing. View state only — it says nothing about widgets or layout, so it is
+   not persisted and nothing reads it but the panel. */
+let OPT_TAB = "widgets";
+function setOptTab(tab){
+  OPT_TAB = (tab === "layout") ? "layout" : "widgets";
+  document.querySelectorAll("#layoutPanel [data-opt-tab]").forEach(b =>
+    b.setAttribute("aria-selected", b.dataset.optTab === OPT_TAB ? "true" : "false"));
+  const w = document.getElementById("optPaneWidgets");
+  const l = document.getElementById("optPaneLayout");
+  if(w) w.hidden = OPT_TAB !== "widgets";
+  if(l) l.hidden = OPT_TAB !== "layout";
+}
+
+/* Display only. Never touches a checkbox, a star or the board — a filtered-out widget is
+   hidden from this list, not removed from anything. */
+function filterLayoutTiles(){
+  const box = document.getElementById("layoutSearch");
+  const q = (box ? box.value : "").trim().toLowerCase();
+  let shown = 0;
+  document.querySelectorAll("#optPaneWidgets [data-tile-row]").forEach(row => {
+    const hit = !q || (row.dataset.find || "").indexOf(q) !== -1;
+    row.hidden = !hit;
+    if(hit) shown++;
+  });
+  // A heading over nothing reads as a section that has lost its contents.
+  document.querySelectorAll("#layoutAvail .optgroup").forEach(g => {
+    g.hidden = !g.querySelector("[data-tile-row]:not([hidden])");
+  });
+  const onList = document.getElementById("layoutOn");
+  const onHead = document.getElementById("layoutOnHead");
+  const availHead = document.getElementById("layoutAvailHead");
+  const onAny = !!(onList && onList.querySelector("[data-tile-row]:not([hidden])"));
+  if(onHead) onHead.hidden = !onAny;
+  if(onList) onList.hidden = !onAny;
+  if(availHead) availHead.hidden = !document.querySelector(
+    "#layoutAvail [data-tile-row]:not([hidden])");
+  const none = document.getElementById("layoutNoMatch");
+  if(none){
+    none.hidden = !!shown;
+    none.textContent = q ? 'No widget matches "' + q + '".' : "";
+  }
 }
 
 function buildLayoutPanel(){
-  const host = document.getElementById("layoutTiles");
+  const host = document.getElementById("layoutOn");
   if(!host) return;
   document.getElementById("layoutArrange").innerHTML = ARRANGEMENTS.map(a =>
     '<button type="button" data-arrange="' + a.key + '" aria-label="' + escAttr(a.aria) + '"'
     + ' title="' + escAttr(a.aria) + '">' + arrangeDiagram(a.boxes)
     + '<span aria-hidden="true">' + esc(a.label) + '</span></button>').join("");
   renderLayoutTiles();
+  setOptTab(OPT_TAB);
   // Delegated on the panel so the parked list, which is rebuilt whenever the payload changes
   // what has data, does not need a listener of its own.
   document.getElementById("layoutPanel").addEventListener("change", (ev)=>{
@@ -3281,30 +3513,142 @@ function buildLayoutPanel(){
   document.getElementById("layoutPanel").addEventListener("click", (ev)=>{
     const st = ev.target.closest("[data-tile-star]");
     // A star inside a <label> would otherwise toggle the checkbox it sits in.
-    if(st){ ev.preventDefault(); ev.stopPropagation(); toggleTileStar(st.dataset.tileStar); }
+    if(st){ ev.preventDefault(); ev.stopPropagation(); toggleTileStar(st.dataset.tileStar); return; }
+    // Same reason for the grip: placement is done by the board's pointerup, and letting the
+    // click through as well would tick the checkbox and place the tile twice over.
+    const grip = ev.target.closest("[data-tray]");
+    if(grip){ ev.preventDefault(); ev.stopPropagation(); return; }
+    const tab = ev.target.closest("[data-opt-tab]");
+    if(tab){ setOptTab(tab.dataset.optTab); syncLayoutPanel(); }
   });
+  document.getElementById("layoutSearch").addEventListener("input", filterLayoutTiles);
   document.getElementById("layoutArrange").addEventListener("click", (ev)=>{
     const btn = ev.target.closest("button[data-arrange]");
     if(btn) arrangeBoard(btn.dataset.arrange);
   });
   syncLayoutPanel();
 }
-/* Only the checked flags are written back, never the markup: the panel stays open while the
-   board changes under it, and rebuilding the list would drop focus mid-interaction. */
+/* Which named arrangement, if any, describes the board as it stands.
+
+   With one pane placed every arrangement produces the same board; only "one pane" is an
+   honest description of it. At two tiles a board can only be one row or one column, so
+   Columns and Grid describe the same board and so do Stack and Rows — naming both of a pair
+   would say the board is two arrangements at once, so the first menu entry that builds it
+   takes the mark and the rest stay dark. One definition, because the pictogram highlight and
+   the two summary lines all state it and three restatements is three chances to disagree. */
+function currentArrangement(){
+  const placed = treeTiles(boardTree);
+  return ARRANGEMENTS.find(a =>
+    placed.length > (a.key === "single" ? 0 : 1)
+    && sameTree(arrangeTree(a.key, placed), boardTree)) || null;
+}
+/* Only flags, text and PARENTAGE are written back, never fresh markup: the panel stays open
+   while the board changes under it, and rebuilding the list would drop focus mid-interaction. */
 function syncLayoutPanel(){
   const placed = treeTiles(boardTree);
+  const onHost = document.getElementById("layoutOn");
+  if(!onHost) return;
+
   document.querySelectorAll("#layoutPanel input[data-tile]").forEach(cb =>
     { cb.checked = placed.includes(cb.dataset.tile); });
-  // With one pane placed every arrangement produces the same board; only "one pane" is an
-  // honest description of it. At two tiles a board can only be one row or one column, so
-  // Columns and Grid describe the same board and so do Stack and Rows — lighting both of a
-  // pair would say the board is two arrangements at once, so the first menu entry that
-  // builds it takes the mark and the rest stay dark.
-  const marked = ARRANGEMENTS.find(a =>
-    placed.length > (a.key === "single" ? 0 : 1)
-    && sameTree(arrangeTree(a.key, placed), boardTree));
+  document.querySelectorAll("#optPaneWidgets [data-tile-row]").forEach(row => {
+    const on = placed.includes(row.dataset.tileRow);
+    row.classList.toggle("on", on);
+    const st = row.querySelector("[data-state]");
+    if(st) st.textContent = on ? "on board" : "parked";
+    // A placed widget has no grip: it is dragged on the board, where its pane is.
+    const grip = row.querySelector(".tile-grip");
+    if(grip) grip.hidden = on;
+    const gap = row.querySelector(".grip-gap");
+    if(gap) gap.hidden = !on;
+  });
+
+  /* Three destinations, one rule: on the board, or waiting on data, or available in its
+     group. A row is MOVED between them — the same node throughout, so its checkbox, its star
+     and any focus on either survive the trip.
+
+     ON BOARD is listed in the tree's own reading order — left to right, top to bottom — so
+     the list says the same thing the board does. There is no other order to give it: a leaf's
+     place in a split tree is not an index, which is why these rows carry no reorder handle. */
+  const parkedBox = document.getElementById("layoutParkedTiles");
+  const groupBox = title => document.querySelector(
+    '#layoutAvail [data-tilegroup]') && Array.from(
+      document.querySelectorAll("#layoutAvail [data-tilegroup]"))
+      .find(b => b.dataset.groupTitle === title);
+  const homeFor = id => placed.includes(id) ? onHost
+    : (tileHasData(id) ? (groupBox(tileGroupOf(id)) || onHost) : parkedBox);
+
+  // Order inside each destination: the board's order on the board, starred-first everywhere
+  // else — a pin means the front of every list that offers the widget, or it is a promise one
+  // of those lists breaks. Written only when it differs, so nothing churns under the pointer.
+  const wanted = new Map();
+  const want = (host, id) => {
+    if(!host || !tileRow(id)) return;
+    if(!wanted.has(host)) wanted.set(host, []);
+    wanted.get(host).push(id);
+  };
+  placed.forEach(id => want(onHost, id));
+  tileOrder(ALL_TILE_IDS.filter(id => !placed.includes(id)))
+    .forEach(id => want(homeFor(id), id));
+  /* Moving a node blurs anything focused INSIDE it, and every one of these moves is caused by
+     a control the reader just pressed: starring re-sorts the row under its own star, ticking
+     carries the row to "On board" under its own checkbox. Without this the caret landed on
+     <body> after each press and a second press needed a fresh tab through the panel — which
+     is the very thing building the rows once was meant to avoid.
+
+     Restored at the END of this function, not here. A group that was empty is hidden, so
+     unticking appends the row into a display:none container and .focus() on it silently does
+     nothing; the group is only unhidden by filterLayoutTiles at the bottom. Star and tick
+     survived a restore placed here and untick did not, which is exactly that asymmetry. */
+  const held = document.activeElement;
+  const wasHeld = !!(held && held.closest && held.closest("#optPaneWidgets [data-tile-row]"));
+  wanted.forEach((ids, host) => {
+    const have = Array.from(host.children).map(el => el.dataset.tileRow);
+    if(ids.join("|") !== have.join("|")) ids.forEach(id => host.appendChild(tileRow(id)));
+  });
+  // Emptied hosts keep no strays: a row whose destination changed has already been appended
+  // elsewhere, so anything left in a host that wanted nothing was never there legitimately.
+  [onHost, parkedBox].concat(
+    Array.from(document.querySelectorAll("#layoutAvail [data-tilegroup]"))).forEach(host => {
+      if(host && !wanted.has(host)) Array.from(host.children).forEach(el => {
+        const home = homeFor(el.dataset.tileRow);
+        if(home && home !== host) home.appendChild(el);
+      });
+    });
+  const details = document.getElementById("layoutParked");
+  // Counted from what the box HOLDS, not from parkedTiles(): a no-source widget the reader
+  // placed anyway is on the board, and a disclosure reading "(2)" over one row is a small lie
+  // told by a count that describes a different set than the list under it.
+  const waiting = parkedBox ? parkedBox.children.length : 0;
+  if(details){
+    details.hidden = !waiting;
+    document.getElementById("layoutParkedSummary").textContent =
+      "Parked — no data source yet (" + waiting + ")";
+  }
+
+  const marked = currentArrangement();
   document.querySelectorAll("#layoutArrange button[data-arrange]").forEach(btn =>
     { btn.classList.toggle("on", !!marked && btn.dataset.arrange === marked.key); });
+
+  const off = ALL_TILE_IDS.length - placed.length;
+  const shape = marked ? marked.label : "arranged by hand";
+  const sum = document.getElementById("layoutSummary");
+  if(sum){
+    sum.innerHTML = '<b>' + placed.length + '</b> on board · <b>' + off + '</b> parked · '
+      + esc(shape);
+  }
+  const now = document.getElementById("layoutNow");
+  if(now){
+    now.innerHTML = placed.length
+      ? 'Now: <b>' + esc(shape) + '</b> · ' + placed.length
+        + (placed.length === 1 ? " pane" : " panes")
+      : "Nothing is on the board — tick a widget under Widgets first.";
+  }
+  filterLayoutTiles();
+  // Last, because filterLayoutTiles is what makes the row's new container visible again.
+  if(wasHeld && document.contains(held) && document.activeElement !== held){
+    held.focus({preventScroll: true});
+  }
 }
 
 function initBoard(){
@@ -3373,9 +3717,13 @@ function initBoard(){
     scheduleChartReflow();
   });
 
-  // Bound on the whole tray, not just the chip row, so a chip in the parked disclosure is
-  // draggable on exactly the same path as an ordinary one.
-  document.getElementById("tray").addEventListener("pointerdown", (ev)=>{
+  /* Bound on the whole PANEL, not on one list inside it, so every grip is draggable on the
+     same path whichever list its row is currently in — available group, parked disclosure,
+     or the search's filtered view. This binding used to name `#tray`; when the tray became a
+     grip on each row, a listener still bound to the container the grips are not in would have
+     silently dropped drag AND keyboard placement, with the checkbox left as the only way to
+     place anything. */
+  document.getElementById("layoutPanel").addEventListener("pointerdown", (ev)=>{
     if(ev.button !== 0) return;
     const chip = ev.target.closest("[data-tray]");
     if(!chip) return;
@@ -3385,11 +3733,11 @@ function initBoard(){
     ev.preventDefault();
   });
 
-  // A chip is a real button and offers "or click to place it", but placement hangs off
+  // A grip is a real button and offers "or press Enter to place it", but placement hangs off
   // pointerup, which a keypress never produces. Enter/Space is handled here rather than by
   // listening for `click`, because a mouse click raises both and the tile would be placed
   // twice. Space is also the page's scroll key, so the default has to go.
-  document.getElementById("tray").addEventListener("keydown", (ev)=>{
+  document.getElementById("layoutPanel").addEventListener("keydown", (ev)=>{
     if(ev.key !== "Enter" && ev.key !== " " && ev.key !== "Spacebar") return;
     const chip = ev.target.closest("[data-tray]");
     if(!chip) return;
@@ -3398,8 +3746,8 @@ function initBoard(){
     layoutBoard();
     saveBoard();
     scheduleChartReflow();
-    // The chip it was placed from no longer exists — the tray is rebuilt without it — so the
-    // caret goes to the pane that was just opened rather than being dropped on the body.
+    // The grip is hidden the moment its row lands on the board, so the caret goes to the pane
+    // that was just opened rather than being dropped on the body.
     document.getElementById("tile-" + chip.dataset.tray)
       ?.querySelector("[data-close]")?.focus();
   });
@@ -4750,7 +5098,13 @@ function panelOpen(pop, trigger, focusEl){
   document.querySelectorAll(PANEL_TRIGGERS).forEach(b=>b.setAttribute("aria-expanded","false"));
   if(trigger) trigger.setAttribute("aria-expanded", "true");
   activePanel = {pop, trigger};
-  (focusEl || pop.querySelector(".explain-close")).focus();
+  /* A panel opens at its top. It scrolls, and focusing a field inside it let the browser
+     scroll the panel to suit that field — the widget panel opened 241px down, with its
+     summary, its tabs and its whole "On board" list already above the fold, which reads as a
+     panel missing the sections it in fact has. preventScroll keeps the caret placement from
+     deciding where the reader starts. */
+  pop.scrollTop = 0;
+  (focusEl || pop.querySelector(".explain-close")).focus({preventScroll: true});
 }
 function panelClose(){
   if(!activePanel) return;
@@ -6566,7 +6920,12 @@ function drawLensPanel(){
       const h = document.createElement("h4");
       h.textContent = g.title;
       box = document.createElement("div");
-      box.className = "lens-fav";
+      /* `.presets`, not `.lens-fav`: these boxes hold the real pills, and every rule that
+         makes a pill one bubble — the .lens-wrap border around star+name, the .lens-chip
+         border around star+name+edit+delete, the starred outline, the dashed custom
+         border — is written under `.presets`. Under `.lens-fav` each button drew its own
+         border instead, so one lens presented as two bubbles and a custom lens as four. */
+      box.className = "presets lens-menu";
       box.dataset.groupIndex = gi;
       wrap.appendChild(h);
       wrap.appendChild(box);

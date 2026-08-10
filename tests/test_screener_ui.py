@@ -883,14 +883,28 @@ class TheCommandBarReadsStateNotTheDom(unittest.TestCase):
                          "menu groups naming lenses that do not exist")
 
     def test_the_relocated_blocks_still_exist(self):
-        """Moved into disclosures, not deleted. Each keeps its id so the code that renders it
-        keeps working — this is a relocation, and a missing id here means a lost feature."""
+        """Moved into disclosures, not deleted. Each panel still holds the component it
+        absorbed, so a missing one here means a lost feature.
+
+        `layoutPanel` is checked by CAPABILITY rather than by container id. It used to be
+        pinned to `id="tray"`, and the tray was later folded into the option rows themselves —
+        which is a relocation of exactly the kind this test exists to permit. What must not
+        vanish is the ability to get an unplaced module onto the board by dragging it, which
+        lives on `[data-tray]` wherever that is rendered."""
         for pid, inner in (("lensPanel", 'id="presets"'), ("filterPanel", 'id="filters"'),
-                           ("dataPanel", 'id="providers"'), ("layoutPanel", 'id="tray"')):
-            panel = re.search(r'<div class="explain" id="%s".*?\n</div>' % pid,
+                           ("dataPanel", 'id="providers"'), ("layoutPanel", "data-tray=")):
+            panel = re.search(r'<div class="explain[^"]*" id="%s".*?\n</div>' % pid,
                               self.html, re.S)
             self.assertIsNotNone(panel, pid)
-            self.assertIn(inner, panel.group(0),
+            body = panel.group(0)
+            if pid == "layoutPanel":
+                # The drag source is rendered by JS into this panel, so the check is that the
+                # panel exists and that something in the page emits the handle into it.
+                self.assertIn('id="layoutAvail"', body)
+                self.assertIn('class="tile-grip" data-tray="', self.html,
+                              "no drag handle is rendered for an unplaced module")
+                continue
+            self.assertIn(inner, body,
                           "{} no longer contains {}".format(pid, inner))
 
     def test_the_context_reports_screenable_and_held_separately(self):
@@ -1410,3 +1424,181 @@ class NoHandlerIsBoundToAnElementThatIsNotThere(unittest.TestCase):
 
     def test_the_buckets_page_binds_only_to_elements_it_has(self):
         self._check("SOVEREIGN_LEDGER_OPTIONS_MOCK.html")
+
+
+class TheWidgetPanelIsOneListPerWidget(unittest.TestCase):
+    """The Widget options panel names where every module is. It used to render the unplaced
+    set TWICE — once as tray chips, once as unchecked option rows — so a widget appeared in
+    two places in the one panel whose whole job is to say where it is.
+
+    These guard the properties that replacement rests on, each of which has a way to silently
+    regress:
+
+      * every widget in the board registry is in exactly one panel group, or the "Available"
+        list is not the full set it presents itself as;
+      * every widget has a one-line brief AND a full note, because the brief is what is on
+        screen and the note is what the row's tooltip carries — dropping either leaves a row
+        rendering `undefined`;
+      * the drag handle is reachable from wherever the row currently is, which means the
+        listener must be bound to the panel and not to a list inside it. Binding to a
+        container the subjects have left is the failure this file has now recorded three
+        times (the lens star, the pill styling, and the tray)."""
+
+    def setUp(self):
+        self.html = _page()
+
+    def _js_map_keys(self, name):
+        m = re.search(r"const %s = \{(.*?)\n\};" % name, self.html, re.S)
+        self.assertIsNotNone(m, name + " is not defined as a literal map")
+        return set(re.findall(r"(\w+)\s*:", m.group(1)))
+
+    def _registry(self):
+        m = re.search(r"const TILE_IDS = \[(.*?)\];", self.html, re.S)
+        self.assertIsNotNone(m)
+        return set(re.findall(r'"(\w+)"', m.group(1)))
+
+    def test_every_registered_widget_lands_in_exactly_one_group(self):
+        m = re.search(r"const TILE_GROUPS = \[(.*?)\n\];", self.html, re.S)
+        self.assertIsNotNone(m, "TILE_GROUPS is not defined as a literal")
+        grouped = re.findall(r'"(\w+)"', m.group(1))
+        # Titles are quoted too; only ids that are real tiles count as membership.
+        ids = self._registry()
+        members = [k for k in grouped if k in ids]
+        self.assertEqual(sorted(members), sorted(set(members)),
+                         "a widget is listed in more than one group")
+        self.assertEqual(sorted(ids - set(members)), [],
+                         "registered widgets that no panel group claims")
+
+    def test_every_widget_has_both_a_brief_and_a_full_note(self):
+        ids = self._registry()
+        brief = self._js_map_keys("TILE_BRIEF")
+        notes = self._js_map_keys("TILE_NOTES")
+        self.assertEqual(sorted(ids - brief), [], "widgets with no one-line brief")
+        self.assertEqual(sorted(ids - notes), [], "widgets with no full note")
+
+    def test_a_brief_is_actually_brief(self):
+        """The point of the brief is that it does not wrap. A full sentence pasted in here
+        would restore the text density this pass removed while still passing every other
+        check in this class."""
+        m = re.search(r"const TILE_BRIEF = \{(.*?)\n\};", self.html, re.S)
+        long = [t for t in re.findall(r'"([^"]{5,})"', m.group(1)) if len(t) > 62]
+        self.assertEqual(long, [], "briefs long enough to wrap: {}".format(long))
+
+    def test_the_drag_listener_is_bound_to_the_panel_not_a_list_inside_it(self):
+        for ev in ("pointerdown", "keydown"):
+            pat = r'getElementById\("(\w+)"\)\.addEventListener\("%s"' % ev
+            hosts = re.findall(pat, self.html)
+            self.assertIn("layoutPanel", hosts,
+                          "no {} listener on the widget panel — the grip would be dead "
+                          "for every row the search or a group move relocates".format(ev))
+
+    def test_the_summary_and_the_highlight_read_one_definition(self):
+        """The panel states the current arrangement three times: the lit pictogram, the header
+        summary and the Layout tab's "Now:" line. Three independent computations of one fact
+        is three chances for the panel to contradict itself."""
+        self.assertEqual(len(re.findall(r"function currentArrangement\(", self.html)), 1)
+        body = re.search(r"function syncLayoutPanel\(\)\{(.*?)\n\}", self.html, re.S)
+        self.assertIsNotNone(body)
+        self.assertIn("currentArrangement()", body.group(1))
+        self.assertNotIn("sameTree(arrangeTree(", body.group(1),
+                         "syncLayoutPanel recomputes the arrangement instead of asking for it")
+
+    def test_a_searched_out_row_is_actually_hidden(self):
+        """`hidden` is a UA rule at the lowest specificity and `display:flex` outranks it, so
+        without an explicit rule the filter sets an attribute and nothing moves."""
+        self.assertIn(".explain .opt-list label[hidden]{display:none}", self.html)
+
+    def test_the_search_never_writes_widget_state(self):
+        body = re.search(r"function filterLayoutTiles\(\)\{(.*?)\n\}", self.html, re.S)
+        self.assertIsNotNone(body)
+        for forbidden in ("setTilePlaced", "boardTree", "saveBoard", "toggleTileStar",
+                          ".checked ="):
+            self.assertNotIn(forbidden, body.group(1),
+                             "the widget search changes state: " + forbidden)
+
+    def test_the_panel_has_both_tabs_and_defaults_to_widgets(self):
+        self.assertIn('data-opt-tab="widgets"', self.html)
+        self.assertIn('data-opt-tab="layout"', self.html)
+        self.assertIn('let OPT_TAB = "widgets"', self.html)
+
+    def test_reset_and_close_survive_a_scroll(self):
+        """The panel is tall enough that both used to leave with the first screenful."""
+        for sel in (".opt-panel .opt-top", ".opt-panel .opt-foot"):
+            m = re.search(re.escape(sel) + r"\{([^}]*)\}", self.html)
+            self.assertIsNotNone(m, sel + " has no rule")
+            self.assertIn("position:sticky", m.group(1), sel + " is not sticky")
+        foot = re.search(r'<div class="opt-foot">(.*?)</div>', self.html, re.S)
+        self.assertIsNotNone(foot)
+        self.assertIn('id="boardReset"', foot.group(1))
+        self.assertIn("data-panel-close", foot.group(1))
+
+
+class TheLensPillIsOneBubble(unittest.TestCase):
+    """A lens is one control: star, name, and for a custom lens its edit and delete. The
+    grouped menu's containers carried `.lens-fav`, whose `button` rule gives EVERY descendant
+    button its own bordered pill — so a lens arrived as two bubbles side by side and a custom
+    lens as four, with the unifying `.presets .lens-wrap` border matching nothing because the
+    pills had been moved out of `.presets`.
+
+    This is the same defect as the dead star click and the dead tray listener: a rule scoped
+    to a container its subjects no longer live in. The guard is the property — whatever class
+    the containers carry, the rule that draws the bubble must match it."""
+
+    def setUp(self):
+        self.html = _page()
+
+    def _container_class(self):
+        # Scoped to drawLensPanel: the widget panel builds its own group boxes the same way,
+        # and an unscoped search finds whichever function happens to be earlier in the file.
+        fn = re.search(r"function drawLensPanel\(\)\{(.*?)\n\}", self.html, re.S)
+        self.assertIsNotNone(fn, "drawLensPanel is gone")
+        m = re.search(r'box\.className = "([^"]+)";', fn.group(1))
+        self.assertIsNotNone(m, "the lens group container sets no class")
+        return set(m.group(1).split())
+
+    def test_the_group_container_is_matched_by_the_bubble_rule(self):
+        classes = self._container_class()
+        for rule in (".lens-wrap{", ".lens-chip{"):
+            m = re.search(r"([^\n{}]*)" + re.escape(rule), self.html)
+            self.assertIsNotNone(m, rule + " has no rule")
+            scope = m.group(1).strip().split()[0].lstrip(".")
+            self.assertIn(scope, classes,
+                          "{} is scoped to .{}, which the lens menu containers "
+                          "({}) do not carry".format(rule, scope, sorted(classes)))
+
+    def test_the_container_does_not_pill_every_button_it_holds(self):
+        """`.lens-fav button` is the rule that split one pill into two. If the containers ever
+        carry it again, the star leaves the bubble."""
+        self.assertNotIn("lens-fav", self._container_class())
+
+    def test_only_the_unit_draws_a_border(self):
+        """`.lens-star` sets border:0, but `.presets button` is class-plus-element and outranks
+        it — so the star drew its own round border INSIDE the wrap's, two concentric bubbles
+        for one control. The wrap's reset was written `> button[data-p]`, which the star does
+        not carry; the chip's was written `button`, which is why only the wrap was wrong."""
+        m = re.search(r"\.presets \.lens-wrap button\{([^}]*)\}", self.html)
+        self.assertIsNotNone(m, "no rule zeroes the border of every button in a lens wrap")
+        self.assertIn("border:0", m.group(1))
+        chip = re.search(r"\.presets \.lens-chip button\{([^}]*)\}", self.html)
+        self.assertIsNotNone(chip, "no rule zeroes the border of every button in a lens chip")
+        self.assertIn("border:0", chip.group(1))
+
+
+class TheActiveStateIsThePagesColourNotTheReaders(unittest.TestCase):
+    """Form controls ran at the initial `accent-color:auto`, which resolves to the READER'S
+    operating-system accent — a ticked checkbox came out magenta on one machine and blue on
+    another. The widget panel makes a checkbox the primary "this is on the board" signal, so
+    that colour is now load-bearing and cannot be delegated to the OS."""
+
+    def test_the_page_declares_its_own_accent_colour(self):
+        html = _page()
+        root = re.search(r":root\{(.*?)\n\}", html, re.S)
+        self.assertIsNotNone(root)
+        # Comments stripped first: the block's own comment quotes `accent-color:auto` as the
+        # thing being fixed, and a guard that matches prose about the code instead of the code
+        # is the specific way the guards in this file have gone quiet before.
+        css = re.sub(r"/\*.*?\*/", "", root.group(1), flags=re.S)
+        m = re.search(r"accent-color:\s*([^;]+);", css)
+        self.assertIsNotNone(m, "no accent-color is declared, so the OS picks it")
+        self.assertEqual(m.group(1).strip(), "var(--accent)",
+                         "the checkbox accent is not the page's own accent")

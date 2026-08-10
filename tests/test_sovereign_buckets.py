@@ -250,9 +250,21 @@ class TheBucketsAreOnTheScreenerBoard(unittest.TestCase):
         for analysis in ("bpanel", "bwatch"):
             self.assertIn('data-id="{}"'.format(analysis), board.group(1),
                           "{} is a board module but is not in the board".format(analysis))
-        self.assertRegex(
-            self.html, r"tileOrder\(ALL_TILE_IDS\.filter\(id => !parked\.includes\(id\)\)\)",
-            "the widget panel must offer both registries, or a bay card cannot be reopened")
+        # The property, not the expression. This used to pin the literal
+        # `tileOrder(ALL_TILE_IDS.filter(id => !parked.includes(id)))`, which stopped being the
+        # code the moment the panel built its rows once and moved them between lists — while
+        # the thing it was protecting (every registered module has a row, so a parked bay card
+        # can be got back) held throughout. What must be true is that the row builder walks the
+        # WHOLE registry.
+        fn = re.search(r"function renderLayoutTiles\(\)\{(.*?)\n\}", self.html, re.S)
+        self.assertIsNotNone(fn, "the widget panel has no row builder")
+        body = re.sub(r"/\*.*?\*/|//[^\n]*", "", fn.group(1), flags=re.S)
+        self.assertIn("ALL_TILE_IDS", body,
+                      "the widget panel does not offer the full registry, so a parked bay "
+                      "card cannot be reopened")
+        self.assertNotRegex(body, r"\bTILE_IDS\.(forEach|map|filter)",
+                            "the row builder walks the chart registry alone, which leaves the "
+                            "bucket modules with no row")
 
     def test_nothing_routes_around_the_board(self):
         """`setTilePlaced` used to divert bay ids to a second show/hide path. With one
