@@ -1480,7 +1480,7 @@ def _nav_view_items():
     from reads as a different application, which is how it drifted the first time."""
     return [("/", "Overview"), ("/web", "Research web"),
             ("/web/groups", "Web groups"),
-            ("/screener/draft", "Screener"), ("/screener/buckets", "Buckets"),
+            ("/screener/draft", "Screener"),
             ("/graph", "Context map"), ("/surfaces", "UI surfaces")]
 
 
@@ -1488,6 +1488,11 @@ def _nav(active, mounts):
     # "Screener" is the combined surface at /screener/draft — it carries the lens bubbles,
     # the tone columns and the widget board. The older preset-only page at /screener still
     # answers (a bookmark must not 404) but is no longer offered in the rail.
+    # /screener/buckets goes the same way: the bucket workspace — shock and clock, the twenty
+    # cards, the heat ordering — is the screener's CONTEXT layer now, at the top of the page
+    # it constrains. Offering it as a second destination invited the reader to choose a thesis
+    # somewhere it could not narrow anything, which is the confusion the reorganization
+    # removed. The route still answers, and its own bucket-analysis panels are board modules.
     # /sentiment is no longer offered in the rail: its Bloomberg/Reddit tone now reads on
     # the screener itself (tone lenses, tone columns, per-name coverage), so a second page
     # showing the same snapshot was a second path to one fact. The route still answers.

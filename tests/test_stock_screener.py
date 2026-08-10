@@ -304,8 +304,15 @@ class ScreenPageTests(unittest.TestCase):
         self.assertEqual(code, 200)
         self.assertIn("No snapshot fetched", body)
         self.assertIn("stock_screener.py fetch", body)
-        # The rail (not an in-page toggle) navigates to the buckets surface.
-        self.assertIn('href="/screener/buckets"', body)
+        # The buckets surface is no longer offered in the rail: the bucket workspace is the
+        # screener's CONTEXT layer now, at the top of the page it constrains, and a second
+        # destination invited the reader to pick a thesis somewhere it could narrow nothing.
+        # What must remain true is that the route still ANSWERS — a bookmark must not 404,
+        # the same rule /screener and /sentiment were kept under when they left the rail.
+        self.assertNotIn('href="/screener/buckets"', body,
+                         "the buckets page is promoted in the rail again")
+        code2, _b2, _c2 = self.ru.route("/screener/buckets", {}, {})
+        self.assertEqual(code2, 200, "a bookmarked /screener/buckets must not 404")
 
     def test_every_preset_button_is_on_the_page(self):
         code, body, _ct = self.ru.route("/screener", {}, {})

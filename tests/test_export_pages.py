@@ -74,9 +74,25 @@ class ExportTests(unittest.TestCase):
         """The server injects the snapshot at request time; nothing does that on Pages,
         so an un-baked export would publish the page's own absence state forever."""
         text = self.pages["index.html"]
-        self.assertIn('href="buckets.html"', text)
+        # The buckets link was asserted here incidentally, via the rail. It is gone from the
+        # rail on purpose now and the page it pointed at is still published — that pair is
+        # checked by test_the_buckets_page_is_published_but_no_longer_advertised, which is
+        # where it belongs. This test is about the payload being baked in.
         self.assertIn("Low P/E", text)
         self.assertIn("__DRAFT_LIVE__", text)
+
+    def test_the_buckets_page_is_published_but_no_longer_advertised(self):
+        """The bucket workspace is the screener's context layer now, so the rail stops
+        offering a second destination for choosing a thesis. The page itself stays published:
+        an existing bookmark must not begin 404ing, which is the rule /screener and
+        /sentiment were kept under when they left the rail."""
+        self.assertIn("buckets.html", self.pages,
+                      "buckets.html must still be published — a live link cannot start 404ing")
+        for name in ("index.html", "overview.html", "web.html", "surfaces.html"):
+            rail = re.search(r'<nav class="rail">.*?</nav>', self.pages[name], re.S)
+            self.assertIsNotNone(rail, name)
+            self.assertNotIn("buckets.html", rail.group(0),
+                             "{} still advertises the buckets page in its rail".format(name))
 
     def _baked_payload(self):
         import json

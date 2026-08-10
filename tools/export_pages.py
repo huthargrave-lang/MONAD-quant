@@ -76,7 +76,11 @@ _STATIC_VIEWS = [
     ("web.html", "Research web", "web"),
     ("web-groups.html", "Web groups", "groups"),
     ("index.html", "Screener", "screener"),
-    ("buckets.html", "Buckets", "buckets"),
+    # No Buckets entry. The bucket workspace is the screener's CONTEXT layer now, at the top
+    # of the page it constrains; a second destination invited the reader to choose a thesis
+    # somewhere it could narrow nothing. buckets.html is STILL PUBLISHED — an existing link
+    # must not start 404ing — it is simply no longer advertised, the same treatment
+    # /screener and /sentiment got when they left the server's rail.
     ("map.html", "Context map", "map"),
     ("surfaces.html", "UI surfaces", "surfaces"),
 ]
