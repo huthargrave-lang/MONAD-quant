@@ -190,6 +190,15 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
    headings use makes that unreadable at exactly the length it actually is. */
 .scen-part{margin:2px 0 6px;font-size:11.5px;line-height:1.5;color:var(--ink-2);
   border-left:2px solid var(--rule);padding-left:8px}
+/* The probability path. Drawn against a full 0–100% axis, so the line's height on the pane is
+   the probability itself rather than its position within its own range — see drawScenPath. */
+.sp-svg{width:100%;height:100%;display:block}
+.sp-grid{stroke:var(--rule);stroke-width:1}
+.sp-tick{fill:var(--ink-muted);font:9.5px var(--mono)}
+.sp-line{fill:none;stroke:var(--accent);stroke-width:2;stroke-linejoin:round}
+.sp-dot{fill:var(--accent);stroke:var(--plane);stroke-width:1.5}
+.sdev-list{margin:0;padding-left:18px;font-size:12px;color:var(--ink-2);line-height:1.45}
+.sdev-list li{margin:0 0 8px}
 #scenPanel .scen-fixture,.scen-why-head .scen-fixture{border-left:2px solid var(--warning);
   padding-left:6px;color:var(--warning);letter-spacing:.03em;font:10px var(--mono)}
 .ctx-toggle{border:1px solid var(--rule);background:var(--surface);color:var(--ink-2);
@@ -1474,6 +1483,36 @@ table.bwatch .spark{width:80px;height:26px;display:block}
           <div class="detail-card" id="watchList"></div>
         </div>
       </article>
+
+      <!-- The two scenario tiles. They are the only modules on this board whose availability
+           depends on WHICH SHOCK is selected rather than on the payload, so they are the only
+           two that can be absent while every source they need is present. Absent, not parked:
+           parked means "waiting on data that has not arrived", and a scenario nobody has
+           written for taiwan is not late. -->
+      <article class="tile" data-id="spath" id="tile-spath">
+        <div class="tile-bar" data-drag>
+          <span class="tile-grip">⋮⋮</span>
+          <h2 id="spathTitle">Probability path</h2>
+          <div class="tile-meta" id="spathMeta">—</div>
+          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
+        </div>
+        <div class="tile-body">
+          <div class="chart-host" id="spathChart"></div>
+          <div class="legend" id="spathLegend"></div>
+        </div>
+      </article>
+
+      <article class="tile" data-id="sdev" id="tile-sdev">
+        <div class="tile-bar" data-drag>
+          <span class="tile-grip">⋮⋮</span>
+          <h2 id="sdevTitle">Development timeline</h2>
+          <div class="tile-meta" id="sdevMeta">—</div>
+          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
+        </div>
+        <div class="tile-body">
+          <div class="detail-card" id="sdevList"></div>
+        </div>
+      </article>
     </div>
     <button type="button" class="board-resize" id="boardResize"
             aria-label="Drag to resize the widget area; arrow keys also work"
@@ -2545,7 +2584,12 @@ function priceCohort(cap){
    analytical OUTPUTS about a chosen universe, not controls that choose one — the same kind of
    thing as the scatter and the ranking, and placed, dragged and resized by the same system.
    Keeping them in the context turned it into a second dashboard. */
-const TILE_IDS = ["plot","price","tone","rank","dist","shadow","card","watch","bpanel","bwatch"];
+const TILE_IDS = ["plot","price","tone","rank","dist","shadow","card","watch","bpanel","bwatch",
+                  "spath","sdev"];
+/* The two modules whose availability is a fact about the SELECTED SHOCK rather than about the
+   payload. Everything else on this board is available whenever its source is, for the whole
+   life of the page; these two come and go as the reader changes what they are looking at. */
+const SCENARIO_TILES = ["spath", "sdev"];
 /* What the CONTEXT section owns: the controls that DEFINE the universe, and nothing that
    analyses it. */
 /* There is no second region any more. The context's controls and card grid are plain content
@@ -2555,6 +2599,7 @@ const TILE_IDS = ["plot","price","tone","rank","dist","shadow","card","watch","b
 const ALL_TILE_IDS = TILE_IDS.slice();
 const TILE_LABELS = {
   plot:"P/E × growth", price:"Price history", tone:"Headlines & tone",
+  spath:"Probability path", sdev:"Development timeline",
   rank:"Ranked by lens", dist:"Distribution", shadow:"AI shadow",
   card:"Stock detail", watch:"Watchlist",
   bucketctl:"Shock & clock", buckets:"Chaos buckets",
@@ -2573,7 +2618,13 @@ const TILE_NOTES = {
   buckets:"The 20 Sovereign Ledger theses. Pick one or several; every other card follows.",
   bpanel: "History, thesis, price feed and Book I for the selection — four readings, one card.",
   bwatch: "Every name the selected theses hold — tier, bucket, shape, last close, return. "
-          + "Not the Watchlist: that card is the names you kept."
+          + "Not the Watchlist: that card is the names you kept.",
+  spath:  "The scenario's own probability series for its target question, as it was "
+          + "observed over time. The series is the record; it is never reconstructed from "
+          + "the developments below it, because no model here defines that arithmetic.",
+  sdev:   "What has happened, dated, each entry marked escalating, de-escalating or "
+          + "unclear. A record of events — not a driver decomposition, and nothing here "
+          + "claims these add up to the probability."
 };
 /* What each chart needs before it has anything true to draw, and the one line the tray shows
    when it does not have it. A tile absent from this map is never parked. */
@@ -2587,6 +2638,30 @@ function parkedTiles(){
   return ALL_TILE_IDS.filter(id => id in TILE_NEEDS && !DATA_PRESENT[id]);
 }
 function tileHasData(id){ return !(id in TILE_NEEDS) || !!DATA_PRESENT[id]; }
+/* Is this module offerable RIGHT NOW, under the shock the reader has selected?
+
+   Deliberately not `DATA_PRESENT`. That flag is payload-scoped and set once, from a closed
+   literal in `readDataPresence` — it answers "did a price history arrive", which is a fact
+   about the snapshot and true for the whole life of the page. Whether a scenario exists for
+   `taiwan` is a fact about the SELECTION, and routing it through the payload flag would make
+   the two tiles available under every shock the moment one shock had a model.
+
+   Absent is not parked. Parked means "waiting on a source that has not arrived yet", and the
+   panel says so in those words with a disclosure counting them; a scenario nobody has written
+   is not late, and listing it as pending would promise something nobody has undertaken. */
+function scenarioTileAvailable(tileId, activeShock){
+  if(SCENARIO_TILES.indexOf(tileId) === -1) return true;
+  const sc = scenarioForShock(activeShock);
+  if(!sc || !sc.scenario) return false;
+  // Each tile asks for the records IT draws. A scenario with a probability series and no
+  // developments should offer the path and not the timeline — an empty timeline tile is a
+  // pane that can only report its own emptiness, which is what `withData` exists to avoid.
+  const s = sc.scenario;
+  if(tileId === "spath") return ((s.observations || []).length > 1);
+  if(tileId === "sdev") return ((s.developments || []).length > 0);
+  return false;
+}
+function tileAvailable(id){ return scenarioTileAvailable(id, bucketShock); }
 /* A lens must not open with a pane that can only say "no data". Filtering here rather than
    editing LENS_VIEWS keeps every lens's intended view-set intact for the day the data lands. */
 function withData(ids){
@@ -2689,11 +2764,52 @@ function leafNodes(node, out){
   leafNodes(node.a, out); leafNodes(node.b, out);
   return out;
 }
+/* ── Availability, applied at RENDER time and never to the arrangement ─────────────────────
+   `boardTree` is the reader's arrangement and is the thing that is saved. It is never edited
+   because a module became temporarily unavailable — that is the whole of "saved placement
+   survives absence", and it is a property of the design rather than a restore step that could
+   be got wrong: nothing has to remember where the tile was, because nothing forgot.
+
+   What the board DRAWS is this tree with the unavailable leaves pruned out, collapsing their
+   parent splits into the surviving sibling exactly as closing a tile does.
+
+   Split nodes are reused, not copied, so a splitter keeps its identity across layouts — the
+   focus restore and the drag-in-progress marker both compare nodes by reference. Where a
+   split's child changes shape under pruning it gets ONE stable view object, cached on the
+   node it came from, forwarding `ratio` to the real node so that dragging the splitter of a
+   pruned split still resizes the arrangement that gets saved. The cache is non-enumerable
+   because `saveBoard` JSON.stringifies this tree inside a try/catch — an enumerable
+   back-reference is a cycle, and the catch would swallow it and silently stop saving. */
+function viewSplit(node, a, b){
+  if(!node.__view)
+    Object.defineProperty(node, "__view", {configurable: true, enumerable: false, value: {
+      type: "split",
+      get dir(){ return node.dir; },
+      get ratio(){ return node.ratio; },
+      set ratio(v){ node.ratio = v; },
+    }});
+  node.__view.a = a; node.__view.b = b;
+  return node.__view;
+}
+function pruneTree(node){
+  if(!node) return null;
+  if(node.type === "leaf") return tileAvailable(node.tile) ? node : null;
+  if(node.type !== "split") return null;
+  const a = pruneTree(node.a), b = pruneTree(node.b);
+  if(!a) return b;
+  if(!b) return a;
+  return (a === node.a && b === node.b) ? node : viewSplit(node, a, b);
+}
+/* What is actually on the board — the arrangement minus what is unavailable. Every reader of
+   "which tiles are placed" wants this one; `treeTiles(boardTree)` answers a different
+   question (where would this tile go back to) and only the prune itself asks it. */
+function boardTiles(){ return treeTiles(pruneTree(boardTree)); }
 /* Unplaced charts that would actually draw. Parked ones are unplaced too, but they live in
    their own disclosure so the tray only offers things with something to show. */
 function trayTiles(){
-  const placed = treeTiles(boardTree);
-  return TILE_IDS.filter(id => !placed.includes(id) && tileHasData(id));
+  const placed = boardTiles();
+  return TILE_IDS.filter(id =>
+    !placed.includes(id) && tileHasData(id) && tileAvailable(id));
 }
 function lensViews(){ return withData(LENS_VIEWS[preset] || DEFAULT_VIEW); }
 
@@ -2801,8 +2917,12 @@ function layoutBoard(){
   // height: the board grows and the page scrolls instead of the panes going unreadable.
   // Below the split-tree breakpoint the panes stack in flow and the height must stay auto.
   board.style.height = "";
+  // The tree AS DRAWN. Derived once here and used for the height calculation, the walk and the
+  // empty state alike — deriving it twice would let the board size itself against one shape
+  // and lay out another.
+  const drawn = pruneTree(boardTree);
   if(!window.matchMedia(STACK_MQ).matches){
-    const need = minSpan(boardTree, "col");
+    const need = minSpan(drawn, "col");
     // A height the user dragged wins over the CSS default in BOTH directions — a grip that
     // only ever grows reads as broken. `need` is still a hard floor: the pane minimum is
     // what keeps a chart readable, so a deep stack overrides a too-small dragged height.
@@ -2850,7 +2970,7 @@ function layoutBoard(){
         height: GAP + "px",
         width:  "calc(" + w.toFixed(4) + "% - " + GAP + "px)"}});
     }
-  })(boardTree, 0, 0, 100, 100);
+  })(drawn, 0, 0, 100, 100);
 
   TILE_IDS.forEach(id => {
     if(placed.has(id)) return;
@@ -2884,7 +3004,7 @@ function layoutBoard(){
     if(s.node === focusedSplit) el.focus();
   });
 
-  if(!boardTree){
+  if(!drawn){
     const empty = document.createElement("div");
     empty.className = "board-empty";
     // Names where the way back actually is. "The tray above" pointed at empty space once the
@@ -3067,7 +3187,7 @@ function initResultsResize(){
    is not already on the board — rearranging is the user's, not the lens's, decision. */
 function syncBoardToLens(){
   const want = lensViews();
-  const placed = treeTiles(boardTree);
+  const placed = boardTiles();
   if(want.every(id => placed.includes(id))) return false;
   boardTree = buildTree(want);
   layoutBoard();
@@ -3076,7 +3196,7 @@ function syncBoardToLens(){
 }
 
 function paneHits(){
-  return treeTiles(boardTree).map(id => {
+  return boardTiles().map(id => {
     const el = document.getElementById("tile-" + id);
     return el ? {id, r:cssRect(el)} : null;
   }).filter(Boolean);
@@ -3097,7 +3217,7 @@ function dropTargetAt(clientX, clientY){
      Full width, and outside the pane search: a pointer here is nearer some pane than others,
      and letting proximity win would make the same gesture do different things depending on
      which column it was over. */
-  if(y > b.bottom - BOARD_EDGE_PX && treeTiles(boardTree).length > 1)
+  if(y > b.bottom - BOARD_EDGE_PX && boardTiles().length > 1)
     return {tile:null, zone:"board-bottom",
             rect:{left:b.left, top:b.bottom - b.height * BOARD_EDGE_FRAC,
                   width:b.width, height:b.height * BOARD_EDGE_FRAC}};
@@ -3317,7 +3437,7 @@ function fillFor(kind, placed){
   return placed.concat(tileOrder(trayTiles()).slice(0, want - placed.length));
 }
 function arrangeBoard(kind){
-  const tree = arrangeTree(kind, fillFor(kind, treeTiles(boardTree)));
+  const tree = arrangeTree(kind, fillFor(kind, boardTiles()));
   if(!tree) return;
   boardTree = tree;
   layoutBoard();
@@ -3332,7 +3452,7 @@ function setTilePlaced(id, on){
   // placeIntoLargestPane would have put a bucket card into the analysis board — and then
   // layoutBoard would have positioned it absolutely inside a container it does not belong to.
   if(on){
-    if(treeTiles(boardTree).includes(id)) return;
+    if(boardTiles().includes(id)) return;
     placeIntoLargestPane(id);   // the same path a tray chip click takes
   } else {
     boardTree = dropLeaf(boardTree, id);
@@ -3436,7 +3556,7 @@ function tileOption(id, note){
 const TILE_GROUPS = [
   {title:"Core analysis",  keys:["plot", "rank", "dist", "price"]},
   {title:"Research",       keys:["tone", "shadow", "card", "watch"]},
-  {title:"Context \u00b7 buckets", keys:["bpanel", "bwatch"]},
+  {title:"Context \u00b7 buckets", keys:["bpanel", "bwatch", "spath", "sdev"]},
 ];
 const UNGROUPED_TITLE = "Ungrouped";
 function tileGroupOf(id){
@@ -3457,6 +3577,8 @@ const TILE_BRIEF = {
   watch: "Names you kept, with the lens's ranking metric.",
   bpanel:"History, thesis, price feed and Book I for the selection.",
   bwatch:"Members of the selected buckets, with price and return.",
+  spath: "The scenario's probability for its target, over time.",
+  sdev:  "Dated developments, each marked by direction.",
 };
 const TSTAR_KEY = "monad.screener.draft.tilestars.v1";
 let STARRED_TILES = loadTileStars();
@@ -3560,7 +3682,14 @@ function filterLayoutTiles(){
   const q = (box ? box.value : "").trim().toLowerCase();
   let shown = 0;
   document.querySelectorAll("#optPaneWidgets [data-tile-row]").forEach(row => {
-    const hit = !q || (row.dataset.find || "").indexOf(q) !== -1;
+    /* One owner of `hidden`, and it is this function. An unavailable module is hidden HERE
+       rather than by whatever notices it became unavailable, because two writers of one
+       property means the search and the shock take turns undoing each other — type a query
+       while a scenario tile is absent and it reappears, or change the shock during a search
+       and rows the query excluded come back. The availability test is part of the same
+       predicate, so there is one answer per row per call. */
+    const hit = tileAvailable(row.dataset.tileRow)
+      && (!q || (row.dataset.find || "").indexOf(q) !== -1);
     row.hidden = !hit;
     if(hit) shown++;
   });
@@ -3627,15 +3756,20 @@ function buildLayoutPanel(){
    takes the mark and the rest stay dark. One definition, because the pictogram highlight and
    the two summary lines all state it and three restatements is three chances to disagree. */
 function currentArrangement(){
-  const placed = treeTiles(boardTree);
+  const placed = boardTiles();
+  const drawn = pruneTree(boardTree);
   return ARRANGEMENTS.find(a =>
     placed.length > (a.key === "single" ? 0 : 1)
-    && sameTree(arrangeTree(a.key, placed), boardTree)) || null;
+    && sameTree(arrangeTree(a.key, placed), drawn)) || null;
 }
 /* Only flags, text and PARENTAGE are written back, never fresh markup: the panel stays open
    while the board changes under it, and rebuilding the list would drop focus mid-interaction. */
 function syncLayoutPanel(){
-  const placed = treeTiles(boardTree);
+  // What is DRAWN, not what is arranged. A tile the reader placed under Hormuz is still in the
+  // arrangement while the shock is taiwan — that is how its place comes back — but it is not
+  // on the board, and listing it under "On board" would be the panel describing a pane that
+  // is not there.
+  const placed = boardTiles();
   const onHost = document.getElementById("layoutOn");
   if(!onHost) return;
 
@@ -3953,7 +4087,10 @@ function scheduleChartReflow(){
     // so its box could change while its viewBox did not — measured at 796 -> 1314px wide
     // against an unchanged viewBox. Harmless while the bay never moved; not harmless now the
     // context workspace it lives in can be folded, reopened and resized.
-    [drawPlot, drawPrice, drawRank, drawDist, drawShadow, drawBucketChart].forEach(fn=>{
+    // drawScenPath sizes its SVG from the host box like every chart above it, so it belongs
+    // in this list; drawScenDev is flowed text and does not.
+    [drawPlot, drawPrice, drawRank, drawDist, drawShadow, drawBucketChart,
+     drawScenPath].forEach(fn=>{
       try{ fn(); }catch(e){ console.error(e); }
     });
   });
@@ -7279,7 +7416,7 @@ function drawDataChip(){
 function drawModChip(){
   const v = document.getElementById("modValue");
   if(!v) return;
-  const placed = treeTiles(boardTree).length;
+  const placed = boardTiles().length;
   const tray = trayTiles().length;
   v.textContent = placed + " on board" + (tray ? " · " + tray + " unplaced" : "");
 }
@@ -7365,6 +7502,8 @@ const FIXTURE_SURFACES = {
   strip:   "own",
   drawer:  "own",
   detail:  "own",
+  spath:   "own",
+  sdev:    "own",
   // The bucket card has no room for a badge — Decision 7 gives the indicator the id line's
   // spare width and nothing more. It is covered by the strip instead, and that is a
   // containment claim with a test behind it: `.ctx-head` does not fold, and it sits above
@@ -7378,6 +7517,19 @@ function fxVal(surface, sc, text){
   return '<span class="fx-val" title="Illustrative fixture value — hand-authored to '
     + 'exercise this architecture. Not calibrated, not estimated, not a forecast.">'
     + esc(text) + '</span>';
+}
+/* The same registry check for places that cannot hold an element: an SVG `<title>`, an
+   attribute, a `textContent`. It marks nothing of its own — the surface's badge is what
+   carries the fixture claim there — but it goes through the same gate, so "which surfaces
+   print fixture numbers" stays one answerable question and a `<title>` is not a way out of it.
+
+   Two functions rather than a flag on one, because the call sites read differently and the
+   guard has to be able to tell them apart: an `fxVal` that silently rendered plain text in an
+   attribute context would look identical to one that had stopped marking. */
+function fxText(surface, sc, text){
+  if(!FIXTURE_SURFACES[surface])
+    throw new Error("fixture value rendered into an undeclared surface: " + surface);
+  return String(text);
 }
 /* The surface's own marker. Empty when the reading is modelled — a badge that is always there
    marks nothing. */
@@ -7402,7 +7554,11 @@ function activationChip(bucketId){
   if(!act || act.activation == null) return "";     // not modelled renders NOTHING, not 0%
   const fixture = scenarioIsFixture(sc);
   return '<span class="bk-act' + (fixture ? " fixture" : "") + '" title="'
-    + escAttr(pct(act.activation) + " chance this mechanism is engaged over "
+    // The tooltip prints the same number the chip does, so it goes through the same gate. It
+    // was the one place on this page a fixture quantity reached a reader without passing the
+    // registry — marked in words at the end of the sentence, and only because this particular
+    // tooltip happened to say so.
+    + escAttr(fxText("bkcard", sc, pct(act.activation)) + " chance this mechanism is engaged over "
         + ((SCENARIOS.HORIZONS[act.horizon] || {}).label || act.horizon)
         + ". Strength " + act.strength + ", from " + act.drivers.length + " channel"
         + (act.drivers.length === 1 ? "" : "s") + ": "
@@ -7666,6 +7822,98 @@ function bucketNameForId(id){
   return (b && b.name) || id;
 }
 
+/* ── The two scenario tiles ────────────────────────────────────────────────────────────────
+   Hand-rolled SVG, like every other chart here. Both READ the scenario record; neither
+   derives anything, and the path in particular is the authored `observations` series and not
+   an accumulation of what the timeline beside it lists. Summing development contributions
+   into a probability path is a modelling claim, legitimate only where a model defines that
+   arithmetic — and this fixture explicitly does not, which is why the two tiles can sit side
+   by side without one appearing to explain the other. */
+function drawScenPath(){
+  const host = document.getElementById("spathChart");
+  if(!host || !host.clientWidth || !host.clientHeight) return;
+  const sc = scenarioForShock(bucketShock);
+  const obs = ((sc && sc.scenario && sc.scenario.observations) || []).slice()
+    .sort((a, b) => a.timestamp < b.timestamp ? -1 : 1);
+  const title = document.getElementById("spathTitle");
+  const meta = document.getElementById("spathMeta");
+  const legend = document.getElementById("spathLegend");
+  if(obs.length < 2){
+    // Reachable only if the reader has this tile placed and the scenario loses its series
+    // mid-session; availability keeps it off the board otherwise.
+    title.textContent = "Probability path";
+    meta.textContent = "no series";
+    host.innerHTML = '<p class="dc-empty"><b>No probability series</b> for this shock. Two '
+      + 'points are the minimum for a path — one reading is a level, not a movement.</p>';
+    legend.innerHTML = "";
+    return;
+  }
+  const target = SCENARIOS.TARGETS[obs[0].target_id] || {};
+  const horizon = (SCENARIOS.HORIZONS[obs[0].horizon] || {}).label || obs[0].horizon;
+  title.textContent = "Probability path · " + (target.label || obs[0].target_id);
+  meta.textContent = obs.length + " observations · " + horizon;
+
+  const W = Math.max(220, Math.floor(host.clientWidth));
+  const H = Math.max(110, Math.floor(host.clientHeight));
+  const L = 34, R = 12, T = 12, B = 22;
+  /* The axis runs 0..1 and NOT 0..max. A probability path autoscaled to its own range turns
+     18%–30% into a chart that climbs the full height of the pane, which is a picture of a
+     crisis drawn from a twelve-point move. The scale a probability is read against is the
+     whole of it. */
+  const x = i => L + (i / (obs.length - 1)) * (W - L - R);
+  const y = p => T + (1 - p) * (H - T - B);
+  const pts = obs.map((o, i) => x(i).toFixed(1) + "," + y(o.probability).toFixed(1)).join(" ");
+  const grid = [0, 0.25, 0.5, 0.75, 1].map(v =>
+      '<line x1="' + L + '" y1="' + y(v).toFixed(1) + '" x2="' + (W - R)
+    + '" y2="' + y(v).toFixed(1) + '" class="sp-grid"></line>'
+    + '<text x="' + (L - 6) + '" y="' + (y(v) + 3).toFixed(1) + '" class="sp-tick">'
+    + Math.round(v * 100) + '%</text>').join("");
+  const dots = obs.map((o, i) =>
+      '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(o.probability).toFixed(1) + '" r="3" '
+    + 'class="sp-dot"><title>' + escAttr(o.timestamp.slice(0, 10) + " · "
+        + fxText("spath", sc, pct(o.probability)) + " over " + horizon
+        + (o.basis === "fixture" ? " · FIXTURE, illustrative" : " · " + o.basis))
+    + '</title></circle>').join("");
+  host.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" class="sp-svg" '
+    + 'role="img" aria-label="' + escAttr("Probability of " + (target.label || "the target")
+        + " over " + horizon + ", " + obs.length + " observations, latest "
+        + fxText("spath", sc, pct(obs[obs.length - 1].probability))) + '">'
+    + grid
+    + '<polyline points="' + pts + '" class="sp-line"></polyline>' + dots
+    + '<text x="' + L + '" y="' + (H - 6) + '" class="sp-tick">'
+    + esc(obs[0].timestamp.slice(0, 10)) + '</text>'
+    + '<text x="' + (W - R) + '" y="' + (H - 6) + '" class="sp-tick" text-anchor="end">'
+    + esc(obs[obs.length - 1].timestamp.slice(0, 10)) + '</text>'
+    + '</svg>';
+  legend.innerHTML = '<span class="scen-note">' + esc(target.question || "") + '</span>'
+    + fxMark("spath", sc);
+}
+function drawScenDev(){
+  const host = document.getElementById("sdevList");
+  if(!host) return;
+  const sc = scenarioForShock(bucketShock);
+  const devs = ((sc && sc.scenario && sc.scenario.developments) || []).slice()
+    .sort((a, b) => a.timestamp < b.timestamp ? 1 : -1);      // newest first
+  const meta = document.getElementById("sdevMeta");
+  if(!devs.length){
+    meta.textContent = "none";
+    host.innerHTML = '<p class="dc-empty"><b>Nothing has been recorded</b> for this shock.</p>';
+    return;
+  }
+  const dirs = {escalating: "bad", de_escalating: "ok", unclear: "gap"};
+  meta.textContent = devs.length + " recorded · newest first";
+  host.innerHTML = '<ol class="sdev-list">' + devs.map(d =>
+      '<li><span class="scen-note">' + esc(d.timestamp.slice(0, 10)) + '</span>'
+    + ' <span class="scen-state ' + (dirs[d.direction] || "gap") + '">'
+    + esc(d.direction.replace(/_/g, "-")) + '</span><br>' + esc(d.summary) + '</li>').join("")
+    + '</ol>'
+    // The disclaimer is the point of the tile, not a footnote to it: a dated list of events
+    // beside a rising line is read as the explanation of the line, and nothing here says the
+    // two are related that way.
+    + '<p class="scen-foot">A record of events, in order. Not a decomposition &mdash; nothing '
+    + 'here claims these add up to the probability beside them.' + fxMark("sdev", sc) + '</p>';
+}
+
 /* The summary line above the workspace. Says the same thing the chip in the bar says, from
    the same state, so a reader who has scrolled past one still knows what is constraining. */
 function drawContextHead(){
@@ -7732,6 +7980,8 @@ function renderInner(){
   drawFeed();
   drawBook1();
   drawBucketChart();
+  drawScenPath();
+  drawScenDev();
   renderTable();
   renderHeadlines();
 }
@@ -7977,9 +8227,22 @@ document.getElementById("bucketShock").addEventListener("change", (ev)=>{
 
      The condition is `shockIsNarrowing()`, one definition, read here and by the sentence in
      the context head that tells the reader which it is. */
-  if(shockIsNarrowing()){ render(); return; }
-  drawBucketCtl(); drawBuckets(); drawContextHead();
+  if(shockIsNarrowing()){ refreshScenarioTiles(); render(); return; }
+  drawBucketCtl(); drawBuckets(); drawContextHead(); refreshScenarioTiles();
 });
+/* The smallest refresh that makes the board agree with the new shock. `layoutBoard` re-prunes
+   the arrangement, so a module whose scenario has gone takes its space with it and one whose
+   scenario has arrived comes back where it was; `boardChanged` — which layoutBoard calls —
+   re-sorts the panel's lists and the Modules counter off the same reading. Then the two tiles
+   redraw for the scenario now selected.
+
+   Not a render(): the shock has not touched a row, a lens or a filter under any lens but one,
+   and the lens that IS an exception says so through `shockIsNarrowing` above. */
+function refreshScenarioTiles(){
+  layoutBoard();
+  drawScenPath();
+  drawScenDev();
+}
 document.getElementById("bucketClock").addEventListener("change", (ev)=>{
   bucketClock = ev.target.value; drawBucketCtl(); drawBuckets();
 });

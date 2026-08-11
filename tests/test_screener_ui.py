@@ -1810,7 +1810,7 @@ class TheScenarioStripReadsRatherThanDerives(unittest.TestCase):
         self.assertIn("drawContextHead()", body,
                       "a shock change does not refresh the context head, so the strip is stale")
         self.assertRegex(
-            body, r"if\(shockIsNarrowing\(\)\)\{\s*render\(\);\s*return;\s*\}",
+            body, r"if\(shockIsNarrowing\(\)\)\{[^}]*\brender\(\);\s*return;\s*\}",
             "a shock change no longer re-renders when the shock is narrowing the universe, so "
             "the results table keeps the previous shock's names under the scenario lens")
         # Everything after the guarded early return must still be the scoped path. A render()
@@ -1834,6 +1834,27 @@ def _decomment(code):
     """Comments explain code; they are not evidence of it. Four guards in this file have
     matched a comment describing the very thing that had been deleted."""
     return re.sub(r"/\*.*?\*/|//[^\n]*", "", code, flags=re.S)
+
+
+def _call_spans(code, names):
+    """(start, end) of every `name(...)` call body, by paren matching.
+
+    Used to ask "is this occurrence INSIDE one of these calls" exactly, rather than by looking
+    at the line it sits on. The line-based version of this check keyed on single-quote string
+    concatenation and let a raw fixture probability through in a double-quoted expression —
+    quote style is not the signal, containment is."""
+    spans = []
+    for name in names:
+        for m in re.finditer(r"(?<![\w.])" + re.escape(name) + r"\(", code):
+            depth, i = 1, m.end()
+            while i < len(code) and depth:
+                if code[i] == "(":
+                    depth += 1
+                elif code[i] == ")":
+                    depth -= 1
+                i += 1
+            spans.append((m.end(), i - 1))
+    return spans
 
 
 def _functions(js):
@@ -1941,19 +1962,49 @@ class TheFixtureMarkingCannotBeEscaped(unittest.TestCase):
     def test_no_scenario_number_reaches_a_surface_the_helper_does_not_guard(self):
         """The escape route this is actually watching: reading a derived quantity straight out
         of the record and interpolating it, which produces a bare fixture number with nothing
-        marking it. Every one of these fields is fixture-derived under V1's only scenario."""
-        for field in ("sensitivity_magnitude", "engaged_probability", "\\.activation",
-                      "\\.probability"):
-            for m in re.finditer(field, self.js):
-                line_start = self.js.rfind("\n", 0, m.start()) + 1
-                line = self.js[line_start:self.js.find("\n", m.end())]
-                if "fxVal(" in line or "==" in line or "!=" in line:
-                    continue
-                # Assignment into a local, or a comparison, is not a render.
-                self.assertNotRegex(
-                    line, r"innerHTML|'\s*\+|\+\s*'",
-                    "a fixture-derived value is interpolated into markup without going "
-                    "through fxVal: " + line.strip()[:120])
+        marking it. Every one of these fields is fixture-derived under V1's only scenario.
+
+        Geometry is exempt, and the exemption is narrow and deliberate. `y(o.probability)` in
+        the probability path puts the value at a POSITION on a labelled axis; there is no digit
+        on screen for the reader to take away, and the axis it is placed against is the tile's
+        own marked surface. A guard that banned it would have to be worked around by every
+        chart that ever draws a scenario quantity, and a guard people route around stops being
+        one. The exemption is a coordinate mapper applied to the value itself — not a general
+        pass for the line, so `', magnitude ' + p.sensitivity_magnitude` on a line that also
+        happens to compute a coordinate is still caught."""
+        # `(?!\w)` because `.activation` is a prefix of `.activations`, and counting the
+        # activations a scenario has is not printing one of them.
+        fields = ("sensitivity_magnitude", "engaged_probability", r"\.activation(?!\w)",
+                  r"\.probability(?!\w)")
+        checked = 0
+        for name, body in _functions(self.js).items():
+            # Anything that BUILDS markup, not only what writes it. The first version tested
+            # for `innerHTML` and so skipped `activationChip` and `scenarioWhyBlock` — both of
+            # which return markup for a caller to write, and both of which are exactly where a
+            # bare fixture number would land. Sort comparators and predicates build no markup
+            # and stay out of scope, which is the point of having a scope at all.
+            if "innerHTML" not in body and "'<" not in body:
+                continue
+            spans = _call_spans(body, ("fxVal", "fxText", "x", "y"))
+            for field in fields:
+                for m in re.finditer(field, body):
+                    if any(s <= m.start() < e for s, e in spans):
+                        continue          # inside a helper, or mapped to a coordinate
+                    tail = body[m.end():m.end() + 14]
+                    if re.match(r"\s*(==|!=|<|>)", tail):
+                        continue          # a comparison is not a render
+                    checked += 1
+                    self.fail("%s renders a fixture-derived value without going through "
+                              "fxVal/fxText: %s" % (name, body[max(0, m.start() - 60):
+                                                              m.end() + 20].strip()[:150]))
+        # The scan has to be looking at something. Every field above appears in at least one
+        # renderer, so a run that inspected nothing means the extractor stopped finding them.
+        found = sum(len(re.findall(f, b)) for f in fields
+                    for b in _functions(self.js).values() if "innerHTML" in b)
+        self.assertGreaterEqual(found, 5,
+                                "the scan found almost no scenario quantities in any renderer "
+                                "— it has stopped watching the code it names")
+        self.assertEqual(checked, 0)
 
 class TheCardShowsActivationWithoutBecomingHeat(unittest.TestCase):
     """Phase E. Editorial heat and modelled activation sit on one card and must not read as
@@ -2299,3 +2350,194 @@ class TheScenarioLensExplainsWithoutRanking(unittest.TestCase):
         self.assertIn("rank.why", body,
                       "the drawer does not carry the reason the lens will not rank, so that "
                       "sentence is only reachable by placing the ranked chart")
+
+
+class TheScenarioTilesComeAndGoWithTheShock(unittest.TestCase):
+    """Phase G. Two modules whose availability is a fact about the SELECTED SHOCK.
+
+    Every other module on this board is available whenever its source is, for the whole life
+    of the page. These two are the first that can be absent while every source is present, and
+    the distinction they have to hold is absent-versus-parked: parked means "waiting on data
+    that has not arrived", said in those words in a disclosure that counts them, and a scenario
+    nobody has written for taiwan is not late.
+
+    Verified in the browser across the six cases: placed under Hormuz, both drawn and both
+    rows listed; switched to taiwan, both gone from the board, the tray and the panel with the
+    Modules count falling 5 -> 3 and the ARRANGEMENT unchanged; switched back, both returned to
+    the same places; and the board saved while they were absent still carried both leaves."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.html = _page()
+        cls.js = _decomment(_script(cls.html))
+        cls.fns = _functions(cls.js)
+
+    def test_availability_is_asked_of_the_shock_and_not_of_the_payload(self):
+        """`DATA_PRESENT` is payload-scoped and set once from a closed literal in
+        `readDataPresence`. Routed through it, both tiles would become available under every
+        shock the moment one shock had a model."""
+        body = self.fns.get("scenarioTileAvailable")
+        self.assertIsNotNone(body, "the availability rule is gone")
+        self.assertIn("activeShock", body, "availability does not depend on the shock")
+        self.assertIn("scenarioForShock", body)
+        self.assertNotIn("DATA_PRESENT", body,
+                         "scenario tile availability is read off the payload flag")
+        # Each tile asks for the records it draws, not for the scenario in general.
+        self.assertIn("observations", body)
+        self.assertIn("developments", body)
+
+    def test_unavailable_means_absent_and_never_parked(self):
+        """Parked is a promise that something is coming."""
+        parked = self.fns.get("parkedTiles")
+        self.assertIsNotNone(parked)
+        self.assertNotIn("SCENARIO_TILES", parked,
+                         "an unwritten scenario is listed as waiting on data")
+        self.assertNotIn("scenarioTileAvailable", parked)
+        needs = re.search(r"const TILE_NEEDS = \{(.*?)\n\};", self.js, re.S)
+        self.assertIsNotNone(needs)
+        for tile in ("spath", "sdev"):
+            self.assertNotIn(tile, needs.group(1),
+                             "%s declares a data source it is waiting on, which routes it "
+                             "into the parked disclosure" % tile)
+        # Gone from the tray too, not merely off the board.
+        tray = self.fns.get("trayTiles")
+        self.assertIsNotNone(tray)
+        self.assertIn("tileAvailable(id)", tray,
+                      "the tray still offers a module whose scenario does not exist")
+
+    def test_the_arrangement_is_never_edited_because_something_went_away(self):
+        """This is what makes saved placement survive absence, and it is a property of the
+        design rather than a restore step: nothing has to remember where the tile was, because
+        nothing forgot. The prune produces what is DRAWN; `boardTree` is untouched."""
+        prune = self.fns.get("pruneTree")
+        self.assertIsNotNone(prune, "the render-time prune is gone")
+        self.assertIn("tileAvailable(node.tile)", prune)
+        for banned in ("boardTree", "saveBoard", "dropLeaf"):
+            self.assertNotIn(banned, prune,
+                             "the prune edits or saves the arrangement, so a module that "
+                             "became unavailable loses the place it would come back to")
+        # And the availability test appears nowhere that writes the tree.
+        for writer in ("dropLeaf", "splitLeaf", "placeTile", "sanitizeTree", "saveBoard"):
+            body = self.fns.get(writer)
+            self.assertIsNotNone(body, writer + " is gone")
+            self.assertNotIn("tileAvailable", body,
+                             writer + " consults availability while writing the arrangement")
+
+    def test_the_prune_does_not_break_saving_or_splitter_identity(self):
+        """Two hazards, both silent. `saveBoard` JSON.stringifies the arrangement inside a
+        try/catch, so an enumerable back-reference from a node to its view is a cycle that the
+        catch swallows — the board would simply stop saving. And `layoutBoard` restores
+        splitter focus and the drag marker by comparing nodes with `===`, so a view rebuilt
+        each layout drops the caret after one arrow key."""
+        view = self.fns.get("viewSplit")
+        self.assertIsNotNone(view, "the stable view wrapper is gone")
+        self.assertRegex(view, r"enumerable:\s*false",
+                         "the view is an enumerable property of a saved node, so saveBoard's "
+                         "JSON.stringify hits a cycle and the catch hides it")
+        self.assertIn("if(!node.__view)", view,
+                      "a fresh view object per layout breaks splitter focus and drag identity")
+        self.assertRegex(view, r"set ratio\(v\)\{ node\.ratio = v; \}",
+                         "dragging the splitter of a pruned split writes to the view instead "
+                         "of the arrangement, so the resize is lost on the next layout")
+
+    def test_every_reader_of_what_is_placed_reads_what_is_drawn(self):
+        """`treeTiles(boardTree)` answers "where would this go back to"; `boardTiles()` answers
+        "what is on the board". Drop targets, counters and the panel all want the second — an
+        undrawn tile is display:none, so its rect is zeros and it would sit at the board's
+        top-left swallowing drops."""
+        for fn in ("paneHits", "drawModChip", "syncLayoutPanel", "setTilePlaced",
+                   "currentArrangement", "arrangeBoard", "syncBoardToLens"):
+            body = self.fns.get(fn)
+            self.assertIsNotNone(body, fn + " is gone")
+            self.assertNotIn("treeTiles(boardTree)", body,
+                             fn + " reads the arrangement where it means the board")
+        # Nowhere at all: `boardTiles()` is `treeTiles(pruneTree(boardTree))`, so the raw
+        # arrangement is only ever walked through the prune.
+        self.assertEqual(self.js.count("treeTiles(boardTree)"), 0,
+                         "something reads the raw arrangement without pruning it first")
+        self.assertIn("function boardTiles(){ return treeTiles(pruneTree(boardTree)); }",
+                      self.js, "the one legal reading of the arrangement is gone")
+
+    def test_the_path_is_the_series_and_not_a_reconstruction(self):
+        """Summing development contributions into a probability path is a modelling claim,
+        legitimate only where a model defines that arithmetic. This fixture explicitly does
+        not — which is why the two tiles can sit side by side without one appearing to explain
+        the other."""
+        body = self.fns.get("drawScenPath")
+        self.assertIsNotNone(body, "the probability path is gone")
+        self.assertIn("scenario.observations", body, "the path does not read the series")
+        for banned in ("developments", "contribution", "reduce("):
+            self.assertNotIn(banned, body,
+                             "the path is reconstructed from the developments rather than "
+                             "read from the observation series")
+
+    def test_the_path_is_drawn_against_the_whole_of_a_probability(self):
+        """Autoscaled to its own range, an 18%-to-30% series climbs the full height of the
+        pane and draws a crisis out of a twelve-point move. The scale a probability is read
+        against is 0 to 1."""
+        body = self.fns.get("drawScenPath")
+        self.assertIn("const y = p => T + (1 - p) * (H - T - B);", body,
+                      "the probability axis is no longer the full 0-1 range")
+        for banned in ("Math.max.apply", "Math.min.apply"):
+            self.assertNotIn(banned, body,
+                             "the path autoscales to the series' own extent, so a small move "
+                             "in a small range is drawn as a large one")
+
+    def test_the_timeline_says_it_is_not_a_decomposition(self):
+        """A dated list of events beside a rising line is read as the explanation of the line.
+        Nothing here says the two are related that way, so the tile says so itself."""
+        body = self.fns.get("drawScenDev")
+        self.assertIsNotNone(body, "the development timeline is gone")
+        self.assertIn("Not a decomposition", body)
+        self.assertIn("escalating", body, "the timeline drops the direction of each event")
+
+    def test_both_tiles_are_registered_everywhere_a_module_has_to_be(self):
+        """The panel's own guard catches an ungrouped widget and the brief/note guard catches a
+        missing description; what neither can see is a tile absent from the id list or without
+        markup, which would be a row that places nothing."""
+        for tile in ("spath", "sdev"):
+            self.assertIn('id="tile-' + tile + '"', self.html, tile + " has no markup")
+            self.assertRegex(self.js, r"TILE_IDS = \[[^\]]*\"" + tile + r"\"",
+                             tile + " is not a board module, so sanitizeTree drops it on load")
+        groups = re.search(r"const TILE_GROUPS = \[(.*?)\n\];", self.js, re.S).group(1)
+        self.assertIn('"spath", "sdev"', groups, "the tiles are not in a widget group")
+
+    def test_a_shock_change_refreshes_the_tiles_without_a_full_render(self):
+        """The shock has not touched a row, a lens or a filter under any lens but one, and that
+        lens says so through `shockIsNarrowing`."""
+        body = self.fns.get("refreshScenarioTiles")
+        self.assertIsNotNone(body, "the scoped refresh is gone")
+        self.assertIn("layoutBoard()", body,
+                      "the board is not re-pruned, so a module whose scenario has gone keeps "
+                      "its space and one whose scenario has arrived does not come back")
+        self.assertIn("drawScenPath()", body)
+        self.assertIn("drawScenDev()", body)
+        self.assertNotRegex(body, r"(?<![.\w])render\(\)",
+                            "the scoped refresh is a full render")
+        handler = re.search(
+            r'getElementById\("bucketShock"\)\.addEventListener\("change".*?\n\}\);',
+            self.js, re.S)
+        self.assertIsNotNone(handler)
+        # BOTH branches. `render()` redraws the two tiles but never calls `layoutBoard`, so the
+        # narrowing path needs the re-prune as much as the scoped one does — and asserting the
+        # call appears anywhere in the handler was satisfied by whichever branch still had it.
+        src = _decomment(handler.group(0))
+        narrowing, _, scoped = src.partition("return; }")
+        for branch, name in ((narrowing, "narrowing"), (scoped, "scoped")):
+            self.assertIn("refreshScenarioTiles()", branch,
+                          "the %s path leaves the board showing the previous shock's tiles"
+                          % name)
+
+    def test_one_writer_owns_whether_a_row_is_hidden(self):
+        """Two writers of `hidden` take turns undoing each other: type a query while a scenario
+        tile is absent and it reappears; change the shock during a search and rows the query
+        excluded come back. The availability test is part of the search's own predicate."""
+        body = self.fns.get("filterLayoutTiles")
+        self.assertIsNotNone(body)
+        self.assertIn("tileAvailable(row.dataset.tileRow)", body,
+                      "the widget list still offers a module whose scenario does not exist")
+        writers = [fn for fn, src in self.fns.items()
+                   if re.search(r"row\.hidden\s*=", src) or re.search(r"\.hidden = !hit", src)]
+        self.assertEqual(writers, ["filterLayoutTiles"],
+                         "more than one function writes a widget row's hidden state: "
+                         + ", ".join(writers))
