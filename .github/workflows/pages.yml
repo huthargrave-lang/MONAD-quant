@@ -5,15 +5,35 @@ name: Publish GitHub Pages
 # so a live server would add attack surface (public process, SQLite mounts) for zero
 # freshness gain. live/** is fenced and never published.
 #
-# The weekly cron exists for the SCREENER DATA, not the code: fundamentals rot even
-# when the repo is idle, and each run re-fetches them best-effort. A failed fetch
-# publishes the absence panel — never a stale table dressed up as fresh.
+# The cron exists for the SCREENER DATA, not the code: fundamentals rot even when the
+# repo is idle, and each run re-fetches them best-effort. A failed fetch publishes the
+# absence panel — never a stale table dressed up as fresh.
+#
+# DAILY, at 01:17 UTC — was weekly (Mondays 11:17 UTC), which is replaced rather than
+# kept alongside: two schedules for one decision is two things to keep in agreement.
+#
+#   * 01:17 UTC is 21:17 ET in summer, 20:17 ET in winter — a clear few hours after the
+#     16:00 ET close, so the session's daily bar has settled before it is fetched. A
+#     morning cron (the old 11:17 UTC = 07:17 ET) ran BEFORE the open, so its freshest
+#     possible price bar was already a day old.
+#   * :17 rather than :00 deliberately. GitHub queues scheduled workflows on the hour
+#     and delays them under load; an odd minute is the documented way to avoid it.
+#   * Every day, weekends included. Prices do not move then, but TONE does — it is
+#     scored from news RSS, which is the most perishable thing this page publishes and
+#     the reason a weekly cadence was the wrong one.
+#
+# Cost is ~7 min per run (measured), most of it the per-ticker Yahoo tone leg. Public
+# repos bill no Actions minutes, so the cadence is not a budget question.
+#
+# NOT solved by this: GitHub disables scheduled workflows in a public repo after 60 days
+# with no repository activity, and workflow runs do not themselves count as activity.
+# A daily cron makes an idle repo fresher, not immortal.
 
 on:
   push:
     branches: [development]
   schedule:
-    - cron: "17 11 * * 1"
+    - cron: "17 1 * * *"
   workflow_dispatch:
 
 permissions:
