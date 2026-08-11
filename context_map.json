@@ -485,6 +485,7 @@
         "tools/research_event_ledger.py",
         "tools/research_ui.py",
         "tools/return_convention_lab.py",
+        "tools/scenarios.py",
         "tools/screener_lab.py",
         "tools/sec_action_chain_join_lab.py",
         "tools/sec_announce_cohort_lab.py",
@@ -906,6 +907,60 @@
         "editing a guard test to make it pass — supersede the node instead",
         "citing a figure with no artifact or document behind it",
         "editing the edit_policy deny list"
+      ]
+    },
+    {
+      "keywords": [
+        "screener",
+        "buckets",
+        "sovereign ledger",
+        "bucket heat",
+        "heat",
+        "heat rule",
+        "grid",
+        "card",
+        "star",
+        "framing",
+        "screen",
+        "tone",
+        "lens",
+        "preset",
+        "widget",
+        "tile",
+        "board",
+        "module",
+        "drawer",
+        "scenario",
+        "shock",
+        "transmission",
+        "channel",
+        "exposure",
+        "activation",
+        "probability path",
+        "development timeline",
+        "fixture",
+        "context web",
+        "research ui",
+        "draft page",
+        "static export"
+      ],
+      "read": [
+        "docs/research/SCREENER_COMBINED_DRAFT.html",
+        "tools/research_ui.py",
+        "tools/sovereign_buckets.py",
+        "tools/scenarios.py",
+        "tools/stock_screener.py",
+        "tools/export_pages.py"
+      ],
+      "run": [
+        "venv/bin/python tools/research_ui.py serve --port 8765",
+        "venv/bin/python -m unittest tests.test_screener_ui tests.test_scenarios tests.test_sovereign_buckets tests.test_screener_regression tests.test_research_ui tests.test_export_pages",
+        "venv/bin/python tools/export_pages.py --out _site"
+      ],
+      "avoid": [
+        "rendering a fixture-derived number outside a surface that carries a fixture marker",
+        "restating in the page a table or rule that tools/ already defines",
+        "reading a scenario quantity from anywhere but the resolver and the emitted derivation"
       ]
     }
   ],
