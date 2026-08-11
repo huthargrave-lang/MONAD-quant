@@ -1025,3 +1025,94 @@ class TheAcceptanceGate(unittest.TestCase):
         # The scenario end of the chain resolves to a state and a set of developments.
         self.assertIsNotNone(sn.scenario_state(s))
         self.assertTrue(s["developments"])
+
+
+class OrderingAuthorityIsGranted(unittest.TestCase):
+    """Phase F. Whatever sits at the top of a screen is read as "the one this most affects",
+    so ordering securities is a claim and this module decides who may make it.
+
+    Two conditions, and each closes a different hole. A registered `rank_metric` means the
+    quantity is one the derivation actually produces and one somebody chose on purpose — a
+    free string here would let a scenario sort a screen by anything and call it a ranking. A
+    `modelled` basis means the numbers behind that quantity were estimated: a fixture
+    magnitude is an author's illustration, and sorting real securities by it publishes an
+    order nobody produced.
+
+    V1's only scenario satisfies neither, and the gate is still written as the condition
+    rather than as `False` — with both branches exercised here, so the day a model arrives the
+    switch is a data change with a validator behind it, not an untested code path."""
+
+    def setUp(self):
+        self.s = copy.deepcopy(sn.load()["hormuz"])
+
+    def _modelled(self, s):
+        for o in s["observations"]:
+            o["basis"] = "modelled"
+            o["model_id"] = "test-model"
+            o["model_version"] = "1.0.0"
+        return s
+
+    def test_the_shipped_fixture_may_not_rank(self):
+        r = sn.ranking_authority(sn.load()["hormuz"])
+        self.assertFalse(r["quantitative"])
+        self.assertTrue(r["why"], "the refusal carries no reason, so a surface has to write "
+                                  "its own and two wordings of one rule start drifting")
+
+    def test_a_modelled_scenario_with_a_registered_metric_may_rank(self):
+        """The true branch. Without this the gate is `False` for every input it has ever been
+        given, which is indistinguishable from a gate that is broken shut."""
+        s = self._modelled(self.s)
+        s["rank_metric"] = "exposure_magnitude"
+        r = sn.ranking_authority(s)
+        self.assertTrue(r["quantitative"])
+        self.assertEqual(r["metric"], "exposure_magnitude")
+        self.assertEqual(r["metric_label"], sn.RANK_METRICS["exposure_magnitude"]["label"])
+
+    def test_a_metric_alone_does_not_grant_it(self):
+        """A fixture may name the metric it WOULD rank by and still not rank by it."""
+        self.s["rank_metric"] = "exposure_magnitude"
+        r = sn.ranking_authority(self.s)
+        self.assertFalse(r["quantitative"])
+        self.assertIn("fixture", r["why"])
+        # The metric is still reported: "declared but not honoured" is a different state from
+        # "never declared", and a surface explaining the refusal needs to be able to say which.
+        self.assertEqual(r["metric"], "exposure_magnitude")
+
+    def test_a_modelled_basis_alone_does_not_grant_it(self):
+        r = sn.ranking_authority(self._modelled(self.s))
+        self.assertFalse(r["quantitative"])
+        self.assertIsNone(r["metric"])
+
+    def test_a_scenario_with_nothing_observed_says_so_rather_than_refusing_vaguely(self):
+        self.s["observations"] = []
+        self.s["rank_metric"] = "exposure_magnitude"
+        r = sn.ranking_authority(self.s)
+        self.assertFalse(r["quantitative"])
+        self.assertIn("nothing has been observed", r["why"])
+
+    def test_an_unregistered_metric_raises(self):
+        """The registry is the whole mechanism. As a free string, `rank_metric: "impact"`
+        validates cleanly and grants ordering authority over a quantity that does not exist."""
+        self.s["rank_metric"] = "impact"
+        with self.assertRaises(ValueError) as cm:
+            sn.validate_scenarios({"hormuz": self.s})
+        self.assertIn("rank_metric", str(cm.exception))
+
+    def test_every_registered_metric_names_a_field_the_derivation_produces(self):
+        """An entry naming a quantity nothing computes is the `adx_kelly_mult` shape: a knob
+        with no wiring, believed by the next reader because it is written down."""
+        ex = sn.security_exposures(sn.load()["hormuz"])
+        sample = next(iter(ex.values()))
+        for name, spec in sn.RANK_METRICS.items():
+            for field in ("label", "field", "of"):
+                self.assertIn(field, spec, "{} declares no {}".format(name, field))
+            self.assertIn(spec["field"], sample,
+                          "{} ranks on {!r}, which no exposure record carries".format(
+                              name, spec["field"]))
+
+    def test_the_verdict_travels_with_the_scenario(self):
+        """Decided in Python and shipped, not re-decided by a surface."""
+        p = sn.as_payload()["hormuz"]
+        self.assertIn("ranking", p)
+        self.assertFalse(p["ranking"]["quantitative"])
+        self.assertIn("RANK_METRICS", sn.runtime_js())

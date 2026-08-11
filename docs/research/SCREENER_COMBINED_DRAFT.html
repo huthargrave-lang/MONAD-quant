@@ -153,6 +153,45 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
 .ctx-scen .scen-open{border:0;background:transparent;color:var(--accent);cursor:pointer;
   font:inherit;padding:0 0 0 2px;text-decoration:underline;text-decoration-style:dotted;
   text-underline-offset:3px}
+/* The explanation of one security's place in a scenario, and the drawer behind the strip.
+   A LIST, deliberately — the derivation is a chain of hops and the rendering is that chain in
+   order, so a reader can check each one. A single sentence would be a summary, and a summary
+   is the page composing an explanation of its own. */
+.scen-why{margin-top:10px;border-top:1px solid var(--rule);padding-top:8px}
+.scen-why-head{font:11px var(--mono);letter-spacing:.04em;color:var(--ink-2);
+  display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:6px}
+.scen-ex{margin:0 0 8px;padding-left:8px;border-left:2px solid var(--rule)}
+.scen-ex-head{font-size:12px;color:var(--ink);display:flex;align-items:baseline;gap:7px;
+  flex-wrap:wrap}
+.scen-path{margin:4px 0 0;padding-left:16px;font-size:11.5px;color:var(--ink-2);
+  line-height:1.5}
+.scen-path li{margin:0}
+.scen-note{font:10.5px var(--mono);color:var(--ink-muted)}
+.scen-foot{margin:6px 0 0;font-size:11px;color:var(--ink-muted)}
+/* State, as a word. Three colours would be three states told in a channel a reader may not
+   be able to read, so the word carries it and the colour only reinforces. */
+.scen-state{font:10px var(--mono);letter-spacing:.04em;padding:1px 5px;border-radius:3px;
+  border:1px solid var(--rule)}
+.scen-state.ok{color:var(--accent);border-color:var(--accent)}
+.scen-state.gap{color:var(--ink-muted)}
+.scen-state.bad{color:var(--warning);border-color:var(--warning)}
+/* A fixture-derived number, wherever it appears. Underlined rather than coloured: this mark
+   has to survive beside real values in dense text, and it must not be mistaken for the
+   heat/serious/warning colour language the rest of the page already speaks. */
+.fx-val{border-bottom:1px dotted var(--warning);cursor:help}
+.scen-q{margin:0 0 4px;font-size:12.5px;color:var(--ink)}
+.scen-list{margin:4px 0 10px;padding-left:16px;font-size:11.5px;color:var(--ink-2);
+  line-height:1.5}
+#scenPanel{width:min(560px,92vw)}
+#scenPanel h4{margin:10px 0 2px;font:11px var(--mono);letter-spacing:.05em;
+  color:var(--ink-muted);text-transform:uppercase}
+/* The partition claim, in prose. Sentence case and proportional: it is several sentences of
+   the author's reasoning about why the branches are disjoint, and the uppercase mono the
+   headings use makes that unreadable at exactly the length it actually is. */
+.scen-part{margin:2px 0 6px;font-size:11.5px;line-height:1.5;color:var(--ink-2);
+  border-left:2px solid var(--rule);padding-left:8px}
+#scenPanel .scen-fixture,.scen-why-head .scen-fixture{border-left:2px solid var(--warning);
+  padding-left:6px;color:var(--warning);letter-spacing:.03em;font:10px var(--mono)}
 .ctx-toggle{border:1px solid var(--rule);background:var(--surface);color:var(--ink-2);
   border-radius:6px;line-height:20px;width:22px;padding:0;cursor:pointer;font-size:11px;
   align-self:center}
@@ -1535,12 +1574,26 @@ table.bwatch .spark{width:80px;height:26px;display:block}
       <button type="button" data-p="most_active">Most active</button>
       <button type="button" data-p="sovereign_ledger">Sovereign Ledger</button>
       <button type="button" data-p="chaos_hedges">Chaos hedges</button>
+      <!-- Reach, not impact. This lens says which names the selected shock's scenario runs
+           THROUGH — it makes no claim about how much any of them moves, and under a fixture
+           it does not order them by any number at all. -->
+      <button type="button" data-p="scenario_reach">Scenario reach</button>
       <button type="button" data-p="bloomberg_tone">Bloomberg tone</button>
       <button type="button" data-p="reddit_tone">Reddit tone</button>
       <button type="button" data-p="yahoo_tone">Yahoo tone</button>
       <button type="button" data-p="social_tone">Social sentiment</button>
       <button type="button" data-p="custom" class="custom" aria-expanded="false">+ custom</button>
     </div>
+</div>
+<!-- The strip's `why` button has pointed at this panel since Phase D, and until now the panel
+     did not exist: `data-panel-open` resolves by id and returns silently when the id is not
+     found, so the button rendered, took a click and did nothing. The one place a reader is
+     told a model stands behind what they are looking at offered no way to see it. -->
+<div class="explain" id="scenPanel" role="dialog" aria-modal="false"
+     aria-labelledby="scenPanelTitle" hidden>
+  <button type="button" class="explain-close" data-panel-close aria-label="Close">&#215;</button>
+  <h3 id="scenPanelTitle">Scenario &#183; what stands behind this shock</h3>
+  <div id="scenPanelBody"></div>
 </div>
 <div class="explain" id="filterPanel" role="dialog" aria-modal="false"
      aria-labelledby="filterPanelTitle" hidden>
@@ -2592,6 +2645,11 @@ const LENS_VIEWS = {
   most_active:          ["plot","rank","price"],
   sovereign_ledger:     ["plot","shadow","tone"],
   chaos_hedges:         ["plot","rank","tone"],
+  // The card takes the large pane, and "rank" is deliberately not here: this lens has no
+  // ranking metric, so the ranked chart would open on its own empty state every time. The
+  // reading IS the explanation — which bucket, which channel, which direction — and that is
+  // what the card carries.
+  scenario_reach:       ["card","plot","price"],
   // A tone lens turns on how much was said about one name, so the card takes the large pane:
   // its coverage counts are the reading, and stacked beside a chart it would have to be
   // scrolled to be read at all. The ranking and the documents behind it sit alongside.
@@ -3989,6 +4047,10 @@ const METRICS = {
           sub:r=>fmtDocs(toneAllDocs(r)) + " \u00b7 "
                  + toneAllSrcs(r).length + "/" + TONE_SOURCES.length + " sources"},
 };
+/* The one place this lens's key is written. Named because four different functions test for
+   it and a string literal repeated four times is how `#presets` ended up hard-coded in four
+   selectors. */
+const SCENARIO_LENS = "scenario_reach";
 /* rank = what the lens sorts on; x = the axis the lens is arguing about. */
 const LENS_SPEC = {
   low_pe_high_growth:   {rank:"g",     x:"pe"},
@@ -4001,6 +4063,13 @@ const LENS_SPEC = {
   most_active:          {rank:"vol",   x:"vol"},
   sovereign_ledger:     {rank:"score", x:"pe"},
   chaos_hedges:         {rank:"beta",  x:"pe"},
+  /* `rank: null` is not an oversight and not a default — it is this lens saying it has no
+     ranking metric. Membership here is REACHABILITY: the scenario runs through a bucket these
+     names are in. How much any of them moves is a separate question with a separate answer,
+     and under a fixture that answer is illustrative. Borrowing `score` to fill the slot would
+     put a real composite ranking under a scenario heading, where the top row reads as "the
+     name this shock most affects". Every consumer of `spec.rank` handles the absence. */
+  scenario_reach:       {rank:null,    x:"pe"},
   bloomberg_tone:       {rank:"bb",    x:"bb"},
   reddit_tone:          {rank:"rd",    x:"rd"},
   yahoo_tone:           {rank:"yh",    x:"yh"},
@@ -4189,6 +4258,55 @@ function shadowGateNote(rows){
     : ` <b>${unassessed}</b> of them carry no AI shadow-debt assessment, so the gate did not`
       + ` judge those — absence of a tag is not evidence of no exposure.`;
 }
+/* The scenario lens's own gap note.
+
+   Deliberately NOT a generalisation of shadowGateNote above. That note's applicability test is
+   a scan of a preset's require-clauses, its subject is an editorial tag, and five tests pin its
+   exact sentences — two of which a shared version could not keep. More to the point the two
+   say different things: the shadow note reports a GATE that did not judge some names, while
+   this reports names the gate deliberately ADMITTED and nobody has assessed. Merging them
+   would need one sentence to mean both, and it would be true of neither.
+
+   The three absences are kept apart, because each is a different thing to go and do:
+     unassessed  nobody has written a sensitivity for this security on this channel
+     undirected  a sensitivity exists and declines to state a direction
+     unresolved  two paths reached it and disagree on sign or horizon */
+function scenarioReachNote(rows){
+  if(preset !== SCENARIO_LENS || !rows.length) return "";
+  const by = {unassessed: [], undirected: [], unresolved: []};
+  rows.forEach(r => {
+    // One name can be reached on several channels; it is counted under a heading if ANY of
+    // its exposures is in that state, because the gap is per relationship and the reader is
+    // being told the name has one.
+    const st = new Set(scenarioExposuresFor(r.tk).map(x => x.status));
+    Object.keys(by).forEach(k => { if(st.has(k)) by[k].push(r.tk); });
+  });
+  const bits = [];
+  if(by.unassessed.length) bits.push(`<b>${by.unassessed.length}</b> reached on a channel `
+    + `nobody has assessed them for`);
+  if(by.undirected.length) bits.push(`<b>${by.undirected.length}</b> with a relationship on `
+    + `record whose direction is not stated`);
+  if(by.unresolved.length) bits.push(`<b>${by.unresolved.length}</b> reached by paths that `
+    + `disagree, left unresolved rather than decided`);
+  if(!bits.length) return "";
+  return ` These names are here because the scenario runs through a bucket they are in — that `
+    + `is reach, not impact. Of them, ` + bits.join("; ")
+    + `. An absent coefficient is an unasked question, not an answer of zero.`;
+}
+/* Why the scenario lens is empty, which is never the same as "nothing qualified". The generic
+   sentence above says the list is empty "for that reason" — meaning the lens — and for a shock
+   with no scenario that reads as a finding about the companies when it is a statement about
+   our coverage. */
+function scenarioEmptyNote(){
+  if(preset !== SCENARIO_LENS) return "";
+  const sc = scenarioForShock(bucketShock);
+  if(!sc) return ` No scenario has been written for <b>${esc(bucketShock)}</b>, so this lens `
+    + `reaches nothing under it. That is missing coverage, not a finding — pick a shock that `
+    + `carries a model, or clear the lens.`;
+  return ` The <b>${esc(bucketShock)}</b> scenario reaches `
+    + `<b>${scenarioReached().size}</b> securities, and none of them survived the other `
+    + `constraints set above.`;
+}
 /* The unscreened constituents, split by WHY. "The universe carries no fundamentals row" was
    one sentence covering three situations, and it was the wrong sentence for two of them: a
    fund or a futures contract has no P/E to carry, and a delisted name stopped having one. It
@@ -4212,7 +4330,11 @@ function listedNote(rows){
 }
 function narrowingPhrase(){
   const bits = [];
-  if(preset != null) bits.push("the " + activeLensLabel() + " lens");
+  // The shock is named INSIDE the lens clause when the lens is the thing making it a
+  // constraint, rather than listed as a fourth constraint of its own — it is not one. A
+  // reader whose table just emptied needs to know which shock the lens is reading.
+  if(preset != null) bits.push("the " + activeLensLabel() + " lens"
+    + (shockIsNarrowing() ? " under " + bucketShock : ""));
   const n = activeFilterCount();
   if(n) bits.push(n + " filter" + (n === 1 ? "" : "s"));
   const b = selectedBuckets();
@@ -4724,6 +4846,21 @@ function drawRank(){
   const host = document.getElementById("rankChart");
   if(!host || !host.clientWidth || !host.clientHeight) return;
   const spec = lensSpec(), m = METRICS[spec.rank];
+  /* A lens can have no ranking metric, and that is a state rather than a bug — the scenario
+     lens screens on reachability and is not permitted to order by any of its own numbers
+     until a model stands behind them. The chart says so and names the reason, instead of
+     throwing on `m.get` or quietly ranking by whatever `lensSpec`'s fallback held. */
+  if(!m){
+    const why = (scenarioRanking() || {}).why;
+    document.getElementById("rankTitle").textContent = "Ranked · this lens does not rank";
+    document.getElementById("rankMeta").textContent = matchedRows().length + " in lens";
+    host.innerHTML = '<p class="dc-empty"><b>' + esc(activeLensLabel())
+      + ' does not rank.</b> ' + esc(why || "It screens on membership, not on a measured "
+      + "quantity, so there is no order to draw.")
+      + ' The names it admits are in the results table, in a fixed order that is not a'
+      + ' ranking.</p>';
+    return;
+  }
   const matches = matchedRows();
   const all = matches.map(r=>({r, v:m.get(r)}))
     .filter(o => o.v != null && isFinite(o.v));
@@ -5217,6 +5354,7 @@ document.addEventListener("click", (ev)=>{
     // panel that opened, not in whichever panel happens to own the first control on the page.
     if(pop.id === "layoutPanel") syncLayoutPanel();
     if(pop.id === "lensPanel") drawLensPanel();
+    if(pop.id === "scenPanel") drawScenPanel();
     if(pop.id === "proposePanel") resetProposeForm();
     panelOpen(pop, opt, pop.querySelector("input,select,textarea"));
     return;
@@ -5480,6 +5618,16 @@ function lensRows(pool){
   if(preset == null) return rows;
   const custom = customLens(preset);
   if(custom) return rows.filter(r=>lensAccepts(custom, r));
+  /* Membership is REACHABILITY and nothing else: the scenario runs through a bucket this name
+     is in. A name reached with no sensitivity on record stays IN — it was reached, and the
+     absence of a coefficient is a gap in the assessment, not a finding about the company.
+     Filtering those out would make the lens quietly mean "reached AND assessed" while
+     presenting as "reached", and the names it dropped are exactly the ones nobody has looked
+     at yet. They are counted and named instead, by scenarioReachNote. */
+  if(preset === SCENARIO_LENS){
+    const reach = scenarioReached();
+    return rows.filter(r => reach.has(r.tk));
+  }
   if(PRESET_RULES[preset]) return canonicalRows(preset, rows);
   if(preset==="social_tone") return rows.filter(inSocialLens);
   const toneSrcForLens = TONE_LENSES[preset];
@@ -5902,7 +6050,16 @@ function rankScore(r){
 }
 
 function renderTable(){
-  const sorted = matchedRows().slice().sort((a, b)=>{
+  /* Order is a claim. Whatever is at the top of a screen is read as "the one this most
+     applies to", so under a lens that may not rank, the table may not fall back to the
+     composite score either — that would put a real ranking under a scenario heading and
+     invite the reading that the scenario produced it. The lens's own deterministic,
+     non-quantitative order is used instead, and the sentence above the table says so. */
+  const byReach = preset === SCENARIO_LENS && !(scenarioRanking() || {}).quantitative;
+  const sorted = matchedRows().slice().sort(byReach
+    ? (a, b) => { const ka = scenarioReachKey(a.tk), kb = scenarioReachKey(b.tk);
+                  return ka < kb ? -1 : ka > kb ? 1 : 0; }
+    : (a, b)=>{
     // An unscored name cannot be placed against scored ones on a number it does not have, so
     // it sinks to the end of the list instead of sorting as if it scored zero.
     const av = rankScore(a), bv = rankScore(b);
@@ -5953,8 +6110,10 @@ function renderTable(){
           + ` aria-label="How this list relates to the chart">?</button>`
           + listedNote(listedOnly)
           + shadowGateNote(sorted)
+          + scenarioReachNote(sorted)
         : `<b>0</b> of <b>${ROWS.length}</b> loaded names — ${lensPhrase}. The list below is `
           + `empty for that reason, not because the fields are missing.`
+          + scenarioEmptyNote()
           + listedNote(listedOnly)
           // An empty intersection is the one place the reader needs to be told what to DO,
           // and which constraint to drop is a question the page can answer better than they
@@ -6606,20 +6765,30 @@ function drawWatch(){
       + '<span class="wl-note">not in this snapshot</span>'
       + '<button type="button" class="wl-drop" data-watch-drop="' + escAttr(o.tk)
       + '" aria-label="Remove ' + escAttr(o.tk) + ' from the watchlist">×</button></li>';
+    // `m &&` because a lens can have no ranking metric. The cell then takes the page's own
+    // absent idiom rather than borrowing a number from somewhere else — under the scenario
+    // lens the nearest number to hand is a fixture magnitude, and printing that here, in a
+    // bare column beside real P/E, is exactly what the fixture-labelling rule forbids.
     const v = m && m.get(o.r);
     return '<li class="watch-row' + (inLens.has(o.tk) ? " is-in" : "")
       + (selected === o.tk ? " is-pinned" : "") + '">'
       + '<button type="button" class="wl-pin" data-watch-pin="' + escAttr(o.tk) + '">'
       + '<code>' + esc(o.tk) + '</code> <span class="wl-nm">' + esc(o.r.name || "") + '</span>'
       + '</button>'
-      + '<span class="wl-val">' + (v == null || !isFinite(v) ? "—" : m.fmt(v)) + '</span>'
+      + '<span class="wl-val' + (m ? "" : " muted-cell") + '"'
+      + (m ? "" : ' title="' + escAttr(activeLensLabel() + " does not rank, so there is no "
+          + "value for this column. The dash is an absence, not a zero.") + '"')
+      + '>' + (v == null || !isFinite(v) ? "—" : m.fmt(v)) + '</span>'
       + '<span class="wl-note">' + (inLens.has(o.tk) ? "in lens" : "outside") + '</span>'
       + '<button type="button" class="wl-drop" data-watch-drop="' + escAttr(o.tk)
       + '" aria-label="Remove ' + escAttr(o.tk) + ' from the watchlist">×</button></li>';
   }).join("") + "</ul>"
-    + '<p class="dc-note">Ranked column is <b>' + esc(m ? m.label : "—")
-    + '</b> — whatever the current lens ranks on, so the watchlist is read in the same terms'
-    + ' as the screen beside it.'
+    + '<p class="dc-note">' + (m
+        ? 'Ranked column is <b>' + esc(m.label) + '</b> — whatever the current lens ranks on,'
+          + ' so the watchlist is read in the same terms as the screen beside it.'
+        : '<b>' + esc(activeLensLabel()) + '</b> does not rank, so this column is empty rather'
+          + ' than filled from another lens\'s metric — a value here would be read as this'
+          + ' lens\'s reading of the name.')
     + (missing ? ' <b>' + missing + '</b> kept name(s) are not in this snapshot.' : '')
     + '</p>';
 }
@@ -6662,7 +6831,12 @@ function drawCard(){
       + ' are in the buckets because the thesis holds them; they have real prices and no'
       + ' P/E. That is an absence, not a zero'
       + (px ? '.' : ', and ' + esc(whyNoSeries(selected)) + '.')
-      + '</p>';
+      + '</p>'
+      // The scenario chain reaches names with no fundamentals row as readily as names with
+      // one — reachability is bucket membership, and 149 of 202 constituents are outside the
+      // screener universe by design. Leaving it off this branch would hide the explanation
+      // for most of the securities a scenario actually reaches.
+      + scenarioWhyBlock(selected, "detail");
     return;
   }
   if(!r){
@@ -6726,7 +6900,10 @@ function cardBody(r){
     + ' it; Yahoo&#39;s items are filed under the ticker by Yahoo, which is why its coverage is'
     + ' wide and why a sector round-up filed under one name can still sit behind its reading."'
     + ' aria-label="How the three tone sources differ">?</button> three sources, always all'
-    + ' three</p>';
+    + ' three</p>'
+    // Renders nothing when the active shock's scenario does not reach this name, which is the
+    // common case — 36 of 123 rows under Hormuz, none at all under a shock with no model.
+    + scenarioWhyBlock(r.tk, "detail");
 }
 
 /* Headline documents, keyed source → ticker, straight from the tone snapshot. Empty until one
@@ -6934,7 +7111,7 @@ const LENS_GROUPS = [
   {title: "Fundamentals", keys: ["low_pe_high_growth", "low_pe_high_dividend",
                                 "safety_low_debt", "most_volatile", "most_active"]},
   {title: "AI & infrastructure", keys: ["high_ai_exposure", "ai_shadow_debt", "low_ai_exposure"]},
-  {title: "Macro & thematic", keys: ["sovereign_ledger", "chaos_hedges"]},
+  {title: "Macro & thematic", keys: ["sovereign_ledger", "chaos_hedges", "scenario_reach"]},
   {title: "Sentiment", keys: ["bloomberg_tone", "reddit_tone", "yahoo_tone", "social_tone"]},
 ];
 /* LENS_UNIT_SEL is declared once, up with LENS_HOST_IDS, and derived from them. It was
@@ -7173,6 +7350,45 @@ function scenarioIsFixture(sc){
 }
 function pct(x){ return x == null ? "—" : Math.round(x * 100) + "%"; }
 
+/* ── Fixture labelling, structurally ──────────────────────────────────────────────────────
+   Every number derived from a fixture goes through `fxVal`, and `fxVal` refuses to render one
+   into a surface that has not been declared here. The declaration says HOW that surface
+   carries its marker, because one of them cannot carry its own.
+
+   This is a registry rather than a list of six string searches on purpose. A guard shaped as
+   an enumeration covers the surfaces it happens to name and silently stops covering the next
+   one somebody adds — which is the failure `test_sovereign_buckets.py:57` records: "the guard
+   was narrower than the module's claim, so the parts it did not name drifted out from under
+   it." Here the claim and the guard are the same object. */
+const FIXTURE_SURFACES = {
+  // Renders its own FIXTURE badge beside the number.
+  strip:   "own",
+  drawer:  "own",
+  detail:  "own",
+  // The bucket card has no room for a badge — Decision 7 gives the indicator the id line's
+  // spare width and nothing more. It is covered by the strip instead, and that is a
+  // containment claim with a test behind it: `.ctx-head` does not fold, and it sits above
+  // `#contextBody`, which holds `#bucketGrid`. The strip is on screen whenever a card is.
+  bkcard:  "strip",
+};
+function fxVal(surface, sc, text){
+  if(!FIXTURE_SURFACES[surface])
+    throw new Error("fixture value rendered into an undeclared surface: " + surface);
+  if(!scenarioIsFixture(sc)) return esc(text);
+  return '<span class="fx-val" title="Illustrative fixture value — hand-authored to '
+    + 'exercise this architecture. Not calibrated, not estimated, not a forecast.">'
+    + esc(text) + '</span>';
+}
+/* The surface's own marker. Empty when the reading is modelled — a badge that is always there
+   marks nothing. */
+function fxMark(surface, sc){
+  if(FIXTURE_SURFACES[surface] !== "own")
+    throw new Error("surface does not carry its own marker: " + surface);
+  return scenarioIsFixture(sc)
+    ? ' <span class="scen-fixture" title="Illustrative data written to exercise this '
+      + 'architecture. Not calibrated, not a forecast.">FIXTURE</span>' : "";
+}
+
 /* The card's modelled-activation chip. READ from the emitted derivation, never computed:
    the page has no branch probabilities to sum and no business summing them.
 
@@ -7192,7 +7408,160 @@ function activationChip(bucketId){
         + (act.drivers.length === 1 ? "" : "s") + ": "
         + act.drivers.map(d => d.channel.label).join(", ")
         + (fixture ? ". FIXTURE — illustrative, not calibrated." : ""))
-    + '">' + esc(pct(act.activation)) + '</span>';
+    // Surface "bkcard": the number is fixture-marked by the strip above it, not by a badge of
+    // its own — there is no room for one and Decision 7 forbids taking any.
+    + '">' + fxVal("bkcard", sc, pct(act.activation)) + '</span>';
+}
+
+/* ── Scenario reach: the lens, the ordering, the explanation ──────────────────────────────
+   Everything below READS the exposures Python derived and shipped. Nothing joins a
+   sensitivity, nets a sign or walks bucket membership to reach a security — the one legal
+   path to a security was walked in `scenarios.security_exposures`, and walking it again here
+   would be a second implementation with no harness to catch the day the two disagreed. */
+
+/* Every exposure record for one security under the active shock, in a stable order.
+   Keys are "TICKER|channel_id"; the ticker can contain no pipe (CL=F, BRK.B) so the first
+   pipe is the separator, and `indexOf` rather than `split` keeps that explicit. */
+function scenarioExposuresFor(security){
+  const sc = scenarioForShock(bucketShock);
+  const ex = sc && sc.exposures;
+  if(!ex) return [];
+  return Object.keys(ex).filter(k => k.slice(0, k.indexOf("|")) === security)
+    .sort().map(k => ex[k]);
+}
+/* Which securities the active shock's scenario reaches at all. Memoised per shock: the lens
+   asks it once per row and the exposure map is rebuilt from object keys. */
+let _reachCache = null, _reachKey = "";
+function scenarioReached(){
+  const sc = scenarioForShock(bucketShock);
+  const key = bucketShock + "|" + (sc && sc.scenario_id || "");
+  if(_reachCache && _reachKey === key) return _reachCache;
+  _reachKey = key;
+  const out = new Set();
+  Object.keys((sc && sc.exposures) || {}).forEach(k => out.add(k.slice(0, k.indexOf("|"))));
+  _reachCache = out;
+  return out;
+}
+/* May the scenario order what the reader meets first? DECIDED IN PYTHON — this reads the
+   verdict and its sentence rather than restating the rule, because "basis is modelled AND a
+   registered metric is declared" written twice is the same rule with two chances to be
+   wrong, and the page would be the copy publishing the ranking. */
+function scenarioRanking(){
+  const sc = scenarioForShock(bucketShock);
+  return (sc && sc.ranking) || null;
+}
+/* The lens's own order, used only when the scenario may not rank.
+
+   Lowest bucket id among the paths, then ticker. It is deterministic, it is a total order,
+   and — the point — it is not a QUANTITY: nothing about being higher in this list says a name
+   is more exposed. It reads off `paths[]` rather than the row's bucket column because
+   `screen_tag_for` is first-match-wins over a name in two buckets, so the column can name a
+   bucket this scenario never traversed. */
+/* Is the shock currently a CONSTRAINT rather than framing?
+
+   For the whole life of this page the answer was no, and three sentences said so in as many
+   words. The scenario lens makes it conditional: its membership is "reached by the scenario
+   the shock resolves to", so under it the shock decides the row set. One definition, because
+   the handler that redraws and the sentence that explains have to agree — a page that redraws
+   on a shock change while still telling the reader shocks narrow nothing is worse than either
+   behaviour on its own. */
+function shockIsNarrowing(){ return preset === SCENARIO_LENS; }
+function scenarioReachKey(tk){
+  let low = null;
+  scenarioExposuresFor(tk).forEach(rec => rec.paths.forEach(p => {
+    if(low === null || p.bucket_id < low) low = p.bucket_id;
+  }));
+  return (low === null ? "￿" : low) + "|" + tk;
+}
+
+/* ── "Why is this security here" ──────────────────────────────────────────────────────────
+   Rendered from the stored path, hop by hop, in the order a reader walks it. Nothing here
+   narrates: every sentence below is a field, and the mechanism clause is the author's own
+   words carried from the edge. An explanation composed here would be free to disagree with
+   the arithmetic that produced the exposure, and nothing would notice.
+
+   Four states, and each is a different sentence because each is a different thing to do next.
+   `unassessed` is the one that matters most: it is the majority of reached names, and it must
+   never read as "no effect". */
+const EXPOSURE_STATES = {
+  exposed:    {label: "responds",     cls: "ok"},
+  unassessed: {label: "unassessed",   cls: "gap"},
+  undirected: {label: "no direction", cls: "gap"},
+  unresolved: {label: "unresolved",   cls: "bad"},
+};
+/* Direction, and only direction. Never "rises" or "benefits": the sign says which way the
+   security moves relative to the CHANNEL, and the channel carries its own sign convention —
+   so a positive sign on "refining crack" and a positive sign on "crude price" are two
+   different statements about the world, and neither is a return. */
+function signWord(sign){
+  return sign == null ? "direction not stated"
+       : sign > 0 ? "WITH the channel" : "AGAINST the channel";
+}
+/* The chain for one security, or "" when the active shock's scenario does not reach it. */
+function scenarioWhyBlock(tk, surface){
+  const sc = scenarioForShock(bucketShock);
+  const recs = scenarioExposuresFor(tk);
+  if(!sc || !recs.length) return "";
+  const rows = recs.map(rec => {
+    const st = EXPOSURE_STATES[rec.status] || {label: rec.status, cls: "gap"};
+    // EVERY path, never the first. Reaching one security on one channel through two buckets
+    // is the graph telling the truth, and showing one of them would make this block contradict
+    // the derivation it claims to be reading. `paths.map`, not `paths[0]`.
+    const hops = rec.paths.map(p => {
+      const traversed = p.bucket_id + " " + p.bucket_name;
+      // The results row's `bucket` column comes from screen_tag_for, which is first-match-wins
+      // over a name in two buckets. When it names a different bucket than the one this path
+      // went through, the block says both — the alternative is two surfaces on one screen
+      // disagreeing about where a name sits with nothing to reconcile them.
+      const tag = bucketTagFor(tk);
+      const other = tag && tag !== bucketTagForId(p.bucket_id)
+        ? ' <span class="scen-note">(the results column files it under <b>' + esc(tag)
+          + '</b> — one name, two buckets)</span>' : "";
+      return '<li><b>' + fxVal(surface, sc, pct(p.engaged_probability)) + '</b> chance one of '
+          + p.branches.length + ' branch' + (p.branches.length === 1 ? "" : "es")
+          + ' holds over ' + esc((SCENARIOS.HORIZONS[p.horizon] || {}).label || p.horizon)
+          + '</li>'
+        + '<li>&rarr; <b>' + esc(p.channel_label) + '</b> <span class="scen-note">'
+          + esc(p.channel_unit) + '</span>, ' + esc(p.edge_strength) + ' strength: '
+          + esc(p.mechanism) + '</li>'
+        + '<li>&rarr; bucket <b>' + esc(traversed) + '</b> <span class="scen-note">'
+          + esc(p.membership_tier) + ' member</span>' + other + '</li>'
+        + '<li>&rarr; ' + (p.sensitivity_basis
+            ? 'sensitivity: responds ' + esc(signWord(p.sensitivity_sign))
+              + (p.sensitivity_magnitude == null
+                  ? ' <span class="scen-note">(magnitude not put on a number)</span>'
+                  : ', magnitude ' + fxVal(surface, sc, p.sensitivity_magnitude.toFixed(2)))
+            : '<span class="scen-note">no sensitivity to this channel is on record — this '
+              + 'security is reached, and nobody has assessed how it responds</span>')
+          + '</li>';
+    }).join("");
+    return '<div class="scen-ex">'
+      + '<div class="scen-ex-head"><b>' + esc(rec.channel.label) + '</b>'
+      + ' <span class="scen-state ' + st.cls + '">' + esc(st.label) + '</span>'
+      + (rec.status === "exposed"
+          ? ' <span class="scen-note">' + esc(signWord(rec.sign)) + ' &middot; confidence '
+            + (rec.confidence == null ? "not stated" : rec.confidence.toFixed(2))
+            + ' <span class="scen-note">(the least certain hop)</span></span>'
+          : rec.why ? ' <span class="scen-note">' + esc(rec.why) + '</span>' : "")
+      + '</div><ol class="scen-path">' + hops + '</ol></div>';
+  }).join("");
+  return '<div class="scen-why"><div class="scen-why-head">Why ' + esc(tk)
+    + ' is in this scenario <span class="scen-note">' + esc(bucketShock) + '</span>'
+    + fxMark(surface, sc) + '</div>' + rows
+    + '<p class="scen-foot">Reach, direction and confidence — not a return. Nothing here says '
+    + 'how much ' + esc(tk) + ' moves, and the chance above is the chance the MECHANISM is '
+    + 'engaged, not the chance this security rises.</p></div>';
+}
+/* The screener's own bucket tag for a name, and the tag belonging to a bucket id. Two lookups
+   over the same table, kept apart because they answer different questions: the first is
+   first-match-wins over a name, the second is exact. */
+function bucketTagFor(tk){
+  const r = ROWS.find(x => x.tk === tk);
+  return (r && r.bucket) || null;
+}
+function bucketTagForId(id){
+  const b = BUCKETS.find(x => x.id === id);
+  return (b && b.screen_tag) || null;
 }
 
 /* The strip. One row in the context head — which never folds — saying what is behind the
@@ -7219,13 +7588,12 @@ function drawScenarioStrip(){
   const horizon = (SCENARIOS.HORIZONS[st.horizon] || {}).label || st.horizon;
   const active = Object.keys(sc.activations || {}).length;
   host.innerHTML =
-      '<b>' + esc(pct(st.probability)) + '</b> ' + esc(target.label || st.target_id)
+      '<b>' + fxVal("strip", sc, pct(st.probability)) + '</b> '
+    + esc(target.label || st.target_id)
     + ' <span class="scen-none">' + esc(horizon) + '</span>'
     + ' <span class="scen-none">\u00b7 ' + active + ' bucket' + (active === 1 ? "" : "s")
     + ' engaged</span>'
-    + (scenarioIsFixture(sc)
-        ? ' <span class="scen-fixture" title="Illustrative data written to exercise this '
-          + 'architecture. Not calibrated, not a forecast.">FIXTURE</span>' : "")
+    + fxMark("strip", sc)
     + ' <button type="button" class="scen-open" data-panel-open="scenPanel">why</button>';
   // The tooltip carries the resolvable question, so the number on screen is never a
   // probability of something the reader has to guess at.
@@ -7234,6 +7602,68 @@ function drawScenarioStrip(){
     + (st.basis === "fixture"
         ? "\n\nFIXTURE: illustrative, not calibrated against history or any model."
         : "\n\nModelled by " + (st.model_id || "?") + " " + (st.model_version || ""));
+}
+
+/* The drawer behind the strip's `why`. The scenario as a whole: the question it answers, the
+   branch partition, what has happened, and every mechanism it runs through — with the pinned
+   name's own chain at the bottom when the scenario reaches it.
+
+   It reads the same emitted record every other surface reads. There is no second query, no
+   recomputation and no summary number invented for the drawer. */
+function drawScenPanel(){
+  const host = document.getElementById("scenPanelBody");
+  if(!host) return;
+  const sc = scenarioForShock(bucketShock);
+  if(!sc || !sc.state){
+    host.innerHTML = '<p class="dc-empty"><b>No scenario has been written for '
+      + esc(bucketShock) + '.</b> The shock still orders the bucket cards from authored heat,'
+      + ' which is a researcher\'s judgment of structural relevance — there is no probability,'
+      + ' no transmission graph and no security-level reading behind it. Nothing is estimated'
+      + ' to fill the gap.</p>';
+    return;
+  }
+  const s = sc.scenario, st = sc.state;
+  const target = SCENARIOS.TARGETS[st.target_id] || {};
+  const rank = sc.ranking || {};
+  const branches = (s.branches || []).map(b =>
+      '<li><b>' + fxVal("drawer", sc, pct(b.probability)) + '</b> ' + esc(b.label) + '</li>')
+    .join("");
+  const devs = (s.developments || []).map(d =>
+      '<li><span class="scen-note">' + esc(d.timestamp) + '</span> ' + esc(d.summary)
+      + ' <span class="scen-state ' + (d.direction === "escalating" ? "bad" : "ok") + '">'
+      + esc(d.direction) + '</span></li>').join("");
+  const edges = (s.transmission || []).map(e =>
+      '<li>bucket <b>' + esc(e.bucket_id + " " + bucketNameForId(e.bucket_id)) + '</b>'
+      + ' via <b>' + esc((SCENARIOS.CHANNELS[e.channel_id] || {}).label || e.channel_id)
+      + '</b> <span class="scen-note">' + esc(e.strength) + ' strength, '
+      + esc((SCENARIOS.HORIZONS[e.horizon] || {}).label || e.horizon) + '</span><br>'
+      + '<span class="scen-note">' + esc(e.mechanism) + '</span></li>').join("");
+  host.innerHTML =
+      '<p class="scen-q"><b>' + fxVal("drawer", sc, pct(st.probability)) + '</b> &mdash; '
+    + esc(target.question || target.label || st.target_id) + fxMark("drawer", sc) + '</p>'
+    + '<p class="scen-note">As of ' + esc(st.as_of) + ' &middot; ' + esc(st.basis)
+    + ' &middot; horizon ' + esc((SCENARIOS.HORIZONS[st.horizon] || {}).label || st.horizon)
+    + (st.confidence == null ? " &middot; confidence not stated"
+                             : " &middot; confidence " + st.confidence.toFixed(2)) + '</p>'
+    // Why the lens will not rank, in the words Python decided it in. The reader meets this
+    // sentence in the one place that explains the whole scenario, not only when a chart
+    // happens to come up empty.
+    + '<p class="scen-note"><b>Ordering:</b> ' + esc(rank.why || "not stated") + '</p>'
+    // The partition is a PARAGRAPH, not part of the heading. Headings here are uppercased
+    // mono, which is right for one word and turns the fixture's careful statement of what the
+    // branches divide — several sentences of it — into a shouted block nobody reads. It is
+    // rendered in full rather than truncated: it is the only thing that makes "these sum to 1"
+    // mean anything, and a summary of it would be the page paraphrasing the author's claim.
+    + (branches ? '<h4>Branches</h4>'
+        + (s.partition ? '<p class="scen-part">' + esc(s.partition) + '</p>' : "")
+        + '<ul class="scen-list">' + branches + '</ul>' : "")
+    + (devs ? '<h4>What has happened</h4><ul class="scen-list">' + devs + '</ul>' : "")
+    + (edges ? '<h4>Where it transmits</h4><ul class="scen-list">' + edges + '</ul>' : "")
+    + (selected ? scenarioWhyBlock(selected, "drawer") : "");
+}
+function bucketNameForId(id){
+  const b = BUCKETS.find(x => x.id === id);
+  return (b && b.name) || id;
 }
 
 /* The summary line above the workspace. Says the same thing the chip in the bar says, from
@@ -7251,11 +7681,18 @@ function drawContextHead(){
   drawScenarioStrip();
   sub.textContent = on ? c.screenable + " of " + c.held + " securities screenable"
                        : c.screenable + " securities";
-  // Framing, not a constraint. Named as framing on the line where it appears, because a
-  // scenario printed beside a row count reads as its cause.
-  scen.textContent = "Scenario: " + bucketShock + " / " + bucketClock + " framing";
-  scen.title = "Shock and clock order the bucket cards and colour their heat. They do not "
-             + "narrow the security universe.";
+  // Framing or constraint — and it says which, because it is now sometimes both. Naming it
+  // "framing" while the scenario lens is using it to choose the row set would be the page
+  // describing a behaviour it no longer has, printed directly above the count it changed.
+  const narrowing = shockIsNarrowing();
+  scen.textContent = "Scenario: " + bucketShock + " / " + bucketClock
+    + (narrowing ? " narrowing" : " framing");
+  scen.title = narrowing
+    ? "The " + activeLensLabel() + " lens screens on what this shock's scenario reaches, so "
+      + "the shock IS narrowing the universe right now. Clear the lens and it goes back to "
+      + "ordering the bucket cards and nothing else."
+    : "Shock and clock order the bucket cards and colour their heat. They do not narrow the "
+      + "security universe.";
   clear.hidden = !on;
   if(sec) sec.classList.toggle("narrowed", on);
 }
@@ -7529,11 +7966,19 @@ document.getElementById("bTabs").addEventListener("click", (ev)=>{
   if(b.dataset.btab === "chart") drawBucketChart();
 });
 document.getElementById("bucketShock").addEventListener("change", (ev)=>{
-  // Scoped, not a full render(). The shock still narrows nothing — it orders cards and now
-  // resolves a scenario — so redrawing the results, the board and every chart would be work
-  // no reader asked for, and would put a shock change on the same footing as a bucket
-  // selection, which it is not.
-  bucketShock = ev.target.value; drawBucketCtl(); drawBuckets(); drawContextHead();
+  bucketShock = ev.target.value;
+  /* Whether this needs a full render is not a fixed fact about shocks — it depends on whether
+     a shock is currently narrowing anything, and since the scenario lens exists it sometimes
+     is. Under every other lens the shock orders cards and resolves a scenario and touches no
+     row, so the scoped refresh is right and a render() would be work no reader asked for.
+     Under `scenario_reach` the shock chooses which scenario supplies the membership, so
+     changing it changes the RESULT SET — and a results table still showing the previous
+     shock's names is worse than a slow redraw, because it is specific and wrong.
+
+     The condition is `shockIsNarrowing()`, one definition, read here and by the sentence in
+     the context head that tells the reader which it is. */
+  if(shockIsNarrowing()){ render(); return; }
+  drawBucketCtl(); drawBuckets(); drawContextHead();
 });
 document.getElementById("bucketClock").addEventListener("change", (ev)=>{
   bucketClock = ev.target.value; drawBucketCtl(); drawBuckets();

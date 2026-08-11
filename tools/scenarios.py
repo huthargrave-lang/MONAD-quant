@@ -170,6 +170,30 @@ TARGETS = {
     },
 }
 
+#: The metrics a scenario is ALLOWED to order securities by, and nothing else.
+#:
+#: Ordering is an editorial act wearing arithmetic's clothes. Whatever sits at the top of a
+#: screen is read as "the one this most affects", so the quantity doing the sorting has to be
+#: one that means that — and has to have been estimated, not asserted. A scenario declares
+#: `rank_metric` to claim ordering authority; validation rejects anything not named here, so
+#: the claim cannot be made by inventing a metric name.
+#:
+#: Declaring one is NOT sufficient. `ranking_authority` also requires the scenario's own basis
+#: to be `modelled`: a fixture may name a metric it would rank by, and still not rank by it,
+#: because the numbers behind it are illustrative. Both halves are checked, and V1's only
+#: scenario satisfies neither — which is the point. The gate exists so that the day a model
+#: does arrive, turning ranking on is a data change with a validator behind it rather than a
+#: code change nobody reviews.
+RANK_METRICS = {
+    "exposure_magnitude": {
+        "label": "modelled exposure magnitude",
+        # Names the field it reads, so a metric cannot be declared for a quantity the
+        # derivation does not produce.
+        "field": "magnitude",
+        "of": "the security's sensitivity coefficient on the channel that reached it",
+    },
+}
+
 #: How strongly a security responds to a CHANNEL — never to a shock.
 #:
 #: Dimensionless and deliberately so: it is an elasticity-like relationship parameter, not a
@@ -252,7 +276,7 @@ _SCHEMAS = {
         # double-counting. Naming the dimension is what makes disjointness checkable by a
         # human, which is the only thing that can check it.
         "optional": set(_PROVENANCE_FIELDS) | {"developments", "branches", "observations",
-                                               "partition", "transmission"},
+                                               "partition", "transmission", "rank_metric"},
     },
     # An edge names a CHANNEL and a BUCKET. It cannot name a security — that is invariant 4
     # holding at the one place it would be most tempting to break, since the author writing
@@ -539,6 +563,12 @@ def _validate_scenario(sid, record):
         raise ValueError("{}: id field {!r} disagrees with its key".format(where, record["id"]))
     if record["shock_id"] not in sovereign_buckets.SHOCK_HINTS:
         raise ValueError("{}: unknown shock_id {!r}".format(where, record["shock_id"]))
+    if "rank_metric" in record and record["rank_metric"] not in RANK_METRICS:
+        raise ValueError(
+            "{}: rank_metric {!r} is not one of {}. Ordering authority is granted by naming a "
+            "registered metric, not by naming a quantity — a free string here would let a "
+            "scenario sort a screen by anything it liked and call it a ranking".format(
+                where, record["rank_metric"], sorted(RANK_METRICS)))
 
     for dev in record.get("developments") or []:
         d_where = "{} development {}".format(where, dev.get("id"))
@@ -995,6 +1025,45 @@ def unscreenable_reached(scenario, screened):
     return out
 
 
+def ranking_authority(scenario, state=None):
+    """May this scenario decide what order a reader meets securities in?
+
+    Two conditions, both required, and the reason each exists is different:
+
+      the scenario names a registered `rank_metric`
+          — so the ordering quantity is one the derivation actually produces, and one somebody
+            chose deliberately rather than whichever number happened to be at hand;
+
+      the scenario's current reading is `modelled`
+          — so the numbers behind that quantity were estimated. A fixture magnitude is an
+            author's illustration; sorting a screen by it publishes a ranking of real
+            securities derived from numbers invented to exercise a join.
+
+    Returns the decision AND the sentence for it, because a surface that has to explain why it
+    is not ranking should not have to compose that explanation itself — two surfaces composing
+    it would be two wordings of one rule, which is the drift this module exists to prevent.
+    """
+    state = scenario_state(scenario) if state is None else state
+    metric = scenario.get("rank_metric")
+    basis = (state or {}).get("basis")
+    if metric and basis == "modelled":
+        return {"quantitative": True, "metric": metric,
+                "metric_label": RANK_METRICS[metric]["label"],
+                "why": "ranked by {}, from a modelled reading".format(
+                    RANK_METRICS[metric]["label"])}
+    if not metric:
+        why = ("no ranking metric is declared, so this scenario orders securities but does not "
+               "rank them")
+    elif basis is None:
+        why = ("nothing has been observed for this scenario, so there is no reading to rank on")
+    else:
+        why = ("the reading is {}, not modelled — its magnitudes are illustrative and ranking "
+               "real securities by them would publish an order nobody estimated".format(basis))
+    return {"quantitative": False, "metric": metric,
+            "metric_label": RANK_METRICS[metric]["label"] if metric else None,
+            "why": why}
+
+
 def explain(scenario, security, channel_id=None):
     """The chain behind one security, ready to render — the answer to "why is this here".
 
@@ -1045,10 +1114,16 @@ def as_payload(scenarios=None):
     out = {}
     for sid, s in (load() if scenarios is None else scenarios).items():
         exposures = security_exposures(s)
+        state = scenario_state(s)
         out[s["shock_id"]] = {
             "scenario_id": sid,
             "scenario": s,
-            "state": scenario_state(s),
+            "state": state,
+            # Decided HERE, not in the browser. The gate is two conditions over a registry and
+            # a basis; evaluated page-side it would be a second statement of the rule in the
+            # one language with no test harness, and the day the two parted the page would be
+            # the one publishing a ranking.
+            "ranking": ranking_authority(s, state),
             "activations": bucket_activations(s),
             # Tuple keys cannot survive JSON. "TICKER|channel_id" keeps the pair addressable
             # without inventing a nested shape a consumer would have to flatten again.
@@ -1074,7 +1149,8 @@ def runtime_js(scenarios=None):
         lit("TARGETS", TARGETS),
         lit("HORIZONS", HORIZONS),
         lit("STRENGTHS", list(STRENGTHS)),
+        lit("RANK_METRICS", RANK_METRICS),
         lit("BY_SHOCK", as_payload(scenarios)),
-        "  return {CHANNELS, TARGETS, HORIZONS, STRENGTHS, BY_SHOCK};",
+        "  return {CHANNELS, TARGETS, HORIZONS, STRENGTHS, RANK_METRICS, BY_SHOCK};",
         "})();",
     ])

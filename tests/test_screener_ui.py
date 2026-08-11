@@ -1773,28 +1773,53 @@ class TheScenarioStripReadsRatherThanDerives(unittest.TestCase):
                       "indistinguishable from absence of anything to report")
 
     def test_a_fixture_reading_is_marked_where_the_number_is(self):
+        """The strip's own marking moved into the shared helpers in Phase F, so the assertion
+        moved with it — from an inline class name to the two calls that produce one.
+
+        Not weakened: `fxVal` renders the number and `fxMark` renders the badge, and
+        `TheFixtureMarkingCannotBeEscaped` below asserts that every surface calling the first
+        also calls the second. A class-name scan could not have said that."""
         body = re.search(r"function drawScenarioStrip\(\)\{(.*?)\n\}", self.html, re.S)
         self.assertIsNotNone(body)
-        self.assertIn("scen-fixture", body.group(1),
+        code = body.group(1)
+        self.assertIn('fxVal("strip"', code,
+                      "the strip's probability no longer goes through the fixture helper, so "
+                      "nothing marks it when the reading is authored")
+        self.assertIn('fxMark("strip"', code,
                       "a fixture probability renders with no marking beside it")
-        self.assertIn("scenarioIsFixture", body.group(1))
 
     def test_changing_the_shock_refreshes_the_strip(self):
         """The shock handler redrew only the bucket control and grid. A strip that did not
         move with the selector would show the previous shock's model — worse than showing
-        nothing, because it would be specific and wrong."""
-        m = re.search(r'getElementById\("bucketShock"\)\.addEventListener\("change".*?\}\);',
+        nothing, because it would be specific and wrong.
+
+        Phase F made the second half of this conditional rather than absolute. "A shock
+        narrows nothing" was true of every lens that existed when it was written; the scenario
+        lens screens on what the shock's scenario reaches, so under it a shock change changes
+        the row set and a scoped refresh would leave the results table specific and wrong in
+        the other direction. What is pinned now is the CONDITION — scoped by default, a full
+        render only when the shock is actually narrowing — which is a stronger claim than
+        either "always" or "never"."""
+        m = re.search(r'getElementById\("bucketShock"\)\.addEventListener\("change".*?\n\}\);',
                       self.html, re.S)
         self.assertIsNotNone(m)
-        # Comments stripped: the handler's own comment explains why it is NOT a full render,
-        # and a scan over the raw text finds that explanation and calls it the defect — the
-        # same prose-versus-code mistake this file has recorded four times.
+        # Comments stripped: the handler's own comment explains WHY it is not an unconditional
+        # render, and a scan over the raw text finds that explanation and calls it the defect —
+        # the same prose-versus-code mistake this file has recorded five times.
         body = re.sub(r"/\*.*?\*/|//[^\n]*", "", m.group(0), flags=re.S)
         self.assertIn("drawContextHead()", body,
                       "a shock change does not refresh the context head, so the strip is stale")
-        self.assertNotRegex(body, r"(?<![.\w])render\(\)",
-                            "a shock change now triggers a full render — the shock narrows "
-                            "nothing and must not be put on the same footing as a selection")
+        self.assertRegex(
+            body, r"if\(shockIsNarrowing\(\)\)\{\s*render\(\);\s*return;\s*\}",
+            "a shock change no longer re-renders when the shock is narrowing the universe, so "
+            "the results table keeps the previous shock's names under the scenario lens")
+        # Everything after the guarded early return must still be the scoped path. A render()
+        # reachable without the condition puts a shock change on the same footing as a bucket
+        # selection under every lens, which it is not.
+        tail = body.split("return; }", 1)[-1]
+        self.assertNotRegex(tail, r"(?<![.\w])render\(\)",
+                            "a shock change now triggers a full render unconditionally")
+
 
 
 def _script(html):
@@ -1810,6 +1835,125 @@ def _decomment(code):
     matched a comment describing the very thing that had been deleted."""
     return re.sub(r"/\*.*?\*/|//[^\n]*", "", code, flags=re.S)
 
+
+def _functions(js):
+    """{name: body} for every top-level `function name(...){...}`, by brace matching.
+
+    A fixed-size window past the opening brace is not a scope: it runs past the end of short
+    functions into whatever follows, and stops short inside long ones. Both directions produce
+    a guard that reports the wrong function — the first version of the fixture-pairing test
+    did exactly that. Pass `js` through `_decomment` first; braces inside string literals are
+    the remaining hazard and none of this page's functions contain an unbalanced one, which
+    the length check in each caller is there to notice if it ever changes."""
+    out = {}
+    for m in re.finditer(r"\nfunction (\w+)\([^)]*\)\{", js):
+        depth, i = 1, m.end()
+        while i < len(js) and depth:
+            c = js[i]
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+            i += 1
+        out[m.group(1)] = js[m.end():i - 1]
+    return out
+
+
+class TheFixtureMarkingCannotBeEscaped(unittest.TestCase):
+    """Phase F. Every fixture-derived number on this page goes through one helper, and that
+    helper refuses to render into a surface that has not declared how it carries its marker.
+
+    Written as a structural rule rather than as six string searches on six surfaces. An
+    enumeration covers what it names and silently stops covering the next surface somebody
+    adds, which is the shape `test_sovereign_buckets.py:57` records being burned by: "the
+    guard was narrower than the module's claim, so the parts it did not name drifted out from
+    under it." Here the registry IS the claim, and these assertions are about the registry."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.html = _page()
+        cls.js = _decomment(_script(cls.html))
+
+    def _surfaces(self):
+        m = re.search(r"const FIXTURE_SURFACES = \{(.*?)\n\};", self.js, re.S)
+        self.assertIsNotNone(m, "the fixture-surface registry is gone")
+        return dict(re.findall(r'(\w+):\s*"(\w+)"', m.group(1)))
+
+    def test_every_surface_that_prints_one_is_declared(self):
+        """`fxVal` throws on an undeclared surface, so this is really asserting that no call
+        site is written against a surface the registry does not know — a page that threw at
+        render time would take the whole card down with it."""
+        used = set(re.findall(r'fxVal\("(\w+)"', self.js))
+        self.assertTrue(used, "nothing renders a fixture value any more")
+        declared = self._surfaces()
+        self.assertEqual(used - set(declared), set(),
+                         "a fixture value is rendered into a surface with no declared marker")
+
+    def test_a_surface_that_prints_one_also_carries_a_marker(self):
+        """The pairing, per renderer function, which is the assertion an enumeration of class
+        names cannot make: within the function that prints the number, the same function must
+        print the badge — unless the registry says another surface covers it.
+
+        The first version of this used a fixed 4000-character window instead of the function's
+        real extent, and it duly reported `scenarioWhyBlock` for a marker that belonged to
+        `drawScenarioStrip` two functions later. A window is not a scope."""
+        declared = self._surfaces()
+        checked = 0
+        for name, body in _functions(self.js).items():
+            # The surface can be a literal or a parameter. Both are checked, and a parameter
+            # has to be handed to BOTH helpers — a renderer that takes its surface as an
+            # argument and hard-codes the marker would mark the wrong one.
+            for arg in set(re.findall(r'fxVal\(\s*("?\w+"?)\s*,', body)):
+                literal = arg.strip('"') if arg.startswith('"') else None
+                if literal is not None and declared.get(literal) != "own":
+                    self.assertIn(literal, declared,
+                                  "%s renders into undeclared surface %r" % (name, literal))
+                    continue          # covered by another surface; asserted separately
+                checked += 1
+                self.assertRegex(
+                    body, r"fxMark\(\s*" + re.escape(arg) + r"\s*,",
+                    "%s prints a fixture value into the %s surface and never marks it"
+                    % (name, arg))
+        self.assertGreaterEqual(checked, 2,
+                                "the pairing rule matched almost nothing — the extractor has "
+                                "stopped finding the renderers it is supposed to be checking")
+
+    def test_a_surface_covered_by_another_names_the_one_covering_it(self):
+        """`bkcard` is the one that cannot carry its own badge — Decision 7 gives the card
+        indicator the id line's spare width and nothing more. Its declaration names the strip,
+        and the containment that makes that true is pinned elsewhere: `.ctx-head` does not
+        fold and sits above `#contextBody`, which holds `#bucketGrid`."""
+        declared = self._surfaces()
+        for surface, how in declared.items():
+            if how == "own":
+                continue
+            self.assertIn(how, declared,
+                          "%r says it is covered by %r, which is not a surface" % (surface, how))
+            self.assertEqual(declared[how], "own",
+                             "%r is covered by %r, which does not carry a marker itself"
+                             % (surface, how))
+        head = re.search(r'<div class="ctx-head">(.*?)</div>', self.html, re.S)
+        self.assertIsNotNone(head)
+        self.assertIn('id="ctxScen"', head.group(1),
+                      "the covering surface is not in the head, so it can fold away from the "
+                      "cards it is supposed to be marking")
+
+    def test_no_scenario_number_reaches_a_surface_the_helper_does_not_guard(self):
+        """The escape route this is actually watching: reading a derived quantity straight out
+        of the record and interpolating it, which produces a bare fixture number with nothing
+        marking it. Every one of these fields is fixture-derived under V1's only scenario."""
+        for field in ("sensitivity_magnitude", "engaged_probability", "\\.activation",
+                      "\\.probability"):
+            for m in re.finditer(field, self.js):
+                line_start = self.js.rfind("\n", 0, m.start()) + 1
+                line = self.js[line_start:self.js.find("\n", m.end())]
+                if "fxVal(" in line or "==" in line or "!=" in line:
+                    continue
+                # Assignment into a local, or a comparison, is not a render.
+                self.assertNotRegex(
+                    line, r"innerHTML|'\s*\+|\+\s*'",
+                    "a fixture-derived value is interpolated into markup without going "
+                    "through fxVal: " + line.strip()[:120])
 
 class TheCardShowsActivationWithoutBecomingHeat(unittest.TestCase):
     """Phase E. Editorial heat and modelled activation sit on one card and must not read as
@@ -1953,3 +2097,205 @@ class TheCardShowsActivationWithoutBecomingHeat(unittest.TestCase):
         self.assertIn("bucketStarred", code, "a reader's star no longer outranks the ordering")
         self.assertNotIn("activation", code,
                          "the bucket grid is ordered by modelled activation")
+
+
+class TheScenarioLensExplainsWithoutRanking(unittest.TestCase):
+    """Phase F. The scenario lens screens on REACH — the scenario runs through a bucket this
+    name is in — and says so instead of implying impact.
+
+    The distinction this class exists to hold: a screen's ORDER is read as a ranking. Under a
+    fixture, every magnitude behind such a ranking is a number somebody wrote to exercise a
+    join. So the lens is allowed to decide membership and forbidden to decide order, until a
+    model with a validated metric stands behind it — and that gate is decided in Python, where
+    it can be tested, not restated here."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.html = _page()
+        cls.js = _decomment(_script(cls.html))
+        cls.fns = _functions(cls.js)
+
+    def test_the_lens_is_registered_everywhere_a_lens_has_to_be(self):
+        """A lens missing from any one of these is a lens that half-exists: a pill with no
+        spec, or a spec no menu lists. The menu guard already catches ungrouped pills, so this
+        pins the two registries it cannot see."""
+        self.assertIn('data-p="scenario_reach"', self.html, "the lens has no pill")
+        self.assertRegex(self.js, r"scenario_reach:\s*\{rank:null",
+                         "the lens has no LENS_SPEC entry, so lensSpec() falls back to "
+                         "{rank:'score'} and it silently ranks by composite score")
+        self.assertRegex(self.js, r"scenario_reach:\s*\[", "the lens brings up no charts")
+        self.assertIn('"scenario_reach"]', self.js.replace(" ", ""),
+                      "the lens is not in any LENS_GROUPS group")
+
+    def test_the_ranking_gate_is_read_not_restated(self):
+        """`basis == modelled && rank_metric validated` is decided in scenarios.py. A second
+        copy of it here would be the rule with two chances to be wrong, and the page would be
+        the copy publishing a ranking off a fixture."""
+        body = self.fns.get("scenarioRanking")
+        self.assertIsNotNone(body, "the ranking gate reader is gone")
+        self.assertIn("sc.ranking", body, "the page no longer reads Python's verdict")
+        for banned in ("rank_metric", "modelled", "RANK_METRICS"):
+            self.assertNotIn(banned, body,
+                             "the page is re-deciding ordering authority instead of reading it")
+
+    def test_the_results_order_is_not_a_ranking_under_a_fixture(self):
+        """The table's default order is the composite score. Leaving it in place under this
+        lens would put a real ranking under a scenario heading, where the top row reads as the
+        name the shock most affects."""
+        body = self.fns.get("renderTable")
+        self.assertIsNotNone(body)
+        self.assertRegex(
+            body, r"preset === SCENARIO_LENS && !\(scenarioRanking\(\) \|\| \{\}\)\.quantitative",
+            "the results table no longer switches ordering on the ranking verdict")
+        self.assertIn("scenarioReachKey", body,
+                      "the non-quantitative order is gone, so the table falls back to a "
+                      "ranking the scenario did not produce")
+        key = self.fns.get("scenarioReachKey")
+        self.assertIsNotNone(key, "the ordering key is gone")
+        self.assertIn("p.bucket_id", key,
+                      "the order is no longer the lowest traversed bucket id")
+        # Reading the row's own bucket column instead would inherit screen_tag_for's
+        # first-match-wins, so the dual-bucket names would sort by a bucket this scenario may
+        # never have gone through.
+        # `\.bucket\b` and not `.bucket`: the latter matches `.bucket_id`, which is the field
+        # this key is SUPPOSED to read, so the guard failed on correct code.
+        self.assertNotRegex(key, r"\.bucket\b", "the order reads the screener's bucket column")
+        for banned in ("magnitude", "confidence", "activation", "probability"):
+            self.assertNotIn(banned, key,
+                             "the lens orders by a scenario quantity, which under a fixture "
+                             "is an illustrative number deciding what a reader sees first")
+
+    def test_a_lens_with_no_metric_borrows_nobody_elses(self):
+        """Three surfaces print "whatever the current lens ranks on". With no metric they must
+        print the page's absent idiom, not the nearest number to hand."""
+        watch = self.fns.get("drawWatch")
+        self.assertIsNotNone(watch)
+        self.assertIn("const v = m && m.get(o.r)", watch,
+                      "the watchlist reads a metric without checking there is one")
+        self.assertIn("muted-cell", watch, "the empty ranked column is not marked as absent")
+        rank = self.fns.get("drawRank")
+        self.assertIsNotNone(rank)
+        self.assertRegex(rank, r"if\(!m\)\{",
+                         "the ranked chart has no branch for a lens with no metric, so it "
+                         "throws on m.get before it can say why it is empty")
+        self.assertLess(rank.index("if(!m){"), rank.index("m.get("),
+                        "the ranked chart reads the metric before checking it exists")
+        cohort = self.fns.get("priceCohort")
+        self.assertIsNotNone(cohort)
+        self.assertIn("m && m.get(r)", cohort,
+                      "the price cohort reads a metric without checking there is one")
+
+    def test_the_shock_says_whether_it_is_narrowing(self):
+        """For the whole life of this page a shock narrowed nothing, and three sentences said
+        so. Under this lens it decides the row set. One definition, read by the handler that
+        redraws and the sentence that explains, so the page cannot redraw on a shock change
+        while still telling the reader shocks change nothing."""
+        self.assertIn("function shockIsNarrowing(){ return preset === SCENARIO_LENS; }",
+                      self.js, "the narrowing test is gone or has been inlined")
+        head = self.fns.get("drawContextHead")
+        self.assertIsNotNone(head)
+        self.assertIn("shockIsNarrowing()", head,
+                      "the context head still calls the shock framing unconditionally")
+        self.assertIn("narrowing", head)
+        self.assertIn("framing", head)
+
+    def test_the_lens_admits_the_names_nobody_has_assessed(self):
+        """Reachability is membership. A name reached with no sensitivity on record is a gap in
+        the assessment, not a finding about the company, and dropping it would make the lens
+        quietly mean "reached AND assessed" — hiding exactly the names nobody has looked at."""
+        body = self.fns.get("lensRows")
+        self.assertIsNotNone(body)
+        m = re.search(r"if\(preset === SCENARIO_LENS\)\{(.*?)\n  \}", body, re.S)
+        self.assertIsNotNone(m, "the lens has no membership rule")
+        rule = m.group(1)
+        self.assertIn("reach.has(r.tk)", rule)
+        for banned in ("status", "exposed", "magnitude", "sign"):
+            self.assertNotIn(banned, rule,
+                             "the lens filters on the assessment, so reached-but-unassessed "
+                             "names are dropped rather than reported")
+        # And they ARE reported, in a note that is not the shadow gate's.
+        note = self.fns.get("scenarioReachNote")
+        self.assertIsNotNone(note, "the reach note is gone")
+        # Each state must reach a SENTENCE, not merely appear somewhere in the function. The
+        # first version asserted the bare word, and the three states are also the keys of the
+        # tally object — so deleting two of the three clauses left the words behind and the
+        # guard passed on a note that had stopped reporting them.
+        for state in ("unassessed", "undirected", "unresolved"):
+            self.assertRegex(
+                note, r"if\(by\.%s\.length\) bits\.push\(" % state,
+                "the note collapses the absences, so 'nobody assessed this' and "
+                "'the paths disagree' read as one thing")
+        self.assertIn("reach, not impact", note)
+
+    def test_the_shadow_gate_note_was_not_generalised(self):
+        """Its applicability test is a require-clause scan, its subject is an editorial tag,
+        and five tests pin its sentences. The two notes say different things — one reports a
+        gate that did not judge some names, the other names the gate deliberately admitted."""
+        gate = self.fns.get("shadowGateNote")
+        self.assertIsNotNone(gate, "shadowGateNote is gone")
+        self.assertIn("shadow_severity_rank", gate,
+                      "shadowGateNote no longer tests its own require clause")
+        self.assertNotIn("SCENARIO_LENS", gate,
+                         "the shadow note has been made to serve the scenario lens too")
+        note = self.fns.get("scenarioReachNote")
+        self.assertNotIn("shadow", note, "the reach note reaches into the shadow-debt table")
+
+    def test_the_explanation_keeps_every_path(self):
+        """Reaching one security on one channel through two buckets is the graph telling the
+        truth — GD, CW and MRC sit in buckets 05 and 16. Rendering one of them would make this
+        block contradict the derivation it claims to be reading."""
+        body = self.fns.get("scenarioWhyBlock")
+        self.assertIsNotNone(body, "the explanation renderer is gone")
+        self.assertIn("rec.paths.map(", body, "the explanation no longer walks every path")
+        self.assertNotIn("paths[0]", body, "the explanation renders one path and drops the rest")
+        # Every hop's evidence, from the record. A narrated version would be free to disagree
+        # with the arithmetic that produced the exposure and nothing would notice.
+        for field in ("engaged_probability", "mechanism", "bucket_id", "membership_tier",
+                      "sensitivity_sign", "sensitivity_basis", "channel_label"):
+            self.assertIn(field, body, "the chain no longer shows its " + field + " hop")
+        # `bucketTagFor(` with the paren: without it the assertion is satisfied by the
+        # neighbouring `bucketTagForId(`, so removing the reconciliation entirely passed.
+        self.assertIn("bucketTagFor(", body,
+                      "the drilldown does not reconcile with the results row's bucket column, "
+                      "so one screen can name two different buckets for one name")
+
+    def test_the_explanation_never_claims_a_return(self):
+        """Exposure, probability and return are three things. The chance rendered here is the
+        chance the MECHANISM is engaged; nothing on this page says how much a security moves."""
+        body = self.fns.get("scenarioWhyBlock")
+        self.assertIn("not a return", body,
+                      "the explanation does not say what it is not, beside numbers a reader "
+                      "will otherwise read as a forecast")
+        sign = self.fns.get("signWord")
+        self.assertIsNotNone(sign)
+        # The WORDS the reader sees, not the code around them. Scanning the function body
+        # banned "return" and failed on the `return` keyword — a guard that cannot be
+        # satisfied by any correct implementation is not a guard.
+        words = " ".join(re.findall(r'"([^"]*)"', sign)).lower()
+        self.assertIn("channel", words, "the matched strings are not the direction wording")
+        # Word boundaries, because "gain" is inside "against" — the substring version banned
+        # the correct wording. This is the third guard in this file to be written as a
+        # substring scan and to fail on code that was right.
+        for banned in ("rise", "fall", "gain", "benefit", "hurt", "return", "up", "down"):
+            self.assertNotRegex(words, r"\b" + banned + r"s?\b",
+                                "direction is worded as a price move rather than as a "
+                                "relationship to the channel")
+
+    def test_the_drawer_the_strip_points_at_exists(self):
+        """The strip has rendered a `why` button since Phase D and `data-panel-open` resolves
+        by id, returning silently when there is none — so the button took a click and did
+        nothing. Whether an id has an element is exactly what this file's binding guard tests
+        for handlers; this is the same defect one level up."""
+        self.assertIn('id="scenPanel"', self.html, "the drawer the strip points at is missing")
+        self.assertIn('data-panel-open="scenPanel"', self.js,
+                      "nothing opens the drawer any more")
+        self.assertIn('if(pop.id === "scenPanel") drawScenPanel();', self.js,
+                      "the drawer opens without being filled, so it shows the previous "
+                      "shock's scenario or nothing at all")
+        body = self.fns.get("drawScenPanel")
+        self.assertIsNotNone(body)
+        self.assertIn("No scenario has been written for", body,
+                      "the drawer goes blank for a shock with no model instead of saying so")
+        self.assertIn("rank.why", body,
+                      "the drawer does not carry the reason the lens will not rank, so that "
+                      "sentence is only reachable by placing the ranked chart")
