@@ -291,8 +291,15 @@ class TheBucketsAreOnTheScreenerBoard(unittest.TestCase):
         results."""
         head = re.search(r'<div class="ctx-head">(.*?)</div>', self.html, re.S)
         self.assertIsNotNone(head, "the context summary line is gone")
-        for el in ("ctxHeadValue", "ctxHeadSub", "ctxScenario"):
+        # `ctxScenario` was renamed `ctxFraming`: "scenario" now means the probabilistic
+        # object, and this element has always meant the editorial shock+clock framing.
+        # `ctxScen` is the modelled strip, and it is in the head for exactly the reason this
+        # test exists — whether a model stands behind what a reader is looking at is not
+        # something they should have to expand a section to discover.
+        for el in ("ctxHeadValue", "ctxHeadSub", "ctxFraming", "ctxScen"):
             self.assertIn(el, head.group(1), "{} is not in the always-visible head".format(el))
+        self.assertNotIn("ctxScenario", self.html,
+                         "the old name survives somewhere, so two names mean one element")
         body = re.search(r'<div id="contextBody">(.*?)\n      </div>', self.html, re.S)
         self.assertIsNotNone(body, "the context body wrapper is gone")
         for part in ('id="bucketShock"', 'id="bucketClock"', 'id="bucketTop"',

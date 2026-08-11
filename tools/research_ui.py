@@ -65,6 +65,7 @@ import ctx  # noqa: E402  — the context layer; reused, never duplicated
 import stock_screener  # noqa: E402  — presets + snapshot; all HTML for it lives here
 import screener_lab  # noqa: E402  — the sentiment screen's engine; renders, never fetches
 import sovereign_buckets  # noqa: E402  — the canonical chaos-bucket table; serialised, not copied
+import scenarios  # noqa: E402  — modelled scenarios; derived in Python, only read in JS
 import ui_tokens  # noqa: E402  — the one palette; this file holds no second copy
 
 
@@ -4033,9 +4034,15 @@ def _screener_combined_draft_html(mounts, payload=None):
     # authored tables plus the heat rule, which is code and cannot travel as JSON. The draft
     # holds neither; it used to hold the rule, and that copy had already drifted from the
     # buckets page over whether an authored 0 can be bumped to 1.
-    inject = ("<script>{}</script>\n<script>window.__DRAFT_LIVE__ = {};</script>\n".format(
-        sovereign_buckets.runtime_js(),
-        json.dumps(payload, default=str).replace("<", "\\u003c")))
+    # scenarios.runtime_js() rides the AUTHORED side beside the ledger, not the payload: the
+    # Hormuz scenario is a hand-written reading, and the payload is documented above as the
+    # fetched snapshot. Its derivations travel with it already computed — a surface reads them
+    # and never re-derives, for the reason the heat rule moved into Python.
+    inject = ("<script>{}</script>\n<script>{}</script>\n"
+              "<script>window.__DRAFT_LIVE__ = {};</script>\n".format(
+                  sovereign_buckets.runtime_js(),
+                  scenarios.runtime_js(),
+                  json.dumps(payload, default=str).replace("<", "\\u003c")))
     # Must run BEFORE the page script so applyLivePayload() sees the payload.
     if "<script>" in html:
         html = html.replace("<script>", inject + "<script>", 1)

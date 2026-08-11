@@ -29,6 +29,7 @@ What is deliberately NOT here: anything asserting a particular ticker is or is n
 under the live snapshot. That is a property of a fetch, it changes every night, and pinning it
 would make this file a tripwire on the market rather than on the code.
 """
+import inspect
 import json
 import os
 import re
@@ -610,3 +611,56 @@ class TheHarnessDoesNotDependOnASnapshot(unittest.TestCase):
         self.assertEqual(proc.returncode, 0,
                          "this harness depends on a snapshot:\n{}".format(
                              proc.stderr[-3000:]))
+
+
+class EveryServedRouteActuallyServes(unittest.TestCase):
+    """A route that returns 500 must not be green.
+
+    Found the hard way: `/screener/draft` — the main surface, the one exported to GitHub
+    Pages — raised `NameError` on every request while the entire suite passed, because no test
+    called `route()` for it. `test_research_ui` covers many routes and not that one; the
+    contract tests read the HTML FILE, which is intact whether or not the server can render
+    it; and `test_export_pages` builds through a different entry point.
+
+    So this walks the route table itself rather than a list someone maintains: a route added
+    tomorrow is covered tomorrow.
+    """
+
+    #: Routes that legitimately do not return 200 without state this repo does not ship.
+    #: Each is named with the reason, so "expected failure" can never quietly grow.
+    EXPECTED_NON_200 = {
+        "/api/sentiment": "503 without a tone snapshot, which is gitignored",
+        "/api/screen": "503 without a fundamentals snapshot, which is gitignored",
+    }
+
+    def _routes(self):
+        """Read the literal paths out of `route()` rather than restating them."""
+        src = inspect.getsource(research_ui.route)
+        found = set(re.findall(r'path (?:==|in \()\s*"([^"]+)"', src))
+        found |= set(re.findall(r'"(/[a-z/]+)"[,)]', src))
+        return sorted(p for p in found
+                      if p.startswith("/") and "<" not in p and not p.startswith("/static"))
+
+    def test_the_route_table_is_discoverable(self):
+        routes = self._routes()
+        self.assertIn("/screener/draft", routes,
+                      "the main surface is not discoverable from route(), so this guard "
+                      "cannot cover it")
+        self.assertGreater(len(routes), 8, "the route scan found suspiciously few routes")
+
+    def test_no_route_raises(self):
+        """Raising is worse than 503: it is an unhandled defect, and the server turns it into
+        an opaque 500 with nothing in the log."""
+        for path in self._routes():
+            try:
+                research_ui.route(path, {}, {})
+            except Exception as exc:                       # noqa: BLE001 — that is the point
+                self.fail("route({!r}) raised {}: {}".format(path, type(exc).__name__, exc))
+
+    def test_the_screener_surfaces_return_200_and_carry_their_data(self):
+        for path, marker in (("/screener/draft", "window.SCENARIOS"),
+                             ("/screener/buckets", "window.LEDGER"),
+                             ("/screen", "window.LEDGER")):
+            code, body, _ct = research_ui.route(path, {}, {})
+            self.assertEqual(code, 200, "{} did not serve".format(path))
+            self.assertIn(marker, body, "{} lost {}".format(path, marker))

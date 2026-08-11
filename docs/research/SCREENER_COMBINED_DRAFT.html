@@ -137,7 +137,22 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
 .ctx-section.narrowed{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
 .ctx-k{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-muted)}
 .ctx-v{font-size:15px;font-weight:600;color:var(--ink)}
-.ctx-sub,.ctx-scenario{font-family:var(--mono);font-size:11.5px;color:var(--ink-muted)}
+.ctx-sub,.ctx-framing{font-family:var(--mono);font-size:11.5px;color:var(--ink-muted)}
+/* The scenario strip. One row, in the head, in the command-bar language — not a panel.
+   `.fixture` is the marking that must survive every redesign: it is what stops an authored
+   probability being read as a forecast, and it is deliberately a border and a word rather
+   than a colour, because colour alone is not a statement. */
+.ctx-scen{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);
+  font-size:11px;color:var(--ink-2);padding:2px 9px;border:1px solid var(--rule);
+  border-radius:999px;background:var(--plane)}
+.ctx-scen[hidden]{display:none}
+.ctx-scen b{color:var(--ink);font-weight:600}
+.ctx-scen .scen-none{color:var(--ink-muted)}
+.ctx-scen .scen-fixture{border-left:2px solid var(--warning);padding-left:6px;
+  color:var(--warning);letter-spacing:.03em}
+.ctx-scen .scen-open{border:0;background:transparent;color:var(--accent);cursor:pointer;
+  font:inherit;padding:0 0 0 2px;text-decoration:underline;text-decoration-style:dotted;
+  text-underline-offset:3px}
 .ctx-toggle{border:1px solid var(--rule);background:var(--surface);color:var(--ink-2);
   border-radius:6px;line-height:20px;width:22px;padding:0;cursor:pointer;font-size:11px;
   align-self:center}
@@ -1131,7 +1146,11 @@ table.bwatch .spark{width:80px;height:26px;display:block}
         <span class="ctx-k">Context</span>
         <span class="ctx-v" id="ctxHeadValue">All securities</span>
         <span class="ctx-sub" id="ctxHeadSub"></span>
-        <span class="ctx-scenario" id="ctxScenario"></span>
+        <span class="ctx-framing" id="ctxFraming"></span>
+        <!-- The modelled scenario's compact coverage state. Lives in the HEAD,
+             which never folds: a reader must not have to expand a section to
+             discover that a model is or is not behind what they are looking at. -->
+        <span class="ctx-scen" id="ctxScen" hidden></span>
         <span class="cmd-spacer"></span>
         <!-- Same rule as the lens and filter clears: one handler, three constraints. This
              used to carry its own, which is how a page ends up with three ways to undo three
@@ -7118,18 +7137,83 @@ function setCtxOpen(open){
   if(open){ fitTileText(); drawBucketChart(); scheduleChartReflow(); }
 }
 function toggleCtx(){ setCtxOpen(document.getElementById("contextBody").hidden); }
+/* ── The modelled scenario layer, as a READER ────────────────────────────────────────────
+   Everything below reads `window.SCENARIOS`, which Python emitted with the derivation
+   already done. Nothing here walks buckets, joins sensitivities or nets signs — that would
+   be a second implementation of the derivation in the one language this repo cannot test,
+   and the two would part without anything noticing.
+
+   The resolver is the only thing that knows where a scenario came from. A modelled record in
+   the payload wins; the authored one is the fallback. Consumers see one shape and never a
+   channel, so replacing the fixture with a model's output changes a file and no caller. */
+function scenarioForShock(shock){
+  const live = (window.__DRAFT_LIVE__ && __DRAFT_LIVE__.scenarios) || null;
+  if(live && live[shock]) return live[shock];
+  const authored = (window.SCENARIOS && SCENARIOS.BY_SHOCK) || null;
+  return (authored && authored[shock]) || null;
+}
+/* Is the reading in front of the user authored, or produced by a model? Every surface that
+   draws a scenario number asks this, because the answer changes what the number MEANS and a
+   page that loses it has published a fixture as a forecast. */
+function scenarioIsFixture(sc){
+  return !!(sc && sc.state && sc.state.basis === "fixture");
+}
+function pct(x){ return x == null ? "—" : Math.round(x * 100) + "%"; }
+
+/* The strip. One row in the context head — which never folds — saying what is behind the
+   selected shock. Three states and no fourth:
+     a modelled scenario   probability, horizon, basis
+     an editorial shock    "Editorial only · no quantitative model"
+     no shock selected     nothing at all
+   The unmodelled line is the ONE intended difference from today's page. It exists so that a
+   shock without a scenario reads as stated coverage rather than as silence. */
+function drawScenarioStrip(){
+  const host = document.getElementById("ctxScen");
+  if(!host) return;
+  const sc = scenarioForShock(bucketShock);
+  if(bucketShock === "unknown" && !sc){ host.hidden = true; return; }
+  host.hidden = false;
+  if(!sc || !sc.state){
+    host.innerHTML = '<span class="scen-none">Editorial only \u00b7 no quantitative model</span>';
+    host.title = "This shock orders the bucket cards from authored heat. No scenario model "
+               + "has been written for it, so there is nothing probabilistic to show.";
+    return;
+  }
+  const st = sc.state;
+  const target = (SCENARIOS.TARGETS[st.target_id] || {});
+  const horizon = (SCENARIOS.HORIZONS[st.horizon] || {}).label || st.horizon;
+  const active = Object.keys(sc.activations || {}).length;
+  host.innerHTML =
+      '<b>' + esc(pct(st.probability)) + '</b> ' + esc(target.label || st.target_id)
+    + ' <span class="scen-none">' + esc(horizon) + '</span>'
+    + ' <span class="scen-none">\u00b7 ' + active + ' bucket' + (active === 1 ? "" : "s")
+    + ' engaged</span>'
+    + (scenarioIsFixture(sc)
+        ? ' <span class="scen-fixture" title="Illustrative data written to exercise this '
+          + 'architecture. Not calibrated, not a forecast.">FIXTURE</span>' : "")
+    + ' <button type="button" class="scen-open" data-panel-open="scenPanel">why</button>';
+  // The tooltip carries the resolvable question, so the number on screen is never a
+  // probability of something the reader has to guess at.
+  host.title = (target.question || "")
+    + (st.as_of ? "\n\nAs of " + st.as_of + "." : "")
+    + (st.basis === "fixture"
+        ? "\n\nFIXTURE: illustrative, not calibrated against history or any model."
+        : "\n\nModelled by " + (st.model_id || "?") + " " + (st.model_version || ""));
+}
+
 /* The summary line above the workspace. Says the same thing the chip in the bar says, from
    the same state, so a reader who has scrolled past one still knows what is constraining. */
 function drawContextHead(){
   const v = document.getElementById("ctxHeadValue");
   const sub = document.getElementById("ctxHeadSub");
-  const scen = document.getElementById("ctxScenario");
+  const scen = document.getElementById("ctxFraming");
   const clear = document.getElementById("ctxHeadClear");
   const sec = document.getElementById("contextSection");
   if(!v) return;
   const on = contextIsBucket();
   const c = contextCounts();
   v.textContent = contextLabel();
+  drawScenarioStrip();
   sub.textContent = on ? c.screenable + " of " + c.held + " securities screenable"
                        : c.screenable + " securities";
   // Framing, not a constraint. Named as framing on the line where it appears, because a
@@ -7410,7 +7494,11 @@ document.getElementById("bTabs").addEventListener("click", (ev)=>{
   if(b.dataset.btab === "chart") drawBucketChart();
 });
 document.getElementById("bucketShock").addEventListener("change", (ev)=>{
-  bucketShock = ev.target.value; drawBucketCtl(); drawBuckets();
+  // Scoped, not a full render(). The shock still narrows nothing — it orders cards and now
+  // resolves a scenario — so redrawing the results, the board and every chart would be work
+  // no reader asked for, and would put a shock change on the same footing as a bucket
+  // selection, which it is not.
+  bucketShock = ev.target.value; drawBucketCtl(); drawBuckets(); drawContextHead();
 });
 document.getElementById("bucketClock").addEventListener("change", (ev)=>{
   bucketClock = ev.target.value; drawBucketCtl(); drawBuckets();

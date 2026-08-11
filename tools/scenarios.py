@@ -1023,3 +1023,58 @@ def channels_for(security):
 
 
 validate_scenarios()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. Emission. Derived in Python, read in JavaScript — never re-derived there.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def as_payload(scenarios=None):
+    """Every scenario with its derivation already done, keyed by shock id.
+
+    The derivation ships ALONGSIDE the scenario rather than being recomputed by a surface,
+    for the reason Phase 0a moved the heat rule into Python: a second implementation of a rule
+    is a second answer waiting to happen, and the browser has no test harness that could catch
+    the day they part. A surface reads `activations` and `exposures`; it does not walk buckets,
+    it does not join sensitivities, and it cannot produce a number this module would not.
+
+    Keyed by SHOCK, because that is what the reader selects. A shock with no scenario is simply
+    absent from the map — the caller distinguishes "no model" from "a model reading zero",
+    which is the same absence discipline as everywhere else here.
+    """
+    out = {}
+    for sid, s in (load() if scenarios is None else scenarios).items():
+        exposures = security_exposures(s)
+        out[s["shock_id"]] = {
+            "scenario_id": sid,
+            "scenario": s,
+            "state": scenario_state(s),
+            "activations": bucket_activations(s),
+            # Tuple keys cannot survive JSON. "TICKER|channel_id" keeps the pair addressable
+            # without inventing a nested shape a consumer would have to flatten again.
+            "exposures": {"{}|{}".format(tk, cid): rec
+                          for (tk, cid), rec in exposures.items()},
+        }
+    return out
+
+
+def runtime_js(scenarios=None):
+    """`window.SCENARIOS` — the registries a surface needs to render, plus every derivation.
+
+    Emitted as one namespace for the reason `sovereign_buckets.runtime_js` is: the draft page
+    already declares top-level names of its own, and a second `const CHANNELS` in any script on
+    that page is a redeclaration that stops the file executing.
+    """
+    def lit(name, value):
+        return "  const {} = {};".format(name, json.dumps(value, separators=(",", ":")))
+
+    return "\n".join([
+        "window.SCENARIOS = (function(){",
+        lit("CHANNELS", CHANNELS),
+        lit("TARGETS", TARGETS),
+        lit("HORIZONS", HORIZONS),
+        lit("STRENGTHS", list(STRENGTHS)),
+        lit("BY_SHOCK", as_payload(scenarios)),
+        "  return {CHANNELS, TARGETS, HORIZONS, STRENGTHS, BY_SHOCK};",
+        "})();",
+    ])

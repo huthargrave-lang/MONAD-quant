@@ -1703,3 +1703,95 @@ class NoLensQueryIsAnchoredToAContainerThePillsLeft(unittest.TestCase):
         self.assertIsNotNone(m, "the pinned-lens handler is gone")
         self.assertNotIn("render()", m.group(1),
                          "the pinned-lens handler renders on top of selectPreset's render")
+
+
+class TheScenarioStripReadsRatherThanDerives(unittest.TestCase):
+    """Phase D. The strip is a reader over `window.SCENARIOS`, which Python emitted with the
+    derivation already done.
+
+    The whole point of emitting derived values is that the browser cannot produce a number
+    this repo's tests have never seen. A strip that walked buckets and joined sensitivities
+    would be a second implementation of the derivation in the one language with no test
+    harness, and the two would part without anything noticing — which is precisely why the
+    heat rule moved into Python in Phase 0a."""
+
+    def setUp(self):
+        self.html = _page()
+
+    def test_the_strip_lives_where_it_cannot_be_folded_away(self):
+        """Whether a model stands behind what a reader is looking at is not something they
+        should have to expand a section to discover. `#bucketHint` is inside `#contextBody`
+        and folds; the head does not."""
+        head = re.search(r'<div class="ctx-head">(.*?)</div>', self.html, re.S)
+        self.assertIsNotNone(head)
+        self.assertIn('id="ctxScen"', head.group(1),
+                      "the scenario strip is not in the always-visible head")
+
+    def test_the_page_derives_no_scenario_quantity_of_its_own(self):
+        """Named by the operation, not by a variable: the page may not net a sign, sum branch
+        probabilities, or walk bucket membership to reach a security."""
+        script = re.search(r"<script>(.*?)</script>", self.html, re.S).group(1)
+        js = re.sub(r"/\*.*?\*/|//[^\n]*", "", script, flags=re.S)
+        # Scoped to SCENARIO derivation. The page legitimately walks bucket membership for
+        # the bucket UI — `bucketMembers` predates all of this — so banning that would forbid
+        # existing, correct code and the guard would have to be deleted or worked around.
+        for banned, why in (
+                ("edge_sign *", "the page is netting a sign instead of reading one"),
+                ("sensitivity_sign *", "the page is netting a sign instead of reading one"),
+                ("CHANNEL_SENSITIVITIES", "the page holds a sensitivity table of its own"),
+                ("counts_toward", "the page is re-deriving a target from branches")):
+            self.assertNotIn(banned, js, why)
+
+    def test_the_resolver_is_the_only_thing_that_knows_the_channel(self):
+        """Consumers see one shape. Replacing the fixture with a model's output moves a record
+        from the authored side to the payload and changes no caller."""
+        body = re.search(r"function scenarioForShock\(shock\)\{(.*?)\n\}", self.html, re.S)
+        self.assertIsNotNone(body, "the resolver is gone")
+        code = body.group(1)
+        self.assertIn("__DRAFT_LIVE__", code, "the modelled channel is not consulted")
+        self.assertIn("SCENARIOS", code, "the authored channel is not consulted")
+        self.assertLess(code.index("__DRAFT_LIVE__"), code.index("SCENARIOS.BY_SHOCK"),
+                        "the authored fallback is preferred over a modelled record")
+        # Nobody else may reach past it.
+        script = re.search(r"<script>(.*?)</script>", self.html, re.S).group(1)
+        others = [m.start() for m in re.finditer(r"SCENARIOS\.BY_SHOCK", script)]
+        self.assertEqual(len(others), 1,
+                         "something reads BY_SHOCK directly instead of through the resolver")
+
+    def test_an_unmodelled_shock_says_so_rather_than_going_quiet(self):
+        """The one intended difference from today's page for a shock with no scenario. Silence
+        would read as "nothing is happening"; this reads as "nothing has been modelled".
+
+        Asserted inside the renderer with comments stripped. The comment above it lists the
+        three states and QUOTES this string, so a whole-file scan finds the explanation of the
+        code after the code is gone — the fifth time this file has recorded that mistake."""
+        body = re.search(r"function drawScenarioStrip\(\)\{(.*?)\n\}", self.html, re.S)
+        self.assertIsNotNone(body, "the strip renderer is gone")
+        code = re.sub(r"/\*.*?\*/|//[^\n]*", "", body.group(1), flags=re.S)
+        self.assertIn("Editorial only", code,
+                      "a shock with no scenario renders nothing, so absence of a model is "
+                      "indistinguishable from absence of anything to report")
+
+    def test_a_fixture_reading_is_marked_where_the_number_is(self):
+        body = re.search(r"function drawScenarioStrip\(\)\{(.*?)\n\}", self.html, re.S)
+        self.assertIsNotNone(body)
+        self.assertIn("scen-fixture", body.group(1),
+                      "a fixture probability renders with no marking beside it")
+        self.assertIn("scenarioIsFixture", body.group(1))
+
+    def test_changing_the_shock_refreshes_the_strip(self):
+        """The shock handler redrew only the bucket control and grid. A strip that did not
+        move with the selector would show the previous shock's model — worse than showing
+        nothing, because it would be specific and wrong."""
+        m = re.search(r'getElementById\("bucketShock"\)\.addEventListener\("change".*?\}\);',
+                      self.html, re.S)
+        self.assertIsNotNone(m)
+        # Comments stripped: the handler's own comment explains why it is NOT a full render,
+        # and a scan over the raw text finds that explanation and calls it the defect — the
+        # same prose-versus-code mistake this file has recorded four times.
+        body = re.sub(r"/\*.*?\*/|//[^\n]*", "", m.group(0), flags=re.S)
+        self.assertIn("drawContextHead()", body,
+                      "a shock change does not refresh the context head, so the strip is stale")
+        self.assertNotRegex(body, r"(?<![.\w])render\(\)",
+                            "a shock change now triggers a full render — the shock narrows "
+                            "nothing and must not be put on the same footing as a selection")
