@@ -60,6 +60,7 @@ from __future__ import annotations
 import glob
 import json
 import os
+import re
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCENARIO_DIR = os.path.join(REPO, "data", "scenarios")
@@ -76,6 +77,23 @@ BASIS_VALUES = ("fixture", "modelled")
 #: Which way a development pushed the scenario. `unclear` is a real reading — a development
 #: that happened and whose direction the model cannot call — and is not the same as absent.
 DIRECTIONS = ("escalating", "de_escalating", "unclear")
+
+#: How far ahead a probability looks. CLOSED, for exactly the reason TARGETS is closed, and
+#: this was left open on the sibling axis at first.
+#:
+#: `horizon` is half the observation primary key and the join key that decides whether the
+#: tree/series agreement check runs at all. As free text, `30d` and `30D` are two horizons to
+#: this module and one horizon to a reader — so rewriting one of them made the coherence check
+#: silently not run, after which the branch tree could say 30% while the series said 90%, both
+#: marked fixture and both "validated". `30 d`, `1m`, `P30D`, `thirty days` and `""` all
+#: validated too. A registry is the only thing that makes "the same horizon" a fact rather
+#: than a spelling.
+HORIZONS = {
+    "7d": {"label": "7 days", "days": 7},
+    "30d": {"label": "30 days", "days": 30},
+    "90d": {"label": "90 days", "days": 90},
+    "180d": {"label": "180 days", "days": 180},
+}
 
 #: Transmission channels: the OBSERVABLE QUANTITIES a shock propagates through.
 #:
@@ -125,9 +143,21 @@ CHANNELS = {
 TARGETS = {
     "hormuz_material_disruption": {
         "label": "Material disruption to Strait of Hormuz transit",
-        "question": "Do transits through the Strait of Hormuz fall materially below "
-                    "their trailing-year baseline for a sustained period within the "
-                    "stated horizon?",
+        # STRUCTURED, not just prose. The threshold and the duration were first written only
+        # inside the question sentence, and the fixture's partition restated them and claimed
+        # "the same number ... so the two cannot drift" — a safety property asserted by the
+        # data about itself, enforced by nothing, and false: moving the bands to [0,25) while
+        # the question still said 5% validated cleanly, leaving a probability answering a
+        # question nobody asked.
+        #
+        # As fields they have ONE source. `_validate_scenario` requires any scenario carrying
+        # branches that count toward this target to state the same numbers in its partition,
+        # so the coupling is checked rather than promised.
+        "threshold_pct": 5,
+        "min_days": 7,
+        "question": "Do daily commercial transits through the Strait of Hormuz fall at "
+                    "least 5% below their trailing-year baseline, sustained for at least "
+                    "7 consecutive days, at any point within the stated horizon?",
     },
 }
 
@@ -137,7 +167,54 @@ TARGETS = {
 #: return, and it is never multiplied by a probability to produce one. `sign` is separate from
 #: magnitude because "which way" and "how much" are different claims with different evidence,
 #: and a magnitude with no sign is a real state (we know it responds, not which way).
-CHANNEL_SENSITIVITIES = {}
+#: ILLUSTRATIVE, every one of them. These are hand-authored relationship parameters written to
+#: exercise the channel join; none is estimated from returns, and `basis` says so on each.
+#:
+#: They are keyed by CHANNEL, not by scenario, which is the whole point: FRO's relationship to
+#: crude freight rates is the same relationship whether the disruption is in Hormuz, the Red
+#: Sea or the Bosporus, so a second scenario routing through the same channel reuses these
+#: rather than restating them. A security absent from this table is UNASSESSED, not
+#: insensitive — `sensitivity()` returns None and every surface must report it as unassessed,
+#: the way the shadow-debt gate reports an untagged name rather than scoring it zero.
+_FIXTURE = {
+    "basis": "fixture",
+    "method": "Illustrative relationship parameter, hand-authored to exercise the channel "
+              "join. Not estimated from returns, not calibrated, not a MONAD estimate.",
+    "as_of": "2026-08-10T00:00:00Z",
+    "provenance": ["hand-authored fixture, scenario layer Phase B"],
+}
+
+CHANNEL_SENSITIVITIES = {
+    # Crude tanker owners: a disrupted chokepoint lengthens voyages and tightens effective
+    # fleet supply, so freight rates are the mechanism they respond to most directly.
+    ("FRO", "crude_freight_rate_ws"): dict(_FIXTURE, magnitude=0.85, sign=1, confidence=0.5),
+    ("DHT", "crude_freight_rate_ws"): dict(_FIXTURE, magnitude=0.80, sign=1, confidence=0.5),
+    ("INSW", "crude_freight_rate_ws"): dict(_FIXTURE, magnitude=0.75, sign=1, confidence=0.4),
+    # Product tankers ride the same rate cycle less directly.
+    ("STNG", "crude_freight_rate_ws"): dict(_FIXTURE, magnitude=0.45, sign=1, confidence=0.3),
+    # War-risk premiums are a cost to the operator and a rate driver at once; the sign is the
+    # net the fixture asserts, and the confidence is low because it is genuinely two-sided.
+    ("FRO", "marine_war_risk_premium_pct"): dict(_FIXTURE, magnitude=0.40, sign=1,
+                                                 confidence=0.25),
+    ("DHT", "marine_war_risk_premium_pct"): dict(_FIXTURE, magnitude=0.35, sign=1,
+                                                 confidence=0.25),
+    # Integrated majors: crude price is the channel, and it is the one leg here with a
+    # magnitude the fixture will not put a number on. `None` is not zero — it is this table
+    # declining to invent an elasticity it has no basis for, while still recording that the
+    # relationship exists and which way it points.
+    ("XOM", "crude_price_usd_bbl"): dict(_FIXTURE, magnitude=None, sign=1, confidence=None),
+    ("CVX", "crude_price_usd_bbl"): dict(_FIXTURE, magnitude=None, sign=1, confidence=None),
+    # Refiners respond to the crack, not to the crude price, and a crude spike with no product
+    # response compresses it — hence the negative sign on a positive-crude channel is NOT what
+    # is written here; the crack is its own channel and its sign is its own.
+    ("VLO", "refining_crack_usd_bbl"): dict(_FIXTURE, magnitude=0.60, sign=1, confidence=0.35),
+    ("MPC", "refining_crack_usd_bbl"): dict(_FIXTURE, magnitude=0.55, sign=1, confidence=0.35),
+    # A crude spike squeezes refiner input costs before products reprice. Same securities,
+    # different channel, opposite sign — which is exactly why sign lives per (security,
+    # channel) and never per security.
+    ("VLO", "crude_price_usd_bbl"): dict(_FIXTURE, magnitude=0.30, sign=-1, confidence=0.25),
+    ("MPC", "crude_price_usd_bbl"): dict(_FIXTURE, magnitude=0.30, sign=-1, confidence=0.25),
+}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -159,7 +236,14 @@ _PROVENANCE_FIELDS = {
 _SCHEMAS = {
     "scenario": {
         "required": {"id", "label", "shock_id", "description"},
-        "optional": set(_PROVENANCE_FIELDS) | {"developments", "branches", "observations"},
+        # `partition` states the ONE dimension the branches divide, and is required the moment
+        # there are branches. Mutual exclusivity is a claim the author makes, not a property a
+        # reader can infer from English: "no material disruption" and "de-escalation" read as
+        # different states and overlap completely, and a tree built from them sums to 1 while
+        # double-counting. Naming the dimension is what makes disjointness checkable by a
+        # human, which is the only thing that can check it.
+        "optional": set(_PROVENANCE_FIELDS) | {"developments", "branches", "observations",
+                                               "partition"},
     },
     "development": {
         "required": {"id", "timestamp", "summary", "direction"},
@@ -167,7 +251,11 @@ _SCHEMAS = {
     },
     "branch": {
         "required": {"id", "label", "probability", "horizon"},
-        "optional": set(_PROVENANCE_FIELDS) | {"parent"},
+        # `counts_toward` names the targets this branch is an instance of. Without it a
+        # scenario carries a probability in two places — the branch tree and the observation
+        # series — with nothing relating them, so the strip can read 30% while the tree reads
+        # 10% and both are "the model".
+        "optional": set(_PROVENANCE_FIELDS) | {"parent", "counts_toward"},
     },
     "observation": {
         "required": {"target_id", "timestamp", "horizon", "probability"},
@@ -194,6 +282,40 @@ def _check_keys(kind, record, where):
                 where, kind, sorted(unknown)))
 
 
+_CALIBRATION_CLAIMS = ("calibrated", "out of sample", "out-of-sample", "backtested",
+                       "estimated from", "fitted", "regression")
+# Word-bounded, not substrings. `"no "` with a trailing space misses "none of it is
+# calibrated" — which is how the fixture's own method is written — and `"not"` without
+# boundaries matches "notable" and "notice".
+_NEGATOR_RX = re.compile(r"\b(?:not|never|no|none|nothing|without|neither|nor|n't)\b")
+
+
+def _calibration_claim(method):
+    """The calibration claim a method ASSERTS, or None if it only denies one.
+
+    Matched as a claim, not as a word. An honest fixture method reads "Not estimated from
+    returns, not calibrated, not a MONAD estimate" — and a substring scan for "calibrated"
+    fires on it, refusing precisely the text this check exists to encourage. This repo has
+    the same shape elsewhere: the buckets guard matches `function mulberry32(` rather than
+    the bare name, because the comment recording its removal names it on purpose.
+
+    A short lookback is enough and is deliberately not cleverer than that. It cannot parse
+    English, so it errs toward accepting — the surrounding `illustrative` requirement is what
+    carries the positive obligation, and this only catches an outright contradiction.
+    """
+    for claim in _CALIBRATION_CLAIMS:
+        start = 0
+        while True:
+            i = method.find(claim, start)
+            if i == -1:
+                break
+            window = method[max(0, i - 32):i]
+            if not _NEGATOR_RX.search(window):
+                return claim
+            start = i + len(claim)
+    return None
+
+
 def _check_provenance(record, where):
     basis = record.get("basis")
     if basis not in BASIS_VALUES:
@@ -211,6 +333,24 @@ def _check_provenance(record, where):
         raise ValueError(
             "{}: basis is 'modelled' but no model_id — 'a model said so' is not provenance "
             "unless the model is named".format(where))
+    # A fixture whose method claims calibration is the one lie this schema cannot afford. The
+    # method was only checked non-empty, so `basis: "fixture"` alongside "calibrated against
+    # 20 years of AIS transit data and validated out of sample" validated cleanly — the exact
+    # sentence that would make a reader trust an authored number. The machine word and the
+    # human sentence have to agree.
+    if basis == "fixture":
+        method = (record.get("method") or "").lower()
+        claimed = _calibration_claim(method)
+        if claimed:
+            raise ValueError(
+                "{}: basis is 'fixture' but its method claims {!r}. A fixture that describes "
+                "itself as calibrated is the one thing this schema exists to make "
+                "impossible".format(where, claimed))
+        if "illustrative" not in method:
+            raise ValueError(
+                "{}: basis is 'fixture' but its method never says so. `basis` is a machine "
+                "word; `method` is the sentence a reader sees beside the number, and it has "
+                "to say what the number is".format(where))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -277,9 +417,46 @@ def _validate_targets():
                 raise ValueError(
                     "target {!r}: no {} — a probability with no resolvable question attached "
                     "is a number nobody can be wrong about".format(tid, field))
-        unknown = set(t) - {"label", "question"}
+        unknown = set(t) - {"label", "question", "threshold_pct", "min_days"}
         if unknown:
             raise ValueError("target {!r}: unknown key(s) {}".format(tid, sorted(unknown)))
+        for field in ("threshold_pct", "min_days"):
+            if field in t and not isinstance(t[field], int):
+                raise ValueError(
+                    "target {!r}: {} must be an integer so a partition can be checked "
+                    "against it rather than compared as prose".format(tid, field))
+        # The question is the sentence a reader sees; the fields are what a partition is
+        # checked against. If they disagree the target says two things.
+        for field in ("threshold_pct", "min_days"):
+            if field in t and str(t[field]) not in t["question"]:
+                raise ValueError(
+                    "target {!r}: {}={} does not appear in its own question, so the sentence "
+                    "and the checkable field state different thresholds".format(
+                        tid, field, t[field]))
+
+
+def _validate_partition_matches_targets(where, record, branches):
+    """A scenario's partition must state the same numbers as the targets its branches count
+    toward.
+
+    The fixture used to claim this of itself — "the same number the target's question uses, so
+    the two cannot drift" — and nothing read the partition prose at all. Moving the bands while
+    the target stood still validated cleanly. A safety property that is asserted by the data
+    and enforced by nothing is the shaped-like-the-real-thing pattern applied to a guarantee
+    instead of to a number.
+    """
+    partition = record.get("partition") or ""
+    for tid in sorted({t for b in branches for t in (b.get("counts_toward") or [])}):
+        target = TARGETS[tid]
+        for field in ("threshold_pct", "min_days"):
+            if field not in target:
+                continue
+            if str(target[field]) not in partition:
+                raise ValueError(
+                    "{}: branches count toward {!r}, whose {} is {}, but the partition never "
+                    "states that number. The bands and the question would then be measuring "
+                    "different things while publishing one probability".format(
+                        where, tid, field, target[field]))
 
 
 def _validate_sensitivities():
@@ -346,8 +523,48 @@ def _validate_scenario(sid, record):
             raise ValueError("{}: direction {!r} is not one of {}".format(
                 d_where, dev["direction"], DIRECTIONS))
 
-    _validate_branches(where, record.get("branches") or [])
-    _validate_observations(where, record.get("observations") or [])
+    branches = record.get("branches") or []
+    observations = record.get("observations") or []
+    if branches and not (record.get("partition") or "").strip():
+        raise ValueError(
+            "{}: branches with no `partition`. Naming the one dimension they divide is what "
+            "makes disjointness a claim someone can check — probabilities summing to 1 prove "
+            "nothing about whether two states overlap".format(where))
+    _validate_branches(where, branches)
+    _validate_partition_matches_targets(where, record, branches)
+    _validate_observations(where, observations)
+    _validate_target_coherence(where, branches, observations)
+
+
+def _validate_target_coherence(where, branches, observations):
+    """A target's probability is stated twice — as a series and as a slice of the branch tree
+    — and the two must agree.
+
+    This is the third place a probability can live in one scenario, after `ScenarioState`
+    (derived, so it cannot disagree) and the observation series. A branch tree that says 10%
+    while the strip says 30% is the failure this repo keeps paying for, arriving in the one
+    layer built to be careful about numbers.
+    """
+    for target_id in TARGETS:
+        counting = [b for b in branches if target_id in (b.get("counts_toward") or [])]
+        if not counting:
+            continue
+        horizon = counting[0]["horizon"]
+        newest = None
+        for o in observations:
+            if o["target_id"] != target_id or o["horizon"] != horizon:
+                continue
+            if newest is None or o["timestamp"] > newest["timestamp"]:
+                newest = o
+        if newest is None:
+            continue
+        total = sum(b["probability"] for b in counting)
+        if abs(total - newest["probability"]) > 1e-6:
+            raise ValueError(
+                "{}: the branches counting toward {!r} sum to {:.4f} over {}, but the newest "
+                "observation of it reads {:.4f}. One scenario, one probability for one "
+                "question — a tree and a series that disagree publish two answers".format(
+                    where, target_id, total, horizon, newest["probability"]))
 
 
 def _validate_branches(where, branches):
@@ -365,6 +582,18 @@ def _validate_branches(where, branches):
         if not 0.0 <= b["probability"] <= 1.0:
             raise ValueError("{}: probability {!r} is outside 0..1".format(
                 b_where, b["probability"]))
+        if b["horizon"] not in HORIZONS:
+            raise ValueError(
+                "{}: unknown horizon {!r}. Horizons are registry-closed because this field is "
+                "a join key: '30d' and '30D' are one horizon to a reader and two to this "
+                "module".format(b_where, b["horizon"]))
+        for tid in (b.get("counts_toward") or []):
+            if tid not in TARGETS:
+                raise ValueError(
+                    "{}: counts toward unknown target {!r}. The key was admitted and its "
+                    "values were never checked, so a branch could count toward a target that "
+                    "does not exist and the coherence check would silently skip it".format(
+                        b_where, tid))
         horizons.add(b["horizon"])
     if len(horizons) != 1:
         raise ValueError(
@@ -395,6 +624,12 @@ def _validate_observations(where, observations):
         if not 0.0 <= o["probability"] <= 1.0:
             raise ValueError("{}: probability {!r} is outside 0..1".format(
                 o_where, o["probability"]))
+        if o["horizon"] not in HORIZONS:
+            raise ValueError(
+                "{}: unknown horizon {!r}. This is half the primary key AND the join key the "
+                "tree/series agreement check runs on, so an unregistered spelling does not "
+                "fail loudly — it makes the check quietly not run".format(
+                    o_where, o["horizon"]))
         key = (o["target_id"], o["horizon"], o["timestamp"], o.get("model_version"))
         if key in seen:
             raise ValueError(

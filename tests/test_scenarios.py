@@ -51,6 +51,15 @@ def _branches(*probs, horizon="30d"):
             for i, p in enumerate(probs)]
 
 
+def _with_branches(*probs, **kw):
+    """A scenario carrying branches, and therefore a partition — the two travel together, so
+    a helper that produced one without the other would make every branch test fail on the
+    partition check before reaching what it meant to assert."""
+    horizon = kw.pop("horizon", "30d")
+    return _scenario(branches=_branches(*probs, horizon=horizon),
+                     partition="illustrative bands on one measured quantity", **kw)
+
+
 def _observation(**kw):
     base = dict(_prov(), target_id="hormuz_material_disruption",
                 timestamp="2026-08-01T00:00:00Z", horizon="30d", probability=0.2)
@@ -232,22 +241,57 @@ class ProbabilitiesMeanSomethingSpecific(unittest.TestCase):
     def test_branches_are_an_exhaustive_partition(self):
         """A leftover is a state nobody described, and an expected value over a partial tree
         is not an expected value."""
-        self._bad(_scenario(branches=_branches(0.5, 0.2)), "sum to")
-        self._bad(_scenario(branches=_branches(0.6, 0.6)), "sum to")
-        sn._validate_scenario("hormuz", _scenario(branches=_branches(0.6, 0.25, 0.15)))
+        self._bad(_with_branches(0.5, 0.2), "sum to")
+        self._bad(_with_branches(0.6, 0.6), "sum to")
+        sn._validate_scenario("hormuz", _with_branches(0.6, 0.25, 0.15))
+
+    def test_branches_require_a_partition(self):
+        """Probabilities summing to 1 prove nothing about whether two states overlap. Naming
+        the one dimension they divide is what makes disjointness a claim a person can check —
+        and until a mutation disabled the requirement, nothing asserted it, because every
+        helper in this file supplied one."""
+        record = _scenario(branches=_branches(0.6, 0.4))
+        record.pop("partition", None)
+        self._bad(record, "no `partition`")
+        blank = _with_branches(0.6, 0.4)
+        blank["partition"] = "   "
+        self._bad(blank, "no `partition`")
+
+    def test_the_branch_tree_and_the_observation_series_must_agree(self):
+        """A scenario states a target's probability twice — as a slice of the tree and as the
+        newest point of the series. They are the second and third places a probability lives
+        (state is derived, so it cannot disagree), and a tree reading 10% under a strip
+        reading 30% is this repo's oldest failure arriving in its newest layer.
+
+        Not covered by asserting the real fixture is consistent: that passes whether or not
+        anything enforces it."""
+        counting = _branches(0.7, 0.2, 0.08, 0.02)
+        for b in counting[1:]:
+            b["counts_toward"] = ["hormuz_material_disruption"]
+        # The partition must state the target's threshold_pct and min_days, because these
+        # branches count toward it — so a generic partition string is correctly refused.
+        good = _scenario(branches=counting,
+                         partition="bands on one measured quantity: at least 5% sustained "
+                                   "for 7 days",
+                         observations=[_observation(probability=0.30)])
+        sn._validate_scenario("hormuz", good)          # 0.20 + 0.08 + 0.02 == 0.30
+
+        bad = copy.deepcopy(good)
+        bad["observations"][0]["probability"] = 0.45
+        self._bad(bad, "publish two answers")
 
     def test_branch_ids_are_unique(self):
         """Two branches with one id are two states the tree cannot tell apart, and any later
         per-branch record — a conditional impact, an expected value — silently attaches to
         whichever was read last."""
-        dup = _branches(0.5, 0.5)
-        dup[1]["id"] = dup[0]["id"]
-        self._bad(_scenario(branches=dup), "duplicate branch id")
+        record = _with_branches(0.5, 0.5)
+        record["branches"][1]["id"] = record["branches"][0]["id"]
+        self._bad(record, "duplicate branch id")
 
     def test_branches_share_one_horizon(self):
-        mixed = _branches(0.5, 0.5)
-        mixed[1]["horizon"] = "90d"
-        self._bad(_scenario(branches=mixed), "span horizons")
+        record = _with_branches(0.5, 0.5)
+        record["branches"][1]["horizon"] = "90d"
+        self._bad(record, "span horizons")
 
     def test_a_probability_is_of_a_registered_target(self):
         """As free text, "Hormuz closure" and "Strait of Hormuz closed" are one series or two
@@ -269,7 +313,7 @@ class ProbabilitiesMeanSomethingSpecific(unittest.TestCase):
 
     def test_probabilities_are_bounded(self):
         self._bad(_scenario(observations=[_observation(probability=1.2)]), "outside 0..1")
-        self._bad(_scenario(branches=_branches(1.4, -0.4)), "outside 0..1")
+        self._bad(_with_branches(1.4, -0.4), "outside 0..1")
 
 
 class TheStateIsDerivedFromTheSeries(unittest.TestCase):
@@ -309,9 +353,14 @@ class AbsenceIsNotZero(unittest.TestCase):
     def test_an_unassessed_sensitivity_is_none(self):
         """Reachable with no coefficient on record is *unassessed*, and is reported as such —
         the pattern the shadow-debt gate already uses rather than scoring 0 and clearing."""
-        self.assertIsNone(sn.sensitivity("FRO", "crude_freight_rate_ws"))
+        # COP is in bucket 02 and reachable; nobody has assessed it. That is the state
+        # this asserts — not "the table is empty", which was true only before Phase B and
+        # would have made this test pass for the wrong reason ever after.
+        self.assertIsNotNone(sn.sensitivity("FRO", "crude_freight_rate_ws"),
+                             "FRO is assessed; this test needs an UNassessed probe")
+        self.assertIsNone(sn.sensitivity("COP", "crude_price_usd_bbl"))
         self.assertIsNone(sn.sensitivity("NOSUCHTICKER", "crude_price_usd_bbl"))
-        self.assertEqual(sn.channels_for("FRO"), [])
+        self.assertEqual(sn.channels_for("COP"), [])
 
 
 class TheLoaderIsARealSeam(unittest.TestCase):
@@ -430,3 +479,227 @@ class TheRegistryCarriesNothingUnusable(unittest.TestCase):
                           "{} left the ledger; the registered channels assume oil, refining "
                           "and tanker names are reachable".format(probe))
         self.assertEqual(len(sn.CHANNELS), 4)
+
+
+class TheHormuzFixtureIsHonestAboutItself(unittest.TestCase):
+    """The fixture on disk, checked as data rather than as prose.
+
+    It exists so the strip, the drawer and the bay modules have a shaped, self-consistent
+    scenario to render while the modelling that would replace it is done. The danger is not
+    that it is wrong — it is illustrative and says so — but that it stops LOOKING illustrative
+    once a surface draws it. These assert the properties a reader would need in order to tell.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.all = sn.load()
+        cls.s = cls.all["hormuz"]
+
+    def _every_record(self):
+        """EVERY scenario on disk, not just Hormuz.
+
+        This iterated `self.s` alone, so the honesty assertions covered exactly one file —
+        and `load()` is documented as a real seam whose whole point is that another scenario
+        can be dropped in. A second file would have inherited every guarantee in the module
+        docstring and none of the checks that make them true."""
+        for sid, rec in sorted(self.all.items()):
+            yield "scenario " + sid, rec
+            for kind in ("branches", "observations", "developments"):
+                for r in rec.get(kind) or []:
+                    yield "{} {}".format(sid, kind[:-1]), r
+
+    def test_every_record_is_marked_fixture(self):
+        """Not the file, not a header — every record. A surface renders one branch or one
+        point at a time, and a marking that lives only at the top is one the reader never
+        sees beside the number."""
+        for kind, r in self._every_record():
+            self.assertEqual(r.get("basis"), "fixture",
+                             "{} {} is not marked fixture".format(kind, r.get("id", "")))
+
+    def test_every_method_says_it_is_not_calibrated(self):
+        """`basis: fixture` is a machine word. `method` is the sentence a person reads, and it
+        has to say the thing outright rather than implying it."""
+        for kind, r in self._every_record():
+            method = (r.get("method") or "").lower()
+            self.assertTrue(
+                "illustrative" in method,
+                "{} {}: method does not call itself illustrative".format(kind, r.get("id", "")))
+
+    def test_no_record_claims_a_model(self):
+        for kind, r in self._every_record():
+            self.assertIsNone(r.get("model_id"),
+                              "{} {} names a model".format(kind, r.get("id", "")))
+            self.assertIsNone(r.get("model_version"))
+
+    def test_the_scenario_confidence_is_absent_rather_than_invented(self):
+        """A confidence on an uncalibrated scenario would be a number about a number, and the
+        outer one has no more basis than the inner. None is the honest reading."""
+        self.assertIsNone(self.s.get("confidence"))
+
+    def test_the_bands_are_numeric_half_open_intervals(self):
+        """The first draft read "no material shortfall" / "limited — under a fifth", and a 1%
+        shortfall satisfies both. Overlapping English sums to 1 while double-counting, which
+        is exactly the flaw the partition field exists to expose. Every boundary is a number
+        now, and the labels carry them so a reader sees the band and not just its name."""
+        labels = {b["id"]: b["label"] for b in self.s["branches"]}
+        self.assertRegex(labels["none"], r"under 5%")
+        self.assertRegex(labels["limited"], r"5% to 20%")
+        self.assertRegex(labels["sustained"], r"20% to 50%")
+        self.assertRegex(labels["severe"], r"50% or more")
+        self.assertRegex(self.s["partition"], r"\[0,5\).*\[5,20\).*\[20,50\).*\[50,100\]")
+
+    def test_material_means_one_thing(self):
+        """The target and the scenario both define "material", and the definition is now
+        STRUCTURED so the coupling is enforced rather than promised.
+
+        The first version of this test was a substring scan for "5%" anywhere in the
+        partition — it passed on a partition whose bands started at 10%, and it contained
+        `token.replace("seven consecutive days", "seven consecutive days")`, a no-op shaped
+        like a vocabulary translation that was never written. The fixture meanwhile claimed of
+        itself that the two numbers "cannot drift", which nothing checked and which was false.
+        Both numbers are fields on the target now, `_validate_partition_matches_targets`
+        enforces that a scenario states them, and this asserts the fields exist to enforce."""
+        target = sn.TARGETS["hormuz_material_disruption"]
+        self.assertEqual(target["threshold_pct"], 5)
+        self.assertEqual(target["min_days"], 7)
+        for field in ("threshold_pct", "min_days"):
+            self.assertIn(str(target[field]), target["question"],
+                          "the question and the checkable field state different thresholds")
+            self.assertIn(str(target[field]), self.s["partition"],
+                          "the partition does not state the target's {}".format(field))
+
+    def test_the_tree_and_the_series_agree(self):
+        """Enforced by the validator; asserted here on the real fixture so the fixture itself
+        is known to satisfy it rather than merely being permitted to."""
+        counting = [b for b in self.s["branches"]
+                    if "hormuz_material_disruption" in b["counts_toward"]]
+        self.assertEqual(sorted(b["id"] for b in counting),
+                         ["limited", "severe", "sustained"])
+        self.assertAlmostEqual(sum(b["probability"] for b in counting),
+                               sn.scenario_state(self.s)["probability"], places=9)
+
+    def test_no_development_carries_a_probability_contribution(self):
+        """Attributing +4.1pp to one event is a modelling claim and no model here makes it.
+        The schema has no field for it; this asserts the fixture did not find another way."""
+        for d in self.s["developments"]:
+            for key in d:
+                self.assertNotIn(key, ("contribution", "impact", "delta", "pp", "points"),
+                                 "development {} attributes a probability change".format(
+                                     d["id"]))
+
+    def test_a_direction_the_fixture_will_not_call_is_recorded_as_unclear(self):
+        """`unclear` is a reading, not a gap — and a fixture with no unclear development would
+        quietly suggest every event has a legible sign."""
+        self.assertIn("unclear", [d["direction"] for d in self.s["developments"]])
+
+    def test_a_sensitivity_with_no_number_is_none_not_zero(self):
+        """XOM and CVX have a stated sign and no magnitude: the relationship exists and this
+        table declines to invent an elasticity for it. That has to survive as None."""
+        for tk in ("XOM", "CVX"):
+            rec = sn.sensitivity(tk, "crude_price_usd_bbl")
+            self.assertIsNotNone(rec)
+            self.assertIsNone(rec["magnitude"], "{} was given an invented magnitude".format(tk))
+            self.assertEqual(rec["sign"], 1)
+
+    def test_one_security_can_face_two_channels_in_opposite_directions(self):
+        """The reason sign lives per (security, channel) and never per security: a crude spike
+        squeezes a refiner's input cost while a widening crack helps it. A per-security sign
+        cannot express that, and would have to pick one and be wrong half the time."""
+        self.assertEqual(sn.sensitivity("VLO", "crude_price_usd_bbl")["sign"], -1)
+        self.assertEqual(sn.sensitivity("VLO", "refining_crack_usd_bbl")["sign"], 1)
+        self.assertEqual(sn.sensitivity("MPC", "crude_price_usd_bbl")["sign"], -1)
+        self.assertEqual(sn.sensitivity("MPC", "refining_crack_usd_bbl")["sign"], 1)
+
+    def test_every_sensitivity_is_marked_fixture(self):
+        for key, rec in sn.CHANNEL_SENSITIVITIES.items():
+            self.assertEqual(rec["basis"], "fixture", "{} is not marked fixture".format(key))
+            self.assertIn("illustrative", rec["method"].lower())
+
+
+class TheGuardsTheReviewFound(unittest.TestCase):
+    """Five defects an adversarial pass reproduced by execution rather than argued.
+
+    Each was accepted by `validate_scenarios` at the time it was found, and each is the same
+    shape: a property the module states about itself that nothing enforced."""
+
+    def _bad(self, record, fragment):
+        with self.assertRaises(ValueError) as cm:
+            sn._validate_scenario(record["id"], record)
+        self.assertIn(fragment, str(cm.exception))
+
+    def test_a_horizon_is_registry_closed(self):
+        """`horizon` is half the observation primary key AND the join key the tree/series
+        agreement check runs on. As free text, rewriting `30d` to `30D` did not fail — it made
+        the coherence check silently not run, after which the tree could read 30% while the
+        series read 90%, both marked fixture and both "validated". `30 d`, `1m`, `P30D`,
+        `thirty days` and `""` all validated too."""
+        for bad in ("30D", "30 d", "1m", "P30D", "thirty days", ""):
+            self._bad(_scenario(observations=[_observation(horizon=bad)]), "unknown horizon")
+            self._bad(_with_branches(1.0, horizon=bad), "unknown horizon")
+
+    def test_the_coherence_check_cannot_be_dodged_by_respelling_a_horizon(self):
+        """The exploit, end to end: a tree and a series that disagree, hidden behind a
+        horizon spelling. It must fail on the horizon rather than pass."""
+        counting = _branches(0.7, 0.3)
+        counting[1]["counts_toward"] = ["hormuz_material_disruption"]
+        record = _scenario(branches=counting,
+                           partition="bands: at least 5% sustained for 7 days",
+                           observations=[_observation(horizon="30D", probability=0.90)])
+        self._bad(record, "unknown horizon")
+
+    def test_a_branch_cannot_count_toward_a_target_that_does_not_exist(self):
+        """`counts_toward` was admitted as a key and its VALUES were never checked, so a
+        branch could count toward a typo and the coherence check would skip it in silence."""
+        counting = _branches(1.0)
+        counting[0]["counts_toward"] = ["hormuz_matrial_disruption"]
+        self._bad(_scenario(branches=counting, partition="bands: 5% over 7 days"),
+                  "unknown target")
+
+    def test_a_partition_must_state_the_numbers_its_target_defines(self):
+        """The fixture claimed of itself that its band edge and the target's threshold were
+        "the same number ... so the two cannot drift". Nothing read the partition prose, so
+        moving the bands while the target stood still validated cleanly, leaving a probability
+        answering a question nobody asked."""
+        counting = _branches(1.0)
+        counting[0]["counts_toward"] = ["hormuz_material_disruption"]
+        self._bad(_scenario(branches=counting,
+                            partition="bands on one quantity, edges at 25% and 40%"),
+                  "the partition never states that number")
+
+    def test_a_fixture_cannot_describe_itself_as_calibrated(self):
+        """`basis: "fixture"` with method "Illustrative shape, calibrated against 20 years of
+        AIS transit data and validated out of sample" was ACCEPTED. That sentence is the one
+        thing that would make a reader trust an authored number."""
+        for claim in ("calibrated against 20 years of AIS data",
+                      "backtested out of sample",
+                      "estimated from returns",
+                      "fitted by regression"):
+            self._bad(_scenario(method="Illustrative shape, " + claim), "claims")
+
+    def test_an_honest_denial_of_calibration_is_not_mistaken_for_a_claim(self):
+        """The other direction, and the one the first version of the check got wrong: it
+        refused the fixture's own method, which reads "None of it is calibrated against
+        history". Matching the word instead of the claim rejects exactly the text this check
+        exists to encourage — the same reason the buckets guard matches `function mulberry32(`
+        rather than the bare name."""
+        for honest in ("Illustrative. None of it is calibrated against history.",
+                       "Illustrative, not calibrated, not a MONAD estimate.",
+                       "Illustrative — never backtested.",
+                       "Illustrative; no regression was fitted."):
+            sn._validate_scenario("hormuz", _scenario(method=honest))
+            self.assertIsNone(sn._calibration_claim(honest.lower()))
+
+    def test_a_fixture_method_must_say_it_is_illustrative(self):
+        self._bad(_scenario(method="Authored for the scenario layer."), "never says so")
+
+    def test_a_target_states_its_threshold_as_a_checkable_field(self):
+        """Prose alone cannot be compared to a partition. The threshold and the duration are
+        fields, and the question must state the same numbers or the target says two things."""
+        saved = dict(sn.TARGETS["hormuz_material_disruption"])
+        try:
+            sn.TARGETS["hormuz_material_disruption"]["threshold_pct"] = 25
+            with self.assertRaises(ValueError) as cm:
+                sn._validate_targets()
+            self.assertIn("does not appear in its own question", str(cm.exception))
+        finally:
+            sn.TARGETS["hormuz_material_disruption"] = saved

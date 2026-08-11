@@ -1,0 +1,160 @@
+{
+  "id": "hormuz",
+  "label": "Strait of Hormuz",
+  "shock_id": "hormuz",
+  "description": "Disruption to commercial transit through the Strait of Hormuz, the chokepoint for roughly a fifth of seaborne crude. The mechanisms this scenario routes through are the crude price, crude freight rates, marine war-risk premiums and refining crack spreads.",
+
+  "basis": "fixture",
+  "method": "Illustrative. Every number in this file was authored by hand to exercise the scenario architecture end to end. None of it is calibrated against history, derived from a model, or elicited from a forecaster, and none of it is a MONAD forecast. It is here so that the strip, the drawer and the bay modules have a shaped, self-consistent scenario to render while the modelling work that would replace it is done.",
+  "as_of": "2026-08-10T00:00:00Z",
+  "confidence": null,
+  "provenance": [
+    "hand-authored fixture, docs/research/SCREENER_IA_DRAFT_PLAN.md scenario layer Phase B",
+    "no external source; see `method`"
+  ],
+
+  "partition": "The deepest shortfall in daily commercial transits through the strait, measured against the trailing-year baseline and sustained for at least 7 consecutive days, at any point within the horizon. The four branches are half-open intervals on that one quantity — [0,5), [5,20), [20,50), [50,100] percent — so every value falls in exactly one, and their union is the whole range. Endpoints are stated as digits and not in words on purpose, twice over: 'no material shortfall' and 'a limited shortfall of under a fifth' both describe a 1% reading, so a tree built from overlapping English sums to 1 while double-counting; and the 5 and the 7 here are checked against the target's threshold_pct and min_days, which a spelled-out 'seven' would defeat. 'Material' for this scenario means a shortfall of at least 5% on this definition — and that is now enforced rather than promised.",
+
+  "branches": [
+    {
+      "id": "none",
+      "label": "No material shortfall — under 5% below baseline",
+      "probability": 0.70,
+      "horizon": "30d",
+      "counts_toward": [],
+      "basis": "fixture",
+      "method": "Illustrative band probability; see the scenario's `method`.",
+      "as_of": "2026-08-10T00:00:00Z",
+      "provenance": ["hand-authored fixture"]
+    },
+    {
+      "id": "limited",
+      "label": "Limited shortfall — 5% to 20% below baseline",
+      "probability": 0.20,
+      "horizon": "30d",
+      "counts_toward": ["hormuz_material_disruption"],
+      "basis": "fixture",
+      "method": "Illustrative band probability; see the scenario's `method`.",
+      "as_of": "2026-08-10T00:00:00Z",
+      "provenance": ["hand-authored fixture"]
+    },
+    {
+      "id": "sustained",
+      "label": "Sustained shortfall — 20% to 50% below baseline",
+      "probability": 0.08,
+      "horizon": "30d",
+      "counts_toward": ["hormuz_material_disruption"],
+      "basis": "fixture",
+      "method": "Illustrative band probability; see the scenario's `method`.",
+      "as_of": "2026-08-10T00:00:00Z",
+      "provenance": ["hand-authored fixture"]
+    },
+    {
+      "id": "severe",
+      "label": "Severe shortfall — 50% or more below baseline",
+      "probability": 0.02,
+      "horizon": "30d",
+      "counts_toward": ["hormuz_material_disruption"],
+      "basis": "fixture",
+      "method": "Illustrative band probability; see the scenario's `method`.",
+      "as_of": "2026-08-10T00:00:00Z",
+      "provenance": ["hand-authored fixture"]
+    }
+  ],
+
+  "observations": [
+    {
+      "target_id": "hormuz_material_disruption",
+      "timestamp": "2026-07-13T00:00:00Z",
+      "horizon": "30d",
+      "probability": 0.18,
+      "basis": "fixture",
+      "method": "Illustrative path point. The series is authored as a shape, not reconstructed from the developments below — this file makes no claim that development contributions sum to it, because no model here defines that arithmetic.",
+      "as_of": "2026-08-10T00:00:00Z",
+      "provenance": ["hand-authored fixture"]
+    },
+    {
+      "target_id": "hormuz_material_disruption",
+      "timestamp": "2026-07-20T00:00:00Z",
+      "horizon": "30d",
+      "probability": 0.17,
+      "basis": "fixture",
+      "method": "Illustrative path point; see the first observation.",
+      "as_of": "2026-08-10T00:00:00Z",
+      "provenance": ["hand-authored fixture"]
+    },
+    {
+      "target_id": "hormuz_material_disruption",
+      "timestamp": "2026-07-27T00:00:00Z",
+      "horizon": "30d",
+      "probability": 0.22,
+      "basis": "fixture",
+      "method": "Illustrative path point; see the first observation.",
+      "as_of": "2026-08-10T00:00:00Z",
+      "provenance": ["hand-authored fixture"]
+    },
+    {
+      "target_id": "hormuz_material_disruption",
+      "timestamp": "2026-08-03T00:00:00Z",
+      "horizon": "30d",
+      "probability": 0.26,
+      "basis": "fixture",
+      "method": "Illustrative path point; see the first observation.",
+      "as_of": "2026-08-10T00:00:00Z",
+      "provenance": ["hand-authored fixture"]
+    },
+    {
+      "target_id": "hormuz_material_disruption",
+      "timestamp": "2026-08-10T00:00:00Z",
+      "horizon": "30d",
+      "probability": 0.30,
+      "basis": "fixture",
+      "method": "Illustrative path point, and the current reading. Equals the sum of the branches that count toward this target (limited 0.20 + sustained 0.08 + severe 0.02), because one scenario answers one question with one number.",
+      "as_of": "2026-08-10T00:00:00Z",
+      "provenance": ["hand-authored fixture"]
+    }
+  ],
+
+  "developments": [
+    {
+      "id": "d1",
+      "timestamp": "2026-07-16T00:00:00Z",
+      "summary": "Routine multinational minesweeping exercise concludes without incident.",
+      "direction": "de_escalating",
+      "basis": "fixture",
+      "method": "Illustrative development. Carries no probability contribution: attributing a number of percentage points to a single event is a modelling claim, and no model here makes it.",
+      "as_of": "2026-08-10T00:00:00Z",
+      "provenance": ["hand-authored fixture"]
+    },
+    {
+      "id": "d2",
+      "timestamp": "2026-07-24T00:00:00Z",
+      "summary": "Two commercial tankers report GPS interference in the inbound lane.",
+      "direction": "escalating",
+      "basis": "fixture",
+      "method": "Illustrative development; see d1 on why no contribution is attached.",
+      "as_of": "2026-08-10T00:00:00Z",
+      "provenance": ["hand-authored fixture"]
+    },
+    {
+      "id": "d3",
+      "timestamp": "2026-08-01T00:00:00Z",
+      "summary": "Marine underwriters widen the war-risk area to include the eastern approach.",
+      "direction": "escalating",
+      "basis": "fixture",
+      "method": "Illustrative development; see d1 on why no contribution is attached.",
+      "as_of": "2026-08-10T00:00:00Z",
+      "provenance": ["hand-authored fixture"]
+    },
+    {
+      "id": "d4",
+      "timestamp": "2026-08-07T00:00:00Z",
+      "summary": "Naval escort tempo increases on the inbound lane; no transit interruption reported.",
+      "direction": "unclear",
+      "basis": "fixture",
+      "method": "Illustrative development, and deliberately one whose direction the fixture declines to call — escort tempo rises both because risk rose and because it is being managed. `unclear` is a reading, not a gap.",
+      "as_of": "2026-08-10T00:00:00Z",
+      "provenance": ["hand-authored fixture"]
+    }
+  ]
+}
