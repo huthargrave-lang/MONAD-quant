@@ -34,6 +34,10 @@ for _p in (REPO, os.path.join(REPO, "tools")):
 import research_ui  # noqa: E402
 import sovereign_buckets as sb  # noqa: E402
 import stock_screener as sc  # noqa: E402
+# `tests` is a package and REPO is already on sys.path above, so the shared fixture
+# is imported by its package path — a bare `import screener_payload_fixture` only
+# resolves when the tests directory itself happens to be the working directory.
+from tests import screener_payload_fixture  # noqa: E402
 
 MOCK = os.path.join(REPO, "docs", "research", "SOVEREIGN_LEDGER_OPTIONS_MOCK.html")
 
@@ -51,7 +55,6 @@ def _served_buckets():
     code, body, _ct = research_ui.route("/screener/buckets", {}, {})
     assert code == 200
     return body
-
 
 class TheTableHasOneSource(unittest.TestCase):
     def test_research_ui_holds_no_literal_of_its_own(self):
@@ -342,14 +345,47 @@ class TheBucketsAreOnTheScreenerBoard(unittest.TestCase):
     def test_constituent_series_travel_not_just_screened_ones(self):
         """53 of 202 constituents are in the fundamentals universe. Shipping only screened
         rows would leave three quarters of every bucket unplottable on the page meant to
-        plot it."""
-        shipped = set(self.payload["price_history"])
-        priceable = set(sb.price_tickers())
-        covered = priceable & shipped
-        self.assertGreater(
-            len(covered), len(priceable) * 0.9,
-            "only {} of {} tradeable constituents have a series in the screener "
-            "payload".format(len(covered), len(priceable)))
+        plot it.
+
+        `price_history` is keyed on the UNION of the screened rows and
+        `sovereign_buckets.all_tickers()`, and that union is the invariant. It used to be
+        measured as ">90% of tradeable constituents have a series" against the fetched
+        price cache — which is gitignored, so in CI the ratio was 0/191 and the test failed
+        for a missing artifact rather than for a narrowed union.
+
+        Authored prices now cover every tradeable constituent, so the assertion is the
+        union itself and at full scale: every one of them travels, and so does a screened
+        name that is not in any bucket. Narrowing the union to the rows drops 191 series
+        and fails on the first clause; narrowing it to the buckets drops the screened
+        outsider and fails on the second. The ratio could do neither — with a complete
+        cache it passed whichever way the union was written."""
+        priceable = sorted(sb.price_tickers())
+        self.assertGreater(len(priceable), 100,
+                           "the constituent universe collapsed — this check is vacuous")
+        series = {tk: [10.0, 11.0] for tk in priceable}
+        outsider = "ZZZZTEST"
+        self.assertNotIn(outsider, set(sb.all_tickers()),
+                         "the screened-only probe name is a bucket constituent, so it can "
+                         "no longer tell the two halves of the union apart")
+        rows = list(screener_payload_fixture.FUND_ROWS) + [
+            {"ticker": outsider, "name": "Screened outsider", "sector": "Test",
+             "pe": 10.0, "growth": 0.0, "dividend_yield": 0.0, "debt_to_equity": 0.0,
+             "beta": 1.0, "market_cap": 1e9, "dollar_volume": 1e6, "price": 10.0}]
+        series[outsider] = [10.0, 11.0]
+        payload = screener_payload_fixture.authored_payload(
+            fund_rows=rows, price_series=series)
+        shipped = set(payload["price_history"])
+
+        missing = sorted(set(priceable) - shipped)
+        self.assertEqual(
+            missing, [],
+            "{} tradeable constituent(s) have a series that did not travel — the payload "
+            "is keyed on the screened rows rather than the bucket universe: {}".format(
+                len(missing), missing[:8]))
+        self.assertIn(
+            outsider, shipped,
+            "a screened name outside every bucket lost its series — the payload is keyed "
+            "on the bucket universe alone, so the results table cannot plot its own rows")
 
     def test_a_selected_bucket_owns_the_price_chart(self):
         """It is the more specific request — the reader named these companies — so drawing

@@ -35,6 +35,10 @@ for _p in (REPO, os.path.join(REPO, "tools")):
 
 import research_ui  # noqa: E402
 import stock_screener as sc  # noqa: E402
+# `tests` is a package and REPO is already on sys.path above, so the shared fixture
+# is imported by its package path — a bare `import screener_payload_fixture` only
+# resolves when the tests directory itself happens to be the working directory.
+from tests import screener_payload_fixture  # noqa: E402
 
 PAGE = os.path.join(REPO, "docs", "research", "SCREENER_COMBINED_DRAFT.html")
 
@@ -84,15 +88,24 @@ class TheLensDefinitionsHaveOneSource(unittest.TestCase):
                              "{!r} instead of evaluating its shipped rule".format(key))
 
     def test_every_field_the_rules_test_travels_on_a_row(self):
-        """A rule testing a field the payload drops would silently fail every row."""
+        """A rule testing a field the payload drops would silently fail every row.
+
+        Built from authored rows rather than the fetched snapshot. The join asserted here
+        is between two independently-maintained things — the metric names in
+        `stock_screener.PRESETS` and the row keys `research_ui` emits — and neither is a
+        vendor's to decide, so nothing is lost by not asking a vendor. What WAS lost while
+        this read the cache is the test itself: the snapshot is gitignored, so in CI
+        `rows` was empty and this failed on `rows[0]` rather than on its subject."""
         needed = set()
         for preset in sc.PRESETS.values():
             needed.update(m for m, _op, _v in preset["require"])
             needed.add(preset["rank"][0])
+        self.assertGreater(len(needed), 5, "the canonical presets test almost no metrics — "
+                                           "this check has gone near-vacuous")
         alias = dict(re.findall(r'(\w+):"(\w+)"',
                                 re.search(r'const CANON_FIELD = \{(.*?)\};',
                                           self.html, re.S).group(1)))
-        row = self.payload["rows"][0]
+        row = screener_payload_fixture.authored_payload()["rows"][0]
         for metric in sorted(needed):
             field = alias.get(metric, metric)
             self.assertIn(field, row,
@@ -258,11 +271,30 @@ class ThePageDoesNotRestateWhatPythonDefines(unittest.TestCase):
                       "severity must be read from the row the server ships")
 
     def test_the_severity_rank_travels_on_every_row(self):
-        payload = research_ui._screener_combined_draft_payload()
+        """The editorial shadow-debt rank has to reach every row, or the lens that gates on
+        it silently admits everything.
+
+        Authored rows, loaded through the real path so `stock_screener.enrich_rows` still
+        runs — that join is what puts the rank on a row, and stubbing the loader would have
+        skipped it and left this proving only that a dict literal has a key.
+
+        Strengthened while it was being made CI-safe: the original asserted presence on
+        every row and would have passed with the whole table joining to the `None -> 0`
+        default. One authored name is tagged in `SHADOW_DEBT` and one is not, so a broken
+        join now shows up as every rank being equal."""
+        payload = screener_payload_fixture.authored_payload()
         rows = payload["rows"]
-        self.assertTrue(rows, "no rows to check")
+        self.assertTrue(rows, "the authored fixture produced no rows")
         for row in rows:
             self.assertIn("shadow_severity_rank", row, row.get("tk"))
+            self.assertIsNotNone(row["shadow_severity_rank"], row.get("tk"))
+        ranks = {row["tk"]: row["shadow_severity_rank"] for row in rows}
+        tagged = ranks[screener_payload_fixture.TAGGED_TICKER]
+        untagged = ranks[screener_payload_fixture.UNTAGGED_TICKER]
+        self.assertGreater(
+            tagged, untagged,
+            "a name tagged in SHADOW_DEBT ranks no higher than an untagged one, so the "
+            "editorial join is not reaching the row: {}".format(ranks))
 
 
 class TheSeriesPaletteIsCategorical(unittest.TestCase):
