@@ -2476,12 +2476,19 @@ class TheScenarioTilesComeAndGoWithTheShock(unittest.TestCase):
             self.assertIsNotNone(body, fn + " is gone")
             self.assertNotIn("treeTiles(boardTree)", body,
                              fn + " reads the arrangement where it means the board")
-        # Nowhere at all: `boardTiles()` is `treeTiles(pruneTree(boardTree))`, so the raw
-        # arrangement is only ever walked through the prune.
-        self.assertEqual(self.js.count("treeTiles(boardTree)"), 0,
-                         "something reads the raw arrangement without pruning it first")
+        # ONE legitimate reader of the raw arrangement, and it is named: the empty-board
+        # sentence asks "did the reader place anything", which is the one question the
+        # arrangement answers and the prune cannot. Everything else goes through
+        # `boardTiles()`. Pinned as exactly one so a second reader fails here rather than
+        # quietly joining it.
+        self.assertEqual(self.js.count("treeTiles(boardTree)"), 1,
+                         "something else reads the raw arrangement without pruning it first")
+        empty = re.search(r"if\(!drawn\)\{(.*?)\n  \}", self.fns["layoutBoard"], re.S)
+        self.assertIsNotNone(empty)
+        self.assertIn("treeTiles(boardTree)", empty.group(1),
+                      "the one permitted reader is no longer the empty-board sentence")
         self.assertIn("function boardTiles(){ return treeTiles(pruneTree(boardTree)); }",
-                      self.js, "the one legal reading of the arrangement is gone")
+                      self.js, "the one legal reading of the board is gone")
 
     def test_the_path_is_the_series_and_not_a_reconstruction(self):
         """Summing development contributions into a probability path is a modelling claim,
@@ -2566,6 +2573,41 @@ class TheScenarioTilesComeAndGoWithTheShock(unittest.TestCase):
             self.assertIn("refreshScenarioTiles()", branch,
                           "the %s path leaves the board showing the previous shock's tiles"
                           % name)
+
+    def test_an_empty_board_says_which_kind_of_empty_it_is(self):
+        """Bug Bot, round 3. Two empty boards need two sentences.
+
+        An arrangement holding nothing is the old case — everything parked or unplaced, and
+        Modules → Widgets is where the way back is. An arrangement holding only modules that
+        are unavailable under the selected shock is new, and the old sentence was false twice:
+        nothing is parked, and the panel it points at shows no rows to put back, because an
+        unavailable module is absent from it. The way out is the shock."""
+        body = self.fns.get("layoutBoard")
+        self.assertIsNotNone(body)
+        m = re.search(r"if\(!drawn\)\{(.*?)\n  \}", body, re.S)
+        self.assertIsNotNone(m, "the empty-board state is gone")
+        code = m.group(1)
+        self.assertIn("treeTiles(boardTree)", code,
+                      "the empty board cannot tell 'nothing is placed' from 'everything "
+                      "placed is unavailable', so it gives the same instruction for both")
+        self.assertIn("bucketShock", code,
+                      "the second sentence does not name the shock, which is the only thing "
+                      "the reader can change to get the modules back")
+        self.assertIn("still placed", code,
+                      "the sentence does not say the arrangement survived, so a reader is "
+                      "invited to place the modules again over the ones already there")
+
+    def test_the_reach_cache_is_keyed_on_the_record_not_its_name(self):
+        """Bug Bot, round 3. The cache key was `shock + "|" + scenario_id` — two strings that
+        are EQUAL for two different records describing the same scenario. Replacing the
+        fixture with a model's output for `hormuz` left the lens screening on the fixture's
+        reach set, with the strip beside it reading the model's probability."""
+        body = self.fns.get("scenarioReached")
+        self.assertIsNotNone(body, "the reach set is gone")
+        self.assertIn("_reachKey === sc", body,
+                      "the reach cache is keyed on a name rather than on the resolved record, "
+                      "so a payload swap serves the previous record's securities")
+        self.assertNotIn("scenario_id", body)
 
     def test_one_writer_owns_whether_a_row_is_hidden(self):
         """Two writers of `hidden` take turns undoing each other: type a query while a scenario

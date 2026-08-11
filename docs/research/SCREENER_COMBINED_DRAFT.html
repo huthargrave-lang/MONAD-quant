@@ -3010,10 +3010,20 @@ function layoutBoard(){
   if(!drawn){
     const empty = document.createElement("div");
     empty.className = "board-empty";
-    // Names where the way back actually is. "The tray above" pointed at empty space once the
-    // tray moved into the panel, and the tray itself is now the panel's Widgets tab.
-    empty.textContent =
-      "Every chart is parked — open Modules → Widgets to put one back on the board.";
+    /* TWO empty boards, and they need different sentences. An arrangement that holds nothing
+       is the old case: everything is parked or unplaced, and Modules → Widgets is where the
+       way back is. An arrangement that holds modules which are all unavailable under the
+       selected shock is new, and the old sentence was false twice over — nothing is parked
+       (parked means waiting on a source that has not arrived), and the panel it sends the
+       reader to shows no rows to put back, because an unavailable module is absent from it.
+       The way out is the shock, so the sentence says so. */
+    const arranged = treeTiles(boardTree);
+    empty.textContent = arranged.length
+      ? "The " + arranged.length + " module" + (arranged.length === 1 ? "" : "s")
+        + " on this board need a scenario, and none has been written for "
+        + bucketShock + ". They are still placed — choose a shock that carries a model and "
+        + "they come back where they were."
+      : "Every chart is parked — open Modules → Widgets to put one back on the board.";
     board.appendChild(empty);
   }
   boardChanged();
@@ -7590,12 +7600,17 @@ function scenarioExposuresFor(security){
 }
 /* Which securities the active shock's scenario reaches at all. Memoised per shock: the lens
    asks it once per row and the exposure map is rebuilt from object keys. */
-let _reachCache = null, _reachKey = "";
+let _reachCache = null, _reachKey = false;
 function scenarioReached(){
   const sc = scenarioForShock(bucketShock);
-  const key = bucketShock + "|" + (sc && sc.scenario_id || "");
-  if(_reachCache && _reachKey === key) return _reachCache;
-  _reachKey = key;
+  /* Keyed on the resolved RECORD, by identity — not on the shock and scenario id. Those two
+     strings are equal for two different records describing the same scenario, so replacing
+     the fixture with a model's output for `hormuz` left this serving the fixture's reach set
+     to a lens screening on it. Identity covers both changes with one comparison, and two
+     unmodelled shocks share the `null` entry legitimately: the answer for both is empty.
+     `_reachKey` starts `false` so the first call cannot hit a null-vs-null match. */
+  if(_reachCache && _reachKey === sc) return _reachCache;
+  _reachKey = sc;
   const out = new Set();
   Object.keys((sc && sc.exposures) || {}).forEach(k => out.add(k.slice(0, k.indexOf("|"))));
   _reachCache = out;
