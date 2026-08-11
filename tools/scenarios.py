@@ -78,6 +78,15 @@ BASIS_VALUES = ("fixture", "modelled")
 #: that happened and whose direction the model cannot call — and is not the same as absent.
 DIRECTIONS = ("escalating", "de_escalating", "unclear")
 
+#: How hard a channel move pushes a bucket. ORDINAL and deliberately not a number.
+#:
+#: The alternative was a 0-1 coefficient, and it would have been multiplied by a probability
+#: within a week — producing a quantity with no unit that looks like an expected value. The
+#: repo has the precedent verbatim: `SHADOW_DEBT_SEVERITY` is ordinal because "inventing
+#: '+60 D/E points' would be fabricating the very figure the lens exists to say is missing".
+#: Strength ORDERS mechanisms and never scales one.
+STRENGTHS = ("low", "medium", "high")
+
 #: How far ahead a probability looks. CLOSED, for exactly the reason TARGETS is closed, and
 #: this was left open on the sibling axis at first.
 #:
@@ -243,7 +252,23 @@ _SCHEMAS = {
         # double-counting. Naming the dimension is what makes disjointness checkable by a
         # human, which is the only thing that can check it.
         "optional": set(_PROVENANCE_FIELDS) | {"developments", "branches", "observations",
-                                               "partition"},
+                                               "partition", "transmission"},
+    },
+    # An edge names a CHANNEL and a BUCKET. It cannot name a security — that is invariant 4
+    # holding at the one place it would be most tempting to break, since the author writing
+    # "this reaches tankers" knows perfectly well which tankers they mean.
+    #
+    # `branches` says which branches engage the mechanism. Without it an edge would be equally
+    # engaged under "no material shortfall" as under a closure, and the activation derived from
+    # it would be a constant wearing a probability's clothes.
+    #
+    # `mechanism` is the sentence the drilldown renders for this hop. It is required: a path
+    # the reader cannot read is not an explanation, and this is the hop where the causal claim
+    # actually lives.
+    "edge": {
+        "required": {"channel_id", "bucket_id", "sign", "strength", "horizon", "branches",
+                     "mechanism"},
+        "optional": set(_PROVENANCE_FIELDS),
     },
     "development": {
         "required": {"id", "timestamp", "summary", "direction"},
@@ -532,8 +557,58 @@ def _validate_scenario(sid, record):
             "nothing about whether two states overlap".format(where))
     _validate_branches(where, branches)
     _validate_partition_matches_targets(where, record, branches)
+    _validate_transmission(where, record.get("transmission") or [], branches)
     _validate_observations(where, observations)
     _validate_target_coherence(where, branches, observations)
+
+
+def _validate_transmission(where, edges, branches):
+    """Edges are checkable in themselves; the exposure collision they can cause is not, and is
+    resolved at derivation time where the securities are known."""
+    if not edges:
+        return
+    branch_ids = {b["id"] for b in branches}
+    buckets = {b["id"] for b in sovereign_buckets.BUCKETS}
+    by_channel_bucket = {}
+    for e in edges:
+        e_where = "{} edge {}->{}".format(where, e.get("channel_id"), e.get("bucket_id"))
+        _check_keys("edge", e, e_where)
+        _check_provenance(e, e_where)
+        if e["channel_id"] not in CHANNELS:
+            raise ValueError("{}: unknown channel_id {!r}".format(e_where, e["channel_id"]))
+        if e["bucket_id"] not in buckets:
+            raise ValueError("{}: unknown bucket_id {!r}".format(e_where, e["bucket_id"]))
+        if e["sign"] not in (-1, 1):
+            raise ValueError(
+                "{}: sign {!r}. An edge asserts a direction — a mechanism with no direction "
+                "is not a mechanism, so None is not allowed here the way it is on a "
+                "sensitivity".format(e_where, e["sign"]))
+        if e["strength"] not in STRENGTHS:
+            raise ValueError("{}: strength {!r} is not one of {}".format(
+                e_where, e["strength"], STRENGTHS))
+        if e["horizon"] not in HORIZONS:
+            raise ValueError("{}: unknown horizon {!r}".format(e_where, e["horizon"]))
+        if not (e.get("mechanism") or "").strip():
+            raise ValueError(
+                "{}: no mechanism. This is the hop where the causal claim lives, and a path "
+                "the reader cannot read is not an explanation".format(e_where))
+        if not e["branches"]:
+            raise ValueError(
+                "{}: engages no branches. An edge engaged by nothing is a mechanism that "
+                "never fires, and its activation would be a constant".format(e_where))
+        unknown = [b for b in e["branches"] if b not in branch_ids]
+        if unknown:
+            raise ValueError("{}: engages unknown branch(es) {}".format(e_where, unknown))
+        # The one contradiction checkable without securities: one channel, one bucket, two
+        # directions. Two edges on DIFFERENT channels into one bucket are legal and are the
+        # multi-channel case the registry exists for.
+        key = (e["channel_id"], e["bucket_id"])
+        if key in by_channel_bucket and by_channel_bucket[key] != e["sign"]:
+            raise ValueError(
+                "{}: two edges carry {} into bucket {} with opposite signs. One channel "
+                "moving one bucket both ways is a contradiction, not a nuance".format(
+                    e_where, e["channel_id"], e["bucket_id"]))
+        by_channel_bucket[key] = e["sign"]
 
 
 def _validate_target_coherence(where, branches, observations):
@@ -695,6 +770,241 @@ def scenario_state(scenario, target_id=None, horizon=None):
         "model_id": newest.get("model_id"),
         "model_version": newest.get("model_version"),
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 6. Derivation. The one legal path from a shock to a security, walked and RECORDED.
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Everything below returns the whole chain, not a score. A surface must be able to answer
+# "why did this security move into this scenario set" by READING what it was handed —
+# never by recomputing (which invites a second implementation) and never by narrating
+# (which invites an explanation that does not match the arithmetic).
+#
+# The chain, and where each hop's evidence comes from:
+#
+#   scenario     branch probabilities            authored, data/scenarios/*.json
+#     -> edge    channel_id, bucket_id, sign,    authored, same file
+#                strength, mechanism, branches
+#     -> bucket  activation = P(engaging         DERIVED here
+#                branches), + strength
+#     -> member  bucket membership + tier        sovereign_buckets, authored
+#     -> sens.   magnitude, sign                 CHANNEL_SENSITIVITIES, authored
+#     -> expo    net sign, paths[]               DERIVED here
+
+
+def engaged_probability(scenario, branch_ids):
+    """P(one of these branches), given branches are an exhaustive disjoint partition.
+
+    A sum is only legitimate BECAUSE of that partition — which `_validate_branches` enforces
+    and `partition` states. Over overlapping states this would double-count, which is exactly
+    why the partition is a required field rather than a convention.
+    """
+    wanted = set(branch_ids)
+    hits = [b for b in (scenario.get("branches") or []) if b["id"] in wanted]
+    return sum(b["probability"] for b in hits) if hits else None
+
+
+def bucket_activations(scenario):
+    """Every bucket this scenario reaches, with the evidence for reaching it.
+
+    `activation` is a PROBABILITY — the chance the mechanism is engaged over the horizon —
+    and not a score. It is the probability mass of the branches whose edges reach the bucket,
+    which is a quantity with a meaning a reader can check.
+
+    `strength` travels beside it and is never multiplied into it. Multiplying an ordinal by a
+    probability produces a number with no unit that looks like an expected value, which is the
+    single easiest way for this layer to start lying.
+
+    Mechanism-level only: nothing here touches a company. That is Decision 5, and it is why
+    this function returns bucket ids and never tickers.
+    """
+    out = {}
+    for e in scenario.get("transmission") or []:
+        p = engaged_probability(scenario, e["branches"])
+        row = out.setdefault(e["bucket_id"], {
+            "scenario_id": scenario["id"],
+            "bucket_id": e["bucket_id"],
+            "activation": None,
+            "horizon": e["horizon"],
+            "basis": e["basis"],
+            "as_of": e.get("as_of"),
+            "drivers": [],
+        })
+        row["drivers"].append({
+            "channel_id": e["channel_id"],
+            "channel": CHANNELS[e["channel_id"]],
+            "sign": e["sign"],
+            "strength": e["strength"],
+            "confidence": e.get("confidence"),
+            "mechanism": e["mechanism"],
+            "branches": list(e["branches"]),
+            "engaged_probability": p,
+            "horizon": e["horizon"],
+            "basis": e["basis"],
+            "provenance": list(e.get("provenance") or []),
+        })
+        # Across channels the highest engaged probability governs: the bucket is active if ANY
+        # of its mechanisms is. Not a sum — two channels engaged by the same branches are one
+        # event, and adding them would put activation above 1.
+        if p is not None:
+            row["activation"] = p if row["activation"] is None else max(row["activation"], p)
+    for row in out.values():
+        row["strength"] = max((d["strength"] for d in row["drivers"]),
+                              key=lambda s: STRENGTHS.index(s))
+        row["drivers"].sort(key=lambda d: (-(d["engaged_probability"] or 0),
+                                           -STRENGTHS.index(d["strength"])))
+    return out
+
+
+def security_exposures(scenario):
+    """Every security this scenario reaches, each carrying the paths that reached it.
+
+    One record per (security, channel_id) — never summed across channels — and `paths` holds
+    every route that arrived, because reaching one security on one channel through two buckets
+    is the graph telling the truth. GD, CW and MRC sit in buckets 05 and 16; UUUU in 09 and 11.
+    Collapsing those to a winner would make the drilldown contradict the graph it explains.
+
+    Absence is threefold and each is a different sentence the UI must be able to say:
+      `status: "exposed"`     — reached, and a sensitivity is on record
+      `status: "unassessed"`  — reached, and nobody has assessed the coefficient. NOT zero.
+      `status: "unresolved"`  — reached by paths that disagree on sign or horizon.
+    """
+    members = {b["id"]: (b["liquid"], b["satellite"]) for b in sovereign_buckets.BUCKETS}
+    by_key = {}
+    for e in scenario.get("transmission") or []:
+        liquid, satellite = members[e["bucket_id"]]
+        p = engaged_probability(scenario, e["branches"])
+        for tier, names in (("liquid", liquid), ("satellite", satellite)):
+            for tk in names:
+                sens = sensitivity(tk, e["channel_id"])
+                key = (tk, e["channel_id"])
+                rec = by_key.setdefault(key, {
+                    "scenario_id": scenario["id"],
+                    "security": tk,
+                    "channel_id": e["channel_id"],
+                    "channel": CHANNELS[e["channel_id"]],
+                    "paths": [],
+                })
+                rec["paths"].append({
+                    # Every hop, with its own evidence, in the order a reader walks it.
+                    "scenario_id": scenario["id"],
+                    "branches": [
+                        {"id": b["id"], "label": b["label"], "probability": b["probability"]}
+                        for b in (scenario.get("branches") or []) if b["id"] in e["branches"]],
+                    "engaged_probability": p,
+                    "channel_id": e["channel_id"],
+                    "channel_label": CHANNELS[e["channel_id"]]["label"],
+                    "channel_unit": CHANNELS[e["channel_id"]]["unit"],
+                    "edge_sign": e["sign"],
+                    "edge_strength": e["strength"],
+                    "edge_confidence": e.get("confidence"),
+                    "mechanism": e["mechanism"],
+                    "bucket_id": e["bucket_id"],
+                    "bucket_name": _bucket_name(e["bucket_id"]),
+                    "membership_tier": tier,     # membership STRENGTH, never exposure
+                    "sensitivity_sign": sens["sign"] if sens else None,
+                    "sensitivity_magnitude": sens["magnitude"] if sens else None,
+                    "sensitivity_confidence": sens.get("confidence") if sens else None,
+                    "sensitivity_basis": sens["basis"] if sens else None,
+                    "horizon": e["horizon"],
+                    "basis": e["basis"],
+                    "provenance": list(e.get("provenance") or []),
+                })
+    for rec in by_key.values():
+        _resolve_exposure(rec)
+    return by_key
+
+
+def _resolve_exposure(rec):
+    """Net the paths, or refuse to. Compatible is defined exactly: equal non-None net sign AND
+    equal horizon. Differing strength or confidence is evidence weight, never incompatibility.
+    """
+    signs, horizons = set(), set()
+    assessed = False
+    for p in rec["paths"]:
+        horizons.add(p["horizon"])
+        if p["sensitivity_basis"] is not None:
+            assessed = True
+        if p["sensitivity_sign"] is None:
+            signs.add(None)
+        else:
+            signs.add(p["edge_sign"] * p["sensitivity_sign"])
+    known = {s for s in signs if s is not None}
+
+    if not known:
+        # Two different absences, and collapsing them would be the module's own rule broken
+        # one level up. "Nobody assessed this" and "we assessed it and cannot call the
+        # direction" are different claims, and a surface has to be able to say which.
+        if assessed:
+            rec.update(status="undirected", sign=None,
+                       magnitude=next((p["sensitivity_magnitude"] for p in rec["paths"]
+                                       if p["sensitivity_magnitude"] is not None), None),
+                       confidence=None,
+                       why="reached, and a sensitivity is on record with no direction — the "
+                           "relationship is asserted, its sign is not")
+        else:
+            rec.update(status="unassessed", sign=None, magnitude=None, confidence=None,
+                       why="reached, but no sensitivity to this channel is on record")
+        return
+    if len(horizons) > 1 or len(known) > 1 or None in signs:
+        rec.update(status="unresolved", sign=None, magnitude=None, confidence=None,
+                   why="paths disagree: signs {} over horizons {}".format(
+                       sorted(str(s) for s in signs), sorted(horizons)))
+        return
+    mags = [p["sensitivity_magnitude"] for p in rec["paths"]
+            if p["sensitivity_magnitude"] is not None]
+    confs = [c for c in (p["sensitivity_confidence"] for p in rec["paths"]) if c is not None]
+    edge_confs = [c for c in (p["edge_confidence"] for p in rec["paths"]) if c is not None]
+    rec.update(
+        status="exposed",
+        sign=known.pop(),
+        # All paths share one ChannelSensitivity, so this is that coefficient, not an average.
+        magnitude=mags[0] if mags else None,
+        # The weakest link: an exposure is no more certain than the least certain hop on the
+        # path that produced it.
+        confidence=min(confs + edge_confs) if (confs or edge_confs) else None,
+        why=None)
+
+
+def _bucket_name(bucket_id):
+    for b in sovereign_buckets.BUCKETS:
+        if b["id"] == bucket_id:
+            return b["name"]
+    return bucket_id
+
+
+def unscreenable_reached(scenario, screened):
+    """Reached names that can never appear in the results table, with the reason.
+
+    47 of the 202 constituents are funds, futures or delisted. They are reached by the same
+    edges as everything else, and dropping them silently would be the defect `listedNote`
+    exists to prevent — reported as a gap the reader can see, not omitted.
+    """
+    out = []
+    reached = {r["security"] for r in security_exposures(scenario).values()}
+    for tk in sorted(reached):
+        if tk in screened:
+            continue
+        if tk in sovereign_buckets.NOT_COMPANIES:
+            out.append((tk, sovereign_buckets.NOT_COMPANIES[tk]))
+        elif tk in sovereign_buckets.DELISTED:
+            out.append((tk, "delisted — " + sovereign_buckets.DELISTED[tk]))
+        else:
+            out.append((tk, "not in the screened universe"))
+    return out
+
+
+def explain(scenario, security, channel_id=None):
+    """The chain behind one security, ready to render — the answer to "why is this here".
+
+    Returns the exposure records with their paths already materialised, so a surface walks a
+    list rather than re-deriving. Recomputing in the UI would be a second implementation of
+    the join; narrating it would be an explanation free to disagree with the arithmetic.
+    """
+    hits = [r for (tk, cid), r in sorted(security_exposures(scenario).items())
+            if tk == security and (channel_id is None or cid == channel_id)]
+    return hits
 
 
 def sensitivity(security, channel_id):

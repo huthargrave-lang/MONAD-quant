@@ -27,6 +27,7 @@ for _p in (REPO, os.path.join(REPO, "tools")):
 
 import scenarios as sn  # noqa: E402
 import sovereign_buckets as sb  # noqa: E402
+import stock_screener as sc  # noqa: E402
 
 
 def _prov(**kw):
@@ -703,3 +704,324 @@ class TheGuardsTheReviewFound(unittest.TestCase):
             self.assertIn("does not appear in its own question", str(cm.exception))
         finally:
             sn.TARGETS["hormuz_material_disruption"] = saved
+
+
+def _edge(**kw):
+    base = dict(_prov(), channel_id="crude_freight_rate_ws", bucket_id="04", sign=1,
+                strength="high", horizon="30d", branches=["limited"],
+                mechanism="Longer voyages tighten effective fleet supply.")
+    base.update(kw)
+    return base
+
+
+class ATransmissionEdgeIsCheckable(unittest.TestCase):
+    """An edge names a CHANNEL and a BUCKET — never a security. That is invariant 4 holding at
+    the one place it is most tempting to break, because the author writing "this reaches
+    tankers" knows exactly which tankers they mean."""
+
+    def _bad(self, edges, fragment, branches=None):
+        record = _scenario(
+            transmission=edges,
+            branches=branches or _branches(0.6, 0.4),
+            partition="bands: at least 5% sustained for 7 days")
+        record["branches"][0]["id"] = "limited"
+        record["branches"][1]["id"] = "other"
+        with self.assertRaises(ValueError) as cm:
+            sn._validate_scenario("hormuz", record)
+        self.assertIn(fragment, str(cm.exception))
+
+    def test_an_edge_cannot_name_an_unknown_channel_or_bucket(self):
+        self._bad([_edge(channel_id="nope")], "unknown channel_id")
+        self._bad([_edge(bucket_id="99")], "unknown bucket_id")
+
+    def test_an_edge_must_assert_a_direction(self):
+        """Unlike a sensitivity, where `None` is a real state — the relationship exists and
+        nobody has called its direction — an edge with no sign is not a mechanism."""
+        self._bad([_edge(sign=None)], "not a mechanism")
+        self._bad([_edge(sign=0)], "not a mechanism")
+
+    def test_strength_is_ordinal_and_closed(self):
+        """A 0-1 coefficient would be multiplied by a probability within a week, producing a
+        number with no unit that looks like an expected value. `SHADOW_DEBT_SEVERITY` is
+        ordinal for the same reason."""
+        self._bad([_edge(strength=0.9)], "not one of")
+        self._bad([_edge(strength="extreme")], "not one of")
+
+    def test_an_edge_must_carry_its_mechanism(self):
+        """This is the hop where the causal claim lives. A path the reader cannot read is not
+        an explanation, which is the entire point of storing paths."""
+        self._bad([_edge(mechanism="   ")], "no mechanism")
+
+    def test_an_edge_must_be_engaged_by_real_branches(self):
+        self._bad([_edge(branches=[])], "engages no branches")
+        self._bad([_edge(branches=["nosuchbranch"])], "unknown branch")
+
+    def test_one_channel_cannot_move_one_bucket_both_ways(self):
+        self._bad([_edge(sign=1), _edge(sign=-1)], "opposite signs")
+
+    def test_two_channels_into_one_bucket_are_legal(self):
+        """The multi-channel case the registry exists for — and the earlier draft of this rule
+        wrongly refused it."""
+        record = _scenario(
+            transmission=[_edge(channel_id="crude_freight_rate_ws"),
+                          _edge(channel_id="marine_war_risk_premium_pct", sign=-1)],
+            branches=_branches(1.0), partition="bands: at least 5% sustained for 7 days")
+        record["branches"][0]["id"] = "limited"
+        sn._validate_scenario("hormuz", record)
+
+
+class TheChainIsStoredNotRecomputed(unittest.TestCase):
+    """Phase C's contract: a surface answers "why did this security move into this scenario
+    set" by READING what it was handed.
+
+    Recomputing in the UI would be a second implementation of the join — the defect this repo
+    has paid for repeatedly. Narrating it would be an explanation free to disagree with the
+    arithmetic it claims to describe."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.s = sn.load()["hormuz"]
+        cls.ex = sn.security_exposures(cls.s)
+
+    def test_activation_is_a_probability_and_touches_no_company(self):
+        """Decision 5: activation is mechanism-level. It returns bucket ids, never tickers,
+        and its value is P(the mechanism is engaged) — a quantity a reader can check — rather
+        than a score."""
+        acts = sn.bucket_activations(self.s)
+        self.assertTrue(acts)
+        for bid, a in acts.items():
+            self.assertIn(bid, {b["id"] for b in sb.BUCKETS})
+            self.assertTrue(0.0 <= a["activation"] <= 1.0)
+            self.assertNotIn("security", a)
+            self.assertNotIn("securities", a)
+            for d in a["drivers"]:
+                self.assertIn(d["channel_id"], sn.CHANNELS)
+
+    def test_strength_is_never_multiplied_into_activation(self):
+        """An ordinal times a probability is a number with no unit that looks like an expected
+        value. Both travel; neither is folded into the other."""
+        for a in sn.bucket_activations(self.s).values():
+            self.assertIn(a["strength"], sn.STRENGTHS)
+            engaged = {d["engaged_probability"] for d in a["drivers"]}
+            self.assertIn(a["activation"], engaged,
+                          "activation is not one of its drivers' probabilities, so something "
+                          "has been combined into it")
+
+    def test_the_requested_chain_is_walkable_for_fro(self):
+        """The example from the brief, end to end:
+        Hormuz branch -> crude_freight_rate_ws up -> Tankers activation -> FRO sensitivity +
+        -> derived exposure. Every hop present, every hop carrying its own evidence."""
+        hits = sn.explain(self.s, "FRO", "crude_freight_rate_ws")
+        self.assertEqual(len(hits), 1)
+        rec = hits[0]
+        self.assertEqual(rec["status"], "exposed")
+        self.assertEqual(rec["sign"], 1)
+        self.assertEqual(len(rec["paths"]), 1)
+        p = rec["paths"][0]
+        # Hop 1 — the scenario and the branches that engage this mechanism.
+        self.assertEqual(rec["scenario_id"], "hormuz")
+        self.assertEqual([b["id"] for b in p["branches"]],
+                         ["limited", "sustained", "severe"])
+        self.assertAlmostEqual(p["engaged_probability"], 0.30, places=9)
+        # Hop 2 — the channel, named, with its unit and its direction.
+        self.assertEqual(p["channel_id"], "crude_freight_rate_ws")
+        self.assertEqual(p["channel_unit"], "Worldscale points")
+        self.assertEqual(p["edge_sign"], 1)
+        self.assertIn("ton-miles", p["mechanism"])
+        # Hop 3 — the bucket, by id AND name, with membership tier.
+        self.assertEqual((p["bucket_id"], p["bucket_name"]), ("04", "Tankers"))
+        self.assertEqual(p["membership_tier"], "liquid")
+        # Hop 4 — the security's own sensitivity to that channel.
+        self.assertEqual((p["sensitivity_sign"], p["sensitivity_magnitude"]), (1, 0.85))
+        # And every hop says what kind of number it is.
+        for field in ("basis", "horizon"):
+            self.assertTrue(p[field])
+
+    def test_nothing_in_a_path_needs_recomputing_to_be_rendered(self):
+        """The concrete form of the contract: a renderer holding one path can name the
+        scenario, the branches, the channel, the mechanism, the bucket, the tier, the
+        sensitivity and the horizon without reaching back into any registry."""
+        expected = {"scenario_id", "branches", "engaged_probability", "channel_id",
+                    "channel_label", "channel_unit", "edge_sign", "edge_strength",
+                    "edge_confidence", "mechanism", "bucket_id", "bucket_name",
+                    "membership_tier", "sensitivity_sign", "sensitivity_magnitude",
+                    "sensitivity_confidence", "sensitivity_basis", "horizon", "basis",
+                    "provenance"}
+        for rec in self.ex.values():
+            for p in rec["paths"]:
+                # EXACT, not a superset. A missing field means the UI has to look something
+                # up — the recomputation this phase exists to prevent. An EXTRA field is the
+                # more dangerous direction: it is where a derived quantity gets smuggled in,
+                # and the one that escaped first was `exposure_from_tier`, turning membership
+                # strength into a number a surface would read as exposure.
+                self.assertEqual(set(p), expected,
+                                 "path shape drifted: missing {}, extra {}".format(
+                                     sorted(expected - set(p)), sorted(set(p) - expected)))
+
+    def test_membership_tier_is_never_a_number(self):
+        """Tier is membership STRENGTH — whether a name is a core or a satellite holding of a
+        bucket — and it says nothing about how that name responds to a channel. Read as
+        exposure it would rank a large liquid holding above a small one that the mechanism
+        actually moves."""
+        for rec in self.ex.values():
+            for p in rec["paths"]:
+                self.assertIn(p["membership_tier"], ("liquid", "satellite"))
+                self.assertIsInstance(p["membership_tier"], str)
+
+    def test_a_negative_exposure_is_expressible(self):
+        """The thing unsigned editorial heat structurally cannot say. A crude spike lifts the
+        barrel (edge +1) and squeezes a refiner's input cost (sensitivity -1), so the derived
+        exposure is negative — and the path shows both halves of why."""
+        rec = sn.explain(self.s, "VLO", "crude_price_usd_bbl")[0]
+        self.assertEqual(rec["status"], "exposed")
+        self.assertEqual(rec["sign"], -1)
+        p = rec["paths"][0]
+        self.assertEqual((p["edge_sign"], p["sensitivity_sign"]), (1, -1))
+        # And the same security is positive on another channel, which is why sign lives per
+        # (security, channel) and never per security.
+        self.assertEqual(sn.explain(self.s, "VLO", "refining_crack_usd_bbl")[0]["sign"], 1)
+
+    def test_paths_that_disagree_are_unresolved_and_never_decided(self):
+        """One channel reaching one security through two buckets with opposite edge signs.
+        Legal to author — a channel may move two buckets different ways — and impossible to
+        net, so the exposure refuses rather than picking.
+
+        Not reachable from the Hormuz fixture, which has no conflict; disabling the
+        `unresolved` branch left every test green until this existed."""
+        sens_key = ("GD", "crude_price_usd_bbl")
+        saved = dict(sn.CHANNEL_SENSITIVITIES)
+        try:
+            sn.CHANNEL_SENSITIVITIES[sens_key] = dict(
+                _prov(), magnitude=0.5, sign=1, confidence=0.4)
+            # GD sits in buckets 05 and 16; one channel, opposite directions into each.
+            record = _scenario(
+                branches=_branches(1.0),
+                partition="bands: at least 5% sustained for 7 days",
+                transmission=[
+                    _edge(channel_id="crude_price_usd_bbl", bucket_id="05", sign=1),
+                    _edge(channel_id="crude_price_usd_bbl", bucket_id="16", sign=-1),
+                ])
+            record["branches"][0]["id"] = "limited"
+            sn._validate_scenario("hormuz", record)      # authoring this is legal
+            rec = sn.explain(record, "GD", "crude_price_usd_bbl")[0]
+            self.assertEqual(len(rec["paths"]), 2, "both routes must be kept")
+            self.assertEqual(rec["status"], "unresolved")
+            self.assertIsNone(rec["sign"], "a disagreement was silently decided")
+            self.assertIn("disagree", rec["why"])
+        finally:
+            sn.CHANNEL_SENSITIVITIES.clear()
+            sn.CHANNEL_SENSITIVITIES.update(saved)
+
+    def test_a_sensitivity_with_no_direction_is_undirected_not_unassessed(self):
+        """Four absences, not three, and this test found the fourth by asserting the wrong
+        one. A record that EXISTS with `sign: None` says "we know it responds and cannot call
+        which way"; no record at all says "nobody looked". Collapsing them is the module's own
+        absent-is-not-zero rule broken one level up — and the derivation was collapsing them.
+
+        The magnitude survives, because it was assessed: only the direction is missing."""
+        saved = dict(sn.CHANNEL_SENSITIVITIES)
+        try:
+            sn.CHANNEL_SENSITIVITIES[("GD", "crude_price_usd_bbl")] = dict(
+                _prov(), magnitude=0.5, sign=None, confidence=None)
+            record = _scenario(
+                branches=_branches(1.0),
+                partition="bands: at least 5% sustained for 7 days",
+                transmission=[_edge(channel_id="crude_price_usd_bbl", bucket_id="05", sign=1)])
+            record["branches"][0]["id"] = "limited"
+            rec = sn.explain(record, "GD", "crude_price_usd_bbl")[0]
+            self.assertEqual(rec["status"], "undirected")
+            self.assertIsNone(rec["sign"])
+            self.assertEqual(rec["magnitude"], 0.5)
+            self.assertIn("its sign is not", rec["why"])
+        finally:
+            sn.CHANNEL_SENSITIVITIES.clear()
+            sn.CHANNEL_SENSITIVITIES.update(saved)
+
+        # And with no record at all, the other absence.
+        record = _scenario(
+            branches=_branches(1.0),
+            partition="bands: at least 5% sustained for 7 days",
+            transmission=[_edge(channel_id="crude_price_usd_bbl", bucket_id="05", sign=1)])
+        record["branches"][0]["id"] = "limited"
+        rec = sn.explain(record, "GD", "crude_price_usd_bbl")[0]
+        self.assertEqual(rec["status"], "unassessed")
+        self.assertIsNone(rec["magnitude"])
+
+    def test_reached_but_unassessed_is_a_status_not_a_zero(self):
+        """The largest population by far — 46 of 58 records. Reporting these as 0 would put
+        names the model knows nothing about beside names it has assessed, which is the
+        shadow-debt gate's failure in a new place."""
+        un = [r for r in self.ex.values() if r["status"] == "unassessed"]
+        self.assertTrue(un)
+        for r in un:
+            self.assertIsNone(r["sign"])
+            self.assertIsNone(r["magnitude"])
+            self.assertIn("no sensitivity", r["why"])
+            self.assertTrue(r["paths"], "an unassessed name still knows how it was reached")
+
+    def test_a_relationship_with_no_magnitude_still_carries_its_sign(self):
+        """XOM and CVX: the relationship exists, the direction is known, and the coefficient
+        was deliberately not invented. `exposed` with `magnitude=None` is a fourth state and
+        it must survive the derivation."""
+        rec = sn.explain(self.s, "XOM", "crude_price_usd_bbl")[0]
+        self.assertEqual(rec["status"], "exposed")
+        self.assertEqual(rec["sign"], 1)
+        self.assertIsNone(rec["magnitude"])
+
+    def test_confidence_is_the_weakest_hop_not_an_average(self):
+        """An exposure is no more certain than the least certain link that produced it.
+        Averaging would let a confident edge launder an unconfident coefficient."""
+        rec = sn.explain(self.s, "FRO", "marine_war_risk_premium_pct")[0]
+        p = rec["paths"][0]
+        self.assertEqual(rec["confidence"],
+                         min(p["edge_confidence"], p["sensitivity_confidence"]))
+
+    def test_a_sensitivity_without_a_path_produces_no_exposure(self):
+        """A coefficient is not a claim that a scenario reaches a security. STNG has a
+        freight-rate sensitivity and is in bucket 04, so it IS reached; a security with a
+        sensitivity to a channel no edge routes into its bucket is not."""
+        reached = {tk for tk, _cid in self.ex}
+        self.assertIn("STNG", reached)
+        # Every exposure traces to an edge — none is asserted.
+        edges = {(e["channel_id"], e["bucket_id"]) for e in self.s["transmission"]}
+        for (tk, cid), rec in self.ex.items():
+            for p in rec["paths"]:
+                self.assertIn((p["channel_id"], p["bucket_id"]), edges,
+                              "{} reached on a path with no edge behind it".format(tk))
+
+    def test_the_unscreenable_reached_are_named_not_dropped(self):
+        """Funds, futures and the delisted are reached by the same edges as everything else.
+        Dropping them silently is the defect `listedNote` exists to prevent."""
+        screened = {row[0] for row in sc.universe_rows()}
+        named = dict(sn.unscreenable_reached(self.s, screened))
+        self.assertIn("XLE", named)
+        self.assertEqual(named["XLE"], "fund")
+        self.assertIn("CL=F", named)
+        self.assertTrue(named["MRO"].startswith("delisted"))
+        for tk in named:
+            self.assertNotIn(tk, screened)
+
+
+class TheAcceptanceGate(unittest.TestCase):
+    """Phase C's gate, and the plan's: for one named Hormuz security the full chain is
+    inspectable — security <- exposure <- bucket <- transmission mechanism <- scenario — with
+    sign, confidence, horizon and basis non-null at each hop.
+
+    No UI phase merges while this is red."""
+
+    def test_one_security_is_explicable_end_to_end(self):
+        s = sn.load()["hormuz"]
+        rec = sn.explain(s, "FRO", "crude_freight_rate_ws")[0]
+        self.assertEqual(rec["status"], "exposed")
+        for field in ("sign", "confidence"):
+            self.assertIsNotNone(rec[field], "the exposure has no {}".format(field))
+        for p in rec["paths"]:
+            for field in ("horizon", "basis", "mechanism", "bucket_id", "channel_id",
+                          "edge_sign", "sensitivity_sign", "engaged_probability"):
+                self.assertIsNotNone(p[field], "hop field {} is null".format(field))
+            self.assertIn(p["basis"], sn.BASIS_VALUES)
+            self.assertIn(p["horizon"], sn.HORIZONS)
+            self.assertTrue(p["provenance"], "a hop with no provenance")
+        # The scenario end of the chain resolves to a state and a set of developments.
+        self.assertIsNotNone(sn.scenario_state(s))
+        self.assertTrue(s["developments"])

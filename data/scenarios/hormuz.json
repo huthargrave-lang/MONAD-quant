@@ -115,6 +115,79 @@
     }
   ],
 
+  "transmission": [
+    {
+      "channel_id": "crude_freight_rate_ws",
+      "bucket_id": "04",
+      "sign": 1,
+      "strength": "high",
+      "confidence": 0.5,
+      "horizon": "30d",
+      "branches": ["limited", "sustained", "severe"],
+      "mechanism": "Vessels avoiding or queueing at the strait sail longer routes, so ton-miles rise while the usable fleet shrinks. Freight rates clear higher on the same cargo.",
+      "basis": "fixture",
+      "method": "Illustrative transmission edge. The mechanism is a standard one; its strength and confidence are hand-set and not estimated.",
+      "as_of": "2026-08-10T00:00:00Z",
+      "provenance": ["hand-authored fixture"]
+    },
+    {
+      "channel_id": "marine_war_risk_premium_pct",
+      "bucket_id": "04",
+      "sign": 1,
+      "strength": "medium",
+      "confidence": 0.3,
+      "horizon": "30d",
+      "branches": ["sustained", "severe"],
+      "mechanism": "Underwriters widen the war-risk area and reprice hull cover, which raises the cost of every transit and is passed into rates on the routes that continue.",
+      "basis": "fixture",
+      "method": "Illustrative transmission edge; see the freight-rate edge. Engaged only by the deeper bands because a limited shortfall has historically not moved underwriting.",
+      "as_of": "2026-08-10T00:00:00Z",
+      "provenance": ["hand-authored fixture"]
+    },
+    {
+      "channel_id": "crude_price_usd_bbl",
+      "bucket_id": "02",
+      "sign": 1,
+      "strength": "high",
+      "confidence": 0.45,
+      "horizon": "30d",
+      "branches": ["limited", "sustained", "severe"],
+      "mechanism": "Barrels that cannot transit are barrels off the market. Non-Gulf supply reprices upward against a shortfall it can only partly replace.",
+      "basis": "fixture",
+      "method": "Illustrative transmission edge; strength and confidence are hand-set.",
+      "as_of": "2026-08-10T00:00:00Z",
+      "provenance": ["hand-authored fixture"]
+    },
+    {
+      "channel_id": "crude_price_usd_bbl",
+      "bucket_id": "17",
+      "sign": 1,
+      "strength": "high",
+      "confidence": 0.4,
+      "horizon": "30d",
+      "branches": ["limited", "sustained", "severe"],
+      "mechanism": "Crude is a refiner's input, and it reprices before products do. The same shortfall that lifts the barrel raises the cost of every barrel run — which is why this edge and the crack edge reach the same bucket with the same sign and land on opposite sides of a refiner's P&L.",
+      "basis": "fixture",
+      "method": "Illustrative transmission edge. Present because a scenario that could only express benefit would be the wrong shape: the edge sign is positive (crude rises) and the refiners' sensitivity to that channel is negative, so the derived exposure comes out negative.",
+      "as_of": "2026-08-10T00:00:00Z",
+      "provenance": ["hand-authored fixture"]
+    },
+    {
+      "channel_id": "refining_crack_usd_bbl",
+      "bucket_id": "17",
+      "sign": 1,
+      "strength": "medium",
+      "confidence": 0.25,
+      "horizon": "30d",
+      "branches": ["sustained", "severe"],
+      "mechanism": "A sustained crude shortfall tightens product supply faster than demand falls, widening cracks — but only where the disruption outlasts refiners' inventory cover, which is why the shallow band does not engage this edge.",
+      "basis": "fixture",
+      "method": "Illustrative transmission edge, and the lowest-confidence one here: the sign is genuinely contested over short horizons.",
+      "as_of": "2026-08-10T00:00:00Z",
+      "provenance": ["hand-authored fixture"]
+    }
+  ],
+
   "developments": [
     {
       "id": "d1",
