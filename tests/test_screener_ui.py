@@ -2573,7 +2573,14 @@ class TheScenarioTilesComeAndGoWithTheShock(unittest.TestCase):
         """The panel's own guard catches an ungrouped widget and the brief/note guard catches a
         missing description; what neither can see is a tile absent from the id list or without
         markup, which would be a row that places nothing."""
-        for tile in ("spath", "sdev"):
+        # Iterates SCENARIO_TILES rather than naming two tiles, so a third one added later
+        # cannot register in some places and not others — the guard-narrower-than-the-claim
+        # failure this file keeps recording.
+        declared = re.findall(r'"(\w+)"',
+                              re.search(r"const SCENARIO_TILES = \[(.*?)\];",
+                                        self.js).group(1))
+        self.assertGreaterEqual(len(declared), 3, "SCENARIO_TILES shrank")
+        for tile in declared:
             self.assertIn('id="tile-' + tile + '"', self.html, tile + " has no markup")
             self.assertRegex(self.js, r"TILE_IDS = \[[^\]]*\"" + tile + r"\"",
                              tile + " is not a board module, so sanitizeTree drops it on load")
@@ -2697,3 +2704,115 @@ class ThePagesVocabulariesMatchThePythonOnes(unittest.TestCase):
         self.assertEqual(shown, set(sn.DIRECTIONS),
                          "the timeline's directions have drifted from the schema's: %s"
                          % sorted(shown ^ set(sn.DIRECTIONS)))
+
+
+class TheReachByDirectionModuleReadsItsGroupsRatherThanDecidingThem(unittest.TestCase):
+    """Reached securities, grouped by direction relative to their channels.
+
+    A security is reached on one channel or several, and the several can disagree — VLO and
+    MPC move against the crude price and with the refining crack, both firm, both assessed.
+    Which group that belongs in is a PRECEDENCE question, and precedence lives in
+    `scenarios.classify_security` where it is tested. The page reads the answer.
+
+    The vocabulary is the other half. `sign` says which way a security moves relative to a
+    CHANNEL, and this layer models no conditional return at all — `expected_impact.value` is
+    null for every scenario that exists — so a heading calling a name a beneficiary would be
+    a claim nothing behind it can support."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.html = _page()
+        cls.js = _decomment(_script(cls.html))
+        cls.fns = _functions(cls.js)
+        cls.body = cls.fns.get("drawScenOpps")
+
+    def test_the_page_classifies_nothing_itself(self):
+        self.assertIsNotNone(self.body, "the module renderer is gone")
+        self.assertIn("classification", self.body,
+                      "the module does not read Python's class for a security")
+        for banned in ("sensitivity_sign", "edge_sign", "paths.filter", "reduce(",
+                       "Math.sign", "> 0 ? \"mixed\""):
+            self.assertNotIn(banned, self.body,
+                             "the page is deciding a security's class instead of reading it")
+
+    def test_the_group_headings_come_from_pythons_labels(self):
+        """A page-side list of Python's class keys is the cross-language vocabulary drift
+        already guarded for the exposure states and the development directions."""
+        self.assertIn("SCENARIOS.SECURITY_CLASSES", self.body,
+                      "the module keeps its own list of group names")
+        import scenarios as sn  # noqa: E402
+        for _key, label, _why in sn.SECURITY_CLASSES:
+            self.assertNotIn('"' + label + '"', self.js,
+                             "the page hard-codes the label {!r} instead of rendering the "
+                             "one Python emitted".format(label))
+
+    def test_an_empty_group_still_renders_its_heading(self):
+        """A group that vanishes reads as "no such case exists"; the truth is "none today",
+        and a reader deciding what to research next needs to tell those apart."""
+        self.assertRegex(
+            self.body, r"members\.length \? '<ul",
+            "the group heading is now conditional on having members, so an empty class "
+            "disappears instead of showing a zero")
+        self.assertIn("members.length", self.body)
+
+    def test_rows_are_ordered_by_the_lens_key_and_never_by_a_magnitude(self):
+        self.assertIn("scenarioReachKey", self.body,
+                      "the module invented its own ordering")
+        for banned in ("magnitude", "confidence", "probability", "activation"):
+            self.assertNotIn(banned, self.body,
+                             "rows are ordered or ranked by a scenario quantity, which "
+                             "under a fixture lets an illustrative number lead the list")
+
+    def test_the_count_states_which_thing_it_counts(self):
+        """36 securities and 58 exposure records are two denominators; printing one under
+        the other's name is the mixed-scope aggregate this project already forbids."""
+        self.assertIn("securities reached", self.body)
+
+    def test_a_row_click_opens_the_existing_drilldown(self):
+        """No second explanation renderer. `pinTicker` is the call a results row makes and
+        the drawer already ends with `scenarioWhyBlock(selected, "drawer")`."""
+        m = re.search(r'closest\("\[data-sopp\]"\)(.*?)\n\}\);', self.js, re.S)
+        self.assertIsNotNone(m, "the row-click handler is gone")
+        handler = m.group(1)
+        self.assertIn("pinTicker(", handler)
+        self.assertIn("drawScenPanel()", handler)
+        self.assertNotIn("scenarioWhyBlock", handler,
+                         "the handler renders its own explanation instead of opening the "
+                         "one every other surface opens")
+
+    def test_no_heading_or_row_claims_a_price_move(self):
+        """The layer has no conditional return, so the vocabulary of winners is unavailable
+        to it. Asserted over the module's own rendered strings."""
+        strings = " ".join(re.findall(r"'([^']*)'", self.body)
+                           + re.findall(r'"([^"]*)"', self.body)).lower()
+        for banned in ("beneficiary", "loser", "bullish", "bearish", "opportunit",
+                       "winner", "upside", "downside", "profit"):
+            self.assertNotRegex(strings, r"\b" + banned,
+                                "the module claims a price move: " + banned)
+        # Matched on phrases that live inside ONE string literal: the sentence is built by
+        # concatenation, so "not a price forecast" spans two and is never contiguous.
+        for phrase in ("price forecast", "how much anything moves"):
+            self.assertIn(phrase, strings,
+                          "the module does not say what its directions are not")
+
+    def test_a_channel_with_no_direction_prints_no_direction_word(self):
+        """The same rule as the card chip one column over: an absence renders as nothing,
+        not as a mark that looks like a reading."""
+        self.assertRegex(
+            self.body, r"c\.sign == null \? \"\"",
+            "an unassessed channel renders a placeholder in the direction slot")
+
+    def test_the_module_is_shock_scoped_like_the_other_two(self):
+        avail = self.fns.get("scenarioTileAvailable")
+        # The branch has to ANSWER from the resolved scenario, not merely mention the tile.
+        # Asserting the tile id appears was satisfied by `return true`, which is the whole
+        # defect: a module offered under every shock, including ones with no model.
+        self.assertRegex(
+            avail, r'tileId === "sopps"\) return [^;]*sc\.securities',
+            "the availability rule for this module does not read the scenario's own "
+            "securities, so it can be offered under a shock that has none")
+        self.assertNotIn("DATA_PRESENT", avail)
+
+    def test_the_module_carries_its_own_fixture_marker(self):
+        self.assertIn('fxMark("sopps"', self.body,
+                      "a module listing fixture-derived classifications carries no marker")

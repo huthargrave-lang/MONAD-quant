@@ -1081,6 +1081,113 @@ def unscreenable_reached(scenario, screened):
     return out
 
 
+#: The per-security summary classes, IN PRECEDENCE ORDER — first match wins.
+#:
+#: A security is reached on one channel or on several, and the several can disagree: VLO and
+#: MPC are +1 on the refining crack and -1 on the crude price, both firm, both assessed. So a
+#: security-level word is a summary OVER exposure records, and it needs a stated order or the
+#: answer depends on which record happened to be read first.
+#:
+#: Set logic only. Nothing here averages, weights, blends confidences or multiplies anything —
+#: the summary asks WHICH KINDS of relationship a security has, never how big they are. The
+#: exposure records are untouched and remain the thing every surface drills into; this is a
+#: label for a group heading, not a replacement for the evidence.
+#:
+#: Every label is channel-relative. `sign` says which way a security moves RELATIVE TO ITS
+#: CHANNEL, and this layer models no conditional return — so "beneficiary", "loser", "bullish",
+#: "bearish" and "positive opportunity" are all claims it cannot make and none appears here.
+SECURITY_CLASSES = (
+    # Rung 1. A conflict anywhere outranks a clean direction elsewhere: the security has a
+    # relationship this module refused to decide, and a heading saying "moves with the
+    # channel" would present the part that resolved as if it were the whole picture.
+    ("unresolved", "Unresolved",
+     "reached by paths that disagree on sign or horizon; left undecided rather than netted"),
+    # Rung 2. Both directions resolved, on different channels. Not uncertainty — two firm
+    # relationships pointing opposite ways, which is a real thing a refiner has.
+    ("mixed", "Mixed / conflicting channels",
+     "moves with one channel and against another; both directions are on record"),
+    ("with", "Moves with the channel",
+     "every channel whose direction is known moves with that channel"),
+    ("against", "Moves against the channel",
+     "every channel whose direction is known moves against that channel"),
+    # Rung 5. Somebody assessed the relationship and declined to state a sign. NOT the same
+    # as nobody having looked, which is why it is not folded into `unassessed`.
+    ("undirected", "Direction not stated",
+     "a sensitivity is on record and states no direction; no other channel resolved one"),
+    ("unassessed", "Unassessed",
+     "reached, and no sensitivity to any of its channels is on record"),
+)
+_SECURITY_CLASS_ORDER = [key for key, _label, _why in SECURITY_CLASSES]
+
+#: The order a READER meets the groups in, which is not the order the classifier tries them
+#: in. Precedence runs conflict-first because a conflict has to outrank a clean direction;
+#: a reader wants the channels whose direction is known first, then the degrees of not-known.
+#: Both orders are declared, because a surface inventing the second one would be a page-side
+#: list of Python keys — the vocabulary drift already guarded between these two languages.
+SECURITY_CLASS_DISPLAY = ("with", "against", "mixed", "unresolved",
+                          "undirected", "unassessed")
+
+
+def classify_security(records):
+    """The summary class for one security, from its exposure records. First rung that fits.
+
+    `records` are the `security_exposures()` values for a single security — one per channel.
+
+    The two rungs that read "every channel whose direction is known" mean exactly that: a
+    channel nobody has assessed does not contradict one that resolved, so INSW (exposed on
+    crude freight, unassessed on war-risk premium) is directional rather than unassessed. An
+    unassessed channel is still visible in the row's own drilldown; what it must not do is
+    erase a direction that IS known.
+    """
+    signs = {r["sign"] for r in records if r["status"] == "exposed" and r["sign"] is not None}
+    statuses = {r["status"] for r in records}
+    if "unresolved" in statuses:
+        return "unresolved"
+    if 1 in signs and -1 in signs:
+        return "mixed"
+    if signs == {1}:
+        return "with"
+    if signs == {-1}:
+        return "against"
+    if "undirected" in statuses:
+        return "undirected"
+    return "unassessed"
+
+
+def security_rollup(scenario, exposures=None):
+    """Every reached security with its summary class and the records behind it.
+
+    The records travel WITH the summary rather than being replaced by it: a surface showing a
+    group heading has to be able to open the same security and see which channel each
+    direction refers to, and a summary that arrived without its evidence would be a verdict
+    nobody could check.
+    """
+    exposures = security_exposures(scenario) if exposures is None else exposures
+    by_security = {}
+    for (tk, _cid), rec in exposures.items():
+        by_security.setdefault(tk, []).append(rec)
+    out = {}
+    for tk, records in by_security.items():
+        records = sorted(records, key=lambda r: r["channel_id"])
+        key = classify_security(records)
+        label, why = next((l, w) for k, l, w in SECURITY_CLASSES if k == key)
+        out[tk] = {
+            "security": tk,
+            "classification": key,
+            "label": label,
+            "why": why,
+            # The channel-level truth, unsummarised. Same records, same cardinality.
+            "channels": [{"channel_id": r["channel_id"],
+                          "channel_label": r["channel"]["label"],
+                          "status": r["status"],
+                          "sign": r["sign"],
+                          "confidence": r["confidence"],
+                          "buckets": sorted({p["bucket_id"] for p in r["paths"]})}
+                         for r in records],
+        }
+    return out
+
+
 def expected_scenario_impact(scenario):
     """The UNCONDITIONAL expected impact of the scenario, or nothing — and why nothing.
 
@@ -1237,6 +1344,11 @@ def as_payload(scenarios=None):
             # without inventing a nested shape a consumer would have to flatten again.
             "exposures": {"{}|{}".format(tk, cid): rec
                           for (tk, cid), rec in exposures.items()},
+            # The per-security summary, decided HERE. A surface grouping securities by
+            # direction otherwise has to work out what to call a name that moves with one
+            # channel and against another — which is a classification, in the one language
+            # this repo cannot test, over records it would have to re-walk.
+            "securities": security_rollup(s, exposures),
         }
     return out
 
@@ -1256,11 +1368,18 @@ def runtime_js(scenarios=None):
         lit("CHANNELS", CHANNELS),
         lit("TARGETS", TARGETS),
         lit("HORIZONS", HORIZONS),
+        # The group vocabulary, in the order a reader meets it. Emitted so the page renders
+        # headings from Python's own labels instead of keeping a second list of its keys.
+        lit("SECURITY_CLASSES",
+            [{"key": k,
+              "label": next(l for kk, l, _w in SECURITY_CLASSES if kk == k),
+              "why": next(w for kk, _l, w in SECURITY_CLASSES if kk == k)}
+             for k in SECURITY_CLASS_DISPLAY]),
         # STRENGTHS and RANK_METRICS were emitted here and read by nothing on the page: the
         # card prints an edge's own `strength` string and the surfaces that explain the ranking
         # print the sentence Python already composed. An emit with no reader is the same shape
         # as a computed column with no consumer, and this file is the wrong place to keep one.
         lit("BY_SHOCK", as_payload(scenarios)),
-        "  return {CHANNELS, TARGETS, HORIZONS, BY_SHOCK};",
+        "  return {CHANNELS, TARGETS, HORIZONS, SECURITY_CLASSES, BY_SHOCK};",
         "})();",
     ])

@@ -1405,3 +1405,174 @@ class EveryNumberInTheSchemaIsCheckedToBeOne(unittest.TestCase):
     def test_absent_stays_absent(self):
         sn.validate_scenarios({"hormuz": sn.load()["hormuz"]})
         self.assertIsNone(sn.expected_scenario_impact(sn.load()["hormuz"])["value"])
+
+
+class ThePerSecuritySummaryHasAStatedPrecedence(unittest.TestCase):
+    """A security is reached on one channel or on several, and the several can disagree —
+    VLO and MPC are +1 on the refining crack and -1 on the crude price, both firm, both
+    assessed. So a security-level word is a summary OVER exposure records, and without a
+    stated order the answer depends on which record happened to be read first.
+
+    It lives in Python for the reason every derived thing here does: a browser deciding
+    whether a two-channel disagreement is "mixed" or "unresolved" would be a classification
+    in the one language this repo cannot execute in a test.
+
+    Set logic only. The class asks WHICH KINDS of relationship a security has and never how
+    big they are, so nothing below averages, weights or blends anything."""
+
+    def _rec(self, channel_id, status, sign, magnitude=None, confidence=None):
+        """An exposure record shaped as `_resolve_exposure` leaves one."""
+        return {"security": "TEST", "channel_id": channel_id,
+                "channel": {"label": channel_id, "unit": "u", "sign": "positive = up"},
+                "status": status, "sign": sign, "magnitude": magnitude,
+                "confidence": confidence, "why": None,
+                "paths": [{"bucket_id": "04", "channel_id": channel_id}]}
+
+    # ── each rung, in order ───────────────────────────────────────────────────
+    def test_one_channel_moving_with_its_channel(self):
+        self.assertEqual(sn.classify_security([self._rec("a", "exposed", 1)]), "with")
+
+    def test_one_channel_moving_against_its_channel(self):
+        self.assertEqual(sn.classify_security([self._rec("a", "exposed", -1)]), "against")
+
+    def test_both_directions_on_different_channels_is_mixed(self):
+        """The VLO case: not uncertainty, two firm relationships pointing opposite ways."""
+        self.assertEqual(sn.classify_security(
+            [self._rec("a", "exposed", 1), self._rec("b", "exposed", -1)]), "mixed")
+
+    def test_an_unresolved_channel_outranks_a_clean_direction_elsewhere(self):
+        """Rung 1. Calling this "moves with the channel" would present the part that
+        resolved as if it were the whole picture."""
+        self.assertEqual(sn.classify_security(
+            [self._rec("a", "exposed", 1), self._rec("b", "unresolved", None)]), "unresolved")
+        self.assertEqual(sn.classify_security(
+            [self._rec("a", "exposed", 1), self._rec("b", "exposed", -1),
+             self._rec("c", "unresolved", None)]), "unresolved")
+
+    def test_assessed_without_a_direction_is_not_unassessed(self):
+        """The distinction Phase C created deliberately: somebody looked and declined to
+        state a sign. Folding it into `unassessed` would make an answered question read as
+        an unasked one."""
+        self.assertEqual(sn.classify_security(
+            [self._rec("a", "undirected", None)]), "undirected")
+
+    def test_a_known_direction_outranks_an_undirected_channel(self):
+        """Rung 5 requires NO resolved direction anywhere. One channel declining to state a
+        sign does not erase a sign another channel states."""
+        self.assertEqual(sn.classify_security(
+            [self._rec("a", "exposed", 1), self._rec("b", "undirected", None)]), "with")
+
+    def test_an_unassessed_channel_does_not_erase_a_known_direction(self):
+        """The INSW/STNG case, live in the fixture: exposed on crude freight, unassessed on
+        the war-risk premium. The unassessed channel is still in the row's drilldown; what it
+        must not do is drag the security into a group that says nobody has looked."""
+        self.assertEqual(sn.classify_security(
+            [self._rec("a", "exposed", 1), self._rec("b", "unassessed", None)]), "with")
+
+    def test_nothing_assessed_anywhere_is_unassessed(self):
+        self.assertEqual(sn.classify_security(
+            [self._rec("a", "unassessed", None), self._rec("b", "unassessed", None)]),
+            "unassessed")
+
+    # ── the order is total, and it is an ORDER ────────────────────────────────
+    def test_every_combination_of_channel_states_lands_somewhere(self):
+        """Totality. A security whose combination fell through every rung would reach a
+        surface with no group to sit in."""
+        import itertools
+        options = [("exposed", 1), ("exposed", -1), ("unresolved", None),
+                   ("undirected", None), ("unassessed", None)]
+        seen = set()
+        for n in (1, 2, 3):
+            for combo in itertools.combinations_with_replacement(options, n):
+                recs = [self._rec("c%d" % i, st, sg) for i, (st, sg) in enumerate(combo)]
+                key = sn.classify_security(recs)
+                self.assertIn(key, [k for k, _l, _w in sn.SECURITY_CLASSES],
+                              "combination {} produced {!r}".format(combo, key))
+                seen.add(key)
+        self.assertEqual(seen, {k for k, _l, _w in sn.SECURITY_CLASSES},
+                         "some class is unreachable from any combination of channel states")
+
+    def test_the_class_does_not_depend_on_record_order(self):
+        """A summary that changed with the order records arrived in would be a coin toss
+        dressed as a classification."""
+        import itertools
+        recs = [self._rec("a", "exposed", 1), self._rec("b", "exposed", -1),
+                self._rec("c", "unassessed", None), self._rec("d", "undirected", None)]
+        got = {sn.classify_security(list(p)) for p in itertools.permutations(recs)}
+        self.assertEqual(len(got), 1, "the class depends on record order: {}".format(got))
+
+    def test_every_class_carries_a_label_and_a_reason(self):
+        for key, label, why in sn.SECURITY_CLASSES:
+            self.assertTrue(label and why, key)
+        keys = [k for k, _l, _w in sn.SECURITY_CLASSES]
+        self.assertEqual(len(keys), len(set(keys)), "duplicate class key")
+
+    def test_no_label_claims_a_price_move_or_a_return(self):
+        """`sign` is direction relative to a CHANNEL and this layer models no conditional
+        return, so the vocabulary of winners and losers is unavailable to it."""
+        import re
+        words = " ".join(l + " " + w for _k, l, w in sn.SECURITY_CLASSES).lower()
+        # Word boundaries: "gain" is inside "against", which is the correct wording. The
+        # substring form of this check has now failed on right code four times in this file
+        # and its siblings.
+        for banned in ("beneficiary", "loser", "bullish", "bearish", "opportunity",
+                       "rise", "fall", "gain", "profit", "return", "upside", "downside"):
+            self.assertNotRegex(words, r"\b" + banned + r"(s|ing|ed)?\b",
+                                "the summary vocabulary claims a price move: " + banned)
+
+    # ── it summarises, it does not replace ────────────────────────────────────
+    def test_the_rollup_keeps_every_channel_record(self):
+        s = sn.load()["hormuz"]
+        ex = sn.security_exposures(s)
+        roll = sn.security_rollup(s, ex)
+        self.assertEqual(set(roll), {tk for tk, _cid in ex})
+        for tk, entry in roll.items():
+            mine = [r for (t, _c), r in ex.items() if t == tk]
+            self.assertEqual(len(entry["channels"]), len(mine),
+                             "{} lost a channel in the summary".format(tk))
+            self.assertEqual({c["channel_id"] for c in entry["channels"]},
+                             {r["channel_id"] for r in mine})
+
+    def test_the_rollup_does_no_arithmetic_on_the_records(self):
+        """No averaging, weighting or confidence blending — the summary is set logic. Each
+        channel's confidence travels unchanged, and no aggregate number is invented."""
+        s = sn.load()["hormuz"]
+        ex = sn.security_exposures(s)
+        roll = sn.security_rollup(s, ex)
+        for tk, entry in roll.items():
+            self.assertNotIn("magnitude", entry, "the summary invented an aggregate")
+            self.assertNotIn("confidence", entry, "the summary invented an aggregate")
+            for chan in entry["channels"]:
+                src = next(r for (t, c), r in ex.items()
+                           if t == tk and c == chan["channel_id"])
+                self.assertEqual(chan["confidence"], src["confidence"])
+                self.assertEqual(chan["sign"], src["sign"])
+
+    def test_the_shipped_fixture_classifies_the_two_sided_refiners_as_mixed(self):
+        """The live case that motivated the whole precedence question."""
+        roll = sn.as_payload()["hormuz"]["securities"]
+        for tk in ("VLO", "MPC"):
+            self.assertEqual(roll[tk]["classification"], "mixed", tk)
+            self.assertEqual({c["sign"] for c in roll[tk]["channels"]}, {1, -1}, tk)
+
+    def test_the_summary_travels_in_the_payload(self):
+        p = sn.as_payload()["hormuz"]
+        self.assertIn("securities", p)
+        self.assertEqual(set(p["securities"]),
+                         {r["security"] for r in p["exposures"].values()})
+
+    def test_the_display_order_is_a_permutation_of_the_classes(self):
+        """Two orders exist on purpose — precedence tries conflict first, a reader wants
+        known directions first — so the second one has to be pinned to the first or a class
+        can silently stop having a group to render in."""
+        self.assertEqual(sorted(sn.SECURITY_CLASS_DISPLAY),
+                         sorted(k for k, _l, _w in sn.SECURITY_CLASSES),
+                         "the display order and the class set have diverged")
+        self.assertEqual(len(sn.SECURITY_CLASS_DISPLAY),
+                         len(set(sn.SECURITY_CLASS_DISPLAY)), "duplicate in display order")
+
+    def test_the_page_is_given_the_labels_rather_than_the_keys(self):
+        js = sn.runtime_js()
+        self.assertIn("SECURITY_CLASSES", js)
+        for key, label, _why in sn.SECURITY_CLASSES:
+            self.assertIn(label, js, "{} reaches the page without its label".format(key))

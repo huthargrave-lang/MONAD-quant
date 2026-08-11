@@ -198,6 +198,20 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
 .sp-line{fill:none;stroke:var(--accent);stroke-width:2;stroke-linejoin:round}
 .sp-dot{fill:var(--accent);stroke:var(--plane);stroke-width:1.5}
 .sdev-list{margin:0;padding-left:18px;font-size:12px;color:var(--ink-2);line-height:1.45}
+/* Reached securities by direction. A group heading is always drawn, even at zero: a
+   heading that disappears reads as "no such case exists" rather than "none today". */
+.sopp-grp{margin:0 0 10px}
+.sopp-head{font:10.5px var(--mono);letter-spacing:.05em;color:var(--ink-muted);
+  text-transform:uppercase;display:flex;justify-content:space-between;gap:8px;
+  border-bottom:1px solid var(--rule);padding-bottom:3px;margin-bottom:4px}
+.sopp-list{list-style:none;margin:0;padding:0}
+.sopp-list li{margin:0}
+.sopp-row{display:flex;align-items:baseline;gap:8px;width:100%;text-align:left;
+  background:transparent;border:0;padding:2px 4px;border-radius:4px;cursor:pointer;
+  color:var(--ink-2);font:inherit;font-size:12px}
+.sopp-row:hover,.sopp-row:focus-visible{background:var(--surface);color:var(--ink)}
+.sopp-row code{color:var(--ink);font-weight:600}
+.sopp-ch{font:10.5px var(--mono);color:var(--ink-muted)}
 .sdev-list li{margin:0 0 8px}
 #scenPanel .scen-fixture,.scen-why-head .scen-fixture{border-left:2px solid var(--warning);
   padding-left:6px;color:var(--warning);letter-spacing:.03em;font:10px var(--mono)}
@@ -1502,6 +1516,18 @@ table.bwatch .spark{width:80px;height:26px;display:block}
         </div>
       </article>
 
+      <article class="tile" data-id="sopps" id="tile-sopps">
+        <div class="tile-bar" data-drag>
+          <span class="tile-grip">⋮⋮</span>
+          <h2 id="soppsTitle">Scenario reach by direction</h2>
+          <div class="tile-meta" id="soppsMeta">—</div>
+          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">×</button>
+        </div>
+        <div class="tile-body">
+          <div class="detail-card" id="soppsList"></div>
+        </div>
+      </article>
+
       <article class="tile" data-id="sdev" id="tile-sdev">
         <div class="tile-bar" data-drag>
           <span class="tile-grip">⋮⋮</span>
@@ -2585,11 +2611,11 @@ function priceCohort(cap){
    thing as the scatter and the ranking, and placed, dragged and resized by the same system.
    Keeping them in the context turned it into a second dashboard. */
 const TILE_IDS = ["plot","price","tone","rank","dist","shadow","card","watch","bpanel","bwatch",
-                  "spath","sdev"];
+                  "spath","sdev","sopps"];
 /* The two modules whose availability is a fact about the SELECTED SHOCK rather than about the
    payload. Everything else on this board is available whenever its source is, for the whole
    life of the page; these two come and go as the reader changes what they are looking at. */
-const SCENARIO_TILES = ["spath", "sdev"];
+const SCENARIO_TILES = ["spath", "sdev", "sopps"];
 /* What the CONTEXT section owns: the controls that DEFINE the universe, and nothing that
    analyses it. */
 /* There is no second region any more. The context's controls and card grid are plain content
@@ -2600,6 +2626,7 @@ const ALL_TILE_IDS = TILE_IDS.slice();
 const TILE_LABELS = {
   plot:"P/E × growth", price:"Price history", tone:"Headlines & tone",
   spath:"Probability path", sdev:"Development timeline",
+  sopps:"Scenario reach by direction",
   rank:"Ranked by lens", dist:"Distribution", shadow:"AI shadow",
   card:"Stock detail", watch:"Watchlist",
   bucketctl:"Shock & clock", buckets:"Chaos buckets",
@@ -2624,7 +2651,12 @@ const TILE_NOTES = {
           + "the developments below it, because no model here defines that arithmetic.",
   sdev:   "What has happened, dated, each entry marked escalating, de-escalating or "
           + "unclear. A record of events — not a driver decomposition, and nothing here "
-          + "claims these add up to the probability."
+          + "claims these add up to the probability.",
+  sopps:  "Every security the selected shock's scenario reaches, grouped by which way it "
+          + "moves RELATIVE TO ITS CHANNEL. Direction, never size: this layer models no "
+          + "conditional return, so nothing here says how much anything moves. A name "
+          + "reached on two channels that disagree is shown as such rather than netted, "
+          + "and a name nobody has assessed is listed as unassessed rather than as neutral."
 };
 /* What each chart needs before it has anything true to draw, and the one line the tray shows
    when it does not have it. A tile absent from this map is never parked. */
@@ -2662,6 +2694,9 @@ function scenarioTileAvailable(tileId, activeShock){
      counting the raw list would offer a module that could only draw its own empty state. */
   if(tileId === "spath") return ((sc.series || []).length > 1);
   if(tileId === "sdev") return (((sc.scenario || {}).developments || []).length > 0);
+  // The summary Python derived. No securities reached means no rows to group, and a
+  // module that could only draw its own empty state is one this board does not offer.
+  if(tileId === "sopps") return Object.keys(sc.securities || {}).length > 0;
   return false;
 }
 function tileAvailable(id){ return scenarioTileAvailable(id, bucketShock); }
@@ -3569,7 +3604,7 @@ function tileOption(id, note){
 const TILE_GROUPS = [
   {title:"Core analysis",  keys:["plot", "rank", "dist", "price"]},
   {title:"Research",       keys:["tone", "shadow", "card", "watch"]},
-  {title:"Context \u00b7 buckets", keys:["bpanel", "bwatch", "spath", "sdev"]},
+  {title:"Context \u00b7 buckets", keys:["bpanel", "bwatch", "spath", "sdev", "sopps"]},
 ];
 const UNGROUPED_TITLE = "Ungrouped";
 function tileGroupOf(id){
@@ -3592,6 +3627,7 @@ const TILE_BRIEF = {
   bwatch:"Members of the selected buckets, with price and return.",
   spath: "The scenario's probability for its target, over time.",
   sdev:  "Dated developments, each marked by direction.",
+  sopps: "Reached names, grouped by direction vs their channels.",
 };
 const TSTAR_KEY = "monad.screener.draft.tilestars.v1";
 let STARRED_TILES = loadTileStars();
@@ -7517,6 +7553,7 @@ const FIXTURE_SURFACES = {
   detail:  "own",
   spath:   "own",
   sdev:    "own",
+  sopps:   "own",
   // The bucket card has no room for a badge — Decision 7 gives the indicator the id line's
   // spare width and nothing more. It is covered by the strip instead, and that is a
   // containment claim with a test behind it: `.ctx-head` does not fold, and it sits above
@@ -7846,6 +7883,88 @@ function drawScenPanel(){
     + (edges ? '<h4>Where it transmits</h4><ul class="scen-list">' + edges + '</ul>' : "")
     + (selected ? scenarioWhyBlock(selected, "drawer") : "");
 }
+/* Reached securities, grouped by direction RELATIVE TO THEIR CHANNELS.
+   READ, never classified here. Which group a security belongs in is decided by
+   `scenarios.classify_security` and travels as `securities[tk].classification`, because a
+   name that moves with one channel and against another needs a stated precedence and this
+   is the language that cannot test one. The page renders headings from Python's own labels
+   for the same reason the exposure states are pinned across the boundary.
+
+   The word this module may not use is the interesting one. `sign` says which way a security
+   moves relative to a CHANNEL; the layer models no conditional return at all
+   (`expected_impact.value` is null for every scenario that exists), so "beneficiary",
+   "bullish" and "opportunity" are claims nothing here can support. Every heading names a
+   relationship to a channel instead. */
+function drawScenOpps(){
+  const host = document.getElementById("soppsList");
+  if(!host) return;
+  const meta = document.getElementById("soppsMeta");
+  const sc = scenarioForShock(bucketShock);
+  const secs = (sc && sc.securities) || {};
+  const keys = Object.keys(secs);
+  if(!keys.length){
+    meta.textContent = "no scenario";
+    host.innerHTML = '<p class="dc-empty"><b>No scenario reaches any security under '
+      + esc(bucketShock) + '.</b> The shock still orders the bucket cards from authored'
+      + ' heat; nothing probabilistic has been written for it.</p>';
+    return;
+  }
+  const classes = (window.SCENARIOS && SCENARIOS.SECURITY_CLASSES) || [];
+  // Counted in SECURITIES, and the heading says so. A security can hold several exposure
+  // records, so "36 reached" and "58 relationships" are two different denominators and one
+  // must never be printed under the other's name.
+  meta.textContent = keys.length + " securities reached";
+  const inUniverse = new Set(ROWS.map(r => r.tk));
+  const body = classes.map(cls => {
+    const members = keys.filter(tk => secs[tk].classification === cls.key)
+      // The lens's own order — lowest traversed bucket, then ticker. Never a magnitude:
+      // under a fixture that would let an illustrative number decide what a reader sees.
+      .sort((a, b) => { const ka = scenarioReachKey(a), kb = scenarioReachKey(b);
+                        return ka < kb ? -1 : ka > kb ? 1 : 0; });
+    /* An empty group renders its heading with a zero rather than disappearing. A group that
+       vanishes reads as "no such case exists"; the truth is "none today", and the two are
+       different things to a reader deciding what to go and look at. */
+    const rows = members.map(tk => {
+      const s = secs[tk];
+      /* A channel with no direction prints its NAME and no direction word. The first draft
+         emitted a bare "·" in that slot, which reads as a mark meaning something rather than
+         as the absence of one — the same mistake as rendering `0%` for an unmodelled
+         activation, one column over. */
+      const chans = s.channels.map(c => esc(c.channel_label)
+          + (c.sign == null ? "" : (c.sign > 0 ? " ↗ with" : " ↘ against")))
+        .join(" · ");
+      const outside = inUniverse.has(tk) ? ""
+        : ' <span class="scen-note">outside the screener universe</span>';
+      return '<li><button type="button" class="sopp-row" data-sopp="' + escAttr(tk) + '"'
+        + ' title="' + escAttr(s.label + " — " + s.why) + '">'
+        + '<code>' + esc(tk) + '</code>'
+        + '<span class="sopp-ch">' + chans + '</span>' + outside + '</button></li>';
+    }).join("");
+    return '<div class="sopp-grp"><div class="sopp-head">' + esc(cls.label)
+      + '<span class="scen-note" title="' + escAttr(cls.why) + '">' + members.length
+      + '</span></div>'
+      + (members.length ? '<ul class="sopp-list">' + rows + '</ul>' : "") + '</div>';
+  }).join("");
+  host.innerHTML = body
+    // No apostrophe in these literals on purpose: the guard that reads this module's
+    // rendered strings extracts single-quoted literals, and an escaped apostrophe ends the
+    // match early — the sentence would be half-checked and the guard would look satisfied.
+    + '<p class="scen-foot">Direction is relative to the channel a name was reached on, '
+    + 'not a price forecast: nothing here says how much anything moves. Click a name for '
+    + 'the channels and the path behind it.' + fxMark("sopps", sc) + '</p>';
+}
+/* One row, one existing drilldown. `pinTicker` is the same call a results row makes, and the
+   drawer already ends with `scenarioWhyBlock(selected, "drawer")` — so the explanation a
+   click opens is the one every other surface opens, with no second renderer to drift. */
+document.addEventListener("click", (ev)=>{
+  const row = ev.target.closest("[data-sopp]");
+  if(!row) return;
+  pinTicker(row.dataset.sopp);
+  render();
+  const panel = document.getElementById("scenPanel");
+  if(panel){ drawScenPanel(); panelOpen(panel, row); }
+});
+
 function bucketNameForId(id){
   const b = BUCKETS.find(x => x.id === id);
   return (b && b.name) || id;
@@ -8015,6 +8134,7 @@ function renderInner(){
   drawBucketChart();
   drawScenPath();
   drawScenDev();
+  drawScenOpps();
   renderTable();
   renderHeadlines();
 }
@@ -8275,6 +8395,7 @@ function refreshScenarioTiles(){
   layoutBoard();
   drawScenPath();
   drawScenDev();
+  drawScenOpps();
 }
 document.getElementById("bucketClock").addEventListener("change", (ev)=>{
   bucketClock = ev.target.value; drawBucketCtl(); drawBuckets();
