@@ -1331,3 +1331,77 @@ class ThePathIsOneSeriesAndNotTheirUnion(unittest.TestCase):
         self.assertEqual([o["probability"] for o in p["series"]],
                          [o["probability"] for o in sn.probability_series(
                              sn.load()["hormuz"])])
+
+
+class ARecordCannotClaimTwoOrigins(unittest.TestCase):
+    """Bug Bot, round 2. `basis` is the machine word the whole honesty spine rests on, and the
+    schema already stops a fixture describing itself as calibrated in its `method`.
+
+    It did not stop the same claim made through the provenance fields. `basis: "fixture"`
+    alongside `model_id: "gpt-x"` validated cleanly — a record asserting both that it was
+    hand-authored and that a model produced it. Which of the two a surface believes then
+    depends on which field it happens to read, and the surfaces read different fields: the
+    strip's tooltip branches on `basis` and then prints `model_id`."""
+
+    def _obs(self, **kw):
+        s = copy.deepcopy(sn.load()["hormuz"])
+        s["observations"][0].update(kw)
+        return s
+
+    def test_a_fixture_may_not_name_a_model(self):
+        for field in ("model_id", "model_version"):
+            with self.assertRaises(ValueError) as cm:
+                sn.validate_scenarios({"hormuz": self._obs(**{field: "gpt-x"})})
+            self.assertIn(field, str(cm.exception))
+
+    def test_a_modelled_record_must_still_name_one(self):
+        """The other direction, already enforced — asserted here so the pair reads as one
+        rule rather than two accidents."""
+        with self.assertRaises(ValueError) as cm:
+            sn.validate_scenarios({"hormuz": self._obs(
+                basis="modelled", method="modelled by the thing", model_id=None)})
+        self.assertIn("model_id", str(cm.exception))
+
+    def test_the_shipped_fixture_names_no_model(self):
+        s = sn.load()["hormuz"]
+        for rec in ([s] + list(s["observations"]) + list(s["branches"])
+                    + list(s["developments"]) + list(s["transmission"])):
+            if rec.get("basis") == "fixture":
+                self.assertIsNone(rec.get("model_id"))
+                self.assertIsNone(rec.get("model_version"))
+
+
+class EveryNumberInTheSchemaIsCheckedToBeOne(unittest.TestCase):
+    """Bug Bot, round 2. `expected_return` was the one numeric field admitted by the closed
+    schema and never type-checked — added in the same session that added the arithmetic
+    consuming it.
+
+    `expected_scenario_impact` multiplies it by a probability and sums, so `"-5%"` reaches
+    that arithmetic as a string: a TypeError three layers from the file that caused it in
+    Python, and in a browser reading the same payload, NaN that renders."""
+
+    def _branches(self, value):
+        s = copy.deepcopy(sn.load()["hormuz"])
+        for b in s["branches"]:
+            b["expected_return"] = value
+        return s
+
+    def test_a_percentage_string_is_refused(self):
+        with self.assertRaises(ValueError) as cm:
+            sn.validate_scenarios({"hormuz": self._branches("-5%")})
+        self.assertIn("expected_return", str(cm.exception))
+
+    def test_a_boolean_is_refused(self):
+        """`True` is an int in Python and would multiply cleanly to 1.0 — the quietest way
+        for a wrong type to become a number."""
+        with self.assertRaises(ValueError):
+            sn.validate_scenarios({"hormuz": self._branches(True)})
+
+    def test_a_real_number_is_accepted_and_negative_is_normal(self):
+        s = self._branches(-0.05)
+        sn.validate_scenarios({"hormuz": s})
+        self.assertAlmostEqual(sn.expected_scenario_impact(s)["value"], -0.05, places=9)
+
+    def test_absent_stays_absent(self):
+        sn.validate_scenarios({"hormuz": sn.load()["hormuz"]})
+        self.assertIsNone(sn.expected_scenario_impact(sn.load()["hormuz"])["value"])

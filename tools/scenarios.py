@@ -406,6 +406,18 @@ def _check_provenance(record, where):
                 "{}: basis is 'fixture' but its method never says so. `basis` is a machine "
                 "word; `method` is the sentence a reader sees beside the number, and it has "
                 "to say what the number is".format(where))
+        # The same lie told through a different field. `model_id` is what a modelled record
+        # names its producer with, and the strip's tooltip reads exactly that pair — a
+        # `fixture` carrying one is a record claiming both to be hand-authored and to have
+        # come out of a model. Which of the two a surface believes is then a question of
+        # which field it happened to read, and every one of them reads a different field.
+        for claim in ("model_id", "model_version"):
+            if record.get(claim):
+                raise ValueError(
+                    "{}: basis is 'fixture' but it carries {}={!r}. A hand-authored number "
+                    "does not have a model behind it; naming one here is the calibration "
+                    "claim above, made through the provenance fields instead of the "
+                    "sentence".format(where, claim, record[claim]))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -690,9 +702,24 @@ def _validate_branches(where, branches):
         if b["id"] in seen:
             raise ValueError("{}: duplicate branch id".format(b_where))
         seen.add(b["id"])
+        if not isinstance(b["probability"], (int, float)) or isinstance(b["probability"], bool):
+            raise ValueError("{}: probability {!r} is not a number".format(
+                b_where, b["probability"]))
         if not 0.0 <= b["probability"] <= 1.0:
             raise ValueError("{}: probability {!r} is outside 0..1".format(
                 b_where, b["probability"]))
+        # The conditional mean, when there is one. Checked here because it is the ONE numeric
+        # field in this schema that was not: `expected_scenario_impact` multiplies it by a
+        # probability and sums, so `"-5%"` reaches that arithmetic as a string and the
+        # expectation either raises three layers down or, in the browser, becomes NaN and
+        # renders. A closed schema that admits a key without checking its type is a key whose
+        # value nobody has checked.
+        er = b.get("expected_return")
+        if er is not None and (not isinstance(er, (int, float)) or isinstance(er, bool)):
+            raise ValueError(
+                "{}: expected_return {!r} is not a number. It is a conditional RETURN — a "
+                "fraction, so -0.05 and not '-5%' — and it goes straight into a "
+                "probability-weighted sum".format(b_where, er))
         if b["horizon"] not in HORIZONS:
             raise ValueError(
                 "{}: unknown horizon {!r}. Horizons are registry-closed because this field is "
