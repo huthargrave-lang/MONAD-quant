@@ -122,8 +122,19 @@ class TheCommandContractIsRealTests(unittest.TestCase):
         manifest = ROOT / "context_map.json"
         before = (web.read_bytes(), manifest.read_bytes())
         buf = io.StringIO()
+        # SystemExit is the command's documented way of reporting problems (the sibling
+        # test asserts it exits rather than returning a code), so catching it here is what
+        # lets the READ-ONLY assertion below actually run. Without this the test aborted on
+        # the exit and never checked for a write: whenever real drift existed, the guard
+        # reported "not read-only" about a command that had not written anything, and the
+        # property it exists to protect went unverified at exactly the moment someone was
+        # changing the stores. Strictly stronger — a command that both exited and wrote
+        # used to pass this line and now does not.
         with redirect_stdout(buf):
-            ctx.cmd_drift(types.SimpleNamespace())
+            try:
+                ctx.cmd_drift(types.SimpleNamespace())
+            except SystemExit:
+                pass
         self.assertEqual((web.read_bytes(), manifest.read_bytes()), before,
                          "ctx drift wrote to a store")
         out = buf.getvalue()
@@ -226,3 +237,70 @@ class OperatorFactDriftTests(unittest.TestCase):
         web = (ROOT / "RESEARCH_WEB.md").read_text(encoding="utf-8")
         self.assertIn("src/analysis/performance.py", web)
         self.assertFalse((ROOT / "src" / "analysis" / "performance.py").exists())
+
+
+class TheTwoDanglingCheckersShareOneNotionOfARuntimeArtifact(unittest.TestCase):
+    """CI cleanup, 2026-08-11. `operator_fact_drift` and `doc_topology` both answer "is
+    this referenced path missing", and each had its own idea of which paths are PRODUCED
+    rather than committed — an exact allowlist in one, a directory-prefix list in the
+    other. They disagreed: `data/cache/screener_snapshot.json` was clean to neither, and
+    both reported it, but the two lists were free to diverge in either direction and
+    nothing compared them.
+
+    One fact, two places, synced by convention, is the drift this module was written to
+    find. `doc_topology` now reads `_RUNTIME_ARTIFACTS` too, and this asserts it keeps
+    doing so."""
+
+    def test_doc_topology_honours_the_shared_allowlist(self):
+        src = (ROOT / "tools" / "ctx.py").read_text(encoding="utf-8")
+        body = src[src.index("def doc_topology("):]
+        body = body[:body.index("\ndef ", 5)]
+        self.assertIn("_RUNTIME_ARTIFACTS", body,
+                      "doc_topology no longer consults the shared runtime-artifact list, "
+                      "so the two dangling checks can disagree about the same path again")
+
+    def test_a_produced_screener_artifact_is_not_a_broken_link(self):
+        """Both checkers, on the paths that actually broke CI. These are named
+        individually in .gitignore under "Screener caches ... Regenerable by
+        refresh/fetch", so they are absent by design in every clone."""
+        for ref in ("data/cache/screener_snapshot.json", "data/screener/fundamentals.json"):
+            self.assertIn(ref, ctx._RUNTIME_ARTIFACTS,
+                          "{} is a generated cache; a doc naming it is correct".format(ref))
+        problems, _ = ctx.operator_fact_drift()
+        for p in problems:
+            for ref in ("screener_snapshot.json", "data/screener/fundamentals.json"):
+                self.assertNotIn(ref, p, "a produced artifact is reported as drift: " + p)
+        self.assertEqual(ctx.doc_topology()["dangling"], {},
+                         "doc_topology still reports a dangling reference")
+
+    def test_the_allowlist_only_covers_paths_gitignore_calls_generated(self):
+        """Non-vacuity, and the thing that stops this becoming a place to silence any
+        inconvenient reference: every screener path allowlisted here must be one the repo
+        itself declares regenerable."""
+        ignored = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
+        for ref in sorted(ctx._RUNTIME_ARTIFACTS):
+            if not ref.startswith("data/"):
+                continue
+            self.assertIn(ref, ignored,
+                          "{} is allowlisted as generated but .gitignore does not say "
+                          "so — either it is committed (and the reference is real) or "
+                          "the ignore rule is missing".format(ref))
+
+    def test_a_genuinely_missing_path_is_still_caught(self):
+        """The guard must not have been widened into uselessness: a doc naming a file
+        that does not exist and is not produced still has to fail.
+
+        Exercised with a temporary doc rather than by rewriting a real one. The checker
+        scans `ops/*.md` from disk with no injection point, so something has to appear
+        there — but creating and deleting a new file cannot corrupt a tracked document if
+        this process dies midway, and editing `ops/README.md` in place could."""
+        probe = ROOT / "ops" / "_dangling_reference_probe.md"
+        self.assertFalse(probe.exists(), "the probe file was left behind by an earlier run")
+        try:
+            probe.write_text("See `ops/there_is_no_such_file.md`.\n", encoding="utf-8")
+            problems, _ = ctx.operator_fact_drift()
+            self.assertTrue(
+                any("there_is_no_such_file.md" in p for p in problems),
+                "operator_fact_drift stopped reporting a genuinely dangling reference")
+        finally:
+            probe.unlink(missing_ok=True)

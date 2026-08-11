@@ -1051,6 +1051,7 @@ def doc_topology():
             ref for ref in refs
             if ("/" in ref or ref.endswith((".json", ".yaml", ".yml")))
             and not ref.startswith(runtime_prefixes)
+            and ref not in _RUNTIME_ARTIFACTS
             and not os.path.exists(os.path.join(REPO, ref))
             and os.path.basename(ref) not in present_basenames})
         if missing:
@@ -3076,10 +3077,21 @@ def drift_report():
 
 # Files a doc may legitimately name that are runtime artifacts, not repository content.
 # Flagging these would train a reader to ignore the linter.
+#: Paths an operator doc may name that are PRODUCED, not committed — absent by design in
+#: any clone and in CI, so a reference to one is documentation working correctly rather
+#: than a broken link. `.gitignore` is the source of truth for the screener entries: it
+#: names them individually under "Screener caches ... Regenerable by refresh/fetch".
+#:
+#: Read by BOTH dangling-reference checks. `doc_topology` had its own separate notion of
+#: a runtime path and the two disagreed — a doc naming the screener snapshot was clean to
+#: one and dangling to the other, which is the one-fact-two-places drift this module was
+#: written to find.
 _RUNTIME_ARTIFACTS = {
     "live/state.db", "state.db", "experiments.jsonl", "graph.json", ".mcp.json",
     "local_logs/healthcheck.json", "local_runtime/current_run.json",
     "sweep_results_TICKER.json",
+    # tools/screener_lab.py:SNAPSHOT_PATH and tools/stock_screener.py:SNAPSHOT_PATH.
+    "data/cache/screener_snapshot.json", "data/screener/fundamentals.json",
 }
 _DOC_PATH_RX = re.compile(r"`([A-Za-z0-9_./-]+\.(?:py|sh|md|json|jsonl|yml|db|service|txt))`")
 
