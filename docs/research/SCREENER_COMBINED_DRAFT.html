@@ -973,7 +973,20 @@ table.bwatch .spark{width:80px;height:26px;display:block}
 .bkc-row button:hover{border-color:var(--accent);color:var(--ink)}
 /* Type sizes and colours are the buckets page's, not scaled: .bk-grid sets --dcs to 1, and
    these are the literals from its `.bucket .id / .name / .blurb / .meta` rules. */
-.bk-id{font:10.5px var(--mono);letter-spacing:.06em;color:var(--ink-muted)}
+.bk-id{font:10.5px var(--mono);letter-spacing:.06em;color:var(--ink-muted);
+  display:flex;align-items:baseline;justify-content:space-between;gap:6px;width:100%}
+/* The modelled activation, in space the id line already owns. Decision 7: no new row, no
+   reuse of the heat bar, no change to card height or `grid-auto-rows` — the grid's symmetry
+   is a hard constraint and this is the only slack that exists.
+   Rendered ONLY when a model covers this (bucket, shock). `null` renders nothing at all;
+   an activation of 0 renders "0%" and is a different statement. */
+.bk-act{font:10px var(--mono);letter-spacing:.04em;color:var(--accent);white-space:nowrap;
+  flex:0 0 auto}
+.bk-act.fixture{color:var(--warning)}
+/* At ten columns the id line has ~26px of free width and the card is ~90px wide. An
+   indicator there would push "bucket 01" into a wrap, so it is omitted rather than allowed
+   to degrade the grid — the strip and the drawer still carry the number. */
+@container (min-width:1360px){ .bk-act{display:none} }
 .bk-name{font-size:13.5px;font-weight:640;letter-spacing:-.01em;color:var(--ink)}
 .bk-blurb{font-size:12px;color:var(--ink-2);line-height:1.4;flex:1}
 .bk-foot{display:flex;justify-content:space-between;align-items:center;gap:6px;
@@ -6231,7 +6244,7 @@ function drawBuckets(){
     return '<div class="bk-wrap' + (on ? " on" : "") + '">'
       + '<button type="button" class="bk" data-bucket="' + escAttr(b.id) + '"'
       + ' aria-pressed="' + (on ? "true" : "false") + '">'
-      + '<span class="bk-id">bucket ' + esc(b.id) + '</span>'
+      + '<span class="bk-id">bucket ' + esc(b.id) + activationChip(b.id) + '</span>'
       + '<span class="bk-name">' + esc(b.name) + '</span>'
       + '<span class="bk-blurb">' + esc(b.blurb) + '</span>'
       // The duration chip's dot is tinted by heat, exactly as on the buckets page: the same
@@ -7159,6 +7172,28 @@ function scenarioIsFixture(sc){
   return !!(sc && sc.state && sc.state.basis === "fixture");
 }
 function pct(x){ return x == null ? "—" : Math.round(x * 100) + "%"; }
+
+/* The card's modelled-activation chip. READ from the emitted derivation, never computed:
+   the page has no branch probabilities to sum and no business summing them.
+
+   Editorial heat keeps the bar and the card ordering, untouched. This is the other kind of
+   answer sitting beside it — "given what has been observed, how likely is this mechanism to
+   be engaged" — and it is deliberately a different shape, a different place and a different
+   colour so the two cannot be read as one number. */
+function activationChip(bucketId){
+  const sc = scenarioForShock(bucketShock);
+  const act = sc && sc.activations && sc.activations[bucketId];
+  if(!act || act.activation == null) return "";     // not modelled renders NOTHING, not 0%
+  const fixture = scenarioIsFixture(sc);
+  return '<span class="bk-act' + (fixture ? " fixture" : "") + '" title="'
+    + escAttr(pct(act.activation) + " chance this mechanism is engaged over "
+        + ((SCENARIOS.HORIZONS[act.horizon] || {}).label || act.horizon)
+        + ". Strength " + act.strength + ", from " + act.drivers.length + " channel"
+        + (act.drivers.length === 1 ? "" : "s") + ": "
+        + act.drivers.map(d => d.channel.label).join(", ")
+        + (fixture ? ". FIXTURE — illustrative, not calibrated." : ""))
+    + '">' + esc(pct(act.activation)) + '</span>';
+}
 
 /* The strip. One row in the context head — which never folds — saying what is behind the
    selected shock. Three states and no fourth:

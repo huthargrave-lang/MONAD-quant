@@ -1795,3 +1795,161 @@ class TheScenarioStripReadsRatherThanDerives(unittest.TestCase):
         self.assertNotRegex(body, r"(?<![.\w])render\(\)",
                             "a shock change now triggers a full render — the shock narrows "
                             "nothing and must not be put on the same footing as a selection")
+
+
+def _script(html):
+    """The page's application script. There are three inline blocks and the app is the LAST
+    one — a probe that took block 0 during Phase D reported two live properties as absent that
+    were in fact present, so the index is derived here rather than guessed at each call site."""
+    blocks = re.findall(r"<script>(.*?)</script>", html, re.S)
+    return max(blocks, key=len)
+
+
+def _decomment(code):
+    """Comments explain code; they are not evidence of it. Four guards in this file have
+    matched a comment describing the very thing that had been deleted."""
+    return re.sub(r"/\*.*?\*/|//[^\n]*", "", code, flags=re.S)
+
+
+class TheCardShowsActivationWithoutBecomingHeat(unittest.TestCase):
+    """Phase E. Editorial heat and modelled activation sit on one card and must not read as
+    one quantity.
+
+    Heat is an author's judgment of how structurally relevant a bucket is to a shock; it is
+    unsigned, drawn as a bar, and it orders the grid. Activation is "given what has been
+    observed, how likely is this mechanism engaged right now" — a probability, read from the
+    Python derivation, drawn as a number in the id line. Different shape, different place,
+    different colour, and neither is computed from the other.
+
+    Decision 7 also makes this a LAYOUT contract: the indicator goes in space the id line
+    already owns. Measured in the browser at all five breakpoints (1/4/5/10 columns, the
+    grid's own container sized to 380/700/1000/1400/1800px), with the chip's rule toggled on
+    a fixed shock so card reordering could not be mistaken for the chip's effect: grid, card
+    and id-line height deltas were 0.00px at every width. The naive comparison — one shock
+    against another — is NOT a valid measurement here and reports up to 9.5px of difference,
+    because changing the shock reorders the cards by heat and changes which names wrap."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.html = _page()
+        cls.js = _decomment(_script(cls.html))
+        cls.css = _decomment(re.search(r"<style>(.*?)</style>", cls.html, re.S).group(1))
+        cls.chip = re.search(r"function activationChip\(bucketId\)\{(.*?)\n\}",
+                             cls.js, re.S)
+
+    def test_the_chip_reads_the_derivation_rather_than_computing_one(self):
+        """The browser has no branch probabilities to combine and no business combining them.
+        The number it prints is the one Python derived, or there is no number."""
+        self.assertIsNotNone(self.chip, "the card indicator is gone")
+        code = self.chip.group(1)
+        self.assertIn("scenarioForShock", code,
+                      "the chip reaches for a scenario without going through the resolver")
+        self.assertIn(".activations[", code, "the chip does not read the derived activations")
+        for banned, why in (
+                ("bucketHeat", "the chip is derived from editorial heat"),
+                ("heatOf", "the chip is derived from editorial heat"),
+                ("branches", "the chip is summing branch probabilities in the browser"),
+                ("Math.max", "the chip is combining channels itself"),
+                ("engaged_probability", "the chip is re-deriving activation")):
+            self.assertNotIn(banned, code, why)
+
+    def test_an_unmodelled_bucket_renders_nothing_at_all(self):
+        """`null` is not zero. A bucket no model covers must render EMPTY, not `0%` — `0%`
+        is a modelled claim that the mechanism is certainly not engaged, and this repo has
+        paid for coercing an absence to a number before (CLAUDE.md's absence-flag rule)."""
+        self.assertIsNotNone(self.chip)
+        code = self.chip.group(1)
+        m = re.search(r"if\((.*?)\)\s*return\s*(['\"])\2\s*;", code)
+        self.assertIsNotNone(
+            m, "the chip no longer returns the empty string for an uncovered bucket, so an "
+               "unmodelled mechanism now prints something")
+        self.assertIn("activation == null", m.group(1),
+                      "the absence test does not distinguish a null activation from a zero "
+                      "one, so `0%` and `not modelled` render the same")
+        # `pct()` renders a dash for null. That is right for the STRIP, which has a labelled
+        # slot to put a dash in; on a card a bare dash beside "bucket 07" says nothing a
+        # reader can act on, so the chip must exit before it reaches pct().
+        self.assertLess(code.index("return"), code.index("pct("),
+                        "the chip formats before it checks for absence, so an uncovered "
+                        "bucket renders a dash rather than nothing")
+
+    def test_the_indicator_takes_no_new_row_and_no_new_card_height(self):
+        """Decision 7. The grid's symmetry is a hard constraint: `.bk` cards share a row
+        height, so anything that grows one card grows the whole row."""
+        card = re.search(r"data-bucket=\"' \+ escAttr\(b\.id\).*?</div>'", self.js, re.S)
+        self.assertIsNotNone(card, "the bucket card markup is gone")
+        markup = card.group(0)
+        self.assertIn('class="bk-id">bucket \' + esc(b.id) + activationChip(b.id)', markup,
+                      "the indicator is no longer inside the id line — if it has been given "
+                      "its own element the card is taller and every row with it grows")
+        self.assertEqual(markup.count("activationChip("), 1,
+                         "the indicator is rendered more than once per card")
+        # The id line has to become a full-width row for the chip to sit at its far end; that
+        # is the one structural change Phase E makes to a rule whose metrics are the buckets
+        # page's, and it is what the height measurement above was checking.
+        rule = re.search(r"\.bk-id\{([^}]*)\}", self.css)
+        self.assertIsNotNone(rule, "the id-line rule is gone")
+        self.assertIn("display:flex", rule.group(1))
+        self.assertIn("width:100%", rule.group(1))
+        self.assertIn("font:10.5px var(--mono)", rule.group(1),
+                      "the id line no longer carries the buckets page's own type metrics")
+
+    def test_the_chip_stands_down_where_the_id_line_has_no_room(self):
+        """At ten columns a card is ~90px wide and the id line has ~26px spare. Rather than
+        let "bucket 01" wrap, the indicator is omitted — the strip and the drawer still carry
+        the number, so nothing is only knowable from the card."""
+        m = re.search(r"@container \(min-width:(\d+)px\)\{\s*\.bk-act\{display:none\}", self.css)
+        self.assertIsNotNone(
+            m, "the card indicator is no longer withdrawn at the widest breakpoint, so the "
+               "bucket id wraps at ten columns")
+        # It must be a CONTAINER query. `.bk-grid` can be a tenth of the viewport or the whole
+        # of it depending on where the reader put the module, so a media query would hide the
+        # chip on a one-column grid in a wide window and show it on a ten-column grid in a
+        # narrow one — exactly backwards.
+        self.assertIn("container-type", self.css,
+                      "the grid does not establish a container, so the query above resolves "
+                      "against the viewport rather than the card's own space")
+
+    def test_a_fixture_number_on_a_card_is_marked_as_one(self):
+        """Decision 15 per surface. The card face is where a scanning reader meets a number
+        with no prose around it."""
+        self.assertIsNotNone(self.chip)
+        code = self.chip.group(1)
+        self.assertIn("scenarioIsFixture", code,
+                      "the card cannot tell a fixture reading from a modelled one")
+        self.assertIn("FIXTURE", code,
+                      "a fixture activation renders on the card with nothing saying so")
+        self.assertRegex(self.css, r"\.bk-act\.fixture\{[^}]*color:var\(--warning\)",
+                         "a fixture activation is drawn in the same colour as a modelled one")
+        # The colour alone is not the marker — colour is not readable to everyone and this one
+        # differs from the modelled accent by hue. The title carries the words.
+        self.assertLess(code.index("scenarioIsFixture"), code.index("title="),
+                        "the fixture state is decided after the tooltip is built")
+
+    def test_the_heat_bar_keeps_its_own_job(self):
+        """The bar was not reused, retinted or rescaled to carry activation. Two answers to
+        two different questions, drawn as two different things."""
+        # Anchored to the WHOLE bar expression, opening tag through closing tag, not to one
+        # line of it. A single-line anchor is a guard that quietly stops covering the code it
+        # names the moment the expression is rewrapped.
+        bar = re.search(r"'<span class=\"bk-heat h'(.*?)</i></span>'", self.js, re.S)
+        self.assertIsNotNone(bar, "the heat bar is gone")
+        self.assertIn("LEDGER.HEAT_MAX", bar.group(1),
+                      "the matched region is not the heat bar any more")
+        for banned in ("activation", "activationChip", "scenarioForShock"):
+            self.assertNotIn(banned, bar.group(1),
+                             "the heat bar now draws activation, so one mark carries an "
+                             "authored judgment and a modelled probability at once")
+
+        # Ordering is still stars, then editorial heat. Sorting by a fixture number would let
+        # an illustrative figure decide what a reader looks at first, and sorting by a
+        # modelled one would silently replace the authored relevance ranking.
+        srt = re.search(r"const order = shown\.slice\(\)\.sort\(\(a, b\) => \{(.*?)\n  \}\);",
+                        self.js, re.S)
+        self.assertIsNotNone(srt, "the bucket grid's ordering is gone")
+        code = srt.group(1)
+        self.assertIn("heatOf(b) - heatOf(a)", code,
+                      "the grid is no longer ordered by editorial heat")
+        self.assertIn("bucketStarred", code, "a reader's star no longer outranks the ordering")
+        self.assertNotIn("activation", code,
+                         "the bucket grid is ordered by modelled activation")
