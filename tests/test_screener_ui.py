@@ -2405,8 +2405,10 @@ class TheScenarioTilesComeAndGoWithTheShock(unittest.TestCase):
         self.assertIn("scenarioForShock", body)
         self.assertNotIn("DATA_PRESENT", body,
                          "scenario tile availability is read off the payload flag")
-        # Each tile asks for the records it draws, not for the scenario in general.
-        self.assertIn("observations", body)
+        # Each tile asks for the records IT draws, not for the scenario in general. The path
+        # asks the RESOLVED series rather than the raw observation list — a scenario with one
+        # point at each of two horizons has two observations and no path.
+        self.assertIn("sc.series", body)
         self.assertIn("developments", body)
 
     def test_unavailable_means_absent_and_never_parked(self):
@@ -2488,11 +2490,25 @@ class TheScenarioTilesComeAndGoWithTheShock(unittest.TestCase):
         the other."""
         body = self.fns.get("drawScenPath")
         self.assertIsNotNone(body, "the probability path is gone")
-        self.assertIn("scenario.observations", body, "the path does not read the series")
+        self.assertIn("sc.series", body, "the path does not read the resolved series")
         for banned in ("developments", "contribution", "reduce("):
             self.assertNotIn(banned, body,
                              "the path is reconstructed from the developments rather than "
                              "read from the observation series")
+        # And it reads THE series, not their union. A scenario may carry more than one — the
+        # same question at two horizons, or two different questions — and `observations` is
+        # the union, which drawn as one line puts two quantities on one axis and labels it
+        # with whichever point sorted first.
+        # `.observations` the FIELD, not the word: the tile's meta line reads "5 observations
+        # · 30 days", which is display text. The substring version failed on correct code —
+        # the fourth guard in this file to do so.
+        self.assertNotRegex(body, r"\.observations",
+                            "the path reads the raw observation list, so every series the "
+                            "scenario holds is drawn as a single line")
+        avail = self.fns.get("scenarioTileAvailable")
+        self.assertNotRegex(avail, r"\.observations",
+                            "availability counts the raw observation list, so a scenario with "
+                            "one point at each of two horizons offers a path it cannot draw")
 
     def test_the_path_is_drawn_against_the_whole_of_a_probability(self):
         """Autoscaled to its own range, an 18%-to-30% series climbs the full height of the

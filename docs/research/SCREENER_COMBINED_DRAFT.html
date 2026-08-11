@@ -2653,12 +2653,15 @@ function scenarioTileAvailable(tileId, activeShock){
   if(SCENARIO_TILES.indexOf(tileId) === -1) return true;
   const sc = scenarioForShock(activeShock);
   if(!sc || !sc.scenario) return false;
-  // Each tile asks for the records IT draws. A scenario with a probability series and no
-  // developments should offer the path and not the timeline — an empty timeline tile is a
-  // pane that can only report its own emptiness, which is what `withData` exists to avoid.
-  const s = sc.scenario;
-  if(tileId === "spath") return ((s.observations || []).length > 1);
-  if(tileId === "sdev") return ((s.developments || []).length > 0);
+  /* Each tile asks for the records IT draws. A scenario with a probability series and no
+     developments should offer the path and not the timeline — an empty timeline tile is a
+     pane that can only report its own emptiness, which is what `withData` exists to avoid.
+
+     The path asks the RESOLVED series, for the same reason the chart reads it: a scenario
+     with one 30-day point and one 90-day point holds two observations and no path, so
+     counting the raw list would offer a module that could only draw its own empty state. */
+  if(tileId === "spath") return ((sc.series || []).length > 1);
+  if(tileId === "sdev") return (((sc.scenario || {}).developments || []).length > 0);
   return false;
 }
 function tileAvailable(id){ return scenarioTileAvailable(id, bucketShock); }
@@ -7844,8 +7847,12 @@ function drawScenPath(){
   const host = document.getElementById("spathChart");
   if(!host || !host.clientWidth || !host.clientHeight) return;
   const sc = scenarioForShock(bucketShock);
-  const obs = ((sc && sc.scenario && sc.scenario.observations) || []).slice()
-    .sort((a, b) => a.timestamp < b.timestamp ? -1 : 1);
+  /* `sc.series`, not `sc.scenario.observations`. A scenario may carry more than one series —
+     the same question at 30 and 90 days, or two different resolvable questions — and the raw
+     list is their union. Drawing that as one line would put two questions on one axis and
+     label it with whichever point sorted first. Python resolves the series next to the state
+     the strip prints, so the chart and the strip cannot be about different things. */
+  const obs = (sc && sc.series) || [];
   const title = document.getElementById("spathTitle");
   const meta = document.getElementById("spathMeta");
   const legend = document.getElementById("spathLegend");

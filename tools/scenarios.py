@@ -829,6 +829,29 @@ def scenario_state(scenario, target_id=None, horizon=None):
 #     -> expo    net sign, paths[]               DERIVED here
 
 
+def probability_series(scenario, state=None):
+    """THE series behind the current reading: one target, one horizon, oldest first.
+
+    Not "the scenario's observations". A scenario may legitimately carry more than one series —
+    the same question at 30 and 90 days, or two different resolvable questions — and the schema
+    allows it because they are genuinely different quantities. `scenario_state` already picks
+    ONE of them, which is what the strip prints; a chart drawn from the raw observation list
+    would plot the union of all of them as a single line, labelled with whichever point happened
+    to sort first. Two questions, one line, and a reader with no way to tell.
+
+    So the filter lives here, next to the state it has to agree with, rather than in a surface
+    that could pick differently. `state` is passed in where the caller already has it, so the
+    series and the reading cannot come from two separate resolutions of the same scenario.
+    """
+    state = scenario_state(scenario) if state is None else state
+    if state is None:
+        return []
+    return sorted((o for o in (scenario.get("observations") or [])
+                   if o["target_id"] == state["target_id"]
+                   and o["horizon"] == state["horizon"]),
+                  key=lambda o: o["timestamp"])
+
+
 def engaged_probability(scenario, branch_ids):
     """P(one of these branches), given branches are an exhaustive disjoint partition.
 
@@ -1178,6 +1201,10 @@ def as_payload(scenarios=None):
             # loud: the gap between "0.3 probability" and "what is this worth" is exactly where
             # a reader supplies their own arithmetic if nothing tells them the system has not.
             "expected_impact": expected_scenario_impact(s),
+            # The ONE series behind `state`, resolved here so no surface can pick a different
+            # one. A chart reading `scenario.observations` would draw every series the file
+            # holds as a single line.
+            "series": probability_series(s, state),
             "activations": bucket_activations(s),
             # Tuple keys cannot survive JSON. "TICKER|channel_id" keeps the pair addressable
             # without inventing a nested shape a consumer would have to flatten again.

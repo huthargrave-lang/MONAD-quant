@@ -1253,3 +1253,81 @@ class TheAbsenceStatesHaveAnOrderOfPrecedence(unittest.TestCase):
             # And the disagreement survives for a surface that wants to show it.
             self.assertEqual({p["horizon"] for p in rec["paths"]}, {"30d", "90d"},
                              "the paths' own horizons were collapsed")
+
+
+class ThePathIsOneSeriesAndNotTheirUnion(unittest.TestCase):
+    """Bug Bot, round 1. A scenario may carry more than one probability series and the schema
+    is right to allow it: the same question at 30 and 90 days, or two different resolvable
+    questions, are genuinely different quantities.
+
+    `scenario_state` already picks ONE of them — that is what the strip prints. The chart read
+    `scenario["observations"]`, which is their UNION, so two questions would have been drawn as
+    a single line and labelled with whichever point happened to sort first. That is the failure
+    `sovereign_buckets` records in its own docstring — the same number, two answers, both
+    published — arriving by a different route.
+
+    The filter lives beside the state it has to agree with, so a surface cannot resolve the
+    scenario one way and its series another."""
+
+    def setUp(self):
+        self.s = copy.deepcopy(sn.load()["hormuz"])
+
+    def test_the_shipped_fixture_is_its_whole_series(self):
+        s = sn.load()["hormuz"]
+        series = sn.probability_series(s)
+        self.assertEqual(len(series), len(s["observations"]))
+        self.assertEqual([o["timestamp"] for o in series],
+                         sorted(o["timestamp"] for o in s["observations"]),
+                         "the series is not in chronological order")
+
+    def test_a_second_horizon_is_not_drawn_into_the_same_line(self):
+        other = copy.deepcopy(self.s["observations"][-1])
+        other["horizon"] = "90d"
+        other["probability"] = 0.55
+        self.s["observations"].append(other)
+        sn.validate_scenarios({"hormuz": self.s})     # legal data, not a malformation
+        state = sn.scenario_state(self.s)
+        series = sn.probability_series(self.s, state)
+        self.assertTrue(all(o["horizon"] == state["horizon"] for o in series),
+                        "a 90-day probability was drawn onto the 30-day path")
+        self.assertNotIn(0.55, [o["probability"] for o in series])
+
+    def test_a_second_target_is_not_drawn_into_the_same_line(self):
+        sn.TARGETS["bugbot_second_target"] = {
+            "label": "A second resolvable question",
+            "threshold_pct": 5, "min_days": 7,
+            "question": "Do transits fall at least 5% below baseline for at least 7 days?"}
+        try:
+            other = copy.deepcopy(self.s["observations"][-1])
+            other["target_id"] = "bugbot_second_target"
+            other["probability"] = 0.90
+            self.s["observations"].append(other)
+            sn.validate_scenarios({"hormuz": self.s})
+            state = sn.scenario_state(self.s)
+            series = sn.probability_series(self.s, state)
+            self.assertTrue(all(o["target_id"] == state["target_id"] for o in series),
+                            "two different questions were drawn as one line")
+            self.assertNotIn(0.90, [o["probability"] for o in series])
+        finally:
+            del sn.TARGETS["bugbot_second_target"]
+
+    def test_the_series_and_the_state_are_resolved_together(self):
+        """Passing the state in is what stops the chart and the strip resolving the same
+        scenario twice and disagreeing about which series they are showing."""
+        state = sn.scenario_state(self.s)
+        series = sn.probability_series(self.s, state)
+        self.assertEqual(series[-1]["probability"], state["probability"],
+                         "the newest point of the series is not the reading the strip prints")
+        self.assertEqual(series[-1]["timestamp"], state["as_of"])
+
+    def test_a_scenario_with_nothing_observed_has_no_series_rather_than_an_empty_line(self):
+        self.s["observations"] = []
+        self.s["branches"] = []          # branch/observation coherence
+        self.assertEqual(sn.probability_series(self.s), [])
+
+    def test_the_resolved_series_travels_so_no_surface_picks_its_own(self):
+        p = sn.as_payload()["hormuz"]
+        self.assertIn("series", p)
+        self.assertEqual([o["probability"] for o in p["series"]],
+                         [o["probability"] for o in sn.probability_series(
+                             sn.load()["hormuz"])])
