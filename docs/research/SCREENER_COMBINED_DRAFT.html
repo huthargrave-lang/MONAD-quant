@@ -7781,6 +7781,7 @@ function drawScenPanel(){
   const s = sc.scenario, st = sc.state;
   const target = SCENARIOS.TARGETS[st.target_id] || {};
   const rank = sc.ranking || {};
+  const impact = sc.expected_impact || {value: null, why: "not derived"};
   const branches = (s.branches || []).map(b =>
       '<li><b>' + fxVal("drawer", sc, pct(b.probability)) + '</b> ' + esc(b.label) + '</li>')
     .join("");
@@ -7805,6 +7806,16 @@ function drawScenPanel(){
     // sentence in the one place that explains the whole scenario, not only when a chart
     // happens to come up empty.
     + '<p class="scen-note"><b>Ordering:</b> ' + esc(rank.why || "not stated") + '</p>'
+    /* The unconditional expected impact, or the sentence saying there is none. Printed even
+       though it is absent for every scenario that exists, because the gap between "30% chance"
+       and "what is this worth" is exactly where a reader supplies their own arithmetic if
+       nothing tells them the system has not. Multiplying a probability by a magnitude on this
+       page produces a number with no unit that looks like an expected return; saying so is
+       cheaper than letting each reader discover it privately. */
+    + '<p class="scen-note"><b>Expected impact:</b> ' + (impact.value == null
+        ? esc("not computed — " + (impact.why || "no estimate"))
+        : fxVal("drawer", sc, (impact.value * 100).toFixed(1) + "% over "
+            + ((SCENARIOS.HORIZONS[impact.horizon] || {}).label || impact.horizon))) + '</p>'
     // The partition is a PARAGRAPH, not part of the heading. Headings here are uppercased
     // mono, which is right for one word and turns the fixture's careful statement of what the
     // branches divide — several sentences of it — into a shouted block nobody reads. It is

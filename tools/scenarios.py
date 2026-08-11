@@ -184,12 +184,14 @@ TARGETS = {
 #: scenario satisfies neither — which is the point. The gate exists so that the day a model
 #: does arrive, turning ranking on is a data change with a validator behind it rather than a
 #: code change nobody reviews.
+#: Both fields reach a reader: they are the words `ranking_authority` builds its sentence from,
+#: and that sentence is what the drawer and the ranked chart print. A `field` naming which
+#: exposure key the metric would read was here too and is deliberately NOT — nothing ranks yet,
+#: so nothing read it, and this repo has paid twice for a knob whose only reader was the person
+#: who believed it did something (CLAUDE.md §5/§10, F145). It goes in with the ranking code.
 RANK_METRICS = {
     "exposure_magnitude": {
         "label": "modelled exposure magnitude",
-        # Names the field it reads, so a metric cannot be declared for a quantity the
-        # derivation does not produce.
-        "field": "magnitude",
         "of": "the security's sensitivity coefficient on the channel that reached it",
     },
 }
@@ -304,7 +306,11 @@ _SCHEMAS = {
         # scenario carries a probability in two places — the branch tree and the observation
         # series — with nothing relating them, so the strip can read 30% while the tree reads
         # 10% and both are "the model".
-        "optional": set(_PROVENANCE_FIELDS) | {"parent", "counts_toward"},
+        # `expected_return` is the branch's CONDITIONAL mean — what this state is worth if it
+        # happens. It is optional because most branches have no such estimate, and the whole
+        # point of `expected_scenario_impact` is that a tree missing one of them produces
+        # nothing rather than a number computed over the branches that had one.
+        "optional": set(_PROVENANCE_FIELDS) | {"parent", "counts_toward", "expected_return"},
     },
     "observation": {
         "required": {"target_id", "timestamp", "horizon", "probability"},
@@ -1025,6 +1031,45 @@ def unscreenable_reached(scenario, screened):
     return out
 
 
+def expected_scenario_impact(scenario):
+    """The UNCONDITIONAL expected impact of the scenario, or nothing — and why nothing.
+
+    This is the fourth of the quantities this module keeps apart, and the easiest of them to
+    produce by accident. Everything needed to compute it is already on screen: branch
+    probabilities in one tile, a conditional mean per branch if anyone writes one. Multiply and
+    sum and there it is — a number that looks like an expected return and is, over any tree
+    missing a branch's mean, an expected value of nothing in particular.
+
+    So the gate is on the MEAN ITSELF, per branch, not on the presence of an impact record. A
+    branch carrying quantiles and no mean would pass a presence check and then need a mean that
+    does not exist; substituting p50 under skew is an invented number, and inventing it here
+    would be invisible three surfaces downstream.
+
+    The probability-weighted sum is only legitimate because `_validate_branches` has already
+    established that the branches are an exhaustive disjoint partition summing to 1 over ONE
+    horizon. Over an overlapping or partial set it would be arithmetic wearing an expectation's
+    clothes — which is what the sum-to-1 check's own error message says.
+
+    Returns `{value, horizon, why}`. `value` is None when it cannot be computed and `why` says
+    which reason, because a surface has to be able to tell a reader that the number does not
+    exist rather than leave a gap they read as zero.
+    """
+    branches = scenario.get("branches") or []
+    if not branches:
+        return {"value": None, "horizon": None,
+                "why": "this scenario has no branch tree, so there is nothing to take an "
+                       "expectation over"}
+    missing = [b["id"] for b in branches if b.get("expected_return") is None]
+    if missing:
+        return {"value": None, "horizon": branches[0]["horizon"],
+                "why": "no conditional return is estimated for {} of {} branches ({}), and an "
+                       "expectation over the rest is an expected value of nothing in "
+                       "particular".format(len(missing), len(branches), ", ".join(missing))}
+    return {"value": sum(b["probability"] * b["expected_return"] for b in branches),
+            "horizon": branches[0]["horizon"],
+            "why": None}
+
+
 def ranking_authority(scenario, state=None):
     """May this scenario decide what order a reader meets securities in?
 
@@ -1042,26 +1087,30 @@ def ranking_authority(scenario, state=None):
     Returns the decision AND the sentence for it, because a surface that has to explain why it
     is not ranking should not have to compose that explanation itself — two surfaces composing
     it would be two wordings of one rule, which is the drift this module exists to prevent.
+
+    Two fields and no more. `metric` and `metric_label` were returned beside them and read by
+    nothing but a test: whichever surface needed to name the metric needed the sentence too, so
+    the sentence names it.
     """
     state = scenario_state(scenario) if state is None else state
     metric = scenario.get("rank_metric")
     basis = (state or {}).get("basis")
+    named = "{} ({})".format(RANK_METRICS[metric]["label"],
+                             RANK_METRICS[metric]["of"]) if metric else None
     if metric and basis == "modelled":
-        return {"quantitative": True, "metric": metric,
-                "metric_label": RANK_METRICS[metric]["label"],
-                "why": "ranked by {}, from a modelled reading".format(
-                    RANK_METRICS[metric]["label"])}
+        return {"quantitative": True,
+                "why": "ranked by {}, from a modelled reading".format(named)}
     if not metric:
         why = ("no ranking metric is declared, so this scenario orders securities but does not "
                "rank them")
     elif basis is None:
-        why = ("nothing has been observed for this scenario, so there is no reading to rank on")
+        why = ("nothing has been observed for this scenario, so there is no reading to rank "
+               "on — it would rank by {}".format(named))
     else:
-        why = ("the reading is {}, not modelled — its magnitudes are illustrative and ranking "
-               "real securities by them would publish an order nobody estimated".format(basis))
-    return {"quantitative": False, "metric": metric,
-            "metric_label": RANK_METRICS[metric]["label"] if metric else None,
-            "why": why}
+        why = ("the reading is {}, not modelled — it would rank by {}, and that magnitude is "
+               "illustrative, so ranking real securities by it would publish an order nobody "
+               "estimated".format(basis, named))
+    return {"quantitative": False, "why": why}
 
 
 def explain(scenario, security, channel_id=None):
@@ -1124,6 +1173,11 @@ def as_payload(scenarios=None):
             # one language with no test harness, and the day the two parted the page would be
             # the one publishing a ranking.
             "ranking": ranking_authority(s, state),
+            # Ships even though it is null for every scenario that exists, and the drawer
+            # prints the absence in words. A quantity a surface cannot get is worth saying out
+            # loud: the gap between "0.3 probability" and "what is this worth" is exactly where
+            # a reader supplies their own arithmetic if nothing tells them the system has not.
+            "expected_impact": expected_scenario_impact(s),
             "activations": bucket_activations(s),
             # Tuple keys cannot survive JSON. "TICKER|channel_id" keeps the pair addressable
             # without inventing a nested shape a consumer would have to flatten again.
@@ -1148,9 +1202,11 @@ def runtime_js(scenarios=None):
         lit("CHANNELS", CHANNELS),
         lit("TARGETS", TARGETS),
         lit("HORIZONS", HORIZONS),
-        lit("STRENGTHS", list(STRENGTHS)),
-        lit("RANK_METRICS", RANK_METRICS),
+        # STRENGTHS and RANK_METRICS were emitted here and read by nothing on the page: the
+        # card prints an edge's own `strength` string and the surfaces that explain the ranking
+        # print the sentence Python already composed. An emit with no reader is the same shape
+        # as a computed column with no consumer, and this file is the wrong place to keep one.
         lit("BY_SHOCK", as_payload(scenarios)),
-        "  return {CHANNELS, TARGETS, HORIZONS, STRENGTHS, RANK_METRICS, BY_SHOCK};",
+        "  return {CHANNELS, TARGETS, HORIZONS, BY_SHOCK};",
         "})();",
     ])

@@ -1065,8 +1065,9 @@ class OrderingAuthorityIsGranted(unittest.TestCase):
         s["rank_metric"] = "exposure_magnitude"
         r = sn.ranking_authority(s)
         self.assertTrue(r["quantitative"])
-        self.assertEqual(r["metric"], "exposure_magnitude")
-        self.assertEqual(r["metric_label"], sn.RANK_METRICS["exposure_magnitude"]["label"])
+        # The sentence names the metric, because the surfaces that need the name need the
+        # sentence too — returning both was two fields where one was read.
+        self.assertIn(sn.RANK_METRICS["exposure_magnitude"]["label"], r["why"])
 
     def test_a_metric_alone_does_not_grant_it(self):
         """A fixture may name the metric it WOULD rank by and still not rank by it."""
@@ -1074,14 +1075,14 @@ class OrderingAuthorityIsGranted(unittest.TestCase):
         r = sn.ranking_authority(self.s)
         self.assertFalse(r["quantitative"])
         self.assertIn("fixture", r["why"])
-        # The metric is still reported: "declared but not honoured" is a different state from
-        # "never declared", and a surface explaining the refusal needs to be able to say which.
-        self.assertEqual(r["metric"], "exposure_magnitude")
+        # "Declared but not honoured" is a different state from "never declared", and the
+        # refusal has to be able to say which: the sentence names the metric it WOULD rank by.
+        self.assertIn(sn.RANK_METRICS["exposure_magnitude"]["label"], r["why"])
 
     def test_a_modelled_basis_alone_does_not_grant_it(self):
         r = sn.ranking_authority(self._modelled(self.s))
         self.assertFalse(r["quantitative"])
-        self.assertIsNone(r["metric"])
+        self.assertIn("no ranking metric is declared", r["why"])
 
     def test_a_scenario_with_nothing_observed_says_so_rather_than_refusing_vaguely(self):
         self.s["observations"] = []
@@ -1098,21 +1099,104 @@ class OrderingAuthorityIsGranted(unittest.TestCase):
             sn.validate_scenarios({"hormuz": self.s})
         self.assertIn("rank_metric", str(cm.exception))
 
-    def test_every_registered_metric_names_a_field_the_derivation_produces(self):
-        """An entry naming a quantity nothing computes is the `adx_kelly_mult` shape: a knob
-        with no wiring, believed by the next reader because it is written down."""
-        ex = sn.security_exposures(sn.load()["hormuz"])
-        sample = next(iter(ex.values()))
+    def test_every_registered_metric_reaches_a_reader(self):
+        """Every field a registered metric carries has to end up in front of somebody, or it is
+        the `adx_kelly_mult` shape — a knob with no wiring, believed by the next reader because
+        it is written down. Both of these are the words the refusal sentence is built from,
+        which is what the drawer and the ranked chart print."""
+        s = copy.deepcopy(sn.load()["hormuz"])
         for name, spec in sn.RANK_METRICS.items():
-            for field in ("label", "field", "of"):
-                self.assertIn(field, spec, "{} declares no {}".format(name, field))
-            self.assertIn(spec["field"], sample,
-                          "{} ranks on {!r}, which no exposure record carries".format(
-                              name, spec["field"]))
+            self.assertEqual(set(spec), {"label", "of"},
+                             "{} carries a field nothing reads".format(name))
+            s["rank_metric"] = name
+            why = sn.ranking_authority(s)["why"]
+            for field, text in spec.items():
+                self.assertIn(text, why,
+                              "{}'s {} never reaches a surface".format(name, field))
 
     def test_the_verdict_travels_with_the_scenario(self):
         """Decided in Python and shipped, not re-decided by a surface."""
         p = sn.as_payload()["hormuz"]
         self.assertIn("ranking", p)
         self.assertFalse(p["ranking"]["quantitative"])
-        self.assertIn("RANK_METRICS", sn.runtime_js())
+        self.assertTrue(p["ranking"]["why"])
+        # And nothing rides along that no surface reads. The registries reaching the browser
+        # are the ones the page actually looks things up in.
+        js = sn.runtime_js()
+        for dead in ("RANK_METRICS", "STRENGTHS"):
+            self.assertNotIn(dead, js,
+                             dead + " is emitted to a page that never reads it")
+
+
+class TheUnconditionalExpectedImpactRefusesAPartialTree(unittest.TestCase):
+    """Research-honesty review. The fourth quantity this module keeps apart, and the easiest of
+    them to produce by accident.
+
+    Everything needed is already on screen: branch probabilities in one tile, a conditional mean
+    per branch the moment anyone writes one. Multiply and sum and there it is — a number that
+    looks like an expected return and, over a tree missing one branch's mean, is an expected
+    value of nothing in particular. The gate is on the MEAN, per branch: a branch carrying
+    quantiles and no mean passes a presence check and then needs a mean that does not exist,
+    and substituting p50 under skew is an invented number three surfaces from where it shows."""
+
+    def setUp(self):
+        self.s = copy.deepcopy(sn.load()["hormuz"])
+
+    def test_the_shipped_fixture_produces_nothing_and_names_the_branches(self):
+        r = sn.expected_scenario_impact(self.s)
+        self.assertIsNone(r["value"])
+        # Named, not counted: "some branches" leaves the reader unable to check.
+        for b in self.s["branches"]:
+            self.assertIn(b["id"], r["why"])
+
+    def test_a_complete_tree_produces_the_probability_weighted_mean(self):
+        """The true branch. Without it the gate has only ever returned None, which is
+        indistinguishable from a gate broken shut."""
+        for b in self.s["branches"]:
+            b["expected_return"] = {"none": 0.0, "limited": -0.02,
+                                    "sustained": -0.06, "severe": -0.15}[b["id"]]
+        r = sn.expected_scenario_impact(self.s)
+        want = sum(b["probability"] * b["expected_return"] for b in self.s["branches"])
+        self.assertAlmostEqual(r["value"], want, places=9)
+        self.assertEqual(r["horizon"], self.s["branches"][0]["horizon"])
+        self.assertIsNone(r["why"])
+
+    def test_one_missing_mean_is_enough_to_refuse(self):
+        """The whole point. A tree that is 98% covered by probability mass and missing one
+        branch's mean still cannot produce an expectation."""
+        for b in self.s["branches"]:
+            b["expected_return"] = 0.0
+        gone = self.s["branches"][-1]          # 2% of the mass
+        del gone["expected_return"]
+        r = sn.expected_scenario_impact(self.s)
+        self.assertIsNone(r["value"],
+                          "an expectation was computed over the branches that had a mean")
+        self.assertIn(gone["id"], r["why"])
+
+    def test_a_scenario_with_no_branches_says_that_rather_than_returning_zero(self):
+        self.s["branches"] = []
+        self.s["observations"] = []            # branch/observation coherence
+        r = sn.expected_scenario_impact(self.s)
+        self.assertIsNone(r["value"])
+        self.assertIn("no branch tree", r["why"])
+
+    def test_it_travels_in_the_payload_so_a_surface_can_say_it_is_absent(self):
+        """Shipped even though it is null for every scenario that exists. A quantity a surface
+        cannot get is worth saying out loud: the gap between "30% chance" and "what is this
+        worth" is where a reader supplies their own arithmetic if nothing says the system has
+        not."""
+        p = sn.as_payload()["hormuz"]
+        self.assertIn("expected_impact", p)
+        self.assertIsNone(p["expected_impact"]["value"])
+        self.assertTrue(p["expected_impact"]["why"])
+
+    def test_an_expected_return_is_never_multiplied_into_an_exposure(self):
+        """Two different quantities about two different things. Exposure is dimensionless and
+        per (security, channel); this is a portfolio-level mean over the branch tree. Nothing
+        joins them, and the exposure records carry no trace of one."""
+        for b in self.s["branches"]:
+            b["expected_return"] = -0.05
+        for rec in sn.security_exposures(self.s).values():
+            self.assertNotIn("expected_return", rec)
+            for p in rec["paths"]:
+                self.assertNotIn("expected_return", p)

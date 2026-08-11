@@ -2541,3 +2541,46 @@ class TheScenarioTilesComeAndGoWithTheShock(unittest.TestCase):
         self.assertEqual(writers, ["filterLayoutTiles"],
                          "more than one function writes a widget row's hidden state: "
                          + ", ".join(writers))
+
+
+class ThePagesVocabulariesMatchThePythonOnes(unittest.TestCase):
+    """Architecture review. Two small maps in the page enumerate values Python owns: the four
+    exposure statuses and the three development directions.
+
+    Neither is a duplicated RULE — the page decides nothing with them, it only chooses a word
+    and a colour — but both are duplicated VOCABULARIES, and a vocabulary that drifts is how a
+    new status arrives on screen as a raw identifier or, worse, silently takes the styling of
+    whichever branch happens to catch it. Pinned across the language boundary because there is
+    no other way to notice: adding a status in Python breaks nothing that runs."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.js = _decomment(_script(_page()))
+
+    def test_the_four_exposure_states_are_the_four_the_derivation_produces(self):
+        src = _decomment(open(os.path.join(REPO, "tools", "scenarios.py"),
+                              encoding="utf-8").read())
+        resolve = re.search(r"def _resolve_exposure.*?\ndef ", src, re.S)
+        self.assertIsNotNone(resolve, "the exposure resolver is gone")
+        produced = set(re.findall(r'status="(\w+)"', resolve.group(0)))
+        self.assertEqual(len(produced), 4, "the resolver no longer produces four states")
+        shown = set(re.findall(r"\n  (\w+):\s*\{label:",
+                               re.search(r"const EXPOSURE_STATES = \{(.*?)\n\};",
+                                         self.js, re.S).group(1)))
+        self.assertEqual(shown, produced,
+                         "the page's exposure vocabulary has drifted from the derivation's: "
+                         "%s" % sorted(shown ^ produced))
+        # `unassessed` is the one that must never read as "no effect": it is the majority of
+        # reached names, and it means nobody has looked, not that the answer is zero.
+        self.assertIn("unassessed", shown)
+
+    def test_the_three_directions_are_the_three_the_schema_allows(self):
+        import scenarios as sn  # noqa: E402 — imported here, next to its only use
+        dev = _functions(self.js).get("drawScenDev")
+        self.assertIsNotNone(dev, "the development timeline is gone")
+        m = re.search(r"const dirs = \{(.*?)\};", dev, re.S)
+        self.assertIsNotNone(m, "the timeline's direction map is gone")
+        shown = set(re.findall(r"(\w+):", m.group(1)))
+        self.assertEqual(shown, set(sn.DIRECTIONS),
+                         "the timeline's directions have drifted from the schema's: %s"
+                         % sorted(shown ^ set(sn.DIRECTIONS)))
