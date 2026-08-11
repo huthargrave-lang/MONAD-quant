@@ -434,11 +434,38 @@ class TheBucketsAreOnTheScreenerBoard(unittest.TestCase):
 
     def test_the_clock_bump_cannot_exceed_the_authored_scale(self):
         """The heat table is authored on a 0-4 scale. Letting the clock bump run past it
-        would invent a fifth level of a judgement that only has four."""
+        would invent a fifth level of a judgement that only has four.
+
+        This used to assert the substring `Math.min(HEAT_MAX, h + 1)` in the emitted JS. That
+        checked the arithmetic's SPELLING, and the arithmetic no longer travels — the browser
+        receives a precomputed table. So the property is now asserted over every value the
+        browser can actually read, which is strictly stronger: the old form passed on an
+        emitter that shipped the right expression and the wrong numbers."""
         highest = max(v for b in sb.BUCKETS for v in b["heat"].values())
         self.assertEqual(sb.HEAT_MAX, highest,
                          "the ceiling and the table it caps have come apart")
-        self.assertIn("Math.min(HEAT_MAX, h + 1)", sb.runtime_js())
+        table = sb.heat_table()
+        emitted = [v for row in table.values()
+                   for by_clock in row.values() for v in by_clock.values()]
+        self.assertTrue(emitted, "the heat table is empty")
+        self.assertEqual([v for v in emitted if not 0 <= v <= sb.HEAT_MAX], [],
+                         "an emitted heat is outside the authored 0-HEAT_MAX scale")
+        self.assertEqual(max(emitted), sb.HEAT_MAX,
+                         "no emitted state reaches the ceiling, so the scale is not the "
+                         "one the table is authored on")
+        # The ceiling alone is not the property. `min(HEAT_MAX, h + 2)` never exceeds the
+        # scale either, and it silently doubles the step — a heat of 2 that the clock leads
+        # would print 4, the ledger's top level, for a bucket its author scored mid. The
+        # string this test used to assert pinned the step by accident; this pins it on
+        # purpose. Every state is the authored heat, or exactly one step above it.
+        off = [(b["id"], shock, clock, table[b["id"]][shock][clock], authored)
+               for b in sb.BUCKETS
+               for shock, authored in b["heat"].items()
+               for clock, leads in sb.CLOCK_LEADS.items()
+               if table[b["id"]][shock][clock] != (
+                   min(sb.HEAT_MAX, authored + 1)
+                   if authored and b["id"] in leads else authored)]
+        self.assertEqual(off, [], "the clock bump is not exactly one step: {}".format(off[:5]))
 
     def test_no_surface_restates_the_ceiling(self):
         """`heat / 4` reads correctly and is a second copy of HEAT_MAX. It stops reading
@@ -465,11 +492,29 @@ class TheBucketsAreOnTheScreenerBoard(unittest.TestCase):
             [(b["id"], s) for b in sb.BUCKETS
              for s in sb.SHOCK_HINTS if s not in b["heat"]], [],
             "a heat is missing, so a 0 no longer unambiguously means 'scored zero'")
-        rule = re.search(r"function bucketHeat\(.*?\n  \}", sb.runtime_js(), re.S).group(0)
-        self.assertIn("if(h === 0) return 0;", rule,
-                      "the bump must not apply to an authored zero")
-        self.assertLess(rule.index("if(h === 0) return 0;"), rule.index("CLOCK_LEADS"),
-                        "the zero check must run before the bump, not after it")
+        # The two assertions that followed read the emitted SOURCE — that `if(h === 0)
+        # return 0;` appeared, and that it appeared before `CLOCK_LEADS`. Both described one
+        # particular way of writing the rule, and the rule no longer travels as source. The
+        # property they were protecting is asserted directly instead, over every state a
+        # surface can read: an authored zero emits zero at every clock, including the clocks
+        # that lead that bucket. Source ordering cannot express that; this cannot miss it.
+        table = sb.heat_table()
+        lifted = [(b["id"], shock, clock)
+                  for b in sb.BUCKETS
+                  for shock, authored in b["heat"].items() if authored == 0
+                  for clock in sb.CLOCK_LEADS
+                  if table[b["id"]][shock][clock] != 0]
+        self.assertEqual(lifted, [],
+                         "the clock lifted an authored zero: {}".format(lifted[:5]))
+        # And the case that motivates it: the 16 states where a zero-scored bucket IS led by
+        # the selected clock. If this set is ever empty the test above has stopped proving
+        # anything, because no clock would be trying to lift a zero in the first place.
+        tempted = [(b["id"], shock, clock)
+                   for b in sb.BUCKETS
+                   for shock, authored in b["heat"].items() if authored == 0
+                   for clock, leads in sb.CLOCK_LEADS.items() if b["id"] in leads]
+        self.assertTrue(tempted,
+                        "no authored zero is led by any clock, so this guard is vacuous")
 
     def test_neither_surface_can_answer_this_for_itself(self):
         """The two surfaces used to hold the rule separately and had already stopped agreeing
@@ -828,3 +873,125 @@ class TheBucketsPageDrawsWhatWasFetched(unittest.TestCase):
             self.assertLess(abs(ret), 8.0,
                             "{} moved {:.1f}% over the window — a 1-3 month T-bill fund does "
                             "not, so this is not a real series".format(tk, ret))
+
+
+class TheHeatRuleHasOneImplementation(unittest.TestCase):
+    """`bucketHeat` was a JavaScript string literal that only ever ran in a browser, which
+    put the ledger's single most-read rule out of reach of every assertion in this suite.
+
+    That is not a small gap. This repo installs Python alone in CI (`.github/workflows/
+    test.yml` has no `actions/setup-node`), ships no JS engine reachable from Python, and its
+    one `node --check` guard raises `SkipTest` when node is missing on the stated principle
+    that "an unrunnable check is not a failing one". So any parity test written against
+    executed JavaScript would have skipped on every CI run — a proof that pins nothing.
+
+    The arithmetic now lives in `sovereign_buckets.bucket_heat` and the browser receives
+    `heat_table()`, evaluated from it. The obvious alternative — a template that renders the
+    rule back out as JS — was rejected because the arithmetic would still exist twice, once in
+    Python and once in a format string, which is the two-copies condition this module was
+    written to end (`sovereign_buckets.py:9-13`: they "agreed on the tables and disagreed on
+    the arithmetic").
+
+    A table makes parity a pure-Python assertion over `json.loads`. It cannot skip."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.js = sb.runtime_js()
+        m = re.search(r"^  const HEAT = (\{.*\});$", cls.js, re.M)
+        assert m, "the emitted runtime carries no HEAT table"
+        cls.emitted = json.loads(m.group(1))
+
+    def _states(self):
+        for b in sb.BUCKETS:
+            for shock in b["heat"]:
+                for clock in sb.CLOCK_LEADS:
+                    yield b, shock, clock
+
+    def test_every_emitted_state_equals_the_python_rule(self):
+        """The whole point. What a surface reads is what `bucket_heat` computes, for all of
+        it — not for a sample, and not for the states someone thought to check."""
+        wrong = [(b["id"], shock, clock,
+                  self.emitted[b["id"]][shock][clock], sb.bucket_heat(b, shock, clock))
+                 for b, shock, clock in self._states()
+                 if self.emitted[b["id"]][shock][clock] != sb.bucket_heat(b, shock, clock)]
+        self.assertEqual(wrong, [], "emitted heat disagrees with bucket_heat: {}".format(
+            wrong[:5]))
+
+    def test_the_emitted_state_space_is_exactly_the_authored_one(self):
+        """A table with a missing row answers `undefined` for a real state; a table with an
+        extra row answers for a state nobody authored. Both are silent."""
+        self.assertEqual(sorted(self.emitted), sorted(b["id"] for b in sb.BUCKETS),
+                         "the emitted table's buckets are not the ledger's buckets")
+        for b in sb.BUCKETS:
+            self.assertEqual(sorted(self.emitted[b["id"]]), sorted(b["heat"]),
+                             "bucket {} emits a different shock set than it authors".format(
+                                 b["id"]))
+            for shock in b["heat"]:
+                self.assertEqual(sorted(self.emitted[b["id"]][shock]),
+                                 sorted(sb.CLOCK_LEADS),
+                                 "bucket {} under {} emits a different clock set".format(
+                                     b["id"], shock))
+        count = sum(len(by_shock) * len(sb.CLOCK_LEADS)
+                    for by_shock in (b["heat"] for b in sb.BUCKETS))
+        self.assertEqual(sum(len(c) for r in self.emitted.values() for c in r.values()),
+                         count, "the emitted state count is not the authored one")
+
+    def test_the_bump_arithmetic_does_not_travel(self):
+        """If the BUMP is emitted as arithmetic anywhere there are two implementations again,
+        and the parity test above is proving a copy against itself.
+
+        Scoped to the bump, not to every read of `b.heat`: the emitted lookup legitimately
+        falls back to the authored heat for an unknown clock (see the next test), and a token
+        list that forbade `b.heat[` outright would have forced that fallback out and taken
+        the behaviour-preservation with it. What must not travel is the clock arithmetic —
+        the ceiling, the step, and the lead-list membership test."""
+        for token in ("Math.min", "HEAT_MAX, h", "h + 1", "CLOCK_LEADS[clock]", "indexOf(b.id)"):
+            self.assertNotIn(token, self.js,
+                             "the emitted runtime still computes the bump ({!r}); it must "
+                             "only look it up".format(token))
+
+    def test_the_lookup_answers_every_miss_the_way_the_rule_did(self):
+        """Three inputs nobody reaches on purpose, and the old rule had an answer for each.
+        A consolidation that changes one of them is not a consolidation.
+
+        Measured before this refactor: an unknown bucket or shock gave 0, and an UNKNOWN CLOCK
+        gave the authored heat unbumped — `(CLOCK_LEADS[clock] || [])` found the bucket in an
+        empty list and returned `h`. A bare table read returns `undefined` for all three, which
+        `|| 0` would flatten to 0 — bucket 01 under hormuz at a typo'd clock measured 1 before
+        and 0 after. Unreachable through the menus (the reconciliation test keeps it so), and
+        still a behaviour change this phase forbids."""
+        rule = re.search(r"function bucketHeat\(.*?\n  \}", self.js, re.S).group(0)
+        self.assertIn("clock in row[shock]", rule,
+                      "the lookup does not distinguish an unknown clock from a known one, so "
+                      "a typo'd clock returns 0 instead of the authored heat")
+        self.assertRegex(rule, r"return \(b\.heat && b\.heat\[shock\]\) \|\| 0;",
+                         "the unknown-clock fallback must return the authored heat, and an "
+                         "unknown bucket or shock must still return 0 rather than undefined")
+
+    def test_every_bucket_the_page_receives_has_a_row(self):
+        """The fallback above must stay unreachable in practice: the page fills BUCKETS from
+        the same emit that carries HEAT, so every id it can ask about must be present."""
+        shipped = json.loads(re.search(r"^  const BUCKETS = (\[.*\]);$", self.js, re.M)
+                             .group(1))
+        self.assertEqual([b["id"] for b in shipped if b["id"] not in self.emitted], [],
+                         "a shipped bucket has no heat row and would fall back to 0")
+
+    def test_the_clock_menus_and_the_lead_table_agree(self):
+        """The shock menu, heat table and hints are reconciled (above); the clock never was.
+        A surface offering a stage the lead table does not know returns unbumped heat and
+        says nothing — the reader sees a clock that silently does nothing."""
+        pages = {
+            "SCREENER_COMBINED_DRAFT.html": os.path.join(
+                REPO, "docs", "research", "SCREENER_COMBINED_DRAFT.html"),
+            "SOVEREIGN_LEDGER_OPTIONS_MOCK.html": os.path.join(
+                REPO, "docs", "research", "SOVEREIGN_LEDGER_OPTIONS_MOCK.html"),
+            "research_ui.py": os.path.join(REPO, "tools", "research_ui.py"),
+        }
+        for name, path in pages.items():
+            with open(path, encoding="utf-8") as fh:
+                src = fh.read()
+            sel = re.search(r'id="(?:bucket)?[Cc]lock"[^>]*>(.*?)</select>', src, re.S)
+            self.assertIsNotNone(sel, "{} has no clock menu".format(name))
+            menu = set(re.findall(r'value="([^"]+)"', sel.group(1)))
+            self.assertEqual(sorted(menu), sorted(sb.CLOCK_LEADS),
+                             "{}'s clock menu and CLOCK_LEADS disagree".format(name))

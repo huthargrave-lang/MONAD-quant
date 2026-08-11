@@ -390,16 +390,67 @@ CLOCK_LEADS = {
     "T2": ["05", "09", "11", "13", "15", "16", "19", "20"],
 }
 
-# A scored zero stays zero. Every one of the 140 (bucket, shock) pairs above carries a heat —
-# none is absent — so a 0 is an author writing "this shock does not implicate this bucket",
-# not a gap. Promoting it to 1 because the clock leads that bucket would contradict them: the
-# clock says WHEN an implicated bucket bites, so it can sharpen an implication and cannot
-# manufacture one. This is the one place the two surfaces used to differ (16 of 420 states).
+def bucket_heat(bucket, shock, clock):
+    """Heat for one (bucket, shock, clock) — THE arithmetic, and the only copy of it anywhere.
+
+    A scored zero stays zero. Every one of the 140 (bucket, shock) pairs above carries a heat —
+    none is absent — so a 0 is an author writing "this shock does not implicate this bucket",
+    not a gap. Promoting it to 1 because the clock leads that bucket would contradict them: the
+    clock says WHEN an implicated bucket bites, so it can sharpen an implication and cannot
+    manufacture one. This is the one place the two surfaces used to differ (16 of 420 states).
+
+    This used to be a JavaScript string literal, `_HEAT_RULE_JS`, executed only in a browser.
+    That made it unreachable from the test suite: this repo installs Python alone in CI, has no
+    JS engine available to Python, and its one `node --check` guard SKIPS when node is absent
+    ("an unrunnable check is not a failing one"). So the rule the whole ledger reads could not
+    be exercised by a single assertion, and the obvious workaround — re-implementing it in
+    Python inside a test — would have been a second copy that PINS drift rather than catching
+    it, which is precisely the defect this module exists to prevent.
+
+    The browser now receives `heat_table()`, evaluated from this function. See `runtime_js`.
+    """
+    h = (bucket.get("heat") or {}).get(shock) or 0
+    if h == 0:
+        return 0
+    return min(HEAT_MAX, h + 1) if bucket["id"] in CLOCK_LEADS.get(clock, ()) else h
+
+
+def heat_table():
+    """Every (bucket, shock, clock) state, precomputed from `bucket_heat`.
+
+    Shipped to the browser INSTEAD of the arithmetic. A template that rendered the rule back
+    out as JS would still hold a second copy of it, wearing a generator's hat; a table holds
+    none, and parity between what Python computes and what a surface reads becomes a pure
+    Python assertion over `json.loads` — no JS engine, and it cannot skip.
+    """
+    return {
+        b["id"]: {
+            shock: {clock: bucket_heat(b, shock, clock) for clock in CLOCK_LEADS}
+            for shock in b["heat"]
+        }
+        for b in BUCKETS
+    }
+
+
+# The lookup the surfaces call. Same name, same arguments, same answers — for every input,
+# including the two nobody reaches on purpose:
+#
+#   unknown bucket or shock -> 0. A bare table read yields `undefined`, which arrives at
+#     `heatOf(b) - heatOf(a)` as NaN (silently unsorting the grid) and prints "undefined / 4"
+#     in the card's title.
+#   unknown CLOCK -> the authored heat, unbumped. The old rule reached
+#     `(CLOCK_LEADS[clock] || [])`, found the bucket in an empty list, and returned `h`. A
+#     table miss would have returned 0 instead — measured: bucket 01 under hormuz at a typo'd
+#     clock gave 1 before and 0 after. That is a behaviour change, and this phase is a
+#     consolidation that is not allowed to make one, however unreachable the input. The
+#     authored heat is already on the bucket, so restoring it costs nothing and asserts
+#     nothing new; `test_the_clock_menus_and_the_lead_table_agree` is what keeps the branch
+#     unreachable, and this is what keeps it honest if it ever is reached.
 _HEAT_RULE_JS = """
   function bucketHeat(b, shock, clock){
-    const h = (b.heat && b.heat[shock]) || 0;
-    if(h === 0) return 0;
-    return (CLOCK_LEADS[clock] || []).indexOf(b.id) !== -1 ? Math.min(HEAT_MAX, h + 1) : h;
+    const row = HEAT[b.id];
+    if(row && row[shock] && clock in row[shock]) return row[shock][clock];
+    return (b.heat && b.heat[shock]) || 0;
   }"""
 
 
@@ -487,7 +538,11 @@ def runtime_js():
         lit("DELISTED", DELISTED),
         lit("HEAT_MAX", HEAT_MAX),
         lit("CLOCK_LEADS", CLOCK_LEADS),
+        # Precomputed by bucket_heat, never re-derived here. HEAT_MAX and CLOCK_LEADS still
+        # travel because surfaces read them directly — the card's title prints the ceiling
+        # and drawBucketCtl counts the leads — so they are consumed, not left over.
+        lit("HEAT", heat_table()),
         _HEAT_RULE_JS.strip("\n"),
-        "  return {BUCKETS, BOOK1, HINTS, DELISTED, HEAT_MAX, CLOCK_LEADS, bucketHeat};",
+        "  return {BUCKETS, BOOK1, HINTS, DELISTED, HEAT_MAX, CLOCK_LEADS, HEAT, bucketHeat};",
         "})();",
     ])
