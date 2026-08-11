@@ -1425,6 +1425,29 @@ class NoHandlerIsBoundToAnElementThatIsNotThere(unittest.TestCase):
     def test_the_buckets_page_binds_only_to_elements_it_has(self):
         self._check("SOVEREIGN_LEDGER_OPTIONS_MOCK.html")
 
+    # The same defect one level up, and the version that actually shipped. `data-panel-open`
+    # names its panel by id and the handler does `if(!pop) return;` — so a button pointing at
+    # a panel that does not exist renders, takes a click, and does nothing at all. The strip's
+    # `why` button was in that state from Phase D until Phase F built the drawer, and neither
+    # `node --check` nor the check above could see it: the syntax is fine and no
+    # `getElementById` is involved. Every id-by-attribute reference is checked here, not just
+    # the one that broke — a guard written for one attribute is a guard that stops covering
+    # the next one somebody adds.
+    ATTR_REFS = re.compile(r'data-(panel-open|explain)="([\w-]+)"')
+
+    def test_every_panel_a_control_points_at_exists(self):
+        for name in ("SCREENER_COMBINED_DRAFT.html", "SOVEREIGN_LEDGER_OPTIONS_MOCK.html"):
+            with open(os.path.join(REPO, "docs", "research", name), encoding="utf-8") as fh:
+                html = fh.read()
+            present = set(self.IDS.findall(html))
+            missing = ["{}:{} -> {}=#{}".format(
+                           name, html[:m.start()].count("\n") + 1, m.group(1), m.group(2))
+                       for m in self.ATTR_REFS.finditer(html)
+                       if m.group(2) not in present]
+            self.assertEqual(missing, [],
+                             "a control opens a panel that is not in the page, so it renders, "
+                             "takes a click and does nothing:\n" + "\n".join(missing))
+
 
 class TheWidgetPanelIsOneListPerWidget(unittest.TestCase):
     """The Widget options panel names where every module is. It used to render the unplaced

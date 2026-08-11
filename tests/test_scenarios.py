@@ -1200,3 +1200,56 @@ class TheUnconditionalExpectedImpactRefusesAPartialTree(unittest.TestCase):
             self.assertNotIn("expected_return", rec)
             for p in rec["paths"]:
                 self.assertNotIn("expected_return", p)
+
+
+class TheAbsenceStatesHaveAnOrderOfPrecedence(unittest.TestCase):
+    """Derivation review. Two of the four statuses can be true of one exposure at once, and
+    nothing said which wins.
+
+    A security reached by paths that disagree on horizon, on a channel nobody has assessed it
+    for, is both `unassessed` and — structurally — `unresolved`. `unassessed` wins, and that is
+    the right way round: `unresolved` means "we have conflicting assessments", which would be a
+    claim about work nobody has done. With no coefficient there is no sign to net and no
+    magnitude to report, so there is nothing to resolve; the disagreement becomes actionable at
+    exactly the moment somebody writes the sensitivity, and the status flips then.
+
+    The disagreement is not lost meanwhile — every path keeps its own horizon in `paths[]`, so
+    a surface can show both routes. What it may not do is call them unresolved."""
+
+    def setUp(self):
+        self.s = copy.deepcopy(sn.load()["hormuz"])
+
+    def _fork(self, security_bucket, horizon):
+        """Two edges on ONE channel into one bucket, disagreeing on horizon."""
+        e = copy.deepcopy(self.s["transmission"][0])
+        e["bucket_id"] = security_bucket
+        e["horizon"] = horizon
+        self.s["transmission"].append(e)
+
+    def test_an_assessed_security_reached_by_disagreeing_paths_is_unresolved(self):
+        self._fork("04", "90d")                      # FRO has a sensitivity on this channel
+        rec = sn.security_exposures(self.s)[("FRO", "crude_freight_rate_ws")]
+        self.assertEqual(rec["status"], "unresolved")
+        self.assertIsNone(rec["sign"], "a disagreement was silently decided")
+        self.assertIsNone(rec["magnitude"])
+        self.assertEqual(len(rec["paths"]), 2, "a disagreeing path was dropped")
+        self.assertIn("horizons", rec["why"])
+
+    def test_an_unassessed_security_reached_by_disagreeing_paths_stays_unassessed(self):
+        """The precedence. Nothing stated it before this test, so either order would have
+        looked deliberate to the next reader."""
+        self._fork("04", "90d")
+        ex = sn.security_exposures(self.s)
+        # A bucket-04 member with no sensitivity on this channel — reached by both edges.
+        unassessed = [(k, v) for k, v in ex.items()
+                      if k[1] == "crude_freight_rate_ws" and len(v["paths"]) == 2
+                      and all(p["sensitivity_basis"] is None for p in v["paths"])]
+        self.assertTrue(unassessed, "the fixture no longer reaches an unassessed name twice")
+        for key, rec in unassessed:
+            self.assertEqual(rec["status"], "unassessed",
+                             "%s is reported as unresolved, which claims conflicting "
+                             "assessments where nobody has assessed anything" % key[0])
+            self.assertIn("no sensitivity", rec["why"])
+            # And the disagreement survives for a surface that wants to show it.
+            self.assertEqual({p["horizon"] for p in rec["paths"]}, {"30d", "90d"},
+                             "the paths' own horizons were collapsed")
