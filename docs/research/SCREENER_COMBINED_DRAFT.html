@@ -866,9 +866,8 @@ th{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:14px}
 .muted-cell{color:var(--ink-muted);font-size:11.5px}
 .bar{display:block;height:3px;border-radius:2px;background:var(--ord-2);margin-top:4px;min-width:2px}
-.sev{border-left:3px solid transparent;padding-left:9px}
-.sev.good{border-color:var(--good)} .sev.warning{border-color:var(--warning)}
-.sev.neutral{border-color:var(--axis)}
+/* The .sev ticker stripe is gone with the verdict it drew — see renderTable. Nothing else
+   used it; the shadow-severity chips have their own rules. */
 .sticky thead th{position:sticky;top:0;background:var(--surface);z-index:1}
 /* The results table's own height, driven by its grip. A variable rather than a literal so
    the grip and the CSS cannot disagree about what the current height is — the grip writes it
@@ -1188,7 +1187,7 @@ table.bwatch .spark{width:80px;height:26px;display:block}
          the first number, every visit, forever. Now it is one line you open once. -->
     <details class="prose">
       <summary>How to read this surface</summary>
-      <p>One surface. The cloud is still P/E × growth (bubbles = composite rank).
+      <p>One surface. The cloud is still P/E × growth (bubbles = growth per P/E).
       Tone is a separate column and a ring on the plot — never blended into the fill unless
       you ask. No coverage, untoned, and scored zero stay three different marks.
       Three tone sources, and they are not the same kind of evidence: Bloomberg and Reddit are
@@ -1576,7 +1575,9 @@ table.bwatch .spark{width:80px;height:26px;display:block}
               <th class="num">Beta</th>
               <th class="num">Market cap</th>
               <th class="num">$ vol/day</th>
-              <th class="num">Score</th>
+              <th class="num">Growth per P/E<button type="button" class="qmark"
+                data-explain="scoreExplain" aria-expanded="false"
+                aria-label="What the growth-per-P/E column is, and what it is not">?</button></th>
               <th id="toneCol">Bloomberg tone</th>
             </tr>
           </thead>
@@ -1791,6 +1792,37 @@ table.bwatch .spark{width:80px;height:26px;display:block}
   count under the results, not silently dropped and not scored 0%.</p>
 </div>
 
+<div class="explain" id="scoreExplain" role="dialog" aria-modal="false"
+     aria-labelledby="scoreExplainTitle" hidden>
+  <button type="button" class="explain-close" data-panel-close aria-label="Close">×</button>
+  <h3 id="scoreExplainTitle">What this column is — and what it is not</h3>
+  <p><b>It is one ratio: growth divided by a price term.</b> Take the row's growth y/y, treat
+  anything negative as zero, and divide it by the row's P/E scaled so that an average P/E
+  costs about one and a half. A name growing <b>80%</b> on a <b>P/E of 15</b> gives
+  <code>0.80 ÷ (15/15 + 0.5) = 0.53</code>. The result is then held inside
+  <code>0.05</code> to <code>0.99</code> so no single name can run away with the axis.</p>
+  <p><b>It is not a rating, and nothing here judges the company.</b> It reads exactly two
+  fields. It does not know the balance sheet, the AI shadow debt, the beta, the size, the
+  liquidity, the sector, the bucket or the thesis — all of which are columns on this same row.
+  Two names with the same number can be entirely different propositions. It exists to put the
+  table in <em>an</em> order, and every other column is a reason that order might be wrong.</p>
+  <p><b>The clamp is doing more work than it looks.</b> <span id="scoreClampNote">In the
+  current snapshot a large share of scored rows sit on one of the two bounds.</span> Rows at
+  a bound are <b>not ordered against each other</b> — they print the same number because the
+  clamp caught them, not because they are alike. Cells that are sitting on a bound say
+  <span class="muted-cell">at ceiling</span> or <span class="muted-cell">at floor</span>
+  beside the number.</p>
+  <p><b>The floor is not a low grade.</b> Growth of zero and growth of −40% land on the same
+  <code>0.050</code>, and for those rows the P/E is not consulted at all: the numerator is
+  already zero, so a cheap name and an expensive one are indistinguishable there.</p>
+  <p><b>An empty cell is absent, not zero.</b> One of the two inputs is missing, so no ratio
+  exists. That name was not scored badly — it was not scored.</p>
+  <p>If the tone weight is above zero and a tone source is on, the number printed here is this
+  ratio blended with that source's tone, and the rows that could not be blended are marked
+  <span class="muted-cell">no tone</span>. The clamp note still describes the unblended
+  ratio underneath.</p>
+</div>
+
 <div class="explain" id="shadowExplain" role="dialog" aria-modal="false"
      aria-labelledby="shadowExplainTitle" hidden>
   <button type="button" class="explain-close" id="shadowExplainClose" data-panel-close
@@ -1972,7 +2004,7 @@ table.bwatch .spark{width:80px;height:26px;display:block}
     <div class="lens-grid">
       <label>What matters most
         <select id="lensRank">
-          <option value="score" selected>best overall (composite score)</option>
+          <option value="score" selected>growth per P/E (the default order)</option>
           <option value="pe">cheapest (lowest P/E)</option>
           <option value="g">fastest growth</option>
           <option value="dy">most income (dividend yield)</option>
@@ -4218,7 +4250,7 @@ const METRICS = {
   beta:  {label:"beta",                get:r=>r.beta,        fmt:v=>v.toFixed(2)},
   vol:   {label:"$ volume/day",        get:r=>volNum(r.vol), fmt:v=>fmtBig(v)},
   mcap:  {label:"market cap",          get:r=>r.mcap,        fmt:v=>fmtBig(v)},
-  score: {label:"composite score",     get:r=>r.score,       fmt:v=>v.toFixed(3)},
+  score: {label:"growth per P/E",      get:r=>r.score,       fmt:v=>v.toFixed(3)},
   // `tone:true` is what marks a metric as coverage-gated, so anything explaining a chart's
   // pool asks the metric instead of listing tone keys \u2014 a list of keys is how the fourth
   // tone metric ended up captioned as an ordinary field.
@@ -4253,7 +4285,7 @@ const LENS_SPEC = {
      ranking metric. Membership here is REACHABILITY: the scenario runs through a bucket these
      names are in. How much any of them moves is a separate question with a separate answer,
      and under a fixture that answer is illustrative. Borrowing `score` to fill the slot would
-     put a real composite ranking under a scenario heading, where the top row reads as "the
+     put a growth-per-P/E ranking under a scenario heading, where the top row reads as "the
      name this shock most affects". Every consumer of `spec.rank` handles the absence. */
   scenario_reach:       {rank:null,    x:"pe"},
   bloomberg_tone:       {rank:"bb",    x:"bb"},
@@ -4308,7 +4340,7 @@ function customLens(key){ return CUSTOM_LENSES.find(l => l.id === key) || null; 
 
 function registerLens(l){
   LENS_VIEWS[l.id] = l.views.slice();
-  // A composite score has no distribution worth binning on its own, so the axis the lens
+  // Growth per P/E has no distribution worth binning on its own, so the axis the lens
   // argues about falls back to P/E — the field the widest part of the snapshot reports.
   LENS_SPEC[l.id] = {rank:l.rank, x:(l.rank === "score" ? "pe" : l.rank),
                      asc:!!RANK_ASC[l.rank]};
@@ -5485,6 +5517,10 @@ function placePanel(pop, trigger){
 }
 function panelOpen(pop, trigger, focusEl){
   if(activePanel && activePanel.pop !== pop) panelClose();
+  // Counted from the rows on screen, never written into the prose. A hard-coded "32 names"
+  // would be true of one snapshot and quietly false of the next, and the whole point of this
+  // paragraph is that the reader can trust what it says about the column.
+  if(pop.id === "scoreExplain") drawScoreClampNote();
   pop.hidden = false;
   placePanel(pop, trigger);
   document.querySelectorAll(PANEL_TRIGGERS).forEach(b=>b.setAttribute("aria-expanded","false"));
@@ -5648,11 +5684,53 @@ function toneCell(r){
 
 /* A name the snapshot could not score has no score, and an unscored name must not be drawn
    as a short bar next to names that genuinely scored low. */
-function scoreCell(s){
+// The clamp bounds, restated from the server's formula so the cell can say when a row is
+// sitting on one. Python clamps to [0.05, 0.99]; this is display-only and never recomputes
+// the value — if it drifted from the server the cell would mislabel, so a guard pins the pair.
+const SCORE_FLOOR = 0.05, SCORE_CEIL = 0.99;
+
+function drawScoreClampNote(){
+  const el = document.getElementById("scoreClampNote");
+  if(!el) return;
+  const scored = ROWS.filter(r => r.score != null);
+  if(!scored.length){
+    el.textContent = "No row in this snapshot has both inputs, so the column is empty "
+      + "throughout — absent, not zero.";
+    return;
+  }
+  const ceil = scored.filter(r => r.score >= SCORE_CEIL).length;
+  const floor = scored.filter(r => r.score <= SCORE_FLOOR).length;
+  const pinned = ceil + floor;
+  const pct = Math.round(pinned / scored.length * 100);
+  el.innerHTML = `In this snapshot <b>${pinned} of ${scored.length}</b> scored rows `
+    + `(<b>${pct}%</b>) are sitting on a bound — <b>${ceil}</b> at the ceiling and `
+    + `<b>${floor}</b> at the floor.`;
+}
+
+function scoreCell(s, raw){
   if(s == null)
-    return '<span class="muted-cell" title="The snapshot could not compute a composite score'
-      + ' for this name — no reading, not a zero.">—</span>';
-  return `${s.toFixed(3)}<span class="bar" style="width:${Math.max(2,s*100)}%"></span>`;
+    return '<span class="muted-cell" title="The snapshot has no growth-per-P/E value for this'
+      + ' name — one of the two inputs is missing. No reading, not a zero.">—</span>';
+  /* Rows sitting on a clamp bound say so. A large minority of the scored table does — they
+     print an identical number not because they are alike but because the clamp caught them,
+     and the cheapest and the most expensive name in the ceiling cohort are indistinguishable
+     here. Unmarked, that reads as a measurement that happens to have tied.
+
+     Marked only when the printed number IS the bound. With tone blended in, `s` is no longer
+     the bound, and "at ceiling" beside a number that is not at the ceiling would be a label
+     for a value the cell is not showing. The blend note above the table covers that case.
+
+     Inline, ahead of the bar, which is `display:block` — so this costs no row height, and it
+     sits inside the width the column header already requires. */
+  const at = (raw == null || s !== raw) ? null
+    : (raw >= SCORE_CEIL ? "ceiling" : (raw <= SCORE_FLOOR ? "floor" : null));
+  const mark = at ? ` <span class="muted-cell" title="${at === "ceiling"
+      ? "Held at the top of the clamp. Every name here prints this same number, so the column"
+        + " does not order them against each other."
+      : "Held at the bottom of the clamp — growth was zero, negative, or small next to the"
+        + " P/E. This is the bound, not a measurement of this name."
+    }">at ${at}</span>` : "";
+  return `${s.toFixed(3)}${mark}<span class="bar" style="width:${Math.max(2,s*100)}%"></span>`;
 }
 
 function percentile(sorted, p){
@@ -6238,7 +6316,7 @@ function rankScore(r){
 function renderTable(){
   /* Order is a claim. Whatever is at the top of a screen is read as "the one this most
      applies to", so under a lens that may not rank, the table may not fall back to the
-     composite score either — that would put a real ranking under a scenario heading and
+     growth-per-P/E order either — that would put a real ranking under a scenario heading and
      invite the reading that the scenario produced it. The lens's own deterministic,
      non-quantitative order is used instead, and the sentence above the table says so. */
   const byReach = preset === SCENARIO_LENS && !(scenarioRanking() || {}).quantitative;
@@ -6323,14 +6401,14 @@ function renderTable(){
       // is about the toggle — including for names all three sources cover.
       if(w && toneSourceOff())
         why.innerHTML += ` Tone in rank is set to <b>${(w * 100).toFixed(0)}%</b> but the tone`
-          + ` source is <b>off</b>, so nothing is blended and this rank is the composite score`
+          + ` source is <b>off</b>, so nothing is blended and this rank is growth per P/E`
           + ` alone — that is the toggle, not a statement about coverage. Pick a source to`
           + ` apply the weight.`;
       else if(w)
         why.innerHTML += ` Rank blends <b>${(w * 100).toFixed(0)}%</b>`
-          + ` ${source === "all" ? "combined" : esc(sourceLabel())} tone into the composite`
-          + ` score; names with no coverage keep their unblended score and are marked`
-          + ` <span class="muted-cell">no tone</span> in the score cell.`
+          + ` ${source === "all" ? "combined" : esc(sourceLabel())} tone into growth per`
+          + ` P/E; names with no coverage keep their unblended value and are marked`
+          + ` <span class="muted-cell">no tone</span> in that cell.`
           // The social lens note already spells the combined rule out above; twice on one
           // screen is noise, and the reader on any other lens has not been told at all.
           + (source === "all" && !isSocialLens() ? ` ${TONE_COMBINE_NOTE}` : ``);
@@ -6376,7 +6454,12 @@ function renderTable(){
   }).join("");
   document.getElementById("tbody").innerHTML=sorted.map((r,i)=>{
     const rv=rankScore(r);
-    const sev=rv==null?"":(rv>=0.75?"good":(rv>=0.55?"neutral":"warning"));
+    // No severity stripe on the ticker. It used to carry green/amber/grey off thresholds on
+    // this very number — a traffic light beside a company name, which reads as a verdict on
+    // the company. The number is growth divided by a P/E term and nothing else: it knows
+    // nothing about the balance sheet, the size, the liquidity or the thesis, and half the
+    // scored rows sit pinned at one of its two clamp bounds. Colouring a company by it says
+    // something the arithmetic cannot support.
     const on=r.tk===selected?' style="background:var(--plane)"':'';
     const flag=r.flag?`<br><span class="chip warning"><span class="dot"></span>${esc(r.flag)}</span>`:"";
     const blended=w && rv!=null && rv!==r.score;
@@ -6387,7 +6470,7 @@ function renderTable(){
       ? `<br><span class="muted-cell">no tone</span>` : "";
     return `<tr data-tk="${escAttr(r.tk)}"${on} style="cursor:pointer">
       <td class="num">${i+1}</td>
-      <td class="sev ${sev}"><button type="button" class="tk-open" data-open="${escAttr(r.tk)}"
+      <td><button type="button" class="tk-open" data-open="${escAttr(r.tk)}"
         title="Open ${escAttr(r.tk)} in full" aria-label="Open ${escAttr(r.tk)} in full"><code>${esc(r.tk)}</code></button></td>
       <td>${esc(r.name||"—")}</td>
       <td>${esc(r.sector||"—")}</td>
@@ -6401,7 +6484,7 @@ function renderTable(){
       <td class="num">${r.beta==null?"—":r.beta.toFixed(2)}</td>
       <td class="num">${r.mcap!=null?esc(fmtBig(r.mcap)):'<span class="muted-cell">—</span>'}</td>
       <td class="num">${esc(r.vol||"—")}</td>
-      <td class="num">${scoreCell(rv)}${note}</td>
+      <td class="num">${scoreCell(rv, r.score)}${note}</td>
       <td>${toneCell(r)}</td>
     </tr>`;
   }).join("") + listedHTML
@@ -7072,7 +7155,7 @@ function cardBody(r){
       + dcCell("Market cap",    r.mcap != null ? esc(fmtBig(r.mcap))
                                  : '<span class="muted-cell">—</span>')
       + dcCell("$ vol/day",     esc(r.vol || "—"))
-      + dcCell("Score",         r.score == null ? "—" : scoreCell(r.score))
+      + dcCell("Growth per P/E", r.score == null ? "—" : scoreCell(r.score, r.score))
       + dcCell("AI exposure",   esc(r.ai || "—"))
       + dcCell("Bucket",        esc(r.bucket || "—"))
     + '</div>'

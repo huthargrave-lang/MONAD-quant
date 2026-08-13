@@ -3850,6 +3850,57 @@ def _combined_draft_providers(fund, prices, sent):
     return providers
 
 
+#: A growth number is flagged when it is arithmetic about a base rather than a description of
+#: a business. The page has promised this since the growth explainer was written — "Rows where
+#: this is likely carry a base-effect flag next to the number" — and the payload shipped
+#: `"flag": None` for every row, so the chip the table and the detail card both draw could never
+#: appear. The promise was live and the mechanism was not.
+#:
+#: The test is the explainer's own sentence, not a new one. It says earnings "measured off a
+#: small or depressed base year runs to hundreds or thousands of percent without the business
+#: having changed by anything like that much", and that "revenue growth almost never does this".
+#: So revenue is the corroborating leg: an earnings number that is large in absolute terms AND
+#: far larger than the revenue number beside it is the base effect the explainer describes.
+#:
+#: The two constants are a judgement and are stated as one. 200% is "hundreds of percent" from
+#: the explainer's own wording; 5x is what separates a base effect from operating leverage.
+#: Measured on the shipped snapshot they flag 20 of 225 rows — including FRO (1580% earnings on
+#: 67% revenue) and NKE (428% while revenue SHRANK 1%), and excluding MU, whose 1368% earnings
+#: sits on revenue that itself nearly quadrupled. Loosening either constant starts flagging
+#: ordinary operating leverage, and a flag on everything says nothing.
+BASE_EFFECT_MIN_GROWTH = 2.0     # 200% — the explainer's "hundreds of percent"
+BASE_EFFECT_RATIO = 5.0          # earnings moved this many times more than the business
+
+
+def _base_effect_flag(earnings, revenue, growth):
+    """The chip text for a growth number that is a base effect, or None.
+
+    Takes the two legs and the number the column actually printed, rather than a row, because
+    the column resolves that number across two snapshots and the flag has to be judged against
+    the pair it came from.
+
+    Scoped to the EARNINGS leg on purpose — hence `growth != earnings` rather than a test on
+    `earnings` alone. The column falls back to revenue growth when the vendor reports no
+    earnings figure, and the explainer's whole argument is that revenue does not produce this
+    artifact, so flagging a revenue-sourced number would attach the earnings explanation to a
+    number that is not an earnings number.
+
+    `None` when the row is clean, which is what keeps the chip absent rather than empty.
+    """
+    if earnings is None or growth is None or growth != earnings:
+        return None                       # absent, or the revenue fallback is in the column
+    if earnings < BASE_EFFECT_MIN_GROWTH:
+        return None
+    # A shrinking business needs no special case, which is why there is no `max(revenue, 0)`
+    # here: `earnings` has already cleared 200%, so a negative revenue figure puts the whole
+    # right-hand side below it and the row flags — which is the intended reading. NKE is the
+    # live example, 428% earnings while revenue fell 1%. Clamping the revenue leg at zero
+    # would have been a no-op dressed as caution.
+    if revenue is not None and earnings < BASE_EFFECT_RATIO * revenue:
+        return None                       # the business moved with it: operating growth
+    return "base effect?"
+
+
 def _screener_combined_draft_payload():
     """Join fund + sentiment snapshots into the draft's row/headline shape.
 
@@ -3897,6 +3948,16 @@ def _screener_combined_draft_payload():
             g = sr.get("earnings_growth")
             if g is None:
                 g = sr.get("revenue_growth")
+        # Both legs resolved with the same precedence `g` just used, so the flag is judged
+        # against the pair the printed number actually came from rather than against whichever
+        # snapshot happened to be consulted first.
+        eg = fr.get("earnings_growth")
+        if eg is None:
+            eg = sr.get("earnings_growth")
+        rg = fr.get("revenue_growth")
+        if rg is None:
+            rg = sr.get("revenue_growth")
+        flag = _base_effect_flag(eg, rg, g)
         de = fr.get("debt_to_equity")
         dy = fr.get("dividend_yield")
         # No midpoint default: a 0.5 for a name missing P/E or growth is a manufactured
@@ -3956,7 +4017,7 @@ def _screener_combined_draft_payload():
             "yh": sr.get("yahoo_tone"),
             "yh_c": sr.get("yahoo_coverage") or 0,
             "yh_t": sr.get("yahoo_toned") or 0,
-            "flag": None,
+            "flag": flag,
         })
 
     providers = _combined_draft_providers(fund, prices, sent)

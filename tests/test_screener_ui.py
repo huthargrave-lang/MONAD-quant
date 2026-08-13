@@ -20,6 +20,7 @@ A behaviour harness would catch more, and is a reasonable thing to add later. Wh
 catch is the specific failure that has already happened twice here: two copies of one
 definition, drifting silently, with both surfaces published side by side.
 """
+import inspect
 import os
 import re
 import sys
@@ -2816,3 +2817,265 @@ class TheReachByDirectionModuleReadsItsGroupsRatherThanDecidingThem(unittest.Tes
     def test_the_module_carries_its_own_fixture_marker(self):
         self.assertIn('fxMark("sopps"', self.body,
                       "a module listing fixture-derived classifications carries no marker")
+
+
+class TheBaseEffectFlagThePageAlreadyPromised(unittest.TestCase):
+    """The growth explainer has said "Rows where this is likely carry a base-effect flag next
+    to the number" since it was written, and both render sites — the table cell and the detail
+    card — were wired to draw `r.flag`. The payload shipped `"flag": None` on every row, so the
+    chip could not appear on any of them. Every part of the mechanism existed except the one
+    that decides, and nothing noticed because nothing asked the payload for a flag.
+
+    That is why the guards below go through `authored_payload` rather than calling the helper.
+    A unit test of `_base_effect_flag` alone passes with `"flag": None` still hard-coded in the
+    row literal — it would have proved the rule correct and the feature dead."""
+
+    #: One name per case, each isolating a single clause of the rule. Values are chosen here;
+    #: `growth` mirrors `stock_screener`'s own `eg if eg is not None else rg` so these rows are
+    #: shaped like the snapshot they stand in for.
+    CASES = [
+        # tk       earnings  revenue   growth   flagged  why
+        ("BASE",   15.80,    0.67,     15.80,   True,
+         "1580% earnings on 67% revenue — 24x, the base effect the explainer describes"),
+        ("SHRANK", 4.28,     -0.01,    4.28,    True,
+         "428% earnings while the business shrank; max(revenue,0) must not rescue this"),
+        ("LEVER",  4.00,     3.00,     4.00,    False,
+         "operating leverage at 1.3x — the business moved with the earnings, so it is not "
+         "a base effect; this is what stops the ratio being loosened below ~1.3"),
+        ("NEAR",   10.00,    1.50,     10.00,   True,
+         "6.7x, just past the 5x line — this is what stops the ratio being tightened past "
+         "it, and the pair with LEVER is what brackets the constant"),
+        ("SMALL",  1.50,     0.02,     1.50,    False,
+         "150% is under the threshold; large ratios alone do not make a base effect"),
+        ("REVONLY", None,    9.00,     9.00,    False,
+         "no earnings figure at all — the column is showing revenue, which the explainer "
+         "says almost never does this"),
+    ]
+
+    @staticmethod
+    def _row(tk, eg, rg, growth):
+        return {"ticker": tk, "name": tk + " Inc", "sector": "Energy", "pe": 12.0,
+                "growth": growth, "earnings_growth": eg, "revenue_growth": rg,
+                "dividend_yield": 0.01, "debt_to_equity": 20.0, "beta": 1.0,
+                "market_cap": 1.0e10, "dollar_volume": 5.0e8, "avg_volume": 1.0e7,
+                "price": 50.0, "profit_margin": 0.1, "range_52w_pct": 0.5,
+                "ai": "low", "bucket": "oil shock"}
+
+    @classmethod
+    def setUpClass(cls):
+        rows = [cls._row(tk, eg, rg, g) for tk, eg, rg, g, _f, _w in cls.CASES]
+        payload = screener_payload_fixture.authored_payload(fund_rows=rows)
+        cls.by_tk = {r["tk"]: r for r in payload["rows"]}
+
+    def test_the_flag_reaches_the_row_and_not_only_the_helper(self):
+        for tk, _eg, _rg, _g, flagged, why in self.CASES:
+            row = self.by_tk.get(tk)
+            self.assertIsNotNone(row, tk + " never reached the payload")
+            with self.subTest(tk=tk):
+                if flagged:
+                    self.assertIsNotNone(
+                        row["flag"],
+                        "{} carries no flag, but {}".format(tk, why))
+                else:
+                    self.assertIsNone(
+                        row["flag"],
+                        "{} is flagged, but {}".format(tk, why))
+
+    def test_a_column_showing_revenue_is_not_flagged_by_an_earnings_figure_elsewhere(self):
+        """The one clause the payload fixture cannot reach, called directly and labelled as
+        such rather than left unexercised.
+
+        `_screener_combined_draft_payload` resolves the printed number from the fundamentals
+        row and falls back to the sentiment row; the two legs resolve the same way. So a name
+        whose fundamentals fetch found no earnings figure prints REVENUE growth, while the
+        sentiment snapshot may still carry an earnings figure for it. `growth != earnings` is
+        what stops the earnings explanation being attached to the revenue number on screen.
+
+        `authored_payload` forces sentiment absent on purpose — that is what makes the payload
+        identical in CI and on a machine with a tone cache — so this divergence cannot be
+        built through it. Dropping the clause leaves every other guard here green."""
+        self.assertIsNone(
+            research_ui._base_effect_flag(earnings=9.00, revenue=0.30, growth=0.30),
+            "a revenue number in the column was flagged using an earnings figure the column "
+            "is not showing")
+        self.assertEqual(
+            research_ui._base_effect_flag(earnings=9.00, revenue=0.30, growth=9.00),
+            "base effect?",
+            "the same pair, with the earnings number actually in the column, must flag")
+
+    def test_a_clean_row_carries_no_flag_rather_than_an_empty_one(self):
+        """`""` and `None` render differently: the table tests `r.flag?` truthiness, but the
+        detail card and any future consumer should not have to know that an empty string is
+        this module's way of saying nothing."""
+        self.assertIsNone(self.by_tk["LEVER"]["flag"])
+
+    def test_the_flag_says_it_is_a_question_not_a_finding(self):
+        """The rule is two thresholds over vendor figures, not an audit of the filing. Wording
+        that asserted the base effect would be a claim the arithmetic cannot support."""
+        chip = self.by_tk["BASE"]["flag"]
+        self.assertIsNotNone(chip, "no chip to read")
+        self.assertIn("?", chip, "the chip states a base effect as fact")
+
+    def test_the_explainer_still_promises_what_the_payload_now_delivers(self):
+        """These two drifted apart once already, in the direction of the page promising more
+        than the payload did. Either side moving alone should fail."""
+        html = _page()
+        self.assertIn("base-effect flag", html,
+                      "the growth explainer no longer promises the flag the payload emits")
+
+    def test_both_render_sites_still_draw_the_row_field(self):
+        """The chip appears in the results table and on the detail card. A flag that reaches
+        the payload and is drawn by neither is the same dead feature in a new place."""
+        js = _decomment(_script(_page()))
+        fns = _functions(js)
+        self.assertRegex(fns["renderTable"], r"r\.flag\s*\?",
+                         "the results table no longer draws the base-effect chip")
+        # `drawCard` delegates the populated case to `cardBody`; asserting against `drawCard`
+        # passed vacuously on the string "flag" appearing nowhere near the chip.
+        self.assertRegex(fns["cardBody"], r"r\.flag",
+                         "the detail card no longer draws the base-effect chip")
+
+
+class TheScoreColumnDoesNotRateCompanies(unittest.TestCase):
+    """This column was headed "Score", labelled "composite score", offered in the lens builder
+    as "best overall", printed to three decimals with a filled bar, and given a green / amber /
+    grey stripe down the ticker cell beside it. It is `max(growth, 0) / (pe / 15 + 0.5)`,
+    clamped — two fields, on a row carrying thirteen. Everything about its presentation said
+    verdict on a company and the arithmetic supports none of that.
+
+    The clamp is the sharpest part: on the shipped snapshot 99 of 206 scored rows sit exactly
+    on a bound, 32 of them printing an identical 0.990. Undisclosed, a tie produced by a clamp
+    reads as a measurement that happened to agree."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.html = _page()
+        cls.js = _decomment(_script(cls.html))
+        cls.fns = _functions(cls.js)
+
+    def test_no_traffic_light_is_drawn_beside_a_company_name(self):
+        """The stripe was `rv >= 0.75 ? good : rv >= 0.55 ? neutral : warning` on the ticker
+        cell — a two-field ratio colouring the company itself."""
+        self.assertNotRegex(
+            self.fns["renderTable"], r'class="sev',
+            "the ticker cell carries a severity class again")
+        self.assertNotRegex(
+            self.fns["renderTable"], r"rankScore\([^)]*\)[^;]*\?[^;]*(good|warning)",
+            "a severity is being derived from the ranking value again")
+        self.assertNotRegex(
+            self.html, r"\.sev\s*\{", "the ticker severity-stripe rule is back in the CSS")
+
+    def test_the_column_names_its_two_ingredients(self):
+        """"Score" and "composite" both claim more than one ratio over two fields."""
+        for gone in ("composite score", "best overall"):
+            self.assertNotIn(gone, self.html,
+                             "the page still calls this column '{}'".format(gone))
+        self.assertRegex(self.html, r'<th class="num">Growth per P/E<button',
+                         "the results header no longer names the two fields")
+        self.assertRegex(self.js, r'score:\s*\{label:"growth per P/E"',
+                         "the metric label no longer names the two fields")
+
+    def test_the_column_has_an_explainer_the_reader_can_open(self):
+        """Growth and AI shadow both earned a `?`. This column is the one most likely to be
+        read as a verdict and had none."""
+        self.assertRegex(self.html, r'data-explain="scoreExplain"',
+                         "the header has no way to open the explanation")
+        self.assertRegex(self.html, r'id="scoreExplain"',
+                         "the explanation panel the header points at does not exist")
+
+    def test_the_explainer_refuses_the_reading_it_exists_to_prevent(self):
+        panel = re.search(r'<div class="explain" id="scoreExplain".*?\n</div>',
+                          self.html, re.S)
+        self.assertIsNotNone(panel, "the panel is no longer a self-contained block")
+        body = panel.group(0)
+        self.assertIn("not a rating", body,
+                      "the panel no longer says what this number is not")
+        self.assertIn("absent, not zero", body,
+                      "the panel no longer separates a missing value from a low one")
+        # The named omissions are the point: a reader who knows only that it is "two fields"
+        # cannot tell WHICH thirteen columns it ignores.
+        for ignored in ("balance sheet", "beta", "liquidity", "bucket"):
+            self.assertIn(ignored, body,
+                          "the panel no longer names '{}' among what this ignores".format(
+                              ignored))
+
+    def test_the_clamp_bounds_are_not_a_second_opinion(self):
+        """`SCORE_FLOOR` / `SCORE_CEIL` decide what the cell labels as a bound. The clamp
+        itself lives in `_screener_combined_draft_payload`. Two copies of one pair of numbers
+        is exactly the drift this suite exists for: if Python widened the clamp and the page
+        did not, cells would be labelled 'at ceiling' at a value that is no longer the
+        ceiling — and the label would still look authoritative."""
+        page = dict(re.findall(r"SCORE_(FLOOR|CEIL)\s*=\s*([0-9.]+)", self.js))
+        self.assertEqual(set(page), {"FLOOR", "CEIL"}, "the page's bounds are gone")
+        src = inspect.getsource(research_ui._screener_combined_draft_payload)
+        clamp = re.search(r"max\(\s*([0-9.]+)\s*,\s*min\(\s*([0-9.]+)\s*,", src)
+        self.assertIsNotNone(clamp, "the clamp is no longer written as max(floor, min(ceil,")
+        self.assertEqual(float(page["FLOOR"]), float(clamp.group(1)),
+                         "the page's floor is not Python's floor")
+        self.assertEqual(float(page["CEIL"]), float(clamp.group(2)),
+                         "the page's ceiling is not Python's ceiling")
+        # The explainer states the bounds and the shape of the denominator in prose, which is
+        # a THIRD copy and the one a reader is most likely to believe. Pin it to the same
+        # source: prose that has drifted is worse than no prose, because it is being read as
+        # the authority on what the column means.
+        panel = re.search(r'<div class="explain" id="scoreExplain".*?\n</div>',
+                          self.html, re.S).group(0)
+        self.assertIn("<code>{}</code> to <code>{}</code>".format(
+            clamp.group(1), clamp.group(2)), panel,
+            "the explainer states clamp bounds that are not the ones Python applies")
+        den = re.search(r"\(\s*pe\s*/\s*([0-9.]+)\s*\+\s*([0-9.]+)\s*\)", src)
+        self.assertIsNotNone(den, "the price term is no longer written as (pe / N + M)")
+        self.assertIn("15/{} + {}".format(den.group(1).rstrip("0").rstrip("."),
+                                          den.group(2)), panel,
+                      "the explainer's worked example uses a price term Python does not")
+
+    def test_the_worked_example_in_the_explainer_is_arithmetically_true(self):
+        """A worked example is the part a reader checks by hand. One that does not come out
+        teaches them the column is lying about itself."""
+        panel = re.search(r'<div class="explain" id="scoreExplain".*?\n</div>',
+                          self.html, re.S).group(0)
+        shown = re.search(r"<code>([0-9.]+) ÷ \(15/([0-9.]+) \+ ([0-9.]+)\) = ([0-9.]+)</code>",
+                          panel)
+        self.assertIsNotNone(shown, "the worked example is gone or no longer machine-readable")
+        growth, div, add, claimed = (float(shown.group(i)) for i in (1, 2, 3, 4))
+        self.assertAlmostEqual(growth / (15.0 / div + add), claimed, places=2,
+                               msg="the explainer's own worked example does not come out")
+
+    def test_a_row_held_at_a_bound_says_so(self):
+        body = self.fns["scoreCell"]
+        self.assertRegex(body, r"raw\s*>=\s*SCORE_CEIL", "the ceiling is no longer detected")
+        self.assertRegex(body, r"raw\s*<=\s*SCORE_FLOOR", "the floor is no longer detected")
+        self.assertIn("at ${at}", body, "the bound is detected and never rendered")
+
+    def test_the_bound_marker_describes_the_number_actually_printed(self):
+        """With tone blended in, the printed value is no longer the bound. Marking it anyway
+        would label a value the cell is not showing."""
+        self.assertRegex(self.fns["scoreCell"], r"s\s*!==\s*raw",
+                         "the marker no longer checks that the printed value is the bound")
+
+    def test_the_clamp_share_is_counted_from_the_rows_not_written_into_the_prose(self):
+        """"32 at the ceiling" is true of one snapshot. In prose it would go quietly false on
+        the next fetch, inside the paragraph whose whole job is to be trustworthy."""
+        note = self.fns.get("drawScoreClampNote")
+        self.assertIsNotNone(note, "the clamp note is no longer computed")
+        self.assertIn("ROWS.filter", note, "the clamp note no longer counts the live rows")
+        # Counting and then not USING the counts is the whole defect in miniature — the
+        # filters can stay while the sentence goes back to literals, and asserting the
+        # counting alone passes that. Every count the sentence states must be interpolated.
+        emitted = re.search(r"el\.innerHTML\s*=(.*?);\s*\n\}?\s*$", note, re.S)
+        self.assertIsNotNone(emitted, "the clamp sentence is no longer assigned in one place")
+        for var in ("${pinned}", "${scored.length}", "${pct}", "${ceil}", "${floor}"):
+            self.assertIn(var, emitted.group(1),
+                          "the clamp sentence states a number it did not count ({} is "
+                          "missing, so that figure is a literal)".format(var))
+        panel = re.search(r'<div class="explain" id="scoreExplain".*?\n</div>',
+                          self.html, re.S).group(0)
+        self.assertIn('id="scoreClampNote"', panel, "the panel has no slot for the count")
+        self.assertNotRegex(
+            panel, r"\b\d{2,} (?:of|at) \b",
+            "a snapshot-specific count has been written into the panel's prose")
+
+    def test_the_count_is_refreshed_when_the_panel_opens(self):
+        """Computed and never called is the failure mode this repo has paid for twice."""
+        self.assertRegex(self.fns["panelOpen"], r'"scoreExplain"\)\s*drawScoreClampNote\(\)',
+                         "the clamp note is computed but never drawn")
