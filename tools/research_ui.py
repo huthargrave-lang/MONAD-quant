@@ -2102,10 +2102,15 @@ def page_sweep(mounts, query=None):
     for t in SWEEP_TICKERS:
         body.append('<option value="%s">%s</option>' % (t, t))
     body.append('</select></label>')
+    # Labels say what each phase DOES. The first version called phase 2 an "exit grid", which
+    # it is not — it fine-tunes target and stop. A control whose label is wrong about the work
+    # it starts is worse than one with no label.
     body.append('<label><span>Phase</span><select id="swPhase">'
-                '<option value="1">1 · entry grid ~40s</option>'
-                '<option value="2">2 · exit grid</option>'
-                '<option value="all">all · slower</option></select></label>')
+                '<option value="all">Coarse, then fine-tune &#183; the normal one</option>'
+                '<option value="1">Coarse only &#183; wide scan of each knob, ~40s</option>'
+                '<option value="2">Fine-tune only &#183; narrows around config.py\'s values</option>'
+                '<option value="exit-tuning">Exit tuning &#183; the short-RSI side only</option>'
+                '</select></label>')
     body.append('<label><span>Cost model</span><select id="swMode">'
                 '<option value="realistic">realistic</option>'
                 '<option value="harsh">harsh</option>'
@@ -2131,12 +2136,6 @@ def page_sweep(mounts, query=None):
                 'journal — never <code>config.py</code>.</p>')
     body.append('<div id="swOut"></div>')
     body.append(SWEEP_CLAIMS)
-    if not avail["is_current_process"]:
-        # One line, not a panel. It is a real fact and it is not what the page is about.
-        body.append('<p class="why sweep-note">This server runs <code>%s</code> (Python %s), '
-                    'which cannot import the strategy engine; sweeps run on <code>%s</code>.</p>'
-                    % (esc(os.path.basename(avail["current_process"])),
-                       esc(avail["current_version"]), esc(avail["interpreter"])))
     body.append(SWEEP_LONG)
     body.append(SWEEP_CSS + SWEEP_JS)
     return page("Engine sweep", "/sweep", "".join(body), mounts,

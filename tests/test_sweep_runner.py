@@ -197,15 +197,31 @@ class TheSweepSurfaceDoesNotOverclaim(unittest.TestCase):
         self.assertIn("Cannot run here", html)
         self.assertNotIn('id="swGo"', html, "a dead run button is still rendered")
 
-    def test_the_interpreter_split_is_disclosed_when_it_exists(self):
-        """The server usually runs a venv that cannot import the engine at all, so the sweep
-        runs on a different Python than the page. A reader comparing numbers deserves to know
-        two interpreters were involved."""
-        avail = sweep_runner.availability()
-        if avail["runnable"] and not avail["is_current_process"]:
-            self.assertIn("cannot import the strategy engine", self.html)
-            self.assertIn("cannot import the strategy engine", self.html)
+    def test_the_interpreter_note_stays_off_the_results_page(self):
+        """It used to say the server runs one Python and sweeps run another. True, and noise:
+        a reader of results has no way to know what "the server" is, and the split cannot
+        change a number — both interpreters run the same engine, and the sweep always runs on
+        the capable one. The fact lives in docs/DEPLOY_RESEARCH_UI.md, where a person
+        deploying will look for it."""
+        for gone in ("cannot import the strategy engine", "Two interpreters", "Python 3.9"):
+            self.assertNotIn(gone, self.html)
+        with open(os.path.join(REPO, "docs", "DEPLOY_RESEARCH_UI.md"), encoding="utf-8") as fh:
+            doc = fh.read()
+        self.assertIn("Python 3.9.6", doc,
+                      "the fact was taken off the page and recorded nowhere")
+        self.assertIn("dict | None", doc)
 
+    def test_each_phase_label_says_what_that_phase_does(self):
+        """The first version called phase 2 an "exit grid". It is not — sweep.py:774 fine-tunes
+        target and stop, and `exit-tuning` is a separate phase that sweeps the short-RSI side.
+        A control whose label is wrong about the work it starts is worse than an unlabelled one."""
+        self.assertNotIn("exit grid", self.html, "phase 2 is still called an exit grid")
+        for phase in ("all", "1", "2", "exit-tuning"):
+            self.assertIn('value="%s"' % phase, self.html, phase)
+        self.assertIn("Coarse, then fine-tune", self.html)
+        # Running phase 2 alone starts from config.py's values, not from a phase-1 winner,
+        # and the label has to say so or it silently answers a different question.
+        self.assertRegex(self.html, r"Fine-tune only[^<]*config\.py")
 
 class TheInterpreterProbeIsReal(unittest.TestCase):
 
