@@ -395,3 +395,72 @@ class ScreenPageTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AnImputedValueIsNotAJudgeableOne(unittest.TestCase):
+    """Yahoo answers `profitMargins: 0.0` for a pre-revenue company rather than null. OKLO
+    ships 0.0 against net income of -152,768,992 on revenue of 1,210,000 — a true margin near
+    -12,600%. Recorded live from the vendor, not inferred.
+
+    A margin is net income over revenue, so EXACTLY zero alongside a non-zero net income is not
+    a thin margin; it is arithmetically impossible. That is what makes the test narrow enough
+    to be safe: a company really can post a margin that rounds to zero, and this does not touch
+    it."""
+
+    def test_the_placeholder_shape_is_detected_and_the_real_ones_are_not(self):
+        yes = {"profitMargins": 0.0, "netIncomeToCommon": -152768992}
+        self.assertTrue(sc._is_placeholder_margin(yes), "OKLO's shape is not detected")
+        for label, info in (
+                ("a genuine break-even", {"profitMargins": 0.0, "netIncomeToCommon": 0}),
+                ("no net income reported", {"profitMargins": 0.0}),
+                ("a real positive margin", {"profitMargins": 0.62966,
+                                            "netIncomeToCommon": 159612993536}),
+                ("a real NEGATIVE margin", {"profitMargins": -2.52341,
+                                            "netIncomeToCommon": -5000000}),
+                ("nothing reported at all", {})):
+            with self.subTest(case=label):
+                self.assertFalse(sc._is_placeholder_margin(info), label)
+
+    def test_a_missing_margin_is_still_missing_not_imputed(self):
+        """`None` and "imputed" are different states and must not collapse: one is the vendor
+        saying nothing, the other is the vendor saying something untrue."""
+        row = sc._normalise_row("T", "T", "S", "low", {"netIncomeToCommon": -1000})
+        self.assertIsNone(row["profit_margin"])
+        self.assertFalse(row["profit_margin_imputed"])
+
+    def test_the_flag_reaches_the_row_not_only_the_helper(self):
+        """The mistake made twice today: a rule that is correct and reaches nothing."""
+        row = sc._normalise_row("OKLO", "Oklo", "Energy", "low",
+                                {"profitMargins": 0.0, "netIncomeToCommon": -152768992,
+                                 "totalRevenue": 1210000})
+        self.assertEqual(row["profit_margin"], 0.0, "the value must survive; only its status changes")
+        self.assertTrue(row["profit_margin_imputed"])
+
+    def test_an_imputed_required_metric_reads_as_unscreenable_not_as_rejected(self):
+        """The whole point. A preset requiring profit_margin would otherwise report a
+        pre-revenue name as JUDGED AND REJECTED on profitability, when the truth is that it
+        could not be asked."""
+        base = dict(pe=10.0, growth=0.5, dividend_yield=0.04, debt_to_equity=20.0, beta=1.0,
+                    shadow_severity_rank=0, dollar_volume=1e8, market_cap=1e9, price=10.0,
+                    ai="low", sector="Energy")
+        rows = [dict(base, ticker="IMPUT", name="Imputed", profit_margin=0.0,
+                     profit_margin_imputed=True),
+                dict(base, ticker="TRUE0", name="True zero", profit_margin=0.0,
+                     profit_margin_imputed=False)]
+        _matches, no_data = sc.apply_preset(rows, "safety_low_debt")
+        unscreenable = {r["ticker"] for r, _missing in no_data}
+        self.assertIn("IMPUT", unscreenable)
+        self.assertNotIn("TRUE0", unscreenable,
+                         "a measured zero must still be judged and rejected, not excused")
+
+    def test_the_rule_is_generic_over_any_imputed_field(self):
+        """`apply_preset` tests `<metric>_imputed`, so `dividend_yield_imputed` — which already
+        ships — gets the same treatment without a second rule being written for it."""
+        base = dict(pe=10.0, growth=0.5, debt_to_equity=20.0, beta=1.0, profit_margin=0.2,
+                    shadow_severity_rank=0, dollar_volume=1e8, market_cap=1e9, price=10.0,
+                    ai="low", sector="Energy")
+        rows = [dict(base, ticker="DYIMP", name="Imputed yield", dividend_yield=0.0,
+                     dividend_yield_imputed=True)]
+        _m, no_data = sc.apply_preset(rows, "low_pe_high_dividend")
+        self.assertIn("DYIMP", {r["ticker"] for r, _x in no_data},
+                      "the imputed test is hard-coded to profit_margin instead of being generic")

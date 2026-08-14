@@ -688,6 +688,20 @@ def _num(value):
     return v if math.isfinite(v) else None
 
 
+def _is_placeholder_margin(info):
+    """True when `profitMargins` is a placeholder zero rather than a measured margin.
+
+    Deliberately narrow. A company really can post a margin that rounds to zero, so the test is
+    not "is it small" — it is "is it EXACTLY zero while net income is not", which no arithmetic
+    produces. A missing margin is already `None` and is not this case.
+    """
+    margin = _num(info.get("profitMargins"))
+    if margin is None or margin != 0.0:
+        return False
+    net = _num(info.get("netIncomeToCommon"))
+    return net is not None and net != 0.0
+
+
 def _dividend_yield_fraction(info, price):
     """Return dividend yield as a fraction (0.03 = 3%), or None if unknown.
 
@@ -753,6 +767,18 @@ def _normalise_row(ticker, name, sector, ai, info, bucket=None):
         "dollar_volume": (avg_vol * price) if (avg_vol and price) else None,
         "range_52w_pct": rng,
         "profit_margin": _num(info.get("profitMargins")),
+        # ...and whether that number is a reading or a placeholder. A margin is net income over
+        # revenue, so EXACTLY 0.0 alongside a non-zero net income is not a thin margin — it is
+        # arithmetically impossible, and it is what Yahoo returns for a pre-revenue company.
+        # OKLO ships profitMargins 0.0 against net income of -152,768,992 on revenue of
+        # 1,210,000: a true margin near -12,600%. NXE and LAC do the same. NVDA and XOM report
+        # real figures, so the vendor can — it just answers 0 rather than null when it cannot.
+        #
+        # Recorded here because `info` is only in hand at fetch time. Detected downstream it
+        # would be a guess; detected here it is a comparison of two fields the vendor gave us
+        # in the same response. Same shape as `dividend_yield_imputed` above: keep the value,
+        # record that it was not measured, and let the consumer decide.
+        "profit_margin_imputed": _is_placeholder_margin(info),
     }
 
 
@@ -831,8 +857,15 @@ def apply_preset(rows, preset_key):
         # keeps an old cache (or a hand-built row) from being reported as unscreenable.
         if row.get("shadow_severity_rank") is None:
             row = enrich_row(row)
+        # A value the vendor imputed is not a value this screen can judge. `profit_margin`
+        # is the one field that arrives as a placeholder zero rather than as a null, so a
+        # preset requiring it would otherwise report 14 pre-revenue names as JUDGED AND
+        # REJECTED on profitability when the truth is that it could not be asked. Reported as
+        # unscreenable instead, which is the distinction this file already draws everywhere
+        # else and the one `listedNote` exists to publish.
         missing = [m for m, _op, _v in p["require"]
-                   if m not in CATEGORICAL and row.get(m) is None]
+                   if m not in CATEGORICAL
+                   and (row.get(m) is None or row.get(m + "_imputed"))]
         if missing:
             no_data.append((row, missing))
             continue
