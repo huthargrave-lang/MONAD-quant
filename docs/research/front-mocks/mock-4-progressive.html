@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MONAD — Three depths</title>
+<!--
+  DESIGN BET: Keep the whole apparatus on one URL, but sequence it. Level 1 briefing,
+  Level 2 desk, Level 3 scenario apparatus. Sticky view-toggle + URL hash keep place.
+
+  TRADES AWAY: The purity of a single metaphor. Denser; easier to make noisy if L3 leaks up.
+
+  CHROME: Same token system, rail, view-toggle, tables, chips as tools/research_ui.py.
+-->
+<style>
+:root{
+  --plane:#f2f3f1; --surface:#fcfcfb; --ink:#0b0b0b; --ink-2:#52514e;
+  --ink-muted:#898781; --rule:#e1e0d9; --axis:#c3c2b7; --accent:#2a78d6;
+  --ord-1:#86b6ef; --ord-2:#3987e5; --ord-3:#1c5cab; --ord-4:#0d366b;
+  --ink-on-1:#0b0b0b; --ink-on-4:#ffffff;
+  --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:where(:not([data-theme="light"])){
+    --plane:#0d0f12; --surface:#15181d; --ink:#f4f4f2; --ink-2:#b8b7b2;
+    --ink-muted:#83827d; --rule:#282c33; --axis:#3d424b; --accent:#6ba7f0;
+    --ord-1:#184f95; --ord-2:#2f79d4; --ord-3:#74aaee; --ord-4:#b7d3f6;
+    --ink-on-1:#ffffff; --ink-on-4:#0b0b0b;
+    --good:#3fbf3f; --warning:#e5b23c; --serious:#f09268; --critical:#ef6a6a;
+  }
+}
+:root[data-theme="dark"]{
+  --plane:#0d0f12; --surface:#15181d; --ink:#f4f4f2; --ink-2:#b8b7b2;
+  --ink-muted:#83827d; --rule:#282c33; --axis:#3d424b; --accent:#6ba7f0;
+  --ord-1:#184f95; --ord-2:#2f79d4; --ord-3:#74aaee; --ord-4:#b7d3f6;
+  --ink-on-1:#ffffff; --ink-on-4:#0b0b0b;
+  --good:#3fbf3f; --warning:#e5b23c; --serious:#f09268; --critical:#ef6a6a;
+}
+:root[data-theme="light"]{
+  --plane:#f2f3f1; --surface:#fcfcfb; --ink:#0b0b0b; --ink-2:#52514e;
+  --ink-muted:#898781; --rule:#e1e0d9; --axis:#c3c2b7; --accent:#2a78d6;
+  --ord-1:#86b6ef; --ord-2:#3987e5; --ord-3:#1c5cab; --ord-4:#0d366b;
+  --ink-on-1:#0b0b0b; --ink-on-4:#ffffff;
+  --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--plane);color:var(--ink);font:15px/1.55 var(--sans);
+  -webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+.shell{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh}
+.rail{border-right:1px solid var(--rule);background:var(--surface);padding:20px 0 40px}
+.rail .brand{padding:0 18px 16px;border-bottom:1px solid var(--rule);margin-bottom:14px}
+.rail .brand b{display:block;font-family:var(--mono);font-size:13px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink)}
+.rail .brand span{display:block;font-size:12px;color:var(--ink-muted);margin-top:3px}
+.rail h4{margin:16px 0 6px;padding:0 18px;font-size:11px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--ink-muted);font-weight:600}
+.rail a{display:block;padding:5px 18px;color:var(--ink-2);font-size:14px}
+.rail a:hover{background:var(--plane);text-decoration:none;color:var(--ink)}
+.rail a.on{color:var(--ink);border-left:2px solid var(--accent);padding-left:16px;background:var(--plane)}
+.rail a.off,.rail span.off{color:var(--ink-muted)}
+.rail span.off{display:block;padding:5px 18px;font-size:14px}
+.rail .fence{font-size:10px;font-family:var(--mono);color:var(--ink-muted);
+  border:1px solid var(--rule);border-radius:3px;padding:0 4px;margin-left:5px}
+.rail details.nav-drop{margin:0 0 6px}
+.rail details.nav-drop > summary{
+  list-style:none;cursor:pointer;user-select:none;
+  padding:5px 18px;font-size:11px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--ink-muted);font-weight:600}
+.rail details.nav-drop > summary::-webkit-details-marker{display:none}
+.rail details.nav-drop > summary::after{content:"▾";float:right;margin-right:2px;opacity:.75}
+.rail details.nav-drop:not([open]) > summary::after{content:"▸"}
+.rail details.nav-drop a,.rail details.nav-drop span.off{padding-left:26px}
+.rail details.nav-drop a.on{padding-left:24px}
+.rail .theme{padding:18px 18px 0;display:flex;gap:6px}
+.rail .theme button{font:12px var(--sans);height:28px;padding:0 10px;border:1px solid var(--rule);
+  border-radius:6px;background:var(--surface);color:var(--ink);cursor:pointer}
+.rail .theme button.on{border-color:var(--accent)}
+main{min-width:0;padding:26px 30px 90px;max-width:1180px;width:100%;justify-self:center}
+.sticky{position:sticky;top:0;z-index:8;background:var(--plane);padding:0 0 12px;margin:0 -4px 8px;
+  border-bottom:1px solid var(--rule)}
+.view-toggle{display:inline-flex;gap:0;border:1px solid var(--rule);border-radius:9px;overflow:hidden}
+.view-toggle button{padding:8px 18px;font:13px var(--sans);color:var(--ink-2);background:var(--surface);
+  border:0;border-right:1px solid var(--rule);cursor:pointer}
+.view-toggle button:last-child{border-right:0}
+.view-toggle button:hover{color:var(--ink);background:var(--plane)}
+.view-toggle button.on{color:var(--ink);font-weight:600;background:var(--plane);
+  box-shadow:inset 0 -2px 0 var(--accent)}
+.crumb{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-muted);margin-bottom:9px}
+h1{font-size:23px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing:-.012em}
+h2{font-size:15px;margin:0 0 8px;font-weight:640}
+h3{font-size:13px;margin:0 0 4px;font-weight:640}
+p{margin:0 0 12px;color:var(--ink-2);max-width:68ch}
+.lede{font-size:15px;color:var(--ink-2);max-width:70ch}
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:9px;padding:18px 20px;margin:0 0 18px}
+.note{padding:10px 12px;border-left:3px solid var(--warning);background:var(--surface);
+  border-radius:0 6px 6px 0;color:var(--ink-2);font-size:13.5px;margin:0 0 16px}
+.chip{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:11px;
+  padding:2px 7px;border-radius:999px;border:1px solid var(--rule);color:var(--ink-2);
+  background:var(--plane);white-space:nowrap}
+.chip .dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto;background:var(--warning)}
+.brief{display:grid;grid-template-columns:1.15fr .85fr;gap:12px}
+.depth{display:none}
+.depth.active{display:block}
+.continue{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+.continue p{margin:0;max-width:46ch}
+.btn,.filters button{font:13px var(--sans);height:32px;padding:0 14px;border:1px solid var(--rule);
+  border-radius:6px;background:var(--surface);color:var(--ink);cursor:pointer}
+.btn.primary,.filters button.primary{background:var(--accent);color:var(--ink-on-4);border-color:var(--accent)}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin:0 0 14px}
+.filters label{display:flex;flex-direction:column;gap:4px;font-size:10.5px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-muted)}
+.filters select{font:13px var(--sans);height:30px;padding:0 8px;border:1px solid var(--rule);
+  border-radius:6px;background:var(--surface);color:var(--ink)}
+.term-inline{margin:0 0 14px;padding:10px 12px;background:var(--plane);border:1px solid var(--rule);
+  border-radius:8px;font-size:13.5px;color:var(--ink-2)}
+.scroller{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:7px 11px 7px 0;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted);
+  font-weight:600;white-space:nowrap}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;padding-right:14px;font-family:var(--mono)}
+tbody tr:hover{background:var(--plane)}
+.muted-cell{color:var(--ink-muted);font-size:11.5px;font-family:var(--sans)}
+/* A judged value is set in italic and bracketed, so the distinction from a measurement
+   survives greyscale, a screenshot, and a reader who never gets to the legend. Colour is
+   not doing the work: the words "judged, not measured" sit under every one of them. */
+.judged{font-style:italic}
+.judged::before{content:"\201C"} .judged::after{content:"\201D"}
+.coldefs{margin-top:14px;border-top:1px solid var(--rule);padding-top:12px}
+.coldefs summary{cursor:pointer;font-size:12.5px;color:var(--ink-2);font-weight:600}
+.coldefs .notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+  gap:10px 20px;margin:12px 0 0}
+.coldefs dt{font-family:var(--mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--ink-muted);margin-bottom:2px}
+.coldefs dd{margin:0;font-size:12.5px;color:var(--ink-2)}
+.chart-box{border:1px solid var(--rule);border-radius:8px;background:var(--plane);padding:8px}
+.chart-box svg{width:100%;height:auto;display:block}
+.l3{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.prob{font-family:var(--mono);font-size:28px;letter-spacing:-.02em;margin:4px 0 8px}
+.prob span{display:block;font-size:11px;color:var(--ink-muted);letter-spacing:0}
+.path{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-family:var(--mono);font-size:11.5px;margin:10px 0}
+.path .node{border:1px solid var(--rule);border-radius:6px;padding:4px 8px;background:var(--plane)}
+.path .arrow{color:var(--ink-muted)}
+.with-against .row{display:grid;grid-template-columns:72px 1fr;gap:8px;padding:8px 0;border-bottom:1px solid var(--rule);font-size:13px;color:var(--ink-2)}
+.tag{font-family:var(--mono);font-size:10px;letter-spacing:.04em;text-transform:uppercase;
+  padding:2px 6px;border:1px solid var(--rule);border-radius:4px;height:fit-content}
+.tag.with{color:var(--accent);border-color:var(--accent)}
+.tag.against{color:var(--serious);border-color:var(--serious)}
+.scen-fixture{border-left:2px solid var(--warning);padding-left:6px;color:var(--warning);
+  letter-spacing:.03em;font:10px var(--mono)}
+.dev-list{margin:8px 0 0;padding:0;list-style:none}
+.dev-list li{padding:8px 0;border-bottom:1px solid var(--rule);font-size:13px;color:var(--ink-2)}
+.dev-list time{font-family:var(--mono);font-size:11px;color:var(--ink-muted);display:block}
+ul.plain{margin:8px 0 0;padding-left:1.15rem;color:var(--ink-2);font-size:13.5px}
+ul.plain li{margin:0 0 4px}
+footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--rule);font-size:12px;color:var(--ink-muted)}
+@media (max-width:860px){ .brief,.l3{grid-template-columns:1fr} }
+@media (max-width:720px){
+  .shell{grid-template-columns:1fr}
+  .rail{border-right:0;border-bottom:1px solid var(--rule);padding:14px 0 12px}
+  main{padding:20px 16px 70px}
+  .view-toggle button{padding:8px 10px;font-size:12px}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="rail" aria-label="MONAD">
+    <div class="brand"><b>MONAD</b><span>Research</span></div>
+    <h4>Basics</h4>
+    <a href="mock-1-plain-english.html">1 · What could I own?</a>
+    <a href="mock-2-allocation.html">2 · What does a mix mean?</a>
+    <a href="mock-3-thesis-first.html">3 · Theses &amp; fails</a>
+    <h4>Desk</h4>
+    <a class="on" href="mock-4-progressive.html">Screener</a>
+    <details class="nav-drop" open>
+      <summary>Quant</summary>
+      <span class="off">Overview <span class="fence">server</span></span>
+      <span class="off">Research web <span class="fence">server</span></span>
+      <span class="off">Web groups <span class="fence">server</span></span>
+      <span class="off">Engine sweep <span class="fence">server</span></span>
+      <span class="off">Context map <span class="fence">server</span></span>
+      <span class="off">UI surfaces <span class="fence">server</span></span>
+    </details>
+    <div class="theme" role="group" aria-label="Theme">
+      <button type="button" data-theme="light">Light</button>
+      <button type="button" data-theme="dark">Dark</button>
+    </div>
+  </nav>
+  <main>
+    <div class="sticky">
+      <div class="view-toggle" role="tablist" aria-label="Depth of detail">
+        <button type="button" role="tab" class="on" id="tab1" data-depth="1" aria-current="true">1 · Briefing</button>
+        <button type="button" role="tab" id="tab2" data-depth="2" aria-current="false">2 · Desk</button>
+        <button type="button" role="tab" id="tab3" data-depth="3" aria-current="false">3 · Apparatus</button>
+      </div>
+    </div>
+    <p class="crumb" id="crumb">Desk · Level 1 · Briefing</p>
+    <h1>One page, three depths</h1>
+    <p class="lede">Nothing is removed from the product — it is sequenced. Start with a briefing. Open the desk when you want tables. Open the apparatus when you want scenarios.</p>
+    <div class="note">
+      <span class="chip"><span class="dot"></span>EXAMPLE DATA</span>
+      &nbsp;ILLUSTRATIVE — not a forecast. Depth adds instruments, not verdicts. Missing values stay missing.
+    </div>
+
+    <section class="depth active" id="depth1" role="tabpanel" aria-labelledby="tab1">
+      <div class="brief">
+        <div class="panel">
+          <h2>What MONAD is doing today</h2>
+          <p>Two jobs: <strong style="color:var(--ink)">value screening</strong> across ~225 US-listed names with named lenses, and <strong style="color:var(--ink)">geopolitical theses</strong> grouped into authored buckets.</p>
+          <ul class="plain">
+            <li>A lens answers: “which rows match this fundamental pattern?”</li>
+            <li>A bucket answers: “what is the idea, and what would falsify it?”</li>
+            <li>A scenario answers: “if this shock path plays out, how does it transmit?”</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h2>What it will not do</h2>
+          <ul class="plain">
+            <li>It will not tell you what to buy.</li>
+            <li>It will not collapse a company into a single “score” traffic light.</li>
+            <li>It will not pretend a missing number is zero.</li>
+            <li>Editorial heat stays labeled as opinion.</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h2>One worked idea · Hormuz → tankers</h2>
+          <p><strong style="color:var(--ink)">Claim:</strong> war-risk insurance and Cape reroutes can lift tanker day-rates.</p>
+          <p><strong style="color:var(--ink)">Fails when:</strong> ceasefire + premiums unwind; owners refuse to sail so volume dies.</p>
+          <p style="margin:0">Study objects include <code style="font-family:var(--mono)">FRO</code> and peers. That list is for investigation — not a ranked shortlist.</p>
+        </div>
+        <div class="panel">
+          <h2>How depth works</h2>
+          <ul class="plain">
+            <li><strong style="color:var(--ink)">Level 1</strong> — this briefing (you are here).</li>
+            <li><strong style="color:var(--ink)">Level 2</strong> — lenses + results table + a simple indexed chart.</li>
+            <li><strong style="color:var(--ink)">Level 3</strong> — scenario probability, path, transmission, provenance.</li>
+          </ul>
+          <p style="margin:10px 0 0;font-family:var(--mono);font-size:11.5px;color:var(--ink-muted)">Sticky tabs stay visible. Place is kept in the URL hash (#1 / #2 / #3).</p>
+        </div>
+      </div>
+      <div class="panel continue">
+        <p>Next: the same Hormuz / tanker study objects in a results table — with gaps shown as em-dashes, not zeros.</p>
+        <button type="button" class="btn primary" data-go="2">Continue into the desk</button>
+      </div>
+    </section>
+
+    <section class="depth" id="depth2" role="tabpanel" aria-labelledby="tab2" hidden>
+      <div class="filters">
+        <label>Lens
+          <select id="lens">
+            <option value="tankers">Thesis filter · Tankers (from Level 1)</option>
+            <option value="lowpe">Low P/E · high growth</option>
+            <option value="active">Most active</option>
+            <option value="shadow">AI shadow debt</option>
+          </select>
+        </label>
+        <button type="button" data-go="3">Need the scenario path? → Level 3</button>
+      </div>
+      <div class="term-inline" id="lensExplain"></div>
+      <div class="panel" style="padding:0 16px 8px">
+        <div class="scroller">
+          <table>
+            <thead>
+              <tr>
+                <th>Ticker</th><th>Name</th><th>Sector</th>
+                <th class="num">P/E</th><th class="num">Div yield</th>
+                <th class="num">On-BS D/E %</th><th>AI shadow</th>
+                <th class="num">Beta</th><th>Tone</th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+        <!-- The table shipped nine columns and defined none of them, three of which (AI shadow,
+             On-BS D/E %, Tone) are on the list of vocabulary a newcomer meets undefined in the
+             live app. A page whose whole argument is "depth is sequenced, nothing is removed"
+             has to carry the definitions down with the depth. Open by default: a definition
+             behind a disclosure is a definition most readers never see. -->
+        <details class="coldefs" open>
+          <summary>What these nine columns are</summary>
+          <dl class="notes">
+            <div><dt>P/E</dt><dd>Price divided by a year of earnings. Roughly, years of current
+              profit to pay for the share. A fund has none, because a fund is not a company.</dd></div>
+            <div><dt>Div yield</dt><dd>Cash paid out per year as a share of price. A high one can
+              mean a generous payer or a falling price. It does not say which.</dd></div>
+            <div><dt>On-BS D/E %</dt><dd>Debt against equity, counting only what is on the balance
+              sheet. Leases, SPVs and supplier financing sit outside it, which is what the next
+              column exists to catch.</dd></div>
+            <div><dt>AI shadow</dt><dd><b>Judged, not measured.</b> A researcher's note on how a
+              company is exposed to the AI buildout through obligations the D/E number misses.
+              An opinion about structure, not a figure from a filing.</dd></div>
+            <div><dt>Beta</dt><dd>How much the share has moved when the market moved. Near 1 means
+              it tracked; below 1 means it moved less. Backward-looking, and it changes.</dd></div>
+            <div><dt>Tone</dt><dd><b>Judged, not measured.</b> How coverage of the name has read
+              recently. It describes what was written, not what the business did.</dd></div>
+            <div><dt>Ticker, Name, Sector</dt><dd>Identity. The sector label is the vendor's, and
+              vendors disagree at the edges.</dd></div>
+          </dl>
+        </details>
+      </div>
+      <div class="panel">
+        <h2>Indexed EXAMPLE path · one company against the market</h2>
+        <p style="font-size:13px;max-width:66ch">A single name and a whole index on one axis is a
+        comparison of two different things, and the taller line is not the better one. Each path
+        carries its worst fall so the height has something to be read against.</p>
+        <div class="chart-box">
+          <svg id="chart2" viewBox="0 0 860 200" role="img" aria-label="Illustrative indexed paths for one company and a broad index, each marked with its worst peak-to-trough fall"></svg>
+        </div>
+        <p class="muted" id="chart2Note" style="font-family:var(--mono);font-size:11.5px;color:var(--ink-muted);margin:8px 0 0"></p>
+      </div>
+      <div class="panel continue">
+        <p>Same names, deeper instrument: Hormuz probability path, transmission channel, with/against classification, provenance.</p>
+        <button type="button" class="btn primary" data-go="3">Open the apparatus</button>
+      </div>
+    </section>
+
+    <section class="depth" id="depth3" role="tabpanel" aria-labelledby="tab3" hidden>
+      <div class="l3">
+        <div class="panel">
+          <h2>Shock · Hormuz soft/hard close</h2>
+          <div class="prob">28%<span class="scen-fixture">ILLUSTRATIVE probability · authored scenario input · not a forecast</span></div>
+          <p style="font-size:13px;margin:0 0 8px">Probability path (sample): Jan 22% → Mar 25% → May 28%. Moves when dated developments are logged — not when a model “updates itself” silently.</p>
+          <ul class="dev-list">
+            <li><time datetime="2026-03-12">2026-03-12</time> War-risk quotes reported sharply higher on Gulf routes. <span class="chip">EXAMPLE</span></li>
+            <li><time datetime="2026-04-02">2026-04-02</time> Partial de-escalation headline; path held — insurance still elevated. <span class="chip">EXAMPLE</span></li>
+            <li><time datetime="2026-05-18">2026-05-18</time> Cape ton-mile commentary re-enters broker notes. <span class="chip">EXAMPLE</span></li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h2>Derivation · event → security</h2>
+          <div class="path" aria-label="Transmission path">
+            <span class="node">Event · Hormuz risk</span>
+            <span class="arrow">→</span>
+            <span class="node">Channel · insurance / ton-miles</span>
+            <span class="arrow">→</span>
+            <span class="node">Bucket · Tankers</span>
+            <span class="arrow">→</span>
+            <span class="node">Security · FRO</span>
+          </div>
+          <div class="with-against">
+            <div class="row"><span class="tag with">With</span><span>FRO, DHT — day-rate / tanker beta typically moves with the insurance channel in this template.</span></div>
+            <div class="row"><span class="tag against">Against</span><span>DAL — fuel cost / travel demand typically moves against the same oil-scare channel.</span></div>
+          </div>
+          <p style="margin:12px 0 0;font-family:var(--mono);font-size:11.5px;color:var(--ink-muted)">
+            Provenance: EXAMPLE derivation · editorial channel map · heat on Tankers is opinion, not a measured coefficient.
+          </p>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>What would falsify the path</h2>
+        <p>Ceasefire + war-risk premiums unwind; owners refuse to sail (no volume). If developments reverse the insurance channel, Level 2 membership can stay the same while Level 3’s with/against story must be rewritten — that rewrite is the research, not a silent score change.</p>
+        <button type="button" class="btn" data-go="2">Back to the desk (keep lens)</button>
+      </div>
+    </section>
+    <footer>MONAD · sample data only · never a recommendation to buy or sell</footer>
+  </main>
+</div>
+<script>
+(function () {
+  const ROWS = {
+    tankers: [
+      { tk:"FRO", name:"Frontline", sector:"Energy", pe:9.4, dy:0.072, de:92.6, shadow:null, shadowWhy:"nobody has assessed this", beta:0.15, tone:null, toneWhy:"not covered" },
+      { tk:"DHT", name:"DHT Holdings", sector:"Energy", pe:11.2, dy:0.081, de:44.0, shadow:null, shadowWhy:"nobody has assessed this", beta:0.22, tone:"neutral", toneWhy:null },
+      { tk:"STNG", name:"Scorpio Tankers", sector:"Energy", pe:7.8, dy:0.055, de:38.1, shadow:null, shadowWhy:"nobody has assessed this", beta:0.40, tone:null, toneWhy:"not covered" },
+      { tk:"XOM", name:"Exxon Mobil", sector:"Energy", pe:14.1, dy:0.034, de:19.2, shadow:"low", shadowWhy:null, beta:0.92, tone:"steady", toneWhy:null }
+    ],
+    lowpe: [
+      { tk:"VLO", name:"Valero", sector:"Energy", pe:12.4, dy:0.029, de:41.0, shadow:null, shadowWhy:"nobody has assessed this", beta:1.05, tone:null, toneWhy:"not covered" },
+      { tk:"CVX", name:"Chevron", sector:"Energy", pe:15.8, dy:0.041, de:22.4, shadow:"low", shadowWhy:null, beta:0.88, tone:"steady", toneWhy:null },
+      { tk:"MU", name:"Micron", sector:"Technology", pe:22.0, dy:0.001, de:28.0, shadow:"supply_chain", shadowWhy:null, beta:1.45, tone:"hot", toneWhy:null }
+    ],
+    active: [
+      { tk:"NVDA", name:"NVIDIA", sector:"Technology", pe:48.0, dy:0.0003, de:12.0, shadow:"spv_sponsor", shadowWhy:null, beta:1.70, tone:"hot", toneWhy:null },
+      { tk:"SPY", name:"S&P 500 ETF", sector:"Fund", pe:null, peWhy:"no P/E — this is a fund", dy:null, dyWhy:"distribution not in this snapshot", de:null, deWhy:"not applicable — fund", shadow:null, shadowWhy:"not applicable — fund", beta:1.00, tone:null, toneWhy:"not covered" }
+    ],
+    shadow: [
+      { tk:"NVDA", name:"NVIDIA", sector:"Technology", pe:48.0, dy:0.0003, de:12.0, shadow:"spv_sponsor", shadowWhy:null, beta:1.70, tone:"hot", toneWhy:null },
+      { tk:"MU", name:"Micron", sector:"Technology", pe:22.0, dy:0.001, de:28.0, shadow:"supply_chain", shadowWhy:null, beta:1.45, tone:"hot", toneWhy:null },
+      { tk:"MSFT", name:"Microsoft", sector:"Technology", pe:34.0, dy:0.007, de:35.0, shadow:"cloud_capex", shadowWhy:null, beta:0.95, tone:"steady", toneWhy:null }
+    ]
+  };
+  const LENS_COPY = {
+    tankers: "<strong style='color:var(--ink)'>Tankers lens:</strong> liquid names used to study war-risk freight / day-rate transmission. Membership filter — not a quality ranking.",
+    lowpe: "<strong style='color:var(--ink)'>Low P/E · high growth:</strong> comparatively low P/E and elevated growth in the snapshot. Missing P/E stays an em-dash.",
+    active: "<strong style='color:var(--ink)'>Most active:</strong> ranks by dollar volume — attention and liquidity, not “best company.”",
+    shadow: "<strong style='color:var(--ink)'>AI shadow debt:</strong> editorial tags for off-balance-sheet / SPV / supply-chain funding risk. On-BS D/E alone is incomplete."
+  };
+  function miss(why){
+    return `<span class="muted-cell">—</span><div class="muted-cell">${why}</div>`;
+  }
+  /* AI shadow and Tone are the only two judged columns in this table. Everything either side
+     of them (P/E, Div yield, On-BS D/E, Beta) is a vendor measurement, and they were rendered
+     identically — plain text, same weight, same row — so "hot" sat beside "48.0" looking like
+     the same kind of fact. The live app has exactly this problem; a mock that reproduces it
+     teaches the defect. `judged()` is the single place a judged value can be rendered, so a
+     new one cannot be added without the marker coming with it. */
+  function judged(text){
+    return `<span class="judged">${text}</span><div class="muted-cell">judged, not measured</div>`;
+  }
+  //: Internal keys are for joins, not for readers. These were printed raw: a visitor met
+  //: "spv_sponsor" in a column headed "AI shadow" with nothing anywhere on the page to say
+  //: what either meant.
+  const SHADOW_LABEL = {
+    spv_sponsor: "funds chips via an SPV",
+    supply_chain: "sells into the buildout",
+    cloud_capex:  "spending on data centres",
+    low:          "little AI-linked debt"
+  };
+  const TONE_LABEL = { hot: "hot", steady: "steady", neutral: "neutral" };
+  /* `fmtPct(null)` returned "0.0%", and NVDA's real 0.0003 yield ALSO returned "0.0%", so a
+     null, a measured zero and a value rounded to zero were one string — in the only column
+     that had no absence guard, on the page whose Level 1 panel promises "It will not pretend
+     a missing number is zero". Sub-0.05% now reads as a bound rather than as zero, so a
+     company that pays almost nothing and one that pays nothing stay distinguishable. */
+  function fmtPct(v){
+    if (v === 0) return "0.0%";
+    if (v > 0 && v < 0.0005) return "<0.1%";
+    return (v * 100).toFixed(1) + "%";
+  }
+  function renderTable(key) {
+    document.getElementById("lensExplain").innerHTML = LENS_COPY[key];
+    document.getElementById("tbody").innerHTML = ROWS[key].map(r => `
+      <tr>
+        <td><code style="font-family:var(--mono)">${r.tk}</code></td>
+        <td>${r.name}</td>
+        <td>${r.sector}</td>
+        <td class="num">${r.pe != null ? r.pe.toFixed(1) : miss(r.peWhy)}</td>
+        <td class="num">${r.dy != null ? fmtPct(r.dy) : miss(r.dyWhy || "not covered")}</td>
+        <td class="num">${r.de != null ? r.de.toFixed(1) : miss(r.deWhy)}</td>
+        <td>${r.shadow != null ? judged(SHADOW_LABEL[r.shadow] || r.shadow) : miss(r.shadowWhy)}</td>
+        <td class="num">${r.beta != null ? r.beta.toFixed(2) : miss("not covered")}</td>
+        <td>${r.tone != null ? judged(TONE_LABEL[r.tone] || r.tone) : miss(r.toneWhy)}</td>
+      </tr>
+    `).join("");
+  }
+  function tok(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+  function drawChart() {
+    // Trough deepened to -18%. A broad index that never falls more than 10% across three
+    // years is not the index anyone has owned, and a comparison is only honest if both
+    // sides are drawn with the character they actually have.
+    const spy = [100,96,90,86,82,88,96,103,98,92,101,109,106,103,111,116,113,119,126,121,129,136,141,139,146,151,149,156,161,159,166,171,169,176,181,198];
+    // Given a real drawdown. The old path reached 410 having never fallen more than 13%, which
+    // showed a single shipping name outrunning the index two to one and looking steadier doing
+    // it. The page's own Level 1 promise is that it will not collapse a company into a verdict;
+    // a chart where one company simply wins is that verdict drawn instead of written.
+    const fro = [100,112,128,145,168,190,175,140,110,96,88,102,120,138,120,145,170,196,180,205,230,210,185,215,245,270,250,225,260,290,270,300,325,305,340,410];
+    const svg = document.getElementById("chart2");
+    const W = 860, H = 200, pad = { t: 14, r: 56, b: 26, l: 36 };
+    const all = spy.concat(fro);
+    const ymin = Math.min(...all) * 0.95, ymax = Math.max(...all) * 1.05;
+    const n = spy.length, rule = tok("--rule"), ink = tok("--ink-muted");
+    const x = i => pad.l + (i / (n - 1)) * (W - pad.l - pad.r);
+    const y = v => pad.t + (1 - (v - ymin) / (ymax - ymin)) * (H - pad.t - pad.b);
+    const path = arr => arr.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+    /* Worst peak-to-trough fall, from the same array the line is drawn from, so the drop on the
+       chart and the sentence under it cannot disagree. Drawn as a dotted fall at the trough. */
+    const dd = ys => {
+      let peak = ys[0], pIdx = 0, worst = 0, aP = 0, aT = 0;
+      for (let i = 0; i < ys.length; i++) {
+        if (ys[i] > peak) { peak = ys[i]; pIdx = i; }
+        const v = (ys[i] - peak) / peak;
+        if (v < worst) { worst = v; aP = pIdx; aT = i; }
+      }
+      return { pct: worst, peak: ys[aP], trough: ys[aT], tIdx: aT };
+    };
+    const dSpy = dd(spy), dFro = dd(fro);
+    const drop = (d, colour) => {
+      const tx = x(d.tIdx);
+      return `<line x1="${tx.toFixed(1)}" y1="${y(d.peak).toFixed(1)}" x2="${tx.toFixed(1)}"`
+        + ` y2="${y(d.trough).toFixed(1)}" stroke="${colour}" stroke-width="1" stroke-dasharray="2 3"/>`
+        + `<circle cx="${tx.toFixed(1)}" cy="${y(d.trough).toFixed(1)}" r="3" fill="none"`
+        + ` stroke="${colour}" stroke-width="1.4"/>`;
+    };
+    const cSpy = tok("--accent"), cFro = tok("--warning");
+    /* Dash signature as well as colour: two lines on one axis must be separable in greyscale
+       and by a reader who cannot distinguish the two hues. */
+    svg.innerHTML = `
+      <line x1="${pad.l}" y1="${H - pad.b}" x2="${W - pad.r}" y2="${H - pad.b}" stroke="${rule}"/>
+      <path d="${path(spy)}" fill="none" stroke="${cSpy}" stroke-width="1.5"/>
+      <path d="${path(fro)}" fill="none" stroke="${cFro}" stroke-width="1.5" stroke-dasharray="7 3"/>
+      ${drop(dSpy, cSpy)}${drop(dFro, cFro)}
+      <text x="${x(n-1)+6}" y="${y(spy[n-1])+4}" fill="${cSpy}" font-family="ui-monospace,monospace" font-size="11">SPY</text>
+      <text x="${x(n-1)+6}" y="${y(fro[n-1])+4}" fill="${cFro}" font-family="ui-monospace,monospace" font-size="11">FRO</text>
+      <text x="${pad.l}" y="${H-8}" fill="${ink}" font-family="ui-monospace,monospace" font-size="10">index=100 at start · dotted = worst fall · EXAMPLE DATA</text>
+    `;
+    /* Stated in words too. The endpoint is the number a glance takes away; this is the number
+       that makes the endpoint mean something. */
+    const note = document.getElementById("chart2Note");
+    if (note) note.textContent =
+      `SPY ended ${spy[n-1]} and fell ${Math.abs(Math.round(dSpy.pct*100))}% at its worst — `
+      + `hundreds of companies. FRO ended ${fro[n-1]} and fell `
+      + `${Math.abs(Math.round(dFro.pct*100))}% at its worst — one company. Ending higher and `
+      + `falling further are the same instrument, not a score.`;
+  }
+  const labels = { 1: "Desk · Level 1 · Briefing", 2: "Desk · Level 2 · table", 3: "Desk · Level 3 · Apparatus" };
+  function setDepth(n, pushHash) {
+    n = String(n);
+    document.querySelectorAll(".depth").forEach(el => {
+      const on = el.id === "depth" + n;
+      el.classList.toggle("active", on);
+      el.hidden = !on;
+    });
+    document.querySelectorAll(".view-toggle button").forEach(btn => {
+      const on = btn.dataset.depth === n;
+      btn.classList.toggle("on", on);
+      btn.setAttribute("aria-current", on ? "true" : "false");
+    });
+    document.getElementById("crumb").textContent = labels[n];
+    if (pushHash !== false) history.replaceState(null, "", "#" + n);
+    if (n === "2") drawChart();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  document.querySelector(".view-toggle").addEventListener("click", e => {
+    const btn = e.target.closest("button[data-depth]");
+    if (btn) setDepth(btn.dataset.depth);
+  });
+  document.body.addEventListener("click", e => {
+    const go = e.target.closest("[data-go]");
+    if (go) setDepth(go.getAttribute("data-go"));
+  });
+  document.getElementById("lens").addEventListener("change", e => renderTable(e.target.value));
+  function applyTheme(t) {
+    if (t) document.documentElement.setAttribute("data-theme", t);
+    else document.documentElement.removeAttribute("data-theme");
+    if (t) localStorage.setItem("monad.front.theme", t);
+    document.querySelectorAll(".theme button").forEach(b => b.classList.toggle("on", b.dataset.theme === (t || "")));
+    if (document.getElementById("depth2").classList.contains("active")) drawChart();
+  }
+  const saved = localStorage.getItem("monad.front.theme");
+  if (saved) applyTheme(saved);
+  document.querySelector(".theme").addEventListener("click", e => {
+    const b = e.target.closest("button[data-theme]");
+    if (b) applyTheme(b.dataset.theme);
+  });
+  renderTable("tankers");
+  const fromHash = (location.hash || "#1").replace("#", "");
+  setDepth(["1","2","3"].includes(fromHash) ? fromHash : "1", false);
+})();
+</script>
+</body>
+</html>

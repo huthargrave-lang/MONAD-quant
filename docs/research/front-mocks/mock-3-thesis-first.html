@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MONAD — Theses &amp; fails</title>
+<!--
+  DESIGN BET: Keep geopolitical buckets as the hero, but force every card to teach.
+  Thesis and fails line are co-equal. Holding-period role is "why you would hold this."
+  Click opens a teaching panel before any table filter. Heat is visibly editorial.
+
+  TRADES AWAY: Asset-class onboarding and allocation arithmetic.
+
+  CHROME: Same token system, rail, .bucket cards, heat bars, and type as the live screener.
+-->
+<style>
+:root{
+  --plane:#f2f3f1; --surface:#fcfcfb; --ink:#0b0b0b; --ink-2:#52514e;
+  --ink-muted:#898781; --rule:#e1e0d9; --axis:#c3c2b7; --accent:#2a78d6;
+  --ord-1:#86b6ef; --ord-2:#3987e5; --ord-3:#1c5cab; --ord-4:#0d366b;
+  --ink-on-1:#0b0b0b; --ink-on-4:#ffffff;
+  --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:where(:not([data-theme="light"])){
+    --plane:#0d0f12; --surface:#15181d; --ink:#f4f4f2; --ink-2:#b8b7b2;
+    --ink-muted:#83827d; --rule:#282c33; --axis:#3d424b; --accent:#6ba7f0;
+    --ord-1:#184f95; --ord-2:#2f79d4; --ord-3:#74aaee; --ord-4:#b7d3f6;
+    --ink-on-1:#ffffff; --ink-on-4:#0b0b0b;
+    --good:#3fbf3f; --warning:#e5b23c; --serious:#f09268; --critical:#ef6a6a;
+  }
+}
+:root[data-theme="dark"]{
+  --plane:#0d0f12; --surface:#15181d; --ink:#f4f4f2; --ink-2:#b8b7b2;
+  --ink-muted:#83827d; --rule:#282c33; --axis:#3d424b; --accent:#6ba7f0;
+  --ord-1:#184f95; --ord-2:#2f79d4; --ord-3:#74aaee; --ord-4:#b7d3f6;
+  --ink-on-1:#ffffff; --ink-on-4:#0b0b0b;
+  --good:#3fbf3f; --warning:#e5b23c; --serious:#f09268; --critical:#ef6a6a;
+}
+:root[data-theme="light"]{
+  --plane:#f2f3f1; --surface:#fcfcfb; --ink:#0b0b0b; --ink-2:#52514e;
+  --ink-muted:#898781; --rule:#e1e0d9; --axis:#c3c2b7; --accent:#2a78d6;
+  --ord-1:#86b6ef; --ord-2:#3987e5; --ord-3:#1c5cab; --ord-4:#0d366b;
+  --ink-on-1:#0b0b0b; --ink-on-4:#ffffff;
+  --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--plane);color:var(--ink);font:15px/1.55 var(--sans);
+  -webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+.shell{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh}
+.rail{border-right:1px solid var(--rule);background:var(--surface);padding:20px 0 40px}
+.rail .brand{padding:0 18px 16px;border-bottom:1px solid var(--rule);margin-bottom:14px}
+.rail .brand b{display:block;font-family:var(--mono);font-size:13px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink)}
+.rail .brand span{display:block;font-size:12px;color:var(--ink-muted);margin-top:3px}
+.rail h4{margin:16px 0 6px;padding:0 18px;font-size:11px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--ink-muted);font-weight:600}
+.rail a{display:block;padding:5px 18px;color:var(--ink-2);font-size:14px}
+.rail a:hover{background:var(--plane);text-decoration:none;color:var(--ink)}
+.rail a.on{color:var(--ink);border-left:2px solid var(--accent);padding-left:16px;background:var(--plane)}
+.rail a.off,.rail span.off{color:var(--ink-muted)}
+.rail span.off{display:block;padding:5px 18px;font-size:14px}
+.rail .fence{font-size:10px;font-family:var(--mono);color:var(--ink-muted);
+  border:1px solid var(--rule);border-radius:3px;padding:0 4px;margin-left:5px}
+.rail details.nav-drop{margin:0 0 6px}
+.rail details.nav-drop > summary{
+  list-style:none;cursor:pointer;user-select:none;
+  padding:5px 18px;font-size:11px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--ink-muted);font-weight:600}
+.rail details.nav-drop > summary::-webkit-details-marker{display:none}
+.rail details.nav-drop > summary::after{content:"▾";float:right;margin-right:2px;opacity:.75}
+.rail details.nav-drop:not([open]) > summary::after{content:"▸"}
+.rail details.nav-drop a,.rail details.nav-drop span.off{padding-left:26px}
+.rail details.nav-drop a.on{padding-left:24px}
+.rail .theme{padding:18px 18px 0;display:flex;gap:6px}
+.rail .theme button{font:12px var(--sans);height:28px;padding:0 10px;border:1px solid var(--rule);
+  border-radius:6px;background:var(--surface);color:var(--ink);cursor:pointer}
+.rail .theme button.on{border-color:var(--accent)}
+main{min-width:0;padding:26px 30px 90px;max-width:1180px;width:100%;justify-self:center}
+.crumb{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-muted);margin-bottom:9px}
+h1{font-size:23px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing:-.012em}
+h2{font-size:15px;margin:0 0 10px;font-weight:640}
+h3{font-size:13px;margin:0 0 4px;font-weight:640}
+p{margin:0 0 12px;color:var(--ink-2);max-width:68ch}
+.lede{font-size:15px;color:var(--ink-2);max-width:70ch}
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:9px;padding:18px 20px;margin:0 0 18px}
+.note{padding:10px 12px;border-left:3px solid var(--warning);background:var(--surface);
+  border-radius:0 6px 6px 0;color:var(--ink-2);font-size:13.5px;margin:0 0 16px}
+.chip{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:11px;
+  padding:2px 7px;border-radius:999px;border:1px solid var(--rule);color:var(--ink-2);
+  background:var(--plane);white-space:nowrap}
+.chip .dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto;background:var(--warning)}
+.roles{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:0 0 18px}
+.role{background:var(--plane);border:1px solid var(--rule);border-radius:9px;padding:12px 14px}
+.role h3{font-family:var(--mono);font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-muted)}
+.role p{margin:0;font-size:12.5px;max-width:none}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+.bucket{text-align:left;background:var(--plane);border:1px solid var(--rule);border-radius:9px;
+  padding:12px 12px 10px;cursor:pointer;min-height:168px;display:flex;flex-direction:column;gap:5px;
+  font:inherit;color:inherit;width:100%}
+.bucket:hover{border-color:var(--accent)}
+.bucket.selected{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--surface)}
+.bucket .id{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--ink-muted);
+  display:flex;justify-content:space-between;gap:8px}
+.bucket .name{font-weight:640;font-size:13.5px;letter-spacing:-.01em}
+.bucket .blurb{font-size:12px;color:var(--ink-2);flex:1;line-height:1.4}
+.fails{margin:0;padding:6px 8px;background:var(--surface);border-left:3px solid var(--serious);
+  font-size:12px;color:var(--ink-2);border-radius:0 6px 6px 0}
+.fails .lab{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--serious);margin-bottom:2px}
+.heat{height:3px;border-radius:99px;background:var(--rule);overflow:hidden;margin-top:2px}
+.heat > i{display:block;height:100%;width:0;background:var(--axis)}
+.heat.h1 > i{width:25%;background:var(--ord-1)}
+.heat.h2 > i{width:50%;background:var(--ord-2)}
+.heat.h3 > i{width:75%;background:var(--warning)}
+.heat.h4 > i{width:100%;background:var(--critical)}
+.heat-lab{font-family:var(--mono);font-size:10px;color:var(--ink-muted);display:flex;
+  justify-content:space-between;gap:8px;margin-top:4px}
+.detail{display:none;margin:14px 0 18px}
+.detail.open{display:block}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.kvs{display:grid;grid-template-columns:110px 1fr;gap:4px 12px;font-size:13px;margin:0 0 12px}
+.kvs dt{color:var(--ink-muted);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;padding-top:3px}
+.kvs dd{margin:0;color:var(--ink-2)}
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.filters button{font:13px var(--sans);height:30px;padding:0 11px;border:1px solid var(--rule);
+  border-radius:6px;background:var(--surface);color:var(--ink);cursor:pointer}
+.filters button.primary{background:var(--accent);color:var(--ink-on-4);border-color:var(--accent)}
+.filter-note{display:none;margin-top:10px;font-size:13px;color:var(--ink-2);
+  padding:10px 12px;border:1px dashed var(--rule);border-radius:6px}
+.filter-note.show{display:block}
+.tickers{font-family:var(--mono);font-size:13px;color:var(--ink)}
+.desk{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+.desk p{margin:0;max-width:46ch}
+.btn{display:inline-block;font:13px var(--sans);line-height:30px;height:32px;padding:0 14px;
+  border:1px solid var(--accent);border-radius:6px;background:var(--accent);color:var(--ink-on-4);text-decoration:none}
+footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--rule);font-size:12px;color:var(--ink-muted)}
+@media (max-width:980px){ .roles,.cols{grid-template-columns:1fr 1fr} }
+@media (max-width:720px){
+  .shell{grid-template-columns:1fr}
+  .rail{border-right:0;border-bottom:1px solid var(--rule);padding:14px 0 12px}
+  .roles,.cols{grid-template-columns:1fr}
+  main{padding:20px 16px 70px}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="rail" aria-label="MONAD">
+    <div class="brand"><b>MONAD</b><span>Research</span></div>
+    <h4>Basics</h4>
+    <a href="mock-1-plain-english.html">1 · What could I own?</a>
+    <a href="mock-2-allocation.html">2 · What does a mix mean?</a>
+    <a class="on" href="mock-3-thesis-first.html">3 · Theses &amp; fails</a>
+    <h4>Desk</h4>
+    <a href="mock-4-progressive.html">Screener</a>
+    <details class="nav-drop" open>
+      <summary>Quant</summary>
+      <span class="off">Overview <span class="fence">server</span></span>
+      <span class="off">Research web <span class="fence">server</span></span>
+      <span class="off">Web groups <span class="fence">server</span></span>
+      <span class="off">Engine sweep <span class="fence">server</span></span>
+      <span class="off">Context map <span class="fence">server</span></span>
+      <span class="off">UI surfaces <span class="fence">server</span></span>
+    </details>
+    <div class="theme" role="group" aria-label="Theme">
+      <button type="button" data-theme="light">Light</button>
+      <button type="button" data-theme="dark">Dark</button>
+    </div>
+  </nav>
+  <main>
+    <p class="crumb">Learn 3 of 3 · geopolitical buckets · then the screener</p>
+    <h1>What is this idea — and what would break it?</h1>
+    <p class="lede">
+      Twenty geopolitical / commodity buckets. Each is a story about a shock, a holding-period role,
+      a short list of liquid study objects — and a fails line as important as the claim.
+    </p>
+    <div class="note">
+      <span class="chip"><span class="dot"></span>EXAMPLE DATA</span>
+      &nbsp;Theses and fails lines are authored research objects.
+      Heat is <strong style="color:var(--ink)">editorial opinion</strong>, not a measurement.
+      Opening a card teaches the idea. Filtering comes after, and still never ranks a company.
+    </div>
+
+    <div class="panel">
+      <h2>Holding-period roles · why you would hold this</h2>
+      <div class="roles">
+        <div class="role">
+          <h3>Insurance</h3>
+          <p>Held because a bad event may pay the sleeve — not because you want the event. Cost of carry is expected.</p>
+        </div>
+        <div class="role">
+          <h3>Restock</h3>
+          <p>Held for multi-month / multi-year backlog after inventories burn. Noisy on day one; thesis is the refill.</p>
+        </div>
+        <div class="role">
+          <h3>Order</h3>
+          <p>Held for the flow of new contracts / capacity once policy or war spending shows up in orders.</p>
+        </div>
+        <div class="role">
+          <h3>Scare</h3>
+          <p>Moves on headlines and risk premia; can reverse fast when the scare fades. Mechanism ≠ durable earnings.</p>
+        </div>
+      </div>
+      <p style="margin:0;font-size:13px;max-width:none">
+        Heat (0–4) is a researcher’s present judgment of how tightly this bucket couples to a named shock family —
+        not a calculated score, not a forecast, not a rating. The bar is a length encoding of that opinion; the word “editorial” travels with it.
+      </p>
+    </div>
+
+    <div class="grid" id="grid"></div>
+    <div class="detail panel" id="detail" role="region" aria-live="polite" hidden></div>
+    <div class="panel desk">
+      <p>Those buckets are the last lesson. The screener is the desk: briefing, table, then apparatus — same objects, more instruments.</p>
+      <a class="btn" href="mock-4-progressive.html">Enter the screener</a>
+    </div>
+    <footer>MONAD · sample data only · never a recommendation to buy or sell</footer>
+  </main>
+</div>
+<script>
+(function () {
+  const ROLES = {
+    insurance: "Insurance — held against a bad event; carry is expected.",
+    restock: "Restock — multi-month refill after inventories burn.",
+    order: "Order — contract / capacity flow over a longer horizon.",
+    scare: "Scare — headline / premium move; can unwind quickly."
+  };
+  const BUCKETS = [
+    { id:"liquid-fear", name:"Liquid Fear", role:"insurance", heat:4,
+      thesis:"Forced selling needs cash; short US bills absorb the washout.",
+      fails:"You needed return, not powder. Inflation rises without a recession.",
+      tickers:["SGOV","BIL"],
+      why:"Day-one haven is liquidity, not gold. This sleeve exists so you are not forced sellers of everything else.",
+      shock:"Bank stress, war, margin spiral — anything that forces selling." },
+    { id:"oil-hormuz", name:"Oil / Hormuz", role:"scare", heat:4,
+      thesis:"Hormuz disruption or war-risk spiral tightens seaborne crude.",
+      fails:"Spare capacity + SPR + demand destruction crush the spike; conflict is short.",
+      tickers:["XOM","CVX","XLE","FANG"],
+      why:"Insurance premia can act as a soft blockade even without a navy closing the strait.",
+      shock:"Strait of Hormuz / Gulf infrastructure." },
+    { id:"tankers", name:"Tankers", role:"scare", heat:3,
+      thesis:"War-risk insurance + Cape reroutes raise ton-miles and tanker day-rates.",
+      fails:"Ceasefire + premiums unwind; owners refuse to sail so volume dies.",
+      tickers:["FRO","DHT","STNG"],
+      why:"Markets often underprice “insurance closed the strait” versus “navy closed the strait.”",
+      shock:"Red Sea, Hormuz, Bab al-Mandeb." },
+    { id:"lng", name:"LNG", role:"order", heat:3,
+      thesis:"Gulf LNG offline forces US export pull and longer voyages.",
+      fails:"Qatar flows normalize fast; warm winter; storage full.",
+      tickers:["LNG"],
+      why:"US is a structural LNG exporter; European utilities can be hurt by the same price spike.",
+      shock:"Qatar / Gulf LNG disruption." },
+    { id:"munitions", name:"Munitions US", role:"restock", heat:3,
+      thesis:"High-intensity conflict burns PGMs and interceptors; refill takes years.",
+      fails:"Budget freeze, program cancel, peace-dividend narrative; day-one liquidity wash.",
+      tickers:["LMT","RTX","NOC","GD"],
+      why:"Week-one price action is noisy; the authored role is backlog over months–years.",
+      shock:"Attritional conflict / missile defense spend." },
+    { id:"drones", name:"Cheap Mass (drones)", role:"order", heat:2,
+      thesis:"Attritable drones and counter-UAS pull procurement toward mass.",
+      fails:"Program delays, Pentagon accounting, valuation already stretched.",
+      tickers:["AVAV","KTOS"],
+      why:"Contract awards are the mechanism — not a one-day scare print.",
+      shock:"Attritional wars proving cheap mass." },
+    { id:"cyber", name:"Invisible War", role:"order", heat:2,
+      thesis:"Gray-zone and Taiwan contingency fund cyber / EW / ISR / space layers.",
+      fails:"“Cyber” becomes a meme multiple with no durable DoD tie.",
+      tickers:["CRWD","PANW","RKLB"],
+      why:"Software and sensors can fund even when shipyards cannot expand fast.",
+      shock:"Taiwan contingency / infrastructure sabotage." },
+    { id:"gold", name:"Gold (washout)", role:"insurance", heat:2,
+      thesis:"After the liquidity dump, persistence + fiscal stress can bid bullion.",
+      fails:"Real rates rip higher; dollar squeeze; crowded long liquidates again.",
+      tickers:["GLD","GDX"],
+      why:"Not day-one magic. Playbook language: cash first, metals later if conflict elongates.",
+      shock:"Sustained conflict + fiscal blowout." },
+    { id:"uranium", name:"Uranium / fuel", role:"order", heat:2,
+      thesis:"Energy security + AI power + enrichment risk restart nuclear fuel demand.",
+      fails:"Spot overshoots then inventories flush; reactor delays.",
+      tickers:["CCJ","URA","LEU"],
+      why:"Sentiment can move in weeks; contract books take years.",
+      shock:"Fossil chokepoint + nuclear restart." },
+    { id:"fertilizer", name:"Empty Granaries", role:"scare", heat:2,
+      thesis:"Gas spike and grain-route shocks feed fertilizer / food inflation.",
+      fails:"Gas normalizes; big harvest; export bans reverse.",
+      tickers:["CF","NTR","MOS"],
+      why:"Fertilizer is frozen gas; food inflation is political as much as financial.",
+      shock:"Gas / Black Sea / Red Sea food containers." },
+    { id:"minerals", name:"Wartime Elements", role:"order", heat:3,
+      thesis:"Export licenses and stockpile panic hit antimony, tungsten, REE, Ga/Ge.",
+      fails:"China dumps to kill Western projects and Western floors disappear.",
+      tickers:["MP","UAMY","UUUU"],
+      why:"Bridge between critical-minerals sovereignty work and crisis tempo.",
+      shock:"China export control / Taiwan logistics." },
+    { id:"silicon", name:"Silicon siege", role:"scare", heat:4,
+      thesis:"Taiwan Strait risk reprices advanced semis — often against the “hedge” you thought you bought.",
+      fails:"You bought the victim thinking it was the hedge.",
+      tickers:["TSM","AMAT","LRCX","MU"],
+      why:"Harsh truth: many semis fall on Taiwan risk because they are the exposure.",
+      shock:"Taiwan Strait crisis / blockade." },
+    { id:"refiners", name:"Refiners", role:"scare", heat:2,
+      thesis:"Crude shocks can widen cracks for complex refiners — until demand dies.",
+      fails:"Demand destruction kills cracks.",
+      tickers:["VLO","MPC","PSX"],
+      why:"Same oil spike that helps upstream can destroy downstream spreads.",
+      shock:"Hormuz / crude spike with recession risk." },
+    { id:"naval", name:"Naval / yards", role:"restock", heat:2,
+      thesis:"Sea-lane conflict and fleet gaps pull shipyard and naval systems spend.",
+      fails:"Appropriations slip; industrial base cannot absorb orders on the authored timeline.",
+      tickers:["GD","HII"],
+      why:"Restock role: capacity and labor, not a one-week scare.",
+      shock:"Hormuz / Taiwan naval ops." },
+    { id:"shipping-dry", name:"Dry bulk (reroute)", role:"scare", heat:1,
+      thesis:"Grain and ore reroutes can lift ton-miles for dry bulk.",
+      fails:"Routes normalize; China demand softens; idle fleet absorbs the spike.",
+      tickers:["GOGL"],
+      why:"Secondary to tankers in most Hormuz templates — authored heat stays low unless grain is the story.",
+      shock:"Red Sea / Cape reroutes for dry cargo." },
+    { id:"defense-eu", name:"EU defense", role:"order", heat:2,
+      thesis:"Europe restocks under NATO spend paths after Russia escalation.",
+      fails:"Fiscal fatigue; procurement fragmentation; US primes capture the orders instead.",
+      tickers:["RHM.DE"],
+      why:"Order role with political timeline risk. EXAMPLE listing may be less liquid for US accounts.",
+      shock:"Russia / Europe escalation." },
+    { id:"grid-power", name:"Grid / AI power", role:"order", heat:2,
+      thesis:"Domestic power scarcity and AI load pull uranium, copper, and grid equipment.",
+      fails:"Load growth disappoints; permitting stalls; hyperscalers cut capex.",
+      tickers:["VST","CEG"],
+      why:"Not a war bucket first — an industrial-policy / power-crunch adjacency.",
+      shock:"US grid / AI power crunch." },
+    { id:"airlines-hurt", name:"Usually falls · airlines", role:"scare", heat:1,
+      thesis:"Fuel spikes and route risk typically pressure airlines — listed here as a transmission study object.",
+      fails:"Fuel hedges and capacity cuts offset the spike faster than the thesis expects.",
+      tickers:["DAL","UAL"],
+      why:"Included so “what usually falls” is visible — not as something to own for the shock.",
+      shock:"Oil spike / travel scare." },
+    { id:"chem-import", name:"Usually falls · chem importers", role:"scare", heat:1,
+      thesis:"Feedstock and freight shocks squeeze chemical importers.",
+      fails:"Pass-through pricing holds; feedstock routes reopen quickly.",
+      tickers:["DOW","LYB"],
+      why:"Again: transmission object for study, not a sleeve pitch.",
+      shock:"Hormuz energy war template." },
+    { id:"space-isr", name:"Space / ISR adjacency", role:"order", heat:2,
+      thesis:"ISR and launch adjacency fund even when other defense lines congest.",
+      fails:"Launch cadence slips; budget shifts back to munitions primes.",
+      tickers:["RKLB","NOC"],
+      why:"Pairs with Invisible War; overlapping tickers are intentional — roles differ by horizon.",
+      shock:"Great-power gray zone / Taiwan ISR." }
+  ];
+  const grid = document.getElementById("grid");
+  const detail = document.getElementById("detail");
+  function renderCards() {
+    grid.innerHTML = BUCKETS.map(b => `
+      <button type="button" class="bucket" data-id="${b.id}" aria-expanded="false" aria-controls="detail">
+        <div class="id"><span>${b.role}</span><span class="chip">editorial</span></div>
+        <div class="name">${b.name}</div>
+        <div class="blurb">${b.thesis}</div>
+        <p class="fails"><span class="lab">Fails when</span>${b.fails}</p>
+        <div class="heat h${b.heat}" aria-hidden="true"><i></i></div>
+        <div class="heat-lab"><span>editorial heat</span><span>${b.heat} / 4</span></div>
+      </button>
+    `).join("");
+  }
+  function openDetail(id) {
+    const b = BUCKETS.find(x => x.id === id);
+    if (!b) return;
+    document.querySelectorAll(".bucket").forEach(c => c.classList.toggle("selected", c.dataset.id === id));
+    document.querySelectorAll(".bucket").forEach(c => c.setAttribute("aria-expanded", c.dataset.id === id ? "true" : "false"));
+    detail.hidden = false;
+    detail.classList.add("open");
+    detail.innerHTML = `
+      <h2>${b.name}</h2>
+      <p style="font-family:var(--mono);font-size:11.5px;color:var(--ink-muted);margin:0 0 12px">
+        EXAMPLE DATA · role: ${b.role} · editorial heat ${b.heat}/4 · not a forecast
+      </p>
+      <div class="cols">
+        <div>
+          <dl class="kvs">
+            <dt>The idea</dt><dd>${b.why}</dd>
+            <dt>Shock family</dt><dd>${b.shock}</dd>
+            <dt>Role</dt><dd>${ROLES[b.role]}</dd>
+          </dl>
+        </div>
+        <div>
+          <dl class="kvs">
+            <dt>Claim</dt><dd>${b.thesis}</dd>
+            <dt>Fails when</dt><dd>${b.fails}</dd>
+            <dt>Study objects</dt><dd><span class="tickers">${b.tickers.join(" · ")}</span><br>
+              <span style="font-size:12px;color:var(--ink-muted)">Names to study on the desk — not a ranked list and not a recommendation.</span></dd>
+          </dl>
+        </div>
+      </div>
+      <div class="filters">
+        <button type="button" class="primary" id="btnFilter">Then filter the desk to these tickers</button>
+        <button type="button" id="btnClose">Close explanation</button>
+      </div>
+      <div class="filter-note" id="filterNote">
+        Filter would narrow the research table to ${b.tickers.join(", ")} —
+        still showing metrics and gaps (em-dash where unknown), still not ranking them.
+        <em>In this mock the table is not mounted; the sequence is the design point: explain first, filter second.</em>
+      </div>
+    `;
+    detail.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    /* The panel is scrolled to but focus stayed on the card, so a keyboard or screen-reader
+       user was told nothing opened and their next Tab continued through the remaining 19 cards
+       rather than into the explanation they just asked for. The panel takes focus; closing it
+       hands focus back to the card that opened it, so the reader does not lose their place in
+       the grid. */
+    detail.setAttribute("tabindex", "-1");
+    detail.focus({ preventScroll: true });
+    document.getElementById("btnClose").onclick = () => {
+      detail.classList.remove("open");
+      detail.hidden = true;
+      const opener = document.querySelector(`.bucket[data-id="${id}"]`);
+      if (opener) opener.focus();
+      document.querySelectorAll(".bucket").forEach(c => {
+        c.classList.remove("selected");
+        c.setAttribute("aria-expanded", "false");
+      });
+    };
+    document.getElementById("btnFilter").onclick = () => {
+      document.getElementById("filterNote").classList.add("show");
+    };
+  }
+  grid.addEventListener("click", e => {
+    const card = e.target.closest(".bucket");
+    if (card) openDetail(card.dataset.id);
+  });
+  function applyTheme(t) {
+    if (t) document.documentElement.setAttribute("data-theme", t);
+    else document.documentElement.removeAttribute("data-theme");
+    if (t) localStorage.setItem("monad.front.theme", t);
+    document.querySelectorAll(".theme button").forEach(b => b.classList.toggle("on", b.dataset.theme === (t || "")));
+  }
+  const saved = localStorage.getItem("monad.front.theme");
+  if (saved) applyTheme(saved);
+  document.querySelector(".theme").addEventListener("click", e => {
+    const b = e.target.closest("button[data-theme]");
+    if (b) applyTheme(b.dataset.theme);
+  });
+  renderCards();
+})();
+</script>
+</body>
+</html>

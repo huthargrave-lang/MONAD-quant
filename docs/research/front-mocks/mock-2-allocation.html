@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MONAD — What does a mix mean?</title>
+<!--
+  DESIGN BET: The missing educational surface. Weights always sum to 100%. Show the
+  blended path against each sleeve, and show what failed (gold OOS) — not a pretty default.
+
+  TRADES AWAY: Tickers-as-primary-objects, geopolitical cards, screening lenses.
+
+  CHROME: Same token system, rail, panels, chips, and type as tools/research_ui.py.
+-->
+<style>
+:root{
+  --plane:#f2f3f1; --surface:#fcfcfb; --ink:#0b0b0b; --ink-2:#52514e;
+  --ink-muted:#898781; --rule:#e1e0d9; --axis:#c3c2b7; --accent:#2a78d6;
+  --ord-1:#86b6ef; --ord-2:#3987e5; --ord-3:#1c5cab; --ord-4:#0d366b;
+  --ink-on-1:#0b0b0b; --ink-on-4:#ffffff;
+  --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:where(:not([data-theme="light"])){
+    --plane:#0d0f12; --surface:#15181d; --ink:#f4f4f2; --ink-2:#b8b7b2;
+    --ink-muted:#83827d; --rule:#282c33; --axis:#3d424b; --accent:#6ba7f0;
+    --ord-1:#184f95; --ord-2:#2f79d4; --ord-3:#74aaee; --ord-4:#b7d3f6;
+    --ink-on-1:#ffffff; --ink-on-4:#0b0b0b;
+    --good:#3fbf3f; --warning:#e5b23c; --serious:#f09268; --critical:#ef6a6a;
+  }
+}
+:root[data-theme="dark"]{
+  --plane:#0d0f12; --surface:#15181d; --ink:#f4f4f2; --ink-2:#b8b7b2;
+  --ink-muted:#83827d; --rule:#282c33; --axis:#3d424b; --accent:#6ba7f0;
+  --ord-1:#184f95; --ord-2:#2f79d4; --ord-3:#74aaee; --ord-4:#b7d3f6;
+  --ink-on-1:#ffffff; --ink-on-4:#0b0b0b;
+  --good:#3fbf3f; --warning:#e5b23c; --serious:#f09268; --critical:#ef6a6a;
+}
+:root[data-theme="light"]{
+  --plane:#f2f3f1; --surface:#fcfcfb; --ink:#0b0b0b; --ink-2:#52514e;
+  --ink-muted:#898781; --rule:#e1e0d9; --axis:#c3c2b7; --accent:#2a78d6;
+  --ord-1:#86b6ef; --ord-2:#3987e5; --ord-3:#1c5cab; --ord-4:#0d366b;
+  --ink-on-1:#0b0b0b; --ink-on-4:#ffffff;
+  --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--plane);color:var(--ink);font:15px/1.55 var(--sans);
+  -webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+.shell{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh}
+.rail{border-right:1px solid var(--rule);background:var(--surface);padding:20px 0 40px}
+.rail .brand{padding:0 18px 16px;border-bottom:1px solid var(--rule);margin-bottom:14px}
+.rail .brand b{display:block;font-family:var(--mono);font-size:13px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink)}
+.rail .brand span{display:block;font-size:12px;color:var(--ink-muted);margin-top:3px}
+.rail h4{margin:16px 0 6px;padding:0 18px;font-size:11px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--ink-muted);font-weight:600}
+.rail a{display:block;padding:5px 18px;color:var(--ink-2);font-size:14px}
+.rail a:hover{background:var(--plane);text-decoration:none;color:var(--ink)}
+.rail a.on{color:var(--ink);border-left:2px solid var(--accent);padding-left:16px;background:var(--plane)}
+.rail a.off,.rail span.off{color:var(--ink-muted)}
+.rail span.off{display:block;padding:5px 18px;font-size:14px}
+.rail .fence{font-size:10px;font-family:var(--mono);color:var(--ink-muted);
+  border:1px solid var(--rule);border-radius:3px;padding:0 4px;margin-left:5px}
+.rail details.nav-drop{margin:0 0 6px}
+.rail details.nav-drop > summary{
+  list-style:none;cursor:pointer;user-select:none;
+  padding:5px 18px;font-size:11px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--ink-muted);font-weight:600}
+.rail details.nav-drop > summary::-webkit-details-marker{display:none}
+.rail details.nav-drop > summary::after{content:"▾";float:right;margin-right:2px;opacity:.75}
+.rail details.nav-drop:not([open]) > summary::after{content:"▸"}
+.rail details.nav-drop a,.rail details.nav-drop span.off{padding-left:26px}
+.rail details.nav-drop a.on{padding-left:24px}
+.rail .theme{padding:18px 18px 0;display:flex;gap:6px}
+.rail .theme button{font:12px var(--sans);height:28px;padding:0 10px;border:1px solid var(--rule);
+  border-radius:6px;background:var(--surface);color:var(--ink);cursor:pointer}
+.rail .theme button.on{border-color:var(--accent)}
+main{min-width:0;padding:26px 30px 90px;max-width:1180px;width:100%;justify-self:center}
+.crumb{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-muted);margin-bottom:9px}
+h1{font-size:23px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing:-.012em}
+h2{font-size:15px;margin:34px 0 10px;font-weight:640}
+h3{font-size:13px;margin:0 0 4px;font-weight:640}
+p{margin:0 0 12px;color:var(--ink-2);max-width:68ch}
+.lede{font-size:15px;color:var(--ink-2);max-width:70ch}
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:9px;padding:18px 20px;margin:0 0 18px}
+.note{padding:10px 12px;border-left:3px solid var(--warning);background:var(--surface);
+  border-radius:0 6px 6px 0;color:var(--ink-2);font-size:13.5px;margin:0 0 16px}
+.chip{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:11px;
+  padding:2px 7px;border-radius:999px;border:1px solid var(--rule);color:var(--ink-2);
+  background:var(--plane);white-space:nowrap}
+.chip .dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto;background:var(--warning)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:1px;
+  background:var(--rule);border:1px solid var(--rule);border-radius:9px;overflow:hidden;margin-bottom:22px}
+.stat{background:var(--surface);padding:13px 15px}
+.stat b{display:block;font-family:var(--mono);font-size:25px;line-height:1.1;
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.stat span{display:block;font-size:11.5px;color:var(--ink-muted);margin-top:3px}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0 0}
+.filters button{font:13px var(--sans);height:30px;padding:0 11px;border:1px solid var(--rule);
+  border-radius:6px;background:var(--surface);color:var(--ink);cursor:pointer}
+.filters button:hover,.filters button.on{border-color:var(--accent)}
+.filters button.on{background:var(--plane);font-weight:600}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 8px}
+.term{background:var(--plane);border:1px solid var(--rule);border-radius:9px;padding:14px 16px}
+.term p{margin:0;font-size:13px;max-width:none}
+.term .ex{margin-top:8px;padding-top:8px;border-top:1px solid var(--rule);
+  font-family:var(--mono);font-size:11.5px;color:var(--ink-muted)}
+.sum-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;
+  margin:0 0 14px;padding-bottom:12px;border-bottom:1px solid var(--rule)}
+.sum-readout{font-family:var(--mono);font-size:16px;font-weight:640}
+.sum-readout[data-ok="true"]{color:var(--ink)}
+.sum-readout[data-ok="false"]{color:var(--critical)}
+.sum-visual{flex:1;min-width:160px;height:8px;background:var(--rule);border-radius:99px;
+  display:flex;overflow:hidden}
+.sum-visual span{height:100%;display:block}
+.sleeve{display:grid;gap:6px 14px;align-items:center;padding:12px 0;border-bottom:1px solid var(--rule);
+  grid-template-columns:160px 1fr 56px}
+.sleeve:last-of-type{border-bottom:0}
+.sleeve label{font-weight:640;font-size:13.5px}
+.sleeve .job{color:var(--ink-muted);font-size:12px;margin:2px 0 0;font-weight:400}
+.sleeve input[type="range"]{width:100%;accent-color:var(--accent)}
+.sleeve .pct{font-family:var(--mono);font-size:14px;text-align:right;font-variant-numeric:tabular-nums}
+.legend{display:flex;flex-wrap:wrap;gap:8px 14px;font-family:var(--mono);font-size:11px;
+  color:var(--ink-2);margin:0 0 10px}
+.legend i{display:inline-block;width:12px;height:3px;vertical-align:middle;margin-right:6px;border-radius:2px}
+.chart-box{border:1px solid var(--rule);border-radius:8px;background:var(--plane);padding:8px}
+.chart-box svg{width:100%;height:auto;display:block}
+.muted{color:var(--ink-muted);font-size:12px;font-family:var(--mono);margin:8px 0 0}
+.honest{border-color:var(--serious)}
+.honest h3{color:var(--ink)}
+ol{margin:0;padding-left:1.2rem;color:var(--ink-2);font-size:13.5px}
+ol li{margin:0 0 6px}
+.desk{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+.desk p{margin:0;max-width:46ch}
+.desk > div{display:flex;flex-wrap:wrap;gap:8px}
+.btn{display:inline-block;font:13px var(--sans);line-height:30px;height:32px;padding:0 14px;
+  border:1px solid var(--accent);border-radius:6px;background:var(--accent);color:var(--ink-on-4);text-decoration:none}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--rule)}
+footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--rule);font-size:12px;color:var(--ink-muted)}
+@media (max-width:720px){
+  .shell{grid-template-columns:1fr}
+  .rail{border-right:0;border-bottom:1px solid var(--rule);padding:14px 0 12px}
+  .cards,.sleeve{grid-template-columns:1fr}
+  .sleeve .pct{text-align:left}
+  main{padding:20px 16px 70px}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="rail" aria-label="MONAD">
+    <div class="brand"><b>MONAD</b><span>Research</span></div>
+    <h4>Basics</h4>
+    <a href="mock-1-plain-english.html">1 · What could I own?</a>
+    <a class="on" href="mock-2-allocation.html">2 · What does a mix mean?</a>
+    <a href="mock-3-thesis-first.html">3 · Theses &amp; fails</a>
+    <h4>Desk</h4>
+    <a href="mock-4-progressive.html">Screener</a>
+    <details class="nav-drop" open>
+      <summary>Quant</summary>
+      <span class="off">Overview <span class="fence">server</span></span>
+      <span class="off">Research web <span class="fence">server</span></span>
+      <span class="off">Web groups <span class="fence">server</span></span>
+      <span class="off">Engine sweep <span class="fence">server</span></span>
+      <span class="off">Context map <span class="fence">server</span></span>
+      <span class="off">UI surfaces <span class="fence">server</span></span>
+    </details>
+    <div class="theme" role="group" aria-label="Theme">
+      <button type="button" data-theme="light">Light</button>
+      <button type="button" data-theme="dark">Dark</button>
+    </div>
+  </nav>
+  <main>
+    <p class="crumb">Learn 2 of 3 · allocation arithmetic · then the screener</p>
+    <h1>What does a mix mean?</h1>
+    <p class="lede">
+      A portfolio is rarely one thing. It is weights that add to 100%.
+      Change the mix and watch how the blend path compares to each sleeve alone.
+    </p>
+    <div class="note">
+      <span class="chip"><span class="dot"></span>EXAMPLE DATA</span>
+      &nbsp;Blend math is real; paths are sample. This is not an allocation advice tool.
+      There is no “optimal” mix here.
+    </div>
+
+    <div class="stats" id="mixStats">
+      <div class="stat"><b id="s-index">60%</b><span>Broad index · SPY</span></div>
+      <div class="stat"><b id="s-bonds">30%</b><span>Long Treasuries · TLT</span></div>
+      <div class="stat"><b id="s-gold">10%</b><span>Gold · GLD</span></div>
+      <div class="stat"><b id="s-cash">0%</b><span>Cash · SGOV</span></div>
+    </div>
+
+    <h2>Terms, in place</h2>
+    <div class="cards">
+      <div class="term">
+        <h3>What “60/40” means</h3>
+        <p>Sixty percent in a broad stock index, forty percent in bonds. A description of weights — not a brand and not a promise. When stocks fall, bonds sometimes cushion — and sometimes (as in 2022) both fall together.</p>
+        <p class="ex">Worked example: $10,000 → $6,000 index + $4,000 bonds. Rebalance means selling the one that grew to restore 60/40.</p>
+      </div>
+      <div class="term">
+        <h3>What a cash sleeve is for</h3>
+        <p>Short bills (example: SGOV) barely move in price. Their job is optionality: money you can deploy after a washout without selling something you did not want to sell.</p>
+        <p class="ex">If cash is 10% of $100k, you have $10k of dry powder. You gave up some growth for that option.</p>
+      </div>
+      <div class="term">
+        <h3>What a gold sleeve is for</h3>
+        <p>Gold is not a company. People use a small weight hoping it zigzags when stocks do not. That hope is a hypothesis — MONAD tested it and the clean holdout did not confirm it.</p>
+        <p class="ex">See the honest result panel before treating gold as “the diversifier.”</p>
+      </div>
+      <div class="term">
+        <h3>What “blend” means on the chart</h3>
+        <p>Each month, the blend return is the weighted average of sleeve returns. The thick line is that path, indexed to 100 at the start — same window as the thin sleeve lines.</p>
+        <p class="ex">If you push one slider up, others shrink so the sum stays closed at 100%.</p>
+      </div>
+    </div>
+
+    <h2>Build a mix · weights must sum to 100%</h2>
+    <div class="panel" id="mixer">
+      <div class="sum-bar">
+        <div>
+          <div class="sum-readout" id="sumReadout" data-ok="true">100% allocated</div>
+          <div style="font-size:12px;color:var(--ink-muted);margin-top:3px">Bar segments = current weights, also labeled as words</div>
+        </div>
+        <div class="sum-visual" id="sumVisual" aria-hidden="true"></div>
+      </div>
+      <div class="sleeve" data-key="index">
+        <div>
+          <label for="w-index">Broad index · SPY</label>
+          <p class="job">Job: long-horizon company earnings basket</p>
+        </div>
+        <input id="w-index" type="range" min="0" max="100" value="60" aria-valuetext="60 percent">
+        <div class="pct" id="p-index">60%</div>
+      </div>
+      <div class="sleeve" data-key="bonds">
+        <div>
+          <label for="w-bonds">Long Treasuries · TLT</label>
+          <p class="job">Job: duration sleeve — 20+ year bonds, so it falls hardest when rates rise</p>
+        </div>
+        <input id="w-bonds" type="range" min="0" max="100" value="30" aria-valuetext="30 percent">
+        <div class="pct" id="p-bonds">30%</div>
+      </div>
+      <div class="sleeve" data-key="gold">
+        <div>
+          <label for="w-gold">Gold · GLD</label>
+          <p class="job">Job: hypothesized diversifier — see OOS result</p>
+        </div>
+        <input id="w-gold" type="range" min="0" max="100" value="10" aria-valuetext="10 percent">
+        <div class="pct" id="p-gold">10%</div>
+      </div>
+      <div class="sleeve" data-key="cash">
+        <div>
+          <label for="w-cash">Cash · SGOV</label>
+          <p class="job">Job: dry powder / ballast</p>
+        </div>
+        <input id="w-cash" type="range" min="0" max="100" value="0" aria-valuetext="0 percent">
+        <div class="pct" id="p-cash">0%</div>
+      </div>
+      <div class="filters" role="group" aria-label="Named starting mixes">
+        <button type="button" data-preset="60-40">Classic 60/40</button>
+        <button type="button" data-preset="60-30-10" class="on">60 / 30 / 10 gold</button>
+        <button type="button" data-preset="50-30-10-10">50 / 30 / 10 / 10 cash</button>
+        <button type="button" data-preset="100">100% index alone</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <p style="margin:0 0 10px;font-size:13px">Thin lines = each sleeve alone. Thick line = your blend.</p>
+      <div class="legend" id="legend"></div>
+      <div class="chart-box">
+        <svg id="chart" viewBox="0 0 900 320" role="img" aria-label="Blended path versus sleeve paths"></svg>
+      </div>
+      <p class="muted" id="ddNote"></p>
+      <p class="muted">ILLUSTRATIVE monthly paths · EXAMPLE DATA</p>
+    </div>
+
+    <div class="panel honest">
+      <h3>Honest negative result · gold sleeve</h3>
+      <p>
+        MONAD study language (paraphrased for this mock): a ~10% gold sleeve looked helpful
+        on a recent window, but it was the best of three candidates and
+        <strong style="color:var(--ink)">failed a clean out-of-sample holdout (2004–2013)</strong>.
+        Risk-adjusted confidence intervals straddled zero. Gold did not confirm.
+      </p>
+      <p style="margin-bottom:0">That is why this page lets you add gold and watch the line — and why it will not call gold a “must-have diversifier.” Showing what did not work is the point.</p>
+      <p class="muted">ILLUSTRATIVE summary of a research finding · not investment advice</p>
+    </div>
+
+    <div class="panel">
+      <h3>Worked example · reading the chart</h3>
+      <ol>
+        <li>Set <strong>60 / 40</strong> (index / bonds). The blend sits between the two thin lines when they diverge.</li>
+        <li>Move 10 points from bonds into gold. Ask: did the thick line become calmer — or just different?</li>
+        <li>A prettier sample path is not evidence. The OOS panel is the evidence language this desk uses.</li>
+      </ol>
+    </div>
+    <div class="panel desk">
+      <p>Next: geopolitical theses — each with a claim and a fails line. Then the screener, where those buckets actually narrow a table.</p>
+      <div>
+        <a class="btn" href="mock-3-thesis-first.html">Continue · theses &amp; fails</a>
+        <a class="btn ghost" href="mock-4-progressive.html">Skip to the screener</a>
+      </div>
+    </div>
+    <footer>MONAD · sample data only · never a recommendation to buy or sell</footer>
+  </main>
+</div>
+<script>
+(function () {
+  const TOKEN = { blend: "--ink", index: "--accent", bonds: "--ord-3", gold: "--warning", cash: "--ink-muted" };
+  const PATHS = {
+    index: [100,96,92,90,88,94,100,104,98,94,102,110,108,105,112,118,115,122,128,124,132,138,142,140,148,154,152,158,164,162,170,176,174,180,186,192],
+    bonds: [100,98,95,92,88,90,93,95,92,90,94,96,94,91,89,92,95,97,94,90,88,92,95,98,96,94,97,100,98,95,93,96,99,97,95,94],
+    gold:  [100,103,105,98,94,90,93,98,102,108,112,116,110,107,112,118,122,126,120,117,124,130,136,132,128,135,142,148,144,150,155,152,158,164,160,166],
+    cash:  [100,100.4,100.7,101.1,101.4,101.8,102.1,102.5,102.8,103.2,103.5,103.9,104.3,104.6,105,105.4,105.7,106.1,106.5,106.9,107.2,107.6,108,108.4,108.8,109.2,109.5,109.9,110.3,110.7,111.1,111.5,111.9,112.3,112.7,113.1]
+  };
+  const weights = { index: 60, bonds: 30, gold: 10, cash: 0 };
+  function tok(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+  function clampSum(changed) {
+    let others = Object.keys(weights).filter(k => k !== changed);
+    let sumOthers = others.reduce((s, k) => s + weights[k], 0);
+    let remain = 100 - weights[changed];
+    if (remain < 0) { weights[changed] = 100; others.forEach(k => weights[k] = 0); return; }
+    if (sumOthers === 0) { weights[others[0]] = remain; return; }
+    others.forEach(k => { weights[k] = Math.round(weights[k] / sumOthers * remain); });
+    let s = Object.values(weights).reduce((a, b) => a + b, 0);
+    /* Rounding four shares can leave the total a point out. That point used to be dumped on
+       `others[0]`, a fixed position in the key order — so when it was negative and that sleeve
+       was already at 0, the sleeve went to -1% while the header still read "100% allocated".
+       A negative weight is a short position, on the page that says it never tells anyone to
+       trade, and the sum being right is what hid it.
+
+       The residual now walks the other sleeves largest-first, and a sleeve can only give back
+       what it actually holds. Reproduce the old defect from 1/1/97/1 by dragging gold to 93. */
+    let resid = 100 - s;
+    for (const k of others.slice().sort((a, b) => weights[b] - weights[a])) {
+      if (resid === 0) break;
+      const step = resid > 0 ? resid : Math.max(resid, -weights[k]);
+      weights[k] += step;
+      resid -= step;
+    }
+  }
+  function blendPath() {
+    const n = PATHS.index.length, out = [100];
+    for (let i = 1; i < n; i++) {
+      let r = 0;
+      Object.keys(PATHS).forEach(k => {
+        r += (weights[k] / 100) * ((PATHS[k][i] / PATHS[k][i - 1]) - 1);
+      });
+      out.push(out[out.length - 1] * (1 + r));
+    }
+    return out.map(v => Math.round(v * 10) / 10);
+  }
+  function renderControls() {
+    Object.keys(weights).forEach(k => {
+      const input = document.getElementById("w-" + k);
+      input.value = weights[k];
+      input.setAttribute("aria-valuetext", weights[k] + " percent");
+      document.getElementById("p-" + k).textContent = weights[k] + "%";
+      document.getElementById("s-" + k).textContent = weights[k] + "%";
+    });
+    const sum = Object.values(weights).reduce((a, b) => a + b, 0);
+    const readout = document.getElementById("sumReadout");
+    readout.dataset.ok = sum === 100 ? "true" : "false";
+    readout.textContent = sum === 100 ? "100% allocated" : sum + "% — adjust until 100%";
+    const vis = document.getElementById("sumVisual");
+    vis.innerHTML = "";
+    [["index","Index"],["bonds","Bonds"],["gold","Gold"],["cash","Cash"]].forEach(([k, label]) => {
+      if (!weights[k]) return;
+      const span = document.createElement("span");
+      span.style.width = weights[k] + "%";
+      span.style.background = tok(TOKEN[k]);
+      span.title = label + " " + weights[k] + "%";
+      vis.appendChild(span);
+    });
+    /* The legend keys the chart, so it lists what the chart drew. It used to name all four
+       sleeves unconditionally while draw() skips any sleeve at 0%, which put a colour-swatched
+       "Cash alone · 0%" in the key for a line that is not on the canvas — a legend entry for
+       nothing. A sleeve at zero is now stated separately, in words, as being off the chart:
+       that is a real fact about the mix and it should not look like a plotted series.
+
+       The swatch repeats each line's dash signature, so the key and the canvas agree on shape
+       as well as colour. */
+    const LEGEND_DASH = { index: "none", bonds: "repeating-linear-gradient(90deg,CUR 0 6px,transparent 6px 9px)",
+                          gold: "repeating-linear-gradient(90deg,CUR 0 1px,transparent 1px 4px)",
+                          cash: "repeating-linear-gradient(90deg,CUR 0 9px,transparent 9px 12px,CUR 12px 14px,transparent 14px 17px)" };
+    const swatch = k => {
+      const c = tok(TOKEN[k]);
+      const dash = LEGEND_DASH[k];
+      return dash === "none" ? `background:${c}` : `background:${dash.replace(/CUR/g, c)}`;
+    };
+    const drawn = ["index", "bonds", "gold", "cash"].filter(k => weights[k]);
+    const off = ["index", "bonds", "gold", "cash"].filter(k => !weights[k]);
+    const NAME = { index: "Index", bonds: "Bonds", gold: "Gold", cash: "Cash" };
+    document.getElementById("legend").innerHTML = [
+      `<span><i style="background:${tok(TOKEN.blend)};height:4px"></i>Blend (your mix)</span>`,
+      ...drawn.map(k => `<span><i style="${swatch(k)}"></i>${NAME[k]} alone · ${weights[k]}%</span>`),
+      off.length ? `<span style="opacity:.75">Not on the chart at 0%: `
+        + `${off.map(k => NAME[k]).join(", ")}</span>` : ""
+    ].join("");
+  }
+  function draw() {
+    renderControls();
+    const blend = blendPath();
+    const svg = document.getElementById("chart");
+    const W = 900, H = 320, pad = { t: 18, r: 80, b: 34, l: 40 };
+    let all = blend.slice();
+    Object.keys(PATHS).forEach(k => { if (weights[k]) all = all.concat(PATHS[k]); });
+    const ymin = Math.min(...all) * 0.96, ymax = Math.max(...all) * 1.04;
+    const n = blend.length, rule = tok("--rule"), ink = tok("--ink-muted");
+    const x = i => pad.l + (i / (n - 1)) * (W - pad.l - pad.r);
+    const y = v => pad.t + (1 - (v - ymin) / (ymax - ymin)) * (H - pad.t - pad.b);
+    let g = "";
+    [0.25, 0.5, 0.75].forEach(f => {
+      const yy = pad.t + f * (H - pad.t - pad.b);
+      g += `<line x1="${pad.l}" y1="${yy}" x2="${W - pad.r}" y2="${yy}" stroke="${rule}" stroke-dasharray="3 4"/>`;
+    });
+    g += `<line x1="${pad.l}" y1="${H - pad.b}" x2="${W - pad.r}" y2="${H - pad.b}" stroke="${rule}"/>`;
+    g += `<text x="${pad.l}" y="${H - 10}" fill="${ink}" font-family="ui-monospace,monospace" font-size="11">start</text>`;
+    g += `<text x="${W - pad.r}" y="${H - 10}" fill="${ink}" font-family="ui-monospace,monospace" font-size="11" text-anchor="end">end · sample window</text>`;
+    /* Each sleeve line carries a dash signature and its own end label, so the four thin lines
+       are told apart by shape and by word and not only by colour. Four identical strokes in
+       four colours is unreadable printed, unreadable to the ~8% of men with a red-green
+       deficiency, and unreadable the moment two sleeves overlap. The legend swatch is then a
+       convenience rather than the only key. */
+    const DASH = { index: "", bonds: "6 3", gold: "1 3", cash: "9 3 2 3" };
+    const ends = [];
+    ["index", "bonds", "gold", "cash"].forEach(k => {
+      if (!weights[k]) return;
+      const d = PATHS[k].map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+      g += `<path d="${d}" fill="none" stroke="${tok(TOKEN[k])}" stroke-width="1.25"`
+         + ` opacity="0.55"${DASH[k] ? ` stroke-dasharray="${DASH[k]}"` : ""}/>`;
+      ends.push({ k, v: PATHS[k][PATHS[k].length - 1] });
+    });
+    /* End labels, stacked away from each other so two sleeves finishing close together do not
+       print on top of one another. Sorted by value so the order on screen matches the order
+       of the lines arriving. */
+    /* Worst peak-to-trough fall for the blend and for each sleeve on the chart. Mocks 1 and 4
+       carry this; this page needed it most and did not have it. The blend's whole claim is
+       that mixing changes the RIDE, and a chart showing only where each line ended cannot
+       show a ride — it can only rank. Computed from the same arrays that are drawn. */
+    const worst = ys => {
+      let peak = ys[0], w = 0;
+      for (const v of ys) { if (v > peak) peak = v; const d = (v - peak) / peak; if (d < w) w = d; }
+      return w;
+    };
+    const ddNote = document.getElementById("ddNote");
+    if (ddNote) {
+      const parts = ["index", "bonds", "gold", "cash"].filter(k => weights[k])
+        .map(k => `${k} ${Math.abs(Math.round(worst(PATHS[k]) * 100))}%`);
+      ddNote.textContent = `Worst fall along the way — your blend `
+        + `${Math.abs(Math.round(worst(blend) * 100))}%`
+        + (parts.length ? `; sleeves alone ${parts.join(", ")}.` : ".")
+        + ` A mix is judged on the ride as well as the destination.`;
+    }
+    ends.sort((a, b) => a.v - b.v);
+    let lastY = Infinity;
+    for (let i = ends.length - 1; i >= 0; i--) {
+      const e = ends[i];
+      let yy = y(e.v) + 4;
+      if (yy > lastY - 12) yy = lastY - 12;
+      lastY = yy;
+      g += `<text x="${(x(n - 1) + 8).toFixed(1)}" y="${yy.toFixed(1)}" fill="${tok(TOKEN[e.k])}"`
+         + ` font-family="ui-monospace,monospace" font-size="10" opacity="0.9">${e.k} ${e.v}</text>`;
+    }
+    const dB = blend.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+    const last = blend[blend.length - 1], c = tok(TOKEN.blend);
+    g += `<path d="${dB}" fill="none" stroke="${c}" stroke-width="2.6"/>`;
+    g += `<circle cx="${x(n - 1)}" cy="${y(last)}" r="4" fill="${c}"/>`;
+    g += `<text x="${x(n - 1) + 8}" y="${y(last) + 4}" fill="${c}" font-family="ui-monospace,monospace" font-size="12">blend ${last}</text>`;
+    svg.innerHTML = g;
+  }
+  Object.keys(weights).forEach(k => {
+    document.getElementById("w-" + k).addEventListener("input", e => {
+      weights[k] = parseInt(e.target.value, 10);
+      clampSum(k);
+      document.querySelectorAll(".filters button").forEach(b => b.classList.remove("on"));
+      draw();
+    });
+  });
+  const PRESETS = {
+    "60-40": { index: 60, bonds: 40, gold: 0, cash: 0 },
+    "60-30-10": { index: 60, bonds: 30, gold: 10, cash: 0 },
+    "50-30-10-10": { index: 50, bonds: 30, gold: 10, cash: 10 },
+    "100": { index: 100, bonds: 0, gold: 0, cash: 0 }
+  };
+  document.querySelector(".filters").addEventListener("click", e => {
+    const btn = e.target.closest("button[data-preset]");
+    if (!btn) return;
+    Object.assign(weights, PRESETS[btn.dataset.preset]);
+    document.querySelectorAll(".filters button").forEach(b => b.classList.toggle("on", b === btn));
+    draw();
+  });
+  function applyTheme(t) {
+    if (t) document.documentElement.setAttribute("data-theme", t);
+    else document.documentElement.removeAttribute("data-theme");
+    if (t) localStorage.setItem("monad.front.theme", t);
+    document.querySelectorAll(".theme button").forEach(b => b.classList.toggle("on", b.dataset.theme === (t || "")));
+    draw();
+  }
+  const saved = localStorage.getItem("monad.front.theme");
+  if (saved) applyTheme(saved);
+  document.querySelector(".theme").addEventListener("click", e => {
+    const b = e.target.closest("button[data-theme]");
+    if (b) applyTheme(b.dataset.theme);
+  });
+  draw();
+})();
+</script>
+</body>
+</html>
