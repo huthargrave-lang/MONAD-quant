@@ -53,7 +53,10 @@ class ExportTests(unittest.TestCase):
         reads as a different application. The one deliberate omission is Mounted data:
         those views need optional SQLite mounts that cannot exist on a static host."""
         import research_ui  # noqa: PLC0415 — test-local, keeps module import cheap
-        served = [label for _href, label in research_ui._nav_view_items()]
+        # Server-only views are excluded on both sides from ONE list
+        # (`research_ui.SERVER_ONLY_VIEWS`). /sweep runs backtests in a subprocess, which
+        # a static host cannot do, so publishing it would be a rail item that goes nowhere.
+        served = [label for _href, label in research_ui._nav_view_items(False)]
         published = [label for _href, label, _key in export_pages._STATIC_VIEWS]
         self.assertEqual(served, published)
         for page in ("index.html", "overview.html", "web.html"):

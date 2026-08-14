@@ -65,6 +65,7 @@ import ctx  # noqa: E402  — the context layer; reused, never duplicated
 import stock_screener  # noqa: E402  — presets + snapshot; all HTML for it lives here
 import screener_lab  # noqa: E402  — the sentiment screen's engine; renders, never fetches
 import sovereign_buckets  # noqa: E402  — the canonical chaos-bucket table; serialised, not copied
+import sweep_runner  # noqa: E402  — runs sweep.py as a job; never with --apply
 import scenarios  # noqa: E402  — modelled scenarios; derived in Python, only read in JS
 import ui_tokens  # noqa: E402  — the one palette; this file holds no second copy
 
@@ -1475,14 +1476,26 @@ def applicable_keys(nctx):
 # ─────────────────────────────────────────────────────────────────────────────
 # 5. Pages.
 # ─────────────────────────────────────────────────────────────────────────────
-def _nav_view_items():
+#: Views that only exist while a server is running. `/sweep` spawns backtests, which a static
+#: host cannot do, so the export drops it rather than publishing a control that does nothing.
+#: One definition, read by the rail AND by the export's "same views" check — a second list is
+#: how the published site drifted from the app the first time.
+SERVER_ONLY_VIEWS = ("/sweep",)
+
+
+def _nav_view_items(include_server_only=True):
     """The Views block, as (href, label). Split out so the static Pages export can assert
     it publishes the same list — a site offering different views from the app it was built
-    from reads as a different application, which is how it drifted the first time."""
-    return [("/", "Overview"), ("/web", "Research web"),
+    from reads as a different application, which is how it drifted the first time.
+
+    `include_server_only=False` gives the list a static export can honestly publish."""
+    items = [("/", "Overview"), ("/web", "Research web"),
             ("/web/groups", "Web groups"),
             ("/screener/draft", "Screener"),
+            ("/sweep", "Engine sweep"),
             ("/graph", "Context map"), ("/surfaces", "UI surfaces")]
+    return [(h, l) for h, l in items
+            if include_server_only or h not in SERVER_ONLY_VIEWS]
 
 
 def _nav(active, mounts):
@@ -1539,7 +1552,7 @@ def page(title, active, body, mounts, crumb="", wide=False):
             '<meta name="viewport" content="width=device-width,initial-scale=1">'
             '<title>{t}</title><link rel="stylesheet" href="{css}"></head><body>'
             '<div class="shell">{nav}<main{w}>{crumb}{body}'
-            '<footer>read-only · rendered from the working tree at request time · '
+            '<footer>rendered from the working tree at request time · every surface here reads only, except <a href="/sweep">Engine sweep</a>, which runs backtests · '
             'palette from <code>{css}</code></footer>'
             '</main></div></body></html>').format(
         t=esc(title), css=TOKENS_HREF, nav=_nav(active, mounts),
@@ -2025,6 +2038,213 @@ def page_recommend(mounts):
     body.append('<div id="recList"></div>')
     body.append(RECOMMEND_JS % json.dumps([k for k, _l, _h in RECOMMEND_KINDS]))
     return page("Create a recommendation", "/recommend", "".join(body), mounts)
+
+
+#: The engine sweep surface. Kept beside the other page builders rather than in the runner,
+#: because the runner's job is to spawn a process safely and this one's is to refuse to let
+#: what comes back read as a recommendation.
+SWEEP_TICKERS = ("QQQ", "TQQQ", "SOXL", "SPY", "LABU", "TNA", "GDXU")
+
+
+def _sweep_metric_rows(preset):
+    """Train and holdout side by side, never merged into one figure.
+
+    They answer different questions and only one of them is even trying to be out-of-sample.
+    A blended number would be a third quantity that neither run produced.
+    """
+    train, hold = preset.get("train") or {}, preset.get("holdout") or {}
+    fields = [("total_return_pct", "Return", "%.2f%%"),
+              ("sharpe_ratio", "Sharpe", "%.2f"),
+              ("max_drawdown_pct", "Max drawdown", "%.2f%%"),
+              ("total_trades", "Trades", "%d"),
+              ("win_rate_pct", "Win rate", "%.1f%%")]
+    out = []
+    for key, label, fmt in fields:
+        def cell(src):
+            v = src.get(key)
+            if v is None:
+                return '<td class="num"><span class="muted-cell">—</span></td>'
+            try:
+                return '<td class="num">%s</td>' % esc(fmt % v)
+            except (TypeError, ValueError):
+                return '<td class="num">%s</td>' % esc(str(v))
+        out.append("<tr><th>%s</th>%s%s</tr>" % (esc(label), cell(train), cell(hold)))
+    return "".join(out)
+
+
+def page_sweep(mounts, query=None):
+    avail = sweep_runner.availability()
+    body = ["<h1>Engine sweep</h1>",
+            '<p class="lede">Run the mean-reversion parameter sweep against live data and read '
+            'what comes back. Nothing on this page is stored between visits and nothing here '
+            'changes how the trader is configured.</p>']
+
+    # The point of the page, said before any number appears. The engine has been studied a
+    # great deal; that is not the same claim as "this program hands you parameters to use".
+    body.append(
+        '<figure class="panel absent"><figcaption><h3>What a sweep is, and what it is not</h3>'
+        '<p class="why">The sweep walks a grid of entry and exit parameters, backtests each '
+        'one, and reports the combinations that scored best. That is a real measurement of '
+        '<b>how this engine behaves across its parameter space</b>, and it is worth running.</p>'
+        '<p class="why"><b>It is not a recommendation, and its winner is not an edge.</b> The '
+        'presets are chosen by scoring them on the holdout — <code>selection_method: '
+        'holdout_live_score</code> in the output — so the holdout column is the number the '
+        'choice was made with, not an untouched test of it. Picking the best of many on a '
+        'sample and then quoting that sample\'s score is how a grid search reports a result it '
+        'did not earn. The repository\'s own routing note says it plainly: prefer the leak-free '
+        '<code>tools/walkforward_eval.py</code> over holdout-selected sweep numbers.</p>'
+        '<p class="why"><b>The engine has been studied; the conclusion was not a parameter '
+        'set.</b> Finding D6 in <code>RESEARCH_WEB.md</code> is that the active mean-reversion '
+        'engine shows no risk-adjusted edge over a static 50/50–60/40 allocation at any '
+        'timescale. Run this to learn how the engine responds to its knobs. Do not run it '
+        'expecting the top row to be worth trading.</p>'
+        '<p class="why">A tell worth watching for: when the winning preset comes back with '
+        '<code>rsi_oversold</code> at 80 or 90, the grid has not found a dip to buy. It has '
+        'found that entering on almost any bar scored best, which is a statement about the '
+        'search, not about the market.</p>'
+        '</figcaption></figure>')
+
+    if not avail["runnable"]:
+        body.append(
+            '<figure class="panel absent"><figcaption><h3>Cannot run here</h3>'
+            '<p class="why">%s</p><p class="why">The control is not shown rather than shown '
+            'and broken.</p></figcaption></figure>' % esc(avail["why_not"]))
+        return page("Engine sweep", "/sweep", "".join(body), mounts, crumb="ENGINE · SWEEP")
+
+    if not avail["is_current_process"]:
+        # Worth saying out loud: this server is running on an interpreter that cannot import
+        # the engine at all, and the sweep only works because a different one was found.
+        body.append(
+            '<figure class="panel"><figcaption><h3>Two interpreters</h3>'
+            '<p class="why">This server is running <code>%s</code> (Python %s), which '
+            '<b>cannot import the strategy engine</b> — <code>src/strategy/sizing.py</code> '
+            'annotates with <code>dict | None</code> and needs 3.10 or newer. Sweeps are run '
+            'with <code>%s</code> instead. Everything below therefore comes from a different '
+            'interpreter than the one rendering this page.</p></figcaption></figure>'
+            % (esc(avail["current_process"]), esc(avail["current_version"]),
+               esc(avail["interpreter"])))
+
+    body.append('<h2>Run one</h2>')
+    body.append('<form class="filters" id="sweepForm" autocomplete="off">')
+    body.append('<label class="field"><span>Ticker</span><select id="swTicker">')
+    for t in SWEEP_TICKERS:
+        body.append('<option value="%s">%s</option>' % (t, t))
+    body.append('</select></label>')
+    body.append('<label class="field"><span>Phase</span><select id="swPhase">'
+                '<option value="1">1 — entry grid (about 40s)</option>'
+                '<option value="2">2 — exit grid</option>'
+                '<option value="all">all — both, slower</option></select></label>')
+    body.append('<label class="field"><span>Cost model</span><select id="swMode">'
+                '<option value="realistic">realistic</option>'
+                '<option value="harsh">harsh</option>'
+                '<option value="optimistic">optimistic — ignores spread, do not quote it</option>'
+                '</select></label>')
+    body.append('<button type="submit" class="btn primary" id="swGo">Run sweep</button>')
+    body.append('</form>')
+    body.append('<p class="why" id="swState" role="status" aria-live="polite">'
+                'Nothing running. A sweep writes only its own regenerable results file and the '
+                'experiment journal; it never edits <code>config.py</code> and cannot change '
+                'what the live trader does.</p>')
+    body.append('<div id="swOut"></div>')
+    body.append(SWEEP_JS)
+    return page("Engine sweep", "/sweep", "".join(body), mounts, crumb="ENGINE · SWEEP")
+
+
+#: Polling, not streaming: a sweep is tens of seconds and one request every two seconds is
+#: cheaper to reason about than a long-lived connection through a threading HTTP server.
+SWEEP_JS = """<script>
+(function(){
+  var form=document.getElementById("sweepForm"), st=document.getElementById("swState"),
+      out=document.getElementById("swOut"), go=document.getElementById("swGo"), timer=null;
+  function esc(x){ var d=document.createElement("div"); d.textContent=x==null?"":String(x); return d.innerHTML; }
+  function num(v, digits, suffix){
+    if(v===null||v===undefined) return '<span class="muted-cell">\u2014</span>';
+    var n=Number(v); if(!isFinite(n)) return esc(v);
+    return esc(n.toFixed(digits)) + (suffix||"");
+  }
+  /* Train and holdout stay in their own columns. The holdout header says how the presets were
+     chosen, because the number underneath it is the one the choice was made with. */
+  function presetTable(label, p){
+    var rows=[["total_return_pct","Return",2,"%"],["sharpe_ratio","Sharpe",2,""],
+              ["max_drawdown_pct","Max drawdown",2,"%"],["total_trades","Trades",0,""],
+              ["win_rate_pct","Win rate",1,"%"]];
+    var t=p.train||{}, h=p.holdout||{}, body="";
+    rows.forEach(function(r){
+      body+="<tr><th>"+esc(r[1])+"</th><td class='num'>"+num(t[r[0]],r[2],r[3])+
+            "</td><td class='num'>"+num(h[r[0]],r[2],r[3])+"</td></tr>";
+    });
+    var pr=p.params||{}, chips=Object.keys(pr).map(function(k){
+      var v=pr[k]; return "<span class='chip'>"+esc(k)+" "+esc(typeof v==="number"?Number(v.toFixed(4)):v)+"</span>";
+    }).join(" ");
+    var warn = (pr.rsi_oversold>=75)
+      ? "<p class='why'><b>Read this one carefully.</b> An <code>rsi_oversold</code> of "+
+        esc(pr.rsi_oversold)+" does not describe a dip \u2014 it admits almost every bar. The "+
+        "grid found that entering nearly always scored best, which is a fact about the search."+
+        "</p>" : "";
+    return "<figure class='panel'><figcaption><h3>"+esc(label)+"</h3><p class='why'>"+chips+"</p>"+
+      warn+"</figcaption><table><thead><tr><th></th><th class='num'>Train</th>"+
+      "<th class='num'>Holdout \u00b7 selected on</th></tr></thead><tbody>"+body+
+      "</tbody></table></figure>";
+  }
+  function render(job){
+    if(job.state==="running"){ out.innerHTML=""; return; }
+    if(job.state!=="done"){
+      out.innerHTML="<figure class='panel absent'><figcaption><h3>The sweep did not finish</h3>"+
+        "<p class='why'>"+esc(job.error||"no reason was reported")+"</p>"+
+        (job.log?"<pre class='why' style='white-space:pre-wrap;max-height:22em;overflow:auto'>"+
+          esc(job.log.slice(-4000))+"</pre>":"")+"</figcaption></figure>";
+      return;
+    }
+    var r=job.results||{}, ps=r.presets||{}, html="";
+    html+="<figure class='panel'><figcaption><h3>"+esc(r.ticker||job.ticker)+" \u00b7 "+
+      esc(r.period||"period not reported")+"</h3><p class='why'>"+
+      "cost model <b>"+esc(r.backtest_mode)+"</b> \u00b7 sizing <b>"+esc(r.position_sizing)+
+      "</b> \u00b7 selection <b>"+esc(r.selection_method)+"</b> \u00b7 "+
+      esc(r.train_bars)+" train bars, "+esc(r.holdout_bars)+" holdout bars \u00b7 "+
+      "ran in "+esc(job.seconds)+"s on <code>"+esc(job.interpreter)+"</code></p>"+
+      "<p class='why'>These four presets are the grid's best by its own score. They are not "+
+      "ranked advice, and the holdout column is not an untouched test \u2014 it is what the "+
+      "presets were chosen with.</p></figcaption></figure>";
+    Object.keys(ps).forEach(function(k){ html+=presetTable(k, ps[k]); });
+    if(!Object.keys(ps).length)
+      html+="<figure class='panel absent'><figcaption><h3>No presets</h3><p class='why'>The "+
+        "sweep completed and produced no preset the grid was willing to name.</p></figcaption></figure>";
+    out.innerHTML=html;
+  }
+  function poll(id){
+    fetch("/api/sweep/status?job="+encodeURIComponent(id)).then(function(r){return r.json();})
+      .then(function(job){
+        if(job.error && !job.state){ st.textContent=job.error; go.disabled=false; return; }
+        if(job.state==="running"){
+          st.textContent="Running "+job.ticker+" phase "+job.phase+
+            " \u2014 "+Math.round((Date.now()/1000)-job.started_at)+"s elapsed. Backtests are "+
+            "running in a separate process; this page is polling.";
+          timer=setTimeout(function(){poll(id);},2000); return;
+        }
+        clearTimeout(timer); go.disabled=false;
+        st.textContent = job.state==="done"
+          ? ("Finished in "+job.seconds+"s. config.py was not touched.")
+          : ("Stopped after "+job.seconds+"s.");
+        render(job);
+      })
+      .catch(function(e){ clearTimeout(timer); go.disabled=false;
+        st.textContent="Lost contact with the server: "+e; });
+  }
+  form.addEventListener("submit", function(ev){
+    ev.preventDefault(); go.disabled=true; out.innerHTML="";
+    st.textContent="Starting\u2026";
+    var q="ticker="+encodeURIComponent(document.getElementById("swTicker").value)+
+          "&phase="+encodeURIComponent(document.getElementById("swPhase").value)+
+          "&mode="+encodeURIComponent(document.getElementById("swMode").value);
+    fetch("/api/sweep/start?"+q).then(function(r){return r.json();})
+      .then(function(d){
+        if(d.error){ st.textContent=d.error; go.disabled=false; return; }
+        poll(d.job);
+      })
+      .catch(function(e){ st.textContent="Could not start: "+e; go.disabled=false; });
+  });
+})();
+</script>"""
 
 
 def page_surfaces(mounts):
@@ -4249,6 +4469,30 @@ def route(path, query, opts):
         return 200, page_overview(mounts), HTML
     if path == "/surfaces":
         return 200, page_surfaces(mounts), HTML
+    if path == "/sweep":
+        return 200, page_sweep(mounts, query), HTML
+    if path == "/api/sweep/start":
+        # A GET that starts work, because this server has no POST handler and adding one for
+        # a single control is more surface than the control is worth. The write it can cause
+        # is bounded to two regenerable, gitignored artifacts, and `sweep_runner` refuses
+        # anything that is not a known ticker/phase/mode before a process is spawned.
+        try:
+            # `query` is a flat {name: value} dict on this server, not parse_qs lists — the
+            # first version indexed [0] and turned "realistic" into "r".
+            job_id = sweep_runner.start(
+                (query.get("ticker") or "").strip().upper(),
+                (query.get("phase") or "1").strip(),
+                (query.get("mode") or "realistic").strip())
+        except ValueError as exc:
+            return 400, json.dumps({"error": str(exc)}), JSONC
+        except RuntimeError as exc:
+            return 503, json.dumps({"error": str(exc)}), JSONC
+        return 200, json.dumps({"job": job_id}), JSONC
+    if path == "/api/sweep/status":
+        job = sweep_runner.status((query.get("job") or "").strip())
+        if job is None:
+            return 404, json.dumps({"error": "no such job"}), JSONC
+        return 200, json.dumps(job, default=str), JSONC
     if path == "/web":
         return 200, page_web(mounts, query), HTML
     if path == "/web/groups":

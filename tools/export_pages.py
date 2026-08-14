@@ -136,6 +136,12 @@ def _staticise(html, built, active="screener"):
     # tone reading with no way to tell how stale it is. Cross-references to it become
     # source links — honest about where the surface actually lives.
     html = re.sub(r'href="/sentiment[^"]*"', 'href="{}"'.format(REPO_URL), html)
+    # /sweep is deliberately NOT exported, and unlike /sentiment it cannot be: the page's
+    # whole function is to RUN backtests in a subprocess, which a static host has no way to do.
+    # Remapping it to a file would publish a control that silently does nothing, so the rail
+    # item is removed entirely and the two prose references become source links.
+    html = re.sub(r'<a[^>]*href="/sweep"[^>]*>.*?</a>', "", html, flags=re.S)
+    html = re.sub(r'href="/sweep[^"]*"', 'href="{}"'.format(REPO_URL), html)
     html = html.replace('href="/lenses"', 'href="index.html"')
     html = html.replace('href="/screen"', 'href="index.html"')
     # Node drill-down: every node the browser links to is exported, so these stay internal.
