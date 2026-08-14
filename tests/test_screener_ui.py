@@ -1879,6 +1879,11 @@ class TheScenarioStripReadsRatherThanDerives(unittest.TestCase):
 
 
 
+def _style(html):
+    """The page's one <style> block, for rules that must exist exactly once."""
+    return re.search(r"<style>(.*?)</style>", html, re.S).group(1)
+
+
 def _script(html):
     """The page's application script. There are three inline blocks and the app is the LAST
     one — a probe that took block 0 during Phase D reported two live properties as absent that
@@ -3689,3 +3694,46 @@ class TheBriefingSaysWhatTheDeskIsBeforeItShowsTheDesk(unittest.TestCase):
         self.assertNotIn("<footer>", desk,
                          "the provenance footer folds with the desk, so a reader who has not "
                          "continued is not told where any of this came from")
+
+
+class TheBriefingCountsAgreeWithTheTableBelowIt(unittest.TestCase):
+    """Three defects found by auditing my own briefing commit rather than by reasoning about
+    it. Two of them put a number in the opening that the table three inches below contradicts —
+    the failure `sovereign_buckets.py:10` records in its own words: the same number, two
+    answers, both published."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.html = _page()
+        cls.js = _decomment(_script(cls.html))
+
+    def test_a_truncating_lens_says_it_truncates(self):
+        """`canonicalRows` applies `top` AFTER screening. `most_active` sets it to 15, so the
+        card reported 225 passing over a table showing fifteen rows. Verified in a browser: the
+        clause fires for most_active and for no other lens."""
+        body = _functions(self.js).get("renderBriefing")
+        self.assertIn("p.top != null && pass > p.top", body,
+                      "the card no longer reconciles with the lens's own truncation")
+        truncating = {k: p["top"] for k, p in sc.PRESETS.items() if p.get("top")}
+        self.assertTrue(truncating,
+                        "no preset truncates any more, so this guard protects nothing and the "
+                        "clause it defends should go rather than sit unreachable")
+
+    def test_a_narrowed_desk_is_named_rather_than_left_to_be_noticed(self):
+        """The card counts the SNAPSHOT so its lesson does not move when a bucket is picked.
+        That is defensible only if it says so — otherwise it is a headline number disagreeing
+        with the table under it for a reason the reader cannot see."""
+        body = _functions(self.js).get("renderBriefing")
+        self.assertIn("contextUniverse().length", body)
+        self.assertIn("That is over the whole snapshot", body,
+                      "the card counts the snapshot without telling a reader the desk below "
+                      "is counting something else")
+
+    def test_the_page_defines_lede_once(self):
+        """`.lede` existed with no user at all, left behind when the head lost its standfirst.
+        Adding a second definition made the dead one shadowed rather than dead — strictly
+        worse, because editing it changes nothing and says nothing about why."""
+        css = re.findall(r"^\.lede\{", _style(self.html), re.M)
+        self.assertEqual(len(css), 1, "there are %d .lede rules; the later one silently wins "
+                                      "and the earlier is unreachable" % len(css))
+        self.assertIn('class="lede"', self.html, "the rule has no user again")
