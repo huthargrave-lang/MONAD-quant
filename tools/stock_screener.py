@@ -732,7 +732,12 @@ def _normalise_row(ticker, name, sector, ai, info, bucket=None):
     # field absent, and the page draws absent and blank differently on purpose.
     name = name or info.get("longName") or info.get("shortName") or None
     sector = sector or info.get("sector") or None
-    price = _num(info.get("currentPrice")) or _num(info.get("regularMarketPrice"))
+    # `or` falls through on a measured 0.0, not only on a missing value, and a price of
+    # zero then voids price, dollar_volume AND range_52w_pct together. `_num` already
+    # returns None for anything unparseable, so testing that is the whole check.
+    price = _num(info.get("currentPrice"))
+    if price is None:
+        price = _num(info.get("regularMarketPrice"))
     pe = _num(info.get("trailingPE"))
     if pe is None or pe <= 0:
         pe = _num(info.get("forwardPE"))
@@ -764,7 +769,10 @@ def _normalise_row(ticker, name, sector, ai, info, bucket=None):
         "debt_to_equity": _num(info.get("debtToEquity")),
         "beta": _num(info.get("beta")),
         "avg_volume": avg_vol,
-        "dollar_volume": (avg_vol * price) if (avg_vol and price) else None,
+        # Same falsy-zero trap: a halted name with a genuine 0 average volume would be
+        # recorded as "we do not know its dollar volume" rather than as zero traded.
+        "dollar_volume": (avg_vol * price)
+                         if (avg_vol is not None and price is not None) else None,
         "range_52w_pct": rng,
         "profit_margin": _num(info.get("profitMargins")),
         # ...and whether that number is a reading or a placeholder. A margin is net income over

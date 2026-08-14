@@ -464,3 +464,32 @@ class AnImputedValueIsNotAJudgeableOne(unittest.TestCase):
         _m, no_data = sc.apply_preset(rows, "low_pe_high_dividend")
         self.assertIn("DYIMP", {r["ticker"] for r, _x in no_data},
                       "the imputed test is hard-coded to profit_margin instead of being generic")
+
+
+class AMeasuredZeroIsNotAMissingValue(unittest.TestCase):
+    """`x or y` falls through on 0.0 as readily as on None, so a genuine zero was being
+    treated as "we do not know". Same class as the imputed margin above and the dividend
+    coercion before it — the difference is that this one silently voided THREE fields at once,
+    because price feeds dollar_volume and range_52w_pct."""
+
+    def test_a_measured_zero_price_stays_zero_and_does_not_void_its_dependants(self):
+        row = sc._normalise_row("HALT", "Halted", "S", "low",
+                                {"currentPrice": 0.0, "averageVolume": 0,
+                                 "regularMarketPrice": 12.0})
+        self.assertEqual(row["price"], 0.0,
+                         "a measured zero fell through to the backup field")
+        self.assertEqual(row["dollar_volume"], 0.0,
+                         "zero traded was recorded as unknown rather than as zero")
+
+    def test_a_genuinely_missing_price_still_falls_back(self):
+        """The fallback is the point of the expression and must survive the fix."""
+        row = sc._normalise_row("T", "T", "S", "low",
+                                {"regularMarketPrice": 12.0, "averageVolume": 100})
+        self.assertEqual(row["price"], 12.0)
+        self.assertEqual(row["dollar_volume"], 1200.0)
+
+    def test_dollar_volume_is_none_only_when_an_input_really_is(self):
+        self.assertIsNone(sc._normalise_row("T", "T", "S", "low",
+                                            {"averageVolume": 100})["dollar_volume"])
+        self.assertIsNone(sc._normalise_row("T", "T", "S", "low",
+                                            {"currentPrice": 5.0})["dollar_volume"])
