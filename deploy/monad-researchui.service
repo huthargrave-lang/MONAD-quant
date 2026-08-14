@@ -21,7 +21,7 @@ Environment=PYTHONUNBUFFERED=1
 # It renders the screener SNAPSHOT and never fetches during a request, so a page load
 # costs no vendor calls no matter who is browsing. monad-screener.timer produces the
 # snapshot; a missing one renders an absence panel naming the refresh command.
-ExecStart=/home/hudson/MONAD-quant/venv/bin/python /home/hudson/MONAD-quant/tools/research_ui.py serve --host 0.0.0.0 --port 8002
+ExecStart=/home/hudson/MONAD-quant/venv/bin/python /home/hudson/MONAD-quant/tools/research_ui.py serve --host 100.76.6.75 --port 8002
 
 Restart=on-failure
 RestartSec=10
