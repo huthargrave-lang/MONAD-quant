@@ -4605,7 +4605,12 @@ def _screener_combined_draft_payload():
             "profit_margin": fr.get("profit_margin"),
             "shadow_severity": fr.get("shadow_severity"),
             "shadow_severity_rank": fr.get("shadow_severity_rank"),
-            "price": fr.get("price") or sr.get("price"),
+            # `or` falls through on a measured 0.0 as readily as on None — the same trap
+            # fixed in _normalise_row, still live one layer downstream. A halted name
+            # repaired to price 0.0 in the snapshot arrived here as a STALE sentiment
+            # price, or as None with nothing disclosing it, since price is not in
+            # ABSENCE_FIELDS. The sentiment case is worse than the defect it replaced.
+            "price": fr["price"] if fr.get("price") is not None else sr.get("price"),
             "shadow": de if tag else None,
             "shadow_tag": tag,
             "score": score,

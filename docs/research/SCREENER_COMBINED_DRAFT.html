@@ -6509,6 +6509,11 @@ function renderTable(){
     // with three sources of coverage have none.
     const note=w && !toneSourceOff() && r.score!=null && !blended
       ? `<br><span class="muted-cell">no tone</span>` : "";
+    /* One formatter for one field. The $ volume/day cell printed the server's pre-rounded
+       display string while the chart printed fmtBig of the exact number, so 145 of 225 rows
+       carried two different labels for one quantity — NSRCF read "0M" in the table and "3.9K"
+       in the chart, three orders apart, on the row the volume fix was written for. Both now
+       read dollar_volume through fmtBig. */
     return `<tr data-tk="${escAttr(r.tk)}"${on} style="cursor:pointer">
       <td class="num">${i+1}</td>
       <td><button type="button" class="tk-open" data-open="${escAttr(r.tk)}"
@@ -6524,7 +6529,7 @@ function renderTable(){
       <td class="num">${fmtShadow(r)}${absenceNote(r,"shadow_tag")}</td>
       <td class="num">${r.beta==null?"—":r.beta.toFixed(2)}${absenceNote(r,"beta")}</td>
       <td class="num">${r.mcap!=null?esc(fmtBig(r.mcap)):'<span class="muted-cell">—</span>'}${absenceNote(r,"mcap")}</td>
-      <td class="num">${esc(r.vol||"—")}</td>
+      <td class="num">${r.dollar_volume!=null?esc(fmtBig(r.dollar_volume)):'<span class="muted-cell">—</span>'}${absenceNote(r,"vol")}</td>
       <td class="num">${scoreCell(rv, r.score)}${note}${absenceNote(r,"score")}</td>
       <td>${toneCell(r)}</td>
     </tr>`;
