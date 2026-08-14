@@ -65,3 +65,6 @@ _site/
 coverage.xml
 htmlcov/
 .pytest_cache/
+
+# The pre-3.11 venv, kept until the rebuild is trusted. Never a commit.
+venv-py39-backup/
