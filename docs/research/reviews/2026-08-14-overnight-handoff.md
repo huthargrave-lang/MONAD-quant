@@ -1,7 +1,7 @@
 # Overnight handoff — 2026-08-14
 
 Branch `overnight-redesign`. **Nothing merged, nothing pushed, `config.py` and `live/`
-untouched.** Six commits, all on this branch.
+untouched.**
 
 ---
 
@@ -11,6 +11,8 @@ untouched.** Six commits, all on this branch.
 0387c80  Give every screenable field a name, and one question for every lens
 673dd75  Say what the desk is before showing it            ← the redesign
 1b74581  Make the briefing's counts agree with the table under them
+a1133d3  Fix what the attack found: six defects, four of them mine to begin with
+226ee35  This handoff
 ```
 
 (Earlier in the session: `c6c0198`, `5e1c820`, `e1a117d` and before.)
