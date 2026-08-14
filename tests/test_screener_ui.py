@@ -3343,7 +3343,19 @@ class TheVolumeMetricReadsTheNumberNotItsLabel(unittest.TestCase):
     def setUpClass(cls):
         cls.html = _page()
         cls.js = _decomment(_script(cls.html))
-        cls.payload = research_ui._screener_combined_draft_payload()
+        # Authored rows, not the live snapshot. Both snapshots are gitignored and CI never
+        # fetches, so a class built on the fetched payload is red on every CI run and vacuous
+        # on the assertions that iterate rows — which is exactly what happened here: the
+        # "carries a row the old path read as zero" test failed in CI while
+        # "absences are untouched" passed over an empty list. screener_payload_fixture exists
+        # to end that and five sibling classes already use it; this one did not.
+        cls.payload = screener_payload_fixture.authored_payload(fund_rows=[
+            # 3926.16 formats to "0M" — the exact value that motivated the fix.
+            dict(screener_payload_fixture.FUND_ROWS[0], ticker="TINYV",
+                 dollar_volume=3926.16),
+            dict(screener_payload_fixture.FUND_ROWS[1], ticker="BIGV",
+                 dollar_volume=1.0e9),
+        ])
 
     def test_the_metric_reads_the_exact_field(self):
         self.assertRegex(

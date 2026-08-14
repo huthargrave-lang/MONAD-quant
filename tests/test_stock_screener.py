@@ -453,17 +453,24 @@ class AnImputedValueIsNotAJudgeableOne(unittest.TestCase):
         self.assertNotIn("TRUE0", unscreenable,
                          "a measured zero must still be judged and rejected, not excused")
 
-    def test_the_rule_is_generic_over_any_imputed_field(self):
-        """`apply_preset` tests `<metric>_imputed`, so `dividend_yield_imputed` — which already
-        ships — gets the same treatment without a second rule being written for it."""
+    def test_the_rule_is_NOT_generic_over_any_imputed_field(self):
+        """This test previously asserted the OPPOSITE and was wrong.
+
+        It pinned "any <metric>_imputed key excuses a row" as correct, praising the generality.
+        The generality was the bug: `dividend_yield_imputed` cannot tell a silent vendor from a
+        company that pays nothing, so 46 non-payers were excused from the income lens. A guard
+        that pins the defect is worse than no guard, and this is the third of those written
+        today — kept in its corrected form rather than deleted so the lesson stays attached to
+        the code it is about."""
         base = dict(pe=10.0, growth=0.5, debt_to_equity=20.0, beta=1.0, profit_margin=0.2,
                     shadow_severity_rank=0, dollar_volume=1e8, market_cap=1e9, price=10.0,
-                    ai="low", sector="Energy")
+                    ai="low", sector="Tech")
         rows = [dict(base, ticker="DYIMP", name="Imputed yield", dividend_yield=0.0,
                      dividend_yield_imputed=True)]
         _m, no_data = sc.apply_preset(rows, "low_pe_high_dividend")
-        self.assertIn("DYIMP", {r["ticker"] for r, _x in no_data},
-                      "the imputed test is hard-coded to profit_margin instead of being generic")
+        self.assertNotIn("DYIMP", {r["ticker"] for r, _x in no_data},
+                         "an imputed dividend flag is excusing a row from the income lens "
+                         "again — only fields in SCREEN_BLOCKING_IMPUTED may do that")
 
 
 class AMeasuredZeroIsNotAMissingValue(unittest.TestCase):
@@ -493,3 +500,49 @@ class AMeasuredZeroIsNotAMissingValue(unittest.TestCase):
                                             {"averageVolume": 100})["dollar_volume"])
         self.assertIsNone(sc._normalise_row("T", "T", "S", "low",
                                             {"currentPrice": 5.0})["dollar_volume"])
+
+
+class TheImputedRuleIsOptInAndPrecisionAware(unittest.TestCase):
+    """Both defects here were introduced by the commit that added the feature, and both were
+    found by attacking it rather than by testing it.
+
+    The first was elegance: reading any `<metric>_imputed` key generically was tidier and
+    wrong. The second was overclaiming: "arithmetically impossible" is false at the vendor's
+    stated precision."""
+
+    def test_a_flag_only_blocks_screening_if_it_means_cannot_be_judged(self):
+        """`dividend_yield_imputed` is set whenever the yield resolver returns None, and it
+        returns None BOTH for a silent vendor and for a company that simply pays nothing. Under
+        the generic rule, 46 non-payers — AMZN, NFLX, TSLA among them — moved from correctly
+        rejected to "could not be asked" on the income lens."""
+        self.assertEqual(sc.SCREEN_BLOCKING_IMPUTED, ("profit_margin",))
+        self.assertNotIn("dividend_yield", sc.SCREEN_BLOCKING_IMPUTED,
+                         "a flag that cannot tell 'pays nothing' from 'unreported' is "
+                         "excusing rows it should be rejecting")
+
+    def test_a_non_payer_is_still_rejected_by_the_income_lens(self):
+        base = dict(pe=10.0, growth=0.5, debt_to_equity=20.0, beta=1.0, profit_margin=0.2,
+                    shadow_severity_rank=0, dollar_volume=1e8, market_cap=1e9, price=10.0,
+                    ai="low", sector="Tech")
+        rows = [dict(base, ticker="NOPAY", name="Pays nothing", dividend_yield=0.0,
+                     dividend_yield_imputed=True)]
+        _m, no_data = sc.apply_preset(rows, "low_pe_high_dividend")
+        self.assertNotIn("NOPAY", {r["ticker"] for r, _x in no_data},
+                         "a company that pays no dividend was excused from the income lens")
+
+    def test_a_margin_that_rounds_to_zero_honestly_is_not_called_a_placeholder(self):
+        """The vendor quantises profitMargins to 1e-5 — measured, max deviation from 5dp across
+        the live 225 is 1.0e-07. A company earning 350,000 on revenue of 104 billion has a true
+        margin of 3.4e-06 and is rounded to 0.0 legitimately."""
+        real = {"profitMargins": 0.0, "netIncomeToCommon": 350000, "totalRevenue": 104e9}
+        self.assertFalse(sc._is_placeholder_margin(real),
+                         "a real sub-quantum margin was excused from the screen")
+        self.assertEqual(sc.VENDOR_MARGIN_QUANTUM, 1e-5)
+
+    def test_the_placeholder_cases_still_detect(self):
+        self.assertTrue(sc._is_placeholder_margin(
+            {"profitMargins": 0.0, "netIncomeToCommon": -152768992, "totalRevenue": 1210000}),
+            "OKLO no longer detects")
+        self.assertTrue(sc._is_placeholder_margin(
+            {"profitMargins": 0.0, "netIncomeToCommon": -253534000}),
+            "a name with no revenue reported no longer detects")

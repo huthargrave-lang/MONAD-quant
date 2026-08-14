@@ -688,18 +688,42 @@ def _num(value):
     return v if math.isfinite(v) else None
 
 
+#: Yahoo reports `profitMargins` to five decimal places — measured, not assumed: the largest
+#: deviation from 5dp across the live 225 rows is 1.0e-07. A true margin below this rounds to
+#: 0.0 legitimately, so the placeholder test must sit above it or it excuses real readings.
+VENDOR_MARGIN_QUANTUM = 1e-5
+
+
 def _is_placeholder_margin(info):
     """True when `profitMargins` is a placeholder zero rather than a measured margin.
 
-    Deliberately narrow. A company really can post a margin that rounds to zero, so the test is
-    not "is it small" — it is "is it EXACTLY zero while net income is not", which no arithmetic
-    produces. A missing margin is already `None` and is not this case.
+    Deliberately narrow, and narrower than the first version claimed. That version said exactly
+    zero beside a non-zero net income was "arithmetically impossible". It is not: the vendor
+    quantises this field to 1e-5 — measured, max deviation from five decimal places across the
+    live 225 is 1.0e-07 — so a company earning 350,000 on revenue of 104 billion has a true
+    margin of 3.4e-06 and is rounded to 0.0 honestly. Calling that a placeholder would excuse a
+    real reading from the screen, which is the same class of error in the other direction.
+
+    So the ratio is checked too. Below the vendor's own quantum the zero is a rounding artifact
+    and we leave it alone; above it, a zero cannot be a rounding of anything and is the
+    placeholder — OKLO reports 0.0 against net income of -152,768,992 on revenue of 1,210,000,
+    a true margin near -12,600%.
+
+    A missing margin is already `None` and is not this case: "the vendor said nothing" and "the
+    vendor said something untrue" are different states and must not collapse.
     """
     margin = _num(info.get("profitMargins"))
     if margin is None or margin != 0.0:
         return False
     net = _num(info.get("netIncomeToCommon"))
-    return net is not None and net != 0.0
+    if net is None or net == 0.0:
+        return False
+    revenue = _num(info.get("totalRevenue"))
+    if revenue is None or revenue == 0.0:
+        # No revenue to divide into: a margin cannot be computed at all, so a reported 0.0 is
+        # certainly not one. NXE and LAC arrive this way.
+        return True
+    return abs(net / revenue) > VENDOR_MARGIN_QUANTUM
 
 
 def _dividend_yield_fraction(info, price):
@@ -854,6 +878,23 @@ def load_snapshot(path=None):
 # ─────────────────────────────────────────────────────────────────────────────
 # 4. Applying a preset.
 # ─────────────────────────────────────────────────────────────────────────────
+#: Fields whose `_imputed` flag means the value CANNOT BE JUDGED, so a preset requiring one
+#: reports the row as unscreenable rather than as rejected.
+#:
+#: Opt-in, and the opt-in is the point. The first version of this read any `<metric>_imputed`
+#: key generically, which was tidier and wrong: `dividend_yield_imputed` is set whenever
+#: `_dividend_yield_fraction` returns None, and that function returns None BOTH for a vendor
+#: that shipped no dividend fields AND for a company that simply pays nothing. Under the
+#: generic rule `low_pe_high_dividend` went from 14 unscreenable to 60 — AMZN, NFLX, TSLA, AMD
+#: and 42 others moved from correctly rejected to "could not be asked" because paying no
+#: dividend is indistinguishable, in that flag, from the vendor being silent.
+#:
+#: `profit_margin` earns its place because the placeholder is PROVEN, not inferred: the vendor
+#: reports a margin of exactly zero next to a net income that makes it impossible. A flag only
+#: belongs here when it means "this is not a reading", never merely "this was defaulted".
+SCREEN_BLOCKING_IMPUTED = ("profit_margin",)
+
+
 def apply_preset(rows, preset_key):
     """(matches, no_data) — matches rank-ordered best first; no_data lists rows that
     could not be screened because a required metric is missing (reported, not hidden)."""
@@ -865,15 +906,10 @@ def apply_preset(rows, preset_key):
         # keeps an old cache (or a hand-built row) from being reported as unscreenable.
         if row.get("shadow_severity_rank") is None:
             row = enrich_row(row)
-        # A value the vendor imputed is not a value this screen can judge. `profit_margin`
-        # is the one field that arrives as a placeholder zero rather than as a null, so a
-        # preset requiring it would otherwise report 14 pre-revenue names as JUDGED AND
-        # REJECTED on profitability when the truth is that it could not be asked. Reported as
-        # unscreenable instead, which is the distinction this file already draws everywhere
-        # else and the one `listedNote` exists to publish.
         missing = [m for m, _op, _v in p["require"]
                    if m not in CATEGORICAL
-                   and (row.get(m) is None or row.get(m + "_imputed"))]
+                   and (row.get(m) is None
+                        or (m in SCREEN_BLOCKING_IMPUTED and row.get(m + "_imputed")))]
         if missing:
             no_data.append((row, missing))
             continue
