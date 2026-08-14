@@ -460,6 +460,42 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
 /* Shown only when no snapshot reached the page. It names the missing source and the command
    that produces it, because a screener with nothing in it is otherwise indistinguishable
    from a screener that is broken. */
+/* ── The briefing ─────────────────────────────────────────────────────────────────────
+   Measured before it was written: 75 buttons and 21 menus stood above the first number, and
+   the <h1> over them named the ACTIVE LENS. So a reader arriving cold learnt the name of a
+   filter — the page's third copy of it, after the command bar and the results header — and
+   never learnt what the desk is or what it refuses to do.
+
+   This does not hide the desk; it puts a sentence in front of it. Everything below is
+   untouched and, from the second visit onward, opens immediately. The rule the context
+   section states about itself holds here too: a reader must not have to expand anything to
+   discover that something is narrowing their results, which is why the fold is first-visit
+   only — a first visit has no saved narrowing to miss. */
+.briefing{margin:0 0 20px}
+.briefing h1{margin:0 0 10px}
+.lede{font-size:15.5px;line-height:1.55;color:var(--ink-2);max-width:74ch;margin:0 0 16px}
+.brief-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));
+  gap:14px;margin:0 0 16px}
+.brief-card{border:1px solid var(--rule);border-radius:9px;background:var(--surface);
+  padding:13px 15px}
+.brief-card h2{margin:0 0 9px;font:11px var(--mono);letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-muted)}
+.brief-card p{margin:0 0 8px;font-size:13.5px;line-height:1.5;color:var(--ink-2);max-width:60ch}
+.brief-card p:last-child{margin-bottom:0}
+.brief-card b{color:var(--ink);font-weight:600}
+/* The counts are the sentence's subject, so they are set apart from the prose around them
+   rather than left to be re-read out of it. */
+.brief-n{font:600 13.5px var(--mono);color:var(--ink)}
+.continue{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 4px}
+.continue button{height:30px;padding:0 14px;border-radius:6px;border:1px solid var(--ink);
+  background:var(--ink);color:var(--ink-on-4);font:13px var(--sans);cursor:pointer}
+.continue button:hover{background:var(--ink-2);border-color:var(--ink-2)}
+.continue span{font-size:12.5px;color:var(--ink-muted);max-width:62ch}
+/* The way back, once the desk is open. Quiet, because it is a re-read and not a control over
+   what the numbers say. */
+.brief-reopen{background:none;border:0;padding:0;font:12.5px var(--sans);color:var(--ink-muted);
+  cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.brief-reopen:hover,.brief-reopen:focus-visible{color:var(--ink-2)}
 .no-data{border:1px solid var(--warning);border-radius:9px;background:var(--surface);
   padding:14px 16px;margin:0 0 16px}
 .no-data h2{margin:0 0 6px;font-size:15px}
@@ -1178,7 +1214,34 @@ table.bwatch .spark{width:80px;height:26px;display:block}
          applyLivePayload() replaces it with the snapshot's own dates when one is injected. -->
   
     <div class="crumb">Research · screener</div>
-    <h1>Cheap &amp; growing — fundamentals with tone kept honest</h1>
+    <!-- The heading names the DESK. It used to name the active lens, which the command bar
+         and the results header both already say — three readouts of one piece of state, and
+         the only one a reader met first was the one they could not change from where it
+         stood. -->
+    <div class="briefing" id="briefing">
+      <h1>Research desk</h1>
+      <p class="lede" id="briefLede"></p>
+      <div class="brief-grid">
+        <div class="brief-card">
+          <h2>What it will not do</h2>
+          <p>No ranked buys, no score on a ticker that stands in for a decision, and no
+          missing number read as a zero — an absent figure is drawn as absent, with the
+          reason it is absent.</p>
+          <p>Heat on a bucket is <b>editorial</b>: a researcher's judgement of how relevant a
+          mechanism is, labelled as such wherever it appears. It is not a measurement, and no
+          shock is mapped to a ticker anywhere in this system.</p>
+        </div>
+        <div class="brief-card" id="briefWorked">
+          <h2>How one screen resolves</h2>
+        </div>
+      </div>
+      <div class="continue">
+        <button type="button" id="openDesk">Continue into the desk</button>
+        <span id="deskHint">The context, the lenses and the table are all on this page, below.
+        They start folded on a first visit so this can be finished; after that they open
+        straight away.</span>
+      </div>
+    </div>
     <!-- Collapsed, not deleted. Every paragraph here states a rule the numbers below actually
          follow — that a ring is coverage rather than tone, that Yahoo's near-universal
          coverage is bought by asking per ticker rather than by reading better. Deleting it
@@ -1213,6 +1276,10 @@ table.bwatch .spark{width:80px;height:26px;display:block}
          discover is that a section is narrowing their results. The card grid, the shock and
          clock controls, the heat ordering, the tabs and the constituents table are all exactly
          as they were — this moved them, it did not redesign them. -->
+    <!-- Everything from here to the footer is the desk. Wrapped so the briefing can fold it
+         as one thing: the alternative was a CSS rule naming each child, which silently stops
+         covering whatever is added next. -->
+    <div id="desk">
     <section class="ctx-section" id="contextSection">
       <div class="ctx-head">
         <button type="button" class="ctx-toggle" id="ctxToggle" aria-expanded="true"
@@ -1600,6 +1667,8 @@ table.bwatch .spark{width:80px;height:26px;display:block}
          should not have the other rearranged under them.
          The filter state is shared, though, which is the point: a bucket selected here
          narrows the table above it and every card on the board. -->
+
+    </div><!-- /#desk -->
 
     <footer>Fundamentals and prices from <code>stock_screener</code>, tone from
       <code>screener_lab</code> — Bloomberg public RSS, Reddit public Atom feeds, and Yahoo
@@ -8267,6 +8336,126 @@ function drawContextHead(){
   if(sec) sec.classList.toggle("narrowed", on);
 }
 
+/* ── The briefing ──────────────────────────────────────────────────────────────────────────
+   Three numbers, and they are the page's whole argument: how many names are here, how many
+   this lens CANNOT judge, and how many of the rest pass. The middle one is the one every
+   other screener drops — it is why the fixture-vs-absence machinery in this file exists — so
+   it gets stated first, in the opening, rather than discovered later as a footnote under a
+   table.
+
+   Computed with `canonicalScreen`, the same function the table screens with. Not "the same
+   rules": the same call. A second implementation that agreed today is the defect this file
+   has paid for more than once. */
+const VISIT_KEY = "monad.screener.draft.visited.v1";
+function briefSeen(){
+  try{ return localStorage.getItem(VISIT_KEY) === "1"; }catch(e){ return false; }
+}
+function markBriefSeen(){
+  try{ localStorage.setItem(VISIT_KEY, "1"); }catch(e){}
+}
+/* Why the reasons are grouped rather than counted: "19 cannot be judged" invites the reader to
+   assume one cause. When two fields are missing across two different sets of names, saying so is
+   the difference between a gap in the vendor's coverage and a gap in ours.
+
+   And why the overlap is named. The first draft of this read "19 cannot be judged — no P/E for
+   14, and growth for 12", which is three true numbers arranged so that adding the last two gets
+   26 and contradicts the first. Five of those names are missing both. A reader who does the
+   obvious sum has to be told the sum is not the count, or the sentence has taught them the
+   page cannot count. */
+function briefMissingPhrase(noData){
+  const by = {};
+  noData.forEach(function(d){
+    (d.missing || []).forEach(function(f){ (by[f] = by[f] || []).push(d.row.ticker); });
+  });
+  const fields = Object.keys(by);
+  if(!fields.length) return "";
+  const phrase = fields.map(function(f){
+    const m = METRICS[CANON_FIELD[f] || f];
+    return "<b>" + esc(m ? m.label : f) + "</b> for " + by[f].length;
+  }).join(", and ");
+  /* Counted over NAMES, not over fields. `sum - noData.length` is the number of EXTRA absences,
+     which equals the number of doubly-absent names only while no name is missing three; one
+     name short of three fields would have made this claim quietly wrong, and the presets that
+     require three exist. */
+  const many = noData.filter(function(d){ return (d.missing || []).length > 1; }).length;
+  return phrase + (many > 0
+    ? " — which sums past " + noData.length + " because " + many
+      + (many === 1 ? " of them is" : " of them are") + " missing more than one"
+    : "");
+}
+function renderBriefing(){
+  const lede = document.getElementById("briefLede");
+  const card = document.getElementById("briefWorked");
+  if(!lede || !card) return;
+  const n = ROWS.length;
+  lede.innerHTML = n
+    ? 'One surface over the <span class="brief-n">' + n + '</span> US-listed securities this '
+      + 'snapshot carries. It screens them by named lenses, and holds authored geopolitical '
+      + 'theses beside them. It does not tell you what to buy.'
+    : 'One surface over a universe of US-listed securities, screened by named lenses and read '
+      + 'beside authored geopolitical theses. It does not tell you what to buy. '
+      + '<b>No snapshot is loaded here</b>, so there are no numbers below yet — the desk says '
+      + 'which command fetches one.';
+
+  const head = '<h2>How one screen resolves</h2>';
+  if(!n){
+    card.innerHTML = head + '<p>Nothing to work through until a snapshot is loaded. This card '
+      + 'fills itself from the lens that is actually selected, so it cannot describe a screen '
+      + 'the page is not running.</p>';
+    return;
+  }
+  const key = PRESET_RULES[preset] ? preset : null;
+  if(!key){
+    card.innerHTML = head + '<p>No lens is selected, so every one of the '
+      + '<span class="brief-n">' + n + '</span> names passes. Pick one under <b>Lens</b> in the '
+      + 'command bar and this fills in with its arithmetic.</p>';
+    return;
+  }
+  const p = PRESET_RULES[key];
+  const res = canonicalScreen(key, ROWS);
+  const blocked = res.noData.length, pass = res.matches.length, judged = n - blocked;
+  const why = briefMissingPhrase(res.noData);
+  let out = head + '<p><b>' + esc(p.title) + '</b> — ' + esc(p.blurb || "") + '</p>';
+  if(blocked){
+    out += '<p>Of the <span class="brief-n">' + n + '</span> names, <span class="brief-n">'
+      + blocked + '</span> cannot be judged by it at all — no ' + why + '. They are reported as '
+      + '<b>unscreened</b> rather than as failures, because an absent number is not a bad one.</p>';
+  }else{
+    out += '<p>Every one of the <span class="brief-n">' + n + '</span> names carries the figures '
+      + 'this lens asks for, so none of them is unscreened.</p>';
+  }
+  out += '<p>Of the <span class="brief-n">' + judged + '</span> it can judge, '
+    + '<span class="brief-n">' + pass + '</span> pass and <span class="brief-n">'
+    + (judged - pass) + '</span> do not.</p>';
+  card.innerHTML = out;
+}
+/* The fold is first-visit only, and that is a correctness choice rather than a courtesy.
+   The context section states the rule it lives by — a reader must not have to expand anything
+   to discover that something is narrowing their results — and a saved bucket selection or
+   filter row would do exactly that behind a folded desk. A first visit has no saved state to
+   hide, so folding then hides nothing. */
+function applyBriefFold(){
+  const brief = document.getElementById("briefing"), desk = document.getElementById("desk");
+  if(!brief || !desk) return;
+  const grid = document.querySelector(".brief-grid");
+  const cont = document.querySelector(".continue");
+  if(!grid || !cont) return;
+  const first = !briefSeen();
+  desk.hidden = first;
+  grid.hidden = !first;
+  cont.hidden = !first;
+  let re = document.getElementById("briefReopen");
+  if(!first && !re){
+    re = document.createElement("button");
+    re.type = "button"; re.id = "briefReopen"; re.className = "brief-reopen";
+    re.textContent = "What this will not do, and how one screen resolves";
+    re.addEventListener("click", function(){
+      grid.hidden = false; cont.hidden = true; re.hidden = true;
+    });
+    brief.appendChild(re);
+  }
+  if(re) re.hidden = first;
+}
 function render(){
   // One universe per render. Set here rather than inside contextUniverse() so the memo can
   // never outlive the pass that built it: `passesFilters` reads the live filter row, and a
@@ -8283,6 +8472,7 @@ function renderInner(){
       : sourceLabel()+" tone");
   document.getElementById("toneCol").textContent=col;
   renderNoData();
+  renderBriefing();
   syncWeightControl();
   drawCmdBar();
   drawContextHead();
@@ -8610,6 +8800,21 @@ document.addEventListener("click", (ev)=>{
 // The reader's last choice about the context workspace, before the first render, so the bay
 // never draws into a hidden box and then has to be told about it.
 setCtxOpen(ctxIsOpen());
+/* Marks the visit, reveals the desk, and re-renders it — the re-render is not defensive, it is
+   required. `drawPlot` and every chart beside it open with `if(!host.clientWidth) return`, so
+   the pass that ran while the desk was folded drew none of them. Revealing a box that was
+   measured at zero would hand the reader an empty board and no way to know why.
+   Deliberately not a scroll: the desk opens where the reader already is, under the briefing
+   they just read, rather than throwing the viewport at a section whose top they never saw. */
+(function(){
+  const go = document.getElementById("openDesk");
+  if(go) go.addEventListener("click", function(){
+    markBriefSeen(); applyBriefFold(); render();
+  });
+})();
+// Before the first render, so a folded desk is never painted and then taken away. What it
+// costs is that the first pass draws no charts; `openDesk` above pays that back.
+applyBriefFold();
 render();
 </script>
 </body>

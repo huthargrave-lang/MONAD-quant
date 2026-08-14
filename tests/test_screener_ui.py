@@ -3594,3 +3594,98 @@ class TheUnscreenedSentenceReadsItsReasonRatherThanAssertingOne(unittest.TestCas
             with self.subTest(field=field):
                 self.assertIn(field, research_ui.ABSENCE_FIELDS,
                               "%s is drawn an absence note but can never be given one" % field)
+
+
+class TheBriefingSaysWhatTheDeskIsBeforeItShowsTheDesk(unittest.TestCase):
+    """Measured before it was written: 75 buttons and 21 menus stood above the first number,
+    under an <h1> that named the ACTIVE LENS — the page's third readout of that one piece of
+    state, after the command bar and the results header, and the only one a reader met first.
+
+    The briefing states three numbers, and they are the page's whole argument: how many names
+    are here, how many this lens CANNOT judge, and how many of the rest pass. The middle one
+    is the one every other screener drops."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.html = _page()
+        cls.js = _decomment(_script(cls.html))
+        cls.markup = cls.html.split("<script", 1)[0]
+
+    def test_the_heading_names_the_desk_and_the_lens_is_still_named_elsewhere(self):
+        """Dropping the h1's lens name is only a reduction because two readouts remain. If both
+        of those ever go, this stops being 'said three times' and starts being 'not said'."""
+        self.assertIn("<h1>Research desk</h1>", self.markup)
+        self.assertNotIn("Cheap &amp; growing", self.markup)
+        self.assertIn('id="lensValue"', self.markup)
+        self.assertIn("activeLensLabel()", self.js)
+
+    def test_the_worked_card_screens_with_the_same_call_the_table_screens_with(self):
+        """Not "the same rules" — the same function. A second implementation that agreed on the
+        day it was written is the defect this page has paid for repeatedly."""
+        body = _functions(self.js).get("renderBriefing")
+        self.assertIsNotNone(body, "renderBriefing is gone")
+        self.assertIn("canonicalScreen(key, ROWS)", body)
+        for invented in ("PRESET_RULES[key].require.every", "r.pe", "canonValue(r,"):
+            self.assertNotIn(invented, body,
+                             "renderBriefing evaluates lens rules itself instead of calling "
+                             "canonicalScreen")
+
+    def test_revealing_the_desk_re_renders_it(self):
+        """Every chart but the scatter opens with `if(!host.clientWidth) return`, so the pass
+        that ran while the desk was folded drew none of them. Verified in a browser: without
+        the re-render priceChart and rankChart stay at zero SVG nodes after the reveal.
+
+        The scatter is the exception that made this easy to miss — drawPlot falls back to a
+        1160px default, so it draws into a hidden box and looks like proof the others do too."""
+        m = re.search(r'getElementById\("openDesk"\)[\s\S]{0,400}?\}\);', self.js)
+        self.assertIsNotNone(m, "the openDesk handler is gone")
+        self.assertIn("render()", m.group(0),
+                      "revealing the desk no longer re-renders it, so a reader who continues "
+                      "past the briefing is handed charts that silently never drew")
+
+    def test_the_fold_is_first_visit_only(self):
+        """The context section states the rule this obeys: a reader must not have to expand
+        anything to discover that something is narrowing their results. A saved bucket
+        selection or filter row behind a folded desk would do exactly that. A first visit has
+        no saved state, so folding then hides nothing."""
+        body = _functions(self.js).get("applyBriefFold")
+        self.assertIsNotNone(body)
+        self.assertIn("briefSeen()", body)
+        self.assertIn("desk.hidden = first", body,
+                      "the desk folds on something other than first-visit")
+
+    def test_an_empty_universe_is_described_rather_than_counted(self):
+        """With no snapshot the counts are all zero, and "0 of 0 names pass" is a sentence that
+        reads like a result. Both branches must say there is nothing loaded."""
+        body = _functions(self.js).get("renderBriefing")
+        self.assertIn("No snapshot is loaded here", body)
+        self.assertIn("if(!n){", body,
+                      "the worked card no longer branches on an empty universe")
+
+    def test_the_overlap_in_the_missing_field_count_is_counted_over_names(self):
+        """The first draft read "19 cannot be judged — no P/E for 14, and growth for 12": three
+        true numbers arranged so the obvious sum contradicts the first. The reconciliation must
+        count NAMES missing more than one field, not EXTRA absences — those are equal only while
+        no name is missing three, and safety_low_debt requires four fields."""
+        body = _functions(self.js).get("briefMissingPhrase")
+        self.assertIsNotNone(body)
+        self.assertIn(".length > 1", body)
+        self.assertNotIn("sum - noData.length", body,
+                         "the overlap is counted as extra absences again, which overstates the "
+                         "number of names once any name is missing three")
+        deep = [k for k, p in sc.PRESETS.items() if len(p["require"]) > 2]
+        self.assertTrue(deep, "no preset requires 3+ fields, so this guard has nothing to "
+                              "protect and its reasoning has gone stale")
+
+    def test_the_desk_is_one_wrapper_rather_than_a_list_of_children(self):
+        """A CSS rule naming each child silently stops covering whatever is added next. Every
+        section the briefing folds must be inside #desk, and the footer must be outside it —
+        the provenance line is true with or without a snapshot."""
+        self.assertIn('<div id="desk">', self.markup)
+        desk = self.markup.split('<div id="desk">', 1)[1].split("</div><!-- /#desk -->", 1)[0]
+        for held in ('id="contextSection"', 'id="cmdbar"', 'id="noData"', 'id="board"'):
+            with self.subTest(held=held):
+                self.assertIn(held, desk, "%s escaped the fold" % held)
+        self.assertNotIn("<footer>", desk,
+                         "the provenance footer folds with the desk, so a reader who has not "
+                         "continued is not told where any of this came from")
