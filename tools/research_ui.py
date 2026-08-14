@@ -2117,6 +2117,13 @@ def page_sweep(mounts, query=None):
     body.append('<label><span>From</span><input type="date" id="swStart"></label>')
     body.append('<label><span>To</span><input type="date" id="swEnd"></label>')
     body.append('<button type="submit" class="btn primary" id="swGo">Run sweep</button>')
+    body.append('</form>')
+    # Named windows, measured from the chosen ticker's own prices rather than asserted as
+    # dates. A hard-coded "the 2025 bear market" would be a claim about history baked into a
+    # control, and wrong for any ticker whose story differs from the index's.
+    body.append('<div class="sweep-regimes" id="swRegimes" aria-live="polite">'
+                '<span class="why">Measuring this ticker\'s own windows…</span></div>')
+    body.append('<form style="display:none">')
     body.append("</form></div>")
 
     body.append('<p class="sweep-state" id="swState" role="status" aria-live="polite">'
@@ -2183,6 +2190,16 @@ SWEEP_CSS = """<style>
 .sweep-run.absent{display:block;border-left:3px solid var(--warning)}
 .sweep-run.absent b{display:block;font-size:13px;margin-bottom:4px}
 .sweep-run.absent .why{font-size:12.5px;color:var(--ink-2);max-width:52ch;display:block}
+.sweep-regimes{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0 0}
+.sweep-regimes .why{font-size:11.5px;color:var(--ink-muted);margin:0}
+.sweep-regimes .rg{display:flex;flex-direction:column;gap:1px;align-items:flex-start;
+  font:12px var(--sans);padding:6px 10px;border:1px solid var(--rule);border-radius:7px;
+  background:var(--surface);color:var(--ink);cursor:pointer;text-align:left}
+.sweep-regimes .rg:hover{border-color:var(--accent)}
+.sweep-regimes .rg.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.sweep-regimes .rg b{font-size:12px}
+.sweep-regimes .rg span{font-family:var(--mono);font-size:10px;color:var(--ink-muted)}
+.sweep-regimes .rg .rg-chg{color:var(--ink-2)}
 .sweep-state{font-family:var(--mono);font-size:12px;color:var(--ink-muted);
   margin:0 0 18px;max-width:none}
 /* Four claims across the full width — the shape that makes them get read. */
@@ -2430,6 +2447,40 @@ SWEEP_JS = """<script>
       .catch(function(e){ clearTimeout(timer); go.disabled=false;
         st.textContent="Lost contact with the server: "+e; });
   }
+  /* The four windows come from the ticker's own prices, so they are re-measured whenever the
+     ticker changes. Each button states its span and what happened over it — a control that
+     said only "bear" would be asking the reader to trust a label. */
+  var reg=document.getElementById("swRegimes"), tick=document.getElementById("swTicker");
+  var LABEL={max:"Max", bear:"Bear", bull:"Bull", sideways:"Sideways"};
+  function loadRegimes(){
+    reg.innerHTML="<span class='why'>Measuring "+esc(tick.value)+"\u2019s own windows\u2026</span>";
+    fetch("/api/sweep/regimes?ticker="+encodeURIComponent(tick.value))
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(d.error || !d.regimes){
+          reg.innerHTML="<span class='why'>"+esc((d&&d.error)||"no windows for this ticker")+
+            " \u2014 set the dates by hand.</span>"; return;
+        }
+        reg.innerHTML="<span class='why'>Windows measured from "+esc(d.ticker)+
+          "\u2019s own prices:</span>"+d.regimes.map(function(w){
+          var sign=w.change_pct>0?"+":"";
+          return "<button type='button' class='rg' data-s='"+esc(w.start)+"' data-e='"+
+            esc(w.end)+"' title='"+esc(w.note)+"'><b>"+esc(LABEL[w.key]||w.key)+"</b>"+
+            "<span>"+esc(w.start)+" \u2192 "+esc(w.end)+"</span>"+
+            "<span class='rg-chg'>"+sign+esc(w.change_pct)+"%</span></button>";
+        }).join("");
+      })
+      .catch(function(){ reg.innerHTML="<span class='why'>Could not measure the windows.</span>"; });
+  }
+  reg.addEventListener("click", function(ev){
+    var b=ev.target.closest("button.rg"); if(!b) return;
+    document.getElementById("swStart").value=b.dataset.s;
+    document.getElementById("swEnd").value=b.dataset.e;
+    reg.querySelectorAll("button.rg").forEach(function(x){ x.classList.toggle("on", x===b); });
+  });
+  tick.addEventListener("change", loadRegimes);
+  loadRegimes();
+
   form.addEventListener("submit", function(ev){
     ev.preventDefault(); go.disabled=true; out.innerHTML="";
     st.textContent="Starting\u2026";
@@ -4714,6 +4765,14 @@ def route(path, query, opts):
         except RuntimeError as exc:
             return 503, json.dumps({"error": str(exc)}), JSONC
         return 200, json.dumps({"job": job_id}), JSONC
+    if path == "/api/sweep/regimes":
+        try:
+            found = sweep_runner.regimes((query.get("ticker") or "").strip().upper())
+        except ValueError as exc:
+            return 400, json.dumps({"error": str(exc)}), JSONC
+        except RuntimeError as exc:
+            return 503, json.dumps({"error": str(exc)}), JSONC
+        return 200, json.dumps(found), JSONC
     if path == "/api/sweep/status":
         job = sweep_runner.status((query.get("job") or "").strip())
         if job is None:

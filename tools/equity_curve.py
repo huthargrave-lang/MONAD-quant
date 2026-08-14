@@ -41,6 +41,18 @@ if REPO not in sys.path:
 MAX_POINTS = 900
 
 
+class _Done(Exception):
+    """Carries a finished payload out of the redirect_stdout block.
+
+    The engine prints as it works, so the whole load happens inside a stdout redirect. Regime
+    detection finishes early and has to escape that block before printing, or its JSON lands in
+    the buffer being thrown away rather than on the channel the caller reads."""
+
+    def __init__(self, payload):
+        super().__init__("done")
+        self.payload = payload
+
+
 def _thin(values, keep=MAX_POINTS):
     """Downsample to `keep` points while preserving every local extreme.
 
@@ -63,16 +75,80 @@ def _thin(values, keep=MAX_POINTS):
     return out
 
 
+
+def find_regimes(close):
+    """Name four windows by MEASURING this ticker's own prices, never by asserting dates.
+
+    A hard-coded "the 2025 bear market" would be a claim about history written into a UI, and
+    it would be wrong for any ticker whose story differs from the index's. These come out of
+    the series in front of us, so they are true of the thing being swept and they change when
+    the data does.
+
+      max       every bar available.
+      bear      the deepest peak-to-trough fall, from the peak to the trough.
+      bull      the strongest sustained advance, found by scanning every start/end pair on a
+                daily grid and keeping the best total gain over at least MIN_DAYS.
+      sideways  the stretch with the smallest net change that still spans MIN_DAYS — the
+                regime a mean-reversion engine is supposed to like, which is the reason it is
+                worth being able to select.
+
+    Windows may overlap; they are four questions about one series, not a partition of it.
+    """
+    MIN_DAYS = 45
+    day = close.resample("1D").last().dropna()
+    if len(day) < MIN_DAYS * 2:
+        return {}
+    idx, vals = list(day.index), list(day.values)
+    n = len(vals)
+
+    # Deepest drawdown: walk once, tracking the running peak and the worst fall from it.
+    peak_i, worst = 0, (0.0, 0, 0)
+    for i in range(n):
+        if vals[i] > vals[peak_i]:
+            peak_i = i
+        fall = (vals[i] - vals[peak_i]) / vals[peak_i]
+        if fall < worst[0]:
+            worst = (fall, peak_i, i)
+
+    best_gain, flattest = (0.0, 0, 0), (None, 0, 0)
+    for i in range(n):
+        for j in range(i + MIN_DAYS, n):
+            change = (vals[j] - vals[i]) / vals[i]
+            if change > best_gain[0]:
+                best_gain = (change, i, j)
+            if flattest[0] is None or abs(change) < abs(flattest[0]):
+                flattest = (change, i, j)
+
+    def win(label, tup, note):
+        change, i, j = tup
+        if i >= j:
+            return None
+        return {"key": label, "start": str(idx[i].date()), "end": str(idx[j].date()),
+                "change_pct": round(float(change) * 100.0, 1), "note": note}
+
+    out = [{"key": "max", "start": str(idx[0].date()), "end": str(idx[-1].date()),
+            "change_pct": round(float((vals[-1] - vals[0]) / vals[0]) * 100.0, 1),
+            "note": "every bar available"}]
+    for w in (win("bear", worst, "deepest fall from a peak"),
+              win("bull", best_gain, "strongest sustained advance"),
+              win("sideways", flattest, "smallest net change over a real span")):
+        if w:
+            out.append(w)
+    return {"regimes": out, "min_days": MIN_DAYS}
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("ticker")
-    ap.add_argument("--target", type=float, required=True)
-    ap.add_argument("--stop", type=float, required=True)
-    ap.add_argument("--rsi", type=int, required=True)
-    ap.add_argument("--vwap", type=float, required=True)
+    ap.add_argument("--target", type=float)
+    ap.add_argument("--stop", type=float)
+    ap.add_argument("--rsi", type=int)
+    ap.add_argument("--vwap", type=float)
     ap.add_argument("--start", default=None)
     ap.add_argument("--end", default=None)
     ap.add_argument("--mode", default="realistic")
+    ap.add_argument("--regimes", action="store_true",
+                    help="print named windows found in this ticker's own prices, and exit")
     a = ap.parse_args()
 
     # Imported here, not at module scope: the import itself is what fails on an interpreter too
@@ -112,6 +188,10 @@ def main():
             if df is None or not len(df):
                 raise RuntimeError("no bars came back for %s over that window" % a.ticker)
             df = df.between_time("09:30", "16:00")
+            if a.regimes:
+                found = find_regimes(df["close"].astype(float))
+                found["ticker"] = a.ticker
+                raise _Done(found)
             df = build_features(df)
             for name, value in (("RSI_OVERSOLD", a.rsi), ("VWAP_ZSCORE_THRESH", a.vwap)):
                 setattr(config, name, value)
@@ -120,6 +200,9 @@ def main():
                 target_gain_pct=a.target, stop_loss_pct=a.stop, require_signals=1,
                 kelly_multiplier=config.KELLY_MULTIPLIER, timeframe="hourly",
                 plot=False, backtest_mode=a.mode)
+    except _Done as done:
+        print(json.dumps(done.payload))
+        return 0
     except Exception as exc:  # noqa: BLE001
         print(json.dumps({"error": str(exc)}))
         return 1

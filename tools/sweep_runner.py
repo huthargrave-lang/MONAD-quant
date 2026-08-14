@@ -267,6 +267,26 @@ def _equity_curve(interpreter, ticker, params, job):
         return {"error": "the curve could not be produced: %s" % exc}
 
 
+def regimes(ticker, interpreter=None):
+    """Named windows measured from this ticker's own prices, or an error dict.
+
+    Same shape as everything else here: validated ticker, fixed argv, no shell, closed stdin.
+    """
+    if not TICKER_RE.match(ticker or ""):
+        raise ValueError("not a ticker: %r" % (ticker,))
+    exe = interpreter or find_interpreter()
+    if exe is None:
+        raise RuntimeError(availability()["why_not"])
+    argv = [exe, os.path.join(REPO, "tools", "equity_curve.py"), ticker, "--regimes"]
+    try:
+        proc = subprocess.run(argv, cwd=REPO, timeout=180, stdin=subprocess.DEVNULL,
+                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        out = (proc.stdout or "").strip()
+        return json.loads(out.splitlines()[-1]) if out else {"error": "no windows came back"}
+    except (OSError, ValueError, IndexError, subprocess.SubprocessError) as exc:
+        return {"error": "could not measure the windows: %s" % exc}
+
+
 def start(ticker, phase="1", mode="realistic", interpreter=None, start_date=None, end_date=None):
     """Launch a sweep in the background. Returns the job id.
 
