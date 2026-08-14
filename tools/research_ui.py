@@ -2200,6 +2200,15 @@ SWEEP_CSS = """<style>
 .sweep-card thead th{font-size:10px;letter-spacing:.06em;text-transform:uppercase;
   color:var(--ink-muted);font-weight:600}
 .sweep-card .params{display:flex;flex-wrap:wrap;gap:5px;margin:0 0 6px}
+.sweep-chart{background:var(--surface);border:1px solid var(--rule);border-radius:9px;
+  padding:14px 16px;margin:14px 0 0}
+.sweep-chart svg{width:100%;height:auto;display:block;margin:6px 0 4px}
+.sweep-chart-head{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline;
+  justify-content:space-between;font-size:12.5px}
+.sweep-chart-head span{font-family:var(--mono);font-size:11px;color:var(--ink-muted)}
+.sweep-chart-head i{display:inline-block;width:10px;height:10px;border-radius:2px;
+  vertical-align:middle;margin-right:4px}
+.sweep-chart .why{font-size:12px;color:var(--ink-muted);margin:6px 0 0;max-width:74ch}
 .sweep-run-meta{background:var(--surface);border:1px solid var(--rule);border-radius:9px;
   padding:12px 16px;margin:14px 0 0;font-size:12.5px;color:var(--ink-2)}
 </style>"""
@@ -2216,6 +2225,59 @@ SWEEP_JS = """<script>
     var n=Number(v); if(!isFinite(n)) return esc(v);
     return esc(n.toFixed(digits)) + (suffix||"");
   }
+  /* One chart, and it draws the page's argument rather than decorating it.
+
+     Paired bars per preset: what the parameters returned on the data they were FITTED to, and
+     what they returned on the sample they were SELECTED on. Neither bar is out-of-sample, and
+     showing them side by side is the only honest thing a chart here can do — a single series
+     would have to pick one, and picking the holdout is exactly the mistake the page warns
+     about. The gap between the pair is the quantity worth looking at.
+
+     Hand-rolled SVG to match the rest of the repo: no library, no build step, a viewBox that
+     scales rather than a fixed canvas. */
+  function gapChart(ps){
+    var keys=Object.keys(ps); if(!keys.length) return "";
+    var rows=keys.map(function(k){
+      var t=(ps[k].train||{}).total_return_pct, h=(ps[k].holdout||{}).total_return_pct;
+      return {k:k, t:(typeof t==="number"?t:null), h:(typeof h==="number"?h:null)};
+    }).filter(function(r){ return r.t!==null || r.h!==null; });
+    if(!rows.length) return "";
+    var W=880, rowH=54, padL=150, padR=96, padT=34, padB=26;
+    var H=padT+rows.length*rowH+padB;
+    var vals=[]; rows.forEach(function(r){ if(r.t!==null)vals.push(r.t); if(r.h!==null)vals.push(r.h); });
+    var lo=Math.min(0, Math.min.apply(null,vals)), hi=Math.max(0, Math.max.apply(null,vals));
+    if(hi===lo) hi=lo+1;
+    var span=hi-lo, x=function(v){ return padL+((v-lo)/span)*(W-padL-padR); };
+    var g="";
+    /* A zero line, because a short bar with no baseline reads as a small gain. */
+    g+="<line x1='"+x(0).toFixed(1)+"' y1='"+(padT-8)+"' x2='"+x(0).toFixed(1)+"' y2='"+(H-padB)+
+       "' stroke='var(--axis)' stroke-width='1'/>";
+    g+="<text x='"+x(0).toFixed(1)+"' y='"+(padT-14)+"' fill='var(--ink-muted)' font-size='10' "+
+       "font-family='ui-monospace,monospace' text-anchor='middle'>0%</text>";
+    rows.forEach(function(r,i){
+      var y0=padT+i*rowH;
+      g+="<text x='"+(padL-12)+"' y='"+(y0+22)+"' fill='var(--ink)' font-size='12' "+
+         "text-anchor='end'>"+esc(r.k)+"</text>";
+      [["t","var(--ord-2)"],["h","var(--ord-4)"]].forEach(function(spec,j){
+        var v=r[spec[0]]; if(v===null) return;
+        var yb=y0+6+j*15, x0=Math.min(x(0),x(v)), w=Math.abs(x(v)-x(0));
+        g+="<rect x='"+x0.toFixed(1)+"' y='"+yb+"' width='"+Math.max(w,1.5).toFixed(1)+
+           "' height='11' rx='2' fill='"+spec[1]+"'/>";
+        g+="<text x='"+(x(v)+(v<0?-6:6)).toFixed(1)+"' y='"+(yb+9)+"' fill='var(--ink-2)' "+
+           "font-size='10' font-family='ui-monospace,monospace' text-anchor='"+(v<0?"end":"start")+
+           "'>"+v.toFixed(1)+"%</text>";
+      });
+    });
+    return "<div class='sweep-chart'><div class='sweep-chart-head'>"+
+      "<b>Return on the data it was fitted to, and on the data it was picked with</b>"+
+      "<span><i style='background:var(--ord-2)'></i>train &#160;"+
+      "<i style='background:var(--ord-4)'></i>holdout &#183; selected on</span></div>"+
+      "<svg viewBox='0 0 "+W+" "+H+"' role='img'><title>Train versus holdout return per preset"+
+      "</title>"+g+"</svg>"+
+      "<p class='why'>Neither bar is an out-of-sample result. A holdout bar standing well above "+
+      "its train bar is the selection showing, not an edge appearing.</p></div>";
+  }
+
   /* Train and holdout stay in their own columns. The holdout header says how the presets were
      chosen, because the number underneath it is the one the choice was made with. */
   function presetTable(label, p){
@@ -2254,6 +2316,7 @@ SWEEP_JS = """<script>
       "</b> \u00b7 sizing <b>"+esc(r.position_sizing)+"</b> \u00b7 "+
       esc(r.train_bars)+" train / "+esc(r.holdout_bars)+" holdout bars \u00b7 "+
       esc(job.seconds)+"s on <code>"+esc(job.interpreter)+"</code></div>";
+    html+=gapChart(ps);
     html+="<div class='sweep-grid'>";
     Object.keys(ps).forEach(function(k){ html+=presetTable(k, ps[k]); });
     html+="</div>";
