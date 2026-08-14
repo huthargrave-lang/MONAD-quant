@@ -3526,3 +3526,71 @@ console.log(JSON.stringify({
                          "the page and Python disagree about who MATCHES")
         self.assertEqual(set(page["noData"]), py_unscreenable,
                          "the page and Python disagree about who is UNSCREENABLE")
+
+
+class TheUnscreenedSentenceReadsItsReasonRatherThanAssertingOne(unittest.TestCase):
+    """It said "the vendor reported no <field>". For the fourteen pre-revenue names the vendor
+    reported 0.0 — Python ruled that unjudgeable — so the sentence would have stated a cause
+    that is false about the very rows it was listing.
+
+    It would also have printed the RAW KEY. `profit_margin` appeared once in the whole 7,000-line
+    page, as an alias entry, so `METRICS[CANON_FIELD["profit_margin"]]` was undefined and the
+    fallback printed the identifier beside human labels."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.js = _decomment(_script(_page()))
+
+    def test_the_page_can_name_every_field_a_preset_can_require(self):
+        """The fallback to a raw key is the tell that a field has no presentation. Any metric a
+        preset can require must have a METRICS entry, or a reader meets an identifier."""
+        required = set()
+        for preset in sc.PRESETS.values():
+            for metric, _op, _v in preset["require"]:
+                required.add(metric)
+        aliases = dict(re.findall(r'(\w+):"(\w+)"', re.search(
+            r"const CANON_FIELD = \{([\s\S]*?)\};", self.js).group(1)))
+        labelled = set(re.findall(r"\n  (\w+):\s*\{label:", self.js))
+        for metric in sorted(required):
+            with self.subTest(metric=metric):
+                row_field = aliases.get(metric, metric)
+                if metric in sc.CATEGORICAL:
+                    continue
+                self.assertIn(row_field, labelled,
+                              "%s can be required by a preset but the page has no label for "
+                              "it, so the unscreened sentence prints the raw key" % metric)
+
+    def test_the_sentence_reads_the_shipped_reason(self):
+        body = _functions(self.js).get("renderTable")
+        self.assertIn("ABSENCE_REASONS[only]", body,
+                      "the sentence no longer reads the reason the payload carries")
+        self.assertNotIn("the vendor reported no", body,
+                         "the sentence asserts a cause again; the vendor DID report a value "
+                         "for the imputed rows")
+
+    def test_custom_lenses_ask_the_same_question_as_preset_lenses(self):
+        """lensAccepts read r.pe and friends raw, so a value ruled unjudgeable stayed judgeable
+        by any custom lens. Latent — the blocked field is not a custom control today — but
+        "nothing to keep in step" is only true if every path asks through canonValue."""
+        body = _functions(self.js).get("lensAccepts")
+        self.assertIsNotNone(body)
+        self.assertIn('canonValue(r, "pe")', body)
+        # Word-bounded, not `"r.pe "`: the trailing space made this pass on `const pe = r.pe,`,
+        # which is precisely the defect it names. It was the assertion above that caught the
+        # mutation, and a guard whose stated subject is doing none of the work is the failure
+        # mode this file keeps recording.
+        for raw in ("pe", "g", "dy", "de", "beta"):
+            with self.subTest(field=raw):
+                self.assertIsNone(
+                    re.search(r"\br\.%s\b" % raw, body),
+                    "lensAccepts reads r.%s directly again, bypassing the unjudged verdict"
+                    % raw)
+
+    def test_no_absence_note_is_drawn_for_a_field_that_can_never_have_one(self):
+        """A call that cannot fire reads as coverage that is not there. `vol` is not in
+        ABSENCE_FIELDS and _absence_reasons never emits it."""
+        self.assertNotIn('absenceNote(r,"vol")', self.js)
+        for field in re.findall(r'absenceNote\(r,\s*"(\w+)"\)', self.js):
+            with self.subTest(field=field):
+                self.assertIn(field, research_ui.ABSENCE_FIELDS,
+                              "%s is drawn an absence note but can never be given one" % field)

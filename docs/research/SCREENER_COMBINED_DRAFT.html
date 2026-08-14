@@ -4265,6 +4265,17 @@ const METRICS = {
   vol:   {label:"$ volume/day",        get:r=>canonValue(r,"dollar_volume"), fmt:v=>fmtBig(v)},
   mcap:  {label:"market cap",          get:r=>r.mcap,        fmt:v=>fmtBig(v)},
   score: {label:"growth per P/E",      get:r=>r.score,       fmt:v=>v.toFixed(3)},
+  /* The page had no name for this field at all — one mention in 7,000 lines, the alias
+     entry. So the unscreened-names sentence fell through to printing the raw key
+     `profit_margin` beside human labels, and the absence reason shipped for it could
+     be read by nothing. */
+  profit_margin: {label:"profit margin",  get:r=>canonValue(r,"profit_margin"),
+                  fmt:v=>(v*100).toFixed(1)+"%"},
+  /* Required by safety_low_debt and equally unnameable until now — the guard that caught
+     profit_margin generalised and found this one too. Editorial, hence the wording: it is a
+     researcher's ordering of shadow-debt severity, not a measured quantity. */
+  shadow_severity_rank: {label:"AI shadow severity (editorial)",
+                         get:r=>canonValue(r,"shadow_severity_rank"), fmt:v=>String(v)},
   // `tone:true` is what marks a metric as coverage-gated, so anything explaining a chart's
   // pool asks the metric instead of listing tone keys \u2014 a list of keys is how the fourth
   // tone metric ended up captioned as an ordinary field.
@@ -4402,12 +4413,19 @@ function saveCustomLenses(){
 
 /* A threshold is a test the name has to pass, and a missing number cannot pass one — so
    absence fails the test instead of slipping through as a zero. */
+/* Reads through canonValue, not the row fields directly. It read `r.pe` and friends raw, so a
+   value Python had ruled unjudgeable was invisible here — a custom lens would have gone on
+   judging a number the preset lenses had stopped judging. Latent, because the one blocked field
+   today is not a custom-lens control; fixed anyway, because "nothing to keep in step" is only
+   true if every path asks the same question. */
 function lensAccepts(l, r){
-  if(l.maxPe   != null && !(r.pe   != null && r.pe   <= l.maxPe))   return false;
-  if(l.minG    != null && !(r.g    != null && r.g    >= l.minG))    return false;
-  if(l.minDy   != null && !(r.dy   != null && r.dy   >= l.minDy))   return false;
-  if(l.maxDe   != null && !(r.de   != null && r.de   <= l.maxDe))   return false;
-  if(l.maxBeta != null && !(r.beta != null && r.beta <= l.maxBeta)) return false;
+  const pe = canonValue(r, "pe"), g = canonValue(r, "growth"), dy = canonValue(r, "dividend_yield"),
+        de = canonValue(r, "debt_to_equity"), beta = canonValue(r, "beta");
+  if(l.maxPe   != null && !(pe   != null && pe   <= l.maxPe))   return false;
+  if(l.minG    != null && !(g    != null && g    >= l.minG))    return false;
+  if(l.minDy   != null && !(dy   != null && dy   >= l.minDy))   return false;
+  if(l.maxDe   != null && !(de   != null && de   <= l.maxDe))   return false;
+  if(l.maxBeta != null && !(beta != null && beta <= l.maxBeta)) return false;
   if(l.ai !== "any" && r.ai !== l.ai) return false;
   if(l.sector !== "any" && r.sector !== l.sector) return false;
   // Same judgement as safety_low_debt: a high-severity tag says the reported D/E is known
@@ -6443,9 +6461,21 @@ function renderTable(){
       if(unscreened.length){
         const by = {};
         unscreened.forEach(o=>o.missing.forEach(f=>{ (by[f] = by[f] || []).push(o.row.tk); }));
+        /* Reads the reason the payload carries rather than asserting one. "The vendor
+           reported no profit margin" is false for the fourteen pre-revenue names: the vendor
+           reported 0.0, and Python ruled that unjudgeable. `absent` is keyed by row-field
+           name and CANON_FIELD is the canonical-to-row-field map, so the two line up with no
+           new lookup invented. */
+        const reasonFor = f => {
+          const rows = (by[f] || []).map(tk => ROWS.find(r => r.tk === tk)).filter(Boolean);
+          const codes = new Set(rows.map(r => (r.absent || {})[CANON_FIELD[f]]).filter(Boolean));
+          if(codes.size !== 1) return "";
+          const only = [...codes][0];
+          return ` (${esc(ABSENCE_REASONS[only] || only)})`;
+        };
         why.innerHTML += `<br><span class="muted-cell">${unscreened.length} name(s) could not be `
-          + `screened by this lens — the vendor reported no `
-          + Object.keys(by).map(f=>`<b>${esc(METRICS[CANON_FIELD[f]] ? METRICS[CANON_FIELD[f]].label : f)}</b> for ${by[f].map(esc).join(", ")}`).join("; ")
+          + `screened by this lens — no usable `
+          + Object.keys(by).map(f=>`<b>${esc(METRICS[CANON_FIELD[f]] ? METRICS[CANON_FIELD[f]].label : f)}</b>${reasonFor(f)} for ${by[f].map(esc).join(", ")}`).join("; ")
           + `. Not judged, rather than judged and rejected.</span>`;
       }
       // With the source off there is no reading to blend, and every row's score is its own.
@@ -6540,7 +6570,7 @@ function renderTable(){
       <td class="num">${fmtShadow(r)}${absenceNote(r,"shadow_tag")}</td>
       <td class="num">${r.beta==null?"—":r.beta.toFixed(2)}${absenceNote(r,"beta")}</td>
       <td class="num">${r.mcap!=null?esc(fmtBig(r.mcap)):'<span class="muted-cell">—</span>'}${absenceNote(r,"mcap")}</td>
-      <td class="num">${r.dollar_volume!=null?esc(fmtBig(r.dollar_volume)):'<span class="muted-cell">—</span>'}${absenceNote(r,"vol")}</td>
+      <td class="num">${r.dollar_volume!=null?esc(fmtBig(r.dollar_volume)):'<span class="muted-cell">—</span>'}</td>
       <td class="num">${scoreCell(rv, r.score)}${note}${absenceNote(r,"score")}</td>
       <td>${toneCell(r)}</td>
     </tr>`;
