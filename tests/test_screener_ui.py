@@ -3688,12 +3688,38 @@ class TheBriefingSaysWhatTheDeskIsBeforeItShowsTheDesk(unittest.TestCase):
         the provenance line is true with or without a snapshot."""
         self.assertIn('<div id="desk">', self.markup)
         desk = self.markup.split('<div id="desk">', 1)[1].split("</div><!-- /#desk -->", 1)[0]
-        for held in ('id="contextSection"', 'id="cmdbar"', 'id="noData"', 'id="board"'):
+        for held in ('id="contextSection"', 'id="cmdbar"', 'id="board"'):
             with self.subTest(held=held):
                 self.assertIn(held, desk, "%s escaped the fold" % held)
         self.assertNotIn("<footer>", desk,
                          "the provenance footer folds with the desk, so a reader who has not "
                          "continued is not told where any of this came from")
+
+    def test_nothing_a_reader_must_not_miss_depends_on_the_fold(self):
+        """CORRECTED. This class used to assert that id="noData" belongs INSIDE the fold, and
+        it passed — so it pinned a defect as intended, which is the failure mode this file
+        keeps recording. renderNoData un-hides the banner exactly when ROWS is empty, and
+        applyBriefFold hid the desk regardless, so the banner opened into a hidden parent and
+        the reader lost the missing-snapshot name and both fetch commands.
+
+        The three surfaces below are inside the desk by layout and cannot simply be moved. So
+        the fold yields to them instead: it does not happen at all over an empty snapshot, and
+        the briefing — which never folds — states freshness and model basis itself."""
+        body = _functions(self.js).get("applyBriefFold")
+        self.assertIn("ROWS.length > 0", body,
+                      "the desk folds over an empty snapshot again, which opens #noData into a "
+                      "hidden parent and makes the lede's promise that the desk names the fetch "
+                      "command false as printed")
+        state = _functions(self.js).get("renderBriefState")
+        self.assertIsNotNone(state, "the briefing no longer carries the data state")
+        self.assertIn("fund_as_of", state)
+        self.assertIn("scenarioForShock", state,
+                      "#ctxScen says verbatim that a reader must not have to expand a section "
+                      "to discover whether a model is behind what they see; it is inside the "
+                      "fold, so the briefing has to say it")
+        self.assertIn('id="briefState"', self.markup)
+        brief = self.markup.split('<div class="briefing"', 1)[1].split('<div id="desk">', 1)[0]
+        self.assertIn('id="briefState"', brief, "the data state moved inside the fold")
 
 
 class TheBriefingCountsAgreeWithTheTableBelowIt(unittest.TestCase):
@@ -3707,27 +3733,36 @@ class TheBriefingCountsAgreeWithTheTableBelowIt(unittest.TestCase):
         cls.html = _page()
         cls.js = _decomment(_script(cls.html))
 
-    def test_a_truncating_lens_says_it_truncates(self):
-        """`canonicalRows` applies `top` AFTER screening. `most_active` sets it to 15, so the
-        card reported 225 passing over a table showing fifteen rows. Verified in a browser: the
-        clause fires for most_active and for no other lens."""
+    def test_a_truncating_lens_is_reconciled_against_what_the_table_renders(self):
+        """REWRITTEN. This asserted the substring "p.top != null && pass > p.top" was present —
+        and that substring WAS the defect: gated on the snapshot's pass count while describing
+        the context-screened table, so "the table shows the first 15" printed over a nine-row
+        table for all 20 buckets and 7 of 11 sector filters. A text-presence check standing in
+        for a behavioural one, which is how it certified its own bug.
+
+        What it should always have protected: the card and the table report one number."""
         body = _functions(self.js).get("renderBriefing")
-        self.assertIn("p.top != null && pass > p.top", body,
-                      "the card no longer reconciles with the lens's own truncation")
+        self.assertIn("matchedRows().length", body,
+                      "the card no longer reads what the table renders")
+        self.assertIn("ctxPass > p.top", body,
+                      "truncation is judged against a population the table does not screen")
         truncating = {k: p["top"] for k, p in sc.PRESETS.items() if p.get("top")}
         self.assertTrue(truncating,
                         "no preset truncates any more, so this guard protects nothing and the "
                         "clause it defends should go rather than sit unreachable")
 
     def test_a_narrowed_desk_is_named_rather_than_left_to_be_noticed(self):
-        """The card counts the SNAPSHOT so its lesson does not move when a bucket is picked.
-        That is defensible only if it says so — otherwise it is a headline number disagreeing
-        with the table under it for a reason the reader cannot see."""
+        """REWRITTEN for the same reason. It pinned the sentence "That is over the whole
+        snapshot ... so every count it shows is smaller", which is false whenever a narrowing
+        selects a SUPERSET of the passing set — buckets 09+11 under the sovereign ledger give
+        11 and 11. One sentence now, stating the table's own count and naming only the reasons
+        that actually apply."""
         body = _functions(self.js).get("renderBriefing")
         self.assertIn("contextUniverse().length", body)
-        self.assertIn("That is over the whole snapshot", body,
-                      "the card counts the snapshot without telling a reader the desk below "
-                      "is counting something else")
+        self.assertIn("The table below shows", body,
+                      "the card no longer reconciles itself with the table at all")
+        self.assertNotIn("every count it shows is smaller", body,
+                         "a claim refuted by measurement is back")
 
     def test_the_page_defines_lede_once(self):
         """`.lede` existed with no user at all, left behind when the head lost its standfirst.
@@ -3737,3 +3772,72 @@ class TheBriefingCountsAgreeWithTheTableBelowIt(unittest.TestCase):
         self.assertEqual(len(css), 1, "there are %d .lede rules; the later one silently wins "
                                       "and the earlier is unreachable" % len(css))
         self.assertIn('class="lede"', self.html, "the rule has no user again")
+
+
+class TheBriefingSurvivedAnAttackAndTheseAreTheHoles(unittest.TestCase):
+    """Twelve adversaries were briefed to REFUTE the two briefing commits, defaulting to
+    refuted. Eleven refutations stood up when I re-checked them myself. These guard the fixes.
+
+    The pattern across all of them: I wrote sentences that were true of the ONE path I tested
+    and false of every other, then wrote a guard asserting the sentence's TEXT was present
+    rather than that the sentence was true."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.html = _page()
+        cls.js = _decomment(_script(cls.html))
+
+    def test_a_lens_that_is_not_a_canonical_rule_set_is_not_called_no_lens(self):
+        """`PRESET_RULES[preset] ? preset : null` collapsed "not one of the ten canonical rule
+        sets" into "no lens is selected". Measured live: with Social sentiment active the card
+        said "No lens is selected, so every one of the 225 names passes" while the command bar
+        named the lens and the table showed 123 rows. Five of fifteen shipped pills land there,
+        plus every custom lens."""
+        body = _functions(self.js).get("renderBriefing")
+        self.assertIn("if(preset == null){", body,
+                      "the card no longer distinguishes an absent lens from a non-canonical one")
+        self.assertIn("lensRows(ROWS)", body,
+                      "the non-canonical branch does not count through the function the table "
+                      "screens with, so its number can drift from the table's")
+        # The states that must be distinguishable at all: lensRows dispatches six ways.
+        rows = _functions(self.js).get("lensRows")
+        self.assertIn("customLens(preset)", rows)
+        self.assertIn("SCENARIO_LENS", rows)
+
+    def test_the_card_asks_the_table_what_it_shows_instead_of_predicting_it(self):
+        """Two sentences replaced by one. "The table shows the first 15 of them" was gated on
+        the SNAPSHOT pass count while describing the CONTEXT-screened table — false for all 20
+        buckets and 7 of 11 sector filters — and "every count it shows is smaller" is false
+        when a narrowing selects a superset of the passing set."""
+        body = _functions(self.js).get("renderBriefing")
+        self.assertIn("matchedRows().length", body,
+                      "the card predicts the table's count again instead of reading it")
+        for gone in ("The table shows the first", "so every count it shows is smaller"):
+            self.assertNotIn(gone, body, "a sentence refuted by measurement is back: %r" % gone)
+
+    def test_a_reason_is_only_given_when_it_is_the_reason(self):
+        """With bucket 04 selected, most_active screens nine names against a cap of fifteen —
+        the cap explains nothing, so naming it would be a stated cause that is not the cause."""
+        body = _functions(self.js).get("renderBriefing")
+        self.assertIn("ctxPass > p.top", body,
+                      "the truncation clause is gated on the snapshot count again, so it fires "
+                      "over narrowed sets where the cap does not bind")
+
+    def test_the_reopen_control_goes_both_ways_and_declares_itself(self):
+        """It hid ITSELF on click and left .continue hidden, so after one press no control on
+        the page could fold the briefing again — a state applyBriefFold could neither produce
+        nor repair. It was also the only disclosure on a page with 25 aria-expanded attributes
+        that carried none, and hiding the focused element dropped the caret to <body>."""
+        body = _functions(self.js).get("applyBriefFold")
+        self.assertIn('aria-expanded', body)
+        self.assertIn('aria-controls', body)
+        self.assertNotIn("re.hidden = true;", body,
+                         "the reopen control hides itself again, which is the one-way door")
+        self.assertIn("Hide this again", body, "there is no way back to the folded state")
+
+    def test_continuing_into_the_desk_puts_the_caret_in_the_desk(self):
+        """Sixty-odd controls appear at once and the button that summoned them disappears;
+        without this the caret falls to <body> and the next Tab restarts at the document top."""
+        m = re.search(r'getElementById\("openDesk"\)[\s\S]{0,700}?\n  \}', self.js)
+        self.assertIsNotNone(m)
+        self.assertIn(".focus()", m.group(0), "focus is not moved into the revealed desk")

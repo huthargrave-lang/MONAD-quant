@@ -485,6 +485,8 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
 /* The counts are the sentence's subject, so they are set apart from the prose around them
    rather than left to be re-read out of it. */
 .brief-n{font:600 13.5px var(--mono);color:var(--ink)}
+.brief-state{margin:-8px 0 16px;font:12.5px var(--mono);color:var(--ink-muted)}
+.brief-state b{color:var(--ink-2);font-weight:600}
 .continue{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 4px}
 .continue button{height:30px;padding:0 14px;border-radius:6px;border:1px solid var(--ink);
   background:var(--ink);color:var(--ink-on-4);font:13px var(--sans);cursor:pointer}
@@ -1220,7 +1222,8 @@ table.bwatch .spark{width:80px;height:26px;display:block}
     <div class="briefing" id="briefing">
       <h1>Research desk</h1>
       <p class="lede" id="briefLede"></p>
-      <div class="brief-grid">
+      <p class="brief-state" id="briefState" hidden></p>
+      <div class="brief-grid" id="briefCards">
         <div class="brief-card">
           <h2>What it will not do</h2>
           <p>No ranked buys, no score on a ticker that stands in for a decision, and no
@@ -8382,6 +8385,35 @@ function briefMissingPhrase(noData){
       + (many === 1 ? " of them is" : " of them are") + " missing more than one"
     : "");
 }
+/* How old the data is, and whether a model stands behind any of it — ABOVE the fold, because
+   both live inside the desk and the fold would have taken them away.
+
+   `#dataChip` is the only surface that says a feed is stale or dead, and its own docstring
+   states the requirement it would otherwise fail: "a stale or dead feed is visible without
+   opening anything - the compact state has to be able to say 'not fine', or it is decoration."
+   `#ctxScen` is stronger still; its comment says verbatim that it "lives in the HEAD, which
+   never folds: a reader must not have to expand a section to discover that a model is or is
+   not behind what they are looking at." Both are inside #desk. Rather than move two blocks out
+   of a layout they were designed into, the briefing — which never folds — states the same
+   facts from the same payload. */
+function renderBriefState(){
+  const host = document.getElementById("briefState");
+  if(!host) return;
+  const live = window.__DRAFT_LIVE__ || null;
+  if(!live){ host.hidden = true; return; }
+  const bits = [];
+  if(live.fund_as_of) bits.push("fundamentals as of <b>" + esc(live.fund_as_of) + "</b>");
+  if(live.has_sentiment) bits.push("tone <b>" + esc(live.sentiment_age || "ready") + "</b>");
+  else bits.push("<b>no tone snapshot</b>");
+  /* Named whenever a scenario is on screen at all, fixture or modelled — "no model is behind
+     this" is the answer a reader most needs and the one a quiet surface most easily drops. */
+  const scen = (typeof scenarioForShock === "function") ? scenarioForShock(bucketShock) : null;
+  if(scen) bits.push(scen.basis === "modelled"
+    ? "scenario <b>modelled</b>"
+    : "scenario <b>illustrative fixture</b>, not calibrated");
+  host.innerHTML = bits.join(" &middot; ");
+  host.hidden = !bits.length;
+}
 function renderBriefing(){
   const lede = document.getElementById("briefLede");
   const card = document.getElementById("briefWorked");
@@ -8395,6 +8427,7 @@ function renderBriefing(){
       + 'beside authored geopolitical theses. It does not tell you what to buy. '
       + '<b>No snapshot is loaded here</b>, so there are no numbers below yet — the desk says '
       + 'which command fetches one.';
+  renderBriefState();
 
   const head = '<h2>How one screen resolves</h2>';
   if(!n){
@@ -8403,11 +8436,34 @@ function renderBriefing(){
       + 'the page is not running.</p>';
     return;
   }
-  const key = PRESET_RULES[preset] ? preset : null;
-  if(!key){
+  /* THREE states, not two. `PRESET_RULES[preset] ? preset : null` collapsed "this lens is not
+     one of the ten canonical rule sets" into "no lens is selected" — so with Social sentiment
+     active the card announced "No lens is selected, so every one of the 225 names passes"
+     while the command bar named the lens and the table below showed 123. Five of the fifteen
+     shipped pills land here (scenario_reach, and the four tone lenses), plus every custom lens
+     a reader builds. `lensRows` distinguishes all six cases at :5987; this has to as well. */
+  if(preset == null){
     card.innerHTML = head + '<p>No lens is selected, so every one of the '
       + '<span class="brief-n">' + n + '</span> names passes. Pick one under <b>Lens</b> in the '
       + 'command bar and this fills in with its arithmetic.</p>';
+    return;
+  }
+  const key = PRESET_RULES[preset] ? preset : null;
+  if(!key){
+    /* Counted through `lensRows` — the function the table screens with — so the number here is
+       the number there, by construction rather than by agreement. */
+    const reach = withFreshUniverse(function(){ return lensRows(ROWS).length; });
+    const isCustom = !!customLens(preset);
+    card.innerHTML = head
+      + '<p><b>' + esc(activeLensLabel()) + '</b> reaches <span class="brief-n">' + reach
+      + '</span> of the <span class="brief-n">' + n + '</span> names.</p>'
+      + '<p>The unscreened count this card shows for the built-in rule lenses is not computed '
+      + 'here, and that is a real difference rather than a gap: ' + (isCustom
+        ? 'a custom lens <b>rejects</b> a name with no number for one of your conditions, where '
+          + 'the built-in ones set it aside as unjudged.'
+        : 'this lens selects on coverage or on membership rather than on a numeric threshold, '
+          + 'so a name either matches it or does not — there is no third group.')
+      + '</p>';
     return;
   }
   const p = PRESET_RULES[key];
@@ -8426,24 +8482,26 @@ function renderBriefing(){
   out += '<p>Of the <span class="brief-n">' + judged + '</span> it can judge, '
     + '<span class="brief-n">' + pass + '</span> pass and <span class="brief-n">'
     + (judged - pass) + '</span> do not.';
-  /* `canonicalRows` — what the table calls — truncates to `top` AFTER screening, and
-     `most_active` sets it to 15. Without this clause the card would report a pass count over a
-     table showing fifteen rows, which is the failure this repo records in its own words: the
-     same number, two answers, both published. */
-  if(p.top != null && pass > p.top){
-    out += ' The table shows the first <span class="brief-n">' + p.top + '</span> of them; '
-      + 'this lens is defined to stop there.';
-  }
   out += '</p>';
-  /* Counted over the SNAPSHOT, deliberately: this card teaches how a lens resolves, and that
-     answer should not move because a bucket happens to be selected. But it then has to SAY so,
-     because the table below is counting something narrower, and a reader comparing the two is
-     owed the reason they differ rather than left to find it. */
-  const inCtx = contextUniverse().length;
-  if(inCtx !== n){
-    out += '<p>That is over the whole snapshot. The desk below is narrowed to '
-      + '<span class="brief-n">' + inCtx + '</span> of these names right now, so every count '
-      + 'it shows is smaller.</p>';
+  /* ONE sentence about the table, and it ASKS the table rather than predicting it.
+     The two sentences this replaces were both false. "The table shows the first 15 of them"
+     was gated on the SNAPSHOT pass count while describing the CONTEXT-screened table, so it
+     printed over a nine-row table for all 20 buckets and 7 of 11 sector filters; and "every
+     count it shows is smaller" is not true when a narrowing selects a superset of the passing
+     set. Both were written to fix a two-numbers defect and reversed it instead.
+     `matchedRows()` is exactly what renderTable sorts and draws, so this cannot drift. */
+  const shown = matchedRows().length, inCtx = contextUniverse().length;
+  if(shown !== pass){
+    const why = [];
+    if(inCtx !== n) why.push('the desk is narrowed to ' + inCtx + ' of them');
+    /* Gated on whether truncation actually BINDS on the narrowed set, not on the snapshot
+       count. With bucket 04 selected, most_active screens nine names and its cap is fifteen —
+       the cap explains nothing, and "because ... this lens is defined to stop at 15" would be
+       a stated reason that is not the reason. */
+    const ctxPass = canonicalScreen(key, contextUniverse()).matches.length;
+    if(p.top != null && ctxPass > p.top) why.push('this lens is defined to stop at ' + p.top);
+    out += '<p>The table below shows <span class="brief-n">' + shown + '</span>'
+      + (why.length ? ', because ' + why.join(', and ') : '') + '.</p>';
   }
   card.innerHTML = out;
 }
@@ -8458,7 +8516,11 @@ function applyBriefFold(){
   const grid = document.querySelector(".brief-grid");
   const cont = document.querySelector(".continue");
   if(!grid || !cont) return;
-  const first = !briefSeen();
+  /* Never fold over an empty snapshot: #noData lives inside the desk and renderNoData
+     un-hides it exactly when ROWS is empty, so folding would open the banner into a
+     hidden parent and leave the lede's promise that "the desk says which command
+     fetches one" false as printed. */
+  const first = !briefSeen() && ROWS.length > 0;
   desk.hidden = first;
   grid.hidden = !first;
   cont.hidden = !first;
@@ -8466,13 +8528,29 @@ function applyBriefFold(){
   if(!first && !re){
     re = document.createElement("button");
     re.type = "button"; re.id = "briefReopen"; re.className = "brief-reopen";
-    re.textContent = "What this will not do, and how one screen resolves";
+    /* A DISCLOSURE, declared as one. It is the only such control on a page carrying 25
+       aria-expanded attributes, and it was the only one carrying none. */
+    re.setAttribute("aria-controls", "briefCards");
+    /* It hid ITSELF on click and left `.continue` hidden too, so after one press there was no
+       control anywhere on the page that could fold the briefing again — a state applyBriefFold
+       could neither produce nor repair, for the rest of the session. It toggles now. It also
+       hid the element holding the caret, which dropped focus to <body>; keeping it mounted
+       keeps the reader where they were. */
     re.addEventListener("click", function(){
-      grid.hidden = false; cont.hidden = true; re.hidden = true;
+      const open = grid.hidden;
+      grid.hidden = !open;
+      re.setAttribute("aria-expanded", open ? "true" : "false");
+      re.textContent = open ? "Hide this again"
+                            : "What this will not do, and how one screen resolves";
     });
     brief.appendChild(re);
   }
-  if(re) re.hidden = first;
+  if(re){
+    re.hidden = first;
+    re.setAttribute("aria-expanded", grid.hidden ? "false" : "true");
+    re.textContent = grid.hidden ? "What this will not do, and how one screen resolves"
+                                 : "Hide this again";
+  }
 }
 function render(){
   // One universe per render. Set here rather than inside contextUniverse() so the memo can
@@ -8826,9 +8904,18 @@ setCtxOpen(ctxIsOpen());
    they just read, rather than throwing the viewport at a section whose top they never saw. */
 (function(){
   const go = document.getElementById("openDesk");
-  if(go) go.addEventListener("click", function(){
-    markBriefSeen(); applyBriefFold(); render();
-  });
+  if(go){
+    go.setAttribute("aria-controls", "desk");
+    go.setAttribute("aria-expanded", "false");
+    go.addEventListener("click", function(){
+      markBriefSeen(); applyBriefFold(); render();
+      /* Sixty-odd controls appear at once; leaving the caret on a button that just went away
+         drops it to <body> and sends the next Tab back to the top of the document. The context
+         toggle is the first thing in the desk and the first thing a keyboard reader wants. */
+      const firstInDesk = document.getElementById("ctxToggle");
+      if(firstInDesk) firstInDesk.focus();
+    });
+  }
 })();
 // Before the first render, so a folded desk is never painted and then taken away. What it
 // costs is that the first pass draws no charts; `openDesk` above pays that back.
