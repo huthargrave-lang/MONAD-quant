@@ -4106,7 +4106,12 @@ ABSENCE_REASONS = {
 #: `None` does not always mean "unknown". Some fields answer a question in the negative, and
 #: their `None` is a finding rather than a gap:
 #:
-#:   flag=None     — this growth figure is NOT a base effect. A real answer, arrived at.
+#:   flag=None     — this growth figure needed no qualifying. A real answer, and one that is
+#:                   now actually arrived at: the earlier version returned None whenever the
+#:                   earnings leg was missing, which meant 38 rows printing a revenue figure
+#:                   were called "answered" without the test having run. See
+#:                   `_base_effect_flag`. Both legs are now asked their own question, so a
+#:                   None here means a test returned no, not that no test happened.
 #:   bucket=None   — this name is in no authored bucket. Also a real answer.
 #:   shadow_tag=None — nobody has tagged it, which IS a gap, so it is listed below.
 #:
@@ -4202,22 +4207,39 @@ BASE_EFFECT_RATIO = 5.0          # earnings moved this many times more than the 
 
 
 def _base_effect_flag(earnings, revenue, growth):
-    """The chip text for a growth number that is a base effect, or None.
+    """The chip text qualifying a growth number, or None when the number needs no qualifying.
 
     Takes the two legs and the number the column actually printed, rather than a row, because
     the column resolves that number across two snapshots and the flag has to be judged against
     the pair it came from.
 
-    Scoped to the EARNINGS leg on purpose — hence `growth != earnings` rather than a test on
-    `earnings` alone. The column falls back to revenue growth when the vendor reports no
-    earnings figure, and the explainer's whole argument is that revenue does not produce this
-    artifact, so flagging a revenue-sourced number would attach the earnings explanation to a
-    number that is not an earnings number.
+    TWO QUESTIONS, NOT ONE, AND THE SECOND WAS MISSING
+    --------------------------------------------------
+    The first version returned `None` the moment `earnings` was absent, and a comment beside
+    `ABSENCE_FIELDS` justified that as "a real answer, arrived at". It was not an answer: the
+    test had not run. 38 of 225 rows print a REVENUE figure — `stock_screener` sets
+    `growth = eg if eg is not None else rg` — and every one of them came back unflagged and
+    untested, including ONDS at 1080% and RCAT at 849%.
 
-    `None` when the row is clean, which is what keeps the chip absent rather than empty.
+    The reasoning behind the gap was the growth explainer's own sentence, that "revenue growth
+    almost never does this". Almost never is not never, and a company going from one million of
+    revenue to twelve is up 1,100% for exactly the reason the explainer describes — a small
+    base, not a changed business. At 1080% the sentence has stopped covering the case.
+
+    So the earnings question keeps its corroborating leg and its wording, and the revenue leg
+    gets a weaker question of its own. It has to be weaker: with no earnings figure to compare
+    against there is no ratio to test, so the claim is only that the number is large and is not
+    the earnings number a reader would assume. Saying "base effect?" there would borrow
+    certainty from a comparison that was never made.
     """
-    if earnings is None or growth is None or growth != earnings:
-        return None                       # absent, or the revenue fallback is in the column
+    if growth is None:
+        return None                       # nothing printed, so nothing to qualify
+    if earnings is None or growth != earnings:
+        # The revenue leg is what the column is showing. Two facts a reader cannot see:
+        # which leg it is, and that nothing corroborated it.
+        if revenue is not None and growth == revenue and revenue >= BASE_EFFECT_MIN_GROWTH:
+            return "revenue, off a small base?"
+        return None
     if earnings < BASE_EFFECT_MIN_GROWTH:
         return None
     # A shrinking business needs no special case, which is why there is no `max(revenue, 0)`

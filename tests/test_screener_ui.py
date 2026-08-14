@@ -2847,9 +2847,14 @@ class TheBaseEffectFlagThePageAlreadyPromised(unittest.TestCase):
          "it, and the pair with LEVER is what brackets the constant"),
         ("SMALL",  1.50,     0.02,     1.50,    False,
          "150% is under the threshold; large ratios alone do not make a base effect"),
-        ("REVONLY", None,    9.00,     9.00,    False,
-         "no earnings figure at all — the column is showing revenue, which the explainer "
-         "says almost never does this"),
+        ("REVONLY", None,    9.00,     9.00,    True,
+         "no earnings figure, so the column shows REVENUE at 900% — this case asserted False "
+         "and was the defect: the explainer's 'revenue almost never does this' was treated as "
+         "never, and 38 live rows went untested. It carries the weaker revenue question now, "
+         "not the earnings one"),
+        ("REVCALM", None,    0.19,     0.19,    False,
+         "revenue leg, ordinary size — the weaker question has a threshold too, so a normal "
+         "revenue number is still clean"),
     ]
 
     @staticmethod
@@ -2876,6 +2881,10 @@ class TheBaseEffectFlagThePageAlreadyPromised(unittest.TestCase):
                     self.assertIsNotNone(
                         row["flag"],
                         "{} carries no flag, but {}".format(tk, why))
+                    # The two questions are different strengths and must not be conflated:
+                    # only an earnings number that beat its revenue leg earns "base effect?".
+                    expected = "base effect?" if tk != "REVONLY" else "revenue, off a small base?"
+                    self.assertEqual(row["flag"], expected, tk)
                 else:
                     self.assertIsNone(
                         row["flag"],
@@ -2903,6 +2912,39 @@ class TheBaseEffectFlagThePageAlreadyPromised(unittest.TestCase):
             "base effect?",
             "the same pair, with the earnings number actually in the column, must flag")
 
+    def test_a_revenue_sourced_number_gets_its_own_question(self):
+        """The column prints revenue growth whenever the vendor reported no earnings figure, and
+        those numbers used to leave the helper unqualified and unmarked. ONDS at 1080% and RCAT
+        at 849% are revenue, and a company going from one million to twelve is up 1,100% for
+        precisely the reason the growth explainer describes.
+
+        The question is deliberately weaker than the earnings one. With no earnings figure there
+        is no ratio to test, so the chip asks about the base without claiming the comparison
+        that "base effect?" is built on."""
+        # Revenue leg, extreme: asked.
+        self.assertEqual(
+            research_ui._base_effect_flag(earnings=None, revenue=10.80, growth=10.80),
+            "revenue, off a small base?")
+        # Revenue leg, ordinary: nothing to say.
+        self.assertIsNone(
+            research_ui._base_effect_flag(earnings=None, revenue=0.19, growth=0.19))
+        # The two chips are different sentences, because they are different strengths of claim.
+        earnings_chip = research_ui._base_effect_flag(earnings=15.8, revenue=0.67, growth=15.8)
+        self.assertNotEqual(earnings_chip,
+                            research_ui._base_effect_flag(None, 10.80, 10.80))
+        self.assertNotIn("base effect", research_ui._base_effect_flag(None, 10.80, 10.80),
+                         "the revenue chip borrows certainty from a comparison never made")
+        # And nothing at all when there is no number to qualify.
+        self.assertIsNone(research_ui._base_effect_flag(None, None, None))
+
+    def test_the_revenue_question_reaches_rows_not_only_the_helper(self):
+        """The same join that shipped `"flag": None` on every row for months. Asserted through
+        the payload, with a row whose earnings leg is genuinely absent."""
+        row = dict(screener_payload_fixture.FUND_ROWS[0])
+        row.update(ticker="REVX", earnings_growth=None, revenue_growth=9.4, growth=9.4)
+        payload = screener_payload_fixture.authored_payload(fund_rows=[row])
+        self.assertEqual(payload["rows"][0]["flag"], "revenue, off a small base?")
+
     def test_a_clean_row_carries_no_flag_rather_than_an_empty_one(self):
         """`""` and `None` render differently: the table tests `r.flag?` truthiness, but the
         detail card and any future consumer should not have to know that an empty string is
@@ -2920,8 +2962,14 @@ class TheBaseEffectFlagThePageAlreadyPromised(unittest.TestCase):
         """These two drifted apart once already, in the direction of the page promising more
         than the payload did. Either side moving alone should fail."""
         html = _page()
-        self.assertIn("base-effect flag", html,
-                      "the growth explainer no longer promises the flag the payload emits")
+        # Both chip texts, not a phrase describing them. The explainer names two questions of
+        # different strength now, and a guard matching prose about the feature would survive
+        # either chip being renamed out from under it.
+        for chip in ("base effect?", "revenue, off a small base?"):
+            self.assertIn(chip, html,
+                          "the growth explainer does not name the chip the payload emits: " + chip)
+        self.assertIn("no earnings figure to compare against", html,
+                      "the explainer no longer says why the revenue question is the weaker one")
 
     def test_both_render_sites_still_draw_the_row_field(self):
         """The chip appears in the results table and on the detail card. A flag that reaches
@@ -3136,9 +3184,15 @@ class TheAbsenceVocabularyIsOneDefinition(unittest.TestCase):
                          "an unknown reason code renders as nothing")
 
     def test_a_none_that_means_no_is_not_reported_as_a_gap(self):
-        """`flag=None` means this growth figure is NOT a base effect, and `bucket=None` means
-        the name is in no bucket. Both are answers. Reporting them as absences would claim a
-        hole in the data where the data is complete and the answer is negative."""
+        """`flag=None` means the growth figure needed no qualifying, and `bucket=None` means the
+        name is in no bucket. Both are answers, so reporting them as absences would claim a hole
+        where the data is complete and the answer is negative.
+
+        This test's original docstring asserted that as a universal and it was false for 38 of
+        225 rows: `_base_effect_flag` returned None the moment the earnings leg was missing,
+        without running any test, so a guard meant to protect the distinction was pinning a
+        claim the code did not honour. `test_a_revenue_sourced_number_gets_its_own_question`
+        is what now makes the claim true rather than assumed."""
         for answered in ("flag", "bucket"):
             self.assertNotIn(answered, research_ui.ABSENCE_FIELDS,
                              "'{}' is a negative answer, not a missing value".format(answered))
