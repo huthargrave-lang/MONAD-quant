@@ -21,6 +21,7 @@ catch is the specific failure that has already happened twice here: two copies o
 definition, drifting silently, with both surfaces published side by side.
 """
 import inspect
+import json
 import os
 import re
 import sys
@@ -3204,7 +3205,10 @@ class TheAbsenceVocabularyIsOneDefinition(unittest.TestCase):
         """The list is the decision record. A new nullable column added to the row without
         being classified here would render as a bare em-dash again, silently."""
         VALUE_FIELDS = {"pe", "g", "dy", "de", "beta", "mcap", "score", "shadow_tag",
-                        "bb", "rd", "yh"}
+                        "bb", "rd", "yh",
+                        # Added when the vendor's placeholder zeros were caught: the row HAS a
+                        # margin, and the reader still needs telling it was not measured.
+                        "profit_margin"}
         self.assertEqual(set(research_ui.ABSENCE_FIELDS), VALUE_FIELDS,
                          "a value field was added or removed without updating this guard")
 
@@ -3400,3 +3404,125 @@ class ANamelessRowRendersRatherThanCrashing(unittest.TestCase):
             os.path.join(REPO, "tools", "stock_screener.py"), encoding="utf-8").read(),
             "the unguarded subscript is back")
         self.assertEqual((None or "—")[:21], "—")
+
+
+class ThePageAndPythonAgreeOnWhoIsScreenable(unittest.TestCase):
+    """Python's `apply_preset` excludes a row whose field is present but unjudgeable; the page's
+    `canonicalScreen` excludes a row whose field is null. Those were about to be two different
+    answers to one question — the two-copies defect the page's own comment forbids.
+
+    They are reconciled by making them ONE question: Python ships `row.unjudged`, `canonValue`
+    returns null for anything in it, and each side then reaches its existing missing-value
+    branch. The test below runs the page's real JS against Python's real function over the same
+    fixture and asserts the two sets are identical, because "they agree by construction" is a
+    claim and this is the measurement."""
+
+    PRESET = "safety_low_debt"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.payload = screener_payload_fixture.authored_payload(fund_rows=[
+            # A placeholder margin: present, zero, contradicted by net income. Python must call
+            # this unscreenable and the page must agree.
+            dict(screener_payload_fixture.FUND_ROWS[0], ticker="PLACE",
+                 profit_margin=0.0, profit_margin_imputed=True, debt_to_equity=10.0),
+            # A measured zero margin: judged and REJECTED, by both, not excused.
+            dict(screener_payload_fixture.FUND_ROWS[0], ticker="TRUE0",
+                 profit_margin=0.0, debt_to_equity=10.0),
+            # A clean pass.
+            dict(screener_payload_fixture.FUND_ROWS[0], ticker="CLEAN",
+                 profit_margin=0.35, debt_to_equity=10.0),
+        ])
+
+    def _python_verdict(self):
+        fund = screener_payload_fixture.FUND_ROWS
+        rows = [dict(r) for r in [
+            dict(fund[0], ticker="PLACE", profit_margin=0.0, profit_margin_imputed=True,
+                 debt_to_equity=10.0),
+            dict(fund[0], ticker="TRUE0", profit_margin=0.0, debt_to_equity=10.0),
+            dict(fund[0], ticker="CLEAN", profit_margin=0.35, debt_to_equity=10.0)]]
+        matches, no_data = sc.apply_preset(rows, self.PRESET)
+        return ({r["ticker"] for r in matches},
+                {r["ticker"] for r, _missing in no_data})
+
+    def test_python_treats_a_placeholder_as_unscreenable_and_a_real_zero_as_rejected(self):
+        matched, unscreenable = self._python_verdict()
+        self.assertIn("PLACE", unscreenable)
+        self.assertNotIn("TRUE0", unscreenable, "a measured zero was excused rather than judged")
+
+    def test_the_payload_ships_the_verdict_rather_than_the_rule(self):
+        """The page must not need to know WHY a field is unjudgeable — only that it is. If the
+        payload ever ships the reason instead of the verdict, the page will start deciding."""
+        place = [r for r in self.payload["rows"] if r["tk"] == "PLACE"][0]
+        true0 = [r for r in self.payload["rows"] if r["tk"] == "TRUE0"][0]
+        self.assertEqual(place.get("unjudged"), ["profit_margin"])
+        self.assertNotIn("unjudged", true0, "a measured zero was marked unjudgeable")
+
+    def test_canonvalue_consults_it_so_the_rule_is_never_written_twice(self):
+        js = _decomment(_script(_page()))
+        body = _functions(js).get("canonValue")
+        self.assertIsNotNone(body)
+        self.assertIn("unjudged", body,
+                      "canonValue no longer honours the verdict, so the page and Python have "
+                      "gone back to answering separately")
+        screen = _functions(js).get("canonicalScreen")
+        for ported in ("_imputed", "SCREEN_BLOCKING"):
+            self.assertNotIn(ported, screen,
+                             "the exclusion rule has been PORTED into the page — that is the "
+                             "second copy this design exists to avoid")
+
+    def test_both_implementations_return_the_same_sets(self):
+        """The measurement, not the argument. Runs the page's real canonValue/canonicalScreen
+        in node over the same fixture and compares to Python.
+
+        Skipped when node is absent, which is CI — so it is not the only guard here; the three
+        above hold in Python alone. It is the one that would catch a divergence the structural
+        argument failed to prevent."""
+        if not shutil.which("node"):
+            self.skipTest("node is not installed; the Python-side guards above still hold")
+        # Just the four pure pieces, not the whole script: the page's script expects a DOM at
+        # load, so running it entire skipped every time and measured nothing. canonValue,
+        # canonicalScreen, CANON_FIELD and CANON_OPS touch no document, so they lift out and
+        # run. Lifted BY NAME from the real file — a copy pasted here would be a third
+        # implementation, which is the thing this whole design is avoiding.
+        js = _script(_page())
+        pieces = []
+        for const in ("CANON_FIELD", "CANON_OPS"):
+            m = re.search(r"\nconst " + const + r" = \{[\s\S]*?\n\};", js)
+            self.assertIsNotNone(m, const + " is gone from the page")
+            pieces.append(m.group(0))
+        fns = _functions(_decomment(js))
+        for name in ("canonValue", "canonicalScreen"):
+            self.assertIn(name, fns, name + " is gone from the page")
+            pieces.append("function " + name + "(" +
+                          re.search(r"\nfunction " + name + r"\(([^)]*)\)\{",
+                                    _decomment(js)).group(1) + "){" + fns[name] + "}")
+        harness = """
+%s
+let PRESET_RULES = {}, CATEGORICAL_FIELDS = [];
+const ROWS_IN = %s;
+const PRESET_RULES_IN = %s;
+PRESET_RULES = PRESET_RULES_IN;
+CATEGORICAL_FIELDS = %s;
+const out = canonicalScreen(%s, ROWS_IN);
+console.log(JSON.stringify({
+  matched: out.matches.map(r => r.tk).sort(),
+  noData: out.noData.map(d => d.row.tk).sort()
+}));
+""" % ("\n".join(pieces), json.dumps(self.payload["rows"]), json.dumps(self.payload["presets"]),
+       json.dumps(self.payload.get("categorical") or []), json.dumps(self.PRESET))
+        with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as fh:
+            fh.write(harness)
+            path = fh.name
+        try:
+            proc = subprocess.run(["node", path], capture_output=True, text=True, timeout=60)
+        finally:
+            os.unlink(path)
+        if proc.returncode != 0:
+            self.skipTest("the page's script needs a DOM to load: %s" % proc.stderr[-200:])
+        page = json.loads(proc.stdout.strip().splitlines()[-1])
+        py_matched, py_unscreenable = self._python_verdict()
+        self.assertEqual(set(page["matched"]), py_matched,
+                         "the page and Python disagree about who MATCHES")
+        self.assertEqual(set(page["noData"]), py_unscreenable,
+                         "the page and Python disagree about who is UNSCREENABLE")

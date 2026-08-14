@@ -4372,7 +4372,7 @@ ABSENCE_REASONS = {
 #: that pins this list is what stops a future field being added to the row without anyone
 #: deciding which kind of `None` it has.
 ABSENCE_FIELDS = ("pe", "g", "dy", "de", "beta", "mcap", "score",
-                  "shadow_tag", "bb", "rd", "yh")
+                  "shadow_tag", "bb", "rd", "yh", "profit_margin")
 
 #: The tone fields are in the map but are NOT drawn by the page's absence helper, and that is
 #: deliberate rather than unfinished. `toneChip` already separates the same two states in the
@@ -4388,7 +4388,7 @@ ABSENCE_FIELDS = ("pe", "g", "dy", "de", "beta", "mcap", "score",
 ABSENCE_FIELDS_RENDERED_ELSEWHERE = ("bb", "rd", "yh")
 
 
-def _absence_reasons(row, kind, imputed_dy=False):
+def _absence_reasons(row, kind, imputed_dy=False, imputed_margin=False):
     """`{field: reason_code}` for every absent field on one row, or `{}` when nothing is absent.
 
     `kind` is the instrument kind from `sovereign_buckets.NOT_COMPANIES` (`fund`, `futures
@@ -4398,9 +4398,14 @@ def _absence_reasons(row, kind, imputed_dy=False):
     out = {}
     not_a_company = kind is not None
 
-    # The one case where a PRESENT value earns a note: the snapshot says this zero was assumed.
+    # The cases where a PRESENT value earns a note: the snapshot says the number was assumed
+    # rather than measured. Margin is the stronger of the two — the vendor reported a figure
+    # its own net income contradicts — so it also blocks screening, which is why it appears in
+    # `unjudged` as well as here.
     if imputed_dy and row.get("dy") == 0:
         out["dy"] = "imputed_zero"
+    if imputed_margin and row.get("profit_margin") == 0:
+        out["profit_margin"] = "imputed_zero"
 
     for field in ("pe", "g", "dy", "de", "beta", "mcap"):
         if row.get(field) is not None:
@@ -4632,9 +4637,20 @@ def _screener_combined_draft_payload():
         # describe a gap the row does not actually have. Only attached when something IS
         # absent: a complete row costs nothing, and `absent` being truthy is itself the
         # "does this row have a gap" test that consumers need.
-        absent = _absence_reasons(row_out, kind, fr.get("dividend_yield_imputed", False))
+        absent = _absence_reasons(row_out, kind, fr.get("dividend_yield_imputed", False),
+                                  fr.get("profit_margin_imputed", False))
         if absent:
             row_out["absent"] = absent
+        # Fields the row HAS a number for that no screen may judge. Shipped by CANONICAL metric
+        # name — the name `PRESET_RULES` uses — so the page needs no alias translation and no
+        # copy of the rule: `canonValue` returns null for anything listed here, and both
+        # `canonicalScreen` and every custom lens then reach their EXISTING missing-value branch
+        # on their own. One concept, expressed once on each side through machinery that already
+        # exists, rather than one rule implemented twice and policed by a parity test.
+        unjudged = [m for m in stock_screener.SCREEN_BLOCKING_IMPUTED
+                    if fr.get(m + "_imputed")]
+        if unjudged:
+            row_out["unjudged"] = unjudged
         rows.append(row_out)
 
     providers = _combined_draft_providers(fund, prices, sent)

@@ -5830,7 +5830,18 @@ const CANON_FIELD = {
   price:"price", ai:"ai", bucket:"bucket", shadow_debt:"shadow_tag",
   shadow_severity:"shadow_severity", shadow_severity_rank:"shadow_severity_rank",
 };
+/* A value the row HAS but that no screen may judge reads as absent here, which is the whole
+   mechanism. Python decides — the vendor reported a profit margin of exactly zero beside a net
+   income that makes it impossible — and ships the canonical metric names in `row.unjudged`.
+   Returning null means `canonicalScreen`'s existing missing-value branch, and every custom
+   lens built in the browser, reach the right answer through code that already exists.
+
+   The alternative was porting Python's exclusion rule into `canonicalScreen`. That would have
+   been a second implementation of one rule, and the file's own comment forbids exactly that:
+   the two would agree until they didn't, and only a parity test would notice. Here there is
+   nothing to keep in step — one side decides, the other reads. */
 function canonValue(row, metric){
+  if(row && row.unjudged && row.unjudged.indexOf(metric) !== -1) return null;
   const f = CANON_FIELD[metric];
   return f ? row[f] : row[metric];
 }
