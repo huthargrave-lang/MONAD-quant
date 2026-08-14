@@ -44,6 +44,9 @@ class ExportTests(unittest.TestCase):
                     "overview.html", "web.html", "web-groups.html", "surfaces.html",
                     "map.html", os.path.join("static", "ui.css")}
         expected |= {"screen-{}.html".format(k) for k in sc.PRESETS}
+        # Derived from the list, not written out: a fourth Basics page added to the server
+        # and not published would otherwise pass here and leave the rail advertising it.
+        expected |= {n for n, _l, _k in export_pages._STATIC_BASICS}
         nodes = {n for n in self.written if n.startswith("node-")}
         self.assertTrue(nodes, "the research web must be drillable, not a contents page")
         self.assertEqual(set(self.written) - nodes, expected)
@@ -59,6 +62,11 @@ class ExportTests(unittest.TestCase):
         served = [label for _href, label in research_ui._nav_view_items(False)]
         published = [label for _href, label, _key in export_pages._STATIC_VIEWS]
         self.assertEqual(served, published)
+        # Basics is a second list and needs its own comparison — the check above reads
+        # `_nav_view_items`, which does not carry it, so adding the section without this
+        # would have left a whole rail group unguarded on the side it is published from.
+        self.assertEqual([label for _href, label, _f in research_ui.BASICS_VIEWS],
+                         [label for _name, label, _k in export_pages._STATIC_BASICS])
         for page in ("index.html", "overview.html", "web.html"):
             self.assertNotIn("no db", self.pages[page], page)
 

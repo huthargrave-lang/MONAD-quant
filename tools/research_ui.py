@@ -1526,6 +1526,28 @@ SERVER_ONLY_VIEWS = ("/sweep",)
 # each was how the export and the server drifted apart the first time.
 SCREENER_HREF = "/screener/draft"
 
+#: The plain-English way in, as (href, rail label, file). The three front-door mocks from
+#: d56559f, promoted from files-you-open to routes the rail offers — which is the difference
+#: between a design that was explored and one that is available.
+#:
+#: They are ILLUSTRATIVE and say so on their own faces ("EXAMPLE DATA", "ILLUSTRATIVE"): the
+#: allocation page's mixes are worked examples of what a blend means, not readings of anything
+#: fetched. That labelling is theirs and is not added or removed here — serving a page must not
+#: change what it claims about itself.
+BASICS_VIEWS = [
+    ("/basics/own", "1 · What could I own?", "mock-1-plain-english.html"),
+    ("/basics/mix", "2 · What does a mix mean?", "mock-2-allocation.html"),
+    ("/basics/theses", "3 · Theses & fails", "mock-3-thesis-first.html"),
+]
+FRONT_MOCKS_DIR = os.path.join(REPO, "docs", "research", "front-mocks")
+
+#: Where each mock's inter-page links have to point once the pages are routes rather than
+#: files. Includes the screener, which they all link to as the end of the sequence — leaving
+#: that as "mock-4-progressive.html" would send a reader from a served page to a 404.
+_BASICS_LINK_MAP = dict(
+    [(f, href) for href, _label, f in BASICS_VIEWS]
+    + [("mock-4-progressive.html", SCREENER_HREF)])
+
 
 def _nav_view_items(include_server_only=True):
     """The Views block, as (href, label). Split out so the static Pages export can assert
@@ -1564,18 +1586,29 @@ def _nav(active, mounts):
     # web", "Web groups" and "Context map" before they could pick — three names for three
     # views of one graph. Grouping does not answer that, but it stops the question being the
     # price of entry.
+    # ── Basics ────────────────────────────────────────────────────────────────────────────
+    # The plain-English sequence, above the desk because it is what someone reads BEFORE the
+    # desk means anything. Numbered because it is an order, not a menu.
+    out.append("<h4>Basics</h4>")
+    for href, label, _f in BASICS_VIEWS:
+        out.append('<a class="{}" href="{}">{}</a>'.format(
+            "on" if href == active else "", href, esc(label)))
     out.append("<h4>Desk</h4>")
     for href, label in items:
         if href != SCREENER_HREF:
             continue
         out.append('<a class="{}" href="{}">{}</a>'.format(
             "on" if href == active else "", href, esc(label)))
-    # OPEN by default, and that is deliberate rather than timid. A rail that hides where you
-    # can go is not simpler, it is smaller; and the mount rows below carry "no db", which is
-    # operational state a reader must not have to expand a control to discover. The reader may
-    # collapse it, and that choice is remembered — but the page never makes it for them.
-    out.append('<details class="nav-drop" id="navQuant" open>'
-               '<summary>Quant</summary>')
+    # Collapsed by default, and it opens ITSELF when the page you are on lives inside it —
+    # otherwise the rail would show no active item at all while you stood on one of these
+    # views, which is worse than a long list. That case also overrides the remembered
+    # preference: "where am I" beats "how did I leave this last time".
+    inside = ([h for h, _l in items if h != SCREENER_HREF]
+              + [h for h, _l, _live in mounts] + ["/recommend"])
+    here = active in inside
+    out.append('<details class="nav-drop" id="navQuant"{}>'
+               '<summary>Quant</summary>'.format(
+                   ' open data-here="1"' if here else ""))
     for href, label in items:
         if href == SCREENER_HREF:
             continue
@@ -1612,7 +1645,8 @@ def _nav(active, mounts):
     # cookies) leaves the group open, which is the honest failure direction.
     out.append(
         '<script>(function(){var d=document.getElementById("navQuant");if(!d)return;'
-        'try{if(localStorage.getItem("monad.rail.quant")==="0")d.open=false;}catch(e){}'
+        'if(!d.hasAttribute("data-here")){'
+        'try{if(localStorage.getItem("monad.rail.quant")==="1")d.open=true;}catch(e){}}'
         'd.addEventListener("toggle",function(){'
         'try{localStorage.setItem("monad.rail.quant",d.open?"1":"0");}catch(e){}});})();</script>')
     out.append("</nav>")
@@ -4281,6 +4315,67 @@ def _mount_state(opts):
 _MOCK_RAIL = re.compile(r'<aside class="rail">.*?</aside>', re.S)
 
 
+#: The front-door mocks carry `<nav class="rail" aria-label="MONAD">`, where the older mocks
+#: carry `<aside class="rail">`. Two spellings of the same slot, so `_with_rail` tries both
+#: rather than each caller knowing which kind of file it is holding.
+_FRONT_RAIL = re.compile(r'<nav class="rail"[^>]*>.*?</nav>', re.S)
+
+
+def _basics_html(path, mounts):
+    """Serve one Basics page: the mock's own body, this server's rail, real hrefs.
+
+    Nothing about what the page CLAIMS is touched. These pages label themselves EXAMPLE DATA
+    and ILLUSTRATIVE, and that labelling is the reason they are safe to offer in a rail beside
+    real surfaces — rewriting it, in either direction, would be the one edit this must not make.
+    """
+    entry = next((e for e in BASICS_VIEWS if e[0] == path), None)
+    if entry is None:
+        return 404, "no such basics page\n", TEXT
+    src = os.path.join(FRONT_MOCKS_DIR, entry[2])
+    if not os.path.isfile(src):
+        return 404, "missing {} in the working tree\n".format(entry[2]), TEXT
+    with open(src, encoding="utf-8") as fh:
+        html = fh.read()
+    # Their sibling links are filenames, which only resolve when the pages are opened off
+    # disk. As routes they have to point at routes.
+    for filename, href in _BASICS_LINK_MAP.items():
+        html = html.replace('href="{}"'.format(filename), 'href="{}"'.format(href))
+    html = _drop_mock_theme_binding(html, entry[2])
+    return 200, _with_rail(html, path, mounts), HTML
+
+
+#: The mock's own light/dark control, which lives in the rail this server replaces.
+_MOCK_THEME_BIND = re.compile(
+    r'  document\.querySelector\("\.theme"\)\.addEventListener\([\s\S]*?\n  \}\);\n')
+
+
+def _drop_mock_theme_binding(html, filename):
+    """Remove the binding to a control this server's rail does not carry.
+
+    NOT cosmetic, and not defensive. The statement is `document.querySelector(".theme")
+    .addEventListener(...)` — it attaches TO the element, so with the rail swapped the
+    querySelector returns null and the whole boot IIFE throws on that line. The very next
+    statement in all three mocks is the page's own render call (`draw()`, `renderCards()`),
+    so every Basics page rendered its prose and then nothing: no chart, no cards, one
+    TypeError in the console and no other sign.
+
+    I had looked at this code, seen `e.target.closest("button[data-theme]")`, concluded the
+    handler was delegated and would simply go inert, and moved on. The delegation is real and
+    irrelevant — it is the ATTACH that fails. Reading the handler and not the line that
+    installs it is how a whole page went blank behind a passing test suite.
+
+    Asserted rather than best-effort: if a mock stops matching, that is a change to the file
+    this serves and should stop the request, not silently ship a page that throws.
+    """
+    html, n = _MOCK_THEME_BIND.subn("", html, count=1)
+    if n != 1:
+        raise AssertionError(
+            "{}: expected exactly one .theme binding to remove, found {}. The served rail "
+            "has no .theme element, so any surviving binding throws and takes the page's "
+            "render call with it.".format(filename, n))
+    return html
+
+
 def _with_rail(html, active, mounts):
     """Put the server rail into a standalone document, together with the styles it needs.
 
@@ -4288,7 +4383,13 @@ def _with_rail(html, active, mounts):
     substituting the markup alone leaves the Quant dropdown unstyled. Doing both here means a
     fourth such page cannot get one without the other by forgetting a line.
     """
-    html = _MOCK_RAIL.sub(_nav(active, mounts), html, count=1)
+    rail = _nav(active, mounts)
+    if _MOCK_RAIL.search(html):
+        html = _MOCK_RAIL.sub(lambda _m: rail, html, count=1)
+    elif _FRONT_RAIL.search(html):
+        html = _FRONT_RAIL.sub(lambda _m: rail, html, count=1)
+    else:
+        raise AssertionError("no rail to replace in this document")
     if "nav-drop" in html and "details.nav-drop" not in html:
         if "</style>" not in html:
             raise AssertionError(
@@ -4906,6 +5007,8 @@ def route(path, query, opts):
         return 200, page_screen_sovereign(mounts), HTML
     if path in ("/screener/buckets", "/screen/mock"):
         return _sovereign_buckets_html(mounts)
+    if path in [h for h, _l, _f in BASICS_VIEWS]:
+        return _basics_html(path, mounts)
     if path == "/screener/draft":
         return _screener_combined_draft_html(mounts)
     if path == "/recommend":

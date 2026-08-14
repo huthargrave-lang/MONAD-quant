@@ -91,6 +91,16 @@ _STATIC_VIEWS = [
 #: comparing hrefs across the two would be comparing different vocabularies.
 _STATIC_SCREENER_KEY = "screener"
 
+#: The Basics sequence, as (file, label, key), in the server's own order. These pages are
+#: static and self-contained — no payload, no fetch — so publishing them is a copy rather than
+#: a re-render, and a published rail offering a Basics section the site does not carry would be
+#: the drift this module exists to prevent.
+_STATIC_BASICS = [
+    ("basics-own.html", "1 · What could I own?", "basics-own"),
+    ("basics-mix.html", "2 · What does a mix mean?", "basics-mix"),
+    ("basics-theses.html", "3 · Theses & fails", "basics-theses"),
+]
+
 
 def _static_nav(active="screener"):
     def link(href, label, key):
@@ -101,24 +111,31 @@ def _static_nav(active="screener"):
     # so the STRUCTURE has to be kept in step deliberately — a published site whose navigation
     # is organised differently from the app it was built from reads as a different product,
     # which is the drift `tests/test_export_pages.py` exists to catch.
+    basics = "".join(link(h, l, k) for h, l, k in _STATIC_BASICS)
     desk = "".join(link(h, l, k) for h, l, k in _STATIC_VIEWS
                    if k == _STATIC_SCREENER_KEY)
     quant = "".join(link(h, l, k) for h, l, k in _STATIC_VIEWS
                     if k != _STATIC_SCREENER_KEY)
+    # Collapsed unless the page being written lives inside it — the same rule the server
+    # applies, for the same reason: a rail with no active item is worse than a long one.
+    here = active not in [k for _h, _l, k in _STATIC_BASICS] + [_STATIC_SCREENER_KEY]
     return ('<nav class="rail"><div class="brand"><b>MONAD research</b>'
             '<span>static snapshot · GitHub Pages</span></div>'
+            '<h4>Basics</h4>{b}'
             '<h4>Desk</h4>{d}'
-            '<details class="nav-drop" id="navQuant" open><summary>Quant</summary>{q}'
+            '<details class="nav-drop" id="navQuant"' + (' open data-here="1"' if here else "")
+            + '><summary>Quant</summary>{q}'
             '<h4>Contribute</h4>{r}'
             '<h4>Source</h4>'
             '<a href="{u}">GitHub repository</a></details>'
             '<script>(function(){{var d=document.getElementById("navQuant");if(!d)return;'
-            'try{{if(localStorage.getItem("monad.rail.quant")==="0")d.open=false;}}catch(e){{}}'
+            'if(!d.hasAttribute("data-here")){{'
+            'try{{if(localStorage.getItem("monad.rail.quant")==="1")d.open=true;}}catch(e){{}}}}'
             'd.addEventListener("toggle",function(){{'
             'try{{localStorage.setItem("monad.rail.quant",d.open?"1":"0");}}catch(e){{}}}});'
             '}})();</script>'
             '</nav>').format(
-        d=desk, q=quant,
+        b=basics, d=desk, q=quant,
         r=link("recommend.html", "Create a recommendation", "recommend"),
         u=REPO_URL)
 
@@ -143,6 +160,13 @@ def _staticise(html, built, active="screener"):
         html = html.replace('href="/lenses?preset={}"'.format(key),
                             'href="screen-{}.html"'.format(key))
     html = html.replace('href="/screener/buckets"', 'href="buckets.html"')
+    # The Basics sequence links itself, both in the rail and in each page's body ("read the
+    # next one"). Derived from the two lists rather than written out, so a fourth Basics page
+    # cannot be added to the server and left pointing at a server route here — which is exactly
+    # what the export's own link check caught on the first build.
+    for (href, _label, _f), (name, _l2, _k) in zip(
+            research_ui.BASICS_VIEWS, _STATIC_BASICS):
+        html = html.replace('href="{}"'.format(href), 'href="{}"'.format(name))
     # Any remaining /screener?preset=… (the "+ custom" lens, or a preset carrying extra
     # query state) has no static page of its own — a lens is a server query. Point them
     # at the index rather than leaving an absolute route that 404s on Pages.
@@ -245,6 +269,14 @@ def export(out_dir):
     code, body, _ct = research_ui._screener_combined_draft_html({}, payload=payload)
     assert code == 200
     write("index.html", _staticise(body, built, "screener"))
+
+    # The Basics sequence. Written from the same routes the server offers, so the published
+    # pages and the served ones cannot say different things.
+    for (href, _label, _f), (name, _l2, key) in zip(
+            research_ui.BASICS_VIEWS, _STATIC_BASICS):
+        code, body, _ct = research_ui.route(href, {}, {})
+        assert code == 200, href
+        write(name, _staticise(body, built, key))
 
     code, body, _ct = research_ui.route("/recommend", {}, {})
     assert code == 200

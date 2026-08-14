@@ -862,10 +862,14 @@ class TheQuantDropdownHoldsEveryViewButTheScreener(unittest.TestCase):
     def _inside(self):
         return self.nav.split("<details", 1)[1].split("</details>", 1)[0]
 
-    def test_only_the_screener_sits_outside_the_dropdown(self):
-        outside = [h for h in re.findall(r'<a[^>]*href="([^"]+)"', self._outside())]
-        self.assertEqual(outside, [ui.SCREENER_HREF],
-                         "something other than the screener is at the rail's top level")
+    def test_only_basics_and_the_screener_sit_outside_the_dropdown(self):
+        """Updated when Basics landed. The rule is unchanged — every VIEW but the screener is
+        inside Quant — but the rail's top level now also carries the plain-English sequence,
+        which is not a view: it is what someone reads before the desk means anything."""
+        outside = re.findall(r'<a[^>]*href="([^"]+)"', self._outside())
+        expected = [h for h, _l, _f in ui.BASICS_VIEWS] + [ui.SCREENER_HREF]
+        self.assertEqual(outside, expected,
+                         "something other than Basics and the screener is at the top level")
 
     def test_every_other_view_sits_inside_it(self):
         inside = self._inside()
@@ -876,11 +880,39 @@ class TheQuantDropdownHoldsEveryViewButTheScreener(unittest.TestCase):
                 self.assertIn('href="%s"' % href, inside,
                               "%s is offered nowhere in the rail" % label)
 
-    def test_the_group_opens_by_default(self):
-        """A rail that hides where you can go is not simpler, it is smaller — and the mount
-        rows inside carry "no db", which is operational state a reader must not have to expand
-        a control to discover. The reader may collapse it; the page never does it for them."""
-        self.assertRegex(self.nav, r'<details class="nav-drop" id="navQuant" open>')
+    def test_the_group_hides_itself_unless_you_are_standing_in_it(self):
+        """REVERSED, on request, from open-by-default. The property that has to survive the
+        reversal is that the rail never shows a page with nothing marked active: collapsed
+        while you are on a Quant view would leave no `a.on` anywhere in the rail at all.
+
+        So it opens itself when the active page is inside it, and that overrides the reader's
+        remembered preference — "where am I" beats "how did I leave this"."""
+        mounts = [("/events", "Research events", False)]
+        for active, want_open in ((ui.SCREENER_HREF, False),
+                                  ("/basics/mix", False),
+                                  ("/web", True),
+                                  ("/graph", True),
+                                  ("/recommend", True),
+                                  ("/events", True)):
+            with self.subTest(active=active):
+                nav = ui._nav(active, mounts)
+                tag = re.search(r'<details class="nav-drop"[^>]*>', nav).group(0)
+                self.assertEqual(" open" in tag, want_open,
+                                 "Quant open=%s on %s" % (" open" in tag, active))
+                if want_open:
+                    self.assertIn('data-here="1"', tag,
+                                  "opened without the marker that stops the stored "
+                                  "preference closing it again")
+
+    def test_the_rail_always_marks_where_you_are(self):
+        """The reason the auto-open exists, asserted directly rather than implied."""
+        mounts = [("/events", "Research events", False)]
+        for href, _l, _f in ui.BASICS_VIEWS:
+            with self.subTest(href=href):
+                self.assertIn('<a class="on" href="%s"' % href, ui._nav(href, mounts))
+        for href, _label in ui._nav_view_items():
+            with self.subTest(href=href):
+                self.assertIn('<a class="on" href="%s"' % href, ui._nav(href, mounts))
 
     def test_nothing_that_was_reachable_stopped_being_reachable(self):
         """Regrouping must not be deletion. Every href the rail offered before is still an
@@ -986,3 +1018,64 @@ class TheRailsStylesTravelWithItsMarkup(unittest.TestCase):
     def test_a_document_with_no_style_block_is_refused_rather_than_served_bare(self):
         with self.assertRaises(AssertionError):
             ui._with_rail('<aside class="rail">x</aside>', ui.SCREENER_HREF, self.MOUNTS)
+
+
+class TheBasicsPagesActuallyRunAfterTheRailIsSwapped(unittest.TestCase):
+    """Every one of these returned 200, contained its prose, and rendered NOTHING below the
+    fold — no chart on the allocation page, no cards on the theses page.
+
+    The mocks' boot ends:
+
+        document.querySelector(".theme").addEventListener("click", ...);
+        draw();
+
+    `.theme` is the light/dark control in the mock's OWN rail, which this server replaces. So
+    the querySelector returns null, the attach throws, and `draw()` — the next statement, in
+    the same IIFE — never runs. One TypeError in the console and no other sign.
+
+    I read that handler, saw `e.target.closest("button[data-theme]")`, concluded it was
+    delegated and would go inert, and moved on. The delegation is real and irrelevant: it is
+    the ATTACH that fails. A status-code test cannot see this, which is why the assertions
+    below are about what the page will DO."""
+
+    MOUNTS = {}
+
+    def _served(self):
+        out = {}
+        for href, _label, filename in ui.BASICS_VIEWS:
+            code, body, _ct = ui.route(href, {}, self.MOUNTS)
+            self.assertEqual(code, 200, href)
+            out[href] = (body, filename)
+        return out
+
+    def test_no_page_binds_to_an_element_the_served_rail_does_not_have(self):
+        for href, (body, _f) in self._served().items():
+            with self.subTest(href=href):
+                self.assertNotIn('querySelector(".theme").addEventListener', body,
+                                 "this page throws on boot and never reaches its render call")
+                self.assertNotIn('class="theme"', body,
+                                 "the served rail grew a .theme element; if that is deliberate "
+                                 "the binding should be kept rather than stripped")
+
+    def test_the_render_call_survives_the_strip(self):
+        """The removal must take the binding and nothing after it — the render call sits on the
+        very next line in all three files."""
+        for href, (body, _f) in self._served().items():
+            with self.subTest(href=href):
+                self.assertRegex(body, r"\n  (?:draw|renderCards)\(\);",
+                                 "the page's own render call went with the binding")
+
+    def test_a_mock_that_stops_matching_stops_the_request(self):
+        """Best-effort removal would ship a page that throws. If a mock is edited so the
+        pattern no longer matches, that is a change to the file being served and must fail
+        loudly rather than silently."""
+        with self.assertRaises(AssertionError):
+            ui._drop_mock_theme_binding("<html>no binding here</html>", "probe.html")
+
+    def test_every_basics_page_still_carries_its_own_illustrative_label(self):
+        """These are offered in a rail beside real surfaces. What makes that honest is that
+        they say what they are on their own faces — and serving must not edit that claim in
+        either direction."""
+        for href, (body, _f) in self._served().items():
+            with self.subTest(href=href):
+                self.assertRegex(body, r"EXAMPLE DATA|ILLUSTRATIVE")
