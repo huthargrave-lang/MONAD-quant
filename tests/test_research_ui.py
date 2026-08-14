@@ -845,3 +845,144 @@ class TheRouteTableTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TheQuantDropdownHoldsEveryViewButTheScreener(unittest.TestCase):
+    """The shape the four front-door mocks settled on (d56559f): the screener alone under
+    Desk, everything else inside one named group. The rail used to offer thirteen destinations
+    at one level."""
+
+    def setUp(self):
+        self.nav = ui._nav(ui.SCREENER_HREF,
+                                    [("/events", "Research events", False)])
+
+    def _outside(self):
+        return self.nav.split("<details", 1)[0]
+
+    def _inside(self):
+        return self.nav.split("<details", 1)[1].split("</details>", 1)[0]
+
+    def test_only_the_screener_sits_outside_the_dropdown(self):
+        outside = [h for h in re.findall(r'<a[^>]*href="([^"]+)"', self._outside())]
+        self.assertEqual(outside, [ui.SCREENER_HREF],
+                         "something other than the screener is at the rail's top level")
+
+    def test_every_other_view_sits_inside_it(self):
+        inside = self._inside()
+        for href, label in ui._nav_view_items():
+            if href == ui.SCREENER_HREF:
+                continue
+            with self.subTest(label=label):
+                self.assertIn('href="%s"' % href, inside,
+                              "%s is offered nowhere in the rail" % label)
+
+    def test_the_group_opens_by_default(self):
+        """A rail that hides where you can go is not simpler, it is smaller — and the mount
+        rows inside carry "no db", which is operational state a reader must not have to expand
+        a control to discover. The reader may collapse it; the page never does it for them."""
+        self.assertRegex(self.nav, r'<details class="nav-drop" id="navQuant" open>')
+
+    def test_nothing_that_was_reachable_stopped_being_reachable(self):
+        """Regrouping must not be deletion. Every href the rail offered before is still an
+        href the rail offers, wherever it now sits."""
+        for href in ("/", "/web", "/web/groups", ui.SCREENER_HREF, "/sweep",
+                     "/graph", "/surfaces", "/recommend", "/events"):
+            with self.subTest(href=href):
+                self.assertIn('href="%s"' % href, self.nav)
+
+
+class ThePayloadIsInjectedBeforeTheRailIsSubstituted(unittest.TestCase):
+    """Ordering that is load-bearing and was invisible until it broke.
+
+    The payload anchors on the FIRST <script> in the file, because it has to run before the
+    page script for applyLivePayload() to see it. The rail now carries a script of its own —
+    the Quant disclosure's persistence. Substitute the rail first and that becomes the first
+    <script> in the document, so the payload lands INSIDE <nav class="rail">; the static
+    export then replaces that whole element with its own rail and deletes the payload with it.
+
+    That is not hypothetical. Four baked-payload assertions in tests/test_export_pages.py
+    failed with "no payload baked into index.html" before the order was corrected."""
+
+    def test_the_payload_precedes_the_page_script_and_sits_outside_the_rail(self):
+        _code, html, _ct = ui._screener_combined_draft_html(
+            [], payload={"rows": [], "presets": {}})
+        i = html.find("window.__DRAFT_LIVE__ = ")
+        self.assertNotEqual(i, -1, "no payload injected at all")
+        nav_start = html.find('<nav class="rail"')
+        nav_end = html.find("</nav>", nav_start)
+        self.assertFalse(nav_start < i < nav_end,
+                         "the payload was injected inside the rail, so the static export's "
+                         "rail replacement will delete it")
+
+    def test_the_raw_draft_still_has_exactly_one_script_of_its_own(self):
+        """The anchor is "the first <script>", which is only unambiguous while the file it
+        anchors in has one. A second script added above the page script would take the
+        injection with it, silently."""
+        with open(ui.SCREENER_COMBINED_DRAFT_HTML, encoding="utf-8") as fh:
+            raw = fh.read()
+        self.assertEqual(raw.count("<script>"), 1,
+                         "the draft now has more than one script; the payload's anchor is no "
+                         "longer unambiguous")
+        self.assertGreater(raw.find("<script>"), raw.find("</aside>"),
+                           "a script now precedes the rail in the raw file")
+
+
+class TheRailsStylesTravelWithItsMarkup(unittest.TestCase):
+    """The rail's MARKUP is generated once by `_nav()`. Its STYLES were not: three standalone
+    documents receive the rail by substitution and each carries its own <style> block, linking
+    no shared sheet. So adding a dropdown to `_nav()` shipped it to those three unstyled — it
+    rendered as a native browser disclosure with the wrong triangle, no indent, no hover, and
+    looked correct only on the pages that happen to go through `page()`.
+
+    Caught by looking at the DOM, not by reading the code: every `nav-drop` declaration was in
+    the served stylesheet, and the screener draft does not load that stylesheet."""
+
+    MOUNTS = [("/events", "Research events", False)]
+
+    def _standalone_docs(self):
+        code, draft, _t = ui._screener_combined_draft_html(
+            self.MOUNTS, payload={"rows": [], "presets": {}})
+        self.assertEqual(code, 200)
+        return {"screener draft": draft}
+
+    def test_every_document_that_gets_the_dropdown_gets_its_rules(self):
+        for name, html in self._standalone_docs().items():
+            with self.subTest(doc=name):
+                self.assertIn("nav-drop", html, "%s did not receive the rail" % name)
+                self.assertIn(".rail details.nav-drop{margin", html,
+                              "%s has the dropdown markup but not the CSS that styles it, so "
+                              "it renders as a raw browser disclosure" % name)
+
+    def test_the_rules_are_not_pasted_twice(self):
+        for name, html in self._standalone_docs().items():
+            with self.subTest(doc=name):
+                self.assertEqual(html.count(".rail details.nav-drop{margin"), 1)
+
+    def test_there_is_one_definition_of_them(self):
+        """UI_CSS interpolates the same constant the standalone documents are given. A second
+        copy is how the mocks and this file disagreed about the rail before."""
+        self.assertIn(".rail details.nav-drop{margin", ui.RAIL_DROP_CSS)
+        self.assertIn(ui.RAIL_DROP_CSS, ui.UI_CSS,
+                      "UI_CSS carries its own copy of the dropdown rules rather than the "
+                      "constant the standalone pages are handed")
+
+    def test_the_native_disclosure_marker_is_suppressed_three_ways(self):
+        """`list-style:none` alone does not remove Chrome's triangle — `display:block` is what
+        does — and `::-webkit-details-marker` is the old spelling modern engines ignore. The
+        failure mode is a second arrow, pointing the wrong way, beside ours.
+
+        COMMENTS ARE STRIPPED FIRST, and that is the whole point of this being a method rather
+        than three assertIns. Written without it, this passed on a mutation that deleted
+        `display:block` from the rule — because the comment two lines above the rule explains
+        why `display:block` is there, and the substring was still present in the prose. A guard
+        that reads a comment is a guard that certifies its own defect."""
+        css = re.sub(r"/\*.*?\*/", "", ui.RAIL_DROP_CSS, flags=re.S)
+        for decl in ("display:block", '::marker{content:""}',
+                     "::-webkit-details-marker{display:none}"):
+            with self.subTest(decl=decl):
+                self.assertIn(decl, css,
+                              "%s is no longer declared (comments do not count)" % decl)
+
+    def test_a_document_with_no_style_block_is_refused_rather_than_served_bare(self):
+        with self.assertRaises(AssertionError):
+            ui._with_rail('<aside class="rail">x</aside>', ui.SCREENER_HREF, self.MOUNTS)

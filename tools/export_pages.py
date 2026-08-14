@@ -86,18 +86,39 @@ _STATIC_VIEWS = [
 ]
 
 
+#: The published rail's Screener entry, matched by KEY rather than by href — the static
+#: filenames differ from the server's routes ("index.html" against "/screener/draft"), so
+#: comparing hrefs across the two would be comparing different vocabularies.
+_STATIC_SCREENER_KEY = "screener"
+
+
 def _static_nav(active="screener"):
     def link(href, label, key):
         cls = ' class="on"' if active == key else ""
         return '<a{} href="{}">{}</a>'.format(cls, href, label)
-    views = "".join(link(h, l, k) for h, l, k in _STATIC_VIEWS)
+    # Same shape as the server's rail (research_ui._nav): the screener alone under Desk, and
+    # every other view inside Quant. The two are written separately because the hrefs differ,
+    # so the STRUCTURE has to be kept in step deliberately — a published site whose navigation
+    # is organised differently from the app it was built from reads as a different product,
+    # which is the drift `tests/test_export_pages.py` exists to catch.
+    desk = "".join(link(h, l, k) for h, l, k in _STATIC_VIEWS
+                   if k == _STATIC_SCREENER_KEY)
+    quant = "".join(link(h, l, k) for h, l, k in _STATIC_VIEWS
+                    if k != _STATIC_SCREENER_KEY)
     return ('<nav class="rail"><div class="brand"><b>MONAD research</b>'
             '<span>static snapshot · GitHub Pages</span></div>'
-            '<h4>Views</h4>{v}'
+            '<h4>Desk</h4>{d}'
+            '<details class="nav-drop" id="navQuant" open><summary>Quant</summary>{q}'
             '<h4>Contribute</h4>{r}'
             '<h4>Source</h4>'
-            '<a href="{u}">GitHub repository</a></nav>').format(
-        v=views,
+            '<a href="{u}">GitHub repository</a></details>'
+            '<script>(function(){{var d=document.getElementById("navQuant");if(!d)return;'
+            'try{{if(localStorage.getItem("monad.rail.quant")==="0")d.open=false;}}catch(e){{}}'
+            'd.addEventListener("toggle",function(){{'
+            'try{{localStorage.setItem("monad.rail.quant",d.open?"1":"0");}}catch(e){{}}}});'
+            '}})();</script>'
+            '</nav>').format(
+        d=desk, q=quant,
         r=link("recommend.html", "Create a recommendation", "recommend"),
         u=REPO_URL)
 

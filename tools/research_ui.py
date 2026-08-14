@@ -83,6 +83,42 @@ def esc(value) -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 TOKENS_HREF = "/static/ui.css"
 
+#: The Quant dropdown's rules, kept as their own constant because the rail's MARKUP is
+#: generated once by `_nav()` while its STYLES live in four different documents: this module's
+#: UI_CSS, and the three standalone HTML files that receive the rail by substitution
+#: (SCREENER_COMBINED_DRAFT, and the buckets and web-groups mocks). Each of those carries its
+#: own <style> block and links no shared sheet, so markup added to `_nav()` arrives in them
+#: unstyled — which is exactly what happened: the rail rendered as a native browser disclosure
+#: with the wrong triangle, no indent and no hover, and looked correct only on the pages that
+#: happen to go through `page()`. `_with_rail()` below ships these WITH the markup so the two
+#: cannot arrive separately again.
+#:
+#: Derived from the front-door mocks (d56559f), whose rail was itself built from this file's
+#: base `.rail` rules — every one of those matches here byte for byte.
+RAIL_DROP_CSS = """
+.rail details.nav-drop{margin:0 0 6px}
+/* `display:block` is what actually removes the native disclosure triangle in current Chrome;
+   `list-style:none` alone does not, and `::-webkit-details-marker` is the old spelling that
+   modern engines ignore. All three are here because the rail is read in whatever browser is
+   open, and the failure mode is a second arrow pointing the wrong way. */
+.rail details.nav-drop > summary{
+  display:block;list-style:none;cursor:pointer;user-select:none;
+  padding:5px 18px;font-size:11px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--ink-muted);font-weight:600}
+.rail details.nav-drop > summary::marker{content:""}
+.rail details.nav-drop > summary::-webkit-details-marker{display:none}
+.rail details.nav-drop > summary:hover{color:var(--ink-2)}
+.rail details.nav-drop > summary::after{
+  content:"\\25BE";float:right;margin-right:2px;opacity:.75}
+.rail details.nav-drop:not([open]) > summary::after{content:"\\25B8"}
+/* Indented one step so the group reads as contained, rather than as a sibling list that
+   happens to sit lower. An h4 inside the drop is a sub-heading, not a peer of the summary. */
+.rail details.nav-drop a{padding-left:26px}
+.rail details.nav-drop a.on{padding-left:24px}
+.rail details.nav-drop h4{margin:10px 0 3px;padding-left:26px;font-size:10px;opacity:.85}
+"""
+
+
 UI_CSS = ui_tokens.TOKENS + """
 *{box-sizing:border-box}
 body{margin:0;background:var(--plane);color:var(--ink);font:15px/1.55 var(--sans);
@@ -119,6 +155,7 @@ code,.mono,th,td.num{font-family:var(--mono)}
 .rail a.off{color:var(--ink-muted)}
 .rail .fence{font-size:10px;font-family:var(--mono);color:var(--ink-muted);
   border:1px solid var(--rule);border-radius:3px;padding:0 4px;margin-left:5px}
+""" + RAIL_DROP_CSS + """
 main{min-width:0;padding:26px 30px 90px;max-width:1180px;width:100%;justify-self:center}
 h1{font-size:23px;line-height:1.25;margin:0 0 6px;font-weight:640;text-wrap:balance;
   letter-spacing:-.012em}
@@ -1480,7 +1517,14 @@ def applicable_keys(nctx):
 #: host cannot do, so the export drops it rather than publishing a control that does nothing.
 #: One definition, read by the rail AND by the export's "same views" check — a second list is
 #: how the published site drifted from the app the first time.
+
 SERVER_ONLY_VIEWS = ("/sweep",)
+
+# The one view that stays at the top level of the rail; every other view sits under Quant.
+# Named once because three places have to agree on it — the rail, the static export's rail,
+# and the test that asserts the two publish the same list. A literal "/screener/draft" in
+# each was how the export and the server drifted apart the first time.
+SCREENER_HREF = "/screener/draft"
 
 
 def _nav_view_items(include_server_only=True):
@@ -1513,8 +1557,28 @@ def _nav(active, mounts):
     items = _nav_view_items()
     out = ['<nav class="rail"><div class="brand"><b>MONAD research</b>'
            '<span>one server · one token system</span></div>']
-    out.append("<h4>Views</h4>")
+    # ── Desk ──────────────────────────────────────────────────────────────────────────────
+    # The shape the four front-door mocks settled on (d56559f): the screener stands alone and
+    # everything else is one named group under it. The rail used to offer thirteen
+    # destinations at one level, which asked a reader to know the difference between "Research
+    # web", "Web groups" and "Context map" before they could pick — three names for three
+    # views of one graph. Grouping does not answer that, but it stops the question being the
+    # price of entry.
+    out.append("<h4>Desk</h4>")
     for href, label in items:
+        if href != SCREENER_HREF:
+            continue
+        out.append('<a class="{}" href="{}">{}</a>'.format(
+            "on" if href == active else "", href, esc(label)))
+    # OPEN by default, and that is deliberate rather than timid. A rail that hides where you
+    # can go is not simpler, it is smaller; and the mount rows below carry "no db", which is
+    # operational state a reader must not have to expand a control to discover. The reader may
+    # collapse it, and that choice is remembered — but the page never makes it for them.
+    out.append('<details class="nav-drop" id="navQuant" open>'
+               '<summary>Quant</summary>')
+    for href, label in items:
+        if href == SCREENER_HREF:
+            continue
         cls = "on" if href == active else ""
         out.append('<a class="{}" href="{}">{}</a>'.format(cls, href, esc(label)))
     out.append("<h4>Mounted data</h4>")
@@ -1541,6 +1605,16 @@ def _nav(active, mounts):
                'bucket or screener change. Held in your browser — copy the text to file '
                'it for real.">Create a recommendation</a>'.format(
                    "on" if active == "/recommend" else ""))
+    out.append("</details>")
+    # The rail is re-rendered by the server on every navigation, so a <details> left to itself
+    # springs back open on each page and the reader's choice survives exactly zero clicks.
+    # Written on toggle, applied before paint. Storage that throws (private mode, disabled
+    # cookies) leaves the group open, which is the honest failure direction.
+    out.append(
+        '<script>(function(){var d=document.getElementById("navQuant");if(!d)return;'
+        'try{if(localStorage.getItem("monad.rail.quant")==="0")d.open=false;}catch(e){}'
+        'd.addEventListener("toggle",function(){'
+        'try{localStorage.setItem("monad.rail.quant",d.open?"1":"0");}catch(e){}});})();</script>')
     out.append("</nav>")
     return "".join(out)
 
@@ -4207,6 +4281,22 @@ def _mount_state(opts):
 _MOCK_RAIL = re.compile(r'<aside class="rail">.*?</aside>', re.S)
 
 
+def _with_rail(html, active, mounts):
+    """Put the server rail into a standalone document, together with the styles it needs.
+
+    The three files this serves each carry their own <style> and link no shared sheet, so
+    substituting the markup alone leaves the Quant dropdown unstyled. Doing both here means a
+    fourth such page cannot get one without the other by forgetting a line.
+    """
+    html = _MOCK_RAIL.sub(_nav(active, mounts), html, count=1)
+    if "nav-drop" in html and "details.nav-drop" not in html:
+        if "</style>" not in html:
+            raise AssertionError(
+                "a document receiving the rail has no <style> to carry RAIL_DROP_CSS")
+        html = html.replace("</style>", RAIL_DROP_CSS + "</style>", 1)
+    return html
+
+
 def _sovereign_buckets_html(mounts):
     """Serve docs/research/SOVEREIGN_LEDGER_OPTIONS_MOCK.html at /screener/buckets."""
     if not os.path.isfile(SOVEREIGN_MOCK_HTML):
@@ -4226,7 +4316,7 @@ def _sovereign_buckets_html(mounts):
         json.dumps(prices.get("series") or {}, separators=(",", ":")),
         json.dumps(prices.get("as_of") or ""),
         json.dumps(dict(sovereign_buckets.NOT_COMPANIES), separators=(",", ":")))
-    html = _MOCK_RAIL.sub(_nav("/screener/buckets", mounts), html, count=1)
+    html = _with_rail(html, "/screener/buckets", mounts)
     # Before the page script, so its first render already has them.
     if "<script>" in html:
         html = html.replace("<script>", inject + "<script>", 1)
@@ -4243,7 +4333,7 @@ def _research_groups_html(mounts):
                 "in the working tree\n", TEXT)
     with open(RESEARCH_GROUPS_MOCK_HTML, encoding="utf-8") as f:
         html = f.read()
-    return 200, _MOCK_RAIL.sub(_nav("/web/groups", mounts), html, count=1), HTML
+    return 200, _with_rail(html, "/web/groups", mounts), HTML
 
 
 #: screener_lab's own provider list describes how ITS snapshot was built. On this page
@@ -4727,7 +4817,6 @@ def _screener_combined_draft_html(mounts, payload=None):
                 "in the working tree\n", TEXT)
     with open(SCREENER_COMBINED_DRAFT_HTML, encoding="utf-8") as f:
         html = f.read()
-    html = _MOCK_RAIL.sub(_nav("/screener/draft", mounts), html, count=1)
     payload = _screener_combined_draft_payload() if payload is None else payload
     # Two different things, deliberately kept apart. The payload is a SNAPSHOT — rows, tone,
     # prices, all of it dated and refetchable. window.LEDGER is the ledger's own reading:
@@ -4743,11 +4832,22 @@ def _screener_combined_draft_html(mounts, payload=None):
                   sovereign_buckets.runtime_js(),
                   scenarios.runtime_js(),
                   json.dumps(payload, default=str).replace("<", "\\u003c")))
-    # Must run BEFORE the page script so applyLivePayload() sees the payload.
+    # Must run BEFORE the page script so applyLivePayload() sees the payload — which is why
+    # this anchors on the first <script> in the file, and why it happens BEFORE the rail is
+    # substituted in. That ordering is load-bearing, not incidental. The rail carries a script
+    # of its own (the Quant disclosure's persistence); substitute it first and it becomes the
+    # first <script> in the document, so the payload lands INSIDE <nav class="rail"> — and the
+    # static export, which replaces that whole element with its own rail, then deletes the
+    # payload with it. Every baked-payload assertion in tests/test_export_pages.py failed on
+    # exactly that, with "no payload baked into index.html".
+    # Guarded by ThePayloadIsInjectedBeforeTheRailIsSubstituted.
+    assert '<nav class="rail"' not in html, (
+        "the rail was substituted before the payload was injected; see above")
     if "<script>" in html:
         html = html.replace("<script>", inject + "<script>", 1)
     else:
         html = html + inject
+    html = _with_rail(html, SCREENER_HREF, mounts)
     return 200, html, HTML
 
 
