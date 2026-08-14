@@ -39,6 +39,7 @@ and the page would be offering work it cannot do. `find_interpreter()` probes in
 `availability()` reports what it found so the page can say plainly that the engine cannot be
 run here rather than rendering a control that always errors.
 """
+import datetime
 import json
 import os
 import re
@@ -57,6 +58,30 @@ TICKER_RE = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}(=F)?$")
 #: The phases sweep.py itself accepts (`--phase`). Restated as a closed set so an unknown value
 #: is refused here rather than becoming an argparse error inside a subprocess nobody is reading.
 PHASES = ("1", "2", "all", "exit-tuning")
+
+#: Dates arrive from a URL exactly as the ticker does, so they are matched and then PARSED —
+#: the pattern alone accepts 2026-13-45, which would reach argparse as a live argument and come
+#: back as an error nobody can read. `datetime.strptime` is what makes the check mean "a real
+#: day", and it is the whole validation: nothing is interpolated and no shell is involved.
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+#: The engine needs enough bars to split into train and holdout at all. A window shorter than
+#: this produces a subprocess failure whose message is about an empty array, which tells the
+#: reader nothing about what they did wrong. Refused up front with a sentence instead.
+MIN_WINDOW_DAYS = 120
+
+
+def _valid_date(value, label):
+    """The date, or None when absent. Raises ValueError with a readable reason."""
+    if not value:
+        return None
+    if not DATE_RE.match(value):
+        raise ValueError("%s must look like 2025-01-31, not %r" % (label, value))
+    try:
+        return datetime.datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError:
+        raise ValueError("%s is not a real date: %r" % (label, value))
+
 
 #: A sweep that has not finished in this long is treated as wedged and killed. Phase 1 over a
 #: cached ticker measured 38.6s on this machine; `all` is a multiple of that. The ceiling
@@ -117,7 +142,7 @@ def availability():
     }
 
 
-def build_argv(interpreter, ticker, phase="1", mode="realistic"):
+def build_argv(interpreter, ticker, phase="1", mode="realistic", start=None, end=None):
     """The exact argument list a job runs, split out so a test can inspect it without running.
 
     The `--apply` flag is not conditional here and is not passed through from anywhere: it is
@@ -130,7 +155,22 @@ def build_argv(interpreter, ticker, phase="1", mode="realistic"):
         raise ValueError("not a phase: %r" % (phase,))
     if mode not in ("optimistic", "realistic", "harsh"):
         raise ValueError("not a mode: %r" % (mode,))
-    return [interpreter, SWEEP, ticker, "--phase", phase, "--mode", mode]
+    argv = [interpreter, SWEEP, ticker, "--phase", phase, "--mode", mode]
+    # Both dates are optional and independent: sweep.py defaults start to two years back and
+    # end to today, so passing one and not the other is a legitimate half-open window.
+    d_start, d_end = _valid_date(start, "Start"), _valid_date(end, "End")
+    if d_start and d_end:
+        if d_end <= d_start:
+            raise ValueError("the end date must come after the start date")
+        if (d_end - d_start).days < MIN_WINDOW_DAYS:
+            raise ValueError(
+                "that window is %d days; the sweep needs at least %d to have a train and a "
+                "holdout to split into" % ((d_end - d_start).days, MIN_WINDOW_DAYS))
+    if d_start:
+        argv += ["--start", d_start.isoformat()]
+    if d_end:
+        argv += ["--end", d_end.isoformat()]
+    return argv
 
 
 def results_path(ticker):
@@ -184,7 +224,7 @@ def _run(job_id, argv, ticker):
         )
 
 
-def start(ticker, phase="1", mode="realistic", interpreter=None):
+def start(ticker, phase="1", mode="realistic", interpreter=None, start_date=None, end_date=None):
     """Launch a sweep in the background. Returns the job id.
 
     Raises ValueError on a bad ticker/phase/mode and RuntimeError when no interpreter on this
@@ -193,10 +233,11 @@ def start(ticker, phase="1", mode="realistic", interpreter=None):
     exe = interpreter or find_interpreter()
     if exe is None:
         raise RuntimeError(availability()["why_not"])
-    argv = build_argv(exe, ticker, phase, mode)
+    argv = build_argv(exe, ticker, phase, mode, start_date, end_date)
     job_id = "%s-%s-%d" % (ticker, phase, int(time.time() * 1000))
     with _lock:
         _jobs[job_id] = {"id": job_id, "ticker": ticker, "phase": phase, "mode": mode,
+                         "start": start_date or None, "end": end_date or None,
                          "state": "running", "started_at": time.time(),
                          "interpreter": exe, "log": "", "results": None, "error": None}
     threading.Thread(target=_run, args=(job_id, argv, ticker), daemon=True).start()

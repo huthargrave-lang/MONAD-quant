@@ -88,6 +88,59 @@ class TheUiCannotArmTheTrader(unittest.TestCase):
                 self.assertEqual(status, 400, body)
 
 
+class TheWindowIsValidatedLikeEverythingElseFromAUrl(unittest.TestCase):
+    """Dates reach `build_argv` from a query string, exactly as the ticker does. They get the
+    same treatment: matched, then parsed, never interpolated."""
+
+    def test_a_pattern_match_alone_is_not_enough(self):
+        """`\\d{4}-\\d{2}-\\d{2}` accepts 2026-13-45. Only a real parse rejects it, and without
+        that the value reaches argparse and comes back as an error about nothing."""
+        with self.assertRaises(ValueError):
+            sweep_runner.build_argv("/p", "QQQ", "1", "realistic", "2026-13-45")
+        with self.assertRaises(ValueError):
+            sweep_runner.build_argv("/p", "QQQ", "1", "realistic", None, "2025-02-30")
+
+    def test_nothing_that_is_not_a_date_becomes_an_argument(self):
+        for bad in ("$(id)", "`id`", "01/02/2024", "2024-1-1", "--apply", "2024-01-01 x",
+                    "; rm -rf /", "20240101"):
+            with self.subTest(bad=bad):
+                with self.assertRaises(ValueError):
+                    sweep_runner.build_argv("/p", "QQQ", "1", "realistic", bad)
+
+    def test_an_impossible_window_is_refused_with_a_readable_reason(self):
+        """A backwards or too-short window fails inside the sweep as an error about an empty
+        array, which tells the reader nothing about what they did. Refused up front instead."""
+        with self.assertRaises(ValueError) as ctx:
+            sweep_runner.build_argv("/p", "QQQ", "1", "realistic", "2026-01-01", "2024-01-01")
+        self.assertIn("after the start", str(ctx.exception))
+        with self.assertRaises(ValueError) as ctx:
+            sweep_runner.build_argv("/p", "QQQ", "1", "realistic", "2024-01-01", "2024-02-01")
+        self.assertIn("train and a holdout", str(ctx.exception))
+
+    def test_both_dates_are_optional_and_independent(self):
+        """sweep.py defaults start to two years back and end to today, so one without the other
+        is a legitimate half-open window and the empty pair is the common case."""
+        self.assertNotIn("--start", sweep_runner.build_argv("/p", "QQQ"))
+        self.assertIn("--start", sweep_runner.build_argv("/p", "QQQ", "1", "realistic",
+                                                         "2024-01-01"))
+        self.assertIn("--end", sweep_runner.build_argv("/p", "QQQ", "1", "realistic",
+                                                       None, "2025-01-01"))
+
+    def test_the_route_refuses_a_bad_window_before_spawning(self):
+        for query in ({"ticker": "QQQ", "start": "2026-13-45"},
+                      {"ticker": "QQQ", "start": "$(id)"},
+                      {"ticker": "QQQ", "start": "2024-01-01", "end": "2024-02-01"}):
+            status, body, _ct = research_ui.route("/api/sweep/start", query, {})
+            with self.subTest(query=query):
+                self.assertEqual(status, 400, body)
+
+    def test_the_page_offers_the_control_and_says_the_window_is_optional(self):
+        _s, html, _c = research_ui.route("/sweep", {}, {})
+        self.assertIn('id="swStart"', html)
+        self.assertIn('id="swEnd"', html)
+        self.assertIn('type="date"', html)
+
+
 class TheSweepSurfaceDoesNotOverclaim(unittest.TestCase):
 
     @classmethod

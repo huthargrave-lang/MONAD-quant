@@ -2111,6 +2111,11 @@ def page_sweep(mounts, query=None):
                 '<option value="harsh">harsh</option>'
                 '<option value="optimistic">optimistic · ignores spread</option>'
                 '</select></label>')
+    # Optional on purpose: sweep.py defaults to the last two years, and an empty pair is the
+    # common case. `type="date"` gives a native picker, and the value is validated server-side
+    # regardless — a date input still posts whatever a crafted request sends.
+    body.append('<label><span>From</span><input type="date" id="swStart"></label>')
+    body.append('<label><span>To</span><input type="date" id="swEnd"></label>')
     body.append('<button type="submit" class="btn primary" id="swGo">Run sweep</button>')
     body.append("</form></div>")
 
@@ -2171,8 +2176,10 @@ SWEEP_CSS = """<style>
   padding:12px 14px;border:1px solid var(--rule);border-radius:9px;background:var(--surface)}
 .sweep-run label{display:flex;flex-direction:column;gap:4px;font-size:10.5px;
   letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted)}
-.sweep-run select{font:13px var(--sans);height:32px;padding:0 8px;border:1px solid var(--rule);
-  border-radius:6px;background:var(--plane);color:var(--ink)}
+.sweep-run select,.sweep-run input[type="date"]{font:13px var(--sans);height:32px;
+  padding:0 8px;border:1px solid var(--rule);border-radius:6px;background:var(--plane);
+  color:var(--ink)}
+.sweep-run input[type="date"]{min-width:132px}
 .sweep-run.absent{display:block;border-left:3px solid var(--warning)}
 .sweep-run.absent b{display:block;font-size:13px;margin-bottom:4px}
 .sweep-run.absent .why{font-size:12.5px;color:var(--ink-2);max-width:52ch;display:block}
@@ -2312,7 +2319,8 @@ SWEEP_JS = """<script>
     }
     var r=job.results||{}, ps=r.presets||{}, html="";
     html+="<div class='sweep-run-meta'><b>"+esc(r.ticker||job.ticker)+"</b> \u00b7 "+
-      esc(r.period||"period not reported")+" \u00b7 cost model <b>"+esc(r.backtest_mode)+
+      esc(r.period||"period not reported")+
+      ((job.start||job.end)?" <b>(window you set)</b>":" (default window)")+" \u00b7 cost model <b>"+esc(r.backtest_mode)+
       "</b> \u00b7 sizing <b>"+esc(r.position_sizing)+"</b> \u00b7 "+
       esc(r.train_bars)+" train / "+esc(r.holdout_bars)+" holdout bars \u00b7 "+
       esc(job.seconds)+"s on <code>"+esc(job.interpreter)+"</code></div>";
@@ -2349,7 +2357,9 @@ SWEEP_JS = """<script>
     st.textContent="Starting\u2026";
     var q="ticker="+encodeURIComponent(document.getElementById("swTicker").value)+
           "&phase="+encodeURIComponent(document.getElementById("swPhase").value)+
-          "&mode="+encodeURIComponent(document.getElementById("swMode").value);
+          "&mode="+encodeURIComponent(document.getElementById("swMode").value)+
+          "&start="+encodeURIComponent(document.getElementById("swStart").value)+
+          "&end="+encodeURIComponent(document.getElementById("swEnd").value);
     fetch("/api/sweep/start?"+q).then(function(r){return r.json();})
       .then(function(d){
         if(d.error){ st.textContent=d.error; go.disabled=false; return; }
@@ -4618,7 +4628,9 @@ def route(path, query, opts):
             job_id = sweep_runner.start(
                 (query.get("ticker") or "").strip().upper(),
                 (query.get("phase") or "1").strip(),
-                (query.get("mode") or "realistic").strip())
+                (query.get("mode") or "realistic").strip(),
+                start_date=(query.get("start") or "").strip() or None,
+                end_date=(query.get("end") or "").strip() or None)
         except ValueError as exc:
             return 400, json.dumps({"error": str(exc)}), JSONC
         except RuntimeError as exc:
