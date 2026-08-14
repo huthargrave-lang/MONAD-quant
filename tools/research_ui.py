@@ -2073,82 +2073,136 @@ def _sweep_metric_rows(preset):
 
 
 def page_sweep(mounts, query=None):
-    avail = sweep_runner.availability()
-    body = ["<h1>Engine sweep</h1>",
-            '<p class="lede">Run the mean-reversion parameter sweep against live data and read '
-            'what comes back. Nothing on this page is stored between visits and nothing here '
-            'changes how the trader is configured.</p>']
+    """The control first, the caveats as four scannable claims, the long version folded away.
 
-    # The point of the page, said before any number appears. The engine has been studied a
-    # great deal; that is not the same claim as "this program hands you parameters to use".
-    body.append(
-        '<figure class="panel absent"><figcaption><h3>What a sweep is, and what it is not</h3>'
-        '<p class="why">The sweep walks a grid of entry and exit parameters, backtests each '
-        'one, and reports the combinations that scored best. That is a real measurement of '
-        '<b>how this engine behaves across its parameter space</b>, and it is worth running.</p>'
-        '<p class="why"><b>It is not a recommendation, and its winner is not an edge.</b> The '
-        'presets are chosen by scoring them on the holdout — <code>selection_method: '
-        'holdout_live_score</code> in the output — so the holdout column is the number the '
-        'choice was made with, not an untouched test of it. Picking the best of many on a '
-        'sample and then quoting that sample\'s score is how a grid search reports a result it '
-        'did not earn. The repository\'s own routing note says it plainly: prefer the leak-free '
-        '<code>tools/walkforward_eval.py</code> over holdout-selected sweep numbers.</p>'
-        '<p class="why"><b>The engine has been studied; the conclusion was not a parameter '
-        'set.</b> Finding D6 in <code>RESEARCH_WEB.md</code> is that the active mean-reversion '
-        'engine shows no risk-adjusted edge over a static 50/50–60/40 allocation at any '
-        'timescale. Run this to learn how the engine responds to its knobs. Do not run it '
-        'expecting the top row to be worth trading.</p>'
-        '<p class="why">A tell worth watching for: when the winning preset comes back with '
-        '<code>rsi_oversold</code> at 80 or 90, the grid has not found a dip to buy. It has '
-        'found that entering on almost any bar scored best, which is a statement about the '
-        'search, not about the market.</p>'
-        '</figcaption></figure>')
+    The first version of this page led with five paragraphs of prose before the reader could
+    reach the button they came for, in a 500px column against 900px of empty right-hand side.
+    Every sentence was true and the shape was wrong: a caveat nobody finishes reading is not a
+    caveat. The four things that must land are now four short cards a reader takes in at a
+    glance, and the argument behind them is one disclosure away for anyone who wants it.
+    """
+    avail = sweep_runner.availability()
+    body = ['<div class="sweep-head"><div>',
+            "<h1>Engine sweep</h1>",
+            '<p class="lede">Walk the mean-reversion parameter grid against live data. '
+            'Nothing here is stored between visits, and nothing here can change how the '
+            'trader is configured.</p>',
+            "</div>"]
 
     if not avail["runnable"]:
-        body.append(
-            '<figure class="panel absent"><figcaption><h3>Cannot run here</h3>'
-            '<p class="why">%s</p><p class="why">The control is not shown rather than shown '
-            'and broken.</p></figcaption></figure>' % esc(avail["why_not"]))
-        return page("Engine sweep", "/sweep", "".join(body), mounts, crumb="ENGINE · SWEEP")
+        body.append('<div class="sweep-run absent"><b>Cannot run here</b>'
+                    '<span class="why">%s</span></div></div>' % esc(avail["why_not"]))
+        body.append(SWEEP_CLAIMS + SWEEP_LONG)
+        return page("Engine sweep", "/sweep", "".join(body), mounts,
+                    crumb="ENGINE · SWEEP", wide=True)
 
-    if not avail["is_current_process"]:
-        # Worth saying out loud: this server is running on an interpreter that cannot import
-        # the engine at all, and the sweep only works because a different one was found.
-        body.append(
-            '<figure class="panel"><figcaption><h3>Two interpreters</h3>'
-            '<p class="why">This server is running <code>%s</code> (Python %s), which '
-            '<b>cannot import the strategy engine</b> — <code>src/strategy/sizing.py</code> '
-            'annotates with <code>dict | None</code> and needs 3.10 or newer. Sweeps are run '
-            'with <code>%s</code> instead. Everything below therefore comes from a different '
-            'interpreter than the one rendering this page.</p></figcaption></figure>'
-            % (esc(avail["current_process"]), esc(avail["current_version"]),
-               esc(avail["interpreter"])))
-
-    body.append('<h2>Run one</h2>')
-    body.append('<form class="filters" id="sweepForm" autocomplete="off">')
-    body.append('<label class="field"><span>Ticker</span><select id="swTicker">')
+    # The control sits in the header, beside the title, because it is the reason for the page.
+    body.append('<form class="sweep-run" id="sweepForm" autocomplete="off">')
+    body.append('<label><span>Ticker</span><select id="swTicker">')
     for t in SWEEP_TICKERS:
         body.append('<option value="%s">%s</option>' % (t, t))
     body.append('</select></label>')
-    body.append('<label class="field"><span>Phase</span><select id="swPhase">'
-                '<option value="1">1 — entry grid (about 40s)</option>'
-                '<option value="2">2 — exit grid</option>'
-                '<option value="all">all — both, slower</option></select></label>')
-    body.append('<label class="field"><span>Cost model</span><select id="swMode">'
+    body.append('<label><span>Phase</span><select id="swPhase">'
+                '<option value="1">1 · entry grid ~40s</option>'
+                '<option value="2">2 · exit grid</option>'
+                '<option value="all">all · slower</option></select></label>')
+    body.append('<label><span>Cost model</span><select id="swMode">'
                 '<option value="realistic">realistic</option>'
                 '<option value="harsh">harsh</option>'
-                '<option value="optimistic">optimistic — ignores spread, do not quote it</option>'
+                '<option value="optimistic">optimistic · ignores spread</option>'
                 '</select></label>')
     body.append('<button type="submit" class="btn primary" id="swGo">Run sweep</button>')
-    body.append('</form>')
-    body.append('<p class="why" id="swState" role="status" aria-live="polite">'
-                'Nothing running. A sweep writes only its own regenerable results file and the '
-                'experiment journal; it never edits <code>config.py</code> and cannot change '
-                'what the live trader does.</p>')
-    body.append('<div id="swOut"></div>')
-    body.append(SWEEP_JS)
-    return page("Engine sweep", "/sweep", "".join(body), mounts, crumb="ENGINE · SWEEP")
+    body.append("</form></div>")
 
+    body.append('<p class="sweep-state" id="swState" role="status" aria-live="polite">'
+                'Idle. A run writes only its own regenerable results file and the experiment '
+                'journal — never <code>config.py</code>.</p>')
+    body.append('<div id="swOut"></div>')
+    body.append(SWEEP_CLAIMS)
+    if not avail["is_current_process"]:
+        # One line, not a panel. It is a real fact and it is not what the page is about.
+        body.append('<p class="why sweep-note">This server runs <code>%s</code> (Python %s), '
+                    'which cannot import the strategy engine; sweeps run on <code>%s</code>.</p>'
+                    % (esc(os.path.basename(avail["current_process"])),
+                       esc(avail["current_version"]), esc(avail["interpreter"])))
+    body.append(SWEEP_LONG)
+    body.append(SWEEP_CSS + SWEEP_JS)
+    return page("Engine sweep", "/sweep", "".join(body), mounts,
+                crumb="ENGINE · SWEEP", wide=True)
+
+
+#: The four things a reader must not miss, each short enough to actually be read. The long
+#: argument for every one of them is in SWEEP_LONG, folded, for whoever wants it.
+SWEEP_CLAIMS = (
+    '<div class="sweep-claims">'
+    '<div><b>Not a recommendation</b><span>The top row is the grid\'s best by its own score. '
+    'That is not the same as an edge.</span></div>'
+    '<div><b>The holdout was selected on</b><span>Presets are chosen by scoring them on the '
+    'holdout, so that column is what the choice was made with — not an untouched test.</span></div>'
+    '<div><b>Studied, and the answer was no</b><span>Finding D6: no risk-adjusted edge over a '
+    'static 50/50–60/40 allocation, at any timescale.</span></div>'
+    '<div><b>Watch the RSI</b><span>A winning <code>rsi_oversold</code> of 80 or 90 is not a '
+    'dip. It means entering on almost any bar scored best.</span></div>'
+    '</div>')
+
+SWEEP_LONG = (
+    '<details class="sweep-long"><summary>The longer version</summary>'
+    '<p class="why">The sweep walks a grid of entry and exit parameters, backtests each one and '
+    'reports what scored best. That is a real measurement of <b>how this engine behaves across '
+    'its parameter space</b>, and it is worth running.</p>'
+    '<p class="why">What it is not is a search that earned its own headline. Presets are picked '
+    'by scoring them on the holdout — <code>selection_method: holdout_live_score</code> in the '
+    'output — so quoting that holdout figure as the winner\'s performance is quoting the number '
+    'the choice was made with. The repository\'s own routing note says it plainly: prefer the '
+    'leak-free <code>tools/walkforward_eval.py</code> over holdout-selected sweep numbers.</p>'
+    '<p class="why">The engine has been studied a great deal, and the conclusion was not a '
+    'parameter set. <code>RESEARCH_WEB.md</code> finding D6 is that the active mean-reversion '
+    'engine shows no risk-adjusted edge over a trivial static allocation at any timescale. Run '
+    'this to learn how the engine responds to its knobs; do not run it expecting a row worth '
+    'trading.</p></details>')
+
+#: Layout for this page only. The rest of the server has no page where one control is the point.
+SWEEP_CSS = """<style>
+.sweep-head{display:flex;flex-wrap:wrap;gap:18px 28px;align-items:flex-end;
+  justify-content:space-between;margin:0 0 14px}
+.sweep-head h1{margin:0 0 4px}
+.sweep-head .lede{margin:0;max-width:56ch}
+.sweep-run{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;
+  padding:12px 14px;border:1px solid var(--rule);border-radius:9px;background:var(--surface)}
+.sweep-run label{display:flex;flex-direction:column;gap:4px;font-size:10.5px;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted)}
+.sweep-run select{font:13px var(--sans);height:32px;padding:0 8px;border:1px solid var(--rule);
+  border-radius:6px;background:var(--plane);color:var(--ink)}
+.sweep-run.absent{display:block;border-left:3px solid var(--warning)}
+.sweep-run.absent b{display:block;font-size:13px;margin-bottom:4px}
+.sweep-run.absent .why{font-size:12.5px;color:var(--ink-2);max-width:52ch;display:block}
+.sweep-state{font-family:var(--mono);font-size:12px;color:var(--ink-muted);
+  margin:0 0 18px;max-width:none}
+/* Four claims across the full width — the shape that makes them get read. */
+.sweep-claims{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+  gap:10px;margin:22px 0 0}
+.sweep-claims div{background:var(--surface);border:1px solid var(--rule);border-radius:9px;
+  padding:12px 14px;border-top:2px solid var(--axis)}
+.sweep-claims b{display:block;font-size:13px;margin-bottom:5px}
+.sweep-claims span{font-size:12.5px;color:var(--ink-2);line-height:1.5}
+.sweep-note{font-size:12px;color:var(--ink-muted);margin:12px 0 0}
+.sweep-long{margin:16px 0 0}
+.sweep-long summary{cursor:pointer;font-size:12.5px;color:var(--ink-2);font-weight:600}
+.sweep-long .why{font-size:13px;margin:10px 0 0;max-width:74ch}
+/* Results: a grid of presets rather than four stacked full-width slabs. */
+.sweep-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(288px,1fr));gap:12px;
+  margin:14px 0 0}
+.sweep-card{background:var(--surface);border:1px solid var(--rule);border-radius:9px;padding:14px 16px}
+.sweep-card h3{margin:0 0 8px;font-size:13px}
+.sweep-card table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:8px}
+.sweep-card th,.sweep-card td{padding:4px 0;border-bottom:1px solid var(--rule);text-align:left}
+.sweep-card td.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.sweep-card thead th{font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-muted);font-weight:600}
+.sweep-card .params{display:flex;flex-wrap:wrap;gap:5px;margin:0 0 6px}
+.sweep-run-meta{background:var(--surface);border:1px solid var(--rule);border-radius:9px;
+  padding:12px 16px;margin:14px 0 0;font-size:12.5px;color:var(--ink-2)}
+</style>"""
 
 #: Polling, not streaming: a sweep is tens of seconds and one request every two seconds is
 #: cheaper to reason about than a long-lived connection through a threading HTTP server.
@@ -2177,14 +2231,13 @@ SWEEP_JS = """<script>
       var v=pr[k]; return "<span class='chip'>"+esc(k)+" "+esc(typeof v==="number"?Number(v.toFixed(4)):v)+"</span>";
     }).join(" ");
     var warn = (pr.rsi_oversold>=75)
-      ? "<p class='why'><b>Read this one carefully.</b> An <code>rsi_oversold</code> of "+
-        esc(pr.rsi_oversold)+" does not describe a dip \u2014 it admits almost every bar. The "+
-        "grid found that entering nearly always scored best, which is a fact about the search."+
+      ? "<p class='why' style='font-size:12px;margin:0 0 6px'><b>rsi_oversold "+
+        esc(pr.rsi_oversold)+" is not a dip</b> \u2014 it admits almost every bar." +
         "</p>" : "";
-    return "<figure class='panel'><figcaption><h3>"+esc(label)+"</h3><p class='why'>"+chips+"</p>"+
-      warn+"</figcaption><table><thead><tr><th></th><th class='num'>Train</th>"+
+    return "<div class='sweep-card'><h3>"+esc(label)+"</h3><div class='params'>"+chips+"</div>"+
+      warn+"<table><thead><tr><th></th><th class='num'>Train</th>"+
       "<th class='num'>Holdout \u00b7 selected on</th></tr></thead><tbody>"+body+
-      "</tbody></table></figure>";
+      "</tbody></table></div>";
   }
   function render(job){
     if(job.state==="running"){ out.innerHTML=""; return; }
@@ -2196,19 +2249,17 @@ SWEEP_JS = """<script>
       return;
     }
     var r=job.results||{}, ps=r.presets||{}, html="";
-    html+="<figure class='panel'><figcaption><h3>"+esc(r.ticker||job.ticker)+" \u00b7 "+
-      esc(r.period||"period not reported")+"</h3><p class='why'>"+
-      "cost model <b>"+esc(r.backtest_mode)+"</b> \u00b7 sizing <b>"+esc(r.position_sizing)+
-      "</b> \u00b7 selection <b>"+esc(r.selection_method)+"</b> \u00b7 "+
-      esc(r.train_bars)+" train bars, "+esc(r.holdout_bars)+" holdout bars \u00b7 "+
-      "ran in "+esc(job.seconds)+"s on <code>"+esc(job.interpreter)+"</code></p>"+
-      "<p class='why'>These four presets are the grid's best by its own score. They are not "+
-      "ranked advice, and the holdout column is not an untouched test \u2014 it is what the "+
-      "presets were chosen with.</p></figcaption></figure>";
+    html+="<div class='sweep-run-meta'><b>"+esc(r.ticker||job.ticker)+"</b> \u00b7 "+
+      esc(r.period||"period not reported")+" \u00b7 cost model <b>"+esc(r.backtest_mode)+
+      "</b> \u00b7 sizing <b>"+esc(r.position_sizing)+"</b> \u00b7 "+
+      esc(r.train_bars)+" train / "+esc(r.holdout_bars)+" holdout bars \u00b7 "+
+      esc(job.seconds)+"s on <code>"+esc(job.interpreter)+"</code></div>";
+    html+="<div class='sweep-grid'>";
     Object.keys(ps).forEach(function(k){ html+=presetTable(k, ps[k]); });
+    html+="</div>";
     if(!Object.keys(ps).length)
-      html+="<figure class='panel absent'><figcaption><h3>No presets</h3><p class='why'>The "+
-        "sweep completed and produced no preset the grid was willing to name.</p></figcaption></figure>";
+      html+="<div class='sweep-run-meta'><b>No presets.</b> The sweep completed and produced no "+
+        "preset the grid was willing to name.</div>";
     out.innerHTML=html;
   }
   function poll(id){

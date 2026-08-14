@@ -115,7 +115,10 @@ class TheSweepSurfaceDoesNotOverclaim(unittest.TestCase):
     def test_the_page_separates_studying_the_engine_from_using_the_sweep(self):
         """The request was explicit: say that the engine has been studied without implying the
         sweep hands back parameters worth trading."""
-        self.assertIn("It is not a recommendation", self.html)
+        # The claim is a card heading now rather than a sentence in a paragraph. Both
+        # phrasings are checked as substance, not as one literal that a re-layout breaks.
+        self.assertIn("Not a recommendation", self.html)
+        self.assertIn("not the same as an edge", self.html)
         self.assertIn("D6", self.html)
         self.assertIn("no risk-adjusted", self.html)
 
@@ -147,7 +150,7 @@ class TheSweepSurfaceDoesNotOverclaim(unittest.TestCase):
         two interpreters were involved."""
         avail = sweep_runner.availability()
         if avail["runnable"] and not avail["is_current_process"]:
-            self.assertIn("Two interpreters", self.html)
+            self.assertIn("cannot import the strategy engine", self.html)
             self.assertIn("cannot import the strategy engine", self.html)
 
 
