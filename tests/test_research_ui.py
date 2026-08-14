@@ -857,19 +857,39 @@ class TheQuantDropdownHoldsEveryViewButTheScreener(unittest.TestCase):
                                     [("/events", "Research events", False)])
 
     def _outside(self):
-        return self.nav.split("<details", 1)[0]
+        """Everything not inside the dropdown — head AND tail. Contribute sits after the
+        closing tag, so a head-only reading would have called it "inside" and passed."""
+        head, _sep, rest = self.nav.partition("<details")
+        return head + rest.partition("</details>")[2]
 
     def _inside(self):
         return self.nav.split("<details", 1)[1].split("</details>", 1)[0]
 
-    def test_only_basics_and_the_screener_sit_outside_the_dropdown(self):
-        """Updated when Basics landed. The rule is unchanged — every VIEW but the screener is
-        inside Quant — but the rail's top level now also carries the plain-English sequence,
-        which is not a view: it is what someone reads before the desk means anything."""
+    def test_the_dropdown_holds_views_and_only_views(self):
+        """The rule has stayed constant while the rail moved twice: Quant is for the research
+        VIEWS. What sits outside it is everything that is not one — the plain-English sequence
+        above (what you read before the desk means anything), the screener, and Contribute,
+        which asks something of the reader rather than showing them something.
+
+        `_outside()` is both ends of the document, not just the head, because Contribute now
+        follows the closing tag."""
         outside = re.findall(r'<a[^>]*href="([^"]+)"', self._outside())
-        expected = [h for h, _l, _f in ui.BASICS_VIEWS] + [ui.SCREENER_HREF]
+        expected = ([h for h, _l, _f in ui.BASICS_VIEWS]
+                    + [ui.SCREENER_HREF, "/recommend"])
         self.assertEqual(outside, expected,
-                         "something other than Basics and the screener is at the top level")
+                         "the rail's top level is not Basics, the screener and Contribute")
+
+    def test_contributing_is_not_filed_under_a_group_named_for_research_views(self):
+        """It is the one item here that asks something of the reader, and Quant is closed by
+        default — inside it, the ask was the hardest thing on the rail to find."""
+        self.assertNotIn("/recommend", self._inside())
+        for active in (ui.SCREENER_HREF, "/recommend"):
+            with self.subTest(active=active):
+                nav = ui._nav(active, [("/events", "Research events", False)])
+                tag = re.search(r'<details class="nav-drop"[^>]*>', nav).group(0)
+                self.assertNotIn(" open", tag,
+                                 "/recommend still forces the group open, which is only "
+                                 "correct while it lives inside it")
 
     def test_every_other_view_sits_inside_it(self):
         inside = self._inside()
@@ -892,7 +912,10 @@ class TheQuantDropdownHoldsEveryViewButTheScreener(unittest.TestCase):
                                   ("/basics/mix", False),
                                   ("/web", True),
                                   ("/graph", True),
-                                  ("/recommend", True),
+                                  # Contribute moved OUT of the group, so standing on it must
+                                  # no longer open it. This row failed when it moved, which is
+                                  # the guard doing its job rather than a table to re-bless.
+                                  ("/recommend", False),
                                   ("/events", True)):
             with self.subTest(active=active):
                 nav = ui._nav(active, mounts)

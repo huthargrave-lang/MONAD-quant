@@ -235,3 +235,43 @@ class WorkflowTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ThePublishedRailIsShapedLikeTheServersTests(unittest.TestCase):
+    """The parity test above compares LIST MEMBERSHIP — the views, and the Basics sequence.
+    That is blind to STRUCTURE: both rails could carry the same items and disagree about which
+    of them sit inside the Quant dropdown, which is exactly the drift that happened when
+    Contribute was lifted out of the group on the server and left inside on the published side.
+
+    Compared by LABEL, because the two rails address different things — the server uses routes
+    and the static build uses filenames — so hrefs are two vocabularies and only the words a
+    reader sees are common to both."""
+
+    @staticmethod
+    def _split(nav):
+        head, _sep, rest = nav.partition("<details")
+        inside = rest.partition("</details>")[2]
+        outside = head + inside
+        grab = lambda t: [m.group(1) or m.group(2) for m in
+                          re.finditer(r"<h4>([^<]+)</h4>|<a[^>]*>([^<]+?)(?:<span|</a>)", t)]
+        return ([x.strip() for x in grab(outside) if x],
+                [x.strip() for x in grab(rest.partition("</details>")[0]) if x])
+
+    def test_the_same_things_sit_outside_the_dropdown_on_both(self):
+        import research_ui  # noqa: PLC0415
+        served_out, _served_in = self._split(
+            research_ui._nav(research_ui.SCREENER_HREF, []))
+        published_out, _pub_in = self._split(export_pages._static_nav("screener"))
+        # Normalised: the server escapes & in "Theses & fails"; the static rail does not.
+        norm = lambda xs: [x.replace("&amp;", "&") for x in xs]
+        self.assertEqual(norm(served_out), norm(published_out),
+                         "the two rails disagree about what is outside the Quant group")
+
+    def test_contribute_is_outside_it_on_both(self):
+        import research_ui  # noqa: PLC0415
+        for label, nav in (("served", research_ui._nav(research_ui.SCREENER_HREF, [])),
+                           ("published", export_pages._static_nav("screener"))):
+            with self.subTest(rail=label):
+                outside, inside = self._split(nav)
+                self.assertIn("Contribute", outside)
+                self.assertNotIn("Contribute", inside)

@@ -118,16 +118,19 @@ def _static_nav(active="screener"):
                     if k != _STATIC_SCREENER_KEY)
     # Collapsed unless the page being written lives inside it — the same rule the server
     # applies, for the same reason: a rail with no active item is worse than a long one.
-    here = active not in [k for _h, _l, k in _STATIC_BASICS] + [_STATIC_SCREENER_KEY]
+    here = active not in ([k for _h, _l, k in _STATIC_BASICS]
+                          + [_STATIC_SCREENER_KEY, "recommend"])
     return ('<nav class="rail"><div class="brand"><b>MONAD research</b>'
             '<span>static snapshot · GitHub Pages</span></div>'
             '<h4>Basics</h4>{b}'
             '<h4>Desk</h4>{d}'
             '<details class="nav-drop" id="navQuant"' + (' open data-here="1"' if here else "")
             + '><summary>Quant</summary>{q}'
-            '<h4>Contribute</h4>{r}'
             '<h4>Source</h4>'
             '<a href="{u}">GitHub repository</a></details>'
+            # Outside the dropdown, matching the server: contributing is not a research view,
+            # and it is the one item on this rail that asks something of the reader.
+            '<h4>Contribute</h4>{r}'
             '<script>(function(){{var d=document.getElementById("navQuant");if(!d)return;'
             'if(!d.hasAttribute("data-here")){{'
             'try{{if(localStorage.getItem("monad.rail.quant")==="1")d.open=true;}}catch(e){{}}}}'

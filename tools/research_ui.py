@@ -1604,7 +1604,7 @@ def _nav(active, mounts):
     # views, which is worse than a long list. That case also overrides the remembered
     # preference: "where am I" beats "how did I leave this last time".
     inside = ([h for h, _l in items if h != SCREENER_HREF]
-              + [h for h, _l, _live in mounts] + ["/recommend"])
+              + [h for h, _l, _live in mounts])
     here = active in inside
     out.append('<details class="nav-drop" id="navQuant"{}>'
                '<summary>Quant</summary>'.format(
@@ -1631,6 +1631,10 @@ def _nav(active, mounts):
                'never imports and never serves the trading dashboard. Since F233 it '
                'draws from the same tools/ui_tokens.py — palette shared, nothing else.">'
                'Live monitor<span class="fence">same palette</span></a>')
+    out.append("</details>")
+    # OUTSIDE the dropdown. Contributing is not one of the research views, and filing it under
+    # a group named for them made the one thing on this rail that ASKS SOMETHING OF THE READER
+    # the hardest thing on it to find — behind a disclosure that is now closed by default.
     # The form itself lives in the screener page body, so this is a link into that page
     # rather than a route of its own — the rail is rewritten per-page and cannot carry it.
     out.append("<h4>Contribute</h4>")
@@ -1638,7 +1642,6 @@ def _nav(active, mounts):
                'bucket or screener change. Held in your browser — copy the text to file '
                'it for real.">Create a recommendation</a>'.format(
                    "on" if active == "/recommend" else ""))
-    out.append("</details>")
     # The rail is re-rendered by the server on every navigation, so a <details> left to itself
     # springs back open on each page and the reader's choice survives exactly zero clicks.
     # Written on toggle, applied before paint. Storage that throws (private mode, disabled
