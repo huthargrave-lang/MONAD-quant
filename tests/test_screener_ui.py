@@ -3079,3 +3079,197 @@ class TheScoreColumnDoesNotRateCompanies(unittest.TestCase):
         """Computed and never called is the failure mode this repo has paid for twice."""
         self.assertRegex(self.fns["panelOpen"], r'"scoreExplain"\)\s*drawScoreClampNote\(\)',
                          "the clamp note is computed but never drawn")
+
+
+class TheAbsenceVocabularyIsOneDefinition(unittest.TestCase):
+    """An em-dash said a value was not there and never said why. "The provider did not report
+    this" and "nobody has assessed this" are different facts about the world, and a reader who
+    cannot separate them draws a wrong conclusion from both.
+
+    The reason now travels on the row, decided in Python, with the wording shipped in the
+    payload. These guards pin the two things that make that worth having: that the wording has
+    exactly one home, and that no field can be added to the row without someone deciding which
+    kind of `None` it has."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.html = _page()
+        cls.js = _decomment(_script(cls.html))
+        cls.fns = _functions(cls.js)
+        cls.payload = screener_payload_fixture.authored_payload()
+
+    def test_the_registry_is_closed_and_every_emitted_code_is_in_it(self):
+        """An open reason string would let each render site invent its own wording, which is
+        how this page reached 281 tooltips saying overlapping things."""
+        shipped = self.payload.get("absence_reasons")
+        self.assertEqual(shipped, dict(research_ui.ABSENCE_REASONS),
+                         "the payload's registry is not the module's registry")
+        for row in self.payload["rows"]:
+            for field, code in (row.get("absent") or {}).items():
+                with self.subTest(tk=row["tk"], field=field):
+                    self.assertIn(code, research_ui.ABSENCE_REASONS,
+                                  "an unregistered reason code reached a row")
+
+    def test_the_page_holds_no_copy_of_the_wording(self):
+        """The sentence a reader sees is Python's. A page-side copy is a second definition of
+        one thing, which is the defect this file has already paid for twice."""
+        # What could RENDER, not what is written: the decommented script plus the markup with
+        # its <script> blocks and HTML comments removed. A design note quoting these sentences
+        # to explain itself is not a copy that can drift into a cell — the first version of
+        # this guard failed on its own explanatory comment, which is a guard measuring the
+        # wrong thing rather than a defect.
+        markup = re.sub(r"<script[^>]*>.*?</script>", " ", self.html, flags=re.S)
+        markup = re.sub(r"<!--.*?-->", " ", markup, flags=re.S)
+        renderable = markup + "\n" + self.js
+        for sentence in research_ui.ABSENCE_REASONS.values():
+            self.assertNotIn(sentence, renderable,
+                             "the page restates a reason sentence instead of reading it")
+        self.assertRegex(self.js, r"ABSENCE_REASONS\s*=\s*live\.absence_reasons",
+                         "the page never takes the registry from the payload")
+
+    def test_an_unregistered_code_renders_as_itself_rather_than_vanishing(self):
+        """A blank for an unknown code would hide exactly the drift the registry exists to
+        catch: the cell would look complete while saying nothing."""
+        body = self.fns.get("absenceNote")
+        self.assertIsNotNone(body, "the absence helper is gone")
+        self.assertRegex(body, r"ABSENCE_REASONS\[why\]\s*\|\|\s*why",
+                         "an unknown reason code renders as nothing")
+
+    def test_a_none_that_means_no_is_not_reported_as_a_gap(self):
+        """`flag=None` means this growth figure is NOT a base effect, and `bucket=None` means
+        the name is in no bucket. Both are answers. Reporting them as absences would claim a
+        hole in the data where the data is complete and the answer is negative."""
+        for answered in ("flag", "bucket"):
+            self.assertNotIn(answered, research_ui.ABSENCE_FIELDS,
+                             "'{}' is a negative answer, not a missing value".format(answered))
+        for row in self.payload["rows"]:
+            self.assertNotIn("flag", row.get("absent") or {})
+            self.assertNotIn("bucket", row.get("absent") or {})
+
+    def test_every_row_field_that_can_be_absent_was_classified(self):
+        """The list is the decision record. A new nullable column added to the row without
+        being classified here would render as a bare em-dash again, silently."""
+        VALUE_FIELDS = {"pe", "g", "dy", "de", "beta", "mcap", "score", "shadow_tag",
+                        "bb", "rd", "yh"}
+        self.assertEqual(set(research_ui.ABSENCE_FIELDS), VALUE_FIELDS,
+                         "a value field was added or removed without updating this guard")
+
+    def test_not_applicable_is_reserved_for_instruments_that_cannot_have_the_value(self):
+        """A fund has no earnings to divide into and no balance sheet of its own, so its
+        missing P/E is not a fetch that failed. Calling that 'not reported' would claim the
+        provider owed a number that cannot exist."""
+        fund = research_ui._absence_reasons(
+            {"pe": None, "g": None, "de": None, "beta": None, "mcap": None, "dy": 0.01,
+             "score": None, "shadow_tag": None, "bb": None, "rd": None, "yh": None}, "fund")
+        for f in ("pe", "g", "de"):
+            self.assertEqual(fund[f], "not_applicable", f)
+        # Beta and market cap are properties of anything that trades, so they stay reportable.
+        self.assertEqual(fund["beta"], "not_reported")
+        self.assertEqual(fund["mcap"], "not_reported")
+
+        company = research_ui._absence_reasons(
+            {"pe": None, "g": None, "de": None, "beta": None, "mcap": None, "dy": 0.01,
+             "score": None, "shadow_tag": None, "bb": None, "rd": None, "yh": None}, None)
+        for f in ("pe", "g", "de"):
+            self.assertEqual(company[f], "not_reported",
+                             "an ordinary company's missing {} is a failed fetch".format(f))
+
+    def test_editorial_absence_says_nobody_looked_not_nobody_reported(self):
+        """The shadow-debt table is authored, never fetched. 'The provider did not report
+        this' about a judgement no provider ships would be false, and it would also hide that
+        the gap is one a researcher could close."""
+        out = research_ui._absence_reasons({"shadow_tag": None, "dy": 0.01}, None)
+        self.assertEqual(out["shadow_tag"], "not_assessed")
+        self.assertIn("assessed", research_ui.ABSENCE_REASONS["not_assessed"])
+
+    def test_no_coverage_and_covered_but_untoned_stay_different(self):
+        """`_c` counts documents found. Zero coverage means nothing was written; coverage with
+        a null tone means documents exist and none carried a reading. One em-dash for both is
+        what made these indistinguishable."""
+        nothing = research_ui._absence_reasons({"bb": None, "bb_c": 0, "dy": 0.01}, None)
+        found = research_ui._absence_reasons({"bb": None, "bb_c": 4, "dy": 0.01}, None)
+        self.assertEqual(nothing["bb"], "not_covered")
+        self.assertEqual(found["bb"], "not_reported")
+        self.assertNotEqual(research_ui.ABSENCE_REASONS["not_covered"],
+                            research_ui.ABSENCE_REASONS["not_reported"])
+
+    def test_the_tone_exemption_is_declared_rather_than_forgotten(self):
+        """`toneChip` already separates these two states, and better, because it can also say
+        how many documents were found. The exemption is pinned so a later reader who
+        'completes' the wiring duplicates the sentence deliberately rather than by accident."""
+        self.assertEqual(set(research_ui.ABSENCE_FIELDS_RENDERED_ELSEWHERE), {"bb", "rd", "yh"})
+        chip = self.fns.get("toneChip")
+        self.assertIsNotNone(chip)
+        self.assertIn("no coverage", chip, "the idiom this exemption defers to is gone")
+        self.assertIn("untoned", chip, "the idiom this exemption defers to is gone")
+        # And the results table must not ALSO draw the helper for them.
+        table = self.fns.get("renderTable")
+        for src in ("bb", "rd", "yh"):
+            self.assertNotIn('absenceNote(r,"{}")'.format(src), table,
+                             "the tone cell now states its absence twice")
+
+    def test_an_imputed_zero_keeps_its_number_and_gains_a_note(self):
+        """The income lens depends on a no-dividend name screening as 0%, and its own test
+        pins that. So the value stays and the note says the zero was assumed — the one entry
+        in the registry describing a value that IS present."""
+        imputed = research_ui._absence_reasons({"dy": 0.0, "shadow_tag": "x"}, None,
+                                               imputed_dy=True)
+        self.assertEqual(imputed["dy"], "imputed_zero")
+        measured = research_ui._absence_reasons({"dy": 0.0, "shadow_tag": "x"}, None,
+                                                imputed_dy=False)
+        self.assertNotIn("dy", measured, "a measured zero was reported as assumed")
+        # The helper appends, so the cell still prints the number it had.
+        self.assertRegex(self.fns["renderTable"], r'fmtDy\(r\.dy\)\}\$\{absenceNote\(r,"dy"\)',
+                         "the note replaces the dividend value instead of joining it")
+
+    def test_the_snapshot_records_which_zero_a_dividend_zero_is(self):
+        """`_dividend_yield_fraction` returns None both for a company that pays nothing and for
+        a vendor response with no dividend fields at all. Without this flag the distinction is
+        destroyed at write time and no downstream surface can recover it."""
+        empty = sc._normalise_row("T", "T", "S", "low", {})
+        self.assertEqual(empty["dividend_yield"], 0.0, "the screening semantics changed")
+        self.assertTrue(empty["dividend_yield_imputed"])
+        real = sc._normalise_row("T", "T", "S", "low",
+                                 {"dividendRate": 1.0, "currentPrice": 50.0})
+        self.assertFalse(real["dividend_yield_imputed"])
+
+    def test_a_complete_row_carries_no_absence_key_at_all(self):
+        """`absent` being truthy is the "does this row have a gap" test, so a complete row must
+        not ship an empty dict that answers yes."""
+        full = {"pe": 10.0, "g": 0.2, "dy": 0.02, "de": 20.0, "beta": 1.0, "mcap": 1e9,
+                "score": 0.5, "shadow_tag": "spv_sponsor",
+                "bb": 0.1, "bb_c": 3, "rd": 0.2, "rd_c": 2, "yh": 0.1, "yh_c": 4}
+        self.assertEqual(research_ui._absence_reasons(full, None), {})
+
+    def test_the_map_actually_reaches_a_row_in_the_payload(self):
+        """The classifier being correct and the payload carrying it are two claims, and the
+        second is the one that has failed here before: `"flag": None` shipped on every row for
+        as long as the growth explainer promised a chip, because every test asked the helper
+        and none asked the payload. Deleting the attachment leaves this suite green without
+        this test."""
+        rows = self.payload["rows"]
+        carrying = [r for r in rows if r.get("absent")]
+        self.assertTrue(carrying,
+                        "no row in the payload carries an absence map, so the classifier is "
+                        "computed and thrown away")
+        for r in carrying:
+            self.assertTrue(all(v for v in r["absent"].values()),
+                            "a row carries an absence with no reason")
+
+    def test_a_row_with_no_gaps_ships_no_absence_key(self):
+        """An empty dict is falsy, so attaching one breaks no consumer — it just makes the key
+        mean nothing, and `absent` stops being the "does this row have a gap" test.
+
+        The fixture forces sentiment absent so every row it builds has at least a tone gap,
+        which makes a gapless row unconstructible through it — the first version of this test
+        was therefore vacuous and passed while an empty map was being attached. Forcing the
+        classifier to return nothing is what actually exercises the call site."""
+        real = research_ui._absence_reasons
+        research_ui._absence_reasons = lambda *a, **k: {}
+        try:
+            payload = screener_payload_fixture.authored_payload()
+        finally:
+            research_ui._absence_reasons = real
+        for row in payload["rows"]:
+            self.assertNotIn("absent", row,
+                             "a row with no gaps still carries an absence key")

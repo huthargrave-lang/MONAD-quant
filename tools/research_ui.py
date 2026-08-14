@@ -3850,6 +3850,115 @@ def _combined_draft_providers(fund, prices, sent):
     return providers
 
 
+#: ── Absence vocabulary ────────────────────────────────────────────────────────────────────
+#:
+#: The page has always drawn an em-dash for a value it does not have, and almost never said
+#: why. An em-dash that means "the vendor shipped nothing" and an em-dash that means "no
+#: researcher has looked at this yet" are different facts about the world, and a reader who
+#: cannot tell them apart learns the wrong thing from both. `stock_screener` already refuses to
+#: coerce most absences to zero; what was missing is the REASON travelling with the gap.
+#:
+#: Closed registry, and closed deliberately: an open string field would let each render site
+#: invent its own wording, which is how this page ended up with 281 hover tooltips saying
+#: overlapping things. Adding a reason means adding it here, once, with the sentence a reader
+#: actually sees.
+#:
+#: Derived from the causes that occur in this data, not from a generic taxonomy. In particular
+#: `not_applicable` is NOT reachable from a results row today — every `NOT_COMPANIES` entry
+#: (36 funds and futures) is excluded from the screened universe, so no screener row can have a
+#: fund's missing P/E. It is registered because the bucket surfaces DO carry those instruments,
+#: and because the universe widening is a change that should not silently start printing
+#: "the provider did not report this" about a quantity that cannot exist.
+ABSENCE_REASONS = {
+    "not_reported":   "the data provider did not report this",
+    "not_applicable": "does not apply to this kind of instrument",
+    "not_assessed":   "nobody has assessed this",
+    "not_covered":    "no documents covered this name",
+    "not_computable": "one of the inputs for this is missing",
+    # Present, but not measured. `stock_screener` deliberately shows a name with no vendor
+    # dividend data as 0% so the income lens keeps screening it (its own test pins that), and
+    # the cost is that a company paying nothing and a company nobody reported look identical.
+    # This is the only entry describing a value that IS on the row: the number is there, and
+    # the reader still should not read it at face value.
+    "imputed_zero":   "shown as zero because nothing was reported, not because it was measured",
+}
+
+#: `None` does not always mean "unknown". Some fields answer a question in the negative, and
+#: their `None` is a finding rather than a gap:
+#:
+#:   flag=None     — this growth figure is NOT a base effect. A real answer, arrived at.
+#:   bucket=None   — this name is in no authored bucket. Also a real answer.
+#:   shadow_tag=None — nobody has tagged it, which IS a gap, so it is listed below.
+#:
+#: Reporting the first two as absences would claim a hole in the data where the data is
+#: complete and the answer is simply "no". Only fields named here get a reason, and the test
+#: that pins this list is what stops a future field being added to the row without anyone
+#: deciding which kind of `None` it has.
+ABSENCE_FIELDS = ("pe", "g", "dy", "de", "beta", "mcap", "score",
+                  "shadow_tag", "bb", "rd", "yh")
+
+#: The tone fields are in the map but are NOT drawn by the page's absence helper, and that is
+#: deliberate rather than unfinished. `toneChip` already separates the same two states in the
+#: cell, in better words than the registry could give it — "no coverage" against "untoned ·
+#: N item(s), no tone word" — because it can also say how many documents were found. Printing
+#: the registry sentence underneath would state the same fact twice in one cell.
+#:
+#: They stay in the map because the map is the row's answer to "where are this row's gaps",
+#: and a consumer that is not the results table (an export, a future summary line) should not
+#: have to know that three of the eleven fields are special. The guard pins the exemption so a
+#: later reader "completing" the wiring reintroduces the duplication on purpose, not by
+#: accident.
+ABSENCE_FIELDS_RENDERED_ELSEWHERE = ("bb", "rd", "yh")
+
+
+def _absence_reasons(row, kind, imputed_dy=False):
+    """`{field: reason_code}` for every absent field on one row, or `{}` when nothing is absent.
+
+    `kind` is the instrument kind from `sovereign_buckets.NOT_COMPANIES` (`fund`, `futures
+    contract`) or `None` for an ordinary company. It is the only input that distinguishes
+    "the provider did not report a P/E" from "this thing has no earnings to divide into".
+    """
+    out = {}
+    not_a_company = kind is not None
+
+    # The one case where a PRESENT value earns a note: the snapshot says this zero was assumed.
+    if imputed_dy and row.get("dy") == 0:
+        out["dy"] = "imputed_zero"
+
+    for field in ("pe", "g", "dy", "de", "beta", "mcap"):
+        if row.get(field) is not None:
+            continue
+        # A fund has no earnings, no growth of its own and no balance sheet, so the
+        # per-company fundamentals are not merely missing — there is nothing to report.
+        # Market cap and beta are properties of any traded thing, so they stay "not reported".
+        if not_a_company and field in ("pe", "g", "de"):
+            out[field] = "not_applicable"
+        else:
+            out[field] = "not_reported"
+
+    # Derived, so its absence is about its inputs rather than about a fetch. Saying "the
+    # provider did not report this" of a number no provider ever ships would be false.
+    if row.get("score") is None:
+        out["score"] = "not_computable"
+
+    # Editorial. The shadow-debt table is authored, never fetched, so an untagged name has not
+    # been judged rather than gone unreported. This is the same distinction the scenario layer
+    # draws with `unassessed`, and the wording is deliberately the same sentence.
+    if row.get("shadow_tag") is None:
+        out["shadow_tag"] = "not_assessed"
+
+    # Tone splits in two, and the pair is what separates them: `_c` counts documents found for
+    # this name, so zero coverage means nothing was written, while coverage with a null tone
+    # means documents exist and none of them carried a reading. Collapsing those into one
+    # em-dash is what made "no coverage" and "untoned" indistinguishable on this page.
+    for src in ("bb", "rd", "yh"):
+        if row.get(src) is not None:
+            continue
+        out[src] = "not_covered" if not row.get(src + "_c") else "not_reported"
+
+    return out
+
+
 #: A growth number is flagged when it is arithmetic about a base rather than a description of
 #: a business. The page has promised this since the growth explainer was written — "Rows where
 #: this is likely carry a base-effect flag next to the number" — and the payload shipped
@@ -3958,6 +4067,7 @@ def _screener_combined_draft_payload():
         if rg is None:
             rg = sr.get("revenue_growth")
         flag = _base_effect_flag(eg, rg, g)
+        kind = sovereign_buckets.NOT_COMPANIES.get(tk)
         de = fr.get("debt_to_equity")
         dy = fr.get("dividend_yield")
         # No midpoint default: a 0.5 for a name missing P/E or growth is a manufactured
@@ -3974,7 +4084,7 @@ def _screener_combined_draft_payload():
             docs = sr.get(source + "_docs") or []
             if docs:
                 headlines[source][tk] = pack_docs(docs)
-        rows.append({
+        row_out = {
             "tk": tk,
             "name": fr.get("name") or sr.get("name") or tk,
             "sector": fr.get("sector") or sr.get("sector") or "—",
@@ -4018,7 +4128,15 @@ def _screener_combined_draft_payload():
             "yh_c": sr.get("yahoo_coverage") or 0,
             "yh_t": sr.get("yahoo_toned") or 0,
             "flag": flag,
-        })
+        }
+        # Computed from the finished row rather than from the locals above, so it can never
+        # describe a gap the row does not actually have. Only attached when something IS
+        # absent: a complete row costs nothing, and `absent` being truthy is itself the
+        # "does this row have a gap" test that consumers need.
+        absent = _absence_reasons(row_out, kind, fr.get("dividend_yield_imputed", False))
+        if absent:
+            row_out["absent"] = absent
+        rows.append(row_out)
 
     providers = _combined_draft_providers(fund, prices, sent)
     age = None
@@ -4026,6 +4144,12 @@ def _screener_combined_draft_payload():
         _d, age = screener_lab.snapshot_age(sent)
     return {
         "rows": rows,
+        # The reason WORDING, shipped rather than restated. Every row's `absent` map holds
+        # codes; this is the one place the sentence a reader sees is written. A page-side copy
+        # would be a second definition of the same thing, which is the defect this repo has
+        # paid for repeatedly — most recently seven lens definitions that had drifted so far
+        # the default screened nothing while its bubble still named a filter.
+        "absence_reasons": dict(ABSENCE_REASONS),
         "headlines": headlines,
         "providers": providers,
         "sentiment_built": (sent or {}).get("built_at"),

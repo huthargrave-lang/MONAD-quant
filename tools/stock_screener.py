@@ -741,6 +741,12 @@ def _normalise_row(ticker, name, sector, ai, info, bucket=None):
         "revenue_growth": rg,
         "growth": eg if eg is not None else rg,
         "dividend_yield": dy if dy is not None else 0.0,   # no dividend = 0, not unknown
+        # ...but record WHICH zero this is. `_dividend_yield_fraction` returns None both for a
+        # company that pays nothing and for a vendor response carrying no dividend fields at
+        # all, and the line above collapses them. Keeping the coercion keeps the income lens
+        # screening the same names (`test_no_dividend_reads_as_zero_not_unknown` pins that on
+        # purpose); this flag is what lets a surface say the zero was assumed rather than read.
+        "dividend_yield_imputed": dy is None,
         "debt_to_equity": _num(info.get("debtToEquity")),
         "beta": _num(info.get("beta")),
         "avg_volume": avg_vol,

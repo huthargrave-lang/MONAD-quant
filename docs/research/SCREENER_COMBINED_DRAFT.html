@@ -6240,6 +6240,33 @@ function shadowRank(r){
   return typeof rank === "number" ? rank : 0;
 }
 
+/* ── Absence vocabulary ───────────────────────────────────────────────────────────────────
+   An em-dash says a value is not here. It never said WHY, and the reasons are not the same
+   fact: "the provider did not report this" and "nobody has assessed this" are different states
+   of the world, and a reader who cannot separate them draws the wrong conclusion from both.
+
+   The wording is NOT written here. Python decides which reason applies per field per row and
+   ships the sentence in `absence_reasons`; this is a lookup. A page-side copy of the wording
+   would be a second definition of the same thing, which is the defect this file has already
+   paid for twice — seven lens definitions drifted far enough that the default lens screened
+   nothing while its bubble still named a filter.
+
+   Note `imputed_zero`: that row HAS a value. A dividend yield of 0.0% shown because the vendor
+   reported nothing is still printed as 0.0% (the income lens depends on it), and the note is
+   what stops it being read as measured. So this appends to whatever the cell already drew
+   rather than replacing it — one helper for both cases, because a cell that is absent and a
+   cell that is present-but-assumed both need the same thing: the number not read at face
+   value. */
+let ABSENCE_REASONS = {};
+
+function absenceNote(r, field){
+  const why = r && r.absent ? r.absent[field] : null;
+  if(!why) return "";
+  // An unregistered code renders as the code rather than as nothing: a silent blank here
+  // would hide exactly the drift the registry exists to prevent.
+  return `<div class="muted-cell">${esc(ABSENCE_REASONS[why] || why)}</div>`;
+}
+
 function fmtGrowth(g){
   if(g==null) return "—";
   const pct = g*100;
@@ -6476,15 +6503,15 @@ function renderTable(){
       <td>${esc(r.sector||"—")}</td>
       <td>${esc(r.ai||"—")}</td>
       <td>${esc(r.bucket||"—")}</td>
-      <td class="num">${r.pe==null?"—":r.pe.toFixed(2)}</td>
-      <td class="num">${fmtGrowth(r.g)}${flag}</td>
-      <td class="num">${fmtDy(r.dy)}</td>
-      <td class="num">${fmtDe(r.de)}</td>
-      <td class="num">${fmtShadow(r)}</td>
-      <td class="num">${r.beta==null?"—":r.beta.toFixed(2)}</td>
-      <td class="num">${r.mcap!=null?esc(fmtBig(r.mcap)):'<span class="muted-cell">—</span>'}</td>
+      <td class="num">${r.pe==null?"—":r.pe.toFixed(2)}${absenceNote(r,"pe")}</td>
+      <td class="num">${fmtGrowth(r.g)}${flag}${absenceNote(r,"g")}</td>
+      <td class="num">${fmtDy(r.dy)}${absenceNote(r,"dy")}</td>
+      <td class="num">${fmtDe(r.de)}${absenceNote(r,"de")}</td>
+      <td class="num">${fmtShadow(r)}${absenceNote(r,"shadow_tag")}</td>
+      <td class="num">${r.beta==null?"—":r.beta.toFixed(2)}${absenceNote(r,"beta")}</td>
+      <td class="num">${r.mcap!=null?esc(fmtBig(r.mcap)):'<span class="muted-cell">—</span>'}${absenceNote(r,"mcap")}</td>
       <td class="num">${esc(r.vol||"—")}</td>
-      <td class="num">${scoreCell(rv, r.score)}${note}</td>
+      <td class="num">${scoreCell(rv, r.score)}${note}${absenceNote(r,"score")}</td>
       <td>${toneCell(r)}</td>
     </tr>`;
   }).join("") + listedHTML
@@ -7147,15 +7174,15 @@ function cardBody(r){
       + '<span class="sec">' + esc(r.sector || "sector unknown") + '</span>'
       + watchButton(r.tk) + '</div>'
     + '<div class="dc-grid">'
-      + dcCell("P/E",           r.pe == null ? "—" : r.pe.toFixed(2))
-      + dcCell("Growth y/y",    fmtGrowth(r.g), flag)
-      + dcCell("Div yield",     fmtDy(r.dy))
-      + dcCell("On-BS debt/eq %", fmtDe(r.de))
-      + dcCell("Beta",          r.beta == null ? "—" : r.beta.toFixed(2))
+      + dcCell("P/E",           (r.pe == null ? "—" : r.pe.toFixed(2)) + absenceNote(r, "pe"))
+      + dcCell("Growth y/y",    fmtGrowth(r.g) + absenceNote(r, "g"), flag)
+      + dcCell("Div yield",     fmtDy(r.dy) + absenceNote(r, "dy"))
+      + dcCell("On-BS debt/eq %", fmtDe(r.de) + absenceNote(r, "de"))
+      + dcCell("Beta",          (r.beta == null ? "—" : r.beta.toFixed(2)) + absenceNote(r, "beta"))
       + dcCell("Market cap",    r.mcap != null ? esc(fmtBig(r.mcap))
                                  : '<span class="muted-cell">—</span>')
       + dcCell("$ vol/day",     esc(r.vol || "—"))
-      + dcCell("Growth per P/E", r.score == null ? "—" : scoreCell(r.score, r.score))
+      + dcCell("Growth per P/E", (r.score == null ? "—" : scoreCell(r.score, r.score)) + absenceNote(r, "score"))
       + dcCell("AI exposure",   esc(r.ai || "—"))
       + dcCell("Bucket",        esc(r.bucket || "—"))
     + '</div>'
@@ -8243,6 +8270,7 @@ function applyLivePayload(){
   if(live.rows && live.rows.length){
     ROWS = live.rows;
     if(live.presets) PRESET_RULES = live.presets;
+    if(live.absence_reasons) ABSENCE_REASONS = live.absence_reasons;
     if(Array.isArray(live.categorical)) CATEGORICAL_FIELDS = live.categorical;
     fallbackPin(ROWS);
   }
