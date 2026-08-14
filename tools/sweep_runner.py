@@ -210,8 +210,21 @@ def _run(job_id, argv, ticker):
         except (OSError, ValueError) as exc:
             read_error = "the sweep reported success but its results file could not be read: %s" % exc
 
+    # The winner, re-run once for its curve. A sweep scores a grid and keeps only summary
+    # statistics, so the equity series main.py plots does not exist in its output — it has to
+    # be produced. Failure here is reported and does NOT fail the sweep: the presets are the
+    # result, and the chart is a second view of one of them.
+    curve = None
+    if payload:
+        best = (payload.get("presets") or {}).get("best_overall") or {}
+        pr = best.get("params") or {}
+        needed = ("target_gain_pct", "stop_loss_pct", "rsi_oversold", "vwap_zscore_thresh")
+        if all(pr.get(k) is not None for k in needed):
+            curve = _equity_curve(argv[0], ticker, pr, job)
+
     with _lock:
         job.update(
+            curve=curve,
             state="done" if (code == 0 and payload is not None) else "error",
             seconds=round(time.time() - started, 1),
             returncode=code,
@@ -222,6 +235,36 @@ def _run(job_id, argv, ticker):
             error=read_error or (None if code == 0 else
                                  "the sweep exited %s — see the log below" % code),
         )
+
+
+def _equity_curve(interpreter, ticker, params, job):
+    """Run `tools/equity_curve.py` for one parameter set and parse its JSON, or None.
+
+    Same discipline as the sweep itself: a fixed argument list, no shell, closed stdin. The
+    numbers come from `params`, which came from the sweep's own JSON — not from a query string
+    — so they are floats the engine produced, but they are still passed as separate argv
+    entries rather than interpolated into a command.
+    """
+    script = os.path.join(REPO, "tools", "equity_curve.py")
+    argv = [interpreter, script, ticker,
+            "--target", repr(float(params["target_gain_pct"])),
+            "--stop", repr(float(params["stop_loss_pct"])),
+            "--rsi", str(int(params["rsi_oversold"])),
+            "--vwap", repr(float(params["vwap_zscore_thresh"])),
+            "--mode", job.get("mode") or "realistic"]
+    if job.get("start"):
+        argv += ["--start", job["start"]]
+    if job.get("end"):
+        argv += ["--end", job["end"]]
+    try:
+        proc = subprocess.run(argv, cwd=REPO, timeout=TIMEOUT_S, stdin=subprocess.DEVNULL,
+                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        out = (proc.stdout or "").strip()
+        # The script prints exactly one JSON object; anything else is a failure worth naming
+        # rather than a chart worth drawing.
+        return json.loads(out.splitlines()[-1]) if out else None
+    except (OSError, ValueError, IndexError, subprocess.SubprocessError) as exc:
+        return {"error": "the curve could not be produced: %s" % exc}
 
 
 def start(ticker, phase="1", mode="realistic", interpreter=None, start_date=None, end_date=None):
@@ -239,7 +282,7 @@ def start(ticker, phase="1", mode="realistic", interpreter=None, start_date=None
         _jobs[job_id] = {"id": job_id, "ticker": ticker, "phase": phase, "mode": mode,
                          "start": start_date or None, "end": end_date or None,
                          "state": "running", "started_at": time.time(),
-                         "interpreter": exe, "log": "", "results": None, "error": None}
+                         "interpreter": exe, "log": "", "results": None, "curve": None, "error": None}
     threading.Thread(target=_run, args=(job_id, argv, ticker), daemon=True).start()
     return job_id
 

@@ -2232,6 +2232,83 @@ SWEEP_JS = """<script>
     var n=Number(v); if(!isFinite(n)) return esc(v);
     return esc(n.toFixed(digits)) + (suffix||"");
   }
+  /* The equity curve, the shape main.py writes to backtest_results.png. A sweep keeps only
+     summary statistics, so this comes from re-running the winning preset once — see
+     tools/equity_curve.py. Two panels: capital against buy-and-hold on the same bars and the
+     same starting cash, and the drawdown underneath it.
+
+     Buy-and-hold is drawn because an equity curve with nothing beside it invites the reader to
+     supply their own benchmark, and the one they supply is usually flat. */
+  function path(vals, x0, y0, w, h, lo, hi){
+    if(!vals || vals.length<2) return "";
+    var span=(hi-lo)||1, n=vals.length, d="";
+    for(var i=0;i<n;i++){
+      var px=x0+(i/(n-1))*w, py=y0+h-((vals[i]-lo)/span)*h;
+      d+=(i?"L":"M")+px.toFixed(1)+","+py.toFixed(1);
+    }
+    return d;
+  }
+  function money(v){
+    return "$"+Math.round(v).toLocaleString("en-US");
+  }
+  function runChart(c){
+    if(!c) return "";
+    if(c.error)
+      return "<div class='sweep-chart'><div class='sweep-chart-head'><b>No equity curve</b>"+
+        "</div><p class='why'>"+esc(c.error)+"</p></div>";
+    if(!c.equity || c.equity.length<2) return "";
+    var W=880, EH=210, DH=88, padL=64, padR=76, gap=26;
+    var H=EH+gap+DH+34;
+    var all=c.equity.concat(c.buyhold||[]);
+    var lo=Math.min.apply(null,all), hi=Math.max.apply(null,all);
+    var pad=(hi-lo)*0.06 || 1; lo-=pad; hi+=pad;
+    var w=W-padL-padR, g="";
+
+    /* Starting capital as a rule, so "did it make money at all" is answerable at a glance. */
+    var y0=34+EH-((c.initial_capital-lo)/((hi-lo)||1))*EH;
+    g+="<line x1='"+padL+"' y1='"+y0.toFixed(1)+"' x2='"+(padL+w)+"' y2='"+y0.toFixed(1)+
+       "' stroke='var(--axis)' stroke-dasharray='3 4'/>";
+    g+="<text x='"+(padL-8)+"' y='"+(y0+4).toFixed(1)+"' fill='var(--ink-muted)' font-size='10' "+
+       "font-family='ui-monospace,monospace' text-anchor='end'>"+money(c.initial_capital)+"</text>";
+
+    if(c.buyhold && c.buyhold.length)
+      g+="<path d='"+path(c.buyhold,padL,34,w,EH,lo,hi)+"' fill='none' stroke='var(--ink-muted)' "+
+         "stroke-width='1.2' stroke-dasharray='5 3'/>";
+    g+="<path d='"+path(c.equity,padL,34,w,EH,lo,hi)+"' fill='none' stroke='var(--ord-3)' "+
+       "stroke-width='1.8'/>";
+    g+="<text x='"+(padL+w+8)+"' y='"+(34+EH-((c.equity[c.equity.length-1]-lo)/((hi-lo)||1))*EH+4).toFixed(1)+
+       "' fill='var(--ord-3)' font-size='11' font-family='ui-monospace,monospace'>"+money(c.final)+"</text>";
+    if(c.buyhold_final!=null)
+      g+="<text x='"+(padL+w+8)+"' y='"+(34+EH-((c.buyhold[c.buyhold.length-1]-lo)/((hi-lo)||1))*EH+4).toFixed(1)+
+         "' fill='var(--ink-muted)' font-size='11' font-family='ui-monospace,monospace'>"+
+         money(c.buyhold_final)+"</text>";
+
+    /* Drawdown, on its own scale, filled to zero — the depth is the point. */
+    var dTop=34+EH+gap, dd=c.drawdown||[], dlo=Math.min.apply(null,dd.concat([0])), dhi=0;
+    g+="<text x='"+padL+"' y='"+(dTop-6)+"' fill='var(--ink-muted)' font-size='10' "+
+       "font-family='ui-monospace,monospace'>drawdown from peak</text>";
+    if(dd.length>1){
+      var dpath=path(dd,padL,dTop,w,DH,dlo,dhi);
+      g+="<path d='"+dpath+"L"+(padL+w)+","+dTop+"L"+padL+","+dTop+"Z' fill='var(--serious)' "+
+         "opacity='0.22'/>";
+      g+="<path d='"+dpath+"' fill='none' stroke='var(--serious)' stroke-width='1.2'/>";
+      g+="<text x='"+(padL-8)+"' y='"+(dTop+DH)+"' fill='var(--ink-muted)' font-size='10' "+
+         "font-family='ui-monospace,monospace' text-anchor='end'>"+dlo.toFixed(1)+"%</text>";
+    }
+    var beat = c.final>=c.buyhold_final;
+    return "<div class='sweep-chart'><div class='sweep-chart-head'>"+
+      "<b>"+esc(c.ticker)+" equity, from re-running the winning preset</b>"+
+      "<span><i style='background:var(--ord-3)'></i>strategy &#160;"+
+      "<i style='background:var(--ink-muted)'></i>buy &amp; hold</span></div>"+
+      "<svg viewBox='0 0 "+W+" "+H+"' role='img'><title>Equity curve and drawdown</title>"+g+"</svg>"+
+      "<p class='why'>"+esc(c.window ? (c.window.start+" to "+c.window.end) : "")+
+      " &#183; "+esc(c.bars)+" bars &#183; worst drawdown "+esc(c.max_drawdown_pct)+"%. "+
+      (beat ? "The strategy ended above buy-and-hold on this window."
+            : "<b>Buy-and-hold ended higher.</b> A low drawdown bought that gap; whether the "+
+              "trade was worth it is the question, not an answer this chart gives.")+
+      "</p></div>";
+  }
+
   /* One chart, and it draws the page's argument rather than decorating it.
 
      Paired bars per preset: what the parameters returned on the data they were FITTED to, and
@@ -2324,6 +2401,7 @@ SWEEP_JS = """<script>
       "</b> \u00b7 sizing <b>"+esc(r.position_sizing)+"</b> \u00b7 "+
       esc(r.train_bars)+" train / "+esc(r.holdout_bars)+" holdout bars \u00b7 "+
       esc(job.seconds)+"s on <code>"+esc(job.interpreter)+"</code></div>";
+    html+=runChart(job.curve);
     html+=gapChart(ps);
     html+="<div class='sweep-grid'>";
     Object.keys(ps).forEach(function(k){ html+=presetTable(k, ps[k]); });
