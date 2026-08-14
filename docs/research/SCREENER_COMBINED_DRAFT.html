@@ -4186,13 +4186,11 @@ function scheduleChartReflow(){
 }
 
 /* ── Lens metrics ─────────────────────────────────────────────────────────── */
-function volNum(v){
-  if(v == null) return null;
-  const m = String(v).trim().match(/^([\d.]+)\s*([KMBT])?$/i);
-  if(!m) return null;
-  const mult = {K:1e3, M:1e6, B:1e9, T:1e12}[(m[2] || "").toUpperCase()] || 1;
-  return parseFloat(m[1]) * mult;
-}
+/* volNum() lived here. It turned a display string back into a number, and the number
+   it returned was the ROUNDED one — the only caller charted 3926.16 as 0. Deleted
+   rather than fixed: the row already carries every one of these values exactly, so a
+   parser of formatted text has no honest use on this page. */
+
 function fmtBig(v){
   if(v == null) return "—";
   const units = [[1e12,"T"],[1e9,"B"],[1e6,"M"],[1e3,"K"]];
@@ -4256,7 +4254,15 @@ const METRICS = {
   dy:    {label:"dividend yield",      get:r=>r.dy,          fmt:v=>(v*100).toFixed(1)+"%"},
   de:    {label:"on-BS debt/equity %", get:r=>r.de,          fmt:v=>v.toFixed(0)},
   beta:  {label:"beta",                get:r=>r.beta,        fmt:v=>v.toFixed(2)},
-  vol:   {label:"$ volume/day",        get:r=>volNum(r.vol), fmt:v=>fmtBig(v)},
+  /* The exact number, not the display string. This read `volNum(r.vol)`, which re-parsed
+     the cell text the server had already rounded for humans: `fmt_metric(3926.16)` is
+     "0M", so `volNum("0M")` was 0 and NSRCF charted as zero dollars traded while its own
+     row carried 3926.16. Across the live 225 it collapsed 225 distinct values into 180
+     and tied 72 rows against each other. The row has shipped `dollar_volume` all along —
+     research_ui.py says so where it emits it, "a lens that ranks on volume cannot rank on
+     it" — and the metric was simply never switched over. Absences are unaffected:
+     `dollar_volume` is null exactly when `vol` is an em-dash. */
+  vol:   {label:"$ volume/day",        get:r=>canonValue(r,"dollar_volume"), fmt:v=>fmtBig(v)},
   mcap:  {label:"market cap",          get:r=>r.mcap,        fmt:v=>fmtBig(v)},
   score: {label:"growth per P/E",      get:r=>r.score,       fmt:v=>v.toFixed(3)},
   // `tone:true` is what marks a metric as coverage-gated, so anything explaining a chart's

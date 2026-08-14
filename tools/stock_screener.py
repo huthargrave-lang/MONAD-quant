@@ -1007,7 +1007,11 @@ def main(argv=None):
         print(hdr)
         print("-" * len(hdr))
         for row in matches:
-            print("{:<7}{:<22}".format(row["ticker"], row["name"][:21]) + "".join(
+            # `_normalise_row` blesses `name=None` when no vendor name comes back, and
+            # `apply_preset` only requires the preset's own metrics — so a matching row
+            # with no name reached here and raised TypeError after the header had already
+            # printed, which reads as a crashed screen rather than a nameless row.
+            print("{:<7}{:<22}".format(row["ticker"], (row.get("name") or "—")[:21]) + "".join(
                 "{:>14}".format(fmt_metric(row, c)) for c in cols))
         if no_data:
             print("\n{} rows not screenable (missing metrics): {}".format(

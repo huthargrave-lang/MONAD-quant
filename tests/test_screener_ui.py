@@ -3327,3 +3327,64 @@ class TheAbsenceVocabularyIsOneDefinition(unittest.TestCase):
         for row in payload["rows"]:
             self.assertNotIn("absent", row,
                              "a row with no gaps still carries an absence key")
+
+
+class TheVolumeMetricReadsTheNumberNotItsLabel(unittest.TestCase):
+    """`METRICS.vol` ranked, charted and sorted on `volNum(r.vol)` — a parse of the DISPLAY
+    string the server had already rounded for a human. `fmt_metric(3926.16)` is "0M", so
+    `volNum("0M")` was 0 and NSRCF charted as zero dollars traded while its own row carried
+    3926.16.
+
+    The row has shipped the exact `dollar_volume` all along; `research_ui.py` even says why
+    where it emits it. The metric was never switched over, so the page ranked volume on a
+    different quantity than `stock_screener` ranks it on."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.html = _page()
+        cls.js = _decomment(_script(cls.html))
+        cls.payload = research_ui._screener_combined_draft_payload()
+
+    def test_the_metric_reads_the_exact_field(self):
+        self.assertRegex(
+            self.js, r'vol:\s*\{label:"\$ volume/day",\s*get:r=>canonValue\(r,"dollar_volume"\)',
+            "the volume metric is parsing a formatted string again")
+
+    def test_the_lossy_parser_is_gone_entirely(self):
+        """Deleted rather than left unused. A string-to-number parser lying around is how the
+        next metric picks it up, and this one silently returns the rounded value."""
+        self.assertNotRegex(self.js, r"function\s+volNum\s*\(",
+                            "volNum is back")
+        self.assertNotIn("volNum(", self.js, "something calls volNum again")
+
+    def test_the_rounding_that_caused_it_still_happens(self):
+        """The guard above is only worth having while `fmt_metric` still rounds sub-million
+        volumes to "0M". If that changes, this fails rather than the guard quietly protecting
+        a defect that moved."""
+        self.assertEqual(sc.fmt_metric({"dollar_volume": 3926.16}, "dollar_volume"), "0M")
+
+    def test_the_live_payload_carries_a_row_the_old_path_read_as_zero(self):
+        """Not hypothetical: a real row in the shipped snapshot whose display string parses to
+        zero while its own field is non-zero."""
+        bad = [r for r in self.payload["rows"]
+               if r.get("vol") == "0M" and (r.get("dollar_volume") or 0) > 0]
+        self.assertTrue(bad, "no row exercises this any more — re-check before deleting the guard")
+        self.assertGreater(bad[0]["dollar_volume"], 0)
+
+    def test_absences_are_untouched_by_the_switch(self):
+        """`dollar_volume` must be null exactly when `vol` is an em-dash, or the switch would
+        have turned a disclosed absence into a silent one."""
+        for r in self.payload["rows"]:
+            with self.subTest(tk=r["tk"]):
+                self.assertEqual(r.get("vol") == "—", r.get("dollar_volume") is None)
+
+
+class ANamelessRowRendersRatherThanCrashing(unittest.TestCase):
+    def test_a_matching_row_with_no_name_does_not_raise(self):
+        """`_normalise_row` blesses `name=None` when the vendor returns none, and `apply_preset`
+        only requires the preset's own metrics — so such a row reached the printer and raised
+        TypeError AFTER the header had printed, which reads as a crashed screen."""
+        self.assertNotIn('row["name"][:21]', open(
+            os.path.join(REPO, "tools", "stock_screener.py"), encoding="utf-8").read(),
+            "the unguarded subscript is back")
+        self.assertEqual((None or "—")[:21], "—")
