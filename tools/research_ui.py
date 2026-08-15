@@ -4561,6 +4561,12 @@ ABSENCE_REASONS = {
     "not_applicable": "does not apply to this kind of instrument",
     "not_assessed":   "nobody has assessed this",
     "not_covered":    "no documents covered this name",
+    # Distinct from not_covered on purpose, and the distinction is a fact the fetcher
+    # measures: StockTwits' free cap (~200/hour) is smaller than the universe (225),
+    # so a run leaves some names unasked. "Nobody posted about it" and "we did not
+    # ask" are different claims about the world, and the ring cursor means the second
+    # is temporary — it resolves within a run or two.
+    "not_attempted":  "not asked this run — the rate cap rotates which names miss",
     "not_computable": "one of the inputs for this is missing",
     # Present, but not measured. `stock_screener` deliberately shows a name with no vendor
     # dividend data as 0% so the income lens keeps screening it (its own test pins that), and

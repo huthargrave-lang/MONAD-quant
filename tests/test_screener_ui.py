@@ -4303,3 +4303,64 @@ class TheDeclaredSourceIsNotTreatedAsALexiconReading(unittest.TestCase):
         self.assertIn("stocktwits:{tone:", js)
         self.assertIn('declared:true', js,
                       "the page cannot tell this column apart from the lexicon three")
+
+
+class TheProvenanceClaimsSurviveAFourthSource(unittest.TestCase):
+    """Three sentences on the served page enumerated sources BY HAND, so the day a fourth
+    landed each became false in a different way: the footer claimed all of them share one
+    lexicon (StockTwits has none — its tags are declared by posters), the combined-lens note
+    said "not all three" beside a count reading TONE_SOURCES.length, and it named three
+    sources while asserting a cause for the fourth it could not know.
+
+    All three now derive from the registry, so a fifth source cannot repeat this."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.html = _page()
+        cls.js = _decomment(_script(cls.html))
+
+    def test_the_footer_names_every_source_and_scopes_the_lexicon_claim(self):
+        footer = self.html.split("<footer>", 1)[1].split("</footer>", 1)[0]
+        for source in sl.TONE_SOURCES:
+            label = {"stocktwits": "StockTwits"}.get(source, source.capitalize())
+            with self.subTest(source=source):
+                self.assertIn(label, footer, "%s is fetched and unmentioned" % source)
+        self.assertNotIn("each scored by the same finance lexicon ·", footer,
+                         "the lexicon claim covers every source again; the declared source "
+                         "is not scored by any lexicon")
+        self.assertIn("declared by the people", footer,
+                      "the footer does not distinguish declared tags from lexicon scores")
+
+    def test_the_combined_lens_note_counts_and_enumerates_from_the_registry(self):
+        body = _functions(self.js).get("socialLensNote")
+        self.assertIsNotNone(body)
+        self.assertNotIn("not all three", body,
+                         "the sentence hardcodes 'three' beside a count that reads "
+                         "TONE_SOURCES.length — it contradicts its own number")
+        self.assertIn("TONE_SOURCES.map(src => missedPhrase", body,
+                      "the enumeration is hand-written again, so it names some sources and "
+                      "silently omits others")
+
+    def test_a_missed_source_is_described_in_that_sources_own_terms(self):
+        """A broad feed misses by not mentioning you; a per-ticker feed misses by answering
+        empty; a rate-capped one may not have been asked at all. Three different facts, and
+        the old copy asserted the second for all of them."""
+        body = _functions(self.js).get("missedPhrase")
+        self.assertIsNotNone(body, "nothing derives the per-source miss reason")
+        self.assertIn("r.st_a === false", body,
+                      "a rate-capped absence is described as the stream returning nothing")
+        self.assertIn("not asked this run", body)
+
+    def test_the_untoned_sentence_does_not_claim_a_lexicon_for_the_declared_source(self):
+        body = _functions(self.js).get("socialLensNote")
+        self.assertNotIn("none of them carried a tone word: ", body,
+                         "'carried a tone word' is a lexicon fact asserted over a source "
+                         "that has no lexicon")
+        self.assertIn("no author tag for StockTwits", body)
+
+    def test_the_rate_cap_reason_is_in_the_shipped_vocabulary(self):
+        self.assertIn("not_attempted", research_ui.ABSENCE_REASONS)
+        self.assertIn("not asked", research_ui.ABSENCE_REASONS["not_attempted"])
+        # The closed registry's whole point: one wording, shipped, never restated per site.
+        self.assertIn("not_attempted", json.dumps(
+            research_ui._screener_combined_draft_payload()["absence_reasons"]))

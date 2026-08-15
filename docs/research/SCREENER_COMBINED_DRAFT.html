@@ -1704,9 +1704,15 @@ table.bwatch .spark{width:80px;height:26px;display:block}
 
     </div><!-- /#desk -->
 
+    <!-- The lexicon claim is SCOPED now. It used to cover "each" of three sources, and a
+         fourth arrived that no lexicon touches: StockTwits carries a Bullish/Bearish tag its
+         author chose. Left as written, the footer asserted this page scores every column the
+         same way, which is the one thing the StockTwits column is not. -->
     <footer>Fundamentals and prices from <code>stock_screener</code>, tone from
-      <code>screener_lab</code> — Bloomberg public RSS, Reddit public Atom feeds, and Yahoo
-      Finance's public per-ticker headline RSS, each scored by the same finance lexicon ·
+      <code>screener_lab</code> — Bloomberg public RSS, Reddit public Atom feeds and Yahoo
+      Finance's public per-ticker headline RSS, each scored by the same finance lexicon;
+      StockTwits per-ticker streams, whose Bullish/Bearish tags are declared by the people
+      posting rather than scored here ·
       no vendor sentiment score is involved, and no model ·
       shadow-debt tags are editorial study objects, not measured notionals · not investment advice</footer>
   
@@ -5073,17 +5079,29 @@ function socialLensNote(){
   const covered = ROWS.filter(inSocialLens);
   const silent  = ROWS.filter(r => !inSocialLens(r) && !toneAllDocs(r));
   const untoned = ROWS.filter(r => !inSocialLens(r) && toneAllDocs(r));
+  // "not all three" was hardcoded beside a count that reads TONE_SOURCES.length — the
+  // sentence contradicted its own number the moment there were four.
+  const n = TONE_SOURCES.length;
+  const example = silent[0] || null;
   let s = "<b>" + covered.length + " of " + ROWS.length + " names carry tone from at least"
-    + " one of the " + TONE_SOURCES.length + " sources.</b> Membership is coverage from ANY"
-    + " source, not all three, so a name absent from this lens was reached by <b>none</b> of"
-    + " them — Bloomberg did not name it, Reddit did not name it, and its own Yahoo feed"
-    + " returned nothing. <b>That is not a combined tone of 0.00</b>; it is absent rather"
+    + " one of the " + n + " sources.</b> Membership is coverage from ANY"
+    + " source, not all " + n + ", so a name absent from this lens was reached by <b>none</b>"
+    + " of them"
+    + (example
+        ? " — for " + esc(example.tk) + ", "
+          + TONE_SOURCES.map(src => missedPhrase(example, src)).join(", ") + "."
+        : ".")
+    + " <b>That is not a combined tone of 0.00</b>; it is absent rather"
     + " than scored zero.";
   if(silent.length)
     s += " Absent, no source reached them at all: <b>"
       + silent.map(r => esc(r.tk)).join(", ") + "</b>.";
   if(untoned.length)
-    s += " Absent, documents arrived but none of them carried a tone word: <b>"
+    // "carried a tone word" is a LEXICON fact. StockTwits has no lexicon: its documents
+    // carry an author's Bullish/Bearish tag or carry nothing, which is a different way to
+    // arrive untoned and must not be described as the vocabulary failing.
+    s += " Absent, documents arrived but none of them carried a reading — no tone word for"
+      + " the lexicon sources, no author tag for StockTwits: <b>"
       + untoned.map(r => esc(r.tk)).join(", ") + "</b>.";
   if(!silent.length && !untoned.length)
     s += " No loaded name is excluded here, which is a fact about plumbing rather than about"
@@ -7415,8 +7433,31 @@ let TONE_SPREAD = {};
    Reddit MATCH text; Yahoo's feed is keyed by ticker and the item is FILED there. Reading a
    filed item as "it named the company" is the overclaim this source most invites, so the
    two never share a sentence. */
-function arrivedVerb(src){ return src === "yahoo" ? "were filed under it" : "matched"; }
-function filedVerb(src){ return src === "yahoo" ? "is filed under" : "names"; }
+function arrivedVerb(src){
+  if(src === "yahoo") return "were filed under it";
+  if(src === "stocktwits") return "arrived on its stream";
+  return "matched";
+}
+function filedVerb(src){
+  if(src === "yahoo") return "is filed under";
+  if(src === "stocktwits") return "arrived on the stream of";
+  return "names";
+}
+/* HOW a source missed one name, in that source's own terms — and the reason these are
+   derived rather than written out is that the hand-enumerated version ("Bloomberg did not
+   name it, Reddit did not name it, and its own Yahoo feed returned nothing") silently
+   became a lie the day a fourth source landed: it enumerated three of four, and asserted a
+   cause for the fourth that could be false. A broad feed misses by not mentioning you; a
+   per-ticker feed misses by answering empty; a rate-capped one may simply not have been
+   asked. Three different facts. */
+function missedPhrase(r, src){
+  const label = TONE_FIELDS[src].label;
+  if(src === "stocktwits" && r && r.st_a === false)
+    return label + " was not asked this run (rate cap)";
+  if(src === "yahoo") return "its own " + label + " feed returned nothing";
+  if(src === "stocktwits") return "its " + label + " stream returned nothing";
+  return label + " did not name it";
+}
 
 /* The tone tile's own account of why it is empty. It is parked when the payload carries no
    tone snapshot at all, so this is what the reader sees if they place it regardless. */
