@@ -4364,3 +4364,51 @@ class TheProvenanceClaimsSurviveAFourthSource(unittest.TestCase):
         # The closed registry's whole point: one wording, shipped, never restated per site.
         self.assertIn("not_attempted", json.dumps(
             research_ui._screener_combined_draft_payload()["absence_reasons"]))
+
+
+class TheProbabilityPathIsDrawnOnTimeNotOnIndex(unittest.TestCase):
+    """`i / (obs.length - 1)` spaced observations evenly, which is correct ONLY because the
+    Hormuz fixture happens to be exactly 7 days apart — the chart was right by accident of
+    its data. A real series with three readings in a week and then a month's gap would have
+    been drawn as a steady march, silently misrepresenting the rate of change.
+
+    Verified in a browser on a synthetic uneven series (2 days, then 58): the gaps came out
+    50px and 1450px, a ratio of 29, matching the day ratio. On the fixture itself both axes
+    agree, which is exactly why this defect survived — the shipped data cannot expose it."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.js = _decomment(_script(_page()))
+        cls.body = _functions(cls.js).get("drawScenPath")
+
+    def test_the_axis_reads_timestamps(self):
+        self.assertIsNotNone(self.body)
+        self.assertIn("Date.parse(o.timestamp)", self.body,
+                      "the x axis ignores time again, so an irregular series is drawn evenly")
+        self.assertRegex(self.body, r"\(ts\[i\] - t0\) / span",
+                         "positions are not proportional to elapsed time")
+
+    def test_it_falls_back_rather_than_dividing_by_zero(self):
+        """A series whose timestamps are unparseable or all identical has no span; it must
+        degrade to the old index spacing, not produce NaN geometry."""
+        self.assertIn("spanOK", self.body)
+        self.assertRegex(self.body, r"spanOK\s*\?", "the fallback is not gated on a real span")
+        self.assertIn("Math.max(obs.length - 1, 1)", self.body,
+                      "the index fallback can still divide by zero on a one-point series")
+
+    def test_the_values_are_on_the_chart_not_only_in_tooltips(self):
+        """Five hand-authored numbers drawn as a shape, with every value hidden in an SVG
+        <title>: on a five-point series the tooltips held most of the information."""
+        self.assertIn("sp-val", self.body, "no value labels are drawn")
+        self.assertIn("labels", self.body)
+        self.assertIn("+ dots + labels", self.js,
+                      "the labels are computed and never added to the SVG")
+
+    def test_labels_thin_themselves_on_a_dense_series(self):
+        """First, last, and anything that actually moved — so a real series with fifty
+        readings does not become a wall of overlapping text."""
+        self.assertRegex(self.body, r"first \|\| last \|\| moved",
+                         "every point is labelled regardless of density")
+        self.assertRegex(self.body, r"Math\.abs\(y\(o\.probability\) - y\(obs",
+                         "thinning compares raw probabilities again; the decision is about "
+                         "overlapping text, so it belongs in pixels")

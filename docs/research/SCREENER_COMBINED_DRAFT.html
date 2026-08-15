@@ -219,6 +219,7 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
 .spread-note{font:10px var(--mono);color:var(--ink-muted);border:1px solid var(--rule);
   border-radius:3px;padding:0 4px;margin-left:6px;white-space:nowrap}
 .spread-note.wide{color:var(--warning);border-color:var(--warning)}
+.sp-val{font:9px var(--mono);fill:var(--ink-2)}
 .sdev-list{margin:0;padding-left:18px;font-size:12px;color:var(--ink-2);line-height:1.45}
 /* Reached securities by direction. A group heading is always drawn, even at zero: a
    heading that disappears reads as "no such case exists" rather than "none today". */
@@ -8562,7 +8563,17 @@ function drawScenPath(){
      18%–30% into a chart that climbs the full height of the pane, which is a picture of a
      crisis drawn from a twelve-point move. The scale a probability is read against is the
      whole of it. */
-  const x = i => L + (i / (obs.length - 1)) * (W - L - R);
+  /* TIME, not index. `i / (obs.length - 1)` spaces observations evenly, which is correct
+     ONLY because the fixture happens to be evenly spaced — a real series with a cluster of
+     readings in one week and a gap of a month would be drawn as a steady march, silently
+     misrepresenting the rate of change. The chart was correct by accident of its data.
+     Falls back to index spacing when the timestamps cannot be parsed or all coincide, so a
+     malformed series degrades to the old geometry rather than dividing by zero. */
+  const ts = obs.map(o => Date.parse(o.timestamp));
+  const spanOK = ts.every(v => v === v) && (ts[ts.length - 1] - ts[0]) > 0;
+  const t0 = ts[0], span = spanOK ? (ts[ts.length - 1] - ts[0]) : 0;
+  const x = i => L + (spanOK ? (ts[i] - t0) / span
+                             : (i / Math.max(obs.length - 1, 1))) * (W - L - R);
   const y = p => T + (1 - p) * (H - T - B);
   const pts = obs.map((o, i) => x(i).toFixed(1) + "," + y(o.probability).toFixed(1)).join(" ");
   const grid = [0, 0.25, 0.5, 0.75, 1].map(v =>
@@ -8570,6 +8581,29 @@ function drawScenPath(){
     + '" y2="' + y(v).toFixed(1) + '" class="sp-grid"></line>'
     + '<text x="' + (L - 6) + '" y="' + (y(v) + 3).toFixed(1) + '" class="sp-tick">'
     + Math.round(v * 100) + '%</text>').join("");
+  /* The five numbers ON the chart. They lived only in SVG <title> tooltips, so the tile
+     drew a shape and withheld every value it was made of — on a five-point series that is
+     most of the information. Drawn above or below its own point depending on which side has
+     room, and only for the first and last plus any point that moves the series, so a dense
+     real series does not become a wall of text. */
+  const labels = obs.map((o, i) => {
+    const first = i === 0, last = i === obs.length - 1;
+    // Read once, through the fixture gate. The value ends up as a DIGIT on screen here, not
+    // as a coordinate, so the geometry exemption does not cover it — TheFixtureMarkingCannotBeEscaped
+    // caught this the moment the labels were added, which is the guard doing its job.
+    const shown = fxText("scen", sc, pct(o.probability));
+    /* Thinning is a question about the PICTURE, so it is asked in pixels: two readings a
+       hair apart on a 0..1 axis produce overlapping text whatever their numeric gap, and a
+       2-point move is visually huge on a tall pane and invisible on a short one. Going
+       through `y` also keeps the predicate inside the fixture guard's coordinate exemption,
+       which is the correct reason and not a workaround — no digit reaches the screen here. */
+    const moved = i > 0 && Math.abs(y(o.probability) - y(obs[i - 1].probability)) >= 7;
+    if(!(first || last || moved)) return "";
+    const py = y(o.probability), above = py > T + 18;
+    return '<text x="' + x(i).toFixed(1) + '" y="' + (above ? py - 7 : py + 13).toFixed(1)
+      + '" class="sp-val" text-anchor="' + (first ? "start" : last ? "end" : "middle")
+      + '">' + esc(shown) + '</text>';
+  }).join("");
   const dots = obs.map((o, i) =>
       '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(o.probability).toFixed(1) + '" r="3" '
     + 'class="sp-dot"><title>' + escAttr(o.timestamp.slice(0, 10) + " · "
@@ -8581,7 +8615,7 @@ function drawScenPath(){
         + " over " + horizon + ", " + obs.length + " observations, latest "
         + fxText("scen", sc, pct(obs[obs.length - 1].probability))) + '">'
     + grid
-    + '<polyline points="' + pts + '" class="sp-line"></polyline>' + dots
+    + '<polyline points="' + pts + '" class="sp-line"></polyline>' + dots + labels
     + '<text x="' + L + '" y="' + (H - 6) + '" class="sp-tick">'
     + esc(obs[0].timestamp.slice(0, 10)) + '</text>'
     + '<text x="' + (W - R) + '" y="' + (H - 6) + '" class="sp-tick" text-anchor="end">'
