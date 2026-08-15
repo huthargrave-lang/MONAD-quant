@@ -20,6 +20,7 @@ A behaviour harness would catch more, and is a reasonable thing to add later. Wh
 catch is the specific failure that has already happened twice here: two copies of one
 definition, drifting silently, with both surfaces published side by side.
 """
+import ast
 import inspect
 import json
 import os
@@ -36,6 +37,7 @@ for _p in (REPO, os.path.join(REPO, "tools")):
         sys.path.insert(0, _p)
 
 import research_ui  # noqa: E402
+import screener_lab as sl  # noqa: E402
 import stock_screener as sc  # noqa: E402
 # `tests` is a package and REPO is already on sys.path above, so the shared fixture
 # is imported by its package path — a bare `import screener_payload_fixture` only
@@ -4188,3 +4190,97 @@ class TheDocumentsBehindAToneMeanAreVisible(unittest.TestCase):
         body = _functions(self.js).get("spreadNote")
         self.assertRegex(body, r"if\(!sp\) return \"\";",
                          "a ticker with one document gets a spread badge anyway")
+
+
+class TheDeclaredSourceIsNotTreatedAsALexiconReading(unittest.TestCase):
+    """StockTwits is the fourth tone column and the only one whose sentiment its AUTHORS
+    declared. The other three are this repo's lexicon scoring headline text. Running the
+    fourth through `score_tone` would discard the tag a poster actually chose, replace it with
+    a word-count of their message, and print the result beside three others as though the four
+    were one measurement.
+
+    Coverage is why it exists: Bloomberg reaches 8 of 225 names and Reddit 14, because both
+    are broad feeds that reach a ticker only if a post names it. Yahoo, asked per ticker,
+    reaches 123 of 123. StockTwits is asked per ticker — every symbol probed answered with ~30
+    messages, including thin ones (SIVR, LEU, UUUU)."""
+
+    def test_the_declared_source_does_not_go_through_the_lexicon(self):
+        """CODE ONLY. Written against the raw source this failed on its own docstring, which
+        names `score_tone` precisely to explain why it is not called — the guard read the
+        prose arguing for the property as evidence against it. Third time this session; it is
+        the failure mode to check for first."""
+        src = inspect.getsource(sl.attach_declared)
+        body = ast.get_source_segment(src, ast.parse(src).body[0]) or src
+        tree = ast.parse(src).body[0]
+        code = "\n".join(
+            ast.unparse(n) for n in ast.walk(tree)
+            if isinstance(n, ast.Call))
+        self.assertNotIn("score_tone", code,
+                         "declared sentiment is being re-scored by the word list, which "
+                         "throws away the only thing that makes it different evidence")
+        self.assertIn("Bullish", body)
+
+    def test_an_untagged_message_is_covered_but_not_toned(self):
+        """A poster who tagged nothing has not said the security is fairly valued."""
+        rows = [{"ticker": "AAA", "name": "A"}]
+        sl.attach_declared(rows, [{"ticker": "AAA", "declared": None, "title": "x"}],
+                           "stocktwits")
+        self.assertEqual(rows[0]["stocktwits_coverage"], 1)
+        self.assertEqual(rows[0]["stocktwits_toned"], 0)
+        self.assertIsNone(rows[0]["stocktwits_tone"],
+                          "an untagged message was read as neutral")
+
+    def test_a_name_the_stream_never_reached_has_no_coverage_at_all(self):
+        rows = [{"ticker": "ZZZ", "name": "Z"}]
+        sl.attach_declared(rows, [{"ticker": "AAA", "declared": "Bullish", "title": "x"}],
+                           "stocktwits")
+        self.assertEqual(rows[0]["stocktwits_coverage"], 0)
+        self.assertIsNone(rows[0]["stocktwits_tone"])
+
+    def test_the_tone_is_the_bull_minus_bear_share(self):
+        rows = [{"ticker": "AAA", "name": "A"}]
+        docs = ([{"ticker": "AAA", "declared": "Bullish", "title": "x"}] * 2
+                + [{"ticker": "AAA", "declared": "Bearish", "title": "y"}])
+        sl.attach_declared(rows, docs, "stocktwits")
+        self.assertAlmostEqual(rows[0]["stocktwits_tone"], 1 / 3.0, places=3)
+
+    def test_the_platforms_own_base_rate_travels_with_every_cell(self):
+        """MEASURED, not assumed: 218 Bullish against 63 Bearish across 20 tickers — 78%, a
+        base of +0.55. A T-bill ETF scored +1.000. Without the base beside it, a raw +0.64
+        reads as bullish when it is average FOR STOCKTWITS, and NVDA's +0.41 reads as positive
+        when it is BELOW the platform's norm."""
+        rows = [{"ticker": "AAA", "name": "A"}, {"ticker": "BBB", "name": "B"}]
+        docs = ([{"ticker": "AAA", "declared": "Bullish", "title": "x"}] * 3
+                + [{"ticker": "BBB", "declared": "Bearish", "title": "y"}])
+        stats = sl.attach_declared(rows, docs, "stocktwits")
+        self.assertAlmostEqual(stats["base"], (3 - 1) / 4.0, places=3)
+        for row in rows:
+            self.assertEqual(row["stocktwits_base"], stats["base"],
+                             "a cell cannot be read without the base, so it must carry it")
+
+    def test_the_raw_share_is_not_silently_transformed(self):
+        """The base is shipped BESIDE the raw number rather than subtracted from it. Silently
+        transforming a measurement is the defect this repo catalogues; the page does the
+        comparison and says it is doing it."""
+        rows = [{"ticker": "AAA", "name": "A"}]
+        docs = [{"ticker": "AAA", "declared": "Bullish", "title": "x"}]
+        sl.attach_declared(rows, docs, "stocktwits")
+        self.assertEqual(rows[0]["stocktwits_tone"], 1.0,
+                         "the stored tone is base-adjusted; it should be what was declared")
+
+    def test_the_page_reads_the_base_and_shows_the_excess(self):
+        js = _decomment(_script(_page()))
+        self.assertIn('base:"st_b"', js, "the page cannot find the base it is sent")
+        body = _functions(js).get("declaredNote")
+        self.assertIsNotNone(body, "nothing renders the comparison")
+        self.assertIn("base", body)
+        gate = _functions(js).get("declaredExcess")
+        self.assertIn("f.declared", gate,
+                      "the excess is drawn for lexicon columns too, which have no base")
+
+    def test_the_source_is_registered_on_both_sides(self):
+        self.assertIn("stocktwits", sl.TONE_SOURCES)
+        js = _decomment(_script(_page()))
+        self.assertIn("stocktwits:{tone:", js)
+        self.assertIn('declared:true', js,
+                      "the page cannot tell this column apart from the lexicon three")

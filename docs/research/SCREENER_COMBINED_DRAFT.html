@@ -214,6 +214,8 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
 /* The probability section is the only one with a chart, so it is the only one given a
    floor — the two lists below it size to their content. */
 .scen-sec > .chart-host{min-height:92px;flex:0 0 auto}
+.declared-note{font:10px var(--mono);color:var(--ord-3);border:1px solid var(--ord-1);
+  border-radius:3px;padding:0 4px;margin-left:6px;white-space:nowrap}
 .spread-note{font:10px var(--mono);color:var(--ink-muted);border:1px solid var(--rule);
   border-radius:3px;padding:0 4px;margin-left:6px;white-space:nowrap}
 .spread-note.wide{color:var(--warning);border-color:var(--warning)}
@@ -4342,6 +4344,13 @@ const TONE_FIELDS = {
   bloomberg: {tone:"bb", cov:"bb_c", toned:"bb_t", label:"Bloomberg", tag:"BB"},
   reddit:    {tone:"rd", cov:"rd_c", toned:"rd_t", label:"Reddit",    tag:"RD"},
   yahoo:     {tone:"yh", cov:"yh_c", toned:"yh_t", label:"Yahoo",     tag:"YH"},
+  /* The odd one out, and the page has to say so wherever it is read. The three above are this
+     repo's LEXICON scoring a headline; this one is the share of messages whose AUTHOR tagged
+     them Bullish or Bearish. Same shape, same absence rules, different kind of evidence — and
+     a column that looked identical to its neighbours would be claiming they are the same
+     measurement. `declared` is what every surface keys on to say otherwise. */
+  stocktwits:{tone:"st", cov:"st_c", toned:"st_t", base:"st_b", label:"StockTwits",
+              tag:"ST", declared:true},
 };
 const TONE_SOURCES = Object.keys(TONE_FIELDS);
 function toneField(src){ return TONE_FIELDS[src] || TONE_FIELDS.bloomberg; }
@@ -7423,6 +7432,29 @@ function toneAbsentBody(){
    of them is a reading. Printed only where there IS a spread: one document has no spread,
    which is not the same fact as several that agree, and Python returns null rather than 0 for
    exactly that reason. */
+/* A declared-sentiment cell against the platform it came from.
+
+   Retail social sentiment is not centred on zero: measured, 78% of tagged StockTwits messages
+   are Bullish, a base of about +0.57. So a raw +0.64 is not "bullish" — it is average for
+   this platform, and NVDA's +0.41 is BELOW it. Printing the raw number in a column beside
+   three lexicon readings that span -0.23 to +0.58 would say retail is wildly more positive
+   than the press, when most of that gap is who bothers to post.
+
+   The raw number is what was declared and it stays; this is the comparison it needs. */
+function declaredExcess(r, src){
+  const f = toneField(src);
+  if(!f.declared || !f.base) return null;
+  const raw = r[f.tone], base = r[f.base];
+  if(raw == null || base == null) return null;
+  return {raw: raw, base: base, excess: raw - base};
+}
+function declaredNote(r, src){
+  const d = declaredExcess(r, src);
+  if(!d) return "";
+  const sign = v => (v > 0 ? "+" : "") + v.toFixed(2);
+  return ' <span class="declared-note">' + esc(sign(d.excess)) + ' vs this platform\'s '
+    + esc(sign(d.base)) + ' base</span>';
+}
 function spreadNote(tk, src){
   const sp = (TONE_SPREAD[tk] || {})[src];
   if(!sp) return "";
@@ -7491,7 +7523,7 @@ function renderHeadlines(){
           <div class="meta">${esc(TONE_FIELDS[src].label)} — ${esc(why)}</div></div>`);
       } else {
         const head=(t.tone!=null?`${tag} · ${selected} · ${t.tone>0?"+":""}${t.tone.toFixed(2)}`:`${tag} · ${selected}`)
-          + spreadNote(selected, src);
+          + spreadNote(selected, src) + declaredNote(r||{}, src);
         // Headline text is feed copy, not this page's own markup.
         bag.forEach(d=>parts.push(`<div class="tone-card"><div class="tk">${head}</div>
           <div class="hd">${esc(d.h)}</div>

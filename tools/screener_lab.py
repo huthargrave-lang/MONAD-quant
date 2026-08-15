@@ -836,6 +836,124 @@ def fetch_reddit(subreddits=REDDIT_SUBS, limit=100, get=_http_get, env=None,
                               len(docs), len(subreddits) - len(failed)))
 
 
+#: StockTwits, per ticker. The only source here whose sentiment is DECLARED rather than
+#: INFERRED — see `attach_declared` below, which is why it does not go through the lexicon.
+STOCKTWITS_FEED = "https://api.stocktwits.com/api/2/streams/symbol/{}.json"
+
+#: Documented at 200 requests/hour unauthenticated, and the response advertises no
+#: rate-limit headers to pace against — unlike Reddit, which puts `x-ratelimit-remaining` on
+#: every reply. So the pacing here is a fixed floor rather than a negotiated one, and the run
+#: stops on the first 429 rather than hammering a limit it cannot see.
+STOCKTWITS_PAUSE_SECONDS = 0.4
+STOCKTWITS_TIMEOUT = 12
+STOCKTWITS_GIVE_UP_AFTER = 5
+
+STOCKTWITS_CAVEAT = (
+    "Sentiment here is DECLARED BY THE POSTER, not scored by this repo's lexicon: each "
+    "message may carry a Bullish or Bearish tag its author chose. That makes it a different "
+    "KIND of evidence from the other three columns, which are lexicon readings of headline "
+    "text — it is what people said they were, not what a word list made of what they wrote. "
+    "Roughly a third to four fifths of messages carry a tag; the rest are UNLABELLED, which "
+    "is not neutral and is counted separately.")
+
+
+def fetch_stocktwits(tickers, get=_http_get, sleep=None,
+                     pause=STOCKTWITS_PAUSE_SECONDS,
+                     give_up_after=STOCKTWITS_GIVE_UP_AFTER, limit=None):
+    """StockTwits per-ticker messages + this run's provider state.
+
+    One request per ticker, which is the property that matters. Bloomberg and Reddit are broad
+    pulls that reach a name only by accident of mention — measured, 8 and 14 of 225 — while
+    Yahoo, asked per ticker, reaches 123 of 123. This asks per ticker for the same reason.
+
+    Probed before it was written: every symbol tried answered 200 with ~30 messages, including
+    thin ones (SIVR, LEU, UUUU), so coverage here is not a property of a name being popular.
+    """
+    wait = sleep if sleep is not None else time.sleep
+    docs, failed, consecutive = [], [], 0
+    tickers = [t for t in (tickers or []) if t]
+    if limit:
+        tickers = tickers[:int(limit)]
+    attempted, throttled = 0, False
+    for index, ticker in enumerate(tickers):
+        if index:
+            wait(pause)
+        attempted += 1
+        try:
+            response = get(STOCKTWITS_FEED.format(ticker), timeout=STOCKTWITS_TIMEOUT)
+            if response.status_code == 429:
+                # The documented limit, hit. Stop rather than keep asking: the remaining
+                # tickers are NOT ATTEMPTED, which is a different fact from "returned
+                # nothing", and the provider record says which.
+                throttled = True
+                attempted -= 1
+                break
+            if response.status_code != 200:
+                failed.append("{} HTTP {}".format(ticker, response.status_code))
+                consecutive += 1
+                continue
+            messages = (response.json() or {}).get("messages") or []
+            got = 0
+            for message in messages:
+                sentiment = ((message.get("entities") or {}).get("sentiment") or {})
+                declared = sentiment.get("basic")     # "Bullish" | "Bearish" | absent
+                docs.append({
+                    "source": "stocktwits", "feed": "stocktwits/" + ticker,
+                    "ticker": ticker,
+                    "title": (message.get("body") or "")[:300],
+                    "body": "",
+                    "url": "https://stocktwits.com/message/{}".format(message.get("id")),
+                    "published": message.get("created_at") or "",
+                    # None, not "Neutral". A poster who tagged nothing has not said the
+                    # security is fairly valued; they have said nothing.
+                    "declared": declared if declared in ("Bullish", "Bearish") else None,
+                })
+                got += 1
+            if got:
+                consecutive = 0
+            else:
+                failed.append("{} returned 0 messages".format(ticker))
+                consecutive += 1
+        except Exception as exc:                     # network shape varies; state does not
+            failed.append("{} {}".format(ticker, type(exc).__name__))
+            consecutive += 1
+        if give_up_after and consecutive >= give_up_after:
+            break
+    not_attempted = len(tickers) - attempted
+    answered = attempted - len(failed)
+    label = "StockTwits (per-ticker, author-declared)"
+    if not docs:
+        return [], Provider(
+            "stocktwits", label, UNAVAILABLE,
+            "{} of {} ticker stream(s) attempted, none returned a message: {}. Those "
+            "tickers have NO StockTwits reading — missing data, not neutral "
+            "sentiment.".format(attempted, len(tickers), _summarise(failed)),
+            "Check outbound HTTPS to api.stocktwits.com, then re-run `{}`.".format(
+                REFRESH_CMD),
+            _stamp(), 0,
+            "0 of {} ticker streams returned a message".format(attempted))
+    tagged = sum(1 for d in docs if d["declared"])
+    state = DEGRADED if (failed or not_attempted) else LIVE
+    headline = "{} messages from {}/{} ticker streams — {} carry an author tag".format(
+        len(docs), answered, len(tickers), tagged)
+    detail = "{} messages from {}/{} ticker streams, {} of them tagged. {}".format(
+        len(docs), answered, len(tickers), tagged, STOCKTWITS_CAVEAT)
+    if failed:
+        detail += "  Failed: " + _summarise(failed)
+        headline += " · {} stream(s) failed".format(len(failed))
+    if throttled:
+        detail += ("  STOPPED ON HTTP 429 (the documented 200/hour): {} ticker(s) were NOT "
+                   "ASKED and are uncovered for that reason, not because their streams were "
+                   "empty.".format(not_attempted))
+        headline += " · {} not asked (rate limit)".format(not_attempted)
+    elif not_attempted:
+        detail += ("  Stopped after {} consecutive failures: {} ticker(s) were NOT "
+                   "ATTEMPTED.".format(give_up_after, not_attempted))
+        headline += " · {} not attempted".format(not_attempted)
+    return docs, Provider("stocktwits", label, state, detail, "", _stamp(),
+                          len(docs), headline)
+
+
 YAHOO_FEED = ("https://feeds.finance.yahoo.com/rss/2.0/headline"
               "?s={}&region=US&lang=en-US")
 
@@ -1198,7 +1316,82 @@ def _as_float(value):
 #: The tone sources, in the order the snapshot writes them. Kept as data because the CLI
 #: summary, the tests and the UI all have to agree on the list — three hand-typed copies
 #: is how a fourth source ends up live in the snapshot and invisible on the page.
-TONE_SOURCES = ("bloomberg", "reddit", "yahoo")
+def attach_declared(rows, documents, source_key):
+    """Score a source whose sentiment its AUTHORS declared, not one this repo inferred.
+
+    Every other column here is `score_tone` — a lexicon reading of headline text. Running
+    StockTwits through the same function would throw away the tag a poster actually chose and
+    replace it with a word-count of their message, then print the result in a column beside
+    three others as though the four were the same measurement. They are not, and the page says
+    so; this is where that stops being a caption and becomes the arithmetic.
+
+        tone = (bullish - bearish) / (bullish + bearish)      in [-1, +1]
+
+    UNLABELLED MESSAGES ARE NOT NEUTRAL. A poster who tagged nothing has not said the security
+    is fairly valued. They are counted in `coverage` (the stream reached this name) and
+    excluded from `toned` (nobody declared anything), which is the same split every other
+    source here uses for "covered but carries no lexicon term".
+    """
+    by_ticker = {}
+    for doc in documents:
+        ticker = doc.get("ticker")
+        if ticker:
+            by_ticker.setdefault(ticker, []).append(doc)
+    # THE PLATFORM'S OWN BASE RATE, measured on this run rather than assumed.
+    #
+    # Retail social sentiment is not centred on zero. Measured across 20 tickers: 218 Bullish
+    # against 63 Bearish — 77.6%, a base tone of +0.55. A T-bill ETF (TFLO) scored +1.000 and
+    # a tanker +1.000; those are not readings about those securities, they are what the
+    # platform does. Publishing the raw number beside three lexicon columns that range -0.23
+    # to +0.58 would say retail is wildly more positive than the press, when most of the gap
+    # is who bothers to post.
+    #
+    # The raw share still travels — silently transforming a measurement is the defect this
+    # repo catalogues — but the base travels WITH it, so every surface can show the excess
+    # and none has to invent the comparison.
+    all_tagged = [d for d in documents if d.get("declared")]
+    bulls_all = sum(1 for d in all_tagged if d["declared"] == "Bullish")
+    base = (round((2.0 * bulls_all - len(all_tagged)) / len(all_tagged), 4)
+            if all_tagged else None)
+    kept = 0
+    for row in rows:
+        matched = by_ticker.get(row["ticker"], [])
+        tagged = [d for d in matched if d.get("declared")]
+        bulls = sum(1 for d in tagged if d["declared"] == "Bullish")
+        bears = len(tagged) - bulls
+        kept += len(matched)
+        row[source_key + "_coverage"] = len(matched)
+        row[source_key + "_toned"] = len(tagged)
+        if tagged:
+            row[source_key + "_tone"] = round((bulls - bears) / float(len(tagged)), 4)
+        else:
+            # Reached, and nobody said anything. Distinct from not reached at all, which
+            # leaves coverage at 0 — two different absences the page renders differently.
+            row[source_key + "_tone"] = None
+        # `_terms` is the lexicon's evidence count and there is no lexicon here. 0 is the
+        # honest value: no term produced this number, because no term was consulted.
+        row[source_key + "_terms"] = 0
+        # Attached per row so no surface has to reach for a run-level global to read a cell,
+        # and so a stored snapshot stays interpretable on its own.
+        row[source_key + "_base"] = base
+        row[source_key + "_docs"] = [
+            {"title": d.get("title", "")[:180], "url": d.get("url", ""),
+             "feed": d.get("feed", ""), "published": d.get("published", ""),
+             "rule": "declared" if d.get("declared") else "untagged",
+             # The per-document number the page renders: +1 / -1 / None, matching the
+             # three-state absence the other sources use.
+             "tone": (1.0 if d.get("declared") == "Bullish"
+                      else (-1.0 if d.get("declared") == "Bearish" else None)),
+             "terms": []}
+            for d in matched[:12]]
+    return {"documents": len(documents), "broadcast_dropped": 0,
+            "widest_document": 1, "corroborated": len(all_tagged), "kept": kept,
+            "base": base, "tagged": len(all_tagged), "bullish": bulls_all}
+
+
+#: The tone columns, in the order the page shows them. `stocktwits` is last because it is the
+#: odd one out: three lexicon readings and one declared one.
+TONE_SOURCES = ("bloomberg", "reddit", "yahoo", "stocktwits")
 
 
 
@@ -1654,8 +1847,22 @@ def build_snapshot(limit=120, universe=None, progress=None, env=None,
         _note_breadth_drop(provider, stats)
     _note_filed_breadth_drop(yahoo_provider,
                              attach_prefiled_sentiment(rows, yahoo_docs, "yahoo"))
+    # No breadth note: the breadth rule drops documents that name too MANY screened tickers,
+    # and a StockTwits message arrives on one ticker's stream by request. There is nothing to
+    # drop, and printing "0 dropped" would imply a filter ran.
+    stocktwits_docs, stocktwits_provider = fetch_stocktwits(
+        [r["ticker"] for r in rows], get=get, sleep=sleep)
+    st_stats = attach_declared(rows, stocktwits_docs, "stocktwits")
+    if st_stats.get("base") is not None:
+        stocktwits_provider.detail += (
+            "  THIS RUN'S BASE RATE IS {:+.2f}: {} of {} tagged messages across the whole "
+            "universe were Bullish. That is what the platform does, not what these companies "
+            "are — a name scoring at the base is average FOR STOCKTWITS, not neutral. Read "
+            "each cell against it.".format(
+                st_stats["base"], st_stats["bullish"], st_stats["tagged"]))
+        stocktwits_provider.headline += " · base {:+.2f}".format(st_stats["base"])
     providers = [universe_provider, fundamentals_provider, bloomberg_provider,
-                 reddit_provider, yahoo_provider]
+                 reddit_provider, yahoo_provider, stocktwits_provider]
     return {
         "version": SNAPSHOT_VERSION,
         "built_at": _stamp(),
@@ -1818,7 +2025,7 @@ def main(argv=None):
                             help="fraction, e.g. 0.15 for 15%%")
     screen_cmd.add_argument("--sector", default=None)
     screen_cmd.add_argument("--sentiment-source", default="bloomberg",
-                            choices=("bloomberg", "reddit", "yahoo"))
+                            choices=("bloomberg", "reddit", "yahoo", "stocktwits"))
     screen_cmd.add_argument("--sentiment-weight", type=float, default=0.0,
                             help="0 keeps tone out of the ranking (default)")
     screen_cmd.add_argument("--top", type=int, default=25)

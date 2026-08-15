@@ -4874,6 +4874,16 @@ def _screener_combined_draft_payload():
             "yh": sr.get("yahoo_tone"),
             "yh_c": sr.get("yahoo_coverage") or 0,
             "yh_t": sr.get("yahoo_toned") or 0,
+            # The declared column. Same three fields and the same absence rules as the
+            # lexicon three, deliberately — what differs is how the number was ARRIVED at,
+            # which the page labels rather than encoding in a different shape.
+            "st": sr.get("stocktwits_tone"),
+            "st_c": sr.get("stocktwits_coverage") or 0,
+            "st_t": sr.get("stocktwits_toned") or 0,
+            # The platform's own bullish base for this run. Without it a raw +0.64 reads as
+            # bullish when it is dead average FOR STOCKTWITS — measured base +0.55 to +0.60,
+            # against lexicon columns that span -0.23 to +0.58.
+            "st_b": sr.get("stocktwits_base"),
             "flag": flag,
         }
         # Computed from the finished row rather than from the locals above, so it can never
