@@ -93,6 +93,8 @@ cache under `data/cache/`, and never touches `live/`, `config.py` or `state.db`.
 from __future__ import annotations
 
 import argparse
+import csv
+import email.utils
 import html as html_module
 import json
 import os
@@ -1371,6 +1373,36 @@ def write_stocktwits_cursor(next_start, path=STOCKTWITS_CURSOR_PATH):
         pass
 
 
+def _doc_day(raw):
+    """A document's publication DATE, from either format the feeds actually send.
+
+    Yahoo and Bloomberg send RFC-2822 ("Thu, 06 Aug 2026 14:22:00 GMT"); Reddit and
+    StockTwits send ISO. Slicing ten characters — the obvious shortcut — yields "Thu, 06 Au"
+    for four fifths of them, which is how the first tone-history attempt produced garbage.
+    """
+    if not raw:
+        return None
+    try:
+        return email.utils.parsedate_to_datetime(raw).date().isoformat()
+    except (TypeError, ValueError):
+        pass
+    try:
+        return datetime.strptime(str(raw)[:10], "%Y-%m-%d").date().isoformat()
+    except ValueError:
+        return None
+
+
+def _fresh_count(docs):
+    """How many of these documents were published TODAY (UTC).
+
+    Counted at attach time over the FULL matched list, deliberately: the `_docs` lists the
+    snapshot ships are truncated (12/6/6), so anything computed later from the snapshot
+    undercounts. The ledger reads this field; it must be the whole day's truth.
+    """
+    today = datetime.now(timezone.utc).date().isoformat()
+    return sum(1 for d in docs if _doc_day(d.get("published")) == today)
+
+
 def attach_declared(rows, documents, source_key, asked=None):
     """Score a source whose sentiment its AUTHORS declared, not one this repo inferred.
 
@@ -1432,6 +1464,7 @@ def attach_declared(rows, documents, source_key, asked=None):
         # `_terms` is the lexicon's evidence count and there is no lexicon here. 0 is the
         # honest value: no term produced this number, because no term was consulted.
         row[source_key + "_terms"] = 0
+        row[source_key + "_fresh"] = _fresh_count(matched)
         # Attached per row so no surface has to reach for a run-level global to read a cell,
         # and so a stored snapshot stays interpretable on its own.
         row[source_key + "_base"] = base
@@ -1512,6 +1545,7 @@ def attach_sentiment(rows, documents, source_key):
         toned = [(doc, tone, rule) for doc, tone, rule in matched
                  if not tone.is_absent]
         row[source_key + "_coverage"] = len(matched)
+        row[source_key + "_fresh"] = _fresh_count([d for d, _t, _r in matched])
         row[source_key + "_toned"] = len(toned)
         if toned:
             row[source_key + "_tone"] = round(
@@ -1600,6 +1634,7 @@ def attach_prefiled_sentiment(rows, documents, source_key):
             matched.append((doc, score_tone(text), rule))
         toned = [(doc, tone, rule) for doc, tone, rule in matched if not tone.is_absent]
         row[source_key + "_coverage"] = len(matched)
+        row[source_key + "_fresh"] = _fresh_count([d for d, _t, _r in matched])
         row[source_key + "_toned"] = len(toned)
         if toned:
             row[source_key + "_tone"] = round(
@@ -2013,9 +2048,117 @@ def build_tone_snapshot(universe, get=_http_get, env=None, sleep=None):
     }
 
 
+#: Where the tone ledger accumulates. Overridable by environment because the CANONICAL copy
+#: lives on the `tone-ledger` git branch, which CI checks out beside the working tree and
+#: points this at — the working tree's own data/ is for local residue (the `host` column keeps
+#: the two populations separable forever).
+TONE_LEDGER_DIR_ENV = "MONAD_TONE_LEDGER_DIR"
+TONE_LEDGER_DIR = os.path.join(REPO, "data", "tone_ledger")
+
+#: One row per (run, ticker, source), dense over the run's universe. `tone` EMPTY is the
+#: three-state absence rule surviving CSV: an empty cell is "no reading", which 0 is not.
+LEDGER_FIELDS = ("run_utc", "host", "build", "universe", "ticker", "source",
+                 "tone", "coverage", "toned", "fresh", "base", "attempted")
+
+#: Per run x source: provider state without scanning shards — coverage collapse should be
+#: visible from one small file.
+LEDGER_RUN_FIELDS = ("run_utc", "host", "build", "universe", "source", "state",
+                     "documents", "base")
+
+
+def _ledger_host():
+    if os.environ.get("GITHUB_ACTIONS"):
+        return "ci"
+    return os.environ.get("MONAD_LEDGER_HOST", "local")
+
+
+def append_ledger(snapshot, root=None):
+    """Append this run's tone readings to the monthly shard. The residue the refresh leaves.
+
+    WHY THIS EXISTS. Every refresh OVERWRITES the snapshot, so the scheduled jobs that have
+    run for weeks have produced exactly one observation: the latest. The RSS feeds cannot
+    supply history (789 documents, 60%% of them dated the fetch day), so the only path to a
+    real tone series is to stop discarding the runs — one dated row per (ticker, source) per
+    run, and in eight weeks of the existing daily cadence there are ~40 observations per name
+    that exist nowhere else.
+
+    WHAT IT MUST NEVER DO is take the refresh down. This is called from `write_snapshot`
+    behind a broad guard: a read-only filesystem (the Pi service's ProtectSystem=strict does
+    not include this directory), a permissions error, a full disk — all must degrade to "no
+    ledger row today", never to a failed snapshot. The ledger is additive or it is absent.
+
+    Numbers that were checked before this shape was chosen: ~563k rows/year at the daily
+    cadence, ~37 MB raw, ~3.6 MB gzipped, monthly shard ~3 MB — trivial for a git branch.
+    Actions artifacts were REJECTED (90-day retention cap on public repos: an append-only
+    year cannot exist there), as was the Pages deployment as a store (one failed fetch plus
+    cancel-in-progress silently loses the whole history).
+    """
+    root = root or os.environ.get(TONE_LEDGER_DIR_ENV) or TONE_LEDGER_DIR
+    run_utc = snapshot.get("built_at") or _stamp()
+    host = _ledger_host()
+    build = "tone_only" if snapshot.get("tone_only") else "full"
+    universe = snapshot.get("screened") or len(snapshot.get("rows") or [])
+    os.makedirs(root, exist_ok=True)
+
+    shard = os.path.join(root, run_utc[:7] + ".csv")
+    new_shard = not os.path.exists(shard)
+    with open(shard, "a", encoding="utf-8", newline="") as fh:
+        w = csv.writer(fh)
+        if new_shard:
+            w.writerow(LEDGER_FIELDS)
+        for row in snapshot.get("rows") or []:
+            for source in TONE_SOURCES:
+                tone = row.get(source + "_tone")
+                attempted = row.get(source + "_attempted")
+                base = row.get(source + "_base")
+                w.writerow([
+                    run_utc, host, build, universe, row.get("ticker"), source,
+                    "" if tone is None else tone,
+                    row.get(source + "_coverage") or 0,
+                    row.get(source + "_toned") or 0,
+                    row.get(source + "_fresh") or 0,
+                    "" if base is None else base,
+                    # Empty means "not a measured fact for this source": only the
+                    # rate-capped fetcher measures per-name attempts. An empty cell here
+                    # must never be read as "not attempted".
+                    "" if attempted is None else int(bool(attempted)),
+                ])
+
+    runs = os.path.join(root, "runs.csv")
+    new_runs = not os.path.exists(runs)
+    by_key = {p.get("key"): p for p in snapshot.get("providers") or []}
+    bases = {r.get("stocktwits_base") for r in snapshot.get("rows") or []
+             if r.get("stocktwits_base") is not None}
+    with open(runs, "a", encoding="utf-8", newline="") as fh:
+        w = csv.writer(fh)
+        if new_runs:
+            w.writerow(LEDGER_RUN_FIELDS)
+        for source in TONE_SOURCES:
+            p = by_key.get(source) or {}
+            w.writerow([run_utc, host, build, universe, source,
+                        p.get("state") or "absent", p.get("documents") or 0,
+                        (sorted(bases)[0] if source == "stocktwits" and bases else "")])
+    return shard
+
+
 def write_snapshot(snapshot, path=SNAPSHOT_PATH):
     """Atomic write — an interrupted refresh must not leave a half-parsed snapshot that
     the server would then render as though it were a complete screen."""
+    # The ledger append rides the CANONICAL write only — the default snapshot path, or an
+    # explicit env override (CI points it into the tone-ledger checkout). Gated on the path
+    # deliberately: the first version appended on EVERY call, and the test suite promptly
+    # wrote fixture tickers into the real history — one `unittest` run and the ledger held
+    # rows for a company called AAA. A history that test runs can silently salt is worse
+    # than no history. Guarded so it can only ever be additive: a read-only path or a bug in
+    # the writer degrades to a missing ledger row, never to a failed refresh; the stderr
+    # line is the honesty, because a silent skip reads as data loss with no cause.
+    ledger_root = os.environ.get(TONE_LEDGER_DIR_ENV)
+    if ledger_root or os.path.abspath(path) == os.path.abspath(SNAPSHOT_PATH):
+        try:
+            append_ledger(snapshot, root=ledger_root)
+        except Exception as exc:                   # noqa: BLE001 — deliberate firewall
+            print("tone ledger: skipped ({}: {})".format(type(exc).__name__, exc),
+                  file=sys.stderr)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as handle:

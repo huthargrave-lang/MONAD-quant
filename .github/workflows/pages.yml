@@ -37,7 +37,15 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  # write, not read, for exactly one thing: the daily tone rows are pushed to the
+  # `tone-ledger` branch. Every refresh used to OVERWRITE the snapshot, so weeks of
+  # scheduled runs had produced one observation — the latest. The ledger is the residue.
+  # A dedicated branch rather than development, because test.yml and pages.yml both
+  # trigger on development pushes: ~365 bot commits a year there would mean ~365
+  # spurious CI runs and a self-trigger loop here. Bonus the header above already
+  # wants: daily pushes are repository activity, which is what actually staves off
+  # the 60-day scheduled-workflow disablement — workflow runs alone do not.
+  contents: write
   pages: write
   id-token: write
 
@@ -74,7 +82,27 @@ jobs:
         continue-on-error: true
         run: python tools/stock_screener.py prices
 
-      - name: Fetch Bloomberg/Reddit/Yahoo tone (best effort)
+      - name: Check out the tone ledger branch (best effort)
+        # The branch is created on first run. continue-on-error everywhere in the ledger
+        # path: the ledger is strictly additive to this workflow — it must never become a
+        # new way for the deploy to fail.
+        continue-on-error: true
+        run: |
+          set -x
+          REMOTE="https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          if git ls-remote --exit-code "$REMOTE" tone-ledger; then
+            git clone --depth 1 --branch tone-ledger "$REMOTE" ledger
+          else
+            mkdir ledger && cd ledger
+            git init -b tone-ledger
+            git remote add origin "$REMOTE"
+            cp ../docs/TONE_LEDGER.md README.md
+            git add README.md
+            git -c user.name=monad-tone-ledger -c user.email=actions@github.com \
+                commit -m "tone-ledger: bootstrap (schema and pre-registered gates in README)"
+          fi
+
+      - name: Fetch Bloomberg/Reddit/Yahoo/StockTwits tone (best effort)
         # Tone-only: scores the screener's own universe from the public RSS feeds and
         # skips the per-ticker FUNDAMENTALS loop, which is the part that costs minutes.
         # Reddit rate-limits per IP, so a runner may get fewer subreddits than a laptop
@@ -86,7 +114,26 @@ jobs:
         # that gets throttled gives up after 8 consecutive failures and publishes the
         # tickers it did reach, with the rest reported as not attempted.
         continue-on-error: true
+        env:
+          # Point the run's ledger rows into the tone-ledger checkout. If that checkout
+          # failed, the path is still writable workspace and the push step below simply
+          # finds no repository — degraded, never fatal.
+          MONAD_TONE_LEDGER_DIR: ${{ github.workspace }}/ledger/data/tone_ledger
         run: python tools/screener_lab.py refresh --tone-only
+
+      - name: Push the ledger rows (best effort)
+        continue-on-error: true
+        run: |
+          set -x
+          cd ledger
+          git add -A data/tone_ledger
+          git -c user.name=monad-tone-ledger -c user.email=actions@github.com \
+              commit -m "tone: $(date -u +%Y-%m-%dT%H:%MZ) run ${{ github.run_number }}" \
+            || exit 0        # nothing new (throttled run) is a fine outcome
+          # Re-append on a fresh head if someone else pushed between clone and now —
+          # never rebase the conflicting commit, just retry once on the new tip.
+          git push origin tone-ledger \
+            || (git pull --rebase origin tone-ledger && git push origin tone-ledger)
 
       - name: Export static site
         run: python tools/export_pages.py --out _site

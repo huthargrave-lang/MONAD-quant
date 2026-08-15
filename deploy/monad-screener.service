@@ -18,12 +18,21 @@ Environment=PYTHONUNBUFFERED=1
 # every import. Python degrades gracefully, but silently — saying "don't" is clearer
 # than relying on it to shrug.
 Environment=PYTHONDONTWRITEBYTECODE=1
+# The ledger's host column: rows written here must never be mistaken for CI's.
+Environment=MONAD_LEDGER_HOST=pi
 
 # Fund snapshot (~full curated universe) then tone snapshot (S&P subset + RSS).
 # /screener joins both; either alone still renders with an absence/partial provider line.
 # ~0.4s per ticker for fundamentals, plus Reddit's rate-limit pacing. 250 names is a
 # Pi-friendly tone balance; raise --limit toward 500 if the box has the time.
-ExecStart=/bin/bash -c '/home/hudson/MONAD-quant/venv/bin/python /home/hudson/MONAD-quant/tools/stock_screener.py fetch && /home/hudson/MONAD-quant/venv/bin/python /home/hudson/MONAD-quant/tools/screener_lab.py refresh --limit 250'
+# Three fetches, and the middle one was MISSING for as long as this service existed: the Pi
+# never ran the `prices` subcommand, so data/screener/prices.json aged forever on the box
+# whose job is keeping data fresh (found by the engine-overlay investigation, which assumed
+# the timer refreshed it). And `refresh --limit 250` scored tone for the alphabetical head of
+# the S&P pull — measured overlap with the 225 names the page actually shows: 51. The page's
+# own docstring says it ignores this snapshot's fundamentals, so the fundamentals loop bought
+# nothing. --tone-only scores the screener's real universe, which is the one the page renders.
+ExecStart=/bin/bash -c '/home/hudson/MONAD-quant/venv/bin/python /home/hudson/MONAD-quant/tools/stock_screener.py fetch && /home/hudson/MONAD-quant/venv/bin/python /home/hudson/MONAD-quant/tools/stock_screener.py prices && /home/hudson/MONAD-quant/venv/bin/python /home/hudson/MONAD-quant/tools/screener_lab.py refresh --tone-only'
 
 # The trader owns this machine. A research fetch must be invisible to it: lowest CPU
 # priority, idle I/O class, and a hard ceiling so a hung vendor call cannot leave a
@@ -36,7 +45,9 @@ TimeoutStartSec=1800
 # Writes gitignored snapshot caches only — never state.db, live/**, config.py, or the
 # broker. Production /screener joins both files: fund universe + tone.
 ProtectSystem=strict
-ReadWritePaths=/home/hudson/MONAD-quant/data/cache /home/hudson/MONAD-quant/data/screener
+# data/tone_ledger added so the Pi keeps a LOCAL ledger residue (host column 'pi').
+# It does not push — CI is the writer of record until a deploy key lands.
+ReadWritePaths=/home/hudson/MONAD-quant/data/cache /home/hudson/MONAD-quant/data/screener /home/hudson/MONAD-quant/data/tone_ledger
 PrivateTmp=true
 NoNewPrivileges=true
 

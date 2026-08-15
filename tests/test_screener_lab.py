@@ -41,6 +41,7 @@ Run: `venv/bin/python -m unittest tests.test_screener_lab -v`
 """
 from __future__ import annotations
 
+import inspect
 import json
 import os
 import sys
@@ -1418,3 +1419,95 @@ class TheRingCursorRotatesTheRateCap(unittest.TestCase):
         self.assertTrue(rows[0]["stocktwits_attempted"])
         self.assertFalse(rows[1]["stocktwits_attempted"])
         self.assertEqual(rows[1]["stocktwits_coverage"], 0)
+
+
+class TheToneLedgerIsTheResidueTheRefreshLeaves(unittest.TestCase):
+    """Every refresh overwrites the snapshot, so weeks of scheduled runs had produced ONE
+    observation: the latest. The ledger is one dated row per (run, ticker, source), and the
+    scheduled jobs that already fire make it a real series by existing."""
+
+    def _snapshot(self):
+        return {
+            "built_at": "2026-08-15T03:00:00+00:00", "tone_only": True, "screened": 2,
+            "rows": [
+                {"ticker": "AAA", "stocktwits_tone": 0.5, "stocktwits_coverage": 4,
+                 "stocktwits_toned": 2, "stocktwits_fresh": 1, "stocktwits_base": 0.67,
+                 "stocktwits_attempted": True, "yahoo_tone": None, "yahoo_coverage": 0,
+                 "yahoo_toned": 0, "yahoo_fresh": 0},
+                {"ticker": "BBB", "stocktwits_tone": None, "stocktwits_coverage": 0,
+                 "stocktwits_toned": 0, "stocktwits_fresh": 0, "stocktwits_base": 0.67,
+                 "stocktwits_attempted": False, "yahoo_tone": 0.1, "yahoo_coverage": 3,
+                 "yahoo_toned": 3, "yahoo_fresh": 2},
+            ],
+            "providers": [{"key": "stocktwits", "state": "live", "documents": 4},
+                          {"key": "yahoo", "state": "degraded", "documents": 3}],
+        }
+
+    def test_a_row_lands_per_run_ticker_source_and_absence_survives_csv(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            shard = lab.append_ledger(self._snapshot(), root=td)
+            body = open(shard, encoding="utf-8").read().splitlines()
+            self.assertEqual(body[0], ",".join(lab.LEDGER_FIELDS))
+            self.assertEqual(len(body), 1 + 2 * len(lab.TONE_SOURCES))
+            # BBB's stocktwits tone is None -> an EMPTY cell, never 0. The three-state
+            # absence rule has to survive the format change or the ledger poisons every
+            # analysis built on it with silent neutrality.
+            bbb = [l for l in body if l.startswith("2026-08-15T03:00:00+00:00")
+                   and ",BBB,stocktwits," in l][0]
+            parts = bbb.split(",")
+            self.assertEqual(parts[lab.LEDGER_FIELDS.index("tone")], "")
+            self.assertEqual(parts[lab.LEDGER_FIELDS.index("attempted")], "0")
+            aaa_yh = [l for l in body if ",AAA,yahoo," in l][0].split(",")
+            # yahoo has no attempted concept: empty, which must never read as "not asked".
+            self.assertEqual(aaa_yh[lab.LEDGER_FIELDS.index("attempted")], "")
+
+    def test_two_appends_accumulate_rather_than_overwrite(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            lab.append_ledger(self._snapshot(), root=td)
+            snap2 = self._snapshot(); snap2["built_at"] = "2026-08-16T03:00:00+00:00"
+            shard = lab.append_ledger(snap2, root=td)
+            body = open(shard, encoding="utf-8").read().splitlines()
+            self.assertEqual(len(body), 1 + 2 * 2 * len(lab.TONE_SOURCES),
+                             "the second run replaced the first instead of following it")
+            self.assertEqual(sum(1 for l in body if l == ",".join(lab.LEDGER_FIELDS)), 1,
+                             "the header was written twice")
+
+    def test_runs_csv_records_provider_state_per_source(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            lab.append_ledger(self._snapshot(), root=td)
+            runs = open(os.path.join(td, "runs.csv"), encoding="utf-8").read()
+            self.assertIn("stocktwits,live,4,0.67", runs)
+            self.assertIn("yahoo,degraded,3,", runs)
+
+    def test_a_test_snapshot_write_leaves_no_ledger_row(self):
+        """The first version appended on EVERY write_snapshot, and one unittest run salted
+        the real history with a company called AAA. The hook fires only for the canonical
+        path or an explicit env override — a history test runs can silently salt is worse
+        than no history."""
+        import tempfile
+        src = inspect.getsource(lab.write_snapshot)
+        self.assertIn("os.path.abspath(path) == os.path.abspath(SNAPSHOT_PATH)", src)
+        with tempfile.TemporaryDirectory() as td:
+            path = os.path.join(td, "elsewhere.json")
+            before = os.path.exists(lab.TONE_LEDGER_DIR)
+            lab.write_snapshot(self._snapshot(), path)
+            self.assertEqual(os.path.exists(lab.TONE_LEDGER_DIR), before,
+                             "a non-canonical write created the real ledger")
+
+    def test_a_broken_ledger_never_breaks_the_refresh(self):
+        """The firewall: the ledger is additive or absent, never a failure mode. Env points
+        the writer at a path that cannot be a directory."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            blocker = os.path.join(td, "blocker")
+            open(blocker, "w").write("a file where a directory must go")
+            os.environ[lab.TONE_LEDGER_DIR_ENV] = os.path.join(blocker, "nested")
+            try:
+                path = os.path.join(td, "snap.json")
+                lab.write_snapshot(self._snapshot(), path)   # must not raise
+                self.assertTrue(os.path.exists(path), "the snapshot itself was lost")
+            finally:
+                del os.environ[lab.TONE_LEDGER_DIR_ENV]
