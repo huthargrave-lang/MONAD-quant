@@ -971,16 +971,34 @@ def price_universe():
 
 
 def fetch_prices(out_path=PRICES_PATH, bars=PRICE_BARS):
-    """Daily closes for every priceable ticker, batched. Needs network.
+    """Daily closes for every priceable ticker, batched, ON ONE CALENDAR. Needs network.
 
     Closes only, rounded to cents: the screener plots an indexed line, so OHLCV would be
-    an order of magnitude more payload for detail nothing on the page reads."""
+    an order of magnitude more payload for detail nothing on the page reads.
+
+    THE CALENDAR IS THE POINT. This used to slice the tail and THEN drop NaNs, which
+    COMPACTED each series: a ticker that did not trade on some session had its remaining
+    closes shifted left, so position `i` meant a different date for every ticker. Nothing
+    downstream could tell, because the file stored bare lists of floats and no dates at all.
+
+    It matters more than it sounds. Aligning one European name head-first rather than
+    tail-first swings its measured correlation with a US peer by 0.16 — about four times the
+    sampling error on that estimate. Any number computed across two tickers was resting on an
+    undocumented, unrecorded convention.
+
+    So: one `dates` vector, shared; every series the same length as it; and a session a ticker
+    did not trade is `None` in place rather than closed up. `None` is the absence this repo
+    already knows how to render — a hole in a series is not the next day's price.
+    """
     import yfinance as yf   # deferred: every read path must work without it
 
     tickers = price_universe()
     frame = yf.download(tickers, period="1y", interval="1d",
                         auto_adjust=True, progress=False, threads=True)
     closes = frame["Close"] if "Close" in frame else frame
+    # The union calendar, newest `bars` sessions, as plain ISO dates. Taken from the frame's
+    # own index so it is the vendor's trading calendar rather than one reconstructed here.
+    dates = [str(d)[:10] for d in list(getattr(closes, "index", []))[-bars:]]
     series, errors = {}, {}
     for ticker in tickers:
         try:
@@ -988,9 +1006,10 @@ def fetch_prices(out_path=PRICES_PATH, bars=PRICE_BARS):
             if col is None:
                 errors[ticker] = "no column in the download"
                 continue
-            vals = [round(float(v), 2) for v in col.tolist()[-bars:]
-                    if v == v and v is not None]      # v != v filters NaN
-            if len(vals) < 2:
+            # Sliced to the SAME window as `dates`, and not compacted: index i is date i.
+            vals = [None if (v != v or v is None) else round(float(v), 2)
+                    for v in col.tolist()[-bars:]]
+            if len([v for v in vals if v is not None]) < 2:
                 errors[ticker] = "fewer than two closes returned"
                 continue
             series[ticker] = vals
@@ -1000,6 +1019,10 @@ def fetch_prices(out_path=PRICES_PATH, bars=PRICE_BARS):
         "as_of": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "source": "yfinance daily closes, auto-adjusted",
         "bars": bars,
+        # The one calendar every series is aligned to. Its presence is also the version
+        # marker: a file without it predates the alignment fix and index i cannot be trusted
+        # to mean one date across tickers, which `price_matrix()` checks rather than assumes.
+        "dates": dates,
         "errors": errors,
         # Not requested, and not an error either. A reader looking for EURN on a tankers
         # chart needs to be told it was renamed, which is a different answer from "the fetch

@@ -3841,3 +3841,116 @@ class TheBriefingSurvivedAnAttackAndTheseAreTheHoles(unittest.TestCase):
         m = re.search(r'getElementById\("openDesk"\)[\s\S]{0,700}?\n  \}', self.js)
         self.assertIsNotNone(m)
         self.assertIn(".focus()", m.group(0), "focus is not moved into the revealed desk")
+
+
+class TheConcentrationCardMeasuresRatherThanAsserts(unittest.TestCase):
+    """The first surface on this board that reads the whole price matrix instead of five
+    series of it. Before it, the page held 31,589 real daily closes and computed nothing from
+    them: a grep for correlat|stdev|drawdown|sharpe across 8,900 lines returned zero.
+
+    The statistic is effN = k / (1 + (k-1) * rho). It is NOT correlation, deliberately —
+    correlation's answer is foreordained by the membership (residualise a bucket on a sector
+    ETF that is already a member and seven of twenty collapse: Naval/yards 0.41 to -0.01 once
+    ITA is removed). effN costs the same arithmetic and its answer is not."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.html = _page()
+        cls.js = _decomment(_script(cls.html))
+
+    def test_the_arithmetic_lives_in_python_and_the_page_only_draws_it(self):
+        body = _functions(self.js).get("drawConc")
+        self.assertIsNotNone(body, "drawConc is gone")
+        self.assertIn("concentration", body)
+        for computed in ("Math.sqrt", "pstdev", "/ (1 + (", "corr("):
+            self.assertNotIn(computed, body,
+                             "the page recomputes the statistic instead of rendering the "
+                             "verdict Python shipped; that is two implementations of one rule")
+
+    def test_the_card_never_silently_clips(self):
+        """Row height is derived from the pane. A fixed height drew a 309px chart into an 89px
+        host — thirteen of nineteen rows clipped with nothing saying so. Below the readable
+        floor it shows fewer rows AND says how many it left out."""
+        body = _functions(self.js).get("drawConc")
+        # The CONDITION, not the words. Written as two assertIns on "dropped" and on the
+        # sentence, this passed on a mutation that changed `if(dropped > 0)` to `if(false)` —
+        # both strings survive in dead code, so the guard was reading a message that could
+        # no longer be reached.
+        self.assertIn("if(dropped > 0){", body,
+                      "the row-drop notice is no longer conditioned on rows being dropped")
+        self.assertIn("do not fit this pane", body,
+                      "the card can drop rows without telling anyone")
+        self.assertRegex(body, r"dropped = scored\.length - fits",
+                         "nothing counts what was left out")
+
+    def test_every_caveat_python_ships_reaches_the_reader(self):
+        """The measurement is only honest with its exclusions attached: quantised cash ETFs,
+        wrapper pairs at rho 0.999, and series with no shared calendar."""
+        body = _functions(self.js).get("drawConc")
+        for shipped in ("window_note", "duplicates", "alignment", "reason"):
+            with self.subTest(field=shipped):
+                self.assertIn(shipped, body,
+                              "%s is computed and shipped but never rendered" % shipped)
+
+    def test_the_card_parks_when_there_is_no_derivation(self):
+        self.assertIn('conc:  "a concentration derivation computed from the closes"', self.js)
+        self.assertIn("conc: !!(conc &&", self.js,
+                      "availability is not read from the payload, so the card can draw an "
+                      "empty frame instead of parking")
+
+
+class TheConcentrationArithmeticRefusesWhatItCannotMeasure(unittest.TestCase):
+    """Guards on tools/concentration.py itself — the three ways this goes wrong, each
+    detected rather than assumed."""
+
+    def test_a_series_that_moves_in_rounding_steps_is_refused(self):
+        """Closes are stored rounded to cents. For a cash ETF that step can exceed the daily
+        standard deviation, so the "correlation" is synchronised rounding. Measured live:
+        every one of Liquid Fear's six members is excluded and the bucket is not scored."""
+        import concentration as conc  # noqa: PLC0415
+        # A series that only ever moves by one cent around 100.00 — sd at the rounding floor.
+        flat = [100.0 + (0.01 if i % 3 else 0.0) for i in range(130)]
+        self.assertGreater(conc._quantisation_ratio(flat), conc.QUANTISATION_LIMIT)
+        # A series with real daily moves is not.
+        real = [100.0 * (1.01 ** (i % 7 - 3)) for i in range(130)]
+        self.assertLess(conc._quantisation_ratio(real), conc.QUANTISATION_LIMIT)
+
+    def test_a_gap_is_not_a_return(self):
+        """Closing up a missing session manufactures a multi-day move and reports it as a
+        one-day one — the same error class as compacting the series."""
+        import concentration as conc  # noqa: PLC0415
+        self.assertEqual(conc._returns([10.0, None, 12.0]), [None, None])
+
+    def test_effective_bets_spans_one_to_k(self):
+        import concentration as conc  # noqa: PLC0415
+        ident = [0.01 * ((i % 5) - 2) for i in range(130)]
+        same = {"A": ident, "B": list(ident), "C": list(ident)}
+        out = conc.bucket_concentration(["A", "B", "C"], same)
+        self.assertAlmostEqual(out["eff_n"], 1.0, places=1,
+                               msg="three identical series must be one bet")
+        self.assertTrue(out["duplicates"], "identical series are not named as duplicates")
+
+    def test_a_dateless_price_file_is_aligned_by_position_and_says_so(self):
+        """Positional alignment across two calendars is a silent error worth about four
+        standard errors, so the fallback names every ticker it had to exclude."""
+        import concentration as conc  # noqa: PLC0415
+        rets, align = conc.aligned_returns(
+            {"series": {"A": [1.0] * 121, "B": [1.0] * 121, "ODD": [1.0] * 124}})
+        self.assertEqual(align["aligned_by"], "position")
+        self.assertIn("ODD", align["excluded"])
+        self.assertIn("no date index", align["why"])
+        # The BEHAVIOUR, not just the report of it. Written checking only `excluded`, this
+        # passed on a mutation that kept every series and reported ODD as excluded anyway —
+        # a guard reading the receipt instead of the goods.
+        self.assertNotIn("ODD", rets,
+                         "a series of a different length is reported as excluded and then "
+                         "used anyway")
+        self.assertEqual(sorted(rets), ["A", "B"])
+
+    def test_a_dated_price_file_is_aligned_by_date(self):
+        import concentration as conc  # noqa: PLC0415
+        _r, align = conc.aligned_returns(
+            {"dates": ["2026-01-0%d" % i for i in range(1, 6)],
+             "series": {"A": [1.0, 2.0, None, 4.0, 5.0], "B": [1.0] * 5}})
+        self.assertEqual(align["aligned_by"], "date")
+        self.assertEqual(align["excluded"], {})

@@ -64,6 +64,7 @@ for _p in (REPO, TOOLS):
 import ctx  # noqa: E402  — the context layer; reused, never duplicated
 import stock_screener  # noqa: E402  — presets + snapshot; all HTML for it lives here
 import screener_lab  # noqa: E402  — the sentiment screen's engine; renders, never fetches
+import concentration
 import sovereign_buckets  # noqa: E402  — the canonical chaos-bucket table; serialised, not copied
 import sweep_runner  # noqa: E402  — runs sweep.py as a job; never with --apply
 import scenarios  # noqa: E402  — modelled scenarios; derived in Python, only read in JS
@@ -4905,6 +4906,15 @@ def _screener_combined_draft_payload():
         } if prices else {},
         "price_as_of": (prices or {}).get("as_of"),
         "price_cmd": "venv/bin/python tools/stock_screener.py prices",
+        # HOW MANY INDEPENDENT BETS EACH BUCKET ACTUALLY IS, measured from those closes.
+        # Computed here rather than on the page for the reason every derivation in this
+        # payload is: the arithmetic has caveats — quantised cash ETFs, wrapper pairs at
+        # rho 0.999, series that cannot be put on one calendar — and a page-side copy would
+        # be a second place for those to be got wrong. The page renders the verdict.
+        "concentration": concentration.concentration(
+            sovereign_buckets.BUCKETS, prices,
+            lambda b: list(b.get("liquid") or []) + list(b.get("satellite") or []),
+        ) if prices else None,
     }
 
 

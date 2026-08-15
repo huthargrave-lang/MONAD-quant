@@ -1542,6 +1542,21 @@ table.bwatch .spark{width:80px;height:26px;display:block}
         </div>
       </article>
 
+      <article class="tile" data-id="conc" id="tile-conc">
+        <div class="tile-bar" data-drag>
+          <span class="tile-grip">&#8942;&#8942;</span>
+          <h2 id="concTitle">How many bets is each thesis</h2>
+          <button type="button" class="qmark" data-explain="concExplain" aria-expanded="false"
+            aria-label="What effective bets means">?</button>
+          <div class="tile-meta" id="concMeta">&#8212;</div>
+          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">&#215;</button>
+        </div>
+        <div class="tile-body">
+          <div class="chart-host" id="concChart"></div>
+          <div class="legend" id="concLegend"></div>
+        </div>
+      </article>
+
       <article class="tile" data-id="card" id="tile-card">
         <div class="tile-bar" data-drag>
           <span class="tile-grip">⋮⋮</span>
@@ -1902,6 +1917,34 @@ table.bwatch .spark{width:80px;height:26px;display:block}
   ratio underneath.</p>
 </div>
 
+<div class="explain" id="concExplain" role="dialog" aria-modal="false"
+     aria-labelledby="concExplainTitle" hidden>
+  <h3 id="concExplainTitle">What &#8220;effective bets&#8221; is, and what it is not</h3>
+  <p>A bucket lists ten or thirteen tickers. That presentation asserts nothing, and a reader
+  supplies the obvious inference: thirteen names is thirteen positions. Often it is not.</p>
+  <p><b>effN = k &#247; (1 + (k&#8722;1) &#215; &#961;)</b> &#8212; where <b>k</b> is how many
+  members carry a usable price series and <b>&#961;</b> is their mean pairwise daily-return
+  correlation. At &#961;&#160;=&#160;0 it returns k, every name its own bet. At
+  &#961;&#160;=&#160;1 it returns 1: they are all the same bet.</p>
+  <p><b>Why this and not correlation itself.</b> Correlation was the first thing tried and it
+  does not survive its own audit: residualise a bucket on a sector ETF that is <em>already a
+  member of it</em> and seven of twenty collapse &#8212; Naval&#160;/&#160;yards from 0.41 to
+  &#8722;0.01 once ITA is taken out. &#8220;Do these co-move?&#8221; answers &#8220;yes, they
+  are all defense names&#8221;, which the ticker list already said. effN costs the same
+  arithmetic and its answer is not foreordained.</p>
+  <p><b>It assumes every pair is equally correlated.</b> That is rarely exactly true, so the
+  spread of the pairwise distribution is printed beside each number: a bucket held together by
+  one tight cluster and three strangers does not read the same as a uniformly tight one.</p>
+  <p><b>Three ways it goes wrong, all detected rather than assumed.</b> Closes are rounded to
+  cents, and for a cash ETF that step can exceed the daily standard deviation &#8212; the
+  &#8220;correlation&#8221; would be synchronised rounding, so such buckets are refused rather
+  than scored. Wrapper pairs (GLD/IAU at 0.9998) are three listings of one exposure; effN
+  handles them correctly by construction, and they are named so the count is legible. And
+  series that cannot be put on one calendar are excluded by name, never aligned by guess.</p>
+  <p><b>One regime, not a constant.</b> This is a description of the sessions in the window
+  and nothing else. Correlation regimes change; this repo&#8217;s own research web holds that
+  finding. It is not a forecast, not a risk model, and not an allocation.</p>
+</div>
 <div class="explain" id="shadowExplain" role="dialog" aria-modal="false"
      aria-labelledby="shadowExplainTitle" hidden>
   <button type="button" class="explain-close" id="shadowExplainClose" data-panel-close
@@ -2346,7 +2389,7 @@ let priceWindow = null;
 /* Which tiles have a source in the loaded payload. Recomputed from the payload itself in
    applyLivePayload() rather than listed by hand, so a tile stops being parked the moment its
    data actually turns up and nobody has to remember to edit a list. */
-let DATA_PRESENT = {price:false, tone:false};
+let DATA_PRESENT = {price:false, tone:false, conc:false};
 
 /* Tickers are vendor strings and land inside a selector; BRK-B and CL=F are already in
    the universe. CSS.escape is not on every engine this has to open in. */
@@ -2721,7 +2764,7 @@ function priceCohort(cap){
    analytical OUTPUTS about a chosen universe, not controls that choose one — the same kind of
    thing as the scatter and the ranking, and placed, dragged and resized by the same system.
    Keeping them in the context turned it into a second dashboard. */
-const TILE_IDS = ["plot","price","tone","rank","dist","shadow","card","watch","bpanel","bwatch",
+const TILE_IDS = ["plot","price","tone","rank","dist","shadow","conc","card","watch","bpanel","bwatch",
                   "spath","sdev","sopps"];
 /* The two modules whose availability is a fact about the SELECTED SHOCK rather than about the
    payload. Everything else on this board is available whenever its source is, for the whole
@@ -2739,6 +2782,7 @@ const TILE_LABELS = {
   spath:"Probability path", sdev:"Development timeline",
   sopps:"Scenario reach by direction",
   rank:"Ranked by lens", dist:"Distribution", shadow:"AI shadow",
+  conc:"How many bets is each thesis",
   card:"Stock detail", watch:"Watchlist",
   bucketctl:"Shock & clock", buckets:"Chaos buckets",
   bpanel:"Bucket panel", bwatch:"Bucket constituents"
@@ -2750,6 +2794,8 @@ const TILE_NOTES = {
   rank:  "The lens's matches sorted by whatever that lens ranks on.",
   dist:  "Where the matches sit inside the wider distribution of one field.",
   shadow:"Reported on-BS debt/equity for editorially shadow-tagged names.",
+  conc:  "A bucket of thirteen tickers can be thirteen positions or one trade "
+         + "wearing thirteen names. Measured from the closes, not asserted.",
   card:  "The pinned name's whole results-table row, read without scrolling down to it.",
   watch: "Names you kept, with the lens's own ranking metric — survives lens changes and reload.",
   bucketctl:"Shock, clock, tier and search — what the bucket heat is read under.",
@@ -2774,6 +2820,11 @@ const TILE_NOTES = {
 const TILE_NEEDS = {
   price: "a per-ticker price history in the payload",
   tone:  "a tone snapshot with headline documents",
+  // Not the same requirement as `price`. This one needs the DERIVATION, which Python computes
+  // from the closes and omits entirely when there is no price file — so a payload could in
+  // principle carry series and no concentration, and the card must park rather than draw an
+  // empty frame.
+  conc:  "a concentration derivation computed from the closes",
 };
 /* The tiles that currently have no source. Recomputed from the payload, so this shrinks by
    itself when data appears — nothing here is a hand-maintained list of what is broken. */
@@ -3713,7 +3764,7 @@ function tileOption(id, note){
    plain content, and Bucket history / detail / price feed / Book I are four TABS INSIDE
    `bpanel`, not four widgets. Listing them here would invent registry entries. */
 const TILE_GROUPS = [
-  {title:"Core analysis",  keys:["plot", "rank", "dist", "price"]},
+  {title:"Core analysis",  keys:["plot", "rank", "dist", "price", "conc"]},
   {title:"Research",       keys:["tone", "shadow", "card", "watch"]},
   {title:"Context \u00b7 buckets", keys:["bpanel", "bwatch", "spath", "sdev", "sopps"]},
 ];
@@ -3732,6 +3783,7 @@ const TILE_BRIEF = {
   rank:  "Current matches, ranked by the selected lens.",
   dist:  "Where the matches sit in one field's distribution.",
   shadow:"Reported debt/equity for shadow-tagged names.",
+  conc:  "Whether a thesis is many positions or one, measured.",
   card:  "The pinned name's whole results-table row.",
   watch: "Names you kept, with the lens's ranking metric.",
   bpanel:"History, thesis, price feed and Book I for the selection.",
@@ -4206,7 +4258,8 @@ function initBoard(){
 
   // Charts are sized from their host box, so they must be redrawn when a pane resizes.
   if(typeof ResizeObserver !== "undefined"){
-    ["plot","priceChart","rankChart","distChart","shadowChart","bChart"].forEach(id=>{
+    ["plot","priceChart","rankChart","distChart","shadowChart","bChart",
+     "concChart"].forEach(id=>{
       const el = document.getElementById(id);
       if(el) new ResizeObserver(()=>scheduleChartReflow()).observe(el);
     });
@@ -4250,7 +4303,7 @@ function scheduleChartReflow(){
     // drawScenPath sizes its SVG from the host box like every chart above it, so it belongs
     // in this list; drawScenDev is flowed text and does not.
     [drawPlot, drawPrice, drawRank, drawDist, drawShadow, drawBucketChart,
-     drawScenPath].forEach(fn=>{
+     drawScenPath, drawConc].forEach(fn=>{
       try{ fn(); }catch(e){ console.error(e); }
     });
   });
@@ -8218,6 +8271,123 @@ function bucketNameForId(id){
    into a probability path is a modelling claim, legitimate only where a model defines that
    arithmetic — and this fixture explicitly does not, which is why the two tiles can sit side
    by side without one appearing to explain the other. */
+/* ── How many bets is each thesis ──────────────────────────────────────────────────────────
+   The first chart on this board that reads the whole price matrix rather than five series of
+   it. Python does the arithmetic and ships the verdict; this draws it and nothing else.
+
+   A LOLLIPOP, not a bar. The quantity is a position on a scale from 1 (one trade wearing k
+   tickers) to k (k independent positions), and the informative thing is the GAP between the
+   two — how much of the declared breadth is real. A bar from zero would draw the gap as the
+   part it leaves out. The track shows k, the dot shows effN, the ink between them is what the
+   ticker list overstates. */
+function drawConc(){
+  const host = document.getElementById("concChart"), meta = document.getElementById("concMeta");
+  const legend = document.getElementById("concLegend");
+  if(!host || !meta) return;
+  const C = (window.__DRAFT_LIVE__ || {}).concentration;
+  if(!C || !C.buckets){
+    meta.textContent = "no prices";
+    host.innerHTML = '<p class="dc-empty"><b>No price snapshot</b> is loaded, so there is '
+      + 'nothing to measure. This card reads closes, not the ledger.</p>';
+    if(legend) legend.innerHTML = "";
+    return;
+  }
+  if(!host.clientWidth || !host.clientHeight) return;
+  const scored = C.buckets.filter(b => b.eff_n != null).sort((a, b) => a.eff_n - b.eff_n);
+  const refused = C.buckets.filter(b => b.eff_n == null);
+  if(!scored.length){
+    meta.textContent = "nothing scorable";
+    host.innerHTML = '<p class="dc-empty"><b>No bucket could be scored.</b></p>';
+    return;
+  }
+  const names = scored.reduce((a, b) => a + b.priced, 0);
+  const bets = scored.reduce((a, b) => a + b.eff_n, 0);
+  meta.textContent = names + " names → " + bets.toFixed(1) + " independent bets";
+
+  const W = Math.max(280, Math.floor(host.clientWidth));
+  const L = 108, R = 44, T = 8, B = 16;
+  /* Row height is derived from the pane, not fixed. A fixed 15px drew a 309px chart into an
+     89px host — 19 rows of which six were visible and thirteen were clipped with nothing
+     saying so. Below the readable floor the chart shows the most concentrated rows and SAYS
+     how many it left out, because a silent top-N is the same lie as a clipped one. */
+  const FLOOR = 11;
+  const avail = Math.max(60, Math.floor(host.clientHeight) - T - B);
+  let shown = scored, dropped = 0;
+  let rowH = Math.min(22, avail / scored.length);
+  if(rowH < FLOOR){
+    const fits = Math.max(3, Math.floor(avail / FLOOR));
+    dropped = scored.length - fits;
+    shown = scored.slice(0, fits);          // already sorted most-concentrated first
+    rowH = FLOOR;
+  }
+  const H = Math.max(80, T + B + shown.length * rowH);
+  const maxK = Math.max.apply(null, shown.map(b => b.priced));
+  // Scale starts at 1, not 0: one bet is the floor of the quantity, and a scale from zero
+  // would give a third of the pane to a region nothing can occupy.
+  const x = v => L + ((v - 1) / Math.max(maxK - 1, 1)) * (W - L - R);
+  const parts = ['<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H
+    + '" role="img" aria-label="Effective independent bets per bucket">'];
+  for(let g = 1; g <= maxK; g += (maxK > 8 ? 2 : 1)){
+    parts.push('<line x1="' + x(g).toFixed(1) + '" y1="' + T + '" x2="' + x(g).toFixed(1)
+      + '" y2="' + (H - B) + '" stroke="var(--axis)" stroke-width="0.5" opacity="0.35"/>');
+    parts.push('<text x="' + x(g).toFixed(1) + '" y="' + (H - 5) + '" text-anchor="middle" '
+      + 'font-size="8" fill="var(--ink-muted)" font-family="var(--mono)">' + g + '</text>');
+  }
+  shown.forEach((b, i) => {
+    const y = T + i * rowH + rowH / 2;
+    const x1 = x(1), xk = x(b.priced), xe = x(b.eff_n);
+    const dup = (b.duplicates || []).length;
+    parts.push('<text x="' + (L - 6) + '" y="' + (y + 3) + '" text-anchor="end" font-size="9" '
+      + 'fill="var(--ink-2)">' + esc(b.name.length > 17 ? b.name.slice(0, 16) + "…" : b.name)
+      + '</text>');
+    // The declared breadth, drawn as the track it could have reached.
+    parts.push('<line x1="' + x1.toFixed(1) + '" y1="' + y + '" x2="' + xk.toFixed(1) + '" y2="'
+      + y + '" stroke="var(--rule)" stroke-width="3" stroke-linecap="round"/>');
+    parts.push('<line x1="' + x1.toFixed(1) + '" y1="' + y + '" x2="' + xe.toFixed(1) + '" y2="'
+      + y + '" stroke="var(--ord-3)" stroke-width="3" stroke-linecap="round"/>');
+    parts.push('<circle cx="' + xe.toFixed(1) + '" cy="' + y + '" r="3.4" fill="var(--ord-4)"/>');
+    parts.push('<circle cx="' + xk.toFixed(1) + '" cy="' + y + '" r="1.8" fill="var(--axis)"/>');
+    parts.push('<text x="' + (W - R + 6) + '" y="' + (y + 3) + '" font-size="9" '
+      + 'font-family="var(--mono)" fill="var(--ink)">' + b.eff_n.toFixed(2) + '</text>');
+    parts.push('<title>' + esc(b.name) + ' — ' + b.priced + ' priced names, mean pairwise '
+      + 'correlation ' + b.rho + ' (spread ' + b.rho_spread + ') → ' + b.eff_n
+      + ' effective bets' + (dup ? '; ' + dup + ' near-duplicate pair' + (dup > 1 ? 's' : '')
+      + ' at rho ≥ 0.99' : '') + '</title>');
+  });
+  parts.push('</svg>');
+  host.innerHTML = parts.join("");
+
+  if(legend){
+    const dupes = scored.flatMap(b => (b.duplicates || []).map(d =>
+      d.a + "/" + d.b + " " + d.rho.toFixed(3)));
+    const bits = ['<span class="lg"><span class="sw" style="background:var(--ord-4)"></span>'
+      + 'effective bets</span>',
+      '<span class="lg"><span class="sw" style="background:var(--rule)"></span>'
+      + 'names declared</span>'].join(" &#183; ");
+    let out = '<div class="legend-row">' + bits + '</div>';
+    if(dropped > 0){
+      out += '<p class="scen-note">Showing the <b>' + shown.length + '</b> most concentrated; '
+        + '<b>' + dropped + '</b> more do not fit this pane at a readable row height. '
+        + 'Give the card more height to see them.</p>';
+    }
+    out += '<p class="scen-note">' + esc(C.window_note) + '.</p>';
+    if(dupes.length){
+      out += '<p class="scen-note">Listed twice, effectively: <b>' + esc(dupes.slice(0, 4).join(", "))
+        + '</b>' + (dupes.length > 4 ? " and " + (dupes.length - 4) + " more" : "")
+        + ' — one exposure under several tickers, which is why those buckets score low.</p>';
+    }
+    const ex = Object.keys((C.alignment || {}).excluded || {});
+    if(ex.length){
+      out += '<p class="scen-note">Excluded, no shared calendar: <b>' + esc(ex.join(", "))
+        + '</b>. ' + esc((C.alignment || {}).why || "") + '.</p>';
+    }
+    refused.forEach(b => {
+      out += '<p class="scen-note"><b>' + esc(b.name) + '</b> is not scored — '
+        + esc(b.reason || "no reason recorded") + '.</p>';
+    });
+    legend.innerHTML = out;
+  }
+}
 function drawScenPath(){
   const host = document.getElementById("spathChart");
   if(!host || !host.clientWidth || !host.clientHeight) return;
@@ -8588,6 +8758,7 @@ function renderInner(){
   drawFeed();
   drawBook1();
   drawBucketChart();
+  drawConc();
   drawScenPath();
   drawScenDev();
   drawScenOpps();
@@ -8605,7 +8776,9 @@ function readDataPresence(live){
   const hasDocs = TONE_SOURCES.some(
     src => docs[src] && Object.keys(docs[src]).length);
   const hasCoverage = ROWS.some(r => TONE_SOURCES.some(src => toneCov(r, src) > 0));
-  return {price: hasPrice, tone: hasDocs || hasCoverage};
+  const conc = live && live.concentration;
+  return {price: hasPrice, tone: hasDocs || hasCoverage,
+          conc: !!(conc && (conc.buckets || []).some(b => b.eff_n != null))};
 }
 
 function applyLivePayload(){
