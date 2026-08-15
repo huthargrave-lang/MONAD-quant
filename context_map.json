@@ -477,6 +477,7 @@
         "tools/form4_discovery_lab.py",
         "tools/index_membership_event_pilot.py",
         "tools/live_backtest_parity.py",
+        "tools/equity_curve.py",
         "tools/nt_late_filer_lab.py",
         "tools/numeric_provenance_lab.py",
         "tools/overnight_gap_risk_study.py",
@@ -486,6 +487,7 @@
         "tools/research_ui.py",
         "tools/return_convention_lab.py",
         "tools/scenarios.py",
+        "tools/concentration.py",
         "tools/screener_lab.py",
         "tools/sec_action_chain_join_lab.py",
         "tools/sec_announce_cohort_lab.py",
@@ -499,6 +501,7 @@
         "tools/shadow_replay.py",
         "tools/sovereign_buckets.py",
         "tools/stock_screener.py",
+        "tools/sweep_runner.py",
         "tools/ui_tokens.py"
       ],
       "entrypoints": [],

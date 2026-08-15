@@ -51,6 +51,8 @@ data/graphify_suggestions/
 # and were not, so `git add -A` would have committed vendor rows on every refresh.
 data/cache/screener_snapshot.json
 data/cache/sp500_universe.json
+# The StockTwits ring cursor — run state, not data.
+data/cache/stocktwits_cursor.json
 data/screener/fundamentals.json
 # Same reasoning: closes are refetched, they churn every session, and the Pages build
 # pulls its own. A price cache is a CACHE, not a provenance artifact.

@@ -232,8 +232,11 @@ def cmd_where(args):
     rx = re.compile(pat)
     found = 0
     for root, dirs, files in os.walk(REPO):
-        dirs[:] = [d for d in dirs if d not in
-                   (".git", ".claude", "venv", "__pycache__", "local_logs", "local_backups", "local_runtime")]
+        # startswith("venv"), not the exact name: a venv-py39-backup kept during an
+        # interpreter rebuild is still a virtualenv, and matching only "venv" made
+        # every filesystem-walking test red on the machine doing the rebuild.
+        dirs[:] = [d for d in dirs if not d.startswith("venv") and d not in
+                   (".git", ".claude", "__pycache__", "local_logs", "local_backups", "local_runtime")]
         for fn in files:
             if not fn.endswith((".py",)):
                 continue
@@ -321,8 +324,11 @@ def cmd_find(args):
 
 def _iter_py(root_dir):
     for root, dirs, files in os.walk(root_dir):
-        dirs[:] = [d for d in dirs if d not in
-                   (".git", ".claude", "venv", "__pycache__", "local_logs", "local_backups", "local_runtime")]
+        # startswith("venv"), not the exact name: a venv-py39-backup kept during an
+        # interpreter rebuild is still a virtualenv, and matching only "venv" made
+        # every filesystem-walking test red on the machine doing the rebuild.
+        dirs[:] = [d for d in dirs if not d.startswith("venv") and d not in
+                   (".git", ".claude", "__pycache__", "local_logs", "local_backups", "local_runtime")]
         for fn in files:
             if fn.endswith(".py"):
                 yield os.path.join(root, fn)
