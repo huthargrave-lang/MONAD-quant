@@ -962,6 +962,20 @@ PRICE_BARS = 2520
 PAYLOAD_BARS = 126
 
 
+def payload_series(prices, bars=None):
+    """The tail every page ships — ONE definition, because there were three.
+
+    When the file deepened from 126 sessions to 2520, the combined screener sliced the tail
+    and the two bucket surfaces kept shipping the whole series — so a T-bill fund "moved
+    25.4%" over what its caption still called the recent window (that is a decade of coupon
+    accrual, not a move, and the regression harness caught it as an impossible price). Any
+    consumer that reads `prices["series"]` directly instead of this is that bug waiting to
+    recur.
+    """
+    n = bars or PAYLOAD_BARS
+    return {tk: v[-n:] for tk, v in ((prices or {}).get("series") or {}).items()}
+
+
 def price_universe():
     """Every ticker worth asking a price vendor for: the fundamentals universe PLUS the
     chaos-bucket constituents.

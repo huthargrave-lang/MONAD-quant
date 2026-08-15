@@ -4082,9 +4082,28 @@ class TheHistoryIsDeeperThanWhatTravels(unittest.TestCase):
                       "quietly returns less history than the constant claims")
 
     def test_the_payload_ships_only_the_tail(self):
+        """REWRITTEN: the first version pinned the literal "PAYLOAD_BARS:" and broke on the
+        refactor that STRENGTHENED the property (three raw emitters collapsed onto one
+        payload_series helper after the buckets pages shipped the whole decade and SHV
+        "moved 25.4%" over a window its caption called recent). Behaviour first, and the
+        source check names the helper every emitter must go through."""
+        deep = {"series": {"AAA": [float(i) for i in range(2520)]}}
+        tail = sc.payload_series(deep)
+        self.assertEqual(len(tail["AAA"]), sc.PAYLOAD_BARS)
+        self.assertEqual(tail["AAA"][-1], 2519.0, "the tail is not the newest end")
         src = inspect.getsource(research_ui._screener_combined_draft_payload)
-        self.assertIn("PAYLOAD_BARS:", src,
-                      "the whole ten-year matrix is shipped to the browser again")
+        self.assertIn("payload_series(prices)", src,
+                      "the draft payload no longer goes through the one tail definition")
+        # Every raw-series emitter in the module must go through the helper. A consumer
+        # reading prices["series"] directly is the SHV bug waiting to recur.
+        module_src = open(os.path.join(os.path.dirname(research_ui.__file__),
+                                       "research_ui.py"), encoding="utf-8").read()
+        raw_reads = re.findall(r'prices\.get\("series"\)', module_src)
+        self.assertLessEqual(
+            len(raw_reads), 2,
+            "a new consumer reads the raw series dict; route it through "
+            "stock_screener.payload_series (the two allowed reads are the banner count "
+            "and the concentration arithmetic, which NEED the full depth)")
 
 
 class TheConcentrationIsMeasuredAtSeveralDepths(unittest.TestCase):

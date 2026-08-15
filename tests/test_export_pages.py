@@ -226,11 +226,30 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("schedule:", self.wf)
         self.assertIn("workflow_dispatch:", self.wf)
 
-    def test_it_has_exactly_the_pages_permissions_and_no_write_to_contents(self):
-        self.assertIn("contents: read", self.wf)
+    def test_contents_write_exists_for_the_ledger_and_nothing_else(self):
+        """REWRITTEN when the tone ledger landed. The old guard pinned `contents: read` —
+        least privilege while the workflow only published. The ledger deliberately widened
+        it, so the claim this guard protects changed from "the workflow cannot write the
+        repo" to "the workflow writes exactly one thing": daily tone rows, pushed to the
+        dedicated tone-ledger branch. What must never appear is a push to any OTHER ref —
+        a workflow that can commit to development is a self-trigger loop (both workflows
+        fire on development pushes) and a supply-chain surface the read permission used to
+        preclude."""
+        self.assertIn("contents: write", self.wf)
         self.assertIn("pages: write", self.wf)
         self.assertIn("id-token: write", self.wf)
-        self.assertNotIn("contents: write", self.wf)
+        pushes = re.findall(r"git push [^\n]*", self.wf)
+        self.assertTrue(pushes, "contents:write with no push is a permission nothing uses")
+        for push in pushes:
+            self.assertIn("tone-ledger", push,
+                          "the workflow pushes to a ref other than tone-ledger: %r" % push)
+        self.assertNotIn("push origin development", self.wf)
+        # Every ledger step must be unable to fail the deploy.
+        for step in ("Check out the tone ledger", "Push the ledger rows"):
+            block = self.wf.split(step, 1)[1][:400]
+            self.assertIn("continue-on-error: true", block,
+                          "%s can fail the deploy; the ledger must be additive or absent"
+                          % step)
 
 
 if __name__ == "__main__":

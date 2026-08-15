@@ -4215,7 +4215,7 @@ def page_screen_sovereign(mounts):
         "__DELISTED_COUNT__", str(len(sovereign_buckets.DELISTED))).replace(
         "__BUCKETS_JS__",
         sovereign_buckets.runtime_js()
-        + "\nconst PRICES = " + json.dumps(prices.get("series") or {},
+        + "\nconst PRICES = " + json.dumps(stock_screener.payload_series(prices),
                                            separators=(",", ":")) + ";"
         + "\nconst PRICE_ASOF = " + json.dumps(prices.get("as_of") or "") + ";")
     return page("Chaos bucket screener", "/screen", body, mounts,
@@ -4421,7 +4421,7 @@ def _sovereign_buckets_html(mounts):
     prices = stock_screener.load_prices() or {}
     inject = "<script>\n{}\nconst PRICES = {};\nconst PRICE_ASOF = {};\nconst NOT_COMPANIES = {};\n</script>\n".format(
         sovereign_buckets.runtime_js(),
-        json.dumps(prices.get("series") or {}, separators=(",", ":")),
+        json.dumps(stock_screener.payload_series(prices), separators=(",", ":")),
         json.dumps(prices.get("as_of") or ""),
         json.dumps(dict(sovereign_buckets.NOT_COMPANIES), separators=(",", ":")))
     html = _with_rail(html, "/screener/buckets", mounts)
@@ -4985,11 +4985,11 @@ def _screener_combined_draft_payload():
         # regime; the chart draws at most five series of about six months, so shipping the
         # whole matrix would multiply every page load by twenty for pixels that do not exist.
         # The arithmetic that needs the depth runs in Python, below.
-        "price_history": {
-            tk: prices["series"][tk][-stock_screener.PAYLOAD_BARS:]
+        "price_history": (lambda tail: {
+            tk: tail[tk]
             for tk in ({r["tk"] for r in rows} | set(sovereign_buckets.all_tickers()))
-            if tk in prices["series"]
-        } if prices else {},
+            if tk in tail
+        })(stock_screener.payload_series(prices)) if prices else {},
         "price_as_of": (prices or {}).get("as_of"),
         "price_cmd": "venv/bin/python tools/stock_screener.py prices",
         # HOW MANY INDEPENDENT BETS EACH BUCKET ACTUALLY IS, measured from those closes.
