@@ -1045,8 +1045,10 @@ class SnapshotIsTheContractWithTheServer(unittest.TestCase):
             ticker_factory=FakeTicker, sleep=lambda _s: None)
         self.assertEqual(snapshot["screened"], 1)
         keys = {p["key"] for p in snapshot["providers"]}
-        self.assertEqual(keys, {"universe", "fundamentals", "bloomberg", "reddit",
-                                "yahoo"})
+        # Derived from the registry rather than written out — this pin went stale the day a
+        # fourth tone source landed in TONE_SOURCES and nobody re-ran this suite. The claim
+        # was never "these five names"; it was "every source is recorded, fetched or not".
+        self.assertEqual(keys, {"universe", "fundamentals"} | set(lab.TONE_SOURCES))
         states = {p["key"]: p["state"] for p in snapshot["providers"]}
         self.assertEqual(states["reddit"], lab.UNAVAILABLE)
         row = snapshot["rows"][0]
@@ -1205,14 +1207,34 @@ class ToneOnlyBuildTests(unittest.TestCase):
         """`refresh --tone-only` is what CI runs, so a source wired into the full build
         and forgotten here would be live on a laptop and absent on the published page —
         where it would read as a source that found nothing."""
+        asked = []
+
+        def spy_get(url, *a, **k):
+            asked.append(url)
+            if "stocktwits" in url:
+                return FakeResponse(200, payload={"messages": [
+                    {"id": 1, "body": "up", "created_at": "2026-08-14T00:00:00Z",
+                     "entities": {"sentiment": {"basic": "Bullish"}}}]})
+            return FakeResponse(200, YAHOO_XML)
+
         snap = lab.build_tone_snapshot(
-            self._universe(), get=lambda *a, **k: FakeResponse(200, YAHOO_XML),
-            env={}, sleep=lambda _s: None)
+            self._universe(), get=spy_get, env={}, sleep=lambda _s: None)
         keys = {p["key"] for p in snap["providers"]}
         for source in lab.TONE_SOURCES:
             self.assertIn(source, keys)
             for row in snap["rows"]:
                 self.assertIn(source + "_coverage", row, source)
+        # BEHAVIOUR, not bookkeeping. A build that calls fetch_stocktwits([]) still records a
+        # provider and still writes zeroed row fields, and the assertions above all pass over
+        # it — found by mutation. The build must ASK the stream about the universe's own
+        # tickers, and the answers must land on the rows.
+        for ticker, _n, _s in self._universe():
+            self.assertTrue(
+                any("stocktwits" in u and ticker in u for u in asked),
+                "the tone-only build never asked stocktwits about " + ticker)
+        for row in snap["rows"]:
+            self.assertEqual(row["stocktwits_coverage"], 1)
+            self.assertEqual(row["stocktwits_tone"], 1.0)
 
     def test_the_yahoo_leg_scores_the_universe_it_was_handed(self):
         """Non-vacuity for the wiring above: the fetcher is called with the build's own
@@ -1262,8 +1284,19 @@ class ALabProviderMustNotSpeakForAPageItDoesNotFeed(unittest.TestCase):
                        "series": {"AAA": [1.0, 2.0]}}
 
     def test_the_tone_only_fundamentals_line_never_reaches_the_combined_panel(self):
+        """NARROWED from a whole-panel string sweep to the card it protects. The original
+        assertion was `"tone-only" not in json.dumps(got)` — written when the only way that
+        string could appear was the lab's "this is a tone-only build, fundamentals not
+        fetched" line leaking into a panel whose fundamentals ARE live. Then a legitimate
+        remedy arrived (the predates-this-source card recommends `refresh --tone-only`) and
+        the sweep failed on text that is doing exactly what it should. The claim was never
+        "that string appears nowhere"; it was "the lab does not speak for a fundamentals
+        card it does not feed"."""
         got = self.ui._combined_draft_providers(self.fund, self.prices, self.tone_only)
-        self.assertNotIn("tone-only", json.dumps(got))
+        fund_card = json.dumps(got["fundamentals"])
+        self.assertNotIn("tone-only", fund_card,
+                         "the lab's tone-only fundamentals line leaked into the combined "
+                         "panel's fundamentals card again")
         self.assertNotIn("yfinance", got["fundamentals"]["label"])
 
     def test_fundamentals_are_reported_from_the_snapshot_that_actually_feeds_the_page(self):

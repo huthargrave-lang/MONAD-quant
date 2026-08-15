@@ -1900,6 +1900,23 @@ def build_tone_snapshot(universe, get=_http_get, env=None, sleep=None):
         _note_breadth_drop(provider, stats)
     _note_filed_breadth_drop(yahoo_provider,
                              attach_prefiled_sentiment(rows, yahoo_docs, "yahoo"))
+    # StockTwits, exactly as the full build wires it. This function is what CI's
+    # `refresh --tone-only` runs (pages.yml:89); the full build is what a local `refresh`
+    # runs — and the fourth source was added to the second and not the first, so the
+    # published site would have built three-source snapshots while every local check
+    # showed four. Two build paths is the two-copies defect with functions for copies;
+    # ToneOnlyBuildTests now pins that every TONE_SOURCE reaches both.
+    stocktwits_docs, stocktwits_provider = fetch_stocktwits(
+        [r["ticker"] for r in rows], get=get, sleep=sleep)
+    st_stats = attach_declared(rows, stocktwits_docs, "stocktwits")
+    if st_stats.get("base") is not None:
+        stocktwits_provider.detail += (
+            "  THIS RUN'S BASE RATE IS {:+.2f}: {} of {} tagged messages across the whole "
+            "universe were Bullish. That is what the platform does, not what these companies "
+            "are — a name scoring at the base is average FOR STOCKTWITS, not neutral. Read "
+            "each cell against it.".format(
+                st_stats["base"], st_stats["bullish"], st_stats["tagged"]))
+        stocktwits_provider.headline += " · base {:+.2f}".format(st_stats["base"])
     fundamentals_provider = Provider(
         "fundamentals", "Fundamentals (yfinance)", UNAVAILABLE,
         "Not fetched: this is a tone-only build, so no row here carries a P/E or growth "
@@ -1912,7 +1929,7 @@ def build_tone_snapshot(universe, get=_http_get, env=None, sleep=None):
         "{} names supplied by the caller.".format(len(rows)),
         "", _stamp(), len(rows), "{} names supplied by the caller".format(len(rows)))
     providers = [universe_provider, fundamentals_provider, bloomberg_provider,
-                 reddit_provider, yahoo_provider]
+                 reddit_provider, yahoo_provider, stocktwits_provider]
     return {
         "version": SNAPSHOT_VERSION,
         "built_at": _stamp(),

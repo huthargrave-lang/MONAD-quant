@@ -4517,6 +4517,23 @@ def _combined_draft_providers(fund, prices, sent):
         providers[key] = _provider_card(
             p.get("label"), p.get("state"), p.get("headline"), p.get("detail"),
             p.get("remedy") or "", p.get("documents") or 0)
+    # A tone source the SNAPSHOT predates. The page's column list comes from TONE_SOURCES in
+    # code; the provider cards come from the snapshot on disk — and the two can disagree the
+    # day a source is added, because every already-built snapshot was built without it. The
+    # first such day was StockTwits': a stale snapshot would have put a StockTwits column on
+    # the page with no provenance card at all, and a column whose provenance is silence reads
+    # as a column that found nothing. Say the actual fact: this snapshot is older than this
+    # source, and rebuilding is what fills it.
+    for source in screener_lab.TONE_SOURCES:
+        if source not in providers:
+            providers[source] = _provider_card(
+                source.capitalize() + " (not in this snapshot)",
+                screener_lab.UNAVAILABLE,
+                "this tone snapshot was built before {} was a source — every {} cell is "
+                "absent, none is 0.00".format(source, source),
+                "The snapshot on disk predates this source, so no name has a reading from "
+                "it. That is the snapshot's age, not the source finding nothing.",
+                screener_lab.REFRESH_CMD + " --tone-only", 0)
     return providers
 
 
