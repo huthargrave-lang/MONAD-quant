@@ -4899,8 +4899,12 @@ def _screener_combined_draft_payload():
         # overlap — 53 of 202 constituents are in the fundamentals universe — so restricting
         # this to screened rows would leave three quarters of every bucket unplottable on the
         # page that is meant to plot it.
+        # The TAIL only. The file holds ten years so the measurements can see more than one
+        # regime; the chart draws at most five series of about six months, so shipping the
+        # whole matrix would multiply every page load by twenty for pixels that do not exist.
+        # The arithmetic that needs the depth runs in Python, below.
         "price_history": {
-            tk: prices["series"][tk]
+            tk: prices["series"][tk][-stock_screener.PAYLOAD_BARS:]
             for tk in ({r["tk"] for r in rows} | set(sovereign_buckets.all_tickers()))
             if tk in prices["series"]
         } if prices else {},
@@ -4911,10 +4915,14 @@ def _screener_combined_draft_payload():
         # payload is: the arithmetic has caveats — quantised cash ETFs, wrapper pairs at
         # rho 0.999, series that cannot be put on one calendar — and a page-side copy would
         # be a second place for those to be got wrong. The page renders the verdict.
-        "concentration": concentration.concentration(
-            sovereign_buckets.BUCKETS, prices,
-            lambda b: list(b.get("liquid") or []) + list(b.get("satellite") or []),
-        ) if prices else None,
+        "concentration": (lambda members: dict(
+            concentration.concentration(sovereign_buckets.BUCKETS, prices, members),
+            # The same arithmetic at several depths. A bucket that is 1.2 bets over six months
+            # and 2.6 over three years is not "1.2" — it is a thing that concentrated recently.
+            **concentration.concentration_windows(
+                sovereign_buckets.BUCKETS, prices, members)
+        ))(lambda b: list(b.get("liquid") or []) + list(b.get("satellite") or []))
+        if prices else None,
     }
 
 

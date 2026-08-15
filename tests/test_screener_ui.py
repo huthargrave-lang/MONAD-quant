@@ -4055,3 +4055,77 @@ class TheScenarioIsOneModuleBecauseItWasOneNumber(unittest.TestCase):
                       "the drawer no longer uses the class this guard is protecting")
         self.assertNotIn('class="scen-part"', self.html.split("<script", 1)[0],
                          "the module's markup uses the drawer's class again")
+
+
+class TheHistoryIsDeeperThanWhatTravels(unittest.TestCase):
+    """PRICE_BARS was 126 with the note "short enough that the whole universe still fits in a
+    page payload". That conflated two questions. The page draws at most five series
+    (PRICE_COHORT_MAX), so 1.9% of what it was sent was ever visible — while every measurement
+    over the matrix was capped at one regime because the FILE only held one.
+
+    Depth for the arithmetic, which runs in Python. A window for the chart, which is all a
+    chart can draw."""
+
+    def test_the_file_keeps_far_more_than_the_payload_ships(self):
+        self.assertGreaterEqual(sc.PRICE_BARS, 2520, "the file no longer keeps years")
+        self.assertLessEqual(sc.PAYLOAD_BARS, 260, "the payload got heavy again")
+        self.assertGreater(sc.PRICE_BARS, sc.PAYLOAD_BARS * 4)
+
+    def test_the_download_window_covers_what_is_kept(self):
+        """Asking for 2520 sessions out of a one-year download returns one year and says
+        nothing about it — the slice would be silently short."""
+        src = inspect.getsource(sc.fetch_prices)
+        self.assertIn('period="max"', src,
+                      "the download window is narrower than PRICE_BARS, so the tail slice "
+                      "quietly returns less history than the constant claims")
+
+    def test_the_payload_ships_only_the_tail(self):
+        src = inspect.getsource(research_ui._screener_combined_draft_payload)
+        self.assertIn("PAYLOAD_BARS:", src,
+                      "the whole ten-year matrix is shipped to the browser again")
+
+
+class TheConcentrationIsMeasuredAtSeveralDepths(unittest.TestCase):
+    """"One regime, not a constant" was true and useless: a reader cannot act on a warning
+    that a number might move without being told whether it does. The same arithmetic over
+    nested windows turns the caveat into something checkable."""
+
+    def _windows(self, held):
+        import concentration as conc  # noqa: PLC0415
+        # Two series that move together, long enough for several rungs.
+        a = [100.0 + (i % 7) for i in range(held)]
+        return conc.concentration_windows(
+            [{"id": "01", "name": "probe", "liquid": ["A", "B", "C"]}],
+            {"series": {"A": a, "B": list(a), "C": list(a)}},
+            lambda b: b["liquid"])
+
+    def test_a_window_longer_than_the_file_is_named_not_truncated(self):
+        out = self._windows(200)
+        labels = [u["label"] for u in out["unavailable"]]
+        self.assertIn("3 years", labels)
+        self.assertIn("10 years", labels)
+        for w in out["windows"]:
+            self.assertLessEqual(w["sessions"], 200,
+                                 "a window longer than the data was silently clipped to it")
+
+    def test_the_ladder_is_never_empty(self):
+        """A file two sessions short of the shortest fixed rung reported ZERO windows, so the
+        whole comparison vanished — a feature that hides when the data is thin, which is when
+        its answer matters most."""
+        out = self._windows(124)
+        self.assertTrue(out["windows"], "no window at all on a 124-session file")
+        self.assertEqual(out["windows"][0]["sessions"], 124)
+        self.assertEqual(out["windows"][0]["label"], "everything held")
+
+    def test_deeper_files_get_more_rungs(self):
+        self.assertGreater(len(self._windows(800)["windows"]),
+                           len(self._windows(124)["windows"]),
+                           "more history buys no more comparison")
+
+    def test_the_card_says_what_it_cannot_measure_yet(self):
+        js = _decomment(_script(_page()))
+        body = _functions(js).get("drawConc")
+        self.assertIn("Not measurable yet", body,
+                      "the depth limit is silent, so a six-month answer reads like a "
+                      "permanent one")
+        self.assertIn("sessions_held", body)

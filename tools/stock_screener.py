@@ -944,9 +944,22 @@ def fmt_metric(row, metric):
 #: and make a fundamentals fetch fail whenever Yahoo throttles the price endpoint.
 PRICES_PATH = os.path.join(REPO, "data", "screener", "prices.json")
 
-#: ~6 months of sessions. Long enough to read a trend, short enough that the whole
-#: universe still fits in a page payload without becoming the page's dominant weight.
-PRICE_BARS = 126
+#: How much history to KEEP. Ten years, not six months — and the two are different questions
+#: from the one this constant used to answer.
+#:
+#: It was 126 with the note "short enough that the whole universe still fits in a page
+#: payload". That reasoning conflated storage with shipping. The page draws at most five
+#: series at a time (PRICE_COHORT_MAX), so 1.9% of what it was sent was ever visible, while
+#: every measurement over the matrix — concentration, and anything after it — was capped at
+#: one regime because the FILE only held one.
+#:
+#: The file now holds ten years and the payload still ships PAYLOAD_BARS of it. Depth for the
+#: arithmetic, which runs in Python; a window for the chart, which is all a chart can draw.
+PRICE_BARS = 2520
+
+#: What travels to the browser, per ticker: the ~6 months the price chart actually plots.
+#: Raising this does not make any chart show more — it makes every page load heavier.
+PAYLOAD_BARS = 126
 
 
 def price_universe():
@@ -993,7 +1006,9 @@ def fetch_prices(out_path=PRICES_PATH, bars=PRICE_BARS):
     import yfinance as yf   # deferred: every read path must work without it
 
     tickers = price_universe()
-    frame = yf.download(tickers, period="1y", interval="1d",
+    # `period` has to cover `bars` or the slice below is silently short — asking for 2520
+    # sessions out of a one-year download returns one year and says nothing about it.
+    frame = yf.download(tickers, period="max", interval="1d",
                         auto_adjust=True, progress=False, threads=True)
     closes = frame["Close"] if "Close" in frame else frame
     # The union calendar, newest `bars` sessions, as plain ISO dates. Taken from the frame's

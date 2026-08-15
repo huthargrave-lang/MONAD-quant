@@ -202,6 +202,52 @@ def bucket_concentration(members, returns, closes=None):
     return out
 
 
+#: The windows the estimate is repeated over, newest-anchored, in sessions. A single number
+#: carried the caveat "one regime, not a constant" — which was true and useless, because a
+#: reader cannot act on a warning that a number might move without being told whether it does.
+#: Repeating the same arithmetic over nested windows turns that caveat into a measurement.
+#: Windows longer than the file holds are skipped and SAID, never silently truncated to it.
+WINDOWS = [("6 months", 126), ("1 year", 252), ("3 years", 756), ("10 years", 2520)]
+
+
+def concentration_windows(buckets, prices, member_fn):
+    """The same measurement at several depths, so regime-dependence is visible.
+
+    Each window is the newest N sessions. A bucket whose effN is 1.2 over six months and 2.6
+    over three years is not "1.2" — it is a thing that concentrated recently, which is the
+    interesting fact and the one a single window destroys.
+    """
+    series = (prices or {}).get("series") or {}
+    have = max((len(v) for v in series.values()), default=0)
+    out, skipped = [], []
+    # The base rung is WHAT IS HELD, always, so the ladder is never empty. Without it a file
+    # two sessions short of the shortest fixed window reported zero windows and the whole
+    # comparison vanished — technically honest, practically a feature that hides when the
+    # data is thin, which is when its answer matters most.
+    ladder = [("everything held", have)] + [
+        (label, n) for label, n in WINDOWS if n != have]
+    for label, n in ladder:
+        if n > have or n < MIN_RETURNS:
+            if n > have:
+                skipped.append({"label": label, "sessions": n})
+            continue
+        window = dict(prices or {})
+        window["series"] = {t: v[-n:] for t, v in series.items()}
+        if (prices or {}).get("dates"):
+            window["dates"] = prices["dates"][-n:]
+        got = concentration(buckets, window, member_fn)
+        out.append({"label": label, "sessions": n,
+                    "buckets": {b["id"]: b.get("eff_n") for b in got["buckets"]}})
+    return {
+        "windows": out,
+        # Named, not dropped. "We only have six months" is the single most useful thing this
+        # surface can say about its own confidence, and it is exactly what a silent
+        # single-window number withholds.
+        "unavailable": skipped,
+        "sessions_held": have,
+    }
+
+
 def concentration(buckets, prices, member_fn):
     """Every bucket, scored, plus the window the scoring describes.
 

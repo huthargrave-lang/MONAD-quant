@@ -8373,6 +8373,27 @@ function drawConc(){
         + 'Give the card more height to see them.</p>';
     }
     out += '<p class="scen-note">' + esc(C.window_note) + '.</p>';
+    /* Whether the answer holds at other depths — the caveat above, turned into something a
+       reader can check. Only rendered when there is more than one rung: a single window
+       comparing itself to nothing is a table with one column. */
+    const wins = (C.windows || []).filter(w => w.sessions >= 40);
+    if(wins.length > 1){
+      out += '<p class="scen-note">Effective bets by window: '
+        + wins.map(w => {
+            const vals = Object.keys(w.buckets).map(k => w.buckets[k]).filter(v => v != null);
+            const tot = vals.reduce((a, b) => a + b, 0);
+            return '<b>' + esc(w.label) + '</b> ' + tot.toFixed(1);
+          }).join(" &#183; ")
+        + '. A bucket that concentrates only in the short window is a recent fact, not a '
+        + 'property of the thesis.</p>';
+    }
+    const short = (C.unavailable || []);
+    if(short.length){
+      out += '<p class="scen-note">Not measurable yet: <b>' + esc(short.map(u => u.label).join(", "))
+        + '</b> &#8212; the price file holds <b>' + (C.sessions_held || 0) + '</b> sessions. '
+        + 'Deepen it with <code>venv/bin/python tools/stock_screener.py prices</code>, which '
+        + 'now keeps ten years.</p>';
+    }
     if(dupes.length){
       out += '<p class="scen-note">Listed twice, effectively: <b>' + esc(dupes.slice(0, 4).join(", "))
         + '</b>' + (dupes.length > 4 ? " and " + (dupes.length - 4) + " more" : "")
