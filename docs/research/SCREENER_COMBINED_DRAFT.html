@@ -291,6 +291,9 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
 .cmd-k{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-muted)}
 .cmd-v{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:30ch}
 .cmd-sub{font-family:var(--mono);font-size:11px;color:var(--ink-muted);white-space:nowrap}
+.cmd-new{font:10px var(--mono);letter-spacing:.02em;color:var(--ink-on-4);
+  background:var(--accent);border-radius:3px;padding:1px 5px;margin-left:6px;
+  white-space:nowrap}
 .cmd-caret{font-size:10px;color:var(--ink-muted)}
 /* A context that is narrowing the page is drawn as ON, the same treatment an active lens
    gets, because it is the same kind of fact: a constraint the reader chose. */
@@ -5765,7 +5768,10 @@ document.addEventListener("click", (ev)=>{
     if(!pop) return;
     // Each panel prepares itself and keeps its own first field: focus has to land inside the
     // panel that opened, not in whichever panel happens to own the first control on the page.
-    if(pop.id === "layoutPanel") syncLayoutPanel();
+    // Opening the tray IS meeting the modules in it, so the "new" marker clears here rather
+    // than needing its own dismiss control — one more thing to click to make a notice go away
+    // is how notices get ignored.
+    if(pop.id === "layoutPanel"){ syncLayoutPanel(); markTilesSeen(); drawModChip(); }
     if(pop.id === "lensPanel") drawLensPanel();
     if(pop.id === "scenPanel") drawScenPanel();
     if(pop.id === "proposePanel") resetProposeForm();
@@ -7866,12 +7872,70 @@ function drawDataChip(){
   if(dot) dot.className = "cmd-dot" + (bad ? " critical" : (warn || live < cards.length ? " warning" : ""));
   if(sub) sub.textContent = cards.length ? (bad ? bad + " down" : (warn ? warn + " stale" : "live")) : "no snapshot";
 }
+/* ── Modules a returning reader has never met ─────────────────────────────────────────────
+   A saved board is restored verbatim, which is right: nobody's layout should rearrange
+   itself because the page shipped something. But it means a module added after your last
+   visit is invisible — it sits in the tray, and the tray is behind a chip that reads
+   "11 unplaced" whether or not any of them are new. Both modules added this week landed
+   exactly there.
+
+   So: announce, never place. The reader is told a name they have not seen; where it goes
+   stays their decision. Dismissed by opening the panel, because that is the moment they have
+   actually met it — a separate "dismiss" control would be a second thing to click to make a
+   notice go away.
+
+   Keyed by MODULE ID, not by a count or a version number. A count cannot survive a module
+   being removed in the same release as one is added, and a version bump would re-announce
+   every module to every reader on any change. */
+const SEEN_TILES_KEY = "monad.screener.draft.seentiles.v1";
+function seenTiles(){
+  try{
+    const raw = localStorage.getItem(SEEN_TILES_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return Array.isArray(parsed) ? parsed : null;
+  }catch(e){ return null; }
+}
+function markTilesSeen(){
+  try{ localStorage.setItem(SEEN_TILES_KEY, JSON.stringify(ALL_TILE_IDS)); }catch(e){}
+}
+/* Unseen = registered, not in the reader's seen list, and NOT already on their board — a
+   module they placed themselves has plainly been met, whatever the list says.
+
+   A reader with no list at all is not shown twelve "new" badges: absent state means a first
+   visit, and everything is new on a first visit, which is not news. Their list is seeded
+   silently instead. */
+function unseenTiles(){
+  const seen = seenTiles();
+  if(seen === null){ markTilesSeen(); return []; }
+  const placed = boardTiles();
+  return ALL_TILE_IDS.filter(id => seen.indexOf(id) === -1 && placed.indexOf(id) === -1
+                                   && tileHasData(id));
+}
 function drawModChip(){
   const v = document.getElementById("modValue");
   if(!v) return;
   const placed = boardTiles().length;
   const tray = trayTiles().length;
+  const fresh = unseenTiles();
   v.textContent = placed + " on board" + (tray ? " · " + tray + " unplaced" : "");
+  const chip = document.getElementById("modChip");
+  if(!chip) return;
+  let dot = document.getElementById("modNew");
+  if(fresh.length && !dot){
+    dot = document.createElement("span");
+    dot.id = "modNew"; dot.className = "cmd-new";
+    chip.appendChild(dot);
+  }
+  if(dot){
+    dot.hidden = !fresh.length;
+    // The NAMES, not just a dot. "Something is new" is a puzzle; "How many bets is each
+    // thesis is new" is an answer, and it is the difference between a badge a reader
+    // clears and one they act on.
+    dot.textContent = fresh.length === 1 ? "new: " + (TILE_LABELS[fresh[0]] || fresh[0])
+                                         : fresh.length + " new";
+    dot.title = fresh.map(id => TILE_LABELS[id] || id).join(", ")
+      + " — added since your last visit. Nothing has been moved on your board.";
+  }
 }
 function drawCmdBar(){
   drawLensChip(); drawFilterChip(); drawDataChip(); drawModChip();

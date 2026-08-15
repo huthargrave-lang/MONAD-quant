@@ -4412,3 +4412,70 @@ class TheProbabilityPathIsDrawnOnTimeNotOnIndex(unittest.TestCase):
         self.assertRegex(self.body, r"Math\.abs\(y\(o\.probability\) - y\(obs",
                          "thinning compares raw probabilities again; the decision is about "
                          "overlapping text, so it belongs in pixels")
+
+
+class ANewModuleAnnouncesItselfWithoutMovingAnything(unittest.TestCase):
+    """A saved board is restored verbatim, which is right — nobody's layout should rearrange
+    itself because the page shipped something. The cost is that a module added after your last
+    visit is invisible: it sits in the tray, behind a chip reading "11 unplaced" whether or not
+    any of them are new. Both modules added this week landed exactly there.
+
+    Announce, never place. Verified in a browser across all three states: a returning reader
+    sees "2 new" naming both, opening the tray clears it, and a first visit is seeded silently
+    rather than shown twelve badges."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.js = _decomment(_script(_page()))
+
+    def test_it_never_places_a_tile_on_a_saved_board(self):
+        """The whole point. A notice is not a licence to rearrange."""
+        body = _functions(self.js).get("drawModChip")
+        self.assertIsNotNone(body)
+        for mutating in ("placeTile", "saveBoard", "boardTree =", "layoutBoard"):
+            with self.subTest(call=mutating):
+                self.assertNotIn(mutating, body,
+                                 "the new-module notice touches the reader's layout")
+
+    def test_a_first_visit_is_seeded_rather_than_flooded(self):
+        """Absent state means a first visit, and everything is new on a first visit — which
+        is not news. Seeding silently is the difference between a useful marker and twelve
+        badges a reader learns to ignore."""
+        body = _functions(self.js).get("unseenTiles")
+        self.assertIsNotNone(body)
+        self.assertRegex(body, r"if\(seen === null\)\{ markTilesSeen\(\); return \[\]; \}",
+                         "a reader with no seen-list is shown every module as new")
+
+    def test_a_module_already_on_the_board_is_not_new(self):
+        """Whatever the stored list says, a module the reader placed themselves has plainly
+        been met."""
+        body = _functions(self.js).get("unseenTiles")
+        self.assertIn("placed.indexOf(id) === -1", body)
+
+    def test_a_parked_module_is_not_announced(self):
+        """A module with no data parks itself and says why. Announcing it as new would send a
+        reader to a card that can only report its own emptiness."""
+        body = _functions(self.js).get("unseenTiles")
+        self.assertIn("tileHasData(id)", body,
+                      "a data-less module is announced as new")
+
+    def test_the_marker_names_the_modules(self):
+        """"Something is new" is a puzzle. The names are the answer, and the difference
+        between a badge a reader clears and one they act on."""
+        body = _functions(self.js).get("drawModChip")
+        self.assertIn("TILE_LABELS[fresh[0]]", body)
+        self.assertIn("Nothing has been moved on your board", body,
+                      "the marker does not promise what it is careful not to do")
+
+    def test_it_clears_by_meeting_them_not_by_a_second_control(self):
+        m = re.search(r'pop\.id === "layoutPanel"[^\n]*\n?[^\n]*', self.js)
+        self.assertIsNotNone(m)
+        self.assertIn("markTilesSeen()", m.group(0),
+                      "opening the tray no longer clears the marker, so it needs its own "
+                      "dismiss control — one more click to make a notice go away")
+
+    def test_the_key_is_module_ids_not_a_count_or_a_version(self):
+        """A count cannot survive a module being removed in the same release as one is added;
+        a version bump re-announces everything to everyone on any change."""
+        body = _functions(self.js).get("markTilesSeen")
+        self.assertIn("JSON.stringify(ALL_TILE_IDS)", body)
