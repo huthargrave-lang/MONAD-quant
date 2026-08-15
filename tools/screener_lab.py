@@ -859,7 +859,7 @@ STOCKTWITS_CAVEAT = (
 
 def fetch_stocktwits(tickers, get=_http_get, sleep=None,
                      pause=STOCKTWITS_PAUSE_SECONDS,
-                     give_up_after=STOCKTWITS_GIVE_UP_AFTER, limit=None):
+                     give_up_after=STOCKTWITS_GIVE_UP_AFTER, limit=None, start=0):
     """StockTwits per-ticker messages + this run's provider state.
 
     One request per ticker, which is the property that matters. Bloomberg and Reddit are broad
@@ -874,11 +874,22 @@ def fetch_stocktwits(tickers, get=_http_get, sleep=None,
     tickers = [t for t in (tickers or []) if t]
     if limit:
         tickers = tickers[:int(limit)]
+    # THE RING. The documented cap (~200/hour) is smaller than the universe (225), so a run
+    # that always starts at index 0 starves the SAME tail forever — the fetcher already told
+    # the truth about it ("N not asked") while guaranteeing the N were always the same names.
+    # Walking the ring from a cursor makes under-coverage rotate: simulated over 450 runs with
+    # a 429 injected at 80/150/200/225 asked, the worst per-name gap is 2/1/1/0 runs, against
+    # 145 runs of permanent starvation for the fixed tail.
+    if tickers and start:
+        start = int(start) % len(tickers)
+        tickers = tickers[start:] + tickers[:start]
+    asked = []
     attempted, throttled = 0, False
     for index, ticker in enumerate(tickers):
         if index:
             wait(pause)
         attempted += 1
+        asked.append(ticker)
         try:
             response = get(STOCKTWITS_FEED.format(ticker), timeout=STOCKTWITS_TIMEOUT)
             if response.status_code == 429:
@@ -887,6 +898,7 @@ def fetch_stocktwits(tickers, get=_http_get, sleep=None,
                 # nothing", and the provider record says which.
                 throttled = True
                 attempted -= 1
+                asked.pop()          # the 429'd request was refused, not answered
                 break
             if response.status_code != 200:
                 failed.append("{} HTTP {}".format(ticker, response.status_code))
@@ -922,6 +934,8 @@ def fetch_stocktwits(tickers, get=_http_get, sleep=None,
     not_attempted = len(tickers) - attempted
     answered = attempted - len(failed)
     label = "StockTwits (per-ticker, author-declared)"
+    report = {"asked": asked, "throttled": throttled,
+              "not_attempted": [t for t in tickers if t not in set(asked)]}
     if not docs:
         return [], Provider(
             "stocktwits", label, UNAVAILABLE,
@@ -931,7 +945,7 @@ def fetch_stocktwits(tickers, get=_http_get, sleep=None,
             "Check outbound HTTPS to api.stocktwits.com, then re-run `{}`.".format(
                 REFRESH_CMD),
             _stamp(), 0,
-            "0 of {} ticker streams returned a message".format(attempted))
+            "0 of {} ticker streams returned a message".format(attempted)), report
     tagged = sum(1 for d in docs if d["declared"])
     state = DEGRADED if (failed or not_attempted) else LIVE
     headline = "{} messages from {}/{} ticker streams — {} carry an author tag".format(
@@ -950,8 +964,11 @@ def fetch_stocktwits(tickers, get=_http_get, sleep=None,
         detail += ("  Stopped after {} consecutive failures: {} ticker(s) were NOT "
                    "ATTEMPTED.".format(give_up_after, not_attempted))
         headline += " · {} not attempted".format(not_attempted)
+    if start:
+        detail += ("  Ring cursor started this walk at offset {} — under-coverage rotates "
+                   "rather than always falling on the same tail.".format(start))
     return docs, Provider("stocktwits", label, state, detail, "", _stamp(),
-                          len(docs), headline)
+                          len(docs), headline), report
 
 
 YAHOO_FEED = ("https://feeds.finance.yahoo.com/rss/2.0/headline"
@@ -1316,7 +1333,45 @@ def _as_float(value):
 #: The tone sources, in the order the snapshot writes them. Kept as data because the CLI
 #: summary, the tests and the UI all have to agree on the list — three hand-typed copies
 #: is how a fourth source ends up live in the snapshot and invisible on the page.
-def attach_declared(rows, documents, source_key):
+#: Where the ring cursor persists between runs. data/cache is inside the Pi service's
+#: ReadWritePaths (verified against deploy/monad-screener.service), so the Pi and local runs
+#: keep a real cursor. CI is stateless; it falls back to a derived offset.
+STOCKTWITS_CURSOR_PATH = os.path.join(REPO, "data", "cache", "stocktwits_cursor.json")
+
+
+def read_stocktwits_cursor(n, path=STOCKTWITS_CURSOR_PATH, env=None):
+    """Where this run's ring walk should start, from the best state available.
+
+    Three sources, in honesty order: a persisted cursor (Pi, local — real state); a derived
+    offset from the CI run number ((run * 200) %% n — monotonic, stateless, and simulated to
+    bound the worst per-name gap at 6 runs against the cursor's 2); zero. Zero is what the
+    fixed-tail starvation was, so it is the fallback of last resort, not a peer.
+    """
+    if not n:
+        return 0
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return int(json.load(fh).get("next_start", 0)) % n
+    except (OSError, ValueError):
+        pass
+    run = (env if env is not None else os.environ).get("GITHUB_RUN_NUMBER")
+    if run and str(run).isdigit():
+        return (int(run) * 200) % n
+    return 0
+
+
+def write_stocktwits_cursor(next_start, path=STOCKTWITS_CURSOR_PATH):
+    """Best-effort, exception-guarded: the cursor is an optimisation, and a read-only
+    filesystem (CI) or a permission error must never take the refresh down with it."""
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump({"next_start": int(next_start), "stamp": _stamp()}, fh)
+    except OSError:
+        pass
+
+
+def attach_declared(rows, documents, source_key, asked=None):
     """Score a source whose sentiment its AUTHORS declared, not one this repo inferred.
 
     Every other column here is `score_tone` — a lexicon reading of headline text. Running
@@ -1353,9 +1408,15 @@ def attach_declared(rows, documents, source_key):
     bulls_all = sum(1 for d in all_tagged if d["declared"] == "Bullish")
     base = (round((2.0 * bulls_all - len(all_tagged)) / len(all_tagged), 4)
             if all_tagged else None)
+    asked_set = set(asked) if asked is not None else None
     kept = 0
     for row in rows:
         matched = by_ticker.get(row["ticker"], [])
+        # Asked-and-empty and not-asked-at-all were per-row identical (both coverage 0), so
+        # ANET's transient 502 and a rate-capped tail rendered the same as "nobody posted".
+        # The provider prose knew the difference; the cell did not. Now it travels.
+        if asked_set is not None:
+            row[source_key + "_attempted"] = row["ticker"] in asked_set
         tagged = [d for d in matched if d.get("declared")]
         bulls = sum(1 for d in tagged if d["declared"] == "Bullish")
         bears = len(tagged) - bulls
@@ -1850,9 +1911,13 @@ def build_snapshot(limit=120, universe=None, progress=None, env=None,
     # No breadth note: the breadth rule drops documents that name too MANY screened tickers,
     # and a StockTwits message arrives on one ticker's stream by request. There is nothing to
     # drop, and printing "0 dropped" would imply a filter ran.
-    stocktwits_docs, stocktwits_provider = fetch_stocktwits(
-        [r["ticker"] for r in rows], get=get, sleep=sleep)
-    st_stats = attach_declared(rows, stocktwits_docs, "stocktwits")
+    st_tickers = [r["ticker"] for r in rows]
+    st_start = read_stocktwits_cursor(len(st_tickers), env=env)
+    stocktwits_docs, stocktwits_provider, st_report = fetch_stocktwits(
+        st_tickers, get=get, sleep=sleep, start=st_start)
+    write_stocktwits_cursor((st_start + len(st_report["asked"])) % max(len(st_tickers), 1))
+    st_stats = attach_declared(rows, stocktwits_docs, "stocktwits",
+                               asked=st_report["asked"])
     if st_stats.get("base") is not None:
         stocktwits_provider.detail += (
             "  THIS RUN'S BASE RATE IS {:+.2f}: {} of {} tagged messages across the whole "
@@ -1906,9 +1971,13 @@ def build_tone_snapshot(universe, get=_http_get, env=None, sleep=None):
     # published site would have built three-source snapshots while every local check
     # showed four. Two build paths is the two-copies defect with functions for copies;
     # ToneOnlyBuildTests now pins that every TONE_SOURCE reaches both.
-    stocktwits_docs, stocktwits_provider = fetch_stocktwits(
-        [r["ticker"] for r in rows], get=get, sleep=sleep)
-    st_stats = attach_declared(rows, stocktwits_docs, "stocktwits")
+    st_tickers = [r["ticker"] for r in rows]
+    st_start = read_stocktwits_cursor(len(st_tickers), env=env)
+    stocktwits_docs, stocktwits_provider, st_report = fetch_stocktwits(
+        st_tickers, get=get, sleep=sleep, start=st_start)
+    write_stocktwits_cursor((st_start + len(st_report["asked"])) % max(len(st_tickers), 1))
+    st_stats = attach_declared(rows, stocktwits_docs, "stocktwits",
+                               asked=st_report["asked"])
     if st_stats.get("base") is not None:
         stocktwits_provider.detail += (
             "  THIS RUN'S BASE RATE IS {:+.2f}: {} of {} tagged messages across the whole "

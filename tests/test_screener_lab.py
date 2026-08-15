@@ -1336,3 +1336,85 @@ class ALabProviderMustNotSpeakForAPageItDoesNotFeed(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class TheRingCursorRotatesTheRateCap(unittest.TestCase):
+    """The free cap (~200/hour) is smaller than the universe (225), so a run that always
+    starts at index 0 starves the SAME tail forever — the provider said "25 not asked" while
+    guaranteeing the 25 were always the same names. Simulated over 450 runs, a ring cursor
+    bounds the worst per-name gap at 2 runs against 145 runs of permanent starvation."""
+
+    def _get(self, cap):
+        calls = {"n": 0}
+
+        def get(url, *a, **k):
+            calls["n"] += 1
+            if calls["n"] > cap:
+                return FakeResponse(429)
+            return FakeResponse(200, payload={"messages": [
+                {"id": calls["n"], "body": "x", "created_at": "2026-08-15T00:00:00Z",
+                 "entities": {"sentiment": {"basic": "Bullish"}}}]})
+        return get
+
+    def test_the_walk_starts_at_the_cursor_and_wraps(self):
+        tickers = ["A", "B", "C", "D", "E"]
+        docs, _p, report = lab.fetch_stocktwits(
+            tickers, get=self._get(99), sleep=lambda _s: None, start=3)
+        self.assertEqual(report["asked"], ["D", "E", "A", "B", "C"],
+                         "the ring does not start at the cursor")
+
+    def test_a_429_stops_the_walk_and_names_the_unasked(self):
+        tickers = ["A", "B", "C", "D", "E"]
+        _d, prov, report = lab.fetch_stocktwits(
+            tickers, get=self._get(2), sleep=lambda _s: None, start=0)
+        self.assertEqual(report["asked"], ["A", "B"])
+        self.assertEqual(report["not_attempted"], ["C", "D", "E"])
+        self.assertTrue(report["throttled"])
+        self.assertIn("not asked", prov.headline)
+
+    def test_no_name_starves_under_rotation(self):
+        """The property the whole design exists for: with the cap below the universe, every
+        name is still asked within a bounded number of runs when the cursor advances by the
+        asked count — where a fixed start leaves the tail unasked FOREVER."""
+        tickers = ["T%02d" % i for i in range(9)]
+        cap = 4
+        seen_rotating, seen_fixed = set(), set()
+        cursor = 0
+        for _run in range(6):
+            _d, _p, rep = lab.fetch_stocktwits(
+                tickers, get=self._get(cap), sleep=lambda _s: None, start=cursor)
+            seen_rotating.update(rep["asked"])
+            cursor = (cursor + len(rep["asked"])) % len(tickers)
+            _d2, _p2, rep2 = lab.fetch_stocktwits(
+                tickers, get=self._get(cap), sleep=lambda _s: None, start=0)
+            seen_fixed.update(rep2["asked"])
+        self.assertEqual(sorted(seen_rotating), tickers,
+                         "rotation left a name permanently unasked")
+        self.assertNotEqual(sorted(seen_fixed), tickers,
+                            "the fixed-start control reached everyone, so this test can no "
+                            "longer demonstrate the starvation it exists to prevent")
+
+    def test_the_cursor_survives_a_round_trip_and_falls_back_in_order(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            path = os.path.join(td, "cursor.json")
+            lab.write_stocktwits_cursor(7, path=path)
+            self.assertEqual(lab.read_stocktwits_cursor(9, path=path, env={}), 7)
+            # no file, CI run number derives an offset
+            gone = os.path.join(td, "absent.json")
+            self.assertEqual(
+                lab.read_stocktwits_cursor(225, path=gone,
+                                           env={"GITHUB_RUN_NUMBER": "3"}),
+                (3 * 200) % 225)
+            # nothing at all: zero, the fallback of last resort
+            self.assertEqual(lab.read_stocktwits_cursor(225, path=gone, env={}), 0)
+
+    def test_a_capped_out_row_is_stamped_not_left_ambiguous(self):
+        """ANET's 502 and a rate-capped tail used to render identically to "nobody posted":
+        coverage 0 either way. The stamp is what the page's fourth absence state reads."""
+        rows = [{"ticker": "A", "name": "A"}, {"ticker": "B", "name": "B"}]
+        lab.attach_declared(rows, [{"ticker": "A", "declared": "Bullish", "title": "x"}],
+                            "stocktwits", asked=["A"])
+        self.assertTrue(rows[0]["stocktwits_attempted"])
+        self.assertFalse(rows[1]["stocktwits_attempted"])
+        self.assertEqual(rows[1]["stocktwits_coverage"], 0)

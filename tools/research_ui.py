@@ -4897,6 +4897,9 @@ def _screener_combined_draft_payload():
             "st": sr.get("stocktwits_tone"),
             "st_c": sr.get("stocktwits_coverage") or 0,
             "st_t": sr.get("stocktwits_toned") or 0,
+            # Tri-state on purpose: True asked, False rate-capped out of this run, None the
+            # snapshot predates the stamp. False must never render like "nobody posted".
+            "st_a": sr.get("stocktwits_attempted"),
             # The platform's own bullish base for this run. Without it a raw +0.64 reads as
             # bullish when it is dead average FOR STOCKTWITS — measured base +0.55 to +0.60,
             # against lexicon columns that span -0.23 to +0.58.

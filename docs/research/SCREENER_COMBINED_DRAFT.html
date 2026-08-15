@@ -7509,14 +7509,25 @@ function renderHeadlines(){
         // no documents beside it means the payload carried the score and withheld the text
         // (the published build does exactly that), which must not read as "nothing found".
         const held = t.cov ? HEADLINES_WITHHELD : "";
-        const why = !t.cov
+        /* A FOURTH absence, StockTwits-only: rate-capped out of this run. The free cap
+           (~200/hour) is smaller than the universe (225), so on a capped run some names are
+           not asked at all — a different fact from "asked and nobody posted", and the ring
+           cursor means it is a different set of names each run. st_a is tri-state: true
+           asked, false capped out, null the snapshot predates the stamp. */
+        const capped = src === "stocktwits" && !t.cov && r && r.st_a === false;
+        const why = capped
+          ? `not asked this run — the free rate cap covers about 200 of 225 names per pass,
+             and the rotation reaches this one within a run or two. Not asked is not
+             "nobody posted".`
+          : !t.cov
           ? `no document in this snapshot ${filedVerb(src)} ${esc(selected)}.`
           : (held || (t.tone!=null
               ? `${t.toned} of ${t.cov} item(s) carried a tone word; this build did not pack
                  the items themselves.`
               : `${t.cov} item(s) ${arrivedVerb(src)}, none carried a tone word.`));
         parts.push(`<div class="tone-card"><div class="tk">${tag} · ${selected}</div>
-          <div class="hd">${t.tone==null && !t.cov?'<span class="chip">no coverage</span>':
+          <div class="hd">${capped?'<span class="chip">not asked this run</span>':
+            t.tone==null && !t.cov?'<span class="chip">no coverage</span>':
             (held?'<span class="chip">documents withheld</span> ':'')
             + (t.tone==null?'<span class="chip warning"><span class="dot"></span>untoned</span>':
             `${t.tone>0?"+":""}${t.tone.toFixed(2)}`)}</div>
