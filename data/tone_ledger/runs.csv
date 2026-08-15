@@ -1,0 +1,5 @@
+run_utc,host,build,universe,source,state,documents,base
+2026-08-15T03:48:15+00:00,ci,tone_only,225,bloomberg,live,120,
+2026-08-15T03:48:15+00:00,ci,tone_only,225,reddit,live,100,
+2026-08-15T03:48:15+00:00,ci,tone_only,225,yahoo,live,3735,
+2026-08-15T03:48:15+00:00,ci,tone_only,225,stocktwits,degraded,6556,0.7508
