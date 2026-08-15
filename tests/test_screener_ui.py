@@ -2586,13 +2586,25 @@ class TheScenarioTilesComeAndGoWithTheShock(unittest.TestCase):
         declared = re.findall(r'"(\w+)"',
                               re.search(r"const SCENARIO_TILES = \[(.*?)\];",
                                         self.js).group(1))
-        self.assertGreaterEqual(len(declared), 3, "SCENARIO_TILES shrank")
+        # No lower bound on the count any more. It was 3 and is now 1 — the three panes were
+        # merged because between them they rendered ONE number — so a floor of three would
+        # pin a layout decision that has since been reversed, which is a guard asserting
+        # history rather than a property. What must hold is that every declared scenario tile
+        # is registered EVERYWHERE, whatever the count.
+        self.assertTrue(declared, "SCENARIO_TILES is empty")
         for tile in declared:
             self.assertIn('id="tile-' + tile + '"', self.html, tile + " has no markup")
             self.assertRegex(self.js, r"TILE_IDS = \[[^\]]*\"" + tile + r"\"",
                              tile + " is not a board module, so sanitizeTree drops it on load")
-        groups = re.search(r"const TILE_GROUPS = \[(.*?)\n\];", self.js, re.S).group(1)
-        self.assertIn('"spath", "sdev"', groups, "the tiles are not in a widget group")
+            groups = re.search(r"const TILE_GROUPS = \[(.*?)\n\];", self.js, re.S).group(1)
+            self.assertIn('"' + tile + '"', groups, tile + " is in no widget group")
+        # The hosts the three renderers write into must survive the merge, wherever they now
+        # live: the collapse moved the panes and kept the readings.
+        for host in ("spathChart", "spathLegend", "spathMeta",
+                     "sdevList", "sdevMeta", "soppsList", "soppsMeta"):
+            with self.subTest(host=host):
+                self.assertIn('id="' + host + '"', self.html,
+                              host + " is gone, so its renderer writes into nothing")
 
     def test_a_shock_change_refreshes_the_tiles_without_a_full_render(self):
         """The shock has not touched a row, a lens or a filter under any lens but one, and that
@@ -2809,19 +2821,28 @@ class TheReachByDirectionModuleReadsItsGroupsRatherThanDecidingThem(unittest.Tes
             self.body, r"c\.sign == null \? \"\"",
             "an unassessed channel renders a placeholder in the direction slot")
 
-    def test_the_module_is_shock_scoped_like_the_other_two(self):
+    def test_the_module_is_shock_scoped(self):
+        """REWRITTEN when the three scenario panes became one. The property is unchanged and
+        is the reason this guard exists: availability must ANSWER from the resolved scenario,
+        not merely mention the tile — asserting the id appears was satisfied by `return true`,
+        which is the defect itself, a module offered under shocks that have no model.
+
+        The union is now correct where three separate tests were: one frame holding three
+        sections is offered when ANY section has content, because an empty section beside two
+        full ones is information, where an empty PANE could only report its own emptiness."""
         avail = self.fns.get("scenarioTileAvailable")
-        # The branch has to ANSWER from the resolved scenario, not merely mention the tile.
-        # Asserting the tile id appears was satisfied by `return true`, which is the whole
-        # defect: a module offered under every shock, including ones with no model.
-        self.assertRegex(
-            avail, r'tileId === "sopps"\) return [^;]*sc\.securities',
-            "the availability rule for this module does not read the scenario's own "
-            "securities, so it can be offered under a shock that has none")
+        self.assertRegex(avail, r'tileId === "scen"',
+                         "the merged module has no availability branch at all")
+        for reads in (r"sc\.series", r"developments", r"sc\.securities"):
+            with self.subTest(reads=reads):
+                self.assertRegex(avail, reads,
+                                 "availability stopped reading one of the three record types "
+                                 "the module draws, so it can be offered with that section "
+                                 "permanently empty")
         self.assertNotIn("DATA_PRESENT", avail)
 
     def test_the_module_carries_its_own_fixture_marker(self):
-        self.assertIn('fxMark("sopps"', self.body,
+        self.assertIn('fxMark("scen"', self.body,
                       "a module listing fixture-derived classifications carries no marker")
 
 
@@ -3954,3 +3975,83 @@ class TheConcentrationArithmeticRefusesWhatItCannotMeasure(unittest.TestCase):
              "series": {"A": [1.0, 2.0, None, 4.0, 5.0], "B": [1.0] * 5}})
         self.assertEqual(align["aligned_by"], "date")
         self.assertEqual(align["excluded"], {})
+
+
+class TheScenarioIsOneModuleBecauseItWasOneNumber(unittest.TestCase):
+    """It was three tiles. Between them they rendered one datum: `bucket_activations` returns
+    0.30 for every reached bucket, and 0.30 is also the probability path's last point and the
+    figure in the context strip. Three panes, nine hand-authored records, one number — beside
+    a board holding 31,589 real closes with no chart reading them.
+
+    Nothing was deleted. The same three renderers write into the same seven hosts inside one
+    frame, which is why the host guard below matters more than the tile-count one."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.html = _page()
+        cls.js = _decomment(_script(cls.html))
+
+    def test_the_three_panes_are_one_module(self):
+        self.assertIn('data-id="scen"', self.html)
+        for retired in ('data-id="spath"', 'data-id="sdev"', 'data-id="sopps"'):
+            self.assertNotIn(retired, self.html, "a retired scenario pane is back on the board")
+
+    def test_every_reading_survived_the_merge(self):
+        """The collapse moved panes, not readings. Each renderer's host must still exist and
+        each section must still carry its own count — merging the frames must not merge the
+        three numbers into one, which would be the original defect with fewer borders."""
+        for host in ("spathChart", "spathLegend", "spathMeta",
+                     "sdevList", "sdevMeta", "soppsList", "soppsMeta"):
+            with self.subTest(host=host):
+                self.assertIn('id="%s"' % host, self.html)
+        self.assertEqual(self.html.count('class="scen-sec"'), 3,
+                         "the module no longer holds three sections")
+
+    def test_no_section_renames_the_frame_after_itself(self):
+        """Redirecting the path's title straight at the module heading made the merged card
+        announce itself as "Probability path · Material disruption to Strait of Hormuz
+        transit" — one section of three naming the whole frame, which is the three-tiles
+        problem surviving the merge."""
+        body = _functions(self.js).get("drawScenPath")
+        self.assertIn('getElementById("spathTarget")', body,
+                      "the path writes its target into the module heading again")
+        self.assertRegex(body, r'frame\.textContent = "Scenario',
+                         "the frame is not named after the scenario")
+
+    def test_the_sections_cannot_be_squeezed_under_their_own_content(self):
+        """Measured: with the default `flex: 0 1 auto` the first section's box collapsed to
+        54px around an 85px chart host, and its legend rendered 27px BELOW the next section's
+        list — three readings drawn on top of each other."""
+        style = _style(self.html)
+        m = re.search(r"\.scen-sec\{([^}]*)\}", style)
+        self.assertIsNotNone(m, ".scen-sec has no rule")
+        self.assertIn("flex:00auto", m.group(1).replace(" ", ""),
+                      "sections can shrink below their content again, which overlaps them")
+        self.assertIn("overflow:auto", re.search(r"\.scen-stack\{([^}]*)\}", style).group(1)
+                      .replace(" ", ""), "the stack cannot scroll, so content is clipped")
+
+    def test_the_fixture_marker_follows_the_module(self):
+        """`fxVal` throws on an undeclared surface, so the retired ids would have crashed
+        every render under a fixture scenario rather than quietly degrading."""
+        self.assertIn('scen:    "own"', self.js)
+        for retired in ('spath:   "own"', 'sdev:    "own"', 'sopps:   "own"'):
+            self.assertNotIn(retired, self.js)
+        for call in re.findall(r'fx(?:Val|Mark|Text)\("(\w+)"', self.js):
+            with self.subTest(surface=call):
+                self.assertNotIn(call, ("spath", "sdev", "sopps"),
+                                 "a fixture value is rendered into a retired surface, which "
+                                 "fxVal raises on")
+
+    def test_the_modules_section_class_does_not_collide(self):
+        """`.scen-part` was already taken — it is the scenario drawer's partition paragraph
+        (used by drawScenPanel), and it predates this module. Naming the new sections the same
+        thing applied `display:flex` and `flex:0 0 auto` to that paragraph too: a rule written
+        for one surface silently restyling another, which nothing on screen would announce."""
+        style = _style(self.html)
+        self.assertIn(".scen-part{margin:", style, "the drawer's own rule is gone")
+        self.assertIn(".scen-sec{display:flex", style)
+        drawer = _functions(_decomment(_script(self.html))).get("drawScenPanel") or ""
+        self.assertIn('class="scen-part"', drawer,
+                      "the drawer no longer uses the class this guard is protecting")
+        self.assertNotIn('class="scen-part"', self.html.split("<script", 1)[0],
+                         "the module's markup uses the drawer's class again")
