@@ -64,6 +64,9 @@ for _p in (REPO, TOOLS):
 import ctx  # noqa: E402  — the context layer; reused, never duplicated
 import stock_screener  # noqa: E402  — presets + snapshot; all HTML for it lives here
 import screener_lab  # noqa: E402  — the sentiment screen's engine; renders, never fetches
+import email.utils
+import datetime
+import statistics
 import concentration
 import sovereign_buckets  # noqa: E402  — the canonical chaos-bucket table; serialised, not copied
 import sweep_runner  # noqa: E402  — runs sweep.py as a job; never with --apply
@@ -4716,8 +4719,33 @@ def _screener_combined_draft_payload():
     prices = stock_screener.load_prices()
     sent_by = {r["ticker"]: r for r in (sent or {}).get("rows") or []}
     headlines = {source: {} for source in screener_lab.TONE_SOURCES}
+    spreads = {}
 
-    def pack_docs(docs, limit=4):
+    def doc_date(raw):
+        """The feed's own timestamp, normalised to a date.
+
+        Two formats arrive and neither was handled: Yahoo and Bloomberg send RFC-2822
+        ("Thu, 06 Aug 2026 14:22:00 GMT"), Reddit sends ISO. Nothing downstream parsed either,
+        because `published` was dropped here before anything could — so a field present on all
+        789 documents reached no surface at all. Slicing the first ten characters, the obvious
+        shortcut, yields "Thu, 06 Au" for four fifths of them.
+        """
+        if not raw:
+            return None
+        try:
+            return email.utils.parsedate_to_datetime(raw).date().isoformat()
+        except (TypeError, ValueError):
+            pass
+        try:
+            return datetime.date.fromisoformat(str(raw)[:10]).isoformat()
+        except ValueError:
+            return None
+
+    #: Per ticker per source. Was 4, which dropped 249 of 789 documents — a third of what the
+    #: fetch paid for — silently, and the count it dropped them from was the count the page
+    #: prints as coverage. Twelve is above the observed maximum, so nothing is cut today; the
+    #: return says when that stops being true rather than leaving the reader to assume.
+    def pack_docs(docs, limit=12):
         out = []
         for d in (docs or [])[:limit]:
             terms = d.get("terms") or []
@@ -4726,8 +4754,25 @@ def _screener_combined_draft_payload():
                 d.get("rule") or "?",
                 (" · " + term_s) if term_s else "")
             out.append({"h": d.get("title") or "(no title)", "m": meta,
-                        "tone": d.get("tone")})
+                        "tone": d.get("tone"), "d": doc_date(d.get("published"))})
         return out
+
+    def tone_spread(docs):
+        """What the mean is hiding.
+
+        The page prints one tone number per ticker per source. Behind it are up to twelve
+        documents that can disagree completely — +0.8, +0.7, -0.9 averages to a mild positive
+        and is actually a split. The spread is the difference between "the coverage agrees"
+        and "the coverage is fighting", and only one of those is a reading.
+
+        Returns None rather than 0 for a single document: one document has no spread, which is
+        not the same fact as twelve that agree.
+        """
+        tones = [d.get("tone") for d in (docs or []) if isinstance(d.get("tone"), (int, float))]
+        if len(tones) < 2:
+            return None
+        return {"n": len(tones), "lo": round(min(tones), 3), "hi": round(max(tones), 3),
+                "sd": round(statistics.pstdev(tones), 3)}
 
     rows = []
     if fund and fund.get("rows"):
@@ -4778,6 +4823,9 @@ def _screener_combined_draft_payload():
             docs = sr.get(source + "_docs") or []
             if docs:
                 headlines[source][tk] = pack_docs(docs)
+                spread = tone_spread(docs)
+                if spread:
+                    spreads.setdefault(tk, {})[source] = spread
         row_out = {
             "tk": tk,
             "name": fr.get("name") or sr.get("name") or tk,
@@ -4860,6 +4908,10 @@ def _screener_combined_draft_payload():
         # paid for repeatedly — most recently seven lens definitions that had drifted so far
         # the default screened nothing while its bubble still named a filter.
         "absence_reasons": dict(ABSENCE_REASONS),
+        # What each tone MEAN is hiding: the count, range and spread of the documents behind
+        # it. The page has always printed the mean; the documents disagreeing under it were
+        # fetched, scored, shipped and read by nothing.
+        "tone_spread": spreads,
         "headlines": headlines,
         "providers": providers,
         "sentiment_built": (sent or {}).get("built_at"),

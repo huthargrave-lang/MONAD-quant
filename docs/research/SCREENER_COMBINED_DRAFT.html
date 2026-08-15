@@ -214,6 +214,9 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
 /* The probability section is the only one with a chart, so it is the only one given a
    floor — the two lists below it size to their content. */
 .scen-sec > .chart-host{min-height:92px;flex:0 0 auto}
+.spread-note{font:10px var(--mono);color:var(--ink-muted);border:1px solid var(--rule);
+  border-radius:3px;padding:0 4px;margin-left:6px;white-space:nowrap}
+.spread-note.wide{color:var(--warning);border-color:var(--warning)}
 .sdev-list{margin:0;padding-left:18px;font-size:12px;color:var(--ink-2);line-height:1.45}
 /* Reached securities by direction. A group heading is always drawn, even at zero: a
    heading that disappears reads as "no such case exists" rather than "none today". */
@@ -7394,6 +7397,10 @@ function cardBody(r){
    is injected: a headline is a thing somebody published, and there is no honest placeholder
    for one. */
 let HEADLINES = {bloomberg:{}, reddit:{}, yahoo:{}};
+/* What each tone MEAN is hiding, per ticker per source: {n, lo, hi, sd}. The
+   documents behind a mean can disagree completely — AVGO's four Yahoo items run
+   -0.46 to +0.75 — and the page has only ever printed the average of them. */
+let TONE_SPREAD = {};
 
 /* How a document came to be attached to this ticker, in words, per source. Bloomberg and
    Reddit MATCH text; Yahoo's feed is keyed by ticker and the item is FILED there. Reading a
@@ -7412,6 +7419,19 @@ function toneAbsentBody(){
     + ' is stood in for in the meantime.</p>';
 }
 
+/* "The coverage agrees" and "the coverage is fighting" are different readings, and only one
+   of them is a reading. Printed only where there IS a spread: one document has no spread,
+   which is not the same fact as several that agree, and Python returns null rather than 0 for
+   exactly that reason. */
+function spreadNote(tk, src){
+  const sp = (TONE_SPREAD[tk] || {})[src];
+  if(!sp) return "";
+  const fmt = v => (v > 0 ? "+" : "") + v.toFixed(2);
+  const wide = sp.sd >= 0.3;
+  return ' <span class="spread-note' + (wide ? " wide" : "") + '">'
+    + sp.n + ' items, ' + esc(fmt(sp.lo)) + ' to ' + esc(fmt(sp.hi))
+    + (wide ? ' &#8212; split' : ' &#8212; agreed') + '</span>';
+}
 function renderHeadlines(){
   const box=document.getElementById("headlines");
   const r=ROWS.find(x=>x.tk===selected);
@@ -7470,7 +7490,8 @@ function renderHeadlines(){
             `${t.tone>0?"+":""}${t.tone.toFixed(2)}`)}</div>
           <div class="meta">${esc(TONE_FIELDS[src].label)} — ${esc(why)}</div></div>`);
       } else {
-        const head=t.tone!=null?`${tag} · ${selected} · ${t.tone>0?"+":""}${t.tone.toFixed(2)}`:`${tag} · ${selected}`;
+        const head=(t.tone!=null?`${tag} · ${selected} · ${t.tone>0?"+":""}${t.tone.toFixed(2)}`:`${tag} · ${selected}`)
+          + spreadNote(selected, src);
         // Headline text is feed copy, not this page's own markup.
         bag.forEach(d=>parts.push(`<div class="tone-card"><div class="tk">${head}</div>
           <div class="hd">${esc(d.h)}</div>
@@ -8828,6 +8849,7 @@ function applyLivePayload(){
     fallbackPin(ROWS);
   }
   if(live.headlines) HEADLINES = live.headlines;
+  if(live.tone_spread) TONE_SPREAD = live.tone_spread;
   if(live.headlines_withheld) HEADLINES_WITHHELD = live.headlines_withheld;
   if(live.price_history) PRICES = live.price_history;
   if(live.price_as_of) PRICE_ASOF = live.price_as_of;

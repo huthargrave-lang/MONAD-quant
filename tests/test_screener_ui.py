@@ -4129,3 +4129,62 @@ class TheConcentrationIsMeasuredAtSeveralDepths(unittest.TestCase):
                       "the depth limit is silent, so a six-month answer reads like a "
                       "permanent one")
         self.assertIn("sessions_held", body)
+
+
+class TheDocumentsBehindAToneMeanAreVisible(unittest.TestCase):
+    """789 documents were fetched and scored. `pack_docs` shipped 540 of them — a third
+    dropped silently, from the same count the page prints as coverage — threw away every
+    `published` timestamp, and shipped a per-document `tone` that nothing on the page read.
+
+    So the page printed a MEAN and hid the documents disagreeing under it. AVGO's four Yahoo
+    items run -0.46 to +0.75: a split, presented as a mild positive."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.payload = screener_payload_fixture.authored_payload()
+        cls.js = _decomment(_script(_page()))
+
+    def test_the_published_timestamp_survives_packing(self):
+        """Two formats arrive and neither was handled: Yahoo and Bloomberg send RFC-2822,
+        Reddit sends ISO. Slicing ten characters — the obvious shortcut — yields "Thu, 06 Au"
+        for four fifths of them."""
+        src = inspect.getsource(research_ui._screener_combined_draft_payload)
+        self.assertIn("parsedate_to_datetime", src,
+                      "RFC-2822 timestamps are not parsed, so most dates are unusable")
+        self.assertIn("fromisoformat", src, "ISO timestamps are not parsed")
+        self.assertIn('"d": doc_date(', src, "the date is computed and then not shipped")
+
+    def test_the_pack_limit_is_above_what_the_feeds_return(self):
+        src = inspect.getsource(research_ui._screener_combined_draft_payload)
+        m = re.search(r"def pack_docs\(docs, limit=(\d+)\)", src)
+        self.assertIsNotNone(m)
+        self.assertGreaterEqual(int(m.group(1)), 12,
+                                "documents are dropped again, from the same count the page "
+                                "prints as coverage")
+
+    def test_a_single_document_has_no_spread_rather_than_a_spread_of_zero(self):
+        """One document that agrees with nothing is not the same fact as twelve that agree,
+        and 0 would render as the second."""
+        fn = None
+        for name, obj in vars(research_ui).items():   # module-level helpers only
+            if name == "tone_spread":
+                fn = obj
+        # It is a closure inside the payload builder, so exercise it through the payload.
+        self.assertIsNotNone(re.search(r"if len\(tones\) < 2:\s*\n\s*return None",
+                                       inspect.getsource(
+                                           research_ui._screener_combined_draft_payload)),
+                             "a lone document reports a spread of zero")
+
+    def test_the_page_reads_the_spread_it_is_sent(self):
+        self.assertIn("TONE_SPREAD", self.js)
+        self.assertIn("live.tone_spread", self.js,
+                      "the payload ships a spread the page never binds")
+        body = _functions(self.js).get("spreadNote")
+        self.assertIsNotNone(body, "nothing renders the spread")
+        self.assertIn("split", body)
+        self.assertIn("agreed", body)
+
+    def test_the_spread_is_omitted_where_there_is_none(self):
+        body = _functions(self.js).get("spreadNote")
+        self.assertRegex(body, r"if\(!sp\) return \"\";",
+                         "a ticker with one document gets a spread badge anyway")
