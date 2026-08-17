@@ -8564,7 +8564,12 @@ function measuredTitle(tk, m){
     + b.lo.toFixed(2) + " to " + b.hi.toFixed(2) + " (t " + b.t + ", R² "
     + b.r2.toFixed(2) + ", " + b.n + " sessions).";
   if(b.oos_r2 != null)
-    s += " Fitted before " + b.split + " and scored after it: the trained coefficient removes "
+  /* The COEFFICIENT ON SCREEN IS FULL-SAMPLE. Only the holdout score below is out of
+     sample, and an earlier version of this sentence let the split describe the number beside
+     it — which read as "0.306 was fitted before 2022", and it was not: that figure is 0.259. */
+  if(b.train != null)
+    s += " Over the years before " + b.split + " alone it measures " + b.train.toFixed(2)
+      + ", and scored on the years after: the trained coefficient removes "
       + (b.oos_r2 * 100).toFixed(0) + "% of squared error on years it never saw, and the sign "
       + (b.sign_held ? "held." : "DID NOT hold.");
   if(r)
@@ -8922,9 +8927,10 @@ function drawBBeta(){
         + (missing > 1 ? "s have" : " has") + ' no measured coefficient: no traded observable '
         + 'exists for their channel, or their series is too short. Not zero — unmeasured.</p>';
     }
-    out += '<p class="scen-note">Fitted before <b>' + esc(rows[0].s.split) + '</b> and scored '
-      + 'after it. Hover a dot for that name’s interval, its out-of-sample score and its '
-      + 'conditional distribution.' + (sel.length > 1 ? ' Across all ' + sel.length
+    out += '<p class="scen-note">Dots and whiskers are the <b>full-sample</b> coefficient and '
+      + 'its 95% interval, 2016 to today. The holdout is reported separately: hover a dot for '
+      + 'the coefficient fitted before <b>' + esc(rows[0].s.split) + '</b>, what it scored on '
+      + 'the years after, and whether the sign survived.' + (sel.length > 1 ? ' Across all ' + sel.length
         + ' selected theses.' : "") + '</p>';
     legend.innerHTML = out;
   }

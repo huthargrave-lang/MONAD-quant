@@ -355,6 +355,26 @@ def bucket_lab(buckets, prices):
             "last": dates[-1] if dates else None, "sessions": len(dates)}
 
 
+def _shape(prices):
+    """A fingerprint of the prices ACTUALLY PASSED, not of the file on disk.
+
+    THE DEFECT THIS CLOSES. The key was `os.stat()` of the default repo prices.json while the
+    computation ran on the `prices` argument. `tests/screener_payload_fixture.py` repoints the
+    price path at a 3-ticker temp file and calls the real payload builder, so the module
+    computed nothing from a fixture and wrote that nothing to disk UNDER THE REAL SNAPSHOT'S
+    STAMP. Every later reader got a valid-looking hit holding null, and any test run
+    re-poisoned it. Measured: the whole measured-channel layer was shipping no records at all
+    while the cache reported itself fresh.
+
+    Ticker count and date span, not a hash of the values: cheap, and it distinguishes exactly
+    the case that caused this — a different universe wearing the same file stamp.
+    """
+    series = (prices or {}).get("series") or {}
+    dates = (prices or {}).get("dates") or []
+    return "%d:%d:%s:%s" % (len(series), len(dates),
+                            dates[0] if dates else "-", dates[-1] if dates else "-")
+
+
 def _stamp(path):
     try:
         s = os.stat(path)
@@ -371,16 +391,23 @@ def cached_bucket_lab(buckets, prices, prices_path=None, cache_path=None):
     try:
         with open(cache_path, encoding="utf-8") as fh:
             c = json.load(fh)
-        if stamp and c.get("source") == stamp and c.get("schema") == SCHEMA:
+        if (stamp and c.get("source") == stamp and c.get("schema") == SCHEMA
+                and c.get("shape") == _shape(prices)
+                and c.get("data") is not None):
             return c["data"]
     except (OSError, ValueError, KeyError):
         pass
     data = bucket_lab(buckets, prices)
+    # A null is never written. See _shape: a fixture run wrote one under the real
+    # snapshot stamp and every later reader got a valid-looking hit holding it.
+    if data is None:
+        return None
     try:
         os.makedirs(os.path.dirname(cache_path), exist_ok=True)
         tmp = cache_path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump({"source": stamp, "schema": SCHEMA, "data": data}, fh)
+            json.dump({"source": stamp, "schema": SCHEMA,
+                       "shape": _shape(prices), "data": data}, fh)
         os.replace(tmp, cache_path)
     except OSError:
         pass

@@ -77,14 +77,28 @@ MIN_MEMBERS = 3
 
 
 def _returns(closes):
-    """Simple daily returns, skipping any session either side of a hole.
+    """Simple daily returns, refusing any interval that touches a hole OR a non-positive close.
 
     A gap is not a return. Closing up a missing session would manufacture a multi-day move and
-    report it as a one-day one, which is the same class of error as compacting the series."""
+    report it as a one-day one, which is the same class of error as compacting the series.
+
+    NEITHER IS A NEGATIVE PRICE. `CL=F` closed at -$37.63 on 2020-04-20 — a real event — and a
+    percentage change through it is meaningless: differenced naively it is -306%, and it
+    dominates every sum of squares it enters. This test WAS `not a`, which is falsy and so
+    catches a zero close and lets -37.63 straight through. Measured cost of that: Oil/Hormuz
+    reported 1.42 effective bets where the honest figure is 1.34, and `bucket_lab`, which
+    imports this function, carried the -306% return into every stress window and drawdown
+    episode for that bucket.
+
+    `channel_stats` had the correct rule and this one did not, which is exactly the two-copies
+    failure this repo keeps paying for. There is one definition now and the other module
+    imports it — see `channel_stats._returns`.
+    """
     out = []
     for i in range(1, len(closes)):
         a, b = closes[i - 1], closes[i]
-        out.append(None if (a is None or b is None or not a) else (b - a) / a)
+        bad = a is None or b is None or a <= 0 or b <= 0
+        out.append(None if bad else (b - a) / a)
     return out
 
 

@@ -4809,7 +4809,7 @@ class TheMeasuredChannelLayerIsMeasuredAndSeparable(unittest.TestCase):
 
     def test_an_interval_touching_a_non_positive_close_is_refused(self):
         """THE LOAD-BEARING RULE. CL=F closed at -$37.63 on 2020-04-20 — a real event, not bad
-        data. Differenced naively that is -306% followed by +37.7%, and it dominates every sum
+        data. Differenced naively that is -306% followed by -126.6%, and it dominates every sum
         of squares it enters: XOM's beta to crude reads 0.060 with t=1.8 including it, and
         0.306 with t=10.7 without. A factor of five on one observation in 2,377, and the
         version with it would have shipped as "these oil names barely track oil"."""
@@ -5163,3 +5163,244 @@ class TheThesisModulesAreScopedMeasuredAndEpisodic(unittest.TestCase):
         self.assertEqual(ids(gate), ids(grp),
                          "the modules the gate scopes and the modules the menu groups have "
                          "drifted apart")
+
+
+class ANegativePriceIsNotAReturnAndThereIsOneDefinitionOfThat(unittest.TestCase):
+    """Found by an adversarial pass, and the worst kind of defect: a docstring that asserted a
+    safety property, named the function providing it, and was never checked against it.
+
+    `bucket_lab` said returns come from `concentration._returns`, "which refuses any interval
+    touching a non-positive close, so this file cannot reintroduce that defect". That function
+    tested `not a` — falsy, so it caught a zero close and let -37.63 straight through. Measured:
+    Oil/Hormuz reported 1.42 effective bets against an honest 1.34, and every stress window and
+    drawdown episode for that bucket carried a -306% return."""
+
+    def test_an_interval_touching_a_non_positive_close_is_refused(self):
+        import concentration as conc  # noqa: PLC0415
+        self.assertEqual(conc._returns([10.0, 20.0, -5.0, 10.0, 11.0]),
+                         [1.0, None, None, 0.1],
+                         "a negative close produces a return again")
+        self.assertEqual(conc._returns([10.0, 0.0, 10.0]), [None, None],
+                         "the zero case the falsy test did catch must still be caught")
+
+    def test_the_two_modules_share_one_definition_rather_than_agreeing(self):
+        """`channel_stats` had the rule and `concentration` did not, so the two files disagreed
+        about the single fact both are built on. Identity, not equality: two correct copies are
+        one edit away from being two different rules again."""
+        import channel_stats as cs  # noqa: PLC0415
+        import concentration as conc  # noqa: PLC0415
+        self.assertIs(cs._returns, conc._returns,
+                      "the modules hold separate implementations of what a usable return is")
+
+    def test_the_shipped_effective_bet_count_excludes_it(self):
+        import json as _json  # noqa: PLC0415
+
+        import concentration as conc  # noqa: PLC0415
+        import sovereign_buckets  # noqa: PLC0415
+        path = os.path.join(REPO, "data", "screener", "prices.json")
+        if not os.path.exists(path):
+            self.skipTest("no price snapshot")
+        with open(path, encoding="utf-8") as fh:
+            prices = _json.load(fh)
+        rets, _a = conc.aligned_returns(prices)
+        series = prices["series"]
+        for tk, r in rets.items():
+            closes = series.get(tk) or []
+            for i, v in enumerate(r):
+                if v is None:
+                    continue
+                a, b = closes[i], closes[i + 1]
+                self.assertGreater(a, 0, "%s: a return survives a non-positive close" % tk)
+                self.assertGreater(b, 0, "%s: a return survives a non-positive close" % tk)
+
+
+class ACacheKeyedOnTheWrongThingServedNothingForHours(unittest.TestCase):
+    """The measured-channel layer shipped ZERO records while its cache reported itself fresh.
+
+    The key was `os.stat()` of the default repo prices.json; the computation ran on the
+    `prices` ARGUMENT. `screener_payload_fixture` repoints the price path at a 3-ticker temp
+    file and calls the real payload builder, so the module computed nothing from a fixture and
+    wrote that nothing under the REAL snapshot's stamp. Every later reader got a valid-looking
+    hit holding null, and any test run re-poisoned it."""
+
+    @staticmethod
+    def _tmp(prices, mod, fn, *args):
+        import tempfile  # noqa: PLC0415
+        with tempfile.TemporaryDirectory() as d:
+            pfile = os.path.join(d, "prices.json")
+            with open(pfile, "w", encoding="utf-8") as fh:
+                fh.write("{}")
+            cfile = os.path.join(d, "c.json")
+            out = fn(*args, prices_path=pfile, cache_path=cfile)
+            on_disk = None
+            if os.path.exists(cfile):
+                import json as _json  # noqa: PLC0415
+                with open(cfile, encoding="utf-8") as fh:
+                    on_disk = _json.load(fh)
+            return out, on_disk
+
+    def test_a_computation_that_produced_nothing_is_never_persisted(self):
+        import bucket_lab as bl  # noqa: PLC0415
+        import channel_stats as cs  # noqa: PLC0415
+        out, disk = self._tmp({}, cs, cs.cached_channel_stats, {}, ["XOM"])
+        self.assertIsNone(out)
+        self.assertIsNone(disk, "a null result was written to disk as though it were an answer")
+        out2, disk2 = self._tmp({}, bl, bl.cached_bucket_lab, [], {})
+        self.assertIsNone(out2)
+        self.assertIsNone(disk2, "a null bucket_lab result was persisted")
+
+    def test_the_key_covers_the_prices_actually_passed(self):
+        """A stamp on the file the caller did not use is not a key. `_shape` fingerprints the
+        argument, so a fixture universe cannot claim the real snapshot's identity."""
+        import bucket_lab as bl  # noqa: PLC0415
+        import channel_stats as cs  # noqa: PLC0415
+        big = {"dates": ["2020-01-0%d" % i for i in range(1, 6)],
+               "series": {t: [1.0] * 5 for t in ("A", "B", "C")}}
+        small = {"dates": ["2020-01-0%d" % i for i in range(1, 4)],
+                 "series": {"A": [1.0] * 3}}
+        for mod in (cs, bl):
+            self.assertNotEqual(mod._shape(big), mod._shape(small),
+                                "%s fingerprints two different universes identically" % mod.__name__)
+            self.assertEqual(mod._shape(big), mod._shape(dict(big)),
+                             "%s fingerprint is unstable across equal inputs" % mod.__name__)
+
+    def test_a_cache_built_from_a_different_universe_is_a_miss(self):
+        """The shape check tested DIRECTLY, because the null-refusal masks it end to end: once
+        a null is never written the fixture cannot poison anything, and a test of the outcome
+        stays green with the shape check deleted. This exercises the case the refusal does not
+        cover — a cache with real content, computed from a DIFFERENT set of prices, wearing the
+        right file stamp."""
+        import json as _json  # noqa: PLC0415
+        import tempfile  # noqa: PLC0415
+
+        import channel_stats as cs  # noqa: PLC0415
+        real = {"dates": ["2020-01-%02d" % i for i in range(1, 9)],
+                "series": {t: [10.0 + i for i in range(8)] for t in ("A", "B", "C")}}
+        other = {"dates": ["2020-01-%02d" % i for i in range(1, 5)],
+                 "series": {"A": [10.0, 11.0, 12.0, 13.0]}}
+        with tempfile.TemporaryDirectory() as d:
+            pfile = os.path.join(d, "prices.json")
+            with open(pfile, "w", encoding="utf-8") as fh:
+                fh.write("{}")
+            cfile = os.path.join(d, "c.json")
+            stamp = cs._prices_stamp(pfile)
+            # Content computed from `other`, stamped as though it came from `real`.
+            with open(cfile, "w", encoding="utf-8") as fh:
+                _json.dump({"source": stamp, "schema": cs.SCHEMA, "universe": "XOM",
+                            "shape": cs._shape(other),
+                            "data": {"poison": True}}, fh)
+            got = cs.cached_channel_stats(real, ["XOM"], prices_path=pfile, cache_path=cfile)
+            self.assertNotIn("poison", got or {},
+                             "a cache computed from a different universe was served because "
+                             "its file stamp matched")
+
+    def test_the_repos_own_fixture_does_not_poison_the_real_cache(self):
+        """The end-to-end case. This is how it actually happened: ~10 tests call
+        `authored_payload()`, and every one of them used to overwrite the live cache."""
+        import json as _json  # noqa: PLC0415
+        real = os.path.join(REPO, "data", "screener", "channel_stats.json")
+        if not os.path.exists(real):
+            self.skipTest("no cache present to protect")
+        with open(real, encoding="utf-8") as fh:
+            before = _json.load(fh)
+        if before.get("data") is None:
+            self.skipTest("cache already empty; nothing to prove")
+        sys.path.insert(0, os.path.join(REPO, "tests"))
+        import screener_payload_fixture as fx  # noqa: PLC0415
+        fx.authored_payload()
+        with open(real, encoding="utf-8") as fh:
+            after = _json.load(fh)
+        self.assertIsNotNone(after.get("data"),
+                             "a fixture payload build emptied the real snapshot's cache")
+
+
+class TheSplitDescribesOnlyTheFieldsItGoverns(unittest.TestCase):
+    """`sensitivity()` fits the whole sample and reports THAT as beta/se/lo/hi/t/r2; only
+    train/test/oos_r2/sign_held respect OOS_SPLIT_DATE. The module's `method` string and the
+    page legend both said "fitted before 2022-01-01 and scored after it" — under a dot drawn at
+    the full-sample coefficient. XOM's dot is 0.306; the number actually fitted before that date
+    is 0.259. Found by an adversarial pass."""
+
+    def test_the_shipped_beta_is_the_full_sample_one_and_differs_from_the_trained_one(self):
+        import json as _json  # noqa: PLC0415
+
+        import channel_stats as cs  # noqa: PLC0415
+        path = os.path.join(REPO, "data", "screener", "prices.json")
+        if not os.path.exists(path):
+            self.skipTest("no price snapshot")
+        with open(path, encoding="utf-8") as fh:
+            prices = _json.load(fh)
+        out = cs.channel_stats(prices, ["XOM", "CVX", "COP"])
+        s = out["securities"]["XOM"]["sensitivity"]
+        self.assertNotAlmostEqual(
+            s["beta"], s["train"], places=2,
+            msg="beta and train coincide, so this guard proves nothing on this data")
+
+    def test_no_surface_says_the_split_produced_the_number_beside_it(self):
+        js = _decomment(_script(_page()))
+        title = _functions(js).get("measuredTitle")
+        self.assertNotIn("Fitted before", title,
+                         "the drilldown attributes the plotted coefficient to the holdout fit")
+        self.assertIn("b.train", title,
+                      "the trained coefficient is never shown, so a reader cannot tell the "
+                      "two apart")
+        legend = _functions(js).get("drawBBeta")
+        self.assertIn("full-sample", legend,
+                      "the sensitivity legend does not say which sample its dots come from")
+
+    def test_the_method_string_names_the_fields_the_split_governs(self):
+        import channel_stats as cs  # noqa: PLC0415
+        doc = cs.sensitivity.__doc__ or ""
+        self.assertIn("FULL-SAMPLE", doc.upper(),
+                      "the docstring still implies every field respects the split")
+
+
+class ClaimsAboutTheDataAreCheckedAgainstTheData(unittest.TestCase):
+    """Four numbers in docstrings and commit messages did not survive recomputation. They are
+    pinned here because prose is where this repo's claims go to stop being tested."""
+
+    @staticmethod
+    def _prices():
+        import json as _json  # noqa: PLC0415
+        path = os.path.join(REPO, "data", "screener", "prices.json")
+        if not os.path.exists(path):
+            return None
+        with open(path, encoding="utf-8") as fh:
+            return _json.load(fh)
+
+    def test_the_return_after_the_negative_close_is_the_one_quoted(self):
+        prices = self._prices()
+        if not prices:
+            self.skipTest("no price snapshot")
+        s = prices["series"].get("CL=F") or []
+        i = next((k for k, v in enumerate(s) if v is not None and v <= 0), None)
+        if i is None:
+            self.skipTest("the negative close is gone from the snapshot")
+        nxt = (s[i + 1] - s[i]) / s[i] * 100
+        self.assertLess(nxt, 0, "the session after a negative close is quoted as a gain; a "
+                                "move from a negative price to a positive one is not +37.7%")
+        import channel_stats as cs  # noqa: PLC0415
+        self.assertIn("-126.6%", cs.__doc__, "the quoted figure no longer matches the data")
+
+    def test_not_every_name_weakens(self):
+        """The docstring asserted a universal. It is false for 13 of 32, including XOM."""
+        prices = self._prices()
+        if not prices:
+            self.skipTest("no price snapshot")
+        import channel_stats as cs  # noqa: PLC0415
+        import scenarios  # noqa: PLC0415
+        tickers = sorted({t for sc in scenarios.as_payload().values()
+                          for t in (sc.get("securities") or {})})
+        out = cs.channel_stats(prices, tickers)
+        decays = [r["response"]["decay"] for r in out["securities"].values()
+                  if r.get("response") and r["response"].get("decay")]
+        stronger = [d for d in decays if d["late"] > d["early"]]
+        self.assertTrue(stronger,
+                        "no name strengthens, so the corrected docstring is now the wrong one")
+        # NOT `assertNotIn("every name weakens", ...)`: the corrected text contains that
+        # phrase inside its own refutation ("It is NOT true that every name weakens"), so the
+        # absence check went red against the fix. Asserting a phrase is missing is the same
+        # trap as asserting one is present — check the claim, not the characters.
+        doc = cs.conditional_response.__doc__ or ""
+        self.assertIn("NOT true that every name weakens", doc,
+                      "the docstring no longer disowns the universal it once asserted")

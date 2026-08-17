@@ -11,9 +11,12 @@ This computes the missing half from the closes already on disk:
 
     r_security = alpha + beta * r_channel + e
 
-`beta` is the security's move per 1% move in the channel's observable. It ships with a White
-(HC0) standard error, an R², and — the part that makes it a forecast rather than a description
-— a coefficient fitted on the early years and scored on the years after it.
+`beta` is the security's move per 1% move in the channel's observable, fitted over the WHOLE
+sample and shipped with a White (HC0) standard error and an R². Computed separately beside it
+is a coefficient fitted only on the years before `OOS_SPLIT_DATE` and scored on the years
+after: `train`, `test`, `oos_r2`, `sign_held`. THOSE FOUR RESPECT THE SPLIT AND THE OTHERS DO
+NOT. XOM is 0.306 over 2016-2026 and 0.259 over the training years alone, so a surface printing
+the full-sample number under a sentence about the split asserts something untrue.
 
 WHY HC0 AND NOT THE TEXTBOOK STANDARD ERROR
 -------------------------------------------
@@ -24,7 +27,7 @@ HC0 is the cheapest correction that does not assume the thing that is false here
 THE ONE OBSERVATION THAT DESTROYS ALL OF IT
 --------------------------------------------
 `CL=F` closed at **-$37.63 on 2020-04-20**. That is a real event, not bad data. Differenced
-naively it is a -306% return followed by +37.7%, and it dominates every sum of squares it
+naively it is a -306% return followed by a -126.6% one, and it dominates every sum of squares it
 enters. Measured: with that close included, XOM's beta to crude is 0.060 with t = 1.8, which
 reads as "these oil names barely track oil". Excluding it, 0.306 with t = 10.7 — a factor of
 five, on one observation out of 2,377.
@@ -54,6 +57,8 @@ import json
 import math
 import os
 import statistics as st
+
+import concentration
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -101,20 +106,11 @@ SCHEMA = 1
 CACHE_PATH = os.path.join(REPO, "data", "screener", "channel_stats.json")
 
 
-def _returns(closes):
-    """Daily simple returns, refusing any interval that touches a non-positive close.
-
-    See the module docstring: CL=F closed at -$37.63 and that one interval moves XOM's beta
-    from 0.31 to 0.06. A negative price has no meaningful percentage change. `None` marks the
-    refusal rather than a zero, so a caller that forgets to filter gets an obvious failure
-    instead of a plausible number.
-    """
-    out = []
-    for i in range(1, len(closes)):
-        a, b = closes[i - 1], closes[i]
-        bad = a is None or b is None or a <= 0 or b <= 0
-        out.append(None if bad else (b - a) / a)
-    return out
+#: ONE definition of "what is a usable return", imported rather than restated. This module had
+#: the correct rule and `concentration` had a falsy `not a` that let -37.63 through, so the two
+#: files disagreed about the single fact both are built on. Importing is what makes that
+#: impossible rather than unlikely.
+_returns = concentration._returns
 
 
 def _ols_hc0(xs, ys):
@@ -166,10 +162,15 @@ def _aligned(dates, a, b, lo=None, hi=None):
 def sensitivity(dates, chan_rets, sec_rets):
     """One `(security, channel)` beta, with the out-of-sample evidence that it predicts.
 
+    `beta`, `se`, `lo`, `hi`, `t` and `r2` are FULL-SAMPLE. Only `train`, `test`, `oos_r2` and
+    `sign_held` are out-of-sample quantities, and conflating the two is how a chart came to
+    print 0.306 under a sentence saying it was fitted before 2022 — that figure is 0.259.
+
     `oos_r2` is the fraction of squared error the TRAINED coefficient removes on the held-out
     years, against predicting zero. It is the number that separates a fitted description from
     a forecast, and it is emitted even when negative — a sensitivity that does not survive its
-    own holdout should say so on the same row as its confidence interval.
+    own holdout should say so on the same row as its confidence interval. TRMD does exactly
+    that: it trains at -0.10, tests at +0.21, and carries `sign_held` false with `oos_r2` -0.04.
     """
     full = _aligned(dates, chan_rets, sec_rets)
     if len(full) < MIN_OBS:
@@ -220,9 +221,13 @@ def conditional_response(chan_rets, sec_rets, move=SHOCK_MOVE, window=SHOCK_WIND
     says that on 11% of the episodes where crude rose 8% in a week, CVX fell anyway.
 
     `decay` splits the episodes in half by time and reports each median. It is emitted beside
-    the pooled figure because on this data every name weakens — SM's median response is 13.7%
-    over the first half of the episodes and 7.8% over the second — and a pooled number shown
-    alone would hide a trend that changes what the number means.
+    the pooled figure because a pooled number alone hides a trend that changes what it means.
+    SM goes 14.5% to 7.8%. It is NOT true that every name weakens — 13 of 32 strengthen, XOM
+    among them at 4.1% to 5.6% — and an earlier version of this docstring said otherwise, which
+    is why the surface reports both halves and no verb.
+
+    THE WINDOWS OVERLAP. A 5-session window is counted at every session it covers, so ~149
+    windows are roughly 61 distinct spikes: read `n` as windows, not as independent events.
     """
     cw = _window_returns(chan_rets, window)
     sw = _window_returns(sec_rets, window)
@@ -328,6 +333,26 @@ def _declared_channels():
         return []
 
 
+def _shape(prices):
+    """A fingerprint of the prices ACTUALLY PASSED, not of the file on disk.
+
+    THE DEFECT THIS CLOSES. The key was `os.stat()` of the default repo prices.json while the
+    computation ran on the `prices` argument. `tests/screener_payload_fixture.py` repoints the
+    price path at a 3-ticker temp file and calls the real payload builder, so the module
+    computed nothing from a fixture and wrote that nothing to disk UNDER THE REAL SNAPSHOT'S
+    STAMP. Every later reader got a valid-looking hit holding null, and any test run
+    re-poisoned it. Measured: the whole measured-channel layer was shipping no records at all
+    while the cache reported itself fresh.
+
+    Ticker count and date span, not a hash of the values: cheap, and it distinguishes exactly
+    the case that caused this — a different universe wearing the same file stamp.
+    """
+    series = (prices or {}).get("series") or {}
+    dates = (prices or {}).get("dates") or []
+    return "%d:%d:%s:%s" % (len(series), len(dates),
+                            dates[0] if dates else "-", dates[-1] if dates else "-")
+
+
 def _prices_stamp(path):
     try:
         s = os.stat(path)
@@ -345,17 +370,23 @@ def cached_channel_stats(prices, tickers, prices_path=None, cache_path=None):
     try:
         with open(cache_path, encoding="utf-8") as fh:
             c = json.load(fh)
-        if stamp and c.get("source") == stamp and c.get("schema") == SCHEMA \
-                and c.get("universe") == key:
+        if (stamp and c.get("source") == stamp and c.get("schema") == SCHEMA
+                and c.get("universe") == key and c.get("shape") == _shape(prices)
+                and c.get("data") is not None):
             return c["data"]
     except (OSError, ValueError, KeyError):
         pass
     data = channel_stats(prices, tickers)
+    # A null is never written. The computation producing nothing is not an answer,
+    # and persisting it is what turned one fixture run into a permanent outage.
+    if data is None:
+        return None
     try:
         os.makedirs(os.path.dirname(cache_path), exist_ok=True)
         tmp = cache_path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump({"source": stamp, "schema": SCHEMA, "universe": key, "data": data}, fh)
+            json.dump({"source": stamp, "schema": SCHEMA, "universe": key,
+                       "shape": _shape(prices), "data": data}, fh)
         os.replace(tmp, cache_path)
     except OSError:
         pass
