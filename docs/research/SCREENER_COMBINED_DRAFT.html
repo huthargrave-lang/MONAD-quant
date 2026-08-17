@@ -174,6 +174,25 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
   border:1px solid var(--ord-3);border-radius:2px;padding:0 4px;margin-left:5px;
   white-space:nowrap;cursor:help;opacity:.92}
 .meas .meas-e{color:var(--ink-muted)}
+/* A contradicted arrow is not a louder version of an agreeing one — it is a different
+   reading, and it takes the colour this page already uses for something that needs
+   looking at. */
+.meas-clash{color:var(--warning);border-color:var(--warning)}
+/* The stress table. Dense by design: it is a list of dates, and a date a reader can go
+   and check is worth more than the space a chart of the same six numbers would take. */
+.bs-h{margin:10px 0 4px;font:11px var(--mono);color:var(--ink-2);font-weight:600}
+.bs-h .scen-note{font-weight:400;margin-left:6px}
+.bs-t{width:100%;border-collapse:collapse;font-size:11.5px}
+.bs-t th{text-align:left;font:9.5px var(--mono);letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink-muted);padding:3px 8px 3px 0;
+  border-bottom:1px solid var(--rule)}
+.bs-t td{padding:3px 8px 3px 0;border-bottom:1px solid var(--hairline,transparent)}
+.bs-t td.n{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+/* The group that answers what the reader just clicked, marked so it reads as promoted
+   rather than as having always been first. */
+.optgroup-lead > h5{color:var(--ord-4)}
+.optgroup-lead > h5::after{content:" \00b7 for your selection";color:var(--ink-muted);
+  font-weight:400;letter-spacing:0;text-transform:none}
 .scen-foot{margin:6px 0 0;font-size:11px;color:var(--ink-muted)}
 /* State, as a word. Three colours would be three states told in a channel a reader may not
    be able to read, so the word carries it and the colour only reinforces. */
@@ -1665,6 +1684,60 @@ table.bwatch .spark{width:80px;height:26px;display:block}
           </section>
         </div>
       </article>
+
+      <!-- The four thesis modules. Same shell as every other tile: a bar that drags, a meta
+           slot, a close button, and a body. They differ only in being unavailable until a
+           thesis is selected, which `bucketTileAvailable` decides. -->
+      <article class="tile" data-id="bcorr" id="tile-bcorr">
+        <div class="tile-bar" data-drag>
+          <span class="tile-grip">&#8942;&#8942;</span>
+          <h2>Correlations inside the thesis</h2>
+          <div class="tile-meta" id="bcorrMeta">&#8212;</div>
+          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">&#215;</button>
+        </div>
+        <div class="tile-body">
+          <div class="chart-host" id="bcorrChart"></div>
+          <div class="legend" id="bcorrLegend"></div>
+        </div>
+      </article>
+
+      <article class="tile" data-id="bstress" id="tile-bstress">
+        <div class="tile-bar" data-drag>
+          <span class="tile-grip">&#8942;&#8942;</span>
+          <h2>Worst windows it has had</h2>
+          <div class="tile-meta" id="bstressMeta">&#8212;</div>
+          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">&#215;</button>
+        </div>
+        <div class="tile-body">
+          <div class="detail-card" id="bstressList"></div>
+        </div>
+      </article>
+
+      <article class="tile" data-id="bsig" id="tile-bsig">
+        <div class="tile-bar" data-drag>
+          <span class="tile-grip">&#8942;&#8942;</span>
+          <h2>Signal ladder</h2>
+          <div class="tile-meta" id="bsigMeta">&#8212;</div>
+          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">&#215;</button>
+        </div>
+        <div class="tile-body">
+          <div class="chart-host" id="bsigChart"></div>
+          <div class="legend" id="bsigLegend"></div>
+        </div>
+      </article>
+
+      <article class="tile" data-id="bbeta" id="tile-bbeta">
+        <div class="tile-bar" data-drag>
+          <span class="tile-grip">&#8942;&#8942;</span>
+          <h2>Sensitivity to the channel</h2>
+          <div class="tile-meta" id="bbetaMeta">&#8212;</div>
+          <button type="button" class="tile-close" data-close aria-label="Park this chart in the tray">&#215;</button>
+        </div>
+        <div class="tile-body">
+          <div class="chart-host" id="bbetaChart"></div>
+          <div class="legend" id="bbetaLegend"></div>
+        </div>
+      </article>
     </div>
     <button type="button" class="board-resize" id="boardResize"
             aria-label="Drag to resize the widget area; arrow keys also work"
@@ -2814,11 +2887,19 @@ function priceCohort(cap){
    thing as the scatter and the ranking, and placed, dragged and resized by the same system.
    Keeping them in the context turned it into a second dashboard. */
 const TILE_IDS = ["plot","price","tone","rank","dist","shadow","conc","card","watch","bpanel","bwatch",
-                  "scen"];
+                  "scen","bcorr","bstress","bsig","bbeta"];
 /* The two modules whose availability is a fact about the SELECTED SHOCK rather than about the
    payload. Everything else on this board is available whenever its source is, for the whole
    life of the page; these two come and go as the reader changes what they are looking at. */
 const SCENARIO_TILES = ["scen"];
+/* The four whose availability is a fact about the SELECTED BUCKET. Same shape as the scenario
+   pair one line up and for the same reason: they analyse a thesis, so with no thesis chosen
+   they have no subject, and a module that can only render its own empty state is a pane the
+   reader paid for and got nothing back from.
+
+   They are ordered here as a reader meets a bucket: what it is made of, what it has survived,
+   what it has been doing lately, and what moves it. That order is what the panel sorts on. */
+const BUCKET_TILES = ["bcorr","bstress","bsig","bbeta"];
 /* What the CONTEXT section owns: the controls that DEFINE the universe, and nothing that
    analyses it. */
 /* There is no second region any more. The context's controls and card grid are plain content
@@ -2833,7 +2914,9 @@ const TILE_LABELS = {
   conc:"How many bets is each thesis",
   card:"Stock detail", watch:"Watchlist",
   bucketctl:"Shock & clock", buckets:"Chaos buckets",
-  bpanel:"Bucket panel", bwatch:"Bucket constituents"
+  bpanel:"Bucket panel", bwatch:"Bucket constituents",
+  bcorr:"Correlations inside the thesis", bstress:"Worst windows it has had",
+  bsig:"Signal ladder", bbeta:"Sensitivity to the channel"
 };
 const TILE_NOTES = {
   plot:  "Every name as P/E against growth; the lens's matches are the coloured marks.",
@@ -2851,6 +2934,10 @@ const TILE_NOTES = {
   bpanel: "History, thesis, price feed and Book I for the selection — four readings, one card.",
   bwatch: "Every name the selected theses hold — tier, bucket, shape, last close, return. "
           + "Not the Watchlist: that card is the names you kept.",
+  bcorr:  "effN says a bucket is 1.25 bets. It cannot say whether that is one tight cluster and three strangers or every name moving together, and those are different facts about what to hold. Every pair, plus leave-one-out: which name, removed, would give the thesis its breadth back.",
+  bstress:"The worst 5- and 21-session windows this bucket has actually had, with the member that drove each and the spread between best and worst. Realised, not simulated — every row is a date you can go and check, and there is no model here to disagree with.",
+  bsig:   "Dated episodes, not authored sentences. Every stretch where the bucket entered the top decile of its OWN history on correlation, volatility or dispersion, or sat 15% below its trailing-year high. An episode opens when the bucket enters that state and closes when it leaves, because flagging every session turns one drawdown into 941 rows that all say the same thing.",
+  bbeta:  "What each member does per 1% move in a channel with a traded observable, with a 95% interval and an out-of-sample score. Only crude has one; the other channels keep a direction and no magnitude.",
   scen:   "One shock, in three readings that used to be three modules. The PROBABILITY is the scenario's own observed series for its target question — the record, never reconstructed from the developments beside it, because no model here defines that arithmetic. The DEVELOPMENTS are dated events marked escalating, de-escalating or unclear; a record, not a driver decomposition, and nothing claims they sum to the probability. The REACH is every security the scenario touches, grouped by which way it moves RELATIVE TO ITS CHANNEL — direction, never size, because this layer models no conditional return. A name reached on two channels that disagree is shown as such rather than netted, and a name nobody has assessed is listed as unassessed rather than as neutral."
 };
 /* What each chart needs before it has anything true to draw, and the one line the tray shows
@@ -2904,7 +2991,29 @@ function scenarioTileAvailable(tileId, activeShock){
   }
   return false;
 }
-function tileAvailable(id){ return scenarioTileAvailable(id, bucketShock); }
+/* A thesis module has no subject until a thesis is picked. `bucketNames()` is the same
+   reading the rest of the board filters on, so these come and go with the selection a reader
+   can see rather than with a second notion of "selected" only this code knows about. */
+function bucketTileAvailable(id){
+  if(BUCKET_TILES.indexOf(id) === -1) return true;
+  const sel = selectedBuckets().map(b => b.id);
+  if(!sel.length) return false;
+  const lab = (window.__DRAFT_LIVE__ || {}).bucket_lab;
+  if(!lab) return false;
+  const key = {bcorr:"corr", bstress:"stress", bsig:"signals"}[id];
+  if(id === "bbeta"){
+    /* Not in `bucket_lab` at all: the coefficients live in `channel_stats`, keyed by ticker,
+       and this module is available when ANY member of the selection has one. Asking the
+       measured layer directly is what keeps the two from needing to agree about membership. */
+    const cs = (window.__DRAFT_LIVE__ || {}).channel_stats;
+    if(!cs) return false;
+    return bucketNames().some(tk => (cs.securities || {})[tk]);
+  }
+  return sel.some(id2 => ((lab.buckets || {})[id2] || {})[key]);
+}
+function tileAvailable(id){
+  return scenarioTileAvailable(id, bucketShock) && bucketTileAvailable(id);
+}
 /* A lens must not open with a pane that can only say "no data". Filtering here rather than
    editing LENS_VIEWS keeps every lens's intended view-set intact for the day the data lands. */
 function withData(ids){
@@ -3810,6 +3919,11 @@ const TILE_GROUPS = [
   {title:"Core analysis",  keys:["plot", "rank", "dist", "price", "conc"]},
   {title:"Research",       keys:["tone", "shadow", "card", "watch"]},
   {title:"Context \u00b7 buckets", keys:["bpanel", "bwatch", "scen"]},
+  /* Its own group, listed LAST in the declaration and sorted FIRST by `panelGroups()` whenever
+     a bucket is selected. Two reasons it is a group rather than four more rows under Context:
+     the reader who just clicked a thesis is looking for exactly these, and they are the only
+     modules on the board whose subject changes under them. */
+  {title:"Selected thesis", keys:["bcorr", "bstress", "bsig", "bbeta"]},
 ];
 const UNGROUPED_TITLE = "Ungrouped";
 function tileGroupOf(id){
@@ -3832,6 +3946,10 @@ const TILE_BRIEF = {
   bpanel:"History, thesis, price feed and Book I for the selection.",
   bwatch:"Members of the selected buckets, with price and return.",
   scen:  "One shock: its probability, its developments, who it reaches.",
+  bcorr: "Every pair, and which name is the redundancy.",
+  bstress:"The worst windows it has had, and who drove them.",
+  bsig:  "Dated episodes: concentrated, volatile, dispersed, drawn down.",
+  bbeta: "Measured move per 1% of the channel, with its interval.",
 };
 const TSTAR_KEY = "monad.screener.draft.tilestars.v1";
 let STARRED_TILES = loadTileStars();
@@ -4017,7 +4135,33 @@ function currentArrangement(){
 }
 /* Only flags, text and PARENTAGE are written back, never fresh markup: the panel stays open
    while the board changes under it, and rebuilding the list would drop focus mid-interaction. */
+/* The thesis group leads the menu WHEN A THESIS IS SELECTED, and sits in its declared place
+   otherwise. A reader who just clicked Oil / Hormuz and opened this panel is looking for
+   exactly those four modules; making them scroll past three groups of general-purpose charts
+   to reach the ones scoped to what they just picked is the menu ignoring the thing they did.
+
+   The groups are BUILT once with fixed indices — rebuilding them destroys focus and checkbox
+   state, which this file has already paid for once — so this reorders the existing wrappers
+   rather than re-rendering them. Idempotent: called on every sync, and moving a node already
+   in position is a no-op. */
+function sortModuleGroups(){
+  const host = document.getElementById("optPaneWidgets");
+  if(!host) return;
+  const box = host.querySelector('[data-group-title="Selected thesis"]');
+  if(!box) return;
+  const wrap = box.closest(".optgroup");
+  const avail = wrap.parentElement;
+  const lead = selectedBuckets().length > 0;
+  if(lead){
+    if(avail.firstElementChild !== wrap) avail.insertBefore(wrap, avail.firstElementChild);
+  }else{
+    // Back to declared order, which is last: the group is defined at the end of TILE_GROUPS.
+    if(avail.lastElementChild !== wrap) avail.appendChild(wrap);
+  }
+  wrap.classList.toggle("optgroup-lead", lead);
+}
 function syncLayoutPanel(){
+  sortModuleGroups();
   // What is DRAWN, not what is arranged. A tile the reader placed under Hormuz is still in the
   // arrangement while the shock is taiwan — that is how its place comes back — but it is not
   // on the board, and listing it under "On board" would be the panel describing a pane that
@@ -6905,6 +7049,10 @@ function whyNoSeries(tk){
 }
 function toggleBucket(id){
   if(BUCKET_SEL.has(id)) BUCKET_SEL.delete(id); else BUCKET_SEL.add(id);
+  /* The thesis modules come and go with this selection, so the board has to be re-pruned
+     before render() draws into panes that may no longer exist. layoutBoard is what removes an
+     unavailable module and gives a returning one its place back. */
+  layoutBoard();
   // Selecting a bucket re-aims the price chart at it, so a stale per-ticker toggle would
   // dim every line of the bucket that was just chosen.
   resetPriceLit();
@@ -8446,6 +8594,342 @@ function measuredFoot(){
     + (gone.length ? 'No traded series exists for ' + esc(gone.map(label).join(", "))
         + ', so those keep a direction and no magnitude. ' : "");
 }
+/* How many authored directions the measurement contradicts, counted rather than left for a
+   reader to spot among 36 rows. Two today: MPC and VLO, both refiners, both authored as moving
+   AGAINST crude and both measuring solidly positive. That is a real disagreement worth a
+   sentence, not a defect to hide — a refiner is short crude as an input and long it as
+   inventory, and which dominates is an empirical question the arrow was never able to settle. */
+function clashFoot(){
+  const cs = (window.__DRAFT_LIVE__ || {}).channel_stats;
+  const sc = scenarioForShock(bucketShock);
+  if(!cs || !sc) return "";
+  let n = 0;
+  Object.keys(sc.securities || {}).forEach(tk => {
+    (sc.securities[tk].channels || []).forEach(c => {
+      const m = measuredFor(tk, c.channel_id);
+      if(!m) return;
+      const b = m.sensitivity;
+      if(b.t != null && Math.abs(b.t) > 2.5 && c.sign != null && (c.sign > 0) !== (b.beta > 0)) n++;
+    });
+  });
+  return n ? '<b>' + n + '</b> authored direction' + (n > 1 ? 's are' : ' is')
+    + ' contradicted by the measurement, marked &#8800;. ' : "";
+}
+
+/* ── The four thesis modules ──────────────────────────────────────────────────
+   All four read `__DRAFT_LIVE__.bucket_lab`, which Python computes once per price snapshot.
+   None of them derives a statistic here: the page draws what was measured, for the same
+   reason the concentration card does — two implementations of one number is two answers. */
+function labFor(){
+  const lab = (window.__DRAFT_LIVE__ || {}).bucket_lab;
+  const sel = selectedBuckets();
+  if(!lab || !sel.length) return null;
+  /* ONE thesis at a time for these. A correlation matrix across two unrelated buckets is a
+     matrix of a set nobody holds, and averaging their stress windows would invent an index.
+     With several selected the first is drawn and the module SAYS so rather than silently
+     picking. */
+  const b = sel.find(x => (lab.buckets || {})[x.id]);
+  return b ? {bucket: b, rec: lab.buckets[b.id], more: sel.length - 1, lab} : null;
+}
+function labExtra(g){
+  return g.more > 0
+    ? ' <span class="scen-note">' + g.more + ' other thesis'
+      + (g.more > 1 ? "es are" : " is") + ' selected; this module reads one at a time.</span>'
+    : "";
+}
+
+/* 1. CORRELATIONS — the matrix behind one effN, plus which name is the redundancy. */
+function drawBCorr(){
+  const host = document.getElementById("bcorrChart"), meta = document.getElementById("bcorrMeta");
+  const legend = document.getElementById("bcorrLegend");
+  if(!host || !meta) return;
+  const g = labFor();
+  if(!g || !g.rec.corr){
+    meta.textContent = "no thesis";
+    host.innerHTML = '<p class="dc-empty"><b>Pick a thesis</b> to see what its names do '
+      + 'relative to each other.</p>';
+    if(legend) legend.innerHTML = "";
+    return;
+  }
+  if(!host.clientWidth || !host.clientHeight) return;
+  const c = g.rec.corr, m = c.members, n = m.length;
+  meta.textContent = n + " priced · " + (c.eff_n != null ? c.eff_n.toFixed(2) : "—")
+    + " effective bets";
+  const W = Math.max(280, Math.floor(host.clientWidth));
+  const H = Math.max(180, Math.floor(host.clientHeight));
+  const PL = 52, PT = 46;
+  const cell = Math.max(9, Math.min(26, Math.min((W - PL - 8) / n, (H - PT - 8) / n)));
+  const at = (a, b) => a === b ? 1 : (c.cells[a + "|" + b] != null ? c.cells[a + "|" + b]
+                                    : c.cells[b + "|" + a]);
+  const parts = ['<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H
+    + '" role="img" aria-label="' + escAttr("Pairwise correlation matrix for " + g.bucket.name
+    + ", " + n + " members, mean " + c.rho) + '">'];
+  m.forEach((t, i) => {
+    parts.push('<text x="' + (PL - 4) + '" y="' + (PT + i * cell + cell / 2 + 3)
+      + '" text-anchor="end" font-size="' + Math.min(9, cell - 1)
+      + '" font-family="var(--mono)" fill="var(--ink-2)">' + esc(t) + '</text>');
+    parts.push('<text x="' + (PL + i * cell + cell / 2) + '" y="' + (PT - 6)
+      + '" text-anchor="start" font-size="' + Math.min(9, cell - 1)
+      + '" font-family="var(--mono)" fill="var(--ink-2)" transform="rotate(-60 '
+      + (PL + i * cell + cell / 2) + ' ' + (PT - 6) + ')">' + esc(t) + '</text>');
+  });
+  m.forEach((a, i) => m.forEach((b, j) => {
+    const r = at(a, b);
+    /* An unmeasurable pair is a HOLE, drawn as a hatched blank rather than as a mid-tone
+       cell. Zero correlation and no overlap are different facts and the eye reads a filled
+       cell as the first one. */
+    if(r == null){
+      parts.push('<rect x="' + (PL + j * cell) + '" y="' + (PT + i * cell) + '" width="'
+        + (cell - 1) + '" height="' + (cell - 1) + '" fill="none" stroke="var(--rule)" '
+        + 'stroke-width="0.5" stroke-dasharray="1 2"/>');
+      return;
+    }
+    // Correlation runs -1..1 and the scale must say which side of zero a cell is on, so the
+    // ramp is two-sided rather than one hue getting darker.
+    const op = Math.min(1, Math.abs(r));
+    const col = r >= 0 ? "var(--ord-3)" : "var(--warning)";
+    parts.push('<rect x="' + (PL + j * cell) + '" y="' + (PT + i * cell) + '" width="'
+      + (cell - 1) + '" height="' + (cell - 1) + '" fill="' + col + '" opacity="'
+      + (0.08 + 0.82 * op).toFixed(2) + '"><title>' + esc(a + " / " + b + "  ρ "
+      + r.toFixed(3)) + '</title></rect>');
+  }));
+  parts.push('</svg>');
+  host.innerHTML = parts.join("");
+  if(legend){
+    const loo = Object.keys(c.leave_one_out || {});
+    let out = '<div class="legend-row"><span class="lg"><span class="sw" '
+      + 'style="background:var(--ord-3)"></span>moves together</span> &#183; '
+      + '<span class="lg"><span class="sw" style="background:var(--warning)"></span>'
+      + 'moves opposite</span> &#183; <span class="lg">dashed: no overlap to measure</span></div>';
+    out += '<p class="scen-note">Mean pairwise <b>' + (c.rho != null ? c.rho : "—")
+      + '</b> across <b>' + n + '</b> priced of <b>' + c.declared + '</b> declared'
+      + labExtra(g) + '.</p>';
+    if(c.tightest && c.tightest.length){
+      out += '<p class="scen-note">Tightest: '
+        + c.tightest.slice(0, 3).map(x => '<b>' + esc(x.a) + "/" + esc(x.b) + '</b> '
+            + x.rho.toFixed(3)).join(" &#183; ")
+        + '. Those pairs are what the effective-bet count is spending.</p>';
+    }
+    if(loo.length){
+      const top = loo.slice(0, 3).map(t => '<b>' + esc(t) + '</b> +'
+        + c.leave_one_out[t].toFixed(2)).join(" &#183; ");
+      out += '<p class="scen-note">Drop one name and the thesis gains this much breadth: '
+        + top + '. A small number means no single name is the problem — the whole set '
+        + 'moves together.</p>';
+    }
+    legend.innerHTML = out;
+  }
+}
+
+/* 2. STRESS — the worst windows this thesis has actually had. */
+function drawBStress(){
+  const host = document.getElementById("bstressList"), meta = document.getElementById("bstressMeta");
+  if(!host || !meta) return;
+  const g = labFor();
+  if(!g || !g.rec.stress){
+    meta.textContent = "no thesis";
+    host.innerHTML = '<p class="dc-empty"><b>Pick a thesis</b> to see the worst stretches it '
+      + 'has lived through.</p>';
+    return;
+  }
+  const s = g.rec.stress;
+  meta.textContent = s.members + " names, equal weight";
+  const body = s.windows.map(w => {
+    const rows = w.worst.map(e =>
+      '<tr><td class="n">' + esc(e.end || "—") + '</td>'
+      + '<td class="n" style="color:var(--critical)"><b>' + e.ret.toFixed(1) + '%</b></td>'
+      + '<td><code>' + esc(e.worst_member || "—") + '</code> '
+      + '<span class="scen-note">' + (e.worst_member_ret != null
+          ? e.worst_member_ret.toFixed(1) + "%" : "") + '</span></td>'
+      + '<td><code>' + esc(e.best_member || "—") + '</code> '
+      + '<span class="scen-note">' + (e.best_member_ret != null
+          ? e.best_member_ret.toFixed(1) + "%" : "") + '</span></td>'
+      + '<td class="n">' + (e.spread != null ? e.spread.toFixed(0) + "pp" : "—") + '</td></tr>').join("");
+    return '<h3 class="bs-h">' + w.w + '-session windows'
+      + '<span class="scen-note"> 1st pct ' + w.p1.toFixed(1) + '% · 5th '
+      + w.p5.toFixed(1) + '% · median ' + w.p50.toFixed(1) + '% · '
+      + w.n + ' windows</span></h3>'
+      + '<table class="bs-t"><thead><tr><th>ended</th><th>thesis</th><th>worst name</th>'
+      + '<th>best name</th><th>spread</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }).join("");
+  host.innerHTML = body
+    + '<p class="scen-note">Realised, not simulated: every row is a date you can go and '
+    + 'check. One episode per month, so a single crash does not fill the table with its own '
+    + 'overlapping windows. <b>Spread</b> is best minus worst member — a wide spread '
+    + 'means the thesis did not move as one thing, which is the case a single index number '
+    + 'hides.' + labExtra(g) + '</p>';
+}
+
+/* 3. SIGNAL LADDER — dated episodes, the answer to four authored developments. */
+function drawBSig(){
+  const host = document.getElementById("bsigChart"), meta = document.getElementById("bsigMeta");
+  const legend = document.getElementById("bsigLegend");
+  if(!host || !meta) return;
+  const g = labFor();
+  if(!g || !g.rec.signals){
+    meta.textContent = "no thesis";
+    host.innerHTML = '<p class="dc-empty"><b>Pick a thesis</b> to see when it has been '
+      + 'unusual by its own standards.</p>';
+    if(legend) legend.innerHTML = "";
+    return;
+  }
+  if(!host.clientWidth || !host.clientHeight) return;
+  const S = g.rec.signals, ev = S.events;
+  meta.textContent = S.total + " episodes · " + S.window + "-session window";
+  const KINDS = [
+    {k:"concentrated", c:"var(--ord-4)", l:"became one bet"},
+    {k:"volatile",     c:"var(--warning)", l:"unusually violent"},
+    {k:"dispersed",    c:"var(--ord-3)", l:"names split up"},
+    {k:"drawdown",     c:"var(--critical)", l:"deep below its high"},
+  ];
+  const W = Math.max(280, Math.floor(host.clientWidth));
+  const rowH = 22, PT = 16, PB = 22, PL = 96;
+  const H = Math.max(120, PT + PB + KINDS.length * rowH);
+  const t0 = Date.parse(S.first), t1 = Date.parse(S.last);
+  const span = (t1 - t0) || 1;
+  const x = d => PL + ((Date.parse(d) - t0) / span) * (W - PL - 14);
+  const parts = ['<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H
+    + '" role="img" aria-label="' + escAttr(S.total + " dated episodes for " + g.bucket.name
+    + " between " + S.first + " and " + S.last) + '">'];
+  // Year rules, so an episode can be placed in time rather than just ordered.
+  const y0 = new Date(t0).getUTCFullYear(), y1 = new Date(t1).getUTCFullYear();
+  for(let y = y0 + 1; y <= y1; y++){
+    const xv = x(y + "-01-01");
+    if(xv < PL || xv > W) continue;
+    parts.push('<line x1="' + xv.toFixed(1) + '" y1="' + PT + '" x2="' + xv.toFixed(1)
+      + '" y2="' + (H - PB) + '" stroke="var(--hair)" stroke-width="0.6"/>');
+    parts.push('<text x="' + xv.toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle" '
+      + 'font-size="9" font-family="var(--mono)" fill="var(--ink-muted)">' + y + '</text>');
+  }
+  KINDS.forEach((K, i) => {
+    const yy = PT + i * rowH + rowH / 2;
+    const mine = ev.filter(e => e.kind === K.k);
+    parts.push('<text x="' + (PL - 6) + '" y="' + (yy + 3) + '" text-anchor="end" font-size="9" '
+      + 'font-family="var(--mono)" fill="var(--ink-2)">' + esc(K.l) + '</text>');
+    parts.push('<line x1="' + PL + '" y1="' + yy + '" x2="' + (W - 14) + '" y2="' + yy
+      + '" stroke="var(--hair)" stroke-width="0.6"/>');
+    mine.forEach(e => {
+      /* An episode is a BAR, not a dot: it has a start and an end, and a dot would make a
+         three-year drawdown and a one-day one look identical. An open episode runs to the
+         right edge and is drawn without its closing cap. */
+      const xa = x(e.d), xb = e.end ? x(e.end) : (W - 14);
+      const w = Math.max(1.6, xb - xa);
+      parts.push('<rect x="' + xa.toFixed(1) + '" y="' + (yy - 5) + '" width="' + w.toFixed(1)
+        + '" height="10" rx="1.5" fill="' + K.c + '" opacity="'
+        + (e.sev > 1 ? 0.95 : 0.5) + '"><title>' + esc(e.d + (e.end ? " to " + e.end
+            : " and still open") + " — " + K.l + ", " + e.v + " over " + e.sessions
+            + " session" + (e.sessions === 1 ? "" : "s") + ". " + e.why) + '</title></rect>');
+    });
+  });
+  parts.push('</svg>');
+  host.innerHTML = parts.join("");
+  if(legend){
+    const open = ev.filter(e => !e.end);
+    let out = '<div class="legend-row">' + KINDS.map(K =>
+      '<span class="lg"><span class="sw" style="background:' + K.c + '"></span>'
+      + esc(K.l) + ' ' + (S.counts[K.k] || 0) + '</span>').join(" ") + '</div>';
+    out += '<p class="scen-note">' + esc(S.method) + '</p>';
+    out += '<p class="scen-note">An episode opens when the thesis ENTERS a state and closes '
+      + 'when it leaves. Flagging every session instead turned one drawdown into <b>941</b> '
+      + 'rows that all said the same thing, which is fewer readings than four, not more.'
+      + labExtra(g) + '</p>';
+    if(open.length){
+      out += '<p class="scen-note">Open right now: '
+        + open.map(e => '<b>' + esc(e.kind) + '</b> since ' + esc(e.d) + ' ('
+            + e.sessions + ' sessions)').join(" &#183; ") + '.</p>';
+    }
+    legend.innerHTML = out;
+  }
+}
+
+/* 4. SENSITIVITY — the measured betas for this thesis's members, with their intervals. */
+function drawBBeta(){
+  const host = document.getElementById("bbetaChart"), meta = document.getElementById("bbetaMeta");
+  const legend = document.getElementById("bbetaLegend");
+  if(!host || !meta) return;
+  const cs = (window.__DRAFT_LIVE__ || {}).channel_stats;
+  const sel = selectedBuckets();
+  if(!cs || !sel.length){
+    meta.textContent = "no thesis";
+    host.innerHTML = '<p class="dc-empty"><b>Pick a thesis</b> to see what its names do per '
+      + '1% of a channel that has a traded observable.</p>';
+    if(legend) legend.innerHTML = "";
+    return;
+  }
+  if(!host.clientWidth || !host.clientHeight) return;
+  const mem = bucketNames();
+  const rows = mem.map(tk => ({tk, r: (cs.securities || {})[tk]}))
+    .filter(x => x.r && x.r.sensitivity)
+    .map(x => ({tk: x.tk, s: x.s = x.r.sensitivity, resp: x.r.response}))
+    .sort((a, b) => b.s.beta - a.s.beta);
+  const missing = mem.length - rows.length;
+  if(!rows.length){
+    meta.textContent = "not measurable";
+    host.innerHTML = '<p class="dc-empty"><b>No member of this thesis has a measured '
+      + 'coefficient.</b> Only <code>' + esc((cs.proxy || {}).label || "the crude channel")
+      + '</code> has a traded observable; the other channels carry an authored direction and '
+      + 'no magnitude.</p>';
+    if(legend) legend.innerHTML = "";
+    return;
+  }
+  meta.textContent = rows.length + " of " + mem.length + " measured";
+  const W = Math.max(280, Math.floor(host.clientWidth));
+  const RH = Math.max(14, Math.min(26, (Math.floor(host.clientHeight) - 40) / rows.length));
+  const H = Math.max(110, 30 + rows.length * RH + 20);
+  const PL = 60, PR = 118;
+  const lo = Math.min(0, ...rows.map(r => r.s.lo));
+  const hi = Math.max(...rows.map(r => r.s.hi));
+  const x = v => PL + ((v - lo) / ((hi - lo) || 1)) * (W - PL - PR);
+  const parts = ['<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H
+    + '" role="img" aria-label="' + escAttr("Measured beta to " + ((cs.proxy || {}).label || "")
+    + " with 95% intervals for " + rows.length + " members") + '">'];
+  for(let gv = Math.ceil(lo * 4) / 4; gv <= hi; gv += 0.25){
+    parts.push('<line x1="' + x(gv).toFixed(1) + '" y1="18" x2="' + x(gv).toFixed(1)
+      + '" y2="' + (H - 18) + '" stroke="' + (Math.abs(gv) < 1e-9 ? "var(--mut)" : "var(--hair)")
+      + '" stroke-width="0.6"/>');
+    parts.push('<text x="' + x(gv).toFixed(1) + '" y="' + (H - 5) + '" text-anchor="middle" '
+      + 'font-size="9" font-family="var(--mono)" fill="var(--ink-muted)">' + gv.toFixed(2)
+      + '</text>');
+  }
+  rows.forEach((r, i) => {
+    const y = 26 + i * RH, s = r.s;
+    parts.push('<text x="' + (PL - 6) + '" y="' + (y + 3) + '" text-anchor="end" font-size="9.5" '
+      + 'font-family="var(--mono)" fill="var(--ink-2)">' + esc(r.tk) + '</text>');
+    parts.push('<line x1="' + x(s.lo).toFixed(1) + '" y1="' + y + '" x2="' + x(s.hi).toFixed(1)
+      + '" y2="' + y + '" stroke="var(--ord-3)" stroke-width="1.3" opacity="0.45"/>');
+    parts.push('<circle cx="' + x(s.beta).toFixed(1) + '" cy="' + y + '" r="3.2" '
+      + 'fill="var(--ord-4)"><title>' + escAttr(measuredTitle(r.tk, {sensitivity: s,
+        response: r.resp})) + '</title></circle>');
+    parts.push('<text x="' + (W - PR + 8) + '" y="' + (y + 3) + '" font-size="9.5" '
+      + 'font-family="var(--mono)" fill="var(--ink)">' + s.beta.toFixed(2) + '</text>');
+    parts.push('<text x="' + (W - PR + 46) + '" y="' + (y + 3) + '" font-size="8.5" '
+      + 'font-family="var(--mono)" fill="var(--ink-muted)">±'
+      + (1.96 * s.se).toFixed(2) + '</text>');
+    if(r.resp)
+      parts.push('<text x="' + (W - PR + 84) + '" y="' + (y + 3) + '" font-size="8.5" '
+        + 'font-family="var(--mono)" fill="' + (r.resp.pct_down >= 15 ? "var(--warning)"
+          : "var(--ink-muted)") + '">' + r.resp.pct_down.toFixed(0) + '%↓</text>');
+  });
+  parts.push('</svg>');
+  host.innerHTML = parts.join("");
+  if(legend){
+    let out = '<p class="scen-note">Move per 1% of <b>' + esc((cs.proxy || {}).label || "")
+      + '</b>, whisker is the 95% interval. The last column is how often the name fell '
+      + 'ANYWAY on the episodes where the channel rose — a coefficient is an average and '
+      + 'that is what it averages over.</p>';
+    if(missing > 0){
+      out += '<p class="scen-note"><b>' + missing + '</b> member'
+        + (missing > 1 ? "s have" : " has") + ' no measured coefficient: no traded observable '
+        + 'exists for their channel, or their series is too short. Not zero — unmeasured.</p>';
+    }
+    out += '<p class="scen-note">Fitted before <b>' + esc(rows[0].s.split) + '</b> and scored '
+      + 'after it. Hover a dot for that name’s interval, its out-of-sample score and its '
+      + 'conditional distribution.' + (sel.length > 1 ? ' Across all ' + sel.length
+        + ' selected theses.' : "") + '</p>';
+    legend.innerHTML = out;
+  }
+}
+
 function drawScenOpps(){
   const host = document.getElementById("soppsList");
   if(!host) return;
@@ -8492,8 +8976,27 @@ function drawScenOpps(){
         const m = measuredFor(tk, c.channel_id);
         if(!m) return dir;
         const b = m.sensitivity;
-        return dir + ' <span class="meas" title="' + escAttr(measuredTitle(tk, m))
-          + '">β ' + b.beta.toFixed(2)
+        /* THE DISAGREEMENT IS THE FINDING, and it must not render as agreement. MPC and VLO
+           carry an authored `↘ against` on the crude channel and measure +0.29 and +0.28 with
+           t over 7 across 2,377 sessions. Shown plainly beside each other those read as one
+           consistent statement, which is the worst of the three available outcomes: a reader
+           takes the arrow as confirmed by the number that contradicts it.
+
+           Only a clearly-signed coefficient may contradict anything. A beta whose interval
+           spans zero disagrees with nothing — it is silent, and silence flagged as conflict
+           would bury the two real cases in noise. */
+        const signed = b.t != null && Math.abs(b.t) > 2.5;
+        const clash = signed && c.sign != null && (c.sign > 0) !== (b.beta > 0);
+        return dir + ' <span class="meas' + (clash ? " meas-clash" : "")
+          + '" title="' + escAttr(measuredTitle(tk, m)
+              + (clash ? " THIS CONTRADICTS THE AUTHORED DIRECTION beside it, which says the "
+                       + "name moves " + (c.sign > 0 ? "with" : "against")
+                       + " this channel. The measurement is not a correction: it is a "
+                       + "co-movement coefficient and the authored arrow is a claim about a "
+                       + "mechanism. They can differ for real reasons — a refiner is short "
+                       + "crude as an input and long it as inventory — and the module reports "
+                       + "both rather than choosing." : ""))
+          + '">' + (clash ? "≠ " : "") + 'β ' + b.beta.toFixed(2)
           + ' <span class="meas-e">±' + (1.96 * b.se).toFixed(2) + '</span></span>';
       }).join(" · ");
       const outside = inUniverse.has(tk) ? ""
@@ -8519,7 +9022,12 @@ function drawScenOpps(){
     + 'channel, not a price forecast '
     + 'and not a claim about how much anything moves next: nothing here says the channel will '
     + 'move at all, and that number is authored. '
-    + measuredFoot() + 'Click a name for the channels and the path behind it.'
+    + measuredFoot()
+    + 'The groups above describe the AUTHORED direction only, so a name can sit under '
+    + 'Unassessed and still carry a measured coefficient: nobody wrote a mechanism for it, '
+    + 'and the closes were measured anyway. '
+    + clashFoot()
+    + 'Click a name for the channels and the path behind it.'
     + fxMark("scen", sc) + '</p>';
 }
 /* One row, one existing drilldown. `pinTicker` is the same call a results row makes, and the
@@ -9250,8 +9758,18 @@ function renderInner(){
   drawScenPath();
   drawScenDev();
   drawScenOpps();
+  drawThesisTiles();
   renderTable();
   renderHeadlines();
+}
+/* The four thesis modules, in the order a reader meets a bucket. One call so a new module
+   cannot be added to the registry and then quietly never drawn — the failure mode that leaves
+   a tile placeable, sized, and permanently empty. */
+function drawThesisTiles(){
+  drawBCorr();
+  drawBStress();
+  drawBSig();
+  drawBBeta();
 }
 
 /* Which tiles the payload actually feeds. Read off the payload, never asserted: `tone` is on

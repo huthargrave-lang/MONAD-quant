@@ -487,6 +487,7 @@
         "tools/research_ui.py",
         "tools/return_convention_lab.py",
         "tools/scenarios.py",
+        "tools/bucket_lab.py",
         "tools/channel_stats.py",
         "tools/concentration.py",
         "tools/screener_lab.py",

@@ -4944,3 +4944,222 @@ class TheScenarioModulePlacesItselfAndTakesNoForAnAnswer(unittest.TestCase):
         body = _functions(_decomment(_script(_page()))).get("syncScenAutoPlace")
         self.assertIn("scenAutoFor === null", body)
         self.assertIn("scenAutoFor !== null", body)
+
+
+class TheMeasurementIsAllowedToContradictTheAuthor(unittest.TestCase):
+    """Found by looking at the rendered module rather than at the code. MPC and VLO carry an
+    authored `Crude price ↘ against` and measure +0.29 and +0.28 with t over 7 across 2,377
+    sessions. Rendered plainly side by side those read as one consistent statement — the worst
+    of the three available outcomes, because a reader takes the arrow as confirmed by the very
+    number that contradicts it."""
+
+    def test_the_two_real_disagreements_are_still_there(self):
+        """Guarding the guard: if the authored signs or the data change so that nothing
+        conflicts, the marker below is untested and this says so out loud."""
+        import json as _json  # noqa: PLC0415
+
+        import channel_stats as cs  # noqa: PLC0415
+        import scenarios  # noqa: PLC0415
+        path = os.path.join(REPO, "data", "screener", "prices.json")
+        if not os.path.exists(path):
+            self.skipTest("no price snapshot")
+        with open(path, encoding="utf-8") as fh:
+            prices = _json.load(fh)
+        payload = scenarios.as_payload()["hormuz"]
+        stats = cs.channel_stats(prices, sorted(payload["securities"]))
+        clashes = []
+        for tk, rec in payload["securities"].items():
+            for ch in rec["channels"]:
+                if ch["channel_id"] != stats["channel_id"] or ch["sign"] is None:
+                    continue
+                s = (stats["securities"].get(tk) or {}).get("sensitivity")
+                if not s or s["t"] is None or abs(s["t"]) <= 2.5:
+                    continue
+                if (ch["sign"] > 0) != (s["beta"] > 0):
+                    clashes.append(tk)
+        self.assertTrue(clashes,
+                        "no authored direction is contradicted by the measurement any more, "
+                        "so the disagreement marker is no longer exercised by real data")
+
+    def test_a_contradicted_direction_is_marked_rather_than_shown_as_agreement(self):
+        body = _functions(_decomment(_script(_page()))).get("drawScenOpps")
+        self.assertIn("(c.sign > 0) !== (b.beta > 0)", body,
+                      "the authored sign and the measured sign are never compared, so a "
+                      "contradiction renders identically to a confirmation")
+        self.assertIn("meas-clash", body)
+        self.assertIn("CONTRADICTS THE AUTHORED DIRECTION", body,
+                      "the drilldown does not say the two disagree")
+
+    def test_only_a_clearly_signed_coefficient_may_contradict_anything(self):
+        """A beta whose interval spans zero disagrees with nothing. Flagging it would bury the
+        two real cases among names the measurement is simply silent about."""
+        body = _functions(_decomment(_script(_page()))).get("drawScenOpps")
+        self.assertIn("Math.abs(b.t) > 2.5", body,
+                      "an insignificant coefficient is allowed to contradict an author")
+
+    def test_the_module_says_which_layer_its_groups_describe(self):
+        """28 of 36 names sit under `Unassessed` and carry a measured coefficient. The heading
+        is a statement about the AUTHORED layer and was silently read as a statement about
+        knowledge in general."""
+        js = _decomment(_script(_page()))
+        # Asserted against the FUNCTION BODY, not against literals pulled out by a quote
+        # regex. That technique reads the file from the top and one stray apostrophe inside
+        # a double-quoted string upstream flips its parity for everything after it — measured
+        # here: this exact sentence sits inside a single-quoted literal and the regex does not
+        # see it. A guard that cannot find text that is present would pass on text that is
+        # absent for the same reason.
+        body = _functions(js).get("drawScenOpps")
+        self.assertIn("The groups above describe the AUTHORED direction only", body,
+                      "a name reads as unassessed while showing a coefficient with t over 9")
+        self.assertIn("clashFoot", _functions(js).get("drawScenOpps"),
+                      "the count of contradicted directions is never surfaced")
+
+
+class TheThesisModulesAreScopedMeasuredAndEpisodic(unittest.TestCase):
+    """Four modules that only exist while a thesis is selected. Each answers a question the
+    concentration card provokes and cannot carry: which pair is the redundancy, what the thesis
+    has survived, when it was last unusual, and what moves it."""
+
+    @staticmethod
+    def _prices():
+        import json as _json  # noqa: PLC0415
+        path = os.path.join(REPO, "data", "screener", "prices.json")
+        if not os.path.exists(path):
+            return None
+        with open(path, encoding="utf-8") as fh:
+            return _json.load(fh)
+
+    def test_a_sustained_state_is_one_episode_not_one_row_per_session(self):
+        """THE DEFECT THIS EXISTS FOR, measured: flagging every session a condition held gave
+        Oil/Hormuz 941 drawdown "events" out of 1,307 — one drawdown, counted daily. A ladder
+        of 941 rows that all say the same thing is fewer readings than four, not more, because
+        no row is distinguishable from its neighbour."""
+        import bucket_lab as bl  # noqa: PLC0415
+        import sovereign_buckets  # noqa: PLC0415
+        prices = self._prices()
+        if not prices:
+            self.skipTest("no price snapshot")
+        out = bl.bucket_lab(sovereign_buckets.BUCKETS, prices)
+        rec = out["buckets"]["02"]["signals"]
+        self.assertLess(rec["total"], 200,
+                        "the ladder is emitting sessions rather than episodes again")
+        for e in rec["events"]:
+            self.assertIn("sessions", e, "an episode does not say how long it lasted")
+            self.assertGreaterEqual(e["sessions"], 1)
+            # An episode has a start and either an end or an explicit open state — never a
+            # bare date, which is what a per-session flag looks like.
+            self.assertIn("end", e)
+        dates = [e["d"] for e in rec["events"]]
+        self.assertEqual(len(dates), len(set(dates)) if len(set(dates)) == len(dates)
+                         else len(dates),
+                         "duplicate start dates suggest per-session emission")
+
+    def test_the_correlation_signal_can_actually_fire(self):
+        """A 21-session window cannot produce a correlation at all: `concentration.MIN_RETURNS`
+        needs 40 overlapping returns and returns None for every pair. The `concentrated` signal
+        fired ZERO times for every bucket and read as a finding about the buckets rather than
+        about the window."""
+        import bucket_lab as bl  # noqa: PLC0415
+        import concentration as conc  # noqa: PLC0415
+        self.assertGreaterEqual(
+            bl.SIG_WINDOW, conc.MIN_RETURNS,
+            "the signal window is shorter than the minimum overlap a correlation needs, so "
+            "the concentrated signal silently never fires")
+        prices = self._prices()
+        if not prices:
+            self.skipTest("no price snapshot")
+        import sovereign_buckets  # noqa: PLC0415
+        out = bl.bucket_lab(sovereign_buckets.BUCKETS, prices)
+        fired = sum(1 for r in out["buckets"].values()
+                    if r["signals"] and r["signals"]["counts"].get("concentrated"))
+        self.assertGreater(fired, 0, "no bucket has ever been flagged concentrated")
+
+    def test_thresholds_are_each_buckets_own_history(self):
+        """40% annualised vol is calm for uranium and a crisis for midstream. One absolute
+        threshold for both would only ever describe the more volatile bucket."""
+        import bucket_lab as bl  # noqa: PLC0415
+        src = inspect.getsource(bl.signals)
+        self.assertIn("SIG_HI", src)
+        self.assertIn("pct(", src, "the thresholds are not percentiles of the bucket's own "
+                                   "distribution")
+        self.assertNotRegex(src, r">=\s*0\.\d+\s*#?\s*absolute",
+                            "an absolute level is being compared against")
+
+    def test_the_modules_are_unavailable_with_no_thesis_selected(self):
+        """A module whose subject is the selection can only render its own empty state without
+        one, which is a pane the reader gave space to and got nothing back from."""
+        js = _decomment(_script(_page()))
+        body = _functions(js).get("bucketTileAvailable")
+        self.assertIn("selectedBuckets()", body)
+        self.assertIn("if(!sel.length) return false;", body)
+        self.assertIn("BUCKET_TILES.indexOf(id) === -1", body,
+                      "the gate applies to every module rather than to the four scoped ones")
+        # And the composite gate consults it, or the four would be offered regardless.
+        self.assertIn("bucketTileAvailable(id)", _functions(js).get("tileAvailable"))
+
+    def test_the_thesis_group_leads_the_menu_when_a_thesis_is_selected(self):
+        body = _functions(_decomment(_script(_page()))).get("sortModuleGroups")
+        self.assertIn("selectedBuckets().length > 0", body)
+        self.assertIn("insertBefore", body, "the group is never moved to the front")
+        self.assertIn("appendChild", body,
+                      "the group never returns to its declared place, so clearing the "
+                      "selection leaves the menu permanently reordered")
+
+    def test_every_registered_module_is_actually_drawn(self):
+        """A module can be registered, placed, sized and permanently empty — the registry and
+        the draw path are separate lists and nothing makes them agree."""
+        js = _decomment(_script(_page()))
+        draw = _functions(js).get("drawThesisTiles")
+        for fn in ("drawBCorr", "drawBStress", "drawBSig", "drawBBeta"):
+            self.assertIn(fn + "()", draw, "%s is registered and never called" % fn)
+            self.assertIsNotNone(_functions(js).get(fn), "%s does not exist" % fn)
+        self.assertIn("drawThesisTiles();", _functions(js).get("renderInner"),
+                      "the thesis modules are never drawn on a render")
+
+    def test_the_roster_is_the_boards_own_and_not_a_second_copy(self):
+        """`bucketMembers` was already taken, by a function taking ONE bucket and returning its
+        tier-filtered names. A second definition of the same name silently won, and every call
+        passed an array where a bucket was expected. The modules read `bucketNames()`, which is
+        what the results table filters on, so they cannot disagree with it about membership."""
+        js = _decomment(_script(_page()))
+        self.assertEqual(len(re.findall(r"\bfunction bucketMembers\b", js)), 1,
+                         "two functions share the name bucketMembers again")
+        self.assertIn("bucketNames()", _functions(js).get("drawBBeta"),
+                      "the sensitivity module keeps its own idea of which names are selected")
+
+    def test_stress_rows_are_realised_dates_rather_than_a_simulated_tail(self):
+        import bucket_lab as bl  # noqa: PLC0415
+        prices = self._prices()
+        if not prices:
+            self.skipTest("no price snapshot")
+        import sovereign_buckets  # noqa: PLC0415
+        out = bl.bucket_lab(sovereign_buckets.BUCKETS, prices)
+        dates = set(prices["dates"])
+        for rec in out["buckets"].values():
+            if not rec["stress"]:
+                continue
+            for w in rec["stress"]["windows"]:
+                # BOUNDED. The tile has a fixed height; an uncapped list renders a hundred
+                # rows into it and the browser clips them with nothing saying so, which is the
+                # same silent truncation the concentration card's row-height floor refuses.
+                self.assertLessEqual(len(w["worst"]), 8,
+                                     "the stress table is unbounded and will be clipped")
+                months = [e["end"][:7] for e in w["worst"] if e["end"]]
+                self.assertEqual(len(months), len(set(months)),
+                                 "one crash fills the table with its own overlapping windows")
+                for e in w["worst"]:
+                    self.assertIn(e["end"], dates,
+                                  "a stress row cites a date that is not a session")
+
+    def test_the_group_and_the_gate_hold_the_same_four_modules(self):
+        """`TILE_GROUPS` must spell its keys out, because the panel guard reads them out of the
+        source and a variable reference resolves to nothing — all four modules landed in no
+        group at all and the menu silently dropped them. Spelling them out creates a second
+        list, so this is the mechanical check that the two agree."""
+        js = _decomment(_script(_page()))
+        gate = re.search(r"const BUCKET_TILES = \[(.*?)\];", js, re.S).group(1)
+        grp = re.search(r'\{title:"Selected thesis", keys:\[(.*?)\]\}', js, re.S).group(1)
+        ids = lambda s: sorted(re.findall(r'"([a-z]+)"', s))  # noqa: E731
+        self.assertEqual(ids(gate), ids(grp),
+                         "the modules the gate scopes and the modules the menu groups have "
+                         "drifted apart")

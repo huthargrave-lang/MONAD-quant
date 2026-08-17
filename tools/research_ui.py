@@ -67,6 +67,7 @@ import screener_lab  # noqa: E402  — the sentiment screen's engine; renders, n
 import email.utils
 import datetime
 import statistics
+import bucket_lab
 import channel_stats
 import concentration
 import sovereign_buckets  # noqa: E402  — the canonical chaos-bucket table; serialised, not copied
@@ -5027,6 +5028,12 @@ def _screener_combined_draft_payload():
         # direction beside a measured magnitude without either being mistaken for the other.
         "channel_stats": channel_stats.cached_channel_stats(
             prices, _scenario_securities()) if prices else None,
+        # PER-BUCKET analytics: the correlation matrix behind one effN, the worst windows the
+        # thesis has actually had, and a ladder of DATED, OBSERVED episodes. Cached on the
+        # price stamp like its neighbours — 7.4s cold over 20 buckets, and none of it changes
+        # until the closes do.
+        "bucket_lab": bucket_lab.cached_bucket_lab(
+            sovereign_buckets.BUCKETS, prices) if prices else None,
     }
 
 
