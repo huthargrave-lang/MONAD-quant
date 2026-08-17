@@ -4,6 +4,7 @@
 they produced 36 confident false positives. Each is pinned here, because a false NEGATIVE from
 this tool is worse than not running it: it would certify a vacuous guard as sound.
 """
+import inspect
 import os
 import subprocess
 import sys
@@ -118,6 +119,33 @@ class TheToolFindsAGuardThatCannotFail(unittest.TestCase):
                                 capture_output=True, text=True, cwd=d)
             self.assertEqual(r2.returncode, 0,
                              "the fixture is not actually vacuous, so this proves nothing")
+
+
+class StaleBytecodeCannotSurviveARestore(unittest.TestCase):
+    """The defect that made three suites stay red after a clean `git checkout`, with the
+    corrupted string in no file on disk and in no commit.
+
+    `corrupt` preserves length exactly, and CPython invalidates a .pyc on (mtime, size) with
+    mtime at one-second granularity. Mutate and restore inside the same second and the
+    interpreter keeps serving the MUTATED bytecode — which contaminates results in both
+    directions: a mutation that never landed reads as a surviving guard, and a restore that
+    never landed reads as the next guard catching something."""
+
+    def test_each_probe_runs_against_a_private_bytecode_cache(self):
+        src = inspect.getsource(falsify.run)
+        self.assertIn("PYTHONPYCACHEPREFIX", src,
+                      "probes share the repo bytecode cache, so a same-second restore leaves "
+                      "the mutated module loaded for every test after it")
+        self.assertIn("PYTHONDONTWRITEBYTECODE", src)
+        self.assertIn('"-B"', src, "the child may still write bytecode into the repo")
+
+    def test_the_mutation_preserves_length_which_is_why_this_matters(self):
+        """If corruption ever changed length, size-based invalidation would save us and this
+        guard would be describing a hazard that no longer exists."""
+        for lit in ('id="priceStamp"', "named after the shock", "dead_to_shipping"):
+            self.assertEqual(len(falsify.corrupt(lit)), len(lit),
+                             "corruption changed length, so the pycache hazard is gone and "
+                             "this guard is now describing nothing")
 
 
 if __name__ == "__main__":

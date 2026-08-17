@@ -53,6 +53,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PY = os.path.join(REPO, "venv/bin/python")
@@ -132,8 +133,19 @@ def run(mod, cls, fn, timeout=180):
     check that cannot fail because it never ran, and that failure would be silent — but it is
     documented here as insurance rather than as a fixed bug, because it never was one.
     """
-    r = subprocess.run([PY, "-m", "unittest", "%s.%s.%s" % (mod, cls, fn)],
-                       capture_output=True, text=True, cwd=REPO, timeout=timeout)
+    # A FRESH BYTECODE CACHE PER PROBE, and this is load-bearing rather than hygiene.
+    # `corrupt` preserves length exactly, and CPython invalidates a .pyc on (mtime, size) with
+    # mtime at one-second granularity — so a mutation applied and restored inside the same
+    # second leaves the interpreter serving the MUTATED bytecode afterwards. Measured: three
+    # suites stayed red after a clean `git checkout`, and the corrupted string was in no file
+    # on disk and in no commit. That contaminates results in BOTH directions: a mutation that
+    # never took effect reads as a surviving guard, and a restore that never took effect reads
+    # as the next guard catching something.
+    env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
+    with tempfile.TemporaryDirectory() as cache_dir:
+        env["PYTHONPYCACHEPREFIX"] = cache_dir
+        r = subprocess.run([PY, "-B", "-m", "unittest", "%s.%s.%s" % (mod, cls, fn)],
+                           capture_output=True, text=True, cwd=REPO, timeout=timeout, env=env)
     m = re.search(r"^Ran (\d+) test", r.stderr or "", re.M)
     if not m or int(m.group(1)) < 1:
         return None                      # did not run — not evidence either way
