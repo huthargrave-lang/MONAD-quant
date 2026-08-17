@@ -459,6 +459,7 @@
     "research_labs": {
       "summary": "Point-in-time public-investment research labs: append-only event ledgers, SEC corporate-action state and outcome chains, index-membership event studies, and exploratory gap-risk measurement. These tools build auditable research projections; they do not place trades.",
       "files": [
+        "tools/falsify.py",
         "tools/atm_424b5_lab.py",
         "tools/band_geometry.py",
         "tools/bar_continuity.py",
