@@ -4240,6 +4240,42 @@ class TheRollingLineIsGridAlignedAndHoleHonest(unittest.TestCase):
             with open(cfile, encoding="utf-8") as fh:
                 self.assertEqual(_json.load(fh)["schema"], conc.SCHEMA)
 
+    def test_the_row_prints_the_numbers_it_is_made_of(self):
+        """The decade row drew a shape and kept every value in an SVG <title>: the min, the
+        max, the dates of both, and k were all mouse-only. A tooltip is not a reading — it is
+        available to one bucket at a time, to a pointer, and to nobody using a keyboard. The
+        two extremes are marked where they happened and labelled with what they were, and k
+        sits beside today's value, because "1.25" is not a finding and "1.25 of 13" is.
+
+        This is the fix item #11 applied to the probability path, for the same reason."""
+        body = _functions(_decomment(_script(_page()))).get("drawConc")
+        self.assertIn("b.max.eff_n.toFixed(2)", body, "the decade high is still mouse-only")
+        self.assertIn("b.min.eff_n.toFixed(2)", body, "the decade floor is still mouse-only")
+        self.assertIn("> of ' + b.now.k", body,
+                      "k is printed nowhere on the row, so the reading has no denominator")
+        # The x of an extreme is LOOKED UP by the date Python chose, never recomputed — a
+        # second derivation of "which window was the max" is a second answer.
+        self.assertIn("R.grid.indexOf(d)", body)
+        self.assertIn("d == null ? -1", body,
+                      "a null date reaches indexOf, which finds the first null slot in the "
+                      "grid and marks the extreme confidently on the wrong year")
+
+    def test_the_floor_label_yields_rather_than_collide(self):
+        """Two labels on one 32px row will overlap when the extremes are close, and a row that
+        never moved would stack two identical numbers on one point. Verified in a browser
+        across five synthetic rows — extremes pinned to each edge, adjacent extremes, a flat
+        row and an undated extreme — with zero text-box overlaps and nothing outside the row
+        in any of them."""
+        body = _functions(_decomment(_script(_page()))).get("drawConc")
+        self.assertIn("const flat = b.min.eff_n === b.max.eff_n;", body)
+        self.assertIn("!flat && Math.abs(px(iMin) - px(iMax)) >= 46", body,
+                      "the floor label is drawn unconditionally, so it collides with the "
+                      "ceiling label whenever the two extremes are close")
+        # Anchoring, not a fixed offset: an extreme at either end of the decade would otherwise
+        # print across the name gutter or the value block.
+        self.assertIn('x < gw + near ? "start"', body)
+        self.assertIn('x > plotR - near ? "end"', body)
+
     def test_the_disclosure_cannot_crush_the_chart_above_it(self):
         """`.chart-host` is flex:1 with basis 0%, so it gets only what the legend leaves.
         Twenty rows grew the legend to 782px in a 450px body: the chart went to zero height,

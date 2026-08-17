@@ -8603,7 +8603,11 @@ function drawConc(){
          it. They are the same width today, and a width taken from the wrong element is a
          coincidence waiting to be a bug. */
       const W2 = Math.max(240, Math.floor(legend.clientWidth)) - 8;
-      const rh = 26, gw = 96;
+      /* 32, not 26: the extremes are now labelled ON the row, and a 26px box left the
+         floor label overlapping the line it belongs to. RESERVE is the right-hand block
+         ("1.25 of 13 lo"), measured rather than the 46 that was there when it only ever
+         held four characters. */
+      const rh = 32, gw = 96, RESERVE = 78;
       const spark = rows.map(b => {
         const eff = b.eff, kk = b.k;
         /* Each row is scaled 1..its own max k. Two wrong answers were tried first. Scaling to
@@ -8623,7 +8627,7 @@ function drawConc(){
            from how many readings there happen to be. Dividing by `eff.length` would be the
            same arithmetic today — every bucket is currently full-length — and would stretch a
            bucket that listed in 2023 across the whole decade the moment one is not. */
-        const px = i => gw + (i / Math.max(R.grid.length - 1, 1)) * (W2 - gw - 46);
+        const px = i => gw + (i / Math.max(R.grid.length - 1, 1)) * (W2 - gw - RESERVE);
         const py = v => 4 + (1 - (v - 1) / Math.max(hi - 1, 0.5)) * (rh - 10);
         /* A window this bucket could not score is null, and null is NOT zero: `null - 1` is
            -1 in JS, so feeding it to py() yields a real-looking coordinate and draws a
@@ -8648,20 +8652,70 @@ function drawConc(){
         let last = -1;
         for(let i = eff.length - 1; i >= 0; i--){ if(eff[i] != null){ last = i; break; } }
         const low = b.at_low;
+        /* THE TWO EXTREMES, MARKED WHERE THEY HAPPENED AND LABELLED WITH WHAT THEY WERE.
+           Until now the decade min and max lived only in the SVG <title>, so the row drew a
+           shape and withheld every number it was made of \u2014 the same defect the probability
+           path had, fixed the same way: label the readings that carry the finding (here the
+           two extremes and today) and leave the rest to the tooltip.
+
+           The x is looked up in R.grid by DATE rather than recomputed, because Python already
+           decided which window each extreme came from and a second derivation is a second
+           answer. A date that is not on the grid yields -1 and is simply not marked. */
+        // `indexOf(null)` would FIND something: the grid carries null where a window's
+        // end date is past the end of the date vector, so an undated extreme would be
+        // marked at the first such slot — a confident mark on the wrong year.
+        const at = d => (d == null ? -1 : R.grid.indexOf(d));
+        const iMax = at(b.max && b.max.d), iMin = at(b.min && b.min.d);
+        const flat = b.min.eff_n === b.max.eff_n;
+        // Anchor away from whichever edge the point is near, so a label at either end of the
+        // decade stays inside the row instead of overflowing the name gutter or the value.
+        const anchored = (x, txt, y, cls) => {
+          const near = 34, plotR = W2 - RESERVE;
+          const a = x < gw + near ? "start" : (x > plotR - near ? "end" : "middle");
+          const dx = a === "start" ? 4 : (a === "end" ? -4 : 0);
+          return '<text x="' + (x + dx).toFixed(1) + '" y="' + y.toFixed(1) + '" font-size="8" '
+            + 'text-anchor="' + a + '" font-family="var(--mono)" fill="' + cls + '">'
+            + txt + '</text>';
+        };
+        let marks = "";
+        if(iMax >= 0){
+          const x = px(iMax), y = py(b.max.eff_n);
+          marks += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1)
+            + '" r="1.8" fill="none" stroke="var(--ord-3)" stroke-width="0.9"/>'
+            + anchored(x, b.max.eff_n.toFixed(2), Math.min(y + 9, rh - 2), "var(--ink-2)");
+        }
+        /* The floor is skipped when it is the ceiling (a row that never moved says so with a
+           flat line, and two identical numbers stacked on one point is noise) and when the two
+           extremes are close enough that their labels would collide. Dropping the LOW one is
+           the deliberate choice: for the seven buckets flagged `lo` the floor is essentially
+           today, which the right-hand value already prints. */
+        if(iMin >= 0 && !flat && Math.abs(px(iMin) - px(iMax)) >= 46){
+          const x = px(iMin), y = py(b.min.eff_n);
+          marks += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1)
+            + '" r="1.8" fill="none" stroke="var(--ord-3)" stroke-width="0.9"/>'
+            + anchored(x, b.min.eff_n.toFixed(2), Math.max(y - 4, 8), "var(--ink-muted)");
+        }
         return '<svg viewBox="0 0 ' + W2 + ' ' + rh + '" width="100%" height="' + rh
           + '" role="img" aria-label="' + escAttr(b.name + ": effective bets "
               + b.min.eff_n + " to " + b.max.eff_n + " over the window, now " + b.now.eff_n
+              + " on " + b.now.k + " members"
               + (low ? ", within 10% of its decade range above its own floor" : ""))
           + '">'
           + '<text x="0" y="' + (rh / 2 + 3) + '" font-size="9" fill="var(--ink-2)">'
           + esc(b.name.length > 15 ? b.name.slice(0, 14) + "\u2026" : b.name) + '</text>'
           + draw(kk, "var(--axis)", 0.8, 0.55)
           + draw(eff, "var(--ord-3)", 1.4, 1)
+          + marks
           + (last < 0 ? "" : '<circle cx="' + px(last).toFixed(1) + '" cy="'
               + py(eff[last]).toFixed(1) + '" r="2.6" fill="var(--ord-4)"/>')
-          + '<text x="' + (W2 - 42) + '" y="' + (rh / 2 + 3) + '" font-size="9" '
-          + 'font-family="var(--mono)" fill="' + (low ? "var(--warning)" : "var(--ink)")
-          + '">' + b.now.eff_n.toFixed(2) + (low ? " lo" : "") + '</text>'
+          /* "1.25" alone is not a reading \u2014 1.25 OF 13 is the whole finding, and k was the one
+             number on this row available only to a mouse. */
+          + '<text x="' + (W2 - 4) + '" y="' + (rh / 2 + 3) + '" font-size="9" '
+          + 'text-anchor="end" font-family="var(--mono)" fill="'
+          + (low ? "var(--warning)" : "var(--ink)")
+          + '">' + b.now.eff_n.toFixed(2)
+          + '<tspan fill="var(--ink-muted)"> of ' + b.now.k + '</tspan>'
+          + (low ? '<tspan fill="var(--warning)"> lo</tspan>' : "") + '</text>'
           + '<title>' + esc(b.name + " — now " + b.now.eff_n + " bets on the " + b.now.k
               + " members that carried a usable series in this window. Decade range " + b.min.eff_n + " (" + b.min.d + ") to "
               + b.max.eff_n + " (" + b.max.d + "). Faint line is k(t): a fall in effN that "
