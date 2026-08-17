@@ -167,6 +167,13 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
   line-height:1.5}
 .scen-path li{margin:0}
 .scen-note{font:10.5px var(--mono);color:var(--ink-muted)}
+/* A measured coefficient sits beside an authored arrow and must not read as more of the
+   same sentence. Mono and boxed, in the ordinal colour the charts already use for a
+   measured series; the arrow stays prose. */
+.meas{font-family:var(--mono);font-size:10.5px;color:var(--ord-3);
+  border:1px solid var(--ord-3);border-radius:2px;padding:0 4px;margin-left:5px;
+  white-space:nowrap;cursor:help;opacity:.92}
+.meas .meas-e{color:var(--ink-muted)}
 .scen-foot{margin:6px 0 0;font-size:11px;color:var(--ink-muted)}
 /* State, as a word. Three colours would be three states told in a channel a reader may not
    be able to read, so the word carries it and the colour only reinforces. */
@@ -4159,6 +4166,13 @@ function initBoard(){
     if(!close) return;
     const tile = close.closest(".tile");
     if(!tile) return;
+    /* Closing an auto-placed module is a REFUSAL, recorded before the tile goes. Without this
+       the next redraw sees it available and unplaced and puts it straight back, which reads as
+       a broken close button rather than as a policy. */
+    if(tile.dataset.id === "scen" && scenAutoFor !== null){
+      scenDeclined.add(scenAutoFor);
+      scenAutoFor = null; scenBoardBefore = null;
+    }
     setTilePlaced(tile.dataset.id, false);
     syncLayoutPanel();
   });
@@ -8376,6 +8390,62 @@ function drawScenPanel(){
    (`expected_impact.value` is null for every scenario that exists), so "beneficiary",
    "bullish" and "opportunity" are claims nothing here can support. Every heading names a
    relationship to a channel instead. */
+/* THE MEASURED HALF, joined by channel id and by nothing else.
+
+   A scenario is `basis: "fixture"` — authored, illustrative, and it stays that way. These
+   records are `basis: "measured"`, computed in `tools/channel_stats.py` from the closes in the
+   price snapshot, and they arrive on the payload channel rather than in `window.SCENARIOS`
+   because they go stale when the closes do. Neither is folded into the other: a row can show
+   a human's arrow and a decade's coefficient side by side precisely because they never met.
+
+   Returns null for the three channels with no traded proxy — freight rate, war-risk premium,
+   crack spread. Their securities keep a direction and no magnitude, which is the honest
+   rendering of "nobody has measured this", and materially different from a magnitude of zero. */
+function measuredFor(tk, channelId){
+  const cs = (window.__DRAFT_LIVE__ || {}).channel_stats;
+  if(!cs || cs.channel_id !== channelId) return null;
+  const rec = (cs.securities || {})[tk];
+  return (rec && rec.sensitivity) ? rec : null;
+}
+/* What the coefficient is worth, said in full rather than implied by a number. The two facts
+   a beta cannot carry are here: whether it survived data it was not fitted to, and how often
+   the name went the OTHER way on the episodes that actually happened. */
+function measuredTitle(tk, m){
+  const b = m.sensitivity, r = m.response;
+  let s = tk + " moves " + b.beta.toFixed(2) + "% per 1% in the channel, 95% interval "
+    + b.lo.toFixed(2) + " to " + b.hi.toFixed(2) + " (t " + b.t + ", R² "
+    + b.r2.toFixed(2) + ", " + b.n + " sessions).";
+  if(b.oos_r2 != null)
+    s += " Fitted before " + b.split + " and scored after it: the trained coefficient removes "
+      + (b.oos_r2 * 100).toFixed(0) + "% of squared error on years it never saw, and the sign "
+      + (b.sign_held ? "held." : "DID NOT hold.");
+  if(r)
+    s += " On the " + r.n + " episodes where the channel rose "
+      + (r.move * 100).toFixed(0) + "% in " + r.window + " sessions, this name ran "
+      + r.p10.toFixed(1) + "% to " + r.p90.toFixed(1) + "% (median " + r.p50.toFixed(1)
+      + "%) and fell anyway " + r.pct_down + "% of the time.";
+  /* Both halves, stated. NOT "weakening": for CVX the two medians are 4.0 and 3.8, and a verb
+     that reads as a trend over a 0.2pp gap is the editorialising this module exists to avoid.
+     The reader is given the same two numbers the split produced and can see for themselves
+     that SM went 13.7 to 7.8 and CVX went nowhere. */
+  if(r && r.decay)
+    s += " Split by date, the median was " + r.decay.early.toFixed(1)
+      + "% over the earlier half of those episodes and " + r.decay.late.toFixed(1)
+      + "% over the later half.";
+  return s;
+}
+/* Which channels carry a measured coefficient and which do not, named rather than left to
+   be inferred from where the numbers happen to appear. A reader seeing betas on some rows and
+   not others must be able to learn that the difference is data availability, not a finding. */
+function measuredFoot(){
+  const cs = (window.__DRAFT_LIVE__ || {}).channel_stats;
+  if(!cs) return "";
+  const gone = cs.excluded_channels || [];
+  const label = id => ((window.SCENARIOS && SCENARIOS.CHANNELS[id]) || {}).label || id;
+  return 'Measured against <b>' + esc(cs.proxy.label) + '</b>. '
+    + (gone.length ? 'No traded series exists for ' + esc(gone.map(label).join(", "))
+        + ', so those keep a direction and no magnitude. ' : "");
+}
 function drawScenOpps(){
   const host = document.getElementById("soppsList");
   if(!host) return;
@@ -8411,9 +8481,21 @@ function drawScenOpps(){
          emitted a bare "·" in that slot, which reads as a mark meaning something rather than
          as the absence of one — the same mistake as rendering `0%` for an unmodelled
          activation, one column over. */
-      const chans = s.channels.map(c => esc(c.channel_label)
-          + (c.sign == null ? "" : (c.sign > 0 ? " ↗ with" : " ↘ against")))
-        .join(" · ");
+      /* The authored direction, and beside it the MEASURED magnitude where one exists. Two
+         facts of different kinds on one row, kept visually apart because they are: the arrow
+         is a human assertion about a mechanism, the coefficient is ten years of closes. The
+         join is by `channel_id` against the same closed registry an authored sensitivity is
+         validated against — never by matching the label, which is display text. */
+      const chans = s.channels.map(c => {
+        const dir = esc(c.channel_label)
+          + (c.sign == null ? "" : (c.sign > 0 ? " ↗ with" : " ↘ against"));
+        const m = measuredFor(tk, c.channel_id);
+        if(!m) return dir;
+        const b = m.sensitivity;
+        return dir + ' <span class="meas" title="' + escAttr(measuredTitle(tk, m))
+          + '">β ' + b.beta.toFixed(2)
+          + ' <span class="meas-e">±' + (1.96 * b.se).toFixed(2) + '</span></span>';
+      }).join(" · ");
       const outside = inUniverse.has(tk) ? ""
         : ' <span class="scen-note">outside the screener universe</span>';
       return '<li><button type="button" class="sopp-row" data-sopp="' + escAttr(tk) + '"'
@@ -8431,8 +8513,14 @@ function drawScenOpps(){
     // rendered strings extracts single-quoted literals, and an escaped apostrophe ends the
     // match early — the sentence would be half-checked and the guard would look satisfied.
     + '<p class="scen-foot">Direction is relative to the channel a name was reached on, '
-    + 'not a price forecast: nothing here says how much anything moves. Click a name for '
-    + 'the channels and the path behind it.' + fxMark("scen", sc) + '</p>';
+    + 'and is authored. Where a channel has a traded observable the coefficient beside it is '
+    + 'measured from ten years of closes: hover it for the interval, the out-of-sample score, '
+    + 'and how often the name went the other way anyway. A coefficient is co-movement with the '
+    + 'channel, not a price forecast '
+    + 'and not a claim about how much anything moves next: nothing here says the channel will '
+    + 'move at all, and that number is authored. '
+    + measuredFoot() + 'Click a name for the channels and the path behind it.'
+    + fxMark("scen", sc) + '</p>';
 }
 /* One row, one existing drilldown. `pinTicker` is the same call a results row makes, and the
    drawer already ends with `scenarioWhyBlock(selected, "drawer")` — so the explanation a
@@ -9422,7 +9510,51 @@ document.getElementById("bucketShock").addEventListener("change", (ev)=>{
 
    Not a render(): the shock has not touched a row, a lens or a filter under any lens but one,
    and the lens that IS an exception says so through `shockIsNarrowing` above. */
+/* ── The scenario module places itself when a shock brings one ────────────────
+   Selecting a shock is an ACTION, and until now the answer to it appeared in a tray the reader
+   had to go and find. That was the right default for a module arriving on its own — last
+   night's discoverability work chose "tell a returning reader a module exists, move nothing" —
+   and it is the wrong one for a module arriving because you asked for it.
+
+   Three things keep this from being rude, and each is a thing the naive version gets wrong:
+
+   - it goes through `placeIntoLargestPane`, the same helper the tray uses, so it SPLITS the
+     biggest pane rather than replacing anything the reader arranged;
+   - the arrangement is snapshotted first, so a shock that goes away gives the board back
+     rather than leaving a hole where the module was;
+   - CLOSING IT IS REMEMBERED. A module that reappears after you close it is not a feature,
+     and "place it whenever it is available" cannot tell a reader who has not seen it from one
+     who has already said no. That is the whole reason this holds state instead of being a
+     condition evaluated on every redraw.
+
+   The refusal is per shock and per session: a different shock is a different question, and a
+   fresh visit is a fresh offer. */
+let scenAutoFor = null;        // the shock WE placed for; null means the reader owns the tile
+let scenBoardBefore = null;    // the arrangement to hand back
+const scenDeclined = new Set();
+function syncScenAutoPlace(){
+  const placed = boardTiles().indexOf("scen") !== -1;
+  const offered = tileAvailable("scen");
+  if(offered && !placed && scenAutoFor === null && !scenDeclined.has(bucketShock)){
+    scenBoardBefore = boardTree ? JSON.parse(JSON.stringify(boardTree)) : null;
+    scenAutoFor = bucketShock;
+    placeIntoLargestPane("scen");
+    saveBoard();
+    return true;
+  }
+  if(scenAutoFor !== null && (!offered || scenAutoFor !== bucketShock)){
+    /* Take back only what we added. `dropLeaf` removes the module and leaves every other
+       change the reader has made since; the snapshot is the fallback for the one case
+       dropLeaf cannot serve, which is the module having been the only thing on the board. */
+    boardTree = dropLeaf(boardTree, "scen") || scenBoardBefore;
+    scenAutoFor = null; scenBoardBefore = null;
+    saveBoard();
+    return true;
+  }
+  return false;
+}
 function refreshScenarioTiles(){
+  syncScenAutoPlace();
   layoutBoard();
   drawScenPath();
   drawScenDev();

@@ -59,6 +59,8 @@ data/screener/fundamentals.json
 data/screener/prices.json
 # Derived from prices.json, regenerated when it changes. Output, not a record.
 data/screener/concentration.json
+# Same: regenerated from prices.json whenever it changes. Output, not a record.
+data/screener/channel_stats.json
 # Local tone-ledger residue. The CANONICAL ledger lives on the tone-ledger branch, written
 # by CI; local and Pi runs keep their own rows on disk and must not show as untracked noise
 # or sneak onto development.

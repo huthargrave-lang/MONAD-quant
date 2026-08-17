@@ -4790,3 +4790,157 @@ class ANewModuleAnnouncesItselfWithoutMovingAnything(unittest.TestCase):
         a version bump re-announces everything to everyone on any change."""
         body = _functions(self.js).get("markTilesSeen")
         self.assertIn("JSON.stringify(ALL_TILE_IDS)", body)
+
+
+class TheMeasuredChannelLayerIsMeasuredAndSeparable(unittest.TestCase):
+    """`CVX · Crude price ↗ with` is an authored direction with no magnitude, and it is the
+    same sentence for CVX and for SM, whose measured betas are 0.30 and 0.95. This layer
+    supplies the missing half from the closes on disk — and must never be mistaken for, or
+    folded into, the authored scenario it sits beside."""
+
+    @staticmethod
+    def _prices():
+        import json as _json  # noqa: PLC0415
+        path = os.path.join(REPO, "data", "screener", "prices.json")
+        if not os.path.exists(path):
+            return None
+        with open(path, encoding="utf-8") as fh:
+            return _json.load(fh)
+
+    def test_an_interval_touching_a_non_positive_close_is_refused(self):
+        """THE LOAD-BEARING RULE. CL=F closed at -$37.63 on 2020-04-20 — a real event, not bad
+        data. Differenced naively that is -306% followed by +37.7%, and it dominates every sum
+        of squares it enters: XOM's beta to crude reads 0.060 with t=1.8 including it, and
+        0.306 with t=10.7 without. A factor of five on one observation in 2,377, and the
+        version with it would have shipped as "these oil names barely track oil"."""
+        import channel_stats as cs  # noqa: PLC0415
+        # Both intervals that touch the negative close are refused; the rest survive.
+        self.assertEqual(cs._returns([10.0, 20.0, -5.0, 10.0, 11.0]),
+                         [1.0, None, None, 0.1])
+        prices = self._prices()
+        if not prices:
+            self.skipTest("no price snapshot")
+        s = prices["series"].get("CL=F")
+        if not s:
+            self.skipTest("CL=F absent")
+        self.assertTrue(any(v is not None and v <= 0 for v in s),
+                        "the fixture this guard exists for is gone from the snapshot; if the "
+                        "negative close has been cleaned upstream, this rule still holds but "
+                        "this assertion no longer proves it fires")
+        r = cs._returns(s)
+        self.assertTrue(all(v is None or abs(v) < 1.5 for v in r),
+                        "a return beyond +/-150% survived the non-positive filter")
+
+    def test_the_beta_is_scored_on_data_it_was_not_fitted_to(self):
+        """A coefficient fitted and reported on the same sample is a description. The out-of-
+        sample score is what makes it a claim about the future, and it is emitted even when it
+        is bad — a sensitivity that fails its own holdout should say so on its own row."""
+        prices = self._prices()
+        if not prices:
+            self.skipTest("no price snapshot")
+        import channel_stats as cs  # noqa: PLC0415
+        out = cs.channel_stats(prices, ["XOM", "CVX", "COP", "EOG", "SM"])
+        self.assertIsNotNone(out)
+        for tk, rec in out["securities"].items():
+            s = rec["sensitivity"]
+            self.assertEqual(s["basis"], "measured")
+            self.assertIn("oos_r2", s, "%s ships a beta with no holdout score" % tk)
+            self.assertEqual(s["split"], cs.OOS_SPLIT_DATE)
+            self.assertIn("sign_held", s)
+            # The interval is the error, and it must bracket the estimate.
+            self.assertLess(s["lo"], s["beta"])
+            self.assertGreater(s["hi"], s["beta"])
+
+    def test_the_split_is_a_date_so_it_cannot_drift_as_the_file_deepens(self):
+        """A fraction re-splits every time prices.json grows, and last month's out-of-sample
+        quietly becomes this month's training data with nobody deciding that."""
+        import channel_stats as cs  # noqa: PLC0415
+        self.assertRegex(cs.OOS_SPLIT_DATE, r"^\d{4}-\d{2}-\d{2}$")
+        src = inspect.getsource(cs.sensitivity)
+        self.assertIn("OOS_SPLIT_DATE", src)
+        self.assertNotRegex(src, r"int\(len\([^)]*\)\s*\*",
+                            "the holdout is cut by a fraction of the sample again")
+
+    def test_a_channel_with_no_traded_proxy_gets_no_magnitude(self):
+        """Three of the four registry channels have no series anyone can price. Their
+        securities keep an authored direction and nothing else, which is materially different
+        from a magnitude of zero and must not be rendered as one."""
+        import channel_stats as cs  # noqa: PLC0415
+        import scenarios  # noqa: PLC0415
+        for cid in scenarios.CHANNELS:
+            if cid in cs.CHANNEL_PROXIES:
+                continue
+            self.assertIsNone(cs.channel_stats({"dates": [], "series": {}}, ["XOM"], cid),
+                              "%s reports statistics with no observable behind it" % cid)
+        # And the emitted record NAMES them, so a reader learns why some rows carry a number.
+        prices = self._prices()
+        if not prices:
+            self.skipTest("no price snapshot")
+        out = cs.channel_stats(prices, ["XOM"])
+        self.assertEqual(sorted(out["excluded_channels"]),
+                         sorted(set(scenarios.CHANNELS) - set(cs.CHANNEL_PROXIES)))
+
+    def test_the_measured_records_are_not_folded_into_the_scenario(self):
+        """A scenario is basis:fixture and stays so. These are basis:measured and ride the
+        payload channel. Keeping them apart is what lets one row show a human's arrow beside a
+        decade's coefficient without either being mistaken for the other."""
+        import scenarios  # noqa: PLC0415
+        payload = scenarios.as_payload()
+        for shock, sc in payload.items():
+            for tk, rec in (sc.get("securities") or {}).items():
+                for ch in rec["channels"]:
+                    self.assertNotIn("beta", ch,
+                                     "%s/%s carries a measured coefficient inside the "
+                                     "authored scenario record" % (shock, tk))
+                    self.assertNotIn("sensitivity", ch)
+        js = _decomment(_script(_page()))
+        body = _functions(js).get("measuredFor")
+        self.assertIn("__DRAFT_LIVE__", body,
+                      "the page reads measured stats from somewhere other than the payload")
+        self.assertIn("cs.channel_id !== channelId", body,
+                      "the join is not by channel id, so a label rename would silently "
+                      "attach one channel's coefficient to another")
+
+    def test_the_page_shows_the_error_not_just_the_estimate(self):
+        js = _decomment(_script(_page()))
+        opps = _functions(js).get("drawScenOpps")
+        self.assertIn("1.96 * b.se", opps,
+                      "the coefficient renders without its interval, which is the only part "
+                      "that says how much to trust it")
+        title = _functions(js).get("measuredTitle")
+        for phrase in ("95% interval", "oos_r2", "sign_held", "pct_down"):
+            self.assertIn(phrase, title, "the drilldown drops %s" % phrase)
+        self.assertNotIn("weakening", title,
+                         "a 0.2pp gap between halves is described with a trend verb")
+
+
+class TheScenarioModulePlacesItselfAndTakesNoForAnAnswer(unittest.TestCase):
+    """Selecting a shock is an action, and the answer to it appearing in a tray the reader has
+    to go and find is a response they have to hunt for. Verified in a browser across the whole
+    cycle: place, restore, re-place, refuse, and stay refused."""
+
+    def test_the_refusal_is_recorded_before_the_tile_goes(self):
+        """The defect this prevents is not subtle: without it the next redraw sees the module
+        available and unplaced and puts it straight back, which reads as a broken close button
+        rather than as a policy."""
+        js = _decomment(_script(_page()))
+        self.assertIn("scenDeclined.add(scenAutoFor)", js)
+        self.assertIn('!scenDeclined.has(bucketShock)', _functions(js).get("syncScenAutoPlace"),
+                      "the placement does not consult the refusal, so closing it is undone")
+
+    def test_it_splits_rather_than_replaces_and_hands_the_board_back(self):
+        body = _functions(_decomment(_script(_page()))).get("syncScenAutoPlace")
+        self.assertIn("placeIntoLargestPane", body,
+                      "placed by some path other than the one the tray uses")
+        self.assertIn("dropLeaf(boardTree", body,
+                      "an auto-placed module is not taken back when its shock goes")
+        self.assertIn("scenBoardBefore", body,
+                      "no snapshot, so a board that held only this module cannot be restored")
+
+    def test_only_the_module_we_placed_is_taken_back(self):
+        """A reader who places it themselves owns it. `scenAutoFor` is the record of which is
+        which, and removing a tile the reader placed would be the same class of rudeness as
+        re-placing one they closed."""
+        body = _functions(_decomment(_script(_page()))).get("syncScenAutoPlace")
+        self.assertIn("scenAutoFor === null", body)
+        self.assertIn("scenAutoFor !== null", body)

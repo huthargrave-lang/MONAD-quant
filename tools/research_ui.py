@@ -67,6 +67,7 @@ import screener_lab  # noqa: E402  — the sentiment screen's engine; renders, n
 import email.utils
 import datetime
 import statistics
+import channel_stats
 import concentration
 import sovereign_buckets  # noqa: E402  — the canonical chaos-bucket table; serialised, not copied
 import sweep_runner  # noqa: E402  — runs sweep.py as a job; never with --apply
@@ -5013,7 +5014,33 @@ def _screener_combined_draft_payload():
             lambda b: list(b.get("liquid") or []) + list(b.get("satellite") or []),
             sovereign_buckets.BUCKETS,
         ) if prices else None,
+        # MEASURED channel sensitivities. Rides the PAYLOAD channel, not `window.SCENARIOS`,
+        # and that is the established rule rather than a preference: the authored namespace
+        # carries definitions and fixtures, the payload carries dated output derived from a
+        # snapshot. These are regressions on ten years of closes and go stale when the closes
+        # do, so they belong here beside the concentration they were computed alongside.
+        #
+        # They are NOT part of any scenario. A scenario is `basis: "fixture"` and stays that
+        # way; these are `basis: "measured"`, keyed by (security, channel_id), and the page
+        # joins them by channel id against the same closed registry an authored sensitivity
+        # would be validated against. Keeping them apart is what lets one row show an authored
+        # direction beside a measured magnitude without either being mistaken for the other.
+        "channel_stats": channel_stats.cached_channel_stats(
+            prices, _scenario_securities()) if prices else None,
     }
+
+
+def _scenario_securities():
+    """Every ticker any scenario reaches, so the measured layer covers exactly that set.
+
+    Derived from the scenarios themselves rather than listed here: a second hand-kept roster
+    would drift the moment a transmission edge is added, and the failure mode — a security the
+    module reaches and silently cannot measure — is invisible on the page.
+    """
+    out = set()
+    for payload in scenarios.as_payload().values():
+        out.update((payload.get("securities") or {}).keys())
+    return sorted(out)
 
 
 def _screener_combined_draft_html(mounts, payload=None):
