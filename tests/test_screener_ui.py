@@ -3979,6 +3979,176 @@ class TheConcentrationArithmeticRefusesWhatItCannotMeasure(unittest.TestCase):
         self.assertEqual(align["excluded"], {})
 
 
+class TheRollingLineIsGridAlignedAndHoleHonest(unittest.TestCase):
+    """The ladder says a bucket is 1.2 bets over six months and 2.6 over three years. It cannot
+    say WHEN that changed, or whether today is unusual — which is the question it provokes. The
+    rolling line answers it, and every defect below was found by drawing it rather than by
+    reading it.
+
+    THE SHIPPED DATA CANNOT EXPOSE ANY OF THIS. All 20 buckets currently score every one of the
+    479 windows, so `eff` is full-length for all of them and a length-indexed x axis is right
+    by coincidence — the same shape as the probability path, which was correct only because its
+    fixture happened to be evenly spaced. These fixtures manufacture the holes on purpose."""
+
+    #: 3 members over 400 sessions, one of which does not exist for the first 250. The early
+    #: windows therefore see 2 usable members, below ROLL_MIN_MEMBERS, and cannot be scored.
+    @staticmethod
+    def _holey():
+        import concentration as conc  # noqa: PLC0415
+        n = 400
+        a = [100.0 * (1.0 + 0.01 * ((i % 11) - 5)) for i in range(n)]
+        b = [50.0 * (1.0 + 0.01 * ((i % 7) - 3)) for i in range(n)]
+        late = [None] * 250 + [20.0 * (1.0 + 0.01 * ((i % 5) - 2)) for i in range(250, n)]
+        prices = {"dates": ["2020-%02d-%02d" % (1 + i // 28 % 12, 1 + i % 28) for i in range(n)],
+                  "series": {"A": a, "B": b, "LATE": late}}
+        return conc.rolling_concentration(
+            [{"id": "01", "name": "probe", "liquid": ["A", "B", "LATE"]}],
+            prices, lambda x: x["liquid"])
+
+    def test_the_fixture_actually_produces_holes(self):
+        """Guarding the guard: every assertion below is vacuous if nothing is ever None."""
+        row = self._holey()["buckets"][0]
+        self.assertIn(None, row["eff"], "the fixture scored every window, so it tests nothing")
+        self.assertTrue([v for v in row["eff"] if v is not None], "nothing scored at all")
+
+    def test_every_series_is_exactly_grid_length(self):
+        """THE INVARIANT THE CHART RESTS ON. `eff[i]` describes `grid[i]`, so the x of a
+        reading never has to be inferred from how many readings there happen to be. Emitting
+        only the scored windows would draw a bucket that listed in 2023 across the whole
+        decade — measured in a browser at 0.66 of the width versus 0.00."""
+        out = self._holey()
+        g = len(out["grid"])
+        self.assertGreater(g, 10, "too few windows to be measuring anything")
+        for row in out["buckets"]:
+            if not row.get("eff"):
+                continue
+            self.assertEqual(len(row["eff"]), g, "eff is not grid-aligned")
+            self.assertEqual(len(row["k"]), g, "k is not grid-aligned")
+
+    def test_an_unscorable_window_is_none_in_both_series_and_never_zero(self):
+        """null is not 0, and this is the layer where that stops being rhetoric: `null - 1` is
+        -1 in JavaScript, so a hole fed to the chart's scale yields a real-looking coordinate
+        and draws a collapse to one bet that never happened."""
+        row = self._holey()["buckets"][0]
+        for i, (e, k) in enumerate(zip(row["eff"], row["k"])):
+            self.assertEqual(e is None, k is None,
+                             "slot %d has a hole in one series and a value in the other" % i)
+            if e is None:
+                continue
+            self.assertNotEqual(e, 0, "a scored window reported zero effective bets")
+            self.assertGreaterEqual(e, 1.0, "effN below one bet is not a quantity")
+
+    def test_effective_bets_never_exceeds_the_members_it_counted(self):
+        """effN <= k by construction. It is also what makes k a usable second line: the chart
+        scales each row to its own k, and an effN above it would leave the box. Scaling to the
+        global max effN did exactly that for 16 of 20 buckets."""
+        for row in self._holey()["buckets"]:
+            for e, k in zip(row.get("eff") or [], row.get("k") or []):
+                if e is None:
+                    continue
+                self.assertLessEqual(e, k + 1e-9, "more independent bets than members")
+
+    def test_the_summary_reads_only_scored_windows(self):
+        """min/max/now over a series containing None is either a crash or a lie depending on
+        the language. They are computed over the scored slots, and each carries the grid date
+        it came from so the reader can check it."""
+        out = self._holey()
+        row, grid = out["buckets"][0], out["grid"]
+        scored = [v for v in row["eff"] if v is not None]
+        self.assertEqual(row["min"]["eff_n"], min(scored))
+        self.assertEqual(row["max"]["eff_n"], max(scored))
+        self.assertEqual(row["now"]["eff_n"], scored[-1])
+        for key in ("min", "max", "now"):
+            self.assertIn(row[key]["d"], grid, "%s cites a date off the grid" % key)
+        # `from` is the first window this bucket could be measured in, which is the whole
+        # point of keeping the holes: it is LATER than the grid start.
+        self.assertNotEqual(row["from"], grid[0],
+                            "a late-listing bucket claims to start when the grid does")
+
+    def test_the_encoding_is_parallel_arrays_not_a_list_of_points(self):
+        """One dict per point repeated the keys "d", "eff_n" and "k" 9,580 times and cost 429KB
+        of payload to carry 20 short lines. The dates live once, at the top."""
+        out = self._holey()
+        self.assertIsInstance(out["grid"], list)
+        for row in out["buckets"]:
+            for v in (row.get("eff") or []) + (row.get("k") or []):
+                self.assertNotIsInstance(v, dict,
+                                         "the per-point object encoding is back")
+            self.assertNotIn("points", row, "the old points array is back beside the new one")
+
+    def test_the_page_indexes_the_grid_and_breaks_the_line_at_holes(self):
+        """Source-shape assertions, deliberately: CI installs Python only, and a node-gated
+        check would skip on every CI run and pin nothing.
+
+        THESE ASSERT THAT CODE IS PRESENT, WHICH IS NOT THAT IT RUNS, and mutation testing
+        proved the gap rather than theorising it: coercing the nulls to 1 on entry to `runs`
+        left every asserted string in place and defeated the break entirely. No text assertion
+        can prove reachability, so the specific escape is closed below and the load-bearing
+        proof is behavioural — a browser, a synthetic late-lister with an interior gap and one
+        isolated scored window: 2 segments, a dot for the lone window, no NaN coordinates, and
+        a first x at 0.66 of the plot width against 0.00 for the stretched version."""
+        body = _functions(_decomment(_script(_page()))).get("drawConc")
+        # THE WHOLE px DEFINITION, not the substring "R.grid.length - 1" — that also appears in
+        # the summary's last-date lookup two lines below, so the narrow assertion passed
+        # against a mutation that changed the divisor to eff.length. Caught by mutation.
+        self.assertIn("const px = i => gw + (i / Math.max(R.grid.length - 1, 1))", body,
+                      "the x axis divides by the series length again, which is only the same "
+                      "number while every bucket scores every window")
+        self.assertNotIn("(i / (eff.length", body,
+                         "x is indexed off how many readings there are, not where they sit")
+        self.assertIn("kk.filter(v => v != null)", body,
+                      "the row's scale is computed over holes")
+        self.assertNotIn("eff.map((v, i) => px(i)", body,
+                         "the dense builder is back, so a hole reaches the scale as -1")
+        self.assertIn("if(v == null){", body, "no break in the line at a hole")
+        # The null test above can be made unreachable by rewriting the series on the way in,
+        # which is exactly what a mutation did while every other assertion here still passed.
+        # `runs` reads its argument and never reassigns it.
+        runs = body[body.index("const runs = ser => {"):body.index("const draw = (ser")]
+        self.assertNotRegex(runs, r"\bser\s*=[^=>]",
+                            "the series is rewritten before the hole test sees it, so the "
+                            "break is dead code that still reads as present")
+
+    def test_a_cache_written_by_an_older_shape_is_missed_not_misread(self):
+        """The prices are not the cache's only input — the code is one too. When the rolling
+        series changed from {d, eff_n, k} objects to grid-aligned arrays, every concentration
+        cache already on disk still matched its price stamp exactly, and would have been handed
+        to a reader that can only parse the new shape."""
+        import json as _json  # noqa: PLC0415
+        import tempfile  # noqa: PLC0415
+
+        import concentration as conc  # noqa: PLC0415
+        with tempfile.TemporaryDirectory() as d:
+            pfile = os.path.join(d, "prices.json")
+            with open(pfile, "w", encoding="utf-8") as fh:
+                fh.write("{}")
+            cfile = os.path.join(d, "conc.json")
+            stamp = conc._prices_stamp(pfile)
+            with open(cfile, "w", encoding="utf-8") as fh:
+                _json.dump({"source": stamp, "schema": conc.SCHEMA - 1,
+                            "built_at": "x", "data": {"poison": True}}, fh)
+            out = conc.cached_concentration({}, lambda b: [], [],
+                                            prices_path=pfile, cache_path=cfile)
+            self.assertNotIn("poison", out,
+                             "a cache written by an older emitter was served as current")
+            # And the rewrite stamps the current schema, so the next read is a hit.
+            with open(cfile, encoding="utf-8") as fh:
+                self.assertEqual(_json.load(fh)["schema"], conc.SCHEMA)
+
+    def test_the_disclosure_cannot_crush_the_chart_above_it(self):
+        """`.chart-host` is flex:1 with basis 0%, so it gets only what the legend leaves.
+        Twenty rows grew the legend to 782px in a 450px body: the chart went to zero height,
+        and drawConc bails on `!host.clientHeight`, so the card stayed blank until the reader
+        collapsed the disclosure again. 340px also spilled past `overflow:hidden` in silence —
+        the clip the row-height floor upstream exists to refuse."""
+        css = _page()
+        self.assertRegex(css, r"#concLegend\{[^}]*max-height:",
+                         "the legend can grow without bound and take the chart with it")
+        self.assertRegex(css, r"#concLegend\{[^}]*overflow-y:auto",
+                         "the overflow is clipped rather than scrolled, so rows vanish "
+                         "with nothing saying so")
+
+
 class TheScenarioIsOneModuleBecauseItWasOneNumber(unittest.TestCase):
     """It was three tiles. Between them they rendered one datum: `bucket_activations` returns
     0.30 for every reached bucket, and 0.30 is also the probability path's last point and the

@@ -5003,14 +5003,16 @@ def _screener_combined_draft_payload():
         # payload is: the arithmetic has caveats — quantised cash ETFs, wrapper pairs at
         # rho 0.999, series that cannot be put on one calendar — and a page-side copy would
         # be a second place for those to be got wrong. The page renders the verdict.
-        "concentration": (lambda members: dict(
-            concentration.concentration(sovereign_buckets.BUCKETS, prices, members),
-            # The same arithmetic at several depths. A bucket that is 1.2 bets over six months
-            # and 2.6 over three years is not "1.2" — it is a thing that concentrated recently.
-            **concentration.concentration_windows(
-                sovereign_buckets.BUCKETS, prices, members)
-        ))(lambda b: list(b.get("liquid") or []) + list(b.get("satellite") or []))
-        if prices else None,
+        # Point estimate, the window ladder, and the decade-long rolling line — computed
+        # once per PRICE SNAPSHOT and cached, not once per view. Measured before it was
+        # moved: the first two alone cost 1.96s of pure-Python pairwise arithmetic on every
+        # uncached build, and recomputed the same 2520-session matrix twice between them.
+        # Cold 3.0s, warm 2.3ms, byte-identical.
+        "concentration": concentration.cached_concentration(
+            prices,
+            lambda b: list(b.get("liquid") or []) + list(b.get("satellite") or []),
+            sovereign_buckets.BUCKETS,
+        ) if prices else None,
     }
 
 

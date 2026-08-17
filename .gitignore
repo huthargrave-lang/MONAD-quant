@@ -57,6 +57,8 @@ data/screener/fundamentals.json
 # Same reasoning: closes are refetched, they churn every session, and the Pages build
 # pulls its own. A price cache is a CACHE, not a provenance artifact.
 data/screener/prices.json
+# Derived from prices.json, regenerated when it changes. Output, not a record.
+data/screener/concentration.json
 # Local tone-ledger residue. The CANONICAL ledger lives on the tone-ledger branch, written
 # by CI; local and Pi runs keep their own rows on disk and must not show as untracked noise
 # or sneak onto development.

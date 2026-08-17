@@ -216,6 +216,21 @@ h1{font-size:22px;line-height:1.25;margin:0 0 6px;font-weight:640;letter-spacing
 .scen-sec > .chart-host{min-height:92px;flex:0 0 auto}
 .declared-note{font:10px var(--mono);color:var(--ord-3);border:1px solid var(--ord-1);
   border-radius:3px;padding:0 4px;margin-left:6px;white-space:nowrap}
+.roll{margin:8px 0 0;flex:0 0 100%;width:100%;min-width:0}
+.roll > summary{cursor:pointer;font:11px var(--mono);color:var(--ink-muted);
+  list-style:none;padding:2px 0}
+.roll > summary::-webkit-details-marker{display:none}
+.roll > summary::before{content:"\203A ";display:inline-block;transition:transform .12s}
+.roll[open] > summary::before{transform:rotate(90deg)}
+.roll-rows{display:flex;flex-direction:column;gap:1px;margin:4px 0 6px}
+/* `.chart-host` is flex:1 with basis 0%, so it only ever gets space the legend LEAVES.
+   Opening this disclosure grew the legend to 782px in a 450px body: the chart above was
+   squeezed to zero height, and drawConc bails on `!host.clientHeight`, so the card stayed
+   blank until you collapsed it again. 340px also spilled past `overflow:hidden` with
+   nothing saying so, which is the silent clip the row-height floor upstream exists to
+   refuse. Bounding the legend fixes both: the chart keeps a majority of the body, and
+   the overflow becomes a scrollbar, which is at least an affordance a reader can see. */
+#concLegend{max-height:45%;overflow-y:auto;min-height:0}
 .spread-note{font:10px var(--mono);color:var(--ink-muted);border:1px solid var(--rule);
   border-radius:3px;padding:0 4px;margin-left:6px;white-space:nowrap}
 .spread-note.wide{color:var(--warning);border-color:var(--warning)}
@@ -8568,6 +8583,95 @@ function drawConc(){
       out += '<p class="scen-note">Listed twice, effectively: <b>' + esc(dupes.slice(0, 4).join(", "))
         + '</b>' + (dupes.length > 4 ? " and " + (dupes.length - 4) + " more" : "")
         + ' — one exposure under several tickers, which is why those buckets score low.</p>';
+    }
+    /* THE DECADE, per bucket, under its own row. The lollipop above says what a bucket is
+       today; this says whether today is unusual for it — which is the question the ladder
+       provokes and cannot answer, because nested newest-anchored windows cannot DATE a
+       change. Uranium/fuel measured 3.29 bets at its decade high and 1.25 now; Tankers 3.28
+       and 1.27; EU defense 4.02 and 1.48. All three sit at decade lows.
+
+       k(t) is drawn as a second, fainter line and that is not decoration: membership varies
+       through the decade (a name that listed in 2021 has no returns before it), so effN can
+       fall because the bucket concentrated OR because the roster shrank. Without k on the
+       same axes the chart cannot tell a regime from a listing. */
+    const R = C.rolling;
+    if(R && R.grid && R.grid.length > 2){
+      const rows = R.buckets.filter(b => (b.eff || []).length > 2);
+      /* Measured on the LEGEND, which is where this markup lands — `host` is the chart above
+         it. They are the same width today, and a width taken from the wrong element is a
+         coincidence waiting to be a bug. */
+      const W2 = Math.max(240, Math.floor(legend.clientWidth)) - 8;
+      const rh = 26, gw = 96;
+      const spark = rows.map(b => {
+        const eff = b.eff, kk = b.k;
+        /* Each row is scaled 1..its own max k. Two wrong answers were tried first. Scaling to
+           the global max EFFN (6) threw the k line off the top of the box for 16 of the 20
+           buckets — the one thing k is drawn to let you check. Scaling to the global max K
+           (13) is in range but illegible: a bucket holding 4 names lives in the bottom 15% of
+           the box and draws as a flat line.
+
+           This is not data-dependent autoscaling, which really would render a placid bucket
+           and a collapsing one identically. The denominator is k, a fixed structural property
+           of the bucket, so the height reads as "what FRACTION of my members are independent"
+           — which is the quantity that is comparable across buckets of different sizes. The
+           raw count is printed on the right for anyone who wants it unnormalised. */
+        const hi = Math.max.apply(null, kk.filter(v => v != null).concat([2]));
+        /* i indexes R.grid DIRECTLY. Python emits one slot per grid position and writes null
+           where a bucket could not be scored, so the x of a reading never has to be inferred
+           from how many readings there happen to be. Dividing by `eff.length` would be the
+           same arithmetic today — every bucket is currently full-length — and would stretch a
+           bucket that listed in 2023 across the whole decade the moment one is not. */
+        const px = i => gw + (i / Math.max(R.grid.length - 1, 1)) * (W2 - gw - 46);
+        const py = v => 4 + (1 - (v - 1) / Math.max(hi - 1, 0.5)) * (rh - 10);
+        /* A window this bucket could not score is null, and null is NOT zero: `null - 1` is
+           -1 in JS, so feeding it to py() yields a real-looking coordinate and draws a
+           collapse that never happened. The line BREAKS instead — one polyline per contiguous
+           run of scored windows, and a lone scored window between two holes becomes a dot
+           rather than vanishing, because dropping it silently is the same lie in the other
+           direction. */
+        const runs = ser => {
+          const segs = []; let cur = [];
+          ser.forEach((v, i) => {
+            if(v == null){ if(cur.length) segs.push(cur); cur = []; return; }
+            cur.push(px(i).toFixed(1) + "," + py(v).toFixed(1));
+          });
+          if(cur.length) segs.push(cur);
+          return segs;
+        };
+        const draw = (ser, stroke, w, op) => runs(ser).map(s => s.length > 1
+          ? '<polyline points="' + s.join(" ") + '" fill="none" stroke="' + stroke
+            + '" stroke-width="' + w + '" opacity="' + op + '"/>'
+          : '<circle cx="' + s[0].split(",")[0] + '" cy="' + s[0].split(",")[1] + '" r="'
+            + w + '" fill="' + stroke + '" opacity="' + op + '"/>').join("");
+        let last = -1;
+        for(let i = eff.length - 1; i >= 0; i--){ if(eff[i] != null){ last = i; break; } }
+        const low = b.at_low;
+        return '<svg viewBox="0 0 ' + W2 + ' ' + rh + '" width="100%" height="' + rh
+          + '" role="img" aria-label="' + escAttr(b.name + ": effective bets "
+              + b.min.eff_n + " to " + b.max.eff_n + " over the window, now " + b.now.eff_n)
+          + '">'
+          + '<text x="0" y="' + (rh / 2 + 3) + '" font-size="9" fill="var(--ink-2)">'
+          + esc(b.name.length > 15 ? b.name.slice(0, 14) + "\u2026" : b.name) + '</text>'
+          + draw(kk, "var(--axis)", 0.8, 0.55)
+          + draw(eff, "var(--ord-3)", 1.4, 1)
+          + (last < 0 ? "" : '<circle cx="' + px(last).toFixed(1) + '" cy="'
+              + py(eff[last]).toFixed(1) + '" r="2.6" fill="var(--ord-4)"/>')
+          + '<text x="' + (W2 - 42) + '" y="' + (rh / 2 + 3) + '" font-size="9" '
+          + 'font-family="var(--mono)" fill="' + (low ? "var(--warning)" : "var(--ink)")
+          + '">' + b.now.eff_n.toFixed(2) + (low ? " lo" : "") + '</text>'
+          + '<title>' + esc(b.name + " — now " + b.now.eff_n + " bets on " + b.now.k
+              + " priced names. Decade range " + b.min.eff_n + " (" + b.min.d + ") to "
+              + b.max.eff_n + " (" + b.max.d + "). Faint line is k(t): a fall in effN that "
+              + "tracks it is the roster shrinking, not the thesis concentrating.") + '</title>'
+          + '</svg>';
+      }).join("");
+      out += '<details class="roll"><summary>Through the decade &#183; '
+        + esc(R.grid[0] || "") + ' to ' + esc(R.grid[R.grid.length - 1] || "")
+        + ', trailing ' + R.window + ' sessions \u00b7 ' + rows.length + ' buckets</summary>'
+        + '<div class="roll-rows">' + spark + '</div>'
+        + '<p class="scen-note">Thick line: effective bets. Faint: k, the members priced in '
+        + 'that window &#8212; effN falling WITH it is a roster change, not a regime. '
+        + '<b>lo</b> marks a bucket within 10% of its own decade floor.</p></details>';
     }
     const ex = Object.keys((C.alignment || {}).excluded || {});
     if(ex.length){
