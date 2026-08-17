@@ -162,7 +162,7 @@ def stress(bucket, returns, closes, dates):
         for val, end in roll:
             # One episode per month, so a single crash does not fill the table with its own
             # overlapping windows and hide every other stress the bucket has seen.
-            key = (dates[end - 1] or "")[:7] if end - 1 < len(dates) else str(end)
+            key = (dates[end] or "")[:7] if end < len(dates) else str(end)
             if key in seen:
                 continue
             seen.add(key)
@@ -177,7 +177,15 @@ def stress(bucket, returns, closes, dates):
                 drivers.append((p - 1, t))
             drivers.sort()
             worst.append({
-                "end": dates[end - 1] if end - 1 < len(dates) else None,
+                # `dates[end]`, NOT `dates[end - 1]`. Returns are offset one from closes —
+                # return i runs from close i to close i+1 — so a window over returns
+                # [end-w, end) ends on close `end`. Written the other way, the date column and
+                # the number columns in the same row described DIFFERENT DAYS: the top
+                # Oil/Hormuz row read "ended 2020-03-11, SM -68.5%", and -68.5% is SM's move to
+                # 2020-03-12; to the printed date it is -71.1%. `concentration.py` dates the
+                # identical construction `dates[e]`, so this also had the ladder and the
+                # rolling line disagreeing by a session about the same regime.
+                "end": dates[end] if end < len(dates) else None,
                 "ret": round(val * 100, 1),
                 "worst_member": drivers[0][1] if drivers else None,
                 "worst_member_ret": round(drivers[0][0] * 100, 1) if drivers else None,
@@ -277,7 +285,8 @@ def signals(bucket, returns, closes, dates, window=SIG_WINDOW):
             return []
         out, cur = [], None
         for k, e in enumerate(ends):
-            d = dates[e - 1] if e - 1 < len(dates) else None
+            # Same one-session offset as the stress table above, and the same fix.
+            d = dates[e] if e < len(dates) else None
             v = series[k]
             hot = d is not None and v is not None and (
                 v >= thr_hi if worst is max else v <= thr_hi)
@@ -312,7 +321,7 @@ def signals(bucket, returns, closes, dates, window=SIG_WINDOW):
     dd = []
     for k, e in enumerate(ends):
         peak = max(lvl[max(0, e - 252):e]) if e else None
-        dd.append((lvl[e - 1] / peak - 1) if peak else None)
+        dd.append((lvl[e - 1] / peak - 1) if peak else None)   # level index, not a date
     events += episodes(dd, -SIG_DRAWDOWN, -0.30, "drawdown",
                        "equal-weight index %d%% or more below its trailing-year high"
                        % int(SIG_DRAWDOWN * 100), 100.0, worst=min)

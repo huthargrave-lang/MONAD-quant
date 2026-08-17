@@ -4315,7 +4315,7 @@ function initBoard(){
        a broken close button rather than as a policy. */
     if(tile.dataset.id === "scen" && scenAutoFor !== null){
       scenDeclined.add(scenAutoFor);
-      scenAutoFor = null; scenBoardBefore = null;
+      scenAutoFor = null;
     }
     setTilePlaced(tile.dataset.id, false);
     syncLayoutPanel();
@@ -8636,6 +8636,27 @@ function labFor(){
   const b = sel.find(x => (lab.buckets || {})[x.id]);
   return b ? {bucket: b, rec: lab.buckets[b.id], more: sel.length - 1, lab} : null;
 }
+/* Every DECLARED member of the selected theses, ignoring the tier control on purpose.
+
+   These four analyse a THESIS, which is a fixed authored set, not the reader's current view of
+   it — the same choice `concentration` already makes, computing over liquid + satellite for
+   every bucket regardless of tier. Three of the four followed that and `bbeta` did not: it
+   scoped itself with `bucketNames()`, so cycling the tier moved one pane and left the other
+   three describing a different set. Two panes on one board disagreeing about what a thesis
+   contains is worse than either answer alone, so they now agree, and `tierNote` says which
+   answer it is rather than leaving the reader to notice the control has no effect. */
+function thesisMembers(){
+  const out = [];
+  selectedBuckets().forEach(b => {
+    out.push.apply(out, (b.liquid || []).concat(b.satellite || []));
+  });
+  return Array.from(new Set(out));
+}
+function tierNote(){
+  return bucketTier === "all" ? ""
+    : ' <span class="scen-note">The tier filter narrows the results table, not this module: '
+      + 'a thesis is the whole declared set.</span>';
+}
 function labExtra(g){
   return g.more > 0
     ? ' <span class="scen-note">' + g.more + ' other thesis'
@@ -8708,7 +8729,7 @@ function drawBCorr(){
       + 'moves opposite</span> &#183; <span class="lg">dashed: no overlap to measure</span></div>';
     out += '<p class="scen-note">Mean pairwise <b>' + (c.rho != null ? c.rho : "—")
       + '</b> across <b>' + n + '</b> priced of <b>' + c.declared + '</b> declared'
-      + labExtra(g) + '.</p>';
+      + labExtra(g) + '.' + tierNote() + '</p>';
     if(c.tightest && c.tightest.length){
       out += '<p class="scen-note">Tightest: '
         + c.tightest.slice(0, 3).map(x => '<b>' + esc(x.a) + "/" + esc(x.b) + '</b> '
@@ -8716,11 +8737,24 @@ function drawBCorr(){
         + '. Those pairs are what the effective-bet count is spending.</p>';
     }
     if(loo.length){
-      const top = loo.slice(0, 3).map(t => '<b>' + esc(t) + '</b> +'
-        + c.leave_one_out[t].toFixed(2)).join(" &#183; ");
-      out += '<p class="scen-note">Drop one name and the thesis gains this much breadth: '
-        + top + '. A small number means no single name is the problem — the whole set '
-        + 'moves together.</p>';
+      /* SIGNED, and the sentence has to survive both signs. The number is effN WITHOUT the
+         name minus effN with it, so it is negative whenever dropping a name COSTS breadth —
+         which is the common case: for 4 of the 19 buckets every top-three value is negative.
+         A hardcoded plus rendered those as "+-0.22" under the words "gains this much
+         breadth", which is a malformed number asserting the opposite of itself. */
+      const fmt = v => (v > 0 ? "+" : "") + v.toFixed(2);
+      const top = loo.slice(0, 3).map(t => '<b>' + esc(t) + '</b> '
+        + fmt(c.leave_one_out[t])).join(" &#183; ");
+      const anyGain = loo.some(t => c.leave_one_out[t] > 0);
+      out += '<p class="scen-note">Effective bets WITHOUT each name, minus the count with it: '
+        + top + '. '
+        + (anyGain
+            ? 'A positive number is a name the thesis is spending breadth on — drop it and the '
+              + 'count goes up.'
+            : 'Every one is negative, which is the more interesting answer: no single name is '
+              + 'the redundancy, and dropping any of them costs breadth rather than freeing '
+              + 'it. The set moves together.')
+        + '</p>';
     }
     legend.innerHTML = out;
   }
@@ -8762,7 +8796,7 @@ function drawBStress(){
     + 'check. One episode per month, so a single crash does not fill the table with its own '
     + 'overlapping windows. <b>Spread</b> is best minus worst member — a wide spread '
     + 'means the thesis did not move as one thing, which is the case a single index number '
-    + 'hides.' + labExtra(g) + '</p>';
+    + 'hides.' + labExtra(g) + tierNote() + '</p>';
 }
 
 /* 3. SIGNAL LADDER — dated episodes, the answer to four authored developments. */
@@ -8837,7 +8871,7 @@ function drawBSig(){
     out += '<p class="scen-note">An episode opens when the thesis ENTERS a state and closes '
       + 'when it leaves. Flagging every session instead turned one drawdown into <b>941</b> '
       + 'rows that all said the same thing, which is fewer readings than four, not more.'
-      + labExtra(g) + '</p>';
+      + labExtra(g) + tierNote() + '</p>';
     if(open.length){
       out += '<p class="scen-note">Open right now: '
         + open.map(e => '<b>' + esc(e.kind) + '</b> since ' + esc(e.d) + ' ('
@@ -8862,7 +8896,7 @@ function drawBBeta(){
     return;
   }
   if(!host.clientWidth || !host.clientHeight) return;
-  const mem = bucketNames();
+  const mem = thesisMembers();
   const rows = mem.map(tk => ({tk, r: (cs.securities || {})[tk]}))
     .filter(x => x.r && x.r.sensitivity)
     .map(x => ({tk: x.tk, s: x.s = x.r.sensitivity, resp: x.r.response}))
@@ -8930,7 +8964,7 @@ function drawBBeta(){
     out += '<p class="scen-note">Dots and whiskers are the <b>full-sample</b> coefficient and '
       + 'its 95% interval, 2016 to today. The holdout is reported separately: hover a dot for '
       + 'the coefficient fitted before <b>' + esc(rows[0].s.split) + '</b>, what it scored on '
-      + 'the years after, and whether the sign survived.' + (sel.length > 1 ? ' Across all ' + sel.length
+      + 'the years after, and whether the sign survived.' + tierNote() + (sel.length > 1 ? ' Across all ' + sel.length
         + ' selected theses.' : "") + '</p>';
     legend.innerHTML = out;
   }
@@ -10054,24 +10088,29 @@ document.getElementById("bucketShock").addEventListener("change", (ev)=>{
    The refusal is per shock and per session: a different shock is a different question, and a
    fresh visit is a fresh offer. */
 let scenAutoFor = null;        // the shock WE placed for; null means the reader owns the tile
-let scenBoardBefore = null;    // the arrangement to hand back
 const scenDeclined = new Set();
 function syncScenAutoPlace(){
   const placed = boardTiles().indexOf("scen") !== -1;
   const offered = tileAvailable("scen");
   if(offered && !placed && scenAutoFor === null && !scenDeclined.has(bucketShock)){
-    scenBoardBefore = boardTree ? JSON.parse(JSON.stringify(boardTree)) : null;
     scenAutoFor = bucketShock;
     placeIntoLargestPane("scen");
     saveBoard();
     return true;
   }
   if(scenAutoFor !== null && (!offered || scenAutoFor !== bucketShock)){
-    /* Take back only what we added. `dropLeaf` removes the module and leaves every other
-       change the reader has made since; the snapshot is the fallback for the one case
-       dropLeaf cannot serve, which is the module having been the only thing on the board. */
-    boardTree = dropLeaf(boardTree, "scen") || scenBoardBefore;
-    scenAutoFor = null; scenBoardBefore = null;
+    /* Take back ONLY what we added, and nothing else — no fallback.
+       The snapshot was here for "the module was the only thing on the board", and in exactly
+       that branch it did the opposite of its job: with `scen` the sole leaf `dropLeaf` returns
+       null, so the fallback replayed an arrangement predating every close the reader had made
+       since. Driven through the real controls: start [plot, rank], select Hormuz ->
+       [plot, scen, rank], close plot and rank -> [scen], clear the shock -> BOTH CLOSED TILES
+       COME BACK. A close button that undoes itself minutes later is worse than one that fails.
+
+       Dropping the leaf and accepting null is right: if `scen` was the only thing left, the
+       reader closed everything else, and an empty board is what they asked for. */
+    boardTree = dropLeaf(boardTree, "scen");
+    scenAutoFor = null;
     saveBoard();
     return true;
   }

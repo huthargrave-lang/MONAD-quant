@@ -4934,8 +4934,14 @@ class TheScenarioModulePlacesItselfAndTakesNoForAnAnswer(unittest.TestCase):
                       "placed by some path other than the one the tray uses")
         self.assertIn("dropLeaf(boardTree", body,
                       "an auto-placed module is not taken back when its shock goes")
-        self.assertIn("scenBoardBefore", body,
-                      "no snapshot, so a board that held only this module cannot be restored")
+        # This asserted a SNAPSHOT was kept, and the snapshot turned out to be the defect: with
+        # `scen` the only leaf `dropLeaf` returns null and the fallback replayed an arrangement
+        # predating every close the reader had made since, resurrecting tiles they had shut.
+        # The intent survives — the teardown must remove only what we added — and the
+        # implementation that satisfied it did not.
+        self.assertNotIn("scenBoardBefore", body,
+                         "the snapshot fallback is back; it can only replay a board the "
+                         "reader has since changed")
 
     def test_only_the_module_we_placed_is_taken_back(self):
         """A reader who places it themselves owns it. `scenAutoFor` is the record of which is
@@ -5124,8 +5130,16 @@ class TheThesisModulesAreScopedMeasuredAndEpisodic(unittest.TestCase):
         js = _decomment(_script(_page()))
         self.assertEqual(len(re.findall(r"\bfunction bucketMembers\b", js)), 1,
                          "two functions share the name bucketMembers again")
-        self.assertIn("bucketNames()", _functions(js).get("drawBBeta"),
+        # The intent is ONE definition of membership with no colliding name, not this
+        # particular one. `drawBBeta` moved from `bucketNames()` (tier-filtered) to
+        # `thesisMembers()` (the whole declared set) so all four modules agree — three of them
+        # already read the declared set, and one pane disagreeing with three is worse than
+        # either answer. What must stay true is that it does not roll its own.
+        beta = _functions(js).get("drawBBeta")
+        self.assertIn("thesisMembers()", beta,
                       "the sensitivity module keeps its own idea of which names are selected")
+        self.assertEqual(len(re.findall(r"\bfunction thesisMembers\b", js)), 1,
+                         "a second definition of the thesis roster appeared")
 
     def test_stress_rows_are_realised_dates_rather_than_a_simulated_tail(self):
         import bucket_lab as bl  # noqa: PLC0415
@@ -5404,3 +5418,124 @@ class ClaimsAboutTheDataAreCheckedAgainstTheData(unittest.TestCase):
         doc = cs.conditional_response.__doc__ or ""
         self.assertIn("NOT true that every name weakens", doc,
                       "the docstring no longer disowns the universal it once asserted")
+
+
+class TheFourDefectsAnAdversarialPassFound(unittest.TestCase):
+    """All four proved with real data or a real browser before being fixed, and each is pinned
+    with the evidence that made it undeniable rather than with a restatement of the fix."""
+
+    @staticmethod
+    def _prices():
+        import json as _json  # noqa: PLC0415
+        path = os.path.join(REPO, "data", "screener", "prices.json")
+        if not os.path.exists(path):
+            return None
+        with open(path, encoding="utf-8") as fh:
+            return _json.load(fh)
+
+    def test_a_row_is_dated_on_the_session_its_numbers_measure(self):
+        """Returns are offset one from closes — return i runs from close i to close i+1 — so a
+        window over returns [end-w, end) ends on close `end`. It was written `dates[end - 1]`,
+        so the date column and the number columns in the same row described DIFFERENT DAYS.
+
+        The top Oil/Hormuz 5-session row read "ended 2020-03-11, SM -68.5%". SM's move to
+        2020-03-12 is -68.5%; to the printed date it is -71.1%. The card's own footer promises
+        "every row is a date you can go and check", and a reader who checked got the other day."""
+        import bucket_lab as bl  # noqa: PLC0415
+        import sovereign_buckets  # noqa: PLC0415
+        prices = self._prices()
+        if not prices:
+            self.skipTest("no price snapshot")
+        out = bl.bucket_lab(sovereign_buckets.BUCKETS, prices)
+        dates, series = prices["dates"], prices["series"]
+        checked = 0
+        for rec in out["buckets"].values():
+            if not rec["stress"]:
+                continue
+            for w in rec["stress"]["windows"]:
+                for e in w["worst"][:2]:
+                    tk, end = e["worst_member"], e["end"]
+                    if not tk or not end or tk not in series:
+                        continue
+                    i = dates.index(end)
+                    a, b = series[tk][i - w["w"]], series[tk][i]
+                    if a is None or b is None or a <= 0 or b <= 0:
+                        continue
+                    self.assertAlmostEqual(
+                        (b / a - 1) * 100, e["worst_member_ret"], delta=0.3,
+                        msg="%s row dated %s does not match the closes on that date" % (tk, end))
+                    checked += 1
+        self.assertGreater(checked, 10, "too few rows verified to mean anything")
+
+    def test_the_ladder_dates_a_regime_the_way_the_rolling_line_does(self):
+        """Both map a window ending at return index e to a date. `concentration.py` uses
+        `dates[e]`; this used `dates[e - 1]`, so the two surfaces on one page dated the same
+        regime a session apart — the exact failure SIG_WINDOW's docstring says it picked one
+        window to avoid."""
+        import bucket_lab as bl  # noqa: PLC0415
+        import concentration as conc  # noqa: PLC0415
+        a = inspect.getsource(bl.signals)
+        b = inspect.getsource(conc.rolling_concentration)
+        self.assertIn("dates[e] if e < len(dates)", a,
+                      "the ladder dates an episode one session before it ends")
+        self.assertIn("dates[e] if e < len(dates)", b,
+                      "the rolling line's convention moved; the two must still agree")
+
+    def test_clearing_a_shock_does_not_resurrect_tiles_the_reader_closed(self):
+        """Verified through the real controls: start [plot, rank], select Hormuz ->
+        [plot, scen, rank], close plot and rank -> [scen], clear the shock -> BOTH CAME BACK.
+        The snapshot fallback existed for "scen was the only leaf" and in exactly that branch
+        replayed an arrangement predating every close."""
+        js = _decomment(_script(_page()))
+        body = _functions(js).get("syncScenAutoPlace")
+        self.assertIn('boardTree = dropLeaf(boardTree, "scen");', body,
+                      "the teardown restores something other than the board minus the module")
+        self.assertNotIn("scenBoardBefore", js,
+                         "the stale snapshot is back; it can only ever replay a board the "
+                         "reader has since changed")
+
+    def test_a_signed_number_is_printed_with_its_sign(self):
+        """`+` was hardcoded onto a value that is negative whenever dropping a name COSTS
+        breadth — which is every top-three value for 4 of 19 buckets. LNG rendered
+        "LNG +-0.02 · GLNG +-0.06 · FLNG +-0.22" under "the thesis gains this much breadth"."""
+        body = _functions(_decomment(_script(_page()))).get("drawBCorr")
+        self.assertIn('const fmt = v => (v > 0 ? "+" : "") + v.toFixed(2);', body,
+                      "the sign is hardcoded again, so a negative renders as +-")
+        self.assertNotIn("gains this much breadth", body,
+                         "the sentence still asserts a gain over a number that can be a loss")
+        self.assertIn("Every one is negative", body,
+                      "the all-negative case has no wording of its own, so the reader is told "
+                      "a loss is a gain")
+
+    def test_the_all_negative_case_is_real_on_this_data(self):
+        """Guarding the guard: the wording above is untested if no bucket exhibits it."""
+        import bucket_lab as bl  # noqa: PLC0415
+        import sovereign_buckets  # noqa: PLC0415
+        prices = self._prices()
+        if not prices:
+            self.skipTest("no price snapshot")
+        out = bl.bucket_lab(sovereign_buckets.BUCKETS, prices)
+        allneg = [r["name"] for r in out["buckets"].values()
+                  if r["corr"] and r["corr"]["leave_one_out"]
+                  and all(v < 0 for v in r["corr"]["leave_one_out"].values())]
+        self.assertTrue(allneg,
+                        "no bucket has an all-negative leave-one-out, so the branch that "
+                        "wording exists for is never taken")
+
+    def test_the_four_modules_agree_about_what_a_thesis_contains(self):
+        """`bbeta` scoped itself with tier-filtered `bucketNames()` while the other three read
+        the whole declared set, so cycling the tier moved one pane and left three describing
+        something else. Two panes on one board disagreeing is worse than either answer alone.
+        They all read the declared thesis now — the choice `concentration` already makes — and
+        say so when a tier is active."""
+        js = _decomment(_script(_page()))
+        self.assertIn("function thesisMembers()", js)
+        self.assertIn("thesisMembers()", _functions(js).get("drawBBeta"),
+                      "the sensitivity module still scopes itself by the tier filter")
+        self.assertNotIn("bucketNames()", _functions(js).get("drawBBeta"))
+        for fn in ("drawBCorr", "drawBStress", "drawBSig", "drawBBeta"):
+            self.assertIn("tierNote()", _functions(js).get(fn),
+                          "%s does not tell a reader the tier control misses it" % fn)
+        note = _functions(js).get("tierNote")
+        self.assertIn('bucketTier === "all" ? ""', note,
+                      "the note shows even with no tier applied, which makes it noise")
