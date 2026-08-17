@@ -8527,7 +8527,9 @@ function drawConc(){
     parts.push('<text x="' + (L - 6) + '" y="' + (y + 3) + '" text-anchor="end" font-size="9" '
       + 'fill="var(--ink-2)">' + esc(b.name.length > 17 ? b.name.slice(0, 16) + "…" : b.name)
       + '</text>');
-    // The declared breadth, drawn as the track it could have reached.
+    // The PRICED breadth, drawn as the track it could have reached. Not the declared
+    // count: names with no series, or refused as rounding artifacts, never had a bet to
+    // contribute, and drawing the track to them would promise breadth nothing measured.
     parts.push('<line x1="' + x1.toFixed(1) + '" y1="' + y + '" x2="' + xk.toFixed(1) + '" y2="'
       + y + '" stroke="var(--rule)" stroke-width="3" stroke-linecap="round"/>');
     parts.push('<line x1="' + x1.toFixed(1) + '" y1="' + y + '" x2="' + xe.toFixed(1) + '" y2="'
@@ -8550,7 +8552,7 @@ function drawConc(){
     const bits = ['<span class="lg"><span class="sw" style="background:var(--ord-4)"></span>'
       + 'effective bets</span>',
       '<span class="lg"><span class="sw" style="background:var(--rule)"></span>'
-      + 'names declared</span>'].join(" &#183; ");
+      + 'names priced</span>'].join(" &#183; ");
     let out = '<div class="legend-row">' + bits + '</div>';
     if(dropped > 0){
       out += '<p class="scen-note">Showing the <b>' + shown.length + '</b> most concentrated; '
@@ -8596,7 +8598,7 @@ function drawConc(){
        same axes the chart cannot tell a regime from a listing. */
     const R = C.rolling;
     if(R && R.grid && R.grid.length > 2){
-      const rows = R.buckets.filter(b => (b.eff || []).length > 2);
+      const rows = R.buckets.filter(b => b.now && (b.eff || []).length > 2);
       /* Measured on the LEGEND, which is where this markup lands — `host` is the chart above
          it. They are the same width today, and a width taken from the wrong element is a
          coincidence waiting to be a bug. */
@@ -8648,7 +8650,8 @@ function drawConc(){
         const low = b.at_low;
         return '<svg viewBox="0 0 ' + W2 + ' ' + rh + '" width="100%" height="' + rh
           + '" role="img" aria-label="' + escAttr(b.name + ": effective bets "
-              + b.min.eff_n + " to " + b.max.eff_n + " over the window, now " + b.now.eff_n)
+              + b.min.eff_n + " to " + b.max.eff_n + " over the window, now " + b.now.eff_n
+              + (low ? ", within 10% of its decade range above its own floor" : ""))
           + '">'
           + '<text x="0" y="' + (rh / 2 + 3) + '" font-size="9" fill="var(--ink-2)">'
           + esc(b.name.length > 15 ? b.name.slice(0, 14) + "\u2026" : b.name) + '</text>'
@@ -8659,8 +8662,8 @@ function drawConc(){
           + '<text x="' + (W2 - 42) + '" y="' + (rh / 2 + 3) + '" font-size="9" '
           + 'font-family="var(--mono)" fill="' + (low ? "var(--warning)" : "var(--ink)")
           + '">' + b.now.eff_n.toFixed(2) + (low ? " lo" : "") + '</text>'
-          + '<title>' + esc(b.name + " — now " + b.now.eff_n + " bets on " + b.now.k
-              + " priced names. Decade range " + b.min.eff_n + " (" + b.min.d + ") to "
+          + '<title>' + esc(b.name + " — now " + b.now.eff_n + " bets on the " + b.now.k
+              + " members that carried a usable series in this window. Decade range " + b.min.eff_n + " (" + b.min.d + ") to "
               + b.max.eff_n + " (" + b.max.d + "). Faint line is k(t): a fall in effN that "
               + "tracks it is the roster shrinking, not the thesis concentrating.") + '</title>'
           + '</svg>';
@@ -8671,7 +8674,9 @@ function drawConc(){
         + '<div class="roll-rows">' + spark + '</div>'
         + '<p class="scen-note">Thick line: effective bets. Faint: k, the members priced in '
         + 'that window &#8212; effN falling WITH it is a roster change, not a regime. '
-        + '<b>lo</b> marks a bucket within 10% of its own decade floor.</p></details>';
+        + '<b>lo</b> marks a bucket sitting in the bottom tenth of its OWN decade range '
+        + '&#8212; near its floor relative to how far it has ever travelled, which for a '
+        + 'bucket that never moved much is a shorter claim than it sounds.</p></details>';
     }
     const ex = Object.keys((C.alignment || {}).excluded || {});
     if(ex.length){

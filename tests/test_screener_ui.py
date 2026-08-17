@@ -4039,9 +4039,16 @@ class TheRollingLineIsGridAlignedAndHoleHonest(unittest.TestCase):
             self.assertGreaterEqual(e, 1.0, "effN below one bet is not a quantity")
 
     def test_effective_bets_never_exceeds_the_members_it_counted(self):
-        """effN <= k by construction. It is also what makes k a usable second line: the chart
-        scales each row to its own k, and an effN above it would leave the box. Scaling to the
-        global max effN did exactly that for 16 of 20 buckets."""
+        """effN <= k holds because rho_bar is CLAMPED AT ZERO, not "by construction" as I
+        first wrote it: effN = k / (1 + (k-1)*rho_bar) exceeds k for any negative rho_bar, and
+        an equicorrelation matrix stays valid down to rho_bar = -1/(k-1). The clamp is at
+        concentration.py:196-199 and its comment is explicit that a negative mean correlation
+        would "report MORE bets than there are names — arithmetically true of the formula,
+        false about the world."
+
+        So this guard protects the clamp, not a tautology. It matters because the chart scales
+        each row to its own k and an effN above it would leave the box — which is what scaling
+        to the global max effN did for 16 of 20 buckets."""
         for row in self._holey()["buckets"]:
             for e, k in zip(row.get("eff") or [], row.get("k") or []):
                 if e is None:
@@ -4108,6 +4115,104 @@ class TheRollingLineIsGridAlignedAndHoleHonest(unittest.TestCase):
         self.assertNotRegex(runs, r"\bser\s*=[^=>]",
                             "the series is rewritten before the hole test sees it, so the "
                             "break is dead code that still reads as present")
+
+    def test_the_line_refuses_exactly_what_the_ladder_refuses(self):
+        """ONE CARD MUST NOT HOLD TWO ANSWERS. The rolling line selected members on `t in
+        returns` alone while the point estimate also applied the cent-quantisation refusal, so
+        the legend printed "Liquid Fear is not scored — fewer than 3 members carry a usable
+        series" directly under a nine-year line for Liquid Fear reading 2.45 bets. It was the
+        FIRST row of the panel, and it was visible in the first screenshot I took of it."""
+        import json as _json  # noqa: PLC0415
+
+        import concentration as conc  # noqa: PLC0415
+        import sovereign_buckets  # noqa: PLC0415
+        path = os.path.join(REPO, "data", "screener", "prices.json")
+        if not os.path.exists(path):
+            self.skipTest("no price snapshot; this asserts agreement on real data")
+        with open(path, encoding="utf-8") as fh:
+            prices = _json.load(fh)
+
+        def members(b):
+            return list(b.get("liquid") or []) + list(b.get("satellite") or [])
+
+        point = conc.concentration(sovereign_buckets.BUCKETS, prices, members)
+        roll = conc.rolling_concentration(sovereign_buckets.BUCKETS, prices, members)
+        ladder_refused = sorted(b["name"] for b in point["buckets"] if b.get("eff_n") is None)
+        line_refused = sorted(b["name"] for b in roll["buckets"] if not b.get("eff"))
+        self.assertEqual(ladder_refused, line_refused,
+                         "the two halves of one card disagree about which buckets can be "
+                         "measured at all")
+        for row in roll["buckets"]:
+            if not row.get("eff"):
+                self.assertTrue(row.get("reason"),
+                                "%s is refused without saying why" % row.get("name"))
+
+    def test_the_newest_point_equals_the_rung_printed_beside_it(self):
+        """ROLL_WINDOW's docstring promises "the newest point of the line and the ladder's
+        first rung are the same measurement". It was not, twice over: the line judged
+        quantisation across the whole decade while the rung judged it inside the window (NSRCF
+        is 0.13x its sd over ten years and 0.79x over six months, so Wartime elements read
+        1.77 against the rung's 1.60), and `window` counted RETURNS where the ladder counts
+        SESSIONS, leaving the line one session wider than the rung it claims to equal."""
+        import json as _json  # noqa: PLC0415
+
+        import concentration as conc  # noqa: PLC0415
+        import sovereign_buckets  # noqa: PLC0415
+        path = os.path.join(REPO, "data", "screener", "prices.json")
+        if not os.path.exists(path):
+            self.skipTest("no price snapshot; this asserts agreement on real data")
+        with open(path, encoding="utf-8") as fh:
+            prices = _json.load(fh)
+
+        def members(b):
+            return list(b.get("liquid") or []) + list(b.get("satellite") or [])
+
+        roll = conc.rolling_concentration(sovereign_buckets.BUCKETS, prices, members)
+        wins = conc.concentration_windows(sovereign_buckets.BUCKETS, prices, members)
+        rung = [w for w in wins["windows"] if w["sessions"] == conc.ROLL_WINDOW]
+        if not rung:
+            self.skipTest("no rung at ROLL_WINDOW sessions in this price file")
+        rung = rung[0]["buckets"]
+        checked = 0
+        for row in roll["buckets"]:
+            if not row.get("eff"):
+                continue
+            self.assertIn(row["id"], rung)
+            self.assertEqual(
+                row["now"]["eff_n"], rung[row["id"]],
+                "%s: the line ends at %s and the rung beside it says %s"
+                % (row["name"], row["now"]["eff_n"], rung[row["id"]]))
+            checked += 1
+        self.assertGreater(checked, 10, "too few buckets compared to mean anything")
+
+    def test_a_bucket_that_scores_nothing_is_a_refusal_not_a_row_of_nulls(self):
+        """There are two ways to be too thin and only one of them used to say so. Too few
+        members returned a safe empty row; enough members of which too few ever PAIR returned a
+        full-length array of nulls with no min/max/now, which passed the page's length-based
+        filter and then threw on `b.min.eff_n` — inside the row loop, before the legend is
+        assigned, so it destroyed the window ladder, the duplicate pairs, the exclusions and
+        every refusal note, while the chart above it still drew. render() has no catch, so the
+        results table stopped rendering too."""
+        import concentration as conc  # noqa: PLC0415
+        n = 300
+        old = [100.0 * (1.0 + 0.01 * ((i % 11) - 5)) for i in range(n)]
+        # Three names that all listed 30 sessions ago: >= ROLL_MIN_MEMBERS declared, but no
+        # window ever has three of them sharing MIN_RETURNS sessions.
+        late = [None] * (n - 30) + [20.0 * (1.0 + 0.01 * ((i % 5) - 2)) for i in range(30)]
+        prices = {"dates": ["2020-%02d-%02d" % (1 + i // 28 % 12, 1 + i % 28) for i in range(n)],
+                  "series": {"OLD": old, "L1": list(late), "L2": list(late), "L3": list(late)}}
+        rows = conc.rolling_concentration(
+            [{"id": "01", "name": "probe", "liquid": ["OLD", "L1", "L2", "L3"]}],
+            prices, lambda b: b["liquid"])["buckets"]
+        row = rows[0]
+        self.assertEqual(row["eff"], [], "an unscored bucket still ships a series of nulls")
+        self.assertTrue(row.get("reason"), "it is refused without saying why")
+        self.assertNotIn("min", row)
+        # And the page filter admits nothing without the summary it dereferences.
+        body = _functions(_decomment(_script(_page()))).get("drawConc")
+        self.assertIn("R.buckets.filter(b => b.now &&", body,
+                      "the rolling rows are selected on array length, so a row with no "
+                      "min/max/now can reach `b.min.eff_n` and take the legend down with it")
 
     def test_a_cache_written_by_an_older_shape_is_missed_not_misread(self):
         """The prices are not the cache's only input — the code is one too. When the rolling

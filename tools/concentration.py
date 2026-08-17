@@ -149,6 +149,37 @@ def aligned_returns(prices):
     }
 
 
+def eligible_members(members, returns, closes=None):
+    """Which declared names carry a series worth correlating, and why the rest do not.
+
+    ONE DEFINITION, because there are two callers and they disagreed. `bucket_concentration`
+    applied the quantisation refusal and `rolling_concentration` did not, so the same card
+    printed "Liquid Fear is not scored — fewer than 3 members carry a usable series" directly
+    above a nine-year line for Liquid Fear reading 2.45 bets. It also quietly moved buckets
+    that DID score: Wartime elements reported 1.77 rolling against 1.60 on the ladder for the
+    same window, the difference being NSRCF, whose one-cent step is 0.79x its daily sd.
+
+    Returns (priced, excluded, ungraded). `excluded` maps ticker to the sentence the surfaces
+    print; `ungraded` is the subset refused for quantisation specifically, which the point
+    estimate reports separately because "we cannot grade this name" is a different fact from
+    "this name has no prices".
+    """
+    priced, excluded, ungraded = [], {}, []
+    for t in members:
+        if t not in returns:
+            excluded[t] = "no aligned price series"
+            continue
+        if closes is not None and t in closes:
+            ratio = _quantisation_ratio(closes[t])
+            if ratio is not None and ratio > QUANTISATION_LIMIT:
+                excluded[t] = (
+                    "moves in cent-rounding steps: one cent is %.2fx its daily sd" % ratio)
+                ungraded.append(t)
+                continue
+        priced.append(t)
+    return priced, excluded, ungraded
+
+
 def bucket_concentration(members, returns, closes=None):
     """One bucket's effective-bet count, with everything that qualifies it.
 
@@ -156,20 +187,8 @@ def bucket_concentration(members, returns, closes=None):
     `aligned_returns`; `closes` (optional) enables the quantisation check.
     """
     out = {"declared": len(members), "excluded": {}}
-    priced, ungraded = [], []
-    for t in members:
-        if t not in returns:
-            out["excluded"][t] = "no aligned price series"
-            continue
-        if closes is not None and t in closes:
-            ratio = _quantisation_ratio(closes[t])
-            if ratio is not None and ratio > QUANTISATION_LIMIT:
-                out["excluded"][t] = "moves in cent-rounding steps (quantum is %.2fx its "
-                out["excluded"][t] = (
-                    "moves in cent-rounding steps: one cent is %.2fx its daily sd" % ratio)
-                ungraded.append(t)
-                continue
-        priced.append(t)
+    priced, excluded, ungraded = eligible_members(members, returns, closes)
+    out["excluded"] = excluded
     out["priced"] = len(priced)
     if len(priced) < MIN_MEMBERS:
         out["eff_n"] = None
@@ -342,6 +361,53 @@ def _window_corr(pre, i, j):
     return cov / math.sqrt(vx * vy)
 
 
+def _solo_prefix(rets, closes):
+    """Per-ticker prefix sums: enough to get a window's return sd and mean close in O(1).
+
+    The quantisation guard asks whether one cent is large against a series' daily standard
+    deviation. Both terms are window-local, so answering it per window needs no more than the
+    count, sum and sum-of-squares of the returns in that window plus the mean close — the same
+    trick `_pair_prefix` uses for correlation. `rets` is offset by one from `closes` (a return
+    needs two closes), so index i of the return series ends at close i+1.
+    """
+    n = len(rets)
+    cn = [0] * (n + 1); cs = [0.0] * (n + 1)          # close count / sum
+    rn = [0] * (n + 1); rs = [0.0] * (n + 1); rss = [0.0] * (n + 1)
+    for i in range(n):
+        c = closes[i + 1] if i + 1 < len(closes) else None
+        cn[i + 1] = cn[i] + (1 if c is not None else 0)
+        cs[i + 1] = cs[i] + (c if c is not None else 0.0)
+        r = rets[i]
+        ok = r is not None
+        rn[i + 1] = rn[i] + (1 if ok else 0)
+        rs[i + 1] = rs[i] + (r if ok else 0.0)
+        rss[i + 1] = rss[i] + (r * r if ok else 0.0)
+    return cn, cs, rn, rs, rss
+
+
+def _window_quantisation(pre, i, j):
+    """One cent as a multiple of this window's daily sd. None when the window is too thin.
+
+    PER WINDOW, not once over the decade, because quantisation is a property of the stretch you
+    are measuring. NSRCF's one-cent step is 0.13x its standard deviation over the full ten
+    years and 0.79x over the last six months — it went quiet. Judging it on the decade let a
+    name the six-month ladder had already refused into the six-month end of this line, so the
+    two surfaces printed 1.60 and 1.77 for Wartime elements over the same sessions.
+    """
+    cn, cs, rn, rs, rss = pre
+    m = rn[j] - rn[i]
+    if m < MIN_RETURNS or (cn[j] - cn[i]) < MIN_RETURNS:
+        return None
+    mean = rs[j] - rs[i]
+    var = (rss[j] - rss[i]) / m - (mean / m) ** 2
+    if var <= 0:
+        return float("inf")
+    price = (cs[j] - cs[i]) / (cn[j] - cn[i])
+    if not price:
+        return None
+    return (0.01 / price) / math.sqrt(var)
+
+
 def rolling_concentration(buckets, prices, member_fn,
                           window=ROLL_WINDOW, stride=ROLL_STRIDE):
     """effN through time, per bucket, with k(t) beside it.
@@ -366,23 +432,35 @@ def rolling_concentration(buckets, prices, member_fn,
     # can map series[i] to grid[i] without inferring anything. The alternative — emitting only
     # the windows that scored and letting the page work out where they belong — is how a
     # 100-point series gets stretched across a decade it did not exist for.
+    # `window` IS IN SESSIONS, the unit the ladder and the page both use, and n sessions hold
+    # n-1 returns. Walking `window` RETURNS instead made the line's newest point a 127-session
+    # measurement sitting beside a 126-session rung that the docstring promises it equals —
+    # small (0.01-0.03 on most buckets) and exactly the kind of quiet disagreement between two
+    # numbers on one card that this module exists to refuse.
+    rwin = max(window - 1, 2)
     ends = []
     j = n_ret
-    while j - window >= 0:
+    while j - rwin >= 0:
         ends.append(j)
         j -= stride
     ends.reverse()
-    grid = [(dates[e] if e < len(dates) else (dates[-1] if dates else None)) for e in ends]
+    grid = [(dates[e] if e < len(dates) else None) for e in ends]
+    closes = (prices or {}).get("series") or {}
     out = []
     for b in buckets:
-        members = [t for t in member_fn(b) if t in returns]
+        # THE SAME ELIGIBILITY THE POINT ESTIMATE USES. Selecting on `t in returns` alone let
+        # this surface score names the module had already refused as rounding artifacts, so
+        # the card charted a decade of Liquid Fear underneath its own sentence saying Liquid
+        # Fear cannot be measured.
+        members, _why, _ung = eligible_members(member_fn(b), returns, closes)
         if len(members) < ROLL_MIN_MEMBERS:
-            out.append({"id": b.get("id"), "name": b.get("name"), "points": [],
-                        "reason": "fewer than %d members carry an aligned series"
+            out.append({"id": b.get("id"), "name": b.get("name"), "eff": [], "k": [],
+                        "reason": "fewer than %d members carry a usable series"
                                   % ROLL_MIN_MEMBERS})
             continue
-        pres = {}
+        pres, solo = {}, {}
         for ix, x in enumerate(members):
+            solo[x] = _solo_prefix(returns[x], closes.get(x) or [])
             for y in members[ix + 1:]:
                 pres[(x, y)] = _pair_prefix(returns[x], returns[y])
         # One slot per grid position, ALWAYS, so `eff[i]` and `k[i]` describe `grid[i]`.
@@ -393,9 +471,17 @@ def rolling_concentration(buckets, prices, member_fn,
         # this is not an offset that could be recovered from a length.
         eff, ks = [], []
         for e in ends:
-            i = e - window
+            i = e - rwin
+            # Re-run the quantisation refusal INSIDE the window. A name whose one-cent step is
+            # large against its own volatility here contributes rounding grid, not co-movement,
+            # and the pair it forms is an artifact however long it has been listed.
+            fit = {x for x in members
+                   if (lambda q: q is None or q <= QUANTISATION_LIMIT)(
+                       _window_quantisation(solo[x], i, e))}
             rhos, seen = [], set()
             for (x, y), pre in pres.items():
+                if x not in fit or y not in fit:
+                    continue
                 r = _window_corr(pre, i, e)
                 if r is None:
                     continue
@@ -410,8 +496,22 @@ def rolling_concentration(buckets, prices, member_fn,
         # PARALLEL ARRAYS over the shared date vector, not a list of objects. The object form
         # repeated the keys "d", "eff_n" and "k" 9,580 times and cost 429KB of payload to
         # carry 20 short lines; this is the same data at a fraction of it.
-        row = {"id": b.get("id"), "name": b.get("name"), "eff": eff, "k": ks}
         scored = [(grid[i], eff[i], ks[i]) for i in range(len(eff)) if eff[i] is not None]
+        if not scored:
+            # A ROW OF NOTHING IS A REFUSAL, NOT A SERIES. There are two ways to be too thin —
+            # too few members, caught above, and enough members of which too few ever share a
+            # scorable window, caught here — and only the first used to say so. The second
+            # shipped a full-length array of nulls with no min/max/now, which passed a
+            # length-based filter on the page and then threw on `b.min.eff_n`. The throw
+            # landed inside the row loop, before the legend was written, so it destroyed every
+            # disclosure the card carries — the window ladder, the duplicate pairs, the
+            # exclusions and the refusals — while the chart above it still drew, leaving a
+            # card that looked complete and had silently dropped everything it left out.
+            out.append({"id": b.get("id"), "name": b.get("name"), "eff": [], "k": [],
+                        "reason": "no window has %d members sharing enough sessions to "
+                                  "correlate" % ROLL_MIN_MEMBERS})
+            continue
+        row = {"id": b.get("id"), "name": b.get("name"), "eff": eff, "k": ks}
         if scored:
             lo = min(scored, key=lambda t: t[1])
             hi = max(scored, key=lambda t: t[1])
@@ -421,6 +521,10 @@ def rolling_concentration(buckets, prices, member_fn,
             row["from"] = scored[0][0]
             # Is today near its own floor? The question the ladder provokes and cannot answer.
             span = hi[1] - lo[1]
+            # WITHIN 10% OF THE RANGE ABOVE THE FLOOR, which is what the surfaces must say.
+            # "Within 10% of its floor" is a different set — it reads as now <= 1.1 * min — and
+            # a bucket whose whole decade spans 1.10 to 1.56 can satisfy this one while sitting
+            # 29% above its floor by that other reading.
             row["at_low"] = bool(span > 0 and (scored[-1][1] - lo[1]) <= span * 0.1)
         out.append(row)
     return {
@@ -429,7 +533,9 @@ def rolling_concentration(buckets, prices, member_fn,
         "window": window,
         "stride": stride,
         "aligned_by": align.get("aligned_by"),
-        "first": (dates[window] if len(dates) > window else None),
+        # Read off the grid rather than recomputed: an independently-derived `first` missed
+        # grid[0] by the stride remainder and put two different start dates in one payload.
+        "first": (grid[0] if grid else None),
         "last": (dates[-1] if dates else None),
         "method": ("trailing %d-session effN, stepped every %d sessions; k(t) is the number of "
                    "members carrying a usable pair in THAT window, so a change in effN can be "
