@@ -5539,3 +5539,148 @@ class TheFourDefectsAnAdversarialPassFound(unittest.TestCase):
         note = _functions(js).get("tierNote")
         self.assertIn('bucketTier === "all" ? ""', note,
                       "the note shows even with no tier applied, which makes it noise")
+
+
+class TheLastFiveTheAdversarialPassNamed(unittest.TestCase):
+    """Misleading rather than broken, which is why they outlived two rounds of fixes. Each is
+    pinned with the measurement that made it undeniable."""
+
+    @staticmethod
+    def _prices():
+        import json as _json  # noqa: PLC0415
+        path = os.path.join(REPO, "data", "screener", "prices.json")
+        if not os.path.exists(path):
+            return None
+        with open(path, encoding="utf-8") as fh:
+            return _json.load(fh)
+
+    def test_now_is_the_current_window_and_not_the_best_one_ever(self):
+        """`roll` is sorted BY RETURN so the worst-window scan can walk it, and `roll[-1]` was
+        then read as if it were still in time order. Oil/Hormuz emitted +37.0% from 2020-06-08
+        under the key `now` while the latest 5-session window was +7.5% — the crash rebound,
+        labelled as the present."""
+        import bucket_lab as bl  # noqa: PLC0415
+        import sovereign_buckets  # noqa: PLC0415
+        prices = self._prices()
+        if not prices:
+            self.skipTest("no price snapshot")
+        out = bl.bucket_lab(sovereign_buckets.BUCKETS, prices)
+        last_date = prices["dates"][-1]
+        checked = 0
+        for rec in out["buckets"].values():
+            if not rec["stress"]:
+                continue
+            for w in rec["stress"]["windows"]:
+                self.assertIn("now_end", w, "`now` does not say which window it is")
+                self.assertEqual(w["now_end"], last_date,
+                                 "`now` is not the most recent window in the file")
+                checked += 1
+        # RECOMPUTED, not shape-checked. Asserting `now_end` is the last date passed against
+        # the defect, because the bug left that field correct and only `now` wrong: the value
+        # came from the sorted maximum while the date came from the true latest window. The
+        # only assertion that separates them is recomputing the window itself.
+        import statistics as _st  # noqa: PLC0415
+        rec = out["buckets"]["02"]
+        rets = {t: bl.concentration._returns(prices["series"][t])
+                for t in rec["corr"]["members"]}
+        n = len(next(iter(rets.values())))
+        idx = []
+        for i in range(n):
+            vals = [rets[t][i] for t in rets if rets[t][i] is not None]
+            idx.append(_st.fmean(vals) if vals else None)
+        for w in rec["stress"]["windows"]:
+            seg = idx[n - w["w"]:n]
+            if any(v is None for v in seg):
+                continue
+            prod = 1.0
+            for v in seg:
+                prod *= (1 + v)
+            self.assertAlmostEqual(
+                (prod - 1) * 100, w["now"], delta=0.15,
+                msg="`now` for the %d-session window is not the window ending on the last "
+                    "session — it is almost certainly the sorted maximum again" % w["w"])
+        self.assertGreater(checked, 10)
+
+    def test_the_ladder_can_draw_every_episode_it_emits(self):
+        """`last` was the newest episode START. Events sort by start descending, so an episode
+        beginning earlier and ending later mapped past the coordinate reserved for "still
+        open" — 12 of 19 buckets have one, and two buckets have NO open episodes at all, so
+        every bar touching that edge there was finished and read as live."""
+        import bucket_lab as bl  # noqa: PLC0415
+        import sovereign_buckets  # noqa: PLC0415
+        prices = self._prices()
+        if not prices:
+            self.skipTest("no price snapshot")
+        out = bl.bucket_lab(sovereign_buckets.BUCKETS, prices)
+        for rec in out["buckets"].values():
+            g = rec["signals"]
+            if not g:
+                continue
+            newest_end = max((e["end"] or e["d"]) for e in g["events"])
+            self.assertGreaterEqual(
+                g["last"], newest_end,
+                "%s: an episode ends after the x domain, so its bar runs off the chart"
+                % rec["name"])
+            self.assertIn("open", g, "the ladder does not say how many episodes are live")
+
+    def test_a_finished_episode_is_drawn_differently_from_a_live_one(self):
+        body = _functions(_decomment(_script(_page()))).get("drawBSig")
+        self.assertIn("if(e.end){", body,
+                      "closed and open episodes are drawn identically, so position is the "
+                      "only cue and the domain no longer makes position unique")
+        self.assertIn("a tick closes a finished episode", body,
+                      "the cap is drawn and never explained")
+
+    def test_one_observation_per_spike_not_one_per_session(self):
+        """149 raw windows were 61 contiguous runs. SM's p90 rested on a top decile of fourteen
+        whose dates were five consecutive sessions of one 2020 rebound plus three others —
+        roughly four events. This is the session-vs-episode defect `bucket_lab` was written to
+        eliminate, in the module shipping beside it."""
+        import channel_stats as cs  # noqa: PLC0415
+        prices = self._prices()
+        if not prices:
+            self.skipTest("no price snapshot")
+        out = cs.channel_stats(prices, ["XOM", "CVX", "SM", "COP"])
+        for tk, rec in out["securities"].items():
+            r = rec.get("response")
+            if not r:
+                continue
+            self.assertIn("n_windows", r, "%s: the window count is no longer reported" % tk)
+            # RECOMPUTED. `n < n_windows` was already true without any collapsing — a few
+            # windows drop out for a missing security return — so that assertion passed against
+            # the defect. The run count is derived here from the channel series directly.
+            chan = cs._returns(prices["series"]["CL=F"])
+            cw = cs._window_returns(chan, r["window"])
+            hits = [i for i, v in enumerate(cw) if v is not None and v >= r["move"]]
+            runs = 0
+            for k, i in enumerate(hits):
+                if k == 0 or i != hits[k - 1] + 1:
+                    runs += 1
+            self.assertEqual(len(hits), r["n_windows"],
+                             "%s: the reported window count is not the flagged count" % tk)
+            self.assertLessEqual(
+                r["n"], runs,
+                "%s: %d observations from %d contiguous runs — a spike is still counted once "
+                "per session it covers" % (tk, r["n"], runs))
+            self.assertLess(runs, len(hits) * 0.75,
+                            "the fixture no longer exercises overlap, so this proves nothing")
+
+    def test_a_missing_coefficient_states_its_own_reason(self):
+        """The page asserted "no traded observable exists for their channel, or their series is
+        too short" over Oil/Hormuz's two missing names. CL=F IS the channel — named front-month
+        WTI one line above — and MRO is delisted with no series at all."""
+        import channel_stats as cs  # noqa: PLC0415
+        prices = self._prices()
+        if not prices:
+            self.skipTest("no price snapshot")
+        out = cs.channel_stats(prices, ["XOM", "CL=F", "MRO"])
+        why = out["unmeasured"]
+        self.assertIn("CL=F", why)
+        self.assertIn("is the channel", why["CL=F"])
+        if "MRO" in why:
+            self.assertNotIn("too short", why["MRO"],
+                             "a delisted name is described as having a short series")
+        body = _functions(_decomment(_script(_page()))).get("drawBBeta")
+        self.assertIn("cs.unmeasured", body,
+                      "the page still guesses why a name has no coefficient")
+        self.assertNotIn("or their series is too short", body)

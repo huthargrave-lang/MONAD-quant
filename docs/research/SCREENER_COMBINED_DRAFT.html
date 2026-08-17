@@ -8853,11 +8853,22 @@ function drawBSig(){
          right edge and is drawn without its closing cap. */
       const xa = x(e.d), xb = e.end ? x(e.end) : (W - 14);
       const w = Math.max(1.6, xb - xa);
+      /* A CLOSED episode gets a closing cap and an open one does not. Position cannot carry
+         that distinction: the x domain ends at the newest episode END, so a finished episode
+         running to the last date reaches the same right edge a live one does — 12 of 19
+         buckets have one, and EU defense and Cyber/space have NO open episodes at all, so
+         every bar touching that edge there was finished and read as live. The comment above
+         used to claim a missing cap as the difference; no cap was ever drawn. */
       parts.push('<rect x="' + xa.toFixed(1) + '" y="' + (yy - 5) + '" width="' + w.toFixed(1)
         + '" height="10" rx="1.5" fill="' + K.c + '" opacity="'
         + (e.sev > 1 ? 0.95 : 0.5) + '"><title>' + esc(e.d + (e.end ? " to " + e.end
             : " and still open") + " — " + K.l + ", " + e.v + " over " + e.sessions
             + " session" + (e.sessions === 1 ? "" : "s") + ". " + e.why) + '</title></rect>');
+      if(e.end){
+        parts.push('<line x1="' + (xa + w).toFixed(1) + '" y1="' + (yy - 6.5) + '" x2="'
+          + (xa + w).toFixed(1) + '" y2="' + (yy + 6.5) + '" stroke="var(--ink)" '
+          + 'stroke-width="1" opacity="0.7"/>');
+      }
     });
   });
   parts.push('</svg>');
@@ -8866,7 +8877,9 @@ function drawBSig(){
     const open = ev.filter(e => !e.end);
     let out = '<div class="legend-row">' + KINDS.map(K =>
       '<span class="lg"><span class="sw" style="background:' + K.c + '"></span>'
-      + esc(K.l) + ' ' + (S.counts[K.k] || 0) + '</span>').join(" ") + '</div>';
+      + esc(K.l) + ' ' + (S.counts[K.k] || 0) + '</span>').join(" ")
+      + ' &#183; <span class="lg">a tick closes a finished episode; a bar without one is '
+      + 'still running</span></div>';
     out += '<p class="scen-note">' + esc(S.method) + '</p>';
     out += '<p class="scen-note">An episode opens when the thesis ENTERS a state and closes '
       + 'when it leaves. Flagging every session instead turned one drawdown into <b>941</b> '
@@ -8957,9 +8970,18 @@ function drawBBeta(){
       + 'ANYWAY on the episodes where the channel rose — a coefficient is an average and '
       + 'that is what it averages over.</p>';
     if(missing > 0){
+      /* THE REASON PER NAME, read from Python, not one of two guesses. This asserted "no
+         traded observable exists for their channel, or their series is too short" over
+         Oil/Hormuz's two missing names, and neither was true of either: CL=F IS the channel —
+         named front-month WTI in the line above — and MRO is delisted with no series at all.
+         This page refuses to conflate delisting with absence everywhere else. */
+      const un = cs.unmeasured || {};
+      const gone = mem.filter(tk => !(cs.securities || {})[tk]);
+      const named = gone.map(tk => '<code>' + esc(tk) + '</code> '
+        + esc(un[tk] || "not measured, and no reason was recorded")).join("; ");
       out += '<p class="scen-note"><b>' + missing + '</b> member'
-        + (missing > 1 ? "s have" : " has") + ' no measured coefficient: no traded observable '
-        + 'exists for their channel, or their series is too short. Not zero — unmeasured.</p>';
+        + (missing > 1 ? "s carry" : " carries") + ' no coefficient &#8212; '
+        + named + '. Not zero: unmeasured.</p>';
     }
     out += '<p class="scen-note">Dots and whiskers are the <b>full-sample</b> coefficient and '
       + 'its 95% interval, 2016 to today. The holdout is reported separately: hover a dot for '

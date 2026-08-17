@@ -226,17 +226,45 @@ def conditional_response(chan_rets, sec_rets, move=SHOCK_MOVE, window=SHOCK_WIND
     among them at 4.1% to 5.6% — and an earlier version of this docstring said otherwise, which
     is why the surface reports both halves and no verb.
 
-    THE WINDOWS OVERLAP. A 5-session window is counted at every session it covers, so ~149
-    windows are roughly 61 distinct spikes: read `n` as windows, not as independent events.
+    ONE OBSERVATION PER SPIKE. A 5-session window is flagged at every session it covers, so a
+    single crude move used to contribute up to ten consecutive rows and the tails were a few
+    events repeated — SM's 27.2% p90 rested on a top decile of fourteen that was roughly four
+    events. Contiguous runs are collapsed to the window where the CHANNEL moved most. `n` is
+    distinct spikes; `n_windows` is how many sessions flagged, and the two are both emitted
+    because the smaller one is the sample size.
     """
     cw = _window_returns(chan_rets, window)
     sw = _window_returns(sec_rets, window)
     hits = [i for i, v in enumerate(cw) if v is not None and v >= move]
-    sel = [(i, sw[i]) for i in hits if i < len(sw) and sw[i] is not None]
+
+    # ONE OBSERVATION PER SPIKE. A 5-session window is flagged at every session it covers, so a
+    # single crude move contributed up to ten consecutive "episodes" and the tails were a
+    # handful of events repeated. Measured: 149 raw windows are 61 contiguous runs; SM's p90 of
+    # 27.2% rested on a top decile of fourteen whose dates were five consecutive sessions of
+    # one 2020 rebound plus three other dates — roughly four events, not fourteen. It also put
+    # the decay boundary INSIDE a run, splitting one spike across both halves.
+    #
+    # This is the session-vs-episode defect `bucket_lab` was written to eliminate, in the
+    # module shipping beside it. A run is represented by the window where the CHANNEL moved
+    # most, which is the window the run is about.
+    runs, cur = [], []
+    for i in hits:
+        if cur and i == cur[-1] + 1:
+            cur.append(i)
+        else:
+            if cur:
+                runs.append(cur)
+            cur = [i]
+    if cur:
+        runs.append(cur)
+    peaks = [max(run, key=lambda i: cw[i]) for run in runs]
+
+    sel = [(i, sw[i]) for i in peaks if i < len(sw) and sw[i] is not None]
     if len(sel) < MIN_EPISODES:
         return None
     vals = sorted(v for _, v in sel)
-    base = sorted(v for i, v in enumerate(sw) if v is not None and i not in set(hits))
+    hitset = set(hits)          # the WHOLE spike is excluded from the baseline, not just its peak
+    base = sorted(v for i, v in enumerate(sw) if v is not None and i not in hitset)
 
     def q(arr, p):
         return round(arr[min(len(arr) - 1, int(p * len(arr)))] * 100, 2)
@@ -246,6 +274,9 @@ def conditional_response(chan_rets, sec_rets, move=SHOCK_MOVE, window=SHOCK_WIND
     h2 = sorted(v for _, v in sel[half:])
     out = {
         "basis": "measured", "move": move, "window": window, "n": len(sel),
+        # Both counts, because they answer different questions and the smaller one is the
+        # sample size. `n` is distinct spikes; `n_windows` is how many sessions flagged.
+        "n_windows": len(hits),
         "p10": q(vals, 0.10), "p25": q(vals, 0.25), "p50": q(vals, 0.50),
         "p75": q(vals, 0.75), "p90": q(vals, 0.90),
         # The share of episodes where the channel moved as described and the security went the
@@ -300,13 +331,26 @@ def channel_stats(prices, tickers, channel_id="crude_price_usd_bbl"):
     if not proxy or proxy["ticker"] not in series:
         return None
     chan = _returns(series[proxy["ticker"]])
-    secs = {}
+    delisted = set((prices or {}).get("delisted") or [])
+    secs, why = {}, {}
     for tk in tickers:
-        if tk not in series or tk == proxy["ticker"]:
+        # WHY a name has no coefficient, recorded per name rather than left to a surface to
+        # assert. The page said "no traded observable exists for their channel, or their series
+        # is too short" over Oil/Hormuz's two missing names, and neither reason was true of
+        # either: CL=F IS the proxy — named "front-month WTI" two lines above — and MRO is
+        # delisted with no series at all. This page refuses to conflate delisting with absence
+        # everywhere else; it should not start here.
+        if tk == proxy["ticker"]:
+            why[tk] = "is the channel itself, so it cannot be a sensitivity to it"
+            continue
+        if tk not in series:
+            why[tk] = ("delisted, so the snapshot carries no series"
+                       if tk in delisted else "no series in this price snapshot")
             continue
         r = _returns(series[tk])
         s = sensitivity(dates, chan, r)
         if not s:
+            why[tk] = "fewer than %d paired sessions with the channel" % MIN_OBS
             continue
         secs[tk] = {"sensitivity": s, "response": conditional_response(chan, r)}
     if not secs:
@@ -316,6 +360,7 @@ def channel_stats(prices, tickers, channel_id="crude_price_usd_bbl"):
         "proxy": dict(proxy, first=dates[0] if dates else None,
                       last=dates[-1] if dates else None),
         "securities": secs,
+        "unmeasured": why,
         "cone": {proxy["ticker"]: vol_cone(chan)},
         "method": ("OLS of daily simple returns on the proxy's daily simple returns, White "
                    "(HC0) standard errors, intervals at 95%%. Any interval touching a "

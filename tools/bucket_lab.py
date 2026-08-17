@@ -156,6 +156,12 @@ def stress(bucket, returns, closes, dates):
             roll.append((p - 1, i))
         if len(roll) < 100:
             continue
+        # THE CURRENT WINDOW, captured BEFORE the sort. `roll` is sorted by RETURN so the
+        # worst-window scan can walk it, and reading `roll[-1]` afterwards gave the maximum
+        # window return ever recorded under the key `now`: Oil/Hormuz emitted +37.0% from
+        # 2020-06-08 as "now" when the latest 5-session window was +7.5%. The June 2020 crash
+        # rebound, labelled as the present.
+        latest = max(roll, key=lambda t: t[1])
         roll.sort()
         worst = []
         seen = set()
@@ -203,7 +209,8 @@ def stress(bucket, returns, closes, dates):
             "p1": round(vals[int(0.01 * len(vals))] * 100, 1),
             "p5": round(vals[int(0.05 * len(vals))] * 100, 1),
             "p50": round(vals[len(vals) // 2] * 100, 1),
-            "now": round(roll[-1][0] * 100, 1) if roll else None,
+            "now": round(latest[0] * 100, 1),
+            "now_end": dates[latest[1]] if latest[1] < len(dates) else None,
         })
     return out if out["windows"] else None
 
@@ -334,7 +341,14 @@ def signals(bucket, returns, closes, dates, window=SIG_WINDOW):
     return {
         "events": events[:400], "total": len(events), "counts": counts,
         "window": window, "members": len(priced),
-        "first": events[-1]["d"], "last": events[0]["d"],
+        "first": min(e["d"] for e in events),
+        # The latest date the ladder must be able to DRAW, which is the newest END, not the
+        # newest start. Events sort by start descending, so `events[0]["d"]` put the x-domain
+        # short of every episode that began earlier and finished later — 12 of 19 buckets have
+        # one — and those bars ran past the coordinate reserved for "still open", where they
+        # were both clipped and indistinguishable from a live episode.
+        "last": max([e["end"] or e["d"] for e in events] + [e["d"] for e in events]),
+        "open": sum(1 for e in events if not e.get("end")),
         "method": ("every session on which this bucket crossed the %dth percentile of its OWN "
                    "history on correlation, volatility or dispersion, or sat %d%% below its "
                    "trailing-year high. Percentiles rather than levels, because one absolute "
