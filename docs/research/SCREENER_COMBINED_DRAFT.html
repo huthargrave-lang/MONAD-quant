@@ -7313,7 +7313,13 @@ function drawBook1(){
     '<div class="dc-block"><h5>' + esc(tier) + '</h5><ul class="watch-list">'
     + BOOK1.filter(r => r.tier === tier).map(r => {
         const s = winSeries(r.t);
-        const chg = s ? (s[s.length-1]/s[0] - 1) * 100 : null;
+        /* The fourth place in this repo that differences closes, and the last to get the rule.
+           A percentage change through a non-positive price is meaningless — CL=F closed at
+           -$37.63 and the naive difference is -306% — and this line already renders null as
+           an em dash, so the absence has somewhere to go. Latent only because the payload
+           carries the last 126 of 2,520 sessions. */
+        const chg = (s && s[0] > 0 && s[s.length-1] > 0)
+          ? (s[s.length-1]/s[0] - 1) * 100 : null;
         return '<li class="watch-row' + (s ? "" : " is-gone")
           + (selected === r.t ? " is-pinned" : "") + '">'
           + '<button type="button" class="wl-pin" data-watch-pin="' + escAttr(r.t) + '">'

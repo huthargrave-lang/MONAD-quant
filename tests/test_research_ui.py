@@ -1102,3 +1102,62 @@ class TheBasicsPagesActuallyRunAfterTheRailIsSwapped(unittest.TestCase):
         for href, (body, _f) in self._served().items():
             with self.subTest(href=href):
                 self.assertRegex(body, r"EXAMPLE DATA|ILLUSTRATIVE")
+
+
+class TheNonPositiveCloseRuleReachesTheJavaScriptToo(unittest.TestCase):
+    """The Python side refuses any interval touching a non-positive close, and that rule cost a
+    false finding before it was enforced. Four JS sites differenced closes without it, one using
+    the exact falsy `||` shape `concentration._returns` was condemned for.
+
+    LATENT, NOT LIVE, and the distinction is worth keeping: the payload ships the last 126 of
+    2,520 sessions and CL=F's -$37.63 close sits ~1,600 back. Widening the window re-creates a
+    -306% number in the browser, which is why this is fixed rather than filed."""
+
+    @staticmethod
+    def _served(path="/screen"):
+        """The RENDERED page, with block comments stripped.
+
+        Comments here quote the old code on purpose — the whole point is to say what the shape
+        was — so a check over raw source would match its own explanation and pass while the
+        defect stood. Only live code counts."""
+        code, body, _ct = ui.route(path, {}, {})
+        assert code == 200, path
+        return re.sub(r"/\*.*?\*/", "", body, flags=re.S)
+
+    def test_the_percentage_helper_returns_null_rather_than_a_number(self):
+        live = self._served()
+        self.assertIn("if(a==null||b==null||a<=0||b<=0) return null;", live,
+                      "pct still divides through a non-positive close")
+
+    def test_no_series_is_indexed_to_an_invented_base(self):
+        """`s[0]||1` caught a ZERO base and substituted 1 — every value on that line then wrong
+        by whatever the real base was, with nothing on screen saying so — and let a NEGATIVE
+        base through untouched, which flips the line."""
+        live = self._served()
+        self.assertNotIn("s[0]||1", live, "the invented denominator is back")
+        self.assertIn("if(b == null || b <= 0){ undrawable.push(k); return; }", live,
+                      "a series that cannot be indexed is drawn anyway")
+        self.assertIn("start at a non-positive close", live,
+                      "the series is dropped without telling the reader why")
+
+    def test_an_unmeasurable_window_is_not_coloured_as_a_loss(self):
+        """`chg >= 0` is FALSE for null, so an unmeasurable window would have taken the red
+        chip and read as a decline — an absence rendered as a reading."""
+        live = self._served()
+        self.assertIn("no window return", live,
+                      "a null window return has no absence rendering")
+        self.assertIn("The window opens or closes on a non-positive close", live,
+                      "the watchlist cell prints a dash with no reason")
+
+    def test_the_line_breaks_at_a_session_it_cannot_index(self):
+        """`Y(null)` is NaN, which browsers drop silently — so a hole became an invisible
+        straight line between the sessions either side, a shape the data never had."""
+        live = self._served()
+        self.assertIn("if(v==null){ if(cur.length>1) segs.push(cur); cur=[]; return; }", live,
+                      "the price line runs straight through a session it cannot index")
+
+    def test_the_draft_page_uses_the_same_rule(self):
+        src = (ROOT / "docs" / "research" / "SCREENER_COMBINED_DRAFT.html")\
+            .read_text(encoding="utf-8")
+        self.assertIn("(s && s[0] > 0 && s[s.length-1] > 0)", src,
+                      "the draft's Book I list still differences through any close")

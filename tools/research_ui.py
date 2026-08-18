@@ -3975,7 +3975,15 @@ function genSeries(symbol,n){
 function whyNoSeries(symbol){
   return DELISTED[symbol] ? "delisted — " + DELISTED[symbol] : "not in the fetched snapshot";
 }
-function pct(a,b){return ((b/a)-1)*100}
+/* THE SAME NON-POSITIVE-CLOSE RULE THE PYTHON SIDE ENFORCES, in the only other place this
+   repo differences closes. A percentage change through a non-positive price is meaningless:
+   `CL=F` closed at -$37.63 on 2020-04-20 and the naive difference is -306%, which cost the
+   Python side a false finding before it was caught. `null`, never a number — an unmeasurable
+   change is an absence, and every caller here already renders one. */
+function pct(a,b){
+  if(a==null||b==null||a<=0||b<=0) return null;
+  return ((b/a)-1)*100;
+}
 function sparkSVG(series,w=80,h=26){
   const min=Math.min(...series),max=Math.max(...series),span=max-min||1;
   const pts=series.map((v,i)=>{
@@ -3993,18 +4001,30 @@ function seriesColor(i){ return SERIES_COLORS[i % SERIES_COLORS.length]; }
 /* Larger history chart: date axis + per-ticker colors. */
 function lineChart(seriesMap,n){
   const w=720, h=250, padL=36, padR=14, padT=16, padB=36;
-  const keys=Object.keys(seriesMap);
+  let keys=Object.keys(seriesMap);
   if(!keys.length){
     return `<svg viewBox="0 0 ${w} ${h}"><text x="24" y="40" fill="var(--ink-muted)" font-size="13">Select buckets to plot liquid tickers (normalized).</text></svg>`;
   }
   const dates=tradingDates(n);
-  const norms={};
+  const norms={}, undrawable=[];
   keys.forEach(k=>{
     const s=seriesMap[k].slice(-n);
-    const b=s[0]||1;
-    norms[k]=s.map(v=>100*(v/b));
+    /* `s[0]||1` was the exact falsy shape this repo condemned in `concentration._returns`: it
+       catches a ZERO base and substitutes 1, so every value on that line comes out wrong by
+       whatever factor the real base was and nothing on screen says so. It also lets a NEGATIVE
+       base through untouched — CL=F closed at -$37.63 on 2020-04-20, and indexing to a
+       negative base flips the whole line. A base that cannot normalise means the series cannot
+       be drawn indexed; that is an absence, and absences are named here rather than invented
+       around. Latent today only because the payload ships the last 126 of 2,520 sessions. */
+    const b=s[0];
+    if(b == null || b <= 0){ undrawable.push(k); return; }
+    norms[k]=s.map(v=>(v == null || v <= 0) ? null : 100*(v/b));
   });
-  const all=keys.flatMap(k=>norms[k]);
+  keys=keys.filter(k=>norms[k]);
+  if(!keys.length){
+    return `<svg viewBox="0 0 ${w} ${h}"><text x="24" y="40" fill="var(--ink-muted)" font-size="13">No series here can be indexed: ${undrawable.join(", ")} start at a non-positive close.</text></svg>`;
+  }
+  const all=keys.flatMap(k=>norms[k]).filter(v=>v!=null);
   const min=Math.min(...all), max=Math.max(...all), span=max-min||1;
   const plotW=w-padL-padR, plotH=h-padT-padB;
   const X=i=>padL+(i/Math.max(1,n-1))*plotW;
@@ -4028,10 +4048,21 @@ function lineChart(seriesMap,n){
   }
   const paths=keys.map((k,i)=>{
     const col=seriesColor(i);
-    const pts=norms[k].map((v,j)=>`${X(j).toFixed(1)},${Y(v).toFixed(1)}`).join(" ");
-    const last=norms[k].length-1;
-    return `<polyline fill="none" stroke="${col}" stroke-width="2.25" stroke-linejoin="round" stroke-linecap="round" points="${pts}"/>
-      <circle cx="${X(last).toFixed(1)}" cy="${Y(norms[k][last]).toFixed(1)}" r="3.2" fill="${col}" stroke="var(--surface)" stroke-width="1.5"/>`;
+    /* The line BREAKS at a session that cannot be indexed rather than running through it.
+       Mapping every slot produced `Y(null)` -> NaN in the points attribute, which browsers
+       drop silently, so a hole became an invisible straight line between the sessions either
+       side of it — a shape the data never had. Same rule as the decade rows on the draft. */
+    const segs=[]; let cur=[];
+    norms[k].forEach((v,j)=>{
+      if(v==null){ if(cur.length>1) segs.push(cur); cur=[]; return; }
+      cur.push(`${X(j).toFixed(1)},${Y(v).toFixed(1)}`);
+    });
+    if(cur.length>1) segs.push(cur);
+    let last=norms[k].length-1;
+    while(last>=0 && norms[k][last]==null) last--;
+    const lines=segs.map(s=>`<polyline fill="none" stroke="${col}" stroke-width="2.25" stroke-linejoin="round" stroke-linecap="round" points="${s.join(" ")}"/>`).join("");
+    const dot=last<0?"":`<circle cx="${X(last).toFixed(1)}" cy="${Y(norms[k][last]).toFixed(1)}" r="3.2" fill="${col}" stroke="var(--surface)" stroke-width="1.5"/>`;
+    return lines+dot;
   }).join("");
   const rangeNote=`<text x="${padL}" y="12" font-size="10" fill="var(--ink-muted)" font-family="var(--mono)">${fmtDate(dates[0])} → ${fmtDate(dates[n-1])} · indexed to 100</text>`;
   return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Normalized price history with dates">${yTicks}${base}${xTicks}${paths}${rangeNote}</svg>`;
@@ -4105,7 +4136,9 @@ function renderWatch(){
       ${r.s
         ? `<td>${sparkSVG(r.s)}</td>
            <td class="num">${r.last.toFixed(2)}</td>
-           <td class="num ${r.chg>=0?"up":"dn"}">${r.chg>=0?"+":""}${r.chg.toFixed(1)}%</td>`
+           ${r.chg==null
+             ? `<td class="num muted" title="The window opens or closes on a non-positive close, so a percentage change through it is not a quantity.">—</td>`
+             : `<td class="num ${r.chg>=0?"up":"dn"}">${r.chg>=0?"+":""}${r.chg.toFixed(1)}%</td>`}`
         : `<td colspan="3" class="muted">${r.why}</td>`}
     </tr>`).join("")||`<tr><td colspan="6" class="muted">No selection</td></tr>`;
   document.querySelectorAll("#watchBody tr[data-t]").forEach(tr=>{
@@ -4142,8 +4175,15 @@ function renderChart(){
   document.getElementById("chartSub").textContent=
     fmtDate(dates[0])+" → "+fmtDate(dates[n-1])+" · normalized to 100 · line color = ticker · % chip = window return";
   document.getElementById("chartLegend").innerHTML=Object.keys(map).map((k,i)=>{
-    const s=map[k], chg=seriesChg(s), up=chg>=0, col=seriesColor(i);
-    return `<span class="chip ${up?"good":"critical"}"><span class="dot" style="background:${col}"></span>${k} ${chg>=0?"+":""}${chg.toFixed(1)}%</span>`;
+    const s=map[k], chg=seriesChg(s), col=seriesColor(i);
+    /* `chg` is null when the window opens or closes on a non-positive price. Rendered as a
+       number it would be NaN%, and `chg>=0` is FALSE for null — so an unmeasurable window
+       would have coloured itself red and read as a loss. An absence takes the muted chip the
+       rest of this page uses for one. */
+    if(chg==null){
+      return `<span class="chip"><span class="dot" style="background:${col}"></span>${k} <span class="scen-note">no window return</span></span>`;
+    }
+    return `<span class="chip ${chg>=0?"good":"critical"}"><span class="dot" style="background:${col}"></span>${k} ${chg>=0?"+":""}${chg.toFixed(1)}%</span>`;
   }).join("");
   const b=bucks[0];
   if(b){
