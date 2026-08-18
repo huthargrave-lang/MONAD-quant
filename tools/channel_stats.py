@@ -58,6 +58,8 @@ import math
 import os
 import statistics as st
 
+import derived_cache
+
 import concentration
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -101,7 +103,7 @@ CONE_HORIZONS = (5, 10, 21, 63, 126)
 
 #: Bumped whenever the emitted shape changes. Part of the cache key for the same reason it is
 #: in `concentration.py`: the code is an input to the cache as surely as the prices are.
-SCHEMA = 1
+SCHEMA = 2
 
 CACHE_PATH = os.path.join(REPO, "data", "screener", "channel_stats.json")
 
@@ -378,62 +380,26 @@ def _declared_channels():
         return []
 
 
-def _shape(prices):
-    """A fingerprint of the prices ACTUALLY PASSED, not of the file on disk.
-
-    THE DEFECT THIS CLOSES. The key was `os.stat()` of the default repo prices.json while the
-    computation ran on the `prices` argument. `tests/screener_payload_fixture.py` repoints the
-    price path at a 3-ticker temp file and calls the real payload builder, so the module
-    computed nothing from a fixture and wrote that nothing to disk UNDER THE REAL SNAPSHOT'S
-    STAMP. Every later reader got a valid-looking hit holding null, and any test run
-    re-poisoned it. Measured: the whole measured-channel layer was shipping no records at all
-    while the cache reported itself fresh.
-
-    Ticker count and date span, not a hash of the values: cheap, and it distinguishes exactly
-    the case that caused this — a different universe wearing the same file stamp.
-    """
-    series = (prices or {}).get("series") or {}
-    dates = (prices or {}).get("dates") or []
-    return "%d:%d:%s:%s" % (len(series), len(dates),
-                            dates[0] if dates else "-", dates[-1] if dates else "-")
-
-
-def _prices_stamp(path):
-    try:
-        s = os.stat(path)
-        return "%d:%d" % (s.st_mtime_ns, s.st_size)
-    except OSError:
-        return None
-
-
 def cached_channel_stats(prices, tickers, prices_path=None, cache_path=None):
-    """Computed once per price snapshot. Measured: 26 securities cost ~1.4s cold, 2ms warm."""
-    prices_path = prices_path or os.path.join(REPO, "data", "screener", "prices.json")
-    cache_path = cache_path or CACHE_PATH
-    stamp = _prices_stamp(prices_path)
-    key = ",".join(sorted(tickers))
-    try:
-        with open(cache_path, encoding="utf-8") as fh:
-            c = json.load(fh)
-        if (stamp and c.get("source") == stamp and c.get("schema") == SCHEMA
-                and c.get("universe") == key and c.get("shape") == _shape(prices)
-                and c.get("data") is not None):
-            return c["data"]
-    except (OSError, ValueError, KeyError):
-        pass
-    data = channel_stats(prices, tickers)
-    # Not just a null — an empty result too. See `bucket_lab.cached_bucket_lab`: a guard that
-    # only tests None lets `{"securities": {}}` through, and the two halves of the gate must
-    # not each depend on the other holding.
-    if not data or not (data.get("securities") or {}):
-        return data
-    try:
-        os.makedirs(os.path.dirname(cache_path), exist_ok=True)
-        tmp = cache_path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump({"source": stamp, "schema": SCHEMA, "universe": key,
-                       "shape": _shape(prices), "data": data}, fh)
-        os.replace(tmp, cache_path)
-    except OSError:
-        pass
-    return data
+    """Computed once per snapshot. Measured on the live file: 32 securities in 0.24s cold.
+
+    The gate is `derived_cache.read_or_build`, shared with `concentration` and `bucket_lab`.
+    The ticker universe goes in the key as a digest rather than a joined string, for the same
+    reason the price fingerprint does: counts and concatenations collide, and a collision here
+    serves one universe's coefficients under another's name.
+    """
+    return derived_cache.read_or_build(
+        lambda: channel_stats(prices, tickers),
+        prices=prices,
+        cache_path=cache_path or CACHE_PATH,
+        prices_path=prices_path or os.path.join(REPO, "data", "screener", "prices.json"),
+        schema=SCHEMA,
+        inputs=sorted(tickers),
+    )
+
+def _cache_gate():
+    """The gate this module routes through, so a guard can ask rather than grep.
+
+    A source-text check passed on a commented-out gate; this cannot.
+    """
+    return derived_cache.read_or_build

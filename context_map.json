@@ -490,6 +490,7 @@
         "tools/scenarios.py",
         "tools/bucket_lab.py",
         "tools/channel_stats.py",
+        "tools/derived_cache.py",
         "tools/concentration.py",
         "tools/screener_lab.py",
         "tools/sec_action_chain_join_lab.py",

@@ -34,6 +34,7 @@ import os
 import statistics as st
 
 import concentration
+import derived_cache
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -63,7 +64,7 @@ MIN_MEMBERS = 3
 #: Windows the stress table reports, in sessions.
 STRESS_WINDOWS = (5, 21)
 
-SCHEMA = 1
+SCHEMA = 2
 CACHE_PATH = os.path.join(REPO, "data", "screener", "bucket_lab.json")
 
 
@@ -379,62 +380,29 @@ def bucket_lab(buckets, prices):
             "last": dates[-1] if dates else None, "sessions": len(dates)}
 
 
-def _shape(prices):
-    """A fingerprint of the prices ACTUALLY PASSED, not of the file on disk.
-
-    THE DEFECT THIS CLOSES. The key was `os.stat()` of the default repo prices.json while the
-    computation ran on the `prices` argument. `tests/screener_payload_fixture.py` repoints the
-    price path at a 3-ticker temp file and calls the real payload builder, so the module
-    computed nothing from a fixture and wrote that nothing to disk UNDER THE REAL SNAPSHOT'S
-    STAMP. Every later reader got a valid-looking hit holding null, and any test run
-    re-poisoned it. Measured: the whole measured-channel layer was shipping no records at all
-    while the cache reported itself fresh.
-
-    Ticker count and date span, not a hash of the values: cheap, and it distinguishes exactly
-    the case that caused this — a different universe wearing the same file stamp.
-    """
-    series = (prices or {}).get("series") or {}
-    dates = (prices or {}).get("dates") or []
-    return "%d:%d:%s:%s" % (len(series), len(dates),
-                            dates[0] if dates else "-", dates[-1] if dates else "-")
-
-
-def _stamp(path):
-    try:
-        s = os.stat(path)
-        return "%d:%d" % (s.st_mtime_ns, s.st_size)
-    except OSError:
-        return None
-
-
 def cached_bucket_lab(buckets, prices, prices_path=None, cache_path=None):
-    """Computed once per price snapshot. Cold ~20s over 20 buckets; warm a few ms."""
-    prices_path = prices_path or os.path.join(REPO, "data", "screener", "prices.json")
-    cache_path = cache_path or CACHE_PATH
-    stamp = _stamp(prices_path)
-    try:
-        with open(cache_path, encoding="utf-8") as fh:
-            c = json.load(fh)
-        if (stamp and c.get("source") == stamp and c.get("schema") == SCHEMA
-                and c.get("shape") == _shape(prices)
-                and c.get("data") is not None):
-            return c["data"]
-    except (OSError, ValueError, KeyError):
-        pass
-    data = bucket_lab(buckets, prices)
-    # NOT JUST A NULL — AN EMPTY RESULT TOO. `bucket_lab` returns None only when there are no
-    # returns at all; a fixture universe yields `{"buckets": {}}`, which is not None and sailed
-    # straight through a null-only guard. The shape key catches it in practice, and a cache
-    # gate whose two halves each rely on the other is one edit from being neither.
-    if not data or not (data.get("buckets") or {}):
-        return data
-    try:
-        os.makedirs(os.path.dirname(cache_path), exist_ok=True)
-        tmp = cache_path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump({"source": stamp, "schema": SCHEMA,
-                       "shape": _shape(prices), "data": data}, fh)
-        os.replace(tmp, cache_path)
-    except OSError:
-        pass
-    return data
+    """Computed once per snapshot. Cold ~7.4s over 20 buckets; a hit is a few milliseconds.
+
+    The gate is `derived_cache.read_or_build`, shared with its two siblings. SCHEMA IS IN THAT
+    KEY, and this module is why the shared version exists: its own SCHEMA sat at 1 through the
+    commit that changed `_returns` beneath it, so a cache built under the old rule matched its
+    stamp and its schema and went on serving effN 1.42 where the honest figure is 1.34 — the
+    exact sentence `concentration`'s docstring described, still true of this file. Bump SCHEMA
+    when the emitted shape changes OR when the arithmetic under it does.
+    """
+    return derived_cache.read_or_build(
+        lambda: bucket_lab(buckets, prices),
+        prices=prices,
+        cache_path=cache_path or CACHE_PATH,
+        prices_path=prices_path or os.path.join(REPO, "data", "screener", "prices.json"),
+        schema=SCHEMA,
+        inputs=[[b.get("id"), sorted((b.get("liquid") or []) + (b.get("satellite") or []))]
+                for b in buckets],
+    )
+
+def _cache_gate():
+    """The gate this module routes through, so a guard can ask rather than grep.
+
+    A source-text check passed on a commented-out gate; this cannot.
+    """
+    return derived_cache.read_or_build

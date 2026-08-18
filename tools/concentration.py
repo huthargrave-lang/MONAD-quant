@@ -53,6 +53,8 @@ import math
 import os
 import statistics as st
 
+import derived_cache
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -567,86 +569,44 @@ SCHEMA = 3
 CACHE_PATH = os.path.join(REPO, "data", "screener", "concentration.json")
 
 
-def _shape(prices):
-    """A fingerprint of the prices ACTUALLY PASSED, not of the file on disk.
-
-    Same definition and same reason as `channel_stats._shape` and `bucket_lab._shape`. Ticker
-    count and date span: cheap, and it distinguishes exactly the case that caused this — a
-    fixture universe wearing the real snapshot's file stamp.
-    """
-    series = (prices or {}).get("series") or {}
-    dates = (prices or {}).get("dates") or []
-    return "%d:%d:%s:%s" % (len(series), len(dates),
-                            dates[0] if dates else "-", dates[-1] if dates else "-")
-
-
-def _prices_stamp(prices_path):
-    try:
-        st_ = os.stat(prices_path)
-        return "%d:%d" % (st_.st_mtime_ns, st_.st_size)
-    except OSError:
-        return None
-
-
 def cached_concentration(prices, member_fn, buckets, prices_path=None, cache_path=None):
-    """All three concentration readings, computed once per price snapshot rather than per view.
+    """All three concentration readings, computed once per snapshot rather than per view.
 
     MEASURED, which is why this exists: the fixed ladder and the point estimate cost 1.96s of
     pure-Python pairwise arithmetic on every uncached payload build, and they recomputed the
     same 2520-session matrix twice between them. The rolling line adds a decade of windows on
-    top. None of it changes until prices.json changes, so none of it belongs on the request
-    path — a reader opening the board should not pay for a decade of correlation.
+    top. None of it changes until its inputs do, so none of it belongs on the request path.
 
-    Keyed on the price file's mtime and size together: mtime alone is defeated by a same-second
-    rewrite, which a fetch loop can genuinely produce. A stale or unreadable cache recomputes
-    rather than serving a number derived from prices nobody has anymore.
+    The gate is `derived_cache.read_or_build` — one key, one emptiness rule, shared with the
+    two sibling modules. This function used to own a copy, and that copy had a `data is None`
+    refusal sitting after `data = dict(...)`: dead code, because a dict is never None. A
+    fixture panel scoring 0 of 20 buckets was written to disk under the real snapshot's stamp
+    while both siblings correctly refused it.
 
-    AND ON THE SHAPE THIS MODULE EMITS. Prices are not the only input — the code is too. When
-    the rolling series changed from a list of {d, eff_n, k} objects to grid-aligned parallel
-    arrays, every existing cache on disk still matched its price stamp and would have been
-    served, unchanged, to a reader that can only parse the new shape. Bump SCHEMA whenever the
-    emitted structure changes; the old entry is then missed rather than misread.
-
-    AND ON THE PRICES ACTUALLY PASSED. This function was the THIRD sibling in the payload
-    block and the only one that did not get the fix its two neighbours did, even though the
-    commit that fixed them said the defect was closed. Reproduced on a cold cache, which is
-    every fresh clone and every CI run because these files are gitignored: one call to
-    `tests/screener_payload_fixture.authored_payload()` repoints the price path at a
-    3-ticker/2-session temp file, this function computes from it, and writes THAT under the
-    real snapshot's stamp. The page then served 0 of 20 buckets scored, with Oil/Hormuz
-    eff_n None against an honest 1.34.
-
-    SCHEMA also went 2 -> 3 for a reason that is not a shape change: the arithmetic beneath it
-    did. `_returns` used to admit an interval through a negative close and Oil/Hormuz scored
-    1.42; it scores 1.34 now, and a cache written under the old rule matched its price stamp
-    and its schema and would have gone on serving 1.42 forever. A correction to the numbers is
-    as much a cache invalidation as a correction to their shape.
+    BUCKETS AND MEMBER_FN ARE IN THE KEY NOW. They are arguments, defined in a tracked source
+    file that changes far more often than the price snapshot does, and they were in no key at
+    all — editing a bucket's membership left the cache hitting and serving the old roster.
     """
-    prices_path = prices_path or os.path.join(REPO, "data", "screener", "prices.json")
-    cache_path = cache_path or CACHE_PATH
-    stamp = _prices_stamp(prices_path)
-    try:
-        with open(cache_path, encoding="utf-8") as fh:
-            cached = json.load(fh)
-        if (stamp and cached.get("source") == stamp and cached.get("schema") == SCHEMA
-                and cached.get("shape") == _shape(prices)
-                and cached.get("data") is not None):
-            return cached["data"]
-    except (OSError, ValueError, KeyError):
-        pass
+    return derived_cache.read_or_build(
+        lambda: dict(concentration(buckets, prices, member_fn),
+                     rolling=rolling_concentration(buckets, prices, member_fn),
+                     **concentration_windows(buckets, prices, member_fn)),
+        prices=prices,
+        cache_path=cache_path or CACHE_PATH,
+        prices_path=prices_path or os.path.join(REPO, "data", "screener", "prices.json"),
+        schema=SCHEMA,
+        inputs=[[b.get("id"), sorted(member_fn(b) or [])] for b in buckets],
+        # Twenty buckets that all refused is structurally a full payload and substantively
+        # nothing. Without this a three-ticker fixture run evicts the real entry — it can no
+        # longer be SERVED to a real reader, because the universe is in the key, but the next
+        # real read pays 3.3s instead of a millisecond.
+        empty=lambda d: not any(b.get("eff_n") is not None
+                                for b in (d or {}).get("buckets") or []),
+    )
 
-    data = dict(concentration(buckets, prices, member_fn),
-                **concentration_windows(buckets, prices, member_fn))
-    data["rolling"] = rolling_concentration(buckets, prices, member_fn)
-    if data is None:
-        return None
-    try:
-        os.makedirs(os.path.dirname(cache_path), exist_ok=True)
-        tmp = cache_path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump({"source": stamp, "schema": SCHEMA, "shape": _shape(prices),
-                       "built_at": _utc_stamp(), "data": data}, fh)
-        os.replace(tmp, cache_path)          # atomic: a half-written cache must never be read
-    except OSError:
-        pass                                  # a read-only tree still gets correct numbers
-    return data
+def _cache_gate():
+    """The gate this module routes through, so a guard can ask rather than grep.
+
+    A source-text check passed on a commented-out gate; this cannot.
+    """
+    return derived_cache.read_or_build

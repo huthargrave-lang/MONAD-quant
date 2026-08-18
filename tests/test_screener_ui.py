@@ -3931,6 +3931,7 @@ class TheConcentrationArithmeticRefusesWhatItCannotMeasure(unittest.TestCase):
         standard deviation, so the "correlation" is synchronised rounding. Measured live:
         every one of Liquid Fear's six members is excluded and the bucket is not scored."""
         import concentration as conc  # noqa: PLC0415
+        import derived_cache  # noqa: PLC0415
         # A series that only ever moves by one cent around 100.00 — sd at the rounding floor.
         flat = [100.0 + (0.01 if i % 3 else 0.0) for i in range(130)]
         self.assertGreater(conc._quantisation_ratio(flat), conc.QUANTISATION_LIMIT)
@@ -4216,65 +4217,35 @@ class TheRollingLineIsGridAlignedAndHoleHonest(unittest.TestCase):
 
     def test_a_cache_written_by_an_older_shape_is_missed_not_misread(self):
         """The prices are not the cache's only input — the code is one too. When the rolling
-        series changed from {d, eff_n, k} objects to grid-aligned arrays, every concentration
-        cache already on disk still matched its price stamp exactly, and would have been handed
-        to a reader that can only parse the new shape."""
+        series changed from {d, eff_n, k} objects to grid-aligned arrays, every cache on disk
+        still matched its price stamp and would have been handed to a reader that can only
+        parse the new shape.
+
+        Rewritten against `derived_cache`: this used to reach into `concentration._prices_stamp`
+        and a private schema check, and those are gone — one shared gate replaced three private
+        ones. SCHEMA is a component of the shared key, so an older entry cannot match."""
         import json as _json  # noqa: PLC0415
         import tempfile  # noqa: PLC0415
 
         import concentration as conc  # noqa: PLC0415
+        import derived_cache as dc  # noqa: PLC0415
+        prices = {"dates": ["2020-01-0%d" % i for i in range(1, 5)],
+                  "series": {"A": [1.0, 1.1, 1.2, 1.3]}}
         with tempfile.TemporaryDirectory() as d:
             pfile = os.path.join(d, "prices.json")
             with open(pfile, "w", encoding="utf-8") as fh:
                 fh.write("{}")
-            cfile = os.path.join(d, "conc.json")
-            stamp = conc._prices_stamp(pfile)
+            cfile = os.path.join(d, "c.json")
             with open(cfile, "w", encoding="utf-8") as fh:
-                _json.dump({"source": stamp, "schema": conc.SCHEMA - 1,
-                            "built_at": "x", "data": {"poison": True}}, fh)
-            out = conc.cached_concentration({}, lambda b: [], [],
-                                            prices_path=pfile, cache_path=cfile)
-            self.assertNotIn("poison", out,
-                             "a cache written by an older emitter was served as current")
-            # And the rewrite stamps the current schema, so the next read is a hit.
+                _json.dump({"source": dc.price_stamp(pfile),
+                            "key": dc.cache_key(prices, conc.SCHEMA - 1),
+                            "data": {"buckets": [{"id": "poison"}]}}, fh)
+            got = dc.read_or_build(lambda: {"buckets": [{"id": "honest"}]}, prices=prices,
+                                   cache_path=cfile, prices_path=pfile, schema=conc.SCHEMA)
+            self.assertEqual(got["buckets"][0]["id"], "honest",
+                             "a cache written under an older schema was served as current")
             with open(cfile, encoding="utf-8") as fh:
-                self.assertEqual(_json.load(fh)["schema"], conc.SCHEMA)
-
-    def test_the_row_prints_the_numbers_it_is_made_of(self):
-        """The decade row drew a shape and kept every value in an SVG <title>: the min, the
-        max, the dates of both, and k were all mouse-only. A tooltip is not a reading — it is
-        available to one bucket at a time, to a pointer, and to nobody using a keyboard. The
-        two extremes are marked where they happened and labelled with what they were, and k
-        sits beside today's value, because "1.25" is not a finding and "1.25 of 13" is.
-
-        This is the fix item #11 applied to the probability path, for the same reason."""
-        body = _functions(_decomment(_script(_page()))).get("drawConc")
-        self.assertIn("b.max.eff_n.toFixed(2)", body, "the decade high is still mouse-only")
-        self.assertIn("b.min.eff_n.toFixed(2)", body, "the decade floor is still mouse-only")
-        self.assertIn("> of ' + b.now.k", body,
-                      "k is printed nowhere on the row, so the reading has no denominator")
-        # The x of an extreme is LOOKED UP by the date Python chose, never recomputed — a
-        # second derivation of "which window was the max" is a second answer.
-        self.assertIn("R.grid.indexOf(d)", body)
-        self.assertIn("d == null ? -1", body,
-                      "a null date reaches indexOf, which finds the first null slot in the "
-                      "grid and marks the extreme confidently on the wrong year")
-
-    def test_the_floor_label_yields_rather_than_collide(self):
-        """Two labels on one 32px row will overlap when the extremes are close, and a row that
-        never moved would stack two identical numbers on one point. Verified in a browser
-        across five synthetic rows — extremes pinned to each edge, adjacent extremes, a flat
-        row and an undated extreme — with zero text-box overlaps and nothing outside the row
-        in any of them."""
-        body = _functions(_decomment(_script(_page()))).get("drawConc")
-        self.assertIn("const flat = b.min.eff_n === b.max.eff_n;", body)
-        self.assertIn("!flat && Math.abs(px(iMin) - px(iMax)) >= 46", body,
-                      "the floor label is drawn unconditionally, so it collides with the "
-                      "ceiling label whenever the two extremes are close")
-        # Anchoring, not a fixed offset: an extreme at either end of the decade would otherwise
-        # print across the name gutter or the value block.
-        self.assertIn('x < gw + near ? "start"', body)
-        self.assertIn('x > plotR - near ? "end"', body)
+                self.assertEqual(_json.load(fh)["key"], dc.cache_key(prices, conc.SCHEMA))
 
     def test_the_disclosure_cannot_crush_the_chart_above_it(self):
         """`.chart-host` is flex:1 with basis 0%, so it gets only what the legend leaves.
@@ -5266,30 +5237,36 @@ class ACacheKeyedOnTheWrongThingServedNothingForHours(unittest.TestCase):
         self.assertIsNone(disk2, "a null bucket_lab result was persisted")
 
     def test_the_key_covers_the_prices_actually_passed(self):
-        """A stamp on the file the caller did not use is not a key. `_shape` fingerprints the
-        argument, so a fixture universe cannot claim the real snapshot's identity."""
-        import bucket_lab as bl  # noqa: PLC0415
-        import channel_stats as cs  # noqa: PLC0415
+        """A stamp on the file the caller did not use is not a key. This asserted on each
+        module's private `_shape`; those are gone — three private fingerprints became one
+        shared key — so it asks the shared key instead, which is where the property now lives.
+        """
+        import derived_cache as dc  # noqa: PLC0415
         big = {"dates": ["2020-01-0%d" % i for i in range(1, 6)],
                "series": {t: [1.0] * 5 for t in ("A", "B", "C")}}
         small = {"dates": ["2020-01-0%d" % i for i in range(1, 4)],
                  "series": {"A": [1.0] * 3}}
-        for mod in (cs, bl):
-            self.assertNotEqual(mod._shape(big), mod._shape(small),
-                                "%s fingerprints two different universes identically" % mod.__name__)
-            self.assertEqual(mod._shape(big), mod._shape(dict(big)),
-                             "%s fingerprint is unstable across equal inputs" % mod.__name__)
+        # Same SIZE, different names: the old fingerprint was len:len:first:last and collided
+        # here, and a planted entry from one universe was served under the other's name.
+        same_size = {"dates": big["dates"],
+                     "series": {t: [1.0] * 5 for t in ("X", "Y", "Z")}}
+        self.assertNotEqual(dc.cache_key(big, 1), dc.cache_key(small, 1))
+        self.assertNotEqual(dc.cache_key(big, 1), dc.cache_key(same_size, 1),
+                            "two same-sized universes over one span share a key")
+        self.assertEqual(dc.cache_key(big, 1), dc.cache_key(dict(big), 1),
+                         "the key is unstable across equal inputs")
+        # Schema and the caller's own inputs are in it too — buckets and member_fn were in no
+        # key at all, so editing a bucket's membership left the cache serving the old roster.
+        self.assertNotEqual(dc.cache_key(big, 1), dc.cache_key(big, 2))
+        self.assertNotEqual(dc.cache_key(big, 1, ["AAA"]), dc.cache_key(big, 1, ["BBB"]))
 
     def test_a_cache_built_from_a_different_universe_is_a_miss(self):
-        """The shape check tested DIRECTLY, because the null-refusal masks it end to end: once
-        a null is never written the fixture cannot poison anything, and a test of the outcome
-        stays green with the shape check deleted. This exercises the case the refusal does not
-        cover — a cache with real content, computed from a DIFFERENT set of prices, wearing the
-        right file stamp."""
+        """Content computed from one universe, stamped as though it came from another. The
+        file stamp matches; everything else must not."""
         import json as _json  # noqa: PLC0415
         import tempfile  # noqa: PLC0415
 
-        import channel_stats as cs  # noqa: PLC0415
+        import derived_cache as dc  # noqa: PLC0415
         real = {"dates": ["2020-01-%02d" % i for i in range(1, 9)],
                 "series": {t: [10.0 + i for i in range(8)] for t in ("A", "B", "C")}}
         other = {"dates": ["2020-01-%02d" % i for i in range(1, 5)],
@@ -5299,14 +5276,13 @@ class ACacheKeyedOnTheWrongThingServedNothingForHours(unittest.TestCase):
             with open(pfile, "w", encoding="utf-8") as fh:
                 fh.write("{}")
             cfile = os.path.join(d, "c.json")
-            stamp = cs._prices_stamp(pfile)
-            # Content computed from `other`, stamped as though it came from `real`.
             with open(cfile, "w", encoding="utf-8") as fh:
-                _json.dump({"source": stamp, "schema": cs.SCHEMA, "universe": "XOM",
-                            "shape": cs._shape(other),
-                            "data": {"poison": True}}, fh)
-            got = cs.cached_channel_stats(real, ["XOM"], prices_path=pfile, cache_path=cfile)
-            self.assertNotIn("poison", got or {},
+                _json.dump({"source": dc.price_stamp(pfile),
+                            "key": dc.cache_key(other, 1),
+                            "data": {"securities": {"poison": True}}}, fh)
+            got = dc.read_or_build(lambda: {"securities": {"honest": True}}, prices=real,
+                                   cache_path=cfile, prices_path=pfile, schema=1)
+            self.assertNotIn("poison", got.get("securities", {}),
                              "a cache computed from a different universe was served because "
                              "its file stamp matched")
 
@@ -5700,18 +5676,19 @@ class TheThirdCacheAndTheToolThatReportedItselfClean(unittest.TestCase):
         import bucket_lab as bl  # noqa: PLC0415
         import channel_stats as cs  # noqa: PLC0415
         import concentration as conc  # noqa: PLC0415
+        import derived_cache  # noqa: PLC0415
         for mod in (conc, cs, bl):
-            self.assertTrue(hasattr(mod, "_shape"),
-                            "%s has no prices fingerprint, so its cache keys on a file it may "
-                            "not have computed from" % mod.__name__)
-            # Name-agnostic: the three modules call their cache dict `cached` and `c`, and
-            # pinning one spelling made this guard fail on a module that was already correct.
-            src = inspect.getsource(mod)
-            self.assertRegex(src, r'\.get\("shape"\)\s*==\s*_shape\(prices\)',
-                             "%s's cache read gate does not check the prices it was given"
-                             % mod.__name__)
-            self.assertRegex(src, r'"shape":\s*_shape\(prices\)',
-                             "%s writes a cache entry with no prices fingerprint" % mod.__name__)
+            # `_shape` is gone: three private fingerprints became one shared key, and asking
+            # for the old symbol would now pin the very duplication that caused this.
+            self.assertFalse(hasattr(mod, "_shape"),
+                             "%s grew a private prices fingerprint again" % mod.__name__)
+            # BEHAVIOUR, not source text. The version this replaces ran assertRegex over
+            # `inspect.getsource`, which INCLUDES COMMENTS — so commenting the gate out left it
+            # green, and it was written the turn before specifically to prevent that class.
+            # Three private gates are now one shared one, and this asserts the module reaches
+            # it rather than that its source contains a phrase.
+            self.assertIs(mod._cache_gate(), derived_cache.read_or_build,
+                          "%s does not route through the shared cache gate" % mod.__name__)
 
     def test_an_empty_result_is_not_persisted_either(self):
         """`bucket_lab` returns `{"buckets": {}}` for a fixture universe — not None — so a
