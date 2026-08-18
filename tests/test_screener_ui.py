@@ -5037,9 +5037,11 @@ class TheThesisModulesAreScopedMeasuredAndEpisodic(unittest.TestCase):
 
     def test_a_sustained_state_is_one_episode_not_one_row_per_session(self):
         """THE DEFECT THIS EXISTS FOR, measured: flagging every session a condition held gave
-        Oil/Hormuz 941 drawdown "events" out of 1,307 — one drawdown, counted daily. A ladder
-        of 941 rows that all say the same thing is fewer readings than four, not more, because
-        no row is distinguishable from its neighbour."""
+        Oil/Hormuz 913 drawdown "events" across 50 SEPARATE drawdowns — each counted once per
+        session it spanned. A ladder of 913 rows is fewer readings than four, not more, because
+        most rows repeat the one above. (An earlier version of this docstring said 941 and
+        called it one drawdown; both were wrong, and the count moved again when the
+        non-positive-close fix changed the underlying index.)"""
         import bucket_lab as bl  # noqa: PLC0415
         import sovereign_buckets  # noqa: PLC0415
         prices = self._prices()
@@ -5496,7 +5498,7 @@ class TheFourDefectsAnAdversarialPassFound(unittest.TestCase):
 
     def test_a_signed_number_is_printed_with_its_sign(self):
         """`+` was hardcoded onto a value that is negative whenever dropping a name COSTS
-        breadth — which is every top-three value for 4 of 19 buckets. LNG rendered
+        breadth — which is every value for 3 of 19 buckets. LNG rendered
         "LNG +-0.02 · GLNG +-0.06 · FLNG +-0.22" under "the thesis gains this much breadth"."""
         body = _functions(_decomment(_script(_page()))).get("drawBCorr")
         self.assertIn('const fmt = v => (v > 0 ? "+" : "") + v.toFixed(2);', body,
@@ -5684,3 +5686,117 @@ class TheLastFiveTheAdversarialPassNamed(unittest.TestCase):
         self.assertIn("cs.unmeasured", body,
                       "the page still guesses why a name has no coefficient")
         self.assertNotIn("or their series is too short", body)
+
+
+class TheThirdCacheAndTheToolThatReportedItselfClean(unittest.TestCase):
+    """A third adversarial pass refuted all ten claims. These are the two that were broken."""
+
+    def test_all_three_payload_caches_key_on_the_prices_passed(self):
+        """The fix went to two of three siblings sitting in the same payload block.
+        `cached_concentration` kept the pre-fix key, so on a COLD cache — every fresh clone and
+        every CI run, since these files are gitignored — one call to the repo's own fixture
+        wrote a 3-ticker/2-session result under the REAL snapshot's stamp and the page served
+        0 of 20 buckets scored with Oil/Hormuz eff_n None against an honest 1.34."""
+        import bucket_lab as bl  # noqa: PLC0415
+        import channel_stats as cs  # noqa: PLC0415
+        import concentration as conc  # noqa: PLC0415
+        for mod in (conc, cs, bl):
+            self.assertTrue(hasattr(mod, "_shape"),
+                            "%s has no prices fingerprint, so its cache keys on a file it may "
+                            "not have computed from" % mod.__name__)
+            # Name-agnostic: the three modules call their cache dict `cached` and `c`, and
+            # pinning one spelling made this guard fail on a module that was already correct.
+            src = inspect.getsource(mod)
+            self.assertRegex(src, r'\.get\("shape"\)\s*==\s*_shape\(prices\)',
+                             "%s's cache read gate does not check the prices it was given"
+                             % mod.__name__)
+            self.assertRegex(src, r'"shape":\s*_shape\(prices\)',
+                             "%s writes a cache entry with no prices fingerprint" % mod.__name__)
+
+    def test_an_empty_result_is_not_persisted_either(self):
+        """`bucket_lab` returns `{"buckets": {}}` for a fixture universe — not None — so a
+        null-only refusal let it straight through, leaving the shape key as the sole defence.
+        A gate whose two halves each rely on the other is one edit from being neither."""
+        import tempfile  # noqa: PLC0415
+
+        import bucket_lab as bl  # noqa: PLC0415
+        thin = {"dates": ["2020-01-01", "2020-01-02"], "series": {"A": [1.0, 1.1]}}
+        self.assertIsNotNone(bl.bucket_lab([], thin),
+                             "the fixture no longer returns a non-null empty, so this proves "
+                             "nothing")
+        with tempfile.TemporaryDirectory() as d:
+            pfile = os.path.join(d, "p.json")
+            with open(pfile, "w", encoding="utf-8") as fh:
+                fh.write("{}")
+            cfile = os.path.join(d, "c.json")
+            bl.cached_bucket_lab([], thin, prices_path=pfile, cache_path=cfile)
+            self.assertFalse(os.path.exists(cfile),
+                             "an empty result was persisted as though it were an answer")
+
+    def test_the_auditors_documented_command_actually_probes_something(self):
+        """`--limit` defaulted to 0 — set while debugging, never set back — so the command in
+        falsify.py's own docstring probed ZERO guards and printed "0 SURVIVED", which reads as
+        a clean run. The headline "120 probed, zero vacuous" came from a run that passed the
+        flag explicitly, so nobody following the documentation could reproduce it. A tool
+        reporting all-clear without running is the defect it exists to find."""
+        import subprocess  # noqa: PLC0415
+        r = subprocess.run(
+            [sys.executable, os.path.join(REPO, "tools", "falsify.py"),
+             "--tests", "tests.test_scenarios", "--out", os.devnull],
+            capture_output=True, text=True, cwd=REPO)
+        m = re.search(r"candidate guards with a source literal: (\d+)", r.stdout)
+        self.assertIsNotNone(m, "the tool printed no candidate count:\n" + r.stdout[-400:])
+        self.assertGreater(int(m.group(1)), 0,
+                           "the documented invocation probes nothing and calls it a result")
+
+    def test_an_empty_probe_set_is_not_reported_as_a_pass(self):
+        import falsify  # noqa: PLC0415
+        src = inspect.getsource(falsify.main)
+        self.assertIn("NOTHING TO PROBE", src,
+                      "a run over zero guards still prints as a clean result")
+
+
+class TheFiguresInTheProseAreCheckedAgainstTheData(unittest.TestCase):
+    """Three figures quoted on the page and in docstrings did not survive recomputation, and
+    one of them had already moved because an EARLIER fix in this same series changed the index
+    beneath it. Prose is where this repo's claims go to stop being tested, so they are tested
+    here."""
+
+    @staticmethod
+    def _lab():
+        import json as _json  # noqa: PLC0415
+
+        import bucket_lab as bl  # noqa: PLC0415
+        import sovereign_buckets  # noqa: PLC0415
+        path = os.path.join(REPO, "data", "screener", "prices.json")
+        if not os.path.exists(path):
+            return None
+        with open(path, encoding="utf-8") as fh:
+            return bl.bucket_lab(sovereign_buckets.BUCKETS, _json.load(fh))
+
+    def test_the_session_count_the_ladder_quotes_is_the_one_it_would_have_emitted(self):
+        out = self._lab()
+        if not out:
+            self.skipTest("no price snapshot")
+        dd = [e for e in out["buckets"]["02"]["signals"]["events"] if e["kind"] == "drawdown"]
+        sessions = sum(e["sessions"] for e in dd)
+        page = _page()
+        self.assertIn("%d drawdowns" % len(dd), page,
+                      "the page names a different number of drawdowns than the ladder emits "
+                      "(%d)" % len(dd))
+        self.assertIn("<b>%d</b> " % sessions, page,
+                      "the quoted session count is %d and the page says otherwise" % sessions)
+
+    def test_the_all_negative_bucket_count_is_the_measured_one(self):
+        out = self._lab()
+        if not out:
+            self.skipTest("no price snapshot")
+        allneg = [r["name"] for r in out["buckets"].values()
+                  if r["corr"] and r["corr"]["leave_one_out"]
+                  and all(v < 0 for v in r["corr"]["leave_one_out"].values())]
+        # The RAW page, not the decommented body: this figure lives in a source comment, and
+        # `_decomment` strips exactly that. Asserting against the stripped text is how a guard
+        # comes to look for something it has itself removed.
+        self.assertIn("for %d of the 19 buckets" % len(allneg), _page(),
+                      "the page quotes a different count than the data produces (%d: %s)"
+                      % (len(allneg), allneg))

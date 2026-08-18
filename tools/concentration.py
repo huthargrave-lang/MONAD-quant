@@ -560,11 +560,24 @@ def rolling_concentration(buckets, prices, member_fn,
 #: The shape of what `cached_concentration` stores. Part of the cache key, because the code
 #: is an input to the cache as surely as the prices are: at schema 1 the rolling series was a
 #: list of {d, eff_n, k} objects, and a cache written then still matches its price stamp today.
-SCHEMA = 2
+SCHEMA = 3
 
 #: Where the derived concentration lives between runs. Beside the prices it is derived from,
 #: and gitignored for the same reason they are: it is regenerable output, not a record.
 CACHE_PATH = os.path.join(REPO, "data", "screener", "concentration.json")
+
+
+def _shape(prices):
+    """A fingerprint of the prices ACTUALLY PASSED, not of the file on disk.
+
+    Same definition and same reason as `channel_stats._shape` and `bucket_lab._shape`. Ticker
+    count and date span: cheap, and it distinguishes exactly the case that caused this — a
+    fixture universe wearing the real snapshot's file stamp.
+    """
+    series = (prices or {}).get("series") or {}
+    dates = (prices or {}).get("dates") or []
+    return "%d:%d:%s:%s" % (len(series), len(dates),
+                            dates[0] if dates else "-", dates[-1] if dates else "-")
 
 
 def _prices_stamp(prices_path):
@@ -593,6 +606,21 @@ def cached_concentration(prices, member_fn, buckets, prices_path=None, cache_pat
     arrays, every existing cache on disk still matched its price stamp and would have been
     served, unchanged, to a reader that can only parse the new shape. Bump SCHEMA whenever the
     emitted structure changes; the old entry is then missed rather than misread.
+
+    AND ON THE PRICES ACTUALLY PASSED. This function was the THIRD sibling in the payload
+    block and the only one that did not get the fix its two neighbours did, even though the
+    commit that fixed them said the defect was closed. Reproduced on a cold cache, which is
+    every fresh clone and every CI run because these files are gitignored: one call to
+    `tests/screener_payload_fixture.authored_payload()` repoints the price path at a
+    3-ticker/2-session temp file, this function computes from it, and writes THAT under the
+    real snapshot's stamp. The page then served 0 of 20 buckets scored, with Oil/Hormuz
+    eff_n None against an honest 1.34.
+
+    SCHEMA also went 2 -> 3 for a reason that is not a shape change: the arithmetic beneath it
+    did. `_returns` used to admit an interval through a negative close and Oil/Hormuz scored
+    1.42; it scores 1.34 now, and a cache written under the old rule matched its price stamp
+    and its schema and would have gone on serving 1.42 forever. A correction to the numbers is
+    as much a cache invalidation as a correction to their shape.
     """
     prices_path = prices_path or os.path.join(REPO, "data", "screener", "prices.json")
     cache_path = cache_path or CACHE_PATH
@@ -600,7 +628,9 @@ def cached_concentration(prices, member_fn, buckets, prices_path=None, cache_pat
     try:
         with open(cache_path, encoding="utf-8") as fh:
             cached = json.load(fh)
-        if stamp and cached.get("source") == stamp and cached.get("schema") == SCHEMA:
+        if (stamp and cached.get("source") == stamp and cached.get("schema") == SCHEMA
+                and cached.get("shape") == _shape(prices)
+                and cached.get("data") is not None):
             return cached["data"]
     except (OSError, ValueError, KeyError):
         pass
@@ -608,11 +638,13 @@ def cached_concentration(prices, member_fn, buckets, prices_path=None, cache_pat
     data = dict(concentration(buckets, prices, member_fn),
                 **concentration_windows(buckets, prices, member_fn))
     data["rolling"] = rolling_concentration(buckets, prices, member_fn)
+    if data is None:
+        return None
     try:
         os.makedirs(os.path.dirname(cache_path), exist_ok=True)
         tmp = cache_path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump({"source": stamp, "schema": SCHEMA,
+            json.dump({"source": stamp, "schema": SCHEMA, "shape": _shape(prices),
                        "built_at": _utc_stamp(), "data": data}, fh)
         os.replace(tmp, cache_path)          # atomic: a half-written cache must never be read
     except OSError:

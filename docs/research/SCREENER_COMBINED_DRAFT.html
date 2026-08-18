@@ -2936,7 +2936,7 @@ const TILE_NOTES = {
           + "Not the Watchlist: that card is the names you kept.",
   bcorr:  "effN says a bucket is 1.25 bets. It cannot say whether that is one tight cluster and three strangers or every name moving together, and those are different facts about what to hold. Every pair, plus leave-one-out: which name, removed, would give the thesis its breadth back.",
   bstress:"The worst 5- and 21-session windows this bucket has actually had, with the member that drove each and the spread between best and worst. Realised, not simulated — every row is a date you can go and check, and there is no model here to disagree with.",
-  bsig:   "Dated episodes, not authored sentences. Every stretch where the bucket entered the top decile of its OWN history on correlation, volatility or dispersion, or sat 15% below its trailing-year high. An episode opens when the bucket enters that state and closes when it leaves, because flagging every session turns one drawdown into 941 rows that all say the same thing.",
+  bsig:   "Dated episodes, not authored sentences. Every stretch where the bucket entered the top decile of its OWN history on correlation, volatility or dispersion, or sat 15% below its trailing-year high. An episode opens when the bucket enters that state and closes when it leaves, because flagging every session turns 50 drawdowns into 913 rows that mostly repeat their neighbour.",
   bbeta:  "What each member does per 1% move in a channel with a traded observable, with a 95% interval and an out-of-sample score. Only crude has one; the other channels keep a direction and no magnitude.",
   scen:   "One shock, in three readings that used to be three modules. The PROBABILITY is the scenario's own observed series for its target question — the record, never reconstructed from the developments beside it, because no model here defines that arithmetic. The DEVELOPMENTS are dated events marked escalating, de-escalating or unclear; a record, not a driver decomposition, and nothing claims they sum to the probability. The REACH is every security the scenario touches, grouped by which way it moves RELATIVE TO ITS CHANNEL — direction, never size, because this layer models no conditional return. A name reached on two channels that disagree is shown as such rather than netted, and a name nobody has assessed is listed as unassessed rather than as neutral."
 };
@@ -8739,7 +8739,7 @@ function drawBCorr(){
     if(loo.length){
       /* SIGNED, and the sentence has to survive both signs. The number is effN WITHOUT the
          name minus effN with it, so it is negative whenever dropping a name COSTS breadth —
-         which is the common case: for 4 of the 19 buckets every top-three value is negative.
+         which is the common case: for 3 of the 19 buckets every value is negative.
          A hardcoded plus rendered those as "+-0.22" under the words "gains this much
          breadth", which is a malformed number asserting the opposite of itself. */
       const fmt = v => (v > 0 ? "+" : "") + v.toFixed(2);
@@ -8882,8 +8882,8 @@ function drawBSig(){
       + 'still running</span></div>';
     out += '<p class="scen-note">' + esc(S.method) + '</p>';
     out += '<p class="scen-note">An episode opens when the thesis ENTERS a state and closes '
-      + 'when it leaves. Flagging every session instead turned one drawdown into <b>941</b> '
-      + 'rows that all said the same thing, which is fewer readings than four, not more.'
+      + 'when it leaves. Flagging every session instead turned 50 drawdowns into <b>913</b> '
+      + 'rows, most of them a repeat of the row above, which is fewer readings than four.'
       + labExtra(g) + tierNote() + '</p>';
     if(open.length){
       out += '<p class="scen-note">Open right now: '

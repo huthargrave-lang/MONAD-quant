@@ -283,7 +283,8 @@ def signals(bucket, returns, closes, dates, window=SIG_WINDOW):
         lvl.append(cur)
 
     """EPISODES, NOT SESSIONS. Flagging every session a condition holds turns one drawdown into
-    941 "events" — measured, on Oil/Hormuz — and a ladder of 941 rows all saying the same thing
+    913 "events" — measured, on Oil/Hormuz, across 50 SEPARATE drawdowns rather than one, and
+    a ladder of 913 rows saying very little
     is fewer data points than four, not more, because none of them is distinguishable from its
     neighbour. An episode opens when the bucket ENTERS a state and closes when it leaves, and
     carries the worst value reached in between."""
@@ -421,10 +422,12 @@ def cached_bucket_lab(buckets, prices, prices_path=None, cache_path=None):
     except (OSError, ValueError, KeyError):
         pass
     data = bucket_lab(buckets, prices)
-    # A null is never written. See _shape: a fixture run wrote one under the real
-    # snapshot stamp and every later reader got a valid-looking hit holding it.
-    if data is None:
-        return None
+    # NOT JUST A NULL — AN EMPTY RESULT TOO. `bucket_lab` returns None only when there are no
+    # returns at all; a fixture universe yields `{"buckets": {}}`, which is not None and sailed
+    # straight through a null-only guard. The shape key catches it in practice, and a cache
+    # gate whose two halves each rely on the other is one edit from being neither.
+    if not data or not (data.get("buckets") or {}):
+        return data
     try:
         os.makedirs(os.path.dirname(cache_path), exist_ok=True)
         tmp = cache_path + ".tmp"

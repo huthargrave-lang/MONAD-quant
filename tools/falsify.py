@@ -155,7 +155,13 @@ def run(mod, cls, fn, timeout=180):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--tests", nargs="+", required=True)
-    ap.add_argument("--limit", type=int, default=0)
+    # NO LIMIT BY DEFAULT. This was set to 0 while debugging and never set back, so the
+    # command in this module's own docstring probed ZERO guards and printed "0 SURVIVED",
+    # which reads as a clean run. A tool that reports all-clear without running is the exact
+    # defect it exists to find — the third time that shape has shipped in this work — and the
+    # headline "120 guards probed, zero vacuous" came from a run that passed --limit
+    # explicitly, so nobody following the documentation could have reproduced it.
+    ap.add_argument("--limit", type=int, default=10 ** 9)
     ap.add_argument("--out", default="falsify_results.json")
     args = ap.parse_args()
 
@@ -179,6 +185,12 @@ def main():
         uniq.append(j)
     uniq = uniq[:args.limit]
     print("candidate guards with a source literal: %d" % len(uniq), flush=True)
+    if not uniq:
+        # Refusing to report a clean run over an empty set. "0 probed, 0 survived" is not
+        # evidence of anything and it is indistinguishable from success at a glance.
+        print("NOTHING TO PROBE — no presence-assertion in these suites carries a literal "
+              "that appears exactly once across the tracked sources. This is not a pass.")
+        return 2
 
     results = []
     for i, j in enumerate(uniq, 1):

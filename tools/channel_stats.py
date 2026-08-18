@@ -422,10 +422,11 @@ def cached_channel_stats(prices, tickers, prices_path=None, cache_path=None):
     except (OSError, ValueError, KeyError):
         pass
     data = channel_stats(prices, tickers)
-    # A null is never written. The computation producing nothing is not an answer,
-    # and persisting it is what turned one fixture run into a permanent outage.
-    if data is None:
-        return None
+    # Not just a null — an empty result too. See `bucket_lab.cached_bucket_lab`: a guard that
+    # only tests None lets `{"securities": {}}` through, and the two halves of the gate must
+    # not each depend on the other holding.
+    if not data or not (data.get("securities") or {}):
+        return data
     try:
         os.makedirs(os.path.dirname(cache_path), exist_ok=True)
         tmp = cache_path + ".tmp"
