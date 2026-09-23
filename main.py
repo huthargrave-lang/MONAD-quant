@@ -163,6 +163,7 @@ def main():
             data=data_spec(df, yf_symbol))
         try:
             results = run_backtest(
+                mode=mode,
                 df=df,
                 initial_capital=config.INITIAL_CAPITAL,
                 target_gain_pct=target_gain,

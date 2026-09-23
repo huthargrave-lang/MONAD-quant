@@ -36,11 +36,20 @@ METRIC_KEYS = ("total_trades", "win_rate", "total_return", "sharpe_ratio",
 #: and undercounting is the failure the ledger exists to prevent. The hourly name
 #: matches strategy_funnel's card ``strategy_family``.
 MR_STRATEGY = "long_only_rsi_vwap_mr"
-MR_HOURLY_STRATEGY = f"{MR_STRATEGY}_hourly"
+
+
+def _engine_version() -> int:
+    from src.backtest.runner import ENGINE_VERSION
+    return ENGINE_VERSION
+
+
+#: Families carry the engine version (".v2"): trials run on engines that executed
+#: differently must never pool into one search count (decision-debate Q4).
+MR_HOURLY_STRATEGY = f"{MR_STRATEGY}_hourly.v{_engine_version()}"
 
 
 def mr_family(symbol: str, timeframe: str = "hourly") -> str:
-    return f"{MR_STRATEGY}_{timeframe}:{symbol.upper()}"
+    return f"{MR_STRATEGY}_{timeframe}.v{_engine_version()}:{symbol.upper()}"
 
 
 def mr_hourly_family(ticker: str) -> str:
@@ -67,8 +76,10 @@ def family_members(records, family: str) -> list:
             continue
         params = (r.spec or {}).get("params") or {}
         data = (r.spec or {}).get("data") or {}
+        engine = params.get("engine") if isinstance(params, dict) else None
         if (isinstance(params, dict) and params.get("timeframe") == "hourly" and "mode" in params
-                and str(data.get("ticker") or "").upper() == symbol):
+                and str(data.get("ticker") or "").upper() == symbol
+                and isinstance(engine, dict) and engine.get("engine_version") == _engine_version()):
             out.append(r)
     return out
 
@@ -76,7 +87,8 @@ def family_members(records, family: str) -> list:
 def engine_spec(mode: str, *, timeframe: str, target: float, stop: float,
                 backtest_mode: str | None, slippage_pct: float | None,
                 require_signals: int = 1, asset_key: str | None = None,
-                settings: Mapping[str, Any] | None = None) -> dict:
+                settings: Mapping[str, Any] | None = None,
+                max_trade_bars: int | None = None) -> dict:
     """Every engine setting a producer can vary, read from ``config`` NOW.
 
     The engine reads its parameters from module globals (``<PARAM>_<MODE>``,
@@ -84,14 +96,24 @@ def engine_spec(mode: str, *, timeframe: str, target: float, stop: float,
     producers mutate them before a backtest. Reading them at intent time records what
     the engine will actually see, not what the caller meant to set. ``settings`` holds
     call arguments that are not config (trade-hour gates, Kelly overrides).
+
+    ``engine`` is authoritative for execution semantics: the hold, regime gate and short
+    suppression the engine WILL apply (``runner.engine_settings``, the same functions
+    run_backtest calls) and the ENGINE_VERSION. Pass the ``max_trade_bars`` you pass to
+    run_backtest (None when you let it resolve). Recording config intent instead let a
+    spec say 8 bars while the engine held 10 (decision-debate Q4).
     """
+    from src.backtest.runner import engine_settings
+
     import config  # the engine's global parameter store; imported where it is read
 
     suffix = f"_{mode}"
-    flags = ("MAX_TRADE_BARS", "USE_OPPOSING_SIGNAL_EXIT", "POSITION_SIZING_MODE",
-             "FIXED_POSITION_PCT", "USE_ADAPTIVE_KELLY", "KELLY_MULTIPLIER", "INITIAL_CAPITAL",
-             "USE_REGIME_FILTER", "USE_SLOPE_REGIME", "LONGS_ONLY", "BEAR_DEFENSIVE_LONGS",
-             "BEAR_MAX_TRADE_BARS", "REQUIRE_SIGNALS")
+    # Config that shapes a run but is not resolved into ``engine`` below. The hold, the
+    # regime gate and the long/short policy are deliberately NOT here: their resolved
+    # values are in ``engine``, and a second, config-intent copy would contradict it.
+    flags = ("USE_OPPOSING_SIGNAL_EXIT", "POSITION_SIZING_MODE", "FIXED_POSITION_PCT",
+             "USE_ADAPTIVE_KELLY", "KELLY_MULTIPLIER", "INITIAL_CAPITAL", "USE_SLOPE_REGIME",
+             "BEAR_DEFENSIVE_LONGS", "BEAR_MAX_TRADE_BARS", "REQUIRE_SIGNALS")
     return {
         "mode": mode, "timeframe": timeframe,
         "target_gain_pct": target, "stop_loss_pct": stop,
@@ -100,6 +122,7 @@ def engine_spec(mode: str, *, timeframe: str, target: float, stop: float,
         "asset": dict(config.ASSETS.get(asset_key or mode, {})),
         "mode_constants": {k: getattr(config, k) for k in sorted(dir(config)) if k.endswith(suffix)},
         "config_flags": {k.lower(): getattr(config, k, None) for k in flags},
+        "engine": engine_settings(mode, timeframe, max_trade_bars),
         "settings": dict(settings) if settings is not None else None,
     }
 

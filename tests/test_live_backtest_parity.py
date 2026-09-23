@@ -1,66 +1,38 @@
-"""Not one of seven decision inputs agrees between the backtest and the live bot.
+"""The backtest decides like the live bot: 0 divergent decision inputs (ENGINE_VERSION 2).
 
 Study: `docs/research/LIVE_backtest_parity_census.md`. Tool:
 `tools/live_backtest_parity.py`, frozen at
 `docs/research/data/live_backtest_parity.json`.
 
-The project's central unexplained fact is that the backtest shows an edge and the live bot
-is flat. Individual divergences are recorded — F141 (entry gate), F148 (UTC time gate),
-F26 (slope flags) — but nobody had enumerated the decision inputs in one place.
+History. The first census (2026-08) found not one of seven decision inputs agreeing:
+three behavioural divergences (the entry regime gate, the UTC intraday time gate F148, a
+10-vs-8 bar max hold), two coincident rows and two dormant capabilities. The admission
+gate (tools/admit.py) blocks every price strategy while any input diverges, so the
+decision-debate of 2026-09-22 (Q4) aligned the BACKTEST to the live bot (live is ground
+truth) and found a fourth: the backtest simulated short trades the bot skips, which the
+census could not see because `longs_only` gates no entry (F26).
 
-    0 agree · 2 coincident · 2 dormant · 3 divergent
+Now every row that used to be read from source text is MEASURED:
 
-**Three behavioural divergences.** Two were already known: the entry regime gate (backtest
-runs it at the signature default `True`, live passes `False`) and the intraday time gate
-(backtest slices UTC hours, live checks ET market hours). The third was not:
+* **entry regime gate** — the value run_backtest resolves (`runner.resolve_regime_filter`)
+  against the literal live passes;
+* **intraday time gate** — the exact set of session bars each path acts on over a
+  synthetic fortnight (the backtest's session loader + trade-hours gate, against live's
+  :32 cron acting on the latest bar at least an hour old);
+* **max hold** — the hold run_backtest resolves for the live mode against
+  MAX_TRADE_BARS_LIVE;
+* **short entries** — short entries the backtest path emits, against live's policy.
 
-* **max hold** — `MAX_TRADE_BARS = 8` in the backtest, `MAX_TRADE_BARS_LIVE = 10` live.
-  A 25% difference in the time exit.
+    3 agree · 2 coincident · 2 dormant · 0 divergent
 
-**And then measured, which corrected the framing.** The first version of this file argued
-the max-hold gap was a first-order driver *because* a narrow band means many trades resolve
-on the clock. That was an assumption, and it is false at the volatility this strategy
-trades. At 0.8%/bar with the live band (1.00%/0.50%), the time exit fires on **3 of 1759**
-trades and 8-vs-10 moves the mean return by **0.05 bp**. It only begins to bind below
-about **0.4%/bar**:
-
-    sigma/bar   time exits at 8    mean delta
-      0.08%          21.5%          +0.79 bp
-      0.15%          14.9%          +1.72 bp
-      0.25%           6.3%          +0.93 bp
-      0.40%           2.0%          +0.24 bp
-      0.80%           0.2%          +0.05 bp
-      1.10%           0.2%          +0.04 bp
-
-So the row stays DIVERGE — the configs really do disagree — but its behavioural cost today
-is ~zero, and the reason is worth keeping: **the bands resolve before the clock does.**
-That reason expires if the bands widen. It also reframes F17, whose recommendation is to
-replace the %-stop with a horizon exit: at this volatility the horizon currently fires
-almost never, so that is not a tweak to an existing mechanism — it is a replacement of the
-exit model.
-
-**Two coincident.** Same value today, read from different places, with nothing keeping
-them in step:
-
-* **position size** — the backtest reads `config.FIXED_POSITION_PCT` (0.10);
-  `live/state.py::get_position_plan` assigns the literal `0.10`. Change the config and the
-  backtest moves while the bot does not. This is the most consequential parameter after
-  the entry gate, and it is duplicated rather than shared.
-* **slope flags** — the backtest omits them (defaulting False), live passes False
-  explicitly. Same result, different mechanism.
-
-**Two dormant.** The backtest supports an opposing-signal exit and ATR dynamic stops; the
-live path has neither. Both flags are off, so there is no behavioural difference today —
-but a sweep that turns either on silently models something the bot cannot do. Counted
-separately rather than folded into the divergences, which would inflate the headline.
-
-Every row is extracted from source at run time, so the table cannot rot as the code moves.
-Guards below fail in both directions: if a divergence is fixed (good — supersede and
-re-baseline), and if a new one appears.
+Each measured row has a negative control below, so an agreement cannot be vacuous. The
+max-hold time-exit measurement (bands resolve before the clock at this volatility) is
+kept: it still explains why the old 8-vs-10 gap was cheap, and when it would stop being.
 """
 import json
 import sys
 import unittest
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -87,18 +59,12 @@ class TheCensusIsCompleteAndStableTests(unittest.TestCase):
                            parity.DORMANT, parity.DIVERGE))
             self.assertTrue(row["backtest"] and row["live"])
 
-    def test_nothing_agrees_outright(self):
+    def test_nothing_diverges(self):
+        diverging = [r["dimension"] for r in self.report["rows"] if r["verdict"] == parity.DIVERGE]
         self.assertEqual(
-            self.report["counts"][parity.AGREE], 0,
-            "a decision input now agrees by construction — good news; record which one "
-            "and update docs/research/LIVE_backtest_parity_census.md")
-
-    def test_the_divergence_count_has_not_grown(self):
-        self.assertLessEqual(
-            self.report["counts"][parity.DIVERGE], 3,
-            "backtest/live divergences rose to {} — a new one appeared; the two paths "
-            "were already not comparable".format(
-                self.report["counts"][parity.DIVERGE]))
+            diverging, [],
+            "a backtest/live divergence reappeared: {} — the admission gate will block every "
+            "price strategy until it is reconciled".format(diverging))
 
     def test_it_matches_the_frozen_artifact(self):
         frozen = json.loads(FROZEN.read_text(encoding="utf-8"))
@@ -109,36 +75,48 @@ class TheCensusIsCompleteAndStableTests(unittest.TestCase):
                 FROZEN.relative_to(ROOT)))
 
 
-class TheThreeBehaviouralDivergencesTests(unittest.TestCase):
+class TheDivergencesAreClosedByMeasurement(unittest.TestCase):
+    """Each formerly divergent row now agrees, and each agreement has a control showing
+    the probe would have seen a difference."""
+
     @classmethod
     def setUpClass(cls):
         cls.by_dim = {r["dimension"]: r for r in parity.census()["rows"]}
 
-    def test_the_entry_gate_still_diverges(self):
+    def test_the_entry_gate_agrees(self):
         row = self.by_dim["entry regime gate"]
-        self.assertEqual(
-            row["verdict"], parity.DIVERGE,
-            "the entry gate now matches — H27/F141 are FIXED. Supersede them, and note "
-            "that every backtest number was produced under the other gate.")
-        self.assertIn("True", row["backtest"])
+        self.assertEqual(row["verdict"], parity.AGREE)
+        self.assertIn("False", row["backtest"])
         self.assertIn("False", row["live"])
 
-    def test_the_time_gate_still_diverges(self):
-        self.assertEqual(self.by_dim["intraday time gate"]["verdict"], parity.DIVERGE)
+    def test_the_time_gate_acts_on_the_same_bars(self):
+        backtest, live = parity.acted_bars()
+        self.assertTrue(backtest)
+        self.assertEqual(backtest, live)
 
-    def test_the_max_hold_differs_by_two_bars(self):
-        """The one this census found."""
-        self.assertEqual(self.by_dim["max hold (time exit)"]["verdict"], parity.DIVERGE)
-        self.assertEqual(getattr(config, "MAX_TRADE_BARS", None), 8)
-        self.assertEqual(getattr(config, "MAX_TRADE_BARS_LIVE", None), 10)
+    def test_the_old_utc_gate_would_have_diverged(self):
+        """Control: F148's UTC hour gate (9, 16) on a naive-UTC index drops most of the
+        session, so the probe must report a difference for it."""
+        with mock.patch.object(parity, "_signature_default", return_value="(9, 16)"):
+            backtest, live = parity.acted_bars()
+        self.assertLess(len(backtest), len(live))
 
-    def test_the_gap_is_large_as_a_configuration(self):
-        backtest = getattr(config, "MAX_TRADE_BARS")
-        live = getattr(config, "MAX_TRADE_BARS_LIVE")
-        self.assertGreater(
-            abs(live - backtest) / backtest, 0.1,
-            "the two max-hold settings converged to within 10% — re-measure before "
-            "citing the 25% figure")
+    def test_the_max_hold_agrees_for_the_live_mode(self):
+        self.assertEqual(self.by_dim["max hold (time exit)"]["verdict"], parity.AGREE)
+        from src.backtest.runner import resolve_hold
+        self.assertEqual(resolve_hold(f"{config.LIVE_SYMBOL}_HOURLY", "hourly"),
+                         config.MAX_TRADE_BARS_LIVE)
+        # other modes keep their own hold; only the live mode is tied to the bot
+        self.assertEqual(resolve_hold("BTC_DAILY", "daily"), config.MAX_TRADE_BARS)
+
+    def test_short_entries_agree(self):
+        self.assertEqual(self.by_dim["short entries"]["verdict"], parity.AGREE)
+
+    def test_the_short_probe_sees_shorts_when_they_are_allowed(self):
+        """Control: with shorts allowed the backtest emits them, so a 0 count is real."""
+        with mock.patch.object(config, "TRADER_ALLOW_SHORTS", True):
+            backtest, _, _, _ = parity.shorts()
+        self.assertNotEqual(backtest.split()[0], "0")
 
     def test_but_the_time_exit_almost_never_fires_at_this_volatility(self):
         """The correction: a 25% config gap with ~zero behavioural cost today."""

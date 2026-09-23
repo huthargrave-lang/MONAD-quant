@@ -72,13 +72,15 @@ def _signature_default(rel, func_name, param):
 
 
 def entry_gate():
-    bt = _call_keywords(RUNNER, "generate_trades")
-    lv = _call_keywords(SIGNALS, "generate_trades")
-    backtest = bt.get("use_regime_filter") or "(omitted → default {})".format(
-        _signature_default(ENGINE, "generate_trades", "use_regime_filter"))
-    live = lv.get("use_regime_filter", "(omitted)")
-    verdict = AGREE if backtest == live else DIVERGE
-    return backtest, live, verdict, "F141"
+    """The vol-regime gate each path APPLIES: the backtest's resolved value (the function
+    run_backtest calls) against the literal the live path passes."""
+    from src.backtest.runner import resolve_regime_filter
+    backtest = resolve_regime_filter("hourly")
+    live_src = _call_keywords(SIGNALS, "generate_trades").get("use_regime_filter")
+    live = None if live_src is None else live_src == "True"
+    verdict = AGREE if live is not None and backtest == live else DIVERGE
+    return "use_regime_filter={} (resolved)".format(backtest), \
+        "use_regime_filter={}".format(live_src or "(omitted)"), verdict, "F141"
 
 
 def slope_flags():
@@ -93,13 +95,79 @@ def slope_flags():
             "explicit False" if passed_lv else "omitted", verdict, "F26")
 
 
+def _live_cron():
+    """(hours, minute) of the live scheduler's CronTrigger, read from live/trader.py."""
+    for node in ast.walk(_tree(TRADER)):
+        if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "CronTrigger":
+            kw = {k.arg: ast.literal_eval(k.value) for k in node.keywords}
+            lo, hi = (int(x) for x in str(kw["hour"]).split("-"))
+            return list(range(lo, hi + 1)), int(kw["minute"])
+    return None
+
+
+def acted_bars(days=10):
+    """Which session bars each path can act on, over a synthetic fortnight.
+
+    Backtest: raw 24h bars through the canonical session loader filter
+    (fetcher.regular_session), then run_backtest's default trade_hours gate.
+    Live: yfinance session bars (the same filter); at each cron firing (ET) the bot acts
+    on the latest bar at least 60 minutes old (live/signals.py drops younger bars).
+    Returns (backtest_set, live_set), both restricted to bars live had a later firing for.
+    """
+    import pandas as pd
+    from src.data.fetcher import regular_session
+    cron = _live_cron()
+    raw = pd.DataFrame({"close": 1.0}, index=pd.date_range("2026-03-02 00:30", periods=24 * days, freq="h"))
+    session = regular_session(raw)
+    gate = _signature_default(RUNNER, "run_backtest", "trade_hours")
+    lo, hi = ast.literal_eval(gate) if gate and gate != "None" else (0, 24)
+    backtest = {t for t in session.index if lo <= t.hour < hi}
+    live = set()
+    if cron:
+        hours, minute = cron
+        starts = list(session.index)
+        et_days = sorted({t.tz_localize("UTC").tz_convert("America/New_York").normalize() for t in starts})
+        for day in et_days:
+            if day.weekday() >= 5:
+                continue
+            for h in hours:
+                fire = (day + pd.Timedelta(hours=h, minutes=minute)).tz_convert("UTC").tz_localize(None)
+                done = [t for t in starts if fire - t >= pd.Timedelta(minutes=60)]
+                if done:
+                    live.add(max(done))
+        horizon = max(live) if live else None
+        backtest = {t for t in backtest if horizon is not None and t <= horizon}
+    return backtest, live
+
+
 def time_gate():
-    bt = "trade_hours=" + _call_keywords(RUNNER, "generate_trades").get(
-        "trade_hours", "(omitted)")
-    live_src = _source(TRADER)
-    live = ("_is_market_hours() in ET" if "def _is_market_hours" in live_src
-            else "(none found)")
-    return bt, live, DIVERGE, "F148"
+    """Behavioural: the exact set of session bars each path acts on (F148 found the old
+    UTC hour gate kept only the morning)."""
+    backtest, live = acted_bars()
+    verdict = AGREE if backtest == live and backtest else DIVERGE
+    return ("{} session bars acted on".format(len(backtest)),
+            "{} bars acted on at the :{} cron".format(len(live), (_live_cron() or (0, "?"))[1]),
+            verdict, "F148")
+
+
+def shorts():
+    """Behavioural: short entries the backtest path emits on a synthetic tape, against the
+    live bot's policy (it computes shorts and skips them unless TRADER_ALLOW_SHORTS).
+    `longs_only` gates no entry (F26), so only an actual count can show agreement."""
+    import config
+    import entry_gate_probe as probe
+    from src.backtest.runner import resolve_regime_filter, suppress_disallowed_shorts
+    from src.strategy.engine import build_features, generate_trades
+    n_bt = 0
+    for _, seed, drift in probe.PANELS:
+        feat = build_features(probe.synth_panel(seed, drift, 1500, "1h", 0.008), timeframe="hourly")
+        trades = generate_trades(feat, require_signals=1,
+                                 use_regime_filter=resolve_regime_filter("hourly"))
+        n_bt += int((suppress_disallowed_shorts(trades)["entry_signal"] == -1).sum())
+    allow = bool(getattr(config, "TRADER_ALLOW_SHORTS", False))
+    live = "shorts allowed" if allow else "0 (TRADER_ALLOW_SHORTS=False)"
+    verdict = AGREE if (allow or n_bt == 0) else DIVERGE
+    return "{} short entries emitted".format(n_bt), live, verdict, "F26"
 
 
 def max_hold():
@@ -113,10 +181,12 @@ def max_hold():
     is that the bands resolve first, and that reason changes if the bands widen.
     """
     import config
-    bt = getattr(config, "MAX_TRADE_BARS", None)
+    from src.backtest.runner import resolve_hold
+    live_mode = "{}_HOURLY".format(getattr(config, "LIVE_SYMBOL", ""))
+    bt = resolve_hold(live_mode, "hourly")   # what run_backtest uses for the live mode
     lv = getattr(config, "MAX_TRADE_BARS_LIVE", None)
-    return ("MAX_TRADE_BARS={}".format(bt), "MAX_TRADE_BARS_LIVE={}".format(lv),
-            AGREE if bt == lv else DIVERGE, None)
+    return ("{} bars (resolved for {})".format(bt, live_mode),
+            "MAX_TRADE_BARS_LIVE={}".format(lv), AGREE if bt == lv else DIVERGE, None)
 
 
 def time_exit_bind_rate(sigma=0.008, bars=4000, target=0.010, stop=0.005):
@@ -203,6 +273,7 @@ DIMENSIONS = [
     ("slope-regime flags", slope_flags),
     ("intraday time gate", time_gate),
     ("max hold (time exit)", max_hold),
+    ("short entries", shorts),
     ("position size", position_size),
     ("opposing-signal exit", opposing_exit),
     ("ATR dynamic stops", atr_stops),

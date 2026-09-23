@@ -25,7 +25,7 @@ from src.research import prereg  # noqa: E402
 
 TEMPLATE = {
     "hypothesis": "H<n>",
-    "family": "long_only_rsi_vwap_mr_hourly:<TICKER>",
+    "family": "long_only_rsi_vwap_mr_hourly.v<ENGINE_VERSION>:<TICKER>  (backtest_trials.mr_hourly_family)",
     "claim": "What is claimed, in one or two sentences, including the direction and the instrument.",
     "profile": "price_strategy",
     "universe": ["<TICKER>"],

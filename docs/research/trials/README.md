@@ -45,7 +45,7 @@ and `tests/test_producer_ledger_wiring.py` fails CI on any new one that is not:
 | `fee_analysis.py` | its one backtest of the configured BTC strategy |
 
 **Families.** All of these test one idea, long-only RSI/VWAP mean reversion, so they share
-one family per timeframe and instrument: `long_only_rsi_vwap_mr_<timeframe>:<SYMBOL>`
+one family per timeframe and instrument: `long_only_rsi_vwap_mr_<timeframe>.v<ENGINE_VERSION>:<SYMBOL>`
 (`src/research/backtest_trials.py::mr_family`). A count split across tools would
 undercount the search behind any single result. Pass `--family` only for a genuinely
 different idea.

@@ -677,10 +677,10 @@ class TheDerivedTotalIsNotDrawnAsAClassTests(unittest.TestCase):
             "double-counts {} of the constants".format(counts["dead_to_shipping"]))
 
     def test_it_does_not_fire_on_the_parity_tally(self):
-        """The false positive it must not have: COINCIDENT(2) == AGREE(0) + DORMANT(2)."""
-        counts = json.loads((DATA / "live_backtest_parity.json").read_text(
-            encoding="utf-8"))["counts"]
-        self.assertEqual(counts["AGREE"], 0)
+        """The false positive it must not have: COINCIDENT(2) == AGREE(0) + DORMANT(2).
+        That was the first parity census's tally; it is pinned here as a literal because
+        the live census has since reconciled (F404701) and no longer contains it."""
+        counts = {"AGREE": 0, "COINCIDENT": 2, "DORMANT": 2, "DIVERGE": 3}
         self.assertEqual(
             ui._derived_keys(counts), {},
             "a real class was dropped as 'derived' — zero-valued summands are back, and "
@@ -737,9 +737,9 @@ class TheRatchetExtractionTests(unittest.TestCase):
     def test_bounds_are_read_from_the_ast_not_from_prose(self):
         bounds = ui.guard_bounds("tests/test_live_backtest_parity.py")
         exprs = {b["expr"] for b in bounds}
-        self.assertIn("getattr(config, 'MAX_TRADE_BARS', None)", exprs)
-        self.assertTrue(any(b["value"] == 8 for b in bounds))
-        self.assertTrue(any(b["value"] == 10 for b in bounds))
+        self.assertIn("share", exprs)
+        self.assertTrue(any(b["value"] == 0.02 for b in bounds))
+        self.assertTrue(any(b["value"] == 0.5 for b in bounds))
 
 
 class TheRollupExclusionTests(unittest.TestCase):

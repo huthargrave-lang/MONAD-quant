@@ -263,13 +263,15 @@ def regular_session(df: pd.DataFrame) -> pd.DataFrame:
     the morning-only sample RESEARCH_WEB.md F13 showed manufactures a fake edge. Measured
     2026-09-22 on QQQ 1h, Aug 1 - Sep 18 (a short fetch, so not F12's long-range quirk):
     231 bars at 7.0/day in, 99 at 3.0/day out of the UTC filter, 231 out of this one.
-    A tz-aware index is converted; a naive one is taken to be UTC. Returns naive UTC.
+    Weekend bars are dropped too, as the live bot's market-hours check does. A tz-aware
+    index is converted; a naive one is taken to be UTC. Returns naive UTC.
     """
     idx = pd.DatetimeIndex(df.index)
     local = idx.tz_convert(EXCHANGE_TZ) if idx.tz is not None else idx.tz_localize("UTC").tz_convert(EXCHANGE_TZ)
     out = df.copy()
     out.index = local
     out = out.between_time(*REGULAR_SESSION, inclusive="left")
+    out = out[out.index.weekday < 5]  # no session on weekends (live/trader.py:_is_market_hours)
     out.index = out.index.tz_convert("UTC").tz_localize(None)
     return out
 

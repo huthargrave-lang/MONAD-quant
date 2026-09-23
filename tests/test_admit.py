@@ -37,7 +37,12 @@ HEAD_SHA = subprocess.run(["git", "-C", str(REPO), "rev-parse", "HEAD"], capture
                           text=True).stdout.strip()
 CLEAN = {"sha": HEAD_SHA, "dirty": False, "diff_sha256": None, "error": None}
 MATURE = dt.datetime(2021, 12, 1, tzinfo=dt.timezone.utc)
-FAMILY = "long_only_rsi_vwap_mr_hourly:SYN"
+from src.research.backtest_trials import mr_hourly_family  # noqa: E402
+from src.backtest.runner import engine_settings  # noqa: E402
+
+FAMILY = mr_hourly_family("SYN")
+#: What a real hourly engine trial on SYN records (engine identity is version-bound).
+ENGINE = engine_settings("SYN_HOURLY", "hourly")
 PARAMS = {"target_gain_pct": 0.01, "stop_loss_pct": 0.005, "rsi_oversold": 35,
           "vwap_zscore_thresh": -1.0, "max_trade_bars": 8}
 
@@ -180,7 +185,7 @@ class EachStage(Gate):
         self.register(family="my_fresh_start:SYN")
         rec = self.evaluate()
         self.assertEqual(rec["verdict"], admit.UNSUPPORTED)  # not the MR family at all
-        self.register(hypothesis="H9101", family="long_only_rsi_vwap_mr_hourly:OTHER")
+        self.register(hypothesis="H9101", family=mr_hourly_family("OTHER"))
         with mock.patch("src.backtest.runner.run_backtest", fake_backtest(0.004)):
             rec = admit.evaluate("H9101", now=MATURE, load_bars=flat_bars,
                                  parity=lambda: {"rows": [], "counts": {}},
@@ -274,7 +279,7 @@ class RedTeamAttacks(Gate):
         with trials.open_run(producer="sweep.py", family=FAMILY) as run:
             peek = flat_bars("SYN", "2021-07-02", "2021-11-15")
             peek.index = peek.index.tz_localize(None)
-            run.begin(params={"timeframe": "hourly", "mode": "SYN_HOURLY"},
+            run.begin(params={"timeframe": "hourly", "mode": "SYN_HOURLY", "engine": ENGINE},
                       data={"ticker": "SYN", "fingerprint": {"last_bar": str(peek.index[-1])}}
                       ).complete(metrics={})
         rec = self.evaluate()                # 2021-12-01: 150 days after the claimed date
@@ -286,7 +291,7 @@ class RedTeamAttacks(Gate):
         with mock.patch("src.research.trials._now", return_value="2021-06-01T00:00:00.000000Z"):
             with trials.open_run(producer="sweep.py", family="scratch_peek:SYN") as run:
                 for i in range(5):
-                    run.begin(params={"timeframe": "hourly", "mode": "SYN_HOURLY", "i": i},
+                    run.begin(params={"timeframe": "hourly", "mode": "SYN_HOURLY", "engine": ENGINE, "i": i},
                               data={"ticker": "SYN"}).complete(metrics={})
         self.register()
         self.examined()

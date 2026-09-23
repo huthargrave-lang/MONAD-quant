@@ -133,11 +133,13 @@ def _run(df: pd.DataFrame, ticker: str, params: dict, *, backtest_mode: str,
     trial = run.begin(
         params=engine_spec(mode, timeframe="hourly", target=params["target_gain_pct"],
                            stop=params["stop_loss_pct"], backtest_mode=backtest_mode,
-                           slippage_pct=slippage_pct),
+                           slippage_pct=slippage_pct,
+                           max_trade_bars=int(params["max_trade_bars"])),
         data=data_spec(df, ticker), extra={"stage": stage})
     with contextlib.redirect_stdout(io.StringIO()):
         try:
-            r = run_backtest(df=df.copy(), target_gain_pct=params["target_gain_pct"],
+            r = run_backtest(mode=mode, max_trade_bars=int(params["max_trade_bars"]),
+                             df=df.copy(), target_gain_pct=params["target_gain_pct"],
                              stop_loss_pct=params["stop_loss_pct"], require_signals=1,
                              timeframe="hourly", plot=False, backtest_mode=backtest_mode,
                              slippage_pct=slippage_pct)
@@ -444,7 +446,7 @@ def main(argv=None):
     ap.add_argument("--min-oos-sharpe", type=float, default=0.5)
     ap.add_argument("--min-realistic-sharpe", type=float, default=0.5)
     ap.add_argument("--family", default=None,
-                    help="ledger family (default: long_only_rsi_vwap_mr_hourly:<TICKER>, "
+                    help="ledger family (default: long_only_rsi_vwap_mr_hourly.v<ENGINE_VERSION>:<TICKER>, "
                          "shared with sweep.py and walkforward_eval)")
     ap.add_argument("--hypothesis", default=None, help="RESEARCH_WEB hypothesis id (H<n>)")
     args = ap.parse_args(argv)

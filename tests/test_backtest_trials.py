@@ -111,9 +111,53 @@ class Specs(unittest.TestCase):
         self.assertRegex(trials.spec_hash(spec), r"^[0-9a-f]{64}$")
 
     def test_every_hourly_tool_shares_one_family_per_ticker(self):
-        self.assertEqual(bt.mr_hourly_family("tqqq"), "long_only_rsi_vwap_mr_hourly:TQQQ")
+        from src.backtest.runner import ENGINE_VERSION
+        self.assertEqual(bt.mr_hourly_family("tqqq"),
+                         f"long_only_rsi_vwap_mr_hourly.v{ENGINE_VERSION}:TQQQ")
         self.assertEqual(bt.mr_family("TQQQ", "hourly"), bt.mr_hourly_family("TQQQ"))
         self.assertEqual(bt.MR_HOURLY_STRATEGY, bt.mr_hourly_family("X").split(":")[0])
+
+
+class TheSpecRecordsWhatTheEngineRuns(unittest.TestCase):
+    """Decision-debate Q4, the skeptic's conditions: the recorded spec carries the
+    engine's RESOLVED hold, regime gate and short policy plus ENGINE_VERSION, so trials on
+    engines that executed differently never pool."""
+
+    def test_the_live_mode_spec_records_the_live_hold(self):
+        from src.backtest.runner import resolve_hold
+        mode = f"{config.LIVE_SYMBOL}_HOURLY"
+        spec = bt.engine_spec(mode, timeframe="hourly", target=0.01, stop=0.005,
+                              backtest_mode="realistic", slippage_pct=None)
+        self.assertEqual(spec["engine"]["max_trade_bars"], resolve_hold(mode, "hourly"))
+        self.assertEqual(spec["engine"]["max_trade_bars"], config.MAX_TRADE_BARS_LIVE)
+        self.assertEqual(spec["engine"]["shorts_suppressed"], not config.TRADER_ALLOW_SHORTS)
+
+    def test_an_explicit_hold_is_recorded_as_passed(self):
+        spec = bt.engine_spec("QQQ_HOURLY", timeframe="hourly", target=0.01, stop=0.005,
+                              backtest_mode="realistic", slippage_pct=None, max_trade_bars=6)
+        self.assertEqual(spec["engine"]["max_trade_bars"], 6)
+
+    def test_a_new_engine_version_changes_the_hash_and_the_family(self):
+        from unittest import mock
+        import src.backtest.runner as runner
+        args = dict(timeframe="hourly", target=0.01, stop=0.005, backtest_mode="realistic",
+                    slippage_pct=None)
+        v2 = bt.engine_spec("QQQ_HOURLY", **args)
+        with mock.patch.object(runner, "ENGINE_VERSION", runner.ENGINE_VERSION + 1):
+            v3 = bt.engine_spec("QQQ_HOURLY", **args)
+            fam3 = bt.mr_family("QQQ")
+        self.assertNotEqual(trials.spec_hash(v2), trials.spec_hash(v3))
+        self.assertNotEqual(bt.mr_family("QQQ"), fam3)
+
+    def test_old_engine_trials_do_not_join_the_current_family(self):
+        rec = trials.TrialRecord(run_id="TR-20260101T000000Z-00000000", trial=0,
+                                 family="scratch:QQQ", hypothesis=None, producer="sweep.py",
+                                 code={}, spec_hash="x", status="ok", metrics={},
+                                 returns_sha=None, bundle_sha=None, opened_at="2026-01-01T00:00:00Z",
+                                 spec={"params": {"timeframe": "hourly", "mode": "QQQ_HOURLY",
+                                                  "engine": {"engine_version": 1}},
+                                       "data": {"ticker": "QQQ"}})
+        self.assertEqual(bt.family_members([rec], bt.mr_family("QQQ")), [])
 
 
 class ProcessRun(unittest.TestCase):

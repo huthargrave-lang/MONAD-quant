@@ -430,6 +430,7 @@ def main():
             try:
                 results = run_backtest(
                     df,
+                    mode="BTC_HOURLY",
                     initial_capital=config.INITIAL_CAPITAL,
                     target_gain_pct=asset_cfg["target_gain_pct"],
                     stop_loss_pct=asset_cfg["stop_loss_pct"],

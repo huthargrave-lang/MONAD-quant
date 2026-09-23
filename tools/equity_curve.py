@@ -211,6 +211,7 @@ def main():
                     data=data_spec(df, a.ticker))
                 try:
                     res = run_backtest(
+                        mode=config.ACTIVE_MODE,
                         df=df.copy(), initial_capital=config.INITIAL_CAPITAL,
                         target_gain_pct=a.target, stop_loss_pct=a.stop, require_signals=1,
                         kelly_multiplier=config.KELLY_MULTIPLIER, timeframe="hourly",

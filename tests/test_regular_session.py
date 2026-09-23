@@ -40,6 +40,10 @@ class RegularSession(unittest.TestCase):
         self.assertIsNone(out.index.tz)
         self.assertEqual(out.index[0], pd.Timestamp("2026-08-03 13:30"))
 
+    def test_weekend_bars_are_not_a_session(self):
+        df = _session("2026-08-08 13:30")   # a Saturday
+        self.assertEqual(len(regular_session(df)), 0)
+
     def test_the_utc_filter_it_replaces_keeps_only_the_morning(self):
         df = _session("2026-08-03 13:30")
         self.assertEqual(len(df.between_time("09:30", "16:00")), 3)

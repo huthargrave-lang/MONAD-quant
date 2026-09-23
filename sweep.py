@@ -99,7 +99,7 @@ parser.add_argument("--adaptive", default=None, choices=["on", "off"],
 # winner and loser, is recorded before its result exists; these only label the run.
 parser.add_argument("--family", default=None,
                     help="Ledger family this sweep's trials count toward (default: "
-                         "long_only_rsi_vwap_mr_hourly:<TICKER>, shared with walkforward_eval "
+                         "long_only_rsi_vwap_mr_hourly.v<ENGINE_VERSION>:<TICKER>, shared with walkforward_eval "
                          "and strategy_funnel). "
                          "Every variant of one idea must share a family: it is the unit that "
                          "significance is deflated over.")
@@ -307,7 +307,8 @@ _TRAIN_DATA_SPEC = _data_spec(df_raw)
 
 def _strategy_spec(target, stop, backtest_mode):
     return engine_spec(MODE_NAME, timeframe="hourly", target=target, stop=stop,
-                       backtest_mode=backtest_mode, slippage_pct=SLIPPAGE_PCT)
+                       backtest_mode=backtest_mode, slippage_pct=SLIPPAGE_PCT,
+                       max_trade_bars=config.MAX_TRADE_BARS)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -358,6 +359,7 @@ def run_quiet(target, stop, rsi_os=None, vwap=None, short_rsi_ob=None):
     try:
         with contextlib.redirect_stdout(io.StringIO()):
             result = run_backtest(
+                mode=MODE_NAME, max_trade_bars=config.MAX_TRADE_BARS,
                 df=df_raw.copy(),
                 initial_capital=config.INITIAL_CAPITAL,
                 target_gain_pct=target,
@@ -407,7 +409,12 @@ def live_score(r, stop=None, train_metrics=None):
     )
 
 
-_default_max_trade_bars = getattr(config, "MAX_TRADE_BARS", 20)
+# The untuned hold is the one the engine would resolve for this mode (the live mode holds
+# as long as the bot does; runner.resolve_hold). Phase 2 tunes config.MAX_TRADE_BARS from
+# there, and every backtest passes it explicitly so the engine and the recorded spec agree.
+from src.backtest.runner import resolve_hold
+_default_max_trade_bars = resolve_hold(MODE_NAME, "hourly")
+config.MAX_TRADE_BARS = _default_max_trade_bars
 
 
 def restore():
@@ -960,6 +967,7 @@ def _run_on_data(df, target, stop, rsi, vwap, holdout_start=None, backtest_mode=
     try:
         with contextlib.redirect_stdout(io.StringIO()):
             r = run_backtest(
+                mode=MODE_NAME, max_trade_bars=config.MAX_TRADE_BARS,
                 df=df.copy(),
                 initial_capital=config.INITIAL_CAPITAL,
                 target_gain_pct=target,

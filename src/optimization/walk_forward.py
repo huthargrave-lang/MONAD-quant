@@ -25,6 +25,7 @@ from dateutil.relativedelta import relativedelta
 from src.strategy.engine import build_features, generate_trades, compute_trade_returns
 from src.strategy.sizing import estimate_stats_from_backtest, compute_position_size
 from src.backtest import metrics
+from src.backtest.runner import resolve_hold, suppress_disallowed_shorts
 from src.research.backtest_trials import data_spec, engine_spec
 import config as _cfg
 
@@ -89,9 +90,12 @@ def _run_slice(df_slice: pd.DataFrame, rsi_oversold: int,
     # compute_trade_returns returns a DataFrame (timestamp/return/trend_regime/
     # exit_type). The optimizer needs a timestamp-indexed Series of returns for
     # _sharpe (trade-frequency annualization), concatenation, and equity sizing.
+    # The same hold resolver and short policy as run_backtest (src/backtest/runner.py),
+    # so the optimizer and the backtest cannot size the time exit differently (F28).
+    df_trades = suppress_disallowed_shorts(df_trades)
     result = compute_trade_returns(
         df_trades, target_gain_pct, stop_loss_pct,
-        max_trade_bars=_cfg.MAX_TRADE_BARS,
+        max_trade_bars=resolve_hold(_cfg.ACTIVE_MODE, "daily"),
         bar_limit_overrides=bear_limit_overrides,
     )
     return pd.Series(

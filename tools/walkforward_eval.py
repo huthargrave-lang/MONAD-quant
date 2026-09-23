@@ -78,7 +78,8 @@ def _bt(df, ticker, target, stop, rsi, cost, *, run, stage, evaluated_from=None)
         data=data_spec(df, ticker, evaluated_from), extra={"stage": stage})
     with contextlib.redirect_stdout(io.StringIO()):
         try:
-            r = run_backtest(df=df.copy(), target_gain_pct=target, stop_loss_pct=stop,
+            r = run_backtest(mode=f"{ticker}_HOURLY",
+                             df=df.copy(), target_gain_pct=target, stop_loss_pct=stop,
                              require_signals=1, timeframe="hourly", plot=False,
                              backtest_mode="realistic", slippage_pct=cost)
         except Exception as exc:
@@ -155,7 +156,7 @@ def main():
     ap.add_argument("--objective", default="ev", choices=["ev", "sharpe"])
     ap.add_argument("--folds", type=int, default=4)
     ap.add_argument("--family", default=None,
-                    help="ledger family (default: long_only_rsi_vwap_mr_hourly:<TICKER>, "
+                    help="ledger family (default: long_only_rsi_vwap_mr_hourly.v<ENGINE_VERSION>:<TICKER>, "
                          "shared with sweep.py and strategy_funnel)")
     ap.add_argument("--hypothesis", default=None, help="RESEARCH_WEB hypothesis id (H<n>)")
     args = ap.parse_args()

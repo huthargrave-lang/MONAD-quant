@@ -175,11 +175,12 @@ def _counted_backtest(df, ticker, params, cost, *, run, stage, evaluated_from=No
     trial = run.begin(
         params=engine_spec(mode, timeframe="hourly", target=params["target_gain_pct"],
                            stop=params["stop_loss_pct"], backtest_mode="realistic",
-                           slippage_pct=cost),
+                           slippage_pct=cost, max_trade_bars=int(params["max_trade_bars"])),
         data=data_spec(df, ticker, evaluated_from), extra={"stage": stage})
     with contextlib.redirect_stdout(io.StringIO()):
         try:
-            r = run_backtest(df=df.copy(), target_gain_pct=params["target_gain_pct"],
+            r = run_backtest(mode=mode, max_trade_bars=int(params["max_trade_bars"]),
+                             df=df.copy(), target_gain_pct=params["target_gain_pct"],
                              stop_loss_pct=params["stop_loss_pct"], require_signals=1,
                              timeframe="hourly", plot=False, backtest_mode="realistic",
                              slippage_pct=cost)
