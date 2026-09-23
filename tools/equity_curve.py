@@ -157,7 +157,7 @@ def main():
         import datetime
         import pandas as pd
         import config
-        from src.data.fetcher import fetch_yfinance
+        from src.data.fetcher import load_session_bars
         from src.strategy.engine import build_features
         from src.backtest.runner import run_backtest
         from src.research.backtest_trials import (data_spec, engine_spec, mr_hourly_family,
@@ -187,10 +187,10 @@ def main():
         # Everything the engine prints goes to stderr's bit bucket: stdout is the JSON channel
         # and one stray progress line would make the whole payload unparseable.
         with contextlib.redirect_stdout(io.StringIO()):
-            df = fetch_yfinance(symbol=a.ticker, start=start, end=end, interval="1h")
-            if df is None or not len(df):
-                raise RuntimeError("no bars came back for %s over that window" % a.ticker)
-            df = df.between_time("09:30", "16:00")
+            # The canonical loader (fetcher.load_session_bars): full session in New York
+            # time, chunked, density-checked. The KNOWN DUPLICATION with sweep.py this file
+            # used to carry is gone: both call the same function.
+            df = load_session_bars(a.ticker, start, end)
             if a.regimes:
                 found = find_regimes(df["close"].astype(float))
                 found["ticker"] = a.ticker

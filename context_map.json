@@ -414,7 +414,8 @@
         "tests/test_runner_metrics.py",
         "tests/test_fetcher.py",
         "tests/test_uncertainty.py",
-        "tests/test_regular_session.py"
+        "tests/test_regular_session.py",
+        "tests/test_session_filter_guard.py"
       ],
       "docs": [
         "CLAUDE.md"

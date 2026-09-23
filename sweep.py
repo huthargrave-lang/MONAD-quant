@@ -176,24 +176,31 @@ config._MODE_TO_ASSET[MODE_NAME] = MODE_NAME
 # ═══════════════════════════════════════════════════════════════════════════
 #  DATA LOADING
 # ═══════════════════════════════════════════════════════════════════════════
-from src.data.fetcher import _ensure_cache_dir, _cache_path, _cache_is_fresh, fetch_yfinance
+from src.data.fetcher import (MIN_MEDIAN_BARS_PER_DAY, _cache_is_fresh, _cache_path,
+                              _ensure_cache_dir, load_session_bars, session_density)
 from src.backtest.runner import run_backtest
 import pandas as pd
 
 def fetch_ticker_hourly(ticker, start, end):
-    """Fetch hourly data for any ticker, with caching."""
+    """Full-session hourly bars for any ticker, via the one canonical loader
+    (fetcher.load_session_bars: <=240-day chunks, New York session, density-checked).
+
+    Before decision-debate Q1 this fetched ~710 days in one request (F12: morning-only)
+    and then filtered with between_time on a UTC index (F404700: morning-only again), and
+    WROTE that panel to the shared cache walk-forward and the funnel read. A cached panel
+    is now trusted only if it is full-session (median >= 5 bars per session day)."""
     _ensure_cache_dir()
     cache_file = _cache_path(ticker, "1h")
     start_dt, end_dt = pd.Timestamp(start), pd.Timestamp(end)
 
     if os.path.exists(cache_file) and _cache_is_fresh(cache_file):
         df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
-        if len(df) > 0 and df.index[0] <= start_dt and df.index[-1] >= end_dt - timedelta(days=2):
+        if (len(df) > 0 and df.index[0] <= start_dt and df.index[-1] >= end_dt - timedelta(days=2)
+                and session_density(df) >= MIN_MEDIAN_BARS_PER_DAY):
             print(f"[cache] Loading {ticker} hourly from cache ({len(df)} bars)")
             return df.loc[start:end]
 
-    df = fetch_yfinance(symbol=ticker, start=start, end=end, interval="1h")
-    df = df.between_time("09:30", "16:00")
+    df = load_session_bars(ticker, start, end)
     df.to_csv(cache_file)
     print(f"[cache] Saved {ticker} hourly to {cache_file} ({len(df)} bars)")
     return df.loc[start:end]

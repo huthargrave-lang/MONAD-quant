@@ -79,31 +79,29 @@ class TheChunkedFixExistsTests(unittest.TestCase):
 
 
 class TheLongSpanCallSitesWereNeverConvertedTests(unittest.TestCase):
-    """Each assertion fails when that site IS converted — which is good news, and means
-    F12's 'fixed' wording finally describes the repo."""
+    """NOW ASSERTS THE OPPOSITE OF ITS NAME. The name is kept because context_map.json
+    (DENY-listed) cites it as F12's guarded_by; renaming it there needs owner sign-off.
 
-    def test_the_sweep_still_defaults_to_a_710_day_span(self):
+    Decision-debate Q1 (2026-09-22) converted them: sweep.py and instrument_screen.py
+    load hourly bars through fetcher.load_session_bars, which chunks at <= 240 days (F12's
+    fix) and filters the session in New York time (F404700). These pin the conversion."""
+
+    def test_the_sweep_loads_through_the_canonical_loader(self):
         source = _read("sweep.py")
-        self.assertIn(
-            "timedelta(days=710)", source,
-            "sweep.py's default span changed. If it was chunked or shortened, F12's "
-            "exposure through the parameter-selection tool is closed — say so in the "
-            "web rather than deleting this test.")
+        self.assertIn("load_session_bars(ticker, start, end)", source)
+        self.assertNotIn('fetch_yfinance(symbol=ticker, start=start, end=end, interval="1h")',
+                         source, "sweep.py went back to a single long hourly request")
+        self.assertNotIn("between_time", source.split("def fetch_ticker_hourly")[1].split("\ndef ")[0]
+                         .replace("filtered with between_time on a UTC index", ""))
 
-    def test_the_sweep_fetches_that_span_in_ONE_call(self):
-        source = _read("sweep.py")
-        self.assertIn('fetch_yfinance(symbol=ticker, start=start, end=end, interval="1h")',
-                      source,
-                      "sweep.py's hourly fetch changed shape — check whether it now chunks")
-        self.assertNotIn("fetch_full", source,
-                         "sweep.py now imports the chunked fetcher — the conversion may "
-                         "have happened; verify and update F12")
-
-    def test_instrument_screen_still_makes_a_710_day_single_call(self):
+    def test_instrument_screen_loads_through_the_canonical_loader(self):
         source = _read("tools/instrument_screen.py")
-        self.assertIn("timedelta(days=710)", source)
-        self.assertIn('interval="1h"', source)
-        self.assertNotIn("fetch_full", source)
+        self.assertIn("load_session_bars(ticker, start, end)", source)
+        self.assertNotIn('fetch_yfinance(ticker, start, end, interval="1h")', source)
+
+    def test_the_loader_chunks_below_the_threshold(self):
+        from src.data.fetcher import SESSION_CHUNK_DAYS
+        self.assertLessEqual(SESSION_CHUNK_DAYS, CHUNK_THRESHOLD_DAYS)
 
     def test_the_gap_study_pins_a_span_beyond_the_threshold(self):
         source = _read("tools/overnight_gap_risk_study.py")

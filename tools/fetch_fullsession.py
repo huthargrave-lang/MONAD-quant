@@ -25,7 +25,6 @@ import warnings
 warnings.filterwarnings("ignore")
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from src.data.fetcher import fetch_yfinance  # noqa: E402
 
 CACHE = os.path.join(os.path.dirname(__file__), "..", "data", "cache")
 
@@ -47,28 +46,19 @@ UNIVERSES = {
 
 
 def fetch_full(ticker, total_days=720, chunk_days=240, pause=2.0):
-    """Fetch full-session 1h bars over `total_days` via wide chunks; dedupe + sort."""
-    import pandas as pd
-    frames = []
+    """Full-session 1h bars over ``total_days``, via the canonical loader
+    (fetcher.load_session_bars). This tool used to carry its own chunked fetch, which
+    swallowed a failed chunk and wrote a silently shortened panel; the loader refuses
+    instead, and applies the New York session. Returns None when the loader refuses."""
+    from src.data.fetcher import MAX_HOURLY_LOOKBACK_DAYS, SessionDataError, load_session_bars
     end = datetime.now()
-    earliest = end - timedelta(days=total_days)
-    cur_end = end
-    while cur_end > earliest:
-        cur_start = max(cur_end - timedelta(days=chunk_days), earliest)
-        try:
-            df = fetch_yfinance(ticker, cur_start.strftime("%Y-%m-%d"),
-                                cur_end.strftime("%Y-%m-%d"), interval="1h")
-            if len(df):
-                frames.append(df)
-        except Exception as exc:
-            print(f"    chunk {cur_start.date()}..{cur_end.date()} failed: {exc}")
-        cur_end = cur_start
-        time.sleep(pause)  # be kind to yfinance
-    if not frames:
+    start = end - timedelta(days=min(total_days, MAX_HOURLY_LOOKBACK_DAYS))
+    try:
+        return load_session_bars(ticker, start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"),
+                                 pause=pause)
+    except SessionDataError as exc:
+        print(f"    {ticker}: refused: {exc}")
         return None
-    out = pd.concat(frames)
-    out = out[~out.index.duplicated(keep="first")].sort_index()
-    return out
 
 
 def main():

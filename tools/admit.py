@@ -100,11 +100,10 @@ def _verdict(stages: list[Stage]) -> str:
 def default_load_bars(symbol: str, start: str, end: str) -> pd.DataFrame:
     """Hourly regular-session bars, the session judged in New York time
     (``fetcher.regular_session``; a UTC ``between_time`` keeps only the morning)."""
-    from src.data.fetcher import fetch_yfinance, regular_session
+    from src.data.fetcher import load_session_bars
 
     with contextlib.redirect_stdout(io.StringIO()):
-        df = fetch_yfinance(symbol=symbol, start=start, end=end, interval="1h")
-    return regular_session(df)
+        return load_session_bars(symbol, start, end)
 
 
 def _utc_naive(df: pd.DataFrame) -> pd.DataFrame:

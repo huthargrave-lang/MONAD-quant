@@ -9,7 +9,7 @@ Run modes:
 import argparse
 from datetime import datetime, timedelta
 import config
-from src.data.fetcher import fetch_yfinance
+from src.data.fetcher import fetch_yfinance, load_session_bars
 from src.backtest.runner import run_backtest
 from src.research.backtest_trials import data_spec, engine_spec, mr_family, record_backtest
 from src.research.trials import open_run
@@ -110,12 +110,14 @@ def main():
         if is_crypto:
             trade_hours = None  # 24/7
         elif config.HOURLY_TRADE_FILTER:
-            # Explicit config override (e.g., a stricter intraday window)
+            # Explicit config override (e.g., a stricter intraday window). NOTE: these are
+            # UTC hours on a naive-UTC index, the F148 trap; off by default.
             trade_hours = (config.HOURLY_TRADE_HOURS_START, config.HOURLY_TRADE_HOURS_END)
         else:
-            # Default for equities: US regular trading hours (9:30–16:00 ET → bars 9-15)
-            # Matches live scheduler: CronTrigger(hour="9-15", timezone="America/New_York")
-            trade_hours = (9, 16)
+            # Equities: the session is applied ONCE, at load, in New York time
+            # (fetcher.load_session_bars). The old (9, 16) gate here compared UTC hours on
+            # a naive-UTC index and kept only the morning bars (F148, F404700).
+            trade_hours = None
     else:
         trade_hours = None
 
@@ -141,7 +143,10 @@ def main():
         bt_start = config.BACKTEST_START
         bt_end   = config.BACKTEST_END
 
-    df = fetch_yfinance(symbol=yf_symbol, start=bt_start, end=bt_end, interval=interval)
+    if interval == "1h" and not yf_symbol.endswith("-USD"):
+        df = load_session_bars(yf_symbol, bt_start, bt_end)   # full session, New York time
+    else:
+        df = fetch_yfinance(symbol=yf_symbol, start=bt_start, end=bt_end, interval=interval)
     df = df.loc[bt_start:bt_end]
     print(f"Loaded {len(df)} bars for {config.ACTIVE_MODE} ({bt_start} → {bt_end})\n")
 
