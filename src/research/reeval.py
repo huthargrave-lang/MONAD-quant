@@ -164,6 +164,11 @@ def decide(node: str, *, classification: str, action: str, evidence: str, by: st
         m = re.search(r"TR-\d{8}T\d{6}Z-[0-9a-f]{8}", evidence)
         if m is None or not (trials.LEDGER_DIR / f"{m.group(0)}.jsonl").is_file():
             raise ReevalError("a reproduced decision must cite a ledger run (TR-...) that exists")
+    if action == "narrowed":
+        cited = [n for n in re.findall(r"\b[FD]\d+\b", evidence) if n != node and n in nodes]
+        if not cited:
+            raise ReevalError("a narrowed decision must cite the Finding or Decision that "
+                              "narrows it, and that node must exist in RESEARCH_WEB.md")
     if not isinstance(by, str) or not by.strip():
         raise ReevalError("by must name who decided")
     row = {"node": node, "classification": classification, "action": action,

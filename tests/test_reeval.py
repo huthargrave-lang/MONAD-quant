@@ -116,6 +116,17 @@ class Decisions(unittest.TestCase):
             self.decide(node="F6", action="reproduced",
                         evidence="reproduced in TR-20260922T170000Z-ab12cd34")
 
+    def test_narrowed_must_cite_an_existing_other_node(self):
+        """The README says a narrowed claim cites the node that narrows it; an uncited or
+        self-cited 'narrowed' would close a positive claim on nothing."""
+        with self.assertRaises(reeval.ReevalError):
+            self.decide(action="narrowed", evidence="narrowed by a later study, trust me")
+        with self.assertRaises(reeval.ReevalError):
+            self.decide(action="narrowed", evidence="narrowed by F1 itself")
+        with self.assertRaises(reeval.ReevalError):
+            self.decide(action="narrowed", evidence="narrowed by F99999, which does not exist")
+        self.decide(action="narrowed", evidence="narrowed by F6's later measurement")
+
     def test_only_findings_in_the_web(self):
         with self.assertRaises(reeval.ReevalError):
             self.decide(node="H1")
