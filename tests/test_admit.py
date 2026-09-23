@@ -119,7 +119,7 @@ class Gate(unittest.TestCase):
             return admit.evaluate(hypothesis, now=now, load_bars=load_bars,
                                   parity=lambda: census,
                                   code=lambda: {**CLEAN, "dirty": dirty},
-                                  witness=witness, **self.dirs)
+                                  witness=witness, deploy_sha=lambda: HEAD_SHA, **self.dirs)
 
     def examined(self, hypothesis="H9100"):
         """A refuter objected and a different author refuted it: the refutation stage's
@@ -338,9 +338,26 @@ class RedTeamAttacks(Gate):
         self.examined()
         rec = self.evaluate()
         self.assertEqual(rec["verdict"], admit.ADMIT)
-        self.assertEqual(admit.verify_record(rec, prereg_dir=self.dirs["prereg_dir"]), [])
+        self.assertEqual(rec["witnessed_sha"], HEAD_SHA)
+        # HEAD stands in for the deploy branch: the witnessed commit is in its history.
+        ok = admit.verify_record(rec, prereg_dir=self.dirs["prereg_dir"], deploy_ref="HEAD")
+        self.assertEqual(ok, [])
         tampered = {**rec, "stages": rec["stages"][:-1]}
-        self.assertTrue(admit.verify_record(tampered, prereg_dir=self.dirs["prereg_dir"]))
+        self.assertTrue(admit.verify_record(tampered, prereg_dir=self.dirs["prereg_dir"],
+                                            deploy_ref="HEAD"))
+
+    def test_q5_a_rewritten_deploy_branch_invalidates_the_admit(self):
+        """The witnessed commit is not in the branch's history any more (simulated by a
+        ref that never contained it): the ADMIT stops verifying instead of passing."""
+        self.register()
+        self.examined()
+        rec = self.evaluate()
+        problems = admit.verify_record({**rec, "witnessed_sha": "f" * 40},
+                                       prereg_dir=self.dirs["prereg_dir"], deploy_ref="HEAD")
+        self.assertTrue(any("rewritten" in p for p in problems), problems)
+        missing = admit.verify_record({k: v for k, v in rec.items() if k != "witnessed_sha"},
+                                      prereg_dir=self.dirs["prereg_dir"], deploy_ref="HEAD")
+        self.assertTrue(any("witnessed" in p for p in missing), missing)
 
     def test_6_an_objection_cannot_be_answered_by_its_author(self):
         o = refutations.object_to("H9100", claim="entries fill on the signal bar",

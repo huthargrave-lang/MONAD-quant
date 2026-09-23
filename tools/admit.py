@@ -158,6 +158,20 @@ def default_witness(spec: dict, prereg_path: Path, family_runs: list) -> list[st
     return problems
 
 
+def _deploy_ref() -> str:
+    """The fully qualified remote-tracking ref of the deploy branch (a local branch named
+    "origin/development" cannot shadow it)."""
+    sys.path.insert(0, os.path.join(REPO, "tools"))
+    import ctx
+    return f"refs/remotes/origin/{ctx._manifest().get('deploy_branch', 'development')}"
+
+
+def default_deploy_sha() -> str | None:
+    """The deploy-branch commit the witness reads evidence from, or None if unfetched."""
+    r = trials._git(Path(REPO), "rev-parse", "--verify", "--quiet", _deploy_ref())
+    return r.stdout.decode().strip() or None if r.returncode == 0 else None
+
+
 def default_parity() -> dict:
     import live_backtest_parity
 
@@ -193,6 +207,7 @@ def _counted_backtest(df, ticker, params, cost, *, run, stage, evaluated_from=No
 def evaluate(hypothesis: str, *, now: _dt.datetime | None = None,
              load_bars: Callable = default_load_bars, parity: Callable = default_parity,
              code: Callable = trials.code_state, witness: Callable = default_witness,
+             deploy_sha: Callable = default_deploy_sha,
              prereg_dir=None, refutations_dir=None) -> dict:
     """Run the gate. Returns the verdict record (not yet written).
 
@@ -287,6 +302,11 @@ def evaluate(hypothesis: str, *, now: _dt.datetime | None = None,
         else seen_until + pd.Timedelta(microseconds=1)
 
     # ── witness ─────────────────────────────────────────────────────────────
+    # Decision-debate Q5: the verdict names the deploy-branch commit the evidence was
+    # witnessed on, so a later rewrite of that branch invalidates the verdict (verify_record)
+    # instead of passing silently. Branch protection (no force-push, enforce for admins) is
+    # what makes a rewrite impossible; this makes one visible if protection is ever lifted.
+    record["witnessed_sha"] = deploy_sha()
     problems = witness(spec, prereg.path_for(hypothesis, prereg_dir),
                        sorted({str(trials.LEDGER_DIR / f"{r.run_id}.jsonl") for r in searched}))
     stages.append(Stage("witness", BLOCK if problems else PASS,
@@ -433,7 +453,7 @@ ADMIT_CHAIN = ("registration", "code", "refutations", "parity", "witness", "deve
                "deflation", "cost_stress", "benchmark", "forward")
 
 
-def verify_record(record: dict, *, prereg_dir=None) -> list[str]:
+def verify_record(record: dict, *, prereg_dir=None, deploy_ref: str | None = None) -> list[str]:
     """Problems that make a verdict record untrustworthy (red-team attack 7b: a
     hand-written ADMIT file used to count). An ADMIT must be internally consistent, name
     a real gate run in the ledger for the same hypothesis and spec hash, and match the
@@ -480,7 +500,23 @@ def verify_record(record: dict, *, prereg_dir=None) -> list[str]:
             problems.append(f"registration: {exc}")
         if head is not None and not problems:
             problems += _verify_admit_evidence(record, head, spec)
+        problems += _verify_witnessed_sha(record, deploy_ref or _deploy_ref())
     return problems
+
+
+def _verify_witnessed_sha(record: dict, ref: str) -> list[str]:
+    """The deploy-branch commit an ADMIT was witnessed on must still be in that branch's
+    history. Authoritative where the ref exists (CI checks out with fetch-depth 0);
+    advisory where it does not (an unfetched local clone), unless running in CI."""
+    sha = record.get("witnessed_sha")
+    if not sha:
+        return ["an ADMIT must name the deploy-branch commit its evidence was witnessed on"]
+    repo = Path(REPO)
+    if trials._git(repo, "rev-parse", "--verify", "--quiet", ref).returncode != 0:
+        return [f"{ref} is not available to check the witnessed commit"] if os.environ.get("CI") else []
+    if trials._git(repo, "merge-base", "--is-ancestor", sha, ref).returncode != 0:
+        return [f"witnessed commit {sha[:12]} is no longer in {ref}: the branch was rewritten"]
+    return []
 
 
 def _verify_admit_evidence(record: dict, head: dict, spec: dict | None) -> list[str]:
