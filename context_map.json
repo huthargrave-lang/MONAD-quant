@@ -507,7 +507,8 @@
         "tools/trial_ledger.py",
         "tools/prereg.py",
         "tools/admit.py",
-        "tools/refute.py"
+        "tools/refute.py",
+        "tools/edge_scorecard.py"
       ],
       "entrypoints": [],
       "tests": [
@@ -544,7 +545,8 @@
         "tests/test_deflation.py",
         "tests/test_prereg.py",
         "tests/test_admit.py",
-        "tests/test_refutations.py"
+        "tests/test_refutations.py",
+        "tests/test_edge_scorecard.py"
       ],
       "docs": [
         "docs/research/README.md",
