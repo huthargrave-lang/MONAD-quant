@@ -14,6 +14,12 @@ import pandas as pd
 
 from src.strategy.engine import compute_trade_returns
 
+from tests._engine_uncounted import uncounted_module  # noqa: E402
+
+# Engine arithmetic, not a strategy evaluation: runs outside the trial ledger
+# (src/strategy/counted.py).
+setUpModule, tearDownModule = uncounted_module("fill-model arithmetic (stop slippage) on hand-built bars")
+
 TARGET = 0.02
 STOP = 0.01
 

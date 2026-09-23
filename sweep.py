@@ -95,6 +95,16 @@ parser.add_argument("--fixed-pct", type=float, default=0.10,
                     help="Capital fraction per trade when --sizing fixed (default 0.10 = live trader).")
 parser.add_argument("--adaptive", default=None, choices=["on", "off"],
                     help="Run the sweep with adaptive Kelly on/off (default: config.USE_ADAPTIVE_KELLY).")
+# Trial ledger (src/research/trials.py). Every backtest this sweep runs, train and holdout,
+# winner and loser, is recorded before its result exists; these only label the run.
+parser.add_argument("--family", default=None,
+                    help="Ledger family this sweep's trials count toward (default: "
+                         "long_only_rsi_vwap_mr_hourly.v<ENGINE_VERSION>:<TICKER>, shared with walkforward_eval "
+                         "and strategy_funnel). "
+                         "Every variant of one idea must share a family: it is the unit that "
+                         "significance is deflated over.")
+parser.add_argument("--hypothesis", default=None,
+                    help="RESEARCH_WEB hypothesis id (H<n>) this sweep tests, if one exists.")
 args = parser.parse_args()
 
 TICKER = args.ticker.upper()
@@ -166,24 +176,31 @@ config._MODE_TO_ASSET[MODE_NAME] = MODE_NAME
 # ═══════════════════════════════════════════════════════════════════════════
 #  DATA LOADING
 # ═══════════════════════════════════════════════════════════════════════════
-from src.data.fetcher import _ensure_cache_dir, _cache_path, _cache_is_fresh, fetch_yfinance
+from src.data.fetcher import (MIN_MEDIAN_BARS_PER_DAY, _cache_is_fresh, _cache_path,
+                              _ensure_cache_dir, load_session_bars, session_density)
 from src.backtest.runner import run_backtest
 import pandas as pd
 
 def fetch_ticker_hourly(ticker, start, end):
-    """Fetch hourly data for any ticker, with caching."""
+    """Full-session hourly bars for any ticker, via the one canonical loader
+    (fetcher.load_session_bars: <=240-day chunks, New York session, density-checked).
+
+    Before decision-debate Q1 this fetched ~710 days in one request (F12: morning-only)
+    and then filtered with between_time on a UTC index (F404700: morning-only again), and
+    WROTE that panel to the shared cache walk-forward and the funnel read. A cached panel
+    is now trusted only if it is full-session (median >= 5 bars per session day)."""
     _ensure_cache_dir()
     cache_file = _cache_path(ticker, "1h")
     start_dt, end_dt = pd.Timestamp(start), pd.Timestamp(end)
 
     if os.path.exists(cache_file) and _cache_is_fresh(cache_file):
         df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
-        if len(df) > 0 and df.index[0] <= start_dt and df.index[-1] >= end_dt - timedelta(days=2):
+        if (len(df) > 0 and df.index[0] <= start_dt and df.index[-1] >= end_dt - timedelta(days=2)
+                and session_density(df) >= MIN_MEDIAN_BARS_PER_DAY):
             print(f"[cache] Loading {ticker} hourly from cache ({len(df)} bars)")
             return df.loc[start:end]
 
-    df = fetch_yfinance(symbol=ticker, start=start, end=end, interval="1h")
-    df = df.between_time("09:30", "16:00")
+    df = load_session_bars(ticker, start, end)
     df.to_csv(cache_file)
     print(f"[cache] Saved {ticker} hourly to {cache_file} ({len(df)} bars)")
     return df.loc[start:end]
@@ -262,6 +279,46 @@ else:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+#  TRIAL LEDGER — every backtest below is counted before it runs
+# ═══════════════════════════════════════════════════════════════════════════
+# F2: this sweep used to pick its winner by holdout score and journal only that
+# winner, so nothing recorded how many configurations (or holdout looks) produced
+# it. Now run_quiet() and _run_on_data() write an intent row to the ledger BEFORE
+# each backtest and its outcome after, so the family's trial count includes every
+# loser and every holdout evaluation. Recording only: selection is unchanged.
+from src.research.trials import open_process_run
+from src.research.backtest_trials import (data_spec, engine_spec, mr_hourly_family,
+                                          record_backtest)
+
+LEDGER = open_process_run(
+    producer="sweep.py",
+    family=args.family or mr_hourly_family(TICKER),
+    hypothesis=args.hypothesis,
+    context={
+        "argv": sys.argv[1:], "ticker": TICKER, "start": START_DATE, "end": END_DATE,
+        "backtest_mode": args.mode, "objective": args.objective, "phase": args.phase,
+        "holdout_pct": args.holdout_pct, "min_stop_pct": MIN_STOP_PCT,
+        "est_spread": float(est_spread), "median_price": float(median_price),
+    },
+)
+print(f"  Trial ledger: {LEDGER.run_id}  (family {LEDGER.family})\n")
+
+
+def _data_spec(df, evaluated_from=None):
+    return data_spec(df, TICKER, evaluated_from)
+
+
+# The train slice is passed (copied) to every run_quiet call and never mutated.
+_TRAIN_DATA_SPEC = _data_spec(df_raw)
+
+
+def _strategy_spec(target, stop, backtest_mode):
+    return engine_spec(MODE_NAME, timeframe="hourly", target=target, stop=stop,
+                       backtest_mode=backtest_mode, slippage_pct=SLIPPAGE_PCT,
+                       max_trade_bars=config.MAX_TRADE_BARS)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 #  SWEEP ENGINE
 # ═══════════════════════════════════════════════════════════════════════════
 def _set_opposing_exit(enabled: bool):
@@ -304,9 +361,12 @@ def run_quiet(target, stop, rsi_os=None, vwap=None, short_rsi_ob=None):
     if short_rsi_ob is not None:
         _update_mode_param("RSI_OVERBOUGHT", "rsi_overbought", short_rsi_ob)
 
+    trial = LEDGER.begin(params=_strategy_spec(target, stop, args.mode), data=_TRAIN_DATA_SPEC,
+                         extra={"slice": "train"})
     try:
         with contextlib.redirect_stdout(io.StringIO()):
             result = run_backtest(
+                mode=MODE_NAME, max_trade_bars=config.MAX_TRADE_BARS,
                 df=df_raw.copy(),
                 initial_capital=config.INITIAL_CAPITAL,
                 target_gain_pct=target,
@@ -318,9 +378,11 @@ def run_quiet(target, stop, rsi_os=None, vwap=None, short_rsi_ob=None):
                 backtest_mode=args.mode,
                 slippage_pct=SLIPPAGE_PCT,   # instrument-derived round-trip cost (C3)
             )
-        return result if result else None
     except Exception as e:
+        trial.fail(f"{type(e).__name__}: {e}")
         return {"error": str(e)}
+    record_backtest(trial, result)
+    return result if result else None
 
 
 def fmt(r, label):
@@ -354,7 +416,12 @@ def live_score(r, stop=None, train_metrics=None):
     )
 
 
-_default_max_trade_bars = getattr(config, "MAX_TRADE_BARS", 20)
+# The untuned hold is the one the engine would resolve for this mode (the live mode holds
+# as long as the bot does; runner.resolve_hold). Phase 2 tunes config.MAX_TRADE_BARS from
+# there, and every backtest passes it explicitly so the engine and the recorded spec agree.
+from src.backtest.runner import resolve_hold
+_default_max_trade_bars = resolve_hold(MODE_NAME, "hourly")
+config.MAX_TRADE_BARS = _default_max_trade_bars
 
 
 def restore():
@@ -900,9 +967,14 @@ def _run_on_data(df, target, stop, rsi, vwap, holdout_start=None, backtest_mode=
     if short_rsi_ob is not None:
         _update_mode_param("RSI_OVERBOUGHT", "rsi_overbought", short_rsi_ob)
     mode_to_use = backtest_mode or args.mode
+    # A holdout look is a trial like any other: F2 was a winner chosen BY these looks.
+    trial = LEDGER.begin(params=_strategy_spec(target, stop, mode_to_use),
+                         data=_data_spec(df, holdout_start),
+                         extra={"slice": "evaluation"})
     try:
         with contextlib.redirect_stdout(io.StringIO()):
             r = run_backtest(
+                mode=MODE_NAME, max_trade_bars=config.MAX_TRADE_BARS,
                 df=df.copy(),
                 initial_capital=config.INITIAL_CAPITAL,
                 target_gain_pct=target,
@@ -1007,14 +1079,15 @@ def _run_on_data(df, target, stop, rsi, vwap, holdout_start=None, backtest_mode=
                     "trades_per_year": float(r.get("trades_per_year", 0.0) or 0.0),
                     "exit_breakdown": exit_breakdown,
                 }
-
-        if r is None:
-            return None
-        if isinstance(r, dict) and "error" in r:
-            return None
-        return r
-    except Exception:
+    except Exception as e:
+        trial.fail(f"{type(e).__name__}: {e}")
         return None
+    record_backtest(trial, r)
+    if r is None:
+        return None
+    if isinstance(r, dict) and "error" in r:
+        return None
+    return r
 
 
 # De-duplicate candidates (same params can appear from multiple sweep steps)
@@ -1649,6 +1722,9 @@ if r and "error" not in r:
                             else _sizing.mode) + ("_adaptive" if _sizing.use_adaptive else ""),
         # Reproducibility fingerprint of the train data (C7): window + content hash.
         "data": data_fingerprint(df_raw, START_DATE, END_DATE),
+        # Every backtest behind these presets, losers and holdout looks included.
+        "ledger_run": LEDGER.run_id,
+        "ledger_family": LEDGER.family,
         "selection_method": "holdout_live_score" if df_holdout is not None else "train_live_score",
         "live_trading": {
             "median_price": round(median_price, 2),
@@ -1682,6 +1758,7 @@ if r and "error" not in r:
         "robustness": bo.get("robustness", {}),
         "holdout_score": bo.get("holdout_score"),
         "train_score": bo.get("train_score"),
+        "ledger_run": LEDGER.run_id,
     }
     try:
         import subprocess as _sp

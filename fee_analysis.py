@@ -412,17 +412,37 @@ def main():
         )
         print(f"Loaded {len(df):,} bars  ({df.index[0].date()} → {df.index[-1].date()})\n")
 
+        from src.research.backtest_trials import (data_spec, engine_spec, mr_family,
+                                                  record_backtest)
+        from src.research.trials import open_run
+
         asset_cfg = config.ASSETS["BTC_HOURLY"]
-        results = run_backtest(
-            df,
-            initial_capital=config.INITIAL_CAPITAL,
-            target_gain_pct=asset_cfg["target_gain_pct"],
-            stop_loss_pct=asset_cfg["stop_loss_pct"],
-            require_signals=asset_cfg["require_signals"],
-            kelly_multiplier=config.KELLY_MULTIPLIER,
-            timeframe="hourly",
-            plot=False,
-        )
+        # A look at a strategy's performance is a counted trial (src/research/trials.py).
+        with open_run(producer="fee_analysis.py", family=mr_family("BTC-USD", "hourly"),
+                      context={"source": "binance"}) as run:
+            trial = run.begin(
+                params=engine_spec("BTC_HOURLY", timeframe="hourly",
+                                   target=asset_cfg["target_gain_pct"],
+                                   stop=asset_cfg["stop_loss_pct"], backtest_mode=None,
+                                   slippage_pct=None,
+                                   require_signals=asset_cfg["require_signals"]),
+                data=data_spec(df, "BTC-USD"))
+            try:
+                results = run_backtest(
+                    df,
+                    mode="BTC_HOURLY",
+                    initial_capital=config.INITIAL_CAPITAL,
+                    target_gain_pct=asset_cfg["target_gain_pct"],
+                    stop_loss_pct=asset_cfg["stop_loss_pct"],
+                    require_signals=asset_cfg["require_signals"],
+                    kelly_multiplier=config.KELLY_MULTIPLIER,
+                    timeframe="hourly",
+                    plot=False,
+                )
+            except Exception as exc:
+                trial.fail(f"{type(exc).__name__}: {exc}")
+                raise
+            record_backtest(trial, results)
         if not results:
             print("No trades generated.")
             return

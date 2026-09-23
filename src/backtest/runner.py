@@ -26,6 +26,7 @@ from collections import deque
 from src.strategy.engine import build_features, generate_trades, compute_trade_returns
 from src.strategy.sizing import estimate_stats_from_backtest, compute_position_size, position_fraction
 from src.backtest import metrics, uncertainty
+from src.strategy.counted import evaluator as _counted_evaluator
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -53,6 +54,62 @@ BACKTEST_MODES = {
 }
 
 
+#: What the engine executes, versioned. Bump whenever execution semantics change, so
+#: trials recorded before and after never pool into one family's search count
+#: (decision-debate Q4, 2026-09-22; src/research/backtest_trials.mr_family carries it).
+#:   1  pre-2026-09-22: shorts simulated, vol-regime gate at the engine default (True),
+#:      hold = MAX_TRADE_BARS for every mode, morning-only session data in sweeps.
+#:   2  aligned to the live bot: shorts suppressed as the trader skips them, the
+#:      configured regime flag passed through, the live mode holds MAX_TRADE_BARS_LIVE.
+ENGINE_VERSION = 2
+
+
+def resolve_hold(mode: str | None, timeframe: str, max_trade_bars: int | None = None) -> int:
+    """The time-exit hold the engine will use. One source for the runner, the recorded
+    trial spec, and walk_forward: an explicit value wins; otherwise the LIVE mode (keyed
+    exactly as live/signals.py keys it, f"{LIVE_SYMBOL}_HOURLY") holds as long as the bot
+    does, and every other mode keeps MAX_TRADE_BARS. No mode is guessed."""
+    import config
+    if max_trade_bars is not None:
+        return int(max_trade_bars)
+    if timeframe == "hourly" and mode == f"{getattr(config, 'LIVE_SYMBOL', '')}_HOURLY":
+        return int(config.MAX_TRADE_BARS_LIVE)
+    return int(getattr(config, "MAX_TRADE_BARS", 20))
+
+
+def resolve_regime_filter(timeframe: str) -> bool:
+    """The vol-regime gate the engine applies: the configured flag for the timeframe.
+    Before ENGINE_VERSION 2 this was computed and then dropped, so the engine ran at its
+    signature default (True) while the live bot passes False (F26)."""
+    import config
+    return bool(config.USE_REGIME_FILTER_HOURLY if timeframe == "hourly" else config.USE_REGIME_FILTER)
+
+
+def shorts_suppressed() -> bool:
+    """Whether short entries are dropped, mirroring live/trader.py, which computes short
+    signals and then skips them unless TRADER_ALLOW_SHORTS (config_modules/live.py).
+    ``longs_only`` is NOT this: it only scales a Kelly column and gates no entry (F26)."""
+    import config
+    return not bool(getattr(config, "TRADER_ALLOW_SHORTS", False))
+
+
+def suppress_disallowed_shorts(df_trades: pd.DataFrame) -> pd.DataFrame:
+    """Zero every short entry the live bot would skip. Returns a copy when it changes."""
+    if shorts_suppressed() and "entry_signal" in df_trades.columns and (df_trades["entry_signal"] == -1).any():
+        df_trades = df_trades.copy()
+        df_trades.loc[df_trades["entry_signal"] == -1, "entry_signal"] = 0
+    return df_trades
+
+
+def engine_settings(mode: str | None, timeframe: str, max_trade_bars: int | None = None) -> dict:
+    """The execution semantics a run with these inputs will have, for the trial record."""
+    return {"engine_version": ENGINE_VERSION,
+            "max_trade_bars": resolve_hold(mode, timeframe, max_trade_bars),
+            "use_regime_filter": resolve_regime_filter(timeframe),
+            "shorts_suppressed": shorts_suppressed()}
+
+
+@_counted_evaluator  # refuses to run without a begun trial (src/strategy/counted.py)
 def run_backtest(df: pd.DataFrame,
                  initial_capital: float = 100_000,
                  target_gain_pct: float = 0.030,
@@ -66,7 +123,9 @@ def run_backtest(df: pd.DataFrame,
                  backtest_mode: str = "realistic",
                  slippage_pct: float = None,
                  stop_slippage_pct: float = 0.0,
-                 debug: bool = False) -> dict:
+                 debug: bool = False,
+                 mode: str | None = None,
+                 max_trade_bars: int | None = None) -> dict:
     """
     Run a full backtest on historical OHLCV data.
 
@@ -74,6 +133,10 @@ def run_backtest(df: pd.DataFrame,
         backtest_mode: "optimistic" | "realistic" | "harsh" — controls slippage,
                        same-bar ambiguity, and Kelly sizing method.
         debug: When True, prints per-trade detail (entry, exit, size, slippage).
+        mode: The strategy mode being run (e.g. "TQQQ_HOURLY"); with max_trade_bars
+              unset, it decides the hold via ``resolve_hold`` (the live mode holds as
+              long as the bot does).
+        max_trade_bars: An explicit hold, for producers that tune it.
 
     Returns a dict with performance metrics and equity curve.
     """
@@ -96,19 +159,22 @@ def run_backtest(df: pd.DataFrame,
     # ── 1. Build signals ──────────────────────────────────────────────────
     print("[1/4] Building features and signals...")
     df_feat = build_features(df, timeframe=timeframe)
-    use_regime = config.USE_REGIME_FILTER_HOURLY if timeframe == "hourly" else config.USE_REGIME_FILTER
+    use_regime = resolve_regime_filter(timeframe)
     use_slope_regime = False if timeframe == "hourly" else getattr(config, "USE_SLOPE_REGIME", False)
     if getattr(config, "VERBOSE_SIGNALS", False):
         _print_signal_diagnostics(df_feat, require_signals, use_regime,
                                   getattr(config, "USE_MA_REGIME_FILTER", False),
                                   use_slope_regime=use_slope_regime)
 
-    max_trade_bars = getattr(config, "MAX_TRADE_BARS", 20)
+    max_trade_bars = resolve_hold(mode, timeframe, max_trade_bars)
     df_trades = generate_trades(df_feat,
                                 require_signals=require_signals,
+                                use_regime_filter=use_regime,
                                 target_gain_pct=target_gain_pct,
                                 stop_loss_pct=stop_loss_pct,
                                 trade_hours=trade_hours)
+    # Live computes short signals and skips them (trader.py:659-664); so does this.
+    df_trades = suppress_disallowed_shorts(df_trades)
 
     # ── ATR dynamic stops ──────────────────────────────────────────────
     # When ATR is elevated (> mult × rolling median), widen the stop to reduce

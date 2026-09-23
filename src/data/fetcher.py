@@ -249,6 +249,108 @@ def validate_ohlc(df: pd.DataFrame, symbol: str = "") -> pd.DataFrame:
     return df
 
 
+#: US equity regular session, in the exchange's own clock.
+REGULAR_SESSION = ("09:30", "16:00")
+EXCHANGE_TZ = "America/New_York"
+
+
+def regular_session(df: pd.DataFrame) -> pd.DataFrame:
+    """Keep only regular-session bars, judged in NEW YORK time.
+
+    ``fetch_yfinance`` returns a naive UTC index (it ``tz_convert(None)``s). Calling
+    ``between_time("09:30", "16:00")`` directly on that keeps 09:30-16:00 UTC, which is
+    05:30-12:00 in New York: only the 13:30/14:30/15:30 UTC bars survive, three a day,
+    the morning-only sample RESEARCH_WEB.md F13 showed manufactures a fake edge. Measured
+    2026-09-22 on QQQ 1h, Aug 1 - Sep 18 (a short fetch, so not F12's long-range quirk):
+    231 bars at 7.0/day in, 99 at 3.0/day out of the UTC filter, 231 out of this one.
+    Weekend bars are dropped too, as the live bot's market-hours check does. A tz-aware
+    index is converted; a naive one is taken to be UTC. Returns naive UTC.
+    """
+    idx = pd.DatetimeIndex(df.index)
+    local = idx.tz_convert(EXCHANGE_TZ) if idx.tz is not None else idx.tz_localize("UTC").tz_convert(EXCHANGE_TZ)
+    out = df.copy()
+    out.index = local
+    out = out.between_time(*REGULAR_SESSION, inclusive="left")
+    out = out[out.index.weekday < 5]  # no session on weekends (live/trader.py:_is_market_hours)
+    out.index = out.index.tz_convert("UTC").tz_localize(None)
+    return out
+
+
+#: yfinance serves ~730 days of 1h bars; a long single request returns morning-only bars
+#: (F12). The loader requests at most this many days per call.
+SESSION_CHUNK_DAYS = 240
+#: Oldest hourly bar yfinance will serve, in days before today, with a margin.
+MAX_HOURLY_LOOKBACK_DAYS = 729
+#: Below this MEDIAN bars per session day a panel is not full-session. Median, because
+#: half days (Black Friday, July 3) legitimately have 4 bars (fetch_fullsession's rule).
+MIN_MEDIAN_BARS_PER_DAY = 5
+
+
+class SessionDataError(ValueError):
+    """Hourly data that cannot be a full regular-session panel: refused, not trimmed."""
+
+
+def session_density(df: pd.DataFrame) -> float:
+    """Median bars per New-York session day of a regular-session panel."""
+    if df is None or not len(df):
+        return 0.0
+    idx = pd.DatetimeIndex(df.index)
+    local = idx.tz_convert(EXCHANGE_TZ) if idx.tz is not None else idx.tz_localize("UTC").tz_convert(EXCHANGE_TZ)
+    return float(pd.Series(1, index=local).groupby(local.date).size().median())
+
+
+def load_session_bars(ticker: str, start: str, end: str, *, pause: float = 1.0) -> pd.DataFrame:
+    """THE research/backtest hourly loader: full regular-session bars, New York time.
+
+    Decision-debate Q1 (2026-09-22). Two independent causes produced morning-only data:
+    a single long yfinance request (F12) and a UTC ``between_time`` (F404700). This
+    fetches in chunks of at most SESSION_CHUNK_DAYS, concatenates, drops duplicate bars,
+    applies ``regular_session``, and refuses (SessionDataError) rather than returning:
+
+      * a window reaching further back than MAX_HOURLY_LOOKBACK_DAYS (partial chunks
+        would silently shorten the panel);
+      * a crypto symbol (``-USD``): it has no session, and the filter would drop nights
+        and weekends;
+      * a panel whose median bars per session day is below MIN_MEDIAN_BARS_PER_DAY.
+
+    The live bot's fetch (live/signals.py::_fetch_recent_bars) is its fenced twin: a
+    short window of the same yfinance source, read by the same session definition.
+    Returns naive-UTC bars.
+    """
+    if ticker.upper().endswith("-USD"):
+        raise SessionDataError(f"{ticker} is a 24/7 crypto symbol; it has no regular session")
+    start_ts, end_ts = pd.Timestamp(start), pd.Timestamp(end)
+    if start_ts >= end_ts:
+        raise SessionDataError(f"empty window {start}..{end}")
+    oldest = pd.Timestamp(datetime.now().date()) - pd.Timedelta(days=MAX_HOURLY_LOOKBACK_DAYS)
+    if start_ts < oldest:
+        raise SessionDataError(
+            f"{start} is older than yfinance's hourly limit ({oldest.date()}); pick a later start "
+            f"rather than accept a silently shortened panel")
+    frames = []
+    cur = start_ts
+    while cur < end_ts:
+        nxt = min(cur + pd.Timedelta(days=SESSION_CHUNK_DAYS), end_ts)
+        chunk = fetch_yfinance(symbol=ticker, start=cur.strftime("%Y-%m-%d"),
+                               end=nxt.strftime("%Y-%m-%d"), interval="1h")
+        if chunk is not None and len(chunk):
+            frames.append(chunk)
+        cur = nxt
+        if cur < end_ts and pause:
+            time.sleep(pause)  # be kind to yfinance between chunks
+    if not frames:
+        raise SessionDataError(f"no hourly bars for {ticker} over {start}..{end}")
+    df = pd.concat(frames)
+    df = df[~df.index.duplicated(keep="last")].sort_index()
+    df = regular_session(df)
+    density = session_density(df)
+    if density < MIN_MEDIAN_BARS_PER_DAY:
+        raise SessionDataError(
+            f"{ticker} {start}..{end}: median {density:.1f} bars per session day (need "
+            f">= {MIN_MEDIAN_BARS_PER_DAY}); a morning-only panel is the F12/F13 artifact")
+    return df
+
+
 def fetch_yfinance(symbol: str, start: str, end: str, interval: str = "1d",
                    max_retries: int = 4) -> pd.DataFrame:
     """Fetch OHLCV data from yfinance with retry logic and OHLC validation.

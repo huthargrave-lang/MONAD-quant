@@ -60,6 +60,12 @@ import config  # noqa: E402
 from src.backtest.runner import BACKTEST_MODES  # noqa: E402
 from src.strategy.engine import compute_trade_returns  # noqa: E402
 
+from tests._engine_uncounted import uncounted_module  # noqa: E402
+
+# Engine arithmetic, not a strategy evaluation: runs outside the trial ledger
+# (src/strategy/counted.py).
+setUpModule, tearDownModule = uncounted_module("F19 bridge: pins the exit mechanics the finding describes, on synthetic bars")
+
 
 HORIZON = 5
 STOP = 0.005            # config.STOP_LOSS_PCT_TQQQ_HOURLY

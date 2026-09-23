@@ -23,6 +23,12 @@ import pandas as pd
 from src.optimization import walk_forward
 from src.optimization.walk_forward import _sharpe, _make_windows
 
+from tests._engine_uncounted import uncounted_module  # noqa: E402
+
+# Engine arithmetic, not a strategy evaluation: runs outside the trial ledger
+# (src/strategy/counted.py).
+setUpModule, tearDownModule = uncounted_module("direct _run_slice unit tests on synthetic bars (the optimizer test counts)")
+
 
 def _returns_over_span(values, start, periods=None, freq=None, end=None):
     """Build a trade-returns Series indexed by a datetime span.
@@ -202,10 +208,19 @@ class TestWalkForwardEndToEnd(unittest.TestCase):
         import io
         df = self._synthetic_daily()
         grid = {"rsi_oversold": [35, 40], "target_gain_pct": [0.01], "stop_loss_pct": [0.01]}
-        with contextlib.redirect_stdout(io.StringIO()):
+        import tempfile
+        from pathlib import Path
+        from src.research.trials import open_run
+        with tempfile.TemporaryDirectory() as td, \
+                open_run(producer="test", family="wf:test", ledger_dir=Path(td)) as run, \
+                contextlib.redirect_stdout(io.StringIO()):
             res = walk_forward.walk_forward_optimize(
-                df, param_grid=grid, train_months=12, test_months=3
+                df, param_grid=grid, train_months=12, test_months=3, run=run
             )
+            counted = run._n_intents
+        # Every grid point in every window, plus each window's OOS run, was counted.
+        self.assertGreater(counted, 0)
+        self.assertEqual(counted % (len(grid["rsi_oversold"]) + 1), 0)
         # May be {} if the synthetic data produced no OOS trades, but it must run.
         self.assertIsInstance(res, dict)
         if res:

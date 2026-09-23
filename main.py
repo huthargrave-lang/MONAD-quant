@@ -9,8 +9,10 @@ Run modes:
 import argparse
 from datetime import datetime, timedelta
 import config
-from src.data.fetcher import fetch_yfinance
+from src.data.fetcher import fetch_yfinance, load_session_bars
 from src.backtest.runner import run_backtest
+from src.research.backtest_trials import data_spec, engine_spec, mr_family, record_backtest
+from src.research.trials import open_run
 
 # yfinance limits hourly data to the most recent 730 days.
 _YFINANCE_HOURLY_MAX_DAYS = 730
@@ -108,12 +110,14 @@ def main():
         if is_crypto:
             trade_hours = None  # 24/7
         elif config.HOURLY_TRADE_FILTER:
-            # Explicit config override (e.g., a stricter intraday window)
+            # Explicit config override (e.g., a stricter intraday window). NOTE: these are
+            # UTC hours on a naive-UTC index, the F148 trap; off by default.
             trade_hours = (config.HOURLY_TRADE_HOURS_START, config.HOURLY_TRADE_HOURS_END)
         else:
-            # Default for equities: US regular trading hours (9:30–16:00 ET → bars 9-15)
-            # Matches live scheduler: CronTrigger(hour="9-15", timezone="America/New_York")
-            trade_hours = (9, 16)
+            # Equities: the session is applied ONCE, at load, in New York time
+            # (fetcher.load_session_bars). The old (9, 16) gate here compared UTC hours on
+            # a naive-UTC index and kept only the morning bars (F148, F404700).
+            trade_hours = None
     else:
         trade_hours = None
 
@@ -139,26 +143,49 @@ def main():
         bt_start = config.BACKTEST_START
         bt_end   = config.BACKTEST_END
 
-    df = fetch_yfinance(symbol=yf_symbol, start=bt_start, end=bt_end, interval=interval)
+    if interval == "1h" and not yf_symbol.endswith("-USD"):
+        df = load_session_bars(yf_symbol, bt_start, bt_end)   # full session, New York time
+    else:
+        df = fetch_yfinance(symbol=yf_symbol, start=bt_start, end=bt_end, interval=interval)
     df = df.loc[bt_start:bt_end]
     print(f"Loaded {len(df)} bars for {config.ACTIVE_MODE} ({bt_start} → {bt_end})\n")
 
     timeframe = "hourly" if interval == "1h" else "daily"
+    backtest_mode = getattr(config, "BACKTEST_MODE", "realistic")
+    bull_kelly = getattr(config, "BULL_KELLY_MULTIPLIER", 0.75)
 
-    results = run_backtest(
-        df=df,
-        initial_capital=config.INITIAL_CAPITAL,
-        target_gain_pct=target_gain,
-        stop_loss_pct=stop_loss,
-        require_signals=req_signals,
-        kelly_multiplier=config.KELLY_MULTIPLIER,
-        bull_kelly_multiplier=getattr(config, "BULL_KELLY_MULTIPLIER", 0.75),
-        trade_hours=trade_hours,
-        timeframe=timeframe,
-        plot=config.PLOT_RESULTS,
-        backtest_mode=getattr(config, "BACKTEST_MODE", "realistic"),
-        debug=getattr(config, "BACKTEST_DEBUG", False),
-    )
+    # Editing config.py and re-running this is a parameter search by hand, so every
+    # run is a counted trial in the same family the sweep and walk-forward use
+    # (src/research/trials.py). Recording only: the backtest itself is unchanged.
+    with open_run(producer="main.py", family=mr_family(yf_symbol, timeframe),
+                  context={"active_mode": mode, "start": bt_start, "end": bt_end}) as run:
+        trial = run.begin(
+            params=engine_spec(mode, asset_key=asset_key, timeframe=timeframe,
+                               target=target_gain, stop=stop_loss, backtest_mode=backtest_mode,
+                               slippage_pct=None, require_signals=req_signals,
+                               settings={"trade_hours": trade_hours,
+                                         "bull_kelly_multiplier": bull_kelly}),
+            data=data_spec(df, yf_symbol))
+        try:
+            results = run_backtest(
+                mode=mode,
+                df=df,
+                initial_capital=config.INITIAL_CAPITAL,
+                target_gain_pct=target_gain,
+                stop_loss_pct=stop_loss,
+                require_signals=req_signals,
+                kelly_multiplier=config.KELLY_MULTIPLIER,
+                bull_kelly_multiplier=bull_kelly,
+                trade_hours=trade_hours,
+                timeframe=timeframe,
+                plot=config.PLOT_RESULTS,
+                backtest_mode=backtest_mode,
+                debug=getattr(config, "BACKTEST_DEBUG", False),
+            )
+        except Exception as exc:
+            trial.fail(f"{type(exc).__name__}: {exc}")
+            raise
+        record_backtest(trial, results)
 
 
 if __name__ == "__main__":

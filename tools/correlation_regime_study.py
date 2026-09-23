@@ -68,6 +68,9 @@ import sys
 import numpy as np
 import pandas as pd
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src.research.significance import familywise_percentiles  # noqa: E402  one FW band definition
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import data_cache  # noqa: E402  (validated cache: never trust a stub, never write one)
 
@@ -276,8 +279,7 @@ def paired_boot12(a, b, block=BLOCK, nboot=B, seed=SEED):
     pc = lambda x, nd=3: [round(float(v), nd) for v in np.percentile(x, [2.5, 97.5])]
     # family-wise (Bonferroni over the pre-registered 12-CI tilt family) percentiles — used to
     # keep any "clearly positive" claim honest under multiple comparisons
-    afw = 0.05 / 12 / 2 * 100
-    fw = lambda x: [round(float(v), 3) for v in np.percentile(x, [afw, 100 - afw])]
+    fw = lambda x: [round(float(v), 3) for v in np.percentile(x, familywise_percentiles(12))]
     return dict(dSharpe=pc(ds), dSharpe_fw12=fw(ds), dMaxDD=pc(dd, 1),
                 prob_dd_shallower=round(float(np.mean(dd > 0)), 3))
 

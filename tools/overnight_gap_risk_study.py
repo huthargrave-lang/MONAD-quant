@@ -461,14 +461,19 @@ def simulate(
 
 def engine_crosscheck(df: pd.DataFrame, target: float, stop: float, max_bars: int) -> Dict[str, object]:
     """Prove the custom exact-stop/N+2 overlapping replay matches production."""
-    prod = compute_trade_returns(
-        df,
-        target_gain_pct=target,
-        stop_loss_pct=stop,
-        max_trade_bars=max_bars,
-        slippage_pct=SLIPPAGE,
-        worst_case_ambiguity=True,
-    ).reset_index(drop=True)
+    from src.strategy.counted import uncounted
+
+    # A byte-equality check of this study's replay against the engine: it measures the
+    # replay's fidelity, not a strategy's performance, so it is not a counted trial.
+    with uncounted("engine crosscheck of the study's own replay; no performance is measured"):
+        prod = compute_trade_returns(
+            df,
+            target_gain_pct=target,
+            stop_loss_pct=stop,
+            max_trade_bars=max_bars,
+            slippage_pct=SLIPPAGE,
+            worst_case_ambiguity=True,
+        ).reset_index(drop=True)
     ours = simulate(
         df,
         target=target,

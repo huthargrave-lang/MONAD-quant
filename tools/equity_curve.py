@@ -157,9 +157,12 @@ def main():
         import datetime
         import pandas as pd
         import config
-        from src.data.fetcher import fetch_yfinance
+        from src.data.fetcher import load_session_bars
         from src.strategy.engine import build_features
         from src.backtest.runner import run_backtest
+        from src.research.backtest_trials import (data_spec, engine_spec, mr_hourly_family,
+                                                  record_backtest)
+        from src.research.trials import open_run
     except Exception as exc:  # noqa: BLE001 — reported, not swallowed
         print(json.dumps({"error": "could not import the strategy engine: %s" % exc}))
         return 1
@@ -184,10 +187,10 @@ def main():
         # Everything the engine prints goes to stderr's bit bucket: stdout is the JSON channel
         # and one stray progress line would make the whole payload unparseable.
         with contextlib.redirect_stdout(io.StringIO()):
-            df = fetch_yfinance(symbol=a.ticker, start=start, end=end, interval="1h")
-            if df is None or not len(df):
-                raise RuntimeError("no bars came back for %s over that window" % a.ticker)
-            df = df.between_time("09:30", "16:00")
+            # The canonical loader (fetcher.load_session_bars): full session in New York
+            # time, chunked, density-checked. The KNOWN DUPLICATION with sweep.py this file
+            # used to carry is gone: both call the same function.
+            df = load_session_bars(a.ticker, start, end)
             if a.regimes:
                 found = find_regimes(df["close"].astype(float))
                 found["ticker"] = a.ticker
@@ -195,11 +198,28 @@ def main():
             df = build_features(df)
             for name, value in (("RSI_OVERSOLD", a.rsi), ("VWAP_ZSCORE_THRESH", a.vwap)):
                 setattr(config, name, value)
-            res = run_backtest(
-                df=df.copy(), initial_capital=config.INITIAL_CAPITAL,
-                target_gain_pct=a.target, stop_loss_pct=a.stop, require_signals=1,
-                kelly_multiplier=config.KELLY_MULTIPLIER, timeframe="hourly",
-                plot=False, backtest_mode=a.mode)
+            # Trying parameters from the browser is a search like any other, so each
+            # draw is a counted trial (src/research/trials.py). The spec records what
+            # the engine reads, which is not necessarily what the page asked for.
+            with open_run(producer="tools/equity_curve.py", family=mr_hourly_family(a.ticker),
+                          context={"ticker": a.ticker, "start": start, "end": end}) as run:
+                trial = run.begin(
+                    params=engine_spec(config.ACTIVE_MODE, timeframe="hourly", target=a.target,
+                                       stop=a.stop, backtest_mode=a.mode, slippage_pct=None,
+                                       settings={"requested": {"rsi_oversold": a.rsi,
+                                                               "vwap_zscore_thresh": a.vwap}}),
+                    data=data_spec(df, a.ticker))
+                try:
+                    res = run_backtest(
+                        mode=config.ACTIVE_MODE,
+                        df=df.copy(), initial_capital=config.INITIAL_CAPITAL,
+                        target_gain_pct=a.target, stop_loss_pct=a.stop, require_signals=1,
+                        kelly_multiplier=config.KELLY_MULTIPLIER, timeframe="hourly",
+                        plot=False, backtest_mode=a.mode)
+                except Exception as exc:  # noqa: BLE001 — recorded, then reported below
+                    trial.fail(f"{type(exc).__name__}: {exc}")
+                    raise
+                record_backtest(trial, res)
     except _Done as done:
         print(json.dumps(done.payload))
         return 0

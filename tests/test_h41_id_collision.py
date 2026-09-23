@@ -144,10 +144,19 @@ class AllocationConsultsTheDeployBranchTests(unittest.TestCase):
             "no IDs readable from the deploy branch — `git show origin/<branch>` "
             "failed, so allocation is back to local-only and H41's window reopens")
 
+    # Both allocation tests below pin `_branch` to the deploy branch. Without it,
+    # `remote=True` resolves the CURRENT branch, and on any named side branch next_id
+    # switches to that branch's disjoint id block (W6). The comparison then measures
+    # block-vs-dense allocation, not remote-vs-local: the next test failed on every side
+    # branch, and this one passed there for the wrong reason (a block id always differs
+    # from the dense one), so it could not see the regression it guards. Block
+    # allocation has its own tests in tests/test_web_id_blocks.py.
+    DEPLOY = ctx._manifest().get("deploy_branch", "")
+
     def test_a_stale_local_tree_does_not_reuse_a_taken_id(self):
         stale = "### D1 — something old\nbody\n"
         local_only = note.next_id(stale, "D")
-        with_remote = note.next_id(stale, "D", remote=True)
+        with_remote = note.next_id(stale, "D", remote=True, _branch=self.DEPLOY)
         self.assertEqual(local_only, "D2")
         self.assertNotEqual(
             with_remote, local_only,
@@ -163,7 +172,7 @@ class AllocationConsultsTheDeployBranchTests(unittest.TestCase):
         """This branch is far ahead of the deploy branch; allocation must not go backwards."""
         text = ctx._web_text()
         self.assertEqual(
-            note.next_id(text, "F", remote=True), note.next_id(text, "F"),
+            note.next_id(text, "F", remote=True, _branch=self.DEPLOY), note.next_id(text, "F"),
             "consulting the deploy branch changed the answer on an up-to-date tree — "
             "allocation should take the MAX of both, never the remote alone")
 

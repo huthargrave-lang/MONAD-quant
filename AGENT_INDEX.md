@@ -39,6 +39,14 @@ venv/bin/python tools/ctx.py init [--write]        # scaffold the context layer 
 venv/bin/python tools/note.py add --kind F --title "..." --body "..." [--link ID:type] [--commit]   # capture a finding into the web (dry-run by default)
 venv/bin/python tools/note.py supersede <OLD> --by <NEW> [--reason <code>] [--commit]   # mark a node superseded (write-fenced, lint-gated)
 venv/bin/python tools/note.py link <SRC> <TGT> --type <edge> [--commit]   # add ONE typed edge to an existing node (e.g. F140 H27 --type supports)
+venv/bin/python tools/trial_ledger.py stats        # trials attempted per family (every backtest, losers included) — the count results are deflated by
+venv/bin/python tools/trial_ledger.py verify [--require-closed] [--against REF]  # ledger hash chains + append-only history (CI-gated)
+venv/bin/python tools/trial_ledger.py deflate '<run_id>#<trial>'  # Deflated Sharpe of one trial against everything its family tried
+venv/bin/python tools/prereg.py template | register <spec.json> [--commit]  # freeze a hypothesis's claim, bar and holdout BEFORE testing it (immutable)
+venv/bin/python tools/refute.py object|resolve|status <H> ...  # file or answer an objection; open ones BLOCK admission, upheld ones REJECT
+venv/bin/python tools/admit.py <H> [--dry-run]    # THE admission gate: deterministic chain, immutable verdict; the only way a hypothesis becomes an edge
+venv/bin/python tools/edge_scorecard.py           # the edge hunt at a glance: registered vs admitted, objections, trials per admission
+venv/bin/python tools/reevaluate_web.py triage|next|decide  # re-evaluate Findings that predate the gate (market claims first); feeds research_backlog
 venv/bin/python tools/ctx.py brief <area> --task ".."  # ≤900-tok orientation packet (best first move)
 venv/bin/python tools/ctx.py impact <file|symbol|config.KEY>  # blast radius + ⛔ if it hits the live boundary
 venv/bin/python tools/ctx.py can_edit <file>       # edit gate ALLOW/WARN/DENY (exit 0/2/1, scriptable)

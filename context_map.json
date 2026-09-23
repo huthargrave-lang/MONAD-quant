@@ -370,7 +370,8 @@
       "files": [
         "src/strategy/engine.py",
         "src/strategy/sizing.py",
-        "config.py"
+        "config.py",
+        "src/strategy/counted.py"
       ],
       "entrypoints": [
         "src/strategy/engine.py::build_features",
@@ -383,7 +384,8 @@
         "tests/test_execution_model.py",
         "tests/test_sizing.py",
         "tests/test_compute_returns_properties.py",
-        "tests/test_fill_model.py"
+        "tests/test_fill_model.py",
+        "tests/test_counted.py"
       ],
       "docs": [
         "CLAUDE.md"
@@ -411,7 +413,9 @@
       "tests": [
         "tests/test_runner_metrics.py",
         "tests/test_fetcher.py",
-        "tests/test_uncertainty.py"
+        "tests/test_uncertainty.py",
+        "tests/test_regular_session.py",
+        "tests/test_session_filter_guard.py"
       ],
       "docs": [
         "CLAUDE.md"
@@ -502,7 +506,14 @@
         "tools/sovereign_buckets.py",
         "tools/stock_screener.py",
         "tools/sweep_runner.py",
-        "tools/ui_tokens.py"
+        "tools/ui_tokens.py",
+        "src/research/",
+        "tools/trial_ledger.py",
+        "tools/prereg.py",
+        "tools/admit.py",
+        "tools/refute.py",
+        "tools/edge_scorecard.py",
+        "tools/reevaluate_web.py"
       ],
       "entrypoints": [],
       "tests": [
@@ -531,7 +542,17 @@
         "tests/test_research_ui.py",
         "tests/test_f7_band_geometry.py",
         "tests/test_web_link_escaping.py",
-        "tests/test_screener_lab.py"
+        "tests/test_screener_lab.py",
+        "tests/test_trial_ledger.py",
+        "tests/test_backtest_trials.py",
+        "tests/test_producer_ledger_wiring.py",
+        "tests/test_significance.py",
+        "tests/test_deflation.py",
+        "tests/test_prereg.py",
+        "tests/test_admit.py",
+        "tests/test_refutations.py",
+        "tests/test_edge_scorecard.py",
+        "tests/test_reeval.py"
       ],
       "docs": [
         "docs/research/README.md",
@@ -546,7 +567,10 @@
         "docs/research/F7_band_geometry_and_search.md",
         "docs/research/F186_staleness_detector_revalidated.md",
         "docs/research/F185_narrative_traversal_rederived.md",
-        "docs/research/SCREENER_value_growth_sentiment.md"
+        "docs/research/SCREENER_value_growth_sentiment.md",
+        "docs/research/trials/README.md",
+        "docs/research/prereg/README.md",
+        "docs/research/reeval/README.md"
       ],
       "do_not_touch_without_approval": false
     },

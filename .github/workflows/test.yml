@@ -72,6 +72,29 @@ jobs:
           python tools/ctx.py health
           python tools/ctx.py web --lint
 
+      # The trial ledger is the count every significance claim is deflated by, so it
+      # must be intact and append-only. --require-closed: a committed run must have a
+      # run_close (a crashed one is sealed first, see docs/research/trials/README.md).
+      # --against: nothing already on the deploy branch may be edited or removed; the
+      # comparison is at merge-base, so a branch is judged only on what it inherited.
+      - name: Trial ledger integrity (hash chains + append-only history)
+        run: python tools/trial_ledger.py verify --require-closed --against origin/development
+
+      # A pre-registration is the bar a hypothesis is judged by, frozen before its
+      # evidence. Every registration must load, and none on the deploy branch may be
+      # edited or deleted (a changed spec is a new, refining hypothesis).
+      - name: Pre-registrations intact (load + immutable history)
+        run: python tools/prereg.py verify --against origin/development
+
+      # Admission verdicts are immutable records; refutation logs only grow. An edited
+      # verdict or a deleted objection would let a result outlive its own evidence.
+      - name: Verdicts and refutations intact (immutable / append-only)
+        run: |
+          python tools/admit.py --verify-history origin/development
+          python tools/admit.py --verify-records
+          python tools/refute.py verify --against origin/development
+          python tools/reevaluate_web.py verify --against origin/development
+
       - name: Run the full test suite (with coverage)
         run: |
           coverage run --source=src,live -m pytest tests/ -v
