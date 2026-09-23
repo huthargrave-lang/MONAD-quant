@@ -36,6 +36,11 @@ class Tiers(unittest.TestCase):
         self.assertEqual(t, {"F1": "market", "F2": "settled", "F3": "traceable",
                              "F4": "unverified", "F5": "guarded", "F6": "market"})
 
+    def test_a_guard_does_not_hide_a_market_claim(self):
+        """A test named after a finding re-checks its code claim, not edge admission."""
+        t = reeval.classify(NODES, decided={}, guarded={"F1", "F5"})
+        self.assertEqual((t["F1"], t["F5"]), ("market", "guarded"))
+
     def test_queue_puts_market_claims_first_and_skips_the_rest(self):
         t = reeval.classify(NODES, decided={}, guarded={"F5"})
         self.assertEqual(reeval.queue(t), ["F1", "F6", "F4"])

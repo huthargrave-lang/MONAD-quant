@@ -12,10 +12,13 @@ Tiers (first match wins):
 
   settled      superseded or retracted in the web; nothing to re-evaluate
   decided      has a recorded re-evaluation decision (see below)
-  guarded      a test named after it exists (tests/test_<id>_*.py): CI re-checks it
   market       mentions market performance (Sharpe, returns, edge, drawdown...) and has
                no decision: MUST be classified, because a positive edge claim now needs
-               an ADMIT verdict from tools/admit.py or an explicit "unadmitted" label
+               an ADMIT verdict from tools/admit.py or an explicit "unadmitted" label.
+               This outranks ``guarded``: a test named after a finding re-checks its CODE
+               claim, not whether an edge was admitted (18 market findings, F17 among
+               them, were hidden behind their guards until 2026-09-23)
+  guarded      a test named after it exists (tests/test_<id>_*.py): CI re-checks it
   traceable    cites evidence (an evidenced_by edge, or an Experiment/document)
   unverified   none of the above: needs evidence located, or the claim narrowed
 
@@ -46,7 +49,7 @@ REEVAL_REL = Path("docs/research/reeval")
 REEVAL_DIR = REPO / REEVAL_REL
 DECISIONS = "decisions.jsonl"
 
-TIERS = ("settled", "decided", "guarded", "market", "traceable", "unverified")
+TIERS = ("settled", "decided", "market", "guarded", "traceable", "unverified")
 CLASSIFICATIONS = ("positive_edge", "negative_or_method", "not_market")
 ACTIONS = ("admitted", "unadmitted_historical", "reproduced", "narrowed", "no_action")
 #: A positive edge claim may not be closed with "no_action": it is either admitted,
@@ -112,10 +115,10 @@ def classify(nodes: Mapping[str, dict] | None = None, *, decided: Mapping | None
             tiers[nid] = "settled"
         elif nid in decided:
             tiers[nid] = "decided"
-        elif nid in guarded:
-            tiers[nid] = "guarded"
         elif MARKET.search(text):
             tiers[nid] = "market"
+        elif nid in guarded:
+            tiers[nid] = "guarded"
         elif n.get("has_evidenced_by") or n.get("cites_experiment") or "docs/research/" in text:
             tiers[nid] = "traceable"
         else:
