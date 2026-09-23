@@ -534,7 +534,9 @@
         "tests/test_f7_band_geometry.py",
         "tests/test_web_link_escaping.py",
         "tests/test_screener_lab.py",
-        "tests/test_trial_ledger.py"
+        "tests/test_trial_ledger.py",
+        "tests/test_backtest_trials.py",
+        "tests/test_producer_ledger_wiring.py"
       ],
       "docs": [
         "docs/research/README.md",

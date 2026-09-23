@@ -29,17 +29,52 @@ tried, and no Sharpe could be deflated for it. This directory is that count.
 - **Dirty-tree runs are counted but flagged** (`run_open.code.dirty`). Only clean,
   replayable runs can serve as admission evidence.
 
+## Who writes here
+
+Every call to the engine's evaluators (`run_backtest`, `compute_trade_returns`) is counted,
+and `tests/test_producer_ledger_wiring.py` fails CI on any new one that is not:
+
+| Producer | What one trial is |
+|---|---|
+| `sweep.py` | each train backtest and each holdout/perturbation/validation look |
+| `tools/walkforward_eval.py` | each fold's grid point (selection) and each fold's OOS run |
+| `tools/strategy_funnel.py` | realistic, harsh, cost-stress, stability and its walk-forward runs |
+| `src/optimization/walk_forward.py` | each window's grid point and OOS application |
+| `main.py` | each run of the configured strategy (editing `config.py` and re-running is a search) |
+| `tools/equity_curve.py` | each curve drawn from the research UI |
+| `fee_analysis.py` | its one backtest of the configured BTC strategy |
+
+**Families.** All of these test one idea, long-only RSI/VWAP mean reversion, so they share
+one family per timeframe and instrument: `long_only_rsi_vwap_mr_<timeframe>:<SYMBOL>`
+(`src/research/backtest_trials.py::mr_family`). A count split across tools would
+undercount the search behind any single result. Pass `--family` only for a genuinely
+different idea.
+
+**`evaluated_from`** in a trial's data spec means the recorded outcome covers only trades
+at or after that bar; earlier bars were warm-up or already-seen training data.
+
+## Known gaps
+
+- Research labs that measure with their own replay code (`tools/*_lab.py`,
+  `tools/*_study.py`) do not call the engine's evaluators and are not yet counted.
+- Trials recorded on a deployed checkout (e.g. research-UI curves on the Pi) stay there,
+  untracked, until committed from that checkout.
+
 ## Writing trials
 
 ```python
+from src.research.backtest_trials import mr_hourly_family, record_backtest
 from src.research.trials import open_run
 
-with open_run(producer="sweep.py", family="sweep:TQQQ", hypothesis="H97",
+with open_run(producer="tools/my_lab.py", family=mr_hourly_family("TQQQ"), hypothesis="H97",
               context={"ticker": "TQQQ"}) as run:
     for params in grid:
-        with run.trial(params=params, data=fingerprint) as t:   # intent written here
-            result = backtest(params)                            # ...before this runs
-            t.complete(metrics={"sharpe": result.sharpe}, returns=result.trade_returns)
+        trial = run.begin(params=params, data=fingerprint)  # intent written here...
+        result = run_backtest(...)                           # ...before this runs
+        record_backtest(trial, result)                       # zero-trade / error / ok
 ```
+
+Use `backtest_trials.engine_spec(...)` and `data_spec(...)` for `params`/`data` when the
+evaluation goes through the engine, so the spec is what the engine read.
 
 `family` is the unit significance is deflated over: every variant of one idea must share it.

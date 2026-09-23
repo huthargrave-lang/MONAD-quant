@@ -25,6 +25,7 @@ from dateutil.relativedelta import relativedelta
 from src.strategy.engine import build_features, generate_trades, compute_trade_returns
 from src.strategy.sizing import estimate_stats_from_backtest, compute_position_size
 from src.backtest import metrics
+from src.research.backtest_trials import data_spec, engine_spec
 import config as _cfg
 
 
@@ -100,6 +101,28 @@ def _run_slice(df_slice: pd.DataFrame, rsi_oversold: int,
     )
 
 
+def _counted_slice(run, df_slice: pd.DataFrame, combo: dict, *, stage: str,
+                   ticker: str | None) -> pd.Series:
+    """``_run_slice``, counted in the trial-ledger ``run`` before it executes.
+
+    An exception is recorded as an ``error`` outcome and re-raised unchanged, so the
+    optimizer's behaviour on failure is exactly what it was before it was counted.
+    """
+    spec = engine_spec(
+        _cfg.ACTIVE_MODE, timeframe="daily", target=combo["target_gain_pct"],
+        stop=combo["stop_loss_pct"], backtest_mode=None, slippage_pct=None,
+        require_signals=_cfg.REQUIRE_SIGNALS,
+        settings={"path": "engine.compute_trade_returns",
+                  "signal_overrides": {"rsi_oversold": combo["rsi_oversold"]}})
+    with run.trial(params=spec, data=data_spec(df_slice, ticker), extra={"stage": stage}) as t:
+        returns = _run_slice(df_slice, rsi_oversold=combo["rsi_oversold"],
+                             target_gain_pct=combo["target_gain_pct"],
+                             stop_loss_pct=combo["stop_loss_pct"])
+        t.complete(metrics={"total_trades": int(len(returns)), "sharpe_ratio": _sharpe(returns)},
+                   returns=returns if len(returns) else None)
+    return returns
+
+
 def _make_windows(df: pd.DataFrame, train_months: int, test_months: int):
     """
     Generate (train_df, test_df) window pairs by rolling forward test_months at a time.
@@ -120,7 +143,8 @@ def _make_windows(df: pd.DataFrame, train_months: int, test_months: int):
 def walk_forward_optimize(df: pd.DataFrame,
                            param_grid: dict = None,
                            train_months: int = 18,
-                           test_months: int = 6) -> dict:
+                           test_months: int = 6,
+                           *, run, ticker: str | None = None) -> dict:
     """
     Walk-forward parameter optimization over a full price history.
 
@@ -136,6 +160,10 @@ def walk_forward_optimize(df: pd.DataFrame,
                     Defaults to DEFAULT_PARAM_GRID.
         train_months: Months of history used to select parameters.
         test_months: Months of OOS data the winning params are applied to.
+        run: The trial-ledger run (``src.research.trials.open_run``) that counts every
+             backtest: each window's full grid and its OOS application. Required on
+             purpose: a grid search that is not counted cannot be deflated.
+        ticker: Instrument label recorded with each trial's data fingerprint.
 
     Returns:
         Dict with keys: oos_trade_returns, per_window_params, summary_stats, window_table.
@@ -181,24 +209,16 @@ def walk_forward_optimize(df: pd.DataFrame,
         best_sharpe = -np.inf
         best_combo  = combos[0]
         for combo in combos:
-            train_returns = _run_slice(
-                train_df,
-                rsi_oversold=combo["rsi_oversold"],
-                target_gain_pct=combo["target_gain_pct"],
-                stop_loss_pct=combo["stop_loss_pct"],
-            )
+            train_returns = _counted_slice(run, train_df, combo,
+                                           stage=f"window{w_idx + 1}:select", ticker=ticker)
             s = _sharpe(train_returns)
             if s > best_sharpe:
                 best_sharpe = s
                 best_combo  = combo
 
         # ── Apply best params to OOS test window ─────────────────────────────
-        oos_returns = _run_slice(
-            test_df,
-            rsi_oversold=best_combo["rsi_oversold"],
-            target_gain_pct=best_combo["target_gain_pct"],
-            stop_loss_pct=best_combo["stop_loss_pct"],
-        )
+        oos_returns = _counted_slice(run, test_df, best_combo,
+                                     stage=f"window{w_idx + 1}:oos", ticker=ticker)
 
         oos_sharpe = _sharpe(oos_returns)
         oos_wr     = (oos_returns > 0).mean() if len(oos_returns) else float("nan")

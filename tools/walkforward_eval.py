@@ -12,6 +12,10 @@ leakage — they are an honest read on whether an edge survives out of sample.
 Uses cached hourly OHLCV, the live FIXED 10% sizing, and the C3 round-trip cost
 baked into every trade. Reports per-fold selected params + aggregate OOS metrics.
 
+Every backtest (each fold's grid of selection runs and its OOS run) is recorded in the
+trial ledger (src/research/trials.py) before it runs. ``walkforward`` therefore takes
+the ledger ``run`` as a required argument: a caller cannot evaluate without counting.
+
 Usage:
     venv/bin/python tools/walkforward_eval.py TQQQ TNA LABU [--objective ev|sharpe] [--folds 5]
 """
@@ -31,6 +35,9 @@ from src.backtest.runner import run_backtest
 from src.backtest import metrics
 from src.optimization.sweep_scoring import ev_score, live_score
 from src.optimization.sweep_costs import estimate_spread, round_trip_cost_pct
+from src.research.backtest_trials import (data_spec, engine_spec, mr_hourly_family,
+                                          record_backtest)
+from src.research.trials import open_run
 
 # Small, fixed candidate grid (target, stop, rsi_oversold). 2:1 R:R family.
 GRID = [(t, t / 2, rsi)
@@ -62,18 +69,28 @@ def _configure(ticker, target, stop, rsi):
     config.USE_ADAPTIVE_KELLY = False
 
 
-def _bt(df, ticker, target, stop, rsi, cost):
+def _bt(df, ticker, target, stop, rsi, cost, *, run, stage, evaluated_from=None):
+    """One realistic backtest, counted in ``run`` before it executes."""
     _configure(ticker, target, stop, rsi)
+    trial = run.begin(
+        params=engine_spec(f"{ticker}_HOURLY", timeframe="hourly", target=target, stop=stop,
+                           backtest_mode="realistic", slippage_pct=cost),
+        data=data_spec(df, ticker, evaluated_from), extra={"stage": stage})
     with contextlib.redirect_stdout(io.StringIO()):
         try:
-            return run_backtest(df=df.copy(), target_gain_pct=target, stop_loss_pct=stop,
-                                require_signals=1, timeframe="hourly", plot=False,
-                                backtest_mode="realistic", slippage_pct=cost)
-        except Exception:
+            r = run_backtest(df=df.copy(), target_gain_pct=target, stop_loss_pct=stop,
+                             require_signals=1, timeframe="hourly", plot=False,
+                             backtest_mode="realistic", slippage_pct=cost)
+        except Exception as exc:
+            trial.fail(f"{type(exc).__name__}: {exc}")
             return None
+    record_backtest(trial, r, evaluated_from=evaluated_from)
+    return r
 
 
-def walkforward(df, ticker, objective="ev", n_folds=4, min_train_frac=0.5):
+def walkforward(df, ticker, objective="ev", n_folds=4, min_train_frac=0.5, *, run):
+    """Leak-free expanding-window walk-forward. ``run`` is the trial-ledger run every
+    backtest is counted in (``trials.open_run``); it is required on purpose."""
     cost = round_trip_cost_pct(estimate_spread(float(df["close"].median()), None),
                                float(df["close"].median()))
     score_fn = ev_score if objective == "ev" else live_score
@@ -87,7 +104,8 @@ def walkforward(df, ticker, objective="ev", n_folds=4, min_train_frac=0.5):
         # ── Select params on prior data only (df[:tr_end]) ──
         best = (-1e9, None)
         for (t, s, rsi) in GRID:
-            r = _bt(df.iloc[:tr_end], ticker, t, s, rsi, cost)
+            r = _bt(df.iloc[:tr_end], ticker, t, s, rsi, cost,
+                    run=run, stage=f"fold{k + 1}:select")
             sc = score_fn(r) if r else -9999
             if sc > best[0]:
                 best = (sc, (t, s, rsi))
@@ -96,7 +114,8 @@ def walkforward(df, ticker, objective="ev", n_folds=4, min_train_frac=0.5):
         #    .shift(1)), keep only trades AFTER the train boundary. The params never
         #    saw post-tr_end data, so these trades are genuine OOS. ──
         train_end_ts = df.index[tr_end - 1]
-        r_full = _bt(df.iloc[:te_end], ticker, t, s, rsi, cost)
+        r_full = _bt(df.iloc[:te_end], ticker, t, s, rsi, cost,
+                     run=run, stage=f"fold{k + 1}:oos", evaluated_from=df.index[tr_end])
         oos = pd.Series(dtype=float)
         if r_full and len(r_full.get("trade_returns", [])):
             tr = r_full["trade_returns"]
@@ -135,6 +154,10 @@ def main():
     ap.add_argument("tickers", nargs="+")
     ap.add_argument("--objective", default="ev", choices=["ev", "sharpe"])
     ap.add_argument("--folds", type=int, default=4)
+    ap.add_argument("--family", default=None,
+                    help="ledger family (default: long_only_rsi_vwap_mr_hourly:<TICKER>, "
+                         "shared with sweep.py and strategy_funnel)")
+    ap.add_argument("--hypothesis", default=None, help="RESEARCH_WEB hypothesis id (H<n>)")
     args = ap.parse_args()
 
     cache = os.path.join(os.path.dirname(__file__), "..", "data", "cache")
@@ -148,7 +171,12 @@ def main():
         if not os.path.exists(path):
             print(f"{tk:<6} (no cached data at {path})"); continue
         df = pd.read_csv(path, index_col=0, parse_dates=True)
-        res, picks = walkforward(df, tk, objective=args.objective, n_folds=args.folds)
+        with open_run(producer="tools/walkforward_eval.py",
+                      family=args.family or mr_hourly_family(tk), hypothesis=args.hypothesis,
+                      context={"ticker": tk, "objective": args.objective, "folds": args.folds,
+                               "grid": GRID}) as run:
+            res, picks = walkforward(df, tk, objective=args.objective, n_folds=args.folds,
+                                     run=run)
         if "error" in res:
             print(f"{tk:<6} {res['error']}"); continue
         print(f"{tk:<6}{res['oos_trades']:>7}{res['win_rate_pct']:>6}{res['total_return_pct']:>7}"

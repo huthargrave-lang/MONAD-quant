@@ -11,6 +11,8 @@ from datetime import datetime, timedelta
 import config
 from src.data.fetcher import fetch_yfinance
 from src.backtest.runner import run_backtest
+from src.research.backtest_trials import data_spec, engine_spec, mr_family, record_backtest
+from src.research.trials import open_run
 
 # yfinance limits hourly data to the most recent 730 days.
 _YFINANCE_HOURLY_MAX_DAYS = 730
@@ -144,21 +146,40 @@ def main():
     print(f"Loaded {len(df)} bars for {config.ACTIVE_MODE} ({bt_start} → {bt_end})\n")
 
     timeframe = "hourly" if interval == "1h" else "daily"
+    backtest_mode = getattr(config, "BACKTEST_MODE", "realistic")
+    bull_kelly = getattr(config, "BULL_KELLY_MULTIPLIER", 0.75)
 
-    results = run_backtest(
-        df=df,
-        initial_capital=config.INITIAL_CAPITAL,
-        target_gain_pct=target_gain,
-        stop_loss_pct=stop_loss,
-        require_signals=req_signals,
-        kelly_multiplier=config.KELLY_MULTIPLIER,
-        bull_kelly_multiplier=getattr(config, "BULL_KELLY_MULTIPLIER", 0.75),
-        trade_hours=trade_hours,
-        timeframe=timeframe,
-        plot=config.PLOT_RESULTS,
-        backtest_mode=getattr(config, "BACKTEST_MODE", "realistic"),
-        debug=getattr(config, "BACKTEST_DEBUG", False),
-    )
+    # Editing config.py and re-running this is a parameter search by hand, so every
+    # run is a counted trial in the same family the sweep and walk-forward use
+    # (src/research/trials.py). Recording only: the backtest itself is unchanged.
+    with open_run(producer="main.py", family=mr_family(yf_symbol, timeframe),
+                  context={"active_mode": mode, "start": bt_start, "end": bt_end}) as run:
+        trial = run.begin(
+            params=engine_spec(mode, asset_key=asset_key, timeframe=timeframe,
+                               target=target_gain, stop=stop_loss, backtest_mode=backtest_mode,
+                               slippage_pct=None, require_signals=req_signals,
+                               settings={"trade_hours": trade_hours,
+                                         "bull_kelly_multiplier": bull_kelly}),
+            data=data_spec(df, yf_symbol))
+        try:
+            results = run_backtest(
+                df=df,
+                initial_capital=config.INITIAL_CAPITAL,
+                target_gain_pct=target_gain,
+                stop_loss_pct=stop_loss,
+                require_signals=req_signals,
+                kelly_multiplier=config.KELLY_MULTIPLIER,
+                bull_kelly_multiplier=bull_kelly,
+                trade_hours=trade_hours,
+                timeframe=timeframe,
+                plot=config.PLOT_RESULTS,
+                backtest_mode=backtest_mode,
+                debug=getattr(config, "BACKTEST_DEBUG", False),
+            )
+        except Exception as exc:
+            trial.fail(f"{type(exc).__name__}: {exc}")
+            raise
+        record_backtest(trial, results)
 
 
 if __name__ == "__main__":

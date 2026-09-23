@@ -432,6 +432,38 @@ class open_run:
         return False
 
 
+def open_process_run(**kwargs) -> Run:
+    """Open a run that lives as long as the process: for top-level scripts.
+
+    ``sweep.py`` does its work at module level, so there is no block to put a
+    ``with`` around. This opens the run immediately and closes it at interpreter
+    exit: ``aborted`` if an uncaught exception (KeyboardInterrupt included) reached
+    ``sys.excepthook``, ``complete`` otherwise. A process killed outright leaves the
+    run unclosed, which ``seal`` repairs and which never loses a counted trial.
+    Takes the same keyword arguments as ``open_run``.
+    """
+    import atexit
+
+    ctx = open_run(**kwargs)
+    run = ctx.__enter__()
+    failure: list = []
+    previous_hook = sys.excepthook
+
+    def hook(exc_type, exc, tb):
+        failure.append(exc)
+        previous_hook(exc_type, exc, tb)
+
+    def close():
+        if run._closed:
+            return
+        err = failure[0] if failure else None
+        ctx.__exit__(type(err) if err is not None else None, err, None)
+
+    sys.excepthook = hook
+    atexit.register(close)
+    return run
+
+
 # ── artifacts ────────────────────────────────────────────────────────────────
 def write_bundle(artifacts_dir: Path, returns: Mapping[str, list]) -> str:
     """Write a content-addressed gzip bundle of return series; return its sha.
