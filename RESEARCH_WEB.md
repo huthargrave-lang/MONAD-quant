@@ -3831,3 +3831,13 @@ _— captured claude/monetizing-repositories-03e341@6a0df98, 2026-09-22_
 The first hypothesis run through the accountable workflow. Candidate: the engine-v2 TQQQ sweep's selected config (target 2.0%, stop 0.4%, RSI<80, VWAP z 0.8, hold 10 bars), frozen in docs/research/prereg/ before any forward bar exists. Evidence so far: the sweep that chose it (362 trials in long_only_rsi_vwap_mr_hourly.v2:TQQQ, holdout-assisted selection, F2) and a leak-free walk-forward of the same family at +0.32%/mo, Sharpe 1.31 over 813 OOS trades (F404702). What would falsify it: the admission gate (tools/admit.py) REJECTs on the deflated development Sharpe against the family's whole search, on 2x cost, on Calmar vs buy&hold, or on the 180-day forward window (P(forward Sharpe > 0) < 0.90). Prior record argues against it: every earlier hourly edge on this strategy was an artifact (F13, F43, D6).
 Links: [[F404702|builds_on]] · [[F43|relates]] · [[D6|relates]].
 _— captured claude/monetizing-repositories-03e341@4bf77f6, 2026-09-23_
+
+### F404703 — H404700 REJECTED: statistics admitted an execution artifact; three live/backtest execution gaps govern every engine number
+A three-agent board (docs/research/refutations/boards/H404700.json) ruled on the refuter's five objections to H404700. It upheld three, 3-0, all execution-model gaps between compute_trade_returns and the live bot:
+(O1) TP/SL scanning starts at bar N+2, while live bracket children are active from the fill in N+1 (D6: 64.6% of entries touch a bracket in the entry hour).
+(O2) Stops fill exactly at the stop price. Every one of the candidate's losses is -0.47365%, and none is ever worse, despite overnight holds on a 3x ETF (D6: gap-through fills alone take -5.17% to -10.15%).
+(O3) There is no one-position gate: 61.9% of entries come within an hour of the previous one (D6: one-position replay halves the trades).
+O4 (2-1) and O5 (3-0) were refuted as immaterial or caveats, but F404702 must not be cited as OOS evidence for the frozen config.
+tools/admit.py H404700: REJECT. The lesson is that DEFLATION, 2x COST STRESS and CALMAR-vs-BUY&HOLD ALL PASSED (DSR 0.9999 at N_eff 29 of 363 trials; Calmar 11.0 vs 2.26). Statistical deflation cannot catch a fill model that is optimistic in the same direction on every trade. The adversarial refutation stage is what did. Every engine backtest, v2 included, shares O1-O3, so every published engine number is an upper bound until the execution model matches live (an engine v3 decision).
+Links: [[H404700|contradicts]] · [[F404702|relates]] · [[D6|evidenced_by]].
+_— captured claude/monetizing-repositories-03e341@349654e, 2026-09-23_
