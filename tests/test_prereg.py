@@ -6,6 +6,7 @@ after the evidence arrives, and if the trials it is judged by cannot be relabell
 of its family. Each of those is pinned here.
 """
 import copy
+import datetime as dt
 import json
 import subprocess
 import sys
@@ -26,7 +27,11 @@ SPEC = {
     "claim": "Hourly RSI/VWAP dips on TQQQ mean-revert enough to beat costs after the search.",
     "profile": "price_strategy",
     "universe": ["TQQQ"],
-    "development_window": {"start": "2024-01-01", "end": "2026-01-01"},
+    # Relative to today: registrations in these tests happen at the real clock, and a
+    # window must still be re-fetchable when the forward window matures (see
+    # test_a_development_window_the_gate_could_not_refetch_is_refused).
+    "development_window": {"start": (dt.date.today() - dt.timedelta(days=300)).isoformat(),
+                           "end": (dt.date.today() - dt.timedelta(days=1)).isoformat()},
     "metric": "deflated_sharpe",
     "threshold": 0.95,
     "min_trades": 30,
@@ -70,7 +75,7 @@ class Validation(unittest.TestCase):
 
     def test_bad_window_and_ids(self):
         self.assertTrue(prereg.validate(_spec(development_window={"start": "2026-01-01",
-                                                                  "end": "2024-01-01"})))
+                                                                  "end": "2024-01-01"})))  # reversed
         self.assertTrue(prereg.validate(_spec(hypothesis="F3")))
         self.assertTrue(prereg.validate(_spec(family="has space")))
 
@@ -85,15 +90,26 @@ class Registration(unittest.TestCase):
 
     def test_register_then_load_round_trips_with_a_stable_hash(self):
         path, h = prereg.register(SPEC, prereg_dir=self.dir, check_web=False,
-                                  now="2026-09-22T00:00:00Z")
+                                  now=dt.date.today().isoformat() + "T00:00:00Z")
         record, h2 = prereg.load("H9001", prereg_dir=self.dir)
         self.assertEqual(h, h2)
-        self.assertEqual(record["registered_at"], "2026-09-22T00:00:00Z")
+        self.assertEqual(record["registered_at"], dt.date.today().isoformat() + "T00:00:00Z")
         self.assertIn("sha", record["registered_from"])
 
     def test_development_evidence_must_predate_registration(self):
         with self.assertRaises(prereg.PreregError):
-            prereg.register(SPEC, prereg_dir=self.dir, check_web=False, now="2025-06-01T00:00:00Z")
+            prereg.register(SPEC, prereg_dir=self.dir, check_web=False,
+                            now=(dt.date.today() - dt.timedelta(days=30)).isoformat() + "T00:00:00Z")
+
+    def test_a_development_window_the_gate_could_not_refetch_is_refused(self):
+        """Hourly bars are served for ~729 days; the gate re-runs the development window
+        when the forward window matures, so the window must still be fetchable then."""
+        with self.assertRaises(prereg.PreregError):
+            # matures 2025-11-29; bars before 2023-11-30 are gone by then
+            prereg.register(_spec(development_window={"start": "2023-06-01", "end": "2025-06-01"}),
+                            prereg_dir=self.dir, check_web=False, now="2025-06-02T00:00:00Z")
+        prereg.register(_spec(development_window={"start": "2024-12-01", "end": "2025-06-01"}),
+                        prereg_dir=self.dir, check_web=False, now="2025-06-02T00:00:00Z")
 
     def test_never_overwrites(self):
         prereg.register(SPEC, prereg_dir=self.dir, check_web=False)

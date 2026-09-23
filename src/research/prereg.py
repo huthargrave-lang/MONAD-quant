@@ -179,6 +179,21 @@ def register(spec: Mapping[str, Any], *, prereg_dir: Path | None = None,
     if spec["development_window"]["end"] > record["registered_at"][:10]:
         raise PreregError("development_window ends after registered_at: the development "
                           "evidence must exist before the spec is frozen")
+    if spec["profile"] == "price_strategy" and spec["holdout"]["kind"] == "forward_paper":
+        # The gate re-fetches the development window when the forward window matures, from
+        # a vendor that keeps only ~MAX_HOURLY_LOOKBACK_DAYS of hourly bars. A window older
+        # than that by maturity could never be re-run, so the hypothesis could never be
+        # admitted: refuse it now rather than six months from now. (Frozen data snapshots,
+        # the plan's DS# item, would remove this limit.)
+        from src.data.fetcher import MAX_HOURLY_LOOKBACK_DAYS
+        matures = _dt.date.fromisoformat(record["registered_at"][:10]) + _dt.timedelta(
+            days=spec["holdout"]["min_days"])
+        oldest = matures - _dt.timedelta(days=MAX_HOURLY_LOOKBACK_DAYS)
+        if _dt.date.fromisoformat(spec["development_window"]["start"]) < oldest:
+            raise PreregError(
+                f"development_window starts {spec['development_window']['start']}, but when the "
+                f"forward window matures ({matures}) hourly bars before {oldest} can no longer be "
+                f"fetched, so the gate could not re-run it; start on or after {oldest}")
     target = path_for(hyp, prereg_dir)
     target.parent.mkdir(parents=True, exist_ok=True)
     data = (canonical_json(record) + "\n").encode("utf-8")
