@@ -393,6 +393,16 @@ class open_run:
             raise LedgerError(f"family {family!r} must match {_FAMILY.pattern}")
         if hypothesis is not None and not _HYPOTHESIS.match(hypothesis):
             raise LedgerError(f"hypothesis {hypothesis!r} must look like H<n>")
+        if hypothesis is not None:
+            # A registered hypothesis's trials must land in its registered family, or a
+            # relabelled sweep would escape the count its registration is judged by.
+            from src.research import prereg  # lazy: prereg imports this module
+            reg = prereg.path_for(hypothesis)
+            if reg.exists():
+                registered_family = json.loads(reg.read_text(encoding="utf-8")).get("family")
+                if registered_family != family:
+                    raise LedgerError(f"{hypothesis} is registered to family "
+                                      f"{registered_family!r}, not {family!r}")
         self.producer = producer
         self.family = family
         self.hypothesis = hypothesis

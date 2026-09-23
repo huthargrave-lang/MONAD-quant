@@ -42,6 +42,7 @@ venv/bin/python tools/note.py link <SRC> <TGT> --type <edge> [--commit]   # add 
 venv/bin/python tools/trial_ledger.py stats        # trials attempted per family (every backtest, losers included) — the count results are deflated by
 venv/bin/python tools/trial_ledger.py verify [--require-closed] [--against REF]  # ledger hash chains + append-only history (CI-gated)
 venv/bin/python tools/trial_ledger.py deflate '<run_id>#<trial>'  # Deflated Sharpe of one trial against everything its family tried
+venv/bin/python tools/prereg.py template | register <spec.json> [--commit]  # freeze a hypothesis's claim, bar and holdout BEFORE testing it (immutable)
 venv/bin/python tools/ctx.py brief <area> --task ".."  # ≤900-tok orientation packet (best first move)
 venv/bin/python tools/ctx.py impact <file|symbol|config.KEY>  # blast radius + ⛔ if it hits the live boundary
 venv/bin/python tools/ctx.py can_edit <file>       # edit gate ALLOW/WARN/DENY (exit 0/2/1, scriptable)

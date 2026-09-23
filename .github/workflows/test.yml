@@ -80,6 +80,12 @@ jobs:
       - name: Trial ledger integrity (hash chains + append-only history)
         run: python tools/trial_ledger.py verify --require-closed --against origin/development
 
+      # A pre-registration is the bar a hypothesis is judged by, frozen before its
+      # evidence. Every registration must load, and none on the deploy branch may be
+      # edited or deleted (a changed spec is a new, refining hypothesis).
+      - name: Pre-registrations intact (load + immutable history)
+        run: python tools/prereg.py verify --against origin/development
+
       - name: Run the full test suite (with coverage)
         run: |
           coverage run --source=src,live -m pytest tests/ -v

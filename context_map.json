@@ -504,7 +504,8 @@
         "tools/sweep_runner.py",
         "tools/ui_tokens.py",
         "src/research/",
-        "tools/trial_ledger.py"
+        "tools/trial_ledger.py",
+        "tools/prereg.py"
       ],
       "entrypoints": [],
       "tests": [
@@ -538,7 +539,8 @@
         "tests/test_backtest_trials.py",
         "tests/test_producer_ledger_wiring.py",
         "tests/test_significance.py",
-        "tests/test_deflation.py"
+        "tests/test_deflation.py",
+        "tests/test_prereg.py"
       ],
       "docs": [
         "docs/research/README.md",
@@ -554,7 +556,8 @@
         "docs/research/F186_staleness_detector_revalidated.md",
         "docs/research/F185_narrative_traversal_rederived.md",
         "docs/research/SCREENER_value_growth_sentiment.md",
-        "docs/research/trials/README.md"
+        "docs/research/trials/README.md",
+        "docs/research/prereg/README.md"
       ],
       "do_not_touch_without_approval": false
     },
