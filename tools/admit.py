@@ -385,11 +385,8 @@ def evaluate(hypothesis: str, *, now: _dt.datetime | None = None,
                                 f"{len(scored)} forward trades (need {h['min_trades']})",
                                 {"trial": fwd_key}))
         else:
-            pnl = sig.active_span(sig.daily_pnl({"f": scored})["f"])
             try:
-                m = sig.sharpe_moments(pnl)
-                psr = sig.probabilistic_sharpe(m.sharpe, 0.0, n_obs=m.n_obs, skew=m.skew,
-                                               kurtosis=m.kurtosis)
+                psr = forward_psr(scored)
             except ValueError as exc:
                 stages.append(Stage("forward", FAIL, f"forward returns are degenerate: {exc}"))
             else:
@@ -399,6 +396,15 @@ def evaluate(hypothesis: str, *, now: _dt.datetime | None = None,
                                     {"trial": fwd_key, "psr": psr}))
 
     return {**record, "verdict": _verdict(stages), "stages": [asdict(s) for s in stages]}
+
+
+def forward_psr(scored: pd.Series) -> float:
+    """P(forward Sharpe > 0) for per-trade forward returns: the forward stage's statistic,
+    on the same daily-PnL active-span basis as the development deflation."""
+    pnl = sig.active_span(sig.daily_pnl({"f": scored})["f"])
+    m = sig.sharpe_moments(pnl)
+    return sig.probabilistic_sharpe(m.sharpe, 0.0, n_obs=m.n_obs, skew=m.skew,
+                                    kurtosis=m.kurtosis)
 
 
 def bt_scored(series, evaluated_from) -> pd.Series:

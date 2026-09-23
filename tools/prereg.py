@@ -33,7 +33,7 @@ TEMPLATE = {
     "metric": "deflated_sharpe",
     "threshold": prereg.MIN_THRESHOLD,
     "min_trades": prereg.MIN_TRADES_FLOOR,
-    "holdout": {"kind": "forward_paper", "min_days": 90, "min_trades": 30, "min_psr": 0.8},
+    "holdout": {"kind": "forward_paper", "min_days": 180, "min_trades": 30, "min_psr": 0.9},
     "cost_model": {"round_trip_cost_pct": "instrument-derived (sweep_costs.round_trip_cost_pct)"},
     # The frozen candidate the admission gate re-runs: exactly these five keys.
     "params": {"target_gain_pct": 0.01, "stop_loss_pct": 0.005, "rsi_oversold": 35,

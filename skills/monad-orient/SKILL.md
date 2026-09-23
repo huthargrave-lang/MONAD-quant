@@ -179,6 +179,7 @@ Rules the tools cannot enforce, so you must:
   before it must already be on the deploy branch (the `witness` stage), where CI's history
   checks protect them. Push them and get them merged (never merge yourself), then run the
   gate. Until then it BLOCKS, correctly.
+- **Forward floors:** at least 180 days and P(forward Sharpe > 0) >= 0.90 (noise passes ~12%, a Sharpe-3 edge ~80%).
 - **The forward window starts after the last bar any family trial has seen.** Peeking at
   recent bars, or backdating a registration, only pushes the window later.
 - **Check the scorecard each cycle:** `python3 tools/edge_scorecard.py`. Many registrations

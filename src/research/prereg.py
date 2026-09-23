@@ -43,13 +43,26 @@ PREREG_DIR = REPO / PREREG_REL
 #: strictly than the repo's floor, never more leniently.
 MIN_THRESHOLD = 0.95
 MIN_TRADES_FLOOR = 30
-MIN_FORWARD_DAYS_FLOOR = 60
+MIN_FORWARD_DAYS_FLOOR = 180
 #: The forward window is a single pre-registered test (N = 1), so its DSR is its PSR
-#: against zero. Floor: P(forward Sharpe > 0) >= 0.80. Measured power at that floor over
-#: 90 trading days: a true annual Sharpe of 3 passes ~96% of the time, 2 ~88%, 1 ~77%;
-#: pure noise passes ~20%, which the development-window DSR gate in front of it has
-#: already cut by an order of magnitude. A registration may demand more, never less.
-MIN_FORWARD_PSR_FLOOR = 0.80
+#: against zero. Floor: P(forward Sharpe > 0) >= 0.90 over >= 180 calendar days
+#: (~125 trading days). Decision-debate Q3 (2026-09-22).
+#:
+#: What the floor buys, as the probability of PASSING (not the expected PSR, which an
+#: earlier version of this comment quoted by mistake: it read "Sharpe 3 passes ~96%"),
+#: under normal daily returns, P = Phi(S/sqrt(252) * sqrt(T) - z_floor):
+#:
+#:     T = 125, floor 0.90:  noise 0.10   S=1 0.28   S=2 0.55   S=3 0.80
+#:     (the old 0.80 floor over ~62 days: noise 0.20, S=2 0.56, S=3 0.74)
+#:
+#: Real power is LOWER: the stage applies skew/kurtosis corrections to a zero-filled
+#: business-day grid that starts at the first trade. The joint false-positive rate with
+#: the development gate (DSR >= 0.95) is ~0.05 x 0.10 = 0.5%, IF the development trial
+#: count is complete (the runtime trial token exists to make it so). Several forward
+#: candidates in one family get no multiple-testing correction: recorded as future work.
+#: tests/test_admit.py pins the pass rates with a seeded Monte Carlo through the gate's
+#: own forward scoring (admit.forward_psr). A registration may demand more, never less.
+MIN_FORWARD_PSR_FLOOR = 0.90
 
 PROFILES = {
     "price_strategy": {"forward_paper"},

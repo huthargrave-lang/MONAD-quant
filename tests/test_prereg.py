@@ -30,7 +30,7 @@ SPEC = {
     "metric": "deflated_sharpe",
     "threshold": 0.95,
     "min_trades": 30,
-    "holdout": {"kind": "forward_paper", "min_days": 90, "min_trades": 30, "min_psr": 0.8},
+    "holdout": {"kind": "forward_paper", "min_days": 180, "min_trades": 30, "min_psr": 0.9},
     "cost_model": {"round_trip_cost_pct": 0.0007},
 }
 
@@ -50,8 +50,10 @@ class Validation(unittest.TestCase):
         self.assertTrue(prereg.validate(_spec(min_trades=10)))
         self.assertTrue(prereg.validate(_spec(holdout={"kind": "forward_paper", "min_days": 10,
                                                        "min_trades": 5, "min_psr": 0.8})))
-        self.assertTrue(prereg.validate(_spec(holdout={"kind": "forward_paper", "min_days": 90,
-                                                       "min_trades": 30, "min_psr": 0.5})))
+        self.assertTrue(prereg.validate(_spec(holdout={"kind": "forward_paper", "min_days": 179,
+                                                       "min_trades": 30, "min_psr": 0.9})))
+        self.assertTrue(prereg.validate(_spec(holdout={"kind": "forward_paper", "min_days": 180,
+                                                       "min_trades": 30, "min_psr": 0.89})))
 
     def test_profile_decides_the_holdout(self):
         self.assertTrue(prereg.validate(_spec(holdout={"kind": "sealed_issuers", "vault": "v1"})))

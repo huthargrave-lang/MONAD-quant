@@ -36,7 +36,7 @@ REGISTERED = "2021-07-02T00:00:00Z"
 HEAD_SHA = subprocess.run(["git", "-C", str(REPO), "rev-parse", "HEAD"], capture_output=True,
                           text=True).stdout.strip()
 CLEAN = {"sha": HEAD_SHA, "dirty": False, "diff_sha256": None, "error": None}
-MATURE = dt.datetime(2021, 12, 1, tzinfo=dt.timezone.utc)
+MATURE = dt.datetime(2022, 2, 1, tzinfo=dt.timezone.utc)   # > 180 days after REGISTERED
 from src.research.backtest_trials import mr_hourly_family  # noqa: E402
 from src.backtest.runner import engine_settings  # noqa: E402
 
@@ -53,7 +53,7 @@ def _spec(**changes):
          "profile": "price_strategy", "universe": ["SYN"],
          "development_window": {"start": "2021-01-04", "end": "2021-07-01"},
          "metric": "deflated_sharpe", "threshold": 0.95, "min_trades": 30,
-         "holdout": {"kind": "forward_paper", "min_days": 90, "min_trades": 30, "min_psr": 0.8},
+         "holdout": {"kind": "forward_paper", "min_days": 180, "min_trades": 30, "min_psr": 0.9},
          "cost_model": {"round_trip_cost_pct": "instrument-derived"}, "params": dict(PARAMS)}
     s.update(changes)
     return s
@@ -282,7 +282,7 @@ class RedTeamAttacks(Gate):
             run.begin(params={"timeframe": "hourly", "mode": "SYN_HOURLY", "engine": ENGINE},
                       data={"ticker": "SYN", "fingerprint": {"last_bar": str(peek.index[-1])}}
                       ).complete(metrics={})
-        rec = self.evaluate()                # 2021-12-01: 150 days after the claimed date
+        rec = self.evaluate()                # 2022-02-01: 214 days after the claimed date
         fwd = next(s for s in rec["stages"] if s["name"] == "forward")
         self.assertEqual(fwd["outcome"], admit.PENDING)
         self.assertIn("starts 2021-11-15", fwd["detail"])
@@ -355,6 +355,33 @@ class RedTeamAttacks(Gate):
         self.assertEqual(admit._verdict([S("a", "pass", ""), S("b", "pending", "")]), admit.PENDING_V)
         self.assertEqual(admit._verdict([S("a", "pending", ""), S("b", "block", "")]), admit.BLOCKED)
         self.assertEqual(admit._verdict([S("a", "block", ""), S("b", "fail", "")]), admit.REJECT)
+
+
+class TheForwardFloorsPower(unittest.TestCase):
+    """Decision-debate Q3: the forward floor's pass rates, measured through the gate's own
+    forward statistic (admit.forward_psr), not recomputed from the formula that motivated
+    it. One trade per business day over ~125 trading days (the 180-day floor), at the
+    0.90 floor. Measured when written (K=300, seed 0): noise 0.12, S=1 0.28, S=2 0.56,
+    S=3 0.80, matching normal theory (0.10 / 0.28 / 0.55 / 0.80)."""
+
+    @staticmethod
+    def pass_rate(annual_sharpe, k=300, days=125, seed=0):
+        rng = np.random.default_rng(seed)
+        idx = pd.bdate_range("2022-01-03", periods=days) + pd.Timedelta(hours=15)
+        hits = 0
+        for _ in range(k):
+            r = pd.Series(rng.normal(annual_sharpe / np.sqrt(252) * 0.01, 0.01, days), index=idx)
+            hits += admit.forward_psr(r) >= prereg.MIN_FORWARD_PSR_FLOOR
+        return hits / k
+
+    def test_noise_rarely_passes(self):
+        self.assertLessEqual(self.pass_rate(0.0), 0.16)
+
+    def test_a_strong_edge_usually_passes(self):
+        self.assertGreaterEqual(self.pass_rate(3.0), 0.70)
+
+    def test_a_moderate_edge_is_a_coin_flip(self):
+        self.assertTrue(0.45 <= self.pass_rate(2.0) <= 0.67)
 
 
 class Records(unittest.TestCase):
