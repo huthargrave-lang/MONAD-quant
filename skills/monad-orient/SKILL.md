@@ -173,6 +173,14 @@ Rules the tools cannot enforce, so you must:
   private family for the MR strategy.
 - **Do not write your own backtest loop.** If a new study needs one, route it through
   `trials.open_run` + `backtest_trials.record_backtest` (see `docs/research/trials/README.md`).
+- **Refutation is mandatory.** The gate BLOCKS a hypothesis nobody has objected to, and an
+  objection must be answered by someone other than the one who raised it.
+- **The gate only admits merged evidence.** The registration and every ledger run searched
+  before it must already be on the deploy branch (the `witness` stage), where CI's history
+  checks protect them. Push them and get them merged (never merge yourself), then run the
+  gate. Until then it BLOCKS, correctly.
+- **The forward window starts after the last bar any family trial has seen.** Peeking at
+  recent bars, or backdating a registration, only pushes the window later.
 - **Check the scorecard each cycle:** `python3 tools/edge_scorecard.py`. Many registrations
   and no admissions is the system working. An admission from a tiny search deserves a
   second Refuter pass before anyone relies on it.

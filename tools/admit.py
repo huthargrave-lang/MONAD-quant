@@ -11,17 +11,23 @@ Profile ``price_strategy`` (the hourly RSI/VWAP mean-reversion family), in order
 
   registration   the frozen spec (src/research/prereg.py) loads and names a candidate
   code           the tree is clean and at a known commit: evidence must be replayable
-  refutations    no unanswered objection (BLOCK); no upheld objection (REJECT)
+  refutations    at least one objection was filed (no refuter looked = BLOCK); none
+                 unanswered (BLOCK); none upheld (REJECT)
   parity         the live bot decides like the backtest (tools/live_backtest_parity.py):
                  a backtest edge the bot cannot reproduce is not an edge it can trade
+  witness        the registration and every trial searched before it are already on the
+                 deploy branch, where CI's history checks protect them (BLOCK otherwise):
+                 local files can be rewritten; merged ones cannot, silently
   development    the frozen candidate, re-run on the registered development window at
                  instrument cost, with at least min_trades trades
   deflation      its Deflated Sharpe against EVERY trial its family has recorded, by any
                  tool, is at least the registered threshold (src/research/deflation.py)
   cost_stress    still profitable at 2x cost
   benchmark      Calmar at least buy & hold's on the same bars
-  forward        after registered_at + min_days: on bars that did not exist when the spec
-                 was frozen, min_trades trades and P(forward Sharpe > 0) >= min_psr
+  forward        on bars NO recorded trial in the family has seen: the window starts at the
+                 later of registered_at and the last bar any family trial touched, so a
+                 backdated registration or a later peek only pushes it back. After
+                 min_days: min_trades trades and P(forward Sharpe > 0) >= min_psr
 
 Every backtest the gate runs is itself a counted trial in the family. Every stage runs
 when it can, so the record says everything that is wrong, not only the first thing.
@@ -54,7 +60,7 @@ import pandas as pd  # noqa: E402
 from src.research import deflation, prereg, refutations, trials  # noqa: E402
 from src.research import significance as sig  # noqa: E402
 from src.research.backtest_trials import (MR_HOURLY_STRATEGY, data_spec, engine_spec,  # noqa: E402
-                                          mr_hourly_family, record_backtest)
+                                          family_members, mr_hourly_family, record_backtest)
 
 VERDICT_REL = Path("docs/research/verdicts")
 VERDICT_DIR = Path(REPO) / VERDICT_REL
@@ -64,6 +70,9 @@ ADMIT, REJECT, BLOCKED, PENDING_V, UNSUPPORTED = "ADMIT", "REJECT", "BLOCKED", "
 CANDIDATE_KEYS = ("target_gain_pct", "stop_loss_pct", "rsi_oversold", "vwap_zscore_thresh",
                   "max_trade_bars")
 COST_STRESS_MULTIPLE = 2
+#: A DSR over fewer daily observations than this is not evidence (red-team friction #5:
+#: a Sharpe of +23 "over 2 days" was reported without complaint).
+MIN_DSR_OBS = 30
 #: Bars of feature warm-up loaded before the forward window. Trades before
 #: ``registered_at`` are discarded; these bars only let indicators settle.
 FORWARD_WARMUP_DAYS = 60
@@ -89,12 +98,13 @@ def _verdict(stages: list[Stage]) -> str:
 
 
 def default_load_bars(symbol: str, start: str, end: str) -> pd.DataFrame:
-    """Hourly regular-session bars, as sweep.py and the funnel use them."""
-    from src.data.fetcher import fetch_yfinance
+    """Hourly regular-session bars, the session judged in New York time
+    (``fetcher.regular_session``; a UTC ``between_time`` keeps only the morning)."""
+    from src.data.fetcher import fetch_yfinance, regular_session
 
     with contextlib.redirect_stdout(io.StringIO()):
         df = fetch_yfinance(symbol=symbol, start=start, end=end, interval="1h")
-    return df.between_time("09:30", "16:00")
+    return regular_session(df)
 
 
 def _utc_naive(df: pd.DataFrame) -> pd.DataFrame:
@@ -108,6 +118,43 @@ def _utc_naive(df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
         df.index = idx.tz_convert("UTC").tz_localize(None)
     return df
+
+
+def default_witness(spec: dict, prereg_path: Path, family_runs: list) -> list[str]:
+    """Problems with the evidence NOT being on the deploy branch yet.
+
+    The registration must be there byte-identical, and every ledger shard searched before
+    it must be there as a byte-prefix of the local one. Until then an author could still
+    rewrite them locally without any history check noticing (red-team attacks 3b, 5b)."""
+    sys.path.insert(0, os.path.join(REPO, "tools"))
+    import ctx
+
+    ref = f"origin/{ctx._manifest().get('deploy_branch', 'development')}"
+    repo = Path(REPO)
+    problems = []
+
+    def at_ref(rel: str):
+        r = trials._git(repo, "show", f"{ref}:{rel}")
+        return r.stdout if r.returncode == 0 else None
+
+    def rel_of(path) -> str | None:
+        try:
+            return Path(path).resolve().relative_to(repo.resolve()).as_posix()
+        except ValueError:
+            return None
+
+    rel = rel_of(prereg_path)
+    if rel is None or at_ref(rel) != Path(prereg_path).read_bytes():
+        problems.append(f"{rel or prereg_path} is not on {ref} as registered")
+    for run_path in sorted(set(family_runs)):
+        rel = rel_of(run_path)
+        if rel is None:
+            problems.append(f"{run_path} is outside the repository")
+            continue
+        blob = at_ref(rel)
+        if blob is None or not Path(run_path).read_bytes().startswith(blob) or not blob:
+            problems.append(f"{rel} (searched before registration) is not on {ref}")
+    return problems
 
 
 def default_parity() -> dict:
@@ -143,8 +190,8 @@ def _counted_backtest(df, ticker, params, cost, *, run, stage, evaluated_from=No
 
 def evaluate(hypothesis: str, *, now: _dt.datetime | None = None,
              load_bars: Callable = default_load_bars, parity: Callable = default_parity,
-             code: Callable = trials.code_state, prereg_dir=None,
-             refutations_dir=None) -> dict:
+             code: Callable = trials.code_state, witness: Callable = default_witness,
+             prereg_dir=None, refutations_dir=None) -> dict:
     """Run the gate. Returns the verdict record (not yet written).
 
     There is deliberately no way to point the gate at another ledger: its trials land in
@@ -205,6 +252,9 @@ def evaluate(hypothesis: str, *, now: _dt.datetime | None = None,
     elif ref["open"]:
         stages.append(Stage("refutations", BLOCK, f"{len(ref['open'])} objection(s) unanswered",
                             {"open": [o["id"] for o in ref["open"]]}))
+    elif not ref["refuted"]:
+        stages.append(Stage("refutations", BLOCK, "no objection has been filed: no refuter has "
+                            "examined this hypothesis (tools/refute.py object)"))
     else:
         stages.append(Stage("refutations", PASS, f"{len(ref['refuted'])} objection(s), all refuted"))
 
@@ -216,13 +266,39 @@ def evaluate(hypothesis: str, *, now: _dt.datetime | None = None,
                          if diverge else "no divergent decision input"),
                         {"counts": census["counts"]}))
 
+    # ── what the family has already seen (for witness and forward) ──────────
+    registered_at = pd.Timestamp(spec["registered_at"]).tz_convert(None)
+    try:
+        members = family_members(trials.iter_trials(), spec["family"])
+    except trials.LedgerError as exc:
+        stages.append(Stage("witness", FAIL, f"the ledger is invalid: {exc}"))
+        return {**record, "verdict": _verdict(stages), "stages": [asdict(s) for s in stages]}
+    searched = [r for r in members
+                if pd.Timestamp(r.opened_at).tz_convert(None) < registered_at]
+    seen_bars = [pd.Timestamp(r.spec["data"]["fingerprint"]["last_bar"]) for r in members
+                 if ((r.spec.get("data") or {}).get("fingerprint") or {}).get("last_bar")
+                 and not (r.producer == "tools/admit.py"
+                          and (r.spec.get("extra") or {}).get("stage") == "admission:forward")]
+    seen_until = max(seen_bars) if seen_bars else None
+    forward_start = registered_at if seen_until is None or seen_until < registered_at \
+        else seen_until + pd.Timedelta(microseconds=1)
+
+    # ── witness ─────────────────────────────────────────────────────────────
+    problems = witness(spec, prereg.path_for(hypothesis, prereg_dir),
+                       sorted({str(trials.LEDGER_DIR / f"{r.run_id}.jsonl") for r in searched}))
+    stages.append(Stage("witness", BLOCK if problems else PASS,
+                        "; ".join(problems[:3]) + (f" (+{len(problems) - 3} more)" if len(problems) > 3 else "")
+                        if problems else f"registration and {len({r.run_id for r in searched})} "
+                                         f"searched run(s) are on the deploy branch",
+                        {"problems": problems}))
+
     # ── backtests (all counted) ─────────────────────────────────────────────
     w = spec["development_window"]
-    registered_at = pd.Timestamp(spec["registered_at"]).tz_convert(None)
     snap = strategy_funnel._snapshot_config()
     dev_key = dev = stress = fwd = None
     fwd_key = None
-    forward_due = (pd.Timestamp(now).tz_convert(None) - registered_at).days >= spec["holdout"]["min_days"]
+    now_naive = pd.Timestamp(now).tz_convert(None)
+    forward_due = (now_naive - forward_start).days >= spec["holdout"]["min_days"]
     try:
         with trials.open_run(producer="tools/admit.py", family=spec["family"],
                              hypothesis=hypothesis, context={"spec_hash": spec_hash}) as run:
@@ -236,12 +312,12 @@ def evaluate(hypothesis: str, *, now: _dt.datetime | None = None,
             _, stress = _counted_backtest(df, ticker, params, cost * COST_STRESS_MULTIPLE,
                                           run=run, stage=f"admission:cost_{COST_STRESS_MULTIPLE}x")
             if forward_due:
-                start = (registered_at - pd.Timedelta(days=FORWARD_WARMUP_DAYS)).date().isoformat()
+                start = (forward_start - pd.Timedelta(days=FORWARD_WARMUP_DAYS)).date().isoformat()
                 fdf = _utc_naive(load_bars(ticker, start, pd.Timestamp(now).date().isoformat()))
                 if fdf is not None and len(fdf):
                     fwd_key, fwd = _counted_backtest(fdf, ticker, params, cost, run=run,
                                                      stage="admission:forward",
-                                                     evaluated_from=registered_at)
+                                                     evaluated_from=forward_start)
         record["ledger_run"] = run.run_id
     except Exception as exc:  # noqa: BLE001 — a gate that cannot measure must not admit
         stages.append(Stage("development", BLOCK, f"could not run the candidate: {exc}"))
@@ -259,9 +335,11 @@ def evaluate(hypothesis: str, *, now: _dt.datetime | None = None,
     if dev and n_dev >= 2:
         try:
             d = deflation.deflate_candidate(dev_key, searched_before=spec["registered_at"])
-            ok = d.result.dsr >= spec["threshold"]
+            ok = d.result.dsr >= spec["threshold"] and d.moments.n_obs >= MIN_DSR_OBS
+            thin = (f"; only {d.moments.n_obs} daily observations (need {MIN_DSR_OBS})"
+                    if d.moments.n_obs < MIN_DSR_OBS else "")
             stages.append(Stage("deflation", PASS if ok else FAIL,
-                                f"DSR {d.result.dsr:.4f} vs {spec['threshold']} "
+                                f"DSR {d.result.dsr:.4f} vs {spec['threshold']}{thin} "
                                 f"(N_eff {d.n_trials:.2f} from {d.trials_recorded} trials "
                                 f"recorded before registration)",
                                 {"dsr": d.result.dsr, "sr0": d.result.sr0, "n_trials": d.n_trials,
@@ -292,11 +370,13 @@ def evaluate(hypothesis: str, *, now: _dt.datetime | None = None,
     # ── forward ─────────────────────────────────────────────────────────────
     h = spec["holdout"]
     if not forward_due:
-        due = registered_at + pd.Timedelta(days=h["min_days"])
-        stages.append(Stage("forward", PENDING, f"forward window matures {due.date()}"))
+        due = forward_start + pd.Timedelta(days=h["min_days"])
+        moved = (f" (starts {forward_start.date()}, after bars family trials already saw)"
+                 if forward_start > registered_at else "")
+        stages.append(Stage("forward", PENDING, f"forward window matures {due.date()}{moved}"))
     else:
         series = (fwd or {}).get("trade_returns") if fwd else None
-        scored = bt_scored(series, registered_at)
+        scored = bt_scored(series, forward_start)
         if len(scored) < h["min_trades"]:
             stages.append(Stage("forward", PENDING,
                                 f"{len(scored)} forward trades (need {h['min_trades']})",
@@ -338,6 +418,76 @@ def write_verdict(record: dict, verdict_dir: Path | None = None) -> Path:
     return target
 
 
+#: The stage chain an ADMIT must show, in order. A record claiming ADMIT with any other
+#: chain did not come from this gate.
+ADMIT_CHAIN = ("registration", "code", "refutations", "parity", "witness", "development",
+               "deflation", "cost_stress", "benchmark", "forward")
+
+
+def verify_record(record: dict, *, prereg_dir=None) -> list[str]:
+    """Problems that make a verdict record untrustworthy (red-team attack 7b: a
+    hand-written ADMIT file used to count). An ADMIT must be internally consistent, name
+    a real gate run in the ledger for the same hypothesis and spec hash, and match the
+    registration as it stands. Any verdict naming a ledger run must name a real one."""
+    problems = []
+    try:
+        stages = [Stage(**s) for s in record.get("stages", [])]
+    except TypeError:
+        return ["stages are malformed"]
+    if record.get("verdict") not in (ADMIT, REJECT, BLOCKED, PENDING_V, UNSUPPORTED):
+        problems.append(f"unknown verdict {record.get('verdict')!r}")
+    elif record["verdict"] != UNSUPPORTED and record["verdict"] != _verdict(stages):
+        problems.append(f"verdict {record['verdict']} does not follow from its stages "
+                        f"({_verdict(stages)})")
+    run_id = record.get("ledger_run")
+    head = None
+    if run_id:
+        path = trials.LEDGER_DIR / f"{run_id}.jsonl"
+        if not path.exists():
+            problems.append(f"ledger run {run_id} does not exist")
+        else:
+            rep_ = trials.verify_shard(path)
+            if not rep_.ok:
+                problems.append(f"ledger run {run_id} is invalid")
+            head = __import__("json").loads(path.read_bytes().split(b"\n", 1)[0])
+    if record.get("verdict") == ADMIT:
+        if tuple(s.name for s in stages) != ADMIT_CHAIN or any(s.outcome != PASS for s in stages):
+            problems.append("an ADMIT must pass exactly the full stage chain")
+        if head is None:
+            problems.append("an ADMIT must name the gate's ledger run")
+        else:
+            if head.get("producer") != "tools/admit.py":
+                problems.append("the named ledger run was not written by tools/admit.py")
+            if head.get("hypothesis") != record.get("hypothesis"):
+                problems.append("the named ledger run is for another hypothesis")
+            if (head.get("context") or {}).get("spec_hash") != record.get("spec_hash"):
+                problems.append("the named ledger run evaluated a different spec")
+        try:
+            _, current = prereg.load(record.get("hypothesis", ""), prereg_dir=prereg_dir)
+            if current != record.get("spec_hash"):
+                problems.append("the registration no longer matches the admitted spec")
+        except prereg.PreregError as exc:
+            problems.append(f"registration: {exc}")
+    return problems
+
+
+def verify_records(verdict_dir: Path | None = None, *, prereg_dir=None) -> dict:
+    """{relative path: problems} for every verdict record that fails verification."""
+    base = Path(verdict_dir) if verdict_dir is not None else VERDICT_DIR
+    out = {}
+    for path in sorted(base.glob("H*/*.json")) if base.is_dir() else []:
+        try:
+            record = __import__("json").loads(path.read_text(encoding="utf-8"))
+            problems = verify_record(record, prereg_dir=prereg_dir)
+            if record.get("hypothesis") != path.parent.name:
+                problems.append("filed under another hypothesis")
+        except ValueError as exc:
+            problems = [f"not JSON: {exc}"]
+        if problems:
+            out[str(path.relative_to(base))] = problems
+    return out
+
+
 def verify_history(base_ref: str, *, repo: Path = Path(REPO)) -> list[str]:
     """Verdict records on the deploy branch are never edited or deleted."""
     return trials.verify_history(base_ref, VERDICT_REL, repo=repo, what="verdict",
@@ -350,7 +500,16 @@ def main(argv=None) -> int:
     ap.add_argument("--dry-run", action="store_true", help="do not write the verdict record")
     ap.add_argument("--verify-history", metavar="REF",
                     help="check no verdict on REF's merge-base was edited or deleted, then exit")
+    ap.add_argument("--verify-records", action="store_true",
+                    help="check every verdict record is consistent and backed by a gate run, then exit")
     args = ap.parse_args(argv)
+    if args.verify_records:
+        bad = verify_records()
+        for rel, problems in bad.items():
+            for p in problems:
+                print(f"FAIL {rel}: {p}")
+        print(f"{len(bad)} invalid record(s)")
+        return 1 if bad else 0
     if args.verify_history:
         problems = verify_history(args.verify_history)
         for p in problems:

@@ -49,8 +49,14 @@ class Tiers(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             for name in ("test_f260_recompute_audit.py", "test_h24_h25_stop.py",
                          "test_f19_exit_lever_bridge.py", "test_f12_f13_fetch.py", "test_misc.py"):
-                (Path(td) / name).write_text("")
+                (Path(td) / name).write_text("class T:\n    def test_it(self):\n        pass\n")
             self.assertEqual(reeval.guarded_ids(Path(td)), {"F260", "F19", "F12", "F13"})
+
+    def test_an_empty_guard_file_guards_nothing(self):
+        """Red-team attack 9: an empty tests/test_f24_x.py used to move F24 out of the queue."""
+        with tempfile.TemporaryDirectory() as td:
+            (Path(td) / "test_f24_placeholder.py").write_text("# TODO\n")
+            self.assertEqual(reeval.guarded_ids(Path(td)), set())
 
 
 class Decisions(unittest.TestCase):
@@ -71,14 +77,30 @@ class Decisions(unittest.TestCase):
         with self.assertRaises(reeval.ReevalError):
             self.decide(action="no_action")
 
-    def test_admitted_must_cite_a_verdict_and_reproduced_a_run(self):
-        with self.assertRaises(reeval.ReevalError):
-            self.decide(action="admitted", evidence="trust me, it was admitted")
-        self.decide(action="admitted", evidence="docs/research/verdicts/H9/20261201T000000Z.json")
-        with self.assertRaises(reeval.ReevalError):
-            self.decide(node="F6", action="reproduced", evidence="I re-ran it and it held")
-        self.decide(node="F6", action="reproduced",
-                    evidence="reproduced in TR-20260922T170000Z-ab12cd34")
+    def test_admitted_must_cite_a_real_admit_and_reproduced_a_real_run(self):
+        """Red-team attack 9: citations used to be checked for shape, not existence."""
+        from unittest import mock
+        from src.research import trials
+        root = Path(self._tmp.name) / "repo"
+        verdicts = root / "docs/research/verdicts/H9"
+        verdicts.mkdir(parents=True)
+        (verdicts / "a.json").write_text('{"verdict": "ADMIT"}')
+        (verdicts / "r.json").write_text('{"verdict": "REJECT"}')
+        ledger = root / "trials"
+        ledger.mkdir()
+        (ledger / "TR-20260922T170000Z-ab12cd34.jsonl").write_text("")
+        with mock.patch.object(reeval, "REPO", root), mock.patch.object(trials, "LEDGER_DIR", ledger):
+            with self.assertRaises(reeval.ReevalError):
+                self.decide(action="admitted", evidence="trust me, it was admitted")
+            with self.assertRaises(reeval.ReevalError):
+                self.decide(action="admitted", evidence="docs/research/verdicts/H9/missing.json")
+            with self.assertRaises(reeval.ReevalError):
+                self.decide(action="admitted", evidence="docs/research/verdicts/H9/r.json")
+            self.decide(action="admitted", evidence="docs/research/verdicts/H9/a.json")
+            with self.assertRaises(reeval.ReevalError):
+                self.decide(node="F6", action="reproduced", evidence="TR-20990101T000000Z-deadbeef")
+            self.decide(node="F6", action="reproduced",
+                        evidence="reproduced in TR-20260922T170000Z-ab12cd34")
 
     def test_only_findings_in_the_web(self):
         with self.assertRaises(reeval.ReevalError):

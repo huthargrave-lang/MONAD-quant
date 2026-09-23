@@ -249,6 +249,31 @@ def validate_ohlc(df: pd.DataFrame, symbol: str = "") -> pd.DataFrame:
     return df
 
 
+#: US equity regular session, in the exchange's own clock.
+REGULAR_SESSION = ("09:30", "16:00")
+EXCHANGE_TZ = "America/New_York"
+
+
+def regular_session(df: pd.DataFrame) -> pd.DataFrame:
+    """Keep only regular-session bars, judged in NEW YORK time.
+
+    ``fetch_yfinance`` returns a naive UTC index (it ``tz_convert(None)``s). Calling
+    ``between_time("09:30", "16:00")`` directly on that keeps 09:30-16:00 UTC, which is
+    05:30-12:00 in New York: only the 13:30/14:30/15:30 UTC bars survive, three a day,
+    the morning-only sample RESEARCH_WEB.md F13 showed manufactures a fake edge. Measured
+    2026-09-22 on QQQ 1h, Aug 1 - Sep 18 (a short fetch, so not F12's long-range quirk):
+    231 bars at 7.0/day in, 99 at 3.0/day out of the UTC filter, 231 out of this one.
+    A tz-aware index is converted; a naive one is taken to be UTC. Returns naive UTC.
+    """
+    idx = pd.DatetimeIndex(df.index)
+    local = idx.tz_convert(EXCHANGE_TZ) if idx.tz is not None else idx.tz_localize("UTC").tz_convert(EXCHANGE_TZ)
+    out = df.copy()
+    out.index = local
+    out = out.between_time(*REGULAR_SESSION, inclusive="left")
+    out.index = out.index.tz_convert("UTC").tz_localize(None)
+    return out
+
+
 def fetch_yfinance(symbol: str, start: str, end: str, interval: str = "1d",
                    max_retries: int = 4) -> pd.DataFrame:
     """Fetch OHLCV data from yfinance with retry logic and OHLC validation.

@@ -72,6 +72,13 @@ REPO = Path(__file__).resolve().parents[2]
 LEDGER_REL = Path("docs/research/trials")
 LEDGER_DIR = REPO / LEDGER_REL
 ARTIFACTS = "artifacts"
+#: Research RECORDS, not code: the ledger, registrations, refutations, verdicts and
+#: re-evaluation decisions. Writing one must not make the code look modified, or the gate
+#: blocks on its own verdict file (harness red-team friction #4). Their integrity is
+#: guarded by their own append-only/immutable history checks instead.
+RECORD_RELS = tuple(Path(p) for p in ("docs/research/trials", "docs/research/prereg",
+                                      "docs/research/refutations", "docs/research/verdicts",
+                                      "docs/research/reeval"))
 
 ROW_TYPES = ("run_open", "intent", "outcome", "run_close")
 OUTCOME_STATUSES = ("ok", "error", "abandoned")
@@ -194,21 +201,22 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
     return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, check=False)
 
 
-def code_state(repo: Path = REPO, ledger_rel: Path = LEDGER_REL) -> dict:
+def code_state(repo: Path = REPO, record_rels=RECORD_RELS) -> dict:
     """The code a run executed: HEAD sha, and whether (and how) the tree differed.
 
     ``diff_sha256`` covers the tracked diff against HEAD plus every untracked,
-    non-ignored file's path and content, excluding the ledger's own directory (a run
-    writing its shard must not make itself dirty). Failure to read git is recorded,
-    never guessed: ``sha`` is None and ``error`` says why.
+    non-ignored file's path and content, excluding the research record directories
+    (``RECORD_RELS``): a run writing its shard, or the gate writing its verdict, must not
+    make the code look dirty. Failure to read git is recorded, never guessed: ``sha`` is
+    None and ``error`` says why.
     """
     head = _git(repo, "rev-parse", "HEAD")
     if head.returncode != 0:
         return {"sha": None, "dirty": None, "diff_sha256": None,
                 "error": head.stderr.decode(errors="replace").strip() or "git rev-parse failed"}
-    exclude = f":(exclude){ledger_rel.as_posix()}"
-    diff = _git(repo, "diff", "HEAD", "--binary", "--", ".", exclude)
-    untracked = _git(repo, "ls-files", "--others", "--exclude-standard", "-z", "--", ".", exclude)
+    excludes = [f":(exclude){Path(r).as_posix()}" for r in record_rels]
+    diff = _git(repo, "diff", "HEAD", "--binary", "--", ".", *excludes)
+    untracked = _git(repo, "ls-files", "--others", "--exclude-standard", "-z", "--", ".", *excludes)
     if diff.returncode != 0 or untracked.returncode != 0:
         return {"sha": head.stdout.decode().strip(), "dirty": None, "diff_sha256": None,
                 "error": "git diff/ls-files failed"}

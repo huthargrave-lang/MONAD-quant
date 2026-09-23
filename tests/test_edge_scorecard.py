@@ -46,9 +46,11 @@ class Scorecard(unittest.TestCase):
         self._trials(3, "2021-08-01T00:00:00.000000Z")  # after registration: not its search
         refutations.object_to("H9100", claim="a checkable objection text", evidence="file.py:12",
                               by="refuter")
-        for at, v in (("2021-10-01T00:00:00Z", "PENDING"), ("2021-12-01T00:00:00Z", "REJECT")):
+        for at, v, outcome in (("2021-10-01T00:00:00Z", "PENDING", "pending"),
+                               ("2021-12-01T00:00:00Z", "REJECT", "fail")):
             admit.write_verdict({"hypothesis": "H9100", "evaluated_at": at, "verdict": v,
-                                 "stages": []})
+                                 "stages": [{"name": "forward", "outcome": outcome,
+                                             "detail": "", "data": {}}]})
         card = edge_scorecard.scorecard()
         row = card["hypotheses"][0]
         self.assertEqual(row["trials_before_registration"], 5)
@@ -57,6 +59,17 @@ class Scorecard(unittest.TestCase):
         self.assertEqual(card["totals"]["trials_recorded"], 8)
         self.assertIsNone(card["totals"]["trials_per_admission"])
         self.assertEqual(edge_scorecard.main([]), 0)
+
+    def test_a_forged_admit_is_shown_as_invalid_not_counted(self):
+        """Red-team attack 7b: a hand-written ADMIT file used to count as admitted."""
+        prereg.register(_spec(), check_web=False, now="2021-07-02T00:00:00Z")
+        admit.write_verdict({"hypothesis": "H9100", "evaluated_at": "2021-12-01T00:00:00Z",
+                             "verdict": "ADMIT", "stages": [
+                                 {"name": n, "outcome": "pass", "detail": "", "data": {}}
+                                 for n in admit.ADMIT_CHAIN]})
+        card = edge_scorecard.scorecard()
+        self.assertEqual(card["hypotheses"][0]["verdict"], "INVALID RECORD")
+        self.assertEqual(card["totals"]["admitted"], 0)
 
     def test_refuses_an_invalid_ledger(self):
         self._trials(2, "2021-06-01T00:00:00.000000Z")

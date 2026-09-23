@@ -163,6 +163,9 @@ def register(spec: Mapping[str, Any], *, prereg_dir: Path | None = None,
     record = {"schema": SCHEMA_VERSION, **dict(spec),
               "registered_at": now or _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
               "registered_from": code_state()}
+    if spec["development_window"]["end"] > record["registered_at"][:10]:
+        raise PreregError("development_window ends after registered_at: the development "
+                          "evidence must exist before the spec is frozen")
     target = path_for(hyp, prereg_dir)
     target.parent.mkdir(parents=True, exist_ok=True)
     data = (canonical_json(record) + "\n").encode("utf-8")
@@ -191,6 +194,8 @@ def load(hypothesis: str, *, prereg_dir: Path | None = None) -> tuple[dict, str]
         raise PreregError(f"{p.name} is not in canonical form (hand-edited?)")
     author = {k: v for k, v in record.items() if k in REQUIRED or k in ("params", "notes")}
     errs = validate(author)
+    if str(record.get("development_window", {}).get("end", "")) > str(record.get("registered_at", ""))[:10]:
+        errs.append("development_window ends after registered_at")
     if errs or record.get("hypothesis") != hypothesis:
         raise PreregError(f"{p.name} no longer validates: {errs or 'hypothesis mismatch'}")
     return record, spec_hash(record)

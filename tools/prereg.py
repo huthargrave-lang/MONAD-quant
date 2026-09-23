@@ -35,7 +35,9 @@ TEMPLATE = {
     "min_trades": prereg.MIN_TRADES_FLOOR,
     "holdout": {"kind": "forward_paper", "min_days": 90, "min_trades": 30, "min_psr": 0.8},
     "cost_model": {"round_trip_cost_pct": "instrument-derived (sweep_costs.round_trip_cost_pct)"},
-    "params": None,
+    # The frozen candidate the admission gate re-runs: exactly these five keys.
+    "params": {"target_gain_pct": 0.01, "stop_loss_pct": 0.005, "rsi_oversold": 35,
+               "vwap_zscore_thresh": -1.0, "max_trade_bars": 8},
 }
 
 

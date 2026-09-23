@@ -47,6 +47,12 @@ class Log(unittest.TestCase):
             R.resolve("H5", o["id"], outcome="refuted", evidence="changed my mind entirely",
                       by="author", directory=self.dir)
 
+    def test_the_objector_cannot_answer_their_own_objection(self):
+        o = self.obj(by="Refuter-1")
+        with self.assertRaises(R.RefutationError):
+            R.resolve("H5", o["id"], outcome="refuted", evidence="it is fine, trust the code",
+                      by=" refuter-1 ", directory=self.dir)
+
     def test_ids_are_sequential_and_rows_accumulate(self):
         a, b = self.obj(), self.obj(claim="cost model ignores the spread")
         self.assertEqual((a["id"], b["id"]), ("O1", "O2"))

@@ -47,6 +47,32 @@ def mr_hourly_family(ticker: str) -> str:
     return mr_family(ticker, "hourly")
 
 
+def family_members(records, family: str) -> list:
+    """The trials that count toward ``family``: its label, OR (for an MR family) every
+    hourly engine trial on the same symbol, whatever label it was recorded under.
+
+    A family is otherwise just a string a producer is handed (``--family``), so a search
+    run under a scratch label and registered under the real one would be invisible to the
+    count (harness red-team, attack 4a). The engine spec is not a label: a trial whose
+    data is ``SYMBOL`` and whose spec is an hourly engine run IS this strategy on SYMBOL.
+    """
+    prefix = f"{MR_HOURLY_STRATEGY}:"
+    symbol = family[len(prefix):] if family.startswith(prefix) else None
+    out = []
+    for r in records:
+        if r.family == family:
+            out.append(r)
+            continue
+        if symbol is None:
+            continue
+        params = (r.spec or {}).get("params") or {}
+        data = (r.spec or {}).get("data") or {}
+        if (isinstance(params, dict) and params.get("timeframe") == "hourly" and "mode" in params
+                and str(data.get("ticker") or "").upper() == symbol):
+            out.append(r)
+    return out
+
+
 def engine_spec(mode: str, *, timeframe: str, target: float, stop: float,
                 backtest_mode: str | None, slippage_pct: float | None,
                 require_signals: int = 1, asset_key: str | None = None,

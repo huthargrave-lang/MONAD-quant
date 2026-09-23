@@ -8,6 +8,9 @@ Sharpe Ratio against the search that found it.
 
 How the trial count is built (conservative at every fork):
 
+  * membership is ``backtest_trials.family_members``: the family's label, plus, for an
+    MR family, every hourly engine trial on the same symbol under ANY label;
+
   * trials with a return series are clustered by daily-PnL correlation
     (``significance.effective_trials``); the conservative max of the cluster count and
     the Li-Ji eigenvalue count is used;
@@ -71,7 +74,8 @@ def deflate_candidate(candidate: str, *, ledger_dir: Path | None = None,
         raise ValueError(f"no trial {candidate} in the ledger")
     if target.status != "ok":
         raise ValueError(f"{candidate} has status {target.status!r}; only an ok trial can be deflated")
-    family = [r for r in everything if r.family == target.family]
+    from src.research.backtest_trials import family_members
+    family = family_members(everything, target.family)
     if searched_before is not None:
         import pandas as pd
         cutoff = pd.Timestamp(searched_before)

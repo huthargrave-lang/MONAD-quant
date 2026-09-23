@@ -98,6 +98,10 @@ def resolve(hypothesis: str, objection_id: str, *, outcome: str, evidence: str, 
         raise RefutationError(f"{hypothesis} has no objection {objection_id}")
     if any(e["type"] == "resolution" and e["resolves"] == objection_id for e in rows):
         raise RefutationError(f"{objection_id} is already resolved; object again if it recurs")
+    objector = next(e["by"] for e in rows if e["type"] == "objection" and e["id"] == objection_id)
+    if by.strip().lower() == str(objector).strip().lower():
+        raise RefutationError(f"{objection_id} was raised by {objector!r}; an objection is "
+                              f"answered by someone other than the one who raised it")
     n = sum(1 for e in rows if e["type"] == "resolution") + 1
     return _append(hypothesis, {"type": "resolution", "id": f"S{n}", "at": _now(), "by": by,
                                 "resolves": objection_id, "outcome": outcome,

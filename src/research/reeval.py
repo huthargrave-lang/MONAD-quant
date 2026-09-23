@@ -70,9 +70,13 @@ def _nodes() -> dict:
 
 
 def guarded_ids(tests_dir: Path = REPO / "tests") -> set:
-    """Finding ids with a test named after them (``test_f260_...`` -> F260)."""
+    """Finding ids with a test named after them (``test_f260_...`` -> F260), counted only
+    if the file actually defines a test: an empty ``test_f24_x.py`` used to move F24 out
+    of the queue (harness red-team, attack 9)."""
     out = set()
     for p in tests_dir.glob("test_*.py"):
+        if not re.search(r"^\s*def test_\w*\(", p.read_text(encoding="utf-8", errors="replace"), re.M):
+            continue
         for m in re.finditer(r"(?:^|_)(f\d+)(?=_|$)", p.stem[len("test_"):]):
             out.add(m.group(1).upper())
     return out
@@ -143,10 +147,18 @@ def decide(node: str, *, classification: str, action: str, evidence: str, by: st
                           "labelled unadmitted_historical; it cannot be closed with no_action")
     if not isinstance(evidence, str) or len(evidence.strip()) < 10:
         raise ReevalError("evidence must be checkable (>= 10 characters)")
-    if action == "admitted" and "docs/research/verdicts/" not in evidence:
-        raise ReevalError("an admitted decision must cite its docs/research/verdicts/ record")
-    if action == "reproduced" and not re.search(r"TR-\d{8}T\d{6}Z-[0-9a-f]{8}", evidence):
-        raise ReevalError("a reproduced decision must cite the ledger run (TR-...) that reproduced it")
+    if action == "admitted":
+        m = re.search(r"docs/research/verdicts/H\d+/[\w.-]+\.json", evidence)
+        record = REPO / m.group(0) if m else None
+        if record is None or not record.is_file():
+            raise ReevalError("an admitted decision must cite an existing "
+                              "docs/research/verdicts/<H>/<stamp>.json record")
+        if json.loads(record.read_text(encoding="utf-8")).get("verdict") != "ADMIT":
+            raise ReevalError(f"{m.group(0)} is not an ADMIT verdict")
+    if action == "reproduced":
+        m = re.search(r"TR-\d{8}T\d{6}Z-[0-9a-f]{8}", evidence)
+        if m is None or not (trials.LEDGER_DIR / f"{m.group(0)}.jsonl").is_file():
+            raise ReevalError("a reproduced decision must cite a ledger run (TR-...) that exists")
     if not isinstance(by, str) or not by.strip():
         raise ReevalError("by must name who decided")
     row = {"node": node, "classification": classification, "action": action,

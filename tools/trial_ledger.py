@@ -97,6 +97,9 @@ def cmd_deflate(args) -> int:
     print(f"SR0         {d.annualized_sr0:+.3f} annualized: what the best of {d.n_trials:.1f} "
           f"zero-edge tries is expected to show")
     print(f"DSR         {r.dsr:.4f}  = P(true Sharpe > SR0)")
+    if m.n_obs < 30:
+        print(f"WARNING     only {m.n_obs} daily observations: a DSR this thin is not evidence "
+              f"(the admission gate fails anything under 30)")
     return 0
 
 

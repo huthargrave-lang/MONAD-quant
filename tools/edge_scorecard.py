@@ -32,13 +32,22 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pandas as pd  # noqa: E402
 
 from src.research import prereg, refutations, trials  # noqa: E402
+from src.research.backtest_trials import family_members  # noqa: E402
 import admit  # noqa: E402
 
 
-def latest_verdict(hypothesis: str, verdict_dir=None) -> dict | None:
+def latest_verdict(hypothesis: str, verdict_dir=None, prereg_dir=None) -> dict | None:
+    """The newest verdict record that VERIFIES (admit.verify_record). A record that does
+    not is reported as INVALID RECORD rather than silently skipped or trusted."""
     base = (verdict_dir if verdict_dir is not None else admit.VERDICT_DIR) / hypothesis
     files = sorted(base.glob("*.json")) if base.is_dir() else []
-    return json.loads(files[-1].read_text(encoding="utf-8")) if files else None
+    if not files:
+        return None
+    record = json.loads(files[-1].read_text(encoding="utf-8"))
+    problems = admit.verify_record(record, prereg_dir=prereg_dir)
+    if problems:
+        return {**record, "verdict": "INVALID RECORD", "problems": problems}
+    return record
 
 
 def scorecard(*, prereg_dir=None, refutations_dir=None, verdict_dir=None) -> dict:
@@ -51,10 +60,10 @@ def scorecard(*, prereg_dir=None, refutations_dir=None, verdict_dir=None) -> dic
     for path in sorted(pdir.glob("H*.json")) if pdir.is_dir() else []:
         spec, _ = prereg.load(path.stem, prereg_dir=pdir)
         cutoff = pd.Timestamp(spec["registered_at"])
-        searched = sum(1 for r in records if r.family == spec["family"]
-                       and pd.Timestamp(r.opened_at) < cutoff)
+        searched = sum(1 for r in family_members(records, spec["family"])
+                       if pd.Timestamp(r.opened_at) < cutoff)
         ref = refutations.status(spec["hypothesis"], refutations_dir)
-        v = latest_verdict(spec["hypothesis"], verdict_dir)
+        v = latest_verdict(spec["hypothesis"], verdict_dir, pdir)
         rows.append({"hypothesis": spec["hypothesis"], "family": spec["family"],
                      "registered_at": spec["registered_at"],
                      "trials_before_registration": searched,

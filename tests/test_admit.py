@@ -94,14 +94,29 @@ class Gate(unittest.TestCase):
                         now=REGISTERED)
 
     def evaluate(self, edge=0.004, now=MATURE, parity_diverge=(), dirty=False,
-                 load_bars=flat_bars):
+                 load_bars=flat_bars, witness_problems=(), hypothesis="H9100"):
         census = {"rows": [{"dimension": d, "verdict": "DIVERGE"} for d in parity_diverge],
                   "counts": {"DIVERGE": len(parity_diverge)}}
+        self.witnessed = None
+
+        def witness(spec, prereg_path, runs):
+            self.witnessed = (prereg_path, list(runs))
+            return list(witness_problems)
         with mock.patch("src.backtest.runner.run_backtest", fake_backtest(edge)):
-            return admit.evaluate("H9100", now=now, load_bars=load_bars,
+            return admit.evaluate(hypothesis, now=now, load_bars=load_bars,
                                   parity=lambda: census,
                                   code=lambda: {"sha": "a" * 40, "dirty": dirty},
-                                  **self.dirs)
+                                  witness=witness, **self.dirs)
+
+    def examined(self, hypothesis="H9100"):
+        """A refuter objected and a different author refuted it: the refutation stage's
+        pass condition (no objections at all now BLOCKS)."""
+        o = refutations.object_to(hypothesis, claim="the candidate may be a sampling artifact",
+                                  evidence="compare bars/day in the data fingerprint",
+                                  by="refuter-1", directory=self.dirs["refutations_dir"])
+        refutations.resolve(hypothesis, o["id"], outcome="refuted",
+                            evidence="fingerprint shows 7 bars/day, full session",
+                            by="author-1", directory=self.dirs["refutations_dir"])
 
     def stages(self, record):
         return {s["name"]: s["outcome"] for s in record["stages"]}
@@ -122,6 +137,7 @@ class Gate(unittest.TestCase):
 class TheVerdictDependsOnTheSearch(Gate):
     def test_a_strong_candidate_with_no_prior_search_is_admitted(self):
         self.register()
+        self.examined()
         record = self.evaluate()
         self.assertEqual(record["verdict"], admit.ADMIT, record["stages"])
         self.assertEqual(set(self.stages(record).values()), {admit.PASS})
@@ -129,6 +145,7 @@ class TheVerdictDependsOnTheSearch(Gate):
     def test_the_same_candidate_after_a_large_search_is_rejected(self):
         self.prior_search(300)
         self.register()
+        self.examined()
         record = self.evaluate()
         self.assertEqual(self.stages(record)["deflation"], admit.FAIL)
         self.assertEqual(record["verdict"], admit.REJECT)
@@ -197,6 +214,7 @@ class EachStage(Gate):
 
     def test_forward_is_pending_until_it_matures(self):
         self.register()
+        self.examined()
         early = dt.datetime(2021, 7, 20, tzinfo=dt.timezone.utc)
         rec = self.evaluate(now=early)
         self.assertEqual(self.stages(rec)["forward"], admit.PENDING)
@@ -211,6 +229,87 @@ class EachStage(Gate):
             raise ConnectionError("no network")
         rec = self.evaluate(load_bars=broken)
         self.assertNotEqual(rec["verdict"], admit.ADMIT)
+
+    def test_no_objection_at_all_blocks(self):
+        self.register()
+        rec = self.evaluate()
+        self.assertEqual(self.stages(rec)["refutations"], admit.BLOCK)
+        self.assertIn("no objection has been filed", next(
+            s for s in rec["stages"] if s["name"] == "refutations")["detail"])
+
+    def test_evidence_not_on_the_deploy_branch_blocks(self):
+        self.prior_search(3)
+        self.register()
+        self.examined()
+        rec = self.evaluate(witness_problems=["docs/research/prereg/H9100.json is not on origin/development"])
+        self.assertEqual(self.stages(rec)["witness"], admit.BLOCK)
+        self.assertEqual(rec["verdict"], admit.BLOCKED)
+        prereg_path, runs = self.witnessed
+        self.assertEqual(Path(prereg_path).name, "H9100.json")
+        self.assertEqual(len(runs), 1)  # the one pre-registration search run is witnessed
+
+    def test_thin_development_evidence_fails_deflation(self):
+        self.register(development_window={"start": "2021-06-20", "end": "2021-07-01"})
+        self.examined()
+        st = next(s for s in self.evaluate()["stages"] if s["name"] == "deflation")
+        self.assertEqual(st["outcome"], admit.FAIL)
+        self.assertIn("daily observations", st["detail"])
+
+
+class RedTeamAttacks(Gate):
+    """Each test is an attack the harness red-team subagent landed; each must now fail."""
+
+    def test_7a_backdating_registration_cannot_reuse_seen_bars_as_forward(self):
+        self.register()                      # claims registration on 2021-07-02
+        self.examined()
+        # ...but a family trial had already seen bars up to mid-November.
+        with trials.open_run(producer="sweep.py", family=FAMILY) as run:
+            peek = flat_bars("SYN", "2021-07-02", "2021-11-15")
+            peek.index = peek.index.tz_localize(None)
+            run.begin(params={"timeframe": "hourly", "mode": "SYN_HOURLY"},
+                      data={"ticker": "SYN", "fingerprint": {"last_bar": str(peek.index[-1])}}
+                      ).complete(metrics={})
+        rec = self.evaluate()                # 2021-12-01: 150 days after the claimed date
+        fwd = next(s for s in rec["stages"] if s["name"] == "forward")
+        self.assertEqual(fwd["outcome"], admit.PENDING)
+        self.assertIn("starts 2021-11-15", fwd["detail"])
+
+    def test_4a_a_search_under_a_scratch_label_still_counts(self):
+        with mock.patch("src.research.trials._now", return_value="2021-06-01T00:00:00.000000Z"):
+            with trials.open_run(producer="sweep.py", family="scratch_peek:SYN") as run:
+                for i in range(5):
+                    run.begin(params={"timeframe": "hourly", "mode": "SYN_HOURLY", "i": i},
+                              data={"ticker": "SYN"}).complete(metrics={})
+        self.register()
+        self.examined()
+        st = next(s for s in self.evaluate()["stages"] if s["name"] == "deflation")
+        self.assertEqual(st["data"]["trials_recorded"], 6)  # 5 scratch-labelled + candidate
+
+    def test_7b_a_hand_written_admit_does_not_verify(self):
+        self.register()
+        forged = {"hypothesis": "H9100", "evaluated_at": "2021-12-01T00:00:00Z", "verdict": "ADMIT",
+                  "spec_hash": prereg.load("H9100", prereg_dir=self.dirs["prereg_dir"])[1],
+                  "stages": [{"name": n, "outcome": "pass", "detail": "", "data": {}}
+                             for n in admit.ADMIT_CHAIN]}
+        problems = admit.verify_record(forged, prereg_dir=self.dirs["prereg_dir"])
+        self.assertTrue(any("ledger run" in p for p in problems), problems)
+
+    def test_a_genuine_admit_verifies_and_a_tampered_one_does_not(self):
+        self.register()
+        self.examined()
+        rec = self.evaluate()
+        self.assertEqual(rec["verdict"], admit.ADMIT)
+        self.assertEqual(admit.verify_record(rec, prereg_dir=self.dirs["prereg_dir"]), [])
+        tampered = {**rec, "stages": rec["stages"][:-1]}
+        self.assertTrue(admit.verify_record(tampered, prereg_dir=self.dirs["prereg_dir"]))
+
+    def test_6_an_objection_cannot_be_answered_by_its_author(self):
+        o = refutations.object_to("H9100", claim="entries fill on the signal bar",
+                                  evidence="engine.py:390", by="Refuter-1",
+                                  directory=self.dirs["refutations_dir"])
+        with self.assertRaises(refutations.RefutationError):
+            refutations.resolve("H9100", o["id"], outcome="refuted", evidence="no it does not, see x",
+                                by="refuter-1", directory=self.dirs["refutations_dir"])
 
     def test_verdict_order(self):
         S = admit.Stage

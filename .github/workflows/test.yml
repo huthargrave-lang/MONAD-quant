@@ -91,6 +91,7 @@ jobs:
       - name: Verdicts and refutations intact (immutable / append-only)
         run: |
           python tools/admit.py --verify-history origin/development
+          python tools/admit.py --verify-records
           python tools/refute.py verify --against origin/development
           python tools/reevaluate_web.py verify --against origin/development
 

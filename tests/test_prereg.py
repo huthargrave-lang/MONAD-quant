@@ -89,6 +89,10 @@ class Registration(unittest.TestCase):
         self.assertEqual(record["registered_at"], "2026-09-22T00:00:00Z")
         self.assertIn("sha", record["registered_from"])
 
+    def test_development_evidence_must_predate_registration(self):
+        with self.assertRaises(prereg.PreregError):
+            prereg.register(SPEC, prereg_dir=self.dir, check_web=False, now="2025-06-01T00:00:00Z")
+
     def test_never_overwrites(self):
         prereg.register(SPEC, prereg_dir=self.dir, check_web=False)
         with self.assertRaises(prereg.PreregError):

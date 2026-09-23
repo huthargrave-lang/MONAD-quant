@@ -3811,3 +3811,8 @@ NOT MEASURED, STATED: there is no price history anywhere in this system. The pri
 Not a signal: nothing here touches live/**, config.py or the engine. 199 tests green.
 Links: [[F155|builds_on]] · [[F159|builds_on]] · [[F265502|builds_on]] · [[F265503|relates]].
 _— captured cursor/screener-buckets-toggle-45c8, 2026-08-06_
+
+### F404700 — sweep.py still samples morning-only bars: its session filter runs on a UTC index
+fetch_yfinance returns a naive-UTC index (src/data/fetcher.py tz_convert(None)); sweep.py:196 and tools/equity_curve.py:193 then call between_time('09:30','16:00') on it, which is 05:30-12:00 New York, so only the 13:30/14:30/15:30 UTC bars survive: 3 per day, the morning-only sample F13 showed manufactures an edge. Measured 2026-09-22 on QQQ 1h Aug 1 - Sep 18 (a short fetch, so not F12's long-range quirk): 231 bars at 7.0/day in, 99 at 3.0/day after the filter. A phase-1 QQQ sweep over 2026-03..09 loaded 412 bars (~3/day). F12 attributed morning-only data to the fetch span; this is a second, independent cause that tools/fetch_fullsession.py does not fix for sweep.py, because the sweep re-filters. Found by the harness red-team subagent, confirmed directly (an observation; the guard is tests/test_regular_session.py). Fix exists: src/data/fetcher.regular_session (New York time), already used by tools/admit.py. Migrating sweep.py and equity_curve.py moves published numbers, so it awaits sign-off and a re-sweep.
+Links: [[F13|builds_on]] · [[F12|refines]].
+_— captured claude/monetizing-repositories-03e341@43df77e, 2026-09-22_

@@ -53,12 +53,23 @@ different idea.
 **`evaluated_from`** in a trial's data spec means the recorded outcome covers only trades
 at or after that bar; earlier bars were warm-up or already-seen training data.
 
-## Known gaps
+**Membership is by engine identity, not only label.** For an MR family, every hourly
+engine trial on the same symbol counts, whatever `--family` it was run under
+(`backtest_trials.family_members`), so a scratch-labelled search cannot hide.
 
-- Research labs that measure with their own replay code (`tools/*_lab.py`,
-  `tools/*_study.py`) do not call the engine's evaluators and are not yet counted.
-- Trials recorded on a deployed checkout (e.g. research-UI curves on the Pi) stay there,
-  untracked, until committed from that checkout.
+## Known gaps (from the 2026-09-22 red-team; not closed)
+
+Counting is enforced by CI reading source text, not at runtime. These evade it:
+- a backtest called through an alias, `getattr`, or a hand-rolled exit loop;
+- code outside the scanned tree (`/tmp` scripts, `venv*` folders, `tests/`);
+- re-pointing `trials.LEDGER_DIR` at runtime, or `**kwargs`-passed `ledger_dir`.
+Closing these needs the engine entry points themselves to refuse to run without an
+active trial (a runtime token set by `Run.begin`): a change to `src/backtest/runner.py`
+and `src/strategy/engine.py` that awaits sign-off.
+
+Also: labs that measure with their own replay code (`tools/*_lab.py`, `tools/*_study.py`)
+are not counted, and trials recorded on a deployed checkout (research-UI curves on the Pi)
+stay there, untracked, until committed from that checkout.
 
 ## Writing trials
 
