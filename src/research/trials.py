@@ -305,6 +305,11 @@ class Run:
         self._prev = hashlib.sha256(line.encode("utf-8")).hexdigest()
         self._seq += 1
 
+    @property
+    def trials_begun(self) -> int:
+        """Intents written so far; the next ``begin`` gets this trial index."""
+        return self._n_intents
+
     # -- trials
     def begin(self, params: Mapping[str, Any], data: Mapping[str, Any] | None = None,
               extra: Mapping[str, Any] | None = None) -> Trial:
@@ -731,6 +736,7 @@ class TrialRecord:
     metrics: dict | None
     returns_sha: str | None
     bundle_sha: str | None
+    opened_at: str            # the run's open time (UTC ISO): when this trial's search began
 
     @property
     def key(self) -> str:
@@ -765,7 +771,8 @@ def iter_trials(ledger_dir: Path | None = None, *, family: str | None = None) ->
                 status=o["status"] if o else "orphan",
                 metrics=decode_metrics(o["metrics"]) if o and o.get("metrics") else None,
                 returns_sha=o.get("returns_sha") if o else None,
-                bundle_sha=close.get("bundle_sha") if close else None))
+                bundle_sha=close.get("bundle_sha") if close else None,
+                opened_at=head["at"]))
     return out
 
 
@@ -793,46 +800,56 @@ def load_returns(records: Iterable[TrialRecord], ledger_dir: Path | None = None)
 
 
 # ── history ──────────────────────────────────────────────────────────────────
-def verify_append_only(base_ref: str, *, repo: Path = REPO, ledger_rel: Path = LEDGER_REL) -> list[str]:
-    """Everything the ledger held at merge-base(HEAD, base_ref) is still here, unedited.
+def verify_history(base_ref: str, rel_dir: Path, *, rule, repo: Path = REPO,
+                   what: str = "file") -> list[str]:
+    """Files under ``rel_dir`` at merge-base(HEAD, base_ref) survive unedited.
 
-    Shards must be byte-prefixes of their current content (a run may only grow, and
-    a closed run cannot grow either, which ``verify_shard`` enforces). Artifacts
-    must be byte-identical. Deletions are violations. Uses the merge-base so a
-    branch is judged only on what it inherited, not on sibling work it lacks.
+    ``rule(rel_path)`` returns ``"prefix"`` (the file may only grow: an append-only log),
+    ``"identical"`` (the file may never change: a frozen record) or ``None`` (not
+    governed: ordinary editable text such as a README). Deletions of governed files are
+    violations. The merge-base is used so a branch is judged only on what it inherited,
+    not on sibling work it lacks. Shared by every append-only store in src/research/.
     """
     mb = _git(repo, "merge-base", "HEAD", base_ref)
     if mb.returncode != 0:
         return [f"cannot resolve merge-base with {base_ref!r}: "
                 f"{mb.stderr.decode(errors='replace').strip()}"]
     base = mb.stdout.decode().strip()
-    listing = _git(repo, "ls-tree", "-r", "-z", "--name-only", base, "--", ledger_rel.as_posix())
+    listing = _git(repo, "ls-tree", "-r", "-z", "--name-only", base, "--", Path(rel_dir).as_posix())
     if listing.returncode != 0:
-        return [f"cannot list ledger at {base[:12]}"]
+        return [f"cannot list {rel_dir} at {base[:12]}"]
     problems = []
     for rel in (p for p in listing.stdout.decode().split("\0") if p):
-        name = Path(rel).name
-        is_artifact = Path(rel).parent.as_posix() == (ledger_rel / ARTIFACTS).as_posix() and name.endswith(".json.gz")
-        is_shard = Path(rel).parent.as_posix() == ledger_rel.as_posix() and _RUN_ID.match(Path(rel).stem) \
-            and name.endswith(".jsonl")
-        if not (is_artifact or is_shard):
-            continue  # documentation beside the ledger is ordinary, editable text
+        mode = rule(rel)
+        if mode is None:
+            continue
         blob = _git(repo, "show", f"{base}:{rel}")
         if blob.returncode != 0:
             problems.append(f"{rel}: unreadable at {base[:12]}")
             continue
-        current = repo / rel
         try:
-            now = current.read_bytes()
+            now = (repo / rel).read_bytes()
         except FileNotFoundError:
-            problems.append(f"{rel}: deleted (present at {base[:12]})")
+            problems.append(f"{rel}: deleted ({what} present at {base[:12]})")
             continue
-        old = blob.stdout
-        if is_artifact and now != old:
-            problems.append(f"{rel}: artifact changed since {base[:12]}")
-        elif not is_artifact and not now.startswith(old):
+        if mode == "identical" and now != blob.stdout:
+            problems.append(f"{rel}: {what} changed since {base[:12]}")
+        elif mode == "prefix" and not now.startswith(blob.stdout):
             problems.append(f"{rel}: rewritten since {base[:12]} (not an append)")
     return problems
+
+
+def verify_append_only(base_ref: str, *, repo: Path = REPO, ledger_rel: Path = LEDGER_REL) -> list[str]:
+    """The ledger's history rule: shards may only grow, artifacts never change."""
+    def rule(rel: str):
+        p = Path(rel)
+        if p.parent.as_posix() == (ledger_rel / ARTIFACTS).as_posix() and p.name.endswith(".json.gz"):
+            return "identical"
+        if p.parent.as_posix() == ledger_rel.as_posix() and p.name.endswith(".jsonl") \
+                and _RUN_ID.match(p.stem):
+            return "prefix"
+        return None  # documentation beside the ledger is ordinary, editable text
+    return verify_history(base_ref, ledger_rel, rule=rule, repo=repo, what="ledger file")
 
 
 # ── repair of a crashed, uncommitted run ─────────────────────────────────────

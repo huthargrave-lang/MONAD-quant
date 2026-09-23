@@ -33,7 +33,7 @@ TEMPLATE = {
     "metric": "deflated_sharpe",
     "threshold": prereg.MIN_THRESHOLD,
     "min_trades": prereg.MIN_TRADES_FLOOR,
-    "holdout": {"kind": "forward_paper", "min_days": 90, "min_trades": 30},
+    "holdout": {"kind": "forward_paper", "min_days": 90, "min_trades": 30, "min_psr": 0.8},
     "cost_model": {"round_trip_cost_pct": "instrument-derived (sweep_costs.round_trip_cost_pct)"},
     "params": None,
 }

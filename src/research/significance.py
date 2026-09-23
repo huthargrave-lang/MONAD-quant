@@ -52,6 +52,13 @@ _N = NormalDist()
 #: rule alone can talk the count down.
 CLUSTER_MIN_CORRELATION = 0.5
 
+#: Two trials are correlated only over the days BOTH were live (each one's first..last
+#: trading day). Zero-filling outside a trial's window manufactures correlation between
+#: any two trials whose means share a sign, which merges independent tries and
+#: undercounts N (found by the admission-gate tests). Pairs overlapping fewer days than
+#: this are treated as uncorrelated: unknown dependence counts as independent.
+MIN_OVERLAP_DAYS = 20
+
 
 # ── moments ──────────────────────────────────────────────────────────────────
 @dataclass(frozen=True)
@@ -212,6 +219,24 @@ def _average_linkage_clusters(corr: np.ndarray, min_corr: float) -> np.ndarray:
     return labels
 
 
+def overlap_correlation(pnl: pd.DataFrame, min_overlap: int = MIN_OVERLAP_DAYS) -> np.ndarray:
+    """Pairwise correlation over each pair's shared active span (see MIN_OVERLAP_DAYS).
+
+    Inside a trial's span a day without a trade is a genuine flat day (0); outside it the
+    trial did not exist, so those days are excluded rather than zero-filled. Undefined or
+    under-supported pairs become 0 (independent). The diagonal is 1.
+    """
+    masked = pnl.copy()
+    for col in masked.columns:
+        span = active_span(pnl[col])
+        keep = masked.index.isin(span.index) if len(span) else np.zeros(len(masked), bool)
+        masked.loc[~keep, col] = np.nan
+    corr = masked.corr(min_periods=min_overlap).to_numpy(dtype=float)
+    corr = np.nan_to_num(corr, nan=0.0)
+    np.fill_diagonal(corr, 1.0)
+    return corr
+
+
 def li_ji_effective(corr: np.ndarray) -> float:
     """Li & Ji (2005) effective number of independent tests from eigenvalues:
     sum over eigenvalues of I(|l| >= 1) + (|l| - floor(|l|))."""
@@ -259,8 +284,7 @@ def effective_trials(series_map: Mapping[str, pd.Series], *,
     cluster_cols: list[pd.Series] = []
     n_li_ji = 0.0
     if live:
-        corr = np.corrcoef(pnl[live].to_numpy(), rowvar=False) if len(live) > 1 else np.ones((1, 1))
-        corr = np.nan_to_num(np.atleast_2d(corr), nan=0.0)
+        corr = overlap_correlation(pnl[live])
         lab = _average_linkage_clusters(corr, min_corr)
         n_li_ji = li_ji_effective(corr)
         for c in range(int(lab.max()) + 1):

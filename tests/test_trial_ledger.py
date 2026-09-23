@@ -330,7 +330,7 @@ class TestAppendOnlyHistory(unittest.TestCase):
     def test_changed_artifact_is_a_violation(self):
         art = next((self.ledger / trials.ARTIFACTS).glob("*.json.gz"))
         art.write_bytes(art.read_bytes() + b"x")
-        self.assertTrue(any("artifact changed" in p for p in self.check()))
+        self.assertTrue(any("changed since" in p and "artifacts" in p for p in self.check()))
 
     def test_docs_beside_the_ledger_stay_editable(self):
         readme = self.ledger / "README.md"

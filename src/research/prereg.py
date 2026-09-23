@@ -31,7 +31,8 @@ import sys
 from pathlib import Path
 from typing import Any, Mapping
 
-from src.research.trials import (REPO, LedgerError, _FAMILY, _HYPOTHESIS, _git, canonical_json,
+from src.research import trials
+from src.research.trials import (REPO, LedgerError, _FAMILY, _HYPOTHESIS, canonical_json,
                                  code_state, sha256_text)
 
 SCHEMA_VERSION = 1
@@ -43,6 +44,12 @@ PREREG_DIR = REPO / PREREG_REL
 MIN_THRESHOLD = 0.95
 MIN_TRADES_FLOOR = 30
 MIN_FORWARD_DAYS_FLOOR = 60
+#: The forward window is a single pre-registered test (N = 1), so its DSR is its PSR
+#: against zero. Floor: P(forward Sharpe > 0) >= 0.80. Measured power at that floor over
+#: 90 trading days: a true annual Sharpe of 3 passes ~96% of the time, 2 ~88%, 1 ~77%;
+#: pure noise passes ~20%, which the development-window DSR gate in front of it has
+#: already cut by an order of magnitude. A registration may demand more, never less.
+MIN_FORWARD_PSR_FLOOR = 0.80
 
 PROFILES = {
     "price_strategy": {"forward_paper"},
@@ -106,6 +113,10 @@ def validate(spec: Mapping[str, Any]) -> list[str]:
             ftr = h.get("min_trades")
             if not (isinstance(ftr, int) and ftr >= 1):
                 errs.append("forward_paper.min_trades must be a positive integer")
+            psr = h.get("min_psr")
+            if not (isinstance(psr, (int, float)) and not isinstance(psr, bool)
+                    and MIN_FORWARD_PSR_FLOOR <= psr < 1):
+                errs.append(f"forward_paper.min_psr must be in [{MIN_FORWARD_PSR_FLOOR}, 1)")
         elif h["kind"] == "sealed_issuers":
             if not (isinstance(h.get("vault"), str) and h["vault"]):
                 errs.append("sealed_issuers.vault must name the vault")
@@ -187,19 +198,8 @@ def load(hypothesis: str, *, prereg_dir: Path | None = None) -> tuple[dict, str]
 
 def verify_history(base_ref: str, *, repo: Path = REPO, prereg_rel: Path = PREREG_REL) -> list[str]:
     """Registrations present at merge-base(HEAD, base_ref) are unchanged and undeleted."""
-    mb = _git(repo, "merge-base", "HEAD", base_ref)
-    if mb.returncode != 0:
-        return [f"cannot resolve merge-base with {base_ref!r}"]
-    base = mb.stdout.decode().strip()
-    listing = _git(repo, "ls-tree", "-r", "-z", "--name-only", base, "--", prereg_rel.as_posix())
-    problems = []
-    for rel in (p for p in listing.stdout.decode().split("\0") if p.endswith(".json")):
-        old = _git(repo, "show", f"{base}:{rel}").stdout
-        try:
-            now = (repo / rel).read_bytes()
-        except FileNotFoundError:
-            problems.append(f"{rel}: deleted (registered at {base[:12]})")
-            continue
-        if now != old:
-            problems.append(f"{rel}: edited since {base[:12]}; register a refining hypothesis instead")
-    return problems
+    problems = trials.verify_history(
+        base_ref, prereg_rel, repo=repo, what="registration",
+        rule=lambda rel: "identical" if rel.endswith(".json") else None)
+    return [p + ("; register a refining hypothesis instead" if "changed" in p else "")
+            for p in problems]

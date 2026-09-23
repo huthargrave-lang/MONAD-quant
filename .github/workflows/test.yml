@@ -86,6 +86,13 @@ jobs:
       - name: Pre-registrations intact (load + immutable history)
         run: python tools/prereg.py verify --against origin/development
 
+      # Admission verdicts are immutable records; refutation logs only grow. An edited
+      # verdict or a deleted objection would let a result outlive its own evidence.
+      - name: Verdicts and refutations intact (immutable / append-only)
+        run: |
+          python tools/admit.py --verify-history origin/development
+          python tools/refute.py verify --against origin/development
+
       - name: Run the full test suite (with coverage)
         run: |
           coverage run --source=src,live -m pytest tests/ -v

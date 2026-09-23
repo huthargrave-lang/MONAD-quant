@@ -505,7 +505,9 @@
         "tools/ui_tokens.py",
         "src/research/",
         "tools/trial_ledger.py",
-        "tools/prereg.py"
+        "tools/prereg.py",
+        "tools/admit.py",
+        "tools/refute.py"
       ],
       "entrypoints": [],
       "tests": [
@@ -540,7 +542,9 @@
         "tests/test_producer_ledger_wiring.py",
         "tests/test_significance.py",
         "tests/test_deflation.py",
-        "tests/test_prereg.py"
+        "tests/test_prereg.py",
+        "tests/test_admit.py",
+        "tests/test_refutations.py"
       ],
       "docs": [
         "docs/research/README.md",

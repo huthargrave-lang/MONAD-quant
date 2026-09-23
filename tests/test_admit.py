@@ -1,0 +1,250 @@
+"""
+Tests for the admission gate (tools/admit.py).
+
+The engine is replaced with a deterministic fake backtest (patched at
+``src.backtest.runner.run_backtest``) so the gate's DECISION logic can be exercised on
+evidence of known strength. The one property this file exists for:
+
+    identical evidence + a different search history => a different verdict.
+
+A strong candidate registered with no prior search is admitted; the same candidate
+after a large recorded search is rejected by deflation. Everything else pins each
+stage's outcome, that the gate's own backtests are counted, and that verdict records
+are immutable.
+"""
+import datetime as dt
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+import numpy as np
+import pandas as pd
+
+REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO))
+sys.path.insert(0, str(REPO / "tools"))
+
+import admit  # noqa: E402
+from src.research import prereg, refutations, trials  # noqa: E402
+
+REGISTERED = "2021-07-02T00:00:00Z"
+MATURE = dt.datetime(2021, 12, 1, tzinfo=dt.timezone.utc)
+FAMILY = "long_only_rsi_vwap_mr_hourly:SYN"
+PARAMS = {"target_gain_pct": 0.01, "stop_loss_pct": 0.005, "rsi_oversold": 35,
+          "vwap_zscore_thresh": -1.0, "max_trade_bars": 8}
+
+
+def _spec(**changes):
+    s = {"hypothesis": "H9100", "family": FAMILY,
+         "claim": "Synthetic tape: the frozen dip-buying candidate earns after costs.",
+         "profile": "price_strategy", "universe": ["SYN"],
+         "development_window": {"start": "2021-01-04", "end": "2021-07-01"},
+         "metric": "deflated_sharpe", "threshold": 0.95, "min_trades": 30,
+         "holdout": {"kind": "forward_paper", "min_days": 90, "min_trades": 30, "min_psr": 0.8},
+         "cost_model": {"round_trip_cost_pct": "instrument-derived"}, "params": dict(PARAMS)}
+    s.update(changes)
+    return s
+
+
+def flat_bars(symbol, start, end):
+    """A flat, gently noisy tape: buy & hold earns ~nothing, so the benchmark is fair."""
+    idx = pd.date_range(pd.Timestamp(start), pd.Timestamp(end), freq="h", tz="UTC")
+    rng = np.random.default_rng(len(idx))
+    close = 100 * np.exp(np.cumsum(rng.normal(0, 0.0005, len(idx))) * 0.1)
+    return pd.DataFrame({"open": close, "high": close * 1.001, "low": close * 0.999,
+                         "close": close, "volume": 1e6}, index=idx)
+
+
+def fake_backtest(edge):
+    """A stand-in for run_backtest: one trade every 7 bars, mean ``edge`` per trade,
+    minus the slippage it is given. Deterministic in the bars it sees."""
+    def run(df, target_gain_pct, stop_loss_pct, slippage_pct=0.0, **_):
+        idx = df.index[::7]
+        rng = np.random.default_rng(len(df))
+        r = pd.Series(rng.normal(edge, 0.004, len(idx)) - (slippage_pct or 0.0), index=idx)
+        equity = (1 + 0.1 * r).cumprod()
+        dd = float((equity / equity.cummax() - 1).min())
+        return {"total_trades": len(r), "win_rate": float((r > 0).mean()),
+                "total_return": float(equity.iloc[-1] - 1), "sharpe_ratio": float(r.mean() / r.std()),
+                "max_drawdown": dd, "trades_per_year": 300.0, "trade_returns": r}
+    return run
+
+
+class Gate(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        d = Path(self._tmp.name)
+        self.dirs = {"prereg_dir": d / "prereg", "refutations_dir": d / "refutations"}
+        self.ledger = d / "trials"
+        # The gate has no ledger parameter by design, so the test relocates the canonical
+        # one (and the registrations open_run's family check reads).
+        self._orig = (prereg.PREREG_DIR, trials.LEDGER_DIR)
+        prereg.PREREG_DIR = self.dirs["prereg_dir"]
+        trials.LEDGER_DIR = self.ledger
+
+    def tearDown(self):
+        prereg.PREREG_DIR, trials.LEDGER_DIR = self._orig
+        self._tmp.cleanup()
+
+    def register(self, **changes):
+        prereg.register(_spec(**changes), prereg_dir=self.dirs["prereg_dir"], check_web=False,
+                        now=REGISTERED)
+
+    def evaluate(self, edge=0.004, now=MATURE, parity_diverge=(), dirty=False,
+                 load_bars=flat_bars):
+        census = {"rows": [{"dimension": d, "verdict": "DIVERGE"} for d in parity_diverge],
+                  "counts": {"DIVERGE": len(parity_diverge)}}
+        with mock.patch("src.backtest.runner.run_backtest", fake_backtest(edge)):
+            return admit.evaluate("H9100", now=now, load_bars=load_bars,
+                                  parity=lambda: census,
+                                  code=lambda: {"sha": "a" * 40, "dirty": dirty},
+                                  **self.dirs)
+
+    def stages(self, record):
+        return {s["name"]: s["outcome"] for s in record["stages"]}
+
+    def prior_search(self, n, seed=0):
+        """n recorded trials in the family BEFORE registration, with widely spread Sharpes:
+        the signature of a search wide enough that its best result is expected to look
+        strong by luck alone."""
+        rng = np.random.default_rng(seed)
+        with mock.patch("src.research.trials._now", return_value="2021-06-01T00:00:00.000000Z"):
+            with trials.open_run(producer="sweep.py", family=FAMILY) as run:
+                for i in range(n):
+                    idx = pd.bdate_range("2021-01-04", periods=120) + pd.Timedelta(hours=10)
+                    s = pd.Series(rng.normal(rng.normal(0, 0.02), 0.01, 120), index=idx)
+                    run.begin(params={"i": i}).complete(metrics={}, returns=s)
+
+
+class TheVerdictDependsOnTheSearch(Gate):
+    def test_a_strong_candidate_with_no_prior_search_is_admitted(self):
+        self.register()
+        record = self.evaluate()
+        self.assertEqual(record["verdict"], admit.ADMIT, record["stages"])
+        self.assertEqual(set(self.stages(record).values()), {admit.PASS})
+
+    def test_the_same_candidate_after_a_large_search_is_rejected(self):
+        self.prior_search(300)
+        self.register()
+        record = self.evaluate()
+        self.assertEqual(self.stages(record)["deflation"], admit.FAIL)
+        self.assertEqual(record["verdict"], admit.REJECT)
+
+    def test_the_gates_own_backtests_are_counted_but_not_as_search(self):
+        self.register()
+        record = self.evaluate()
+        counted = [r for r in trials.iter_trials()
+                   if r.producer == "tools/admit.py"]
+        self.assertEqual(len(counted), 3)  # development, cost stress, forward
+        deflation_stage = next(s for s in record["stages"] if s["name"] == "deflation")
+        self.assertEqual(deflation_stage["data"]["trials_recorded"], 1)
+
+
+class EachStage(Gate):
+    def test_no_registration_rejects(self):
+        self.assertEqual(self.evaluate()["verdict"], admit.REJECT)
+
+    def test_no_frozen_candidate_rejects(self):
+        self.register(params=None)
+        self.assertEqual(self.evaluate()["verdict"], admit.REJECT)
+
+    def test_a_private_family_is_refused(self):
+        self.register(family="my_fresh_start:SYN")
+        rec = self.evaluate()
+        self.assertEqual(rec["verdict"], admit.UNSUPPORTED)  # not the MR family at all
+        self.register(hypothesis="H9101", family="long_only_rsi_vwap_mr_hourly:OTHER")
+        with mock.patch("src.backtest.runner.run_backtest", fake_backtest(0.004)):
+            rec = admit.evaluate("H9101", now=MATURE, load_bars=flat_bars,
+                                 parity=lambda: {"rows": [], "counts": {}},
+                                 code=lambda: {"sha": "a" * 40, "dirty": False}, **self.dirs)
+        self.assertEqual(rec["verdict"], admit.REJECT)
+        self.assertIn("family must be", rec["stages"][0]["detail"])
+
+    def test_other_profiles_are_unsupported_not_admitted(self):
+        self.register(profile="event_study", holdout={"kind": "sealed_issuers", "vault": "v1"})
+        self.assertEqual(self.evaluate()["verdict"], admit.UNSUPPORTED)
+
+    def test_dirty_code_blocks(self):
+        self.register()
+        rec = self.evaluate(dirty=True)
+        self.assertEqual(self.stages(rec)["code"], admit.BLOCK)
+        self.assertEqual(rec["verdict"], admit.BLOCKED)
+
+    def test_parity_divergence_blocks(self):
+        self.register()
+        rec = self.evaluate(parity_diverge=("max hold (time exit)",))
+        self.assertEqual(self.stages(rec)["parity"], admit.BLOCK)
+        self.assertIn("max hold", next(s for s in rec["stages"] if s["name"] == "parity")["detail"])
+
+    def test_open_objection_blocks_and_upheld_rejects(self):
+        self.register()
+        o = refutations.object_to("H9100", claim="entries use the bar's own close (look-ahead)",
+                                  evidence="engine.py:390 timestamp is the signal bar",
+                                  by="refuter-1", directory=self.dirs["refutations_dir"])
+        self.assertEqual(self.stages(self.evaluate())["refutations"], admit.BLOCK)
+        refutations.resolve("H9100", o["id"], outcome="upheld",
+                            evidence="confirmed by replay in tools/overnight_gap_risk_study.py",
+                            by="refuter-2", directory=self.dirs["refutations_dir"])
+        self.assertEqual(self.evaluate()["verdict"], admit.REJECT)
+
+    def test_a_losing_candidate_fails_cost_and_benchmark(self):
+        self.register()
+        st = self.stages(self.evaluate(edge=-0.002))
+        self.assertEqual((st["cost_stress"], st["benchmark"]), (admit.FAIL, admit.FAIL))
+
+    def test_forward_is_pending_until_it_matures(self):
+        self.register()
+        early = dt.datetime(2021, 7, 20, tzinfo=dt.timezone.utc)
+        rec = self.evaluate(now=early)
+        self.assertEqual(self.stages(rec)["forward"], admit.PENDING)
+        self.assertEqual(rec["verdict"], admit.PENDING_V)
+        counted = [r for r in trials.iter_trials() if r.producer == "tools/admit.py"]
+        self.assertEqual(len(counted), 2)  # no forward backtest before the window matures
+
+    def test_a_gate_that_cannot_measure_does_not_admit(self):
+        self.register()
+
+        def broken(*_):
+            raise ConnectionError("no network")
+        rec = self.evaluate(load_bars=broken)
+        self.assertNotEqual(rec["verdict"], admit.ADMIT)
+
+    def test_verdict_order(self):
+        S = admit.Stage
+        self.assertEqual(admit._verdict([S("a", "pass", ""), S("b", "pending", "")]), admit.PENDING_V)
+        self.assertEqual(admit._verdict([S("a", "pending", ""), S("b", "block", "")]), admit.BLOCKED)
+        self.assertEqual(admit._verdict([S("a", "block", ""), S("b", "fail", "")]), admit.REJECT)
+
+
+class Records(unittest.TestCase):
+    def test_written_once(self):
+        with tempfile.TemporaryDirectory() as td:
+            rec = {"hypothesis": "H9100", "evaluated_at": "2021-12-01T00:00:00Z", "verdict": "ADMIT",
+                   "stages": []}
+            path = admit.write_verdict(rec, Path(td))
+            self.assertTrue(path.exists())
+            with self.assertRaises(FileExistsError):
+                admit.write_verdict(rec, Path(td))
+
+    def test_history_is_immutable(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            git = lambda *a: subprocess.run(["git", "-C", td, *a], check=True, capture_output=True)
+            git("init", "-q", "-b", "base")
+            git("config", "user.email", "t@e.com")
+            git("config", "user.name", "t")
+            path = admit.write_verdict({"hypothesis": "H1", "evaluated_at": "2021-12-01T00:00:00Z",
+                                        "verdict": "REJECT", "stages": []}, repo / admit.VERDICT_REL)
+            git("add", "-A")
+            git("commit", "-q", "-m", "v")
+            git("checkout", "-q", "-b", "work")
+            self.assertEqual(admit.verify_history("base", repo=repo), [])
+            path.write_text(path.read_text().replace("REJECT", "ADMIT"))
+            self.assertTrue(admit.verify_history("base", repo=repo))
+
+
+if __name__ == "__main__":
+    unittest.main()

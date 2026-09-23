@@ -18,6 +18,12 @@ How the trial count is built (conservative at every fork):
 
 The candidate's Sharpe, skew, kurtosis and T are measured on its own daily PnL over its
 active span (first to last trading day), the same basis the cluster Sharpes use.
+
+``searched_before`` (the admission gate passes a hypothesis's ``registered_at``): only
+trials whose run opened before it count toward N, plus the candidate itself. A frozen
+spec cannot have been chosen by trials run after it was frozen (the gate's own cost
+stress and forward runs, or a later search); those count against the NEXT hypothesis in
+the family, not this one. Without a cutoff every recorded trial counts.
 """
 from __future__ import annotations
 
@@ -36,7 +42,7 @@ PERIODS_PER_YEAR = 252
 class FamilyDeflation:
     family: str
     candidate: str                 # "<run_id>#<trial>"
-    trials_recorded: int           # every intent in the family
+    trials_recorded: int           # every intent in the family that counts (see searched_before)
     trials_with_returns: int
     unknown_specs_added: int       # distinct error/abandoned/orphan specs counted as +1 each
     effective: sig.EffectiveTrials
@@ -53,8 +59,9 @@ class FamilyDeflation:
         return self.result.sr0 * math.sqrt(PERIODS_PER_YEAR)
 
 
-def deflate_candidate(candidate: str, *, ledger_dir: Path | None = None) -> FamilyDeflation:
-    """DSR of trial ``candidate`` ("<run_id>#<trial>") against its whole family."""
+def deflate_candidate(candidate: str, *, ledger_dir: Path | None = None,
+                      searched_before=None) -> FamilyDeflation:
+    """DSR of trial ``candidate`` ("<run_id>#<trial>") against its family's search."""
     run_id, _, idx = candidate.partition("#")
     if not idx.isdigit():
         raise ValueError(f"candidate must look like <run_id>#<trial>, got {candidate!r}")
@@ -65,6 +72,12 @@ def deflate_candidate(candidate: str, *, ledger_dir: Path | None = None) -> Fami
     if target.status != "ok":
         raise ValueError(f"{candidate} has status {target.status!r}; only an ok trial can be deflated")
     family = [r for r in everything if r.family == target.family]
+    if searched_before is not None:
+        import pandas as pd
+        cutoff = pd.Timestamp(searched_before)
+        cutoff = cutoff.tz_convert("UTC") if cutoff.tzinfo else cutoff.tz_localize("UTC")
+        family = [r for r in family
+                  if r.key == target.key or pd.Timestamp(r.opened_at) < cutoff]
 
     series = trials.load_returns(family, ledger_dir)
     if target.key not in series:

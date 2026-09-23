@@ -125,6 +125,16 @@ class EffectiveTrials(unittest.TestCase):
         s = pd.Series([0.01, 0.02], index=pd.to_datetime(["2024-01-02 10:00", "2024-01-02 14:00"]))
         self.assertAlmostEqual(sig.daily_pnl({"s": s}).loc["2024-01-02", "s"], 0.03)
 
+    def test_disjoint_windows_do_not_manufacture_correlation(self):
+        """Independent trials with same-sign means and different windows must stay
+        independent: zero-filling outside each window used to merge them."""
+        rng = np.random.default_rng(5)
+        trials = {}
+        for i in range(12):
+            start = pd.Timestamp("2021-01-04") + pd.Timedelta(days=30 * (i % 3))
+            trials[f"t{i}"] = _trades(rng.normal(0.02, 0.01, 120), start=str(start.date()))
+        self.assertEqual(sig.effective_trials(trials).n_clusters, 12)
+
     def test_li_ji_bounds(self):
         self.assertAlmostEqual(sig.li_ji_effective(np.eye(5)), 5.0)
         self.assertAlmostEqual(sig.li_ji_effective(np.ones((5, 5))), 1.0)
