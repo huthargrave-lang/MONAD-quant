@@ -26,6 +26,7 @@ from collections import deque
 from src.strategy.engine import build_features, generate_trades, compute_trade_returns
 from src.strategy.sizing import estimate_stats_from_backtest, compute_position_size, position_fraction
 from src.backtest import metrics, uncertainty
+from src.strategy.counted import evaluator as _counted_evaluator
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -53,6 +54,7 @@ BACKTEST_MODES = {
 }
 
 
+@_counted_evaluator  # refuses to run without a begun trial (src/strategy/counted.py)
 def run_backtest(df: pd.DataFrame,
                  initial_capital: float = 100_000,
                  target_gain_pct: float = 0.030,

@@ -139,9 +139,13 @@ def time_exit_bind_rate(sigma=0.008, bars=4000, target=0.010, stop=0.005):
         trades = generate_trades(feat, require_signals=1, target_gain_pct=target,
                                  stop_loss_pct=stop)
         runs = {}
-        for hold in (8, 10):
-            runs[hold] = compute_trade_returns(trades, target_gain_pct=target,
-                                               stop_loss_pct=stop, max_trade_bars=hold)
+        # Seeded synthetic panels: a statement about the exit MECHANISM, measuring no
+        # instrument, so it is not a counted trial (src/research/trials.UNCOUNTED_ALLOWED).
+        from src.strategy.counted import uncounted
+        with uncounted("synthetic mechanism panels for the time-exit bind rate"):
+            for hold in (8, 10):
+                runs[hold] = compute_trade_returns(trades, target_gain_pct=target,
+                                                   stop_loss_pct=stop, max_trade_bars=hold)
         totals["trades"] += len(runs[8])
         for hold in (8, 10):
             counts = collections.Counter(runs[hold]["exit_type"])

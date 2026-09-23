@@ -370,7 +370,8 @@
       "files": [
         "src/strategy/engine.py",
         "src/strategy/sizing.py",
-        "config.py"
+        "config.py",
+        "src/strategy/counted.py"
       ],
       "entrypoints": [
         "src/strategy/engine.py::build_features",
@@ -383,7 +384,8 @@
         "tests/test_execution_model.py",
         "tests/test_sizing.py",
         "tests/test_compute_returns_properties.py",
-        "tests/test_fill_model.py"
+        "tests/test_fill_model.py",
+        "tests/test_counted.py"
       ],
       "docs": [
         "CLAUDE.md"

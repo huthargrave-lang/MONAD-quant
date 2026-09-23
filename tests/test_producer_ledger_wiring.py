@@ -168,6 +168,27 @@ class EveryEvaluationIsCounted(unittest.TestCase):
         self.assertEqual(results, {"f": False, "g": True})
 
 
+class TheRuntimeGuardAgreesWithThisOne(unittest.TestCase):
+    """src/strategy/counted.py enforces counting at runtime; this file's EXEMPT list and
+    its UNCOUNTED_ALLOWED list must name the same files, or one of them is lying."""
+
+    def test_exemption_lists_match(self):
+        from src.strategy.counted import UNCOUNTED_ALLOWED
+        self.assertEqual(set(EXEMPT), set(UNCOUNTED_ALLOWED))
+
+    def test_uncounted_is_used_only_where_allowed(self):
+        from src.strategy.counted import UNCOUNTED_ALLOWED
+        offenders = []
+        for rel in _first_party():
+            if rel in UNCOUNTED_ALLOWED or rel.startswith("src/strategy/counted"):
+                continue
+            with open(os.path.join(ROOT, rel), encoding="utf-8") as fh:
+                tree = ast.parse(fh.read())
+            if any(isinstance(c, ast.Call) and _name(c) == "uncounted" for c in ast.walk(tree)):
+                offenders.append(rel)
+        self.assertEqual(offenders, [], "uncounted() outside tests/ and the exempt tools")
+
+
 class ProducersWriteTheCanonicalLedger(unittest.TestCase):
     def test_no_producer_diverts_its_trials(self):
         """``ledger_dir=`` exists for tests. A producer passing it would count its trials

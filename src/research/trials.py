@@ -47,11 +47,15 @@ results return.
 """
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import datetime as _dt
 import errno
 import fcntl
+import functools
 import gzip
 import hashlib
+import inspect
 import io
 import json
 import math
@@ -98,6 +102,16 @@ _NONFINITE_DECODE = {"NaN": math.nan, "Infinity": math.inf, "-Infinity": -math.i
 
 class LedgerError(Exception):
     """A ledger invariant was violated, or a caller misused the API."""
+
+
+# The runtime trial token lives in src/strategy/counted.py, beside the engine it guards:
+# the engine imports it, and live/signals.py imports the engine, so it is part of the
+# armed import closure (tools/armed_closure.py). Keeping it there, small and stable,
+# keeps the research package itself OUT of that closure.
+from src.strategy.counted import (UNCOUNTED_ALLOWED, UncountedEvaluationError,  # noqa: E402,F401
+                                  clear_token as _clear_token, evaluation, evaluator,
+                                  issue_token as _issue_token, uncounted)
+
 
 
 # ── canonical encoding ───────────────────────────────────────────────────────
@@ -332,6 +346,7 @@ class Run:
             self._n_intents += 1
             trial = Trial(run=self, index=index, spec_hash=h)
             self._open[index] = trial
+            _issue_token(trial)
         return trial
 
     def trial(self, params: Mapping[str, Any], data: Mapping[str, Any] | None = None,
@@ -370,6 +385,7 @@ class Run:
             trial.done = True
             del self._open[trial.index]
             self._n_outcomes += 1
+            _clear_token(trial)
 
     # -- close
     def _close(self, status: str) -> None:
@@ -380,6 +396,7 @@ class Run:
                              "n_returns": None, "error": f"run closed ({status}) without an outcome"})
                 trial.done = True
                 self._n_outcomes += 1
+                _clear_token(trial)
             self._open.clear()
             bundle_sha = write_bundle(self.artifacts_dir, self._returns) if self._returns else None
             self._write({"type": "run_close", "at": _now(), "status": status,

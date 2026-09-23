@@ -23,6 +23,12 @@ import pandas as pd
 from src.optimization import walk_forward
 from src.optimization.walk_forward import _sharpe, _make_windows
 
+from tests._engine_uncounted import uncounted_module  # noqa: E402
+
+# Engine arithmetic, not a strategy evaluation: runs outside the trial ledger
+# (src/strategy/counted.py).
+setUpModule, tearDownModule = uncounted_module("direct _run_slice unit tests on synthetic bars (the optimizer test counts)")
+
 
 def _returns_over_span(values, start, periods=None, freq=None, end=None):
     """Build a trade-returns Series indexed by a datetime span.

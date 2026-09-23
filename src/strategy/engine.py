@@ -9,6 +9,7 @@ import numpy as np
 from src.signals.momentum import add_momentum_features
 from src.signals.volume import add_volume_features
 from src.signals.volatility import add_volatility_features
+from src.strategy.counted import evaluator as _counted_evaluator
 
 
 def build_features(df: pd.DataFrame, timeframe: str = "daily",
@@ -208,6 +209,7 @@ def generate_trades(df: pd.DataFrame,
     return df
 
 
+@_counted_evaluator  # refuses to run without a begun trial (src/strategy/counted.py)
 def compute_trade_returns(df: pd.DataFrame,
                            target_gain_pct: float = 0.015,
                            stop_loss_pct: float = 0.01,

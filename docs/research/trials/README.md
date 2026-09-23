@@ -57,15 +57,20 @@ at or after that bar; earlier bars were warm-up or already-seen training data.
 engine trial on the same symbol counts, whatever `--family` it was run under
 (`backtest_trials.family_members`), so a scratch-labelled search cannot hide.
 
-## Known gaps (from the 2026-09-22 red-team; not closed)
+## Enforcement
 
-Counting is enforced by CI reading source text, not at runtime. These evade it:
-- a backtest called through an alias, `getattr`, or a hand-rolled exit loop;
-- code outside the scanned tree (`/tmp` scripts, `venv*` folders, `tests/`);
-- re-pointing `trials.LEDGER_DIR` at runtime, or `**kwargs`-passed `ledger_dir`.
-Closing these needs the engine entry points themselves to refuse to run without an
-active trial (a runtime token set by `Run.begin`): a change to `src/backtest/runner.py`
-and `src/strategy/engine.py` that awaits sign-off.
+Counting is enforced at RUNTIME (decision-debate Q2): `run_backtest` and
+`compute_trade_returns` refuse to run without a begun trial (`src/strategy/counted.py`).
+One trial authorises exactly one evaluation, so aliases, `getattr`, `/tmp` scripts and
+one-begin-many-backtests loops all fail. `uncounted(reason)` is the only bypass, allowed
+from `tests/` and the two exempt tools, checked against the caller's path at runtime.
+`tests/test_producer_ledger_wiring.py` still scans source as a second line.
+
+## Known gaps (not closed)
+
+- Code pairing `generate_trades` (imported by the live bot, so it cannot be guarded) with
+  hand-rolled return arithmetic is not counted.
+- Re-pointing `trials.LEDGER_DIR` at runtime diverts trials to a private ledger.
 
 Round 2 (after fixes) left these, also not closed:
 - **Evidence never shown to git.** A trial deleted before its first commit, or a peek run

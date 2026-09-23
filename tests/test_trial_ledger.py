@@ -233,8 +233,11 @@ class TestCrashAndSeal(LedgerCase):
         ctx = self.run_()
         run = ctx.__enter__()
         run.begin(params={"k": 1}).complete(metrics={"sharpe": 1.0}, returns=_series(3))
-        run.begin(params={"k": 2})  # dies while computing this one
+        dying = run.begin(params={"k": 2})  # dies while computing this one
         run._fh.close()             # process death: no close row, flock released
+        # In a real crash the token dies with the process; in this one test process it
+        # would leak into the next test, so the simulated death clears it too.
+        trials._clear_token(dying)
         if torn:
             with open(run.path, "ab") as f:
                 f.write(torn)

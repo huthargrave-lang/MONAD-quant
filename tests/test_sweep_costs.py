@@ -17,6 +17,12 @@ from src.optimization.sweep_costs import (
     estimate_spread, round_trip_cost_pct, BROKER_SPREADS,
 )
 
+from tests._engine_uncounted import uncounted_module  # noqa: E402
+
+# Engine arithmetic, not a strategy evaluation: runs outside the trial ledger
+# (src/strategy/counted.py).
+setUpModule, tearDownModule = uncounted_module("slippage-override plumbing of run_backtest on synthetic data")
+
 
 class TestEstimateSpread(unittest.TestCase):
     def test_retail_tiers(self):

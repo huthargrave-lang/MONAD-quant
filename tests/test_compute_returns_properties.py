@@ -24,6 +24,12 @@ import pandas as pd
 
 from src.strategy.engine import compute_trade_returns
 
+from tests._engine_uncounted import uncounted_module  # noqa: E402
+
+# Engine arithmetic, not a strategy evaluation: runs outside the trial ledger
+# (src/strategy/counted.py).
+setUpModule, tearDownModule = uncounted_module("property tests of compute_trade_returns arithmetic on synthetic bars")
+
 VALID_EXIT_TYPES = {"target_hit", "stop_hit", "ambiguous_same_bar",
                     "time_exit", "opposing_signal"}
 
