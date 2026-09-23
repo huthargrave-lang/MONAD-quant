@@ -46,6 +46,7 @@ venv/bin/python tools/prereg.py template | register <spec.json> [--commit]  # fr
 venv/bin/python tools/refute.py object|resolve|status <H> ...  # file or answer an objection; open ones BLOCK admission, upheld ones REJECT
 venv/bin/python tools/admit.py <H> [--dry-run]    # THE admission gate: deterministic chain, immutable verdict; the only way a hypothesis becomes an edge
 venv/bin/python tools/edge_scorecard.py           # the edge hunt at a glance: registered vs admitted, objections, trials per admission
+venv/bin/python tools/reevaluate_web.py triage|next|decide  # re-evaluate Findings that predate the gate (market claims first); feeds research_backlog
 venv/bin/python tools/ctx.py brief <area> --task ".."  # ≤900-tok orientation packet (best first move)
 venv/bin/python tools/ctx.py impact <file|symbol|config.KEY>  # blast radius + ⛔ if it hits the live boundary
 venv/bin/python tools/ctx.py can_edit <file>       # edit gate ALLOW/WARN/DENY (exit 0/2/1, scriptable)
