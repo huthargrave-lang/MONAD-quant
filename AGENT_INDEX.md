@@ -41,6 +41,7 @@ venv/bin/python tools/note.py supersede <OLD> --by <NEW> [--reason <code>] [--co
 venv/bin/python tools/note.py link <SRC> <TGT> --type <edge> [--commit]   # add ONE typed edge to an existing node (e.g. F140 H27 --type supports)
 venv/bin/python tools/trial_ledger.py stats        # trials attempted per family (every backtest, losers included) — the count results are deflated by
 venv/bin/python tools/trial_ledger.py verify [--require-closed] [--against REF]  # ledger hash chains + append-only history (CI-gated)
+venv/bin/python tools/trial_ledger.py deflate '<run_id>#<trial>'  # Deflated Sharpe of one trial against everything its family tried
 venv/bin/python tools/ctx.py brief <area> --task ".."  # ≤900-tok orientation packet (best first move)
 venv/bin/python tools/ctx.py impact <file|symbol|config.KEY>  # blast radius + ⛔ if it hits the live boundary
 venv/bin/python tools/ctx.py can_edit <file>       # edit gate ALLOW/WARN/DENY (exit 0/2/1, scriptable)

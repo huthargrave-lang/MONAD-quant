@@ -11,6 +11,7 @@ mutating command (``seal``) closes a run whose process died, under the rules in
   venv/bin/python tools/trial_ledger.py verify                 # every shard's invariants
   venv/bin/python tools/trial_ledger.py verify --require-closed --against origin/development
   venv/bin/python tools/trial_ledger.py show TR-20260922T170000Z-ab12cd34
+  venv/bin/python tools/trial_ledger.py deflate 'TR-20260922T170000Z-ab12cd34#17'
   venv/bin/python tools/trial_ledger.py seal TR-20260922T170000Z-ab12cd34
 
 ``verify`` exits 1 on any violation, so CI can gate on it.
@@ -78,6 +79,27 @@ def cmd_show(args) -> int:
     return 0 if r.ok else 1
 
 
+def cmd_deflate(args) -> int:
+    from src.research.deflation import deflate_candidate
+    try:
+        d = deflate_candidate(args.candidate)
+    except (ValueError, trials.LedgerError) as exc:
+        print(f"REFUSED: {exc}")
+        return 1
+    e, r, m = d.effective, d.result, d.moments
+    print(f"candidate   {d.candidate}\nfamily      {d.family}")
+    print(f"trials      {d.trials_recorded} recorded, {d.trials_with_returns} with returns, "
+          f"{e.n_distinct} distinct")
+    print(f"effective N {d.n_trials:.2f}  (clusters {e.n_clusters}, Li-Ji {e.n_li_ji:.2f}, "
+          f"+{d.unknown_specs_added} unknown-result specs)")
+    print(f"Sharpe      {d.annualized_sharpe:+.3f} annualized over {m.n_obs} days "
+          f"(skew {m.skew:+.2f}, kurtosis {m.kurtosis:.2f})")
+    print(f"SR0         {d.annualized_sr0:+.3f} annualized: what the best of {d.n_trials:.1f} "
+          f"zero-edge tries is expected to show")
+    print(f"DSR         {r.dsr:.4f}  = P(true Sharpe > SR0)")
+    return 0
+
+
 def cmd_seal(args) -> int:
     try:
         print(trials.seal(_resolve(args.run)))
@@ -102,6 +124,9 @@ def main(argv=None) -> int:
     sh = sub.add_parser("show", help="summarise one run")
     sh.add_argument("run")
     sh.set_defaults(fn=cmd_show)
+    de = sub.add_parser("deflate", help="Deflated Sharpe of one trial against its whole family")
+    de.add_argument("candidate", help="<run_id>#<trial>")
+    de.set_defaults(fn=cmd_deflate)
     se = sub.add_parser("seal", help="close a run whose process died")
     se.add_argument("run")
     se.set_defaults(fn=cmd_seal)

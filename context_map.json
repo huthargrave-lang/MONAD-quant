@@ -536,7 +536,9 @@
         "tests/test_screener_lab.py",
         "tests/test_trial_ledger.py",
         "tests/test_backtest_trials.py",
-        "tests/test_producer_ledger_wiring.py"
+        "tests/test_producer_ledger_wiring.py",
+        "tests/test_significance.py",
+        "tests/test_deflation.py"
       ],
       "docs": [
         "docs/research/README.md",

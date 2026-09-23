@@ -706,6 +706,82 @@ def family_counts(ledger_dir: Path | None = None) -> dict[str, dict]:
     return out
 
 
+@dataclass
+class TrialRecord:
+    """One counted trial, as the ledger holds it (for readers such as the gate)."""
+    run_id: str
+    trial: int
+    family: str
+    hypothesis: str | None
+    producer: str
+    code: dict
+    spec_hash: str
+    spec: dict
+    status: str               # ok | error | abandoned | orphan (no outcome: crashed run)
+    metrics: dict | None
+    returns_sha: str | None
+    bundle_sha: str | None
+
+    @property
+    def key(self) -> str:
+        return f"{self.run_id}#{self.trial}"
+
+
+def iter_trials(ledger_dir: Path | None = None, *, family: str | None = None) -> list[TrialRecord]:
+    """Every trial in the ledger (optionally one family), orphans included.
+
+    Strict: an invalid shard raises ``LedgerError`` instead of being skipped. A reader
+    that quietly drops a tampered shard would turn tampering into an undercount.
+    """
+    out: list[TrialRecord] = []
+    for path in shard_paths(ledger_dir):
+        report = verify_shard(path)
+        if not report.ok:
+            raise LedgerError(f"{path.name} is invalid: {report.errors[:3]}")
+        if family is not None and report.family != family:
+            continue
+        rows = [json.loads(l) for l in path.read_bytes().split(b"\n") if l]
+        head = rows[0]
+        close = rows[-1] if rows[-1]["type"] == "run_close" else None
+        outcomes = {r["trial"]: r for r in rows if r["type"] == "outcome"}
+        for r in rows:
+            if r["type"] != "intent":
+                continue
+            o = outcomes.get(r["trial"])
+            out.append(TrialRecord(
+                run_id=head["run_id"], trial=r["trial"], family=head["family"],
+                hypothesis=head["hypothesis"], producer=head["producer"], code=head["code"],
+                spec_hash=r["spec_hash"], spec=r["spec"],
+                status=o["status"] if o else "orphan",
+                metrics=decode_metrics(o["metrics"]) if o and o.get("metrics") else None,
+                returns_sha=o.get("returns_sha") if o else None,
+                bundle_sha=close.get("bundle_sha") if close else None))
+    return out
+
+
+def load_returns(records: Iterable[TrialRecord], ledger_dir: Path | None = None) -> dict:
+    """``{record.key: pandas Series}`` of trade returns for records that carry them.
+
+    Bundles are read once each and verified against their address. A record whose
+    bundle was never written (a crashed run) has no series and is omitted; it still
+    counts wherever ``iter_trials`` is used for counting.
+    """
+    import pandas as pd
+
+    artifacts = (Path(ledger_dir) if ledger_dir is not None else LEDGER_DIR) / ARTIFACTS
+    bundles: dict[str, dict] = {}
+    out = {}
+    for rec in records:
+        if rec.returns_sha is None or rec.bundle_sha is None:
+            continue
+        if rec.bundle_sha not in bundles:
+            bundles[rec.bundle_sha] = read_bundle(artifacts, rec.bundle_sha)
+        pairs = bundles[rec.bundle_sha][rec.returns_sha]
+        out[rec.key] = pd.Series([v for _, v in pairs],
+                                 index=pd.to_datetime([t for t, _ in pairs]), dtype=float)
+    return out
+
+
 # ── history ──────────────────────────────────────────────────────────────────
 def verify_append_only(base_ref: str, *, repo: Path = REPO, ledger_rel: Path = LEDGER_REL) -> list[str]:
     """Everything the ledger held at merge-base(HEAD, base_ref) is still here, unedited.
