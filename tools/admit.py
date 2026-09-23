@@ -129,7 +129,9 @@ def default_witness(spec: dict, prereg_path: Path, family_runs: list) -> list[st
     sys.path.insert(0, os.path.join(REPO, "tools"))
     import ctx
 
-    ref = f"origin/{ctx._manifest().get('deploy_branch', 'development')}"
+    # Fully qualified: a LOCAL branch named "origin/development" would otherwise shadow the
+    # remote-tracking ref when git resolves the short name (round-2 red team, W).
+    ref = f"refs/remotes/origin/{ctx._manifest().get('deploy_branch', 'development')}"
     repo = Path(REPO)
     problems = []
 
@@ -273,8 +275,9 @@ def evaluate(hypothesis: str, *, now: _dt.datetime | None = None,
     except trials.LedgerError as exc:
         stages.append(Stage("witness", FAIL, f"the ledger is invalid: {exc}"))
         return {**record, "verdict": _verdict(stages), "stages": [asdict(s) for s in stages]}
-    searched = [r for r in members
-                if pd.Timestamp(r.opened_at).tz_convert(None) < registered_at]
+    # Everything the family tried, whenever, except the gate's own re-runs of frozen specs.
+    # No author-written timestamp decides what counts (round-2 red team, 7a').
+    searched = [r for r in members if r.producer != "tools/admit.py"]
     seen_bars = [pd.Timestamp(r.spec["data"]["fingerprint"]["last_bar"]) for r in members
                  if ((r.spec.get("data") or {}).get("fingerprint") or {}).get("last_bar")
                  and not (r.producer == "tools/admit.py"
@@ -334,14 +337,14 @@ def evaluate(hypothesis: str, *, now: _dt.datetime | None = None,
     # ── deflation ───────────────────────────────────────────────────────────
     if dev and n_dev >= 2:
         try:
-            d = deflation.deflate_candidate(dev_key, searched_before=spec["registered_at"])
+            d = deflation.deflate_candidate(dev_key, exclude_producers=("tools/admit.py",))
             ok = d.result.dsr >= spec["threshold"] and d.moments.n_obs >= MIN_DSR_OBS
             thin = (f"; only {d.moments.n_obs} daily observations (need {MIN_DSR_OBS})"
                     if d.moments.n_obs < MIN_DSR_OBS else "")
             stages.append(Stage("deflation", PASS if ok else FAIL,
                                 f"DSR {d.result.dsr:.4f} vs {spec['threshold']}{thin} "
-                                f"(N_eff {d.n_trials:.2f} from {d.trials_recorded} trials "
-                                f"recorded before registration)",
+                                f"(N_eff {d.n_trials:.2f} from {d.trials_recorded} family "
+                                f"trials)",
                                 {"dsr": d.result.dsr, "sr0": d.result.sr0, "n_trials": d.n_trials,
                                  "trials_recorded": d.trials_recorded,
                                  "annualized_sharpe": d.annualized_sharpe}))
@@ -463,11 +466,66 @@ def verify_record(record: dict, *, prereg_dir=None) -> list[str]:
             if (head.get("context") or {}).get("spec_hash") != record.get("spec_hash"):
                 problems.append("the named ledger run evaluated a different spec")
         try:
-            _, current = prereg.load(record.get("hypothesis", ""), prereg_dir=prereg_dir)
+            spec, current = prereg.load(record.get("hypothesis", ""), prereg_dir=prereg_dir)
             if current != record.get("spec_hash"):
                 problems.append("the registration no longer matches the admitted spec")
         except prereg.PreregError as exc:
+            spec = None
             problems.append(f"registration: {exc}")
+        if head is not None and not problems:
+            problems += _verify_admit_evidence(record, head, spec)
+    return problems
+
+
+def _verify_admit_evidence(record: dict, head: dict, spec: dict | None) -> list[str]:
+    """An ADMIT's claims, re-derived from the ledger rather than read from the record.
+
+    Round-2 red team (7b''): an empty shard written with producer="tools/admit.py" and
+    the right spec hash used to verify. Now the named run must CONTAIN the development,
+    cost-stress and forward trials the stages cite, with outcomes that support them; the
+    DSR is recomputed from the ledger; and the recorded code commit must be real and in
+    this branch's history. A shard fabricated wholesale, with invented returns, can still
+    pass this; that last step needs the gate re-run from the merged evidence (documented).
+    """
+    problems = []
+    by_stage = {s["name"]: s for s in record.get("stages", [])}
+    run_id = record["ledger_run"]
+    rows = trials.iter_trials()
+    in_run = {r.key: r for r in rows if r.run_id == run_id}
+    code_sha = (record.get("code") or {}).get("sha") or ""
+    if (head.get("code") or {}).get("sha") != code_sha:
+        problems.append("the gate run was recorded at a different commit than the verdict")
+    if (head.get("code") or {}).get("dirty") is not False:
+        problems.append("the gate run executed on a modified tree")
+    if not code_sha or trials._git(Path(REPO), "merge-base", "--is-ancestor", code_sha,
+                                   "HEAD").returncode != 0:
+        problems.append(f"code commit {code_sha[:12] or '(none)'} is not in this branch's history")
+
+    def trial(stage_name, expected_stage):
+        key = (by_stage.get(stage_name, {}).get("data") or {}).get("trial")
+        r = in_run.get(key)
+        if r is None:
+            problems.append(f"{stage_name}: its trial {key} is not in run {run_id}")
+        elif (r.spec.get("extra") or {}).get("stage") != expected_stage or r.status != "ok":
+            problems.append(f"{stage_name}: trial {key} is not an ok {expected_stage} trial")
+        return r
+
+    dev = trial("development", "admission:development")
+    if dev is not None and spec is not None:
+        n = int((dev.metrics or {}).get("total_trades", 0))
+        if n < spec["min_trades"]:
+            problems.append(f"development: the ledger shows {n} trades, below {spec['min_trades']}")
+        try:
+            d = deflation.deflate_candidate(dev.key, exclude_producers=("tools/admit.py",))
+            if d.result.dsr < spec["threshold"] or d.moments.n_obs < MIN_DSR_OBS:
+                problems.append(f"deflation: recomputed DSR {d.result.dsr:.4f} does not clear "
+                                f"{spec['threshold']} (or too few observations)")
+        except (ValueError, trials.LedgerError) as exc:
+            problems.append(f"deflation: cannot be recomputed ({exc})")
+    if not any(r.producer == "tools/admit.py" and (r.spec.get("extra") or {}).get("stage", "").startswith("admission:cost")
+               for r in in_run.values()):
+        problems.append("cost_stress: no cost-stress trial in the gate run")
+    trial("forward", "admission:forward")
     return problems
 
 

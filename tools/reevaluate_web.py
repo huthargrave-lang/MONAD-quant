@@ -24,7 +24,43 @@ import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import re  # noqa: E402
+
 from src.research import reeval  # noqa: E402
+
+
+def citation_problems(row: dict) -> list:
+    """Why a decision's citation does not hold. An 'admitted' decision must cite a verdict
+    that VERIFIES (tools/admit.py verify_record), not merely one that exists and says
+    ADMIT (round-2 red team, 9b); checked when deciding and again in CI, because a cited
+    record can later be deleted or invalidated."""
+    import json as _json
+    from pathlib import Path
+
+    import admit
+    from src.research import trials
+
+    problems = []
+    if row.get("action") == "admitted":
+        m = re.search(r"docs/research/verdicts/H\d+/[\w.-]+\.json", row.get("evidence", ""))
+        path = Path(REPO) / m.group(0) if m else None
+        if path is None or not path.is_file():
+            problems.append(f"{row['node']}: cited verdict does not exist")
+        else:
+            record = _json.loads(path.read_text(encoding="utf-8"))
+            bad = admit.verify_record(record)
+            if record.get("verdict") != admit.ADMIT or bad:
+                problems.append(f"{row['node']}: cited verdict {m.group(0)} is not a verified ADMIT "
+                                f"({'; '.join(bad[:2]) or record.get('verdict')})")
+    if row.get("action") == "reproduced":
+        m = re.search(r"TR-\d{8}T\d{6}Z-[0-9a-f]{8}", row.get("evidence", ""))
+        path = trials.LEDGER_DIR / f"{m.group(0)}.jsonl" if m else None
+        if path is None or not path.is_file():
+            problems.append(f"{row['node']}: cited ledger run does not exist")
+        elif not trials.verify_shard(path).ok:
+            problems.append(f"{row['node']}: cited ledger run {m.group(0)} is invalid")
+    return problems
 
 ADVICE = {
     "market": ("Read the claim. If it asserts a POSITIVE edge, either reproduce it through a "
@@ -53,11 +89,18 @@ def main(argv=None) -> int:
 
     if args.cmd == "verify":
         problems = reeval.verify_history(args.against)
+        for row in reeval.decisions().values():
+            problems += citation_problems(row)
         for p in problems:
             print(f"FAIL {p}")
         print(f"{len(problems)} problem(s)")
         return 1 if problems else 0
     if args.cmd == "decide":
+        cited = citation_problems({"node": args.node, "action": args.action, "evidence": args.evidence})
+        if cited:
+            for p in cited:
+                print(f"REFUSED: {p}")
+            return 1
         try:
             row = reeval.decide(args.node, classification=args.classification, action=args.action,
                                 evidence=args.evidence, by=args.by)

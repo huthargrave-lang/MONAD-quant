@@ -67,6 +67,25 @@ Closing these needs the engine entry points themselves to refuse to run without 
 active trial (a runtime token set by `Run.begin`): a change to `src/backtest/runner.py`
 and `src/strategy/engine.py` that awaits sign-off.
 
+Round 2 (after fixes) left these, also not closed:
+- **Evidence never shown to git.** A trial deleted before its first commit, or a peek run
+  outside the ledger, is invisible to every history check; CI now walks every commit on
+  a branch, so anything committed once can no longer vanish before merge. Closing the
+  rest needs an outside witness (each run's opening row sent to a remote log) or the
+  runtime token above.
+- **Refuter independence is honour-system.** An objection cannot be answered under the
+  same name, but names are free text. Tying `by` to a harness-recorded agent identity
+  would close it.
+- **A wholly fabricated gate run** (a shard with invented returns under
+  `producer="tools/admit.py"`) can satisfy `admit.verify_record`, which now re-derives the
+  DSR and the stage trials from the ledger. The final check is re-running the gate from the
+  merged evidence for every new ADMIT (CI), not yet built.
+- **Classification is judgment.** `reevaluate_web.py decide` can call a performance claim
+  `not_market`; the log makes that decision attributable, not impossible.
+- **Mixed data bases.** `sweep.py` still loads morning-only bars (F404700) while the gate
+  loads full sessions, so one family's count mixes trials on different data until the
+  sweep is migrated (awaits sign-off).
+
 Also: labs that measure with their own replay code (`tools/*_lab.py`, `tools/*_study.py`)
 are not counted, and trials recorded on a deployed checkout (research-UI curves on the Pi)
 stay there, untracked, until committed from that checkout.

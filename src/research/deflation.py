@@ -22,7 +22,13 @@ How the trial count is built (conservative at every fork):
 The candidate's Sharpe, skew, kurtosis and T are measured on its own daily PnL over its
 active span (first to last trading day), the same basis the cluster Sharpes use.
 
-``searched_before`` (the admission gate passes a hypothesis's ``registered_at``): only
+``exclude_producers`` (the admission gate passes itself): trials those producers wrote are
+left out of N, except the candidate. The gate re-runs a FROZEN spec; its cost-stress and
+forward runs cannot have chosen that spec. Every other family trial counts, whenever it
+ran: a cutoff at the author-written ``registered_at`` let a backdated registration drop
+the real search from N (harness red-team round 2, 7a').
+
+``searched_before`` (diagnostic only; the gate no longer uses it): only
 trials whose run opened before it count toward N, plus the candidate itself. A frozen
 spec cannot have been chosen by trials run after it was frozen (the gate's own cost
 stress and forward runs, or a later search); those count against the NEXT hypothesis in
@@ -63,7 +69,7 @@ class FamilyDeflation:
 
 
 def deflate_candidate(candidate: str, *, ledger_dir: Path | None = None,
-                      searched_before=None) -> FamilyDeflation:
+                      searched_before=None, exclude_producers=()) -> FamilyDeflation:
     """DSR of trial ``candidate`` ("<run_id>#<trial>") against its family's search."""
     run_id, _, idx = candidate.partition("#")
     if not idx.isdigit():
@@ -76,6 +82,9 @@ def deflate_candidate(candidate: str, *, ledger_dir: Path | None = None,
         raise ValueError(f"{candidate} has status {target.status!r}; only an ok trial can be deflated")
     from src.research.backtest_trials import family_members
     family = family_members(everything, target.family)
+    if exclude_producers:
+        family = [r for r in family
+                  if r.key == target.key or r.producer not in set(exclude_producers)]
     if searched_before is not None:
         import pandas as pd
         cutoff = pd.Timestamp(searched_before)

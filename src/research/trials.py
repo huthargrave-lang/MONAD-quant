@@ -826,7 +826,7 @@ def verify_history(base_ref: str, rel_dir: Path, *, rule, repo: Path = REPO,
     listing = _git(repo, "ls-tree", "-r", "-z", "--name-only", base, "--", Path(rel_dir).as_posix())
     if listing.returncode != 0:
         return [f"cannot list {rel_dir} at {base[:12]}"]
-    problems = []
+    problems = _branch_walk(base, rel_dir, rule=rule, repo=repo, what=what)
     for rel in (p for p in listing.stdout.decode().split("\0") if p):
         mode = rule(rel)
         if mode is None:
@@ -845,6 +845,49 @@ def verify_history(base_ref: str, rel_dir: Path, *, rule, repo: Path = REPO,
         elif mode == "prefix" and not now.startswith(blob.stdout):
             problems.append(f"{rel}: rewritten since {base[:12]} (not an append)")
     return problems
+
+
+def _branch_walk(base: str, rel_dir: Path, *, rule, repo: Path, what: str) -> list[str]:
+    """The same rule, between every consecutive pair of commits on this branch.
+
+    Comparing only against the merge-base misses a record that was committed on the
+    branch and then rewritten or deleted before merge (harness red-team round 2, 5b':
+    an upheld objection committed, then cut out). Walking base..HEAD, then HEAD..working
+    tree, catches it: once a governed file exists in any commit, every later state must
+    keep it as a prefix (or identical). A file that never reached a commit cannot be
+    witnessed by git at all; that limit is documented, not hidden.
+    """
+    revs = _git(repo, "rev-list", "--reverse", "--first-parent", f"{base}..HEAD")
+    if revs.returncode != 0:
+        return [f"cannot list commits since {base[:12]}"]
+    states = [c for c in revs.stdout.decode().split() if c]
+    problems, prev = [], {}
+    for commit in states + [None]:  # None = the working tree
+        if commit is None:
+            listing = [str(p.relative_to(repo)) for p in (repo / rel_dir).rglob("*") if p.is_file()] \
+                if (repo / rel_dir).is_dir() else []
+        else:
+            ls = _git(repo, "ls-tree", "-r", "-z", "--name-only", commit, "--", Path(rel_dir).as_posix())
+            listing = [p for p in ls.stdout.decode().split("\0") if p]
+        current = {}
+        for rel in listing:
+            rel = Path(rel).as_posix()
+            if rule(rel) is None:
+                continue
+            if commit is None:
+                current[rel] = (repo / rel).read_bytes()
+            else:
+                current[rel] = _git(repo, "show", f"{commit}:{rel}").stdout
+        where = commit[:12] if commit else "the working tree"
+        for rel, old in prev.items():
+            if rel not in current:
+                problems.append(f"{rel}: deleted in {where} ({what} committed earlier on this branch)")
+            elif rule(rel) == "identical" and current[rel] != old:
+                problems.append(f"{rel}: {what} changed in {where} after being committed on this branch")
+            elif rule(rel) == "prefix" and not current[rel].startswith(old):
+                problems.append(f"{rel}: rewritten in {where} after being committed on this branch")
+        prev = current
+    return sorted(set(problems))
 
 
 def verify_append_only(base_ref: str, *, repo: Path = REPO, ledger_rel: Path = LEDGER_REL) -> list[str]:

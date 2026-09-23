@@ -31,6 +31,11 @@ import admit  # noqa: E402
 from src.research import prereg, refutations, trials  # noqa: E402
 
 REGISTERED = "2021-07-02T00:00:00Z"
+#: A real commit, so a verdict's code sha passes the ancestry check; the tree is reported
+#: clean regardless of the developer's working copy, so the tests are deterministic.
+HEAD_SHA = subprocess.run(["git", "-C", str(REPO), "rev-parse", "HEAD"], capture_output=True,
+                          text=True).stdout.strip()
+CLEAN = {"sha": HEAD_SHA, "dirty": False, "diff_sha256": None, "error": None}
 MATURE = dt.datetime(2021, 12, 1, tzinfo=dt.timezone.utc)
 FAMILY = "long_only_rsi_vwap_mr_hourly:SYN"
 PARAMS = {"target_gain_pct": 0.01, "stop_loss_pct": 0.005, "rsi_oversold": 35,
@@ -84,8 +89,11 @@ class Gate(unittest.TestCase):
         self._orig = (prereg.PREREG_DIR, trials.LEDGER_DIR)
         prereg.PREREG_DIR = self.dirs["prereg_dir"]
         trials.LEDGER_DIR = self.ledger
+        self._code = mock.patch("src.research.trials.code_state", return_value=dict(CLEAN))
+        self._code.start()
 
     def tearDown(self):
+        self._code.stop()
         prereg.PREREG_DIR, trials.LEDGER_DIR = self._orig
         self._tmp.cleanup()
 
@@ -105,7 +113,7 @@ class Gate(unittest.TestCase):
         with mock.patch("src.backtest.runner.run_backtest", fake_backtest(edge)):
             return admit.evaluate(hypothesis, now=now, load_bars=load_bars,
                                   parity=lambda: census,
-                                  code=lambda: {"sha": "a" * 40, "dirty": dirty},
+                                  code=lambda: {**CLEAN, "dirty": dirty},
                                   witness=witness, **self.dirs)
 
     def examined(self, hypothesis="H9100"):
@@ -176,7 +184,7 @@ class EachStage(Gate):
         with mock.patch("src.backtest.runner.run_backtest", fake_backtest(0.004)):
             rec = admit.evaluate("H9101", now=MATURE, load_bars=flat_bars,
                                  parity=lambda: {"rows": [], "counts": {}},
-                                 code=lambda: {"sha": "a" * 40, "dirty": False}, **self.dirs)
+                                 code=lambda: dict(CLEAN), witness=lambda *a: [], **self.dirs)
         self.assertEqual(rec["verdict"], admit.REJECT)
         self.assertIn("family must be", rec["stages"][0]["detail"])
 
@@ -284,6 +292,32 @@ class RedTeamAttacks(Gate):
         self.examined()
         st = next(s for s in self.evaluate()["stages"] if s["name"] == "deflation")
         self.assertEqual(st["data"]["trials_recorded"], 6)  # 5 scratch-labelled + candidate
+
+    def test_7a_prime_a_backdated_registration_cannot_drop_the_search_from_n(self):
+        """Round 2: search AFTER the date the registration claims; the search still counts."""
+        self.register()                                   # claims 2021-07-02
+        self.examined()
+        with mock.patch("src.research.trials._now", return_value="2021-09-01T00:00:00.000000Z"):
+            with trials.open_run(producer="sweep.py", family=FAMILY) as run:
+                for i in range(4):
+                    run.begin(params={"i": i}).complete(metrics={})
+        st = next(s for s in self.evaluate()["stages"] if s["name"] == "deflation")
+        self.assertEqual(st["data"]["trials_recorded"], 5)  # 4 searched + candidate
+
+    def test_7b_prime2_an_empty_self_written_gate_run_does_not_verify(self):
+        """Round 2: a shard written with producer="tools/admit.py" and the right spec hash,
+        but containing none of the trials the stages cite."""
+        self.register()
+        h = prereg.load("H9100", prereg_dir=self.dirs["prereg_dir"])[1]
+        with trials.open_run(producer="tools/admit.py", family=FAMILY, hypothesis="H9100",
+                             context={"spec_hash": h}) as run:
+            pass
+        forged = {"hypothesis": "H9100", "evaluated_at": "2021-12-01T00:00:00Z", "verdict": "ADMIT",
+                  "spec_hash": h, "ledger_run": run.run_id, "code": dict(CLEAN),
+                  "stages": [{"name": n, "outcome": "pass", "detail": "",
+                              "data": {"trial": f"{run.run_id}#0"}} for n in admit.ADMIT_CHAIN]}
+        problems = admit.verify_record(forged, prereg_dir=self.dirs["prereg_dir"])
+        self.assertTrue(any("not in run" in p for p in problems), problems)
 
     def test_7b_a_hand_written_admit_does_not_verify(self):
         self.register()

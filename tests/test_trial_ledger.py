@@ -341,6 +341,26 @@ class TestAppendOnlyHistory(unittest.TestCase):
         readme.write_text("rewritten\n")
         self.assertEqual(self.check(), [])
 
+    def test_committed_then_deleted_on_the_branch_is_caught(self):
+        """Round-2 red team (5b'/3b'): a record committed on the branch, then removed
+        before merge, is absent from the merge-base too, so only a walk sees it."""
+        with open_run(producer="t", family="f", ledger_dir=self.ledger, repo=self.repo) as run:
+            run.begin(params={"k": 9}).complete(metrics={})
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "a losing run")
+        run.path.unlink()
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "tidy up")
+        self.assertTrue(any("deleted" in p and "this branch" in p for p in self.check()))
+
+    def test_committed_then_rewritten_in_the_working_tree_is_caught(self):
+        with open_run(producer="t", family="f", ledger_dir=self.ledger, repo=self.repo) as run:
+            run.begin(params={"k": 9}).complete(metrics={})
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "run")
+        run.path.write_text(run.path.read_text().replace('"k":9', '"k":8'))
+        self.assertTrue(any("rewritten" in p for p in self.check()))
+
     def test_unknown_ref_fails_loudly(self):
         self.assertTrue(trials.verify_append_only("no-such-ref", repo=self.repo))
 

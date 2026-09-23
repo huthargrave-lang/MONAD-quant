@@ -75,7 +75,9 @@ def guarded_ids(tests_dir: Path = REPO / "tests") -> set:
     of the queue (harness red-team, attack 9)."""
     out = set()
     for p in tests_dir.glob("test_*.py"):
-        if not re.search(r"^\s*def test_\w*\(", p.read_text(encoding="utf-8", errors="replace"), re.M):
+        text = p.read_text(encoding="utf-8", errors="replace")
+        # A test that asserts nothing guards nothing (round-2 red team, 9d).
+        if not (re.search(r"^\s*def test_\w*\(", text, re.M) and re.search(r"\bassert", text)):
             continue
         for m in re.finditer(r"(?:^|_)(f\d+)(?=_|$)", p.stem[len("test_"):]):
             out.add(m.group(1).upper())

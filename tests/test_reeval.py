@@ -49,14 +49,23 @@ class Tiers(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             for name in ("test_f260_recompute_audit.py", "test_h24_h25_stop.py",
                          "test_f19_exit_lever_bridge.py", "test_f12_f13_fetch.py", "test_misc.py"):
-                (Path(td) / name).write_text("class T:\n    def test_it(self):\n        pass\n")
+                (Path(td) / name).write_text("class T:\n    def test_it(self):\n        assert True\n")
             self.assertEqual(reeval.guarded_ids(Path(td)), {"F260", "F19", "F12", "F13"})
 
     def test_an_empty_guard_file_guards_nothing(self):
-        """Red-team attack 9: an empty tests/test_f24_x.py used to move F24 out of the queue."""
+        """Red-team attack 9/9d: an empty file, or a test asserting nothing, used to move a
+        finding out of the queue."""
         with tempfile.TemporaryDirectory() as td:
             (Path(td) / "test_f24_placeholder.py").write_text("# TODO\n")
+            (Path(td) / "test_f1_trivial.py").write_text("def test_f1():\n    pass\n")
             self.assertEqual(reeval.guarded_ids(Path(td)), set())
+
+    def test_cli_refuses_a_citation_that_does_not_verify(self):
+        sys.path.insert(0, str(REPO / "tools"))
+        import reevaluate_web
+        problems = reevaluate_web.citation_problems(
+            {"node": "F1", "action": "admitted", "evidence": "docs/research/verdicts/H1/none.json"})
+        self.assertTrue(problems)
 
 
 class Decisions(unittest.TestCase):
