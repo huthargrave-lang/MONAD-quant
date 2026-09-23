@@ -72,6 +72,14 @@ jobs:
           python tools/ctx.py health
           python tools/ctx.py web --lint
 
+      # The trial ledger is the count every significance claim is deflated by, so it
+      # must be intact and append-only. --require-closed: a committed run must have a
+      # run_close (a crashed one is sealed first, see docs/research/trials/README.md).
+      # --against: nothing already on the deploy branch may be edited or removed; the
+      # comparison is at merge-base, so a branch is judged only on what it inherited.
+      - name: Trial ledger integrity (hash chains + append-only history)
+        run: python tools/trial_ledger.py verify --require-closed --against origin/development
+
       - name: Run the full test suite (with coverage)
         run: |
           coverage run --source=src,live -m pytest tests/ -v
