@@ -3841,3 +3841,27 @@ O4 (2-1) and O5 (3-0) were refuted as immaterial or caveats, but F404702 must no
 tools/admit.py H404700: REJECT. The lesson is that DEFLATION, 2x COST STRESS and CALMAR-vs-BUY&HOLD ALL PASSED (DSR 0.9999 at N_eff 29 of 363 trials; Calmar 11.0 vs 2.26). Statistical deflation cannot catch a fill model that is optimistic in the same direction on every trade. The adversarial refutation stage is what did. Every engine backtest, v2 included, shares O1-O3, so every published engine number is an upper bound until the execution model matches live (an engine v3 decision).
 Links: [[H404700|contradicts]] · [[F404702|relates]] · [[D6|evidenced_by]].
 _— captured claude/monetizing-repositories-03e341@349654e, 2026-09-23_
+
+### F404704 — No daily timing rule beats the static 60/40: 27 counted trials (trend, dual momentum, turn-of-month, overnight, SMA) are null on return and on Sharpe
+First daily-strategy family through the accountable workflow (tools/daily_search.py, snapshot DS-32c992fb, window 2007-06-08..2026-10-02). Ledger: reference TR-20261006T005053Z-9336581d, search TR-20261006T005054Z-9e4bbccf.
+
+The grid was frozen before any run: 27 points across time-series momentum, dual momentum, turn-of-month, overnight drift, and the SMA trend filter. The reference is the static 60/40 (SPY/IEF) under the SAME execution model:
+- decisions trade at the next session;
+- holdings drift;
+- costs are per asset and per era;
+- cash is the lagged DTB3 rate;
+- monthly rules use 21 staggered tranches.
+
+The 60/40 reference: excess Sharpe 0.63, CAGR 8.19%, maxDD -32.2%.
+
+Results:
+- Best by active (return-difference) Sharpe: dualmom 6m/IEF at +0.02. Hansen SPA_c over all 27: family p 0.90 at mean blocks 20/63/126. Active DSR 0.0003 (N 39 = 9 effective + 30 declared prior).
+- Overnight drift costs 12%/yr to trade twice daily and loses.
+- Turn-of-month is negative in every variant.
+- Look-ahead (truncation) check: clean at 12 cuts for all 27 points.
+
+Disclosed diagnostic, chosen AFTER seeing the results, so not a test: the D6 bar is risk-adjusted. The trend filters have higher Sharpe than the reference (sma 200d/cash 0.73 vs 0.63) and far smaller drawdown (-13% vs -32%), but hold less risk, so their return-difference is negative. On the vol-matched active series (mean > 0 iff Sharpe > reference), the best is sma 200d/cash at +0.14 Sharpe, with SPA p 0.68-0.74. Also null.
+
+Conclusion: no daily timing rule in this family reliably beats a static 60/40, risk-adjusted or not. This agrees with D6/F34: a 0.1-0.15 Sharpe edge is below what 19 years can resolve (MDE ~0.4). The drawdown reduction of trend filters is real in sample but rests on about three crises (2008, 2020, 2022), the F36 pattern.
+Links: [[D6|supports]] · [[F34|supports]] · [[F36|relates]] · [[F40|relates]].
+_— captured claude/monetizing-repositories-03e341@3e6e298, 2026-10-05_
