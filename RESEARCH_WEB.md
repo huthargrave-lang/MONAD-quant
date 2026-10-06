@@ -3970,7 +3970,7 @@ Why this is right under the current rules, and the open question it raises:
 - Proposed for a decision debate, applying PROSPECTIVELY only, never to rescue H404701: count only trials committed to the deploy branch before the registration's own commit (git-witnessed, not author-written), and/or deflate within effective-idea clusters.
 
 H404701 stays REJECT-bound unless the rules change prospectively; its forward window still runs and will still be scored.
-Links: [[H404701|contradicts]] · [[F404706|refines]].
+Links: [[H404701|relates]] · [[F404706|refines]].
 _— captured claude/monetizing-repositories-03e341@ee897dc, 2026-10-05_
 
 ### H404702 — Within-category cheapest CEFs by discount z-score, held with hysteresis, beat owning them all
