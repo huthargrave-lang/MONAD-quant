@@ -30,3 +30,17 @@ board.
 - **Survivorship is worse than in the development window.** Only funds alive in 2026 are
   in the universe, and the early era carries the longest survival requirement.
 - Early Yahoo CEF data may be sparser; the snapshot's validation drops what fails.
+
+## Result (run after the protocol above was committed in 4318c1c)
+
+- **Data:** snapshot DS-bae9cfd9 (SPY plus 171 funds with pre-2004 prices). Window
+  1997-11-07..2003-12-30, 6.15 years.
+- **Benchmark:** excess Sharpe 0.68, CAGR 8.37%, maxDD -13.0%.
+- **H404702 rule:** active Sharpe **+0.39**, so the **t-statistic is 0.97**.
+  - Vol-matched active Sharpe +0.19. SPA p 0.15-0.17.
+  - Costs 2.07%/yr at the pre-2010 30 bps tier.
+- **Verdict under the pre-stated criterion: UNINFORMATIVE.** The sign is positive, but
+  t = 0.97 falls short of the 1.0 corroboration bar. It neither corroborates nor
+  contradicts.
+- The effect is far weaker than in the development window (+1.44). Pre-2010 costs absorb
+  most of the gross edge in this smaller, survivorship-heavy universe.

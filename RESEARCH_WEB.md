@@ -4132,3 +4132,17 @@ Results:
 The effect was real-looking before 2022 and has inverted since: a known, mechanical, liquid-market effect, competed away like the others (F404705, F404707, F404708).
 Links: [[F404704|relates]].
 _— captured claude/monetizing-repositories-03e341@cf2cb72, 2026-10-06_
+
+### F404717 — H404702's rule on unexamined 1997-2003 data: active Sharpe +0.39, t 0.97, UNINFORMATIVE under its pre-registered criterion
+H404702's frozen rule, run on 1997-11..2003-12: CEF data no one in the repo had examined. The protocol and success criterion were committed BEFORE the run (docs/research/H404702_PREPERIOD_TEST.md, commit 4318c1c). Snapshot DS-bae9cfd9, 171 funds.
+
+Result:
+- active Sharpe +0.39 vs the equal-weight universe (t 0.97 over 6.15 years);
+- vol-matched +0.19; SPA p 0.15-0.17;
+- pre-2010 costs 2.07%/yr.
+
+Verdict under the pre-stated criterion: UNINFORMATIVE. The sign is right, but it misses the t > 1.0 corroboration bar by a hair. It is not counted as support.
+
+The early-period edge is much weaker than the development window's +1.44: a smaller, survivorship-heavier universe, and costs at the 30 bps tier. This tempers the forward expectation; the forward window remains the test that matters.
+Links: [[H404702|relates]].
+_— captured claude/monetizing-repositories-03e341@ab5d9e3, 2026-10-06_
