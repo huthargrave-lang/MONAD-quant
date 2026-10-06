@@ -1,4 +1,7 @@
 {
+ "schema_version": 1,
+ "vintage": "2026-10-06",
+ "protocol": "docs/research/BDC_PREPERIOD_TEST.md",
  "gate1_B": {
   "compared": 549,
   "agree": 543,

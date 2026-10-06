@@ -1,4 +1,7 @@
 {
+ "schema_version": 1,
+ "vintage": "2026-10-06",
+ "protocol": "docs/research/BDC_PREPERIOD_TEST.md",
  "same_filing": {
   "compared": 720,
   "agree": 711,
