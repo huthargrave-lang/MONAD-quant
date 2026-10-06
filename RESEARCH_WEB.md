@@ -4044,3 +4044,19 @@ The meme is not a strategy: what plus-sized equity exposure the rule gained in Q
 Caveat: FRED serves the latest vintage. H.4.1 is rarely revised, but this is not a strict ALFRED point-in-time test.
 Links: [[F404704|relates]].
 _— captured claude/monetizing-repositories-03e341@39b7544, 2026-10-06_
+
+### F404712 — Lunar-phase and geomagnetic-storm tilts do not beat the 60/40: all four wrong-signed or null (SPA p 0.98)
+Fifth ETF search (TR-20261006T043033Z-e6888867, snapshot DS-32c992fb). Intentionally strange hypotheses from the correlation atlas (J), as tilts on the 60/40, frozen before the run.
+- Lunar (Yuan-Zheng-Zhu 2006): 40/60 within 3 or 7 days of a full moon, 80/20 near a new moon. Mean synodic phase, accurate to within about half a day.
+- Geomagnetic (Krivelyova-Robotti 2003): 40/60 for 5 sessions after a GFZ Ap >= 30 or >= 50 day. Actionable only at the first US close after the storm's UTC day completes.
+
+Results (active Sharpe; vol-matched beside it):
+- lunar 3d: -0.07 (-0.14).
+- lunar 7d: -0.13 (-0.23).
+- geomagnetic Ap>=30: -0.16 (+0.01).
+- geomagnetic Ap>=50: -0.46 (-0.40).
+- Familywise SPA over all 41 ETF trials: p 0.98.
+
+All four are wrong-signed or null. The moon and the magnetosphere do not move the 60/40. The published effects were small-sample, in-sample findings, as the atlas warned ("multiple comparisons can manufacture a cosmic story").
+Links: [[F404704|relates]].
+_— captured claude/monetizing-repositories-03e341@f678fbd, 2026-10-06_
