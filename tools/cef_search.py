@@ -139,12 +139,16 @@ def main(argv=None) -> int:
     ap.add_argument("--panel", required=True)
     ap.add_argument("--grid", choices=sorted(cc.GRIDS), default="v1",
                     help="which frozen grid to run (the report always covers the whole family)")
+    ap.add_argument("--acknowledge-live", nargs="*", default=[], metavar="H",
+                    help="live registered hypotheses in the family this run is allowed to cost")
     ap.add_argument("--report-only", action="store_true")
     ap.add_argument("--json")
     args = ap.parse_args(argv)
     snap = daily_data.load_snapshot(args.snapshot)
     panel = cef_data.load_panel(args.panel)
     if not args.report_only:
+        from src.research.daily_trials import refuse_unacknowledged
+        refuse_unacknowledged(CEF_FAMILY, args.acknowledge_live)
         ref_id, run_id = run_search(snap, panel, args.grid)
         print(f"ledger: benchmark {ref_id or '(already recorded)'}, search {run_id}")
     rep = report(snap, panel)

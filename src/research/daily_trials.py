@@ -152,3 +152,39 @@ def stored_returns(series: pd.Series) -> pd.Series:
     if idx.tz is not None:
         idx = idx.tz_convert(None)
     return pd.Series(np.asarray(series, dtype=float), index=idx)
+
+
+def live_registrations(family: str, prereg_dir=None, verdict_dir=None) -> list[str]:
+    """Hypotheses registered to ``family`` that have no final verdict (ADMIT or REJECT on
+    record). New trials in the family count against each of them at its next gate run,
+    and can move a passing deflation below its bar (F404708)."""
+    import json
+    from pathlib import Path
+    from src.research import prereg
+
+    base = Path(prereg_dir) if prereg_dir is not None else prereg.PREREG_DIR
+    verdicts = Path(verdict_dir) if verdict_dir is not None else prereg.REPO / "docs/research/verdicts"
+    live = []
+    for path in sorted(base.glob("H*.json")) if base.is_dir() else []:
+        spec = json.loads(path.read_text(encoding="utf-8"))
+        if spec.get("family") != family:
+            continue
+        final = False
+        for v in sorted((verdicts / spec["hypothesis"]).glob("*.json")) if (verdicts / spec["hypothesis"]).is_dir() else []:
+            if json.loads(v.read_text(encoding="utf-8")).get("verdict") in ("ADMIT", "REJECT"):
+                final = True
+        if not final:
+            live.append(spec["hypothesis"])
+    return live
+
+
+def refuse_unacknowledged(family: str, acknowledged: list[str] | None) -> None:
+    """Raise SystemExit unless every live registration in ``family`` is acknowledged."""
+    live = live_registrations(family)
+    missing = sorted(set(live) - set(acknowledged or ()))
+    if missing:
+        raise SystemExit(
+            f"family {family} holds live registered hypotheses {missing}: every new trial here "
+            f"counts against them at their next gate run and can push a passing deflation "
+            f"below its bar (F404708). Re-run with --acknowledge-live {' '.join(missing)} to "
+            f"accept that cost.")

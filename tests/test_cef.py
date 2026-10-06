@@ -118,6 +118,28 @@ class Rules(unittest.TestCase):
         self.assertEqual(len(cc.grid()), 6)
 
 
+class LiveRegistrationGuard(unittest.TestCase):
+    def test_a_family_with_a_live_hypothesis_refuses_unacknowledged_runs(self):
+        import json
+        from src.research import daily_trials
+        with tempfile.TemporaryDirectory() as td:
+            pre, ver = Path(td) / "prereg", Path(td) / "verdicts"
+            pre.mkdir()
+            (pre / "H1.json").write_text(json.dumps({"hypothesis": "H1", "family": "cef_discount.v1"}))
+            (pre / "H2.json").write_text(json.dumps({"hypothesis": "H2", "family": "daily_alloc.v1"}))
+            self.assertEqual(daily_trials.live_registrations("cef_discount.v1", pre, ver), ["H1"])
+            (ver / "H1").mkdir(parents=True)
+            (ver / "H1" / "x.json").write_text(json.dumps({"verdict": "REJECT"}))
+            self.assertEqual(daily_trials.live_registrations("cef_discount.v1", pre, ver), [])
+
+    def test_the_real_cef_family_currently_holds_h404701(self):
+        from src.research import daily_trials
+        self.assertIn("H404701", daily_trials.live_registrations("cef_discount.v1"))
+        with self.assertRaises(SystemExit):
+            daily_trials.refuse_unacknowledged("cef_discount.v1", [])
+        daily_trials.refuse_unacknowledged("cef_discount.v1", ["H404701"])
+
+
 class Panel(unittest.TestCase):
     def rows(self, n=60, bad=()):
         out = []

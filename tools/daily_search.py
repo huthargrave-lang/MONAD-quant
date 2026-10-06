@@ -170,11 +170,15 @@ def main(argv=None) -> int:
     ap.add_argument("--snapshot", required=True, help="DS sha (docs/research/data/DS-<sha>.csv.gz)")
     ap.add_argument("--grid", choices=sorted(dc.GRIDS), default="v1",
                     help="which frozen grid to run (the report always covers the whole family)")
+    ap.add_argument("--acknowledge-live", nargs="*", default=[], metavar="H",
+                    help="live registered hypotheses in the family this run is allowed to cost")
     ap.add_argument("--report-only", action="store_true", help="do not run trials; report the ledger")
     ap.add_argument("--json", help="also write the report as JSON to this path")
     args = ap.parse_args(argv)
     snap = daily_data.load_snapshot(args.snapshot)
     if not args.report_only:
+        from src.research.daily_trials import refuse_unacknowledged
+        refuse_unacknowledged(DAILY_FAMILY, args.acknowledge_live)
         ref_id, run_id = run_search(snap, args.grid)
         print(f"ledger: reference {ref_id or '(already recorded)'}, search {run_id}")
     rep = report(snap)
