@@ -4120,3 +4120,15 @@ Reading:
 - This is TODAY's liquidity; historical volumes (and so historical capacity) were not measured, which leaves the board's capacity caveat partly open.
 Links: [[H404702|relates]].
 _— captured claude/monetizing-repositories-03e341@cee1ca2, 2026-10-06_
+
+### F404716 — Month-end Treasury index-extension tilt does not beat the 60/40 (+0.20, inverted since 2022; SPA p 0.91)
+Sixth ETF search (TR-20261006T045523Z-a3801f72, DS-32c992fb). Bond indexes extend duration at month-end and passive funds buy long Treasuries into it. The tilt: the 60/40 with IEF swapped for TLT over the month's last 2 or 3 sessions. Calendar-only.
+
+Results:
+- 3 sessions: active Sharpe +0.20 (vol-matched +0.15); eras +0.43 / +0.40 / -0.54.
+- 2 sessions: +0.09.
+- SPA over all 43 ETF trials: p 0.91.
+
+The effect was real-looking before 2022 and has inverted since: a known, mechanical, liquid-market effect, competed away like the others (F404705, F404707, F404708).
+Links: [[F404704|relates]].
+_— captured claude/monetizing-repositories-03e341@cf2cb72, 2026-10-06_
