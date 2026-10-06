@@ -56,6 +56,22 @@ def annualized_sharpe(x: pd.Series) -> float:
     return float(x.mean() / sd * math.sqrt(PERIODS_PER_YEAR)) if sd > 0 else 0.0
 
 
+def vol_matched_active(strategy: pd.Series, reference: pd.Series, cash: pd.Series) -> pd.Series:
+    """Excess return minus the reference's excess return scaled to the strategy's
+    volatility: its mean is positive exactly when the strategy's Sharpe beats the
+    reference's. Reported beside the plain active series because a benchmark at a fixed
+    exposure can be beaten by simply holding more of a rising asset (2026-10-06: crypto
+    trend averaged 58-71% BTC against a 50% blend; plain active Sharpe +0.8, vol-matched
+    +0.14 to +0.30)."""
+    if not (strategy.index.equals(reference.index) and strategy.index.equals(cash.index)):
+        raise ValueError("strategy, reference and cash must share sessions")
+    xs, xr = strategy - cash, reference - cash
+    sr = xr.std(ddof=1)
+    if sr == 0:
+        raise ValueError("the reference has no volatility")
+    return (xs - xs.std(ddof=1) / sr * xr).rename("vol_matched_active")
+
+
 def era_sharpes(active: pd.Series, eras: Sequence[Sequence[str]]) -> list[dict]:
     """Annualized active Sharpe per era. An era bound of "start"/"end" is the series' own."""
     out = []

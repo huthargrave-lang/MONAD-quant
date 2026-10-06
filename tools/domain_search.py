@@ -13,7 +13,9 @@ registered hypothesis in the family must be acknowledged (``--acknowledge-live``
 new trials count against it (F404708). The benchmark is recorded once per data and window.
 
 The report reads the ledger: per point, excess-over-cash Sharpe, CAGR, max drawdown, cost,
-the ACTIVE Sharpe over the benchmark (whole window and per era); look-ahead at 12 cuts;
+mean exposure, the ACTIVE Sharpe over the benchmark (whole window and per era) and the
+VOL-MATCHED active Sharpe (positive iff the Sharpe beats the benchmark's; it exposes a
+"win" that is only more exposure to a rising asset); look-ahead at 12 cuts;
 Hansen's SPA over the family at mean blocks 20/63/126; the best point's active DSR.
 
   venv/bin/python tools/domain_search.py crypto_trend --snapshot <sha>
@@ -112,16 +114,21 @@ def report(domain: Domain, ctx: Context) -> dict:
     (ref_rec,) = ref.values()
     series = trials.load_returns(list(fam.values()) + [ref_rec])
     ref_r = stored_returns(series[ref_rec.key])
+    cash = ctx.snap.returns().cash.reindex(ref_r.index).fillna(0.0)
     active, rows = {}, []
     for lab, rec in sorted(fam.items()):
-        a = stats.active_series(stored_returns(series[rec.key]), ref_r)
+        strat = stored_returns(series[rec.key])
+        a = stats.active_series(strat, ref_r)
         active[lab] = a
+        vm = stats.vol_matched_active(strat, ref_r, cash)
         m = rec.metrics or {}
         rows.append({"label": lab, "key": rec.key, "excess_sharpe": m.get("excess_sharpe"),
                      "cagr": m.get("cagr"), "max_drawdown": m.get("max_drawdown"),
                      "turnover_per_year": m.get("turnover_per_year"),
                      "cost_per_year": m.get("cost_per_year"),
                      "active_sharpe": stats.annualized_sharpe(a),
+                     "vol_matched_sharpe": stats.annualized_sharpe(vm),
+                     "mean_exposure": m.get("mean_exposure"),
                      "active_return_ann": float(a.mean() * 252),
                      "era_active_sharpe": [e["active_sharpe"] for e in stats.era_sharpes(a, domain.eras)]})
     rows.sort(key=lambda x: -x["active_sharpe"])
@@ -144,11 +151,13 @@ def print_report(rep: dict) -> None:
     print(f"\n{rep['domain']}  window {rep['window'][0]}..{rep['window'][1]}")
     print(f"benchmark: excess Sharpe {ref['excess_sharpe']:.2f}  CAGR {ref['cagr']:.2%}  "
           f"maxDD {ref['max_drawdown']:.1%}  cost/y {ref['cost_per_year']:.2%}")
-    print(f"\n{'point':58} {'exSh':>5} {'CAGR':>7} {'maxDD':>6} {'cost/y':>6} {'actSh':>6}  eras")
+    print(f"\n{'point':58} {'exSh':>5} {'CAGR':>7} {'maxDD':>6} {'cost/y':>6} {'expo':>5} "
+          f"{'actSh':>6} {'vmSh':>6}  eras")
     for r in rep["rows"]:
         eras = " ".join(f"{x:+.2f}" if x is not None else "  n/a" for x in r["era_active_sharpe"])
         print(f"{r['label'][:58]:58} {r['excess_sharpe']:5.2f} {r['cagr']:7.2%} {r['max_drawdown']:6.1%} "
-              f"{r['cost_per_year']:6.2%} {r['active_sharpe']:+6.2f}  {eras}")
+              f"{r['cost_per_year']:6.2%} {r['mean_exposure'] or 0:5.2f} {r['active_sharpe']:+6.2f} "
+              f"{r['vol_matched_sharpe']:+6.2f}  {eras}")
     print(f"\nlook-ahead violations: {rep['lookahead_violations'] or 'none at 12 cuts'}")
     print(f"best by active Sharpe: {rep['best']}")
     for f in rep["familywise"]:

@@ -110,6 +110,16 @@ class DuplicatePoints(unittest.TestCase):
                 self.assertEqual(stats.duplicate_points(orders), [])
 
 
+class VolMatched(unittest.TestCase):
+    def test_leverage_alone_has_zero_vol_matched_active_return(self):
+        rng = np.random.default_rng(4)
+        cash = pd.Series(0.0001, index=CAL)
+        ref = cash + pd.Series(rng.normal(0.0004, 0.01, len(CAL)), index=CAL)
+        levered = cash + 1.5 * (ref - cash)              # same Sharpe, more exposure
+        self.assertGreater(stats.active_series(levered, ref).mean(), 0)
+        self.assertAlmostEqual(float(stats.vol_matched_active(levered, ref, cash).mean()), 0.0, places=12)
+
+
 class ActiveStatistics(unittest.TestCase):
     def test_active_series_refuses_misaligned_windows(self):
         a = pd.Series(0.0, index=CAL[:100])
