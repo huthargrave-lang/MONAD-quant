@@ -140,12 +140,13 @@ class LiveRegistrationGuard(unittest.TestCase):
             (ver / "H1" / "x.json").write_text(json.dumps({"verdict": "REJECT"}))
             self.assertEqual(daily_trials.live_registrations("cef_discount.v1", pre, ver), [])
 
-    def test_the_real_cef_family_currently_holds_h404701(self):
+    def test_the_real_cef_family_refuses_until_every_live_hypothesis_is_acknowledged(self):
         from src.research import daily_trials
-        self.assertIn("H404701", daily_trials.live_registrations("cef_discount.v1"))
+        live = daily_trials.live_registrations("cef_discount.v1")
+        self.assertIn("H404701", live)
         with self.assertRaises(SystemExit):
-            daily_trials.refuse_unacknowledged("cef_discount.v1", [])
-        daily_trials.refuse_unacknowledged("cef_discount.v1", ["H404701"])
+            daily_trials.refuse_unacknowledged("cef_discount.v1", live[:-1])
+        daily_trials.refuse_unacknowledged("cef_discount.v1", live)
 
 
 class Picks(unittest.TestCase):
