@@ -380,12 +380,13 @@ def write_snapshot(frames: Mapping[str, object], report: Mapping, *, universe: S
         with gzip.GzipFile(fileobj=buf, mode="wb", mtime=0, compresslevel=9) as gz:
             gz.write(data)
         _write_exclusive(csv_path, buf.getvalue())
-    manifest = {"schema": SCHEMA_VERSION, "sha": sha, "universe": list(universe),
+    built_at = _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    manifest = {"schema_version": SCHEMA_VERSION, "sha": sha, "universe": list(universe),
+                "vintage": built_at[:10],      # vendor data as fetched that day
                 "window": {"start": start, "end": end},
                 "first_session": frames["open"].index[0].date().isoformat(),
                 "last_session": frames["open"].index[-1].date().isoformat(),
-                "sources": dict(sources), "validation": dict(report),
-                "built_at": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")}
+                "sources": dict(sources), "validation": dict(report), "built_at": built_at}
     man_path = base / f"DS-{sha}.json"
     if not man_path.exists():
         _write_exclusive(man_path, (canonical_json(manifest) + "\n").encode("utf-8"))

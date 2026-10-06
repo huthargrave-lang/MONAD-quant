@@ -139,8 +139,9 @@ def build(first_year: int, *, fetcher: Callable[[str], bytes] = fetch) -> dict:
     odd = {y: n for y, n in per_year.items() if not 6 <= n <= 10}
     if odd:
         raise CalendarError(f"implausible scheduled-meeting counts: {odd}")
-    return {"schema": 1, "source": "federalreserve.gov", "pages": pages,
-            "fetched_at": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
+    fetched_at = _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return {"schema_version": 1, "source": "federalreserve.gov", "pages": pages,
+            "fetched_at": fetched_at, "vintage": fetched_at[:10],
             "meetings": [meetings[k] for k in sorted(meetings)]}
 
 

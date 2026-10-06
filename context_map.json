@@ -513,7 +513,10 @@
         "tools/admit.py",
         "tools/refute.py",
         "tools/edge_scorecard.py",
-        "tools/reevaluate_web.py"
+        "tools/reevaluate_web.py",
+        "tools/daily_search.py",
+        "tools/cef_search.py",
+        "tools/admit_tactical.py"
       ],
       "entrypoints": [],
       "tests": [

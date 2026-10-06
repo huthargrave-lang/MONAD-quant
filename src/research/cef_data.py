@@ -172,11 +172,12 @@ def write_panel(frames, report, *, data_dir: Path | None = None) -> str:
         with gzip.GzipFile(fileobj=buf, mode="wb", mtime=0, compresslevel=9) as gz:
             gz.write(data)
         _write_exclusive(path, buf.getvalue())
-    manifest = {"schema": 1, "sha": sha, "source": "CEFConnect pricinghistory/<T>/All (weekly)",
+    fetched_at = _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    manifest = {"schema_version": 1, "sha": sha, "source": "CEFConnect pricinghistory/<T>/All (weekly)",
+                "vintage": fetched_at[:10],    # vendor data as fetched that day
                 "universe_source": "CEFConnect DailyPricing (funds listed at fetch time)",
                 "survivorship": "current listings only; see src/research/cef_data.py",
-                "fetched_at": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
-                **report}
+                "fetched_at": fetched_at, **report}
     man = base / f"CEFNAV-{sha}.json"
     if not man.exists():
         _write_exclusive(man, (canonical_json(manifest) + "\n").encode("utf-8"))
