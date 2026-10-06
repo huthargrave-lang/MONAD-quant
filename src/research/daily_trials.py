@@ -42,6 +42,7 @@ DOMAINS = {
     "etf_alloc": {"family": "daily_alloc", "reference_class": "static_6040"},
     "cef_discount": {"family": "cef_discount", "reference_class": "cef_equal_weight"},
     "crypto_trend": {"family": "crypto_trend", "reference_class": "crypto_static_half"},
+    "country_select": {"family": "country_select", "reference_class": "country_equal_weight"},
 }
 DEFAULT_DOMAIN = "etf_alloc"      # trials recorded before domains existed (the v1 search)
 

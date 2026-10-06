@@ -121,5 +121,20 @@ CRYPTO = Domain(
     # counted as the survivor of 3.
     prior_search_trials=3)
 
-DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO)}
+# ── country ETF selection against the equal-weight country universe ─────────
+from src.research import country_classes as _country  # noqa: E402
+
+COUNTRY = Domain(
+    name="country_select", reference=_country.REFERENCE, eras=_country.ERAS,
+    load=lambda data: Context(snap=daily_data.load_snapshot(data["snapshot"])),
+    decide=lambda ctx, point: _country.decide(ctx.snap, point),
+    tiers=lambda ctx: _country.tiers(ctx.snap),
+    start=lambda ctx: _country.scoring_start(ctx.snap),
+    truncation=lambda ctx, point, cuts: _country.truncation_violations(ctx.snap, point, cuts),
+    grids=lambda: _country.GRIDS,
+    # Country momentum (AMP 2013), reversal and low volatility are published, each
+    # counted as the survivor of 3 variants.
+    prior_search_trials=9)
+
+DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO, COUNTRY)}
 
