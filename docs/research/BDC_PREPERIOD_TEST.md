@@ -148,3 +148,45 @@ re-crawl.
 **Disclosed:**
 - The truncated evaluation and its gate-2 failure were seen before the re-run.
 - Pass-1 NAVs for these tickers had been seen, under the old extractor.
+
+## Result: NOT RUN. The extractor failed the pre-2022 cross-check (gate 2)
+
+This is the final evaluation, on the complete pass-2 crawl: 62 tickers, zero network
+failures, and every ticker's filing attempts equal to pass 1's.
+
+| Gate | Result | Bar | Outcome |
+|---|---|---|---|
+| 1, tagged era (reading B) | 813/819 = 99.3%, 47 filers | 98%, 200 periods, 20 BDCs | pass |
+| 2, pre-2022 comparative cross-check | 403/416 = **96.9%** | 98% | **FAIL** |
+| 3, hand audit | not run | | moot |
+| 4, review lists | 38 changed values, 21 jumps above 25% | | recorded in the JSON, not adjudicated |
+
+The diagnostic readings were A = 96.9% (1126/1162) and C = 99.6% (715/718).
+
+Gate 2's 13 disagreements:
+- **OCSL, all 11 fiscal year ends from 2011 to 2021.** Its 10-K value differs from the next
+  filing's prior-period column, and 2021 is the $10.00 dilution-table reading.
+- **BCIC 2014-12-31:** 7.51 against 6.94.
+- **TSLX 2012-12-31:** 980.51 against 15.19, a pre-IPO per-unit figure.
+
+Gate 1's six disagreements are also all OCSL: its 1-for-3 reverse split in the 2022
+comparatives, plus 10-K $10.00 readings.
+
+The dissenting board member had predicted gate 2's ceiling at about 97.0%. The completed
+crawl landed at 96.9%.
+
+**What this means.** The BDC discount effect before 2022 remains unexamined. No price
+snapshot was built, no trial was run, and no return in the window was ever loaded. The
+extractor reads balance-sheet NAV correctly for most filers in both eras (gate 1: 99.3%).
+Its failures concentrate in a few filers' 10-K layouts, OCSL above all. Under the one-fix
+rule that is not repaired here.
+
+A future test would need a NEW protocol with a held-out validation set. It must also
+disclose that the NAVs of this era have now been seen. Its prices and returns, though,
+still have not been.
+
+Evidence:
+- `docs/research/data/bdc_preperiod_gates.json` (final)
+- `bdc_preperiod_gates_truncated.json` (the outage-truncated evaluation)
+- `bdc_preperiod_validation_pass1.json`
+- `bdc_preperiod_validation_pass1_alt.json`

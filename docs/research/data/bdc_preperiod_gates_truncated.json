@@ -1,0 +1,1029 @@
+{
+ "gate1_B": {
+  "compared": 549,
+  "agree": 543,
+  "share": 0.9890710382513661,
+  "filers": 31
+ },
+ "gate1_pass": true,
+ "B_disagreements": [
+  {
+   "ticker": "OCSL",
+   "period_end": "2022-03-31",
+   "extracted": 7.26,
+   "tagged": 21.79
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2022-06-30",
+   "extracted": 6.89,
+   "tagged": 20.67
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2022-09-30",
+   "extracted": 10.0,
+   "tagged": 20.38
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2023-09-30",
+   "extracted": 10.0,
+   "tagged": 19.63
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2024-09-30",
+   "extracted": 10.0,
+   "tagged": 18.09
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2025-09-30",
+   "extracted": 10.0,
+   "tagged": 16.64
+  }
+ ],
+ "diag_A": {
+  "compared": 787,
+  "agree": 753,
+  "share": 0.9567979669631512,
+  "filers": 33
+ },
+ "diag_C": {
+  "compared": 477,
+  "agree": 474,
+  "share": 0.9937106918238994,
+  "filers": 31
+ },
+ "gate2": {
+  "compared": 287,
+  "agree": 275,
+  "share": 0.9581881533101045
+ },
+ "gate2_pass": false,
+ "gate2_disagreements": [
+  {
+   "ticker": "BCIC",
+   "period_end": "2014-12-31",
+   "value": 7.51,
+   "next_prior": 6.94,
+   "next_filed": "2015-05-06"
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2011-09-30",
+   "value": 10.07,
+   "next_prior": 10.44,
+   "next_filed": "2012-02-08"
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2012-09-30",
+   "value": 9.92,
+   "next_prior": 9.89,
+   "next_filed": "2013-02-06"
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2013-09-30",
+   "value": 9.85,
+   "next_prior": 9.88,
+   "next_filed": "2014-02-06"
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2014-09-30",
+   "value": 9.64,
+   "next_prior": 9.85,
+   "next_filed": "2015-02-09"
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2015-09-30",
+   "value": 9.0,
+   "next_prior": 9.18,
+   "next_filed": "2016-02-09"
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2016-09-30",
+   "value": 7.97,
+   "next_prior": 8.41,
+   "next_filed": "2017-02-09"
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2017-09-30",
+   "value": 6.16,
+   "next_prior": 7.31,
+   "next_filed": "2018-02-08"
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2018-09-30",
+   "value": 6.09,
+   "next_prior": 5.81,
+   "next_filed": "2019-02-07"
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2019-09-30",
+   "value": 6.6,
+   "next_prior": 6.19,
+   "next_filed": "2020-02-06"
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2020-09-30",
+   "value": 6.49,
+   "next_prior": 6.61,
+   "next_filed": "2021-02-04"
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2021-09-30",
+   "value": 10.0,
+   "next_prior": 6.85,
+   "next_filed": "2022-02-03"
+  }
+ ],
+ "gate2_splits": [],
+ "gate3_sample": [
+  {
+   "ticker": "NMFC",
+   "cik": 1496099,
+   "form": "10-K",
+   "report_date": "2015-12-31",
+   "filed": "2016-02-29",
+   "accession": "0001496099-16-000008",
+   "doc": "nmfc-12312015x10k.htm",
+   "nav": 13.08
+  },
+  {
+   "ticker": "FDUS",
+   "cik": 1513363,
+   "form": "10-Q",
+   "report_date": "2016-09-30",
+   "filed": "2016-11-03",
+   "accession": "0001193125-16-758985",
+   "doc": "d286601d10q.htm",
+   "nav": 15.58
+  },
+  {
+   "ticker": "OXSQ",
+   "cik": 1259429,
+   "form": "10-Q",
+   "report_date": "2016-06-30",
+   "filed": "2016-08-05",
+   "accession": "0001144204-16-116896",
+   "doc": "v445874_10q.htm",
+   "nav": 6.54
+  },
+  {
+   "ticker": "CION",
+   "cik": 1534254,
+   "form": "10-K",
+   "report_date": "2017-12-31",
+   "filed": "2018-03-16",
+   "accession": "0001534254-18-000009",
+   "doc": "cion2017123110k.htm",
+   "nav": 9.14
+  },
+  {
+   "ticker": "HRZN",
+   "cik": 1487428,
+   "form": "10-K",
+   "report_date": "2011-12-31",
+   "filed": "2012-03-13",
+   "accession": "0001144204-12-014502",
+   "doc": "v305473_10k.htm",
+   "nav": 17.01
+  },
+  {
+   "ticker": "CION",
+   "cik": 1534254,
+   "form": "10-Q",
+   "report_date": "2014-06-30",
+   "filed": "2014-08-14",
+   "accession": "0001534254-14-000012",
+   "doc": "body.htm",
+   "nav": 9.38
+  },
+  {
+   "ticker": "HTGC",
+   "cik": 1280784,
+   "form": "10-Q",
+   "report_date": "2011-09-30",
+   "filed": "2011-11-04",
+   "accession": "0001193125-11-295632",
+   "doc": "d246717d10q.htm",
+   "nav": 9.61
+  },
+  {
+   "ticker": "EQS",
+   "cik": 878932,
+   "form": "10-K",
+   "report_date": "2013-12-31",
+   "filed": "2014-03-31",
+   "accession": "0001391609-14-000013",
+   "doc": "f10k_equus123113.htm",
+   "nav": 3.14
+  },
+  {
+   "ticker": "OCSL",
+   "cik": 1414932,
+   "form": "10-Q",
+   "report_date": "2011-12-31",
+   "filed": "2012-02-08",
+   "accession": "0001193125-12-046703",
+   "doc": "d291232d10q.htm",
+   "nav": 9.89
+  },
+  {
+   "ticker": "OCSL",
+   "cik": 1414932,
+   "form": "10-Q",
+   "report_date": "2016-03-31",
+   "filed": "2016-05-10",
+   "accession": "0001414932-16-000027",
+   "doc": "fsc-033116x10xq.htm",
+   "nav": 8.33
+  },
+  {
+   "ticker": "CCAP",
+   "cik": 1633336,
+   "form": "10-Q",
+   "report_date": "2020-06-30",
+   "filed": "2020-08-10",
+   "accession": "0001193125-20-215026",
+   "doc": "d33269d10q.htm",
+   "nav": 18.12
+  },
+  {
+   "ticker": "FDUS",
+   "cik": 1513363,
+   "form": "10-K",
+   "report_date": "2012-12-31",
+   "filed": "2013-03-07",
+   "accession": "0001193125-13-096290",
+   "doc": "d497297d10k.htm",
+   "nav": 15.32
+  },
+  {
+   "ticker": "NMFC",
+   "cik": 1496099,
+   "form": "10-K",
+   "report_date": "2019-12-31",
+   "filed": "2020-02-26",
+   "accession": "0001496099-20-000002",
+   "doc": "nmfc-12312019x10k.htm",
+   "nav": 13.26
+  },
+  {
+   "ticker": "HRZN",
+   "cik": 1487428,
+   "form": "10-Q",
+   "report_date": "2015-03-31",
+   "filed": "2015-05-05",
+   "accession": "0001144204-15-027643",
+   "doc": "v409507_10q.htm",
+   "nav": 14.19
+  },
+  {
+   "ticker": "OXSQ",
+   "cik": 1259429,
+   "form": "10-K",
+   "report_date": "2016-12-31",
+   "filed": "2017-03-03",
+   "accession": "0001144204-17-012768",
+   "doc": "v460141_10k.htm",
+   "nav": 7.5
+  },
+  {
+   "ticker": "ARCC",
+   "cik": 1287750,
+   "form": "10-Q",
+   "report_date": "2016-03-31",
+   "filed": "2016-05-04",
+   "accession": "0001104659-16-117420",
+   "doc": "a16-6593_110q.htm",
+   "nav": 16.5
+  },
+  {
+   "ticker": "HTGC",
+   "cik": 1280784,
+   "form": "10-K",
+   "report_date": "2012-12-31",
+   "filed": "2013-02-28",
+   "accession": "0001193125-13-084470",
+   "doc": "d483390d10k.htm",
+   "nav": 9.75
+  },
+  {
+   "ticker": "NCDL",
+   "cik": 1737924,
+   "form": "10-Q",
+   "report_date": "2021-09-30",
+   "filed": "2021-11-10",
+   "accession": "0001628280-21-022867",
+   "doc": "churchillseptember302021.htm",
+   "nav": 19.27
+  },
+  {
+   "ticker": "NSLR",
+   "cik": 1509470,
+   "form": "10-Q",
+   "report_date": "2012-06-30",
+   "filed": "2012-08-09",
+   "accession": "0001144204-12-043781",
+   "doc": "v320674_10q.htm",
+   "nav": 13.81
+  },
+  {
+   "ticker": "NSLR",
+   "cik": 1509470,
+   "form": "10-K",
+   "report_date": "2019-12-31",
+   "filed": "2020-03-13",
+   "accession": "0001509470-20-000003",
+   "doc": "ssss-12312019x10k.htm",
+   "nav": 11.38
+  },
+  {
+   "ticker": "EQS",
+   "cik": 878932,
+   "form": "10-K",
+   "report_date": "2015-12-31",
+   "filed": "2016-03-30",
+   "accession": "0001391609-16-000424",
+   "doc": "f10k_equus123115.htm",
+   "nav": 2.94
+  },
+  {
+   "ticker": "GLAD",
+   "cik": 1143513,
+   "form": "10-Q",
+   "report_date": "2014-06-30",
+   "filed": "2014-07-30",
+   "accession": "0001193125-14-286972",
+   "doc": "d755362d10q.htm",
+   "nav": 8.62
+  },
+  {
+   "ticker": "GAIN",
+   "cik": 1321741,
+   "form": "10-Q",
+   "report_date": "2015-06-30",
+   "filed": "2015-08-04",
+   "accession": "0001193125-15-276537",
+   "doc": "d67552d10q.htm",
+   "nav": 9.24
+  },
+  {
+   "ticker": "GAIN",
+   "cik": 1321741,
+   "form": "10-K",
+   "report_date": "2014-03-31",
+   "filed": "2014-05-13",
+   "accession": "0001193125-14-197317",
+   "doc": "d724051d10k.htm",
+   "nav": 8.34
+  },
+  {
+   "ticker": "ARCC",
+   "cik": 1287750,
+   "form": "10-Q",
+   "report_date": "2014-09-30",
+   "filed": "2014-11-04",
+   "accession": "0001104659-14-076197",
+   "doc": "a14-19803_110q.htm",
+   "nav": 16.71
+  },
+  {
+   "ticker": "BCSF",
+   "cik": 1655050,
+   "form": "10-K",
+   "report_date": "2016-12-31",
+   "filed": "2017-03-29",
+   "accession": "0001104659-17-019987",
+   "doc": "a17-4011_110k.htm",
+   "nav": 20.1
+  },
+  {
+   "ticker": "BBDC",
+   "cik": 1379785,
+   "form": "10-Q",
+   "report_date": "2012-06-30",
+   "filed": "2012-08-01",
+   "accession": "0001193125-12-328792",
+   "doc": "d388704d10q.htm",
+   "nav": 15.21
+  },
+  {
+   "ticker": "GBDC",
+   "cik": 1476765,
+   "form": "10-Q",
+   "report_date": "2014-06-30",
+   "filed": "2014-08-07",
+   "accession": "0001144204-14-047524",
+   "doc": "v385529_10q.htm",
+   "nav": 15.44
+  },
+  {
+   "ticker": "OFS",
+   "cik": 1487918,
+   "form": "10-Q",
+   "report_date": "2014-03-31",
+   "filed": "2014-05-09",
+   "accession": "0001144204-14-029066",
+   "doc": "v377307_10q.htm",
+   "nav": 14.45
+  },
+  {
+   "ticker": "MAIN",
+   "cik": 1396440,
+   "form": "10-Q",
+   "report_date": "2017-09-30",
+   "filed": "2017-11-03",
+   "accession": "0001047469-17-006744",
+   "doc": "a2233646z10-q.htm",
+   "nav": 23.02
+  },
+  {
+   "ticker": "MAIN",
+   "cik": 1396440,
+   "form": "10-Q",
+   "report_date": "2012-09-30",
+   "filed": "2012-11-08",
+   "accession": "0001104659-12-075757",
+   "doc": "a12-20050_110q.htm",
+   "nav": 17.49
+  },
+  {
+   "ticker": "CGBD",
+   "cik": 1544206,
+   "form": "10-Q",
+   "report_date": "2020-06-30",
+   "filed": "2020-08-05",
+   "accession": "0001544206-20-000060",
+   "doc": "cgbd2q2010-qdocument.htm",
+   "nav": 14.8
+  },
+  {
+   "ticker": "CCAP",
+   "cik": 1633336,
+   "form": "10-Q",
+   "report_date": "2021-09-30",
+   "filed": "2021-11-10",
+   "accession": "0001193125-21-325969",
+   "doc": "d205002d10q.htm",
+   "nav": 21.16
+  },
+  {
+   "ticker": "MFIC",
+   "cik": 1278752,
+   "form": "10-Q",
+   "report_date": "2021-06-30",
+   "filed": "2021-08-05",
+   "accession": "0001278752-21-000023",
+   "doc": "ainv2022q110-q.htm",
+   "nav": 16.02
+  },
+  {
+   "ticker": "GSBD",
+   "cik": 1572694,
+   "form": "10-Q",
+   "report_date": "2015-09-30",
+   "filed": "2015-11-05",
+   "accession": "0001193125-15-368460",
+   "doc": "d58692d10q.htm",
+   "nav": 19.38
+  },
+  {
+   "ticker": "BBDC",
+   "cik": 1379785,
+   "form": "10-Q",
+   "report_date": "2021-06-30",
+   "filed": "2021-08-05",
+   "accession": "0001379785-21-000035",
+   "doc": "a2021063010qbbdc.htm",
+   "nav": 11.39
+  },
+  {
+   "ticker": "GBDC",
+   "cik": 1476765,
+   "form": "10-Q",
+   "report_date": "2016-03-31",
+   "filed": "2016-05-05",
+   "accession": "0001144204-16-099247",
+   "doc": "v438678_10q.htm",
+   "nav": 15.85
+  },
+  {
+   "ticker": "OBDC",
+   "cik": 1655888,
+   "form": "10-Q",
+   "report_date": "2020-09-30",
+   "filed": "2020-11-04",
+   "accession": "0001564590-20-050454",
+   "doc": "owl-10q_20200930.htm",
+   "nav": 14.67
+  },
+  {
+   "ticker": "MFIC",
+   "cik": 1278752,
+   "form": "10-Q",
+   "report_date": "2016-09-30",
+   "filed": "2016-11-08",
+   "accession": "0001278752-16-000050",
+   "doc": "ainv2017q210-q.htm",
+   "nav": 6.95
+  },
+  {
+   "ticker": "BCIC",
+   "cik": 1372807,
+   "form": "10-K",
+   "report_date": "2017-12-31",
+   "filed": "2018-03-07",
+   "accession": "0001144204-18-013345",
+   "doc": "v486663-10k.htm",
+   "nav": 4.87
+  },
+  {
+   "ticker": "FSK",
+   "cik": 1422183,
+   "form": "10-Q",
+   "report_date": "2012-06-30",
+   "filed": "2012-08-14",
+   "accession": "0001193125-12-355319",
+   "doc": "d394997d10q.htm",
+   "nav": 9.61
+  },
+  {
+   "ticker": "BCIC",
+   "cik": 1372807,
+   "form": "10-K",
+   "report_date": "2019-12-31",
+   "filed": "2020-03-06",
+   "accession": "0001564590-20-009063",
+   "doc": "ptmn-10k_20191231.htm",
+   "nav": 3.4
+  },
+  {
+   "ticker": "MSIF",
+   "cik": 1535778,
+   "form": "10-Q",
+   "report_date": "2017-06-30",
+   "filed": "2017-08-14",
+   "accession": "0001535778-17-000097",
+   "doc": "hms10q63017.htm",
+   "nav": 8.22
+  },
+  {
+   "ticker": "FSK",
+   "cik": 1422183,
+   "form": "10-Q",
+   "report_date": "2019-06-30",
+   "filed": "2019-08-07",
+   "accession": "0001193125-19-215377",
+   "doc": "d783324d10q.htm",
+   "nav": 7.88
+  },
+  {
+   "ticker": "GLAD",
+   "cik": 1143513,
+   "form": "10-Q",
+   "report_date": "2011-03-31",
+   "filed": "2011-05-03",
+   "accession": "0000950123-11-043901",
+   "doc": "w82595e10vq.htm",
+   "nav": 11.18
+  },
+  {
+   "ticker": "CGBD",
+   "cik": 1544206,
+   "form": "10-Q",
+   "report_date": "2014-06-30",
+   "filed": "2014-08-13",
+   "accession": "0001193125-14-308581",
+   "doc": "d774299d10q.htm",
+   "nav": 19.71
+  },
+  {
+   "ticker": "OFS",
+   "cik": 1487918,
+   "form": "10-Q",
+   "report_date": "2016-06-30",
+   "filed": "2016-08-08",
+   "accession": "0001144204-16-116970",
+   "doc": "v446040_10q.htm",
+   "nav": 14.76
+  },
+  {
+   "ticker": "KBDC",
+   "cik": 1747172,
+   "form": "10-K",
+   "report_date": "2021-12-31",
+   "filed": "2022-03-10",
+   "accession": "0001213900-22-011623",
+   "doc": "f10k2021_kayneanderson.htm",
+   "nav": 16.22
+  },
+  {
+   "ticker": "CSWC",
+   "cik": 17313,
+   "form": "10-Q",
+   "report_date": "2013-06-30",
+   "filed": "2013-08-05",
+   "accession": "0001140361-13-030406",
+   "doc": "form10q.htm",
+   "nav": 175.2
+  },
+  {
+   "ticker": "OBDC",
+   "cik": 1655888,
+   "form": "10-Q",
+   "report_date": "2020-03-31",
+   "filed": "2020-05-05",
+   "accession": "0001564590-20-021247",
+   "doc": "owl-10q_20200331.htm",
+   "nav": 14.09
+  }
+ ],
+ "gate4_changed": [
+  {
+   "ticker": "BBDC",
+   "period_end": "2010-12-31",
+   "accession": "0000950123-11-023640",
+   "pass1": 13.74,
+   "pass2": 12.09
+  },
+  {
+   "ticker": "BBDC",
+   "period_end": "2011-12-31",
+   "accession": "0001193125-12-101223",
+   "pass1": 13.74,
+   "pass2": 14.68
+  },
+  {
+   "ticker": "BBDC",
+   "period_end": "2012-12-31",
+   "accession": "0001379785-13-000004",
+   "pass1": 13.22,
+   "pass2": 15.3
+  },
+  {
+   "ticker": "BBDC",
+   "period_end": "2013-12-31",
+   "accession": "0001379785-14-000013",
+   "pass1": 11.03,
+   "pass2": 16.1
+  },
+  {
+   "ticker": "BBDC",
+   "period_end": "2014-12-31",
+   "accession": "0001379785-15-000032",
+   "pass1": 12.09,
+   "pass2": 16.11
+  },
+  {
+   "ticker": "BBDC",
+   "period_end": "2015-12-31",
+   "accession": "0001379785-16-000105",
+   "pass1": 14.68,
+   "pass2": 15.23
+  },
+  {
+   "ticker": "BBDC",
+   "period_end": "2016-12-31",
+   "accession": "0001379785-17-000005",
+   "pass1": 15.3,
+   "pass2": 15.13
+  },
+  {
+   "ticker": "BBDC",
+   "period_end": "2017-12-31",
+   "accession": "0001379785-18-000014",
+   "pass1": 16.1,
+   "pass2": 13.43
+  },
+  {
+   "ticker": "BBDC",
+   "period_end": "2018-12-31",
+   "accession": "0001379785-19-000008",
+   "pass1": 16.11,
+   "pass2": 10.98
+  },
+  {
+   "ticker": "BBDC",
+   "period_end": "2019-12-31",
+   "accession": "0001379785-20-000009",
+   "pass1": 15.23,
+   "pass2": 11.66
+  },
+  {
+   "ticker": "BBDC",
+   "period_end": "2020-12-31",
+   "accession": "0001379785-21-000016",
+   "pass1": 15.13,
+   "pass2": 10.99
+  },
+  {
+   "ticker": "BCIC",
+   "period_end": "2014-12-31",
+   "accession": "0001144204-15-019659",
+   "pass1": 6.94,
+   "pass2": 7.51
+  },
+  {
+   "ticker": "CION",
+   "period_end": "2013-12-31",
+   "accession": "0001312910-14-000010",
+   "pass1": 1.1,
+   "pass2": 9.32
+  },
+  {
+   "ticker": "CION",
+   "period_end": "2014-12-31",
+   "accession": "0001534254-15-000021",
+   "pass1": 9.32,
+   "pass2": 9.22
+  },
+  {
+   "ticker": "CION",
+   "period_end": "2015-12-31",
+   "accession": "0001534254-16-000210",
+   "pass1": 9.22,
+   "pass2": 8.71
+  },
+  {
+   "ticker": "CION",
+   "period_end": "2016-12-31",
+   "accession": "0001534254-17-000029",
+   "pass1": 8.71,
+   "pass2": 9.11
+  },
+  {
+   "ticker": "CION",
+   "period_end": "2017-12-31",
+   "accession": "0001534254-18-000009",
+   "pass1": 9.11,
+   "pass2": 9.14
+  },
+  {
+   "ticker": "CION",
+   "period_end": "2018-12-31",
+   "accession": "0001534254-19-000004",
+   "pass1": 9.14,
+   "pass2": 8.69
+  },
+  {
+   "ticker": "CION",
+   "period_end": "2019-12-31",
+   "accession": "0001534254-20-000003",
+   "pass1": 8.69,
+   "pass2": 8.4
+  },
+  {
+   "ticker": "CION",
+   "period_end": "2020-12-31",
+   "accession": "0001534254-21-000003",
+   "pass1": 8.4,
+   "pass2": 7.75
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2012-09-30",
+   "accession": "0001193125-12-483872",
+   "pass1": 10.0,
+   "pass2": 9.92
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2013-09-30",
+   "accession": "0001414932-13-000015",
+   "pass1": 10.0,
+   "pass2": 9.85
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2014-09-30",
+   "accession": "0001414932-14-000070",
+   "pass1": 10.0,
+   "pass2": 9.64
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2015-09-30",
+   "accession": "0001414932-15-000019",
+   "pass1": 10.0,
+   "pass2": 9.0
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2016-09-30",
+   "accession": "0001414932-16-000034",
+   "pass1": 10.0,
+   "pass2": 7.97
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2017-09-30",
+   "accession": "0001414932-17-000033",
+   "pass1": 10.0,
+   "pass2": 6.16
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2018-09-30",
+   "accession": "0001414932-18-000015",
+   "pass1": 10.0,
+   "pass2": 6.09
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2019-09-30",
+   "accession": "0001414932-19-000017",
+   "pass1": 10.0,
+   "pass2": 6.6
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2020-09-30",
+   "accession": "0001414932-20-000019",
+   "pass1": 10.0,
+   "pass2": 6.49
+  },
+  {
+   "ticker": "OFS",
+   "period_end": "2020-12-31",
+   "accession": "0001487918-21-000040",
+   "pass1": 12.46,
+   "pass2": 11.85
+  },
+  {
+   "ticker": "OFS",
+   "period_end": "2021-12-31",
+   "accession": "0001487918-22-000010",
+   "pass1": 11.85,
+   "pass2": 15.18
+  }
+ ],
+ "gate4_jumps": [
+  {
+   "ticker": "BCIC",
+   "from": "2021-06-30",
+   "to": "2021-09-30",
+   "nav_from": 2.93,
+   "nav_to": 29.71,
+   "accession_to": "0000950170-21-003075"
+  },
+  {
+   "ticker": "CION",
+   "from": "2021-06-30",
+   "to": "2021-09-30",
+   "nav_from": 8.17,
+   "nav_to": 16.52,
+   "accession_to": "0001534254-21-000017"
+  },
+  {
+   "ticker": "CSWC",
+   "from": "2013-06-30",
+   "to": "2013-09-30",
+   "nav_from": 175.2,
+   "nav_to": 46.71,
+   "accession_to": "0001140361-13-041116"
+  },
+  {
+   "ticker": "CSWC",
+   "from": "2015-06-30",
+   "to": "2015-09-30",
+   "nav_from": 49.33,
+   "nav_to": 17.68,
+   "accession_to": "0001140361-15-040254"
+  },
+  {
+   "ticker": "FSK",
+   "from": "2020-03-31",
+   "to": "2020-06-30",
+   "nav_from": 6.09,
+   "nav_to": 23.37,
+   "accession_to": "0001193125-20-214985"
+  },
+  {
+   "ticker": "GECC",
+   "from": "2019-12-31",
+   "to": "2020-03-31",
+   "nav_from": 8.63,
+   "nav_to": 5.05,
+   "accession_to": "0001564590-20-023789"
+  },
+  {
+   "ticker": "GECC",
+   "from": "2020-09-30",
+   "to": "2020-12-31",
+   "nav_from": 5.53,
+   "nav_to": 3.46,
+   "accession_to": "0001564590-21-013314"
+  },
+  {
+   "ticker": "GECC",
+   "from": "2021-09-30",
+   "to": "2021-12-31",
+   "nav_from": 3.7,
+   "nav_to": 16.63,
+   "accession_to": "0001564590-22-008636"
+  },
+  {
+   "ticker": "MFIC",
+   "from": "2018-09-30",
+   "to": "2018-12-31",
+   "nav_from": 6.47,
+   "nav_to": 19.03,
+   "accession_to": "0001278752-19-000008"
+  },
+  {
+   "ticker": "MSDL",
+   "from": "2019-12-31",
+   "to": "2020-03-31",
+   "nav_from": 640.54,
+   "nav_to": 18.47,
+   "accession_to": "0001782524-20-000011"
+  },
+  {
+   "ticker": "NSLR",
+   "from": "2015-09-30",
+   "to": "2015-12-31",
+   "nav_from": 16.17,
+   "nav_to": 12.08,
+   "accession_to": "0001144204-16-088256"
+  },
+  {
+   "ticker": "OCSL",
+   "from": "2021-06-30",
+   "to": "2021-09-30",
+   "nav_from": 7.22,
+   "nav_to": 10.0,
+   "accession_to": "0001414932-21-000020"
+  },
+  {
+   "ticker": "OCSL",
+   "from": "2021-09-30",
+   "to": "2021-12-31",
+   "nav_from": 10.0,
+   "nav_to": 7.34,
+   "accession_to": "0001414932-22-000004"
+  }
+ ],
+ "coverage_by_year_parsed_failed": {
+  "2011": [
+   64,
+   3
+  ],
+  "2012": [
+   74,
+   3
+  ],
+  "2013": [
+   85,
+   2
+  ],
+  "2014": [
+   89,
+   3
+  ],
+  "2015": [
+   95,
+   2
+  ],
+  "2016": [
+   101,
+   2
+  ],
+  "2017": [
+   109,
+   3
+  ],
+  "2018": [
+   109,
+   4
+  ],
+  "2019": [
+   114,
+   6
+  ],
+  "2020": [
+   121,
+   6
+  ],
+  "2021": [
+   124,
+   8
+  ],
+  "2022": [
+   106,
+   7
+  ]
+ }
+}

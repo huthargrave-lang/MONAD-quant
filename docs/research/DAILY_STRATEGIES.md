@@ -90,6 +90,7 @@ and cash.
 | F404708 | CEF: tax-loss season | null, and it cost H404701 its deflation pass |
 | F404713 | CEF: within-category z-score with hysteresis (H404702) | passes every development stage; forward window to 2027-10-07 |
 | F404714 | BDC: the H404701 rule on a disjoint universe | same sign (+0.5 active Sharpe), underpowered (3.9 years) |
+| F404722 | BDC: the same rule on 2012-2022 (`BDC_PREPERIOD_TEST.md`) | not run: the filing-text NAV extractor failed its frozen pre-2022 cross-check (96.9% vs 98%) |
 
 **The pattern.** Every published effect on liquid instruments has decayed or vanished.
 The surviving effect is discount selection in closed-end funds: capacity-constrained, in
