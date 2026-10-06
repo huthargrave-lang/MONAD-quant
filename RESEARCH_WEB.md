@@ -4146,3 +4146,20 @@ Verdict under the pre-stated criterion: UNINFORMATIVE. The sign is right, but it
 The early-period edge is much weaker than the development window's +1.44: a smaller, survivorship-heavier universe, and costs at the 30 bps tier. This tempers the forward expectation; the forward window remains the test that matters.
 Links: [[H404702|relates]].
 _— captured claude/monetizing-repositories-03e341@ab5d9e3, 2026-10-06_
+
+### F404718 — The gate's DSR stage is miscalibrated both ways: 12% false passes for one-idea families, 2% power for mixed ones; SPA stays calibrated
+Measured with tools/deflation_power_study.py on synthetic families: one real idea (4 variants, correlation ~0.64) plus unrelated null ideas, 20 years daily, 60 replications. Candidate = the real idea's best variant.
+
+The DSR stage, as the gate builds it (SR0 from the cross-CLUSTER Sharpe variance of the family itself), is miscalibrated both ways:
+- One-idea family, no true effect: it passes 12% (nominal 5%). Cross-cluster variance is ~0, so SR0 ~ 0 whatever N is: the declared prior and the trial count stop mattering.
+- True active Sharpe 1.0 with 2 unrelated null ideas in the family: it passes 2%. With 6: 35%.
+
+Hansen's SPA on the same families: 2-7% under the null, 83-100% power.
+
+This explains both gate surprises in the record:
+- H404700 passed deflation at DSR 0.9999 while being an execution artifact (F404703): a one-idea hourly family, SR0 ~ 0.
+- H404701 lost its pass when two null tax-loss trials joined its family (F404708).
+
+Implication, for the open decision (docs/research/DEFLATION_RULE_QUESTION.md, option E): SPA, not this DSR, is the calibrated multiple-testing stage for families searched like these. Applies prospectively; changes no verdict already reached.
+Links: [[F404703|relates]] · [[F404708|relates]].
+_— captured claude/monetizing-repositories-03e341@26b46f2, 2026-10-06_
