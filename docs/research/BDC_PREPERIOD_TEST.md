@@ -114,3 +114,33 @@ test is not run, nothing further is edited, and the failure is recorded.
    - every quarter-over-quarter NAV move above 25%.
 
 The full pass-1 disagreement lists are in the commit that records pass 2's results.
+
+## Amendment 2 (2026-10-06): the first pass-2 evaluation ran on outage-truncated data
+
+A DNS outage during the pass-2 crawl left 16 tickers with no observations: PFLT, PFX,
+PNNT, PSBD, PSEC, RAND, RVII, RWAY, SAR, SCM, SLRC, TCPC, TPVG, TRIN, TSLX and WHF. OXSQ also
+lost 32 filings to timeouts. The gates were evaluated on that truncated crawl, about 45 of
+the 62 universe tickers, before the outage was noticed:
+
+- **Gate 1 (B):** 543/549, 98.9%, 31 filers.
+- **Gate 2:** 275/287, 95.8%, a fail. 11 of the 12 disagreements are OCSL, whose 10-K
+  extraction is still wrong; the twelfth is BCIC 2014.
+
+**Board ruling: 2 of 3 for completing the crawl** (the third vote had not arrived when this
+was committed). The gates are defined over the protocol's universe, so a truncated run is
+invalid input, not a result. A pass on 45 tickers would equally have required the
+re-crawl.
+
+**Conditions:**
+- The extractor code is unchanged (e30f847). The one fix round is spent.
+- The 17 tickers are re-crawled until there are zero network failures. Each ticker's filing
+  count must match pass 1's attempts, and a remaining fetch failure is retried, never dropped.
+- All four gates are then re-evaluated on the complete pass-2 data, and that evaluation is
+  final. OCSL is not excluded, and pass-1 values are not reused.
+- If gate 2 still fails, the test does not run.
+- If the gates pass, OCSL's known-bad 10-K values enter the test. The result excluding OCSL
+  is then reported as a disclosed sensitivity, not as the deciding figure.
+
+**Disclosed:**
+- The truncated evaluation and its gate-2 failure were seen before the re-run.
+- Pass-1 NAVs for these tickers had been seen, under the old extractor.
