@@ -83,8 +83,9 @@ class DailyResult:
     returns: pd.Series                 # portfolio simple return per session, scored window
     cash: pd.Series                    # the cash return per session, same index
     rebalances: int                    # orders executed (all tranches)
-    turnover: float                    # sum of |traded notional| / portfolio value
-    cost_paid: float                   # sum of costs as a fraction of portfolio value
+    turnover: float                    # sum over sessions of traded notional / portfolio value
+                                       # at the previous close (all tranches together)
+    cost_paid: float                   # the same for fees
     exposure: pd.Series = field(repr=False, default=None)   # invested fraction at each close
 
     @property
@@ -158,8 +159,11 @@ def evaluate_daily(tranches: Sequence[Tranche], snap: Snapshot, *, start: pd.Tim
     total = np.zeros(i1 - i0 + 2)               # value at the close of i0-1 .. i1
     invested = np.zeros(i1 - i0 + 1)
     rebalances = 0
-    turnover = 0.0
-    cost_paid = 0.0
+    # Traded notional and fees in DOLLARS per scored session, summed over tranches, then
+    # divided by the WHOLE portfolio's value: a tranche's fee as a fraction of its own
+    # capital is 1/n_t of that as a fraction of the portfolio.
+    traded_d = np.zeros(i1 - i0 + 1)
+    fee_d = np.zeros(i1 - i0 + 1)
     for tr in tranches:
         opens = _orders_by_execution(tr.open_orders, dates, assets)
         closes = _orders_by_execution(tr.close_orders, dates, assets)
@@ -176,8 +180,8 @@ def evaluate_daily(tranches: Sequence[Tranche], snap: Snapshot, *, start: pd.Tim
             if i in opens:
                 h, k, t, c = _rebalance(h, k, opens[i], cost[i], night[i], dates[i])
                 rebalances += 1
-                turnover += t
-                cost_paid += c
+                traded_d[j] += t
+                fee_d[j] += c
             if h.any():
                 r = day[i]
                 if np.isnan(r[h > 0]).any():
@@ -187,12 +191,15 @@ def evaluate_daily(tranches: Sequence[Tranche], snap: Snapshot, *, start: pd.Tim
             if i in closes:
                 h, k, t, c = _rebalance(h, k, closes[i], cost[i], day[i], dates[i])
                 rebalances += 1
-                turnover += t
-                cost_paid += c
+                traded_d[j] += t
+                fee_d[j] += c
             total[j + 1] += h.sum() + k
             invested[j] += h.sum()
     values = pd.Series(total, index=dates[i0 - 1:i1 + 1])
     returns = values.pct_change().iloc[1:]
+    prior = values.iloc[:-1].to_numpy()           # portfolio value at the previous close
+    turnover = float((traded_d / prior).sum())
+    cost_paid = float((fee_d / prior).sum())
     return DailyResult(returns=returns, cash=rets.cash.iloc[i0:i1 + 1].fillna(0.0),
                        rebalances=rebalances, turnover=turnover, cost_paid=cost_paid,
                        exposure=pd.Series(invested / values.iloc[1:].to_numpy(),
@@ -213,8 +220,8 @@ def _carry_in(opens: dict, closes: dict, i0: int) -> None:
 
 def _rebalance(h, k, target, cost_row, leg_returns, day):
     """Trade holdings ``h`` (+ cash ``k``) to ``target`` weights of current value, paying
-    one-way cost on traded notional out of cash. Returns (h, k, turnover, cost) with
-    turnover and cost as fractions of pre-trade value."""
+    one-way cost on traded notional. Returns (h, k, traded, fee), traded notional and fee
+    in dollars."""
     value = h.sum() + k
     if value <= 0:
         raise OrderError(f"portfolio value is {value} on {day.date()}")
@@ -227,7 +234,7 @@ def _rebalance(h, k, target, cost_row, leg_returns, day):
     # Fees come out of the post-trade portfolio pro rata, so the target weights hold
     # after costs: holdings and cash both shrink by the same factor.
     scale = (value - fee) / value
-    return want * scale, (value - want.sum()) * scale, float(traded.sum() / value), fee / value
+    return want * scale, (value - want.sum()) * scale, float(traded.sum()), fee
 
 
 def static_tranches(weights: Mapping[str, float], dates: pd.DatetimeIndex, *,

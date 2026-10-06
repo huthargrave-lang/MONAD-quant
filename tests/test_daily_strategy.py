@@ -124,6 +124,16 @@ class Execution(unittest.TestCase):
         r = evaluate_daily([tr], snap, start=DATES[3], cost_multiple=1e-12)
         self.assertAlmostEqual(float(r.returns.iloc[0]), 0.10, places=9)
 
+    def test_turnover_and_cost_are_fractions_of_the_whole_portfolio(self):
+        """Twenty-one tranches each building the same position once is ONE portfolio
+        turnover, not twenty-one (the bug the event-grid report exposed, 2026-10-05)."""
+        snap = snapshot({"A": FLAT}, {"A": FLAT})
+        trs = [Tranche(open_orders=orders({0: {"A": 1.0}}), close_orders=pd.DataFrame())
+               for _ in range(21)]
+        r = evaluate_daily(trs, snap, start=DATES[1])
+        self.assertAlmostEqual(r.turnover, 1.0, places=12)
+        self.assertAlmostEqual(r.cost_paid, cost_bps("A", DATES[1]) * 1e-4, places=12)
+
     def test_tranches_are_equal_capital_sub_portfolios(self):
         snap = snapshot({"A": [100, 100, 100, 100, 100, 100, 100, 100], "B": [100] * 8},
                         {"A": [100, 100, 120, 120, 120, 120, 120, 120], "B": [100] * 8})
