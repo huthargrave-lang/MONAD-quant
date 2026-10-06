@@ -115,6 +115,14 @@ def gate_rules(record: Mapping[str, Any]) -> int:
 #: a development window shorter than a decade cannot see a full rate or credit cycle.
 MAX_FAMILYWISE_ALPHA = 0.05
 MIN_TACTICAL_YEARS = 10
+#: Gate rules v2, price profile (decision debate 2026-10-06, price trigger): the v2
+#: familywise gate is size-validated on the mark-to-market basis only from this many scored
+#: sessions (tools/spa_price_size_study.py: every size cell within the trigger at 1008
+#: sessions under iid and GARCH moves; one cell failed at 504). It binds trials, not the
+#: test. The admission stage counts the scored sessions; the calendar floor below is only
+#: an early refusal, set so that even a 250-session NYSE year fills 1008 sessions.
+MIN_PRICE_SESSIONS = 1008
+MIN_PRICE_WINDOW_DAYS = 1480
 TACTICAL_PARAMS = ("domain", "candidate", "data", "eras", "min_years", "familywise_alpha",
                    "prior_search_trials")
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -165,6 +173,7 @@ def validate(spec: Mapping[str, Any]) -> list[str]:
         pr = spec.get("prior_search_trials")
         if not (isinstance(pr, int) and not isinstance(pr, bool) and pr >= 0):
             errs.append("gate rules 2 price registrations need prior_search_trials >= 0")
+        errs += _price_window_errors(w)
     if profile == "tactical_allocation":
         errs += _tactical_errors(spec)
     t = spec["threshold"]
@@ -275,6 +284,27 @@ def register(spec: Mapping[str, Any], *, prereg_dir: Path | None = None,
     if errs:
         raise PreregError("; ".join(errs))
     return _freeze(spec, prereg_dir=prereg_dir, check_web=check_web, now=now)
+
+
+def _price_window_errors(window: Mapping[str, Any]) -> list[str]:
+    """Gate rules v2 price windows: long enough for the size-validated gate, and fetchable
+    by the hourly source when the forward window matures."""
+    try:
+        days = (_dt.date.fromisoformat(window["start"]) - _dt.date.fromisoformat(window["end"])).days * -1
+    except (KeyError, TypeError, ValueError):
+        return []                      # the window's own check reports it
+    from src.data.fetcher import MAX_HOURLY_LOOKBACK_DAYS
+    errs = []
+    if days < MIN_PRICE_WINDOW_DAYS:
+        errs.append(f"gate rules 2 price registrations need a development_window of at least "
+                    f"{MIN_PRICE_WINDOW_DAYS} days (the v2 familywise gate is size-validated "
+                    f"from {MIN_PRICE_SESSIONS} sessions); this one is {days}")
+    if MAX_HOURLY_LOOKBACK_DAYS < MIN_PRICE_WINDOW_DAYS + MIN_FORWARD_DAYS_FLOOR:
+        errs.append(f"no gate rules 2 price registration can be registered: the hourly source "
+                    f"serves {MAX_HOURLY_LOOKBACK_DAYS} days, and a {MIN_PRICE_WINDOW_DAYS}-day "
+                    f"window must still be fetchable when a {MIN_FORWARD_DAYS_FLOOR}-day forward "
+                    f"window matures")
+    return errs
 
 
 def _freeze(spec: Mapping[str, Any], *, prereg_dir: Path | None = None,

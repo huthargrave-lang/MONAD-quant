@@ -29,6 +29,7 @@ sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "tools"))
 
 import admit  # noqa: E402
+from tests._long_hourly_source import V2_WINDOW, long_hourly_source  # noqa: E402
 from tests._v1_registration import register_v1  # noqa: E402
 from src.research import prereg, refutations, trials  # noqa: E402
 
@@ -62,7 +63,9 @@ def _spec(**changes):
 
 
 def _spec_v2(**changes):
-    """The same candidate as a new (gate rules v2) registration would freeze it."""
+    """The same candidate as a new (gate rules v2) registration would freeze it, on a
+    window long enough for the v2 price floor (register under ``long_hourly_source``)."""
+    changes.setdefault("development_window", dict(V2_WINDOW))
     return _spec(metric="familywise_spa", gate_rules=2, familywise_alpha=0.05,
                  prior_search_trials=0, **changes)
 
@@ -388,6 +391,7 @@ class GateRulesV2(Gate):
     read from the registration's rules version, never from the record."""
 
     def register_v2(self):
+        long_hourly_source(self)
         prereg.register(_spec_v2(), prereg_dir=self.dirs["prereg_dir"], check_web=False, now=REGISTERED)
 
     def test_a_v2_price_registration_is_blocked_at_familywise_with_the_dsr_as_a_diagnostic(self):

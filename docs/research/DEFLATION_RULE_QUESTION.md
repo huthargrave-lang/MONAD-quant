@@ -167,3 +167,53 @@ What the numbers say:
 
 The price profile stays BLOCKED. Its trigger needs the (iii) mark-to-market basis, which
 v3 trials do not record yet.
+
+## Measured: the price trigger fails at two years (2026-10-06, `tools/spa_price_size_study.py`)
+
+This is the sparse daily mark-to-market basis. Moves are Student-t(5), scaled like a 3x index. Each idea has 4 hold-length variants sharing its signals, one position at a time. The gate uses the worst of mean blocks 20/63/126, n_boot 1000, and 1000 reps per size cell.
+
+| Sessions | Moves | Size cells passing | Worst cell (one idea, m = 0) | Evidence |
+|---|---|---|---|---|
+| 504 | iid | 8 / 9 | 6.1%, Wilson upper **0.0776** | `spa_price_size_study.json` |
+| 504 | GARCH | (that cell) | 5.2%, 0.0676 | `spa_price_sessions_garch.json` |
+| 1008 | iid | 9 / 9 | 4.5%, 0.0597 | `spa_price_size_study_1008.json` |
+| 1008 | GARCH | 9 / 9 | 3.7%, 0.0506 | `spa_price_size_study_1008_garch.json` |
+| 1512 / 2520 | iid | (that cell) | 3.7% / 4.4% | `spa_price_sessions.json` |
+
+Power at 1008 sessions (iid), with true active Sharpe 1.0:
+- 89%, 81% and 72% at 0, 2 and 6 null ideas, with m = 0;
+- 52% down to 35% at m = 20.
+
+The hourly source serves 729 days, about 500 sessions.
+
+## Decision-debate consensus (2026-10-06, price trigger)
+
+There was one proposer and one skeptic over three rounds. The skeptic's drift probe found a defect in (iii). A no-skill strategy holding intraday earns intraday drift, and the close-exposure benchmark never charges it. At 0.1%/day intraday drift, size was 8.5% (n = 400), and the error grows with n. Every item below reached CONCUR. R4's versioning follows the skeptic's evidence that `ENGINE_VERSION` is part of the family name.
+
+- **R1 Session floor.**
+  - `prereg.MIN_PRICE_SESSIONS = 1008`. This is the measured minimum at which every size cell passed under both iid and GARCH moves. It binds trials, not the test.
+  - `validate` refuses a v2 price development window shorter than `MIN_PRICE_WINDOW_DAYS = 1480`.
+  - A test counts sessions on the rules-based NYSE calendar (`src/research/nyse_calendar.py`) for every start date from 2000 to 2030. The calendar matches a 1996-2026 SPY snapshot day for day. Its special closures are 2001-09-11..14, 2004-06-11, 2007-01-02, 2012-10-29/30, 2018-12-05 and 2025-01-09.
+  - While `MAX_HOURLY_LOOKBACK_DAYS` (729) is less than the floor plus the forward floor, **no v2 price registration can be registered**. `validate` says so, and a test pins it.
+- **R2 Admission floor.**
+  - The price familywise stage FAILs when the candidate's scored mark-to-market series has fewer than 1008 sessions.
+  - The v2 price verifier applies the same floor.
+- **R3 Not ratified.** `PRICE_V2_RATIFIED` stays False. The evidence is a tuple of files, and each must pass with reps ≥ 1000. The required cells are m > 0 cells, drift cells, the regime cell and the exit-bar cell, all present and passing. Each file must also carry `basis: "iii-prime runner+mark_to_market"`, a `dgp` label, and `sessions ≤ MIN_PRICE_SESSIONS`.
+- **R4 Amendment (iii'): the slot-profile benchmark.**
+  - `bar_exposure` is the notional held at each bar's open. `h_b` is the trial's mean exposure in each time-of-day slot: the regular-session hourly slots plus one overnight slot.
+  - benchmark_d = Σ_b h_b · r_{d,b}, and active = PnL − benchmark.
+  - This centres the no-timing null for any slot-dependent drift, up to two named second-order terms, both measured and reported:
+    - the optional-stopping offset μ_b(1 − E[τ]) on exit bars;
+    - the in-sample h_b bias, of order (1/n)·Σ|cov(e_{d+k}, r_d)|.
+  - The partition must cover every calendar dimension the engine's exposure can follow. That is time of day under ENGINE_VERSION 3. On half days, missing slots get r = 0 and the overnight slot spans the gap.
+  - Named size risk: regime-scale exposure–drift covariance longer than a 126-session block.
+  - **Versioning:**
+    - The basis is recorded in each trial's spec as `mtm_basis`. It changes the hash, not the family. `ENGINE_VERSION` stays the execution version.
+    - The matrix holds only members on the candidate's basis. Others count in m.
+    - **Family lineage:** distinct points searched under any earlier `ENGINE_VERSION` for the same strategy and symbol count in m. A version bump must never erase a search. This applies now, since the v2 → v3 bump split the families.
+- **R5 Phased trigger work.** This is done when an audited hourly source of at least 1480 days is wired; the profile is unregistrable until then.
+  - The study builds families through the real `runner` and `mark_to_market` path, with fresh seeds, at `sessions = MIN_PRICE_SESSIONS`.
+  - It adds drift cells at ±0.1%/day, overnight and intraday.
+  - (e) A regime cell: drift sign switching in blocks of about 252 sessions, signal rate rising with trailing realised volatility, negative vol/return correlation. If (e) fails, ratification is blocked.
+  - (f) The exit-bar convention, reporting the offset in the mean.
+  - (iii') itself is implemented with this work.

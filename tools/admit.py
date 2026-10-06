@@ -62,7 +62,8 @@ from src.research import allocation_stats as stats  # noqa: E402
 from src.research import mark_to_market as mtm  # noqa: E402
 from src.research import significance as sig  # noqa: E402
 from src.research.backtest_trials import (MR_HOURLY_STRATEGY, data_spec, engine_spec,  # noqa: E402
-                                          family_members, mr_hourly_family, record_backtest)
+                                          family_members, lineage_members, mr_hourly_family,
+                                          record_backtest)
 
 VERDICT_REL = Path("docs/research/verdicts")
 VERDICT_DIR = Path(REPO) / VERDICT_REL
@@ -87,7 +88,12 @@ MIN_DSR_OBS = 30
 #: stage runs only once the committed sparse-basis size study meets the trigger; until
 #: then it is BLOCKED. Flipping this without that evidence fails a test.
 PRICE_V2_RATIFIED = False
-PRICE_V2_EVIDENCE = Path(REPO) / "docs" / "research" / "spa_price_size_study.json"
+#: The study files ratification rests on (price trigger consensus R3, R5): each on basis
+#: PRICE_V2_BASIS, every size cell within the trigger, with these DGP cells among them.
+#: Empty until the R5 study (real runner + mark_to_market path, (iii') basis) is run.
+PRICE_V2_EVIDENCE: tuple = ()
+PRICE_V2_BASIS = "iii-prime runner+mark_to_market"
+PRICE_V2_REQUIRED_DGPS = ("iid", "garch", "drift_intraday", "drift_overnight", "regime", "exit_bar")
 #: The named series every ENGINE_VERSION 3 price trial records (backtest_trials).
 MTM_SERIES = ("mtm_pnl", "exposure", "instrument_return")
 #: Bars of feature warm-up loaded before the forward window. Trades before
@@ -234,22 +240,31 @@ def _mtm_active(recs) -> dict:
             for r in recs if all(r.key in loaded[n] for n in MTM_SERIES)}
 
 
-def price_family_gate(searched, dev_rec, *, prior: int, alpha: float):
+def price_family_gate(searched, dev_rec, *, prior: int, alpha: float, lineage=(),
+                      min_sessions: int = prereg.MIN_PRICE_SESSIONS):
     """Gate rules v2 for the price profile: ``(m, m_parts, FamilywiseGate)``.
 
     The matrix holds every distinct point the family searched on the candidate's exact
     data (same bars, same scoring cut) with a mark-to-market record, plus the candidate as
     the gate re-ran it. Everything the matrix cannot hold is charged in ``m`` by the union
-    bound: the declared prior search, specs with no known result, and points searched only
-    on other data or before trials were marked (ENGINE_VERSION < 3). Raises ValueError when
-    the candidate itself has no mark-to-market record."""
+    bound: the declared prior search, specs with no known result, points searched only on
+    other data or on another mark-to-market basis (or unmarked), and every distinct point of
+    the family's ``lineage`` (earlier engine versions). Raises ValueError when the candidate
+    has no mark-to-market record or fewer than ``min_sessions`` scored sessions (the floor
+    the gate is size-validated from; price trigger consensus R2)."""
     cand = _mtm_active([dev_rec]).get(dev_rec.key)
     if cand is None:
         raise ValueError("the development trial carries no mark-to-market series")
+    if len(cand) < min_sessions:
+        raise ValueError(f"the candidate is scored on {len(cand)} sessions; the v2 gate is "
+                         f"size-validated from {min_sessions}")
     data, cand_point = dev_rec.spec.get("data"), _point(dev_rec)
+    basis = (dev_rec.spec.get("params") or {}).get("mtm_basis")
     latest = {}
     for r in searched:
-        if r.status == "ok" and r.spec.get("data") == data and all(n in r.series_shas for n in MTM_SERIES):
+        if (r.status == "ok" and r.spec.get("data") == data
+                and (r.spec.get("params") or {}).get("mtm_basis") == basis
+                and all(n in r.series_shas for n in MTM_SERIES)):
             latest[_point(r)] = r
     latest.pop(cand_point, None)          # the candidate's own search trial IS the candidate
     found = _mtm_active(list(latest.values()))
@@ -258,19 +273,22 @@ def price_family_gate(searched, dev_rec, *, prior: int, alpha: float):
     unknown = ({r.spec_hash for r in searched if r.status != "ok"}
                - {r.spec_hash for r in searched if r.status == "ok"})
     off = {_point(r) for r in searched if r.status == "ok"} - set(latest) - {cand_point}
+    older = {_point(r) for r in lineage}
     parts = {"prior_search_trials": int(prior), "unknown_specs": len(unknown),
-             "off_window_points": len(off)}
+             "off_window_points": len(off), "older_engine_points": len(older)}
     m = sum(parts.values())
     return m, parts, stats.familywise_gate(active, "candidate", m=m, alpha=alpha)
 
 
 def _price_familywise_stage(spec: dict, searched, dev_key) -> Stage:
     try:
-        dev_rec = next((r for r in trials.iter_trials() if r.key == dev_key), None)
+        rows = trials.iter_trials()
+        dev_rec = next((r for r in rows if r.key == dev_key), None)
         if dev_rec is None:
             raise ValueError("no development trial to score")
         m, parts, g = price_family_gate(searched, dev_rec, prior=spec["prior_search_trials"],
-                                        alpha=spec["familywise_alpha"])
+                                        alpha=spec["familywise_alpha"],
+                                        lineage=lineage_members(rows, spec["family"]))
     except (ValueError, trials.LedgerError) as exc:
         return Stage("familywise", FAIL, f"cannot be computed: {exc}")
     return Stage("familywise", PASS if g.p_gate <= spec["familywise_alpha"] else FAIL,
@@ -719,11 +737,12 @@ def _verify_price_familywise(by_stage: dict, head: dict, spec: dict, rows, dev) 
     n = int((dev.metrics or {}).get("total_trades", 0))
     if n < spec["min_trades"]:
         problems.append(f"development: the ledger shows {n} trades, below {spec['min_trades']}")
-    searched = [r for r in family_members([r for r in rows if r.opened_at < head["at"]],
-                                          spec["family"]) if r.producer != "tools/admit.py"]
+    before = [r for r in rows if r.opened_at < head["at"]]
+    searched = [r for r in family_members(before, spec["family"]) if r.producer != "tools/admit.py"]
     try:
         m, _, g = price_family_gate(searched, dev, prior=spec["prior_search_trials"],
-                                    alpha=spec["familywise_alpha"])
+                                    alpha=spec["familywise_alpha"],
+                                    lineage=lineage_members(before, spec["family"]))
     except (ValueError, trials.LedgerError) as exc:
         return problems + [f"familywise: cannot be recomputed from the ledger ({exc})"]
     data = (by_stage.get("familywise") or {}).get("data") or {}

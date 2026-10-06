@@ -75,39 +75,77 @@ class TheMatrixAndTheCharge(unittest.TestCase):
         cls._tmp.cleanup()
 
     def test_the_matrix_holds_each_on_window_point_once_plus_the_candidate(self):
-        m, parts, g = admit.price_family_gate(self.searched, self.dev, prior=3, alpha=0.05)
+        m, parts, g = admit.price_family_gate(self.searched, self.dev, prior=3, alpha=0.05, min_sessions=1)
         # 0.006, 0.008, 0.012 on window (0.010 is the candidate's own point), + candidate
         self.assertEqual(g.blocks[0]["family_size"] + len(g.dropped_zero_variance), 4)
         self.assertEqual(parts, {"prior_search_trials": 3, "unknown_specs": 1,
-                                 "off_window_points": 1})
+                                 "off_window_points": 1, "older_engine_points": 0})
         self.assertEqual(m, 5)
         self.assertAlmostEqual(g.p_gate, min(1.0, g.worst_p * 6), places=12)
         self.assertGreaterEqual(g.n_boot, 5000)
 
     def test_it_is_deterministic(self):
-        a = admit.price_family_gate(self.searched, self.dev, prior=0, alpha=0.05)[2]
-        b = admit.price_family_gate(self.searched, self.dev, prior=0, alpha=0.05)[2]
+        a = admit.price_family_gate(self.searched, self.dev, prior=0, alpha=0.05, min_sessions=1)[2]
+        b = admit.price_family_gate(self.searched, self.dev, prior=0, alpha=0.05, min_sessions=1)[2]
         self.assertEqual(a.p_gate, b.p_gate)
+
+    def test_below_the_session_floor_the_candidate_cannot_be_scored(self):
+        """Price trigger consensus R2: the gate is size-validated from MIN_PRICE_SESSIONS."""
+        with self.assertRaisesRegex(ValueError, "size-validated from 1008"):
+            admit.price_family_gate(self.searched, self.dev, prior=0, alpha=0.05)
+
+    def test_older_engine_points_are_charged_not_erased(self):
+        """R4 lineage: a version bump must never erase a search. Distinct points from an
+        earlier engine version count in m; a repeat of one point counts once."""
+        old = [self.searched[0].__class__(**{**r.__dict__, "spec": json.loads(json.dumps(r.spec))})
+               for r in self.searched[:3]]
+        for r in old:
+            r.spec["params"]["engine_version_was"] = 2
+        old.append(old[0])
+        m, parts, _ = admit.price_family_gate(self.searched, self.dev, prior=0, alpha=0.05,
+                                              lineage=old, min_sessions=1)
+        self.assertEqual(parts["older_engine_points"], 3)
+        self.assertEqual(m, 1 + 1 + 3)
+
+    def test_members_on_another_mtm_basis_leave_the_matrix_for_m(self):
+        moved = [r.__class__(**{**r.__dict__, "spec": json.loads(json.dumps(r.spec))})
+                 for r in self.searched]
+        for r in moved:
+            r.spec["params"]["mtm_basis"] = 999
+        m, parts, g = admit.price_family_gate(moved, self.dev, prior=0, alpha=0.05, min_sessions=1)
+        self.assertEqual(g.blocks[0]["family_size"] + len(g.dropped_zero_variance), 1)
+        # every searched point is now on another basis, the moved 0.010 search included
+        # (its params no longer equal the candidate's): 0.006, 0.008, 0.010, 0.012, 0.020
+        self.assertEqual(parts["off_window_points"], 5)
 
     def test_a_candidate_without_marks_cannot_be_scored(self):
         bare = self.dev.__class__(**{**self.dev.__dict__, "series_shas": {}})
         with self.assertRaises(ValueError):
-            admit.price_family_gate(self.searched, bare, prior=0, alpha=0.05)
+            admit.price_family_gate(self.searched, bare, prior=0, alpha=0.05, min_sessions=1)
 
 
 class Ratification(unittest.TestCase):
     def test_the_price_switch_needs_a_passing_committed_study(self):
-        """DEFLATION_RULE_QUESTION.md (vi): the price profile switches only when the
-        sparse mark-to-market study's every size cell has a Wilson upper bound within the
-        trigger over at least 1000 replications."""
+        """Price trigger consensus R3/R5: ratification needs every evidence file on the
+        (iii') basis, at no more than MIN_PRICE_SESSIONS, with >= 1000 reps per size cell,
+        m > 0 cells present and every size cell within the trigger, and the required DGP
+        cells (drift, regime, exit bar) present and passing."""
         if not admit.PRICE_V2_RATIFIED:
             return
-        study = json.loads(admit.PRICE_V2_EVIDENCE.read_text())
-        self.assertIn("mark-to-market", study["basis"])
-        for row in study["size"]:
-            self.assertGreaterEqual(row["reps"], 1000)
-            self.assertLessEqual(row["wilson_upper"], study["trigger"], row)
-        self.assertLessEqual(study["trigger"], 0.075)
+        from src.research import prereg
+        self.assertTrue(admit.PRICE_V2_EVIDENCE)
+        dgps = set()
+        for path in admit.PRICE_V2_EVIDENCE:
+            study = json.loads(Path(path).read_text())
+            self.assertEqual(study["basis"], admit.PRICE_V2_BASIS, path)
+            self.assertLessEqual(study["sessions"], prereg.MIN_PRICE_SESSIONS, path)
+            self.assertLessEqual(study["trigger"], 0.075)
+            self.assertTrue(any(r["withheld_m"] > 0 for r in study["size"]), path)
+            for row in study["size"]:
+                self.assertGreaterEqual(row["reps"], 1000)
+                self.assertLessEqual(row["wilson_upper"], study["trigger"], (path, row))
+            dgps.add(study["dgp"])
+        self.assertTrue(set(admit.PRICE_V2_REQUIRED_DGPS) <= dgps, dgps)
 
     def test_unratified_the_stage_blocks(self):
         self.assertFalse(admit.PRICE_V2_RATIFIED,

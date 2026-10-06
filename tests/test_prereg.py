@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -20,6 +21,21 @@ sys.path.insert(0, str(REPO / "tools"))
 
 from src.research import prereg, trials  # noqa: E402
 import prereg as prereg_cli  # noqa: E402  (tools/prereg.py)
+
+#: The real hourly source (729 days) cannot serve a v2 price window (prereg.MIN_PRICE_
+#: WINDOW_DAYS); these tests exercise registration as if a 2000-day audited source existed.
+#: TheV2PriceProfileIsShut pins the real interlock.
+SOURCE_DAYS = 2000
+_source = mock.patch("src.data.fetcher.MAX_HOURLY_LOOKBACK_DAYS", SOURCE_DAYS)
+
+
+def setUpModule():
+    _source.start()
+
+
+def tearDownModule():
+    _source.stop()
+
 
 SPEC = {
     "hypothesis": "H9001",
@@ -30,7 +46,7 @@ SPEC = {
     # Relative to today: registrations in these tests happen at the real clock, and a
     # window must still be re-fetchable when the forward window matures (see
     # test_a_development_window_the_gate_could_not_refetch_is_refused).
-    "development_window": {"start": (dt.date.today() - dt.timedelta(days=300)).isoformat(),
+    "development_window": {"start": (dt.date.today() - dt.timedelta(days=1500)).isoformat(),
                            "end": (dt.date.today() - dt.timedelta(days=1)).isoformat()},
     "metric": "familywise_spa",
     "threshold": 0.95,
@@ -83,6 +99,30 @@ class Validation(unittest.TestCase):
         self.assertTrue(prereg.validate(_spec(family="has space")))
 
 
+class TheV2PriceProfileIsShut(unittest.TestCase):
+    """Decision debate 2026-10-06 (price trigger): the v2 familywise gate is size-validated
+    from prereg.MIN_PRICE_SESSIONS scored sessions, and the real hourly source cannot serve
+    a window that long, so no v2 price registration validates."""
+
+    def test_a_short_window_is_refused(self):
+        errs = prereg.validate(_spec(development_window={"start": "2024-01-02", "end": "2026-01-02"}))
+        self.assertTrue(any(f"at least {prereg.MIN_PRICE_WINDOW_DAYS} days" in e for e in errs), errs)
+
+    def test_the_calendar_floor_fills_the_session_floor_in_the_leanest_year(self):
+        self.assertGreaterEqual(prereg.MIN_PRICE_WINDOW_DAYS / 365.25 * 250, prereg.MIN_PRICE_SESSIONS)
+
+    def test_with_the_real_source_nothing_validates(self):
+        with mock.patch("src.data.fetcher.MAX_HOURLY_LOOKBACK_DAYS", 729):
+            errs = prereg.validate(SPEC)
+        self.assertTrue(any("no gate rules 2 price registration can be registered" in e
+                            for e in errs), errs)
+        _source.stop()
+        try:
+            self.assertTrue(prereg.validate(SPEC), "the real source must refuse every v2 price spec")
+        finally:
+            _source.start()
+
+
 class Registration(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -105,13 +145,13 @@ class Registration(unittest.TestCase):
                             now=(dt.date.today() - dt.timedelta(days=30)).isoformat() + "T00:00:00Z")
 
     def test_a_development_window_the_gate_could_not_refetch_is_refused(self):
-        """Hourly bars are served for ~729 days; the gate re-runs the development window
+        """Hourly bars are served for SOURCE_DAYS; the gate re-runs the development window
         when the forward window matures, so the window must still be fetchable then."""
         with self.assertRaises(prereg.PreregError):
-            # matures 2025-11-29; bars before 2023-11-30 are gone by then
-            prereg.register(_spec(development_window={"start": "2023-06-01", "end": "2025-06-01"}),
+            # matures 2025-11-29; bars before 2020-06-07 are gone by then
+            prereg.register(_spec(development_window={"start": "2020-01-02", "end": "2025-06-01"}),
                             prereg_dir=self.dir, check_web=False, now="2025-06-02T00:00:00Z")
-        prereg.register(_spec(development_window={"start": "2024-12-01", "end": "2025-06-01"}),
+        prereg.register(_spec(development_window={"start": "2021-01-04", "end": "2025-06-01"}),
                         prereg_dir=self.dir, check_web=False, now="2025-06-02T00:00:00Z")
 
     def test_never_overwrites(self):

@@ -1,0 +1,222 @@
+{
+ "basis": "sparse daily mark-to-market active (gate rules v2 (iii))",
+ "sessions": 1008,
+ "alpha": 0.05,
+ "n_boot": 1000,
+ "size": [
+  {
+   "true_active_sharpe": 0.0,
+   "null_ideas": 0,
+   "withheld_m": 0,
+   "sessions": 1008,
+   "reps": 1000,
+   "passes": 45,
+   "rate": 0.045,
+   "wilson_upper": 0.05968283806711894
+  },
+  {
+   "true_active_sharpe": 0.0,
+   "null_ideas": 0,
+   "withheld_m": 5,
+   "sessions": 1008,
+   "reps": 1000,
+   "passes": 11,
+   "rate": 0.011,
+   "wilson_upper": 0.019589395787078724
+  },
+  {
+   "true_active_sharpe": 0.0,
+   "null_ideas": 0,
+   "withheld_m": 20,
+   "sessions": 1008,
+   "reps": 1000,
+   "passes": 1,
+   "rate": 0.001,
+   "wilson_upper": 0.005642558659926144
+  },
+  {
+   "true_active_sharpe": 0.0,
+   "null_ideas": 2,
+   "withheld_m": 0,
+   "sessions": 1008,
+   "reps": 1000,
+   "passes": 17,
+   "rate": 0.017,
+   "wilson_upper": 0.0270559589370407
+  },
+  {
+   "true_active_sharpe": 0.0,
+   "null_ideas": 2,
+   "withheld_m": 5,
+   "sessions": 1008,
+   "reps": 1000,
+   "passes": 2,
+   "rate": 0.002,
+   "wilson_upper": 0.007262807928320951
+  },
+  {
+   "true_active_sharpe": 0.0,
+   "null_ideas": 2,
+   "withheld_m": 20,
+   "sessions": 1008,
+   "reps": 1000,
+   "passes": 0,
+   "rate": 0.0,
+   "wilson_upper": 0.0038267585456940676
+  },
+  {
+   "true_active_sharpe": 0.0,
+   "null_ideas": 6,
+   "withheld_m": 0,
+   "sessions": 1008,
+   "reps": 1000,
+   "passes": 10,
+   "rate": 0.01,
+   "wilson_upper": 0.018309468954635845
+  },
+  {
+   "true_active_sharpe": 0.0,
+   "null_ideas": 6,
+   "withheld_m": 5,
+   "sessions": 1008,
+   "reps": 1000,
+   "passes": 0,
+   "rate": 0.0,
+   "wilson_upper": 0.0038267585456940676
+  },
+  {
+   "true_active_sharpe": 0.0,
+   "null_ideas": 6,
+   "withheld_m": 20,
+   "sessions": 1008,
+   "reps": 1000,
+   "passes": 2,
+   "rate": 0.002,
+   "wilson_upper": 0.007262807928320951
+  }
+ ],
+ "power": [
+  {
+   "true_active_sharpe": 0.6,
+   "null_ideas": 0,
+   "withheld_m": 0,
+   "sessions": 1008,
+   "reps": 300,
+   "passes": 168,
+   "rate": 0.56,
+   "wilson_upper": 0.6150608054381704
+  },
+  {
+   "true_active_sharpe": 0.6,
+   "null_ideas": 0,
+   "withheld_m": 20,
+   "sessions": 1008,
+   "reps": 300,
+   "passes": 34,
+   "rate": 0.11333333333333333,
+   "wilson_upper": 0.15419939623320875
+  },
+  {
+   "true_active_sharpe": 0.6,
+   "null_ideas": 2,
+   "withheld_m": 0,
+   "sessions": 1008,
+   "reps": 300,
+   "passes": 104,
+   "rate": 0.3466666666666667,
+   "wilson_upper": 0.4021519705183745
+  },
+  {
+   "true_active_sharpe": 0.6,
+   "null_ideas": 2,
+   "withheld_m": 20,
+   "sessions": 1008,
+   "reps": 300,
+   "passes": 31,
+   "rate": 0.10333333333333333,
+   "wilson_upper": 0.14294017278611634
+  },
+  {
+   "true_active_sharpe": 0.6,
+   "null_ideas": 6,
+   "withheld_m": 0,
+   "sessions": 1008,
+   "reps": 300,
+   "passes": 70,
+   "rate": 0.23333333333333334,
+   "wilson_upper": 0.28438134684704763
+  },
+  {
+   "true_active_sharpe": 0.6,
+   "null_ideas": 6,
+   "withheld_m": 20,
+   "sessions": 1008,
+   "reps": 300,
+   "passes": 14,
+   "rate": 0.04666666666666667,
+   "wilson_upper": 0.07679736051770648
+  },
+  {
+   "true_active_sharpe": 1.0,
+   "null_ideas": 0,
+   "withheld_m": 0,
+   "sessions": 1008,
+   "reps": 300,
+   "passes": 268,
+   "rate": 0.8933333333333333,
+   "wilson_upper": 0.9234241511551726
+  },
+  {
+   "true_active_sharpe": 1.0,
+   "null_ideas": 0,
+   "withheld_m": 20,
+   "sessions": 1008,
+   "reps": 300,
+   "passes": 155,
+   "rate": 0.5166666666666667,
+   "wilson_upper": 0.5726455876007472
+  },
+  {
+   "true_active_sharpe": 1.0,
+   "null_ideas": 2,
+   "withheld_m": 0,
+   "sessions": 1008,
+   "reps": 300,
+   "passes": 242,
+   "rate": 0.8066666666666666,
+   "wilson_upper": 0.8473627334339237
+  },
+  {
+   "true_active_sharpe": 1.0,
+   "null_ideas": 2,
+   "withheld_m": 20,
+   "sessions": 1008,
+   "reps": 300,
+   "passes": 130,
+   "rate": 0.43333333333333335,
+   "wilson_upper": 0.489901078465025
+  },
+  {
+   "true_active_sharpe": 1.0,
+   "null_ideas": 6,
+   "withheld_m": 0,
+   "sessions": 1008,
+   "reps": 300,
+   "passes": 216,
+   "rate": 0.72,
+   "wilson_upper": 0.7677809782237013
+  },
+  {
+   "true_active_sharpe": 1.0,
+   "null_ideas": 6,
+   "withheld_m": 20,
+   "sessions": 1008,
+   "reps": 300,
+   "passes": 106,
+   "rate": 0.35333333333333333,
+   "wilson_upper": 0.40896697133818766
+  }
+ ],
+ "worst_wilson_upper": 0.05968283806711894,
+ "trigger": 0.075
+}

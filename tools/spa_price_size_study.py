@@ -32,6 +32,12 @@ The trigger for switching the price profile: the Wilson 95% upper bound on size 
 <= 0.075 at alpha 0.05 over >= 1000 replications in every cell. It evaluates no strategy
 and records no trial.
 
+Status (price trigger consensus 2026-10-06): this study re-implements the (iii)
+close-exposure basis with zero-drift moves. It motivated MIN_PRICE_SESSIONS. It is NOT
+ratification evidence: that needs the R5 study through the real runner and
+mark_to_market path on the (iii') slot-profile basis, with drift, regime and exit-bar cells
+(tools/admit.py PRICE_V2_EVIDENCE).
+
   venv/bin/python tools/spa_price_size_study.py --reps 1000 --workers 16 \\
       --json docs/research/spa_price_size_study.json
 """
@@ -49,8 +55,11 @@ sys.path.insert(0, REPO)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from spa_size_study import ALPHA, N_BOOT, TRIGGER_UPPER, wilson_upper  # noqa: E402
+from src.research.prereg import MIN_PRICE_SESSIONS  # noqa: E402
 
-SESSIONS = 504
+#: The ratified floor (price trigger consensus R1); the 504-session result that motivated
+#: it is docs/research/spa_price_size_study.json.
+SESSIONS = MIN_PRICE_SESSIONS
 OVERNIGHT_VOL, INTRADAY_VOL = 0.015, 0.025
 HOLDS = (0, 1, 2, 3)                 # closes held by the idea's variants
 IDEA_RATE = 0.20                     # entry-signal probability per session

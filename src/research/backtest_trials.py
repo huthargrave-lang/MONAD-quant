@@ -47,6 +47,9 @@ def _engine_version() -> int:
     return ENGINE_VERSION
 
 
+#: The mark-to-market basis version recorded in each engine trial's spec.
+MTM_BASIS_VERSION = 1
+
 #: Families carry the engine version (".v2"): trials run on engines that executed
 #: differently must never pool into one search count (decision-debate Q4).
 MR_HOURLY_STRATEGY = f"{MR_STRATEGY}_hourly.v{_engine_version()}"
@@ -97,6 +100,33 @@ def family_members(records, family: str) -> list:
     return out
 
 
+def lineage_members(records, family: str) -> list:
+    """Every hourly engine trial on ``family``'s symbol recorded under an EARLIER engine
+    version: the family's lineage. They never pool into the current family's statistics
+    (they executed differently), but they are still search on the same strategy and
+    symbol, and the v2 gate charges them in m (price trigger consensus 2026-10-06, R4): a
+    version bump must never erase a search."""
+    prefix = f"{MR_HOURLY_STRATEGY}:"
+    if not family.startswith(prefix):
+        return []
+    symbol = family[len(prefix):]
+    current = _engine_version()
+    out = []
+    for r in records:
+        params = (r.spec or {}).get("params") or {}
+        data = (r.spec or {}).get("data") or {}
+        engine = params.get("engine") if isinstance(params, dict) else None
+        version = engine.get("engine_version") if isinstance(engine, dict) else None
+        old_label = (r.family.startswith(f"{MR_STRATEGY}_hourly") and r.family.endswith(f":{symbol}")
+                     and r.family != family)
+        is_engine_run = (isinstance(params, dict) and params.get("timeframe") == "hourly"
+                         and "mode" in params and str(data.get("ticker") or "").upper() == symbol)
+        if (is_engine_run and (version is None or version < current)) or \
+                (old_label and not (isinstance(version, int) and version >= current)):
+            out.append(r)
+    return out
+
+
 def engine_spec(mode: str, *, timeframe: str, target: float, stop: float,
                 backtest_mode: str | None, slippage_pct: float | None,
                 require_signals: int = 1, asset_key: str | None = None,
@@ -139,6 +169,10 @@ def engine_spec(mode: str, *, timeframe: str, target: float, stop: float,
         "mode_constants": {k: getattr(config, k) for k in sorted(dir(config)) if k.endswith(suffix)},
         "config_flags": {k.lower(): getattr(config, k, None) for k in flags},
         "engine": engine_settings(mode, timeframe, max_trade_bars),
+        # The mark-to-market basis the trial records (gate rules v2): 1 = close-exposure
+        # marks (DEFLATION_RULE_QUESTION.md (iii)). A recording change, not an execution
+        # change: it moves the hash, not the family (price trigger consensus R4).
+        "mtm_basis": MTM_BASIS_VERSION,
         "settings": dict(settings) if settings is not None else None,
     }
 

@@ -160,6 +160,36 @@ class TheSpecRecordsWhatTheEngineRuns(unittest.TestCase):
         self.assertEqual(bt.family_members([rec], bt.mr_family("QQQ")), [])
 
 
+class Lineage(unittest.TestCase):
+    """Price trigger consensus R4: earlier engine versions on the same strategy and symbol
+    are the family's lineage, charged in m by the v2 gate, never pooled."""
+
+    def rec(self, family, version, ticker="TQQQ", timeframe="hourly"):
+        engine = {"engine_version": version} if version is not None else None
+        params = {"timeframe": timeframe, "mode": "TQQQ_HOURLY", "engine": engine}
+        return trials.TrialRecord(run_id="r", trial=0, family=family, hypothesis=None,
+                                  producer="sweep.py", code={}, spec_hash="h",
+                                  spec={"params": params, "data": {"ticker": ticker}},
+                                  status="ok", metrics={}, returns_sha=None, bundle_sha=None,
+                                  opened_at="2026-01-01T00:00:00Z")
+
+    def test_earlier_versions_on_the_symbol_are_lineage_and_nothing_else(self):
+        from src.backtest.runner import ENGINE_VERSION
+        fam = bt.mr_hourly_family("TQQQ")
+        old = self.rec("scratch", ENGINE_VERSION - 1)
+        old_label = self.rec(f"{bt.MR_STRATEGY}_hourly.v{ENGINE_VERSION - 1}:TQQQ", None, timeframe="daily")
+        current = self.rec(fam, ENGINE_VERSION)
+        other = self.rec("scratch", ENGINE_VERSION - 1, ticker="SOXL")
+        got = bt.lineage_members([old, old_label, current, other], fam)
+        self.assertEqual(got, [old, old_label])
+        self.assertEqual(bt.family_members([old, old_label, current, other], fam), [current])
+
+    def test_the_spec_records_the_mtm_basis(self):
+        spec = bt.engine_spec("TQQQ_HOURLY", timeframe="hourly", target=0.01, stop=0.005,
+                              backtest_mode="realistic", slippage_pct=0.001)
+        self.assertEqual(spec["mtm_basis"], bt.MTM_BASIS_VERSION)
+
+
 class ProcessRun(unittest.TestCase):
     """open_process_run closes at interpreter exit, reflecting how the process ended."""
 
