@@ -37,8 +37,12 @@ PAUSE = 0.12
 MAX_BYTES = 20_000_000
 FORMS = ("10-Q", "10-K")
 
-_LABEL = re.compile(r"net\s+asset\s+value\s+per\s+(?:common\s+)?share|net\s+assets\s+per\s+(?:common\s+)?share",
-                    re.I)
+#: The label must START the cell: "net asset value per share", "net assets per common
+#: share", "... at end of period". Rows that merely mention it ("10% premium to net asset
+#: value per share", "(decrease) increase in net assets per share") are other tables, and
+#: "at beginning of" rows hold the prior period (validation on the tagged era, 2026-10-06).
+_LABEL = re.compile(r"^\W*net\s+assets?\s+(?:value\s+)?per\s+(?:common\s+)?share", re.I)
+_NOT_CURRENT = re.compile(r"beginning\s+of", re.I)
 _NUM = re.compile(r"(?<![\d.])\(?\$?\s*(\d{1,3}(?:,\d{3})*|\d+)\.(\d{2,4})\)?")
 _ROW_END = re.compile(r"</tr\s*>", re.I)
 _CELL_END = re.compile(r"</t[dh]\s*>", re.I)
@@ -83,19 +87,54 @@ def _rows(text: str):
         yield [c for c in cells if c]
 
 
+_TABLE_END = re.compile(r"</table\s*>", re.I)
+_BALANCE_ROW = re.compile(r"^\W*total\s+(?:liabilities|net\s+assets)\b", re.I)
+
+
+def _row_values(cells: list[str]) -> list[float]:
+    """The NAV-per-share values in a labelled row, in column order ([] if not such a row)."""
+    if not cells or not _LABEL.search(cells[0]) or _NOT_CURRENT.search(cells[0]) \
+            or len(cells[0]) > 120:
+        return []
+    out = []
+    for c in cells[1:]:
+        m = _NUM.search(c)
+        if m and "(" not in c:
+            v = float(m.group(1).replace(",", "") + "." + m.group(2))
+            if 0.5 <= v <= 1000:
+                out.append(v)
+    return out
+
+
+def extract_balance_row(doc: str) -> list[float]:
+    """Every value of the row ``extract_nav`` reads: [this period, prior period, ...]. In a
+    balance sheet the second column is the prior fiscal year end, which the pre-2022
+    comparative cross-check compares with that year end's own filing."""
+    fallback = []
+    for table in _TABLE_END.split(doc):
+        rows = list(_rows(table))
+        is_balance = any(r and _BALANCE_ROW.search(r[0]) for r in rows)
+        for cells in rows:
+            vals = _row_values(cells)
+            if not vals:
+                continue
+            if is_balance:
+                return vals
+            if not fallback:
+                fallback = vals
+    return fallback
+
+
 def extract_nav(doc: str) -> float | None:
-    """The balance-sheet NAV per share: the first table row whose label names it, and the
-    first number in that row (the filing's own period). None if no such row parses."""
-    for cells in _rows(doc):
-        if not cells or not _LABEL.search(cells[0]) or len(cells[0]) > 120:
-            continue
-        for c in cells[1:]:
-            m = _NUM.search(c)
-            if m and "(" not in c:
-                v = float(m.group(1).replace(",", "") + "." + m.group(2))
-                if 0.5 <= v <= 1000:
-                    return v
-    return None
+    """The balance-sheet NAV per share: the first NAV-per-share row, and its first number
+    (the filing's own period), inside the first table that is a statement of assets and
+    liabilities (it has a "total liabilities" or "total net assets" row). Falls back to the
+    first NAV-per-share row anywhere. None if no such row parses.
+
+    The table test excludes example tables (a 10-K's hypothetical "sales below NAV"
+    dilution table states NAV per share as $10.00) and highlights tables."""
+    vals = extract_balance_row(doc)
+    return vals[0] if vals else None
 
 
 def nav_observations(cik: int, *, get: Callable[..., bytes] = _get,
@@ -109,12 +148,89 @@ def nav_observations(cik: int, *, get: Callable[..., bytes] = _get,
         time.sleep(PAUSE)
         try:
             doc = get(ARCHIVE.format(cik=cik, acc=acc, doc=f["doc"]), max_bytes=MAX_BYTES)
-            nav = extract_nav(doc.decode("utf-8", errors="replace"))
+            vals = extract_balance_row(doc.decode("utf-8", errors="replace"))
+            nav = vals[0] if vals else None
         except Exception as exc:  # noqa: BLE001 — recorded, the filing is skipped
             fails.append({**f, "error": f"{type(exc).__name__}: {exc}"})
             continue
         if nav is None:
             fails.append({**f, "error": "no NAV-per-share row"})
             continue
-        obs.append({**f, "nav": nav})
+        obs.append({**f, "nav": nav, "prior": vals[1] if len(vals) > 1 else None})
     return obs, fails
+
+
+TEXT_SOURCE = ("original 10-Q/10-K filings, statement of assets and liabilities "
+               "(src/research/bdc_text_nav.py)")
+
+
+def first_per_period(obs: list[dict]) -> list[dict]:
+    """The first original filing reporting each period end (later ones are comparatives
+    or restatements, known later)."""
+    first = {}
+    for o in sorted(obs, key=lambda o: (o["filed"], o["accession"])):
+        first.setdefault(o["report_date"], o)
+    return sorted(first.values(), key=lambda o: o["report_date"])
+
+
+def tagged_navs(facts: dict) -> dict:
+    """{period end: (value, filed)} of the first-filed us-gaap NetAssetValuePerShare in a
+    10-Q/10-K, from a companyfacts document."""
+    units = facts.get("facts", {}).get("us-gaap", {}).get("NetAssetValuePerShare", {}).get("units", {})
+    out = {}
+    for v in units.get("USD/shares", []):
+        if v.get("form") in FORMS and v.get("val") is not None:
+            if v["end"] not in out or v["filed"] < out[v["end"]][1]:
+                out[v["end"]] = (float(v["val"]), v["filed"])
+    return out
+
+
+def validate(extracted: dict, tagged: dict, *, tolerance: float = 0.01) -> dict:
+    """Agreement of extracted NAVs with tagged ones on shared period ends.
+
+    ``extracted`` and ``tagged`` map ticker -> {period end: value}. Returns the counts and
+    every disagreement, for the precondition in docs/research/BDC_PREPERIOD_TEST.md."""
+    compared, agree, bad, filers = 0, 0, [], set()
+    for tk, ext in extracted.items():
+        for end, v in ext.items():
+            if end in tagged.get(tk, {}):
+                compared += 1
+                filers.add(tk)
+                tv = tagged[tk][end]
+                if abs(v - tv) <= tolerance + 1e-9:
+                    agree += 1
+                else:
+                    bad.append({"ticker": tk, "period_end": end, "extracted": v, "tagged": tv})
+    return {"compared": compared, "agree": agree, "filers": len(filers),
+            "share": agree / compared if compared else 0.0, "disagreements": bad}
+
+
+#: Ratios that a share split or reverse split produces between a value and its restated
+#: comparative (the cross-check excludes these and lists them).
+SPLIT_RATIOS = (2, 3, 4, 5, 8, 10, 15, 20)
+
+
+def comparative_cross_check(obs: list[dict], *, before: str, tolerance: float = 0.01) -> dict:
+    """Pre-XBRL check of the extractor (BDC_PREPERIOD_TEST.md, amendment 1): each fiscal
+    year-end NAV a 10-K reports (period end before ``before``) against the prior-period
+    column of the NEXT original filing, whose balance sheet compares with that year end.
+    Pairs whose ratio is a split ratio are excluded and listed."""
+    ordered = sorted(obs, key=lambda o: (o["filed"], o["accession"]))
+    compared, agree, bad, splits = 0, 0, [], []
+    for i, o in enumerate(ordered):
+        if o["form"] != "10-K" or o["report_date"] >= before:
+            continue
+        nxt = next((n for n in ordered[i + 1:] if n["filed"] > o["filed"]), None)
+        if nxt is None or nxt.get("prior") is None:
+            continue
+        ratio = max(o["nav"], nxt["prior"]) / min(o["nav"], nxt["prior"])
+        if any(abs(ratio - k) <= 0.02 * k for k in SPLIT_RATIOS):
+            splits.append({"period_end": o["report_date"], "value": o["nav"], "next_prior": nxt["prior"]})
+            continue
+        compared += 1
+        if abs(o["nav"] - nxt["prior"]) <= tolerance + 1e-9:
+            agree += 1
+        else:
+            bad.append({"period_end": o["report_date"], "value": o["nav"], "next_prior": nxt["prior"],
+                        "next_filed": nxt["filed"]})
+    return {"compared": compared, "agree": agree, "disagreements": bad, "splits": splits}

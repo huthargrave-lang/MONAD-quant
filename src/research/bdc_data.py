@@ -124,7 +124,11 @@ def encode(rows: list) -> bytes:
     return buf.getvalue().encode("utf-8")
 
 
-def write_panel(rows: list, report: dict, *, data_dir: Path | None = None) -> str:
+TAGGED_SOURCE = "SEC XBRL frames + companyfacts (us-gaap NetAssetValuePerShare, 10-Q/10-K)"
+
+
+def write_panel(rows: list, report: dict, *, data_dir: Path | None = None,
+                source: str = TAGGED_SOURCE) -> str:
     data = encode(rows)
     sha = hashlib.sha256(data).hexdigest()
     base = Path(data_dir) if data_dir is not None else DATA_DIR
@@ -139,7 +143,7 @@ def write_panel(rows: list, report: dict, *, data_dir: Path | None = None) -> st
     if not man.exists():
         _write_exclusive(man, (canonical_json({
             "schema_version": 1, "sha": sha, "vintage": fetched[:10], "fetched_at": fetched,
-            "source": "SEC XBRL frames + companyfacts (us-gaap NetAssetValuePerShare, 10-Q/10-K)",
+            "source": source,
             "universe_rule": "listed today, no SIC code, not in the CEFConnect universe",
             "survivorship": "listed today only", "known_lag_days": KNOWN_LAG_DAYS, **report})
             + "\n").encode("utf-8"))
