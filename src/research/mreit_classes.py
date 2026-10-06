@@ -20,10 +20,10 @@ from __future__ import annotations
 
 from typing import Mapping
 
+import numpy as np
 import pandas as pd
 
 from src.research.bdc_data import BdcPanel
-from src.research.cef_classes import _select
 from src.research.daily_classes import MONTH, OFFSETS
 from src.research.daily_data import Snapshot
 from src.research.daily_strategy import Tranche
@@ -42,6 +42,16 @@ def grid() -> list[dict]:
 
 
 GRIDS = {"v1": grid}
+
+
+def _select(signal: pd.Series, eligible: pd.Series, fraction: float) -> list[str]:
+    """The cheapest ``fraction`` of eligible names by discount, at least MIN_HOLDINGS (the
+    CEF module's selector would impose its own minimum of 5)."""
+    s = signal[eligible & signal.notna()]
+    if len(s) < MIN_HOLDINGS:
+        return []
+    n = max(MIN_HOLDINGS, int(np.floor(len(s) * fraction)))
+    return list(s.sort_values(kind="mergesort").index[:n])
 
 
 def _frames(snap: Snapshot, panel: BdcPanel):
@@ -72,7 +82,7 @@ def decide(snap: Snapshot, panel: BdcPanel, point: Mapping) -> list[Tranche]:
             if point["class"] == "mreit_equal_weight":
                 members = list(e.index[e])
             elif point["class"] == "mreit_discount":
-                members = _select(disc.loc[d], e, float(point["params"]["fraction"]), None)
+                members = _select(disc.loc[d], e, float(point["params"]["fraction"]))
             else:
                 raise ValueError(f"unknown mREIT class {point['class']!r}")
             if len(members) >= MIN_HOLDINGS:
