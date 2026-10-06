@@ -149,6 +149,8 @@ def decide(snap: Snapshot, panel: NavPanel, point: Mapping) -> list[Tranche]:
                 rows[d] = {f: 1.0 / len(picks) for f in picks}
     elif point["class"] == "cef_taxloss":
         return taxloss(snap, panel, point)
+    elif point["class"] == "cef_banded":
+        return banded(snap, panel, point)
     else:
         raise ValueError(f"unknown CEF class {point['class']!r}")
     w = pd.DataFrame.from_dict(rows, orient="index").reindex(columns=funds).fillna(0.0)
@@ -229,7 +231,65 @@ def taxloss(snap: Snapshot, panel: NavPanel, point: Mapping) -> list[Tranche]:
     return out
 
 
-GRIDS = {"v1": grid, "taxloss": taxloss_grid}
+# ── hysteresis (the 2026-10-06 third CEF search) ────────────────────────────
+def banded_grid() -> list[dict]:
+    """Frozen before it ran: 4 points. Enter at the cheapest 20%; exit only when a holding
+    leaves the cheapest ``exit`` fraction. The v1 search found the within-category z-score
+    the strongest signal but its 12x/yr turnover consumed the edge (F404706); banding is the
+    standard way to keep a signal while trading less."""
+    return [{"class": "cef_banded", "params": {"signal": sig, "exit": ex}}
+            for sig, ex in itertools.product(("level", "z52_cat"), (0.4, 0.5))]
+
+
+def _percentile_ranks(signal: pd.Series, eligible: pd.Series, categories) -> pd.Series:
+    """Rank in (0, 1] among eligible funds (cheapest = smallest); within category when
+    ``categories`` is given, categories under MIN_CATEGORY members excluded."""
+    s = signal[eligible & signal.notna()]
+    if categories is None:
+        return s.rank(method="first", pct=True)
+    cats = pd.Series({f: categories.get(f) for f in s.index})
+    out = []
+    for _, members in s.groupby(cats):
+        if len(members) >= MIN_CATEGORY:
+            out.append(members.rank(method="first", pct=True))
+    return pd.concat(out) if out else pd.Series(dtype=float)
+
+
+def banded(snap: Snapshot, panel: NavPanel, point: Mapping) -> list[Tranche]:
+    """Hysteresis selection, per tranche: at each of the tranche's rebalance decisions,
+    keep every holding still eligible and inside the cheapest ``exit`` fraction, add every
+    fund newly inside the cheapest ``TAXLOSS_FRACTION`` (20%), equal weight. A tranche's
+    holdings depend on its own earlier decisions, so each is computed in order; nothing
+    after a decision date is read."""
+    p = point["params"]
+    exit_frac = float(p["exit"])
+    if not 0.2 < exit_frac < 1.0:
+        raise ValueError("exit fraction must be between the 20% entry and 100%")
+    sig = _signals(snap, panel)
+    funds, elig = sig["funds"], sig["eligible"]
+    signal = sig["z52"] if p["signal"] == "z52_cat" else sig["level"]
+    cats = panel.category if p["signal"] == "z52_cat" else None
+    dates = snap.dates
+    out = []
+    for off in OFFSETS:
+        held: set = set()
+        rows = {}
+        for d in dates[off::MONTH]:
+            ranks = _percentile_ranks(signal.loc[d], elig.loc[d], cats)
+            if len(ranks) < MIN_HOLDINGS:
+                continue
+            keep = {f for f in held if f in ranks.index and ranks[f] <= exit_frac}
+            enter = set(ranks.index[ranks <= TAXLOSS_FRACTION])
+            held = keep | enter
+            if len(held) >= MIN_HOLDINGS:
+                rows[d] = {f: 1.0 / len(held) for f in held}
+        w = pd.DataFrame.from_dict(rows, orient="index").reindex(columns=funds).fillna(0.0)
+        w.index = pd.DatetimeIndex(w.index)
+        out.append(Tranche(open_orders=pd.DataFrame(), close_orders=w.sort_index()))
+    return out
+
+
+GRIDS = {"v1": grid, "taxloss": taxloss_grid, "banded": banded_grid}
 
 
 def tiers(snap: Snapshot, panel: NavPanel) -> dict:

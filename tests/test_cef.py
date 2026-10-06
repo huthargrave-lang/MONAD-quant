@@ -99,7 +99,7 @@ class Rules(unittest.TestCase):
     def test_every_rule_is_truncation_invariant_across_both_datasets(self):
         snap, panel = world()
         cuts = [SESSIONS[i] for i in (380, 455, 530, 610, 690)]
-        for point in cc.grid() + cc.taxloss_grid() + [cc.REFERENCE]:
+        for point in cc.grid() + cc.taxloss_grid() + cc.banded_grid() + [cc.REFERENCE]:
             with self.subTest(point=point):
                 self.assertEqual(cc.truncation_violations(snap, panel, point, cuts), [])
 
@@ -113,6 +113,14 @@ class Rules(unittest.TestCase):
                     self.assertTrue(np.allclose(t.close_orders.loc[d].reindex(row.index).fillna(0), row))
         season = [d for d in tl[0].close_orders.index if d.month == 12 and d.day >= 15]
         self.assertTrue(season, "an entry order in the second half of December")
+
+    def test_banding_keeps_holdings_until_they_leave_the_exit_band(self):
+        snap, panel = world()
+        plain = cc.decide(snap, panel, {"class": "cef_discount", "params": {"signal": "level", "fraction": 0.2}})
+        band = cc.decide(snap, panel, {"class": "cef_banded", "params": {"signal": "level", "exit": 0.5}})
+        changes = lambda tr: sum(int(((a > 0) != (b > 0)).sum()) for (_, a), (_, b) in
+                                 zip(tr.close_orders.iloc[:-1].iterrows(), tr.close_orders.iloc[1:].iterrows()))
+        self.assertLessEqual(changes(band[0]), changes(plain[0]))
 
     def test_the_grid_is_frozen_at_6_points(self):
         self.assertEqual(len(cc.grid()), 6)

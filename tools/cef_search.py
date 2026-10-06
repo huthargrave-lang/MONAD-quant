@@ -44,7 +44,9 @@ DOMAIN = "cef_discount"
 #: survivor of 3), plus this repo's own descriptive pilot (F257, 1).
 #: 2026-10-06, before the tax-loss grid ran: the CEF January effect is published too (+3).
 #: The constant only grows; every deflation in the family uses the current value.
-PRIOR_SEARCH_TRIALS = 7
+#: 2026-10-06, before the banded grid ran: hysteresis is a standard practitioner variant
+#: of the same selection (+2).
+PRIOR_SEARCH_TRIALS = 9
 
 
 def window(snap, panel):
