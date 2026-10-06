@@ -4029,3 +4029,18 @@ Country-index momentum, one of the 'everywhere' effects in Asness-Moskowitz-Pede
 Pattern across the session: every published effect on liquid instruments has decayed or vanished (ETF timing F404704, FOMC F404705, auctions F404707, CEF tax-loss F404708, crypto trend F404709, country selection here). The surviving effects are CEF discount selection (H404701/H404702): capacity-constrained, in instruments institutions cannot trade at size.
 Links: [[F404704|relates]] · [[F404706|relates]].
 _— captured claude/monetizing-repositories-03e341@e5245be, 2026-10-06_
+
+### F404711 — The 'Fed liquidity drives stocks' tilt does not beat the 60/40 (active Sharpe +0.07 / -0.16; SPA p 0.94-0.96)
+Fourth ETF search (TR-20261006T042726Z-0d9b11e0, snapshot DS-32c992fb). "Fed liquidity drives stocks": SPY 80% / IEF 20% while the Fed balance sheet (FRED WALCL) grew over the last 4 or 13 weeks, else 40/60. 21 tranches every 21 sessions. WALCL is first used at Friday's close, after its Thursday 4:30pm ET release (fred_series release lag).
+
+Results:
+- 4-week: active Sharpe +0.07 (vol-matched -0.18; eras +0.14 / +0.36 / -0.56).
+- 13-week: -0.16 (vol-matched -0.48).
+- Drawdowns worse than the 60/40 (-36% / -39% vs -32%).
+- SPA over all 37 ETF trials: p 0.94-0.96.
+
+The meme is not a strategy: what plus-sized equity exposure the rule gained in QE eras it gave back since 2022.
+
+Caveat: FRED serves the latest vintage. H.4.1 is rarely revised, but this is not a strict ALFRED point-in-time test.
+Links: [[F404704|relates]].
+_— captured claude/monetizing-repositories-03e341@39b7544, 2026-10-06_
