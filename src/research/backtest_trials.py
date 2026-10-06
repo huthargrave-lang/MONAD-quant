@@ -127,6 +127,9 @@ def engine_spec(mode: str, *, timeframe: str, target: float, stop: float,
         "mode": mode, "timeframe": timeframe,
         "target_gain_pct": target, "stop_loss_pct": stop,
         "backtest_mode": backtest_mode, "slippage_pct": slippage_pct,
+        # Upper-bound runs (target-first ambiguity, no slippage) count in a family's N
+        # but can never be a candidate (ENGINE_VERSION 3; admission re-runs "realistic").
+        "upper_bound": bool(backtest_mode == "upper_bound"),
         "require_signals": require_signals,
         "asset": dict(config.ASSETS.get(asset_key or mode, {})),
         "mode_constants": {k: getattr(config, k) for k in sorted(dir(config)) if k.endswith(suffix)},

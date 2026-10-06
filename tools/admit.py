@@ -70,6 +70,14 @@ ADMIT, REJECT, BLOCKED, PENDING_V, UNSUPPORTED = "ADMIT", "REJECT", "BLOCKED", "
 CANDIDATE_KEYS = ("target_gain_pct", "stop_loss_pct", "rsi_oversold", "vwap_zscore_thresh",
                   "max_trade_bars")
 COST_STRESS_MULTIPLE = 2
+#: A stop's trigger-to-fill slippage beyond the spread (the round-trip cost already
+#: charges the spread). ENGINE_VERSION 3 consensus (g): measured from live stop exits.
+#: IBKR-native stop fills are UNMEASURED; the only measured evidence is the D6
+#: software-risk-trigger audit (fills beyond the level 10.6-244 bp, median 32.72 bp), so
+#: that median is used and every admission record states it with this source.
+STOP_SLIPPAGE_PCT = 0.003272
+STOP_SLIPPAGE_SOURCE = ("D6_software_risk_trigger_outcome_audit.md median 32.72 bp (software "
+                        "stops); IBKR-native stop fills unmeasured")
 #: A DSR over fewer daily observations than this is not evidence (red-team friction #5:
 #: a Sharpe of +23 "over 2 days" was reported without complaint).
 MIN_DSR_OBS = 30
@@ -197,7 +205,7 @@ def _counted_backtest(df, ticker, params, cost, *, run, stage, evaluated_from=No
                              df=df.copy(), target_gain_pct=params["target_gain_pct"],
                              stop_loss_pct=params["stop_loss_pct"], require_signals=1,
                              timeframe="hourly", plot=False, backtest_mode="realistic",
-                             slippage_pct=cost)
+                             slippage_pct=cost, stop_slippage_pct=STOP_SLIPPAGE_PCT)
         except Exception as exc:  # noqa: BLE001 — counted, then reported by the caller
             trial.fail(f"{type(exc).__name__}: {exc}")
             return key, None
@@ -287,6 +295,7 @@ def evaluate(hypothesis: str, *, now: _dt.datetime | None = None,
                             f"start the trial count from zero"))
         return {**record, "verdict": REJECT, "stages": [asdict(s) for s in stages]}
     stages.append(Stage("registration", PASS, f"frozen at {spec['registered_at']}"))
+    record["stop_slippage"] = {"pct": STOP_SLIPPAGE_PCT, "source": STOP_SLIPPAGE_SOURCE}
 
     # ── code ────────────────────────────────────────────────────────────────
     st, record["code"] = stage_code(code)

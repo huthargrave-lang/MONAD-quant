@@ -2229,7 +2229,7 @@ def page_sweep(mounts, query=None):
     body.append('<label><span>Cost model</span><select id="swMode">'
                 '<option value="realistic">realistic</option>'
                 '<option value="harsh">harsh</option>'
-                '<option value="optimistic">optimistic · ignores spread</option>'
+                '<option value="upper_bound">upper bound · ignores spread</option>'
                 '</select></label>')
     # Optional on purpose: sweep.py defaults to the last two years, and an empty pair is the
     # common case. `type="date"` gives a native picker, and the value is validated server-side

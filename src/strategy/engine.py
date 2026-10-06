@@ -216,185 +216,172 @@ def compute_trade_returns(df: pd.DataFrame,
                            max_trade_bars: int = 20,
                            slippage_pct: float = 0.0,
                            stop_slippage_pct: float = 0.0,
-                           worst_case_ambiguity: bool = False,
+                           worst_case_ambiguity: bool = True,
                            target_overrides: dict = None,
                            stop_overrides: dict = None,
                            bar_limit_overrides: dict = None,
                            use_opposing_signal_exit: bool = False,
                            opposing_signal_threshold: int = 1) -> pd.DataFrame:
     """
-    Simulate next-bar trade outcomes for backtesting.
+    Simulate trade outcomes with the live bot's execution (ENGINE_VERSION 3).
 
-    Execution model (unified with live trading):
-        1. Signal fires on bar N based on bar N's completed OHLCV features.
-        2. Entry fills at bar N+1's open — the first tradeable price after the signal.
-        3. TP/SL levels are computed relative to the entry price (bar N+1 open).
-        4. Exit scanning starts at bar N+2 and runs up to max_trade_bars.
-    The live equivalent: signal on completed bar → fill at current market price
-    → TP/SL relative to that market price. See live/broker.py place_bracket_order().
+    The rules are the decision-debate consensus of 2026-10-06
+    (docs/research/ENGINE_V3_QUESTION.md), where every divergence from live that hourly
+    OHLC cannot resolve is taken at its conservative bound and declared:
+
+      (a) A signal on bar N's close fills at bar N+1's OPEN, and the TP/SL bracket is live
+          from that fill: bars N+1 .. N+MAX are scanned. Live fills ~2-3 min after the
+          open at a quote, so an N+1 touch is an approximation.
+      (b) In each bar after N+1 the OPEN is checked first: an open at or through the stop
+          fills at the open less ``stop_slippage_pct`` ("gap_stop"); at or through the
+          target, at the open ("gap_target"). Otherwise, both levels inside one bar resolve
+          STOP-FIRST unless ``worst_case_ambiguity`` is False (the upper-bound mode only).
+      (c) With no exit, the time exit fills at the OPEN of bar N+1+MAX (the live cycle that
+          closes it runs at :32 of that bar; overnight when N+MAX ends a session). A gap
+          there is labelled gap_stop / gap_target. At the end of the data only, the last
+          close is used ("time_exit_truncated").
+      (d) ONE position, as live holds: a signal on bar S may enter (at S+1's open) only if
+          the previous trade exited at or before that open. An exit inside bar E allows
+          S >= E; an exit at the open of bar X allows S >= X-1 (live re-enters on the same
+          cycle). A trade dropped for an unusable entry price keeps its slot until its
+          scheduled time exit.
+      (e) ``slippage_pct`` is round-trip and comes off every trade once;
+          ``stop_slippage_pct`` is the stop's trigger-to-fill slippage beyond the spread,
+          on stop and gap-stop exits only.
 
     Args:
         df: Feature DataFrame with entry_signal column
-        target_gain_pct: Default target gain percentage
-        stop_loss_pct: Default stop loss percentage
-        max_trade_bars: Maximum bars to hold before time exit
-        slippage_pct: Round-trip slippage as decimal (e.g. 0.0004 = 4bps).
-                      Deducted from every trade return (wins shrink, losses grow).
-        stop_slippage_pct: Fill-model extra (C2). Additional adverse slippage on
-                      STOP fills only — a stop becomes a market order that crosses
-                      the spread and can gap, so it fills worse than the trigger.
-                      Applied to stop_hit (and worst-case ambiguous-as-stop) exits
-                      on top of slippage_pct. Default 0.0 = no stop penalty.
-        worst_case_ambiguity: When True, if both stop and target are inside the
-                              same bar's range, assume the stop was hit (pessimistic).
-                              When False, assume target was hit (optimistic/legacy).
-        target_overrides: Dict of {timestamp: target_pct} for per-trade targets
-        stop_overrides: Dict of {timestamp: stop_pct} for per-trade stops
-        bar_limit_overrides: Dict of {timestamp: max_bars} for per-trade bar limits
-        use_opposing_signal_exit: When True, a future bar whose raw signal_vote
-                              crosses the opposing_signal_threshold in the
-                              opposite direction closes the trade at the NEXT
-                              bar's open (matching entry convention). TP/SL
-                              still win on the same bar. Produces
-                              exit_type="opposing_signal".
-                              Reads the pre-gate `signal_vote` column (raw
-                              momentum+volume composite) rather than the
-                              post-gate `entry_signal`, so regime filters
-                              (trend_direction, vol_regime, longs_only) that
-                              suppress entries in one direction do NOT also
-                              suppress the exit. Falls back to `entry_signal`
-                              if `signal_vote` is absent (supports test
-                              fixtures that don't run generate_trades).
-        opposing_signal_threshold: Absolute threshold for the raw composite
-                              vote to count as an opposing signal. Should
-                              match the `require_signals` used at entry so
-                              the exit fires when the strategy would now
-                              enter in the opposite direction. Default 1.
+        target_gain_pct / stop_loss_pct: default bracket, as fractions of the entry price
+        max_trade_bars: MAX, the bars held before the time exit
+        slippage_pct: round-trip slippage, deducted from every trade return once
+        stop_slippage_pct: extra adverse fill on stop exits (see (e))
+        worst_case_ambiguity: stop-first on a bar containing both levels (default True)
+        target_overrides / stop_overrides / bar_limit_overrides: per-signal overrides
+        use_opposing_signal_exit: a later raw ``signal_vote`` crossing
+            ``opposing_signal_threshold`` against the trade closes it at the NEXT bar's
+            open (TP/SL still win on the same bar); falls back to ``entry_signal``.
 
     Returns:
-        DataFrame with columns: timestamp, return, trend_regime, exit_type
+        DataFrame with columns: timestamp (the signal bar), return, trend_regime,
+        exit_type, entry_time, exit_time.
     """
-    trade_returns = []
-    trade_regimes = []
-    trade_timestamps = []
-    trade_exit_types = []
+    trade_returns, trade_regimes, trade_timestamps, trade_exit_types = [], [], [], []
+    trade_entry_times, trade_exit_times = [], []
     entries = df[df["entry_signal"] != 0]
-
-    # Precompute the raw composite vote column for opposing-signal lookups.
-    # IMPORTANT: we read the pre-gate `signal_vote` (raw momentum+volume sum),
-    # NOT the post-gate `entry_signal`. The regime filter in generate_trades()
-    # (trend_direction + vol_regime) + longs_only gating zero out the opposite
-    # direction in entry_signal, so the exit would never fire if we read
-    # entry_signal. Fall back to entry_signal for legacy test fixtures that
-    # construct a df without running generate_trades (they set entry_signal
-    # directly and never populate signal_vote).
     if use_opposing_signal_exit:
-        if "signal_vote" in df.columns:
-            signal_arr = df["signal_vote"].to_numpy()
-        else:
-            signal_arr = df["entry_signal"].to_numpy()
-        open_arr = df["open"].to_numpy()
+        signal_arr = (df["signal_vote"] if "signal_vote" in df.columns else df["entry_signal"]).to_numpy()
     else:
         signal_arr = None
-        open_arr   = None
-    df_len     = len(df)
-    # Normalize the threshold — use absolute value and ensure int-compatible.
     opp_thresh = abs(int(opposing_signal_threshold)) if opposing_signal_threshold else 1
+    open_arr = df["open"].to_numpy(dtype=float)
+    high_arr = df["high"].to_numpy(dtype=float)
+    low_arr = df["low"].to_numpy(dtype=float)
+    close_arr = df["close"].to_numpy(dtype=float)
+    index = df.index
+    df_len = len(df)
+    next_free_signal = -1            # the earliest signal bar a new trade may use (rule d)
 
-    for i, (idx, row) in enumerate(entries.iterrows()):
-        loc = df.index.get_loc(idx)
+    for idx, row in entries.iterrows():
+        loc = index.get_loc(idx)
+        if loc < next_free_signal:
+            continue                 # a position is open: live holds one at a time
         direction = row["entry_signal"]
+        if direction not in (1, -1):
+            continue
         regime = row.get("trend_direction", 0)
-
         n_bars = (bar_limit_overrides.get(idx, max_trade_bars)
                   if bar_limit_overrides else max_trade_bars)
         target = (target_overrides.get(idx, target_gain_pct)
                   if target_overrides else target_gain_pct)
         stop = (stop_overrides.get(idx, stop_loss_pct)
                 if stop_overrides else stop_loss_pct)
+        entry_loc = loc + 1
+        if entry_loc >= df_len:
+            continue                 # no bar to fill in
+        entry_price = open_arr[entry_loc]
+        time_exit_loc = entry_loc + n_bars           # bar N+1+MAX, whose open closes it
+        if not np.isfinite(entry_price) or entry_price <= 0:
+            next_free_signal = time_exit_loc - 1     # the slot stays taken (rule d)
+            continue
+        if direction == 1:
+            stop_lvl, tgt_lvl = entry_price * (1 - stop), entry_price * (1 + target)
+        else:
+            stop_lvl, tgt_lvl = entry_price * (1 + stop), entry_price * (1 - target)
 
-        # Entry convention: signal fires on bar N's close, fill at bar N+1's open.
-        # This matches live trading where the signal fires after bar close and the
-        # order fills at the next available price (market open of next bar).
-        next_bar_loc = loc + 1
-        if next_bar_loc >= len(df):
-            continue  # no next bar available for entry
-        entry_price = df.iloc[next_bar_loc]["open"]
+        def through_stop(price):
+            return price <= stop_lvl if direction == 1 else price >= stop_lvl
 
-        # Look ahead from bar N+2 onward (N+1 is the entry bar)
-        future_start = next_bar_loc + 1
-        future = df.iloc[future_start: future_start + n_bars]
-        exit_return = None
-        exit_type   = None
+        def through_target(price):
+            return price >= tgt_lvl if direction == 1 else price <= tgt_lvl
 
-        for fut_offset, (_, bar) in enumerate(future.iterrows()):
+        def ret_at(price):
+            return direction * (price - entry_price) / entry_price
+
+        exit_return = exit_type = None
+        exit_loc = None              # bar of the exit
+        exit_at_open = False         # True: the exit fills at that bar's open
+        for k in range(entry_loc, min(time_exit_loc, df_len)):
+            if k > entry_loc and np.isfinite(open_arr[k]):
+                if through_stop(open_arr[k]):
+                    exit_return = ret_at(open_arr[k]) - stop_slippage_pct
+                    exit_type, exit_loc, exit_at_open = "gap_stop", k, True
+                    break
+                if through_target(open_arr[k]):
+                    exit_return = ret_at(open_arr[k])
+                    exit_type, exit_loc, exit_at_open = "gap_target", k, True
+                    break
             if direction == 1:
-                target_hit = bar["high"] >= entry_price * (1 + target)
-                stop_hit   = bar["low"]  <= entry_price * (1 - stop)
-            elif direction == -1:
-                target_hit = bar["low"]  <= entry_price * (1 - target)
-                stop_hit   = bar["high"] >= entry_price * (1 + stop)
+                target_hit, stop_hit = high_arr[k] >= tgt_lvl, low_arr[k] <= stop_lvl
             else:
-                continue
-
+                target_hit, stop_hit = low_arr[k] <= tgt_lvl, high_arr[k] >= stop_lvl
             if target_hit and stop_hit:
-                # Same-bar ambiguity: both TP and SL inside this bar's range.
-                # We can't know which was hit first from OHLC alone.
-                if worst_case_ambiguity:
-                    exit_return = -stop - stop_slippage_pct  # stop fill: extra slip
-                    exit_type   = "ambiguous_same_bar"
-                else:
-                    exit_return = target
-                    exit_type   = "ambiguous_same_bar"
+                exit_return = (-stop - stop_slippage_pct) if worst_case_ambiguity else target
+                exit_type, exit_loc = "ambiguous_same_bar", k
                 break
-            elif target_hit:
-                exit_return = target
-                exit_type   = "target_hit"
+            if stop_hit:
+                exit_return, exit_type, exit_loc = -stop - stop_slippage_pct, "stop_hit", k
                 break
-            elif stop_hit:
-                exit_return = -stop - stop_slippage_pct  # stop fill: extra slip
-                exit_type   = "stop_hit"
+            if target_hit:
+                exit_return, exit_type, exit_loc = target, "target_hit", k
                 break
-
-            # Opposing-signal exit — only reached when neither TP nor SL fired
-            # on this bar. The signal on bar K is actionable at bar K+1 open
-            # (same rule as entries), so we exit at the *next* bar's open.
-            # Reads raw signal_vote, so an opposing composite fires even when
-            # regime/longs_only would block an actual short entry.
-            if use_opposing_signal_exit:
-                bar_loc = future_start + fut_offset
-                bar_signal = signal_arr[bar_loc]
-                if ((direction == 1 and bar_signal <= -opp_thresh) or
-                    (direction == -1 and bar_signal >= opp_thresh)):
-                    opp_fill_loc = bar_loc + 1
-                    if opp_fill_loc < df_len:
-                        opp_price = open_arr[opp_fill_loc]
-                        exit_return = direction * (opp_price - entry_price) / entry_price
-                        exit_type   = "opposing_signal"
+            if signal_arr is not None and k > entry_loc:
+                v = signal_arr[k]
+                if (direction == 1 and v <= -opp_thresh) or (direction == -1 and v >= opp_thresh):
+                    if k + 1 < df_len and np.isfinite(open_arr[k + 1]):
+                        exit_return = ret_at(open_arr[k + 1])
+                        exit_type, exit_loc, exit_at_open = "opposing_signal", k + 1, True
                         break
-                    # Opposing signal fires on the last bar — no next bar to
-                    # fill at. Fall through and let the time-exit path below
-                    # handle it (consistent with entry-drop-on-last-bar rule).
-
-        # If no target/stop/opposing-signal hit, use close of last future bar
-        if exit_return is None and len(future) > 0:
-            last_close  = future.iloc[-1]["close"]
-            if pd.isna(last_close) or entry_price == 0:
-                continue  # skip trade — incomplete bar or zero entry price
-            exit_return = direction * (last_close - entry_price) / entry_price
-            exit_type   = "time_exit"
-
-        if exit_return is not None:
-            # Apply slippage: deduct from return (shrinks wins, enlarges losses)
-            exit_return -= slippage_pct
-            trade_returns.append(exit_return)
-            trade_regimes.append(regime)
-            trade_timestamps.append(idx)
-            trade_exit_types.append(exit_type)
+        if exit_return is None:
+            if time_exit_loc < df_len and np.isfinite(open_arr[time_exit_loc]):
+                px = open_arr[time_exit_loc]
+                if through_stop(px):
+                    exit_return, exit_type = ret_at(px) - stop_slippage_pct, "gap_stop"
+                elif through_target(px):
+                    exit_return, exit_type = ret_at(px), "gap_target"
+                else:
+                    exit_return, exit_type = ret_at(px), "time_exit"
+                exit_loc, exit_at_open = time_exit_loc, True
+            else:
+                last = df_len - 1
+                if last < entry_loc or not np.isfinite(close_arr[last]):
+                    next_free_signal = df_len
+                    continue
+                exit_return, exit_type = ret_at(close_arr[last]), "time_exit_truncated"
+                exit_loc, exit_at_open = last, False
+        next_free_signal = exit_loc - 1 if exit_at_open else exit_loc
+        exit_return -= slippage_pct
+        trade_returns.append(exit_return)
+        trade_regimes.append(regime)
+        trade_timestamps.append(idx)
+        trade_exit_types.append(exit_type)
+        trade_entry_times.append(index[entry_loc])
+        trade_exit_times.append(index[exit_loc])
 
     return pd.DataFrame({
         "timestamp": trade_timestamps,
         "return": trade_returns,
         "trend_regime": trade_regimes,
         "exit_type": trade_exit_types,
+        "entry_time": trade_entry_times,
+        "exit_time": trade_exit_times,
     })

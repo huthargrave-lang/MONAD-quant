@@ -143,6 +143,56 @@ def familywise(active: Mapping[str, pd.Series], candidate: str, *,
     return out
 
 
+@dataclass(frozen=True)
+class FamilywiseGate:
+    p_gate: float                  # worst block p x (1 + m); the v2 gating statistic
+    worst_p: float                 # worst (b+1)/(B+1) across blocks, before the (1+m) factor
+    m: int                         # unseen/unknown/off-window members charged by union bound
+    n_boot: int
+    blocks: list                   # per-block details
+    dropped_zero_variance: list    # found-nothing members removed as an exact equivalence
+
+
+def gate_n_boot(m: int, alpha: float) -> int:
+    """B large enough that the gate is never decided by bootstrap resolution:
+    max(5000, ceil(20 (1+m) / alpha)) (decision debate, gate rules v2)."""
+    return max(SPA_BOOT, int(math.ceil(20 * (1 + m) / alpha)))
+
+
+def familywise_gate(active: Mapping[str, pd.Series], candidate: str, *, m: int, alpha: float,
+                    blocks: Sequence[int] = SPA_BLOCKS, n_boot: int | None = None,
+                    seed: int = 0) -> FamilywiseGate:
+    """Gate rules v2 (docs/research/DEFLATION_RULE_QUESTION.md, consensus 2026-10-06):
+    p_gate = (worst SPA-adjusted p over ``blocks``) x (1 + m), each p estimated as
+    (b+1)/(B+1) so it is never exactly zero. ``m`` counts members the matrix cannot
+    contain (declared prior search, unknown results, points searched off this window);
+    the union bound charges them without any independence assumption. Members with no
+    variance (found nothing) are dropped from the matrix: max* is floored at 0, so this is
+    an exact equivalence, and they do not add to m."""
+    if m < 0:
+        raise ValueError("m cannot be negative")
+    keys = list(active)
+    if candidate not in keys:
+        raise ValueError(f"{candidate} is not a family member")
+    frame = pd.DataFrame({k: active[k] for k in keys})
+    if frame.isna().any().any():
+        raise ValueError("family active series do not share one set of sessions")
+    zero = [k for k in keys if k != candidate and float(frame[k].std(ddof=1)) == 0.0]
+    kept = [k for k in keys if k not in zero]
+    d = frame[kept].to_numpy(dtype=float)
+    j = kept.index(candidate)
+    B = n_boot if n_boot is not None else gate_n_boot(m, alpha)
+    per_block = []
+    for b in blocks:
+        r = sig.superior_predictive_ability(d, mean_block=b, n_boot=B, seed=seed)
+        exceed = int(round(r.adjusted_pvalues[j] * B))
+        per_block.append({"mean_block": b, "p": (exceed + 1) / (B + 1),
+                          "candidate_t": r.t_stats[j], "family_size": len(kept)})
+    worst = max(x["p"] for x in per_block)
+    return FamilywiseGate(p_gate=min(1.0, worst * (1 + m)), worst_p=worst, m=int(m), n_boot=B,
+                          blocks=per_block, dropped_zero_variance=zero)
+
+
 def masked_after(snap: Snapshot, cut: pd.Timestamp) -> Snapshot:
     """``snap`` with every price, distribution and cash rate AFTER ``cut`` erased, and the
     calendar kept (scheduled sessions are known in advance; their prices are not)."""
