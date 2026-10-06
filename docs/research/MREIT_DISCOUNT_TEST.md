@@ -74,3 +74,45 @@ but do not decide.
   instead. The audit compares against GAAP only.
 - **Commercial vs residential mREITs differ in leverage and in how much of the book is
   marked.** The pool mixes them, as the rule does not distinguish.
+
+## Result: NOT RUN. The book-value derivation failed its hand audit (2026-10-06)
+
+No mREIT price was ever loaded, no snapshot was built, and no trial was run.
+
+**Audit (seed 20261006).** 10 of 30 observations were more than 2% from the company's
+stated GAAP book value per common share. The bar was at most 2. The table is in
+`docs/research/data/mreit_audit_v1_results.txt`.
+
+**Causes:**
+- **Preferred stock left in common equity.** companyfacts carries only non-dimensional
+  XBRL, and most mREITs tag preferred per series. This affected AGNC, ARR (twice), CIM,
+  IVR, NYMT/ADAM, FBRT, and MFA (partially).
+- **A 1000× share-count scale error** (NYMT 2011).
+- **A definition difference** (MITT: liquidation preference against net proceeds).
+- Two passes near the line (NLY, TRTX) carry the same defect at a smaller scale.
+
+**The spent correction.** The derivation was moved to each filing's full XBRL instance:
+dimensional class-of-stock members summed, and the share count checked against the cover
+page (`parse_instance` and `bv_from_instance` in `src/research/mreit_data.py`, kept as
+evidence). Tried on the 7 failing cases, it repaired NYMT, FBRT and IVR, but not:
+- AGNC (preferred only in custom company elements);
+- CIM (preferred tagged at 1/1000 scale);
+- MFA (a total covering one of two series).
+
+XBRL tagging of preferred stock is too heterogeneous for a mechanical derivation.
+
+**Board ruling (three independent members).** Two votes closed this protocol as NOT RUN.
+They held that switching to the company-stated figure would be a new method, not a fix:
+it changes the source and the known-date rule, and it makes the audit near-circular. One
+vote preferred that switch as a pre-registered amendment.
+
+All three allow a successor protocol on company-stated GAAP book value per common share,
+committed before any price, with these conditions:
+- the GAAP-versus-adjusted rule and the known-date rule are frozen in advance;
+- validation must not share its source with the extraction: compare against the XBRL
+  derivation on filers with no preferred, plus an independent audit on seed 20261007 in
+  which the auditor finds each figure without the extractor's pointer;
+- missing figures leave the name ineligible, and the missing rate is reported;
+- no further corrections.
+
+This NOT RUN counts in the `mreit_discount` family's record.

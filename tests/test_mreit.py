@@ -54,6 +54,38 @@ class BookValue(unittest.TestCase):
         self.assertEqual(md.bv_history(f), [])
 
 
+INSTANCE = b"""<xbrl xmlns="http://www.xbrl.org/2003/instance" xmlns:us-gaap="http://fasb.org/us-gaap/2018"
+ xmlns:dei="http://xbrl.sec.gov/dei/2018" xmlns:xbrldi="http://xbrl.org/2006/xbrldi">
+<context id="I"><entity><identifier>1</identifier></entity><period><instant>2018-09-30</instant></period></context>
+<context id="B"><entity><identifier>1</identifier><segment><xbrldi:explicitMember dimension="us-gaap:StatementClassOfStockAxis">us-gaap:SeriesBPreferredStockMember</xbrldi:explicitMember></segment></entity><period><instant>2018-09-30</instant></period></context>
+<context id="C"><entity><identifier>1</identifier><segment><xbrldi:explicitMember dimension="us-gaap:StatementClassOfStockAxis">us-gaap:SeriesCPreferredStockMember</xbrldi:explicitMember></segment></entity><period><instant>2018-09-30</instant></period></context>
+<context id="D"><entity><identifier>1</identifier></entity><period><instant>2018-10-31</instant></period></context>
+<us-gaap:StockholdersEquity contextRef="I" unitRef="usd">1100</us-gaap:StockholdersEquity>
+<us-gaap:PreferredStockLiquidationPreferenceValue contextRef="B" unitRef="usd">60</us-gaap:PreferredStockLiquidationPreferenceValue>
+<us-gaap:PreferredStockLiquidationPreferenceValue contextRef="C" unitRef="usd">40</us-gaap:PreferredStockLiquidationPreferenceValue>
+<us-gaap:CommonStockSharesOutstanding contextRef="I" unitRef="shares">100000</us-gaap:CommonStockSharesOutstanding>
+<dei:EntityCommonStockSharesOutstanding contextRef="D" unitRef="shares">100</dei:EntityCommonStockSharesOutstanding>
+</xbrl>"""
+
+
+class InstanceCorrection(unittest.TestCase):
+    """The spent correction (MREIT_DISCOUNT_TEST.md): series-level preferred summed from a
+    filing's instance, and a 1000x share-scale error rescaled against the cover page."""
+
+    def test_series_preferred_summed_and_scale_error_rescaled(self):
+        p = md.parse_instance(INSTANCE, "2018-09-30")
+        self.assertEqual((p["preferred"], p["preferred_concept"]),
+                         (100.0, "PreferredStockLiquidationPreferenceValue"))
+        bv, note = md.bv_from_instance(p)
+        self.assertAlmostEqual(bv, (1100 - 100) / 100.0)
+        self.assertIn("rescaled", note)
+
+    def test_instance_name_prefers_the_inline_extract(self):
+        idx = {"directory": {"item": [{"name": "a-20200930_cal.xml"}, {"name": "a-20200930_htm.xml"},
+                                      {"name": "FilingSummary.xml"}]}}
+        self.assertEqual(md.instance_name(idx), "a-20200930_htm.xml")
+
+
 class Universe(unittest.TestCase):
     def test_repo_share_reit_sic_and_a_listed_common_ticker(self):
         frames = {"repo": {"data": [{"cik": 1, "entityName": "A", "val": 80}, {"cik": 2, "entityName": "B", "val": 80},

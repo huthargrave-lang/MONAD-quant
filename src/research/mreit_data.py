@@ -27,6 +27,7 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import time
+import xml.etree.ElementTree as ET
 from typing import Callable
 
 from src.research.bdc_text_nav import _get as _get_bytes
@@ -112,3 +113,102 @@ def bv_history(facts: dict) -> list[dict]:
             first[end] = {"end": end, "bv": bv, "filed": filed, "accession": acc,
                           "equity": eq, "preferred": pref, "shares": sh}
     return sorted(first.values(), key=lambda r: r["end"])
+
+
+# ── Correction round (MREIT_DISCOUNT_TEST.md, amendment 1): the filing's full XBRL ─────
+# companyfacts carries only non-dimensional facts, and most mREITs tag preferred stock per
+# series (StatementClassOfStockAxis), so the preferred deduction above often read 0 (the
+# hand audit: 10 of 30 off by more than 2%). The instance document of each filing holds
+# every fact, dimensional ones included.
+
+ARCHIVE_DIR = "https://www.sec.gov/Archives/edgar/data/{cik}/{acc}/"
+#: Preferred concepts in order of preference. The first with any value at the period end
+#: is used: its non-dimensional total if tagged, else the sum over class-of-stock members.
+PREFERRED_CONCEPTS = ("PreferredStockLiquidationPreferenceValue", "PreferredStockValue",
+                      "PreferredStockValueOutstanding",
+                      "PreferredStockIncludingAdditionalPaidInCapitalNetOfDiscount",
+                      "PreferredStockIncludingAdditionalPaidInCapital",
+                      "ConvertiblePreferredStockNonredeemableOrRedeemableIssuerOptionValue")
+CLASS_AXIS = "StatementClassOfStockAxis"
+#: A balance-sheet share count this many times the cover-page count is a scale error in
+#: the tag (thousands reported as units); it is rescaled. Outside both bands, dropped.
+SCALE_BAND = (500.0, 2000.0)
+AGREE_BAND = (0.5, 2.0)
+
+
+def _local(tag: str) -> str:
+    return tag.rsplit("}", 1)[-1]
+
+
+def instance_name(index: dict) -> str | None:
+    """The filing's XBRL instance document from its index.json listing."""
+    names = [i["name"] for i in index.get("directory", {}).get("item", [])]
+    inline = [n for n in names if n.endswith("_htm.xml")]
+    if inline:
+        return inline[0]
+    plain = [n for n in names if n.endswith(".xml") and not n.startswith("FilingSummary")
+             and not any(n.endswith(x) for x in ("_cal.xml", "_def.xml", "_lab.xml", "_pre.xml"))]
+    return plain[0] if plain else None
+
+
+def parse_instance(doc: bytes, end: str) -> dict:
+    """Equity, preferred (and which concept), common shares and cover-page shares at the
+    instant ``end`` from an XBRL instance document."""
+    root = ET.fromstring(doc)
+    contexts = {}
+    for ctx in root.iter():
+        if _local(ctx.tag) != "context":
+            continue
+        instant = next((e.text for e in ctx.iter() if _local(e.tag) == "instant"), None)
+        dims = [(e.get("dimension", "").split(":")[-1], (e.text or "").strip())
+                for e in ctx.iter() if _local(e.tag) == "explicitMember"]
+        contexts[ctx.get("id")] = (instant, dims)
+    facts = {}
+    for el in root.iter():
+        ref = el.get("contextRef")
+        if ref is None or el.text is None or el.get("{http://www.w3.org/2001/XMLSchema-instance}nil") == "true":
+            continue
+        try:
+            val = float(el.text.strip().replace(",", ""))
+        except ValueError:
+            continue
+        facts.setdefault(_local(el.tag), []).append((contexts.get(ref, (None, [])), val))
+
+    def total(concept, *, any_instant=False):
+        vals = facts.get(concept, [])
+        plain = [v for (inst, dims), v in vals if not dims and (any_instant or inst == end)]
+        if plain:
+            return plain[0]
+        members = {}
+        for (inst, dims), v in vals:
+            if (any_instant or inst == end) and len(dims) == 1 and dims[0][0] == CLASS_AXIS:
+                members.setdefault(dims[0][1], v)
+        return sum(members.values()) if members else None
+
+    pref, source = 0.0, None
+    for c in PREFERRED_CONCEPTS:
+        v = total(c)
+        if v is not None:
+            pref, source = v, c
+            break
+    cover = [v for (inst, dims), v in facts.get("EntityCommonStockSharesOutstanding", []) if not dims]
+    return {"equity": total("StockholdersEquity"), "preferred": pref, "preferred_concept": source,
+            "shares": total("CommonStockSharesOutstanding"),
+            "cover_shares": sum(cover) if cover else None}
+
+
+def bv_from_instance(parsed: dict) -> tuple[float | None, str]:
+    """(book value per common share, note). The share count is checked against the cover
+    page: a 500-2000x excess is rescaled by 1000, anything else outside 0.5-2x is dropped."""
+    eq, sh, cover = parsed["equity"], parsed["shares"], parsed["cover_shares"]
+    if eq is None or not sh or sh <= 0:
+        return None, "missing equity or shares"
+    note = ""
+    if cover:
+        ratio = sh / cover
+        if SCALE_BAND[0] <= ratio <= SCALE_BAND[1]:
+            sh, note = sh / 1000.0, "shares rescaled /1000 against the cover page"
+        elif not (AGREE_BAND[0] <= ratio <= AGREE_BAND[1]):
+            return None, f"shares {sh:.0f} disagree with the cover page {cover:.0f}"
+    bv = (eq - parsed["preferred"]) / sh
+    return (bv, note) if 0 < bv <= 500 else (None, f"implausible book value {bv:.4f}")
