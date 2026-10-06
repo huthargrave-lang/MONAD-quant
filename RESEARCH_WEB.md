@@ -3865,3 +3865,23 @@ Disclosed diagnostic, chosen AFTER seeing the results, so not a test: the D6 bar
 Conclusion: no daily timing rule in this family reliably beats a static 60/40, risk-adjusted or not. This agrees with D6/F34: a 0.1-0.15 Sharpe edge is below what 19 years can resolve (MDE ~0.4). The drawdown reduction of trend filters is real in sample but rests on about three crises (2008, 2020, 2022), the F36 pattern.
 Links: [[D6|supports]] · [[F34|supports]] · [[F36|relates]] · [[F40|relates]].
 _— captured claude/monetizing-repositories-03e341@3e6e298, 2026-10-05_
+
+### F404705 — Calendar tilts do not beat the static 60/40 either: pre-FOMC drift decays after publication (+0.71 to -0.63 active Sharpe by era); sell-in-May is noise
+Second daily search, frozen after the first was null (F404704) and before it ran: 4 calendar tilts on the 21-tranche static 60/40, so the comparison isolates the tilt.
+- Pre-FOMC drift (Lucca & Moench): 100% SPY over the scheduled announcement session, or over that session and the one before.
+- Sell-in-May (Bouman & Jacobsen): SPY 60+t / IEF 40-t over Nov-Apr, the reverse over May-Oct, with t of 0.2 or 0.4.
+
+The FOMC dates are the Fed's scheduled meetings, parsed from federalreserve.gov into a fixture with page hashes. Unscheduled meetings and conference calls are excluded as surprises. Ledger: TR-20261006T005717Z-89504c2e, same snapshot and window as F404704.
+
+Results:
+- Best: FOMC announcement-day tilt, active Sharpe +0.13 over the 60/40, CAGR 8.36% vs 8.19%.
+- Familywise SPA_c over all 31 daily trials: p 0.86-0.88 at mean blocks 20/63/126.
+- Active DSR 0.0009 (N 48 = 12 effective + 36 declared prior).
+- The FOMC effect DECAYS by era: active Sharpe +0.71 (2007-13), -0.18 (2014-21), -0.63 (2022-26). This is the post-publication pattern; the working paper circulated from 2011.
+- Sell-in-May: +0.07/+0.08, with a worse drawdown (-36%/-40% vs -32%).
+
+Disclosure: the turnover_per_year and cost_per_year METRICS recorded on the first 31 daily trials are inflated about 21x for tranched strategies. A tranche's fee was summed as a fraction of its own capital; this is fixed in daily_strategy. Returns, and so every statistic above, were unaffected.
+
+Together with F404704: 31 counted daily strategies, and none reliably beats a static 60/40. The one with a real literature effect (pre-FOMC) has visibly decayed since publication.
+Links: [[F404704|builds_on]] · [[D6|supports]].
+_— captured claude/monetizing-repositories-03e341@030cb58, 2026-10-05_
