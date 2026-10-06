@@ -86,6 +86,30 @@ class SPA(unittest.TestCase):
             sig.superior_predictive_ability(np.full((100, 2), np.nan), mean_block=5)
 
 
+class DuplicatePoints(unittest.TestCase):
+    def test_identical_orders_are_flagged_and_distinct_ones_are_not(self):
+        from src.research.daily_strategy import Tranche
+        idx = pd.bdate_range("2012-01-02", periods=3)
+        a = [Tranche(open_orders=pd.DataFrame({"X": [1.0, 0.0, 1.0]}, index=idx), close_orders=pd.DataFrame())]
+        b = [Tranche(open_orders=pd.DataFrame({"X": [1.0, 0.0, 1.0]}, index=idx), close_orders=pd.DataFrame())]
+        c = [Tranche(open_orders=pd.DataFrame({"X": [1.0, 0.5, 1.0]}, index=idx), close_orders=pd.DataFrame())]
+        self.assertEqual(stats.duplicate_points({"a": a, "b": b, "c": c}), [("a", "b")])
+
+    def test_the_frozen_grids_have_no_duplicates_except_the_recorded_auction_pair(self):
+        """The auction grid ran before this check existed and its pre=5 points equal pre=3
+        (F404707); every other grid is distinct on a synthetic panel."""
+        sys.path.insert(0, str(REPO / "tests"))
+        from test_daily_classes import synthetic
+        from src.research import daily_classes as dc
+        snap = synthetic(n=900)
+        for name, g in dc.GRIDS.items():
+            if name == "auctions":
+                continue
+            with self.subTest(grid=name):
+                orders = {repr(p): dc.decide(snap, p) for p in g()}
+                self.assertEqual(stats.duplicate_points(orders), [])
+
+
 class ActiveStatistics(unittest.TestCase):
     def test_active_series_refuses_misaligned_windows(self):
         a = pd.Series(0.0, index=CAL[:100])

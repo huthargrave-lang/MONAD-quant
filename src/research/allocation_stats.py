@@ -197,3 +197,31 @@ def default_cuts(snap: Snapshot, start: pd.Timestamp, n: int = 12) -> list[pd.Ti
     scored = snap.dates[snap.dates >= pd.Timestamp(start)]
     pos = np.linspace(0, len(scored) - 2, n).round().astype(int)
     return [scored[p] for p in pos]
+
+
+def duplicate_points(orders_by_label: Mapping[str, list]) -> list[tuple[str, str]]:
+    """Pairs of grid points whose orders are identical: the same idea counted twice, and
+    usually a sign that a parameter does not do what its grid assumed (2026-10-06: an
+    announcement gate made the auction tilt's pre=5 identical to pre=3). A search should
+    refuse to run such a grid before any trial is recorded."""
+    def fingerprint(tranches) -> bytes:
+        parts = []
+        for tr in tranches:
+            for frame in (tr.open_orders, tr.close_orders):
+                if frame is None or frame.empty:
+                    parts.append(b"-")
+                    continue
+                f = frame.reindex(columns=sorted(frame.columns)).fillna(0.0).sort_index()
+                parts.append(repr(list(f.columns)).encode() + f.index.asi8.tobytes()
+                             + np.round(f.to_numpy(dtype=float), 12).tobytes())
+        return b"|".join(parts)
+
+    seen: dict[bytes, str] = {}
+    dupes = []
+    for label, tranches in orders_by_label.items():
+        fp = fingerprint(tranches)
+        if fp in seen:
+            dupes.append((seen[fp], label))
+        else:
+            seen[fp] = label
+    return dupes

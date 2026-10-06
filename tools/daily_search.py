@@ -79,6 +79,10 @@ def run_search(snap, grid_name: str) -> tuple[str | None, str]:
             record_daily(t, result)
         ref_id = ref_run.run_id
     points = dc.GRIDS[grid_name]()
+    dupes = stats.duplicate_points({label(daily_spec(p)): dc.decide(snap, p, rets) for p in points})
+    if dupes:
+        raise SystemExit(f"refusing to run grid {grid_name!r}: points with identical orders "
+                         f"(the same idea counted twice): {dupes}")
     with trials.open_run(producer="tools/daily_search.py", family=DAILY_FAMILY,
                          context={"snapshot": snap.sha, "grid": grid_name, "grid_size": len(points),
                                   "prior_search_trials": PRIOR_SEARCH_TRIALS}) as run:

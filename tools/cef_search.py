@@ -67,6 +67,10 @@ def run_search(snap, panel) -> tuple[str | None, str]:
                                     end=end, rets=rets, tiers=tiers)
             record_daily(t, result)
         ref_id = ref_run.run_id
+    dupes = stats.duplicate_points({json.dumps(p, sort_keys=True): cc.decide(snap, panel, p)
+                                    for p in cc.grid()})
+    if dupes:
+        raise SystemExit(f"refusing to run: grid points with identical orders: {dupes}")
     with trials.open_run(producer="tools/cef_search.py", family=CEF_FAMILY,
                          context={"snapshot": snap.sha, "nav_panel": panel.sha,
                                   "grid_size": len(cc.grid()),
