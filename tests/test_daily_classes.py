@@ -60,7 +60,7 @@ class TruncationInvariance(unittest.TestCase):
         cls.cuts = [cls.snap.dates[i] for i in (400, 523, 650, 777, 898)]
 
     def test_every_grid_point_is_truncation_invariant(self):
-        for point in dc.grid() + dc.event_grid() + dc.auction_grid() + dc.liquidity_grid() + [dc.REFERENCE]:
+        for point in dc.grid() + dc.event_grid() + dc.auction_grid() + dc.liquidity_grid() + dc.cosmic_grid() + [dc.REFERENCE]:
             with self.subTest(point=point):
                 self.assertEqual(stats.truncation_violations(self.snap, point, self.cuts), [])
 

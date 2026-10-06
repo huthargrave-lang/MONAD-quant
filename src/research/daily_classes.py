@@ -338,6 +338,62 @@ def liquidity_tilt(snap: Snapshot, params: Mapping, rets: SessionReturns | None 
     return _tranches_from(lambda days: w.loc[days].dropna(how="all"), snap.dates)
 
 
+def _schedule_tranches(snap: Snapshot, held: pd.DataFrame) -> list[Tranche]:
+    """The 21-tranche 60/40 base, following a per-session weight SCHEDULE: ``held.loc[s]``
+    is what to hold during session s (close s-1 to close s). A change is ordered at the close
+    of s-1, decided at the close of s-2, so a schedule must be computable from information
+    at s-2 (calendar facts, or data known by then: the caller's responsibility, checked by
+    truncation_violations). A base rebalance executing at the open of a session executes to
+    that session's scheduled weights, so the base never fights the schedule."""
+    dates = snap.dates
+    cols = sorted(set(held.columns) | set(BASE_6040))
+    held = held.reindex(index=dates, columns=cols).fillna(0.0)
+    vals = held.to_numpy()
+    change = np.r_[False, (np.abs(np.diff(vals, axis=0)) > 1e-12).any(axis=1)]
+    rows, idx = [], []
+    for p in np.flatnonzero(change):
+        if p < 2:
+            continue
+        rows.append(dict(zip(cols, vals[p])))
+        idx.append(dates[p - 2])                   # decided two sessions before it is held
+    close_orders = pd.DataFrame(rows, index=pd.DatetimeIndex(idx), columns=cols)
+    out = []
+    for tr in reference_6040(snap):
+        base = tr.open_orders.reindex(columns=cols).fillna(0.0)
+        exec_pos = dates.get_indexer(base.index) + 1
+        for i, x in enumerate(exec_pos):
+            if x < len(dates):
+                base.iloc[i] = vals[x]
+        out.append(Tranche(open_orders=base, close_orders=close_orders))
+    return out
+
+
+def cosmic_tilt(snap: Snapshot, params: Mapping, rets: SessionReturns | None = None) -> list[Tranche]:
+    """Intentionally strange hypotheses (atlas J), as tilts on the 60/40.
+      * ``lunar``: SPY 40/IEF 60 within ``window`` days of a full moon, SPY 80/IEF 20 within
+        it of a new moon, else 60/40 (Yuan, Zheng & Zhu 2006: lower returns near full moons).
+        Pure astronomy (src/research/cosmic.py).
+      * ``geomagnetic``: SPY 40/IEF 60 for the 5 sessions after a day with Ap >= ``threshold``
+        becomes known (Krivelyova & Robotti 2003), else 60/40."""
+    from src.research import cosmic
+
+    dates = snap.dates
+    spy = pd.Series(0.6, index=dates)
+    if params["kind"] == "lunar":
+        w = float(params["window"])
+        spy[cosmic.days_from_full_moon(dates) <= w] = 0.4
+        spy[cosmic.days_from_new_moon(dates) <= w] = 0.8
+    elif params["kind"] == "geomagnetic":
+        known = cosmic.storm_known_by(dates, int(params["threshold"])).to_numpy()
+        hold = np.zeros(len(dates), dtype=bool)
+        for k in np.flatnonzero(known):            # decided at close k: held k+2 .. k+6
+            hold[k + 2:k + 7] = True
+        spy[hold] = 0.4
+    else:
+        raise ValueError(f"unknown cosmic kind {params['kind']!r}")
+    return _schedule_tranches(snap, pd.DataFrame({"SPY": spy, "IEF": 1.0 - spy}))
+
+
 def reference_6040(snap: Snapshot, params: Mapping | None = None,
                    rets: SessionReturns | None = None) -> list[Tranche]:
     """The static 60/40 bar: SPY/IEF, every 21 sessions, 21 tranches."""
@@ -347,7 +403,7 @@ def reference_6040(snap: Snapshot, params: Mapping | None = None,
 CLASSES: dict[str, Callable] = {"tsmom": tsmom, "dualmom": dualmom, "tom": tom,
                                 "overnight": overnight, "sma": sma, "fomc_tilt": fomc_tilt,
                                 "halloween": halloween, "auction_tilt": auction_tilt,
-                                "liquidity_tilt": liquidity_tilt}
+                                "liquidity_tilt": liquidity_tilt, "cosmic_tilt": cosmic_tilt}
 REFERENCE = {"class": "static_6040", "params": {"weights": {"SPY": 0.6, "IEF": 0.4},
                                                 "every": MONTH, "tranches": len(OFFSETS)}}
 
@@ -387,8 +443,14 @@ def liquidity_grid() -> list[dict]:
     return [{"class": "liquidity_tilt", "params": {"weeks": w}} for w in (4, 13)]
 
 
+def cosmic_grid() -> list[dict]:
+    """The fifth ETF search (2026-10-06), frozen before it ran: 4 points."""
+    return ([{"class": "cosmic_tilt", "params": {"kind": "lunar", "window": w}} for w in (3, 7)]
+            + [{"class": "cosmic_tilt", "params": {"kind": "geomagnetic", "threshold": t}} for t in (30, 50)])
+
+
 GRIDS: dict[str, Callable[[], list]] = {"v1": grid, "events": event_grid, "auctions": auction_grid,
-                                        "liquidity": liquidity_grid}
+                                        "liquidity": liquidity_grid, "cosmic": cosmic_grid}
 
 
 def assets_used(point: Mapping) -> tuple:
@@ -403,7 +465,7 @@ def assets_used(point: Mapping) -> tuple:
         return (p["asset"],)
     if cls == "sma":
         return ("SPY", "IEF")
-    if cls in ("static_6040", "fomc_tilt", "halloween", "liquidity_tilt"):
+    if cls in ("static_6040", "fomc_tilt", "halloween", "liquidity_tilt", "cosmic_tilt"):
         return ("SPY", "IEF")
     if cls == "auction_tilt":
         return ("SPY", "IEF", "SHY")

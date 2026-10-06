@@ -78,9 +78,9 @@ ETF = Domain(
     grids=lambda: dc.GRIDS,
     # Declared before each search ran; it only grows (history in DAILY_STRATEGIES.md):
     # the D6 arc's ~15 builds, 5 famous v1 rules x 3, FOMC and sell-in-May x 3 each, the
-    # Treasury auction cycle x 3, and the Fed-liquidity rule x 3 (a widely-circulated
-    # market meme with many variants).
-    prior_search_trials=42)
+    # Treasury auction cycle x 3, the Fed-liquidity rule x 3 (a widely-circulated market
+    # meme with many variants), and the lunar and geomagnetic effects x 3 each.
+    prior_search_trials=48)
 
 
 # ── closed-end-fund selection against the equal-weight universe ─────────────
