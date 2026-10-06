@@ -246,6 +246,16 @@ def run_backtest(df: pd.DataFrame,
     trade_returns = trades_df["return"]
     trade_returns.index = pd.to_datetime(trades_df["timestamp"])
 
+    # Gate rules v2 (iii): every trade marked to market at session closes, fixed notional,
+    # so the familywise gate can score trials on one daily grid. The direction is the
+    # entry signal that opened the trade.
+    from src.research import mark_to_market as _mtm
+    direction = df_trades["entry_signal"].reindex(pd.DatetimeIndex(trades_df["timestamp"]))
+    trade_marks = _mtm.trade_marks(trades_df.assign(direction=direction.to_numpy(dtype=float)),
+                                   df_trades)
+    sessions = _mtm.session_dates(df_trades.index).unique()
+    instrument_return = _mtm.bar_session_returns(df_trades).reindex(sessions)
+
     # Exit type breakdown
     if "exit_type" in trades_df.columns:
         exit_counts = trades_df["exit_type"].value_counts()
@@ -402,6 +412,9 @@ def run_backtest(df: pd.DataFrame,
         "equity_curve":    equity,
         "trade_returns":   trade_returns,
         "trades_df":       trades_df,
+        "trade_marks":     trade_marks,
+        "sessions":        sessions,
+        "instrument_return": instrument_return,
         "monthly_returns": monthly_returns,
         "backtest_mode":   backtest_mode,
         "slippage_pct":    slippage_pct,

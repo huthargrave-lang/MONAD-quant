@@ -174,6 +174,48 @@ class TestWriter(LedgerCase):
         self.assertIn("dirty", code)
 
 
+class TestNamedSeries(LedgerCase):
+    """ENGINE_VERSION 3 price trials record named daily series beside their trade returns
+    (gate rules v2 scores the mark-to-market basis). They share the run's bundle and its
+    verification; a row without them is unchanged."""
+
+    def test_named_series_round_trip_and_are_verified(self):
+        mtm, expo = _series(4, 1), _series(4, 2).abs()
+        with self.run_() as run:
+            run.begin(params={"k": 0}).complete(metrics={}, returns=_series(3, 0),
+                                                series={"mtm_pnl": mtm, "exposure": expo})
+            run.begin(params={"k": 1}).complete(metrics={}, returns=_series(3, 3))
+        path = self.only_shard()
+        self.assertTrue(trials.verify_shard(path).ok)
+        outcomes = [r for r in self.rows(path) if r["type"] == "outcome"]
+        self.assertEqual(sorted(outcomes[0]["series_shas"]), ["exposure", "mtm_pnl"])
+        self.assertNotIn("series_shas", outcomes[1])
+        recs = trials.iter_trials(self.dir)
+        self.assertEqual(recs[1].series_shas, {})
+        got = trials.load_series(recs, "mtm_pnl", ledger_dir=self.dir)
+        self.assertEqual(list(got), [recs[0].key])
+        np.testing.assert_allclose(got[recs[0].key].to_numpy(), mtm.to_numpy())
+        self.assertEqual(trials.load_series(recs, "absent", ledger_dir=self.dir), {})
+
+    def test_a_series_missing_from_the_bundle_is_caught(self):
+        with self.run_() as run:
+            run.begin(params={"k": 0}).complete(metrics={}, series={"mtm_pnl": _series(4, 1)})
+        path = self.only_shard()
+        bundle = next((self.dir / trials.ARTIFACTS).glob("*.json.gz"))
+        data = json.loads(gzip.decompress(bundle.read_bytes()))
+        inner = data["returns"] if "returns" in data else data
+        inner.clear()
+        bundle.write_bytes(gzip.compress(json.dumps(data).encode()))
+        self.assertFalse(trials.verify_shard(path).ok)
+
+    def test_a_series_name_must_be_an_identifier(self):
+        with self.run_() as run:
+            t = run.begin(params={"k": 0})
+            with self.assertRaises(LedgerError):
+                t.complete(metrics={}, series={"MTM pnl": _series(2)})
+            t.complete(metrics={})
+
+
 class TestTamperDetection(LedgerCase):
     def _make(self):
         with self.run_() as run:

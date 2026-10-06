@@ -521,7 +521,8 @@
         "tools/domain_search.py",
         "tools/forward_log.py",
         "tools/deflation_power_study.py",
-        "tools/spa_size_study.py"
+        "tools/spa_size_study.py",
+        "tools/spa_price_size_study.py"
       ],
       "entrypoints": [],
       "tests": [

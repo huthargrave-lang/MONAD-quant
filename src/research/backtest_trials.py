@@ -16,6 +16,10 @@ disagreeing about the same backtest.
   * a full result dict       — ``ok``, with the headline metrics and the per-trade
                                return series (indexed by trade timestamp), which
                                the significance kernel clusters for effective N.
+                               Under ENGINE_VERSION 3 the result also carries its
+                               trades' session marks, recorded as the named series
+                               ``mtm_pnl``, ``exposure`` and ``instrument_return``
+                               (gate rules v2 (iii)).
 """
 from __future__ import annotations
 
@@ -173,11 +177,39 @@ def scored_from(result: Mapping[str, Any] | None, evaluated_from) -> dict:
     series = (result or {}).get("trade_returns")
     if series is None or not len(series):
         return {"total_trades": 0}
-    scored = series[series.index >= pd.Timestamp(evaluated_from)]
+    cut = pd.Timestamp(evaluated_from)
+    scored = series[series.index >= cut]
     out = {"total_trades": int(len(scored)), "trade_returns": scored}
+    marks, sessions = (result or {}).get("trade_marks"), (result or {}).get("sessions")
+    if marks is not None and sessions is not None:
+        from src.research.mark_to_market import session_dates
+        cut_session = session_dates(pd.DatetimeIndex([cut]))[0]
+        out["trade_marks"] = marks[pd.DatetimeIndex(marks["trade"]) >= cut] if len(marks) else marks
+        out["sessions"] = pd.DatetimeIndex(sessions)[pd.DatetimeIndex(sessions) >= cut_session]
+        ir = (result or {}).get("instrument_return")
+        if ir is not None:
+            out["instrument_return"] = ir.reindex(out["sessions"])
     if len(scored):
         out["win_rate"] = float((scored > 0).mean())
     return out
+
+
+def daily_mtm_series(result: Mapping[str, Any]) -> dict | None:
+    """``{"mtm_pnl", "exposure", "instrument_return"}`` on the result's session grid (gate
+    rules v2 (iii)), or None when the engine did not mark its trades (pre-v3 results,
+    test stand-ins). The instrument's own daily return travels with the trial so the
+    gate and its verifier rebuild the active series from the ledger alone."""
+    marks, sessions = result.get("trade_marks"), result.get("sessions")
+    ir = result.get("instrument_return")
+    if marks is None or sessions is None or ir is None or not len(sessions):
+        return None
+    import pandas as pd
+
+    from src.research.mark_to_market import daily_series
+    idx = pd.DatetimeIndex(sessions)
+    pnl, exposure = daily_series(marks, idx)
+    return {"mtm_pnl": pnl, "exposure": exposure,
+            "instrument_return": ir.reindex(idx).fillna(0.0).astype(float)}
 
 
 def record_backtest(trial: Trial, result: Mapping[str, Any] | None, *,
@@ -194,12 +226,14 @@ def record_backtest(trial: Trial, result: Mapping[str, Any] | None, *,
     if evaluated_from is not None:
         result = scored_from(result, evaluated_from)
     returns = None
+    named = None
     if result:
         series = result.get("trade_returns")
         if series is not None and len(series):
             returns = series
+        named = daily_mtm_series(result)
     try:
-        trial.complete(metrics=backtest_metrics(result), returns=returns)
+        trial.complete(metrics=backtest_metrics(result), returns=returns, series=named)
     except LedgerError as exc:
         # A result the ledger cannot encode (a NaN trade return, an exotic type) is a
         # defect in the result, not a reason to lose the trial: it is still counted,
