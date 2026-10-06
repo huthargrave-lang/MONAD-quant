@@ -159,5 +159,26 @@ BDC = Domain(
     # there); BDC price-to-NAV is also a published screen: counted as 3.
     prior_search_trials=3)
 
-DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO, COUNTRY, BDC)}
+# ── insider purchase clusters against the small-cap index ────────────────────
+from src.research import insider_classes as _ins  # noqa: E402
+
+
+def _ins_load(data: Mapping) -> Context:
+    from src.research import insider_data
+    return Context(snap=daily_data.load_snapshot(data["snapshot"]),
+                   panel=_ins.InsiderEvents(sha=data["nav_panel"],
+                                            events=insider_data.load(data["nav_panel"])))
+
+
+INSIDER = Domain(
+    name="insider_cluster", reference=_ins.REFERENCE, eras=_ins.ERAS, load=_ins_load,
+    decide=lambda ctx, point: _ins.decide(ctx.snap, ctx.panel, point),
+    tiers=lambda ctx: _ins.tiers(ctx.snap, ctx.panel),
+    start=lambda ctx: _ins.scoring_start(ctx.snap, ctx.panel),
+    truncation=lambda ctx, point, cuts: _ins.truncation_violations(ctx.snap, ctx.panel, point, cuts),
+    grids=lambda: _ins.GRIDS,
+    # A published effect (Lakonishok-Lee; Cohen-Malloy-Pomorski): counted as 3.
+    prior_search_trials=3)
+
+DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO, COUNTRY, BDC, INSIDER)}
 
