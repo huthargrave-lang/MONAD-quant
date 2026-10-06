@@ -770,8 +770,12 @@ class TheRollupExclusionTests(unittest.TestCase):
             "doing what it says")
 
     def test_the_exclusion_list_has_not_run_away(self):
+        # 31 since 2026-10-06: docs/research/DAILY_STRATEGIES.md is a genuine roll-up (its
+        # results table cites 16 findings across five domains), correctly excluded. The
+        # cap guards against single-subject STUDIES being swallowed, which that is not.
+        self.assertIn("docs/research/DAILY_STRATEGIES.md", self.rollups)
         self.assertLessEqual(
-            len(self.rollups), 30,
+            len(self.rollups), 31,
             "{} files are now excluded as roll-ups — either the corpus changed shape or "
             "the cutoff is swallowing real studies".format(len(self.rollups)))
 
