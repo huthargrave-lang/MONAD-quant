@@ -128,23 +128,26 @@ TAGGED_SOURCE = "SEC XBRL frames + companyfacts (us-gaap NetAssetValuePerShare, 
 
 
 def write_panel(rows: list, report: dict, *, data_dir: Path | None = None,
-                source: str = TAGGED_SOURCE) -> str:
+                source: str = TAGGED_SOURCE, prefix: str = "BDCNAV",
+                universe_rule: str = "listed today, no SIC code, not in the CEFConnect universe") -> str:
+    """Write a NAV-per-share panel (BDC NAV, or any vehicle's per-share value with the same
+    schema: ticker, period_end, nav, filed, known) as ``<prefix>-<sha>``."""
     data = encode(rows)
     sha = hashlib.sha256(data).hexdigest()
     base = Path(data_dir) if data_dir is not None else DATA_DIR
-    path = base / f"BDCNAV-{sha}.csv.gz"
+    path = base / f"{prefix}-{sha}.csv.gz"
     if not path.exists():
         b = io.BytesIO()
         with gzip.GzipFile(fileobj=b, mode="wb", mtime=0, compresslevel=9) as gz:
             gz.write(data)
         _write_exclusive(path, b.getvalue())
     fetched = _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
-    man = base / f"BDCNAV-{sha}.json"
+    man = base / f"{prefix}-{sha}.json"
     if not man.exists():
         _write_exclusive(man, (canonical_json({
             "schema_version": 1, "sha": sha, "vintage": fetched[:10], "fetched_at": fetched,
             "source": source,
-            "universe_rule": "listed today, no SIC code, not in the CEFConnect universe",
+            "universe_rule": universe_rule,
             "survivorship": "listed today only", "known_lag_days": KNOWN_LAG_DAYS, **report})
             + "\n").encode("utf-8"))
     return sha
@@ -189,10 +192,10 @@ class BdcPanel:
         return pd.DataFrame(out)
 
 
-def load_panel(sha: str, *, data_dir: Path | None = None) -> BdcPanel:
+def load_panel(sha: str, *, data_dir: Path | None = None, prefix: str = "BDCNAV") -> BdcPanel:
     base = Path(data_dir) if data_dir is not None else DATA_DIR
-    data = gzip.decompress((base / f"BDCNAV-{sha}.csv.gz").read_bytes())
+    data = gzip.decompress((base / f"{prefix}-{sha}.csv.gz").read_bytes())
     if hashlib.sha256(data).hexdigest() != sha:
-        raise SnapshotError(f"BDCNAV-{sha[:12]} does not hash to its name")
+        raise SnapshotError(f"{prefix}-{sha[:12]} does not hash to its name")
     df = pd.read_csv(io.BytesIO(data), parse_dates=["period_end", "filed", "known"])
-    return BdcPanel(sha=sha, rows=df, manifest=json.loads((base / f"BDCNAV-{sha}.json").read_text()))
+    return BdcPanel(sha=sha, rows=df, manifest=json.loads((base / f"{prefix}-{sha}.json").read_text()))

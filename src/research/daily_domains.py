@@ -180,5 +180,26 @@ INSIDER = Domain(
     # A published effect (Lakonishok-Lee; Cohen-Malloy-Pomorski): counted as 3.
     prior_search_trials=3)
 
-DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO, COUNTRY, BDC, INSIDER)}
+# ── mortgage REIT book-value discount: a second disjoint test of the CEF mechanism ──
+from src.research import mreit_classes as _mreit  # noqa: E402
+
+
+def _mreit_load(data: Mapping) -> Context:
+    from src.research import bdc_data
+    return Context(snap=daily_data.load_snapshot(data["snapshot"]),
+                   panel=bdc_data.load_panel(data["nav_panel"], prefix=_mreit.PANEL_PREFIX))
+
+
+MREIT = Domain(
+    name="mreit_discount", reference=_mreit.REFERENCE, eras=_mreit.ERAS, load=_mreit_load,
+    decide=lambda ctx, point: _mreit.decide(ctx.snap, ctx.panel, point),
+    tiers=lambda ctx: _mreit.tiers(ctx.snap, ctx.panel),
+    start=lambda ctx: _mreit.scoring_start(ctx.snap, ctx.panel),
+    truncation=lambda ctx, point, cuts: _mreit.truncation_violations(ctx.snap, ctx.panel, point, cuts),
+    grids=lambda: _mreit.GRIDS,
+    # The CEF mechanism's second out-of-sample replication (docs/research/
+    # MREIT_DISCOUNT_TEST.md); mREIT price-to-book is a common screen: counted as 3.
+    prior_search_trials=3)
+
+DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO, COUNTRY, BDC, INSIDER, MREIT)}
 
