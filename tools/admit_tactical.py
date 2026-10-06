@@ -216,8 +216,12 @@ def evaluate(hypothesis: str, spec: dict, spec_hash: str, record: dict, *, now=N
     try:
         with trials.open_run(producer=PRODUCER, family=fam_name, hypothesis=hypothesis,
                              context={"spec_hash": spec_hash}) as run, \
-                trials.open_run(producer=PRODUCER, family=ref_name, hypothesis=hypothesis,
-                                context={"spec_hash": spec_hash, "role": "reference"}) as ref_run:
+                trials.open_run(producer=PRODUCER, family=ref_name,
+                                # Not hypothesis=: the ledger ties a hypothesis to its
+                                # registered family, and the benchmark has its own. The
+                                # link is recorded in the context instead.
+                                context={"spec_hash": spec_hash, "role": "reference",
+                                         "hypothesis": hypothesis}) as ref_run:
             for label, r, point in (("dev", run, candidate), ("dev_ref", ref_run, domain.reference)):
                 res[label] = _counted(r, domain, ctx, point, start=start, end=end,
                                       stage="admission:development")

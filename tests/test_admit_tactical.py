@@ -60,10 +60,15 @@ class TacticalGate(unittest.TestCase):
         self.ledger, self.prereg_dir, self.ref_dir = root / "ledger", root / "prereg", root / "ref"
         self.patch = mock.patch.object(trials, "LEDGER_DIR", self.ledger)
         self.patch.start()
+        # The ledger checks a hypothesis-linked run against the CANONICAL registration
+        # folder; point it here so the gate's runs are checked as they are in production.
+        self.prereg_patch = mock.patch.object(prereg, "PREREG_DIR", self.prereg_dir)
+        self.prereg_patch.start()
         self.search(CANDIDATE, *OTHERS)
 
     def tearDown(self):
         self.patch.stop()
+        self.prereg_patch.stop()
         self._tmp.cleanup()
 
     def search(self, *points, tamper=False):
@@ -140,6 +145,7 @@ class TacticalGate(unittest.TestCase):
 
     def test_a_recorded_trial_that_does_not_replay_fails_development(self):
         self.patch.stop()
+        self.prereg_patch.stop()
         self._tmp.cleanup()
         self.setUp_tampered()
         self.register()
@@ -155,6 +161,8 @@ class TacticalGate(unittest.TestCase):
         self.ledger, self.prereg_dir, self.ref_dir = root / "ledger", root / "prereg", root / "ref"
         self.patch = mock.patch.object(trials, "LEDGER_DIR", self.ledger)
         self.patch.start()
+        self.prereg_patch = mock.patch.object(prereg, "PREREG_DIR", self.prereg_dir)
+        self.prereg_patch.start()
         self.search(CANDIDATE, *OTHERS, tamper=True)
 
     def test_the_overlap_check_refuses_forward_data_from_another_market(self):
