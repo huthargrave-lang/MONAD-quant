@@ -3995,3 +3995,21 @@ Threats to test:
 Falsified by: tools/admit.py REJECT at any relative stage, or the 365-day forward window.
 Links: [[H404701|refines]].
 _— captured claude/monetizing-repositories-03e341@72c289a, 2026-10-05_
+
+### F404709 — Crypto trend-following beats a 50% BTC blend only by holding more BTC: vol-matched it is null (SPA p 0.14-0.23); not registered
+New domain crypto_trend (atlas idea C091), frozen before any return was examined. BTC 100% while its total-return index is above its N-day SMA (N = 50/100/200/365), else T-bills, traded at the next daily close, 25 bps one-way. The benchmark is a static 50% BTC / 50% cash blend in 30 tranches. Snapshot DS-d063980c (BTC-USD 2014-09-17..2026-10-04, continuous calendar, UTC dates).
+
+On the DECLARED test the filters win:
+- active Sharpe +0.72 to +0.83;
+- SPA family p 0.003-0.010;
+- active DSR 0.999.
+
+But the win is EXPOSURE, not timing:
+- The filters average 58-71% BTC against the blend's 50%, with beta 1.1-1.5 to it, in an asset that compounded ~54%/yr.
+- The vol-matched active Sharpe (positive iff the strategy's Sharpe beats the blend's) is only +0.14 to +0.30, SPA p 0.14-0.23. Not significant.
+- Drawdowns are WORSE than the blend (-63% to -68% vs -55%): the filter exits crashes late and re-enters at full size.
+- The effect is concentrated in 2015-17 (era active Sharpe +1.5 to +2.2), falling to +0.2 to +0.9 afterwards.
+
+The 50% benchmark was a design error: a static benchmark must match exposure. Not registered. The tool now prints exposure and the vol-matched Sharpe for every point, so this failure mode is visible at once.
+Links: [[F404704|relates]].
+_— captured claude/monetizing-repositories-03e341@020765c, 2026-10-06_
