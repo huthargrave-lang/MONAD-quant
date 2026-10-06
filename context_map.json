@@ -996,6 +996,60 @@
         "restating in the page a table or rule that tools/ already defines",
         "reading a scenario quantity from anywhere but the resolver and the emitted derivation"
       ]
+    },
+    {
+      "keywords": [
+        "daily strategy",
+        "daily search",
+        "domain search",
+        "cef",
+        "closed-end fund",
+        "closed end fund",
+        "discount",
+        "nav",
+        "bdc",
+        "business development",
+        "snapshot",
+        "tactical allocation",
+        "forward log",
+        "forward window",
+        "picks",
+        "60/40",
+        "static blend",
+        "tilt",
+        "tranche",
+        "hysteresis",
+        "fomc",
+        "auction",
+        "liquidity",
+        "lunar",
+        "geomagnetic",
+        "crypto trend",
+        "country etf",
+        "month-end",
+        "turn of month",
+        "overnight drift",
+        "dual momentum",
+        "tsmom"
+      ],
+      "read": [
+        "docs/research/DAILY_STRATEGIES.md",
+        "src/research/daily_domains.py",
+        "src/research/daily_strategy.py",
+        "src/research/allocation_stats.py",
+        "src/research/cef_classes.py",
+        "src/research/daily_classes.py"
+      ],
+      "run": [
+        "venv/bin/python tools/domain_search.py <domain> --snapshot <sha> --report-only",
+        "venv/bin/python tools/cef_picks.py H404702",
+        "venv/bin/python tools/forward_log.py H404702 --verify",
+        "venv/bin/python -m pytest tests/test_daily_strategy.py tests/test_daily_classes.py tests/test_cef.py tests/test_allocation_stats.py"
+      ],
+      "avoid": [
+        "running any new grid in a family holding a live registered hypothesis (F404708)",
+        "tuning a frozen grid after seeing its results"
+      ]
     }
   ],
   "coverage_allowlist": {
