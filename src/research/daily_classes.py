@@ -2,7 +2,8 @@
 MONAD Quant — Daily strategy classes and their frozen search grid (family ``daily_alloc.v1``).
 
 Four classic daily rules the research web had never tested (the 2026-10-05 search), plus
-the trend filter they are usually compared with. Every choice that could be tuned is
+the trend filter they are usually compared with (``grid``: 27 points); and, run after that
+search came back null, calendar tilts on the 60/40 (``event_grid``: 4 points). Every choice that could be tuned is
 fixed HERE, before any trial runs, so the grid below is the whole search and the trial
 ledger can count it: lookbacks, skip-month, volatility windows, rebalance cadence,
 tranche offsets, universes, and window edges.
@@ -207,6 +208,87 @@ def sma(snap: Snapshot, params: Mapping, rets: SessionReturns | None = None) -> 
     return _tranches_from(lambda days: w.loc[days].dropna(how="all"), snap.dates)
 
 
+# ── event tilts on the 60/40 (the 2026-10-05 second search) ─────────────────
+BASE_6040 = {"SPY": 0.6, "IEF": 0.4}
+
+
+def _tilted_tranches(snap: Snapshot, holds: pd.DatetimeIndex, tilt: Mapping[str, float]) -> list[Tranche]:
+    """The 21-tranche 60/40 with ``tilt`` held over each session in ``holds`` (close to
+    close). A tilt is entered at the close before its first held session and left at the
+    close of its last; both are decided a session earlier, from the calendar. A base
+    rebalance that would execute at the open of a held session executes to the tilt
+    instead, so the base never interrupts a tilt halfway through a session."""
+    dates = snap.dates
+    held = pd.Series(False, index=dates)
+    held.loc[holds.intersection(dates)] = True
+    h = held.to_numpy()
+    enter = np.flatnonzero(h & ~np.r_[False, h[:-1]]) - 1          # close before a run of held sessions
+    leave = np.flatnonzero(h & ~np.r_[h[1:], False])                 # close of the run's last session
+    cols = sorted(set(BASE_6040) | set(tilt))
+    close_rows, close_idx = [], []
+    for p in sorted(set(enter) | set(leave)):
+        if p < 1:
+            continue
+        target = tilt if p in set(enter) else BASE_6040
+        close_rows.append({c: target.get(c, 0.0) for c in cols})
+        close_idx.append(dates[p - 1])
+    close_orders = pd.DataFrame(close_rows, index=pd.DatetimeIndex(close_idx), columns=cols)
+    out = []
+    for tr in reference_6040(snap):
+        base = tr.open_orders.reindex(columns=cols).fillna(0.0)
+        exec_pos = dates.get_indexer(base.index) + 1
+        inside = np.array([p < len(dates) and h[p] for p in exec_pos])
+        for c in cols:
+            base.loc[inside, c] = tilt.get(c, 0.0)
+        out.append(Tranche(open_orders=base, close_orders=close_orders))
+    return out
+
+
+def fomc_tilt(snap: Snapshot, params: Mapping, rets: SessionReturns | None = None) -> list[Tranche]:
+    """Pre-FOMC drift (Lucca & Moench 2015) as a tilt: the 60/40, but 100% SPY over the
+    scheduled announcement session ("day") or the session before it as well
+    ("pre_and_day"). Scheduled dates only (src/research/fomc_calendar.py): they are
+    published a year ahead; unscheduled meetings are surprises."""
+    from src.research.fomc_calendar import announcements
+
+    days = pd.DatetimeIndex([pd.Timestamp(d) for d in announcements()])
+    sessions = days.intersection(snap.dates)
+    if params["window"] == "day":
+        holds = sessions
+    elif params["window"] == "pre_and_day":
+        pos = snap.dates.get_indexer(sessions)
+        holds = sessions.union(snap.dates[pos[pos > 0] - 1])
+    else:
+        raise ValueError(f"unknown FOMC window {params['window']!r}")
+    return _tilted_tranches(snap, holds, {"SPY": 1.0})
+
+
+def halloween(snap: Snapshot, params: Mapping, rets: SessionReturns | None = None) -> list[Tranche]:
+    """"Sell in May" (Bouman & Jacobsen 2002) as a tilt: SPY 60+t / IEF 40-t over November
+    to April and SPY 60-t / IEF 40+t over May to October, by the month of the EXECUTION
+    session; 21 tranches rebalancing every 21 sessions, plus a rebalance at each season
+    change so a tranche does not carry the wrong season for up to a month."""
+    t = float(params["tilt"])
+    if not 0 < t <= 0.4:
+        raise ValueError("halloween tilt must be in (0, 0.4]")
+    dates = snap.dates
+    winter = pd.Series(dates.month.isin([11, 12, 1, 2, 3, 4]), index=dates)
+    target = pd.DataFrame({"SPY": np.where(winter, 0.6 + t, 0.6 - t),
+                           "IEF": np.where(winter, 0.4 - t, 0.4 + t)}, index=dates)
+    # Orders are keyed by decision date and execute at the next session: shift the
+    # season back one session so each order targets its EXECUTION session's season.
+    by_decision = target.shift(-1).dropna()
+    change = winter.ne(winter.shift(1)).to_numpy().copy()
+    change[0] = False
+    change_decisions = dates[np.flatnonzero(change) - 1]
+    out = []
+    for off in OFFSETS:
+        days = _monthly_decisions(dates, off).union(change_decisions)
+        out.append(Tranche(open_orders=by_decision.loc[by_decision.index.intersection(days)],
+                           close_orders=pd.DataFrame()))
+    return out
+
+
 def reference_6040(snap: Snapshot, params: Mapping | None = None,
                    rets: SessionReturns | None = None) -> list[Tranche]:
     """The static 60/40 bar: SPY/IEF, every 21 sessions, 21 tranches."""
@@ -214,7 +296,8 @@ def reference_6040(snap: Snapshot, params: Mapping | None = None,
 
 
 CLASSES: dict[str, Callable] = {"tsmom": tsmom, "dualmom": dualmom, "tom": tom,
-                                "overnight": overnight, "sma": sma}
+                                "overnight": overnight, "sma": sma, "fomc_tilt": fomc_tilt,
+                                "halloween": halloween}
 REFERENCE = {"class": "static_6040", "params": {"weights": {"SPY": 0.6, "IEF": 0.4},
                                                 "every": MONTH, "tranches": len(OFFSETS)}}
 
@@ -236,6 +319,16 @@ def grid() -> list[dict]:
     return points
 
 
+def event_grid() -> list[dict]:
+    """The second search (2026-10-05, after the first came back null), frozen before it
+    ran: 4 points. Calendar tilts on the 60/40, so the comparison isolates the tilt."""
+    return ([{"class": "fomc_tilt", "params": {"window": w}} for w in ("day", "pre_and_day")]
+            + [{"class": "halloween", "params": {"tilt": t}} for t in (0.2, 0.4)])
+
+
+GRIDS: dict[str, Callable[[], list]] = {"v1": grid, "events": event_grid}
+
+
 def assets_used(point: Mapping) -> tuple:
     cls, p = point["class"], point["params"]
     if cls == "tsmom":
@@ -248,7 +341,7 @@ def assets_used(point: Mapping) -> tuple:
         return (p["asset"],)
     if cls == "sma":
         return ("SPY", "IEF")
-    if cls == "static_6040":
+    if cls in ("static_6040", "fomc_tilt", "halloween"):
         return ("SPY", "IEF")
     raise ValueError(f"unknown class {cls!r}")
 

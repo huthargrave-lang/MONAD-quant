@@ -14,7 +14,8 @@ The report reads the ledger afterwards, so what it prints is what was recorded:
   * familywise: Hansen's SPA over all 27 active series at mean blocks 20/63/126;
   * the best point's DSR on its active series, N = effective trials + declared prior.
 
-  venv/bin/python tools/daily_search.py --snapshot <sha>            # run + report
+  venv/bin/python tools/daily_search.py --snapshot <sha>            # run the v1 grid + report
+  venv/bin/python tools/daily_search.py --snapshot <sha> --grid events
   venv/bin/python tools/daily_search.py --snapshot <sha> --report-only
 """
 from __future__ import annotations
@@ -43,29 +44,44 @@ from src.research.daily_trials import (DAILY_FAMILY, REFERENCE_FAMILY, daily_dat
 #:     bar (F34-F49: blends, ballast, TIPS, gold, income ETFs, vol-targeting, risk parity);
 #:   * the five rules here are famous BECAUSE they worked in published samples: each is
 #:     counted as the survivor of 3 published variants (15).
-PRIOR_SEARCH_TRIALS = 30
+#:   * 2026-10-05, before the event grid ran: its two rules (pre-FOMC drift, sell-in-May)
+#:     are famous survivors too, 3 variants each (+6). The constant only ever grows, and
+#:     every deflation in the family uses the current value, so earlier hypotheses are
+#:     judged against the larger search as well.
+PRIOR_SEARCH_TRIALS = 36
 
 
 def scoring_window(snap) -> tuple[pd.Timestamp, pd.Timestamp]:
-    assets = sorted({a for p in dc.grid() for a in dc.assets_used(p)}
+    """One window for every grid, so every family member's active series covers the same
+    sessions (the familywise test requires it)."""
+    assets = sorted({a for g in dc.GRIDS.values() for p in g() for a in dc.assets_used(p)}
                     | set(dc.assets_used(dc.REFERENCE)))
     return daily_data.common_start(snap, assets, dc.WARMUP_SESSIONS), snap.dates[-1]
 
 
-def run_search(snap) -> tuple[str, str]:
+def _has_reference(snap, start, end) -> bool:
+    return bool(_latest(family_members(trials.iter_trials(), REFERENCE_FAMILY), snap.sha, start, end))
+
+
+def run_search(snap, grid_name: str) -> tuple[str | None, str]:
+    """Run one frozen grid. The reference is recorded once per snapshot and window."""
     start, end = scoring_window(snap)
     rets = snap.returns()
     data = daily_data_spec(snap.sha, start, end)
-    with trials.open_run(producer="tools/daily_search.py", family=REFERENCE_FAMILY,
-                         context={"snapshot": snap.sha, "role": "reference"}) as ref_run:
-        t = ref_run.begin(params=daily_spec(dc.REFERENCE), data=data)
-        result = evaluate_daily(dc.decide(snap, dc.REFERENCE, rets), snap, start=start, end=end,
-                                rets=rets)
-        record_daily(t, result)
+    ref_id = None
+    if not _has_reference(snap, start, end):
+        with trials.open_run(producer="tools/daily_search.py", family=REFERENCE_FAMILY,
+                             context={"snapshot": snap.sha, "role": "reference"}) as ref_run:
+            t = ref_run.begin(params=daily_spec(dc.REFERENCE), data=data)
+            result = evaluate_daily(dc.decide(snap, dc.REFERENCE, rets), snap, start=start,
+                                    end=end, rets=rets)
+            record_daily(t, result)
+        ref_id = ref_run.run_id
+    points = dc.GRIDS[grid_name]()
     with trials.open_run(producer="tools/daily_search.py", family=DAILY_FAMILY,
-                         context={"snapshot": snap.sha, "grid_size": len(dc.grid()),
+                         context={"snapshot": snap.sha, "grid": grid_name, "grid_size": len(points),
                                   "prior_search_trials": PRIOR_SEARCH_TRIALS}) as run:
-        for point in dc.grid():
+        for point in points:
             t = run.begin(params=daily_spec(point), data=data)
             try:
                 tranches = dc.decide(snap, point, rets)
@@ -74,7 +90,7 @@ def run_search(snap) -> tuple[str, str]:
                 t.fail(f"{type(exc).__name__}: {exc}")
                 continue
             record_daily(t, result)
-    return ref_run.run_id, run.run_id
+    return ref_id, run.run_id
 
 
 def _latest(records, snap_sha, start, end, *, cost_multiple=1.0):
@@ -145,13 +161,15 @@ def json_point(lab: str) -> dict:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--snapshot", required=True, help="DS sha (docs/research/data/DS-<sha>.csv.gz)")
+    ap.add_argument("--grid", choices=sorted(dc.GRIDS), default="v1",
+                    help="which frozen grid to run (the report always covers the whole family)")
     ap.add_argument("--report-only", action="store_true", help="do not run trials; report the ledger")
     ap.add_argument("--json", help="also write the report as JSON to this path")
     args = ap.parse_args(argv)
     snap = daily_data.load_snapshot(args.snapshot)
     if not args.report_only:
-        ref_id, run_id = run_search(snap)
-        print(f"ledger: reference {ref_id}, search {run_id}")
+        ref_id, run_id = run_search(snap, args.grid)
+        print(f"ledger: reference {ref_id or '(already recorded)'}, search {run_id}")
     rep = report(snap)
     ref = rep["reference"]
     print(f"\nwindow {rep['window'][0]}..{rep['window'][1]}  snapshot {rep['snapshot'][:12]}")

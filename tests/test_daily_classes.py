@@ -45,6 +45,10 @@ class TheGrid(unittest.TestCase):
             counts[p["class"]] = counts.get(p["class"], 0) + 1
         self.assertEqual(counts, {"tsmom": 12, "dualmom": 4, "tom": 4, "overnight": 3, "sma": 4})
 
+    def test_the_event_grid_is_frozen_at_4_points(self):
+        self.assertEqual([p["class"] for p in dc.event_grid()],
+                         ["fomc_tilt", "fomc_tilt", "halloween", "halloween"])
+
     def test_warmup_covers_the_longest_lookback(self):
         self.assertEqual(dc.WARMUP_SESSIONS, 13 * dc.MONTH + dc.VOL_WINDOW)
 
@@ -56,7 +60,7 @@ class TruncationInvariance(unittest.TestCase):
         cls.cuts = [cls.snap.dates[i] for i in (400, 523, 650, 777, 898)]
 
     def test_every_grid_point_is_truncation_invariant(self):
-        for point in dc.grid() + [dc.REFERENCE]:
+        for point in dc.grid() + dc.event_grid() + [dc.REFERENCE]:
             with self.subTest(point=point):
                 self.assertEqual(stats.truncation_violations(self.snap, point, self.cuts), [])
 
@@ -114,3 +118,39 @@ class TotalReturnIndex(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EventTilts(unittest.TestCase):
+    def test_fomc_tilt_holds_spy_exactly_over_announcement_sessions(self):
+        from src.research.fomc_calendar import announcements
+        snap = synthetic(n=900)
+        trs = dc.fomc_tilt(snap, {"window": "day"})
+        days = pd.DatetimeIndex([pd.Timestamp(d) for d in announcements()]).intersection(snap.dates)
+        self.assertGreater(len(days), 20)
+        orders = trs[0].close_orders
+        dates = snap.dates
+        execs = {dates[dates.get_loc(d) + 1]: row["SPY"] for d, row in orders.iterrows()}
+        for a in days:
+            p = dates.get_loc(a)
+            if p < 2:
+                continue
+            self.assertEqual(execs.get(dates[p - 1]), 1.0, f"enter at the close before {a.date()}")
+            self.assertEqual(execs.get(a), 0.6, f"leave at the close of {a.date()}")
+
+    def test_a_base_rebalance_inside_a_tilt_executes_to_the_tilt(self):
+        from src.research.fomc_calendar import announcements
+        snap = synthetic(n=900)
+        days = set(pd.DatetimeIndex([pd.Timestamp(d) for d in announcements()]))
+        for tr in dc.fomc_tilt(snap, {"window": "day"}):
+            for d, row in tr.open_orders.iterrows():
+                p = snap.dates.get_loc(d) + 1
+                if p < len(snap.dates) and snap.dates[p] in days:
+                    self.assertEqual((row["SPY"], row["IEF"]), (1.0, 0.0))
+
+    def test_halloween_targets_the_execution_sessions_season(self):
+        snap = synthetic(n=900)
+        for tr in dc.halloween(snap, {"tilt": 0.2}):
+            for d, row in tr.open_orders.iterrows():
+                p = snap.dates.get_loc(d) + 1
+                winter = snap.dates[p].month in (11, 12, 1, 2, 3, 4)
+                self.assertAlmostEqual(row["SPY"], 0.8 if winter else 0.4)
