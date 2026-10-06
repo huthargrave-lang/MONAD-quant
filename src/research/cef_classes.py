@@ -289,7 +289,13 @@ def banded(snap: Snapshot, panel: NavPanel, point: Mapping) -> list[Tranche]:
     return out
 
 
-GRIDS = {"v1": grid, "taxloss": taxloss_grid, "banded": banded_grid}
+def preperiod_grid() -> list[dict]:
+    """H404702's frozen rule ALONE, for its pre-registered pre-period test on 1998-2003 data
+    (docs/research/H404702_PREPERIOD_TEST.md). One point: the test re-chooses nothing."""
+    return [{"class": "cef_banded", "params": {"signal": "z52_cat", "exit": 0.5}}]
+
+
+GRIDS = {"v1": grid, "taxloss": taxloss_grid, "banded": banded_grid, "preperiod": preperiod_grid}
 
 
 def tiers(snap: Snapshot, panel: NavPanel) -> dict:
