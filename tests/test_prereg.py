@@ -32,8 +32,11 @@ SPEC = {
     # test_a_development_window_the_gate_could_not_refetch_is_refused).
     "development_window": {"start": (dt.date.today() - dt.timedelta(days=300)).isoformat(),
                            "end": (dt.date.today() - dt.timedelta(days=1)).isoformat()},
-    "metric": "deflated_sharpe",
+    "metric": "familywise_spa",
     "threshold": 0.95,
+    "gate_rules": 2,
+    "familywise_alpha": 0.05,
+    "prior_search_trials": 0,
     "min_trades": 30,
     "holdout": {"kind": "forward_paper", "min_days": 180, "min_trades": 30, "min_psr": 0.9},
     "cost_model": {"round_trip_cost_pct": 0.0007},

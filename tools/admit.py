@@ -379,8 +379,25 @@ def evaluate(hypothesis: str, *, now: _dt.datetime | None = None,
                         f"{n_dev} trades (need {spec['min_trades']})",
                         {"trial": dev_key, "total_return": dev.get("total_return") if dev else None}))
 
-    # ── deflation ───────────────────────────────────────────────────────────
-    if dev and n_dev >= 2:
+    # ── deflation (v1 gate) / diagnostic + familywise (v2) ──────────────────
+    rules = prereg.gate_rules(spec)
+    record["gate_rules"] = rules
+    if rules == 2:
+        # Gate rules v2 (decision debate 2026-10-06): the DSR is a diagnostic, and the
+        # price profile's familywise stage stays BLOCKED until its trigger study passes
+        # on the mark-to-market active basis (DEFLATION_RULE_QUESTION.md (iii), (vi)).
+        try:
+            d = deflation.deflate_candidate(dev_key, exclude_producers=("tools/admit.py",)) if dev else None
+            stages.append(Stage("deflation_diagnostic", SKIP,
+                                (f"DSR {d.result.dsr:.4f} (diagnostic only under gate rules v2)"
+                                 if d else "no development result"),
+                                {"dsr": d.result.dsr if d else None}))
+        except (ValueError, trials.LedgerError) as exc:
+            stages.append(Stage("deflation_diagnostic", SKIP, f"not computable: {exc}"))
+        stages.append(Stage("familywise", BLOCK, "v2 price chain not ratified: the familywise "
+                            "SPA on mark-to-market active PnL awaits its measured trigger "
+                            "(docs/research/DEFLATION_RULE_QUESTION.md (vi))"))
+    elif dev and n_dev >= 2:
         try:
             d = deflation.deflate_candidate(dev_key, exclude_producers=("tools/admit.py",))
             ok = d.result.dsr >= spec["threshold"] and d.moments.n_obs >= MIN_DSR_OBS
@@ -506,12 +523,32 @@ def verify_record(record: dict, *, prereg_dir=None, deploy_ref: str | None = Non
             head = __import__("json").loads(path.read_bytes().split(b"\n", 1)[0])
     if record.get("verdict") == ADMIT:
         tactical = record.get("profile") == "tactical_allocation"
+        try:
+            spec, current = prereg.load(record.get("hypothesis", ""), prereg_dir=prereg_dir)
+            if current != record.get("spec_hash"):
+                problems.append("the registration no longer matches the admitted spec")
+        except prereg.PreregError as exc:
+            spec = None
+            problems.append(f"registration: {exc}")
+        # The chain follows the gate rules of the hash-verified registration, never the
+        # record's own claim (decision debate 2026-10-06, Q2 (v)).
+        rules = prereg.gate_rules(spec) if spec is not None else None
+        if rules is not None and record.get("gate_rules", 1) != rules:
+            problems.append(f"the record claims gate rules {record.get('gate_rules')} but its "
+                            f"registration is under rules {rules}")
         if tactical:
             import admit_tactical
-            chain = admit_tactical.ADMIT_CHAIN
+            chain = admit_tactical.admit_chain(rules or 1)
+        elif rules == 2:
+            chain = None
+            problems.append("no price-profile ADMIT exists under gate rules v2: its familywise "
+                            "stage is not ratified")
         else:
             chain = ADMIT_CHAIN
-        if tuple(s.name for s in stages) != chain or any(s.outcome != PASS for s in stages):
+        allowed = lambda s: s.outcome == PASS or (rules == 2 and s.name == "deflation_diagnostic"  # noqa: E731
+                                                   and s.outcome == SKIP)
+        if chain is not None and (tuple(s.name for s in stages) != chain
+                                  or not all(allowed(s) for s in stages)):
             problems.append("an ADMIT must pass exactly the full stage chain")
         if head is None:
             problems.append("an ADMIT must name the gate's ledger run")
@@ -522,13 +559,6 @@ def verify_record(record: dict, *, prereg_dir=None, deploy_ref: str | None = Non
                 problems.append("the named ledger run is for another hypothesis")
             if (head.get("context") or {}).get("spec_hash") != record.get("spec_hash"):
                 problems.append("the named ledger run evaluated a different spec")
-        try:
-            spec, current = prereg.load(record.get("hypothesis", ""), prereg_dir=prereg_dir)
-            if current != record.get("spec_hash"):
-                problems.append("the registration no longer matches the admitted spec")
-        except prereg.PreregError as exc:
-            spec = None
-            problems.append(f"registration: {exc}")
         if head is not None and not problems:
             problems += (admit_tactical.verify_evidence(record, head, spec) if tactical
                          else _verify_admit_evidence(record, head, spec))

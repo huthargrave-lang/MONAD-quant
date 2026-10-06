@@ -22,6 +22,7 @@ sys.path.insert(0, str(REPO / "tools"))
 import admit_tactical  # noqa: E402
 
 from src.research import daily_classes as dc  # noqa: E402
+from tests._v1_registration import register_v1  # noqa: E402
 from src.research import prereg, refutations, trials  # noqa: E402
 from src.research.daily_data import Snapshot  # noqa: E402
 from src.research.daily_domains import ETF, Context  # noqa: E402
@@ -85,7 +86,7 @@ class TacticalGate(unittest.TestCase):
                     r.returns = r.returns + 1e-4
                 record_daily(t, r)
 
-    def register(self, candidate=CANDIDATE, min_days=180):
+    def register(self, candidate=CANDIDATE, min_days=180, rules=1):
         spec = {"hypothesis": "H9", "family": DAILY_FAMILY, "profile": "tactical_allocation",
                 "claim": "a trend filter beats the static 60/40 after the search",
                 "universe": ["SPY", "IEF"],
@@ -97,8 +98,12 @@ class TacticalGate(unittest.TestCase):
                 "params": {"domain": "etf_alloc", "candidate": candidate, "data": {"snapshot": SHA},
                            "eras": [["start", "2012-12-31"], ["2013-01-01", "end"]],
                            "min_years": 10, "familywise_alpha": 0.05, "prior_search_trials": 3}}
-        prereg.register(spec, prereg_dir=self.prereg_dir, check_web=False,
-                        now=(self.end + pd.Timedelta(days=1)).isoformat() + "Z")
+        at = (self.end + pd.Timedelta(days=1)).isoformat() + "Z"
+        if rules == 2:
+            spec = {**spec, "metric": "familywise_spa", "gate_rules": 2}
+            prereg.register(spec, prereg_dir=self.prereg_dir, check_web=False, now=at)
+        else:
+            register_v1(self, spec, prereg_dir=self.prereg_dir, check_web=False, now=at)
         refutations.object_to("H9", claim="the window is too short to judge", evidence="tests: a synthetic market of twelve years",
                               by="refuter", directory=self.ref_dir)
         refutations.resolve("H9", "O1", outcome="refuted", evidence="ten years cover it",
@@ -164,6 +169,63 @@ class TacticalGate(unittest.TestCase):
         self.prereg_patch = mock.patch.object(prereg, "PREREG_DIR", self.prereg_dir)
         self.prereg_patch.start()
         self.search(CANDIDATE, *OTHERS, tamper=True)
+
+    def gate_v2(self):
+        self.register(rules=2)
+        now = dt.datetime.combine(self.end.date() + dt.timedelta(days=30), dt.time(), dt.timezone.utc)
+        rec = self.run_gate(now)
+        path = trials.LEDGER_DIR / f"{rec['ledger_run']}.jsonl"
+        head = json.loads(path.read_bytes().split(b"\n", 1)[0])
+        spec, _ = prereg.load("H9", prereg_dir=self.prereg_dir)
+        return rec, head, spec
+
+    def test_gate_rules_v2_skips_the_dsr_and_gates_on_the_charged_familywise_spa(self):
+        rec, _, _ = self.gate_v2()
+        self.assertEqual(rec["gate_rules"], 2)
+        self.assertEqual(tuple(s["name"] for s in rec["stages"]), admit_tactical.ADMIT_CHAIN_V2)
+        by = {s["name"]: s for s in rec["stages"]}
+        self.assertEqual(by["deflation_diagnostic"]["outcome"], "skip")
+        self.assertIn("dsr", by["deflation_diagnostic"]["data"])
+        fw = by["familywise"]["data"]
+        # three declared prior trials; every searched point is in the matrix
+        self.assertEqual(fw["m_parts"], {"prior_search_trials": 3, "unknown_specs": 0,
+                                         "off_window_points": 0})
+        self.assertEqual(fw["m"], 3)
+        self.assertAlmostEqual(fw["p_gate"], min(1.0, fw["worst_p"] * 4), places=12)
+        self.assertEqual(by["familywise"]["outcome"], "pass" if fw["p_gate"] <= 0.05 else "fail")
+
+    def test_the_v2_verifier_recomputes_the_familywise_gate_from_the_ledger(self):
+        rec, head, spec = self.gate_v2()
+        load = lambda data: self.ctx  # noqa: E731
+        fw = next(s for s in rec["stages"] if s["name"] == "familywise")
+        clears = fw["data"]["p_gate"] <= 0.05
+        problems = admit_tactical._verify_familywise(rec, head, spec, trials.iter_trials(), load_context=load)
+        self.assertEqual(bool(problems), not clears, problems)
+        # A search after the gate ran is not what the gate saw: the recomputation ignores it.
+        self.search({"class": "sma", "params": {"sma_sessions": 100, "off": "cash"}})
+        again = admit_tactical._verify_familywise(rec, head, spec, trials.iter_trials(), load_context=load)
+        self.assertEqual(again, problems)
+        # A record whose p_gate was edited no longer reproduces.
+        forged = json.loads(json.dumps(rec))
+        for s in forged["stages"]:
+            if s["name"] == "familywise":
+                s["data"]["p_gate"] = 0.001
+        bad = admit_tactical._verify_familywise(forged, head, spec, trials.iter_trials(), load_context=load)
+        self.assertTrue(any("does not match" in p for p in bad), bad)
+
+    def test_the_v2_switch_rests_on_a_passing_trigger_study(self):
+        """Decision debate 2026-10-06, Q2 (vi): the tactical profile runs under gate rules
+        v2 because the committed size study meets the trigger."""
+        study = json.loads((REPO / "docs" / "research" / "spa_size_study.json").read_text())
+        self.assertEqual(study["alpha"], 0.05)
+        self.assertGreaterEqual(study["n_boot"], 1000)
+        self.assertTrue(study["size"])
+        for row in study["size"]:
+            self.assertEqual(row["true_active_sharpe"], 0.0)
+            self.assertGreaterEqual(row["reps"], 1000)
+            self.assertLessEqual(row["wilson_upper"], study["trigger"], row)
+        self.assertTrue(any(r["withheld_m"] > 0 for r in study["size"]))
+        self.assertLessEqual(study["trigger"], 0.075)
 
     def test_the_overlap_check_refuses_forward_data_from_another_market(self):
         other = market(seed=99)

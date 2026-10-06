@@ -63,8 +63,11 @@ MIN_FORWARD_DAYS_FLOOR = 180
 #:
 #: Real power is LOWER: the stage applies skew/kurtosis corrections to a zero-filled
 #: business-day grid that starts at the first trade. The joint false-positive rate with
-#: the development gate (DSR >= 0.95) is ~0.05 x 0.10 = 0.5%, IF the development trial
-#: count is complete (the runtime trial token exists to make it so). Several forward
+#: the development gate is ~alpha x 0.10: under gate rules v2 the familywise SPA at
+#: familywise_alpha <= 0.05 with its (1+m) charge (measured size <= 5.3%,
+#: docs/research/spa_size_study.json), so <= ~0.5%. That holds IF the development trial
+#: count is complete (the runtime trial token exists to make it so). The v1 DSR >= 0.95
+#: gate this figure was first written for is miscalibrated (F404718). Several forward
 #: candidates in one family get no multiple-testing correction: recorded as future work.
 #: tests/test_admit.py pins the pass rates with a seeded Monte Carlo through the gate's
 #: own forward scoring (admit.forward_psr). A registration may demand more, never less.
@@ -85,6 +88,29 @@ PROFILE_METRICS = {
     "tactical_allocation": {"active_deflated_sharpe"},
 }
 METRICS = set().union(*PROFILE_METRICS.values())
+
+# ── gate rules versions (decision debate 2026-10-06, DEFLATION_RULE_QUESTION.md) ──
+#: v2: the familywise SPA (with the (1+m) union-bound charge for unseen, unknown and
+#: off-window members) gates; the Deflated Sharpe is a non-gating diagnostic, and
+#: ``threshold`` is its diagnostic level. Every new registration declares gate_rules 2.
+GATE_RULES_CURRENT = 2
+V2_METRIC = "familywise_spa"
+#: Registrations frozen before gate rules v2, judged by v1 forever, keyed by their exact
+#: spec hash so no other registration (a backdated one on some branch included) can claim
+#: v1. Nothing is rescued by the change: H404701 stays REJECT-bound under v1.
+GATE_RULES_V1_ALLOWLIST = {
+    "H404700": "e691c4e76ca1d81d327d6b99257bfbf8dc176a438da096049fb1fe93430fb62c",
+    "H404701": "7208f9d6d3b3ed6819312b0752f9011608e8489def0e90c54181f9d34f23a2e6",
+    "H404702": "8a26a748ad59f3db1bdf1b770a76fd32c26d406f2c301445da0ca9efa6db9255",
+}
+OPTIONAL_TOP_LEVEL = ("params", "notes", "gate_rules", "familywise_alpha", "prior_search_trials")
+
+
+def gate_rules(record: Mapping[str, Any]) -> int:
+    """The rules version a loaded registration is judged by."""
+    return int(record.get("gate_rules", 1))
+
+
 #: tactical_allocation floors. A familywise test may be stricter than 5%, never looser;
 #: a development window shorter than a decade cannot see a full rate or credit cycle.
 MAX_FAMILYWISE_ALPHA = 0.05
@@ -107,7 +133,7 @@ def validate(spec: Mapping[str, Any]) -> list[str]:
     missing = [k for k in REQUIRED if k not in spec]
     if missing:
         return [f"missing fields: {missing}"]
-    extra = set(spec) - set(REQUIRED) - {"params", "notes"}
+    extra = set(spec) - set(REQUIRED) - set(OPTIONAL_TOP_LEVEL)
     if extra:
         errs.append(f"unknown fields: {sorted(extra)}")
     if not (isinstance(spec["hypothesis"], str) and _HYPOTHESIS.match(spec["hypothesis"])):
@@ -126,8 +152,19 @@ def validate(spec: Mapping[str, Any]) -> list[str]:
     if not (isinstance(w, Mapping) and _DATE.match(str(w.get("start", "")))
             and _DATE.match(str(w.get("end", ""))) and w["start"] < w["end"]):
         errs.append("development_window needs start < end as YYYY-MM-DD")
-    if spec["metric"] not in PROFILE_METRICS.get(profile, METRICS):
-        errs.append(f"metric must be one of {sorted(PROFILE_METRICS.get(profile, METRICS))}")
+    rules = spec.get("gate_rules", 1)
+    if rules not in (1, 2):
+        errs.append("gate_rules must be 1 or 2")
+    allowed_metrics = ({V2_METRIC} if rules == 2 else PROFILE_METRICS.get(profile, METRICS))
+    if spec["metric"] not in allowed_metrics:
+        errs.append(f"metric must be one of {sorted(allowed_metrics)} under gate rules {rules}")
+    if rules == 2 and profile == "price_strategy":
+        a = spec.get("familywise_alpha")
+        if not (isinstance(a, (int, float)) and not isinstance(a, bool) and 0 < a <= MAX_FAMILYWISE_ALPHA):
+            errs.append(f"gate rules 2 price registrations need familywise_alpha in (0, {MAX_FAMILYWISE_ALPHA}]")
+        pr = spec.get("prior_search_trials")
+        if not (isinstance(pr, int) and not isinstance(pr, bool) and pr >= 0):
+            errs.append("gate rules 2 price registrations need prior_search_trials >= 0")
     if profile == "tactical_allocation":
         errs += _tactical_errors(spec)
     t = spec["threshold"]
@@ -232,6 +269,20 @@ def register(spec: Mapping[str, Any], *, prereg_dir: Path | None = None,
              check_web: bool = True, now: str | None = None) -> tuple[Path, str]:
     """Freeze ``spec``. Returns (path, spec_hash). Refuses to overwrite, ever."""
     errs = validate(spec)
+    if spec.get("gate_rules") != GATE_RULES_CURRENT:
+        errs.append(f"new registrations declare gate_rules {GATE_RULES_CURRENT} (decision "
+                    f"debate 2026-10-06); v1 is closed to all but the frozen allowlist")
+    if errs:
+        raise PreregError("; ".join(errs))
+    return _freeze(spec, prereg_dir=prereg_dir, check_web=check_web, now=now)
+
+
+def _freeze(spec: Mapping[str, Any], *, prereg_dir: Path | None = None,
+            check_web: bool = True, now: str | None = None) -> tuple[Path, str]:
+    """Write the validated ``spec`` once. ``register`` is the only production caller; tests
+    of the v1 chains freeze a fixture with it and allowlist its hash, exactly as the real
+    v1 registrations are old frozen files on GATE_RULES_V1_ALLOWLIST."""
+    errs = validate(spec)
     if errs:
         raise PreregError("; ".join(errs))
     hyp = spec["hypothesis"]
@@ -288,8 +339,13 @@ def load(hypothesis: str, *, prereg_dir: Path | None = None) -> tuple[dict, str]
     record = json.loads(text)
     if text != canonical_json(record) + "\n":
         raise PreregError(f"{p.name} is not in canonical form (hand-edited?)")
-    author = {k: v for k, v in record.items() if k in REQUIRED or k in ("params", "notes")}
+    author = {k: v for k, v in record.items() if k in REQUIRED or k in OPTIONAL_TOP_LEVEL}
     errs = validate(author)
+    if "gate_rules" not in record:
+        allowed = GATE_RULES_V1_ALLOWLIST.get(hypothesis)
+        if allowed is None or spec_hash(record) != allowed:
+            errs.append("no gate_rules declared, and this is not one of the frozen v1 "
+                        "registrations (GATE_RULES_V1_ALLOWLIST, keyed by spec hash)")
     if str(record.get("development_window", {}).get("end", "")) > str(record.get("registered_at", ""))[:10]:
         errs.append("development_window ends after registered_at")
     if errs or record.get("hypothesis") != hypothesis:

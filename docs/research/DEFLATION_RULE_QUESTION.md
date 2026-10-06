@@ -126,3 +126,44 @@ fix below was adopted verbatim.
   mean ≥ about 0, null or real, still raises the max-t bar: the accepted cost of counting
   every trial.
 - **(viii) Docs.** prereg's `MIN_FORWARD_PSR_FLOOR` comment is updated for v2.
+
+## Measured: the tactical trigger (2026-10-06, `tools/spa_size_study.py`)
+
+The dense study rerun at production settings: `allocation_stats.familywise_gate`, worst of
+mean blocks 20/63/126, n_boot 1000, alpha 0.05. Each family is one idea with 4 correlated
+variants plus unrelated null ideas plus `m` withheld null members the gate cannot see; the
+candidate is the best visible variant. Size uses 1000 replications per cell, power 300.
+Results are in `docs/research/spa_size_study.json`.
+
+| Null ideas | Withheld m | Size (passes / 1000) | Wilson 95% upper |
+|---|---|---|---|
+| 0 | 0 | 5.3% (53) | **0.0687** (worst) |
+| 0 | 5 | 0.5% | 0.0117 |
+| 0 | 20 | 0.1% | 0.0056 |
+| 2 | 0 | 2.1% | 0.0319 |
+| 2 | 5 | 0.5% | 0.0117 |
+| 2 | 20 | 0.3% | 0.0088 |
+| 6 | 0 | 1.3% | 0.0221 |
+| 6 | 5 | 0.2% | 0.0073 |
+| 6 | 20 | 0.0% | 0.0038 |
+
+| True active Sharpe | Null ideas | m = 0 | m = 20 |
+|---|---|---|---|
+| 0.6 | 0 / 2 / 6 | 88% / 86% / 81% | 38% / 37% / 35% |
+| 1.0 | 0 / 2 / 6 | 100% / 100% / 100% | 97% / 95% / 89% |
+
+**The trigger passes:** the worst upper bound, 0.0687, is ≤ 0.075, so the tactical
+profile runs under gate rules v2 (`tools/admit_tactical.py`, `ADMIT_CHAIN_V2`).
+`tests/test_admit_tactical.py` pins this file against the trigger.
+
+What the numbers say:
+- With nothing withheld, one idea sits at nominal size (5.3%). Null competitors pull it
+  below nominal, as recentering predicts.
+- The union-bound charge is strongly conservative at m > 0: about 0.5% at m = 5. Its
+  price is power. A Sharpe-0.6 edge passes about 37% of the time at m = 20, against
+  about 85% at m = 0. An undeclared search is not free, and it should not be.
+- The gate itself uses B ≥ max(5000, ⌈20(1+m)/alpha⌉). The study's B = 1000 makes
+  (b+1)/(B+1) slightly larger, which is the conservative direction for size.
+
+The price profile stays BLOCKED. Its trigger needs the (iii) mark-to-market basis, which
+v3 trials do not record yet.
