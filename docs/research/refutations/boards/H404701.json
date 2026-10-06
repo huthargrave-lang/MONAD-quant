@@ -1,0 +1,211 @@
+{
+ "caveats": [
+  "about half the active return is category allocation (equity/hybrid trade cheaper); within-category selection alone ~+2.4%/yr gross, Sharpe 1.17",
+  "survivorship (current listings only) is untested; measured patterns argue against it creating the result; the forward window is the real test",
+  "expect a forward active Sharpe near 0.9 (2003-2024 excluding 2025-26), not 1.05",
+  "the return is concentrated in a few dozen long-lived country/equity funds (top 20 = 58%)",
+  "the 14-day NAV staleness rule collapses eligibility after two consecutive holiday Fridays; an operational risk for forward/live use"
+ ],
+ "convened": "2026-10-06",
+ "hypothesis": "H404701",
+ "members": [
+  "adjudicator-a",
+  "adjudicator-b",
+  "adjudicator-c"
+ ],
+ "rule": "majority of three independent adjudicators (not author, not refuter); read-only, no engine evaluations; judged against the claim as registered",
+ "rulings": {
+  "O1": {
+   "outcome": "refuted",
+   "tally": "3-0"
+  },
+  "O2": {
+   "outcome": "refuted",
+   "tally": "3-0"
+  },
+  "O3": {
+   "outcome": "refuted",
+   "tally": "3-0"
+  },
+  "O4": {
+   "outcome": "refuted",
+   "tally": "3-0"
+  },
+  "O5": {
+   "outcome": "refuted",
+   "tally": "3-0"
+  },
+  "O6": {
+   "outcome": "refuted",
+   "tally": "3-0"
+  },
+  "O7": {
+   "outcome": "refuted",
+   "tally": "3-0"
+  }
+ },
+ "votes": [
+  {
+   "adjudicator": "adjudicator-a",
+   "rulings": [
+    {
+     "confidence": 0.85,
+     "evidence": "I re-ran refuter2's checks and the numbers reproduce. Approximate replication: correlation 0.999 with the ledger, gross active +5.41%/yr. Equity+hybrid weight is 0.684 in the candidate vs 0.413 in the benchmark. Against the category-matched benchmark the candidate earns +2.36%/yr gross (Sharpe 1.17, t=5.59), about +1.5%/yr after the 0.82%/yr cost excess. The category-matched benchmark beats equal weight by +3.04%/yr (Sharpe 0.78). Regressing the ledger active (net) on SPY and IEF excess returns gives alpha +3.61%/yr (NW t=4.52), SPY loading 0.125, IEF loading -0.129. Refuter1's independent control found +4.2%/yr gross (Sharpe 1.33) against the picks' category weights, and residual IR 1.38 after 26 category returns plus SPY and IEF. Every version stays clearly positive.",
+     "id": "O1",
+     "outcome": "refuted",
+     "reason": "The numbers are right, but the registered claim is that the cheapest-20%-by-raw-discount rule beats the equal-weight eligible universe. The category tilt is something that rule produces (equity and hybrid funds trade at deeper discounts), not a flaw in the comparison. The benchmark is exactly the one registered. Even with the tilt removed, the edge stays positive and significant, so the objection relabels the mechanism without making the claim false. Caveat: describe the result as roughly half category tilt and half within-category selection."
+    },
+    {
+     "confidence": 0.7,
+     "evidence": "Median eligible funds: 145 (2004), 224 (2009), 273 (2014), 287 (2019), 327 (2026). The 139 funds priced since 2003 supply 55.3% of the approximate active return, which reproduces. Ledger active Sharpe by period: 2004-13 0.90 (4.7%/yr), 2014-21 0.89 (3.4%/yr), 2020+ 1.61 (7.0%/yr), 2022+ 1.97 (6.8%/yr, t=4.28). In my 2014+ cohort split, the cheapest 20% within each cohort's own universe gives Sharpe 1.21 (6.3%/yr) for the pre-2003 cohort and 0.92 (5.1%/yr, t=3.28) for the post-2009 cohort. The post-2009 cohort over 2020+ gives 1.13 (7.6%/yr). Active return is positive in 21 of 24 calendar years. The ICI count of about 600 funds is external and I did not verify it.",
+     "id": "O2",
+     "outcome": "refuted",
+     "reason": "Survivorship is real and untested, and the registration discloses it as the main open threat. But the objection does not show that it creates the result, and the evidence that can be measured points the other way. A survivor-driven edge should be strongest where the survival requirement is longest (early years) and fade where it is short. The opposite happens: the edge is strongest in 2022+, where funds only had to survive at most about 4.75 years. It also holds among funds first listed after 2009. Liquidations, tenders and mergers at NAV would have rewarded buying deep discounts, so the plausible sign of the missing funds is against the strategy. A threat whose sign cannot be established does not invalidate the claim. It belongs in the caveats and in the forward test."
+    },
+    {
+     "confidence": 0.9,
+     "evidence": "From the ledger active (TR-...0af751b2#0 minus TR-...86834435#0): 2025-26 Sharpe 3.40 (10.5%/yr), with 17.1% of the active sum coming from 7.7% of sessions. Excluding 2025-26: Sharpe 0.92, 4.22%/yr, t=4.23. 2010-2024: 0.85, 3.87%/yr, t=3.30. 2022-24: 1.28, t=2.21. 2004-13: 0.90. Losing years are 2011, 2015 and 2003 (stub), so 21 of 24 years are positive. The 2025-26 top-10 contributors supply 47.0% of that sub-period's active return, which reproduces.",
+     "id": "O3",
+     "outcome": "refuted",
+     "reason": "This is a fair caveat about how much to expect forward, but it does not touch the registered claim. With 2025-26 removed, the candidate still beats the benchmark with high significance. The objection itself puts the expected forward Sharpe near 0.9, which supports beating the benchmark rather than refuting it. The narrowing it asks for (do not read the third era as 'strengthening') is reasonable."
+    },
+    {
+     "confidence": 0.85,
+     "evidence": "Reproduced: the top 10 contributors supply 34.8% and the top 20 supply 58.0%. Without the top 10: Sharpe 0.94, 3.53%/yr gross, t=4.46. Without the top 20: 0.65, 2.27%/yr gross, t=3.08, roughly +1.45%/yr after the 0.82%/yr cost excess. Refuter1 got the same top-10 figure independently (35%, 3.5%/yr, 0.94).",
+     "id": "O4",
+     "outcome": "refuted",
+     "reason": "Removing the biggest contributors after the fact is biased against any strategy, because it deletes the right tail by construction. Even so, the result survives: without the top 20 funds (about 7% of the universe), active stays positive and significant. A dozens-of-funds-wide edge in a 145-330 fund universe at 20% selection is normal breadth, not evidence that the comparison is manufactured. The overlap with O2 is real but already covered there."
+    },
+    {
+     "confidence": 0.9,
+     "evidence": "Reproduced: pick overlap with picks 252 sessions earlier is 0.582 vs a 0.20 base rate. The year-lagged level earns 3.33%/yr (Sharpe 0.75), the two-year lag 2.07%/yr (0.48), and each fund's own expanding-mean discount 2.75%/yr (0.63). The timing-only signal (level minus own 3-year mean) earns 4.91%/yr (Sharpe 1.42, t=6.74), which supports a real time-varying part.",
+     "id": "O5",
+     "outcome": "refuted",
+     "reason": "The registered claim is about selecting on raw discount level. It does not claim that the return comes from timed mean reversion. A persistent 'cheap fund' characteristic is still something the registered rule captures, and the measurements show it beats equal weight. The objection's own counterpoint shows the timing part is real too. This is a reason to correct the literature citation, not a falsification."
+    },
+    {
+     "confidence": 0.75,
+     "evidence": "Manifest 'dropped': BANX 15/369, CCIF 13/200, ECC 15/335, EIC 16/92, GRF 33/1404, MFM 24/1507, NDMO 4/290, OCCI 17/135, PDO 3/274, PEO 21/1507 inconsistent rows. NRO and FXBY are in the panel but not in the snapshot. Median eligible funds were 145 (2004), 275 (2015) and 322 (2025), so 10 funds are at most about 7% of the universe in 2004 and about 3% later. ZTR's share of the approximate active return is 1.28% even though it is picked in 46% of sessions, which reproduces. I did not re-estimate the NRO/FXBY weekly figure (+1.9% and +1.0% cumulative), but its sign is conservative.",
+     "id": "O6",
+     "outcome": "refuted",
+     "reason": "The mechanism is technically look-ahead in the universe definition. But it drops funds for discount rows that contradict their own price and NAV, which is a data-quality test with no plausible link to future relative returns. The dropped funds leave both legs. The parts that can be measured are tiny or work against the strategy: NRO and FXBY would have added active return, and ZTR's mapping problem touches only about 1.3%. The unmeasured part (10 funds) cannot plausibly overturn about +4.7%/yr net active: those funds would carry roughly 3-7% weight in the benchmark at most, so they would need extreme, one-directional excess returns every year. Worth recording as a caveat, but it does not invalidate the claim."
+    },
+    {
+     "confidence": 0.9,
+     "evidence": "Panel observation counts are 4 on 2015-12-25 and 5 on 2016-01-01. Eligible counts on 2016-01-04..07 are 5. Ledger active over Jan-Feb 2016 was -11.6%/yr annualised (39 sessions), so the window hurt rather than helped. Single-holiday weeks do not trigger it: 2026-06-19 and 2026-07-03 each have 1 observation, yet eligibility stays at 327 or more in the following two weeks, because the 14-day staleness limit tolerates one missing Friday.",
+     "id": "O7",
+     "outcome": "refuted",
+     "reason": "This is an accurate description of a fragile freshness rule, but it cannot have created the edge. Candidate and benchmark held the same 5 funds, which only pulls active return toward zero, and active over that window was in fact negative. It belongs as a robustness note on the forward and live implementation (back-to-back Friday holidays), not as evidence against the registered claim."
+    }
+   ]
+  },
+  {
+   "adjudicator": "adjudicator-b",
+   "rulings": [
+    {
+     "confidence": 0.85,
+     "evidence": "Re-ran the refuter2 checks script; output matches the objection. The approximate replication has corr 0.999 with the ledger active (gross 5.41%/yr, Sharpe 1.21). Equity+hybrid weight is 0.684 in the candidate vs 0.413 in the benchmark. Candidate vs category-matched: Sharpe 1.173, 2.36%/yr, t 5.59. Category-matched vs EW: Sharpe 0.783, 3.04%/yr. Ledger active on SPY/IEF excess returns (NW10): alpha 3.61%/yr, t 4.52.",
+     "id": "O1",
+     "outcome": "refuted",
+     "reason": "The numbers are correct, but the claim as registered is measured against the equal-weight eligible universe, and it does beat that. Tilting toward categories is one way a cheapest-by-raw-discount rule makes money; it is not an unfair comparison. Even against the category-matched benchmark the objection prefers, the rule still beats it: gross Sharpe 1.17 (t 5.6), and still positive after the ~0.82%/yr cost excess. This is a reason to narrow the description (about half the edge is category allocation), not a reason to reject."
+    },
+    {
+     "confidence": 0.7,
+     "evidence": "My own cohort split, with the approximate engine restricted to each cohort for both strategy and benchmark: old cohort (priced by 2003-01-10, 139 funds) 2014+ Sharpe 1.207, 6.27%/yr; new cohort (>=2009) 2014+ Sharpe 0.919, 5.09%/yr, t 3.28. Ledger active Sharpe 1.549 (6.4%/yr) for 2019-2026 and 0.827 for 2003-2018. Median eligible funds per year-end: 145 (2004), 224, 273, 287, 327 (2026). Only 2 panel funds end before 2026-09, which confirms the universe is current listings.",
+     "id": "O2",
+     "outcome": "refuted",
+     "reason": "Survivorship is real and untested, and the registration discloses it. But the objection shows no mechanism by which it produces the result, and it says itself that the sign is unbounded. The edge does not depend on the old-survivor cohort. Funds first priced after 2009 earn active Sharpe 0.92 (5.1%/yr, t 3.28) in 2014+. Bias from conditioning on today's listings should be smallest in recent years, and those years are the strongest: 2019-26 Sharpe 1.55. Funds that leave through liquidation, tender or open-ending usually exit near NAV, which would favour a discount buyer. The forward paper window is the proper test."
+    },
+    {
+     "confidence": 0.9,
+     "evidence": "Ledger active: 2025-26 Sharpe 3.40, 10.5%/yr, 17.1% of the active sum from 7.7% of sessions; 2022-24 Sharpe 1.28 (t 2.21); excluding 2025-26 Sharpe 0.924, 4.22%/yr, t 4.23; 2010-24 Sharpe 0.854. Yearly active is positive in 21 of 24 years (negative in 2011 -6.6%, 2015 -4.7%; 2003 ~0).",
+     "id": "O3",
+     "outcome": "refuted",
+     "reason": "The 2025-26 figures check out. But the claim survives without those years: Sharpe 0.92 at t 4.23 over 2003-2024. Active return is positive in 21 of 24 calendar years, and every era is positive. The objection argues the forward expectation is lower (closer to 0.9). It does not show that the strategy fails to beat the benchmark."
+    },
+    {
+     "confidence": 0.85,
+     "evidence": "Script output: top-10 share 0.348, top-20 share 0.580. Excluding top 10: Sharpe 0.937, 3.53%/yr, t 4.46. Excluding top 20: Sharpe 0.647, 2.27%/yr, t 3.08. Median candidate holdings: 38 (2004), 54 (2009), 72 (2014), 74 (2019), 86 (2026).",
+     "id": "O4",
+     "outcome": "refuted",
+     "reason": "The objection removes the best contributors after the fact. That is a test biased against any strategy, and the edge still survives it: without the top 10 funds, Sharpe 0.94 (t 4.46); without the top 20, Sharpe 0.65 (t 3.08), still positive after the cost excess. The rule holds 38 to 86 funds and draws on ~300 over time, so a top-20 share of 58% is not a sign of manufactured evidence."
+    },
+    {
+     "confidence": 0.9,
+     "evidence": "Script output: pick overlap with picks 252 sessions earlier 0.582 (base rate 0.2). Level lagged 252 sessions: Sharpe 0.753, 3.33%/yr. Lagged 504: Sharpe 0.477. Own expanding-mean discount: Sharpe 0.631, 2.75%/yr. Level minus own 3y mean: Sharpe 1.415, 4.91%/yr, t 6.74.",
+     "id": "O5",
+     "outcome": "refuted",
+     "reason": "The registered claim is about buying the cheapest by raw discount level. It makes no claim to isolate timing from identity, so a persistent-cheapness component is part of what was registered, not a defect. The objection's own counter-check finds the timing component real and strong (Sharpe 1.42). At most this calls for rewording the literature motivation."
+    },
+    {
+     "confidence": 0.75,
+     "evidence": "Panel manifest: 10 bad-row drops confirmed (GRF 33/1404, MFM 24/1507, PEO 21/1507, BANX 15/369, CCIF 13/200, ECC 15/335, EIC 16/92, NDMO 4/290, OCCI 17/135, PDO 3/274). Snapshot validation drops NRO (+53.2% on 2008-10-13) and FXBY (+66.7% on 2008-11-03). Median ZTR CEFConnect/Yahoo price ratio: 1.71 (2005), 0.31 (2009), 1.00 (2020+), so the mapping problem is confirmed. ZTR: picked on 44% of days, 1.28% of approx active; excluding ZTR gives Sharpe 1.210 vs 1.212. One-fund active weight in 2004: 1/38 - 1/145 \u2248 1.9pp.",
+     "id": "O6",
+     "outcome": "refuted",
+     "reason": "The whole-history filters are a real form of look-ahead, but they work on reporting consistency, not on returns. Their measurable effects are small or go against the strategy. Excluding ZTR leaves the active return unchanged. Restoring NRO and FXBY would add to it, by the objection's own estimate. For the 10 funds dropped for bad rows, a rough bound rules out reversing the result. One fund's active weight is ~1.9pp at most (2004, 38 holdings) and smaller later. To erase 4.7%/yr, all 10 would have to sit in the candidate permanently and lag the universe by ~25%/yr. Their inclusion would also move the benchmark."
+    },
+    {
+     "confidence": 0.95,
+     "evidence": "Script output: 5 eligible funds on 2016-01-04..07 (the only sessions after start below 60). Ledger active 2016 Q1: Sharpe 0.54, 2.8%/yr, t 0.27 (61 sessions); full-year 2016 active +5.9%/yr.",
+     "id": "O7",
+     "outcome": "refuted",
+     "reason": "The collapse to 5 eligible funds is confirmed. But candidate and benchmark held the same holdings in the affected tranches, which can only shrink the active return toward zero. It cannot create it. This is an operational risk for live and forward trading (the freshness rule after holiday Fridays), not a defect in the evidence for the registered claim."
+    }
+   ]
+  },
+  {
+   "adjudicator": "adjudicator-c",
+   "rulings": [
+    {
+     "confidence": 0.85,
+     "evidence": "Ran refuter2 checks (approx corr 0.999 with the ledger active). Equity+hybrid weight is 0.684 for the candidate vs 0.413 for the benchmark. Candidate minus category-matched benchmark: +2.36%/yr gross, Sharpe 1.17, t=5.59. Category-matched minus EW: +3.04%/yr. My own era split of candidate minus category-matched: Sharpe 0.97 / 0.90 / 2.47, all positive, and 1.06 excluding 2025-26. With a turnover cost proxy (candidate 0.87%/yr, category-matched 0.68%/yr): net +2.17%/yr, Sharpe 1.08; at 2x costs +1.98%/yr, Sharpe 0.98. SPY/IEF-adjusted alpha of the ledger active: +3.61%/yr, t=4.52.",
+     "id": "O1",
+     "outcome": "refuted",
+     "reason": "The numbers hold: the picks are tilted toward equity and hybrid funds, and that tilt earns part of the gross active return. But the registered benchmark is the equal-weight eligible universe, which the objection does not show is computed wrongly. Against a stricter category-matched benchmark the selection still wins in every era and after doubled costs. So this argues for narrowing the description (some of the edge comes from which categories trade cheap), not for invalidating the claim."
+    },
+    {
+     "confidence": 0.7,
+     "evidence": "Eligible medians: 145 (2004), 224 (2009), 273 (2014), 327 (2026). Funds priced since 2003 supply 55.3% of approx active. Within-cohort cheapest-20% vs cohort EW: old (<=2003, n=139) Sharpe 1.21 (2014+) and 1.68 (2022+); young (>=2009, n=98) 0.92 (2014+, t=3.28) and 1.71 (2022+, t=3.71). Ledger eras 0.90 / 0.89 / 1.97. ICI's 2004 fund count is outside the repo and I did not verify it.",
+     "id": "O2",
+     "outcome": "refuted",
+     "reason": "Survivorship is real and was disclosed at registration, but the objection does not show that it creates the result. Survivorship bias should be largest early in the window and smallest near the 2026 fetch. Instead the active Sharpe is highest in 2022+ (1.97), the era least exposed to dead funds. Within funds listed since 2009, whose survivorship exposure is much shorter, the rule still earns Sharpe 0.92 from 2014 on and 1.71 from 2022 on, about the same as the long-survivor cohort in recent years. The sign of the bias is also ambiguous for a buy-the-discount rule: funds that left through liquidation, tender or merger near NAV closed their discount. This stays the main caveat; it is not an invalidation."
+    },
+    {
+     "confidence": 0.9,
+     "evidence": "Ledger active (TR-...0af751b2#0 minus TR-...86834435#0): 2025-26 Sharpe 3.40, 10.5%/yr, 17.1% of the active sum from 7.7% of sessions. Excluding 2025-26: Sharpe 0.924, 4.22%/yr, t=4.23. 2010-2024: 0.854, t=3.30. 2022-24: 1.277, t=2.21. Calendar years positive: 21 of 24.",
+     "id": "O3",
+     "outcome": "refuted",
+     "reason": "The numbers are accurate: 2025-26 lifts the third era. But the claim survives with 2025-26 removed (Sharpe 0.92, t=4.23), and 2022-24 alone is positive (1.28). This argues for lowering expectations for the forward window (closer to 0.9), not against the registered claim."
+    },
+    {
+     "confidence": 0.85,
+     "evidence": "Reproduced: the top 10 funds supply 34.8% of approx gross active, the top 20 supply 58.0%. Excluding the top 10: Sharpe 0.94, 3.53%/yr, t=4.46. Excluding the top 20: Sharpe 0.65, 2.27%/yr, t=3.08, roughly 1.5%/yr net of the 0.82%/yr cost excess. These are gross approximate figures; the cost excess comes from ledger rows #0 (0.92%/yr) and the benchmark (0.095%/yr).",
+     "id": "O4",
+     "outcome": "refuted",
+     "reason": "Dropping the best contributors after the fact is a test almost any strategy eventually fails, yet the active return stays positive and significant even with the top 20 funds removed. The concentration is a caveat on breadth and capacity, not evidence that the strategy does not beat the EW universe."
+    },
+    {
+     "confidence": 0.9,
+     "evidence": "Reproduced: picks overlap 0.582 with the picks 252 sessions earlier (base rate 0.2). Level lagged 252 sessions: Sharpe 0.75, 3.33%/yr. Lagged 504: 0.48, 2.07%/yr. Own expanding-mean discount: 0.63, 2.75%/yr. Level minus own 3y mean: 1.415, 4.91%/yr, t=6.74. All gross approximate active vs EW.",
+     "id": "O5",
+     "outcome": "refuted",
+     "reason": "The registered claim is about selecting on the RAW discount level. It never claims pure discount timing or mean reversion. A persistent fund-characteristic component is part of what that registered signal is, so it cannot invalidate the claim. The objection's own counterpoint also shows a timing-only signal is strong (Sharpe 1.42). At most the literature motivation should be worded more loosely."
+    },
+    {
+     "confidence": 0.8,
+     "evidence": "CEFNAV manifest 'dropped' lists the 10 bad-row funds with counts, e.g. GRF 33/1404, MFM 24/1507, PEO 21/1507. None of the 12 (including NRO and FXBY) is in snapshot DS-18cef162, so they cannot be measured from stored data. ZTR share of approx active: 1.28%. Approx active excluding ZTR's contribution: Sharpe 1.210, 5.34%/yr (vs 1.212, 5.41%/yr). The NRO/FXBY +1.9%/+1.0% cumulative estimate comes from refuter2 and was not re-derived.",
+     "id": "O6",
+     "outcome": "refuted",
+     "reason": "The whole-history consistency filter does use future data. But it screens on whether the price, NAV and discount fields agree, not on returns or discounts, so there is no mechanism tying it to the result. It removes 10 of about 340 funds (about 3 of 145 in 2004), mostly premium-trading funds (PIMCO, ECC, OCCI, EIC) that would sit in the benchmark rather than the picks. The measurable parts are small or conservative: NRO and FXBY would have added active return, and ZTR contributes 1.3%. Impact from the unmeasurable part has no bound but is not shown to be material."
+    },
+    {
+     "confidence": 0.95,
+     "evidence": "Panel observation counts: 2015-12-18 283, 2015-12-25 4, 2016-01-01 5, 2016-01-08 285. Eligible counts: 279 on 2015-12-31, 5 on 2016-01-04..07, 280 on 2016-01-08. The 2026-06-19 and 2026-07-03 gaps (1 observation each) are isolated single weeks, each followed by 329, so the 14-day staleness limit was not hit there.",
+     "id": "O7",
+     "outcome": "refuted",
+     "reason": "The finding is accurate, but the objection itself measures about zero impact on the active return: candidate and benchmark held the same 5 funds, which can only dilute the active return toward zero. The rule bites only when two CEFConnect Fridays in a row are missing. It is an operational and live-robustness caveat, not an invalidation."
+    }
+   ]
+  }
+ ]
+}
