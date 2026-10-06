@@ -518,7 +518,8 @@
         "tools/cef_search.py",
         "tools/admit_tactical.py",
         "tools/cef_picks.py",
-        "tools/domain_search.py"
+        "tools/domain_search.py",
+        "tools/forward_log.py"
       ],
       "entrypoints": [],
       "tests": [

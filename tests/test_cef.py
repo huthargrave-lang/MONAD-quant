@@ -198,3 +198,22 @@ class Panel(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ForwardLog(unittest.TestCase):
+    def test_entries_append_in_order_and_verify(self):
+        sys.path.insert(0, str(REPO / "tools"))
+        import forward_log
+        from unittest import mock
+        from src.research.daily_domains import Context
+        snap, panel = world()
+        with tempfile.TemporaryDirectory() as td:
+            with mock.patch.object(forward_log, "LOG_DIR", Path(td)), \
+                    mock.patch.object(forward_log.prereg, "load", return_value=({}, "h" * 64)):
+                cand = {"class": "cef_discount", "params": {"signal": "level", "fraction": 0.25}}
+                row = forward_log.entry("H9", Context(snap=snap, panel=panel), cand, "h" * 64)
+                forward_log.append("H9", row)
+                with self.assertRaises(SystemExit):
+                    forward_log.append("H9", row)            # the same session twice
+                self.assertEqual(forward_log.verify("H9"), [])
+                self.assertAlmostEqual(sum(row["weights"].values()), 1.0, places=6)

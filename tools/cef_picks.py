@@ -45,16 +45,26 @@ def current_holdings(ctx: Context, candidate: dict) -> pd.DataFrame:
                          "category": [ctx.panel.category.get(f) for f in weights.index]})
 
 
-def fresh_context(spec: dict) -> Context:
+#: Fresh data for paper tracking is frozen like any snapshot, but kept OUT of the repo
+#: (gitignored local_logs/): a weekly 1 MB snapshot is a working file, not evidence the
+#: admission gate rests on (the gate fetches its own forward data at maturity).
+FRESH_DIR = os.path.join(REPO, "local_logs", "forward_data")
+
+
+def fresh_context(spec: dict, data_dir: str = FRESH_DIR) -> Context:
+    from pathlib import Path
+
+    base = Path(data_dir)
+    base.mkdir(parents=True, exist_ok=True)
     frames, report = cef_data.build_panel()
-    panel = cef_data.load_panel(cef_data.write_panel(frames, report))
+    panel = cef_data.load_panel(cef_data.write_panel(frames, report, data_dir=base), data_dir=base)
     universe = ["SPY", "IEF"] + sorted(panel.price.columns)
     start = (pd.Timestamp.today() - pd.Timedelta(days=900)).date().isoformat()
     end = (pd.Timestamp.today() + pd.Timedelta(days=1)).date().isoformat()
     sha = daily_data.build_snapshot(universe, start, end, optional=universe[2:],
                                     independent_closes={t: panel.price[t] for t in panel.price.columns},
-                                    independent_source="fresh NAV panel")
-    return Context(snap=daily_data.load_snapshot(sha), panel=panel)
+                                    independent_source="fresh NAV panel", data_dir=base)
+    return Context(snap=daily_data.load_snapshot(sha, data_dir=base), panel=panel)
 
 
 def main(argv=None) -> int:
