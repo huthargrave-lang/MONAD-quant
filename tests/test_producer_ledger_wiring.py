@@ -3,8 +3,8 @@ Every strategy evaluation in the repo is counted in the trial ledger, or says wh
 
 The ledger (src/research/trials.py) makes a trial count honest only if nothing can
 evaluate a strategy without writing to it. This guard makes that structural: it
-finds every call to the engine's two evaluation entry points (``run_backtest`` and
-``compute_trade_returns``) in first-party code and requires each to be
+finds every call to the evaluation entry points (the engine's ``run_backtest`` and
+``compute_trade_returns``, and the daily evaluator's ``evaluate_daily``) in first-party code and requires each to be
 
   * **counted** — its enclosing function (or module) calls ``.begin(`` / ``.trial(``
     on a ledger run at an earlier line; or
@@ -26,10 +26,10 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 import ctx  # noqa: E402
 
-EVALUATORS = {"run_backtest", "compute_trade_returns"}
+EVALUATORS = {"run_backtest", "compute_trade_returns", "evaluate_daily"}
 
 #: Where the evaluators are defined (and call each other). Not producers.
-DEFINING = {"src/backtest/runner.py", "src/strategy/engine.py"}
+DEFINING = {"src/backtest/runner.py", "src/strategy/engine.py", "src/research/daily_strategy.py"}
 
 #: (file, helper) -> the counted wrapper that is its only permitted caller.
 DELEGATED = {
@@ -149,7 +149,7 @@ class EveryEvaluationIsCounted(unittest.TestCase):
         vacuously. These files are known to evaluate strategies."""
         for rel in ("sweep.py", "main.py", "tools/walkforward_eval.py",
                     "tools/strategy_funnel.py", "tools/equity_curve.py", "fee_analysis.py",
-                    "src/optimization/walk_forward.py"):
+                    "src/optimization/walk_forward.py", "tools/daily_search.py"):
             with open(os.path.join(ROOT, rel), encoding="utf-8") as fh:
                 tree = ast.parse(fh.read())
             found = [c for c in ast.walk(tree) if isinstance(c, ast.Call) and _name(c) in EVALUATORS]

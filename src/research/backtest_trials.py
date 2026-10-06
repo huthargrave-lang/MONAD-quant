@@ -58,13 +58,18 @@ def mr_hourly_family(ticker: str) -> str:
 
 def family_members(records, family: str) -> list:
     """The trials that count toward ``family``: its label, OR (for an MR family) every
-    hourly engine trial on the same symbol, whatever label it was recorded under.
+    hourly engine trial on the same symbol, whatever label it was recorded under, OR (for
+    a daily family) every trial of the same daily evaluator version
+    (``daily_trials.daily_family_members``).
 
     A family is otherwise just a string a producer is handed (``--family``), so a search
     run under a scratch label and registered under the real one would be invisible to the
     count (harness red-team, attack 4a). The engine spec is not a label: a trial whose
     data is ``SYMBOL`` and whose spec is an hourly engine run IS this strategy on SYMBOL.
     """
+    if family.startswith(("daily_alloc.v", "daily_alloc_reference.v")):
+        from src.research.daily_trials import daily_family_members
+        return daily_family_members(records, family)
     prefix = f"{MR_HOURLY_STRATEGY}:"
     symbol = family[len(prefix):] if family.startswith(prefix) else None
     out = []

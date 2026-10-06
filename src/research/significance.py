@@ -26,6 +26,12 @@ Contents (deterministic, numpy + stdlib only; no scipy):
   * ``bonferroni`` / ``holm`` / ``benjamini_hochberg`` — p-value adjustment, and
     ``familywise_percentiles`` — the two-sided Bonferroni percentile band the bootstrap
     studies use, defined once.
+  * ``superior_predictive_ability`` — Hansen (2005), "A Test for Superior Predictive
+                           Ability", J. Business & Economic Statistics 23(4): does ANY
+                           strategy in a searched family beat a benchmark, and the
+                           familywise-adjusted p-value of each one (single-step max-t,
+                           the first step of Romano & Wolf's stepdown), on the stationary
+                           bootstrap of Politis & Romano (1994).
 
 Units: every Sharpe here is PER-PERIOD (not annualized), because the DSR's sampling
 theory is per observation. Annualize for display only.
@@ -141,12 +147,16 @@ def deflated_sharpe(sharpe: float, *, n_trials: float, sharpe_variance: float,
 
 
 # ── effective number of trials ───────────────────────────────────────────────
-def daily_pnl(series_map: Mapping[str, pd.Series]) -> pd.DataFrame:
+def daily_pnl(series_map: Mapping[str, pd.Series], calendar: pd.DatetimeIndex | None = None) -> pd.DataFrame:
     """Per-trade return series -> one column of daily summed PnL per trial.
 
     Trials trade at different times, so correlation needs a common grid: business days
     spanning every trial, a day without a trade contributing 0. Timestamps are reduced to
     their calendar date (tz-naive).
+
+    ``calendar``: the exchange's real sessions, when the caller has them (daily strategies
+    carry their snapshot's). ``bdate_range`` counts NYSE holidays as trading days, which
+    adds about nine zero-return observations a year to every series.
     """
     cols = {}
     for key, s in series_map.items():
@@ -162,7 +172,16 @@ def daily_pnl(series_map: Mapping[str, pd.Series]) -> pd.DataFrame:
         return pd.DataFrame(0.0, index=pd.DatetimeIndex([]), columns=list(cols))
     lo = min(c.index.min() for c in nonempty)
     hi = max(c.index.max() for c in nonempty)
-    grid = pd.bdate_range(lo, hi).union(pd.DatetimeIndex(sorted({d for c in nonempty for d in c.index})))
+    days = pd.DatetimeIndex(sorted({d for c in nonempty for d in c.index}))
+    if calendar is None:
+        grid = pd.bdate_range(lo, hi).union(days)
+    else:
+        cal = pd.DatetimeIndex(calendar).normalize()
+        off = days.difference(cal)
+        if len(off):
+            raise ValueError(f"{len(off)} PnL dates are not sessions of the given calendar "
+                             f"(first {off[0].date()})")
+        grid = cal[(cal >= lo) & (cal <= hi)]
     return pd.DataFrame({k: c.reindex(grid, fill_value=0.0) for k, c in cols.items()}, index=grid)
 
 
@@ -261,7 +280,8 @@ class EffectiveTrials:
 
 
 def effective_trials(series_map: Mapping[str, pd.Series], *,
-                     min_corr: float = CLUSTER_MIN_CORRELATION) -> EffectiveTrials:
+                     min_corr: float = CLUSTER_MIN_CORRELATION,
+                     calendar: pd.DatetimeIndex | None = None) -> EffectiveTrials:
     """Collapse a family's trials into independent ideas, and measure their spread.
 
     Byte-identical series are one trial. Series with no trades (or no variance) are
@@ -271,7 +291,7 @@ def effective_trials(series_map: Mapping[str, pd.Series], *,
     so fifty copies of one config do not shrink it.
     """
     keys = list(series_map)
-    pnl = daily_pnl(series_map)
+    pnl = daily_pnl(series_map, calendar)
     # Collapse identical columns (same trades on the same days).
     distinct: dict[bytes, list[str]] = {}
     for k in keys:
@@ -415,3 +435,76 @@ def familywise_percentiles(family: int, alpha: float = 0.05) -> list[float]:
         raise ValueError("family must be at least 1")
     afw = alpha / family / 2 * 100
     return [afw, 100 - afw]
+
+
+# ── superior predictive ability ──────────────────────────────────────────────
+def stationary_bootstrap_indices(n: int, mean_block: float, n_boot: int,
+                                 rng: np.random.Generator) -> np.ndarray:
+    """(n_boot, n) resampling indices of Politis & Romano's stationary bootstrap: blocks
+    of geometric length (mean ``mean_block``) starting uniformly at random, wrapping
+    circularly. Keeps the dependence a fixed-block bootstrap keeps, without making the
+    resampled series non-stationary at block joins."""
+    if n < 2 or mean_block < 1 or n_boot < 1:
+        raise ValueError("need n >= 2, mean_block >= 1 and n_boot >= 1")
+    p_new = 1.0 / mean_block
+    idx = np.empty((n_boot, n), dtype=np.int64)
+    idx[:, 0] = rng.integers(0, n, n_boot)
+    jumps = rng.random((n_boot, n)) < p_new
+    fresh = rng.integers(0, n, (n_boot, n))
+    for t in range(1, n):
+        idx[:, t] = np.where(jumps[:, t], fresh[:, t], (idx[:, t - 1] + 1) % n)
+    return idx
+
+
+@dataclass(frozen=True)
+class SPAResult:
+    spa_pvalue: float          # H0: no strategy beats the benchmark (Hansen's SPA_c)
+    adjusted_pvalues: tuple    # per strategy: P(max* >= its own t), familywise
+    t_stats: tuple             # studentized mean differences sqrt(n) d_bar / omega
+    mean_block: float
+    n_boot: int
+    n_obs: int
+
+
+def superior_predictive_ability(diffs: np.ndarray, *, mean_block: float, n_boot: int = 5000,
+                                seed: int = 0, chunk: int = 50) -> SPAResult:
+    """Hansen's consistent SPA test on a (n_obs, K) matrix of per-period performance
+    differences d[t, k] = strategy_k[t] - benchmark[t] (positive = strategy better).
+
+    Studentized with the bootstrap standard error of sqrt(n) * mean. Recentering is
+    Hansen's consistent one: a strategy whose mean is far below zero (t below
+    -sqrt(2 log log n)) is recentred at its own mean, so badly losing strategies do not
+    inflate the null distribution of the maximum (the defect of White's Reality Check);
+    the rest are recentred at zero. Each strategy's adjusted p-value is the share of
+    bootstrap maxima at least its own statistic: the single-step max-t familywise p-value,
+    valid for "this one beats the benchmark" after searching all K.
+    """
+    d = np.asarray(diffs, dtype=float)
+    if d.ndim != 2 or d.shape[0] < 30 or d.shape[1] < 1:
+        raise ValueError("diffs must be a (n_obs >= 30, K >= 1) matrix")
+    if not np.all(np.isfinite(d)):
+        raise ValueError("diffs contain non-finite values")
+    n, k = d.shape
+    mean = d.mean(axis=0)
+    rng = np.random.default_rng(seed)
+    boot_means = np.empty((n_boot, k))
+    done = 0
+    while done < n_boot:
+        m = min(chunk, n_boot - done)
+        idx = stationary_bootstrap_indices(n, mean_block, m, rng)
+        boot_means[done:done + m] = d[idx].mean(axis=1)
+        done += m
+    centred = math.sqrt(n) * (boot_means - mean)
+    omega = centred.std(axis=0, ddof=1)
+    if np.any(omega <= 0):
+        raise ValueError("a strategy's difference series has no bootstrap variance")
+    t = math.sqrt(n) * mean / omega
+    keep = t >= -math.sqrt(2.0 * math.log(math.log(n)))
+    mu_c = np.where(keep, 0.0, mean)
+    t_boot = math.sqrt(n) * (boot_means - mean + mu_c) / omega
+    max_boot = np.maximum(t_boot.max(axis=1), 0.0)
+    t_obs = max(float(t.max()), 0.0)
+    spa = float((max_boot >= t_obs).mean())
+    adjusted = tuple(float((max_boot >= tk).mean()) for tk in t)
+    return SPAResult(spa_pvalue=spa, adjusted_pvalues=adjusted, t_stats=tuple(float(x) for x in t),
+                     mean_block=float(mean_block), n_boot=int(n_boot), n_obs=int(n))
