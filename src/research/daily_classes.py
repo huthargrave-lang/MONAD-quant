@@ -394,6 +394,21 @@ def cosmic_tilt(snap: Snapshot, params: Mapping, rets: SessionReturns | None = N
     return _schedule_tranches(snap, pd.DataFrame({"SPY": spy, "IEF": 1.0 - spy}))
 
 
+def month_end_extension(snap: Snapshot, params: Mapping, rets: SessionReturns | None = None) -> list[Tranche]:
+    """Treasury index extension (the 2026-10-06 sixth ETF search): bond indexes lengthen
+    duration at each month-end and passive funds buy long Treasuries into it. The 60/40,
+    with its IEF leg swapped for TLT over the month's last ``sessions`` sessions. The
+    calendar alone decides it."""
+    n = int(params["sessions"])
+    dates = snap.dates
+    month = pd.Series(dates.to_period("M"), index=dates)
+    from_end = month.groupby(month).cumcount(ascending=False) + 1          # 1 = last session
+    in_window = (from_end <= n).to_numpy()
+    held = pd.DataFrame({"SPY": 0.6, "IEF": np.where(in_window, 0.0, 0.4),
+                         "TLT": np.where(in_window, 0.4, 0.0)}, index=dates)
+    return _schedule_tranches(snap, held)
+
+
 def reference_6040(snap: Snapshot, params: Mapping | None = None,
                    rets: SessionReturns | None = None) -> list[Tranche]:
     """The static 60/40 bar: SPY/IEF, every 21 sessions, 21 tranches."""
@@ -403,7 +418,8 @@ def reference_6040(snap: Snapshot, params: Mapping | None = None,
 CLASSES: dict[str, Callable] = {"tsmom": tsmom, "dualmom": dualmom, "tom": tom,
                                 "overnight": overnight, "sma": sma, "fomc_tilt": fomc_tilt,
                                 "halloween": halloween, "auction_tilt": auction_tilt,
-                                "liquidity_tilt": liquidity_tilt, "cosmic_tilt": cosmic_tilt}
+                                "liquidity_tilt": liquidity_tilt, "cosmic_tilt": cosmic_tilt,
+                                "month_end_extension": month_end_extension}
 REFERENCE = {"class": "static_6040", "params": {"weights": {"SPY": 0.6, "IEF": 0.4},
                                                 "every": MONTH, "tranches": len(OFFSETS)}}
 
@@ -449,8 +465,14 @@ def cosmic_grid() -> list[dict]:
             + [{"class": "cosmic_tilt", "params": {"kind": "geomagnetic", "threshold": t}} for t in (30, 50)])
 
 
+def extension_grid() -> list[dict]:
+    """The sixth ETF search (2026-10-06), frozen before it ran: 2 points."""
+    return [{"class": "month_end_extension", "params": {"sessions": n}} for n in (2, 3)]
+
+
 GRIDS: dict[str, Callable[[], list]] = {"v1": grid, "events": event_grid, "auctions": auction_grid,
-                                        "liquidity": liquidity_grid, "cosmic": cosmic_grid}
+                                        "liquidity": liquidity_grid, "cosmic": cosmic_grid,
+                                        "extension": extension_grid}
 
 
 def assets_used(point: Mapping) -> tuple:
@@ -469,6 +491,8 @@ def assets_used(point: Mapping) -> tuple:
         return ("SPY", "IEF")
     if cls == "auction_tilt":
         return ("SPY", "IEF", "SHY")
+    if cls == "month_end_extension":
+        return ("SPY", "IEF", "TLT")
     raise ValueError(f"unknown class {cls!r}")
 
 
