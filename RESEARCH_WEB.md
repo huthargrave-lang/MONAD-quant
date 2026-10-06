@@ -3885,3 +3885,26 @@ Disclosure: the turnover_per_year and cost_per_year METRICS recorded on the firs
 Together with F404704: 31 counted daily strategies, and none reliably beats a static 60/40. The one with a real literature effect (pre-FOMC) has visibly decayed since publication.
 Links: [[F404704|builds_on]] · [[D6|supports]].
 _— captured claude/monetizing-repositories-03e341@030cb58, 2026-10-05_
+
+### H404701 — Buying the deepest-discount closed-end funds beats owning them all
+Hypothesis: within listed US closed-end funds, holding the cheapest 20% by raw discount to NAV (price/NAV - 1, the latest weekly CEFConnect observation) beats owning every eligible fund equally.
+- Execution: equal weight, decided at a close, traded at the next close, rebalanced every 21 sessions in 21 staggered tranches, CEF cost tier (30/15 bps one-way, pre/post 2010).
+
+Search evidence (tools/cef_search.py; snapshot DS-18cef162, NAV panel CEFNAV-fd7099e2; ledger TR-20261006T012346Z-0af751b2, benchmark TR-20261006T012341Z-86834435):
+- All 6 frozen grid points beat the benchmark.
+- This candidate: active Sharpe +1.05, active return +4.7%/yr net of 0.92%/yr costs, beta 1.11 to the universe, alpha +4.0%/yr. Era active Sharpe +0.90 / +0.89 / +1.97.
+- Hansen SPA_c adjusted p < 0.001 at mean blocks 20/63/126 (K=6).
+- Look-ahead clean at 12 cuts over both datasets.
+
+Candidate selection is DISCLOSED AS POST-HOC. The search reports the best by active Sharpe, which was z52-within-category at +1.19. That rule's costs (2.35%/yr) about equal its active return, so it could not survive the gate's 2x cost stage. This candidate was chosen as the highest-active-Sharpe point whose active return survives doubled costs. All 6 points count in N either way.
+
+Known threats for the refuter:
+- survivorship (current listings only; dead funds absent, sign uncertain);
+- illiquid-fund costs above the tier;
+- category exposure;
+- crash-rebound concentration (5 corroborated >50% sessions);
+- a 4-session 2016 eligibility dip.
+
+Falsified by: tools/admit.py REJECT at any relative stage, or the 365-day forward window (P(forward active Sharpe > 0) < 0.90).
+Links: [[F257|builds_on]] · [[F404704|relates]].
+_— captured claude/monetizing-repositories-03e341@7d4cd83, 2026-10-05_
