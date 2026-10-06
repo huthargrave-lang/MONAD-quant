@@ -4060,3 +4060,28 @@ Results (active Sharpe; vol-matched beside it):
 All four are wrong-signed or null. The moon and the magnetosphere do not move the 60/40. The published effects were small-sample, in-sample findings, as the atlas warned ("multiple comparisons can manufacture a cosmic story").
 Links: [[F404704|relates]].
 _— captured claude/monetizing-repositories-03e341@f678fbd, 2026-10-06_
+
+### F404713 — H404702 passes every development stage of the gate: within-category CEF discount selection with hysteresis, active Sharpe +1.44, DSR 0.99; forward window to 2027-10-07
+tools/admit.py H404702 --dry-run passes every development-evidence stage:
+- lookahead clean at 12 cuts over both datasets;
+- the re-run reproduces search trial TR-20261006T034817Z-5245a64f#3 exactly (22.7 years, 5720 rebalances);
+- active DSR 0.9899 against the CEF family's whole search, including the null tax-loss trials that sank H404701 (N 16, SR0 0.94);
+- Hansen SPA_c adjusted p < 0.0001 at mean blocks 20/63/126 (K=12);
+- active Sharpe +1.30 / +1.24 / +2.43 by era;
+- 2x cost stress +1.25%/yr active.
+
+Open: witness (merge to development) and the 365-day forward window, maturing 2027-10-07.
+
+The rule: within each CEFConnect category, hold the funds cheapest by discount z-score against their own last 52 weeks, entering at the category's cheapest 20% and exiting past its cheapest 50%. It is category-neutral by construction (total category tilt 7.4% of the book), and its vol-matched active Sharpe (+1.42) equals its plain one: genuine selection, fully invested.
+
+Scrutiny: a refuter filed 3 objections; a board refuted all 3, 3-0 (docs/research/refutations/boards/H404702.json).
+
+Caveats that bound what the forward window can show:
+- the signal decays fast; trade at the next close after the Friday NAV, since a one-week delay leaves about +1.4%/yr net;
+- the deflation pass depends on fine category labels, which reduce tracking error but add no return; it survives ~10% random historical mislabelling;
+- the holiday-Friday eligibility gap recurs inside the forward window (2026-12-25, 2027-01-01), with unknown sign;
+- cost headroom is ~3x.
+
+H404701 (the raw-discount sibling) is REJECT-bound on deflation since the later tax-loss search (F404708). H404702 is the live CEF candidate.
+Links: [[H404702|supports]] · [[F404708|relates]].
+_— captured claude/monetizing-repositories-03e341@534d53f, 2026-10-06_
