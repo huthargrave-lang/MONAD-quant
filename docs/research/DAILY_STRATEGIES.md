@@ -51,8 +51,11 @@ March 2020.
 
 | Domain | Family | Benchmark (own `*_reference` family) | Tool |
 |---|---|---|---|
-| ETF timing | `daily_alloc.v1` | static 60/40 SPY/IEF, same execution model | `tools/daily_search.py` |
-| CEF selection | `cef_discount.v1` | equal-weight eligible CEF universe | `tools/cef_search.py` |
+| ETF timing | `daily_alloc.v1` | static 60/40 SPY/IEF, same execution model | `tools/domain_search.py etf_alloc` |
+| CEF selection | `cef_discount.v1` | equal-weight eligible CEF universe | `tools/domain_search.py cef_discount` |
+| crypto trend | `crypto_trend.v1` | static 50% BTC / 50% cash | `tools/domain_search.py crypto_trend` |
+| country selection | `country_select.v1` | equal-weight country ETFs | `tools/domain_search.py country_select` |
+| BDC selection | `bdc_discount.v1` | equal-weight listed BDCs | `tools/domain_search.py bdc_discount` |
 
 Membership is structural: same evaluator version and domain, under any label. Every grid
 is frozen in code before it runs, and `PRIOR_SEARCH_TRIALS` declares the search the ledger
@@ -74,10 +77,30 @@ and cash.
 
 ## Results so far
 
-| Finding | Search | Verdict |
+| Finding | Domain and search | Verdict |
 |---|---|---|
-| F404704 | 27 ETF timing rules (trend, dual momentum, turn-of-month, overnight, SMA) | none beats the 60/40, on return or on Sharpe |
-| F404705 | 4 calendar tilts (pre-FOMC, sell-in-May) | null; pre-FOMC decays after publication |
+| F404704 | ETF: 27 timing rules (trend, dual momentum, turn-of-month, overnight, SMA) | none beats the 60/40, on return or on Sharpe |
+| F404705 | ETF: pre-FOMC and sell-in-May tilts | null; pre-FOMC decays after publication |
+| F404707 | ETF: Treasury auction-cycle tilt | null (announcement gate; duplicate points disclosed) |
+| F404711 | ETF: Fed-liquidity (WALCL) tilt | null |
+| F404712 | ETF: lunar and geomagnetic tilts | null |
+| F404709 | crypto: BTC trend vs a 50% blend | wins only through exposure; vol-matched null |
+| F404710 | country ETFs: momentum, reversal, low-vol | null |
+| F404706 | CEF: cheapest 20% by raw discount (H404701) | passed every development stage, then REJECT-bound after a later search in its family (F404708) |
+| F404708 | CEF: tax-loss season | null, and it cost H404701 its deflation pass |
+| F404713 | CEF: within-category z-score with hysteresis (H404702) | passes every development stage; forward window to 2027-10-07 |
+| F404714 | BDC: the H404701 rule on a disjoint universe | same sign (+0.5 active Sharpe), underpowered (3.9 years) |
+
+**The pattern.** Every published effect on liquid instruments has decayed or vanished.
+The surviving effect is discount selection in closed-end funds: capacity-constrained, in
+instruments institutions cannot trade at size. It replicates in sign on BDCs.
+
+**Guards added along the way.** A search refuses to run:
+- a grid with duplicate points;
+- in a family holding a live registered hypothesis, unless that hypothesis is
+  acknowledged with `--acknowledge-live`.
+
+Every report shows exposure and the vol-matched active Sharpe.
 
 ## Admission (`tactical_allocation` profile, `tools/admit_tactical.py`)
 
