@@ -23,7 +23,12 @@ Now every row that used to be read from source text is MEASURED:
   MAX_TRADE_BARS_LIVE;
 * **short entries** — short entries the backtest path emits, against live's policy.
 
-    3 agree · 2 coincident · 2 dormant · 0 divergent
+    3 agree · 2 coincident · 2 dormant · 0 divergent   (ENGINE_VERSION 2)
+
+ENGINE_VERSION 3 added execution rows (bracket window, time-exit price, re-entry,
+position count, gap fills, bracket anchor, cycle counting) and live-defect rows:
+
+    9 agree · 2 coincident · 2 dormant · 2 divergent (live side) · 2 live defects
 
 Each measured row has a negative control below, so an agreement cannot be vacuous. The
 max-hold time-exit measurement (bands resolve before the clock at this volatility) is
@@ -56,15 +61,21 @@ class TheCensusIsCompleteAndStableTests(unittest.TestCase):
         for row in self.report["rows"]:
             self.assertIn(row["verdict"],
                           (parity.AGREE, parity.COINCIDENT,
-                           parity.DORMANT, parity.DIVERGE))
+                           parity.DORMANT, parity.DIVERGE, parity.LIVE_DEFECT))
             self.assertTrue(row["backtest"] and row["live"])
 
-    def test_nothing_diverges(self):
+    def test_only_the_declared_live_side_divergences_remain(self):
+        """ENGINE_VERSION 3 (decision debate 2026-10-06, Q1 (f), (i)): the engine matches
+        live everywhere it can. Two rows stay DIVERGE until LIVE changes, each a separate
+        change needing sign-off: live anchors its bracket to the quote, not the fill, and
+        live counts cycles, not bars. Until then the admission parity stage blocks every
+        price strategy, honestly. Any other divergence is a regression."""
         diverging = [r["dimension"] for r in self.report["rows"] if r["verdict"] == parity.DIVERGE]
         self.assertEqual(
-            diverging, [],
-            "a backtest/live divergence reappeared: {} — the admission gate will block every "
-            "price strategy until it is reconciled".format(diverging))
+            sorted(diverging), ["bracket anchor", "cycle counting"],
+            "the backtest/live divergences changed: {}".format(diverging))
+        defects = [r["dimension"] for r in self.report["rows"] if r["verdict"] == parity.LIVE_DEFECT]
+        self.assertEqual(len(defects), 2, defects)
 
     def test_it_matches_the_frozen_artifact(self):
         frozen = json.loads(FROZEN.read_text(encoding="utf-8"))

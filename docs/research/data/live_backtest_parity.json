@@ -1,9 +1,10 @@
 {
   "counts": {
-    "AGREE": 4,
+    "AGREE": 9,
     "COINCIDENT": 2,
-    "DIVERGE": 0,
-    "DORMANT": 2
+    "DIVERGE": 2,
+    "DORMANT": 2,
+    "LIVE_DEFECT": 2
   },
   "rows": [
     {
@@ -61,6 +62,69 @@
       "live": "absent",
       "recorded_in": null,
       "verdict": "DORMANT"
+    },
+    {
+      "backtest": "stop hit in the entry bar: True",
+      "dimension": "bracket window",
+      "live": "bracket children (STP/LMT, parentId) live after the parent fill: True",
+      "recorded_in": "F404703",
+      "verdict": "AGREE"
+    },
+    {
+      "backtest": "time exit at the open of bar N+1+MAX: True",
+      "dimension": "time-exit price",
+      "live": "market close at the :32 cycle once bar_count >= MAX: True",
+      "recorded_in": null,
+      "verdict": "AGREE"
+    },
+    {
+      "backtest": "counts bars (holidays and early closes have none)",
+      "dimension": "cycle counting",
+      "live": "exchange-calendar gate in the trader: False",
+      "recorded_in": "D6 Study 45",
+      "verdict": "DIVERGE"
+    },
+    {
+      "backtest": "re-entry at the exit's own open: True",
+      "dimension": "re-entry after exit",
+      "live": "same-cycle *_then_entry fall-through: True",
+      "recorded_in": null,
+      "verdict": "AGREE"
+    },
+    {
+      "backtest": "1 trade(s) from 3 overlapping signals",
+      "dimension": "position count",
+      "live": "one open position",
+      "recorded_in": "F404703",
+      "verdict": "AGREE"
+    },
+    {
+      "backtest": "gap through the stop fills at the open: True",
+      "dimension": "gap-through fills",
+      "live": "IBKR STP child (fills at market on the trigger): True",
+      "recorded_in": "F404703",
+      "verdict": "AGREE"
+    },
+    {
+      "backtest": "TP/SL anchored to the entry fill (bar N+1 open)",
+      "dimension": "bracket anchor",
+      "live": "anchored to the pre-fill quote: True",
+      "recorded_in": "D6 Study 57",
+      "verdict": "DIVERGE"
+    },
+    {
+      "backtest": "not modelled (one position by exit time)",
+      "dimension": "pending-close path",
+      "live": "mark_pending_close callers in live/: 0",
+      "recorded_in": "D6 unresolved-close audits",
+      "verdict": "LIVE_DEFECT"
+    },
+    {
+      "backtest": "not modelled",
+      "dimension": "phantom round trips",
+      "live": "phantom round trips audited: True",
+      "recorded_in": "D6 phantom-trade audit",
+      "verdict": "LIVE_DEFECT"
     }
   ],
   "subject": "repository"

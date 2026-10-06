@@ -31,6 +31,13 @@ Nothing here is fixed. Every control H32 asks for lives in `live/`, which is fen
 adding a loss limit changes when the bot refuses to trade — an owner decision, not a
 research one. This records the state, the arithmetic, and what exists already, so the gate
 can be argued from numbers.
+
+**The "engine has no term that can express it" premise was measured under engine v2.**
+Under ENGINE_VERSION 3 (docs/research/ENGINE_V3_QUESTION.md, rule (b)) an open at or
+through the stop fills at that open less ``stop_slippage_pct`` (``gap_stop``), so a
+backtest now books F47's overnight gap at about −4.007% rather than at the 0.50% stop.
+The per-trade arithmetic and H32's finding are unchanged: risk is still capped one trade
+at a time and nothing in the code sums losses across a session.
 """
 import re
 import subprocess
@@ -42,6 +49,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 import config  # noqa: E402
+from tests._engine_uncounted import uncounted_module  # noqa: E402
+
+# One test probes compute_trade_returns on hand-built bars: engine arithmetic, not a
+# strategy evaluation, so it runs outside the trial ledger (src/strategy/counted.py).
+setUpModule, tearDownModule = uncounted_module("H32: the engine's gap fill on hand-built bars")
 
 TRADER = (ROOT / "live" / "trader.py").read_text(encoding="utf-8")
 
@@ -136,12 +148,34 @@ class TheArithmeticOfTheGapTests(unittest.TestCase):
             observed_day, 2.5,
             "the observed-gap day figure fell below 2.5% — recompute before citing 2.8%")
 
-    def test_the_engine_cannot_model_the_gap_at_all(self):
-        """Which is why the modelled day figure is the optimistic one (F19/F193)."""
-        engine = (ROOT / "src" / "strategy" / "engine.py").read_text(encoding="utf-8")
-        self.assertIn("exit_return = -stop - stop_slippage_pct", engine,
-                      "the stop fill is no longer a constant — gap modelling may exist, "
-                      "which would change the arithmetic above")
+    def test_the_engine_now_books_the_gap_at_the_open(self):
+        """F47's overnight gap, replayed through the engine, is booked at the gap.
+
+        Measured under engine v2 as "the engine cannot model the gap at all" (the stop
+        filled at a constant, F19/F193), which made the modelled day figure the
+        optimistic one. Re-pinned for ENGINE_VERSION 3 (docs/research/ENGINE_V3_QUESTION.md):
+        an open through the stop fills at the open (gap_stop), so the engine now books
+        the observed -4.007%, i.e. 0.4007% of the account at fixed 10% sizing. Renamed
+        from test_the_engine_cannot_model_the_gap_at_all, now false. The session-level
+        finding does not depend on it.
+        """
+        import pandas as pd
+        from src.strategy.engine import compute_trade_returns
+
+        stop = config.STOP_LOSS_PCT_TQQQ_HOURLY
+        flat = (100.0, 100.1, 99.9, 100.0)
+        rows = [flat, flat, (95.993, 96.2, 95.8, 96.0), flat, flat]
+        df = pd.DataFrame(rows, columns=["open", "high", "low", "close"],
+                          index=pd.date_range("2026-03-02 14:30", periods=len(rows), freq="h"))
+        df["entry_signal"] = [1, 0, 0, 0, 0]
+        res = compute_trade_returns(df, target_gain_pct=config.TARGET_GAIN_PCT_TQQQ_HOURLY,
+                                    stop_loss_pct=stop, max_trade_bars=3)
+        self.assertEqual(res.iloc[0]["exit_type"], "gap_stop",
+                         "a gap through the stop is no longer modelled — the v2 constant "
+                         "stop fill is back, which would change the arithmetic above")
+        booked = float(res.iloc[0]["return"])
+        self.assertAlmostEqual(booked, -0.04007, places=12)
+        self.assertAlmostEqual(self.per_trade(-booked) * 100, 0.4007, places=9)
 
 
 class TheKillSwitchIsOneLineInTheWrongDocTests(unittest.TestCase):

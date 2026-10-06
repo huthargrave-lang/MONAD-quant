@@ -28,10 +28,18 @@ class TheUiCannotArmTheTrader(unittest.TestCase):
 
     def test_apply_is_absent_from_every_argv_it_can_build(self):
         """Not "we do not pass it" — it is unreachable. `build_argv` takes no flag that could
-        become it, so no caller can opt in."""
+        become it, so no caller can opt in.
+
+        Re-pinned for ENGINE_VERSION 3 (docs/research/ENGINE_V3_QUESTION.md, rule (e)): the
+        "optimistic" backtest mode is renamed "upper_bound", so the sweep covers every mode
+        build_argv accepts under its new name, and the old name is refused outright.
+        """
+        with self.assertRaises(ValueError):
+            sweep_runner.build_argv("/usr/bin/python3", "QQQ", sweep_runner.PHASES[0],
+                                    "optimistic")
         for ticker in ("QQQ", "TQQQ", "GC=F", "BRK.B"):
             for phase in sweep_runner.PHASES:
-                for mode in ("optimistic", "realistic", "harsh"):
+                for mode in ("upper_bound", "realistic", "harsh"):
                     argv = sweep_runner.build_argv("/usr/bin/python3", ticker, phase, mode)
                     with self.subTest(ticker=ticker, phase=phase, mode=mode):
                         self.assertNotIn("--apply", argv)

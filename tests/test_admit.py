@@ -61,6 +61,12 @@ def _spec(**changes):
     return s
 
 
+def _spec_v2(**changes):
+    """The same candidate as a new (gate rules v2) registration would freeze it."""
+    return _spec(metric="familywise_spa", gate_rules=2, familywise_alpha=0.05,
+                 prior_search_trials=0, **changes)
+
+
 def flat_bars(symbol, start, end):
     """A flat, gently noisy tape: buy & hold earns ~nothing, so the benchmark is fair."""
     idx = pd.date_range(pd.Timestamp(start), pd.Timestamp(end), freq="h", tz="UTC")
@@ -382,9 +388,7 @@ class GateRulesV2(Gate):
     read from the registration's rules version, never from the record."""
 
     def register_v2(self):
-        prereg.register(_spec(metric="familywise_spa", gate_rules=2, familywise_alpha=0.05,
-                              prior_search_trials=0),
-                        prereg_dir=self.dirs["prereg_dir"], check_web=False, now=REGISTERED)
+        prereg.register(_spec_v2(), prereg_dir=self.dirs["prereg_dir"], check_web=False, now=REGISTERED)
 
     def test_a_v2_price_registration_is_blocked_at_familywise_with_the_dsr_as_a_diagnostic(self):
         self.register_v2()

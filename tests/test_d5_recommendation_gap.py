@@ -39,6 +39,11 @@ sys.path.insert(0, str(ROOT / "tools"))
 import config  # noqa: E402
 from src.backtest import runner as runner_mod  # noqa: E402
 from src.strategy import engine as engine_mod  # noqa: E402
+from tests._engine_uncounted import uncounted_module  # noqa: E402
+
+# One test below probes compute_trade_returns on hand-built bars: engine arithmetic, not a
+# strategy evaluation, so it runs outside the trial ledger (src/strategy/counted.py).
+setUpModule, tearDownModule = uncounted_module("D5 gap: the exit is still a %-band on hand-built bars")
 
 TRADER = ROOT / "live" / "trader.py"
 
@@ -72,15 +77,36 @@ class EveryD5DropIsStillInForceTests(unittest.TestCase):
 
     def test_the_exit_is_still_a_fixed_PERCENT_BAND(self):
         """D5 wants a multi-day horizon exit. The engine's time exit is a fallback
-        reached only when neither barrier fires — the opposite priority."""
-        source = inspect.getsource(engine_mod.compute_trade_returns)
-        self.assertIn("exit_return = -stop - stop_slippage_pct", source,
-                      APPLIED + "the %-stop fill is gone from compute_trade_returns.")
-        self.assertIn(
-            "# If no target/stop/opposing-signal hit, use close of last future bar",
-            source,
-            APPLIED + "the time exit is no longer the fallback branch — it may have "
-            "been promoted to the primary exit, which IS D5's recommendation.")
+        reached only when neither barrier fires — the opposite priority.
+
+        Re-pinned for ENGINE_VERSION 3 (docs/research/ENGINE_V3_QUESTION.md): v3 rewrote
+        compute_trade_returns (the time exit now fills at the OPEN of bar N+1+MAX), so the
+        v2 source tokens this test matched are gone although D5 is still unapplied. The
+        guard now checks the behaviour on hand-built bars: a %-stop touched before MAX
+        books exactly -stop (a fixed percent band, not a horizon exit), and the time exit
+        fires only when neither barrier was touched.
+        """
+        import pandas as pd
+        flat = (100.0, 100.1, 99.9, 100.0)
+
+        def run(rows):
+            idx = pd.date_range("2026-03-02 14:30", periods=len(rows), freq="h")
+            df = pd.DataFrame(rows, columns=["open", "high", "low", "close"], index=idx)
+            df["entry_signal"] = [1] + [0] * (len(rows) - 1)
+            return engine_mod.compute_trade_returns(
+                df, target_gain_pct=0.02, stop_loss_pct=0.01, max_trade_bars=4)
+
+        touched = run([flat, flat, (100, 100.1, 98.5, 99.0), flat, flat, flat, flat])
+        self.assertEqual(
+            (touched["exit_type"].iloc[0], round(touched["return"].iloc[0], 12)),
+            ("stop_hit", -0.01),
+            APPLIED + "a %-stop touched inside the hold no longer books the fixed band.")
+        untouched = run([flat] * 7)
+        self.assertEqual(
+            untouched["exit_type"].iloc[0], "time_exit",
+            APPLIED + "the time exit is no longer the fallback reached only when neither "
+            "barrier fires — it may have been promoted to the primary exit, which IS "
+            "D5's recommendation.")
 
     def test_no_multi_sleeve_PORTFOLIO_construction_exists_in_src(self):
         """D5's build is an equal-weight portfolio of sleeves. The engine takes one
