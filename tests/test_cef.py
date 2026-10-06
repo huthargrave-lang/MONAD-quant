@@ -217,3 +217,14 @@ class ForwardLog(unittest.TestCase):
                     forward_log.append("H9", row)            # the same session twice
                 self.assertEqual(forward_log.verify("H9"), [])
                 self.assertAlmostEqual(sum(row["weights"].values()), 1.0, places=6)
+
+
+class FreshWindow(unittest.TestCase):
+    def test_the_fresh_window_clears_the_snapshot_floor(self):
+        """A 900-day window held 617 sessions and the first forward_log run failed on
+        daily_data.MIN_SESSIONS (2026-10-06); pin the window against the floor."""
+        sys.path.insert(0, str(REPO / "tools"))
+        import cef_picks
+        from src.research.daily_data import MIN_SESSIONS
+        sessions = len(pd.bdate_range(end=pd.Timestamp("2026-10-06"), periods=cef_picks.FRESH_CALENDAR_DAYS * 5 // 7))
+        self.assertGreater(sessions * 0.96, MIN_SESSIONS)    # ~4% of weekdays are holidays
