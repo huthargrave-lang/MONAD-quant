@@ -1,0 +1,66 @@
+{
+ "vintage": "2026-10-06",
+ "schema_version": 1,
+ "hypothesis": "H404702",
+ "since": "2016-01-01",
+ "funds_traded": 319,
+ "adv_window": 20,
+ "latest_weight_in_funds_under_1m_adv": 0.4072592988719578,
+ "median_fund_adv_latest": 1246101.0159492493,
+ "capacity": [
+  {
+   "aum": 1000000.0,
+   "trades": 259751,
+   "median_participation": 6.377760870872547e-05,
+   "p90_participation": 0.001278385663373194,
+   "share_above_10pct": 0.0003695847176719243,
+   "share_above_20pct": 5.3897771327155625e-05,
+   "median_days_to_exit_largest": 4.06682412832902
+  },
+  {
+   "aum": 5000000.0,
+   "trades": 259751,
+   "median_participation": 0.00031888804354362734,
+   "p90_participation": 0.00639192831686597,
+   "share_above_10pct": 0.003245415802056585,
+   "share_above_20pct": 0.0014744890298786146,
+   "median_days_to_exit_largest": 20.3341206416451
+  },
+  {
+   "aum": 10000000.0,
+   "trades": 259751,
+   "median_participation": 0.0006377760870872547,
+   "p90_participation": 0.01278385663373194,
+   "share_above_10pct": 0.006756470619939866,
+   "share_above_20pct": 0.003245415802056585,
+   "median_days_to_exit_largest": 40.6682412832902
+  },
+  {
+   "aum": 25000000.0,
+   "trades": 259751,
+   "median_participation": 0.0015944402177181368,
+   "p90_participation": 0.031959641584329845,
+   "share_above_10pct": 0.020635146736682437,
+   "share_above_20pct": 0.008465799939172515,
+   "median_days_to_exit_largest": 101.6706032082255
+  },
+  {
+   "aum": 50000000.0,
+   "trades": 259751,
+   "median_participation": 0.0031888804354362737,
+   "p90_participation": 0.06391928316865969,
+   "share_above_10pct": 0.059460791296279895,
+   "share_above_20pct": 0.020635146736682437,
+   "median_days_to_exit_largest": 203.341206416451
+  },
+  {
+   "aum": 100000000.0,
+   "trades": 259751,
+   "median_participation": 0.006377760870872547,
+   "p90_participation": 0.12783856633731938,
+   "share_above_10pct": 0.12617468267687132,
+   "share_above_20pct": 0.059460791296279895,
+   "median_days_to_exit_largest": 406.682412832902
+  }
+ ]
+}
