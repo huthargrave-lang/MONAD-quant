@@ -3972,3 +3972,26 @@ Why this is right under the current rules, and the open question it raises:
 H404701 stays REJECT-bound unless the rules change prospectively; its forward window still runs and will still be scored.
 Links: [[H404701|contradicts]] · [[F404706|refines]].
 _— captured claude/monetizing-repositories-03e341@ee897dc, 2026-10-05_
+
+### H404702 — Within-category cheapest CEFs by discount z-score, held with hysteresis, beat owning them all
+Hypothesis: within each CEFConnect category with at least 5 eligible funds, holding the funds whose discount is cheapest against their own last 52 weeks (z-score), entering at the category's cheapest 20% and exiting only past its cheapest 50% (hysteresis), equal weight, beats the equal-weight CEF universe.
+- Execution: decided at a close, traded at the next close, rebalanced every 21 sessions in 21 tranches, at CEF costs.
+
+Search evidence (tools/cef_search.py --grid banded; snapshot DS-18cef162, NAV panel CEFNAV-fd7099e2):
+- active Sharpe +1.44, eras +1.30 / +1.24 / +2.43;
+- active return +2.25%/yr net of 1.09%/yr costs, about +1.25%/yr at 2x costs;
+- Hansen SPA_c adjusted p < 0.001 at all blocks (K=12, t=6.5);
+- active DSR 0.99 at N 16 (SR0 0.94);
+- look-ahead clean.
+
+It is the top point by the search's pre-declared ranking (active Sharpe), so no post-hoc selection. It is CATEGORY-NEUTRAL by construction, which answers H404701's main caveat (about half that edge was category tilt).
+
+Threats to test:
+- the categories are TODAY's CEFConnect labels applied to all history (a fund that changed mandate is ranked against its later peers);
+- survivorship (current listings only);
+- path dependence of the hysteresis;
+- concentration within small categories.
+
+Falsified by: tools/admit.py REJECT at any relative stage, or the 365-day forward window.
+Links: [[H404701|refines]].
+_— captured claude/monetizing-repositories-03e341@72c289a, 2026-10-05_
