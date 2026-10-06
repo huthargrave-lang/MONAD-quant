@@ -105,9 +105,13 @@ class SessionReturns:
 
 
 # ── fetching ─────────────────────────────────────────────────────────────────
-def yahoo_raw(symbol: str, start: str, end: str) -> pd.DataFrame:
+def yahoo_raw(symbol: str, start: str, end: str, *, tz: str = "America/New_York") -> pd.DataFrame:
     """Raw daily OHLC with distributions from yfinance: Open, Close (split-adjusted, not
-    dividend-adjusted), Dividends, Capital Gains, Stock Splits; index = session date."""
+    dividend-adjusted), Dividends, Capital Gains, Stock Splits; index = session date.
+
+    ``tz``: the zone a bar's timestamp is read in to get its session date. Exchange-listed
+    assets use New York. Crypto bars are stamped at UTC midnight and must keep their UTC
+    date (``yahoo_crypto``): read in New York they would land on the previous day."""
     import yfinance as yf
 
     h = yf.Ticker(symbol).history(start=start, end=end, auto_adjust=False, actions=True)
@@ -115,12 +119,20 @@ def yahoo_raw(symbol: str, start: str, end: str) -> pd.DataFrame:
         raise SnapshotError(f"yfinance returned nothing for {symbol} {start}..{end}")
     idx = pd.DatetimeIndex(h.index)
     if idx.tz is not None:
-        idx = idx.tz_convert("America/New_York").tz_localize(None)
+        idx = idx.tz_convert(tz).tz_localize(None)
     h.index = idx.normalize()
     for col in ("Dividends", "Capital Gains", "Stock Splits"):
         if col not in h.columns:
             h[col] = 0.0
     return h[["Open", "Close", "Dividends", "Capital Gains", "Stock Splits"]]
+
+
+def yahoo_crypto(symbol: str, start: str, end: str) -> pd.DataFrame:
+    """Daily crypto bars (24/7, UTC-midnight dates). A bar dated today is still forming
+    and is dropped."""
+    h = yahoo_raw(symbol, start, end, tz="UTC")
+    today = pd.Timestamp(_dt.datetime.now(_dt.timezone.utc).date())
+    return h[h.index < today]
 
 
 def fred_dtb3(start: str, end: str) -> pd.Series:
@@ -242,6 +254,7 @@ def _validate_asset(s: str, h: pd.DataFrame, calendar: pd.DatetimeIndex, *, stri
 def build_frames(universe: Sequence[str], start: str, end: str, *,
                  optional: Sequence[str] = (),
                  independent_closes: Mapping[str, pd.Series] | None = None,
+                 continuous: bool = False,
                  fetch_asset: Callable = yahoo_raw, fetch_cash: Callable = fred_dtb3,
                  fetch_check: Callable | None = yahoo_irx) -> tuple[dict, dict]:
     """Fetch and validate. Returns ({"open","close","dist","dtb3"}, validation report).
@@ -252,7 +265,11 @@ def build_frames(universe: Sequence[str], start: str, end: str, *,
     ``report["dropped"]``, and ones with synthesised opens are kept but flagged
     ``opens_unreliable``. ``independent_closes`` (asset -> another source's closes) lets
     an extreme session be accepted when that source corroborates it (``corroborated``).
-    The calendar is the first asset's sessions; it must be core."""
+    The calendar is the first asset's sessions; it must be core.
+
+    ``continuous``: a 24/7 market (crypto). Weekend sessions are allowed, and every
+    asset's opens are flagged unreliable: a market that never closes has no opening print,
+    only the previous bar's close, so strategies on it trade at the close."""
     if not universe or len(set(universe)) != len(universe):
         raise SnapshotError("universe must be a non-empty list of distinct symbols")
     optional = set(optional)
@@ -278,12 +295,15 @@ def build_frames(universe: Sequence[str], start: str, end: str, *,
                 raise SnapshotError(f"{s}'s sessions are not strictly increasing")
             if len(calendar) < MIN_SESSIONS:
                 raise SnapshotError(f"only {len(calendar)} sessions (need {MIN_SESSIONS})")
-            if (calendar.dayofweek >= 5).any():
+            if not continuous and (calendar.dayofweek >= 5).any():
                 raise SnapshotError("the calendar contains weekend sessions")
             report["sessions"] = len(calendar)
         try:
-            o, c, d, info = _validate_asset(s, h, calendar, strict_opens=s not in optional,
+            o, c, d, info = _validate_asset(s, h, calendar,
+                                            strict_opens=s not in optional and not continuous,
                                             independent=(independent_closes or {}).get(s))
+            if continuous:
+                info["opens_unreliable"] = True
         except AssetError as exc:
             if s not in optional:
                 raise
@@ -311,6 +331,8 @@ def build_frames(universe: Sequence[str], start: str, end: str, *,
                                 f"average (max {MAX_IRX_DISAGREEMENT})")
         report["dtb3"]["mean_abs_vs_irx_pct"] = round(disagreement, 4)
         report["dtb3"]["irx_sessions_compared"] = int(len(both))
+    if continuous:
+        report["calendar"] = "continuous (24/7)"
     if not report["dropped"]:
         del report["dropped"]
     frames = {"open": pd.DataFrame(opens), "close": pd.DataFrame(closes),
@@ -403,14 +425,15 @@ def _write_exclusive(path: Path, data: bytes) -> None:
 
 def build_snapshot(universe: Sequence[str], start: str, end: str, *,
                    optional: Sequence[str] = (), independent_closes: Mapping | None = None,
-                   independent_source: str | None = None,
+                   independent_source: str | None = None, continuous: bool = False,
                    data_dir: Path | None = None, **fetchers) -> str:
     """Fetch, validate and write a snapshot. Returns its sha. The manifest's universe is
     what was REQUESTED; ``validation.dropped`` says what was left out and why."""
     import yfinance
 
     frames, report = build_frames(universe, start, end, optional=optional,
-                                  independent_closes=independent_closes, **fetchers)
+                                  independent_closes=independent_closes, continuous=continuous,
+                                  **fetchers)
     sources = {"prices": f"yfinance {yfinance.__version__} history(auto_adjust=False, actions=True)",
                "cash": "FRED DTB3 (fredgraph.csv)", "cash_check": "Yahoo ^IRX"}
     if independent_source:

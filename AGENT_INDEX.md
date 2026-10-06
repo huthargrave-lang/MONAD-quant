@@ -45,8 +45,10 @@ venv/bin/python tools/trial_ledger.py deflate '<run_id>#<trial>'  # Deflated Sha
 venv/bin/python tools/prereg.py template | register <spec.json> [--commit]  # freeze a hypothesis's claim, bar and holdout BEFORE testing it (immutable)
 venv/bin/python tools/refute.py object|resolve|status <H> ...  # file or answer an objection; open ones BLOCK admission, upheld ones REJECT
 venv/bin/python tools/admit.py <H> [--dry-run]    # THE admission gate: deterministic chain, immutable verdict; the only way a hypothesis becomes an edge
-venv/bin/python tools/daily_search.py --snapshot <DS sha> [--grid v1|events] [--report-only]  # counted daily ETF grid vs the static 60/40: active Sharpe, SPA, DSR, eras, look-ahead
-venv/bin/python tools/cef_search.py --snapshot <DS sha> --panel <CEFNAV sha> [--report-only]  # counted CEF-discount grid vs the equal-weight CEF universe (docs/research/DAILY_STRATEGIES.md)
+venv/bin/python tools/domain_search.py <domain> --snapshot <DS sha> [--panel <sha>] [--grid G] [--report-only]  # counted daily-strategy grid vs its domain benchmark (etf_alloc, cef_discount, crypto_trend): active Sharpe, SPA, DSR, eras, look-ahead
+venv/bin/python tools/daily_search.py --snapshot <DS sha> [--grid v1|events|auctions] [--report-only]  # = domain_search etf_alloc (vs the static 60/40)
+venv/bin/python tools/cef_search.py --snapshot <DS sha> --panel <CEFNAV sha> [--grid v1|taxloss|banded]  # = domain_search cef_discount (vs the equal-weight CEF universe)
+venv/bin/python tools/cef_picks.py <H> [--fresh]  # what a registered CEF hypothesis would hold now (paper tracking; no trials)
 venv/bin/python tools/edge_scorecard.py           # the edge hunt at a glance: registered vs admitted, objections, trials per admission
 venv/bin/python tools/reevaluate_web.py triage|next|decide  # re-evaluate Findings that predate the gate (market claims first); feeds research_backlog
 venv/bin/python tools/ctx.py brief <area> --task ".."  # ≤900-tok orientation packet (best first move)

@@ -2,7 +2,7 @@
 MONAD Quant — Recording a daily-strategy evaluation as a ledger trial.
 
 One definition of what a daily trial's spec and outcome contain, shared by the search
-producer (tools/daily_search.py) and the admission gate, so a trial means the same thing
+producer (tools/domain_search.py) and the admission gate, so a trial means the same thing
 whichever wrote it (the same rule ``backtest_trials`` applies to engine backtests).
 
 Spec ``params``::
@@ -41,6 +41,7 @@ from src.research.trials import LedgerError, Trial
 DOMAINS = {
     "etf_alloc": {"family": "daily_alloc", "reference_class": "static_6040"},
     "cef_discount": {"family": "cef_discount", "reference_class": "cef_equal_weight"},
+    "crypto_trend": {"family": "crypto_trend", "reference_class": "crypto_static_half"},
 }
 DEFAULT_DOMAIN = "etf_alloc"      # trials recorded before domains existed (the v1 search)
 

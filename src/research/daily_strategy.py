@@ -59,6 +59,9 @@ COST_BPS = {
     "tier1": {"pre": 5.0, "post": 2.0},
     "tier2": {"pre": 12.0, "post": 5.0},
     "cef": {"pre": 30.0, "post": 15.0},
+    # Spot crypto at small size: between IBKR's 12-18 bps commission and retail exchange
+    # taker fees (40-60 bps), with spread; one rate, as the market starts after 2010.
+    "crypto": {"pre": 25.0, "post": 25.0},
 }
 TIER2 = frozenset({"EEM", "DBC", "VNQ"})
 

@@ -5,8 +5,9 @@ rules, benchmark, costs and scoring window, shared by the search tools and the g
 A domain answers one question against one benchmark (``daily_trials.DOMAINS``). Its
 adapter says how to load the frozen data a trial names, how a grid point becomes orders,
 which portfolio it is judged against, at what cost tier its assets trade, which sessions
-are scored, and how look-ahead is checked. The search tools (``tools/daily_search.py``,
-``tools/cef_search.py``) and the admission gate (``tools/admit_tactical.py``) all use it,
+are scored, and how look-ahead is checked. The search tool (``tools/domain_search.py``,
+with ``daily_search.py`` and ``cef_search.py`` as named entry points) and the admission
+gate (``tools/admit_tactical.py``) all use it,
 so the gate re-runs a candidate exactly as the search ran it, and can prove so.
 """
 from __future__ import annotations
@@ -42,7 +43,12 @@ class Domain:
     tiers: Callable[[Context], dict | None]
     start: Callable[[Context], pd.Timestamp]
     truncation: Callable[[Context, Mapping, list], list]
-    grid: Callable[[], list]
+    grids: Callable[[], dict]                            # name -> frozen grid function
+    prior_search_trials: int                             # declared search the ledger cannot see
+
+    def grid(self) -> list:
+        """Every point of every frozen search in the domain."""
+        return [p for g in self.grids().values() for p in g()]
 
     def window(self, ctx: Context) -> tuple[pd.Timestamp, pd.Timestamp]:
         return self.start(ctx), ctx.snap.dates[-1]
@@ -69,7 +75,11 @@ ETF = Domain(
     name="etf_alloc", reference=dc.REFERENCE, eras=dc.ERAS, load=_etf_load,
     decide=lambda ctx, point: dc.decide(ctx.snap, point),
     tiers=lambda ctx: None, start=_etf_start, truncation=_etf_truncation,
-    grid=lambda: [p for g in dc.GRIDS.values() for p in g()])
+    grids=lambda: dc.GRIDS,
+    # Declared before each search ran; it only grows (history in DAILY_STRATEGIES.md):
+    # the D6 arc's ~15 builds, 5 famous v1 rules x 3, FOMC and sell-in-May x 3 each, and
+    # the Treasury auction cycle x 3.
+    prior_search_trials=39)
 
 
 # ── closed-end-fund selection against the equal-weight universe ─────────────
@@ -91,7 +101,25 @@ CEF = Domain(
     tiers=lambda ctx: _cef().tiers(ctx.snap, ctx.panel),
     start=lambda ctx: _cef().scoring_start(ctx.snap, ctx.panel),
     truncation=lambda ctx, point, cuts: _cef().truncation_violations(ctx.snap, ctx.panel, point, cuts),
-    grid=lambda: [p for g in _cef().GRIDS.values() for p in g()])
+    grids=lambda: _cef().GRIDS,
+    # Discount mean reversion x 3 and the F257 pilot (4), the CEF January effect x 3 (7),
+    # hysteresis as a practitioner variant x 2 (9). It only grows.
+    prior_search_trials=9)
 
-DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF)}
+# ── crypto trend-following against a static half-crypto blend ───────────────
+from src.research import crypto_classes as _crypto  # noqa: E402  (no import cycle)
+
+CRYPTO = Domain(
+    name="crypto_trend", reference=_crypto.REFERENCE, eras=_crypto.ERAS,
+    load=lambda data: Context(snap=daily_data.load_snapshot(data["snapshot"])),
+    decide=lambda ctx, point: _crypto.decide(ctx.snap, point),
+    tiers=lambda ctx: _crypto.tiers(ctx.snap),
+    start=lambda ctx: _crypto.scoring_start(ctx.snap),
+    truncation=lambda ctx, point, cuts: _crypto.truncation_violations(ctx.snap, point, cuts),
+    grids=lambda: _crypto.GRIDS,
+    # Trend-following on BTC is a famous retail rule with many published MA variants:
+    # counted as the survivor of 3.
+    prior_search_trials=3)
+
+DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO)}
 
