@@ -186,7 +186,8 @@ def corroborated(close: pd.Series, day: pd.Timestamp, independent: pd.Series) ->
 
 
 def _validate_asset(s: str, h: pd.DataFrame, calendar: pd.DatetimeIndex, *, strict_opens: bool,
-                    independent: pd.Series | None = None):
+                    independent: pd.Series | None = None,
+                    extreme_bounds: tuple[float, float] | None = None):
     """(open, close, dist, info) for one asset on ``calendar``, or AssetError.
 
     ``strict_opens``: synthesised opens fail the asset. Otherwise they are recorded in
@@ -215,7 +216,8 @@ def _validate_asset(s: str, h: pd.DataFrame, calendar: pd.DatetimeIndex, *, stri
         raise AssetError(f"{s} has negative distributions")
     prev = c.loc[live].shift(1)
     total = ((c.loc[live] + dist) / prev - 1.0).iloc[1:]
-    extremes = total[total.abs() > MAX_ABS_SESSION_RETURN]
+    lo, hi = extreme_bounds or (-MAX_ABS_SESSION_RETURN, MAX_ABS_SESSION_RETURN)
+    extremes = total[(total < lo) | (total > hi)]
     accepted_extremes = {}
     for day, ret in extremes.items():
         if independent is not None and corroborated(c, day, independent):
@@ -255,6 +257,7 @@ def build_frames(universe: Sequence[str], start: str, end: str, *,
                  optional: Sequence[str] = (),
                  independent_closes: Mapping[str, pd.Series] | None = None,
                  continuous: bool = False,
+                 extreme_bounds: tuple[float, float] | None = None,
                  fetch_asset: Callable = yahoo_raw, fetch_cash: Callable = fred_dtb3,
                  fetch_check: Callable | None = yahoo_irx) -> tuple[dict, dict]:
     """Fetch and validate. Returns ({"open","close","dist","dtb3"}, validation report).
@@ -269,7 +272,13 @@ def build_frames(universe: Sequence[str], start: str, end: str, *,
 
     ``continuous``: a 24/7 market (crypto). Weekend sessions are allowed, and every
     asset's opens are flagged unreliable: a market that never closes has no opening print,
-    only the previous bar's close, so strategies on it trade at the close."""
+    only the previous bar's close, so strategies on it trade at the close.
+
+    ``extreme_bounds``: (low, high) session total-return bounds beyond which a session is
+    a suspected vendor error unless corroborated. Default +/-MAX_ABS_SESSION_RETURN suits
+    ETFs and funds. Small-cap equities really do move 50%+ in a day, so a study of them
+    widens the bounds (recorded in the manifest), keeping a check that still catches an
+    unadjusted reverse split (+900%)."""
     if not universe or len(set(universe)) != len(universe):
         raise SnapshotError("universe must be a non-empty list of distinct symbols")
     optional = set(optional)
@@ -301,7 +310,8 @@ def build_frames(universe: Sequence[str], start: str, end: str, *,
         try:
             o, c, d, info = _validate_asset(s, h, calendar,
                                             strict_opens=s not in optional and not continuous,
-                                            independent=(independent_closes or {}).get(s))
+                                            independent=(independent_closes or {}).get(s),
+                                            extreme_bounds=extreme_bounds)
             if continuous:
                 info["opens_unreliable"] = True
         except AssetError as exc:
@@ -333,6 +343,8 @@ def build_frames(universe: Sequence[str], start: str, end: str, *,
         report["dtb3"]["irx_sessions_compared"] = int(len(both))
     if continuous:
         report["calendar"] = "continuous (24/7)"
+    if extreme_bounds is not None:
+        report["extreme_bounds"] = list(extreme_bounds)
     if not report["dropped"]:
         del report["dropped"]
     frames = {"open": pd.DataFrame(opens), "close": pd.DataFrame(closes),
@@ -426,6 +438,7 @@ def _write_exclusive(path: Path, data: bytes) -> None:
 def build_snapshot(universe: Sequence[str], start: str, end: str, *,
                    optional: Sequence[str] = (), independent_closes: Mapping | None = None,
                    independent_source: str | None = None, continuous: bool = False,
+                   extreme_bounds: tuple[float, float] | None = None,
                    data_dir: Path | None = None, **fetchers) -> str:
     """Fetch, validate and write a snapshot. Returns its sha. The manifest's universe is
     what was REQUESTED; ``validation.dropped`` says what was left out and why."""
@@ -433,7 +446,7 @@ def build_snapshot(universe: Sequence[str], start: str, end: str, *,
 
     frames, report = build_frames(universe, start, end, optional=optional,
                                   independent_closes=independent_closes, continuous=continuous,
-                                  **fetchers)
+                                  extreme_bounds=extreme_bounds, **fetchers)
     sources = {"prices": f"yfinance {yfinance.__version__} history(auto_adjust=False, actions=True)",
                "cash": "FRED DTB3 (fredgraph.csv)", "cash_check": "Yahoo ^IRX"}
     if independent_source:
