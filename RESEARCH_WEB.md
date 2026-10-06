@@ -4013,3 +4013,19 @@ But the win is EXPOSURE, not timing:
 The 50% benchmark was a design error: a static benchmark must match exposure. Not registered. The tool now prints exposure and the vol-matched Sharpe for every point, so this failure mode is visible at once.
 Links: [[F404704|relates]].
 _— captured claude/monetizing-repositories-03e341@020765c, 2026-10-06_
+
+### F404710 — Country ETF momentum, reversal and low-vol do not beat the equal-weight country universe (SPA p 0.44-0.50): another liquid effect gone
+New domain country_select, frozen before any return was examined. 41 iShares single-country ETFs (DS-52eda901, 1996-2026; window from 1997-04-15). Fully invested, next-open execution, 21 tranches, tier-2 costs. Benchmark: the equal-weight eligible country universe (excess Sharpe 0.35, maxDD -61.5%).
+
+Results (active Sharpe; vol-matched beside it):
+- momentum 6m: +0.20 (+0.17); eras +0.59 / -0.53 / +0.25.
+- momentum 12m: +0.07.
+- 1-month reversal: -0.18.
+- low volatility: -0.25.
+- SPA family p 0.44-0.50. Active DSR 0.19 (N 13). Null.
+
+Country-index momentum, one of the 'everywhere' effects in Asness-Moskowitz-Pedersen, is not exploitable through liquid country ETFs after 1997. It worked before the global financial crisis and inverted during 2008-16.
+
+Pattern across the session: every published effect on liquid instruments has decayed or vanished (ETF timing F404704, FOMC F404705, auctions F404707, CEF tax-loss F404708, crypto trend F404709, country selection here). The surviving effects are CEF discount selection (H404701/H404702): capacity-constrained, in instruments institutions cannot trade at size.
+Links: [[F404704|relates]] · [[F404706|relates]].
+_— captured claude/monetizing-repositories-03e341@e5245be, 2026-10-06_
