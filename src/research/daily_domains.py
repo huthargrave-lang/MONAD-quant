@@ -137,5 +137,26 @@ COUNTRY = Domain(
     # counted as the survivor of 3 variants.
     prior_search_trials=9)
 
-DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO, COUNTRY)}
+# ── BDC discount selection: an out-of-sample test of the CEF mechanism ───────
+from src.research import bdc_classes as _bdc  # noqa: E402
+
+
+def _bdc_load(data: Mapping) -> Context:
+    from src.research import bdc_data
+    return Context(snap=daily_data.load_snapshot(data["snapshot"]),
+                   panel=bdc_data.load_panel(data["nav_panel"]))
+
+
+BDC = Domain(
+    name="bdc_discount", reference=_bdc.REFERENCE, eras=_bdc.ERAS, load=_bdc_load,
+    decide=lambda ctx, point: _bdc.decide(ctx.snap, ctx.panel, point),
+    tiers=lambda ctx: _bdc.tiers(ctx.snap, ctx.panel),
+    start=lambda ctx: _bdc.scoring_start(ctx.snap, ctx.panel),
+    truncation=lambda ctx, point, cuts: _bdc.truncation_violations(ctx.snap, ctx.panel, point, cuts),
+    grids=lambda: _bdc.GRIDS,
+    # A replication of the CEF mechanism the CEF family found (its search is counted
+    # there); BDC price-to-NAV is also a published screen: counted as 3.
+    prior_search_trials=3)
+
+DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO, COUNTRY, BDC)}
 

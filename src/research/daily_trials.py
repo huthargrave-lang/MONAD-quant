@@ -43,6 +43,7 @@ DOMAINS = {
     "cef_discount": {"family": "cef_discount", "reference_class": "cef_equal_weight"},
     "crypto_trend": {"family": "crypto_trend", "reference_class": "crypto_static_half"},
     "country_select": {"family": "country_select", "reference_class": "country_equal_weight"},
+    "bdc_discount": {"family": "bdc_discount", "reference_class": "bdc_equal_weight"},
 }
 DEFAULT_DOMAIN = "etf_alloc"      # trials recorded before domains existed (the v1 search)
 
@@ -72,6 +73,7 @@ def daily_spec(point: Mapping, *, cost_multiple: float = 1.0, domain: str = DEFA
 
 
 def daily_data_spec(snapshot_sha: str, start, end, *, panel_sha: str | None = None) -> dict:
+    """``panel_sha``: the NAV panel a domain decides from (CEFNAV-* or BDCNAV-*)."""
     data = {"snapshot": snapshot_sha, "start": pd.Timestamp(start).date().isoformat(),
             "end": pd.Timestamp(end).date().isoformat()}
     if panel_sha is not None:
