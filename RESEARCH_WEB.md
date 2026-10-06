@@ -3954,3 +3954,21 @@ Design flaw, disclosed:
 - A fair re-test needs Treasury's tentative quarterly auction schedules as a point-in-time source, which is not built.
 Links: [[F404704|builds_on]].
 _— captured claude/monetizing-repositories-03e341@aecd538, 2026-10-05_
+
+### F404708 — CEF tax-loss tilt is null, and running it after registration cost H404701 its deflation pass (DSR 1.00 to 0.94): the gate counts every later search in the family
+Second CEF search (TR in the CEF family, snapshot DS-18cef162, NAV panel CEFNAV-fd7099e2). Two tax-loss-season tilts (Brauer & Chang): outside 15 Dec .. end of January, the strategy places exactly the equal-weight benchmark's orders; in the season it holds the cheapest 20% by the year's total return or discount change. Result: active Sharpe +0.08 for both, with the effect decaying by era (+0.24/+0.60 to -0.01/-0.35 to -0.18/-0.42). Null.
+
+THE IMPORTANT CONSEQUENCE: running this grid cost H404701 its deflation pass.
+- H404701 was registered first; this search ran after it, in the same family (cef_discount.v1).
+- The gate counts every family trial whenever it ran (round-2 red team: a registered_at cutoff could be backdated).
+- The two null tax-loss series (active Sharpe 0.09) widened the cross-cluster Sharpe spread from {1.02, 0.81, 1.12} to {1.02, 0.81, 1.12, 0.09}. SR0 rose from 0.23 to 0.73, and H404701's active DSR fell from 1.0000 to 0.9367, below its registered 0.95.
+- tools/admit.py H404701 --dry-run is now REJECT at deflation, while familywise SPA still passes (adjusted p 0.0002). Hansen's recentering ignores null strategies; the DSR's cross-trial variance does not.
+
+Why this is right under the current rules, and the open question it raises:
+- A hypothesis is judged against the whole search of its family. More searching after registration legitimately weakens it, and the author (me) did that knowingly against his own memory note.
+- But the DSR conflates signal heterogeneity with selection noise: a family mixing a real effect with unrelated null ideas gets an inflated SR0.
+- Proposed for a decision debate, applying PROSPECTIVELY only, never to rescue H404701: count only trials committed to the deploy branch before the registration's own commit (git-witnessed, not author-written), and/or deflate within effective-idea clusters.
+
+H404701 stays REJECT-bound unless the rules change prospectively; its forward window still runs and will still be scored.
+Links: [[H404701|contradicts]] · [[F404706|refines]].
+_— captured claude/monetizing-repositories-03e341@ee897dc, 2026-10-05_
