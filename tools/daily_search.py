@@ -48,7 +48,9 @@ from src.research.daily_trials import (DAILY_FAMILY, REFERENCE_FAMILY, daily_dat
 #:     are famous survivors too, 3 variants each (+6). The constant only ever grows, and
 #:     every deflation in the family uses the current value, so earlier hypotheses are
 #:     judged against the larger search as well.
-PRIOR_SEARCH_TRIALS = 36
+#:   * 2026-10-06, before the auction grid ran: the Treasury auction cycle is a published
+#:     survivor too (+3).
+PRIOR_SEARCH_TRIALS = 39
 
 
 def scoring_window(snap) -> tuple[pd.Timestamp, pd.Timestamp]:

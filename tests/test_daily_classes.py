@@ -60,7 +60,7 @@ class TruncationInvariance(unittest.TestCase):
         cls.cuts = [cls.snap.dates[i] for i in (400, 523, 650, 777, 898)]
 
     def test_every_grid_point_is_truncation_invariant(self):
-        for point in dc.grid() + dc.event_grid() + [dc.REFERENCE]:
+        for point in dc.grid() + dc.event_grid() + dc.auction_grid() + [dc.REFERENCE]:
             with self.subTest(point=point):
                 self.assertEqual(stats.truncation_violations(self.snap, point, self.cuts), [])
 
@@ -154,3 +154,23 @@ class EventTilts(unittest.TestCase):
                 p = snap.dates.get_loc(d) + 1
                 winter = snap.dates[p].month in (11, 12, 1, 2, 3, 4)
                 self.assertAlmostEqual(row["SPY"], 0.8 if winter else 0.4)
+
+
+class AuctionTilt(unittest.TestCase):
+    def test_pre_auction_sessions_hold_shy_and_never_before_the_announcement(self):
+        from src.research.treasury_auctions import auctions
+        snap = synthetic(n=900)
+        trs = dc.auction_tilt(snap, {"pre": 5, "tenors": "long"})
+        orders = trs[0].close_orders
+        dates = snap.dates
+        enters = [dates[dates.get_loc(d) + 1] for d, row in orders.iterrows() if row.get("SHY", 0) == 0.4]
+        long_auctions = [a for a in auctions() if a["term"] in dc.LONG_TENORS
+                         and pd.Timestamp(a["auction"]) in set(dates)]
+        self.assertTrue(long_auctions and enters)
+        for a in long_auctions:
+            ann = int(dates.searchsorted(pd.Timestamp(a["announced"])))
+            for e in enters:
+                p = dates.get_loc(e)
+                ap = dates.get_loc(pd.Timestamp(a["auction"]))
+                if ap - 6 <= p < ap:                   # an entry serving this auction
+                    self.assertGreaterEqual(p - 1, ann, "entry decided before the announcement")

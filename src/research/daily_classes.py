@@ -289,6 +289,39 @@ def halloween(snap: Snapshot, params: Mapping, rets: SessionReturns | None = Non
     return out
 
 
+LONG_TENORS = frozenset({"10-Year", "20-Year", "30-Year"})
+
+
+def auction_tilt(snap: Snapshot, params: Mapping, rets: SessionReturns | None = None) -> list[Tranche]:
+    """The Treasury auction cycle (Lou, Yan & Zhang 2013) as a tilt: the 60/40, with the
+    bond leg moved from IEF to SHY over the ``pre`` sessions before each coupon auction of
+    the chosen tenors (``long``: 10/20/30-year; ``all``: every nominal coupon), back to IEF
+    for the auction session itself. A pre-auction position is held only from the first
+    session its entry could have been decided after the auction was ANNOUNCED
+    (TreasuryDirect's announcementDate; src/research/treasury_auctions.py)."""
+    from src.research.treasury_auctions import auctions
+
+    pre = int(params["pre"])
+    if pre < 1:
+        raise ValueError("pre must be at least one session")
+    tenors = LONG_TENORS if params["tenors"] == "long" else None
+    dates = snap.dates
+    held = set()
+    for a in auctions():
+        if tenors is not None and a["term"] not in tenors:
+            continue
+        auction_pos = int(dates.searchsorted(pd.Timestamp(a["auction"])))
+        if auction_pos >= len(dates) or dates[auction_pos] != pd.Timestamp(a["auction"]):
+            continue                                   # not a snapshot session
+        announce_pos = int(dates.searchsorted(pd.Timestamp(a["announced"])))
+        # Entering for held session s means buying at the close of s-1, decided at the
+        # close of s-2: that decision must be on or after the announcement session.
+        first = max(auction_pos - pre, announce_pos + 2)
+        held.update(range(first, auction_pos))
+    holds = dates[sorted(p for p in held if 0 <= p < len(dates))]
+    return _tilted_tranches(snap, pd.DatetimeIndex(holds), {"SPY": 0.6, "SHY": 0.4})
+
+
 def reference_6040(snap: Snapshot, params: Mapping | None = None,
                    rets: SessionReturns | None = None) -> list[Tranche]:
     """The static 60/40 bar: SPY/IEF, every 21 sessions, 21 tranches."""
@@ -297,7 +330,7 @@ def reference_6040(snap: Snapshot, params: Mapping | None = None,
 
 CLASSES: dict[str, Callable] = {"tsmom": tsmom, "dualmom": dualmom, "tom": tom,
                                 "overnight": overnight, "sma": sma, "fomc_tilt": fomc_tilt,
-                                "halloween": halloween}
+                                "halloween": halloween, "auction_tilt": auction_tilt}
 REFERENCE = {"class": "static_6040", "params": {"weights": {"SPY": 0.6, "IEF": 0.4},
                                                 "every": MONTH, "tranches": len(OFFSETS)}}
 
@@ -326,7 +359,13 @@ def event_grid() -> list[dict]:
             + [{"class": "halloween", "params": {"tilt": t}} for t in (0.2, 0.4)])
 
 
-GRIDS: dict[str, Callable[[], list]] = {"v1": grid, "events": event_grid}
+def auction_grid() -> list[dict]:
+    """The third ETF search (2026-10-06), frozen before it ran: 4 points."""
+    return [{"class": "auction_tilt", "params": {"pre": k, "tenors": t}}
+            for k, t in itertools.product((3, 5), ("long", "all"))]
+
+
+GRIDS: dict[str, Callable[[], list]] = {"v1": grid, "events": event_grid, "auctions": auction_grid}
 
 
 def assets_used(point: Mapping) -> tuple:
@@ -343,6 +382,8 @@ def assets_used(point: Mapping) -> tuple:
         return ("SPY", "IEF")
     if cls in ("static_6040", "fomc_tilt", "halloween"):
         return ("SPY", "IEF")
+    if cls == "auction_tilt":
+        return ("SPY", "IEF", "SHY")
     raise ValueError(f"unknown class {cls!r}")
 
 
