@@ -79,5 +79,25 @@ and cash.
 | F404704 | 27 ETF timing rules (trend, dual momentum, turn-of-month, overnight, SMA) | none beats the 60/40, on return or on Sharpe |
 | F404705 | 4 calendar tilts (pre-FOMC, sell-in-May) | null; pre-FOMC decays after publication |
 
-The admission gate's `allocation` profile is not built yet. No daily candidate has
-survived the search-level tests that its stages would repeat.
+## Admission (`tactical_allocation` profile, `tools/admit_tactical.py`)
+
+A daily candidate is registered with `profile: tactical_allocation`. Its `params` freeze:
+- the domain and the candidate, which must be a point of the domain's frozen grid;
+- the data shas, the eras, `min_years` (at least 10) and the declared prior search;
+- a familywise alpha of at most 0.05.
+
+`tools/admit.py <H>` then runs the chain:
+
+| Stage | What it checks |
+|---|---|
+| registration | the candidate is a point of its domain's frozen grid |
+| code | clean tree at a known commit |
+| refutations | objections filed and all refuted |
+| witness | registration, searched runs and data files are on the deploy branch |
+| lookahead | orders unchanged with data erased after each of 12 cuts |
+| development | the counted re-run must reproduce the recorded search trial exactly |
+| deflation | active DSR against the family's search plus declared prior |
+| familywise | SPA adjusted p at most the registered alpha, at every block length |
+| eras | active Sharpe > 0 in every registered era |
+| cost_stress | still ahead with both portfolios at 2x cost |
+| forward | on a new snapshot fetched after registration, which must reproduce the old one where they overlap |

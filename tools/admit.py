@@ -122,8 +122,9 @@ def _utc_naive(df: pd.DataFrame) -> pd.DataFrame:
 def default_witness(spec: dict, prereg_path: Path, family_runs: list) -> list[str]:
     """Problems with the evidence NOT being on the deploy branch yet.
 
-    The registration must be there byte-identical, and every ledger shard searched before
-    it must be there as a byte-prefix of the local one. Until then an author could still
+    The registration must be there byte-identical, and every other evidence file (each
+    ledger shard the family searched, and for daily strategies the frozen data files) must
+    be there as a byte-prefix of the local one. Until then an author could still
     rewrite them locally without any history check noticing (red-team attacks 3b, 5b)."""
     sys.path.insert(0, os.path.join(REPO, "tools"))
     import ctx
@@ -154,7 +155,7 @@ def default_witness(spec: dict, prereg_path: Path, family_runs: list) -> list[st
             continue
         blob = at_ref(rel)
         if blob is None or not Path(run_path).read_bytes().startswith(blob) or not blob:
-            problems.append(f"{rel} (searched before registration) is not on {ref}")
+            problems.append(f"{rel} (evidence the verdict rests on) is not on {ref}")
     return problems
 
 
@@ -204,6 +205,36 @@ def _counted_backtest(df, ticker, params, cost, *, run, stage, evaluated_from=No
     return key, (r or None)
 
 
+def stage_code(code: Callable) -> tuple[Stage, dict]:
+    cs = code()
+    if cs.get("sha") and cs.get("dirty") is False:
+        return Stage("code", PASS, f"clean at {cs['sha'][:12]}"), cs
+    return Stage("code", BLOCK, "the tree is dirty or unreadable; admission evidence must be "
+                 "replayable from a commit", {"code": cs}), cs
+
+
+def stage_refutations(hypothesis: str, refutations_dir) -> Stage:
+    ref = refutations.status(hypothesis, refutations_dir)
+    if ref["upheld"]:
+        return Stage("refutations", FAIL, f"{len(ref['upheld'])} objection(s) upheld",
+                     {"upheld": [o["id"] for o in ref["upheld"]]})
+    if ref["open"]:
+        return Stage("refutations", BLOCK, f"{len(ref['open'])} objection(s) unanswered",
+                     {"open": [o["id"] for o in ref["open"]]})
+    if not ref["refuted"]:
+        return Stage("refutations", BLOCK, "no objection has been filed: no refuter has "
+                     "examined this hypothesis (tools/refute.py object)")
+    return Stage("refutations", PASS, f"{len(ref['refuted'])} objection(s), all refuted")
+
+
+def stage_witness(problems: list[str], n_runs: int) -> Stage:
+    if problems:
+        detail = "; ".join(problems[:3]) + (f" (+{len(problems) - 3} more)" if len(problems) > 3 else "")
+        return Stage("witness", BLOCK, detail, {"problems": problems})
+    return Stage("witness", PASS, f"registration and {n_runs} searched run(s) are on the deploy "
+                 f"branch", {"problems": []})
+
+
 def evaluate(hypothesis: str, *, now: _dt.datetime | None = None,
              load_bars: Callable = default_load_bars, parity: Callable = default_parity,
              code: Callable = trials.code_state, witness: Callable = default_witness,
@@ -230,6 +261,11 @@ def evaluate(hypothesis: str, *, now: _dt.datetime | None = None,
         return {**record, "verdict": REJECT, "stages": [asdict(s) for s in stages]}
     record.update(spec_hash=spec_hash, family=spec["family"], profile=spec["profile"])
     params = spec.get("params")
+    if spec["profile"] == "tactical_allocation":
+        import admit_tactical
+        return admit_tactical.evaluate(hypothesis, spec, spec_hash, record, now=now, code=code,
+                                       witness=witness, deploy_sha=deploy_sha,
+                                       prereg_dir=prereg_dir, refutations_dir=refutations_dir)
     if spec["profile"] != "price_strategy" or not spec["family"].startswith(MR_HOURLY_STRATEGY + ":"):
         stages.append(Stage("registration", BLOCK,
                             f"profile {spec['profile']!r} / family {spec['family']!r} has no "
@@ -253,27 +289,11 @@ def evaluate(hypothesis: str, *, now: _dt.datetime | None = None,
     stages.append(Stage("registration", PASS, f"frozen at {spec['registered_at']}"))
 
     # ── code ────────────────────────────────────────────────────────────────
-    cs = code()
-    record["code"] = cs
-    if cs.get("sha") and cs.get("dirty") is False:
-        stages.append(Stage("code", PASS, f"clean at {cs['sha'][:12]}"))
-    else:
-        stages.append(Stage("code", BLOCK, "the tree is dirty or unreadable; admission "
-                            "evidence must be replayable from a commit", {"code": cs}))
+    st, record["code"] = stage_code(code)
+    stages.append(st)
 
     # ── refutations ─────────────────────────────────────────────────────────
-    ref = refutations.status(hypothesis, refutations_dir)
-    if ref["upheld"]:
-        stages.append(Stage("refutations", FAIL, f"{len(ref['upheld'])} objection(s) upheld",
-                            {"upheld": [o["id"] for o in ref["upheld"]]}))
-    elif ref["open"]:
-        stages.append(Stage("refutations", BLOCK, f"{len(ref['open'])} objection(s) unanswered",
-                            {"open": [o["id"] for o in ref["open"]]}))
-    elif not ref["refuted"]:
-        stages.append(Stage("refutations", BLOCK, "no objection has been filed: no refuter has "
-                            "examined this hypothesis (tools/refute.py object)"))
-    else:
-        stages.append(Stage("refutations", PASS, f"{len(ref['refuted'])} objection(s), all refuted"))
+    stages.append(stage_refutations(hypothesis, refutations_dir))
 
     # ── parity ──────────────────────────────────────────────────────────────
     census = parity()
@@ -309,11 +329,7 @@ def evaluate(hypothesis: str, *, now: _dt.datetime | None = None,
     record["witnessed_sha"] = deploy_sha()
     problems = witness(spec, prereg.path_for(hypothesis, prereg_dir),
                        sorted({str(trials.LEDGER_DIR / f"{r.run_id}.jsonl") for r in searched}))
-    stages.append(Stage("witness", BLOCK if problems else PASS,
-                        "; ".join(problems[:3]) + (f" (+{len(problems) - 3} more)" if len(problems) > 3 else "")
-                        if problems else f"registration and {len({r.run_id for r in searched})} "
-                                         f"searched run(s) are on the deploy branch",
-                        {"problems": problems}))
+    stages.append(stage_witness(problems, len({r.run_id for r in searched})))
 
     # ── backtests (all counted) ─────────────────────────────────────────────
     w = spec["development_window"]
@@ -480,7 +496,13 @@ def verify_record(record: dict, *, prereg_dir=None, deploy_ref: str | None = Non
                 problems.append(f"ledger run {run_id} is invalid")
             head = __import__("json").loads(path.read_bytes().split(b"\n", 1)[0])
     if record.get("verdict") == ADMIT:
-        if tuple(s.name for s in stages) != ADMIT_CHAIN or any(s.outcome != PASS for s in stages):
+        tactical = record.get("profile") == "tactical_allocation"
+        if tactical:
+            import admit_tactical
+            chain = admit_tactical.ADMIT_CHAIN
+        else:
+            chain = ADMIT_CHAIN
+        if tuple(s.name for s in stages) != chain or any(s.outcome != PASS for s in stages):
             problems.append("an ADMIT must pass exactly the full stage chain")
         if head is None:
             problems.append("an ADMIT must name the gate's ledger run")
@@ -499,7 +521,8 @@ def verify_record(record: dict, *, prereg_dir=None, deploy_ref: str | None = Non
             spec = None
             problems.append(f"registration: {exc}")
         if head is not None and not problems:
-            problems += _verify_admit_evidence(record, head, spec)
+            problems += (admit_tactical.verify_evidence(record, head, spec) if tactical
+                         else _verify_admit_evidence(record, head, spec))
         problems += _verify_witnessed_sha(record, deploy_ref or _deploy_ref())
     return problems
 

@@ -20,6 +20,12 @@ Profiles (the hybrid holdout decision, 2026-09-22):
   * ``event_study``    — holdout is a SEALED ISSUER VAULT (a secret, keyed, stratified
     subset of issuers/events the gate alone can resolve), then forward paper.
   * ``allocation``     — static-allocation claims; holdout is forward paper.
+  * ``tactical_allocation`` — a daily strategy judged against its domain's benchmark
+    (``src/research/daily_domains.py``): ETF timing against the static 60/40, CEF
+    selection against the equal-weight CEF universe. Every statistic is RELATIVE (the
+    metric is the active-series DSR); ``params`` freezes the domain, the candidate, the
+    frozen data it was found on, the eras, and the familywise test level. Holdout is
+    forward paper on data fetched after registration.
 """
 from __future__ import annotations
 
@@ -68,8 +74,23 @@ PROFILES = {
     "price_strategy": {"forward_paper"},
     "event_study": {"sealed_issuers"},
     "allocation": {"forward_paper"},
+    "tactical_allocation": {"forward_paper"},
 }
-METRICS = {"deflated_sharpe"}
+#: The metric each profile is judged by. A tactical strategy's raw Sharpe is mostly its
+#: benchmark's beta, so its DSR is taken on the ACTIVE series (allocation_stats).
+PROFILE_METRICS = {
+    "price_strategy": {"deflated_sharpe"},
+    "event_study": {"deflated_sharpe"},
+    "allocation": {"deflated_sharpe"},
+    "tactical_allocation": {"active_deflated_sharpe"},
+}
+METRICS = set().union(*PROFILE_METRICS.values())
+#: tactical_allocation floors. A familywise test may be stricter than 5%, never looser;
+#: a development window shorter than a decade cannot see a full rate or credit cycle.
+MAX_FAMILYWISE_ALPHA = 0.05
+MIN_TACTICAL_YEARS = 10
+TACTICAL_PARAMS = ("domain", "candidate", "data", "eras", "min_years", "familywise_alpha",
+                   "prior_search_trials")
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 REQUIRED = ("hypothesis", "family", "claim", "profile", "universe", "development_window",
@@ -105,8 +126,10 @@ def validate(spec: Mapping[str, Any]) -> list[str]:
     if not (isinstance(w, Mapping) and _DATE.match(str(w.get("start", "")))
             and _DATE.match(str(w.get("end", ""))) and w["start"] < w["end"]):
         errs.append("development_window needs start < end as YYYY-MM-DD")
-    if spec["metric"] not in METRICS:
-        errs.append(f"metric must be one of {sorted(METRICS)}")
+    if spec["metric"] not in PROFILE_METRICS.get(profile, METRICS):
+        errs.append(f"metric must be one of {sorted(PROFILE_METRICS.get(profile, METRICS))}")
+    if profile == "tactical_allocation":
+        errs += _tactical_errors(spec)
     t = spec["threshold"]
     if not (isinstance(t, (int, float)) and not isinstance(t, bool) and MIN_THRESHOLD <= t < 1):
         errs.append(f"threshold must be in [{MIN_THRESHOLD}, 1)")
@@ -139,6 +162,51 @@ def validate(spec: Mapping[str, Any]) -> list[str]:
         canonical_json(dict(spec))
     except LedgerError as exc:
         errs.append(f"spec is not canonically encodable: {exc}")
+    return errs
+
+
+def _tactical_errors(spec: Mapping[str, Any]) -> list[str]:
+    """What a tactical_allocation registration must freeze in ``params``."""
+    from src.research.daily_trials import DOMAINS, family_name
+
+    p = spec.get("params")
+    if not isinstance(p, Mapping):
+        return ["tactical_allocation needs params"]
+    errs = []
+    missing = [k for k in TACTICAL_PARAMS if k not in p]
+    if missing:
+        return [f"tactical_allocation params missing: {missing}"]
+    extra = set(p) - set(TACTICAL_PARAMS)
+    if extra:
+        errs.append(f"unknown tactical params: {sorted(extra)}")
+    if p["domain"] not in DOMAINS:
+        return [f"domain must be one of {sorted(DOMAINS)}"]
+    if spec["family"] != family_name(p["domain"]):
+        errs.append(f"family must be {family_name(p['domain'])!r}: the one every trial of this "
+                    f"domain is counted in")
+    c = p["candidate"]
+    if not (isinstance(c, Mapping) and isinstance(c.get("class"), str)
+            and isinstance(c.get("params"), Mapping)):
+        errs.append("candidate must be {class, params}")
+    d = p["data"]
+    if not (isinstance(d, Mapping) and isinstance(d.get("snapshot"), str) and len(d["snapshot"]) == 64):
+        errs.append("data.snapshot must be a DS sha256")
+    elif p["domain"] == "cef_discount" and not (isinstance(d.get("nav_panel"), str)
+                                                and len(d["nav_panel"]) == 64):
+        errs.append("data.nav_panel must be a CEFNAV sha256 for the CEF domain")
+    eras = p["eras"]
+    if not (isinstance(eras, list) and len(eras) >= 2
+            and all(isinstance(e, list) and len(e) == 2 for e in eras)):
+        errs.append("eras must list at least two [start, end] pairs")
+    my = p["min_years"]
+    if not (isinstance(my, int) and not isinstance(my, bool) and my >= MIN_TACTICAL_YEARS):
+        errs.append(f"min_years must be an integer >= {MIN_TACTICAL_YEARS}")
+    a = p["familywise_alpha"]
+    if not (isinstance(a, (int, float)) and not isinstance(a, bool) and 0 < a <= MAX_FAMILYWISE_ALPHA):
+        errs.append(f"familywise_alpha must be in (0, {MAX_FAMILYWISE_ALPHA}]")
+    pr = p["prior_search_trials"]
+    if not (isinstance(pr, int) and not isinstance(pr, bool) and pr >= 0):
+        errs.append("prior_search_trials must be a non-negative integer")
     return errs
 
 

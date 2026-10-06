@@ -52,11 +52,10 @@ PRIOR_SEARCH_TRIALS = 36
 
 
 def scoring_window(snap) -> tuple[pd.Timestamp, pd.Timestamp]:
-    """One window for every grid, so every family member's active series covers the same
-    sessions (the familywise test requires it)."""
-    assets = sorted({a for g in dc.GRIDS.values() for p in g() for a in dc.assets_used(p)}
-                    | set(dc.assets_used(dc.REFERENCE)))
-    return daily_data.common_start(snap, assets, dc.WARMUP_SESSIONS), snap.dates[-1]
+    """One window for every grid (``daily_domains.ETF``), so every family member's active
+    series covers the same sessions (the familywise test requires it)."""
+    from src.research.daily_domains import ETF, Context
+    return ETF.window(Context(snap=snap))
 
 
 def _has_reference(snap, start, end) -> bool:

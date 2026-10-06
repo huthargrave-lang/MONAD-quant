@@ -46,7 +46,8 @@ PRIOR_SEARCH_TRIALS = 4
 
 
 def window(snap, panel):
-    return cc.scoring_start(snap, panel), snap.dates[-1]
+    from src.research.daily_domains import CEF, Context
+    return CEF.window(Context(snap=snap, panel=panel))
 
 
 def run_search(snap, panel) -> tuple[str | None, str]:
