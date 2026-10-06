@@ -3937,3 +3937,20 @@ Untested: survivorship (current listings only); its measured pattern argues agai
 Contrast with H404700, the hourly engine artifact (F404703): that one passed deflation and failed on execution realism. This one was built on a next-session execution model from the start, and its result reproduces under two independent reconstructions.
 Links: [[H404701|supports]] · [[F257|builds_on]] · [[F404703|relates]].
 _— captured claude/monetizing-repositories-03e341@072245f, 2026-10-05_
+
+### F404707 — Treasury auction-cycle tilt does not beat the 60/40 (announcement-gated windows; pre=5 collapsed to pre=3, disclosed)
+Third ETF search (TR-20261006T033350Z-100895f2, snapshot DS-32c992fb, same window as F404704). Four tilts on the 60/40 move the bond leg from IEF to SHY before Treasury coupon auctions (1,576 auctions from TreasuryDirect, 2003-2026).
+
+Results:
+- Long tenors (10/20/30y): active Sharpe -0.17 (eras -0.57 / -0.15 / +0.33).
+- All coupons: -0.44.
+- Familywise SPA over all 35 ETF trials: p 0.89-0.93. Null.
+
+Design flaw, disclosed:
+- The tilt holds a pre-auction position only from the first session whose entry decision falls on or after TreasuryDirect's announcementDate.
+- Announcements lead auctions by a median of 6 calendar days (~4 sessions), so that gate binds before a 5-session window can open.
+- Result: pre=5 is identical to pre=3. The effective window is about 2 sessions, and the four points are two distinct ideas (the effective-trial clustering counts them once).
+- Lou, Yan & Zhang used the anticipated schedule. Treasury's regular calendar is predictable months ahead, so this test is conservative and may have missed an effect concentrated 3-5 days out.
+- A fair re-test needs Treasury's tentative quarterly auction schedules as a point-in-time source, which is not built.
+Links: [[F404704|builds_on]].
+_— captured claude/monetizing-repositories-03e341@aecd538, 2026-10-05_
