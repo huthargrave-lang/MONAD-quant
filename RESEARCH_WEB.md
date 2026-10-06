@@ -3908,3 +3908,32 @@ Known threats for the refuter:
 Falsified by: tools/admit.py REJECT at any relative stage, or the 365-day forward window (P(forward active Sharpe > 0) < 0.90).
 Links: [[F257|builds_on]] · [[F404704|relates]].
 _— captured claude/monetizing-repositories-03e341@7d4cd83, 2026-10-05_
+
+### F404706 — H404701 passes every development stage of the gate: deepest-discount CEFs beat the equal-weight CEF universe by +4.7%/yr net; forward window matures 2027-10-07
+The first hypothesis to pass every development-evidence stage of the admission gate (tools/admit.py H404701 --dry-run, tactical_allocation profile):
+- lookahead clean at 12 cuts over both datasets;
+- the development re-run REPRODUCES search trial TR-20261006T012346Z-0af751b2#0 exactly (22.7 years, 5724 rebalances);
+- active DSR 1.0000 (active Sharpe +1.05 vs SR0 0.23, N 8);
+- Hansen SPA_c adjusted p < 0.0001 at mean blocks 20/63/126;
+- active Sharpe positive in every era (+0.90 / +0.89 / +1.97);
+- 2x cost stress: +3.88%/yr active with both portfolios charged double.
+
+Open: witness (the evidence must merge to development) and the 365-day forward window, which matures 2027-10-07 on data no trial has seen.
+
+The claim: the cheapest 20% of listed closed-end funds by raw discount to NAV, equal weight, traded at the next close and rebalanced monthly in 21 tranches, beat the equal-weight CEF universe by +4.7%/yr net (beta 1.11, alpha +4.0%/yr) over 2003-12..2026-10. Snapshot DS-18cef162; NAV panel CEFNAV-fd7099e2.
+
+Scrutiny:
+- A first refuter filed nothing after testing source of return, category tilt, crash rebounds, bid-ask bounce, costs (survives about 6.7x), NAV timing, distributions and code (docs/research/refutations/boards/H404701-refuter1.md).
+- A second refuter filed 7 objections. A board of three refuted all 7, 3-0 (docs/research/refutations/boards/H404701.json).
+
+What the edge IS, per the board's caveats:
+- about half category tilt (equity and hybrid funds trade cheaper); within-category selection alone is ~+2.4%/yr gross, Sharpe 1.17;
+- the return is mostly discount narrowing (+3.8%/yr), not distributions;
+- about half is persistent cheap-fund identity, but timing is also real (Sharpe 1.42 alone);
+- a realistic forward expectation is an active Sharpe near 0.9, not 1.05.
+
+Untested: survivorship (current listings only); its measured pattern argues against it creating the result, and the forward window is the real test. Capacity (no volume data); it is a small-account strategy by nature.
+
+Contrast with H404700, the hourly engine artifact (F404703): that one passed deflation and failed on execution realism. This one was built on a next-session execution model from the start, and its result reproduces under two independent reconstructions.
+Links: [[H404701|supports]] · [[F257|builds_on]] · [[F404703|relates]].
+_— captured claude/monetizing-repositories-03e341@072245f, 2026-10-05_
