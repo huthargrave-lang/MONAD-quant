@@ -58,7 +58,7 @@ REFERENCE = {"class": "cef_equal_weight", "params": {}}
 
 
 def grid() -> list[dict]:
-    """The whole search, frozen: 6 points."""
+    """The first search, frozen: 6 points (``GRIDS`` lists every search)."""
     return [{"class": "cef_discount", "params": {"signal": sig, "fraction": f}}
             for sig, f in itertools.product(("level", "z52", "z52_cat"), (0.2, 0.1))]
 
@@ -147,11 +147,89 @@ def decide(snap: Snapshot, panel: NavPanel, point: Mapping) -> list[Tranche]:
             picks = _select(signal.loc[d], elig.loc[d], float(p["fraction"]), cats)
             if picks:
                 rows[d] = {f: 1.0 / len(picks) for f in picks}
+    elif point["class"] == "cef_taxloss":
+        return taxloss(snap, panel, point)
     else:
         raise ValueError(f"unknown CEF class {point['class']!r}")
     w = pd.DataFrame.from_dict(rows, orient="index").reindex(columns=funds).fillna(0.0)
     w.index = pd.DatetimeIndex(w.index)
     return _tranches(w.sort_index(), dates)
+
+
+# ── the tax-loss season (the 2026-10-06 second CEF search) ──────────────────
+TAXLOSS_ENTRY = (12, 15)          # first session on or after 15 December decides the entry
+TAXLOSS_FRACTION = 0.2
+
+
+def taxloss_grid() -> list[dict]:
+    """Frozen before it ran: 2 points. Selection by the year's worst total return (the
+    tax-loss candidates) or by the year's largest discount widening."""
+    return [{"class": "cef_taxloss", "params": {"signal": s}} for s in ("ytd_return", "ytd_discount")]
+
+
+def taxloss(snap: Snapshot, panel: NavPanel, point: Mapping) -> list[Tranche]:
+    """CEF tax-loss selling (Brauer & Chang 1990): outside the season, EXACTLY the
+    equal-weight benchmark's orders; from the first session on or after 15 December to
+    the last session of January, every tranche holds the cheapest ``TAXLOSS_FRACTION`` of
+    eligible funds by the year's total return (``ytd_return``) or discount change
+    (``ytd_discount``), measured from the previous year's last session. Base rebalances
+    that would execute inside the season are suppressed; at exit every tranche returns to
+    the equal-weight universe. The active series is therefore near zero outside the season
+    and isolates it."""
+    from src.research.daily_classes import total_return_index
+
+    sig = _signals(snap, panel)
+    funds, elig = sig["funds"], sig["eligible"]
+    dates = snap.dates
+    tr = total_return_index(snap.returns())[funds]
+    level = sig["level"]
+    year_end = pd.Series(dates, index=dates).groupby(dates.year).max()
+    base = decide(snap, panel, REFERENCE)
+    entries, exits, picks_at = [], [], {}
+    for year in sorted(set(dates.year)):
+        start = pd.Timestamp(year=year, month=TAXLOSS_ENTRY[0], day=TAXLOSS_ENTRY[1])
+        d_in = dates[dates >= start]
+        jan = dates[(dates.year == year + 1) & (dates.month == 1)]
+        if year - 1 not in year_end.index or not len(d_in) or not len(jan):
+            continue
+        d_in, d_out, prev_end = d_in[0], jan[-1], year_end[year - 1]
+        if point["params"]["signal"] == "ytd_return":
+            signal = tr.loc[d_in] / tr.loc[prev_end] - 1.0
+        elif point["params"]["signal"] == "ytd_discount":
+            signal = level.loc[d_in] - level.loc[prev_end]
+        else:
+            raise ValueError(f"unknown tax-loss signal {point['params']['signal']!r}")
+        chosen = _select(signal, elig.loc[d_in], TAXLOSS_FRACTION, None)
+        if not chosen:
+            continue
+        entries.append(d_in)
+        exits.append(d_out)
+        picks_at[d_in] = {f: 1.0 / len(chosen) for f in chosen}
+    pos = {d: i for i, d in enumerate(dates)}
+    windows = [(pos[a] + 1, pos[b] + 1) for a, b in zip(entries, exits)]   # execution sessions
+
+    def inside(decision) -> bool:
+        x = pos[decision] + 1
+        return any(lo < x <= hi for lo, hi in windows)
+
+    exit_rows = {}
+    for d in exits:
+        e = elig.loc[d]
+        members = list(e.index[e])
+        if len(members) >= MIN_HOLDINGS:
+            exit_rows[d] = {f: 1.0 / len(members) for f in members}
+    out = []
+    for tr_ in base:
+        kept = tr_.close_orders.loc[[d for d in tr_.close_orders.index if not inside(d)]]
+        extra = pd.DataFrame.from_dict({**picks_at, **exit_rows}, orient="index")
+        frame = pd.concat([kept, extra]).reindex(columns=funds).fillna(0.0)
+        frame = frame[~frame.index.duplicated(keep="last")].sort_index()
+        frame.index = pd.DatetimeIndex(frame.index)
+        out.append(Tranche(open_orders=pd.DataFrame(), close_orders=frame))
+    return out
+
+
+GRIDS = {"v1": grid, "taxloss": taxloss_grid}
 
 
 def tiers(snap: Snapshot, panel: NavPanel) -> dict:

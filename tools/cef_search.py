@@ -42,7 +42,9 @@ DOMAIN = "cef_discount"
 #: Declared 2026-10-05, before any CEF trial ran: discount mean reversion is a published
 #: anomaly (Thompson 1978, Pontiff 1995) with many practitioner variants (counted as the
 #: survivor of 3), plus this repo's own descriptive pilot (F257, 1).
-PRIOR_SEARCH_TRIALS = 4
+#: 2026-10-06, before the tax-loss grid ran: the CEF January effect is published too (+3).
+#: The constant only grows; every deflation in the family uses the current value.
+PRIOR_SEARCH_TRIALS = 7
 
 
 def window(snap, panel):
@@ -50,7 +52,7 @@ def window(snap, panel):
     return CEF.window(Context(snap=snap, panel=panel))
 
 
-def run_search(snap, panel) -> tuple[str | None, str]:
+def run_search(snap, panel, grid_name: str = "v1") -> tuple[str | None, str]:
     start, end = window(snap, panel)
     rets = snap.returns()
     tiers = cc.tiers(snap, panel)
@@ -67,15 +69,16 @@ def run_search(snap, panel) -> tuple[str | None, str]:
                                     end=end, rets=rets, tiers=tiers)
             record_daily(t, result)
         ref_id = ref_run.run_id
+    points = cc.GRIDS[grid_name]()
     dupes = stats.duplicate_points({json.dumps(p, sort_keys=True): cc.decide(snap, panel, p)
-                                    for p in cc.grid()})
+                                    for p in points})
     if dupes:
         raise SystemExit(f"refusing to run: grid points with identical orders: {dupes}")
     with trials.open_run(producer="tools/cef_search.py", family=CEF_FAMILY,
                          context={"snapshot": snap.sha, "nav_panel": panel.sha,
-                                  "grid_size": len(cc.grid()),
+                                  "grid": grid_name, "grid_size": len(points),
                                   "prior_search_trials": PRIOR_SEARCH_TRIALS}) as run:
-        for point in cc.grid():
+        for point in points:
             t = run.begin(params=daily_spec(point, domain=DOMAIN), data=data)
             try:
                 tranches = cc.decide(snap, panel, point)
@@ -134,13 +137,15 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--snapshot", required=True)
     ap.add_argument("--panel", required=True)
+    ap.add_argument("--grid", choices=sorted(cc.GRIDS), default="v1",
+                    help="which frozen grid to run (the report always covers the whole family)")
     ap.add_argument("--report-only", action="store_true")
     ap.add_argument("--json")
     args = ap.parse_args(argv)
     snap = daily_data.load_snapshot(args.snapshot)
     panel = cef_data.load_panel(args.panel)
     if not args.report_only:
-        ref_id, run_id = run_search(snap, panel)
+        ref_id, run_id = run_search(snap, panel, args.grid)
         print(f"ledger: benchmark {ref_id or '(already recorded)'}, search {run_id}")
     rep = report(snap, panel)
     b = rep["benchmark"]

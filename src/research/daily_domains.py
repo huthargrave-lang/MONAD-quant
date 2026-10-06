@@ -91,7 +91,7 @@ CEF = Domain(
     tiers=lambda ctx: _cef().tiers(ctx.snap, ctx.panel),
     start=lambda ctx: _cef().scoring_start(ctx.snap, ctx.panel),
     truncation=lambda ctx, point, cuts: _cef().truncation_violations(ctx.snap, ctx.panel, point, cuts),
-    grid=lambda: _cef().grid())
+    grid=lambda: [p for g in _cef().GRIDS.values() for p in g()])
 
 DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF)}
 

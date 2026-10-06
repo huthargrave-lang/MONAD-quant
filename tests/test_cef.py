@@ -99,9 +99,20 @@ class Rules(unittest.TestCase):
     def test_every_rule_is_truncation_invariant_across_both_datasets(self):
         snap, panel = world()
         cuts = [SESSIONS[i] for i in (380, 455, 530, 610, 690)]
-        for point in cc.grid() + [cc.REFERENCE]:
+        for point in cc.grid() + cc.taxloss_grid() + [cc.REFERENCE]:
             with self.subTest(point=point):
                 self.assertEqual(cc.truncation_violations(snap, panel, point, cuts), [])
+
+    def test_taxloss_equals_the_benchmark_outside_the_season(self):
+        snap, panel = world()
+        base = cc.decide(snap, panel, cc.REFERENCE)
+        tl = cc.decide(snap, panel, {"class": "cef_taxloss", "params": {"signal": "ytd_return"}})
+        for b, t in zip(base, tl):
+            for d, row in b.close_orders.iterrows():
+                if d.month in (3, 4, 5, 6, 7, 8, 9, 10):          # far from the season
+                    self.assertTrue(np.allclose(t.close_orders.loc[d].reindex(row.index).fillna(0), row))
+        season = [d for d in tl[0].close_orders.index if d.month == 12 and d.day >= 15]
+        self.assertTrue(season, "an entry order in the second half of December")
 
     def test_the_grid_is_frozen_at_6_points(self):
         self.assertEqual(len(cc.grid()), 6)
