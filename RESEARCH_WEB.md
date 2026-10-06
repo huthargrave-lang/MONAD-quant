@@ -4103,3 +4103,20 @@ Reading: the sign replicates. Buying listed NAV vehicles below NAV beat owning t
 Survivorship: listed BDCs today only.
 Links: [[H404701|supports]] · [[H404702|relates]].
 _— captured claude/monetizing-repositories-03e341@35d075c, 2026-10-06_
+
+### F404715 — H404702 capacity: about $14M at 5% of daily volume with tranche execution; about $0.1-0.4M if positions are built in one day (today's liquidity)
+Capacity check for H404702, using its current holdings (tools/cef_picks.py on DS-18cef162 / CEFNAV-fd7099e2) and each fund's median daily dollar volume over the last 6 months (Yahoo close x volume). No strategy was evaluated and no trials were recorded.
+
+The portfolio holds 169 funds across its 21 tranches, about 1% each.
+- Median ADV: $1.14M. 10th percentile: $0.25M.
+
+Account size at which the binding constraint is hit:
+- tranche execution (each position built in 21 slices, one per session) at 5% of ADV: about $14M for the thinnest fund (10th-percentile fund: $41M);
+- worst case (every position built in a single day) at 1% of ADV: about $133K for the thinnest fund (GLU), $0.39M at the 10th percentile, $2.1M at the median.
+
+Reading:
+- For a personal account up to a few million dollars, capacity is not binding if orders follow the tranche structure.
+- Building positions all at once binds around $0.1-0.4M.
+- This is TODAY's liquidity; historical volumes (and so historical capacity) were not measured, which leaves the board's capacity caveat partly open.
+Links: [[H404702|relates]].
+_— captured claude/monetizing-repositories-03e341@cee1ca2, 2026-10-06_
