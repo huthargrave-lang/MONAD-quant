@@ -1341,14 +1341,20 @@ def _as_float(value):
 STOCKTWITS_CURSOR_PATH = os.path.join(REPO, "data", "cache", "stocktwits_cursor.json")
 
 
-def read_stocktwits_cursor(n, path=STOCKTWITS_CURSOR_PATH, env=None):
+def read_stocktwits_cursor(n, path=None, env=None):
     """Where this run's ring walk should start, from the best state available.
 
     Three sources, in honesty order: a persisted cursor (Pi, local — real state); a derived
     offset from the CI run number ((run * 200) %% n — monotonic, stateless, and simulated to
     bound the worst per-name gap at 6 runs against the cursor's 2); zero. Zero is what the
     fixed-tail starvation was, so it is the fallback of last resort, not a peer.
+
+    ``path`` defaults to ``STOCKTWITS_CURSOR_PATH`` resolved at CALL time, not bound at
+    definition time, so a test can point the module at a tempdir and the builders that
+    call this without a path follow it.
     """
+    if path is None:
+        path = STOCKTWITS_CURSOR_PATH
     if not n:
         return 0
     try:
@@ -1362,9 +1368,12 @@ def read_stocktwits_cursor(n, path=STOCKTWITS_CURSOR_PATH, env=None):
     return 0
 
 
-def write_stocktwits_cursor(next_start, path=STOCKTWITS_CURSOR_PATH):
+def write_stocktwits_cursor(next_start, path=None):
     """Best-effort, exception-guarded: the cursor is an optimisation, and a read-only
-    filesystem (CI) or a permission error must never take the refresh down with it."""
+    filesystem (CI) or a permission error must never take the refresh down with it.
+    ``path`` resolves at call time, as in ``read_stocktwits_cursor``."""
+    if path is None:
+        path = STOCKTWITS_CURSOR_PATH
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as fh:

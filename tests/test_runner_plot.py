@@ -20,6 +20,12 @@ import pandas as pd
 
 import src.backtest.runner as runner
 
+from tests._engine_uncounted import uncounted_module  # noqa: E402
+
+# Engine arithmetic, not a strategy evaluation: runs outside the trial ledger
+# (src/strategy/counted.py).
+setUpModule, tearDownModule = uncounted_module("smoke test of the runner's plotting path on synthetic data")
+
 
 def _synthetic(n=500):
     """Hourly OHLCV that reliably produces trades (mirrors test_sweep_costs)."""

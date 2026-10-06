@@ -51,11 +51,15 @@ GAP_STUDY = ROOT / "docs" / "research" / "D6_overnight_gap_risk_study.md"
 
 
 class TheHoldCapMismatchIsRealButImmaterialTests(unittest.TestCase):
-    def test_the_backtest_and_the_live_trader_read_different_caps(self):
+    def test_the_backtest_now_holds_the_live_mode_for_the_live_cap(self):
+        """The two config caps still differ (8 and 10), but since ENGINE_VERSION 2 the
+        backtest resolves the LIVE mode's hold to the live cap (runner.resolve_hold,
+        F404701); other modes keep MAX_TRADE_BARS."""
         self.assertEqual(getattr(config, "MAX_TRADE_BARS"), 8)
         self.assertEqual(getattr(config, "MAX_TRADE_BARS_LIVE"), 10)
-        self.assertIn('getattr(config, "MAX_TRADE_BARS", 20)',
+        self.assertIn("resolve_hold(mode, timeframe, max_trade_bars)",
                       inspect.getsource(runner_mod.run_backtest))
+        self.assertEqual(runner_mod.resolve_hold(f"{config.LIVE_SYMBOL}_HOURLY", "hourly"), 10)
         self.assertIn("config.MAX_TRADE_BARS_LIVE",
                       (ROOT / "live" / "trader.py").read_text(encoding="utf-8"))
 

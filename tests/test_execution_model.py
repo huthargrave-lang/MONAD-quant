@@ -15,6 +15,12 @@ import unittest
 import pandas as pd
 import numpy as np
 
+from tests._engine_uncounted import uncounted_module  # noqa: E402
+
+# Engine arithmetic, not a strategy evaluation: runs outside the trial ledger
+# (src/strategy/counted.py).
+setUpModule, tearDownModule = uncounted_module("execution-model unit tests: entry and exit semantics on hand-built bars")
+
 
 def _make_ohlcv(rows: list[dict]) -> pd.DataFrame:
     """Helper: build a minimal OHLCV DataFrame from a list of bar dicts.

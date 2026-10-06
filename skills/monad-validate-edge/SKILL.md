@@ -38,7 +38,13 @@ the number yourself with the tools below. Run from the repo root.
    (F14), and a real edge survives only at a coarse (~3 bars/day) timescale, not the
    hourly cadence the live bot trades.
 
-4. **When you report a number, label it.** Say which line it came from
+4. **An "edge" exists only if the admission gate says so.** A hypothesis is admitted
+   only by `venv/bin/python tools/admit.py <H>` writing an `ADMIT` record under
+   `docs/research/verdicts/<H>/`. Everything else, including a sweep winner or a high
+   `trial_ledger.py deflate` DSR, is a candidate. `tools/edge_scorecard.py` lists every
+   registered hypothesis and its latest verdict.
+
+5. **When you report a number, label it.** Say which line it came from
    (confirmed-fill vs. compounded) and the date. Never paste a CLAUDE.md headline
    Sharpe as if it were current.
 

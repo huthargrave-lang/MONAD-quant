@@ -141,6 +141,56 @@ not a way of running it.
 
 ---
 
+## The edge-hunt cycle — when the work is a claim about markets
+
+A claim that something **makes money** is held to a stricter process than other findings,
+because this repo's history is a sequence of such claims dying (F2, F13, D6). Run each
+role as its own step, and run **Refuter** as a separate subagent whose context did not
+produce the claim. Each role is bound to a tool that enforces it; the rules below say
+what the tools cannot.
+
+| Role | Does | Tool (enforces) |
+|---|---|---|
+| **Scout** | Picks an idea from the web/backlog and records it as an `H` node **before** any backtest. States what would falsify it. | `note.py add --kind H` |
+| **Runner** | Searches, but only through counted producers, under the idea's family. Every look counts, holdout looks included. | `sweep.py`, `tools/walkforward_eval.py`, `tools/strategy_funnel.py`, `main.py` → `docs/research/trials/` (`tests/test_producer_ledger_wiring.py` fails CI on an uncounted backtest) |
+| **Registrar** | Freezes ONE candidate, the bar and the holdout. After this the spec cannot change; a changed idea is a new `H` that `refines` it. | `tools/prereg.py register --commit` |
+| **Refuter** | Tries to break the candidate: look-ahead, parity, cost fragility, sampling artifacts, survivorship. Files every objection with checkable evidence. Defaults to objecting when it cannot confirm. | `tools/refute.py object` |
+| **Answerer** | Answers each objection with evidence: `refuted` (it was wrong) or `upheld` (it stands). Never answers its own objection. | `tools/refute.py resolve` |
+| **Gate** | Decides. Deterministic, no judgment: open objections BLOCK, upheld ones or any failed stage REJECT, an immature forward window is PENDING. | `tools/admit.py <H>` → `docs/research/verdicts/` |
+| **Scribe** | Records the verdict in the web, citing the record. A REJECT is captured as faithfully as an ADMIT. | `note.py add --kind F` |
+
+Rules the tools cannot enforce, so you must:
+
+- **Never call anything an edge, a strategy that works, or profitable unless `tools/admit.py`
+  wrote an `ADMIT` verdict for it.** Cite the verdict file. `trial_ledger.py deflate` is a
+  diagnostic, not an admission.
+- **Search first, register second, and register once.** Registering before searching is
+  fine (N stays small and honest); searching, peeking at the forward window, then
+  registering "the one that held up" is the failure this system exists to catch. The
+  forward window starts at `registered_at` for exactly that reason.
+- **Do not split a search across families** to keep N small. Families are per idea and
+  instrument (`backtest_trials.mr_family`), shared by every tool; the gate refuses a
+  private family for the MR strategy.
+- **Do not write your own backtest loop.** If a new study needs one, route it through
+  `trials.open_run` + `backtest_trials.record_backtest` (see `docs/research/trials/README.md`).
+- **Refutation is mandatory.** The gate BLOCKS a hypothesis nobody has objected to, and an
+  objection must be answered by someone other than the one who raised it.
+- **The gate only admits merged evidence.** The registration and every ledger run searched
+  before it must already be on the deploy branch (the `witness` stage), where CI's history
+  checks protect them. Push them and get them merged (never merge yourself), then run the
+  gate. Until then it BLOCKS, correctly.
+- **Forward floors:** at least 180 days and P(forward Sharpe > 0) >= 0.90 (noise passes ~12%, a Sharpe-3 edge ~80%).
+- **The forward window starts after the last bar any family trial has seen.** Peeking at
+  recent bars, or backdating a registration, only pushes the window later.
+- **Check the scorecard each cycle:** `python3 tools/edge_scorecard.py`. Many registrations
+  and no admissions is the system working. An admission from a tiny search deserves a
+  second Refuter pass before anyone relies on it.
+- Today every price-strategy hypothesis will be **BLOCKED on parity** (3 decision inputs
+  differ between backtest and live bot, `tools/live_backtest_parity.py`). That is a real
+  prerequisite, not a bug in the gate; reconciling them needs sign-off (it moves numbers).
+
+---
+
 ## Safety (non-negotiable)
 
 These outrank the loop. Autonomy does not relax them.

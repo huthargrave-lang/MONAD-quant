@@ -1,0 +1,154 @@
+{
+ "convened": "2026-09-23",
+ "hypothesis": "H404700",
+ "members": [
+  "adjudicator-a",
+  "adjudicator-b",
+  "adjudicator-c"
+ ],
+ "rule": "majority of three independent adjudicators (not author, not refuter); read-only, no engine evaluations",
+ "rulings": {
+  "O1": {
+   "outcome": "upheld",
+   "tally": "3-0"
+  },
+  "O2": {
+   "outcome": "upheld",
+   "tally": "3-0"
+  },
+  "O3": {
+   "outcome": "upheld",
+   "tally": "3-0"
+  },
+  "O4": {
+   "outcome": "refuted",
+   "tally": "2-1"
+  },
+  "O5": {
+   "outcome": "refuted",
+   "tally": "3-0"
+  }
+ },
+ "votes": [
+  {
+   "adjudicator": "adjudicator-a",
+   "rulings": [
+    {
+     "confidence": 0.85,
+     "evidence": "src/strategy/engine.py:318-326 (entry=iloc[N+1].open; future_start = next_bar_loc + 1); live/broker.py:241 docstring 'parent fills first, then child orders (TP + SL) go live'; docs/research/D6_execution_semantics_study.md entry-bar audit (980/1516, bound -7.61%..+16.91%); RESEARCH_WEB.md:931-937 (E41)",
+     "id": "O1",
+     "outcome": "upheld",
+     "reason": "Verified: the engine fills at the open of N+1 and only starts TP/SL scanning at N+2, but IBKR bracket children go live as soon as the parent fills, so the entry hour is live-exposed and ignored by the backtest. D6/E41 shows 64.6% of entries touch a bracket in the entry hour and the honest OHLC bound (-7.61% to +16.91%) straddles zero, with 5m evidence leaning stop-first. The candidate's 2%/0.4% bracket is especially exposed to entry-hour stop-outs, so every development number for H404700 rests on a non-live-faithful path."
+    },
+    {
+     "confidence": 0.85,
+     "evidence": "src/strategy/engine.py:353-356 (exit_return = -stop - stop_slippage_pct); runner.py:125 default stop_slippage_pct=0.0, no caller in sweep.py/tools/walkforward_eval.py passes it (grep); load_returns TR-20260923T034514Z-6a3e1771#17: 923/1318 == -0.004737, min == -0.004737; #48: 218/302 == -0.004737, min == -0.004737; D6 table 'fill opens through the stop at the open' -10.15%",
+     "id": "O2",
+     "outcome": "upheld",
+     "reason": "Verified in the ledger: every losing trade in the candidate's train and holdout series is exactly -0.4737% (0.4% stop plus cost); no loss is ever worse, and no stop slippage is ever passed (default 0.0). With a 10-bar hold over a ~7-bar session, positions carry overnight on a 3x ETF, where gaps far exceeding 0.4% are routine; the engine still fills at the stop price. D6 shows gap-through fills alone move the live-shaped path from -5.17% to -10.15%, so this materially overstates the payoff asymmetry the edge depends on."
+    },
+    {
+     "confidence": 0.7,
+     "evidence": "src/strategy/engine.py:281,304 (entries = all entry_signal != 0, iterated without position gate); load_returns #17: 1318 trades on 336 days, 61.9% <=1h, 93.5% <=2d; #48: 302 trades on 81 days, 61.6% / 92.4%; src/research/deflation.py:22-23,109-110 (daily-PnL basis); D6 table row 'allow only one open position'",
+     "id": "O3",
+     "outcome": "upheld",
+     "reason": "Verified: the engine opens a trade on every entry_signal row with no open-position gate, and the candidate's entries are heavily stacked (3.9 entries per active day; 61.9% within 1h of the prior entry). The statistical half of the objection is partly mitigated because the admission deflation measures Sharpe on daily PnL, not per trade, but the daily PnL itself sums up to several concurrent 10% positions that the one-position live bot can never hold. D6 shows one-position replay nearly halves trades and return (1516->789, +11.94%->+6.56%), so the backtest does not represent live trading of this rule."
+    },
+    {
+     "confidence": 0.6,
+     "evidence": "tools/walkforward_eval.py:43-45 GRID = [(t, t/2, rsi) for t in (0.008,0.010,0.014) for rsi in (70,80,90)] and :52 VWAP_ZSCORE_THRESH 0.3; family has 362 trials (iter_trials); docs/research/prereg/H404700.json notes + holdout forward_paper min_days 180; tools/admit.py:23-30",
+     "id": "O4",
+     "outcome": "refuted",
+     "reason": "The factual claim is true: the walk-forward GRID only spans targets 0.8/1.0/1.4% with stop=target/2 and fixed VWAP z 0.3, so F404702 is not OOS evidence for the frozen 2%/0.4%/z0.8 candidate and RESEARCH_WEB overstates it by citing it as 'evidence so far'. But it is immaterial to admitting the hypothesis as registered: the prereg itself discloses holdout-assisted selection (F2), the gate deflates against all 362 family trials, and the registered holdout is a 180-day forward paper window, which is exactly the OOS test the objection says is missing. The fix is a wording correction, not a rejection."
+    },
+    {
+     "confidence": 0.55,
+     "evidence": "src/signals/momentum.py:47-49 (rsi < rsi_oversold & hist rising); load_returns #17 sum 3.1362 -> 1.4979 w/o top 16 days of 336; #48 0.556 -> 0.2042 w/o top 4 of 81; wins 0.299/0.278 vs breakeven 0.4737/(1.9263+0.4737)=0.197; tools/admit.py:26,383-389 (benchmark stage)",
+     "id": "O5",
+     "outcome": "refuted",
+     "reason": "Partly true: RSI(7)<80 is not an oversold filter, so 'dip-buy' mislabels the mechanism. The concentration numbers check out: removing the top 5% of days cuts the summed return from 3.136 to 1.498 (train) and from 0.556 to 0.204 (holdout). Win rates of 29.9% and 27.8% also sit well above the ~19.7% break-even. The remedy the objection demands, a buy & hold benchmark on the same bars, is already an admission stage (Calmar, a ratio that is roughly exposure-neutral). So this objection does not independently invalidate the evidence. It should be carried as a caveat, not treated as grounds for rejection."
+    }
+   ]
+  },
+  {
+   "adjudicator": "adjudicator-b",
+   "rulings": [
+    {
+     "confidence": 0.9,
+     "evidence": "src/strategy/engine.py:319-326 (next_bar_loc=loc+1; future_start=next_bar_loc+1); live/broker.py:241 ('parent fills first, then child orders (TP + SL) go live'); docs/research/D6_execution_semantics_study.md:47-66 (980/1516; -5.17%; bound -7.61..+16.91); RESEARCH_WEB.md:937 (E41)",
+     "id": "O1",
+     "outcome": "upheld",
+     "reason": "Confirmed: compute_trade_returns sets entry at N+1 open but scans TP/SL only from N+2, while live IBKR bracket children go live as soon as the parent fills inside N+1. D6's paired audit found 64.6% of entries touch a bracket in the entry hour, and the honest bound (-7.61% to +16.91%) straddles zero. A 0.4% stop on TQQQ makes this worse. Every candidate number sits on the non-live-faithful path, so the backtest does not show how live would trade it."
+    },
+    {
+     "confidence": 0.9,
+     "evidence": "src/strategy/engine.py:353-356 (exit_return = -stop - stop_slippage_pct); src/backtest/runner.py:125 (stop_slippage_pct=0.0); ledger TR-20260923T034514Z-6a3e1771#17: n=1318, min=-0.0047365, 923/924 losses == -0.0047365; #48: 218/218 losses == -0.0047365; D6_execution_semantics_study.md:48",
+     "id": "O2",
+     "outcome": "upheld",
+     "reason": "Verified in the ledger: every loss equals the stop plus cost, with no gap-through or slippage tail. A 10-bar hold is longer than a ~7-bar session, so a 3x ETF is held overnight behind a 0.4% stop, and some opening gaps will fill well past it. stop_slippage_pct defaults to 0.0 in runner.py:125. D6 shows gap-through fills alone move the live-shaped path from -5.17% to -10.15%. That materially overstates the edge."
+    },
+    {
+     "confidence": 0.8,
+     "evidence": "src/strategy/engine.py:281,304 (entries = df[entry_signal!=0]; loop with no position gate); ledger #17: <=1h 61.9%, <=2d 93.5%, per-trade t=7.90 vs daily-aggregated t=5.45 over 336 days; #48: <=1h 61.6%, <=2d 92.4%, t=2.99 vs daily t=2.09 over 81 days; D6_execution_semantics_study.md:47 (1516->789, +11.94%->+6.56%)",
+     "id": "O3",
+     "outcome": "upheld",
+     "reason": "Confirmed: the engine opens a trade on every entry_signal row and never checks for an open position. The live bot holds one position. In the candidate's returns, 61.9% (train) and 61.6% (eval) of entries come <=1h after the previous entry, so trades overlap and share outcomes. A per-trade (deflated) Sharpe on 1318 'independent' trades overstates the evidence. Clustering by day already cuts the train t-stat from 7.9 to 5.4 and the eval t-stat from 3.0 to 2.1. D6 shows the one-position constraint about halves the trade count and changes returns."
+    },
+    {
+     "confidence": 0.6,
+     "evidence": "tools/walkforward_eval.py:43-45 (GRID targets 0.008/0.010/0.014, stop=t/2, rsi 70/80/90; no VWAP z); ledger TR-20260923T034707Z-49728e9d run_open context.grid (same 9 tuples); docs/research/prereg/H404700.json notes + holdout forward_paper min_days 180; RESEARCH_WEB.md:3831",
+     "id": "O4",
+     "outcome": "refuted",
+     "reason": "The factual claim is true: the walk-forward grid only covers targets 0.8/1.0/1.4% with stop = target/2, so F404702 is not OOS evidence for the frozen 2.0%/0.4%/z0.8 config. But the hypothesis does not rest on existing OOS evidence. The prereg discloses holdout-assisted selection (F2), deflates against all 362 family trials, and puts its OOS test in the 180-day forward window. A missing OOS result is what the forward holdout exists to test, so it does not by itself block registration or admission. RESEARCH_WEB should still stop citing F404702 as evidence for this candidate."
+    },
+    {
+     "confidence": 0.55,
+     "evidence": "src/signals/momentum.py:47-49 (rsi < rsi_oversold & hist > hist.shift(1)); ledger #17 win rate 0.2989, daily sum 3.136 -> 1.426 without top 5% (17 of 336 days); #48 win rate 0.2781, 0.556 -> 0.137 (5 of 81 days); breakeven p = 0.47365/(0.47365+1.92635) = 19.7%; RESEARCH_WEB.md:3831 (gate includes Calmar vs buy&hold)",
+     "id": "O5",
+     "outcome": "refuted",
+     "reason": "Partly true: RSI(7)<80 is not an oversold filter, so 'dip-buying' mislabels the rule, and returns are concentrated. Dropping the top 5% of days (by my own count) leaves 1.43 of 3.14 in train and 0.14 of 0.56 in eval. But both stay positive, and the observed win rates (29.9% train, 27.8% eval) are well above the ~20% breakeven and the ~17% a driftless random walk gives for a +2%/-0.4% bracket. The admission gate already includes Calmar vs buy&hold. So O5 argues for a benchmark the gate already runs; it does not invalidate the evidence. O1-O3 are the real defects."
+    }
+   ]
+  },
+  {
+   "adjudicator": "adjudicator-c",
+   "rulings": [
+    {
+     "confidence": 0.85,
+     "evidence": "src/strategy/engine.py: entry_price=df.iloc[next_bar_loc].open; future_start=next_bar_loc+1 (comment 'Look ahead from bar N+2 onward'); live/broker.py:241 'parent fills first, then child orders (TP + SL) go live'; D6_execution_semantics_study.md entry-bar audit: 980/1516 (64.6%) entries touch a bracket in the entry hour, +11.94% -> -7.61% (stop-first) .. +16.91% (target-first); RESEARCH_WEB.md:937 E41 'N+2 is not live-faithful'; runner.py ENGINE_VERSION 2 notes do not mention entry-bar handling",
+     "id": "O1",
+     "outcome": "upheld",
+     "reason": "The engine fills at N+1 open, then starts TP/SL scanning at N+2. The live IBKR bracket children go live as soon as the parent fills, so they are active inside N+1. With a 0.4% stop on hourly TQQQ, the entry hour decides a large share of outcomes, and E41 puts the honest hourly bound across zero. So the candidate's numbers do not show how live would trade it."
+    },
+    {
+     "confidence": 0.8,
+     "evidence": "Ledger TR-20260923T034514Z-6a3e1771#17 (my load_returns): n=1318, min=-0.0047365; 923 returns at -0.00474, 386 at +0.01926, mean +0.00238. #48/#74: n=302, 218 at -0.00474, min=-0.0047365. Entry hours include 19-20 UTC (177+81 in #17). engine.py stop exit = -stop - stop_slippage_pct; runner.py stop_slippage_pct default 0.0; no stop_slippage arg in sweep.py or tools/walkforward_eval.py (grep empty). Break-even: 0.00238*1318/923 = 0.0034 extra per stop. D6 table: -5.17% -> -10.15% with fill-through-stop.",
+     "id": "O2",
+     "outcome": "upheld",
+     "reason": "Every loss is exactly the stop plus cost, with no slippage and no gap-through. Yet the 10-bar hold exceeds a ~7-bar session, and entries run up to the last session hour, so the 3x ETF is held overnight. To erase the train edge, the average stop loss only has to grow from -0.47% to about -0.81%, which overnight gaps on TQQQ can plausibly produce. D6 shows gap-through fills roughly double the loss on the live-shaped path."
+    },
+    {
+     "confidence": 0.8,
+     "evidence": "engine.py compute_trade_returns iterates entries=df[df.entry_signal!=0] with no position check. Ledger #17: 61.9% of entries <=1h after the previous one, 93.5% within 2 days; #48: 61.6% / 92.4%. Naive per-trade t-stat is 7.90 on #17 and 2.99 on #48, both under an independence assumption that fails. D6 table: one open position 1516 -> 789 trades, +11.94% -> +6.56%.",
+     "id": "O3",
+     "outcome": "upheld",
+     "reason": "The engine opens a trade on every signal row with no open-position gate, and the candidate's entries are strongly clustered. So the 1318 'trades' are overlapping, correlated exposures, not independent draws, and the per-trade t-stat and deflated Sharpe overstate the evidence. The live bot holds one position, and D6's one-position replay roughly halves the trade count and the return."
+    },
+    {
+     "confidence": 0.7,
+     "evidence": "Ledger TR-20260923T034707Z-49728e9d run_open context grid = [[0.008,0.004,*],[0.01,0.005,*],[0.014,0.007,*]] x rsi {70,80,90}. Candidate outcomes exist only at TR-20260923T034514Z-6a3e1771 #17 (train) and #48/#74 (evaluated_from 2026-05-04, the selecting holdout), which are identical series (n=302, sum 0.556). RESEARCH_WEB.md:3831 cites the walk-forward as 'evidence so far'.",
+     "id": "O4",
+     "outcome": "upheld",
+     "reason": "The walk-forward cited as evidence (F404702, +0.32%/mo, Sharpe 1.31) searched only targets 0.8/1.0/1.4% with stops 0.4/0.5/0.7%. It never tried target 2.0% and never varied VWAP z, so it says nothing out-of-sample about the frozen parameters. The only post-train figure for the candidate is the sweep holdout that selected it (F2). The forward paper window in the prereg is still the correct test, but the development evidence as written overstates what exists."
+    },
+    {
+     "confidence": 0.6,
+     "evidence": "src/signals/momentum.py long_cond = (rsi < rsi_oversold) & (hist > hist.shift(1)); prereg rsi_oversold=80. Ledger #17: sum 3.136 -> 1.498 without top-5% days (52% removed), win rate 29.9%. #48: 0.556 -> 0.204 (63% removed), win rate 27.8%. Break-even 0.00474/(0.01926+0.00474)=19.7%. tools/admit.py:26,383-389: benchmark gate compares strategy Calmar to buy & hold Calmar.",
+     "id": "O5",
+     "outcome": "refuted",
+     "reason": "The facts check out: RSI(7)<80 is not an oversold filter, the payoff breaks even at about a 19.7% win rate (actual 29.9% train, 27.8% holdout), and returns are concentrated. But concentration in top days is expected for a skewed 4:1 payoff and does not by itself show beta. The buy-and-hold comparison it asks for is already a registered admission criterion (Calmar vs buy & hold on the same bars). The 'dip-buying' label is inaccurate, but the objection does not invalidate the claim beyond what the gate already tests."
+    }
+   ]
+  }
+ ]
+}

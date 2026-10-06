@@ -22,6 +22,12 @@ from src.strategy.sizing import (
     recent_win_rate, adaptive_kelly_multiplier, position_fraction,
 )
 
+from tests._engine_uncounted import uncounted_module  # noqa: E402
+
+# Engine arithmetic, not a strategy evaluation: runs outside the trial ledger
+# (src/strategy/counted.py).
+setUpModule, tearDownModule = uncounted_module("sizing unit tests that exercise run_backtest on synthetic data")
+
 
 class TestKellyMath(unittest.TestCase):
     def test_known_value(self):

@@ -24,6 +24,9 @@ Sources, each a distinct failure mode this project has actually shipped:
                    unreproducible on a fresh checkout (F144/F156).
 * ``open_item``  — the newest handoff's explicit open list, so human-stated priorities
                    outrank anything this tool infers.
+* ``reeval``     — Findings that predate the admission gate and still need
+                   re-evaluating (src/research/reeval.py): market claims first, since an
+                   unclassified performance claim is standing without having passed it.
 
 Scoring is ``leverage * tractability``, both in [0,1], and both are *stated* rather
 than learned — there is no data here to fit them on, and a fitted score would be false
@@ -482,6 +485,33 @@ def source_open_items(limit: int = 6) -> List[dict]:
 # --------------------------------------------------------------------------- #
 # ranking                                                                      #
 # --------------------------------------------------------------------------- #
+def source_reeval(limit: int = 4) -> List[dict]:
+    """The head of the pre-gate re-evaluation queue (tools/reevaluate_web.py)."""
+    repo = str(Path(__file__).resolve().parent.parent)
+    if repo not in sys.path:
+        sys.path.insert(0, repo)
+    from src.research import reeval
+    import reevaluate_web
+
+    tiers = reeval.classify()
+    rows = []
+    for nid in reeval.queue(tiers)[:limit]:
+        tier = tiers[nid]
+        rows.append({
+            "key": "reeval:{}".format(nid),
+            "kind": "reeval",
+            "node": nid,
+            "title": "re-evaluate {} ({})".format(nid, tier),
+            "evidence": "{} tier; pre-dates the admission gate".format(tier),
+            # A performance claim that bypassed the gate outranks a merely unverified one,
+            # and both rank below the handoff's human-stated open items (the rule above).
+            "leverage": 0.55 if tier == "market" else 0.4,
+            "tractability": 0.7,  # reading one node and recording a decision is bounded
+            "action": reevaluate_web.ADVICE[tier] + " Record it: tools/reevaluate_web.py decide.",
+        })
+    return rows
+
+
 def _recently_touched(task: Mapping[str, object], subjects: Sequence[str]) -> bool:
     """Has a recent commit already addressed this item?
 
@@ -518,6 +548,7 @@ def collect(skip_recent: bool = True) -> List[dict]:
     tasks += source_unguarded()
     tasks += source_unresolved(nodes)
     tasks += source_blocked_labs()
+    tasks += source_reeval()
 
     subjects = recent_subjects() if skip_recent else []
     for t in tasks:

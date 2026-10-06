@@ -48,6 +48,9 @@ from src.backtest import uncertainty as unc
 from src.optimization.sweep_costs import estimate_spread, round_trip_cost_pct
 from src.optimization import funnel as F
 from walkforward_eval import walkforward as leakfree_walkforward
+from src.research.backtest_trials import (MR_HOURLY_STRATEGY, data_spec, engine_spec,
+                                          mr_hourly_family, record_backtest)
+from src.research.trials import open_run
 
 CACHE_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "cache")
 DEFAULT_OUT = os.path.join(os.path.dirname(__file__), "..", "data", "funnel_runs")
@@ -122,18 +125,28 @@ def _apply_config(ticker: str, params: dict) -> str:
 
 
 def _run(df: pd.DataFrame, ticker: str, params: dict, *, backtest_mode: str,
-         slippage_pct) -> dict | None:
-    """One offline backtest. Re-applies config every call (global state leaks
-    between runs), silences stdout, never plots. Returns None on zero trades."""
-    _apply_config(ticker, params)
+         slippage_pct, run, stage: str) -> dict | None:
+    """One offline backtest, counted in the trial-ledger ``run`` before it executes.
+    Re-applies config every call (global state leaks between runs), silences stdout,
+    never plots. Returns None on zero trades."""
+    mode = _apply_config(ticker, params)
+    trial = run.begin(
+        params=engine_spec(mode, timeframe="hourly", target=params["target_gain_pct"],
+                           stop=params["stop_loss_pct"], backtest_mode=backtest_mode,
+                           slippage_pct=slippage_pct,
+                           max_trade_bars=int(params["max_trade_bars"])),
+        data=data_spec(df, ticker), extra={"stage": stage})
     with contextlib.redirect_stdout(io.StringIO()):
         try:
-            r = run_backtest(df=df.copy(), target_gain_pct=params["target_gain_pct"],
+            r = run_backtest(mode=mode, max_trade_bars=int(params["max_trade_bars"]),
+                             df=df.copy(), target_gain_pct=params["target_gain_pct"],
                              stop_loss_pct=params["stop_loss_pct"], require_signals=1,
                              timeframe="hourly", plot=False, backtest_mode=backtest_mode,
                              slippage_pct=slippage_pct)
-        except Exception:
+        except Exception as exc:
+            trial.fail(f"{type(exc).__name__}: {exc}")
             return None
+    record_backtest(trial, r)
     return r or None  # run_backtest returns {} on zero trades
 
 
@@ -222,11 +235,12 @@ def _perturb(center: dict) -> dict:
 
 # ── Per-candidate evaluation ────────────────────────────────────────────────
 def evaluate_ticker(ticker: str, *, base_mode: str, n_folds: int, quick: bool,
-                    thresholds: F.FunnelThresholds, generated_at: str) -> dict:
-    """Run the full funnel for one ticker; return its survivor/rejection card dict."""
+                    thresholds: F.FunnelThresholds, generated_at: str, run) -> dict:
+    """Run the full funnel for one ticker; return its survivor/rejection card dict.
+    Every backtest is counted in the trial-ledger ``run``."""
     path = os.path.join(CACHE_DIR, f"{ticker.upper()}_1h.csv")
     params = _candidate_params(ticker)
-    family = "long_only_rsi_vwap_mr_hourly"
+    family = MR_HOURLY_STRATEGY
     sid = (f"{ticker.upper()}_HOURLY_rsi{params['rsi_oversold']:g}"
            f"_t{params['target_gain_pct']:g}_s{params['stop_loss_pct']:g}")
 
@@ -249,14 +263,16 @@ def evaluate_ticker(ticker: str, *, base_mode: str, n_folds: int, quick: bool,
                                     float(df["close"].median()))
 
     # ── Realistic full-sample run (instrument-derived 1× cost) ──
-    res = _run(df, ticker, params, backtest_mode="realistic", slippage_pct=base_cost)
+    res = _run(df, ticker, params, backtest_mode="realistic", slippage_pct=base_cost,
+               run=run, stage="realistic")
     realistic_sharpe = res["sharpe_ratio"] if res else None
     realistic_return = res["total_return"] if res else None
     total_trades = res["total_trades"] if res else 0
     trades_per_year = res["trades_per_year"] if res else None
 
     # ── Harsh full-sample run (5 bps preset + pessimistic ambiguity) ──
-    res_h = _run(df, ticker, params, backtest_mode="harsh", slippage_pct=None)
+    res_h = _run(df, ticker, params, backtest_mode="harsh", slippage_pct=None,
+                 run=run, stage="harsh")
     harsh_sharpe = res_h["sharpe_ratio"] if res_h else None
     harsh_return = res_h["total_return"] if res_h else None
 
@@ -264,7 +280,8 @@ def evaluate_ticker(ticker: str, *, base_mode: str, n_folds: int, quick: bool,
     cost_ret, cost_sh = {}, {}
     for k in (1, 2, 3):
         rk = res if k == 1 else _run(df, ticker, params, backtest_mode="realistic",
-                                     slippage_pct=base_cost * k)
+                                     slippage_pct=base_cost * k, run=run,
+                                     stage=f"cost_stress:{k}x")
         cost_ret[k] = float(rk["total_return"]) if rk else 0.0
         cost_sh[k] = float(rk["sharpe_ratio"]) if rk else 0.0
 
@@ -277,7 +294,8 @@ def evaluate_ticker(ticker: str, *, base_mode: str, n_folds: int, quick: bool,
             for v in vals:
                 p2 = dict(params)
                 p2[knob] = v
-                rp = _run(df, ticker, p2, backtest_mode="realistic", slippage_pct=base_cost)
+                rp = _run(df, ticker, p2, backtest_mode="realistic", slippage_pct=base_cost,
+                          run=run, stage=f"stability:{knob}")
                 neigh.append(float(rp["sharpe_ratio"]) if rp else 0.0)  # no trades ⇒ edge gone
             stability[knob] = {"center": float(center_sh) if center_sh is not None else None,
                                "neighbors": neigh, "values": vals}
@@ -289,7 +307,7 @@ def evaluate_ticker(ticker: str, *, base_mode: str, n_folds: int, quick: bool,
     try:
         with contextlib.redirect_stdout(io.StringIO()):
             wf, picks = leakfree_walkforward(df.copy(), ticker.upper(),
-                                             objective="ev", n_folds=n_folds)
+                                             objective="ev", n_folds=n_folds, run=run)
         trades_per_window = [p.get("oos_trades", 0) for p in picks]
         if "error" not in wf:
             oos_sharpe = wf["sharpe"]
@@ -427,6 +445,10 @@ def main(argv=None):
     ap.add_argument("--min-trades-per-window", type=int, default=5)
     ap.add_argument("--min-oos-sharpe", type=float, default=0.5)
     ap.add_argument("--min-realistic-sharpe", type=float, default=0.5)
+    ap.add_argument("--family", default=None,
+                    help="ledger family (default: long_only_rsi_vwap_mr_hourly.v<ENGINE_VERSION>:<TICKER>, "
+                         "shared with sweep.py and walkforward_eval)")
+    ap.add_argument("--hypothesis", default=None, help="RESEARCH_WEB hypothesis id (H<n>)")
     args = ap.parse_args(argv)
 
     thresholds = build_thresholds(args)
@@ -438,9 +460,16 @@ def main(argv=None):
     try:
         for tk in args.tickers:
             print(f"  evaluating {tk.upper()} ...", flush=True)
-            cards.append(evaluate_ticker(
-                tk, base_mode=args.mode, n_folds=args.folds, quick=args.quick,
-                thresholds=thresholds, generated_at=generated_at))
+            with open_run(producer="tools/strategy_funnel.py",
+                          family=args.family or mr_hourly_family(tk),
+                          hypothesis=args.hypothesis,
+                          context={"ticker": tk.upper(), "mode": args.mode, "folds": args.folds,
+                                   "quick": args.quick}) as run:
+                card = evaluate_ticker(
+                    tk, base_mode=args.mode, n_folds=args.folds, quick=args.quick,
+                    thresholds=thresholds, generated_at=generated_at, run=run)
+                card["ledger_run"] = run.run_id
+            cards.append(card)
     finally:
         _restore_config(snap)
 

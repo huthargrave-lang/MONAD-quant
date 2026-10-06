@@ -161,16 +161,16 @@ class TheGateThatDoesRunIsLargeTests(unittest.TestCase):
                                        **COMMON)["entry_signal"] != 0).sum())
             cls.rates.append((name, on / off if off else 1.0))
 
-    def test_the_runner_still_takes_the_signature_default(self):
+    def test_the_runner_now_passes_the_configured_gate(self):
+        """H27 was FIXED at ENGINE_VERSION 2 (F404701 resolves it): the signature default
+        is still True, but the runner no longer relies on it."""
         sig = inspect.signature(generate_trades)
-        self.assertIs(
-            sig.parameters["use_regime_filter"].default, True,
-            "the signature default flipped — the divergence F26/H27 describe is gone; "
-            "supersede them and re-baseline every backtest number")
-        self.assertNotIn(
+        self.assertIs(sig.parameters["use_regime_filter"].default, True)
+        self.assertIn(
             "use_regime_filter", probe.runner_call_report()["keywords"],
-            "runner.py now passes use_regime_filter — H27 is FIXED. Supersede it, and "
-            "note every prior backtest number was produced under the other gate.")
+            "runner.py stopped passing use_regime_filter — the F26/H27 divergence is back")
+        from src.backtest.runner import resolve_regime_filter
+        self.assertEqual(resolve_regime_filter("hourly"), config.USE_REGIME_FILTER_HOURLY)
 
     def test_config_still_says_the_gate_is_off(self):
         self.assertFalse(

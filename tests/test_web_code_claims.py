@@ -90,20 +90,16 @@ class H27RegimeFilterClaim(unittest.TestCase):
             "Re-verify H27 and update the web node.",
         )
 
-    def test_runner_still_omits_the_flag(self):
-        """The bug itself. If this fails, H27 was FIXED — update the web."""
+    def test_runner_now_passes_the_flag(self):
+        """H27 was FIXED at ENGINE_VERSION 2 and F404701 resolves it (H27 stays current
+        as the answered hypothesis: F223 supports it). The runner passes the configured
+        gate; if this fails, the H27 divergence is back."""
         calls = _calls_to(RUNNER, "generate_trades")
         self.assertTrue(calls, "no generate_trades call found in runner.py")
         passes_flag = any(
             kw.arg == "use_regime_filter" for c in calls for kw in c.keywords
         )
-        self.assertFalse(
-            passes_flag,
-            "runner.py NOW passes use_regime_filter — H27 appears FIXED. This is good "
-            "news, but it means the web is stale AND every backtest number changed: "
-            "supersede H27 (note.py supersede H27 --by <new> --reason data-fixed) and "
-            "re-baseline the affected findings before deleting this guard.",
-        )
+        self.assertTrue(passes_flag, "runner.py stopped passing use_regime_filter")
 
     def test_walk_forward_does_honour_the_flag(self):
         """The asymmetry is the substance of H27: the two evidence-producing paths
@@ -364,13 +360,9 @@ class FourSiteGateTests(unittest.TestCase):
             "which ones pass use_regime_filter and supersede the web node.",
         )
 
-    def test_runner_is_the_only_caller_that_omits_the_gate(self):
-        self.assertIsNone(
-            _kwarg(_calls_to(RUNNER, "generate_trades")[0], "use_regime_filter"),
-            "runner.py now PASSES use_regime_filter — H27 appears fixed. Supersede "
-            "the web node and re-baseline every backtest number, which was produced "
-            "with the gate at its default True.",
-        )
+    def test_no_caller_omits_the_gate(self):
+        """Since ENGINE_VERSION 2 (F404701) the runner passes it too."""
+        self.assertIsNotNone(_kwarg(_calls_to(RUNNER, "generate_trades")[0], "use_regime_filter"))
         for path in (WALKFWD, LIVE_SIGNALS, GAP_STUDY):
             self.assertIsNotNone(
                 _kwarg(_calls_to(path, "generate_trades")[0], "use_regime_filter"),

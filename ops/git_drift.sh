@@ -60,6 +60,7 @@ ARMED_PATHS=(
     "deploy/monad-trader.service"
     "src/signals/"
     "src/strategy/engine.py"
+    "src/strategy/counted.py"
     "src/data/fetcher.py"
 )
 

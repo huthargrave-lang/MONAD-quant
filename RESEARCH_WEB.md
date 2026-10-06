@@ -3811,3 +3811,355 @@ NOT MEASURED, STATED: there is no price history anywhere in this system. The pri
 Not a signal: nothing here touches live/**, config.py or the engine. 199 tests green.
 Links: [[F155|builds_on]] · [[F159|builds_on]] · [[F265502|builds_on]] · [[F265503|relates]].
 _— captured cursor/screener-buckets-toggle-45c8, 2026-08-06_
+
+### F404700 — sweep.py still samples morning-only bars: its session filter runs on a UTC index
+fetch_yfinance returns a naive-UTC index (src/data/fetcher.py tz_convert(None)); sweep.py:196 and tools/equity_curve.py:193 then call between_time('09:30','16:00') on it, which is 05:30-12:00 New York, so only the 13:30/14:30/15:30 UTC bars survive: 3 per day, the morning-only sample F13 showed manufactures an edge. Measured 2026-09-22 on QQQ 1h Aug 1 - Sep 18 (a short fetch, so not F12's long-range quirk): 231 bars at 7.0/day in, 99 at 3.0/day after the filter. A phase-1 QQQ sweep over 2026-03..09 loaded 412 bars (~3/day). F12 attributed morning-only data to the fetch span; this is a second, independent cause that tools/fetch_fullsession.py does not fix for sweep.py, because the sweep re-filters. Found by the harness red-team subagent, confirmed directly (an observation; the guard is tests/test_regular_session.py). Fix exists: src/data/fetcher.regular_session (New York time), already used by tools/admit.py. Migrating sweep.py and equity_curve.py moves published numbers, so it awaits sign-off and a re-sweep.
+Links: [[F13|builds_on]] · [[F12|refines]].
+_— captured claude/monetizing-repositories-03e341@43df77e, 2026-09-22_
+
+### F404701 — ENGINE_VERSION 2: the backtest now decides like the live bot on every census input
+Decision-debate Q4 (2026-09-22) aligned the BACKTEST to the live bot (live is ground truth; no live/ or config.py edits). src/backtest/runner.py now (1) passes the configured vol-regime gate into generate_trades (runner.resolve_regime_filter; before, it computed the flag and dropped it, so every backtest ran the gate at its signature default True while live passes False: H27); (2) drops short entries as live/trader.py skips them unless TRADER_ALLOW_SHORTS (runner.suppress_disallowed_shorts; longs_only gates no entry, F26, so the backtest had been simulating shorts the bot never takes: a fourth divergence the source-reading census could not see); (3) holds the live mode for MAX_TRADE_BARS_LIVE via one resolver (runner.resolve_hold, keyed on f'{LIVE_SYMBOL}_HOURLY' as live keys it; walk_forward reads it too). tools/live_backtest_parity.py now MEASURES the regime gate, the acted-on session bars (loader filter + trade_hours gate vs the :32 cron acting on the latest bar at least an hour old), the resolved hold, and short entries emitted, each with a negative control: 3 agree, 2 coincident, 2 dormant, 0 divergent (docs/research/data/live_backtest_parity.json). Trial specs record the resolved engine settings and ENGINE_VERSION=2, and trial families carry .v2, so no engine-v1 trial pools with v2. Every backtest number before this date came from engine v1 and is not comparable. Still open: main.py passes a (9,16) UTC trade_hours gate (F148); it goes with the New-York-time session loader (decision-debate Q1). MAX_TRADE_BARS_QQQ has no reader outside tests (dead config, noted, not folded into the resolver).
+Links: [[H27|resolves]] · [[F26|builds_on]] · [[F141|refines]] · [[F148|relates]] · [[F404700|relates]].
+_— captured claude/monetizing-repositories-03e341@2242da9, 2026-09-22_
+
+### F404702 — TQQQ before/after the session and engine fixes: the live instrument had been searched on 2.6 bars/day
+Measured 2026-09-22/23, same commands (sweep.py TQQQ --phase 1, default 710-day window; tools/walkforward_eval.py TQQQ --folds 4), before = commit 7ce6ce5 (engine v1), after = 6a0df98 (engine v2 + fetcher.load_session_bars). BEFORE: the sweep loaded 1284 bars over 710 days, ~2.6 per trading day, i.e. the morning-only artifact (F13/F404700) was live in the selection-of-record tool; its best_overall (target 1.0%, stop 0.4%, RSI<80, VWAP 0.3, hold 8) had train Sharpe 2.26 on 103 trades and HOLDOUT Sharpe 0.20 on 11; walk-forward OOS +0.05%/mo, Sharpe 0.97, 60 trades over 9.9 months. AFTER: 3366 bars at 7.0 per session day; best_overall (target 2.0%, stop 0.4%, RSI<80, VWAP 0.8, hold 10) train Sharpe 6.34 on 1318 trades; walk-forward OOS +0.32%/mo, Sharpe 1.31, maxDD -3.25%, 813 trades over 11.6 months. NOT an edge claim: the sweep's holdout figures (+71% over 5 months, 'Sharpe 3.0') are selected BY that holdout (F2) and compounded per trade at full size rather than the live 10% sizing, so they are not comparable to anything; the walk-forward is the honest read and is itself only a candidate until registered and admitted (tools/admit.py). Every trial behind both runs is in the ledger: 373 in long_only_rsi_vwap_mr_hourly:TQQQ (engine v1) and 362 in long_only_rsi_vwap_mr_hourly.v2:TQQQ (docs/research/trials/TR-20260923T034425Z-e2d0cce7, -034457Z-e03c3a21, -034514Z-6a3e1771, -034707Z-49728e9d). Every published TQQQ sweep number before this date, including config.py's live parameters, was selected on v1 morning-only data.
+Links: [[F404700|builds_on]] · [[F404701|builds_on]] · [[F13|relates]] · [[F2|relates]].
+_— captured claude/monetizing-repositories-03e341@6a0df98, 2026-09-22_
+
+### H404700 — Hourly RSI/VWAP dip-buying on TQQQ, full session, engine v2, earns after costs out of sample
+The first hypothesis run through the accountable workflow. Candidate: the engine-v2 TQQQ sweep's selected config (target 2.0%, stop 0.4%, RSI<80, VWAP z 0.8, hold 10 bars), frozen in docs/research/prereg/ before any forward bar exists. Evidence so far: the sweep that chose it (362 trials in long_only_rsi_vwap_mr_hourly.v2:TQQQ, holdout-assisted selection, F2) and a leak-free walk-forward of the same family at +0.32%/mo, Sharpe 1.31 over 813 OOS trades (F404702). What would falsify it: the admission gate (tools/admit.py) REJECTs on the deflated development Sharpe against the family's whole search, on 2x cost, on Calmar vs buy&hold, or on the 180-day forward window (P(forward Sharpe > 0) < 0.90). Prior record argues against it: every earlier hourly edge on this strategy was an artifact (F13, F43, D6).
+Links: [[F404702|builds_on]] · [[F43|relates]] · [[D6|relates]].
+_— captured claude/monetizing-repositories-03e341@4bf77f6, 2026-09-23_
+
+### F404703 — H404700 REJECTED: statistics admitted an execution artifact; three live/backtest execution gaps govern every engine number
+A three-agent board (docs/research/refutations/boards/H404700.json) ruled on the refuter's five objections to H404700. It upheld three, 3-0, all execution-model gaps between compute_trade_returns and the live bot:
+(O1) TP/SL scanning starts at bar N+2, while live bracket children are active from the fill in N+1 (D6: 64.6% of entries touch a bracket in the entry hour).
+(O2) Stops fill exactly at the stop price. Every one of the candidate's losses is -0.47365%, and none is ever worse, despite overnight holds on a 3x ETF (D6: gap-through fills alone take -5.17% to -10.15%).
+(O3) There is no one-position gate: 61.9% of entries come within an hour of the previous one (D6: one-position replay halves the trades).
+O4 (2-1) and O5 (3-0) were refuted as immaterial or caveats, but F404702 must not be cited as OOS evidence for the frozen config.
+tools/admit.py H404700: REJECT. The lesson is that DEFLATION, 2x COST STRESS and CALMAR-vs-BUY&HOLD ALL PASSED (DSR 0.9999 at N_eff 29 of 363 trials; Calmar 11.0 vs 2.26). Statistical deflation cannot catch a fill model that is optimistic in the same direction on every trade. The adversarial refutation stage is what did. Every engine backtest, v2 included, shares O1-O3, so every published engine number is an upper bound until the execution model matches live (an engine v3 decision).
+Links: [[H404700|contradicts]] · [[F404702|relates]] · [[D6|evidenced_by]].
+_— captured claude/monetizing-repositories-03e341@349654e, 2026-09-23_
+
+### F404704 — No daily timing rule beats the static 60/40: 27 counted trials (trend, dual momentum, turn-of-month, overnight, SMA) are null on return and on Sharpe
+First daily-strategy family through the accountable workflow (tools/daily_search.py, snapshot DS-32c992fb, window 2007-06-08..2026-10-02). Ledger: reference TR-20261006T005053Z-9336581d, search TR-20261006T005054Z-9e4bbccf.
+
+The grid was frozen before any run: 27 points across time-series momentum, dual momentum, turn-of-month, overnight drift, and the SMA trend filter. The reference is the static 60/40 (SPY/IEF) under the SAME execution model:
+- decisions trade at the next session;
+- holdings drift;
+- costs are per asset and per era;
+- cash is the lagged DTB3 rate;
+- monthly rules use 21 staggered tranches.
+
+The 60/40 reference: excess Sharpe 0.63, CAGR 8.19%, maxDD -32.2%.
+
+Results:
+- Best by active (return-difference) Sharpe: dualmom 6m/IEF at +0.02. Hansen SPA_c over all 27: family p 0.90 at mean blocks 20/63/126. Active DSR 0.0003 (N 39 = 9 effective + 30 declared prior).
+- Overnight drift costs 12%/yr to trade twice daily and loses.
+- Turn-of-month is negative in every variant.
+- Look-ahead (truncation) check: clean at 12 cuts for all 27 points.
+
+Disclosed diagnostic, chosen AFTER seeing the results, so not a test: the D6 bar is risk-adjusted. The trend filters have higher Sharpe than the reference (sma 200d/cash 0.73 vs 0.63) and far smaller drawdown (-13% vs -32%), but hold less risk, so their return-difference is negative. On the vol-matched active series (mean > 0 iff Sharpe > reference), the best is sma 200d/cash at +0.14 Sharpe, with SPA p 0.68-0.74. Also null.
+
+Conclusion: no daily timing rule in this family reliably beats a static 60/40, risk-adjusted or not. This agrees with D6/F34: a 0.1-0.15 Sharpe edge is below what 19 years can resolve (MDE ~0.4). The drawdown reduction of trend filters is real in sample but rests on about three crises (2008, 2020, 2022), the F36 pattern.
+Links: [[D6|supports]] · [[F34|supports]] · [[F36|relates]] · [[F40|relates]].
+_— captured claude/monetizing-repositories-03e341@3e6e298, 2026-10-05_
+
+### F404705 — Calendar tilts do not beat the static 60/40 either: pre-FOMC drift decays after publication (+0.71 to -0.63 active Sharpe by era); sell-in-May is noise
+Second daily search, frozen after the first was null (F404704) and before it ran: 4 calendar tilts on the 21-tranche static 60/40, so the comparison isolates the tilt.
+- Pre-FOMC drift (Lucca & Moench): 100% SPY over the scheduled announcement session, or over that session and the one before.
+- Sell-in-May (Bouman & Jacobsen): SPY 60+t / IEF 40-t over Nov-Apr, the reverse over May-Oct, with t of 0.2 or 0.4.
+
+The FOMC dates are the Fed's scheduled meetings, parsed from federalreserve.gov into a fixture with page hashes. Unscheduled meetings and conference calls are excluded as surprises. Ledger: TR-20261006T005717Z-89504c2e, same snapshot and window as F404704.
+
+Results:
+- Best: FOMC announcement-day tilt, active Sharpe +0.13 over the 60/40, CAGR 8.36% vs 8.19%.
+- Familywise SPA_c over all 31 daily trials: p 0.86-0.88 at mean blocks 20/63/126.
+- Active DSR 0.0009 (N 48 = 12 effective + 36 declared prior).
+- The FOMC effect DECAYS by era: active Sharpe +0.71 (2007-13), -0.18 (2014-21), -0.63 (2022-26). This is the post-publication pattern; the working paper circulated from 2011.
+- Sell-in-May: +0.07/+0.08, with a worse drawdown (-36%/-40% vs -32%).
+
+Disclosure: the turnover_per_year and cost_per_year METRICS recorded on the first 31 daily trials are inflated about 21x for tranched strategies. A tranche's fee was summed as a fraction of its own capital; this is fixed in daily_strategy. Returns, and so every statistic above, were unaffected.
+
+Together with F404704: 31 counted daily strategies, and none reliably beats a static 60/40. The one with a real literature effect (pre-FOMC) has visibly decayed since publication.
+Links: [[F404704|builds_on]] · [[D6|supports]].
+_— captured claude/monetizing-repositories-03e341@030cb58, 2026-10-05_
+
+### H404701 — Buying the deepest-discount closed-end funds beats owning them all
+Hypothesis: within listed US closed-end funds, holding the cheapest 20% by raw discount to NAV (price/NAV - 1, the latest weekly CEFConnect observation) beats owning every eligible fund equally.
+- Execution: equal weight, decided at a close, traded at the next close, rebalanced every 21 sessions in 21 staggered tranches, CEF cost tier (30/15 bps one-way, pre/post 2010).
+
+Search evidence (tools/cef_search.py; snapshot DS-18cef162, NAV panel CEFNAV-fd7099e2; ledger TR-20261006T012346Z-0af751b2, benchmark TR-20261006T012341Z-86834435):
+- All 6 frozen grid points beat the benchmark.
+- This candidate: active Sharpe +1.05, active return +4.7%/yr net of 0.92%/yr costs, beta 1.11 to the universe, alpha +4.0%/yr. Era active Sharpe +0.90 / +0.89 / +1.97.
+- Hansen SPA_c adjusted p < 0.001 at mean blocks 20/63/126 (K=6).
+- Look-ahead clean at 12 cuts over both datasets.
+
+Candidate selection is DISCLOSED AS POST-HOC. The search reports the best by active Sharpe, which was z52-within-category at +1.19. That rule's costs (2.35%/yr) about equal its active return, so it could not survive the gate's 2x cost stage. This candidate was chosen as the highest-active-Sharpe point whose active return survives doubled costs. All 6 points count in N either way.
+
+Known threats for the refuter:
+- survivorship (current listings only; dead funds absent, sign uncertain);
+- illiquid-fund costs above the tier;
+- category exposure;
+- crash-rebound concentration (5 corroborated >50% sessions);
+- a 4-session 2016 eligibility dip.
+
+Falsified by: tools/admit.py REJECT at any relative stage, or the 365-day forward window (P(forward active Sharpe > 0) < 0.90).
+Links: [[F257|builds_on]] · [[F404704|relates]].
+_— captured claude/monetizing-repositories-03e341@7d4cd83, 2026-10-05_
+
+### F404706 — H404701 passes every development stage of the gate: deepest-discount CEFs beat the equal-weight CEF universe by +4.7%/yr net; forward window matures 2027-10-07
+The first hypothesis to pass every development-evidence stage of the admission gate (tools/admit.py H404701 --dry-run, tactical_allocation profile):
+- lookahead clean at 12 cuts over both datasets;
+- the development re-run REPRODUCES search trial TR-20261006T012346Z-0af751b2#0 exactly (22.7 years, 5724 rebalances);
+- active DSR 1.0000 (active Sharpe +1.05 vs SR0 0.23, N 8);
+- Hansen SPA_c adjusted p < 0.0001 at mean blocks 20/63/126;
+- active Sharpe positive in every era (+0.90 / +0.89 / +1.97);
+- 2x cost stress: +3.88%/yr active with both portfolios charged double.
+
+Open: witness (the evidence must merge to development) and the 365-day forward window, which matures 2027-10-07 on data no trial has seen.
+
+The claim: the cheapest 20% of listed closed-end funds by raw discount to NAV, equal weight, traded at the next close and rebalanced monthly in 21 tranches, beat the equal-weight CEF universe by +4.7%/yr net (beta 1.11, alpha +4.0%/yr) over 2003-12..2026-10. Snapshot DS-18cef162; NAV panel CEFNAV-fd7099e2.
+
+Scrutiny:
+- A first refuter filed nothing after testing source of return, category tilt, crash rebounds, bid-ask bounce, costs (survives about 6.7x), NAV timing, distributions and code (docs/research/refutations/boards/H404701-refuter1.md).
+- A second refuter filed 7 objections. A board of three refuted all 7, 3-0 (docs/research/refutations/boards/H404701.json).
+
+What the edge IS, per the board's caveats:
+- about half category tilt (equity and hybrid funds trade cheaper); within-category selection alone is ~+2.4%/yr gross, Sharpe 1.17;
+- the return is mostly discount narrowing (+3.8%/yr), not distributions;
+- about half is persistent cheap-fund identity, but timing is also real (Sharpe 1.42 alone);
+- a realistic forward expectation is an active Sharpe near 0.9, not 1.05.
+
+Untested: survivorship (current listings only); its measured pattern argues against it creating the result, and the forward window is the real test. Capacity (no volume data); it is a small-account strategy by nature.
+
+Contrast with H404700, the hourly engine artifact (F404703): that one passed deflation and failed on execution realism. This one was built on a next-session execution model from the start, and its result reproduces under two independent reconstructions.
+Links: [[H404701|supports]] · [[F257|builds_on]] · [[F404703|relates]].
+_— captured claude/monetizing-repositories-03e341@072245f, 2026-10-05_
+
+### F404707 — Treasury auction-cycle tilt does not beat the 60/40 (announcement-gated windows; pre=5 collapsed to pre=3, disclosed)
+Third ETF search (TR-20261006T033350Z-100895f2, snapshot DS-32c992fb, same window as F404704). Four tilts on the 60/40 move the bond leg from IEF to SHY before Treasury coupon auctions (1,576 auctions from TreasuryDirect, 2003-2026).
+
+Results:
+- Long tenors (10/20/30y): active Sharpe -0.17 (eras -0.57 / -0.15 / +0.33).
+- All coupons: -0.44.
+- Familywise SPA over all 35 ETF trials: p 0.89-0.93. Null.
+
+Design flaw, disclosed:
+- The tilt holds a pre-auction position only from the first session whose entry decision falls on or after TreasuryDirect's announcementDate.
+- Announcements lead auctions by a median of 6 calendar days (~4 sessions), so that gate binds before a 5-session window can open.
+- Result: pre=5 is identical to pre=3. The effective window is about 2 sessions, and the four points are two distinct ideas (the effective-trial clustering counts them once).
+- Lou, Yan & Zhang used the anticipated schedule. Treasury's regular calendar is predictable months ahead, so this test is conservative and may have missed an effect concentrated 3-5 days out.
+- A fair re-test needs Treasury's tentative quarterly auction schedules as a point-in-time source, which is not built.
+Links: [[F404704|builds_on]].
+_— captured claude/monetizing-repositories-03e341@aecd538, 2026-10-05_
+
+### F404708 — CEF tax-loss tilt is null, and running it after registration cost H404701 its deflation pass (DSR 1.00 to 0.94): the gate counts every later search in the family
+Second CEF search (TR in the CEF family, snapshot DS-18cef162, NAV panel CEFNAV-fd7099e2). Two tax-loss-season tilts (Brauer & Chang): outside 15 Dec .. end of January, the strategy places exactly the equal-weight benchmark's orders; in the season it holds the cheapest 20% by the year's total return or discount change. Result: active Sharpe +0.08 for both, with the effect decaying by era (+0.24/+0.60 to -0.01/-0.35 to -0.18/-0.42). Null.
+
+THE IMPORTANT CONSEQUENCE: running this grid cost H404701 its deflation pass.
+- H404701 was registered first; this search ran after it, in the same family (cef_discount.v1).
+- The gate counts every family trial whenever it ran (round-2 red team: a registered_at cutoff could be backdated).
+- The two null tax-loss series (active Sharpe 0.09) widened the cross-cluster Sharpe spread from {1.02, 0.81, 1.12} to {1.02, 0.81, 1.12, 0.09}. SR0 rose from 0.23 to 0.73, and H404701's active DSR fell from 1.0000 to 0.9367, below its registered 0.95.
+- tools/admit.py H404701 --dry-run is now REJECT at deflation, while familywise SPA still passes (adjusted p 0.0002). Hansen's recentering ignores null strategies; the DSR's cross-trial variance does not.
+
+Why this is right under the current rules, and the open question it raises:
+- A hypothesis is judged against the whole search of its family. More searching after registration legitimately weakens it, and the author (me) did that knowingly against his own memory note.
+- But the DSR conflates signal heterogeneity with selection noise: a family mixing a real effect with unrelated null ideas gets an inflated SR0.
+- Proposed for a decision debate, applying PROSPECTIVELY only, never to rescue H404701: count only trials committed to the deploy branch before the registration's own commit (git-witnessed, not author-written), and/or deflate within effective-idea clusters.
+
+H404701 stays REJECT-bound unless the rules change prospectively; its forward window still runs and will still be scored.
+Links: [[H404701|relates]] · [[F404706|refines]].
+_— captured claude/monetizing-repositories-03e341@ee897dc, 2026-10-05_
+
+### H404702 — Within-category cheapest CEFs by discount z-score, held with hysteresis, beat owning them all
+Hypothesis: within each CEFConnect category with at least 5 eligible funds, holding the funds whose discount is cheapest against their own last 52 weeks (z-score), entering at the category's cheapest 20% and exiting only past its cheapest 50% (hysteresis), equal weight, beats the equal-weight CEF universe.
+- Execution: decided at a close, traded at the next close, rebalanced every 21 sessions in 21 tranches, at CEF costs.
+
+Search evidence (tools/cef_search.py --grid banded; snapshot DS-18cef162, NAV panel CEFNAV-fd7099e2):
+- active Sharpe +1.44, eras +1.30 / +1.24 / +2.43;
+- active return +2.25%/yr net of 1.09%/yr costs, about +1.25%/yr at 2x costs;
+- Hansen SPA_c adjusted p < 0.001 at all blocks (K=12, t=6.5);
+- active DSR 0.99 at N 16 (SR0 0.94);
+- look-ahead clean.
+
+It is the top point by the search's pre-declared ranking (active Sharpe), so no post-hoc selection. It is CATEGORY-NEUTRAL by construction, which answers H404701's main caveat (about half that edge was category tilt).
+
+Threats to test:
+- the categories are TODAY's CEFConnect labels applied to all history (a fund that changed mandate is ranked against its later peers);
+- survivorship (current listings only);
+- path dependence of the hysteresis;
+- concentration within small categories.
+
+Falsified by: tools/admit.py REJECT at any relative stage, or the 365-day forward window.
+Links: [[H404701|refines]].
+_— captured claude/monetizing-repositories-03e341@72c289a, 2026-10-05_
+
+### F404709 — Crypto trend-following beats a 50% BTC blend only by holding more BTC: vol-matched it is null (SPA p 0.14-0.23); not registered
+New domain crypto_trend (atlas idea C091), frozen before any return was examined. BTC 100% while its total-return index is above its N-day SMA (N = 50/100/200/365), else T-bills, traded at the next daily close, 25 bps one-way. The benchmark is a static 50% BTC / 50% cash blend in 30 tranches. Snapshot DS-d063980c (BTC-USD 2014-09-17..2026-10-04, continuous calendar, UTC dates).
+
+On the DECLARED test the filters win:
+- active Sharpe +0.72 to +0.83;
+- SPA family p 0.003-0.010;
+- active DSR 0.999.
+
+But the win is EXPOSURE, not timing:
+- The filters average 58-71% BTC against the blend's 50%, with beta 1.1-1.5 to it, in an asset that compounded ~54%/yr.
+- The vol-matched active Sharpe (positive iff the strategy's Sharpe beats the blend's) is only +0.14 to +0.30, SPA p 0.14-0.23. Not significant.
+- Drawdowns are WORSE than the blend (-63% to -68% vs -55%): the filter exits crashes late and re-enters at full size.
+- The effect is concentrated in 2015-17 (era active Sharpe +1.5 to +2.2), falling to +0.2 to +0.9 afterwards.
+
+The 50% benchmark was a design error: a static benchmark must match exposure. Not registered. The tool now prints exposure and the vol-matched Sharpe for every point, so this failure mode is visible at once.
+Links: [[F404704|relates]].
+_— captured claude/monetizing-repositories-03e341@020765c, 2026-10-06_
+
+### F404710 — Country ETF momentum, reversal and low-vol do not beat the equal-weight country universe (SPA p 0.44-0.50): another liquid effect gone
+New domain country_select, frozen before any return was examined. 41 iShares single-country ETFs (DS-52eda901, 1996-2026; window from 1997-04-15). Fully invested, next-open execution, 21 tranches, tier-2 costs. Benchmark: the equal-weight eligible country universe (excess Sharpe 0.35, maxDD -61.5%).
+
+Results (active Sharpe; vol-matched beside it):
+- momentum 6m: +0.20 (+0.17); eras +0.59 / -0.53 / +0.25.
+- momentum 12m: +0.07.
+- 1-month reversal: -0.18.
+- low volatility: -0.25.
+- SPA family p 0.44-0.50. Active DSR 0.19 (N 13). Null.
+
+Country-index momentum, one of the 'everywhere' effects in Asness-Moskowitz-Pedersen, is not exploitable through liquid country ETFs after 1997. It worked before the global financial crisis and inverted during 2008-16.
+
+Pattern across the session: every published effect on liquid instruments has decayed or vanished (ETF timing F404704, FOMC F404705, auctions F404707, CEF tax-loss F404708, crypto trend F404709, country selection here). The surviving effects are CEF discount selection (H404701/H404702): capacity-constrained, in instruments institutions cannot trade at size.
+Links: [[F404704|relates]] · [[F404706|relates]].
+_— captured claude/monetizing-repositories-03e341@e5245be, 2026-10-06_
+
+### F404711 — The 'Fed liquidity drives stocks' tilt does not beat the 60/40 (active Sharpe +0.07 / -0.16; SPA p 0.94-0.96)
+Fourth ETF search (TR-20261006T042726Z-0d9b11e0, snapshot DS-32c992fb). "Fed liquidity drives stocks": SPY 80% / IEF 20% while the Fed balance sheet (FRED WALCL) grew over the last 4 or 13 weeks, else 40/60. 21 tranches every 21 sessions. WALCL is first used at Friday's close, after its Thursday 4:30pm ET release (fred_series release lag).
+
+Results:
+- 4-week: active Sharpe +0.07 (vol-matched -0.18; eras +0.14 / +0.36 / -0.56).
+- 13-week: -0.16 (vol-matched -0.48).
+- Drawdowns worse than the 60/40 (-36% / -39% vs -32%).
+- SPA over all 37 ETF trials: p 0.94-0.96.
+
+The meme is not a strategy: what plus-sized equity exposure the rule gained in QE eras it gave back since 2022.
+
+Caveat: FRED serves the latest vintage. H.4.1 is rarely revised, but this is not a strict ALFRED point-in-time test.
+Links: [[F404704|relates]].
+_— captured claude/monetizing-repositories-03e341@39b7544, 2026-10-06_
+
+### F404712 — Lunar-phase and geomagnetic-storm tilts do not beat the 60/40: all four wrong-signed or null (SPA p 0.98)
+Fifth ETF search (TR-20261006T043033Z-e6888867, snapshot DS-32c992fb). Intentionally strange hypotheses from the correlation atlas (J), as tilts on the 60/40, frozen before the run.
+- Lunar (Yuan-Zheng-Zhu 2006): 40/60 within 3 or 7 days of a full moon, 80/20 near a new moon. Mean synodic phase, accurate to within about half a day.
+- Geomagnetic (Krivelyova-Robotti 2003): 40/60 for 5 sessions after a GFZ Ap >= 30 or >= 50 day. Actionable only at the first US close after the storm's UTC day completes.
+
+Results (active Sharpe; vol-matched beside it):
+- lunar 3d: -0.07 (-0.14).
+- lunar 7d: -0.13 (-0.23).
+- geomagnetic Ap>=30: -0.16 (+0.01).
+- geomagnetic Ap>=50: -0.46 (-0.40).
+- Familywise SPA over all 41 ETF trials: p 0.98.
+
+All four are wrong-signed or null. The moon and the magnetosphere do not move the 60/40. The published effects were small-sample, in-sample findings, as the atlas warned ("multiple comparisons can manufacture a cosmic story").
+Links: [[F404704|relates]].
+_— captured claude/monetizing-repositories-03e341@f678fbd, 2026-10-06_
+
+### F404713 — H404702 passes every development stage of the gate: within-category CEF discount selection with hysteresis, active Sharpe +1.44, DSR 0.99; forward window to 2027-10-07
+tools/admit.py H404702 --dry-run passes every development-evidence stage:
+- lookahead clean at 12 cuts over both datasets;
+- the re-run reproduces search trial TR-20261006T034817Z-5245a64f#3 exactly (22.7 years, 5720 rebalances);
+- active DSR 0.9899 against the CEF family's whole search, including the null tax-loss trials that sank H404701 (N 16, SR0 0.94);
+- Hansen SPA_c adjusted p < 0.0001 at mean blocks 20/63/126 (K=12);
+- active Sharpe +1.30 / +1.24 / +2.43 by era;
+- 2x cost stress +1.25%/yr active.
+
+Open: witness (merge to development) and the 365-day forward window, maturing 2027-10-07.
+
+The rule: within each CEFConnect category, hold the funds cheapest by discount z-score against their own last 52 weeks, entering at the category's cheapest 20% and exiting past its cheapest 50%. It is category-neutral by construction (total category tilt 7.4% of the book), and its vol-matched active Sharpe (+1.42) equals its plain one: genuine selection, fully invested.
+
+Scrutiny: a refuter filed 3 objections; a board refuted all 3, 3-0 (docs/research/refutations/boards/H404702.json).
+
+Caveats that bound what the forward window can show:
+- the signal decays fast; trade at the next close after the Friday NAV, since a one-week delay leaves about +1.4%/yr net;
+- the deflation pass depends on fine category labels, which reduce tracking error but add no return; it survives ~10% random historical mislabelling;
+- the holiday-Friday eligibility gap recurs inside the forward window (2026-12-25, 2027-01-01), with unknown sign;
+- cost headroom is ~3x.
+
+H404701 (the raw-discount sibling) is REJECT-bound on deflation since the later tax-loss search (F404708). H404702 is the live CEF candidate.
+Links: [[H404702|supports]] · [[F404708|relates]].
+_— captured claude/monetizing-repositories-03e341@534d53f, 2026-10-06_
+
+### F404714 — The CEF discount rule replicates in sign on 48 listed BDCs (active Sharpe +0.43 to +0.54, 2022-26) but is underpowered (SPA p ~0.14)
+Out-of-sample test of the CEF discount mechanism (H404701's rule) on a DISJOINT universe: 48 listed business development companies. These are NAV vehicles absent from the CEFConnect panel, identified from SEC XBRL NetAssetValuePerShare filers that are listed and carry no SIC code (commodity trusts excluded).
+- NAV is point in time: known the day after its 10-Q/10-K filing, as the latest PERIOD known.
+- Inline XBRL begins 2022, so the window is 2022-11-07..2026-10-02 (3.9 years).
+- Snapshots BDCNAV-adc3942f, DS-17251cec.
+- Look-ahead clean at 12 cuts, after the check caught a bug: an old 10-K highlight was replacing the current NAV.
+
+Results vs the equal-weight BDC universe:
+- cheapest 1/5: active Sharpe +0.54 (vol-matched +0.51); eras +0.28 / +1.75 / +0.06.
+- cheapest 1/3: +0.43; eras +0.71 / +1.89 / -0.43.
+- SPA p 0.13-0.15 (K=2). Active DSR 0.86.
+
+Reading: the sign replicates. Buying listed NAV vehicles below NAV beat owning them all in a universe the CEF search never touched, but 3.9 years cannot make +0.5 significant (t ~1.2). It corroborates the CEF mechanism directionally, with a smaller effect than the CEF backtest's +1.05 and not by itself evidence of an edge.
+
+Survivorship: listed BDCs today only.
+Links: [[H404701|supports]] · [[H404702|relates]].
+_— captured claude/monetizing-repositories-03e341@35d075c, 2026-10-06_
+
+### F404715 — H404702 capacity: about $14M at 5% of daily volume with tranche execution; about $0.1-0.4M if positions are built in one day (today's liquidity)
+Capacity check for H404702, using its current holdings (tools/cef_picks.py on DS-18cef162 / CEFNAV-fd7099e2) and each fund's median daily dollar volume over the last 6 months (Yahoo close x volume). No strategy was evaluated and no trials were recorded.
+
+The portfolio holds 169 funds across its 21 tranches, about 1% each.
+- Median ADV: $1.14M. 10th percentile: $0.25M.
+
+Account size at which the binding constraint is hit:
+- tranche execution (each position built in 21 slices, one per session) at 5% of ADV: about $14M for the thinnest fund (10th-percentile fund: $41M);
+- worst case (every position built in a single day) at 1% of ADV: about $133K for the thinnest fund (GLU), $0.39M at the 10th percentile, $2.1M at the median.
+
+Reading:
+- For a personal account up to a few million dollars, capacity is not binding if orders follow the tranche structure.
+- Building positions all at once binds around $0.1-0.4M.
+- This is TODAY's liquidity; historical volumes (and so historical capacity) were not measured, which leaves the board's capacity caveat partly open.
+Links: [[H404702|relates]].
+_— captured claude/monetizing-repositories-03e341@cee1ca2, 2026-10-06_
+
+### F404716 — Month-end Treasury index-extension tilt does not beat the 60/40 (+0.20, inverted since 2022; SPA p 0.91)
+Sixth ETF search (TR-20261006T045523Z-a3801f72, DS-32c992fb). Bond indexes extend duration at month-end and passive funds buy long Treasuries into it. The tilt: the 60/40 with IEF swapped for TLT over the month's last 2 or 3 sessions. Calendar-only.
+
+Results:
+- 3 sessions: active Sharpe +0.20 (vol-matched +0.15); eras +0.43 / +0.40 / -0.54.
+- 2 sessions: +0.09.
+- SPA over all 43 ETF trials: p 0.91.
+
+The effect was real-looking before 2022 and has inverted since: a known, mechanical, liquid-market effect, competed away like the others (F404705, F404707, F404708).
+Links: [[F404704|relates]].
+_— captured claude/monetizing-repositories-03e341@cf2cb72, 2026-10-06_
+
+### F404717 — H404702's rule on unexamined 1997-2003 data: active Sharpe +0.39, t 0.97, UNINFORMATIVE under its pre-registered criterion
+H404702's frozen rule, run on 1997-11..2003-12: CEF data no one in the repo had examined. The protocol and success criterion were committed BEFORE the run (docs/research/H404702_PREPERIOD_TEST.md, commit 4318c1c). Snapshot DS-bae9cfd9, 171 funds.
+
+Result:
+- active Sharpe +0.39 vs the equal-weight universe (t 0.97 over 6.15 years);
+- vol-matched +0.19; SPA p 0.15-0.17;
+- pre-2010 costs 2.07%/yr.
+
+Verdict under the pre-stated criterion: UNINFORMATIVE. The sign is right, but it misses the t > 1.0 corroboration bar by a hair. It is not counted as support.
+
+The early-period edge is much weaker than the development window's +1.44: a smaller, survivorship-heavier universe, and costs at the 30 bps tier. This tempers the forward expectation; the forward window remains the test that matters.
+Links: [[H404702|relates]].
+_— captured claude/monetizing-repositories-03e341@ab5d9e3, 2026-10-06_
+
+### F404718 — The gate's DSR stage is miscalibrated both ways: 12% false passes for one-idea families, 2% power for mixed ones; SPA stays calibrated
+Measured with tools/deflation_power_study.py on synthetic families: one real idea (4 variants, correlation ~0.64) plus unrelated null ideas, 20 years daily, 60 replications. Candidate = the real idea's best variant.
+
+The DSR stage, as the gate builds it (SR0 from the cross-CLUSTER Sharpe variance of the family itself), is miscalibrated both ways:
+- One-idea family, no true effect: it passes 12% (nominal 5%). Cross-cluster variance is ~0, so SR0 ~ 0 whatever N is: the declared prior and the trial count stop mattering.
+- True active Sharpe 1.0 with 2 unrelated null ideas in the family: it passes 2%. With 6: 35%.
+
+Hansen's SPA on the same families: 2-7% under the null, 83-100% power.
+
+This explains both gate surprises in the record:
+- H404700 passed deflation at DSR 0.9999 while being an execution artifact (F404703): a one-idea hourly family, SR0 ~ 0.
+- H404701 lost its pass when two null tax-loss trials joined its family (F404708).
+
+Implication, for the open decision (docs/research/DEFLATION_RULE_QUESTION.md, option E): SPA, not this DSR, is the calibrated multiple-testing stage for families searched like these. Applies prospectively; changes no verdict already reached.
+Links: [[F404703|relates]] · [[F404708|relates]].
+_— captured claude/monetizing-repositories-03e341@26b46f2, 2026-10-06_

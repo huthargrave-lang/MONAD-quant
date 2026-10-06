@@ -34,6 +34,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "tools"))
 
 import config  # noqa: E402
 from src.backtest import runner as runner_mod  # noqa: E402
@@ -88,9 +89,15 @@ class EveryD5DropIsStillInForceTests(unittest.TestCase):
         self.assertEqual(params[0], "df",
                          APPLIED + "run_backtest's first parameter changed; it may now "
                                    "take a panel of instruments.")
-        hits = [str(p.relative_to(ROOT)) for p in (ROOT / "src").rglob("*.py")
-                if "def sleeve" in p.read_text(encoding="utf-8")
-                or "equal_weight" in p.read_text(encoding="utf-8")]
+        # D5's concern is the ARMED trader path (its text requires sign-off because the
+        # build would touch it), so the scan covers the live bot's import closure. Research
+        # code that evaluates portfolios (src/research/daily_*, cef_*: the 2026-10-05 daily
+        # search and its equal-weight CEF benchmark) is outside that closure and is not D5.
+        import armed_closure
+        armed = armed_closure.closure(ROOT)
+        hits = [rel for rel in sorted(armed) if rel.startswith("src/") and rel.endswith(".py")
+                and ("def sleeve" in (ROOT / rel).read_text(encoding="utf-8")
+                     or "equal_weight" in (ROOT / rel).read_text(encoding="utf-8"))]
         self.assertEqual(
             hits, [],
             APPLIED + "portfolio construction appeared in src/ ({}).".format(hits))

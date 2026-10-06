@@ -10,3 +10,10 @@
 #   git config merge.researchweb.driver "venv/bin/python tools/web_merge_driver.py %O %A %B"
 # Without that config git falls back to the normal text merge — safe, just noisier.
 RESEARCH_WEB.md merge=researchweb
+
+# The trial ledger (src/research/trials.py) is hash-chained and checked byte-for-byte
+# against history, so git must never rewrite its line endings or attempt a text merge.
+# Shards are one-file-per-run and never shared, so a merge conflict on one is itself
+# a violation worth seeing rather than resolving.
+docs/research/trials/TR-*.jsonl -text -merge
+docs/research/trials/artifacts/*.json.gz binary

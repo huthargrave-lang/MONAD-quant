@@ -93,16 +93,16 @@ class TheSlopeRegimeIsNotWiredTests(unittest.TestCase):
 class TheGateThatACTUALLYRunsTests(unittest.TestCase):
     """And the two places the docs disagree with it."""
 
-    def test_use_regime_filter_defaults_ON_and_the_runner_does_not_override(self):
+    def test_use_regime_filter_defaults_ON_but_the_runner_now_overrides(self):
+        """ENGINE_VERSION 2 (F404701): the runner passes the configured flag."""
         self.assertTrue(inspect.signature(generate_trades)
                         .parameters["use_regime_filter"].default)
         source = inspect.getsource(runner_mod.run_backtest)
         call = source[source.index("generate_trades("):]
         call = call[:call.index(")\n") + 1]
-        self.assertNotIn(
-            "use_regime_filter", call,
-            "runner.py now sets use_regime_filter explicitly — good; check whether it "
-            "matches config.USE_REGIME_FILTER and update this file")
+        self.assertIn("use_regime_filter=use_regime", call)
+        self.assertEqual(runner_mod.resolve_regime_filter("daily"),
+                         __import__("config").USE_REGIME_FILTER)
 
     def test_the_config_flag_the_docs_cite_has_no_effect_here(self):
         import config

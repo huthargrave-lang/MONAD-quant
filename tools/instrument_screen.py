@@ -32,13 +32,15 @@ CACHE = os.path.join(os.path.dirname(__file__), "..", "data", "cache")
 
 def _load(ticker):
     path = os.path.join(CACHE, f"{ticker}_1h.csv")
+    from src.data.fetcher import MIN_MEDIAN_BARS_PER_DAY, load_session_bars, session_density
     if os.path.exists(path):
-        return pd.read_csv(path, index_col=0, parse_dates=True), "cache"
+        cached = pd.read_csv(path, index_col=0, parse_dates=True)
+        if session_density(cached) >= MIN_MEDIAN_BARS_PER_DAY:  # a morning-only cache is refetched
+            return cached, "cache"
     from datetime import datetime, timedelta
-    from src.data.fetcher import fetch_yfinance
     start = (datetime.now() - timedelta(days=710)).strftime("%Y-%m-%d")
     end = datetime.now().strftime("%Y-%m-%d")
-    return fetch_yfinance(ticker, start, end, interval="1h"), "fetch"
+    return load_session_bars(ticker, start, end), "fetch"
 
 
 def screen(ticker, stop_pct):

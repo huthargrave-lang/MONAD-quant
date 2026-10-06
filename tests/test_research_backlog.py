@@ -106,7 +106,7 @@ class CollectTests(unittest.TestCase):
         for t in self.unfiltered:
             self.assertTrue(str(t["action"]).strip(), "task {} has no action".format(t["key"]))
             self.assertIn(t["kind"],
-                          {"uncited", "unresolved", "unguarded", "blocked", "open_item"})
+                          {"uncited", "unresolved", "unguarded", "blocked", "open_item", "reeval"})
             self.assertGreater(t["score"], 0.0)
 
     def test_tasks_are_ranked_by_score_descending(self):

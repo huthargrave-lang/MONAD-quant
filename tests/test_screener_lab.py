@@ -56,6 +56,26 @@ for _p in (REPO, TOOLS):
 
 import screener_lab as lab  # noqa: E402
 
+# The snapshot builders persist the StockTwits ring cursor through
+# `write_stocktwits_cursor()` with no path, i.e. to <repo>/data/cache/. Run from the
+# suite, that wrote a real file into the checkout, and three guards that assert "no
+# market data exists here" (F149, F19, H24/H25) then failed in the same run. Every test
+# in this module sees a tempdir cursor instead; the builders read it back too, so a
+# stale real cursor can no longer change what these tests observe.
+_CURSOR_DIR = None
+_REAL_CURSOR_PATH = lab.STOCKTWITS_CURSOR_PATH
+
+
+def setUpModule():
+    global _CURSOR_DIR
+    _CURSOR_DIR = tempfile.TemporaryDirectory()
+    lab.STOCKTWITS_CURSOR_PATH = os.path.join(_CURSOR_DIR.name, "stocktwits_cursor.json")
+
+
+def tearDownModule():
+    lab.STOCKTWITS_CURSOR_PATH = _REAL_CURSOR_PATH
+    _CURSOR_DIR.cleanup()
+
 
 class FakeResponse:
     def __init__(self, status_code=200, text="", payload=None, headers=None):
@@ -1147,6 +1167,15 @@ class TheLabTouchesNothingItShouldNot(unittest.TestCase):
                 offenders.append("line {}: {}() without {}=".format(
                     node.lineno, name, needed))
         self.assertEqual(offenders, [], "\n".join(offenders))
+
+    def test_the_suite_never_touches_the_real_cursor(self):
+        """The builders call the cursor helpers without a path, so the helpers must
+        resolve the module constant at call time for the tempdir redirect to hold."""
+        self.assertFalse(lab.STOCKTWITS_CURSOR_PATH.startswith(REPO))
+        self.assertTrue(_REAL_CURSOR_PATH.startswith(os.path.join(REPO, "data", "cache")))
+        lab.write_stocktwits_cursor(3)
+        self.assertTrue(os.path.exists(lab.STOCKTWITS_CURSOR_PATH))
+        self.assertEqual(lab.read_stocktwits_cursor(10, env={}), 3)
 
     def test_it_writes_only_under_data_cache(self):
         self.assertTrue(lab.SNAPSHOT_PATH.startswith(os.path.join(REPO, "data",

@@ -1,0 +1,110 @@
+{
+ "caveats": [
+  "the <5-eligible holiday gap (2015-12-25/2016-01-01 Fridays) hits candidate and benchmark differently; it cost the candidate in development, but 2026-12-25 and 2027-01-01 are Fridays again inside the forward window (sign unknown)",
+  "the signal decays fast: half the edge is gone with a one-month delay, and a one-session delay leaves a net Sharpe near 1.2, close to the deflation bar. Paper and live use must trade at the next close after the Friday NAV",
+  "category labels add no return, only lower tracking error; they are load-bearing for the deflation pass (4 broad groups would give DSR ~0.92). The pass survives ~10% random historical mislabelling and is threatened at ~20%; measured drift is 11/230 funds, 3.2% of selection return",
+  "cost headroom ~3.1x (vs ~6.7x for H404701)"
+ ],
+ "convened": "2026-10-06",
+ "hypothesis": "H404702",
+ "members": [
+  "adjudicator-a",
+  "adjudicator-b",
+  "adjudicator-c"
+ ],
+ "rule": "majority of three independent adjudicators (not author, not refuter); read-only, no engine evaluations; judged against the claim as registered",
+ "rulings": {
+  "O1": {
+   "outcome": "refuted",
+   "tally": "3-0"
+  },
+  "O2": {
+   "outcome": "refuted",
+   "tally": "3-0"
+  },
+  "O3": {
+   "outcome": "refuted",
+   "tally": "3-0"
+  }
+ },
+ "votes": [
+  {
+   "adjudicator": "adjudicator-a",
+   "rulings": [
+    {
+     "confidence": 0.88,
+     "evidence": "Reproduced from the ledger (TR-...5245a64f#3 minus TR-...86834435#0, from 2003-12-31): net active Sharpe 1.437, +2.25%/yr, 22.7 years, active sum 0.511. The 2016-01-04..02-12 window sums to -1.92% (-3.8% of the total). Excluding it, active Sharpe rises to 1.524. Panel observation counts: 284/283 on 2015-12-11/18, then 4 on 2015-12-25 and 5 on 2016-01-01, then 285. Code: cef_classes.py banded 'if len(ranks) < MIN_HOLDINGS: continue' vs the equal-weight branch rebalancing whenever at least 5 are eligible. Era Sharpes 1.30/1.24/2.43 reproduce. The 2020-21 holiday Fridays did not collapse (per the refuter; I did not re-check), so a repeat in the forward window is possible but not established.",
+     "id": "O1",
+     "outcome": "refuted",
+     "reason": "The mechanism is real. When fewer than 5 funds can be ranked, banded() skips the decision and keeps its book, while the equal-weight benchmark rebalances into the 5 survivors. But in the development sample it cost the candidate active return, so it cannot have manufactured the result: removing the window raises the active Sharpe. For the forward window it is a measurement defect in the benchmark whose sign is unknown. It should be guarded operationally (for example, skip benchmark rebalances when eligibility collapses), not treated as evidence the claim is false."
+    },
+    {
+     "confidence": 0.78,
+     "evidence": "cef_data.py docstring and as_of (reindex then ffill, never forward). cef_classes.py: decisions use the as-of frames at t, and trades are close_orders at t+1. The refuter's c4.out shows gross approximate active Sharpe 1.97 (+3.18%/yr), lag 1 at 1.81 (+2.93%), lag 5 at 1.45, lag 21 at 0.84, lag 63 at 0.31. Lag 1 shifts only Friday-dated decisions by a week. The ledger's cost excess is about 1.0%/yr (1.09% vs 0.095%), so lag 1 nets roughly (2.93-1.0)/1.62%TE \u2248 1.19 against SR0 0.94. No evidence was offered that any CEFConnect Friday NAV in the panel was actually published after the next session's close. The weekly-NAV-fund exception is hypothetical and unmeasured.",
+     "id": "O2",
+     "outcome": "refuted",
+     "reason": "Fast signal decay is a property of the edge, not a look-ahead or a bias in the comparison. The registered timing is executable: an observation dated Friday holds the Friday close price and the NAV published that evening. NavPanel.as_of only ever forward-fills, and orders execute at the close of t+1, so even a Friday decision trades on Monday, a full session after publication. The sensitivity is material: by my arithmetic a 1-session lag would put the net Sharpe near 1.2, close to failing the DSR bar. So the forward paper test must replicate next-close execution. This is a caveat on implementability, not grounds to invalidate."
+    },
+    {
+     "confidence": 0.8,
+     "evidence": "From the refuter's c3.pkl (approx gross active, corr 0.993 with the ledger). True labels: Sharpe 1.97, +3.18%/yr, TE 1.62%. No labels: 1.20, +3.10%, TE 2.58%. Broad groups: 1.76, +2.97%, TE 1.69%. Placebos: 1.09-1.25 with returns of 3.00-3.29%. My era split, TE ratio true/no-labels: 2004-08 0.95, 2009-13 0.53, 2014-21 0.53, 2022-26 0.63. Fine/broad TE ratio: 2003-13 0.99, 2004-08 1.06, 2014-21 0.92, 2022-26 0.94, so the fine labels help least where staleness would be worst. The early era's Sharpe is also not inflated (true 1.87 vs broad 1.89 in 2003-13). Label-drift screen (labelcorr.csv, 230 long-history funds): median NAV correlation with the category median is 0.90 in 2003-10 vs 0.94 in 2019-26. The 11 flagged funds carry 3.2% of selection return, and selection Sharpe is 2.36 without them vs 2.39 with them. The panel has 26 mandate categories (largest: Municipal 48, Sector Equity 25, High Yield 24, Covered Call 21). The residual risk that fine labels were less available in 2004 is a disclosure caveat, not a demonstrated leak in the candidate's favour.",
+     "id": "O3",
+     "outcome": "refuted",
+     "reason": "Grouping by category adds no return: true, shuffled and absent labels all give about +3.0-3.3%/yr gross. It only reduces tracking error, and that reduction comes from realised co-movement among funds with the same mandate. A historically wrong label (a fund ranked against its later peers) makes it co-move LESS with its group, so stale labels can only weaken the hedge and bias the Sharpe AGAINST the candidate. They cannot manufacture it, unless the labels had been assigned from realised backtest-period co-movement, and they are not: the 26 categories are prospectus mandates (state munis, senior loans, MLP, covered call, preferreds...) knowable at the time. The data show the pattern you would expect from honest, slightly noisy labels and not from hindsight. The fine labels' extra variance reduction over the unambiguous 4 broad groups is smallest in the early, most label-stale era. Excluding the drift-flagged funds leaves the Sharpe unchanged."
+    }
+   ]
+  },
+  {
+   "adjudicator": "adjudicator-b",
+   "rulings": [
+    {
+     "confidence": 0.9,
+     "evidence": "Re-ran r702/c13.py and it reproduces. After 2004 the only decision sessions with fewer than 60 eligible funds are 2016-01-04..07, each with 5 eligible (CEF, KF, PHYS, PSLV, SPPP). Tranches 0, 18, 19 and 20 hit them; the candidate has no row on those days and keeps its book (cef_classes.py:278-280), while the benchmark holds the 5 (:136-141). Ledger active 2016-01-04..02-12 = -1.92% (-3.8% of the total active sum). Affected tranches' active Sharpe is 1.14-1.27, or 1.75-1.79 without the window; unaffected tranches 5 and 10 are about unchanged (1.82, 1.60). Removing the window would raise the claim's statistics, not lower them.",
+     "id": "O1",
+     "outcome": "refuted",
+     "reason": "The mechanism is real. When fewer than 5 funds can be ranked, the banded legs keep their old books while the equal-weight benchmark rebalances into whatever survives. But the only time it fired in development (Jan 2016) it cost the candidate active return, so it biases the comparison against the claim, not for it. The forward risk it describes (two Friday holidays in a row in Dec 2026-Jan 2027) has unknown sign and depends on CEFConnect repeating a 2015-16 data gap that did not recur in 2020-21. That is a caveat about measurement and operations, not a defect that manufactures the edge."
+    },
+    {
+     "confidence": 0.75,
+     "evidence": "Reproduced the lag-1 run: gross active Sharpe 1.81, +2.93%/yr, t 8.62 (refuter's 1.81). The refuter's c4.out lag table: 5 sessions 1.45, 21 sessions 0.84, 63 sessions 0.31. Panel observations are all Fridays (1540/1540). Because the panel is weekly, a 1-session lag changes only Friday decisions, about 20% of decision days, which shows the sensitivity sits in using Friday's NAV for a trade at Monday's close. That is feasible as registered. My rough check (approx gross minus the ledger cost gap of about 0.93%/yr) puts the lag-1 net Sharpe near 1.2, so a real one-session publication delay would bring the DSR close to the 0.95 bar. That belongs in the caveats and the forward test. Ledger: candidate turnover 5.75x/yr, costs 1.09% vs 0.095%/yr, and 2x cost stress still positive.",
+     "id": "O2",
+     "outcome": "refuted",
+     "reason": "A lag test shows the signal decays quickly, and the tolerance for implementation delay is thin. But the registered execution is achievable at the time: an observation dated Friday is Friday's close and that evening's NAV (cef_data.py docstring and as_of), and the trade is at the next session's close. Nothing unavailable at the time is used. Fragility to delays the registration does not specify is a forward or operational risk. Paper and live processes must trade at the next close after the Friday NAV rather than in weekly batches. It does not show that the development edge is manufactured."
+    },
+    {
+     "confidence": 0.8,
+     "evidence": "From r702/c3.pkl (approx gross, corr 0.993 with the ledger), active Sharpe true / no-category / 4 broad groups: 2003-13: 1.87 / 1.50 / 1.89; 2014-21: 1.70 / 0.64 / 1.11; 2022-26: 3.09 / 1.85 / 2.98; ledger net eras 1.30 / 1.24 / 2.43. Fine-minus-broad Sharpe gap: -0.02 (oldest labels), +0.59, +0.11. Tracking error: true 1.62%, broad 1.69%, none 2.58%; mean return 3.18 / 2.97 / 3.10%/yr. Shuffled labels: 1.09-1.25, with unchanged mean. So labels only reduce risk, and the risk reduction does not depend on label vintage. DSR proxy (SR0 0.94, skew/kurtosis adjusted) reproduces the ledger's 0.99. Net proxies: broad 1.23 (DSR 0.92), none 0.85 (DSR 0.33). In labelcorr.csv, median NAV-return correlation with the category median is 0.90 in 2003-10 vs 0.92 in 2019-26 (230 funds with early history; 10th percentile 0.64). Labels were stable for the bulk of the universe.",
+     "id": "O3",
+     "outcome": "refuted",
+     "reason": "Fine labels are load-bearing for the deflation pass. With only 4 broad groups, my net DSR proxy is about 0.92, below 0.95. But hindsight labelling cannot plausibly manufacture that risk reduction. The fine labels add risk-adjusted value only in the eras where today's labels are closest to point-in-time (2014+). In 2003-13, where stale labels would leak most, fine labels add nothing over the 4 near-unambiguous broad groups. Also, a fund labelled with a mandate it later drifted into would be grouped with peers it did not move with historically, which raises tracking error, so drift biases against the candidate on the risk side. Prospectus mandates were knowable at the time, and the measured drift (11/230 funds, 3.2% of selection return, Sharpe 2.36 vs 2.39 without them) is small. Survivorship of the label set remains a disclosed caveat."
+    }
+   ]
+  },
+  {
+   "adjudicator": "adjudicator-c",
+   "rulings": [
+    {
+     "confidence": 0.9,
+     "evidence": "Panel observation counts: 2015-12-18 283, 2015-12-25 4, 2016-01-01 5, 2016-01-08 285; 2020-12-25 and 2021-01-01 both 303. Eligible funds: 279 on 2015-12-31, 5 on 2016-01-04..07, 280 on 2016-01-08. Ledger active (net) 2016-01-04..02-12 sums to -1.92%, which is -3.8% of the total active sum of +51.1%. Ledger active Sharpe 1.437 in full and 1.524 with that window removed, so the defect depresses the candidate. Per-tranche range 1.14-2.00 taken from the refuter's c4.out.",
+     "id": "O1",
+     "outcome": "refuted",
+     "reason": "The mechanism is real. When fewer than 5 funds are rankable the banded rule skips the decision (cef_classes.py:279-280), while the equal-weight benchmark rebalances into whatever 5 funds survive (:136-141). But in the development sample this happened once, and it cost the candidate: the window's active return is negative, so removing it would RAISE the registered metric. It manufactures nothing in the candidate's favour. Its forward effect depends on a vendor gap recurring in Dec 2026/Jan 2027, and the sign of that shock is unknown. This is a caveat and an operational fix for the forward window (handle the <5-eligible case the same way in both legs), not an invalidation."
+    },
+    {
+     "confidence": 0.85,
+     "evidence": "Reproduced the approximate replication: gross active Sharpe 1.965, +3.18%/yr, correlation 0.9926 with the ledger active. With z lagged 5 sessions, my rerun gives Sharpe 1.451 and +2.38%/yr, matching the refuter. The lag 1/10/21/63 figures in c4.out (1.81/1.24/0.84/0.31) are consistent with that. Checked cef_data.py:69-72 (as_of = reindex + ffill, never forward) and cef_classes.py:83-89 (14-day freshness rule). Execution at t+1 close: W_from_tranches applies weights only from session p+2 returns, the same convention as close_orders. Ledger cost excess is about 1.0%/yr, so a one-week delay still leaves about +1.4%/yr net.",
+     "id": "O2",
+     "outcome": "refuted",
+     "reason": "The decay is real. But the registered execution is decide on the latest Friday-dated observation and trade at the NEXT close. The return series only counts returns after that close, so the decay is something the registered rule earns, not something it borrows from the future. Panel.as_of only forward-fills observations dated on or before each session. Fragility to implementation delay is a forward-execution risk, and the 365-day forward paper window tests exactly that. It is not a defect that biases the backtest comparison."
+    },
+    {
+     "confidence": 0.8,
+     "evidence": "Reproduced c3: true labels gross Sharpe 1.965 (+3.18%/yr); no categories 1.201 (+3.10%/yr); 4 broad groups 1.763; 10 shuffled placebos 1.09-1.25. The mean is the same, so the labels only cut tracking error. My own checks: (a) the 11 drift-flagged funds (ETJ, FMY, GCV, KYN, MIN, MMT, PPT, SPE, SRV, TSI, TYG) relabeled to the category whose median NAV return they tracked best in 2003-10, applied to decisions before 2011, give Sharpe 2.007 vs 1.965. Relabeled for all history they give 1.865. (b) Random mislabelling of X% of funds, 4 draws each: 5% gives 1.83-2.03 (mean 1.96), 10% gives 1.62-1.94 (mean 1.80), 20% gives 1.53-1.84 (mean 1.72). (c) Pass-bar arithmetic: the ledger has DSR 0.99 at net Sharpe 1.437, SR0 0.94, 22.7 years, so DSR 0.95 needs about 1.29 net, i.e. about 1.8 gross on the approximation. The refuter's drift screen bounds the flagged funds' share of selection return at 3.2%, with selection Sharpe 2.36 vs 2.39 when they are excluded.",
+     "id": "O3",
+     "outcome": "refuted",
+     "reason": "Grouping funds by mandate is information that existed at the time. CEF mandates are fixed by prospectus, and Lipper/CEFA-style categories existed throughout. Its only effect on the comparison is to neutralize category exposure against the benchmark. Historical label error would add tracking error. It would not create excess return: shuffled labels leave the mean unchanged. For hindsight labels to manufacture the risk reduction, the funds whose labels actually changed would have to be ones that flatter the candidate. Using each drift-flagged fund's own 2003-10 best-fit category before 2011 instead slightly RAISES the Sharpe. The DSR margin (net about 1.44 vs a pass bar of roughly 1.29) survives up to about 10% random historical mislabelling and is only threatened at roughly 20%. That is several times the drift actually detected. Residual caveat: label accuracy before 2003 history begins is untested, but the claim does not depend on it."
+    }
+   ]
+  }
+ ]
+}

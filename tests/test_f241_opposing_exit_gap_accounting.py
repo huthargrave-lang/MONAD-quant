@@ -48,6 +48,12 @@ import pandas as pd
 
 from src.strategy.engine import compute_trade_returns
 
+from tests._engine_uncounted import uncounted_module  # noqa: E402
+
+# Engine arithmetic, not a strategy evaluation: runs outside the trial ledger
+# (src/strategy/counted.py).
+setUpModule, tearDownModule = uncounted_module("F241: gap accounting of the two exit paths on hand-built bars")
+
 ROOT = Path(__file__).resolve().parents[1]
 
 TARGET, STOP = 0.02, 0.01

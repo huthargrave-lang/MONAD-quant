@@ -1,5 +1,16 @@
 # Backtest ↔ live parity census — nothing agrees by construction
 
+> **RECONCILED 2026-09-22 (ENGINE_VERSION 2).** The three behavioural divergences below,
+> plus a fourth this census could not see (the backtest simulated short trades the bot
+> skips; `longs_only` gates no entry, F26), were closed by aligning the BACKTEST to the
+> live bot (decision-debate Q4): the configured regime flag is passed through, sessions
+> are filtered in New York time at load, the live mode holds `MAX_TRADE_BARS_LIVE`, and
+> short entries are dropped as the trader drops them. The census now MEASURES the time
+> gate, hold, regime gate and shorts rather than reading source text:
+> `3 agree · 2 coincident · 2 dormant · 0 divergent`. Every backtest number before this
+> date was produced by engine v1 and is not comparable (trial families carry `.v1`/`.v2`).
+> The text below is the original census, kept as history.
+
 **Status:** measured, re-runnable, guarded. **Tool:** `tools/live_backtest_parity.py`
 (frozen at `docs/research/data/live_backtest_parity.json`).
 **Guard:** `tests/test_live_backtest_parity.py`.

@@ -32,6 +32,12 @@ bars**; a panel with a 400-bar interior hole (F204's silent `validate_ohlc` drop
 identical endpoints too. Both are accepted. So the one property that would catch the two
 data defects this repo has actually recorded is the one not checked.
 
+**UPDATE 2026-09-22 (decision-debate Q1): the density half is CLOSED.** The read guard now
+also requires full-session density (`fetcher.session_density >= 5` median bars per day), and
+the write side caches only what `fetcher.load_session_bars` returned, which refuses a
+morning-only or shortened panel. The midnight-vs-13:30 start comparison below is unchanged
+(the cache is still usually bypassed), and remains a separate, signed-off one-line fix.
+
 `sweep.py` is WARN-fenced (selection-of-record), so this records and guards rather than
 fixes. The one-line change would be comparing `df.index[0].normalize() <= start_dt` and
 adding a bars-per-day floor — but that alters which data the parameter selection sees, and
@@ -53,11 +59,18 @@ SWEEP = (ROOT / "sweep.py").read_text(encoding="utf-8")
 START, END = "2024-08-01", "2026-07-22"
 
 
-def guard_accepts(df, start=START, end=END):
-    """The exact expression from sweep.py::fetch_ticker_hourly."""
+def endpoints_accept(df, start=START, end=END):
+    """The endpoint half of sweep.py::fetch_ticker_hourly's read guard (unchanged)."""
     start_dt, end_dt = pd.Timestamp(start), pd.Timestamp(end)
     return bool(len(df) > 0 and df.index[0] <= start_dt
                 and df.index[-1] >= end_dt - dt.timedelta(days=2))
+
+
+def guard_accepts(df, start=START, end=END):
+    """The exact read guard in sweep.py::fetch_ticker_hourly: the endpoints AND, since
+    decision-debate Q1, full-session density (fetcher.session_density)."""
+    from src.data.fetcher import MIN_MEDIAN_BARS_PER_DAY, session_density
+    return endpoints_accept(df, start, end) and session_density(df) >= MIN_MEDIAN_BARS_PER_DAY
 
 
 def panel(bars_per_day, start=START, end=END, first_hour=13):
@@ -72,18 +85,17 @@ def panel(bars_per_day, start=START, end=END, first_hour=13):
 class TheGuardExpressionIsWhatWeThinkTests(unittest.TestCase):
     def test_the_read_guard_is_still_this_expression(self):
         self.assertIn(
-            "if len(df) > 0 and df.index[0] <= start_dt and "
-            "df.index[-1] >= end_dt - timedelta(days=2):", SWEEP,
+            "if (len(df) > 0 and df.index[0] <= start_dt and df.index[-1] >= end_dt - timedelta(days=2)\n"
+            "                and session_density(df) >= MIN_MEDIAN_BARS_PER_DAY):", SWEEP,
             "sweep.py's cache read guard changed — every measurement below is derived "
             "from that exact expression")
 
-    def test_the_cache_is_written_without_validation(self):
-        idx = SWEEP.index("df = fetch_yfinance(symbol=ticker")
-        window = SWEEP[idx:idx + 400]
+    def test_the_cache_is_written_only_after_the_loader_validated_it(self):
+        """Decision-debate Q1: the written panel comes from fetcher.load_session_bars,
+        which refuses a morning-only or shortened panel before anything is cached."""
+        idx = SWEEP.index("df = load_session_bars(ticker, start, end)")
+        window = SWEEP[idx:idx + 200]
         self.assertIn("df.to_csv(cache_file)", window)
-        self.assertNotIn("validate_frame", window,
-                         "sweep.py now validates before caching — the write side may "
-                         "have adopted tools/data_cache.py")
 
     def test_sweep_is_fenced_so_this_is_recorded_not_fixed(self):
         import subprocess
@@ -140,11 +152,12 @@ class WhenReadItChecksEndpointsNotDensityTests(unittest.TestCase):
         out.index = out.index - pd.Timedelta(days=1)
         return out
 
-    def test_a_morning_only_panel_is_accepted_identically(self):
+    def test_a_morning_only_panel_is_now_rejected(self):
+        """The density hole is closed (decision-debate Q1): same endpoints as a full
+        panel, so the endpoint half accepts it, but the density half refuses it."""
         morning = self._shift(panel(3))
-        self.assertTrue(guard_accepts(morning),
-                        "a 3-bar/day panel is no longer accepted — the density hole "
-                        "may have been closed")
+        self.assertTrue(endpoints_accept(morning))
+        self.assertFalse(guard_accepts(morning))
         self.assertEqual(morning.index[0], self.full.index[0])
         self.assertEqual(morning.index[-1].date(), self.full.index[-1].date())
 

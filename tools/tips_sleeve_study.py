@@ -68,6 +68,8 @@ import data_cache  # noqa: E402  (validated cache: never trust a stub, never wri
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bond_ladder_study as bls   # noqa: E402  load_cpi (FRED CPIAUCSL cache)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src.research.significance import familywise_percentiles  # noqa: E402  one FW band definition
 
 CACHE_PX = "/tmp/tips_sleeve_prices.csv"
 TICKERS = ["SPY", "IEF", "TIP", "STIP", "VTIP", "IEI"]
@@ -144,9 +146,8 @@ def paired_boot(a, b, block=BLOCK, nboot=B, seed=SEED, family=FAMILY):
         shb, ddb = _m2(sb)
         ds[i], dd[i] = sha - shb, dda - ddb
     pc = lambda x, q, nd=3: [round(float(v), nd) for v in np.percentile(x, q)]
-    afw = 0.05 / family / 2 * 100
     return dict(dSharpe=pc(ds, [2.5, 97.5]), dMaxDD=pc(dd, [2.5, 97.5], 1),
-                dMaxDD_fw=pc(dd, [afw, 100 - afw], 1),
+                dMaxDD_fw=pc(dd, familywise_percentiles(family), 1),
                 # UNROUNDED bounds for mechanical CI tests — a verdict must never hinge on
                 # display rounding (panel-forced: the ws=10 raw lower bound was +0.0049)
                 dMaxDD_lo_raw=float(np.percentile(dd, 2.5)),

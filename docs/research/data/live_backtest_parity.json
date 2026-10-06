@@ -1,17 +1,17 @@
 {
   "counts": {
-    "AGREE": 0,
+    "AGREE": 4,
     "COINCIDENT": 2,
-    "DIVERGE": 3,
+    "DIVERGE": 0,
     "DORMANT": 2
   },
   "rows": [
     {
-      "backtest": "(omitted \u2192 default True)",
+      "backtest": "use_regime_filter=False (resolved)",
       "dimension": "entry regime gate",
-      "live": "False",
+      "live": "use_regime_filter=False",
       "recorded_in": "F141",
-      "verdict": "DIVERGE"
+      "verdict": "AGREE"
     },
     {
       "backtest": "omitted",
@@ -21,18 +21,25 @@
       "verdict": "COINCIDENT"
     },
     {
-      "backtest": "trade_hours=trade_hours",
+      "backtest": "55 session bars acted on",
       "dimension": "intraday time gate",
-      "live": "_is_market_hours() in ET",
+      "live": "55 bars acted on at the :32 cron",
       "recorded_in": "F148",
-      "verdict": "DIVERGE"
+      "verdict": "AGREE"
     },
     {
-      "backtest": "MAX_TRADE_BARS=8",
+      "backtest": "10 bars (resolved for TQQQ_HOURLY)",
       "dimension": "max hold (time exit)",
       "live": "MAX_TRADE_BARS_LIVE=10",
       "recorded_in": null,
-      "verdict": "DIVERGE"
+      "verdict": "AGREE"
+    },
+    {
+      "backtest": "0 short entries emitted",
+      "dimension": "short entries",
+      "live": "0 (TRADER_ALLOW_SHORTS=False)",
+      "recorded_in": "F26",
+      "verdict": "AGREE"
     },
     {
       "backtest": "config.FIXED_POSITION_PCT=0.1",
