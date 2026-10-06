@@ -4085,3 +4085,21 @@ Caveats that bound what the forward window can show:
 H404701 (the raw-discount sibling) is REJECT-bound on deflation since the later tax-loss search (F404708). H404702 is the live CEF candidate.
 Links: [[H404702|supports]] · [[F404708|relates]].
 _— captured claude/monetizing-repositories-03e341@534d53f, 2026-10-06_
+
+### F404714 — The CEF discount rule replicates in sign on 48 listed BDCs (active Sharpe +0.43 to +0.54, 2022-26) but is underpowered (SPA p ~0.14)
+Out-of-sample test of the CEF discount mechanism (H404701's rule) on a DISJOINT universe: 48 listed business development companies. These are NAV vehicles absent from the CEFConnect panel, identified from SEC XBRL NetAssetValuePerShare filers that are listed and carry no SIC code (commodity trusts excluded).
+- NAV is point in time: known the day after its 10-Q/10-K filing, as the latest PERIOD known.
+- Inline XBRL begins 2022, so the window is 2022-11-07..2026-10-02 (3.9 years).
+- Snapshots BDCNAV-adc3942f, DS-17251cec.
+- Look-ahead clean at 12 cuts, after the check caught a bug: an old 10-K highlight was replacing the current NAV.
+
+Results vs the equal-weight BDC universe:
+- cheapest 1/5: active Sharpe +0.54 (vol-matched +0.51); eras +0.28 / +1.75 / +0.06.
+- cheapest 1/3: +0.43; eras +0.71 / +1.89 / -0.43.
+- SPA p 0.13-0.15 (K=2). Active DSR 0.86.
+
+Reading: the sign replicates. Buying listed NAV vehicles below NAV beat owning them all in a universe the CEF search never touched, but 3.9 years cannot make +0.5 significant (t ~1.2). It corroborates the CEF mechanism directionally, with a smaller effect than the CEF backtest's +1.05 and not by itself evidence of an edge.
+
+Survivorship: listed BDCs today only.
+Links: [[H404701|supports]] · [[H404702|relates]].
+_— captured claude/monetizing-repositories-03e341@35d075c, 2026-10-06_
