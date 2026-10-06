@@ -126,8 +126,12 @@ the 62 universe tickers, before the outage was noticed:
 - **Gate 2:** 275/287, 95.8%, a fail. 11 of the 12 disagreements are OCSL, whose 10-K
   extraction is still wrong; the twelfth is BCIC 2014.
 
-**Board ruling: 2 of 3 for completing the crawl** (the third vote had not arrived when this
-was committed). The gates are defined over the protocol's universe, so a truncated run is
+**Board ruling: 2 to 1 for completing the crawl.**
+
+**Dissent (option 1: the failure stands).** OCSL's 11 disagreements are real extractor
+errors, including the $10.00 dilution reading the fix was meant to remove, and more tickers
+cannot correct them. At about 6.4 cross-check pairs per ticker, the 17 tickers should add
+roughly 110 pairs, which puts gate 2's likely ceiling near 12/397, about 97.0%. The gates are defined over the protocol's universe, so a truncated run is
 invalid input, not a result. A pass on 45 tickers would equally have required the
 re-crawl.
 
