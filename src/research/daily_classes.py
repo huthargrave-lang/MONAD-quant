@@ -322,6 +322,22 @@ def auction_tilt(snap: Snapshot, params: Mapping, rets: SessionReturns | None = 
     return _tilted_tranches(snap, pd.DatetimeIndex(holds), {"SPY": 0.6, "SHY": 0.4})
 
 
+def liquidity_tilt(snap: Snapshot, params: Mapping, rets: SessionReturns | None = None) -> list[Tranche]:
+    """"Fed liquidity drives stocks" (the 2026-10-06 fourth ETF search): SPY 80% / IEF 20%
+    while the Fed's balance sheet (FRED WALCL, as KNOWN after its Thursday-evening release)
+    grew over the last ``weeks`` weeks, else SPY 40% / IEF 60%; 21 tranches every 21
+    sessions, so a regime change passes through over a month."""
+    from src.research.fred_series import known_by
+
+    weeks = int(params["weeks"])
+    walcl = known_by("WALCL", snap.dates)
+    growth = walcl / walcl.shift(weeks * 5) - 1.0                 # ~5 sessions per week
+    on = growth > 0
+    w = pd.DataFrame({"SPY": np.where(on, 0.8, 0.4), "IEF": np.where(on, 0.2, 0.6)},
+                     index=snap.dates).where(growth.notna(), np.nan)
+    return _tranches_from(lambda days: w.loc[days].dropna(how="all"), snap.dates)
+
+
 def reference_6040(snap: Snapshot, params: Mapping | None = None,
                    rets: SessionReturns | None = None) -> list[Tranche]:
     """The static 60/40 bar: SPY/IEF, every 21 sessions, 21 tranches."""
@@ -330,7 +346,8 @@ def reference_6040(snap: Snapshot, params: Mapping | None = None,
 
 CLASSES: dict[str, Callable] = {"tsmom": tsmom, "dualmom": dualmom, "tom": tom,
                                 "overnight": overnight, "sma": sma, "fomc_tilt": fomc_tilt,
-                                "halloween": halloween, "auction_tilt": auction_tilt}
+                                "halloween": halloween, "auction_tilt": auction_tilt,
+                                "liquidity_tilt": liquidity_tilt}
 REFERENCE = {"class": "static_6040", "params": {"weights": {"SPY": 0.6, "IEF": 0.4},
                                                 "every": MONTH, "tranches": len(OFFSETS)}}
 
@@ -365,7 +382,13 @@ def auction_grid() -> list[dict]:
             for k, t in itertools.product((3, 5), ("long", "all"))]
 
 
-GRIDS: dict[str, Callable[[], list]] = {"v1": grid, "events": event_grid, "auctions": auction_grid}
+def liquidity_grid() -> list[dict]:
+    """The fourth ETF search (2026-10-06), frozen before it ran: 2 points."""
+    return [{"class": "liquidity_tilt", "params": {"weeks": w}} for w in (4, 13)]
+
+
+GRIDS: dict[str, Callable[[], list]] = {"v1": grid, "events": event_grid, "auctions": auction_grid,
+                                        "liquidity": liquidity_grid}
 
 
 def assets_used(point: Mapping) -> tuple:
@@ -380,7 +403,7 @@ def assets_used(point: Mapping) -> tuple:
         return (p["asset"],)
     if cls == "sma":
         return ("SPY", "IEF")
-    if cls in ("static_6040", "fomc_tilt", "halloween"):
+    if cls in ("static_6040", "fomc_tilt", "halloween", "liquidity_tilt"):
         return ("SPY", "IEF")
     if cls == "auction_tilt":
         return ("SPY", "IEF", "SHY")

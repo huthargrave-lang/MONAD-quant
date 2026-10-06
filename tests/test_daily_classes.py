@@ -60,7 +60,7 @@ class TruncationInvariance(unittest.TestCase):
         cls.cuts = [cls.snap.dates[i] for i in (400, 523, 650, 777, 898)]
 
     def test_every_grid_point_is_truncation_invariant(self):
-        for point in dc.grid() + dc.event_grid() + dc.auction_grid() + [dc.REFERENCE]:
+        for point in dc.grid() + dc.event_grid() + dc.auction_grid() + dc.liquidity_grid() + [dc.REFERENCE]:
             with self.subTest(point=point):
                 self.assertEqual(stats.truncation_violations(self.snap, point, self.cuts), [])
 
@@ -174,3 +174,17 @@ class AuctionTilt(unittest.TestCase):
                 ap = dates.get_loc(pd.Timestamp(a["auction"]))
                 if ap - 6 <= p < ap:                   # an entry serving this auction
                     self.assertGreaterEqual(p - 1, ann, "entry decided before the announcement")
+
+
+class LiquidityTilt(unittest.TestCase):
+    def test_walcl_is_used_only_after_its_release(self):
+        from src.research.fred_series import known_by
+        days = pd.bdate_range("2020-01-06", "2020-01-17")
+        known = known_by("WALCL", days)
+        # The observation dated Wednesday 2020-01-08 is released Thursday evening: first
+        # known at Friday 2020-01-10's close, not Wednesday's or Thursday's.
+        import json
+        rec = json.loads((REPO / "docs/research/data/fred_WALCL.json").read_text())
+        v = dict(rec["observations"])["2020-01-08"]
+        self.assertNotEqual(known.loc["2020-01-09"], v)
+        self.assertEqual(known.loc["2020-01-10"], v)
