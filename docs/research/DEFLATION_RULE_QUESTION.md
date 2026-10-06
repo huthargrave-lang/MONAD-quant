@@ -74,3 +74,55 @@ This adds an option for the board:
   keep the DSR as a reported diagnostic.
 
 Like the others, it would apply prospectively only.
+
+## Decision-debate consensus (2026-10-06)
+
+Ratified by Hudson in advance. One proposer and one skeptic, three rounds. Round 1:
+DISPUTE. Round 2: DISPUTE, narrowly. Round 3: CONCUR once off-window points join m. Every
+fix below was adopted verbatim.
+
+**Decision: option E, amended (gate rules v2), applied prospectively.**
+
+- **(i) The gate.**
+  - `p_gate = (worst SPA-adjusted p over mean blocks 20/63/126) × (1 + m) ≤ familywise_alpha`,
+    with `m = prior_search_trials + unknown_specs + off_window_points`.
+  - `off_window_points`: each distinct point the family searched (producer not the gate)
+    that has no ok trial in the SPA matrix.
+  - p is estimated as (b+1)/(B+1) with B ≥ max(5000, ⌈20(1+m)/alpha⌉). The verifier
+    recomputes with the same B and seed.
+  - The union bound needs no independence among members; correlation only makes it
+    conservative.
+- **(ii) Found-nothing members** are observed members with t = 0, dropped from the matrix
+  as an exact equivalence. They do not add to m.
+- **(iii) Price-profile basis.**
+  - v3 trials record per-trade entry and exit timestamps plus a daily mark-to-market PnL
+    and exposure series at session closes, under fixed notional.
+  - f = the mean close exposure.
+  - The benchmark is daily-rebalanced f × the instrument's daily total return from a
+    frozen snapshot, at zero cost.
+  - The SPA and the DSR diagnostic both run on the mark-to-market active series.
+  - Pre-v3 members count in m.
+- **(iv) Registrations.**
+  - New fields: `gate_rules`; for the price profile also `familywise_alpha` (≤ 0.05) and
+    `prior_search_trials`. New metric value `familywise_spa`.
+  - `register()` requires `gate_rules == 2`.
+  - A missing `gate_rules` is accepted only in `load()`, for H404700, H404701 and H404702
+    keyed by exact spec_hash.
+  - Under v2 `threshold` is a non-gating diagnostic DSR level.
+  - Until the price trigger passes, a v2 price registration's familywise stage is BLOCK
+    ("v2 price chain not ratified"), never judged by the DSR.
+- **(v) Versioned chains and verifiers.**
+  - ADMIT chains are a function of the rules version read from the hash-verified
+    registration.
+  - In v2 a `deflation_diagnostic` stage must be exactly SKIP; `familywise` gates.
+  - v2 verifiers recompute the seeded SPA and (1+m) from the ledger, for both profiles.
+- **(vi) Triggers.**
+  - The price profile switches when SPA's size has a Wilson 95% upper bound ≤ 0.075 at
+    alpha 0.05 over ≥ 1000 replications, at production settings, on the (iii) basis, with a
+    withheld-members design testing (i) at m > 0.
+  - The tactical profile switches on the same criterion, from a rerun of the dense study at
+    production settings (worst of 20/63/126, n_boot ≥ 1000).
+- **(vii) Dilution.** SPA's recentering removes only badly losing members. Every member with
+  mean ≥ about 0, null or real, still raises the max-t bar: the accepted cost of counting
+  every trial.
+- **(viii) Docs.** prereg's `MIN_FORWARD_PSR_FLOOR` comment is updated for v2.
