@@ -516,7 +516,8 @@
         "tools/reevaluate_web.py",
         "tools/daily_search.py",
         "tools/cef_search.py",
-        "tools/admit_tactical.py"
+        "tools/admit_tactical.py",
+        "tools/cef_picks.py"
       ],
       "entrypoints": [],
       "tests": [

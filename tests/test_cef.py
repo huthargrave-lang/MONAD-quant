@@ -148,6 +148,18 @@ class LiveRegistrationGuard(unittest.TestCase):
         daily_trials.refuse_unacknowledged("cef_discount.v1", ["H404701"])
 
 
+class Picks(unittest.TestCase):
+    def test_current_holdings_average_the_tranches_latest_targets(self):
+        sys.path.insert(0, str(REPO / "tools"))
+        import cef_picks
+        from src.research.daily_domains import Context
+        snap, panel = world()
+        h = cef_picks.current_holdings(Context(snap=snap, panel=panel),
+                                       {"class": "cef_discount", "params": {"signal": "level", "fraction": 0.25}})
+        self.assertAlmostEqual(float(h["weight"].sum()), 1.0, places=9)
+        self.assertTrue(set(h.index) <= {f"F{i:02d}" for i in range(14, 20)})
+
+
 class Panel(unittest.TestCase):
     def rows(self, n=60, bad=()):
         out = []
