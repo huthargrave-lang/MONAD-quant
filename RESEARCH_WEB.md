@@ -4163,3 +4163,20 @@ This explains both gate surprises in the record:
 Implication, for the open decision (docs/research/DEFLATION_RULE_QUESTION.md, option E): SPA, not this DSR, is the calibrated multiple-testing stage for families searched like these. Applies prospectively; changes no verdict already reached.
 Links: [[F404703|relates]] · [[F404708|relates]].
 _— captured claude/monetizing-repositories-03e341@26b46f2, 2026-10-06_
+
+### F404719 — Insider purchase clusters do not beat IWM (best +0.45 active Sharpe, SPA p 0.27-0.33, decaying), even with survivorship bias in their favour
+New domain insider_cluster, run exactly as frozen in docs/research/INSIDER_CLUSTERS_PROTOCOL.md (committed before any event-stock price was fetched).
+- Events: 3,555 clusters of at least 3 officers/directors making open-market purchases within 10 days, from SEC's Form 3/4/5 data sets 2021-2026Q1 (INSIDER-50d163c9).
+- Prices: IWM plus 1,259 event tickers (DS-0205b226, small-cap move bounds -80%/+300%).
+- Coverage: 441 of 1,792 tickers are unavailable (delisted); 72% of events are priced; 2,196 (62%) pass past-only price corroboration against the Form 4 purchase price.
+- Portfolio: each open event weighs 1/max(open, 10), the rest IWM; next-close fills; smallcap costs 30 bps one-way; against IWM.
+
+Results (active Sharpe; vol-matched beside it):
+- hold 63, 3+ insiders: +0.45 (+0.56); eras +1.07 / +0.46 / -0.44.
+- hold 63, 4+: +0.39.
+- hold 21: +0.04 / +0.08; costs 10-11%/yr eat the effect.
+- SPA p 0.27-0.33 (K=4). Look-ahead clean at 12 cuts.
+
+Verdict: null. The survivorship bias here works FOR the strategy: the 28% of events in later-delisted or unpriceable stocks are missing, and the benchmark is a survivor-free index. Even so, nothing is significant, and the effect decays across 2021-2026. Insider-buying clusters, a famous published small-cap effect, do not survive costs and a fair test in recent data.
+Links: [[F404704|relates]].
+_— captured claude/monetizing-repositories-03e341@eaacb1d, 2026-10-06_
