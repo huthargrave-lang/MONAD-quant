@@ -169,23 +169,27 @@ def truncation_violations(snap: Snapshot, point: Mapping, cuts: Sequence[pd.Time
     problems = []
     for cut in cuts:
         cut = pd.Timestamp(cut)
-        a = _orders_until(full, cut)
-        b = _orders_until(decide(masked_after(snap, cut), point), cut)
-        if len(a) != len(b):
-            problems.append(f"{cut.date()}: the number of tranches changed")
-            continue
-        for i, (fa, fb) in enumerate(zip(a, b)):
-            if fa.empty and fb.empty:
-                continue
-            cols = sorted(set(fa.columns) | set(fb.columns))
-            fa = fa.reindex(columns=cols).fillna(0.0)
-            fb = fb.reindex(columns=cols).fillna(0.0)
-            if not fa.index.equals(fb.index) or not np.allclose(fa.to_numpy(), fb.to_numpy(),
-                                                                rtol=0, atol=1e-12):
-                problems.append(f"{cut.date()}: tranche {i // 2} {('open', 'close')[i % 2]} "
-                                f"orders differ before the cut")
-                break
+        problems += compare_orders(full, decide(masked_after(snap, cut), point), cut)
     return problems
+
+
+def compare_orders(full, truncated, cut: pd.Timestamp) -> list[str]:
+    """Problems if ``truncated``'s orders up to ``cut`` differ from ``full``'s."""
+    a = _orders_until(full, cut)
+    b = _orders_until(truncated, cut)
+    if len(a) != len(b):
+        return [f"{cut.date()}: the number of tranches changed"]
+    for i, (fa, fb) in enumerate(zip(a, b)):
+        if fa.empty and fb.empty:
+            continue
+        cols = sorted(set(fa.columns) | set(fb.columns))
+        fa = fa.reindex(columns=cols).fillna(0.0)
+        fb = fb.reindex(columns=cols).fillna(0.0)
+        if not fa.index.equals(fb.index) or not np.allclose(fa.to_numpy(), fb.to_numpy(),
+                                                            rtol=0, atol=1e-12):
+            return [f"{cut.date()}: tranche {i // 2} {('open', 'close')[i % 2]} orders differ "
+                    f"before the cut"]
+    return []
 
 
 def default_cuts(snap: Snapshot, start: pd.Timestamp, n: int = 12) -> list[pd.Timestamp]:

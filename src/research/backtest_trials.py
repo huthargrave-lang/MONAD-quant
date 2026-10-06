@@ -67,8 +67,12 @@ def family_members(records, family: str) -> list:
     count (harness red-team, attack 4a). The engine spec is not a label: a trial whose
     data is ``SYMBOL`` and whose spec is an hourly engine run IS this strategy on SYMBOL.
     """
-    if family.startswith(("daily_alloc.v", "daily_alloc_reference.v")):
-        from src.research.daily_trials import daily_family_members
+    from src.research.daily_trials import daily_family_members, parse_family
+    try:
+        parse_family(family)
+    except ValueError:
+        pass
+    else:
         return daily_family_members(records, family)
     prefix = f"{MR_HOURLY_STRATEGY}:"
     symbol = family[len(prefix):] if family.startswith(prefix) else None

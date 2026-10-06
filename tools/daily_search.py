@@ -93,13 +93,15 @@ def run_search(snap, grid_name: str) -> tuple[str | None, str]:
     return ref_id, run.run_id
 
 
-def _latest(records, snap_sha, start, end, *, cost_multiple=1.0):
-    """{label: record} for the latest ok trial of each (class, params) on this window."""
+def _latest(records, snap_sha, start, end, *, cost_multiple=1.0, panel_sha=None):
+    """{label: record} for the latest ok trial of each (class, params) on this window
+    (and NAV panel, for domains that decide from one)."""
     out = {}
     for r in records:
         d = r.spec.get("data") or {}
         p = r.spec.get("params") or {}
         if (r.status == "ok" and d.get("snapshot") == snap_sha
+                and d.get("nav_panel") == panel_sha
                 and d.get("start") == start.date().isoformat()
                 and d.get("end") == end.date().isoformat()
                 and p.get("cost_multiple") == cost_multiple):

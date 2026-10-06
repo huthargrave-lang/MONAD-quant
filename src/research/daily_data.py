@@ -89,6 +89,12 @@ class Snapshot:
     def returns(self) -> "SessionReturns":
         return session_returns(self)
 
+    @property
+    def unreliable_opens(self) -> frozenset:
+        """Assets whose opens failed the synthesised-open check (kept for close-only use)."""
+        assets = (self.manifest.get("validation") or {}).get("assets") or {}
+        return frozenset(a for a, info in assets.items() if info.get("opens_unreliable"))
+
 
 @dataclass(frozen=True)
 class SessionReturns:
@@ -137,74 +143,154 @@ def yahoo_irx(start: str, end: str) -> pd.Series:
 
 
 # ── building ─────────────────────────────────────────────────────────────────
+class AssetError(SnapshotError):
+    """One asset failed validation."""
+
+
+#: An extreme session (beyond MAX_ABS_SESSION_RETURN) is accepted only if an independent
+#: source's closes on its nearest observations before and after it agree with the vendor's
+#: closes on those dates within this tolerance. Closed-end funds really did move more than
+#: 50% in a session in October 2008 and March 2020 (TYG $40.04 -> $63.12 around 2008-10-13,
+#: corroborated by CEFConnect's weekly prices), and dropping such funds would remove exactly
+#: the crash rebounds a discount strategy would have held.
+CORROBORATION_TOLERANCE = 0.02
+CORROBORATION_WINDOW_DAYS = 10
+
+
+def corroborated(close: pd.Series, day: pd.Timestamp, independent: pd.Series) -> bool:
+    """True if ``independent`` (another source's closes for the same asset) has an
+    observation within CORROBORATION_WINDOW_DAYS before ``day`` AND one on or after it, and
+    the vendor's ``close`` agrees with both within CORROBORATION_TOLERANCE."""
+    ind = independent.dropna()
+    before = ind[(ind.index < day) & (ind.index >= day - pd.Timedelta(days=CORROBORATION_WINDOW_DAYS))]
+    after = ind[(ind.index >= day) & (ind.index <= day + pd.Timedelta(days=CORROBORATION_WINDOW_DAYS))]
+    if not len(before) or not len(after):
+        return False
+    for d, v in ((before.index[-1], before.iloc[-1]), (after.index[0], after.iloc[0])):
+        mine = close.get(d)
+        if mine is None or not np.isfinite(mine) or abs(mine / v - 1.0) > CORROBORATION_TOLERANCE:
+            return False
+    return True
+
+
+def _validate_asset(s: str, h: pd.DataFrame, calendar: pd.DatetimeIndex, *, strict_opens: bool,
+                    independent: pd.Series | None = None):
+    """(open, close, dist, info) for one asset on ``calendar``, or AssetError.
+
+    ``strict_opens``: synthesised opens fail the asset. Otherwise they are recorded in
+    ``info["opens_unreliable"]`` and the asset is kept, for strategies that trade it only
+    at the close (the evaluator refuses open orders into such an asset)."""
+    if h.index.has_duplicates:
+        raise AssetError(f"{s} has duplicate sessions")
+    extra = h.index.difference(calendar)
+    if len(extra):
+        raise AssetError(f"{s} has {len(extra)} sessions outside the calendar "
+                         f"(first {extra[0].date()})")
+    h = h.reindex(calendar)
+    o, c = h["Open"], h["Close"]
+    first = c.first_valid_index()
+    if first is None:
+        raise AssetError(f"{s} has no data in the window")
+    live = c.loc[first:].index
+    missing = int(c.loc[live].isna().sum() + o.loc[live].isna().sum())
+    if missing:
+        raise AssetError(f"{s} is missing {missing} open/close values after its "
+                         f"first session {first.date()}")
+    if (c.loc[live] <= 0).any() or (o.loc[live] <= 0).any():
+        raise AssetError(f"{s} has non-positive prices")
+    dist = (h["Dividends"].fillna(0.0) + h["Capital Gains"].fillna(0.0)).loc[live]
+    if (dist < 0).any():
+        raise AssetError(f"{s} has negative distributions")
+    prev = c.loc[live].shift(1)
+    total = ((c.loc[live] + dist) / prev - 1.0).iloc[1:]
+    extremes = total[total.abs() > MAX_ABS_SESSION_RETURN]
+    accepted_extremes = {}
+    for day, ret in extremes.items():
+        if independent is not None and corroborated(c, day, independent):
+            accepted_extremes[day.date().isoformat()] = round(float(ret), 4)
+            continue
+        raise AssetError(f"{s} has a {ret:+.1%} session on {day.date()} (an unadjusted split "
+                         f"or a vendor glitch{', not corroborated' if independent is not None else ''})")
+    stale = ((o.loc[live] - prev).abs() < PRICE_TICK_TOLERANCE).iloc[1:]
+    unchanged = ((c.loc[live] - prev).abs() < PRICE_TICK_TOLERANCE).iloc[1:]
+    by_year = stale.groupby(stale.index.year).mean()
+    unchanged_by_year = unchanged.groupby(unchanged.index.year).mean()
+    faked = by_year[(by_year > MAX_STALE_OPEN_SHARE)
+                    & (by_year > STALE_TO_UNCHANGED_RATIO * unchanged_by_year)]
+    opens_unreliable = False
+    if len(faked):
+        yr = int(faked.idxmax())
+        msg = (f"{s}'s open equals the previous close on {faked.max():.0%} of {yr}'s "
+               f"sessions while its close was unchanged on only {unchanged_by_year[yr]:.0%}: "
+               f"the opens are not real")
+        if strict_opens:
+            raise AssetError(msg)
+        opens_unreliable = True
+    splits = h["Stock Splits"].fillna(0.0)
+    info = {"first_session": first.date().isoformat(), "sessions": int(len(live)),
+            "distributions": int((dist > 0).sum()),
+            "splits": {d.date().isoformat(): float(v) for d, v in splits[splits > 0].items()},
+            "max_stale_open_share": round(float(by_year.max()), 4) if len(by_year) else 0.0}
+    if opens_unreliable:
+        info["opens_unreliable"] = True
+    if accepted_extremes:
+        info["corroborated_extreme_sessions"] = accepted_extremes
+    full_dist = (h["Dividends"].fillna(0.0) + h["Capital Gains"].fillna(0.0)).where(c.notna())
+    return o, c, full_dist, info
+
+
 def build_frames(universe: Sequence[str], start: str, end: str, *,
+                 optional: Sequence[str] = (),
+                 independent_closes: Mapping[str, pd.Series] | None = None,
                  fetch_asset: Callable = yahoo_raw, fetch_cash: Callable = fred_dtb3,
                  fetch_check: Callable | None = yahoo_irx) -> tuple[dict, dict]:
     """Fetch and validate. Returns ({"open","close","dist","dtb3"}, validation report).
-    Raises SnapshotError on any failed check: a snapshot is all-valid or not written."""
+
+    Every asset NOT in ``optional`` must pass every check, or the build raises: a core
+    panel is all-valid or not written. Assets in ``optional`` (a large universe, such as
+    every listed closed-end fund) that fail are DROPPED with the reason recorded in
+    ``report["dropped"]``, and ones with synthesised opens are kept but flagged
+    ``opens_unreliable``. ``independent_closes`` (asset -> another source's closes) lets
+    an extreme session be accepted when that source corroborates it (``corroborated``).
+    The calendar is the first asset's sessions; it must be core."""
     if not universe or len(set(universe)) != len(universe):
         raise SnapshotError("universe must be a non-empty list of distinct symbols")
-    raw = {s: fetch_asset(s, start, end) for s in universe}
-    calendar = raw[universe[0]].index
-    if not calendar.is_monotonic_increasing or calendar.has_duplicates:
-        raise SnapshotError(f"{universe[0]}'s sessions are not strictly increasing")
-    if len(calendar) < MIN_SESSIONS:
-        raise SnapshotError(f"only {len(calendar)} sessions (need {MIN_SESSIONS})")
-    if (calendar.dayofweek >= 5).any():
-        raise SnapshotError("the calendar contains weekend sessions")
-
-    report = {"sessions": len(calendar), "assets": {}}
+    optional = set(optional)
+    if universe[0] in optional:
+        raise SnapshotError("the calendar asset (the first) cannot be optional")
+    unknown = optional - set(universe)
+    if unknown:
+        raise SnapshotError(f"optional assets outside the universe: {sorted(unknown)}")
+    calendar = None
+    report = {"sessions": 0, "assets": {}, "dropped": {}}
     opens, closes, dists = {}, {}, {}
     for s in universe:
-        h = raw[s]
-        if h.index.has_duplicates:
-            raise SnapshotError(f"{s} has duplicate sessions")
-        extra = h.index.difference(calendar)
-        if len(extra):
-            raise SnapshotError(f"{s} has {len(extra)} sessions outside the calendar "
-                                f"(first {extra[0].date()})")
-        h = h.reindex(calendar)
-        o, c = h["Open"], h["Close"]
-        first = c.first_valid_index()
-        if first is None:
-            raise SnapshotError(f"{s} has no data in the window")
-        live = c.loc[first:].index
-        missing = int(c.loc[live].isna().sum() + o.loc[live].isna().sum())
-        if missing:
-            raise SnapshotError(f"{s} is missing {missing} open/close values after its "
-                                f"first session {first.date()}")
-        if (c.loc[live] <= 0).any() or (o.loc[live] <= 0).any():
-            raise SnapshotError(f"{s} has non-positive prices")
-        dist = (h["Dividends"].fillna(0.0) + h["Capital Gains"].fillna(0.0)).loc[live]
-        if (dist < 0).any():
-            raise SnapshotError(f"{s} has negative distributions")
-        prev = c.loc[live].shift(1)
-        total = ((c.loc[live] + dist) / prev - 1.0).iloc[1:]
-        if (total.abs() > MAX_ABS_SESSION_RETURN).any():
-            bad = total[total.abs() > MAX_ABS_SESSION_RETURN]
-            raise SnapshotError(f"{s} has a {bad.iloc[0]:+.1%} session on {bad.index[0].date()} "
-                                f"(an unadjusted split or a vendor glitch)")
-        stale = ((o.loc[live] - prev).abs() < PRICE_TICK_TOLERANCE).iloc[1:]
-        unchanged = ((c.loc[live] - prev).abs() < PRICE_TICK_TOLERANCE).iloc[1:]
-        by_year = stale.groupby(stale.index.year).mean()
-        unchanged_by_year = unchanged.groupby(unchanged.index.year).mean()
-        faked = by_year[(by_year > MAX_STALE_OPEN_SHARE)
-                        & (by_year > STALE_TO_UNCHANGED_RATIO * unchanged_by_year)]
-        if len(faked):
-            yr = int(faked.idxmax())
-            raise SnapshotError(f"{s}'s open equals the previous close on {faked.max():.0%} "
-                                f"of {yr}'s sessions while its close was unchanged on only "
-                                f"{unchanged_by_year[yr]:.0%}: the opens are not real")
-        splits = h["Stock Splits"].fillna(0.0)
-        report["assets"][s] = {
-            "first_session": first.date().isoformat(),
-            "sessions": int(len(live)),
-            "distributions": int((dist > 0).sum()),
-            "splits": {d.date().isoformat(): float(v) for d, v in splits[splits > 0].items()},
-            "max_stale_open_share": round(float(by_year.max()), 4) if len(by_year) else 0.0,
-        }
-        opens[s], closes[s] = o, c
-        dists[s] = (h["Dividends"].fillna(0.0) + h["Capital Gains"].fillna(0.0)).where(c.notna())
+        try:
+            h = fetch_asset(s, start, end)
+        except Exception as exc:  # noqa: BLE001 — a vendor failure on one optional asset
+            if s not in optional:
+                raise
+            report["dropped"][s] = f"fetch failed: {type(exc).__name__}: {exc}"
+            continue
+        if calendar is None:
+            calendar = h.index
+            if not calendar.is_monotonic_increasing or calendar.has_duplicates:
+                raise SnapshotError(f"{s}'s sessions are not strictly increasing")
+            if len(calendar) < MIN_SESSIONS:
+                raise SnapshotError(f"only {len(calendar)} sessions (need {MIN_SESSIONS})")
+            if (calendar.dayofweek >= 5).any():
+                raise SnapshotError("the calendar contains weekend sessions")
+            report["sessions"] = len(calendar)
+        try:
+            o, c, d, info = _validate_asset(s, h, calendar, strict_opens=s not in optional,
+                                            independent=(independent_closes or {}).get(s))
+        except AssetError as exc:
+            if s not in optional:
+                raise
+            report["dropped"][s] = str(exc)
+            continue
+        report["assets"][s] = info
+        opens[s], closes[s], dists[s] = o, c, d
 
     cash = fetch_cash(start, end)
     aligned = cash.reindex(calendar.union(cash.index)).ffill(limit=None).reindex(calendar)
@@ -225,6 +311,8 @@ def build_frames(universe: Sequence[str], start: str, end: str, *,
                                 f"average (max {MAX_IRX_DISAGREEMENT})")
         report["dtb3"]["mean_abs_vs_irx_pct"] = round(disagreement, 4)
         report["dtb3"]["irx_sessions_compared"] = int(len(both))
+    if not report["dropped"]:
+        del report["dropped"]
     frames = {"open": pd.DataFrame(opens), "close": pd.DataFrame(closes),
               "dist": pd.DataFrame(dists), "dtb3": aligned}
     return frames, report
@@ -313,13 +401,19 @@ def _write_exclusive(path: Path, data: bytes) -> None:
 
 
 def build_snapshot(universe: Sequence[str], start: str, end: str, *,
+                   optional: Sequence[str] = (), independent_closes: Mapping | None = None,
+                   independent_source: str | None = None,
                    data_dir: Path | None = None, **fetchers) -> str:
-    """Fetch, validate and write a snapshot. Returns its sha."""
+    """Fetch, validate and write a snapshot. Returns its sha. The manifest's universe is
+    what was REQUESTED; ``validation.dropped`` says what was left out and why."""
     import yfinance
 
-    frames, report = build_frames(universe, start, end, **fetchers)
+    frames, report = build_frames(universe, start, end, optional=optional,
+                                  independent_closes=independent_closes, **fetchers)
     sources = {"prices": f"yfinance {yfinance.__version__} history(auto_adjust=False, actions=True)",
                "cash": "FRED DTB3 (fredgraph.csv)", "cash_check": "Yahoo ^IRX"}
+    if independent_source:
+        sources["extreme_session_corroboration"] = independent_source
     return write_snapshot(frames, report, universe=universe, start=start, end=end,
                           sources=sources, data_dir=data_dir)
 

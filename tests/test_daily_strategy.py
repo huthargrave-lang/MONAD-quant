@@ -185,6 +185,20 @@ class Refusals(unittest.TestCase):
             setUpModule()
 
 
+class Costs(unittest.TestCase):
+    def test_the_vectorised_matrix_equals_the_per_cell_rule(self):
+        from src.research.daily_strategy import cost_matrix
+        dates = pd.bdate_range("2009-12-28", periods=10)
+        assets = ["SPY", "EEM", "PDI"]
+        tiers = {"PDI": "cef"}
+        m = cost_matrix(assets, dates, tiers)
+        for i, d in enumerate(dates):
+            for j, a in enumerate(assets):
+                self.assertEqual(m[i, j], cost_bps(a, d, tiers))
+        self.assertEqual(m[0, 2], 30.0)
+        self.assertEqual(m[-1, 2], 15.0)
+
+
 class StaticTranches(unittest.TestCase):
     def test_offsets_stagger_the_rebalance_days(self):
         trs = static_tranches({"A": 1.0}, DATES, every=3, offsets=(0, 1, 2))

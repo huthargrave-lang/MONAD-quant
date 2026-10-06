@@ -95,6 +95,17 @@ class Validation(unittest.TestCase):
         with self.assertRaises(dd.SnapshotError):
             self.build(**fetchers(AAA=bad))
 
+    def test_a_real_crash_move_corroborated_by_another_source_is_kept(self):
+        crash = asset(1)
+        crash.iloc[500:, [0, 1]] = crash.iloc[500:, [0, 1]] * 1.8        # +80% in one session
+        independent = crash["Close"].iloc[[495, 503]]                    # another source agrees
+        frames, report = self.build(**fetchers(AAA=crash),
+                                    independent_closes={"AAA": independent})
+        self.assertIn(str(DATES[500].date()), report["assets"]["AAA"]["corroborated_extreme_sessions"])
+        wrong = independent * 1.5                                         # it does not agree
+        with self.assertRaises(dd.SnapshotError):
+            self.build(**fetchers(AAA=crash), independent_closes={"AAA": wrong})
+
     def test_a_hole_after_listing_is_refused(self):
         bad = asset(1)
         bad.iloc[400, bad.columns.get_loc("Close")] = np.nan

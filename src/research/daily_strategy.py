@@ -15,9 +15,9 @@ does not reintroduce it. So this evaluator commits to an execution model and cha
   * **Two legs per session, compounded.** Night (close to open, including an ex-date's
     distribution) and day (open to close) are applied in sequence to the holdings; cash
     accrues at the T-bill rate on whatever is uninvested.
-  * **Costs per asset and era** (``COST_BPS``), charged one-way on traded notional at
-    every rebalance, at open or close alike. ``cost_multiple`` scales them (the gate's
-    cost stress uses 2).
+  * **Costs per asset and era** (``COST_BPS``; ``tiers`` maps an asset to its tier, the
+    default being the ETF tiers), charged one-way on traded notional at every rebalance,
+    at open or close alike. ``cost_multiple`` scales them (the gate's cost stress uses 2).
   * **Tranches.** A strategy may run as several equal-capital sub-portfolios (for example
     one per rebalance-day offset, removing rebalance-date luck). Each drifts and rebalances
     on its own schedule; the portfolio is their sum.
@@ -52,17 +52,34 @@ EVALUATOR_NAME = "daily_strategy"
 #: compressed after decimal-era market-making matured and the 2008-09 wide markets ended.
 #: Tier 2 are the thinner ETFs (emerging equity, commodities, REITs). These are
 #: assumptions, stated so a refuter can attack them; the gate's cost stress doubles them.
+#: Tier "cef" is closed-end funds: smaller, thinner books than any ETF here (quoted spreads
+#: of roughly 10-40 bps on the median fund), so a higher assumption, doubled under stress.
 COST_ERA_BOUNDARY = pd.Timestamp("2010-01-01")
 COST_BPS = {
     "tier1": {"pre": 5.0, "post": 2.0},
     "tier2": {"pre": 12.0, "post": 5.0},
+    "cef": {"pre": 30.0, "post": 15.0},
 }
 TIER2 = frozenset({"EEM", "DBC", "VNQ"})
 
 
-def cost_bps(asset: str, day: pd.Timestamp) -> float:
-    tier = "tier2" if asset in TIER2 else "tier1"
+def default_tier(asset: str) -> str:
+    return "tier2" if asset in TIER2 else "tier1"
+
+
+def cost_bps(asset: str, day: pd.Timestamp, tiers: Mapping[str, str] | None = None) -> float:
+    tier = (tiers or {}).get(asset) or default_tier(asset)
     return COST_BPS[tier]["pre" if day < COST_ERA_BOUNDARY else "post"]
+
+
+def cost_matrix(assets: Sequence[str], dates: pd.DatetimeIndex,
+                tiers: Mapping[str, str] | None = None) -> np.ndarray:
+    """(sessions, assets) one-way cost in basis points (``cost_bps`` for every cell)."""
+    names = [(tiers or {}).get(a) or default_tier(a) for a in assets]
+    pre = np.array([COST_BPS[t]["pre"] for t in names])
+    post = np.array([COST_BPS[t]["post"] for t in names])
+    early = np.asarray(dates < COST_ERA_BOUNDARY)[:, None]
+    return np.where(early, pre[None, :], post[None, :])
 
 
 @dataclass(frozen=True)
@@ -128,7 +145,8 @@ def _orders_by_execution(orders: pd.DataFrame, dates: pd.DatetimeIndex,
 @_counted_evaluator
 def evaluate_daily(tranches: Sequence[Tranche], snap: Snapshot, *, start: pd.Timestamp,
                    end: pd.Timestamp | None = None, cost_multiple: float = 1.0,
-                   rets: SessionReturns | None = None) -> DailyResult:
+                   rets: SessionReturns | None = None,
+                   tiers: Mapping[str, str] | None = None) -> DailyResult:
     """Run ``tranches`` on ``snap`` and score sessions in [start, end].
 
     Every tranche starts in cash at the close of the session before ``start``, with
@@ -153,7 +171,7 @@ def evaluate_daily(tranches: Sequence[Tranche], snap: Snapshot, *, start: pd.Tim
     night = rets.night.reindex(columns=assets).to_numpy(dtype=float)
     day = rets.day.reindex(columns=assets).to_numpy(dtype=float)
     cash = rets.cash.to_numpy(dtype=float)
-    cost = np.array([[cost_bps(a, d) for a in assets] for d in dates]) * 1e-4 * cost_multiple
+    cost = cost_matrix(assets, dates, tiers) * 1e-4 * cost_multiple
 
     n_t = len(tranches)
     total = np.zeros(i1 - i0 + 2)               # value at the close of i0-1 .. i1
@@ -167,6 +185,7 @@ def evaluate_daily(tranches: Sequence[Tranche], snap: Snapshot, *, start: pd.Tim
     for tr in tranches:
         opens = _orders_by_execution(tr.open_orders, dates, assets)
         closes = _orders_by_execution(tr.close_orders, dates, assets)
+        _refuse_unreliable_opens(opens, snap, assets, dates)
         _carry_in(opens, closes, i0)
         h = np.zeros(len(assets))               # dollars per asset
         k = 1.0 / n_t                           # dollars in cash
@@ -204,6 +223,19 @@ def evaluate_daily(tranches: Sequence[Tranche], snap: Snapshot, *, start: pd.Tim
                        rebalances=rebalances, turnover=turnover, cost_paid=cost_paid,
                        exposure=pd.Series(invested / values.iloc[1:].to_numpy(),
                                           index=dates[i0:i1 + 1]))
+
+
+def _refuse_unreliable_opens(opens: dict, snap: Snapshot, assets: Sequence[str],
+                             dates: pd.DatetimeIndex) -> None:
+    """An order may not trade an asset at an open the snapshot flagged as synthesised:
+    the fill price would be a vendor's back-filled number, not a market."""
+    bad = [assets.index(a) for a in snap.unreliable_opens if a in assets]
+    if not bad:
+        return
+    for i, w in opens.items():
+        if (w[bad] > 0).any():
+            raise OrderError(f"open order on {dates[i].date()} trades an asset whose opens are "
+                             f"unreliable ({sorted(snap.unreliable_opens)}); trade it at the close")
 
 
 def _carry_in(opens: dict, closes: dict, i0: int) -> None:

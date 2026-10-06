@@ -43,6 +43,8 @@ and `tests/test_producer_ledger_wiring.py` fails CI on any new one that is not:
 | `main.py` | each run of the configured strategy (editing `config.py` and re-running is a search) |
 | `tools/equity_curve.py` | each curve drawn from the research UI |
 | `fee_analysis.py` | its one backtest of the configured BTC strategy |
+| `tools/daily_search.py` | each point of a frozen daily ETF grid, and the static 60/40 reference |
+| `tools/cef_search.py` | each point of the frozen CEF-discount grid, and the equal-weight CEF benchmark |
 
 **Families.** All of these test one idea, long-only RSI/VWAP mean reversion, so they share
 one family per timeframe and instrument: `long_only_rsi_vwap_mr_<timeframe>.v<ENGINE_VERSION>:<SYMBOL>`
@@ -53,14 +55,23 @@ different idea.
 **`evaluated_from`** in a trial's data spec means the recorded outcome covers only trades
 at or after that bar; earlier bars were warm-up or already-seen training data.
 
+**Daily strategies** (`src/research/daily_strategy.evaluate_daily`, also a counted entry
+point) are recorded by `src/research/daily_trials.py` in one family per DOMAIN and
+evaluator version: `daily_alloc.v1` (ETF timing, against the static 60/40) and
+`cef_discount.v1` (CEF selection, against the equal-weight CEF universe). Each reference
+portfolio lives in its own `*_reference` family: counted, but not a search point. Domain
+membership is structural (same evaluator version and domain, any label). See
+`docs/research/DAILY_STRATEGIES.md`.
+
 **Membership is by engine identity, not only label.** For an MR family, every hourly
 engine trial on the same symbol counts, whatever `--family` it was run under
 (`backtest_trials.family_members`), so a scratch-labelled search cannot hide.
 
 ## Enforcement
 
-Counting is enforced at RUNTIME (decision-debate Q2): `run_backtest` and
-`compute_trade_returns` refuse to run without a begun trial (`src/strategy/counted.py`).
+Counting is enforced at RUNTIME (decision-debate Q2): `run_backtest`,
+`compute_trade_returns` and the daily evaluator `evaluate_daily` refuse to run without a
+begun trial (`src/strategy/counted.py`).
 One trial authorises exactly one evaluation, so aliases, `getattr`, `/tmp` scripts and
 one-begin-many-backtests loops all fail. `uncounted(reason)` is the only bypass, allowed
 from `tests/` and the two exempt tools, checked against the caller's path at runtime.

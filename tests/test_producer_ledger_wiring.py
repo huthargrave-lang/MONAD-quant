@@ -149,7 +149,8 @@ class EveryEvaluationIsCounted(unittest.TestCase):
         vacuously. These files are known to evaluate strategies."""
         for rel in ("sweep.py", "main.py", "tools/walkforward_eval.py",
                     "tools/strategy_funnel.py", "tools/equity_curve.py", "fee_analysis.py",
-                    "src/optimization/walk_forward.py", "tools/daily_search.py"):
+                    "src/optimization/walk_forward.py", "tools/daily_search.py",
+                    "tools/cef_search.py"):
             with open(os.path.join(ROOT, rel), encoding="utf-8") as fh:
                 tree = ast.parse(fh.read())
             found = [c for c in ast.walk(tree) if isinstance(c, ast.Call) and _name(c) in EVALUATORS]

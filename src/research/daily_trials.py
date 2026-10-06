@@ -34,20 +34,52 @@ import pandas as pd
 from src.research.daily_strategy import EVALUATOR_NAME, EVALUATOR_VERSION, DailyResult
 from src.research.trials import LedgerError, Trial
 
-DAILY_FAMILY = f"daily_alloc.v{EVALUATOR_VERSION}"
-REFERENCE_FAMILY = f"daily_alloc_reference.v{EVALUATOR_VERSION}"
-REFERENCE_CLASS = "static_6040"
+#: A DOMAIN is one research question with one benchmark: ETF timing against the static
+#: 60/40, and closed-end-fund selection against the equal-weight CEF universe. Trials of
+#: different domains answer different questions against different benchmarks, so they
+#: are never pooled into one familywise test; within a domain, membership is structural.
+DOMAINS = {
+    "etf_alloc": {"family": "daily_alloc", "reference_class": "static_6040"},
+    "cef_discount": {"family": "cef_discount", "reference_class": "cef_equal_weight"},
+}
+DEFAULT_DOMAIN = "etf_alloc"      # trials recorded before domains existed (the v1 search)
 
 
-def daily_spec(point: Mapping, *, cost_multiple: float = 1.0) -> dict:
-    return {"evaluator": {"name": EVALUATOR_NAME, "version": EVALUATOR_VERSION},
+def family_name(domain: str, *, reference: bool = False) -> str:
+    base = DOMAINS[domain]["family"]
+    return f"{base}{'_reference' if reference else ''}.v{EVALUATOR_VERSION}"
+
+
+DAILY_FAMILY = family_name("etf_alloc")
+REFERENCE_FAMILY = family_name("etf_alloc", reference=True)
+CEF_FAMILY = family_name("cef_discount")
+CEF_REFERENCE_FAMILY = family_name("cef_discount", reference=True)
+REFERENCE_CLASS = DOMAINS["etf_alloc"]["reference_class"]
+REFERENCE_CLASSES = frozenset(d["reference_class"] for d in DOMAINS.values())
+
+
+def daily_spec(point: Mapping, *, cost_multiple: float = 1.0, domain: str = DEFAULT_DOMAIN) -> dict:
+    if domain not in DOMAINS:
+        raise ValueError(f"unknown domain {domain!r}")
+    spec = {"evaluator": {"name": EVALUATOR_NAME, "version": EVALUATOR_VERSION},
             "class": point["class"], "params": dict(point["params"]),
             "cost_multiple": float(cost_multiple)}
+    if domain != DEFAULT_DOMAIN:
+        spec["domain"] = domain       # absent = the default, so v1 trials keep their hashes
+    return spec
 
 
-def daily_data_spec(snapshot_sha: str, start, end) -> dict:
-    return {"snapshot": snapshot_sha, "start": pd.Timestamp(start).date().isoformat(),
+def daily_data_spec(snapshot_sha: str, start, end, *, panel_sha: str | None = None) -> dict:
+    data = {"snapshot": snapshot_sha, "start": pd.Timestamp(start).date().isoformat(),
             "end": pd.Timestamp(end).date().isoformat()}
+    if panel_sha is not None:
+        data["nav_panel"] = panel_sha
+    return data
+
+
+def trial_domain(record) -> str:
+    params = (record.spec or {}).get("params") or {}
+    return params.get("domain", DEFAULT_DOMAIN) if isinstance(params, dict) else DEFAULT_DOMAIN
 
 
 def is_daily_trial(record, *, version: int = EVALUATOR_VERSION) -> bool:
@@ -57,20 +89,31 @@ def is_daily_trial(record, *, version: int = EVALUATOR_VERSION) -> bool:
             and ev.get("version") == version)
 
 
+def parse_family(family: str) -> tuple[str, bool, int]:
+    """(domain, is_reference, version) of a daily family name."""
+    base, _, version = family.rpartition(".v")
+    reference = base.endswith("_reference")
+    base = base[: -len("_reference")] if reference else base
+    for domain, d in DOMAINS.items():
+        if d["family"] == base:
+            return domain, reference, int(version)
+    raise ValueError(f"{family!r} is not a daily family")
+
+
 def daily_family_members(records, family: str) -> list:
     """Members of a daily family: its label, OR any trial of the same evaluator version
-    under ANY label (a search run under a scratch label is still this search: red-team
-    attack 4a), except reference-class trials, which belong to the reference family."""
-    version = int(family.rsplit(".v", 1)[1])
-    reference = family.startswith("daily_alloc_reference.")
+    AND domain under ANY label (a search run under a scratch label is still this search:
+    red-team attack 4a). Reference-class trials belong to the domain's reference family."""
+    domain, reference, version = parse_family(family)
+    ref_class = DOMAINS[domain]["reference_class"]
     out = []
     for r in records:
         if r.family == family:
             out.append(r)
             continue
-        if not is_daily_trial(r, version=version):
+        if not is_daily_trial(r, version=version) or trial_domain(r) != domain:
             continue
-        is_ref = (r.spec.get("params") or {}).get("class") == REFERENCE_CLASS
+        is_ref = (r.spec.get("params") or {}).get("class") == ref_class
         if is_ref == reference:
             out.append(r)
     return out
