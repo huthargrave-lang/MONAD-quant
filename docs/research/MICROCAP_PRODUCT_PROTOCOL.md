@@ -39,3 +39,21 @@ The iShares Micro-Cap ETF (**IWC**, August 2005) against the iShares Russell 200
   universe; IWC does not. A null here tests "own the illiquid segment", not "select
   within it".
 - **About 21 years,** including 2008, 2020 and 2022.
+
+## Result: CONTRADICTS (2026-10-07)
+
+Data: snapshot DS-0853b44e (SPY, IWM, IWC), from IWC's first 21 sessions (2005) to
+2026-10-02.
+
+| | Excess Sharpe | CAGR | Max DD | Active Sharpe vs IWM | Vol-matched | Eras |
+|---|---|---|---|---|---|---|
+| IWC | 0.35 | 7.54% | -64.6% | **-0.14** | -0.17 | -0.61 / -0.14 / +0.25 |
+
+- **Statistics.** SPA p 1.00 at every block; active DSR 0.27. No look-ahead violations.
+- **Verdict: contradicts.**
+
+**What it means for the pattern.** Owning the illiquid segment earns no premium after a
+micro-cap index fund's fees and costs. What worked, CEFS (F404732) and H404702, was
+*selecting within* a capacity-constrained segment on a price-versus-value anchor
+(discount to NAV). Neither illiquidity alone nor a liquid event screen (spin-offs,
+buybacks) did.
