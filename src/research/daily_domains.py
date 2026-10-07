@@ -222,6 +222,25 @@ EARNINGS = Domain(
     # survivor of 3 variants (docs/research/EARNINGS_PREMIUM_PROTOCOL.md).
     prior_search_trials=3)
 
+# ── spin-off drift ─────────────────────────────────────────────────────────
+from src.research import spinoff_classes as _spin  # noqa: E402
+
+
+def _spin_load(data: Mapping) -> Context:
+    return Context(snap=daily_data.load_snapshot(data["snapshot"]),
+                   panel=_spin.load_events(data["nav_panel"]))
+
+
+SPINOFF = Domain(
+    name="spinoff_drift", reference=_spin.REFERENCE, eras=_spin.ERAS, load=_spin_load,
+    decide=lambda ctx, point: _spin.decide(ctx.snap, ctx.panel, point),
+    tiers=lambda ctx: _spin.tiers(ctx.snap, ctx.panel),
+    start=lambda ctx: _spin.scoring_start(ctx.snap, ctx.panel),
+    truncation=lambda ctx, point, cuts: _spin.truncation_violations(ctx.snap, ctx.panel, point, cuts),
+    grids=lambda: _spin.GRIDS,
+    # A published effect (Cusatis, Miles and Woolridge 1993): counted as 3.
+    prior_search_trials=3)
+
 DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO, COUNTRY, BDC, INSIDER, MREIT,
-                                                  EARNINGS)}
+                                                  EARNINGS, SPINOFF)}
 

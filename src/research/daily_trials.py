@@ -47,6 +47,7 @@ DOMAINS = {
     "insider_cluster": {"family": "insider_cluster", "reference_class": "insider_index"},
     "mreit_discount": {"family": "mreit_discount", "reference_class": "mreit_equal_weight"},
     "earnings_premium": {"family": "earnings_premium", "reference_class": "earn_universe"},
+    "spinoff_drift": {"family": "spinoff_drift", "reference_class": "spinoff_index"},
 }
 DEFAULT_DOMAIN = "etf_alloc"      # trials recorded before domains existed (the v1 search)
 
