@@ -72,3 +72,9 @@ MERGER_ARB_PRODUCT = ProductPair(candidate="MNA", benchmark="IEF",
 BUYBACK_PRODUCT = ProductPair(candidate="PKW", benchmark="SPY",
                               eras=(("start", "2012-12-31"), ("2013-01-01", "2019-12-31"),
                                     ("2020-01-01", "end")))
+
+#: Live micro-cap product against small caps: the illiquidity premium
+#: (docs/research/MICROCAP_PRODUCT_PROTOCOL.md).
+MICROCAP_PRODUCT = ProductPair(candidate="IWC", benchmark="IWM",
+                               eras=(("start", "2012-12-31"), ("2013-01-01", "2019-12-31"),
+                                     ("2020-01-01", "end")))
