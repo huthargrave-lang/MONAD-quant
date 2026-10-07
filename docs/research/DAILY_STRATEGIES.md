@@ -95,7 +95,7 @@ and cash.
 | F404729 | spin-offs: H404703 registered | REJECT-bound under gate rules v2: p_gate 0.0216 × (1+3) = 0.086 |
 | F404730 | S&P 500 deletions: buy after the forced selling (`INDEX_DELETION_PROTOCOL.md`) | uninformative: active Sharpe +0.31, vol-matched +0.14, SPA p 0.20 |
 | F404731 | credit sleeve: ANGL (fallen angels) vs HYG, static (`FALLEN_ANGEL_PROTOCOL.md`) | corroborates: +1.9%/yr, active Sharpe +0.30, SPA p 0.024, no IEF/SPY beta; a sleeve choice, too weak for the v2 gate |
-| F404732 | CEF mechanism, live: CEFS (Saba) vs PCEF, static (`CEF_PRODUCT_PROTOCOL.md`) | corroborates: +5.4%/yr, active Sharpe +0.59, SPA p 0.001, all eras positive; registrable only after the 10-year floor (about 2027-05) |
+| F404732 | CEF mechanism, live: CEFS (Saba) and MDCEX (Matisse) vs PCEF, static (`CEF_PRODUCT_PROTOCOL.md`) | corroborates twice: CEFS +5.4%/yr (SPA p 0.001, 2017-26); MDCEX active Sharpe +0.58 (SPA p 0.02, 2012-26); all eras positive |
 | F404733 | spin-offs, live: CSD (Invesco S&P Spin-Off ETF) vs IJH, static (`SPINOFF_PRODUCT_PROTOCOL.md`) | uninformative, null in substance: active Sharpe +0.04 over 19.7 years, max DD -70.5% |
 | F404734 | bond sleeve: MNA (merger arbitrage ETF) vs IEF, static (`MERGER_ARB_PRODUCT_PROTOCOL.md`) | null: active Sharpe +0.05; equity-correlated (+0.45), fell 12.6% in the COVID crash |
 | F404735 | buybacks, live: PKW (BuyBack Achievers ETF) vs SPY, static (`BUYBACK_PRODUCT_PROTOCOL.md`) | contradicts: active Sharpe -0.04 over 19.7 years |

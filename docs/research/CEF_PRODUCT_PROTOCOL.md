@@ -91,3 +91,24 @@ as grid `funds`, against the same benchmark (PCEF).
 | Verdict | **corroborates** if MDCEX has active Sharpe > 0 with t > 1.0 and the family SPA over this window's points (K = 2) is below 5%; **contradicts** if MDCEX's active Sharpe ≤ 0; otherwise uninformative. RNCOX is reported but does not decide. |
 | Registration | if corroborated, MDCEX's window passes the 10-year floor. Under gate rules v2 its m adds the off-window CEFS point to the declared 3. |
 | Execution caveat | mutual funds trade once a day at NAV. The evaluator's open and close are both NAV for them. Positions are static, so this matters little. |
+
+### Amendment 1 result: CORROBORATES (2026-10-07)
+
+- **Data.** Snapshot DS-84167824 (SPY, PCEF, MDCEX). **RNCOX was not served by Yahoo**
+  (likely its conversion to an ETF share class). It was dropped as an optional asset; its
+  errored trial counts as one unknown spec.
+- **Window.** From MDCEX's first 21 sessions (2012-11) to 2026-10-02, about 13.9 years.
+
+| | Excess Sharpe | CAGR | Max DD | Active Sharpe vs PCEF | Vol-matched | Eras |
+|---|---|---|---|---|---|---|
+| MDCEX | 0.62 | 9.95% | -48.7% | **+0.58** | +0.45 | +0.36 / +0.43 / +1.15 |
+
+- **Statistics.** SPA p 0.017-0.022; t ≈ 0.58 × √13.9 ≈ 2.2; active DSR 0.98. No
+  look-ahead violations.
+- **Verdict: corroborates.**
+- **Reading.** A second live discount-to-NAV fund, with a longer history than CEFS and a
+  different manager, beat the CEF index by a similar margin in every era.
+- **Not registered.** Under gate rules v2, m = 3 (prior) + 1 (unknown: RNCOX) + 1
+  (off-window: CEFS) = 5, so p_gate ≈ 0.022 × 6 ≈ 0.13 > 0.05, which would be
+  REJECT-bound. The evidence still matters: two independent live products corroborate
+  the mechanism behind H404702, whose forward window remains the admission path.
