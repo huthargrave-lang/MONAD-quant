@@ -292,6 +292,27 @@ CEF_PRODUCT = Domain(
     # (docs/research/CEF_PRODUCT_PROTOCOL.md).
     prior_search_trials=3)
 
+# ── live products as out-of-sample tests of a mechanism ─────────────────────
+from src.research import product_pairs as _pp  # noqa: E402
+
+
+def _product_domain(name: str, pair: "_pp.ProductPair", prior: int) -> Domain:
+    return Domain(
+        name=name, reference=pair.reference, eras=pair.eras,
+        load=lambda data: Context(snap=daily_data.load_snapshot(data["snapshot"])),
+        decide=lambda ctx, point: pair.decide(ctx.snap, point),
+        tiers=lambda ctx: None,
+        start=lambda ctx: pair.scoring_start(ctx.snap),
+        truncation=lambda ctx, point, cuts: pair.truncation_violations(ctx.snap, point, cuts),
+        grids=lambda: {"v1": pair.grid},
+        prior_search_trials=prior)
+
+
+# CSD (Invesco S&P Spin-Off ETF, 2006-) vs IJH: an out-of-sample test of F404728's spin-off
+# drift. A published effect, counted as 3 (docs/research/SPINOFF_PRODUCT_PROTOCOL.md).
+SPINOFF_PRODUCT = _product_domain("spinoff_product", _pp.SPINOFF_PRODUCT, 3)
+
 DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO, COUNTRY, BDC, INSIDER, MREIT,
-                                                  EARNINGS, SPINOFF, DELETION, CREDIT, CEF_PRODUCT)}
+                                                  EARNINGS, SPINOFF, DELETION, CREDIT, CEF_PRODUCT,
+                                                  SPINOFF_PRODUCT)}
 
