@@ -263,6 +263,20 @@ DELETION = Domain(
     # A published effect (Chen, Noronha and Singal 2004): counted as 3.
     prior_search_trials=3, panel_prefix="IDXDEL")
 
+# ── the fallen-angel premium as a credit sleeve ──────────────────────────────
+from src.research import credit_classes as _credit  # noqa: E402
+
+CREDIT = Domain(
+    name="credit_sleeve", reference=_credit.REFERENCE, eras=_credit.ERAS,
+    load=lambda data: Context(snap=daily_data.load_snapshot(data["snapshot"])),
+    decide=lambda ctx, point: _credit.decide(ctx.snap, point),
+    tiers=lambda ctx: None,
+    start=lambda ctx: _credit.scoring_start(ctx.snap),
+    truncation=lambda ctx, point, cuts: _credit.truncation_violations(ctx.snap, point, cuts),
+    grids=lambda: _credit.GRIDS,
+    # A published, widely marketed effect (fallen-angel index research): counted as 3.
+    prior_search_trials=3)
+
 DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO, COUNTRY, BDC, INSIDER, MREIT,
-                                                  EARNINGS, SPINOFF, DELETION)}
+                                                  EARNINGS, SPINOFF, DELETION, CREDIT)}
 
