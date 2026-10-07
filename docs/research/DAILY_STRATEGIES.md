@@ -89,8 +89,9 @@ and cash.
 | F404706 | CEF: cheapest 20% by raw discount (H404701) | passed every development stage, then REJECT-bound after a later search in its family (F404708) |
 | F404708 | CEF: tax-loss season | null, and it cost H404701 its deflation pass |
 | F404713 | CEF: within-category z-score with hysteresis (H404702) | passes every development stage; forward window to 2027-10-07 |
-| F404714 | BDC: the H404701 rule on a disjoint universe | same sign (+0.5 active Sharpe), underpowered (3.9 years) |
+| F404714 | BDC: the H404701 rule on a disjoint universe | same sign (+0.5 active Sharpe), underpowered (3.9 years); caveat: split-adjusted closes against as-reported NAV excluded OCSL and GLAD from cheap selection for some months (F404726) |
 | F404722 | BDC: the same rule on 2012-2022 (`BDC_PREPERIOD_TEST.md`) | not run: the filing-text NAV extractor failed its frozen pre-2022 cross-check (96.9% vs 98%) |
+| F404725, F404726 | mREIT: the rule on mortgage REITs vs book value (`MREIT_DISCOUNT_TEST*.md`) | not run twice: XBRL misses series-tagged preferred; stated-value extraction failed its blind audit (3/27 vs 2) |
 
 **The pattern.** Every published effect on liquid instruments has decayed or vanished.
 The surviving effect is discount selection in closed-end funds: capacity-constrained, in

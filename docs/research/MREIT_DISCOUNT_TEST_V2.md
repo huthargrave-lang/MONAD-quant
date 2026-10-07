@@ -61,3 +61,40 @@ share"). Build the price snapshot (SPY plus panel mREITs, 2011-01-01 to the late
 close). Run `tools/domain_search.py mreit_discount`. Judge by v1's criterion: corroborates
 if active Sharpe > 0 and t > 1.0; contradicts if active Sharpe ≤ 0; otherwise
 uninformative. Primary fraction 0.2.
+
+## Result: NOT RUN. The blind audit failed (gate 2), 2026-10-06
+
+No mREIT price was ever loaded, no snapshot was built, and no trial was run.
+
+| Gate | Result | Outcome |
+|---|---|---|
+| 1, independent source | no filer qualifies under the literal "no preferred concept" rule (authorised-share tags count) | uninformative, so gate 2 decides |
+| 2, blind audit (seed 20261007) | 27 compared, **3 more than 2% off** (bar: at most 2); 3 coverage misses | **FAIL** |
+| 3, coverage | 820/1056 = 77.7% of 2013-2026 quarter pairs | pass |
+
+**Gate 2's misses.** All three are rows the frozen label rule accepts but which do not hold
+the period-end figure:
+- BXMT 2018-09-30: extracted 0.67 against a stated 27.53;
+- BXMT 2024-06-30: 0.35 against 22.90;
+- MITT 2025-12-31: 0.90 against 10.48.
+
+The other 24 agree to the cent or within 0.5%. The coverage misses were ARR (twice) and
+RC; ARR's and ORC's extraction is sparse.
+
+Evidence:
+- `docs/research/data/mreit_v2_gate2.json`
+- `mreit_v2_gates13.json` (gates 1 and 3, plus 8 values rejected by the sanity bound)
+
+**A latent issue the gates did not reach: share basis.** Snapshot closes are
+split-adjusted (yfinance), but stated book values are on each filing's own share basis.
+MFA's 1-for-4 reverse split, and CIM's and DX's, would have put pre-split discounts on
+different bases. Any successor must divide each stated value by the split ratios after its
+filing date.
+
+**Where this leaves the mechanism.**
+- CEF discount selection (H404702) is the only tested instance.
+- Its BDC replication (F404714) is same-sign but underpowered.
+- Both mREIT protocols and the BDC pre-period test closed NOT RUN on measurement, never on
+  returns.
+- Per-share NAV and book value extraction from SEC filings is the bottleneck. Three
+  independent attempts failed their own validation.
