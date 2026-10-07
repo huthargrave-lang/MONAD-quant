@@ -41,3 +41,31 @@ discounted, riskier funds.
   exact rule.
 - **Fees.** CEFS reports a large acquired-fund-fee figure, as both funds hold CEFs.
 - **About 9.5 years**, including 2020 and 2022.
+
+## Result: CORROBORATES (2026-10-07)
+
+Data: snapshot DS-6e2f0f62 (SPY, PCEF, CEFS). Window 2017-04-20..2026-10-02 (9.4 years,
+2,377 sessions).
+
+| | Excess Sharpe | CAGR | Max DD | Active Sharpe vs PCEF | Vol-matched | Eras |
+|---|---|---|---|---|---|---|
+| PCEF (benchmark) | 0.32 | 6.23% | -38.6% | | | |
+| CEFS | 0.63 | **11.64%** | -39.0% | **+0.59** | +0.52 | +0.33 / +0.44 / +0.98 |
+
+- **Statistics.** SPA p 0.0012, < 0.0002 and 0.0002 at blocks 20/63/126 (B = 5000).
+  Active DSR 0.965. No look-ahead violations.
+- **Verdict: corroborates.**
+- **Reading.** A real, fee-paying, capacity-limited product that buys discounted CEFs and
+  agitates to close the discounts beat the broad CEF index by about 5%/yr. The drawdown
+  was the same, every era was positive, and the vol-matched active Sharpe barely moves,
+  so leverage does not explain it. It is out of sample and survivorship-free (both funds
+  live throughout), and no search in this repo chose it. This is the strongest
+  independent evidence that the mechanism behind H404702 is real and survives
+  implementation.
+- **The v2 gate would admit it.** Worst p 0.0012 × (1 + 3) ≈ 0.005 ≤ 0.05.
+- **It cannot be registered yet.** The tactical profile requires at least 10 years of
+  development data (`prereg.MIN_TACTICAL_YEARS`), and CEFS launched in 2017-03. A
+  registration becomes possible around 2027-05.
+- **For the product (D6).** A CEF sleeve can be held as CEFS today. It carries CEF
+  equity-and-credit drawdowns (-39%), so it belongs beside the static allocation, not in
+  place of bonds.
