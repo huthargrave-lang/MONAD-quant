@@ -113,3 +113,11 @@ the old DSR gate it would have passed (0.997).
 
 The dry run also found a machinery bug, now fixed: the witness stage named CEF NAV files
 for every domain with a second dataset. Domains now declare `panel_prefix`.
+
+## Pre-period test: not feasible (2026-10-07)
+
+A pre-period test of the frozen rule on 2001-2010 spin-offs (EDGAR full-text search starts
+in 2001) was scoped before any price was loaded. The same marker finds 95 spin-offs among
+220 registrants, but only **27 still trade (72% gone)**. That is about 2 positions open at
+a time, under extreme survivorship: the test would be uninformative almost regardless of
+the truth. It was not run, and no trial was recorded.
