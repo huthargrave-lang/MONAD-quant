@@ -46,3 +46,24 @@ gate rules v2.
 - **Item 2.02 date vs press release.** Most releases are filed the same day; a few lag.
 - **Costs dominate.** The 30-day point turns over about 12 times a year. At 30 bps
   one-way that is roughly 7%/yr, similar to the published long-short premium.
+
+## Result: CONTRADICTS (2026-10-07)
+
+Data: dates panel EARNDATES-adfd2075, covering 1,171 of 1,259 snapshot tickers with
+earnings 8-Ks. Window 2020-12-30..2026-10-02. Ledger runs: benchmark
+TR-20261007T005042Z-27c366e9, search TR-20261007T005045Z-614e46c5.
+
+| Point | Excess Sharpe | CAGR | Max DD | Cost/yr | Active Sharpe | Vol-matched |
+|---|---|---|---|---|---|---|
+| Benchmark (EW universe) | 0.26 | 6.75% | -35.2% | 0.47% | | |
+| `earn_window` 30 days | -0.35 | -7.00% | -58.9% | 15.49% | **-1.62** | -1.67 |
+| `earn_window` 7 days | -1.01 | -21.04% | -78.3% | 33.86% | **-2.69** | -2.69 |
+
+- Both points have active Sharpe ≤ 0 after costs, in every era (best era -1.25).
+- SPA p = 1.00 at every block; active DSR 0.00.
+- No look-ahead violations at 12 cuts.
+
+**Why.** Costs ran about twice the protocol's estimate. Daily equal weighting re-trims
+every holding as names enter and leave, not only the entering and leaving names. Even
+before costs, the 30-day point beat the universe by only about 1-2% a year, inside its
+noise. In this sample of small caps, the effect is too small to pay for small-cap trading.
