@@ -81,3 +81,14 @@ historically beat HYG by about 2%/yr, not through rate or equity exposure, at th
 deeper drawdowns (-29% against -22%). The evidence is moderate: it clears SPA at 5%, but
 under gate rules v2 a registered version would need p × (1 + 3) ≤ 0.05, and 0.024 × 4 ≈
 0.10 would fail. This is a reasonable sleeve choice, not an admitted edge.
+
+## Amendment: a robustness check on a second fallen-angel fund (frozen before running)
+
+- **What.** FALN (iShares Fallen Angels USD Bond ETF, since 2016; a different index
+  provider and fund family) is run against the same HYG benchmark as grid `robustness`.
+  It uses a new snapshot (SPY, HYG, IEF, ANGL, FALN), whose window starts when all are
+  priced, in 2016.
+- **Reading.** If the mechanism is real rather than one product's quirk, FALN should also
+  show active Sharpe > 0 with t > 1.0 against HYG.
+- **Counting.** It is a counted point in `credit_sleeve.v1`. On the shorter common window,
+  ANGL is re-scored alongside it.

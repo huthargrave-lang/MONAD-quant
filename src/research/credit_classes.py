@@ -34,7 +34,13 @@ def grid() -> list[dict]:
     return [{"class": "static_sleeve", "params": {"asset": "ANGL"}}]
 
 
-GRIDS = {"v1": grid}
+def robustness() -> list[dict]:
+    """A second fallen-angel fund from another index provider (iShares, since 2016): run
+    after v1 corroborated, as a robustness check (FALLEN_ANGEL_PROTOCOL.md, amendment)."""
+    return [{"class": "static_sleeve", "params": {"asset": "FALN"}}]
+
+
+GRIDS = {"v1": grid, "robustness": robustness}
 
 
 def decide(snap: Snapshot, point: Mapping) -> list[Tranche]:
@@ -44,7 +50,8 @@ def decide(snap: Snapshot, point: Mapping) -> list[Tranche]:
 
 
 def scoring_start(snap: Snapshot) -> pd.Timestamp:
-    return common_start(snap, ["ANGL", BENCH], WARMUP)
+    assets = ["ANGL", BENCH] + (["FALN"] if "FALN" in snap.assets else [])
+    return common_start(snap, assets, WARMUP)
 
 
 def truncation_violations(snap: Snapshot, point: Mapping, cuts) -> list[str]:
