@@ -277,6 +277,21 @@ CREDIT = Domain(
     # A published, widely marketed effect (fallen-angel index research): counted as 3.
     prior_search_trials=3)
 
+# ── the CEF discount mechanism as a live product ───────────────────────────
+from src.research import cef_product_classes as _cefp  # noqa: E402
+
+CEF_PRODUCT = Domain(
+    name="cef_product", reference=_cefp.REFERENCE, eras=_cefp.ERAS,
+    load=lambda data: Context(snap=daily_data.load_snapshot(data["snapshot"])),
+    decide=lambda ctx, point: _cefp.decide(ctx.snap, point),
+    tiers=lambda ctx: None,
+    start=lambda ctx: _cefp.scoring_start(ctx.snap),
+    truncation=lambda ctx, point, cuts: _cefp.truncation_violations(ctx.snap, point, cuts),
+    grids=lambda: _cefp.GRIDS,
+    # One comparison, suggested by H404702's mechanism: counted as 3 to be conservative
+    # (docs/research/CEF_PRODUCT_PROTOCOL.md).
+    prior_search_trials=3)
+
 DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO, COUNTRY, BDC, INSIDER, MREIT,
-                                                  EARNINGS, SPINOFF, DELETION, CREDIT)}
+                                                  EARNINGS, SPINOFF, DELETION, CREDIT, CEF_PRODUCT)}
 

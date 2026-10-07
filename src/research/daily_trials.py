@@ -50,6 +50,7 @@ DOMAINS = {
     "spinoff_drift": {"family": "spinoff_drift", "reference_class": "spinoff_index"},
     "index_deletion": {"family": "index_deletion", "reference_class": "deletion_index"},
     "credit_sleeve": {"family": "credit_sleeve", "reference_class": "sleeve_benchmark"},
+    "cef_product": {"family": "cef_product", "reference_class": "product_benchmark"},
 }
 DEFAULT_DOMAIN = "etf_alloc"      # trials recorded before domains existed (the v1 search)
 
