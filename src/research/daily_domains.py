@@ -311,8 +311,11 @@ def _product_domain(name: str, pair: "_pp.ProductPair", prior: int) -> Domain:
 # CSD (Invesco S&P Spin-Off ETF, 2006-) vs IJH: an out-of-sample test of F404728's spin-off
 # drift. A published effect, counted as 3 (docs/research/SPINOFF_PRODUCT_PROTOCOL.md).
 SPINOFF_PRODUCT = _product_domain("spinoff_product", _pp.SPINOFF_PRODUCT, 3)
+# MNA (IQ Merger Arbitrage ETF, 2009-) vs IEF: is merger arbitrage a better bond sleeve?
+# A published premium, counted as 3 (docs/research/MERGER_ARB_PRODUCT_PROTOCOL.md).
+MERGER_ARB_PRODUCT = _product_domain("merger_arb_product", _pp.MERGER_ARB_PRODUCT, 3)
 
 DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO, COUNTRY, BDC, INSIDER, MREIT,
                                                   EARNINGS, SPINOFF, DELETION, CREDIT, CEF_PRODUCT,
-                                                  SPINOFF_PRODUCT)}
+                                                  SPINOFF_PRODUCT, MERGER_ARB_PRODUCT)}
 

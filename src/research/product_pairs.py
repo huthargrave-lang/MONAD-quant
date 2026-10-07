@@ -61,3 +61,9 @@ class ProductPair:
 SPINOFF_PRODUCT = ProductPair(candidate="CSD", benchmark="IJH",
                               eras=(("start", "2012-12-31"), ("2013-01-01", "2019-12-31"),
                                     ("2020-01-01", "end")))
+
+#: Live merger-arbitrage product against the bond leg it would replace
+#: (docs/research/MERGER_ARB_PRODUCT_PROTOCOL.md).
+MERGER_ARB_PRODUCT = ProductPair(candidate="MNA", benchmark="IEF",
+                                 eras=(("start", "2014-12-31"), ("2015-01-01", "2020-12-31"),
+                                       ("2021-01-01", "end")))
