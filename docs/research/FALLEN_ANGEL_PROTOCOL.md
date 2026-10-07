@@ -92,3 +92,19 @@ under gate rules v2 a registered version would need p × (1 + 3) ≤ 0.05, and 0
   show active Sharpe > 0 with t > 1.0 against HYG.
 - **Counting.** It is a counted point in `credit_sleeve.v1`. On the shorter common window,
   ANGL is re-scored alongside it.
+
+### Robustness result (2026-10-07)
+
+On snapshot DS-1fc68b55, common window 2016-07-21..2026-10-02, against HYG:
+
+| | Excess Sharpe | CAGR | Max DD | Active Sharpe | Vol-matched | Eras |
+|---|---|---|---|---|---|---|
+| HYG | 0.26 | 4.36% | -22.0% | | | |
+| FALN | 0.39 | 5.64% | -29.2% | **+0.31** | +0.26 | +0.43 / +0.56 / -0.20 |
+| ANGL | 0.35 | 5.35% | -29.3% | +0.24 | +0.17 | +0.72 / +0.51 / -0.50 |
+
+- **Statistics.** Family SPA p 0.13-0.17 (K = 2) on this 10-year window.
+- **Reading.** Two fallen-angel funds, from different index providers, beat broad high
+  yield by about the same amount, and both lost in the 2022 rate shock. The sign and size
+  replicate. Significance comes only from ANGL's longer 2012-2026 history (SPA p 0.024).
+  The verdict stands: a reasonable credit sleeve, not an admitted edge.
