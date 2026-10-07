@@ -45,6 +45,9 @@ class Domain:
     truncation: Callable[[Context, Mapping, list], list]
     grids: Callable[[], dict]                            # name -> frozen grid function
     prior_search_trials: int                             # declared search the ledger cannot see
+    #: The file prefix of the domain's second frozen dataset (``data["nav_panel"]``), so the
+    #: gate's witness stage checks the right files (None: the domain has only a snapshot).
+    panel_prefix: str | None = None
 
     def grid(self) -> list:
         """Every point of every frozen search in the domain."""
@@ -106,7 +109,7 @@ CEF = Domain(
     grids=lambda: _cef().GRIDS,
     # Discount mean reversion x 3 and the F257 pilot (4), the CEF January effect x 3 (7),
     # hysteresis as a practitioner variant x 2 (9). It only grows.
-    prior_search_trials=9)
+    prior_search_trials=9, panel_prefix="CEFNAV")
 
 # ── crypto trend-following against a static half-crypto blend ───────────────
 from src.research import crypto_classes as _crypto  # noqa: E402  (no import cycle)
@@ -157,7 +160,7 @@ BDC = Domain(
     grids=lambda: _bdc.GRIDS,
     # A replication of the CEF mechanism the CEF family found (its search is counted
     # there); BDC price-to-NAV is also a published screen: counted as 3.
-    prior_search_trials=3)
+    prior_search_trials=3, panel_prefix="BDCNAV")
 
 # ── insider purchase clusters against the small-cap index ────────────────────
 from src.research import insider_classes as _ins  # noqa: E402
@@ -178,7 +181,7 @@ INSIDER = Domain(
     truncation=lambda ctx, point, cuts: _ins.truncation_violations(ctx.snap, ctx.panel, point, cuts),
     grids=lambda: _ins.GRIDS,
     # A published effect (Lakonishok-Lee; Cohen-Malloy-Pomorski): counted as 3.
-    prior_search_trials=3)
+    prior_search_trials=3, panel_prefix="INSIDER")
 
 # ── mortgage REIT book-value discount: a second disjoint test of the CEF mechanism ──
 from src.research import mreit_classes as _mreit  # noqa: E402
@@ -199,7 +202,7 @@ MREIT = Domain(
     grids=lambda: _mreit.GRIDS,
     # The CEF mechanism's second out-of-sample replication (docs/research/
     # MREIT_DISCOUNT_TEST.md); mREIT price-to-book is a common screen: counted as 3.
-    prior_search_trials=3)
+    prior_search_trials=3, panel_prefix="MREITBV")
 
 # ── the earnings-announcement premium in small caps ─────────────────────────
 from src.research import earnings_classes as _earn  # noqa: E402
@@ -220,7 +223,7 @@ EARNINGS = Domain(
     grids=lambda: _earn.GRIDS,
     # A published effect (Frazzini-Lamont 2007; Barber et al. 2013): counted as the
     # survivor of 3 variants (docs/research/EARNINGS_PREMIUM_PROTOCOL.md).
-    prior_search_trials=3)
+    prior_search_trials=3, panel_prefix="EARNDATES")
 
 # ── spin-off drift ─────────────────────────────────────────────────────────
 from src.research import spinoff_classes as _spin  # noqa: E402
@@ -239,7 +242,7 @@ SPINOFF = Domain(
     truncation=lambda ctx, point, cuts: _spin.truncation_violations(ctx.snap, ctx.panel, point, cuts),
     grids=lambda: _spin.GRIDS,
     # A published effect (Cusatis, Miles and Woolridge 1993): counted as 3.
-    prior_search_trials=3)
+    prior_search_trials=3, panel_prefix="SPINEVENTS")
 
 DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO, COUNTRY, BDC, INSIDER, MREIT,
                                                   EARNINGS, SPINOFF)}

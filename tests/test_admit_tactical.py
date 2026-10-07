@@ -227,6 +227,17 @@ class TacticalGate(unittest.TestCase):
         self.assertTrue(any(r["withheld_m"] > 0 for r in study["size"]))
         self.assertLessEqual(study["trigger"], 0.075)
 
+    def test_the_witness_names_each_domains_own_panel_files(self):
+        """A domain with a second frozen dataset declares its file prefix; the witness stage
+        must check THAT file, not a CEF NAV panel of the same sha (found on H404703)."""
+        from src.research.daily_domains import DOMAINS
+        for name, prefix in (("cef_discount", "CEFNAV"), ("bdc_discount", "BDCNAV"),
+                             ("insider_cluster", "INSIDER"), ("mreit_discount", "MREITBV"),
+                             ("earnings_premium", "EARNDATES"), ("spinoff_drift", "SPINEVENTS")):
+            files = admit_tactical._data_files({"snapshot": "s" * 64, "nav_panel": "p" * 64}, DOMAINS[name])
+            self.assertTrue(any(f.endswith(f"{prefix}-{'p' * 64}.csv.gz") for f in files), (name, files))
+        self.assertEqual(len(admit_tactical._data_files({"snapshot": "s" * 64}, DOMAINS["etf_alloc"])), 2)
+
     def test_the_overlap_check_refuses_forward_data_from_another_market(self):
         other = market(seed=99)
         self.assertTrue(admit_tactical.overlap_problems(self.ctx, Context(snap=other)))

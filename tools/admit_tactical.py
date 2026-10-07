@@ -134,12 +134,16 @@ def v2_gate(fam: FamilyActive, searched, params: dict) -> tuple[int, dict, "stat
                                            alpha=params["familywise_alpha"])
 
 
-def _data_files(spec_data: dict) -> list[str]:
+def _data_files(spec_data: dict, domain: Domain) -> list[str]:
+    """The frozen files the verdict rests on: the price snapshot, and the domain's second
+    dataset (NAV panel, event panel) under the domain's own prefix."""
     base = daily_data.DATA_DIR
     files = [base / f"DS-{spec_data['snapshot']}.csv.gz", base / f"DS-{spec_data['snapshot']}.json"]
     if spec_data.get("nav_panel"):
-        files += [base / f"CEFNAV-{spec_data['nav_panel']}.csv.gz",
-                  base / f"CEFNAV-{spec_data['nav_panel']}.json"]
+        if domain.panel_prefix is None:
+            raise ValueError(f"domain {domain.name} names a panel but declares no panel_prefix")
+        files += [base / f"{domain.panel_prefix}-{spec_data['nav_panel']}.csv.gz",
+                  base / f"{domain.panel_prefix}-{spec_data['nav_panel']}.json"]
     return [str(f) for f in files]
 
 
@@ -258,7 +262,7 @@ def evaluate(hypothesis: str, spec: dict, spec_hash: str, record: dict, *, now=N
     # ── witness ─────────────────────────────────────────────────────────────
     record["witnessed_sha"] = deploy_sha()
     runs = sorted({str(trials.LEDGER_DIR / f"{r.run_id}.jsonl") for r in searched + searched_refs})
-    problems = witness(spec, prereg.path_for(hypothesis, prereg_dir), runs + _data_files(p["data"]))
+    problems = witness(spec, prereg.path_for(hypothesis, prereg_dir), runs + _data_files(p["data"], domain))
     stages.append(stage_witness(problems, len(runs)))
 
     # ── lookahead ───────────────────────────────────────────────────────────

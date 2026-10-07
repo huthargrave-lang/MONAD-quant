@@ -93,3 +93,23 @@ The admission machinery's forward loader (`admit_tactical.default_load_forward`)
 the development universe, so it would see no new spin-offs. An event-domain forward loader,
 which adds new 10-12B registrants and their prices, is required before this can be
 admitted.
+
+## Registration and gate (2026-10-07): H404703 is REJECT-bound under gate rules v2
+
+The k = 21 point is registered as **H404703** (`docs/research/prereg/H404703.json`, gate
+rules 2, 365-day forward window).
+
+`tools/admit.py H404703 --dry-run`:
+- development reproduces the recorded trial exactly (11.9 years, 184 rebalances);
+- lookahead, eras and 2× cost stress pass (active +8.85%/yr at 2× cost);
+- the deflation diagnostic shows DSR 0.997;
+- **familywise FAILS**: p_gate = worst p 0.0216 × (1 + 3) = **0.086 > 0.05**.
+
+The (1 + m) charge covers the declared prior search (3, for a published effect) by the
+union bound. A development-stage fail cannot be undone by the forward window, so
+**H404703 is REJECT-bound**. The spin-off drift is real enough to corroborate under its
+domain criterion, but not strong enough to clear the v2 gate's full search charge. Under
+the old DSR gate it would have passed (0.997).
+
+The dry run also found a machinery bug, now fixed: the witness stage named CEF NAV files
+for every domain with a second dataset. Domains now declare `panel_prefix`.
