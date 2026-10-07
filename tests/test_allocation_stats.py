@@ -86,6 +86,27 @@ class SPA(unittest.TestCase):
             sig.superior_predictive_ability(np.full((100, 2), np.nan), mean_block=5)
 
 
+class FamilywiseDropsFoundNothingMembers(unittest.TestCase):
+    """A member identical to the benchmark has an all-zero active series. SPA cannot
+    bootstrap it; it is dropped as an exact equivalence (gate rules v2 consensus (ii)),
+    found when a benchmark was also recorded as a family point (credit_sleeve)."""
+
+    def test_a_zero_variance_member_is_dropped_and_the_result_unchanged(self):
+        import numpy as np
+        import pandas as pd
+        from src.research import allocation_stats as stats
+        idx = pd.bdate_range("2015-01-02", periods=600)
+        rng = np.random.default_rng(3)
+        fam = {"cand": pd.Series(rng.normal(0.0004, 0.01, 600), index=idx),
+               "other": pd.Series(rng.normal(0.0, 0.01, 600), index=idx)}
+        base = stats.familywise(fam, "cand", n_boot=300)
+        with_zero = stats.familywise({**fam, "same_as_benchmark": pd.Series(0.0, index=idx)},
+                                     "cand", n_boot=300)
+        self.assertEqual([b["candidate_pvalue"] for b in base],
+                         [b["candidate_pvalue"] for b in with_zero])
+        self.assertEqual(with_zero[0]["family_size"], 2)
+
+
 class DuplicatePoints(unittest.TestCase):
     def test_identical_orders_are_flagged_and_distinct_ones_are_not(self):
         from src.research.daily_strategy import Tranche

@@ -9,7 +9,8 @@ long-only investor can own the effect through a fallen-angel index fund. The que
 a static one: as the credit sleeve of a bond alternative (D6), does a fallen-angel fund
 beat the broad high-yield fund?
 
-  * candidate (``static_sleeve``, ANGL): 100% ANGL; benchmark: 100% HYG;
+  * candidate (``static_sleeve``, ANGL): 100% ANGL; benchmark (``sleeve_benchmark``): 100%
+    HYG (a separate class, so the report tells the two apart);
   * both rebalanced (trivially) every 21 sessions in 21 tranches at the open, tier1 costs;
   * window: from the first session both are priced for 21 sessions to the snapshot's end.
 """
@@ -25,7 +26,7 @@ from src.research.daily_strategy import Tranche, static_tranches
 
 BENCH = "HYG"
 ERAS = (("start", "2016-12-31"), ("2017-01-01", "2021-12-31"), ("2022-01-01", "end"))
-REFERENCE = {"class": "static_sleeve", "params": {"asset": BENCH}}
+REFERENCE = {"class": "sleeve_benchmark", "params": {"asset": BENCH}}
 WARMUP = 21
 
 
@@ -37,7 +38,7 @@ GRIDS = {"v1": grid}
 
 
 def decide(snap: Snapshot, point: Mapping) -> list[Tranche]:
-    if point["class"] != "static_sleeve":
+    if point["class"] not in ("static_sleeve", "sleeve_benchmark"):
         raise ValueError(f"unknown credit class {point['class']!r}")
     return static_tranches({point["params"]["asset"]: 1.0}, snap.dates, every=MONTH, offsets=OFFSETS)
 

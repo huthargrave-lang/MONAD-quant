@@ -125,14 +125,19 @@ def familywise(active: Mapping[str, pd.Series], candidate: str, *,
                seed: int = 0) -> list[dict]:
     """Hansen's SPA over every family member, once per mean block length. Every series
     must cover the same sessions (``active_series`` guarantees it within one snapshot and
-    window). Returns, per block: the family's SPA p-value and the candidate's adjusted one."""
-    keys = list(active)
-    if candidate not in keys:
+    window). Returns, per block: the family's SPA p-value and the candidate's adjusted one.
+
+    Members other than the candidate with no variance (a point identical to the benchmark
+    found nothing) are dropped: max* is floored at 0, so this is an exact equivalence (gate
+    rules v2 consensus (ii); ``familywise_gate`` does the same). ``family_size`` counts the
+    members kept."""
+    if candidate not in active:
         raise ValueError(f"{candidate} is not a family member")
-    frame = pd.DataFrame({k: active[k] for k in keys})
+    frame = pd.DataFrame({k: active[k] for k in active})
     if frame.isna().any().any():
         raise ValueError("family active series do not share one set of sessions")
-    d = frame.to_numpy(dtype=float)
+    keys = [k for k in frame.columns if k == candidate or float(frame[k].std(ddof=1)) > 0.0]
+    d = frame[keys].to_numpy(dtype=float)
     j = keys.index(candidate)
     out = []
     for b in blocks:
