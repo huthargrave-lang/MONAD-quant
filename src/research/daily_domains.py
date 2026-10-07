@@ -244,6 +244,25 @@ SPINOFF = Domain(
     # A published effect (Cusatis, Miles and Woolridge 1993): counted as 3.
     prior_search_trials=3, panel_prefix="SPINEVENTS")
 
+# ── S&P 500 deletion rebound ──────────────────────────────────────────────
+from src.research import deletion_classes as _del  # noqa: E402
+
+
+def _del_load(data: Mapping) -> Context:
+    return Context(snap=daily_data.load_snapshot(data["snapshot"]),
+                   panel=_del.load_events(data["nav_panel"]))
+
+
+DELETION = Domain(
+    name="index_deletion", reference=_del.REFERENCE, eras=_del.ERAS, load=_del_load,
+    decide=lambda ctx, point: _del.decide(ctx.snap, ctx.panel, point),
+    tiers=lambda ctx: _del.tiers(ctx.snap, ctx.panel),
+    start=lambda ctx: _del.scoring_start(ctx.snap, ctx.panel),
+    truncation=lambda ctx, point, cuts: _del.truncation_violations(ctx.snap, ctx.panel, point, cuts),
+    grids=lambda: _del.GRIDS,
+    # A published effect (Chen, Noronha and Singal 2004): counted as 3.
+    prior_search_trials=3, panel_prefix="IDXDEL")
+
 DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO, COUNTRY, BDC, INSIDER, MREIT,
-                                                  EARNINGS, SPINOFF)}
+                                                  EARNINGS, SPINOFF, DELETION)}
 

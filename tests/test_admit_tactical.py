@@ -233,7 +233,8 @@ class TacticalGate(unittest.TestCase):
         from src.research.daily_domains import DOMAINS
         for name, prefix in (("cef_discount", "CEFNAV"), ("bdc_discount", "BDCNAV"),
                              ("insider_cluster", "INSIDER"), ("mreit_discount", "MREITBV"),
-                             ("earnings_premium", "EARNDATES"), ("spinoff_drift", "SPINEVENTS")):
+                             ("earnings_premium", "EARNDATES"), ("spinoff_drift", "SPINEVENTS"),
+                             ("index_deletion", "IDXDEL")):
             files = admit_tactical._data_files({"snapshot": "s" * 64, "nav_panel": "p" * 64}, DOMAINS[name])
             self.assertTrue(any(f.endswith(f"{prefix}-{'p' * 64}.csv.gz") for f in files), (name, files))
         self.assertEqual(len(admit_tactical._data_files({"snapshot": "s" * 64}, DOMAINS["etf_alloc"])), 2)

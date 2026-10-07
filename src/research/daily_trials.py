@@ -48,6 +48,7 @@ DOMAINS = {
     "mreit_discount": {"family": "mreit_discount", "reference_class": "mreit_equal_weight"},
     "earnings_premium": {"family": "earnings_premium", "reference_class": "earn_universe"},
     "spinoff_drift": {"family": "spinoff_drift", "reference_class": "spinoff_index"},
+    "index_deletion": {"family": "index_deletion", "reference_class": "deletion_index"},
 }
 DEFAULT_DOMAIN = "etf_alloc"      # trials recorded before domains existed (the v1 search)
 
