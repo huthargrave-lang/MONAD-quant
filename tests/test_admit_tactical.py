@@ -238,7 +238,7 @@ class TacticalGate(unittest.TestCase):
             files = admit_tactical._data_files({"snapshot": "s" * 64, "nav_panel": "p" * 64}, DOMAINS[name])
             self.assertTrue(any(f.endswith(f"{prefix}-{'p' * 64}.csv.gz") for f in files), (name, files))
         for name in ("etf_alloc", "credit_sleeve", "cef_product", "spinoff_product",
-                     "merger_arb_product"):
+                     "merger_arb_product", "buyback_product"):
             self.assertEqual(len(admit_tactical._data_files({"snapshot": "s" * 64}, DOMAINS[name])), 2)
 
     def test_the_overlap_check_refuses_forward_data_from_another_market(self):

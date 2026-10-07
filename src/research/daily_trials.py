@@ -53,6 +53,7 @@ DOMAINS = {
     "cef_product": {"family": "cef_product", "reference_class": "product_benchmark"},
     "spinoff_product": {"family": "spinoff_product", "reference_class": "product_benchmark"},
     "merger_arb_product": {"family": "merger_arb_product", "reference_class": "product_benchmark"},
+    "buyback_product": {"family": "buyback_product", "reference_class": "product_benchmark"},
 }
 DEFAULT_DOMAIN = "etf_alloc"      # trials recorded before domains existed (the v1 search)
 

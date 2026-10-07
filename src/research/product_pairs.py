@@ -67,3 +67,8 @@ SPINOFF_PRODUCT = ProductPair(candidate="CSD", benchmark="IJH",
 MERGER_ARB_PRODUCT = ProductPair(candidate="MNA", benchmark="IEF",
                                  eras=(("start", "2014-12-31"), ("2015-01-01", "2020-12-31"),
                                        ("2021-01-01", "end")))
+
+#: Live buyback product against the market (docs/research/BUYBACK_PRODUCT_PROTOCOL.md).
+BUYBACK_PRODUCT = ProductPair(candidate="PKW", benchmark="SPY",
+                              eras=(("start", "2012-12-31"), ("2013-01-01", "2019-12-31"),
+                                    ("2020-01-01", "end")))

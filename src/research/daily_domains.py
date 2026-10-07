@@ -314,8 +314,12 @@ SPINOFF_PRODUCT = _product_domain("spinoff_product", _pp.SPINOFF_PRODUCT, 3)
 # MNA (IQ Merger Arbitrage ETF, 2009-) vs IEF: is merger arbitrage a better bond sleeve?
 # A published premium, counted as 3 (docs/research/MERGER_ARB_PRODUCT_PROTOCOL.md).
 MERGER_ARB_PRODUCT = _product_domain("merger_arb_product", _pp.MERGER_ARB_PRODUCT, 3)
+# PKW (Invesco BuyBack Achievers ETF, 2006-) vs SPY: the buyback drift, live. A published
+# effect, counted as 3 (docs/research/BUYBACK_PRODUCT_PROTOCOL.md).
+BUYBACK_PRODUCT = _product_domain("buyback_product", _pp.BUYBACK_PRODUCT, 3)
 
 DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO, COUNTRY, BDC, INSIDER, MREIT,
                                                   EARNINGS, SPINOFF, DELETION, CREDIT, CEF_PRODUCT,
-                                                  SPINOFF_PRODUCT, MERGER_ARB_PRODUCT)}
+                                                  SPINOFF_PRODUCT, MERGER_ARB_PRODUCT,
+                                                  BUYBACK_PRODUCT)}
 
