@@ -41,3 +41,25 @@ is judged partly by what it does when stocks fall.
   arbitrage premium.
 - **The window includes the 2022 rate shock,** which hurt IEF badly. The eras are
   reported so one year cannot carry the verdict unseen.
+
+## Result: UNINFORMATIVE, null in substance (2026-10-07)
+
+Data: snapshot DS-fd08de9e (SPY, IEF, SHY, MNA), from MNA's first 21 sessions (late 2009)
+to 2026-10-02.
+
+| | Excess Sharpe | CAGR | Max DD | Active Sharpe vs IEF | Vol-matched | Eras |
+|---|---|---|---|---|---|---|
+| MNA | 0.18 | 2.63% | -16.7% | +0.05 | +0.03 | -0.23 / -0.02 / +0.49 |
+
+- **Statistics.** SPA p 0.40-0.41; active DSR 0.57. No look-ahead violations.
+- **Verdict: uninformative** (t < 1). In substance null.
+
+**Declared diagnostics:**
+- Correlation with SPY: MNA +0.45, IEF -0.25.
+- Against SHY: active Sharpe +0.22 (+1.6%/yr).
+- COVID crash (2020-02-19..03-23): MNA -12.6%, IEF +6.4%, SPY -33.4%.
+- 2022 to the October low: MNA -2.9%, IEF -17.0%, SPY -23.8%.
+
+**What it means for D6.** Merger arbitrage is not a better bond sleeve. It earns no
+premium over intermediate Treasuries, and it trades rate risk for equity-crash risk: it
+fell with stocks in 2020, when Treasuries hedged, and only helped in the 2022 rate shock.
