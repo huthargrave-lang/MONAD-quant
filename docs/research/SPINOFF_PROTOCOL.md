@@ -121,3 +121,10 @@ in 2001) was scoped before any price was loaded. The same marker finds 95 spin-o
 220 registrants, but only **27 still trade (72% gone)**. That is about 2 positions open at
 a time, under extreme survivorship: the test would be uninformative almost regardless of
 the truth. It was not run, and no trial was recorded.
+
+## Superseded (2026-10-07)
+
+The live spin-off product CSD (Invesco S&P Spin-Off ETF, 2006-) shows no drift against
+mid caps over 19.7 years: active Sharpe +0.04, SPA p 0.42 (`SPINOFF_PRODUCT_PROTOCOL.md`,
+F404733). The survivor-only backtest above is best read as a sample artifact, and F404728
+is superseded (reason: reversed).

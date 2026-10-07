@@ -39,3 +39,26 @@ v2, which needs worst p × (1 + 3) ≤ 0.05.
 - **Benchmark choice.** IJH is fixed in advance. IWM and SPY are shown only as
   diagnostics, so the benchmark cannot be shopped after the fact.
 - **CSD is small and thinly traded**, so its fees and tracking matter.
+
+## Result: UNINFORMATIVE, null in substance (2026-10-07)
+
+Data: snapshot DS-f247566b (SPY, IJH, IWM, CSD). About 19.7 years from CSD's first 21
+sessions.
+
+| | Excess Sharpe | CAGR | Max DD | Active Sharpe vs IJH | Vol-matched | Eras |
+|---|---|---|---|---|---|---|
+| IJH (benchmark) | 0.45 | 9.57% | -55.1% | | | |
+| CSD | 0.44 | 9.72% | **-70.5%** | +0.04 | -0.02 | -0.10 / -0.33 / +0.48 |
+
+- **Statistics.** SPA p 0.42 at every block; active DSR 0.57; t ≈ 0.18. No look-ahead
+  violations.
+- **Verdict: uninformative** (active Sharpe > 0, t < 1).
+- **Declared diagnostics, not deciding.** Active Sharpe against IWM +0.09 (+1.3%/yr) and
+  against SPY -0.01. No benchmark shows an edge.
+
+**What it means for F404728.** A live, survivorship-free spin-off product earned nothing
+over mid caps across two decades, and drew down 15 points deeper. The survivor-only
+backtest's +0.80 active Sharpe most likely came from survivorship plus a strong 2020s
+cohort. CSD's only positive era is also 2020+ (+0.48), which matches that cohort, but the
+effect does not persist. F404728 is now best read as an artifact of its sample, and
+H404703's REJECT stands on two grounds.
