@@ -57,3 +57,39 @@ business is worth. Does it survive in 2011-2026?
   index. The vol-matched active Sharpe is reported to expose a size or beta artifact.
 - **Marker errors.** A non-spin 10-12B with a large EX-99.1, or a spin-off whose
   information statement was filed under another exhibit number.
+
+## Result: CORROBORATES under the pre-stated criterion (2026-10-07)
+
+Data: snapshot DS-d038fe35 (IWM plus 125 of the 159 surviving spin-offs; 34 not served by
+Yahoo) and events panel SPINEVENTS-fce8d5c3. Window 2014-11-13..2026-10-02, 11.9 years.
+Ledger: benchmark TR-20261007T011447Z-a0562a41, search TR-20261007T011447Z-df9569e4.
+
+| Point | Excess Sharpe | CAGR | Max DD | Cost/yr | Active Sharpe vs IWM | Vol-matched | Eras |
+|---|---|---|---|---|---|---|---|
+| IWM (benchmark) | 0.40 | 9.02% | -41.1% | 0.00% | | | |
+| `spinoff_hold` k = 21 | 0.77 | 19.47% | -44.3% | 0.78% | **+0.80** | +0.71 | +0.01 / +0.45 / +1.40 |
+| `spinoff_hold` k = 1 | 0.72 | 18.14% | -44.5% | 0.80% | +0.64 | +0.56 | +0.30 / +0.45 / +0.93 |
+
+- **Statistics.** Familywise SPA p for k = 21 is 0.012, 0.021 and 0.019 at blocks
+  20/63/126. Active DSR 0.997. t = 0.80 × √11.9 ≈ 2.8. No look-ahead violations at 12 cuts.
+- **Verdict: corroborates** (active Sharpe > 0, t > 1.0, SPA < 5%).
+
+**Diagnostics** (from the recorded series, no new trial):
+- Against SPY, the k = 21 point has active Sharpe +0.42 (+6.3%/yr, t 1.45).
+- Regressed on SPY and IWM (betas 0.19 and 0.81), its alpha is **+8.9%/yr, t 2.57**. The
+  edge is not the large-over-small-cap tailwind of 2014-2026.
+- Active Sharpe against SPY by era is +0.17, +0.01 and +0.87.
+- **The survivorship pattern points the other way.** Recent spin-offs have had the least
+  time to be acquired or fail, so the 2022-2026 cohort is the most complete. It shows the
+  strongest effect; the older cohorts, filtered harder by survival to 2026, are weaker.
+  Survivorship inflation would predict the reverse. This argues against, but does not
+  rule out, a survivorship artifact.
+
+**Status.** This is development evidence with a known, unquantified survivorship bias. The
+forward window is the clean test: spin-offs that happen after registration have no
+survivorship.
+
+The admission machinery's forward loader (`admit_tactical.default_load_forward`) rebuilds
+the development universe, so it would see no new spin-offs. An event-domain forward loader,
+which adds new 10-12B registrants and their prices, is required before this can be
+admitted.
