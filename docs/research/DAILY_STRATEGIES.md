@@ -92,6 +92,8 @@ and cash.
 | F404714 | BDC: the H404701 rule on a disjoint universe | same sign (+0.5 active Sharpe), underpowered (3.9 years); caveat: split-adjusted closes against as-reported NAV excluded OCSL and GLAD from cheap selection for some months (F404726) |
 | F404722 | BDC: the same rule on 2012-2022 (`BDC_PREPERIOD_TEST.md`) | not run: the filing-text NAV extractor failed its frozen pre-2022 cross-check (96.9% vs 98%) |
 | F404728 | spin-offs: buy 21 sessions after listing, hold a year (`SPINOFF_PROTOCOL.md`) | corroborates in development: active Sharpe +0.80 vs IWM, SPA p ≈ 0.02, SPY/IWM alpha 8.9%/yr (t 2.6); survivorship unquantified, forward test needed |
+| F404729 | spin-offs: H404703 registered | REJECT-bound under gate rules v2: p_gate 0.0216 × (1+3) = 0.086 |
+| F404730 | S&P 500 deletions: buy after the forced selling (`INDEX_DELETION_PROTOCOL.md`) | uninformative: active Sharpe +0.31, vol-matched +0.14, SPA p 0.20 |
 | F404727 | small caps: earnings-announcement premium (`EARNINGS_PREMIUM_PROTOCOL.md`) | contradicts: active Sharpe -1.62 / -2.69 after 30 bps costs (15-34%/yr of turnover cost) |
 | F404725, F404726 | mREIT: the rule on mortgage REITs vs book value (`MREIT_DISCOUNT_TEST*.md`) | not run twice: XBRL misses series-tagged preferred; stated-value extraction failed its blind audit (3/27 vs 2) |
 

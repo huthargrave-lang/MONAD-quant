@@ -55,3 +55,26 @@ p × (1 + 3) ≤ 0.05, as H404703 showed.
   real effect.
 - **Destination.** Not every demoted stock moves to the S&P 400; some go to the 600. IJH
   is the nearer benchmark for most.
+
+## Result: UNINFORMATIVE (2026-10-07). No usable rebound
+
+- **Data.** Snapshot DS-9731bf32 (IJH plus 67 of 112 event tickers priced). 65 events
+  have a price on their effective session; 45 tickers (40%) are missing, as delisted,
+  acquired or reused.
+- **Window** 2014-11-05..2026-10-02.
+- **Ledger:** benchmark TR-20261007T041447Z-15e802e9, search TR-20261007T041447Z-92a865a1.
+
+| Point | Excess Sharpe | CAGR | Max DD | Cost/yr | Active Sharpe vs IJH | Vol-matched | Eras |
+|---|---|---|---|---|---|---|---|
+| IJH (benchmark) | 0.46 | 9.94% | -42.2% | 0.00% | | | |
+| `deletion_hold` k = 21 | 0.53 | 12.66% | -52.5% | 0.08% | +0.31 | **+0.14** | -0.41 / +0.42 / +0.35 |
+| `deletion_hold` k = 1 | 0.47 | 11.09% | -51.5% | 0.08% | +0.18 | +0.01 | -0.56 / +0.43 / +0.10 |
+
+- **Statistics.** SPA p 0.20-0.22 at every block; active DSR 0.857; t ≈ 1.07. No
+  look-ahead violations.
+- **Verdict.** Active Sharpe is positive but fails the familywise SPA, so the result is
+  **uninformative**.
+- **Interpretation.** The vol-matched active Sharpe (+0.14 and +0.01) shows most of the
+  apparent edge is extra volatility, and the first era is negative. Survivorship most
+  likely biases toward a rebound, so even this is generous. There is no usable deletion
+  rebound for a long-only buyer in this period.
