@@ -1,0 +1,349 @@
+{
+ "schema_version": 1,
+ "vintage": "2026-10-06",
+ "protocol": "docs/research/BDC_PREPERIOD_TEST.md",
+ "compared": 1165,
+ "agree": 1109,
+ "share": 0.951931330472103,
+ "filers": 49,
+ "disagreements": [
+  {
+   "ticker": "BBDC",
+   "period_end": "2013-12-31",
+   "extracted": 11.03,
+   "tagged": 16.1
+  },
+  {
+   "ticker": "BBDC",
+   "period_end": "2014-12-31",
+   "extracted": 12.09,
+   "tagged": 16.11
+  },
+  {
+   "ticker": "BBDC",
+   "period_end": "2015-12-31",
+   "extracted": 14.68,
+   "tagged": 15.23
+  },
+  {
+   "ticker": "BBDC",
+   "period_end": "2016-12-31",
+   "extracted": 15.3,
+   "tagged": 15.13
+  },
+  {
+   "ticker": "BBDC",
+   "period_end": "2017-12-31",
+   "extracted": 16.1,
+   "tagged": 13.43
+  },
+  {
+   "ticker": "BBDC",
+   "period_end": "2018-12-31",
+   "extracted": 16.11,
+   "tagged": 10.98
+  },
+  {
+   "ticker": "BBDC",
+   "period_end": "2019-12-31",
+   "extracted": 15.23,
+   "tagged": 11.66
+  },
+  {
+   "ticker": "BBDC",
+   "period_end": "2020-12-31",
+   "extracted": 15.13,
+   "tagged": 10.99
+  },
+  {
+   "ticker": "BCIC",
+   "period_end": "2017-12-31",
+   "extracted": 4.87,
+   "tagged": 48.69
+  },
+  {
+   "ticker": "BCIC",
+   "period_end": "2018-12-31",
+   "extracted": 4.23,
+   "tagged": 42.33
+  },
+  {
+   "ticker": "BCIC",
+   "period_end": "2019-12-31",
+   "extracted": 3.4,
+   "tagged": 33.95
+  },
+  {
+   "ticker": "BCIC",
+   "period_end": "2020-12-31",
+   "extracted": 2.88,
+   "tagged": 28.77
+  },
+  {
+   "ticker": "CION",
+   "period_end": "2017-12-31",
+   "extracted": 9.11,
+   "tagged": 18.28
+  },
+  {
+   "ticker": "CION",
+   "period_end": "2018-12-31",
+   "extracted": 9.14,
+   "tagged": 17.38
+  },
+  {
+   "ticker": "CION",
+   "period_end": "2019-12-31",
+   "extracted": 8.69,
+   "tagged": 16.8
+  },
+  {
+   "ticker": "CION",
+   "period_end": "2020-12-31",
+   "extracted": 8.4,
+   "tagged": 15.5
+  },
+  {
+   "ticker": "FSK",
+   "period_end": "2017-12-31",
+   "extracted": 9.3,
+   "tagged": 37.2
+  },
+  {
+   "ticker": "FSK",
+   "period_end": "2018-12-31",
+   "extracted": 7.84,
+   "tagged": 31.35
+  },
+  {
+   "ticker": "FSK",
+   "period_end": "2019-12-31",
+   "extracted": 7.64,
+   "tagged": 30.54
+  },
+  {
+   "ticker": "GECC",
+   "period_end": "2017-12-31",
+   "extracted": 12.42,
+   "tagged": 74.51
+  },
+  {
+   "ticker": "GECC",
+   "period_end": "2018-12-31",
+   "extracted": 10.34,
+   "tagged": 62.02
+  },
+  {
+   "ticker": "GECC",
+   "period_end": "2019-12-31",
+   "extracted": 8.63,
+   "tagged": 51.81
+  },
+  {
+   "ticker": "GECC",
+   "period_end": "2020-12-31",
+   "extracted": 3.46,
+   "tagged": 20.74
+  },
+  {
+   "ticker": "GECC",
+   "period_end": "2021-03-31",
+   "extracted": 3.89,
+   "tagged": 23.36
+  },
+  {
+   "ticker": "GECC",
+   "period_end": "2021-06-30",
+   "extracted": 3.9,
+   "tagged": 23.4
+  },
+  {
+   "ticker": "GECC",
+   "period_end": "2021-09-30",
+   "extracted": 3.7,
+   "tagged": 22.17
+  },
+  {
+   "ticker": "MSDL",
+   "period_end": "2019-12-31",
+   "extracted": 640.54,
+   "tagged": 20.0
+  },
+  {
+   "ticker": "MSIF",
+   "period_end": "2014-12-31",
+   "extracted": 8.4,
+   "tagged": 16.8
+  },
+  {
+   "ticker": "MSIF",
+   "period_end": "2015-12-31",
+   "extracted": 7.88,
+   "tagged": 15.76
+  },
+  {
+   "ticker": "MSIF",
+   "period_end": "2016-12-31",
+   "extracted": 8.15,
+   "tagged": 16.29
+  },
+  {
+   "ticker": "MSIF",
+   "period_end": "2017-12-31",
+   "extracted": 8.15,
+   "tagged": 16.29
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2018-09-30",
+   "extracted": 10.0,
+   "tagged": 18.26
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2019-09-30",
+   "extracted": 10.0,
+   "tagged": 19.81
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2020-09-30",
+   "extracted": 10.0,
+   "tagged": 19.47
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2021-09-30",
+   "extracted": 10.0,
+   "tagged": 21.84
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2021-12-31",
+   "extracted": 7.34,
+   "tagged": 22.03
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2022-03-31",
+   "extracted": 7.26,
+   "tagged": 21.79
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2022-06-30",
+   "extracted": 6.89,
+   "tagged": 20.67
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2022-09-30",
+   "extracted": 10.0,
+   "tagged": 20.38
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2023-09-30",
+   "extracted": 10.0,
+   "tagged": 19.63
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2024-09-30",
+   "extracted": 10.0,
+   "tagged": 18.09
+  },
+  {
+   "ticker": "OCSL",
+   "period_end": "2025-09-30",
+   "extracted": 10.0,
+   "tagged": 16.64
+  },
+  {
+   "ticker": "OFS",
+   "period_end": "2020-12-31",
+   "extracted": 12.46,
+   "tagged": 11.85
+  },
+  {
+   "ticker": "OFS",
+   "period_end": "2021-12-31",
+   "extracted": 11.85,
+   "tagged": 15.18
+  },
+  {
+   "ticker": "OFS",
+   "period_end": "2022-12-31",
+   "extracted": 15.18,
+   "tagged": 13.47
+  },
+  {
+   "ticker": "OFS",
+   "period_end": "2023-12-31",
+   "extracted": 13.47,
+   "tagged": 12.09
+  },
+  {
+   "ticker": "OFS",
+   "period_end": "2024-12-31",
+   "extracted": 12.09,
+   "tagged": 12.85
+  },
+  {
+   "ticker": "OFS",
+   "period_end": "2025-12-31",
+   "extracted": 12.85,
+   "tagged": 9.19
+  },
+  {
+   "ticker": "PFX",
+   "period_end": "2018-09-30",
+   "extracted": 5.9,
+   "tagged": 117.92
+  },
+  {
+   "ticker": "PFX",
+   "period_end": "2019-09-30",
+   "extracted": 3.97,
+   "tagged": 79.46
+  },
+  {
+   "ticker": "RAND",
+   "period_end": "2025-06-30",
+   "extracted": 3.0,
+   "tagged": 19.1
+  },
+  {
+   "ticker": "RAND",
+   "period_end": "2025-09-30",
+   "extracted": 3.73,
+   "tagged": 18.06
+  },
+  {
+   "ticker": "TPVG",
+   "period_end": "2017-12-31",
+   "extracted": 1.18,
+   "tagged": 13.25
+  },
+  {
+   "ticker": "TPVG",
+   "period_end": "2018-12-31",
+   "extracted": 1.78,
+   "tagged": 13.5
+  },
+  {
+   "ticker": "TPVG",
+   "period_end": "2019-12-31",
+   "extracted": 1.28,
+   "tagged": 13.34
+  },
+  {
+   "ticker": "TPVG",
+   "period_end": "2020-12-31",
+   "extracted": 1.16,
+   "tagged": 12.97
+  }
+ ],
+ "pre_period_parsed": 1736,
+ "pre_period_failed": 84
+}

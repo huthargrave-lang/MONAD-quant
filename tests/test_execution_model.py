@@ -7,6 +7,11 @@ Execution rule (backtest and live):
     3. TP/SL computed relative to the entry price, NOT bar N's close.
     4. Exit via target hit, stop hit, or time limit.
 
+Under ENGINE_VERSION 3 (docs/research/ENGINE_V3_QUESTION.md) the bracket is live from the
+entry bar N+1, an open at or through a level fills at the open (gap_stop / gap_target),
+the time exit fills at the OPEN of bar N+1+MAX (time_exit_truncated at the last close when
+the data ends first), and one position is held at a time.
+
 These tests verify this rule is implemented correctly in compute_trade_returns()
 and that the old failure mode (TP/SL anchored to bar N close) is not reintroduced.
 """
@@ -51,7 +56,8 @@ class TestBacktestEntryBasis(unittest.TestCase):
             {"open": 99.0, "high": 101.0, "low": 98.0, "close": 100.0, "entry_signal": 1},
             # Bar 1: entry bar — open=101 (gap up overnight)
             {"open": 101.0, "high": 103.0, "low": 100.5, "close": 102.0, "entry_signal": 0},
-            # Bar 2: first exit-scan bar — target hit based on entry=101
+            # Bar 2: target hit based on entry=101 (bar 1, also scanned under v3, stays
+            # below 104.03)
             {"open": 102.0, "high": 105.0, "low": 101.5, "close": 104.0, "entry_signal": 0},
         ])
 
@@ -113,17 +119,22 @@ class TestBacktestEntryBasis(unittest.TestCase):
         self.assertEqual(trade["exit_type"], "stop_hit")
         self.assertAlmostEqual(trade["return"], -0.002, places=4)
 
-    def test_exit_scanning_starts_at_bar_n_plus_2(self):
-        """Exit scanning must start at bar N+2 (bar after entry bar).
-        Bar N+1 is the entry bar — its OHLC should NOT trigger TP/SL."""
+    def test_exit_scanning_starts_at_the_entry_bar_n_plus_1(self):
+        """The bracket is live from the fill, so the entry bar N+1 is scanned.
+
+        Re-pinned for ENGINE_VERSION 3 (docs/research/ENGINE_V3_QUESTION.md): v2 skipped the entry bar and
+        scanned from N+2; v3 scans N+1 .. N+MAX because live places the bracket at the
+        fill. The test is renamed from test_exit_scanning_starts_at_bar_n_plus_2, which
+        now states something false. On N+1 there is no gap check (its open IS the entry).
+        """
         from src.strategy.engine import compute_trade_returns
 
         df = _make_ohlcv([
             # Bar 0: signal
             {"open": 100, "high": 101, "low": 99, "close": 100, "entry_signal": 1},
-            # Bar 1: entry bar — high=110 would hit any target, but should be skipped
+            # Bar 1: entry bar — range 90-110 holds both 5% levels: scanned, stop-first
             {"open": 100, "high": 110, "low": 90, "close": 100, "entry_signal": 0},
-            # Bar 2: first scan bar — narrow range, no exit
+            # Bar 2: narrow range, never reached
             {"open": 100, "high": 100.1, "low": 99.9, "close": 100, "entry_signal": 0},
         ])
 
@@ -131,12 +142,30 @@ class TestBacktestEntryBasis(unittest.TestCase):
 
         self.assertEqual(len(result), 1)
         trade = result.iloc[0]
-        # Bar 1 has range 90-110 but is the entry bar → not scanned.
-        # Bar 2 has range 99.9-100.1 → neither 5% target nor 5% stop → time exit.
-        self.assertEqual(trade["exit_type"], "time_exit")
+        # Bar 1 contains both 105 and 95 → ambiguous, resolved stop-first by default.
+        self.assertEqual(trade["exit_type"], "ambiguous_same_bar")
+        self.assertAlmostEqual(trade["return"], -0.05, places=12)
+        self.assertEqual(trade["entry_time"], 1)
+        self.assertEqual(trade["exit_time"], 1)
 
-    def test_time_exit_uses_last_future_bar_close(self):
-        """When neither TP nor SL hits, return is based on last bar's close."""
+        # A one-sided touch in the entry bar is a plain stop_hit in that same bar.
+        df_stop = _make_ohlcv([
+            {"open": 100, "high": 101, "low": 99, "close": 100, "entry_signal": 1},
+            {"open": 100, "high": 100.5, "low": 94, "close": 96, "entry_signal": 0},
+            {"open": 96, "high": 96.1, "low": 95.9, "close": 96, "entry_signal": 0},
+        ])
+        r = compute_trade_returns(df_stop, target_gain_pct=0.05, stop_loss_pct=0.05, max_trade_bars=5)
+        self.assertEqual(r.iloc[0]["exit_type"], "stop_hit")
+        self.assertAlmostEqual(r.iloc[0]["return"], -0.05, places=12)
+        self.assertEqual(r.iloc[0]["exit_time"], 1)
+
+    def test_time_exit_fills_at_the_open_of_bar_n_plus_1_plus_max(self):
+        """When neither TP nor SL hits, the time exit fills at the OPEN of bar N+1+MAX.
+
+        Re-pinned for ENGINE_VERSION 3 (docs/research/ENGINE_V3_QUESTION.md): v2 booked the close of the last
+        scanned bar; v3 fills where live's closing cycle does, at the open of bar
+        N+1+MAX. Renamed from test_time_exit_uses_last_future_bar_close, now false.
+        """
         from src.strategy.engine import compute_trade_returns
 
         df = _make_ohlcv([
@@ -155,8 +184,28 @@ class TestBacktestEntryBasis(unittest.TestCase):
         self.assertEqual(len(result), 1)
         trade = result.iloc[0]
         self.assertEqual(trade["exit_type"], "time_exit")
-        # Entry=100 (bar 1 open). Last future bar close=100.5. Return=(100.5-100)/100=0.005
-        self.assertAlmostEqual(trade["return"], 0.005, places=4)
+        # Entry=100 (bar 1 open). N=0, MAX=2 → exit at the open of bar 3 = 100.1.
+        # Return=(100.1-100)/100=0.001 (bar 3's close, 100.5, is NOT the fill).
+        self.assertAlmostEqual(trade["return"], 0.001, places=12)
+        self.assertEqual(trade["exit_time"], 3)
+
+    def test_time_exit_is_truncated_to_the_last_close_when_the_data_ends_first(self):
+        """With fewer than MAX bars after the entry, the last close is used and labelled
+        time_exit_truncated (ENGINE_VERSION 3, rule (c))."""
+        from src.strategy.engine import compute_trade_returns
+
+        df = _make_ohlcv([
+            {"open": 100, "high": 101, "low": 99, "close": 100, "entry_signal": 1},
+            {"open": 100, "high": 100.5, "low": 99.5, "close": 100.2, "entry_signal": 0},
+            {"open": 100.2, "high": 100.3, "low": 100.0, "close": 100.1, "entry_signal": 0},
+            {"open": 100.1, "high": 100.4, "low": 99.8, "close": 100.5, "entry_signal": 0},
+        ])
+
+        result = compute_trade_returns(df, target_gain_pct=0.05, stop_loss_pct=0.05, max_trade_bars=5)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result.iloc[0]["exit_type"], "time_exit_truncated")
+        self.assertAlmostEqual(result.iloc[0]["return"], 0.005, places=12)
+        self.assertEqual(result.iloc[0]["exit_time"], 3)
 
     def test_signal_on_last_bar_skipped(self):
         """Signal on the very last bar has no bar N+1 → trade should be dropped."""
@@ -209,29 +258,56 @@ class TestExitTypeTracking(unittest.TestCase):
         self.assertAlmostEqual(result.iloc[0]["return"], 0.01, places=4)
 
     def test_exit_type_values_complete(self):
-        """All three normal exit types are produced by a multi-trade scenario."""
+        """Every bracket/time exit label is produced by one sequential scenario.
+
+        Re-pinned for ENGINE_VERSION 3 (docs/research/ENGINE_V3_QUESTION.md): v2 produced target_hit, stop_hit
+        and time_exit; v3 adds gap_stop and gap_target (an open at or through a level fills
+        at the open) and time_exit_truncated (end of data). The v2 fixture used
+        max_trade_bars=1, under which v3 time-exits trade 1 at the open of bar 2 before its
+        target bar, and its back-to-back signals overlapped under one-position, so the
+        scenario was rebuilt with MAX=2 and one non-overlapping trade per label.
+        (ambiguous_same_bar and opposing_signal have dedicated tests.)
+        """
         from src.strategy.engine import compute_trade_returns
 
+        narrow = {"open": 100, "high": 100.1, "low": 99.9, "close": 100}
         df = _make_ohlcv([
-            # Trade 1: target hit
+            # A target_hit: entry 100 (bar 1), target 102 touched inside bar 2
             {"open": 100, "high": 101, "low": 99, "close": 100, "entry_signal": 1},
-            {"open": 100, "high": 100.5, "low": 99.8, "close": 100.2, "entry_signal": 0},
-            {"open": 100.2, "high": 103, "low": 100, "close": 102, "entry_signal": 0},
-            # Trade 2: stop hit
+            {"open": 100, "high": 100.5, "low": 99.8, "close": 100.2},
+            {"open": 100.2, "high": 103, "low": 100, "close": 102},
+            # B stop_hit: entry 102 (bar 4), stop 99.96 touched inside bar 5
             {"open": 102, "high": 103, "low": 101, "close": 102, "entry_signal": 1},
-            {"open": 102, "high": 102.5, "low": 101.8, "close": 102, "entry_signal": 0},
-            {"open": 102, "high": 102.1, "low": 98, "close": 99, "entry_signal": 0},
-            # Trade 3: time exit (narrow bars)
+            {"open": 102, "high": 102.5, "low": 101.8, "close": 102},
+            {"open": 102, "high": 102.1, "low": 98, "close": 99},
+            # C time_exit: entry 99 (bar 7), no touch, fills at the open of bar 9 (99.2)
             {"open": 99, "high": 100, "low": 98, "close": 99, "entry_signal": 1},
-            {"open": 99, "high": 99.1, "low": 98.9, "close": 99, "entry_signal": 0},
-            {"open": 99, "high": 99.1, "low": 98.9, "close": 99.05, "entry_signal": 0},
+            {"open": 99, "high": 99.1, "low": 98.9, "close": 99},
+            {"open": 99, "high": 99.1, "low": 98.9, "close": 99.05},
+            # D gap_stop: signal on bar 9 (re-entry on the cycle that closed C), entry 100
+            # at bar 10, bar 11 opens at 97, through the 98 stop
+            {"open": 99.2, "high": 99.3, "low": 99.1, "close": 99.2, "entry_signal": 1},
+            dict(narrow),
+            {"open": 97, "high": 97.5, "low": 96.5, "close": 97},
+            # E gap_target: entry 100 at bar 13, bar 14 opens at 103, through the 102 target
+            dict(narrow, entry_signal=1),
+            dict(narrow),
+            {"open": 103, "high": 103.5, "low": 102.5, "close": 103},
+            # F time_exit_truncated: entry 100 at bar 16, data ends at bar 17 (close 100.4)
+            dict(narrow, entry_signal=1),
+            dict(narrow),
+            {"open": 100, "high": 100.5, "low": 99.9, "close": 100.4},
         ])
+        df["entry_signal"] = df["entry_signal"].fillna(0).astype(int)
 
-        result = compute_trade_returns(df, target_gain_pct=0.02, stop_loss_pct=0.02, max_trade_bars=1)
-        exit_types = set(result["exit_type"].values)
-        self.assertIn("target_hit", exit_types)
-        self.assertIn("stop_hit", exit_types)
-        self.assertIn("time_exit", exit_types)
+        result = compute_trade_returns(df, target_gain_pct=0.02, stop_loss_pct=0.02, max_trade_bars=2)
+        self.assertEqual(list(result["exit_type"]),
+                         ["target_hit", "stop_hit", "time_exit",
+                          "gap_stop", "gap_target", "time_exit_truncated"])
+        expected = [0.02, -0.02, 0.2 / 99, -0.03, 0.03, 0.004]
+        for got, want in zip(result["return"], expected):
+            self.assertAlmostEqual(got, want, places=12)
+        self.assertEqual(list(result["exit_time"]), [2, 5, 9, 11, 14, 17])
 
 
 class TestSoft50MAGate(unittest.TestCase):
@@ -380,9 +456,8 @@ class TestRegressionBarCloseAnchor(unittest.TestCase):
         self.assertEqual(len(result), 1)
         trade = result.iloc[0]
         # Under old model: entry=80.0, stop=79.84. Bar 1 low=78.9 → stop hit on entry bar.
-        # But entry bar is NOT scanned, so even old model wouldn't stop on bar 1.
-        # Bar 2 low=79.0 < 79.84 → old model would stop_hit here.
-        # Under new model: entry=79.0, stop=78.842. Bar 2 low=79.0 > 78.842 → survives.
+        # Under the current model (ENGINE_VERSION 3 scans the entry bar): entry=79.0,
+        # stop=78.842. Bar 1 low=78.9 and bar 2 low=79.0 stay above 78.842 → survives.
         # Bar 3 high=79.9 > 79.332 (target) → target_hit.
         self.assertEqual(trade["exit_type"], "target_hit")
 
@@ -542,10 +617,20 @@ class TestOpposingSignalExit(unittest.TestCase):
     When use_opposing_signal_exit=True, an open long closes at the NEXT bar's
     open if a future bar's entry_signal is -1 (and vice versa for shorts).
     TP/SL checks still win on the same bar.
+
+    Under ENGINE_VERSION 3 these 4-bar fixtures end before the time exit at the open of
+    bar N+1+MAX, so an un-exited trade is time_exit_truncated (the last close), and an
+    opposing entry_signal that follows an exit is itself a new trade (one position,
+    rule (d)).
     """
 
     def test_flag_off_is_unchanged(self):
-        """With flag OFF, an opposing signal in a future bar has no effect."""
+        """With flag OFF, an opposing signal in a future bar has no effect.
+
+        Re-pinned for ENGINE_VERSION 3 (docs/research/ENGINE_V3_QUESTION.md): the data ends before the open of bar
+        N+1+MAX, so the un-exited trade is time_exit_truncated at the last close. The
+        bar-2 opposing signal falls inside the open trade and books nothing.
+        """
         from src.strategy.engine import compute_trade_returns
 
         df = _make_ohlcv([
@@ -564,11 +649,19 @@ class TestOpposingSignalExit(unittest.TestCase):
             use_opposing_signal_exit=False,
         )
         self.assertEqual(len(result), 1)
-        # Neither TP nor SL hit, flag off → time_exit
-        self.assertEqual(result.iloc[0]["exit_type"], "time_exit")
+        # Neither TP nor SL hit, flag off → held to the end of the data → last close 100.05
+        self.assertEqual(result.iloc[0]["exit_type"], "time_exit_truncated")
+        self.assertAlmostEqual(result.iloc[0]["return"], 0.0005, places=12)
 
     def test_long_closes_on_short_signal(self):
-        """Long position: opposing signal on bar K → exit at bar K+1 open."""
+        """Long position: opposing signal on bar K → exit at bar K+1 open.
+
+        Re-pinned for ENGINE_VERSION 3 (docs/research/ENGINE_V3_QUESTION.md): under one-position rule (d) the opposing signal's own bar
+        may enter once the first trade has exited at or before its next open, so the
+        fixture's opposing entry_signal now books a second trade (it entered on the last
+        bar's open and is truncated at its close). v2 never reached it because its scan
+        began at N+2. The first trade's assertions are unchanged.
+        """
         from src.strategy.engine import compute_trade_returns
 
         df = _make_ohlcv([
@@ -586,14 +679,26 @@ class TestOpposingSignalExit(unittest.TestCase):
             df, target_gain_pct=0.05, stop_loss_pct=0.05, max_trade_bars=5,
             use_opposing_signal_exit=True,
         )
-        self.assertEqual(len(result), 1)
+        self.assertEqual(len(result), 2)
         self.assertEqual(result.iloc[0]["exit_type"], "opposing_signal")
         # Entry=100, exit=101 → return = +0.01 (long, signed)
         self.assertAlmostEqual(result.iloc[0]["return"], 0.01, places=6)
+        self.assertEqual(result.iloc[0]["exit_time"], 3)
+        # The bar-2 short signal enters at bar 3's open (101), truncated at its close (101)
+        self.assertEqual((result.iloc[1]["timestamp"], result.iloc[1]["exit_type"]),
+                         (2, "time_exit_truncated"))
+        self.assertAlmostEqual(result.iloc[1]["return"], 0.0, places=12)
 
     def test_short_closes_on_long_signal(self):
         """Short position: opposing (long) signal on bar K → exit at bar K+1 open.
-        Requires LONGS_ONLY=False so direction=-1 entries make it through."""
+        Requires LONGS_ONLY=False so direction=-1 entries make it through.
+
+        Re-pinned for ENGINE_VERSION 3 (docs/research/ENGINE_V3_QUESTION.md): under one-position rule (d) the opposing signal's own bar
+        may enter once the first trade has exited at or before its next open, so the
+        fixture's opposing entry_signal now books a second trade (it entered on the last
+        bar's open and is truncated at its close). v2 never reached it because its scan
+        began at N+2. The first trade's assertions are unchanged.
+        """
         from src.strategy.engine import compute_trade_returns
 
         df = _make_ohlcv([
@@ -611,13 +716,24 @@ class TestOpposingSignalExit(unittest.TestCase):
             df, target_gain_pct=0.05, stop_loss_pct=0.05, max_trade_bars=5,
             use_opposing_signal_exit=True,
         )
-        self.assertEqual(len(result), 1)
+        self.assertEqual(len(result), 2)
         self.assertEqual(result.iloc[0]["exit_type"], "opposing_signal")
         # Short entry=100, exit=99 → signed return = -1 * (99-100)/100 = +0.01
         self.assertAlmostEqual(result.iloc[0]["return"], 0.01, places=6)
+        self.assertEqual(result.iloc[0]["exit_time"], 3)
+        # The bar-2 long signal enters at bar 3's open (99), truncated at its close (99)
+        self.assertEqual((result.iloc[1]["timestamp"], result.iloc[1]["exit_type"]),
+                         (2, "time_exit_truncated"))
+        self.assertAlmostEqual(result.iloc[1]["return"], 0.0, places=12)
 
     def test_target_hit_beats_opposing_signal_same_bar(self):
-        """Hard TP/SL wins over opposing signal on the same bar."""
+        """Hard TP/SL wins over opposing signal on the same bar.
+
+        Re-pinned for ENGINE_VERSION 3 (docs/research/ENGINE_V3_QUESTION.md): an exit inside bar 2 frees a signal on
+        bar 2 (rule (d)), so the fixture's bar-2 short signal books a second trade,
+        entered at bar 3's open (102.5) and truncated at its close (102.5). The first
+        trade's assertions are unchanged.
+        """
         from src.strategy.engine import compute_trade_returns
 
         df = _make_ohlcv([
@@ -634,13 +750,23 @@ class TestOpposingSignalExit(unittest.TestCase):
             df, target_gain_pct=0.02, stop_loss_pct=0.02, max_trade_bars=5,
             use_opposing_signal_exit=True,
         )
-        self.assertEqual(len(result), 1)
+        self.assertEqual(len(result), 2)
         # TP wins even though opposing signal is on the same bar
         self.assertEqual(result.iloc[0]["exit_type"], "target_hit")
         self.assertAlmostEqual(result.iloc[0]["return"], 0.02, places=6)
+        self.assertEqual(result.iloc[0]["exit_time"], 2)
+        self.assertEqual((result.iloc[1]["timestamp"], result.iloc[1]["exit_type"]),
+                         (2, "time_exit_truncated"))
+        self.assertAlmostEqual(result.iloc[1]["return"], 0.0, places=12)
 
     def test_stop_hit_beats_opposing_signal_same_bar(self):
-        """Hard SL wins over opposing signal on the same bar (symmetric to TP)."""
+        """Hard SL wins over opposing signal on the same bar (symmetric to TP).
+
+        Re-pinned for ENGINE_VERSION 3 (docs/research/ENGINE_V3_QUESTION.md): an exit inside bar 2 frees a signal on
+        bar 2 (rule (d)), so the fixture's bar-2 short signal books a second trade,
+        entered at bar 3's open (98) and truncated at its close (98). The first trade's
+        assertions are unchanged.
+        """
         from src.strategy.engine import compute_trade_returns
 
         df = _make_ohlcv([
@@ -657,13 +783,23 @@ class TestOpposingSignalExit(unittest.TestCase):
             df, target_gain_pct=0.02, stop_loss_pct=0.02, max_trade_bars=5,
             use_opposing_signal_exit=True,
         )
-        self.assertEqual(len(result), 1)
+        self.assertEqual(len(result), 2)
         self.assertEqual(result.iloc[0]["exit_type"], "stop_hit")
         self.assertAlmostEqual(result.iloc[0]["return"], -0.02, places=6)
+        self.assertEqual(result.iloc[0]["exit_time"], 2)
+        self.assertEqual((result.iloc[1]["timestamp"], result.iloc[1]["exit_type"]),
+                         (2, "time_exit_truncated"))
+        self.assertAlmostEqual(result.iloc[1]["return"], 0.0, places=12)
 
-    def test_opposing_signal_on_last_bar_falls_through_to_time_exit(self):
-        """If the opposing signal fires on the final future bar, there's no
-        next bar to fill at → the code falls through to time_exit."""
+    def test_opposing_signal_on_last_bar_falls_through_to_truncated_time_exit(self):
+        """If the opposing signal fires on the final bar, there's no next bar to fill
+        at → the code falls through to the end-of-data time exit.
+
+        Re-pinned for ENGINE_VERSION 3 (docs/research/ENGINE_V3_QUESTION.md): the end-of-data fallback is now
+        labelled time_exit_truncated (a full-length time exit fills at the open of bar
+        N+1+MAX instead). Renamed from ..._falls_through_to_time_exit. The fill price,
+        the last close, is unchanged.
+        """
         from src.strategy.engine import compute_trade_returns
 
         df = _make_ohlcv([
@@ -680,9 +816,9 @@ class TestOpposingSignalExit(unittest.TestCase):
             use_opposing_signal_exit=True,
         )
         self.assertEqual(len(result), 1)
-        # No next bar for the opposing-signal fill → fell through to time_exit
-        self.assertEqual(result.iloc[0]["exit_type"], "time_exit")
-        # Time exit uses last close = 100.2 → return = (100.2-100)/100 = 0.002
+        # No next bar for the opposing-signal fill → fell through to the truncated time exit
+        self.assertEqual(result.iloc[0]["exit_type"], "time_exit_truncated")
+        # Truncated time exit uses last close = 100.2 → return = (100.2-100)/100 = 0.002
         self.assertAlmostEqual(result.iloc[0]["return"], 0.002, places=6)
 
     def test_only_triggers_on_directional_mismatch(self):
@@ -704,7 +840,7 @@ class TestOpposingSignalExit(unittest.TestCase):
             df, target_gain_pct=0.05, stop_loss_pct=0.05, max_trade_bars=5,
             use_opposing_signal_exit=True,
         )
-        # Same-direction bars don't trigger exit; time_exit fires at last close.
+        # Same-direction bars don't trigger exit; the truncated time exit fires at last close.
         # Note: two entry signals → two trades; we only check that NEITHER is labeled
         # "opposing_signal".
         self.assertNotIn("opposing_signal", set(result["exit_type"].values))
@@ -746,7 +882,11 @@ class TestOpposingSignalExit(unittest.TestCase):
     def test_threshold_respects_require_signals(self):
         """Opposing-signal exit should only fire when |signal_vote| >= threshold,
         matching the require_signals used at entry. A threshold=2 run must NOT
-        exit on a single-signal vote of -1."""
+        exit on a single-signal vote of -1.
+
+        Re-pinned for ENGINE_VERSION 3 (docs/research/ENGINE_V3_QUESTION.md): the 4-bar fixture ends before the open
+        of bar N+1+MAX, so the no-exit fallback is time_exit_truncated at the last close.
+        """
         from src.strategy.engine import compute_trade_returns
 
         df = _make_ohlcv([
@@ -764,8 +904,9 @@ class TestOpposingSignalExit(unittest.TestCase):
             opposing_signal_threshold=2,
         )
         self.assertEqual(len(result), 1)
-        # Vote=-1 < threshold=2 → no opposing exit → falls through to time_exit
-        self.assertEqual(result.iloc[0]["exit_type"], "time_exit")
+        # Vote=-1 < threshold=2 → no opposing exit → held to the last close (101)
+        self.assertEqual(result.iloc[0]["exit_type"], "time_exit_truncated")
+        self.assertAlmostEqual(result.iloc[0]["return"], 0.01, places=12)
 
 
 if __name__ == "__main__":

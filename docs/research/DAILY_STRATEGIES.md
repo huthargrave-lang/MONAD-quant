@@ -89,11 +89,35 @@ and cash.
 | F404706 | CEF: cheapest 20% by raw discount (H404701) | passed every development stage, then REJECT-bound after a later search in its family (F404708) |
 | F404708 | CEF: tax-loss season | null, and it cost H404701 its deflation pass |
 | F404713 | CEF: within-category z-score with hysteresis (H404702) | passes every development stage; forward window to 2027-10-07 |
-| F404714 | BDC: the H404701 rule on a disjoint universe | same sign (+0.5 active Sharpe), underpowered (3.9 years) |
+| F404714 | BDC: the H404701 rule on a disjoint universe | same sign (+0.5 active Sharpe), underpowered (3.9 years); caveat: split-adjusted closes against as-reported NAV excluded OCSL and GLAD from cheap selection for some months (F404726) |
+| F404722 | BDC: the same rule on 2012-2022 (`BDC_PREPERIOD_TEST.md`) | not run: the filing-text NAV extractor failed its frozen pre-2022 cross-check (96.9% vs 98%) |
+| F404725, F404726 | mREIT: the rule on mortgage REITs vs book value (`MREIT_DISCOUNT_TEST*.md`) | not run twice: XBRL misses series-tagged preferred; stated-value extraction failed its blind audit (3/27 vs 2) |
 
 **The pattern.** Every published effect on liquid instruments has decayed or vanished.
 The surviving effect is discount selection in closed-end funds: capacity-constrained, in
 instruments institutions cannot trade at size. It replicates in sign on BDCs.
+
+H404702 in practice:
+- **Capacity.** A sleeve of single-digit to low-tens of millions; exit liquidity binds
+  first (F404723).
+- **Risk.** The active edge gains in crashes, but the strategy itself draws down 44.5%:
+  an overlay, not a bond (F404724).
+
+**What blocks more replication is measurement, not the hypothesis.** Three tests on other
+NAV vehicles each closed NOT RUN on their own data validation, before any return was seen:
+- BDC 2012-2022 (F404722);
+- mREIT v1 (F404725);
+- mREIT v2 (F404726).
+
+Per-share NAV and book value read from SEC filings is unreliable: preferred stock tagged
+per series or in custom elements, text tables with look-alike rows, split bases.
+CEFConnect's consistent price/NAV pair is what makes the CEF test measurable.
+
+Next unlocks, in order:
+1. H404702's forward window, which matures 2027-10-07.
+2. A vendor source of consistent price/NAV (or price/book) pairs for BDCs and mREITs.
+3. An audited hourly source of at least 1480 days, which the price profile needs
+   (`DEFLATION_RULE_QUESTION.md`).
 
 **Guards added along the way.** A search refuses to run:
 - a grid with duplicate points;

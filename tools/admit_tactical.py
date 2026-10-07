@@ -35,7 +35,7 @@ from __future__ import annotations
 import datetime as _dt
 import os
 import sys
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Callable
 
@@ -46,7 +46,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
-from admit import (BLOCK, FAIL, MIN_DSR_OBS, PASS, PENDING, REJECT, Stage, _verdict,  # noqa: E402
+from admit import (BLOCK, FAIL, MIN_DSR_OBS, PASS, PENDING, REJECT, SKIP, Stage, _verdict,  # noqa: E402
                    stage_code, stage_refutations, stage_witness)
 
 from src.research import allocation_stats as stats  # noqa: E402
@@ -71,6 +71,67 @@ REPLAY_TOLERANCE = 1e-12
 
 ADMIT_CHAIN = ("registration", "code", "refutations", "witness", "lookahead", "development",
                "deflation", "familywise", "eras", "cost_stress", "forward")
+#: Gate rules v2 (decision debate 2026-10-06): the DSR stage becomes a non-gating
+#: diagnostic that is always SKIP; the familywise SPA, with its (1+m) charge, gates.
+ADMIT_CHAIN_V2 = ("registration", "code", "refutations", "witness", "lookahead", "development",
+                  "deflation_diagnostic", "familywise", "eras", "cost_stress", "forward")
+
+
+def admit_chain(rules: int) -> tuple:
+    return ADMIT_CHAIN_V2 if rules == 2 else ADMIT_CHAIN
+
+
+def familywise_m(searched, latest: dict, params: dict, unknown: set) -> tuple[int, dict]:
+    """m for the v2 gate: the declared prior search, every distinct spec with no known
+    result, and every distinct point the family searched that has no ok trial in the SPA
+    matrix (searched only on another snapshot, window or cost multiple). Each is charged
+    by the union bound because the matrix cannot contain it."""
+    in_matrix = set(latest)
+    off_window = {_point_key(r.spec["params"]) for r in searched
+                  if r.status == "ok" and isinstance(r.spec.get("params"), dict)
+                  and "class" in r.spec["params"]} - in_matrix
+    parts = {"prior_search_trials": int(params["prior_search_trials"]),
+             "unknown_specs": len(unknown), "off_window_points": len(off_window)}
+    return sum(parts.values()), parts
+
+
+@dataclass(frozen=True)
+class FamilyActive:
+    """The family's active series on the registered window, as the gate scores them."""
+    latest: dict           # point key -> the latest ok search trial on this window
+    active: dict           # label -> active daily series (member minus benchmark)
+    candidate_label: str
+    unknown: set           # spec hashes searched with no ok result
+
+
+def family_active(searched, searched_refs, data: dict, start, end, candidate: dict,
+                  candidate_active: pd.Series) -> FamilyActive:
+    """Every distinct point the family searched on this data and window, as an active
+    series against the benchmark's recorded run; the candidate's series is the gate's own
+    re-run. Raises ValueError when the benchmark was never recorded on this window."""
+    ref_rec = [r for r in searched_refs if r.status == "ok" and _same_window(r, data, start, end)]
+    if not ref_rec:
+        raise ValueError("the benchmark was never recorded on this data and window")
+    latest = {}
+    for r in searched:
+        if r.status == "ok" and _same_window(r, data, start, end):
+            latest[_point_key(r.spec["params"])] = r
+    series = trials.load_returns(list(latest.values()) + [ref_rec[-1]])
+    ref_r = stored_returns(series[ref_rec[-1].key])
+    active = {f"{k[0]} {dict(k[1])}": stats.active_series(stored_returns(series[r.key]), ref_r)
+              for k, r in latest.items()}
+    label = f"{candidate['class']} {dict(_point_key(candidate)[1])}"
+    active[label] = candidate_active
+    unknown = ({r.spec_hash for r in searched if r.status != "ok"}
+               - {r.spec_hash for r in searched if r.status == "ok"})
+    return FamilyActive(latest, active, label, unknown)
+
+
+def v2_gate(fam: FamilyActive, searched, params: dict) -> tuple[int, dict, "stats.FamilywiseGate"]:
+    """The gate rules v2 familywise statistic: (m, its parts, the seeded gate)."""
+    m, parts = familywise_m(searched, fam.latest, params, fam.unknown)
+    return m, parts, stats.familywise_gate(fam.active, fam.candidate_label, m=m,
+                                           alpha=params["familywise_alpha"])
 
 
 def _data_files(spec_data: dict) -> list[str]:
@@ -161,6 +222,8 @@ def evaluate(hypothesis: str, spec: dict, spec_hash: str, record: dict, *, now=N
     now = now or _dt.datetime.now(_dt.timezone.utc)
     stages: list[Stage] = []
     p = spec["params"]
+    rules = prereg.gate_rules(spec)
+    record["gate_rules"] = rules
     domain = DOMAINS[p["domain"]]
     candidate = p["candidate"]
     finish = lambda: {**record, "verdict": _verdict(stages),                 # noqa: E731
@@ -271,36 +334,37 @@ def evaluate(hypothesis: str, spec: dict, spec_hash: str, record: dict, *, now=N
                         {"trial": dev_key, "years": years, "rebalances": dev.rebalances}))
 
     # ── deflation and familywise, on the family's active series ─────────────
-    ref_rec = [r for r in searched_refs if r.status == "ok" and _same_window(r, p["data"], start, end)]
-    latest = {}
-    for r in searched:
-        if r.status == "ok" and _same_window(r, p["data"], start, end):
-            latest[_point_key(r.spec["params"])] = r
     try:
-        if not ref_rec:
-            raise ValueError("the benchmark was never recorded on this data and window")
-        series = trials.load_returns(list(latest.values()) + [ref_rec[-1]])
-        ref_r = stored_returns(series[ref_rec[-1].key])
-        active = {f"{k[0]} {dict(k[1])}": stats.active_series(stored_returns(series[r.key]), ref_r)
-                  for k, r in latest.items()}
-        cand_label = f"{candidate['class']} {dict(_point_key(candidate)[1])}"
-        active[cand_label] = stats.active_series(dev.returns, dev_ref.returns)
-        unknown = ({r.spec_hash for r in searched if r.status != "ok"}
-                   - {r.spec_hash for r in searched if r.status == "ok"})
+        fam = family_active(searched, searched_refs, p["data"], start, end, candidate,
+                            stats.active_series(dev.returns, dev_ref.returns))
+        active, cand_label, unknown = fam.active, fam.candidate_label, fam.unknown
         d = stats.deflate_active(active, cand_label, calendar=ctx.snap.dates,
                                  prior_trials=p["prior_search_trials"], unknown_specs=len(unknown))
-        ok = d.dsr >= spec["threshold"] and d.n_obs >= MIN_DSR_OBS
-        stages.append(Stage("deflation", PASS if ok else FAIL,
-                            f"active DSR {d.dsr:.4f} vs {spec['threshold']} (active Sharpe "
-                            f"{d.sharpe_ann:+.2f} vs SR0 {d.sr0_ann:.2f}; N {d.n_trials:.1f})",
-                            {"dsr": d.dsr, "n_trials": d.n_trials, "sharpe_ann": d.sharpe_ann,
-                             "members": d.members}))
-        fw = stats.familywise(active, cand_label)
-        worst = max(f["candidate_pvalue"] for f in fw)
-        stages.append(Stage("familywise", PASS if worst <= p["familywise_alpha"] else FAIL,
-                            f"worst adjusted p {worst:.4f} vs {p['familywise_alpha']} across mean "
-                            f"blocks {[f['mean_block'] for f in fw]} (K={fw[0]['family_size']})",
-                            {"blocks": fw}))
+        dsr_detail = (f"active DSR {d.dsr:.4f} vs {spec['threshold']} (active Sharpe "
+                      f"{d.sharpe_ann:+.2f} vs SR0 {d.sr0_ann:.2f}; N {d.n_trials:.1f})")
+        dsr_data = {"dsr": d.dsr, "n_trials": d.n_trials, "sharpe_ann": d.sharpe_ann,
+                    "members": d.members}
+        if rules == 2:
+            stages.append(Stage("deflation_diagnostic", SKIP,
+                                dsr_detail + "; a diagnostic under gate rules v2, not a gate",
+                                dsr_data))
+            m, parts, g = v2_gate(fam, searched, p)
+            stages.append(Stage("familywise", PASS if g.p_gate <= p["familywise_alpha"] else FAIL,
+                                f"p_gate {g.p_gate:.5f} = worst p {g.worst_p:.5f} x (1+{m}) vs "
+                                f"{p['familywise_alpha']} (B={g.n_boot}, blocks "
+                                f"{[b['mean_block'] for b in g.blocks]}, K={g.blocks[0]['family_size']})",
+                                {"p_gate": g.p_gate, "worst_p": g.worst_p, "m": m, "m_parts": parts,
+                                 "n_boot": g.n_boot, "blocks": g.blocks,
+                                 "dropped_zero_variance": g.dropped_zero_variance}))
+        else:
+            ok = d.dsr >= spec["threshold"] and d.n_obs >= MIN_DSR_OBS
+            stages.append(Stage("deflation", PASS if ok else FAIL, dsr_detail, dsr_data))
+            fw = stats.familywise(active, cand_label)
+            worst = max(f["candidate_pvalue"] for f in fw)
+            stages.append(Stage("familywise", PASS if worst <= p["familywise_alpha"] else FAIL,
+                                f"worst adjusted p {worst:.4f} vs {p['familywise_alpha']} across mean "
+                                f"blocks {[f['mean_block'] for f in fw]} (K={fw[0]['family_size']})",
+                                {"blocks": fw}))
         eras = stats.era_sharpes(active[cand_label], p["eras"])
         bad = [e for e in eras if e["active_sharpe"] is None or e["active_sharpe"] <= 0]
         stages.append(Stage("eras", FAIL if bad else PASS,
@@ -308,8 +372,11 @@ def evaluate(hypothesis: str, spec: dict, spec_hash: str, record: dict, *, now=N
                                       if e["active_sharpe"] is not None else f"{e['era']} empty"
                                       for e in eras), {"eras": eras}))
     except (ValueError, trials.LedgerError) as exc:
-        for name in ("deflation", "familywise", "eras"):
-            stages.append(Stage(name, FAIL, f"cannot be computed: {exc}"))
+        names = (("deflation_diagnostic", "familywise", "eras") if rules == 2
+                 else ("deflation", "familywise", "eras"))
+        for name in names:
+            stages.append(Stage(name, SKIP if name == "deflation_diagnostic" else FAIL,
+                                f"cannot be computed: {exc}"))
 
     # ── cost stress ─────────────────────────────────────────────────────────
     (_, stress), (_, stress_ref) = res["stress"], res["stress_ref"]
@@ -371,10 +438,62 @@ def verify_evidence(record: dict, head: dict, spec: dict | None) -> list[str]:
             problems.append("the development trial is not the registered candidate on the registered data")
     if not record.get("reference_run") or not any(r.run_id == record["reference_run"] for r in rows):
         problems.append("the benchmark run named by the record does not exist")
+    if spec is not None and prereg.gate_rules(spec) == 2 and not problems:
+        problems += _verify_familywise(record, head, spec, rows)
     code_sha = (record.get("code") or {}).get("sha") or ""
     if (head.get("code") or {}).get("dirty") is not False:
         problems.append("the gate run executed on a modified tree")
     if not code_sha or trials._git(Path(REPO), "merge-base", "--is-ancestor", code_sha,
                                    "HEAD").returncode != 0:
         problems.append(f"code commit {code_sha[:12] or '(none)'} is not in this branch's history")
+    return problems
+
+
+def _verify_familywise(record: dict, head: dict, spec: dict, rows, *,
+                       load_context: Callable | None = None) -> list[str]:
+    """Gate rules v2: the familywise stage recomputed from the ledger, not read from the
+    record. The family is every search trial whose run opened before the gate run did
+    (what the gate could see); the candidate and benchmark series are the gate run's own
+    development trials. The seeded SPA, B and (1+m) must reproduce the recorded p_gate,
+    and p_gate must clear the registered alpha."""
+    p = spec["params"]
+    domain = DOMAINS[p["domain"]]
+    stage = next((s for s in record.get("stages", []) if s["name"] == "familywise"), None)
+    if stage is None:
+        return ["familywise: the record has no familywise stage"]
+    try:
+        ctx = (load_context or domain.load)(p["data"])
+        start, end = domain.window(ctx)
+    except Exception as exc:  # noqa: BLE001
+        return [f"familywise: cannot load the registered data to recompute it ({exc})"]
+    gate_at = head["at"]
+    before = [r for r in rows if r.opened_at < gate_at and r.producer != PRODUCER]
+    searched = family_members(before, family_name(domain.name))
+    searched_refs = family_members(before, family_name(domain.name, reference=True))
+
+    def dev_trial(run_id):
+        hit = [r for r in rows if r.run_id == run_id and r.status == "ok"
+               and (r.spec.get("extra") or {}).get("stage") == "admission:development"]
+        return hit[0] if hit else None
+
+    dev, dev_ref = dev_trial(record["ledger_run"]), dev_trial(record.get("reference_run"))
+    if dev is None or dev_ref is None:
+        return ["familywise: the gate runs lack the development trials it was scored on"]
+    try:
+        series = trials.load_returns([dev, dev_ref])
+        cand = stats.active_series(stored_returns(series[dev.key]), stored_returns(series[dev_ref.key]))
+        fam = family_active(searched, searched_refs, p["data"], start, end, p["candidate"], cand)
+        m, _, g = v2_gate(fam, searched, p)
+    except (ValueError, trials.LedgerError) as exc:
+        return [f"familywise: cannot be recomputed from the ledger ({exc})"]
+    data = stage.get("data") or {}
+    problems = []
+    if m != data.get("m") or g.n_boot != data.get("n_boot") or \
+            abs(g.p_gate - float(data.get("p_gate", float("nan")))) > REPLAY_TOLERANCE:
+        problems.append(f"familywise: recomputed p_gate {g.p_gate:.5f} (m {m}, B {g.n_boot}) does "
+                        f"not match the record's {data.get('p_gate')} (m {data.get('m')}, "
+                        f"B {data.get('n_boot')})")
+    if g.p_gate > p["familywise_alpha"]:
+        problems.append(f"familywise: recomputed p_gate {g.p_gate:.5f} does not clear "
+                        f"{p['familywise_alpha']}")
     return problems

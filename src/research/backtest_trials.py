@@ -16,6 +16,10 @@ disagreeing about the same backtest.
   * a full result dict       — ``ok``, with the headline metrics and the per-trade
                                return series (indexed by trade timestamp), which
                                the significance kernel clusters for effective N.
+                               Under ENGINE_VERSION 3 the result also carries its
+                               trades' session marks, recorded as the named series
+                               ``mtm_pnl``, ``exposure`` and ``instrument_return``
+                               (gate rules v2 (iii)).
 """
 from __future__ import annotations
 
@@ -42,6 +46,9 @@ def _engine_version() -> int:
     from src.backtest.runner import ENGINE_VERSION
     return ENGINE_VERSION
 
+
+#: The mark-to-market basis version recorded in each engine trial's spec.
+MTM_BASIS_VERSION = 1
 
 #: Families carry the engine version (".v2"): trials run on engines that executed
 #: differently must never pool into one search count (decision-debate Q4).
@@ -93,6 +100,33 @@ def family_members(records, family: str) -> list:
     return out
 
 
+def lineage_members(records, family: str) -> list:
+    """Every hourly engine trial on ``family``'s symbol recorded under an EARLIER engine
+    version: the family's lineage. They never pool into the current family's statistics
+    (they executed differently), but they are still search on the same strategy and
+    symbol, and the v2 gate charges them in m (price trigger consensus 2026-10-06, R4): a
+    version bump must never erase a search."""
+    prefix = f"{MR_HOURLY_STRATEGY}:"
+    if not family.startswith(prefix):
+        return []
+    symbol = family[len(prefix):]
+    current = _engine_version()
+    out = []
+    for r in records:
+        params = (r.spec or {}).get("params") or {}
+        data = (r.spec or {}).get("data") or {}
+        engine = params.get("engine") if isinstance(params, dict) else None
+        version = engine.get("engine_version") if isinstance(engine, dict) else None
+        old_label = (r.family.startswith(f"{MR_STRATEGY}_hourly") and r.family.endswith(f":{symbol}")
+                     and r.family != family)
+        is_engine_run = (isinstance(params, dict) and params.get("timeframe") == "hourly"
+                         and "mode" in params and str(data.get("ticker") or "").upper() == symbol)
+        if (is_engine_run and (version is None or version < current)) or \
+                (old_label and not (isinstance(version, int) and version >= current)):
+            out.append(r)
+    return out
+
+
 def engine_spec(mode: str, *, timeframe: str, target: float, stop: float,
                 backtest_mode: str | None, slippage_pct: float | None,
                 require_signals: int = 1, asset_key: str | None = None,
@@ -127,11 +161,18 @@ def engine_spec(mode: str, *, timeframe: str, target: float, stop: float,
         "mode": mode, "timeframe": timeframe,
         "target_gain_pct": target, "stop_loss_pct": stop,
         "backtest_mode": backtest_mode, "slippage_pct": slippage_pct,
+        # Upper-bound runs (target-first ambiguity, no slippage) count in a family's N
+        # but can never be a candidate (ENGINE_VERSION 3; admission re-runs "realistic").
+        "upper_bound": bool(backtest_mode == "upper_bound"),
         "require_signals": require_signals,
         "asset": dict(config.ASSETS.get(asset_key or mode, {})),
         "mode_constants": {k: getattr(config, k) for k in sorted(dir(config)) if k.endswith(suffix)},
         "config_flags": {k.lower(): getattr(config, k, None) for k in flags},
         "engine": engine_settings(mode, timeframe, max_trade_bars),
+        # The mark-to-market basis the trial records (gate rules v2): 1 = close-exposure
+        # marks (DEFLATION_RULE_QUESTION.md (iii)). A recording change, not an execution
+        # change: it moves the hash, not the family (price trigger consensus R4).
+        "mtm_basis": MTM_BASIS_VERSION,
         "settings": dict(settings) if settings is not None else None,
     }
 
@@ -170,11 +211,39 @@ def scored_from(result: Mapping[str, Any] | None, evaluated_from) -> dict:
     series = (result or {}).get("trade_returns")
     if series is None or not len(series):
         return {"total_trades": 0}
-    scored = series[series.index >= pd.Timestamp(evaluated_from)]
+    cut = pd.Timestamp(evaluated_from)
+    scored = series[series.index >= cut]
     out = {"total_trades": int(len(scored)), "trade_returns": scored}
+    marks, sessions = (result or {}).get("trade_marks"), (result or {}).get("sessions")
+    if marks is not None and sessions is not None:
+        from src.research.mark_to_market import session_dates
+        cut_session = session_dates(pd.DatetimeIndex([cut]))[0]
+        out["trade_marks"] = marks[pd.DatetimeIndex(marks["trade"]) >= cut] if len(marks) else marks
+        out["sessions"] = pd.DatetimeIndex(sessions)[pd.DatetimeIndex(sessions) >= cut_session]
+        ir = (result or {}).get("instrument_return")
+        if ir is not None:
+            out["instrument_return"] = ir.reindex(out["sessions"])
     if len(scored):
         out["win_rate"] = float((scored > 0).mean())
     return out
+
+
+def daily_mtm_series(result: Mapping[str, Any]) -> dict | None:
+    """``{"mtm_pnl", "exposure", "instrument_return"}`` on the result's session grid (gate
+    rules v2 (iii)), or None when the engine did not mark its trades (pre-v3 results,
+    test stand-ins). The instrument's own daily return travels with the trial so the
+    gate and its verifier rebuild the active series from the ledger alone."""
+    marks, sessions = result.get("trade_marks"), result.get("sessions")
+    ir = result.get("instrument_return")
+    if marks is None or sessions is None or ir is None or not len(sessions):
+        return None
+    import pandas as pd
+
+    from src.research.mark_to_market import daily_series
+    idx = pd.DatetimeIndex(sessions)
+    pnl, exposure = daily_series(marks, idx)
+    return {"mtm_pnl": pnl, "exposure": exposure,
+            "instrument_return": ir.reindex(idx).fillna(0.0).astype(float)}
 
 
 def record_backtest(trial: Trial, result: Mapping[str, Any] | None, *,
@@ -191,12 +260,14 @@ def record_backtest(trial: Trial, result: Mapping[str, Any] | None, *,
     if evaluated_from is not None:
         result = scored_from(result, evaluated_from)
     returns = None
+    named = None
     if result:
         series = result.get("trade_returns")
         if series is not None and len(series):
             returns = series
+        named = daily_mtm_series(result)
     try:
-        trial.complete(metrics=backtest_metrics(result), returns=returns)
+        trial.complete(metrics=backtest_metrics(result), returns=returns, series=named)
     except LedgerError as exc:
         # A result the ledger cannot encode (a NaN trade return, an exotic type) is a
         # defect in the result, not a reason to lose the trial: it is still counted,

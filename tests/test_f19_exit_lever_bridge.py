@@ -45,6 +45,37 @@ repo** — `data/cache/` is empty and the four vendor CSVs are gone. So nothing 
 what the ambiguous share IS for TQQQ hourly at its configured 1.0%/0.5% band. The claim
 is conditional: *wherever* that share is large, the reported result is chosen by the flag.
 Measuring it on real bars is left open.
+
+**Measured under engine v2; re-pinned for ENGINE_VERSION 3 (docs/research/ENGINE_V3_QUESTION.md).**
+The table above is the v2 measurement (scan from N+2, time exit at the last scanned close,
+overlapping trades, target-first by default). v3 changes four premises of this fixture:
+
+- ``worst_case_ambiguity`` now defaults to True (stop-first), so the target-first arm must
+  ask for it: ``arms()`` passes ``worst_case_ambiguity=False``, which is exactly what the
+  ``upper_bound`` mode (formerly ``optimistic``) still passes.
+- One position at a time: a band exit frees the slot earlier than the horizon exit, so
+  the arms would take different entries. The fixture now spaces signals at least
+  ``HORIZON`` bars apart, where one-position never binds and the entries stay identical.
+- The horizon arm's time exit fills at the OPEN of bar N+1+HORIZON; the final trade,
+  whose scheduled exit falls past the data, is ``time_exit_truncated``.
+- The bracket is live from the entry bar N+1.
+
+Re-measured under v3 on the spaced fixture (427 identical entries per arm, bps per trade):
+
+    ambiguous share    upper_bound   worst-case    horizon
+              0.5%        +15.6         +14.9       +22.2
+              9.6%        +21.9          +7.5       +22.2
+             32.8%        +30.0         -19.2       +22.2
+             63.9%        +60.3         -35.6       +22.2
+             85.0%        +82.1         -45.4       +22.2
+
+F19's direction, its sign flip and the flag-driven wedge all survive. One v2 fact does
+not: at low noise the honest band no longer matches the horizon exit within 1 bp. It
+trails by 7.3 bps at 0.5% ambiguity (5.1 bps even at zero intrabar range), because the
+close path alone reaches the 1%/0.5% band on most trades and capping winners at the
+target costs more than the stop saves here. That shortfall is about a tenth of the
+high-noise one, so the negative control is re-expressed as a ratio (see
+``test_at_LOW_noise_the_band_does_not_underperform``).
 """
 import sys
 import unittest
@@ -73,7 +104,8 @@ TARGET = 0.010          # config.TARGET_GAIN_PCT_TQQQ_HOURLY
 WIDE = 9.0              # far outside any bar → the band can never fire
 
 
-def synthetic_frame(n=4000, seed=7, phi=-0.25, sigma=0.006, range_mult=1.0):
+def synthetic_frame(n=4000, seed=7, phi=-0.25, sigma=0.006, range_mult=1.0,
+                    min_gap=HORIZON):
     """A mean-reverting close path with an INDEPENDENTLY scaled intrabar range.
 
     Separating the two is the whole point: it lets `range_mult` vary how often a bar
@@ -81,6 +113,10 @@ def synthetic_frame(n=4000, seed=7, phi=-0.25, sigma=0.006, range_mult=1.0):
     the horizon exit, and the entries — stay bit-identical across arms. This is a
     fixture for the arithmetic of an exit rule, not a market model; no claim is made
     from its returns.
+
+    Signals closer than ``min_gap`` bars to the previous kept signal are dropped, so
+    ENGINE_VERSION 3's one-position rule never binds: an exit at the open of bar
+    S+1+HORIZON frees a signal on bar S+HORIZON, so every arm takes every kept signal.
     """
     rng = np.random.default_rng(seed)
     r = np.zeros(n)
@@ -94,16 +130,27 @@ def synthetic_frame(n=4000, seed=7, phi=-0.25, sigma=0.006, range_mult=1.0):
     idx = pd.date_range("2020-01-01", periods=n, freq="h")
     df = pd.DataFrame({"open": op, "high": hi, "low": lo, "close": close,
                        "volume": 1e6}, index=idx)
-    df["entry_signal"] = 0
-    df.loc[pd.Series(close, index=idx).pct_change() < -sigma, "entry_signal"] = 1
+    raw = np.flatnonzero((pd.Series(close).pct_change() < -sigma).to_numpy())
+    kept, last = [], None
+    for i in raw:
+        if last is None or i - last >= min_gap:
+            kept.append(i)
+            last = i
+    sig = np.zeros(n, dtype=int)
+    sig[kept] = 1
+    df["entry_signal"] = sig
     return df
 
 
 def arms(range_mult):
-    """The three exit rules on ONE frame: optimistic band, honest band, horizon."""
+    """The three exit rules on ONE frame: upper-bound band, honest band, horizon.
+
+    The upper-bound arm passes ``worst_case_ambiguity=False`` explicitly, as the
+    ``upper_bound`` mode does; under ENGINE_VERSION 3 the default is stop-first.
+    """
     df = synthetic_frame(range_mult=range_mult)
     kw = dict(target_gain_pct=TARGET, stop_loss_pct=STOP, max_trade_bars=HORIZON)
-    opt = compute_trade_returns(df, **kw)
+    opt = compute_trade_returns(df, worst_case_ambiguity=False, **kw)
     honest = compute_trade_returns(df, worst_case_ambiguity=True, **kw)
     horizon = compute_trade_returns(df, target_gain_pct=WIDE, stop_loss_pct=WIDE,
                                     max_trade_bars=HORIZON)
@@ -132,20 +179,36 @@ class TheBridgeStillDescribesTheRunningCodeTests(unittest.TestCase):
             "rather than editing this test.")
 
     def test_a_horizon_exit_is_reachable_through_the_SAME_function(self):
-        """What makes this a within-comparison and not a comparison of two tools."""
+        """What makes this a within-comparison and not a comparison of two tools.
+
+        Re-pinned for ENGINE_VERSION 3 (docs/research/ENGINE_V3_QUESTION.md): the time
+        exit fills at the open of bar N+1+MAX, and only a trade whose scheduled exit falls
+        past the end of the data is ``time_exit_truncated`` (the last close). Every trade
+        but the final one must take the full-length time exit.
+        """
         _opt, _honest, horizon = arms(1.0)
+        kinds = list(horizon["exit_type"])
         self.assertEqual(
-            set(horizon["exit_type"]), {"time_exit"},
+            set(kinds[:-1]), {"time_exit"},
             "widening the band no longer routes every trade to the time-exit branch, "
             "so F19's horizon arm can no longer be reproduced in this engine")
+        self.assertIn(kinds[-1], {"time_exit", "time_exit_truncated"})
 
     def test_the_arms_share_identical_entries(self):
-        """Without this the comparison below is between different trade sets."""
+        """Without this the comparison below is between different trade sets.
+
+        Re-pinned for ENGINE_VERSION 3 (docs/research/ENGINE_V3_QUESTION.md): one
+        position at a time means a band exit frees the slot before the horizon exit does,
+        so on overlapping signals the arms take different entries. The fixture now spaces
+        signals ``HORIZON`` bars apart (see ``synthetic_frame``); this test is what proves
+        the spacing keeps the trade sets identical, in all three arms.
+        """
         opt, honest, horizon = arms(1.0)
         self.assertEqual(len(opt), len(honest))
         self.assertEqual(len(opt), len(horizon))
         self.assertGreater(len(opt), 200, "too few trades to compare")
         self.assertTrue((opt["timestamp"].values == horizon["timestamp"].values).all())
+        self.assertTrue((honest["timestamp"].values == horizon["timestamp"].values).all())
 
     def test_the_configured_tqqq_band_is_tight_and_asymmetric(self):
         """F19's and F7's premise: the stop is the tighter of the two barriers."""
@@ -188,16 +251,40 @@ class F19HoldsUnderTheHONESTFillRuleTests(unittest.TestCase):
 
     def test_at_LOW_noise_the_band_does_not_underperform(self):
         """Negative control. A guard that fires at every noise level would be
-        asserting 'bands are bad', not F19's noise-conditional mechanism."""
-        _rm, _opt, honest, horizon = self.rows[0]
-        self.assertGreaterEqual(
-            bps(honest), bps(horizon) - 1.0,
-            "the band underperforms even when barriers rarely fire, which would mean "
-            "this guard is insensitive to the noise ratio it claims to measure")
+        asserting 'bands are bad', not F19's noise-conditional mechanism.
+
+        Measured under engine v2 as "the band is within 1 bp of the horizon at low
+        noise". Re-pinned for ENGINE_VERSION 3 (docs/research/ENGINE_V3_QUESTION.md):
+        under v3 the honest band trails the horizon by 7.3 bps at 0.5% ambiguity on this
+        fixture (5.1 bps at zero intrabar range: the close path alone reaches the band,
+        and capping winners at the target costs more than the stop saves), so the v2
+        1-bp agreement is no longer true and is not asserted. What stays true, and is
+        what makes this a NOISE-conditional guard, is that the shortfall grows with
+        noise and the low-noise shortfall is a small fraction of the high-noise one
+        (measured 7.3 vs 67.6 bps, about 0.11; the bound is 0.2).
+        """
+        shortfall = [bps(horizon) - bps(honest) for _rm, _opt, honest, horizon in self.rows]
+        self.assertEqual(
+            shortfall, sorted(shortfall),
+            "the band's shortfall to the horizon exit no longer grows with intrabar "
+            "noise ({}), so this guard is insensitive to the noise ratio it claims to "
+            "measure".format([round(x, 1) for x in shortfall]))
+        self.assertLessEqual(
+            shortfall[0], 0.2 * shortfall[-1],
+            "the band underperforms almost as much when barriers rarely fire as when "
+            "they always do ({}), which would mean this guard is asserting 'bands are "
+            "bad', not a noise-conditional mechanism".format(
+                [round(x, 1) for x in shortfall]))
 
 
 class TheOptimisticFlagInvertsTheConclusionTests(unittest.TestCase):
-    """The part that first looked like a refutation of F19."""
+    """The part that first looked like a refutation of F19.
+
+    "Optimistic" is the v2 name of what ENGINE_VERSION 3 calls the ``upper_bound`` mode
+    (docs/research/ENGINE_V3_QUESTION.md, rule (e)); the class keeps its name because
+    context_map.json's F19 bridge cites it in ``guarded_by``. The arm is still
+    target-first ambiguity, passed explicitly as ``worst_case_ambiguity=False``.
+    """
 
     @classmethod
     def setUpClass(cls):
@@ -206,19 +293,23 @@ class TheOptimisticFlagInvertsTheConclusionTests(unittest.TestCase):
     def test_the_two_fill_rules_rank_the_exits_OPPOSITELY_at_high_noise(self):
         _rm, opt, honest, horizon = self.rows[-1]
         self.assertGreater(bps(opt), bps(horizon),
-                           "optimistic mode no longer flatters the band exit")
+                           "upper_bound mode no longer flatters the band exit")
         self.assertLess(bps(honest), bps(horizon),
                         "the honest rule no longer penalises it")
 
-    def test_the_optimistic_arm_moves_the_WRONG_way_with_noise(self):
-        """More noise cannot make a tight band genuinely better; optimistic mode says
-        it does, because every ambiguous bar is booked as a win."""
+    def test_the_upper_bound_arm_moves_the_WRONG_way_with_noise(self):
+        """More noise cannot make a tight band genuinely better; the upper_bound mode
+        says it does, because every ambiguous bar is booked as a win.
+
+        Renamed from test_the_optimistic_arm_moves_the_WRONG_way_with_noise: the
+        ``optimistic`` mode is ``upper_bound`` under ENGINE_VERSION 3.
+        """
         series = [bps(opt) for _rm, opt, _h, _hz in self.rows]
         self.assertEqual(
             series, sorted(series),
-            "optimistic mode no longer improves monotonically with noise — the "
-            "artifact this test documents may have been fixed; check whether the "
-            "ambiguity default changed")
+            "upper_bound mode no longer improves monotonically with noise — the "
+            "artifact this test documents may have been fixed; check whether that "
+            "mode still passes worst_case_ambiguity=False")
 
     def test_the_wedge_is_driven_by_the_AMBIGUOUS_SHARE(self):
         """The causal link, asserted rather than asserted-by-eye: the gap between the
@@ -231,7 +322,7 @@ class TheOptimisticFlagInvertsTheConclusionTests(unittest.TestCase):
         self.assertEqual(shares, sorted(shares), "fixture no longer sweeps ambiguity")
         self.assertEqual(
             wedges, sorted(wedges),
-            "the optimistic/honest wedge no longer grows with the ambiguous share, so "
+            "the upper-bound/honest wedge no longer grows with the ambiguous share, so "
             "the ambiguity flag is no longer the mechanism behind the inversion: {}"
             .format([(round(s, 3), round(w, 1)) for s, w in pairs]))
         self.assertLess(shares[0], 0.05, "the low-noise control is no longer low")
@@ -242,8 +333,15 @@ class TheOptimisticFlagInvertsTheConclusionTests(unittest.TestCase):
         self.assertGreater(wedges[-1], 50.0)
 
     def test_both_fill_rules_are_shipped_modes_not_hypotheticals(self):
-        """The inversion matters because the repo offers the reader both."""
-        self.assertFalse(BACKTEST_MODES["optimistic"]["worst_case_ambiguity"])
+        """The inversion matters because the repo offers the reader both.
+
+        Re-pinned for ENGINE_VERSION 3 (docs/research/ENGINE_V3_QUESTION.md): the
+        ``optimistic`` mode is renamed ``upper_bound``, still passes
+        ``worst_case_ambiguity=False`` explicitly, and is marked as an upper bound.
+        """
+        self.assertNotIn("optimistic", BACKTEST_MODES)
+        self.assertFalse(BACKTEST_MODES["upper_bound"]["worst_case_ambiguity"])
+        self.assertTrue(BACKTEST_MODES["upper_bound"]["upper_bound"])
         self.assertTrue(BACKTEST_MODES["realistic"]["worst_case_ambiguity"])
         self.assertTrue(BACKTEST_MODES["harsh"]["worst_case_ambiguity"])
 

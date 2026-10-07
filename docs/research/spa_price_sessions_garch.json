@@ -1,0 +1,18 @@
+{
+ "alpha": 0.05,
+ "n_boot": 1000,
+ "cell": "one idea, m=0",
+ "rows": [
+  {
+   "true_active_sharpe": 0.0,
+   "null_ideas": 0,
+   "withheld_m": 0,
+   "sessions": 504,
+   "garch": true,
+   "reps": 1000,
+   "passes": 52,
+   "rate": 0.052,
+   "wilson_upper": 0.06755573945665176
+  }
+ ]
+}

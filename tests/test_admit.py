@@ -13,6 +13,7 @@ stage's outcome, that the gate's own backtests are counted, and that verdict rec
 are immutable.
 """
 import datetime as dt
+import json
 import subprocess
 import sys
 import tempfile
@@ -28,6 +29,8 @@ sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "tools"))
 
 import admit  # noqa: E402
+from tests._long_hourly_source import V2_WINDOW, long_hourly_source  # noqa: E402
+from tests._v1_registration import register_v1  # noqa: E402
 from src.research import prereg, refutations, trials  # noqa: E402
 
 REGISTERED = "2021-07-02T00:00:00Z"
@@ -57,6 +60,14 @@ def _spec(**changes):
          "cost_model": {"round_trip_cost_pct": "instrument-derived"}, "params": dict(PARAMS)}
     s.update(changes)
     return s
+
+
+def _spec_v2(**changes):
+    """The same candidate as a new (gate rules v2) registration would freeze it, on a
+    window long enough for the v2 price floor (register under ``long_hourly_source``)."""
+    changes.setdefault("development_window", dict(V2_WINDOW))
+    return _spec(metric="familywise_spa", gate_rules=2, familywise_alpha=0.05,
+                 prior_search_trials=0, **changes)
 
 
 def flat_bars(symbol, start, end):
@@ -103,7 +114,7 @@ class Gate(unittest.TestCase):
         self._tmp.cleanup()
 
     def register(self, **changes):
-        prereg.register(_spec(**changes), prereg_dir=self.dirs["prereg_dir"], check_web=False,
+        register_v1(self, _spec(**changes), prereg_dir=self.dirs["prereg_dir"], check_web=False,
                         now=REGISTERED)
 
     def evaluate(self, edge=0.004, now=MATURE, parity_diverge=(), dirty=False,
@@ -372,6 +383,57 @@ class RedTeamAttacks(Gate):
         self.assertEqual(admit._verdict([S("a", "pass", ""), S("b", "pending", "")]), admit.PENDING_V)
         self.assertEqual(admit._verdict([S("a", "pending", ""), S("b", "block", "")]), admit.BLOCKED)
         self.assertEqual(admit._verdict([S("a", "block", ""), S("b", "fail", "")]), admit.REJECT)
+
+
+class GateRulesV2(Gate):
+    """Decision debate 2026-10-06, Q2: the DSR becomes a diagnostic, the price profile's
+    familywise stage is BLOCKED until its trigger study passes, and a verdict's chain is
+    read from the registration's rules version, never from the record."""
+
+    def register_v2(self):
+        long_hourly_source(self)
+        prereg.register(_spec_v2(), prereg_dir=self.dirs["prereg_dir"], check_web=False, now=REGISTERED)
+
+    def test_a_v2_price_registration_is_blocked_at_familywise_with_the_dsr_as_a_diagnostic(self):
+        self.register_v2()
+        self.examined()
+        rec = self.evaluate()
+        self.assertEqual(rec["gate_rules"], 2)
+        by = {s["name"]: s for s in rec["stages"]}
+        self.assertNotIn("deflation", by)
+        self.assertEqual(by["deflation_diagnostic"]["outcome"], admit.SKIP)
+        self.assertEqual(by["familywise"]["outcome"], admit.BLOCK)
+        self.assertIn("not ratified", by["familywise"]["detail"])
+        self.assertEqual(rec["verdict"], admit.BLOCKED)
+
+    def test_no_v2_price_admit_verifies(self):
+        self.register_v2()
+        h = prereg.load("H9100", prereg_dir=self.dirs["prereg_dir"])[1]
+        forged = {"hypothesis": "H9100", "evaluated_at": "2021-12-01T00:00:00Z", "verdict": "ADMIT",
+                  "spec_hash": h, "gate_rules": 2,
+                  "stages": [{"name": n, "outcome": "pass", "detail": "", "data": {}}
+                             for n in admit.ADMIT_CHAIN]}
+        problems = admit.verify_record(forged, prereg_dir=self.dirs["prereg_dir"])
+        self.assertTrue(any("no price-profile ADMIT" in p for p in problems), problems)
+        # Claiming rules 1 does not help: the registration decides.
+        problems = admit.verify_record({**forged, "gate_rules": 1}, prereg_dir=self.dirs["prereg_dir"])
+        self.assertTrue(any("claims gate rules 1" in p for p in problems), problems)
+
+    def test_a_skip_stage_is_not_a_pass_under_v1(self):
+        self.register()
+        self.examined()
+        rec = self.evaluate()
+        self.assertEqual(rec["verdict"], admit.ADMIT)
+        skipped = json.loads(json.dumps(rec))
+        next(s for s in skipped["stages"] if s["name"] == "deflation")["outcome"] = admit.SKIP
+        problems = admit.verify_record(skipped, prereg_dir=self.dirs["prereg_dir"], deploy_ref="HEAD")
+        self.assertIn("an ADMIT must pass exactly the full stage chain", problems)
+
+    def test_the_v1_allowlist_is_exactly_the_three_frozen_registrations(self):
+        self.assertEqual(set(prereg.GATE_RULES_V1_ALLOWLIST), {"H404700", "H404701", "H404702"})
+        for h in prereg.GATE_RULES_V1_ALLOWLIST:
+            _, current = prereg.load(h, prereg_dir=prereg.REPO / prereg.PREREG_REL)
+            self.assertEqual(current, prereg.GATE_RULES_V1_ALLOWLIST[h], h)
 
 
 class TheForwardFloorsPower(unittest.TestCase):

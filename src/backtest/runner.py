@@ -8,7 +8,7 @@ Fairness fixes (2026-03-23):
   - Same-bar ambiguity: worst-case rule (stop wins when both hit)
   - Configurable slippage: deducted from every trade return
   - Per-trade debug logging: shows entry, exit, size, slippage
-  - Backtest mode: optimistic / realistic / harsh
+  - Backtest mode: upper_bound / realistic / harsh
 """
 
 import pandas as pd
@@ -33,11 +33,16 @@ from src.strategy.counted import evaluator as _counted_evaluator
 #  BACKTEST MODES — preset fairness levels
 # ═══════════════════════════════════════════════════════════════════════════
 BACKTEST_MODES = {
-    "optimistic": {
+    # Renamed from "optimistic" under ENGINE_VERSION 3 (decision debate 2026-10-06): its
+    # results are UPPER BOUNDS (target-first ambiguity, no slippage, look-ahead Kelly).
+    # Its trials carry upper_bound: true in their spec and still count in a family's N;
+    # admission re-runs every candidate in "realistic" mode, so none is ever admitted.
+    "upper_bound": {
         "slippage_pct":          0.0,
         "worst_case_ambiguity":  False,
-        "kelly_mode":            "full_sample",   # legacy: full-sample Kelly (lookahead)
-        "description":           "Legacy mode — no slippage, target wins ambiguity, full-sample Kelly",
+        "kelly_mode":            "full_sample",   # full-sample Kelly (look-ahead)
+        "upper_bound":           True,
+        "description":           "Upper bound — no slippage, target wins ambiguity, full-sample Kelly",
     },
     "realistic": {
         "slippage_pct":          0.0002,           # 2bps round-trip
@@ -61,7 +66,11 @@ BACKTEST_MODES = {
 #:      hold = MAX_TRADE_BARS for every mode, morning-only session data in sweeps.
 #:   2  aligned to the live bot: shorts suppressed as the trader skips them, the
 #:      configured regime flag passed through, the live mode holds MAX_TRADE_BARS_LIVE.
-ENGINE_VERSION = 2
+#:   3  execution matches live (decision debate 2026-10-06, ENGINE_V3_QUESTION.md):
+#:      the bracket is live from the entry bar, open gaps fill at the open, the time exit
+#:      fills at the open of bar N+1+MAX, one position at a time, stop-first ambiguity
+#:      by default; the "optimistic" mode renamed "upper_bound".
+ENGINE_VERSION = 3
 
 
 def resolve_hold(mode: str | None, timeframe: str, max_trade_bars: int | None = None) -> int:
@@ -130,7 +139,7 @@ def run_backtest(df: pd.DataFrame,
     Run a full backtest on historical OHLCV data.
 
     Args:
-        backtest_mode: "optimistic" | "realistic" | "harsh" — controls slippage,
+        backtest_mode: "upper_bound" | "realistic" | "harsh" — controls slippage,
                        same-bar ambiguity, and Kelly sizing method.
         debug: When True, prints per-trade detail (entry, exit, size, slippage).
         mode: The strategy mode being run (e.g. "TQQQ_HOURLY"); with max_trade_bars
@@ -236,6 +245,16 @@ def run_backtest(df: pd.DataFrame,
 
     trade_returns = trades_df["return"]
     trade_returns.index = pd.to_datetime(trades_df["timestamp"])
+
+    # Gate rules v2 (iii): every trade marked to market at session closes, fixed notional,
+    # so the familywise gate can score trials on one daily grid. The direction is the
+    # entry signal that opened the trade.
+    from src.research import mark_to_market as _mtm
+    direction = df_trades["entry_signal"].reindex(pd.DatetimeIndex(trades_df["timestamp"]))
+    trade_marks = _mtm.trade_marks(trades_df.assign(direction=direction.to_numpy(dtype=float)),
+                                   df_trades)
+    sessions = _mtm.session_dates(df_trades.index).unique()
+    instrument_return = _mtm.bar_session_returns(df_trades).reindex(sessions)
 
     # Exit type breakdown
     if "exit_type" in trades_df.columns:
@@ -393,6 +412,9 @@ def run_backtest(df: pd.DataFrame,
         "equity_curve":    equity,
         "trade_returns":   trade_returns,
         "trades_df":       trades_df,
+        "trade_marks":     trade_marks,
+        "sessions":        sessions,
+        "instrument_return": instrument_return,
         "monthly_returns": monthly_returns,
         "backtest_mode":   backtest_mode,
         "slippage_pct":    slippage_pct,

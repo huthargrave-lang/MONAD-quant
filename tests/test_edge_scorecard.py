@@ -17,7 +17,8 @@ import admit  # noqa: E402
 import edge_scorecard  # noqa: E402
 from src.research import prereg, refutations, trials  # noqa: E402
 sys.path.insert(0, str(REPO / "tests"))
-from test_admit import _spec  # noqa: E402  (one spec fixture, shared)
+from test_admit import _spec_v2 as _spec  # noqa: E402  (one spec fixture, shared)
+from tests._long_hourly_source import long_hourly_source  # noqa: E402
 
 
 class Scorecard(unittest.TestCase):
@@ -28,6 +29,7 @@ class Scorecard(unittest.TestCase):
                       admit.VERDICT_DIR)
         trials.LEDGER_DIR, prereg.PREREG_DIR = d / "t", d / "p"
         refutations.REFUTATIONS_DIR, admit.VERDICT_DIR = d / "r", d / "v"
+        long_hourly_source(self)
 
     def tearDown(self):
         (trials.LEDGER_DIR, prereg.PREREG_DIR, refutations.REFUTATIONS_DIR,

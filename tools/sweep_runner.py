@@ -153,7 +153,7 @@ def build_argv(interpreter, ticker, phase="1", mode="realistic", start=None, end
         raise ValueError("not a ticker: %r" % (ticker,))
     if phase not in PHASES:
         raise ValueError("not a phase: %r" % (phase,))
-    if mode not in ("optimistic", "realistic", "harsh"):
+    if mode not in ("upper_bound", "realistic", "harsh"):
         raise ValueError("not a mode: %r" % (mode,))
     argv = [interpreter, SWEEP, ticker, "--phase", phase, "--mode", mode]
     # Both dates are optional and independent: sweep.py defaults start to two years back and

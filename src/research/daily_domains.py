@@ -159,5 +159,69 @@ BDC = Domain(
     # there); BDC price-to-NAV is also a published screen: counted as 3.
     prior_search_trials=3)
 
-DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO, COUNTRY, BDC)}
+# ── insider purchase clusters against the small-cap index ────────────────────
+from src.research import insider_classes as _ins  # noqa: E402
+
+
+def _ins_load(data: Mapping) -> Context:
+    from src.research import insider_data
+    return Context(snap=daily_data.load_snapshot(data["snapshot"]),
+                   panel=_ins.InsiderEvents(sha=data["nav_panel"],
+                                            events=insider_data.load(data["nav_panel"])))
+
+
+INSIDER = Domain(
+    name="insider_cluster", reference=_ins.REFERENCE, eras=_ins.ERAS, load=_ins_load,
+    decide=lambda ctx, point: _ins.decide(ctx.snap, ctx.panel, point),
+    tiers=lambda ctx: _ins.tiers(ctx.snap, ctx.panel),
+    start=lambda ctx: _ins.scoring_start(ctx.snap, ctx.panel),
+    truncation=lambda ctx, point, cuts: _ins.truncation_violations(ctx.snap, ctx.panel, point, cuts),
+    grids=lambda: _ins.GRIDS,
+    # A published effect (Lakonishok-Lee; Cohen-Malloy-Pomorski): counted as 3.
+    prior_search_trials=3)
+
+# ── mortgage REIT book-value discount: a second disjoint test of the CEF mechanism ──
+from src.research import mreit_classes as _mreit  # noqa: E402
+
+
+def _mreit_load(data: Mapping) -> Context:
+    from src.research import bdc_data
+    return Context(snap=daily_data.load_snapshot(data["snapshot"]),
+                   panel=bdc_data.load_panel(data["nav_panel"], prefix=_mreit.PANEL_PREFIX))
+
+
+MREIT = Domain(
+    name="mreit_discount", reference=_mreit.REFERENCE, eras=_mreit.ERAS, load=_mreit_load,
+    decide=lambda ctx, point: _mreit.decide(ctx.snap, ctx.panel, point),
+    tiers=lambda ctx: _mreit.tiers(ctx.snap, ctx.panel),
+    start=lambda ctx: _mreit.scoring_start(ctx.snap, ctx.panel),
+    truncation=lambda ctx, point, cuts: _mreit.truncation_violations(ctx.snap, ctx.panel, point, cuts),
+    grids=lambda: _mreit.GRIDS,
+    # The CEF mechanism's second out-of-sample replication (docs/research/
+    # MREIT_DISCOUNT_TEST.md); mREIT price-to-book is a common screen: counted as 3.
+    prior_search_trials=3)
+
+# ── the earnings-announcement premium in small caps ─────────────────────────
+from src.research import earnings_classes as _earn  # noqa: E402
+
+
+def _earn_load(data: Mapping) -> Context:
+    from src.research import earnings_data
+    return Context(snap=daily_data.load_snapshot(data["snapshot"]),
+                   panel=earnings_data.load(data["nav_panel"]))
+
+
+EARNINGS = Domain(
+    name="earnings_premium", reference=_earn.REFERENCE, eras=_earn.ERAS, load=_earn_load,
+    decide=lambda ctx, point: _earn.decide(ctx.snap, ctx.panel, point),
+    tiers=lambda ctx: _earn.tiers(ctx.snap, ctx.panel),
+    start=lambda ctx: _earn.scoring_start(ctx.snap, ctx.panel),
+    truncation=lambda ctx, point, cuts: _earn.truncation_violations(ctx.snap, ctx.panel, point, cuts),
+    grids=lambda: _earn.GRIDS,
+    # A published effect (Frazzini-Lamont 2007; Barber et al. 2013): counted as the
+    # survivor of 3 variants (docs/research/EARNINGS_PREMIUM_PROTOCOL.md).
+    prior_search_trials=3)
+
+DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO, COUNTRY, BDC, INSIDER, MREIT,
+                                                  EARNINGS)}
 

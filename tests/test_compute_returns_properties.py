@@ -7,9 +7,14 @@ edge cases hand-written examples miss:
 
   * every exit_type is in the valid set
   * a recorded target_hit return == the target param; stop_hit == -stop;
-    ambiguous (optimistic) == target  (the "recorded return == the chosen exit"
-    invariant from the roadmap)
-  * returns are always finite and bounded below by -1 (price can't go negative)
+    ambiguous == -stop by default (stop-first) and == target only in the upper-bound
+    branch (worst_case_ambiguity=False); a gap or time exit == the move to the OPEN of
+    its exit bar; a truncated time exit == the move to the last close  (the "recorded
+    return == the chosen exit" invariant from the roadmap)
+  * returns are always finite; a LONG's return is bounded below by -1 (price can't go
+    negative). A short has no such bound: under ENGINE_VERSION 3 a gap through a short's
+    stop fills at the open, so a >100% gap books a loss beyond -1 (F241 recorded the
+    same breach on the opposing-exit branch).
   * slippage shifts every return by exactly the slippage amount
   * the function is deterministic
 
@@ -30,8 +35,11 @@ from tests._engine_uncounted import uncounted_module  # noqa: E402
 # (src/strategy/counted.py).
 setUpModule, tearDownModule = uncounted_module("property tests of compute_trade_returns arithmetic on synthetic bars")
 
+# ENGINE_VERSION 3 (docs/research/ENGINE_V3_QUESTION.md) adds gap_stop / gap_target (an
+# open at or through a level fills at the open) and time_exit_truncated (end of data).
 VALID_EXIT_TYPES = {"target_hit", "stop_hit", "ambiguous_same_bar",
-                    "time_exit", "opposing_signal"}
+                    "gap_stop", "gap_target", "time_exit", "time_exit_truncated",
+                    "opposing_signal"}
 
 try:
     from hypothesis import given, settings, strategies as st
@@ -48,7 +56,8 @@ if HAS_HYPOTHESIS:
 
         Each bar has a flat body (open==close==center) and a random high/low
         range around it, guaranteeing low <= open/close <= high. The single
-        entry fills at bar 1's open; exits are scanned from bar 2.
+        entry fills at bar 1's open; under ENGINE_VERSION 3 the bracket is scanned
+        from bar 1 itself (the entry bar).
         """
         n = draw(st.integers(min_bars, max_bars))
         centers = draw(st.lists(
@@ -75,21 +84,64 @@ if HAS_HYPOTHESIS:
         @settings(max_examples=60, deadline=None)
         @given(df=_price_path())
         def test_exit_types_and_recorded_returns(self, df):
+            """Every recorded return equals the exit the engine chose.
+
+            Re-pinned for ENGINE_VERSION 3 (docs/research/ENGINE_V3_QUESTION.md): the
+            default is now stop-first (an ambiguous bar records -stop, not the target),
+            and the v3 exit types are covered: gap_stop / gap_target / time_exit record
+            the move to the OPEN of the exit bar, time_exit_truncated the move to the
+            last close. entry_time / exit_time locate those prices. The -1 lower bound is
+            asserted for longs only: v3's gap_stop makes a short's breach of -1 reachable
+            (a short at 10 whose stop bar opens at 20 books exactly -1.0), and that is
+            the correct short-side arithmetic, not an engine defect.
+            """
             res = compute_trade_returns(df, target_gain_pct=self.TARGET,
                                         stop_loss_pct=self.STOP, max_trade_bars=50)
             self.assertLessEqual(len(res), int((df["entry_signal"] != 0).sum()))
+            direction = int(df["entry_signal"].iloc[0])
             for _, row in res.iterrows():
                 et, r = row["exit_type"], row["return"]
                 self.assertIn(et, VALID_EXIT_TYPES)
                 self.assertTrue(np.isfinite(r))
-                self.assertGreater(r, -1.0)            # price can't go below zero
+                if direction == 1:                     # a long-only fact (F241)
+                    self.assertGreater(r, -1.0)        # price can't go below zero
+                # the fill is the open of the bar after the signal, and no exit precedes it
+                self.assertEqual(df.index.get_loc(row["entry_time"]),
+                                 df.index.get_loc(row["timestamp"]) + 1)
+                self.assertGreaterEqual(row["exit_time"], row["entry_time"])
+                entry = df.at[row["entry_time"], "open"]
                 if et == "target_hit":
                     self.assertAlmostEqual(r, self.TARGET, places=9)
                 elif et == "stop_hit":
                     self.assertAlmostEqual(r, -self.STOP, places=9)
                 elif et == "ambiguous_same_bar":
-                    # default worst_case_ambiguity=False -> optimistic (target)
-                    self.assertAlmostEqual(r, self.TARGET, places=9)
+                    # default worst_case_ambiguity=True -> stop-first
+                    self.assertAlmostEqual(r, -self.STOP, places=9)
+                elif et in ("gap_stop", "gap_target", "time_exit"):
+                    px = df.at[row["exit_time"], "open"]
+                    self.assertAlmostEqual(r, direction * (px - entry) / entry, places=9)
+                    if et == "gap_stop":                # an open at or through the stop
+                        self.assertLessEqual(r, -self.STOP + 1e-12)
+                    elif et == "gap_target":            # an open at or through the target
+                        self.assertGreaterEqual(r, self.TARGET - 1e-12)
+                    else:
+                        self.assertGreater(r, -self.STOP - 1e-12)
+                        self.assertLess(r, self.TARGET + 1e-12)
+                elif et == "time_exit_truncated":
+                    self.assertEqual(row["exit_time"], df.index[-1])
+                    px = df.at[row["exit_time"], "close"]
+                    self.assertAlmostEqual(r, direction * (px - entry) / entry, places=9)
+
+        @settings(max_examples=40, deadline=None)
+        @given(df=_price_path())
+        def test_upper_bound_ambiguity_records_target(self, df):
+            """worst_case_ambiguity=False (the upper_bound mode only) books the target."""
+            res = compute_trade_returns(df, target_gain_pct=self.TARGET,
+                                        stop_loss_pct=self.STOP, max_trade_bars=50,
+                                        worst_case_ambiguity=False)
+            for _, row in res.iterrows():
+                if row["exit_type"] == "ambiguous_same_bar":
+                    self.assertAlmostEqual(row["return"], self.TARGET, places=9)
 
         @settings(max_examples=40, deadline=None)
         @given(df=_price_path())

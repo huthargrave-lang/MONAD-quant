@@ -1,0 +1,37 @@
+{
+ "alpha": 0.05,
+ "n_boot": 1000,
+ "cell": "one idea, m=0",
+ "rows": [
+  {
+   "true_active_sharpe": 0.0,
+   "null_ideas": 0,
+   "withheld_m": 0,
+   "sessions": 1008,
+   "reps": 1000,
+   "passes": 45,
+   "rate": 0.045,
+   "wilson_upper": 0.05968283806711894
+  },
+  {
+   "true_active_sharpe": 0.0,
+   "null_ideas": 0,
+   "withheld_m": 0,
+   "sessions": 1512,
+   "reps": 1000,
+   "passes": 37,
+   "rate": 0.037,
+   "wilson_upper": 0.05058239760480626
+  },
+  {
+   "true_active_sharpe": 0.0,
+   "null_ideas": 0,
+   "withheld_m": 0,
+   "sessions": 2520,
+   "reps": 1000,
+   "passes": 44,
+   "rate": 0.044,
+   "wilson_upper": 0.058551789280331154
+  }
+ ]
+}

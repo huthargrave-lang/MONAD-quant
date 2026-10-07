@@ -58,9 +58,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pandas as pd  # noqa: E402
 
 from src.research import deflation, prereg, refutations, trials  # noqa: E402
+from src.research import allocation_stats as stats  # noqa: E402
+from src.research import mark_to_market as mtm  # noqa: E402
 from src.research import significance as sig  # noqa: E402
 from src.research.backtest_trials import (MR_HOURLY_STRATEGY, data_spec, engine_spec,  # noqa: E402
-                                          family_members, mr_hourly_family, record_backtest)
+                                          family_members, lineage_members, mr_hourly_family,
+                                          record_backtest)
 
 VERDICT_REL = Path("docs/research/verdicts")
 VERDICT_DIR = Path(REPO) / VERDICT_REL
@@ -70,9 +73,29 @@ ADMIT, REJECT, BLOCKED, PENDING_V, UNSUPPORTED = "ADMIT", "REJECT", "BLOCKED", "
 CANDIDATE_KEYS = ("target_gain_pct", "stop_loss_pct", "rsi_oversold", "vwap_zscore_thresh",
                   "max_trade_bars")
 COST_STRESS_MULTIPLE = 2
+#: A stop's trigger-to-fill slippage beyond the spread (the round-trip cost already
+#: charges the spread). ENGINE_VERSION 3 consensus (g): measured from live stop exits.
+#: IBKR-native stop fills are UNMEASURED; the only measured evidence is the D6
+#: software-risk-trigger audit (fills beyond the level 10.6-244 bp, median 32.72 bp), so
+#: that median is used and every admission record states it with this source.
+STOP_SLIPPAGE_PCT = 0.003272
+STOP_SLIPPAGE_SOURCE = ("D6_software_risk_trigger_outcome_audit.md median 32.72 bp (software "
+                        "stops); IBKR-native stop fills unmeasured")
 #: A DSR over fewer daily observations than this is not evidence (red-team friction #5:
 #: a Sharpe of +23 "over 2 days" was reported without complaint).
 MIN_DSR_OBS = 30
+#: Gate rules v2, price profile (DEFLATION_RULE_QUESTION.md (iii), (vi)): the familywise
+#: stage runs only once the committed sparse-basis size study meets the trigger; until
+#: then it is BLOCKED. Flipping this without that evidence fails a test.
+PRICE_V2_RATIFIED = False
+#: The study files ratification rests on (price trigger consensus R3, R5): each on basis
+#: PRICE_V2_BASIS, every size cell within the trigger, with these DGP cells among them.
+#: Empty until the R5 study (real runner + mark_to_market path, (iii') basis) is run.
+PRICE_V2_EVIDENCE: tuple = ()
+PRICE_V2_BASIS = "iii-prime runner+mark_to_market"
+PRICE_V2_REQUIRED_DGPS = ("iid", "garch", "drift_intraday", "drift_overnight", "regime", "exit_bar")
+#: The named series every ENGINE_VERSION 3 price trial records (backtest_trials).
+MTM_SERIES = ("mtm_pnl", "exposure", "instrument_return")
 #: Bars of feature warm-up loaded before the forward window. Trades before
 #: ``registered_at`` are discarded; these bars only let indicators settle.
 FORWARD_WARMUP_DAYS = 60
@@ -197,12 +220,84 @@ def _counted_backtest(df, ticker, params, cost, *, run, stage, evaluated_from=No
                              df=df.copy(), target_gain_pct=params["target_gain_pct"],
                              stop_loss_pct=params["stop_loss_pct"], require_signals=1,
                              timeframe="hourly", plot=False, backtest_mode="realistic",
-                             slippage_pct=cost)
+                             slippage_pct=cost, stop_slippage_pct=STOP_SLIPPAGE_PCT)
         except Exception as exc:  # noqa: BLE001 — counted, then reported by the caller
             trial.fail(f"{type(exc).__name__}: {exc}")
             return key, None
     record_backtest(trial, r, evaluated_from=evaluated_from)
     return key, (r or None)
+
+
+def _point(rec) -> str:
+    """A searched point's identity: its engine settings, whatever data it ran on."""
+    return trials.sha256_text(trials.canonical_json(rec.spec.get("params")))
+
+
+def _mtm_active(recs) -> dict:
+    """{record key: active series} for the records that carry all three named series."""
+    loaded = {n: trials.load_series(recs, n) for n in MTM_SERIES}
+    return {r.key: mtm.active_pnl(*(loaded[n][r.key] for n in MTM_SERIES))
+            for r in recs if all(r.key in loaded[n] for n in MTM_SERIES)}
+
+
+def price_family_gate(searched, dev_rec, *, prior: int, alpha: float, lineage=(),
+                      min_sessions: int = prereg.MIN_PRICE_SESSIONS):
+    """Gate rules v2 for the price profile: ``(m, m_parts, FamilywiseGate)``.
+
+    The matrix holds every distinct point the family searched on the candidate's exact
+    data (same bars, same scoring cut) with a mark-to-market record, plus the candidate as
+    the gate re-ran it. Everything the matrix cannot hold is charged in ``m`` by the union
+    bound: the declared prior search, specs with no known result, points searched only on
+    other data or on another mark-to-market basis (or unmarked), and every distinct point of
+    the family's ``lineage`` (earlier engine versions). Raises ValueError when the candidate
+    has no mark-to-market record or fewer than ``min_sessions`` scored sessions (the floor
+    the gate is size-validated from; price trigger consensus R2)."""
+    cand = _mtm_active([dev_rec]).get(dev_rec.key)
+    if cand is None:
+        raise ValueError("the development trial carries no mark-to-market series")
+    if len(cand) < min_sessions:
+        raise ValueError(f"the candidate is scored on {len(cand)} sessions; the v2 gate is "
+                         f"size-validated from {min_sessions}")
+    data, cand_point = dev_rec.spec.get("data"), _point(dev_rec)
+    basis = (dev_rec.spec.get("params") or {}).get("mtm_basis")
+    latest = {}
+    for r in searched:
+        if (r.status == "ok" and r.spec.get("data") == data
+                and (r.spec.get("params") or {}).get("mtm_basis") == basis
+                and all(n in r.series_shas for n in MTM_SERIES)):
+            latest[_point(r)] = r
+    latest.pop(cand_point, None)          # the candidate's own search trial IS the candidate
+    found = _mtm_active(list(latest.values()))
+    active = {k: found[r.key] for k, r in latest.items()}
+    active["candidate"] = cand
+    unknown = ({r.spec_hash for r in searched if r.status != "ok"}
+               - {r.spec_hash for r in searched if r.status == "ok"})
+    off = {_point(r) for r in searched if r.status == "ok"} - set(latest) - {cand_point}
+    older = {_point(r) for r in lineage}
+    parts = {"prior_search_trials": int(prior), "unknown_specs": len(unknown),
+             "off_window_points": len(off), "older_engine_points": len(older)}
+    m = sum(parts.values())
+    return m, parts, stats.familywise_gate(active, "candidate", m=m, alpha=alpha)
+
+
+def _price_familywise_stage(spec: dict, searched, dev_key) -> Stage:
+    try:
+        rows = trials.iter_trials()
+        dev_rec = next((r for r in rows if r.key == dev_key), None)
+        if dev_rec is None:
+            raise ValueError("no development trial to score")
+        m, parts, g = price_family_gate(searched, dev_rec, prior=spec["prior_search_trials"],
+                                        alpha=spec["familywise_alpha"],
+                                        lineage=lineage_members(rows, spec["family"]))
+    except (ValueError, trials.LedgerError) as exc:
+        return Stage("familywise", FAIL, f"cannot be computed: {exc}")
+    return Stage("familywise", PASS if g.p_gate <= spec["familywise_alpha"] else FAIL,
+                 f"p_gate {g.p_gate:.5f} = worst p {g.worst_p:.5f} x (1+{m}) vs "
+                 f"{spec['familywise_alpha']} on mark-to-market active PnL (B={g.n_boot}, "
+                 f"K={g.blocks[0]['family_size']})",
+                 {"p_gate": g.p_gate, "worst_p": g.worst_p, "m": m, "m_parts": parts,
+                  "n_boot": g.n_boot, "blocks": g.blocks,
+                  "dropped_zero_variance": g.dropped_zero_variance})
 
 
 def stage_code(code: Callable) -> tuple[Stage, dict]:
@@ -287,6 +382,7 @@ def evaluate(hypothesis: str, *, now: _dt.datetime | None = None,
                             f"start the trial count from zero"))
         return {**record, "verdict": REJECT, "stages": [asdict(s) for s in stages]}
     stages.append(Stage("registration", PASS, f"frozen at {spec['registered_at']}"))
+    record["stop_slippage"] = {"pct": STOP_SLIPPAGE_PCT, "source": STOP_SLIPPAGE_SOURCE}
 
     # ── code ────────────────────────────────────────────────────────────────
     st, record["code"] = stage_code(code)
@@ -370,8 +466,28 @@ def evaluate(hypothesis: str, *, now: _dt.datetime | None = None,
                         f"{n_dev} trades (need {spec['min_trades']})",
                         {"trial": dev_key, "total_return": dev.get("total_return") if dev else None}))
 
-    # ── deflation ───────────────────────────────────────────────────────────
-    if dev and n_dev >= 2:
+    # ── deflation (v1 gate) / diagnostic + familywise (v2) ──────────────────
+    rules = prereg.gate_rules(spec)
+    record["gate_rules"] = rules
+    if rules == 2:
+        # Gate rules v2 (decision debate 2026-10-06): the DSR is a diagnostic, and the
+        # price profile's familywise stage stays BLOCKED until its trigger study passes
+        # on the mark-to-market active basis (DEFLATION_RULE_QUESTION.md (iii), (vi)).
+        try:
+            d = deflation.deflate_candidate(dev_key, exclude_producers=("tools/admit.py",)) if dev else None
+            stages.append(Stage("deflation_diagnostic", SKIP,
+                                (f"DSR {d.result.dsr:.4f} (diagnostic only under gate rules v2)"
+                                 if d else "no development result"),
+                                {"dsr": d.result.dsr if d else None}))
+        except (ValueError, trials.LedgerError) as exc:
+            stages.append(Stage("deflation_diagnostic", SKIP, f"not computable: {exc}"))
+        if not PRICE_V2_RATIFIED:
+            stages.append(Stage("familywise", BLOCK, "v2 price chain not ratified: the familywise "
+                                "SPA on mark-to-market active PnL awaits its measured trigger "
+                                "(docs/research/DEFLATION_RULE_QUESTION.md (vi))"))
+        else:
+            stages.append(_price_familywise_stage(spec, searched, dev_key))
+    elif dev and n_dev >= 2:
         try:
             d = deflation.deflate_candidate(dev_key, exclude_producers=("tools/admit.py",))
             ok = d.result.dsr >= spec["threshold"] and d.moments.n_obs >= MIN_DSR_OBS
@@ -467,6 +583,8 @@ def write_verdict(record: dict, verdict_dir: Path | None = None) -> Path:
 #: chain did not come from this gate.
 ADMIT_CHAIN = ("registration", "code", "refutations", "parity", "witness", "development",
                "deflation", "cost_stress", "benchmark", "forward")
+ADMIT_CHAIN_V2 = ("registration", "code", "refutations", "parity", "witness", "development",
+                  "deflation_diagnostic", "familywise", "cost_stress", "benchmark", "forward")
 
 
 def verify_record(record: dict, *, prereg_dir=None, deploy_ref: str | None = None) -> list[str]:
@@ -497,12 +615,34 @@ def verify_record(record: dict, *, prereg_dir=None, deploy_ref: str | None = Non
             head = __import__("json").loads(path.read_bytes().split(b"\n", 1)[0])
     if record.get("verdict") == ADMIT:
         tactical = record.get("profile") == "tactical_allocation"
+        try:
+            spec, current = prereg.load(record.get("hypothesis", ""), prereg_dir=prereg_dir)
+            if current != record.get("spec_hash"):
+                problems.append("the registration no longer matches the admitted spec")
+        except prereg.PreregError as exc:
+            spec = None
+            problems.append(f"registration: {exc}")
+        # The chain follows the gate rules of the hash-verified registration, never the
+        # record's own claim (decision debate 2026-10-06, Q2 (v)).
+        rules = prereg.gate_rules(spec) if spec is not None else None
+        if rules is not None and record.get("gate_rules", 1) != rules:
+            problems.append(f"the record claims gate rules {record.get('gate_rules')} but its "
+                            f"registration is under rules {rules}")
         if tactical:
             import admit_tactical
-            chain = admit_tactical.ADMIT_CHAIN
+            chain = admit_tactical.admit_chain(rules or 1)
+        elif rules == 2 and not PRICE_V2_RATIFIED:
+            chain = None
+            problems.append("no price-profile ADMIT exists under gate rules v2: its familywise "
+                            "stage is not ratified")
+        elif rules == 2:
+            chain = ADMIT_CHAIN_V2
         else:
             chain = ADMIT_CHAIN
-        if tuple(s.name for s in stages) != chain or any(s.outcome != PASS for s in stages):
+        allowed = lambda s: s.outcome == PASS or (rules == 2 and s.name == "deflation_diagnostic"  # noqa: E731
+                                                   and s.outcome == SKIP)
+        if chain is not None and (tuple(s.name for s in stages) != chain
+                                  or not all(allowed(s) for s in stages)):
             problems.append("an ADMIT must pass exactly the full stage chain")
         if head is None:
             problems.append("an ADMIT must name the gate's ledger run")
@@ -513,13 +653,6 @@ def verify_record(record: dict, *, prereg_dir=None, deploy_ref: str | None = Non
                 problems.append("the named ledger run is for another hypothesis")
             if (head.get("context") or {}).get("spec_hash") != record.get("spec_hash"):
                 problems.append("the named ledger run evaluated a different spec")
-        try:
-            spec, current = prereg.load(record.get("hypothesis", ""), prereg_dir=prereg_dir)
-            if current != record.get("spec_hash"):
-                problems.append("the registration no longer matches the admitted spec")
-        except prereg.PreregError as exc:
-            spec = None
-            problems.append(f"registration: {exc}")
         if head is not None and not problems:
             problems += (admit_tactical.verify_evidence(record, head, spec) if tactical
                          else _verify_admit_evidence(record, head, spec))
@@ -576,7 +709,9 @@ def _verify_admit_evidence(record: dict, head: dict, spec: dict | None) -> list[
         return r
 
     dev = trial("development", "admission:development")
-    if dev is not None and spec is not None:
+    if dev is not None and spec is not None and prereg.gate_rules(spec) == 2:
+        problems += _verify_price_familywise(by_stage, head, spec, rows, dev)
+    elif dev is not None and spec is not None:
         n = int((dev.metrics or {}).get("total_trades", 0))
         if n < spec["min_trades"]:
             problems.append(f"development: the ledger shows {n} trades, below {spec['min_trades']}")
@@ -591,6 +726,33 @@ def _verify_admit_evidence(record: dict, head: dict, spec: dict | None) -> list[
                for r in in_run.values()):
         problems.append("cost_stress: no cost-stress trial in the gate run")
     trial("forward", "admission:forward")
+    return problems
+
+
+def _verify_price_familywise(by_stage: dict, head: dict, spec: dict, rows, dev) -> list[str]:
+    """Gate rules v2, price profile: the familywise stage recomputed from the ledger. The
+    family is what the gate could see (search trials whose runs opened before the gate
+    run); the candidate is the gate run's development trial and its recorded series."""
+    problems = []
+    n = int((dev.metrics or {}).get("total_trades", 0))
+    if n < spec["min_trades"]:
+        problems.append(f"development: the ledger shows {n} trades, below {spec['min_trades']}")
+    before = [r for r in rows if r.opened_at < head["at"]]
+    searched = [r for r in family_members(before, spec["family"]) if r.producer != "tools/admit.py"]
+    try:
+        m, _, g = price_family_gate(searched, dev, prior=spec["prior_search_trials"],
+                                    alpha=spec["familywise_alpha"],
+                                    lineage=lineage_members(before, spec["family"]))
+    except (ValueError, trials.LedgerError) as exc:
+        return problems + [f"familywise: cannot be recomputed from the ledger ({exc})"]
+    data = (by_stage.get("familywise") or {}).get("data") or {}
+    if m != data.get("m") or g.n_boot != data.get("n_boot") or \
+            abs(g.p_gate - float(data.get("p_gate", float("nan")))) > 1e-12:
+        problems.append(f"familywise: recomputed p_gate {g.p_gate:.5f} (m {m}, B {g.n_boot}) does "
+                        f"not match the record's {data.get('p_gate')} (m {data.get('m')})")
+    if g.p_gate > spec["familywise_alpha"]:
+        problems.append(f"familywise: recomputed p_gate {g.p_gate:.5f} does not clear "
+                        f"{spec['familywise_alpha']}")
     return problems
 
 

@@ -39,6 +39,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 import config  # noqa: E402
+from tests._engine_uncounted import uncounted_module  # noqa: E402
+
+# One test probes compute_trade_returns on hand-built bars: engine arithmetic, not a
+# strategy evaluation, so it runs outside the trial ledger (src/strategy/counted.py).
+setUpModule, tearDownModule = uncounted_module("opposing-exit parity: the engine books one on hand-built bars")
 
 TRADER = ROOT / "live" / "trader.py"
 CONFIG = ROOT / "config.py"
@@ -94,11 +99,29 @@ class TheLiveTraderHasNoOpposingExitTests(unittest.TestCase):
                          "the live trader now books an opposing_signal exit")
 
     def test_the_backtest_engine_by_contrast_DOES_book_one(self):
-        """The asymmetry, stated in one assertion."""
-        engine = (ROOT / "src" / "strategy" / "engine.py").read_text(encoding="utf-8")
-        self.assertIn('exit_type   = "opposing_signal"', engine,
-                      "the backtest no longer books an opposing_signal exit either — "
-                      "the divergence closed from the other side")
+        """The asymmetry, stated in one assertion.
+
+        Re-pinned for ENGINE_VERSION 3 (docs/research/ENGINE_V3_QUESTION.md): v3 rewrote
+        compute_trade_returns and assigns the label in a tuple assignment, so the v2
+        source token (``exit_type   = "opposing_signal"``) no longer matches although the
+        exit still exists. The engine is now asked directly: a long whose later bar votes
+        short closes at the next bar's open as ``opposing_signal``.
+        """
+        import pandas as pd
+        from src.strategy.engine import compute_trade_returns
+
+        flat = (100.0, 100.1, 99.9, 100.0)
+        rows = [flat, flat, flat, (100.4, 100.5, 100.3, 100.4), flat]
+        df = pd.DataFrame(rows, columns=["open", "high", "low", "close"],
+                          index=pd.date_range("2026-03-02 14:30", periods=len(rows), freq="h"))
+        df["entry_signal"] = [1, 0, 0, 0, 0]
+        df["signal_vote"] = [1, 0, -1, 0, 0]
+        res = compute_trade_returns(df, target_gain_pct=0.05, stop_loss_pct=0.05,
+                                    max_trade_bars=3, use_opposing_signal_exit=True)
+        self.assertEqual(list(res["exit_type"]), ["opposing_signal"],
+                         "the backtest no longer books an opposing_signal exit either — "
+                         "the divergence closed from the other side")
+        self.assertAlmostEqual(float(res["return"].iloc[0]), 0.004, places=12)
 
 
 class TheCommentNoLongerPromisesParityTests(unittest.TestCase):

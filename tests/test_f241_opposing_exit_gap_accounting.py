@@ -40,6 +40,30 @@ Guards below are bidirectional. They fail if the disagreement is fixed (adopt on
 convention — then supersede this node rather than editing the numbers), and they fail if
 the property suite grows coverage of the branch (good news, same instruction). The
 no-gap control fails if the disagreement stops being attributable to the gap.
+
+MEASURED UNDER ENGINE v2; THE PREMISE IS GONE UNDER ENGINE_VERSION 3
+(docs/research/ENGINE_V3_QUESTION.md, rule (b)). v3 checks each later bar's OPEN first and
+fills an open at or through the stop at that open less ``stop_slippage_pct``
+(``gap_stop``). So the stop path now prices the gap at the gapped open, exactly as the
+opposing path always did, and the sixtyfold wedge F241 measured no longer exists:
+
+    USE_OPPOSING_SIGNAL_EXIT = False  ->  gap_stop         -60.00%   (the gapped open)
+    USE_OPPOSING_SIGNAL_EXIT = True   ->  opposing_signal  -60.00%   (the gapped open)
+
+The one residual is ``stop_slippage_pct``, the measured trigger-to-fill slippage that v3
+charges on stop and gap-stop exits only; the opposing exit, a fill at the next open, does
+not pay it. With it at zero the two paths agree exactly. The flag still re-labels the
+exit (gap_stop vs opposing_signal) and still matters wherever the opposing vote closes a
+trade that would NOT have stopped out. This is the "adopt one convention" outcome the
+guards below were written to detect; they are re-pinned to the v3 fact and the node's
+supersession is a docs change outside tests/.
+
+The coverage half also moved. Under v3 the property generator reaches seven of the eight
+exit labels (still never ``opposing_signal``), and one of the new ones, ``gap_stop``, makes
+the short-side breach of -1.0 reachable from the generator itself: a short whose stop
+bar opens at twice the entry books exactly -1.0. Hypothesis found that frame, so the
+property suite now asserts its -1.0 bound for longs only, which is the scope F241 said
+it had all along.
 """
 import unittest
 from pathlib import Path
@@ -90,14 +114,25 @@ NO_GAP = ([100, 100, 100, 100.5, 100.5], [0, 0, -2, 0, 0])
 
 class TheTwoExitsPriceOneGapDifferentlyTests(unittest.TestCase):
 
-    def test_the_stop_path_prices_the_gap_at_the_stop(self):
-        """Optimistic fill: the bar OPENED at 40 and the stop still books -1%."""
+    def test_the_stop_path_prices_the_gap_at_the_open(self):
+        """The bar OPENED at 40, through the 99 stop: the stop path books the open.
+
+        Measured under engine v2 as an optimistic fill at the stop (-1%, stop_hit).
+        Re-pinned for ENGINE_VERSION 3 (docs/research/ENGINE_V3_QUESTION.md): an open at
+        or through the stop fills at the open less stop_slippage_pct (gap_stop), so the
+        v2 premise "the stop path prices the gap at the stop" is false and the test is
+        renamed from test_the_stop_path_prices_the_gap_at_the_stop.
+        """
         et, r = one(frame(*GAP_DOWN), flag=False)
-        self.assertEqual(et, "stop_hit")
+        self.assertEqual(et, "gap_stop")
         self.assertAlmostEqual(
-            r, -STOP, places=9,
-            msg="the stop path stopped filling at the stop price — if the engine "
-                "adopted honest gap fills, supersede F241 rather than retune this")
+            r, -0.60, places=9,
+            msg="the stop path no longer fills a gapped open at the open — the v3 gap "
+                "rule (b) has regressed toward the v2 fill at the stop price")
+        res = compute_trade_returns(frame(*GAP_DOWN), use_opposing_signal_exit=False,
+                                    stop_slippage_pct=0.003, **EXIT_KW)
+        self.assertAlmostEqual(float(res.iloc[0]["return"]), -0.60 - 0.003, places=9,
+                               msg="the gap-stop fill no longer pays stop_slippage_pct")
 
     def test_the_opposing_path_prices_the_gap_at_the_open(self):
         et, r = one(frame(*GAP_DOWN), flag=True)
@@ -108,16 +143,32 @@ class TheTwoExitsPriceOneGapDifferentlyTests(unittest.TestCase):
             r, -0.60, places=9,
             msg="the opposing exit stopped filling at the next open")
 
-    def test_one_flag_changes_the_recorded_loss_sixtyfold(self):
-        """The headline. Same frame, same prices, one flag."""
+    def test_one_flag_no_longer_changes_the_recorded_loss(self):
+        """The headline. Same frame, same prices, one flag.
+
+        Measured under engine v2 as a sixtyfold wedge (-1% vs -60%). Re-pinned for
+        ENGINE_VERSION 3 (docs/research/ENGINE_V3_QUESTION.md): both paths now fill the
+        gapped open, so the recorded loss is the same with the flag on or off. Renamed
+        from test_one_flag_changes_the_recorded_loss_sixtyfold, which is now false. The
+        only residual is stop_slippage_pct, charged on the gap-stop path alone.
+        """
         _, off = one(frame(*GAP_DOWN), flag=False)
         _, on = one(frame(*GAP_DOWN), flag=True)
-        self.assertAlmostEqual(off, -0.01, places=9)
+        self.assertAlmostEqual(off, -0.60, places=9)
         self.assertAlmostEqual(on, -0.60, places=9)
         self.assertAlmostEqual(
-            on / off, 60.0, delta=0.5,
-            msg="the two exits agree more closely than F241 recorded ({:.4f} vs {:.4f}) "
-                "— if a single gap convention was adopted, supersede F241".format(on, off))
+            on, off, places=9,
+            msg="the two exits price one gap differently again ({:.4f} vs {:.4f}) — "
+                "F241's wedge has come back".format(on, off))
+        slip = 0.003
+        kw = dict(EXIT_KW, stop_slippage_pct=slip)
+        off_s = float(compute_trade_returns(frame(*GAP_DOWN), use_opposing_signal_exit=False,
+                                            **kw).iloc[0]["return"])
+        on_s = float(compute_trade_returns(frame(*GAP_DOWN), use_opposing_signal_exit=True,
+                                           **kw).iloc[0]["return"])
+        self.assertAlmostEqual(on_s - off_s, slip, places=9,
+                               msg="the residual between the two paths is no longer "
+                                   "exactly the stop slippage")
 
     def test_without_a_gap_the_two_paths_agree(self):
         """Negative control. The disagreement must be the gap, not the flag alone."""
@@ -138,7 +189,13 @@ class TheTwoExitsPriceOneGapDifferentlyTests(unittest.TestCase):
     def test_the_flag_is_not_inert_for_trades_that_would_stop_out(self):
         """RESEARCH_WEB.md counts this flag among the 'dormant pair': off on both
         sides, so no behavioural difference. That is true of the LIVE path and false
-        of the recorded P&L the moment a sweep turns it on."""
+        of the recorded P&L the moment a sweep turns it on.
+
+        Measured under engine v2, where the re-route also re-priced the loss. Under
+        ENGINE_VERSION 3 (docs/research/ENGINE_V3_QUESTION.md) the flag still re-routes
+        a would-be gap_stop to opposing_signal, but on this gapped frame both fill the
+        same open (see test_one_flag_no_longer_changes_the_recorded_loss).
+        """
         off_et, _ = one(frame(*GAP_DOWN), flag=False)
         on_et, _ = one(frame(*GAP_DOWN), flag=True)
         self.assertNotEqual(
@@ -164,19 +221,37 @@ class TheInvariantsNeverReachThisBranchTests(unittest.TestCase):
             "a property test now enables the opposing exit — F241's 'doubly "
             "unreachable' claim is stale; supersede rather than delete this")
 
-    def test_the_suites_lower_bound_is_false_on_this_branch(self):
+    def test_the_suites_lower_bound_is_scoped_to_longs_because_shorts_breach_it(self):
         """`assertGreater(r, -1.0)`, justified as 'price can't go below zero', is a
-        long-only fact. The suite generates shorts, and this branch can show it."""
+        long-only fact. The suite generates shorts, and this branch can show it.
+
+        Measured under engine v2, where only the unreachable opposing branch could breach
+        it, so the suite's unscoped bound was false but never tripped. Re-pinned for
+        ENGINE_VERSION 3 (docs/research/ENGINE_V3_QUESTION.md): gap_stop fills a gapped
+        open, so a short's breach is reachable from the property generator and the suite
+        now scopes the bound to longs. Renamed from
+        test_the_suites_lower_bound_is_false_on_this_branch. Both short-side breaches are
+        asserted, so the scoping stays justified.
+        """
         self.assertIn("assertGreater(r, -1.0)", self.SRC,
-                      "the -1.0 lower bound is gone from the property suite; F241's "
-                      "falsification of it no longer applies")
+                      "the -1.0 lower bound is gone from the property suite; the long "
+                      "side has lost its guard")
+        bound_at = self.SRC.index("assertGreater(r, -1.0)")
+        self.assertIn("if direction == 1:", self.SRC[max(0, bound_at - 200):bound_at],
+                      "the property suite's -1.0 bound is no longer scoped to longs, "
+                      "and shorts breach it (below)")
         et, r = one(frame([100, 100, 100, 900, 900], [0, 0, 2, 0, 0], direction=-1),
                     flag=True)
         self.assertEqual(et, "opposing_signal")
         self.assertLessEqual(
             r, -1.0,
             "a short opposing exit into a 9x move no longer breaches -1.0, so the "
-            "invariant the property suite asserts is no longer falsifiable here")
+            "long-only scoping of the property suite's bound is no longer justified here")
+        et, r = one(frame([100, 100, 100, 900, 900], [0, 0, 0, 0, 0], direction=-1),
+                    flag=False)
+        self.assertEqual(et, "gap_stop")
+        self.assertAlmostEqual(r, -8.0, places=9,
+                               msg="a short gap-stop into a 9x open no longer books the open")
 
     def test_the_long_side_that_production_trades_stays_above_the_bound(self):
         """Non-vacuity for the finding's own scope claim: LONGS_ONLY=True means the

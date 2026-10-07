@@ -61,7 +61,7 @@ parser.add_argument("--broker", default=None, choices=["ibkr", "schwab", "fideli
                     help="Broker preset for spread/fee estimates (default: conservative retail)")
 parser.add_argument("--apply", action="store_true",
                     help="Auto-apply optimal params to config.py without prompting")
-parser.add_argument("--mode", default="realistic", choices=["optimistic", "realistic", "harsh"],
+parser.add_argument("--mode", default="realistic", choices=["upper_bound", "realistic", "harsh"],
                     help="Backtest fairness mode (default: realistic)")
 parser.add_argument("--objective", default="sharpe", choices=["sharpe", "ev"],
                     help="Selection objective (default: sharpe = current live_score). "

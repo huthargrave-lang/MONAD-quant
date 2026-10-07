@@ -38,7 +38,10 @@ The contract:
 Rows (``v`` = SCHEMA_VERSION, ``seq`` contiguous from 0):
   run_open  — run_id, producer, family, hypothesis, code, env, context
   intent    — trial, spec, spec_hash
-  outcome   — trial, status (ok|error|abandoned), metrics, returns_sha, n_returns, error
+  outcome   — trial, status (ok|error|abandoned), metrics, returns_sha, n_returns, error,
+              and optionally series_shas: {name: sha} of named daily series (ENGINE_VERSION 3
+              price trials: the mark-to-market PnL and exposure the v2 gate scores), stored
+              in the same bundle as the returns. Rows without it are unchanged.
   run_close — status (complete|aborted|crashed), n_intents, n_outcomes, bundle_sha
 
 Only the process that opened a run writes to it. Producers that parallelise must
@@ -92,6 +95,7 @@ _RUN_ID = re.compile(r"^TR-\d{8}T\d{6}Z-[0-9a-f]{8}$")
 _FAMILY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:\-]{0,127}$")
 _HYPOTHESIS = re.compile(r"^H\d+$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_SERIES_NAME = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 
 # Non-finite metric values (a zero-trade Sharpe is NaN) are legitimate outcomes, but
 # JSON has no spelling for them. They are encoded as these exact strings and decoded
@@ -277,8 +281,9 @@ class Trial:
     spec_hash: str
     done: bool = False
 
-    def complete(self, metrics: Mapping[str, Any], returns: Any = None) -> None:
-        self.run.complete(self, metrics=metrics, returns=returns)
+    def complete(self, metrics: Mapping[str, Any], returns: Any = None,
+                 series: Mapping[str, Any] | None = None) -> None:
+        self.run.complete(self, metrics=metrics, returns=returns, series=series)
 
     def fail(self, error: str) -> None:
         self.run.fail(self, error=error)
@@ -354,34 +359,49 @@ class Run:
         """``with run.trial(...) as t: ... t.complete(...)``."""
         return self.begin(params, data=data, extra=extra)
 
-    def complete(self, trial: Trial, metrics: Mapping[str, Any], returns: Any = None) -> None:
+    def complete(self, trial: Trial, metrics: Mapping[str, Any], returns: Any = None,
+                 series: Mapping[str, Any] | None = None) -> None:
         returns_sha = None
         n_returns = None
-        series = None
+        stored = {}
         if returns is not None:
-            series = canonical_returns(returns)
-            returns_sha = sha256_text(canonical_json(series))
-            n_returns = len(series)
+            canon = canonical_returns(returns)
+            returns_sha = sha256_text(canonical_json(canon))
+            n_returns = len(canon)
+            stored[returns_sha] = canon
+        series_shas = None
+        if series:
+            series_shas = {}
+            for name in sorted(series):
+                if not (isinstance(name, str) and _SERIES_NAME.match(name)):
+                    raise LedgerError(f"series name {name!r} is not a lower_snake identifier")
+                canon = canonical_returns(series[name])
+                series_shas[name] = sha256_text(canonical_json(canon))
+                stored[series_shas[name]] = canon
         self._outcome(trial, status="ok", metrics=dict(metrics),
-                      returns_sha=returns_sha, n_returns=n_returns)
-        if series is not None:  # only after the outcome that references it was written
+                      returns_sha=returns_sha, n_returns=n_returns, series_shas=series_shas)
+        if stored:  # only after the outcome that references it was written
             with self._lock:
-                self._returns.setdefault(returns_sha, series)
+                for sha, canon in stored.items():
+                    self._returns.setdefault(sha, canon)
 
     def fail(self, trial: Trial, error: str) -> None:
         self._outcome(trial, status="error", error=str(error))
 
     def _outcome(self, trial: Trial, *, status: str, metrics: Mapping[str, Any] | None = None,
                  returns_sha: str | None = None, n_returns: int | None = None,
-                 error: str | None = None) -> None:
+                 error: str | None = None, series_shas: Mapping[str, str] | None = None) -> None:
         if trial.run is not self:
             raise LedgerError("trial belongs to a different run")
         with self._lock:
             if trial.done or trial.index not in self._open:
                 raise LedgerError(f"trial {trial.index} already has an outcome")
-            self._write({"type": "outcome", "at": _now(), "trial": trial.index, "status": status,
-                         "metrics": metrics, "returns_sha": returns_sha,
-                         "n_returns": n_returns, "error": error})
+            row = {"type": "outcome", "at": _now(), "trial": trial.index, "status": status,
+                   "metrics": metrics, "returns_sha": returns_sha,
+                   "n_returns": n_returns, "error": error}
+            if series_shas:
+                row["series_shas"] = dict(series_shas)
+            self._write(row)
             trial.done = True
             del self._open[trial.index]
             self._n_outcomes += 1
@@ -664,6 +684,16 @@ def verify_shard(path: Path, artifacts_dir: Path | None = None) -> ShardReport:
                 errors.append(f"{where}: ok outcome without a metrics object")
             if status != "ok" and rs is not None:
                 errors.append(f"{where}: only ok outcomes carry returns")
+            ss = row.get("series_shas")
+            if ss is not None:
+                if status != "ok":
+                    errors.append(f"{where}: only ok outcomes carry series")
+                if not isinstance(ss, dict) or not ss or not all(
+                        isinstance(k, str) and _SERIES_NAME.match(k) and isinstance(v, str)
+                        and _SHA256.match(v) for k, v in ss.items()):
+                    errors.append(f"{where}: malformed series_shas")
+                else:
+                    returns_shas.update(ss.values())
             outcomes[t] = status
         elif kind == "run_close":
             closed = True
@@ -762,6 +792,7 @@ class TrialRecord:
     returns_sha: str | None
     bundle_sha: str | None
     opened_at: str            # the run's open time (UTC ISO): when this trial's search began
+    series_shas: dict = field(default_factory=dict)   # name -> sha of each named series
 
     @property
     def key(self) -> str:
@@ -797,7 +828,29 @@ def iter_trials(ledger_dir: Path | None = None, *, family: str | None = None) ->
                 metrics=decode_metrics(o["metrics"]) if o and o.get("metrics") else None,
                 returns_sha=o.get("returns_sha") if o else None,
                 bundle_sha=close.get("bundle_sha") if close else None,
-                opened_at=head["at"]))
+                opened_at=head["at"],
+                series_shas=dict(o.get("series_shas") or {}) if o else {}))
+    return out
+
+
+def load_series(records: Iterable[TrialRecord], name: str,
+                ledger_dir: Path | None = None) -> dict:
+    """``{record.key: pandas Series}`` of the named series (see ``Run.complete``) for the
+    records that carry it, read and verified like ``load_returns``."""
+    import pandas as pd
+
+    artifacts = (Path(ledger_dir) if ledger_dir is not None else LEDGER_DIR) / ARTIFACTS
+    bundles: dict[str, dict] = {}
+    out = {}
+    for rec in records:
+        sha = rec.series_shas.get(name)
+        if sha is None or rec.bundle_sha is None:
+            continue
+        if rec.bundle_sha not in bundles:
+            bundles[rec.bundle_sha] = read_bundle(artifacts, rec.bundle_sha)
+        pairs = bundles[rec.bundle_sha][sha]
+        out[rec.key] = pd.Series([v for _, v in pairs],
+                                 index=pd.to_datetime([t for t, _ in pairs]), dtype=float)
     return out
 
 

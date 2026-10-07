@@ -34,6 +34,11 @@ STATE = "live/state.py"
 ENGINE = "src/strategy/engine.py"
 
 AGREE, DIVERGE, COINCIDENT, DORMANT = "AGREE", "DIVERGE", "COINCIDENT", "DORMANT"
+# LIVE_DEFECT: the live bot does something it was not designed to (a dead safety path,
+# phantom round trips). Recorded so a backtest is never "matched" to a bug; not a
+# backtest divergence, so it does not by itself block admission.
+LIVE_DEFECT = "LIVE_DEFECT"
+BROKER = "live/broker.py"
 # DORMANT: the backtest has a capability the live path lacks, but its flag is OFF, so
 # there is no behavioural difference TODAY. Counting these as divergences would inflate
 # the headline; ignoring them would hide a trap, because enabling the flag in a sweep
@@ -260,6 +265,154 @@ def _capability(flag, runner_token, trader_token):
     return backtest, live, DIVERGE if on else DORMANT, None
 
 
+# ── execution rows (ENGINE_VERSION 3, decision debate 2026-10-06) ───────────
+# Each row PROBES the engine on hand-built bars and CHECKS the live assumption it is
+# compared with against live/trader.py and live/broker.py at run time. A live source that
+# no longer contains the assumed token turns the row DIVERGE: the reference is a second
+# description of live execution, and this is what keeps it from going stale.
+
+def _live_assumptions() -> dict:
+    trader, broker = _source(TRADER), _source(BROKER)
+    cron = _live_cron()
+    return {
+        "cron_minute_32": bool(cron and cron[1] == 32),
+        "bar_count_per_cycle": "state.increment_bar_count()" in trader,
+        "same_cycle_reentry": "_then_entry" in trader,
+        "quote_anchored_bracket": '"fill_basis": float(live_price)' in broker,
+        "bracket_children": "parentId" in broker and "STP" in broker and "LMT" in broker,
+        "exchange_calendar_gate": any(t in trader for t in ("exchange_calendar", "is_holiday",
+                                                            "early_close", "market_calendar")),
+    }
+
+
+def _bars(rows):
+    import pandas as pd
+    idx = pd.date_range("2026-03-02 14:30", periods=len(rows), freq="h")
+    df = pd.DataFrame(rows, columns=["open", "high", "low", "close"], index=idx)
+    df["volume"] = 1e6
+    df["entry_signal"] = 0
+    return df
+
+
+def _probe(df, **kw):
+    """compute_trade_returns on hand-built bars, run uncounted: a mechanism probe of the
+    engine, not a strategy evaluation (this file is in counted.UNCOUNTED_ALLOWED)."""
+    from src.strategy.counted import uncounted
+    from src.strategy.engine import compute_trade_returns
+    with uncounted("parity probe: execution mechanics on hand-built bars"):
+        return compute_trade_returns(df, **kw)
+
+
+def bracket_window():
+    """Is the bracket live in the entry bar? Signal on bar 0, fill at bar 1's open 100;
+    bar 1's low touches the 1% stop."""
+    df = _bars([(100, 100, 100, 100), (100, 100.2, 98.8, 99.5), (99.5, 100, 99, 99.8),
+                (99.8, 100, 99.5, 99.9)])
+    df.iloc[0, df.columns.get_loc("entry_signal")] = 1
+    r = _probe(df, target_gain_pct=0.02, stop_loss_pct=0.01, max_trade_bars=2)
+    bt = r["exit_type"].iloc[0] if len(r) else "no trade"
+    a = _live_assumptions()
+    live_ok = a["bracket_children"]
+    return ("stop hit in the entry bar: {}".format(bt == "stop_hit"),
+            "bracket children (STP/LMT, parentId) live after the parent fill: {}".format(live_ok),
+            AGREE if bt == "stop_hit" and live_ok else DIVERGE, "F404703")
+
+
+def time_exit_price():
+    """Where the time exit fills: the open of bar N+1+MAX (live's :32 cycle closes it)."""
+    rows = [(100, 100.1, 99.9, 100)] * 6
+    rows[4] = (101.0, 101.1, 100.9, 101.0)          # bar N+1+MAX with MAX=3: open 101.0
+    df = _bars(rows)
+    df.iloc[0, df.columns.get_loc("entry_signal")] = 1
+    r = _probe(df, target_gain_pct=0.05, stop_loss_pct=0.05, max_trade_bars=3)
+    exit_open = len(r) and r["exit_type"].iloc[0] == "time_exit" and abs(r["return"].iloc[0] - 0.01) < 1e-12
+    a = _live_assumptions()
+    live_ok = a["cron_minute_32"] and a["bar_count_per_cycle"]
+    return ("time exit at the open of bar N+1+MAX: {}".format(bool(exit_open)),
+            "market close at the :32 cycle once bar_count >= MAX: {}".format(live_ok),
+            AGREE if exit_open and live_ok else DIVERGE, None)
+
+
+def cycle_counting():
+    """Live counts CYCLES: on exchange-closed weekdays and after early closes bar_count
+    advances with no new bar (D6 Study 45). AGREE only once the trader gates its cycles on
+    an exchange calendar."""
+    a = _live_assumptions()
+    return ("counts bars (holidays and early closes have none)",
+            "exchange-calendar gate in the trader: {}".format(a["exchange_calendar_gate"]),
+            AGREE if a["exchange_calendar_gate"] else DIVERGE, "D6 Study 45")
+
+
+def reentry():
+    """A time exit at the open of bar X: may a signal on bar X-1 enter at X's open (live's
+    same-cycle re-entry)?"""
+    rows = [(100, 100.1, 99.9, 100)] * 8
+    df = _bars(rows)
+    df.iloc[0, df.columns.get_loc("entry_signal")] = 1   # entry bar 1, MAX=2: exits at open of bar 3
+    df.iloc[2, df.columns.get_loc("entry_signal")] = 1   # signal on X-1 = 2: enters at bar 3's open
+    r = _probe(df, target_gain_pct=0.05, stop_loss_pct=0.05, max_trade_bars=2)
+    a = _live_assumptions()
+    return ("re-entry at the exit's own open: {}".format(len(r) == 2),
+            "same-cycle *_then_entry fall-through: {}".format(a["same_cycle_reentry"]),
+            AGREE if len(r) == 2 and a["same_cycle_reentry"] else DIVERGE, None)
+
+
+def position_count():
+    """Two signals while a trade is open: one position, as live holds."""
+    rows = [(100, 100.1, 99.9, 100)] * 8
+    df = _bars(rows)
+    for i in (0, 1, 2):
+        df.iloc[i, df.columns.get_loc("entry_signal")] = 1
+    r = _probe(df, target_gain_pct=0.05, stop_loss_pct=0.05, max_trade_bars=4)
+    return ("{} trade(s) from 3 overlapping signals".format(len(r)), "one open position",
+            AGREE if len(r) == 1 else DIVERGE, "F404703")
+
+
+def gap_fills():
+    """An overnight open through the stop fills at the open (a STP becomes a market order),
+    not at the stop."""
+    rows = [(100, 100, 100, 100), (100, 100.2, 99.8, 100), (97.0, 97.5, 96.8, 97.2), (97, 97, 97, 97)]
+    df = _bars(rows)
+    df.iloc[0, df.columns.get_loc("entry_signal")] = 1
+    r = _probe(df, target_gain_pct=0.02, stop_loss_pct=0.01, max_trade_bars=3)
+    at_open = len(r) and r["exit_type"].iloc[0] == "gap_stop" and abs(r["return"].iloc[0] + 0.03) < 1e-12
+    a = _live_assumptions()
+    return ("gap through the stop fills at the open: {}".format(bool(at_open)),
+            "IBKR STP child (fills at market on the trigger): {}".format(a["bracket_children"]),
+            AGREE if at_open and a["bracket_children"] else DIVERGE, "F404703")
+
+
+def bracket_anchor():
+    """Backtest anchors TP/SL to the entry fill; live anchors them to a broker QUOTE taken
+    before a marketable limit fills up to 0.5% through (D6 Study 57)."""
+    a = _live_assumptions()
+    return ("TP/SL anchored to the entry fill (bar N+1 open)",
+            "anchored to the pre-fill quote: {}".format(a["quote_anchored_bracket"]),
+            DIVERGE if a["quote_anchored_bracket"] else AGREE, "D6 Study 57")
+
+
+def pending_close_path():
+    """state.mark_pending_close is the designed block on entries until a close is
+    reconciled. It has no caller in live/: a dead safety path, recorded as a live defect."""
+    import glob
+    callers = 0
+    for path in glob.glob(os.path.join(REPO, "live", "*.py")):
+        text = open(path, encoding="utf-8").read()
+        callers += text.count("mark_pending_close(") - text.count("def mark_pending_close(")
+    return ("not modelled (one position by exit time)",
+            "mark_pending_close callers in live/: {}".format(callers),
+            LIVE_DEFECT if callers == 0 else AGREE, "D6 unresolved-close audits")
+
+
+def phantom_round_trips():
+    """An unfilled bracket parent can be booked as a closed trade (an inferred target_hit)
+    with no position ever held: D6's phantom-trade audit found 5, 3 with a same-cycle
+    re-entry. Recorded as a live defect; the backtest cannot and should not model it."""
+    audit = os.path.join(REPO, "docs", "research", "D6_unfilled_parent_phantom_trade_audit.md")
+    return ("not modelled", "phantom round trips audited: {}".format(os.path.exists(audit)),
+            LIVE_DEFECT, "D6 phantom-trade audit")
+
+
 def opposing_exit():
     return _capability("USE_OPPOSING_SIGNAL_EXIT", "USE_OPPOSING_SIGNAL_EXIT", "OPPOSING")
 
@@ -277,6 +430,15 @@ DIMENSIONS = [
     ("position size", position_size),
     ("opposing-signal exit", opposing_exit),
     ("ATR dynamic stops", atr_stops),
+    ("bracket window", bracket_window),
+    ("time-exit price", time_exit_price),
+    ("cycle counting", cycle_counting),
+    ("re-entry after exit", reentry),
+    ("position count", position_count),
+    ("gap-through fills", gap_fills),
+    ("bracket anchor", bracket_anchor),
+    ("pending-close path", pending_close_path),
+    ("phantom round trips", phantom_round_trips),
 ]
 
 
@@ -287,7 +449,7 @@ def census():
         rows.append({"dimension": name, "backtest": str(backtest), "live": str(live),
                      "verdict": verdict, "recorded_in": node})
     counts = {v: sum(1 for r in rows if r["verdict"] == v)
-              for v in (AGREE, COINCIDENT, DORMANT, DIVERGE)}
+              for v in (AGREE, COINCIDENT, DORMANT, DIVERGE, LIVE_DEFECT)}
     return {"subject": "repository",  # not an observation of the world; see F230
             "rows": rows, "counts": counts}
 

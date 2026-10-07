@@ -44,6 +44,9 @@ DOMAINS = {
     "crypto_trend": {"family": "crypto_trend", "reference_class": "crypto_static_half"},
     "country_select": {"family": "country_select", "reference_class": "country_equal_weight"},
     "bdc_discount": {"family": "bdc_discount", "reference_class": "bdc_equal_weight"},
+    "insider_cluster": {"family": "insider_cluster", "reference_class": "insider_index"},
+    "mreit_discount": {"family": "mreit_discount", "reference_class": "mreit_equal_weight"},
+    "earnings_premium": {"family": "earnings_premium", "reference_class": "earn_universe"},
 }
 DEFAULT_DOMAIN = "etf_alloc"      # trials recorded before domains existed (the v1 search)
 

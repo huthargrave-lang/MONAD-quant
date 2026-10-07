@@ -62,6 +62,9 @@ COST_BPS = {
     # Spot crypto at small size: between IBKR's 12-18 bps commission and retail exchange
     # taker fees (40-60 bps), with spread; one rate, as the market starts after 2010.
     "crypto": {"pre": 25.0, "post": 25.0},
+    # Small and micro caps around insider-buying events: half-spreads of 20-60 bps plus
+    # impact at small size; one rate after 2010, wider before.
+    "smallcap": {"pre": 50.0, "post": 30.0},
 }
 TIER2 = frozenset({"EEM", "DBC", "VNQ"})
 

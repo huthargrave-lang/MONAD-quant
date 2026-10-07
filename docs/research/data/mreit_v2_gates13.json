@@ -1,0 +1,71 @@
+{
+ "schema_version": 1,
+ "vintage": "2026-10-06",
+ "gate1": {
+  "compared": 0,
+  "agree": 0,
+  "share": null,
+  "filers": [],
+  "informative": false,
+  "pass": null,
+  "disagreements": []
+ },
+ "gate3": {
+  "pairs": 1056,
+  "covered": 820,
+  "share": 0.7765151515151515,
+  "pass": true
+ },
+ "sanity_rejected": [
+  {
+   "ticker": "ADAM",
+   "period": "2011-12-31",
+   "stated": 6.12,
+   "bound": 0.006118261566551322
+  },
+  {
+   "ticker": "ARR",
+   "period": "2022-12-31",
+   "stated": 10.33,
+   "bound": 6.828096322531935
+  },
+  {
+   "ticker": "ARR",
+   "period": "2023-12-31",
+   "stated": 28.9,
+   "bound": 26.04938625791512
+  },
+  {
+   "ticker": "ARR",
+   "period": "2024-12-31",
+   "stated": 22.54,
+   "bound": 21.81335320130744
+  },
+  {
+   "ticker": "IVR",
+   "period": "2011-09-30",
+   "stated": 16.47,
+   "bound": 0.016454357796042256
+  },
+  {
+   "ticker": "PMT",
+   "period": "2012-12-31",
+   "stated": 20.39,
+   "bound": 0.04229378148306782
+  },
+  {
+   "ticker": "MITT",
+   "period": "2020-03-31",
+   "stated": 17.61,
+   "bound": 10.95193746373935
+  },
+  {
+   "ticker": "CHMI",
+   "period": "2016-03-31",
+   "stated": 20.13,
+   "bound": 19.678847214231396
+  }
+ ],
+ "no_preferred_filers": [],
+ "missing_rate": 0.2234848484848485
+}
