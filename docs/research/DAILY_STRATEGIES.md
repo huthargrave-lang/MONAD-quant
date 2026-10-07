@@ -98,6 +98,7 @@ and cash.
 | F404732 | CEF mechanism, live: CEFS (Saba) vs PCEF, static (`CEF_PRODUCT_PROTOCOL.md`) | corroborates: +5.4%/yr, active Sharpe +0.59, SPA p 0.001, all eras positive; registrable only after the 10-year floor (about 2027-05) |
 | F404733 | spin-offs, live: CSD (Invesco S&P Spin-Off ETF) vs IJH, static (`SPINOFF_PRODUCT_PROTOCOL.md`) | uninformative, null in substance: active Sharpe +0.04 over 19.7 years, max DD -70.5% |
 | F404734 | bond sleeve: MNA (merger arbitrage ETF) vs IEF, static (`MERGER_ARB_PRODUCT_PROTOCOL.md`) | null: active Sharpe +0.05; equity-correlated (+0.45), fell 12.6% in the COVID crash |
+| F404735 | buybacks, live: PKW (BuyBack Achievers ETF) vs SPY, static (`BUYBACK_PRODUCT_PROTOCOL.md`) | contradicts: active Sharpe -0.04 over 19.7 years |
 | F404727 | small caps: earnings-announcement premium (`EARNINGS_PREMIUM_PROTOCOL.md`) | contradicts: active Sharpe -1.62 / -2.69 after 30 bps costs (15-34%/yr of turnover cost) |
 | F404725, F404726 | mREIT: the rule on mortgage REITs vs book value (`MREIT_DISCOUNT_TEST*.md`) | not run twice: XBRL misses series-tagged preferred; stated-value extraction failed its blind audit (3/27 vs 2) |
 

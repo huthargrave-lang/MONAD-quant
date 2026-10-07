@@ -35,3 +35,19 @@ fee-paying, out-of-sample test of the effect, over about 20 years.
   nothing to do with buybacks. IJH is reported as a size diagnostic.
 - **Index rule.** PKW holds companies that already bought back (the trailing year), not
   fresh announcements. That is a slower, more crowded version of the published effect.
+
+## Result: CONTRADICTS (2026-10-07)
+
+Data: snapshot DS-7b7b5eba (SPY, IJH, PKW), from PKW's first 21 sessions to 2026-10-02
+(about 19.7 years).
+
+| | Excess Sharpe | CAGR | Max DD | Active Sharpe vs SPY | Vol-matched | Eras |
+|---|---|---|---|---|---|---|
+| PKW | 0.52 | 10.46% | -54.6% | **-0.04** | -0.06 | +0.12 / -0.09 / -0.18 |
+
+- **Statistics.** SPA p 1.00 at every block; active DSR 0.42. No look-ahead violations.
+- **Declared size diagnostic:** against IJH, +0.04 (+0.3%/yr).
+- **Verdict: contradicts.**
+- **Reading.** Twenty years of a live buyback product show no drift against the market,
+  and essentially none against mid caps. It joins the published liquid-equity effects that
+  do not survive in this repo.

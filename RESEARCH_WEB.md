@@ -4262,3 +4262,8 @@ _— captured claude/monetizing-repositories-03e341@961b9bd, 2026-10-07_
 docs/research/MERGER_ARB_PRODUCT_PROTOCOL.md, frozen before any price was loaded. Static MNA (IQ Merger Arbitrage ETF, since 2009) against static IEF over about 16.9 years: CAGR 2.63%, active Sharpe +0.05 (vol-matched +0.03), SPA p 0.40-0.41; verdict uninformative, null in substance. Declared diagnostics: correlation with SPY +0.45 (IEF -0.25); against SHY +0.22 active Sharpe (+1.6%/yr); COVID crash MNA -12.6% vs IEF +6.4%; 2022 MNA -2.9% vs IEF -17.0%. For D6's static allocation, merger arbitrage earns no premium over Treasuries and is a worse crisis hedge; it helps only in rate shocks.
 Links: [[D6|relates]] · [[F404731|relates]].
 _— captured claude/monetizing-repositories-03e341@22a3bc9, 2026-10-07_
+
+### F404735 — The buyback drift does not survive as a live product: PKW vs SPY active Sharpe -0.04 over 19.7 years (vs IJH +0.04), SPA p 1.00
+docs/research/BUYBACK_PRODUCT_PROTOCOL.md, frozen before any price was loaded. Static PKW (Invesco BuyBack Achievers ETF, since December 2006; survivorship-free, index not chosen here) against static SPY over about 19.7 years: CAGR 10.46%, max drawdown -54.6%, active Sharpe -0.04 (vol-matched -0.06), eras +0.12 / -0.09 / -0.18, SPA p 1.00. The declared size diagnostic against IJH is +0.04 (+0.3%/yr). Pre-stated verdict: contradicts. Of the live-product tests in this arc (CEFS, ANGL/FALN, CSD, MNA, PKW), only the capacity-constrained mechanisms (CEF discount capture; fallen-angel forced selling, moderately) show an edge; the liquid or index-traded ones do not.
+Links: [[F404732|relates]] · [[F404733|relates]].
+_— captured claude/monetizing-repositories-03e341@a0ffda7, 2026-10-07_
