@@ -35,7 +35,14 @@ def grid() -> list[dict]:
     return [{"class": "static_product", "params": {"asset": CANDIDATE}}]
 
 
-GRIDS = {"v1": grid}
+def funds() -> list[dict]:
+    """Two more live discount-capture products, added as points of the same family
+    (CEF_PRODUCT_PROTOCOL.md, amendment 1): Matisse Discounted Closed-End Fund Strategy
+    (MDCEX, 2012-; primary) and RiverNorth (RNCOX, 2006-)."""
+    return [{"class": "static_product", "params": {"asset": a}} for a in ("MDCEX", "RNCOX")]
+
+
+GRIDS = {"v1": grid, "funds": funds}
 
 
 def decide(snap: Snapshot, point: Mapping) -> list[Tranche]:
@@ -45,7 +52,10 @@ def decide(snap: Snapshot, point: Mapping) -> list[Tranche]:
 
 
 def scoring_start(snap: Snapshot) -> pd.Timestamp:
-    return common_start(snap, [CANDIDATE, BENCH], WARMUP)
+    """From the first session the benchmark and every family product the snapshot holds
+    have all been priced for WARMUP sessions (one window per snapshot)."""
+    products = [a for a in (CANDIDATE, "MDCEX", "RNCOX") if a in snap.assets]
+    return common_start(snap, products + [BENCH], WARMUP)
 
 
 def truncation_violations(snap: Snapshot, point: Mapping, cuts) -> list[str]:

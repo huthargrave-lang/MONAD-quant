@@ -69,3 +69,25 @@ Data: snapshot DS-6e2f0f62 (SPY, PCEF, CEFS). Window 2017-04-20..2026-10-02 (9.4
 - **For the product (D6).** A CEF sleeve can be held as CEFS today. It carries CEF
   equity-and-credit drawdowns (-39%), so it belongs beside the static allocation, not in
   place of bonds.
+
+## Amendment 1 (2026-10-07): two more live discount-capture products, frozen before their prices are loaded
+
+CEFS corroborated, but it only launched in 2017 (9.4 years), short of the tactical
+profile's 10-year floor. Two other live funds run discount-to-NAV strategies in closed-end
+funds, with longer histories:
+
+- **MDCEX**, Matisse Discounted Closed-End Fund Strategy (institutional class, 2012-10).
+  A pure discount strategy. **Primary.**
+- **RNCOX**, RiverNorth (2006-12; now an ETF share class). CEF discount trading mixed with
+  tactical allocation. Secondary.
+
+They answer the same question as CEFS, so they join the **same family** (`cef_product.v1`)
+as grid `funds`, against the same benchmark (PCEF).
+
+| Item | Frozen choice |
+|---|---|
+| Price data | a new snapshot: SPY (calendar), PCEF, MDCEX, RNCOX, 2009-06-01..2026-10-02. CEFS is not included, so the window is set by MDCEX. |
+| Window | from the first session PCEF, MDCEX and RNCOX have all been priced for 21 sessions (about 2012-11) |
+| Verdict | **corroborates** if MDCEX has active Sharpe > 0 with t > 1.0 and the family SPA over this window's points (K = 2) is below 5%; **contradicts** if MDCEX's active Sharpe ≤ 0; otherwise uninformative. RNCOX is reported but does not decide. |
+| Registration | if corroborated, MDCEX's window passes the 10-year floor. Under gate rules v2 its m adds the off-window CEFS point to the declared 3. |
+| Execution caveat | mutual funds trade once a day at NAV. The evaluator's open and close are both NAV for them. Positions are static, so this matters little. |
