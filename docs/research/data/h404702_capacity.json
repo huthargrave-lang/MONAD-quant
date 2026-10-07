@@ -62,5 +62,8 @@
    "share_above_20pct": 0.059460791296279895,
    "median_days_to_exit_largest": 406.682412832902
   }
- ]
+ ],
+ "snapshot_sha256": "18cef1625c3c1697170f1eb87e5743d8fd702b2d3d3bdf12bb9ea30ea6383b6a",
+ "panel_sha256": "fd7099e252ccd34aec6829b5617dface66318c8a3756808d95c4a21d6b19b35f",
+ "content_sha256": "e9938ec615c67add8ce659e0b8e9c54049ad08c35bb4f1aecda20f38d41078a0"
 }
