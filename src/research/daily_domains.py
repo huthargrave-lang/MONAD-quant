@@ -201,5 +201,27 @@ MREIT = Domain(
     # MREIT_DISCOUNT_TEST.md); mREIT price-to-book is a common screen: counted as 3.
     prior_search_trials=3)
 
-DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO, COUNTRY, BDC, INSIDER, MREIT)}
+# ── the earnings-announcement premium in small caps ─────────────────────────
+from src.research import earnings_classes as _earn  # noqa: E402
+
+
+def _earn_load(data: Mapping) -> Context:
+    from src.research import earnings_data
+    return Context(snap=daily_data.load_snapshot(data["snapshot"]),
+                   panel=earnings_data.load(data["nav_panel"]))
+
+
+EARNINGS = Domain(
+    name="earnings_premium", reference=_earn.REFERENCE, eras=_earn.ERAS, load=_earn_load,
+    decide=lambda ctx, point: _earn.decide(ctx.snap, ctx.panel, point),
+    tiers=lambda ctx: _earn.tiers(ctx.snap, ctx.panel),
+    start=lambda ctx: _earn.scoring_start(ctx.snap, ctx.panel),
+    truncation=lambda ctx, point, cuts: _earn.truncation_violations(ctx.snap, ctx.panel, point, cuts),
+    grids=lambda: _earn.GRIDS,
+    # A published effect (Frazzini-Lamont 2007; Barber et al. 2013): counted as the
+    # survivor of 3 variants (docs/research/EARNINGS_PREMIUM_PROTOCOL.md).
+    prior_search_trials=3)
+
+DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO, COUNTRY, BDC, INSIDER, MREIT,
+                                                  EARNINGS)}
 
