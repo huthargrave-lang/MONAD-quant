@@ -469,15 +469,19 @@ def source_open_items(limit: int = 6) -> List[dict]:
             continue          # every node this item names has since been closed
         if not named and prose_resolution(head)[0]:
             continue          # names no node, but the repo says it is done (PROSE_RESOLVED)
+        action = m.group(2).strip()
         rows.append({
             "key": "open:{}".format(re.sub(r"\W+", "-", head.lower())[:40]),
             "kind": "open_item",
             "node": None,
+            # Node ids the item names in its head or its action ("... (F142)"): precise
+            # anti-repetition keys, so a commit that cites them counts as touching it.
+            "nodes": sorted(named | set(re.findall(r"\b([FDEH]\d+)\b", action))),
             "title": head[:90],
             "evidence": "listed open in {}".format(handoffs[-1].name),
             "leverage": 0.85,     # a human wrote this down deliberately
             "tractability": 0.5,
-            "action": (m.group(2).strip()[:240] or "See {}".format(handoffs[-1].name)),
+            "action": (action[:240] or "See {}".format(handoffs[-1].name)),
         })
     return rows[:limit]
 
@@ -520,6 +524,11 @@ def _recently_touched(task: Mapping[str, object], subjects: Sequence[str]) -> bo
     SKIPPING: re-doing finished work wastes a whole cycle, whereas skipping a live
     item only defers it — it resurfaces once the commit falls out of the window.
     """
+    named = task.get("nodes") or []
+    if named:
+        # An open item that names nodes is matched on those ids alone, like a node task.
+        pats = [re.compile(r"\b{}\b".format(re.escape(str(n).lower()))) for n in named]
+        return any(p.search(s) for p in pats for s in subjects)
     node = task.get("node")
     if node:
         # A node id is a PRECISE key — match on it alone and stop. Falling through to

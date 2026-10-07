@@ -63,6 +63,23 @@ class AntiRepetitionTests(unittest.TestCase):
             BL._recently_touched(task, ["route bond_ladder_study.py through data_cache"]))
 
 
+    def test_an_open_item_is_matched_on_the_nodes_it_names(self):
+        """A handoff item like "D6 and its arc cite nothing ... (F142)" names nodes; a
+        commit citing them addressed it. Title tokens ("nothing") would miss that."""
+        task = {"node": None, "nodes": ["D6", "F142"], "title": "D6 and its arc cite nothing"}
+        self.assertTrue(BL._recently_touched(task, ["f142: d6 now cites its re-test evidence"]))
+        self.assertFalse(BL._recently_touched(task, ["the go/no-go cites nothing yet"]),
+                         "a node-keyed item must not fall back to its title tokens")
+        self.assertFalse(BL._recently_touched(task, ["about d60 and f1420"]))
+
+    def test_open_items_carry_the_nodes_they_name(self):
+        items = BL.source_open_items(limit=50)
+        d6 = [t for t in items if t["title"].startswith("D6 and its arc")]
+        if d6:
+            self.assertIn("F142", d6[0]["nodes"])
+            self.assertIn("D6", d6[0]["nodes"])
+
+
 class CollectTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
