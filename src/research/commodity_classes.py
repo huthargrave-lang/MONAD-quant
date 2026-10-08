@@ -42,9 +42,15 @@ FUND, ANCHOR, SMA = "XLE", "CL=F", 100
 TREND_REFERENCE = {"class": "fund_static", "params": {"asset": FUND}}
 
 
-def ratio_grid() -> list[dict]:
-    return [{"class": "ratio_tilt", "params": {"miner": MINER, "metal": METAL,
+def ratio_grid(miner: str = MINER, metal: str = METAL) -> list[dict]:
+    """The frozen rule on one pair (docs/research/MINER_TILT_REPLICATION.md replicates it
+    unchanged on other pairs)."""
+    return [{"class": "ratio_tilt", "params": {"miner": miner, "metal": metal,
                                                "window": Z_WINDOW, "slope": SLOPE}}]
+
+
+def ratio_reference(miner: str = MINER, metal: str = METAL) -> dict:
+    return {"class": "pair_static", "params": {"weights": {miner: 0.5, metal: 0.5}}}
 
 
 def trend_grid() -> list[dict]:
@@ -92,10 +98,10 @@ def decide_trend(snap: Snapshot, panel: FuturesPanel, point: Mapping) -> list[Tr
     return [Tranche(open_orders=w.loc[changed], close_orders=pd.DataFrame())]
 
 
-def ratio_start(snap: Snapshot) -> pd.Timestamp:
-    ready = ratio_weights(snap, ratio_grid()[0]["params"]).index[0]
+def ratio_start(snap: Snapshot, miner: str = MINER, metal: str = METAL) -> pd.Timestamp:
+    ready = ratio_weights(snap, ratio_grid(miner, metal)[0]["params"]).index[0]
     first = snap.dates[snap.dates >= CONFIRMATION_START][0]
-    return max(common_start(snap, [MINER, METAL], MONTH), ready, first)
+    return max(common_start(snap, [miner, metal], MONTH), ready, first)
 
 
 def trend_start(snap: Snapshot, panel: FuturesPanel) -> pd.Timestamp:

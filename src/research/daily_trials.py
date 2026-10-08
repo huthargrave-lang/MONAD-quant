@@ -63,6 +63,10 @@ DOMAINS = {
     "levered_trend": {"family": "levered_trend", "reference_class": "held"},
     "miner_metal_ratio": {"family": "miner_metal_ratio", "reference_class": "pair_static"},
     "oil_trend_equities": {"family": "oil_trend_equities", "reference_class": "fund_static"},
+    "silver_miner_ratio": {"family": "silver_miner_ratio", "reference_class": "pair_static"},
+    "junior_miner_ratio": {"family": "junior_miner_ratio", "reference_class": "pair_static"},
+    "gold_silver_ratio": {"family": "gold_silver_ratio", "reference_class": "pair_static"},
+    "placebo_ratio": {"family": "placebo_ratio", "reference_class": "pair_static"},
 }
 DEFAULT_DOMAIN = "etf_alloc"      # trials recorded before domains existed (the v1 search)
 

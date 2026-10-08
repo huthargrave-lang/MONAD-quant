@@ -107,3 +107,32 @@ class Registry(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Replication(unittest.TestCase):
+    def test_the_replication_domains_run_the_same_frozen_rule_on_their_own_pair(self):
+        for name, pair in (("silver_miner_ratio", ("SIL", "SLV")), ("junior_miner_ratio", ("GDXJ", "GLD")),
+                           ("gold_silver_ratio", ("GLD", "SLV")), ("placebo_ratio", ("IWM", "SPY"))):
+            d = DOMAINS[name]
+            (pt,) = d.grid()
+            self.assertEqual((pt["params"]["miner"], pt["params"]["metal"]), pair)
+            self.assertEqual((pt["params"]["window"], pt["params"]["slope"]), (60, 0.25))
+            self.assertEqual(d.reference["params"]["weights"], {pair[0]: 0.5, pair[1]: 0.5})
+            self.assertEqual(d.prior_search_trials, 2)
+        self.assertEqual(DOMAINS["miner_metal_ratio"].grid(), cc.ratio_grid())     # unchanged
+
+    def test_the_trigger_needs_every_condition(self):
+        sys.path.insert(0, str(REPO / "tools"))
+        import miner_tilt_replication as mt
+        idx = pd.bdate_range("2016-01-04", periods=2700)
+        rng = np.random.default_rng(4)
+        base = pd.Series(rng.normal(0.0004, 0.004, len(idx)), index=idx)
+        series = {"miner_metal_ratio": base + rng.normal(0, 0.004, len(idx)),
+                  "silver_miner_ratio": base + rng.normal(0.0003, 0.004, len(idx)),
+                  "junior_miner_ratio": base + rng.normal(0, 0.004, len(idx)),
+                  "gold_silver_ratio": pd.Series(rng.normal(0, 0.004, len(idx)), index=idx),
+                  "placebo_ratio": pd.Series(rng.normal(0, 0.004, len(idx)), index=idx)}
+        good = mt.evaluate(series, cc.ERAS, spa_worst_p=0.01)
+        self.assertTrue(good["register"], good["trigger"])
+        self.assertFalse(mt.evaluate(series, cc.ERAS, spa_worst_p=0.02)["register"])    # 0.02 x 3 > 0.05
+        self.assertGreater(good["contamination"]["miner_metal_ratio"]["beta"], 0.2)

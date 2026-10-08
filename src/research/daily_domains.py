@@ -373,14 +373,26 @@ LEVERED = Domain(
 from src.research import commodity_classes as _cc  # noqa: E402
 from src.research import futures_panel as _fut  # noqa: E402
 
+def _ratio_domain(name: str, miner: str, metal: str, prior: int) -> Domain:
+    return Domain(
+        name=name, reference=_cc.ratio_reference(miner, metal), eras=_cc.ERAS,
+        load=lambda data: Context(snap=daily_data.load_snapshot(data["snapshot"])),
+        decide=lambda ctx, point: _cc.decide_ratio(ctx.snap, point),
+        tiers=lambda ctx: None, start=lambda ctx: _cc.ratio_start(ctx.snap, miner, metal),
+        truncation=lambda ctx, point, cuts: _cc.ratio_truncation(ctx.snap, point, cuts),
+        grids=lambda: {"v1": lambda: _cc.ratio_grid(miner, metal)}, prior_search_trials=prior)
+
+
 # Prior search: every statistic of the discovery atlas, 1401 (board, 2026-10-08).
-MINER_RATIO = Domain(
-    name="miner_metal_ratio", reference=_cc.RATIO_REFERENCE, eras=_cc.ERAS,
-    load=lambda data: Context(snap=daily_data.load_snapshot(data["snapshot"])),
-    decide=lambda ctx, point: _cc.decide_ratio(ctx.snap, point),
-    tiers=lambda ctx: None, start=lambda ctx: _cc.ratio_start(ctx.snap),
-    truncation=lambda ctx, point, cuts: _cc.ratio_truncation(ctx.snap, point, cuts),
-    grids=lambda: {"v1": _cc.ratio_grid}, prior_search_trials=_cc.ATLAS_CELLS)
+MINER_RATIO = _ratio_domain("miner_metal_ratio", "GDX", "GLD", _cc.ATLAS_CELLS)
+# The same frozen rule, replicated unchanged (docs/research/MINER_TILT_REPLICATION.md).
+# Prior search 2: the two choices made after seeing GDX/GLD's result (which rule to
+# replicate, which pair is primary). Only silver_miner_ratio carries a verdict; the other
+# three are counted robustness, contamination and placebo runs.
+SILVER_RATIO = _ratio_domain("silver_miner_ratio", "SIL", "SLV", 2)
+JUNIOR_RATIO = _ratio_domain("junior_miner_ratio", "GDXJ", "GLD", 2)
+GOLD_SILVER_RATIO = _ratio_domain("gold_silver_ratio", "GLD", "SLV", 2)
+PLACEBO_RATIO = _ratio_domain("placebo_ratio", "IWM", "SPY", 2)
 OIL_TREND = Domain(
     name="oil_trend_equities", reference=_cc.TREND_REFERENCE, eras=_cc.ERAS,
     load=lambda data: Context(snap=daily_data.load_snapshot(data["snapshot"]),
@@ -397,5 +409,6 @@ DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO, COUNTRY, BDC
                                                   BUYBACK_PRODUCT, MICROCAP_PRODUCT,
                                                   MOMENTUM_LONG, MOMENTUM_RECENT, LOTTERY_LONG,
                                                   LOTTERY_RECENT, BETA_PAIR, LEVERED,
-                                                  MINER_RATIO, OIL_TREND)}
+                                                  MINER_RATIO, OIL_TREND, SILVER_RATIO,
+                                                  JUNIOR_RATIO, GOLD_SILVER_RATIO, PLACEBO_RATIO)}
 

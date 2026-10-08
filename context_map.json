@@ -525,7 +525,8 @@
         "tools/spa_price_size_study.py",
         "tools/cef_capacity.py",
         "tools/snapshot_tr_check.py",
-        "tools/commodity_atlas.py"
+        "tools/commodity_atlas.py",
+        "tools/miner_tilt_replication.py"
       ],
       "entrypoints": [],
       "tests": [
