@@ -55,6 +55,12 @@ DOMAINS = {
     "merger_arb_product": {"family": "merger_arb_product", "reference_class": "product_benchmark"},
     "buyback_product": {"family": "buyback_product", "reference_class": "product_benchmark"},
     "microcap_product": {"family": "microcap_product", "reference_class": "product_benchmark"},
+    "momentum_product_long": {"family": "momentum_product_long", "reference_class": "product_benchmark"},
+    "momentum_product_recent": {"family": "momentum_product_recent", "reference_class": "product_benchmark"},
+    "lottery_product_long": {"family": "lottery_product_long", "reference_class": "product_benchmark"},
+    "lottery_product_recent": {"family": "lottery_product_recent", "reference_class": "product_benchmark"},
+    "beta_pair_product": {"family": "beta_pair_product", "reference_class": "product_benchmark"},
+    "levered_trend": {"family": "levered_trend", "reference_class": "held"},
 }
 DEFAULT_DOMAIN = "etf_alloc"      # trials recorded before domains existed (the v1 search)
 

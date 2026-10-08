@@ -4,6 +4,7 @@ synthetic market and a temporary ledger: it reproduces the recorded search trial
 a candidate the search never ran, catches a recorded trial that does not replay, runs
 every stage, and leaves the forward window pending until it matures.
 """
+import dataclasses
 import datetime as dt
 import json
 import sys
@@ -147,6 +148,16 @@ class TacticalGate(unittest.TestCase):
         rec = self.run_gate(now)
         self.assertEqual(rec["verdict"], "REJECT")
         self.assertEqual(rec["stages"][0]["name"], "registration")
+
+    def test_a_domain_judged_on_another_series_is_refused_at_registration(self):
+        self.register()
+        signed = dataclasses.replace(ETF, primary="vol_matched", sign=-1)
+        now = dt.datetime.combine(self.end.date() + dt.timedelta(days=30), dt.time(), dt.timezone.utc)
+        with mock.patch.dict(admit_tactical.DOMAINS, {"etf_alloc": signed}):
+            rec = self.run_gate(now)
+        self.assertEqual(rec["verdict"], "REJECT")
+        self.assertEqual([s["name"] for s in rec["stages"]], ["registration"])
+        self.assertIn("-vol_matched", rec["stages"][0]["detail"])
 
     def test_a_recorded_trial_that_does_not_replay_fails_development(self):
         self.patch.stop()

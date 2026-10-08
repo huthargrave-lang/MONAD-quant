@@ -115,12 +115,15 @@ def report(domain: Domain, ctx: Context) -> dict:
     series = trials.load_returns(list(fam.values()) + [ref_rec])
     ref_r = stored_returns(series[ref_rec.key])
     cash = ctx.snap.returns().cash.reindex(ref_r.index).fillna(0.0)
-    active, rows = {}, []
+    active, primary, rows = {}, {}, []
     for lab, rec in sorted(fam.items()):
         strat = stored_returns(series[rec.key])
         a = stats.active_series(strat, ref_r)
         active[lab] = a
         vm = stats.vol_matched_active(strat, ref_r, cash)
+        # The verdict's series (Domain.primary, Domain.sign): what the SPA, the ranking and
+        # the deflation read. The plain active series is reported either way.
+        primary[lab] = domain.sign * (vm if domain.primary == "vol_matched" else a)
         m = rec.metrics or {}
         rows.append({"label": lab, "key": rec.key, "excess_sharpe": m.get("excess_sharpe"),
                      "cagr": m.get("cagr"), "max_drawdown": m.get("max_drawdown"),
@@ -130,25 +133,31 @@ def report(domain: Domain, ctx: Context) -> dict:
                      "vol_matched_sharpe": stats.annualized_sharpe(vm),
                      "mean_exposure": m.get("mean_exposure"),
                      "active_return_ann": float(a.mean() * 252),
-                     "era_active_sharpe": [e["active_sharpe"] for e in stats.era_sharpes(a, domain.eras)]})
-    rows.sort(key=lambda x: -x["active_sharpe"])
+                     "primary_sharpe": stats.annualized_sharpe(primary[lab]),
+                     "era_active_sharpe": [e["active_sharpe"] for e in stats.era_sharpes(a, domain.eras)],
+                     "era_primary_sharpe": [e["active_sharpe"]
+                                            for e in stats.era_sharpes(primary[lab], domain.eras)]})
+    rows.sort(key=lambda x: -x["primary_sharpe"])
     best = rows[0]["label"]
     cuts = stats.default_cuts(ctx.snap, start)
     lookahead = {lab: domain.truncation(ctx, point_of(lab), cuts) for lab in fam}
     unknown = ({r.spec_hash for r in members if r.status != "ok"}
                - {r.spec_hash for r in members if r.status == "ok"})
-    defl = stats.deflate_active(active, best, calendar=ctx.snap.dates,
+    defl = stats.deflate_active(primary, best, calendar=ctx.snap.dates,
                                 prior_trials=domain.prior_search_trials, unknown_specs=len(unknown))
-    return {"domain": domain.name, "data": data,
+    return {"domain": domain.name, "primary": domain.primary, "sign": domain.sign, "data": data,
             "window": [start.date().isoformat(), end.date().isoformat()],
             "reference": {"key": ref_rec.key, **(ref_rec.metrics or {})}, "rows": rows,
             "lookahead_violations": {k: v for k, v in lookahead.items() if v}, "best": best,
-            "familywise": stats.familywise(active, best), "deflation": defl.__dict__}
+            "familywise": stats.familywise(primary, best), "deflation": defl.__dict__}
 
 
 def print_report(rep: dict) -> None:
     ref = rep["reference"]
     print(f"\n{rep['domain']}  window {rep['window'][0]}..{rep['window'][1]}")
+    if (rep.get("primary"), rep.get("sign")) != ("active", 1):
+        print(f"verdict series: {'-' if rep['sign'] < 0 else '+'}{rep['primary']} "
+              f"(ranking, SPA, DSR and 'primary' eras read it)")
     print(f"benchmark: excess Sharpe {ref['excess_sharpe']:.2f}  CAGR {ref['cagr']:.2%}  "
           f"maxDD {ref['max_drawdown']:.1%}  cost/y {ref['cost_per_year']:.2%}")
     print(f"\n{'point':58} {'exSh':>5} {'CAGR':>7} {'maxDD':>6} {'cost/y':>6} {'expo':>5} "
@@ -158,8 +167,11 @@ def print_report(rep: dict) -> None:
         print(f"{r['label'][:58]:58} {r['excess_sharpe']:5.2f} {r['cagr']:7.2%} {r['max_drawdown']:6.1%} "
               f"{r['cost_per_year']:6.2%} {r['mean_exposure'] or 0:5.2f} {r['active_sharpe']:+6.2f} "
               f"{r['vol_matched_sharpe']:+6.2f}  {eras}")
+        if (rep.get("primary"), rep.get("sign")) != ("active", 1):
+            pe = " ".join(f"{x:+.2f}" if x is not None else "  n/a" for x in r["era_primary_sharpe"])
+            print(f"{'':58} primary Sharpe {r['primary_sharpe']:+.2f}  primary eras {pe}")
     print(f"\nlook-ahead violations: {rep['lookahead_violations'] or 'none at 12 cuts'}")
-    print(f"best by active Sharpe: {rep['best']}")
+    print(f"best by the verdict series: {rep['best']}")
     for f in rep["familywise"]:
         print(f"  SPA block {f['mean_block']:>3}: family p={f['spa_pvalue']:.3f}  candidate adjusted "
               f"p={f['candidate_pvalue']:.3f}  (t={f['candidate_t']:+.2f}, K={f['family_size']})")

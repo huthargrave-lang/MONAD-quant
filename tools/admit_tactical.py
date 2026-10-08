@@ -234,6 +234,11 @@ def evaluate(hypothesis: str, spec: dict, spec_hash: str, record: dict, *, now=N
                       "stages": [asdict(s) for s in stages]}
 
     # ── registration ────────────────────────────────────────────────────────
+    if (domain.primary, domain.sign) != ("active", 1):
+        stages.append(Stage("registration", FAIL, f"domain {domain.name} judges "
+                            f"{'-' if domain.sign < 0 else '+'}{domain.primary} series; the gate "
+                            "scores only the plain active series, so it cannot admit it yet"))
+        return finish()
     grid_keys = {_point_key(pt) for pt in domain.grid()}
     if _point_key(candidate) not in grid_keys:
         stages.append(Stage("registration", FAIL, "the candidate is not a point of its domain's "

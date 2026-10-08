@@ -48,6 +48,16 @@ class Domain:
     #: The file prefix of the domain's second frozen dataset (``data["nav_panel"]``), so the
     #: gate's witness stage checks the right files (None: the domain has only a snapshot).
     panel_prefix: str | None = None
+    #: The series the domain's verdict and familywise SPA read: "active" (member minus
+    #: benchmark) or "vol_matched" (``allocation_stats.vol_matched_active``: positive in
+    #: mean exactly when the member's Sharpe beats the benchmark's). ``sign`` -1 tests a
+    #: predicted UNDERperformance: the SPA then asks whether the benchmark beats members.
+    primary: str = "active"
+    sign: int = 1
+
+    def __post_init__(self):
+        if self.primary not in ("active", "vol_matched") or self.sign not in (1, -1):
+            raise ValueError(f"{self.name}: primary must be active or vol_matched, sign +-1")
 
     def grid(self) -> list:
         """Every point of every frozen search in the domain."""
@@ -296,8 +306,10 @@ CEF_PRODUCT = Domain(
 from src.research import product_pairs as _pp  # noqa: E402
 
 
-def _product_domain(name: str, pair: "_pp.ProductPair", prior: int) -> Domain:
+def _product_domain(name: str, pair: "_pp.ProductFamily", prior: int, *,
+                    primary: str = "active", sign: int = 1) -> Domain:
     return Domain(
+        primary=primary, sign=sign,
         name=name, reference=pair.reference, eras=pair.eras,
         load=lambda data: Context(snap=daily_data.load_snapshot(data["snapshot"])),
         decide=lambda ctx, point: pair.decide(ctx.snap, point),
@@ -321,8 +333,46 @@ BUYBACK_PRODUCT = _product_domain("buyback_product", _pp.BUYBACK_PRODUCT, 3)
 # counted as 3 (docs/research/MICROCAP_PRODUCT_PROTOCOL.md).
 MICROCAP_PRODUCT = _product_domain("microcap_product", _pp.MICROCAP_PRODUCT, 3)
 
+# High-risk stock picking, live (docs/research/RISKY_PICKS_PROTOCOL.md). Every verdict reads
+# the vol-matched series: high-risk products carry beta above 1, and beating the market by
+# holding more of it is not an edge. Momentum predicts outperformance; betting against beta,
+# the lottery effect and long-run IPO underperformance predict UNDERperformance (sign -1).
+MOMENTUM_LONG = _product_domain("momentum_product_long", _pp.MOMENTUM_LONG, 3, primary="vol_matched")
+MOMENTUM_RECENT = _product_domain("momentum_product_recent", _pp.MOMENTUM_RECENT, 3,
+                                  primary="vol_matched")
+LOTTERY_LONG = _product_domain("lottery_product_long", _pp.LOTTERY_LONG, 3,
+                               primary="vol_matched", sign=-1)
+LOTTERY_RECENT = _product_domain("lottery_product_recent", _pp.LOTTERY_RECENT, 3,
+                                 primary="vol_matched", sign=-1)
+BETA_PAIR = _product_domain("beta_pair_product", _pp.BETA_PAIR, 3, primary="vol_matched")
+
+
+# ── Trend-timed leverage, live (docs/research/LEVERED_TREND_PROTOCOL.md) ─────────────
+from src.research import levered_classes as _lv  # noqa: E402
+
+
+def _levered_load(data: Mapping) -> Context:
+    snap = daily_data.load_snapshot(data["snapshot"])
+    bad = _lv.leg_errors(snap)
+    if bad:
+        raise daily_data.SnapshotError(f"levered_trend refuses snapshot {snap.sha[:12]}: "
+                                       f"{len(bad)} implausible legs, first {bad[0]}")
+    return Context(snap=snap)
+
+
+# Prior search 7: the published rule (3) plus F404704's four SMA points, the same filter
+# searched at 1x (board, 2026-10-08).
+LEVERED = Domain(
+    name="levered_trend", reference=_lv.REFERENCE, eras=_lv.ERAS, load=_levered_load,
+    decide=lambda ctx, point: _lv.decide(ctx.snap, point),
+    tiers=lambda ctx: None, start=lambda ctx: _lv.scoring_start(ctx.snap),
+    truncation=lambda ctx, point, cuts: _lv.truncation_violations(ctx.snap, point, cuts),
+    grids=lambda: _lv.GRIDS, prior_search_trials=7, primary="vol_matched")
+
 DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO, COUNTRY, BDC, INSIDER, MREIT,
                                                   EARNINGS, SPINOFF, DELETION, CREDIT, CEF_PRODUCT,
                                                   SPINOFF_PRODUCT, MERGER_ARB_PRODUCT,
-                                                  BUYBACK_PRODUCT, MICROCAP_PRODUCT)}
+                                                  BUYBACK_PRODUCT, MICROCAP_PRODUCT,
+                                                  MOMENTUM_LONG, MOMENTUM_RECENT, LOTTERY_LONG,
+                                                  LOTTERY_RECENT, BETA_PAIR, LEVERED)}
 
