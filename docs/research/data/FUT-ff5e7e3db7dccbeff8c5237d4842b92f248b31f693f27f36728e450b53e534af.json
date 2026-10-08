@@ -1,0 +1,21 @@
+{
+ "schema_version": 1,
+ "sha": "ff5e7e3db7dccbeff8c5237d4842b92f248b31f693f27f36728e450b53e534af",
+ "symbols": [
+  "CL=F"
+ ],
+ "window": {
+  "start": "2014-06-01",
+  "end": "2026-10-03"
+ },
+ "fetched_at": "2026-10-08T18:26:48Z",
+ "source": "yfinance history(auto_adjust=False): vendor front-month, unadjusted rolls",
+ "rows": {
+  "CL=F": 3104
+ },
+ "non_positive": {
+  "CL=F": [
+   "2020-04-20"
+  ]
+ }
+}

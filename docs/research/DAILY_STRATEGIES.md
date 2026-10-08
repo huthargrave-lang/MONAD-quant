@@ -102,6 +102,7 @@ and cash.
 | F404736 | illiquidity, live: IWC (micro-caps) vs IWM, static (`MICROCAP_PRODUCT_PROTOCOL.md`) | contradicts: active Sharpe -0.14 over 21 years |
 | F404737 | leverage: 200-day trend filter on SSO (2x), daily, vs SPY (`LEVERED_TREND_PROTOCOL.md`) | uninformative, null in substance: vol-matched +0.02 over 20 years; decay avoidance real (+2.8%/yr, CI excludes 0) but whipsaw costs as much; halves the 2x drawdown (-43% vs -85%) |
 | F404738 | high-risk picks, live: momentum (PDP, QMOM, MTUM, SPMO), lottery (FFTY, IPO, FPX, ARKK, SPHB), SPLV vs SPHB (`RISKY_PICKS_PROTOCOL.md`) | lottery funds lose to SPY risk-adjusted (familywise p 0.004) but mostly via the cap-weight tilt (vs RSP only FFTY, IPO lose); PDP contradicts (-0.23, 19.5 y); low beta = high beta (+0.02) |
+| F366200 | commodity linkage: discovery atlas 2006-15, then board-chosen rules on 2016-26 (`COMMODITY_LINKAGE_*.md`) | crude SMA100 -> XLE contradicts (vol-matched -0.36); GDX/GLD ratio tilt +2.0%/yr, every era positive, but SPA p 0.13: uninformative; exposures real (miners 1.5x gold; tankers unlinked to crude) |
 | F404727 | small caps: earnings-announcement premium (`EARNINGS_PREMIUM_PROTOCOL.md`) | contradicts: active Sharpe -1.62 / -2.69 after 30 bps costs (15-34%/yr of turnover cost) |
 | F404725, F404726 | mREIT: the rule on mortgage REITs vs book value (`MREIT_DISCOUNT_TEST*.md`) | not run twice: XBRL misses series-tagged preferred; stated-value extraction failed its blind audit (3/27 vs 2) |
 

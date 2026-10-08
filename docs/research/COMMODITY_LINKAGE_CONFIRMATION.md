@@ -97,3 +97,41 @@ about a 35-45% chance at least one rule passes. **A null is the most likely outc
 forward window. The admission gate must first learn to score vol-matched series for the
 oil rule; it refuses that domain until then. A null adds to D6: commodity linkages are
 real as exposures but not tradeable as timing.
+
+## Results (2026-10-08)
+
+Data:
+- snapshot DS-6f18a1b7 (SPY, GDX, GLD, XLE); the distribution cross-check found 0 of 48
+  asset-years off;
+- futures panel FUT-ff5e7e3d (CL=F, 3104 closes; one non-positive print, 2020-04-20).
+
+Window 2016-01-04..2026-10-02. No look-ahead violations at 12 cuts in either domain.
+
+| Rule | CAGR (benchmark) | Max DD (benchmark) | Verdict series | Eras | Worst-block SPA p | Verdict |
+|---|---|---|---|---|---|---|
+| `ratio_tilt` GDX/GLD | 19.06% (17.05%) | -40.1% (-36.5%) | active Sharpe **+0.27**, +2.05%/yr (SPA t +1.12 to +1.35) | +0.01 / +0.22 / +0.67 | 0.131 (needs < 0.025 under Holm) | **uninformative**: same sign as discovery in every era, not significant |
+| `commodity_trend` CL=F SMA100 → XLE | 3.13% (11.45%) | -53.0% (-66.8%) | vol-matched Sharpe **-0.36** | -0.70 / -0.08 / -0.57 | 1.00 | **contradicts** |
+
+Ledger runs (benchmark, search):
+- ratio: TR-20261008T182652Z-4438fd59, TR-20261008T182653Z-472f2194;
+- oil: TR-20261008T182700Z-f6d6f9ec, TR-20261008T182701Z-bb25c841.
+
+**Reading.**
+- **The miner-overshoot reversion is the one lead that held its sign out of sample.**
+  - It earns +2%/yr over the 50/50 GDX/GLD mix, with about 7× turnover a year at tier1
+    cost.
+  - It is positive in every era and strongest since 2023.
+  - It is not significant: the t of about 1.2 is below what the Holm-adjusted test
+    needs. With the 1401-cell atlas charged as prior search, gate rules v2 could never
+    admit it on this window (p_gate = 0.13 × 1402).
+  - Its honest status: a pattern that did not reverse when tested on new data. The
+    evidence is 10.75 years against a standard error of about 0.30.
+- **Crude's trend does not time oil equities.** Out of sample the rule lost 10%/yr
+  against holding XLE and was worse risk-adjusted in every era. The discovery pattern
+  rested on 2008 and 2014; after 2016 crude's SMA crossings whipsawed: 15 trades a year
+  at 0.30%/yr of cost, plus the missed rebounds.
+- **The atlas answers the descriptive questions; the timing rules do not survive.**
+  - Commodity → producer exposures are real and stable: gold miners about 1.5× gold, oil
+    producers about 0.3-0.6× crude, and tankers and refiners not linked to crude.
+  - Neither the commodity's moving averages nor scheduled news days (EIA, FOMC after
+    publication) time the groups.
