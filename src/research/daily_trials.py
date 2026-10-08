@@ -67,6 +67,7 @@ DOMAINS = {
     "junior_miner_ratio": {"family": "junior_miner_ratio", "reference_class": "pair_static"},
     "gold_silver_ratio": {"family": "gold_silver_ratio", "reference_class": "pair_static"},
     "placebo_ratio": {"family": "placebo_ratio", "reference_class": "pair_static"},
+    "metal_trust_discount": {"family": "metal_trust_discount", "reference_class": "pairs_static"},
 }
 DEFAULT_DOMAIN = "etf_alloc"      # trials recorded before domains existed (the v1 search)
 

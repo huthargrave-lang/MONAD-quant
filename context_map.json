@@ -526,7 +526,8 @@
         "tools/cef_capacity.py",
         "tools/snapshot_tr_check.py",
         "tools/commodity_atlas.py",
-        "tools/miner_tilt_replication.py"
+        "tools/miner_tilt_replication.py",
+        "tools/metal_trust_report.py"
       ],
       "entrypoints": [],
       "tests": [

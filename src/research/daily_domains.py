@@ -403,6 +403,20 @@ OIL_TREND = Domain(
     grids=lambda: {"v1": _cc.trend_grid}, prior_search_trials=_cc.ATLAS_CELLS,
     panel_prefix=_fut.PREFIX, primary="vol_matched")
 
+# ── Physical-metal trust discount tilt (docs/research/METAL_TRUST_DISCOUNT_PROTOCOL.md) ──
+from src.research import metal_trust_classes as _mt  # noqa: E402
+from src.research import cef_data as _cef_data  # noqa: E402
+
+METAL_TRUST = Domain(
+    name="metal_trust_discount", reference=_mt.REFERENCE, eras=_mt.ERAS,
+    load=lambda data: Context(snap=daily_data.load_snapshot(data["snapshot"]),
+                              panel=_cef_data.load_panel(data["nav_panel"])),
+    decide=lambda ctx, point: _mt.decide(ctx.snap, ctx.panel, point),
+    tiers=lambda ctx: _mt.tiers(ctx.snap, ctx.panel),
+    start=lambda ctx: _mt.scoring_start(ctx.snap, ctx.panel),
+    truncation=lambda ctx, point, cuts: _mt.truncation_violations(ctx.snap, ctx.panel, point, cuts),
+    grids=lambda: _mt.GRIDS, prior_search_trials=_mt.PRIOR, panel_prefix="CEFNAV")
+
 DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO, COUNTRY, BDC, INSIDER, MREIT,
                                                   EARNINGS, SPINOFF, DELETION, CREDIT, CEF_PRODUCT,
                                                   SPINOFF_PRODUCT, MERGER_ARB_PRODUCT,
@@ -410,5 +424,6 @@ DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO, COUNTRY, BDC
                                                   MOMENTUM_LONG, MOMENTUM_RECENT, LOTTERY_LONG,
                                                   LOTTERY_RECENT, BETA_PAIR, LEVERED,
                                                   MINER_RATIO, OIL_TREND, SILVER_RATIO,
-                                                  JUNIOR_RATIO, GOLD_SILVER_RATIO, PLACEBO_RATIO)}
+                                                  JUNIOR_RATIO, GOLD_SILVER_RATIO, PLACEBO_RATIO,
+                                                  METAL_TRUST)}
 
