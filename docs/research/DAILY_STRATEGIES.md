@@ -100,6 +100,8 @@ and cash.
 | F404734 | bond sleeve: MNA (merger arbitrage ETF) vs IEF, static (`MERGER_ARB_PRODUCT_PROTOCOL.md`) | null: active Sharpe +0.05; equity-correlated (+0.45), fell 12.6% in the COVID crash |
 | F404735 | buybacks, live: PKW (BuyBack Achievers ETF) vs SPY, static (`BUYBACK_PRODUCT_PROTOCOL.md`) | contradicts: active Sharpe -0.04 over 19.7 years |
 | F404736 | illiquidity, live: IWC (micro-caps) vs IWM, static (`MICROCAP_PRODUCT_PROTOCOL.md`) | contradicts: active Sharpe -0.14 over 21 years |
+| F404737 | leverage: 200-day trend filter on SSO (2x), daily, vs SPY (`LEVERED_TREND_PROTOCOL.md`) | uninformative, null in substance: vol-matched +0.02 over 20 years; decay avoidance real (+2.8%/yr, CI excludes 0) but whipsaw costs as much; halves the 2x drawdown (-43% vs -85%) |
+| F404738 | high-risk picks, live: momentum (PDP, QMOM, MTUM, SPMO), lottery (FFTY, IPO, FPX, ARKK, SPHB), SPLV vs SPHB (`RISKY_PICKS_PROTOCOL.md`) | lottery funds lose to SPY risk-adjusted (familywise p 0.004) but mostly via the cap-weight tilt (vs RSP only FFTY, IPO lose); PDP contradicts (-0.23, 19.5 y); low beta = high beta (+0.02) |
 | F404727 | small caps: earnings-announcement premium (`EARNINGS_PREMIUM_PROTOCOL.md`) | contradicts: active Sharpe -1.62 / -2.69 after 30 bps costs (15-34%/yr of turnover cost) |
 | F404725, F404726 | mREIT: the rule on mortgage REITs vs book value (`MREIT_DISCOUNT_TEST*.md`) | not run twice: XBRL misses series-tagged preferred; stated-value extraction failed its blind audit (3/27 vs 2) |
 
@@ -121,6 +123,13 @@ H404702 in practice:
 
 The survivor is selection on a price-versus-value anchor inside a capacity-constrained
 segment.
+
+**High risk does not pay either** (F404737, F404738):
+- trend-timed leverage matches SPY's Sharpe without beating it;
+- high-risk stock-picking funds lose to SPY on a risk-adjusted basis, mostly through
+  their tilt away from mega-caps;
+- packaged momentum is the market after fees;
+- low-beta stocks levered up are no better than high-beta stocks.
 
 **What blocks more replication is measurement, not the hypothesis.** Three tests on other
 NAV vehicles each closed NOT RUN on their own data validation, before any return was seen:

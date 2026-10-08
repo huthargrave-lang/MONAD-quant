@@ -95,3 +95,38 @@ tranched-schedule control against the daily rule.
 | Prior search 7 | statistics |
 | 3x dropped; QLD dropped as hindsight | all three (statistics and market mechanics: not independent) |
 | Separate checks of the night and day legs | market mechanics |
+
+## Result: UNINFORMATIVE, null in substance; the decay mechanism is real (2026-10-08)
+
+Data: snapshot DS-9aeb5e6d (SPY and SSO). The leg check passed across SSO's four 2:1
+splits. Window 2006-07-21..2026-10-02, 20.2 years. Ledger: benchmark
+TR-20261008T152822Z-80310298, search TR-20261008T152830Z-b81f40c2.
+
+| Point | Excess Sharpe | CAGR | Max DD | Plain active vs SPY | **Vol-matched vs SPY** | Vol-matched eras |
+|---|---|---|---|---|---|---|
+| held SPY (benchmark) | 0.57 | 11.44% | -55.2% | | | |
+| **timed SSO, daily (primary)** | 0.59 | 13.60% | -43.1% | +0.14 | **+0.02** | +0.26 / -0.33 / +0.06 |
+| timed SSO, tranched | 0.63 | 15.08% | -47.2% | +0.25 | +0.08 | +0.41 / -0.11 / -0.06 |
+| timed SPY, daily (1x) | 0.63 | 8.80% | -24.2% | -0.23 | +0.07 | +0.29 / -0.28 / +0.12 |
+| held SSO | 0.54 | 15.93% | **-84.7%** | +0.50 | -0.37 | -0.38 / -0.46 / -0.67 |
+
+- **Statistics.** Familywise SPA p 0.40-0.42 at every block (best point, the tranched
+  control: t +0.41). Active DSR 0.04. No look-ahead violations at 12 cuts.
+- **Verdict: uninformative.** The primary point is above 0 (+0.02) but t ≈ 0.09, and the
+  result without 2008 has the opposite sign (2010..end: -0.06). In substance it is a null.
+  Timing a 2x fund on the 200-day rule matches SPY's Sharpe; it does not beat it.
+- **Mechanism: corroborated.** The decay increment is
+  g = **+2.76%/yr, 95% CI [+1.25%, +4.77%]**. At 2x, the filter saves more compounding
+  drag than L times what it saves at 1x. Decay avoidance is real.
+- **Why it doesn't pay.** The filter's whipsaw and missed rebounds cost about as much as it
+  saves. Against held SSO, the timed fund's plain active Sharpe is -0.22, and its CAGR is
+  13.6% against 15.9%. What it buys is the drawdown: -43% against -85%.
+- **Diagnostics.**
+  - Held SSO compounds faster than SPY (15.9% against 11.4%), but on a worse Sharpe
+    (vol-matched -0.37), with an 85% drawdown.
+  - The tranched schedule is slightly better than the daily rule (+0.08 against +0.02).
+    This is the reverse of the board's concern; neither is significant.
+
+**What it changes.** D6 gains "leverage does not rescue timing". A trend filter makes a 2x
+fund survivable (it halves the drawdown) but not better than owning SPY, risk-adjusted.
+Nothing is registered.

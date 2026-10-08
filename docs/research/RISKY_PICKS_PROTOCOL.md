@@ -119,3 +119,59 @@ uninformative.
 | Distribution cross-check against adjusted closes | market mechanics |
 | SPLV vs SPHB pair | research value |
 | ARKK and FFTY kept, secondary only | statistics and market mechanics (keep) vs research value (drop): majority |
+
+## Results (2026-10-08)
+
+Data: snapshot DS-27a25f68. The yearly distribution cross-check against Yahoo's adjusted
+close found 0 of 192 asset-years more than 1% apart. No look-ahead violations in any
+domain.
+
+| Domain | Window | Points: vol-matched active Sharpe | Familywise SPA (blocks 20/63/126) | Verdict |
+|---|---|---|---|---|
+| `momentum_product_long` | 2007-03..2026-10 (19.5 y) | PDP **-0.23** (eras -0.18 / -0.22 / -0.28) | 1.00 | **contradicts** |
+| `momentum_product_recent` | 2016-01..2026-10 (10.8 y) | SPMO +0.18, MTUM -0.10, QMOM -0.39, PDP -0.44 | 0.47 / 0.46 / 0.42 | uninformative |
+| `lottery_product_long` | 2011-06..2026-10 (15.3 y) | SPHB -0.43, FPX -0.24 (all < 0; best negated t +1.9 to +2.1) | 0.056 / 0.044 / 0.033 | uninformative (the worst block misses 5%) |
+| `lottery_product_recent` | 2015-05..2026-10 (11.4 y) | FFTY -0.74, IPO -0.53, FPX -0.38, ARKK -0.28, SPHB -0.28 (all < 0; best negated t +3.1 to +3.5) | 0.004 / 0.001 / 0.002 | **corroborates**, labelled **style-dependent** |
+| `beta_pair_product` | 2011-06..2026-10 (15.3 y) | SPLV vs SPHB +0.02 | 0.46-0.47 | uninformative, null |
+
+Ledger runs (benchmark, search):
+- momentum long: TR-20261008T152929Z-c7108bc9, TR-20261008T152934Z-3190c0b1;
+- momentum recent: TR-20261008T152959Z-590e3a7c, TR-20261008T153004Z-947af75a;
+- lottery long: TR-20261008T153029Z-4bcd1746, TR-20261008T153036Z-4d90226a;
+- lottery recent: TR-20261008T153109Z-f7cca740, TR-20261008T153110Z-b4f08d24;
+- beta pair: TR-20261008T153153Z-6f16b963, TR-20261008T153154Z-77f3f59c.
+
+**RSP diagnostic** (vol-matched active Sharpe against equal-weight S&P 500, from the
+snapshot's passive RSP returns):
+
+| Fund | PDP | QMOM | MTUM | SPMO | FPX | SPHB | IPO | ARKK | FFTY | SPLV |
+|---|---|---|---|---|---|---|---|---|---|---|
+| vs RSP | -0.03 | -0.13 | +0.19 | +0.38 | -0.05 / +0.03 | +0.09 / -0.11 | -0.25 | -0.04 | **-0.41** | -0.05 |
+
+FPX and SPHB show the recent / long window.
+
+**Reading.**
+- **High-risk picks lose to SPY, risk-adjusted, but most of that loss is the cap-weight
+  tilt.** Against SPY, all five lottery funds lose on Sharpe over 2015-26, and the
+  familywise test rejects at every block. Against equal-weight RSP, SPHB turns positive
+  (+0.09), and FPX and ARKK are about 0. The verdict is therefore labelled style-dependent.
+  What survives against both benchmarks is FFTY (IBD 50: -0.74 vs SPY, -0.41 vs RSP) and,
+  more weakly, IPO.
+- **Packaged momentum does not beat the market.**
+  - PDP, the longest record (19.5 years, including the 2009 momentum crash), lost in
+    every era: vol-matched -0.23. Its verdict is contradicts.
+  - Of the recent products, only SPMO is positive (+0.18 vs SPY, +0.38 vs RSP). It is
+    not significant, and its gain is concentrated after 2023, the mega-cap momentum years.
+  - QMOM, the most concentrated product, did worst (-0.39).
+- **Low beta does not beat high beta, risk-adjusted** (SPLV vs SPHB +0.02 over 15 years).
+  The betting-against-beta premium is absent live in large caps. SPLV merely had a
+  smaller drawdown (-36% against -47%).
+
+**What it changes.** The project's answer to "high-risk individual stock picks" is:
+- don't, for the IBD-50 / CAN SLIM and IPO styles;
+- the rest only reshuffle style exposure, with no edge;
+- packaged momentum ≈ the market after fees (D6 extends);
+- no low-beta lever-up premium either.
+
+Nothing is registered. The one corroboration is a predicted underperformance and gives
+nothing to buy.
