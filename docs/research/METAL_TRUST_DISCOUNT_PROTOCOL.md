@@ -80,3 +80,51 @@ the split is omitted rather than set after seeing data.
 **Power, stated in advance.** Discounts are kept tight (within a few percent) by
 redemption and issuance. Each episode is worth a few tenths of a percent against a 17 bp
 round trip. A small or null result is the most likely outcome.
+
+## Result: CORROBORATES (2026-10-08)
+
+Data:
+- snapshot DS-6edd69e3 (SPY, PHYS, GLD, PSLV, SLV); the distribution cross-check found 0
+  of 88 asset-years off;
+- NAV panel CEFNAV-fd7099e2.
+
+Window 2011-10-24..2026-10-02, 15.0 years. No look-ahead violations at 12 cuts.
+
+Ledger runs:
+- benchmark TR-20261008T185928Z-5c567742;
+- search TR-20261008T185930Z-9488e29b;
+- 2x cost: TR-20261008T185936Z-eb8af984 (benchmark) and TR-20261008T185937Z-6adb2bed
+  (candidate).
+
+| | CAGR | Max DD | Cost/yr | Active %/yr | Active Sharpe | Eras | SPA p (blocks 20/63/126) |
+|---|---|---|---|---|---|---|---|
+| benchmark 25% PHYS/GLD/PSLV/SLV | 4.82% | -55.0% | 0.03% | | | | |
+| `trust_tilt` | 5.56% | -54.9% | 0.44% | **+0.74** | **+0.43** (vol-matched +0.41) | +0.59 / +0.26 / +0.42 | 0.022 / 0.014 / 0.010 (t +2.1 to +2.6) |
+
+**Every pre-stated condition holds:**
+1. active Sharpe +0.43 > 0, t > 1, worst-block SPA p 0.022 < 0.05;
+2. at 2x costs the active Sharpe is still +0.19 (+0.32%/yr);
+3. the long leg is positive in both pairs: PHYS +0.20%/yr, PSLV +0.21%/yr, total
+   +0.41%/yr. The short leg adds +0.21 and +0.57%/yr; PSLV's larger short leg is
+   consistent with premiums being sold away by issuance;
+4. 73 episodes (PHYS 41, PSLV 32), not neutral 61% / 68% of the time.
+
+Leave-one-pair-out Sharpe: +0.53 with either pair dropped. Gross contribution is about
+1.2%/yr against 0.44%/yr of costs; the break-even swing is 17 bp per round trip.
+
+**Verdict: corroborates.** Discount reversion pays when nothing but the discount moves.
+The trust and its ETF hold the same metal, so there is no asset or category beta to
+explain it. Both legs contribute, so it is not only an issuance effect.
+
+**What it does and doesn't mean.**
+- **The mechanism.** This is the cleanest evidence yet for the mechanism behind H404702.
+  Its size is small: +0.74%/yr on a gold/silver sleeve.
+- **Capacity.** PHYS and PSLV are multi-billion-dollar trusts, so capacity is far
+  larger than in small CEFs.
+- **Practical use.** For anyone holding gold or silver, owning PHYS instead of GLD (or
+  PSLV instead of SLV) when the trust's 52-week discount z is ≤ -1, and the ETF when
+  z ≥ +1, is a near-free improvement.
+- **Admission.** It is **not admissible under gate rules v2**: p_gate = 0.022 × (1 + 22)
+  ≈ 0.51. The declared prior search of 22 dominates. It is a corroborated mechanism and
+  a sleeve choice (like ANGL, F404731), not a registered strategy.
+- A forward record would be the next step if it is to be promoted.

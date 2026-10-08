@@ -1,0 +1,38 @@
+{
+ "window": [
+  "2011-10-24",
+  "2026-10-02"
+ ],
+ "pairs": {
+  "PHYS": {
+   "episodes": 41,
+   "share_not_neutral": 0.6119244077721586,
+   "contrib_ann": 0.004057194174188204,
+   "long_leg_mean_bp_per_day": 0.1506316745769097,
+   "short_leg_mean_bp_per_day": 0.3067160675553189,
+   "long_leg_ann_contrib": 0.001977272269391725,
+   "short_leg_ann_contrib": 0.002079921904796479
+  },
+  "PSLV": {
+   "episodes": 32,
+   "share_not_neutral": 0.6776683524088368,
+   "contrib_ann": 0.007781730043786028,
+   "long_leg_mean_bp_per_day": 0.15349824708831064,
+   "short_leg_mean_bp_per_day": 0.864891225616155,
+   "long_leg_ann_contrib": 0.002084912310065609,
+   "short_leg_ann_contrib": 0.00569681773372042
+  },
+  "leave_one_pair_out_sharpe": {
+   "PHYS": 0.5305030157742259,
+   "PSLV": 0.5378420223638705
+  },
+  "long_leg_total_ann": 0.0040621845794573345,
+  "episodes_total": 73
+ },
+ "break_even_bp_per_round_trip": 17.0,
+ "min_episodes": 20,
+ "cost_stress": {
+  "active_sharpe_2x": 0.187995575211413,
+  "active_ann_2x": 0.0032158029761086507
+ }
+}
