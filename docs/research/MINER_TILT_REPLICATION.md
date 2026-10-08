@@ -77,3 +77,47 @@ If it fires, one hypothesis is registered: the forward series
 **Power, stated in advance.** At a true active Sharpe of 0.2-0.3 and a standard error of
 about 0.30, clearing p × 3 ≤ 0.05 has about a 10-20% chance. **A null is expected.** Its
 role is to close or promote the lead.
+
+## Result: UNINFORMATIVE, with the same sign again; the trigger does not fire (2026-10-08)
+
+Data: snapshot DS-33bafcfd. The distribution cross-check found 0 of 72 asset-years off.
+Window 2016-01-04..2026-10-02. No look-ahead violations at 12 cuts in any domain.
+
+| Domain | Tilt CAGR (50/50) | Active %/yr | Active Sharpe | Eras | Worst-block SPA p |
+|---|---|---|---|---|---|
+| **`silver_miner_ratio`** SIL/SLV (verdict) | 19.05% (16.15%) | **+2.46** | **+0.34** | +0.02 / +0.90 / +0.24 | 0.096 |
+| `junior_miner_ratio` GDXJ/GLD | 20.24% (17.34%) | +2.95 | +0.32 | -0.14 / +0.51 / +0.71 | 0.098 (0.056 at block 126) |
+| `miner_metal_ratio` GDX/GLD (seen, F366200) | 19.06% (17.05%) | +2.05 | +0.27 | +0.01 / +0.22 / +0.67 | 0.131 |
+| `gold_silver_ratio` GLD/SLV (contamination) | 12.85% (14.13%) | -1.41 | -0.20 | +0.30 / -0.75 / -0.03 | 1.00 |
+| `placebo_ratio` IWM/SPY (placebo) | 13.24% (13.00%) | +0.34 | +0.10 | +0.10 / -0.55 / +0.83 | 0.38 |
+
+Ledger runs (benchmark, search):
+- silver: TR-20261008T185506Z-22d9e398, TR-20261008T185507Z-f8c2a60f;
+- junior: TR-20261008T185514Z-ee85e223, TR-20261008T185515Z-cea2ea5f;
+- gold/silver: TR-20261008T185522Z-602bf09b, TR-20261008T185523Z-292942c5;
+- placebo: TR-20261008T185530Z-9694386a, TR-20261008T185531Z-ee54c2f4.
+
+**Diagnostics** (`docs/research/data/miner_tilt_replication_diagnostics.json`):
+- **SIL/SLV active regressed on GDX/GLD active:** beta 0.49 (NW t 11.2), R² 0.26,
+  intercept +1.5%/yr (NW t 0.87). Silver adds a positive, partly independent component.
+- **SIL/SLV active regressed on the GLD/SLV tilt:** beta 0.24 (t 1.65), R² 0.05. It is not
+  a gold/silver ratio bet; that tilt itself loses.
+- **Dropping any one era** keeps the Sharpe positive: +0.51 / +0.13 / +0.39.
+- **Pools:**
+  - `pool_unseen` (SIL/SLV and GDXJ/GLD): Sharpe +0.37, 95% CI [-0.16, +0.89];
+  - `pool_all`: +0.37, CI [-0.16, +0.88].
+- **Correlations with SIL/SLV:** GDX/GLD 0.51, GDXJ/GLD 0.52, GLD/SLV 0.23, placebo 0.03.
+- **Trigger:** every condition holds except significance (SPA 0.096 > 0.05, and × 3 >
+  0.05). **Not registered.**
+
+**Reading.**
+- **The miner-overshoot pattern now holds in three miner pairs out of sample** (+0.27,
+  +0.34, +0.32; +2.0 to +3.0%/yr), and is absent where it should be absent:
+  - the unlinked placebo is +0.10;
+  - the pure metal pair is -0.20.
+- That is the pattern a real mechanism produces, and generic pair reversion does not.
+- Each test is underpowered: about 10.75 years at an active Sharpe of about 0.3 gives
+  t ≈ 1.1-1.3. The pooled CI still includes 0.
+- **Status: the strongest lead outside CEFs, not an edge.** What would settle it is time:
+  a forward record, or a longer pre-2016 history of these pairs. The discovery window
+  cannot be reused, because it chose the rule.
