@@ -369,10 +369,33 @@ LEVERED = Domain(
     truncation=lambda ctx, point, cuts: _lv.truncation_violations(ctx.snap, point, cuts),
     grids=lambda: _lv.GRIDS, prior_search_trials=7, primary="vol_matched")
 
+# ── Commodity-to-equity linkage, confirmation (docs/research/COMMODITY_LINKAGE_CONFIRMATION.md) ─
+from src.research import commodity_classes as _cc  # noqa: E402
+from src.research import futures_panel as _fut  # noqa: E402
+
+# Prior search: every statistic of the discovery atlas, 1401 (board, 2026-10-08).
+MINER_RATIO = Domain(
+    name="miner_metal_ratio", reference=_cc.RATIO_REFERENCE, eras=_cc.ERAS,
+    load=lambda data: Context(snap=daily_data.load_snapshot(data["snapshot"])),
+    decide=lambda ctx, point: _cc.decide_ratio(ctx.snap, point),
+    tiers=lambda ctx: None, start=lambda ctx: _cc.ratio_start(ctx.snap),
+    truncation=lambda ctx, point, cuts: _cc.ratio_truncation(ctx.snap, point, cuts),
+    grids=lambda: {"v1": _cc.ratio_grid}, prior_search_trials=_cc.ATLAS_CELLS)
+OIL_TREND = Domain(
+    name="oil_trend_equities", reference=_cc.TREND_REFERENCE, eras=_cc.ERAS,
+    load=lambda data: Context(snap=daily_data.load_snapshot(data["snapshot"]),
+                              panel=_fut.load(data["nav_panel"])),
+    decide=lambda ctx, point: _cc.decide_trend(ctx.snap, ctx.panel, point),
+    tiers=lambda ctx: None, start=lambda ctx: _cc.trend_start(ctx.snap, ctx.panel),
+    truncation=lambda ctx, point, cuts: _cc.trend_truncation(ctx.snap, ctx.panel, point, cuts),
+    grids=lambda: {"v1": _cc.trend_grid}, prior_search_trials=_cc.ATLAS_CELLS,
+    panel_prefix=_fut.PREFIX, primary="vol_matched")
+
 DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO, COUNTRY, BDC, INSIDER, MREIT,
                                                   EARNINGS, SPINOFF, DELETION, CREDIT, CEF_PRODUCT,
                                                   SPINOFF_PRODUCT, MERGER_ARB_PRODUCT,
                                                   BUYBACK_PRODUCT, MICROCAP_PRODUCT,
                                                   MOMENTUM_LONG, MOMENTUM_RECENT, LOTTERY_LONG,
-                                                  LOTTERY_RECENT, BETA_PAIR, LEVERED)}
+                                                  LOTTERY_RECENT, BETA_PAIR, LEVERED,
+                                                  MINER_RATIO, OIL_TREND)}
 

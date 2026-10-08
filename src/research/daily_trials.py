@@ -61,6 +61,8 @@ DOMAINS = {
     "lottery_product_recent": {"family": "lottery_product_recent", "reference_class": "product_benchmark"},
     "beta_pair_product": {"family": "beta_pair_product", "reference_class": "product_benchmark"},
     "levered_trend": {"family": "levered_trend", "reference_class": "held"},
+    "miner_metal_ratio": {"family": "miner_metal_ratio", "reference_class": "pair_static"},
+    "oil_trend_equities": {"family": "oil_trend_equities", "reference_class": "fund_static"},
 }
 DEFAULT_DOMAIN = "etf_alloc"      # trials recorded before domains existed (the v1 search)
 
