@@ -47,6 +47,14 @@ DOMAINS = {
     "insider_cluster": {"family": "insider_cluster", "reference_class": "insider_index"},
     "mreit_discount": {"family": "mreit_discount", "reference_class": "mreit_equal_weight"},
     "earnings_premium": {"family": "earnings_premium", "reference_class": "earn_universe"},
+    "spinoff_drift": {"family": "spinoff_drift", "reference_class": "spinoff_index"},
+    "index_deletion": {"family": "index_deletion", "reference_class": "deletion_index"},
+    "credit_sleeve": {"family": "credit_sleeve", "reference_class": "sleeve_benchmark"},
+    "cef_product": {"family": "cef_product", "reference_class": "product_benchmark"},
+    "spinoff_product": {"family": "spinoff_product", "reference_class": "product_benchmark"},
+    "merger_arb_product": {"family": "merger_arb_product", "reference_class": "product_benchmark"},
+    "buyback_product": {"family": "buyback_product", "reference_class": "product_benchmark"},
+    "microcap_product": {"family": "microcap_product", "reference_class": "product_benchmark"},
 }
 DEFAULT_DOMAIN = "etf_alloc"      # trials recorded before domains existed (the v1 search)
 

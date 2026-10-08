@@ -45,6 +45,9 @@ class Domain:
     truncation: Callable[[Context, Mapping, list], list]
     grids: Callable[[], dict]                            # name -> frozen grid function
     prior_search_trials: int                             # declared search the ledger cannot see
+    #: The file prefix of the domain's second frozen dataset (``data["nav_panel"]``), so the
+    #: gate's witness stage checks the right files (None: the domain has only a snapshot).
+    panel_prefix: str | None = None
 
     def grid(self) -> list:
         """Every point of every frozen search in the domain."""
@@ -106,7 +109,7 @@ CEF = Domain(
     grids=lambda: _cef().GRIDS,
     # Discount mean reversion x 3 and the F257 pilot (4), the CEF January effect x 3 (7),
     # hysteresis as a practitioner variant x 2 (9). It only grows.
-    prior_search_trials=9)
+    prior_search_trials=9, panel_prefix="CEFNAV")
 
 # ── crypto trend-following against a static half-crypto blend ───────────────
 from src.research import crypto_classes as _crypto  # noqa: E402  (no import cycle)
@@ -157,7 +160,7 @@ BDC = Domain(
     grids=lambda: _bdc.GRIDS,
     # A replication of the CEF mechanism the CEF family found (its search is counted
     # there); BDC price-to-NAV is also a published screen: counted as 3.
-    prior_search_trials=3)
+    prior_search_trials=3, panel_prefix="BDCNAV")
 
 # ── insider purchase clusters against the small-cap index ────────────────────
 from src.research import insider_classes as _ins  # noqa: E402
@@ -178,7 +181,7 @@ INSIDER = Domain(
     truncation=lambda ctx, point, cuts: _ins.truncation_violations(ctx.snap, ctx.panel, point, cuts),
     grids=lambda: _ins.GRIDS,
     # A published effect (Lakonishok-Lee; Cohen-Malloy-Pomorski): counted as 3.
-    prior_search_trials=3)
+    prior_search_trials=3, panel_prefix="INSIDER")
 
 # ── mortgage REIT book-value discount: a second disjoint test of the CEF mechanism ──
 from src.research import mreit_classes as _mreit  # noqa: E402
@@ -199,7 +202,7 @@ MREIT = Domain(
     grids=lambda: _mreit.GRIDS,
     # The CEF mechanism's second out-of-sample replication (docs/research/
     # MREIT_DISCOUNT_TEST.md); mREIT price-to-book is a common screen: counted as 3.
-    prior_search_trials=3)
+    prior_search_trials=3, panel_prefix="MREITBV")
 
 # ── the earnings-announcement premium in small caps ─────────────────────────
 from src.research import earnings_classes as _earn  # noqa: E402
@@ -220,8 +223,106 @@ EARNINGS = Domain(
     grids=lambda: _earn.GRIDS,
     # A published effect (Frazzini-Lamont 2007; Barber et al. 2013): counted as the
     # survivor of 3 variants (docs/research/EARNINGS_PREMIUM_PROTOCOL.md).
+    prior_search_trials=3, panel_prefix="EARNDATES")
+
+# ── spin-off drift ─────────────────────────────────────────────────────────
+from src.research import spinoff_classes as _spin  # noqa: E402
+
+
+def _spin_load(data: Mapping) -> Context:
+    return Context(snap=daily_data.load_snapshot(data["snapshot"]),
+                   panel=_spin.load_events(data["nav_panel"]))
+
+
+SPINOFF = Domain(
+    name="spinoff_drift", reference=_spin.REFERENCE, eras=_spin.ERAS, load=_spin_load,
+    decide=lambda ctx, point: _spin.decide(ctx.snap, ctx.panel, point),
+    tiers=lambda ctx: _spin.tiers(ctx.snap, ctx.panel),
+    start=lambda ctx: _spin.scoring_start(ctx.snap, ctx.panel),
+    truncation=lambda ctx, point, cuts: _spin.truncation_violations(ctx.snap, ctx.panel, point, cuts),
+    grids=lambda: _spin.GRIDS,
+    # A published effect (Cusatis, Miles and Woolridge 1993): counted as 3.
+    prior_search_trials=3, panel_prefix="SPINEVENTS")
+
+# ── S&P 500 deletion rebound ──────────────────────────────────────────────
+from src.research import deletion_classes as _del  # noqa: E402
+
+
+def _del_load(data: Mapping) -> Context:
+    return Context(snap=daily_data.load_snapshot(data["snapshot"]),
+                   panel=_del.load_events(data["nav_panel"]))
+
+
+DELETION = Domain(
+    name="index_deletion", reference=_del.REFERENCE, eras=_del.ERAS, load=_del_load,
+    decide=lambda ctx, point: _del.decide(ctx.snap, ctx.panel, point),
+    tiers=lambda ctx: _del.tiers(ctx.snap, ctx.panel),
+    start=lambda ctx: _del.scoring_start(ctx.snap, ctx.panel),
+    truncation=lambda ctx, point, cuts: _del.truncation_violations(ctx.snap, ctx.panel, point, cuts),
+    grids=lambda: _del.GRIDS,
+    # A published effect (Chen, Noronha and Singal 2004): counted as 3.
+    prior_search_trials=3, panel_prefix="IDXDEL")
+
+# ── the fallen-angel premium as a credit sleeve ──────────────────────────────
+from src.research import credit_classes as _credit  # noqa: E402
+
+CREDIT = Domain(
+    name="credit_sleeve", reference=_credit.REFERENCE, eras=_credit.ERAS,
+    load=lambda data: Context(snap=daily_data.load_snapshot(data["snapshot"])),
+    decide=lambda ctx, point: _credit.decide(ctx.snap, point),
+    tiers=lambda ctx: None,
+    start=lambda ctx: _credit.scoring_start(ctx.snap),
+    truncation=lambda ctx, point, cuts: _credit.truncation_violations(ctx.snap, point, cuts),
+    grids=lambda: _credit.GRIDS,
+    # A published, widely marketed effect (fallen-angel index research): counted as 3.
     prior_search_trials=3)
 
+# ── the CEF discount mechanism as a live product ───────────────────────────
+from src.research import cef_product_classes as _cefp  # noqa: E402
+
+CEF_PRODUCT = Domain(
+    name="cef_product", reference=_cefp.REFERENCE, eras=_cefp.ERAS,
+    load=lambda data: Context(snap=daily_data.load_snapshot(data["snapshot"])),
+    decide=lambda ctx, point: _cefp.decide(ctx.snap, point),
+    tiers=lambda ctx: None,
+    start=lambda ctx: _cefp.scoring_start(ctx.snap),
+    truncation=lambda ctx, point, cuts: _cefp.truncation_violations(ctx.snap, point, cuts),
+    grids=lambda: _cefp.GRIDS,
+    # One comparison, suggested by H404702's mechanism: counted as 3 to be conservative
+    # (docs/research/CEF_PRODUCT_PROTOCOL.md).
+    prior_search_trials=3)
+
+# ── live products as out-of-sample tests of a mechanism ─────────────────────
+from src.research import product_pairs as _pp  # noqa: E402
+
+
+def _product_domain(name: str, pair: "_pp.ProductPair", prior: int) -> Domain:
+    return Domain(
+        name=name, reference=pair.reference, eras=pair.eras,
+        load=lambda data: Context(snap=daily_data.load_snapshot(data["snapshot"])),
+        decide=lambda ctx, point: pair.decide(ctx.snap, point),
+        tiers=lambda ctx: None,
+        start=lambda ctx: pair.scoring_start(ctx.snap),
+        truncation=lambda ctx, point, cuts: pair.truncation_violations(ctx.snap, point, cuts),
+        grids=lambda: {"v1": pair.grid},
+        prior_search_trials=prior)
+
+
+# CSD (Invesco S&P Spin-Off ETF, 2006-) vs IJH: an out-of-sample test of F404728's spin-off
+# drift. A published effect, counted as 3 (docs/research/SPINOFF_PRODUCT_PROTOCOL.md).
+SPINOFF_PRODUCT = _product_domain("spinoff_product", _pp.SPINOFF_PRODUCT, 3)
+# MNA (IQ Merger Arbitrage ETF, 2009-) vs IEF: is merger arbitrage a better bond sleeve?
+# A published premium, counted as 3 (docs/research/MERGER_ARB_PRODUCT_PROTOCOL.md).
+MERGER_ARB_PRODUCT = _product_domain("merger_arb_product", _pp.MERGER_ARB_PRODUCT, 3)
+# PKW (Invesco BuyBack Achievers ETF, 2006-) vs SPY: the buyback drift, live. A published
+# effect, counted as 3 (docs/research/BUYBACK_PRODUCT_PROTOCOL.md).
+BUYBACK_PRODUCT = _product_domain("buyback_product", _pp.BUYBACK_PRODUCT, 3)
+# IWC (iShares Micro-Cap, 2005-) vs IWM: the illiquidity premium, live. A published effect,
+# counted as 3 (docs/research/MICROCAP_PRODUCT_PROTOCOL.md).
+MICROCAP_PRODUCT = _product_domain("microcap_product", _pp.MICROCAP_PRODUCT, 3)
+
 DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO, COUNTRY, BDC, INSIDER, MREIT,
-                                                  EARNINGS)}
+                                                  EARNINGS, SPINOFF, DELETION, CREDIT, CEF_PRODUCT,
+                                                  SPINOFF_PRODUCT, MERGER_ARB_PRODUCT,
+                                                  BUYBACK_PRODUCT, MICROCAP_PRODUCT)}
 

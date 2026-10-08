@@ -334,5 +334,7 @@
    "preferred": 840250000.0,
    "shares": 415649214.0
   }
- ]
+ ],
+ "panel_sha256": "eed8ab6dc5015cd852e68ff9989584303cb385320ef2eb5c54c1ded3b7b01afe",
+ "content_sha256": "acc12ab80cf2e7be62fb71bb30001b71ef41c6da2e4aff72e4900bf17bb5fae9"
 }

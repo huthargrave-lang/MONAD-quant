@@ -5626,6 +5626,24 @@ def trader_singleton_launch_safety_audit() -> Dict[str, object]:
         token for token in lock_tokens if token in ownership_sources
     ]
 
+    # F155: each path's lock flag is derived from the files that path actually
+    # executes. A lock written into live/ covers every path; a PIDFile= or
+    # flock in the unit/starter covers only the paths that run through it.
+    code_chain = "\n".join(
+        source_text[path] for path in ("live/trader.py", "live/state.py")
+    )
+    starter_chain = "\n".join((source_text["ops/start_trader.sh"], code_chain))
+    unit_chain = "\n".join((
+        source_text["ops/systemd/monad-trader.service"],
+        source_text["ops/preflight_trader_start.sh"],
+        starter_chain,
+    ))
+    # A durable per-bar intent key would be claimed in live/ before submission:
+    # an IBKR orderRef, or an INSERT OR IGNORE on a symbol+bar+direction key.
+    intent_sources = "\n".join((code_chain, source_text["live/broker.py"]))
+    bar_cycle_key_tokens = (
+        "orderRef", "idempotency", "intent_key", "INSERT OR IGNORE")
+
     launch_paths = [
         dict(
             path="systemd timer/service",
@@ -5635,8 +5653,9 @@ def trader_singleton_launch_safety_audit() -> Dict[str, object]:
             named_service_unit_scope=True,
             process_duplicate_observation=True,
             scheduled_market_hours_wrapper=True,
-            cross_process_atomic_lock=False,
-            bar_cycle_idempotency_key=False,
+            cross_process_atomic_lock=_derived_control(unit_chain, lock_tokens),
+            bar_cycle_idempotency_key=_derived_control(
+                intent_sources, bar_cycle_key_tokens),
             notes=(
                 "Safest declared path: the named unit runs all ten checks, "
                 "then the guarded starter. Repo code still has no ownership "
@@ -5651,8 +5670,9 @@ def trader_singleton_launch_safety_audit() -> Dict[str, object]:
             named_service_unit_scope=True,
             process_duplicate_observation=True,
             scheduled_market_hours_wrapper=True,
-            cross_process_atomic_lock=False,
-            bar_cycle_idempotency_key=False,
+            cross_process_atomic_lock=_derived_control(unit_chain, lock_tokens),
+            bar_cycle_idempotency_key=_derived_control(
+                intent_sources, bar_cycle_key_tokens),
             notes=(
                 "Routes to systemctl; the service, not the shell wrapper, "
                 "supplies the ten-check preflight."
@@ -5666,8 +5686,9 @@ def trader_singleton_launch_safety_audit() -> Dict[str, object]:
             named_service_unit_scope=False,
             process_duplicate_observation=False,
             scheduled_market_hours_wrapper=True,
-            cross_process_atomic_lock=False,
-            bar_cycle_idempotency_key=False,
+            cross_process_atomic_lock=_derived_control(starter_chain, lock_tokens),
+            bar_cycle_idempotency_key=_derived_control(
+                intent_sources, bar_cycle_key_tokens),
             notes=(
                 "Direct invocation performs only the paper-config and paper-"
                 "port checks before exec; it does not establish that ExecStartPre "
@@ -5682,8 +5703,9 @@ def trader_singleton_launch_safety_audit() -> Dict[str, object]:
             named_service_unit_scope=False,
             process_duplicate_observation=False,
             scheduled_market_hours_wrapper=True,
-            cross_process_atomic_lock=False,
-            bar_cycle_idempotency_key=False,
+            cross_process_atomic_lock=_derived_control(code_chain, lock_tokens),
+            bar_cycle_idempotency_key=_derived_control(
+                intent_sources, bar_cycle_key_tokens),
             notes=(
                 "Documented quick-start path bypasses branch, port-7496-closed, "
                 "account-flat, health, writable-state, and duplicate checks."
@@ -5697,8 +5719,9 @@ def trader_singleton_launch_safety_audit() -> Dict[str, object]:
             named_service_unit_scope=False,
             process_duplicate_observation=False,
             scheduled_market_hours_wrapper=False,
-            cross_process_atomic_lock=False,
-            bar_cycle_idempotency_key=False,
+            cross_process_atomic_lock=_derived_control(code_chain, lock_tokens),
+            bar_cycle_idempotency_key=_derived_control(
+                intent_sources, bar_cycle_key_tokens),
             notes=(
                 "--once calls on_bar directly, bypassing the scheduler's "
                 "weekday and 09:30-16:00 wrapper."
@@ -5712,8 +5735,9 @@ def trader_singleton_launch_safety_audit() -> Dict[str, object]:
             named_service_unit_scope=False,
             process_duplicate_observation=False,
             scheduled_market_hours_wrapper=True,
-            cross_process_atomic_lock=False,
-            bar_cycle_idempotency_key=False,
+            cross_process_atomic_lock=_derived_control(code_chain, lock_tokens),
+            bar_cycle_idempotency_key=_derived_control(
+                intent_sources, bar_cycle_key_tokens),
             notes=(
                 "The CLI explicitly flips LIVE_PAPER_MODE false and selects "
                 "the live port, contradicting the repository agent guardrail."
@@ -5789,7 +5813,11 @@ def trader_singleton_launch_safety_audit() -> Dict[str, object]:
         "sqlite": dict(
             present=True,
             write_serialization=True,
-            business_check_to_act_atomic=False,
+            # Atomic only if a write transaction or a process lock is held from
+            # the flat check through the order submission.
+            business_check_to_act_atomic=_derived_control(
+                code_chain,
+                ("BEGIN IMMEDIATE", "BEGIN EXCLUSIVE", "flock", "portalocker")),
             position_uniqueness_constraint=_derived_control(
                 source_text["live/state.py"],
                 ("CREATE UNIQUE INDEX", "UNIQUE (", "UNIQUE(")),
@@ -5805,8 +5833,13 @@ def trader_singleton_launch_safety_audit() -> Dict[str, object]:
             present=bool(present_lock_tokens),
             matched_tokens=present_lock_tokens,
         ),
+        # trader.py never queries working orders today (broker.py does, but
+        # only inside cancel_and_close), so any such query in trader.py is the
+        # fix; `present` stays a bool, as consumers read it.
         "entry_open_order_idempotency_guard": dict(
-            present=False,
+            _derived_control(
+                source_text["live/trader.py"],
+                _WORKING_ORDER_QUERY_TOKENS + ("orderRef",)),
             limitation=(
                 "openOrders is used by the close/cancel path, not before a new "
                 "entry; no durable intent key binds symbol+bar+direction."
@@ -6015,6 +6048,9 @@ def entry_acknowledgement_and_basis_audit() -> Dict[str, object]:
     acknowledgement_term_presence = {
         term: term in bracket_source for term in acknowledgement_terms
     }
+    entry_path_source = "\n".join(
+        (bracket_source, source_text["live/trader.py"])
+    )
 
     state_entry_fields = [
         "entry_time",
@@ -6168,10 +6204,17 @@ def entry_acknowledgement_and_basis_audit() -> Dict[str, object]:
                 acknowledgement_term_presence.values()
             ),
             returned_fill_basis_source="pre-submission broker quote",
-            actual_entry_fill_observed=False,
-            actual_entry_fill_waited_for=False,
-            broker_acceptance_observed=False,
-            working_orders_reconciled_before_local_success=False,
+            # F155: derived from the order function plus its caller, the only
+            # places an acknowledgement or fill could be awaited before the
+            # local success write.
+            actual_entry_fill_observed=_derived_control(
+                entry_path_source, _ENTRY_EXECUTION_TOKENS),
+            actual_entry_fill_waited_for=_derived_control(
+                entry_path_source, _FILL_WAIT_TOKENS),
+            broker_acceptance_observed=_derived_control(
+                entry_path_source, _ORDER_ACK_TOKENS),
+            working_orders_reconciled_before_local_success=_derived_control(
+                entry_path_source, _WORKING_ORDER_QUERY_TOKENS),
             local_state_written_after_submission_return=True,
             local_entry_event_written_after_state=True,
             local_state_fields=state_entry_fields,
@@ -6193,17 +6236,20 @@ def entry_acknowledgement_and_basis_audit() -> Dict[str, object]:
             ),
             dict(
                 stage="TWS openOrder/orderStatus acknowledgement",
-                current_evidence=False,
+                current_evidence=_derived_control(
+                    entry_path_source, _ORDER_ACK_TOKENS),
                 proof="returned Trade objects are discarded",
             ),
             dict(
                 stage="IB server/destination acceptance",
-                current_evidence=False,
+                current_evidence=_derived_control(
+                    entry_path_source, _ORDER_ACCEPTANCE_TOKENS),
                 proof="no accepted-state or error callback is persisted",
             ),
             dict(
                 stage="parent execution and actual entry price",
-                current_evidence=False,
+                current_evidence=_derived_control(
+                    entry_path_source, _ENTRY_EXECUTION_TOKENS),
                 proof="no execDetails/fills wait or entry execution field",
             ),
             dict(
@@ -6251,7 +6297,10 @@ def entry_acknowledgement_and_basis_audit() -> Dict[str, object]:
             account_flat_preflight_checks_positions_not_working_orders=True,
             entry_guard_checks_positions_not_working_orders=True,
             same_client_id_can_retrieve_active_orders=True,
-            current_startup_requests_or_persists_active_entry_orders=False,
+            current_startup_requests_or_persists_active_entry_orders=(
+                _derived_control(
+                    source_text["live/trader.py"],
+                    _WORKING_ORDER_QUERY_TOKENS)),
             consequence=(
                 "A transmitted but unfilled parent can coexist with a flat "
                 "account and absent local state after a crash. Current startup "
@@ -7505,9 +7554,16 @@ def unfilled_parent_phantom_trade_audit() -> Dict[str, object]:
             entry_success_can_precede_parent_acknowledgement=True,
             locally_open_position_can_coexist_with_broker_flat=True,
             broker_flat_observation_source="IB positions only",
-            active_or_working_parent_checked=False,
-            parent_reject_status_checked=False,
-            parent_execution_checked=False,
+            # F155: the broker-flat branch lives in trader.py, which today makes
+            # no order-status, working-order, or entry-execution query at all.
+            active_or_working_parent_checked=_derived_control(
+                source_text["live/trader.py"], _WORKING_ORDER_QUERY_TOKENS),
+            parent_reject_status_checked=_derived_control(
+                source_text["live/trader.py"],
+                ("orderStatus", "Inactive", "ApiCancelled", "order_status")),
+            parent_execution_checked=_derived_control(
+                source_text["live/trader.py"],
+                ("entry_fill", "parent_fill", "execDetails", "entry_execution")),
             missing_bracket_fill_falls_through_to_inference=True,
             inference_terminal_return_count=terminal_return_count,
             inference_unknown_or_unverified_outcomes=unknown_outcomes,
@@ -7686,6 +7742,18 @@ def bracket_fill_identity_and_retention_audit() -> Dict[str, object]:
     identity_presence = {
         field: field in fill_source for field in identity_fields
     }
+    # F155: fix vocabularies for the per-tier flags. All three tiers live in
+    # get_bracket_fill, so each tier's flag is derived from that one function
+    # (a bare "permId" is excluded: it already appears there in a comment).
+    state_source = source_text["live/state.py"]
+    fill_and_state_source = "\n".join((fill_source, state_source))
+    fill_symbol_tokens = (
+        "contract.symbol", "contract.conId", ".symbol ==", ".symbol !=")
+    fill_perm_id_tokens = (
+        "execution.permId", ".permId ==", ".permId !=", "perm_id")
+    fill_exec_id_tokens = (
+        "execution.execId", ".execId", "exec_id", "execution_id")
+    fill_vwap_tokens = ("avgPrice", "avgFillPrice", "cumQty", "vwap")
     returned_fields = sorted(
         set(
             re.findall(
@@ -7723,10 +7791,14 @@ def bracket_fill_identity_and_retention_audit() -> Dict[str, object]:
                 tier="ib.trades current-session objects",
                 match="child order.parentId equals stored API parent ID",
                 selected_execution="last fill on first matching child Trade",
-                symbol_checked=False,
-                permanent_id_checked=False,
-                execution_id_persisted=False,
-                volume_weighted_price=False,
+                symbol_checked=_derived_control(
+                    fill_source, fill_symbol_tokens),
+                permanent_id_checked=_derived_control(
+                    fill_source, fill_perm_id_tokens),
+                execution_id_persisted=_derived_control(
+                    fill_and_state_source, fill_exec_id_tokens),
+                volume_weighted_price=_derived_control(
+                    fill_source, fill_vwap_tokens),
             ),
             dict(
                 tier="ib.fills synchronized cache",
@@ -7735,30 +7807,52 @@ def bracket_fill_identity_and_retention_audit() -> Dict[str, object]:
                     "positive shares"
                 ),
                 selected_execution="first matching Fill",
-                symbol_checked=False,
-                permanent_id_checked=False,
-                execution_id_persisted=False,
-                volume_weighted_price=False,
+                symbol_checked=_derived_control(
+                    fill_source, fill_symbol_tokens),
+                permanent_id_checked=_derived_control(
+                    fill_source, fill_perm_id_tokens),
+                execution_id_persisted=_derived_control(
+                    fill_and_state_source, fill_exec_id_tokens),
+                volume_weighted_price=_derived_control(
+                    fill_source, fill_vwap_tokens),
             ),
             dict(
                 tier="reqExecutions fallback",
                 match="parent+1/+2 API order ID, exit side, positive shares",
                 selected_execution="first matching historical Fill",
-                symbol_checked=False,
-                permanent_id_checked=False,
-                execution_id_persisted=False,
-                volume_weighted_price=False,
+                symbol_checked=_derived_control(
+                    fill_source, fill_symbol_tokens),
+                permanent_id_checked=_derived_control(
+                    fill_source, fill_perm_id_tokens),
+                execution_id_persisted=_derived_control(
+                    fill_and_state_source, fill_exec_id_tokens),
+                volume_weighted_price=_derived_control(
+                    fill_source, fill_vwap_tokens),
             ),
         ],
         source_identity_field_presence=identity_presence,
         returned_fields=returned_fields,
         durable_state_fields=dict(
             stores_parent_api_order_id=True,
-            stores_parent_perm_id=False,
-            stores_child_api_or_perm_ids=False,
-            stores_exit_execution_id=False,
-            stores_exit_shares_or_cumulative_qty=False,
-            stores_exit_vwap=False,
+            # F155: matched against the whole of live/state.py so a column
+            # added by an ALTER TABLE migration counts as well as one in the
+            # CREATE TABLE block.
+            stores_parent_perm_id=_derived_control(
+                state_source, ("perm_id", "permId", "permid")),
+            stores_child_api_or_perm_ids=_derived_control(
+                state_source,
+                ("child_order_id", "child_perm_id", "take_profit_order_id",
+                 "stop_order_id")),
+            stores_exit_execution_id=_derived_control(
+                state_source,
+                ("exit_execution_id", "exit_exec_id", "execution_id",
+                 "exec_id")),
+            stores_exit_shares_or_cumulative_qty=_derived_control(
+                state_source,
+                ("exit_qty", "exit_shares", "filled_qty", "cum_qty")),
+            stores_exit_vwap=_derived_control(
+                state_source,
+                ("exit_vwap", "avg_fill_price", "exit_avg_price", "fill_vwap")),
         ),
         retention_contract=dict(
             code_claim="historical fills up to 7 days",
@@ -8009,15 +8103,27 @@ def concurrent_close_idempotency_audit() -> Dict[str, object]:
             python_driver_mode=(
                 "legacy transaction control with default deferred DML"
             ),
-            connection_context_manager_opens_transaction=False,
-            select_implicitly_opened_driver_transaction=False,
+            # F155: the driver-semantics premises below hold only while
+            # live/state.py passes no transaction-control argument and issues
+            # no BEGIN; either change makes them re-examinable.
+            connection_context_manager_opens_transaction=_derived_control(
+                source_text["live/state.py"],
+                ("autocommit=False", "isolation_level", "BEGIN")),
+            select_implicitly_opened_driver_transaction=_derived_control(
+                source_text["live/state.py"],
+                ("autocommit=False", "isolation_level", "BEGIN")),
             first_transactional_statement="INSERT INTO trades",
-            select_and_insert_share_one_explicit_transaction=False,
+            select_and_insert_share_one_explicit_transaction=_derived_control(
+                source_text["live/state.py"], _EXPLICIT_TRANSACTION_TOKENS),
             begin_immediate_present=_derived_control(
                 source_text["live/state.py"],
                 ("BEGIN IMMEDIATE", "begin immediate", "isolation_level='IMMEDIATE'")),
-            compare_and_swap_delete_present=False,
-            close_returns_success_status=False,
+            compare_and_swap_delete_present=_derived_control(
+                source_text["live/state.py"],
+                ("DELETE FROM position WHERE", ".rowcount", "RETURNING")),
+            close_returns_success_status=_derived_control(
+                _def_block(source_text["live/state.py"], "close_position"),
+                ("-> bool", "return True", "return False", "CloseOutcome")),
             trades_unique_lifecycle_constraint=bool(
                 re.search(r"\bUNIQUE\b", schema_text, flags=re.IGNORECASE)
             ),
@@ -8042,7 +8148,10 @@ def concurrent_close_idempotency_audit() -> Dict[str, object]:
         ),
         caller_side_effect_contract=dict(
             no_position_and_success_both_return_none=True,
-            caller_checks_close_result=False,
+            caller_checks_close_result=_derived_control(
+                source_text["live/trader.py"],
+                ("= state.close_position(", "if state.close_position(",
+                 "if not state.close_position(")),
             caller_after_close_actions=[
                 "sync account/mark",
                 "log summary",
@@ -8509,7 +8618,11 @@ def cross_generation_close_reentry_audit() -> Dict[str, object]:
         side_effect_split_brain=dict(
             state_exit_event_uses_freshly_selected_position=True,
             caller_exit_alert_uses_cycle_cached_position=True,
-            shared_expected_generation_check=False,
+            shared_expected_generation_check=_derived_control(
+                "\n".join((source_text["live/state.py"],
+                           source_text["live/trader.py"])),
+                ("expected_bracket_order_id", "expected_generation",
+                 "expected_bracket", "lifecycle_id")),
             consequence=(
                 "One application close can emit state/event metadata for the "
                 "new generation while the caller alert describes the stale "
@@ -8905,6 +9018,9 @@ def quote_anchored_bracket_geometry_audit() -> Dict[str, object]:
     max_limit_interval = max_limit_pair[
         "parent_limit_allocation_fraction_of_plan_interval"
     ]
+    broker_and_trader_source = "\n".join(
+        (source_text["live/broker.py"], source_text["live/trader.py"])
+    )
 
     return dict(
         scope=(
@@ -8926,9 +9042,18 @@ def quote_anchored_bracket_geometry_audit() -> Dict[str, object]:
             parent_limit_offset_pct=parent_limit_offset * 100.0,
             target_from_quote_pct=target_pct * 100.0,
             stop_from_quote_pct=stop_pct * 100.0,
-            post_fill_reanchor_present=False,
-            actual_entry_fill_persisted=False,
-            post_fill_quantity_resize_present=False,
+            # F155: a re-anchor or resize would act on the parent's actual
+            # fill in broker.py/trader.py; persisting it needs a state column.
+            post_fill_reanchor_present=_derived_control(
+                broker_and_trader_source,
+                ("avgFillPrice", "reanchor", "re_anchor", "modify_bracket")),
+            actual_entry_fill_persisted=_derived_control(
+                source_text["live/state.py"],
+                ("entry_fill_price", "entry_fill_time", "actual_entry_price",
+                 "fill_price")),
+            post_fill_quantity_resize_present=_derived_control(
+                broker_and_trader_source,
+                ("resize", "filled_qty", "orderStatus.filled", "adjust_child")),
         ),
         no_rounding_fill_relative_bounds=dict(
             at_quote=dict(
@@ -9304,12 +9429,31 @@ def partial_fill_force_close_quantity_audit() -> Dict[str, object]:
         source_contract_tokens=token_audit,
         current_quantity_contract=dict(
             local_position_qty_source="requested bracket quantity",
-            local_write_waits_for_parent_fill=False,
+            # F155: derived from the order function and its caller, where a
+            # wait or a broker/local comparison would have to be written.
+            local_write_waits_for_parent_fill=_derived_control(
+                "\n".join((
+                    _def_block(source_text["live/broker.py"],
+                               "place_bracket_order"),
+                    source_text["live/trader.py"],
+                )),
+                _FILL_WAIT_TOKENS),
             broker_position_qty_available=True,
             broker_nonzero_test_only=True,
-            broker_vs_local_quantity_equality_check=False,
-            broker_vs_local_direction_check=False,
-            broker_avg_price_used_for_management=False,
+            broker_vs_local_quantity_equality_check=_derived_control(
+                source_text["live/trader.py"],
+                ("!= position.qty", "position.qty !=", "== position.qty",
+                 "qty_mismatch")),
+            broker_vs_local_direction_check=_derived_control(
+                source_text["live/trader.py"],
+                ('broker_pos["qty"] < 0', 'broker_pos["qty"] > 0',
+                 "direction_mismatch", "sign_mismatch")),
+            # `broker_pos['avg_price']` already appears, single-quoted, inside
+            # the desync log f-string; only a management use counts here.
+            broker_avg_price_used_for_management=_derived_control(
+                source_text["live/trader.py"],
+                ('broker_pos["avg_price"]', 'broker_pos.get("avg_price"',
+                 "update_entry_price", "set_entry_basis")),
             force_close_call_count=len(force_close_calls),
             force_close_calls_all_use_local_position_qty=all(
                 "position.qty" in call for call in force_close_calls
@@ -9327,7 +9471,10 @@ def partial_fill_force_close_quantity_audit() -> Dict[str, object]:
             ),
             partial_parent_exposure_protected_by_children=False,
             software_check_frequency="once per admitted trader cycle",
-            current_parent_remainder_cancelled_by_force_close=False,
+            current_parent_remainder_cancelled_by_force_close=_derived_control(
+                cancel_source,
+                ("orderId == parent_id", "order.orderId ==", "cancel_parent",
+                 "parent_trade")),
             reason=(
                 "cancel_and_close cancels only orders whose parentId equals "
                 "the parent ID; the partially filled parent itself has "
@@ -9675,11 +9822,21 @@ def force_close_completion_and_vwap_audit() -> Dict[str, object]:
                 completion_field_presence.values()
             ),
             returned_fields=returned_fields,
-            returned_quantity=False,
-            returned_remaining=False,
-            returned_status=False,
-            returned_order_identity=False,
-            post_close_broker_position_check=False,
+            # F155: matched against all of cancel_and_close, so a completion
+            # field returned from any branch counts, not only the first dict.
+            returned_quantity=_derived_control(
+                cancel_source,
+                ('"filled_qty"', '"qty":', '"shares"', '"cum_qty"')),
+            returned_remaining=_derived_control(
+                cancel_source, ('"remaining"', '"remaining_qty"')),
+            returned_status=_derived_control(
+                cancel_source, ('"status"', '"order_status"')),
+            returned_order_identity=_derived_control(
+                cancel_source,
+                ('"perm_id"', '"order_id"', '"exec_id"', '"execution_id"')),
+            post_close_broker_position_check=_derived_control(
+                cancel_source,
+                ("get_open_position(", "ib.positions()", "reqPositions")),
             caller_deletes_local_position_after_nonempty_fill=True,
             caller_deletes_local_position_after_timeout=True,
         ),
@@ -9750,7 +9907,8 @@ def force_close_completion_and_vwap_audit() -> Dict[str, object]:
             ),
             pending_close_state_available=pending_close_available,
             pending_close_trader_call_counts=pending_close_callers,
-            force_close_timeout_uses_pending_close=False,
+            force_close_timeout_uses_pending_close=_derived_control(
+                source_text["live/trader.py"], ("mark_pending_close(",)),
         ),
         archive_observability=dict(
             time_exit_trade_rows=len(time_exit_rows),
@@ -10054,10 +10212,22 @@ def unresolved_close_back_to_back_reentry_audit() -> Dict[str, object]:
             entry_working_order_fields_present=sum(
                 working_order_guard_presence.values()
             ),
-            check_position_and_submit_atomic=False,
-            old_close_order_terminal_required=False,
-            old_children_terminal_required=False,
-            prior_lifecycle_identity_propagated_to_entry=False,
+            # F155: the terminal-order checks would have to be written into
+            # the entry block itself; atomicity/identity anywhere in live/.
+            check_position_and_submit_atomic=_derived_control(
+                "\n".join((source_text["live/trader.py"],
+                           source_text["live/state.py"])),
+                ("BEGIN IMMEDIATE", "BEGIN EXCLUSIVE", "flock", "orderRef")),
+            old_close_order_terminal_required=_derived_control(
+                entry_block,
+                ("open_orders", "openOrders", "openTrades", "isDone")),
+            old_children_terminal_required=_derived_control(
+                entry_block,
+                ("parentId", "open_orders", "openTrades", "reqAllOpenOrders")),
+            prior_lifecycle_identity_propagated_to_entry=_derived_control(
+                source_text["live/trader.py"],
+                ("lifecycle_id", "prior_bracket_order_id",
+                 "previous_bracket_order_id", "prior_lifecycle")),
         ),
         deterministic_nonterminal_close_collision=dict(
             schedule=[
@@ -10296,6 +10466,7 @@ def broker_account_scope_audit() -> Dict[str, object]:
             re.search(r"\.modelCode\s*=", broker_source)
         ),
     }
+    position_source = _def_block(broker_source, "get_open_position")
 
     account_a = dict(
         label="account_A",
@@ -10442,10 +10613,18 @@ def broker_account_scope_audit() -> Dict[str, object]:
             ),
             account_summary_selection="last row per tag wins",
             position_selection="first row whose contract.symbol matches",
-            explicit_order_destination=False,
-            state_position_retains_account=False,
-            state_trade_retains_account=False,
-            monitor_events_retain_account=False,
+            # F155: an order destination is an `.account =`/`.modelCode =`
+            # assignment; retention is any account column in live/state.py
+            # (whole file, so ALTER TABLE migrations count).
+            explicit_order_destination=_derived_control(
+                broker_source,
+                (".account =", ".account=", ".modelCode =", ".modelCode=")),
+            state_position_retains_account=_derived_control(
+                source_text["live/state.py"], _ACCOUNT_RETENTION_TOKENS),
+            state_trade_retains_account=_derived_control(
+                source_text["live/state.py"], _ACCOUNT_RETENTION_TOKENS),
+            monitor_events_retain_account=_derived_control(
+                source_text["live/state.py"], _ACCOUNT_RETENTION_TOKENS),
         ),
         deterministic_account_summary_ordering=dict(
             synthetic_accounts=[account_a, account_b],
@@ -10485,9 +10664,12 @@ def broker_account_scope_audit() -> Dict[str, object]:
             b_first_result=first_b,
             result_depends_on_callback_order=first_a != first_b,
             direction_can_flip=(first_a["qty"] > 0 and first_b["qty"] < 0),
-            account_identity_returned=False,
-            model_identity_returned=False,
-            contract_identity_returned=False,
+            account_identity_returned=_derived_control(
+                position_source, ('"account"', "pos.account")),
+            model_identity_returned=_derived_control(
+                position_source, ('"model_code"', "modelCode")),
+            contract_identity_returned=_derived_control(
+                position_source, ('"con_id"', '"conId"', "conId")),
             consequence=(
                 "The same broker holdings can be reported as long 100 or "
                 "short 40 solely from row order, without telling the caller "
@@ -11359,7 +11541,9 @@ def broker_quote_field_precedence_audit(
             delayed_field_precedence=["last", "close", "bid", "ask"],
             close_preempts_available_bid_ask=True,
             positive_last_preempts_market_price=True,
-            last_timestamp_checked=False,
+            last_timestamp_checked=_derived_control(
+                price_source,
+                ("lastTimestamp", "last_timestamp", "LAST_TIMESTAMP")),
             ticker_snapshot_time_checked=(
                 "ticker.time" in price_source
             ),
@@ -11378,7 +11562,10 @@ def broker_quote_field_precedence_audit(
                     price_source,
                 )
             ),
-            selected_field_or_data_type_persisted=False,
+            selected_field_or_data_type_persisted=_derived_control(
+                source_text["live/broker.py"],
+                ('"quote_field"', '"market_data_type"', "selected_field",
+                 "QuoteSnapshot")),
         ),
         dependency_contract=dict(
             pinned_ib_insync_version="0.9.86",
@@ -11786,9 +11973,19 @@ def entry_snapshot_latency_audit() -> Dict[str, object]:
             maximum_snapshot_requests_per_entry_if_both_live_attempts_fall_back=4,
             explicit_sleep_seconds_live_success_path=4,
             explicit_sleep_seconds_full_delayed_fallback_path=12,
-            quote_snapshot_requests_share_one_result=False,
-            signal_revalidated_after_quote_wait=False,
-            entry_deadline_or_max_latency_guard=False,
+            # F155: sharing one quote means the order path accepts or caches
+            # the mark's quote; the guards would live in trader.py.
+            quote_snapshot_requests_share_one_result=_derived_control(
+                "\n".join((broker_source, trader_source)),
+                ("quote_cache", "QuoteSnapshot", "quote=", "live_price=")),
+            signal_revalidated_after_quote_wait=_derived_control(
+                trader_source,
+                ("revalidate", "recheck_signal", "signal_still_valid",
+                 "re_check")),
+            entry_deadline_or_max_latency_guard=_derived_control(
+                "\n".join((broker_source, trader_source)),
+                ("ENTRY_DEADLINE", "MAX_ENTRY_LATENCY", "max_entry_latency",
+                 "entry_deadline")),
             snapshot_request_count_in_price_function=len(
                 re.findall(r"reqTickers\(contract\)", price_source)
             ),
@@ -11975,6 +12172,14 @@ def market_data_provenance_label_audit() -> Dict[str, object]:
     resolve_source = isolate("live/trader.py", "_resolve_mark_price")
     on_bar_source = isolate("live/trader.py", "_on_bar_inner")
     save_source = isolate("live/state.py", "save_account_snapshot")
+    # F155: provenance can only be distinguished where the quote is produced
+    # (broker.py) or resolved (trader.py), and retained where it is persisted.
+    broker_and_trader_source = "\n".join(
+        (source_text["live/broker.py"], source_text["live/trader.py"])
+    )
+    state_and_trader_source = "\n".join(
+        (source_text["live/state.py"], source_text["live/trader.py"])
+    )
 
     archive_path = os.path.join(
         REPO,
@@ -12030,7 +12235,10 @@ def market_data_provenance_label_audit() -> Dict[str, object]:
         provenance_contract=dict(
             broker_return_shape="price scalar only",
             delayed_branch_returns_same_shape_as_live_branch=True,
-            resolver_can_distinguish_live_from_delayed=False,
+            resolver_can_distinguish_live_from_delayed=_derived_control(
+                broker_and_trader_source,
+                ("market_data_type", "marketDataType", "QuoteSnapshot",
+                 "data_type")),
             broker_success_always_labeled_live=(
                 'return price, "live"' in resolve_source
             ),
@@ -12040,11 +12248,19 @@ def market_data_provenance_label_audit() -> Dict[str, object]:
             bar_fallback_labeled_last_close=(
                 'return bar_close, "last_close"' in resolve_source
             ),
-            selected_quote_field_retained=False,
-            market_data_type_retained=False,
-            source_quote_timestamp_retained=False,
+            selected_quote_field_retained=_derived_control(
+                state_and_trader_source,
+                ("selected_quote_field", "quote_field")),
+            market_data_type_retained=_derived_control(
+                state_and_trader_source,
+                ("market_data_type", "marketDataType")),
+            source_quote_timestamp_retained=_derived_control(
+                state_and_trader_source,
+                ("source_quote_timestamp", "quote_timestamp", "quote_time")),
             mark_time_semantics="local post-resolution wall-clock time",
-            mark_time_is_source_quote_time=False,
+            mark_time_is_source_quote_time=_derived_control(
+                source_text["live/trader.py"],
+                ("ticker.time", "quote_time", "source_quote_timestamp")),
             saved_columns=["mark_price", "mark_source", "mark_time"],
             saved_value_is_overwritten_singleton=(
                 "ON CONFLICT(id) DO UPDATE" in save_source
@@ -12299,7 +12515,8 @@ def software_risk_trigger_outcome_audit() -> Dict[str, object]:
         source_contract_tokens=token_audit,
         current_trigger_contract=dict(
             stop_uses_any_non_null_resolved_mark=True,
-            source_allowlist_or_age_gate=False,
+            source_allowlist_or_age_gate=_derived_control(
+                source_text["live/trader.py"], _MARK_SOURCE_GATE_TOKENS),
             take_profit_uses_same_unqualified_mark=True,
             trigger_calls_market_force_close_before_local_close=True,
             source_label_is_diagnostic_only=True,
@@ -12403,6 +12620,30 @@ def software_risk_trigger_outcome_audit() -> Dict[str, object]:
     )
 
 
+def _fallback_freshness_controls(
+    source_text: Dict[str, str],
+) -> Dict[str, Dict[str, object]]:
+    """Source-derived controls of `software_risk_fallback_freshness_audit` (F155).
+
+    Factored out because that audit also needs the pinned hourly CSV, which is
+    not committed; keeping the source-only half separate lets the negative
+    control (implement the fix, watch the flag flip) run offline.
+    """
+    fallback_sources = "\n".join(
+        (source_text["live/broker.py"], source_text["live/trader.py"])
+    )
+    return dict(
+        last_row_index_or_age_checked=_derived_control(
+            fallback_sources,
+            ("hist.index[-1]", "index[-1]", "row_age", "last_row_date")),
+        current_session_row_required=_derived_control(
+            fallback_sources,
+            ("session_date", "date.today()", "== today", "current_session")),
+        software_trigger_source_or_age_gate=_derived_control(
+            source_text["live/trader.py"], _MARK_SOURCE_GATE_TOKENS),
+    )
+
+
 def software_risk_fallback_freshness_audit(
     hourly: pd.DataFrame,
 ) -> Dict[str, object]:
@@ -12448,6 +12689,7 @@ def software_risk_fallback_freshness_audit(
         value for row in token_audit.values() for value in row.values()
     ):
         raise AssertionError("software fallback-freshness contract changed")
+    fallback_controls = _fallback_freshness_controls(source_text)
 
     observed_hourly_hash = _sha256_file(CACHE)
     if observed_hourly_hash != HOURLY_SOURCE_SHA256:
@@ -12593,8 +12835,10 @@ def software_risk_fallback_freshness_audit(
             broker_live_then_delayed_explicit_sleep_seconds=6,
             yfinance_interval="1d",
             yfinance_window_calendar_days=5,
-            last_row_index_or_age_checked=False,
-            current_session_row_required=False,
+            last_row_index_or_age_checked=fallback_controls[
+                "last_row_index_or_age_checked"],
+            current_session_row_required=fallback_controls[
+                "current_session_row_required"],
             selected_value="last returned daily close",
             source_label="delayed",
             yfinance_max_attempts=4,
@@ -12602,7 +12846,8 @@ def software_risk_fallback_freshness_audit(
             full_path_explicit_sleep_and_backoff_seconds=20,
             request_duration_additional_and_unbounded_by_cycle_deadline=True,
             bar_close_used_if_yfinance_fails=True,
-            software_trigger_source_or_age_gate=False,
+            software_trigger_source_or_age_gate=fallback_controls[
+                "software_trigger_source_or_age_gate"],
         ),
         archived_prior_close_counterfactual=dict(
             endpoint=(
@@ -12894,10 +13139,22 @@ def duplicate_bar_fallback_trigger_divergence_audit() -> Dict[str, object]:
         source_contract_tokens=token_audit,
         current_fallback_contract=dict(
             same_cycle_signal_bar_close_used_after_broker_and_yfinance_failure=True,
-            bar_timestamp_or_completion_revalidated_at_trigger=False,
-            source_or_age_gate=False,
-            lifecycle_or_cycle_claim_before_force_close=False,
-            risk_decision_identity_persisted=False,
+            # F155: sig_info["bar_time"] is already read for logging, so only a
+            # .get()/completion/age check counts as revalidation.
+            bar_timestamp_or_completion_revalidated_at_trigger=_derived_control(
+                source_text["live/trader.py"],
+                ('sig_info.get("bar_time")', "bar_is_complete", "bar_complete",
+                 "bar_age")),
+            source_or_age_gate=_derived_control(
+                source_text["live/trader.py"], _MARK_SOURCE_GATE_TOKENS),
+            lifecycle_or_cycle_claim_before_force_close=_derived_control(
+                "\n".join((source_text["live/trader.py"],
+                           source_text["live/state.py"])),
+                ("cycle_id", "claim_cycle", "claim_lifecycle",
+                 "BEGIN IMMEDIATE")),
+            risk_decision_identity_persisted=_derived_control(
+                source_text["live/state.py"],
+                ("risk_decision", "decision_id", "trigger_id")),
         ),
         archived_divergence=dict(
             recorded_trades=len(trades),
@@ -13122,7 +13379,13 @@ def broker_connection_exception_fallback_audit() -> Dict[str, object]:
             get_tradeable_price_calls_ensure_connected_before_market_data_try=True,
             resolver_catches_runtime_error_only=True,
             connection_refused_is_runtime_error=False,
-            connection_refused_reaches_yfinance_fallback=False,
+            # F155: reaching the fallback needs either the resolver to catch a
+            # connection error or broker.py to wrap one into RuntimeError.
+            connection_refused_reaches_yfinance_fallback=_derived_control(
+                "\n".join((source_text["live/trader.py"],
+                           source_text["live/broker.py"])),
+                ("ConnectionRefusedError", "ConnectionError", "except OSError",
+                 "except (RuntimeError, OSError")),
             open_position_reconciliation_occurs_before_bar_increment=True,
             open_position_reconciliation_occurs_before_software_risk_check=True,
             connection_failure_aborts_holding_age_and_software_risk_cycle=True,
@@ -13562,6 +13825,52 @@ def _derived_control(source: str, tokens) -> Dict[str, object]:
     return {"present": bool(matched), "matched_tokens": matched}
 
 
+def _def_block(source: str, name: str) -> str:
+    """The text of top-level `def name` up to the next top-level def (or EOF).
+
+    Used to scope a derived control to the one function that would have to hold
+    it, where the whole file already contains the token for an unrelated reason
+    (e.g. `ib.openOrders()` exists in the close path, not the entry path).
+    """
+    match = re.search(
+        rf"^def {re.escape(name)}\b.*?(?=^def\s|\Z)",
+        source,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    if match is None:
+        raise AssertionError("could not isolate def {}".format(name))
+    return match.group(0)
+
+
+# Fix-token vocabularies shared by several audits (F155). Each names what the
+# REMEDIATION would have to write, never the buggy code, and none occurs in
+# today's live/ source. They are matched by `_derived_control`.
+#
+# Asking IBKR which orders are still working: the raw ib_insync calls plus the
+# `open_orders` spelling a broker helper would use when trader.py calls it.
+_WORKING_ORDER_QUERY_TOKENS = (
+    "open_orders", "openOrders", "openTrades", "reqAllOpenOrders")
+# Observing an actual entry execution rather than a pre-submission quote.
+_ENTRY_EXECUTION_TOKENS = (
+    "execDetails", "avgFillPrice", "orderStatus.filled", "entry_fill")
+# Blocking until the parent order reaches a terminal/filled state.
+_FILL_WAIT_TOKENS = ("filledEvent", "isDone", "waitOnUpdate", "wait_for_fill")
+# Reading TWS's acknowledgement/status callbacks for a submitted order.
+_ORDER_ACK_TOKENS = ("orderStatus", "statusEvent", "PreSubmitted", "permId")
+# Destination acceptance or rejection reported back by IB.
+_ORDER_ACCEPTANCE_TOKENS = (
+    "statusEvent", "errorEvent", "orderStatus.status", "Submitted")
+# An explicit SQLite transaction opened before the SELECT that it protects.
+_EXPLICIT_TRANSACTION_TOKENS = (
+    "BEGIN IMMEDIATE", "BEGIN EXCLUSIVE", "BEGIN DEFERRED", "autocommit=False")
+# Gating a software trigger on the provenance or age of the mark it used.
+_MARK_SOURCE_GATE_TOKENS = (
+    "mark_source ==", "mark_source !=", "mark_source in", "mark_age")
+# A broker account identifier carried into durable state.
+_ACCOUNT_RETENTION_TOKENS = (
+    "account_id", "account_code", "acct_number", "account TEXT")
+
+
 def preflight_artifacts() -> None:
     """Report EVERY missing fixture at once, instead of dying on the first.
 
@@ -13585,11 +13894,14 @@ def run_source_audits() -> int:
     whole time; the entrypoint hid it. Measured: 17 of 18 complete in about two
     seconds total.
 
-    A caveat these audits carry, worth knowing before trusting a green run: their
+    A caveat worth knowing before trusting a green run: the `source_contract_tokens`
     tripwires are ONE-DIRECTIONAL. Each cites a substring of the buggy code, so it
     fires when the evidence is deleted and stays silent when the bug is REPAIRED.
-    A green pass here means "the cited source still reads as it did", not "the
-    safety controls are still absent".
+    A green pass means "the cited source still reads as it did". The control-ABSENT
+    flags themselves are now derived from source via `_derived_control` (F155) and
+    read `{"present": True}` once a fix is written; the literal `False` values left
+    are test-coverage, archive, launch-path, or scenario facts, each listed with
+    its reason in tests/test_gap_study_derived_controls.py (KEPT).
     """
     import inspect as _inspect
 
@@ -13612,8 +13924,9 @@ def run_source_audits() -> int:
             failed.append(name)
             print("  skip  %s  (%s: %s)" % (name, type(exc).__name__, str(exc)[:60]))
     print("\n%d/%d source audits ran offline" % (ok, len(names)))
-    print("NOTE: a green run means the cited source is unchanged, NOT that the "
-          "safety controls are still absent — these tripwires are one-directional.")
+    print("NOTE: a green run means the cited source is unchanged — those token "
+          "tripwires are one-directional. Control-absence flags are derived from "
+          "source (F155): read their 'present' field, not the pass/fail line.")
     return 0 if not failed else 1
 
 
@@ -13836,7 +14149,7 @@ def selfcheck() -> None:
     ]["present"]
     assert not singleton["control_inventory"][
         "sqlite"
-    ]["business_check_to_act_atomic"]
+    ]["business_check_to_act_atomic"]["present"]
     assert singleton["constructive_interleavings"][
         "reachable_duplicate_bracket_path"
     ]
@@ -13868,7 +14181,7 @@ def selfcheck() -> None:
     ] == 0
     assert not entry_ack["current_entry_path"][
         "actual_entry_fill_observed"
-    ]
+    ]["present"]
     assert entry_ack["archive_entry_basis_sensitivity"]["rows"] == 47
     assert abs(
         entry_ack["archive_entry_basis_sensitivity"][
@@ -14125,7 +14438,7 @@ def selfcheck() -> None:
     ]
     assert provenance_label["provenance_contract"][
         "mark_time_is_source_quote_time"
-    ] is False
+    ]["present"] is False
     assert provenance_label["downstream_materiality"][
         "software_stop_uses_resolved_mark"
     ]
@@ -14182,7 +14495,7 @@ def selfcheck() -> None:
     ] == 17
     assert connection_fallback["current_exception_contract"][
         "connection_refused_reaches_yfinance_fallback"
-    ] is False
+    ]["present"] is False
 
 
 def _print(result: Dict[str, object]) -> None:
@@ -15458,7 +15771,7 @@ def _print(result: Dict[str, object]) -> None:
                 str(row["full_ten_check_preflight"]),
                 str(row["named_service_unit_scope"]),
                 str(row["scheduled_market_hours_wrapper"]),
-                str(row["cross_process_atomic_lock"]),
+                str(row["cross_process_atomic_lock"]["present"]),
             )
         )
     inventory = singleton_audit["control_inventory"]
@@ -15469,7 +15782,7 @@ def _print(result: Dict[str, object]) -> None:
             inventory["preflight_pgrep"]["atomic"],
             inventory["apscheduler_max_instances"]["scope"],
             inventory["fixed_ibkr_client_id"]["value"],
-            inventory["sqlite"]["business_check_to_act_atomic"],
+            inventory["sqlite"]["business_check_to_act_atomic"]["present"],
         )
     )
     interleaving = singleton_audit["constructive_interleavings"]
@@ -15491,7 +15804,7 @@ def _print(result: Dict[str, object]) -> None:
             entry_path["application_place_order_calls"],
             entry_path["place_order_return_values_retained"],
             entry_path["acknowledgement_checks"],
-            entry_path["actual_entry_fill_observed"],
+            entry_path["actual_entry_fill_observed"]["present"],
         )
     )
     archive_basis = entry_ack["archive_entry_basis_sensitivity"]
@@ -15528,8 +15841,8 @@ def _print(result: Dict[str, object]) -> None:
         "  active-order check=%s parent-ack check=%s unknown inference state=%s; "
         "terminal TP/SL returns=%d"
         % (
-            flow["active_or_working_parent_checked"],
-            flow["parent_reject_status_checked"],
+            flow["active_or_working_parent_checked"]["present"],
+            flow["parent_reject_status_checked"]["present"],
             bool(flow["inference_unknown_or_unverified_outcomes"]),
             flow["inference_terminal_return_count"],
         )
@@ -15714,7 +16027,7 @@ def _print(result: Dict[str, object]) -> None:
         % (
             qty_contract["force_close_call_count"],
             qty_contract["force_close_calls_all_use_local_position_qty"],
-            qty_contract["broker_vs_local_quantity_equality_check"],
+            qty_contract["broker_vs_local_quantity_equality_check"]["present"],
         )
     )
     fifty = partial["fifty_share_example"]
@@ -15727,7 +16040,7 @@ def _print(result: Dict[str, object]) -> None:
             fifty["outcome"],
             partial_qty["attached_order_partial_fill_contract"][
                 "current_parent_remainder_cancelled_by_force_close"
-            ],
+            ]["present"],
         )
     )
     print(
@@ -15798,8 +16111,8 @@ def _print(result: Dict[str, object]) -> None:
         % (
             reentry_contract["entry_broker_position_guard"],
             reentry_contract["entry_working_order_fields_present"],
-            reentry_contract["old_close_order_terminal_required"],
-            reentry_contract["old_children_terminal_required"],
+            reentry_contract["old_close_order_terminal_required"]["present"],
+            reentry_contract["old_children_terminal_required"]["present"],
         )
     )
     print(
@@ -15840,7 +16153,7 @@ def _print(result: Dict[str, object]) -> None:
             identity_contract["account_scope_fields_present"],
             identity_contract["account_summary_selection"],
             identity_contract["position_selection"],
-            identity_contract["explicit_order_destination"],
+            identity_contract["explicit_order_destination"]["present"],
         )
     )
     print(
@@ -15921,7 +16234,7 @@ def _print(result: Dict[str, object]) -> None:
         "delayed accepted=%s"
         % (
             ">".join(selection["live_field_precedence"]),
-            selection["last_timestamp_checked"],
+            selection["last_timestamp_checked"]["present"],
             selection["market_data_type_callback_checked"],
             selection["bid_ask_sizes_checked"],
             selection["delayed_data_accepted_for_order_placement"],
@@ -15985,7 +16298,7 @@ def _print(result: Dict[str, object]) -> None:
             latency_contract[
                 "explicit_sleep_seconds_full_delayed_fallback_path"
             ],
-            latency_contract["entry_deadline_or_max_latency_guard"],
+            latency_contract["entry_deadline_or_max_latency_guard"]["present"],
         )
     )
     print(
@@ -16025,7 +16338,7 @@ def _print(result: Dict[str, object]) -> None:
         "false-live label reachable=%s"
         % (
             provenance["broker_return_shape"],
-            provenance["resolver_can_distinguish_live_from_delayed"],
+            provenance["resolver_can_distinguish_live_from_delayed"]["present"],
             provenance_label["deterministic_indistinguishability"][
                 "false_live_label_reachable"
             ],
@@ -16035,7 +16348,7 @@ def _print(result: Dict[str, object]) -> None:
         "  mark_time is source time=%s; dashboard green=%s; "
         "software stop/TP consume mark=%s/%s"
         % (
-            provenance["mark_time_is_source_quote_time"],
+            provenance["mark_time_is_source_quote_time"]["present"],
             downstream["dashboard_live_badge_is_green"],
             downstream["software_stop_uses_resolved_mark"],
             downstream["software_take_profit_uses_resolved_mark"],
@@ -16066,7 +16379,7 @@ def _print(result: Dict[str, object]) -> None:
         "  source/age gate=%s; trigger events=%d; unique joins=%d; "
         "duplicate post-close triggers=%d"
         % (
-            trigger_contract["source_allowlist_or_age_gate"],
+            trigger_contract["source_allowlist_or_age_gate"]["present"],
             trigger_archive["trigger_events"],
             trigger_archive["unique_primary_close_joins"],
             trigger_archive["duplicate_post_close_triggers"],
@@ -16108,8 +16421,8 @@ def _print(result: Dict[str, object]) -> None:
         "  daily row age checked=%s; current session required=%s; "
         "explicit broker+retry waits=%ds; deadline=%s"
         % (
-            fallback_contract["last_row_index_or_age_checked"],
-            fallback_contract["current_session_row_required"],
+            fallback_contract["last_row_index_or_age_checked"]["present"],
+            fallback_contract["current_session_row_required"]["present"],
             fallback_contract[
                 "full_path_explicit_sleep_and_backoff_seconds"
             ],
@@ -16196,7 +16509,7 @@ def _print(result: Dict[str, object]) -> None:
             connection_contract["resolver_catches_runtime_error_only"],
             connection_contract[
                 "connection_refused_reaches_yfinance_fallback"
-            ],
+            ]["present"],
         )
     )
     print(
