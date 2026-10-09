@@ -117,7 +117,7 @@ class Gate(unittest.TestCase):
         register_v1(self, _spec(**changes), prereg_dir=self.dirs["prereg_dir"], check_web=False,
                         now=REGISTERED)
 
-    def evaluate(self, edge=0.004, now=MATURE, parity_diverge=(), dirty=False,
+    def evaluate(self, edge=0.004, now=MATURE, parity_diverge=(), dirty=False, new_data=None,
                  load_bars=flat_bars, witness_problems=(), hypothesis="H9100"):
         census = {"rows": [{"dimension": d, "verdict": "DIVERGE"} for d in parity_diverge],
                   "counts": {"DIVERGE": len(parity_diverge)}}
@@ -129,7 +129,7 @@ class Gate(unittest.TestCase):
         with mock.patch("src.backtest.runner.run_backtest", fake_backtest(edge)):
             return admit.evaluate(hypothesis, now=now, load_bars=load_bars,
                                   parity=lambda: census,
-                                  code=lambda: {**CLEAN, "dirty": dirty},
+                                  code=lambda: {**CLEAN, "dirty": dirty, "new_data": dict(new_data or {})},
                                   witness=witness, deploy_sha=lambda: HEAD_SHA, **self.dirs)
 
     def examined(self, hypothesis="H9100"):
@@ -213,6 +213,26 @@ class EachStage(Gate):
         rec = self.evaluate(dirty=True)
         self.assertEqual(self.stages(rec)["code"], admit.BLOCK)
         self.assertEqual(rec["verdict"], admit.BLOCKED)
+
+    def test_uncommitted_data_blocks(self):
+        """Clean code beside a snapshot the tree has not committed is not replayable from a
+        commit."""
+        self.register()
+        rec = self.evaluate(new_data={f"docs/research/data/DS-{'0' * 64}.json": "1" * 64})
+        self.assertEqual(self.stages(rec)["code"], admit.BLOCK)
+        self.assertEqual(rec["verdict"], admit.BLOCKED)
+
+    def test_a_gate_run_that_opened_on_uncommitted_data_does_not_verify(self):
+        self.register()
+        self.examined()
+        self._code.stop()
+        self._code = mock.patch("src.research.trials.code_state", return_value={
+            **CLEAN, "new_data": {f"docs/research/data/DS-{'0' * 64}.json": "1" * 64}})
+        self._code.start()
+        rec = self.evaluate()
+        self.assertEqual(rec["verdict"], admit.ADMIT)
+        problems = admit.verify_record(rec, prereg_dir=self.dirs["prereg_dir"], deploy_ref="HEAD")
+        self.assertIn("the gate run executed on a modified tree or uncommitted data", problems)
 
     def test_parity_divergence_blocks(self):
         self.register()

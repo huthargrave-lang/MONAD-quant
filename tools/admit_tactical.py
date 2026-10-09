@@ -445,8 +445,8 @@ def verify_evidence(record: dict, head: dict, spec: dict | None) -> list[str]:
     if spec is not None and prereg.gate_rules(spec) == 2 and not problems:
         problems += _verify_familywise(record, head, spec, rows)
     code_sha = (record.get("code") or {}).get("sha") or ""
-    if (head.get("code") or {}).get("dirty") is not False:
-        problems.append("the gate run executed on a modified tree")
+    if not trials.committed_clean(head.get("code")):
+        problems.append("the gate run executed on a modified tree or uncommitted data")
     if not code_sha or trials._git(Path(REPO), "merge-base", "--is-ancestor", code_sha,
                                    "HEAD").returncode != 0:
         problems.append(f"code commit {code_sha[:12] or '(none)'} is not in this branch's history")

@@ -7,6 +7,7 @@ a crash never erases a trial. These tests pin each of those properties, includin
 the adversarial ones (tampering, reordering, deletion, history rewrite).
 """
 import gzip
+import hashlib
 import json
 import math
 import os
@@ -419,6 +420,64 @@ class TestAppendOnlyHistory(unittest.TestCase):
         dirty = trials.code_state(self.repo)
         self.assertTrue(dirty["dirty"])
         self.assertRegex(dirty["diff_sha256"], r"^[0-9a-f]{64}$")
+
+    def test_a_runs_new_data_is_named_with_its_hash_not_counted_as_code(self):
+        """A snapshot written just before a run opens (manifest and payload) is data: the
+        code stays clean, and the record names each file with the hash of its bytes, until
+        the data is committed."""
+        sha = "ab" * 32
+        data = self.repo / trials.DATA_REL
+        data.mkdir(parents=True)
+        (data / f"DS-{sha}.json").write_text('{"sha": "%s"}\n' % sha)
+        (data / f"DS-{sha}.csv.gz").write_bytes(gzip.compress(b"date,ticker,close\n"))
+        state = trials.code_state(self.repo)
+        self.assertEqual((state["dirty"], state["diff_sha256"], state["error"]), (False, None, None))
+        self.assertEqual(state["new_data"], {
+            f"docs/research/data/DS-{sha}{ext}": hashlib.sha256((data / f"DS-{sha}{ext}").read_bytes()).hexdigest()
+            for ext in (".csv.gz", ".json")})
+        self.assertFalse(trials.committed_clean(state))
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "data")
+        state = trials.code_state(self.repo)
+        self.assertEqual((state["dirty"], state["new_data"]), (False, {}))
+        self.assertTrue(trials.committed_clean(state))
+
+    def test_only_content_addressed_files_directly_in_the_data_directory_are_data(self):
+        sha = "cd" * 32
+        for rel in ("docs/research/data/notes.json",          # not content-addressed
+                    f"docs/research/data/sub/DS-{sha}.json",   # below the data directory
+                    f"src/DS-{sha}.json",                       # a data name in the code tree
+                    f"docs/research/data/DS-{sha[:-1]}.json",   # 63 hex digits
+                    f"docs/research/data/ds-{sha}.json"):       # not a store prefix
+            with self.subTest(rel=rel):
+                path = self.repo / rel
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("{}\n")
+                state = trials.code_state(self.repo)
+                self.assertEqual((state["dirty"], state["new_data"]), (True, {}))
+                self.assertFalse(trials.committed_clean(state))
+                path.unlink()
+
+    def test_a_committed_data_file_rewritten_is_dirty_code(self):
+        """Content-addressed files never change, so a tracked one that differs from HEAD is
+        a modified tree (a manifest can steer a run), not new data."""
+        path = self.repo / trials.DATA_REL / f"CEFNAV-{'ef' * 32}.json"
+        path.parent.mkdir(parents=True)
+        path.write_text('{"category": {"PHYS": "gold"}}\n')
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "data")
+        path.write_text('{"category": {"PHYS": "silver"}}\n')
+        state = trials.code_state(self.repo)
+        self.assertEqual((state["dirty"], state["new_data"]), (True, {}))
+        self.assertFalse(trials.committed_clean(state))
+
+    def test_a_record_from_before_new_data_keeps_its_meaning(self):
+        """Old records carry no ``new_data``; their ``dirty`` already covered data."""
+        old = {"sha": "a" * 40, "dirty": False, "diff_sha256": None, "error": None}
+        self.assertTrue(trials.committed_clean(old))
+        self.assertFalse(trials.committed_clean({**old, "dirty": True}))
+        self.assertFalse(trials.committed_clean({**old, "sha": None}))
+        self.assertFalse(trials.committed_clean(None))
 
 
 class TestCli(LedgerCase):
