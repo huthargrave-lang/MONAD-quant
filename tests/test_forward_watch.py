@@ -267,7 +267,7 @@ class Corrections(Ledgered):
 
 
 class Decision(unittest.TestCase):
-    SPEC = {"evaluation": EVAL, "stress_multiple": 2.0}
+    SPEC = {"evaluation": {**EVAL, "first_decisive_anniversary": 1}, "stress_multiple": 2.0}
 
     def test_boundaries_match_the_ruling(self):
         for years, up, lo in ((5, 2.00, -0.89), (10, 1.07, -0.37), (20, 0.61, -0.11)):
@@ -305,6 +305,62 @@ class Decision(unittest.TestCase):
         self.assertLess(c1, 0.12)
         self.assertGreater(c0, 0.25)
         self.assertTrue(0.04 < p1 < 0.18, p1)
+
+    def rows_for(self, means, opened_at=100, days=None, seed=1):
+        idx = pd.bdate_range("2027-01-01", periods=days or len(means))
+        rows = [(b"", {"kind": "genesis"}), (b"", {"kind": "window_open", "opens_at_session": str(idx[opened_at].date())})]
+        rng = np.random.default_rng(seed)
+        for d, m in zip(idx, means):
+            a = float(rng.normal(m, 0.004))
+            rows.append((b"", {"kind": "session", "session": str(d.date()),
+                               "active": {"1x": {"active": a}, "2x": {"active": a - 1e-5}}}))
+        return rows, idx
+
+    def test_the_first_decisive_anniversary_follows_the_frozen_wording(self):
+        h0 = {"evaluation": {**EVAL, "checks": "on anniversaries of the window's opening only; the first (365 "
+                                               "days) decides nothing by itself"}}
+        h1 = {"evaluation": {**EVAL, "checks": "on anniversaries of the window's opening only; readings in "
+                                               "years 1-3 change nothing"}}
+        self.assertEqual((fw.first_decisive_anniversary(h0), fw.first_decisive_anniversary(h1)), (2, 4))
+        with self.assertRaises(fw.WatchError):
+            fw.first_decisive_anniversary({"evaluation": EVAL})
+
+    def test_readings_before_the_first_decisive_anniversary_never_close(self):
+        rows, _ = self.rows_for([-0.004] * 1400)            # a terrible record
+        spec = {"evaluation": {**EVAL, "first_decisive_anniversary": 4}, "stress_multiple": 2.0}
+        reps = fw.decide(spec, rows)
+        self.assertTrue(all(r["verdict"] == "continue" for r in reps if r["anniversary"] < 4))
+        self.assertFalse(any(r["decisive"] for r in reps if r["anniversary"] < 4))
+
+    def test_the_own_promote_is_not_terminal_and_the_close_is(self):
+        rows, _ = self.rows_for([0.002] * 2200)             # a strong record: promotes early
+        reps = fw.decide(self.SPEC, rows)
+        promoted = [r["anniversary"] for r in reps if r["verdict"] == "promote"]
+        self.assertTrue(promoted)
+        self.assertGreater(reps[-1]["anniversary"], promoted[0])   # reports continue after it
+        rows, _ = self.rows_for([-0.003] * 2200)
+        reps = fw.decide(self.SPEC, rows)
+        self.assertEqual(reps[-1]["verdict"], "close")
+        self.assertEqual(sum(r["verdict"] == "close" for r in reps), 1)
+
+    def test_an_anniversary_is_computed_once_settled_and_a_late_correction_cannot_rewrite_it(self):
+        rows, idx = self.rows_for([0.0004] * 600)
+        cut = pd.Timestamp(idx[100]) + pd.DateOffset(years=1)
+        settled = [r for r in fw.decide(self.SPEC, rows)]
+        self.assertEqual(len(settled), 1)
+        late = rows + [(b"", {"kind": "correction", "session": str(idx[150].date()),
+                              "delta": {"1x": 0.5, "2x": 0.5}})]
+        self.assertEqual(fw.decide(self.SPEC, late)[0]["sharpe"], settled[0]["sharpe"])
+        n_before = sum(1 for _b, r in rows if r["kind"] == "session" and pd.Timestamp(r["session"]) <= cut)
+        early = rows[: 2 + n_before + fw.ANNIVERSARY_SETTLE - 1]
+        self.assertEqual(fw.decide(self.SPEC, early), [])                 # not settled yet
+
+    def test_conditions_turn_a_promote_into_continue_or_close(self):
+        rows, _ = self.rows_for([0.002] * 900)
+        cont = fw.decide(self.SPEC, rows, conditions=lambda cut: {"continue": ["episodes 12 < 20"], "close": None})
+        self.assertNotIn("promote", [r["verdict"] for r in cont])
+        closed = fw.decide(self.SPEC, rows, conditions=lambda cut: {"continue": [], "close": "long leg <= 0"})
+        self.assertEqual(closed[-1]["verdict"], "close")
 
     def test_decide_counts_only_the_window_and_applies_corrections(self):
         idx = pd.bdate_range("2027-01-01", periods=600)
@@ -623,3 +679,19 @@ class DomainReport(unittest.TestCase):
         self.assertAlmostEqual(split["inside_share"], 0.8)
         self.assertFalse(split["degenerate"])
         self.assertTrue(fw.issuance_split(rows, [])["degenerate"])
+
+
+class DomainConditions(unittest.TestCase):
+    def test_the_episode_threshold_follows_the_frozen_wording(self):
+        spec = {"evaluation": {"corroboration": ["the promote boundary is crossed",
+                                                 "at least 20 forward episodes (departures from neutral)"]}}
+        self.assertEqual(fw.episode_threshold(spec), 20)
+        self.assertEqual(fw.episode_threshold({"evaluation": {"min_episodes": 7}}), 7)
+        with self.assertRaises(fw.WatchError):
+            fw.episode_threshold({"evaluation": {"corroboration": []}})
+
+
+class FrozenSpecsReadAsWritten(unittest.TestCase):
+    def test_h366200_first_decides_at_its_second_anniversary(self):
+        spec, _h = fw.load("H366200")
+        self.assertEqual(fw.first_decisive_anniversary(spec), 2)

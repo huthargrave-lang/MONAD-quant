@@ -174,8 +174,12 @@ def cmd_log(args) -> int:
 def cmd_report(args) -> int:
     spec, _h = fw.load(args.watch)
     rows = fw.read(args.watch)
-    reports = fw.decide(spec, rows)
     sessions = [r for _b, r in rows if r["kind"] == "session"]
+    snap = None
+    if fw.is_domain(spec) and sessions:
+        from src.research import daily_data
+        snap = daily_data.load_snapshot(sessions[-1]["data"]["snapshot"])
+    reports = fw.decide(spec, rows, conditions=fw.domain_conditions(spec, rows, snap) if snap is not None else None)
     opened = next((r["opens_at_session"] for _b, r in rows if r["kind"] == "window_open"), None)
     print(f"{args.watch}: {len(sessions)} session lines; window opens {opened or '(not yet)'}")
     for rep in reports:
@@ -185,9 +189,7 @@ def cmd_report(args) -> int:
     ids = fw.watches_ever_frozen()
     print(f"forward-evidence route (docs/research/forward_watch/policy/route.json): m = {len(ids)} "
           f"{ids}; a promoted watch's LLR must reach {fw.route_boundary(spec, len(ids)):.3f}")
-    if fw.is_domain(spec) and sessions:
-        from src.research import daily_data
-        snap = daily_data.load_snapshot(sessions[-1]["data"]["snapshot"])
+    if snap is not None:
         print("legs and episodes:", json.dumps(fw.legs_and_episodes(spec, rows, snap), default=float))
         if args.sec:
             filings = []
