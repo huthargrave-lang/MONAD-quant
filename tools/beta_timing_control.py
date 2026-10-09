@@ -34,8 +34,8 @@ from src.research import daily_data, prereg, trials  # noqa: E402
 from src.research.backtest_trials import family_members  # noqa: E402
 from src.research.daily_domains import DOMAINS  # noqa: E402
 from src.research.daily_strategy import cost_matrix, evaluate_daily  # noqa: E402
-from src.research.daily_trials import (daily_spec, family_name, record_daily,  # noqa: E402
-                                       refuse_unacknowledged, stored_returns)
+from src.research.daily_trials import (daily_spec, family_name, live_registrations,  # noqa: E402
+                                       record_daily, refuse_unacknowledged, stored_returns)
 
 PRODUCER = "tools/beta_timing_control.py"
 PROTOCOL = "docs/research/BETA_TIMING_CONTROL_PROTOCOL.md"
@@ -99,18 +99,27 @@ def check_h404702_references(recs: dict) -> list[str]:
 
 
 def gate_inputs(hypothesis: str, ctx, dom) -> dict:
-    """What H404702's gate reads from the ledger, through its own functions: the latest
-    ok trial per point on the registered window (with its returns sha), the benchmark's
-    latest recorded run, the unknown specs, and m."""
+    """What a registered hypothesis' gate reads from the ledger, through the gate's own
+    functions: the latest ok trial per point on the registered window (with its returns
+    sha), the benchmark's latest recorded run, the unknown specs, and m."""
     spec, _ = prereg.load(hypothesis)
     p = spec["params"]
+    if p["data"] != {k: ctx.data_spec(*dom.window(ctx))[k] for k in p["data"]}:
+        raise NotRun(f"{hypothesis} is registered on other data than the replayed context")
     start, end = dom.window(ctx)
     everything = trials.iter_trials()
     searched = [r for r in family_members(everything, family_name(dom.name)) if r.producer != at.PRODUCER]
     refs = [r for r in family_members(everything, family_name(dom.name, reference=True))
             if r.producer != at.PRODUCER]
     ref_rec = [r for r in refs if r.status == "ok" and at._same_window(r, p["data"], start, end)]
-    cand = recorded_series(records(), PAIRS[hypothesis]["cand"])[PAIRS[hypothesis]["cand"]]
+    # the gate scores its own re-run of the candidate; the latest recorded search trial of
+    # the candidate's point stands in for it (it does not enter the compared inputs)
+    key = at._point_key(p["candidate"])
+    own = [r for r in searched if r.status == "ok" and at._same_window(r, p["data"], start, end)
+           and at._point_key(r.spec["params"]) == key]
+    if not own:
+        raise NotRun(f"{hypothesis}: no recorded search trial of its candidate on its window")
+    cand = stored_returns(trials.load_returns([own[-1]])[own[-1].key])
     fam = at.family_active(searched, refs, p["data"], start, end, p["candidate"], cand)
     m, parts = at.familywise_m(searched, fam.latest, p, fam.unknown)
     return {"latest": {f"{k[0]} {dict(k[1])}": r.returns_sha for k, r in sorted(fam.latest.items())},
@@ -394,13 +403,18 @@ def cmd_run(args) -> int:
         out["h404702_reference_peers"] = check_h404702_references(recs)
         dom = DOMAINS["cef_discount"]
         ctx = dom.load(recs[PAIRS["H404702"]["cand"]].spec["data"])
-        before = gate_inputs("H404702", ctx, dom)
+        # every live registration of the replayed family, not only H404702: an exact
+        # replay must leave each one's gate inputs unchanged
+        live = live_registrations(family_name(dom.name))
+        before = {h: gate_inputs(h, ctx, dom) for h in live}
         pairs = {n: replay_pair(n, recs, acknowledged=args.acknowledge_live) for n in PAIRS}
         recs = records()
-        after = gate_inputs("H404702", ctx, dom)
-        out["gate_invariance"] = {"identical": before == after, "before": before, "after": after}
+        after = {h: gate_inputs(h, ctx, dom) for h in live}
+        out["gate_invariance"] = {"identical": before == after, "hypotheses": live,
+                                  "before": before, "after": after}
         if before != after:
-            raise NotRun("H404702's gate inputs changed across the replays")
+            raise NotRun(f"gate inputs changed across the replays: "
+                         f"{[h for h in live if before[h] != after[h]]}")
         results = {"H404702": run_h404702(pairs["H404702"])}
         inputs = pairs["positive_control_F366204"]["ctx"].panel
         etf_of = {f: m["etf"] for f, m in inputs.matched.items()}
