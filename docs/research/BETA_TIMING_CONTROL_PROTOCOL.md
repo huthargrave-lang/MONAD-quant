@@ -1,0 +1,254 @@
+# Beta-exposure control of the admission candidates (H404702; CEFS and MDCEX vs PCEF)
+
+Status: **FROZEN** with the board record below (2026-10-09). This was before any beta,
+regression or control series was computed on real data, and before any replay was run.
+
+## Why this test, and why now
+
+- F366204 found that CEF discounts close, but against matched ETFs the profit was **beta
+  timing**: the rule bought levered funds after sell-offs, and the controlled α was +0.13%/yr
+  (t 0.46).
+- Two candidates are on course for admission in 2027:
+  - **H404702**: within-category CEF discount with hysteresis; registered; forward window to
+    2027-10-07.
+  - **CEFS vs PCEF** (F404732): v2 p_gate about 0.005; blocked only by the 10-year floor until
+    about 2027-05. MDCEX vs PCEF corroborates it.
+- Neither has been controlled for *time-varying* beta. F404724's unconditional active beta
+  (−0.002) cannot see a beta that is high just before rebounds.
+- The prior for beta exposure is not low. F366204's own control implies a within-family
+  controlled α of about 0.16 of 0.62%/yr (by subtraction, s ≈ 0.26) for H404702-type selection
+  against ETFs.
+- If the edge is beta exposure, a 2027 admission would be valid on paper and misleading in
+  substance. It would also be exactly the exposure a low-drawdown product must avoid. Either
+  answer changes a decision.
+
+**Board ruling (2026-10-09; strategy, skeptic and data members)** on the next steps, in order:
+1. this control;
+2. a forward watch for the F366202 metal-trust tilt (a separate protocol);
+3. single-country CEF vs country ETF, only if this control finds beta exposure in H404702;
+4. commodity event days: already answered, null (F366200, F404705).
+
+## What this is and is not
+
+- No new rule, point, search or candidate. The control reads recorded series. Weights come
+  from **exact replays** of recorded trials, run with the recorded spec in the recorded
+  family. The gate keys family members by point (`admit_tactical._point_key`), so an exact
+  replay adds no member and changes no statistic. No new family or domain key is created.
+- **Gate-invariance check (required).** Before and after the replays, the tool records
+  H404702's gate inputs:
+  - the family's latest-ok trial per point key with its returns sha;
+  - the benchmark's latest recorded returns sha;
+  - the unknown-spec set.
+
+  They must be identical, or the result is **NOT RUN** (disclosed).
+- H404702's prereg, forward window and gate code do not change. Its admission evidence does,
+  through the record in "Consequences".
+
+## Data (all frozen; no fetch)
+
+| Series | Source |
+|---|---|
+| H404702 candidate | `TR-20261006T034817Z-5245a64f#3` (`cef_banded {"exit": 0.5, "signal": "z52_cat"}`), DS-18cef162 + CEFNAV-fd7099e2, 2003-12-31..2026-10-02 |
+| H404702 benchmark | `TR-20261006T012341Z-86834435#0` (`cef_equal_weight`, 1x), the search's own reference, which the gate pairs it with. The tool asserts that all four 1x reference trials on this window share returns sha 23aa6231, or NOT RUN |
+| Positive control: the F366204 tilt | `TR-20261009T073545Z-b39f895c#0` (`cef_etf_tilt {"lag": 1}`, after correction 1) vs `TR-20261009T073344Z-da2b0d8d#0` (`cef_etf_bench`), DS-c6ac870a + CEFETF-0bea95e6 |
+| Negative control: the F366202 metal-trust tilt | `TR-20261008T185930Z-9488e29b#0` (`trust_tilt`) vs `TR-20261008T185928Z-5c567742#0` (`pairs_static`), DS-6edd69e3 + CEFNAV-fd7099e2 |
+| CEFS vs PCEF (the decision series) | `TR-20261007T045202Z-1202df3f#0` vs `TR-20261007T045201Z-e56e6db5#0`, DS-6e2f0f62 |
+| MDCEX vs PCEF (corroboration only) | `TR-20261007T051701Z-9672d791#0` vs `TR-20261007T051659Z-dfb4dff7#0`, DS-84167824 |
+| Asset, SPY and IEF returns | each snapshot's `(1 + night)(1 + day) − 1` from `snap.returns()`, which is what holdings earn |
+
+## Replays (for weights)
+
+- **Call.** `D = daily_domains.DOMAINS[<domain>]`, `ctx = D.load(<recorded data>)`, then
+  `evaluate_daily(D.decide(ctx, point), ctx.snap, start, end, cost_multiple=1.0, tiers=D.tiers(ctx))`.
+  - `(start, end) = D.window(ctx)` must equal the recorded window.
+  - Each replay is a counted trial with the recorded spec (`daily_spec(point, domain=<domain>)`),
+    in the recorded family, on a clean tree. The hypothesis is named in the run context, never
+    as `open_run(hypothesis=)`.
+- **Reproduction.** The index must be identical and the maximum absolute difference against
+  the recorded series must be ≤ 1e-12, or NOT RUN. Whether the returns sha is identical is
+  reported.
+- **Weight identity.** Per book, from the second session on,
+  `f_t = Σ_i w_i,t−1 r_i,t + (1 − Σ_i w_i,t−1) c_t − return_t`.
+  - Every `f_t` must be ≥ −1e-12, and Σ f_t must equal `cost_paid` within 1e-9, or NOT RUN.
+  - This proves `weights.shift(1)` is the weight held during session t. Cash has beta 0, so X
+    needs no cash leg.
+- **The products are static books** (100% one asset). Their recorded series are the products'
+  total returns, so no replay is needed. Their first scored session (the build) is dropped.
+
+## The control (pre-registered)
+
+### Sample and blocks
+
+- **Start.** For a replayed pair, the first session at which both books' exposure is ≥ 1 − 1e-9,
+  which removes the build-up. For the products, the second scored session.
+- **Blocks.** Consecutive 5-session sums of daily returns, anchored at the start. An incomplete
+  final block is dropped. One grid per candidate serves both the betas and the regressions.
+- **Regression sample.** From the first block that has the minimum number of complete prior
+  blocks (below) to the end. Every share (s, the robustness shares) uses this identical set of
+  blocks.
+
+### Ex-ante Dimson betas
+
+- For asset i and factor F: `b0_i` and `b1_i` are the OLS slopes of i's block return on
+  `F_w` and `F_{w−1}`.
+- **Data used.** Only blocks that end before the block in which the beta is used, and only
+  blocks in which i has 5 finite returns.
+- **Windows:**
+
+  | Use | Window | Minimum | Below the minimum |
+  |---|---|---|---|
+  | Primary, replayed books | the last 156 such blocks | 48 | b0 = 1, b1 = 0 |
+  | Primary, products | 104 blocks | 52 | — |
+  | R4 | 26 blocks | 13 | — |
+
+- **Reported:** the |Δ|-weighted share of exposure that uses the fallback.
+
+### The exposure series X (daily, then summed per block)
+
+- **Replayed pairs.** `X_t = Σ_i Δ_i,t (b0_i F_i,t + b1_i F_i,t−5)`, with
+  `Δ_i,t = w^cand_i,t−1 − w^bench_i,t−1`.
+  - The sum runs over every asset either book holds.
+  - The positive and negative controls include the ETFs: an ETF's factor is its own return,
+    with b0 = 1 and b1 = 0.
+- **Products.** `X_t = (b0 − 1) F_t + b1 F_t−5`, with F = PCEF.
+
+### Primary factor F
+
+| Candidate | F |
+|---|---|
+| H404702 | for fund i, the **equal-weight daily return of the other funds in i's CEFConnect category** that hold benchmark weight at the previous close; the global equal-weight eligible return when fewer than 4 others exist |
+| Positive and negative controls | each fund's matched ETF (F366204's mapping; PHYS → GLD, PSLV → SLV) |
+| Products | PCEF |
+
+H404702 is category-neutral, so any beta exposure it carries is within a category. Leaving
+fund i out stops it pulling its own beta toward 1.
+
+### Primary statistic (g fixed at 1)
+
+- `α = mean_w(a_w − X_w)`, the beta-hedged active return. `t_α` is its Newey-West t.
+- `E = mean_w(X_w)`, the explained part. `t_E` is its Newey-West t.
+- `s = α / mean_w(a_w)`, the share of the raw active return the control keeps.
+- **Newey-West lag.** Both lag 4 and lag `floor(4 (T/100)^{2/9})`. Each t condition below must
+  hold at both lags.
+- **Annualisation.** × 252/5.
+- **Reported:**
+  - the 95% Fieller interval for s, from the NW long-run covariance of `(a_w − X_w, a_w)`;
+  - E split into its static part, `mean(Σ Δ β) · mean(F)` (the products: `(β̄ − 1) · mean(F)`),
+    and its timing remainder.
+
+### Robustness (computed for every candidate on the same blocks)
+
+| Check | What it is |
+|---|---|
+| R0 | free g: `a_w = α + g X_w + e_w`; report g, its CI and the t of g − 1 |
+| R1a | H404702 only: F = the global equal-weight eligible return (the benchmark) |
+| R1b | F = SPY. For the products, `X = (β_prod − β_PCEF)` applied to SPY, each a Dimson beta to SPY |
+| R3 | two factors, F = the primary factor plus IEF, Dimson betas on both. H404702 and the positive control only (IEF is in their snapshots) |
+| R4 | the primary with 26-block betas (minimum 13): beta that ratchets up as NAVs fall |
+| R2 | Treynor-Mazuy: `a_w = α + b F_w + c F_w² + d F_{w−1} + e_w`, with F the benchmark's or PCEF's return. Report c and its t; "convexity detected" if c > 0 at t ≥ 2 |
+| R2b | conditional beta: `a_w = α + b F_w + c S_{w−1} F_w + d F_{w−1} + e_w`, with S the benchmark's trailing 13-block return |
+
+For each check, `s_R` is its α divided by mean(a_w).
+
+### Limitations, stated
+
+- Long-window ex-ante betas capture timing *across* funds, not a fund's own beta rising after a
+  sell-off. Only R4, R2 and R2b can see that.
+- CEF prices are stale. Dimson betas reduce the bias, but they do not remove it.
+
+## Verdict, stated in advance (per candidate)
+
+**Primary rules**
+
+| Verdict | Condition |
+|---|---|
+| **SURVIVES** | `s ≥ 0.5` and `t_α ≥ 2`, and every robustness share (R0, R1a, R1b, R3, R4, R2, R2b, where computed) is ≥ 0.25 |
+| **UNDERPOWERED** | the SURVIVES conditions except `t_α ≥ 2` |
+| **BETA EXPOSURE** | `s < 0.25` and `t_E ≥ 2` (static or timed beta; the finding states which part dominates) |
+| **BETA-LIKE (underpowered)** | `s < 0.25` and `t_E < 2` |
+| **INCONCLUSIVE** | anything else, including mean(a_w) ≤ 0 on the sample |
+
+**Robustness can establish BETA EXPOSURE**, naming the factor, when all three hold:
+- one of R1a, R1b, R3 or R4 has `s_R < 0.25`;
+- its explained part has t ≥ 2.5 (Bonferroni over the four);
+- the primary is not SURVIVES. If the primary is SURVIVES, the verdict is INCONCLUSIVE.
+
+R0, R2 and R2b can only downgrade.
+
+**Controls (method validity)**
+- **Positive control.** The F366204 tilt must read BETA EXPOSURE or BETA-LIKE. If it reads
+  SURVIVES or UNDERPOWERED, the method cannot detect what the repository already found, and
+  H404702 cannot read SURVIVES (demoted to INCONCLUSIVE). Its within-family part (`A_within`,
+  F366204's decomposition) is reported under this control. It is not decisive.
+- **Negative control.** The metal-trust tilt must not read BETA EXPOSURE (the expected s is
+  about 1, since X ≈ 0 by construction). If it does, the control is absorbing discount
+  co-movement, and an H404702 BETA EXPOSURE is demoted to INCONCLUSIVE.
+
+**Power, stated (t_raw ≈ Sharpe × √years)**
+- H404702: about 6.7. SURVIVES is within reach if beta explains little.
+- CEFS: about 1.7 over its sample. MDCEX: about 2.1.
+- t_α ≈ s · t_raw / √(1 − R²_X). For the products X is small against about 9%/yr of tracking
+  error, so SURVIVES would need s ≳ 1.2 (CEFS) or ≳ 0.95 (MDCEX). UNDERPOWERED is their
+  realistic ceiling.
+- CEFS is the decision series; MDCEX corroborates only.
+
+## Consequences (mechanical)
+
+- **H404702 reads BETA EXPOSURE, BETA-LIKE or INCONCLUSIVE.** File the objection as follows:
+
+  ```
+  venv/bin/python tools/refute.py object H404702 --by beta-exposure-control \
+      --claim "H404702's active return is not shown to be selection: beta-hedged α keeps s = <s> of the raw active (verdict <V>, BETA_TIMING_CONTROL_PROTOCOL.md)" \
+      --evidence "docs/research/data/beta_timing_control.json sha256 <sha>; trials <replay keys>"
+  ```
+
+  - The admission gate's refutations stage BLOCKs while the objection is open.
+  - Only a board other than this protocol's author may resolve it.
+  - The web finding links `[[H404702|contradicts]]` and `[[F404713|contradicts]]`.
+- **H404702 reads SURVIVES or UNDERPOWERED.** The finding records the controlled α, and links
+  `[[H404702|supports]]`.
+- **The products.** The finding links `[[F404732|...]]`. Any future CEFS registration must cite
+  it. If CEFS reads BETA EXPOSURE, BETA-LIKE or INCONCLUSIVE, the same objection is filed
+  against that hypothesis on its registration day. A BETA EXPOSURE reading would mean Saba's
+  edge is leverage or beta, not discount capture.
+
+## Implementation
+
+- `tools/beta_timing_control.py`:
+  - reads the recorded series (`trials.load_returns`);
+  - runs the replays and checks reproduction, weight identity and gate invariance;
+  - computes the statistics above;
+  - writes `docs/research/data/beta_timing_control.json` (statistics only, no observations).
+- Pure functions live in `src/research/beta_control.py`.
+- Tests on synthetic data, with each expected label stated in advance:
+
+  | Case | Expected |
+  |---|---|
+  | pure timing (Δβ high before up-blocks) | BETA EXPOSURE |
+  | pure selection (α + noise) | SURVIVES |
+  | a fund's own beta rising after drawdowns | R4 or R2b detects it, so not SURVIVES |
+  | idiosyncratic discount reversion | SURVIVES |
+  | reversion only in up-blocks | R2 "convexity detected", not SURVIVES |
+  | betas use no data from the current block | (property check) |
+  | an altered series | fails reproduction |
+  | an altered fee | fails the weight identity |
+
+## Board record (2026-10-09)
+
+| Amendment | Source |
+|---|---|
+| g = 1 for the verdict; free g as R0 | statistics (attenuation of a free g biases toward SURVIVES), adversary |
+| Dimson betas replace the regression lag g′X_{w−1} | statistics, adversary (a free lag can absorb the reversion itself), mechanics |
+| Within-category leave-one-out factor as H404702's primary; the global EW as R1a; SPY as R1b | statistics, adversary (R3a) |
+| R3 with IEF (half the universe is bonds); R4 26-block betas; R2b conditional beta | adversary |
+| Blocks anchored at the start; incomplete final block dropped; complete fund-blocks only; one grid; one sample for all shares | statistics, mechanics |
+| Symmetric evidence: SURVIVES needs t_α ≥ 2, BETA EXPOSURE needs t_E ≥ 2; underpowered labels; Fieller interval reported; mean(a) ≤ 0 is INCONCLUSIVE | statistics, adversary |
+| Robustness: all shares ≥ 0.25 for SURVIVES; R1a/R1b/R3/R4 may establish BETA EXPOSURE at t ≥ 2.5 unless the primary is SURVIVES | statistics (downgrade only), adversary (may establish); resolved as stated |
+| NW lag both 4 and floor(4(T/100)^{2/9}); annualisation × 252/5 (F366204 used × 52; s is unaffected) | statistics |
+| No diagnostic family: exact replays in the recorded families plus a gate-invariance check | adversary (`daily_family_members` and red-team attack 4a: a new domain key would be the off-book route); mechanics confirmed that a point-keyed gate is unchanged by an exact replay |
+| Benchmark `86834435#0`, the search's own reference; the four 1x references are asserted identical | mechanics |
+| Replay call stated exactly; reproduction to 1e-12; weight-identity check; build-up excluded; the products' build session dropped | mechanics |
+| Positive control (F366204) and negative control (metal trusts) | adversary |
+| Mechanical consequence through `refute.py object`; web links | adversary |
+| "Explained" split into static and timing parts; CEFS decides and MDCEX corroborates; the power text corrected | adversary, statistics |
+| Not adopted: Vasicek shrinkage of betas. With g = 1, beta noise adds variance only, and shrinkage would add a choice | statistics (suggested) |
