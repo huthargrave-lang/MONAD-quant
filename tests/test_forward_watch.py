@@ -57,6 +57,29 @@ def market(n=420, seed=3, dist_on=None):
                     close=close, dist=dist, dtb3=pd.Series(1.5, index=dates), manifest={})
 
 
+class SnapshotStore(unittest.TestCase):
+    """A watch snapshot lives in the shared store like every data set a trial cites: the
+    manifest beside the others, the vendor observations only in the private store."""
+
+    def test_manifest_committed_observations_private(self):
+        from tests.test_daily_data import DATES, asset
+        cols = ["SPY", "GDX", "GLD", "SIL", "SLV"]
+        panel = {c: asset(k + 1) for k, c in enumerate(cols)}
+        cash = pd.Series(2.0, index=DATES)
+        fetch = dict(fetch_asset=lambda s, a, b: panel[s], fetch_cash=lambda a, b: cash,
+                     fetch_check=lambda a, b: cash + 0.01)
+        spec = spec_for([("GDX", "GLD"), ("SIL", "SLV")], [0.5, 0.5], DATES[0])
+        with tempfile.TemporaryDirectory() as pub, tempfile.TemporaryDirectory() as priv:
+            sha = fw.build_snapshot(spec, str(DATES[-1].date()), data_dir=Path(pub),
+                                    private_dir=Path(priv), **fetch)
+            self.assertTrue((Path(pub) / f"DS-{sha}.json").exists())
+            self.assertFalse((Path(pub) / f"DS-{sha}.csv.gz").exists())
+            self.assertTrue((Path(priv) / f"DS-{sha}.csv.gz").exists())
+            snap = fw.load_snapshot(sha, data_dir=Path(pub), private_dir=Path(priv))
+            self.assertEqual(snap.manifest["observations"]["csv_sha256"], sha)
+            self.assertEqual(set(snap.assets), set(cols))
+
+
 class Ledgered(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
