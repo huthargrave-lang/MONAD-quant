@@ -49,4 +49,8 @@ class Machinery(unittest.TestCase):
     def test_the_product_world_has_the_stated_scale(self):
         b = tool.product_book("alpha", 9012)
         self.assertEqual(len(b["grid"]) // 5, tool.PRODUCT["blocks"])
-        self.assertAlmostEqual(float(b["active"].mean() * 252), 0.054, delta=0.03)
+        # one seed's mean active has a standard error of ~3%/yr (9% tracking error over 8.4
+        # years); six seeds bring it to ~1.3%/yr
+        means = [float(tool.product_book(k, 9012 + i)["active"].mean() * 252)
+                 for i in range(6) for k in ("alpha", "convex")]
+        self.assertAlmostEqual(float(np.mean(means)), 0.054, delta=0.03)
