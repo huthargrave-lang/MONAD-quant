@@ -54,3 +54,21 @@ class Machinery(unittest.TestCase):
         means = [float(tool.product_book(k, 9012 + i)["active"].mean() * 252)
                  for i in range(6) for k in ("alpha", "convex")]
         self.assertAlmostEqual(float(np.mean(means)), 0.054, delta=0.03)
+
+
+class Planted(unittest.TestCase):
+    def test_the_planted_payoff_is_scaled_to_the_raw_active_and_lands_in_the_active(self):
+        import pandas as pd
+        b = tool.book("S", 9020)
+        cols = list(b["assets"].columns)
+        cat = {c: f"k{i // 10}" for i, c in enumerate(cols)}
+        elig = pd.DataFrame(True, index=b["dates"], columns=cols)
+        inputs = {"grid": b["grid"], "delta": b["delta"], "assets": b["assets"], "category": cat, "elig": elig,
+                  "factor": b["factor"], "active": b["active"], "bench": b["bench"],
+                  "bench_weights": pd.DataFrame(1.0 / len(cols), index=b["dates"], columns=cols)}
+        raw = float(b["active"][b["grid"].index][b["grid"] >= tool.MIN_BLOCKS].mean()) * 50.4
+        for form in ("static", "conditional"):
+            pl = tool._planted(inputs, form)
+            self.assertAlmostEqual(pl["planted_ann"], raw, places=10)
+            added = (pl["active"] - b["active"])[b["grid"].index][b["grid"] >= tool.MIN_BLOCKS].mean() * 50.4
+            self.assertAlmostEqual(float(added), raw, places=10)

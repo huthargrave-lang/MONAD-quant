@@ -7,6 +7,10 @@ runs only for what the calibration passes.
       books S, T, C, Cglob, Cday, Cmon, Cdyn on fresh seeds 1000-1099 (bootstrap B 199), and
       the CEFS-scale pure-alpha and pure-convex books on seeds 2000-2199; writes
       docs/research/data/convexity_calibration.json.
+  venv/bin/python tools/convexity_control.py run --acknowledge-live H404701 H404702
+      only if the calibration's core books passed: H404702 (exact replay, every check),
+      its two planted positive controls, and the F366204 tilt (reported); the products only
+      if the product-scale calibration passed. Writes docs/research/data/convexity_control.json.
 """
 from __future__ import annotations
 
@@ -220,6 +224,148 @@ def cmd_calibrate(args) -> int:
     return 0
 
 
+# ── market data (only what the calibration passed) ───────────────────────────
+RUN_OUT = REPO / "docs/research/data/convexity_control.json"
+MARKET_REPS = 999
+PLANT_SHARE = 0.75
+
+
+def _planted(blocks_in: dict, form: str) -> dict:
+    """The candidate's own data with a convex payoff injected into its overweights, scaled
+    to its raw active: 'static' (every asset ever overweighted carries it always) or
+    'conditional' (only while overweighted at the block's start)."""
+    grid, delta, R, cat_of, elig = (blocks_in[k] for k in ("grid", "delta", "assets", "category", "elig"))
+    sessions = grid.index
+    blk = grid.to_numpy()
+    Fcat = blocks_in["factor"]
+    Kd = bc.call_payoff_daily(Fcat, grid).reindex(sessions).fillna(0.0)
+    D = delta.reindex(index=sessions, columns=R.columns).fillna(0.0)
+    first = np.r_[True, blk[1:] != blk[:-1]]
+    d_start = pd.DataFrame(D.to_numpy()[np.flatnonzero(first)][blk], index=sessions, columns=R.columns)
+    sample = grid >= MIN_BLOCKS
+    if form == "static":
+        carriers = pd.DataFrame(np.repeat(((D[sample] > 0).any(axis=0)).to_numpy()[None, :], len(sessions), axis=0),
+                                index=sessions, columns=R.columns)
+    else:
+        carriers = d_start > 0
+    unit = Kd.where(carriers, 0.0)
+    unit_active = (D * unit).sum(axis=1)
+    g = float(blocks_in["active"].reindex(sessions)[sample].mean()) / float(unit_active[sample].mean())
+    extra = g * unit
+    R2 = R.copy()
+    R2.loc[sessions] = R.loc[sessions] + extra
+    bench_w = blocks_in["bench_weights"].reindex(index=sessions, columns=R.columns).fillna(0.0)
+    B2 = blocks_in["bench"].copy()
+    B2.loc[sessions] = blocks_in["bench"].reindex(sessions) + (bench_w * extra).sum(axis=1)
+    from beta_timing_control import category_factor
+    F2 = category_factor(R2, list(R.columns), elig, cat_of)
+    active2 = blocks_in["active"].copy()
+    active2.loc[sessions] = blocks_in["active"].reindex(sessions) + (D * extra).sum(axis=1)
+    planted_mean = float((D * extra).sum(axis=1)[sample].mean()) * bc.ANN
+    return {"active": active2, "assets": R2, "factor": F2, "bench": B2, "planted_ann": planted_mean}
+
+
+def _h404702(recs, acknowledged) -> dict:
+    import beta_timing_control as btc
+    pair = btc.replay_pair("H404702", recs, acknowledged=acknowledged)
+    ctx, tot, recorded = pair["ctx"], pair["tot"], pair["recorded"]
+    cand, bench = pair["cand"], pair["bench"]
+    funds = [a for a in ctx.snap.assets if a in ctx.panel.category]
+    start = btc.exposure_start(cand, bench)
+    grid = bc.block_grid(cand.returns.index, start)
+    delta = (cand.weights[funds] - bench.weights[funds]).shift(1).fillna(0.0)
+    bench_prev = bench.weights[funds].shift(1).fillna(0.0)
+    elig = bench_prev > 0
+    Fcat = btc.category_factor(tot, funds, elig, ctx.panel.category)
+    b_rec = recorded[btc.PAIRS["H404702"]["bench"]]
+    active = recorded[btc.PAIRS["H404702"]["cand"]] - b_rec
+    blocks = cx.build_blocks(active, delta, tot[funds], Fcat, b_rec, grid)
+    out = {"checks": pair["checks"], "exposure_start": str(start.date()),
+           "control": cx.control(blocks, min_blocks=MIN_BLOCKS, window=WINDOW, minimum=MINIMUM, reps=MARKET_REPS)}
+    base_E = cx.control(blocks, min_blocks=MIN_BLOCKS, window=WINDOW, minimum=MINIMUM, reps=0)["explained_ann"]
+    inputs = {"grid": grid, "delta": delta, "assets": tot[funds], "category": ctx.panel.category, "elig": elig,
+              "factor": Fcat, "active": active, "bench": b_rec, "bench_weights": bench_prev}
+    planted = {}
+    for form in ("static", "conditional"):
+        pl = _planted(inputs, form)
+        pb = cx.build_blocks(pl["active"], delta, pl["assets"], pl["factor"], pl["bench"], grid)
+        pc = cx.control(pb, min_blocks=MIN_BLOCKS, window=WINDOW, minimum=MINIMUM, reps=0)
+        share = (pc["explained_ann"] - base_E) / pl["planted_ann"] if pl["planted_ann"] else float("nan")
+        planted[form] = {"planted_ann": pl["planted_ann"], "explained_ann": pc["explained_ann"],
+                         "base_explained_ann": base_E, "attributed_share": share, "passed": share >= PLANT_SHARE,
+                         "verdict_with_plant": pc["verdict"]}
+    out["planted"] = planted
+    return out
+
+
+def _f366204(recs) -> dict:
+    """The F366204 tilt, reported only (it has no known answer)."""
+    import beta_timing_control as btc
+    name = "positive_control_F366204"
+    pair = btc.replay_pair(name, recs, acknowledged=[])
+    ctx, tot, recorded = pair["ctx"], pair["tot"], pair["recorded"]
+    cand, bench = pair["cand"], pair["bench"]
+    etf_of = {f: m["etf"] for f, m in ctx.panel.matched.items()}
+    universe = set(etf_of) | set(etf_of.values())
+    held = [a for a in cand.weights.columns
+            if a in universe or cand.weights[a].abs().sum() > 0 or bench.weights[a].abs().sum() > 0]
+    start = btc.exposure_start(cand, bench)
+    grid = bc.block_grid(cand.returns.index, start)
+    delta = (cand.weights[held] - bench.weights[held]).shift(1).fillna(0.0)
+    b_rec = recorded[btc.PAIRS[name]["bench"]]
+    active = recorded[btc.PAIRS[name]["cand"]] - b_rec
+    fac = pd.DataFrame({a: tot[etf_of.get(a, a)] for a in held})
+    blocks = cx.build_blocks(active, delta, tot[held], fac, b_rec, grid)
+    return {"checks": pair["checks"],
+            "control": cx.control(blocks, min_blocks=MIN_BLOCKS, window=WINDOW, minimum=MINIMUM, reps=MARKET_REPS)}
+
+
+def cmd_run(args) -> int:
+    import beta_timing_control as btc
+    from src.research import trials
+    from src.research.daily_domains import DOMAINS
+    from src.research.daily_trials import family_name, live_registrations
+    if trials.code_state().get("dirty"):
+        raise SystemExit("the protocol requires a clean tree: commit first")
+    cal = json.loads(Path(args.calibration).read_text(encoding="utf-8"))["summary"]
+    out = {"schema_version": 1, "vintage": pd.Timestamp.today().date().isoformat(), "protocol": PROTOCOL,
+           "calibration": {k: v for k, v in cal.items() if k != "books"}}
+    if not cal["core_passed"]:
+        out["verdict"] = "NOT RUN"
+        out["reason"] = "the calibration's core books (S, T, C) did not all pass"
+    else:
+        recs = btc.records()
+        dom = DOMAINS["cef_discount"]
+        ctx = dom.load(recs[btc.PAIRS["H404702"]["cand"]].spec["data"])
+        live = live_registrations(family_name(dom.name))
+        before = {h: btc.gate_inputs(h, ctx, dom) for h in live}
+        h = _h404702(recs, args.acknowledge_live)
+        recs = btc.records()
+        f = _f366204(recs)
+        after = {hh: btc.gate_inputs(hh, ctx, dom) for hh in live}
+        out["gate_invariance"] = {"identical": before == after, "hypotheses": live}
+        if before != after:
+            raise SystemExit("gate inputs changed across the replays: NOT RUN")
+        planted_ok = all(p["passed"] for p in h["planted"].values())
+        verdict = h["control"]["verdict"]
+        if not planted_ok:
+            verdict = bc.INCONCLUSIVE
+        if verdict in (cx.MARKET, cx.MARKET_LIKE) and not cal["may_establish_exposure"]:
+            verdict = bc.INCONCLUSIVE
+        out["H404702"] = {**h, "verdict": verdict,
+                          "scope_excludes": cal["held_out_shapes_failed"]}
+        out["F366204_tilt_reported"] = f
+        out["products"] = ("NOT RUN: the product-scale calibration failed" if not cal["product_passed"]
+                           else "run separately")
+    text = json.dumps(out, indent=1, sort_keys=True, default=float) + "\n"
+    Path(args.json).write_text(text, encoding="utf-8")
+    print(f"wrote {args.json} (sha256 {hashlib.sha256(text.encode()).hexdigest()})")
+    print(json.dumps({k: (v if k not in ("H404702", "F366204_tilt_reported") else
+                          {kk: vv for kk, vv in v.items() if kk != "checks"}) for k, v in out.items()},
+                     indent=1, default=float)[:4000])
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -227,6 +373,11 @@ def main(argv=None) -> int:
     c.add_argument("--workers", type=int, default=16)
     c.add_argument("--json", default=str(CAL_OUT))
     c.set_defaults(fn=cmd_calibrate)
+    r = sub.add_parser("run")
+    r.add_argument("--calibration", default=str(CAL_OUT))
+    r.add_argument("--acknowledge-live", nargs="*", default=[])
+    r.add_argument("--json", default=str(RUN_OUT))
+    r.set_defaults(fn=cmd_run)
     args = ap.parse_args(argv)
     return args.fn(args)
 
