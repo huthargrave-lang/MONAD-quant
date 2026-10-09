@@ -226,6 +226,83 @@ watches' own frozen specs whatever route is chosen:
   - a long leg ≤ 0 closes the watch;
   - the CUSUM alarm de-admits.
 
-## Decision-debate consensus
+## Round 3 (2026-10-09): narrow revisions after round 2
 
-(to be filled by the skeptic rounds, then ratified by Hudson)
+**Round-2 verdicts:** Q1 CONCUR (with wording fixes); Q2-Q5 DISPUTE on narrow points.
+Revisions:
+
+- **Q1 wording.**
+  - Anniversaries are pinned by **log position**: an anniversary settles after the 64th session
+    line past the cut, counted in log order. This is what the engine now does (commit b5582a6). It does not
+    depend on `recorded_at`, which varies with when catch-up runs happen.
+  - The two frozen specs cannot gain a structured field. Their first decisive anniversary is
+    read from their frozen wording and pinned by a test on the committed spec (H366200 → 2;
+    H366201 → 4).
+  - New specs must carry the field.
+  - β' is restated per α_i: about 0.205 at α/2 and 0.209 at α/6.
+- **Q2: the founding cohort split, and an honest statement about later watches.**
+  - H366200 and H366201 froze two hours apart, before the policy existed, so their order
+    carries no information. They share γ_1 + γ_2 = 2/3 equally: α_i = α/3 = 0.0167 each,
+    boundary ln(0.8/0.0167) = ln 48 = 3.87.
+  - From ordinal 3 on, γ_i = 1/(i(i+1)), so Σγ = 2/3 + 1/3 = 1.
+  - **Stated plainly in the policy:** ordinal 5's boundary is 6.17 nats, about 137 years of
+    drift at a true Sharpe of 0.3. **Watches from about ordinal 4 on have no practical route.**
+    A new watch is a record, not an admission path, unless a later policy (frozen before its
+    window) re-allocates unspent α.
+  - **Simulated route admission at a true Sharpe of 0.3 (skeptic, 100k paths), for comparison:**
+
+    | Boundary | By 20 years | By 40 years | By 100 years |
+    |---|---|---|---|
+    | ln 32 = 3.47 | 3.5% | 24.6% | 69% |
+    | ln 96 = 4.56 | 0.4% | 9.6% | 56% |
+    | ln 48 = 3.87 (adopted) | between those | between those | between those |
+
+    The implementation publishes the exact figures.
+- **Q3: the alpha input for sizing.** The **stagewise-ordering lower confidence bound** for the
+  frozen route test, at 80%, computed by seeded simulation (the standard for group-sequential
+  designs). A naive bound at a stopping time covers the truth only 64-72% of the time, and 0% at
+  a true Sharpe of 0.15. A sleeve is never sized up later on the same record.
+- **Q4: the CUSUM increment.**
+  - **The increment** is ΔLLR_k = t_k(θ S_k − θ²/2), from **year k's own data only**. A
+    difference of full-record LLRs would revalue the past whenever σ̂ moves.
+  - **The drawdown cut** is checked daily on the paper path. It is a risk limit, not a look.
+    It is the host-with-sleeve nominal maximum drawdown minus the host's alone. A breach sets the
+    size to 0 until a new debate.
+- **Q5: records and ordinals.**
+  - Sizing is a **separate record citing the ADMIT**, not a stage of the ADMIT chain.
+  - An ID must be on the development freeze ledger before `freeze`. Concurrent branches get
+    ordinals in first-parent merge order.
+  - Tests: deleting a branch changes no ordinal and no α_i; a volatility shift alone does not
+    trip the CUSUM.
+
+## Decision-debate consensus (2026-10-09)
+
+**Outcome: three rounds; the skeptic CONCURs on Q1-Q5.** Hudson has not ratified it yet.
+Nothing is implemented beyond the engine corrections to `decide()` (commit b5582a6), which
+fix how the two frozen specs were read and stand whatever route is chosen.
+
+| Q | Agreed fix | Why (evidence) |
+|---|---|---|
+| Q1 test | Upper boundary ln((1−β)/α_i) and lower ln(β/(1−α)) (unchanged). The own promote is non-terminal, but its frozen consequences apply (H366201's close-on-issuance). First decisive anniversary 2 (H366200) and 4 (H366201). Each anniversary settles after the **64th** session line past its cut, by log position, and is written once. | The old loop stopped at the own promote, so the route could never fire. Wald's bound keeps β' ≈ 0.205-0.209 |
+| Q2 multiplicity | An append-only freeze ledger on development (an ID must be listed before `freeze`; concurrent branches take ordinals in first-parent merge order). The founding cohort H366200 and H366201 gets α/3 each (boundary ln 48 = 3.87); from ordinal 3, γ_i = 1/(i(i+1)). α already assigned, including to a closed or voided watch, is **never recycled**; a later policy may reshape only the unassigned tail. **From ordinal 3 on there is no practical route** (5.26 nats: 4.5% by 40 years at a Sharpe of 0.3). | A decision-time m does not control family error in an open-ended stream (about 1.3α). `git log --all` can forget branches |
+| Q3 sizing | Host: the D6 60/40. Sleeve: the tilt book, x ∈ {0, 2.5, 5, 10}%. Risk from the full recorded books. **Alpha:** the stagewise-ordering 80% lower bound, simulated on the full route design. The largest x that lifts the excess Sharpe in both F46 regimes within an extra-drawdown budget **Hudson sets** (proposed: 1 pp). A separate sizing record citing the ADMIT is due in 30 days, or the size is 0. Never sized up later; paper only until Hudson approves. | A naive bound at a stopping time covers the truth only 64-72% of the time (0% at a true Sharpe of 0.15) |
+| Q4 de-admission | A CUSUM on per-year own-data ΔLLR_k (the same pinned windows as the anniversaries), h = 2.0. A daily drawdown cut on the paper path (host-with-sleeve nominal max drawdown minus the host's alone) sets the size to 0 until a new debate. | The close boundary alone de-admits a Sharpe of −0.3 only 4.7% of the time in 20 years. The CUSUM catches 81% (median 13 years), with 6% false alarms |
+| Q5 build | An `admit_watch` ADMIT chain with its own verifier. Stages: registration on first-parent, ledger, chain, evaluator continuity at each line's `code.sha` (attestations only from development), code, refutations, witness, window, sequential, corroboration, void. Records per anniversary (O_EXCL), and a DE-ADMIT state. Sizing is a separate record. Tests: as round 2, plus branch deletion changes no ordinal or α_i, and a volatility shift alone does not trip the CUSUM. | `admit.evaluate` starts with `prereg.load`, and `verify_record` re-loads the preregistration. A hand-written ADMIT must not verify (red-team 7b) |
+
+**Route admission at a true active Sharpe of 0.3** (skeptic, 100k simulated paths, yearly
+checks, close absorbing):
+
+| Boundary | By 20 years | By 40 years | By 100 years |
+|---|---|---|---|
+| ln 48 = 3.87 (founding cohort) | 1.7% | 17.9% | 64.7% |
+| 5.26 (ordinal 3) | 0.1% | 4.5% | 47% |
+
+**For Hudson:** Accept all / Amend Q<n> / Explain Q<n>. Two values are his to set:
+- Q3's drawdown budget (proposed: 1 pp);
+- whether the founding-cohort split (Q2) is preferred over strict freeze order (α/2 and α/6).
+
+**After ratification:**
+- `docs/research/forward_watch/policy/route.json` is replaced by the ratified policy and the
+  freeze ledger, before either watch's PR merges (no window has opened);
+- the `admit_watch` chain is built with its tests;
+- H366201's committed-spec test lands on its branch.
