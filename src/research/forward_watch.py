@@ -326,16 +326,19 @@ def verify(watch: str, watch_dir: Path | None = None, *, repo: Path = REPO) -> l
 
 
 # ── genesis and logging ──────────────────────────────────────────────────────
-def build_snapshot(spec: Mapping, end: str, *, data_dir: Path | None = None, **fetchers) -> str:
-    """A private snapshot of the watch's assets from its fixed start to ``end``
-    (exclusive). Observations are never committed."""
-    base = data_dir or (daily_data.PRIVATE_DATA_DIR / "forward_watch")
+def build_snapshot(spec: Mapping, end: str, *, data_dir: Path | None = None,
+                   private_dir: Path | None = None, **fetchers) -> str:
+    """A snapshot of the watch's assets from its fixed start to ``end`` (exclusive), in
+    the shared store like every other data set a trial cites: the manifest in the
+    committed store, the observations (vendor prices) in the private one."""
     assets = ["SPY"] + sorted({a for pair in spec["pairs"] for a in pair})
-    return daily_data.build_snapshot(assets, spec["snapshot_start"], end, data_dir=base, **fetchers)
+    return daily_data.build_snapshot(assets, spec["snapshot_start"], end, private=True,
+                                     data_dir=data_dir, private_dir=private_dir, **fetchers)
 
 
-def load_snapshot(sha: str, *, data_dir: Path | None = None) -> daily_data.Snapshot:
-    return daily_data.load_snapshot(sha, data_dir=data_dir or (daily_data.PRIVATE_DATA_DIR / "forward_watch"))
+def load_snapshot(sha: str, *, data_dir: Path | None = None,
+                  private_dir: Path | None = None) -> daily_data.Snapshot:
+    return daily_data.load_snapshot(sha, data_dir=data_dir, private_dir=private_dir)
 
 
 @_counted_evaluator

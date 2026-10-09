@@ -38,8 +38,9 @@ admission candidate**.
 - **Log.** `<ID>.jsonl`, daily after each close, catch-up allowed. Each line records:
   - the previous line's sha-256 (a chain), the spec hash, and a clean code sha (the logger
     refuses a dirty tree);
-  - the private snapshot's sha (observations are never committed: option A of
-    `DATA_REDISTRIBUTION_AUDIT.md`);
+  - the snapshot's sha. Its manifest is committed in `docs/research/data` like every data
+    set a trial cites; its observations are vendor prices and stay in the private store
+    (option A of `DATA_REDISTRIBUTION_AUDIT.md`);
   - every book's return and cost, the pair actives and the combined active at 1x and 2x;
   - a hash of the session's inputs;
   - the book state after the session, at full precision.
@@ -97,3 +98,12 @@ venv/bin/python tools/forward_watch.py report <ID>
 
 Automation (a scheduled run plus a commit) is the owner's decision, so it is not set up by
 default.
+
+## Changes
+
+- **2026-10-09, before the window opened: snapshot storage.** Snapshots moved from
+  `local_research_data/forward_watch/` into the shared store: the manifest is committed in
+  `docs/research/data`, and the observations stay private. The reason is the audit's rule that
+  every data set a trial cites has a committed manifest. The genesis snapshot's bytes and sha
+  are unchanged. The change touches `forward_watch.py`, an evaluator source, so the log records it
+  as an attested `evaluator_change` line.
