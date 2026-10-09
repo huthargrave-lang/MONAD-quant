@@ -634,7 +634,9 @@
         "tests/test_bundesbank.py",
         "tests/test_miner_preperiod.py",
         "tests/test_domain_search.py",
-        "tests/test_data_inventory.py"
+        "tests/test_data_inventory.py",
+        "tests/test_data_store.py",
+        "tests/test_private_store.py"
       ],
       "docs": [
         "docs/research/DAILY_STRATEGIES.md",
@@ -664,7 +666,8 @@
         "docs/research/SPINOFF_PRODUCT_PROTOCOL.md",
         "docs/research/SPINOFF_PROTOCOL.md",
         "docs/research/MINER_TILT_PREPERIOD.md",
-        "docs/research/DATA_REDISTRIBUTION_AUDIT.md"
+        "docs/research/DATA_REDISTRIBUTION_AUDIT.md",
+        "docs/research/data/README.md"
       ],
       "do_not_touch_without_approval": false,
       "run_cmd": "venv/bin/python tools/domain_search.py <domain> --snapshot <sha> [--panel <sha>] --report-only"

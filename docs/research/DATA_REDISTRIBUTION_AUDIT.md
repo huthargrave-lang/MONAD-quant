@@ -1,5 +1,12 @@
 # Data redistribution audit (2026-10-09)
 
+> **Decision (2026-10-09): option A, implemented.** No restricted vendor observations
+> are committed any more, and the public site carries no Yahoo data. Git history is
+> untouched. What was done is in [section 5](#5-decision-option-a-2026-10-09). The
+> sources, their terms and the private store are documented in
+> [`data/README.md`](data/README.md). Sections 1 to 4 below are the audit as written
+> before the decision.
+
 **TL;DR.**
 - **The repository is public.** It commits about 37 MB of vendor price observations so
   that every counted trial can be replayed byte for byte:
@@ -121,7 +128,7 @@ The private store already exists on `claude/commodity-linkage` (commit with
      this as a new field.
    - Every trial still replays on any machine that holds the store. The sha in the ledger
      already names the bytes.
-3. **Make the private store portable for collaborators** (proposed, not yet built):
+3. **Make the private store portable for collaborators** (built: see section 5):
    - a tarball of the store with its sha-256 list, shared out of band (not via GitHub);
    - a `tools/data_inventory.py rebuild <sha>` that refetches a snapshot from its manifest
      and verifies the hash. Yahoo revisions can make a rebuild differ; the manifest's
@@ -154,3 +161,59 @@ Recommendation (for discussion): **A now** (steps 1-6 in one PR), then decide **
 on whether past exposure matters enough to accept the breakage. The trial ledger and the
 admission records are unaffected by every option, because they cite data by hash, not by
 path.
+
+## 5. Decision: option A (2026-10-09)
+
+Hudson chose **option A**: stop adding restricted vendor observations to the public
+repository and leave git history as it is. Steps 1 to 6 are implemented on this branch
+(PR #65).
+
+**Result.** `venv/bin/python tools/data_inventory.py` now reports:
+- **0** restricted data sets in the public tree (was 24, 36.4 MB);
+- **24** private data sets, cited by **197** trials, all present and verified in the local
+  store.
+
+```
+committed store (public)                      private store (gitignored)
+docs/research/data/                           local_research_data/
+  every <PREFIX>-<sha>.json manifest  ──sha──▶  DS-*.csv.gz (22, Yahoo)
+  SEC / Fed / Treasury / NOAA / CC observations CEFNAV-*.csv.gz (CEFConnect)
+                                                FUT-*.csv.gz (Yahoo futures)
+          ▲                                             ▲
+          └──── loaders search both, verify sha-256 ────┘
+```
+
+| Step | What was built | Where |
+|---|---|---|
+| 1. Private by default | One policy module decides public or private from a manifest's `sources`. It covers Yahoo/yfinance, CEFConnect and the Frankfurt fixing. Every writer goes through it: `build_snapshot`, `cef_data.write_panel`, `futures_panel.build`, and the SEC panels, which stay public. `private=False` with a restricted source is refused. A restricted file can never be written where git would publish it. Every loader reads the private store and verifies the sha. | `src/research/data_store.py`; writers and loaders in `src/research/` |
+| 2. Migration | `tools/data_inventory.py migrate` moved 22 DS snapshots, CEFNAV-fd7099e2 and FUT-ff5e7e3d (24 files, 36,375,595 bytes). For each file it verified the committed bytes, copied them, verified the copy, then `git rm`'d the original. Each manifest gained exactly one field, `observations`, in its own serialization. Copies are in this worktree's store and in the main checkout's store, both verified. All 24 private data sets load through their normal loaders, and all 31 recorded (domain, data) pairs load through their domains. | commit "Move the 24 restricted vendor data sets ..."; `tests/test_private_store.py` |
+| 3. Portability | `data_inventory.py verify`, `export OUT.tar` and `import IN.tar`. The archive holds the files plus `SHA256SUMS` and `INDEX.json`, and an export is deterministic. Import checks every file against its sha-256 line and its content hash before writing any of them, and refuses links, path traversal and unlisted files. Rebuild guidance is in the data README. | `tools/data_inventory.py`; `tests/test_data_inventory.py`; [`data/README.md`](data/README.md) section 4 |
+| 4. CI and the gate | The witness stage witnesses a private data set's committed manifest on the deploy branch. It verifies the private file locally: present, hashing to the sha, and matching the manifest's record. It records which files it verified that way. Tests that need real observations follow one rule (below). | `tools/admit_tactical.py` `_data_evidence`; `tools/admit.py` `stage_witness`; `tests/_private_store.py` |
+| 5. Pages | The site publishes no Yahoo fundamental, no price, and no number computed from either. It shows the authored universe, tags, buckets, lens definitions, authored-tag lens membership and the repository's own tone readings, with an explicit "kept local" state elsewhere. The policy fails closed on any unclassified field. The export never opens the vendor caches, and the workflow no longer fetches them; it installs `requests` for the tone step. The local server is unchanged. | `tools/research_ui.py` `public_screener_payload`; `tools/export_pages.py`; `.github/workflows/pages.yml`; `docs/research/SCREENER_COMBINED_DRAFT.html` |
+| 6. Attribution | Each source, its terms (the URLs in section 2), what is public and private and why, how to restore the store, and the CC BY-SA attribution for IDXDEL. | [`data/README.md`](data/README.md) |
+
+**Moving the private store to another machine.** Share the archive out of band, never
+through the repository:
+
+```
+venv/bin/python tools/data_inventory.py export ~/monad-private-store.tar   # holder
+venv/bin/python tools/data_inventory.py import ~/monad-private-store.tar   # recipient
+venv/bin/python tools/data_inventory.py verify
+```
+
+**The rule for tests that need real observations** (`tests/_private_store.py`). CI has no
+private store:
+- an **absent** private file skips the test, with a reason naming the file and the
+  restore command;
+- a **present** file must verify: an altered file fails and never skips;
+- with `MONAD_REQUIRE_PRIVATE_STORE=1`, an absent file fails too.
+
+Only the replay checks in `tests/test_private_store.py` need the store. Its policy checks
+always run: no restricted manifest without its record, no committed restricted file, 0
+PUBLIC-RESTRICTED, and every sha a trial cites has its manifest.
+
+**Not done, by decision.**
+- History is not rewritten. The 24 files remain retrievable from earlier commits and PR
+  refs.
+- Options B and C (rewrite history, or make the repository private) remain open. Nothing
+  here forecloses them.
