@@ -23,7 +23,7 @@ sys.path.insert(0, str(REPO / "tools"))
 
 import data_inventory as inv  # noqa: E402
 
-from src.research import bdc_data, cef_data, daily_data, data_store  # noqa: E402
+from src.research import bdc_data, cef_data, cef_etf_tilt, daily_data, data_store  # noqa: E402
 from src.research import deletion_classes, earnings_data, futures_panel, insider_data  # noqa: E402
 from src.research import spinoff_classes, trials  # noqa: E402
 from tests import _private_store as ps  # noqa: E402
@@ -40,6 +40,8 @@ LOADERS = {
     "INSIDER": lambda sha: sha if len(insider_data.load(sha)) else None,
     "SPINEVENTS": lambda sha: spinoff_classes.load_events(sha).sha,
     "IDXDEL": lambda sha: deletion_classes.load_events(sha).sha,
+    # Self-contained: the JSON is the data set. Its NAV panel is a CEFNAV data set of its own.
+    "CEFETF": lambda sha: cef_etf_tilt.load_inputs(sha, panel_loader=lambda _panel: None).sha,
 }
 
 
@@ -77,8 +79,7 @@ class CommittedTreePolicy(unittest.TestCase):
             if data_store.records_private(m):
                 continue
             with self.subTest(data_set=f"{prefix}-{sha[:12]}"):
-                path = data_store.DATA_DIR / data_store.observations_name(prefix, sha)
-                self.assertIsNone(data_store.verify_file(path))
+                self.assertIsNone(data_store.verify_committed(prefix, sha))
 
     def test_every_sha_a_trial_cites_has_its_committed_manifest(self):
         """The ledger names data by sha; a manifest must say what that sha is and, for a
@@ -92,6 +93,13 @@ class CommittedTreePolicy(unittest.TestCase):
 
     def test_every_prefix_has_a_loader(self):
         self.assertLessEqual({p for p, _s, _m in self.manifests}, set(LOADERS))
+
+    def test_every_self_contained_data_set_loads_through_its_loader(self):
+        """Self-contained data sets are committed whole, so they replay everywhere."""
+        for prefix, sha, _m in self.manifests:
+            if data_store.is_self_contained(prefix):
+                with self.subTest(data_set=f"{prefix}-{sha[:12]}"):
+                    self.assertEqual(LOADERS[prefix](sha), sha)
 
 
 class TheSkipRule(unittest.TestCase):

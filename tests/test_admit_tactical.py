@@ -249,6 +249,9 @@ class TacticalGate(unittest.TestCase):
             files = admit_tactical._data_evidence({"snapshot": "s" * 64, "nav_panel": "p" * 64},
                                                   DOMAINS[name]).witnessed
             self.assertTrue(any(f.endswith(f"{prefix}-{'p' * 64}.csv.gz") for f in files), (name, files))
+        files = admit_tactical._data_evidence({"snapshot": "s" * 64, "nav_panel": "p" * 64},
+                                              DOMAINS["cef_etf_tilt"]).witnessed
+        self.assertEqual([f for f in files if "CEFETF" in f], [str(admit_tactical.data_store.DATA_DIR / f"CEFETF-{'p' * 64}.json")])
         for name in ("etf_alloc", "credit_sleeve", "cef_product", "spinoff_product",
                      "merger_arb_product", "buyback_product",
                      "microcap_product"):

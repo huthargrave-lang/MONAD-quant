@@ -6,7 +6,9 @@ of them may be redistributed, and how they are read back verified
 Every frozen data set is ``<PREFIX>-<sha>``: ``<PREFIX>-<sha>.csv.gz`` holds the
 observations and ``<PREFIX>-<sha>.json`` its manifest (sources, vintage, validation). For
 every prefix the sha is the sha-256 of the DECOMPRESSED canonical CSV, so a file names
-exactly one series however it was compressed.
+exactly one series however it was compressed. The exception is a self-contained prefix
+(``SELF_CONTAINED_PREFIXES``): its JSON is the whole data set, our own computations and
+public facts only, and its sha is the sha-256 of the JSON's bytes.
 
 Two stores:
 
@@ -55,6 +57,12 @@ OBSERVATIONS_NAME = re.compile(r"^([A-Z]+)-([0-9a-f]{64})\.csv\.gz$")
 MANIFEST_NAME = re.compile(r"^([A-Z]+)-([0-9a-f]{64})\.json$")
 #: The value of ``observations.stored`` in a manifest whose observations are private.
 PRIVATE_STORED = "private (not redistributable)"
+#: Data sets whose committed JSON is the whole data set: no separate observations file,
+#: and the JSON's own bytes hash to its name. They hold only our own computations (fit
+#: statistics, screens, liquidity tiers) and public SEC facts, never vendor observations,
+#: so they are always public. CEFETF: the CEF vs matched-ETF tilt's frozen inputs
+#: (``src/research/cef_etf_tilt.py``).
+SELF_CONTAINED_PREFIXES = frozenset({"CEFETF"})
 
 #: Vendors whose published terms grant no redistribution right, as (text a manifest's
 #: sources contain, the vendor's name). The audit's section 2 cites each one's terms.
@@ -171,6 +179,16 @@ def observations_name(prefix: str, sha: str) -> str:
     return f"{prefix}-{sha}{OBSERVATIONS_SUFFIX}"
 
 
+def is_self_contained(prefix: str) -> bool:
+    return prefix in SELF_CONTAINED_PREFIXES
+
+
+def committed_name(prefix: str, sha: str) -> str:
+    """The committed file that holds a public data set's observations: the JSON itself for
+    a self-contained prefix, else the csv.gz beside the manifest."""
+    return f"{prefix}-{sha}.json" if is_self_contained(prefix) else observations_name(prefix, sha)
+
+
 def find(prefix: str, sha: str, *, data_dir=None, private_dir=None) -> Path | None:
     """The first store holding ``<prefix>-<sha>.csv.gz`` (committed, then private)."""
     name = observations_name(prefix, sha)
@@ -209,6 +227,39 @@ def verify_file(path: Path) -> str | None:
     if actual != m.group(2):
         return f"{path.name} hashes to {actual[:12]}: the file was altered"
     return None
+
+
+def verify_self_contained(path: Path) -> str | None:
+    """None if ``path`` (a self-contained ``<PREFIX>-<sha>.json``) hashes to its name and
+    stays public, else why not."""
+    m = MANIFEST_NAME.match(path.name)
+    if not m or not is_self_contained(m.group(1)):
+        return f"{path.name} is not a self-contained data set"
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        return f"{path.name} cannot be read: {type(exc).__name__}: {exc}"
+    actual = hashlib.sha256(raw).hexdigest()
+    if actual != m.group(2):
+        return f"{path.name} hashes to {actual[:12]}: the file was altered"
+    try:
+        doc = json.loads(raw)
+    except ValueError as exc:
+        return f"{path.name} is not JSON: {exc}"
+    if records_private(doc):
+        return f"{path.name} is self-contained, so it cannot record private observations"
+    vendors = manifest_restricted_vendors(doc) if isinstance(doc, Mapping) else []
+    if vendors:
+        return f"{path.name} names {', '.join(vendors)} sources, which a public data set may not hold"
+    return None
+
+
+def verify_committed(prefix: str, sha: str, *, data_dir=None) -> str | None:
+    """None if a public data set's committed observations hash to its name, else why not."""
+    path = (Path(data_dir) if data_dir is not None else DATA_DIR) / committed_name(prefix, sha)
+    if not path.is_file():
+        return f"{path.name}: not committed"
+    return verify_self_contained(path) if is_self_contained(prefix) else verify_file(path)
 
 
 def _missing_hint(prefix: str, sha: str, data_dir) -> str:

@@ -7,7 +7,9 @@ Every content-addressed data set is ``<PREFIX>-<sha>`` (DS snapshots; CEFNAV, BD
 MREITBV, FUT, EARNDATES, INSIDER, SPINEVENTS and IDXDEL panels). Its manifest is committed
 under ``docs/research/data``. Its observations are committed there too when the source's
 terms allow redistribution, and otherwise kept in the gitignored private store
-``local_research_data/`` (``src/research/data_store.py`` decides which).
+``local_research_data/`` (``src/research/data_store.py`` decides which). A self-contained
+data set (CEFETF, the CEF vs matched-ETF tilt's frozen inputs) is its committed JSON alone:
+our own computations and SEC facts, hashing to its name.
 
     venv/bin/python tools/data_inventory.py [--json out.json] [--restricted-only]
         every data set: where its observations are, the restricted vendor its manifest
@@ -109,7 +111,8 @@ def inventory(data_dir: Path = DATA_DIR, records=None, store: Path | None = None
     rows = []
     for prefix, sha, man in _manifests(data_dir):
         manifest = json.loads(man.read_text(encoding="utf-8"))
-        obs = [p for p in Path(data_dir).glob(f"{prefix}-{sha}*") if p.suffix != ".json"]
+        obs = ([man] if data_store.is_self_contained(prefix) else
+               [p for p in Path(data_dir).glob(f"{prefix}-{sha}*") if p.suffix != ".json"])
         private = data_store.records_private(manifest)
         vendors = restricted_vendors(manifest)
         local = Path(store) / data_store.observations_name(prefix, sha) if store is not None else None
@@ -180,6 +183,10 @@ def verify_store(data_dir: Path = DATA_DIR, store: Path = PRIVATE_DATA_DIR) -> S
     referenced = set()
     for prefix, sha, man in _manifests(data_dir):
         manifest = json.loads(man.read_text(encoding="utf-8"))
+        if data_store.is_self_contained(prefix):
+            problem = data_store.verify_self_contained(man)
+            (rep.problems.append(f"committed: {problem}") if problem else rep.verified_committed.append(man.name))
+            continue
         name = data_store.observations_name(prefix, sha)
         committed = Path(data_dir) / name
         if data_store.records_private(manifest):

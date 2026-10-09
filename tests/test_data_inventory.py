@@ -124,6 +124,31 @@ class Verify(StoreFixture):
         self.assertTrue(any("altered" in p for p in rep.problems), rep.problems)
         self.assertTrue(any("PUBLIC-RESTRICTED" in p for p in rep.problems), rep.problems)
 
+    def self_contained(self, doc: dict) -> Path:
+        import hashlib
+        raw = (json.dumps(doc, sort_keys=True) + "\n").encode()
+        path = self.data / f"CEFETF-{hashlib.sha256(raw).hexdigest()}.json"
+        path.write_bytes(raw)
+        return path
+
+    def test_a_self_contained_data_set_is_its_json_and_stays_public(self):
+        good = self.self_contained({"mapping": {"AAA": {"etf": "MUB", "beta": 1.2}}})
+        rep = inv.verify_store(self.data, self.store)
+        self.assertTrue(rep.ok, rep.problems)
+        self.assertEqual(rep.verified_committed, [good.name])
+        (row,) = inv.inventory(self.data, records=[], store=self.store)
+        self.assertEqual((row["observation_files"], row["observations_private"], row["restricted_vendors"]),
+                         ([good.name], False, []))
+        self.assertFalse(row["publicly_redistributed_restricted"])
+
+    def test_an_altered_or_vendor_sourced_self_contained_data_set_is_a_problem(self):
+        altered = self.self_contained({"mapping": {}})
+        altered.write_text('{"mapping": {"AAA": 1}}\n', encoding="utf-8")
+        self.self_contained({"sources": {"prices": "yfinance 1.2.0"}})
+        problems = inv.verify_store(self.data, self.store).problems
+        self.assertTrue(any("altered" in p for p in problems), problems)
+        self.assertTrue(any("Yahoo" in p for p in problems), problems)
+
     def test_store_files_no_manifest_names_are_reported_not_failed(self):
         stored(self.store, "DS", "orphan\n")
         rep = inv.verify_store(self.data, self.store)

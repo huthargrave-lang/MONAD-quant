@@ -171,9 +171,9 @@ def _data_evidence(spec_data: dict, domain: Domain, *, data_dir: Path | None = N
             store = Path(private_dir) if private_dir is not None else data_store.PRIVATE_DATA_DIR
             private.append(str(store / data_store.observations_name(prefix, sha)))
             problems += data_store.verify_private(prefix, sha, manifest, private_dir=store)
-        else:
+        elif not data_store.is_self_contained(prefix):
             witnessed.append(str(base / data_store.observations_name(prefix, sha)))
-        witnessed.append(str(manifest_path))
+        witnessed.append(str(manifest_path))           # a self-contained data set is its JSON
     return DataEvidence(witnessed, private, problems)
 
 
