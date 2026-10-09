@@ -252,3 +252,14 @@ R0, R2 and R2b can only downgrade.
 | Mechanical consequence through `refute.py object`; web links | adversary |
 | "Explained" split into static and timing parts; CEFS decides and MDCEX corroborates; the power text corrected | adversary, statistics |
 | Not adopted: Vasicek shrinkage of betas. With g = 1, beta noise adds variance only, and shrinkage would add a choice | statistics (suggested) |
+
+## Clarification 1 (2026-10-09, before any computation on real data)
+
+- **R3 is computed for H404702 only.** The protocol says IEF is in the positive control's
+  snapshot. It is not: DS-c6ac870a's universe has no IEF.
+  - Substituting another bond ETF would be a new choice, so R3 is not computed for the
+    positive control.
+  - The positive control's verdict uses the remaining checks.
+  - This changes nothing about H404702 (DS-18cef162 holds IEF).
+- **The replays use each recorded trial's own point** (`class` and `params` from its ledger
+  spec), not a domain default. This guarantees they are the same points.
