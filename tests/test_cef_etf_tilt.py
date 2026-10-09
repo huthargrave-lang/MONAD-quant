@@ -107,6 +107,12 @@ class Rule(unittest.TestCase):
         self.assertTrue((after == 0.5).all())
         self.assertFalse((ce.fund_states(self.inputs, self.snap, "M0") == 0.5).all())
 
+    def test_a_corporate_action_window_near_a_cut_reads_no_future(self):
+        filed = str(self.snap.dates[1500].date())
+        inp = inputs_for(self.snap, self.panel, corporate_actions={"M0": [["SC TO-I", filed]]})
+        cut = self.snap.dates[1500 + 200]                       # inside the 52-week window
+        self.assertEqual(ce.truncation_violations(self.snap, inp, ce.grid()[0], [cut]), [])
+
     def test_benchmark_holds_every_slot_at_half_and_no_lookahead(self):
         wb = ce.weights(self.inputs, self.snap, "bench")
         m0 = self.inputs.matched["M0"]["etf"]

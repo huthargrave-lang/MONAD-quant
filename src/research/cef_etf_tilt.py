@@ -371,9 +371,11 @@ def _neutral_masks(inputs: Inputs, snap: Snapshot, fund: str) -> pd.Series:
     mask = pd.Series(False, index=dates)
     obs = inputs.panel.nav[fund].dropna().index
     for _form, filed in d["corporate_actions"].get(fund, []):
+        # The window's end is fixed at the filing: 52 weeks of the fund's weekly NAV
+        # schedule, known in advance. (Counting the observations that later arrive would
+        # end it early on a truncated panel: look-ahead, correction 1.)
         f = pd.Timestamp(filed)
-        later = obs[obs > f]
-        end = later[min(NEUTRAL_WEEKS, len(later)) - 1] if len(later) else dates[-1]
+        end = f + pd.Timedelta(weeks=NEUTRAL_WEEKS)
         mask |= (dates > f) & (dates <= end)
     ch = d["index_changes"].get(fund)
     if ch:

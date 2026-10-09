@@ -185,3 +185,22 @@ family that can never reach 5 after matching and exclusions; EM income has only 
 funds in all. Such a family is **dropped**, and the drop is recorded in the inputs artifact
 (`dropped_families`). The window opens when every remaining family has 5. The rule is
 mechanical and depends only on fund counts, never on returns.
+
+## Correction 1 (2026-10-09, after the first counted run): look-ahead in the corporate-action window
+
+**The fault.** The first counted run (benchmark TR-20261009T073344Z-da2b0d8d, search
+TR-20261009T073345Z-a23cff09) failed the look-ahead check at 9 of 12 cuts. The code ended a
+corporate-action window at the 52nd NAV observation after the filing. On a panel truncated
+inside the window, those observations do not exist yet, so the window ended early and the
+fund read non-neutral just before the cut.
+
+**The fix.** The window ends at the filing date plus 52 calendar weeks. This is the same span
+on the fund's weekly NAV schedule, and it is known at the filing.
+
+**Why this is a correction, not a change of rule.** The protocol's own look-ahead check
+invalidates the first run. On a weekly schedule the fix moves a window's end by days, and
+only where observations are missing.
+
+The first run's result is recorded and disclosed: active Sharpe +0.58, worst-block SPA p
+0.054, look-ahead violations present. It is **void**. Only the rerun counts. An earlier
+attempt (TR-20261009T073246Z) failed on a missing cost tier before producing any result.
