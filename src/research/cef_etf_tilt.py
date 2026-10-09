@@ -486,8 +486,14 @@ def decide(snap: Snapshot, inputs: Inputs, point: Mapping) -> list[Tranche]:
     return out
 
 
+FUND_TIER = {"cef": "cef_plus", "cef_thin": "cef_thin"}
+
+
 def tiers(inputs: Inputs) -> dict:
-    out = {f: v["tier"] for f, v in inputs.data["tiers"].items()}
+    """Protocol costs: funds at cef + 2 bps (17) or cef_thin (42/62), every ETF at
+    tier1 + 2 bps (4/7)."""
+    out = {f: FUND_TIER[v["tier"]] for f, v in inputs.data["tiers"].items()}
+    out.update({e: "tier1_plus" for e in candidates()})
     return out
 
 

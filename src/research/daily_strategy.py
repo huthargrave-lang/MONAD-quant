@@ -70,6 +70,12 @@ COST_BPS = {
     # 1984-2005 miner/metal test (docs/research/MINER_TILT_PREPERIOD.md, board 2026-10-09).
     "basket_pre_decimal": {"pre": 35.0, "post": 35.0},
     "bullion": {"pre": 20.0, "post": 20.0},
+    # The CEF vs matched-ETF tilt (docs/research/CEF_ETF_TILT_PROTOCOL.md): a $10M book in
+    # ~190 slots x 21 tranches makes orders small, so a per-order minimum commission of at
+    # most 2 bps is added to each tier; thin funds (median daily dollar volume < $1M) trade wider.
+    "cef_plus": {"pre": 32.0, "post": 17.0},
+    "cef_thin": {"pre": 62.0, "post": 42.0},
+    "tier1_plus": {"pre": 7.0, "post": 4.0},
 }
 TIER2 = frozenset({"EEM", "DBC", "VNQ"})
 

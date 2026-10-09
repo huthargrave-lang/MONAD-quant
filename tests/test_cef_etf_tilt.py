@@ -118,6 +118,17 @@ class Rule(unittest.TestCase):
         self.assertEqual(ce.truncation_violations(self.snap, self.inputs, ce.lag_grid()[0], [cut]), [])
 
 
+class Costs(unittest.TestCase):
+    def test_protocol_tiers_exist_and_map(self):
+        from src.research.daily_strategy import COST_BPS
+        snap, panel, _f = world()
+        inp = inputs_for(snap, panel, tiers={"M0": {"tier": "cef_thin"}, "E0": {"tier": "cef"}})
+        t = ce.tiers(inp)
+        self.assertEqual((t["M0"], t["E0"], t["MUB"], t["SPY"]), ("cef_thin", "cef_plus", "tier1_plus", "tier1_plus"))
+        self.assertEqual((COST_BPS["cef_plus"]["post"], COST_BPS["cef_thin"]["post"], COST_BPS["tier1_plus"]["post"]),
+                         (17.0, 42.0, 4.0))
+
+
 class Decomposition(unittest.TestCase):
     def test_within_plus_category_equals_the_fund_active_sum(self):
         import cef_etf_report as rep
