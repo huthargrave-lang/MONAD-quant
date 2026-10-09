@@ -437,6 +437,33 @@ PRE_LAGS = _preperiod_domain("miner_preperiod_lags", _mp.MINER, _mp.GOLD_FFM, _m
                              _ERAS_A, lags=(3, 6))
 
 
+# ── CEF vs matched-ETF discount tilt (docs/research/CEF_ETF_TILT_PROTOCOL.md) ─────────
+from src.research import cef_etf_tilt as _ce  # noqa: E402
+
+
+def _cef_etf_load(data: Mapping) -> Context:
+    inputs = _ce.load_inputs(data["nav_panel"])
+    return Context(snap=daily_data.load_snapshot(data["snapshot"]), panel=inputs)
+
+
+def _cef_etf_domain(name: str, grid, reference, start) -> Domain:
+    # Prior 24: the metal trust's 22 plus drafts F and G (board, 2026-10-09). Not an
+    # admission candidate (the gate would need worst-block p <= 0.002).
+    return Domain(
+        name=name, reference=reference, eras=_ce.ERAS, load=_cef_etf_load,
+        decide=lambda ctx, point: _ce.decide(ctx.snap, ctx.panel, point),
+        tiers=lambda ctx: _ce.tiers(ctx.panel), start=start,
+        truncation=lambda ctx, point, cuts: _ce.truncation_violations(ctx.snap, ctx.panel, point, cuts),
+        grids=lambda: {"v1": grid}, prior_search_trials=_ce.PRIOR, panel_prefix=_ce.PREFIX)
+
+
+CEF_ETF = _cef_etf_domain("cef_etf_tilt", _ce.grid, _ce.REFERENCE, lambda ctx: _ce.scoring_start(ctx.panel))
+CEF_ETF_LAG = _cef_etf_domain("cef_etf_tilt_lag", _ce.lag_grid, _ce.REFERENCE,
+                              lambda ctx: _ce.scoring_start(ctx.panel))
+CEF_ETF_STAGED = _cef_etf_domain("cef_etf_tilt_staged", _ce.staged_grid, _ce.STAGED_REFERENCE,
+                                 lambda ctx: _ce.staged_start(ctx.snap, ctx.panel))
+
+
 # ── Physical-metal trust discount tilt (docs/research/METAL_TRUST_DISCOUNT_PROTOCOL.md) ──
 from src.research import metal_trust_classes as _mt  # noqa: E402
 from src.research import cef_data as _cef_data  # noqa: E402
@@ -459,5 +486,6 @@ DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO, COUNTRY, BDC
                                                   LOTTERY_RECENT, BETA_PAIR, LEVERED,
                                                   MINER_RATIO, OIL_TREND, SILVER_RATIO,
                                                   JUNIOR_RATIO, GOLD_SILVER_RATIO, PLACEBO_RATIO,
-                                                  METAL_TRUST, PRE_A, PRE_B, PRE_PLACEBO, PRE_LAGS)}
+                                                  METAL_TRUST, PRE_A, PRE_B, PRE_PLACEBO, PRE_LAGS,
+                                                  CEF_ETF, CEF_ETF_LAG, CEF_ETF_STAGED)}
 

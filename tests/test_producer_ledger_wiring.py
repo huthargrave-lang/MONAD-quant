@@ -34,6 +34,10 @@ DEFINING = {"src/backtest/runner.py", "src/strategy/engine.py", "src/research/da
 #: (file, helper) -> the counted wrapper that is its only permitted caller.
 DELEGATED = {
     ("src/optimization/walk_forward.py", "_run_slice"): "_counted_slice",
+    # The forward watch's counted evaluations (decorated with src/strategy/counted.evaluator):
+    # each is called only by wrappers that begin a trial first.
+    ("src/research/forward_watch.py", "evaluate_session"): ("log_sessions", "_corrections"),
+    ("src/research/forward_watch.py", "genesis_books"): ("write_genesis",),
 }
 
 #: Files that call an evaluator without counting, and why that cannot inflate a result.
@@ -111,19 +115,23 @@ def _audit(rel):
 
 
 def _audit_delegation(rel, tree, helper, wrapper, scopes):
-    problems = []
-    if wrapper not in scopes:
-        return [f"{rel}: delegated wrapper {wrapper}() for {helper}() no longer exists"]
+    """``wrapper``: the one function (str) or the functions (tuple) allowed to call
+    ``helper``, each only after counting."""
+    wrappers = (wrapper,) if isinstance(wrapper, str) else tuple(wrapper)
+    problems = [f"{rel}: delegated wrapper {w}() for {helper}() no longer exists"
+                for w in wrappers if w not in scopes]
+    if problems:
+        return problems
     for name, node in _scopes(tree):
         calls = _own_calls(node)
         for call in calls:
             if _name(call) != helper:
                 continue
-            if name != wrapper:
+            if name not in wrappers:
                 problems.append(f"{rel}:{call.lineno} {name}() calls {helper}() directly; "
-                                f"only {wrapper}() may")
+                                f"only {', '.join(w + '()' for w in wrappers)} may")
             elif not _is_counted(calls, call.lineno):
-                problems.append(f"{rel}:{call.lineno} {wrapper}() calls {helper}() before counting")
+                problems.append(f"{rel}:{call.lineno} {name}() calls {helper}() before counting")
     return problems
 
 

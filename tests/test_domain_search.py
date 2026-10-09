@@ -52,6 +52,13 @@ class Stress(unittest.TestCase):
         # The base report is unchanged by the stress runs (it reads cost_multiple 1 only).
         self.assertEqual(domain_search.report(self.domain, self.ctx)["rows"][0]["key"], base["key"])
 
+    def test_rerun_records_a_new_latest_stress(self):
+        domain_search.run(self.domain, self.ctx, "v1")
+        domain_search.stress(self.domain, self.ctx, "v1", multiple=2.0)
+        n = len(list(trials.iter_trials()))
+        domain_search.stress(self.domain, self.ctx, "v1", multiple=2.0, rerun=True)
+        self.assertEqual(len(list(trials.iter_trials())), n + 2)
+
     def test_a_non_positive_multiple_is_refused(self):
         with self.assertRaises(ValueError):
             domain_search.stress(self.domain, self.ctx, "v1", multiple=0.0)

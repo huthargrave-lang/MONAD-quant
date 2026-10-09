@@ -72,6 +72,12 @@ DOMAINS = {
     "miner_preperiod_b": {"family": "miner_preperiod_b", "reference_class": "pair_static"},
     "placebo_preperiod": {"family": "placebo_preperiod", "reference_class": "pair_static"},
     "miner_preperiod_lags": {"family": "miner_preperiod_lags", "reference_class": "pair_static"},
+    "cef_etf_tilt": {"family": "cef_etf_tilt", "reference_class": "cef_etf_bench"},
+    "cef_etf_tilt_lag": {"family": "cef_etf_tilt_lag", "reference_class": "cef_etf_bench"},
+    "cef_etf_tilt_staged": {"family": "cef_etf_tilt_staged", "reference_class": "cef_etf_bench"},
+    # Leave-one-family-out diagnostics of cef_etf_tilt: each point has its own benchmark,
+    # so they are kept out of the search's family (tools/cef_etf_report.py).
+    "cef_etf_tilt_lofo": {"family": "cef_etf_tilt_lofo", "reference_class": "cef_etf_bench"},
 }
 DEFAULT_DOMAIN = "etf_alloc"      # trials recorded before domains existed (the v1 search)
 

@@ -222,3 +222,104 @@ error of the active Sharpe is about 0.225.
 | No observation committed (Bundesbank/ESCB and Yahoo terms); manifests with payload hashes | provenance |
 | Corrected provenance (ASA/CEF/GLD manifests) and a 1984-1995 diagnostic | provenance |
 | A test that gold moving only after the fixing earns nothing, plus a positive control | provenance (the positive control was added so the zero test is not dead) |
+
+## Amendment 1 (2026-10-09): segment B carries; NOT RUN unless one bounded search clears it
+
+**Defect.** The carry rule defined "explained" only for the Frankfurt source, so every
+GC=F carry counted as unexplained. Segment A built cleanly:
+- snapshot DS-89c27562;
+- 3800 sessions;
+- 113 carries, all explained by Frankfurt closures;
+- 0 unexplained.
+
+Segment B's build stopped with 14 of 1341 sessions (1.04%) having no GC=F settle.
+
+**Repair** (board ruling, made before any return was computed). A segment-B carry is
+explained when NYMEX/COMEX declared that session a non-trading day. Two kinds of evidence
+count:
+- a primary exchange document: a NYMEX, COMEX or CME notice, a clearing advisory, or a
+  CFTC filing;
+- an exchange-stated standing practice that no segment-B date contradicts.
+
+The citations are NYMEX's release of 2006-10-11 (2007 holiday schedule, announcing the
+day after Thanksgiving as a new trading day) and NYMEX's notice of 2001-10-30 (the board
+approves closing the day after Thanksgiving).
+
+**Classification:**
+
+| Status | Dates |
+|---|---|
+| Explained (6) | 2000-11-24, 2001-11-23, 2002-11-29, 2003-11-28, 2004-11-26, 2005-11-25 |
+| Pending documents (5) | 2001-12-24, 2002-07-05, 2003-12-26, 2004-01-02, 2004-12-31 |
+| Vendor gaps (3) | 2005-03-30, 2005-04-28, 2005-06-29 |
+
+That leaves 8/1341 = 0.60% unexplained, above the 0.5% cap (at most 6). **NOT RUN stands
+unless one bounded search finds year-specific primary documents for at least 2 of the 5
+pending dates.** The search's results are recorded and final, including any document that
+contradicts a closure. If it falls short, the whole test is NOT RUN and the stopping rule
+applies.
+
+**The bounded search, fixed before it runs:**
+- one web search per pending date for a NYMEX/COMEX closure notice for that date;
+- one search per year 2001-2004 for that year's NYMEX/COMEX holiday schedule;
+- nothing else.
+
+Only primary exchange documents, or verbatim republications of them, count.
+
+**Rejected, with reasons:**
+- **The NYSE early-close rule:** it belongs to another exchange, and five NYSE early-close
+  days in B have a GC=F settle.
+- **A bridge-day pattern:** it is inferred from the gaps themselves, and 2001-12-31 breaks
+  it.
+- **A third-party COMEX holiday table (QuantConnect Lean):** it copies the NYSE list and
+  omits NYMEX's documented 2001-11-23 closure.
+- **Segment A alone:** this is the fork that making B mandatory closed.
+- **A substitute source for B:** source-shopping after a NOT RUN.
+
+**Attestation.** No return, price, ratio or level of ^XAU, gold, GC=F, ^GSPC or any proxy
+dated 1983-2005 has been computed or viewed. The amendment used only:
+- session dates;
+- whether a GC=F row exists on each date;
+- exchange calendar documents.
+
+Segment A is built and has not been scored.
+
+**Open provenance item, for a separate board.** GC=F rows exist on 2002-12-24 and
+2003-12-24, days NYMEX's practice implies were not official trading days; they may not be
+real settlements.
+
+## Result: NOT RUN (2026-10-09). No return was computed.
+
+**The bounded search (amendment 1) documented 0 of the 5 pending dates; at least 2 were
+needed.** Nine searches ran: one per date, and one per year for the 2001-2004 schedules.
+- **No primary NYMEX, COMEX, CME or CFTC document was found** for 2001-12-24, 2002-07-05,
+  2003-12-26, 2004-01-02 or 2004-12-31.
+- Results were dominated by notices from 2006 onward, and CME's archive is not indexed
+  for these years.
+- **The only date-specific evidence cuts against a closure on 2002-07-05:**
+  - FINRA Notice to Members 02-38 treats that day as a normal trading day for the
+    securities markets;
+  - a third-party COMEX holiday table lists 2002-07-04 but not 07-05 (third-party, so it
+    is not decisive, and it was rejected as a source anyway).
+
+So 8 of segment B's 1341 sessions (0.60%) stay unexplained, against a cap of 0.5%.
+**Segment B fails its frozen data screen, and the whole test is NOT RUN.** Segment A alone
+is not scored. Its snapshot (DS-89c27562; manifest committed, observations private) stays
+built and unscored, so the fork that making B mandatory was meant to close cannot be taken.
+
+**Stopping rule.** This was the rule's last historical test. No index, single stock, pair
+or segment from before 2006 may be tested. The only remaining path for the F366200 tilt
+family is a forward window.
+
+**What this means for the lead:**
+- The miner-overshoot tilt stays where F366201 left it: the same sign in three miner pairs
+  over 2016-2026 (+0.27 / +0.34 / +0.32), absent in the controls, and not significant.
+- A forward paper record is now the only evidence that can promote it or close it.
+
+**What the work leaves behind:**
+- a redistribution-safe private data store;
+- a Bundesbank fetcher;
+- close-only and fixing-calendar execution in the rule engine;
+- exact per-asset weights from the evaluator;
+- a counted cost stress for every domain;
+- the noise-placebo machinery.

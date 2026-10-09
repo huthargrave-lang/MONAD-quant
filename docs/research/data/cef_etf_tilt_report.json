@@ -1,0 +1,131 @@
+{
+ "schema_version": 1,
+ "vintage": "2026-10-09",
+ "protocol": "docs/research/CEF_ETF_TILT_PROTOCOL.md",
+ "window": [
+  "2016-08-22",
+  "2026-10-02"
+ ],
+ "verdict_inputs": {
+  "sharpe": 0.5721567975012938,
+  "t": 1.8175567157339334,
+  "sharpe_2017_on": 0.5211296329231498,
+  "beta_control_total": {
+   "alpha_weekly": 2.5092287758624244e-05,
+   "alpha_ann": 0.0013047989634484606,
+   "alpha_t": 0.4640163060685521,
+   "weeks": 509
+  },
+  "beta_control_cat": {
+   "alpha_weekly": -6.416208951650263e-06,
+   "alpha_ann": -0.00033364286548581365,
+   "alpha_t": -0.13337691527359316,
+   "weeks": 509
+  },
+  "within_ann": 0.00620737609476316,
+  "cat_ann": 0.006355671856909661,
+  "D_mean_weekly": 0.0002384839439063492,
+  "D_t": 3.1419637713215844,
+  "D_reconciliation_corr": 0.9179882787477637,
+  "long_leg_ann": 0.007429503002400121,
+  "leave_one_family_out": {
+   "convertibles": {
+    "sharpe": 0.51485740990483,
+    "alpha": {
+     "alpha_weekly": 3.510526152510807e-05,
+     "alpha_ann": 0.0018254735993056197,
+     "alpha_t": 0.67421005814102,
+     "weeks": 509
+    }
+   },
+   "em_income": {
+    "sharpe": 0.4946009147527064,
+    "alpha": {
+     "alpha_weekly": 1.8818690708848235e-05,
+     "alpha_ann": 0.0009785719168601081,
+     "alpha_t": 0.37832827586154544,
+     "weeks": 509
+    }
+   },
+   "high_yield": {
+    "sharpe": 0.5372594164875742,
+    "alpha": {
+     "alpha_weekly": 1.792259637180717e-05,
+     "alpha_ann": 0.0009319750113339729,
+     "alpha_t": 0.3173479911330315,
+     "weeks": 509
+    }
+   },
+   "inv_grade": {
+    "sharpe": 0.5344377150567317,
+    "alpha": {
+     "alpha_weekly": 3.815561972824311e-05,
+     "alpha_ann": 0.0019840922258686417,
+     "alpha_t": 0.6727729577648491,
+     "weeks": 509
+    }
+   },
+   "loans": {
+    "sharpe": 0.6137614822454428,
+    "alpha": {
+     "alpha_weekly": 4.9977332477258716e-05,
+     "alpha_ann": 0.0025988212888174533,
+     "alpha_t": 0.8362288601555563,
+     "weeks": 509
+    }
+   },
+   "muni": {
+    "sharpe": 0.5842499979371233,
+    "alpha": {
+     "alpha_weekly": 3.8631845409098714e-05,
+     "alpha_ann": 0.002008855961273133,
+     "alpha_t": 0.6621235173701873,
+     "weeks": 509
+    }
+   },
+   "preferreds": {
+    "sharpe": 0.5370798867471581,
+    "alpha": {
+     "alpha_weekly": 7.6056637504050925e-06,
+     "alpha_ann": 0.00039549451502106484,
+     "alpha_t": 0.13480939872071404,
+     "weeks": 509
+    }
+   },
+   "real_estate": {
+    "sharpe": 0.607423183477578,
+    "alpha": {
+     "alpha_weekly": 3.515421594032369e-05,
+     "alpha_ann": 0.0018280192288968318,
+     "alpha_t": 0.6275473661633565,
+     "weeks": 509
+    }
+   },
+   "us_equity": {
+    "sharpe": 0.6104516299721111,
+    "alpha": {
+     "alpha_weekly": 4.052385330136421e-05,
+     "alpha_ann": 0.002107240371670939,
+     "alpha_t": 0.6881069556269724,
+     "weeks": 509
+    }
+   }
+  },
+  "episodes_by_family": {
+   "loans": 165,
+   "us_equity": 238,
+   "muni": 1051,
+   "convertibles": 133,
+   "high_yield": 317,
+   "inv_grade": 139,
+   "preferreds": 230,
+   "em_income": 104,
+   "real_estate": 125
+  },
+  "eras": [
+   1.9199025558186442,
+   0.48495872490205233,
+   0.5790454600440909
+  ]
+ }
+}
