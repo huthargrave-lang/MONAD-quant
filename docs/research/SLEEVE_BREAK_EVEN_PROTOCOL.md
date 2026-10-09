@@ -68,3 +68,36 @@ Sharpe, and before it stopped deepening the drawdown?
   That is approximately true by construction of F366205's control.
 - Daily rebalancing ignores sleeve trading costs beyond those already inside the recorded
   series.
+
+## Result (2026-10-09): CEF sleeves would lift Sharpe and deepen drawdowns
+
+Result file: `docs/research/data/sleeve_break_even.json`. The tool was committed before the
+run. The only change after the first run adds which side a missing crossing falls on.
+
+| Sleeve (corroborated α) | Window | α for Sharpe (carve 5 / 10 / 20%) | α for drawdown (5 / 10 / 20%) |
+|---|---|---|---|
+| EW-CEF, H404702's benchmark (+2.26%/yr) | full 2007-06..2026-10 | +1.23 / +1.34 / +1.55% | +11.7 / +12.2 / +17.4% |
+| | negative corr. to 2022-07 | +1.26 / +1.38 / +1.63% | +11.7 / +12.2 / +17.4% |
+| | positive corr. 2022-08 on | +1.20 / +1.24 / +1.30% | +14.5 / +14.5 / +14.5% |
+| PCEF, CEFS's benchmark (+4.40%/yr) | full 2012-12..2026-10 | +2.65 / +2.76 / +2.98% | +3.12 / +3.14% / none (worse even at +40%) |
+| | negative corr. to 2022-07 | +3.38 / +3.53 / +3.83% | none (worse even at +40%) |
+| | positive corr. 2022-08 on | +1.27 / +1.31 / +1.41% | +9.3 / +9.3 / +10.8% |
+
+**Reading.**
+- **Sharpe.** Both corroborated alphas clear the Sharpe break-even in both correlation
+  regimes, at every carve-out. A CEF sleeve at the in-sample α would have raised the 60/40's
+  excess Sharpe.
+- **Drawdown.**
+  - Neither sleeve's α comes close to its drawdown break-even (+9 to +17%/yr). Before 2022, no
+    α up to +40%/yr keeps a PCEF/CEFS sleeve from deepening the drawdown: CEFs fall much harder
+    in the same crashes, with a correlation of 0.78-0.86.
+  - The one exception is CEFS over the full window at a 5-10% carve: 4.40% exceeds 3.12%.
+    It arises because the 60/40's own worst drawdown in that window is 2022's (−21.2%), and the
+    mix's worst stays shallower than that at a lower α. Within the pre-2022 regime alone, no α
+    suffices.
+- **For the product (D6/D8: a low-drawdown bond alternative).** A CEF sleeve trades
+  drawdown for Sharpe.
+  - CEF admission matters only to a Sharpe-seeking product.
+  - Under the capital-preservation mandate it is **off the critical path**. It is a sleeve
+    choice that deepens the drawdowns D8 exists to avoid.
+- **This is not evidence that any alpha persists.** The alphas are in-sample.

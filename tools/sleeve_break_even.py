@@ -52,9 +52,19 @@ def mix(p: pd.Series, b: pd.Series, x: float, alpha: float) -> pd.Series:
     return (1.0 - x) * p + x * (b + alpha / 252.0)
 
 
+def no_crossing(metric, target: float, p, b, x) -> str | None:
+    """Why ``break_even`` found none: the mix already beats the product at the lowest alpha,
+    or still falls short at the highest."""
+    if metric(mix(p, b, x, LO)) > target:
+        return f"none: better even at {LO:+.0%}/yr"
+    if metric(mix(p, b, x, HI)) < target:
+        return f"none: worse even at {HI:+.0%}/yr"
+    return None
+
+
 def break_even(metric, target: float, p, b, x) -> float | None:
     """The alpha in [LO, HI] at which ``metric(mix)`` equals ``target`` (it rises with
-    alpha), or None when there is no crossing."""
+    alpha), or None when there is no crossing (``no_crossing`` says which side)."""
     f = lambda a: metric(mix(p, b, x, a)) - target          # noqa: E731
     lo, hi = LO, HI
     if f(lo) > 0 or f(hi) < 0:
@@ -91,6 +101,8 @@ def study() -> dict:
                 a_s = break_even(lambda r: sharpe(r, cash), sh_p, p, b, x)
                 a_d = break_even(max_drawdown, dd_p, p, b, x)
                 per[f"{x:.0%}"] = {"alpha_sharpe_break_even": a_s, "alpha_drawdown_break_even": a_d,
+                                   "sharpe_no_crossing": no_crossing(lambda r: sharpe(r, cash), sh_p, p, b, x),
+                                   "drawdown_no_crossing": no_crossing(max_drawdown, dd_p, p, b, x),
                                    "corroborated_alpha_clears_sharpe": None if a_s is None else cfg["alpha"] > a_s,
                                    "corroborated_alpha_clears_drawdown": None if a_d is None else cfg["alpha"] > a_d}
             rows[wname] = {"first": str(idx[0].date()), "last": str(idx[-1].date()), "sessions": int(len(idx)),
@@ -116,9 +128,9 @@ def main(argv=None) -> int:
             print(f"  {w:46} {r['first']}..{r['last']}  60/40 Sh {r['product_sharpe']:.2f} DD {r['product_max_drawdown']:.1%}"
                   f" | bench Sh {r['benchmark_sharpe']:.2f} DD {r['benchmark_max_drawdown']:.1%} corr {r['correlation']:.2f}")
             for x, c in r["carve_outs"].items():
-                fmt = lambda v: "none" if v is None else f"{v:+.2%}"          # noqa: E731
-                print(f"      carve {x:>3}: alpha for Sharpe {fmt(c['alpha_sharpe_break_even'])}, "
-                      f"for drawdown {fmt(c['alpha_drawdown_break_even'])}")
+                print(f"      carve {x:>3}: alpha for Sharpe "
+                      f"{c['sharpe_no_crossing'] or format(c['alpha_sharpe_break_even'], '+.2%')}, for drawdown "
+                      f"{c['drawdown_no_crossing'] or format(c['alpha_drawdown_break_even'], '+.2%')}")
     return 0
 
 
