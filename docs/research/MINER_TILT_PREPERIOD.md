@@ -287,3 +287,39 @@ Segment A is built and has not been scored.
 **Open provenance item, for a separate board.** GC=F rows exist on 2002-12-24 and
 2003-12-24, days NYMEX's practice implies were not official trading days; they may not be
 real settlements.
+
+## Result: NOT RUN (2026-10-09). No return was computed.
+
+**The bounded search (amendment 1) documented 0 of the 5 pending dates; at least 2 were
+needed.** Nine searches ran: one per date, and one per year for the 2001-2004 schedules.
+- **No primary NYMEX, COMEX, CME or CFTC document was found** for 2001-12-24, 2002-07-05,
+  2003-12-26, 2004-01-02 or 2004-12-31.
+- Results were dominated by notices from 2006 onward, and CME's archive is not indexed
+  for these years.
+- **The only date-specific evidence cuts against a closure on 2002-07-05:**
+  - FINRA Notice to Members 02-38 treats that day as a normal trading day for the
+    securities markets;
+  - a third-party COMEX holiday table lists 2002-07-04 but not 07-05 (third-party, so it
+    is not decisive, and it was rejected as a source anyway).
+
+So 8 of segment B's 1341 sessions (0.60%) stay unexplained, against a cap of 0.5%.
+**Segment B fails its frozen data screen, and the whole test is NOT RUN.** Segment A alone
+is not scored. Its snapshot (DS-89c27562; manifest committed, observations private) stays
+built and unscored, so the fork that making B mandatory was meant to close cannot be taken.
+
+**Stopping rule.** This was the rule's last historical test. No index, single stock, pair
+or segment from before 2006 may be tested. The only remaining path for the F366200 tilt
+family is a forward window.
+
+**What this means for the lead:**
+- The miner-overshoot tilt stays where F366201 left it: the same sign in three miner pairs
+  over 2016-2026 (+0.27 / +0.34 / +0.32), absent in the controls, and not significant.
+- A forward paper record is now the only evidence that can promote it or close it.
+
+**What the work leaves behind:**
+- a redistribution-safe private data store;
+- a Bundesbank fetcher;
+- close-only and fixing-calendar execution in the rule engine;
+- exact per-asset weights from the evaluator;
+- a counted cost stress for every domain;
+- the noise-placebo machinery.
