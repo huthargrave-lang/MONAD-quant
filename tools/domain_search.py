@@ -152,6 +152,14 @@ def report(domain: Domain, ctx: Context) -> dict:
     members = family_members(everything, family_name(domain.name))
     fam = latest(members, data, start, end)
     ref = latest(family_members(everything, family_name(domain.name, reference=True)), data, start, end)
+    # Judge only the frozen grid's points against the declared benchmark. Other trials in
+    # the family (diagnostic variants, each with its own benchmark) are still counted: they
+    # are added to the deflation's N below, never dropped silently.
+    grid_labels = {label(daily_spec(p, domain=domain.name)) for p in domain.grid()}
+    ref_label = label(daily_spec(domain.reference, domain=domain.name))
+    off_grid = sorted(k for k in fam if k not in grid_labels)
+    fam = {k: v for k, v in fam.items() if k in grid_labels}
+    ref = {k: v for k, v in ref.items() if k == ref_label}
     if len(ref) != 1 or not fam:
         raise SystemExit(f"need one benchmark and a searched grid on this data and window "
                          f"(found {len(ref)} benchmark(s), {len(fam)} point(s))")
@@ -188,12 +196,14 @@ def report(domain: Domain, ctx: Context) -> dict:
     unknown = ({r.spec_hash for r in members if r.status != "ok"}
                - {r.spec_hash for r in members if r.status == "ok"})
     defl = stats.deflate_active(primary, best, calendar=ctx.snap.dates,
-                                prior_trials=domain.prior_search_trials, unknown_specs=len(unknown))
+                                prior_trials=domain.prior_search_trials + len(off_grid),
+                                unknown_specs=len(unknown))
     return {"domain": domain.name, "primary": domain.primary, "sign": domain.sign, "data": data,
             "window": [start.date().isoformat(), end.date().isoformat()],
             "reference": {"key": ref_rec.key, **(ref_rec.metrics or {})}, "rows": rows,
             "lookahead_violations": {k: v for k, v in lookahead.items() if v}, "best": best,
-            "familywise": stats.familywise(primary, best), "deflation": defl.__dict__}
+            "familywise": stats.familywise(primary, best), "deflation": defl.__dict__,
+            "off_grid_trials": off_grid}
 
 
 def print_report(rep: dict) -> None:

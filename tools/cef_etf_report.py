@@ -78,11 +78,14 @@ def cmd_build(args) -> int:
 
 
 # ── diagnostics ──────────────────────────────────────────────────────────────
-def counted_eval(domain, ctx, point, *, role: str, start, end):
+def counted_eval(domain, ctx, point, *, role: str, start, end, record_as: str | None = None):
+    """A counted evaluation; ``record_as`` files it under another domain key (the
+    leave-one-family-out diagnostics, which must not join the search's family)."""
+    key = record_as or domain.name
     data = ctx.data_spec(start, end)
-    with trials.open_run(producer=PRODUCER, family=family_name(domain.name, reference=point["class"] == "cef_etf_bench"),
+    with trials.open_run(producer=PRODUCER, family=family_name(key, reference=point["class"] == "cef_etf_bench"),
                          context={**data, "role": role}) as run:
-        t = run.begin(params=daily_spec(point, domain=domain.name), data=data)
+        t = run.begin(params=daily_spec(point, domain=key), data=data)
         res = evaluate_daily(domain.decide(ctx, point), ctx.snap, start=start, end=end, tiers=domain.tiers(ctx))
         record_daily(t, res)
     return res
@@ -205,8 +208,10 @@ def cmd_report(args) -> int:
         keep = [f for f in fams if f != fam]
         p_t = {"class": "cef_etf_tilt", "params": {"lag": 1, "families": keep}}
         p_b = {"class": "cef_etf_bench", "params": {"families": keep}}
-        rt = counted_eval(dom, ctx, p_t, role=f"diagnostic: leave out {fam}", start=start, end=end)
-        rb = counted_eval(dom, ctx, p_b, role=f"diagnostic: leave out {fam}", start=start, end=end)
+        rt = counted_eval(dom, ctx, p_t, role=f"diagnostic: leave out {fam}", start=start, end=end,
+                          record_as="cef_etf_tilt_lofo")
+        rb = counted_eval(dom, ctx, p_b, role=f"diagnostic: leave out {fam}", start=start, end=end,
+                          record_as="cef_etf_tilt_lofo")
         a = stats.active_series(rt.returns, rb.returns)
         dsub = decompose(inputs, snap, rt, rb)
         lofo[fam] = {"sharpe": stats.annualized_sharpe(a), "alpha": beta_control(inputs, snap, a, dsub["dw"])}

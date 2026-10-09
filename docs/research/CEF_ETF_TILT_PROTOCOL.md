@@ -206,3 +206,58 @@ The first run's result is recorded and disclosed: active Sharpe +0.58, worst-blo
 attempt (TR-20261009T073311Z-e33a7969, abandoned) failed on a missing cost tier before
 producing any result. The first run's 2x-cost runs (TR-20261009T073355Z-5c6cce4b,
 TR-20261009T073358Z-7c879107) are void with it; the rerun re-records them.
+
+## Result: INCONCLUSIVE. The discount does close, but the profit is beta timing (2026-10-09)
+
+Data:
+- snapshot DS-c6ac870a (private; manifest committed);
+- inputs CEFETF-0bea95e6: 142 matched funds in 9 families, none dropped; 21 unmatched; 20
+  excluded; 2.2% of fund-years failed the screens;
+- 91 funds have corporate-action windows and 9 have index-change windows; 72 trade at
+  `cef_thin`.
+
+Window 2016-08-22..2026-10-02. Real estate's fifth fund made the window later than the
+board's estimate of about 2012, so it is about 10.1 years. No look-ahead violations at 12
+cuts (after correction 1).
+
+Ledger runs:
+- search TR-20261009T073545Z-b39f895c, benchmark TR-20261009T073344Z-da2b0d8d;
+- 2x cost: TR-20261009T073555Z-85b98e28 / TR-20261009T073554Z-595fcf48;
+- lag 5: TR-20261009T073620Z-a724485c;
+- staged: TR-20261009T073633Z-d836c2a1;
+- diagnostics: tools/cef_etf_report.py runs TR-20261009T07364*-07370*.
+
+Report: `docs/research/data/cef_etf_tilt_report.json`.
+
+| Condition (all required to corroborate) | Result | |
+|---|---|---|
+| 1. Total active Sharpe > 0, t > 1, worst-block SPA p < 0.05 | +0.57, t 1.82, p **0.056** (blocks 0.054 / 0.056 / 0.051) | **fail** |
+| 2. Sharpe > 0 at 2x costs; executed 5 sessions later | +0.19; +0.47 (SPA 0.07) | pass |
+| 3. Beta-controlled α of A with t ≥ 2.0; A_cat controlled α > 0 | +0.13%/yr, t **0.46**; A_cat **−0.03%/yr** (t −0.13) | **fail** |
+| 4. D > 0 with t > 1; reconciliation corr ≥ 0.9 | +1.24%/yr, **t 3.14**; corr 0.92 | pass |
+| 5. Long leg positive | +0.74%/yr | pass |
+| 6. α > 0 with each family left out | all 9 > 0 (largest t 0.84) | pass |
+| 7. At least 20 episodes per family | 104-1051 | pass |
+| 8. Sharpe > 0 over 2017-2026 | +0.52 | pass |
+
+**Other results:**
+- CAGR 6.42% against 5.63% for the benchmark; max drawdown −31.2% against −33.2%.
+- Eras: +1.92 / +0.48 / +0.58.
+- The active return is about 1.26%/yr, split into **A_within +0.62%/yr** and **A_cat +0.64%/yr**.
+- The staged 2009-2026 diagnostic gives +0.36 (SPA 0.058-0.068).
+- **Verdict: inconclusive.** It does not contradict, because the total Sharpe and the total
+  controlled α are both > 0.
+
+**Reading.**
+- **The discount does close on the funds the rule buys cheap.** D, the price-versus-NAV part,
+  is +1.2%/yr at t 3.1, and it reconciles with the active series.
+- **But versus the ETFs, the profit is almost all beta timing.** The rule buys levered CEFs
+  after sell-offs, they rebound harder than their ETF, and the per-family (β − 1) control
+  leaves +0.13%/yr (t 0.46).
+- **The category-timing part has no alpha left at all.** Half the raw return is A_within,
+  which is H404702's within-category selection, re-observed.
+- **The contrast with the metal trusts is the lesson.** Discount reversion is clean when the
+  trust and its ETF hold the same unlevered asset. With levered CEFs, closing discounts
+  arrive with market rebounds, and the two cannot be separated.
+- **No sleeve rule for MUB or HYG holders follows.** H404702 (within-category selection) is
+  unchanged, and its forward window matures 2027-10-07.
