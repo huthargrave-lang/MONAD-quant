@@ -239,7 +239,8 @@ def group_proxy(close: pd.DataFrame, members) -> pd.Series:
 def build(get: Callable = yahoo_closes, seed: int = 0) -> dict:
     rng = np.random.default_rng(seed)
     fomc = pd.DatetimeIndex(announcements())
-    out = {"protocol": "docs/research/COMMODITY_LINKAGE_DISCOVERY.md", "windows": WINDOWS,
+    out = {"schema_version": 1, "vintage": _dt.date.today().isoformat(),
+           "protocol": "docs/research/COMMODITY_LINKAGE_DISCOVERY.md", "windows": WINDOWS,
            "built": _dt.date.today().isoformat(), "groups": {}, "missing": {}, "cells": 0}
     data = {}
     for block, (start, end) in WINDOWS.items():

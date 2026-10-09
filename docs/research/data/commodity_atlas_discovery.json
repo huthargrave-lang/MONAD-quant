@@ -1,4 +1,6 @@
 {
+ "schema_version": 1,
+ "vintage": "2026-10-08",
  "protocol": "docs/research/COMMODITY_LINKAGE_DISCOVERY.md",
  "windows": {
   "main": [

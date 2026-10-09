@@ -141,7 +141,9 @@ def main(argv=None) -> int:
     series = {SEEN: active_series(SEEN, args.gdx_snapshot, records=records)}
     for name in (VERDICT, *OTHERS):
         series[name] = active_series(name, args.snapshot, records=records)
-    out = evaluate(series, DOMAINS[VERDICT].eras, args.spa_worst_p)
+    import datetime as _dt
+    out = {"schema_version": 1, "vintage": _dt.date.today().isoformat(),
+           **evaluate(series, DOMAINS[VERDICT].eras, args.spa_worst_p)}
     text = json.dumps(out, indent=1, default=float)
     if args.json:
         Path(args.json).write_text(text, encoding="utf-8")
