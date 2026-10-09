@@ -431,59 +431,113 @@ def genesis_books(spec: Mapping, snap: daily_data.Snapshot, session: pd.Timestam
     return out
 
 
-def decide(spec: Mapping, rows) -> list[dict]:
-    """The anniversary reports and the sequential decision, from the log alone (session
-    actives inside the window plus any corrections booked against them)."""
+#: Corrections for a session are booked within this many sessions of it, so an anniversary
+#: is final (and computed) only once the log runs this far past its cut.
+ANNIVERSARY_SETTLE = CORRECTION_LOOKBACK
+
+
+def first_decisive_anniversary(spec: Mapping) -> int:
+    """The first anniversary whose reading can promote or close, as the spec froze it: a
+    structured ``evaluation.first_decisive_anniversary``, or the frozen wording of the two
+    watches written before that field existed (H366200: "the first (365 days) decides
+    nothing"; H366201: "readings in years 1-3 change nothing")."""
+    ev = spec["evaluation"]
+    if "first_decisive_anniversary" in ev:
+        return int(ev["first_decisive_anniversary"])
+    text = str(ev.get("checks", ""))
+    if "the first (365 days) decides nothing" in text:
+        return 2
+    if "readings in years 1-3 change nothing" in text:
+        return 4
+    raise WatchError("the spec does not state its first decisive anniversary")
+
+
+def decide(spec: Mapping, rows, *, conditions=None) -> list[dict]:
+    """The anniversary reports and the sequential decision, from the log alone.
+
+    * Anniversary k is computed once the log runs ANNIVERSARY_SETTLE sessions past its cut,
+      from the session actives up to the cut and the corrections booked before then; a
+      later correction never rewrites it.
+    * Readings before the spec's first decisive anniversary decide nothing.
+    * The watch's own promote boundary is NOT terminal: crossing it triggers the decision
+      debate on a forward-evidence route, and the reports continue (the route reads later
+      anniversaries). The close boundary and a VOID are terminal.
+    * ``conditions(cut) -> dict`` (a domain watch's extra corroboration conditions, from
+      its private snapshot): {"continue": [reasons], "close": reason or None}. A promote
+      crossing with a ``close`` reason closes the watch; with ``continue`` reasons it is
+      not a promotion yet.
+    """
     ev = spec["evaluation"]
     theta, alpha, beta = ev["theta1"], ev["alpha"], ev["beta"]
     upper, lower = math.log((1 - beta) / alpha), math.log(beta / (1 - alpha))
     stress = f"{float(spec['stress_multiple']):g}x"
-    opened, series, stressed, void = None, {}, {}, None
+    first = first_decisive_anniversary(spec)
+    opened, void, timeline = None, None, []
     for _raw, r in rows:
         if r["kind"] == "window_open":
             opened = r["opens_at_session"]
-        elif r["kind"] == "session" and opened and r["session"] >= opened:
-            series[r["session"]] = r["active"]["1x"]["active"]
-            stressed[r["session"]] = r["active"][stress]["active"]
-        elif r["kind"] == "correction" and r["session"] in series:
-            series[r["session"]] += r["delta"]["1x"]
-            stressed[r["session"]] += r["delta"][stress]
+        elif r["kind"] in ("session", "correction"):
+            timeline.append(r)
         elif r["kind"] == "void":
             void = {"verdict": "VOID", "reason": r["reason"]}
             break
-    # A VOID ends the watch but does not erase it: the anniversaries reached before it
-    # are reported with it (board, METAL_TRUST_FORWARD_WATCH.md).
-    if not opened or not series:
+    if not opened:
         return [void] if void else []
-    reports = _anniversaries(series, stressed, opened, theta, upper, lower)
-    return reports + [void] if void else reports
-
-
-def _anniversaries(series: dict, stressed: dict, opened: str, theta: float, upper: float,
-                   lower: float) -> list[dict]:
-    s = pd.Series(series).sort_index()
-    s.index = pd.DatetimeIndex(s.index)
-    s2 = pd.Series(stressed).reindex(s.index.strftime("%Y-%m-%d")).to_numpy()
     start = pd.Timestamp(opened)
     reports, year = [], 1
     while True:
         cut = start + pd.DateOffset(years=year)
-        if s.index[-1] < cut:
-            break
-        x = s.loc[:cut]
-        t = len(x) / 252
-        sh = float(x.mean() / x.std(ddof=1) * math.sqrt(252)) if x.std(ddof=1) > 0 else 0.0
-        x2 = s2[: len(x)]
-        sh2 = float(np.mean(x2) / np.std(x2, ddof=1) * math.sqrt(252)) if np.std(x2, ddof=1) > 0 else 0.0
-        llr = t * (theta * sh - theta ** 2 / 2)
-        verdict = ("promote" if llr >= upper and sh2 > 0 else "close" if llr <= lower else "continue")
-        reports.append({"anniversary": year, "as_of": str(cut.date()), "years": t, "sharpe": sh,
-                        "sharpe_stressed": sh2, "llr": llr, "upper": upper, "lower": lower,
-                        "verdict": verdict})
-        if verdict != "continue":
+        series, stressed, after = {}, {}, 0
+        for r in timeline:
+            if r["kind"] == "session":
+                if r["session"] < opened:
+                    continue
+                if pd.Timestamp(r["session"]) <= cut:
+                    series[r["session"]] = r["active"]["1x"]["active"]
+                    stressed[r["session"]] = r["active"][stress]["active"]
+                else:
+                    after += 1
+                    if after > ANNIVERSARY_SETTLE:
+                        break
+            elif r["kind"] == "correction" and r["session"] in series:
+                series[r["session"]] += r["delta"]["1x"]
+                stressed[r["session"]] += r["delta"][stress]
+        if after <= ANNIVERSARY_SETTLE or not series:
+            break                                             # not settled yet
+        rep = _reading(series, stressed, cut, year, theta, upper, lower)
+        rep["decisive"] = year >= first
+        verdict = rep["verdict"] if rep["decisive"] else "continue"
+        if verdict == "promote" and conditions is not None:
+            cond = conditions(cut)
+            rep["conditions"] = cond
+            if cond.get("close"):
+                verdict = "close"
+            elif cond.get("continue"):
+                verdict = "continue"
+        rep["verdict"] = verdict
+        reports.append(rep)
+        if verdict == "close":
             break
         year += 1
-    return reports
+    # A VOID ends the watch but does not erase it: the anniversaries reached before it
+    # are reported with it (board, METAL_TRUST_FORWARD_WATCH.md).
+    return reports + [void] if void else reports
+
+
+def _reading(series: dict, stressed: dict, cut, year: int, theta: float, upper: float,
+             lower: float) -> dict:
+    """One anniversary's statistics and the watch's own boundary verdict."""
+    s = pd.Series(series).sort_index()
+    x2 = pd.Series(stressed).reindex(s.index).to_numpy()
+    t = len(s) / 252
+    sd = float(s.std(ddof=1))
+    sh = float(s.mean() / sd * math.sqrt(252)) if sd > 0 else 0.0
+    sd2 = float(np.std(x2, ddof=1))
+    sh2 = float(np.mean(x2) / sd2 * math.sqrt(252)) if sd2 > 0 else 0.0
+    llr = t * (theta * sh - theta ** 2 / 2)
+    verdict = ("promote" if llr >= upper and sh2 > 0 else "close" if llr <= lower else "continue")
+    return {"anniversary": year, "as_of": str(cut.date()), "years": t, "sharpe": sh,
+            "sharpe_stressed": sh2, "llr": llr, "upper": upper, "lower": lower, "verdict": verdict}
 
 
 POLICY = WATCH_DIR / "policy" / "route.json"
@@ -1028,6 +1082,36 @@ def legs_and_episodes(spec: Mapping, rows, snap: daily_data.Snapshot) -> dict:
 
 NEUTRAL_STATE = 0.5
 ATM_SHELF_MONTHS = 25
+
+
+def episode_threshold(spec: Mapping) -> int:
+    """The minimum forward episodes a domain watch's corroboration needs: a structured
+    ``evaluation.min_episodes``, or H366201's frozen wording ("at least 20 forward
+    episodes")."""
+    ev = spec["evaluation"]
+    if "min_episodes" in ev:
+        return int(ev["min_episodes"])
+    for text in ev.get("corroboration", []):
+        m = re.search(r"at least (\d+) forward episodes", str(text))
+        if m:
+            return int(m.group(1))
+    raise WatchError("the spec does not state its episode threshold")
+
+
+def domain_conditions(spec: Mapping, rows, snap: daily_data.Snapshot):
+    """The conditions hook for ``decide``: at an anniversary cut, a domain watch's long leg
+    and episodes over the window through the cut (legs_and_episodes). A long leg <= 0 closes
+    the watch as an issuance effect; too few episodes keep it from promoting yet."""
+    need = episode_threshold(spec)
+
+    def at(cut: pd.Timestamp) -> dict:
+        kept = [(b, r) for b, r in rows
+                if r["kind"] not in ("session", "correction") or pd.Timestamp(r["session"]) <= cut]
+        le = legs_and_episodes(spec, kept, snap)
+        return {"continue": [] if le["episodes"] >= need else [f"episodes {le['episodes']} < {need}"],
+                "close": "long leg <= 0: an issuance effect, not discount reversion" if le["long_leg"] <= 0 else None,
+                "legs": le}
+    return at
 
 
 def atm_windows(filings: list[dict], *, shelf_months: int = ATM_SHELF_MONTHS) -> list[tuple[str, str]]:
