@@ -1,0 +1,68 @@
+{
+ "moments": {
+  "convex": 0.007911571019594733,
+  "timing": 0.002857359540335003,
+  "top_half_gap": 0.7388020967506103
+ },
+ "protocol": "docs/research/O4_RESOLUTION_PROTOCOL.md",
+ "results": {
+  "C": {
+   "convexity_rate": 0.66,
+   "mean_s": 0.9984372212009945,
+   "mean_t_alpha": 5.788704856473009,
+   "pass_rule": "R2 convexity detected in >= 90% of seeds",
+   "passed": false,
+   "seeds": 100,
+   "verdicts": {
+    "INCONCLUSIVE": 1,
+    "SURVIVES": 99
+   }
+  },
+  "S": {
+   "convexity_rate": 0.03,
+   "mean_s": 1.1199439240985947,
+   "mean_t_alpha": 6.494865844566792,
+   "pass_rule": "SURVIVES in >= 90% of seeds",
+   "passed": true,
+   "seeds": 100,
+   "survives_rate": 1.0,
+   "verdicts": {
+    "SURVIVES": 100
+   }
+  },
+  "T": {
+   "convexity_rate": 1.0,
+   "mean_s": 0.3397255009235593,
+   "mean_t_alpha": 7.253698113474488,
+   "mean_true_s": 0.2598841631191741,
+   "median_abs_s_error": 0.08083514599961894,
+   "pass_rule": "neither SURVIVES nor UNDERPOWERED in >= 95% of seeds, and median |s - s*| <= 0.10",
+   "passed": true,
+   "seeds": 100,
+   "survives_or_underpowered_rate": 0.0,
+   "verdicts": {
+    "BETA EXPOSURE": 1,
+    "INCONCLUSIVE": 99
+   }
+  }
+ },
+ "schema_version": 1,
+ "vintage": "2026-10-09",
+ "world": {
+  "beta": [
+   0.6,
+   1.4
+  ],
+  "categories": 4,
+  "factor": [
+   0.0003,
+   0.008,
+   0.5
+  ],
+  "idio_sd": 0.006,
+  "per_category": 10,
+  "sessions": 5460,
+  "target_active_ann": 0.022,
+  "true_share_T": 0.26
+ }
+}

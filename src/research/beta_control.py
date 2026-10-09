@@ -111,6 +111,17 @@ def weight_identity_problems(returns: pd.Series, weights: pd.DataFrame, asset_re
     return problems
 
 
+def call_payoff_daily(daily: pd.Series | pd.DataFrame, grid: pd.Series):
+    """max(block sum, 0) of ``daily``, spread evenly over the block's sessions (the call-like
+    term of CONVEXITY_CONTROL_PROTOCOL.md), so a block sum of the result is max(F_w, 0) and
+    a 5-session shift is the previous block's. Sessions outside the grid are NaN."""
+    d = daily.reindex(grid.index)
+    blocks = d.groupby(grid.to_numpy()).sum(min_count=BLOCK).clip(lower=0.0) / BLOCK
+    spread = blocks.reindex(grid.to_numpy())
+    spread.index = grid.index
+    return spread.reindex(daily.index)
+
+
 # ── ex-ante Dimson betas ─────────────────────────────────────────────────────
 @dataclass
 class Betas:

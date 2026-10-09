@@ -584,7 +584,11 @@
         "tools/cef_etf_report.py",
         "tools/beta_timing_control.py",
         "src/research/beta_control.py",
-        "src/research/hac.py"
+        "src/research/hac.py",
+        "tools/o4_calibration.py",
+        "tools/sleeve_break_even.py",
+        "tools/convexity_control.py",
+        "src/research/convexity_control.py"
       ],
       "entrypoints": [
         "src/research/daily_domains.py::Domain",
@@ -644,7 +648,10 @@
         "tests/test_private_store.py",
         "tests/test_forward_watch.py",
         "tests/test_cef_etf_tilt.py",
-        "tests/test_beta_control.py"
+        "tests/test_beta_control.py",
+        "tests/test_o4_calibration.py",
+        "tests/test_sleeve_break_even.py",
+        "tests/test_convexity_control.py"
       ],
       "docs": [
         "docs/research/DAILY_STRATEGIES.md",
@@ -678,7 +685,11 @@
         "docs/research/data/README.md",
         "docs/research/MINER_TILT_FORWARD_WATCH.md",
         "docs/research/CEF_ETF_TILT_PROTOCOL.md",
-        "docs/research/BETA_TIMING_CONTROL_PROTOCOL.md"
+        "docs/research/BETA_TIMING_CONTROL_PROTOCOL.md",
+        "docs/research/METAL_TRUST_FORWARD_WATCH.md",
+        "docs/research/O4_RESOLUTION_PROTOCOL.md",
+        "docs/research/SLEEVE_BREAK_EVEN_PROTOCOL.md",
+        "docs/research/CONVEXITY_CONTROL_PROTOCOL.md"
       ],
       "do_not_touch_without_approval": false,
       "run_cmd": "venv/bin/python tools/domain_search.py <domain> --snapshot <sha> [--panel <sha>] --report-only"

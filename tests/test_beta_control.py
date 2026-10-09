@@ -293,3 +293,17 @@ class ToolPieces(unittest.TestCase):
         live = (dw != 0) | (x != 0)
         pd.testing.assert_series_equal(bc.within_category_part(dw, x, fams),
                                        bc.within_category_part(dw, x, fams, live))
+
+
+class CallPayoff(unittest.TestCase):
+    def test_block_sums_are_the_call_payoff_and_a_block_shift_is_the_previous_block(self):
+        d = dates(23)
+        f = pd.Series(np.linspace(-0.01, 0.012, 23), index=d)
+        grid = bc.block_grid(d, d[0])
+        k = bc.call_payoff_daily(f, grid)
+        sums = bc.block_sums(k, grid).to_numpy()
+        expected = bc.block_sums(f, grid).clip(lower=0.0).to_numpy()
+        np.testing.assert_allclose(sums, expected, atol=1e-15)
+        self.assertTrue(k.iloc[20:].isna().all())                  # the incomplete tail block
+        lagged = bc.block_sums(k.shift(bc.BLOCK), grid).to_numpy()
+        np.testing.assert_allclose(lagged[1:], expected[:-1], atol=1e-15)
