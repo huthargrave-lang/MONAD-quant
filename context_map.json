@@ -588,7 +588,8 @@
         "tools/o4_calibration.py",
         "tools/sleeve_break_even.py",
         "tools/convexity_control.py",
-        "src/research/convexity_control.py"
+        "src/research/convexity_control.py",
+        "tools/credit_sleeve_mix.py"
       ],
       "entrypoints": [
         "src/research/daily_domains.py::Domain",
@@ -651,7 +652,8 @@
         "tests/test_beta_control.py",
         "tests/test_o4_calibration.py",
         "tests/test_sleeve_break_even.py",
-        "tests/test_convexity_control.py"
+        "tests/test_convexity_control.py",
+        "tests/test_credit_sleeve_mix.py"
       ],
       "docs": [
         "docs/research/DAILY_STRATEGIES.md",
@@ -689,7 +691,8 @@
         "docs/research/METAL_TRUST_FORWARD_WATCH.md",
         "docs/research/O4_RESOLUTION_PROTOCOL.md",
         "docs/research/SLEEVE_BREAK_EVEN_PROTOCOL.md",
-        "docs/research/CONVEXITY_CONTROL_PROTOCOL.md"
+        "docs/research/CONVEXITY_CONTROL_PROTOCOL.md",
+        "docs/research/CREDIT_SLEEVE_MIX_PROTOCOL.md"
       ],
       "do_not_touch_without_approval": false,
       "run_cmd": "venv/bin/python tools/domain_search.py <domain> --snapshot <sha> [--panel <sha>] --report-only"
