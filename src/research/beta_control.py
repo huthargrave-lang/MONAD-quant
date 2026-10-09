@@ -203,17 +203,21 @@ def exposure(delta: pd.DataFrame, factors: list[pd.DataFrame], betas: Betas, gri
     return Exposure(daily=pd.Series(X, index=sessions), static_daily=static, fallback_share=share)
 
 
-def within_category_part(dw: pd.DataFrame, x: pd.DataFrame, families: dict) -> pd.Series:
+def within_category_part(dw: pd.DataFrame, x: pd.DataFrame, families: dict,
+                         live: pd.DataFrame | None = None) -> pd.Series:
     """The within-family part of sum_i Delta_i x_i (F366204's decomposition): per family,
-    sum over the funds live that day (Delta or x nonzero) of (Delta_i - mean Delta)(x_i - mean x)."""
+    sum over the funds live that day of (Delta_i - mean Delta)(x_i - mean x). ``live``
+    defaults to Delta or x nonzero; pass the realised series' mask to split another x
+    (an exposure) over the same funds."""
     within = pd.Series(0.0, index=dw.index)
     for fam in sorted({families[f] for f in dw.columns}):
         fs = [f for f in dw.columns if families[f] == fam]
         d, xx = dw[fs], x[fs].reindex(dw.index).fillna(0.0)
-        live = (d != 0) | (xx != 0)
-        dbar = d.where(live).mean(axis=1)
-        xbar = xx.where(live).mean(axis=1)
-        within += (d.sub(dbar, axis=0) * xx.sub(xbar, axis=0)).where(live).sum(axis=1).fillna(0.0)
+        live_f = ((d != 0) | (xx != 0)) if live is None else live[fs].reindex(dw.index).fillna(False)
+        live_f = live_f.astype(bool)
+        dbar = d.where(live_f).mean(axis=1)
+        xbar = xx.where(live_f).mean(axis=1)
+        within += (d.sub(dbar, axis=0) * xx.sub(xbar, axis=0)).where(live_f).sum(axis=1).fillna(0.0)
     return within
 
 

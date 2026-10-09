@@ -264,3 +264,32 @@ class ReplayChecks(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ToolPieces(unittest.TestCase):
+    def test_category_factor_leaves_the_fund_out_and_falls_back_to_the_global_mean(self):
+        sys.path.insert(0, str(REPO / "tools"))
+        import beta_timing_control as btc
+        rng = np.random.default_rng(6)
+        d = dates(20)
+        funds = [f"A{i}" for i in range(6)] + ["B0", "B1"]
+        tot = pd.DataFrame(rng.normal(0, 0.01, (len(d), len(funds))), index=d, columns=funds)
+        elig = pd.DataFrame(True, index=d, columns=funds)
+        elig.loc[d[5], "A3"] = False
+        cat = {f: ("A" if f.startswith("A") else "B") for f in funds}
+        F = btc.category_factor(tot, funds, elig, cat)
+        np.testing.assert_allclose(F["A0"].iloc[0], tot[[f"A{i}" for i in range(1, 6)]].iloc[0].mean())
+        np.testing.assert_allclose(F["A0"].iloc[5], tot[["A1", "A2", "A4", "A5"]].iloc[5].mean())
+        np.testing.assert_allclose(F["B0"], tot.where(elig).mean(axis=1))  # one other < 4: global EW
+
+    def test_an_explicit_live_mask_equal_to_the_default_changes_nothing(self):
+        rng = np.random.default_rng(8)
+        d = dates(30)
+        cols = ["a", "b", "c", "e"]
+        dw = pd.DataFrame(rng.choice([0.0, 0.1, -0.1], (30, 4)), index=d, columns=cols)
+        x = pd.DataFrame(rng.normal(0, 0.01, (30, 4)), index=d, columns=cols)
+        x.iloc[:5, 0] = 0.0
+        fams = {"a": "f1", "b": "f1", "c": "f2", "e": "f2"}
+        live = (dw != 0) | (x != 0)
+        pd.testing.assert_series_equal(bc.within_category_part(dw, x, fams),
+                                       bc.within_category_part(dw, x, fams, live))
