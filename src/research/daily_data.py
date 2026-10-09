@@ -11,10 +11,13 @@ adjusted history is rewritten whenever a distribution is booked, so an unpinned 
     adjustment factor;
   * the 3-month T-bill discount rate (FRED DTB3), the cash leg every return is measured
     over, cross-checked at build time against Yahoo's ^IRX;
-  * stored as canonical CSV under ``docs/research/data/DS-<sha>.csv.gz``. The sha is of
-    the DECOMPRESSED CSV, whose float formatting is Python's shortest round-trip ``repr``
-    (independent of pandas and zlib versions); gzip is written with mtime 0. A manifest
-    ``DS-<sha>.json`` records the universe, window, sources and validation results.
+  * stored as canonical CSV ``DS-<sha>.csv.gz``. The sha is of the DECOMPRESSED CSV, whose
+    float formatting is Python's shortest round-trip ``repr`` (independent of pandas and
+    zlib versions); gzip is written with mtime 0. A manifest ``DS-<sha>.json`` (committed,
+    in ``docs/research/data``) records the universe, window, sources and validation
+    results. Yahoo's terms grant no redistribution right, so a snapshot of Yahoo prices
+    keeps its csv.gz in the gitignored private store (``data_store``) and its manifest
+    records where.
 
 ``load_snapshot`` re-hashes and refuses a mismatch, so a trial's ``data.snapshot`` field
 names exactly one series. The trading calendar is the snapshot's own dates (the first
@@ -32,12 +35,9 @@ from __future__ import annotations
 
 import csv
 import datetime as _dt
-import gzip
 import hashlib
 import io
-import json
 import math
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
@@ -45,15 +45,12 @@ from typing import Callable, Mapping, Sequence
 import numpy as np
 import pandas as pd
 
-from src.research.trials import REPO, LedgerError, canonical_json
+from src.research import data_store
+# Re-exported: every data module imports its store paths and error type from here.
+from src.research.data_store import (DATA_DIR, DATA_REL, PRIVATE_DATA_DIR,  # noqa: F401
+                                     PRIVATE_DATA_REL, SnapshotError)
+from src.research.trials import canonical_json
 
-DATA_REL = Path("docs/research/data")
-DATA_DIR = REPO / DATA_REL
-#: Observations that may not be redistributed (the repo is public): a snapshot built with
-#: ``private=True`` keeps its csv.gz here, gitignored, and commits only its manifest, whose
-#: sha names the exact bytes, so anyone can rebuild it and the loader still verifies it.
-PRIVATE_DATA_REL = Path("local_research_data")
-PRIVATE_DATA_DIR = REPO / PRIVATE_DATA_REL
 SCHEMA_VERSION = 1
 
 #: Validation bounds. A real ETF panel clears each by a wide margin; a failed or partial
@@ -74,10 +71,6 @@ PRICE_TICK_TOLERANCE = 0.005          # dollars: "equal" within half a cent
 MAX_CASH_GAP_SESSIONS = 5             # DTB3 forward-filled over at most this many sessions
 MAX_IRX_DISAGREEMENT = 0.15           # mean |DTB3 - ^IRX| in percentage points
 TBILL_DAYS = 91                       # DTB3 is the 13-week bill
-
-
-class SnapshotError(LedgerError):
-    """A snapshot failed validation, or a stored one does not match its name."""
 
 
 @dataclass(frozen=True)
@@ -430,27 +423,23 @@ def decode_csv(data: bytes) -> dict:
 
 def write_snapshot(frames: Mapping[str, object], report: Mapping, *, universe: Sequence[str],
                    start: str, end: str, sources: Mapping[str, str],
-                   data_dir: Path | None = None, observations_dir: Path | None = None,
-                   manifest_extra: Mapping | None = None) -> str:
+                   data_dir: Path | None = None, private_dir: Path | None = None,
+                   private: bool | None = None, manifest_extra: Mapping | None = None) -> str:
     """Write ``DS-<sha>.csv.gz`` and its manifest. Idempotent: an existing snapshot with
     the same sha is left as is (it is byte-identical by construction).
 
-    ``observations_dir``: write the csv.gz there instead (the private store for data that
-    may not be redistributed); the manifest still goes to ``data_dir`` and records where
-    the observations live. ``manifest_extra``: further manifest fields (e.g. a scheduled
-    fixing calendar); it cannot override the core fields."""
+    Where the csv.gz goes is decided by ``data_store.must_be_private`` from ``sources``:
+    a snapshot naming a restricted vendor (Yahoo, CEFConnect, ...) is private, its csv.gz
+    written to the private store (``PRIVATE_DATA_DIR`` beside the committed store, or
+    ``private_dir``), and its manifest records ``observations``. ``private=True`` keeps
+    unrestricted data private too; ``private=False`` with a restricted vendor is refused.
+    ``manifest_extra``: further manifest fields (e.g. a scheduled fixing calendar); it
+    cannot override the core fields."""
     data = encode_csv(frames)
     sha = hashlib.sha256(data).hexdigest()
-    base = Path(data_dir) if data_dir is not None else DATA_DIR
-    base.mkdir(parents=True, exist_ok=True)
-    obs_dir = Path(observations_dir) if observations_dir is not None else base
-    obs_dir.mkdir(parents=True, exist_ok=True)
-    csv_path = obs_dir / f"DS-{sha}.csv.gz"
-    if not csv_path.exists():
-        buf = io.BytesIO()
-        with gzip.GzipFile(fileobj=buf, mode="wb", mtime=0, compresslevel=9) as gz:
-            gz.write(data)
-        _write_exclusive(csv_path, buf.getvalue())
+    vendors = data_store.restricted_vendors(dict(sources))
+    keep_private = data_store.must_be_private(dict(sources), private)
+    base = data_store.write_stores(data_dir, private_dir).manifests
     built_at = _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     manifest = {"schema_version": SCHEMA_VERSION, "sha": sha, "universe": list(universe),
                 "vintage": built_at[:10],      # vendor data as fetched that day
@@ -458,25 +447,19 @@ def write_snapshot(frames: Mapping[str, object], report: Mapping, *, universe: S
                 "first_session": frames["open"].index[0].date().isoformat(),
                 "last_session": frames["open"].index[-1].date().isoformat(),
                 "sources": dict(sources), "validation": dict(report), "built_at": built_at}
-    if observations_dir is not None:
-        manifest["observations"] = {"stored": "private (not redistributable)",
-                                    "store": PRIVATE_DATA_REL.as_posix(), "csv_sha256": sha}
+    if keep_private:
+        manifest["observations"] = data_store.private_record(sha)
     for k, v in dict(manifest_extra or {}).items():
         if k in manifest:
             raise SnapshotError(f"manifest field {k!r} is reserved")
         manifest[k] = v
-    man_path = base / f"DS-{sha}.json"
-    if not man_path.exists():
-        _write_exclusive(man_path, (canonical_json(manifest) + "\n").encode("utf-8"))
+    # Observations first, then the manifest: a manifest never names bytes that were not
+    # written (and write() refuses a restricted destination before anything is created).
+    data_store.write("DS", data, private=keep_private, data_dir=data_dir,
+                     private_dir=private_dir, vendors=vendors)
+    data_store.write_manifest(base / f"DS-{sha}.json", manifest,
+                              serialize=lambda m: canonical_json(m) + "\n")
     return sha
-
-
-def _write_exclusive(path: Path, data: bytes) -> None:
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
-    with os.fdopen(fd, "wb") as fh:
-        fh.write(data)
-        fh.flush()
-        os.fsync(fh.fileno())
 
 
 def build_snapshot(universe: Sequence[str], start: str, end: str, *,
@@ -485,15 +468,16 @@ def build_snapshot(universe: Sequence[str], start: str, end: str, *,
                    independent_source: str | None = None, continuous: bool = False,
                    extreme_bounds: tuple[float, float] | None = None,
                    asset_sources: Mapping[str, str] | None = None,
-                   private: bool = False, manifest_extra: Mapping | None = None,
+                   private: bool | None = None, manifest_extra: Mapping | None = None,
                    data_dir: Path | None = None, private_dir: Path | None = None,
                    **fetchers) -> str:
     """Fetch, validate and write a snapshot. Returns its sha. The manifest's universe is
     what was REQUESTED; ``validation.dropped`` says what was left out and why.
     ``asset_sources``: provenance for assets that do not come from Yahoo (a custom
-    ``fetch_asset`` routes them), recorded per asset in the manifest. ``private``: keep
-    the observations in the private store (``PRIVATE_DATA_DIR``, or ``private_dir``) and
-    commit only the manifest."""
+    ``fetch_asset`` routes them), recorded per asset in the manifest. Its prices come from
+    Yahoo, so by default (``private=None``) the observations go to the private store
+    (``PRIVATE_DATA_DIR``, or ``private_dir``) and only the manifest is committed
+    (``write_snapshot``)."""
     import yfinance
 
     frames, report = build_frames(universe, start, end, optional=optional, close_only=close_only,
@@ -510,10 +494,9 @@ def build_snapshot(universe: Sequence[str], start: str, end: str, *,
         sources["per_asset"] = dict(asset_sources)
     if close_only:
         sources["close_only"] = sorted(close_only)
-    obs_dir = (Path(private_dir) if private_dir is not None else PRIVATE_DATA_DIR) if private else None
     return write_snapshot(frames, report, universe=universe, start=start, end=end,
-                          sources=sources, data_dir=data_dir, observations_dir=obs_dir,
-                          manifest_extra=manifest_extra)
+                          sources=sources, data_dir=data_dir, private_dir=private_dir,
+                          private=private, manifest_extra=manifest_extra)
 
 
 def load_snapshot(sha: str, *, data_dir: Path | None = None,
@@ -522,25 +505,8 @@ def load_snapshot(sha: str, *, data_dir: Path | None = None,
     The observations are looked for in ``data_dir`` (default: the committed store), then
     in the private store (``private_dir``, default ``PRIVATE_DATA_DIR`` when ``data_dir`` is
     the default); the manifest is always read from ``data_dir``."""
-    base = Path(data_dir) if data_dir is not None else DATA_DIR
-    stores = [base]
-    if private_dir is not None:
-        stores.append(Path(private_dir))
-    elif data_dir is None:
-        stores.append(PRIVATE_DATA_DIR)
-    path = next((d / f"DS-{sha}.csv.gz" for d in stores if (d / f"DS-{sha}.csv.gz").exists()), None)
-    if path is None:
-        man = base / f"DS-{sha}.json"
-        hint = ""
-        if man.exists() and "observations" in json.loads(man.read_text(encoding="utf-8")):
-            hint = " (its observations are private: rebuild them with the command its protocol names)"
-        raise SnapshotError(f"no snapshot {sha[:12]} in {', '.join(map(str, stores))}{hint}")
-    data = gzip.decompress(path.read_bytes())
-    actual = hashlib.sha256(data).hexdigest()
-    if actual != sha:
-        raise SnapshotError(f"{path.name} hashes to {actual[:12]}: the file was altered")
-    man_path = base / f"DS-{sha}.json"
-    manifest = json.loads(man_path.read_text(encoding="utf-8")) if man_path.exists() else {}
+    data = data_store.read("DS", sha, data_dir=data_dir, private_dir=private_dir)
+    manifest = data_store.read_manifest("DS", sha, data_dir=data_dir) or {}
     f = decode_csv(data)
     return Snapshot(sha=sha, dates=f["open"].index, assets=tuple(f["open"].columns),
                     open=f["open"], close=f["close"], dist=f["dist"], dtb3=f["dtb3"],

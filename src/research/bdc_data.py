@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import csv
 import datetime as _dt
-import gzip
 import hashlib
 import io
 import json
@@ -35,7 +34,8 @@ from typing import Callable, Iterable
 
 import pandas as pd
 
-from src.research.daily_data import DATA_DIR, SnapshotError, _fmt, _write_exclusive
+from src.research import data_store
+from src.research.daily_data import SnapshotError, _fmt
 from src.research.trials import canonical_json
 
 API = "https://data.sec.gov/api/xbrl/"
@@ -134,22 +134,20 @@ def write_panel(rows: list, report: dict, *, data_dir: Path | None = None,
     schema: ticker, period_end, nav, filed, known) as ``<prefix>-<sha>``."""
     data = encode(rows)
     sha = hashlib.sha256(data).hexdigest()
-    base = Path(data_dir) if data_dir is not None else DATA_DIR
-    path = base / f"{prefix}-{sha}.csv.gz"
-    if not path.exists():
-        b = io.BytesIO()
-        with gzip.GzipFile(fileobj=b, mode="wb", mtime=0, compresslevel=9) as gz:
-            gz.write(data)
-        _write_exclusive(path, b.getvalue())
+    # SEC filings are public: the observations stay in the committed store unless the
+    # declared source names a restricted vendor (data_store decides, for every prefix).
+    keep_private = data_store.must_be_private(source)
+    base = data_store.write_stores(data_dir).manifests
     fetched = _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
-    man = base / f"{prefix}-{sha}.json"
-    if not man.exists():
-        _write_exclusive(man, (canonical_json({
-            "schema_version": 1, "sha": sha, "vintage": fetched[:10], "fetched_at": fetched,
-            "source": source,
-            "universe_rule": universe_rule,
-            "survivorship": "listed today only", "known_lag_days": KNOWN_LAG_DAYS, **report})
-            + "\n").encode("utf-8"))
+    manifest = {"schema_version": 1, "sha": sha, "vintage": fetched[:10], "fetched_at": fetched,
+                "source": source, "universe_rule": universe_rule,
+                "survivorship": "listed today only", "known_lag_days": KNOWN_LAG_DAYS, **report}
+    if keep_private:
+        manifest["observations"] = data_store.private_record(sha)
+    data_store.write(prefix, data, private=keep_private, data_dir=data_dir,
+                     vendors=data_store.restricted_vendors(source))
+    data_store.write_manifest(base / f"{prefix}-{sha}.json", manifest,
+                              serialize=lambda m: canonical_json(m) + "\n")
     return sha
 
 
@@ -192,10 +190,13 @@ class BdcPanel:
         return pd.DataFrame(out)
 
 
-def load_panel(sha: str, *, data_dir: Path | None = None, prefix: str = "BDCNAV") -> BdcPanel:
-    base = Path(data_dir) if data_dir is not None else DATA_DIR
-    data = gzip.decompress((base / f"{prefix}-{sha}.csv.gz").read_bytes())
-    if hashlib.sha256(data).hexdigest() != sha:
-        raise SnapshotError(f"{prefix}-{sha[:12]} does not hash to its name")
+def load_panel(sha: str, *, data_dir: Path | None = None, prefix: str = "BDCNAV",
+               private_dir: Path | None = None) -> BdcPanel:
+    """The panel named ``sha``, from the committed store or the private one, verified."""
+    data = data_store.read(prefix, sha, data_dir=data_dir, private_dir=private_dir)
+    manifest = data_store.read_manifest(prefix, sha, data_dir=data_dir)
+    if manifest is None:
+        raise SnapshotError(f"{prefix}-{sha[:12]} has no manifest in "
+                            f"{data_store.stores(data_dir).manifests}")
     df = pd.read_csv(io.BytesIO(data), parse_dates=["period_end", "filed", "known"])
-    return BdcPanel(sha=sha, rows=df, manifest=json.loads((base / f"{prefix}-{sha}.json").read_text()))
+    return BdcPanel(sha=sha, rows=df, manifest=manifest)

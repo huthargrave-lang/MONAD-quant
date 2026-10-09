@@ -6,13 +6,14 @@ A futures series cannot sit in a price snapshot: it trades on another calendar, 
 month can print a negative price (WTI on 2020-04-20), and it is never held. The panel
 stores raw Yahoo closes (``<SYM>=F``: the unadjusted front month, rolled by the vendor,
 settlement time 13:30-14:30 ET) as ``date,symbol,close`` rows, named by the sha-256 of its
-canonical bytes (``FUT-<sha>.csv.gz`` beside the snapshots). A rule reads the latest close
-dated on or before a session, which settled before that session's 16:00 equity close.
+canonical bytes (``FUT-<sha>.csv.gz``). Yahoo's terms grant no redistribution right, so the
+csv.gz lives in the gitignored private store and only the manifest is committed
+(``data_store``). A rule reads the latest close dated on or before a session, which settled
+before that session's 16:00 equity close.
 """
 from __future__ import annotations
 
 import datetime as _dt
-import gzip
 import hashlib
 import io
 import json
@@ -22,9 +23,11 @@ from typing import Callable, Sequence
 
 import pandas as pd
 
-from src.research.daily_data import DATA_DIR, SnapshotError
+from src.research import data_store
+from src.research.daily_data import SnapshotError
 
 PREFIX = "FUT"
+SOURCE = "yfinance history(auto_adjust=False): vendor front-month, unadjusted rolls"
 
 
 @dataclass(frozen=True)
@@ -56,45 +59,39 @@ def encode(close: pd.DataFrame) -> bytes:
 
 
 def build(symbols: Sequence[str], start: str, end: str, *, fetch: Callable = yahoo_raw_closes,
-          data_dir: Path | None = None) -> str:
-    """Fetch, write and return the sha of a panel of ``symbols`` on [start, end)."""
+          data_dir: Path | None = None, private_dir: Path | None = None) -> str:
+    """Fetch, write and return the sha of a panel of ``symbols`` on [start, end). The
+    observations go to the private store (Yahoo); the manifest records ``observations``
+    and is written once, so a rebuild of the same bytes keeps the first ``fetched_at``."""
     close = pd.DataFrame({s: fetch(s, start, end) for s in symbols}).sort_index()
     if close.empty or close.index.max() >= pd.Timestamp(end):
         raise SnapshotError(f"futures fetch is empty or runs past {end}")
     data = encode(close)
     sha = hashlib.sha256(data).hexdigest()
-    base = Path(data_dir) if data_dir is not None else DATA_DIR
-    base.mkdir(parents=True, exist_ok=True)
-    path = base / f"{PREFIX}-{sha}.csv.gz"
-    if not path.exists():
-        buf = io.BytesIO()
-        with gzip.GzipFile(fileobj=buf, mode="wb", mtime=0, compresslevel=9) as gz:
-            gz.write(data)
-        path.write_bytes(buf.getvalue())
+    keep_private = data_store.must_be_private(SOURCE)
+    base = data_store.write_stores(data_dir, private_dir).manifests
     now = _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     manifest = {"schema_version": 1, "sha": sha, "symbols": list(symbols),
                 "window": {"start": start, "end": end}, "fetched_at": now,
-                "source": "yfinance history(auto_adjust=False): vendor front-month, unadjusted rolls",
+                "source": SOURCE,
                 "rows": {s: int(close[s].notna().sum()) for s in symbols},
                 "non_positive": {s: [d.date().isoformat() for d in close.index[close[s] <= 0]]
                                  for s in symbols}}
-    (base / f"{PREFIX}-{sha}.json").write_text(json.dumps(manifest, indent=1) + "\n", encoding="utf-8")
+    if keep_private:
+        manifest["observations"] = data_store.private_record(sha)
+    data_store.write(PREFIX, data, private=keep_private, data_dir=data_dir,
+                     private_dir=private_dir, vendors=data_store.restricted_vendors(SOURCE))
+    data_store.write_manifest(base / f"{PREFIX}-{sha}.json", manifest,
+                              serialize=lambda m: json.dumps(m, indent=1) + "\n")
     return sha
 
 
-def load(sha: str, *, data_dir: Path | None = None) -> FuturesPanel:
-    base = Path(data_dir) if data_dir is not None else DATA_DIR
-    path = base / f"{PREFIX}-{sha}.csv.gz"
-    try:
-        data = gzip.decompress(path.read_bytes())
-    except FileNotFoundError:
-        raise SnapshotError(f"no futures panel {sha[:12]} in {base}") from None
-    if hashlib.sha256(data).hexdigest() != sha:
-        raise SnapshotError(f"{path.name} does not hash to its name: the file was altered")
+def load(sha: str, *, data_dir: Path | None = None, private_dir: Path | None = None) -> FuturesPanel:
+    """The panel named ``sha``, from the committed store or the private one, verified."""
+    data = data_store.read(PREFIX, sha, data_dir=data_dir, private_dir=private_dir)
     df = pd.read_csv(io.BytesIO(data), parse_dates=["date"])
     close = df.pivot(index="date", columns="symbol", values="close").sort_index()
-    man = base / f"{PREFIX}-{sha}.json"
-    manifest = json.loads(man.read_text(encoding="utf-8")) if man.exists() else {}
+    manifest = data_store.read_manifest(PREFIX, sha, data_dir=data_dir) or {}
     return FuturesPanel(sha=sha, close=close, manifest=manifest)
 
 

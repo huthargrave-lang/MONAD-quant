@@ -14,8 +14,6 @@ loaded.
 from __future__ import annotations
 
 import csv
-import gzip
-import hashlib
 import io
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,7 +21,8 @@ from typing import Mapping
 
 import pandas as pd
 
-from src.research.daily_data import DATA_DIR, Snapshot, SnapshotError
+from src.research import data_store
+from src.research.daily_data import Snapshot
 from src.research.daily_strategy import Tranche
 
 INDEX = "IWM"
@@ -58,11 +57,10 @@ def encode(rows) -> bytes:
     return buf.getvalue().encode("utf-8")
 
 
-def load_events(sha: str, *, data_dir: Path | None = None) -> SpinEvents:
-    base = Path(data_dir) if data_dir is not None else DATA_DIR
-    data = gzip.decompress((base / f"{PREFIX}-{sha}.csv.gz").read_bytes())
-    if hashlib.sha256(data).hexdigest() != sha:
-        raise SnapshotError(f"{PREFIX}-{sha[:12]} does not hash to its name")
+def load_events(sha: str, *, data_dir: Path | None = None,
+                private_dir: Path | None = None) -> SpinEvents:
+    """The events named ``sha``, verified (committed store, then private)."""
+    data = data_store.read(PREFIX, sha, data_dir=data_dir, private_dir=private_dir)
     return SpinEvents(sha=sha, events=pd.read_csv(io.BytesIO(data), parse_dates=["first_10_12b"]))
 
 
