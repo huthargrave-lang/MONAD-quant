@@ -30,11 +30,9 @@ sys.path.insert(0, str(REPO / "tools"))
 
 from src.research import allocation_stats as stats  # noqa: E402
 from src.research import metal_trust_classes as mt  # noqa: E402
-from src.research import trials  # noqa: E402
 from src.research.daily_classes import MONTH  # noqa: E402
 from src.research.daily_domains import DOMAINS  # noqa: E402
-from src.research.daily_strategy import COST_BPS, evaluate_daily  # noqa: E402
-from src.research.daily_trials import daily_spec, family_name, record_daily  # noqa: E402
+from src.research.daily_strategy import COST_BPS  # noqa: E402
 
 PRODUCER = "tools/metal_trust_report.py"
 MIN_EPISODES = 20
@@ -91,26 +89,11 @@ def break_even_bp() -> float:
     return 0.5 * one_way * 2
 
 
-def stress(domain, ctx, point, start, end) -> dict:
-    """The counted 2x cost run of the candidate and the benchmark."""
-    data = ctx.data_spec(start, end)
-    out = {}
-    with trials.open_run(producer=PRODUCER, family=family_name(domain.name, reference=True),
-                         context={**data, "role": "cost_stress"}) as run:
-        t = run.begin(params=daily_spec(domain.reference, cost_multiple=2.0, domain=domain.name), data=data)
-        ref = evaluate_daily(domain.decide(ctx, domain.reference), ctx.snap, start=start, end=end,
-                             cost_multiple=2.0, tiers=domain.tiers(ctx))
-        record_daily(t, ref)
-    with trials.open_run(producer=PRODUCER, family=family_name(domain.name),
-                         context={**data, "role": "cost_stress"}) as run:
-        t = run.begin(params=daily_spec(point, cost_multiple=2.0, domain=domain.name), data=data)
-        cand = evaluate_daily(domain.decide(ctx, point), ctx.snap, start=start, end=end,
-                              cost_multiple=2.0, tiers=domain.tiers(ctx))
-        record_daily(t, cand)
-    a = stats.active_series(cand.returns, ref.returns)
-    out["active_sharpe_2x"] = stats.annualized_sharpe(a)
-    out["active_ann_2x"] = float(a.mean() * 252)
-    return out
+def stress(domain, ctx) -> dict:
+    """The protocol's counted 2x-cost run (shared with every domain: domain_search.stress)."""
+    import domain_search
+    (out,) = domain_search.stress(domain, ctx, "v1", multiple=2.0, producer=PRODUCER).values()
+    return {"active_sharpe_2x": out["active_sharpe"], "active_ann_2x": out["active_ann"]}
 
 
 def main(argv=None) -> int:
@@ -124,9 +107,11 @@ def main(argv=None) -> int:
     start, end = domain.window(ctx)
     (point,) = domain.grid()
     contribs = pair_contributions(ctx.snap, ctx.panel, point)
-    out = {"window": [str(start.date()), str(end.date())], "pairs": summarise(contribs, start, end),
+    import datetime as _dt
+    out = {"schema_version": 1, "vintage": _dt.date.today().isoformat(),
+           "window": [str(start.date()), str(end.date())], "pairs": summarise(contribs, start, end),
            "break_even_bp_per_round_trip": break_even_bp(), "min_episodes": MIN_EPISODES,
-           "cost_stress": stress(domain, ctx, point, start, end)}
+           "cost_stress": stress(domain, ctx)}
     text = json.dumps(out, indent=1, default=float)
     if args.json:
         Path(args.json).write_text(text, encoding="utf-8")

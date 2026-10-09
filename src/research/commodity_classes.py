@@ -42,15 +42,59 @@ FUND, ANCHOR, SMA = "XLE", "CL=F", 100
 TREND_REFERENCE = {"class": "fund_static", "params": {"asset": FUND}}
 
 
-def ratio_grid(miner: str = MINER, metal: str = METAL) -> list[dict]:
+EXECUTIONS = ("open", "close")
+
+
+def ratio_point(miner: str = MINER, metal: str = METAL, *, execution: str = "open", lag: int = 1,
+                fresh: bool = False, fixings: bool = False) -> dict:
+    """The frozen rule on one pair, with the execution options a historical test needs
+    (docs/research/MINER_TILT_PREPERIOD.md). Defaults are left out of the params so the
+    specs recorded before an option existed keep their hashes.
+
+    * ``execution`` "close": trade at a close, for data with no opening print;
+    * ``lag`` k: an order decided at session t's close executes at session t+k (k = 1 is
+      the rule; larger k is a robustness ladder against measurement noise);
+    * ``fresh``: decide only on a session at which both legs printed a NEW close (a
+      carried fixing or an unchanged index close is stale): a scheduled decision on a
+      stale session moves to the next fresh one, so no decision reads a stale leg;
+    * ``fixings``: execute only on a session at which the metal leg FIXED (the snapshot
+      manifest's ``calendars[metal]``, a scheduled exchange calendar known in advance like
+      the NYSE's): an execution falling on a session that carries an older fixing moves to
+      the next fixing session, so no trade is booked at a price the miner leg has already
+      moved past.
+    """
+    if execution not in EXECUTIONS:
+        raise ValueError(f"unknown execution {execution!r}")
+    if int(lag) != lag or lag < 1:
+        raise ValueError("lag must be a whole number of sessions >= 1")
+    params = {"miner": miner, "metal": metal, "window": Z_WINDOW, "slope": SLOPE}
+    if execution != "open":
+        params["execution"] = execution
+    if lag != 1:
+        params["lag"] = int(lag)
+    if fresh:
+        params["fresh"] = True
+    if fixings:
+        params["fixings"] = True
+    return {"class": "ratio_tilt", "params": params}
+
+
+def ratio_grid(miner: str = MINER, metal: str = METAL, *, execution: str = "open") -> list[dict]:
     """The frozen rule on one pair (docs/research/MINER_TILT_REPLICATION.md replicates it
     unchanged on other pairs)."""
-    return [{"class": "ratio_tilt", "params": {"miner": miner, "metal": metal,
-                                               "window": Z_WINDOW, "slope": SLOPE}}]
+    return [ratio_point(miner, metal, execution=execution)]
 
 
-def ratio_reference(miner: str = MINER, metal: str = METAL) -> dict:
-    return {"class": "pair_static", "params": {"weights": {miner: 0.5, metal: 0.5}}}
+def ratio_reference(miner: str = MINER, metal: str = METAL, *, execution: str = "open",
+                    fixings: bool = False) -> dict:
+    """The 50/50 benchmark; with ``fixings`` it trades only on the metal's fixing
+    sessions, as the candidate does (``fixings`` names that asset)."""
+    params = {"weights": {miner: 0.5, metal: 0.5}}
+    if execution != "open":
+        params["execution"] = execution
+    if fixings:
+        params["fixings"] = metal
+    return {"class": "pair_static", "params": params}
 
 
 def trend_grid() -> list[dict]:
@@ -66,15 +110,85 @@ def ratio_weights(snap: Snapshot, p: Mapping) -> pd.DataFrame:
     return pd.DataFrame({p["miner"]: w, p["metal"]: 1.0 - w}).dropna()
 
 
+def fresh_sessions(snap: Snapshot, legs) -> pd.Series:
+    """True where every leg is priced and its close differs from the previous session's
+    (an unchanged close is a carried fixing or a stale print). Known at that close."""
+    c = snap.close[list(legs)]
+    changed = c.ne(c.shift(1)) & c.notna() & c.shift(1).notna()
+    return changed.all(axis=1)
+
+
+def _on_schedule(w: pd.DataFrame, dates: pd.DatetimeIndex, execution: str, *, lag: int = 1,
+                 fresh: pd.Series | None = None,
+                 execute_on: pd.DatetimeIndex | None = None) -> list[Tranche]:
+    """Every 21 sessions in 21 tranches. A scheduled decision session (moved forward to
+    the next ``fresh`` session when given) takes that session's weights; the order
+    executes ``lag`` sessions later (moved forward to the next session in ``execute_on``
+    when given) at the open ("open") or close ("close"). The engine executes an order at
+    the session after its index, so it is indexed one session before its execution; that
+    placement reads no prices (``execute_on`` is a scheduled calendar)."""
+    if execution not in EXECUTIONS:
+        raise ValueError(f"unknown execution {execution!r}")
+    pos = {d: i for i, d in enumerate(dates)}
+    fresh_pos = None if fresh is None else np.flatnonzero(fresh.reindex(dates).fillna(False).to_numpy())
+    exec_pos = None if execute_on is None else np.flatnonzero(dates.isin(execute_on))
+    out = []
+    for off in OFFSETS:
+        rows, idx = [], []
+        for d in dates[off::MONTH]:
+            i = pos[d]
+            if fresh_pos is not None:
+                k = np.searchsorted(fresh_pos, i)
+                if k == len(fresh_pos):
+                    continue
+                i = int(fresh_pos[k])
+            if dates[i] not in w.index or w.loc[dates[i]].isna().any():
+                continue
+            e = i + lag
+            if exec_pos is not None:
+                k = np.searchsorted(exec_pos, e)
+                if k == len(exec_pos):
+                    continue
+                e = int(exec_pos[k])
+            j = e - 1
+            if j >= len(dates) - 1:
+                continue
+            if idx and dates[j] <= idx[-1]:
+                continue                        # two decisions moved onto one session: keep the first
+            rows.append(w.loc[dates[i]])
+            idx.append(dates[j])
+        orders = pd.DataFrame(rows, index=pd.DatetimeIndex(idx), columns=w.columns)
+        out.append(Tranche(open_orders=orders, close_orders=pd.DataFrame()) if execution == "open"
+                   else Tranche(open_orders=pd.DataFrame(), close_orders=orders))
+    return out
+
+
 def decide_ratio(snap: Snapshot, point: Mapping) -> list[Tranche]:
     p = point["params"]
+    execution = p.get("execution", "open")
     if point["class"] == "pair_static":
-        return static_tranches(p["weights"], snap.dates, every=MONTH, offsets=OFFSETS)
+        if execution == "open" and not p.get("fixings"):
+            return static_tranches(p["weights"], snap.dates, every=MONTH, offsets=OFFSETS)
+        w = pd.DataFrame([p["weights"]] * len(snap.dates), index=snap.dates)
+        w = w.loc[snap.close[list(p["weights"])].notna().all(axis=1)]
+        execute_on = fixing_calendar(snap, p["fixings"]) if p.get("fixings") else None
+        return _on_schedule(w, snap.dates, execution, execute_on=execute_on)
     if point["class"] != "ratio_tilt":
         raise ValueError(f"unknown ratio class {point['class']!r}")
-    w = ratio_weights(snap, p)
-    return [Tranche(open_orders=w.reindex(snap.dates[off::MONTH]).dropna(),
-                    close_orders=pd.DataFrame()) for off in OFFSETS]
+    fresh = fresh_sessions(snap, [p["miner"], p["metal"]]) if p.get("fresh") else None
+    execute_on = fixing_calendar(snap, p["metal"]) if p.get("fixings") else None
+    return _on_schedule(ratio_weights(snap, p), snap.dates, execution, lag=int(p.get("lag", 1)),
+                        fresh=fresh, execute_on=execute_on)
+
+
+def fixing_calendar(snap: Snapshot, asset: str) -> pd.DatetimeIndex:
+    """The sessions at which ``asset`` printed its own fixing (snapshot manifest
+    ``calendars``). Refuses a snapshot without one: executing on carried prices silently
+    would be the look-ahead the option exists to prevent."""
+    cal = (snap.manifest or {}).get("calendars", {}).get(asset)
+    if not cal:
+        raise ValueError(f"snapshot {snap.sha[:12]} has no fixing calendar for {asset}")
+    return pd.DatetimeIndex(pd.to_datetime(cal))
 
 
 def trend_state(snap: Snapshot, panel: FuturesPanel, p: Mapping) -> pd.Series:
@@ -98,9 +212,12 @@ def decide_trend(snap: Snapshot, panel: FuturesPanel, point: Mapping) -> list[Tr
     return [Tranche(open_orders=w.loc[changed], close_orders=pd.DataFrame())]
 
 
-def ratio_start(snap: Snapshot, miner: str = MINER, metal: str = METAL) -> pd.Timestamp:
+def ratio_start(snap: Snapshot, miner: str = MINER, metal: str = METAL, *,
+                floor: pd.Timestamp = CONFIRMATION_START) -> pd.Timestamp:
+    """The first session on or after ``floor`` at which both legs have 21 sessions and
+    the z-score is defined (data before ``floor`` is warm-up only)."""
     ready = ratio_weights(snap, ratio_grid(miner, metal)[0]["params"]).index[0]
-    first = snap.dates[snap.dates >= CONFIRMATION_START][0]
+    first = snap.dates[snap.dates >= pd.Timestamp(floor)][0]
     return max(common_start(snap, [miner, metal], MONTH), ready, first)
 
 

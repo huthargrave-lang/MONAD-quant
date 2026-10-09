@@ -68,6 +68,10 @@ DOMAINS = {
     "gold_silver_ratio": {"family": "gold_silver_ratio", "reference_class": "pair_static"},
     "placebo_ratio": {"family": "placebo_ratio", "reference_class": "pair_static"},
     "metal_trust_discount": {"family": "metal_trust_discount", "reference_class": "pairs_static"},
+    "miner_preperiod_a": {"family": "miner_preperiod_a", "reference_class": "pair_static"},
+    "miner_preperiod_b": {"family": "miner_preperiod_b", "reference_class": "pair_static"},
+    "placebo_preperiod": {"family": "placebo_preperiod", "reference_class": "pair_static"},
+    "miner_preperiod_lags": {"family": "miner_preperiod_lags", "reference_class": "pair_static"},
 }
 DEFAULT_DOMAIN = "etf_alloc"      # trials recorded before domains existed (the v1 search)
 

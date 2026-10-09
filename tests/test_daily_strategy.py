@@ -209,3 +209,22 @@ class StaticTranches(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+class Weights(unittest.TestCase):
+    """DailyResult.weights: each asset's fraction of the portfolio at every close."""
+
+    def test_weights_are_the_target_after_a_close_rebalance_then_drift_and_sum_to_exposure(self):
+        snap = snapshot({"A": [10, 10, 10, 10, 10, 10, 10, 10], "B": [20] * 8},
+                        {"A": [10, 10, 10, 11, 11, 11, 11, 11], "B": [20] * 8})
+        r = evaluate_daily([Tranche(open_orders=pd.DataFrame(),
+                                    close_orders=orders({1: {"A": 0.3, "B": 0.5}}))],
+                           snap, start=DATES[1], tiers={"A": "tier1", "B": "tier1"})
+        self.assertTrue(np.allclose(r.weights.sum(axis=1), r.exposure))
+        # Executed at the close of DATES[2] (decided at DATES[1]); A then rises 10% on DATES[3].
+        w2 = r.weights.loc[DATES[2]]
+        self.assertAlmostEqual(w2["A"] / w2["B"], 0.3 / 0.5, places=9)
+        w3 = r.weights.loc[DATES[3]]
+        self.assertGreater(w3["A"], w2["A"])
+        self.assertEqual(list(r.weights.columns), ["A", "B"])

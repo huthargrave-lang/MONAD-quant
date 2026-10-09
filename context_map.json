@@ -577,7 +577,8 @@
         "tools/snapshot_tr_check.py",
         "tools/commodity_atlas.py",
         "tools/miner_tilt_replication.py",
-        "tools/metal_trust_report.py"
+        "tools/metal_trust_report.py",
+        "tools/miner_preperiod_report.py"
       ],
       "entrypoints": [
         "src/research/daily_domains.py::Domain",
@@ -628,7 +629,10 @@
         "tests/test_snapshot_tr_check.py",
         "tests/test_spinoff.py",
         "tests/test_treasury_auctions.py",
-        "tests/test_trial_ledger.py"
+        "tests/test_trial_ledger.py",
+        "tests/test_bundesbank.py",
+        "tests/test_miner_preperiod.py",
+        "tests/test_domain_search.py"
       ],
       "docs": [
         "docs/research/DAILY_STRATEGIES.md",
@@ -656,7 +660,8 @@
         "docs/research/MREIT_DISCOUNT_TEST_V2.md",
         "docs/research/RISKY_PICKS_PROTOCOL.md",
         "docs/research/SPINOFF_PRODUCT_PROTOCOL.md",
-        "docs/research/SPINOFF_PROTOCOL.md"
+        "docs/research/SPINOFF_PROTOCOL.md",
+        "docs/research/MINER_TILT_PREPERIOD.md"
       ],
       "do_not_touch_without_approval": false,
       "run_cmd": "venv/bin/python tools/domain_search.py <domain> --snapshot <sha> [--panel <sha>] --report-only"
@@ -1261,7 +1266,11 @@
         "ratio tilt",
         "atlas",
         "discovery",
-        "confirmation"
+        "confirmation",
+        "bundesbank",
+        "pre-period",
+        "preperiod",
+        "fixing"
       ],
       "read": [
         "docs/research/COMMODITY_LINKAGE_DISCOVERY.md",
@@ -1270,7 +1279,8 @@
         "docs/research/METAL_TRUST_DISCOUNT_PROTOCOL.md",
         "src/research/commodity_classes.py",
         "src/research/futures_panel.py",
-        "src/research/metal_trust_classes.py"
+        "src/research/metal_trust_classes.py",
+        "docs/research/MINER_TILT_PREPERIOD.md"
       ],
       "run": [
         "venv/bin/python tools/miner_tilt_replication.py --help",

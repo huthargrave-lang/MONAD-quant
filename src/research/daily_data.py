@@ -49,6 +49,11 @@ from src.research.trials import REPO, LedgerError, canonical_json
 
 DATA_REL = Path("docs/research/data")
 DATA_DIR = REPO / DATA_REL
+#: Observations that may not be redistributed (the repo is public): a snapshot built with
+#: ``private=True`` keeps its csv.gz here, gitignored, and commits only its manifest, whose
+#: sha names the exact bytes, so anyone can rebuild it and the loader still verifies it.
+PRIVATE_DATA_REL = Path("local_research_data")
+PRIVATE_DATA_DIR = REPO / PRIVATE_DATA_REL
 SCHEMA_VERSION = 1
 
 #: Validation bounds. A real ETF panel clears each by a wide margin; a failed or partial
@@ -253,8 +258,19 @@ def _validate_asset(s: str, h: pd.DataFrame, calendar: pd.DatetimeIndex, *, stri
     return o, c, full_dist, info
 
 
+def close_only_bars(h: pd.DataFrame) -> pd.DataFrame:
+    """A close-only series (an old index, a once-daily fixing) as bars: the open is the
+    previous close, so the whole session's move is in the day leg and the night leg is
+    zero (the crypto convention for a market without an opening print). The first
+    session opens at its own close."""
+    out = h.copy()
+    out["Open"] = out["Close"].shift(1).fillna(out["Close"])
+    return out
+
+
 def build_frames(universe: Sequence[str], start: str, end: str, *,
                  optional: Sequence[str] = (),
+                 close_only: Sequence[str] = (),
                  independent_closes: Mapping[str, pd.Series] | None = None,
                  continuous: bool = False,
                  extreme_bounds: tuple[float, float] | None = None,
@@ -269,6 +285,11 @@ def build_frames(universe: Sequence[str], start: str, end: str, *,
     ``opens_unreliable``. ``independent_closes`` (asset -> another source's closes) lets
     an extreme session be accepted when that source corroborates it (``corroborated``).
     The calendar is the first asset's sessions; it must be core.
+
+    ``close_only``: assets with no real opening print (an index before electronic
+    opens, a daily fixing). Their opens are rebuilt from the previous close
+    (``close_only_bars``) and flagged ``opens_unreliable`` with ``close_only``, so the
+    evaluator refuses open orders into them: strategies trade them at the close.
 
     ``continuous``: a 24/7 market (crypto). Weekend sessions are allowed, and every
     asset's opens are flagged unreliable: a market that never closes has no opening print,
@@ -287,6 +308,9 @@ def build_frames(universe: Sequence[str], start: str, end: str, *,
     unknown = optional - set(universe)
     if unknown:
         raise SnapshotError(f"optional assets outside the universe: {sorted(unknown)}")
+    close_only = set(close_only)
+    if close_only - set(universe):
+        raise SnapshotError(f"close-only assets outside the universe: {sorted(close_only - set(universe))}")
     calendar = None
     report = {"sessions": 0, "assets": {}, "dropped": {}}
     opens, closes, dists = {}, {}, {}
@@ -298,6 +322,8 @@ def build_frames(universe: Sequence[str], start: str, end: str, *,
                 raise
             report["dropped"][s] = f"fetch failed: {type(exc).__name__}: {exc}"
             continue
+        if s in close_only:
+            h = close_only_bars(h)
         if calendar is None:
             calendar = h.index
             if not calendar.is_monotonic_increasing or calendar.has_duplicates:
@@ -309,11 +335,14 @@ def build_frames(universe: Sequence[str], start: str, end: str, *,
             report["sessions"] = len(calendar)
         try:
             o, c, d, info = _validate_asset(s, h, calendar,
-                                            strict_opens=s not in optional and not continuous,
+                                            strict_opens=(s not in optional and not continuous
+                                                          and s not in close_only),
                                             independent=(independent_closes or {}).get(s),
                                             extreme_bounds=extreme_bounds)
-            if continuous:
+            if continuous or s in close_only:
                 info["opens_unreliable"] = True
+            if s in close_only:
+                info["close_only"] = True
         except AssetError as exc:
             if s not in optional:
                 raise
@@ -401,14 +430,22 @@ def decode_csv(data: bytes) -> dict:
 
 def write_snapshot(frames: Mapping[str, object], report: Mapping, *, universe: Sequence[str],
                    start: str, end: str, sources: Mapping[str, str],
-                   data_dir: Path | None = None) -> str:
+                   data_dir: Path | None = None, observations_dir: Path | None = None,
+                   manifest_extra: Mapping | None = None) -> str:
     """Write ``DS-<sha>.csv.gz`` and its manifest. Idempotent: an existing snapshot with
-    the same sha is left as is (it is byte-identical by construction)."""
+    the same sha is left as is (it is byte-identical by construction).
+
+    ``observations_dir``: write the csv.gz there instead (the private store for data that
+    may not be redistributed); the manifest still goes to ``data_dir`` and records where
+    the observations live. ``manifest_extra``: further manifest fields (e.g. a scheduled
+    fixing calendar); it cannot override the core fields."""
     data = encode_csv(frames)
     sha = hashlib.sha256(data).hexdigest()
     base = Path(data_dir) if data_dir is not None else DATA_DIR
     base.mkdir(parents=True, exist_ok=True)
-    csv_path = base / f"DS-{sha}.csv.gz"
+    obs_dir = Path(observations_dir) if observations_dir is not None else base
+    obs_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = obs_dir / f"DS-{sha}.csv.gz"
     if not csv_path.exists():
         buf = io.BytesIO()
         with gzip.GzipFile(fileobj=buf, mode="wb", mtime=0, compresslevel=9) as gz:
@@ -421,6 +458,13 @@ def write_snapshot(frames: Mapping[str, object], report: Mapping, *, universe: S
                 "first_session": frames["open"].index[0].date().isoformat(),
                 "last_session": frames["open"].index[-1].date().isoformat(),
                 "sources": dict(sources), "validation": dict(report), "built_at": built_at}
+    if observations_dir is not None:
+        manifest["observations"] = {"stored": "private (not redistributable)",
+                                    "store": PRIVATE_DATA_REL.as_posix(), "csv_sha256": sha}
+    for k, v in dict(manifest_extra or {}).items():
+        if k in manifest:
+            raise SnapshotError(f"manifest field {k!r} is reserved")
+        manifest[k] = v
     man_path = base / f"DS-{sha}.json"
     if not man_path.exists():
         _write_exclusive(man_path, (canonical_json(manifest) + "\n").encode("utf-8"))
@@ -436,33 +480,62 @@ def _write_exclusive(path: Path, data: bytes) -> None:
 
 
 def build_snapshot(universe: Sequence[str], start: str, end: str, *,
-                   optional: Sequence[str] = (), independent_closes: Mapping | None = None,
+                   optional: Sequence[str] = (), close_only: Sequence[str] = (),
+                   independent_closes: Mapping | None = None,
                    independent_source: str | None = None, continuous: bool = False,
                    extreme_bounds: tuple[float, float] | None = None,
-                   data_dir: Path | None = None, **fetchers) -> str:
+                   asset_sources: Mapping[str, str] | None = None,
+                   private: bool = False, manifest_extra: Mapping | None = None,
+                   data_dir: Path | None = None, private_dir: Path | None = None,
+                   **fetchers) -> str:
     """Fetch, validate and write a snapshot. Returns its sha. The manifest's universe is
-    what was REQUESTED; ``validation.dropped`` says what was left out and why."""
+    what was REQUESTED; ``validation.dropped`` says what was left out and why.
+    ``asset_sources``: provenance for assets that do not come from Yahoo (a custom
+    ``fetch_asset`` routes them), recorded per asset in the manifest. ``private``: keep
+    the observations in the private store (``PRIVATE_DATA_DIR``, or ``private_dir``) and
+    commit only the manifest."""
     import yfinance
 
-    frames, report = build_frames(universe, start, end, optional=optional,
+    frames, report = build_frames(universe, start, end, optional=optional, close_only=close_only,
                                   independent_closes=independent_closes, continuous=continuous,
                                   extreme_bounds=extreme_bounds, **fetchers)
     sources = {"prices": f"yfinance {yfinance.__version__} history(auto_adjust=False, actions=True)",
                "cash": "FRED DTB3 (fredgraph.csv)", "cash_check": "Yahoo ^IRX"}
     if independent_source:
         sources["extreme_session_corroboration"] = independent_source
+    if asset_sources:
+        unknown = set(asset_sources) - set(universe)
+        if unknown:
+            raise SnapshotError(f"asset sources for assets outside the universe: {sorted(unknown)}")
+        sources["per_asset"] = dict(asset_sources)
+    if close_only:
+        sources["close_only"] = sorted(close_only)
+    obs_dir = (Path(private_dir) if private_dir is not None else PRIVATE_DATA_DIR) if private else None
     return write_snapshot(frames, report, universe=universe, start=start, end=end,
-                          sources=sources, data_dir=data_dir)
+                          sources=sources, data_dir=data_dir, observations_dir=obs_dir,
+                          manifest_extra=manifest_extra)
 
 
-def load_snapshot(sha: str, *, data_dir: Path | None = None) -> Snapshot:
-    """The snapshot named ``sha``. Refuses a file whose content does not hash to its name."""
+def load_snapshot(sha: str, *, data_dir: Path | None = None,
+                  private_dir: Path | None = None) -> Snapshot:
+    """The snapshot named ``sha``. Refuses a file whose content does not hash to its name.
+    The observations are looked for in ``data_dir`` (default: the committed store), then
+    in the private store (``private_dir``, default ``PRIVATE_DATA_DIR`` when ``data_dir`` is
+    the default); the manifest is always read from ``data_dir``."""
     base = Path(data_dir) if data_dir is not None else DATA_DIR
-    path = base / f"DS-{sha}.csv.gz"
-    try:
-        data = gzip.decompress(path.read_bytes())
-    except FileNotFoundError:
-        raise SnapshotError(f"no snapshot {sha[:12]} in {base}") from None
+    stores = [base]
+    if private_dir is not None:
+        stores.append(Path(private_dir))
+    elif data_dir is None:
+        stores.append(PRIVATE_DATA_DIR)
+    path = next((d / f"DS-{sha}.csv.gz" for d in stores if (d / f"DS-{sha}.csv.gz").exists()), None)
+    if path is None:
+        man = base / f"DS-{sha}.json"
+        hint = ""
+        if man.exists() and "observations" in json.loads(man.read_text(encoding="utf-8")):
+            hint = " (its observations are private: rebuild them with the command its protocol names)"
+        raise SnapshotError(f"no snapshot {sha[:12]} in {', '.join(map(str, stores))}{hint}")
+    data = gzip.decompress(path.read_bytes())
     actual = hashlib.sha256(data).hexdigest()
     if actual != sha:
         raise SnapshotError(f"{path.name} hashes to {actual[:12]}: the file was altered")

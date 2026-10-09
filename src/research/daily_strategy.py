@@ -65,6 +65,11 @@ COST_BPS = {
     # Small and micro caps around insider-buying events: half-spreads of 20-60 bps plus
     # impact at small size; one rate after 2010, wider before.
     "smallcap": {"pre": 50.0, "post": 30.0},
+    # A miner basket before decimalisation (1/8-dollar ticks until 1997, about 15-40 bps
+    # half-spread on $15-40 shares) and physical bullion against a daily fixing, for the
+    # 1984-2005 miner/metal test (docs/research/MINER_TILT_PREPERIOD.md, board 2026-10-09).
+    "basket_pre_decimal": {"pre": 35.0, "post": 35.0},
+    "bullion": {"pre": 20.0, "post": 20.0},
 }
 TIER2 = frozenset({"EEM", "DBC", "VNQ"})
 
@@ -110,6 +115,9 @@ class DailyResult:
                                        # at the previous close (all tranches together)
     cost_paid: float                   # the same for fees
     exposure: pd.Series = field(repr=False, default=None)   # invested fraction at each close
+    #: Each asset's fraction of the portfolio at each close (all tranches together);
+    #: ``exposure`` is its row sum.
+    weights: pd.DataFrame = field(repr=False, default=None)
 
     @property
     def excess(self) -> pd.Series:
@@ -182,6 +190,7 @@ def evaluate_daily(tranches: Sequence[Tranche], snap: Snapshot, *, start: pd.Tim
     n_t = len(tranches)
     total = np.zeros(i1 - i0 + 2)               # value at the close of i0-1 .. i1
     invested = np.zeros(i1 - i0 + 1)
+    held = np.zeros((i1 - i0 + 1, len(assets)))     # dollars per asset at each close
     rebalances = 0
     # Traded notional and fees in DOLLARS per scored session, summed over tranches, then
     # divided by the WHOLE portfolio's value: a tranche's fee as a fraction of its own
@@ -220,6 +229,7 @@ def evaluate_daily(tranches: Sequence[Tranche], snap: Snapshot, *, start: pd.Tim
                 fee_d[j] += c
             total[j + 1] += h.sum() + k
             invested[j] += h.sum()
+            held[j] += h
     values = pd.Series(total, index=dates[i0 - 1:i1 + 1])
     returns = values.pct_change().iloc[1:]
     prior = values.iloc[:-1].to_numpy()           # portfolio value at the previous close
@@ -228,7 +238,9 @@ def evaluate_daily(tranches: Sequence[Tranche], snap: Snapshot, *, start: pd.Tim
     return DailyResult(returns=returns, cash=rets.cash.iloc[i0:i1 + 1].fillna(0.0),
                        rebalances=rebalances, turnover=turnover, cost_paid=cost_paid,
                        exposure=pd.Series(invested / values.iloc[1:].to_numpy(),
-                                          index=dates[i0:i1 + 1]))
+                                          index=dates[i0:i1 + 1]),
+                       weights=pd.DataFrame(held / values.iloc[1:].to_numpy()[:, None],
+                                            index=dates[i0:i1 + 1], columns=assets))
 
 
 def _refuse_unreliable_opens(opens: dict, snap: Snapshot, assets: Sequence[str],

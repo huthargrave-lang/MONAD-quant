@@ -46,6 +46,11 @@ EXEMPT = {
         "engine_crosscheck proves the study's own replay equals the engine byte-for-byte; "
         "the study's measurements come from its replay, not from this call. (Labs that "
         "measure with their own replay code are outside this guard; see the ledger README.)",
+    "tools/miner_preperiod_report.py":
+        "noise_placebo runs the evaluator on seeded SYNTHETIC ratio panels (a random walk "
+        "plus measurement noise around the real gold leg) to bound how much a reversion "
+        "rule can earn from noise alone; it measures no instrument and cannot evidence "
+        "an edge. Every evaluation on market data in the tool is counted.",
 }
 
 COUNTING_METHODS = {"begin", "trial"}

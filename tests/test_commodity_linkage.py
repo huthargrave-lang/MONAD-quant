@@ -136,3 +136,23 @@ class Replication(unittest.TestCase):
         self.assertTrue(good["register"], good["trigger"])
         self.assertFalse(mt.evaluate(series, cc.ERAS, spa_worst_p=0.02)["register"])    # 0.02 x 3 > 0.05
         self.assertGreater(good["contamination"]["miner_metal_ratio"]["beta"], 0.2)
+
+
+class Execution(unittest.TestCase):
+    def test_close_execution_trades_at_the_close_and_open_specs_are_unchanged(self):
+        s = snap(["SPY", "GDX", "GLD"])
+        self.assertNotIn("execution", cc.ratio_grid()[0]["params"])           # recorded hashes hold
+        self.assertNotIn("execution", cc.ratio_reference()["params"])
+        (pt,) = cc.ratio_grid(execution="close")
+        ts = cc.decide_ratio(s, pt)
+        self.assertTrue(all(t.open_orders.empty and not t.close_orders.empty for t in ts))
+        ref = cc.ratio_reference(execution="close")
+        self.assertTrue(all(t.open_orders.empty for t in cc.decide_ratio(s, ref)))
+        self.assertEqual(cc.ratio_truncation(s, pt, [DATES[400]]), [])
+        with self.assertRaises(ValueError):
+            cc.ratio_grid(execution="noon")
+
+    def test_the_floor_sets_where_scoring_begins(self):
+        s = snap(["SPY", "GDX", "GLD"])
+        self.assertEqual(cc.ratio_start(s, floor=pd.Timestamp("2015-01-01")),
+                         max(cc.ratio_weights(s, cc.ratio_grid()[0]["params"]).index[0], DATES[20]))

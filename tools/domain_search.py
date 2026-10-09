@@ -101,6 +101,49 @@ def run(domain: Domain, ctx: Context, grid_name: str, *, producer: str = PRODUCE
     return ref_id, run_.run_id
 
 
+def stress(domain: Domain, ctx: Context, grid_name: str, *, multiple: float,
+           producer: str = PRODUCER) -> dict:
+    """The cost stress: the benchmark and every point of ``grid_name`` run at ``multiple``
+    x the domain's costs, COUNTED (in the domain's families, run context role
+    "cost_stress"). A run already recorded on this data, window and multiple is reused,
+    not repeated. Returns {label: {"active_sharpe", "active_ann"}} against the benchmark
+    at the same multiple, read back from the ledger."""
+    if multiple <= 0:
+        raise ValueError("a cost multiple must be positive")
+    start, end = domain.window(ctx)
+    data = ctx.data_spec(start, end)
+    tiers = domain.tiers(ctx)
+    points = domain.grids()[grid_name]()
+    fam, ref_fam = family_name(domain.name), family_name(domain.name, reference=True)
+
+    def recorded(family):
+        return latest(family_members(trials.iter_trials(), family), data, start, end,
+                      cost_multiple=float(multiple))
+
+    def record(family, todo):
+        with trials.open_run(producer=producer, family=family,
+                             context={**data, "role": "cost_stress", "cost_multiple": float(multiple)}) as run_:
+            for point in todo:
+                t = run_.begin(params=daily_spec(point, cost_multiple=multiple, domain=domain.name), data=data)
+                record_daily(t, evaluate_daily(domain.decide(ctx, point), ctx.snap, start=start, end=end,
+                                               cost_multiple=multiple, tiers=tiers))
+
+    if not recorded(ref_fam):
+        record(ref_fam, [domain.reference])
+    have = recorded(fam)
+    todo = [p for p in points if label(daily_spec(p, cost_multiple=multiple, domain=domain.name)) not in have]
+    if todo:
+        record(fam, todo)
+    fam_recs, (ref_rec,) = recorded(fam), recorded(ref_fam).values()
+    series = trials.load_returns(list(fam_recs.values()) + [ref_rec])
+    ref_r = stored_returns(series[ref_rec.key])
+    out = {}
+    for lab, rec in sorted(fam_recs.items()):
+        a = stats.active_series(stored_returns(series[rec.key]), ref_r)
+        out[lab] = {"active_sharpe": stats.annualized_sharpe(a), "active_ann": float(a.mean() * 252)}
+    return out
+
+
 def report(domain: Domain, ctx: Context) -> dict:
     start, end = domain.window(ctx)
     data = ctx.data_spec(start, end)
@@ -191,6 +234,8 @@ def main(argv=None, *, domain_name: str | None = None) -> int:
     ap.add_argument("--acknowledge-live", nargs="*", default=[], metavar="H",
                     help="live registered hypotheses in the family this run is allowed to cost")
     ap.add_argument("--report-only", action="store_true", help="do not run trials; report the ledger")
+    ap.add_argument("--cost-stress", type=float, metavar="M",
+                    help="also run (counted) the benchmark and the grid at M x costs and report them")
     ap.add_argument("--json", help="also write the report as JSON to this path")
     args = ap.parse_args(argv)
     domain = DOMAINS[domain_name or args.domain]
@@ -206,6 +251,14 @@ def main(argv=None, *, domain_name: str | None = None) -> int:
         print(f"ledger: benchmark {ref_id or '(already recorded)'}, search {run_id}")
     rep = report(domain, ctx)
     print_report(rep)
+    if args.cost_stress:
+        if args.report_only:
+            raise SystemExit("--cost-stress runs trials; it cannot be combined with --report-only")
+        rep["cost_stress"] = {"multiple": args.cost_stress,
+                              "points": stress(domain, ctx, args.grid, multiple=args.cost_stress)}
+        for lab, v in rep["cost_stress"]["points"].items():
+            print(f"  cost x{args.cost_stress:g}: {lab[:58]:58} active Sharpe {v['active_sharpe']:+.2f} "
+                  f"({v['active_ann']:+.2%}/yr)")
     if args.json:
         with open(args.json, "w", encoding="utf-8") as fh:
             json.dump(rep, fh, indent=1, default=str)

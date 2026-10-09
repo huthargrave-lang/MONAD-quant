@@ -373,14 +373,20 @@ LEVERED = Domain(
 from src.research import commodity_classes as _cc  # noqa: E402
 from src.research import futures_panel as _fut  # noqa: E402
 
-def _ratio_domain(name: str, miner: str, metal: str, prior: int) -> Domain:
+def _ratio_domain(name: str, miner: str, metal: str, prior: int, *, execution: str = "open",
+                  floor=_cc.CONFIRMATION_START, eras=_cc.ERAS, tiers: Mapping | None = None,
+                  grid=None, fixings: bool = False) -> Domain:
+    """The frozen miner/metal ratio tilt on one pair. ``tiers``: cost tier per leg (None:
+    the default ETF tiers). ``grid``: the points (default: the rule alone)."""
+    points = grid if grid is not None else (lambda: _cc.ratio_grid(miner, metal, execution=execution))
     return Domain(
-        name=name, reference=_cc.ratio_reference(miner, metal), eras=_cc.ERAS,
-        load=lambda data: Context(snap=daily_data.load_snapshot(data["snapshot"])),
+        name=name, reference=_cc.ratio_reference(miner, metal, execution=execution, fixings=fixings),
+        eras=eras, load=lambda data: Context(snap=daily_data.load_snapshot(data["snapshot"])),
         decide=lambda ctx, point: _cc.decide_ratio(ctx.snap, point),
-        tiers=lambda ctx: None, start=lambda ctx: _cc.ratio_start(ctx.snap, miner, metal),
+        tiers=(lambda ctx: None) if tiers is None else (lambda ctx: dict(tiers)),
+        start=lambda ctx: _cc.ratio_start(ctx.snap, miner, metal, floor=floor),
         truncation=lambda ctx, point, cuts: _cc.ratio_truncation(ctx.snap, point, cuts),
-        grids=lambda: {"v1": lambda: _cc.ratio_grid(miner, metal)}, prior_search_trials=prior)
+        grids=lambda: {"v1": points}, prior_search_trials=prior)
 
 
 # Prior search: every statistic of the discovery atlas, 1401 (board, 2026-10-08).
@@ -402,6 +408,34 @@ OIL_TREND = Domain(
     truncation=lambda ctx, point, cuts: _cc.trend_truncation(ctx.snap, ctx.panel, point, cuts),
     grids=lambda: {"v1": _cc.trend_grid}, prior_search_trials=_cc.ATLAS_CELLS,
     panel_prefix=_fut.PREFIX, primary="vol_matched")
+
+# ── The 1984-2005 test of the same frozen rule (docs/research/MINER_TILT_PREPERIOD.md) ──
+from src.research import miner_preperiod as _mp  # noqa: E402
+
+#: Decided only on sessions where both legs printed (``fresh``), executed at the next
+#: close on a session where gold fixed (``fixings``): close-only data, stale-print guards.
+_PRE_RULE = dict(execution="close", fresh=True, fixings=True)
+_PRE_TIERS = {_mp.MINER: "basket_pre_decimal", _mp.PLACEBO: "basket_pre_decimal",
+              _mp.GOLD_FFM: "bullion", _mp.GOLD_COMEX: "bullion"}
+_ERAS_A = (("start", "1989-04-30"), ("1989-05-01", "1994-01-31"), ("1994-02-01", "end"))
+_ERAS_B = (("start", "2002-12-31"), ("2003-01-01", "end"))
+
+
+def _preperiod_domain(name: str, miner: str, gold: str, floor: str, eras, *, lags=(1,)) -> Domain:
+    # Prior 5: the verdict gate charges the alpha already spent on this rule's promotion
+    # gates (board, 2026-10-09): p_gate = worst p x (1 + 5).
+    return _ratio_domain(
+        name, miner, gold, 5, execution="close", floor=pd.Timestamp(floor), eras=eras,
+        tiers={miner: _PRE_TIERS[miner], gold: _PRE_TIERS[gold]}, fixings=True,
+        grid=lambda: [_cc.ratio_point(miner, gold, lag=k, **_PRE_RULE) for k in lags])
+
+
+PRE_A = _preperiod_domain("miner_preperiod_a", _mp.MINER, _mp.GOLD_FFM, _mp.XAU_FIRST_TRADE, _ERAS_A)
+PRE_B = _preperiod_domain("miner_preperiod_b", _mp.MINER, _mp.GOLD_COMEX, "2000-08-30", _ERAS_B)
+PRE_PLACEBO = _preperiod_domain("placebo_preperiod", _mp.PLACEBO, _mp.GOLD_FFM, _mp.XAU_FIRST_TRADE, _ERAS_A)
+PRE_LAGS = _preperiod_domain("miner_preperiod_lags", _mp.MINER, _mp.GOLD_FFM, _mp.XAU_FIRST_TRADE,
+                             _ERAS_A, lags=(3, 6))
+
 
 # ── Physical-metal trust discount tilt (docs/research/METAL_TRUST_DISCOUNT_PROTOCOL.md) ──
 from src.research import metal_trust_classes as _mt  # noqa: E402
@@ -425,5 +459,5 @@ DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO, COUNTRY, BDC
                                                   LOTTERY_RECENT, BETA_PAIR, LEVERED,
                                                   MINER_RATIO, OIL_TREND, SILVER_RATIO,
                                                   JUNIOR_RATIO, GOLD_SILVER_RATIO, PLACEBO_RATIO,
-                                                  METAL_TRUST)}
+                                                  METAL_TRUST, PRE_A, PRE_B, PRE_PLACEBO, PRE_LAGS)}
 
