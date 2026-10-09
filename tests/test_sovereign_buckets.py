@@ -861,6 +861,24 @@ class TheBucketsPageDrawsWhatWasFetched(unittest.TestCase):
     def setUpClass(cls):
         cls.page = _served_buckets()
 
+    def test_the_injected_data_is_declared_once_and_sits_outside_the_rail(self):
+        """Two defects, both seen in a browser before this was written. The data script
+        declared `const PRICES` (and PRICE_ASOF, NOT_COMPANIES) while the page's own script
+        declares the same names to read them, a SyntaxError ("Identifier 'PRICES' has already
+        been declared") that stopped the page script on every load. And the data script was
+        inserted before the first <script>, which is the rail's toggle: inside the rail the
+        Pages export replaces, so the published page lost window.LEDGER and crashed."""
+        for name in ("PRICES", "PRICE_ASOF", "NOT_COMPANIES"):
+            top = re.findall(r"^\s*(?:const|let|var)\s+{}\s*=".format(name), self.page, re.M)
+            self.assertEqual(len(top), 1, "{} is declared {} times at top level".format(name, len(top)))
+            self.assertIn("window.{} = ".format(name), self.page, "{} is not injected".format(name))
+        rail = re.search(r'<nav class="rail">.*?</nav>', self.page, re.S).group(0)
+        for marker in ("window.LEDGER", "window.PRICES"):
+            self.assertNotIn(marker, rail, "{} rides inside the rail".format(marker))
+        head = self.page.split("</head>", 1)[0]
+        self.assertIn("window.LEDGER", head, "the ledger must load before the page script")
+        self.assertIn("window.PRICES = ", head)
+
     def test_the_seeded_walk_is_gone(self):
         """Matched as CODE, not as a word: the comment recording what was removed names
         mulberry32 on purpose, and a test forbidding the name would forbid the explanation."""
@@ -884,7 +902,7 @@ class TheBucketsPageDrawsWhatWasFetched(unittest.TestCase):
         for ret in re.findall(r"return ([^;]+);", body):
             self.assertNotRegex(ret.strip(), r"^\[",
                                 "seriesFor returns a literal array: {}".format(ret.strip()))
-        self.assertRegex(self.page, r"const PRICES = \{", "no price cache was injected")
+        self.assertRegex(self.page, r"window\.PRICES = \{", "no price cache was injected")
 
     def test_a_ticker_with_no_series_gets_a_reason_not_a_line(self):
         """Three absences, and they send a reader to different places: a fetch closes the
@@ -904,7 +922,7 @@ class TheBucketsPageDrawsWhatWasFetched(unittest.TestCase):
         """The strongest form of the check: a cash ETF has to look like a cash ETF. The PRNG
         drew SHV at +18.0% over six months; T-bill funds do not do that."""
         import json as _json
-        m = re.search(r"const PRICES = (\{.*?\});", self.page, re.S)
+        m = re.search(r"window\.PRICES = (\{.*?\});", self.page, re.S)
         self.assertIsNotNone(m, "no injected price cache")
         prices = _json.loads(m.group(1))
         if not prices:
