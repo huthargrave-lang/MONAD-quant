@@ -194,10 +194,10 @@ F404731's wording as "measurably worse at x%", whatever the headline.
 - **Ledger and invariants.** The tool checks these itself and refuses to write if any fails:
   - No trial is recorded, no portfolio weight is fitted, and the grid is fixed.
   - `trials.family_counts()` is recorded in full at start and end and must be unchanged.
-  - H366200's evaluator hash must be unchanged.
-  - This study adds files only, so it touches no source pinned by H366200 or H366201. H366201's
-    spec lives on the watch branch, where its evaluator hash is checked when this commit is
-    merged there.
+  - The miner/metal forward watch's evaluator hash (on this branch) must be unchanged.
+  - This study adds files only, so it touches no source pinned by either forward watch
+    (`docs/research/forward_watch/`). The metal-trust watch's spec lives on the watch branch,
+    where its evaluator hash is checked when this commit is merged there.
   - `tools/sleeve_break_even.py` is not edited, and a test reproduces F366206's committed results.
 - **Option A.**
   - DS-c6ac870a's observations stay private.
@@ -221,3 +221,45 @@ F404731's wording as "measurably worse at x%", whatever the headline.
   - One deviation was the proposer's own: a criterion passing at one frequency and unresolved at the other is *unresolved*, not *failed*.
   - Round 2 returned CONCUR and accepted the deviation. A real contradiction still fails, since Δ ≤ −δ at either frequency fails. Its five minor items were applied.
 - The result file is `docs/research/data/credit_sleeve_mix.json`.
+
+## Result (2026-10-09): NO CREDIT at every carve; the sleeve adds nothing beyond its stock and bond exposure
+
+Result file: `docs/research/data/credit_sleeve_mix.json` (sha256 `ab2157fd…`). It was produced
+by the tool committed with the frozen protocol (`1994b32`), on its first run, with no change
+after it.
+
+- **The crisis proxy ran.** The screen passed: the private HYG is identical to the recorded
+  series (correlation 1.000, mean gap 0.00%/yr).
+  - The in-sample regression gives β̂ = 1.21 (b0 1.07, b1 0.13) and α̂ = +1.35%/yr, on 722 blocks.
+- **The replica** starts 2013-06-04 (3,350 sessions), with mean betas 0.46 to SPY and 0.47 to IEF.
+- **The invariants held.** The family counts and the watch's evaluator hash were unchanged.
+
+| Carve (band δ) | C1 vs 60/40 (daily / block; neg., pos.) | C3 vs HYG | C4 vs replica | C2 extra drawdown (neg. / pos.) | C5 crisis drawdown (mix vs 60/40) | Verdict |
+|---|---|---|---|---|---|---|
+| 5% (0.0125) | +0.006, −0.010 / −0.002, −0.010: unresolved | +0.018, −0.001 / +0.013, −0.001: unresolved | −0.011, −0.004 / **−0.022**, −0.003: **fail** | +0.23 / −0.26 pp: fail | −32.3% vs −32.2%: fail | **NO CREDIT** |
+| 10% (0.025) | +0.011, −0.022 / −0.005, −0.021: unresolved | +0.036, −0.002 / +0.024, −0.002: unresolved | −0.022, −0.007 / **−0.046**, −0.006: **fail** | +0.61 / −0.53 pp: fail | −32.5% vs −32.2%: fail | **NO CREDIT** |
+| 20% (0.05) | +0.015, −0.046 / −0.018, −0.044: unresolved | +0.069, −0.003 / +0.046, −0.004: unresolved | −0.049, −0.016 / **−0.098**, −0.013: **fail** | +1.38 / −1.05 pp: fail | −32.9% vs −32.2%: fail | **NO CREDIT** |
+
+**Reading.**
+- **What decides it is C4.** At every carve, an ANGL sleeve does worse than a sleeve holding
+  only ANGL's own lagged stock and bond exposure (about 0.46 SPY + 0.47 IEF), by more than the
+  band at block frequency in the negative-correlation regime (2013-06..2022-07).
+  - Credit's return here is its equity and duration exposure, with nothing measurable on top.
+  - The sleeve's 0.13 previous-block beta, a lag in its pricing, flatters its daily Sharpe. The
+    block reading removes that, and it is the block reading that fails.
+- **Against the 60/40 itself the effect is within the band** at every carve and both frequencies (C1).
+  - The NO CREDIT verdict says the sleeve is measurably worse than its own replica. It does not
+    say the sleeve is measurably worse than the 60/40.
+- **ANGL beats HYG as a sleeve before 2022 and ties it after** (C3 unresolved). F404731's own
+  claim, ANGL over HYG, is consistent with this. Its sleeve recommendation is not.
+- **Drawdown.** The sleeve deepens the pre-2022 drawdown (+0.2 to +1.4 pp) and, on the proxy,
+  the 2007-12 crisis drawdown (+0.1 to +0.7 pp).
+  - It slightly cushions 2022-26. In calendar 2022 at a 10% carve: −20.6% vs −20.9%.
+- **Reported only.**
+  - **Provider robustness (2016-07-22 on, 10% carve):** FALN and ANGL show the same picture. ΔSharpe vs the 60/40 is −0.008/−0.013 daily and −0.023/−0.013 block for FALN, and −0.008/−0.022 and −0.025/−0.021 for ANGL. Both beat their HYG before 2022 by about 0.02.
+  - **The 2.5% carve:** +0.003 / −0.005.
+  - **C5 under the other proxies:** the plain HYG + mean-difference proxy (the flattering one) gives −32.0% to −31.6% against the 60/40's −32.2%. That would have passed C5, which is why the frozen regression proxy was required.
+- **Consequence (stated in advance).**
+  - F404731's sleeve recommendation ("a reasonable credit-sleeve choice for the static allocation") is **retracted**. At 5, 10 and 20% the sleeve is measurably worse than its stock-bond replica, and indistinguishable from no sleeve against the 60/40.
+  - This agrees with F38: the static product holds no credit.
+  - This is a statement about the static allocation. It is not about ANGL against HYG, and it is not a test of any alpha.
