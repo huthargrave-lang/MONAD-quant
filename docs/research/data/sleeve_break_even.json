@@ -1,4 +1,12 @@
 {
+ "inputs": {
+  "cash_snapshot_sha256": "32c992fb5395668529a6bfca3214bf59a1242fbc1c6efb52ab97664154c3aaaf",
+  "returns_sha256": {
+   "TR-20261006T005053Z-9336581d#0": "af18f6d66015955d33c1dbf58845b53ea226cefe52221ba2451abfb9c92c1bf9",
+   "TR-20261006T012341Z-86834435#0": "23aa6231738297ae1ce9d3d9f328eaf3435727a914a77e40a46aa5165931a449",
+   "TR-20261007T051659Z-dfb4dff7#0": "883fdbc19b5cd8303f89b89a2a48d98488733f313e3b3550293cff3411c73f81"
+  }
+ },
  "product": "TR-20261006T005053Z-9336581d#0",
  "protocol": "docs/research/SLEEVE_BREAK_EVEN_PROTOCOL.md",
  "results": {

@@ -449,16 +449,33 @@ def mt_spec(snap, **over):
     return spec
 
 
-class DomainWatch(Ledgered):
+class GenesisReproduction(unittest.TestCase):
     def test_the_genesis_reproduces_the_four_recorded_books(self):
+        """Within 1e-12 of the ledger's recorded series (the real H366201 genesis also
+        matched every returns sha bit for bit on the recording environment; another
+        numpy build can differ in the last bits, so the cross-environment test compares
+        values)."""
         snap, panel = mt_data()
-        self.freeze(mt_spec(snap, watch="HTEST"))
-        with self.run_() as run:
-            line = fw.write_genesis_domain("HTEST", snap, panel, run=run, watch_dir=self.dir / "w")
-        spec, _h = fw.load("HTEST", self.dir / "w")
-        self.assertEqual(line["recorded_returns_sha256"], spec["recorded"])
-        self.assertTrue(all(b.get("leg") == "close" for b in line["books"].values()))
-        self.assertEqual(fw.verify("HTEST", self.dir / "w"), [])
+        spec = mt_spec(snap, watch="HTEST")
+        recs = [r for r in trials.iter_trials() if r.key in MT_TRIALS.values()]
+        loaded = trials.load_returns(recs)
+        with uncounted("unit test: the genesis replay of the recorded F366202 books"):
+            books, series, _state = fw.genesis_books_domain(spec, snap, panel, pd.Timestamp("2026-10-02"))
+        for name, key in MT_TRIALS.items():
+            rec = loaded[key]
+            got = series[name]
+            self.assertEqual(len(got), len(rec), name)
+            np.testing.assert_allclose(got.to_numpy(), np.asarray(rec, dtype=float), atol=1e-12, err_msg=name)
+        self.assertTrue(all(b.leg == "close" for b in books.values()))
+
+
+class DomainWatch(Ledgered):
+    def test_a_genesis_that_does_not_reproduce_its_recorded_books_is_refused(self):
+        snap, panel = mt_data()
+        self.freeze(mt_spec(snap, watch="HTEST", recorded={n: "0" * 64 for n in MT_RECORDED}))
+        with self.run_() as run, self.assertRaises(fw.WatchError):
+            fw.write_genesis_domain("HTEST", snap, panel, run=run, watch_dir=self.dir / "w")
+        self.assertEqual(fw.read("HTEST", self.dir / "w"), [])
 
     def test_the_daily_chained_record_equals_one_evaluation(self):
         """Genesis inside the frozen window, then every later session logged one by one on
