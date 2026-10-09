@@ -289,3 +289,66 @@ R0, R2 and R2b can only downgrade.
   - A purely convex payoff (`a ∝ F²`) is added as a test that must not SURVIVE
     (`s_R2 < 0.25`).
   - The finding will state any convexity it detects.
+
+## Result (2026-10-09): H404702 INCONCLUSIVE (procedural), CEFS SURVIVES, MDCEX BETA EXPOSURE
+
+Run `tools/beta_timing_control.py run --acknowledge-live H404701 H404702` on tool commit `74ac9e1`, result `docs/research/data/beta_timing_control.json`
+(sha256 3a8abd4c…, commit e5b553a).
+
+**Checks.**
+- Every replay reproduced its record exactly (max difference 0.0), with an identical returns
+  sha and spec hash.
+- The book identity held: exact for H404702, and with the carry-in rule for the controls.
+- The gate inputs of both live registrations (H404701, H404702) were identical before and
+  after the replays.
+
+| Series | Verdict | Raw active | Beta-hedged α | s | t_α | Explained (t_E) | Robustness shares |
+|---|---|---|---|---|---|---|---|
+| **H404702** (2005-01..2026-09) | **INCONCLUSIVE** (demoted from SURVIVES by the positive-control rule) | +2.19%/yr | +2.26%/yr | 1.03 | 7.29 | −0.07%/yr (−0.35) | R0 1.02, R1a 0.90, R1b 0.88, R3 1.03, R4 0.92, R2 1.03, R2b 0.99 |
+| Positive control: F366204 tilt (2017-08..) | INCONCLUSIVE (R2 share −0.45) | +0.81%/yr | +0.48%/yr | 0.59 | 1.31 | +0.33%/yr (1.31) | Treynor-Mazuy convexity c > 0 at t 6.3; R2b t −4.1 |
+| Negative control: metal trusts (2012-10..) | UNDERPOWERED | +0.56%/yr | +0.33%/yr | 0.59 | 1.10 | +0.23%/yr (2.40), all timing | R1b 0.96, R4 0.37 |
+| **CEFS vs PCEF** (2018-05..), the decision series | **SURVIVES** | +5.39%/yr | +4.40%/yr | 0.82 | 2.47 | +0.99%/yr (1.58) | R0 0.92, R1b 0.72, R4 0.68, R2 1.05, R2b 0.96 |
+| MDCEX vs PCEF (2013-12..), corroboration | **BETA EXPOSURE** (established by R1b) | +3.87%/yr | +2.23%/yr | 0.58 | 1.24 | SPY beta: +3.4%/yr (t 4.33), static | R1b 0.13; Treynor-Mazuy concave (t −5.1) |
+
+**Reading.**
+
+1. **H404702.** Its active return carries no ex-ante beta exposure on any of the five factor
+   definitions, and no convexity.
+   - The formal verdict is INCONCLUSIVE only because the method's positive control did not read
+     BETA.
+   - F366204's known problem appears here as a strongly convex payoff (gains in rallies), which
+     the linear control by design does not label. Only R2 flagged it.
+   - By the frozen rule, the method could not certify selection, and objection **O4** was filed
+     against H404702 (`docs/research/refutations/H404702.jsonl`). A board other than this
+     protocol's author must resolve it before admission.
+   - What the board will weigh is substantive against procedural:
+     - H404702's own numbers (s 1.03, t 7.3, every share ≥ 0.88, Treynor-Mazuy c t −0.42) pass
+       every test this protocol has;
+     - the open question is whether a positive control that the linear control misses
+       invalidates a clean reading of a different book.
+2. **F366204's within-family part** (H404702's selection, seen again against ETFs) keeps its
+   whole return under this control: s 1.02, t 4.8. Its beta timing lives in the category
+   part, as F366204 found.
+3. **CEFS** keeps 82% of its edge after hedging ex-ante beta (t 2.47), and passes every
+   robustness check. The positive-control caveat applies to it as well; the frozen demotion
+   rule names only H404702.
+4. **MDCEX's** edge over PCEF is mostly static equity beta (SPY explains 3.4 of 3.9%/yr). Its
+   corroboration of F404732 does not survive. CEFS's does.
+5. **The negative control** reads UNDERPOWERED. A part is "explained" (t 2.4, all timing):
+   trust discounts co-move with the metal, the over-absorption the adversary warned of. It is
+   not BETA, so no demotion follows.
+
+**Consequences applied.**
+- Objection O4 against H404702: filed.
+- The web finding links H404702 and F404713 as the protocol requires.
+- CEFS: no objection. Any CEFS registration must cite this result.
+- Board rank 3 (single-country CEFs) stays unrun: it was conditional on beta exposure in
+  H404702, which was not found.
+
+**Deviation, disclosed: the web edge type.**
+- The protocol said the finding would link H404702 and F404713 as `contradicts`. The
+  repository's edge rule reserves `contradicts` for a node that shows a claim false.
+- This finding shows neither claim false. The demotion is procedural, and H404702's own
+  statistics pass every check. So the links are `relates`.
+- The binding consequence, objection O4, is filed as frozen. A `contradicts` edge would also
+  have marked fourteen dependent nodes "disputed" and failed the web lint.
