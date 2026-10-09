@@ -352,3 +352,16 @@ Run `tools/beta_timing_control.py run --acknowledge-live H404701 H404702` on too
   statistics pass every check. So the links are `relates`.
 - The binding consequence, objection O4, is filed as frozen. A `contradicts` edge would also
   have marked fourteen dependent nodes "disputed" and failed the web lint.
+
+**Disclosure: how the tool applied the positive-control rule (found by the next-step board).**
+- The protocol's rule has two parts:
+  - the positive control "must read BETA EXPOSURE or BETA-LIKE";
+  - "if it reads SURVIVES or UNDERPOWERED", H404702 cannot read SURVIVES.
+- The control read **INCONCLUSIVE**, a case the consequence clause does not name.
+- `apply_controls` demoted H404702 whenever the control read anything other than BETA or
+  BETA-LIKE. That is the strict reading of the requirement, and the author filled the gap
+  with it.
+- Read literally, the consequence clause would leave H404702 at SURVIVES.
+- This ambiguity, and whether the control's expected answer was itself right, are for the
+  board that resolves objection O4 (`O4_RESOLUTION_PROTOCOL.md`). Nothing here changes before
+  that ruling.
