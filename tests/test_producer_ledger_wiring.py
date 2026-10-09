@@ -36,8 +36,10 @@ DELEGATED = {
     ("src/optimization/walk_forward.py", "_run_slice"): "_counted_slice",
     # The forward watch's counted evaluations (decorated with src/strategy/counted.evaluator):
     # each is called only by wrappers that begin a trial first.
-    ("src/research/forward_watch.py", "evaluate_session"): ("log_sessions", "_corrections"),
+    ("src/research/forward_watch.py", "evaluate_session"): ("log_sessions", "_corrections",
+                                                            "log_sessions_domain"),
     ("src/research/forward_watch.py", "genesis_books"): ("write_genesis",),
+    ("src/research/forward_watch.py", "genesis_books_domain"): ("write_genesis_domain",),
 }
 
 #: Files that call an evaluator without counting, and why that cannot inflate a result.

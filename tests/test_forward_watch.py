@@ -319,11 +319,43 @@ class Decision(unittest.TestCase):
         self.assertAlmostEqual(reps[0]["years"], 253 / 252, places=1)
         self.assertEqual([r["verdict"] for r in reps][-1] in ("continue", "promote", "close"), True)
         void = rows + [(b"", {"kind": "void", "reason": "GDX index change"})]
-        self.assertEqual(fw.decide(self.SPEC, void)[0]["verdict"], "VOID")
+        out = fw.decide(self.SPEC, void)
+        self.assertEqual(out[-1]["verdict"], "VOID")
+        self.assertEqual(out[:-1], reps)          # a VOID does not erase the anniversaries before it
+        self.assertEqual(fw.decide(self.SPEC, rows[:1] + [(b"", {"kind": "void", "reason": "x"})])[-1]["verdict"],
+                         "VOID")
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CommittedRecords(unittest.TestCase):
+    """The committed logs and the route policy, as they are in the repository."""
+
+    def test_every_committed_line_reserialises_byte_identically(self):
+        from src.research.trials import canonical_json
+        for path in sorted(fw.WATCH_DIR.glob("*.jsonl")):
+            for i, raw in enumerate(path.read_bytes().splitlines(), 1):
+                if not raw:
+                    continue
+                row = json.loads(raw)
+                with self.subTest(log=path.name, line=i):
+                    self.assertEqual(canonical_json(row).encode("utf-8"), raw)
+                    for name, book in (row.get("books") or {}).items():
+                        self.assertEqual(fw.Book.from_json(book).to_json(), book)
+
+    def test_the_route_policy_is_frozen_and_counts_every_watch(self):
+        import forward_watch as tool
+        policy = json.loads(fw.POLICY.read_text(encoding="utf-8"))
+        self.assertIn("ever frozen", policy["m"])
+        self.assertEqual(tool._history_rule(fw.POLICY.relative_to(REPO).as_posix()), "identical")
+        ids = fw.watches_ever_frozen()
+        self.assertIn("H366200", ids)
+        self.assertNotIn("route", ids)
+        spec = {"evaluation": EVAL}
+        self.assertAlmostEqual(fw.route_boundary(spec, 1), math.log(0.8 / 0.05))
+        self.assertAlmostEqual(fw.route_boundary(spec, 3), math.log(3 * 0.8 / 0.05))
 
 
 class WindowOpening(unittest.TestCase):
@@ -335,8 +367,242 @@ class WindowOpening(unittest.TestCase):
         with mock.patch.object(tool, "spec_reached", return_value=None):
             self.assertIsNone(tool.opens_at("HTEST", snap, "origin/development"))
 
+    def test_a_spec_reaches_the_branch_when_it_is_merged_not_when_it_was_committed(self):
+        import os
+        import subprocess
+        import forward_watch as tool
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+
+            def git(*args, date="2026-01-01T00:00:00Z"):
+                env = {**os.environ, "GIT_AUTHOR_DATE": date, "GIT_COMMITTER_DATE": date,
+                       "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
+                       "GIT_COMMITTER_EMAIL": "t@t"}
+                subprocess.run(["git", *args], cwd=repo, env=env, check=True, capture_output=True)
+            git("init", "-q", "-b", "dev")
+            (repo / "a.txt").write_text("a")
+            git("add", "a.txt")
+            git("commit", "-q", "-m", "base")
+            git("checkout", "-q", "-b", "feature")
+            (repo / "w").mkdir()
+            (repo / "w" / "H1.json").write_text("{}")
+            git("add", "w/H1.json")
+            git("commit", "-q", "-m", "freeze", date="2026-02-01T00:00:00Z")
+            git("checkout", "-q", "dev")
+            self.assertIsNone(tool.reached("w/H1.json", "dev", repo=repo))
+            git("merge", "-q", "--no-ff", "-m", "merge", "feature", date="2026-03-15T12:00:00Z")
+            self.assertEqual(tool.reached("w/H1.json", "dev", repo=repo), pd.Timestamp("2026-03-15 12:00:00"))
+            git("checkout", "-q", "-b", "ff", "dev")
+            (repo / "w" / "H2.json").write_text("{}")
+            git("add", "w/H2.json")
+            git("commit", "-q", "-m", "direct", date="2026-04-01T00:00:00Z")
+            self.assertEqual(tool.reached("w/H2.json", "ff", repo=repo), pd.Timestamp("2026-04-01"))
+
     def test_history_rules_freeze_specs_and_let_logs_only_grow(self):
         import forward_watch as tool
         self.assertEqual(tool._history_rule("docs/research/forward_watch/H1.json"), "identical")
         self.assertEqual(tool._history_rule("docs/research/forward_watch/H1.jsonl"), "prefix")
         self.assertIsNone(tool._history_rule("docs/research/forward_watch/README.md"))
+
+
+# ── the domain-rule watch (H366201, docs/research/METAL_TRUST_FORWARD_WATCH.md) ──────
+MT_SNAPSHOT = "6edd69e3d7d513eb79d542637e7f2b00776ea9e10b303cdb05c118e2236923c1"
+MT_PANEL = "fd7099e252ccd34aec6829b5617dface66318c8a3756808d95c4a21d6b19b35f"
+#: The ledger's returns shas of the recorded F366202 books (trials 9488e29b, 5c567742,
+#: 6adb2bed, eb8af984); the Ledgered tests run on a scratch ledger, so they are pinned here
+#: and checked against the real ledger by test_the_pinned_shas_are_the_ledgers.
+MT_RECORDED = {"tilt:1x": "0753d45abbdc9bb443eda598fdd23795af33d75153d4db5733773b5dd234d089",
+               "bench:1x": "87f6fb605bd0ff862ec48bb434def08f77cd026ec6be178b09f18f29824cecf6",
+               "tilt:2x": "b3a8a80ac0689d11e5c5b648919011e61327407f2bbc163230736b936bf20c54",
+               "bench:2x": "4206e9fa5eb3f24f2f8388fa5fccd3b118dc23a8eec5cfd4be48e05f0624c6ed"}
+MT_TRIALS = {"tilt:1x": "TR-20261008T185930Z-9488e29b#0", "bench:1x": "TR-20261008T185928Z-5c567742#0",
+             "tilt:2x": "TR-20261008T185937Z-6adb2bed#0", "bench:2x": "TR-20261008T185936Z-eb8af984#0"}
+
+
+def mt_data():
+    """The frozen F366202 data, or skip with the reason (option A: private observations)."""
+    from src.research import cef_data
+    try:
+        return daily_data.load_snapshot(MT_SNAPSHOT), cef_data.load_panel(MT_PANEL)
+    except Exception as exc:  # noqa: BLE001
+        raise unittest.SkipTest(f"the frozen F366202 data are not on this machine ({exc})")
+
+
+def mt_spec(snap, **over):
+    from src.research import metal_trust_classes as mt
+    spec = {
+        "watch": "HMT", "claim": "test", "status": "forward watch; not an admission candidate",
+        "domain_rule": {"domain": "metal_trust_discount", "point": mt.grid()[0], "reference": mt.REFERENCE,
+                        "assets": ["GLD", "PHYS", "PSLV", "SLV"], "trusts": ["PHYS", "PSLV"]},
+        "stress_multiple": 2.0, "anchor_session": "2009-01-02", "snapshot_start": "2009-01-01",
+        "snapshot_universe": list(snap.assets), "replay_from": "2011-10-24", "genesis_session": "2026-10-02",
+        "genesis_data": {"snapshot": MT_SNAPSHOT, "nav_panel": MT_PANEL},
+        "recorded": dict(MT_RECORDED),
+        "session_dates_sha256": fw.session_dates_sha256(snap, "2026-10-02"),
+        "identity": {}, "nav_source": "test", "evaluation": EVAL,
+        "evaluator_sources": ["src/research/daily_strategy.py", "src/research/forward_watch.py",
+                              "src/research/metal_trust_classes.py"],
+        "evaluator_sha256": "", "void_conditions": ["x"], "window_opens": "test"}
+    spec.update(over)
+    spec["session_dates_sha256"] = fw.session_dates_sha256(snap, spec["genesis_session"])
+    spec["evaluator_sha256"] = fw.spec_evaluator_sha256(spec)
+    return spec
+
+
+class DomainWatch(Ledgered):
+    def test_the_genesis_reproduces_the_four_recorded_books(self):
+        snap, panel = mt_data()
+        self.freeze(mt_spec(snap, watch="HTEST"))
+        with self.run_() as run:
+            line = fw.write_genesis_domain("HTEST", snap, panel, run=run, watch_dir=self.dir / "w")
+        spec, _h = fw.load("HTEST", self.dir / "w")
+        self.assertEqual(line["recorded_returns_sha256"], spec["recorded"])
+        self.assertTrue(all(b.get("leg") == "close" for b in line["books"].values()))
+        self.assertEqual(fw.verify("HTEST", self.dir / "w"), [])
+
+    def test_the_daily_chained_record_equals_one_evaluation(self):
+        """Genesis inside the frozen window, then every later session logged one by one on
+        the same data and vintage: the logged active equals one full evaluation."""
+        import dataclasses
+        from src.research.daily_domains import DOMAINS, Context
+        snap, panel = mt_data()
+        early = dataclasses.replace(panel, manifest={**panel.manifest, "fetched_at": "2011-01-01T00:00:00Z"})
+        genesis = "2026-03-31"
+        dom = DOMAINS["metal_trust_discount"]
+        ctx = Context(snap=snap, panel=panel)
+        spec = mt_spec(snap, watch="HTEST", genesis_session=genesis)
+        full = {}
+        with uncounted("unit test: the full-window evaluation the watch must reproduce"):
+            for name, _p, kind, mult in fw.book_names(spec):
+                r = evaluate_daily(dom.decide(ctx, fw.rule_point(spec, kind)), snap,
+                                   start=pd.Timestamp("2011-10-24"), cost_multiple=mult, tiers=dom.tiers(ctx))
+                full[name] = r.returns
+        spec["recorded"] = {n: fw.returns_sha256(r.loc[:genesis]) for n, r in full.items()}
+        self.freeze(spec)
+        with self.run_() as run:
+            fw.write_genesis_domain("HTEST", snap, early, run=run, watch_dir=self.dir / "w")
+            fw.log_sessions_domain("HTEST", snap, lambda sha: early, run=run, watch_dir=self.dir / "w")
+        rows = [r for _b, r in fw.read("HTEST", self.dir / "w")]
+        sess = [r for r in rows if r["kind"] == "session"]
+        logged = pd.Series({pd.Timestamp(r["session"]): r["active"]["1x"]["active"] for r in sess})
+        expected = (full["tilt:1x"] - full["bench:1x"]).loc[logged.index]
+        np.testing.assert_allclose(logged.to_numpy(), expected.to_numpy(), atol=1e-12)
+        stressed = pd.Series({pd.Timestamp(r["session"]): r["active"]["2x"]["active"] for r in sess})
+        np.testing.assert_allclose(stressed.to_numpy(), (full["tilt:2x"] - full["bench:2x"]).loc[logged.index],
+                                   atol=1e-12)
+        self.assertEqual(sess[-1]["session"], "2026-10-02")
+        self.assertEqual(fw.verify("HTEST", self.dir / "w"), [])
+
+    def test_a_two_fund_panel_decides_exactly_as_the_full_panel(self):
+        from src.research import cef_data
+        from src.research import metal_trust_classes as mt
+        snap, panel = mt_data()
+        frames = {"price": panel.price[["PHYS", "PSLV"]], "nav": panel.nav[["PHYS", "PSLV"]]}
+        with tempfile.TemporaryDirectory() as td:
+            kw = {"data_dir": Path(td)}
+            try:
+                sha = cef_data.write_panel(frames, {"category": {}}, private_dir=Path(td), **kw)
+                two = cef_data.load_panel(sha, private_dir=Path(td), **kw)
+            except TypeError:                                   # a branch without the private store
+                sha = cef_data.write_panel(frames, {"category": {}}, **kw)
+                two = cef_data.load_panel(sha, **kw)
+        point = mt.grid()[0]
+        pd.testing.assert_frame_equal(mt.weights(snap, two, point), mt.weights(snap, panel, point))
+        self.assertEqual(mt.scoring_start(snap, two), mt.scoring_start(snap, panel))
+        until = pd.Timestamp("2026-10-02")
+        self.assertEqual(mt.carried_genesis(two, point, until), mt.carried_genesis(panel, point, until))
+
+
+class DomainPieces(unittest.TestCase):
+    def test_the_pinned_shas_are_the_ledgers(self):
+        recs = {r.key: r for r in trials.iter_trials() if r.key in MT_TRIALS.values()}
+        self.assertEqual({n: recs[k].returns_sha for n, k in MT_TRIALS.items()}, MT_RECORDED)
+
+    def test_a_close_leg_book_round_trips_and_an_open_one_keeps_the_legacy_form(self):
+        from src.research.daily_strategy import BookState
+        st = BookState(session="2026-10-02", tranches=({"holdings": {"A": 0.5}, "cash": 0.5},))
+        close = fw.Book(state=st, pending={3: {"A": 0.25}}, leg="close")
+        self.assertEqual(close.to_json()["leg"], "close")
+        self.assertEqual(fw.Book.from_json(close.to_json()), close)
+        opened = fw.Book(state=st, pending={3: {"A": 0.25}})
+        self.assertNotIn("leg", opened.to_json())
+        self.assertEqual(fw.Book.from_json(opened.to_json()).leg, "open")
+
+    def test_a_session_reads_only_a_vintage_fetched_before_it_executed(self):
+        rows = [(b"", {"kind": "genesis", "vintage": {"nav_panel": "v0", "fetched_at": "2026-10-06T01:00:00Z"}}),
+                (b"", {"kind": "vintage", "nav_panel": "v1", "fetched_at": "2026-10-09T21:30:00Z"}),
+                (b"", {"kind": "vintage", "nav_panel": "v2", "fetched_at": "2026-10-12T22:00:00Z"})]
+        self.assertEqual(fw.vintage_for(rows, pd.Timestamp("2026-10-07"))[1], "v0")
+        self.assertEqual(fw.vintage_for(rows, pd.Timestamp("2026-10-09"))[1], "v0")   # fetched after that close
+        self.assertEqual(fw.vintage_for(rows, pd.Timestamp("2026-10-12"))[1], "v1")
+        self.assertEqual(fw.vintage_for(rows, pd.Timestamp("2026-10-20"))[1], "v2")
+        with self.assertRaises(fw.WatchError):
+            fw.vintage_for(rows, pd.Timestamp("2026-10-05"))
+
+    def test_a_revised_already_stepped_observation_is_reported_not_stepped(self):
+        from src.research.cef_data import NavPanel
+        idx = pd.to_datetime(["2026-09-11", "2026-09-18", "2026-09-25"])
+        old = NavPanel(sha="o", price=pd.DataFrame({"PHYS": [10.0, 10.1, 10.2]}, index=idx),
+                       nav=pd.DataFrame({"PHYS": [10.5, 10.6, 10.7]}, index=idx), category={}, manifest={})
+        new_nav = old.nav.copy()
+        new_nav.loc["2026-09-18", "PHYS"] = 10.65
+        new = NavPanel(sha="n", price=old.price, nav=new_nav, category={}, manifest={})
+        spec = {"domain_rule": {"trusts": ["PHYS"]}}
+        state = {"PHYS": {"state": 0.5, "obs": "2026-09-18", "z": 0.0}}
+        out = fw.nav_revisions(spec, old, new, state)
+        self.assertEqual([(r["trust"], r["date"]) for r in out], [("PHYS", "2026-09-18")])
+        new_nav2 = old.nav.copy()
+        new_nav2.loc["2026-09-25", "PHYS"] = 9.0                  # not yet stepped: no revision
+        self.assertEqual(fw.nav_revisions(spec, old, NavPanel(sha="m", price=old.price, nav=new_nav2,
+                                                              category={}, manifest={}), state), [])
+
+    def test_a_domain_spec_must_name_its_rule_and_every_recorded_book(self):
+        errs = fw.validate({"domain_rule": {}})
+        self.assertTrue(any("missing" in e for e in errs))
+        snap_like = type("S", (), {"assets": ("SPY",)})()
+        from src.research import metal_trust_classes as mt
+        spec = {k: "x" for k in fw.REQUIRED_DOMAIN}
+        spec.update({"domain_rule": {"domain": "metal_trust_discount", "point": mt.grid()[0],
+                                     "reference": mt.REFERENCE, "assets": [], "trusts": []},
+                     "stress_multiple": 2.0, "evaluation": EVAL, "status": "not an admission candidate",
+                     "recorded": {"tilt:1x": "a"}})
+        self.assertIn("recorded must give a returns sha for every book", fw.validate(spec))
+        self.assertIsNotNone(snap_like)
+
+
+class DomainReport(unittest.TestCase):
+    def rows(self, states, opened):
+        """A genesis, a window opening, and session lines with the given carried states."""
+        d = pd.bdate_range("2027-01-04", periods=len(states))
+        rows = [(b"", {"kind": "genesis", "session": "2027-01-01",
+                       "rule_state": {"PHYS": {"state": states[0]}, "PSLV": {"state": 0.5}}})]
+        rows.append((b"", {"kind": "window_open", "opens_at_session": str(d[opened].date())}))
+        for i, s in enumerate(states):
+            rows.append((b"", {"kind": "session", "session": str(d[i].date()),
+                               "rule_state": {"PHYS": {"state": s}, "PSLV": {"state": 0.5}},
+                               "read_states": {"PHYS": s, "PSLV": 0.5},
+                               "active": {"1x": {"active": 0.001 * (1 if s == 1.0 else -1)}}}))
+        return rows, d
+
+    def test_episodes_count_departures_inside_the_window_and_not_the_carried_in_state(self):
+        from src.research import metal_trust_classes as mt
+        states = [1.0, 1.0, 0.5, 0.5, 1.0, 1.0, 0.5, 0.0, 0.0, 0.5]
+        rows, d = self.rows(states, opened=0)
+        close = pd.DataFrame({a: 10 * np.exp(np.cumsum(np.full(len(d), 0.001 if a == "PHYS" else 0.0)))
+                              for a in ("SPY", "PHYS", "GLD", "PSLV", "SLV")}, index=d)
+        snap = Snapshot(sha="s" * 64, dates=d, assets=tuple(close.columns), open=close, close=close,
+                        dist=close * 0.0, dtb3=pd.Series(1.0, index=d), manifest={})
+        spec = {"domain_rule": {"point": mt.grid()[0]}}
+        out = fw.legs_and_episodes(spec, rows, snap)
+        self.assertEqual(out["episodes"], 2)                 # 0.5 -> 1.0 and 0.5 -> 0.0; the start is carried in
+        self.assertGreater(out["long_leg"], 0.0)            # PHYS out-earns GLD while held above neutral
+
+    def test_atm_windows_and_the_issuance_split(self):
+        filings = [{"form": "F-10", "filed": "2027-01-04"}, {"form": "SUPPL", "filed": "2027-01-06"},
+                   {"form": "424B5", "filed": "2026-01-01"}]
+        self.assertEqual(fw.atm_windows(filings), [("2027-01-06", "2029-02-04")])
+        rows, d = self.rows([1.0] * 10, opened=0)
+        split = fw.issuance_split(rows, fw.atm_windows(filings))
+        self.assertAlmostEqual(split["inside_share"], 0.8)
+        self.assertFalse(split["degenerate"])
+        self.assertTrue(fw.issuance_split(rows, [])["degenerate"])

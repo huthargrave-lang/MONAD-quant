@@ -5,6 +5,7 @@ cannot admit (src/research/forward_watch.py; docs/research/MINER_TILT_FORWARD_WA
 
   venv/bin/python tools/forward_watch.py freeze <draft.json>     # once; needs the web node
   venv/bin/python tools/forward_watch.py genesis <ID>            # once: state at the last close
+  venv/bin/python tools/forward_watch.py fetch <ID>              # domain watches: a NAV vintage, daily
   venv/bin/python tools/forward_watch.py log <ID>                # after each close (catch-up ok)
   venv/bin/python tools/forward_watch.py report <ID>             # anniversaries and the decision
   venv/bin/python tools/forward_watch.py verify [--against origin/development]
@@ -21,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -40,19 +42,25 @@ def family(watch: str) -> str:
     return f"forward_watch.{watch}.v1"
 
 
-def _git(*args) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", *args], cwd=REPO, capture_output=True, text=True)
+def _git(*args, repo: Path = REPO) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True)
 
 
-def spec_reached(watch: str, base_ref: str) -> pd.Timestamp | None:
-    """When the spec first appeared on ``base_ref`` (its adding commit's committer date,
-    UTC), or None if it is not there yet."""
-    rel = fw.spec_path(watch).relative_to(REPO).as_posix()
-    out = _git("log", base_ref, "--diff-filter=A", "--format=%cI", "--", rel)
+def reached(rel: str, base_ref: str, *, repo: Path = REPO) -> pd.Timestamp | None:
+    """When ``rel`` reached ``base_ref``: the committer date (UTC) of the FIRST-PARENT
+    commit of ``base_ref`` that added it, which is the merge commit when it arrived through
+    a merge. A spec's own commit date would open a window retroactively: freeze on a
+    branch, log for weeks, merge if pleasing (board, METAL_TRUST_FORWARD_WATCH.md)."""
+    out = _git("log", "--first-parent", base_ref, "--diff-filter=A", "--format=%cI", "--", rel, repo=repo)
     stamps = [s for s in out.stdout.split() if s]
     if out.returncode != 0 or not stamps:
         return None
     return pd.Timestamp(stamps[-1]).tz_convert("UTC").tz_localize(None)
+
+
+def spec_reached(watch: str, base_ref: str) -> pd.Timestamp | None:
+    """When the spec reached ``base_ref`` (``reached``), or None if it is not there yet."""
+    return reached(fw.spec_path(watch).relative_to(REPO).as_posix(), base_ref)
 
 
 def opens_at(watch: str, snap, base_ref: str) -> str | None:
@@ -66,13 +74,29 @@ def opens_at(watch: str, snap, base_ref: str) -> str | None:
 
 def fresh_snapshot(spec: dict):
     end = (pd.Timestamp.today().normalize() + pd.Timedelta(days=1)).date().isoformat()
+    if fw.is_domain(spec):
+        from src.research import daily_data
+        # the frozen universe, in its frozen order (the engine's sums depend on it)
+        sha = daily_data.build_snapshot(list(spec["snapshot_universe"]), spec["snapshot_start"], end, private=True)
+        return daily_data.load_snapshot(sha)
     return fw.load_snapshot(fw.build_snapshot(spec, end))
+
+
+def fetch_panel(spec: dict):
+    """A NAV vintage of the watch's trusts: fetched strictly (a failure or a lost trust
+    raises, so nothing is recorded), observations private, manifest committed."""
+    from src.research import cef_data
+    if not hasattr(cef_data, "data_store"):
+        raise SystemExit("this branch's cef_data has no private store (option A, PR #65): a NAV "
+                         "vintage would be written to the committed tree; fetch on a branch that has it")
+    frames, report = cef_data.build_panel(tickers=list(spec["domain_rule"]["trusts"]), strict=True)
+    return cef_data.load_panel(cef_data.write_panel(frames, report))
 
 
 def cmd_freeze(args) -> int:
     draft = json.loads(Path(args.draft).read_text(encoding="utf-8"))
-    draft = {**draft, "evaluator_sources": list(fw.EVALUATOR_SOURCES),
-             "evaluator_sha256": fw.evaluator_sha256()}
+    sources = list(draft.get("evaluator_sources") or fw.EVALUATOR_SOURCES)
+    draft = {**draft, "evaluator_sources": sources, "evaluator_sha256": fw.evaluator_sha256(tuple(sources))}
     path, h = fw.freeze(draft)
     print(f"frozen {path.relative_to(REPO)} sha256 {h}")
     return 0
@@ -85,15 +109,46 @@ def _refuse_dirty():
     return state
 
 
+def cmd_fetch(args) -> int:
+    code = _refuse_dirty()
+    spec, _h = fw.load(args.watch)
+    if not fw.is_domain(spec):
+        raise SystemExit(f"{args.watch} reads no NAV vintages")
+    panel = fetch_panel(spec)
+    line = fw.append_vintage(args.watch, panel, code=code)
+    print(f"{args.watch}: vintage {panel.sha[:12]} fetched {line['fetched_at']}")
+    return 0
+
+
 def cmd_genesis(args) -> int:
     code = _refuse_dirty()
     spec, _h = fw.load(args.watch)
+    if fw.is_domain(spec):
+        return _genesis_domain(args, spec, code)
     snap = fresh_snapshot(spec)
     session = pd.Timestamp(args.session) if args.session else snap.dates[-1]
     with trials.open_run(producer=fw.PRODUCER, family=family(args.watch),
                          context={"watch": args.watch, "role": "genesis"}) as run:
         line = fw.write_genesis(args.watch, snap, session, run=run, code=code)
     print(f"{args.watch}: genesis at {line['session']} (index {line['session_index']}, snapshot {snap.sha[:12]})")
+    return 0
+
+
+def _genesis_domain(args, spec: dict, code) -> int:
+    """The domain watch's genesis on its frozen data (exact), the fresh replay reported,
+    and the fresh NAV vintage recorded right after it."""
+    from src.research import cef_data, daily_data
+    snap = daily_data.load_snapshot(spec["genesis_data"]["snapshot"])
+    panel = cef_data.load_panel(spec["genesis_data"]["nav_panel"])
+    fresh_panel = fetch_panel(spec)
+    fresh = (fresh_snapshot(spec), fresh_panel)
+    with trials.open_run(producer=fw.PRODUCER, family=family(args.watch),
+                         context={"watch": args.watch, "role": "genesis"}) as run:
+        line = fw.write_genesis_domain(args.watch, snap, panel, run=run, fresh=fresh, code=code)
+    fw.append_vintage(args.watch, fresh_panel, code=code)
+    diffs = {n: d["max_abs_diff"] for n, d in line["fresh_replay"]["books"].items()}
+    print(f"{args.watch}: genesis at {line['session']} reproduces the recorded books; fresh replay "
+          f"max |diff| {diffs}; vintage {fresh_panel.sha[:12]} recorded")
     return 0
 
 
@@ -104,7 +159,12 @@ def cmd_log(args) -> int:
     start = opens_at(args.watch, snap, args.base_ref)
     with trials.open_run(producer=fw.PRODUCER, family=family(args.watch),
                          context={"watch": args.watch, "role": "forward paper"}) as run:
-        written = fw.log_sessions(args.watch, snap, run=run, opens_at=start, code=code)
+        if fw.is_domain(spec):
+            from src.research import cef_data
+            written = fw.log_sessions_domain(args.watch, snap, cef_data.load_panel, run=run,
+                                             opens_at=start, code=code)
+        else:
+            written = fw.log_sessions(args.watch, snap, run=run, opens_at=start, code=code)
     kinds = [w["kind"] for w in written]
     print(f"{args.watch}: wrote {len(written)} line(s) {kinds} through {snap.dates[-1].date()}"
           + ("" if start else f" (window not open: the spec is not on {args.base_ref} yet)"))
@@ -122,7 +182,31 @@ def cmd_report(args) -> int:
         print(json.dumps(rep, default=float))
     if not reports:
         print("no anniversary reached: nothing to decide")
+    ids = fw.watches_ever_frozen()
+    print(f"forward-evidence route (docs/research/forward_watch/policy/route.json): m = {len(ids)} "
+          f"{ids}; a promoted watch's LLR must reach {fw.route_boundary(spec, len(ids)):.3f}")
+    if fw.is_domain(spec) and sessions:
+        from src.research import daily_data
+        snap = daily_data.load_snapshot(sessions[-1]["data"]["snapshot"])
+        print("legs and episodes:", json.dumps(fw.legs_and_episodes(spec, rows, snap), default=float))
+        if args.sec:
+            filings = []
+            for cik in spec["identity"]["sec_cik"].values():
+                filings += sec_filings(int(cik))
+            print("issuance split:", json.dumps(fw.issuance_split(rows, fw.atm_windows(filings)), default=float))
     return 0
+
+
+def sec_filings(cik: int) -> list[dict]:
+    """Every filing's form and filing date from data.sec.gov submissions (SEC_USER_AGENT)."""
+    import time
+    from src.research.bdc_text_nav import SUBMISSIONS, _get
+    first = json.loads(_get(SUBMISSIONS.format(f"CIK{cik:010d}.json")))
+    pages = [first["filings"]["recent"]]
+    for f in first["filings"].get("files", []):
+        time.sleep(0.2)
+        pages.append(json.loads(_get(SUBMISSIONS.format(f["name"]))))
+    return [{"form": form, "filed": filed} for p in pages for form, filed in zip(p["form"], p["filingDate"])]
 
 
 def _history_rule(rel: str):
@@ -160,13 +244,19 @@ def cmd_attest(args) -> int:
     """Record an engine change after the watch's tests pass on it (the exact-reproduction
     tests against the recorded series among them)."""
     _refuse_dirty()
-    test = subprocess.run([sys.executable, "-m", "pytest", "-q", "tests/test_forward_watch.py"],
-                          cwd=REPO, capture_output=True, text=True)
+    # The exact-reproduction tests need the private store; a skip would attest nothing, so
+    # the store is required and any skip refuses (board, METAL_TRUST_FORWARD_WATCH.md).
+    env = {**os.environ, "MONAD_REQUIRE_PRIVATE_STORE": "1"}
+    test = subprocess.run([sys.executable, "-m", "pytest", "-q", "-rs", "tests/test_forward_watch.py"],
+                          cwd=REPO, capture_output=True, text=True, env=env)
     tail = (test.stdout.strip().splitlines() or [""])[-1]
     if test.returncode != 0:
         raise SystemExit(f"tests/test_forward_watch.py failed ({tail}); the change is not attested")
-    _spec, h = fw.load(args.watch)
-    fw.append(args.watch, {"kind": "evaluator_change", "evaluator_sha256": fw.evaluator_sha256(),
+    if "skipped" in tail:
+        raise SystemExit(f"tests/test_forward_watch.py skipped tests ({tail}); restore the private "
+                         f"store (tools/data_inventory.py import) before attesting")
+    spec, h = fw.load(args.watch)
+    fw.append(args.watch, {"kind": "evaluator_change", "evaluator_sha256": fw.spec_evaluator_sha256(spec),
                            "reason": args.reason, "attested_by_tests": f"tests/test_forward_watch.py: {tail}"},
               spec_hash=h)
     print(f"{args.watch}: evaluator change attested ({tail})")
@@ -187,8 +277,13 @@ def main(argv=None) -> int:
     p.add_argument("watch")
     p.add_argument("--base-ref", default="origin/development")
     p.set_defaults(fn=cmd_log)
+    p = sub.add_parser("fetch", help="record a NAV vintage (domain watches); run daily after the close")
+    p.add_argument("watch")
+    p.set_defaults(fn=cmd_fetch)
     p = sub.add_parser("report")
     p.add_argument("watch")
+    p.add_argument("--sec", action="store_true",
+                   help="also split by at-the-market windows from SEC filings (needs SEC_USER_AGENT)")
     p.set_defaults(fn=cmd_report)
     p = sub.add_parser("verify")
     p.add_argument("--against", help="also check append-only history against this ref (CI)")

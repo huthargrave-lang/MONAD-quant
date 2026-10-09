@@ -107,3 +107,17 @@ default.
   every data set a trial cites has a committed manifest. The genesis snapshot's bytes and sha
   are unchanged. The change touches `forward_watch.py`, an evaluator source, so the log records it
   as an attested `evaluator_change` line.
+- **2026-10-09, before the window opened: engine fixes from the H366201 board**
+  (`METAL_TRUST_FORWARD_WATCH.md`).
+  - **Window date.** The window opens after the **first-parent merge commit** that brought
+    the spec to `development`. The spec's own commit date would have let a branch-logged
+    record open retroactively at merge.
+  - **Evaluator hash.** It comes from the spec's own `evaluator_sources`. This list is
+    unchanged, so the hash is unchanged.
+  - **Attestation.** `attest-evaluator` requires the private store and refuses if any watch
+    test was skipped.
+  - **VOID.** A VOID report keeps the anniversaries before it.
+  - **Multiplicity.** The forward-evidence route charges m = every forward watch ever frozen
+    (`docs/research/forward_watch/policy/route.json`, frozen before any window opened).
+  - The engine change (the domain-rule path beside this watch's ratio pairs) is attested in
+    the log. Every committed line re-serialises byte for byte.
