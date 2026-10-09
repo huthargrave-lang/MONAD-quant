@@ -33,7 +33,7 @@ import time
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Mapping
+from typing import Callable, Mapping, Sequence
 
 import pandas as pd
 
@@ -120,10 +120,21 @@ def validate_history(ticker: str, rows: list[dict]) -> tuple[pd.DataFrame, int]:
 
 
 def build_panel(*, get: Callable[[str], bytes] = _get, pause: float = FETCH_PAUSE_SECONDS,
-                cached: Mapping[str, list] | None = None) -> tuple[dict, dict]:
+                cached: Mapping[str, list] | None = None, tickers: Sequence[str] | None = None,
+                strict: bool = False) -> tuple[dict, dict]:
     """Fetch the universe and every fund's history. ``cached`` (ticker -> rows) lets a
-    caller reuse histories fetched moments earlier instead of re-requesting them."""
+    caller reuse histories fetched moments earlier instead of re-requesting them.
+
+    ``tickers``: fetch only these funds (each must be in today's listing). ``strict``: a
+    fund that fails to fetch or validate raises instead of being dropped, so a caller that
+    needs every requested fund (a forward watch) never records a partial panel."""
     universe = fetch_universe(get)
+    if tickers is not None:
+        listed = {f["ticker"] for f in universe}
+        missing = sorted(set(tickers) - listed)
+        if missing:
+            raise SnapshotError(f"not in CEFConnect's listing: {missing}")
+        universe = [f for f in universe if f["ticker"] in set(tickers)]
     price, nav, category, dropped, removed_rows = {}, {}, {}, {}, {}
     for f in universe:
         t = f["ticker"]
@@ -133,9 +144,13 @@ def build_panel(*, get: Callable[[str], bytes] = _get, pause: float = FETCH_PAUS
                 time.sleep(pause)
             df, n_bad = validate_history(t, rows)
         except SnapshotError as exc:
+            if strict:
+                raise
             dropped[t] = str(exc)
             continue
         except Exception as exc:  # noqa: BLE001 — one fund's fetch failure drops that fund
+            if strict:
+                raise SnapshotError(f"{t}: fetch failed: {type(exc).__name__}: {exc}") from exc
             dropped[t] = f"fetch failed: {type(exc).__name__}: {exc}"
             continue
         price[t], nav[t], category[t] = df["price"], df["nav"], f["category"]
@@ -143,6 +158,7 @@ def build_panel(*, get: Callable[[str], bytes] = _get, pause: float = FETCH_PAUS
             removed_rows[t] = n_bad
     frames = {"price": pd.DataFrame(price).sort_index(), "nav": pd.DataFrame(nav).sort_index()}
     report = {"universe_size": len(universe), "kept": len(price), "dropped": dropped,
+              **({"requested": sorted(tickers)} if tickers is not None else {}),
               "inconsistent_rows_removed": removed_rows,
               "category": category,
               "names": {f["ticker"]: f["name"] for f in universe if f["ticker"] in price}}

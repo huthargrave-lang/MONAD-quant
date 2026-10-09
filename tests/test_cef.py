@@ -185,6 +185,39 @@ class Panel(unittest.TestCase):
         with self.assertRaises(SnapshotError):
             cd.validate_history("X", self.rows(n=100, bad=(1, 2, 3)))
 
+    def fake_get(self, histories, fail=()):
+        import json as _json
+
+        def get(url):
+            if url.endswith("DailyPricing?props=Ticker,Name,CategoryName"):
+                return _json.dumps([{"Ticker": t, "Name": t, "CategoryName": "Equity-Commodities"}
+                                    for t in histories]).encode()
+            t = url.split("pricinghistory/")[1].split("/")[0]
+            if t in fail:
+                raise OSError("connection reset")
+            self.requested.append(t)
+            return _json.dumps({"Data": {"PriceHistory": histories[t]}}).encode()
+        return get
+
+    def test_a_ticker_subset_fetches_only_those_funds(self):
+        self.requested = []
+        hist = {t: self.rows() for t in ("PHYS", "PSLV", "OTHER")}
+        frames, report = cd.build_panel(get=self.fake_get(hist), pause=0.0, tickers=["PHYS", "PSLV"])
+        self.assertEqual(sorted(self.requested), ["PHYS", "PSLV"])
+        self.assertEqual(sorted(frames["nav"].columns), ["PHYS", "PSLV"])
+        self.assertEqual(report["requested"], ["PHYS", "PSLV"])
+        with self.assertRaises(SnapshotError):
+            cd.build_panel(get=self.fake_get(hist), pause=0.0, tickers=["PHYS", "GONE"])
+
+    def test_strict_raises_where_the_default_drops(self):
+        self.requested = []
+        hist = {t: self.rows() for t in ("PHYS", "PSLV")}
+        frames, report = cd.build_panel(get=self.fake_get(hist, fail=("PSLV",)), pause=0.0)
+        self.assertIn("PSLV", report["dropped"])
+        with self.assertRaises(SnapshotError):
+            cd.build_panel(get=self.fake_get(hist, fail=("PSLV",)), pause=0.0, tickers=["PHYS", "PSLV"],
+                           strict=True)
+
     def test_round_trip_is_content_addressed(self):
         price = pd.DataFrame({"A": [10.0, 10.5], "B": [5.0, np.nan]}, index=pd.to_datetime(["2015-01-02", "2015-01-09"]))
         nav = price * 1.1

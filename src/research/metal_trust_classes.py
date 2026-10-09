@@ -62,9 +62,9 @@ def zscores(panel: NavPanel, fund: str, window: int) -> pd.Series:
     return ((d - roll.mean()) / roll.std()).dropna()
 
 
-def step_states(z: pd.Series, enter: float, exit_: float) -> pd.Series:
-    """The hysteresis state after each observation."""
-    state, out = NEUTRAL, []
+def step_states(z: pd.Series, enter: float, exit_: float, initial: float = NEUTRAL) -> pd.Series:
+    """The hysteresis state after each observation, starting from ``initial``."""
+    state, out = initial, []
     for v in z.to_numpy():
         if state == NEUTRAL:
             state = 1.0 if v <= -enter else 0.0 if v >= enter else NEUTRAL
@@ -89,6 +89,49 @@ def session_states(panel: NavPanel, fund: str, sessions: pd.DatetimeIndex, p: Ma
     fresh[np.flatnonzero(ok)] = age <= MAX_STALE_DAYS
     vals[fresh] = st.to_numpy()[pos[fresh]]
     return pd.Series(vals, index=sessions)
+
+
+# ── a carried state (the forward watch, docs/research/METAL_TRUST_FORWARD_WATCH.md) ──
+def carried_genesis(panel: NavPanel, point: Mapping, until: pd.Timestamp) -> dict:
+    """Per trust, the hysteresis state after every observation dated strictly before
+    ``until``, with that observation's date and z: what a live process carries."""
+    p = point["params"]
+    return {trust: advance(panel, trust, {"state": NEUTRAL, "obs": None, "z": None}, until, p)
+            for trust, _etf in (tuple(x) for x in p["pairs"])}
+
+
+def advance(panel: NavPanel, trust: str, carried: Mapping, until: pd.Timestamp, p: Mapping) -> dict:
+    """Step ``carried`` only through observations dated after its last stepped one and
+    strictly before ``until``. Each z reads this panel's last ``window`` observations, as
+    frozen; already-stepped observations are never stepped again, so a revised old NAV
+    cannot flip the state."""
+    z = zscores(panel, trust, int(p["window"]))
+    after = z.index > pd.Timestamp(carried["obs"]) if carried["obs"] else np.ones(len(z), dtype=bool)
+    new = z[after & (z.index < pd.Timestamp(until))]
+    if new.empty:
+        return dict(carried)
+    states = step_states(new, float(p["enter"]), float(p["exit"]), initial=float(carried["state"]))
+    return {"state": float(states.iloc[-1]), "obs": new.index[-1].date().isoformat(), "z": float(new.iloc[-1])}
+
+
+def read_state(carried: Mapping, session: pd.Timestamp) -> float:
+    """The state a session reads: the carried one, neutral when its last observation is
+    more than MAX_STALE_DAYS old or none exists (as ``session_states``)."""
+    if not carried["obs"]:
+        return NEUTRAL
+    age = (pd.Timestamp(session) - pd.Timestamp(carried["obs"])).days
+    return float(carried["state"]) if age <= MAX_STALE_DAYS else NEUTRAL
+
+
+def carried_targets(point: Mapping, states: Mapping[str, float]) -> dict:
+    """Target weights from the states the session read (trust -> state)."""
+    pairs = [tuple(x) for x in point["params"]["pairs"]]
+    share = 1.0 / len(pairs)
+    out = {}
+    for trust, etf in pairs:
+        out[trust] = share * states[trust]
+        out[etf] = share * (1.0 - states[trust])
+    return out
 
 
 def weights(snap: Snapshot, panel: NavPanel, point: Mapping) -> pd.DataFrame:
