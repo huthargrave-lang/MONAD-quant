@@ -117,8 +117,13 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--json", default=str(OUT))
     args = ap.parse_args(argv)
+    keys = [PRODUCT] + [c["trial"] for c in SLEEVES.values()]
+    recs = {r.key: r for r in trials.iter_trials() if r.key in keys}
     out = {"schema_version": 1, "vintage": pd.Timestamp.today().date().isoformat(), "protocol": PROTOCOL,
-           "product": PRODUCT, "results": study()}
+           "product": PRODUCT,
+           "inputs": {"returns_sha256": {k: recs[k].returns_sha for k in keys},
+                      "cash_snapshot_sha256": PRODUCT_SNAPSHOT},
+           "results": study()}
     text = json.dumps(out, indent=1, sort_keys=True, default=float) + "\n"
     Path(args.json).write_text(text, encoding="utf-8")
     print(f"wrote {args.json} (sha256 {hashlib.sha256(text.encode()).hexdigest()})")
