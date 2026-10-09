@@ -102,11 +102,12 @@ def run(domain: Domain, ctx: Context, grid_name: str, *, producer: str = PRODUCE
 
 
 def stress(domain: Domain, ctx: Context, grid_name: str, *, multiple: float,
-           producer: str = PRODUCER) -> dict:
+           producer: str = PRODUCER, rerun: bool = False) -> dict:
     """The cost stress: the benchmark and every point of ``grid_name`` run at ``multiple``
     x the domain's costs, COUNTED (in the domain's families, run context role
     "cost_stress"). A run already recorded on this data, window and multiple is reused,
-    not repeated. Returns {label: {"active_sharpe", "active_ann"}} against the benchmark
+    not repeated, unless ``rerun`` (the rule's code was corrected after that run: a new
+    counted record supersedes it as the latest). Returns {label: {"active_sharpe", "active_ann"}} against the benchmark
     at the same multiple, read back from the ledger."""
     if multiple <= 0:
         raise ValueError("a cost multiple must be positive")
@@ -128,9 +129,9 @@ def stress(domain: Domain, ctx: Context, grid_name: str, *, multiple: float,
                 record_daily(t, evaluate_daily(domain.decide(ctx, point), ctx.snap, start=start, end=end,
                                                cost_multiple=multiple, tiers=tiers))
 
-    if not recorded(ref_fam):
+    if rerun or not recorded(ref_fam):
         record(ref_fam, [domain.reference])
-    have = recorded(fam)
+    have = {} if rerun else recorded(fam)
     todo = [p for p in points if label(daily_spec(p, cost_multiple=multiple, domain=domain.name)) not in have]
     if todo:
         record(fam, todo)
@@ -236,6 +237,8 @@ def main(argv=None, *, domain_name: str | None = None) -> int:
     ap.add_argument("--report-only", action="store_true", help="do not run trials; report the ledger")
     ap.add_argument("--cost-stress", type=float, metavar="M",
                     help="also run (counted) the benchmark and the grid at M x costs and report them")
+    ap.add_argument("--rerun-stress", action="store_true",
+                    help="re-record the cost stress even if one exists (after a code correction)")
     ap.add_argument("--json", help="also write the report as JSON to this path")
     args = ap.parse_args(argv)
     domain = DOMAINS[domain_name or args.domain]
@@ -255,7 +258,8 @@ def main(argv=None, *, domain_name: str | None = None) -> int:
         if args.report_only:
             raise SystemExit("--cost-stress runs trials; it cannot be combined with --report-only")
         rep["cost_stress"] = {"multiple": args.cost_stress,
-                              "points": stress(domain, ctx, args.grid, multiple=args.cost_stress)}
+                              "points": stress(domain, ctx, args.grid, multiple=args.cost_stress,
+                                               rerun=args.rerun_stress)}
         for lab, v in rep["cost_stress"]["points"].items():
             print(f"  cost x{args.cost_stress:g}: {lab[:58]:58} active Sharpe {v['active_sharpe']:+.2f} "
                   f"({v['active_ann']:+.2%}/yr)")

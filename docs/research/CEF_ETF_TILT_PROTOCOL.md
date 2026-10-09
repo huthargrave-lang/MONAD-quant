@@ -203,4 +203,6 @@ only where observations are missing.
 
 The first run's result is recorded and disclosed: active Sharpe +0.58, worst-block SPA p
 0.054, look-ahead violations present. It is **void**. Only the rerun counts. An earlier
-attempt (TR-20261009T073246Z) failed on a missing cost tier before producing any result.
+attempt (TR-20261009T073311Z-e33a7969, abandoned) failed on a missing cost tier before
+producing any result. The first run's 2x-cost runs (TR-20261009T073355Z-5c6cce4b,
+TR-20261009T073358Z-7c879107) are void with it; the rerun re-records them.
