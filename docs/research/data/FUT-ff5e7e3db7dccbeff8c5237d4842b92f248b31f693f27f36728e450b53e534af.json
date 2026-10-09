@@ -17,5 +17,10 @@
   "CL=F": [
    "2020-04-20"
   ]
+ },
+ "observations": {
+  "stored": "private (not redistributable)",
+  "store": "local_research_data",
+  "csv_sha256": "ff5e7e3db7dccbeff8c5237d4842b92f248b31f693f27f36728e450b53e534af"
  }
 }
