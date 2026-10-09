@@ -161,3 +161,63 @@ reviewer expects NOT RUN.
 | One downgrade regression | adopted |
 | Block-start Δ for the convex terms; non-anticipating payoffs | adopted (suggested) |
 | A frozen \|·\|/2 convex split; per-category Treynor-Mazuy dropped | adopted (suggested) |
+
+## Result (2026-10-09): calibration partly passes; H404702 INCONCLUSIVE; products NOT RUN
+
+**Calibration** (`docs/research/data/convexity_calibration.json`, sha256 010b14cf…; fresh seeds
+1000-1099, bootstrap B 199):
+
+| Book | Certified (SURVIVES or UNDERPOWERED) | Exposure labels | Pass |
+|---|---|---|---|
+| S, selection | 97% (SURVIVES 93%) | 0% | **pass** |
+| T, timed beta s\* 0.26 | 0% (median \|s − s\*\| 0.066) | 20% | **pass** |
+| C, block convexity | 3% | 71% (median \|s\| 0.21) | **pass**, but cannot establish exposure (0.21 > 0.10) |
+| Cglob | 2% | 79% | **pass** |
+| Cdyn, convex only while overweighted (the CEF rebound mechanism) | 8% | 61% | **pass**: the state-conditional loadings catch it |
+| Cday, daily convexity | 87% | 2% | **FAIL**: the SURVIVES scope excludes it |
+| Cmon, 4-block convexity | 78% | 4% | **FAIL**: the SURVIVES scope excludes it |
+| Product scale, pure alpha | n/a | 15% (needs ≤ 5%) | **FAIL** |
+| Product scale, pure convex | 28% (needs ≤ 10%) | n/a | **FAIL** |
+
+So **CEFS and MDCEX are NOT RUN**, as the reviewer expected: at their scale no tested design
+separates alpha from convexity.
+
+**H404702** (`docs/research/data/convexity_control.json`, sha256 86cd3468…). The exact replays
+reproduced with identical returns shas, and the gate inputs of H404701 and H404702 were
+unchanged.
+- **The statistic:** raw active +2.19%/yr; beta-and-convexity-hedged α +0.45%/yr; explained
+  +1.74%/yr, of which **convex +1.58%/yr**.
+  - s 0.21, t_α 1.09, t_E 4.74.
+  - The downgrade regression found no convexity left in the residual (max(B,0) t −1.19,
+    max(D,0) t 1.21).
+  - The statistic alone reads MARKET EXPOSURE.
+- **Planted positive controls** (each the size of the raw active, injected into H404702's own
+  overweights):
+  - selection-conditional: 0.85 attributed (**pass**);
+  - static: **0.743** attributed (needs ≥ 0.75: **fail**).
+- **The verdict by the frozen rules is INCONCLUSIVE.** Book C's median |s| exceeds 0.10, so the
+  control may not establish exposure. And the static planted control falls short, so it may not
+  certify either. **No objection is filed. F366207's convexity caveat stays open.**
+- **The F366204 tilt** (reported, not gated): EXPOSURE-LIKE (s 0.11); the downgrade finds global
+  convexity at t 3.24.
+
+**Reading.**
+- The control attributes most of H404702's active to a **state-conditional call-like
+  response**: while a fund is overweighted (cheap), it responds more to its category's up
+  blocks than to its down blocks.
+  - That is the discount-closing-in-rallies mechanism.
+  - It is also consistent with F404724's crash resilience: a convex profile loses less than
+    linear beta in drops.
+- **It is not certified as market-independent selection, and it is not established as
+  exposure.**
+- **For a low-drawdown product,** a convex profile obtained without a premium is benign: it
+  adds no drawdown. **For "selection" certification,** it means the edge is concentrated in
+  large category moves.
+- The forward stage governs.
+
+**Disclosure.**
+- The first market-data run (exact replays TR-20261009T104404Z, 104409Z, 111103Z and 111106Z,
+  recorded) annualised the planted payoff by the per-block factor. That understated it fivefold,
+  and its attributed shares (3.7, 4.2) are void.
+- The fix (commit 10d5eae) changed only that line and its test. The clean rerun reproduced the
+  main statistic exactly (seeded bootstrap).
