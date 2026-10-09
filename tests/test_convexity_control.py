@@ -66,9 +66,12 @@ class Planted(unittest.TestCase):
         inputs = {"grid": b["grid"], "delta": b["delta"], "assets": b["assets"], "category": cat, "elig": elig,
                   "factor": b["factor"], "active": b["active"], "bench": b["bench"],
                   "bench_weights": pd.DataFrame(1.0 / len(cols), index=b["dates"], columns=cols)}
-        raw = float(b["active"][b["grid"].index][b["grid"] >= tool.MIN_BLOCKS].mean()) * 50.4
+        raw = float(b["active"][b["grid"].index][b["grid"] >= tool.MIN_BLOCKS].mean()) * 252.0
         for form in ("static", "conditional"):
             pl = tool._planted(inputs, form)
             self.assertAlmostEqual(pl["planted_ann"], raw, places=10)
-            added = (pl["active"] - b["active"])[b["grid"].index][b["grid"] >= tool.MIN_BLOCKS].mean() * 50.4
+            added = (pl["active"] - b["active"])[b["grid"].index][b["grid"] >= tool.MIN_BLOCKS].mean() * 252.0
             self.assertAlmostEqual(float(added), raw, places=10)
+            # the planted payoff, annualised like E (block means x 252/5), equals it too
+            blocks = (pl["active"] - b["active"])[b["grid"].index].groupby(b["grid"].to_numpy()).sum()
+            self.assertAlmostEqual(float(blocks.iloc[tool.MIN_BLOCKS:].mean()) * 50.4, raw, places=10)

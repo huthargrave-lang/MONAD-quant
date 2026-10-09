@@ -261,7 +261,8 @@ def _planted(blocks_in: dict, form: str) -> dict:
     F2 = category_factor(R2, list(R.columns), elig, cat_of)
     active2 = blocks_in["active"].copy()
     active2.loc[sessions] = blocks_in["active"].reindex(sessions) + (D * extra).sum(axis=1)
-    planted_mean = float((D * extra).sum(axis=1)[sample].mean()) * bc.ANN
+    # a mean of DAILY values annualises by 252 (bc.ANN is per 5-session block)
+    planted_mean = float((D * extra).sum(axis=1)[sample].mean()) * 252.0
     return {"active": active2, "assets": R2, "factor": F2, "bench": B2, "planted_ann": planted_mean}
 
 
