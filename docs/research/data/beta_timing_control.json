@@ -1,0 +1,883 @@
+{
+ "control_notes": [
+  "positive control read INCONCLUSIVE: H404702 cannot read SURVIVES (demoted)"
+ ],
+ "gate_invariance": {
+  "after": {
+   "H404701": {
+    "latest": {
+     "cef_banded {'exit': 0.4, 'signal': 'level'}": "81ed35f39bd72cec5128b2e5bf70336993220cb556c89d833591eab1ecec2c8b",
+     "cef_banded {'exit': 0.4, 'signal': 'z52_cat'}": "d89ebd7d2580b871c55629fd44f35339d8cfef77f7f52a346ee527932c06224c",
+     "cef_banded {'exit': 0.5, 'signal': 'level'}": "c421f5dc3581c1e5a1d5f7388ddb13d20425f4146a79cc74bcf7d4cbb2385c7d",
+     "cef_banded {'exit': 0.5, 'signal': 'z52_cat'}": "aa9763fc162ddcca552a648ef44bf5afd8724c522b388eeba55b195d292f222a",
+     "cef_discount {'fraction': 0.1, 'signal': 'level'}": "fe0f93ea367f9993af675c06e7fb97c754cce2f1acacfeebf7d93a135e2264ea",
+     "cef_discount {'fraction': 0.1, 'signal': 'z52'}": "1196c77bc30d9bd4e2727fa70f85d8a688205bbb3648b9b40084dbf5dbdb7549",
+     "cef_discount {'fraction': 0.1, 'signal': 'z52_cat'}": "13b9962f53f85fa23582f68cc57fb527cb75e7d7deb16c5e9920034387383f48",
+     "cef_discount {'fraction': 0.2, 'signal': 'level'}": "d7ac82e1b47d9aef17e3d366247a8070c303d9e44c5ac820cbdde1bdaf838982",
+     "cef_discount {'fraction': 0.2, 'signal': 'z52'}": "b80850f13b317c0e9bdb345eeefef6669eb6fb9cee5eccb422db2f8934849f45",
+     "cef_discount {'fraction': 0.2, 'signal': 'z52_cat'}": "ab38541e8a923ca1180f3738a07290d0141de62fb1124280bf0fd890c4740c3a",
+     "cef_taxloss {'signal': 'ytd_discount'}": "59d7525b5eb7d8f5016281d846ef1238dc2bfb246b84aa4fe125aef7872d38fc",
+     "cef_taxloss {'signal': 'ytd_return'}": "4eb5101a3067656e19e6704b801b82fe45ea043dc137887aa9c78ef2e3af7caf"
+    },
+    "m": 4,
+    "m_parts": {
+     "off_window_points": 0,
+     "prior_search_trials": 4,
+     "unknown_specs": 0
+    },
+    "reference": "23aa6231738297ae1ce9d3d9f328eaf3435727a914a77e40a46aa5165931a449",
+    "unknown": []
+   },
+   "H404702": {
+    "latest": {
+     "cef_banded {'exit': 0.4, 'signal': 'level'}": "81ed35f39bd72cec5128b2e5bf70336993220cb556c89d833591eab1ecec2c8b",
+     "cef_banded {'exit': 0.4, 'signal': 'z52_cat'}": "d89ebd7d2580b871c55629fd44f35339d8cfef77f7f52a346ee527932c06224c",
+     "cef_banded {'exit': 0.5, 'signal': 'level'}": "c421f5dc3581c1e5a1d5f7388ddb13d20425f4146a79cc74bcf7d4cbb2385c7d",
+     "cef_banded {'exit': 0.5, 'signal': 'z52_cat'}": "aa9763fc162ddcca552a648ef44bf5afd8724c522b388eeba55b195d292f222a",
+     "cef_discount {'fraction': 0.1, 'signal': 'level'}": "fe0f93ea367f9993af675c06e7fb97c754cce2f1acacfeebf7d93a135e2264ea",
+     "cef_discount {'fraction': 0.1, 'signal': 'z52'}": "1196c77bc30d9bd4e2727fa70f85d8a688205bbb3648b9b40084dbf5dbdb7549",
+     "cef_discount {'fraction': 0.1, 'signal': 'z52_cat'}": "13b9962f53f85fa23582f68cc57fb527cb75e7d7deb16c5e9920034387383f48",
+     "cef_discount {'fraction': 0.2, 'signal': 'level'}": "d7ac82e1b47d9aef17e3d366247a8070c303d9e44c5ac820cbdde1bdaf838982",
+     "cef_discount {'fraction': 0.2, 'signal': 'z52'}": "b80850f13b317c0e9bdb345eeefef6669eb6fb9cee5eccb422db2f8934849f45",
+     "cef_discount {'fraction': 0.2, 'signal': 'z52_cat'}": "ab38541e8a923ca1180f3738a07290d0141de62fb1124280bf0fd890c4740c3a",
+     "cef_taxloss {'signal': 'ytd_discount'}": "59d7525b5eb7d8f5016281d846ef1238dc2bfb246b84aa4fe125aef7872d38fc",
+     "cef_taxloss {'signal': 'ytd_return'}": "4eb5101a3067656e19e6704b801b82fe45ea043dc137887aa9c78ef2e3af7caf"
+    },
+    "m": 9,
+    "m_parts": {
+     "off_window_points": 0,
+     "prior_search_trials": 9,
+     "unknown_specs": 0
+    },
+    "reference": "23aa6231738297ae1ce9d3d9f328eaf3435727a914a77e40a46aa5165931a449",
+    "unknown": []
+   }
+  },
+  "before": {
+   "H404701": {
+    "latest": {
+     "cef_banded {'exit': 0.4, 'signal': 'level'}": "81ed35f39bd72cec5128b2e5bf70336993220cb556c89d833591eab1ecec2c8b",
+     "cef_banded {'exit': 0.4, 'signal': 'z52_cat'}": "d89ebd7d2580b871c55629fd44f35339d8cfef77f7f52a346ee527932c06224c",
+     "cef_banded {'exit': 0.5, 'signal': 'level'}": "c421f5dc3581c1e5a1d5f7388ddb13d20425f4146a79cc74bcf7d4cbb2385c7d",
+     "cef_banded {'exit': 0.5, 'signal': 'z52_cat'}": "aa9763fc162ddcca552a648ef44bf5afd8724c522b388eeba55b195d292f222a",
+     "cef_discount {'fraction': 0.1, 'signal': 'level'}": "fe0f93ea367f9993af675c06e7fb97c754cce2f1acacfeebf7d93a135e2264ea",
+     "cef_discount {'fraction': 0.1, 'signal': 'z52'}": "1196c77bc30d9bd4e2727fa70f85d8a688205bbb3648b9b40084dbf5dbdb7549",
+     "cef_discount {'fraction': 0.1, 'signal': 'z52_cat'}": "13b9962f53f85fa23582f68cc57fb527cb75e7d7deb16c5e9920034387383f48",
+     "cef_discount {'fraction': 0.2, 'signal': 'level'}": "d7ac82e1b47d9aef17e3d366247a8070c303d9e44c5ac820cbdde1bdaf838982",
+     "cef_discount {'fraction': 0.2, 'signal': 'z52'}": "b80850f13b317c0e9bdb345eeefef6669eb6fb9cee5eccb422db2f8934849f45",
+     "cef_discount {'fraction': 0.2, 'signal': 'z52_cat'}": "ab38541e8a923ca1180f3738a07290d0141de62fb1124280bf0fd890c4740c3a",
+     "cef_taxloss {'signal': 'ytd_discount'}": "59d7525b5eb7d8f5016281d846ef1238dc2bfb246b84aa4fe125aef7872d38fc",
+     "cef_taxloss {'signal': 'ytd_return'}": "4eb5101a3067656e19e6704b801b82fe45ea043dc137887aa9c78ef2e3af7caf"
+    },
+    "m": 4,
+    "m_parts": {
+     "off_window_points": 0,
+     "prior_search_trials": 4,
+     "unknown_specs": 0
+    },
+    "reference": "23aa6231738297ae1ce9d3d9f328eaf3435727a914a77e40a46aa5165931a449",
+    "unknown": []
+   },
+   "H404702": {
+    "latest": {
+     "cef_banded {'exit': 0.4, 'signal': 'level'}": "81ed35f39bd72cec5128b2e5bf70336993220cb556c89d833591eab1ecec2c8b",
+     "cef_banded {'exit': 0.4, 'signal': 'z52_cat'}": "d89ebd7d2580b871c55629fd44f35339d8cfef77f7f52a346ee527932c06224c",
+     "cef_banded {'exit': 0.5, 'signal': 'level'}": "c421f5dc3581c1e5a1d5f7388ddb13d20425f4146a79cc74bcf7d4cbb2385c7d",
+     "cef_banded {'exit': 0.5, 'signal': 'z52_cat'}": "aa9763fc162ddcca552a648ef44bf5afd8724c522b388eeba55b195d292f222a",
+     "cef_discount {'fraction': 0.1, 'signal': 'level'}": "fe0f93ea367f9993af675c06e7fb97c754cce2f1acacfeebf7d93a135e2264ea",
+     "cef_discount {'fraction': 0.1, 'signal': 'z52'}": "1196c77bc30d9bd4e2727fa70f85d8a688205bbb3648b9b40084dbf5dbdb7549",
+     "cef_discount {'fraction': 0.1, 'signal': 'z52_cat'}": "13b9962f53f85fa23582f68cc57fb527cb75e7d7deb16c5e9920034387383f48",
+     "cef_discount {'fraction': 0.2, 'signal': 'level'}": "d7ac82e1b47d9aef17e3d366247a8070c303d9e44c5ac820cbdde1bdaf838982",
+     "cef_discount {'fraction': 0.2, 'signal': 'z52'}": "b80850f13b317c0e9bdb345eeefef6669eb6fb9cee5eccb422db2f8934849f45",
+     "cef_discount {'fraction': 0.2, 'signal': 'z52_cat'}": "ab38541e8a923ca1180f3738a07290d0141de62fb1124280bf0fd890c4740c3a",
+     "cef_taxloss {'signal': 'ytd_discount'}": "59d7525b5eb7d8f5016281d846ef1238dc2bfb246b84aa4fe125aef7872d38fc",
+     "cef_taxloss {'signal': 'ytd_return'}": "4eb5101a3067656e19e6704b801b82fe45ea043dc137887aa9c78ef2e3af7caf"
+    },
+    "m": 9,
+    "m_parts": {
+     "off_window_points": 0,
+     "prior_search_trials": 9,
+     "unknown_specs": 0
+    },
+    "reference": "23aa6231738297ae1ce9d3d9f328eaf3435727a914a77e40a46aa5165931a449",
+    "unknown": []
+   }
+  },
+  "hypotheses": [
+   "H404701",
+   "H404702"
+  ],
+  "identical": true
+ },
+ "h404702_reference_peers": [
+  "TR-20261006T012341Z-86834435#0",
+  "TR-20261006T020819Z-bb3bc88b#0",
+  "TR-20261006T034523Z-4950332c#0",
+  "TR-20261006T043604Z-33731856#0"
+ ],
+ "protocol": "docs/research/BETA_TIMING_CONTROL_PROTOCOL.md",
+ "replays": {
+  "H404702": {
+   "bench": {
+    "carry_in": false,
+    "max_abs_diff": 0.0,
+    "problems": [],
+    "recorded": "TR-20261006T012341Z-86834435#0",
+    "replay": "TR-20261009T083435Z-d3c060db#0",
+    "same_returns_sha": true,
+    "same_spec_hash": true
+   },
+   "cand": {
+    "carry_in": false,
+    "max_abs_diff": 0.0,
+    "problems": [],
+    "recorded": "TR-20261006T034817Z-5245a64f#3",
+    "replay": "TR-20261009T083430Z-d952aa84#0",
+    "same_returns_sha": true,
+    "same_spec_hash": true
+   }
+  },
+  "negative_control_F366202": {
+   "bench": {
+    "carry_in": true,
+    "max_abs_diff": 0.0,
+    "problems": [],
+    "recorded": "TR-20261008T185928Z-5c567742#0",
+    "replay": "TR-20261009T083446Z-21ad1af7#0",
+    "same_returns_sha": true,
+    "same_spec_hash": true
+   },
+   "cand": {
+    "carry_in": true,
+    "max_abs_diff": 0.0,
+    "problems": [],
+    "recorded": "TR-20261008T185930Z-9488e29b#0",
+    "replay": "TR-20261009T083444Z-9a9bd5b8#0",
+    "same_returns_sha": true,
+    "same_spec_hash": true
+   }
+  },
+  "positive_control_F366204": {
+   "bench": {
+    "carry_in": true,
+    "max_abs_diff": 0.0,
+    "problems": [],
+    "recorded": "TR-20261009T073344Z-da2b0d8d#0",
+    "replay": "TR-20261009T083441Z-3c55d9dc#0",
+    "same_returns_sha": true,
+    "same_spec_hash": true
+   },
+   "cand": {
+    "carry_in": true,
+    "max_abs_diff": 0.0,
+    "problems": [],
+    "recorded": "TR-20261009T073545Z-b39f895c#0",
+    "replay": "TR-20261009T083439Z-0e5c4ce9#0",
+    "same_returns_sha": true,
+    "same_spec_hash": true
+   }
+  }
+ },
+ "results": {
+  "CEFS": {
+   "R0": {
+    "alpha_ann": 0.04966466781772907,
+    "g": 0.42461362062089747,
+    "g_ci": [
+     0.09722936681167843,
+     0.7519978744301166
+    ],
+    "s": 0.9218991734458668,
+    "t_g_minus_1": -3.4447512073694107
+   },
+   "R1b": {
+    "alpha_ann": 0.03875165350990244,
+    "blocks": 423,
+    "explained_ann": 0.015120471824685826,
+    "fallback_share": 0.002364066193853428,
+    "fieller_s": [
+     0.1976165076437366,
+     0.9222444774370908
+    ],
+    "lags": [
+     4,
+     5
+    ],
+    "raw_ann": 0.053872125334588274,
+    "s": 0.7193266140740538,
+    "static_ann": 0.012239621418562645,
+    "t_E": [
+     2.7275954325847973,
+     2.7585725833391437
+    ],
+    "t_alpha": [
+     2.182940950983831,
+     2.219551104396445
+    ],
+    "t_raw": [
+     3.1321068209193816,
+     3.20172447221036
+    ],
+    "timing_ann": 0.002880850406123181
+   },
+   "R2": {
+    "alpha_ann": 0.05664903409110318,
+    "c": -0.17406091170409296,
+    "convexity_detected": false,
+    "s": 1.0515463004154397,
+    "t_c": -1.6417370685167567
+   },
+   "R2b": {
+    "alpha_ann": 0.05171223999735635,
+    "blocks": 422,
+    "c": -0.12522877267268756,
+    "s": 0.95990718161169,
+    "t_c": -0.9977223920111136
+   },
+   "R4": {
+    "alpha_ann": 0.03636619357575658,
+    "blocks": 423,
+    "explained_ann": 0.017505931758831687,
+    "fallback_share": 0.0,
+    "fieller_s": [
+     0.09188948834389786,
+     0.9650675856616864
+    ],
+    "lags": [
+     4,
+     5
+    ],
+    "raw_ann": 0.053872125334588274,
+    "s": 0.6750465727849776,
+    "static_ann": 0.0016600704644176363,
+    "t_E": [
+     2.168715891865356,
+     2.1748391497889354
+    ],
+    "t_alpha": [
+     2.077652390213786,
+     2.091325380543196
+    ],
+    "t_raw": [
+     3.1321068209193816,
+     3.20172447221036
+    ],
+    "timing_ann": 0.01584586129441405
+   },
+   "primary": {
+    "alpha_ann": 0.04396321682923521,
+    "blocks": 423,
+    "explained_ann": 0.009908908505353064,
+    "fallback_share": 0.001182033096926714,
+    "fieller_s": [
+     0.40406983713034883,
+     1.0471282208505588
+    ],
+    "lags": [
+     4,
+     5
+    ],
+    "raw_ann": 0.053872125334588274,
+    "s": 0.8160661298619472,
+    "static_ann": 0.005647007789577453,
+    "t_E": [
+     1.582047056424532,
+     1.5902342925583708
+    ],
+    "t_alpha": [
+     2.4730255249534197,
+     2.5245303806088835
+    ],
+    "t_raw": [
+     3.1321068209193816,
+     3.20172447221036
+    ],
+    "timing_ann": 0.004261900715775611
+   },
+   "reasons": [],
+   "role": "decision series",
+   "sample": [
+    "2018-05-03",
+    "2026-10-01"
+   ],
+   "verdict": "SURVIVES"
+  },
+  "H404702": {
+   "R0": {
+    "alpha_ann": 0.02237746803798289,
+    "g": 0.6738800455019582,
+    "g_ci": [
+     0.44733723252120816,
+     0.9004228584827083
+    ],
+    "s": 1.0201999292009467,
+    "t_g_minus_1": -2.8215201462624893
+   },
+   "R1a": {
+    "alpha_ann": 0.019820578168404226,
+    "blocks": 1092,
+    "explained_ann": 0.002113816647237091,
+    "fallback_share": 0.0009945380670099734,
+    "fieller_s": [
+     0.7795470265259143,
+     1.0477397494690646
+    ],
+    "lags": [
+     4,
+     6
+    ],
+    "raw_ann": 0.02193439481564132,
+    "s": 0.9036300447309473,
+    "static_ann": 0.0006373930359484686,
+    "t_E": [
+     1.3083601264016111,
+     1.3774162156959233
+    ],
+    "t_alpha": [
+     6.299377131450144,
+     6.3422881397560875
+    ],
+    "t_raw": [
+     6.414080623970297,
+     6.334391339522834
+    ],
+    "timing_ann": 0.0014764236112886223
+   },
+   "R1b": {
+    "alpha_ann": 0.019279854991723935,
+    "blocks": 1092,
+    "explained_ann": 0.0026545398239173857,
+    "fallback_share": 0.0009945380670099734,
+    "fieller_s": [
+     0.7668102652723265,
+     1.0033248175475062
+    ],
+    "lags": [
+     4,
+     6
+    ],
+    "raw_ann": 0.02193439481564132,
+    "s": 0.8789782054062213,
+    "static_ann": 0.00038585766341444336,
+    "t_E": [
+     1.9224783232374842,
+     1.9146739488046054
+    ],
+    "t_alpha": [
+     6.19841907442351,
+     6.212442471199884
+    ],
+    "t_raw": [
+     6.414080623970297,
+     6.334391339522834
+    ],
+    "timing_ann": 0.0022686821605029423
+   },
+   "R2": {
+    "alpha_ann": 0.022516837069015163,
+    "c": -0.03533692962747477,
+    "convexity_detected": false,
+    "s": 1.026553832839669,
+    "t_c": -0.4188863403319532
+   },
+   "R2b": {
+    "alpha_ann": 0.02166907313086474,
+    "blocks": 1091,
+    "c": -0.05063839453356531,
+    "s": 0.987903852054884,
+    "t_c": -0.5366699458302484
+   },
+   "R3": {
+    "alpha_ann": 0.022658948823741382,
+    "blocks": 1092,
+    "explained_ann": -0.000724554008100057,
+    "fallback_share": 0.0009945380670099734,
+    "fieller_s": [
+     0.8719479337528708,
+     1.2598835274270908
+    ],
+    "lags": [
+     4,
+     6
+    ],
+    "raw_ann": 0.02193439481564132,
+    "s": 1.0330327786196034,
+    "static_ann": 0.0005666947278400719,
+    "t_E": [
+     -0.3551423230299573,
+     -0.36663090794148334
+    ],
+    "t_alpha": [
+     7.396496081086787,
+     7.454179374345007
+    ],
+    "t_raw": [
+     6.414080623970297,
+     6.334391339522834
+    ],
+    "timing_ann": -0.0012912487359401288
+   },
+   "R4": {
+    "alpha_ann": 0.02026251661808393,
+    "blocks": 1092,
+    "explained_ann": 0.001671878197557395,
+    "fallback_share": 0.0,
+    "fieller_s": [
+     0.759960029189024,
+     1.1129357353885274
+    ],
+    "lags": [
+     4,
+     6
+    ],
+    "raw_ann": 0.02193439481564132,
+    "s": 0.9237782390802419,
+    "static_ann": 0.0007931719088597395,
+    "t_E": [
+     0.8146574801716608,
+     0.8579019507600603
+    ],
+    "t_alpha": [
+     6.153342620664507,
+     6.084320051649985
+    ],
+    "t_raw": [
+     6.414080623970297,
+     6.334391339522834
+    ],
+    "timing_ann": 0.0008787062886976556
+   },
+   "exposure_start": "2004-02-02",
+   "primary": {
+    "alpha_ann": 0.02259189050096248,
+    "blocks": 1092,
+    "explained_ann": -0.0006574956853211573,
+    "fallback_share": 0.0009945380670099734,
+    "fieller_s": [
+     0.8832186139311454,
+     1.2330026976143051
+    ],
+    "lags": [
+     4,
+     6
+    ],
+    "raw_ann": 0.02193439481564132,
+    "s": 1.0299755562370156,
+    "static_ann": 0.0004375746387984617,
+    "t_E": [
+     -0.3525186198452451,
+     -0.3678854554785155
+    ],
+    "t_alpha": [
+     7.288318796111938,
+     7.317887404172602
+    ],
+    "t_raw": [
+     6.414080623970297,
+     6.334391339522834
+    ],
+    "timing_ann": -0.001095070324119619
+   },
+   "reasons": [],
+   "sample": [
+    "2005-01-13",
+    "2026-09-28"
+   ],
+   "verdict": "INCONCLUSIVE"
+  },
+  "MDCEX": {
+   "R0": {
+    "alpha_ann": 0.028061424064917153,
+    "g": 0.6511038286270237,
+    "g_ci": [
+     0.3877049839157681,
+     0.9145026733382793
+    ],
+    "s": 0.7246596688053623,
+    "t_g_minus_1": -2.5962015765128825
+   },
+   "R1b": {
+    "alpha_ann": 0.005175495969541408,
+    "blocks": 643,
+    "explained_ann": 0.033548094252028135,
+    "fallback_share": 0.0015552099533437014,
+    "fieller_s": [
+     -493.9226342141349,
+     0.5984064472992687
+    ],
+    "lags": [
+     4,
+     6
+    ],
+    "raw_ann": 0.03872359022156955,
+    "s": 0.13365227603969915,
+    "static_ann": 0.02994624176106628,
+    "t_E": [
+     4.333523495896416,
+     4.449156356036603
+    ],
+    "t_alpha": [
+     0.2827518764434893,
+     0.27349287060766825
+    ],
+    "t_raw": [
+     2.0014347196464186,
+     1.9629533070130387
+    ],
+    "timing_ann": 0.0036018524909618536
+   },
+   "R2": {
+    "alpha_ann": 0.04371364808407284,
+    "c": -0.7581234198708156,
+    "convexity_detected": false,
+    "s": 1.1288635127567217,
+    "t_c": -5.09295962861306
+   },
+   "R2b": {
+    "alpha_ann": 0.024866384137769138,
+    "blocks": 642,
+    "c": 0.5254279876223744,
+    "s": 0.642150792204134,
+    "t_c": 4.321492069116461
+   },
+   "R4": {
+    "alpha_ann": 0.029398878485357983,
+    "blocks": 643,
+    "explained_ann": 0.00932471173621156,
+    "fallback_share": 0.0,
+    "fieller_s": [
+     -0.1271739303938941,
+     157.94058011355776
+    ],
+    "lags": [
+     4,
+     6
+    ],
+    "raw_ann": 0.03872359022156955,
+    "s": 0.7591981610471237,
+    "static_ann": 0.012100263184713413,
+    "t_E": [
+     0.5995788499639062,
+     0.6111558355246982
+    ],
+    "t_alpha": [
+     1.8165497937489807,
+     1.8636276133673644
+    ],
+    "t_raw": [
+     2.0014347196464186,
+     1.9629533070130387
+    ],
+    "timing_ann": -0.002775551448501853
+   },
+   "primary": {
+    "alpha_ann": 0.022348066552578667,
+    "blocks": 643,
+    "explained_ann": 0.016375523668990876,
+    "fallback_share": 0.0007776049766718507,
+    "fieller_s": [
+     -187.03860611588092,
+     0.88497049506437
+    ],
+    "lags": [
+     4,
+     6
+    ],
+    "raw_ann": 0.03872359022156955,
+    "s": 0.5771176284199625,
+    "static_ann": 0.011988806969361353,
+    "t_E": [
+     2.3562096904451773,
+     2.46562928572962
+    ],
+    "t_alpha": [
+     1.2761905779400076,
+     1.2365044058626056
+    ],
+    "t_raw": [
+     2.0014347196464186,
+     1.9629533070130387
+    ],
+    "timing_ann": 0.004386716699629523
+   },
+   "reasons": [
+    "robustness shares below 0.25: R1b",
+    "R1b establishes beta exposure (s 0.13, t_E 4.33)"
+   ],
+   "role": "corroboration only",
+   "sample": [
+    "2013-12-16",
+    "2026-09-29"
+   ],
+   "verdict": "BETA EXPOSURE"
+  },
+  "negative_control_F366202": {
+   "R0": {
+    "alpha_ann": 0.004142734283745431,
+    "g": 0.6246332968253949,
+    "g_ci": [
+     -0.0011502024317525672,
+     1.2504167960825425
+    ],
+    "s": 0.7417376009586393,
+    "t_g_minus_1": -1.1756761549251138
+   },
+   "R1b": {
+    "alpha_ann": 0.005359886375083457,
+    "blocks": 703,
+    "explained_ann": 0.00022528859567609943,
+    "fallback_share": 0.001219802016885489,
+    "fieller_s": [
+     0.04057234168893864,
+     1.4958958399099367
+    ],
+    "lags": [
+     4,
+     6
+    ],
+    "raw_ann": 0.005585174970759556,
+    "s": 0.9596631087019533,
+    "static_ann": -0.0002319089844819217,
+    "t_E": [
+     0.3307872176584652,
+     0.3327504498853799
+    ],
+    "t_alpha": [
+     1.8404563541958558,
+     1.9674483219901706
+    ],
+    "t_raw": [
+     1.9379264356526822,
+     2.0836870516085404
+    ],
+    "timing_ann": 0.00045719758015802113
+   },
+   "R2": {
+    "alpha_ann": 0.00552918532612571,
+    "c": 0.0021974363324366642,
+    "convexity_detected": false,
+    "s": 0.9899753105449743,
+    "t_c": 0.03040578809489551
+   },
+   "R2b": {
+    "alpha_ann": 0.005172631920831481,
+    "blocks": 702,
+    "c": -0.0876916622943109,
+    "s": 0.9261360562403346,
+    "t_c": -2.2745242373255468
+   },
+   "R4": {
+    "alpha_ann": 0.0020581884788602183,
+    "blocks": 703,
+    "explained_ann": 0.003526986491899337,
+    "fallback_share": 0.0,
+    "fieller_s": [
+     -8.666034105471914,
+     0.9964937647286061
+    ],
+    "lags": [
+     4,
+     6
+    ],
+    "raw_ann": 0.005585174970759556,
+    "s": 0.3685092212214643,
+    "static_ann": -0.00012150381941781063,
+    "t_E": [
+     1.9908101361971806,
+     1.9696319923140988
+    ],
+    "t_alpha": [
+     0.6436676055135605,
+     0.6791879640379646
+    ],
+    "t_raw": [
+     1.9379264356526822,
+     2.0836870516085404
+    ],
+    "timing_ann": 0.0036484903113171477
+   },
+   "exposure_start": "2011-10-24",
+   "primary": {
+    "alpha_ann": 0.0032759149707801863,
+    "blocks": 703,
+    "explained_ann": 0.0023092599999793707,
+    "fallback_share": 0.0006100848984112911,
+    "fieller_s": [
+     -5.688028550434096,
+     0.9264295158988924
+    ],
+    "lags": [
+     4,
+     6
+    ],
+    "raw_ann": 0.005585174970759556,
+    "s": 0.5865375727583836,
+    "static_ann": -4.883674454280784e-05,
+    "t_E": [
+     2.3993477454182974,
+     2.397443305458434
+    ],
+    "t_alpha": [
+     1.101895508262166,
+     1.1786949972846688
+    ],
+    "t_raw": [
+     1.9379264356526822,
+     2.0836870516085404
+    ],
+    "timing_ann": 0.0023580967445221783
+   },
+   "reasons": [],
+   "sample": [
+    "2012-10-05",
+    "2026-09-30"
+   ],
+   "verdict": "UNDERPOWERED"
+  },
+  "positive_control_F366204": {
+   "A_within": {
+    "alpha_ann": 0.0067572773148338525,
+    "blocks": 460,
+    "explained_ann": -0.0001360136751555257,
+    "fieller_s": [
+     0.8881516159744157,
+     1.1876162733741178
+    ],
+    "lags": [
+     4,
+     5
+    ],
+    "raw_ann": 0.006621263639678326,
+    "s": 1.0205419512886416,
+    "t_E": [
+     -0.30307887717570003,
+     -0.30247409110410534
+    ],
+    "t_alpha": [
+     4.824299237131848,
+     4.820871819880202
+    ],
+    "t_raw": [
+     4.6904788595107325,
+     4.674582746454517
+    ]
+   },
+   "R0": {
+    "alpha_ann": 0.00430706255719326,
+    "g": 1.1500934603973993,
+    "g_ci": [
+     0.9187623423684307,
+     1.3814245784263681
+    ],
+    "s": 0.5308347764496826,
+    "t_g_minus_1": 1.271697404505966
+   },
+   "R1b": {
+    "alpha_ann": 0.003788489893253041,
+    "blocks": 460,
+    "explained_ann": 0.004325263666752316,
+    "fallback_share": 0.0020939006730024304,
+    "fieller_s": null,
+    "lags": [
+     4,
+     5
+    ],
+    "raw_ann": 0.008113753560005356,
+    "s": 0.4669219819452515,
+    "static_ann": 0.00014628182117183965,
+    "t_E": [
+     1.1570185401818571,
+     1.1455749337224819
+    ],
+    "t_alpha": [
+     1.0003458708635946,
+     1.0282531634000505
+    ],
+    "t_raw": [
+     1.6290641591351311,
+     1.63580511466753
+    ],
+    "timing_ann": 0.004178981845580476
+   },
+   "R2": {
+    "alpha_ann": -0.0036827441720644967,
+    "c": 0.4909843984804355,
+    "convexity_detected": true,
+    "s": -0.4538890841123927,
+    "t_c": 6.269268174547894
+   },
+   "R2b": {
+    "alpha_ann": 0.007020152130596482,
+    "blocks": 459,
+    "c": -0.2792285912708215,
+    "s": 0.865216336517848,
+    "t_c": -4.144253067731627
+   },
+   "R4": {
+    "alpha_ann": 0.003289965413871492,
+    "blocks": 460,
+    "explained_ann": 0.004823788146133864,
+    "fallback_share": 0.0,
+    "fieller_s": null,
+    "lags": [
+     4,
+     5
+    ],
+    "raw_ann": 0.008113753560005356,
+    "s": 0.4054800764578953,
+    "static_ann": 0.0008177944341884105,
+    "t_E": [
+     1.5076402023934579,
+     1.4925271129820141
+    ],
+    "t_alpha": [
+     0.9645478105555921,
+     0.9785997418164871
+    ],
+    "t_raw": [
+     1.6290641591351311,
+     1.63580511466753
+    ],
+    "timing_ann": 0.004005993711945454
+   },
+   "exposure_start": "2016-08-22",
+   "primary": {
+    "alpha_ann": 0.004803856465645088,
+    "blocks": 460,
+    "explained_ann": 0.0033098970943602705,
+    "fallback_share": 0.001159137315495801,
+    "fieller_s": null,
+    "lags": [
+     4,
+     5
+    ],
+    "raw_ann": 0.008113753560005356,
+    "s": 0.5920633933626543,
+    "static_ann": 0.0004214188120699067,
+    "t_E": [
+     1.3088964096031233,
+     1.3083365966388407
+    ],
+    "t_alpha": [
+     1.3139729139638765,
+     1.3327741146346996
+    ],
+    "t_raw": [
+     1.6290641591351311,
+     1.63580511466753
+    ],
+    "timing_ann": 0.0028884782822903637
+   },
+   "reasons": [
+    "robustness shares below 0.25: R2"
+   ],
+   "sample": [
+    "2017-08-04",
+    "2026-09-29"
+   ],
+   "verdict": "INCONCLUSIVE"
+  }
+ },
+ "schema_version": 1,
+ "vintage": "2026-10-09"
+}
