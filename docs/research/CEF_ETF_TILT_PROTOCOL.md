@@ -177,3 +177,11 @@ is "relates", never "supports".
 | Prior 24; not an admission candidate; power about 38% | statistics, adversary |
 | `cef_thin` tier and per-order minimum | mechanics |
 | No snapshot data after 2026-10-02; no effect on H404702 | adversary |
+
+## Clarification 1 (2026-10-09, before any data for this test was loaded)
+
+The window rule ("every family has at least 5 eligible funds") does not say what happens to a
+family that can never reach 5 after matching and exclusions; EM income has only 5 panel
+funds in all. Such a family is **dropped**, and the drop is recorded in the inputs artifact
+(`dropped_families`). The window opens when every remaining family has 5. The rule is
+mechanical and depends only on fund counts, never on returns.

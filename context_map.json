@@ -579,7 +579,8 @@
         "tools/miner_tilt_replication.py",
         "tools/metal_trust_report.py",
         "tools/miner_preperiod_report.py",
-        "tools/forward_watch.py"
+        "tools/forward_watch.py",
+        "tools/cef_etf_report.py"
       ],
       "entrypoints": [
         "src/research/daily_domains.py::Domain",
@@ -634,7 +635,8 @@
         "tests/test_bundesbank.py",
         "tests/test_miner_preperiod.py",
         "tests/test_domain_search.py",
-        "tests/test_forward_watch.py"
+        "tests/test_forward_watch.py",
+        "tests/test_cef_etf_tilt.py"
       ],
       "docs": [
         "docs/research/DAILY_STRATEGIES.md",
@@ -664,7 +666,8 @@
         "docs/research/SPINOFF_PRODUCT_PROTOCOL.md",
         "docs/research/SPINOFF_PROTOCOL.md",
         "docs/research/MINER_TILT_PREPERIOD.md",
-        "docs/research/MINER_TILT_FORWARD_WATCH.md"
+        "docs/research/MINER_TILT_FORWARD_WATCH.md",
+        "docs/research/CEF_ETF_TILT_PROTOCOL.md"
       ],
       "do_not_touch_without_approval": false,
       "run_cmd": "venv/bin/python tools/domain_search.py <domain> --snapshot <sha> [--panel <sha>] --report-only"
