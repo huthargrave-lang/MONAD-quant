@@ -228,3 +228,60 @@ class Weights(unittest.TestCase):
         w3 = r.weights.loc[DATES[3]]
         self.assertGreater(w3["A"], w2["A"])
         self.assertEqual(list(r.weights.columns), ["A", "B"])
+
+
+
+class Continuation(unittest.TestCase):
+    """``initial``/``final``: chaining one-session evaluations from each final book
+    reproduces one evaluation over the whole span, to floating-point precision."""
+
+    def market(self, n=260, seed=7):
+        dates = pd.bdate_range("2014-01-02", periods=n)
+        rng = np.random.default_rng(seed)
+        close = pd.DataFrame({c: 30 * np.exp(np.cumsum(rng.normal(0, 0.012, n))) for c in ("A", "B", "C")},
+                             index=dates)
+        opens = close.shift(1).fillna(close.iloc[0]) * np.exp(rng.normal(0, 0.003, (n, 3)))
+        dist = close * 0.0
+        dist.iloc[100, 0] = 0.4
+        return Snapshot(sha="c" * 64, dates=dates, assets=("A", "B", "C"), open=opens, close=close,
+                        dist=dist, dtb3=pd.Series(2.0, index=dates), manifest={})
+
+    def strategy(self, snap):
+        rng = np.random.default_rng(1)
+        out = []
+        for off in range(3):
+            days = snap.dates[off::5]
+            w = pd.DataFrame(rng.dirichlet([1, 1, 1], len(days)) * 0.9, index=days, columns=["A", "B", "C"])
+            out.append(Tranche(open_orders=w.iloc[::2], close_orders=w.iloc[1::2]))
+        return out
+
+    def test_chained_sessions_equal_one_evaluation(self):
+        snap = self.market()
+        tr = self.strategy(snap)
+        start = snap.dates[20]
+        full = evaluate_daily(tr, snap, start=start, cost_multiple=1.0)
+        first = evaluate_daily(tr, snap, start=start, end=start)
+        rets, book = [first.returns.iloc[0]], first.final
+        for d in snap.dates[21:]:
+            step = evaluate_daily(tr, snap, start=d, end=d, initial=book)
+            rets.append(step.returns.iloc[0])
+            book = step.final
+        np.testing.assert_allclose(np.array(rets), full.returns.to_numpy(), rtol=0, atol=1e-13)
+        self.assertEqual(book.session, snap.dates[-1].date().isoformat())
+
+    def test_a_book_from_another_session_or_shape_is_refused(self):
+        snap = self.market()
+        tr = self.strategy(snap)
+        r = evaluate_daily(tr, snap, start=snap.dates[20], end=snap.dates[30])
+        with self.assertRaises(OrderError):
+            evaluate_daily(tr, snap, start=snap.dates[40], end=snap.dates[41], initial=r.final)
+        with self.assertRaises(OrderError):
+            evaluate_daily(tr[:2], snap, start=snap.dates[31], end=snap.dates[32], initial=r.final)
+
+    def test_the_book_round_trips_through_json_exactly(self):
+        from src.research.daily_strategy import BookState
+        import json
+        snap = self.market()
+        r = evaluate_daily(self.strategy(snap), snap, start=snap.dates[20], end=snap.dates[60])
+        again = BookState.from_json(json.loads(json.dumps(r.final.to_json())))
+        self.assertEqual(again, r.final)

@@ -578,7 +578,8 @@
         "tools/commodity_atlas.py",
         "tools/miner_tilt_replication.py",
         "tools/metal_trust_report.py",
-        "tools/miner_preperiod_report.py"
+        "tools/miner_preperiod_report.py",
+        "tools/forward_watch.py"
       ],
       "entrypoints": [
         "src/research/daily_domains.py::Domain",
@@ -632,7 +633,8 @@
         "tests/test_trial_ledger.py",
         "tests/test_bundesbank.py",
         "tests/test_miner_preperiod.py",
-        "tests/test_domain_search.py"
+        "tests/test_domain_search.py",
+        "tests/test_forward_watch.py"
       ],
       "docs": [
         "docs/research/DAILY_STRATEGIES.md",
@@ -661,7 +663,8 @@
         "docs/research/RISKY_PICKS_PROTOCOL.md",
         "docs/research/SPINOFF_PRODUCT_PROTOCOL.md",
         "docs/research/SPINOFF_PROTOCOL.md",
-        "docs/research/MINER_TILT_PREPERIOD.md"
+        "docs/research/MINER_TILT_PREPERIOD.md",
+        "docs/research/MINER_TILT_FORWARD_WATCH.md"
       ],
       "do_not_touch_without_approval": false,
       "run_cmd": "venv/bin/python tools/domain_search.py <domain> --snapshot <sha> [--panel <sha>] --report-only"
@@ -1174,20 +1177,26 @@
         "admit a hypothesis",
         "registered hypothesis",
         "rejected",
-        "reject-bound"
+        "reject-bound",
+        "forward watch",
+        "paper log",
+        "forward log",
+        "forward record"
       ],
       "read": [
         "docs/research/prereg/README.md",
         "docs/research/trials/README.md",
         "docs/research/DEFLATION_RULE_QUESTION.md",
         "src/research/prereg.py",
-        "tools/admit_tactical.py"
+        "tools/admit_tactical.py",
+        "docs/research/MINER_TILT_FORWARD_WATCH.md"
       ],
       "run": [
         "ctx map research_program",
         "venv/bin/python tools/prereg.py verify",
         "venv/bin/python tools/trial_ledger.py verify --require-closed",
-        "venv/bin/python tools/admit.py <H> --dry-run"
+        "venv/bin/python tools/admit.py <H> --dry-run",
+        "venv/bin/python tools/forward_watch.py verify"
       ],
       "avoid": [
         "loading a test's prices before its protocol is committed",
@@ -1777,6 +1786,10 @@
     {
       "cmd": "venv/bin/python tools/trial_ledger.py verify --require-closed",
       "returns": "trial-ledger hash chains intact and every run closed"
+    },
+    {
+      "cmd": "venv/bin/python tools/forward_watch.py verify [--against origin/development]",
+      "returns": "forward-watch chains, spec identity, session contiguity, append-only history (watches and CEF forward logs)"
     }
   ],
   "conventions": [
