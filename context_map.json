@@ -461,7 +461,7 @@
       "do_not_touch_without_approval": false
     },
     "research_labs": {
-      "summary": "Point-in-time public-investment research labs: append-only event ledgers, SEC corporate-action state and outcome chains, index-membership event studies, and exploratory gap-risk measurement. These tools build auditable research projections; they do not place trades.",
+      "summary": "Point-in-time public-investment research labs: append-only event ledgers, SEC corporate-action state and outcome chains, index-membership event studies, screeners and research UI, and exploratory gap-risk measurement. These tools build auditable research projections; they do not place trades. The counted strategy program (ledger, prereg, domains, admission gate) is its own area: research_program.",
       "files": [
         "tools/atm_424b5_lab.py",
         "tools/band_geometry.py",
@@ -506,28 +506,7 @@
         "tools/sovereign_buckets.py",
         "tools/stock_screener.py",
         "tools/sweep_runner.py",
-        "tools/ui_tokens.py",
-        "src/research/",
-        "tools/trial_ledger.py",
-        "tools/prereg.py",
-        "tools/admit.py",
-        "tools/refute.py",
-        "tools/edge_scorecard.py",
-        "tools/reevaluate_web.py",
-        "tools/daily_search.py",
-        "tools/cef_search.py",
-        "tools/admit_tactical.py",
-        "tools/cef_picks.py",
-        "tools/domain_search.py",
-        "tools/forward_log.py",
-        "tools/deflation_power_study.py",
-        "tools/spa_size_study.py",
-        "tools/spa_price_size_study.py",
-        "tools/cef_capacity.py",
-        "tools/snapshot_tr_check.py",
-        "tools/commodity_atlas.py",
-        "tools/miner_tilt_replication.py",
-        "tools/metal_trust_report.py"
+        "tools/ui_tokens.py"
       ],
       "entrypoints": [],
       "tests": [
@@ -556,17 +535,7 @@
         "tests/test_research_ui.py",
         "tests/test_f7_band_geometry.py",
         "tests/test_web_link_escaping.py",
-        "tests/test_screener_lab.py",
-        "tests/test_trial_ledger.py",
-        "tests/test_backtest_trials.py",
-        "tests/test_producer_ledger_wiring.py",
-        "tests/test_significance.py",
-        "tests/test_deflation.py",
-        "tests/test_prereg.py",
-        "tests/test_admit.py",
-        "tests/test_refutations.py",
-        "tests/test_edge_scorecard.py",
-        "tests/test_reeval.py"
+        "tests/test_screener_lab.py"
       ],
       "docs": [
         "docs/research/README.md",
@@ -581,12 +550,116 @@
         "docs/research/F7_band_geometry_and_search.md",
         "docs/research/F186_staleness_detector_revalidated.md",
         "docs/research/F185_narrative_traversal_rederived.md",
-        "docs/research/SCREENER_value_growth_sentiment.md",
-        "docs/research/trials/README.md",
-        "docs/research/prereg/README.md",
-        "docs/research/reeval/README.md"
+        "docs/research/SCREENER_value_growth_sentiment.md"
       ],
       "do_not_touch_without_approval": false
+    },
+    "research_program": {
+      "summary": "The counted strategy-research program: frozen data (DS- snapshots, CEFNAV/BDCNAV/FUT- panels), one Domain per question (data, rule classes, benchmark, verdict series, eras, prior search), the daily evaluator, the append-only trial ledger (every backtest is a trial), pre-registration, refutations, significance/deflation, and the admission gate (gate rules v2). Workflow: write and commit a protocol BEFORE loading its prices, have a board review it, build the snapshot, run tools/domain_search.py, record results in the protocol doc, capture a finding with tools/note.py. Results table: docs/research/DAILY_STRATEGIES.md.",
+      "files": [
+        "src/research/",
+        "tools/trial_ledger.py",
+        "tools/prereg.py",
+        "tools/admit.py",
+        "tools/admit_tactical.py",
+        "tools/refute.py",
+        "tools/edge_scorecard.py",
+        "tools/reevaluate_web.py",
+        "tools/daily_search.py",
+        "tools/cef_search.py",
+        "tools/cef_picks.py",
+        "tools/domain_search.py",
+        "tools/forward_log.py",
+        "tools/deflation_power_study.py",
+        "tools/spa_size_study.py",
+        "tools/spa_price_size_study.py",
+        "tools/cef_capacity.py",
+        "tools/snapshot_tr_check.py",
+        "tools/commodity_atlas.py",
+        "tools/miner_tilt_replication.py",
+        "tools/metal_trust_report.py"
+      ],
+      "entrypoints": [
+        "src/research/daily_domains.py::Domain",
+        "tools/domain_search.py::run",
+        "tools/domain_search.py::report",
+        "src/research/daily_strategy.py::evaluate_daily",
+        "src/research/trials.py::open_run",
+        "src/research/prereg.py::register",
+        "tools/admit_tactical.py::evaluate",
+        "src/research/allocation_stats.py::familywise_gate"
+      ],
+      "tests": [
+        "tests/test_admit.py",
+        "tests/test_admit_tactical.py",
+        "tests/test_allocation_stats.py",
+        "tests/test_backtest_trials.py",
+        "tests/test_bdc.py",
+        "tests/test_bdc_text_nav.py",
+        "tests/test_cef.py",
+        "tests/test_cef_product.py",
+        "tests/test_commodity_atlas.py",
+        "tests/test_commodity_linkage.py",
+        "tests/test_country.py",
+        "tests/test_credit_sleeve.py",
+        "tests/test_crypto.py",
+        "tests/test_daily_classes.py",
+        "tests/test_daily_data.py",
+        "tests/test_daily_strategy.py",
+        "tests/test_deflation.py",
+        "tests/test_earnings_premium.py",
+        "tests/test_edge_scorecard.py",
+        "tests/test_fomc_calendar.py",
+        "tests/test_index_deletion.py",
+        "tests/test_insider.py",
+        "tests/test_levered_trend.py",
+        "tests/test_mark_to_market.py",
+        "tests/test_metal_trust.py",
+        "tests/test_mreit.py",
+        "tests/test_mreit_stated_bv.py",
+        "tests/test_nyse_calendar.py",
+        "tests/test_prereg.py",
+        "tests/test_price_familywise.py",
+        "tests/test_producer_ledger_wiring.py",
+        "tests/test_product_pairs.py",
+        "tests/test_reeval.py",
+        "tests/test_refutations.py",
+        "tests/test_significance.py",
+        "tests/test_snapshot_tr_check.py",
+        "tests/test_spinoff.py",
+        "tests/test_treasury_auctions.py",
+        "tests/test_trial_ledger.py"
+      ],
+      "docs": [
+        "docs/research/DAILY_STRATEGIES.md",
+        "docs/research/trials/README.md",
+        "docs/research/prereg/README.md",
+        "docs/research/reeval/README.md",
+        "docs/research/DEFLATION_RULE_QUESTION.md",
+        "docs/research/H404702_CAPACITY.md",
+        "docs/research/BDC_PREPERIOD_TEST.md",
+        "docs/research/BUYBACK_PRODUCT_PROTOCOL.md",
+        "docs/research/CEF_PRODUCT_PROTOCOL.md",
+        "docs/research/COMMODITY_LINKAGE_CONFIRMATION.md",
+        "docs/research/COMMODITY_LINKAGE_DISCOVERY.md",
+        "docs/research/EARNINGS_PREMIUM_PROTOCOL.md",
+        "docs/research/FALLEN_ANGEL_PROTOCOL.md",
+        "docs/research/H404702_PREPERIOD_TEST.md",
+        "docs/research/INDEX_DELETION_PROTOCOL.md",
+        "docs/research/INSIDER_CLUSTERS_PROTOCOL.md",
+        "docs/research/LEVERED_TREND_PROTOCOL.md",
+        "docs/research/MERGER_ARB_PRODUCT_PROTOCOL.md",
+        "docs/research/METAL_TRUST_DISCOUNT_PROTOCOL.md",
+        "docs/research/MICROCAP_PRODUCT_PROTOCOL.md",
+        "docs/research/MINER_TILT_REPLICATION.md",
+        "docs/research/MREIT_DISCOUNT_TEST.md",
+        "docs/research/MREIT_DISCOUNT_TEST_V2.md",
+        "docs/research/RISKY_PICKS_PROTOCOL.md",
+        "docs/research/SPINOFF_PRODUCT_PROTOCOL.md",
+        "docs/research/SPINOFF_PROTOCOL.md"
+      ],
+      "do_not_touch_without_approval": false,
+      "run_cmd": "venv/bin/python tools/domain_search.py <domain> --snapshot <sha> [--panel <sha>] --report-only"
     },
     "dashboard": {
       "summary": "Read-only FastAPI monitor; current/all/archive run-window view.",
@@ -729,16 +802,9 @@
         "leak-free",
         "oos",
         "out-of-sample",
-        "edge",
-        "validation",
-        "research",
-        "hypothesis",
-        "idea",
-        "findings",
-        "web"
+        "validation"
       ],
       "read": [
-        "RESEARCH_WEB.md (run: ctx web)",
         "src/optimization/sweep_scoring.py",
         "src/optimization/sweep_sizing.py",
         "src/optimization/sweep_costs.py",
@@ -748,7 +814,6 @@
         "IMPROVEMENT_PLAN.md (Workstreams B/C)"
       ],
       "run": [
-        "ctx web",
         "ctx map optimization",
         "venv/bin/python tools/walkforward_eval.py QQQ TQQQ --objective ev",
         "venv/bin/python tools/instrument_screen.py QQQ SPY TQQQ --stop 0.005",
@@ -926,7 +991,12 @@
         "study doc",
         "epistemic",
         "uncited",
-        "ratchet"
+        "ratchet",
+        "research",
+        "findings",
+        "idea",
+        "hypothesis",
+        "web"
       ],
       "read": [
         "AGENT_INDEX.md",
@@ -1037,7 +1107,16 @@
         "turn of month",
         "overnight drift",
         "dual momentum",
-        "tsmom"
+        "tsmom",
+        "domain",
+        "evaluator",
+        "earnings premium",
+        "insider",
+        "mreit",
+        "mortgage reit",
+        "index deletion",
+        "capacity",
+        "h404702"
       ],
       "read": [
         "docs/research/DAILY_STRATEGIES.md",
@@ -1056,6 +1135,186 @@
       "avoid": [
         "running any new grid in a family holding a live registered hypothesis (F404708)",
         "tuning a frozen grid after seeing its results"
+      ]
+    },
+    {
+      "keywords": [
+        "preregister",
+        "pre-register",
+        "pre-registration",
+        "prereg",
+        "register hypothesis",
+        "admission",
+        "admit",
+        "gate rules",
+        "admission gate",
+        "trial ledger",
+        "counted trial",
+        "protocol",
+        "frozen",
+        "freeze",
+        "board review",
+        "decision debate",
+        "refutation",
+        "refute",
+        "familywise",
+        "spa",
+        "deflated sharpe",
+        "dsr",
+        "prior search",
+        "witness",
+        "verdict",
+        "register",
+        "register a hypothesis",
+        "admit a hypothesis",
+        "registered hypothesis",
+        "rejected",
+        "reject-bound"
+      ],
+      "read": [
+        "docs/research/prereg/README.md",
+        "docs/research/trials/README.md",
+        "docs/research/DEFLATION_RULE_QUESTION.md",
+        "src/research/prereg.py",
+        "tools/admit_tactical.py"
+      ],
+      "run": [
+        "ctx map research_program",
+        "venv/bin/python tools/prereg.py verify",
+        "venv/bin/python tools/trial_ledger.py verify --require-closed",
+        "venv/bin/python tools/admit.py <H> --dry-run"
+      ],
+      "avoid": [
+        "loading a test's prices before its protocol is committed",
+        "an uncounted backtest (every evaluation runs inside a begun ledger trial)",
+        "editing a frozen protocol, grid or prereg after its data was seen (a change is a new hypothesis)",
+        "lowering a declared prior search after seeing results"
+      ]
+    },
+    {
+      "keywords": [
+        "live product",
+        "product pair",
+        "product family",
+        "etf product",
+        "leveraged",
+        "leverage",
+        "levered",
+        "momentum",
+        "high beta",
+        "low volatility",
+        "low beta",
+        "ipo",
+        "stock pick",
+        "stock picks",
+        "spin-off",
+        "spinoff",
+        "buyback",
+        "merger arbitrage",
+        "merger arb",
+        "micro-cap",
+        "microcap",
+        "illiquidity",
+        "fallen angel",
+        "credit sleeve",
+        "lottery"
+      ],
+      "read": [
+        "src/research/product_pairs.py",
+        "src/research/levered_classes.py",
+        "docs/research/RISKY_PICKS_PROTOCOL.md",
+        "docs/research/LEVERED_TREND_PROTOCOL.md",
+        "docs/research/DAILY_STRATEGIES.md"
+      ],
+      "run": [
+        "venv/bin/python tools/domain_search.py <domain> --snapshot <sha> --report-only",
+        "venv/bin/python tools/snapshot_tr_check.py --snapshot <sha>",
+        "venv/bin/python -m pytest tests/test_product_pairs.py tests/test_levered_trend.py"
+      ],
+      "avoid": [
+        "judging a levered or high-beta product on plain active returns (declare Domain.primary vol_matched)",
+        "choosing products by name without disclosing survivorship of the list"
+      ]
+    },
+    {
+      "keywords": [
+        "commodity",
+        "commodities",
+        "futures",
+        "oil",
+        "crude",
+        "natural gas",
+        "gold",
+        "silver",
+        "copper",
+        "miner",
+        "miners",
+        "mining",
+        "tanker",
+        "tankers",
+        "refiner",
+        "refiners",
+        "physical trust",
+        "sprott",
+        "metal",
+        "metals",
+        "ratio tilt",
+        "atlas",
+        "discovery",
+        "confirmation"
+      ],
+      "read": [
+        "docs/research/COMMODITY_LINKAGE_DISCOVERY.md",
+        "docs/research/COMMODITY_LINKAGE_CONFIRMATION.md",
+        "docs/research/MINER_TILT_REPLICATION.md",
+        "docs/research/METAL_TRUST_DISCOUNT_PROTOCOL.md",
+        "src/research/commodity_classes.py",
+        "src/research/futures_panel.py",
+        "src/research/metal_trust_classes.py"
+      ],
+      "run": [
+        "venv/bin/python tools/miner_tilt_replication.py --help",
+        "venv/bin/python tools/metal_trust_report.py --help",
+        "venv/bin/python -m pytest tests/test_commodity_linkage.py tests/test_metal_trust.py tests/test_commodity_atlas.py"
+      ],
+      "avoid": [
+        "fetching confirmation-window prices before the confirmation protocol is committed",
+        "putting a futures series in a DS- snapshot (front months can print negative; use a FUT- panel)",
+        "re-running the discovery atlas to pick another rule (its 1401 cells are already charged)"
+      ]
+    },
+    {
+      "keywords": [
+        "what has been tested",
+        "already tested",
+        "tested before",
+        "results table",
+        "surviving edge",
+        "surviving edges",
+        "survived",
+        "corroborates",
+        "contradicts",
+        "uninformative",
+        "null result",
+        "research results",
+        "what works",
+        "winner",
+        "strategies tested",
+        "tested strategies",
+        "daily strategies"
+      ],
+      "read": [
+        "docs/research/DAILY_STRATEGIES.md",
+        "RESEARCH_WEB.md (run: ctx web D6)"
+      ],
+      "run": [
+        "ctx web D6",
+        "ctx web --live",
+        "ctx frontier \"<topic>\""
+      ],
+      "avoid": [
+        "citing CLAUDE.md headline numbers (superseded)",
+        "re-running a tested idea without reading its row in DAILY_STRATEGIES.md and its finding"
       ]
     }
   ],
@@ -1239,7 +1498,8 @@
     ],
     "hypothesis": [
       "research",
-      "findings"
+      "findings",
+      "prereg"
     ],
     "supersede": [
       "node",
@@ -1312,6 +1572,24 @@
     "close position": [
       "exit",
       "trader"
+    ],
+    "hypothesis registration": [
+      "prereg",
+      "admission"
+    ],
+    "stock picking": [
+      "stock picks"
+    ],
+    "leveraged etf": [
+      "leveraged"
+    ],
+    "gold miners": [
+      "miners",
+      "gold"
+    ],
+    "edge hunt": [
+      "research results",
+      "what works"
     ]
   },
   "facts": {
@@ -1326,7 +1604,8 @@
     "research_idea_web": "run: ctx web   (findings/hypotheses/experiments/decisions graph; `ctx web F3` for a node). The honest edge evidence + open questions live here.",
     "sweep_sizing": "sweep defaults to live fixed-10% (resolve_sizing, sweep_sizing.py); --sizing/--adaptive override. Backtest 'fixed' mode == live get_position_plan.",
     "sweep_objective": "default 'sharpe' (live_score); '--objective ev' = net-of-cost EV, hard-rejects <34% WR (sweep_scoring.py, opt-in). Do NOT change the default selection without sign-off.",
-    "sweep_cost_realism": "round-trip spread cost is baked into EV (sweep_costs.round_trip_cost_pct); scoring penalties are skipped on negative-base scores (else they perversely improve losing configs)."
+    "sweep_cost_realism": "round-trip spread cost is baked into EV (sweep_costs.round_trip_cost_pct); scoring penalties are skipped on negative-base scores (else they perversely improve losing configs).",
+    "research_program_state": "run: ctx web D6 · results table: docs/research/DAILY_STRATEGIES.md · the live candidate is H404702 (forward window to 2027-10-07; run: venv/bin/python tools/forward_log.py H404702 --verify)"
   },
   "tools_readonly": [
     {
@@ -1472,6 +1751,22 @@
     {
       "cmd": "ctx docs",
       "returns": "doc-ownership topology from context_docs; flags stale/dangling references"
+    },
+    {
+      "cmd": "venv/bin/python tools/domain_search.py <domain> --snapshot <sha> [--panel <sha>] --report-only",
+      "returns": "a domain's ledger report (rows, eras, familywise SPA, DSR) without running any trial"
+    },
+    {
+      "cmd": "venv/bin/python tools/snapshot_tr_check.py --snapshot <sha>",
+      "returns": "asset-years where a snapshot's total return disagrees with Yahoo's adjusted close (missing distributions)"
+    },
+    {
+      "cmd": "venv/bin/python tools/prereg.py verify",
+      "returns": "every pre-registration loads and none was edited"
+    },
+    {
+      "cmd": "venv/bin/python tools/trial_ledger.py verify --require-closed",
+      "returns": "trial-ledger hash chains intact and every run closed"
     }
   ],
   "conventions": [
