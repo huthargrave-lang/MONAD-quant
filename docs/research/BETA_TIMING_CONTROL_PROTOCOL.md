@@ -26,7 +26,7 @@ regression or control series was computed on real data, and before any replay wa
 1. this control;
 2. a forward watch for the F366202 metal-trust tilt (a separate protocol);
 3. single-country CEF vs country ETF, only if this control finds beta exposure in H404702;
-4. commodity event days: already answered, null (F366200, F404705).
+4. commodity event days: already answered, null (F366200; and the FOMC-day drift finding).
 
 ## What this is and is not
 
