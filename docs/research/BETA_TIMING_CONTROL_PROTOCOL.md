@@ -263,3 +263,29 @@ R0, R2 and R2b can only downgrade.
   - This changes nothing about H404702 (DS-18cef162 holds IEF).
 - **The replays use each recorded trial's own point** (`class` and `params` from its ledger
   spec), not a domain default. This guarantees they are the same points.
+
+## Clarification 2 (2026-10-09, before any computation on real data; found by the synthetic tests)
+
+- **Weight identity when a book carries in orders.**
+  - Some books have orders dated before the window. The evaluator builds those targets at
+    the first session's open, which closing weights cannot express.
+  - For those books the identity is checked from the second session (`f_t ≥ −1e-12`, as
+    stated). The first session's fee, `cost_paid − Σ_{t≥2} f_t`, must lie in
+    `[0, 3 × the dearest one-way rate on that session]`.
+  - Books without a carry-in are checked on every session, with weight 0 before the first,
+    and the exact sum. H404702's books have no order before 2003-12-31 (mechanics review),
+    so the exact check applies to them.
+  - An exact first-session fee would need a second evaluation, which the counted guard
+    allows only as another recorded trial.
+  - The per-session sign check is what catches a misaligned weight series. It is negative on
+    some sessions of thousands.
+- **The synthetic expectation for "reversion only in up-blocks" is corrected to match the
+  verdict rule.**
+  - The verdict rule takes Treynor-Mazuy into account only through `s_R2 < 0.25`, and reports
+    "convexity detected" separately. The statistics member ruled this way because `α_TM`
+    and `c` are collinear.
+  - The table's "not SURVIVES" contradicted that rule. Its correct expectation is
+    "convexity detected" reported, with the verdict following the rule.
+  - A purely convex payoff (`a ∝ F²`) is added as a test that must not SURVIVE
+    (`s_R2 < 0.25`).
+  - The finding will state any convexity it detects.
