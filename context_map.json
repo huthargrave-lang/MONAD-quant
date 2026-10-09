@@ -581,7 +581,10 @@
         "tools/miner_preperiod_report.py",
         "tools/data_inventory.py",
         "tools/forward_watch.py",
-        "tools/cef_etf_report.py"
+        "tools/cef_etf_report.py",
+        "tools/beta_timing_control.py",
+        "src/research/beta_control.py",
+        "src/research/hac.py"
       ],
       "entrypoints": [
         "src/research/daily_domains.py::Domain",
@@ -640,7 +643,8 @@
         "tests/test_data_store.py",
         "tests/test_private_store.py",
         "tests/test_forward_watch.py",
-        "tests/test_cef_etf_tilt.py"
+        "tests/test_cef_etf_tilt.py",
+        "tests/test_beta_control.py"
       ],
       "docs": [
         "docs/research/DAILY_STRATEGIES.md",
@@ -673,7 +677,8 @@
         "docs/research/DATA_REDISTRIBUTION_AUDIT.md",
         "docs/research/data/README.md",
         "docs/research/MINER_TILT_FORWARD_WATCH.md",
-        "docs/research/CEF_ETF_TILT_PROTOCOL.md"
+        "docs/research/CEF_ETF_TILT_PROTOCOL.md",
+        "docs/research/BETA_TIMING_CONTROL_PROTOCOL.md"
       ],
       "do_not_touch_without_approval": false,
       "run_cmd": "venv/bin/python tools/domain_search.py <domain> --snapshot <sha> [--panel <sha>] --report-only"
