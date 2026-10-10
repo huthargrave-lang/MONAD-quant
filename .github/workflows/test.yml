@@ -86,6 +86,12 @@ jobs:
       - name: Pre-registrations intact (load + immutable history)
         run: python tools/prereg.py verify --against origin/development
 
+      # A forward watch is a chained paper record of a rule the gate cannot admit; its spec
+      # is frozen and its log only grows (src/research/forward_watch.py). The same step
+      # checks the CEF forward logs (docs/research/forward/) are append-only.
+      - name: Forward watches and forward logs intact (chain + append-only history)
+        run: python tools/forward_watch.py verify --against origin/development
+
       # Admission verdicts are immutable records; refutation logs only grow. An edited
       # verdict or a deleted objection would let a result outlive its own evidence.
       - name: Verdicts and refutations intact (immutable / append-only)

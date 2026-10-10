@@ -28,6 +28,18 @@ class Pair(unittest.TestCase):
         self.assertGreaterEqual(pair.scoring_start(snap), dates[40])
         self.assertEqual(pair.truncation_violations(snap, pair.reference, [dates[100]]), [])
 
+    def test_a_family_scores_every_candidate_from_their_common_start(self):
+        fam = pp.ProductFamily(candidates=("AAA", "CCC"), benchmark="BBB", eras=(("start", "end"),))
+        dates = pd.bdate_range("2010-01-04", periods=300)
+        close = pd.DataFrame(10.0, index=dates, columns=["SPY", "AAA", "BBB", "CCC"])
+        close.loc[:dates[79], "CCC"] = np.nan
+        snap = Snapshot(sha="s", dates=dates, assets=tuple(close.columns), open=close, close=close,
+                        dist=close * 0, dtb3=pd.Series(1.0, index=dates), manifest={})
+        self.assertEqual([p["params"]["asset"] for p in fam.grid()], ["AAA", "CCC"])
+        self.assertGreaterEqual(fam.scoring_start(snap), dates[80])
+        with self.assertRaises(ValueError):
+            pp.ProductFamily(candidates=("BBB",), benchmark="BBB", eras=())
+
     def test_the_spinoff_product_domain_is_its_own_family(self):
         d = DOMAINS["spinoff_product"]
         self.assertEqual(d.reference["params"]["asset"], "IJH")

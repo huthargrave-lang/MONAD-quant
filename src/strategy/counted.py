@@ -43,6 +43,7 @@ REPO = Path(__file__).resolve().parents[2]
 UNCOUNTED_ALLOWED = {
     "tools/live_backtest_parity.py": "synthetic mechanism panels; measures no instrument",
     "tools/overnight_gap_risk_study.py": "byte-equality crosscheck of the study's own replay",
+    "tools/miner_preperiod_report.py": "noise-only placebo on synthetic ratio panels; measures no instrument",
 }
 
 

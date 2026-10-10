@@ -218,10 +218,24 @@ class ExportTests(unittest.TestCase):
         self.assertNotIn("import live", source)
         self.assertNotIn("from live", source)
 
-    def test_missing_snapshot_exports_the_absence_panel_not_an_empty_table(self):
-        if sc.load_snapshot() is None:
-            self.assertIn("No snapshot fetched",
-                          self.pages["screen-low_pe_high_growth.html"])
+    def test_a_lens_page_shows_its_definition_and_the_kept_local_state_not_a_table(self):
+        """The lens pages no longer depend on a snapshot at all: they publish the lens's
+        authored definition and say the vendor data is kept local, whatever is on disk."""
+        page = self.pages["screen-low_pe_high_growth.html"]
+        self.assertIn(sc.PRESETS["low_pe_high_growth"]["title"], page)
+        self.assertIn("Data kept local", page)
+        self.assertIn("Not evaluated on this public site", page)
+        self.assertNotIn("No snapshot fetched", page)
+
+    def test_a_lens_decided_by_authored_tags_lists_its_members(self):
+        """`high_ai_exposure` is `ai == high`, an editorial tag: its membership is this
+        repository's own and is published (by apply_preset, the one rule implementation)."""
+        page = self.pages["screen-high_ai_exposure.html"]
+        high = [tk for tk, _n, _s, ai, _b in sc.universe_rows() if ai == "high"]
+        self.assertTrue(high)
+        for tk in high:
+            self.assertIn("<td>{}</td>".format(tk), page)
+        self.assertIn("authored order", page)
 
 
 class WorkflowTests(unittest.TestCase):
@@ -235,9 +249,22 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("python tools/export_pages.py --out _site", self.wf)
         self.assertIn("path: _site", self.wf)
 
-    def test_the_fetch_is_best_effort_so_a_yahoo_outage_cannot_block_publishing(self):
-        fetch = self.wf.index("stock_screener.py fetch")
-        block = self.wf[max(0, fetch - 400):fetch]
+    def test_the_workflow_fetches_no_yahoo_fundamentals_or_prices(self):
+        """REPLACED the best-effort-fetch guard (docs/research/DATA_REDISTRIBUTION_AUDIT.md,
+        option A). The site no longer publishes Yahoo fundamentals or closes, so the job
+        that builds it has no reason to collect them: a fetch step here would only be a
+        way for vendor data to reach a public artifact."""
+        # What the job RUNS, not what its comments explain: the header names the retired
+        # steps on purpose.
+        executable = "\n".join(line for line in self.wf.splitlines()
+                               if not line.lstrip().startswith("#"))
+        for step in ("stock_screener.py fetch", "stock_screener.py prices", "yfinance"):
+            self.assertNotIn(step, executable)
+        self.assertIn("screener_lab.py refresh --tone-only", executable)
+
+    def test_the_tone_fetch_is_best_effort_so_an_outage_cannot_block_publishing(self):
+        fetch = self.wf.index("screener_lab.py refresh --tone-only")
+        block = self.wf[max(0, fetch - 1400):fetch]
         self.assertIn("continue-on-error: true", block)
 
     def test_it_deploys_from_the_default_branch_and_refreshes_on_a_schedule(self):
@@ -313,3 +340,192 @@ class ThePublishedRailIsShapedLikeTheServersTests(unittest.TestCase):
                 outside, inside = self._split(nav)
                 self.assertIn("Contribute", outside)
                 self.assertNotIn("Contribute", inside)
+
+
+# ── The public site carries no vendor data (DATA_REDISTRIBUTION_AUDIT.md, option A) ─────────
+import contextlib  # noqa: E402
+import json  # noqa: E402
+
+import screener_lab  # noqa: E402
+
+#: Distinctive values planted in every vendor cache the export could read. None may appear
+#: in any published file; the tone reading (this repository's own number) must.
+VENDOR_SENTINELS = ("73.9137", "0.4321987", "58.2713", "1.98765", "9876543210123",
+                    "1234567891.5", "4321.987", "0.31415", "777.123", "778.456",
+                    "Vendorname Sentinel Holdings", "Vendor Sentinel Sector",
+                    "66.6123", "5555.123", "SENTINEL HEADLINE do not publish")
+OWN_TONE = 0.4242
+
+
+@contextlib.contextmanager
+def planted_vendor_caches():
+    """Every cache the screener reads, filled with sentinel vendor values and one tone
+    snapshot whose headline is a sentinel too; restored afterwards."""
+    fund_row = {"ticker": "META", "name": "Vendorname Sentinel Holdings",
+                "sector": "Vendor Sentinel Sector", "pe": 73.9137, "growth": 0.4321987,
+                "earnings_growth": 0.4321987, "revenue_growth": 0.2, "dividend_yield": 0.0917,
+                "debt_to_equity": 58.2713, "beta": 1.98765, "market_cap": 9876543210123,
+                "dollar_volume": 1234567891.5, "price": 4321.987, "profit_margin": 0.31415,
+                "range_52w_pct": 0.5, "ai": "high", "bucket": "ai"}
+    tone_row = {"ticker": "META", "name": "Vendorname Sentinel Holdings",
+                "trailing_pe": 66.6123, "price": 5555.123,
+                "bloomberg_tone": OWN_TONE, "bloomberg_coverage": 3, "bloomberg_toned": 2,
+                "bloomberg_docs": [{"title": "SENTINEL HEADLINE do not publish", "tone": 0.5,
+                                    "published": "Thu, 06 Aug 2026 14:22:00 GMT",
+                                    "rule": "lexicon", "terms": ["beat"]}]}
+    tone = {"built_at": "2026-10-09T00:00:00+00:00", "rows": [tone_row], "providers": []}
+    real = (sc.SNAPSHOT_PATH, sc.PRICES_PATH, screener_lab.load_snapshot)
+    with tempfile.TemporaryDirectory() as tmp:
+        fund_path, price_path = os.path.join(tmp, "f.json"), os.path.join(tmp, "p.json")
+        with open(fund_path, "w", encoding="utf-8") as fh:
+            json.dump({"as_of": "2026-10-08T00:00:00Z", "source": "yfinance Ticker.info",
+                       "universe_size": 1, "errors": [], "rows": [fund_row]}, fh)
+        with open(price_path, "w", encoding="utf-8") as fh:
+            json.dump({"as_of": "2026-10-08T00:00:00Z", "source": "yfinance", "bars": 2,
+                       "delisted": {}, "errors": [], "series": {"META": [777.123, 778.456]}}, fh)
+        sc.SNAPSHOT_PATH, sc.PRICES_PATH = fund_path, price_path
+        screener_lab.load_snapshot = lambda *a, **k: json.loads(json.dumps(tone))
+        try:
+            yield
+        finally:
+            sc.SNAPSHOT_PATH, sc.PRICES_PATH, screener_lab.load_snapshot = real
+
+
+class ThePublicSiteCarriesNoVendorData(unittest.TestCase):
+    """With every vendor cache full of sentinels, no published file holds one of them,
+    while this repository's own tone reading is published."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.td = tempfile.TemporaryDirectory()
+        with planted_vendor_caches():
+            # The planting is real: the LOCAL server would render these values.
+            served = research_ui._screener_combined_draft_payload()
+            assert any(r.get("pe") == 73.9137 for r in served["rows"]), "plant failed"
+            cls.full_public = research_ui.public_screener_payload(served)
+            cls.written = export_pages.export(cls.td.name)
+        cls.files = {}
+        for name in cls.written:
+            with open(os.path.join(cls.td.name, name), encoding="utf-8") as fh:
+                cls.files[name] = fh.read()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.td.cleanup()
+
+    def test_no_vendor_value_or_headline_appears_in_any_published_file(self):
+        for name, text in self.files.items():
+            for sentinel in VENDOR_SENTINELS:
+                with self.subTest(file=name, sentinel=sentinel):
+                    self.assertNotIn(sentinel, text)
+
+    def test_the_repositorys_own_tone_reading_is_published(self):
+        payload = json.loads(re.search(r"window\.__DRAFT_LIVE__ = (\{.*?\});</script>",
+                                       self.files["index.html"], re.S).group(1))
+        meta = next(r for r in payload["rows"] if r["tk"] == "META")
+        self.assertEqual(meta["bb"], OWN_TONE)
+        self.assertEqual((meta["bb_c"], meta["bb_t"]), (3, 2))
+        for field in research_ui.VENDOR_ROW_FIELDS:
+            self.assertIn(meta[field], (None, "—"), field)
+        self.assertEqual(meta["absent"]["pe"], "withheld")
+        self.assertEqual(payload["vendor_withheld"], research_ui.VENDOR_WITHHELD_NOTICE)
+        self.assertEqual((payload["price_history"], payload["concentration"]), ({}, None))
+
+    def test_the_policy_function_strips_a_full_local_payload_too(self):
+        """Defence in depth: the export never reads the vendor caches, and even a payload
+        that DID (the local server's) comes out of public_screener_payload clean."""
+        text = json.dumps(self.full_public)
+        for sentinel in VENDOR_SENTINELS:
+            with self.subTest(sentinel=sentinel):
+                self.assertNotIn(sentinel, text)
+
+    def test_the_public_rows_are_the_authored_universe(self):
+        payload = json.loads(re.search(r"window\.__DRAFT_LIVE__ = (\{.*?\});</script>",
+                                       self.files["index.html"], re.S).group(1))
+        self.assertEqual([r["tk"] for r in payload["rows"]],
+                         [tk for tk, *_rest in sc.universe_rows()])
+
+
+class ThePublicPolicyFailsClosed(unittest.TestCase):
+    def test_an_unclassified_payload_key_is_refused(self):
+        with self.assertRaises(ValueError):
+            research_ui.public_screener_payload({"rows": [], "new_vendor_series": {}})
+
+    def test_an_unclassified_row_field_is_refused(self):
+        with self.assertRaises(ValueError):
+            research_ui.public_screener_payload({"rows": [{"tk": "META", "ev_ebitda": 9.1}]})
+
+    def test_every_field_the_draft_payload_emits_is_classified(self):
+        """The served payload's own keys and row fields, from authored snapshots: a new one
+        must be classified before the export can run, and this names it first."""
+        from tests import screener_payload_fixture
+        payload = screener_payload_fixture.authored_payload()
+        research_ui.public_screener_payload(payload)          # raises on an unclassified one
+        rows = {k for r in payload["rows"] for k in r}
+        classified = (set(research_ui.AUTHORED_ROW_FIELDS) | set(research_ui.TONE_ROW_FIELDS)
+                      | set(research_ui.VENDOR_ROW_FIELDS) | set(research_ui.DERIVED_ROW_FIELDS))
+        self.assertLessEqual(rows, classified)
+
+    def test_the_lists_do_not_overlap(self):
+        lists = (research_ui.AUTHORED_ROW_FIELDS, research_ui.TONE_ROW_FIELDS,
+                 research_ui.VENDOR_ROW_FIELDS, research_ui.DERIVED_ROW_FIELDS)
+        flat = [f for lst in lists for f in lst]
+        self.assertEqual(len(flat), len(set(flat)))
+        keys = (research_ui.PUBLIC_PAYLOAD_KEYS + research_ui.REBUILT_PAYLOAD_KEYS
+                + research_ui.VENDOR_PAYLOAD_KEYS)
+        self.assertEqual(len(keys), len(set(keys)))
+
+    def test_a_lens_is_not_evaluated_on_withheld_fields_and_a_capped_one_not_on_its_rank(self):
+        P = sc.PRESETS
+        self.assertEqual(research_ui.preset_withheld_metrics(P["low_pe_high_growth"]), ["pe", "growth"])
+        self.assertEqual(research_ui.preset_withheld_metrics(P["high_ai_exposure"]), [])
+        self.assertEqual(research_ui.preset_withheld_metrics(P["sovereign_ledger"]), [])
+        self.assertEqual(research_ui.preset_withheld_metrics(P["most_active"]), ["dollar_volume"])
+        self.assertNotIn("shadow_severity_rank",
+                         research_ui.preset_withheld_metrics(P["safety_low_debt"]))
+
+    def test_the_metric_map_is_the_pages_canon_field(self):
+        with open(research_ui.SCREENER_COMBINED_DRAFT_HTML, encoding="utf-8") as fh:
+            html = fh.read()
+        page = dict(re.findall(r'(\w+):"(\w+)"',
+                               re.search(r"const CANON_FIELD = \{(.*?)\};", html, re.S).group(1)))
+        self.assertEqual(page, research_ui.PRESET_METRIC_FIELD)
+
+    def test_the_withheld_code_is_registered_and_the_page_reads_the_notice_from_the_payload(self):
+        self.assertIn("withheld", research_ui.ABSENCE_REASONS)
+        with open(research_ui.SCREENER_COMBINED_DRAFT_HTML, encoding="utf-8") as fh:
+            html = fh.read()
+        self.assertIn("VENDOR_WITHHELD = live.vendor_withheld", html)
+        self.assertNotIn(research_ui.VENDOR_WITHHELD_NOTICE, html,
+                         "the page restates the notice instead of reading it")
+
+
+class ThePublicRenderersReadNoVendorCache(unittest.TestCase):
+    """The lens pages, the buckets page and the screener payload are built without opening
+    the Yahoo caches, so the site cannot depend on what the building machine holds."""
+
+    def test_export_succeeds_with_the_vendor_loaders_booby_trapped(self):
+        def trap(*a, **k):
+            raise AssertionError("the public export read a vendor cache")
+        real = (sc.load_snapshot, sc.load_prices)
+        sc.load_snapshot, sc.load_prices = trap, trap
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                written = export_pages.export(td)
+                self.assertIn("buckets.html", written)
+                with open(os.path.join(td, "buckets.html"), encoding="utf-8") as fh:
+                    page = fh.read()
+                # The page data is injected as window properties (never top-level consts):
+                # the public page carries an EMPTY price map, never a vendor's closes.
+                self.assertIn("window.PRICES = {};", page)
+                self.assertNotRegex(page, r"window\.PRICES = \{\"")
+        finally:
+            sc.load_snapshot, sc.load_prices = real
+
+    def test_the_local_server_still_reads_them(self):
+        """Unchanged locally: the served lens page and payload read the caches."""
+        with planted_vendor_caches():
+            code, body, _ct = research_ui.route("/screener", {"preset": "low_pe_high_growth"}, {})
+            self.assertEqual(code, 200)
+            self.assertIn("Vendor Sentinel Sector", body)
+            self.assertIn("777.123", json.dumps(research_ui._screener_combined_draft_payload()))

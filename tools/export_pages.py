@@ -9,19 +9,31 @@ no process to exploit and nothing private on the box, because there is no box.
 
 What is exported (deliberately narrow):
   * index.html                 — the screener: lens bubbles, filter row, widget board,
-                                 tone columns. Its snapshot is BAKED IN at build time,
-                                 because the server that normally injects it is not here.
+                                 tone columns. Its payload is BAKED IN at build time,
+                                 because the server that normally injects it is not here,
+                                 and it is the PUBLIC payload (research_ui.public_screener_payload).
   * lenses.html                — the older preset-only screener, kept addressable
-  * screen-<preset>.html       — one page per fundamental lens (buttons become links)
-  * buckets.html               — Sovereign Ledger OPTIONS_MOCK wireframe
+  * screen-<preset>.html       — one page per lens: its authored definition, and its
+                                 membership where authored tags alone decide it
+  * buckets.html               — Sovereign Ledger OPTIONS_MOCK wireframe, with no closes
   * recommend.html             — the recommendation form (browser-local, as on the server)
   * map.html                   — the self-contained interactive context map
   * static/ui.css              — the shared palette, same path shape the server uses
 
-What is deliberately WITHHELD from the baked payload: Bloomberg/Reddit headline TEXT.
-Tone scores and coverage counts are this repo's own derived numbers and ship; the
-third-party documents behind them do not, because rendering them locally from a cache
-and republishing them on a public site are different acts.
+What is deliberately WITHHELD:
+  * Yahoo fundamentals and prices, and every number computed from them (score, flags,
+    concentration). Yahoo's terms grant no redistribution right
+    (docs/research/data/README.md; docs/research/DATA_REDISTRIBUTION_AUDIT.md), so the
+    public pages carry what this repository owns: the authored universe and tags, the
+    bucket ledger, the lens definitions and its own tone readings, with an explicit
+    "kept local" state where a vendor value would be. The public renderers
+    (`public_screener_payload`, `page_screen(public=True)`,
+    `_sovereign_buckets_html(public=True)`) read no vendor cache at all, so the site is the
+    same whatever the building machine holds; the Pages workflow no longer fetches them.
+  * Bloomberg/Reddit/Yahoo headline TEXT. Tone scores and coverage counts are this repo's
+    own derived numbers and ship; the third-party documents behind them do not, because
+    rendering them locally from a cache and republishing them on a public site are
+    different acts.
 
 What is NOT exported: anything under live/** (fenced: broker state never gets a public
 URL, see OPERATIONS.md). The research-web browser and its node views ARE exported — all
@@ -33,9 +45,9 @@ buttons onto 404s. Exporting the whole set costs a few hundred small files and m
 
 The pages come out of the SAME pure `route()` table the server uses — this file adds
 no second rendering path, it post-processes hrefs (absolute server routes → relative
-file names) and swaps the rail/footer for static-appropriate ones. The screener data
-is whatever `data/screener/fundamentals.json` holds at build time; the Pages workflow
-does a best-effort `stock_screener.py fetch` first, and a failed fetch publishes the
+file names) and swaps the rail/footer for static-appropriate ones. The screener's
+public rows come from the tone snapshot the Pages workflow refreshes (`screener_lab.py
+refresh --tone-only`) joined with the authored universe; a failed tone fetch publishes the
 absence panel rather than a stale table dressed up as fresh (the absence-flag family).
 
 Usage:
@@ -242,43 +254,33 @@ def export(out_dir):
         written.append(name)
 
     write(os.path.join("static", "ui.css"), research_ui.UI_CSS)
+    # The lens pages use the PUBLIC rendering: definition, authored-tag membership and the
+    # "kept local" notice, never the vendor snapshot or its headlines (see the docstring).
+    mounts = research_ui._mount_state({})
     for key in stock_screener.PRESETS:
-        code, body, _ct = research_ui.route("/screener", {"preset": key}, {})
-        assert code == 200, key
+        body = research_ui.page_screen(mounts, {"preset": key}, public=True)
         write("screen-{}.html".format(key), _staticise(body, built, "screener"))
     # The preset-only page keeps a published copy under its own name; the rail no longer
     # offers it, but the per-lens pages above link back to it.
-    code, body, _ct = research_ui.route("/screener", {}, {})
-    assert code == 200
-    write("lenses.html", _staticise(body, built, "screener"))
+    write("lenses.html", _staticise(research_ui.page_screen(mounts, {}, public=True),
+                                    built, "screener"))
 
     # The screener surface itself. Its data is normally injected by the server, so for a
-    # static build the snapshot is baked in at export time — otherwise the published page
+    # static build the payload is baked in at export time — otherwise the published page
     # would render its own "no payload reached this page" absence state forever.
     #
-    # Headline TEXT is withheld for EVERY source. Tone scores and coverage counts are this
-    # repo's own derived numbers and belong on the page; the documents behind them are
-    # third-party copy, and rendering it locally from a cache is not the same act as
-    # republishing it on a public site. Only the second one would be happening here.
-    #
-    # All three, and Yahoo is not a special case: its per-ticker RSS carries syndicated
-    # headlines from Motley Fool, Benzinga, Reuters and others — the same kind of text as a
-    # Bloomberg headline, arriving by a different route. It used to be dropped anyway, but as
-    # COLLATERAL of assigning a two-key literal over the whole dict rather than as policy:
-    # the comment justified withholding Bloomberg and Reddit and said nothing about the 123
-    # tickers and 69 KB of Yahoo text that also disappeared. A rule that happens to produce
-    # the right output for a reason it does not state is one edit from producing the wrong one.
-    #
-    # Every source key is preserved so the page can tell "withheld" from "this source was
-    # never fetched" — an empty dict for a source that exists is not the same fact as a
-    # missing source, and the page renders them differently.
-    payload = research_ui._screener_combined_draft_payload()
-    payload["headlines"] = {src: {} for src in (payload.get("headlines") or {})}
-    payload["headlines_withheld"] = (
-        "Headline text is not republished on this static site — the documents are "
-        "third-party copy. The tone scores and coverage counts beside them are this repo's "
-        "own numbers and are published in full. Run the server locally "
-        "(venv/bin/python tools/research_ui.py serve) to read the documents behind a score.")
+    # It is the PUBLIC payload (research_ui.public_screener_payload), one function holding
+    # the whole policy and failing closed on any field it has not classified:
+    #   * Yahoo fundamentals, closes, and numbers computed from them are withheld, each with
+    #     the "kept local" state the page renders instead of a false "not reported";
+    #   * headline TEXT is withheld for EVERY source, Yahoo included (its per-ticker RSS
+    #     carries syndicated third-party headlines). Tone scores and coverage counts are
+    #     this repo's own numbers and ship. Every source key is preserved so the page can
+    #     tell "withheld" from "this source was never fetched".
+    # vendor_data=False: the Yahoo caches are not even read, so nothing the building machine
+    # happens to hold can reach the page by a path the policy has not classified.
+    payload = research_ui.public_screener_payload(
+        research_ui._screener_combined_draft_payload(vendor_data=False))
     code, body, _ct = research_ui._screener_combined_draft_html({}, payload=payload)
     assert code == 200
     write("index.html", _staticise(body, built, "screener"))
@@ -295,7 +297,7 @@ def export(out_dir):
     assert code == 200
     write("recommend.html", _staticise(body, built, "recommend"))
 
-    code, body, _ct = research_ui.route("/screener/buckets", {}, {})
+    code, body, _ct = research_ui._sovereign_buckets_html(mounts, public=True)
     assert code == 200
     # The server already swaps the mock's standalone rail for the shared nav, so the
     # page staticises exactly like every other one (nav swap + href rewrites).
@@ -365,11 +367,9 @@ def main(argv=None):
     ap.add_argument("--out", default="_site")
     args = ap.parse_args(argv)
     written = export(args.out)
-    snap = stock_screener.load_snapshot()
     print("wrote {} files to {}/".format(len(written), args.out))
-    print("screener data: {}".format(
-        "snapshot of {} rows, as of {}".format(len(snap["rows"]), snap.get("as_of"))
-        if snap else "NO SNAPSHOT — pages carry the absence panel"))
+    print("screener: vendor fundamentals and prices withheld (kept local); published the "
+          "authored universe, tags, buckets, lens definitions and tone readings")
     return 0
 
 
