@@ -5,17 +5,23 @@ name: Publish GitHub Pages
 # so a live server would add attack surface (public process, SQLite mounts) for zero
 # freshness gain. live/** is fenced and never published.
 #
-# The cron exists for the SCREENER DATA, not the code: fundamentals rot even when the
-# repo is idle, and each run re-fetches them best-effort. A failed fetch publishes the
-# absence panel — never a stale table dressed up as fresh.
+# NO YAHOO FUNDAMENTALS OR PRICES are fetched or published here (2026-10-09, option A of
+# docs/research/DATA_REDISTRIBUTION_AUDIT.md). Yahoo's terms grant no redistribution
+# right, so the site carries what this repository owns (authored universe and tags, the
+# bucket ledger, lens definitions, its own tone readings) and says "kept local" where a
+# vendor value would be. The former `stock_screener.py fetch` / `prices` steps are gone:
+# a job that publishes must not collect what it may not publish.
+#
+# The cron exists for the TONE DATA, not the code: tone is scored from news RSS and rots
+# even when the repo is idle. Each run re-fetches it best-effort; a failed fetch publishes
+# the absence panel — never a stale reading dressed up as fresh.
 #
 # DAILY, at 01:17 UTC — was weekly (Mondays 11:17 UTC), which is replaced rather than
 # kept alongside: two schedules for one decision is two things to keep in agreement.
 #
 #   * 01:17 UTC is 21:17 ET in summer, 20:17 ET in winter — a clear few hours after the
-#     16:00 ET close, so the session's daily bar has settled before it is fetched. A
-#     morning cron (the old 11:17 UTC = 07:17 ET) ran BEFORE the open, so its freshest
-#     possible price bar was already a day old.
+#     16:00 ET close, so the day's coverage has landed before it is scored. (Chosen when
+#     this job also fetched daily bars; kept because the evening news cycle is the same.)
 #   * :17 rather than :00 deliberately. GitHub queues scheduled workflows on the hour
 #     and delays them under load; an odd minute is the documented way to avoid it.
 #   * Every day, weekends included. Prices do not move then, but TONE does — it is
@@ -66,21 +72,11 @@ jobs:
         with:
           python-version: "3.11"
 
-      # yfinance brings pandas/numpy; the export itself is stdlib-only.
-      - name: Install fetch dependency
-        run: pip install yfinance
-
-      - name: Fetch screener fundamentals (best effort)
-        # Yahoo throttles CI runners sometimes. continue-on-error is deliberate:
-        # the export renders an honest absence panel when the snapshot is missing.
-        continue-on-error: true
-        run: python tools/stock_screener.py fetch
-
-      - name: Fetch screener prices (best effort)
-        # Same contract as the fundamentals fetch: a throttled price endpoint must not
-        # block publishing. Without it the price widget parks itself and says so.
-        continue-on-error: true
-        run: python tools/stock_screener.py prices
+      # The tone fetch's only third-party dependency (screener_lab._http_get); the export
+      # itself is stdlib-only. yfinance is deliberately NOT installed: nothing here may
+      # fetch Yahoo fundamentals or prices (see the header).
+      - name: Install the tone fetch dependency
+        run: pip install requests
 
       - name: Check out the tone ledger branch (best effort)
         # The branch is created on first run. continue-on-error everywhere in the ledger

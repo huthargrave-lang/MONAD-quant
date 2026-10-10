@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import csv
 import datetime as _dt
-import gzip
 import hashlib
 import io
 import json
@@ -34,14 +33,16 @@ import time
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Mapping
+from typing import Callable, Mapping, Sequence
 
 import pandas as pd
 
-from src.research.daily_data import DATA_DIR, SnapshotError, _fmt, _write_exclusive
+from src.research import data_store
+from src.research.daily_data import SnapshotError, _fmt
 from src.research.trials import canonical_json
 
 API = "https://www.cefconnect.com/api/v3/"
+PREFIX = "CEFNAV"
 #: Reported discount (percent, two decimals) vs price / NAV - 1: allowed disagreement in
 #: percentage points. The source rounds price, NAV and discount separately.
 MAX_DISCOUNT_MISMATCH_PCT = 0.15
@@ -119,10 +120,21 @@ def validate_history(ticker: str, rows: list[dict]) -> tuple[pd.DataFrame, int]:
 
 
 def build_panel(*, get: Callable[[str], bytes] = _get, pause: float = FETCH_PAUSE_SECONDS,
-                cached: Mapping[str, list] | None = None) -> tuple[dict, dict]:
+                cached: Mapping[str, list] | None = None, tickers: Sequence[str] | None = None,
+                strict: bool = False) -> tuple[dict, dict]:
     """Fetch the universe and every fund's history. ``cached`` (ticker -> rows) lets a
-    caller reuse histories fetched moments earlier instead of re-requesting them."""
+    caller reuse histories fetched moments earlier instead of re-requesting them.
+
+    ``tickers``: fetch only these funds (each must be in today's listing). ``strict``: a
+    fund that fails to fetch or validate raises instead of being dropped, so a caller that
+    needs every requested fund (a forward watch) never records a partial panel."""
     universe = fetch_universe(get)
+    if tickers is not None:
+        listed = {f["ticker"] for f in universe}
+        missing = sorted(set(tickers) - listed)
+        if missing:
+            raise SnapshotError(f"not in CEFConnect's listing: {missing}")
+        universe = [f for f in universe if f["ticker"] in set(tickers)]
     price, nav, category, dropped, removed_rows = {}, {}, {}, {}, {}
     for f in universe:
         t = f["ticker"]
@@ -132,9 +144,13 @@ def build_panel(*, get: Callable[[str], bytes] = _get, pause: float = FETCH_PAUS
                 time.sleep(pause)
             df, n_bad = validate_history(t, rows)
         except SnapshotError as exc:
+            if strict:
+                raise
             dropped[t] = str(exc)
             continue
         except Exception as exc:  # noqa: BLE001 — one fund's fetch failure drops that fund
+            if strict:
+                raise SnapshotError(f"{t}: fetch failed: {type(exc).__name__}: {exc}") from exc
             dropped[t] = f"fetch failed: {type(exc).__name__}: {exc}"
             continue
         price[t], nav[t], category[t] = df["price"], df["nav"], f["category"]
@@ -142,6 +158,7 @@ def build_panel(*, get: Callable[[str], bytes] = _get, pause: float = FETCH_PAUS
             removed_rows[t] = n_bad
     frames = {"price": pd.DataFrame(price).sort_index(), "nav": pd.DataFrame(nav).sort_index()}
     report = {"universe_size": len(universe), "kept": len(price), "dropped": dropped,
+              **({"requested": sorted(tickers)} if tickers is not None else {}),
               "inconsistent_rows_removed": removed_rows,
               "category": category,
               "names": {f["ticker"]: f["name"] for f in universe if f["ticker"] in price}}
@@ -161,39 +178,42 @@ def encode_csv(frames: Mapping[str, pd.DataFrame]) -> bytes:
     return buf.getvalue().encode("utf-8")
 
 
-def write_panel(frames, report, *, data_dir: Path | None = None) -> str:
+SOURCE = "CEFConnect pricinghistory/<T>/All (weekly)"
+
+
+def write_panel(frames, report, *, data_dir: Path | None = None, private_dir: Path | None = None) -> str:
+    """Write ``CEFNAV-<sha>.csv.gz`` and its manifest; returns the sha. CEFConnect's terms
+    (and Morningstar's, who supplies its data) grant no redistribution right, so the
+    observations always go to the private store (``data_store``) and the manifest records
+    ``observations``. Idempotent, like every content-addressed writer."""
     data = encode_csv(frames)
     sha = hashlib.sha256(data).hexdigest()
-    base = Path(data_dir) if data_dir is not None else DATA_DIR
-    base.mkdir(parents=True, exist_ok=True)
-    path = base / f"CEFNAV-{sha}.csv.gz"
-    if not path.exists():
-        buf = io.BytesIO()
-        with gzip.GzipFile(fileobj=buf, mode="wb", mtime=0, compresslevel=9) as gz:
-            gz.write(data)
-        _write_exclusive(path, buf.getvalue())
+    keep_private = data_store.must_be_private(SOURCE)
+    base = data_store.write_stores(data_dir, private_dir).manifests
     fetched_at = _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
-    manifest = {"schema_version": 1, "sha": sha, "source": "CEFConnect pricinghistory/<T>/All (weekly)",
+    manifest = {"schema_version": 1, "sha": sha, "source": SOURCE,
                 "vintage": fetched_at[:10],    # vendor data as fetched that day
                 "universe_source": "CEFConnect DailyPricing (funds listed at fetch time)",
                 "survivorship": "current listings only; see src/research/cef_data.py",
                 "fetched_at": fetched_at, **report}
-    man = base / f"CEFNAV-{sha}.json"
-    if not man.exists():
-        _write_exclusive(man, (canonical_json(manifest) + "\n").encode("utf-8"))
+    if keep_private:
+        if "observations" in report:
+            raise SnapshotError("the report may not carry an 'observations' field")
+        manifest["observations"] = data_store.private_record(sha)
+    data_store.write(PREFIX, data, private=keep_private, data_dir=data_dir, private_dir=private_dir,
+                     vendors=data_store.restricted_vendors(SOURCE))
+    data_store.write_manifest(base / f"{PREFIX}-{sha}.json", manifest,
+                              serialize=lambda m: canonical_json(m) + "\n")
     return sha
 
 
-def load_panel(sha: str, *, data_dir: Path | None = None) -> NavPanel:
-    base = Path(data_dir) if data_dir is not None else DATA_DIR
-    path = base / f"CEFNAV-{sha}.csv.gz"
-    try:
-        data = gzip.decompress(path.read_bytes())
-    except FileNotFoundError:
-        raise SnapshotError(f"no NAV panel {sha[:12]} in {base}") from None
-    if hashlib.sha256(data).hexdigest() != sha:
-        raise SnapshotError(f"{path.name} does not hash to its name: the file was altered")
-    manifest = json.loads((base / f"CEFNAV-{sha}.json").read_text(encoding="utf-8"))
+def load_panel(sha: str, *, data_dir: Path | None = None, private_dir: Path | None = None) -> NavPanel:
+    """The panel named ``sha``, from the committed store or the private one, verified."""
+    data = data_store.read(PREFIX, sha, data_dir=data_dir, private_dir=private_dir)
+    manifest = data_store.read_manifest(PREFIX, sha, data_dir=data_dir)
+    if manifest is None:
+        raise SnapshotError(f"NAV panel {sha[:12]} has no manifest in "
+                            f"{data_store.stores(data_dir).manifests}")
     df = pd.read_csv(io.BytesIO(data), parse_dates=["date"])
     price = df.pivot(index="date", columns="ticker", values="price").sort_index()
     nav = df.pivot(index="date", columns="ticker", values="nav").sort_index()

@@ -246,12 +246,65 @@ class TacticalGate(unittest.TestCase):
                              ("insider_cluster", "INSIDER"), ("mreit_discount", "MREITBV"),
                              ("earnings_premium", "EARNDATES"), ("spinoff_drift", "SPINEVENTS"),
                              ("index_deletion", "IDXDEL")):
-            files = admit_tactical._data_files({"snapshot": "s" * 64, "nav_panel": "p" * 64}, DOMAINS[name])
+            files = admit_tactical._data_evidence({"snapshot": "s" * 64, "nav_panel": "p" * 64},
+                                                  DOMAINS[name]).witnessed
             self.assertTrue(any(f.endswith(f"{prefix}-{'p' * 64}.csv.gz") for f in files), (name, files))
+        files = admit_tactical._data_evidence({"snapshot": "s" * 64, "nav_panel": "p" * 64},
+                                              DOMAINS["cef_etf_tilt"]).witnessed
+        self.assertEqual([f for f in files if "CEFETF" in f], [str(admit_tactical.data_store.DATA_DIR / f"CEFETF-{'p' * 64}.json")])
         for name in ("etf_alloc", "credit_sleeve", "cef_product", "spinoff_product",
                      "merger_arb_product", "buyback_product",
                      "microcap_product"):
-            self.assertEqual(len(admit_tactical._data_files({"snapshot": "s" * 64}, DOMAINS[name])), 2)
+            self.assertEqual(len(admit_tactical._data_evidence({"snapshot": "s" * 64},
+                                                               DOMAINS[name]).witnessed), 2)
+
+    def test_a_private_data_set_is_witnessed_by_its_manifest_and_verified_by_its_hash(self):
+        """Restricted observations live in the private store, never on the deploy branch.
+        The witness reads the committed manifest (which names the bytes by sha) and the stage
+        checks the private file exists and hashes to that sha; a missing or altered file, or
+        a manifest whose record names another sha, blocks."""
+        import gzip
+        from src.research import data_store
+        from src.research.daily_domains import DOMAINS
+        with tempfile.TemporaryDirectory() as pub, tempfile.TemporaryDirectory() as priv:
+            pub, priv = Path(pub), Path(priv)
+            data = b"date,dtb3\n2020-01-02,1.5\n"
+            sha, _ = data_store.write("DS", data, private=True, data_dir=pub, private_dir=priv)
+            (pub / f"DS-{sha}.json").write_text(json.dumps(
+                {"sha": sha, "sources": {"prices": "yfinance"},
+                 "observations": data_store.private_record(sha)}), encoding="utf-8")
+            ev = admit_tactical._data_evidence({"snapshot": sha}, DOMAINS["etf_alloc"],
+                                               data_dir=pub, private_dir=priv)
+            self.assertEqual(ev.witnessed, [str(pub / f"DS-{sha}.json")])
+            self.assertEqual(ev.private, [str(priv / f"DS-{sha}.csv.gz")])
+            self.assertEqual(ev.problems, [])
+
+            (priv / f"DS-{sha}.csv.gz").write_bytes(gzip.compress(b"date,dtb3\n2020-01-02,9.9\n"))
+            ev = admit_tactical._data_evidence({"snapshot": sha}, DOMAINS["etf_alloc"],
+                                               data_dir=pub, private_dir=priv)
+            self.assertTrue(any("altered" in p for p in ev.problems), ev.problems)
+
+            (priv / f"DS-{sha}.csv.gz").unlink()
+            ev = admit_tactical._data_evidence({"snapshot": sha}, DOMAINS["etf_alloc"],
+                                               data_dir=pub, private_dir=priv)
+            self.assertTrue(any("not in" in p for p in ev.problems), ev.problems)
+
+            data_store.write("DS", data, private=True, data_dir=pub, private_dir=priv)
+            (pub / f"DS-{sha}.json").write_text(json.dumps(
+                {"sha": sha, "observations": data_store.private_record("0" * 64)}), encoding="utf-8")
+            ev = admit_tactical._data_evidence({"snapshot": sha}, DOMAINS["etf_alloc"],
+                                               data_dir=pub, private_dir=priv)
+            self.assertTrue(any("observations record" in p for p in ev.problems), ev.problems)
+
+    def test_the_witness_stage_blocks_on_a_private_problem_and_records_what_it_verified(self):
+        from admit import stage_witness
+        ok = stage_witness([], 3, private=["DS-x.csv.gz"])
+        self.assertEqual(ok.outcome, "pass")
+        self.assertEqual(ok.data["private_observations"], ["DS-x.csv.gz"])
+        self.assertIn("verified by sha-256", ok.detail)
+        bad = stage_witness(["DS-x: its private observations are not in /s"], 3, private=["DS-x.csv.gz"])
+        self.assertEqual(bad.outcome, "block")
+        self.assertNotIn("private_observations", stage_witness([], 3).data)
 
     def test_the_overlap_check_refuses_forward_data_from_another_market(self):
         other = market(seed=99)

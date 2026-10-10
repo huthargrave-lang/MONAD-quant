@@ -61,6 +61,23 @@ DOMAINS = {
     "lottery_product_recent": {"family": "lottery_product_recent", "reference_class": "product_benchmark"},
     "beta_pair_product": {"family": "beta_pair_product", "reference_class": "product_benchmark"},
     "levered_trend": {"family": "levered_trend", "reference_class": "held"},
+    "miner_metal_ratio": {"family": "miner_metal_ratio", "reference_class": "pair_static"},
+    "oil_trend_equities": {"family": "oil_trend_equities", "reference_class": "fund_static"},
+    "silver_miner_ratio": {"family": "silver_miner_ratio", "reference_class": "pair_static"},
+    "junior_miner_ratio": {"family": "junior_miner_ratio", "reference_class": "pair_static"},
+    "gold_silver_ratio": {"family": "gold_silver_ratio", "reference_class": "pair_static"},
+    "placebo_ratio": {"family": "placebo_ratio", "reference_class": "pair_static"},
+    "metal_trust_discount": {"family": "metal_trust_discount", "reference_class": "pairs_static"},
+    "miner_preperiod_a": {"family": "miner_preperiod_a", "reference_class": "pair_static"},
+    "miner_preperiod_b": {"family": "miner_preperiod_b", "reference_class": "pair_static"},
+    "placebo_preperiod": {"family": "placebo_preperiod", "reference_class": "pair_static"},
+    "miner_preperiod_lags": {"family": "miner_preperiod_lags", "reference_class": "pair_static"},
+    "cef_etf_tilt": {"family": "cef_etf_tilt", "reference_class": "cef_etf_bench"},
+    "cef_etf_tilt_lag": {"family": "cef_etf_tilt_lag", "reference_class": "cef_etf_bench"},
+    "cef_etf_tilt_staged": {"family": "cef_etf_tilt_staged", "reference_class": "cef_etf_bench"},
+    # Leave-one-family-out diagnostics of cef_etf_tilt: each point has its own benchmark,
+    # so they are kept out of the search's family (tools/cef_etf_report.py).
+    "cef_etf_tilt_lofo": {"family": "cef_etf_tilt_lofo", "reference_class": "cef_etf_bench"},
 }
 DEFAULT_DOMAIN = "etf_alloc"      # trials recorded before domains existed (the v1 search)
 

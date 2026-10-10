@@ -65,6 +65,17 @@ COST_BPS = {
     # Small and micro caps around insider-buying events: half-spreads of 20-60 bps plus
     # impact at small size; one rate after 2010, wider before.
     "smallcap": {"pre": 50.0, "post": 30.0},
+    # A miner basket before decimalisation (1/8-dollar ticks until 1997, about 15-40 bps
+    # half-spread on $15-40 shares) and physical bullion against a daily fixing, for the
+    # 1984-2005 miner/metal test (docs/research/MINER_TILT_PREPERIOD.md, board 2026-10-09).
+    "basket_pre_decimal": {"pre": 35.0, "post": 35.0},
+    "bullion": {"pre": 20.0, "post": 20.0},
+    # The CEF vs matched-ETF tilt (docs/research/CEF_ETF_TILT_PROTOCOL.md): a $10M book in
+    # ~190 slots x 21 tranches makes orders small, so a per-order minimum commission of at
+    # most 2 bps is added to each tier; thin funds (median daily dollar volume < $1M) trade wider.
+    "cef_plus": {"pre": 32.0, "post": 17.0},
+    "cef_thin": {"pre": 62.0, "post": 42.0},
+    "tier1_plus": {"pre": 7.0, "post": 4.0},
 }
 TIER2 = frozenset({"EEM", "DBC", "VNQ"})
 
@@ -110,6 +121,11 @@ class DailyResult:
                                        # at the previous close (all tranches together)
     cost_paid: float                   # the same for fees
     exposure: pd.Series = field(repr=False, default=None)   # invested fraction at each close
+    #: Each asset's fraction of the portfolio at each close (all tranches together);
+    #: ``exposure`` is its row sum.
+    weights: pd.DataFrame = field(repr=False, default=None)
+    #: The book at the last scored close, to continue from (``evaluate_daily(initial=)``).
+    final: BookState = field(repr=False, default=None)
 
     @property
     def excess(self) -> pd.Series:
@@ -118,6 +134,26 @@ class DailyResult:
 
 class OrderError(ValueError):
     """A strategy produced an order the evaluator cannot execute."""
+
+
+@dataclass(frozen=True)
+class BookState:
+    """Every tranche's holdings (dollars per asset) and cash at the close of ``session``:
+    what ``evaluate_daily`` needs to continue a book from where an earlier evaluation (or
+    a forward log) left it, exactly. Dollars are on the scale the earlier evaluation
+    used; only their ratios matter."""
+    session: str                       # ISO date of the close the state describes
+    tranches: tuple                    # ({"holdings": {asset: dollars}, "cash": dollars}, ...)
+
+    def to_json(self) -> dict:
+        return {"session": self.session,
+                "tranches": [{"holdings": dict(t["holdings"]), "cash": t["cash"]} for t in self.tranches]}
+
+    @classmethod
+    def from_json(cls, d) -> "BookState":
+        return cls(session=d["session"],
+                   tranches=tuple({"holdings": {a: float(v) for a, v in t["holdings"].items()},
+                                   "cash": float(t["cash"])} for t in d["tranches"]))
 
 
 def _orders_by_execution(orders: pd.DataFrame, dates: pd.DatetimeIndex,
@@ -152,7 +188,8 @@ def _orders_by_execution(orders: pd.DataFrame, dates: pd.DatetimeIndex,
 def evaluate_daily(tranches: Sequence[Tranche], snap: Snapshot, *, start: pd.Timestamp,
                    end: pd.Timestamp | None = None, cost_multiple: float = 1.0,
                    rets: SessionReturns | None = None,
-                   tiers: Mapping[str, str] | None = None) -> DailyResult:
+                   tiers: Mapping[str, str] | None = None,
+                   initial: BookState | None = None) -> DailyResult:
     """Run ``tranches`` on ``snap`` and score sessions in [start, end].
 
     Every tranche starts in cash at the close of the session before ``start``, with
@@ -161,6 +198,11 @@ def evaluate_daily(tranches: Sequence[Tranche], snap: Snapshot, *, start: pd.Tim
     tranche whose next rebalance is twenty sessions away holds its strategy's position
     from the first scored session, rather than sitting in cash until then, which would
     bias every tranche differently by its offset.
+
+    ``initial``: continue instead from a book left by an earlier evaluation at the close
+    of the session before ``start`` (its ``final``): no build at ``start``, the same
+    holdings and cash per tranche. Chaining evaluations this way reproduces one
+    evaluation over the whole span exactly.
     """
     if not tranches:
         raise OrderError("a strategy needs at least one tranche")
@@ -180,22 +222,38 @@ def evaluate_daily(tranches: Sequence[Tranche], snap: Snapshot, *, start: pd.Tim
     cost = cost_matrix(assets, dates, tiers) * 1e-4 * cost_multiple
 
     n_t = len(tranches)
+    if initial is not None:
+        if initial.session != dates[i0 - 1].date().isoformat():
+            raise OrderError(f"initial book is at {initial.session}, but scoring starts after "
+                             f"{dates[i0 - 1].date()}")
+        if len(initial.tranches) != n_t:
+            raise OrderError(f"initial book has {len(initial.tranches)} tranches, the strategy {n_t}")
+        unknown = {a for t in initial.tranches for a, v in t["holdings"].items() if v} - set(assets)
+        if unknown:
+            raise OrderError(f"initial book holds assets outside the snapshot: {sorted(unknown)}")
+    finals = []
     total = np.zeros(i1 - i0 + 2)               # value at the close of i0-1 .. i1
     invested = np.zeros(i1 - i0 + 1)
+    held = np.zeros((i1 - i0 + 1, len(assets)))     # dollars per asset at each close
     rebalances = 0
     # Traded notional and fees in DOLLARS per scored session, summed over tranches, then
     # divided by the WHOLE portfolio's value: a tranche's fee as a fraction of its own
     # capital is 1/n_t of that as a fraction of the portfolio.
     traded_d = np.zeros(i1 - i0 + 1)
     fee_d = np.zeros(i1 - i0 + 1)
-    for tr in tranches:
+    for n, tr in enumerate(tranches):
         opens = _orders_by_execution(tr.open_orders, dates, assets)
         closes = _orders_by_execution(tr.close_orders, dates, assets)
         _refuse_unreliable_opens(opens, snap, assets, dates)
-        _carry_in(opens, closes, i0)
-        h = np.zeros(len(assets))               # dollars per asset
-        k = 1.0 / n_t                           # dollars in cash
-        total[0] += k
+        if initial is None:
+            _carry_in(opens, closes, i0)
+            h = np.zeros(len(assets))           # dollars per asset
+            k = 1.0 / n_t                       # dollars in cash
+        else:
+            start_book = initial.tranches[n]["holdings"]
+            h = np.array([float(start_book.get(a, 0.0)) for a in assets])
+            k = float(initial.tranches[n]["cash"])
+        total[0] += h.sum() + k
         for j, i in enumerate(range(i0, i1 + 1)):
             if h.any():
                 r = night[i]
@@ -220,6 +278,8 @@ def evaluate_daily(tranches: Sequence[Tranche], snap: Snapshot, *, start: pd.Tim
                 fee_d[j] += c
             total[j + 1] += h.sum() + k
             invested[j] += h.sum()
+            held[j] += h
+        finals.append({"holdings": {a: float(v) for a, v in zip(assets, h) if v}, "cash": float(k)})
     values = pd.Series(total, index=dates[i0 - 1:i1 + 1])
     returns = values.pct_change().iloc[1:]
     prior = values.iloc[:-1].to_numpy()           # portfolio value at the previous close
@@ -228,7 +288,10 @@ def evaluate_daily(tranches: Sequence[Tranche], snap: Snapshot, *, start: pd.Tim
     return DailyResult(returns=returns, cash=rets.cash.iloc[i0:i1 + 1].fillna(0.0),
                        rebalances=rebalances, turnover=turnover, cost_paid=cost_paid,
                        exposure=pd.Series(invested / values.iloc[1:].to_numpy(),
-                                          index=dates[i0:i1 + 1]))
+                                          index=dates[i0:i1 + 1]),
+                       weights=pd.DataFrame(held / values.iloc[1:].to_numpy()[:, None],
+                                            index=dates[i0:i1 + 1], columns=assets),
+                       final=BookState(session=dates[i1].date().isoformat(), tranches=tuple(finals)))
 
 
 def _refuse_unreliable_opens(opens: dict, snap: Snapshot, assets: Sequence[str],

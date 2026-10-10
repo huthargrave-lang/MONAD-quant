@@ -316,7 +316,22 @@ class TestRouteRobustness(unittest.TestCase):
         ("what happens on a software stop", ["trader", "exit", "strategy"]),
         ("how do I add a new ticker", ["sweep", "backtest"]),
         ("is the edge real", ["perf", "edge", "research_web"]),
+        # The counted research program (research_program area), 2026-10-08.
+        ("how do I register a hypothesis", ["prereg/readme.md"]),
+        ("admit a hypothesis through the gate", ["prereg/readme.md", "admit_tactical.py"]),
+        ("test a live ETF product against a benchmark", ["product_pairs.py"]),
+        ("gold miners vs gold ratio", ["miner_tilt_replication.md", "commodity_classes.py"]),
+        ("which edges survived", ["daily_strategies.md"]),
     ]
+
+    def test_hypothesis_questions_reach_the_program_not_the_sweep_optimizer(self):
+        """'hypothesis' once belonged to the hourly sweep-optimizer route, so every
+        registration question was told to read sweep_scoring.py."""
+        for q in ("how do I register a hypothesis", "admit a hypothesis through the gate"):
+            first = _route_output(q).split("\n\n")[0]
+            with self.subTest(query=q):
+                self.assertIn("prereg", first)
+                self.assertNotIn("sweep_scoring", first)
 
     def test_golden_queries_match(self):
         for q, expect_any in self.GOLDEN:

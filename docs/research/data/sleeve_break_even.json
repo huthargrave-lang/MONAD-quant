@@ -1,0 +1,242 @@
+{
+ "inputs": {
+  "cash_snapshot_sha256": "32c992fb5395668529a6bfca3214bf59a1242fbc1c6efb52ab97664154c3aaaf",
+  "returns_sha256": {
+   "TR-20261006T005053Z-9336581d#0": "af18f6d66015955d33c1dbf58845b53ea226cefe52221ba2451abfb9c92c1bf9",
+   "TR-20261006T012341Z-86834435#0": "23aa6231738297ae1ce9d3d9f328eaf3435727a914a77e40a46aa5165931a449",
+   "TR-20261007T051659Z-dfb4dff7#0": "883fdbc19b5cd8303f89b89a2a48d98488733f313e3b3550293cff3411c73f81"
+  }
+ },
+ "product": "TR-20261006T005053Z-9336581d#0",
+ "protocol": "docs/research/SLEEVE_BREAK_EVEN_PROTOCOL.md",
+ "results": {
+  "ew_cef (H404702's benchmark)": {
+   "corroborated_alpha": 0.0226,
+   "windows": {
+    "full": {
+     "benchmark_max_drawdown": -0.47203088554977335,
+     "benchmark_sharpe": 0.4143465083237038,
+     "carve_outs": {
+      "10%": {
+       "alpha_drawdown_break_even": 0.12162043446037732,
+       "alpha_sharpe_break_even": 0.013372738242973987,
+       "corroborated_alpha_clears_drawdown": false,
+       "corroborated_alpha_clears_sharpe": true,
+       "drawdown_no_crossing": null,
+       "sharpe_no_crossing": null
+      },
+      "20%": {
+       "alpha_drawdown_break_even": 0.1742605123868718,
+       "alpha_sharpe_break_even": 0.01550348075122496,
+       "corroborated_alpha_clears_drawdown": false,
+       "corroborated_alpha_clears_sharpe": true,
+       "drawdown_no_crossing": null,
+       "sharpe_no_crossing": null
+      },
+      "5%": {
+       "alpha_drawdown_break_even": 0.11737532835277245,
+       "alpha_sharpe_break_even": 0.012298629424822842,
+       "corroborated_alpha_clears_drawdown": false,
+       "corroborated_alpha_clears_sharpe": true,
+       "drawdown_no_crossing": null,
+       "sharpe_no_crossing": null
+      }
+     },
+     "correlation": 0.7862120792486231,
+     "first": "2007-06-08",
+     "last": "2026-10-02",
+     "product_max_drawdown": -0.3221115955755488,
+     "product_sharpe": 0.6279912609607202,
+     "sessions": 4861
+    },
+    "negative stock-bond correlation (to 2022-07)": {
+     "benchmark_max_drawdown": -0.47203088554977335,
+     "benchmark_sharpe": 0.43161663444367543,
+     "carve_outs": {
+      "10%": {
+       "alpha_drawdown_break_even": 0.12162043446037732,
+       "alpha_sharpe_break_even": 0.013837905287793575,
+       "corroborated_alpha_clears_drawdown": false,
+       "corroborated_alpha_clears_sharpe": true,
+       "drawdown_no_crossing": null,
+       "sharpe_no_crossing": null
+      },
+      "20%": {
+       "alpha_drawdown_break_even": 0.1742605123868718,
+       "alpha_sharpe_break_even": 0.01630264366646189,
+       "corroborated_alpha_clears_drawdown": false,
+       "corroborated_alpha_clears_sharpe": true,
+       "drawdown_no_crossing": null,
+       "sharpe_no_crossing": null
+      },
+      "5%": {
+       "alpha_drawdown_break_even": 0.11737532835277245,
+       "alpha_sharpe_break_even": 0.012583921298761978,
+       "corroborated_alpha_clears_drawdown": false,
+       "corroborated_alpha_clears_sharpe": true,
+       "drawdown_no_crossing": null,
+       "sharpe_no_crossing": null
+      }
+     },
+     "correlation": 0.7845348216218805,
+     "first": "2007-06-08",
+     "last": "2022-07-29",
+     "product_max_drawdown": -0.3221115955755488,
+     "product_sharpe": 0.6450794270013667,
+     "sessions": 3813
+    },
+    "positive correlation (2022-08 on)": {
+     "benchmark_max_drawdown": -0.15878467339330926,
+     "benchmark_sharpe": 0.3551121581143708,
+     "carve_outs": {
+      "10%": {
+       "alpha_drawdown_break_even": 0.14478098727628158,
+       "alpha_sharpe_break_even": 0.012356684097638394,
+       "corroborated_alpha_clears_drawdown": false,
+       "corroborated_alpha_clears_sharpe": true,
+       "drawdown_no_crossing": null,
+       "sharpe_no_crossing": null
+      },
+      "20%": {
+       "alpha_drawdown_break_even": 0.14509434436227076,
+       "alpha_sharpe_break_even": 0.01301461235393574,
+       "corroborated_alpha_clears_drawdown": false,
+       "corroborated_alpha_clears_sharpe": true,
+       "drawdown_no_crossing": null,
+       "sharpe_no_crossing": null
+      },
+      "5%": {
+       "alpha_drawdown_break_even": 0.14462431391569452,
+       "alpha_sharpe_break_even": 0.012038687607184208,
+       "corroborated_alpha_clears_drawdown": false,
+       "corroborated_alpha_clears_sharpe": true,
+       "drawdown_no_crossing": null,
+       "sharpe_no_crossing": null
+      }
+     },
+     "correlation": 0.8569712205232667,
+     "first": "2022-08-01",
+     "last": "2026-10-02",
+     "product_max_drawdown": -0.13476602662011183,
+     "product_sharpe": 0.5620416279376883,
+     "sessions": 1048
+    }
+   }
+  },
+  "pcef (CEFS's benchmark)": {
+   "corroborated_alpha": 0.044,
+   "windows": {
+    "full": {
+     "benchmark_max_drawdown": -0.3862798871996572,
+     "benchmark_sharpe": 0.40417258150420166,
+     "carve_outs": {
+      "10%": {
+       "alpha_drawdown_break_even": 0.03137749554899569,
+       "alpha_sharpe_break_even": 0.027622940711936703,
+       "corroborated_alpha_clears_drawdown": true,
+       "corroborated_alpha_clears_sharpe": true,
+       "drawdown_no_crossing": null,
+       "sharpe_no_crossing": null
+      },
+      "20%": {
+       "alpha_drawdown_break_even": null,
+       "alpha_sharpe_break_even": 0.02983973679218628,
+       "corroborated_alpha_clears_drawdown": null,
+       "corroborated_alpha_clears_sharpe": true,
+       "drawdown_no_crossing": "none: worse even at +40%/yr",
+       "sharpe_no_crossing": null
+      },
+      "5%": {
+       "alpha_drawdown_break_even": 0.031200399232000506,
+       "alpha_sharpe_break_even": 0.026512094418452516,
+       "corroborated_alpha_clears_drawdown": true,
+       "corroborated_alpha_clears_sharpe": true,
+       "drawdown_no_crossing": null,
+       "sharpe_no_crossing": null
+      }
+     },
+     "correlation": 0.7856467539027171,
+     "first": "2012-12-03",
+     "last": "2026-10-02",
+     "product_max_drawdown": -0.21193325189075818,
+     "product_sharpe": 0.7823720507797708,
+     "sessions": 3479
+    },
+    "negative stock-bond correlation (to 2022-07)": {
+     "benchmark_max_drawdown": -0.3862798871996572,
+     "benchmark_sharpe": 0.419928629035783,
+     "carve_outs": {
+      "10%": {
+       "alpha_drawdown_break_even": null,
+       "alpha_sharpe_break_even": 0.0353259700973992,
+       "corroborated_alpha_clears_drawdown": null,
+       "corroborated_alpha_clears_sharpe": true,
+       "drawdown_no_crossing": "none: worse even at +40%/yr",
+       "sharpe_no_crossing": null
+      },
+      "20%": {
+       "alpha_drawdown_break_even": null,
+       "alpha_sharpe_break_even": 0.038273138553776995,
+       "corroborated_alpha_clears_drawdown": null,
+       "corroborated_alpha_clears_sharpe": true,
+       "drawdown_no_crossing": "none: worse even at +40%/yr",
+       "sharpe_no_crossing": null
+      },
+      "5%": {
+       "alpha_drawdown_break_even": null,
+       "alpha_sharpe_break_even": 0.033839024088692896,
+       "corroborated_alpha_clears_drawdown": null,
+       "corroborated_alpha_clears_sharpe": true,
+       "drawdown_no_crossing": "none: worse even at +40%/yr",
+       "sharpe_no_crossing": null
+      }
+     },
+     "correlation": 0.7658661972020313,
+     "first": "2012-12-03",
+     "last": "2022-07-29",
+     "product_max_drawdown": -0.1875073908126509,
+     "product_sharpe": 0.886819340142495,
+     "sessions": 2431
+    },
+    "positive correlation (2022-08 on)": {
+     "benchmark_max_drawdown": -0.1535521310326574,
+     "benchmark_sharpe": 0.36488157906409596,
+     "carve_outs": {
+      "10%": {
+       "alpha_drawdown_break_even": 0.09335938266168126,
+       "alpha_sharpe_break_even": 0.013136317117540906,
+       "corroborated_alpha_clears_drawdown": false,
+       "corroborated_alpha_clears_sharpe": true,
+       "drawdown_no_crossing": null,
+       "sharpe_no_crossing": null
+      },
+      "20%": {
+       "alpha_drawdown_break_even": 0.10773763407493489,
+       "alpha_sharpe_break_even": 0.014100668059426693,
+       "corroborated_alpha_clears_drawdown": false,
+       "corroborated_alpha_clears_sharpe": true,
+       "drawdown_no_crossing": null,
+       "sharpe_no_crossing": null
+      },
+      "5%": {
+       "alpha_drawdown_break_even": 0.09317849223287128,
+       "alpha_sharpe_break_even": 0.012659633586604605,
+       "corroborated_alpha_clears_drawdown": false,
+       "corroborated_alpha_clears_sharpe": true,
+       "drawdown_no_crossing": null,
+       "sharpe_no_crossing": null
+      }
+     },
+     "correlation": 0.8451849093534421,
+     "first": "2022-08-01",
+     "last": "2026-10-02",
+     "product_max_drawdown": -0.13476602662011183,
+     "product_sharpe": 0.5620416279376883,
+     "sessions": 1048
+    }
+   }
+  }
+ },
+ "schema_version": 1,
+ "vintage": "2026-10-09"
+}

@@ -33,6 +33,7 @@ verdict, not a deployment.
 from __future__ import annotations
 
 import datetime as _dt
+import json
 import os
 import sys
 from dataclasses import asdict, dataclass
@@ -50,7 +51,7 @@ from admit import (BLOCK, FAIL, MIN_DSR_OBS, PASS, PENDING, REJECT, SKIP, Stage,
                    stage_code, stage_refutations, stage_witness)
 
 from src.research import allocation_stats as stats  # noqa: E402
-from src.research import daily_data, prereg, significance as sig, trials  # noqa: E402
+from src.research import daily_data, data_store, prereg, significance as sig, trials  # noqa: E402
 from src.research.backtest_trials import family_members  # noqa: E402
 from src.research.daily_domains import DOMAINS, Context, Domain  # noqa: E402
 from src.research.daily_strategy import evaluate_daily  # noqa: E402
@@ -134,17 +135,46 @@ def v2_gate(fam: FamilyActive, searched, params: dict) -> tuple[int, dict, "stat
                                            alpha=params["familywise_alpha"])
 
 
-def _data_files(spec_data: dict, domain: Domain) -> list[str]:
-    """The frozen files the verdict rests on: the price snapshot, and the domain's second
-    dataset (NAV panel, event panel) under the domain's own prefix."""
-    base = daily_data.DATA_DIR
-    files = [base / f"DS-{spec_data['snapshot']}.csv.gz", base / f"DS-{spec_data['snapshot']}.json"]
+@dataclass(frozen=True)
+class DataEvidence:
+    """The frozen data a verdict rests on, split by where each file can be checked.
+
+    ``witnessed``: committed files the witness must find on the deploy branch (every
+    manifest, and the observations of a data set whose terms allow committing them).
+    ``private``: observations kept in the private store because their vendor's terms
+    forbid redistribution (``data_store``). They cannot be on the deploy branch; their
+    committed manifest is witnessed instead, and it names them by sha-256, so the stage
+    checks here that each is present and hashes to that sha. ``problems``: why a private
+    file fails that check."""
+    witnessed: list
+    private: list
+    problems: list
+
+
+def _data_evidence(spec_data: dict, domain: Domain, *, data_dir: Path | None = None,
+                   private_dir: Path | None = None) -> DataEvidence:
+    """The price snapshot, and the domain's second dataset (NAV panel, event panel) under
+    the domain's own prefix. A data set whose manifest records private observations is
+    witnessed by its manifest and verified locally; any other by both of its files."""
+    sets = [("DS", spec_data["snapshot"])]
     if spec_data.get("nav_panel"):
         if domain.panel_prefix is None:
             raise ValueError(f"domain {domain.name} names a panel but declares no panel_prefix")
-        files += [base / f"{domain.panel_prefix}-{spec_data['nav_panel']}.csv.gz",
-                  base / f"{domain.panel_prefix}-{spec_data['nav_panel']}.json"]
-    return [str(f) for f in files]
+        sets.append((domain.panel_prefix, spec_data["nav_panel"]))
+    base = Path(data_dir) if data_dir is not None else data_store.DATA_DIR
+    witnessed, private, problems = [], [], []
+    for prefix, sha in sets:
+        manifest_path = base / f"{prefix}-{sha}.json"
+        manifest = (json.loads(manifest_path.read_text(encoding="utf-8"))
+                    if manifest_path.is_file() else None)
+        if data_store.records_private(manifest):
+            store = Path(private_dir) if private_dir is not None else data_store.PRIVATE_DATA_DIR
+            private.append(str(store / data_store.observations_name(prefix, sha)))
+            problems += data_store.verify_private(prefix, sha, manifest, private_dir=store)
+        elif not data_store.is_self_contained(prefix):
+            witnessed.append(str(base / data_store.observations_name(prefix, sha)))
+        witnessed.append(str(manifest_path))           # a self-contained data set is its JSON
+    return DataEvidence(witnessed, private, problems)
 
 
 def _same_window(r, data: dict, start, end, cost_multiple=1.0) -> bool:
@@ -267,8 +297,10 @@ def evaluate(hypothesis: str, spec: dict, spec_hash: str, record: dict, *, now=N
     # ── witness ─────────────────────────────────────────────────────────────
     record["witnessed_sha"] = deploy_sha()
     runs = sorted({str(trials.LEDGER_DIR / f"{r.run_id}.jsonl") for r in searched + searched_refs})
-    problems = witness(spec, prereg.path_for(hypothesis, prereg_dir), runs + _data_files(p["data"], domain))
-    stages.append(stage_witness(problems, len(runs)))
+    evidence = _data_evidence(p["data"], domain)
+    problems = witness(spec, prereg.path_for(hypothesis, prereg_dir), runs + evidence.witnessed)
+    stages.append(stage_witness(problems + evidence.problems, len(runs),
+                                private=[Path(f).name for f in evidence.private]))
 
     # ── lookahead ───────────────────────────────────────────────────────────
     cuts = stats.default_cuts(ctx.snap, start)

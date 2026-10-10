@@ -369,10 +369,123 @@ LEVERED = Domain(
     truncation=lambda ctx, point, cuts: _lv.truncation_violations(ctx.snap, point, cuts),
     grids=lambda: _lv.GRIDS, prior_search_trials=7, primary="vol_matched")
 
+# ── Commodity-to-equity linkage, confirmation (docs/research/COMMODITY_LINKAGE_CONFIRMATION.md) ─
+from src.research import commodity_classes as _cc  # noqa: E402
+from src.research import futures_panel as _fut  # noqa: E402
+
+def _ratio_domain(name: str, miner: str, metal: str, prior: int, *, execution: str = "open",
+                  floor=_cc.CONFIRMATION_START, eras=_cc.ERAS, tiers: Mapping | None = None,
+                  grid=None, fixings: bool = False) -> Domain:
+    """The frozen miner/metal ratio tilt on one pair. ``tiers``: cost tier per leg (None:
+    the default ETF tiers). ``grid``: the points (default: the rule alone)."""
+    points = grid if grid is not None else (lambda: _cc.ratio_grid(miner, metal, execution=execution))
+    return Domain(
+        name=name, reference=_cc.ratio_reference(miner, metal, execution=execution, fixings=fixings),
+        eras=eras, load=lambda data: Context(snap=daily_data.load_snapshot(data["snapshot"])),
+        decide=lambda ctx, point: _cc.decide_ratio(ctx.snap, point),
+        tiers=(lambda ctx: None) if tiers is None else (lambda ctx: dict(tiers)),
+        start=lambda ctx: _cc.ratio_start(ctx.snap, miner, metal, floor=floor),
+        truncation=lambda ctx, point, cuts: _cc.ratio_truncation(ctx.snap, point, cuts),
+        grids=lambda: {"v1": points}, prior_search_trials=prior)
+
+
+# Prior search: every statistic of the discovery atlas, 1401 (board, 2026-10-08).
+MINER_RATIO = _ratio_domain("miner_metal_ratio", "GDX", "GLD", _cc.ATLAS_CELLS)
+# The same frozen rule, replicated unchanged (docs/research/MINER_TILT_REPLICATION.md).
+# Prior search 2: the two choices made after seeing GDX/GLD's result (which rule to
+# replicate, which pair is primary). Only silver_miner_ratio carries a verdict; the other
+# three are counted robustness, contamination and placebo runs.
+SILVER_RATIO = _ratio_domain("silver_miner_ratio", "SIL", "SLV", 2)
+JUNIOR_RATIO = _ratio_domain("junior_miner_ratio", "GDXJ", "GLD", 2)
+GOLD_SILVER_RATIO = _ratio_domain("gold_silver_ratio", "GLD", "SLV", 2)
+PLACEBO_RATIO = _ratio_domain("placebo_ratio", "IWM", "SPY", 2)
+OIL_TREND = Domain(
+    name="oil_trend_equities", reference=_cc.TREND_REFERENCE, eras=_cc.ERAS,
+    load=lambda data: Context(snap=daily_data.load_snapshot(data["snapshot"]),
+                              panel=_fut.load(data["nav_panel"])),
+    decide=lambda ctx, point: _cc.decide_trend(ctx.snap, ctx.panel, point),
+    tiers=lambda ctx: None, start=lambda ctx: _cc.trend_start(ctx.snap, ctx.panel),
+    truncation=lambda ctx, point, cuts: _cc.trend_truncation(ctx.snap, ctx.panel, point, cuts),
+    grids=lambda: {"v1": _cc.trend_grid}, prior_search_trials=_cc.ATLAS_CELLS,
+    panel_prefix=_fut.PREFIX, primary="vol_matched")
+
+# ── The 1984-2005 test of the same frozen rule (docs/research/MINER_TILT_PREPERIOD.md) ──
+from src.research import miner_preperiod as _mp  # noqa: E402
+
+#: Decided only on sessions where both legs printed (``fresh``), executed at the next
+#: close on a session where gold fixed (``fixings``): close-only data, stale-print guards.
+_PRE_RULE = dict(execution="close", fresh=True, fixings=True)
+_PRE_TIERS = {_mp.MINER: "basket_pre_decimal", _mp.PLACEBO: "basket_pre_decimal",
+              _mp.GOLD_FFM: "bullion", _mp.GOLD_COMEX: "bullion"}
+_ERAS_A = (("start", "1989-04-30"), ("1989-05-01", "1994-01-31"), ("1994-02-01", "end"))
+_ERAS_B = (("start", "2002-12-31"), ("2003-01-01", "end"))
+
+
+def _preperiod_domain(name: str, miner: str, gold: str, floor: str, eras, *, lags=(1,)) -> Domain:
+    # Prior 5: the verdict gate charges the alpha already spent on this rule's promotion
+    # gates (board, 2026-10-09): p_gate = worst p x (1 + 5).
+    return _ratio_domain(
+        name, miner, gold, 5, execution="close", floor=pd.Timestamp(floor), eras=eras,
+        tiers={miner: _PRE_TIERS[miner], gold: _PRE_TIERS[gold]}, fixings=True,
+        grid=lambda: [_cc.ratio_point(miner, gold, lag=k, **_PRE_RULE) for k in lags])
+
+
+PRE_A = _preperiod_domain("miner_preperiod_a", _mp.MINER, _mp.GOLD_FFM, _mp.XAU_FIRST_TRADE, _ERAS_A)
+PRE_B = _preperiod_domain("miner_preperiod_b", _mp.MINER, _mp.GOLD_COMEX, "2000-08-30", _ERAS_B)
+PRE_PLACEBO = _preperiod_domain("placebo_preperiod", _mp.PLACEBO, _mp.GOLD_FFM, _mp.XAU_FIRST_TRADE, _ERAS_A)
+PRE_LAGS = _preperiod_domain("miner_preperiod_lags", _mp.MINER, _mp.GOLD_FFM, _mp.XAU_FIRST_TRADE,
+                             _ERAS_A, lags=(3, 6))
+
+
+# ── CEF vs matched-ETF discount tilt (docs/research/CEF_ETF_TILT_PROTOCOL.md) ─────────
+from src.research import cef_etf_tilt as _ce  # noqa: E402
+
+
+def _cef_etf_load(data: Mapping) -> Context:
+    inputs = _ce.load_inputs(data["nav_panel"])
+    return Context(snap=daily_data.load_snapshot(data["snapshot"]), panel=inputs)
+
+
+def _cef_etf_domain(name: str, grid, reference, start) -> Domain:
+    # Prior 24: the metal trust's 22 plus drafts F and G (board, 2026-10-09). Not an
+    # admission candidate (the gate would need worst-block p <= 0.002).
+    return Domain(
+        name=name, reference=reference, eras=_ce.ERAS, load=_cef_etf_load,
+        decide=lambda ctx, point: _ce.decide(ctx.snap, ctx.panel, point),
+        tiers=lambda ctx: _ce.tiers(ctx.panel), start=start,
+        truncation=lambda ctx, point, cuts: _ce.truncation_violations(ctx.snap, ctx.panel, point, cuts),
+        grids=lambda: {"v1": grid}, prior_search_trials=_ce.PRIOR, panel_prefix=_ce.PREFIX)
+
+
+CEF_ETF = _cef_etf_domain("cef_etf_tilt", _ce.grid, _ce.REFERENCE, lambda ctx: _ce.scoring_start(ctx.panel))
+CEF_ETF_LAG = _cef_etf_domain("cef_etf_tilt_lag", _ce.lag_grid, _ce.REFERENCE,
+                              lambda ctx: _ce.scoring_start(ctx.panel))
+CEF_ETF_STAGED = _cef_etf_domain("cef_etf_tilt_staged", _ce.staged_grid, _ce.STAGED_REFERENCE,
+                                 lambda ctx: _ce.staged_start(ctx.snap, ctx.panel))
+
+
+# ── Physical-metal trust discount tilt (docs/research/METAL_TRUST_DISCOUNT_PROTOCOL.md) ──
+from src.research import metal_trust_classes as _mt  # noqa: E402
+from src.research import cef_data as _cef_data  # noqa: E402
+
+METAL_TRUST = Domain(
+    name="metal_trust_discount", reference=_mt.REFERENCE, eras=_mt.ERAS,
+    load=lambda data: Context(snap=daily_data.load_snapshot(data["snapshot"]),
+                              panel=_cef_data.load_panel(data["nav_panel"])),
+    decide=lambda ctx, point: _mt.decide(ctx.snap, ctx.panel, point),
+    tiers=lambda ctx: _mt.tiers(ctx.snap, ctx.panel),
+    start=lambda ctx: _mt.scoring_start(ctx.snap, ctx.panel),
+    truncation=lambda ctx, point, cuts: _mt.truncation_violations(ctx.snap, ctx.panel, point, cuts),
+    grids=lambda: _mt.GRIDS, prior_search_trials=_mt.PRIOR, panel_prefix="CEFNAV")
+
 DOMAINS: dict[str, Domain] = {d.name: d for d in (ETF, CEF, CRYPTO, COUNTRY, BDC, INSIDER, MREIT,
                                                   EARNINGS, SPINOFF, DELETION, CREDIT, CEF_PRODUCT,
                                                   SPINOFF_PRODUCT, MERGER_ARB_PRODUCT,
                                                   BUYBACK_PRODUCT, MICROCAP_PRODUCT,
                                                   MOMENTUM_LONG, MOMENTUM_RECENT, LOTTERY_LONG,
-                                                  LOTTERY_RECENT, BETA_PAIR, LEVERED)}
+                                                  LOTTERY_RECENT, BETA_PAIR, LEVERED,
+                                                  MINER_RATIO, OIL_TREND, SILVER_RATIO,
+                                                  JUNIOR_RATIO, GOLD_SILVER_RATIO, PLACEBO_RATIO,
+                                                  METAL_TRUST, PRE_A, PRE_B, PRE_PLACEBO, PRE_LAGS,
+                                                  CEF_ETF, CEF_ETF_LAG, CEF_ETF_STAGED)}
 
