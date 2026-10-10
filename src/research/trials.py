@@ -86,6 +86,13 @@ ARTIFACTS = "artifacts"
 RECORD_RELS = tuple(Path(p) for p in ("docs/research/trials", "docs/research/prereg",
                                       "docs/research/refutations", "docs/research/verdicts",
                                       "docs/research/reeval"))
+#: Content-addressed DATA a run writes before it opens (``<PREFIX>-<sha>.json`` manifests and
+#: their payloads, in docs/research/data): not code, so a fresh snapshot must not make the
+#: code look modified. Unlike a record, a manifest can steer a run (``cef_data`` reads its
+#: categories), so an uncommitted one is never dropped: ``code_state`` names it, with its
+#: hash, under ``new_data``, and admission requires that empty (``committed_clean``).
+DATA_REL = Path("docs/research/data")
+_DATA_FILE = re.compile(r"^[A-Z][A-Z0-9]*-[0-9a-f]{64}(?:\.[a-z0-9]+)+$")
 
 ROW_TYPES = ("run_open", "intent", "outcome", "run_close")
 OUTCOME_STATUSES = ("ok", "error", "abandoned")
@@ -227,28 +234,60 @@ def code_state(repo: Path = REPO, record_rels=RECORD_RELS) -> dict:
     (``RECORD_RELS``): a run writing its shard, or the gate writing its verdict, must not
     make the code look dirty. Failure to read git is recorded, never guessed: ``sha`` is
     None and ``error`` says why.
+
+    An untracked content-addressed data file (``DATA_REL``) is data, not code: it is left out
+    of ``dirty`` and ``diff_sha256`` and listed in ``new_data`` (path -> sha256 of its bytes),
+    so a committed copy can be checked against what the run saw. A TRACKED data file that
+    differs from HEAD stays in the diff: content-addressed files never change.
     """
     head = _git(repo, "rev-parse", "HEAD")
     if head.returncode != 0:
-        return {"sha": None, "dirty": None, "diff_sha256": None,
+        return {"sha": None, "dirty": None, "diff_sha256": None, "new_data": None,
                 "error": head.stderr.decode(errors="replace").strip() or "git rev-parse failed"}
     excludes = [f":(exclude){Path(r).as_posix()}" for r in record_rels]
     diff = _git(repo, "diff", "HEAD", "--binary", "--", ".", *excludes)
     untracked = _git(repo, "ls-files", "--others", "--exclude-standard", "-z", "--", ".", *excludes)
     if diff.returncode != 0 or untracked.returncode != 0:
         return {"sha": head.stdout.decode().strip(), "dirty": None, "diff_sha256": None,
-                "error": "git diff/ls-files failed"}
+                "new_data": None, "error": "git diff/ls-files failed"}
     h = hashlib.sha256(diff.stdout)
     paths = sorted(p for p in untracked.stdout.decode(errors="surrogateescape").split("\0") if p)
+    code_paths, new_data = [], {}
     for p in paths:
+        data = _read_data_file(repo, p)
+        if data is None:
+            code_paths.append(p)
+        else:
+            new_data[p] = hashlib.sha256(data).hexdigest()
+    for p in code_paths:
         h.update(b"\0untracked\0" + p.encode(errors="surrogateescape") + b"\0")
         try:
             h.update((repo / p).read_bytes())
         except OSError as exc:  # vanished between listing and reading
             h.update(f"<unreadable:{exc.errno}>".encode())
-    dirty = bool(diff.stdout) or bool(paths)
+    dirty = bool(diff.stdout) or bool(code_paths)
     return {"sha": head.stdout.decode().strip(), "dirty": dirty,
-            "diff_sha256": h.hexdigest() if dirty else None, "error": None}
+            "diff_sha256": h.hexdigest() if dirty else None, "new_data": new_data, "error": None}
+
+
+def _read_data_file(repo: Path, rel: str) -> bytes | None:
+    """The bytes of ``rel`` if it is a content-addressed data file directly in ``DATA_REL``
+    and readable; None otherwise (it is then treated as code)."""
+    path = Path(rel)
+    if path.parent != DATA_REL or not _DATA_FILE.match(path.name):
+        return None
+    try:
+        return (repo / path).read_bytes()
+    except OSError:
+        return None
+
+
+def committed_clean(code: Mapping | None) -> bool:
+    """The run's code AND data were all committed: a clean, readable tree with no uncommitted
+    data file. What admission requires ("replayable from a commit"). A record written before
+    ``new_data`` existed has no such key; its ``dirty`` then covered data too."""
+    code = code or {}
+    return bool(code.get("sha")) and code.get("dirty") is False and not code.get("new_data")
 
 
 def env_state() -> dict:

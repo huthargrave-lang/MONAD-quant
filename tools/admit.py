@@ -302,10 +302,10 @@ def _price_familywise_stage(spec: dict, searched, dev_key) -> Stage:
 
 def stage_code(code: Callable) -> tuple[Stage, dict]:
     cs = code()
-    if cs.get("sha") and cs.get("dirty") is False:
+    if trials.committed_clean(cs):
         return Stage("code", PASS, f"clean at {cs['sha'][:12]}"), cs
-    return Stage("code", BLOCK, "the tree is dirty or unreadable; admission evidence must be "
-                 "replayable from a commit", {"code": cs}), cs
+    return Stage("code", BLOCK, "the tree is dirty, unreadable or holds uncommitted data; admission "
+                 "evidence must be replayable from a commit", {"code": cs}), cs
 
 
 def stage_refutations(hypothesis: str, refutations_dir) -> Stage:
@@ -702,8 +702,8 @@ def _verify_admit_evidence(record: dict, head: dict, spec: dict | None) -> list[
     code_sha = (record.get("code") or {}).get("sha") or ""
     if (head.get("code") or {}).get("sha") != code_sha:
         problems.append("the gate run was recorded at a different commit than the verdict")
-    if (head.get("code") or {}).get("dirty") is not False:
-        problems.append("the gate run executed on a modified tree")
+    if not trials.committed_clean(head.get("code")):
+        problems.append("the gate run executed on a modified tree or uncommitted data")
     if not code_sha or trials._git(Path(REPO), "merge-base", "--is-ancestor", code_sha,
                                    "HEAD").returncode != 0:
         problems.append(f"code commit {code_sha[:12] or '(none)'} is not in this branch's history")
