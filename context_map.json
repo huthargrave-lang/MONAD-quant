@@ -923,7 +923,7 @@
         "study doc",
         "epistemic",
         "uncited",
-        "ratchet", "handoff", "workqueue"
+        "ratchet"
       ],
       "read": [
         "AGENT_INDEX.md",
@@ -980,7 +980,7 @@
         "context web",
         "research ui",
         "draft page",
-        "static export", "stocktwits", "allocation page"
+        "static export"
       ],
       "read": [
         "docs/research/SCREENER_COMBINED_DRAFT.html",
@@ -1034,7 +1034,7 @@
         "turn of month",
         "overnight drift",
         "dual momentum",
-        "tsmom", "protocol frozen", "product domain", "spinoff", "buyback", "micro-cap", "illiquidity premium", "credit sleeve", "deletion rebound", "insider purchase", "insider cluster", "forward watch", "metal trust", "miner tilt", "miner overshoot", "trial ledger", "familywise", "dsr", "parity census", "dollar volume"
+        "tsmom"
       ],
       "read": [
         "docs/research/DAILY_STRATEGIES.md",
