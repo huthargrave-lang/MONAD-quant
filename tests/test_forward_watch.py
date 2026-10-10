@@ -695,3 +695,10 @@ class FrozenSpecsReadAsWritten(unittest.TestCase):
     def test_h366200_first_decides_at_its_second_anniversary(self):
         spec, _h = fw.load("H366200")
         self.assertEqual(fw.first_decisive_anniversary(spec), 2)
+
+
+class H366201ReadsAsWritten(unittest.TestCase):
+    def test_h366201_first_decides_at_its_fourth_anniversary_and_needs_20_episodes(self):
+        spec, _h = fw.load("H366201")
+        self.assertEqual(fw.first_decisive_anniversary(spec), 4)
+        self.assertEqual(fw.episode_threshold(spec), 20)
