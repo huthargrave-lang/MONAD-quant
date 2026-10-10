@@ -17,6 +17,7 @@ sys.path.insert(0, str(REPO / "tools"))
 
 import credit_sleeve_mix as csm  # noqa: E402
 import sleeve_break_even  # noqa: E402
+from tests import _private_store  # noqa: E402
 
 
 def sessions(start="2012-05-10", n=2600):
@@ -351,6 +352,9 @@ def _close(test, a, b, path="$"):
 
 class TheSiblingStillReproduces(unittest.TestCase):
     def test_f366206s_committed_results_reproduce(self):
+        """Replays real Yahoo observations (DS-32c992fb), which option A keeps private: the
+        private-store rule decides (absent skips, altered fails, required fails)."""
+        _private_store.require(self, "DS", sleeve_break_even.PRODUCT_SNAPSHOT)
         committed = json.loads((REPO / "docs/research/data/sleeve_break_even.json").read_text())["results"]
         replayed = json.loads(json.dumps(sleeve_break_even.study(), default=float))
         _close(self, replayed, committed)

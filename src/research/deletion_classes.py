@@ -15,8 +15,6 @@ before any deleted stock's price was loaded.
 from __future__ import annotations
 
 import csv
-import gzip
-import hashlib
 import io
 from dataclasses import dataclass
 from pathlib import Path
@@ -24,7 +22,8 @@ from typing import Mapping
 
 import pandas as pd
 
-from src.research.daily_data import DATA_DIR, Snapshot, SnapshotError
+from src.research import data_store
+from src.research.daily_data import Snapshot
 from src.research.daily_strategy import Tranche
 
 INDEX = "IJH"
@@ -58,11 +57,12 @@ def encode(rows) -> bytes:
     return buf.getvalue().encode("utf-8")
 
 
-def load_events(sha: str, *, data_dir: Path | None = None) -> Deletions:
-    base = Path(data_dir) if data_dir is not None else DATA_DIR
-    data = gzip.decompress((base / f"{PREFIX}-{sha}.csv.gz").read_bytes())
-    if hashlib.sha256(data).hexdigest() != sha:
-        raise SnapshotError(f"{PREFIX}-{sha[:12]} does not hash to its name")
+def load_events(sha: str, *, data_dir: Path | None = None,
+                private_dir: Path | None = None) -> Deletions:
+    """The deletions named ``sha``, verified (committed store, then private). The panel
+    is derived from Wikipedia's changes table and carries its CC BY-SA 4.0 licence
+    (docs/research/data/README.md)."""
+    data = data_store.read(PREFIX, sha, data_dir=data_dir, private_dir=private_dir)
     return Deletions(sha=sha, events=pd.read_csv(io.BytesIO(data), parse_dates=["effective"]))
 
 
