@@ -74,6 +74,11 @@ import stock_screener  # noqa: E402
 REPO_URL = "https://github.com/huthargrave-lang/MONAD-quant"
 
 _NAV = re.compile(r'<nav class="rail">.*?</nav>', re.S)
+#: Page data a server rail must never carry: a window property set, or a top-level
+#: declaration. The static build REPLACES the rail wholesale, so anything injected into it
+#: is silently deleted from the published page. buckets.html shipped that way: its
+#: window.LEDGER rode inside the rail and every published render crashed on it.
+_RAIL_DATA = re.compile(r"window\.[A-Za-z_$][\w$]*\s*=(?!=)|(?:^|[;{}\s])(?:const|let)\s")
 _FOOT = "rendered from the working tree at request time"
 
 
@@ -219,6 +224,11 @@ def _staticise(html, built, active="screener"):
     html = html.replace('href="/graph"', 'href="map.html"')
     html = html.replace('href="/"', 'href="overview.html"')
     html = _strip_inbox(html)
+    rail = _NAV.search(html)
+    if rail and _RAIL_DATA.search(rail.group(0)):
+        raise AssertionError(
+            "page data sits inside the server rail, which the static build replaces: the "
+            "published page would lose it ({!r})".format(_RAIL_DATA.search(rail.group(0)).group(0)))
     html = _NAV.sub(_static_nav(active), html, count=1)
     # The server footer's claim ("rendered … at request time") would be FALSE here.
     stamp = "static snapshot built {} UTC".format(built)

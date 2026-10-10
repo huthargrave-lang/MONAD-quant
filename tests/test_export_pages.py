@@ -180,6 +180,25 @@ class ExportTests(unittest.TestCase):
         self.assertIn("bucketGrid", text)
         self.assertIn("Select top heat", text)
 
+    def test_the_published_buckets_page_keeps_its_data(self):
+        """The export replaces the server rail. buckets.html used to carry window.LEDGER
+        inside that rail, so the published page had no ledger and crashed on its first
+        render ("LEDGER is not defined")."""
+        text = self.pages["buckets.html"]
+        for marker in ("window.LEDGER", "window.PRICES = ", "window.PRICE_ASOF = ",
+                       "window.NOT_COMPANIES = "):
+            self.assertIn(marker, text, "{} did not survive the export".format(marker))
+        self.assertIn("static snapshot · GitHub Pages", text, "the static rail was not swapped in")
+
+    def test_a_rail_carrying_page_data_is_refused_not_silently_stripped(self):
+        page = ('<html><head><style></style></head><body><nav class="rail"><a href="/">x</a>'
+                '<script>window.LEDGER = {};</script></nav><footer></footer></body></html>')
+        with self.assertRaises(AssertionError):
+            export_pages._staticise(page, "2026-10-09 00:00", "buckets")
+        clean = page.replace("<script>window.LEDGER = {};</script>",
+                             '<script>(function(){var d=document.getElementById("navQuant");})();</script>')
+        self.assertIn("static snapshot", export_pages._staticise(clean, "2026-10-09 00:00", "buckets"))
+
     def test_the_footer_tells_the_truth_about_being_a_snapshot(self):
         for name, text in self.pages.items():
             if name in ("map.html", "buckets.html"):
@@ -495,7 +514,11 @@ class ThePublicRenderersReadNoVendorCache(unittest.TestCase):
                 written = export_pages.export(td)
                 self.assertIn("buckets.html", written)
                 with open(os.path.join(td, "buckets.html"), encoding="utf-8") as fh:
-                    self.assertNotRegex(fh.read(), r"const PRICES = \{\"")
+                    page = fh.read()
+                # The page data is injected as window properties (never top-level consts):
+                # the public page carries an EMPTY price map, never a vendor's closes.
+                self.assertIn("window.PRICES = {};", page)
+                self.assertNotRegex(page, r"window\.PRICES = \{\"")
         finally:
             sc.load_snapshot, sc.load_prices = real
 

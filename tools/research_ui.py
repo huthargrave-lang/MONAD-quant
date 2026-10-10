@@ -4480,17 +4480,25 @@ def _sovereign_buckets_html(mounts, *, public=False):
     # rule come from the same module for the same reason: a surface draws what was fetched or
     # says it has none.
     prices = {} if public else (stock_screener.load_prices() or {})
-    inject = "<script>\n{}\nconst PRICES = {};\nconst PRICE_ASOF = {};\nconst NOT_COMPANIES = {};\n</script>\n".format(
+    # Window properties, not top-level `const`s. The page's own script reads each one as
+    # `const PRICES = (... window.PRICES) || {}`, and two top-level `const PRICES` in classic
+    # scripts on one page are a SyntaxError that kills the page script outright
+    # ("Identifier 'PRICES' has already been declared"). `runtime_js()` emits window.LEDGER
+    # for the same reason.
+    inject = ("<script>\n{}\nwindow.PRICES = {};\nwindow.PRICE_ASOF = {};\n"
+              "window.NOT_COMPANIES = {};\n</script>\n").format(
         sovereign_buckets.runtime_js(),
         json.dumps(stock_screener.payload_series(prices), separators=(",", ":")),
         json.dumps(prices.get("as_of") or ""),
         json.dumps(dict(sovereign_buckets.NOT_COMPANIES), separators=(",", ":")))
     html = _with_rail(html, "/screener/buckets", mounts)
-    # Before the page script, so its first render already has them.
-    if "<script>" in html:
-        html = html.replace("<script>", inject + "<script>", 1)
-    else:
-        html = html + inject
+    # In <head>, so it runs before the page script's first render, and OUTSIDE the rail.
+    # Inserting it before the first <script> put it inside the rail, whose toggle script is
+    # now the first one on the page; the Pages export replaces the whole rail, so the
+    # published page lost window.LEDGER and crashed on its first render.
+    if "</head>" not in html:
+        raise AssertionError("the buckets document has no </head> to carry its data script")
+    html = html.replace("</head>", inject + "</head>", 1)
     return 200, html, HTML
 
 
