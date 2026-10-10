@@ -18,6 +18,8 @@ import datetime as _dt
 from functools import lru_cache
 
 SPECIAL_CLOSURES = frozenset(_dt.date.fromisoformat(d) for d in (
+    "1985-09-27",                                               # Hurricane Gloria
+    "1994-04-27",                                               # President Nixon
     "2001-09-11", "2001-09-12", "2001-09-13", "2001-09-14",   # September 11
     "2004-06-11",                                               # President Reagan
     "2007-01-02",                                               # President Ford

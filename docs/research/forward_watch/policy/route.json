@@ -1,0 +1,10 @@
+{
+ "schema": 1,
+ "policy": "forward-evidence admission route: the multiplicity charge across forward records",
+ "frozen": "2026-10-09",
+ "ruled_by": "board, docs/research/METAL_TRUST_FORWARD_WATCH.md (adversary amendment 10), before any forward window opened",
+ "m": "every forward watch ever frozen: each distinct docs/research/forward_watch/<ID>.json added in any commit the repository holds, voided, closed, never merged and pooled watches included",
+ "boundary": "a promoted watch's log-likelihood ratio must reach ln(m (1 - beta) / alpha), with alpha and beta from its own frozen spec",
+ "applies_to": "the decision debate a promoted watch triggers; a watch cannot admit by itself",
+ "excludes": "H404702's forward window, which is the admission gate's own forward stage"
+}

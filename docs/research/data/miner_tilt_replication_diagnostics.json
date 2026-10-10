@@ -1,0 +1,85 @@
+{
+ "schema_version": 1,
+ "vintage": "2026-10-08",
+ "verdict_pair": {
+  "sharpe": 0.3369979140757109,
+  "t": 1.103697262000241,
+  "eras": [
+   0.0176393798667,
+   0.8960075076761611,
+   0.24369953133300257
+  ],
+  "drop_one_era": [
+   0.5124177754127496,
+   0.13411024739122682,
+   0.3948276781359257
+  ],
+  "spa_worst_p": 0.096
+ },
+ "contamination": {
+  "miner_metal_ratio": {
+   "beta": 0.491541139781937,
+   "beta_nw_t": 11.17704169540928,
+   "r2": 0.258743943206757,
+   "alpha_ann": 0.014535543297726794,
+   "alpha_nw_t": 0.8678977327433265
+  },
+  "gold_silver_ratio": {
+   "beta": 0.23528775878877328,
+   "beta_nw_t": 1.6506876193424103,
+   "r2": 0.05390910435145624,
+   "alpha_ann": 0.027934799910614778,
+   "alpha_nw_t": 1.487719252983074
+  }
+ },
+ "pools": {
+  "pool_unseen": {
+   "sharpe": 0.37253707257807184,
+   "ci95": [
+    -0.16125151084396191,
+    0.8933000442772346
+   ]
+  },
+  "pool_all (includes seen data)": {
+   "sharpe": 0.3651085427102858,
+   "ci95": [
+    -0.15513799205138748,
+    0.8816157816890567
+   ]
+  }
+ },
+ "others": {
+  "miner_metal_ratio": {
+   "sharpe": 0.27116094327706025,
+   "t": 0.8880754988562245
+  },
+  "junior_miner_ratio": {
+   "sharpe": 0.3173080453410787,
+   "t": 1.0392112420461963
+  },
+  "gold_silver_ratio": {
+   "sharpe": -0.1962847482743689,
+   "t": -0.6428494960777613
+  },
+  "placebo_ratio": {
+   "sharpe": 0.10143746880772599,
+   "t": 0.33221646755406803
+  }
+ },
+ "corr_with_verdict": {
+  "miner_metal_ratio": 0.5086687951965954,
+  "silver_miner_ratio": 1.0,
+  "junior_miner_ratio": 0.5242737197770249,
+  "gold_silver_ratio": 0.23218334210588049,
+  "placebo_ratio": 0.029281308290656016
+ },
+ "trigger": {
+  "sharpe_positive": true,
+  "t_above_1": true,
+  "spa_below_5pct": false,
+  "p_times_3_below_5pct": false,
+  "alpha_vs_gdx_positive": true,
+  "drop_any_era_positive": true
+ },
+ "register": false
+}

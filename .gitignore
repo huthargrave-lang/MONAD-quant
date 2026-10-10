@@ -74,3 +74,6 @@ htmlcov/
 
 # The pre-3.11 venv, kept until the rebuild is trusted. Never a commit.
 venv-py39-backup/
+
+# Observations that may not be redistributed (src/research/daily_data.PRIVATE_DATA_DIR)
+local_research_data/
