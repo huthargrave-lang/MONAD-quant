@@ -32,7 +32,7 @@ exists, otherwise `python3` — the labs are stdlib-only and work either way.
 2. **Route a task:** `python3 tools/ctx.py route "<task in plain words>"`
 3. **Brief an area:** `python3 tools/ctx.py brief <area>` — areas are `live_trader`,
    `signals`, `strategy_engine`, `backtest`, `optimization`, `dashboard`, `ops`,
-   `config`, `research_labs`.
+   `config`, `research_labs`, `research_program`.
 4. **Jump, don't read:** `ctx where <symbol>` · `ctx defs <file>` · `ctx usages <symbol>`
    · `ctx config <KEY>` · `ctx impact <target>` · `ctx can_edit <file>`
 5. **Pin the invariants** ([§ Safety](#safety-non-negotiable)).

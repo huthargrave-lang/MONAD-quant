@@ -162,11 +162,20 @@ class NarrativeOrderIsTemporalTests(unittest.TestCase):
         cls.nodes, _ = graph()
 
     def test_id_order_is_monotone_in_capture_date(self):
+        """Within one allocation range. The deploy branch allocates the legacy dense range;
+        side branches allocate 100-wide blocks keyed by a hash of the branch name (W6,
+        tools/note.py ``id_block``), so the ORDER OF BLOCKS carries no time: a branch whose
+        name hashes low captures later than one that hashes high. Inside the dense range,
+        and inside each block, ids are handed out in sequence, and that is where ID order
+        must still follow capture date."""
+        import note
         by_kind = collections.defaultdict(list)
         for nid in self.nodes:
             m = re.match(r"([A-Za-z]+)(\d+)$", nid)
             if m:
-                by_kind[m.group(1)].append((int(m.group(2)), nid))
+                num = int(m.group(2))
+                block = "dense" if num < note._BLOCK_BASE else (num - note._BLOCK_BASE) // note._BLOCK_SIZE
+                by_kind[(m.group(1), block)].append((num, nid))
         for kind, items in by_kind.items():
             items.sort()
             dated = [(nid, node_date(self.nodes, nid)) for _n, nid in items
@@ -180,7 +189,8 @@ class NarrativeOrderIsTemporalTests(unittest.TestCase):
                 unexplained, [],
                 "{}-kind ID order is no longer monotone in capture date: {}. ID order "
                 "is what makes the story narratable without new edges, so an "
-                "unexplained inversion breaks the remedy.".format(kind, unexplained))
+                "unexplained inversion breaks the remedy.".format(
+                    "{} (range {})".format(*kind), unexplained))
 
     def test_the_known_inversions_are_AMENDMENT_dates_not_creation_dates(self):
         """Otherwise the exemption above is a blanket excuse."""

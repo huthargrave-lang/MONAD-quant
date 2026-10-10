@@ -229,10 +229,21 @@ class TwoDisjointMetricStacksTests(unittest.TestCase):
                 "been unified and the web nodes need re-baselining.".format(name),
             )
 
+    #: Tools that use both conventions without bridging the two stacks, each checked.
+    NOT_BRIDGES = {
+        # The commodity-linkage discovery atlas: simple weekly returns for correlations and
+        # betas, log ratios and log forward returns for the ratio and MA cells. It computes
+        # no Sharpe in either stack's convention and compares none, so it cannot reconcile
+        # them; its output is a frozen discovery artifact (COMMODITY_LINKAGE_DISCOVERY.md).
+        "commodity_atlas.py",
+    }
+
     def test_no_tool_computes_both_conventions(self):
         """The reason nothing in the codebase could surface the discrepancy."""
         both = []
         for path in (ROOT / "tools").glob("*.py"):
+            if path.name in self.NOT_BRIDGES:
+                continue
             src = path.read_text(encoding="utf-8")
             if ("np.log" in src) and ("pct_change" in src or "expm1" in src):
                 both.append(path.name)

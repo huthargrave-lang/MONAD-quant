@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import csv
 import datetime as _dt
-import gzip
 import hashlib
 import io
 import json
@@ -35,8 +34,10 @@ from typing import Iterable
 
 import pandas as pd
 
-from src.research.daily_data import DATA_DIR, SnapshotError, _write_exclusive
+from src.research import data_store
 from src.research.trials import canonical_json
+
+PREFIX = "INSIDER"
 
 URL = "https://www.sec.gov/files/structureddata/data/insider-transactions-data-sets/{}_form345.zip"
 MIN_INSIDERS = 3
@@ -118,25 +119,22 @@ def write(ev: pd.DataFrame, report: dict, *, data_dir: Path | None = None) -> st
     ev.to_csv(buf, index=False, lineterminator="\n", float_format="%.4f")
     data = buf.getvalue().encode("utf-8")
     sha = hashlib.sha256(data).hexdigest()
-    base = Path(data_dir) if data_dir is not None else DATA_DIR
-    path = base / f"INSIDER-{sha}.csv.gz"
-    if not path.exists():
-        b = io.BytesIO()
-        with gzip.GzipFile(fileobj=b, mode="wb", mtime=0, compresslevel=9) as gz:
-            gz.write(data)
-        _write_exclusive(path, b.getvalue())
     fetched = _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
-    man = base / f"INSIDER-{sha}.json"
-    if not man.exists():
-        _write_exclusive(man, (canonical_json({"schema_version": 1, "sha": sha, "vintage": fetched[:10],
-                                               "source": "SEC Insider Transactions Data Sets", **report})
-                               + "\n").encode("utf-8"))
+    manifest = {"schema_version": 1, "sha": sha, "vintage": fetched[:10],
+                "source": "SEC Insider Transactions Data Sets", **report}
+    # SEC data sets are public: committed, unless the manifest names a restricted vendor.
+    keep_private = data_store.must_be_private(data_store.sources_of(manifest))
+    if keep_private:
+        manifest["observations"] = data_store.private_record(sha)
+    base = data_store.write_stores(data_dir).manifests
+    data_store.write(PREFIX, data, private=keep_private, data_dir=data_dir,
+                     vendors=data_store.manifest_restricted_vendors(manifest))
+    data_store.write_manifest(base / f"{PREFIX}-{sha}.json", manifest,
+                              serialize=lambda m: canonical_json(m) + "\n")
     return sha
 
 
-def load(sha: str, *, data_dir: Path | None = None) -> pd.DataFrame:
-    base = Path(data_dir) if data_dir is not None else DATA_DIR
-    data = gzip.decompress((base / f"INSIDER-{sha}.csv.gz").read_bytes())
-    if hashlib.sha256(data).hexdigest() != sha:
-        raise SnapshotError(f"INSIDER-{sha[:12]} does not hash to its name")
+def load(sha: str, *, data_dir: Path | None = None, private_dir: Path | None = None) -> pd.DataFrame:
+    """The insider events named ``sha``, verified (committed store, then private)."""
+    data = data_store.read(PREFIX, sha, data_dir=data_dir, private_dir=private_dir)
     return pd.read_csv(io.BytesIO(data), parse_dates=["known"])

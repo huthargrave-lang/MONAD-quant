@@ -322,12 +322,21 @@ def stage_refutations(hypothesis: str, refutations_dir) -> Stage:
     return Stage("refutations", PASS, f"{len(ref['refuted'])} objection(s), all refuted")
 
 
-def stage_witness(problems: list[str], n_runs: int) -> Stage:
+def stage_witness(problems: list[str], n_runs: int, *, private: list[str] = ()) -> Stage:
+    """``private``: observation files that are not redistributable, so not on the deploy
+    branch; their committed manifests were witnessed and the files verified by sha-256
+    locally (tools/admit_tactical.py ``_data_evidence``). Recorded in the stage's data so
+    the verdict says which evidence was checked where."""
+    data = {"problems": problems}
+    if private:
+        data["private_observations"] = list(private)
     if problems:
         detail = "; ".join(problems[:3]) + (f" (+{len(problems) - 3} more)" if len(problems) > 3 else "")
-        return Stage("witness", BLOCK, detail, {"problems": problems})
+        return Stage("witness", BLOCK, detail, data)
+    note = (f"; {len(private)} private observation file(s) verified by sha-256 against their "
+            f"witnessed manifests" if private else "")
     return Stage("witness", PASS, f"registration and {n_runs} searched run(s) are on the deploy "
-                 f"branch", {"problems": []})
+                 f"branch{note}", data)
 
 
 def evaluate(hypothesis: str, *, now: _dt.datetime | None = None,

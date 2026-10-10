@@ -3457,12 +3457,61 @@ def _headlines_html(sent_row, source, ticker):
     return "".join(parts) or '<div class="muted-cell">No documents.</div>'
 
 
-def page_screen(mounts, query):
+def _public_lens_html(key, preset, custom):
+    """One lens as the public static site shows it: its authored definition, its membership
+    where authored tags alone decide it (through `stock_screener.apply_preset`, the one
+    implementation of the rules), and the vendor-data notice. No snapshot is read: the
+    page is the same whatever caches the machine building the site happens to hold."""
+    out = ['<figure class="panel"><figcaption><h3>{}</h3><p class="why">{}</p>'.format(
+        esc(preset["title"]), esc(preset["blurb"]))]
+    if custom:
+        out.append("</figcaption></figure>")
+    else:
+        rules = ", ".join("<code>{} {} {}</code>".format(esc(m), esc(op), esc(str(v)))
+                          for m, op, v in preset.get("require") or [])
+        out.append("<p>Rules: {}. Ranked by <code>{}</code>{}.</p></figcaption>".format(
+            rules or "none", esc(preset["rank"][0]),
+            " (top {})".format(preset["top"]) if preset.get("top") else ""))
+        withheld = preset_withheld_metrics(preset)
+        if withheld:
+            out.append('<p class="absent"><b>Not evaluated on this public site.</b> This lens '
+                       'tests {}, which are vendor fields kept local.</p>'.format(
+                           ", ".join("<code>{}</code>".format(esc(m)) for m in withheld)))
+        else:
+            rows = [{"ticker": tk, "name": name, "sector": sector, "ai": ai, "bucket": bucket}
+                    for tk, name, sector, ai, bucket in stock_screener.universe_rows()]
+            matches, _no_data = stock_screener.apply_preset(rows, key)
+            rank = preset["rank"][0]
+            order = ("in authored order: its ranking metric <code>{}</code> is a vendor field "
+                     "kept local".format(esc(rank))
+                     if PRESET_METRIC_FIELD.get(rank, rank) in VENDOR_ROW_FIELDS
+                     else "ranked by <code>{}</code>".format(esc(rank)))
+            out.append("<p>{} names, decided by authored tags alone, {}.</p>".format(
+                len(matches), order))
+            out.append('<table class="screen"><thead><tr><th>Ticker</th><th>Name</th>'
+                       '<th>AI</th><th>Bucket</th><th>Shadow debt</th></tr></thead><tbody>')
+            for r in matches:
+                out.append("<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>".format(
+                    esc(r["ticker"]), esc(r.get("name") or "—"), esc(r.get("ai") or "—"),
+                    esc(r.get("bucket") or "—"), esc(r.get("shadow_debt") or "—")))
+            out.append("</tbody></table>")
+        out.append("</figure>")
+    out.append('<figure class="panel absent"><figcaption><h3>Data kept local</h3>'
+               '<p class="why">{}</p></figcaption><pre><code>{}</code></pre></figure>'.format(
+                   esc(VENDOR_WITHHELD_NOTICE), esc(VENDOR_LOCAL_CMD)))
+    return "".join(out)
+
+
+def page_screen(mounts, query, *, public=False):
     """Production screener: full fund universe + Bloomberg/Reddit tone join.
 
     Renders from snapshots only (never fetches). Preset matching stays
     stock_screener.apply_preset; tone cells come from screener_lab when that
     snapshot exists. Scatter is server-drawn so provenance and marks stay in HTML.
+
+    ``public``: the public static site's rendering (tools/export_pages.py), which reads no
+    snapshot and publishes no vendor value or headline: `_public_lens_html`. The server
+    never passes it.
     """
     presets = stock_screener.PRESETS
     key = query.get("preset") or "low_pe_high_growth"
@@ -3480,8 +3529,11 @@ def page_screen(mounts, query):
     if source not in ("bloomberg", "reddit", "both", "none"):
         source = "bloomberg"
 
-    snap = stock_screener.load_snapshot()
-    sent_by, sent_snap = _sentiment_by_ticker()
+    if public:
+        snap, sent_by, sent_snap = None, {}, None
+    else:
+        snap = stock_screener.load_snapshot()
+        sent_by, sent_snap = _sentiment_by_ticker()
 
     body = ['<div class="screen-combined">']
     body.append('<div class="presets">')
@@ -3496,6 +3548,11 @@ def page_screen(mounts, query):
     body.append('<a class="custom {}" href="/screener?{}">+ custom</a>'.format(
         "on" if custom else "", cust_q))
     body.append("</div>")
+
+    if public:
+        body.append(_public_lens_html(key, preset, custom))
+        body.append("</div>")
+        return page("Screener", "/screener", "".join(body), mounts, wide=True)
 
     if snap is None:
         body.append(
@@ -4405,8 +4462,12 @@ def _with_rail(html, active, mounts):
     return html
 
 
-def _sovereign_buckets_html(mounts):
-    """Serve docs/research/SOVEREIGN_LEDGER_OPTIONS_MOCK.html at /screener/buckets."""
+def _sovereign_buckets_html(mounts, *, public=False):
+    """Serve docs/research/SOVEREIGN_LEDGER_OPTIONS_MOCK.html at /screener/buckets.
+
+    ``public``: the public static site's rendering (tools/export_pages.py): no Yahoo closes
+    are injected, whatever price cache is on disk (``VENDOR_WITHHELD_NOTICE``). The server
+    never passes it."""
     if not os.path.isfile(SOVEREIGN_MOCK_HTML):
         return (404,
                 "missing docs/research/SOVEREIGN_LEDGER_OPTIONS_MOCK.html "
@@ -4418,7 +4479,7 @@ def _sovereign_buckets_html(mounts):
     # under a caption claiming the numbers came from yfinance. The ledger tables and the heat
     # rule come from the same module for the same reason: a surface draws what was fetched or
     # says it has none.
-    prices = stock_screener.load_prices() or {}
+    prices = {} if public else (stock_screener.load_prices() or {})
     inject = "<script>\n{}\nconst PRICES = {};\nconst PRICE_ASOF = {};\nconst NOT_COMPANIES = {};\n</script>\n".format(
         sovereign_buckets.runtime_js(),
         json.dumps(stock_screener.payload_series(prices), separators=(",", ":")),
@@ -4574,6 +4635,10 @@ ABSENCE_REASONS = {
     # This is the only entry describing a value that IS on the row: the number is there, and
     # the reader still should not read it at face value.
     "imputed_zero":   "shown as zero because nothing was reported, not because it was measured",
+    # Present on disk, absent by policy. Only the public static site emits it
+    # (`public_screener_payload`): Yahoo's terms grant no redistribution right, so a vendor
+    # field there is withheld, and "the provider did not report this" would be false.
+    "withheld":       "kept local: the vendor's terms do not allow republishing it here",
 }
 
 #: `None` does not always mean "unknown". Some fields answer a question in the negative, and
@@ -4730,16 +4795,20 @@ def _base_effect_flag(earnings, revenue, growth):
     return "base effect?"
 
 
-def _screener_combined_draft_payload():
+def _screener_combined_draft_payload(vendor_data=True):
     """Join fund + sentiment snapshots into the draft's row/headline shape.
 
     Tone cells come from screener_lab (Bloomberg, Reddit and Yahoo lexicon scores).
     Fundamentals and shadow-debt tags come from stock_screener. The shadow number in the
     table is on-BS debt/equity % — the incomplete visible leg — not a fabricated multiple.
+
+    ``vendor_data=False``: do not read the Yahoo fundamentals or price caches at all (the
+    public static site, which then passes the result through `public_screener_payload`).
+    The server always reads them.
     """
-    fund = stock_screener.load_snapshot()
+    fund = stock_screener.load_snapshot() if vendor_data else None
     sent = screener_lab.load_snapshot()
-    prices = stock_screener.load_prices()
+    prices = stock_screener.load_prices() if vendor_data else None
     sent_by = {r["ticker"]: r for r in (sent or {}).get("rows") or []}
     headlines = {source: {} for source in screener_lab.TONE_SOURCES}
     spreads = {}
@@ -5012,6 +5081,168 @@ def _screener_combined_draft_payload():
         ))(lambda b: list(b.get("liquid") or []) + list(b.get("satellite") or []))
         if prices else None,
     }
+
+
+#: ── The public static site's view of the screener (tools/export_pages.py) ─────────────────
+#:
+#: Yahoo's terms grant no redistribution right (docs/research/data/README.md;
+#: docs/research/DATA_REDISTRIBUTION_AUDIT.md), so the public site carries no Yahoo
+#: fundamental, no price, and no number computed from either. What it carries is what this
+#: repository owns: the authored universe and tags, the bucket ledger, the lens definitions,
+#: and its own tone readings. The local server is untouched by this: it renders whatever
+#: snapshots are on disk, exactly as before.
+#:
+#: Fail closed. Every row field and every payload key is classified below, and
+#: `public_screener_payload` refuses one it has never seen, so a field added to the draft
+#: payload cannot reach the public site until someone decides which kind it is.
+VENDOR_WITHHELD_NOTICE = (
+    "Yahoo fundamentals and prices are not republished on this public site: Yahoo's terms "
+    "grant no redistribution right (docs/research/data/README.md). Tone readings, tags, "
+    "buckets and lens definitions are this repository's own and are published in full.")
+VENDOR_LOCAL_CMD = ("venv/bin/python tools/stock_screener.py fetch && "
+                    "venv/bin/python tools/stock_screener.py prices && "
+                    "venv/bin/python tools/research_ui.py serve")
+HEADLINES_WITHHELD_NOTICE = (
+    "Headline text is not republished on this static site — the documents are "
+    "third-party copy. The tone scores and coverage counts beside them are this repo's "
+    "own numbers and are published in full. Run the server locally "
+    "(venv/bin/python tools/research_ui.py serve) to read the documents behind a score.")
+
+#: The public row set is the AUTHORED universe (`stock_screener.universe_rows`), in its
+#: order, so the site is the same whatever caches the building machine holds. Each row's
+#: fields come from one of four places, and every field a draft-payload row can carry is
+#: in exactly one list (a row field in none is refused).
+#:
+#: From the authored tables: the ticker, its authored name and sector (None for bucket
+#: constituents the universe does not name: the draft fills those from the vendor), the AI
+#: tag, the bucket and the editorial shadow-debt tag with its severity.
+AUTHORED_ROW_FIELDS = ("tk", "name", "sector", "ai", "bucket", "shadow_tag",
+                       "shadow_severity", "shadow_severity_rank")
+#: From the draft row: the tone readings this repository computed (counts included: they
+#: count documents, not vendor values).
+TONE_ROW_FIELDS = ("bb", "bb_c", "bb_t", "rd", "rd_c", "rd_t", "yh", "yh_c", "yh_t",
+                   "st", "st_c", "st_t", "st_a", "st_b")
+#: Vendor observations and arithmetic on them (the score is built from P/E and growth, the
+#: flag from the growth legs, and the shadow number IS debt/equity). Withheld: null on the
+#: public row (`vol`, a display string, becomes the em-dash the page uses for none), with
+#: the `withheld` absence code wherever the page explains a gap.
+VENDOR_ROW_FIELDS = ("pe", "g", "dy", "de", "beta", "vol", "dollar_volume", "mcap",
+                     "profit_margin", "price", "shadow", "score", "flag")
+#: Rebuilt for the public row: `absent` is recomputed (a withheld field says so);
+#: `unjudged` names vendor fields and goes with them.
+DERIVED_ROW_FIELDS = ("absent", "unjudged")
+_TONE_COUNT_FIELDS = tuple(f for f in TONE_ROW_FIELDS if f.endswith(("_c", "_t")))
+
+#: Payload keys carried as they are (authored, this repository's own, or page wiring).
+PUBLIC_PAYLOAD_KEYS = ("tone_spread", "sentiment_built", "sentiment_age", "has_sentiment",
+                       "refresh_cmd", "categorical", "buckets", "book1",
+                       "shock_hints", "delisted", "not_companies", "price_cmd")
+#: Payload keys rebuilt for the public site (`presets` gains each lens's withheld metrics).
+REBUILT_PAYLOAD_KEYS = ("rows", "absence_reasons", "headlines", "headlines_withheld",
+                        "providers", "presets")
+#: Payload keys holding vendor data or numbers computed from it (the concentration card
+#: is correlations of Yahoo closes): withheld.
+VENDOR_PAYLOAD_KEYS = ("price_history", "price_as_of", "concentration", "fund_as_of",
+                       "has_fundamentals")
+
+#: A preset rule's canonical metric name -> the payload row field it is read from. The page
+#: holds the same map as `CANON_FIELD`; tests/test_export_pages.py pins the two equal.
+PRESET_METRIC_FIELD = {
+    "pe": "pe", "growth": "g", "dividend_yield": "dy", "debt_to_equity": "de", "beta": "beta",
+    "dollar_volume": "dollar_volume", "market_cap": "mcap", "profit_margin": "profit_margin",
+    "price": "price", "ai": "ai", "bucket": "bucket", "shadow_debt": "shadow_tag",
+    "shadow_severity": "shadow_severity", "shadow_severity_rank": "shadow_severity_rank",
+}
+
+
+def preset_withheld_metrics(preset):
+    """The metrics a lens cannot be judged without where vendor fields are withheld: every
+    rule metric read from a vendor field, and the rank metric when the lens is CAPPED (its
+    top N is then decided by that vendor value; an uncapped lens's rank only orders)."""
+    def vendor(metric):
+        return PRESET_METRIC_FIELD.get(metric, metric) in VENDOR_ROW_FIELDS
+    out = [m for m, _op, _v in preset.get("require") or [] if vendor(m)]
+    rank = (preset.get("rank") or [None])[0]
+    if preset.get("top") and rank and vendor(rank) and rank not in out:
+        out.append(rank)
+    return out
+
+
+def _classify_row_fields(row):
+    known = (set(AUTHORED_ROW_FIELDS) | set(TONE_ROW_FIELDS) | set(VENDOR_ROW_FIELDS)
+             | set(DERIVED_ROW_FIELDS))
+    unknown = set(row) - known
+    if unknown:
+        raise ValueError("unclassified screener row field(s) {}: add each to AUTHORED_, "
+                         "TONE_, VENDOR_ or DERIVED_ROW_FIELDS before it can be "
+                         "published".format(sorted(unknown)))
+
+
+def public_screener_rows(payload_rows):
+    """The public rows: one per authored universe ticker, its identity and tags from the
+    authored tables, its tone readings from the draft row (absent where no tone snapshot
+    covered it), every vendor field withheld. Raises ValueError on an unclassified field."""
+    by_tk = {}
+    for r in payload_rows or []:
+        _classify_row_fields(r)
+        by_tk[r.get("tk")] = r
+    out = []
+    for tk, name, sector, ai, bucket in stock_screener.universe_rows():
+        src = by_tk.get(tk) or {}
+        tags = stock_screener.enrich_row({"ticker": tk})
+        row = {"tk": tk, "name": name or tk, "sector": sector or "—", "ai": ai or "—",
+               "bucket": bucket, "shadow_tag": tags["shadow_debt"],
+               "shadow_severity": tags["shadow_severity"],
+               "shadow_severity_rank": tags["shadow_severity_rank"]}
+        for k in TONE_ROW_FIELDS:
+            row[k] = src.get(k, 0 if k in _TONE_COUNT_FIELDS else None)
+        for k in VENDOR_ROW_FIELDS:
+            row[k] = "—" if k == "vol" else None
+        absent = _absence_reasons(row, sovereign_buckets.NOT_COMPANIES.get(tk))
+        absent.update({f: "withheld" for f in ABSENCE_FIELDS if f in VENDOR_ROW_FIELDS})
+        row["absent"] = absent
+        out.append(row)
+    return out
+
+
+def public_screener_payload(payload):
+    """The combined-draft payload as the public static site may carry it (see above).
+    Raises ValueError on a payload key no list above classifies."""
+    known = set(PUBLIC_PAYLOAD_KEYS) | set(REBUILT_PAYLOAD_KEYS) | set(VENDOR_PAYLOAD_KEYS)
+    unknown = set(payload) - known
+    if unknown:
+        raise ValueError("unclassified screener payload key(s) {}: classify each in "
+                         "PUBLIC_, REBUILT_ or VENDOR_PAYLOAD_KEYS before it can be "
+                         "published".format(sorted(unknown)))
+    out = {k: payload[k] for k in PUBLIC_PAYLOAD_KEYS if k in payload}
+    out["rows"] = public_screener_rows(payload.get("rows"))
+    out["absence_reasons"] = dict(ABSENCE_REASONS)
+    # Every source key is preserved so the page can tell "withheld" from "this source was
+    # never fetched"; the documents themselves are third-party copy.
+    out["headlines"] = {src: {} for src in (payload.get("headlines") or {})}
+    out["headlines_withheld"] = HEADLINES_WITHHELD_NOTICE
+    withheld_cards = {
+        key: _provider_card(label, screener_lab.UNAVAILABLE,
+                            "kept local — not republished on this public site",
+                            VENDOR_WITHHELD_NOTICE, VENDOR_LOCAL_CMD, 0)
+        for key, label in (("fundamentals", "Fundamentals (stock_screener)"),
+                           ("prices", "Price history (stock_screener)"))}
+    providers = {}
+    for key, card in (payload.get("providers") or {}).items():
+        providers[key] = withheld_cards.pop(key, card)
+    providers.update(withheld_cards)
+    out["providers"] = providers
+    # The lens definitions are authored and travel; each carries the metrics it cannot be
+    # judged without here, so the page reports the lens as not evaluated rather than
+    # evaluating it on nulls (`canonicalScreen`).
+    out["presets"] = {key: {**p, "withheld_metrics": preset_withheld_metrics(p)}
+                      for key, p in (payload.get("presets") or {}).items()}
+    out["price_history"], out["price_as_of"], out["concentration"] = {}, None, None
+    out["fund_as_of"], out["has_fundamentals"] = None, False
+    out["vendor_withheld"] = VENDOR_WITHHELD_NOTICE
+    out["vendor_fields"] = list(VENDOR_ROW_FIELDS)
+    out["vendor_local_cmd"] = VENDOR_LOCAL_CMD
+    return out
 
 
 def _screener_combined_draft_html(mounts, payload=None):

@@ -38,6 +38,47 @@ def fetchers(**overrides):
                 fetch_check=lambda a, b: cash + 0.01)
 
 
+class CloseOnly(unittest.TestCase):
+    """Close-only series (an old index, a daily fixing): opens rebuilt from the previous
+    close and flagged, so no strategy can trade them at an open that never printed."""
+
+    def fixing(self):
+        df = asset(3)
+        df["Open"] = np.nan                      # a fixing has no open at all
+        return df
+
+    def test_opens_are_the_previous_close_and_the_asset_is_flagged(self):
+        frames, report = dd.build_frames(["AAA", "FIX"], "2012-01-01", "2016-12-31",
+                                         close_only=["FIX"], **fetchers(FIX=self.fixing()))
+        o, c = frames["open"]["FIX"], frames["close"]["FIX"]
+        self.assertTrue(np.allclose(o.iloc[1:].to_numpy(), c.shift(1).iloc[1:].to_numpy()))
+        self.assertEqual(o.iloc[0], c.iloc[0])
+        self.assertTrue(report["assets"]["FIX"]["opens_unreliable"])
+        self.assertTrue(report["assets"]["FIX"]["close_only"])
+        self.assertNotIn("close_only", report["assets"]["AAA"])
+
+    def test_without_the_flag_a_series_with_no_opens_is_refused(self):
+        with self.assertRaises(dd.SnapshotError):
+            dd.build_frames(["AAA", "FIX"], "2012-01-01", "2016-12-31", **fetchers(FIX=self.fixing()))
+
+    def test_close_only_and_sources_must_name_universe_assets(self):
+        with self.assertRaises(dd.SnapshotError):
+            dd.build_frames(["AAA"], "2012-01-01", "2016-12-31", close_only=["ZZZ"], **fetchers())
+        with tempfile.TemporaryDirectory() as td, self.assertRaises(dd.SnapshotError):
+            dd.build_snapshot(["AAA"], "2012-01-01", "2016-12-31", asset_sources={"ZZZ": "x"},
+                              data_dir=Path(td), **fetchers())
+
+    def test_the_manifest_records_close_only_assets_and_their_sources(self):
+        with tempfile.TemporaryDirectory() as td:
+            sha = dd.build_snapshot(["AAA", "FIX"], "2012-01-01", "2016-12-31", close_only=["FIX"],
+                                    asset_sources={"FIX": "a fixing"}, data_dir=Path(td),
+                                    **fetchers(FIX=self.fixing()))
+            snap = dd.load_snapshot(sha, data_dir=Path(td))
+            self.assertEqual(snap.manifest["sources"]["per_asset"], {"FIX": "a fixing"})
+            self.assertEqual(snap.manifest["sources"]["close_only"], ["FIX"])
+            self.assertIn("FIX", snap.unreliable_opens)
+
+
 class Building(unittest.TestCase):
     def test_round_trip_is_content_addressed_and_lossless(self):
         with tempfile.TemporaryDirectory() as td:
@@ -143,3 +184,36 @@ class Conventions(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PrivateStore(unittest.TestCase):
+    """Non-redistributable observations stay in a private store; only the manifest is
+    public, and the loader still verifies the bytes against the sha."""
+
+    def test_private_snapshot_round_trip_and_tamper_refusal(self):
+        with tempfile.TemporaryDirectory() as pub, tempfile.TemporaryDirectory() as priv:
+            sha = dd.build_snapshot(["AAA", "BBB"], "2012-01-01", "2016-12-31", private=True,
+                                    manifest_extra={"calendars": {"AAA": ["2012-01-03"]}},
+                                    data_dir=Path(pub), private_dir=Path(priv), **fetchers())
+            self.assertFalse((Path(pub) / f"DS-{sha}.csv.gz").exists())
+            self.assertTrue((Path(priv) / f"DS-{sha}.csv.gz").exists())
+            snap = dd.load_snapshot(sha, data_dir=Path(pub), private_dir=Path(priv))
+            self.assertEqual(snap.manifest["observations"]["csv_sha256"], sha)
+            self.assertEqual(snap.manifest["calendars"], {"AAA": ["2012-01-03"]})
+            with self.assertRaises(dd.SnapshotError) as err:
+                dd.load_snapshot(sha, data_dir=Path(pub))          # private store not searched
+            self.assertIn("private", str(err.exception))
+            p = Path(priv) / f"DS-{sha}.csv.gz"
+            raw = gzip.decompress(p.read_bytes()).replace(b",2.0,", b",2.5,", 1)
+            p.write_bytes(gzip.compress(raw))
+            with self.assertRaises(dd.SnapshotError):
+                dd.load_snapshot(sha, data_dir=Path(pub), private_dir=Path(priv))
+
+    def test_manifest_extra_cannot_override_core_fields(self):
+        with tempfile.TemporaryDirectory() as td, self.assertRaises(dd.SnapshotError):
+            dd.build_snapshot(["AAA"], "2012-01-01", "2016-12-31", manifest_extra={"sha": "x"},
+                              data_dir=Path(td), **fetchers())
+
+    def test_the_private_store_is_gitignored(self):
+        ignored = (REPO / ".gitignore").read_text(encoding="utf-8")
+        self.assertIn(f"{dd.PRIVATE_DATA_REL.as_posix()}/", ignored.splitlines())
