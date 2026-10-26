@@ -315,3 +315,7 @@ run_utc,host,build,universe,source,state,documents,base
 2026-10-25T06:11:03+00:00,ci,tone_only,225,reddit,live,100,
 2026-10-25T06:11:03+00:00,ci,tone_only,225,yahoo,live,4065,
 2026-10-25T06:11:03+00:00,ci,tone_only,225,stocktwits,degraded,6537,0.7014
+2026-10-26T06:15:43+00:00,ci,tone_only,225,bloomberg,live,100,
+2026-10-26T06:15:43+00:00,ci,tone_only,225,reddit,live,100,
+2026-10-26T06:15:43+00:00,ci,tone_only,225,yahoo,live,4089,
+2026-10-26T06:15:43+00:00,ci,tone_only,225,stocktwits,degraded,6541,0.7251
