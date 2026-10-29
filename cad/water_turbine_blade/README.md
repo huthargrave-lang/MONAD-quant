@@ -10,7 +10,7 @@ CAD geometry, structure/practicality). The findings and what changed are in **`R
 
 | File | What it is |
 |---|---|
-| `turbine_blade_8in.step` | **One blade**, solid body, mm. Root is trimmed to a cylinder of radius 20.4 mm so it sinks 5 mm into the 2 in hub. |
+| `turbine_blade_8in.step` | **One blade**, solid body, mm. Root is trimmed to a cylinder of radius 21.4 mm so it sinks 5 mm into the 2 in hub. |
 | `turbine_rotor_8in_3blade.step` | Full rotor: 3 blades on a 2 in x 2 in hub with nose cone, blind 10 mm shaft bore, 3.2 mm cross-pin hole and two M4 grub-screw pilot holes. One solid (no blade-hub fillet: OpenCascade could not build one, add 1.5-2 mm in Fusion). |
 | `turbine_blade_8in.stl`, `turbine_rotor_8in_3blade.stl` | Same blade / rotor as meshes for slicers (or Fusion *Insert > Insert Mesh*). |
 | `blade_stations.csv` | Radius, chord, twist, thickness, airfoil and the **operating** angle of attack / CL / Reynolds number at every section (plus the Schmitz design inputs, labelled as such). |
@@ -26,16 +26,16 @@ CAD geometry, structure/practicality). The findings and what changed are in **`R
 | Rotor diameter | 8.000 in (203.2 mm) |
 | Hub | 2 in diameter (hub ratio 0.25), 2.0 in long, 28 mm ellipsoidal nose cone upstream |
 | Blades | 3 |
-| Max chord (blade width) | **76.2 mm = 3.00 in** at r = 40 mm (1.59 in) |
-| Root chord (at hub surface) | 46.7 mm (1.84 in) - tapered so three roots fit the small hub with 12 mm between neighbours |
-| Tip | elliptically rounded, 15.4 mm chord and 2.1 mm thick at the very tip |
-| Twist | 29.5 deg at the root to 10.2 deg at the tip (chord angle from the rotor plane) |
+| Max chord (blade width) | **76.2 mm = 3.00 in** at r = 40 mm (1.58 in) |
+| Root chord (at hub surface) | 48.6 mm (1.91 in) - tapered so three roots fit the small hub with 15 mm between neighbours |
+| Tip | elliptically rounded, 15.3 mm chord and 2.1 mm thick at the very tip |
+| Twist | 29.1 deg at the root to 10.2 deg at the tip (chord angle from the rotor plane) |
 | Airfoil | NACA 44xx family: 22 % thick at the root for strength, 14 % from 65 % radius outward |
-| Max thickness | 10.3 mm at the root, 4.8 mm at 94 % radius |
+| Max thickness | 10.7 mm at the root, 2.9 mm at 94 % radius |
 | Trailing edge | 0.8 mm blunt (two 0.4 mm FDM perimeters) |
-| Axial depth of the blade | 31.3 mm (1.23 in) - well inside the 3 in envelope |
+| Axial depth of the blade | 31.6 mm (1.24 in) - well inside the 3 in envelope |
 | Stacking axis | 30 % chord, radial (Z axis) |
-| Blade volume | 27.5 cm3 (about 35 g in PETG) |
+| Blade volume | 27.3 cm3 (about 35 g in PETG) |
 
 **Coordinate frame:** +X is the flow direction (water enters on the -X face, where the nose cone is),
 the blade runs along +Z, and the rotor axis is X. The camber (suction) side faces downstream. The rotor
@@ -64,8 +64,8 @@ Shaft power, not electrical: subtract generator, seal and bearing losses (typica
 **What to expect in the water.** Treat the table as the upper end. Realistic Cp for a printed rotor of
 this size is about **0.25-0.33** depending on surface finish, the nacelle behind the hub, generator
 matching and water temperature (10 C water raises viscosity 30 % and costs a few points of Cp at 1 m/s).
-Section Reynolds numbers at 1.5 m/s are 6.7e+04-1.5e+05 (4.5e+04-1.0e+05 at 1 m/s,
-8.9e+04-2.0e+05 at 2 m/s) - low enough that the NACA 44xx sections run with laminar separation
+Section Reynolds numbers at 1.5 m/s are 6.9e+04-1.5e+05 (4.6e+04-1.0e+05 at 1 m/s,
+9.1e+04-2.0e+05 at 2 m/s) - low enough that the NACA 44xx sections run with laminar separation
 bubbles, which the polar model approximates but does not resolve.
 
 **Load matching.** A load whose torque rises with speed (a PM generator into a resistor or a battery
@@ -82,7 +82,7 @@ axial-flux) generator or accept that it starts only above ~1.3 m/s.
 
 1. Planform: the outboard part follows a Schmitz optimum chord shape (momentum theory with wake
    rotation) at tip-speed ratio 4.0, scaled so the widest point is exactly 3 in at
-   40 % radius; inboard the chord tapers smoothly to 61 % of that at the hub
+   39 % radius; inboard the chord tapers smoothly to 64 % of that at the hub
    (the review showed root taper costs < 0.002 Cp and it makes the small hub work).
 2. Twist: Schmitz inflow angle minus the design angle of attack, plus a global pitch offset
    (+6.0 deg) found by a BEM search for maximum peak Cp, plus -2.5 deg at the root
@@ -104,8 +104,8 @@ From the BEM thrust distribution (per blade: 15 N at 2 m/s, 34 N in a 3 m/s floo
 
 | Case | Root bending moment | Root stress | Peak stress (at r = 26 mm, where the section thins) |
 |---|---|---|---|
-| 2 m/s, operating | 0.66 N m | 1.64 MPa | 1.64 MPa |
-| 3 m/s flood | 1.48 N m | 3.69 MPa | 3.69 MPa |
+| 2 m/s, operating | 0.66 N m | 1.55 MPa | 1.55 MPa |
+| 3 m/s flood | 1.48 N m | 3.49 MPa | 3.49 MPa |
 
 Against ~30 MPa for FDM PETG across layers the safety factor is > 8 even in a flood, and fatigue at
 3e7 cycles (7-10 MPa endurance) still leaves > 4. Steady flow loads are not what breaks these blades:

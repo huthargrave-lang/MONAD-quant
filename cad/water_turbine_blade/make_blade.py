@@ -35,7 +35,7 @@ D_IN = 8.0
 R = D_IN / 2 * IN              # 101.6 mm tip radius
 C_MAX = 3.0 * IN               # 76.2 mm max chord ("3 in wide")
 R_HUB = 1.0 * IN               # 25.4 mm hub radius (2 in hub, hub ratio 0.25)
-R_ROOT_EXT = R_HUB - 5.0       # root stub extends 5 mm inside the hub for a clean union
+R_ROOT_EXT = R_HUB - 4.0       # root stub extends 4 mm inside the hub for a clean union
 ROOT_TAPER = 0.62              # root chord / max chord (root taper costs <0.002 Cp, review F5)
 PEAK_R = 0.42                  # fraction of tip radius where the chord is widest (3 in)
 ROOT_TWIST_ADJ = -2.5          # deg added to the twist at the hub (blends to 0 at 50 % R): keeps the thick root at positive alpha
@@ -120,42 +120,52 @@ def schmitz_chord(r, lam, cl_d):
 
 
 def stations():
-    """Radial stations, cosine-clustered toward the tip (where the rounding is)."""
-    s = np.linspace(0, 1, N_STATIONS)
-    t = 1 - np.cos(0.5 * np.pi * s)     # dense near s=1 (tip)
-    t = 0.55 * s + 0.45 * t
-    return R_HUB + (R - R_HUB) * t
+    """Radial stations: 18 from the hub to 90 % R (mildly denser toward both ends), then 9 more
+    through the elliptically rounded tip spaced evenly in the ellipse angle, i.e. dense at the tip
+    where the chord changes fastest (review C2: the old formula was dense at the ROOT)."""
+    r0 = R_HUB + 0.5                             # first station just outside the hub surface, so the
+    r_root = np.linspace(r0, 0.55 * R, 15)       # hub cylinder cuts the stub faces, not a station wire
+    r_mid = np.linspace(0.55 * R, 0.90 * R, 8)[1:]
+    th = np.linspace(0, 1, 10)[1:]
+    r_tip = 0.90 * R + 0.10 * R * np.sin(0.5 * np.pi * th)   # sin-spaced: dense at the tip
+    return np.r_[r_root, r_mid, r_tip]
 
 
-def design_blade(lam=5.4, dbeta=0.0):
-    """Chord/twist distribution.
-    Chord: outboard of PEAK_R the Schmitz optimum shape at tip-speed ratio `lam`, scaled so the
-    chord at PEAK_R is exactly C_MAX; inboard a smooth quadratic taper to ROOT_TAPER x C_MAX at the
-    hub; the two are blended with a tanh switch, then renormalised so max chord == C_MAX exactly;
-    elliptical tip rounding over the outer 10 %.
+def chord_shape(r, lam):
+    """Un-normalised planform (mm): Schmitz optimum shape at tip-speed ratio `lam` outboard of
+    PEAK_R (pinned to C_MAX there), smooth quadratic root taper inboard, tanh blend between them,
+    elliptical tip rounding over the outer 10 %.  Also returns the Schmitz inflow angle (rad)."""
+    r = np.asarray(r, dtype=float)
+    tc = tc_of_r(r)
+    a_d = np.array([alpha_design(t) for t in np.atleast_1d(tc)])
+    cl_d = np.array([polar(math.radians(a), t)[0] for a, t in zip(a_d, np.atleast_1d(tc))])
+    c_s, phi = schmitz_chord(r, lam, cl_d)
+    r_pk = PEAK_R * R
+    c_pk = float(schmitz_chord(np.array([r_pk]), lam, np.array([polar(math.radians(alpha_design(tc_of_r(r_pk))), tc_of_r(r_pk))[0]]))[0][0])
+    c_out = c_s * (C_MAX / c_pk)
+    s = np.clip((r_pk - r) / (r_pk - R_HUB), 0, 1)
+    c_in = C_MAX * (1 - (1 - ROOT_TAPER) * s ** 2)
+    w = 0.5 * (1 - np.tanh((r - r_pk) / (0.07 * R)))
+    c = w * c_in + (1 - w) * c_out
+    s = np.clip((r - 0.90 * R) / (0.10 * R), 0, 1)
+    c = c * np.sqrt(1 - (1 - TIP_CHORD_FRAC ** 2) * s ** 2)
+    return c, phi, tc, a_d, cl_d
+
+
+def design_blade(lam=4.0, dbeta=0.0):
+    """Chord/twist at the stations.  The chord curve is normalised so that its true maximum
+    (evaluated on a dense radius grid, not just at the stations) is exactly C_MAX.
     Twist: Schmitz inflow angle at `lam` minus the design alpha, plus a global pitch offset `dbeta`
     (deg) and a root pitch-down ROOT_TWIST_ADJ that blends out by 50 % R."""
     r = stations()
-    tc = tc_of_r(r)
-    a_d = np.array([alpha_design(t) for t in tc])
-    cl_d = np.array([polar(math.radians(a), t)[0] for a, t in zip(a_d, tc)])
-
-    c_s, phi = schmitz_chord(r, lam, cl_d)
-    r_pk = PEAK_R * R
-    c_out = c_s * (C_MAX / np.interp(r_pk, r, c_s))
-    s = np.clip((r_pk - r) / (r_pk - R_HUB), 0, 1)
-    c_in = C_MAX * (1 - (1 - ROOT_TAPER) * s ** 2)
-    w = 0.5 * (1 - np.tanh((r - r_pk) / (0.05 * R)))
-    c = w * c_in + (1 - w) * c_out
-    s = np.clip((r - 0.90 * R) / (0.10 * R), 0, 1)             # elliptical tip rounding
-    c = c * np.sqrt(1 - (1 - TIP_CHORD_FRAC ** 2) * s ** 2)
-    c = c * (C_MAX / c.max())
-
+    scale = C_MAX / chord_shape(np.linspace(R_HUB, R, 2000), lam)[0].max()
+    c, phi, tc, a_d, cl_d = chord_shape(r, lam)
+    c = c * scale
     twist = np.degrees(phi) - a_d + dbeta     # chord angle from the rotor plane
     s = np.clip((0.50 * R - r) / (0.50 * R - R_HUB), 0, 1)
     twist = twist + ROOT_TWIST_ADJ * 0.5 * (1 - np.cos(np.pi * s))   # root pitch-down (review F2)
     return dict(r=r, chord=c, twist=twist, tc=tc, alpha_d=a_d, cl_d=cl_d, lam=lam, dbeta=dbeta,
-                phi=np.degrees(phi))
+                phi=np.degrees(phi), chord_fn=lambda rr: chord_shape(rr, lam)[0] * scale)
 
 
 # ------------------------------------------------------------- BEM --------
@@ -293,20 +303,48 @@ from OCP.BRepBuilderAPI import BRepBuilderAPI_Sewing
 from OCP.ShapeFix import ShapeFix_Solid
 
 
-def loft_capped(wires):
-    """Smooth loft through non-planar (cylinder-wrapped) wires -> closed solid.
-    ThruSections' own solid mode needs planar end wires, so we build the shell,
-    fill the two end caps and sew."""
-    ts = BRepOffsetAPI_ThruSections(False, False, 0.01)
+from OCP.Geom import Geom_CylindricalSurface
+from OCP.gp import gp_Ax3, gp_Pnt, gp_Dir
+from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace
+from OCP.ShapeFix import ShapeFix_Face
+from OCP.BRepCheck import BRepCheck_Analyzer
+
+
+def thru_sections(wires, ruled):
+    ts = BRepOffsetAPI_ThruSections(False, ruled, 0.01)
     ts.CheckCompatibility(False)
     for w in wires:
         ts.AddWire(w.wrapped)
     ts.Build()
-    shell = cq.Shape.cast(ts.Shape())
-    caps = [cq.Face.makeNSidedSurface(wires[0].Edges(), []),
-            cq.Face.makeNSidedSurface(wires[-1].Edges(), [])]
+    return cq.Shape.cast(ts.Shape()).Faces()
+
+
+def cylinder_cap(wire, radius):
+    """Cap face bounded by `wire` lying on the cylinder r = radius: a plate (filling) surface
+    seeded with the exact cylinder, so it stays on it (checked to 0.05 mm) instead of bulging
+    like a free filling surface does over a wire that wraps 100+ degrees (review C3)."""
+    from OCP.BRepFill import BRepFill_Filling
+    from OCP.GeomAbs import GeomAbs_C0
+    surf = Geom_CylindricalSurface(gp_Ax3(gp_Pnt(0, 0, 0), gp_Dir(1, 0, 0), gp_Dir(0, 0, -1)), radius)
+    seed = BRepBuilderAPI_MakeFace(surf, math.pi - 1.7, math.pi + 1.7, -80.0, 80.0, 1e-6).Face()  # u=pi is +Z
+    fill = BRepFill_Filling(3, 15, 2, False, 1e-5, 1e-4, 1e-2, 0.1, 8, 9)
+    fill.LoadInitSurface(seed)
+    for e in wire.Edges():
+        fill.Add(e.wrapped, GeomAbs_C0, True)
+    fill.Build()
+    face = cq.Face(fill.Face())
+    if not face.isValid():
+        raise RuntimeError("cap face invalid")
+    vs, _ = face.tessellate(0.01, 0.1)
+    dev = max(abs(math.hypot(p.y, p.z) - radius) for p in vs)
+    if dev > 0.05:
+        raise RuntimeError(f"cap leaves the cylinder by {dev:.3f} mm")
+    return face
+
+
+def sew_solid(faces):
     sew = BRepBuilderAPI_Sewing(1e-4)
-    for f in shell.Faces() + caps:
+    for f in faces:
         sew.Add(f.wrapped)
     sew.Perform()
     sh = cq.Shape.cast(sew.SewedShape())
@@ -318,26 +356,114 @@ def loft_capped(wires):
 
 
 def build_blade(blade):
-    # extra stations inside the hub carry the hub section radially inward
-    r_in = np.array([R_ROOT_EXT - 4.0, R_ROOT_EXT - 1.0, 0.5 * (R_ROOT_EXT + R_HUB)])
-    rs = np.r_[r_in, blade["r"]]
-    cs = np.r_[[blade["chord"][0]] * 3, blade["chord"]]
-    tws = np.r_[[blade["twist"][0]] * 3, blade["twist"]]
-    tcs = np.r_[[blade["tc"][0]] * 3, blade["tc"]]
+    """Smooth loft through the stations (first one 0.5 mm outside the hub), a RULED stub from that
+    station straight inward (review C1: a smooth loft through near-identical inner stations rings),
+    and end caps that lie on their cylinders (review C3).  If the cylinder-seeded caps fail, fall back
+    to free filled caps on a deeper stub and trim the root with the r = R_ROOT_EXT cylinder."""
     wires, loops = [], []
-    for r, c, tw, tc in zip(rs, cs, tws, tcs):
+    for r, c, tw, tc in zip(blade["r"], blade["chord"], blade["twist"], blade["tc"]):
         w, loop = section_wire(r, c, tw, tc)
         wires.append(w)
-        if r >= R_HUB:
-            loops.append(loop)
-    raw = loft_capped(wires)
-    assert raw.isValid(), "raw loft invalid"
-    # trim the root to an exact cylinder r = R_ROOT_EXT (the tip is untouched)
-    annulus = (cq.Workplane("YZ").workplane(offset=-150).circle(R + 10).circle(R_ROOT_EXT).extrude(300)).val()
-    solid = raw.intersect(annulus)
-    if not isinstance(solid, cq.Solid):
-        solid = max(solid.Solids(), key=lambda s: s.Volume())
-    return solid, loops
+        loops.append(loop)
+    main_faces = thru_sections(wires, ruled=False)
+    stub = lambda r_in: section_wire(r_in, blade["chord"][0], blade["twist"][0], blade["tc"][0])[0]
+    try:
+        w_in = stub(R_ROOT_EXT)
+        faces = main_faces + thru_sections([w_in, wires[0]], ruled=True)
+        # root cap seeded on its cylinder (wraps ~110 deg); the tip cap wraps only ~9 deg, so a free
+        # filling stays within 0.3 mm of the cylinder and, unlike the seeded one, survives STEP export
+        caps = [cylinder_cap(w_in, R_ROOT_EXT), cq.Face.makeNSidedSurface(wires[-1].Edges(), [])]
+        solid = sew_solid(faces + caps)
+        if not solid.isValid():
+            raise RuntimeError("sewn solid invalid")
+        cap_kind = "cylindrical root cap, filled tip cap"
+    except Exception as exc:
+        print("cylindrical caps failed (%s); falling back to filled caps + trim" % exc)
+        w_in = stub(R_ROOT_EXT - 4.0)
+        faces = main_faces + thru_sections([w_in, wires[0]], ruled=True)
+        caps = [cq.Face.makeNSidedSurface(w_in.Edges(), []), cq.Face.makeNSidedSurface(wires[-1].Edges(), [])]
+        raw = sew_solid(faces + caps)
+        annulus = (cq.Workplane("YZ").workplane(offset=-150).circle(R + 10).circle(R_ROOT_EXT).extrude(300)).val()
+        solid = raw.intersect(annulus)
+        if not isinstance(solid, cq.Solid):
+            solid = max(solid.Solids(), key=lambda s: s.Volume())
+        cap_kind = "filled+trimmed"
+    return solid, loops, cap_kind
+
+
+def step_roundtrip(path, solid, name):
+    """Re-import the STEP just written and require the same face count and volume (0.2 %) and
+    every face area within 1 % - catches faces whose trimming does not survive export."""
+    imp = cq.importers.importStep(path).val()
+    a_mem = sorted(round(f.Area(), 1) for f in solid.Faces())
+    a_imp = sorted(round(f.Area(), 1) for f in imp.Faces())
+    dv = abs(imp.Volume() - solid.Volume()) / solid.Volume()
+    bad = [(x, y) for x, y in zip(a_mem, a_imp) if abs(x - y) > max(0.02 * x, 0.5)]
+    ok = imp.isValid() and len(imp.Solids()) == 1 and len(a_mem) == len(a_imp) and dv < 0.002 and not bad
+    print(f"STEP round-trip {name}: valid={imp.isValid()} faces {len(a_imp)}/{len(a_mem)} volume {imp.Volume():.0f}/{solid.Volume():.0f} ({dv*100:.2f} %) -> {'OK' if ok else 'MISMATCH'}"
+          + (f"  face areas differ (mem, imp): {bad}" if bad else ""))
+    assert ok, f"{name} STEP does not round-trip"
+
+
+def measure_chords(solid, radii):
+    """Slice the tessellated solid with cylinders r = radii; return the unrolled chord at each
+    (max pairwise distance of the section points in the (X, r*theta) plane)."""
+    verts, tris = solid.tessellate(0.02, 0.1)
+    V = np.array([(v.x, v.y, v.z) for v in verts]); T = np.array(tris)
+    rad = np.hypot(V[:, 1], V[:, 2])
+    E = np.r_[T[:, [0, 1]], T[:, [1, 2]], T[:, [2, 0]]]
+    out = []
+    for r0 in radii:
+        f = (rad[E[:, 0]] - r0) * (rad[E[:, 1]] - r0) < 0
+        i, j = E[f, 0], E[f, 1]
+        t = (r0 - rad[i]) / (rad[j] - rad[i])
+        P = V[i] + t[:, None] * (V[j] - V[i])
+        if len(P) < 3:
+            out.append(float("nan")); continue
+        U = np.c_[P[:, 0], r0 * np.arctan2(P[:, 1], P[:, 2])]
+        if len(U) > 1500:
+            U = U[np.random.default_rng(1).choice(len(U), 1500, replace=False)]
+        d = np.sqrt(((U[:, None, :] - U[None, :, :]) ** 2).sum(-1))
+        out.append(float(d.max()))
+    return np.array(out)
+
+
+def write_stl_watertight(solid, path, tol, ang):
+    """Tessellate, merge vertices, drop degenerate triangles, verify watertight (review C4)."""
+    verts, tris = solid.tessellate(tol, ang)
+    V = np.array([(v.x, v.y, v.z) for v in verts]); T = np.array(tris)
+    try:
+        import trimesh
+        m = None
+        for digits in (4, 3, 2):          # merge vertices within 0.1 um, 1 um, 10 um (review C4: 2-7 um slits)
+            m = trimesh.Trimesh(V, T, process=False)
+            m.merge_vertices(merge_tex=True, merge_norm=True, digits_vertex=digits)
+            m.update_faces(m.nondegenerate_faces(height=1e-5))
+            m.update_faces(m.unique_faces())
+            m.remove_unreferenced_vertices()
+            if not m.is_watertight:
+                m.fill_holes()
+            m.fix_normals()
+            if m.is_watertight:
+                break
+        if not m.is_watertight:               # T-junctions between faces: let MeshFix rebuild the surface
+            try:
+                import pymeshfix
+                mf = pymeshfix.MeshFix(np.asarray(m.vertices), np.asarray(m.faces))
+                mf.repair()
+                v2, f2 = (mf.points, mf.faces) if hasattr(mf, "points") else (mf.v, mf.f)
+                m2 = trimesh.Trimesh(np.asarray(v2), np.asarray(f2), process=False)
+                m2.fix_normals()
+                if m2.is_watertight and abs(m2.volume - solid.Volume()) < 0.01 * solid.Volume():
+                    m = m2
+            except Exception as exc:
+                print(f"pymeshfix unavailable/failed ({exc})")
+        m.export(path)
+        return bool(m.is_watertight), int(len(m.faces))
+    except Exception as exc:
+        print(f"trimesh clean-up failed ({type(exc).__name__}: {exc}); writing the raw tessellation")
+        cq.exporters.export(solid, path, tolerance=tol, angularTolerance=ang)
+        return None, len(T)
 
 
 def build_rotor(blade_solid, root_loop):
@@ -510,8 +636,22 @@ def main():
 
     # geometry
     print(f"[{time.time()-t0:.0f} s] building blade...", flush=True)
-    solid, loops = build_blade(blade)
+    solid, loops, cap_kind = build_blade(blade)
     assert solid.isValid(), "blade solid is not valid"
+    # acceptance check: loft chord between stations must follow the station chords (reviews C1, C2)
+    r_chk = np.r_[np.linspace(R_ROOT_EXT + 0.2, R_HUB - 0.2, 4), 0.5 * (blade["r"][1:] + blade["r"][:-1]), np.linspace(0.97 * R, R - 0.1, 5)]
+    c_chk = measure_chords(solid, r_chk)
+    c_ref = np.where(r_chk < blade["r"][0], blade["chord"][0], blade["chord_fn"](np.maximum(r_chk, blade["r"][0])))  # analytical reference; stub = first station
+    dev = c_chk - c_ref
+    k = int(np.nanargmax(np.abs(dev)))
+    print(f"loft check: chord deviation from stations max {dev[k]:+.2f} mm at r={r_chk[k]:.1f} (rms {np.sqrt(np.nanmean(dev**2)):.2f} mm); end caps {cap_kind}")
+    r_dense = np.linspace(R_HUB, R, 2000); c_dense = blade["chord_fn"](r_dense)
+    r_pkscan = np.linspace(r_dense[int(np.argmax(c_dense))] - 6, r_dense[int(np.argmax(c_dense))] + 6, 13)
+    c_pkscan = measure_chords(solid, r_pkscan)
+    as_built_max, as_built_r = float(np.nanmax(c_pkscan)), float(r_pkscan[int(np.nanargmax(c_pkscan))])
+    print(f"max chord: designed {C_MAX:.2f} mm at r={r_dense[int(np.argmax(c_dense))]:.1f}; as built (farthest-point measure) {as_built_max:.2f} mm at r={as_built_r:.1f}")
+    assert np.nanmax(np.abs(dev)) < 0.8, "loft deviates from the station chords"
+    loft_dev = dict(max_mm=float(dev[k]), at_r_mm=float(r_chk[k]), rms_mm=float(np.sqrt(np.nanmean(dev**2))))
     verts, tris = solid.tessellate(0.02, 0.1)
     vv = np.array([(v.x, v.y, v.z) for v in verts])
     rmax = float(np.sqrt(vv[:, 1] ** 2 + vv[:, 2] ** 2).max())
@@ -528,14 +668,18 @@ def main():
     print(f"       max radius {rmax:.2f} mm = {rmax/IN:.3f} in  (spec 4.000 in);  blade-to-blade clearance near root {clearance:.1f} mm")
 
     cq.exporters.export(solid, os.path.join(OUT, "turbine_blade_8in.step"))
-    cq.exporters.export(solid, os.path.join(OUT, "turbine_blade_8in.stl"), tolerance=0.05, angularTolerance=0.2)
+    step_roundtrip(os.path.join(OUT, "turbine_blade_8in.step"), solid, "blade")
+    wt, nf = write_stl_watertight(solid, os.path.join(OUT, "turbine_blade_8in.stl"), 0.05, 0.2)
+    print(f"blade STL: {nf} triangles, watertight={wt}")
 
     print(f"[{time.time()-t0:.0f} s] building rotor...", flush=True)
     rotor, hubinfo = build_rotor(solid, loops[0])
     print(f"[{time.time()-t0:.0f} s] rotor done", flush=True)
     assert rotor.isValid(), "rotor solid is not valid"
     cq.exporters.export(rotor, os.path.join(OUT, "turbine_rotor_8in_3blade.step"))
-    cq.exporters.export(rotor, os.path.join(OUT, "turbine_rotor_8in_3blade.stl"), tolerance=0.08, angularTolerance=0.25)
+    step_roundtrip(os.path.join(OUT, "turbine_rotor_8in_3blade.step"), rotor, "rotor")
+    wt_r, nf_r = write_stl_watertight(rotor, os.path.join(OUT, "turbine_rotor_8in_3blade.stl"), 0.04, 0.15)
+    print(f"rotor STL: {nf_r} triangles, watertight={wt_r}")
     print(f"rotor: valid={rotor.isValid()} volume={rotor.Volume():.0f} mm^3  solids={len(rotor.Solids())}  "
           f"junction fillet {hubinfo['junction_fillet_mm']} mm on {hubinfo['junction_edges']} edges; pin at X={hubinfo['pin_x_mm']:.1f}")
 
@@ -567,8 +711,9 @@ def main():
     spec = dict(
         rotor_diameter_in=D_IN, tip_radius_mm=R, hub_radius_mm=R_HUB, hub_diameter_in=2 * R_HUB / IN,
         hub_ratio=R_HUB / R, root_trim_radius_mm=R_ROOT_EXT,
-        max_chord_mm=float(blade["chord"].max()), max_chord_in=float(blade["chord"].max() / IN),
-        max_chord_r_mm=float(blade["r"][int(np.argmax(blade["chord"]))]),
+        max_chord_mm=C_MAX, max_chord_in=C_MAX / IN,
+        max_chord_r_mm=float(r_dense[int(np.argmax(c_dense))]),
+        as_built_max_chord_mm=as_built_max, as_built_max_chord_r_mm=as_built_r,
         root_chord_mm=float(blade["chord"][0]), tip_chord_mm=float(blade["chord"][-1]),
         root_thickness_mm=float(blade["chord"][0] * blade["tc"][0]), tip_thickness_mm=float(blade["chord"][-1] * blade["tc"][-1]),
         twist_root_deg=float(blade["twist"][0]), twist_tip_deg=float(blade["twist"][-1]),
@@ -583,6 +728,7 @@ def main():
         hub_length_mm=HUB_LEN, hub_bore_mm=HUB_BORE, hub_bore="blind from downstream face", pin_hole_mm=PIN_D,
         set_screw_pilot_mm=SET_SCREW_D, nose_cone_length_mm=NOSE_LEN, **hubinfo,
         blade_volume_mm3=float(solid.Volume()), blade_max_radius_mm=rmax, blade_to_blade_clearance_mm=clearance,
+        loft_chord_deviation=loft_dev, end_caps=cap_kind, stl_watertight=dict(blade=wt, rotor=wt_r),
         cp_curve=dict(tsr=lams.tolist(), **{f"cp_{V}": [x["cp"] for x in curves[str(V)]] for V in V_LIST},
                       **{f"ct_{V}": [x["ct"] for x in curves[str(V)]] for V in V_LIST}),
         power_curve={str(V): dict(rpm=[x["rpm"] for x in curves[str(V)]], P_W=[x["P"] for x in curves[str(V)]]) for V in V_LIST},
@@ -591,7 +737,7 @@ def main():
     with open(os.path.join(OUT, "design_spec.json"), "w") as f:
         json.dump(spec, f, indent=2)
 
-    print(f"\nOperating TSR = {lam_d:.2f}   max chord = {blade['chord'].max():.2f} mm at r={spec['max_chord_r_mm']:.1f}   "
+    print(f"\nOperating TSR = {lam_d:.2f}   max chord = {C_MAX:.2f} mm at r={spec['max_chord_r_mm']:.1f}   "
           f"root chord = {blade['chord'][0]:.1f} mm  tip chord {blade['chord'][-1]:.1f} mm  twist root/tip = {blade['twist'][0]:.1f}/{blade['twist'][-1]:.1f} deg")
     al = np.array([d[1] for d in d15]); ax_ = np.array([d[2] for d in d15]); re_ = np.array([d[5] for d in d15])
     print(f"operating point 1.5 m/s: alpha {al.min():.1f}..{al.max():.1f} deg; axial induction {ax_.min():.2f}..{ax_.max():.2f}; Re {re_.min():.2g}..{re_.max():.2g}")
