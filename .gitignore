@@ -77,3 +77,7 @@ venv-py39-backup/
 
 # Observations that may not be redistributed (src/research/daily_data.PRIVATE_DATA_DIR)
 local_research_data/
+
+# CAD package for the 8 in water turbine blade ships its section tables as CSV
+!cad/water_turbine_blade/*.csv
+!cad/water_turbine_blade/sections_for_fusion_csv/*.csv
