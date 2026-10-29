@@ -1,6 +1,11 @@
 # MONAD Quant — Agent Pointer
 
 > 🧭 **Agents: start with [`AGENT_INDEX.md`](AGENT_INDEX.md) and `tools/ctx.py`** (e.g. `venv/bin/python tools/ctx.py route "<task>"`).
+>
+> MONAD Quant is a **quantitative finance research base** (evidence graph + research compendium +
+> governance tools + Context Kit); the trading engine is its **reference test bench**
+> (`docs/REFERENCE_ENGINE.md`). Public framing: `README.md`, `VISION.md`; contribution workflow:
+> `CONTRIBUTING.md`.
 
 **This file used to duplicate `CLAUDE.md` and drifted out of sync** (it carried stale,
 optimistic TQQQ parameters that no longer match `config.py`). To kill that drift, the
@@ -10,16 +15,19 @@ full strategy memory now lives in **one** place.
 | For… | Read / run |
 |---|---|
 | Strategy / model "why" (signals, regimes, sweeps, what worked/failed) | **`CLAUDE.md`** (authoritative) |
+| Reference engine as documented for users (modes, execution model, sweep tool, paper trader, deployment) | **`docs/REFERENCE_ENGINE.md`** |
+| Research programs, methodology, how a study is made | **`docs/research/README.md`**, **`CONTRIBUTING.md`** |
 | Live deployment / ops "how it runs" | **`OPERATIONS.md`**, `ops/README.md` |
 | Navigation + task routing | **`AGENT_INDEX.md`**, `context_map.json`, `CONTEXT_KIT.md` (run `ctx docs`) |
 | **Current parameters / facts** (don't trust prose — it can drift) | run **`tools/ctx.py`**: `ctx config <KEY>`, `ctx schema`, `ctx perf`, `ctx status` |
 
 ## Two facts every agent should internalize
 1. **`config.py` is the single source of truth for parameters** — not any markdown doc. Query it with `ctx config <KEY>`.
-2. **The documented backtest headline numbers are NOT reproducible.** A fresh realistic-mode
-   backtest of the live TQQQ config yields ~**+0.08%/mo (Sharpe ~1.2)**, and the live paper
-   confirmed-fill edge is ~**flat (+0.2%)** — versus the ~+2%/mo / Sharpe 39 once documented.
-   Treat headline performance claims with skepticism; run `ctx perf` for the honest read.
+2. **The engine's documented headline numbers are superseded research history, not current fact.**
+   A fresh realistic-mode backtest of the live TQQQ config yields ~**+0.08%/mo (Sharpe ~1.2)**,
+   and the live paper confirmed-fill edge is ~**flat (+0.2%)** — versus the ~+2%/mo / Sharpe 39
+   once documented. That reconciliation is a recorded, verified result (`F13`/`F43`/`D6`), so
+   cite it rather than re-deriving it; run `ctx perf` for the current read.
 3. **A result not in the web is one the next agent re-derives — capture it.** When you establish
    a finding/decision, record it with `tools/note.py add` (dry-run by default; `--commit` to write);
    walk it with `ctx web`. Don't leave hard-won conclusions only in chat.

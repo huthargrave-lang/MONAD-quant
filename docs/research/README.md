@@ -1,7 +1,36 @@
-# MONAD-quant — The Active-vs-Static Research Program
+# MONAD Quant — Research Compendium
 
-*A self-contained, adversarially-verified body of work answering one question:
-**does MONAD's active mean-reversion engine actually beat a simple static allocation — and if not, what is the honest product?***
+*The durable record of every research program in the base. It opened with one question —
+**does an active mean-reversion engine beat a simple static allocation, and if not, what is the
+honest product?** — answered it (no, and a static mix), and has grown into the programs mapped
+below. The rest of this file is the complete record of that opening program and its
+execution-risk sequel; the newer programs are indexed here and recorded in their own documents.*
+
+## Programs at a glance
+
+| Program | Documents | Recorded state |
+|---|---|---|
+| Active vs static allocation (studies 1–15) | `D6_active_vs_6040_study.md` … `D6_tips_sleeve_study.md`; this file, below | Closed; adversarially verified; verdict `D6` |
+| Execution risk in leveraged ETFs (studies 16–69) | `D6_overnight_gap_risk_study.md`, `D6_execution_semantics_study.md`, the `D6_*_audit.md` runtime audits | 54 studies; forward hypothesis frozen (`F58`–`F62`); runtime requirements `F79`–`F104` |
+| Public investment intelligence | [`PUBLIC_INVESTMENT_INTELLIGENCE_FRONTIER.md`](PUBLIC_INVESTMENT_INTELLIGENCE_FRONTIER.md), [`EVENT_INTELLIGENCE_FRONTIER_2026.md`](EVENT_INTELLIGENCE_FRONTIER_2026.md), `FD00_*`, `IX00_*`/`IX01_*`, `CA00_*`/`CA01_*`/`CA_*`, `LF01_*`, `FORM4_POP_*`, `DI01_*`, `PN00_*` | Active charter; source contracts and reviewed seeds; one clean negative pilot (PN-00); no alpha claims |
+| Discount mechanisms (CEF, metal trusts, mREITs, BDCs) | `CEF_*`, `H404702_*`, `O4_*`, `METAL_TRUST_*`, `MREIT_*`, `BDC_*`, `SLEEVE_BREAK_EVEN_PROTOCOL.md` | Under the admission gate (`prereg/`, `refutations/`, `forward_watch/`) |
+| Event and corporate-finance protocols | [`DAILY_STRATEGIES.md`](DAILY_STRATEGIES.md), `SPINOFF_*`, `BUYBACK_*`, `MERGER_ARB_*`, `INDEX_DELETION_*`, `INSIDER_CLUSTERS_*`, `EARNINGS_PREMIUM_*`, `FALLEN_ANGEL_*`, `CREDIT_SLEEVE_*`, `ATM_*`, `LEVERED_TREND_*`, `MICROCAP_*`, `RISKY_PICKS_*` | Protocols frozen before data; results recorded as each closes |
+| Commodity linkage and miner tilt | `COMMODITY_LINKAGE_*`, `MINER_TILT_*`, `CORRELATION_IDEA_ATLAS_100_2026.md` | Discovery atlas → confirmation → replication and pre-period protocols; forward watch |
+| Biotech catalysts | `BIOCAT_*` | Source contracts and feasibility pilots |
+| Screener, lenses, tone | `SCREENER_*`, `AI_SHADOW_DEBT_LENS_2026.md`, `OFF_BALANCE_SHEET_DEBT_QUANT_2026.md`, `SOVEREIGN_LEDGER_*`, [`../TONE_LEDGER.md`](../TONE_LEDGER.md) | Live on the public site; vendor data kept local |
+| Epistemics of the corpus | `EPI00_*`, `NUM00_*`, `REPRO00_*`, `CTX_*`, `CONFIG_*`/`COLUMN_*` censuses, `F*_*` provenance re-derivations, `reeval/`, `DEFLATION_RULE_QUESTION.md` | Audited and guarded; open questions marked for decision debate |
+
+Governance directories: [`prereg/`](prereg/README.md) (frozen pre-registrations),
+[`trials/`](trials/README.md) (hash-chained trial ledger), `refutations/` (objections and
+board rulings), `forward_watch/` (frozen forward records and the multiplicity policy),
+[`reeval/`](reeval/README.md) (re-evaluation of pre-gate findings), [`data/`](data/README.md)
+(content-addressed datasets and their redistribution terms), `proposals/` (edits to fenced files
+awaiting sign-off), `reviews/` (session reviews and handoffs). The workflow that threads them
+together is in [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md).
+
+---
+
+## The opening program: active vs static, and its execution-risk sequel
 
 This directory is the durable record. Each study is a deterministic, leak-free tool
 (`tools/*_study.py`) + a standalone writeup, cross-linked to the `RESEARCH_WEB.md` idea graph

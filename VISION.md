@@ -90,9 +90,9 @@ it killed its own darlings* is a tool.
 
 ---
 
-## Why the no-edge result matters
+## Why the no-edge result is the proof of concept
 
-MONAD's own active hourly strategy **failed honest validation**: it has no risk-adjusted
+MONAD's own active hourly strategy **did not survive honest validation**: it has no risk-adjusted
 edge over a trivial static allocation, the headline Sharpe 25–94 was a **morning-only
 sampling artifact**, and the live bot is **flat** (`RESEARCH_WEB.md`: **D6 / F13 / F43**).
 
@@ -108,7 +108,11 @@ and supersession discipline did exactly that — to the author's own strategy, w
 - "Our flagship strategy doesn't beat 60/40" is not embarrassing — it is the strongest
   possible demonstration that the evidence layer is honest.
 
-If you are evaluating MONAD as a *research foundation*, the no-edge verdict is the feature.
+If you are evaluating MONAD as a *research foundation*, the no-edge verdict is the feature —
+and it is one closed program among several. The base has since grown programs on execution
+risk, public-information event labs (SEC filings, index events, corporate actions), discount
+mechanisms, commodity linkages, and the epistemics of the corpus itself; the
+[README](README.md#research-programs) maps them.
 
 ---
 

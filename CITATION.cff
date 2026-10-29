@@ -1,0 +1,38 @@
+cff-version: 1.2.0
+message: >-
+  If you use this research base — its evidence graph, a study, a dataset manifest, or the
+  Context Kit — please cite it. Cite individual findings by their node ID (for example F46)
+  together with the study document that carries them, so the citation survives supersession.
+title: "MONAD Quant: an open quantitative finance research base"
+type: software
+authors:
+  - name: "huthargrave-lang and the MONAD Quant contributors"
+repository-code: "https://github.com/huthargrave-lang/MONAD-quant"
+url: "https://huthargrave-lang.github.io/MONAD-quant/"
+license: MIT
+version: "2026.10"
+date-released: "2026-10-29"
+keywords:
+  - quantitative finance
+  - reproducible research
+  - evidence graph
+  - knowledge graph
+  - asset allocation
+  - market microstructure
+  - execution risk
+  - leveraged ETFs
+  - SEC filings
+  - corporate actions
+  - closed-end funds
+  - negative results
+  - pre-registration
+abstract: >-
+  MONAD Quant is a typed, append-only evidence graph of reproducible quantitative finance
+  studies — on asset allocation, execution risk in leveraged ETFs, SEC filings and corporate
+  actions, closed-end-fund discounts, commodity linkages, and the epistemics of research
+  itself — together with the governance machinery that keeps the claims honest
+  (pre-registration, a hash-chained trial ledger, refutation and admission gates, forward
+  watches) and a stdlib-only Context Kit that agents and humans query instead of reading the
+  repository. A long-only mean-reversion trading engine ships with it as the reference test
+  bench the methodology was built on; the base's flagship result is the verified negative
+  that this engine has no risk-adjusted edge over a static allocation.
