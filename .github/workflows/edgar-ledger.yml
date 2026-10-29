@@ -1,0 +1,155 @@
+name: EDGAR ledger
+
+# The accession-scoped, append-only EDGAR ledger (docs/EDGAR_LEDGER.md; design record
+# docs/research/EDGAR_LEDGER_QUESTION.md; code src/research/edgar_ledger.py). It runs HERE
+# because the research sandbox cannot reach sec.gov and the Pi is not a ledger pusher
+# (docs/TONE_LEDGER.md). SEC filings are public-domain, so — unlike the Yahoo panels — what
+# this job writes may be committed. It writes to the dedicated `edgar-ledger` branch, never
+# to development (the tone ledger's reasoning: no self-trigger loop, no spurious CI runs;
+# test.yml fires on [main, development, claude/**, fix-**] only, so a push here triggers
+# nothing). Branch protection on development is the barrier, not the token.
+#
+# A separate workflow, not a step of pages.yml: a ledger must neither gate nor be gated by
+# the site deploy, and pages.yml's one-schedule-per-decision rule holds for each file.
+#
+# FAIL-CLOSED, in this order:
+#   1. The first run only CREATES the branch with a README (a copy of docs/EDGAR_LEDGER.md).
+#      It is the one permitted pre-probe write. `verify --against origin/edgar-ledger` cannot
+#      resolve a merge-base for a branch that does not exist yet, so the bootstrap run checks
+#      shards only; from the second run `--against` is mandatory.
+#   2. The daily job writes nothing but that README until a probe_summary with P0 = PASS
+#      (zero 403/429 from this runner) and a decided header source (P1) is COMMITTED on the
+#      branch. Until then it exits 0 with a ::warning:: and `verify --report-gaps` counts the
+#      probe-less days. The operator dispatches mode=probe, reads the summary, then
+#      mode=fsds; the schedule picks up `daily` on its own.
+#   3. `verify` runs BEFORE the push and is NOT continue-on-error (unlike the tone ledger's
+#      best-effort steps): a shard problem or an append-only violation fails the job, so no
+#      edited or deleted row is ever pushed.
+#
+# 07:17 UTC: 03:17 ET in summer, 02:17 ET in winter — EDGAR's business day ends at 22:00 ET,
+# so yesterday's daily index is final. :17 rather than :00 to dodge GitHub's on-the-hour
+# scheduling queue. Every day: `plan_days` enumerates ET weekdays itself, so a weekend run
+# finds nothing to do and a missed weekday is caught up (capped at 10 days a run; the rest
+# rolls forward and is reported).
+#
+# Secrets: SEC_USER_AGENT — the fair-access contact ("name you@your-domain"). The tool
+# refuses a value without an "@" or at an RFC 2606 reserved domain, so a run without the
+# secret fails before its first request. Requests are spaced at 0.25 s (<= 4/s against the
+# SEC's 10/s cap) with bounded backoff.
+#
+# NOT solved here: GitHub disables scheduled workflows after 60 days without repository
+# activity. Daily pushes to edgar-ledger ARE repository activity once the probe passes;
+# before that, the README-only branch is idle and the operator's dispatch is the activity.
+
+on:
+  schedule:
+    - cron: "17 7 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "probe (Step 0) | fsds (slice 1) | daily (slice 2) | sweep (monthly) | verify"
+        required: true
+        default: daily
+        type: choice
+        options: [probe, fsds, daily, sweep, verify]
+      quarter:
+        description: "YYYYQn for probe / fsds / sweep, e.g. 2024Q1"
+        required: false
+        default: ""
+      n:
+        description: "probe sample size (accessions)"
+        required: false
+        default: "500"
+
+permissions:
+  # write, for exactly one thing: rows pushed to the edgar-ledger branch. No pages, no
+  # id-token: this job publishes nothing. contents:write is repo-wide and cannot be narrowed
+  # to a branch, which is why tests/test_edgar_ledger_workflow.py pins every `git push`
+  # here to edgar-ledger and the barrier on development is branch protection.
+  contents: write
+
+concurrency:
+  group: edgar-ledger
+  cancel-in-progress: false
+
+jobs:
+  ledger:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Stdlib only: src/research/edgar_ledger.py imports nothing third-party, and this job
+      # must never grow a fetcher for a vendor whose data may not be published (no yfinance).
+
+      - name: Check out or bootstrap the edgar-ledger branch
+        id: ledger
+        env:
+          REMOTE: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code "$REMOTE" edgar-ledger; then
+            git clone --depth 1 --branch edgar-ledger "$REMOTE" ledger
+            echo "bootstrap=false" >> "$GITHUB_OUTPUT"
+          else
+            # README-only first commit: the one permitted pre-probe write.
+            mkdir ledger && cd ledger
+            git init -b edgar-ledger
+            git remote add origin "$REMOTE"
+            cp ../docs/EDGAR_LEDGER.md README.md
+            git add README.md
+            git -c user.name=monad-edgar-ledger -c user.email=actions@github.com \
+                commit -m "edgar-ledger: bootstrap (README only; no data row until a probe passes)"
+            echo "bootstrap=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run the mode
+        # Skipped on the branch-creating run: that run is README-only by design.
+        if: steps.ledger.outputs.bootstrap == 'false'
+        env:
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+          MONAD_EDGAR_LEDGER_DIR: ${{ github.workspace }}/ledger/data/edgar_ledger
+          MODE: ${{ github.event.inputs.mode || 'daily' }}
+          QUARTER: ${{ github.event.inputs.quarter }}
+          N: ${{ github.event.inputs.n || '500' }}
+        run: |
+          set -euo pipefail
+          case "$MODE" in
+            probe)  python tools/edgar_ledger.py probe --quarter "$QUARTER" --n "$N" ;;
+            fsds)   python tools/edgar_ledger.py fsds --quarter "$QUARTER" ;;
+            sweep)  python tools/edgar_ledger.py sweep --quarter "$QUARTER" ;;
+            daily)  python tools/edgar_ledger.py daily ;;
+            verify) python tools/edgar_ledger.py verify --report-gaps ;;
+            *) echo "unknown mode: $MODE" >&2; exit 2 ;;
+          esac
+
+      - name: Verify the ledger (shards always; append-only history from the second run)
+        # NOT continue-on-error: a failure here fails the job and nothing is pushed.
+        env:
+          MONAD_EDGAR_LEDGER_DIR: ${{ github.workspace }}/ledger/data/edgar_ledger
+          BOOTSTRAP: ${{ steps.ledger.outputs.bootstrap }}
+        run: |
+          set -euo pipefail
+          if [ "$BOOTSTRAP" = "true" ]; then
+            python tools/edgar_ledger.py verify
+          else
+            python tools/edgar_ledger.py verify --against origin/edgar-ledger --report-gaps
+          fi
+
+      - name: Commit and push to edgar-ledger
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          cd ledger
+          git add -A data/edgar_ledger 2>/dev/null || true     # absent before the first probe
+          git -c user.name=monad-edgar-ledger -c user.email=actions@github.com \
+              commit -m "edgar-ledger: $(date -u +%Y-%m-%dT%H:%MZ) run ${RUN_NUMBER}" \
+            || true   # nothing new (a probe-less daily run) is a fine outcome
+          # Re-append on a fresh head if another run pushed between clone and now —
+          # never rebase the conflicting commit, just retry once on the new tip.
+          git push origin edgar-ledger \
+            || (git pull --rebase origin edgar-ledger && git push origin edgar-ledger)
