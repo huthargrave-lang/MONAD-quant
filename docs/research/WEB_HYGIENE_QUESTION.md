@@ -168,3 +168,21 @@ no current F/D resolves. `research_backlog` and `ctx` agree on 37 raw resolved t
    collapse it to a count ratchet on that set only.
 3. The schema owner preferring `status: resolved` as a first-class value → `schema_version 0.2`.
 4. The owner wanting D4/D5/D10 off the list → the `note.py close` verb.
+
+## Tier 3 applied (2026-10-29, by delegation)
+
+The owner delegated the directions work ("run decision debate on any materials as you see fit")
+on 2026-10-29, so the two gate supersessions the debate reserved for owner ratification were
+applied in the same pass, owner-amendable by `note.py supersede` reversal:
+
+- `D1` (edge go/no-go: "don't kill it — reframe it as capital preservation") superseded by `D6`,
+  reason `reversed` — D6 is the gate that overtook it. Chain: `link F6 D6 relates`,
+  `link F22 D6 relates`, `supersede D1 --by D6 --reason reversed`.
+- `D3` (noise-ratio instrument rule; QQQ/SPY as first-class candidates) superseded by `D6`,
+  reason `decayed`. Chain: `link F7 D6 relates`, `link H2 D6 relates`,
+  `supersede D3 --by D6 --reason decayed`.
+
+Every write was lint-gated (0 problems); `tests/test_research_web.py`'s pending pin moved from
+D1 to D2 and now asserts D1/D3 are absent. Measured: pending 63 → **61**; 604 nodes, 19
+superseded. Still owner-only: the `context_map.json` bridges for D8 and H14 (DENY-fenced) and a
+`note.py close` title verb.

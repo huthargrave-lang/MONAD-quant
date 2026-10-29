@@ -53,6 +53,7 @@ the train boundary (full warmup, no look-ahead). Lives in [[E3]].
 TQQQ is +0.18%/mo but robustness ([[E4]]) shows it only clears significance on the default
 split (pooled t≈2.1), **collapses to t=0.37 on recent-only data**, second-half t=1.03, and
 has a losing fold. The live paper deployment is on a fragile, leveraged instrument. → [[D1]], [[D3]].
+Links: [[D6|relates]].
 
 ### F7 — THE MECHANISM: stop-vs-intrabar-noise ratio drives win rate
 domain: monad_strategy
@@ -62,6 +63,7 @@ The same fixed ~0.7% stop is used on every instrument; the edge difference is en
 SPY **17%** (stop outside noise → fires only on genuine adverse moves). Across 7 instruments
 `corr(stop_frac, WR) = −0.97`, `corr(noise_ratio, Sharpe) = +0.72`. Win/loss magnitudes and
 R:R are ~identical across instruments — the edge is FEWER noise-stops, not bigger wins. Source: [[E6]]. Drives [[D3]].
+Links: [[D6|relates]].
 
 ### F8 — [SUPERSEDED by F13] The QQQ edge is a signal property, not an optimizer artifact
 <!-- status: superseded; by: F13; reason: inverted; conf: 0.2 -->
@@ -156,6 +158,7 @@ Originally closed YES on the noise-ratio mechanism [[F7]] plus SPY/IWM corrobora
 there was no edge to generalize. The corroborating finding [[F9|relates]] is superseded, and
 this YES no longer stands — [[F22]] later found no risk-adjusted edge at any timescale. The
 mechanism [[F7]] survives as an explanation of *relative* stop-vs-noise behaviour. → [[D3]].
+Links: [[D6|relates]].
 
 ### H3 — RESOLVED: edge can be cheaply lifted (ATR stops / entry quality)? → NO
 Lever test ([[E5]]): ATR-1.5× helps QQQ marginally (Sh 3.74→4.09) but HURTS TQQQ (2.17→1.30)
@@ -230,6 +233,7 @@ incl. 2022 bear) is in progress via a research agent — the decisive long-histo
 ## Decisions / Gates
 
 ### D1 — Edge go/no-go (roadmap gate #1) — UPDATED
+<!-- status: superseded; by: D6; reason: reversed; at: 2026-10-29 -->
 Net edge is ~0.2–0.34%/mo OOS — below the ~0.5%/mo income threshold, so this is NOT an income
 engine. BUT it is a **genuine, structurally-explained, near-zero-drawdown high-Sharpe vehicle on
 the right instrument** ([[F3]], [[F4]], [[F7]], [[F8]], [[F9]]) — exactly the "bond-ETF alternative"
@@ -250,6 +254,7 @@ Make the sweep select on rolling-origin OOS, not single-split holdout ([[H4]]). 
 ([[E4]] shows the lens is stable). Needs a design pass on integration with the 5-phase sweep.
 
 ### D3 — Adopt the noise-ratio instrument rule; make QQQ/SPY first-class candidates
+<!-- status: superseded; by: D6; reason: decayed; at: 2026-10-29 -->
 Actionable design rule from [[F7]]: **only deploy this signal where `stop_pct` > median intraday
 bar range (noise_ratio > 1)**. Concretely: (1) run full sweeps on QQQ + SPY (+ IWM check) as
 production candidates; (2) build the screener [[E8]] to apply the rule to a wider universe; (3) do
@@ -377,6 +382,7 @@ hourly arc ([[F13|relates]]): a flattering backtest number that doesn't survive 
 benchmark. Refines [[F21|refines]] and [[D5|refines]]; bears on the go/no-go [[D1|drives]], [[D4|drives]].
 Directly disputes the "edge is REAL at ~3 bars/day" framing ([[F15|contradicts]]): the per-instrument
 3/day Sharpe doesn't survive as a portfolio held against an equal-weight buy&hold of the same assets.
+Links: [[D6|relates]].
 
 ### E12 — Go/no-go: active daily-MR vs static blends (head-to-head)
 tools/mr_daily_lab.py gonogo — 2014-2026 cached data. The D5 equal-weight daily-MR portfolio (QQQ/SPY/IWM/DIA/GLD, dip + 5d horizon + 200d gate) scores Sharpe 0.69 / 6.2%/yr / -13.9% DD, vs static 50/50 equity/cash (Sharpe 0.80), static 60/40 equity/bond via IEF (0.86), and 100% buy&hold (0.80). The 20-day block bootstrap of (active - static-50/50) Sharpe diff is [-0.41, +0.48] — straddles zero (within noise). Extends the OOS test.
@@ -389,6 +395,8 @@ Decisive comparison (E12): the active daily-MR engine shows NO DEMONSTRATED ADVA
 Links: [[E12|evidenced_by]] · [[F22|builds_on]] · [[D5|refines]] · [[D4|refines]] · [[F24|relates]] · [[F25|relates]] · [[F26|relates]] · [[E25|evidenced_by]] · [[E26|evidenced_by]].
 _— captured claude/strategy-go-nogo@54e6637, 2026-06-22 (updated development@c9a20a8, 2026-06-25)_
 
+Supersedes [[D1|supersedes]].
+Supersedes [[D3|supersedes]].
 ### F23 — Per-mode RSI period + MACD windows never reach the entry signal (code bug)
 momentum_signal() (src/signals/momentum.py:38-39) recomputes RSI and MACD with HARDCODED defaults (RSI 14, MACD 12/26/9), ignoring the per-mode RSI_PERIOD_*/MACD_* config that add_momentum_features is handed (it uses them only for the stored rsi/macd_hist columns). Proven empirically: momentum_signal is byte-identical for period 7 vs 14 while stored rsi/macd_hist differ. The live trader rides this exact path (live/signals.py:95 -> build_features -> add_momentum_features -> momentum_signal), so the armed bot trades on RSI-14 / MACD-12-26-9 regardless of config. The config's '# DEAD LEVER (robust to window changes)' comments are empirically correct but MISATTRIBUTED: the cause is this code path, not market structure. Only the RSI oversold/overbought THRESHOLDS are threaded through and effective. Fixing changes live entries AND invalidates every prior sweep tuned with the bug present -> needs re-sweep + sign-off with the trader stopped, not a unilateral edit. Relates to [[D4]].
 Links: [[D4|relates]].
