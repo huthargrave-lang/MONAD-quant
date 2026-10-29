@@ -34,6 +34,14 @@ drops), and they fail if it ADVANCES past the finding (an artifact reaches 9/9, 
 identity or the trial registry becomes common, or the clock rules gain a production
 consumer) — each with a message saying to re-run the audit and supersede, because a gate
 that quietly starts passing is as stale as one that quietly starts failing.
+
+**2026-10-29: the clock rules gained their production consumer.** The EDGAR ledger (D-2,
+`docs/research/EDGAR_LEDGER_QUESTION.md`, F297802) built `tradable_time(filing)` in
+`src/research/edgar_ledger.py` — PT-01's "one function, one consumer" — and its test module
+runs all seven timestamped FD-00 fixtures through the production parser. The two guards
+that pinned the ABSENCE now pin the new state exactly: one production function, in that
+file; two test readers of the fixture. The 6-of-9 provenance ground is unchanged and still
+holds, so H44's first gate is re-evaluated on that ground alone (see the study's dated note).
 """
 import json
 import re
@@ -212,19 +220,26 @@ class TheClockRulesHaveNoProductionConsumerTests(unittest.TestCase):
                          if p.name != Path(__file__).name
                          and FD00 in p.read_text(encoding="utf-8"))
         self.assertEqual(
-            readers, ["test_sec_clock_cross_fixture.py"],
-            "the set of files reading FD-00's fixtures changed: {}".format(readers))
+            sorted(readers), ["test_edgar_ledger.py", "test_sec_clock_cross_fixture.py"],
+            "the set of files reading FD-00's fixtures changed: {} — until 2026-10-29 only "
+            "the cross-fixture test read it; the EDGAR ledger's tests now run the fixtures "
+            "through the production parser (F297802)".format(readers))
 
-    def test_there_is_no_tradable_time_function_anywhere(self):
+    def test_exactly_one_tradable_time_function_exists_and_it_is_the_edgar_ledger(self):
+        """Inverted on 2026-10-29. Until then this asserted that NO tradable-time function
+        existed anywhere (PT-01's second ground for failure). The EDGAR ledger built it
+        (F297802; docs/research/EDGAR_LEDGER_QUESTION.md). The guard now pins the advance:
+        exactly one production implementation, so a second one would be the divergent-stack
+        pattern F153 found in the metric code."""
         hits = []
         for area in ("src", "tools"):
             for path in (ROOT / area).rglob("*.py"):
                 if re.search(r"def \w*tradable_time\w*\(", path.read_text(encoding="utf-8")):
                     hits.append(path.relative_to(ROOT).as_posix())
         self.assertEqual(
-            hits, [],
-            "a tradable-time function exists now ({}) — PT-01's missing parser was "
-            "built; re-evaluate the gate".format(hits))
+            sorted(hits), ["src/research/edgar_ledger.py"],
+            "the tradable-time implementations are {} — PT-01 wants ONE function with ONE "
+            "consumer; if it moved or a second appeared, re-run the audit".format(hits))
 
 
 class TheStudyRecordsTheVerdictTests(unittest.TestCase):
