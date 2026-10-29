@@ -773,9 +773,18 @@ class TheRollupExclusionTests(unittest.TestCase):
         # 31 since 2026-10-06: docs/research/DAILY_STRATEGIES.md is a genuine roll-up (its
         # results table cites 16 findings across five domains), correctly excluded. The
         # cap guards against single-subject STUDIES being swallowed, which that is not.
+        # 35 since 2026-10-29: the directions pass added four more genuine roll-ups —
+        # three decision-debate records (WEB_HYGIENE_QUESTION.md, 79 cites;
+        # DECOMMISSION_TRADER_QUESTION.md, 13; FORWARD_ROUTE_PROPOSAL.md crossed the
+        # limit at 9 with its RATIFIED section) and tests/test_web_hygiene.py (66), a
+        # guard over many nodes. None is a single-subject study.
         self.assertIn("docs/research/DAILY_STRATEGIES.md", self.rollups)
+        for rel in ("docs/research/WEB_HYGIENE_QUESTION.md",
+                    "docs/research/DECOMMISSION_TRADER_QUESTION.md",
+                    "tests/test_web_hygiene.py"):
+            self.assertIn(rel, self.rollups, "{} is no longer excluded as a roll-up".format(rel))
         self.assertLessEqual(
-            len(self.rollups), 31,
+            len(self.rollups), 35,
             "{} files are now excluded as roll-ups — either the corpus changed shape or "
             "the cutoff is swallowing real studies".format(len(self.rollups)))
 

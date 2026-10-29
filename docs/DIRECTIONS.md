@@ -117,6 +117,29 @@ with the least evidence at stake.
 
 ---
 
+## 3b. Status after the 2026-10-29 pass (decision debates run, by delegation)
+
+On 2026-10-29 the owner delegated the directions work ("run decision debate on any materials as
+you see fit; you have permission to modify Pi runtime; address all six directions"). Each
+direction was put through the repo's decision-debate format (one proposer, one independent
+skeptic, DISPUTE/CONCUR rounds); every debate reached CONCUR in round 2 with named fixes, and
+the ratified design was implemented and verified in an isolated worktree before commit. The
+debate records live beside the earlier ones in `docs/research/`.
+
+| Direction | Debate record | Landed | Owner-only remainder |
+|---|---|---|---|
+| D-1 Forward evidence | `FORWARD_ROUTE_PROPOSAL.md` (RATIFIED section) · `D297801` | `policy/route.2.json` supersedes `route.json` (byte-identical) with a freeze ledger; budget 1.0 pp, founders α/3 each (ln 48); engine/report/verify read the chain; `deploy/monad-forward-{watch,log}.*` + `ops/forward_watch_cycle.sh` push the records to a `forward-ledger` branch | `attest-evaluator` both watches (private store); **`forward_watch.py fetch H366201` daily from today**; install the two timers on the Pi; weekly PR `forward-ledger` → `development`; the `admit_watch` chain before ~2029-01 |
+| D-2 Data substrate | `EDGAR_LEDGER_QUESTION.md` · `D297802`/`F297802` | `src/research/edgar_ledger.py`, `tools/edgar_ledger.py`, 71 offline tests, `.github/workflows/edgar-ledger.yml`, `docs/EDGAR_LEDGER.md`; probe → FSDS extract → forward-only header ledger, fail-closed at bootstrap and before push | add the `SEC_USER_AGENT` secret; dispatch `mode=probe quarter=2024Q1 n=500`; read `probe_summary`; dispatch `mode=fsds`; the daily schedule writes nothing until a passing probe is committed |
+| D-3 Decommission | `DECOMMISSION_TRADER_QUESTION.md` · `D297800`/`F297801` | commit A: `ops/decommission_trader.sh`, tracked marker `ops/DECOMMISSIONED.json`, preflight check 11, start/install guards, `ops/export_stop_exits.py`, OPERATIONS §6.1 revival condition, the (g) amendment (prior 5 bps, 3× stress, prospective) | run the script on the Pi (exit 75 = not flat, rerun); commit the sanitized archive + `pi_export_2026-06-26` + receipt; then commit B (fenced `ops/systemd` headers, `context_map.json` routing) |
+| D-4 Web hygiene | `WEB_HYGIENE_QUESTION.md` | `--pending` honours `resolves` from current, uncontradicted F/D (direction enforced in `note.py`); frozen closed-set ratchet; Tier 1 retypes; Tier 3 superseded D1/D3 by D6; pending **89 → 61**; three re-evaluation decisions recorded | `context_map.json` bridges for D8/H14; a `note.py close` title verb; the remaining 14 market-tier re-evaluations |
+| D-5 Publication gate | (no debate needed) | `pages.yml` builds only after a green Tests run on `development`; pinned by test | none |
+| D-6 Portability | `debate_seam_*` (scratchpad) → slice 1a | deterministic `graph --json`/`--html` across hash seeds; `contract: ctx.graph/1` + `schema_version` on the CLI JSON with a contract test; fresh-repo probe test; CONTEXT_KIT "lift it in 5 minutes" | slice 1b (three-layer CORE/ENGINE/RIM API tuples from an AST scan, spoken-absence manifest default + UNSCAFFOLDED health, SCHEMA dict with derived regexes, `--repo`), specified in the seam debate's round-2 record |
+
+Not done, by the fence or the sandbox: nothing on the Pi itself (unreachable from the session;
+every runtime change is repo content the Pi applies), nothing needing vendor data or the private
+store, and the `context_map.json` edits other than the EDGAR area/routing claim (made under the
+owner's instruction and labelled in its commit).
+
 ## 4. Sequencing
 
 | When | What | Owner decision |
