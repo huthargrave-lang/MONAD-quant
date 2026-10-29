@@ -48,12 +48,12 @@ for x in (hx0 - hl / 2, hx0 + hl / 2):
     ax.plot(np.full_like(th, x), rh * np.sin(th), rh * np.cos(th), color=INK2, lw=0.7, alpha=0.5)
 for t in np.linspace(0, 2 * np.pi, 9)[:-1]:
     ax.plot([hx0 - hl / 2, hx0 + hl / 2], [rh * np.sin(t)] * 2, [rh * np.cos(t)] * 2, color=INK2, lw=0.5, alpha=0.35)
-ax.set_xlim(-35, 45); ax.set_ylim(-55, 45); ax.set_zlim(-10, 105)
+ax.set_xlim(-35, 45); ax.set_ylim(-50, 40); ax.set_zlim(-10, 105)
 ax.set_box_aspect((80, 100, 115), zoom=1.55)
 ax.view_init(elev=18, azim=-140)
 ax.set_axis_off()
-ax.set_title("Blade on a 3 in hub (wireframe)", loc="left", pad=0)
-ax.text2D(0.02, 0.02, "flow enters from the left (-X)\nNACA 4422 root → NACA 4412 tip, 0.6 mm trailing edge", transform=ax.transAxes, color=INK2, fontsize=8)
+ax.set_title("Blade on the 2 in hub (wireframe)", loc="left", pad=0)
+ax.text2D(0.02, 0.02, "flow enters from the left (-X)\nNACA 4422 root → NACA 4414 tip, 0.8 mm trailing edge", transform=ax.transAxes, color=INK2, fontsize=8)
 
 # ---- rotor front view (looking downstream along +X) ---------------------------------
 af = fig.add_subplot(gs[1, 0], facecolor=SURFACE)
@@ -82,17 +82,23 @@ a1.legend(["chord", "max thickness"], frameon=False, loc="upper right", fontsize
 
 # ---- twist --------------------------------------------------------------------------
 a2 = fig.add_subplot(gs[0, 2]); style(a2, "Twist (chord angle from rotor plane)", "radius r (mm)", "degrees")
-a2.plot(r, twist, color=S1, lw=2); a2.set_xlim(spec["hub_radius_mm"] - 5, 105); a2.set_ylim(8, 24)
+a2.plot(r, twist, color=S1, lw=2); a2.set_xlim(spec["hub_radius_mm"] - 5, 105); a2.set_ylim(8, twist.max() + 3)
 a2.text(r[0] + 2, twist[0] - 0.2, f"{twist[0]:.1f}° at root", color=INK, fontsize=8, va="top")
 a2.text(r[-1] - 1, twist[-1] + 0.6, f"{twist[-1]:.1f}° at tip", color=INK, fontsize=8, ha="right")
 
-# ---- Cp vs TSR -------------------------------------------------------------------
+# ---- Cp vs TSR (Reynolds-dependent, so one curve per water speed) ---------------------
 a3 = fig.add_subplot(gs[1, 1]); style(a3, "Power coefficient vs tip-speed ratio (BEM)", "tip-speed ratio λ = ωR / V", "Cp")
-tsr = np.array(spec["cp_curve"]["tsr"]); cp = np.array(spec["cp_curve"]["cp"])
-m = (tsr >= 1.0) & (cp > 0)
-a3.plot(tsr[m], cp[m], color=S1, lw=2); a3.set_xlim(1, 7); a3.set_ylim(0, 0.65)
-j = int(np.argmax(cp)); a3.plot([tsr[j]], [cp[j]], "o", color=S1, ms=7, mec=SURFACE, mew=2)
-a3.annotate(f"peak Cp {cp[j]:.2f} at λ = {tsr[j]:.2f}", (tsr[j], cp[j]), xytext=(tsr[j] + 0.3, cp[j] + 0.07), color=INK, fontsize=8)
+tsr = np.array(spec["cp_curve"]["tsr"])
+handles = []
+for V, col in zip(["1.0", "1.5", "2.0"], [S1, S2, S3]):
+    cp = np.array(spec["cp_curve"][f"cp_{V}"]); m = (tsr >= 1.0) & (cp > 0)
+    handles += a3.plot(tsr[m], cp[m], color=col, lw=2)
+    j = int(np.argmax(cp))
+    if V == "1.5":
+        a3.plot([tsr[j]], [cp[j]], "o", color=col, ms=7, mec=SURFACE, mew=2)
+        a3.annotate(f"peak Cp {cp[j]:.2f} at λ = {tsr[j]:.2f} (1.5 m/s)", (tsr[j], cp[j]), xytext=(tsr[j] + 0.3, cp[j] + 0.09), color=INK, fontsize=8)
+a3.set_xlim(1, 7); a3.set_ylim(0, 0.65)
+a3.legend(handles, ["1.0 m/s", "1.5 m/s", "2.0 m/s"], frameon=False, loc="lower left", fontsize=8)
 a3.axhline(16 / 27, color=GRID, lw=1, ls="--"); a3.text(1.1, 16 / 27 - 0.035, "Betz limit 0.59", color=INK2, fontsize=7)
 
 # ---- power vs rpm ---------------------------------------------------------------
@@ -103,9 +109,9 @@ for V, col in zip(["1.0", "1.5", "2.0"], [S1, S2, S3]):
     a4.plot(rpm[mm], P[mm], color=col, lw=2)
     k = int(np.argmax(P)); a4.text(rpm[k] + 10, P[k] + 0.8, f"{V} m/s", color=INK, fontsize=8)
 a4.legend(["1.0 m/s", "1.5 m/s", "2.0 m/s"], frameon=False, loc="upper left", fontsize=8)
-a4.set_xlim(0, 950); a4.set_ylim(0, 48)
+a4.set_xlim(0, 1000); a4.set_ylim(0, 56)
 
 fig.suptitle("Water turbine blade — 8 in diameter, 3 in wide, designed for 1–2 m/s flow", x=0.03, ha="left", fontsize=13, fontweight="bold", color=INK)
-fig.text(0.03, 0.925, "Blade-element-momentum design with Prandtl tip/hub loss; NACA 44xx polar model (approximate, not CFD).", color=INK2, fontsize=9)
+fig.text(0.03, 0.925, "Blade-element-momentum design with Prandtl tip/hub loss and a Reynolds-dependent NACA 44xx polar model (approximate, not CFD). Independently reviewed - see REVIEW.md.", color=INK2, fontsize=9)
 fig.savefig(os.path.join(OUT, "blade_preview.png"), dpi=150, facecolor=SURFACE)
 print("wrote blade_preview.png")

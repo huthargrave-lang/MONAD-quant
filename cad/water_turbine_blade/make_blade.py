@@ -34,30 +34,44 @@ IN = 25.4
 D_IN = 8.0
 R = D_IN / 2 * IN              # 101.6 mm tip radius
 C_MAX = 3.0 * IN               # 76.2 mm max chord ("3 in wide")
-R_HUB = 1.5 * IN               # 38.1 mm hub radius (3 in hub, hub ratio 0.375)
-R_ROOT_EXT = 32.0              # root stub extends 6 mm inside the hub for a clean union
-ROOT_TAPER = 0.80              # root chord / max chord
-TAPER_START = 0.55             # root taper blends in from this fraction of the tip radius
+R_HUB = 1.0 * IN               # 25.4 mm hub radius (2 in hub, hub ratio 0.25)
+R_ROOT_EXT = R_HUB - 5.0       # root stub extends 5 mm inside the hub for a clean union
+ROOT_TAPER = 0.62              # root chord / max chord (root taper costs <0.002 Cp, review F5)
+PEAK_R = 0.42                  # fraction of tip radius where the chord is widest (3 in)
+ROOT_TWIST_ADJ = -2.5          # deg added to the twist at the hub (blends to 0 at 50 % R): keeps the thick root at positive alpha
+TIP_CHORD_FRAC = 0.50          # tip chord / chord at 90 % R after elliptical rounding
+TC_TIP = 0.14                  # thickness ratio outboard of 65 % R (thicker tip for printability)
+TC_ROOT = 0.22                 # thickness ratio at the hub
 B = 3                          # number of blades
 RHO = 1000.0                   # kg/m^3 fresh water
+NU = 1.14e-6                   # m^2/s kinematic viscosity, ~15 C water
+RE_REF = 1.5e5                 # Reynolds number at which the drag model is anchored
 V_DESIGN = 1.5                 # m/s  (middle of the 1-2 m/s band)
 V_LIST = [1.0, 1.5, 2.0]
-TE_THICK = 0.6                 # mm, blunt trailing edge (printable/machinable)
+TE_THICK = 0.8                 # mm, blunt trailing edge (two 0.4 mm FDM perimeters)
 PITCH_AXIS = 0.30              # fraction of chord on the radial stacking axis
 HUB_LEN = 2.0 * IN             # 50.8 mm hub length for the rotor file
-HUB_BORE = 10.0                # mm through-bore in the rotor file
+HUB_BORE = 10.0                # mm shaft bore in the rotor file (blind: enters from the downstream face)
+PIN_D = 3.2                    # mm cross-pin hole through hub and shaft (torque transmission)
+SET_SCREW_D = 3.3              # mm M4 tapping-size pilot holes for grub screws, 90 deg from the pin
+NOSE_LEN = 28.0                # mm ellipsoidal nose cone on the upstream face
 N_STATIONS = 26
 N_PTS = 60                     # points per airfoil surface
 
 # ------------------------------------------------------- airfoil polar ----
-def polar(alpha, tc):
-    """Approximate NACA 44xx lift/drag at Re ~ 1e5-4e5 as a function of
-    thickness ratio tc.  Linear region + Viterna extrapolation past stall.
-    Design-level model (no CFD / XFOIL)."""
+def polar(alpha, tc, re=RE_REF):
+    """Approximate NACA 44xx lift/drag as a function of thickness ratio tc and chord
+    Reynolds number re.  Linear lift region + Viterna extrapolation past stall.
+    Anchored on XFOIL-class data at Re 1.5e5 (NACA 4412: Cd ~0.012 at alpha 0;
+    NACA 4422: ~0.018); zero-lift drag scales as (RE_REF/Re)^0.8 between 4e4 and 6e5,
+    which reproduces the published 1e5 -> 2e5 drag ratio of ~1.8 for these sections.
+    Design-level model (no CFD); see REVIEW.md."""
+    re = min(max(re, 4e4), 6e5)
+    re_fac = (RE_REF / re) ** 0.8
     a_deg = 0.100 - 0.125 * (tc - 0.12)          # lift slope per degree
     alpha0 = -4.0 + 8.33 * (tc - 0.12)           # zero-lift angle (deg)
-    clmax = 1.35 - 2.5 * (tc - 0.12)
-    cd0 = 0.011 + 0.05 * (tc - 0.12)
+    clmax = (1.35 - 2.5 * (tc - 0.12)) * min(max((re / RE_REF) ** 0.1, 0.85), 1.05)
+    cd0 = (0.0121 + 0.053 * (tc - 0.12)) * re_fac
     k = 0.015
     cdmax = 1.8
     al = math.degrees(alpha)
@@ -82,7 +96,6 @@ def polar(alpha, tc):
     if al > al_s:
         cl_s, cd_s = lin(al_s)
         return viterna(min(al, 89.0), al_s, cl_s, cd_s)
-    # negative stall: mirror about alpha0
     cl_s, cd_s = lin(al_sn)
     cl, cd = viterna(min(2 * alpha0 - al, 89.0), 2 * alpha0 - al_sn, -cl_s, cd_s)
     return -cl, cd
@@ -90,9 +103,9 @@ def polar(alpha, tc):
 
 # ------------------------------------------------------- blade design -----
 def tc_of_r(r):
-    """Thickness ratio: 22 % at the hub blending to 12 % at 65 % radius."""
+    """Thickness ratio: TC_ROOT at the hub blending to TC_TIP at 65 % radius."""
     s = np.clip((r - R_HUB) / (0.65 * R - R_HUB), 0, 1)
-    return 0.12 + (0.22 - 0.12) * 0.5 * (1 + np.cos(np.pi * s))
+    return TC_TIP + (TC_ROOT - TC_TIP) * 0.5 * (1 + np.cos(np.pi * s))
 
 
 def alpha_design(tc):
@@ -114,37 +127,33 @@ def stations():
     return R_HUB + (R - R_HUB) * t
 
 
-def design_blade(lam=None, dbeta=0.0):
-    """Chord/twist distribution.  Chord = Schmitz optimum shape at tip-speed ratio `lam`
-    (capped, root-tapered, tip-rounded) scaled so the widest point is exactly C_MAX;
-    twist = Schmitz inflow angle - design alpha + global pitch offset `dbeta` (deg).
-    If lam is None, lam is solved so the un-scaled Schmitz optimum is exactly C_MAX wide."""
+def design_blade(lam=5.4, dbeta=0.0):
+    """Chord/twist distribution.
+    Chord: outboard of PEAK_R the Schmitz optimum shape at tip-speed ratio `lam`, scaled so the
+    chord at PEAK_R is exactly C_MAX; inboard a smooth quadratic taper to ROOT_TAPER x C_MAX at the
+    hub; the two are blended with a tanh switch, then renormalised so max chord == C_MAX exactly;
+    elliptical tip rounding over the outer 10 %.
+    Twist: Schmitz inflow angle at `lam` minus the design alpha, plus a global pitch offset `dbeta`
+    (deg) and a root pitch-down ROOT_TWIST_ADJ that blends out by 50 % R."""
     r = stations()
     tc = tc_of_r(r)
     a_d = np.array([alpha_design(t) for t in tc])
     cl_d = np.array([polar(math.radians(a), t)[0] for a, t in zip(a_d, tc)])
 
-    def shape(lam_):
-        c, phi = schmitz_chord(r, lam_, cl_d)
-        c = np.minimum(c, C_MAX)
-        s = np.clip((r - 0.90 * R) / (0.10 * R), 0, 1)             # elliptical tip rounding
-        c = c * np.sqrt(1 - (1 - 0.40 ** 2) * s ** 2)
-        s = np.clip((TAPER_START * R - r) / (TAPER_START * R - R_HUB), 0, 1)     # gentle root taper
-        c = c * (1 - (1 - ROOT_TAPER) * s ** 2)
-        return c, phi
-
-    if lam is None:
-        lo, hi = 1.2, 8.0
-        for _ in range(80):
-            mid = 0.5 * (lo + hi)
-            if schmitz_chord(r, mid, cl_d)[0].max() > C_MAX:
-                lo = mid
-            else:
-                hi = mid
-        lam = 0.5 * (lo + hi)
-    c, phi = shape(lam)
+    c_s, phi = schmitz_chord(r, lam, cl_d)
+    r_pk = PEAK_R * R
+    c_out = c_s * (C_MAX / np.interp(r_pk, r, c_s))
+    s = np.clip((r_pk - r) / (r_pk - R_HUB), 0, 1)
+    c_in = C_MAX * (1 - (1 - ROOT_TAPER) * s ** 2)
+    w = 0.5 * (1 - np.tanh((r - r_pk) / (0.05 * R)))
+    c = w * c_in + (1 - w) * c_out
+    s = np.clip((r - 0.90 * R) / (0.10 * R), 0, 1)             # elliptical tip rounding
+    c = c * np.sqrt(1 - (1 - TIP_CHORD_FRAC ** 2) * s ** 2)
     c = c * (C_MAX / c.max())
+
     twist = np.degrees(phi) - a_d + dbeta     # chord angle from the rotor plane
+    s = np.clip((0.50 * R - r) / (0.50 * R - R_HUB), 0, 1)
+    twist = twist + ROOT_TWIST_ADJ * 0.5 * (1 - np.cos(np.pi * s))   # root pitch-down (review F2)
     return dict(r=r, chord=c, twist=twist, tc=tc, alpha_d=a_d, cl_d=cl_d, lam=lam, dbeta=dbeta,
                 phi=np.degrees(phi))
 
@@ -166,15 +175,16 @@ def bem(blade, lam, V, n_el=80):
         r = rm[i] / 1000.0
         sigma = B * c[i] / (2 * np.pi * r)
         lam_r = om * r / V
+        re_i = c[i] * math.sqrt((0.67 * V) ** 2 + (om * r) ** 2) / NU   # local chord Reynolds number
 
         def induction(phi):
             sphi, cphi = math.sin(phi), math.cos(phi)
             alpha = phi - beta[i]
-            cl, cd = polar(alpha, tc[i])
+            cl, cd = polar(alpha, tc[i], re_i)
             cn = cl * cphi + cd * sphi
             ct = cl * sphi - cd * cphi
             ftip = 2 / math.pi * math.acos(min(1.0, math.exp(-B * (Rm - r) / (2 * r * abs(sphi) + 1e-12))))
-            fhub = 2 / math.pi * math.acos(min(1.0, math.exp(-B * (r - Rh) / (2 * r * abs(sphi) + 1e-12))))
+            fhub = 2 / math.pi * math.acos(min(1.0, math.exp(-B * (r - Rh) / (2 * Rh * abs(sphi) + 1e-12))))  # AeroDyn form
             F = max(ftip * fhub, 1e-3)
             if cn <= 0:
                 a = 0.0
@@ -227,7 +237,8 @@ def bem(blade, lam, V, n_el=80):
         q = 0.5 * RHO * W * W * c[i]
         T += B * q * cn * dr[i]
         Q += B * q * ct * r * dr[i]
-        dist.append((rm[i], math.degrees(phi - beta[i]), a, ap, F))
+        cl_i = polar(phi - beta[i], tc[i], re_i)[0]
+        dist.append((rm[i], math.degrees(phi - beta[i]), a, ap, F, re_i, cl_i))
     A = math.pi * Rm ** 2
     P = om * Q
     return dict(cp=P / (0.5 * RHO * A * V ** 3), ct=T / (0.5 * RHO * A * V ** 2),
@@ -329,19 +340,111 @@ def build_blade(blade):
     return solid, loops
 
 
-def build_rotor(blade_solid):
+def build_rotor(blade_solid, root_loop):
+    """Hub (2 in dia x 2 in) + ellipsoidal nose cone + blind 10 mm bore from the downstream face
+    + 3.2 mm cross-pin hole + two M4 grub-screw pilot holes, with three blades joined on."""
     verts, _ = blade_solid.tessellate(0.05, 0.2)
     xs = [v.x for v in verts]
     hub_x0 = 0.5 * (min(xs) + max(xs))        # centre the hub on the blade's axial extent
-    hub = (cq.Workplane("YZ").workplane(offset=hub_x0 - HUB_LEN / 2)
-           .circle(R_HUB).extrude(HUB_LEN)
-           .edges().fillet(4.0)
-           .faces(">X").workplane().hole(HUB_BORE))
+    x_up, x_dn = hub_x0 - HUB_LEN / 2, hub_x0 + HUB_LEN / 2
+    x_pin = min(float(root_loop[:, 0].max()) + 6.0, x_dn - 6.0)   # clear of the blade roots
+
+    hub = cq.Workplane("YZ").workplane(offset=x_up).circle(R_HUB).extrude(HUB_LEN)
+    hub = hub.faces(">X").edges().fillet(3.0)
+    t = np.linspace(0, np.pi / 2, 40)
+    pts = [(x_up - NOSE_LEN * math.sin(a), R_HUB * math.cos(a)) for a in t[1:]]
+    nose = (cq.Workplane("XY").moveTo(x_up, 0).lineTo(x_up, R_HUB).spline(pts, includeCurrent=True)
+            .close().revolve(360, (0, 0, 0), (1, 0, 0)))
+    hub = hub.union(nose)
+    hub = hub.faces(">X").workplane().hole(HUB_BORE, depth=HUB_LEN)        # blind bore
+    pin = cq.Solid.makeCylinder(PIN_D / 2, 2 * R_HUB + 10, cq.Vector(x_pin, -R_HUB - 5, 0), cq.Vector(0, 1, 0))
+    ss1 = cq.Solid.makeCylinder(SET_SCREW_D / 2, R_HUB + 5, cq.Vector(x_pin, 0, 0), cq.Vector(0, 0, 1))
+    ss2 = cq.Solid.makeCylinder(SET_SCREW_D / 2, R_HUB + 5, cq.Vector(x_pin, 0, 0), cq.Vector(0, 0, -1))
+    hub = hub.cut(cq.Workplane("XY").add(pin)).cut(cq.Workplane("XY").add(ss1)).cut(cq.Workplane("XY").add(ss2))
+
     rotor = hub
     for k in range(B):
         bl = blade_solid.rotate(cq.Vector(0, 0, 0), cq.Vector(1, 0, 0), 360.0 * k / B)
         rotor = rotor.union(cq.Workplane("XY").add(bl))
-    return rotor.val(), hub_x0
+    solid = rotor.val()
+
+    # try a small fillet on the blade/hub junction edges (OCC may refuse; then we ship without it)
+    fillet_r = 0.0
+    junction = []
+    for e in solid.Edges():
+        ps = [e.positionAt(u) for u in (0.1, 0.35, 0.6, 0.9)]
+        rr = [math.hypot(p.y, p.z) for p in ps]
+        xx = [p.x for p in ps]
+        if all(abs(q - R_HUB) < 0.3 for q in rr) and (max(xx) - min(xx)) > 1.0 and x_up + 0.5 < min(xx) and max(xx) < x_dn - 0.5:
+            junction.append(e)
+    for fr in (1.5, 1.0):
+        try:
+            cand = solid.fillet(fr, junction)
+            if cand.isValid() and abs(cand.Volume() - solid.Volume()) < 0.02 * solid.Volume():
+                solid, fillet_r = cand, fr
+                break
+        except Exception:
+            pass
+    return solid, dict(hub_center_x_mm=hub_x0, hub_x_upstream_face_mm=x_up, hub_x_downstream_face_mm=x_dn,
+                       pin_x_mm=x_pin, junction_fillet_mm=fillet_r, junction_edges=len(junction))
+
+
+def blade_clearance(blade_solid):
+    """Minimum distance between a blade and its neighbour (rotated 120 deg about X) near the root."""
+    verts, _ = blade_solid.tessellate(0.1, 0.3)
+    A = np.array([(v.x, v.y, v.z) for v in verts])
+    A = A[np.hypot(A[:, 1], A[:, 2]) < 0.55 * R]
+    if len(A) > 6000:
+        A = A[np.random.default_rng(0).choice(len(A), 6000, replace=False)]
+    th = 2 * np.pi / B
+    Bv = A.copy()
+    Bv[:, 1] = A[:, 1] * np.cos(th) - A[:, 2] * np.sin(th)
+    Bv[:, 2] = A[:, 1] * np.sin(th) + A[:, 2] * np.cos(th)
+    best = 1e9
+    for i in range(0, len(A), 2000):
+        d = np.sqrt(((A[i:i + 2000, None, :] - Bv[None, :, :]) ** 2).sum(-1))
+        best = min(best, float(d.min()))
+    return best
+
+
+def naca_section_props(tc, chord):
+    """Area and flapwise second moment (about the chord-parallel centroidal axis) of a NACA 44xx section."""
+    up, lo = naca4(0.04, 0.40, tc, chord, n=120, te_thick=0.0)
+    poly = np.r_[up[::-1], lo[1:]]
+    x, y = poly[:, 0], poly[:, 1]
+    x1, y1 = np.roll(x, -1), np.roll(y, -1)
+    cross = x * y1 - x1 * y
+    A = 0.5 * cross.sum()
+    cy = (y + y1).dot(cross) / (6 * A)
+    Ixx = ((y * y + y * y1 + y1 * y1) * cross).sum() / 12 - A * cy * cy
+    ymax = max(y.max() - cy, cy - y.min())
+    return abs(A), abs(Ixx), ymax
+
+
+def root_stress(blade, lam, V):
+    """Flapwise bending stress along the span from the BEM thrust distribution (per blade)."""
+    res = bem(blade, lam, V, n_el=120)
+    rm = np.array([d[0] for d in res["dist"]]) / 1000.0
+    om = lam * V / (R / 1000.0)
+    c = np.interp(rm * 1000, blade["r"], blade["chord"]) / 1000.0
+    tcs = np.interp(rm * 1000, blade["r"], blade["tc"])
+    beta = np.radians(np.interp(rm * 1000, blade["r"], blade["twist"]))
+    dr = (R - R_HUB) / 1000.0 / len(rm)
+    # per-element normal force (thrust direction) per blade
+    dT = []
+    for d, ci, tci, bi in zip(res["dist"], c, tcs, beta):
+        r, al, a, ap, F, re_i, cl_i = d
+        phi = math.radians(al) + bi
+        cl, cd = polar(math.radians(al), tci, re_i)
+        W = V * (1 - a) / max(math.sin(phi), 1e-6)
+        dT.append(0.5 * RHO * W * W * ci * (cl * math.cos(phi) + cd * math.sin(phi)) * dr)
+    dT = np.array(dT)
+    out = []
+    for k in range(0, len(rm), 6):
+        M = float(((rm[k:] - rm[k]) * dT[k:]).sum())
+        A_, I, ymax = naca_section_props(tcs[k], c[k])
+        out.append((rm[k] * 1000, M, M * ymax / I / 1e6 if I > 0 else 0.0))
+    return out, float(dT.sum())
 
 
 # ----------------------------------------------------------- main ---------
@@ -355,47 +458,58 @@ def main():
         j = int(np.argmax(cps_))
         return cps_[j], lam_scan[j]
 
-    base = design_blade()
-    print(f"Schmitz-only design: TSR {base['lam']:.2f}, peak BEM Cp {peak_cp(base)[0]:.3f}")
     best = None
-    for lam_try in np.arange(2.0, 6.01, 0.5):
-        for db in np.arange(-4.0, 8.01, 1.5):
+    for lam_try in np.arange(3.0, 6.01, 1.0):
+        for db in np.arange(2.0, 10.01, 2.0):
             bl = design_blade(lam_try, db)
             cp_pk, lam_pk = peak_cp(bl)
             if best is None or cp_pk > best[0]:
                 best = (cp_pk, lam_try, db, lam_pk)
-    # refine around the best cell
     cp0, lam0, db0, _ = best
-    for lam_try in np.arange(lam0 - 0.4, lam0 + 0.41, 0.2):
-        for db in np.arange(db0 - 1.25, db0 + 1.26, 0.5):
+    for lam_try in np.arange(lam0 - 0.5, lam0 + 0.51, 0.5):
+        for db in np.arange(db0 - 1.0, db0 + 1.01, 1.0):
             bl = design_blade(lam_try, db)
             cp_pk, lam_pk = peak_cp(bl)
             if cp_pk > best[0]:
                 best = (cp_pk, lam_try, db, lam_pk)
     cp_pk, lam_geom, dbeta, lam_pk = best
     print(f"optimised: geometry TSR {lam_geom:.2f}, pitch offset {dbeta:+.2f} deg -> peak Cp {cp_pk:.3f} "
-          f"at TSR {lam_pk:.2f}   ({time.time()-t0:.0f} s)")
+          f"at TSR {lam_pk:.2f} at {V_DESIGN} m/s   ({time.time()-t0:.0f} s)")
     blade = design_blade(lam_geom, dbeta)
 
-    # BEM verification of the final blade (fine resolution)
+    # BEM verification of the final blade at each speed (fine resolution)
+    print(f"[{time.time()-t0:.0f} s] BEM curves...", flush=True)
     lams = np.arange(0.5, 7.01, 0.25)
-    cp_curve = [bem(blade, l, V_DESIGN) for l in lams]
-    cps = np.array([x["cp"] for x in cp_curve])
-    i_best = int(np.argmax(cps))
-    lam_d = float(lams[i_best])          # recommended operating TSR = BEM peak
+    curves = {str(V): [bem(blade, l, V) for l in lams] for V in V_LIST}
+    cps15 = np.array([x["cp"] for x in curves[str(V_DESIGN)]])
+    i_best = int(np.argmax(cps15))
+    lam_d = float(lams[i_best])          # recommended operating TSR = BEM peak at 1.5 m/s
     perf = {}
     for V in V_LIST:
         res_d = bem(blade, lam_d, V)
-        res_b = bem(blade, lams[i_best], V)
+        cpsV = np.array([x["cp"] for x in curves[str(V)]])
+        jV = int(np.argmax(cpsV))
+        static = bem(blade, 0.1, V)
+        # runaway: first TSR above the peak where the shaft torque reaches zero
+        run = next((float(l) for l, x in zip(lams, curves[str(V)]) if l > lams[jV] and x["cp"] <= 0), 7.0)
         perf[str(V)] = dict(
-            design_tsr=dict(tsr=lam_d, cp=res_d["cp"], ct=res_d["ct"], P_W=res_d["P"], Q_Nm=res_d["Q"],
-                            T_N=res_d["T"], rpm=res_d["rpm"]),
-            best_tsr=dict(tsr=float(lams[i_best]), cp=res_b["cp"], ct=res_b["ct"], P_W=res_b["P"],
-                          Q_Nm=res_b["Q"], T_N=res_b["T"], rpm=res_b["rpm"]),
+            operating=dict(tsr=lam_d, cp=res_d["cp"], ct=res_d["ct"], P_W=res_d["P"], Q_Nm=res_d["Q"],
+                           T_N=res_d["T"], rpm=res_d["rpm"]),
+            best_at_this_speed=dict(tsr=float(lams[jV]), cp=float(cpsV[jV]), rpm=curves[str(V)][jV]["rpm"]),
+            static_torque_Nm=static["Q"], runaway_tsr=run, runaway_rpm=run * V / (R / 1000.0) * 60 / (2 * math.pi),
             available_W=0.5 * RHO * math.pi * (R / 1000) ** 2 * V ** 3,
         )
 
+    # structural estimate (flapwise bending from the BEM thrust distribution)
+    stress = {}
+    for V in (2.0, 3.0):
+        prof, thrust_blade = root_stress(blade, lam_d, V)
+        k = int(np.argmax([p[2] for p in prof]))
+        stress[str(V)] = dict(thrust_per_blade_N=thrust_blade, root_moment_Nm=prof[0][1], root_stress_MPa=prof[0][2],
+                              max_stress_MPa=prof[k][2], max_stress_r_mm=prof[k][0])
+
     # geometry
+    print(f"[{time.time()-t0:.0f} s] building blade...", flush=True)
     solid, loops = build_blade(blade)
     assert solid.isValid(), "blade solid is not valid"
     verts, tris = solid.tessellate(0.02, 0.1)
@@ -407,70 +521,89 @@ def main():
         ymin, ymax = float(vv[:, 1].min()), float(vv[:, 1].max())
         zmin, zmax = float(vv[:, 2].min()), float(vv[:, 2].max())
     bb = _BB()
+    print(f"[{time.time()-t0:.0f} s] clearance check...", flush=True)
+    clearance = blade_clearance(solid)
     print(f"blade: valid={solid.isValid()} volume={solid.Volume():.0f} mm^3")
     print(f"       X extent {bb.xmin:.1f}..{bb.xmax:.1f} mm = {(bb.xmax-bb.xmin)/IN:.3f} in axial")
-    print(f"       max radius {rmax:.2f} mm = {rmax/IN:.3f} in  (spec 4.000 in)")
+    print(f"       max radius {rmax:.2f} mm = {rmax/IN:.3f} in  (spec 4.000 in);  blade-to-blade clearance near root {clearance:.1f} mm")
 
     cq.exporters.export(solid, os.path.join(OUT, "turbine_blade_8in.step"))
     cq.exporters.export(solid, os.path.join(OUT, "turbine_blade_8in.stl"), tolerance=0.05, angularTolerance=0.2)
 
-    rotor, hub_x0 = build_rotor(solid)
+    print(f"[{time.time()-t0:.0f} s] building rotor...", flush=True)
+    rotor, hubinfo = build_rotor(solid, loops[0])
+    print(f"[{time.time()-t0:.0f} s] rotor done", flush=True)
     assert rotor.isValid(), "rotor solid is not valid"
     cq.exporters.export(rotor, os.path.join(OUT, "turbine_rotor_8in_3blade.step"))
     cq.exporters.export(rotor, os.path.join(OUT, "turbine_rotor_8in_3blade.stl"), tolerance=0.08, angularTolerance=0.25)
-    rb = rotor.BoundingBox()
-    print(f"rotor: valid={rotor.isValid()} volume={rotor.Volume():.0f} mm^3  "
-          f"Y {rb.ymin:.1f}..{rb.ymax:.1f}  Z {rb.zmin:.1f}..{rb.zmax:.1f}  X {rb.xmin:.1f}..{rb.xmax:.1f}")
+    print(f"rotor: valid={rotor.isValid()} volume={rotor.Volume():.0f} mm^3  solids={len(rotor.Solids())}  "
+          f"junction fillet {hubinfo['junction_fillet_mm']} mm on {hubinfo['junction_edges']} edges; pin at X={hubinfo['pin_x_mm']:.1f}")
 
-    # station table
+    # station table with operating-point columns (BEM at the operating TSR, 1.5 m/s)
+    d15 = bem(blade, lam_d, V_DESIGN, n_el=120)["dist"]
+    rr = np.array([d[0] for d in d15])
+    op_al = np.interp(blade["r"], rr, [d[1] for d in d15]); op_cl = np.interp(blade["r"], rr, [d[6] for d in d15])
+    op_re = np.interp(blade["r"], rr, [d[5] for d in d15]); op_a = np.interp(blade["r"], rr, [d[2] for d in d15])
     with open(os.path.join(OUT, "blade_stations.csv"), "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["r_mm", "r_in", "r_over_R", "chord_mm", "chord_in", "twist_deg_from_rotor_plane",
-                    "thickness_ratio", "airfoil", "design_alpha_deg", "design_CL", "inflow_phi_deg"])
-        for r, c, tw, tc, a, cl, ph in zip(blade["r"], blade["chord"], blade["twist"], blade["tc"],
-                                            blade["alpha_d"], blade["cl_d"], blade["phi"]):
+                    "thickness_ratio", "max_thickness_mm", "airfoil",
+                    "operating_alpha_deg_1p5ms", "operating_CL_1p5ms", "operating_Re_1p5ms", "operating_axial_induction",
+                    "schmitz_design_alpha_deg", "schmitz_design_CL"])
+        for i, (r, c, tw, tc) in enumerate(zip(blade["r"], blade["chord"], blade["twist"], blade["tc"])):
             w.writerow([f"{r:.2f}", f"{r/IN:.3f}", f"{r/R:.3f}", f"{c:.2f}", f"{c/IN:.3f}", f"{tw:.2f}",
-                        f"{tc:.3f}", f"NACA 44{int(round(tc*100)):02d}", f"{a:.2f}", f"{cl:.3f}", f"{ph:.2f}"])
+                        f"{tc:.3f}", f"{c*tc:.2f}", f"NACA 44{int(round(tc*100)):02d}",
+                        f"{op_al[i]:.2f}", f"{op_cl[i]:.3f}", f"{op_re[i]:.3g}", f"{op_a[i]:.3f}",
+                        f"{blade['alpha_d'][i]:.2f}", f"{blade['cl_d'][i]:.3f}"])
 
-    # per-station 3D section loops for Fusion's ImportSplineCSV script (cm units)
     sec_dir = os.path.join(OUT, "sections_for_fusion_csv")
     os.makedirs(sec_dir, exist_ok=True)
+    for fn in os.listdir(sec_dir):
+        os.remove(os.path.join(sec_dir, fn))
     for k, (r, loop) in enumerate(zip(blade["r"], loops)):
         closed = np.r_[loop, loop[:1]]
-        np.savetxt(os.path.join(sec_dir, f"section_{k:02d}_r{r:.1f}mm.csv"), closed / 10.0,
-                   delimiter=",", fmt="%.5f")
+        np.savetxt(os.path.join(sec_dir, f"section_{k:02d}_r{r:.1f}mm.csv"), closed / 10.0, delimiter=",", fmt="%.5f")
 
     spec = dict(
         rotor_diameter_in=D_IN, tip_radius_mm=R, hub_radius_mm=R_HUB, hub_diameter_in=2 * R_HUB / IN,
+        hub_ratio=R_HUB / R, root_trim_radius_mm=R_ROOT_EXT,
         max_chord_mm=float(blade["chord"].max()), max_chord_in=float(blade["chord"].max() / IN),
+        max_chord_r_mm=float(blade["r"][int(np.argmax(blade["chord"]))]),
+        root_chord_mm=float(blade["chord"][0]), tip_chord_mm=float(blade["chord"][-1]),
+        root_thickness_mm=float(blade["chord"][0] * blade["tc"][0]), tip_thickness_mm=float(blade["chord"][-1] * blade["tc"][-1]),
+        twist_root_deg=float(blade["twist"][0]), twist_tip_deg=float(blade["twist"][-1]),
         axial_extent_mm=float(bb.xmax - bb.xmin), axial_extent_in=float((bb.xmax - bb.xmin) / IN),
         blades=B, operating_tsr=lam_d, geometry_schmitz_tsr=float(lam_geom), pitch_offset_deg=float(dbeta),
-        cp_max_bem=float(cps[i_best]),
-        power_curve={str(V): dict(rpm=[bem(blade, l, V)["rpm"] for l in lams],
-                                  P_W=[bem(blade, l, V)["P"] for l in lams]) for V in V_LIST},
-        airfoil="NACA 4412 (tip) -> NACA 4422 (root), 4% camber at 40% chord",
+        root_twist_adjust_deg=ROOT_TWIST_ADJ, cp_peak_1p5ms=float(cps15[i_best]),
+        airfoil=f"NACA 4412-type camber (4 % at 40 %), thickness {TC_ROOT*100:.0f} % at the hub to {TC_TIP*100:.0f} % from 65 % radius",
         trailing_edge_thickness_mm=TE_THICK, pitch_axis_fraction=PITCH_AXIS,
-        rotation="counter-clockwise viewed from upstream (looking along +X)",
+        rotation="counter-clockwise viewed from upstream (looking along +X); clockwise viewed from the downstream/generator side",
         flow_direction="+X (water enters from -X face)", units="mm (STEP AP214)",
-        hub_length_mm=HUB_LEN, hub_bore_mm=HUB_BORE, hub_center_x_mm=hub_x0,
-        blade_volume_mm3=float(solid.Volume()), blade_max_radius_mm=rmax,
-        cp_curve=dict(tsr=lams.tolist(), cp=cps.tolist(), ct=[x["ct"] for x in cp_curve]),
-        performance=perf,
+        water=dict(rho=RHO, nu=NU, note="~15 C fresh water"), reynolds_model=dict(re_ref=RE_REF, cd0_exponent=0.8),
+        hub_length_mm=HUB_LEN, hub_bore_mm=HUB_BORE, hub_bore="blind from downstream face", pin_hole_mm=PIN_D,
+        set_screw_pilot_mm=SET_SCREW_D, nose_cone_length_mm=NOSE_LEN, **hubinfo,
+        blade_volume_mm3=float(solid.Volume()), blade_max_radius_mm=rmax, blade_to_blade_clearance_mm=clearance,
+        cp_curve=dict(tsr=lams.tolist(), **{f"cp_{V}": [x["cp"] for x in curves[str(V)]] for V in V_LIST},
+                      **{f"ct_{V}": [x["ct"] for x in curves[str(V)]] for V in V_LIST}),
+        power_curve={str(V): dict(rpm=[x["rpm"] for x in curves[str(V)]], P_W=[x["P"] for x in curves[str(V)]]) for V in V_LIST},
+        performance=perf, structural=stress,
     )
     with open(os.path.join(OUT, "design_spec.json"), "w") as f:
         json.dump(spec, f, indent=2)
 
-    print(f"\nOperating TSR = {lam_d:.2f}   max chord = {blade['chord'].max():.2f} mm   "
-          f"root chord = {blade['chord'][0]:.1f} mm  twist root/tip = {blade['twist'][0]:.1f}/{blade['twist'][-1]:.1f} deg")
-    al = np.array([d[1] for d in bem(blade, lam_d, V_DESIGN)["dist"]])
-    ax_ = np.array([d[2] for d in bem(blade, lam_d, V_DESIGN)["dist"]])
-    print(f"angle of attack along span at operating TSR: {al.min():.1f} .. {al.max():.1f} deg; "
-          f"axial induction {ax_.min():.2f} .. {ax_.max():.2f}")
-    print("Cp(TSR): " + "  ".join(f"{l:.2f}:{c:.3f}" for l, c in zip(lams, cps) if l >= 1.0))
+    print(f"\nOperating TSR = {lam_d:.2f}   max chord = {blade['chord'].max():.2f} mm at r={spec['max_chord_r_mm']:.1f}   "
+          f"root chord = {blade['chord'][0]:.1f} mm  tip chord {blade['chord'][-1]:.1f} mm  twist root/tip = {blade['twist'][0]:.1f}/{blade['twist'][-1]:.1f} deg")
+    al = np.array([d[1] for d in d15]); ax_ = np.array([d[2] for d in d15]); re_ = np.array([d[5] for d in d15])
+    print(f"operating point 1.5 m/s: alpha {al.min():.1f}..{al.max():.1f} deg; axial induction {ax_.min():.2f}..{ax_.max():.2f}; Re {re_.min():.2g}..{re_.max():.2g}")
     for V in V_LIST:
-        d = perf[str(V)]["design_tsr"]
-        print(f"  V={V:.1f} m/s: {d['rpm']:.0f} rpm, P={d['P_W']:.1f} W, Q={d['Q_Nm']:.2f} N m, "
-              f"thrust={d['T_N']:.0f} N, Cp={d['cp']:.3f}, Ct={d['ct']:.3f}")
+        print(f"Cp(TSR) at {V} m/s: " + "  ".join(f"{l:.2f}:{x['cp']:.3f}" for l, x in zip(lams, curves[str(V)]) if 1.5 <= l <= 6 and (l * 2) % 1 == 0))
+    for V in V_LIST:
+        d = perf[str(V)]["operating"]; p = perf[str(V)]
+        print(f"  V={V:.1f} m/s: {d['rpm']:.0f} rpm, P={d['P_W']:.1f} W, Q={d['Q_Nm']:.2f} N m, thrust={d['T_N']:.0f} N, Cp={d['cp']:.3f}, Ct={d['ct']:.3f}; "
+              f"static torque {p['static_torque_Nm']:.3f} N m; runaway TSR {p['runaway_tsr']:.2f} = {p['runaway_rpm']:.0f} rpm")
+    for V, s in stress.items():
+        print(f"  stress at {V} m/s: thrust/blade {s['thrust_per_blade_N']:.1f} N, root M {s['root_moment_Nm']:.2f} N m, root {s['root_stress_MPa']:.2f} MPa, "
+              f"max {s['max_stress_MPa']:.2f} MPa at r={s['max_stress_r_mm']:.0f} mm")
     return blade, spec
 
 
