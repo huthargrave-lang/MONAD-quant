@@ -1,5 +1,10 @@
 # MONAD Quant — System Improvement Plan
 
+> **Superseded in priority (2026-10-29).** This is the engine-era plan, written when the project
+> was a trading bot under validation. The project is now a research base and the ranked next
+> directions live in [`docs/DIRECTIONS.md`](docs/DIRECTIONS.md); read this file as history of the
+> bot workstreams, not as the current roadmap.
+
 > **Scope:** a fully fleshed-out plan to improve every system — model, backtest/sweep,
 > live execution, data, testing, observability, ops, reporting, code health, and risk.
 > Written 2026-06-18 after a deep audit. Pairs with `CLAUDE.md` (strategy "why"),

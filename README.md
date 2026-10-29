@@ -15,7 +15,7 @@
 > long-only mean-reversion trading engine ships with it as the **reference test bench** the
 > methodology was built on and proven against.
 >
-> **Start here:** [`VISION.md`](VISION.md) (direction) · [research compendium](docs/research/README.md) ·
+> **Start here:** [`VISION.md`](VISION.md) (direction) · [`docs/DIRECTIONS.md`](docs/DIRECTIONS.md) (ranked next steps, 2026-10) · [research compendium](docs/research/README.md) ·
 > [`SCHEMA.md`](SCHEMA.md) (graph model) · [`CONTRIBUTING.md`](CONTRIBUTING.md) (how a study gets made) ·
 > [`AGENT_INDEX.md`](AGENT_INDEX.md) (agent entry point) · [research site](https://huthargrave-lang.github.io/MONAD-quant/) ·
 > [`docs/REFERENCE_ENGINE.md`](docs/REFERENCE_ENGINE.md) (the test-bench engine)
@@ -334,6 +334,7 @@ MONAD-quant/
 │   │   ├── refutations/     <-   objections and board rulings
 │   │   ├── forward_watch/   <-   frozen forward records + the multiplicity policy
 │   │   └── reeval/          <-   re-evaluation of pre-gate findings
+│   ├── DIRECTIONS.md        <- Ranked next directions for the project (dated memo, owner ratifies)
 │   ├── REFERENCE_ENGINE.md  <- The test-bench engine, execution model, sweep, deployment
 │   ├── TONE_LEDGER.md       <- Pre-registered gates for the daily news-tone series
 │   └── history/             <- Archived optimization logs (superseded numbers, kept as history)
