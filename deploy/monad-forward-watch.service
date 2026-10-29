@@ -1,0 +1,44 @@
+[Unit]
+Description=MONAD forward records, daily cycle (fetch H366201, log H366200 and H366201, verify, push to forward-ledger)
+After=network-online.target
+Wants=network-online.target
+# The research-host role (docs/DIRECTIONS.md D-1; route ratified 2026-10-29). Reads no
+# broker, writes no state.db, is not ordered against any trader unit and has no path into
+# ops/healthcheck.sh: a session missing from a forward record is a research loss, never a
+# trading fault. Two attempts an hour at most — a vendor outage is retried tomorrow, and
+# `log` catches up every session since the last line.
+StartLimitIntervalSec=3600
+StartLimitBurst=2
+
+[Service]
+Type=oneshot
+User=hudson
+Group=hudson
+# A LINKED WORKTREE of the main checkout, on the forward-ledger branch (ops/README.md,
+# "Forward records"): records are committed there, never on the main checkout's development.
+WorkingDirectory=/home/hudson/MONAD-quant-forward
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+# The trial ledger's host column: rows written here must never be mistaken for CI's.
+Environment=MONAD_LEDGER_HOST=pi
+Environment=MONAD_FORWARD_REPO=/home/hudson/MONAD-quant-forward
+Environment=MONAD_FORWARD_PYTHON=/home/hudson/MONAD-quant/venv/bin/python
+ExecStart=/home/hudson/MONAD-quant-forward/ops/forward_watch_cycle.sh daily
+
+# Pi-friendly, but not idle-class like the screener: this record has a deadline (the NAV
+# vintage must be on the chain before the next session's 20:00 UTC close).
+Nice=10
+# A fresh H366200 snapshot (Yahoo, from 2015) plus a CEFConnect panel takes minutes on the
+# Pi; a hung vendor call must still end long before the next evening's run.
+TimeoutStartSec=3600
+
+# No ProtectSystem=strict: a linked worktree commits into the MAIN checkout's .git, and the
+# private store (local_research_data/) is a symlink into it, so a read-only root would need
+# write holes in two trees. The script writes only record files, the private store,
+# local_logs/ and git.
+PrivateTmp=true
+NoNewPrivileges=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=monad-forward-watch

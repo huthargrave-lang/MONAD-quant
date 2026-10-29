@@ -17,6 +17,12 @@ private snapshot (observations never committed), and records one counted trial p
 session in family ``forward_watch.<ID>.v1``. The window opens at the first session after
 the spec reached the deploy branch; ``log`` writes that ``window_open`` line once it can
 see the spec there.
+
+The forward-evidence route is the policy chain ``policy/route.json`` -> ``route.2.json``
+(the last link governs) with the freeze ledger ``policy/freeze_ledger.jsonl``: an ID must be
+listed before ``freeze``, and ``genesis``/``log`` refuse an unlisted one. ``verify`` checks
+the chain's supersession hashes and the ledger (ordinals, membership, the founders' spec
+hashes) as well as the records.
 """
 from __future__ import annotations
 
@@ -186,9 +192,10 @@ def cmd_report(args) -> int:
         print(json.dumps(rep, default=float))
     if not reports:
         print("no anniversary reached: nothing to decide")
-    ids = fw.watches_ever_frozen()
-    print(f"forward-evidence route (docs/research/forward_watch/policy/route.json): m = {len(ids)} "
-          f"{ids}; a promoted watch's LLR must reach {fw.route_boundary(spec, len(ids)):.3f}")
+    pol = fw.governing_policy()
+    print(f"forward-evidence route (schema {pol['schema']}, {fw.POLICY_REL.as_posix()}/): "
+          f"alpha_i = {fw.alpha_i(spec, args.watch):.5f}; a promoted watch's LLR must reach "
+          f"{fw.route_boundary(spec, watch=args.watch):.3f}; diagnostic m = {len(fw.watches_ever_frozen())}")
     if snap is not None:
         print("legs and episodes:", json.dumps(fw.legs_and_episodes(spec, rows, snap), default=float))
         if args.sec:
@@ -223,6 +230,7 @@ def cmd_verify(args) -> int:
     problems = []
     for spec_file in sorted(fw.WATCH_DIR.glob("*.json")):
         problems += [f"{spec_file.stem}: {p}" for p in fw.verify(spec_file.stem)]
+    problems += [f"route policy: {p}" for p in fw.verify_policy()]
     if args.against:
         problems += trials.verify_history(args.against, fw.WATCH_DIR.relative_to(REPO), rule=_history_rule,
                                           what="forward-watch record")

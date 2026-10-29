@@ -401,17 +401,127 @@ class CommittedRecords(unittest.TestCase):
                     for name, book in (row.get("books") or {}).items():
                         self.assertEqual(fw.Book.from_json(book).to_json(), book)
 
-    def test_the_route_policy_is_frozen_and_counts_every_watch(self):
+    def test_the_route_policy_chain_is_frozen_and_the_ledger_binds_both_watches(self):
+        """FORWARD_ROUTE_PROPOSAL.md, ratified 2026-10-29: route.json (schema 1) stays byte-identical
+        and is SUPERSEDED by route.2.json (schema 2) by path and sha-256; the freeze ledger lists the
+        founding cohort; each founder spends alpha/3 (boundary ln 48); neither spec's bytes change."""
+        import hashlib
         import forward_watch as tool
-        policy = json.loads(fw.POLICY.read_text(encoding="utf-8"))
-        self.assertIn("ever frozen", policy["m"])
-        self.assertEqual(tool._history_rule(fw.POLICY.relative_to(REPO).as_posix()), "identical")
-        ids = fw.watches_ever_frozen()
+        from src.research import nyse_calendar
+        from src.research.trials import canonical_json
+        chain = fw.policy_chain()
+        self.assertEqual([p["schema"] for p in chain], [1, 2])
+        self.assertIn("ever frozen", chain[0]["m"])                       # route.json, byte-identical
+        route1_sha = hashlib.sha256(fw.POLICY.read_bytes()).hexdigest()
+        self.assertEqual(route1_sha, "762ce64ce338553164253b6c70d3b32da96d4523ca940526970fcc5074b2b654")
+        self.assertEqual(chain[1]["supersedes"], {"path": fw.POLICY.relative_to(REPO).as_posix(), "sha256": route1_sha})
+        for p in (fw.POLICY, fw.POLICY_DIR / "route.2.json"):
+            self.assertEqual(tool._history_rule(p.relative_to(REPO).as_posix()), "identical")
+        self.assertEqual(tool._history_rule(fw.LEDGER.relative_to(REPO).as_posix()), "prefix")
+        ids = fw.watches_ever_frozen()                                     # the schema-1 m, a diagnostic now
         self.assertIn("H366200", ids)
         self.assertNotIn("route", ids)
+        ledger = fw.freeze_ledger()
+        self.assertEqual([(r["ordinal"], r["watch"], r["cohort"], r["listed_at"]) for r in ledger],
+                         [(1, "H366200", "founding", "2026-10-29"), (2, "H366201", "founding", "2026-10-29")])
+        for raw in fw.LEDGER.read_bytes().splitlines():                    # canonical rows, like every log line
+            self.assertEqual(canonical_json(json.loads(raw)).encode("utf-8"), raw)
+        pinned = {"H366200": "35fc8ffce50d1a10ec3656e39ffbafb542abf175c02bfa1a3c8090af93a3a1f7",
+                  "H366201": "6af76c1091e9c463429e0112adb1f920733ce40578d24d7cef11e03b99ff3625"}
+        for watch in ("H366200", "H366201"):
+            spec, sha = fw.load(watch)
+            self.assertEqual(sha, pinned[watch])                              # the specs are untouched
+            self.assertEqual(sha, fw.ledger_entry(watch)["spec_sha256"])
+            self.assertEqual(fw.ledger_entry(watch)["window_opened"], "2026-10-12")
+            self.assertAlmostEqual(fw.alpha_i(spec, watch), 0.05 / 3)
+            self.assertAlmostEqual(fw.route_boundary(spec, watch=watch), math.log(48))
+        self.assertNotIn("route_policy", fw.load("H366200")[0])              # bound by ledger membership alone
+        pointer = fw.load("H366201")[0]["route_policy"]                      # H366201 points at link 1 of the chain
+        self.assertEqual(pointer, fw.POLICY.relative_to(REPO).as_posix())
+        self.assertEqual(json.loads((REPO / pointer).read_text(encoding="utf-8")), chain[0])
+        self.assertEqual(fw.verify_policy(), [])
+        self.assertAlmostEqual(fw.route_boundary({"evaluation": EVAL}, 3), math.log(3 * 0.8 / 0.05))  # history
+        self.assertAlmostEqual(chain[1]["alpha_spending"]["founding_cohort"]["boundary_nats"], math.log(48))
+        self.assertEqual(chain[1]["sizing"]["budget_pp"], 1.0)
+        rat = chain[1]["ratified"]
+        self.assertEqual(rat["windows_opened"], {"H366200": "2026-10-12", "H366201": "2026-10-12"})
+        elapsed = rat["in_window_sessions_elapsed_unlogged_at_ratification"]
+        self.assertEqual(elapsed["count"], nyse_calendar.sessions_between(
+            pd.Timestamp("2026-10-12").date(), pd.Timestamp(elapsed["counted_through"]).date()))
+
+    def test_ordinals_come_from_the_ledger_not_from_git_and_ordinal_three_has_no_practical_route(self):
+        from fractions import Fraction
         spec = {"evaluation": EVAL}
-        self.assertAlmostEqual(fw.route_boundary(spec, 1), math.log(0.8 / 0.05))
-        self.assertAlmostEqual(fw.route_boundary(spec, 3), math.log(3 * 0.8 / 0.05))
+        ledger = fw.freeze_ledger() + [{"ordinal": 3, "watch": "HNEW", "cohort": "stream", "listed_at": "2026-11-02"}]
+        with mock.patch.object(trials, "_git", side_effect=AssertionError("git must not be consulted")):
+            self.assertAlmostEqual(fw.route_boundary(spec, watch="HNEW", ledger=ledger), math.log(0.8 / (0.05 / 12)))
+            self.assertAlmostEqual(fw.route_boundary(spec, watch="HNEW", ledger=ledger), math.log(192))
+            self.assertAlmostEqual(fw.route_boundary(spec, watch="H366200", ledger=ledger), math.log(48))
+            self.assertEqual(fw.gamma("HNEW", ledger=ledger), Fraction(1, 12))
+        # the shares sum to one: 2/3 to the founders, 1/3 to the whole tail, nothing recycled
+        self.assertEqual(Fraction(2, 3) + sum(Fraction(1, i * (i + 1)) for i in range(3, 1001)), 1 - Fraction(1, 1001))
+        with self.assertRaises(fw.WatchError):
+            fw.alpha_i(spec, "HNOTLISTED")                                  # an unlisted ID spends no alpha
+        with self.assertRaises(fw.WatchError):
+            fw._require_listed("HNOTLISTED", None)                          # freeze, genesis and log refuse it
+        fw._require_listed("HNOTLISTED", Path("/scratch"))                  # a scratch directory is exempt
+        with self.assertRaises(fw.WatchError):
+            fw.route_boundary(spec)                                         # neither watch nor m
+        with tempfile.TemporaryDirectory() as td:
+            bad = Path(td) / "freeze_ledger.jsonl"                          # a gap in the ordinals is refused
+            bad.write_text('{"ordinal":2,"watch":"X","cohort":"stream","listed_at":"2026-11-02"}\n', encoding="utf-8")
+            with self.assertRaises(fw.WatchError):
+                fw.freeze_ledger(bad)
+            bad.write_text('{"ordinal":1,"watch":"X","cohort":"stream"}\n', encoding="utf-8")   # no listed_at
+            with self.assertRaises(fw.WatchError):
+                fw.freeze_ledger(bad)
+            # an ordinal >= 3 is listed BEFORE its freeze: no spec yet, no sha; verify accepts the row
+            pre = Path(td) / "pre.jsonl"
+            pre.write_text(fw.LEDGER.read_text(encoding="utf-8")
+                           + '{"cohort":"stream","listed_at":"2026-11-02","ordinal":3,"watch":"HNEW"}\n', encoding="utf-8")
+            self.assertEqual(fw.verify_policy(ledger_path=pre), [])
+            self.assertEqual(fw.ledger_entry("HNEW", fw.freeze_ledger(pre))["ordinal"], 3)
+            one = Path(td) / "one.jsonl"                                    # a founder missing, a spec unlisted
+            one.write_text(fw.LEDGER.read_text(encoding="utf-8").splitlines()[0] + "\n", encoding="utf-8")
+            self.assertEqual(len(fw.verify_policy(ledger_path=one)), 2)
+
+    def test_a_broken_supersession_link_is_refused_and_the_chain_reads_from_a_scratch_directory(self):
+        import shutil
+        with tempfile.TemporaryDirectory() as td:
+            pol = Path(td) / "policy"
+            shutil.copytree(fw.POLICY_DIR, pol)
+            self.assertEqual([p["schema"] for p in fw.policy_chain(pol)], [1, 2])     # outside REPO: no relative_to
+            self.assertEqual(fw.verify_policy(pol, pol / "freeze_ledger.jsonl"), [])
+            route1 = pol / "route.json"
+            route1.write_text(route1.read_text(encoding="utf-8").replace("schema", "schema "), encoding="utf-8")
+            with self.assertRaises(fw.WatchError):
+                fw.policy_chain(pol)                                                   # link 2's sha no longer matches
+            self.assertEqual(len(fw.verify_policy(pol, pol / "freeze_ledger.jsonl")), 1)
+            shutil.copy(fw.POLICY, route1)
+            link2 = json.loads((pol / "route.2.json").read_text(encoding="utf-8"))
+            link2["supersedes"]["path"] = "docs/research/forward_watch/policy/other.json"
+            (pol / "route.2.json").write_text(json.dumps(link2), encoding="utf-8")
+            with self.assertRaises(fw.WatchError):
+                fw.policy_chain(pol)                                                   # names the wrong predecessor
+            (pol / "route.2.json").unlink()
+            self.assertEqual(fw.governing_policy(pol)["schema"], 1)                   # schema 1 alone: the m rule
+            with self.assertRaises(fw.WatchError):
+                fw.gamma("H366200", policy=fw.governing_policy(pol))
+
+    def test_the_founders_windows_opened_on_columbus_day_2026(self):
+        import dataclasses
+        import forward_watch as tool
+        from src.research import nyse_calendar
+        self.assertTrue(nyse_calendar.is_session(pd.Timestamp("2026-10-12").date()))   # Columbus Day is a session
+        dates = pd.DatetimeIndex([d for d in pd.bdate_range("2026-10-05", "2026-10-16") if nyse_calendar.is_session(d.date())])
+        self.assertEqual(len(dates), 10)
+        snap = dataclasses.replace(market(n=10), dates=dates)
+        reached = pd.Timestamp("2026-10-10 20:29:17")                                 # merge 9266877, a Saturday
+        with mock.patch.object(tool, "spec_reached", return_value=reached):
+            self.assertEqual(tool.opens_at("H366200", snap, "origin/development"), "2026-10-12")
+        for r in fw.freeze_ledger():
+            self.assertEqual(r["window_opened"], "2026-10-12")
+            self.assertEqual(r["reached_development"], {"merge": "9266877", "at": "2026-10-10T20:29:17Z"})
 
 
 class WindowOpening(unittest.TestCase):

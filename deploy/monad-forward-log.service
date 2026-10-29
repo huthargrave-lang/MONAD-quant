@@ -1,0 +1,33 @@
+[Unit]
+Description=MONAD forward records, weekly H404702 holdings line (tools/forward_log.py H404702, verify, push to forward-ledger)
+After=network-online.target
+Wants=network-online.target
+# Same role, contract and checkout as monad-forward-watch.service; the weekly record of
+# the admission gate's own forward stage (docs/research/forward/H404702.jsonl). Shares the
+# cycle script's lock with the daily unit, so the two never interleave.
+StartLimitIntervalSec=3600
+StartLimitBurst=2
+
+[Service]
+Type=oneshot
+User=hudson
+Group=hudson
+WorkingDirectory=/home/hudson/MONAD-quant-forward
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=MONAD_LEDGER_HOST=pi
+Environment=MONAD_FORWARD_REPO=/home/hudson/MONAD-quant-forward
+Environment=MONAD_FORWARD_PYTHON=/home/hudson/MONAD-quant/venv/bin/python
+# `weekly` runs tools/forward_log.py H404702 (its fetched data stays in local_logs/
+# forward_data/ by design; only the holdings line is committed), then verify and push.
+ExecStart=/home/hudson/MONAD-quant-forward/ops/forward_watch_cycle.sh weekly
+
+Nice=10
+TimeoutStartSec=3600
+
+PrivateTmp=true
+NoNewPrivileges=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=monad-forward-log

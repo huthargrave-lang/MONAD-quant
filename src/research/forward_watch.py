@@ -27,6 +27,14 @@ Evaluation (``decide``): a Wald sequential test of annualised active Sharpe 0 ag
 ``theta1``, checked on anniversaries of the window's opening only: promote when
 T (theta1 S_T - theta1^2/2) >= ln((1-beta)/alpha) and the stressed Sharpe is > 0; close
 when it is <= ln(beta/(1-alpha)). Promotion cannot admit; it triggers a decision debate.
+
+The forward-evidence ROUTE (``policy/``): ``route.json`` (schema 1, frozen 2026-10-09) is
+superseded by ``route.2.json`` (schema 2, ratified 2026-10-29), each later link naming the
+file it supersedes and that file's sha-256; the last link governs (``governing_policy``).
+Schema 2 spends each spec's alpha per watch from the FREEZE LEDGER
+(``policy/freeze_ledger.jsonl``, append-only): the founding cohort H366200/H366201 gets
+gamma = 1/3 each (boundary ln 48), ordinal i >= 3 gets 1/(i (i + 1)); ``freeze``,
+``genesis`` and ``log`` refuse an ID that is not on the ledger (scratch directories exempt).
 """
 from __future__ import annotations
 
@@ -37,6 +45,7 @@ import math
 import os
 import re
 from dataclasses import dataclass
+from fractions import Fraction
 from pathlib import Path
 from typing import Mapping
 
@@ -143,7 +152,9 @@ def _validate_domain(spec: Mapping) -> list[str]:
 
 def freeze(spec: Mapping, *, watch_dir: Path | None = None, check_web: bool = True,
            now: str | None = None) -> tuple[Path, str]:
-    """Write ``spec`` once (O_EXCL), canonical. Returns (path, spec sha-256)."""
+    """Write ``spec`` once (O_EXCL), canonical. Returns (path, spec sha-256). The ID must be
+    on the freeze ledger first (schema 2; scratch directories exempt)."""
+    _require_listed(spec["watch"], watch_dir)
     errs = validate(spec)
     if errs:
         raise WatchError("; ".join(errs))
@@ -540,13 +551,19 @@ def _reading(series: dict, stressed: dict, cut, year: int, theta: float, upper: 
             "sharpe_stressed": sh2, "llr": llr, "upper": upper, "lower": lower, "verdict": verdict}
 
 
-POLICY = WATCH_DIR / "policy" / "route.json"
+POLICY_DIR = WATCH_DIR / "policy"
+POLICY_REL = POLICY_DIR.relative_to(REPO)
+POLICY = POLICY_DIR / "route.json"                 # schema 1, the first link of the chain
+LEDGER = POLICY_DIR / "freeze_ledger.jsonl"
+LEDGER_REQUIRED = ("ordinal", "watch", "cohort", "listed_at")
 _SPEC_NAME = re.compile(r"^docs/research/forward_watch/([A-Za-z0-9_]+)\.json$")
 
 
 def watches_ever_frozen(repo: Path = REPO) -> list[str]:
     """Every watch ID whose spec was added in any commit the repository holds, or that is
-    present now: the m of the forward-evidence route (POLICY)."""
+    present now: the m of the superseded schema-1 route (route.json). A DIAGNOSTIC since
+    schema 2: ordinals and alpha shares come from the freeze ledger, never from git, so
+    deleting a branch changes neither (FORWARD_ROUTE_PROPOSAL.md Q2)."""
     from src.research.trials import _git
     out = _git(repo, "log", "--all", "--diff-filter=A", "--name-only", "--format=", "--",
                WATCH_DIR.relative_to(REPO).as_posix())
@@ -556,10 +573,127 @@ def watches_ever_frozen(repo: Path = REPO) -> list[str]:
     return sorted(ids)
 
 
-def route_boundary(spec: Mapping, m: int) -> float:
-    """The forward-evidence route's promotion boundary for this watch: ln(m (1-beta)/alpha)."""
+def policy_chain(policy_dir: Path = POLICY_DIR) -> list[dict]:
+    """route.json, then route.2.json, route.3.json ...: each link names the file it
+    supersedes (by its REPOSITORY path, docs/research/forward_watch/policy/<name>) and that
+    file's sha-256 as committed. The last link governs. Every link is held byte-identical by
+    ``verify --against`` (every ``.json`` under forward_watch/), so a policy is changed only
+    by adding the next link, never by editing one."""
+    first = policy_dir / "route.json"
+    chain, prev, n = [json.loads(first.read_text(encoding="utf-8"))], first, 2
+    while (nxt := policy_dir / f"route.{n}.json").exists():
+        pol = json.loads(nxt.read_text(encoding="utf-8"))
+        sup = pol.get("supersedes") or {}
+        if (sup.get("path") != (POLICY_REL / prev.name).as_posix()
+                or sup.get("sha256") != hashlib.sha256(prev.read_bytes()).hexdigest()):
+            raise WatchError(f"{nxt.name}: its supersedes link does not match {prev.name}")
+        if pol.get("schema") != n:
+            raise WatchError(f"{nxt.name}: schema {pol.get('schema')!r}, link {n} of the chain")
+        chain.append(pol)
+        prev, n = nxt, n + 1
+    return chain
+
+
+def governing_policy(policy_dir: Path = POLICY_DIR) -> dict:
+    return policy_chain(policy_dir)[-1]
+
+
+def freeze_ledger(path: Path = LEDGER) -> list[dict]:
+    """The freeze ledger's rows, in order: ``{ordinal, watch, cohort, listed_at}`` each, the
+    founders' rows also carrying ``spec_sha256``/``frozen_at``/``reached_development``/
+    ``window_opened`` (recorded at ratification). A row is written BEFORE the freeze, so an
+    ordinal >= 3 cannot carry its spec's hash; ordinals must be contiguous from 1, one row
+    per watch. An absent file is an empty ledger (a scratch policy directory)."""
+    rows = [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()] \
+        if path.exists() else []
+    seen = set()
+    for i, r in enumerate(rows, 1):
+        missing = [k for k in LEDGER_REQUIRED if k not in r]
+        if missing:
+            raise WatchError(f"freeze ledger: row {i} lacks {missing}")
+        if r["ordinal"] != i:
+            raise WatchError(f"freeze ledger: ordinal {r['ordinal']} at position {i}")
+        if r["watch"] in seen:
+            raise WatchError(f"freeze ledger: {r['watch']} is listed twice")
+        seen.add(r["watch"])
+    return rows
+
+
+def ledger_entry(watch: str, ledger: list[dict] | None = None) -> dict:
+    for r in (freeze_ledger() if ledger is None else ledger):
+        if r["watch"] == watch:
+            return r
+    raise WatchError(f"{watch} is not on the freeze ledger ({LEDGER.relative_to(REPO).as_posix()})")
+
+
+def gamma(watch: str, *, ledger=None, policy=None) -> Fraction:
+    """The watch's share of its spec's alpha: 1/3 for each founder, 1/(i(i+1)) from ordinal 3.
+    The shares sum to 2/3 + sum_{i>=3} 1/(i(i+1)) = 1; alpha is never recycled."""
+    policy = policy or governing_policy()
+    if policy.get("schema", 1) < 2:
+        raise WatchError("the governing policy (schema 1) spends no alpha per watch; pass m")
+    entry = ledger_entry(watch, ledger)
+    founders = policy["alpha_spending"]["founding_cohort"]["watches"]
+    if watch in founders:
+        return Fraction(2, 3) / len(founders)
+    i = int(entry["ordinal"])
+    return Fraction(1, i * (i + 1))
+
+
+def alpha_i(spec: Mapping, watch: str, *, ledger=None, policy=None) -> float:
+    return float(spec["evaluation"]["alpha"] * gamma(watch, ledger=ledger, policy=policy))
+
+
+def route_boundary(spec: Mapping, m: int | None = None, *, watch: str | None = None,
+                   ledger=None, policy=None) -> float:
+    """Schema 2 (the governing policy): ln((1-beta)/alpha_i) for ``watch``. With ``m`` and
+    no ``watch``: the superseded schema-1 rule ln(m (1-beta)/alpha), kept for history."""
     ev = spec["evaluation"]
-    return math.log(m * (1 - ev["beta"]) / ev["alpha"])
+    if watch is None:
+        if m is None:
+            raise WatchError("route_boundary needs the watch (schema 2) or m (schema 1 history)")
+        return math.log(m * (1 - ev["beta"]) / ev["alpha"])
+    return math.log((1 - ev["beta"]) / alpha_i(spec, watch, ledger=ledger, policy=policy))
+
+
+def _require_listed(watch: str, watch_dir: Path | None) -> None:
+    """freeze, genesis and log refuse an ID not on the ledger (schema 2). Scratch
+    directories (tests) are exempt: the ledger governs the repository's own record."""
+    if watch_dir is None and governing_policy().get("schema", 1) >= 2:
+        ledger_entry(watch)
+
+
+def verify_policy(policy_dir: Path = POLICY_DIR, ledger_path: Path = LEDGER,
+                  watch_dir: Path = WATCH_DIR) -> list[str]:
+    """Problems with the route policy and the freeze ledger: a broken chain link, a bad
+    ledger row (non-contiguous ordinals, a missing field, a duplicate), a spec file with no
+    ledger row, a row whose ``spec_sha256`` (when present) is not the spec's bytes, and a
+    founder missing from the ledger. A row with no spec file is NOT a problem: an ID is
+    listed before its freeze."""
+    problems = []
+    try:
+        policy = governing_policy(policy_dir)
+    except (WatchError, OSError, ValueError) as exc:
+        return [f"route policy chain: {exc}"]
+    try:
+        rows = freeze_ledger(ledger_path)
+    except (WatchError, ValueError) as exc:
+        return [f"freeze ledger: {exc}"]
+    if policy.get("schema", 1) < 2:
+        return problems
+    listed = {r["watch"]: r for r in rows}
+    for spec_file in sorted(watch_dir.glob("*.json")):
+        if spec_file.stem not in listed:
+            problems.append(f"{spec_file.stem}: a frozen spec with no freeze-ledger row")
+    for r in rows:
+        sha = r.get("spec_sha256")
+        sf = watch_dir / f"{r['watch']}.json"
+        if sha and sf.exists() and hashlib.sha256(sf.read_bytes()).hexdigest() != sha:
+            problems.append(f"{r['watch']}: the ledger's spec_sha256 is not the spec's bytes")
+    for founder in policy["alpha_spending"]["founding_cohort"]["watches"]:
+        if founder not in listed:
+            problems.append(f"{founder}: a founding-cohort watch missing from the freeze ledger")
+    return problems
 
 
 def boundaries(spec: Mapping, years: float) -> tuple[float, float]:
@@ -579,6 +713,7 @@ def _books_json(books: Mapping[str, Book]) -> dict:
 def write_genesis(watch: str, snap: daily_data.Snapshot, session: pd.Timestamp, *, run,
                   watch_dir: Path | None = None, now: str | None = None, code=None) -> dict:
     """The genesis line: state only (no return), at ``session``'s close."""
+    _require_listed(watch, watch_dir)
     spec, spec_hash = load(watch, watch_dir)
     if read(watch, watch_dir):
         raise WatchError(f"{watch} already has a genesis")
@@ -608,6 +743,7 @@ def log_sessions(watch: str, snap: daily_data.Snapshot, *, run, opens_at: str | 
     revisions first, then a window_open line once ``opens_at`` (the first session after
     the spec reached the deploy branch) is known, then one counted, chained line per
     session. Returns the lines written."""
+    _require_listed(watch, watch_dir)
     spec, spec_hash = load(watch, watch_dir)
     rows = read(watch, watch_dir)
     problems = verify(watch, watch_dir)
@@ -854,6 +990,7 @@ def write_genesis_domain(watch: str, snap: daily_data.Snapshot, panel, *, run, f
     """The genesis line of a domain watch, at its frozen ``genesis_session``, on its frozen
     ``genesis_data``: every book's returns sha must equal the recorded one. ``fresh``
     (snapshot, panel): a replay of the same window on fresh data, REPORTED only."""
+    _require_listed(watch, watch_dir)
     spec, spec_hash = load(watch, watch_dir)
     if read(watch, watch_dir):
         raise WatchError(f"{watch} already has a genesis")
@@ -950,6 +1087,7 @@ def log_sessions_domain(watch: str, snap: daily_data.Snapshot, load_panel, *, ru
     counted, chained line; a newer vintage that revised an already-stepped observation is a
     ``nav_revision`` line. ``load_panel``: sha -> NavPanel."""
     from src.research.daily_domains import Context
+    _require_listed(watch, watch_dir)
     spec, spec_hash = load(watch, watch_dir)
     rows = read(watch, watch_dir)
     problems = verify(watch, watch_dir)

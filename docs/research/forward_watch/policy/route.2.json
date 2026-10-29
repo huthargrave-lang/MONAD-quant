@@ -1,0 +1,140 @@
+{
+ "schema": 2,
+ "policy": "forward-evidence admission route: per-watch alpha spending on a freeze ledger (FORWARD_ROUTE_PROPOSAL.md Q1-Q5, decision-debate consensus 2026-10-09; ratified 2026-10-29)",
+ "supersedes": {
+  "path": "docs/research/forward_watch/policy/route.json",
+  "sha256": "762ce64ce338553164253b6c70d3b32da96d4523ca940526970fcc5074b2b654"
+ },
+ "ratified": {
+  "date": "2026-10-29",
+  "by": "delegated session; consensus default adopted by delegation (owner instruction 2026-10-29; decision debate round 2 point 7)",
+  "owner_amendable_until": "the first ADMIT (H366200's anniversary 2 settles about 2029-01)",
+  "values_fixed_at": "14ba96e 2026-10-09T12:26:59Z (reached development in 9266877, 2026-10-10T20:29:17Z)",
+  "post_open": true,
+  "windows_opened": {
+   "H366200": "2026-10-12",
+   "H366201": "2026-10-12"
+  },
+  "in_window_session_lines_at_ratification": {
+   "H366200": 0,
+   "H366201": 0
+  },
+  "in_window_sessions_elapsed_unlogged_at_ratification": {
+   "count": 14,
+   "counted_through": "2026-10-29",
+   "note": "NYSE sessions 2026-10-12 .. 2026-10-29 inclusive, the ratification commit's date (nyse_calendar.sessions_between); 13 of them had closed when the debate concluded, during the 2026-10-29 session"
+  }
+ },
+ "ledger": {
+  "path": "docs/research/forward_watch/policy/freeze_ledger.jsonl",
+  "rule": "append-only (prefix), one canonical-JSON row per watch; an ID must be listed before freeze; genesis and log refuse an unlisted ID; concurrent branches take ordinals in first-parent merge order; the founding cohort predates the ledger and is grandfathered by this ratification",
+  "row": {
+   "required": [
+    "ordinal",
+    "watch",
+    "cohort",
+    "listed_at"
+   ],
+   "optional": [
+    "spec_sha256",
+    "frozen_at",
+    "reached_development",
+    "window_opened"
+   ],
+   "note": "a row is written BEFORE the freeze, so it cannot carry the spec's hash or freeze time; the optional fields are present only for the founders, recorded at ratification. verify checks spec_sha256 only when present; for every other listed watch the spec's bytes are pinned by the registration stage (first-parent history) and by verify's rule that every spec file has a row"
+  }
+ },
+ "test": {
+  "upper": "LLR >= ln((1 - beta) / alpha_i), alpha and beta from the watch's own spec",
+  "lower": "LLR <= ln(beta / (1 - alpha)), unchanged from the spec",
+  "beta_prime": "about 0.205 at alpha_i = 0.05/3 (Wald's bound; derived, not a parameter)",
+  "own_promote": "non-terminal; the spec's frozen consequences at its own boundary apply (H366201 closes on a long leg <= 0)",
+  "first_decisive_anniversary": {
+   "H366200": 2,
+   "H366201": 4,
+   "new_specs": "a structured evaluation.first_decisive_anniversary field is required"
+  },
+  "settle": "anniversary k is written once, when the log holds the 64th session line past its cut, by log position",
+  "admit_requires": [
+   "LLR >= upper at an anniversary",
+   "every corroboration condition in the spec",
+   "the chain verifies, every evaluator change is attested, no VOID"
+  ]
+ },
+ "alpha_spending": {
+  "alpha": "the spec's alpha (0.05 for both founders)",
+  "founding_cohort": {
+   "watches": [
+    "H366200",
+    "H366201"
+   ],
+   "gamma_each": "1/3",
+   "boundary_nats": 3.871201010907891
+  },
+  "from_ordinal_3": "gamma_i = 1 / (i (i + 1)); sum of all gamma = 2/3 + 1/3 = 1",
+  "never_recycled": "alpha assigned to a closed or voided watch is never reassigned; a later policy, frozen before its window, may reshape only the unassigned tail",
+  "honest_statement": "ordinal 3's boundary is 5.257 nats (4.5% by 40 years at a true Sharpe of 0.3); from ordinal 3 on a watch is a record, not a practical admission path"
+ },
+ "admission_grants": "eligibility as a sleeve; no size",
+ "sizing": {
+  "host": "TR-20261006T005053Z-9336581d#0 (the D6 static 60/40 SPY/IEF reference, 21 tranches, tier1)",
+  "sleeve": "the watch's recorded 1x-cost tilt book (benchmark + active), full recorded books",
+  "mix": "m_t = (1 - x) p_t + x s_t, rebalanced each session to fixed weights; carve pro rata from the 60/40",
+  "carve_grid": [
+   0.0,
+   0.025,
+   0.05,
+   0.1
+  ],
+  "alpha_input": "the stagewise-ordering 80% lower confidence bound for the frozen route design, by seeded simulation",
+  "excess_sharpe": "mean over standard deviation of (r - DTB3), daily, x sqrt(252)",
+  "drawdown": "nominal maximum drawdown on the daily close path, daily compounding, measured within each window from its first session",
+  "windows": [
+   "full overlap",
+   "overlap start .. 2022-07-31",
+   "2022-08-01 .. end"
+  ],
+  "extra_drawdown": "maxDD(mix) - maxDD(host) in the same window; the maximum over the three windows binds",
+  "budget_pp": 1.0,
+  "rule": "the largest x on the grid that raises the excess Sharpe in both regime windows and keeps the extra drawdown within the budget",
+  "record": "a separate sizing record citing the ADMIT, due within 30 days of it; absent means size 0; never sized up later on the same record",
+  "proxy_extension": "none unless a Q3 amendment freezes one before any ADMIT",
+  "live": "paper only until the owner approves any live change"
+ },
+ "de_admission": {
+  "cusum": "W_k = max(0, W_{k-1} - dLLR_k), dLLR_k = t_k (theta S_k - theta^2 / 2) from year k's own sessions on the pinned anniversary windows; alarm at h = 2.0 de-admits",
+  "close_or_void": "the close boundary on the full record, or a VOID, de-admits",
+  "drawdown_cut": "checked daily on the paper path: host-with-sleeve nominal max drawdown minus the host's alone > budget_pp sets the size to 0 until a new debate"
+ },
+ "build": {
+  "chain": "admit_watch (tools/admit.py --watch <ID>), its own verifier, not prereg.load",
+  "stages": [
+   "registration on development's first-parent history",
+   "ledger",
+   "chain",
+   "evaluator continuity at each line's code.sha (attestations only from development)",
+   "code",
+   "refutations",
+   "witness",
+   "window",
+   "sequential (pinned by the log prefix's line sha)",
+   "corroboration",
+   "void"
+  ],
+  "witness": "the log prefix is on development, witnessed_sha recorded",
+  "hand_written": "the verifier recomputes every stage from the prefix; a hand-written ADMIT cannot verify",
+  "records": "docs/research/verdicts/<ID>/, one per anniversary (O_EXCL), the latest governs; a DE-ADMIT state; sizing is a separate record",
+  "published_with_it": "the route's error-rate table and the exact admission-probability figures",
+  "tests_required": [
+   "an own promote is non-terminal and the route admit follows it on the same record",
+   "a late correction changes no settled verdict",
+   "deleting a branch changes no ordinal and no alpha_i (ordinals come from the ledger, not from git)",
+   "H366201's year-3 close is suppressed (first decisive anniversary 4)",
+   "a long leg <= 0 at a promote crossing closes H366201 (its frozen consequence)",
+   "a CUSUM alarm at h = 2.0 de-admits",
+   "a volatility shift alone does not trip the CUSUM"
+  ]
+ },
+ "applies_to": "every watch on the freeze ledger; a watch cannot admit by itself",
+ "excludes": "H404702's forward window, which is the admission gate's own forward stage"
+}
