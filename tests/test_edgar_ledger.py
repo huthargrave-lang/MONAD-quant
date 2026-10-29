@@ -674,15 +674,18 @@ class DailyTests(unittest.TestCase):
         y, q = el.quarter_of(DAY)
         for d in el.weekdays(DAY, DAY + dt.timedelta(days=30)):
             self.get.table.setdefault(el.DAILY_INDEX_URL.format(year=y, q=q, ymd=d.strftime("%Y%m%d")), (404, b""))
-        out = self.run_daily(DAY + dt.timedelta(days=30), first_day=DAY)
-        self.assertEqual(len(out["days"]), el.DAILY_CAP)
-        self.assertGreater(out["rolled_forward"], 0)
+        today = DAY + dt.timedelta(days=30)
+        total = len(el.weekdays(DAY, today - dt.timedelta(days=1)))
+        self.assertGreater(total, 2 * el.DAILY_CAP)
+        out = self.run_daily(today, first_day=DAY)
+        self.assertEqual((len(out["days"]), out["rolled_forward"]), (el.DAILY_CAP, total - el.DAILY_CAP))
         seals = self.store.seals()
         self.assertEqual(len(seals), el.DAILY_CAP)
         empty = seals[(DAY + dt.timedelta(days=3)).isoformat()]        # Monday: 404 index
         self.assertEqual((empty["accessions"], empty["complete"], empty["idx_sha256"]), (0, True, None))
-        out = self.run_daily(DAY + dt.timedelta(days=30), run_id="r2")
-        self.assertEqual(len(out["days"]), out["rolled_forward"] + len(out["days"]) - out["rolled_forward"])
+        out = self.run_daily(today, run_id="r2")                       # resumes after the last complete seal
+        self.assertEqual((len(out["days"]), out["rolled_forward"]), (el.DAILY_CAP, total - 2 * el.DAILY_CAP))
+        self.assertEqual(out["days"][0]["day"], el.weekdays(DAY, today)[el.DAILY_CAP].isoformat())
         self.assertEqual(el.verify_shards(self.store.root), [])
 
     def test_a_refused_runner_stops_the_day(self):
