@@ -19,6 +19,20 @@ DEPLOY_USER="$(whoami)"
 echo "  Detected user: $DEPLOY_USER"
 echo "  Detected repo: $REPO_DIR"
 
+# ── Decommission guard ───────────────────────────────────────────────────────
+# This script installs AND enables deploy/monad-trader.service (boot-start, no
+# preflight). Since 2026-10-29 the trader is decommissioned as a live process
+# (docs/research/DECOMMISSION_TRADER_QUESTION.md); the tracked marker below is the
+# designed state and this installer must not recreate the unit. Revival is a
+# reviewed commit deleting the marker — OPERATIONS.md §6.1.
+if [ -f "$REPO_DIR/ops/DECOMMISSIONED.json" ]; then
+    echo ""
+    echo "REFUSING: the trader is DECOMMISSIONED (ops/DECOMMISSIONED.json exists)."
+    echo "    This installer would install and enable monad-trader.service."
+    echo "    Revival condition and mechanics: OPERATIONS.md §6.1"
+    exit 3
+fi
+
 echo "══════════════════════════════════════════════════════════════"
 echo "  MONAD Quant — Raspberry Pi Setup"
 echo "══════════════════════════════════════════════════════════════"

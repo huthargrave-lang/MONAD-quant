@@ -2,7 +2,7 @@
 #
 # preflight_trader_start.sh — Hard safety gate that must pass before the MONAD
 # paper trader starts. Runs as ExecStartPre of monad-trader.service (and is safe
-# to run by hand). Runs ALL 10 checks, logs each PASS/FAIL with a clear reason to
+# to run by hand). Runs ALL 11 checks, logs each PASS/FAIL with a clear reason to
 # local_logs/trader_preflight.log, and exits non-zero if ANY check fails.
 #
 # PAPER ONLY. Never connects to or accepts the live port 7496. Prints/stores no
@@ -117,6 +117,17 @@ PY
     esac
 else
     pass "no healthcheck.json yet (treated as no recent failure)"
+fi
+
+# 11. Not decommissioned. The tracked marker ops/DECOMMISSIONED.json is the designed
+#     state after the 2026-10-29 decision (docs/research/DECOMMISSION_TRADER_QUESTION.md);
+#     while it exists no path that runs this gate may arm the trader. A real fail()
+#     (not an early exit) so the verdict and the [FAIL] count stay coherent. Revival is
+#     a reviewed commit deleting the marker — OPERATIONS.md §6.1 — never an edit here.
+if [ -f "$REPO/ops/DECOMMISSIONED.json" ]; then
+    fail "trader is DECOMMISSIONED (ops/DECOMMISSIONED.json) — OPERATIONS.md §6.1"
+else
+    pass "not decommissioned"
 fi
 
 # ── Alerting reachability — REPORTED, not gated ────────────────────────────

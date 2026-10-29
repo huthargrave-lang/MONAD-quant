@@ -514,7 +514,7 @@ while price is already between the 50-MA and 252-MA (already in recovery momentu
 ### Config flags quick reference
 ```python
 # ── Mode selector (the one line you change to switch profiles) ──
-ACTIVE_MODE = "TQQQ_HOURLY"    # Current live mode
+ACTIVE_MODE = "TQQQ_HOURLY"    # reference mode; the live trader is decommissioned (OPERATIONS.md §6.1)
 # Options: "BTC_DAILY" | "BTC_HOURLY" | "QQQ" | "QQQ_HOURLY" | "TQQQ_HOURLY"
 #          | "GDXU_HOURLY" | "SOXL_HOURLY" | "LABU_HOURLY" | "TNA_HOURLY"
 

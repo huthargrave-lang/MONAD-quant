@@ -1,3 +1,6 @@
+# DECOMMISSIONED 2026-10-29 — do not install/enable; the trader is retired as a live process.
+# Revival: OPERATIONS.md §6.1 (a reviewed commit deleting ops/DECOMMISSIONED.json).
+# Decision: docs/research/DECOMMISSION_TRADER_QUESTION.md
 [Unit]
 # Recovery-only companion to monad-trader.service. Fires on a timer during the
 # session and starts the trader IFF a cold start would actually pass preflight.

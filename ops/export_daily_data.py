@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB = os.path.join(REPO, "live", "state.db")
-_ACCT_RE = re.compile(r"\bD?U[0-9]{5,}\b")  # DU1234567 / U1234567 paper/live ids
+_ACCT_RE = re.compile(r"\b(?:DU[A-Z]?|U)[0-9]{5,}\b")  # DU1234567 / DUD1234567 / U1234567 paper/live ids
 
 
 def _redact(value):
