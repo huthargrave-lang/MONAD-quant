@@ -211,8 +211,10 @@ published, MONAD ships as **reference content**, ideally in a separate repo.
 
 ## 9. Versioning & staged migration
 
-**`schema_version`** is declared (a) canonically here and (b) as an HTML comment at the
-top of `RESEARCH_WEB.md`. Bump **MAJOR** for changes to node-kind set, ID format, or
+**`schema_version`** is declared (a) canonically here, (b) as an HTML comment at the
+top of `RESEARCH_WEB.md`, and (c) in code as `ctx.SCHEMA_VERSION`, which `ctx graph --json`
+emits as `schema_version` beside `contract: ctx.graph/1` (`tests/test_graph_contract.py`
+pins all four equal, and pins `len(EDGE_TYPES) == 12 ==` the §5a row count). Bump **MAJOR** for changes to node-kind set, ID format, or
 edge vocabulary; **MINOR** for additive optional fields/tags.
 
 - **`0.1` (current):** F/H/E/D + the 12 edge types + status/reason vocab, exactly as enforced.
@@ -225,6 +227,7 @@ edge vocabulary; **MINOR** for additive optional fields/tags.
 | **0 — this pass** | Author `SCHEMA.md`; declare `schema_version`; define proposed domain layer, edges, and `domain:` vocab. | No. Docs/metadata only. |
 | **0.5 — metadata backfill** (offline) | Add `domain:` tags to existing nodes; map `[ctx]` → `context_kit`. Mechanical, lint-gated. | No (content edits via a `note.py`-style pass). |
 | **1 — engine extraction** | Split the generic graph engine from the MONAD/IBKR/ops adapter; externalize `KINDS`/`EDGE_TYPES` to config. *(Separate task — not started.)* | Yes. |
+| **1a — graph contract** (done) | `graph --json` frozen as `ctx.graph/1` with `contract`/`schema_version` keys; edges in canonical `(from, to, type)` order, run-stable across `PYTHONHASHSEED` (also fixes `graph --html`). | Yes (edge order). |
 | **3 — domain kinds** | Widen the ID guard `^[FHED]\d+$` to admit `DS/R/SG/ST/BM/EM/RM`; add the proposed edges to `EDGE_TYPES`; update `note.py`/`ctx.py` + the CI guards; then migrate content. | Yes. Re-validate everything. |
 
 ### 9.1 Domain-tag backfill plan (Stage 0.5)

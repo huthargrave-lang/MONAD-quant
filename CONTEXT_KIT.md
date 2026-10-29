@@ -39,7 +39,12 @@ repo-wired rim. Lifting the kit means filling the content files **and** trimming
 
 ## Lift it into another repo (≈5 minutes)
 
-1. Copy `tools/ctx.py`; trim/re-point the *repo-wired commands* above for your domain.
+1. Copy three artifacts: `tools/ctx.py`, `tools/ui_tokens.py`, and the `tools/vendor/` directory
+   (it holds the vendored d3 that `ctx graph --html` inlines — without it the map renders a
+   *d3 is not vendored* banner). `ctx drift`'s doc-path guard (`_DOC_PATH_RX`) resolves the two
+   `.py` paths; the directory is outside its regex, so `tests/test_ctx_fresh_repo.py` guards the
+   copy list instead by lifting exactly these three into a scratch repo and running the steps
+   below. Then trim/re-point the *repo-wired commands* above for your domain.
 2. `python tools/ctx.py init --write` — introspects the source tree + import graph and writes a
    `context_map.json` skeleton (one area per top-level package) and an empty `RESEARCH_WEB.md`.
    It **never overwrites** an existing file.
@@ -64,6 +69,10 @@ SET UP    ctx init [--write]
 ```
 These are the highlights; the **complete, CI-guaranteed** subcommand list lives in
 `AGENT_INDEX.md` (a guard pins every registered `ctx` subcommand to it).
+`ctx graph --json` is a **frozen machine contract** — `ctx.graph/1`: top-level keys `contract`,
+`schema_version`, `project`, `nodes`, `edges`; nodes `{id, kind, title, status}`; edges
+`{from, to, type}` in canonical `(from, to, type)` order, byte-stable across runs
+(`tests/test_graph_contract.py` pins the shape, the vocabularies and the determinism).
 `ctx` is **read-only by contract**; the single *writer* is `tools/note.py` — write-fenced to
 `RESEARCH_WEB.md` only, atomic, **dry-run by default**, and it refuses to write unless the result
 re-parses and passes the same integrity lint as `ctx web --lint`. So the graph can populate itself

@@ -1147,6 +1147,10 @@ def cmd_tests(args):
 # real problem; a historical/upstream edge into one is exempt; a dependency edge
 # (relates/derived_from/drives) into one is a problem unless the superseder is also
 # cited (the supersession-propagation invariant — see _PROPAGATION_EXEMPT).
+# Declared canonically in SCHEMA.md line 1 and echoed at RESEARCH_WEB.md line 2; emitted as
+# `schema_version` by `ctx graph --json` (contract `ctx.graph/1`). tests/test_graph_contract.py
+# pins all four equal.
+SCHEMA_VERSION = "0.1"
 RELIANCE_EDGES = {"relies_on", "supports", "refines", "builds_on"}
 EDGE_TYPES = RELIANCE_EDGES | {
     "supersedes", "contradicts", "evidenced_by", "produces", "derived_from",
@@ -1676,7 +1680,7 @@ def build_graph(include_code=False):
                 if any(rel == f or (f.endswith("/") and rel.startswith(f)) for f in spec["files"]):
                     add(aid, "mod:" + rel, "owns")
         for dotted, rel in mod2file.items():
-            for imp in importers.get(dotted, ()):        # imp imports dotted
+            for imp in sorted(importers.get(dotted, ())):  # imp imports dotted (sorted: run-stable adj order)
                 irel = mod2file.get(imp)
                 if not irel:
                     continue
@@ -2420,8 +2424,9 @@ def _serve_route(path):
             "summary": _graph_summary(G, _parse_web()[0]),
             "nodes": [{"id": nid, "kind": d["kind"], "title": d["title"][:120],
                        "status": d["status"]} for nid, d in G.items()],
-            "edges": [{"from": a, "to": e["to"], "type": e["type"]}
-                      for a, es in adj.items() for e in es if e["dir"] == "out"],
+            "edges": sorted(({"from": a, "to": e["to"], "type": e["type"]}
+                             for a, es in adj.items() for e in es if e["dir"] == "out"),
+                            key=lambda e: (e["from"], e["to"], e["type"])),
             "details": _graph_details(G, adj),
         }), "application/json; charset=utf-8"
     if path == "/health":
@@ -2522,8 +2527,11 @@ def cmd_graph(args):
     self-contained interactive force-graph (redirect to a file, open in a browser);
     else a kind/edge-type summary. `--ideas-only` drops the code layer."""
     G, adj = build_graph(include_code=not getattr(args, "ideas_only", False))
-    edges = [{"from": a, "to": e["to"], "type": e["type"]}
-             for a, es in adj.items() for e in es if e["dir"] == "out"]
+    # Canonical (from, to, type) order — the one behaviour change of seam slice 1a, so the
+    # JSON is byte-stable across runs/PYTHONHASHSEED and diffable (contract `ctx.graph/1`).
+    edges = sorted(({"from": a, "to": e["to"], "type": e["type"]}
+                    for a, es in adj.items() for e in es if e["dir"] == "out"),
+                   key=lambda e: (e["from"], e["to"], e["type"]))
     if getattr(args, "orphans", False):
         idea_orphans = sorted(nid for nid in G if not adj[nid] and _is_idea_id(nid))
         if not idea_orphans:
@@ -2542,7 +2550,8 @@ def cmd_graph(args):
     if getattr(args, "json", False):
         nodes = [{"id": nid, "kind": d["kind"], "title": d["title"][:120], "status": d["status"]}
                  for nid, d in G.items()]
-        print(json.dumps({"project": _manifest().get("project", ""),
+        print(json.dumps({"contract": "ctx.graph/1", "schema_version": SCHEMA_VERSION,
+                          "project": _manifest().get("project", ""),
                           "nodes": nodes, "edges": edges}))
         return
     from collections import Counter
