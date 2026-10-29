@@ -90,6 +90,8 @@ execution model; families become `.v3`.
   stop exits (distance beyond the stop level, IBKR-native and software reported
   separately). Until measured, the admission record states the value used and its source.
   It is never the half-spread again.
+  *Amended 2026-10-29 — the archived-live instrument is closed; see the **(g) amendment**
+  below and `docs/research/DECOMMISSION_TRADER_QUESTION.md` (prospective gate rule).*
 - **(h) Scope.** All timeframes. H404700 stays a v2 verdict; a re-test is a new v3
   registration.
 - **(i) Declared unmodelled live behaviours, with parity verdicts:**
@@ -102,3 +104,36 @@ execution model; families become `.v3`.
     `bar_count` advances with no new bar (D6 Study 45: 76 cycles in 2026), and a flat bot
     can re-trade a stale signal (DIVERGE; the live fix of gating cycles on the exchange
     calendar and on bar_time advancing is a separate change needing sign-off).
+
+## (g) amendment — decision-debate consensus of 2026-10-29 (prospective gate rule)
+
+Ratified in the decommission debate (`docs/research/DECOMMISSION_TRADER_QUESTION.md`, where
+the full record lives; this section is that debate's explicit cross-reference, not a silent
+rewrite of (g)). The ratified (g) names "archived live stop exits" as the instrument; the
+instrument is being retired, so (g) is amended rather than argued around. Because the 3×
+stress changes what admits, it is a **gate rule**, applied **prospectively** from 2026-10-29
+(the deflation consensus's gate-rules convention): admission records registered after this
+date must satisfy it; earlier records are not re-opened by it.
+
+*The archived-live instrument is closed: the committed archive holds n_native_intraday = 1
+(6 `stop_hit` = 4 software, 2 native, 1 overnight) and the Pi's paper fills are a simulator
+property (OPERATIONS.md §11, changelog item 2: "the paper fill engine is the problem"). The
+gap component of a stop is already filled at the open by rule (b)1 and its severity is the
+realized TQQQ close→next-open loss distribution (Study #30, E54/F64,
+`tools/overnight_gap_risk_study.py`). The intraday trigger-to-fill component uses a stated
+prior `stop_slippage_pct = 0.0005` (5 bps) — a conservative prior with no claimed derivation,
+bounded only by the single archived native point and IBKR's own statement that a triggered
+stop becomes a market order whose execution price is not guaranteed (D6 execution-semantics
+study, "External execution check") — and every admission record is re-run at 0.0015 (3×) and
+must survive it. The decommission export's `stop_exits.jsonl` and the single archived native
+point are recorded as data, not estimates. A measured instrument (a dedicated stop-fill probe
+on a venue whose fills are market events) supersedes the prior.*
+
+Why the prior is stated without a derivation: the `harsh` backtest mode's `slippage_pct
+0.0005` is a **round-trip** cost (`src/backtest/runner.py`), and (g) itself separates
+trigger-to-fill slippage from the spread the round-trip cost already includes; citing the one
+as the source of the other would re-blur exactly that line. The two numbers coincide; they are
+not the same quantity.
+
+Research-web node (the moderator captures it; dry run until `--commit`):
+`tools/note.py add --kind F --title "(g) archived-live stop-slippage instrument closed; replacement = gap distribution + 5bp prior, 3x stress" --link F404703:relates --link D6:supports`

@@ -1,0 +1,24 @@
+[Unit]
+Description=Run the MONAD forward records daily after the US close (research host role)
+
+[Timer]
+# 18:40 ET, weekdays: after the close, after monad-screener (17:30 ET) so two vendor-heavy
+# jobs never overlap on the Pi, and after CEFConnect has posted the day's NAVs. The deadline
+# this serves (src/research/forward_watch.py vintage_for): session t's H366201 decision
+# executes at session t+1's close, 20:00 UTC, and may read only a vintage fetched before
+# then. 18:40 ET is 22:40/23:40 UTC, about 20 hours ahead of it. The same run writes both
+# watches' session t lines (a same-evening log is valid: session t reads only NAVs dated
+# before t). Timezone named explicitly because the Pi clock is Europe/London.
+OnCalendar=Mon..Fri 18:40 America/New_York
+
+# The Pi is not always up. A missed evening is one more H366201 session decided on a stale
+# vintage (the rule's 14-day staleness then applies), so a run missed while the Pi was off
+# fires at boot, and `log` catches up every session since the last line.
+Persistent=true
+
+# CEFConnect and Yahoo rate-limit per IP; nothing here needs a precise minute.
+RandomizedDelaySec=300
+Unit=monad-forward-watch.service
+
+[Install]
+WantedBy=timers.target

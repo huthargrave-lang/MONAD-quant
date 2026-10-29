@@ -1,0 +1,17 @@
+{
+  "decommissioned_on": "2026-10-29",
+  "what": "The MONAD hourly paper trader (monad-trader.service/.timer, monad-trader-rearm.service/.timer) is DECOMMISSIONED as a live process on the Pi. live/ stays fenced reference code; src/strategy/engine.py (ENGINE_VERSION 3) stays the research evaluator.",
+  "decision": "docs/research/DECOMMISSION_TRADER_QUESTION.md (decision-debate consensus 2026-10-29, direction D-3 in docs/DIRECTIONS.md)",
+  "runbook": "OPERATIONS.md §6.1",
+  "revival": "OPERATIONS.md §6.1: a reviewed commit on development that deletes this file and cites the admitted ENGINE_VERSION 3 hourly hypothesis ID (an hourly hypothesis registered against ENGINE_VERSION 3 that clears the admission gate; none exists).",
+  "readers": [
+    "ops/preflight_trader_start.sh check 11 (fail() while this file exists)",
+    "ops/start_trader.sh (both modes refuse, exit 3)",
+    "deploy/setup-pi.sh (refuses to install/enable, exit 3)",
+    "ops/decommission_trader.sh (requires this file before touching any unit)"
+  ],
+  "archive_id": null,
+  "pi_receipt": null,
+  "git_commit": null,
+  "note": "archive_id, pi_receipt and git_commit are filled by the operator when the Pi's receipt.json (written by ops/decommission_trader.sh) is committed."
+}

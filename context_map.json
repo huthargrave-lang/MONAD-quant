@@ -589,7 +589,8 @@
         "tools/sleeve_break_even.py",
         "tools/convexity_control.py",
         "src/research/convexity_control.py",
-        "tools/credit_sleeve_mix.py"
+        "tools/credit_sleeve_mix.py",
+        "tools/edgar_ledger.py"
       ],
       "entrypoints": [
         "src/research/daily_domains.py::Domain",
@@ -653,7 +654,9 @@
         "tests/test_o4_calibration.py",
         "tests/test_sleeve_break_even.py",
         "tests/test_convexity_control.py",
-        "tests/test_credit_sleeve_mix.py"
+        "tests/test_credit_sleeve_mix.py",
+        "tests/test_edgar_ledger.py",
+        "tests/test_edgar_ledger_workflow.py"
       ],
       "docs": [
         "docs/research/DAILY_STRATEGIES.md",
@@ -692,7 +695,9 @@
         "docs/research/O4_RESOLUTION_PROTOCOL.md",
         "docs/research/SLEEVE_BREAK_EVEN_PROTOCOL.md",
         "docs/research/CONVEXITY_CONTROL_PROTOCOL.md",
-        "docs/research/CREDIT_SLEEVE_MIX_PROTOCOL.md"
+        "docs/research/CREDIT_SLEEVE_MIX_PROTOCOL.md",
+        "docs/EDGAR_LEDGER.md",
+        "docs/research/EDGAR_LEDGER_QUESTION.md"
       ],
       "do_not_touch_without_approval": false,
       "run_cmd": "venv/bin/python tools/domain_search.py <domain> --snapshot <sha> [--panel <sha>] --report-only"
@@ -1362,6 +1367,43 @@
       "avoid": [
         "citing CLAUDE.md headline numbers (superseded)",
         "re-running a tested idea without reading its row in DAILY_STRATEGIES.md and its finding"
+      ]
+    },
+    {
+      "keywords": [
+        "edgar",
+        "edgar ledger",
+        "filing ledger",
+        "fsds",
+        "financial statement data sets",
+        "sec index",
+        "form.idx",
+        "sgml header",
+        "hdr.sgml",
+        "acceptance time",
+        "tradable time",
+        "clock_class",
+        "sec probe",
+        "edgar-ledger branch"
+      ],
+      "read": [
+        "docs/EDGAR_LEDGER.md",
+        "docs/research/EDGAR_LEDGER_QUESTION.md",
+        "src/research/edgar_ledger.py",
+        "tools/edgar_ledger.py",
+        ".github/workflows/edgar-ledger.yml",
+        "docs/research/FD00_sec_filing_delta_lab.md (clock, population, gates)"
+      ],
+      "run": [
+        "python3 -m unittest tests.test_edgar_ledger tests.test_edgar_ledger_workflow",
+        "python3 tools/edgar_ledger.py verify --report-gaps --ledger <clone>/data/edgar_ledger"
+      ],
+      "avoid": [
+        "editing a committed rows/inputs/probe/fsds file (append-only; verify --against refuses it)",
+        "running daily/fsds without a committed passing probe",
+        "committing a filing body or raw header bytes",
+        "a SEC_USER_AGENT at example.com or without an @",
+        "pushing to any ref but edgar-ledger"
       ]
     }
   ],

@@ -28,7 +28,7 @@ from datetime import datetime, timezone
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB = os.path.join(REPO, "live", "state.db")
-ACCT_RE = re.compile(r"\bD?U[0-9]{5,}\b")
+ACCT_RE = re.compile(r"\b(?:DU[A-Z]?|U)[0-9]{5,}\b")  # DU…/DUD…/U… paper/live ids
 PROD = {"target_hit", "stop_hit", "time_exit", "bracket_exit", "pending_close"}
 
 
@@ -69,6 +69,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--date", default=datetime.now(timezone.utc).strftime("%Y-%m-%d"))
     ap.add_argument("--notes", default="pre clean run archive")
+    ap.add_argument("--archive-id", default=None,
+                    help="archive directory name under data/live_runs/ "
+                         "(default: archive_<date>_pre_clean_run)")
+    ap.add_argument("--no-run-marker", action="store_true",
+                    help="do not write local_runtime/current_run.json (no new run is "
+                         "being started — e.g. the decommission's final archive)")
     args = ap.parse_args()
 
     if not os.path.exists(DB):
@@ -89,7 +95,7 @@ def main():
         raise SystemExit(f"REFUSING: {open_positions} open position(s) in state.db. "
                          "Reconcile/flatten first.")
 
-    archive_id = f"archive_{args.date}_pre_clean_run"
+    archive_id = args.archive_id or f"archive_{args.date}_pre_clean_run"
     out = os.path.join(REPO, "data", "live_runs", archive_id)
     os.makedirs(out, exist_ok=True)
 
@@ -144,7 +150,9 @@ def main():
     # ── Raw backup (gitignored), then sha256 of the live DB ──────────────────
     backup_dir = os.path.join(REPO, "local_backups")
     os.makedirs(backup_dir, exist_ok=True)
-    backup_path = os.path.join(backup_dir, f"state_{args.date}_pre_clean_run.db")
+    # state_<date>_pre_clean_run.db for the default id (unchanged); state_<id>.db otherwise
+    backup_stem = archive_id[len("archive_"):] if archive_id.startswith("archive_") else archive_id
+    backup_path = os.path.join(backup_dir, f"state_{backup_stem}.db")
     shutil.copy2(DB, backup_path)
     db_sha = _sha256(DB)
 
@@ -166,28 +174,33 @@ def main():
         json.dump(meta, f, indent=2)
 
     # ── Run marker (gitignored runtime) ──────────────────────────────────────
-    started_at = datetime.now(timezone.utc).isoformat()
-    run_id = f"run_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
     runtime_dir = os.path.join(REPO, "local_runtime")
-    os.makedirs(runtime_dir, exist_ok=True)
-    marker = {
-        "run_id": run_id,
-        "started_at": started_at,
-        "archive_id": archive_id,
-        "git_commit": meta["git_commit"],
-        "notes": args.notes,
-    }
-    with open(os.path.join(runtime_dir, "current_run.json"), "w") as f:
-        json.dump(marker, f, indent=2)
+    if args.no_run_marker:
+        run_id = started_at = None
+    else:
+        started_at = datetime.now(timezone.utc).isoformat()
+        run_id = f"run_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
+        os.makedirs(runtime_dir, exist_ok=True)
+        marker = {
+            "run_id": run_id,
+            "started_at": started_at,
+            "archive_id": archive_id,
+            "git_commit": meta["git_commit"],
+            "notes": args.notes,
+        }
+        with open(os.path.join(runtime_dir, "current_run.json"), "w") as f:
+            json.dump(marker, f, indent=2)
 
     # ── Report ───────────────────────────────────────────────────────────────
-    print("✅ Archive + new-run marker created.")
+    print("✅ Archive created" + (" (no new-run marker, by request)." if args.no_run_marker
+                                 else " + new-run marker created."))
     print(f"\n  Archive (committable, sanitized): {out}")
     for fn in sorted(os.listdir(out)):
         print(f"    {fn}  ({os.path.getsize(os.path.join(out, fn))} b)")
     print(f"\n  Raw backup (LOCAL ONLY, gitignored): {backup_path}")
-    print(f"  Run marker (gitignored): {os.path.join(runtime_dir, 'current_run.json')}")
-    print(f"  run_id={run_id}  started_at={started_at}")
+    if not args.no_run_marker:
+        print(f"  Run marker (gitignored): {os.path.join(runtime_dir, 'current_run.json')}")
+        print(f"  run_id={run_id}  started_at={started_at}")
     print(f"\n  Headline at archive: dashboard {headline['dashboard_prod_trades']} trades / "
           f"{headline['dashboard_compounded_pct']:+.2f}% compounded")
     print("\n  Verify with:")

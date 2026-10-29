@@ -52,7 +52,7 @@ _TAG = re.compile(r"<[^>]+>")
 def user_agent() -> str:
     ua = os.environ.get("SEC_USER_AGENT", "").strip()
     if "@" not in ua:
-        raise RuntimeError("set SEC_USER_AGENT to 'name contact@example.com' (SEC fair-access policy)")
+        raise RuntimeError("set SEC_USER_AGENT to 'name you@your-domain' (SEC fair-access policy)")
     return ua
 
 

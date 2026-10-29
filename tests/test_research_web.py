@@ -273,9 +273,14 @@ class TestWebListingViews(unittest.TestCase):
 
     def test_pending_lists_open_and_decisions_excludes_superseded(self):
         out = self._web(pending=True)
-        for nid in ("D1", "H4", "E7"):
+        # D1 was the pinned decision here until the 2026-10-29 hygiene pass superseded it
+        # by D6 (reason: reversed) — the gate that overtook it. D2 is the standing open
+        # decision now (self-closing per F165). See docs/research/WEB_HYGIENE_QUESTION.md.
+        for nid in ("D2", "H4", "E7"):
             self.assertIn(nid, out, f"{nid} should appear in --pending")
         self.assertNotIn("F3 ", out, "superseded F3 must not appear in --pending")
+        self.assertNotIn("D1 ", out, "D1 is superseded by D6 and must not appear in --pending")
+        self.assertNotIn("D3 ", out, "D3 is superseded by D6 and must not appear in --pending")
 
     def test_superseded_tombstoned_in_full_listing(self):
         out = self._web()

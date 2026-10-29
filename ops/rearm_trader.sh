@@ -27,7 +27,8 @@
 # WHAT THIS DOES
 #   Polls during the session and starts the trader the moment a cold start
 #   would genuinely succeed. It NEVER bypasses or weakens preflight — it uses
-#   preflight ITSELF as the gate, so all 10 original safety checks still apply.
+#   preflight ITSELF as the gate, so all 11 safety checks still apply (check 11:
+#   not decommissioned — OPERATIONS.md §6.1).
 #   A fixed-time retry would not work: the bracket only fills when price
 #   touches TP or SL, which may be minutes or hours after the open.
 #
@@ -70,10 +71,10 @@ if [ "$(systemctl is-failed "$UNIT" 2>/dev/null)" = "failed" ]; then
     sudo systemctl reset-failed "$UNIT" 2>/dev/null || true
 fi
 
-# 3. THE GATE: the real preflight, unmodified. Exits 0 only if all 10 checks
+# 3. THE GATE: the real preflight, unmodified. Exits 0 only if all 11 checks
 #    pass (branch, gateway up, paper port open, live port closed, IBKR connect,
 #    ACCOUNT FLAT, no duplicate trader, state.db writable, logs writable, no
-#    recent healthcheck failure). Anything else -> quiet no-op, try again next
+#    recent healthcheck failure, not decommissioned). Anything else -> quiet no-op, try again next
 #    tick. Preflight logs its own verdict to local_logs/trader_preflight.log.
 if ! "$REPO/ops/preflight_trader_start.sh" >/dev/null 2>&1; then
     exit 0

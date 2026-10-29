@@ -47,8 +47,11 @@ STORY = ["F13", "F14", "F15", "F16", "F17", "F19", "F22", "D6"]
 
 # The pre-convention block: nodes captured before note.py stamped a date footer.
 # It can only shrink (a backfill) — a new undated node means the convention broke.
+# D1 and D3 left this set on 2026-10-29: the status-hygiene pass superseded both by D6
+# (docs/research/WEB_HYGIENE_QUESTION.md, Tier 3), and `note.py supersede` stamps `at:`
+# into the status comment — the same mechanism that moved F10 out (see AMENDED below).
 UNDATED = {
-    "D1", "D2", "D3", "D4", "D6", "D7",
+    "D2", "D4", "D6", "D7",
     "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "E9",
     "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F11", "F12", "F13",
     "F14", "F16", "F17",
@@ -62,7 +65,10 @@ UNDATED = {
 # dated node after it. Its inversion happened to be excused already, because the
 # next dated F node (F15) is itself exempt; listing F10 explicitly makes the
 # exemption reflect why it applies instead of relying on a neighbour.
-AMENDED = {"F9", "F10", "F15"}
+# D1 and D3 joined on 2026-10-29 for the same reason as F10: superseded by D6 in the
+# status-hygiene pass, their only date is the supersession stamp, which inverts against
+# every dated D node after them.
+AMENDED = {"F9", "F10", "F15", "D1", "D3"}
 
 
 def graph():
@@ -107,11 +113,19 @@ class ForwardTraversalCannotNarrateTests(unittest.TestCase):
     def test_almost_no_consecutive_pair_has_a_direct_FORWARD_edge(self):
         forward = [(a, b) for a, b in zip(STORY, STORY[1:])
                    if any(t == b for t, _ in self.adj[a])]
+        # Measured 1 when H10 was run (F16 drives F17). A second forward edge, F22 -> D6
+        # `relates`, was added on 2026-10-29 by the status-hygiene pass: the lint refuses
+        # to supersede D1 by D6 while a live node (F22) cites D1 without citing D6, so the
+        # link is a supersession prerequisite, not a narrative arc. The premise stands:
+        # 2 of 7 pairs, against 4 reverse edges (next test).
         self.assertLessEqual(
-            len(forward), 1,
+            len(forward), 2,
             "the story now has {} direct forward edges ({}). If narrative arcs were "
             "added, H10's premise is closing — re-run the measurement and update the "
             "node rather than editing this test.".format(len(forward), forward))
+        self.assertEqual(
+            set(forward) - {("F16", "F17"), ("F22", "D6")}, set(),
+            "a forward edge other than the two explained above appeared: {}".format(forward))
 
     def test_the_reverse_direction_is_where_the_edges_actually_are(self):
         reverse = [(a, b) for a, b in zip(STORY, STORY[1:])

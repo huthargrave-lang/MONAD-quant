@@ -306,3 +306,78 @@ checks, close absorbing):
   freeze ledger, before either watch's PR merges (no window has opened);
 - the `admit_watch` chain is built with its tests;
 - H366201's committed-spec test lands on its branch.
+
+## Ratification (2026-10-29, by delegation)
+
+**Outcome: RATIFIED.** Q1-Q5 as agreed on 2026-10-09; the two owner values set by a two-round
+decision debate (proposer, skeptic: DISPUTE on implementation in round 1, the values uncontested,
+CONCUR in round 2 conditional on three implementation fixes, all landed). Recorded as the
+**consensus default adopted by delegation (owner instruction 2026-10-29), owner-amendable before
+the first ADMIT (~2029-01), paper-only per Q3.**
+
+- **Q3 budget: 1.0 pp absolute extra drawdown**, measured as `policy/route.2.json` freezes it
+  (mix `m_t = (1 − x) p_t + x s_t` rebalanced each session, sleeve = the watch's recorded 1x-cost
+  tilt book, host `TR-20261006T005053Z-9336581d#0`, daily close path, full overlap and the two F46
+  windows, the max binding; reused as Q4's daily cut). Grounds: procedure spread of 0.3-1.3 pp at
+  the grid's carves (CREDIT_SLEEVE_MIX_PROTOCOL.md:241, 261), so 0.5 pp is inside it; and product
+  tolerance (≈3% of the host's worst nominal drawdown, −32.2%, CREDIT:241; ≈5% of its 2022
+  drawdown, −21.2%, SLEEVE_BREAK_EVEN:95). **Not set from any candidate's measured drawdown.**
+  Adopted by delegation as the consensus default; **the owner may amend it before the first
+  possible ADMIT (H366200's anniversary 2 settles ~2029-01).** An owner mandate of zero nominal
+  drawdown movement is budget 0, grid {0}.
+- **Q2 split: the founding cohort, α/3 each, boundary ln 48 = 3.871.** The founders predate the
+  ledger and were frozen under a policy symmetric in m (`4445325`); they are grandfathered as one
+  cohort by this ratification. From ordinal 3, γ_i = 1/(i(i+1)); Σγ = 1; α is never recycled.
+  Power 17.9% each by 40 years at a true Sharpe of 0.3 (vs 24.6% / 9.6% under strict order);
+  family error identical. 3.871 is stricter than the in-force policy today (3.466 at m = 2),
+  equal at m = 3, looser than it would become at m ≥ 4 (the m-count the consensus rejected).
+
+**Facts at ratification.** Both specs and `route.json` reached development in merge `9266877`
+(2026-10-10T20:29:17Z). Both windows opened **2026-10-12** (Columbus Day is an NYSE session,
+`nyse_calendar.is_session`; `opens_at` takes the first session strictly after the merge's date).
+Zero in-window session lines exist. **14 in-window sessions (10-12…10-29, through the
+ratification commit's date) have elapsed unlogged**; 13 of them had closed when the debate
+concluded, during the 10-29 session. The candidate values were committed at `14ba96e`
+(2026-10-09T12:26:59Z), before the window opened, and reached development with the same merge.
+Round 2's "`route.json` is not on development" (line 164) was true when written and is not now.
+
+**How the policy changes.** `route.json` is not replaced: `verify --against` holds every `.json`
+under `forward_watch/` byte-identical (`tools/forward_watch.py _history_rule`, `trials.py`
+`verify_history`/`_branch_walk`), and its sha256 `762ce64c…` is pinned by test. It is
+**superseded** by `policy/route.2.json` (schema 2, `supersedes: {path, sha256}`), itself frozen
+on commit by the same rule, with the freeze ledger at `policy/freeze_ledger.jsonl` (append-only;
+canonical-JSON rows `{ordinal, watch, cohort, listed_at}`, the founders' rows also carrying
+`spec_sha256`, `frozen_at`, `reached_development`, `window_opened`; an ordinal ≥ 3 is listed
+BEFORE its freeze, so its row carries no spec hash). The engine reads the chain
+(`policy_chain`, `governing_policy`, `gamma`, `alpha_i`, `route_boundary(spec, watch=)`;
+`watches_ever_frozen` stays as a diagnostic); `freeze`, `genesis` and `log` refuse an ID not on
+the ledger (scratch directories exempt); `verify` checks the chain's link hashes, contiguous
+ordinals, that every spec has a row, the founders' spec hashes, and the founders' presence.
+"Replaced" above (After ratification) reads "superseded". Neither spec's bytes change
+(`35fc8ffc…`, `6af76c10…`); H366200 is bound by ledger membership alone (it has no
+`route_policy` field), H366201's `route_policy` pointer resolves to link 1 of the chain.
+
+**Operations (ratified with the route; `ops/README.md` "Forward records").** The Pi's
+research-host role keeps the records current on a dedicated **`forward-ledger`** branch
+(development is branch-protected on the `test` check; the tone ledger's pattern) from a linked
+worktree, pushed over SSH, merged into development by a **weekly PR** that CI checks with
+`verify --against origin/development`. `deploy/monad-forward-watch.timer` (Mon..Fri 18:40 ET,
+`Persistent=true`) runs `ops/forward_watch_cycle.sh daily`: `fetch H366201`, `log H366200`,
+`log H366201`, `verify`, one commit per step, push. `deploy/monad-forward-log.timer` (Sat 10:15
+ET) runs `forward_log.py H404702` the same way. 18:40 ET serves `vintage_for`'s deadline: a
+session's vintage must be fetched before the next session's 20:00 UTC close. **`fetch` writes
+`vintage` lines only; it never reads a return.**
+
+**Order of work.** (0) `fetch H366201` daily from 2026-10-29 (owner's machine until the Pi
+timer runs; each unfetched day locks one more H366201 session to the 2026-10-09 vintage under
+the 14-day staleness rule); no `log` until the ratification PR merges, a preference bounded to
+this PR. (1) The D node (`tools/note.py add --kind D`, one `--link` per edge). (2) This PR:
+`route.2.json`, the ledger, the engine and `verify` changes, the tests, the Pi units and the
+cycle script. **Before its first `log`: `attest-evaluator H366200` and `H366201`** (the PR edits
+`src/research/forward_watch.py`, a source both specs pin; the attestation needs the private
+store and the watch tests with no skips, so it is the owner's step), then `log` catch-up from
+2026-10-12 (writes the `window_open` line and the missed sessions). (3) The `admit_watch` chain
+with its seven required tests (`route.2.json` `build.tests_required`), before H366200's
+anniversary 2 settles (~2029-01). (4) CUSUM, the stagewise lower bound, the carve search, the
+daily cut, the published tables, at the first ADMIT. (5) DIRECTIONS.md:18, 35-37, 124. Frozen
+watch docs and specs are not edited (F366210 precedent).

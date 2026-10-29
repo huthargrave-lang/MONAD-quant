@@ -1,0 +1,18 @@
+[Unit]
+Description=Run the MONAD H404702 weekly forward line after Friday's NAVs (research host role)
+
+[Timer]
+# Saturday 10:15 ET: after Friday's NAVs have posted (CEFConnect publishes in the evening;
+# the 2026-10-10 Saturday fetch found a weekly NAV still unpublished, which Monday's daily
+# cycle picks up for the WATCH; the weekly LINE needs only Friday's panel) and clear of the
+# weekday daily cycle. Timezone named explicitly because the Pi clock is Europe/London.
+OnCalendar=Sat 10:15 America/New_York
+
+# A week missed while the Pi was off is a line missing from the record; fire at boot.
+Persistent=true
+
+RandomizedDelaySec=300
+Unit=monad-forward-log.service
+
+[Install]
+WantedBy=timers.target

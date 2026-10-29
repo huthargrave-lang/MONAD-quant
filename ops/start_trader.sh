@@ -23,6 +23,15 @@ EXEC_MODE=0
 
 echo "== start_trader$([ "$EXEC_MODE" = 1 ] && echo ' --exec'): $(date '+%Y-%m-%d %H:%M:%S %Z') =="
 
+# 0. Decommission guard (both modes, including the --exec bypass). The tracked marker
+#    is the designed state since 2026-10-29; revival is a reviewed commit deleting it
+#    (OPERATIONS.md §6.1) — never a local edit of this file.
+if [ -f "$REPO/ops/DECOMMISSIONED.json" ]; then
+    echo "REFUSING: the trader is DECOMMISSIONED (ops/DECOMMISSIONED.json exists)."
+    echo "    Revival condition and mechanics: OPERATIONS.md §6.1"
+    exit 3
+fi
+
 # 1. Paper-mode safety gate
 paper=$("$REPO/venv/bin/python" - <<'PY' 2>/dev/null
 import config

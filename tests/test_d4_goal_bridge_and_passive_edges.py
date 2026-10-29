@@ -165,9 +165,24 @@ class D4sAnswerPredatesTheEvidenceTests(unittest.TestCase):
                 sorted(set(("F41", "D6", "F25")) - set(missing))))
 
     def test_F41_resolves_D4_with_a_different_answer(self):
-        """The contradiction is real, not inferred from tone."""
+        """The contradiction is real, not inferred from tone.
+
+        Until 2026-10-29 the typed edge was `[[D4|resolves]]`. The status-hygiene debate
+        (docs/research/WEB_HYGIENE_QUESTION.md) retyped it to `refines`: SCHEMA.md §5 gives
+        `resolves` the direction Finding/Decision -> Hypothesis, and D4 is a Decision, so the
+        old edge was one of the off-direction `resolves` the pass tidied. The CONTRADICTION
+        this test guards lives in F41's content, not in the edge type: the body still says
+        it resolves D4 with a different answer. Guard both facts.
+        """
         f41 = node_body("F41")
-        self.assertIn("[[D4|resolves]]", f41)
+        self.assertIn("[[D4|refines]]", f41,
+                      "F41 -> D4 is no longer a `refines` edge; if it went back to "
+                      "`resolves`, the hygiene direction rule was undone — re-read "
+                      "docs/research/WEB_HYGIENE_QUESTION.md before accepting that")
+        self.assertNotIn("[[D4|resolves]]", f41)
+        self.assertRegex(f41, r"[Rr]esolves \[\[D4\]\]|resolves D4",
+                         "F41 no longer states in prose that it resolves D4 — the "
+                         "contradiction with D4's answer has to stay legible in the body")
         self.assertIn("near-zero", f41)
         self.assertIn("unattainable", f41)
 

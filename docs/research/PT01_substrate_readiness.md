@@ -110,3 +110,18 @@ original false count was the fourth time a substring inside a
 name had been counted as the thing itself (SEC form names, index names,
 ISO timestamps, and now this) — the rule that keeps earning its keep is: *match structure,
 not text.*
+
+
+## 2026-10-29 — the second ground is superseded; the first stands
+
+The EDGAR ledger (direction D-2, `EDGAR_LEDGER_QUESTION.md`, web nodes `D297802`/`F297802`)
+built the function this audit said did not exist: `tradable_time(filing)` in
+`src/research/edgar_ledger.py` returns the clock class, market phase, conservative daily
+tradable policy, flags, tradable session and UTC acceptance time, and
+`tests/test_edgar_ledger.py` runs all seven timestamped FD-00 fixtures through that
+production parser. The "no consumer" ground above is therefore history as of this date.
+The 6 of 9 provenance ground is unchanged — no committed artifact carries all nine
+components — so H44's first gate still cannot pass as stated, now on that ground alone.
+`tests/test_h44_pt01_readiness.py` pins the new state (one production implementation; two
+test readers of the fixture) rather than the old absence.
+\n

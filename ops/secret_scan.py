@@ -14,7 +14,7 @@ Modes:
 Exits 1 (printing file[:line]) when it finds, in something about to be committed:
   * a never-commit FILE PATH (.env / *.env / *.db / *.sqlite*) — a force-add slip,
   * a private-key block,
-  * an IBKR account id used as a value (U####### / DU#######),
+  * an IBKR account id used as a value (U####### / DU####### / DUD#######),
   * an explicit credential assignment (password/secret/token/api_key = "<value>").
 Exit 0 when clean. Tuned for ~zero false positives on this repo (the account-id
 and credential patterns require literal digits / quoted values, so the redaction
@@ -43,7 +43,7 @@ def _never_commit(rel):
 # Content patterns. Each requires a *value* (literal digits / quoted string) so
 # pattern/definition lines (regexes, doc prose) do not false-positive.
 PRIVATE_KEY = re.compile(r"BEGIN [A-Z ]*PRIVATE KEY")
-ACCOUNT_ID = re.compile(r"\b(?:DU|U)\d{7,}\b")
+ACCOUNT_ID = re.compile(r"\b(?:DU[A-Z]?|U)\d{7,}\b")   # U… / DU… / DUD… (OPERATIONS §1 rule 4)
 CREDENTIAL = re.compile(
     r"""(?i)\b(passwd|password|secret|api[_-]?key|access[_-]?token|auth[_-]?token)\b"""
     r"""\s*[:=]\s*['"][^'"\s]{6,}['"]"""

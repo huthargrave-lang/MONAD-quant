@@ -27,7 +27,7 @@ MARKER = os.path.join(REPO, "local_runtime", "current_run.json")
 ACTUAL = {"bracket_exit", "stop_hit"}          # exits with a confirmed fill price
 ARTIFACT = {"time_exit"}                         # rode past target — broken-bracket artifact
 SYNTH = {"estimated_close", "paper_reset"}       # estimated / bookkeeping
-_ACCT = re.compile(r"\bD?U[0-9]{5,}\b")
+_ACCT = re.compile(r"\b(?:DU[A-Z]?|U)[0-9]{5,}\b")   # DU…/DUD…/U… paper/live ids
 
 
 def _parse(ts):
