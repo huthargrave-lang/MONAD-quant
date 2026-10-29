@@ -36,7 +36,18 @@ name: Publish GitHub Pages
 # A daily cron makes an idle repo fresher, not immortal.
 
 on:
-  push:
+  # GATED ON TESTS (2026-10-29, docs/DIRECTIONS.md D-5). The build used to fire on every
+  # push to development, in parallel with test.yml, so a red test run and a successful
+  # deploy could come from the same commit (the 2026-08-09 brief counted 24 consecutive
+  # red runs while the site kept publishing). Now a push to development runs Tests, and
+  # Tests' completion runs this workflow; the `if:` on the job lets it build only when
+  # Tests concluded `success`. The schedule and manual dispatch are ungated on purpose:
+  # the cron exists for the tone data (see below), which rots whether or not a test is red,
+  # and it builds the same development head Tests last judged. A workflow_run trigger
+  # fires only for runs on the default branch, which is development.
+  workflow_run:
+    workflows: [Tests]
+    types: [completed]
     branches: [development]
   schedule:
     - cron: "17 1 * * *"
@@ -61,6 +72,9 @@ concurrency:
 
 jobs:
   build-and-deploy:
+    # A scheduled or manual run always builds; a run chained from Tests builds only on a
+    # green conclusion. A cancelled or failed Tests run leaves the site at its last good deploy.
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages

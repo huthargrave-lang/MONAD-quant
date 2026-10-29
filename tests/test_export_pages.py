@@ -272,6 +272,29 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("schedule:", self.wf)
         self.assertIn("workflow_dispatch:", self.wf)
 
+    def test_a_push_builds_the_site_only_through_a_green_tests_run(self):
+        """REPLACED the raw push trigger (docs/DIRECTIONS.md D-5). The site is the
+        repository's public claim that its guards gate publication; while pages.yml fired
+        on `push:` in parallel with test.yml, a red test run and a successful deploy came
+        from the same commit. Now the chain is push -> Tests -> this workflow, and the job
+        runs only when Tests concluded `success`. The schedule and manual dispatch stay
+        ungated: they rebuild the head Tests last judged, for the tone data that rots on
+        its own clock."""
+        executable = "\n".join(line for line in self.wf.splitlines()
+                               if not line.lstrip().startswith("#"))
+        self.assertNotRegex(executable, r"^\s*push:\s*$",
+                            "pages.yml fires on a raw push again — the deploy is ungated")
+        self.assertIn("workflow_run:", executable)
+        self.assertIn("workflows: [Tests]", executable)
+        self.assertIn("types: [completed]", executable)
+        self.assertIn("github.event.workflow_run.conclusion == 'success'", executable)
+        self.assertIn("github.event_name != 'workflow_run'", executable,
+                      "the scheduled/manual builds must not be gated on a workflow_run "
+                      "payload they do not carry")
+        # The gate must be on the job, so a non-green chain produces no deploy at all.
+        job = executable.split("build-and-deploy:", 1)[1][:400]
+        self.assertIn("if: ${{", job)
+
     def test_contents_write_exists_for_the_ledger_and_nothing_else(self):
         """REWRITTEN when the tone ledger landed. The old guard pinned `contents: read` —
         least privilege while the workflow only published. The ledger deliberately widened

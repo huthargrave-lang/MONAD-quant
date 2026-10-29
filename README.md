@@ -1,41 +1,91 @@
 # MONAD Quant
 
-> An open-source **research substrate for quantitative finance**: a queryable
-> **evidence graph** (Context Kit), a **validation funnel**, and a growing,
-> **research library** — fifteen adversarially verified studies plus a 54-study,
-> cross-runtime-reproduced execution-risk program —
-> with a full trading stack (signals → backtest → sweep → live paper broker)
-> as the reference implementation that exercises it end-to-end.
+[![Tests](https://github.com/huthargrave-lang/MONAD-quant/actions/workflows/test.yml/badge.svg?branch=development)](https://github.com/huthargrave-lang/MONAD-quant/actions/workflows/test.yml)
+[![Research site](https://github.com/huthargrave-lang/MONAD-quant/actions/workflows/pages.yml/badge.svg)](https://huthargrave-lang.github.io/MONAD-quant/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](#setup)
+[![Cite](https://img.shields.io/badge/cite-CITATION.cff-lightgrey.svg)](CITATION.cff)
+
+> **MONAD Quant is an open quantitative finance research base.** It is a typed, append-only
+> **evidence graph** of reproducible studies — on asset allocation, execution risk in leveraged
+> ETFs, SEC filings and corporate actions, closed-end-fund discounts, commodity linkages, and the
+> epistemics of research itself — together with the machinery that keeps those claims honest:
+> pre-registration, a trial ledger, refutation and admission gates, forward watches, and a
+> queryable **Context Kit** that agents and humans navigate instead of reading the repo. A
+> long-only mean-reversion trading engine ships with it as the **reference test bench** the
+> methodology was built on and proven against.
 >
-> Direction: **[VISION.md](VISION.md)** · graph model: **[SCHEMA.md](SCHEMA.md)** ·
-> research compendium: **[docs/research/](docs/research/README.md)** ·
-> next-generation frontier: **[public investment intelligence](docs/research/PUBLIC_INVESTMENT_INTELLIGENCE_FRONTIER.md)** ·
-> first filing node: **[SEC Filing Delta Lab](docs/research/FD00_sec_filing_delta_lab.md)** ·
-> index-event node: **[Index Membership Event Lab](docs/research/IX00_index_membership_event_lab.md)** ·
-> agent entry point: **[AGENT_INDEX.md](AGENT_INDEX.md)**
+> **Start here:** [`VISION.md`](VISION.md) (direction) · [`docs/DIRECTIONS.md`](docs/DIRECTIONS.md) (ranked next steps, 2026-10) · [research compendium](docs/research/README.md) ·
+> [`SCHEMA.md`](SCHEMA.md) (graph model) · [`CONTRIBUTING.md`](CONTRIBUTING.md) (how a study gets made) ·
+> [`AGENT_INDEX.md`](AGENT_INDEX.md) (agent entry point) · [research site](https://huthargrave-lang.github.io/MONAD-quant/) ·
+> [`docs/REFERENCE_ENGINE.md`](docs/REFERENCE_ENGINE.md) (the test-bench engine)
 
 ---
 
-## Why this exists
+## What is in the base
 
-Most public quant repos publish a backtest. This repo publishes the **scrutiny**:
-every claim it has ever made is a node in a versioned knowledge graph
-([`RESEARCH_WEB.md`](RESEARCH_WEB.md), 200+ nodes) with typed evidence links —
-and when a claim dies under testing, it is **superseded with a tombstone**, never
-silently edited. The headline result of that discipline is itself the best
-advertisement for it: this project's own early Sharpe-25 backtest was traced to a
-**data-sampling artifact**, proven wrong, and replaced by one of the most carefully
-verified negative results you will find in an open repo.
+| Layer | What it is | Where |
+|---|---|---|
+| **Evidence graph** | 600+ typed nodes — Findings, Hypotheses, Experiments, Decisions — linked by `evidenced_by` / `supersedes` / `contradicts` edges. Claims are never deleted, only superseded with a tombstone, and CI forbids a current decision from resting on a retracted finding. | [`RESEARCH_WEB.md`](RESEARCH_WEB.md), [`SCHEMA.md`](SCHEMA.md) |
+| **Research compendium** | 200+ study writeups, each a deterministic tool plus a standalone document with its status, nodes, and reproduce command. | [`docs/research/`](docs/research/README.md) |
+| **Research governance** | Pre-registration (`tools/prereg.py`), a hash-chained trial ledger that records every backtest attempted — losers included — and deflates results by it (`tools/trial_ledger.py`), objections (`tools/refute.py`), an admission gate that is the only way a hypothesis becomes an edge (`tools/admit.py`), and frozen forward watches with a multiplicity charge. | [`docs/research/prereg/`](docs/research/prereg/README.md), [`trials/`](docs/research/trials/README.md), [`forward_watch/`](docs/research/forward_watch/policy/route.json), [`DAILY_STRATEGIES.md`](docs/research/DAILY_STRATEGIES.md) |
+| **Context Kit** | A stdlib-only, portable knowledge layer over code ∪ ideas: routing, provenance (`why`), blast radius (`impact`), edit fences, drift and staleness detectors, and an interactive 3D map served read-only. | [`CONTEXT_KIT.md`](CONTEXT_KIT.md), [`tools/ctx.py`](tools/ctx.py) |
+| **Public research surfaces** | A static site (research-web browser, 500+ node views, context map, stock screener with authored lenses, daily news-tone ledger) that publishes only what the repository owns. | [site](https://huthargrave-lang.github.io/MONAD-quant/), [`tools/export_pages.py`](tools/export_pages.py), [`docs/TONE_LEDGER.md`](docs/TONE_LEDGER.md) |
+| **Reference engine** | The long-only RSI/VWAP mean-reversion engine (signals → backtest → sweep → paper broker) that the methodology was proven on. Paper-only by evidence, not by caution. | [`docs/REFERENCE_ENGINE.md`](docs/REFERENCE_ENGINE.md) |
+| **Guards** | 200+ test modules that fail CI on graph integrity, manifest drift, stale citations, dead config knobs, and prose that disagrees with code. | [`tests/`](tests/) |
 
-Negative results, rigorously proven, are quant knowledge — usually the expensive
-kind that funds keep private. Here they are free:
+Snapshot as of 2026-10-29: 956 recorded trials across 66 families; 4 hypotheses registered under
+the admission gate (`venv/bin/python tools/edge_scorecard.py` for the live figures).
 
-**The library so far** (each finding links to a deterministic, re-runnable study
-tool, a standalone writeup, and its graph nodes — see the
-[sixty-nine-study compendium](docs/research/README.md)):
+---
+
+## Research programs
+
+Each program is a question, a frozen protocol, and a recorded answer — including the negative
+ones. Status is as recorded in the compendium; node IDs resolve with `ctx web <ID>`.
+
+| Program | Question | Status (recorded) | Entry point |
+|---|---|---|---|
+| **Active vs static allocation** | Does an active, long-only mean-reversion engine beat a static stock/bond allocation on risk-adjusted terms — and what is the honest income product? | **Closed.** 15 adversarially verified studies. Verdict `D6`: no risk-adjusted edge over a static blend at any timescale; the goal-optimal static mix is more conservative than 60/40 and its drawdown promises are correlation-regime-conditional (`F46`). | [compendium](docs/research/README.md), [`D6_active_vs_6040_study.md`](docs/research/D6_active_vs_6040_study.md) |
+| **Execution risk in leveraged ETFs** | How much of a tight-stop intraday strategy's risk lives in overnight gaps, and which mitigations survive paired controls? | **54 studies (16–69).** Gap tails scale almost mechanically with leverage (`F53`); a 20d/15% volatility-flatten rule survives dependence stress but is matched by trivial recent-gap rules, so it is frozen as a forward hypothesis (`F58`–`F62`); 26 runtime audits (`F79`–`F104`) specify what a production-grade execution ledger must carry. | [`D6_overnight_gap_risk_study.md`](docs/research/D6_overnight_gap_risk_study.md), [`D6_forward_shadow_validation_design.md`](docs/research/D6_forward_shadow_validation_design.md) |
+| **Public investment intelligence** | Can point-in-time public information (filings, index events, corporate actions, positioning) improve a simple forecast after leakage, multiplicity, and costs? | **Active charter.** Source-contract audits and reviewed seeds for SEC filing deltas (FD-00), index membership events (IX-00/01), a corporate-action outcome lab with a Form 25 population backbone and announcement-time deal cohorts (CA-00 … CA-ANNOUNCE), late filers (LF-01), Form 4 (FORM4-POP), ATM 424B5 (DI-01). One completed pilot is a clean negative (PN-00). No alpha claims. | [`PUBLIC_INVESTMENT_INTELLIGENCE_FRONTIER.md`](docs/research/PUBLIC_INVESTMENT_INTELLIGENCE_FRONTIER.md), [`EVENT_INTELLIGENCE_FRONTIER_2026.md`](docs/research/EVENT_INTELLIGENCE_FRONTIER_2026.md) |
+| **Discount mechanisms** | Does NAV-discount reversion pay in closed-end funds, and does it transfer to metal trusts, mortgage REITs, and BDCs? | **Under the admission gate.** The CEF rule `H404702` is pre-registered, capacity-tested, and has survived three objection boards; its 1998–2003 pre-period test was uninformative by the pre-stated criterion. Metal-trust discount tilt corroborates and is on a frozen forward watch (`H366201`). The mREIT and BDC transfers closed NOT RUN at their data-quality gates — recorded, not retried. | [`CEF_DISCOUNT_pilot.md`](docs/research/CEF_DISCOUNT_pilot.md), [`CEF_PRODUCT_PROTOCOL.md`](docs/research/CEF_PRODUCT_PROTOCOL.md), [`METAL_TRUST_DISCOUNT_PROTOCOL.md`](docs/research/METAL_TRUST_DISCOUNT_PROTOCOL.md) |
+| **Event and corporate-finance protocols** | Spin-off drift, buybacks, merger arbitrage as a bond sleeve, index-deletion rebound, insider clusters, earnings premium, fallen-angel credit sleeves, ATM financing pressure, trend-timed leverage, microcap illiquidity. | **Protocols frozen before data.** Results land in the web as each closes — e.g. spin-off drift corroborates on its survivorship-free ETF proxy while the backtest hypothesis is reject-bound; a credit sleeve does not improve the static product. | [`DAILY_STRATEGIES.md`](docs/research/DAILY_STRATEGIES.md), [`SPINOFF_PROTOCOL.md`](docs/research/SPINOFF_PROTOCOL.md), [`CREDIT_SLEEVE_MIX_PROTOCOL.md`](docs/research/CREDIT_SLEEVE_MIX_PROTOCOL.md) |
+| **Commodity linkage and miner tilt** | Which commodity/miner relationships hold out of sample, and can a miner-vs-metal tilt be replicated across metals and decades? | **Discovery → confirmation → replication.** A 1,401-statistic discovery atlas; two rules survived a three-lens board; the GDX/GLD tilt is the only lead that held its sign out of sample (+0.27 active Sharpe, not significant); replication and 1984–2005 pre-period protocols are frozen with the forward watch. | [`COMMODITY_LINKAGE_DISCOVERY.md`](docs/research/COMMODITY_LINKAGE_DISCOVERY.md), [`MINER_TILT_REPLICATION.md`](docs/research/MINER_TILT_REPLICATION.md) |
+| **Biotech catalysts (BIOCAT)** | Can versioned clinical-catalyst and FDA-compliance events be turned into point-in-time labels without outcome leakage? | **Source contracts and pilots.** Disclosure-order purity, FDA pre-notice response census, trial slippage × financing pressure — feasibility pilots, not populations. | [`BIOCAT_SOURCE_CONTRACT_2026.md`](docs/research/BIOCAT_SOURCE_CONTRACT_2026.md) |
+| **Screener, lenses, and tone** | A public stock screener over an authored universe with research lenses (AI shadow debt, off-balance-sheet debt, value/growth/sentiment), the Sovereign Ledger thematic buckets, and a daily news-tone ledger with pre-registered gates. | **Live on the site, daily refresh.** Vendor data stays local; the site carries only what the repo owns. | [`docs/TONE_LEDGER.md`](docs/TONE_LEDGER.md), [`AI_SHADOW_DEBT_LENS_2026.md`](docs/research/AI_SHADOW_DEBT_LENS_2026.md), [`SOVEREIGN_LEDGER_2026.md`](docs/research/SOVEREIGN_LEDGER_2026.md) |
+| **Epistemics of the research web** | Is the corpus itself sound — provenance of every number, reproducibility of market-data findings, reliance cycles, revision hazards, metric conventions? | **Audited and guarded.** EPI-00 (materially corrected on review), NUM-00 numeric provenance, REPRO-00 reproducibility, the return-convention lab that found two disjoint Sharpe stacks (`F153`), config/column reachability censuses that found dead knobs (`F145`). | [`EPI00_epistemic_audit.md`](docs/research/EPI00_epistemic_audit.md), [`NUM00_numeric_provenance.md`](docs/research/NUM00_numeric_provenance.md), [`REPRO00_market_data_reproducibility.md`](docs/research/REPRO00_market_data_reproducibility.md) |
+
+---
+
+## Selected results
+
+Negative results, rigorously proven, are quant knowledge — usually the expensive kind that
+funds keep private. Here they sit beside the positive ones with the same evidence standard.
+Each row links to a deterministic, re-runnable study and its graph nodes.
+
+| What was established | Why it matters beyond this repo | Nodes |
+|---|---|---|
+| A Sharpe-25 intraday backtest was a **morning-only data-sampling artifact**; the "edge" tracked bar-sampling frequency, not instrument or time-of-day | Validate data representativeness before believing *any* intraday edge | F13/F14 |
+| Daily mean-reversion (lag-1 autocorrelation) is **real and robust over 26 years** — but naive t-stats overstate its significance ~3× | Use block-bootstrap CIs, not t-stats, on autocorrelated returns | F16/F18 |
+| The **exit, not the entry, is the dominant lever**: a fixed %-stop destroys a mean-reversion edge that a multi-day horizon exit recovers | Stop placement inside intrabar noise silently converts edge to churn | F17/F19/F7 |
+| A **real signal ≠ a tradable edge**: active daily MR is provably *equivalent-or-worse* vs a static blend (TOST, evidence-of-absence down to ~0.3 Sharpe over 26yr) | The benchmark that kills most timing strategies is a trivial static mix, not buy&hold | F22/F25/F34/F35 |
+| Active timing's one honest contribution is **crisis drawdown reduction** — paid for in calm-market under-participation (Sharpe-neutral) | "Low drawdown" claims need a static-blend control | F36/F37 |
+| The static 60/40 is **hard to improve reliably**: third sleeves, vol-targeting, and risk parity all fail fair paired bootstraps; gold fails clean OOS | Most "improvements" are regime bets or multiple-comparisons artifacts | F38/F39/F40 |
+| Forward-looking (2026 yields), a 60/40 returns ~5–6%/yr at **Sharpe ~0.5**; the goal-optimal mix is **more conservative than 60/40** | Historical 60/40 stats are a regime, not an expectation | F41/F42 |
+| Everything above is **correlation-regime-conditional**: bonds hedged stocks in only ~22 of the last 64 years, and no composition escapes the regime bet — a 50/50 cash/bond blend *halves* it, nothing removes it | The stock-bond hedge is the exception, not the rule — test "inflation hedges" against duration-matched controls | F46/F48/F49 |
+| Across the income-ETF universe **high yield ≠ low drawdown**; the one structural escape (a held-to-maturity ladder) has a *definitional, nominal-only* 0% drawdown | Distribution yield is not return; amortized-cost accounting is not safety | F44/F45 |
+| A tight stop does **not** bound overnight risk in a 3× ETF, and gap tails scale near-mechanically with leverage (TQQQ/QQQ beta 2.95, R² .993) | Model session gaps at the open or remove the overnight exposure; slippage scalars cannot represent jump risk | F47/F50/F53 |
+| The 20d/15% volatility-flatten rule survives dependence and threshold stress — but trivial recent-gap rules match its capture lift, and its recall is largely blanket risk-off exposure | Benchmark every risk classifier against transparent nulls and report exposure removed beside tail capture | F58–F62 |
+| A simulator can be **provably different from live** while the apparent correction is still unidentifiable; "application-submitted" is not "broker-executed" | Demand lower-timeframe or order-event evidence, and a durable lifecycle ledger, before calling live PnL validated | F51/F87/F90/F91 |
+| Sweep/holdout winners are **selection-biased best-of-many**; live-vs-backtest gaps decompose into measurable causes (bar frequency dominated here) | Reconcile live to backtest quantitatively before blaming execution — and count every trial, not just the winner | F2/F28/F43 |
+| A corrected one-session liquid-ETF **lead–lag graph does not improve** later return forecasts | A clean negative that redirects the network branch toward monthly diffusion and event-conditioned graphs | [PN-00](docs/research/PN00_daily_cross_asset_lead_lag.md) |
+| Physical-metal trust **discount reversion pays** when nothing but the discount moves; spin-off drift corroborates on its survivorship-free ETF proxy | Positive results get the same frozen-protocol, pre-stated-criterion treatment as the negatives | [metal trust](docs/research/METAL_TRUST_DISCOUNT_PROTOCOL.md), [spin-off](docs/research/SPINOFF_PROTOCOL.md) |
+
+<details>
+<summary><b>Full findings ledger from the allocation and execution-risk programs (F2–F104)</b></summary>
 
 | What we established | Why it matters beyond this repo | Nodes |
-|---|---|---|
 | A Sharpe-25 intraday backtest was a **morning-only data-sampling artifact**; the "edge" tracked bar-sampling frequency, not instrument or time-of-day | Validate data representativeness before believing *any* intraday edge | F13/F14 |
 | Daily mean-reversion (lag-1 autocorrelation) is **real and robust over 26 years** — but naive t-stats overstate its significance ~3× | Use block-bootstrap CIs, not t-stats, on autocorrelated returns | F16/F18 |
 | The **exit, not the entry, is the dominant lever**: a fixed %-stop destroys a mean-reversion edge that a multi-day horizon exit recovers | Stop placement inside intrabar noise silently converts edge to churn | F17/F19/F7 |
@@ -100,56 +150,70 @@ tool, a standalone writeup, and its graph nodes — see the
 | Vol15 improves 43/67 changed baseline trades; all 21 eventual gap stops benefit while all 24 eventual targets are harmed | Report intervention precision and sacrificed winners beside tail-loss magnitude | F77 |
 | Sweep/holdout winners are **selection-biased best-of-many**; live-vs-backtest gaps decompose into measurable causes (bar frequency dominated here) | Reconcile live to backtest quantitatively before blaming execution | F2/F28/F43 |
 
-## The methodology (what makes the library trustworthy)
+</details>
 
-Every study in [`docs/research/`](docs/research/README.md) follows the same
-disciplines, enforced in code rather than promised in prose:
+---
+
+## How a result gets made
+
+Every study follows the same disciplines, enforced in code rather than promised in prose
+(the compendium's [methodology section](docs/research/README.md#the-shared-methodology)
+records which guarantees are machine-checked and which are process):
+
+```
+frozen data ──> counted evaluator ──> trial ledger ──> relative statistics ──> web finding
+  DS-<sha>         (refuses to run      one family per     active vs the domain's      note.py
+                    without a trial)     domain + version    benchmark: SPA, DSR, eras    (lint-gated)
+```
 
 - **Deterministic, re-runnable artifacts** — each study is a committed CLI tool
-  (`tools/*_study.py`, seed=0, cached fetches, byte-reproducible output), not a notebook.
-- **Leak-free by construction** — entries/weights use only lagged information;
-  windows verified byte-identical to truncated recomputation.
-- **Uncertainty on every claim** — paired block bootstrap CIs (shared, unit-tested
-  module: [`src/backtest/uncertainty.py`](src/backtest/uncertainty.py)); family-wise
-  corrections on any "clearly positive" result.
-- **Pre-registration** — pass criteria stated in the tool's docstring before the
-  numbers are computed.
-- **Adversarial verification** — studies 1–15 were attacked by independent
-  multi-lens skeptic panels (data construction, math, statistics, interpretation).
-  Studies 16–69 use explicit paired controls, ordering bounds, lower-timeframe calibration,
-  long-history cross-instrument validation, and cross-runtime output; they do not claim panel
-  verification. Forced corrections are **folded into the tool, not caveated around**.
-- **Supersession, not revisionism** — overturned claims are tombstoned in the graph
-  with a reason (`inverted`, `reversed`, …) and every citation is re-pointed;
-  `ctx web --lint` fails the build on stale cites.
+  (`tools/*_study.py`, `tools/*_lab.py`; seed=0, content-addressed data), not a notebook.
+- **Leak-free by construction** — entries and weights use only lagged information; windows
+  verified byte-identical to truncated recomputation; decision-time availability is proven,
+  not inferred from a `.shift(1)` in source.
+- **Uncertainty on every claim** — paired block-bootstrap CIs from a shared, unit-tested
+  module ([`src/backtest/uncertainty.py`](src/backtest/uncertainty.py)); family-wise
+  corrections and Deflated Sharpe against everything the family tried.
+- **Pre-registration** — protocol, benchmark, window, costs, and pass criterion frozen and
+  committed before the data is loaded; the admission gate judges only against the frozen spec.
+- **Adversarial review** — the allocation studies were attacked by independent multi-lens
+  skeptic panels; later programs convene statistics / mechanics / adversary boards whose
+  amendments and rulings are recorded in the writeups. Forced corrections are folded into
+  the tool, not caveated around.
+- **Supersession, not revisionism** — overturned claims are tombstoned with a reason and
+  every citation is re-pointed; `ctx web --lint` fails the build on stale cites.
+- **Rights-aware data** — vendor observations whose terms grant no redistribution right are
+  never committed or published; frozen datasets are content-addressed so a trial names
+  exact bytes ([`docs/research/data/README.md`](docs/research/data/README.md)).
+
+[`CONTRIBUTING.md`](CONTRIBUTING.md) walks through the workflow end to end.
 
 ---
 
 ## The Context Kit — a knowledge graph you can query
 
-The **Context Kit** is a portable, stdlib-only layer that agents (and humans) query
-instead of reading the whole codebase. It unifies:
-
-- **Ideas** — findings, hypotheses, experiments, decisions in `RESEARCH_WEB.md`
-- **Code** — modules, symbols, config keys, test coverage (auto-extracted)
-- **Bridges** — which finding lives in which symbol, guarded by which test
+The **Context Kit** is a portable, stdlib-only layer that agents (and humans) query instead of
+reading the whole codebase. It unifies **ideas** (findings, hypotheses, experiments, decisions),
+**code** (modules, symbols, config keys, test coverage, auto-extracted by AST), and the
+**bridges** between them (which finding lives in which symbol, guarded by which test).
 
 **Start here:** [`AGENT_INDEX.md`](AGENT_INDEX.md) · [`CONTEXT_KIT.md`](CONTEXT_KIT.md) · schema: [`SCHEMA.md`](SCHEMA.md)
 
 ```bash
 # Orient to a task (files to read + commands to run)
-venv/bin/python tools/ctx.py route "fix dashboard stale mark price"
+venv/bin/python tools/ctx.py route "add a pre-registered CEF discount study"
 
 # Walk the research graph
-venv/bin/python tools/ctx.py web F46        # read a finding + its evidence links
-venv/bin/python tools/ctx.py why D6         # provenance: why believe this decision?
+venv/bin/python tools/ctx.py web F46          # read a finding + its evidence links
+venv/bin/python tools/ctx.py why D6           # provenance: why believe this decision?
 venv/bin/python tools/ctx.py contradicts F15  # dispute/supersession state
+venv/bin/python tools/ctx.py related "overnight gap"   # semantic neighbours (TF-IDF)
 
-# Blast radius before editing
+# Blast radius and edit fences before changing anything
 venv/bin/python tools/ctx.py impact live/broker.py
 venv/bin/python tools/ctx.py can_edit config.py   # DENY on live/strategy paths
 
-# Honest performance state (never trust stale headline numbers)
+# Honest performance state of the reference engine
 venv/bin/python tools/ctx.py perf
 
 # Capture a new finding (dry-run by default; --commit to write)
@@ -158,597 +222,170 @@ venv/bin/python tools/note.py add --kind F --title "..." --body "..."
 
 ### Interactive context map (browser)
 
-Serve the unified idea + code graph as a read-only web app:
-
 ```bash
-venv/bin/python tools/ctx.py serve --host 127.0.0.1 --port 8001
-# → http://127.0.0.1:8001/
+venv/bin/python tools/ctx.py serve --host 127.0.0.1 --port 8001   # → http://127.0.0.1:8001/
+venv/bin/python tools/ctx.py graph --html > context_map.html       # static export
 ```
 
-The map is a self-contained D3/SVG page (no backend credentials) — a *reader*, not just a
-picture of the graph:
-
-- **Dark 3D layout** — deterministic depth, shift-drag to orbit, click a node for a slow cruise
-- **Inspector panel** — the node's actual prose with clickable `[[ID]]` links, status/confidence
-  badges (stated *and* effective, naming the weakest link), supersession / disputed / fragile
-  warnings, and the `ctx why` provenance chains: *grounded in* which experiments, *bears on*
-  which decisions
-- **Search over prose** — matches body text, not just titles, and lists the hits with the
-  matching sentence highlighted; `Enter` / `n` / `p` cycle them
-- **Related by content** — top TF-IDF neighbours per node (the `ctx related` model), i.e. the
-  connections nobody hand-authored a `[[link]]` for
-- **Open work** — live decisions/gates + `OPEN` / `IN PROGRESS` nodes, the same rule as
-  `ctx web --pending`
-- **Layer presets** — `ideas` / `code` / `all` to swap between the research web and the repo
-- **Deep links** — `…/#F13` opens straight onto a node; Back/Forward walk your path
-- **Keyboard** — `/` search · `f` fit · `g` flat · `r` reset · `?` shortcuts
-- **Offline-safe** — if the d3 CDN is unreachable the page degrades to a searchable node list
-  with the same inspector, since all the research text is inlined
-- **Fresh on every load** — rebuilt from the manifest each request
-
-d3 is the only thing not inlined. To remove that dependency entirely — no network, and no CDN
-seeing a request for a private research page — drop a d3 v7 UMD build at
-`tools/vendor/d3.min.js` and it is inlined instead (nothing is downloaded for you).
-
-`GET /api/graph.json` returns the same map as data (nodes, edges, per-node details, summary)
-for other tools; `GET /health` is the liveness probe.
-
-On the Pi this runs as a separate read-only service on `:8001`, deliberately isolated
-from the trading dashboard. See `OPERATIONS.md` and `deploy/monad-ctxweb.service`.
-
-Static export (no server):
-
-```bash
-venv/bin/python tools/ctx.py graph --html > context_map.html
-```
+The map is a self-contained D3/SVG page and a *reader*, not just a picture: a dark 3D layout,
+an inspector with each node's prose and clickable `[[ID]]` links, status and confidence badges
+(stated *and* effective, naming the weakest link), supersession / disputed / fragile warnings,
+`ctx why` provenance chains, full-text search over node bodies, TF-IDF "related by content"
+neighbours, an open-work panel, `ideas` / `code` / `all` layer presets, deep links (`…/#F13`),
+and keyboard navigation. It degrades to a searchable node list offline, since all research
+text is inlined; drop a d3 v7 UMD build at `tools/vendor/d3.min.js` to remove the one CDN
+dependency. `GET /api/graph.json` returns the same map as data; `GET /health` is the liveness
+probe. The published site serves the same map statically.
 
 ---
 
-## The reference implementation — a full trading stack
+## The reference engine (test bench)
 
-The research substrate is exercised end-to-end by a real system: a long-only
-mean-reversion engine (RSI dips in confirmed uptrends, regime-gated, bracket
-exits) with a universal parameter sweep, three backtest-fairness modes, and a
-live paper trader on Interactive Brokers. It is the **testbed the library's
-findings were proven on** — including the finding that its own hourly timescale
-carries no edge (`F13`/`F43`), which is why it runs paper-only and the honest
-product recommendation is a static allocation (`D6`).
+The research base is exercised end-to-end by a real system: a long-only mean-reversion engine
+(RSI dips in confirmed uptrends, regime-gated, bracket exits) with a universal parameter sweep,
+three backtest-fairness modes (`optimistic` / `realistic` / `harsh`), and a paper-only trader on
+Interactive Brokers with a read-only dashboard. It is the subject the methodology was proven on
+— including the finding that its own hourly timescale carries no edge (`F13`/`F43`), which is
+why it runs paper-only and why the allocation program's honest product recommendation is a
+static mix (`D6`).
 
-> **Do not trust headline Sharpe/return numbers in older docs** — they came from
-> optimistic-mode backtests on morning-only data. Run `venv/bin/python tools/ctx.py perf`
+Everything about the engine — modes, the execution model and its audited backtest↔live
+differences, the sweep tool's phases and scoring, the paper trader, the dashboard, Raspberry Pi
+deployment, and the ETF-vs-BTC cost comparison — lives in
+**[`docs/REFERENCE_ENGINE.md`](docs/REFERENCE_ENGINE.md)**. The strategy's design history
+(what was tried, what failed, and why) is in [`CLAUDE.md`](CLAUDE.md); operations in
+[`OPERATIONS.md`](OPERATIONS.md).
+
+> Headline Sharpe/return numbers in older documents came from optimistic-mode backtests on
+> morning-only data and are kept as optimization history. Run `venv/bin/python tools/ctx.py perf`
 > and `ctx web --live` for the current verdict.
-
-**Engine principles:**
-
-- **Long-only** — bear alpha is defined as *not losing money*, not chasing shorts
-- **Regime-gated** — a 6-state MA classifier blocks entries in downtrends (backtest); hourly modes use adaptive Kelly instead
-- **Tight exits** — bracket orders with fixed target/stop, typically 2:1–7:1 R:R
-- **Zero commission** — targets US-brokerage ETFs (TQQQ, GDXU, QQQ) at $0/trade
-
-### Strategy Modes
-
-Switch modes by changing `ACTIVE_MODE` in `config.py`.
-
-| Mode | Instrument | Style | Typical trades/mo |
-|---|---|---|---|
-| `BTC_DAILY` | BTC | Daily dip-buying, capital preservation | ~1–5 |
-| `BTC_HOURLY` | BTC | Hourly mean-reversion, high frequency | ~130 |
-| `QQQ_HOURLY` | QQQ | Hourly ETF mean-reversion | ~24 |
-| `TQQQ_HOURLY` | TQQQ (3x) | Leveraged Nasdaq-100 | ~21 |
-| `GDXU_HOURLY` | GDXU (3x) | Leveraged gold miners | ~27 |
-
-> All backtest numbers should be generated fresh with `python main.py` or
-> `python sweep.py TICKER --mode realistic`. Sweep holdout scores are
-> selection-biased (`F2`). Detailed history lives in `CLAUDE.md` and `RESEARCH_WEB.md`.
-
-### Execution Model
-
-The backtest and live trading system target this execution rule:
-
-```
-1. Signal fires on completed bar N (RSI, MACD, VWAP from bar N's OHLCV)
-2. Entry at the next tradeable price:
-     Backtest: bar N+1's open
-     Live:     pre-submission broker quote (fill_basis; actual fill is not persisted)
-3. TP/SL bracket levels computed relative to that quote basis
-4. Exit: target hit  /  stop hit  /  time limit (MAX_TRADE_BARS)
-```
-
-> **Known mismatch (studies #17/#20, F51/F54):** `compute_trade_returns()` currently begins
-> bracket scanning on N+2, while the live bracket can execute during entry bar N+1.
-> This affects 64.6% of paired entries. Hourly OHLC cannot identify the correction's
-> return sign because 157 entry bars hit both target and stop; do not describe the
-> current implementation as execution-identical or use a pessimistic N+1 replay as
-> a fully resolved repair.
-
-**Structural and known implementation differences:**
-
-| Aspect | Backtest | Live |
-|---|---|---|
-| Entry basis | Deterministic (bar N+1 open) | Pre-submission quote; actual parent fill is not persisted |
-| Exit monitoring | Bar-by-bar OHLC scan beginning N+2 (known mismatch) | Continuous IBKR bracket after parent fill |
-| Same-bar ambiguity | Configurable (pessimistic in `realistic` mode) | Resolved by actual order execution |
-| Time-exit fill | Last future bar's close | Market sell; reference price estimate if fill unavailable |
-| Monitoring cadence | Every bar | Hourly cycle (:32 past each hour) |
-| Position sizing | Kelly Criterion (capped, regime-scaled) | Fixed 10% of equity |
-
-These differences mean that live performance will not exactly match backtest
-results. The `realistic` backtest mode (2 bps slippage, pessimistic ambiguity,
-rolling Kelly) is designed to be a conservative estimate.
-
-### Backtest Fairness Modes
-
-| Mode | Slippage | Same-bar ambiguity | Sizing |
-|---|---|---|---|
-| `optimistic` | 0 bps | Assumes target hit | Full-sample Kelly (lookahead) |
-| **`realistic`** | **2 bps** | **Assumes stop hit** | **Rolling Kelly (no lookahead)** |
-| `harsh` | 5 bps | Assumes stop hit | Rolling Kelly (no lookahead) |
-
-Set via `BACKTEST_MODE` in `config.py` (default: `realistic`).
-
----
-
-## Live Trading (paper)
-
-The live system connects to **Interactive Brokers** (TWS or IB Gateway) and
-runs as a long-lived process. APScheduler fires at :32 past each hour during
-US market hours (9:32–15:32 ET, Mon–Fri).
-
-**Status: paper-testing / validation.** The system runs on IBKR paper accounts.
-It has not been validated on real money at scale — and per `D6`, the evidence
-does not currently justify arming the active engine with real capital.
-
-### Quick Start
-
-```bash
-# Dry run — compute signals, log actions, place no orders
-python -m live.trader --dry-run --once
-
-# Paper trading (default — port 7497)
-python -m live.trader
-
-# Override instrument
-python -m live.trader --symbol GDXU
-
-# PROHIBITED BY PROJECT POLICY: do not use --live / port 7496
-```
-
-### Key Design Decisions
-
-**Fixed 10% sizing:** Live uses a fixed 10% position size, not Kelly. Backtest
-Kelly is intentionally disabled in the live path — a small live trade sample
-produces noisy Kelly estimates that could over-size positions. Fixed sizing is
-the current conservative paper configuration, not a proof that the strategy or
-deployment is safe.
-
-**Entry basis:** TP/SL brackets are computed from the broker quote obtained
-before submission (`fill_basis`), not from the signal bar's close. Despite the
-name, `fill_basis` is not an execution price: the current entry path does not
-wait for or persist the parent fill. The signal bar close is used only for qty
-estimation. Consequently, the nominal 1% target / 0.5% stop are quote-relative:
-at the parent buy-limit cap they are approximately +0.5% / −1.0% from fill,
-and actual notional can differ from the bar-close plan. See Studies #52/#57
-and F87/F92.
-
-**Missing bracket evidence:** For a normal open local position, a flat broker
-position plus unavailable child fill currently triggers immediate TP/SL
-inference from the stored boundaries, closes local state, and can allow another
-entry in the same cycle. It does not check whether the parent remains active,
-was rejected, or ever executed. Legacy rows already marked `pending_close`
-still use the retry/finalize branch. The local close is also not exactly once:
-two connections can cache one position and each append a trade, while callers
-cannot distinguish a winning close from an already-closed no-op. Worse, an old
-cycle can select a newer re-entry row, record old exit economics against its
-metadata, and delete it because close carries no expected lifecycle ID. See
-Studies #53/#55/#56 and F88/F90/F91.
-
-**Force-close quantity:** Software stop, software take-profit, and time exit
-currently forward the originally requested local quantity after checking only
-that broker quantity is nonzero. They do not cancel a partial parent remainder,
-wait for child-cancel confirmation, derive the close from a fresh signed broker
-position, or assert broker flat afterward. A partial or racing fill can therefore
-overshoot into the opposite position. See Study #58 / F93.
-
-**Force-close completion:** A nonempty close-order fill list is currently enough
-to return success; filled quantity, remaining quantity, terminal status, and
-post-close broker position are not checked, and one execution component is used
-instead of VWAP. A ten-second timeout returns `None`, after which all three callers
-still estimate PnL and delete local state. Four of nine archived time exits
-explicitly reached that uncertainty boundary. See Study #59 / F94.
-
-**Successor lifecycle handoff:** Force-close paths can evaluate a same-cycle
-replacement signal after deleting old local state. The entry guard verifies net
-broker position but not active old orders or terminal cancellation/completion.
-The archive has 32 back-to-back application entries, including two about 14
-seconds after explicit time-exit fill-unavailable warnings. This proves the
-boundary was crossed, not that a late old fill occurred. See Study #60 / F95.
-
-**Account/model scope:** Broker account summaries are reduced by tag without
-account/currency filtering, TQQQ position lookup returns the first symbol match,
-orders set no explicit destination, and local state stores no account identity.
-This is dormant in a single-account login but order-dependent in linked/model
-sessions; sanitized evidence intentionally cannot identify the current account
-structure. See Study #61 / F96.
-
-**Holding-clock compression:** `bar_count` increments once per trader invocation,
-not once per unique completed bar. Seven of nine archived time exits reached
-bar 10 through exactly five minute slots with two writes apiece; eight used
-fewer than ten distinct slots. This proves premature local time-exit triggering,
-not whether a longer hold would gain or lose. See Study #62 / F97.
-
-**Exit PnL sources by path:**
-
-| Exit path | PnL source | Accuracy |
-|---|---|---|
-| Retrieved bracket child fill | Retrieved exit execution; quote-derived entry basis | Entry not fill-confirmed |
-| Inferred bracket close | Stored TP/SL boundary; quote-derived entry basis | Execution-unverified |
-| Time-exit (any fill observed) | One market-close execution component; quote-derived entry basis | Neither full close nor VWAP confirmed |
-| Time-exit (fill unavailable) | Reference-price exit; quote-derived entry basis | Approximate |
-| Legacy pending close (unresolved) | Not recorded (0.0 placeholder) | Blocks until reconciled |
-
-**Dry-run mode:** Computes signals and updates operational UI state (signal
-snapshots, monitor status) but does **not** create fake trade-history records,
-open positions, or place orders.
-
-### Architecture
-
-```
-live/
-├── trader.py   <- Scheduler + on_bar() loop (cycle logging, dry-run support)
-├── signals.py  <- Wraps build_features() + generate_trades() on live bars
-├── broker.py   <- IBKR bracket orders, fill reconciliation, price queries
-└── state.py    <- SQLite position/trade log, pending_close state, fixed 10% sizing
-```
-
----
-
-## Read-Only Monitoring Dashboard
-
-A separate FastAPI process provides a **read-only** dashboard over `live/state.db`.
-It does **not** place orders and does not expose trade or config controls.
-
-```bash
-# Install live + dashboard deps
-pip install -r requirements-live.txt
-
-# Terminal 1: run trader
-python -m live.trader
-
-# Terminal 2: run dashboard (separate process, read-only)
-uvicorn live.dashboard:app --host 0.0.0.0 --port 8080
-```
-
-### What the dashboard shows
-
-- **Bot status** — health indicator, last cycle time, stale-age detection
-- **Latest signal** — signal value, RSI, VWAP z-score, momentum/volume components
-- **Current position** — three states:
-  - *Open* — entry price, qty, bars held/remaining, TP/SL with distance, unrealized PnL
-  - *Pending close* — warning banner, estimated exit price, blocked status
-  - *Flat* — no open position, last trade summary
-- **Mark price** — fallback chain: live broker → delayed IBKR → signal bar close → estimated exit (pending_close) → entry price. Source shown as a badge.
-- **Recent trades** — closed trade table and Plotly charts (requires 3+ trades), filtered to production exit types only
-- **Warnings & events** — monitor event log
-- **Next scheduled run** — computed from APScheduler cron trigger
-
-### Data freshness
-
-Dashboard data is only as fresh as the latest trader cycle write to `state.db`.
-There is no separate refresh path — if the trader stops cycling, dashboard data
-goes stale (the stale-age indicator reflects this).
-
----
-
-## Universal Sweep Tool
-
-The sweep tool (`sweep.py`) finds optimal parameters for any equity or ETF on
-hourly bars. It performs parameter search, holdout evaluation, robustness testing,
-and optional post-sweep validation — designed to evaluate **live-worthiness**,
-not just in-sample fit.
-
-### Quick start
-
-```bash
-python sweep.py GDXU                        # Full sweep (2yr lookback)
-python sweep.py TQQQ --mode realistic        # With backtest fairness mode
-python sweep.py SOXL --start 2024-06-01      # Custom date range
-python sweep.py LABU --min-stop 0.15         # Minimum stop floor
-python sweep.py GDXU --apply                 # Auto-apply to config.py
-```
-
-### Parameter overrides
-
-Pin one or more params to skip sweeping them:
-
-```bash
-# Lock target/stop/rsi/vwap — sweep only the remaining params
-python sweep.py TQQQ --mode realistic --target 1.4 --stop 0.5 --rsi 80 --vwap 0.3
-
-# Run a full sweep then validate top candidates across splits and modes
-python sweep.py TQQQ --mode harsh --holdout-pct 20 --validate-best
-```
-
-| Flag | Effect |
-|---|---|
-| `--rsi N` | Force a single RSI oversold value instead of sweeping |
-| `--vwap X` | Force a single VWAP z-score threshold |
-| `--target X` | Force a single target % (e.g. `1.4` = 1.4%) |
-| `--stop X` | Force a single stop % (e.g. `0.65` = 0.65%) |
-| `--validate-best` | After sweep, cross-validate top candidates across multiple holdout splits and modes |
-
-### Sweep phases
-
-| Phase | What it does |
-|---|---|
-| 1a | Target/stop coarse grid (2:1 R:R) |
-| 1b | R:R ratio variations at best target |
-| 1c | VWAP z-score threshold |
-| 1d | RSI oversold threshold |
-| 2a–c | Fine-tune target, stop, RSI around Phase 1 best |
-| 2d | MAX_TRADE_BARS sweep [8, 10, 12, 15, 20] on best params |
-| 3 | Holdout evaluation — top 20 candidates on out-of-sample data |
-| 4 | Perturbation robustness — jitter params to test stability |
-| 5 | Final preset selection |
-
-### Holdout evaluation (warm-context)
-
-Holdout evaluation runs the backtest on the **full dataset** so that indicators
-(moving averages, RSI, MACD) are fully warmed up, then filters trades to only
-those occurring in the holdout period. This avoids the false "zero holdout
-trades" problem that occurs when running on an isolated holdout slice where
-indicators haven't had enough history to initialize.
-
-If a candidate still produces zero holdout trades after warm-context evaluation,
-it is displayed for diagnostics but penalized in ranking so it cannot
-accidentally win preset selection.
-
-### Interpreting the output
-
-**Phase 3 — Holdout ranking:** Candidates are ranked by a composite key:
-candidates with holdout trades rank above those without, then by holdout
-live-score, then by train score as tiebreaker. The live-score function
-penalizes high stop-hit ratio, negative months, ambiguous exits, too few
-trades, spread-unsafe stops, and train→holdout degradation.
-
-**Phase 4 — Robustness:** Each top candidate is tested with jittered params
-(small perturbations to target, stop, RSI, VWAP). The average score and
-percent-positive across neighbours measure whether the optimum is stable or
-fragile.
-
-**Phase 5 — Presets:** Four presets are selected: `best_overall` (highest
-holdout score), `most_robust` (highest average perturbation score), `high_rr`
-(highest risk/reward ratio), `high_trade_count` (most trades).
-
-**Validation stage** (`--validate-best`): Cross-validates up to 3 top
-candidates across multiple holdout splits (10%, 20%, 30%) and backtest modes
-(realistic, harsh). Reports per-candidate averages and flags split-sensitive
-or mode-sensitive results. "Best raw performer" maximizes average return;
-"best robust performer" maximizes average score with fewest zero-trade cells.
-
-### Recommended workflow
-
-1. Run `python sweep.py TICKER` — review the Phase 5 presets
-2. Use `--validate-best` to cross-validate the top candidates automatically
-3. Move the top 1–2 presets to paper trading before live deployment
-4. Results are saved to `sweep_results_TICKER.json` and `experiments.jsonl`
-
-### Output files
-
-- **`sweep_results_TICKER.json`** — full results: params, train/holdout metrics, robustness scores, presets, validation (if `--validate-best`)
-- **`experiments.jsonl`** — one line per sweep run (append-only log)
-
----
-
-## How It Works
-
-```
-Price data (yfinance)
-        |
-        v
-Signal layer:
-  +-- RSI dip  +  MACD histogram inflection  -> momentum_signal
-  +-- VWAP z-score deviation                 -> volume_signal
-        |
-        v
-Regime gate (6-state MA slope classifier, daily/backtest modes):
-  STRONG_BULL / BULL / STALLING / RECOVERING / BEAR / STRONG_BEAR
-  -> blocks entries in downtrends, scales position size by conviction
-        |
-        v
-Position sizing:
-  Backtest: Kelly Criterion x regime_mult x ADX_mult (capped 20-30%)
-  Live:     fixed 10% of equity
-        |
-        v
-Entry at next tradeable price -> bracket order (TP + SL + time limit)
-```
 
 ---
 
 ## Setup
 
-Python **3.11+** is required (the live Pi and CI both use 3.11; the codebase uses
-modern union/type syntax that does not import on Python 3.9).
+Python **3.11+** is required (CI and the paper deployment use 3.11; the codebase uses modern
+union/type syntax that does not import on Python 3.9).
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/huthargrave-lang/MONAD-quant.git
 cd MONAD-quant
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-For live trading: `pip install -r requirements-live.txt`
-For Raspberry Pi: `pip install -r requirements-pi.txt`
+For the paper trader and dashboard: `pip install -r requirements-live.txt`.
+For Raspberry Pi: `pip install -r requirements-pi.txt`.
 
-## Run
+## Reproduce
 
 ```bash
-# Reproduce any research study (deterministic, seed=0)
+# Any research study (deterministic, seed=0; data-fetching studies cache locally)
 venv/bin/python tools/bond_ladder_study.py
 venv/bin/python tools/correlation_regime_study.py --selfcheck
+venv/bin/python tools/overnight_gap_risk_study.py
+venv/bin/python tools/epistemic_audit_lab.py risk
 
-# Standard backtest
-python main.py
+# The accountable daily-strategy workflow (frozen data → counted trials → finding)
+venv/bin/python tools/edge_scorecard.py
+venv/bin/python tools/trial_ledger.py stats
+venv/bin/python tools/domain_search.py cef_discount --snapshot <DS sha> --panel <CEFNAV sha> --report-only
 
-# Walk-forward optimizer (daily mode only)
-python main.py --mode=walk-forward
+# The reference engine
+python main.py                                    # standard backtest
+python main.py --mode=walk-forward                # walk-forward optimizer (daily mode)
+python sweep.py TQQQ --mode realistic --validate-best
+python -m live.trader --dry-run --once            # paper trader, signals only
 
-# Override date range
-python main.py --start 2023-01-01 --end 2023-12-31
+# Research surfaces
+venv/bin/python tools/research_ui.py serve        # research-web browser + screener
+venv/bin/python tools/ctx.py serve --port 8001    # context map
+python tools/export_pages.py --out _site          # the static site, as CI builds it
 
-# Parameter sweep
-python sweep.py GDXU
-python sweep.py SOXL --start 2024-06-01 --mode realistic
-python sweep.py TQQQ --mode harsh --validate-best
-
-# Live trading
-python -m live.trader --dry-run --once    # verify signals
-python -m live.trader                      # paper mode
-python -m live.trader --live --symbol TQQQ # real money
-
-# Context map (read-only, separate from trading dashboard)
-venv/bin/python tools/ctx.py serve --port 8001
-
-# Tests (unittest — NOT pytest)
+# Tests (unittest — NOT pytest). CI needs full git history for two guard families.
 python -m unittest discover -s tests
 ```
 
 ### Branches
 
-- **`development`** — the canonical running branch and the GitHub default. All
-  reviewed work lands here; it is what the Pi runs.
-- **`pi-ops-automation`** — prior deploy branch, now folded into `development`.
-- **`main`** — legacy/divergent; not used for deployment.
+- **`development`** — the canonical branch and the GitHub default. All reviewed work lands
+  here; it is what the site is built from and what the paper deployment runs.
+- **`main`** — legacy/divergent; not used.
+- **`tone-ledger`** — bot-written daily tone observations (see [`docs/TONE_LEDGER.md`](docs/TONE_LEDGER.md)).
 
-The systemd preflight gate (`ops/preflight_trader_start.sh`) hard-checks that the
-working tree is on `development` before the paper trader will start, so the trader
-can never run from an unreviewed branch.
+---
 
-### Raspberry Pi Deployment
-
-The Pi runs the **paper** trader from `development`. Stay on that branch when
-updating:
-
-```bash
-git checkout development && git pull        # the only branch the preflight allows
-
-chmod +x deploy/setup-pi.sh
-./deploy/setup-pi.sh
-./deploy/smoke-test.sh
-
-sudo systemctl start monad-trader
-sudo systemctl status monad-trader
-journalctl -u monad-trader -f
-```
-
-## Project Structure
+## Repository layout
 
 ```
 MONAD-quant/
-├── config.py               <- All params; change ACTIVE_MODE here
-├── context_map.json        <- Context Kit manifest (areas, routing, idea↔code bridges)
-├── RESEARCH_WEB.md         <- Research idea web (findings, experiments, decisions)
-├── AGENT_INDEX.md          <- Agent router — start here for navigation
-├── CONTEXT_KIT.md          <- Context Kit design + portability guide
-├── SCHEMA.md               <- Canonical context-web schema
-├── VISION.md               <- Public vision + Stage 0–4 roadmap
-├── config_modules/
-│   ├── base.py             <- Shared risk/sizing/backtest settings
-│   └── live.py             <- IBKR connection, dry-run flag, bootstrap stats
-├── main.py                 <- Entry point (backtest)
-├── sweep.py                <- Universal parameter sweep tool
+├── RESEARCH_WEB.md          <- The evidence graph (findings, hypotheses, experiments, decisions)
+├── SCHEMA.md                <- Node kinds, edge vocabulary, write rules, invariants
+├── VISION.md                <- Direction + staged roadmap
+├── CONTRIBUTING.md          <- How a study is proposed, frozen, run, recorded, admitted
+├── CITATION.cff             <- How to cite the base
+├── docs/
+│   ├── research/            <- 200+ study writeups, the compendium index, and governance:
+│   │   ├── README.md        <-   program map + the active-vs-static / execution-risk record
+│   │   ├── data/            <-   content-addressed frozen datasets (rights-aware)
+│   │   ├── prereg/          <-   frozen pre-registrations, one per hypothesis
+│   │   ├── trials/          <-   hash-chained trial ledger (every attempt, losers included)
+│   │   ├── refutations/     <-   objections and board rulings
+│   │   ├── forward_watch/   <-   frozen forward records + the multiplicity policy
+│   │   └── reeval/          <-   re-evaluation of pre-gate findings
+│   ├── DIRECTIONS.md        <- Ranked next directions for the project (dated memo, owner ratifies)
+│   ├── REFERENCE_ENGINE.md  <- The test-bench engine, execution model, sweep, deployment
+│   ├── TONE_LEDGER.md       <- Pre-registered gates for the daily news-tone series
+│   └── history/             <- Archived optimization logs (superseded numbers, kept as history)
 ├── tools/
-│   ├── ctx.py              <- Context Kit CLI (query, graph, serve, guard)
-│   ├── note.py             <- Append/supersede research-web nodes
-│   └── *_study.py          <- Deterministic research-study tools (sixty-nine studies)
-├── docs/research/          <- Sixty-four-study research program writeups + compendium
-├── experiments.jsonl        <- Experiment log (one JSON line per sweep run)
-├── live/
-│   ├── trader.py           <- Scheduler + on_bar() loop, pending_close retry
-│   ├── signals.py          <- Real-time signal computation
-│   ├── broker.py           <- IBKR bracket orders + fill reconciliation
-│   ├── state.py            <- SQLite position/trade state, pending_close management
-│   ├── dashboard.py        <- FastAPI read-only dashboard
-│   └── templates/
-│       └── dashboard.html  <- Dashboard UI template
-├── deploy/
-│   ├── setup-pi.sh         <- Raspberry Pi deployment script
-│   ├── smoke-test.sh       <- Post-deployment verification
-│   ├── monad-trader.service <- systemd service template
-│   ├── monad-ctxweb.service <- systemd unit for ctx serve (:8001)
-│   └── healthcheck.sh      <- Health check for monitoring
+│   ├── ctx.py               <- Context Kit CLI (route, web, why, impact, serve, lint, ...)
+│   ├── note.py              <- The only writer to the evidence graph (append / supersede / link)
+│   ├── prereg.py, refute.py, admit.py, trial_ledger.py, forward_watch.py, edge_scorecard.py
+│   ├── *_study.py, *_lab.py <- Deterministic research tools, one per study
+│   ├── research_ui.py       <- Research-web browser, screener, node views (read-only)
+│   └── export_pages.py      <- Static site build (GitHub Pages)
 ├── src/
-│   ├── data/               <- yfinance + Alpha Vantage fetchers
-│   ├── signals/
-│   │   ├── momentum.py     <- RSI, MACD, 6-state regime classifier
-│   │   ├── volume.py       <- VWAP z-score
-│   │   └── volatility.py   <- ATR, Bollinger Bands, ADX
-│   ├── strategy/
-│   │   ├── engine.py       <- Signal orchestration + trade simulation
-│   │   └── sizing.py       <- Fractional Kelly calculator (backtest)
-│   └── backtest/
-│       ├── runner.py       <- Equity curve, monthly P&L, diagnostics
-│       └── uncertainty.py  <- Block-bootstrap CIs, win-rate posteriors, MC bands
-├── tests/
-│   ├── test_context_map.py <- Manifest drift guards
-│   ├── test_research_web.py <- Idea-web + graph HTML template guards
-│   ├── test_state.py       <- State DB + config tests
-│   ├── test_execution_model.py <- Execution model + regression tests
-│   └── test_dashboard.py   <- Dashboard route + rendering tests
-└── sweep_results_*.json    <- Saved sweep results per ticker
+│   ├── research/            <- Counted evaluators, trial ledger, prereg, admission logic
+│   ├── backtest/            <- Runner + the shared uncertainty module (block bootstrap, posteriors)
+│   ├── optimization/        <- Sweep scoring/sizing, the validation funnel
+│   ├── signals/, strategy/  <- The reference engine's features and trade simulation
+│   └── data/                <- Fetchers and caches
+├── live/                    <- Paper trader, broker adapter, state DB, dashboard (edit-fenced)
+├── config.py, config_modules/ <- Engine parameters (single source of truth; edit-fenced)
+├── context_map.json         <- Context Kit manifest (areas, routing, bridges, edit policy)
+├── AGENT_INDEX.md, AGENTS.md, CLAUDE.md, OPERATIONS.md  <- Agent router, pointers, engine history, ops
+├── ops/, deploy/            <- Secret scan, edit guard hook, systemd units, Pi scripts
+└── tests/                   <- 200+ guard and unit test modules (unittest)
 ```
 
 ---
 
-## Honest Disclosures
+## Scope and disclaimers
 
-The library's credibility rests on saying these plainly:
+- **Research, not advice.** Nothing here is a recommendation to buy, sell, or hold anything.
+  Every number is a research result with its uncertainty, benchmark, and known failure modes
+  recorded in the graph.
+- **Results are findings about specific instruments, data, and protocols**, not universal
+  claims about markets. The reference engine's no-edge verdict (`D6`/`F13`/`F43`) is one such
+  finding — and the clearest demonstration that the evidence layer bites its own author's
+  strategy as hard as anyone else's.
+- **The reference engine is paper-only.** It connects to Interactive Brokers paper accounts
+  (port 7497); project policy prohibits the live port, and the evidence does not justify
+  arming it. Its known execution-model limitations are listed in
+  [`docs/REFERENCE_ENGINE.md`](docs/REFERENCE_ENGINE.md#known-limitations-engine-specific).
+- **Vendor data is not redistributed.** Published pages and committed datasets carry only what
+  the repository owns; see [`docs/research/data/README.md`](docs/research/data/README.md).
+- **Consistency is enforced; correctness is a human's job.** The guards police that a claim
+  has evidence and that nothing current rests on a retraction. A confidently wrong finding
+  with a valid evidence edge still passes every lint.
 
-- **The active engine has no demonstrated edge.** Full-session, leak-free backtests
-  and live paper reconcile to flat at the hourly frequency it trades (`F13`/`F43`);
-  the active daily engine does not beat a static allocation risk-adjusted (`D6`).
-  The honest product recommendation is a static, conservatively-weighted mix —
-  read with `F46`'s regime qualifiers.
-- **Paper-testing phase.** The live system has not been validated on real money at
-  scale. Backtest results are not a guarantee of live performance.
-- **Sweep holdout scores are selection-biased.** A sweep winner is the best-of-many
-  on its holdout — use `--validate-best` and `ctx perf`, not Phase-3 numbers alone.
-- **Pending close reconciliation** depends on IBKR making fill data available on
-  subsequent cycles. If IBKR never surfaces the fill (e.g., prolonged outage), the
-  position stays blocked until manual intervention.
-- **Dashboard mark price / unrealized PnL** accuracy depends on the available price
-  source. The fallback chain (live → delayed → bar_close → estimated → entry) means
-  the displayed price may be stale or approximate.
-- **Hourly monitoring cadence** means bracket exits that fill between cycles are
-  detected on the next cycle, not immediately. PnL is still computed from actual
-  fill data when available.
-- **Backtest-to-live gap** is unavoidable: live slippage, broker fill timing, spread
-  costs, and execution delays will differ from backtest assumptions. The `realistic`
-  mode is a conservative estimate, not a prediction.
-- **BTC modes** require crypto exchange infrastructure with fee tiers that erode
-  returns at retail rates. ETF modes are preferred for retail deployment.
+## Citing
 
----
-
-## Why ETFs Over BTC?
-
-BTC Hourly produces higher gross returns but trades on a crypto CEX with fees
-that erode 40–60% of returns at retail rates. ETFs at US brokerages have zero
-commission — gross return equals net return.
-
-| | BTC Hourly (retail fees) | TQQQ Hourly | GDXU Hourly |
-|---|---|---|---|
-| Commission | 0.1% round-trip | $0 | $0 |
-| Monthly fee drag | ~1.5%/mo | $0 | $0 |
-| Custody | Exchange counterparty risk | SIPC-insured | SIPC-insured |
-| Tax reporting | Complex crypto basis | Standard 1099-B | Standard 1099-B |
-| Operating hours | 24/7 | Market hours only | Market hours only |
-
----
+See [`CITATION.cff`](CITATION.cff) (GitHub renders a "Cite this repository" button from it).
+Cite individual findings by node ID (`RESEARCH_WEB.md`, e.g. `F46`) and the study document
+that carries them, so the citation survives supersession.
 
 ## License
 
-(c) 2026 Monad Industries
-
-This project is licensed under the MIT License.
+MIT — © 2026 Monad Industries. See [`LICENSE`](LICENSE).

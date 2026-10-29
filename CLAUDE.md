@@ -1,20 +1,24 @@
-# MONAD Quant — Full Model History & Context
+# MONAD Quant — The Reference Engine: Design History & Context
 
-> ⚠️ **STALE-PERFORMANCE WARNING (read before trusting any number below).** The headline
-> performance in §1, §8, §13–18 (Sharpe 25–94, +0.7–3.5%/mo, "Production-ready") is
-> **SUPERSEDED** and was produced by optimistic-mode backtests on **morning-only data**.
-> The honest, leak-free, full-session (live-representative) verdict: the **hourly** strategy
-> has **no edge** (the live bot is flat) — the apparent edge was a data-sampling artifact.
-> The honest go/no-go verdict (**D6**, confirmed & strengthened 2026-06-25): the **active
-> mean-reversion engine has NO risk-adjusted edge over a trivial static 50/50–60/40 allocation**
-> at any timescale — hourly is flat/negative (F13); the ~3-bars/day (F15) and daily-MR (F22)
-> results do NOT survive a static-blend benchmark; conditioning on the project's own RSI signal
-> doesn't help (F24) and 26yr of data confirms it (F25). And the slope-regime "core innovation"
-> is in fact **dead-wired/stripped from every backtest** (F26). The honest bond-alternative is a
-> STATIC allocation; the active engine's only role is a low-drawdown overlay (and even that DD
-> edge is path-dependent). For current truth run **`venv/bin/python tools/ctx.py web`** and
-> **`ctx perf`**; see `RESEARCH_WEB.md` (**D6/F22/F24/F25/F26**). Treat the numbers below as
-> **optimization history, not current fact.**
+> **What this file is.** MONAD Quant is a quantitative finance research base
+> (see [`README.md`](README.md) and [`VISION.md`](VISION.md)); the long-only mean-reversion
+> engine documented here is its **reference test bench** — the system the research methodology
+> was built on and first proved itself against ([`docs/REFERENCE_ENGINE.md`](docs/REFERENCE_ENGINE.md)).
+
+> ⚠️ **Stale-performance notice (read before trusting any number below).** The headline
+> performance in §1, §8 and the archived §13–18 (Sharpe 25–94, +0.7–3.5%/mo, "Production-ready")
+> is **superseded research history**: it was produced by optimistic-mode backtests on
+> **morning-only data**. The leak-free, full-session verdict — recorded and adversarially
+> verified in the research web — is that the **hourly** strategy carries no edge (`F13`; the live
+> paper bot is flat, `F43`) and that the active mean-reversion engine has **no risk-adjusted edge
+> over a trivial static 50/50–60/40 allocation at any timescale** (**D6**, confirmed 2026-06-25:
+> `F15`/`F22` do not survive a static-blend benchmark, the project's own RSI signal does not help
+> (`F24`), and 26 years of data agree (`F25`)). The slope-regime "core innovation" is dead-wired in
+> every backtest (`F26`). The honest bond-alternative from that program is a **static** allocation;
+> the engine's remaining role is a low-drawdown overlay whose edge is path-dependent. For current
+> truth run **`venv/bin/python tools/ctx.py web`** and **`ctx perf`**; see `RESEARCH_WEB.md`
+> (**D6/F22/F24/F25/F26**). Treat the numbers below as **optimization history, not current fact** —
+> that reconciliation is itself one of the base's recorded results, not a loose end.
 
 > 🧭 **Agents: start with [`AGENT_INDEX.md`](AGENT_INDEX.md) and `tools/ctx.py`** (e.g. `venv/bin/python tools/ctx.py route "<task>"`) — route to the specific files/sections you need instead of reading this whole file. This doc is the deep *"why"* (strategy); **`OPERATIONS.md`** is the live/ops *"how it runs"*.
 
@@ -24,11 +28,13 @@
 
 ---
 
-## 1. Project Goal
+## 1. The engine's original design goal
 
-**NOT a growth strategy.** MONAD Quant is a **high-yield bond ETF alternative** — an
-actively-traded, long-only engine designed to generate consistent monthly income with
-near-zero drawdown. The strategy has nine configured modes across two tiers:
+**NOT a growth strategy.** The reference engine was designed as a **high-yield bond ETF
+alternative** — an actively-traded, long-only engine meant to generate consistent monthly
+income with near-zero drawdown. (Whether that goal is attainable is the question the
+active-vs-static research program answered — see the notice above and `D6`.) The strategy has
+nine configured modes across two tiers, recorded here as they were documented at the time:
 
 **Tier 1 — Production-ready (realistic backtest validated):**
 

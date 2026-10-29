@@ -1,6 +1,8 @@
 # 🧭 AGENT INDEX — start here (don't read the whole codebase)
 
-You are working on **MONAD-quant**. Get oriented in ~30 seconds, then drill in only where routed.
+You are working on **MONAD-quant** — a quantitative finance research base (evidence graph,
+research compendium, governance tools, Context Kit) whose trading engine is the reference test
+bench. Get oriented in ~30 seconds, then drill in only where routed.
 
 ## Step 1 — query, don't read
 Most facts are a command away (read-only, stdlib-only):
@@ -86,12 +88,15 @@ Machine-readable routing/invariants live in **`context_map.json`** (kept honest 
   names the manifest `context_map.yaml`. Run `ctx docs` for the generated ownership table.)
 - **Area context (1 screen each):** `live/CONTEXT.md`, `src/CONTEXT.md`, `ops/README.md`.
 - **Deep "why":** `CLAUDE.md` / `AGENTS.md` (strategy/model). **Deep "how it runs":** `OPERATIONS.md` (live/ops).
+- **The research base itself:** `README.md` (programs + selected results), `docs/research/README.md`
+  (compendium), `CONTRIBUTING.md` (how a study is frozen, counted, recorded, admitted),
+  `docs/REFERENCE_ENGINE.md` (the engine as a documented test bench).
 
 ## Non-negotiable invariants (also asserted in CI)
 - **Paper only.** API port **7497**; the live port **7496 must never be used**. `config.LIVE_PAPER_MODE=True`, symbol **TQQQ**.
 - **Don't modify live trading/order/strategy logic** without explicit approval — the trader auto-starts from `development`.
 - **Never commit** `.env`, raw `*.db`, logs, credentials, or **account IDs**. Push via **SSH**, never to `main`.
-- **Heads-up:** the headline **+35%** is mostly broken-bracket artifact; the honest confirmed-fill edge is ~flat (run `ctx perf`).
+- **Heads-up:** the engine's old headline **+35%** is an exit-accounting artifact and the honest confirmed-fill edge is ~flat (`F43`; run `ctx perf`). That is a recorded research result — cite it, don't re-litigate it or quote the old number as live.
 
 ## Convention
 Prefer a `ctx`/tool call over reading a file for any computable fact, and cite `file:line` so the next agent can jump there.
