@@ -14,6 +14,8 @@ being re-derived by the next agent (see CONTEXT_KIT.md). Safety by construction:
     integrity lint as `ctx web --lint` (no dangling links, ids well-formed, titles
     non-empty, status/reason in vocab, no live-node-relies-on-superseded, count grew
     as expected). Dry-run by DEFAULT; pass --commit to write. Never git add/commit/push.
+  * refuses a `resolves` edge in any direction but Finding/Decision -> Hypothesis
+    (SCHEMA §5) — that edge is what CLOSES a question for `ctx web --pending`.
 
   venv/bin/python tools/note.py add --kind F --title "..." --body "..." \
       [--link E7:evidenced_by --link F13:supersedes] [--commit]
@@ -37,6 +39,20 @@ import ctx  # noqa: E402 — reuse REPO/WEB/_git/_parse_web/policy_match + the v
 
 KINDS = {"F", "H", "E", "D"}
 HDR = re.compile(r"^###\s+([A-Za-z]+\d+)\s+[—-]\s+(.*)$")
+
+
+def _check_resolves_direction(src, tgt, etype):
+    """SCHEMA §5: `resolves` is Decision/Finding → Hypothesis — the edge that CLOSES a
+    question (`ctx web --pending` reads closure from it: ctx._resolved_hypotheses, decision
+    debate 2026-10-29, docs/research/WEB_HYGIENE_QUESTION.md). Every other direction is
+    refused at the write path, so an answered-looking edge can never again be written
+    from an E or H, or at an F/D. Fourteen such edges were live when this landed —
+    tests/test_web_hygiene.py pins the thirteen that remain; none can be added. A
+    Finding that names remaining open parts wants `refines` (narrows, leaves open).
+    `src` may be a kind letter for a node not yet allocated (`add`)."""
+    if etype == "resolves" and not (src[:1] in ("F", "D") and tgt[:1] == "H"):
+        sys.exit(f"`resolves` is Decision/Finding -> Hypothesis (SCHEMA §5); {src} -> {tgt} is "
+                 f"off-direction — use refines (narrows, leaves open), drives or relates")
 
 
 # ── write-fence (fail closed) ────────────────────────────────────────────────
@@ -455,6 +471,7 @@ def cmd_add(args):
                 sys.exit(f"--link type {ty!r} not in {sorted(ctx.EDGE_TYPES)}")
             if ty in ctx.RELIANCE_EDGES and ctx._is_superseded(nodes[tid]):
                 sys.exit(f"reliance edge '{ty}' to superseded {tid} — use relates/supersedes/contradicts")
+            _check_resolves_direction(f"{args.kind}(new)", tid, ty)
             links.append((tid, ty))
         nid = next_id(text, args.kind, remote=True)
         block = render_add(nid, title, args.body, links, datetime.date.today().isoformat())
@@ -518,6 +535,7 @@ def cmd_link(args):
                 f"Edit the existing edge if '{etype}' is the truer relation.")
         if etype in ctx.RELIANCE_EDGES and ctx._is_superseded(nodes[args.target]):
             sys.exit(f"reliance edge '{etype}' to superseded {args.target}")
+        _check_resolves_direction(args.src, args.target, etype)
         candidate = apply_link(text, args.src, args.target, etype)
         return (candidate, f"{args.src} --{etype}--> {args.target}",
                 f"link {args.src}->{args.target}")
@@ -547,6 +565,7 @@ def cmd_retype(args):
             sys.exit(f"{args.src} already carries [[{args.target}|{etype}]]")
         if etype in ctx.RELIANCE_EDGES and ctx._is_superseded(nodes[args.target]):
             sys.exit(f"reliance edge '{etype}' to superseded {args.target}")
+        _check_resolves_direction(args.src, args.target, etype)
         candidate = apply_retype(text, args.src, args.target, old_type, etype)
         return (
             candidate,

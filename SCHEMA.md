@@ -81,7 +81,7 @@ The four kinds in `note.py`'s `KINDS = {F, H, E, D}`. This is the scientific met
 | Kind | ID | Meaning | Key fields / required edges |
 |---|---|---|---|
 | **Finding** | `F#` | An established empirical result. | **`evidenced_by` → Experiment is required** ("a claim is only as strong as the Experiment behind it"). `conf`, `status`. |
-| **Hypothesis** | `H#` | An open or resolved question to test. State (`OPEN`/`RESOLVED`/`DEAD`) currently lives in the title. | edges to the Experiment(s) that test it. |
+| **Hypothesis** | `H#` | An open or resolved question to test. **State of record: CLOSED when a current, uncontradicted F/D carries `resolves` → it** ([§5](#5-edge-vocabulary)); OPEN otherwise. The `OPEN`/`RESOLVED`/`DEAD` title tag is a human-readable echo, not the record. The predicate is `tools/ctx.py::_resolved_hypotheses` / `_is_open_work`, which `ctx web --pending` and the map list by (decision debate 2026-10-29, `docs/research/WEB_HYGIENE_QUESTION.md`). A Finding that names remaining open parts uses `refines` (narrows, leaves open). | edges to the Experiment(s) that test it. |
 | **Experiment** | `E#` | The concrete, runnable test/harness that produces results — names a tool/command (e.g. `tools/walkforward_eval.py`). | `produces` → Finding. Status (`IN PROGRESS`/`DONE`/`DEAD-END`) in title. |
 | **Decision / Gate** | `D#` | A go/no-go or design decision. | `resolves` a Hypothesis; cites the Findings it rests on. Records *recommendation* (note whether it was actually *applied*). |
 
@@ -125,7 +125,7 @@ before it and defaults to `relates`. An explicit `[[ID|type]]` must use a type b
 | `contradicts` | node ↔ node | — | Disagreement **without** retiring either node (the "contradicted-but-current" state). |
 | `derived_from` | node → source node | — | Lineage/provenance (not a reliance). |
 | `drives` | node → downstream | — | Motivates downstream work ("bears on", "→"). |
-| `resolves` | Decision/Finding → Hypothesis | — | Closes an open question. |
+| `resolves` | Decision/Finding → Hypothesis | — | Closes an open question — the state of record for an H ([§3](#3-epistemic-layer--current)). `note.py` refuses it in any other direction. |
 | `relates` | node ↔ node | — | Generic association / the untyped default. *Use a more specific type when one fits — overuse of `relates` is a typing smell.* |
 
 The four **reliance edges** are special: the [integrity invariant](#6-integrity-invariants-the-load-bearing-rules) forbids a *current* node from pointing one at a *superseded* node.

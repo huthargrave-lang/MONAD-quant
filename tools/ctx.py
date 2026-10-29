@@ -1582,12 +1582,14 @@ def cmd_web(args):
         return
 
     if getattr(args, "pending", False):
-        # Open work only: live decisions/gates (D-nodes) + open questions
-        # (titles tagged OPEN / IN PROGRESS). The "what still needs doing" view.
+        # Open work only — ONE rule, `_is_open_work`, shared with the map so the two
+        # views cannot disagree: a live decision/gate not titled RESOLVED/DONE, or a
+        # live OPEN / IN PROGRESS question that no current, uncontradicted F/D
+        # `resolves`. The "what still needs doing" view. The resolved set is a full
+        # edge scan, so it is computed once here, not once per node.
+        resolved = _resolved_hypotheses(nodes)
         pend = [nid for nid in sorted(nodes, key=_node_sort_key)
-                if not _is_superseded(nodes[nid])
-                and (nid[:1] == "D"
-                     or re.match(r"\s*(OPEN|IN PROGRESS)\b", nodes[nid]["title"], re.I))]
+                if _is_open_work(nid, nodes[nid], nodes, resolved)]
         print(f"PENDING — open questions + decisions/gates ({len(pend)}):\n")
         for nid in pend:
             print(f"  {nid:<4} {nodes[nid]['title'][:72]}")
@@ -2248,12 +2250,46 @@ def _graph_compact(G, adj):
 
 _BODY_CAP = 1600          # per-node prose budget in the inlined map (keeps the page ~200KB)
 
-def _is_open_work(nid, node) -> bool:
+# Hypothesis closure is read from the web's EDGES, not from the title (SCHEMA §3/§5;
+# decision debate 2026-10-29, docs/research/WEB_HYGIENE_QUESTION.md). A `resolves`
+# edge closes its target only in the schema's direction, Finding/Decision → Hypothesis,
+# and only from a source that is itself current and uncontradicted: E7→H5 or H8→D4
+# close nothing, and a disputed resolver does not close its question. `refines` is the
+# documented "narrows while leaving open" edge and never closes. The title's OPEN /
+# RESOLVED tag is a human-readable echo; `note.py` refuses the off-direction edge.
+_OPEN_TITLE_RX = re.compile(r"\s*(OPEN|IN PROGRESS)\b", re.I)
+_CLOSED_DECISION_RX = re.compile(r"\s*(RESOLVED|DONE)\b", re.I)
+
+
+def _resolved_hypotheses(nodes, contra=None):
+    """{H ids closed by a `resolves` edge from a CURRENT, UNCONTRADICTED F or D}.
+    A full edge scan plus `_contradicted_by` (pass `contra` if a caller already has
+    it) — compute ONCE per listing and hand the set to `_is_open_work`, which a
+    listing calls once per node."""
+    if contra is None:
+        contra = _contradicted_by(nodes)
+    return {e["target"] for nid, n in nodes.items()
+            if nid[:1] in ("F", "D") and not _is_superseded(n) and nid not in contra
+            for e in n["edges"] if e["type"] == "resolves" and e["target"][:1] == "H"}
+
+
+def _is_open_work(nid, node, nodes, resolved=None) -> bool:
     """The "what still needs doing" rule, shared by `ctx web --pending` and the map's
-    open-work view so both agree: a live decision/gate, or a live node whose title is
-    tagged OPEN / IN PROGRESS."""
-    return not _is_superseded(node) and (
-        nid[:1] == "D" or bool(re.match(r"\s*(OPEN|IN PROGRESS)\b", node["title"], re.I)))
+    open-work view so both agree. Open = a live decision/gate whose title is not
+    RESOLVED/DONE, or a live OPEN / IN PROGRESS node that no current, uncontradicted
+    F/D `resolves`. A superseded node is never open (a withdrawn question is not an
+    answered one — SCHEMA §6.1 keeps the two apart). `resolved` is
+    `_resolved_hypotheses(nodes)`: listings pass it precomputed; it is derived here
+    only as a convenience for a one-off call."""
+    if _is_superseded(node):
+        return False
+    if nid[:1] == "D":
+        return not _CLOSED_DECISION_RX.match(node["title"])
+    if resolved is None:
+        resolved = _resolved_hypotheses(nodes)
+    if nid in resolved:
+        return False
+    return bool(_OPEN_TITLE_RX.match(node["title"]))
 
 
 def _related_map(nodes, top=5, floor=0.06):
@@ -2300,11 +2336,13 @@ def _graph_summary(G, nodes_web):
     renders an identical page)."""
     from collections import Counter
     dates = [d for d in (_node_meta(n).get("at") for n in nodes_web.values()) if d]
+    resolved = _resolved_hypotheses(nodes_web)          # once, not once per node
     return {"kinds": dict(Counter(d["kind"] for d in G.values())),
             "nodes": len(G),
             "research": len(nodes_web),
             "superseded": sum(1 for n in nodes_web.values() if _is_superseded(n)),
-            "open": sum(1 for nid, n in nodes_web.items() if _is_open_work(nid, n)),
+            "open": sum(1 for nid, n in nodes_web.items()
+                        if _is_open_work(nid, n, nodes_web, resolved)),
             "latest": max(dates) if dates else "",
             "rev": _git("log", "-1", "--format=%h · %cs") or ""}
 
@@ -2318,6 +2356,7 @@ def _graph_details(G, adj):
     Keyed by node id; only research nodes (F/H/E/D) have prose to carry."""
     nodes, _ = _parse_web()
     contra = _contradicted_by(nodes)
+    resolved = _resolved_hypotheses(nodes, contra)     # once per map, not once per node
     related = _related_map(nodes)
     out = {}
     for nid, n in nodes.items():
@@ -2343,7 +2382,7 @@ def _graph_details(G, adj):
              # Content-similar nodes (`ctx related`): surfaces neighbours nobody wrote a
              # [[link]] for — the ones you'd otherwise only find by reading everything.
              "rel": related.get(nid, [])}
-        if _is_open_work(nid, n):
+        if _is_open_work(nid, n, nodes, resolved):
             d["open"] = True
         for key in ("by", "reason", "at"):
             if meta.get(key):
@@ -3830,7 +3869,7 @@ def main():
     sp = sub.add_parser("web"); sp.add_argument("node", nargs="?")
     sp.add_argument("--live", action="store_true", help="show only current (non-superseded) nodes")
     sp.add_argument("--lint", action="store_true", help="graph integrity: dangling links, live-cites-superseded")
-    sp.add_argument("--pending", action="store_true", help="open work only: live decisions/gates + OPEN/IN PROGRESS questions")
+    sp.add_argument("--pending", action="store_true", help="open work only: live decisions/gates not titled RESOLVED/DONE + OPEN/IN PROGRESS questions no current F/D `resolves`")
     sp.set_defaults(fn=cmd_web)
     sp = sub.add_parser("neighbors"); sp.add_argument("node"); sp.set_defaults(fn=cmd_neighbors)
     sp = sub.add_parser("walk"); sp.add_argument("node")
