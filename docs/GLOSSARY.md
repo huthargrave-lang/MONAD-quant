@@ -279,8 +279,9 @@ superseded node keeps its place with a tombstone naming the superseder.
 [`../tools/ctx.py` (`STATUS_VALUES`, at f4a57da:1329)](../tools/ctx.py); [`../SCHEMA.md` §2, §6](../SCHEMA.md).
 
 **Stop slippage** — `stop_slippage_pct`: a stop's trigger-to-fill slippage beyond the spread,
-applied on stop and gap-stop exits only. The ratified prior is 5 bp with a 3× stress; the
-admission tool still carries 32.72 bp from the software-stop audit.
+applied on stop and gap-stop exits only. The ratified prior is 5 bp, stated in every
+price-profile admission record, with a 3× stress stage (15 bp) for registrations from 2026-10-29
+([`../tools/admit.py`](../tools/admit.py) `STOP_SLIPPAGE_PCT`, `stop_stress_applies`).
 [`../src/strategy/engine.py:248-250`](../src/strategy/engine.py); [`research/ENGINE_V3_QUESTION.md` §(g) amendment](research/ENGINE_V3_QUESTION.md);
 [`../tools/admit.py:81`](../tools/admit.py).
 

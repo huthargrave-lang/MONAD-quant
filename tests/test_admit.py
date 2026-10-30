@@ -94,6 +94,23 @@ def fake_backtest(edge):
     return run
 
 
+def stop_sensitive_backtest(edge, stop_weight):
+    """``fake_backtest`` whose trades also pay ``stop_weight`` x the stop slippage they are
+    given: the one knob the (g) amendment's 3x stress turns. With stop_weight 4 and edge
+    0.004 the tape earns at the 5 bp prior and at 2x cost but loses at 15 bp."""
+    def run(df, target_gain_pct, stop_loss_pct, slippage_pct=0.0, stop_slippage_pct=0.0, **_):
+        idx = df.index[::7]
+        rng = np.random.default_rng(len(df))
+        r = pd.Series(rng.normal(edge, 0.004, len(idx)) - (slippage_pct or 0.0)
+                      - stop_weight * (stop_slippage_pct or 0.0), index=idx)
+        equity = (1 + 0.1 * r).cumprod()
+        dd = float((equity / equity.cummax() - 1).min())
+        return {"total_trades": len(r), "win_rate": float((r > 0).mean()),
+                "total_return": float(equity.iloc[-1] - 1), "sharpe_ratio": float(r.mean() / r.std()),
+                "max_drawdown": dd, "trades_per_year": 300.0, "trade_returns": r}
+    return run
+
+
 class Gate(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -113,12 +130,12 @@ class Gate(unittest.TestCase):
         prereg.PREREG_DIR, trials.LEDGER_DIR = self._orig
         self._tmp.cleanup()
 
-    def register(self, **changes):
+    def register(self, now=REGISTERED, **changes):
         register_v1(self, _spec(**changes), prereg_dir=self.dirs["prereg_dir"], check_web=False,
-                        now=REGISTERED)
+                        now=now)
 
     def evaluate(self, edge=0.004, now=MATURE, parity_diverge=(), dirty=False, new_data=None,
-                 load_bars=flat_bars, witness_problems=(), hypothesis="H9100"):
+                 load_bars=flat_bars, witness_problems=(), hypothesis="H9100", engine=None):
         census = {"rows": [{"dimension": d, "verdict": "DIVERGE"} for d in parity_diverge],
                   "counts": {"DIVERGE": len(parity_diverge)}}
         self.witnessed = None
@@ -126,7 +143,7 @@ class Gate(unittest.TestCase):
         def witness(spec, prereg_path, runs):
             self.witnessed = (prereg_path, list(runs))
             return list(witness_problems)
-        with mock.patch("src.backtest.runner.run_backtest", fake_backtest(edge)):
+        with mock.patch("src.backtest.runner.run_backtest", engine or fake_backtest(edge)):
             return admit.evaluate(hypothesis, now=now, load_bars=load_bars,
                                   parity=lambda: census,
                                   code=lambda: {**CLEAN, "dirty": dirty, "new_data": dict(new_data or {})},
@@ -454,6 +471,169 @@ class GateRulesV2(Gate):
         for h in prereg.GATE_RULES_V1_ALLOWLIST:
             _, current = prereg.load(h, prereg_dir=prereg.REPO / prereg.PREREG_REL)
             self.assertEqual(current, prereg.GATE_RULES_V1_ALLOWLIST[h], h)
+
+
+#: A registration frozen on the (g) amendment's date (the boundary is inclusive), with a
+#: development window that ends before it and lies within the hourly source's reach when
+#: its forward window matures.
+AMENDED = admit.STOP_STRESS_FROM
+AMENDED_WINDOW = {"start": "2026-01-04", "end": "2026-10-01"}
+AMENDED_MATURE = dt.datetime(2027, 5, 1, tzinfo=dt.timezone.utc)   # > 180 days after AMENDED
+
+
+class StopSlippageAmendment(Gate):
+    """ENGINE_V3 item (g) as amended by the decision debate of 2026-10-29
+    (docs/research/ENGINE_V3_QUESTION.md "(g) amendment", DECOMMISSION_TRADER_QUESTION.md,
+    RESEARCH_WEB.md F297801): the archived-live stop-slippage instrument is closed, the
+    intraday component is a stated 5 bp prior, and every admission record is re-run with
+    every stop filled 3x worse and must survive it. A gate rule, so prospective: keyed on
+    the registration's frozen ``registered_at`` exactly as gate rules v2 is keyed on its
+    frozen ``gate_rules``, and recomputed by the verifier from the registration and the
+    ledger, never from the record's own claim."""
+
+    def register_amended(self, **changes):
+        self.register(now=AMENDED, development_window=dict(AMENDED_WINDOW), **changes)
+
+    def evaluate_amended(self, stop_weight, **kw):
+        return self.evaluate(now=AMENDED_MATURE, engine=stop_sensitive_backtest(0.004, stop_weight),
+                             **kw)
+
+    def test_the_prior_is_the_stated_5bp_and_the_stress_is_3x(self):
+        self.assertEqual(admit.STOP_SLIPPAGE_PCT, 0.0005)
+        self.assertEqual(admit.STOP_STRESS_MULTIPLE, 3)
+        self.assertAlmostEqual(admit.STOP_STRESS_PCT, 0.0015, places=12)
+        self.assertAlmostEqual(admit.STOP_STRESS_PCT, 3 * admit.STOP_SLIPPAGE_PCT, places=12)
+        self.assertNotAlmostEqual(admit.STOP_SLIPPAGE_PCT, 0.003272, places=6,
+                                  msg="the software-stop audit median is not the (g) quantity")
+        for token in ("stated prior", "no claimed derivation", "F297801", "2026-10-29"):
+            self.assertIn(token, admit.STOP_SLIPPAGE_SOURCE)
+        self.assertEqual(admit.STOP_STRESS_FROM, "2026-10-29T00:00:00Z")
+
+    def test_the_rule_is_prospective_on_the_frozen_registered_at(self):
+        applies = admit.stop_stress_applies
+        self.assertFalse(applies({"registered_at": "2026-10-28T23:59:59Z"}))
+        self.assertTrue(applies({"registered_at": "2026-10-29T00:00:00Z"}))
+        self.assertTrue(applies({"registered_at": "2027-01-01T00:00:00Z"}))
+        self.assertFalse(applies({"registered_at": REGISTERED}))
+        for h in ("H404700", "H404701", "H404702", "H404703"):   # every registration frozen so far
+            spec, _ = prereg.load(h, prereg_dir=prereg.REPO / prereg.PREREG_REL)
+            self.assertFalse(applies(spec), h)
+
+    def test_a_registration_from_the_amendment_date_is_stressed_at_3x_and_states_both_values(self):
+        self.register_amended()
+        self.examined()
+        rec = self.evaluate_amended(stop_weight=2)
+        self.assertEqual(rec["verdict"], admit.ADMIT, rec["stages"])
+        names = [s["name"] for s in rec["stages"]]
+        self.assertEqual(tuple(names), admit.admit_chain(1, stop_stress=True))
+        self.assertEqual(names[names.index("cost_stress") + 1], "stop_stress")
+        self.assertEqual(rec["stop_slippage"]["pct"], 0.0005)
+        self.assertEqual(rec["stop_slippage"]["stress_pct"], admit.STOP_STRESS_PCT)
+        self.assertEqual(rec["stop_slippage"]["stress_multiple"], 3)
+        self.assertTrue(rec["stop_slippage"]["stress_applies"])
+        self.assertEqual(rec["stop_slippage"]["source"], admit.STOP_SLIPPAGE_SOURCE)
+        self.assertIn("F297801", rec["stop_slippage"]["rule"])
+        st = next(s for s in rec["stages"] if s["name"] == "stop_stress")
+        self.assertEqual(st["outcome"], admit.PASS)
+        self.assertEqual(st["data"]["stop_slippage_pct"], admit.STOP_STRESS_PCT)
+        self.assertEqual(st["data"]["prior_pct"], admit.STOP_SLIPPAGE_PCT)
+        # The stress is a fourth counted gate trial, recorded at 3x the prior in the ledger.
+        counted = {(r.spec["extra"]["stage"], r.spec["extra"]["stop_slippage_pct"])
+                   for r in trials.iter_trials() if r.producer == "tools/admit.py"}
+        self.assertEqual(counted, {("admission:development", 0.0005),
+                                   ("admission:cost_2x", 0.0005),
+                                   ("admission:stop_stress_3x", 0.0015),
+                                   ("admission:forward", 0.0005)})
+        self.assertEqual(admit.verify_record(rec, prereg_dir=self.dirs["prereg_dir"],
+                                             deploy_ref="HEAD"), [])
+
+    def test_a_candidate_that_survives_the_prior_but_not_3x_is_refused_with_a_named_reason(self):
+        self.register_amended()
+        self.examined()
+        rec = self.evaluate_amended(stop_weight=4)
+        st = self.stages(rec)
+        self.assertEqual((st["development"], st["cost_stress"]), (admit.PASS, admit.PASS))
+        self.assertEqual(st["stop_stress"], admit.FAIL)
+        self.assertEqual(rec["verdict"], admit.REJECT)
+        detail = next(s for s in rec["stages"] if s["name"] == "stop_stress")["detail"]
+        for token in ("does not survive", "3x", "0.1500%", "0.0500%", "(g) amendment", "F297801"):
+            self.assertIn(token, detail)
+        self.assertEqual(rec["stop_slippage"]["stress_pct"], 0.0015)
+        # The same evidence with the stress knob weaker is admitted: the stress alone refused it.
+        self.assertEqual(self.evaluate_amended(stop_weight=2)["verdict"], admit.ADMIT)
+
+    def test_a_registration_before_the_amendment_date_is_not_re_opened(self):
+        self.register()                                   # frozen 2021: before the rule
+        self.examined()
+        rec = self.evaluate(engine=stop_sensitive_backtest(0.004, 4))   # would fail at 3x
+        self.assertEqual(rec["verdict"], admit.ADMIT, rec["stages"])
+        self.assertNotIn("stop_stress", self.stages(rec))
+        self.assertEqual(tuple(s["name"] for s in rec["stages"]), admit.ADMIT_CHAIN)
+        self.assertEqual(admit.admit_chain(1, stop_stress=False), admit.ADMIT_CHAIN)
+        self.assertEqual(admit.admit_chain(2, stop_stress=False), admit.ADMIT_CHAIN_V2)
+        self.assertFalse(rec["stop_slippage"]["stress_applies"])
+        self.assertIsNone(rec["stop_slippage"]["stress_pct"])
+        self.assertEqual(rec["stop_slippage"]["pct"], 0.0005)    # the prior still applies
+        counted = [r for r in trials.iter_trials() if r.producer == "tools/admit.py"]
+        self.assertEqual(len(counted), 3)                 # no stress trial was run
+        self.assertEqual(admit.verify_record(rec, prereg_dir=self.dirs["prereg_dir"],
+                                             deploy_ref="HEAD"), [])
+        # Claiming the stress on a pre-amendment record does not verify either way.
+        claimed = json.loads(json.dumps(rec))
+        claimed["stop_slippage"]["stress_applies"] = True
+        problems = admit.verify_record(claimed, prereg_dir=self.dirs["prereg_dir"], deploy_ref="HEAD")
+        self.assertTrue(any("prospective" in p for p in problems), problems)
+
+    def test_a_v2_registration_from_the_amendment_date_carries_the_stage_too(self):
+        long_hourly_source(self)
+        # A v2 window long enough for the size-validated familywise floor, ending before AMENDED.
+        spec = _spec_v2(development_window={"start": "2022-09-01", "end": AMENDED_WINDOW["end"]})
+        prereg.register(spec, prereg_dir=self.dirs["prereg_dir"], check_web=False, now=AMENDED)
+        self.examined()
+        rec = self.evaluate_amended(stop_weight=4)
+        self.assertEqual(tuple(s["name"] for s in rec["stages"]), admit.admit_chain(2, stop_stress=True))
+        st = self.stages(rec)
+        self.assertEqual((st["familywise"], st["stop_stress"]), (admit.BLOCK, admit.FAIL))
+        self.assertEqual(rec["verdict"], admit.REJECT)   # the stress is a FAIL, not a BLOCK
+
+    def test_the_verifier_recomputes_the_stress_from_the_registration_and_the_ledger(self):
+        self.register_amended()
+        self.examined()
+        rec = self.evaluate_amended(stop_weight=2)
+        self.assertEqual(rec["verdict"], admit.ADMIT)
+        pdir, ref = self.dirs["prereg_dir"], "HEAD"
+        self.assertEqual(admit.verify_record(rec, prereg_dir=pdir, deploy_ref=ref), [])
+        # 1. The stage cannot be dropped: the chain follows the registration's date.
+        dropped = {**rec, "stages": [s for s in rec["stages"] if s["name"] != "stop_stress"]}
+        self.assertIn("an ADMIT must pass exactly the full stage chain",
+                      admit.verify_record(dropped, prereg_dir=pdir, deploy_ref=ref))
+        # 2. Nor can the record disclaim the rule.
+        disclaimed = json.loads(json.dumps(rec))
+        disclaimed["stop_slippage"]["stress_applies"] = False
+        problems = admit.verify_record(disclaimed, prereg_dir=pdir, deploy_ref=ref)
+        self.assertTrue(any("claims the 3x stop-slippage stress does not apply" in p
+                            for p in problems), problems)
+        # 3. The stress stage must cite the gate run's own 3x trial, not the prior's.
+        pointed = json.loads(json.dumps(rec))
+        dev_key = next(s for s in pointed["stages"] if s["name"] == "development")["data"]["trial"]
+        next(s for s in pointed["stages"] if s["name"] == "stop_stress")["data"]["trial"] = dev_key
+        problems = admit.verify_record(pointed, prereg_dir=pdir, deploy_ref=ref)
+        self.assertTrue(any("not an ok admission:stop_stress_3x trial" in p for p in problems),
+                        problems)
+        # 4. The stated prior must be what the development trial actually ran at.
+        restated = json.loads(json.dumps(rec))
+        restated["stop_slippage"]["pct"] = 0.0
+        problems = admit.verify_record(restated, prereg_dir=pdir, deploy_ref=ref)
+        self.assertTrue(any("states a stop-slippage prior of 0.0" in p for p in problems), problems)
+        # 5. A record that admits over a failed stress is caught from the ledger, not the
+        #    stage text: re-evaluate a failing tape and forge its stage to pass.
+        failed = self.evaluate_amended(stop_weight=4)
+        self.assertEqual(failed["verdict"], admit.REJECT)
+        forged = json.loads(json.dumps(failed))
+        next(s for s in forged["stages"] if s["name"] == "stop_stress")["outcome"] = admit.PASS
+        forged["verdict"] = admit.ADMIT
+        problems = admit.verify_record(forged, prereg_dir=pdir, deploy_ref=ref)
+        self.assertTrue(any("did not survive" in p for p in problems), problems)
 
 
 class TheForwardFloorsPower(unittest.TestCase):

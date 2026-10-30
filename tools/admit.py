@@ -23,6 +23,9 @@ Profile ``price_strategy`` (the hourly RSI/VWAP mean-reversion family), in order
   deflation      its Deflated Sharpe against EVERY trial its family has recorded, by any
                  tool, is at least the registered threshold (src/research/deflation.py)
   cost_stress    still profitable at 2x cost
+  stop_stress    registrations frozen from 2026-10-29 only: still profitable with every stop
+                 filled 3x the stated 5 bp stop-slippage prior worse (ENGINE_V3 item (g) as
+                 amended 2026-10-29 -- a prospective GATE RULE; RESEARCH_WEB.md F297801)
   benchmark      Calmar at least buy & hold's on the same bars
   forward        on bars NO recorded trial in the family has seen: the window starts at the
                  later of registered_at and the last bar any family trial touched, so a
@@ -74,13 +77,36 @@ CANDIDATE_KEYS = ("target_gain_pct", "stop_loss_pct", "rsi_oversold", "vwap_zsco
                   "max_trade_bars")
 COST_STRESS_MULTIPLE = 2
 #: A stop's trigger-to-fill slippage beyond the spread (the round-trip cost already
-#: charges the spread). ENGINE_VERSION 3 consensus (g): measured from live stop exits.
-#: IBKR-native stop fills are UNMEASURED; the only measured evidence is the D6
-#: software-risk-trigger audit (fills beyond the level 10.6-244 bp, median 32.72 bp), so
-#: that median is used and every admission record states it with this source.
-STOP_SLIPPAGE_PCT = 0.003272
-STOP_SLIPPAGE_SOURCE = ("D6_software_risk_trigger_outcome_audit.md median 32.72 bp (software "
-                        "stops); IBKR-native stop fills unmeasured")
+#: charges the spread): ENGINE_VERSION 3 item (g) as AMENDED by the decision debate of
+#: 2026-10-29 (docs/research/ENGINE_V3_QUESTION.md "(g) amendment";
+#: docs/research/DECOMMISSION_TRADER_QUESTION.md; RESEARCH_WEB.md F297801). The
+#: archived-live instrument the ratified (g) named is CLOSED (the committed archive holds
+#: n_native_intraday = 1, and the Pi's paper fills are a simulator property), so the
+#: intraday component is a STATED PRIOR with no claimed derivation -- 5 bp, bounded only
+#: by the single archived native point and IBKR's own statement that a triggered stop is a
+#: market order with no guaranteed price. It is NOT the harsh-mode ``slippage_pct`` (a
+#: round-trip cost: the two numbers coincide, they are not the same quantity), not the
+#: half-spread, and not the 32.72 bp this constant carried from 2026-10-06 to 2026-10-29:
+#: that was the median trigger-MARK-vs-level margin of the four :32-cycle SOFTWARE stops
+#: in the paper archive (Study 66, D6_software_risk_trigger_outcome_audit.md), two of them
+#: overnight gaps that rule (b)1 already fills at the open -- a quantity (i) declares
+#: DIVERGE and (g) reports separately, never trigger-to-fill. The gap component of a stop
+#: is filled at the open by rule (b)1. A measured instrument (a dedicated stop-fill probe
+#: on a venue whose fills are market events) supersedes this prior.
+STOP_SLIPPAGE_PCT = 0.0005
+STOP_SLIPPAGE_SOURCE = ("stated prior, no claimed derivation: ENGINE_V3 (g) amendment of "
+                        "2026-10-29 (ENGINE_V3_QUESTION.md; DECOMMISSION_TRADER_QUESTION.md; "
+                        "F297801) -- archived-live instrument closed at n_native_intraday = 1; "
+                        "a measured stop-fill probe supersedes it")
+#: The amendment's stress: every admission record is re-run with every stop filled
+#: STOP_STRESS_MULTIPLE x the prior worse and must survive it. Because that changes what
+#: admits it is a GATE RULE and therefore PROSPECTIVE (the deflation consensus's gate-rules
+#: convention): it gates registrations frozen at or after STOP_STRESS_FROM, keyed on the
+#: hash-frozen ``registered_at`` exactly as gate rules v2 is keyed on the hash-frozen
+#: ``gate_rules`` -- never on a record's own claim -- and earlier records are not re-opened.
+STOP_STRESS_MULTIPLE = 3
+STOP_STRESS_PCT = STOP_SLIPPAGE_PCT * STOP_STRESS_MULTIPLE
+STOP_STRESS_FROM = "2026-10-29T00:00:00Z"
 #: A DSR over fewer daily observations than this is not evidence (red-team friction #5:
 #: a Sharpe of +23 "over 2 days" was reported without complaint).
 MIN_DSR_OBS = 30
@@ -118,6 +144,28 @@ def _verdict(stages: list[Stage]) -> str:
     if PENDING in outcomes:
         return PENDING_V
     return ADMIT
+
+
+def stop_stress_applies(spec: dict) -> bool:
+    """Whether the (g) amendment's 3x stop-slippage stress gates ``spec``: prospective
+    from STOP_STRESS_FROM on the registration's frozen ``registered_at``."""
+    at = pd.Timestamp(spec["registered_at"])
+    if at.tz is None:
+        at = at.tz_localize("UTC")
+    return bool(at >= pd.Timestamp(STOP_STRESS_FROM))
+
+
+def stop_slippage_terms(spec: dict) -> dict:
+    """What the admission record states about stop slippage: the prior it ran at, its
+    source, and -- when the prospective rule applies to this registration -- the stress
+    value every stop was also re-filled at."""
+    applies = stop_stress_applies(spec)
+    return {"pct": STOP_SLIPPAGE_PCT, "source": STOP_SLIPPAGE_SOURCE,
+            "stress_applies": applies,
+            "stress_pct": STOP_STRESS_PCT if applies else None,
+            "stress_multiple": STOP_STRESS_MULTIPLE if applies else None,
+            "rule": (f"ENGINE_V3 (g) amendment 2026-10-29 (F297801): a prospective gate rule "
+                     f"for registrations frozen at or after {STOP_STRESS_FROM}")}
 
 
 def default_load_bars(symbol: str, start: str, end: str) -> pd.DataFrame:
@@ -202,25 +250,32 @@ def default_parity() -> dict:
     return live_backtest_parity.census()
 
 
-def _counted_backtest(df, ticker, params, cost, *, run, stage, evaluated_from=None):
-    """One engine backtest of the frozen candidate, counted before it runs."""
+def _counted_backtest(df, ticker, params, cost, *, run, stage, evaluated_from=None,
+                      stop_slippage: float | None = None):
+    """One engine backtest of the frozen candidate, counted before it runs.
+
+    ``stop_slippage`` defaults to the stated prior; the stop-stress stage passes
+    STOP_STRESS_PCT. The value is recorded in the trial's ``extra`` so the verifier can
+    read from the ledger what every gate trial filled its stops at."""
     import strategy_funnel
     from src.backtest.runner import run_backtest
 
+    stop_slippage = STOP_SLIPPAGE_PCT if stop_slippage is None else float(stop_slippage)
     mode = strategy_funnel._apply_config(ticker, params)
     key = f"{run.run_id}#{run.trials_begun}"
     trial = run.begin(
         params=engine_spec(mode, timeframe="hourly", target=params["target_gain_pct"],
                            stop=params["stop_loss_pct"], backtest_mode="realistic",
                            slippage_pct=cost, max_trade_bars=int(params["max_trade_bars"])),
-        data=data_spec(df, ticker, evaluated_from), extra={"stage": stage})
+        data=data_spec(df, ticker, evaluated_from),
+        extra={"stage": stage, "stop_slippage_pct": stop_slippage})
     with contextlib.redirect_stdout(io.StringIO()):
         try:
             r = run_backtest(mode=mode, max_trade_bars=int(params["max_trade_bars"]),
                              df=df.copy(), target_gain_pct=params["target_gain_pct"],
                              stop_loss_pct=params["stop_loss_pct"], require_signals=1,
                              timeframe="hourly", plot=False, backtest_mode="realistic",
-                             slippage_pct=cost, stop_slippage_pct=STOP_SLIPPAGE_PCT)
+                             slippage_pct=cost, stop_slippage_pct=stop_slippage)
         except Exception as exc:  # noqa: BLE001 — counted, then reported by the caller
             trial.fail(f"{type(exc).__name__}: {exc}")
             return key, None
@@ -391,7 +446,8 @@ def evaluate(hypothesis: str, *, now: _dt.datetime | None = None,
                             f"start the trial count from zero"))
         return {**record, "verdict": REJECT, "stages": [asdict(s) for s in stages]}
     stages.append(Stage("registration", PASS, f"frozen at {spec['registered_at']}"))
-    record["stop_slippage"] = {"pct": STOP_SLIPPAGE_PCT, "source": STOP_SLIPPAGE_SOURCE}
+    record["stop_slippage"] = stop_slippage_terms(spec)
+    stop_stress = record["stop_slippage"]["stress_applies"]
 
     # ── code ────────────────────────────────────────────────────────────────
     st, record["code"] = stage_code(code)
@@ -440,7 +496,7 @@ def evaluate(hypothesis: str, *, now: _dt.datetime | None = None,
     w = spec["development_window"]
     snap = strategy_funnel._snapshot_config()
     dev_key = dev = stress = fwd = None
-    fwd_key = None
+    fwd_key = ss_key = sstress = None
     now_naive = pd.Timestamp(now).tz_convert(None)
     forward_due = (now_naive - forward_start).days >= spec["holdout"]["min_days"]
     try:
@@ -455,6 +511,10 @@ def evaluate(hypothesis: str, *, now: _dt.datetime | None = None,
                                              stage="admission:development")
             _, stress = _counted_backtest(df, ticker, params, cost * COST_STRESS_MULTIPLE,
                                           run=run, stage=f"admission:cost_{COST_STRESS_MULTIPLE}x")
+            if stop_stress:
+                ss_key, sstress = _counted_backtest(
+                    df, ticker, params, cost, run=run, stop_slippage=STOP_STRESS_PCT,
+                    stage=f"admission:stop_stress_{STOP_STRESS_MULTIPLE}x")
             if forward_due:
                 start = (forward_start - pd.Timedelta(days=FORWARD_WARMUP_DAYS)).date().isoformat()
                 fdf = _utc_naive(load_bars(ticker, start, pd.Timestamp(now).date().isoformat()))
@@ -518,6 +578,22 @@ def evaluate(hypothesis: str, *, now: _dt.datetime | None = None,
     s_ret = float(stress["total_return"]) if stress else 0.0
     stages.append(Stage("cost_stress", PASS if s_ret > 0 else FAIL,
                         f"total return {s_ret:+.4f} at {COST_STRESS_MULTIPLE}x cost"))
+
+    # ── stop stress ((g) amendment 2026-10-29: prospective gate rule) ───────
+    if stop_stress:
+        ss_ret = float(sstress["total_return"]) if sstress else 0.0
+        d_ret = float(dev["total_return"]) if dev else 0.0
+        stages.append(Stage(
+            "stop_stress", PASS if ss_ret > 0 else FAIL,
+            (f"total return {ss_ret:+.4f} with every stop filled {STOP_STRESS_PCT:.4%} worse "
+             f"({STOP_STRESS_MULTIPLE}x the {STOP_SLIPPAGE_PCT:.4%} stated prior, which gave "
+             f"{d_ret:+.4f}): "
+             + ("survives" if ss_ret > 0 else "does not survive")
+             + " the 3x stop-slippage stress of the ENGINE_V3 (g) amendment 2026-10-29 "
+               "(F297801)"),
+            {"trial": ss_key, "stop_slippage_pct": STOP_STRESS_PCT,
+             "prior_pct": STOP_SLIPPAGE_PCT, "multiple": STOP_STRESS_MULTIPLE,
+             "total_return": ss_ret if sstress else None}))
 
     # ── benchmark ───────────────────────────────────────────────────────────
     if dev:
@@ -589,11 +665,22 @@ def write_verdict(record: dict, verdict_dir: Path | None = None) -> Path:
 
 
 #: The stage chain an ADMIT must show, in order. A record claiming ADMIT with any other
-#: chain did not come from this gate.
+#: chain did not come from this gate. These two are the chains of registrations frozen
+#: before STOP_STRESS_FROM; ``admit_chain`` adds the prospective ``stop_stress`` stage.
 ADMIT_CHAIN = ("registration", "code", "refutations", "parity", "witness", "development",
                "deflation", "cost_stress", "benchmark", "forward")
 ADMIT_CHAIN_V2 = ("registration", "code", "refutations", "parity", "witness", "development",
                   "deflation_diagnostic", "familywise", "cost_stress", "benchmark", "forward")
+
+
+def admit_chain(rules: int, *, stop_stress: bool) -> tuple:
+    """The price-profile chain a registration under ``rules`` must pass; ``stop_stress``
+    (``stop_stress_applies(spec)``) inserts the (g) amendment's stage after cost_stress."""
+    base = ADMIT_CHAIN_V2 if rules == 2 else ADMIT_CHAIN
+    if not stop_stress:
+        return base
+    i = base.index("cost_stress") + 1
+    return base[:i] + ("stop_stress",) + base[i:]
 
 
 def verify_record(record: dict, *, prereg_dir=None, deploy_ref: str | None = None) -> list[str]:
@@ -637,6 +724,16 @@ def verify_record(record: dict, *, prereg_dir=None, deploy_ref: str | None = Non
         if rules is not None and record.get("gate_rules", 1) != rules:
             problems.append(f"the record claims gate rules {record.get('gate_rules')} but its "
                             f"registration is under rules {rules}")
+        # Likewise the (g) amendment's stress follows the hash-verified registration's
+        # frozen registered_at (prospective from STOP_STRESS_FROM), never the record.
+        stress = stop_stress_applies(spec) if spec is not None else False
+        if not tactical and spec is not None:
+            claimed = bool((record.get("stop_slippage") or {}).get("stress_applies", False))
+            if claimed != stress:
+                problems.append(f"the record claims the 3x stop-slippage stress "
+                                f"{'applies' if claimed else 'does not apply'} but its "
+                                f"registration is frozen at {spec['registered_at']} "
+                                f"(the rule is prospective from {STOP_STRESS_FROM})")
         if tactical:
             import admit_tactical
             chain = admit_tactical.admit_chain(rules or 1)
@@ -644,10 +741,8 @@ def verify_record(record: dict, *, prereg_dir=None, deploy_ref: str | None = Non
             chain = None
             problems.append("no price-profile ADMIT exists under gate rules v2: its familywise "
                             "stage is not ratified")
-        elif rules == 2:
-            chain = ADMIT_CHAIN_V2
         else:
-            chain = ADMIT_CHAIN
+            chain = admit_chain(rules or 1, stop_stress=stress)
         allowed = lambda s: s.outcome == PASS or (rules == 2 and s.name == "deflation_diagnostic"  # noqa: E731
                                                    and s.outcome == SKIP)
         if chain is not None and (tuple(s.name for s in stages) != chain
@@ -734,7 +829,39 @@ def _verify_admit_evidence(record: dict, head: dict, spec: dict | None) -> list[
     if not any(r.producer == "tools/admit.py" and (r.spec.get("extra") or {}).get("stage", "").startswith("admission:cost")
                for r in in_run.values()):
         problems.append("cost_stress: no cost-stress trial in the gate run")
+    if spec is not None and stop_stress_applies(spec):
+        problems += _verify_stop_stress(record, dev, trial)
     trial("forward", "admission:forward")
+    return problems
+
+
+def _slippage_of(rec) -> float | None:
+    at = ((rec.spec.get("extra") or {}) if rec is not None else {}).get("stop_slippage_pct")
+    return None if at is None else float(at)
+
+
+def _verify_stop_stress(record: dict, dev, trial) -> list[str]:
+    """The (g) amendment's stress, re-derived from the ledger: the development trial ran
+    at the prior the record states, the gate run holds an ok stop-stress trial at
+    STOP_STRESS_MULTIPLE x that prior, and the candidate survived it."""
+    problems = []
+    stated = (record.get("stop_slippage") or {}).get("pct")
+    if dev is not None and (stated is None or _slippage_of(dev) is None
+                            or abs(float(stated) - _slippage_of(dev)) > 1e-12):
+        problems.append(f"stop_stress: the record states a stop-slippage prior of {stated} but "
+                        f"the development trial ran at {_slippage_of(dev)}")
+    ss = trial("stop_stress", f"admission:stop_stress_{STOP_STRESS_MULTIPLE}x")
+    if ss is None:
+        return problems
+    want = (float(stated) if stated is not None else STOP_SLIPPAGE_PCT) * STOP_STRESS_MULTIPLE
+    ran = _slippage_of(ss)
+    if ran is None or abs(ran - want) > 1e-12:
+        problems.append(f"stop_stress: trial {ss.key} ran at stop slippage {ran}, not "
+                        f"{want} ({STOP_STRESS_MULTIPLE}x the stated prior)")
+    ret = (ss.metrics or {}).get("total_return")
+    if ret is None or not float(ret) > 0:
+        problems.append(f"stop_stress: the ledger shows total return {ret} at "
+                        f"{STOP_STRESS_MULTIPLE}x stop slippage; the candidate did not survive")
     return problems
 
 

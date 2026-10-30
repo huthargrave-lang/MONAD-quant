@@ -139,9 +139,15 @@ stated prior `stop_slippage_pct = 0.0005` (5 bp), "a conservative prior with no 
 derivation", with every admission record re-run at 0.0015 (3×) as a prospective gate rule
 ([`research/ENGINE_V3_QUESTION.md` §(g) amendment](research/ENGINE_V3_QUESTION.md);
 [`research/DECOMMISSION_TRADER_QUESTION.md` §(g) amendment](research/DECOMMISSION_TRADER_QUESTION.md)).
-At the merged tip the admission tool still carries `STOP_SLIPPAGE_PCT = 0.003272`, sourced from
-the software-stop audit median, and no 3× re-run ([`../tools/admit.py:81-83`](../tools/admit.py);
-verified by search of that file). The amendment is prospective; the code change is not yet made.
+The admission tool now carries that prior: `STOP_SLIPPAGE_PCT = 0.0005` stated with its source
+in every price-profile record, `STOP_STRESS_PCT = 0.0015` (3×) applied as a `stop_stress` stage
+after `cost_stress` to registrations whose frozen `registered_at` is on or after 2026-10-29, the
+value every gate trial ran at recorded in the ledger, and the verifier recomputing both from the
+registration and the ledger ([`../tools/admit.py`](../tools/admit.py) `STOP_SLIPPAGE_PCT`,
+`STOP_STRESS_PCT`, `stop_stress_applies`; guarded by `tests/test_admit.py::StopSlippageAmendment`).
+The 32.72 bp it carried before was the median cycle-lateness margin of four paper software stops
+(the DIVERGE quantity of rule (i)), not trigger-to-fill slippage; no recorded verdict depended on
+it, and all four existing registrations predate the rule, so they are unaffected.
 
 ## 5. Uncertainty
 
