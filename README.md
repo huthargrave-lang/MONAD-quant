@@ -15,7 +15,7 @@
 > long-only mean-reversion trading engine ships with it as the **reference test bench** the
 > methodology was built on and proven against.
 >
-> **Start here:** [`VISION.md`](VISION.md) (direction) · [`docs/DIRECTIONS.md`](docs/DIRECTIONS.md) (ranked next steps, 2026-10) · [research compendium](docs/research/README.md) ·
+> **Start here:** [`docs/LESSONS.md`](docs/LESSONS.md) (what transfers, fact-checked) · [`docs/METHODS.md`](docs/METHODS.md) (how results are made) · [`docs/GLOSSARY.md`](docs/GLOSSARY.md) · [`VISION.md`](VISION.md) (direction) · [`docs/DIRECTIONS.md`](docs/DIRECTIONS.md) (ranked next steps and program focus) · [research compendium](docs/research/README.md) ·
 > [`SCHEMA.md`](SCHEMA.md) (graph model) · [`CONTRIBUTING.md`](CONTRIBUTING.md) (how a study gets made) ·
 > [`AGENT_INDEX.md`](AGENT_INDEX.md) (agent entry point) · [research site](https://huthargrave-lang.github.io/MONAD-quant/) ·
 > [`docs/REFERENCE_ENGINE.md`](docs/REFERENCE_ENGINE.md) (the test-bench engine)
@@ -186,7 +186,10 @@ frozen data ──> counted evaluator ──> trial ledger ──> relative stat
   never committed or published; frozen datasets are content-addressed so a trial names
   exact bytes ([`docs/research/data/README.md`](docs/research/data/README.md)).
 
-[`CONTRIBUTING.md`](CONTRIBUTING.md) walks through the workflow end to end.
+[`docs/METHODS.md`](docs/METHODS.md) is the paper-style methods section with every formula and
+constant cited to the code; [`docs/GLOSSARY.md`](docs/GLOSSARY.md) defines the vocabulary;
+[`CONTRIBUTING.md`](CONTRIBUTING.md) walks through the workflow end to end. To lift the Context Kit
+into another repository, start from [`examples/minimal-research-web/`](examples/minimal-research-web/README.md).
 
 ---
 
@@ -326,6 +329,9 @@ MONAD-quant/
 ├── CONTRIBUTING.md          <- How a study is proposed, frozen, run, recorded, admitted
 ├── CITATION.cff             <- How to cite the base
 ├── docs/
+│   ├── LESSONS.md           <- What the base learned that transfers (14 lessons, fact-checked)
+│   ├── METHODS.md           <- Paper-style methods: data contracts, execution model, bootstrap, DSR/SPA, gates, forward route
+│   ├── GLOSSARY.md          <- The vocabulary, each term pointing at its defining file
 │   ├── research/            <- 200+ study writeups, the compendium index, and governance:
 │   │   ├── README.md        <-   program map + the active-vs-static / execution-risk record
 │   │   ├── data/            <-   content-addressed frozen datasets (rights-aware)
@@ -338,8 +344,10 @@ MONAD-quant/
 │   ├── REFERENCE_ENGINE.md  <- The test-bench engine, execution model, sweep, deployment
 │   ├── TONE_LEDGER.md       <- Pre-registered gates for the daily news-tone series
 │   └── history/             <- Archived optimization logs (superseded numbers, kept as history)
+├── examples/
+│   └── minimal-research-web/ <- Non-finance worked example: lift the Context Kit in 5 minutes
 ├── tools/
-│   ├── ctx.py               <- Context Kit CLI (route, web, why, impact, serve, lint, ...)
+│   ├── ctx.py               <- Context Kit CLI (route, web, why, impact, serve, lint, ...; --repo PATH)
 │   ├── note.py              <- The only writer to the evidence graph (append / supersede / link)
 │   ├── prereg.py, refute.py, admit.py, trial_ledger.py, forward_watch.py, edge_scorecard.py
 │   ├── *_study.py, *_lab.py <- Deterministic research tools, one per study

@@ -1166,7 +1166,9 @@ class TestServeRoutes(unittest.TestCase):
         self.assertEqual(code, 200)
         self.assertIn("application/json", ctype)
         data = json.loads(body)
-        self.assertEqual(set(data), {"project", "summary", "nodes", "edges", "details"})
+        # Seam slice 1b: the served map carries the same contract keys as `ctx graph --json`.
+        self.assertEqual(set(data), {"contract", "schema_version", "project", "summary",
+                                     "nodes", "edges", "details"})
         self.assertTrue(data["nodes"] and data["edges"] and data["details"])
         self.assertEqual(data["summary"]["nodes"], len(data["nodes"]))
 

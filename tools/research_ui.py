@@ -1890,10 +1890,27 @@ def page_overview(mounts):
     counts = cen["counts"]
     body = [
         '<div class="ov-hero">',
-        "<h1>Research web — what’s been found, what’s still open</h1>",
-        '<p class="lede">One palette for every read-only surface in the repo. Below: the '
+        "<h1>MONAD Quant research web — what’s been found, what’s still open</h1>",
+        # The front door of the published site (tools/export_pages.py writes this page as
+        # index.html), so the lede says what the site IS before it says what is below: the
+        # research web of an open quantitative-finance research base. The programs and the
+        # methodology are the README's framing; this page names where that framing lives
+        # rather than restating it. Named, not hyperlinked: the surface census counts every
+        # `href="https://…"` in this file as an external dependency, and the published rail
+        # already carries the one link to the repository (Source → GitHub repository).
+        '<p class="lede">This is the research web of <b>MONAD Quant</b>, an open '
+        'quantitative-finance research base: a typed, append-only evidence graph of '
+        'reproducible studies — asset allocation, execution risk in leveraged ETFs, SEC '
+        'filings and corporate actions, closed-end-fund discounts, commodity linkages, and '
+        'the epistemics of research itself — kept honest by pre-registration, a trial ledger '
+        'and refutation gates. The research programs are set out in the repository’s '
+        '<code>README.md</code> and its compendium (<code>docs/research/README.md</code>), '
+        'the methodology in <code>CONTRIBUTING.md</code>. Every number here is the '
+        'repository’s own, and nothing on this site recommends buying or selling anything. '
+        'Below: the '
         'shape of the web, then digests of the newest leads and the nodes everything else '
         'stands on — each with a short claim and a chart when the evidence supports one. '
+        'One palette for every read-only surface in the repo. '
         'The live trading dashboard shares tokens only; it is never imported or served '
         'from here.</p>',
         '<div class="stats">',
@@ -1909,7 +1926,10 @@ def page_overview(mounts):
         "<p>Browse by topic on <a href=\"/web/groups\">Web groups</a>, or open nodes "
         "that already carry rich charts: "
         "<a href=\"/web?sort=renderings\">sorted by how many renderings they support</a>. "
-        "The node view is the deep surface — claim, sources, and every applicable chart."
+        "The node view is the deep surface — claim, sources, and every applicable chart. "
+        "The <a href=\"/screener/draft\">screener</a> and its lenses are the worked example "
+        "of what a data page owes its reader: the authored universe, tags and tone readings "
+        "this repository owns, with an explicit kept-local state where a vendor value would be."
         "</p></div>",
     ]
     return page("MONAD research UI", "/", "".join(body), mounts, wide=True)

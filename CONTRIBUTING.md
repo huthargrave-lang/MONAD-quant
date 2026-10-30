@@ -6,6 +6,11 @@ its uncertainty — whether the answer is yes, no, or *not run* because a data g
 Negative results and corrections are first-class contributions here; a refutation that holds
 is worth as much as a finding that survives.
 
+Read first: [`docs/METHODS.md`](docs/METHODS.md) (how a result is made here, with the formulas and
+constants cited to code), [`docs/GLOSSARY.md`](docs/GLOSSARY.md) (the vocabulary), and
+[`docs/LESSONS.md`](docs/LESSONS.md) (what the base has already learned, so a proposal does not
+re-run a settled question).
+
 ## Ways to contribute
 
 | Contribution | What it looks like |

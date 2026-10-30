@@ -150,3 +150,27 @@ owner's instruction and labelled in its commit).
 
 Capture each ratified item as a Decision node with its reason, so the next agent reads the
 decision rather than this memo.
+
+## 5. Program focus (decided 2026-10-30)
+
+With no capital in the project, the owner asked that it serve open-source quantitative-finance
+knowledge. The decision recorded in the research web ("Program focus", a Decision node linked to
+`D6`, `D297801`, `D297802`):
+
+- **Active:** the CEF-discount family (the weekly H404702 record, the two forward watches under the
+  ratified route, the `admit_watch` chain when due) and the forced-flow event labs (EDGAR probe →
+  FSDS extract → FD-00 diagnostics → the IX-00/IX-01 and CA-00/CA-01 labs on the ledger).
+- **Frozen, not deleted:** BIOCAT, the Sovereign Ledger buckets and the screener as a product, the
+  correlation idea atlas, commodity linkage and miner tilt beyond the running watch, and the closed
+  event protocols (buyback, spin-off, credit sleeve, earnings premium). Each stays cited; each
+  reopens only with a pre-registered hypothesis naming the mechanism.
+- **Rule:** no new indicator or timing variants on liquid instruments. The base's opening program
+  answered that question (`D6`; `F404704`–`F404712`).
+- **Public deliverables:** `docs/METHODS.md`, `docs/GLOSSARY.md`, `docs/LESSONS.md`, the Context Kit
+  (seam slices 1a/1b and the non-finance example), the research web as the site's front door, and
+  the running forward records.
+
+Why this shape: predictability that survives costs and multiple testing lives in constraints on
+other participants (forced flows, mandates, hedging obligations, discount mechanics) and in second
+moments, not in price patterns. The two active lines are the only ones in this corpus with both a
+causal story and evidence that survived its own gates.

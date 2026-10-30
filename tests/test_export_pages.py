@@ -6,7 +6,10 @@ The failure modes these hold shut:
   * the footer keeping the server's "rendered … at request time" claim on a page
     that is actually a frozen snapshot;
   * the workflow drifting away from the export script it exists to run;
-  * anything under live/** leaking into the published site.
+  * anything under live/** leaking into the published site;
+  * the front door drifting back onto the screener: index.html is the research-web
+    overview (the site is the research web of an open quantitative-finance research
+    base), and the screener lives at screener.html.
 """
 import os
 import re
@@ -40,8 +43,10 @@ class ExportTests(unittest.TestCase):
         cls.td.cleanup()
 
     def test_every_preset_gets_a_page_plus_the_surfaces_the_rail_offers(self):
-        expected = {"index.html", "lenses.html", "buckets.html", "recommend.html",
-                    "overview.html", "web.html", "web-groups.html", "surfaces.html",
+        # No overview.html: the overview IS index.html. Listing it here would let a stale
+        # second copy of the front door come back unnoticed.
+        expected = {"index.html", "screener.html", "lenses.html", "buckets.html",
+                    "recommend.html", "web.html", "web-groups.html", "surfaces.html",
                     "map.html", os.path.join("static", "ui.css")}
         expected |= {"screen-{}.html".format(k) for k in sc.PRESETS}
         # Derived from the list, not written out: a fourth Basics page added to the server
@@ -67,7 +72,7 @@ class ExportTests(unittest.TestCase):
         # would have left a whole rail group unguarded on the side it is published from.
         self.assertEqual([label for _href, label, _f in research_ui.BASICS_VIEWS],
                          [label for _name, label, _k in export_pages._STATIC_BASICS])
-        for page in ("index.html", "overview.html", "web.html"):
+        for page in ("index.html", "screener.html", "web.html"):
             self.assertNotIn("no db", self.pages[page], page)
 
     def test_no_page_still_links_a_server_route(self):
@@ -81,10 +86,57 @@ class ExportTests(unittest.TestCase):
         for key in sc.PRESETS:
             self.assertIn('href="screen-{}.html"'.format(key), text)
 
-    def test_the_index_is_the_combined_screener_with_its_data_baked_in(self):
+    def test_the_front_door_is_the_research_overview_and_the_screener_has_its_own_page(self):
+        """The repository is an open quantitative-finance research base, so the site opens on
+        its research web — what has been found and what is still open — not on the stock
+        screener (docs/research/PUBLIC_TOOL_RESEARCH_2026-08-09.md §3C: land on the 6.7 KB
+        overview, not the 228 KB screener). This is a mapping, not a redirect: index.html IS
+        the overview, with no meta refresh and no stub, and the screener is screener.html."""
+        front = self.pages["index.html"]
+        self.assertIn("<h1>MONAD Quant research web", front, "index.html is not the overview")
+        self.assertIn("research nodes</span>", front, "the overview's node count is missing")
+        self.assertIn("open quantitative-finance research base", front,
+                      "the front door does not say what the site is")
+        self.assertNotIn("__DRAFT_LIVE__", front, "the screener payload is on the front door")
+        self.assertNotIn("http-equiv=\"refresh\"", front.lower(), "index.html is a redirect")
+        screener = self.pages["screener.html"]
+        self.assertIn("__DRAFT_LIVE__", screener, "screener.html is not the screener")
+        self.assertNotIn("<h1>MONAD Quant research web", screener)
+        # The rail agrees: Overview is the front door, Screener its own page.
+        by_key = {k: h for h, _l, k in export_pages._STATIC_VIEWS}
+        self.assertEqual(by_key["overview"], "index.html")
+        self.assertEqual(by_key[export_pages._STATIC_SCREENER_KEY], "screener.html")
+        self.assertNotIn("overview.html", self.pages, "a second copy of the front door")
+
+    def test_links_that_mean_the_screener_say_screener_and_links_home_say_index(self):
+        """Every rewritten route that used to land on index.html-as-screener now names the
+        screener's own file, and the server's "/" lands on the front door."""
+        for name, text in self.pages.items():
+            if name == "map.html":
+                continue
+            rail = re.search(r'<nav class="rail">.*?</nav>', text, re.S).group(0)
+            self.assertIn('href="index.html">Overview</a>', rail, name)
+            self.assertIn('href="screener.html">Screener</a>', rail, name)
+        # The context map's one internal link is "back to the screener" — it must say so.
+        self.assertIn('id="back" href="screener.html"', self.pages["map.html"])
+        # The Basics sequence ends on the screener (its mock-4 link maps to SCREENER_HREF).
+        self.assertIn('href="screener.html"', self.pages["basics-theses.html"])
+        # The overview's own "start here" points a reader at the screener, by its new name.
+        self.assertIn('href="screener.html">screener</a>', self.pages["index.html"])
+        # And the lens pages' "+ custom" lens link (a /screener?… query on the server) goes
+        # to the screener, not the front door.
+        page = self.pages["screen-low_pe_high_growth.html"]
+        self.assertIn('href="screener.html">+ custom', page)
+        self.assertNotIn('href="index.html">+ custom', page)
+        # The web browser's search form posts to its own page, not to a server route: a form
+        # action is a link the href checks cannot see, and "/web" on Pages is a 404.
+        self.assertNotIn('action="/web"', self.pages["web.html"])
+        self.assertIn('action="web.html"', self.pages["web.html"])
+
+    def test_the_screener_page_is_the_combined_screener_with_its_data_baked_in(self):
         """The server injects the snapshot at request time; nothing does that on Pages,
         so an un-baked export would publish the page's own absence state forever."""
-        text = self.pages["index.html"]
+        text = self.pages["screener.html"]
         # The buckets link was asserted here incidentally, via the rail. It is gone from the
         # rail on purpose now and the page it pointed at is still published — that pair is
         # checked by test_the_buckets_page_is_published_but_no_longer_advertised, which is
@@ -99,7 +151,7 @@ class ExportTests(unittest.TestCase):
         /sentiment were kept under when they left the rail."""
         self.assertIn("buckets.html", self.pages,
                       "buckets.html must still be published — a live link cannot start 404ing")
-        for name in ("index.html", "overview.html", "web.html", "surfaces.html"):
+        for name in ("index.html", "screener.html", "web.html", "surfaces.html"):
             rail = re.search(r'<nav class="rail">.*?</nav>', self.pages[name], re.S)
             self.assertIsNotNone(rail, name)
             self.assertNotIn("buckets.html", rail.group(0),
@@ -109,8 +161,8 @@ class ExportTests(unittest.TestCase):
         import json
         import re as _re
         m = _re.search(r"window\.__DRAFT_LIVE__ = (\{.*?\});</script>",
-                       self.pages["index.html"], _re.S)
-        self.assertIsNotNone(m, "no payload baked into index.html")
+                       self.pages["screener.html"], _re.S)
+        self.assertIsNotNone(m, "no payload baked into screener.html")
         return json.loads(m.group(1))
 
     def test_no_third_party_headline_text_is_republished(self):
@@ -140,7 +192,7 @@ class ExportTests(unittest.TestCase):
         with no account of why. It has to reach the payload AND be rendered."""
         notice = self._baked_payload().get("headlines_withheld")
         self.assertTrue(notice, "no withheld notice in the baked payload")
-        page = self.pages["index.html"]
+        page = self.pages["screener.html"]
         self.assertIn("HEADLINES_WITHHELD", page,
                       "the page does not read the notice it is shipped")
         self.assertIn("live.headlines_withheld", page,
@@ -165,7 +217,7 @@ class ExportTests(unittest.TestCase):
         """The payload is not the only way text could reach the file — a rendered card, an
         aria-label or a title attribute would republish it just as publicly."""
         live = research_ui._screener_combined_draft_payload()
-        page = self.pages["index.html"]
+        page = self.pages["screener.html"]
         leaked = []
         for source, by_ticker in (live.get("headlines") or {}).items():
             for ticker, docs in by_ticker.items():
@@ -444,7 +496,7 @@ class ThePublicSiteCarriesNoVendorData(unittest.TestCase):
 
     def test_the_repositorys_own_tone_reading_is_published(self):
         payload = json.loads(re.search(r"window\.__DRAFT_LIVE__ = (\{.*?\});</script>",
-                                       self.files["index.html"], re.S).group(1))
+                                       self.files["screener.html"], re.S).group(1))
         meta = next(r for r in payload["rows"] if r["tk"] == "META")
         self.assertEqual(meta["bb"], OWN_TONE)
         self.assertEqual((meta["bb_c"], meta["bb_t"]), (3, 2))
@@ -464,7 +516,7 @@ class ThePublicSiteCarriesNoVendorData(unittest.TestCase):
 
     def test_the_public_rows_are_the_authored_universe(self):
         payload = json.loads(re.search(r"window\.__DRAFT_LIVE__ = (\{.*?\});</script>",
-                                       self.files["index.html"], re.S).group(1))
+                                       self.files["screener.html"], re.S).group(1))
         self.assertEqual([r["tk"] for r in payload["rows"]],
                          [tk for tk, *_rest in sc.universe_rows()])
 
