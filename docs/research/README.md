@@ -20,6 +20,14 @@ execution-risk sequel; the newer programs are indexed here and recorded in their
 | Screener, lenses, tone | `SCREENER_*`, `AI_SHADOW_DEBT_LENS_2026.md`, `OFF_BALANCE_SHEET_DEBT_QUANT_2026.md`, `SOVEREIGN_LEDGER_*`, [`../TONE_LEDGER.md`](../TONE_LEDGER.md) | Live on the public site; vendor data kept local |
 | Epistemics of the corpus | `EPI00_*`, `NUM00_*`, `REPRO00_*`, `CTX_*`, `CONFIG_*`/`COLUMN_*` censuses, `F*_*` provenance re-derivations, `reeval/`, `DEFLATION_RULE_QUESTION.md` | Audited and guarded; open questions marked for decision debate |
 
+**Focus, decided 2026-10-30 (research-web node: the "Program focus" Decision).** Two lines are
+active: the **CEF-discount family** (H404702's forward holdout and the H366200/H366201 forward
+watches under the ratified route) and the **forced-flow event labs** (index membership, corporate
+actions and filing clocks, now fed by the EDGAR ledger). Every other program is **frozen**: kept
+and cited, not worked, reopened only by a pre-registered hypothesis that names the forced
+participant or structural constraint behind it. No new indicator or timing variants on liquid
+instruments enter at all. The reasoning is in [`../DIRECTIONS.md`](../DIRECTIONS.md) §5.
+
 Governance directories: [`prereg/`](prereg/README.md) (frozen pre-registrations),
 [`trials/`](trials/README.md) (hash-chained trial ledger), `refutations/` (objections and
 board rulings), `forward_watch/` (frozen forward records and the multiplicity policy),
