@@ -20,6 +20,11 @@ execution-risk sequel; the newer programs are indexed here and recorded in their
 | Screener, lenses, tone | `SCREENER_*`, `AI_SHADOW_DEBT_LENS_2026.md`, `OFF_BALANCE_SHEET_DEBT_QUANT_2026.md`, `SOVEREIGN_LEDGER_*`, [`../TONE_LEDGER.md`](../TONE_LEDGER.md) | Live on the public site; vendor data kept local |
 | Epistemics of the corpus | `EPI00_*`, `NUM00_*`, `REPRO00_*`, `CTX_*`, `CONFIG_*`/`COLUMN_*` censuses, `F*_*` provenance re-derivations, `reeval/`, `DEFLATION_RULE_QUESTION.md` | Audited and guarded; open questions marked for decision debate |
 
+**For an outside reader:** the transferable results are distilled in [`../LESSONS.md`](../LESSONS.md),
+the methods behind every study in [`../METHODS.md`](../METHODS.md), and the vocabulary in
+[`../GLOSSARY.md`](../GLOSSARY.md); all three were written from the committed sources and
+fact-checked by an independent pass (records under [`reviews/2026-10-30-doc-factchecks/`](reviews/2026-10-30-doc-factchecks/README.md)).
+
 **Focus, decided 2026-10-30 (research-web node: the "Program focus" Decision).** Two lines are
 active: the **CEF-discount family** (H404702's forward holdout and the H366200/H366201 forward
 watches under the ratified route) and the **forced-flow event labs** (index membership, corporate
