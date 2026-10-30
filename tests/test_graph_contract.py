@@ -17,6 +17,10 @@ CI, an exporter) can rely on it:
   * `schema_version` is pinned equal in SCHEMA.md:1, RESEARCH_WEB.md:2,
     `ctx.SCHEMA_VERSION` and the JSON; `len(EDGE_TYPES) == 12 ==` SCHEMA.md §5a rows.
 
+Seam slice 1b: the vocabularies below are read from the single in-code `ctx.SCHEMA` dict
+(the historical names are aliases of its entries), and the served /api/graph.json carries
+the same `contract`/`schema_version` keys as the CLI.
+
 `--ideas-only` keeps the idea↔code BRIDGE TARGETS (kind `code` / `config` pseudo-nodes)
 — only the auto-extracted `module` / `area` layer is dropped. The assertion below says
 exactly that; "kinds ⊆ {F,H,E,D}" would be red on day one.
@@ -38,14 +42,14 @@ CONTRACT = "ctx.graph/1"
 TOP_KEYS = {"contract", "schema_version", "project", "nodes", "edges"}
 NODE_KEYS = {"id", "kind", "title", "status"}
 EDGE_KEYS = {"from", "to", "type"}
-IDEA_KINDS = {"F", "H", "E", "D"}
+IDEA_KINDS = ctx.SCHEMA["kinds"]                # {F, H, E, D}
 BRIDGE_PSEUDO_KINDS = {"code", "config"}        # idea↔code bridge targets
 CODE_LAYER_KINDS = {"module", "area"}           # only with include_code=True
 # Mirrors tests/test_context_map.py::TestGraphBridges.REL_VOCAB (pinned below).
-BRIDGE_TYPES = {"concerns", "implemented_in", "measured_by", "gated_by"}
+BRIDGE_TYPES = ctx.SCHEMA["bridge_relations"]
 # The auto-extracted code graph's edge vocabulary (build_graph include_code=True),
-# declared here for the first time; verified against live output before declaring.
-CODE_EDGE_TYPES = {"imports", "owns", "tested_by", "reads_config", "defined_in"}
+# first declared by this test in 1a, now carried by SCHEMA; verified against live output.
+CODE_EDGE_TYPES = ctx.SCHEMA["code_edge_types"]
 
 _SV_RX = re.compile(r"<!-- schema_version: (\S+) -->")
 
@@ -134,6 +138,12 @@ class GraphJsonContractTests(unittest.TestCase):
         self.assertFalse(types & CODE_EDGE_TYPES, f"code-layer edges leaked: {types}")
 
     def test_declared_vocabularies_are_disjoint(self):
+        self.assertEqual(set(ctx.SCHEMA), {"schema_version", "kinds", "reliance", "edge_types",
+                                           "propagation_exempt", "bridge_relations",
+                                           "code_edge_types", "status", "reasons"})
+        self.assertTrue(ctx.SCHEMA["reliance"] < ctx.EDGE_TYPES)
+        self.assertTrue(ctx.SCHEMA["propagation_exempt"] < ctx.EDGE_TYPES)
+        self.assertFalse(ctx.SCHEMA["reliance"] & ctx.SCHEMA["propagation_exempt"])
         self.assertFalse(ctx.EDGE_TYPES & BRIDGE_TYPES)
         self.assertFalse(ctx.EDGE_TYPES & CODE_EDGE_TYPES)
         self.assertFalse(BRIDGE_TYPES & CODE_EDGE_TYPES)
@@ -160,8 +170,11 @@ class GraphJsonContractTests(unittest.TestCase):
         self.assertEqual(served["edges"], self.full["edges"])
         keys = [_edge_key(e) for e in served["edges"]]
         self.assertEqual(keys, sorted(keys), "served edges not canonical")
-        # 1a leaves the served key set alone (tests/test_research_web.py pins it).
-        self.assertEqual(set(served), {"project", "summary", "nodes", "edges", "details"})
+        # 1b: the served map carries the contract keys too (tests/test_research_web.py pins
+        # the same set); everything else there is a superset of the CLI (summary, details).
+        self.assertEqual(set(served), TOP_KEYS | {"summary", "details"})
+        self.assertEqual(served["contract"], CONTRACT)
+        self.assertEqual(served["schema_version"], self.full["schema_version"])
 
     # ── version pins ───────────────────────────────────────────────────────
     def test_schema_version_is_pinned_in_all_four_places(self):
@@ -177,6 +190,7 @@ class GraphJsonContractTests(unittest.TestCase):
         self.assertEqual(m2.group(1), ctx.SCHEMA_VERSION)
         self.assertEqual(self.full["schema_version"], ctx.SCHEMA_VERSION)
         self.assertEqual(self.ideas["schema_version"], ctx.SCHEMA_VERSION)
+        self.assertEqual(ctx.SCHEMA["schema_version"], ctx.SCHEMA_VERSION)
 
     def test_edge_types_count_matches_schema_5a(self):
         text = open(os.path.join(REPO, "SCHEMA.md")).read()
@@ -184,6 +198,7 @@ class GraphJsonContractTests(unittest.TestCase):
         end = text.index("### 5b", start)
         rows = re.findall(r"^\| `(\w+)` \|", text[start:end], flags=re.M)
         self.assertEqual(len(ctx.EDGE_TYPES), 12)
+        self.assertIs(ctx.EDGE_TYPES, ctx.SCHEMA["edge_types"])
         self.assertEqual(len(rows), 12, rows)
         self.assertEqual(set(rows), ctx.EDGE_TYPES)
 

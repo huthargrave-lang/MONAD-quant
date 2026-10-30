@@ -1,0 +1,71 @@
+{
+  "_README": "Context manifest scaffolded by `ctx init` \u2014 fill in summaries/entrypoints/invariants and add the anti-rot tests (see CONTEXT_KIT.md).",
+  "project": "minimal-research-web",
+  "deploy_branch": "main",
+  "context_docs": {
+    "navigation": [
+      "AGENT_INDEX.md",
+      "CONTEXT_KIT.md"
+    ],
+    "research_idea_web": [
+      "RESEARCH_WEB.md"
+    ]
+  },
+  "invariants": {},
+  "invariant_sources": {},
+  "param_claims": {
+    "claims": []
+  },
+  "graph_bridges": {
+    "bridges": []
+  },
+  "areas": {},
+  "routing": [],
+  "coverage_allowlist": {
+    "modules": [
+      "tools/ctx.py"
+    ]
+  },
+  "edit_policy": {
+    "deny": [
+      ".env",
+      "*.db",
+      "*.sqlite",
+      "*.sqlite3"
+    ],
+    "warn": [],
+    "allow_default": true
+  },
+  "routing_synonyms": {},
+  "facts": {},
+  "tools_readonly": [
+    {
+      "cmd": "ctx route",
+      "returns": ""
+    },
+    {
+      "cmd": "ctx where",
+      "returns": ""
+    },
+    {
+      "cmd": "ctx impact",
+      "returns": ""
+    },
+    {
+      "cmd": "ctx graph",
+      "returns": ""
+    },
+    {
+      "cmd": "ctx health",
+      "returns": ""
+    },
+    {
+      "cmd": "ctx web",
+      "returns": ""
+    },
+    {
+      "cmd": "ctx brief",
+      "returns": ""
+    }
+  ]
+}

@@ -37,7 +37,7 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import ctx  # noqa: E402 — reuse REPO/WEB/_git/_parse_web/policy_match + the vocab & status primitives
 
-KINDS = {"F", "H", "E", "D"}
+KINDS = ctx.SCHEMA["kinds"]   # the one vocabulary (SCHEMA.md §3) — not re-spelled here
 HDR = re.compile(r"^###\s+([A-Za-z]+\d+)\s+[—-]\s+(.*)$")
 
 
@@ -259,16 +259,17 @@ def lint_nodes(nodes):
     """Replicate the test_research_web invariants + ctx web --lint on a parsed web."""
     problems, advisories = [], []
     for nid, n in nodes.items():
-        if not re.match(r"^[FHED]\d+$", nid):
+        if not ctx.ID_RX.match(nid):
             problems.append(f"malformed id {nid}")
         if not n["title"].strip():
             problems.append(f"empty title {nid}")
         for t in n["links"]:
             if t not in nodes:
                 problems.append(f"dangling link {nid} → [[{t}]]")
-        m = re.search(r"\[SUPERSEDED by ([FHED]\d+)\]", n["title"])
-        if m and m.group(1) not in nodes:
-            problems.append(f"{nid} superseded by missing {m.group(1)}")
+        # Shared title-tag grammar (SUPERSEDED|RETRACTED, case-insensitive; id = group 2).
+        m = ctx.SUPERSEDED_TAG_RX.search(n["title"])
+        if m and m.group(2) not in nodes:
+            problems.append(f"{nid} superseded by missing {m.group(2)}")
         meta = ctx._node_meta(n)
         if meta["status"] not in ctx.STATUS_VALUES:
             problems.append(f"{nid} bad status {meta['status']!r}")
