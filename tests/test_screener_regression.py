@@ -519,15 +519,17 @@ class ThePublishedArtifactStillBuilds(unittest.TestCase):
                          "export_pages failed:\n{}".format(self.proc.stderr[-2000:]))
 
     def test_every_declared_page_is_written(self):
-        for name in ("index.html", "buckets.html", "lenses.html",
-                     "overview.html", "web.html", "web-groups.html"):
+        # index.html is the research-web overview (the front door); the screener is
+        # screener.html. Both are listed so neither can quietly stop being written.
+        for name in ("index.html", "screener.html", "buckets.html", "lenses.html",
+                     "web.html", "web-groups.html"):
             path = os.path.join(self.out, name)
             self.assertTrue(os.path.exists(path), "{} was not exported".format(name))
             self.assertGreater(os.path.getsize(path), 2000,
                                "{} exported but is suspiciously small".format(name))
 
     def test_the_screener_carries_the_ledger_and_its_heat_table(self):
-        with open(os.path.join(self.out, "index.html"), encoding="utf-8") as fh:
+        with open(os.path.join(self.out, "screener.html"), encoding="utf-8") as fh:
             html = fh.read()
         self.assertIn("window.LEDGER", html, "the published screener has no ledger")
         m = re.search(r"const HEAT = (\{.*?\});", html)
@@ -545,7 +547,7 @@ class ThePublishedArtifactStillBuilds(unittest.TestCase):
         mistake for a measurement. A blanket ban failed on both and would have to be either
         deleted or worked around, and a guard that gets worked around is worse than none.
         What must never appear is a random number used AS a number."""
-        for name in ("index.html", "buckets.html"):
+        for name in ("screener.html", "buckets.html"):
             with open(os.path.join(self.out, name), encoding="utf-8") as fh:
                 html = fh.read()
             self.assertNotRegex(html, r"function mulberry32\(",

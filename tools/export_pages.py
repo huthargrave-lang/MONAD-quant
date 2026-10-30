@@ -8,7 +8,16 @@ mounts, an unhardened stdlib http.server) for zero freshness gain. A static expo
 no process to exploit and nothing private on the box, because there is no box.
 
 What is exported (deliberately narrow):
-  * index.html                 — the screener: lens bubbles, filter row, widget board,
+  * index.html                 — the FRONT DOOR: the research-web overview (the server's
+                                 "/"). The repository is an open quantitative-finance research
+                                 base and the site is its research web, so a reader arriving
+                                 from a link lands on what has been found and what is still
+                                 open (6.7 KB), not on the 228 KB screener
+                                 (docs/research/PUBLIC_TOOL_RESEARCH_2026-08-09.md §3C). The
+                                 move is a MAPPING, not a redirect: no meta refresh, no stub —
+                                 the overview is simply written under the name Pages serves
+                                 first, and every link that meant the screener now says so.
+  * screener.html              — the screener: lens bubbles, filter row, widget board,
                                  tone columns. Its payload is BAKED IN at build time,
                                  because the server that normally injects it is not here,
                                  and it is the PUBLIC payload (research_ui.public_screener_payload).
@@ -89,10 +98,12 @@ _FOOT = "rendered from the working tree at request time"
 #: static host every one of them would be a link to an absence. Same for the fenced live
 #: monitor, which this build has no business pointing at.
 _STATIC_VIEWS = [
-    ("overview.html", "Overview", "overview"),
+    # The overview IS index.html: the server's "/" lands on the same page Pages serves first,
+    # so the published front door and the served one are the same view.
+    ("index.html", "Overview", "overview"),
     ("web.html", "Research web", "web"),
     ("web-groups.html", "Web groups", "groups"),
-    ("index.html", "Screener", "screener"),
+    ("screener.html", "Screener", "screener"),
     # No Buckets entry. The bucket workspace is the screener's CONTEXT layer now, at the top
     # of the page it constrains; a second destination invited the reader to choose a thesis
     # somewhere it could narrow nothing. buckets.html is STILL PUBLISHED — an existing link
@@ -104,7 +115,7 @@ _STATIC_VIEWS = [
 
 
 #: The published rail's Screener entry, matched by KEY rather than by href — the static
-#: filenames differ from the server's routes ("index.html" against "/screener/draft"), so
+#: filenames differ from the server's routes ("screener.html" against "/screener/draft"), so
 #: comparing hrefs across the two would be comparing different vocabularies.
 _STATIC_SCREENER_KEY = "screener"
 
@@ -189,13 +200,13 @@ def _staticise(html, built, active="screener"):
         html = html.replace('href="{}"'.format(href), 'href="{}"'.format(name))
     # Any remaining /screener?preset=… (the "+ custom" lens, or a preset carrying extra
     # query state) has no static page of its own — a lens is a server query. Point them
-    # at the index rather than leaving an absolute route that 404s on Pages.
-    html = re.sub(r'href="/screener\?[^"]*"', 'href="index.html"', html)
-    html = html.replace('href="/screener/draft"', 'href="index.html"')
+    # at the screener rather than leaving an absolute route that 404s on Pages.
+    html = re.sub(r'href="/screener\?[^"]*"', 'href="screener.html"', html)
+    html = html.replace('href="/screener/draft"', 'href="screener.html"')
     html = html.replace('href="/recommend"', 'href="recommend.html"')
     html = html.replace('href="/screener"', 'href="lenses.html"')
     # The dropdown filter form is server-side; on Pages it degrades to a reload.
-    html = html.replace('action="/screener"', 'action="index.html"')
+    html = html.replace('action="/screener"', 'action="screener.html"')
     # /sentiment is deliberately NOT exported: it renders tools/screener_lab.py's
     # snapshot, which is a gitignored local cache, so a published copy would be a frozen
     # tone reading with no way to tell how stale it is. Cross-references to it become
@@ -207,8 +218,8 @@ def _staticise(html, built, active="screener"):
     # item is removed entirely and the two prose references become source links.
     html = re.sub(r'<a[^>]*href="/sweep"[^>]*>.*?</a>', "", html, flags=re.S)
     html = re.sub(r'href="/sweep[^"]*"', 'href="{}"'.format(REPO_URL), html)
-    html = html.replace('href="/lenses"', 'href="index.html"')
-    html = html.replace('href="/screen"', 'href="index.html"')
+    html = html.replace('href="/lenses"', 'href="screener.html"')
+    html = html.replace('href="/screen"', 'href="screener.html"')
     # Node drill-down: every node the browser links to is exported, so these stay internal.
     html = re.sub(r'href="/(?:api/)?node/([A-Za-z0-9]+)"', r'href="node-\1.html"', html)
     # The groups view builds its node links in JS, so the href only exists at runtime and
@@ -220,9 +231,14 @@ def _staticise(html, built, active="screener"):
     # equivalent; they collapse to the unfiltered page rather than to a dead route.
     html = re.sub(r'href="/web\?[^"]*"', 'href="web.html"', html)
     html = html.replace('href="/web"', 'href="web.html"')
+    # Its search form too: an `action` is a link the href checks below cannot see, and on
+    # Pages "/web" is a 404. Posting to the page itself degrades to a reload, like the
+    # screener's filter form above.
+    html = html.replace('action="/web"', 'action="web.html"')
     html = html.replace('href="/surfaces"', 'href="surfaces.html"')
     html = html.replace('href="/graph"', 'href="map.html"')
-    html = html.replace('href="/"', 'href="overview.html"')
+    # The server's "/" is the overview, and so is the site's: one file, the front door.
+    html = html.replace('href="/"', 'href="index.html"')
     html = _strip_inbox(html)
     rail = _NAV.search(html)
     if rail and _RAIL_DATA.search(rail.group(0)):
@@ -283,7 +299,9 @@ def export(out_dir):
         research_ui._screener_combined_draft_payload(vendor_data=False))
     code, body, _ct = research_ui._screener_combined_draft_html({}, payload=payload)
     assert code == 200
-    write("index.html", _staticise(body, built, "screener"))
+    # Under its own name. It was index.html until the front door moved to the overview; the
+    # rail, the map's back link and every rewritten /screener route point here now.
+    write("screener.html", _staticise(body, built, "screener"))
 
     # The Basics sequence. Written from the same routes the server offers, so the published
     # pages and the served ones cannot say different things.
@@ -304,9 +322,11 @@ def export(out_dir):
     write("buckets.html", _staticise(body, built, "buckets"))
 
     # The rest of the server's Views list, so the published rail is not advertising pages
-    # that do not exist. Node pages follow the browser that links them: a research web you
-    # cannot drill into is a table of contents, not the web.
-    for route_path, name, active in (("/", "overview.html", "overview"),
+    # that do not exist. The overview is written as index.html — the front door — so a reader
+    # arriving from a link meets the research web first (see the module docstring). Node
+    # pages follow the browser that links them: a research web you cannot drill into is a
+    # table of contents, not the web.
+    for route_path, name, active in (("/", "index.html", "overview"),
                                      ("/web", "web.html", "web"),
                                      ("/web/groups", "web-groups.html", "groups"),
                                      ("/surfaces", "surfaces.html", "surfaces")):
@@ -329,7 +349,7 @@ def export(out_dir):
     # The map is self-contained and skips _staticise, so its one internal link — back to
     # the screener — has to be retargeted here or it 404s on Pages.
     write("map.html", ctx._render_graph_html(G, adj)
-          .replace('id="back" href="/screener/draft"', 'id="back" href="index.html"'))
+          .replace('id="back" href="/screener/draft"', 'id="back" href="screener.html"'))
 
     # Nothing may still point at a server route, and nothing may point at a file the build
     # did not write — a dead link on Pages is a silent 404, so it fails the build instead.
