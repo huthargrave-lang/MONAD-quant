@@ -1,0 +1,19 @@
+{
+ "material": {
+  "name": "ASA (provisional; PETG comparable)",
+  "E_GPa": 1.8,
+  "tens_XY_MPa": 38.0,
+  "tens_Z_MPa": 22.0,
+  "allow_long_XY": 8.0,
+  "allow_long_Z": 4.5,
+  "allow_short_XY": 15.0,
+  "allow_short_Z": 8.0,
+  "note": "bulk filament 40-45 MPa; printed XY ~85-95 %, Z ~50-60 %; wet/aged/creep/fatigue knockdown ~0.45 -> long-term allowables; short-term (flood, debris) x1.9"
+ },
+ "thrust": {
+  "1.0": 9.54283447964506,
+  "1.5": 21.44955994397043,
+  "2.0": 38.11155203576158,
+  "3.0": 85.70008891208106
+ }
+}

@@ -1,0 +1,6 @@
+min76_assembly.step: 34 solids (parts listed 34), all valid True, depth from STEP 75.10 mm (layout 75.10)
+   full pairwise rigid check (34 solids): no clash
+robust_assembly.step: 34 solids (parts listed 34), all valid True, depth from STEP 85.30 mm (layout 85.30)
+   full pairwise rigid check (34 solids): no clash
+print STLs: 18; non-watertight: none
+BOM-to-CAD: every CAD part has a BOM line; bearing '6702' in BOM: True; seal '15x22x4' in BOM: True

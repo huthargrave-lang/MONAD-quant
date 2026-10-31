@@ -1,0 +1,46 @@
+solids imported: 23
+ 1 rotor          X  -48.185..  30.615  r_max  101.60  vol   211777.0  valid True
+ 2 nacelle_tube   X   39.615.. 134.415  r_max   40.00  vol    57703.2  valid True
+ 3 front_cap      X   33.615..  57.615  r_max   40.00  vol    93536.2  valid True
+ 4 rear_cap       X  116.415.. 140.415  r_max   40.00  vol   101386.5  valid True
+ 5 oring_0        X   43.105..  45.725  r_max   37.99  vol     1242.5  valid True
+ 6 oring_1        X   50.105..  52.725  r_max   37.99  vol     1242.5  valid True
+ 7 oring_2        X  119.905.. 122.525  r_max   37.99  vol     1242.5  valid True
+ 8 oring_3        X  126.905.. 129.525  r_max   37.99  vol     1242.5  valid True
+ 9 lip_seal       X   33.615..  40.615  r_max   11.00  vol     1874.5  valid True
+10 bearing_0      X   42.115..  50.115  r_max   14.00  vol     4021.2  valid True
+11 bearing_1      X   50.115..  58.115  r_max   14.00  vol     4021.2  valid True
+12 shaft          X  -11.385..  72.615  r_max    6.00  vol     9404.5  valid True
+13 speedi_sleeve  X   33.115..  41.115  r_max    6.28  vol       86.4  valid True
+14 collar         X   23.615..  31.615  r_max   10.00  vol     1608.5  valid True
+15 coupling       X   61.615..  86.615  r_max   10.00  vol     5026.5  valid True
+16 bell_adapter   X   75.615..  92.615  r_max   29.50  vol    17430.0  valid True
+17 motor          X   94.115.. 116.415  r_max   34.50  vol    76166.6  valid True
+18 clamp_half_1   X   74.275..  90.275  r_max   49.00  vol    19759.1  valid True
+19 clamp_half_2   X   74.275..  90.275  r_max   49.00  vol    19759.1  valid True
+20 strut_0        X   67.275..  97.275  r_max   98.16  vol     5275.4  valid True
+21 strut_1        X   67.275..  97.275  r_max  107.00  vol     5275.4  valid True
+22 strut_2        X   67.275..  97.275  r_max   98.16  vol     5275.4  valid True
+23 duct_ring      X   62.275.. 102.275  r_max  107.00  vol   105194.4  valid True
+
+RIGID DEPTH (all solids incl. duct ref): 188.600 mm  (review: 188.6)
+rotor alone: 78.800 mm (review: 78.8)
+common volume rotor/collar:   1369.60 mm3
+common volume nacelle_tube/oring_0:    165.15 mm3
+common volume lip_seal/speedi_sleeve:     75.61 mm3
+common volume lip_seal/shaft:      5.27 mm3
+common volume strut_0/duct_ring:   2532.56 mm3
+common volume clamp_half_1/strut_2:     70.95 mm3
+common volume clamp_half_2/strut_0:     70.95 mm3
+common volume bearing_1/front_cap:      0.00 mm3
+common volume coupling/bell_adapter:      0.00 mm3
+common volume shaft/coupling:      0.00 mm3
+bearing centres: 46.115 and 54.115 -> spacing 8.000 mm (review: 8)
+rear bearing protrudes past front-cap end by 0.500 mm (review: 0.5)
+shaft cylindrical radii: [1.6, 6.0]  -> circlip groove (r=5.75) present? False
+front cap cylindrical radii: [8.0, 11.0, 14.0, 35.37, 37.45, 40.0]  -> internal circlip groove (r~14.6-15.2)? False
+nacelle tube cylindrical radii: [37.5, 40.0]  -> radial screw holes (r=1.6)? False
+rear cap radii: [1.7, 2.5, 5.0, 11.0, 35.37, 37.45, 40.0]
+motor radii: [10.0, 33.5, 34.5]  (no mounting holes modelled if only 10/33.5/34.5)
+names containing 'cable'/'gland'/'vent': [] -> none modelled
+duct ring X 62.3..102.3 vs rotor X -48.2..30.6: duct entirely behind rotor plane -> True

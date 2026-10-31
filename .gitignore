@@ -84,3 +84,5 @@ local_research_data/
 
 # turbine-generator package ships its BOM and section tables as CSV
 !cad/turbine_generator/*.csv
+
+!cad/turbine_redesign_v3/**/*.csv
