@@ -1,0 +1,785 @@
+{
+  "params": {
+    "tube_od": 63.5,
+    "tube_id": 60.2,
+    "cap_flange_od": 63.5,
+    "cap_flange_t": 6.0,
+    "cap_plug_len": 18.0,
+    "oring_cs": 2.62,
+    "oring_groove_w": 3.6,
+    "oring_groove_d": 2.08,
+    "oring_pitch": 7.0,
+    "cap_screw_d": 3.2,
+    "cap_screws": 3,
+    "a_tube_od": 80.0,
+    "a_tube_id": 75.0,
+    "a_cap_plug_len": 18.0,
+    "a_motor_od": 69.0,
+    "a_motor_len": 22.3,
+    "a_motor_bore": 20.0,
+    "a_motor_pcd": 48.0,
+    "a_motor_hole": 3.4,
+    "a_bell_pcd": 30.0,
+    "a_bell_adapter_t": 6.0,
+    "a_shaft_d": 12.0,
+    "a_shaft_hub_in": 42.0,
+    "a_seal_od": 22.0,
+    "a_seal_w": 7.0,
+    "a_brg_od": 28.0,
+    "a_brg_w": 8.0,
+    "a_brg_n": 2,
+    "a_sleeve_w": 8.0,
+    "a_coup_od": 20.0,
+    "a_coup_len": 25.0,
+    "a_gap_hub_cap": 3.0,
+    "a_collar_od": 20.0,
+    "a_collar_len": 8.0,
+    "a_penetrator_d": 10.0,
+    "a_penetrator_r": 24.0,
+    "a_clamp_w": 16.0,
+    "a_clamp_t": 5.0,
+    "a_oring_pitch": 7.0,
+    "spindle_d": 15.0,
+    "spindle_bore": 9.0,
+    "spindle_len": 57.5,
+    "seal_od": 24.0,
+    "seal_w": 5.0,
+    "brg_od": 28.0,
+    "brg_w": 7.0,
+    "brg_n": 2,
+    "circlip_groove_w": 1.1,
+    "circlip_groove_d": 0.6,
+    "motor_od": 49.0,
+    "motor_len": 29.0,
+    "motor_base_t": 4.0,
+    "motor_pcd": 25.0,
+    "motor_hole": 3.2,
+    "motor_shaft_d": 8.0,
+    "motor_shaft_l": 8.0,
+    "motor_hollow_d": 0.0,
+    "collar_od": 22.0,
+    "collar_len": 10.0,
+    "collar_flange_od": 40.0,
+    "collar_flange_t": 4.0,
+    "adapter_od": 48.0,
+    "adapter_t": 5.0,
+    "disc_od": 40.0,
+    "disc_t": 2.5,
+    "bell_pcd": 19.0,
+    "ring_wall": 3.6,
+    "ring_len": 52.0,
+    "nose_len": 18.0,
+    "hub_boss_od": 38.0,
+    "hub_boss_len": 22.0,
+    "strut_chord": 18.0,
+    "strut_tc": 0.15,
+    "n_struts": 3,
+    "duct_id": 206.0,
+    "duct_od": 214.0,
+    "duct_len": 40.0,
+    "pad_w": 22.0,
+    "pad_len": 30.0,
+    "gap_rotor_boss": 3.0,
+    "rear_plug_len": 17.0,
+    "internal_clearance": 1.5
+  },
+  "to_measure": {
+    "motor_pcd": "GB5015 base mounting hole pitch circle (4 holes?) - from the motor or vendor drawing",
+    "motor_hole": "mounting hole thread/size (M2.5 or M3)",
+    "motor_shaft_d / motor_shaft_l": "shaft diameter and protrusion on the bell side (and any flat/thread)",
+    "motor_hollow_d": "bore of the hollow shaft if present (decides whether the spindle can pass through)",
+    "motor_od / motor_len": "confirm 49 x 29 mm overall and where the cable exits the base",
+    "tube_* / cap_*": "Blue Robotics 2 inch series tube ID/OD and end-cap flange/plug dimensions from the vendor drawing",
+    "motor Kv, line resistance, cogging torque, mass": "electrical model inputs (see REPORT)"
+  },
+  "configs": {
+    "A": {
+      "layout": {
+        "arch": "A",
+        "x_nose_tip": -48.18542623553307,
+        "x_hub_rear": 30.614573764466925,
+        "x_tube": [
+          39.614573764466925,
+          134.41457376446692
+        ],
+        "tube_len": 94.8,
+        "x_seal": 33.614573764466925,
+        "x_bearings": [
+          42.114573764466925,
+          58.114573764466925
+        ],
+        "x_motor": [
+          87.41457376446692,
+          116.41457376446692
+        ],
+        "x_rear_end": 140.41457376446692,
+        "x_strut_centre": 82.27457376446692,
+        "r_hub": 25.4,
+        "x_duct": [
+          62.27457376446692,
+          102.27457376446692
+        ],
+        "axial_depth_mm": 188.6,
+        "interference_mm3": {
+          "motor/front_cap": 0.0,
+          "motor/rear_cap": 0.0,
+          "motor/nacelle_tube": 0.0,
+          "coupling/front_cap": 0.0,
+          "coupling/motor": 0.0,
+          "shaft/front_cap": 0.0,
+          "shaft/motor": 0.0,
+          "shaft/bell_adapter": 0.0,
+          "bell_adapter/motor": 0.0,
+          "rotor/front_cap": 0.0,
+          "rotor/clamp_ring": 0.0,
+          "strut_0/rotor": 0.0,
+          "front_cap/nacelle_tube": 0.0,
+          "rear_cap/nacelle_tube": 0.0,
+          "collar/front_cap": 0.0,
+          "speedi_sleeve/front_cap": 0.0,
+          "clamp_ring/nacelle_tube": 0.0,
+          "coupling/bell_adapter": 0.0
+        }
+      },
+      "rotor": {
+        "cp15": 0.3677078300557285,
+        "tsr": 3.25,
+        "perf": {
+          "1.0": {
+            "rpm": 305.4647037688936,
+            "P": 5.628922243880631,
+            "Q": 0.1759687692240837,
+            "T": 11.449127046303701,
+            "cp": 0.3471506290662493
+          },
+          "1.5": {
+            "rpm": 458.19705565334044,
+            "P": 20.122593222090522,
+            "Q": 0.4193754813055173,
+            "T": 25.72888213729233,
+            "cp": 0.3677078300557285
+          },
+          "2.0": {
+            "rpm": 610.9294075377873,
+            "P": 49.1390068950053,
+            "Q": 0.7680804770050059,
+            "T": 45.7097510364223,
+            "cp": 0.3788166814223808
+          }
+        },
+        "r_hub": 25.4
+      },
+      "parts": [
+        {
+          "name": "rotor",
+          "kind": "print",
+          "note": "reviewed rev-2 rotor, 12 mm bore, 3.2 mm cross pin, 2x M4 grub screws",
+          "valid": true,
+          "volume_mm3": 211784.3,
+          "x": [
+            -48.19,
+            30.61
+          ],
+          "rmax": 101.6
+        },
+        {
+          "name": "nacelle_tube",
+          "kind": "COTS",
+          "note": "6061-T6 tube 80 x 2.5 mm (or 3.0 in x 0.049 in), 95 mm, anodised",
+          "valid": true,
+          "volume_mm3": 57703.2,
+          "x": [
+            39.61,
+            134.41
+          ],
+          "rmax": 40.0
+        },
+        {
+          "name": "front_cap",
+          "kind": "machined",
+          "note": "machined cap: 2 radial O-rings, lip seal 12x22x7, 2x 6001-2RS SS, DIN 472-28 circlip",
+          "valid": true,
+          "volume_mm3": 93536.2,
+          "x": [
+            33.61,
+            57.61
+          ],
+          "rmax": 40.0
+        },
+        {
+          "name": "rear_cap",
+          "kind": "machined",
+          "note": "machined 6061 cap: motor mount (PCD TO MEASURE), WetLink M10 hole, M6 vent port",
+          "valid": true,
+          "volume_mm3": 101386.5,
+          "x": [
+            116.41,
+            140.41
+          ],
+          "rmax": 40.0
+        },
+        {
+          "name": "oring_0",
+          "kind": "COTS",
+          "note": "AS568-152 EPDM 70 radial O-ring (ID 82.2 -> groove OD 70.7: use -151, ID 75.9... see BOM)",
+          "valid": true,
+          "volume_mm3": 1242.5,
+          "x": [
+            43.1,
+            45.72
+          ],
+          "rmax": 37.99
+        },
+        {
+          "name": "oring_1",
+          "kind": "COTS",
+          "note": "AS568-152 EPDM 70 radial O-ring (ID 82.2 -> groove OD 70.7: use -151, ID 75.9... see BOM)",
+          "valid": true,
+          "volume_mm3": 1242.5,
+          "x": [
+            50.1,
+            52.72
+          ],
+          "rmax": 37.99
+        },
+        {
+          "name": "oring_2",
+          "kind": "COTS",
+          "note": "AS568-152 EPDM 70 radial O-ring (ID 82.2 -> groove OD 70.7: use -151, ID 75.9... see BOM)",
+          "valid": true,
+          "volume_mm3": 1242.5,
+          "x": [
+            119.9,
+            122.52
+          ],
+          "rmax": 37.99
+        },
+        {
+          "name": "oring_3",
+          "kind": "COTS",
+          "note": "AS568-152 EPDM 70 radial O-ring (ID 82.2 -> groove OD 70.7: use -151, ID 75.9... see BOM)",
+          "valid": true,
+          "volume_mm3": 1242.5,
+          "x": [
+            126.9,
+            129.52
+          ],
+          "rmax": 37.99
+        },
+        {
+          "name": "lip_seal",
+          "kind": "COTS",
+          "note": "rotary lip seal 12x22x7 (NBR spring-loaded, or PTFE)",
+          "valid": true,
+          "volume_mm3": 1874.5,
+          "x": [
+            33.61,
+            40.61
+          ],
+          "rmax": 11.0
+        },
+        {
+          "name": "bearing_0",
+          "kind": "COTS",
+          "note": "6001-2RS 440C stainless 12x28x8",
+          "valid": true,
+          "volume_mm3": 4021.2,
+          "x": [
+            42.11,
+            50.11
+          ],
+          "rmax": 14.0
+        },
+        {
+          "name": "bearing_1",
+          "kind": "COTS",
+          "note": "6001-2RS 440C stainless 12x28x8",
+          "valid": true,
+          "volume_mm3": 4021.2,
+          "x": [
+            50.11,
+            58.11
+          ],
+          "rmax": 14.0
+        },
+        {
+          "name": "shaft",
+          "kind": "COTS+machined",
+          "note": "316 ground shaft 12 h6 x 84 mm, cross-pin hole, circlip groove, D-flat",
+          "valid": true,
+          "volume_mm3": 9404.5,
+          "x": [
+            -11.39,
+            72.61
+          ],
+          "rmax": 6.0
+        },
+        {
+          "name": "speedi_sleeve",
+          "kind": "COTS",
+          "note": "SKF Speedi-Sleeve 99047 hardened seal track on the 316 shaft",
+          "valid": true,
+          "volume_mm3": 86.4,
+          "x": [
+            33.11,
+            41.11
+          ],
+          "rmax": 6.28
+        },
+        {
+          "name": "collar",
+          "kind": "COTS",
+          "note": "316 clamp collar 12 mm (wet side): axial stop + slinger",
+          "valid": true,
+          "volume_mm3": 1608.5,
+          "x": [
+            23.61,
+            31.61
+          ],
+          "rmax": 10.0
+        },
+        {
+          "name": "coupling",
+          "kind": "COTS",
+          "note": "jaw coupling 12 x 12 mm, D20 L25, polyurethane spider",
+          "valid": true,
+          "volume_mm3": 5026.5,
+          "x": [
+            61.61,
+            86.61
+          ],
+          "rmax": 10.0
+        },
+        {
+          "name": "bell_adapter",
+          "kind": "machined/print",
+          "note": "Delrin adapter on the GL60 bell face (PCD TO MEASURE) with 12 mm stub",
+          "valid": true,
+          "volume_mm3": 17430.0,
+          "x": [
+            75.61,
+            92.61
+          ],
+          "rmax": 29.5
+        },
+        {
+          "name": "motor",
+          "kind": "COTS",
+          "note": "CubeMars GL60 KV25 (69 x 22.3, 20 mm bore), stator base bolted to the rear cap (heat sink)",
+          "valid": true,
+          "volume_mm3": 76166.6,
+          "x": [
+            94.11,
+            116.41
+          ],
+          "rmax": 34.5
+        },
+        {
+          "name": "clamp_ring",
+          "kind": "print",
+          "note": "printed split clamp ring, 2 halves, 4x M4 316",
+          "valid": true,
+          "volume_mm3": 39518.3,
+          "x": [
+            74.27,
+            90.27
+          ],
+          "rmax": 49.0
+        },
+        {
+          "name": "strut_0",
+          "kind": "print",
+          "note": "NACA 0015 strut to duct pad (cable runs along one strut)",
+          "valid": true,
+          "volume_mm3": 5275.4,
+          "x": [
+            67.27,
+            97.27
+          ],
+          "rmax": 98.16
+        },
+        {
+          "name": "strut_1",
+          "kind": "print",
+          "note": "NACA 0015 strut to duct pad (cable runs along one strut)",
+          "valid": true,
+          "volume_mm3": 5275.4,
+          "x": [
+            67.27,
+            97.27
+          ],
+          "rmax": 107.0
+        },
+        {
+          "name": "strut_2",
+          "kind": "print",
+          "note": "NACA 0015 strut to duct pad (cable runs along one strut)",
+          "valid": true,
+          "volume_mm3": 5275.4,
+          "x": [
+            67.27,
+            97.27
+          ],
+          "rmax": 98.16
+        },
+        {
+          "name": "duct_ring",
+          "kind": "reference",
+          "note": "reference duct segment (user's duct), 2 mm tip clearance",
+          "valid": true,
+          "volume_mm3": 105190.0,
+          "x": [
+            62.27,
+            102.27
+          ],
+          "rmax": 107.0
+        }
+      ]
+    },
+    "B": {
+      "layout": {
+        "x_blade_centre": 4.24860713416231,
+        "tube_len": 84.5,
+        "x_tube": [
+          -32.00139286583769,
+          52.49860713416231
+        ],
+        "x_nose_tip": -56.00139286583769,
+        "x_rear_end": 83.49860713416231,
+        "x_seal": 53.49860713416231,
+        "x_bearings": [
+          37.99860713416231,
+          51.99860713416231
+        ],
+        "x_motor": [
+          -10.001392865837687,
+          18.998607134162313
+        ],
+        "x_strut_centre": 72.49860713416231,
+        "r_hub": 35.35,
+        "x_duct": [
+          52.49860713416231,
+          92.49860713416231
+        ],
+        "axial_depth_mm": 139.5,
+        "interference_mm3": {
+          "motor/front_cap": 0.0,
+          "motor/rear_cap": 0.0,
+          "motor/drum_tube": 0.0,
+          "motor/spindle": 0.0,
+          "flanged_collar/rear_cap": 0.0,
+          "rotor_ring/strut_hub": 0.0,
+          "rotor_ring/duct_ring": 0.0,
+          "nose/rotor_ring": 0.0,
+          "strut_0/rotor_ring": 0.0,
+          "spindle/front_cap": 0.0,
+          "adapter_plate/drum_tube": 0.0,
+          "flanged_collar/bearing_0": 0.0,
+          "front_cap/drum_tube": 0.0,
+          "rear_cap/drum_tube": 0.0,
+          "nose/front_cap": 0.0,
+          "drive_disc/front_cap": 0.0,
+          "motor/drive_disc": 0.0,
+          "spindle/rear_cap": 0.0,
+          "spindle/motor": 0.0,
+          "rotor_ring/drum_tube": 0.0
+        },
+        "arch": "B"
+      },
+      "rotor": {
+        "cp15": 0.3316939482581667,
+        "tsr": 3.25,
+        "perf": {
+          "1.0": {
+            "rpm": 305.4647037688936,
+            "P": 5.0605468193787235,
+            "Q": 0.15820047903042408,
+            "T": 10.300629046045874,
+            "cp": 0.31209740260249114
+          },
+          "1.5": {
+            "rpm": 458.19705565334044,
+            "P": 18.139003091779074,
+            "Q": 0.37803542853841104,
+            "T": 23.148900821790257,
+            "cp": 0.33146093014145356
+          },
+          "2.0": {
+            "rpm": 610.9294075377873,
+            "P": 44.353437676051726,
+            "Q": 0.69327834890567,
+            "T": 41.12714027357489,
+            "cp": 0.34192433123478766
+          }
+        },
+        "r_hub": 35.35
+      },
+      "parts": [
+        {
+          "name": "drum_tube",
+          "kind": "COTS",
+          "note": "6061-T6 tube 2.5 in OD x 0.065 in wall (rotating drum), 84 mm, anodised",
+          "valid": true,
+          "volume_mm3": 27091.3,
+          "x": [
+            -32.0,
+            52.5
+          ],
+          "rmax": 31.75
+        },
+        {
+          "name": "rotor_ring",
+          "kind": "print",
+          "note": "printed in 2 halves, epoxied + clamped on the tube",
+          "valid": true,
+          "volume_mm3": 94198.2,
+          "x": [
+            -21.75,
+            30.25
+          ],
+          "rmax": 101.6
+        },
+        {
+          "name": "front_cap",
+          "kind": "COTS",
+          "note": "machined front cap (6061/Delrin), 2 radial O-rings; blind pocket for the motor shaft",
+          "valid": true,
+          "volume_mm3": 66589.2,
+          "x": [
+            -38.0,
+            -14.0
+          ],
+          "rmax": 31.75
+        },
+        {
+          "name": "rear_cap",
+          "kind": "machined",
+          "note": "Delrin/6061, lip-seal seat + bearing bore, 2 radial O-rings",
+          "valid": true,
+          "volume_mm3": 52811.8,
+          "x": [
+            35.5,
+            58.5
+          ],
+          "rmax": 31.75
+        },
+        {
+          "name": "oring_0",
+          "kind": "COTS",
+          "note": "AS568-1xx NBR 70 radial O-ring",
+          "valid": true,
+          "volume_mm3": 991.8,
+          "x": [
+            -28.51,
+            -25.89
+          ],
+          "rmax": 30.59
+        },
+        {
+          "name": "oring_1",
+          "kind": "COTS",
+          "note": "AS568-1xx NBR 70 radial O-ring",
+          "valid": true,
+          "volume_mm3": 991.8,
+          "x": [
+            -21.51,
+            -18.89
+          ],
+          "rmax": 30.59
+        },
+        {
+          "name": "oring_2",
+          "kind": "COTS",
+          "note": "AS568-1xx NBR 70 radial O-ring",
+          "valid": true,
+          "volume_mm3": 991.8,
+          "x": [
+            38.99,
+            41.61
+          ],
+          "rmax": 30.59
+        },
+        {
+          "name": "oring_3",
+          "kind": "COTS",
+          "note": "AS568-1xx NBR 70 radial O-ring",
+          "valid": true,
+          "volume_mm3": 991.8,
+          "x": [
+            45.99,
+            48.61
+          ],
+          "rmax": 30.59
+        },
+        {
+          "name": "lip_seal",
+          "kind": "COTS",
+          "note": "rotary lip seal 15x24x5 on an SKF Speedi-Sleeve 99059, lip toward water",
+          "valid": true,
+          "volume_mm3": 1447.6,
+          "x": [
+            53.5,
+            58.5
+          ],
+          "rmax": 12.0
+        },
+        {
+          "name": "bearing_0",
+          "kind": "COTS",
+          "note": "6902-2RS stainless 15x28x7",
+          "valid": true,
+          "volume_mm3": 3073.3,
+          "x": [
+            38.0,
+            45.0
+          ],
+          "rmax": 14.0
+        },
+        {
+          "name": "bearing_1",
+          "kind": "COTS",
+          "note": "6902-2RS stainless 15x28x7",
+          "valid": true,
+          "volume_mm3": 3073.3,
+          "x": [
+            45.0,
+            52.0
+          ],
+          "rmax": 14.0
+        },
+        {
+          "name": "drive_disc",
+          "kind": "print",
+          "note": "TPU compliant drive disc, bell face to front cap",
+          "valid": true,
+          "volume_mm3": 2763.7,
+          "x": [
+            -12.5,
+            -10.0
+          ],
+          "rmax": 20.0
+        },
+        {
+          "name": "motor",
+          "kind": "COTS",
+          "note": "GB5015 gimbal motor (placeholder envelope 49 x 29, shaft into the cap pocket)",
+          "valid": true,
+          "volume_mm3": 53542.6,
+          "x": [
+            -18.0,
+            19.0
+          ],
+          "rmax": 24.5
+        },
+        {
+          "name": "adapter_plate",
+          "kind": "print/Delrin",
+          "note": "motor base to collar adapter (PCD TO MEASURE)",
+          "valid": true,
+          "volume_mm3": 6742.1,
+          "x": [
+            19.0,
+            24.0
+          ],
+          "rmax": 24.0
+        },
+        {
+          "name": "flanged_collar",
+          "kind": "COTS",
+          "note": "316 flanged shaft collar 15 mm (stator mount)",
+          "valid": true,
+          "volume_mm3": 5540.2,
+          "x": [
+            24.0,
+            34.0
+          ],
+          "rmax": 20.0
+        },
+        {
+          "name": "spindle",
+          "kind": "COTS+machined",
+          "note": "316 tube 15 OD x 9 ID x 58 mm, polished seal track, circlip grooves",
+          "valid": true,
+          "volume_mm3": 6464.8,
+          "x": [
+            22.0,
+            79.5
+          ],
+          "rmax": 7.5
+        },
+        {
+          "name": "nose",
+          "kind": "print",
+          "note": "printed nose cone, bolts to front cap",
+          "valid": true,
+          "volume_mm3": 14232.2,
+          "x": [
+            -56.0,
+            -38.0
+          ],
+          "rmax": 35.35
+        },
+        {
+          "name": "strut_hub",
+          "kind": "print",
+          "note": "split-clamp boss on the spindle, cable potting cavity",
+          "valid": true,
+          "volume_mm3": 19789.9,
+          "x": [
+            61.5,
+            83.5
+          ],
+          "rmax": 19.0
+        },
+        {
+          "name": "strut_0",
+          "kind": "print",
+          "note": "NACA 0015 strut, chord 18, to duct pad",
+          "valid": true,
+          "volume_mm3": 6429.1,
+          "x": [
+            57.5,
+            87.5
+          ],
+          "rmax": 107.0
+        },
+        {
+          "name": "strut_1",
+          "kind": "print",
+          "note": "NACA 0015 strut, chord 18, to duct pad",
+          "valid": true,
+          "volume_mm3": 6429.1,
+          "x": [
+            57.5,
+            87.5
+          ],
+          "rmax": 98.16
+        },
+        {
+          "name": "strut_2",
+          "kind": "print",
+          "note": "NACA 0015 strut, chord 18, to duct pad",
+          "valid": true,
+          "volume_mm3": 6429.1,
+          "x": [
+            57.5,
+            87.5
+          ],
+          "rmax": 98.16
+        },
+        {
+          "name": "duct_ring",
+          "kind": "reference",
+          "note": "reference duct segment (user's duct), 2 mm tip clearance",
+          "valid": true,
+          "volume_mm3": 105190.0,
+          "x": [
+            52.5,
+            92.5
+          ],
+          "rmax": 107.0
+        }
+      ]
+    }
+  }
+}

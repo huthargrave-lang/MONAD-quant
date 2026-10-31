@@ -81,3 +81,6 @@ local_research_data/
 # CAD package for the 8 in water turbine blade ships its section tables as CSV
 !cad/water_turbine_blade/*.csv
 !cad/water_turbine_blade/sections_for_fusion_csv/*.csv
+
+# turbine-generator package ships its BOM and section tables as CSV
+!cad/turbine_generator/*.csv

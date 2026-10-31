@@ -1,0 +1,31 @@
+item,qty,description,spec / drawing,vendor / part no.,unit price USD,price basis,notes
+1,1,Generator,CubeMars GL60 KV25 brushless gimbal motor; 69 x 22.3 mm; 20 mm bore; Kt 0.45 N m/A; R_LL 5.5 ohm (4.6 also quoted); 0.6 N m rated / 1.75 N m peak; 230 g,RobotShop / CubeMars GL60 KV25 (w/o encoder),142-185,verified (robotshop.com $141.99; upgraderc $185),mount PCD and bell-face hole pattern must be measured before the caps are machined
+2,1,Nacelle pressure tube,6061-T6 (or 6060) tube 80 mm OD x 2.5 mm wall x 95 mm; alternative 3.0 in OD x 0.049 in wall (ID 73.7); hard anodised type III; both ends deburred and chamfered 1 mm,metal supplier (OnlineMetals / Metals4U) + local anodiser,25-60,estimate,ID tolerance +-0.2 mm: measure and cut the cap O-ring grooves to the measured bore
+3,1,Front cap (seal + bearing cap),machined 6061-T6 per A_front_cap.step: flange 80 x 6; plug 74.9 x 18 with 2 radial O-ring grooves 3.6 wide x 2.08 deep; seal bore 22 H8 x 7; bearing bore 28 H7 x 16; DIN 472-28 groove; Ra 1.6 in grooves; anodised,job shop (e.g. local or online CNC),60-130,estimate,could be Delrin (acetal) instead of aluminium: no anodising and no galvanic issue but less stiff
+4,1,Rear cap (motor mount + penetrator),machined 6061-T6 per A_rear_cap.step: flange 80 x 6; plug 74.9 x 18 with 2 O-ring grooves; 4x motor mount holes on the GL60 PCD (TO MEASURE); M10x1.5 penetrator hole at r=24; M6 vent port; anodised,job shop,60-130,estimate,this cap is the generator heat sink: aluminium is required
+5,4,Static O-rings,AS568-148 (ID 69.5 mm x 2.62 mm CS) EPDM 70 Shore A; groove OD 70.7 mm -> 1.8 % stretch; 17-24 % squeeze,Marco Rubber / Apple Rubber / McMaster -148 EPDM,0.5-1.5,estimate (AS568-137 NBR verified $0.18-0.38),lubricate with silicone grease only (no mineral grease on EPDM)
+6,1,Rotary lip seal,12 x 22 x 7 mm single-lip spring-loaded NBR (TC type) e.g. SKF 12X22X7 HMS5 RG or generic R21; lip toward the water,SKF / Bearing Boys / Zoro,4-8,verified for similar sizes (10x22x7 $5.85),PTFE alternative (Dichta C-O or Trelleborg Varilip PDR 12 mm) ~$40-120 - halves the friction
+7,1,Hardened seal track,SKF Speedi-Sleeve 99047 (11.99-12.09 mm shaft) 0.28 mm wall stainless; pressed over the 316 shaft at the seal position,SKF 99047,25-45,estimate (sizes verified to exist from 11.99 mm),mandatory: 316 (HRB 83) is too soft as a lip-seal running surface
+8,2,Shaft bearings,6001-2RS 440C stainless 12 x 28 x 8 mm; C ~ 4 kN,VXB / Simply Bearings S6001-2RS,10-19,estimate (S6000-2RS verified $18.78),dry side; sealed 2RS; back-to-back in the front cap
+9,1,Internal circlip,DIN 472 28 x 1.2 stainless (1.4122/A2),Wurth / RS / PTS,1-4,estimate (DIN 471 10 mm verified $0.36-4.09),takes the rotor thrust (46 N service / 110 N flood)
+10,1,External circlip,DIN 471 12 x 1.0 stainless,Wurth / RS,0.5-4,verified range,behind the rear bearing inner race
+11,1,Shaft,316 stainless round 12 mm precision ground (h6) x 140 mm; 3.2 mm cross-pin hole at the hub; 2 mm D-flat at the coupling; circlip groove 11.5 x 1.1,McMaster / Misumi (316 round bar) + bench drilling,20-40,estimate (316 keyed 10x300 verified $29.15),bending stress < 5 MPa; torsion < 8 MPa at the 1.5 N m jam case
+12,1,Shaft collar,12 mm 316 clamp collar (Ruland MCL-12-ST or equivalent); wet side axial stop + slinger,Ruland / Zoro,25-32,verified (MCL-10-ST $25.99),
+13,1,Cross pin,3 x 20 mm 316 dowel pin,McMaster / Bolt Depot,1.2,verified ($1.13),with 2x M4x6 316 grub screws (Loctite 243)
+14,1,Jaw coupling,aluminium jaw coupling 12 x 12 mm bore; D20 x L25; 98A polyurethane spider,Amazon / Misumi (JM20C-12-12 style),8-15,estimate,tolerates 0.2 mm radial / 1 deg angular misalignment between shaft and bell
+15,1,Bell adapter,Delrin (acetal) disc 59 x 6 mm with 12 mm x 11 mm stub; 4 holes on the GL60 bell PCD (TO MEASURE),machined or printed (ASA) + reamed,10-25,estimate,if printed use a 12 mm 316 stub pressed and pinned
+16,1,Cable penetrator,Blue Robotics WetLink Penetrator M10 (6.5 mm HC for a 5.7-6.3 mm jacket) + 1 cable; FKM seal; 95 m (HC),Blue Robotics WLP-M10-6.5-HC,13-17,verified ($13.00-16.91),alternative: PG7 nylon IP68 gland $0.20-1.00 (lower confidence); or pot the exit with 3M Scotchcast 2136 ($74.76 kit)
+17,3 m,Generator cable,3 x 18 AWG tinned copper; PVC/PUR jacket 6.05 mm OD (Alpha Wire 5063C) ; runs along one strut in a printed groove,Alpha Wire 5063C / DigiKey,2-4 per m,verified (5063C spec),
+18,1,Vent / vacuum port,M6 vent plug with O-ring (Blue Robotics vent) or M6 316 screw + bonded sealing washer,Blue Robotics / RS,4-8,estimate,needed for the vacuum leak test
+19,6,Cap retaining screws,M3 x 6 316 button-head; 3 per cap; radial through the tube into the plug on the dry side of the O-rings; Tef-Gel on threads,Bolt Depot / Zoro,0.3,verified ($0.30 ea),
+20,4,Motor screws,M3 (or M4) x 8 316 socket head per the GL60 base,Bolt Depot,0.3-0.6,verified range,isolate from the aluminium cap with Tef-Gel
+21,1,Clamp ring (printed),PETG/ASA split ring 2 halves per A_clamp_ring.stl; 4x M4 x 30 316 + nyloc nuts,FDM + Bolt Depot,3-5,estimate,
+22,3,Struts (printed),PETG/ASA NACA 0015 chord 18 mm per A_strut_k.stl; outer pad 30 x 22 mm with 2x M4 holes to the duct,FDM,2-3,estimate,one strut carries the cable in a groove + zip ties
+23,1,Rotor (printed),PETG/ASA per A_rotor.stl (reviewed rev 2 blade set; 12 mm bore); balance to 0.5 g,FDM,5-8,estimate,
+24,6,Duct interface fasteners,M4 x 16 316 + nyloc nuts + nylon washers,Bolt Depot,0.6,verified range,
+25,1,Silicone grease,Dow/Molykote 111 (O-rings and seal lip),Amazon,8-12,estimate,
+26,1,Anti-galvanic paste,Tef-Gel 2 oz (316 screws in aluminium),Amazon / West Marine,39-46,verified,or nylon washers + isolating sleeves
+27,1,Desiccant + indicator,2 g silica bag + moisture indicator card inside the nacelle,Amazon,2-3,estimate,
+28,1,Rectifier,3-phase bridge rectifier 35 A / 100 V (Schottky preferred) or 6x SB560,Amazon / DigiKey,4-8,estimate,
+29,1,Charge controller,boost MPPT charger rated >= 60 V input (runaway 59 V at 2 m/s) with current limit <= 1.5 A; e.g. wind/hydro boost MPPT 12/24 V,Amazon / Genasun / Victron-class,40-150,estimate,must never stall the rotor: current limit 1.5 A
+30,1,Dump load / brake,50 W 10 ohm resistor + relay or a 3-phase short-circuit switch (runaway protection),DigiKey,10-20,estimate,
