@@ -6,50 +6,87 @@
   "oring_cs": 2.62,
   "oring_groove_w": 3.6,
   "oring_groove_d": 2.08,
+  "oring_land": 2.5,
   "motor_od": 69.0,
   "motor_len": 22.3,
   "motor_bore": 20.0,
   "motor_pcd": 50.0,
   "motor_hole": 2.6,
   "bell_pcd": 40.0,
-  "disc_t": 2.5,
+  "disc_t": 3.0,
   "disc_od": 62.0,
   "disc_pcd_out": 48.0,
   "dog_d": 8.0,
   "dog_h": 4.0,
+  "screw_cb_d": 6.0,
+  "screw_cb_depth": 2.2,
+  "screw_head_d": 5.5,
+  "screw_head_h": 2.0,
   "spindle_d": 15.0,
   "spindle_bore": 9.0,
   "sp_flange_od": 58.0,
   "sp_flange_t": 4.0,
   "circlip_w": 1.1,
   "circlip_d": 14.3,
+  "circlip_edge": 2.0,
+  "circlip_gap": 0.1,
+  "collar_od": 17.6,
+  "collar_w": 2.0,
+  "collar_groove_d": 13.5,
+  "shim_t": 0.3,
+  "cap_web": 2.5,
+  "lead_hole_d": 4.5,
+  "lead_channel_w": 5.0,
+  "lead_channel_d": 2.5,
+  "lead_angle": 45.0,
+  "sleeve_len": 6.0,
+  "sleeve_od": 15.56,
   "carrier_wall": 3.9,
   "carrier_lip": 2.0,
   "lug_w": 6.0,
   "lug_h": 3.0,
   "pad_h": 6.0,
   "pad_len": 36.0,
-  "pad_w": 30.0,
-  "pocket_len": 30.0,
-  "pocket_w": 12.0,
-  "pocket_d": 7.0,
+  "pad_w": 58.0,
+  "pocket_d": 8.7,
+  "pocket_clear": 0.15,
   "pin_d": 3.0,
-  "pin_x": 10.0,
+  "pin_y": 8.0,
+  "pin_below_top": 4.5,
   "seg_bolt_d": 3.2,
   "seg_bolt_n": 2,
+  "nut_af": 5.7,
+  "nut_h": 2.6,
   "boss_od": 72.0,
   "strut_w": 16.0,
   "strut_t": 4.0,
-  "strut_tab_w": null,
   "n_struts": 3,
-  "duct_id": 207.0,
-  "duct_od": 213.0,
-  "foot_len": 22.0,
-  "r_jog0": 50.0,
-  "r_jog1": 56.0,
+  "duct_id": 210.0,
+  "duct_od": 216.0,
+  "r_jog0": 52.0,
+  "r_jog1": 58.0,
+  "clevis_len": 20.0,
+  "clevis_w": 14.0,
   "cable_d": 4.5,
   "vent_r": 24.0,
+  "vent_cb_d": 11.0,
+  "vent_cb_depth": 3.0,
+  "lab_r0": 14.5,
+  "lab_r1": 16.5,
+  "lab_h": 5.5,
+  "lab_groove_r0": 14.0,
+  "lab_groove_r1": 17.0,
+  "lab_groove_d": 2.5,
+  "spindle_recess": 3.0,
+  "plug_d": 9.0,
+  "plug_len": 10.0,
+  "plug_head_d": 12.0,
+  "plug_head_t": 2.0,
+  "lead_groove_w": 6.0,
+  "lead_groove_d": 3.0,
+  "lead_groove_angle": 60.0,
   "gap_drum_boss": 2.0,
+  "boss_pin_x": 3.5,
   "r_hub": 42.0,
   "c_max": 60.0,
   "peak_r": 0.58,
@@ -69,7 +106,9 @@
    "boss_t": 10.0,
    "flange_t": 2.5,
    "ic": 1.0,
-   "plug_len": 13.0,
+   "plug_front": 13.5,
+   "plug_rear": 13.5,
+   "n_orings": 2,
    "oring_pitch": 5.6,
    "seal": "15x24x5",
    "seal_od": 24.0,
@@ -81,11 +120,13 @@
    "brg_od": 21.0,
    "brg_w": 4.0,
    "dome_h": 6.0,
-   "boss_t": 8.0,
+   "boss_t": 10.0,
    "flange_t": 2.0,
    "ic": 0.5,
-   "plug_len": 11.4,
-   "oring_pitch": 5.2,
+   "plug_front": 8.6,
+   "plug_rear": 9.6,
+   "n_orings": 1,
+   "oring_pitch": 0.0,
    "seal": "15x22x4",
    "seal_od": 22.0,
    "seal_w": 4.0,
@@ -93,130 +134,113 @@
   }
  },
  "to_measure": {
-  "motor_pcd / motor_hole": "GL60 stator-base mounting hole PCD and thread (manufacturer drawing could not be fetched in this session)",
-  "bell_pcd": "GL60 rotor (bell) face mounting PCD/thread for the TPU drive disc",
+  "motor_pcd / motor_hole / bell_pcd": "GL60 stator-base and bell mounting hole PCDs and threads (manufacturer drawing could not be fetched): the flange and the disc carry BOTH patterns",
+  "GL60 lead exit": "where the three phase leads leave the stator base (OD or bore side); the flange channel runs from the OD to the bore so either works",
   "motor_od / motor_len / motor_bore": "confirm 69.0 x 22.3 mm and the 20 mm through-bore on the delivered revision",
-  "tube_id": "measure the real 3.0 x 0.065 in tube bore (+-0.15) and cut the cap O-ring grooves to it",
-  "Speedi-Sleeve 99059 on an anodised aluminium journal": "confirm with SKF; fallback = run the lip on the hard-anodised 15 h6 journal (Ra 0.4) and inspect at 2 weeks"
+  "tube_id": "measure the real 3.0 x 0.065 in tube bore (+-0.15); bore both ends 72.90 H8 x 12 deep and cut the cap O-ring grooves to that",
+  "Speedi-Sleeve 99059": "confirm the sleeve width (modelled 6.0) and SKF's advice on an anodised aluminium journal; fallback = run the PTFE lip on the hard-anodised 15 h6 journal (Ra 0.4)",
+  "lip seal": "PTFE pressure-rated lip seal in the 15x22x4 (min76) / 15x24x5 (robust) envelope (Trelleborg Varilip PDR or equivalent); confirm availability, else Freudenberg BABSL 15x24x5",
+  "DIN 471-15 lug envelope": "confirm the installed outside dimension across the lugs fits the 24 mm recess"
+ },
+ "print_orientation": {
+  "dome": "base face down on the bed, no supports; 100 % infill (solid); ASA",
+  "drive_disc": "flat on the bed, dogs up (TPU 95A, 100 % infill, no supports; counterbores print as holes from the top)",
+  "carrier": "pad up, arc standing like a bridge with its axis along the bed X (the airfoil pocket opens upward and prints without internal support); brim; tree supports under the arc (bore), lips and ears; ASA, 4 perimeters, 100 % infill in the pad/pocket/ears zone, 40 % gyroid elsewhere. Axis-vertical was rejected: the pocket roof would be a 39 mm flat overhang needing internal support in a 0.15 mm fit.",
+  "blade": "pressure side down with the span along the bed X, tilted about Y so the root and tip low points are level (done in the STL); tongue at the root end lies flat; organic/tree supports with an interface layer under the leading- and trailing-edge overhangs, brim; ASA, 100 % infill; layers run along the span",
+  "duct": "ring axis vertical; three 120-degree arcs with 20 mm lap joints (2x M3 each, laps not modelled) because the ring is 237 mm over the clevises; ASA, 3 perimeters, 30 % infill"
  },
  "configs": {
   "robust": {
    "layout": {
     "variant": "robust",
     "x_blade_centre": 0.0,
-    "L_tube": 57.3,
-    "carrier_L": 66.3,
+    "L_tube": 58.8,
+    "carrier_L": 67.8,
     "x_tube": [
-     -24.65,
-     32.65
+     -25.4,
+     33.4
     ],
-    "x_front_face": -27.15,
-    "x_rear_face": 35.15,
-    "x_dome_tip": -36.15,
+    "x_front_face": -27.9,
+    "x_rear_face": 35.9,
+    "x_dome_tip": -36.9,
     "x_boss": [
-     39.15,
-     49.15
+     39.9,
+     49.9
     ],
     "x_motor": [
-     -7.649999999999999,
-     14.650000000000002
+     -7.399999999999999,
+     14.900000000000002
     ],
-    "x_disc": -10.649999999999999,
-    "x_brg_front": -18.849999999999998,
-    "x_brg_rear": 21.65,
-    "x_seal": 30.15,
+    "x_disc": -10.899999999999999,
+    "x_spindle": [
+     -22.3,
+     46.9
+    ],
+    "x_brg_front": -19.099999999999998,
+    "x_brg_rear": 21.4,
+    "x_seal": 30.9,
+    "x_wet": 35.9,
+    "x_collar": 28.7,
+    "x_shim": 28.4,
+    "x_sleeve": [
+     30.8,
+     36.8
+    ],
+    "x_circlip": -20.3,
+    "x_boss_pin": 43.4,
+    "x_pad": 0.0,
     "r_hub": 42.2,
     "r_pad_top": 48.2,
-    "axial_depth_mm": 85.3000002,
-    "axial_depth_no_duct_mm": 85.3000002,
-    "axial_depth_duct_mm": 71.15000020000001,
-    "interference_mm3": {
-     "motor/front_cap": 0.0,
-     "motor/rear_cap": 0.0,
-     "motor/tube": 0.0,
-     "motor/spindle": 0.0,
-     "drive_disc/front_cap": 0.0,
-     "drive_disc/motor": 0.0,
-     "spindle/front_cap": 0.0,
-     "spindle/rear_cap": 0.0,
-     "front_cap/tube": 0.0,
-     "rear_cap/tube": 0.0,
-     "carrier_0/tube": 0.0,
-     "carrier_0/front_cap": 0.0,
-     "carrier_0/rear_cap": 0.0,
-     "carrier_0/carrier_1": 0.0,
-     "carrier_1/carrier_2": 0.0,
-     "blade_0/carrier_0": 0.0,
-     "blade_1/carrier_1": 0.0,
-     "blade_0/tube": 0.0,
-     "dome/front_cap": 0.0,
-     "dome/carrier_0": 0.0,
-     "boss/rear_cap": 0.0,
-     "boss/spindle": 0.0,
-     "strut_0/boss": 0.0,
-     "strut_0/duct": 0.0,
-     "strut_1/duct": 0.0,
-     "bearing_front/front_cap": 0.0,
-     "bearing_rear/rear_cap": 0.0,
-     "bearing_front/spindle": 0.0,
-     "circlip_front/front_cap": 0.0,
-     "pin_0_a/carrier_0": 0.0,
-     "pin_0_a/blade_0": 0.0,
-     "blade_0/duct": 0.0,
-     "blade_0/dome": 0.0,
-     "lip_seal/rear_cap": 0.0,
-     "speedi_sleeve/rear_cap": 0.0,
-     "spindle/bearing_rear": 0.0,
-     "spindle_collar/rear_cap": 0.0,
-     "spindle_collar/bearing_rear": 0.0,
-     "spindle_collar/lip_seal": 0.0,
-     "strut_0/carrier_0": 0.0,
-     "strut_0/blade_0": 0.0,
-     "strut_0/carrier_1": 0.0,
-     "strut_1/blade_1": 0.0,
-     "boss/carrier_0": 0.0,
-     "dome/blade_0": 0.0,
-     "carrier_0/blade_1": 0.0,
-     "circlip_front/spindle": 0.0,
-     "strut_0/tube": 0.0,
-     "strut_1/blade_0": 0.0,
-     "strut_2/blade_2": 0.0
-    }
+    "pin_z": 43.7,
+    "pin_material_mm": [
+     10.980719295282405,
+     11.28389299703602
+    ],
+    "root_chord_at_pad": 51.35542513835519,
+    "root_twist_at_pad": 20.113438511768287,
+    "tongue_axial_extent": 19.780642685172786,
+    "tongue_tangential_extent": 48.71535936723659,
+    "pocket_floor_r": 39.5,
+    "axial_depth_mm": 86.8000002,
+    "axial_depth_no_duct_mm": 86.8000002,
+    "axial_depth_duct_mm": 84.8,
+    "interference_mm3": {},
+    "pairs_checked": 780
    },
    "parts": [
     {
      "name": "tube",
-     "kind": "COTS",
-     "note": "6061-T6 tube 3.0 in OD x 0.065 in wall, 57.3 mm, hard-anodised",
+     "kind": "COTS+machined",
+     "note": "6061-T6 tube 3.0 in OD x 0.065 in wall, 58.8 mm, ends faced, O-ring lands bored 72.90 H8 x 12, hard-anodised",
      "valid": true,
-     "volume_mm3": 22143.0,
+     "volume_mm3": 22722.6,
      "x": [
-      -24.65,
-      32.65
+      -25.4,
+      33.4
      ],
      "rmax": 38.1
     },
     {
      "name": "front_cap",
      "kind": "machined",
-     "note": "Delrin front cap: 2 radial O-rings, blind 6902 bearing pocket, 4x M3 (disc), 3x M3 (dome), 3 lug notches",
+     "note": "6061-T6 front cap (hard-anodised): 2 radial O-ring(s), blind 6902 pocket, 24 mm circlip recess, 4 dog pockets, 3x M3 (dome), 3 lug notches",
      "valid": true,
-     "volume_mm3": 55834.6,
+     "volume_mm3": 57300.7,
      "x": [
-      -27.15,
-      -11.65
+      -27.9,
+      -11.9
      ],
      "rmax": 38.1
     },
     {
      "name": "rear_cap",
      "kind": "machined",
-     "note": "Delrin rear cap: 2 radial O-rings, 6902 bearing bore, lip seal 15x24x5 seat, M6 vent port, 3 lug notches",
+     "note": "6061-T6 rear cap (hard-anodised): 2 radial O-ring(s), 6902 bore, lip seal 15x24x5 seat, labyrinth groove, counterbored M6 vent, 3 lug notches",
      "valid": true,
-     "volume_mm3": 53414.6,
+     "volume_mm3": 54612.6,
      "x": [
-      19.65,
-      35.15
+      19.9,
+      35.9
      ],
      "rmax": 38.1
     },
@@ -227,8 +251,8 @@
      "valid": true,
      "volume_mm3": 1206.1,
      "x": [
-      -22.16,
-      -19.54
+      -22.41,
+      -19.79
      ],
      "rmax": 36.92
     },
@@ -239,8 +263,8 @@
      "valid": true,
      "volume_mm3": 1206.1,
      "x": [
-      -16.56,
-      -13.94
+      -16.81,
+      -14.19
      ],
      "rmax": 36.92
     },
@@ -251,8 +275,8 @@
      "valid": true,
      "volume_mm3": 1206.1,
      "x": [
-      27.54,
-      30.16
+      27.79,
+      30.41
      ],
      "rmax": 36.92
     },
@@ -263,20 +287,20 @@
      "valid": true,
      "volume_mm3": 1206.1,
      "x": [
-      21.94,
-      24.56
+      22.19,
+      24.81
      ],
      "rmax": 36.92
     },
     {
      "name": "spindle",
      "kind": "machined",
-     "note": "6061-T6 spindle 15 h6 x 70 mm, 9 mm bore, integral stator flange, hard-anodised; Speedi-Sleeve 99059 at the seal",
+     "note": "6061-T6 spindle 15 h6 x 69.2 mm, 9 mm bore (rear 15 mm reamed 9 H7), integral stator flange with lead channel, split-ring groove, hard-anodised",
      "valid": true,
-     "volume_mm3": 17533.3,
+     "volume_mm3": 16590.4,
      "x": [
-      -20.55,
-      49.15
+      -22.3,
+      46.9
      ],
      "rmax": 29.0
     },
@@ -287,8 +311,8 @@
      "valid": true,
      "volume_mm3": 3073.3,
      "x": [
-      -18.85,
-      -11.85
+      -19.1,
+      -12.1
      ],
      "rmax": 14.0
     },
@@ -299,68 +323,104 @@
      "valid": true,
      "volume_mm3": 3073.3,
      "x": [
-      21.65,
-      28.65
+      21.4,
+      28.4
      ],
      "rmax": 14.0
     },
     {
-     "name": "lip_seal",
+     "name": "shim_rear",
      "kind": "COTS",
-     "note": "rotary lip seal 15x24x5 NBR+spring, lip to the water",
+     "note": "316 shim 15.2 x 17.6 x 0.3 (pack 0.1/0.2/0.3: sets end play 0.1-0.2)",
      "valid": true,
-     "volume_mm3": 1383.1,
+     "volume_mm3": 18.5,
      "x": [
-      30.15,
-      35.15
-     ],
-     "rmax": 12.0
-    },
-    {
-     "name": "speedi_sleeve",
-     "kind": "COTS",
-     "note": "SKF Speedi-Sleeve 99059 (15 mm)",
-     "valid": true,
-     "volume_mm3": 94.1,
-     "x": [
-      29.15,
-      36.15
-     ],
-     "rmax": 7.78
-    },
-    {
-     "name": "circlip_front",
-     "kind": "COTS",
-     "note": "DIN 471-15 stainless circlip (reverse-thrust stop)",
-     "valid": true,
-     "volume_mm3": 135.2,
-     "x": [
-      -20.35,
-      -19.25
-     ],
-     "rmax": 9.5
-    },
-    {
-     "name": "spindle_collar",
-     "kind": "machined",
-     "note": "integral spindle collar 17.6 x 1.3 behind the rear bearing (thrust stop), inside the cap's 18 mm wall hole",
-     "valid": true,
-     "volume_mm3": 86.8,
-     "x": [
-      28.75,
-      30.05
+      28.4,
+      28.7
      ],
      "rmax": 8.8
     },
     {
+     "name": "split_collar",
+     "kind": "machined",
+     "note": "316 split thrust ring 17.6 x 13.5 x 2.0 (two halves) in the spindle groove, captured by the cap's 18 mm wall hole",
+     "valid": true,
+     "volume_mm3": 198.3,
+     "x": [
+      28.71,
+      30.69
+     ],
+     "rmax": 8.8
+    },
+    {
+     "name": "speedi_sleeve",
+     "kind": "COTS",
+     "note": "SKF Speedi-Sleeve 99059 (15 mm), sealant under it",
+     "valid": true,
+     "volume_mm3": 80.6,
+     "x": [
+      30.8,
+      36.8
+     ],
+     "rmax": 7.78
+    },
+    {
+     "name": "lip_seal",
+     "kind": "COTS",
+     "note": "PTFE pressure-rated lip seal 15x24x5 (Varilip PDR class), lip to the water",
+     "valid": true,
+     "volume_mm3": 1383.1,
+     "x": [
+      30.9,
+      35.9
+     ],
+     "rmax": 12.0
+    },
+    {
+     "name": "circlip_front",
+     "kind": "COTS",
+     "note": "DIN 471-15 stainless circlip (reverse-thrust stop, 0.1 mm gap)",
+     "valid": true,
+     "volume_mm3": 135.2,
+     "x": [
+      -20.3,
+      -19.2
+     ],
+     "rmax": 9.5
+    },
+    {
+     "name": "potting_plug",
+     "kind": "machined",
+     "note": "Delrin potting plug 9 f7 x 10 + 12 mm head, leads epoxy-potted (solder-filled strands), AS568-010 O-ring",
+     "valid": true,
+     "volume_mm3": 583.2,
+     "x": [
+      36.9,
+      48.9
+     ],
+     "rmax": 6.0
+    },
+    {
+     "name": "plug_oring",
+     "kind": "COTS",
+     "note": "AS568-010 EPDM",
+     "valid": true,
+     "volume_mm3": 61.4,
+     "x": [
+      40.21,
+      41.99
+     ],
+     "rmax": 4.82
+    },
+    {
      "name": "drive_disc",
      "kind": "print",
-     "note": "TPU 95A drive disc 2.5 mm with 4 dogs (8 x 4) into the front-cap pockets; 4x M3 to the bell face",
+     "note": "TPU 95A drive disc 3.0 mm with 4 dogs (8 x 4) into the front-cap pockets; counterbored M3/M2.5 to the bell face",
      "valid": true,
-     "volume_mm3": 7311.0,
+     "volume_mm3": 8225.6,
      "x": [
-      -14.65,
-      -8.15
+      -14.9,
+      -7.9
      ],
      "rmax": 31.0,
      "stl_watertight": true
@@ -372,45 +432,153 @@
      "valid": true,
      "volume_mm3": 76166.6,
      "x": [
-      -7.65,
-      14.65
+      -7.4,
+      14.9
      ],
      "rmax": 34.5
     },
     {
      "name": "boss",
      "kind": "machined",
-     "note": "6061-T6 boss 72 x 10: spindle clamp pin, cable channel, strut pockets (heat sink)",
+     "note": "6061-T6 boss 72 x 10: cross pin, labyrinth tongue, rear lead groove, 3 strut pockets (heat sink)",
      "valid": true,
-     "volume_mm3": 36475.2,
+     "volume_mm3": 37746.0,
      "x": [
-      39.15,
-      49.15
+      34.4,
+      49.9
      ],
      "rmax": 36.0
     },
     {
+     "name": "screw_stator_0",
+     "kind": "COTS",
+     "note": "M3 low-head cap screw (DIN 7984) head, stator to flange",
+     "valid": true,
+     "volume_mm3": 47.5,
+     "x": [
+      16.8,
+      18.8
+     ],
+     "rmax": 22.75
+    },
+    {
+     "name": "screw_disc_0",
+     "kind": "COTS",
+     "note": "M3 low-head cap screw head, disc to bell",
+     "valid": true,
+     "volume_mm3": 47.5,
+     "x": [
+      -10.8,
+      -8.8
+     ],
+     "rmax": 22.75
+    },
+    {
+     "name": "screw_stator_1",
+     "kind": "COTS",
+     "note": "M3 low-head cap screw (DIN 7984) head, stator to flange",
+     "valid": true,
+     "volume_mm3": 47.5,
+     "x": [
+      16.8,
+      18.8
+     ],
+     "rmax": 22.75
+    },
+    {
+     "name": "screw_disc_1",
+     "kind": "COTS",
+     "note": "M3 low-head cap screw head, disc to bell",
+     "valid": true,
+     "volume_mm3": 47.5,
+     "x": [
+      -10.8,
+      -8.8
+     ],
+     "rmax": 22.75
+    },
+    {
+     "name": "screw_stator_2",
+     "kind": "COTS",
+     "note": "M3 low-head cap screw (DIN 7984) head, stator to flange",
+     "valid": true,
+     "volume_mm3": 47.5,
+     "x": [
+      16.8,
+      18.8
+     ],
+     "rmax": 22.75
+    },
+    {
+     "name": "screw_disc_2",
+     "kind": "COTS",
+     "note": "M3 low-head cap screw head, disc to bell",
+     "valid": true,
+     "volume_mm3": 47.5,
+     "x": [
+      -10.8,
+      -8.8
+     ],
+     "rmax": 22.75
+    },
+    {
+     "name": "screw_stator_3",
+     "kind": "COTS",
+     "note": "M3 low-head cap screw (DIN 7984) head, stator to flange",
+     "valid": true,
+     "volume_mm3": 47.5,
+     "x": [
+      16.8,
+      18.8
+     ],
+     "rmax": 22.75
+    },
+    {
+     "name": "screw_disc_3",
+     "kind": "COTS",
+     "note": "M3 low-head cap screw head, disc to bell",
+     "valid": true,
+     "volume_mm3": 47.5,
+     "x": [
+      -10.8,
+      -8.8
+     ],
+     "rmax": 22.75
+    },
+    {
+     "name": "vent_screw",
+     "kind": "COTS",
+     "note": "M6 low-head 316 screw + Dowty washer (vent/vacuum port), head in the counterbore",
+     "valid": true,
+     "volume_mm3": 512.5,
+     "x": [
+      26.9,
+      38.0
+     ],
+     "rmax": 29.0
+    },
+    {
      "name": "carrier_0",
      "kind": "print",
-     "note": "ASA carrier segment (120 deg) with lips, lugs, blade pad/pocket, bolt ears",
+     "note": "ASA carrier segment (120 deg) with lips, lugs, airfoil root pocket, bolt ears + nut traps",
      "valid": true,
-     "volume_mm3": 29797.7,
+     "volume_mm3": 36049.6,
      "x": [
-      -29.15,
-      37.15
+      -29.9,
+      37.9
      ],
-     "rmax": 47.17,
+     "rmax": 48.2,
      "stl_watertight": true
     },
     {
      "name": "carrier_1",
      "kind": "print",
-     "note": "ASA carrier segment (120 deg) with lips, lugs, blade pad/pocket, bolt ears",
+     "note": "ASA carrier segment (120 deg) with lips, lugs, airfoil root pocket, bolt ears + nut traps",
      "valid": true,
-     "volume_mm3": 29797.7,
+     "volume_mm3": 36049.6,
      "x": [
-      -29.15,
-      37.15
+      -29.9,
+      37.9
      ],
      "rmax": 48.2,
      "stl_watertight": true
@@ -418,187 +586,196 @@
     {
      "name": "carrier_2",
      "kind": "print",
-     "note": "ASA carrier segment (120 deg) with lips, lugs, blade pad/pocket, bolt ears",
+     "note": "ASA carrier segment (120 deg) with lips, lugs, airfoil root pocket, bolt ears + nut traps",
      "valid": true,
-     "volume_mm3": 29797.7,
+     "volume_mm3": 36049.6,
      "x": [
-      -29.15,
-      37.15
+      -29.9,
+      37.9
      ],
-     "rmax": 47.17,
+     "rmax": 48.2,
      "stl_watertight": true
     },
     {
      "name": "blade_0",
      "kind": "print",
-     "note": "ASA blade with pinned tongue root",
+     "note": "ASA blade with airfoil-section tongue root (2 axial spring pins); root cap filled caps, stub ruled floor->pad top",
      "valid": true,
-     "volume_mm3": 16402.6,
+     "volume_mm3": 17380.8,
      "x": [
-      -10.85,
-      18.85
+      -7.3,
+      13.66
      ],
      "rmax": 93.85,
-     "stl_watertight": true
+     "stl_watertight": true,
+     "stl_volume_mm3": 17473.6,
+     "print_tilt_deg": -4.47,
+     "stl_vs_step_volume_pct": 0.53
     },
     {
      "name": "pin_0_a",
      "kind": "COTS",
-     "note": "3 x 32 mm 316 dowel pin",
+     "note": "ISO 8752 3 x 36 stainless spring pin",
      "valid": true,
-     "volume_mm3": 226.2,
+     "volume_mm3": 254.5,
      "x": [
-      12.5,
-      15.5
+      -18.0,
+      18.0
      ],
-     "rmax": 48.01
+     "rmax": 35.35
     },
     {
      "name": "pin_0_b",
      "kind": "COTS",
-     "note": "3 x 32 mm 316 dowel pin",
+     "note": "ISO 8752 3 x 36 stainless spring pin",
      "valid": true,
-     "volume_mm3": 226.2,
+     "volume_mm3": 254.5,
      "x": [
-      -7.5,
-      -4.5
+      -18.0,
+      18.0
      ],
-     "rmax": 48.01
+     "rmax": 43.35
     },
     {
      "name": "blade_1",
      "kind": "print",
-     "note": "ASA blade with pinned tongue root",
+     "note": "ASA blade with airfoil-section tongue root (2 axial spring pins); root cap filled caps, stub ruled floor->pad top",
      "valid": true,
-     "volume_mm3": 16402.6,
+     "volume_mm3": 17380.8,
      "x": [
-      -10.85,
-      18.85
+      -7.3,
+      13.66
      ],
      "rmax": 101.6,
-     "stl_watertight": true
+     "stl_watertight": true,
+     "stl_volume_mm3": 17473.6,
+     "print_tilt_deg": -4.47,
+     "stl_vs_step_volume_pct": 0.53
     },
     {
      "name": "pin_1_a",
      "kind": "COTS",
-     "note": "3 x 32 mm 316 dowel pin",
+     "note": "ISO 8752 3 x 36 stainless spring pin",
      "valid": true,
-     "volume_mm3": 226.2,
+     "volume_mm3": 254.5,
      "x": [
-      12.5,
-      15.5
+      -18.0,
+      18.0
      ],
-     "rmax": 46.2
+     "rmax": 45.2
     },
     {
      "name": "pin_1_b",
      "kind": "COTS",
-     "note": "3 x 32 mm 316 dowel pin",
+     "note": "ISO 8752 3 x 36 stainless spring pin",
      "valid": true,
-     "volume_mm3": 226.2,
+     "volume_mm3": 254.5,
      "x": [
-      -7.5,
-      -4.5
+      -18.0,
+      18.0
      ],
-     "rmax": 46.2
+     "rmax": 45.2
     },
     {
      "name": "blade_2",
      "kind": "print",
-     "note": "ASA blade with pinned tongue root",
+     "note": "ASA blade with airfoil-section tongue root (2 axial spring pins); root cap filled caps, stub ruled floor->pad top",
      "valid": true,
-     "volume_mm3": 16402.6,
+     "volume_mm3": 17380.8,
      "x": [
-      -10.85,
-      18.85
+      -7.3,
+      13.66
      ],
      "rmax": 90.64,
-     "stl_watertight": true
+     "stl_watertight": true,
+     "stl_volume_mm3": 17473.6,
+     "print_tilt_deg": -4.47,
+     "stl_vs_step_volume_pct": 0.53
     },
     {
      "name": "pin_2_a",
      "kind": "COTS",
-     "note": "3 x 32 mm 316 dowel pin",
+     "note": "ISO 8752 3 x 36 stainless spring pin",
      "valid": true,
-     "volume_mm3": 226.2,
+     "volume_mm3": 254.5,
      "x": [
-      12.5,
-      15.5
+      -18.0,
+      18.0
      ],
-     "rmax": 48.01
+     "rmax": 43.35
     },
     {
      "name": "pin_2_b",
      "kind": "COTS",
-     "note": "3 x 32 mm 316 dowel pin",
+     "note": "ISO 8752 3 x 36 stainless spring pin",
      "valid": true,
-     "volume_mm3": 226.2,
+     "volume_mm3": 254.5,
      "x": [
-      -7.5,
-      -4.5
+      -18.0,
+      18.0
      ],
-     "rmax": 48.01
+     "rmax": 35.35
     },
     {
      "name": "dome",
      "kind": "print",
      "note": "ASA dome, 3x M3 316 into the front cap flange",
      "valid": true,
-     "volume_mm3": 21410.6,
+     "volume_mm3": 21410.7,
      "x": [
-      -36.15,
-      -27.15
+      -36.9,
+      -27.9
      ],
      "rmax": 33.8,
      "stl_watertight": true
     },
     {
      "name": "strut_0",
-     "kind": "metal (cut+bent flat bar)",
-     "note": "6061-T6 flat bar 16 x 4: tab in the boss (pinned), 14 mm forward jog, foot bolted outside the duct (2x M4)",
+     "kind": "metal (profile-cut plate)",
+     "note": "6061-T6 4 mm plate strut (water-jet profile): tab in the boss (pinned), 14 mm cranked jog, leg into the duct clevis (2x M4)",
      "valid": true,
-     "volume_mm3": 5956.7,
+     "volume_mm3": 4840.5,
      "x": [
-      22.15,
-      48.95
+      22.9,
+      49.7
      ],
-     "rmax": 110.7
+     "rmax": 118.0
     },
     {
      "name": "strut_1",
-     "kind": "metal (cut+bent flat bar)",
-     "note": "6061-T6 flat bar 16 x 4: tab in the boss (pinned), 14 mm forward jog, foot bolted outside the duct (2x M4)",
+     "kind": "metal (profile-cut plate)",
+     "note": "6061-T6 4 mm plate strut (water-jet profile): tab in the boss (pinned), 14 mm cranked jog, leg into the duct clevis (2x M4)",
      "valid": true,
-     "volume_mm3": 5956.7,
+     "volume_mm3": 4840.5,
      "x": [
-      22.15,
-      48.95
+      22.9,
+      49.7
      ],
-     "rmax": 106.87
+     "rmax": 103.19
     },
     {
      "name": "strut_2",
-     "kind": "metal (cut+bent flat bar)",
-     "note": "6061-T6 flat bar 16 x 4: tab in the boss (pinned), 14 mm forward jog, foot bolted outside the duct (2x M4)",
+     "kind": "metal (profile-cut plate)",
+     "note": "6061-T6 4 mm plate strut (water-jet profile): tab in the boss (pinned), 14 mm cranked jog, leg into the duct clevis (2x M4)",
      "valid": true,
-     "volume_mm3": 5956.7,
+     "volume_mm3": 4840.5,
      "x": [
-      22.15,
-      48.95
+      22.9,
+      49.7
      ],
-     "rmax": 96.7
+     "rmax": 103.19
     },
     {
      "name": "duct",
      "kind": "print/reference",
-     "note": "duct/guard ring ID 207 (1.9 mm tip clearance), strut slots, feet outside",
+     "note": "duct/guard ring ID 210 (3.4 mm tip clearance), 3 strut slots + clevises; 3 arcs with lap joints",
      "valid": true,
-     "volume_mm3": 139867.5,
+     "volume_mm3": 175204.1,
      "x": [
-      -22.0,
-      49.15
+      -34.9,
+      49.9
      ],
-     "rmax": 106.5,
+     "rmax": 118.5,
      "stl_watertight": true
     }
    ]
@@ -607,119 +784,93 @@
    "layout": {
     "variant": "min76",
     "x_blade_centre": 0.0,
-    "L_tube": 53.1,
-    "carrier_L": 61.1,
+    "L_tube": 49.0,
+    "carrier_L": 57.0,
     "x_tube": [
-     -22.55,
-     30.55
+     -20.5,
+     28.5
     ],
-    "x_front_face": -24.55,
-    "x_rear_face": 32.55,
-    "x_dome_tip": -30.55,
+    "x_front_face": -22.5,
+    "x_rear_face": 30.5,
+    "x_dome_tip": -28.5,
     "x_boss": [
-     36.55,
-     44.55
+     34.5,
+     44.5
     ],
     "x_motor": [
-     -7.65,
-     14.65
+     -7.9,
+     14.4
     ],
-    "x_disc": -10.65,
-    "x_brg_front": -15.35,
-    "x_brg_rear": 23.049999999999997,
-    "x_seal": 28.549999999999997,
+    "x_disc": -11.4,
+    "x_spindle": [
+     -19.300000000000004,
+     41.5
+    ],
+    "x_brg_front": -16.1,
+    "x_brg_rear": 20.0,
+    "x_seal": 26.5,
+    "x_wet": 30.5,
+    "x_collar": 24.3,
+    "x_shim": 24.0,
+    "x_sleeve": [
+     26.400000000000002,
+     32.400000000000006
+    ],
+    "x_circlip": -17.300000000000004,
+    "x_boss_pin": 38.0,
+    "x_pad": 0.0,
     "r_hub": 42.2,
     "r_pad_top": 48.2,
-    "axial_depth_mm": 75.1000002,
-    "axial_depth_no_duct_mm": 75.1000002,
-    "axial_depth_duct_mm": 66.5500002,
-    "interference_mm3": {
-     "motor/front_cap": 0.0,
-     "motor/rear_cap": 0.0,
-     "motor/tube": 0.0,
-     "motor/spindle": 0.0,
-     "drive_disc/front_cap": 0.0,
-     "drive_disc/motor": 0.0,
-     "spindle/front_cap": 0.0,
-     "spindle/rear_cap": 0.0,
-     "front_cap/tube": 0.0,
-     "rear_cap/tube": 0.0,
-     "carrier_0/tube": 0.0,
-     "carrier_0/front_cap": 0.0,
-     "carrier_0/rear_cap": 0.0,
-     "carrier_0/carrier_1": 0.0,
-     "carrier_1/carrier_2": 0.0,
-     "blade_0/carrier_0": 0.0,
-     "blade_1/carrier_1": 0.0,
-     "blade_0/tube": 0.0,
-     "dome/front_cap": 0.0,
-     "dome/carrier_0": 0.0,
-     "boss/rear_cap": 0.0,
-     "boss/spindle": 0.0,
-     "strut_0/boss": 0.0,
-     "strut_0/duct": 0.0,
-     "strut_1/duct": 0.0,
-     "bearing_front/front_cap": 0.0,
-     "bearing_rear/rear_cap": 0.0,
-     "bearing_front/spindle": 0.0,
-     "circlip_front/front_cap": 0.0,
-     "pin_0_a/carrier_0": 0.0,
-     "pin_0_a/blade_0": 0.0,
-     "blade_0/duct": 0.0,
-     "blade_0/dome": 0.0,
-     "lip_seal/rear_cap": 0.0,
-     "speedi_sleeve/rear_cap": 0.0,
-     "spindle/bearing_rear": 0.0,
-     "spindle_collar/rear_cap": 0.0,
-     "spindle_collar/bearing_rear": 0.0,
-     "spindle_collar/lip_seal": 0.0,
-     "strut_0/carrier_0": 0.0,
-     "strut_0/blade_0": 0.0,
-     "strut_0/carrier_1": 0.0,
-     "strut_1/blade_1": 0.0,
-     "boss/carrier_0": 0.0,
-     "dome/blade_0": 0.0,
-     "carrier_0/blade_1": 0.0,
-     "circlip_front/spindle": 0.0,
-     "strut_0/tube": 0.0,
-     "strut_1/blade_0": 0.0,
-     "strut_2/blade_2": 0.0
-    }
+    "pin_z": 43.7,
+    "pin_material_mm": [
+     10.980719295282405,
+     11.28389299703602
+    ],
+    "root_chord_at_pad": 51.35542513835519,
+    "root_twist_at_pad": 20.113438511768287,
+    "tongue_axial_extent": 19.780642685172786,
+    "tongue_tangential_extent": 48.71535936723659,
+    "pocket_floor_r": 39.5,
+    "axial_depth_mm": 73.0000002,
+    "axial_depth_no_duct_mm": 73.0000002,
+    "axial_depth_duct_mm": 71.0,
+    "interference_mm3": {},
+    "pairs_checked": 780
    },
    "parts": [
     {
      "name": "tube",
-     "kind": "COTS",
-     "note": "6061-T6 tube 3.0 in OD x 0.065 in wall, 53.1 mm, hard-anodised",
+     "kind": "COTS+machined",
+     "note": "6061-T6 tube 3.0 in OD x 0.065 in wall, 49.0 mm, ends faced, O-ring lands bored 72.90 H8 x 12, hard-anodised",
      "valid": true,
-     "volume_mm3": 20519.9,
+     "volume_mm3": 18935.5,
      "x": [
-      -22.55,
-      30.55
+      -20.5,
+      28.5
      ],
      "rmax": 38.1
     },
     {
      "name": "front_cap",
      "kind": "machined",
-     "note": "Delrin front cap: 2 radial O-rings, blind 6702 bearing pocket, 4x M3 (disc), 3x M3 (dome), 3 lug notches",
+     "note": "6061-T6 front cap (hard-anodised): 1 radial O-ring(s), blind 6702 pocket, 24 mm circlip recess, 4 dog pockets, 3x M3 (dome), 3 lug notches",
      "valid": true,
-     "volume_mm3": 49913.0,
+     "volume_mm3": 39323.2,
      "x": [
-      -24.55,
-      -11.15
+      -22.5,
+      -11.9
      ],
      "rmax": 38.1
     },
     {
      "name": "rear_cap",
      "kind": "machined",
-     "note": "Delrin rear cap: 2 radial O-rings, 6702 bearing bore, lip seal 15x22x4 seat, M6 vent port, 3 lug notches",
+     "note": "6061-T6 rear cap (hard-anodised): 1 radial O-ring(s), 6702 bore, lip seal 15x22x4 seat, labyrinth groove, counterbored M6 vent, 3 lug notches",
      "valid": true,
-     "volume_mm3": 48106.7,
+     "volume_mm3": 42117.3,
      "x": [
-      19.15,
-      32.55
+      18.9,
+      30.5
      ],
      "rmax": 38.1
     },
@@ -730,8 +881,8 @@
      "valid": true,
      "volume_mm3": 1206.1,
      "x": [
-      -20.06,
-      -17.44
+      -17.51,
+      -14.89
      ],
      "rmax": 36.92
     },
@@ -742,44 +893,20 @@
      "valid": true,
      "volume_mm3": 1206.1,
      "x": [
-      -14.86,
-      -12.24
-     ],
-     "rmax": 36.92
-    },
-    {
-     "name": "oring_2",
-     "kind": "COTS",
-     "note": "AS568-147 EPDM 70",
-     "valid": true,
-     "volume_mm3": 1206.1,
-     "x": [
-      25.44,
-      28.06
-     ],
-     "rmax": 36.92
-    },
-    {
-     "name": "oring_3",
-     "kind": "COTS",
-     "note": "AS568-147 EPDM 70",
-     "valid": true,
-     "volume_mm3": 1206.1,
-     "x": [
-      20.24,
-      22.86
+      22.89,
+      25.51
      ],
      "rmax": 36.92
     },
     {
      "name": "spindle",
      "kind": "machined",
-     "note": "6061-T6 spindle 15 h6 x 62 mm, 9 mm bore, integral stator flange, hard-anodised; Speedi-Sleeve 99059 at the seal",
+     "note": "6061-T6 spindle 15 h6 x 60.8 mm, 9 mm bore (rear 15 mm reamed 9 H7), integral stator flange with lead channel, split-ring groove, hard-anodised",
      "valid": true,
-     "volume_mm3": 16617.2,
+     "volume_mm3": 15640.4,
      "x": [
-      -17.05,
-      44.55
+      -19.3,
+      41.5
      ],
      "rmax": 29.0
     },
@@ -790,8 +917,8 @@
      "valid": true,
      "volume_mm3": 678.6,
      "x": [
-      -15.35,
-      -11.35
+      -16.1,
+      -12.1
      ],
      "rmax": 10.5
     },
@@ -802,68 +929,104 @@
      "valid": true,
      "volume_mm3": 678.6,
      "x": [
-      23.05,
-      27.05
+      20.0,
+      24.0
      ],
      "rmax": 10.5
     },
     {
-     "name": "lip_seal",
+     "name": "shim_rear",
      "kind": "COTS",
-     "note": "rotary lip seal 15x22x4 NBR+spring, lip to the water",
+     "note": "316 shim 15.2 x 17.6 x 0.3 (pack 0.1/0.2/0.3: sets end play 0.1-0.2)",
      "valid": true,
-     "volume_mm3": 817.4,
+     "volume_mm3": 18.5,
      "x": [
-      28.55,
-      32.55
-     ],
-     "rmax": 11.0
-    },
-    {
-     "name": "speedi_sleeve",
-     "kind": "COTS",
-     "note": "SKF Speedi-Sleeve 99059 (15 mm)",
-     "valid": true,
-     "volume_mm3": 80.6,
-     "x": [
-      27.55,
-      33.55
-     ],
-     "rmax": 7.78
-    },
-    {
-     "name": "circlip_front",
-     "kind": "COTS",
-     "note": "DIN 471-15 stainless circlip (reverse-thrust stop)",
-     "valid": true,
-     "volume_mm3": 135.2,
-     "x": [
-      -16.85,
-      -15.75
-     ],
-     "rmax": 9.5
-    },
-    {
-     "name": "spindle_collar",
-     "kind": "machined",
-     "note": "integral spindle collar 17.6 x 1.3 behind the rear bearing (thrust stop), inside the cap's 18 mm wall hole",
-     "valid": true,
-     "volume_mm3": 86.8,
-     "x": [
-      27.15,
-      28.45
+      24.0,
+      24.3
      ],
      "rmax": 8.8
     },
     {
+     "name": "split_collar",
+     "kind": "machined",
+     "note": "316 split thrust ring 17.6 x 13.5 x 2.0 (two halves) in the spindle groove, captured by the cap's 18 mm wall hole",
+     "valid": true,
+     "volume_mm3": 198.3,
+     "x": [
+      24.31,
+      26.29
+     ],
+     "rmax": 8.8
+    },
+    {
+     "name": "speedi_sleeve",
+     "kind": "COTS",
+     "note": "SKF Speedi-Sleeve 99059 (15 mm), sealant under it",
+     "valid": true,
+     "volume_mm3": 80.6,
+     "x": [
+      26.4,
+      32.4
+     ],
+     "rmax": 7.78
+    },
+    {
+     "name": "lip_seal",
+     "kind": "COTS",
+     "note": "PTFE pressure-rated lip seal 15x22x4 (Varilip PDR class), lip to the water",
+     "valid": true,
+     "volume_mm3": 817.4,
+     "x": [
+      26.5,
+      30.5
+     ],
+     "rmax": 11.0
+    },
+    {
+     "name": "circlip_front",
+     "kind": "COTS",
+     "note": "DIN 471-15 stainless circlip (reverse-thrust stop, 0.1 mm gap)",
+     "valid": true,
+     "volume_mm3": 135.2,
+     "x": [
+      -17.3,
+      -16.2
+     ],
+     "rmax": 9.5
+    },
+    {
+     "name": "potting_plug",
+     "kind": "machined",
+     "note": "Delrin potting plug 9 f7 x 10 + 12 mm head, leads epoxy-potted (solder-filled strands), AS568-010 O-ring",
+     "valid": true,
+     "volume_mm3": 583.2,
+     "x": [
+      31.5,
+      43.5
+     ],
+     "rmax": 6.0
+    },
+    {
+     "name": "plug_oring",
+     "kind": "COTS",
+     "note": "AS568-010 EPDM",
+     "valid": true,
+     "volume_mm3": 61.4,
+     "x": [
+      34.81,
+      36.59
+     ],
+     "rmax": 4.82
+    },
+    {
      "name": "drive_disc",
      "kind": "print",
-     "note": "TPU 95A drive disc 2.5 mm with 4 dogs (8 x 4) into the front-cap pockets; 4x M3 to the bell face",
+     "note": "TPU 95A drive disc 3.0 mm with 4 dogs (8 x 4) into the front-cap pockets; counterbored M3/M2.5 to the bell face",
      "valid": true,
-     "volume_mm3": 7311.0,
+     "volume_mm3": 8225.6,
      "x": [
-      -14.65,
-      -8.15
+      -15.4,
+      -8.4
      ],
      "rmax": 31.0,
      "stl_watertight": true
@@ -875,45 +1038,153 @@
      "valid": true,
      "volume_mm3": 76166.6,
      "x": [
-      -7.65,
-      14.65
+      -7.9,
+      14.4
      ],
      "rmax": 34.5
     },
     {
      "name": "boss",
      "kind": "machined",
-     "note": "6061-T6 boss 72 x 8: spindle clamp pin, cable channel, strut pockets (heat sink)",
+     "note": "6061-T6 boss 72 x 10: cross pin, labyrinth tongue, rear lead groove, 3 strut pockets (heat sink)",
      "valid": true,
-     "volume_mm3": 28848.3,
+     "volume_mm3": 37746.1,
      "x": [
-      36.55,
-      44.55
+      29.0,
+      44.5
      ],
      "rmax": 36.0
     },
     {
+     "name": "screw_stator_0",
+     "kind": "COTS",
+     "note": "M3 low-head cap screw (DIN 7984) head, stator to flange",
+     "valid": true,
+     "volume_mm3": 47.5,
+     "x": [
+      16.3,
+      18.3
+     ],
+     "rmax": 22.75
+    },
+    {
+     "name": "screw_disc_0",
+     "kind": "COTS",
+     "note": "M3 low-head cap screw head, disc to bell",
+     "valid": true,
+     "volume_mm3": 47.5,
+     "x": [
+      -11.3,
+      -9.3
+     ],
+     "rmax": 22.75
+    },
+    {
+     "name": "screw_stator_1",
+     "kind": "COTS",
+     "note": "M3 low-head cap screw (DIN 7984) head, stator to flange",
+     "valid": true,
+     "volume_mm3": 47.5,
+     "x": [
+      16.3,
+      18.3
+     ],
+     "rmax": 22.75
+    },
+    {
+     "name": "screw_disc_1",
+     "kind": "COTS",
+     "note": "M3 low-head cap screw head, disc to bell",
+     "valid": true,
+     "volume_mm3": 47.5,
+     "x": [
+      -11.3,
+      -9.3
+     ],
+     "rmax": 22.75
+    },
+    {
+     "name": "screw_stator_2",
+     "kind": "COTS",
+     "note": "M3 low-head cap screw (DIN 7984) head, stator to flange",
+     "valid": true,
+     "volume_mm3": 47.5,
+     "x": [
+      16.3,
+      18.3
+     ],
+     "rmax": 22.75
+    },
+    {
+     "name": "screw_disc_2",
+     "kind": "COTS",
+     "note": "M3 low-head cap screw head, disc to bell",
+     "valid": true,
+     "volume_mm3": 47.5,
+     "x": [
+      -11.3,
+      -9.3
+     ],
+     "rmax": 22.75
+    },
+    {
+     "name": "screw_stator_3",
+     "kind": "COTS",
+     "note": "M3 low-head cap screw (DIN 7984) head, stator to flange",
+     "valid": true,
+     "volume_mm3": 47.5,
+     "x": [
+      16.3,
+      18.3
+     ],
+     "rmax": 22.75
+    },
+    {
+     "name": "screw_disc_3",
+     "kind": "COTS",
+     "note": "M3 low-head cap screw head, disc to bell",
+     "valid": true,
+     "volume_mm3": 47.5,
+     "x": [
+      -11.3,
+      -9.3
+     ],
+     "rmax": 22.75
+    },
+    {
+     "name": "vent_screw",
+     "kind": "COTS",
+     "note": "M6 low-head 316 screw + Dowty washer (vent/vacuum port), head in the counterbore",
+     "valid": true,
+     "volume_mm3": 512.5,
+     "x": [
+      21.5,
+      32.6
+     ],
+     "rmax": 29.0
+    },
+    {
      "name": "carrier_0",
      "kind": "print",
-     "note": "ASA carrier segment (120 deg) with lips, lugs, blade pad/pocket, bolt ears",
+     "note": "ASA carrier segment (120 deg) with lips, lugs, airfoil root pocket, bolt ears + nut traps",
      "valid": true,
-     "volume_mm3": 27764.8,
+     "volume_mm3": 31846.4,
      "x": [
-      -26.55,
-      34.55
+      -24.5,
+      32.5
      ],
-     "rmax": 47.17,
+     "rmax": 48.2,
      "stl_watertight": true
     },
     {
      "name": "carrier_1",
      "kind": "print",
-     "note": "ASA carrier segment (120 deg) with lips, lugs, blade pad/pocket, bolt ears",
+     "note": "ASA carrier segment (120 deg) with lips, lugs, airfoil root pocket, bolt ears + nut traps",
      "valid": true,
-     "volume_mm3": 27764.8,
+     "volume_mm3": 31846.4,
      "x": [
-      -26.55,
-      34.55
+      -24.5,
+      32.5
      ],
      "rmax": 48.2,
      "stl_watertight": true
@@ -921,126 +1192,135 @@
     {
      "name": "carrier_2",
      "kind": "print",
-     "note": "ASA carrier segment (120 deg) with lips, lugs, blade pad/pocket, bolt ears",
+     "note": "ASA carrier segment (120 deg) with lips, lugs, airfoil root pocket, bolt ears + nut traps",
      "valid": true,
-     "volume_mm3": 27764.8,
+     "volume_mm3": 31846.4,
      "x": [
-      -26.55,
-      34.55
+      -24.5,
+      32.5
      ],
-     "rmax": 47.17,
+     "rmax": 48.2,
      "stl_watertight": true
     },
     {
      "name": "blade_0",
      "kind": "print",
-     "note": "ASA blade with pinned tongue root",
+     "note": "ASA blade with airfoil-section tongue root (2 axial spring pins); root cap filled caps, stub ruled floor->pad top",
      "valid": true,
-     "volume_mm3": 16402.6,
+     "volume_mm3": 17380.8,
      "x": [
-      -10.85,
-      18.85
+      -7.3,
+      13.66
      ],
      "rmax": 93.85,
-     "stl_watertight": true
+     "stl_watertight": true,
+     "stl_volume_mm3": 17473.6,
+     "print_tilt_deg": -4.47,
+     "stl_vs_step_volume_pct": 0.53
     },
     {
      "name": "pin_0_a",
      "kind": "COTS",
-     "note": "3 x 32 mm 316 dowel pin",
+     "note": "ISO 8752 3 x 36 stainless spring pin",
      "valid": true,
-     "volume_mm3": 226.2,
+     "volume_mm3": 254.5,
      "x": [
-      12.5,
-      15.5
+      -18.0,
+      18.0
      ],
-     "rmax": 48.01
+     "rmax": 35.35
     },
     {
      "name": "pin_0_b",
      "kind": "COTS",
-     "note": "3 x 32 mm 316 dowel pin",
+     "note": "ISO 8752 3 x 36 stainless spring pin",
      "valid": true,
-     "volume_mm3": 226.2,
+     "volume_mm3": 254.5,
      "x": [
-      -7.5,
-      -4.5
+      -18.0,
+      18.0
      ],
-     "rmax": 48.01
+     "rmax": 43.35
     },
     {
      "name": "blade_1",
      "kind": "print",
-     "note": "ASA blade with pinned tongue root",
+     "note": "ASA blade with airfoil-section tongue root (2 axial spring pins); root cap filled caps, stub ruled floor->pad top",
      "valid": true,
-     "volume_mm3": 16402.6,
+     "volume_mm3": 17380.8,
      "x": [
-      -10.85,
-      18.85
+      -7.3,
+      13.66
      ],
      "rmax": 101.6,
-     "stl_watertight": true
+     "stl_watertight": true,
+     "stl_volume_mm3": 17473.6,
+     "print_tilt_deg": -4.47,
+     "stl_vs_step_volume_pct": 0.53
     },
     {
      "name": "pin_1_a",
      "kind": "COTS",
-     "note": "3 x 32 mm 316 dowel pin",
+     "note": "ISO 8752 3 x 36 stainless spring pin",
      "valid": true,
-     "volume_mm3": 226.2,
+     "volume_mm3": 254.5,
      "x": [
-      12.5,
-      15.5
+      -18.0,
+      18.0
      ],
-     "rmax": 46.2
+     "rmax": 45.2
     },
     {
      "name": "pin_1_b",
      "kind": "COTS",
-     "note": "3 x 32 mm 316 dowel pin",
+     "note": "ISO 8752 3 x 36 stainless spring pin",
      "valid": true,
-     "volume_mm3": 226.2,
+     "volume_mm3": 254.5,
      "x": [
-      -7.5,
-      -4.5
+      -18.0,
+      18.0
      ],
-     "rmax": 46.2
+     "rmax": 45.2
     },
     {
      "name": "blade_2",
      "kind": "print",
-     "note": "ASA blade with pinned tongue root",
+     "note": "ASA blade with airfoil-section tongue root (2 axial spring pins); root cap filled caps, stub ruled floor->pad top",
      "valid": true,
-     "volume_mm3": 16402.6,
+     "volume_mm3": 17380.8,
      "x": [
-      -10.85,
-      18.85
+      -7.3,
+      13.66
      ],
      "rmax": 90.64,
-     "stl_watertight": true
+     "stl_watertight": true,
+     "stl_volume_mm3": 17473.6,
+     "print_tilt_deg": -4.47,
+     "stl_vs_step_volume_pct": 0.53
     },
     {
      "name": "pin_2_a",
      "kind": "COTS",
-     "note": "3 x 32 mm 316 dowel pin",
+     "note": "ISO 8752 3 x 36 stainless spring pin",
      "valid": true,
-     "volume_mm3": 226.2,
+     "volume_mm3": 254.5,
      "x": [
-      12.5,
-      15.5
+      -18.0,
+      18.0
      ],
-     "rmax": 48.01
+     "rmax": 43.35
     },
     {
      "name": "pin_2_b",
      "kind": "COTS",
-     "note": "3 x 32 mm 316 dowel pin",
+     "note": "ISO 8752 3 x 36 stainless spring pin",
      "valid": true,
-     "volume_mm3": 226.2,
+     "volume_mm3": 254.5,
      "x": [
-      -7.5,
-      -4.5
+      -18.0,
+      18.0
      ],
-     "rmax": 48.01
+     "rmax": 35.35
     },
     {
      "name": "dome",
@@ -1049,59 +1329,59 @@
      "valid": true,
      "volume_mm3": 14273.7,
      "x": [
-      -30.55,
-      -24.55
+      -28.5,
+      -22.5
      ],
      "rmax": 33.8,
      "stl_watertight": true
     },
     {
      "name": "strut_0",
-     "kind": "metal (cut+bent flat bar)",
-     "note": "6061-T6 flat bar 16 x 4: tab in the boss (pinned), 14 mm forward jog, foot bolted outside the duct (2x M4)",
+     "kind": "metal (profile-cut plate)",
+     "note": "6061-T6 4 mm plate strut (water-jet profile): tab in the boss (pinned), 14 mm cranked jog, leg into the duct clevis (2x M4)",
      "valid": true,
-     "volume_mm3": 5750.3,
+     "volume_mm3": 4840.5,
      "x": [
-      18.55,
-      44.35
+      17.5,
+      44.3
      ],
-     "rmax": 110.7
+     "rmax": 118.0
     },
     {
      "name": "strut_1",
-     "kind": "metal (cut+bent flat bar)",
-     "note": "6061-T6 flat bar 16 x 4: tab in the boss (pinned), 14 mm forward jog, foot bolted outside the duct (2x M4)",
+     "kind": "metal (profile-cut plate)",
+     "note": "6061-T6 4 mm plate strut (water-jet profile): tab in the boss (pinned), 14 mm cranked jog, leg into the duct clevis (2x M4)",
      "valid": true,
-     "volume_mm3": 5750.3,
+     "volume_mm3": 4840.5,
      "x": [
-      18.55,
-      44.35
+      17.5,
+      44.3
      ],
-     "rmax": 106.87
+     "rmax": 103.19
     },
     {
      "name": "strut_2",
-     "kind": "metal (cut+bent flat bar)",
-     "note": "6061-T6 flat bar 16 x 4: tab in the boss (pinned), 14 mm forward jog, foot bolted outside the duct (2x M4)",
+     "kind": "metal (profile-cut plate)",
+     "note": "6061-T6 4 mm plate strut (water-jet profile): tab in the boss (pinned), 14 mm cranked jog, leg into the duct clevis (2x M4)",
      "valid": true,
-     "volume_mm3": 5750.3,
+     "volume_mm3": 4840.5,
      "x": [
-      18.55,
-      44.35
+      17.5,
+      44.3
      ],
-     "rmax": 96.7
+     "rmax": 103.19
     },
     {
      "name": "duct",
      "kind": "print/reference",
-     "note": "duct/guard ring ID 207 (1.9 mm tip clearance), strut slots, feet outside",
+     "note": "duct/guard ring ID 210 (3.4 mm tip clearance), 3 strut slots + clevises; 3 arcs with lap joints",
      "valid": true,
-     "volume_mm3": 130763.1,
+     "volume_mm3": 147500.9,
      "x": [
-      -22.0,
-      44.55
+      -26.5,
+      44.5
      ],
-     "rmax": 106.5,
+     "rmax": 118.5,
      "stl_watertight": true
     }
    ]

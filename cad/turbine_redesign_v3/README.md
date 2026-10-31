@@ -1,6 +1,6 @@
-# Redesign v3: portable hydrokinetic turbine (76 mm envelope attempt)
+# Redesign v3.1: portable hydrokinetic turbine (76 mm envelope)
 
-Start with `docs/REPORT_v3.md`. Status: design package only; nothing built or tested.
+Start with `docs/REPORT_v3.md`. Status: reviewed design package (one correction-and-review cycle, 40 review findings closed in `docs/ERROR_LOG.md`); nothing built or tested. Operating depth 73.0 mm (min76) / 86.8 mm (robust, declared no-go).
 
 | Folder | Contents |
 |---|---|
@@ -9,6 +9,6 @@ Start with `docs/REPORT_v3.md`. Status: design package only; nothing built or te
 | `model/` | `reproduce_trial1.py` (spreadsheet reconstruction), `rotor_v3.py` (blade candidates), `packaging_76mm.py`, `system_model_v3.py` (coupled rotor-generator-charger-protection), `structure_seal_thermal_v3.py`, JSON results |
 | `audit/` | `verify_cad_audit.py` / `.txt`: independent re-measurement of the supplied Configuration A |
 | `research/` | component research with sources and access caveats |
-| `tools/` | `final_check_and_package.py` (re-import, pairwise clash check, STL check, BOM-to-CAD reconciliation, zip) |
+| `tools/` | `final_check_and_package.py` (re-import of the exported STEPs, full pairwise clash check, STL closure/volume/bed check, BOM-to-CAD reconciliation, zip) |
 
-Regenerate: `python cad/make_v3.py && python cad/views_v3.py min76 && python cad/drawings_v3.py min76 && python model/system_model_v3.py && python model/structure_seal_thermal_v3.py && python docs/make_report_v3.py && python tools/final_check_and_package.py --zip` (venv with cadquery, numpy, matplotlib, trimesh, pymeshfix).
+Regenerate (in this order; the report reads every number from the JSON outputs): `python cad/make_v3.py && python cad/views_v3.py min76 && python cad/views_v3.py robust && python cad/drawings_v3.py min76 && python cad/drawings_v3.py robust && python model/system_model_v3.py && python model/structure_seal_thermal_v3.py && python tools/final_check_and_package.py && python docs/make_report_v3.py && python tools/final_check_and_package.py --zip` (venv with cadquery, numpy, matplotlib, trimesh, pymeshfix, manifold3d).

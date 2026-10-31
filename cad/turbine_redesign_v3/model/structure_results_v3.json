@@ -8,12 +8,100 @@
   "allow_long_Z": 4.5,
   "allow_short_XY": 15.0,
   "allow_short_Z": 8.0,
-  "note": "bulk filament 40-45 MPa; printed XY ~85-95 %, Z ~50-60 %; wet/aged/creep/fatigue knockdown ~0.45 -> long-term allowables; short-term (flood, debris) x1.9"
+  "allow_interlaminar_shear_long": 2.7,
+  "allow_interlaminar_shear_short": 4.8,
+  "note": "bulk filament 40-45 MPa; printed XY ~85-95 %, Z ~50-60 %; wet/aged/creep/fatigue knockdown ~0.45 -> long-term allowables; short-term (flood, debris) x1.9; interlaminar shear taken as 0.6 x Z tensile (assumption)"
  },
  "thrust": {
-  "1.0": 9.54283447964506,
-  "1.5": 21.44955994397043,
-  "2.0": 38.11155203576158,
-  "3.0": 85.70008891208106
- }
+  "1.0": 8.649374842780475,
+  "1.5": 19.443340079523058,
+  "2.0": 34.54895083285248,
+  "2.2": 41.79839216544305,
+  "3.0": 77.6941448917011
+ },
+ "Q_max": 2.0028773893427787,
+ "F_thrust_blade_3ms": 25.8980482972337,
+ "M_root": 0.6163735494741619,
+ "M_root_2ms": 0.274088343273963,
+ "pin_bending_MPa": 116.26535963248566,
+ "tongue_bearing_pin_MPa": 3.8339255716661254,
+ "wall_bearing_MPa": 1.2537208285477732,
+ "F_cf": 46.035272865582854,
+ "F_cf22": 21.911408614855194,
+ "pin_shear_cf_MPa": 1.6281647184759362,
+ "ligament_mm": 2.550000000000003,
+ "shear_out_MPa": 0.4110169766004659,
+ "shear_out22_MPa": 0.1956317484688631,
+ "end_bearing_MPa": 0.36542189187060364,
+ "m_blade_g": 18.597455999999998,
+ "airfoil_root_MPa": 1.0973117438503026,
+ "root_chord_mm": 51.35542513835519,
+ "lug_shear_MPa": 0.9734992657445216,
+ "bolt_F": 499.99999999999994,
+ "ear_bearing_MPa": 4.806854216004087,
+ "strut_sigma_tab": 15.806914243917054,
+ "strut_sigma_duct": 11.380978255620278,
+ "strut_tip_defl_mm": 0.03865821418349279,
+ "strut_span_mm": 75.0,
+ "clevis_bolt_shear_MPa": 14.051599100922909,
+ "bearings": {
+  "min76 6702-2RS": {
+   "C": 1080.0,
+   "C0": 620.0,
+   "Fa2": 34.54895083285248,
+   "Fa3": 77.6941448917011,
+   "Fa3_C0": 0.12531313692209856,
+   "L10_h": 100745.30244800774,
+   "Fa_cap_N": 155.0
+  },
+  "robust 6902-2RS": {
+   "C": 2700.0,
+   "C0": 1270.0,
+   "Fa2": 34.54895083285248,
+   "Fa3": 77.6941448917011,
+   "Fa3_C0": 0.061176492040709525,
+   "L10_h": 1574145.3507501215,
+   "Fa_cap_N": 317.5
+  }
+ },
+ "seat_stress_MPa": 1.1776578294106819,
+ "seal": {
+  "min76": {
+   "squeeze_pct": {
+    "72.75": 20.61068702290083,
+    "72.9": 17.748091603053396,
+    "73.05": 14.885496183205959
+   },
+   "fill_pct": 69.49326054170459,
+   "stretch_pct": 0.9418690213392145,
+   "n_orings": 1
+  },
+  "robust": {
+   "squeeze_pct": {
+    "72.75": 20.61068702290083,
+    "72.9": 17.748091603053396,
+    "73.05": 14.885496183205959
+   },
+   "fill_pct": 69.49326054170459,
+   "stretch_pct": 0.9418690213392145,
+   "n_orings": 2
+  }
+ },
+ "F_cap_N": 81.89246448647509,
+ "lip_bearing_MPa": 0.1710444950787402,
+ "p_breath_kPa": 11.322050135717712,
+ "p_diff_bar": 0.30942050135717714,
+ "v_surf_ms": 1.4103627671541057,
+ "R_wb": 1.5,
+ "R_sf": 0.3,
+ "R_sp": 1.2759927240567792,
+ "R_bj": 0.3,
+ "R_bw": 0.19736476077864007,
+ "R_tot": 3.573357484835419,
+ "L_sp_mm": 24.1,
+ "Pcu_limit_W": 7.92,
+ "dT_limit": 28.300991279896518,
+ "dT_drum_air": 8.490297383968954,
+ "dP_internal_kPa": 2.8668904166535167,
+ "min_depth_m": 0.29224163268639314
 }

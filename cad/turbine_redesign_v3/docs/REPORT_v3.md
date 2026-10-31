@@ -1,23 +1,27 @@
-# Portable hydrokinetic turbine, redesign v3: engineering package
+# Portable hydrokinetic turbine, redesign v3.1: engineering package
 
-**Status: design package with reviewed, exported CAD and a transparent calculation model. No part has been printed, machined,
-immersed or tested. Every performance figure is a model prediction; every manufacturer value is tagged with its source; the
-manufacturer web pages themselves were not reachable from this session (see E13).**
+**Status: design package with reviewed, corrected and re-exported CAD and a transparent calculation model. No part has been
+printed, machined, immersed or tested. Every performance figure is a model prediction; every manufacturer value is tagged with its
+source in the BOM; the manufacturer web pages themselves were not reachable from this session (E13). One correction-and-review
+cycle was run: 40 review findings (R01-R40) and 16 first-draft findings are logged with their corrections and
+re-verification in `docs/ERROR_LOG.md`; the final integrated check of the exported files is in section 9.**
 
 ## 1. Outcome against the requirements
 
 | Requirement | Result | Evidence |
 |---|---|---|
-| 203.2 mm rotor, 1-2 m/s fresh water, primarily 3D-printed | met: rotor 203.2 mm (duct ID 207, 1.9 mm tip clearance); printed blades, carrier, dome, drive disc, duct; metal only where sealing, bearing seats, heat or strut bending require it | `cad/out/min76_*`, section 5 |
-| **76 mm TOTAL OPERATING depth** (cable exits, bends, fasteners, guard included) | **met on nominal geometry by the "min76" variant: 75.1 mm from dome tip to boss rear, with the duct (207.0 ID), strut feet, cable channel and all fastener heads inside that span; margin 0.9 mm, i.e. the tolerance stack (tube cut +-0.3, prints +-0.2) can consume it.** The "robust" variant (6902 bearings, 5 mm seal, 9 mm dome, 10 mm boss) is 85.3 mm: a **no-go against 76 mm by 9.3 mm**. Packed depth (rotor + drum without boss, struts and duct) is 65.1 mm for min76. | section 4, `cad/out/min76_dimensioned.png` |
-| Credible net power at each flow (12 V battery, buck MPPT) | **1.0 m/s: 2.3 W into the battery; 1.5 m/s: 10.8 W; 2.0 m/s: 26.4 W** (water-to-DC 17 / 21 / 22 %). These are model values with a +-30 % honest band. | section 7 |
-| Self-start at 1.0 m/s | marginal: static rotor torque 0.068 N m against an assumed breakaway of 0.062 N m (ratio 1.10); reliable from about 1.2 m/s on the assumptions; a PTFE lip seal is the planned mitigation; must be measured (gate 9) | section 7.4 |
-| Waterproof for continuous immersion (provisional 2 m) | boundary = anodised 6061 tube + 2 EPDM O-rings per machined Delrin cap + one lip seal on a Speedi-Sleeve + potted static cable exit; squeeze 14.9-20.6 % across the bore tolerance; vacuum, submersion and rotating tests defined; **not demonstrated** | section 6, `docs/VALIDATION_PLAN_v3.md` |
-| Reviewed, corrected, consistent exports | four review passes recorded in `docs/ERROR_LOG.md`; final integrated check of the exported files in section 9 | |
+| 203.2 mm rotor, 1-2 m/s fresh water, primarily 3D-printed | met: rotor 203.2 mm in a duct of ID 210 (3.4 mm tip clearance); printed blades, carrier, dome, drive disc, duct (9 print files); metal only where sealing, bearing seats, thrust, heat or strut bending require it | `cad/out/min76_*`, section 5 |
+| **76 mm TOTAL OPERATING depth** (cable exits, bends, fasteners, guard included) | **met on nominal geometry by the "min76" variant: 73.0 mm from dome tip to boss rear face**, with the duct, strut legs and clevises, the cable path (inside the spindle and the boss rear-face groove), the vent screw and every screw head inside that span; **margin 3.0 mm** against a worst-case stack of about 1.0 mm (tube cut +-0.3, prints +-0.2, machining +-0.1). The "robust" variant (6902 bearings, 5 mm seal, two O-rings per cap, 9 mm dome) is 86.8 mm: a **declared no-go against 76 mm by 10.8 mm** and the fall-back if the 6702 bearings or the 4 mm seal fail their bench gates. Packed depth (rotor and drum without the boss, struts and duct) is 61.0 mm. | section 4, `cad/out/min76_dimensioned.png`, `docs/FINAL_CHECK.txt` |
+| Credible net power at each flow (12.8 V LiFePO4, Victron buck MPPT) | **1.0 m/s: 2.2 W DC / 1.8 W into the battery; 1.5 m/s: 10.2 / 9.4 W; 2.0 m/s: 25.2 / 23.6 W** (water-to-DC 13 % / 19 % / 19 %). Model values; honest band -30 % / +10 % (polar, roughness, GL60 constants, windage). | section 7 |
+| Self-start at 1.0 m/s | **not demonstrated; model-marginal.** Static rotor torque 0.059 N m against an assumed breakaway of 0.047 N m with the PTFE seal (x1.25) and 0.062 N m with an NBR seal (x0.95: fails). Reliable from about 1.2 m/s (x1.80) on the assumptions. Gates 5 and 9 decide. | section 7 |
+| Waterproof for continuous immersion (provisional 0.3-2 m axis depth) | boundary = hard-anodised 6061 tube with bored lands + 1 EPDM O-ring per anodised 6061 cap + one PTFE pressure-rated lip seal on a Speedi-Sleeve + an O-ring potting plug in the spindle end; no printed surface and no screw in the boundary; squeeze 14.9-20.6 % over the bore tolerance; seal differential 0.31 bar (PTFE seal rated 5 bar); internal overpressure from stator heat 2.9 kPa at the current limit -> minimum axis depth 0.29 m; vacuum, submersion, thermal-cycle and rotating tests defined; **not demonstrated** | section 6, `docs/VALIDATION_PLAN_v3.md` |
+| Overspeed / overvoltage protection, dump and brake behaviour, full-battery and disconnected-load cases | independent of the charger: voltage-monitor relay (engage 45 V / release 12 V, no cycling) into a submerged 22 ohm dump block; 3-phase short brake switch; 5KP90A TVS; behaviour tabulated per flow in section 7 (torque-balanced); 3 m/s flood = dump engaged (cavitation number 1.09) with 20 W in the winding: survivable, not continuous | sections 7-8 |
+| Reviewed, corrected, consistent exports | four independent review passes; 40 findings corrected and re-verified; final integrated check on the exported files (section 9) | `docs/ERROR_LOG.md`, `docs/FINAL_CHECK.txt` |
 
-**Provisional assumptions used (not confirmed requirements):** 2 m submergence; a 3 m/s flood as an off-design survival case; 12.8 V
-LiFePO4 (13.2 V charging) battery; ASA filament with assumed wet allowables; 15 C water; the GL60 values cited by the independent
-review; lip-seal friction 15 mN m running / 30 mN m breakaway; GL60 cogging 24 mN m. Their consequences are shown where they matter.
+**Provisional assumptions used (not confirmed requirements):** 0.3-2 m axis depth; a 3 m/s flood as an off-design survival case; 12.8 V
+LiFePO4 (13.2 V charging); ASA filament with assumed wet allowables; 15 C water; the GL60 values cited by the independent
+review (KV 21.5, R_LL 5.5 ohm, L_LL 2.72 mH, 14 pole pairs); PTFE lip-seal friction 7.5 mN m running / 15 mN m breakaway (NBR 15 / 30);
+GL60 cogging 24 mN m; no-load loss 1.0 W at 700 rpm. Their consequences are shown where they matter (section 7 sensitivities).
 
 ## 2. Audit of the supplied Configuration A (independently re-measured)
 
@@ -45,14 +49,14 @@ rear cap radii: [1.7, 2.5, 5.0, 11.0, 35.37, 37.45, 40.0]
 motor radii: [10.0, 33.5, 34.5]  (no mounting holes modelled if only 10/33.5/34.5)
 ```
 
-| Finding (reproduced value) | Nature | Resolution in v3 |
+| Finding (reproduced value) | Nature | Resolution in v3.1 |
 |---|---|---|
-| Rigid depth 188.600 mm; rotor alone 78.800 mm | real | architecture changed: generator inside the hub drum; min76 75.1 mm total |
-| Rotor/collar common volume 1369.60 mm3 | real rigid interference | no collar; the rotor is the drum; all rigid pairs checked (0.00 mm3 on 44 pairs) |
-| Shaft and cap without retaining-ring grooves; no cap retention | real | spindle DIN 471-15 groove + integral 17.6 collar; caps captured both ways by the carrier lips and lugs |
-| Bearings 8.000 mm apart; rear bearing 0.500 mm proud of the cap | real | bearings 38.4 mm apart (front cap / rear cap), fully housed, cross-located |
-| Strut/duct and clamp/strut overlaps; duct behind the rotor | real interface gaps | struts tabbed into the boss and slotted through the duct; duct spans the rotor plane with 1.9 mm tip clearance |
-| No cable hardware (penetrator, nut, bend) in the envelope | real | leads inside the hollow spindle, potted static exit in the boss, cable channel in the boss face: inside the envelope |
+| Rigid depth 188.600 mm; rotor alone 78.800 mm | real | architecture changed: generator inside the hub drum; min76 73.0 mm total |
+| Rotor/collar common volume 1369.60 mm3 | real rigid interference | no collar on the rotor; all 780 rigid part pairs checked: 0 overlap (section 9) |
+| Shaft and cap without retaining-ring grooves; no cap retention | real | spindle DIN 471-15 groove (reverse thrust) + split 316 thrust ring (operating thrust); caps captured both ways by the carrier lips and lugs |
+| Bearings 8.000 mm apart; rear bearing 0.500 mm proud of the cap | real | bearings 36.1 mm apart (front cap / rear cap), fully housed, cross-located, end play shimmed to 0.1-0.2 |
+| Strut/duct and clamp/strut overlaps; duct behind the rotor | real interface gaps | struts tabbed into the boss and clamped in duct clevises; duct spans the rotor plane with 3.4 mm tip clearance |
+| No cable hardware (penetrator, nut, bend) in the envelope | real | leads inside the hollow spindle, O-ring potting plug in the recessed spindle end, lead groove in the boss rear face, cable along a strut: all inside the envelope |
 | O-ring / lip overlaps (165 mm3 x4, 5-76 mm3) | intentional undeformed flexible geometry | kept as such; squeeze computed numerically instead |
 
 The earlier standalone rotor (`earlier_turbine_rotor_8in_3blade.step`) is the same blade family as A's rotor but with a 50.8 mm
@@ -75,20 +79,20 @@ cell "0.003 [mm]" is 2.955 mm stored in metres and display-rounded. Not reconstr
 
 **What was wrong or incomplete in the trial, and the correction:**
 1. The electrical "8.08 W" is the fixed-speed maximum of a matched resistive load at 990 rpm: it needs I = 3.35 A at V = 2.41 V (below the 3 V charger minimum) and only Ke I = 0.188 N m of generator torque against 0.499 N m of rotor torque: not an operating point. Corrected: the rotor curve and the generator/charger load law are solved together across speed (section 7); the 170 KV / 0.72 ohm machine is replaced because Km = Kt/sqrt(R) = 0.066 cannot absorb the torque at useful voltage.
-2. The polar (C_L 1.0, C_D 0.0127 at 5 deg, Re 2e5) is not identified and is applied at Re 7.5e4-8.1e4 where any such section has 1.5-2.5x the drag and earlier stall. Corrected: the v3 BEM uses a Reynolds-dependent NACA 44xx model (drag scaling Re^-0.8 anchored at 1.5e5, reviewed earlier) evaluated per element at the real Re (6.8e4-1.5e5 at 1.5 m/s). Printed roughness (Ra 10-20 um, 1 % of the 2 mm leading-edge radius) adds an estimated 0.01-0.02 to Cd: the honest Cp band is widened to -0.03 for it.
-3. Hub radius 29.8 mm was the motor radius + 2 mm wall; the actual assembly needs 42.2 mm (tube 76.2 + carrier wall). Corrected and the blades regenerated.
-4. Chord/twist of the trial were candidates; the v3 planform (max chord 60 mm at 58 % radius, root chord 38 mm, NACA 4424 -> 4415, 1 mm TE) is chosen for the drum length, printability and static torque.
+2. The polar (C_L 1.0, C_D 0.0127 at 5 deg, Re 2e5) is not identified and is applied at Re 7.5e4-8.1e4 where any such section has 1.5-2.5x the drag and earlier stall. Corrected: the v3 BEM uses a Reynolds-dependent NACA 44xx model (drag scaling Re^-0.8 anchored at 1.5e5) evaluated per element at the real Re. Printed roughness adds an estimated 0.01-0.02 to Cd: the honest Cp band is widened by -0.03 for it.
+3. Hub radius 29.8 mm was the motor radius + 2 mm wall; the actual assembly needs 42.2 mm (tube 76.2 + carrier wall) and the printed blade starts at the pad top, r = 48.2 mm: the BEM now integrates from there (R01).
+4. Chord/twist of the trial were candidates; the v3 planform (max chord 60 mm at 58 % radius, pad-top chord 51.4 mm, NACA 4424 -> 4415, 1 mm TE) is chosen for the drum length, printability and static torque.
 
 **Original trial vs corrected model vs final design**
 
-| | Original trial (as exported) | Corrected model of the same trial | Final v3 design |
+| | Original trial (as exported) | Corrected model of the same trial | Final v3.1 design |
 |---|---|---|---|
-| Rotor | 7 in, hub 29.8 mm, 3 blades | same geometry | 8 in (203.2), hub 42.2 mm, 3 blades, regenerated planform |
-| Flow for the number | 2.2 m/s only | 2.2 m/s | 1.0 / 1.5 / 2.0 (2.2 and 3.0 as checks) |
-| Rotor shaft power | 51.8 W (Cp 0.392 at Re 2e5 polar) | same arithmetic, but Re 7.5e4 polars would give Cp ~0.30-0.33 (estimate) | 53.8 W peak at 2.2 m/s (Cp 0.312); 40.0 W at 2.0 |
-| Generator | 170 KV, 0.72 ohm (assumed), I0 0.4 A | fixed-speed matched load: 8.08 W at 2.41 V (unusable) | GL60 KV25 (Kt 0.444, 5.5 ohm): 37.2 W DC at 2.2 m/s, 28.1 W at 2.0 |
-| Operating point | not a torque balance | torque balance solved: not possible at 990 rpm with that load | solved per speed with the charger law and a 1.2 A generator limit |
-| Pass/fail vs 10 W | FAIL | FAIL (voltage) | 37 W DC at 2.2 m/s: PASS; 2.8 W at 1.0 m/s: FAIL (the 10 W goal is the trial's, not a group requirement) |
+| Rotor | 7 in, hub 29.8 mm, 3 blades | same geometry | 8 in (203.2), carrier 84.4 mm, airfoil from r 48.2, 3 blades, regenerated planform |
+| Flow for the number | 2.2 m/s only | 2.2 m/s | 1.0 / 1.5 / 2.0 (1.2, 2.2 and 3.0 as checks) |
+| Rotor shaft power | 51.8 W (Cp 0.392 at Re 2e5 polar) | same arithmetic, but Re 7.5e4 polars would give Cp ~0.30-0.33 (estimate) | 48.2 W peak at 2.2 m/s (Cp 0.279); 35.8 W at 2.0 |
+| Generator | 170 KV, 0.72 ohm (assumed), I0 0.4 A | fixed-speed matched load: 8.08 W at 2.41 V (unusable) | GL60 KV25 (Kt 0.444, 5.5 ohm): 33.6 W DC at 2.2 m/s, 25.2 W at 2.0 |
+| Operating point | not a torque balance | torque balance solved: not possible at 990 rpm with that load | solved per speed with the charger law, the battery-current limit, windage and no-load loss |
+| Pass/fail vs 10 W | FAIL | FAIL (voltage) | 34 W DC at 2.2 m/s: PASS; 2.2 W at 1.0 m/s: FAIL (the 10 W goal is the trial's, not a group requirement) |
 
 ## 4. Architecture: why a through-spindle drum rotor, and what limits the depth
 
@@ -96,132 +100,173 @@ Packaging attempt (series stack of real part lengths, `model/packaging_76mm.py` 
 189 mm rigid (215 mm with cable hardware); a hub-integrated layout with the generator behind a seal on a spindle was 140 mm;
 the only way to approach 76 mm is to put the generator **inside** the rotating hub with the stationary spindle passing through the
 motor's 20 mm bore, so that bearings, seal, O-rings and motor overlap radially instead of stacking axially. Dimensioned stack of the
-min76 variant: dome 6.0 + front flange 2.0 + tube 53.1 (= plug 11.4 + 0.5 + disc 2.5 + 0.5 + GL60 22.3 + flange 4.0 + 0.5 + plug 11.4) + rear flange 2.0 + carrier lip 2.0 + gap 2.0 + boss 8.0 = 75.1 mm. The struts do not add length because they are cranked
+min76 variant: dome 6.0 + front flange 2.0 + tube 49.0 (= plug 8.6 + 0.5 + disc 3.0 + 0.5 + GL60 22.3 + flange 4.0 + 0.5 + plug 9.6) + rear flange 2.0 + carrier lip 2.0 + gap 2.0 + boss 10.0 = 73.0 mm. The struts add no length: they are profile-cut 6061 plates cranked
 14 mm forward alongside the drum at radii the rotating parts never reach.
 
-**Limiting components:** the GL60 length (22.3 mm, fixed), two O-ring plugs (2 x 11.4 mm; each needs two grooves and lands),
-the lip seal plus its land (5 mm) and the boss (8 mm) with its cable exit. With the robust parts (6902 bearings, 5 mm seal, 13 mm plugs,
-9 mm dome, 10 mm boss) the same layout is 85.3 mm.
+**Limiting components:** the GL60 length (22.3 mm, fixed), the two cap plugs (8.6 + 9.6 mm: one O-ring groove with 2.5 mm lands each, and the rear one
+also houses the bearing, the 2.5 mm thrust-ring web and the 4 mm seal), the dome (6.0 mm) and the boss (10.0 mm, which must hold the cross pin, the
+recessed spindle end with the potting plug and the 3 mm lead groove). With the robust parts the same layout is 86.8 mm.
 
-**Decision and tradeoff:** min76 is the preferred build *provided* the thin-section 6702 bearings (C0 0.62 kN against 86 N
-thrust in a 3 m/s flood) and the 4 mm seal are accepted; if either fails its bench gate, the robust variant is the fall-back and the
-76 mm requirement becomes a declared no-go at 85.3 mm. The hub ratio rises from 0.25 to 0.42, which costs about
-19 % of rotor power (Cp 0.368 -> 0.297 at 1.5 m/s); that is the price of the envelope.
+**Decision and tradeoff:** min76 is the preferred build *provided* the thin-section 6702 bearings (C0 620 N against 78 N thrust
+in a 3 m/s flood, Fa/C0 0.13; practical axial capacity ~155 N) and the 4 mm PTFE seal are accepted; if either fails its bench gate, the robust variant
+is the fall-back and 76 mm becomes a declared no-go at 86.8 mm. The hub ratio rises from 0.25 to 0.47 (aerodynamic root at the pad top),
+which costs about a third of the rotor power (Cp 0.368 -> 0.265 at 1.5 m/s); that is the price of the envelope.
 
 Alternatives considered and rejected for this iteration: stationary nacelle (best cooling and seal access, 189 mm); magnetic
 coupling (no rotary seal; adds 20 mm and an unqualified coupling); flooded potted generator (no enclosure; T200-style, but silt,
-magnet corrosion and the GL60's open construction are unqualified).
+magnet corrosion and the GL60's open construction are unqualified: it is the fall-back if the seal pumping test, gate 4, fails).
 
 ## 5. Mechanical design
 
-**Load paths (all rigid, modelled, zero interference on 44 checked pairs):**
-- Thrust (water pushes the rotor downstream): blade -> pinned tongue -> carrier segment -> rear lip -> rear cap flange -> rear cap shoulder -> rear bearing outer/inner race -> spindle collar (17.6 x 1.3) -> spindle -> boss cross pin -> boss -> 3 strut tabs (pinned) -> struts -> duct feet (6x M4).
-- Reverse load (handling, reverse flow): carrier front lip -> front cap -> front bearing -> DIN 471-15 circlip -> spindle. Bearings are cross-located with ~0.2 mm end play for thermal freedom; the front bearing floats in its pocket toward the rear.
-- Torque: blades -> carrier lugs in the cap-flange notches -> front cap -> TPU dog clutch (4 dogs 8 x 4) -> GL60 bell; stator reaction -> spindle flange -> spindle -> boss pin -> struts -> duct. No grub screw and no bonded joint carries torque; the 6 carrier bolts only clamp.
-- Coupling engagement: the dogs engage 4 mm into the cap pockets with 0.3 mm radial clearance; the TPU absorbs the small radial/axial mismatch between the bell (on the motor's own bearings) and the drum (on the spindle bearings).
+**Load paths (all rigid, modelled, zero interference on 780 checked part pairs):**
+- Thrust (water pushes the rotor downstream): blade -> airfoil-section tongue (2 axial spring pins) -> carrier segment -> rear lip -> rear cap flange -> rear cap shoulder -> rear bearing -> shim -> split 316 thrust ring (in a spindle groove, captured by the cap's 18 mm wall hole) -> spindle -> boss cross pin -> boss -> 3 strut tabs (pinned) -> struts -> duct clevises (6x M4).
+- Reverse load (handling, reverse flow): carrier front lip -> front cap -> front bearing -> DIN 471-15 circlip (0.1 mm gap, 24 mm recess, nose 2 mm beyond the groove) -> spindle. End play set to 0.1-0.2 mm by the shim pack; the nose clears its pocket floor by 0.3 mm so the circlip is the stop.
+- Torque: blades -> carrier lugs in the cap-flange notches -> front cap -> TPU dog clutch (4 dogs 8 x 4, engaged 3.5 mm, clocked 45 deg from the screws) -> GL60 bell; stator reaction -> integral spindle flange -> spindle -> boss pin -> struts -> duct. No grub screw and no bonded joint carries torque; the 6 carrier bolts only clamp.
+- Installability (R11-R14): the rear bearing, shim and ring go on from the rear over a plain Ø15 journal; the rear cap passes over the sleeve and captures the ring; the seal is pressed after the cap is on; every screw head sits in a counterbore (`screw_*` and `vent_screw` are modelled parts in the clash check).
 
-**Machined and metal parts and their functions** (section 6 of `docs/PRINT_ASSEMBLY_PLAN.md`): front cap, rear cap (Delrin:
-O-ring lands, bearing seats, seal seat), spindle (6061: journals, counterface, stator flange, heat path), boss (6061 plate: heat
-sink, strut and pin seats), struts (6061 flat bar: bending), tube (6061: pressure wall). Drawings: `cad/out/min76_drawing_*.png`.
+**Machined and metal parts and their functions** (section 2 of `docs/PRINT_ASSEMBLY_PLAN.md`): front and rear caps (hard-anodised 6061:
+O-ring land, bearing seats N7, seal seat, labyrinth groove, counterbored vent), spindle (6061: journals, counterface, integral stator flange
+with the lead channel, split-ring groove, reamed plug bore, heat path), split thrust ring (316), boss (6061: heat sink, labyrinth tongue,
+pin and strut seats, lead groove), struts (6061 plate: bending), potting plug (Delrin), tube (6061: pressure wall, bored lands).
+Drawings: `cad/out/min76_drawing_*.png` (quotation drawings; the STEP files carry the geometry).
 
-**Printed parts, structure (ASA provisional; allowables assumed, coupons required):** blade root joint = tongue 29.7 x 11.7 x 8
-in a carrier pocket with two 3 mm 316 pins through the pad: at the 3 m/s maximum thrust (86 N rotor, 28.6 N per blade)
-the pin couple is 34 N, pin shear 2.4 MPa, tongue bearing 1.0 MPa (allowable 8 long / 15 short); airfoil root bending 2.4 MPa with
-layers along the span; 3 mm root fillet. Centrifugal load at the 3 m/s runaway (1835 rpm) is 83 N per blade -> 1.2 MPa pin bearing.
-Carrier: 6x M3 316 through-bolts + nyloc, ear bearing stress 14 MPa under washers (compression); lugs 6 x 3 in shear carry 1.5 N m jam
-torque at 0.3 MPa. Creep: bearing seats are in Delrin, not in prints; the printed carrier's clamp preload is re-torqued after 24 h.
-Balance: blades matched to 0.3 g; drum static-balanced. Overspeed: 1835 rpm (3 m/s runaway) is the design overspeed, tip 19.5 m/s.
-One-piece rotor vs modular: a one-piece carrier-with-blades would print the blade roots across layers (weak) and need heavy supports;
-the modular pinned root prints each blade flat (strong direction) and lets a damaged blade be replaced; chosen.
+**Printed parts, structure (ASA provisional; allowables assumed, coupons required):** the blade root is the pad-top airfoil section
+extruded 8.7 mm into a matching carrier pocket (0.15 mm per side) with two axial 3 mm spring pins 4.5 mm below the pad top
+(2.6 mm ligament). At the 3 m/s maximum thrust (78 N rotor, 25.9 N per blade) the flap moment at the pad is 0.62 N m: if the
+pins take it all, pin bending 116 MPa (1.4310 spring pin) and tongue bearing 3.8 MPa; if the pocket walls take it all, 1.25 MPa
+(allowable 8 long / 15 short). Centrifugal load at the 3 m/s runaway (1796 rpm, blade 19 g) is 46 N: pin shear 1.6 MPa, ligament
+shear-out 0.41 MPa short-term (0.20 MPa sustained at 2.2 m/s) against 4.8 / 2.7. Airfoil root bending 1.10 MPa (chord 51.4, 24 % thick) with
+layers along the span; no fillet is claimed; 3/rev fatigue is not assessed (gate 13). Carrier: lug shear 0.97 MPa at the 2.00 N m maximum rotor torque;
+6x M3 at 0.3 N m (~500 N) under 12 mm penny washers: 4.8 MPa on the ears (allow 8), nuts in printed traps. Bearing seats and seal lands are in
+6061, not in prints; the printed carrier's clamp is re-torqued after 24 h. Balance: blades matched to 0.3 g; drum static-balanced.
+Design overspeed: 1796 rpm (3 m/s open circuit, tip 19.1 m/s), which cavitates (section 7): the dump keeps the rotor below it.
+One-piece rotor vs modular: a one-piece carrier-with-blades would print the blade roots across layers and need heavy supports; the
+modular pinned root prints each blade flat (strong direction) and lets a damaged blade be replaced; chosen.
 
-**Struts:** 6061-T6 16 x 4 bar: 12.3 MPa at the duct foot and 19.3 MPa in the 7.6 mm tab at the 3 m/s thrust; 12.3 MPa weak-axis from a
-1.5 N m jam; 0.03 mm deflection. Three printed NACA struts of 24 mm chord would have seen 5.7-13.6 MPa (over the printed allowable
-in a flood) and would have added 16 mm of depth.
+**Struts:** 6061-T6 4 mm plate profile: 15.8 MPa in the 9.6 mm tab (fixed-fixed bound) and 11.4 MPa in the 16 mm leg (cantilever bound) at the
+3 m/s thrust; 0.04 mm deflection; clevis bolts 14 MPa. Printed struts would have exceeded the printed allowable in a flood and added 16 mm of depth.
 
-**Hydrodynamics after the structural thickness:** hub ratio 0.42 (carrier OD 84.4) and blade pads to r = 48.2: BEM Cp
-0.279 / 0.297 / 0.308 at 1 / 1.5 / 2 m/s (Re-dependent). The duct is modelled only as a guard ring; its augmentation is not
-credited. The struts and boss are behind the rotor at radii 36-107 mm and 36 mm; blockage ~4 % of the annulus: a -1 to -3 % Cp effect
-(estimate). The 6 mm dome is blunt; the root region it affects contributes < 5 % of torque.
+**Hydrodynamics after the structural thickness:** hub ratio 0.47: BEM Cp 0.248 / 0.265 / 0.276 at 1 / 1.5 / 2 m/s (Re-dependent). The duct is
+modelled only as a guard ring; its augmentation is not credited. The struts and boss are behind the rotor; blockage ~4 % of the
+annulus: a -1 to -3 % Cp effect (estimate). Drum windage is in the torque balance (22 mN m at 2 m/s).
 
 ## 6. Sealing, pressure and heat (resolved together)
 
-- **Boundary:** tube wall (anodised, Ra 0.8 bore) -> two radial AS568-147 EPDM O-rings per Delrin plug -> Delrin caps -> one lip seal
-  on the stationary spindle -> the spindle bore (dry) -> potted side exit in the stationary boss. No screw crosses the boundary: the
-  caps are retained by the printed carrier lips/lugs, the vent is a sealed M6 port, the dome screws are blind in the flange.
-- **Glands:** plug 72.75 in a 72.9 +-0.15 bore; groove 3.6 x 2.08; squeeze 14.9-20.6 % over the bore tolerance; fill 69 %; stretch 0.9 %.
+- **Boundary:** tube wall (anodised; O-ring lands bored 72.90 H8, Ra 1.6) -> one radial AS568-147 EPDM O-ring per anodised 6061 plug
+  (two in robust) -> caps -> one PTFE pressure-rated lip seal on the stationary spindle's Speedi-Sleeve -> the spindle bore (dry) -> O-ring
+  potting plug in the reamed spindle end (epoxy over solder-filled PVC leads). No screw crosses the boundary: the caps are retained by the
+  printed carrier lips/lugs, the vent is a sealed M6 port in a counterbore, the dome screws are blind in the flange.
+- **Glands:** plug 72.75 in a 72.90 +-0.15 bored land; groove 3.6 x 2.08 with 2.5 mm lands; squeeze 14.9-20.6 % over the bore tolerance; fill 69 %; stretch 0.9 %.
   Measured-bore machining is mandatory (gate 3). Printed surfaces seal nothing.
-- **Rotary seal:** 15 x 22 x 4 (min76) / 15 x 24 x 5 (robust) spring-loaded NBR TC seal, lip to the water, speed 1.0 m/s at 1270 rpm,
-  pressure 0.2 bar + 0.11 kPa breathing. Counterface: SKF Speedi-Sleeve **99059** (15 mm; the 12 mm sleeve the earlier report cited as
-  99047 is 99049 in SKF's table: not used here). Installation on an anodised aluminium journal must be confirmed with SKF; the fallback
-  is a pressed 316 journal sleeve or the hard-anodised journal itself (Ra 0.4) with 2-week inspections. Seal life is not qualified here.
-- **Pressure:** 19.6 kPa at 2 m pushes each cap inward with 82 N (carrier lip bearing 0.17 MPa); the -70 kPa vacuum test applies 292 N.
-  Cooling from 40 to 5 C adds 11 kPa; the vent plug is closed before immersion and never opened under water.
-- **Cable:** 3 leads inside the 9 mm spindle bore, 5 mm bend at the side exit, 20 mm epoxy plug (static), channel in the boss, splice
-  at a duct foot. No WetLink is needed in the rotating drum; the earlier 24 mm cap / 20 mm thread conflict disappears.
-- **Heat:** stator -> aluminium spindle flange (paste) -> spindle (2.65 K/W over 50 mm) -> boss in the water (0.15 K/W) -> total
-  3.6 K/W by metal alone: +29 K at the 1.2 A limit (7.9 W), +42 K at 1.45 A. The Delrin caps see < +10 K. The air-gap path through the
-  rotating bell is not credited. Gate 7 measures it; the current limit is the knob.
+- **Rotary seal:** 15x22x4 (min76) / 15x24x5 (robust) PTFE pressure-rated lip seal (Trelleborg Varilip PDR class or Freudenberg BABSL), lip to the water,
+  surface speed 1.41 m/s at the 3 m/s runaway, service differential 0.31 bar (2 m head 19.6 kPa + 11.3 kPa warm-assembly breathing): a plain NBR seal
+  (0.3 bar dynamic) is not adequate (R02). Counterface: SKF Speedi-Sleeve **99059** (15 mm; the 12 mm sleeve the earlier report cited as 99047 is 99049 in SKF's
+  table: not used here), sealant under it. Installation on an anodised aluminium journal must be confirmed with SKF; the fallback is the hard-anodised journal
+  itself (Ra 0.4). A non-contact labyrinth (boss tongue in a cap groove, 0.5 mm clearance) shields the lip from silt. Seal life is not qualified here.
+- **Pressure and breathing:** 19.6 kPa at 2 m pushes each cap inward with 82 N (carrier lip bearing 0.17 MPa); the -70 kPa vacuum test applies 292 N.
+  Stator heat raises the drum air by an estimated 8 K at the current limit (assumed 30 % of the winding rise): 2.9 kPa of internal pressure, which lifts the lip unless
+  the head exceeds it: **minimum axis depth 0.29 m**, and the drum is closed at no more than water temperature + 10 K. Gate 4 tests exactly this.
+- **Cable:** 3 leads inside the 9 mm spindle bore (splices inside the bore), through the potting plug (the pressure barrier), 90-degree turn into the 6 x 3 groove
+  on the boss rear face (removable RTV), along strut 0 to an adhesive heat-shrink splice at the duct. Service: pin out, boss off over the cable, plug out, cap off
+  over the Ø12 plug head (R29). No WetLink is needed in the rotating drum; the earlier 24 mm cap / 20 mm thread conflict disappears.
+- **Heat:** winding -> stator base (1.5 K/W, assumed) -> integral flange (0.3, pasted) -> spindle (1.28 K/W over 24 mm) -> boss joint (0.3, pasted) -> boss in the
+  water (0.20) = 3.57 K/W by the metal path alone: +28 K at the 1.2 A generator current (7.9 W copper). The air-gap path through the rotating bell is not
+  credited. Gate 7 measures it; the Victron battery-current limit is the knob (it equals 1.2 A generator current only at a 29 V bus, R09).
 
 ## 7. Performance: water power, shaft power, rectified DC, battery
 
-Model: `model/system_model_v3.py` (conventions in its header). Rotor Cp(lambda, V) from the reviewed BEM; running friction
-15 mN m (seal) + 2 x 4 mN m (bearings); GL60 Kt 0.444 N m/A, R_LL 5.5 ohm, L_LL 2.72 mH, 14 pole pairs; six MBR10100 diodes
-(2 x 0.55 V); commutation drop (3/pi) w_e (L/2) I; generator current limit 1.2 A; Victron 100/15 buck MPPT (runs only while
-V_dc >= V_bat + 1 = 14.2 V); battery 13.2 V; charger efficiency 95 %, quiescent 0.3 W.
+Model: `model/system_model_v3.py` (conventions in its header). Rotor Cp(lambda, V) from the reviewed BEM with the aerodynamic root at
+r = 48.2 mm; running friction = PTFE seal 7.5 mN m + 2 x 4 mN m bearings + no-load loss (1.0 W at 700 rpm, rpm^1.5) + drum windage;
+GL60 Kt 0.444 N m/A, R_LL 5.5 ohm, L_LL 2.72 mH, 14 pole pairs; six MBR10100 diodes (2 x 0.55 V); commutation overlap reduces V_dc and the torque per amp
+(reactive, not a loss, R06); Victron 100/15 buck MPPT (runs only while V_dc >= V_bat + 1 = 14.2 V; battery-current limit 2.5 A);
+battery 13.2 V; charger efficiency 95 %, quiescent 0.3 W.
 
-| Flow (m/s) | Water power (W) | Rotor peak shaft (W) | Charging point shaft | DC current / voltage | Copper loss (W) | **Rectified DC (W)** | **Net to battery (W)** | water-to-DC / shaft-to-DC | No-load runaway |
+| Flow (m/s) | Water power (W) | Rotor peak shaft (W) | Charging point shaft | DC current / voltage | Copper + no-load loss (W) | **Rectified DC (W)** | **Net to battery (W)** | water-to-DC / shaft-to-DC | No-load runaway (tip cavitation number) |
 |---|---|---|---|---|---|---|---|---|---|
-| 1.0 | 16.2 | 4.5 (Cp 0.279) | 4.1 at TSR 4.03, 378 rpm | 0.18 A / 15.4 V | 0.2 | 2.8 | 2.3 | 17 % / 68 % | 518 rpm, 24 V |
-| 1.2 | 28.0 | 8.1 (Cp 0.287) | 7.9 at TSR 3.53, 398 rpm | 0.38 A / 15.1 V | 0.8 | 5.7 | 5.1 | 20 % / 72 % | 650 rpm, 30 V |
-| 1.5 | 54.7 | 16.3 (Cp 0.297) | 15.9 at TSR 3.78, 533 rpm | 0.59 A / 19.8 V | 1.9 | 11.7 | 10.8 | 21 % / 74 % | 847 rpm, 39 V |
-| 2.0 | 129.7 | 40.0 (Cp 0.308) | 38.7 at TSR 4.03, 757 rpm | 1.05 A / 26.8 V | 6.0 | 28.1 | 26.4 | 22 % / 73 % | 1177 rpm, 55 V |
-| 2.2 | 172.7 | 53.8 (Cp 0.312) | 50.7 at TSR 4.27, 884 rpm | 1.18 A / 31.5 V | 7.7 | 37.2 | 35.1 | 22 % / 73 % | 1294 rpm, 60 V |
-| 3.0 | 437.8 | 140.9 (Cp 0.322) | 75.8 at TSR 5.76, 1625 rpm | 0.95 A / 66.3 V | 5.0 | 63.1 | 59.6 | 14 % / 83 % | 1835 rpm, 85 V |
+| 1.0 | 16.2 | 4.0 (Cp 0.248) | 3.7 at TSR 3.92, 368 rpm | 0.14 A / 15.1 V | 0.1 + 0.4 | **2.2** | **1.8** | 13 % / 59 % | 475 rpm, 22 V (sigma 7.85) |
+| 1.2 | 28.0 | 7.2 (Cp 0.256) | 7.1 at TSR 3.35, 378 rpm | 0.34 A / 14.4 V | 0.6 + 0.4 | **4.8** | **4.3** | 17 % / 68 % | 612 rpm, 28 V (sigma 4.74) |
+| 1.5 | 54.7 | 14.5 (Cp 0.265) | 14.4 at TSR 3.54, 499 rpm | 0.55 A / 18.6 V | 1.6 + 0.6 | **10.2** | **9.4** | 19 % / 71 % | 792 rpm, 37 V (sigma 2.84) |
+| 2.0 | 129.7 | 35.8 (Cp 0.276) | 35.1 at TSR 3.92, 736 rpm | 0.95 A / 26.6 V | 4.9 + 1.1 | **25.2** | **23.6** | 19 % / 72 % | 1126 rpm, 52 V (sigma 1.41) |
+| 2.2 | 172.7 | 48.2 (Cp 0.279) | 47.4 at TSR 3.92, 810 rpm | 1.19 A / 28.2 V | 7.8 + 1.2 | **33.6** | **31.6** | 19 % / 71 % | 1239 rpm, 58 V (sigma 1.16) |
+| 3.0 | 437.8 | 126.5 (Cp 0.289) | 53.9 at TSR 5.99, 1689 rpm | 0.41 A / 73.9 V | 0.9 + 3.7 | **30.5** | **28.7** | 7 % / 57 % | 1796 rpm, 84 V (sigma 0.56) |
 
-The earlier "70 %" was shaft-to-DC; water-to-DC is 17-22 %. At 1.0 m/s the buck charger forces the rotor above its best TSR
-(V_dc must stay above 14.2 V), which costs about a quarter of the available 1 m/s power; a boost stage would recover it but no COTS
-charger does both buck and boost over 10-60 V (research: Genasun GVB-8 cannot regulate when V_in > V_bat). At 3 m/s the charger point
-is 66 V: the dump threshold (45 V) engages first.
+The earlier "70 %" was shaft-to-DC; water-to-DC is 13 %-19 %. At 1.0 m/s the buck charger forces the rotor above its best TSR (V_dc must stay
+above 14.2 V): 2.6 W would be available without that floor against 2.2 W with it; no COTS charger does both buck and boost over 10-60 V
+(research: Genasun GVB-8 cannot regulate when V_in > V_bat). At 3 m/s the Victron's battery-current limit caps the charger at 31 W and the bus rises
+to 74 V, so the dump relay (45 V) engages whatever the battery state.
 
-**Startup, runaway, dump and brake (torque-balanced per speed):**
+**Sensitivities (DC W at the charging point):**
 
-| Flow | Static torque / breakaway (N m) | Open circuit | Dump 15 ohm (relay at 45 V) | 3-phase short brake |
+| Flow | baseline | no V_bat+1 floor | KV 25 instead of 21.5 | NBR seal instead of PTFE | drum windage at the charging point (mN m) |
+|---|---|---|---|---|---|
+| 1.0 | 2.2 | 2.6 | 1.7 | 2.1 | 7 |
+| 1.5 | 10.2 | 10.2 | 9.5 | 9.9 | 11 |
+| 2.0 | 25.2 | 25.2 | 23.2 | 24.8 | 22 |
+
+**Startup, runaway, dump and brake (torque-balanced per speed; cavitation number sigma from 0.5 m depth, 20 C):**
+
+| Flow | Static torque / breakaway PTFE (ratio) / breakaway NBR (ratio), N m | Open circuit | Dump 22 ohm (relay 45 V engage / 12 V release) | 3-phase short brake |
 |---|---|---|---|---|
-| 1.0 | 0.068 / 0.062 (OK, x1.10) | 518 rpm, 24 V | 215 rpm, 6.4 V, 2.7 W resistor, 1.0 W copper | 75 rpm, 2.2 W copper |
-| 1.5 | 0.154 / 0.062 (OK, x2.49) | 847 rpm, 39 V | 393 rpm, 12.1 V, 9.8 W resistor, 3.6 W copper | 113 rpm, 5.0 W copper |
-| 2.0 | 0.275 / 0.062 (OK, x4.44) | 1177 rpm, 55 V | 617 rpm, 19.1 V, 24.3 W resistor, 8.9 W copper | 150 rpm, 8.8 W copper |
-| 2.2 | 0.334 / 0.062 (OK, x5.38) | 1294 rpm, 60 V | 730 rpm, 22.5 V, 33.8 W resistor, 12.4 W copper | 319 rpm, 38.1 W copper |
-| 3.0 | 0.624 / 0.062 (OK, x10.07) | 1835 rpm, 85 V | 1205 rpm, 36.2 V, 87.2 W resistor, 32.0 W copper | 645 rpm, 134.4 W copper |
+| 1.0 | 0.059 / 0.047 (x1.25) / 0.062 (x0.95) | 475 rpm, 22 V, sigma 7.85 | 226 rpm, 7.4 V, 2.5 W resistor, 0.6 W copper, sigma 30.55 | 11 rpm, 0.0 W copper |
+| 1.2 | 0.085 / 0.047 (x1.80) / 0.062 (x1.36) | 612 rpm, 28 V, sigma 4.74 | 293 rpm, 9.8 V, 4.4 W resistor, 1.1 W copper, sigma 18.63 | 21 rpm, 0.2 W copper |
+| 1.5 | 0.132 / 0.047 (x2.81) / 0.062 (x2.13) | 792 rpm, 37 V, sigma 2.84 | 419 rpm, 14.3 V, 9.3 W resistor, 2.3 W copper, sigma 9.38 | 36 rpm, 0.5 W copper |
+| 2.0 | 0.236 / 0.047 (x5.02) / 0.062 (x3.81) | 1126 rpm, 52 V, sigma 1.41 | 665 rpm, 22.8 V, 23.7 W resistor, 5.9 W copper, sigma 3.84 | 61 rpm, 1.4 W copper |
+| 2.2 | 0.286 / 0.047 (x6.09) / 0.062 (x4.62) | 1239 rpm, 58 V, sigma 1.16 | 810 rpm, 27.7 V, 34.9 W resistor, 8.7 W copper, sigma 2.63 | 81 rpm, 2.6 W copper |
+| 3.0 | 0.536 / 0.047 (x11.40) / 0.062 (x8.64) | 1796 rpm, 84 V, sigma 0.56 | 1264 rpm, 42.4 V, 81.9 W resistor, 20.5 W copper, sigma 1.09 | 226 rpm, 19.5 W copper |
 
-Reading: the dump holds the bus below 25 V at 2 m/s (24 W in the resistor, heatsink required) and 36 V at 3 m/s but with 32 W of
-copper loss in a generator whose metal heat path allows ~12 W: **the dump is a full-battery / charger-fault response for <= 2.2 m/s,
-not a flood response.** The 3-phase short brake stops the rotor to 75-150 rpm at 1-2 m/s (2-9 W in the winding) and is the retrieval
-brake; at 3 m/s it equilibrates at 645 rpm with 134 W in the winding and must not be used. **The 3 m/s case is survived only
-open-circuit** (1835 rpm, 85 V on the bus: below the Victron's 100 V and the 5KP85A standoff) or by retrieval; blade loads at that
-speed are covered in section 5.
+**Dump resistor study** (rpm, bus V, resistor W, tip cavitation number):
+
+| Flow | 15 ohm | 22 ohm | 33 ohm | 47 ohm |
+|---|---|---|---|---|
+| 2.0 | 595 rpm, 18 V, 23 W, sigma 4.72 | 665 rpm, 23 V, 24 W, sigma 3.84 | 772 rpm, 29 V, 25 W, sigma 2.91 | 843 rpm, 33 V, 23 W, sigma 2.46 |
+| 2.2 | 693 rpm, 21 V, 31 W, sigma 3.51 | 810 rpm, 28 V, 35 W, sigma 2.63 | 888 rpm, 33 V, 33 W, sigma 2.21 | 966 rpm, 38 V, 31 W, sigma 1.88 |
+| 3.0 | 1158 rpm, 35 V, 81 W, sigma 1.29 | 1264 rpm, 42 V, 82 W, sigma 1.09 | 1370 rpm, 50 V, 77 W, sigma 0.94 | 1477 rpm, 57 V, 70 W, sigma 0.81 |
+
+Reading: NACA 44xx sections cavitate at the tip below sigma ~1.0-1.2, so the open-circuit runaway is **not** a safe state above about
+2 m/s (sigma 1.41 at 2.0, 1.16 at 2.2, 0.56 at 3.0 m/s). The 22 ohm dump holds sigma 1.09 at 3 m/s with 82 W in the
+submerged resistor and 20 W in the winding (+73 K by the metal path: a survival state, not a continuous one); 15 ohm would
+stop cavitation (sigma 1.29) but put 30 W into the winding; 47 ohm would leave the tips cavitating (sigma 0.81). With a full battery at 2.0-2.2 m/s the dump dissipates
+24-35 W and the winding 6-9 W continuously. Release at 12 V: every dump equilibrium above 1.6 m/s sits above 12 V and every
+open-circuit bus below 1.9 m/s sits below 45 V, so the relay does not cycle; between 1.6 and 1.9 m/s with a full battery the rotor runs
+open-circuit at about 40 V (sigma > 2, harmless). The 3-phase short brake stalls the rotor to 11-81 rpm up to 2.2 m/s with <= 2.6 W in the
+winding (continuous retrieval brake); at 3 m/s it equilibrates at 226 rpm with 19 W in the winding: 10 minutes at most.
 
 ## 8. Power electronics and control logic (selected parts, research in `research/research_electrical_v3.md`)
 
-Generator (3 phases) -> NKK S32F 3PDT brake switch (RUN / BRAKE) -> 6 x MBR10100 bridge (100 V) -> DC bus [2 x 5KP85A TVS; 6-80 V
-voltage-monitor relay: engage 45 V / release 35 V -> Ohmite HS100 15 ohm 100 W on a heatsink] -> Victron SmartSolar MPPT 100/15 ->
-5 A fuse (Littelfuse 0287005 in FHAC0001) -> Anderson Powerpole -> 12.8 V LiFePO4. Dry box Hammond 1554F2GY (IP68) with PG7 glands;
-generator cable Weipu SP13 IP68 connector.
+Generator (3 phases) -> NKK S32F 3PDT brake switch (RUN / BRAKE) -> 6 x MBR10100 bridge (100 V) -> DC bus [2 x 5KP90A TVS; 6-80 V
+voltage-monitor relay: engage 45 V / release 12 V, RC-snubbed contact -> Ohmite HS100 22R 100 W on a submerged 6061 plate (dump block,
+outside the dry box)] -> Victron SmartSolar MPPT 100/15 (battery-current limit 2.5 A) -> 5 A fuse (Littelfuse 0287005 in FHAC0001) ->
+keyed Anderson SB50 -> 12.8 V LiFePO4 with a 10 A fuse at the terminal. Dry box Hammond 1554F2GY (IP68) with PG7 glands; generator cable
+Weipu SP13 IP68 connector. No part inside the box dissipates more than the diodes (~1.3 W at 2.2 m/s).
 - Unloaded start: switch in RUN, charger off until the bus exceeds V_bat + 5 V (about 18 V): the rotor accelerates unloaded to its
-  no-load speed (518 rpm at 1 m/s = 24 V), then the MPPT ramps the load; it cannot pull the bus below V_bat + 1 V, so it cannot stall the
-  rotor by itself. The generator-side current limit (1.2 A) is implemented as the Victron's charge-current limit scaled by the bus
-  ratio (set 2.5 A battery-side at 13.2 V) and verified at gate 11; it protects the winding, not the rotor.
-- Full battery or charger fault: the bus rises toward open circuit; the dump relay engages at 45 V; the resistor sees 24-34 W at 2-2.2 m/s.
-- Load disconnect at any speed <= 2.2 m/s: open circuit <= 60 V; TVS and the 100 V charger input are within rating; dump engages if the relay is powered from the bus (it is).
-- Retrieval: BRAKE at <= 1.5 m/s (2-5 W in the winding); above that, open-circuit and wait.
-- Floods (3 m/s provisional): open-circuit only; do not dump or brake; retrieve when possible.
+  no-load speed (475 rpm at 1 m/s = 22 V), then the MPPT ramps the load; it cannot pull the bus below V_bat + 1 V, so it cannot stall the rotor by itself.
+- Current and temperature limits: the Victron limit of 2.5 A battery current equals 1.2 A of generator current at a 29 V bus and more at lower bus voltage;
+  the winding limit is therefore enforced by the rotor's own torque curve below 2.2 m/s (max 1.19 A) and by the dump above; the thermal gate (7) sets the final value.
+- Full battery or charger fault: the bus rises toward open circuit; the relay engages at 45 V (>= 1.9 m/s); the dump block sees 24-35 W at 2-2.2 m/s and holds until the flow drops below 1.6 m/s.
+- Load disconnect at any speed <= 2.2 m/s: open circuit <= 58 V; TVS and the 100 V charger input are within rating; the dump engages above 45 V because the relay is bus-powered.
+- Retrieval: BRAKE at <= 2.2 m/s (<= 2.6 W in the winding); at 3 m/s for <= 10 min.
+- Floods (3 m/s provisional): dump engaged (automatic); 20 W in the winding is survivable for hours, not days; retrieve when possible.
+  Residual risk: a relay failure above 3 m/s gives 84 V open circuit (within the 100 V ratings) and a cavitating rotor; above that speed the ratings are exceeded.
 
 ## 9. Reviews and final integrated check
 
-Four independent review passes (calculation/units, mechanical-CAD, printability/manufacturing, skeptical failure-mode) were run on
-this package by separate reviewer agents working from the exported files; their findings, the corrections and the re-verification are
-in `docs/ERROR_LOG.md` (entries R-xx). The final integrated check re-imported `cad/out/min76_assembly.step` and `robust_assembly.step`
-(all solids valid, zero rigid interference on the pair list), re-ran the three models and regenerated this report from their outputs,
-and reconciled the BOM against the part table in `cad/out/v3_info.json` (section 10).
+Four independent review passes (calculation/units, mechanical-CAD, printability/manufacturing, skeptical failure-mode) were run by
+separate reviewer agents on the exported first-draft files. They found 40 real issues (4 critical in the CAD: rear bearing not
+installable, lead path through the bearing seat, cross pin through the lead exit, fastener heads without room; 1 critical in the
+calculation: aerodynamic root radius; 1 critical in the FMEA: unserviceable seal; the rest major/minor), all logged with evidence,
+correction and re-verification in `docs/ERROR_LOG.md`. The geometry, the models, the drawings, the BOM and the plans were regenerated
+after the corrections; this report is generated from those outputs. The final integrated check (`tools/final_check_and_package.py`)
+re-imported the exported assembly STEPs, ran a full pairwise rigid clash check, verified every print STL (closed, on the bed, volume
+against its STEP) and reconciled the BOM against the CAD part table:
+
+```
+min76_assembly.step: 44 solids (parts listed 44), all valid True, depth from STEP 73.00 mm (layout 73.00)
+   full pairwise rigid check (44 solids): no clash
+robust_assembly.step: 46 solids (parts listed 46), all valid True, depth from STEP 86.80 mm (layout 86.80)
+   full pairwise rigid check (46 solids): no clash
+print STLs: 18; non-watertight: none; STL-vs-STEP volume beyond 1.5 % or not on the bed: none
+BOM-to-CAD: every CAD part has a BOM line; bearing '6702' in BOM: True; seal '15x22x4' in BOM: True
+```
 
 ## 10. Deliverables and what remains open
 
@@ -230,24 +275,27 @@ and reconciled the BOM against the part table in `cad/out/v3_info.json` (section
 | Preferred architecture + justification | this report, sections 4-6 |
 | Dimensioned assembly, section, exploded views | `cad/out/min76_section.png`, `min76_dimensioned.png`, `min76_exploded.png` (+ `robust_*`) |
 | Editable parametric CAD and assembly STEP | `cad/make_v3.py`; `cad/out/min76_assembly.step`, `robust_assembly.step`; per-part `*.step` |
-| Oriented printable STLs | `cad/out/min76_*_PRINT.stl` (9 parts; all watertight) |
-| Machined-part drawings | `cad/out/min76_drawing_front_cap.png`, `_rear_cap.png`, `_spindle.png`, `_boss_strut.png` |
-| Per-part print/assembly plan | `docs/PRINT_ASSEMBLY_PLAN.md` |
-| BOM with sourced specs and cost scope | `docs/BOM_v3.csv` (36 lines; one prototype $690-1,230 hardware, excluding battery, duct beyond the ring, frame, instrumentation) |
+| Oriented printable STLs | `cad/out/min76_*_PRINT.stl` (9 parts; all closed; blades within 0.53 % of the STEP volume, tilted -4.5 deg) |
+| Machined-part drawings | `cad/out/min76_drawing_front_cap.png`, `_rear_cap.png`, `_spindle.png`, `_boss_strut.png` (boss, strut profile, potting plug) |
+| Per-part print/assembly plan incl. service | `docs/PRINT_ASSEMBLY_PLAN.md` |
+| BOM with sourced specs and cost scope | `docs/BOM_v3.csv` (40 lines; one prototype roughly $987-1,767 of hardware excluding anodising batch minimums, the battery, a duct beyond the ring, frame/mooring and instrumentation; machining prices are estimates) |
 | Calculation model (reproducible) | `model/reproduce_trial1.py`, `system_model_v3.py`, `structure_seal_thermal_v3.py`, `packaging_76mm.py`, `rotor_v3.py` + JSON outputs |
 | Original vs corrected vs final comparison | section 3 |
-| Validation plan with acceptance criteria | `docs/VALIDATION_PLAN_v3.md` |
-| Error-review / correction log | `docs/ERROR_LOG.md` |
+| Validation plan with acceptance criteria | `docs/VALIDATION_PLAN_v3.md` (13 gates) |
+| Error-review / correction log | `docs/ERROR_LOG.md` (16 first-draft + 40 review entries) |
 
 **Measurements required before the machined parts are cut:**
-- **motor_pcd / motor_hole**: GL60 stator-base mounting hole PCD and thread (manufacturer drawing could not be fetched in this session)
-- **bell_pcd**: GL60 rotor (bell) face mounting PCD/thread for the TPU drive disc
+- **motor_pcd / motor_hole / bell_pcd**: GL60 stator-base and bell mounting hole PCDs and threads (manufacturer drawing could not be fetched): the flange and the disc carry BOTH patterns
+- **GL60 lead exit**: where the three phase leads leave the stator base (OD or bore side); the flange channel runs from the OD to the bore so either works
 - **motor_od / motor_len / motor_bore**: confirm 69.0 x 22.3 mm and the 20 mm through-bore on the delivered revision
-- **tube_id**: measure the real 3.0 x 0.065 in tube bore (+-0.15) and cut the cap O-ring grooves to it
-- **Speedi-Sleeve 99059 on an anodised aluminium journal**: confirm with SKF; fallback = run the lip on the hard-anodised 15 h6 journal (Ra 0.4) and inspect at 2 weeks
+- **tube_id**: measure the real 3.0 x 0.065 in tube bore (+-0.15); bore both ends 72.90 H8 x 12 deep and cut the cap O-ring grooves to that
+- **Speedi-Sleeve 99059**: confirm the sleeve width (modelled 6.0) and SKF's advice on an anodised aluminium journal; fallback = run the PTFE lip on the hard-anodised 15 h6 journal (Ra 0.4)
+- **lip seal**: PTFE pressure-rated lip seal in the 15x22x4 (min76) / 15x24x5 (robust) envelope (Trelleborg Varilip PDR or equivalent); confirm availability, else Freudenberg BABSL 15x24x5
+- **DIN 471-15 lug envelope**: confirm the installed outside dimension across the lugs fits the 24 mm recess
 
-**Remaining assumptions that move the result:** lip-seal breakaway (decides 1.0 m/s self-start), GL60 cogging and the exact
-Kt/R (+-10 % on DC power), the stator-to-flange thermal joint (decides the current limit), printed wet allowables (coupons), the
-real tube bore (gland machining), duct augmentation (not credited), and the deployment depth and flood regime (provisional 2 m / 3 m/s).
+**Remaining assumptions that move the result:** lip-seal breakaway and cogging (decide 1.0 m/s self-start), the exact GL60 Kt/R
+(+-10 % on DC power), the winding-to-base and stator-to-flange thermal joints (decide the current limit), printed wet allowables
+(coupons), the real tube bore (gland machining), the drum-air temperature rise (minimum depth), duct augmentation (not credited),
+and the deployment depth and flood regime (provisional 0.3-2 m / 3 m/s).
 
-**Required physical tests:** the twelve gates in `docs/VALIDATION_PLAN_v3.md`; none has been run.
+**Required physical tests:** the thirteen gates in `docs/VALIDATION_PLAN_v3.md`; none has been run.
