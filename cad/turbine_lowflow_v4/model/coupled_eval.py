@@ -52,7 +52,10 @@ def min_flows(res):
     s = next((float(V) for V in res["perV"] if res["perV"][V]["start"]), None); u = next((float(V) for V in res["perV"] if res["perV"][V]["op"] and res["perV"][V]["sustain"] > 0), None)
     return s, u
 
-if __name__ == "__main__":
+if __name__ == "__main__" and "--replot" in sys.argv:
+    Cst = json.load(open(os.path.join(HERE, "coupled_results.json"))); R = {k: v["res"] for k, v in Cst["designs"].items()}; names = {k: v["name"] for k, v in Cst["designs"].items()}
+    spec_new = Cst["selected"]["spec"]; sens = Cst["sens"]; gmap = Cst["gmap"]; combos = Cst["combos"]
+if __name__ == "__main__" and "--replot" not in sys.argv:
     sel = json.load(open(os.path.join(HERE, "selected_design.json")))
     spec_new = sel["spec"]; orig, v31 = previous_designs()
     designs = {"new": (spec_new, "A"), "v31": (v31, "B"), "orig": (orig, "A"), "new_in_B": (spec_new, "B")}
@@ -115,6 +118,7 @@ if __name__ == "__main__":
         gmap[str(T)] = rows
     json.dump(dict(designs={k: dict(name=names.get(k, k), res=R[k]) for k in R}, table=table, sens=sens, combos=combos, gmap=gmap, VS=VS_ALL, selected=sel),
               open(os.path.join(HERE, "coupled_results.json"), "w"), indent=0, default=float)
+if __name__ == "__main__":
     # ======================================================================= figures
     def fig_cp_tsr():
         fig, axs = plt.subplots(1, 4, figsize=(18, 4.6), facecolor=SURF, sharey=True)
@@ -186,8 +190,8 @@ if __name__ == "__main__":
             for key in keys:
                 if sens.get(key) is None: continue
                 ax.plot(VS_ALL, sens[key], "-o" if key == "baseline" else "-", lw=2.5 if key == "baseline" else 1.3, ms=4, label=key)
-            ax.set_xlim(0.4, 1.5); ax.set_xlabel("water speed (m/s)"); ax.grid(alpha=0.3); ax.legend(fontsize=7.5); ax.set_title(title, fontsize=9)
-        axs[0].set_ylabel("net 12 V electrical power (W), gated by self-start"); axs[0].set_ylim(0, 8)
+            ax.set_xlim(0.45, 1.05); ax.set_yscale("log"); ax.set_ylim(0.05, 6); ax.set_xlabel("water speed (m/s)"); ax.grid(alpha=0.3, which="both"); ax.legend(fontsize=7.5, loc="lower right"); ax.set_title(title, fontsize=9)
+        axs[0].set_ylabel("net 12 V electrical power (W, log), gated by self-start")
         fig.suptitle("Fig. 8  Sensitivity of the net output of the selected design to the unmeasured inputs (one at a time; arrangement A, buck-boost MPPT)", fontsize=10, x=0.01, ha="left")
         fig.tight_layout(); fig.savefig(os.path.join(OUT, "fig8_sensitivity.png"), dpi=130, facecolor=SURF)
     def fig_operating_point():

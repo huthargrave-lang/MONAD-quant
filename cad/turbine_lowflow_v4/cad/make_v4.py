@@ -328,14 +328,15 @@ def build(sel):
     return parts, layout
 
 def print_orient(name, s):
-    base = name.split("_")[0]
-    if name in ("hub_front",): s = s.rotate(cq.Vector(0, 0, 0), cq.Vector(0, 1, 0), -90)          # parting face (at +X) down: -X -> up... front half: parting face is its +X face -> rotate so +X -> -Z
-    elif name in ("hub_rear",): s = s.rotate(cq.Vector(0, 0, 0), cq.Vector(0, 1, 0), 90)          # parting face (-X face) down
+    """rotate a printed part so its print face is at -Z (then move onto z = 0): hub halves on their parting faces, disc flat, clamp halves
+    on their flat parting plane, ring on its end face, dog hub on its bare end"""
+    if name == "hub_front": s = s.rotate(cq.Vector(0, 0, 0), cq.Vector(0, 1, 0), 90)            # parting face is its +X face -> -Z
+    elif name == "hub_rear": s = s.rotate(cq.Vector(0, 0, 0), cq.Vector(0, 1, 0), -90)          # parting face is its -X face -> -Z
     elif name in ("drive_disc",): s = s.rotate(cq.Vector(0, 0, 0), cq.Vector(0, 1, 0), 90)
     elif name in ("dog_hub",): s = s.rotate(cq.Vector(0, 0, 0), cq.Vector(0, 1, 0), -90)
     elif name in ("duct",): s = s.rotate(cq.Vector(0, 0, 0), cq.Vector(0, 1, 0), 90)
     elif name in ("nose_plug",): s = s.rotate(cq.Vector(0, 0, 0), cq.Vector(0, 1, 0), 90)
-    elif name == "clamp_top": s = s.rotate(cq.Vector(0, 0, 0), cq.Vector(1, 0, 0), 180)
+    elif name == "clamp_bot": s = s.rotate(cq.Vector(0, 0, 0), cq.Vector(1, 0, 0), 180)           # its flat parting plane (z = 0) becomes the bottom
     bb = s.BoundingBox(); return s.translate(cq.Vector(-bb.xmin, -bb.ymin, -bb.zmin))
 
 def export(parts, layout, sel, prefix="v4"):
