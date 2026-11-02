@@ -11,7 +11,7 @@ HERE = os.path.dirname(os.path.abspath(__file__)); OUT = os.path.join(HERE, ".."
 TABS = ob.TABS
 SURF = "#fcfcfb"; C_NEW, C_OLD, C_ORIG, INK2 = "#1d5fa8", "#c4342d", "#b06f00", "#52514e"
 VS_ALL = [0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.25, 1.5, 2.0]
-LAMS = np.arange(0.4, 7.01, 0.2)
+LAMS = np.r_[0.1, 0.2, np.arange(0.4, 7.01, 0.2)]          # starts at 0.1 so the torque curve reaches the induction-on standstill estimate without a kink
 
 def previous_designs():
     """(1) original 8-inch rev-2 blade (hub 25.4 mm, TSR 4, NACA 4422->4414), from blade_stations.csv; (2) the v3.1 drum-rotor blade."""
@@ -24,29 +24,33 @@ def previous_designs():
     v31 = dict(name="v3.1 drum rotor blade (1-2 m/s, root 48.2)", from_arrays=True, airfoil="naca4412", B=3, r_mm=bl["r"].tolist(), chord_mm=bl["chord"].tolist(), twist_deg=bl["twist"].tolist())
     return orig, v31
 
-def make_blade(spec, arr_key, n_el=50, cd_mult=1.0, cl_fac=1.0, cdmax=1.8, no_vfac=False):
-    arr = ob.ARR[arr_key]; r, _ = bm.elements(arr["r_hub"], n_el); vf = None if no_vfac else ob.vfac_for(r, arr)
+def make_blade(spec, arr_key, n_el=50, cd_mult=1.0, cl_fac=1.0, cdmax=1.8, no_vfac=False, re_shift=1.0, hi_a="buhl", vfac_nac=None):
+    arr = dict(ob.ARR[arr_key]); r, _ = bm.elements(arr["r_hub"], n_el)
+    if vfac_nac is not None: arr["vfac_nac"] = vfac_nac                                 # review M8: inflow factor inboard of r_nac as a sensitivity
+    vf = None if no_vfac else ob.vfac_for(r, arr)
     if spec.get("from_arrays"):
-        return bm.blade_from_arrays(TABS, spec["airfoil"], spec["B"], spec["r_mm"], spec["chord_mm"], spec["twist_deg"], arr["r_hub"], n=n_el, vfac=vf, cd_mult=cd_mult, cl_fac=cl_fac, cdmax=cdmax)
+        return bm.blade_from_arrays(TABS, spec["airfoil"], spec["B"], spec["r_mm"], spec["chord_mm"], spec["twist_deg"], arr["r_hub"], n=n_el, vfac=vf, cd_mult=cd_mult, cl_fac=cl_fac, cdmax=cdmax, re_shift=re_shift, hi_a=hi_a)
     return bm.design(TABS, spec["airfoil"], spec["B"], spec["lam_d"], spec.get("c_scale", 1.0), spec.get("dbeta", 0.0), arr["r_hub"], spec.get("c_max", 0.060), spec.get("tip_frac", 0.55),
-                     spec.get("root_blend", 0.35), n=n_el, vfac=vf, cd_mult=cd_mult, cl_fac=cl_fac, cdmax=cdmax)
+                     spec.get("root_blend", 0.35), n=n_el, vfac=vf, cd_mult=cd_mult, cl_fac=cl_fac, cdmax=cdmax, re_shift=re_shift, hi_a=hi_a)
 
-def full_eval(spec, arr_key, conv_key="buckboost", gen=None, fr=None, cd_mult=1.0, cl_fac=1.0, vs=VS_ALL, lams=LAMS, cog=None, rect=None, cdmax=1.8, no_vfac=False, static="viterna"):
-    """static = 'viterna' (standstill estimate, no induction) or 'bem02' (BEM torque at lambda 0.2: conservative alternative)"""
+def full_eval(spec, arr_key, conv_key="buckboost", gen=None, fr=None, cd_mult=1.0, cl_fac=1.0, vs=VS_ALL, lams=LAMS, cog=None, rect=None, cdmax=1.8, no_vfac=False, static="bem01", re_shift=1.0, hi_a="buhl", conv_override=None, vfac_nac=None):
+    """static = 'bem01' (BASELINE: BEM torque at lambda 0.1, induction on) or 'viterna' (no-induction standstill estimate: upper bound)"""
     g = dict(gl.GEN if gen is None else gen); 
     if cog is not None: g["cogging"] = cog
     rect = gl.RECTIFIER["schottky"] if rect is None else rect
     arr = ob.ARR[arr_key]; frd = gl.FRICTION[arr["fr"]] if fr is None else fr
-    bl = make_blade(spec, arr_key, cd_mult=cd_mult, cl_fac=cl_fac, cdmax=cdmax, no_vfac=no_vfac); conv = gl.CONVERTERS[conv_key]
+    bl = make_blade(spec, arr_key, cd_mult=cd_mult, cl_fac=cl_fac, cdmax=cdmax, no_vfac=no_vfac, re_shift=re_shift, hi_a=hi_a, vfac_nac=vfac_nac); conv = dict(gl.CONVERTERS[conv_key])
+    if conv_override: conv.update(conv_override)
     mode = "cv" if conv.get("fixed_V") else "mppt"                                       # the direct rectifier-to-battery case is a fixed-bus equilibrium (review M1)
     res = dict(perV={}, meta=bl.meta, r=bl.r.tolist(), c=bl.c.tolist(), beta=np.degrees(bl.beta).tolist())
     for V in vs:
         cur = [bm.bem(bl, l, V) for l in lams]; Q = np.array([c["Q"] for c in cur]); cp = np.array([c["cp"] for c in cur]); T = np.array([c["T"] for c in cur])
         Qs = bm.static_torque(bl, V) if static == "viterna" else bm.static_torque_bem_low_lambda(bl, V)
+        Qs_up = bm.static_torque(bl, V)
         op = gl.operating_point(V, lams, Q, frd, conv, rect=rect, g=g, r_hub_m=arr["r_hub"], mode=mode)
         op_open = gl.operating_point(V, lams, Q, frd, conv, rect=rect, g=g, r_hub_m=arr["r_hub"], mode="open")
         sus = gl.sustain_margin(V, lams, Q, frd, g, arr["r_hub"], lam_max=(op["lam"] if op else (op_open["lam"] if op_open else None)))   # unloaded path up to the operating point (or the runaway point when no load engages)
-        res["perV"][str(V)] = dict(lam=lams.tolist(), cp=cp.tolist(), Q=Q.tolist(), T=T.tolist(), Qstatic=Qs, breakaway=gl.breakaway(frd, g), start=bool(Qs > gl.breakaway(frd, g)), sustain=sus,
+        res["perV"][str(V)] = dict(lam=lams.tolist(), cp=cp.tolist(), Q=Q.tolist(), T=T.tolist(), Qstatic=Qs, Qstatic_upper=Qs_up, breakaway=gl.breakaway(frd, g), start=bool(Qs > gl.breakaway(frd, g)), sustain=sus,
                                    op=op, open=op_open, cp_peak=float(cp.max()), lam_peak=float(lams[cp.argmax()]), P_ann=0.5 * 1000 * math.pi * (bm.R_TIP ** 2 - arr["r_hub"] ** 2) * V ** 3,
                                    Pout_gated=(op["Pout"] if (op and Qs > gl.breakaway(frd, g) and sus > 0) else 0.0))
     return res
@@ -82,7 +86,10 @@ if __name__ == "__main__" and "--replot" not in sys.argv:
     # ---------------- sensitivities (new design, arrangement A, buck-boost)
     sens = {}
     base_fr = gl.FRICTION["A_rear_nacelle"]
-    def P_curve(res): return [res["perV"][str(V)]["Pout_gated"] for V in VS_ALL]
+    _starts = []
+    def P_curve(res):
+        """net power once turning (hand-started where the model predicts no self-start); the self-start threshold of each case is recorded in sens_start"""
+        _starts.append(min_flows(res)[0]); return [(res["perV"][str(V)]["op"]["Pout"] if res["perV"][str(V)]["op"] else 0.0) for V in VS_ALL]
     sens["baseline"] = P_curve(R["new"])
     for f in (0.5, 2.0, 3.0):
         fr = dict(base_fr); fr["seal_run"] *= f; fr["seal_break"] *= f; sens[f"seal x{f}"] = P_curve(full_eval(spec_new, "A", fr=fr))
@@ -99,27 +106,37 @@ if __name__ == "__main__" and "--replot" not in sys.argv:
     g = dict(gl.GEN); g["KV"] = 25.0; sens["KV 25 (Kt 0.38)"] = P_curve(full_eval(spec_new, "A", gen=g))
     g = dict(gl.GEN); g["R_LL"] = 6.5; sens["R 6.5 ohm"] = P_curve(full_eval(spec_new, "A", gen=g))
     sens["rectifier synchronous"] = P_curve(full_eval(spec_new, "A", rect=gl.RECTIFIER["synchronous"]))                     # review M2: passed explicitly
-    sens["standstill cdmax 1.2"] = P_curve(full_eval(spec_new, "A", cdmax=1.2)); sens["standstill cdmax 2.0"] = P_curve(full_eval(spec_new, "A", cdmax=2.0))   # review M5
-    sens["standstill = BEM at TSR 0.2"] = P_curve(full_eval(spec_new, "A", static="bem02"))
+    sens["standstill = no-induction estimate (upper bound)"] = P_curve(full_eval(spec_new, "A", static="viterna"))       # reviews C1 / M5: the no-induction value is an upper bound
+    sens["Re / 1.5 (earlier transition)"] = P_curve(full_eval(spec_new, "A", re_shift=1 / 1.5)); sens["Re x 1.5"] = P_curve(full_eval(spec_new, "A", re_shift=1.5))   # review M1
+    sens["high-induction model: Glauert-Spera"] = P_curve(full_eval(spec_new, "A", hi_a="spera")); sens["high-induction model: uncorrected momentum"] = P_curve(full_eval(spec_new, "A", hi_a="momentum"))   # review M4
+    for ov in (0.20, 0.30, 0.50):                                                                                                       # review M5: converter fixed overhead (k + P_q)
+        sens[f"converter fixed overhead {ov:.2f} W"] = P_curve(full_eval(spec_new, "A", conv_override=dict(k=ov * 0.6, P_q=ov * 0.4)))
+    g = dict(gl.GEN); g["KV"] = 26.2; sens["KV 26.2 (line-line-peak reading of 'KV 25')"] = P_curve(full_eval(spec_new, "A", gen=g))                 # review M6
     nov = full_eval(spec_new, "A", no_vfac=True); sens["no nacelle inflow deficit"] = P_curve(nov)
+    for vfn in (0.70, 0.60):                                                                                                               # review M8: bluff-cap stagnation ahead of the inner sections
+        sens[f"nacelle inflow factor {vfn:.2f} inboard of r 38 mm"] = P_curve(full_eval(spec_new, "A", vfac_nac=vfn))
     nacelle_cp_cost = {V: 1 - R["new"]["perV"][str(V)]["cp_peak"] / nov["perV"][str(V)]["cp_peak"] for V in (0.5, 0.7, 1.0)}
-    # worst / best combinations for the minimum-flow bounds (cdmax and the standstill model included, review M5)
+    sens_start = dict(zip(list(sens.keys()), _starts))                      # one P_curve call per sensitivity, in insertion order
+    # bounding combinations for the minimum-flow and power bands (reviews C1, M1, M4, M5)
     combos = {}
-    for lab, kw in (("optimistic", dict(cd_mult=1.0, cog=0.008, cdmax=2.0, fr={**base_fr, "seal_run": base_fr["seal_run"] * 0.5, "seal_break": base_fr["seal_break"] * 0.5})),
-                    ("baseline", dict()), ("pessimistic", dict(cd_mult=1.3, cl_fac=0.9, cog=0.040, cdmax=1.2, fr={**base_fr, "seal_run": base_fr["seal_run"] * 2, "seal_break": base_fr["seal_break"] * 2})),
-                    ("baseline, standstill = BEM at TSR 0.2", dict(static="bem02"))):
+    for lab, kw in (("optimistic", dict(static="viterna", cog=0.008, re_shift=1.5, hi_a="spera", fr={**base_fr, "seal_run": base_fr["seal_run"] * 0.5, "seal_break": base_fr["seal_break"] * 0.5})),
+                    ("baseline", dict()),
+                    ("pessimistic", dict(cog=0.040, re_shift=1 / 1.5, hi_a="momentum", conv_override=dict(k=0.18, P_q=0.12), vfac_nac=0.70, fr={**base_fr, "seal_run": base_fr["seal_run"] * 2, "seal_break": base_fr["seal_break"] * 2})),
+                    ("baseline, no-induction standstill (upper bound)", dict(static="viterna"))):
         rr = full_eval(spec_new, "A", **kw); combos[lab] = dict(min_start=min_flows(rr)[0], min_sustain=min_flows(rr)[1], P=P_curve(rr), Qstatic05=rr["perV"]["0.5"]["Qstatic"], breakaway05=rr["perV"]["0.5"]["breakaway"])
+    # cogging threshold for self-start at 0.5 / 0.6 / 0.7 m/s under the baseline starting torque
+    cog_limit = {V: R["new"]["perV"][str(V)]["Qstatic"] - (base_fr["seal_break"] + base_fr["brg_break"]) for V in (0.5, 0.6, 0.7, 0.8)}
     print("minimum self-start / sustain (m/s):", {k: (v["min_start"], v["min_sustain"]) for k, v in combos.items()})
     # derived statements for the report (review M4): band from the one-at-a-time envelope, clamp-current crossing, standstill vs BEM low-lambda
-    base = sens["baseline"]; keys_1at = [k for k in sens if k not in ("baseline", "no nacelle inflow deficit", "standstill = BEM at TSR 0.2")]
+    base = sens["baseline"]; keys_1at = [k for k in sens if k not in ("baseline", "no nacelle inflow deficit")]
     band = {V: dict(lo=min(sens[k][VS_ALL.index(V)] for k in keys_1at) / base[VS_ALL.index(V)] - 1, hi=max(sens[k][VS_ALL.index(V)] for k in keys_1at) / base[VS_ALL.index(V)] - 1) for V in (0.5, 0.7, 1.0) if base[VS_ALL.index(V)] > 0}
     Vf = np.linspace(1.0, 2.0, 21); Icl = []
     for V in Vf:
         rr = full_eval(spec_new, "A", conv_key="boost_clamp", vs=[V]); o = rr["perV"][str(V)]["op"]; Icl.append(o["I"] if o else 0.0)
     V_over = next((float(V) for V, I in zip(Vf, Icl) if I > gl.GEN["rated_I"]), None)
     derived = dict(nacelle_cp_cost=nacelle_cp_cost, band=band, clamp_overcurrent_from_V=V_over, clamp_I_vs_V=dict(zip([round(v, 2) for v in Vf], Icl)),
-                   standstill_vs_bem02={V: dict(viterna=R["new"]["perV"][str(V)]["Qstatic"], bem02=bm.static_torque_bem_low_lambda(make_blade(spec_new, "A"), V)) for V in (0.5, 0.7, 1.0)},
-                   two_blade_min_start=None)
+                   standstill={V: dict(bem01=R["new"]["perV"][str(V)]["Qstatic"], upper=R["new"]["perV"][str(V)]["Qstatic_upper"], breakaway=R["new"]["perV"][str(V)]["breakaway"]) for V in (0.5, 0.6, 0.7, 0.8, 1.0)},
+                   cogging_limit_for_start=cog_limit)
     # ---------------- generator efficiency map (plot 7 data)
     gmap = {}
     for T in (0.02, 0.05, 0.1, 0.2, 0.4):
@@ -128,7 +145,7 @@ if __name__ == "__main__" and "--replot" not in sys.argv:
             gp = gl.gen_point(rpm, T); om = rpm * 2 * math.pi / 60; Pm = T * om
             rows.append(dict(rpm=rpm, Pmech=Pm, Pdc=gp["Pdc"], Pcu=gp["Pcu"], Pdiode=gp["Pdiode"], Vdc=gp["Vdc"], I=gp["I"], eta=(gp["Pdc"] / Pm if Pm > 0 else 0)))
         gmap[str(T)] = rows
-    json.dump(dict(designs={k: dict(name=names.get(k, k), res=R[k]) for k in R}, table=table, sens=sens, combos=combos, gmap=gmap, VS=VS_ALL, selected=sel, derived=derived),
+    json.dump(dict(designs={k: dict(name=names.get(k, k), res=R[k]) for k in R}, table=table, sens=sens, sens_start=sens_start, combos=combos, gmap=gmap, VS=VS_ALL, selected=sel, derived=derived),
               open(os.path.join(HERE, "coupled_results.json"), "w"), indent=0, default=float)
 if __name__ == "__main__":
     # ======================================================================= figures
@@ -147,7 +164,8 @@ if __name__ == "__main__":
         rs = R["new"]; fr = gl.FRICTION["A_rear_nacelle"]
         for V, col in ((0.5, "#9ecae1"), (0.7, "#4292c6"), (1.0, "#08519c"), (1.5, "#6a3d9a"), (2.0, "#b15928")):
             p = rs["perV"][str(V)]; rpm = np.array(p["lam"]) * V / bm.R_TIP * 60 / (2 * math.pi)
-            ax.plot(np.r_[0, rpm], np.r_[p["Qstatic"], p["Q"]] * 1000, "-", color=col, lw=2, label=f"rotor torque, V = {V} m/s (TSR 0 point = standstill estimate)")
+            ax.plot(rpm, np.array(p["Q"]) * 1000, "-", color=col, lw=2, label=f"rotor torque, V = {V} m/s (BEM down to TSR 0.1 = baseline starting torque)")
+            ax.plot(0, p["Qstatic_upper"] * 1000, "o", mfc="none", color=col, ms=6, label="no-induction standstill estimate (upper bound)" if V == 0.5 else None)
             if p["op"]: ax.plot(p["op"]["rpm"], p["op"]["Qrot"] * 1000, "o", color=col, ms=7, mec="k")
         rpms = np.arange(0, 1300, 10); ax.plot(rpms, [gl.friction_running(x, fr) * 1000 for x in rpms], "k--", lw=1.2, label="running friction (seal + bearing + motor no-load + windage)")
         ax.axhline(gl.breakaway(fr) * 1000, color="k", ls=":", lw=1.2, label=f"breakaway (cogging {gl.GEN['cogging']*1000:.0f} + seal + bearing) = {gl.breakaway(fr)*1000:.0f} mN m")
@@ -155,7 +173,7 @@ if __name__ == "__main__":
             Tl = [max(0, (x / gl.GEN["KV"] - Vb - 0.7) / gl.GEN["R_LL"]) * gl.Kt() * 1000 for x in rpms]; ax.plot(rpms, Tl, "-.", lw=1.2, color="#2a8a4a" if Vb > 10 else "#888", label=lab)
         ax.axhline(gl.GEN["rated_T"] * 1000, color="#c4342d", ls="-", lw=1, alpha=0.6, label="GL60 rated torque 0.60 N m (1.35 A)")
         ax.set_xlim(0, 1250); ax.set_ylim(0, 700); ax.set_xlabel("rotor speed (rpm)"); ax.set_ylabel("torque (mN m)"); ax.grid(alpha=0.3); ax.legend(fontsize=7.5, loc="upper right")
-        ax.set_title("Fig. 3  Rotor torque vs rpm: the TSR 0 point is the no-induction standstill estimate (1.5-1.7x the BEM value at TSR 0.2: the two models are not continuous), friction, breakaway, generator load lines; dots = MPPT points", fontsize=9, loc="left")
+        ax.set_title("Fig. 3  Rotor torque vs rpm (BEM to TSR 0.1; open circles = no-induction standstill upper bound), running friction, breakaway, generator load lines; filled dots = MPPT points", fontsize=9, loc="left")
         fig.tight_layout(); fig.savefig(os.path.join(OUT, "fig3_torque_rpm.png"), dpi=130, facecolor=SURF)
     def fig_power_v():
         fig, ax = plt.subplots(figsize=(10, 6), facecolor=SURF)
@@ -196,8 +214,8 @@ if __name__ == "__main__":
     def fig_sens():
         fig, axs = plt.subplots(1, 3, figsize=(17, 5), facecolor=SURF, sharey=True)
         groups = [("seal friction / cogging / no-load loss", ["baseline", "seal x0.5", "seal x2.0", "seal x3.0", "cogging 8 mN m", "cogging 40 mN m", "no-load loss 0.2 W@700", "no-load loss 1.5 W@700"]),
-                  ("polar (Reynolds) uncertainty / standstill model / generator constants", ["baseline", "cd x1.3", "cd x1.6", "cl x0.9, cd x1.3", "standstill cdmax 1.2", "standstill cdmax 2.0", "standstill = BEM at TSR 0.2", "no nacelle inflow deficit", "KV 25 (Kt 0.38)", "R 6.5 ohm"]),
-                  ("converter efficiency and minimum input voltage / rectifier", ["baseline", "conv eta 0.85", "conv eta 0.96", "conv Vmin 3 V", "conv Vmin 8 V", "rectifier synchronous"])]
+                  ("polar / Reynolds / induction model / standstill / generator constants", ["baseline", "cd x1.3", "cd x1.6", "cl x0.9, cd x1.3", "Re / 1.5 (earlier transition)", "Re x 1.5", "high-induction model: Glauert-Spera", "high-induction model: uncorrected momentum", "standstill = no-induction estimate (upper bound)", "no nacelle inflow deficit", "KV 25 (Kt 0.38)", "KV 26.2 (line-line-peak reading of 'KV 25')", "R 6.5 ohm"]),
+                  ("converter efficiency, overhead, minimum input voltage / rectifier", ["baseline", "conv eta 0.85", "conv eta 0.96", "converter fixed overhead 0.20 W", "converter fixed overhead 0.30 W", "converter fixed overhead 0.50 W", "conv Vmin 3 V", "conv Vmin 8 V", "rectifier synchronous"])]
         for ax, (title, keys) in zip(axs, groups):
             for key in keys:
                 if sens.get(key) is None: continue

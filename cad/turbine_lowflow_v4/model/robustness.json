@@ -1,0 +1,192 @@
+{
+ "selected": {
+  "spec": {
+   "B": 3,
+   "airfoil": "naca4412",
+   "lam_d": 1.5,
+   "c_scale": 1.0,
+   "c_max": 0.06,
+   "dbeta": -3.0
+  },
+  "baseline": {
+   "J_uniform": 1.4872359366640282,
+   "J_lowflow": 0.7918208519309182,
+   "J_uniform_hand": 1.5144267964309677,
+   "J_lowflow_hand": 0.8407643995114092,
+   "min_start": 0.6
+  },
+  "Re/1.5": {
+   "J_uniform": 1.2638934920728715,
+   "J_lowflow": 0.6470401994227877,
+   "J_uniform_hand": 1.2744396904085704,
+   "J_lowflow_hand": 0.6660233564270457,
+   "min_start": 0.6
+  },
+  "Re x1.5": {
+   "J_uniform": 1.625470952449081,
+   "J_lowflow": 0.8873722986468283,
+   "J_uniform_hand": 1.6647629134882567,
+   "J_lowflow_hand": 0.9580978285173448,
+   "min_start": 0.6
+  },
+  "upper-bound standstill": {
+   "J_uniform": 1.5144267964309677,
+   "J_lowflow": 0.8407643995114092,
+   "J_uniform_hand": 1.5144267964309677,
+   "J_lowflow_hand": 0.8407643995114092,
+   "min_start": 0.5
+  }
+ },
+ "best B2": {
+  "spec": {
+   "B": 2,
+   "airfoil": "naca4412",
+   "lam_d": 2.0,
+   "c_scale": 1.3,
+   "c_max": 0.068,
+   "dbeta": 0.0
+  },
+  "baseline": {
+   "J_uniform": 1.3992693911495333,
+   "J_lowflow": 0.6424393741023793,
+   "J_uniform_hand": 1.508085486184152,
+   "J_lowflow_hand": 0.8383083451646929,
+   "min_start": 0.7
+  },
+  "Re/1.5": {
+   "J_uniform": 1.2380151816684917,
+   "J_lowflow": 0.5570001909129756,
+   "J_uniform_hand": 1.3110505358862188,
+   "J_lowflow_hand": 0.6884638285048847,
+   "min_start": 0.7
+  },
+  "Re x1.5": {
+   "J_uniform": 1.487041436550963,
+   "J_lowflow": 0.6895955398288924,
+   "J_uniform_hand": 1.6185433539219367,
+   "J_lowflow_hand": 0.9262989910966453,
+   "min_start": 0.7
+  },
+  "upper-bound standstill": {
+   "J_uniform": 1.4803590817045453,
+   "J_lowflow": 0.7884008171014009,
+   "J_uniform_hand": 1.508085486184152,
+   "J_lowflow_hand": 0.8383083451646929,
+   "min_start": 0.6
+  }
+ },
+ "best B3": {
+  "spec": {
+   "B": 3,
+   "airfoil": "naca4412",
+   "lam_d": 1.5,
+   "c_scale": 1.0,
+   "c_max": 0.06,
+   "dbeta": -3.0
+  },
+  "baseline": {
+   "J_uniform": 1.4872359366640282,
+   "J_lowflow": 0.7918208519309182,
+   "J_uniform_hand": 1.5144267964309677,
+   "J_lowflow_hand": 0.8407643995114092,
+   "min_start": 0.6
+  },
+  "Re/1.5": {
+   "J_uniform": 1.2638934920728715,
+   "J_lowflow": 0.6470401994227877,
+   "J_uniform_hand": 1.2744396904085704,
+   "J_lowflow_hand": 0.6660233564270457,
+   "min_start": 0.6
+  },
+  "Re x1.5": {
+   "J_uniform": 1.625470952449081,
+   "J_lowflow": 0.8873722986468283,
+   "J_uniform_hand": 1.6647629134882567,
+   "J_lowflow_hand": 0.9580978285173448,
+   "min_start": 0.6
+  },
+  "upper-bound standstill": {
+   "J_uniform": 1.5144267964309677,
+   "J_lowflow": 0.8407643995114092,
+   "J_uniform_hand": 1.5144267964309677,
+   "J_lowflow_hand": 0.8407643995114092,
+   "min_start": 0.5
+  }
+ },
+ "best B4": {
+  "spec": {
+   "B": 4,
+   "airfoil": "naca4412",
+   "lam_d": 2.5,
+   "c_scale": 1.3,
+   "c_max": 0.06,
+   "dbeta": 3.0
+  },
+  "baseline": {
+   "J_uniform": 1.4514516585117083,
+   "J_lowflow": 0.7725791157493178,
+   "J_uniform_hand": 1.4782287708125441,
+   "J_lowflow_hand": 0.8207779178908223,
+   "min_start": 0.6
+  },
+  "Re/1.5": {
+   "J_uniform": 1.2512181333070402,
+   "J_lowflow": 0.6483192240197282,
+   "J_uniform_hand": 1.2649202925403977,
+   "J_lowflow_hand": 0.6729831106397711,
+   "min_start": 0.6
+  },
+  "Re x1.5": {
+   "J_uniform": 1.5978013907235415,
+   "J_lowflow": 0.8670412056550076,
+   "J_uniform_hand": 1.6354206463915093,
+   "J_lowflow_hand": 0.9347558658573498,
+   "min_start": 0.6
+  },
+  "upper-bound standstill": {
+   "J_uniform": 1.4782287708125441,
+   "J_lowflow": 0.8207779178908223,
+   "J_uniform_hand": 1.4782287708125441,
+   "J_lowflow_hand": 0.8207779178908223,
+   "min_start": 0.5
+  }
+ },
+ "best B5": {
+  "spec": {
+   "B": 5,
+   "airfoil": "naca4412",
+   "lam_d": 2.5,
+   "c_scale": 1.0,
+   "c_max": 0.06,
+   "dbeta": 3.0
+  },
+  "baseline": {
+   "J_uniform": 1.4424863935158596,
+   "J_lowflow": 0.7612897487341505,
+   "J_uniform_hand": 1.466661249587514,
+   "J_lowflow_hand": 0.8048044896631283,
+   "min_start": 0.6
+  },
+  "Re/1.5": {
+   "J_uniform": 1.2003917150436059,
+   "J_lowflow": 0.6079971261143841,
+   "J_uniform_hand": 1.2087007544965216,
+   "J_lowflow_hand": 0.6229533971296327,
+   "min_start": 0.6
+  },
+  "Re x1.5": {
+   "J_uniform": 1.6250703033968419,
+   "J_lowflow": 0.8775532592934162,
+   "J_uniform_hand": 1.661284457765618,
+   "J_lowflow_hand": 0.9427387371572135,
+   "min_start": 0.6
+  },
+  "upper-bound standstill": {
+   "J_uniform": 1.466661249587514,
+   "J_lowflow": 0.8048044896631283,
+   "J_uniform_hand": 1.466661249587514,
+   "J_lowflow_hand": 0.8048044896631283,
+   "min_start": 0.5
+  }
+ }
+}

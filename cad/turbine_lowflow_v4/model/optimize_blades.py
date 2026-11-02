@@ -35,7 +35,8 @@ def evaluate(spec, lams=LAMS1, vs=VS, arr_key="A", conv_key="buckboost", cog_lis
     for V in vs:
         cur = [bm.bem(bl, l, V) for l in lams]
         Q = np.array([c["Q"] for c in cur]); cp = np.array([c["cp"] for c in cur]); T = np.array([c["T"] for c in cur])
-        Qs = bm.static_torque(bl, V)
+        Qs_up = bm.static_torque(bl, V)                                   # no-induction upper bound
+        Qs = bm.static_torque_bem_low_lambda(bl, V)                       # baseline (induction on), review C1
         op = gl.operating_point(V, lams, Q, fr, conv, r_hub_m=arr["r_hub"])
         op_open = gl.operating_point(V, lams, Q, fr, conv, r_hub_m=arr["r_hub"], mode="open")
         sus = gl.sustain_margin(V, lams, Q, fr, r_hub_m=arr["r_hub"], lam_max=(op["lam"] if op else (op_open["lam"] if op_open else None)))
@@ -43,7 +44,7 @@ def evaluate(spec, lams=LAMS1, vs=VS, arr_key="A", conv_key="buckboost", cog_lis
         for cog in cog_list:
             g = dict(gl.GEN); g["cogging"] = cog
             starts[str(cog)] = bool(Qs > gl.breakaway(fr, g))
-        out["perV"][str(V)] = dict(cp_peak=float(cp.max()), lam_peak=float(lams[cp.argmax()]), Qstatic=Qs, breakaway=gl.breakaway(fr), starts=starts, sustain=sus,
+        out["perV"][str(V)] = dict(cp_peak=float(cp.max()), lam_peak=float(lams[cp.argmax()]), Qstatic=Qs, Qstatic_upper=Qs_up, breakaway=gl.breakaway(fr), starts=starts, sustain=sus,
                                    op=({k: (float(v) if isinstance(v, (int, float, np.floating)) else v) for k, v in op.items()} if op else None),
                                    curve=dict(lam=lams.tolist(), cp=cp.tolist(), Q=Q.tolist(), T=T.tolist()))
     def J(weights, gate_start=True, cog="0.024"):
@@ -80,7 +81,7 @@ if __name__ == "__main__":
         for r in res:
             if "error" in r: print("ERR", r["spec"], r["error"]); continue
             slim.append(dict(spec=r["spec"], meta={k: v for k, v in r["meta"].items() if k not in ("alpha_d", "cl_d")}, J=r["J"], min_selfstart_V=r["min_selfstart_V"], min_sustain_V=r["min_sustain_V"],
-                             perV={V: dict(cp_peak=p["cp_peak"], lam_peak=p["lam_peak"], Qstatic=p["Qstatic"], starts=p["starts"], sustain=p["sustain"],
+                             perV={V: dict(cp_peak=p["cp_peak"], lam_peak=p["lam_peak"], Qstatic=p["Qstatic"], Qstatic_upper=p["Qstatic_upper"], starts=p["starts"], sustain=p["sustain"],
                                            Pout=(p["op"]["Pout"] if p["op"] else 0.0), Vdc=(p["op"]["Vdc"] if p["op"] else 0.0), rpm=(p["op"]["rpm"] if p["op"] else 0.0), lam=(p["op"]["lam"] if p["op"] else 0.0)) for V, p in r["perV"].items()}))
         json.dump(slim, open(os.path.join(HERE, "sweep_stage1.json"), "w"), indent=0)
         for key in ("uniform", "lowflow", "uniform_hand", "lowflow_hand", "lowflow_cog8", "lowflow_cog40"):
@@ -98,31 +99,34 @@ def write_selected(res, path):
                    w_root=bl.w_root.tolist(), meta={k: v for k, v in bl.meta.items() if k not in ("alpha_d", "cl_d")}, J=res["J"], min_selfstart_V=res["min_selfstart_V"], min_sustain_V=res["min_sustain_V"]), open(path, "w"), indent=1)
 
 if __name__ == "__main__" and (len(sys.argv) > 1 and sys.argv[1] == "2"):
-    specs = [dict(B=3, airfoil=af, lam_d=ld, c_scale=cs, c_max=cm, dbeta=db) for af in ("naca4412",) for ld in (1.75, 2.0, 2.25, 2.5) for cs in (1.3, 1.5, 1.7) for cm in (0.060, 0.068) for db in (-3.0, 0.0, 3.0)]
+    specs = [dict(B=B, airfoil="naca4412", lam_d=ld, c_scale=cs, c_max=0.060, dbeta=db) for B in (3, 4, 5) for ld in (1.5, 1.75, 2.0, 2.5) for cs in (1.0, 1.3, 1.5) for db in (-3.0, 0.0, 3.0)]
     specs += [dict(B=3, airfoil="sg6043", lam_d=ld, c_scale=cs, c_max=0.060, dbeta=0.0) for ld in (2.0, 2.5) for cs in (1.3, 1.5)]
-    specs += [dict(B=2, airfoil="naca4412", lam_d=ld, c_scale=cs, c_max=0.068, dbeta=0.0) for ld in (2.0, 2.5) for cs in (1.5, 1.7)]
+    specs += [dict(B=2, airfoil="naca4412", lam_d=ld, c_scale=cs, c_max=0.068, dbeta=db) for ld in (2.0, 2.5) for cs in (1.3, 1.5, 1.7) for db in (-3.0, 0.0)]
     t0 = time.time()
     with Pool(4) as pool: res = pool.map(_work, specs, chunksize=2)
     print(f"stage 2: {len(res)} candidates in {(time.time()-t0)/60:.1f} min")
     slim = [dict(spec=r["spec"], meta={k: v for k, v in r["meta"].items() if k not in ("alpha_d", "cl_d")}, J=r["J"], min_selfstart_V=r["min_selfstart_V"], min_sustain_V=r["min_sustain_V"],
-                 perV={V: dict(cp_peak=p["cp_peak"], lam_peak=p["lam_peak"], Qstatic=p["Qstatic"], starts=p["starts"], sustain=p["sustain"], Pout=(p["op"]["Pout"] if p["op"] else 0.0), Vdc=(p["op"]["Vdc"] if p["op"] else 0.0), rpm=(p["op"]["rpm"] if p["op"] else 0.0), lam=(p["op"]["lam"] if p["op"] else 0.0)) for V, p in r["perV"].items()}) for r in res if "error" not in r]
+                 perV={V: dict(cp_peak=p["cp_peak"], lam_peak=p["lam_peak"], Qstatic=p["Qstatic"], Qstatic_upper=p["Qstatic_upper"], starts=p["starts"], sustain=p["sustain"], Pout=(p["op"]["Pout"] if p["op"] else 0.0), Vdc=(p["op"]["Vdc"] if p["op"] else 0.0), rpm=(p["op"]["rpm"] if p["op"] else 0.0), lam=(p["op"]["lam"] if p["op"] else 0.0)) for V, p in r["perV"].items()}) for r in res if "error" not in r]
     json.dump(slim, open(os.path.join(HERE, "sweep_stage2.json"), "w"), indent=0)
     for key in ("lowflow", "uniform"):
         print(f"\nStage 2 top by J_{key}:")
         for r in sorted(slim, key=lambda r: -r["J"][key])[:8]:
             s = r["spec"]; print(f"  B{s['B']} {s['airfoil']} TSR_d {s['lam_d']} cs {s['c_scale']} cmax {s['c_max']*1000:.0f} db {s['dbeta']:+.0f} | J_u {r['J']['uniform']:.3f} J_low {r['J']['lowflow']:.3f} | sol {r['meta']['solidity']:.2f} c_root {r['meta']['c_root']*1000:.0f} c_max {r['meta']['c_maxval']*1000:.0f} | start {r['min_selfstart_V']} | P 0.5/0.7/1.0: {r['perV']['0.5']['Pout']:.2f}/{r['perV']['0.7']['Pout']:.2f}/{r['perV']['1.0']['Pout']:.2f}")
     # selection rule: maximise the mean of the two normalised objectives (uniform and low-flow), ties to the lower solidity (printability, cost); must self-start at 0.5 m/s under baseline cogging
-    # selection over stages 1+2: mean of the two normalised objectives, subject to (a) self-start at 0.5 m/s under baseline cogging and
-    # (b) root chord (chord at the first element centre, r = 28.9 mm) <= 52 mm so the three pockets leave printable walls on the 28 mm hub;
-    # ties -> lower solidity (review M3: the rule that produced selected_design.json must be the coded one)
+    # selection over stages 1+2 (review C1/M2): the objectives already zero the output at flows where the candidate cannot self-start under the
+    # BASELINE (induction-on) starting torque, so no separate self-start constraint is imposed; the only hard constraint is hub packaging:
+    # the three (or B) root pockets must leave >= 12 deg of printed wall between them on the 28 mm hub (pocket arc <= 360/B - 12 deg).
     S1 = json.load(open(os.path.join(HERE, "sweep_stage1.json"))); allc = S1 + slim
     Ju = max(r["J"]["uniform"] for r in allc); Jl = max(r["J"]["lowflow"] for r in allc)
-    C_ROOT_MAX = 0.052
-    ok = [r for r in allc if r["min_selfstart_V"] is not None and r["min_selfstart_V"] <= 0.5 and r["meta"]["c_root"] <= C_ROOT_MAX]
+    WALL_MIN_DEG = 12.0
+    ok = [r for r in allc if r["meta"].get("hub_wall_deg", 0) >= WALL_MIN_DEG]
     score = lambda r: (0.5 * r["J"]["uniform"] / Ju + 0.5 * r["J"]["lowflow"] / Jl, -r["meta"]["solidity"])
     ok.sort(key=score, reverse=True); best = ok[0]
-    print("\nSELECTED:", best["spec"], "J", best["J"], "start", best["min_selfstart_V"], "c_root", best["meta"]["c_root"])
-    json.dump(dict(rule=f"max 0.5*J_uniform/max + 0.5*J_lowflow/max subject to self-start at 0.5 m/s (24 mN m cogging) and root chord <= {C_ROOT_MAX*1000:.0f} mm (chord at the first element centre); ties to lower solidity",
-                   ranked=[dict(spec=r["spec"], J=r["J"], c_root=r["meta"]["c_root"], solidity=r["meta"]["solidity"], score=score(r)[0]) for r in ok[:12]], Ju_max=Ju, Jl_max=Jl,
-                   unconstrained_best=dict(spec=max(allc, key=lambda r: score(r)[0])["spec"], J=max(allc, key=lambda r: score(r)[0])["J"])), open(os.path.join(HERE, "selection.json"), "w"), indent=1)
+    hand = max(ok, key=lambda r: 0.5 * r["J"]["uniform_hand"] / max(x["J"]["uniform_hand"] for x in allc) + 0.5 * r["J"]["lowflow_hand"] / max(x["J"]["lowflow_hand"] for x in allc))
+    print("\nSELECTED:", best["spec"], "J", best["J"], "start", best["min_selfstart_V"], "c_root", best["meta"]["c_root"], "wall", best["meta"].get("hub_wall_deg"))
+    print("hand-started best:", hand["spec"], hand["J"]["uniform_hand"], hand["J"]["lowflow_hand"])
+    json.dump(dict(rule=f"max 0.5*J_uniform/max + 0.5*J_lowflow/max (J gated by the induction-on starting torque, sustain and the 5 V converter floor) subject to hub wall >= {WALL_MIN_DEG:.0f} deg between pockets; ties to lower solidity",
+                   ranked=[dict(spec=r["spec"], J=r["J"], c_root=r["meta"]["c_root"], solidity=r["meta"]["solidity"], hub_wall_deg=r["meta"].get("hub_wall_deg"), min_selfstart_V=r["min_selfstart_V"], score=score(r)[0]) for r in ok[:15]], Ju_max=Ju, Jl_max=Jl,
+                   unconstrained_best=dict(spec=max(allc, key=lambda r: score(r)[0])["spec"], J=max(allc, key=lambda r: score(r)[0])["J"]),
+                   hand_started_best=dict(spec=hand["spec"], J=hand["J"], min_selfstart_V=hand["min_selfstart_V"])), open(os.path.join(HERE, "selection.json"), "w"), indent=1)
     full = evaluate(best["spec"]); write_selected(full, os.path.join(HERE, "selected_design.json")); print("selected_design.json and selection.json written")

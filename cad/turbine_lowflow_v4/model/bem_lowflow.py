@@ -18,7 +18,8 @@ def _viterna_row(al, cl, cd, al_s, al_sn=-8.0, cdmax=1.8):   # cdmax = post-stal
 
 class PolarTable:
     """Extended (alpha -90..90 deg) x Re table with vectorized bilinear lookup; cd multiplier / cl factor for sensitivities."""
-    def __init__(self, tab, cd_mult=1.0, cl_fac=1.0, cd_add=0.0, cdmax=1.8):
+    def __init__(self, tab, cd_mult=1.0, cl_fac=1.0, cd_add=0.0, cdmax=1.8, re_shift=1.0):
+        self.re_shift = re_shift                       # multiplies the lookup Reynolds number: Re/1.5 mimics an earlier-separating (wet, printed) section (review M1)
         al = np.array(tab["alphas"]); self.logRe = np.log(np.array(tab["Res"]))
         self.cl = np.zeros((len(self.logRe), len(EXT_AL))); self.cd = np.zeros_like(self.cl)
         for i in range(len(self.logRe)):
@@ -26,7 +27,7 @@ class PolarTable:
             self.cl[i], self.cd[i] = c, d
         self.tc = tab["tc"]; self.alpha_best = np.array(tab["alpha_best"]); self.cl_best = np.array(tab["cl_best"]) * cl_fac
     def __call__(self, alpha_rad, Re):
-        a = np.clip(np.degrees(alpha_rad), -90, 90); lr = np.clip(np.log(np.maximum(Re, 1.0)), self.logRe[0], self.logRe[-1])
+        a = np.clip(np.degrees(alpha_rad), -90, 90); lr = np.clip(np.log(np.maximum(Re * self.re_shift, 1.0)), self.logRe[0], self.logRe[-1])
         j = np.clip(np.searchsorted(self.logRe, lr, side="right") - 1, 0, len(self.logRe) - 2)
         w = (lr - self.logRe[j]) / (self.logRe[j + 1] - self.logRe[j])
         ia = np.clip(np.searchsorted(EXT_AL, a, side="right") - 1, 0, len(EXT_AL) - 2); wa = (a - EXT_AL[ia]) / 1.0
@@ -40,10 +41,11 @@ class PolarTable:
 class Blade:
     """Element-wise description: r (m, element centres), dr, c (m), beta (rad, from the rotor plane), root blend weight w_root,
     polars (outer, root), B blades, r_hub (m), optional nacelle factor per element (axial inflow multiplier)."""
-    def __init__(self, r, dr, c, beta, w_root, outer, root, B, r_hub, vfac=None, meta=None):
+    def __init__(self, r, dr, c, beta, w_root, outer, root, B, r_hub, vfac=None, meta=None, hi_a="buhl"):
         self.r, self.dr, self.c, self.beta, self.w_root = map(np.asarray, (r, dr, c, beta, w_root))
         self.outer, self.root, self.B, self.r_hub = outer, root, B, r_hub
         self.vfac = np.ones_like(self.r) if vfac is None else np.asarray(vfac); self.meta = meta or {}
+        self.hi_a = hi_a                               # high-induction model: 'buhl' (baseline), 'spera' (Glauert-Spera a_c 0.2), 'momentum' (uncorrected, a <= 0.95)
     def polar(self, alpha, Re):
         clo, cdo = self.outer(alpha, Re); clr, cdr = self.root(alpha, Re)
         return (1 - self.w_root) * clo + self.w_root * clr, (1 - self.w_root) * cdo + self.w_root * cdr
@@ -71,14 +73,26 @@ def bem(blade, lam, V, n_iter=50):
         F = np.maximum(ftip * fhub, 1e-3)
         kappa = 4 * F * sphi ** 2 / np.maximum(sigma * cn, 1e-9)
         a = np.where(cn > 0, 1 / (kappa + 1), 0.0)
-        # Buhl correction for a > 0.4
-        K = sigma * cn / np.maximum(sphi ** 2, 1e-9)
-        A = K - 50 / 9 + 4 * F; Bq = -2 * K - 4 * F + 40 / 9; C = K - 8 / 9
-        disc = Bq * Bq - 4 * A * C
-        with np.errstate(divide="ignore", invalid="ignore"):
-            root1 = (-Bq + np.sqrt(np.maximum(disc, 0))) / (2 * A); root2 = (-Bq - np.sqrt(np.maximum(disc, 0))) / (2 * A)
-        cand = np.where((root1 >= 0.4) & (root1 < 1.0), root1, np.where((root2 >= 0.4) & (root2 < 1.0), root2, 0.4))
-        a = np.where((a > 0.4) & (disc >= 0), cand, a)
+        if blade.hi_a == "buhl":
+            # Buhl correction for a > 0.4
+            K = sigma * cn / np.maximum(sphi ** 2, 1e-9)
+            A = K - 50 / 9 + 4 * F; Bq = -2 * K - 4 * F + 40 / 9; C = K - 8 / 9
+            disc = Bq * Bq - 4 * A * C
+            with np.errstate(divide="ignore", invalid="ignore"):
+                root1 = (-Bq + np.sqrt(np.maximum(disc, 0))) / (2 * A); root2 = (-Bq - np.sqrt(np.maximum(disc, 0))) / (2 * A)
+            cand = np.where((root1 >= 0.4) & (root1 < 1.0), root1, np.where((root2 >= 0.4) & (root2 < 1.0), root2, 0.4))
+            a = np.where((a > 0.4) & (disc >= 0), cand, a)
+        elif blade.hi_a == "spera":
+            # Glauert-Spera: for a > a_c the thrust is linear in a: CT = 4 a_c^2 + 4 (1 - 2 a_c) a; with CT = sigma cn (1-a)^2 / sin^2 phi (F folded in)
+            ac = 0.2; Kk = np.maximum(sigma * cn, 1e-9) / (4 * F * np.maximum(sphi ** 2, 1e-9))     # = a/(1-a)^2 relation constant
+            # momentum side CT = 4F[ac^2 + (1-2ac) a], blade side CT = 4F K (1-a)^2 with K = sigma cn / (4 F sin^2 phi):
+            # K (1-a)^2 = ac^2 + (1-2ac) a  ->  K a^2 - (2K + 1 - 2ac) a + (K - ac^2) = 0 (take the smaller root)
+            Aq = Kk; Bq = -(2 * Kk + (1 - 2 * ac)); Cq = Kk - ac * ac
+            with np.errstate(invalid="ignore", divide="ignore"):
+                a_sp = (-Bq - np.sqrt(np.maximum(Bq * Bq - 4 * Aq * Cq, 0))) / (2 * Aq)
+            a = np.where(a > ac, np.clip(a_sp, ac, 0.95), a)
+        else:
+            a = np.clip(a, 0, 0.95)
         kp = 4 * F * sphi * cphi / np.where(np.abs(ct) > 1e-9, sigma * ct, 1e-9)
         ap = np.where(np.abs(ct) > 1e-9, 1 / np.where(np.abs(kp - 1) > 1e-9, kp - 1, 1e-9), 0.0)
         ap = np.clip(ap, -0.4, 0.9)
@@ -113,9 +127,10 @@ def static_torque(blade, V):
     q = 0.5 * RHO * Vloc ** 2 * c
     return float((B * q * cl * r * dr).sum())
 
-def static_torque_bem_low_lambda(blade, V, lam=0.2):
-    """conservative alternative to the standstill estimate: the BEM torque at a very low tip-speed ratio (induction on, same polars);
-    the standstill (no-induction, alpha = 90 - twist) estimate is ~1.5-1.7x this value (review M5), which brackets the starting torque"""
+def static_torque_bem_low_lambda(blade, V, lam=0.1):
+    """BASELINE starting-torque estimate (review C1): the BEM torque at a very low tip-speed ratio with momentum induction on, same polars.
+    The no-induction, 2-D-flat-plate standstill value (static_torque) is ~1.6-1.8x this and is treated as an UPPER bound only: it ignores the
+    inflow deceleration of a stalled, high-solidity disc and the finite span (AR ~1.4) of the blade."""
     return bem(blade, lam, V)["Q"]
 
 def curve(blade, V, lams):
@@ -127,11 +142,11 @@ def schmitz_chord(r, lam, cl_d, B):
     return 8 * np.pi * r * (1 - np.cos(phi)) / (B * cl_d), phi
 
 def design(tabs, airfoil, B, lam_d, c_scale=1.0, dbeta=0.0, r_hub=0.028, c_max=0.060, tip_frac=0.55, root_blend=0.35, root_airfoil="naca4418",
-           V_design=0.7, n=50, vfac=None, cd_mult=1.0, cl_fac=1.0, cd_add=0.0, c_min=0.012, cdmax=1.8):
+           V_design=0.7, n=50, vfac=None, cd_mult=1.0, cl_fac=1.0, cd_add=0.0, c_min=0.012, cdmax=1.8, re_shift=1.0, hi_a="buhl"):
     """Schmitz-optimum planform at lam_d for the airfoil's best-L/D design point (Re evaluated at V_design with the resulting chord,
     one fixed-point pass), scaled by c_scale, capped at c_max, root chord eased (0.85 x at the hub), elliptical tip taper to tip_frac,
     twist = Schmitz inflow angle - design alpha + dbeta; the inner root_blend of the span blends toward the thick root section."""
-    outer = PolarTable(tabs[airfoil], cd_mult, cl_fac, cd_add, cdmax); root = PolarTable(tabs[root_airfoil], cd_mult, cl_fac, cd_add, cdmax)
+    outer = PolarTable(tabs[airfoil], cd_mult, cl_fac, cd_add, cdmax, re_shift); root = PolarTable(tabs[root_airfoil], cd_mult, cl_fac, cd_add, cdmax, re_shift)
     r, dr = elements(r_hub, n)
     om = lam_d * V_design / R_TIP
     Re_guess = 0.04 * np.sqrt((0.7 * V_design) ** 2 + (om * r) ** 2) / NU
@@ -149,19 +164,22 @@ def design(tabs, airfoil, B, lam_d, c_scale=1.0, dbeta=0.0, r_hub=0.028, c_max=0
     c = np.maximum(c, c_min)
     beta = phi - np.radians(a_d) + math.radians(dbeta)
     w_root = np.clip(1 - (r - r_hub) / (root_blend * (R_TIP - r_hub)), 0, 1) ** 2
+    tc_root = tabs[root_airfoil]["tc"]
+    pocket_arc = (c[0] * math.cos(beta[0]) + tc_root * c[0] * math.sin(beta[0])) / r_hub          # tangential extent of the root section / hub radius (rad)
     blade = Blade(r, dr, c, beta, w_root, outer, root, B, r_hub, vfac,
                   meta=dict(airfoil=airfoil, B=B, lam_d=lam_d, c_scale=c_scale, dbeta=dbeta, r_hub=r_hub, c_max=c_max, tip_frac=tip_frac, root_airfoil=root_airfoil,
-                            solidity=float((B * c * dr).sum() / (np.pi * (R_TIP ** 2 - r_hub ** 2))), c_root=float(c[0]), c_maxval=float(c.max()), alpha_d=a_d.tolist(), cl_d=cl_d.tolist()))
+                            solidity=float((B * c * dr).sum() / (np.pi * (R_TIP ** 2 - r_hub ** 2))), c_root=float(c[0]), c_maxval=float(c.max()), alpha_d=a_d.tolist(), cl_d=cl_d.tolist(),
+                            pocket_arc_deg=float(math.degrees(pocket_arc)), hub_wall_deg=float(360 / B - math.degrees(pocket_arc))), hi_a=hi_a)
     return blade
 
-def blade_from_arrays(tabs, airfoil, B, r_mm, chord_mm, twist_deg, r_hub, root_airfoil="naca4418", root_blend=0.35, n=50, vfac=None, cd_mult=1.0, cl_fac=1.0, cd_add=0.0, cdmax=1.8):
+def blade_from_arrays(tabs, airfoil, B, r_mm, chord_mm, twist_deg, r_hub, root_airfoil="naca4418", root_blend=0.35, n=50, vfac=None, cd_mult=1.0, cl_fac=1.0, cd_add=0.0, cdmax=1.8, re_shift=1.0, hi_a="buhl"):
     """Blade from explicit station arrays (e.g. the previous designs) evaluated with the same polars and corrections."""
-    outer = PolarTable(tabs[airfoil], cd_mult, cl_fac, cd_add, cdmax); root = PolarTable(tabs[root_airfoil], cd_mult, cl_fac, cd_add, cdmax)
+    outer = PolarTable(tabs[airfoil], cd_mult, cl_fac, cd_add, cdmax, re_shift); root = PolarTable(tabs[root_airfoil], cd_mult, cl_fac, cd_add, cdmax, re_shift)
     r, dr = elements(r_hub, n)
     c = np.interp(r * 1000, r_mm, chord_mm) / 1000; beta = np.radians(np.interp(r * 1000, r_mm, twist_deg))
     w_root = np.clip(1 - (r - r_hub) / (root_blend * (R_TIP - r_hub)), 0, 1) ** 2
     return Blade(r, dr, c, beta, w_root, outer, root, B, r_hub, vfac, meta=dict(airfoil=airfoil, B=B, r_hub=r_hub, from_arrays=True,
-                 solidity=float((B * c * dr).sum() / (np.pi * (R_TIP ** 2 - r_hub ** 2)))))
+                 solidity=float((B * c * dr).sum() / (np.pi * (R_TIP ** 2 - r_hub ** 2)))), hi_a=hi_a)
 
 if __name__ == "__main__":
     import sys, time

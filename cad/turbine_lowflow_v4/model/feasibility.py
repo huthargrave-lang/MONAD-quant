@@ -46,21 +46,24 @@ for row in rows:
     hydro = P_hyd - Psh; fric = b["Pfric"]; cu = b["Pcu"]; dio = b["Pdiode"]; conv = b["Pdc"] - b["Pout"]
     shares.append(dict(V=row["V"], P_hyd=P_hyd, hydro=hydro, friction=fric, copper=cu, diode=dio, converter=conv, out=b["Pout"], region=b["region"], Vdc=b["Vdc"], I=b["I"], rpm=b["rpm"], lam=b["lam"]))
     print(f"V {row['V']:.2f}: hydraulic(annulus) {P_hyd:6.2f} W -> hydro loss {hydro/P_hyd*100:4.0f} % | friction {fric/P_hyd*100:4.1f} % | copper {cu/P_hyd*100:4.1f} % | diodes {dio/P_hyd*100:4.1f} % | converter {conv/P_hyd*100:4.1f} % | OUT {b['Pout']:5.2f} W ({b['Pout']/P_hyd*100:.0f} %) at {b['rpm']:.0f} rpm, {b['Vdc']:.1f} V, {b['I']:.2f} A [{b['region']}]")
-# gear ratio study (arrangement A, ideal MPPT, gear efficiency 0.96 per stage + 5 mN m extra friction referred to the rotor)
+# gear ratio study (arrangement A; ideal, buck-boost (selected) and boost+clamp converters; gear efficiency 0.96 per stage + 5 mN m running
+# and 8 mN m breakaway referred to the rotor) -- review M7: the selected converter must be the one judged
 gear = []
 for N in (1.0, 2.0, 3.0):
     rowg = dict(N=N)
     for row in rows:
         if row["V"] > 1.0: continue
         a = row[A]; cur = [bm.bem(blades[A], l, row["V"]) for l in lams]; Qs = np.array([c["Q"] for c in cur])
-        fr = dict(gl.FRICTION["A_rear_nacelle"]); 
+        fr = dict(gl.FRICTION["A_rear_nacelle"])
         if N > 1: fr["brg_run"] += 0.005; fr["brg_break"] += 0.008
         Qs_eff = Qs * (0.96 if N > 1 else 1.0)
         op = gl.operating_point(row["V"], lams, Qs_eff, fr, gl.CONVERTERS["ideal"], N=N, r_hub_m=0.028)
-        ob = gl.operating_point(row["V"], lams, Qs_eff, fr, gl.CONVERTERS["boost_clamp"], N=N, r_hub_m=0.028)
-        rowg[str(row["V"])] = (op["Pout"] if op else 0.0, op["Vdc"] if op else 0.0, ob["Pout"] if ob else 0.0)
+        ob_ = gl.operating_point(row["V"], lams, Qs_eff, fr, gl.CONVERTERS["boost_clamp"], N=N, r_hub_m=0.028)
+        obb = gl.operating_point(row["V"], lams, Qs_eff, fr, gl.CONVERTERS["buckboost"], N=N, r_hub_m=0.028)
+        Qst = bm.static_torque_bem_low_lambda(blades[A], row["V"]) * (0.96 if N > 1 else 1.0)
+        rowg[str(row["V"])] = (op["Pout"] if op else 0.0, op["Vdc"] if op else 0.0, ob_["Pout"] if ob_ else 0.0, obb["Pout"] if obb else 0.0, bool(Qst > gl.breakaway(fr)))
     gear.append(rowg)
-    print(f"gear ratio {N:.0f}: " + "  ".join(f"{k}: ideal {v[0]:.2f} W ({v[1]:.1f} V) / boost {v[2]:.2f} W" for k, v in rowg.items() if k != "N"))
+    print(f"gear ratio {N:.0f}: " + "  ".join(f"{k}: ideal {v[0]:.2f} / boost {v[2]:.2f} / buck-boost {v[3]:.2f} W, start {'Y' if v[4] else 'n'}" for k, v in rowg.items() if k != "N"))
 json.dump(dict(rows=rows, shares=shares, gear=gear, hubs=hubs, assumptions=dict(GEN=gl.GEN, FRICTION=gl.FRICTION, CONVERTERS=gl.CONVERTERS, RECTIFIER=gl.RECTIFIER)),
           open(os.path.join(HERE, "feasibility.json"), "w"), indent=1, default=float)
 # ---------------- figure 1
