@@ -112,8 +112,17 @@ if __name__ == "__main__" and (len(sys.argv) > 1 and sys.argv[1] == "2"):
         for r in sorted(slim, key=lambda r: -r["J"][key])[:8]:
             s = r["spec"]; print(f"  B{s['B']} {s['airfoil']} TSR_d {s['lam_d']} cs {s['c_scale']} cmax {s['c_max']*1000:.0f} db {s['dbeta']:+.0f} | J_u {r['J']['uniform']:.3f} J_low {r['J']['lowflow']:.3f} | sol {r['meta']['solidity']:.2f} c_root {r['meta']['c_root']*1000:.0f} c_max {r['meta']['c_maxval']*1000:.0f} | start {r['min_selfstart_V']} | P 0.5/0.7/1.0: {r['perV']['0.5']['Pout']:.2f}/{r['perV']['0.7']['Pout']:.2f}/{r['perV']['1.0']['Pout']:.2f}")
     # selection rule: maximise the mean of the two normalised objectives (uniform and low-flow), ties to the lower solidity (printability, cost); must self-start at 0.5 m/s under baseline cogging
-    Ju = max(r["J"]["uniform"] for r in slim); Jl = max(r["J"]["lowflow"] for r in slim)
-    ok = [r for r in slim if r["min_selfstart_V"] is not None and r["min_selfstart_V"] <= 0.5]
-    best = max(ok, key=lambda r: (0.5 * r["J"]["uniform"] / Ju + 0.5 * r["J"]["lowflow"] / Jl, -r["meta"]["solidity"]))
-    print("\nSELECTED:", best["spec"], "J", best["J"], "start", best["min_selfstart_V"])
-    full = evaluate(best["spec"]); write_selected(full, os.path.join(HERE, "selected_design.json")); print("selected_design.json written")
+    # selection over stages 1+2: mean of the two normalised objectives, subject to (a) self-start at 0.5 m/s under baseline cogging and
+    # (b) root chord (chord at the first element centre, r = 28.9 mm) <= 52 mm so the three pockets leave printable walls on the 28 mm hub;
+    # ties -> lower solidity (review M3: the rule that produced selected_design.json must be the coded one)
+    S1 = json.load(open(os.path.join(HERE, "sweep_stage1.json"))); allc = S1 + slim
+    Ju = max(r["J"]["uniform"] for r in allc); Jl = max(r["J"]["lowflow"] for r in allc)
+    C_ROOT_MAX = 0.052
+    ok = [r for r in allc if r["min_selfstart_V"] is not None and r["min_selfstart_V"] <= 0.5 and r["meta"]["c_root"] <= C_ROOT_MAX]
+    score = lambda r: (0.5 * r["J"]["uniform"] / Ju + 0.5 * r["J"]["lowflow"] / Jl, -r["meta"]["solidity"])
+    ok.sort(key=score, reverse=True); best = ok[0]
+    print("\nSELECTED:", best["spec"], "J", best["J"], "start", best["min_selfstart_V"], "c_root", best["meta"]["c_root"])
+    json.dump(dict(rule=f"max 0.5*J_uniform/max + 0.5*J_lowflow/max subject to self-start at 0.5 m/s (24 mN m cogging) and root chord <= {C_ROOT_MAX*1000:.0f} mm (chord at the first element centre); ties to lower solidity",
+                   ranked=[dict(spec=r["spec"], J=r["J"], c_root=r["meta"]["c_root"], solidity=r["meta"]["solidity"], score=score(r)[0]) for r in ok[:12]], Ju_max=Ju, Jl_max=Jl,
+                   unconstrained_best=dict(spec=max(allc, key=lambda r: score(r)[0])["spec"], J=max(allc, key=lambda r: score(r)[0])["J"])), open(os.path.join(HERE, "selection.json"), "w"), indent=1)
+    full = evaluate(best["spec"]); write_selected(full, os.path.join(HERE, "selected_design.json")); print("selected_design.json and selection.json written")

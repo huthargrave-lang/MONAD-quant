@@ -3,9 +3,7 @@
   "B": 3,
   "airfoil": "naca4412",
   "lam_d": 2.0,
-  "c_scale": 1.3,
-  "c_max": 0.06,
-  "dbeta": 0.0
+  "c_scale": 1.3
  },
  "B": 3,
  "airfoil": "naca4412",

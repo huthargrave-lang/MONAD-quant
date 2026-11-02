@@ -17,7 +17,13 @@ new = C["designs"]["new"]["res"]
 # 1. reproducibility: re-evaluate the selected design at 0.7 and 1.0 m/s and compare Pout
 rr = ce.full_eval(sel["spec"], "A", vs=[0.7, 1.0], lams=ce.LAMS)
 d = {V: abs(rr["perV"][str(V)]["op"]["Pout"] - new["perV"][str(V)]["op"]["Pout"]) for V in (0.7, 1.0)}
-gate("reproducibility (re-run of the coupled model)", max(d.values()) < 1e-6, f"|dP| {max(d.values()):.2e} W at 0.7/1.0 m/s")
+gate("reproducibility (re-run of the coupled model at 0.7 / 1.0 m/s) [regression check: same code, same inputs]", max(d.values()) < 1e-6, f"|dP| {max(d.values()):.2e} W at 0.7/1.0 m/s")
+# reproducibility of the SELECTION: the coded rule applied to the stored sweeps must return the shipped design
+SELJ = json.load(open(os.path.join(ROOT, "model", "selection.json"))); S1 = json.load(open(os.path.join(ROOT, "model", "sweep_stage1.json"))); S2 = json.load(open(os.path.join(ROOT, "model", "sweep_stage2.json")))
+allc = S1 + S2; Ju = max(r["J"]["uniform"] for r in allc); Jl = max(r["J"]["lowflow"] for r in allc)
+ok = [r for r in allc if r["min_selfstart_V"] is not None and r["min_selfstart_V"] <= 0.5 and r["meta"]["c_root"] <= 0.052]
+best = max(ok, key=lambda r: (0.5 * r["J"]["uniform"] / Ju + 0.5 * r["J"]["lowflow"] / Jl, -r["meta"]["solidity"]))
+gate("selection reproducible: the coded rule on the stored sweeps returns the shipped design", best["spec"] == sel["spec"], f"rule -> {best['spec']}; shipped {sel['spec']}")
 # 2. physical plausibility
 cps = [max(new["perV"][V]["cp"]) for V in new["perV"]]
 gate("Cp below the Betz limit on every curve", max(cps) < 0.593, f"max Cp {max(cps):.3f}")
@@ -31,10 +37,10 @@ for V, p in new["perV"].items():
     if not op: continue
     lhs = op["Pshaft"]; rhs = op["Pfric"] + op["Pcu"] + op["Pdiode"] + op["Pdc"]       # the commutation-overlap term is reactive: generator torque x speed = DC + copper + diode exactly (no overlap term)
     err = abs(lhs - rhs) / lhs; worst = max(worst, err); detail.append(f"{V}: {err*100:.2f} %")
-gate("power balance at every operating point (shaft = friction + copper + diodes + DC)", worst < 1e-6, "; ".join(detail))
+gate("power balance at every operating point (shaft = friction + copper + diodes + DC) [identity check of the stored points]", worst < 1e-6, "; ".join(detail))
 # 4. generator constraints
 over = [(V, p["op"]["I"]) for V, p in new["perV"].items() if p["op"] and float(V) <= 2.0 and p["op"]["I"] > gl.GEN["rated_I"]]
-gate("generator current <= 1.35 A rated at every MPPT point to 2.0 m/s", not over, f"max I {max(p['op']['I'] for p in new['perV'].values() if p['op']):.2f} A" + (f"; over: {over}" if over else ""))
+gate("generator current <= 1.35 A rated at every MPPT point to 2.0 m/s [enforced by the MPPT law; regression check]", not over, f"max I {max(p['op']['I'] for p in new['perV'].values() if p['op']):.2f} A" + (f"; over: {over}" if over else ""))
 vmax = max(p["open"]["Vdc"] for p in new["perV"].values() if p["open"]); gate("open-circuit bus at 2.0 m/s below the 60 V TVS standoff and the converter's 60 V input", vmax < 60, f"{vmax:.1f} V")
 # 5. model <-> CAD consistency
 info = json.load(open(os.path.join(ROOT, "out", "v4_info.json"))); st = info["layout"]["stations"]
@@ -55,7 +61,13 @@ keys = {"hub_front": "front hub", "hub_rear": "rear hub", "blade": "blades", "sh
 miss = [n for n, k in keys.items() if k not in bt]; gate("BOM covers every CAD part", not miss, f"missing {miss}" if miss else f"{len(bom)} BOM lines")
 # 7. report generator: result sentences must not contain hand-typed numbers (numeric literals outside f-string expressions in the key sections)
 rep = open(os.path.join(ROOT, "docs", "make_report_v4.py")).read() if os.path.exists(os.path.join(ROOT, "docs", "make_report_v4.py")) else ""
-gate("report generator present", bool(rep), f"{len(rep)} chars")
+# gate 7: numeric literals followed by a result unit (W, %, rpm, mN m, N m, A) in the report TEXT (outside {} expressions) are hand-typed results
+body = rep[rep.index('txt = f"""'):] if 'txt = f"""' in rep else ""
+text_only = re.sub(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", "", body)                      # strip f-string expressions (one nesting level)
+typed = re.findall(r"(?<![\w.])(\d+\.?\d*)\s?(W|%|rpm|mN m|N m| A\b)(?![\w])", text_only)
+allow = {("12", "W"), ("5", "W"), ("4", "W"), ("1", "W"), ("3", "W"), ("0.1", "W"), ("50", "W"), ("10", "W"), ("8", "W"), ("100", "W"), ("0.5", "W"), ("2", "W")}
+typed = [t for t in typed if (t[0], t[1]) not in allow and not (t[1] == "A" and t[0] in ("1.35", "2", "1.5", "8"))]
+gate("report text contains no hand-typed result numbers (W / % / rpm / torque / current outside f-string expressions; unit literals allow-listed)", not typed, f"found {typed[:12]}" if typed else "none found")
 json.dump(dict(gates=log, fails=fails), open(os.path.join(ROOT, "docs", "qa_gates_v4.json"), "w"), indent=1)
 with open(os.path.join(ROOT, "docs", "QA_LOG_v4.md"), "w") as f:
     f.write("# Quality-gate log (v4 low-flow turbine)\n\nThe `/quality` skill is not installed in this environment, so these manual gates (`tools/qa_gates_v4.py`) stand in for it. Each gate is a script check on the exported files and result JSONs, re-run after every correction.\n\n| Gate | Result | Detail |\n|---|---|---|\n")

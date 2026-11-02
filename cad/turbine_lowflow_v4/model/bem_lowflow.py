@@ -11,18 +11,18 @@ RHO, NU = 1000.0, 1.14e-6          # fresh water ~15 C
 R_TIP = 0.1016                      # m (203.2 mm rotor)
 EXT_AL = np.arange(-90.0, 90.01, 1.0)
 
-def _viterna_row(al, cl, cd, al_s, al_sn=-8.0, cdmax=1.8):
+def _viterna_row(al, cl, cd, al_s, al_sn=-8.0, cdmax=1.8):   # cdmax = post-stall flat-plate drag coefficient (1.2-2.0 in the literature; sensitivity in the report)
     from polars import viterna_extend
     f = viterna_extend(al, cl, cd, al_s, al_sn, cdmax)
     vals = np.array([f(a) for a in EXT_AL]); return vals[:, 0], vals[:, 1]
 
 class PolarTable:
     """Extended (alpha -90..90 deg) x Re table with vectorized bilinear lookup; cd multiplier / cl factor for sensitivities."""
-    def __init__(self, tab, cd_mult=1.0, cl_fac=1.0, cd_add=0.0):
+    def __init__(self, tab, cd_mult=1.0, cl_fac=1.0, cd_add=0.0, cdmax=1.8):
         al = np.array(tab["alphas"]); self.logRe = np.log(np.array(tab["Res"]))
         self.cl = np.zeros((len(self.logRe), len(EXT_AL))); self.cd = np.zeros_like(self.cl)
         for i in range(len(self.logRe)):
-            c, d = _viterna_row(al, np.array(tab["cl"][i]) * cl_fac, np.array(tab["cd"][i]) * cd_mult + cd_add, tab["alpha_stall"][i])
+            c, d = _viterna_row(al, np.array(tab["cl"][i]) * cl_fac, np.array(tab["cd"][i]) * cd_mult + cd_add, tab["alpha_stall"][i], cdmax=cdmax)
             self.cl[i], self.cd[i] = c, d
         self.tc = tab["tc"]; self.alpha_best = np.array(tab["alpha_best"]); self.cl_best = np.array(tab["cl_best"]) * cl_fac
     def __call__(self, alpha_rad, Re):
@@ -113,6 +113,11 @@ def static_torque(blade, V):
     q = 0.5 * RHO * Vloc ** 2 * c
     return float((B * q * cl * r * dr).sum())
 
+def static_torque_bem_low_lambda(blade, V, lam=0.2):
+    """conservative alternative to the standstill estimate: the BEM torque at a very low tip-speed ratio (induction on, same polars);
+    the standstill (no-induction, alpha = 90 - twist) estimate is ~1.5-1.7x this value (review M5), which brackets the starting torque"""
+    return bem(blade, lam, V)["Q"]
+
 def curve(blade, V, lams):
     return [bem(blade, l, V) for l in lams]
 
@@ -122,11 +127,11 @@ def schmitz_chord(r, lam, cl_d, B):
     return 8 * np.pi * r * (1 - np.cos(phi)) / (B * cl_d), phi
 
 def design(tabs, airfoil, B, lam_d, c_scale=1.0, dbeta=0.0, r_hub=0.028, c_max=0.060, tip_frac=0.55, root_blend=0.35, root_airfoil="naca4418",
-           V_design=0.7, n=50, vfac=None, cd_mult=1.0, cl_fac=1.0, cd_add=0.0, c_min=0.012):
+           V_design=0.7, n=50, vfac=None, cd_mult=1.0, cl_fac=1.0, cd_add=0.0, c_min=0.012, cdmax=1.8):
     """Schmitz-optimum planform at lam_d for the airfoil's best-L/D design point (Re evaluated at V_design with the resulting chord,
     one fixed-point pass), scaled by c_scale, capped at c_max, root chord eased (0.85 x at the hub), elliptical tip taper to tip_frac,
     twist = Schmitz inflow angle - design alpha + dbeta; the inner root_blend of the span blends toward the thick root section."""
-    outer = PolarTable(tabs[airfoil], cd_mult, cl_fac, cd_add); root = PolarTable(tabs[root_airfoil], cd_mult, cl_fac, cd_add)
+    outer = PolarTable(tabs[airfoil], cd_mult, cl_fac, cd_add, cdmax); root = PolarTable(tabs[root_airfoil], cd_mult, cl_fac, cd_add, cdmax)
     r, dr = elements(r_hub, n)
     om = lam_d * V_design / R_TIP
     Re_guess = 0.04 * np.sqrt((0.7 * V_design) ** 2 + (om * r) ** 2) / NU
@@ -149,9 +154,9 @@ def design(tabs, airfoil, B, lam_d, c_scale=1.0, dbeta=0.0, r_hub=0.028, c_max=0
                             solidity=float((B * c * dr).sum() / (np.pi * (R_TIP ** 2 - r_hub ** 2))), c_root=float(c[0]), c_maxval=float(c.max()), alpha_d=a_d.tolist(), cl_d=cl_d.tolist()))
     return blade
 
-def blade_from_arrays(tabs, airfoil, B, r_mm, chord_mm, twist_deg, r_hub, root_airfoil="naca4418", root_blend=0.35, n=50, vfac=None, cd_mult=1.0, cl_fac=1.0, cd_add=0.0):
+def blade_from_arrays(tabs, airfoil, B, r_mm, chord_mm, twist_deg, r_hub, root_airfoil="naca4418", root_blend=0.35, n=50, vfac=None, cd_mult=1.0, cl_fac=1.0, cd_add=0.0, cdmax=1.8):
     """Blade from explicit station arrays (e.g. the previous designs) evaluated with the same polars and corrections."""
-    outer = PolarTable(tabs[airfoil], cd_mult, cl_fac, cd_add); root = PolarTable(tabs[root_airfoil], cd_mult, cl_fac, cd_add)
+    outer = PolarTable(tabs[airfoil], cd_mult, cl_fac, cd_add, cdmax); root = PolarTable(tabs[root_airfoil], cd_mult, cl_fac, cd_add, cdmax)
     r, dr = elements(r_hub, n)
     c = np.interp(r * 1000, r_mm, chord_mm) / 1000; beta = np.radians(np.interp(r * 1000, r_mm, twist_deg))
     w_root = np.clip(1 - (r - r_hub) / (root_blend * (R_TIP - r_hub)), 0, 1) ** 2

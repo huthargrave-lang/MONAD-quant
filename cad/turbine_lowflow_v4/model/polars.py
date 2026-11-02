@@ -95,8 +95,7 @@ class Polar:
         w = (lr - self.logRe[j]) / (self.logRe[j + 1] - self.logRe[j])
         ld0 = self.cl[j] / self.cd[j]; ld1 = self.cl[j + 1] / self.cd[j + 1]
         ld = (1 - w) * ld0 + w * ld1
-        # design point: slightly below best L/D for margin against stall at the root: use alpha at 0.97 of max L/D on the low side
-        k = int(ld.argmax())
+        k = int(ld.argmax())                      # design point = the alpha of maximum L/D (1-degree grid); the BEM model uses PolarTable.design_point, not this
         return math.radians(self.al[k]), float(((1 - w) * self.cl[j] + w * self.cl[j + 1])[k])
 
 def blended_polar(tabs, outer, root=THICK_ROOT):

@@ -30,10 +30,11 @@ RECTIFIER = {"schottky": dict(Vf0=0.30, Vf_slope=0.20, note="MBR10100-class Scho
 
 def Kt(g=GEN): return 60 / (2 * math.pi * g["KV"])
 
-def friction_running(rpm, fr, g=GEN, r_hub_m=0.028, V=0.7):
-    """running friction torque (N m) at rpm: seal + external bearings + motor no-load loss + rotating-hub windage"""
+def friction_running(rpm, fr, g=GEN, r_hub_m=0.028, V=0.7, N=1.0):
+    """running friction torque (N m, referred to the rotor shaft) at rotor rpm: seal + external bearings + motor no-load loss (evaluated at
+    the generator speed N*rpm) + rotating-hub windage"""
     om = rpm * 2 * math.pi / 60
-    p0 = g["p0_700"] * (max(rpm, 1) / 700.0) ** g["p0_exp"]; t_fe = p0 / om if om > 1e-6 else 0.0
+    p0 = g["p0_700"] * (max(rpm * N, 1) / 700.0) ** g["p0_exp"]; t_fe = p0 / om if om > 1e-6 else 0.0
     # windage of the rotating hub (cylinder r_hub, length 0.04 m) in the stream: small but included
     Ut = om * r_hub_m; Urel = math.sqrt(Ut * Ut + V * V); Re = max(Urel * 0.04 / 1.14e-6, 1e4); Cf = 0.074 * Re ** -0.2
     t_w = 0.5 * 1000 * Cf * Urel * Urel * (2 * math.pi * r_hub_m * 0.04) * r_hub_m * (Ut / Urel if Urel > 0 else 0)
@@ -51,8 +52,9 @@ def gen_point(rpm, T_gen, g=GEN, rect=RECTIFIER["schottky"], N=1.0):
     a = (3 / math.pi) * w_e * (g["L_LL"] / 2)
     # torque from power balance with the overlap-reduced torque constant: Tg * om = (Voc - a I) I  -> quadratic in I
     disc = Voc * Voc - 4 * a * Tg * om_g
-    I = (Voc - math.sqrt(disc)) / (2 * a) if (a > 1e-9 and disc >= 0) else (Tg * om_g / Voc if Voc > 0 else 0.0)
-    if disc < 0: I = Voc / (2 * a)
+    if Voc <= 0 or disc < 0:
+        return None                                                            # torque beyond the pull-out limit at this speed: no physical point (review m2)
+    I = (Voc - math.sqrt(disc)) / (2 * a) if a > 1e-9 else Tg * om_g / Voc
     dVc = a * I; Vd = rectifier_drop(I, rect)
     Vdc = Voc - I * g["R_LL"] - dVc - Vd
     Pcu = I * I * g["R_LL"]; Pd = Vd * I; Pdc = max(Vdc, 0) * I
@@ -68,6 +70,33 @@ def rotor_curve_fn(curve):
     lams = np.array([c[0] for c in curve]); Q = np.array([c[1] for c in curve])
     return lams, Q
 
+def _cv_solve(V, lams, Qrot, fr, V_fixed, rect, g, N, r_hub_m):
+    """equilibrium at a fixed DC bus voltage: bisection in lambda on Vdc(lambda) - V_fixed along the stable branch (review m3)"""
+    fine = np.linspace(lams.min(), lams.max(), 300); Qf = np.interp(fine, lams, Qrot)
+    def state(lam):
+        om = lam * V / R_TIP; rpm = om * 60 / (2 * math.pi); Q = float(np.interp(lam, lams, Qrot)); Tf = friction_running(rpm, fr, g, r_hub_m, V, N); Qg = Q - Tf
+        if Qg <= 0: return None
+        gp = gen_point(rpm, Qg, g, rect, N)
+        if gp is None: return None
+        return dict(lam=lam, rpm=rpm, Qrot=Q, Qg=Qg, gp=gp, Tf=Tf, om=om)
+    vals = []
+    for lam in fine:
+        st = state(lam); vals.append((st["gp"]["Vdc"] - V_fixed) if st else np.nan)
+    vals = np.array(vals)
+    idx = [i for i in range(len(fine) - 1) if np.isfinite(vals[i]) and np.isfinite(vals[i + 1]) and vals[i] < 0 <= vals[i + 1]]
+    if not idx: return None
+    i = idx[-1]                                                                 # highest-lambda crossing = the stable branch (Vdc rises with speed)
+    lo, hi = fine[i], fine[i + 1]
+    for _ in range(40):
+        mid = 0.5 * (lo + hi); st = state(mid)
+        if st is None or st["gp"]["Vdc"] - V_fixed < 0: lo = mid
+        else: hi = mid
+    st = state(0.5 * (lo + hi))
+    if st is None: return None
+    gp = st["gp"]
+    return dict(lam=st["lam"], rpm=st["rpm"], Qrot=st["Qrot"], Qg=st["Qg"], I=gp["I"], Vdc=gp["Vdc"], Voc=gp["Voc"], Pdc=gp["Pdc"], Pcu=gp["Pcu"], Pdiode=gp["Pdiode"], Pout=gp["Pdc"],
+                Pshaft=st["Qrot"] * st["om"], Pfric=st["Tf"] * st["om"], Pgen_mech=st["Qg"] * st["om"], dV_comm=gp["dV_comm"], region="cv", overcurrent=bool(gp["I"] > g["rated_I"]))
+
 def operating_point(V, lams, Qrot, fr, conv, rect=RECTIFIER["schottky"], g=GEN, N=1.0, r_hub_m=0.028, mode="mppt", R_load=None):
     """Equilibrium of rotor torque Qrot(lam) against friction + generator torque under the converter's load law.
     mode 'mppt': pick lambda maximising converter output within the converter's voltage window (clamped CV above V_max if clamp);
@@ -78,16 +107,17 @@ def operating_point(V, lams, Qrot, fr, conv, rect=RECTIFIER["schottky"], g=GEN, 
     best = None
     for lam, Q in zip(fine, Qf):
         om = lam * V / R_TIP; rpm = om * 60 / (2 * math.pi)
-        Tf = friction_running(rpm, fr, g, r_hub_m, V)
+        Tf = friction_running(rpm, fr, g, r_hub_m, V, N)
         Qg = Q - Tf
         if mode == "open":
-            cand = dict(lam=lam, rpm=rpm, Qrot=Q, Qg=0.0, I=0.0, Vdc=gen_point(rpm, 0.0, g, rect, N)["Voc"], Pdc=0.0, Pout=0.0, Pfric=Tf * om)
+            cand = dict(lam=lam, rpm=rpm, Qrot=Q, Qg=0.0, I=0.0, Vdc=rpm * N / g["KV"], Pdc=0.0, Pout=0.0, Pfric=Tf * om)
             score = -abs(Qg)
             if best is None or score > best[0]: best = (score, cand)
             continue
         if Qg <= 0: continue
+        if mode == "cv": continue                                           # handled by _cv_solve below
         gp = gen_point(rpm, Qg, g, rect, N)
-        if gp["Vdc"] <= 0: continue
+        if gp is None or gp["Vdc"] <= 0: continue
         if gp["I"] > g["rated_I"] * 1.05 and mode == "mppt": continue       # an MPPT controller never commands more than the rating; CV modes report the overcurrent
         if mode == "mppt":
             if gp["Vdc"] < conv["V_min"]: continue
@@ -95,22 +125,24 @@ def operating_point(V, lams, Qrot, fr, conv, rect=RECTIFIER["schottky"], g=GEN, 
                 if not conv["clamp"]: continue
                 continue                                    # clamped region handled below as a CV solution
             Pout = converter_out(gp["Pdc"], gp["Vdc"], conv); score = Pout
-        elif mode == "cv":
-            score = -abs(gp["Vdc"] - conv["fixed_V"]); Pout = max(gp["Vdc"], 0) * gp["I"] if abs(gp["Vdc"] - conv["fixed_V"]) < 0.3 else -1
-            if abs(gp["Vdc"] - conv["fixed_V"]) > 0.6: continue
         elif mode == "resistor":
             I_r = gp["Vdc"] / R_load; score = -abs(I_r - gp["I"]); Pout = gp["Pdc"]
             if abs(I_r - gp["I"]) > 0.05 * max(gp["I"], 0.02): continue
         cand = dict(lam=lam, rpm=rpm, Qrot=Q, Qg=Qg, I=gp["I"], Vdc=gp["Vdc"], Voc=gp["Voc"], Pdc=gp["Pdc"], Pcu=gp["Pcu"], Pdiode=gp["Pdiode"], Pout=Pout,
                     Pshaft=Q * om, Pfric=Tf * om, Pgen_mech=Qg * om, dV_comm=gp["dV_comm"], region="mppt" if mode == "mppt" else mode, overcurrent=bool(gp["I"] > g["rated_I"]))
         if best is None or score > best[0]: best = (score, cand)
+    if mode == "cv":
+        pc = _cv_solve(V, lams, Qrot, fr, conv["fixed_V"], rect, g, N, r_hub_m)
+        return pc
     if mode == "mppt" and conv["clamp"]:
-        # clamped CV branch at V_max: find the equilibrium where Vdc == V_max; it competes with the MPPT branch
-        cv = dict(conv); cv["fixed_V"] = conv["V_max"]
-        pc = operating_point(V, lams, Qrot, fr, cv, rect, g, N, r_hub_m, mode="cv")
-        if pc:
+        # clamped CV branch at V_max (the boost cannot regulate above the battery): it competes with the MPPT branch
+        pc = _cv_solve(V, lams, Qrot, fr, conv["V_max"], rect, g, N, r_hub_m)
+        if pc and pc["I"] <= g["rated_I"] * 1.05:
             pc["Pout"] = converter_out(pc["Pdc"], pc["Vdc"], conv); pc["region"] = "clamp"
             if best is None or (best[1]["Pout"] < pc["Pout"]): best = (pc["Pout"], pc)
+        elif pc:
+            pc["Pout"] = converter_out(pc["Pdc"], pc["Vdc"], conv); pc["region"] = "clamp"
+            if best is None: best = (pc["Pout"], pc)                            # over-current clamp equilibrium reported with its flag when nothing else exists
     if best is None: return None
     b = best[1]
     if mode != "open" and b.get("Pout", 0) <= 0: return None
@@ -119,8 +151,8 @@ def operating_point(V, lams, Qrot, fr, conv, rect=RECTIFIER["schottky"], g=GEN, 
 def startup_check(Qstatic, fr, g=GEN):
     tb = breakaway(fr, g); return dict(Qstatic=Qstatic, breakaway=tb, ratio=Qstatic / tb if tb > 0 else 99, ok=Qstatic > tb)
 
-def sustain_margin(V, lams, Qrot, fr, g=GEN, r_hub_m=0.028, lam_max=None):
+def sustain_margin(V, lams, Qrot, fr, g=GEN, r_hub_m=0.028, lam_max=None, N=1.0):
     """minimum (rotor torque - running friction) along the unloaded acceleration path 0.3 <= lam <= lam_max"""
     fine = np.linspace(max(lams.min(), 0.3), lam_max if lam_max else lams.max(), 200); Qf = np.interp(fine, lams, Qrot)
-    m = [Q - friction_running(l * V / R_TIP * 60 / (2 * math.pi), fr, g, r_hub_m, V) for l, Q in zip(fine, Qf)]
+    m = [Q - friction_running(l * V / R_TIP * 60 / (2 * math.pi), fr, g, r_hub_m, V, N) for l, Q in zip(fine, Qf)]
     return float(min(m))

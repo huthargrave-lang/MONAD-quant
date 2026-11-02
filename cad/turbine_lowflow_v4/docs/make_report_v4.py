@@ -48,7 +48,7 @@ prot_rows = []
 for V in VS:
     p = new["perV"][str(V)]; o = p["op"]; oc = p["open"]; pb = newboost["perV"][str(V)]["op"]; pd = newdirect["perV"][str(V)]["op"]
     prot_rows.append(f"| {V:.2f} | {(o['rpm'] if o else 0):.0f} / {(o['Vdc'] if o else 0):.1f} / {(o['I'] if o else 0):.2f} / {(o['Pout'] if o else 0):.2f} | {(pb['Pout'] if pb else 0):.2f} ({pb['region'] if pb else '-'}{', I ' + fmt(pb['I']) + ' A OVER' if (pb and pb.get('overcurrent')) else ''}) | {(pd['Pout'] if pd else 0):.2f}{' (I ' + fmt(pd['I']) + ' A OVER)' if (pd and pd.get('overcurrent')) else ''} | {(oc['rpm'] if oc else 0):.0f} rpm, {(oc['Vdc'] if oc else 0):.0f} V | {p['Qstatic']*1000:.0f} / {p['breakaway']*1000:.0f} |")
-sens_keys = ["baseline", "seal x0.5", "seal x2.0", "seal x3.0", "cogging 8 mN m", "cogging 40 mN m", "no-load loss 0.2 W@700", "no-load loss 1.5 W@700", "cd x1.3", "cd x1.6", "cl x0.9, cd x1.3", "KV 25 (Kt 0.38)", "R 6.5 ohm", "conv eta 0.85", "conv eta 0.96", "conv Vmin 3 V", "conv Vmin 8 V", "rectifier synchronous"]
+sens_keys = ["baseline", "seal x0.5", "seal x2.0", "seal x3.0", "cogging 8 mN m", "cogging 40 mN m", "no-load loss 0.2 W@700", "no-load loss 1.5 W@700", "cd x1.3", "cd x1.6", "cl x0.9, cd x1.3", "standstill cdmax 1.2", "standstill cdmax 2.0", "standstill = BEM at TSR 0.2", "no nacelle inflow deficit", "KV 25 (Kt 0.38)", "R 6.5 ohm", "conv eta 0.85", "conv eta 0.96", "conv Vmin 3 V", "conv Vmin 8 V", "rectifier synchronous"]
 sens_rows = [f"| {k} | " + " | ".join(f"{sens[k][VS.index(V)]:.2f}" for V in (0.5, 0.6, 0.7, 0.8, 1.0)) + " |" for k in sens_keys if sens.get(k)]
 printed = [p for p in info["parts"] if p["kind"].startswith("print")]; machined = [p for p in info["parts"] if "machined" in p["kind"]]
 cost_lo = cost_hi = 0.0
@@ -79,7 +79,7 @@ Every number below is written by `docs/make_report_v4.py` from the result files 
   {min(s['copper']/s['P_hyd'] for s in shares)*100:.1f}-{max(s['copper']/s['P_hyd'] for s in shares if s['V'] <= 1.0)*100:.1f} % of the available hydraulic power below 1 m/s. The obstacles are, in order: rotor efficiency at
   Reynolds numbers of 4e4-8e4 (Cp {new['perV']['0.5']['cp_peak']:.2f}-{new['perV']['1.0']['cp_peak']:.2f}), the fixed friction torque (seal + bearing + motor no-load, {FR['A_rear_nacelle']['seal_run']*1000+FR['A_rear_nacelle']['brg_run']*1000:.0f} mN m plus
   no-load loss), the generator **voltage** (only {op(new, 0.5)['Vdc'] if op(new, 0.5) else 0:.1f} V at 0.5 m/s: a boost-capable converter is mandatory; a rectifier straight into the
-  battery produces nothing below {next((V for V in VS if Pout(newdirect, V) > 0), None)} m/s), and the converter's own minimum input voltage and quiescent draw.
+  14.4 V battery produces nothing below {next((V for V in VS if Pout(newdirect, V) > 0), None)} m/s and only {Pout(newdirect, next((V for V in VS if Pout(newdirect, V) > 0), 1.0)):.2f} W there), and the converter's own minimum input voltage and quiescent draw.
 - **A gearbox does not help.** A 2:1 or 3:1 stage (optimistic 96 % per stage, +5 mN m) changes net output by
   {(F['gear'][1]['0.5'][2]/F['gear'][0]['0.5'][2]-1)*100:+.0f} % at 0.5 m/s and {(F['gear'][1]['1.0'][2]/F['gear'][0]['1.0'][2]-1)*100:+.0f} % at 1.0 m/s with the real converter: rejected; direct drive is kept.
 - **Selected rotor:** {spec['B']} blades, NACA 4412 blending to NACA 4418 at the root, Schmitz planform for design TSR {spec['lam_d']} scaled x{spec['c_scale']},
@@ -105,7 +105,8 @@ with this package's model (NeuralFoil Reynolds-dependent polars, the same BEM co
 {chr(10).join(cmp_rows)}
 
 (W = net 12 V electrical power with the buck-boost MPPT, baseline assumptions; "start" = static torque above the assumed breakaway.)
-The spreadsheet's 5.6 W shaft at 1 m/s (Cp 0.345 on the full disc) is not reached by any of the three blades on their hubs in this model
+The original rev-2 blade (NACA 4422 -> 4414) is evaluated with the NACA 4415 table and the same 4418 root blend because no 4422 table exists (slightly
+favourable to it at the root). The spreadsheet's 5.6 W shaft at 1 m/s (Cp 0.345 on the full disc) is not reached by any of the three blades on their hubs in this model
 ({new['perV']['1.0']['cp_peak']*0.5*1000*math.pi*0.1016**2:.2f} W peak shaft for the new rotor, Cp {new['perV']['1.0']['cp_peak']:.3f}); the earlier "0.345-0.378" Cp values came from a polar at Re 2e5 applied at Re
 7e4-8e4 (review of the trial, redesign v3). The previous electrical predictions are therefore not used as validated inputs.
 
@@ -144,7 +145,8 @@ Best candidate per blade count, airfoil, design TSR (3 blades, NACA 4412) and ch
 {chr(10).join(srow(f"design TSR {t}", bTSR[t]) for t in (1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 6.0))}
 {chr(10).join(srow(f"chord x{c}", bCS[c]) for c in (0.7, 1.0, 1.3))}
 
-Reading. Two blades give the best Cp per unit solidity but cannot self-start below 0.6 m/s; four and five blades start earlier but lose
+Reading. Two blades give the best Cp per unit solidity; the best two-blade candidate self-starts from {two_blade_start} m/s and the best two-blade
+candidate that starts at 0.5 m/s scores {(b2_best_lowflow['J']['lowflow'] if b2_best_lowflow else 0):.3f} W against {bB[3]['J']['lowflow']:.3f} W for three blades on the low-flow objective; four and five blades start earlier but lose
 Cp to profile drag at these Reynolds numbers. Design TSR 2-2.5 wins because the wide chords raise the local Reynolds number (the
 chord is the only lever on Re at a given flow) and the standstill torque, while the actual Cp peak still sits at TSR 3-3.5 and the
 coupled MPPT point at TSR {op(new, 0.5)['lam']:.1f}-{op(new, 1.0)['lam']:.1f}, where the GL60's voltage is highest for the torque it must absorb. The low-Reynolds sections lose in the
@@ -157,9 +159,9 @@ root-chord packaging limit decided the final pick without a measurable performan
 {spec['B']} blades, NACA 4412 outboard blending to NACA 4418 over the inner 35 % (printability and root bending), Schmitz planform at design
 TSR {spec['lam_d']} x{spec['c_scale']} (capped at {spec.get('c_max',0.06)*1000:.0f} mm), root eased to 85 % at the hub, elliptical tip taper to 55 %, pitch offset {spec.get('dbeta',0):+.0f} deg, 1.0 mm blunt trailing edge.
 Station data: `model/selected_design.json` (chord {sel['chord_mm'][0]:.1f} -> {max(sel['chord_mm']):.1f} -> {sel['chord_mm'][-1]:.1f} mm; twist {sel['twist_deg'][0]:.1f} -> {sel['twist_deg'][-1]:.1f} deg). Figures 5 and 6 compare it with the
-previous designs. It won because it (i) self-starts at 0.5 m/s under the baseline cogging while the two-blade and the TSR >= 3 designs
-do not, (ii) has the highest coupled output at 0.5-0.7 m/s (Re effect of the wide chord), (iii) matches the original rev-2 blade above
-0.9 m/s, and (iv) still fits three pockets on a 28 mm hub. What it gives up: about {(1-Pout(new, 2.0)/Pout(orig, 2.0))*100:.0f} % at 2.0 m/s against the rev-2 blade and a higher
+previous designs. It won because it (i) self-starts at 0.5 m/s under the baseline cogging (static torque {new['perV']['0.5']['Qstatic']*1000:.0f} vs breakaway {new['perV']['0.5']['breakaway']*1000:.0f} mN m) while the
+TSR >= 3 designs do not, (ii) has the highest coupled output at 0.5-0.7 m/s (Reynolds effect of the wide chord), (iii) matches the original rev-2 blade above
+0.9 m/s, and (iv) still fits three pockets on a 28 mm hub (the two-blade alternative that also starts at 0.5 m/s scores {((b2_best_lowflow['J']['lowflow'] / bB[3]['J']['lowflow'] - 1) * 100) if b2_best_lowflow else 0:+.0f} % on the low-flow objective). What it gives up: about {(1-Pout(new, 2.0)/Pout(orig, 2.0))*100:.0f} % at 2.0 m/s against the rev-2 blade and a higher
 standstill drag (thrust at 2 m/s {new['perV']['2.0']['T'][[i for i, l in enumerate(new['perV']['2.0']['lam']) if abs(l - new['perV']['2.0']['op']['lam']) < 0.11][0]] if new['perV']['2.0']['op'] else 0:.0f} N at the operating point).
 
 ## 6. Generator matching and electrical predictions
@@ -192,10 +194,10 @@ Selected design, per flow (buck-boost MPPT; boost+clamp and direct-to-battery fo
 
 Load control. Below the clamp voltage both converters regulate the bus, i.e. the rotor speed, so the generator cannot stall the rotor:
 the equilibrium sits on the stable side of the torque peak (fig. 9). With the boost-only converter the bus is clamped at the battery
-above about {next((V for V in VS if newboost['perV'][str(V)]['op'] and newboost['perV'][str(V)]['op']['region'] == 'clamp'), None)} m/s; the rotor is then held at a fixed speed and, from about 1.75 m/s, the clamp current exceeds the GL60 rating:
+above about {next((V for V in VS if newboost['perV'][str(V)]['op'] and newboost['perV'][str(V)]['op']['region'] == 'clamp'), None)} m/s; the rotor is then held at a fixed speed and, from {v_over} m/s (interpolated on a 0.05 m/s grid), the clamp current exceeds the GL60 rating:
 a boost-only unit needs a 1.5-2 A limiter or a 40 V relay dump for the 1-2 m/s survivability case. The buck-boost keeps regulating to
 2 m/s ({op(new, 2.0)['I']:.2f} A at {op(new, 2.0)['Vdc']:.1f} V). Open circuit at 2 m/s is {new['perV']['2.0']['open']['Vdc']:.0f} V: below the 60 V TVS standoff and the converter's 60 V input.
-Current and temperature: copper loss at 2 m/s is {op(new, 2.0)['Pcu']:.1f} W inside a sealed nacelle; the brief's 0.5-1.0 m/s duty is < 0.1 W. Thermal limits are not
+Current and temperature: copper loss is {op(new, 0.5)['Pcu']:.2f} / {op(new, 0.7)['Pcu']:.2f} / {op(new, 1.0)['Pcu']:.2f} W at 0.5 / 0.7 / 1.0 m/s and {op(new, 2.0)['Pcu']:.1f} W at 2 m/s inside a sealed nacelle. Thermal limits are not
 the sizing case below 1.5 m/s; the earlier v3.1 heat-path analysis applies if the device is left in a 2 m/s flow (rear cap in 6061).
 
 ## 7. Recommended compact mounting and waterproofing (arrangement A), with B quantified
@@ -219,7 +221,7 @@ outer race. Torque: hub D-bore -> shaft D-flat -> cross-pinned dog hub -> TPU di
 stator is screwed to the rear cap. The GL60 carries no rotor thrust and no radial load. The motor is dry: tube, one EPDM O-ring per cap,
 an 8 mm PTFE lip seal on the polished 316 journal, a WetLink M10 penetrator and an M6 vent; IP45 is irrelevant inside that boundary.
 **Penalties quantified:** the seal and bearing take {FR['A_rear_nacelle']['seal_run']*1000+FR['A_rear_nacelle']['brg_run']*1000:.0f} mN m of the {op(new, 0.5)['Qrot']*1000:.0f} mN m the rotor makes at 0.5 m/s ({(FR['A_rear_nacelle']['seal_run']+FR['A_rear_nacelle']['brg_run'])/op(new, 0.5)['Qrot']*100:.0f} %) and {(FR['A_rear_nacelle']['seal_run']+FR['A_rear_nacelle']['brg_run'])/op(new, 1.0)['Qrot']*100:.0f} % at 1.0 m/s;
-the nacelle inflow deficit costs about 3 % of Cp (assumption, to be checked in G8/G11); the hub ratio {P['r_hub']/101.6:.2f} costs the annulus area shown in the feasibility table.
+the assumed nacelle inflow deficit costs {nac.get('0.5', nac.get(0.5, 0))*100:.1f} / {nac.get('0.7', nac.get(0.7, 0))*100:.1f} / {nac.get('1.0', nac.get(1.0, 0))*100:.1f} % of peak Cp at 0.5 / 0.7 / 1.0 m/s (to be checked in G8/G11); the hub ratio {P['r_hub']/101.6:.2f} costs the annulus area shown in the feasibility table.
 
 ## 8. Plots
 
@@ -242,8 +244,10 @@ Sensitivity table (net W, gated by self-start; one input at a time):
 |---|---|---|---|---|---|
 {chr(10).join(sens_rows)}
 
-Minimum self-start / sustain velocities: optimistic (cd x1.0, cogging 8 mN m, seal x0.5) {combos['optimistic']['min_start']} / {combos['optimistic']['min_sustain']} m/s; baseline {combos['baseline']['min_start']} / {combos['baseline']['min_sustain']};
-pessimistic (cd x1.3, cl x0.9, cogging 40 mN m, seal x2) {combos['pessimistic']['min_start']} / {combos['pessimistic']['min_sustain']} m/s. The sustain floor is the converter's 5 V minimum; a 3 V converter would move it to
+Minimum self-start / sustain velocities: optimistic (cd x1.0, cogging 8 mN m, seal x0.5, Viterna cdmax 2.0) {combos['optimistic']['min_start']} / {combos['optimistic']['min_sustain']} m/s; baseline {combos['baseline']['min_start']} / {combos['baseline']['min_sustain']};
+pessimistic (cd x1.3, cl x0.9, cogging 40 mN m, seal x2, cdmax 1.2) {combos['pessimistic']['min_start']} / {combos['pessimistic']['min_sustain']} m/s; baseline with the conservative standstill model (BEM at TSR 0.2) {combos['baseline, standstill = BEM at TSR 0.2']['min_start']} / {combos['baseline, standstill = BEM at TSR 0.2']['min_sustain']} m/s.
+The sweep evaluated candidates with 40 elements and a 0.5 TSR step; the selected design is re-evaluated here with 50 elements and a 0.2 step, which moves
+its numbers by less than 0.5 %; "root chord" is the chord at the first element centre (r {sel['r_mm'][0]:.1f} mm). The sustain floor is the converter's 5 V minimum; a 3 V converter would move it to
 {next((V for V in VS if sens['conv Vmin 3 V'][VS.index(V)] > 0), None)} m/s with {sens['conv Vmin 3 V'][VS.index(0.5)]:.2f} W at 0.5 m/s.
 
 ## 9. Reproducible source code and CAD exports
