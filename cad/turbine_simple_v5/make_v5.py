@@ -31,7 +31,7 @@ Q = dict(
     adapter_od=46.0, adapter_t=8.0, adapter_gap=0.5, dd_bore=10.2, dd_bore_af=8.2, dd_depth=6.0, bell_pcd=40.0, bell_screw_cl=3.4, bell_cb_d=6.0, bell_cb_depth=3.0,
     nut_boss_d=12.0, nut_boss_len=4.0, nut_af=5.7, nut_depth=4.2,
     motor_od=69.0, motor_len=22.3, motor_bore=20.0, base_pcd=50.0, base_screw_cl=2.7, base_cb_d=5.5, base_cb_depth=2.5, standoff=6.0, standoff_d=8.0,
-    gland_d=12.5, gland_r=25.0, gland_deg=45.0, gland_body_d=15.0, gland_body_len=12.0, gland_nut_af=18.0, gland_nut_t=4.0,
+    gland_d=12.5, gland_r=24.0, gland_deg=45.0, gland_body_d=15.0, gland_body_len=12.0, gland_nut_af=18.0, gland_nut_t=4.0,
     arm_w=16.0, arm_x0=48.8, tab_w=24.0, arm_z_top=-50.0, sock_bore=16.2, sock_wall=4.0, sock_len=40.0, sock_z_top=-128.0,
 )
 
@@ -223,7 +223,7 @@ def build(sel):
         parts[f"insert_{k}"] = dict(solid=tube(L["x_plate0"] - Q["insert_depth"] + 0.02, Q["insert_depth"] - 0.04, Q["insert_d"] - 0.02, 4.1).translate(cq.Vector(0, y, z)), kind="COTS", color=(0.7, 0.6, 0.2), note="M4 brass heat-set insert (6)")
     for k in range(4):
         a = math.radians(90 * k); y, z = Q["base_pcd"] / 2 * math.cos(a), Q["base_pcd"] / 2 * math.sin(a)
-        parts[f"base_screw_{k}"] = dict(solid=W(hole_x(4.5, L["x_plate1"] - Q["base_cb_depth"] + 0.02, Q["base_cb_depth"] - 0.04, y, z)).union(W(hole_x(2.5, L["x_plate1"] - Q["base_cb_depth"] - 16.0, 16.0, y, z))).val(), kind="COTS", color=(0.4, 0.4, 0.4), note="M2.5 x 16 316 + bonded washer into the GL60 stator base (4; M3 if G1 says so)")
+        parts[f"base_screw_{k}"] = dict(solid=W(hole_x(4.5, L["x_plate1"] - Q["base_cb_depth"] + 0.02, Q["base_cb_depth"] - 0.04, y, z)).union(W(hole_x(2.5, L["x_plate1"] - Q["base_cb_depth"] - 16.0, 16.1, y, z))).val(), kind="COTS", color=(0.4, 0.4, 0.4), note="M2.5 x 16 316 + bonded washer into the GL60 stator base (4; M3 if G1 says so)")
     yg, zg = minfo["gland_yz"]
     gl_ = W(hole_x(Q["gland_body_d"], L["x_plate1"], Q["gland_body_len"], yg, zg)).union(W(hole_x(Q["gland_d"] - 0.1, L["x_plate0"] - Q["gland_nut_t"], Q["gland_nut_t"] + Q["plate_t"] + 0.01, yg, zg)))
     gl_ = gl_.union(W(cq.Workplane("YZ").workplane(offset=L["x_plate0"] - Q["gland_nut_t"]).polygon(6, Q["gland_nut_af"] / math.cos(math.pi / 6)).extrude(Q["gland_nut_t"] - 0.02).val().translate(cq.Vector(0, yg, zg))))

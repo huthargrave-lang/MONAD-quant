@@ -72,7 +72,7 @@
    "standoff": 6.0,
    "standoff_d": 8.0,
    "gland_d": 12.5,
-   "gland_r": 25.0,
+   "gland_r": 24.0,
    "gland_deg": 45.0,
    "gland_body_d": 15.0,
    "gland_body_len": 12.0,
@@ -111,13 +111,11 @@
    "x_sock": 63.8,
    "z_sock_mouth": -170.0,
    "gland_yz": [
-    -17.677669529663685,
-    17.67766952966369
+    -16.97056274847714,
+    16.970562748477143
    ]
   },
-  "interference_mm3": {
-   "housing/gland": 0.161
-  },
+  "interference_mm3": {},
   "pairs_checked": 465,
   "nose_to_lid_mm": 90.8,
   "seal_lip_overlap_mm3": {
@@ -632,8 +630,8 @@
    "kind": "COTS",
    "note": "M2.5 x 16 316 + bonded washer into the GL60 stator base (4; M3 if G1 says so)",
    "valid": true,
-   "n_solids": 2,
-   "volume_mm3": 117.7,
+   "n_solids": 1,
+   "volume_mm3": 117.8,
    "x": [
     60.3,
     78.78
@@ -644,8 +642,8 @@
    "kind": "COTS",
    "note": "M2.5 x 16 316 + bonded washer into the GL60 stator base (4; M3 if G1 says so)",
    "valid": true,
-   "n_solids": 2,
-   "volume_mm3": 117.7,
+   "n_solids": 1,
+   "volume_mm3": 117.8,
    "x": [
     60.3,
     78.78
@@ -656,8 +654,8 @@
    "kind": "COTS",
    "note": "M2.5 x 16 316 + bonded washer into the GL60 stator base (4; M3 if G1 says so)",
    "valid": true,
-   "n_solids": 2,
-   "volume_mm3": 117.7,
+   "n_solids": 1,
+   "volume_mm3": 117.8,
    "x": [
     60.3,
     78.78
@@ -668,8 +666,8 @@
    "kind": "COTS",
    "note": "M2.5 x 16 316 + bonded washer into the GL60 stator base (4; M3 if G1 says so)",
    "valid": true,
-   "n_solids": 2,
-   "volume_mm3": 117.7,
+   "n_solids": 1,
+   "volume_mm3": 117.8,
    "x": [
     60.3,
     78.78
