@@ -1,0 +1,38 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>html,body{margin:0;background:transparent}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js","three/addons/":"./node_modules/three/examples/jsm/"}}</script>
+</head><body>
+<script type="module">
+import * as THREE from "three";
+import { STLLoader } from "three/addons/loaders/STLLoader.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import * as BGU from "three/addons/utils/BufferGeometryUtils.js";
+const q = new URLSearchParams(location.search);
+const W = +(q.get("w") || 2400), H = +(q.get("h") || 2400);
+const az = +(q.get("az") || 38), el = +(q.get("el") || 22), roll = +(q.get("roll") || 0);   // view from upstream (-Z), degrees
+const color = q.get("color") || "#b9c2ce";
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1); renderer.setSize(W, H); renderer.setClearColor(0x000000, 0);
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = +(q.get("exp") || 1.0); renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const pmrem = new THREE.PMREMGenerator(renderer); scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture; scene.environmentIntensity = +(q.get("env") || 0.5);
+new STLLoader().load(q.get("stl") || "rotor.stl", (g) => {
+  g.deleteAttribute("normal"); let gm = BGU.mergeVertices(g, 1e-4);
+  gm = BGU.toCreasedNormals(gm, THREE.MathUtils.degToRad(32));                // smooth surfaces, sharp edges kept sharp
+  const mat = new THREE.MeshPhysicalMaterial({ color, roughness: 0.48, metalness: 0.0, clearcoat: 0.25, clearcoatRoughness: 0.5 });
+  const mesh = new THREE.Mesh(gm, mat);
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(BGU.mergeVertices(g.clone(), 1e-4), 34), new THREE.LineBasicMaterial({ color: 0x1d2633, transparent: true, opacity: 0.55 }));
+  const grp = new THREE.Group(); grp.add(mesh); grp.add(edges);
+  grp.rotation.z = THREE.MathUtils.degToRad(roll); scene.add(grp);
+  // camera: looks along +Z (downstream) from the upstream side, swung by az (about Y) and raised by el
+  const fov = +(q.get("fov") || 18); const cam = new THREE.PerspectiveCamera(fov, W / H, 10, 20000);
+  const d = 900 * 18 / fov, a = THREE.MathUtils.degToRad(az), e = THREE.MathUtils.degToRad(el);
+  cam.position.set(d * Math.sin(a) * Math.cos(e), d * Math.sin(e), -d * Math.cos(a) * Math.cos(e)); cam.up.set(0, 1, 0); cam.lookAt(0, 0, 0);
+  const key = new THREE.DirectionalLight(0xffffff, 1.6); key.position.set(-300, 500, -600); scene.add(key);
+  const fill = new THREE.DirectionalLight(0xffffff, 0.5); fill.position.set(500, -100, -300); scene.add(fill);
+  const rim = new THREE.DirectionalLight(0xffffff, 0.7); rim.position.set(200, 300, 700); scene.add(rim);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xdfe3e8, 0.35));
+  renderer.render(scene, cam); window.DONE = true;
+});
+</script></body></html>
