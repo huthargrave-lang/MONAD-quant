@@ -67,7 +67,7 @@ The sheet was not an input file to the optimisation; it is the one-page hand ver
 ## 5. How we iterated
 
 1. **Original 8-in rev-2 blade** (1-2 m/s design, TSR 4): 0.02 / 0.87 / 3.61 W at 0.5 / 0.7 / 1.0 m/s on the same hub, self-start 0.7 m/s.
-2. **v3.1 drum design** (motor inside a 48 mm hub): 0.00 / 0.51 / 2.44 W, self-start 1.0 m/s; the hub ratio costs 44-77 % at 0.7-1.0 m/s, so the small hub ahead of the housing was kept.
+2. **v3.1 drum design** (motor inside a 48 mm hub): 0.00 / 0.51 / 2.44 W, self-start 1.0 m/s; the same blade in the 48 mm drum delivers 30-44 % less at 1.0-0.7 m/s, so the small hub ahead of the housing was kept.
 3. **v4 low-flow optimisation**: 384 stage-1 + 124 stage-2 candidates, two objectives, self-start gate, packaging rule; adversarial review (three reviewers, 47 findings) changed the starting-torque model and added five sensitivities; the search was re-run and the pick moved from design TSR 2.0 x1.3 to TSR 1.5 x1.0.
 4. **v5 simplification**: same blade; shaft, collars, circlips, clamp ring and machined caps replaced by three printed parts and one adapter; cost 3 % at 0.7 m/s for the 12 mm seal.
 5. **Diameter as an iteration variable** (Figure 3, same blade scaled, hub and motor fixed): smaller is worse than the area ratio because chord Reynolds number, hub ratio and fixed losses all move the wrong way, and the starting torque falls as D^3 against a fixed 40 mN m breakaway (cogging + seal + bearing).

@@ -42,7 +42,7 @@ clamp, no second seal and no separate bracket. The arm runs forward under the ho
 The 3-inch (76 mm) target is met by the rotor and by the housing + mount when the rotor is unbolted; the assembled unit is
 91 mm from the nose to the lid. The stack is: nose 12 + hub 30 + gap 2 + wall 4 + adapter 8 + GL60 22.3 +
 stator bay 6 + lid 6; the snout (seal + bearing) is inside the hub cup and costs no length. The only way to a 76 mm assembled
-unit is the hub-integrated drum (motor inside the hub), which the v4 analysis showed costs 44-77 % of the output at 0.7-1.0 m/s because of
+unit is the hub-integrated drum (motor inside the hub), which the v4 analysis showed delivers 30-44 % less output at 0.7-1.0 m/s because of
 the 48 mm hub - that is the engineering reason for keeping the 28 mm hub ahead of the housing.
 
 ## 3. Predicted performance (same model as v4; hand-started where below the self-start speed)

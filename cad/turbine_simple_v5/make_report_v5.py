@@ -3,6 +3,9 @@
 import json, math, os, csv, io
 HERE = os.path.dirname(os.path.abspath(__file__)); OUT = os.path.join(HERE, "out")
 info = json.load(open(os.path.join(OUT, "v5_info.json"))); R = json.load(open(os.path.join(OUT, "v5_results.json")))
+_C4 = json.load(open(os.path.join(HERE, "..", "turbine_lowflow_v4", "model", "coupled_results.json")))
+_dl = [1 - _C4["designs"]["new_in_B"]["res"]["perV"][V]["op"]["Pout"] / _C4["designs"]["new"]["res"]["perV"][V]["op"]["Pout"] for V in ("0.7", "1.0")]
+drum_loss_lo, drum_loss_hi = min(_dl) * 100, max(_dl) * 100
 lay = info["layout"]; Q = lay["Q"]; L = lay["L"]; parts = {p["name"]: p for p in info["parts"]}; sel = info["selected"]; VS = R["VS"]
 kA = "v4 arrangement A (8 mm PTFE seal + 608)"; kS = "v5 simplified (12 mm PTFE seal + 6001)"; kN = "v5 with an NBR seal"; kC = "v5, cogging 40 mN m"; kI = "v5, inflow factor 0.70"
 def P(k, V): return R["cases"][k]["P"][VS.index(V)]
@@ -75,7 +78,7 @@ clamp, no second seal and no separate bracket. The arm runs forward under the ho
 The 3-inch (76 mm) target is met by the rotor and by the housing + mount when the rotor is unbolted; the assembled unit is
 {lay['operating_depth_mm'] - Q['gland_body_len']:.0f} mm from the nose to the lid. The stack is: nose {Q['nose_len']:.0f} + hub {Q['hub_len']:.0f} + gap {Q['gap_hub_wall']:.0f} + wall {Q['wall_t']:.0f} + adapter {Q['adapter_t']:.0f} + GL60 {Q['motor_len']:.1f} +
 stator bay {Q['standoff']:.0f} + lid {Q['plate_t']:.0f}; the snout (seal + bearing) is inside the hub cup and costs no length. The only way to a 76 mm assembled
-unit is the hub-integrated drum (motor inside the hub), which the v4 analysis showed costs 44-77 % of the output at 0.7-1.0 m/s because of
+unit is the hub-integrated drum (motor inside the hub), which the v4 analysis showed delivers {drum_loss_lo:.0f}-{drum_loss_hi:.0f} % less output at 0.7-1.0 m/s because of
 the 48 mm hub - that is the engineering reason for keeping the 28 mm hub ahead of the housing.
 
 ## 3. Predicted performance (same model as v4; hand-started where below the self-start speed)
