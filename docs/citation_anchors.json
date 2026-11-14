@@ -1,0 +1,645 @@
+{
+ "_README": "Anchors for code citations in prose docs (tools/ctx.py `ctx cites`): per cited path:range, the first and last non-blank line it covered when anchored. `ctx cites` fails when they move; `ctx cites --anchor` adds anchors for new cites and prunes unused ones, never rewriting an existing anchor.",
+ "anchors": {
+  "OPERATIONS.md:17": {
+   "first": "- **The paper trader is DECOMMISSIONED (2026-10-29) — `ops/DECOMMISSIONED.json`. Do not re-arm it.** Disabled/masked timers, a dark dashboard and `systemctl is-enabled monad-trader.timer` = `masked` are the **designed state**, not a failure. Revival: **§6.1 only** (a reviewed commit, not an ops action). Decision record: `docs/research/DECOMMISSION_TRADER_QUESTION.md` (direction D-3).",
+   "last": "- **The paper trader is DECOMMISSIONED (2026-10-29) — `ops/DECOMMISSIONED.json`. Do not re-arm it.** Disabled/masked timers, a dark dashboard and `systemctl is-enabled monad-trader.timer` = `masked` are the **designed state**, not a failure. Revival: **§6.1 only** (a reviewed commit, not an ops action). Decision record: `docs/research/DECOMMISSION_TRADER_QUESTION.md` (direction D-3)."
+  },
+  "OPERATIONS.md:28": {
+   "first": "1. **Paper only.** `config.LIVE_PAPER_MODE = True`, `config.LIVE_SYMBOL = \"TQQQ\"`. The trader connects to **7497**. Never enable live or touch 7496.",
+   "last": "1. **Paper only.** `config.LIVE_PAPER_MODE = True`, `config.LIVE_SYMBOL = \"TQQQ\"`. The trader connects to **7497**. Never enable live or touch 7496."
+  },
+  "README.md:364-366": {
+   "first": "├── context_map.json         <- Context Kit manifest (areas, routing, bridges, edit policy)",
+   "last": "├── ops/, deploy/            <- Secret scan, edit guard hook, systemd units, Pi scripts"
+  },
+  "README.md:37": {
+   "first": "Snapshot as of 2026-10-29: 956 recorded trials across 66 families; 4 hypotheses registered under",
+   "last": "Snapshot as of 2026-10-29: 956 recorded trials across 66 families; 4 hypotheses registered under"
+  },
+  "README.md:373-376": {
+   "first": "- **Research, not advice.** Nothing here is a recommendation to buy, sell, or hold anything.",
+   "last": "recorded in the graph."
+  },
+  "README.md:9-17": {
+   "first": "> **MONAD Quant is an open quantitative finance research base.** It is a typed, append-only",
+   "last": ">"
+  },
+  "RESEARCH_WEB.md:392": {
+   "first": "### D6 — GO/NO-GO: the active engine is not justified — recommend a static allocation",
+   "last": "### D6 — GO/NO-GO: the active engine is not justified — recommend a static allocation"
+  },
+  "RESEARCH_WEB.md:392-397": {
+   "first": "### D6 — GO/NO-GO: the active engine is not justified — recommend a static allocation",
+   "last": "_— captured claude/strategy-go-nogo@54e6637, 2026-06-22 (updated development@c9a20a8, 2026-06-25)_"
+  },
+  "VISION.md:134": {
+   "first": "- **Not financial advice.** Nothing here is a recommendation to buy, sell, or hold anything.",
+   "last": "- **Not financial advice.** Nothing here is a recommendation to buy, sell, or hold anything."
+  },
+  "config_modules/base.py:16-20": {
+   "first": "# ── Backtest fairness mode ─────────────────────────────────────────",
+   "last": "BACKTEST_MODE    = \"realistic\""
+  },
+  "docs/research/D6_power_equivalence_study.md:45-46": {
+   "first": "- **TOST equivalence at ±Δ:** established iff the 90% bootstrap CI ⊂ (−Δ, +Δ). The smallest",
+   "last": "provable margin Δ\\* = `max(|lo90|, |hi90|)`."
+  },
+  "docs/research/FORWARD_ROUTE_PROPOSAL.md:36": {
+   "first": "- Each spec freezes a Wald SPRT (θ1 0.3, α 0.05, β 0.2, anniversaries only), plus",
+   "last": "- Each spec freezes a Wald SPRT (θ1 0.3, α 0.05, β 0.2, anniversaries only), plus"
+  },
+  "docs/research/METAL_TRUST_DISCOUNT_PROTOCOL.md:37": {
+   "first": "| Reading | a session reads the state after the latest NAV dated **strictly before** it; a NAV more than 14 days old reads 0.5. This is stricter than H404702's \"on or before\"; the panel has gaps of 14-28 days in 2021-22. |",
+   "last": "| Reading | a session reads the state after the latest NAV dated **strictly before** it; a NAV more than 14 days old reads 0.5. This is stricter than H404702's \"on or before\"; the panel has gaps of 14-28 days in 2021-22. |"
+  },
+  "docs/research/README.md:13": {
+   "first": "| Active vs static allocation (studies 1–15) | `D6_active_vs_6040_study.md` … `D6_tips_sleeve_study.md`; this file, below | Closed; adversarially verified; verdict `D6` |",
+   "last": "| Active vs static allocation (studies 1–15) | `D6_active_vs_6040_study.md` … `D6_tips_sleeve_study.md`; this file, below | Closed; adversarially verified; verdict `D6` |"
+  },
+  "docs/research/README.md:216": {
+   "first": "> any run failing — which is exactly what happened to \"one source of truth\" below. Status of",
+   "last": "> any run failing — which is exactly what happened to \"one source of truth\" below. Status of"
+  },
+  "docs/research/README.md:217": {
+   "first": "> each, verified rather than assumed:",
+   "last": "> each, verified rather than assumed:"
+  },
+  "docs/research/README.md:236-244": {
+   "first": "(construction, leak-freeness, statistics, interpretation) that re-ran the code and tried to",
+   "last": "> `crisis_overlay_study`) computes Sharpe on **log** returns with `exp(cumsum)` equity"
+  },
+  "src/backtest/runner.py:35-58": {
+   "first": "BACKTEST_MODES = {",
+   "last": "},"
+  },
+  "src/backtest/runner.py:62-73": {
+   "first": "#: What the engine executes, versioned. Bump whenever execution semantics change, so",
+   "last": "ENGINE_VERSION = 3"
+  },
+  "src/backtest/uncertainty.py:100-103": {
+   "first": "def _effective_block(n: int, requested: int) -> int:",
+   "last": "return max(1, min(int(requested), n // 4))"
+  },
+  "src/backtest/uncertainty.py:112": {
+   "first": "def block_bootstrap(x, stat_fn, *, block, n_boot=2000, seed=0):",
+   "last": "def block_bootstrap(x, stat_fn, *, block, n_boot=2000, seed=0):"
+  },
+  "src/backtest/uncertainty.py:112-132": {
+   "first": "def block_bootstrap(x, stat_fn, *, block, n_boot=2000, seed=0):",
+   "last": "out[b] = stat_fn(np.concatenate([x[s:s + block] for s in starts]))"
+  },
+  "src/backtest/uncertainty.py:139": {
+   "first": "def sharpe_band(period_returns, trades_per_year, *, block=20, n_boot=2000,",
+   "last": "def sharpe_band(period_returns, trades_per_year, *, block=20, n_boot=2000,"
+  },
+  "src/backtest/uncertainty.py:46": {
+   "first": "_MIN_BOOTSTRAP_N = 8",
+   "last": "_MIN_BOOTSTRAP_N = 8"
+  },
+  "src/research/allocation_stats.py:227": {
+   "first": "def truncation_violations(snap: Snapshot, point: Mapping, cuts: Sequence[pd.Timestamp]) -> list[str]:",
+   "last": "def truncation_violations(snap: Snapshot, point: Mapping, cuts: Sequence[pd.Timestamp]) -> list[str]:"
+  },
+  "src/research/allocation_stats.py:41-55": {
+   "first": "SPA_BLOCKS = (20, 63, 126)",
+   "last": "sd = x.std(ddof=1)"
+  },
+  "src/research/allocation_stats.py:45": {
+   "first": "def active_series(strategy: pd.Series, reference: pd.Series) -> pd.Series:",
+   "last": "def active_series(strategy: pd.Series, reference: pd.Series) -> pd.Series:"
+  },
+  "src/research/allocation_stats.py:75": {
+   "first": "def era_sharpes(active: pd.Series, eras: Sequence[Sequence[str]]) -> list[dict]:",
+   "last": "def era_sharpes(active: pd.Series, eras: Sequence[Sequence[str]]) -> list[dict]:"
+  },
+  "src/research/backtest_trials.py:103": {
+   "first": "def lineage_members(records, family: str) -> list:",
+   "last": "def lineage_members(records, family: str) -> list:"
+  },
+  "src/research/backtest_trials.py:103-108": {
+   "first": "def lineage_members(records, family: str) -> list:",
+   "last": "version bump must never erase a search.\"\"\""
+  },
+  "src/research/backtest_trials.py:58-76": {
+   "first": "def mr_family(symbol: str, timeframe: str = \"hourly\") -> str:",
+   "last": "\"\"\""
+  },
+  "src/research/daily_strategy.py:187": {
+   "first": "@_counted_evaluator",
+   "last": "@_counted_evaluator"
+  },
+  "src/research/data_store.py:1-12": {
+   "first": "\"\"\"",
+   "last": "public facts only, and its sha is the sha-256 of the JSON's bytes."
+  },
+  "src/research/data_store.py:1-32": {
+   "first": "\"\"\"",
+   "last": "the one private store its readers search."
+  },
+  "src/research/data_store.py:102-112": {
+   "first": "def must_be_private(sources: Any, private: bool | None = None) -> bool:",
+   "last": "return bool(vendors) if private is None else bool(private)"
+  },
+  "src/research/data_store.py:115": {
+   "first": "def private_record(sha: str) -> dict:",
+   "last": "def private_record(sha: str) -> dict:"
+  },
+  "src/research/data_store.py:52": {
+   "first": "PRIVATE_DATA_REL = Path(\"local_research_data\")",
+   "last": "PRIVATE_DATA_REL = Path(\"local_research_data\")"
+  },
+  "src/research/data_store.py:56-57": {
+   "first": "OBSERVATIONS_NAME = re.compile(r\"^([A-Z]+)-([0-9a-f]{64})\\.csv\\.gz$\")",
+   "last": "MANIFEST_NAME = re.compile(r\"^([A-Z]+)-([0-9a-f]{64})\\.json$\")"
+  },
+  "src/research/data_store.py:65": {
+   "first": "SELF_CONTAINED_PREFIXES = frozenset({\"CEFETF\"})",
+   "last": "SELF_CONTAINED_PREFIXES = frozenset({\"CEFETF\"})"
+  },
+  "src/research/data_store.py:71-73": {
+   "first": "RESTRICTED_VENDORS = ((\"yfinance\", \"Yahoo\"), (\"Yahoo\", \"Yahoo\"),",
+   "last": "(\"Frankfurt Stock Exchange\", \"Frankfurt Stock Exchange (via Bundesbank)\"))"
+  },
+  "src/research/deflation.py:1-37": {
+   "first": "\"\"\"",
+   "last": "from __future__ import annotations"
+  },
+  "src/research/deflation.py:107": {
+   "first": "n_trials = eff.n_effective + len(unknown)",
+   "last": "n_trials = eff.n_effective + len(unknown)"
+  },
+  "src/research/deflation.py:22-23": {
+   "first": "The candidate's Sharpe, skew, kurtosis and T are measured on its own daily PnL over its",
+   "last": "active span (first to last trading day), the same basis the cluster Sharpes use."
+  },
+  "src/research/deflation.py:71": {
+   "first": "def deflate_candidate(candidate: str, *, ledger_dir: Path | None = None,",
+   "last": "def deflate_candidate(candidate: str, *, ledger_dir: Path | None = None,"
+  },
+  "src/research/edgar_ledger.py:22-27": {
+   "first": "The clock. ``tradable_time`` is PT-01's \"one function, one consumer\": FD-00's historical",
+   "last": "acceptance. The eight FD-00 fixtures run through this parser in tests/test_edgar_ledger.py."
+  },
+  "src/research/edgar_ledger.py:465": {
+   "first": "def _acceptance(value: str) -> str | None:",
+   "last": "def _acceptance(value: str) -> str | None:"
+  },
+  "src/research/edgar_ledger.py:523": {
+   "first": "class Clock(NamedTuple):",
+   "last": "class Clock(NamedTuple):"
+  },
+  "src/research/edgar_ledger.py:523-530": {
+   "first": "class Clock(NamedTuple):",
+   "last": "accepted_at_utc: str | None"
+  },
+  "src/research/edgar_ledger.py:559": {
+   "first": "def tradable_time(filing: Mapping[str, Any]) -> Clock:",
+   "last": "def tradable_time(filing: Mapping[str, Any]) -> Clock:"
+  },
+  "src/research/edgar_ledger.py:559-629": {
+   "first": "def tradable_time(filing: Mapping[str, Any]) -> Clock:",
+   "last": "session.isoformat(), accepted_at_utc)"
+  },
+  "src/research/edgar_ledger.py:679-697": {
+   "first": "def revision_row(previous: Mapping[str, Any], new: Mapping[str, Any] | None, *, revision_id: int,",
+   "last": "return apply_clock(row)"
+  },
+  "src/research/edgar_ledger.py:700": {
+   "first": "def seal_row(day: str, *, idx_rows: int, accessions: int, hdr_ok: int, hdr_failed: int, run_id: str,",
+   "last": "def seal_row(day: str, *, idx_rows: int, accessions: int, hdr_ok: int, hdr_failed: int, run_id: str,"
+  },
+  "src/research/edgar_ledger.py:812": {
+   "first": "def day_lines_digest(self, day: str) -> str:",
+   "last": "def day_lines_digest(self, day: str) -> str:"
+  },
+  "src/research/edgar_ledger.py:812-824": {
+   "first": "def day_lines_digest(self, day: str) -> str:",
+   "last": "return lines_digest(lines)"
+  },
+  "src/research/forward_watch.py:1-24": {
+   "first": "\"\"\"",
+   "last": "schedule ``commodity_classes`` uses), executing at the next open."
+  },
+  "src/research/forward_watch.py:1-39": {
+   "first": "\"\"\"",
+   "last": "from __future__ import annotations"
+  },
+  "src/research/forward_watch.py:1037": {
+   "first": "def append_vintage(watch: str, panel, *, watch_dir: Path | None = None, now: str | None = None,",
+   "last": "def append_vintage(watch: str, panel, *, watch_dir: Path | None = None, now: str | None = None,"
+  },
+  "src/research/forward_watch.py:1060": {
+   "first": "def vintage_for(rows, next_session: pd.Timestamp) -> tuple[pd.Timestamp, str]:",
+   "last": "def vintage_for(rows, next_session: pd.Timestamp) -> tuple[pd.Timestamp, str]:"
+  },
+  "src/research/forward_watch.py:1060-1068": {
+   "first": "def vintage_for(rows, next_session: pd.Timestamp) -> tuple[pd.Timestamp, str]:",
+   "last": "return usable[-1]"
+  },
+  "src/research/forward_watch.py:26": {
+   "first": "Evaluation (``decide``): a Wald sequential test of annualised active Sharpe 0 against",
+   "last": "Evaluation (``decide``): a Wald sequential test of annualised active Sharpe 0 against"
+  },
+  "src/research/forward_watch.py:372-405": {
+   "first": "def verify(watch: str, watch_dir: Path | None = None, *, repo: Path = REPO) -> list[str]:",
+   "last": "return problems"
+  },
+  "src/research/forward_watch.py:447": {
+   "first": "ANNIVERSARY_SETTLE = CORRECTION_LOOKBACK",
+   "last": "ANNIVERSARY_SETTLE = CORRECTION_LOOKBACK"
+  },
+  "src/research/forward_watch.py:466": {
+   "first": "def decide(spec: Mapping, rows, *, conditions=None) -> list[dict]:",
+   "last": "def decide(spec: Mapping, rows, *, conditions=None) -> list[dict]:"
+  },
+  "src/research/forward_watch.py:466-512": {
+   "first": "def decide(spec: Mapping, rows, *, conditions=None) -> list[dict]:",
+   "last": "break"
+  },
+  "src/research/forward_watch.py:538": {
+   "first": "def _reading(series: dict, stressed: dict, cut, year: int, theta: float, upper: float,",
+   "last": "def _reading(series: dict, stressed: dict, cut, year: int, theta: float, upper: float,"
+  },
+  "src/research/forward_watch.py:538-549": {
+   "first": "def _reading(series: dict, stressed: dict, cut, year: int, theta: float, upper: float,",
+   "last": "verdict = (\"promote\" if llr >= upper and sh2 > 0 else \"close\" if llr <= lower else \"continue\")"
+  },
+  "src/research/forward_watch.py:576-599": {
+   "first": "def policy_chain(policy_dir: Path = POLICY_DIR) -> list[dict]:",
+   "last": "return policy_chain(policy_dir)[-1]"
+  },
+  "src/research/forward_watch.py:601": {
+   "first": "def freeze_ledger(path: Path = LEDGER) -> list[dict]:",
+   "last": "def freeze_ledger(path: Path = LEDGER) -> list[dict]:"
+  },
+  "src/research/forward_watch.py:601-619": {
+   "first": "def freeze_ledger(path: Path = LEDGER) -> list[dict]:",
+   "last": "return rows"
+  },
+  "src/research/forward_watch.py:629": {
+   "first": "def gamma(watch: str, *, ledger=None, policy=None) -> Fraction:",
+   "last": "def gamma(watch: str, *, ledger=None, policy=None) -> Fraction:"
+  },
+  "src/research/forward_watch.py:629-653": {
+   "first": "def gamma(watch: str, *, ledger=None, policy=None) -> Fraction:",
+   "last": "if m is None:"
+  },
+  "src/research/forward_watch.py:713": {
+   "first": "def write_genesis(watch: str, snap: daily_data.Snapshot, session: pd.Timestamp, *, run,",
+   "last": "def write_genesis(watch: str, snap: daily_data.Snapshot, session: pd.Timestamp, *, run,"
+  },
+  "src/research/forward_watch.py:713-715": {
+   "first": "def write_genesis(watch: str, snap: daily_data.Snapshot, session: pd.Timestamp, *, run,",
+   "last": "\"\"\"The genesis line: state only (no return), at ``session``'s close.\"\"\""
+  },
+  "src/research/forward_watch.py:731": {
+   "first": "def _pinned_evaluator(spec: Mapping, rows) -> str:",
+   "last": "def _pinned_evaluator(spec: Mapping, rows) -> str:"
+  },
+  "src/research/forward_watch.py:731-760": {
+   "first": "def _pinned_evaluator(spec: Mapping, rows) -> str:",
+   "last": "raise WatchError(f\"snapshot starts {snap.dates[0].date()}, the anchor is {spec['anchor_session']}\")"
+  },
+  "src/research/forward_watch.py:78": {
+   "first": "LINE_KINDS = (\"genesis\", \"window_open\", \"session\", \"correction\", \"evaluator_change\", \"void\",",
+   "last": "LINE_KINDS = (\"genesis\", \"window_open\", \"session\", \"correction\", \"evaluator_change\", \"void\","
+  },
+  "src/research/forward_watch.py:78-79": {
+   "first": "LINE_KINDS = (\"genesis\", \"window_open\", \"session\", \"correction\", \"evaluator_change\", \"void\",",
+   "last": "\"vintage\", \"nav_revision\", \"symbol_change\")"
+  },
+  "src/research/forward_watch.py:9-16": {
+   "first": "* The LOG (``<ID>.jsonl``) only grows. Each line carries the previous line's sha-256",
+   "last": "found, carrying the active-return delta."
+  },
+  "src/research/hac.py:16": {
+   "first": "\"\"\"The Newey-West (1994) rule of thumb, floor(4 (n/100)^(2/9)).\"\"\"",
+   "last": "\"\"\"The Newey-West (1994) rule of thumb, floor(4 (n/100)^(2/9)).\"\"\""
+  },
+  "src/research/prereg.py:1-30": {
+   "first": "\"\"\"",
+   "last": "from __future__ import annotations"
+  },
+  "src/research/prereg.py:116": {
+   "first": "MAX_FAMILYWISE_ALPHA = 0.05",
+   "last": "MAX_FAMILYWISE_ALPHA = 0.05"
+  },
+  "src/research/prereg.py:124": {
+   "first": "MIN_PRICE_SESSIONS = 1008",
+   "last": "MIN_PRICE_SESSIONS = 1008"
+  },
+  "src/research/prereg.py:130-131": {
+   "first": "REQUIRED = (\"hypothesis\", \"family\", \"claim\", \"profile\", \"universe\", \"development_window\",",
+   "last": "\"metric\", \"threshold\", \"min_trades\", \"holdout\", \"cost_model\")"
+  },
+  "src/research/prereg.py:243-246": {
+   "first": "eras = p[\"eras\"]",
+   "last": "errs.append(\"eras must list at least two [start, end] pairs\")"
+  },
+  "src/research/prereg.py:386": {
+   "first": "def verify_history(base_ref: str, *, repo: Path = REPO, prereg_rel: Path = PREREG_REL) -> list[str]:",
+   "last": "def verify_history(base_ref: str, *, repo: Path = REPO, prereg_rel: Path = PREREG_REL) -> list[str]:"
+  },
+  "src/research/prereg.py:50-52": {
+   "first": "MIN_THRESHOLD = 0.95",
+   "last": "MIN_FORWARD_DAYS_FLOOR = 180"
+  },
+  "src/research/prereg.py:74": {
+   "first": "MIN_FORWARD_PSR_FLOOR = 0.90",
+   "last": "MIN_FORWARD_PSR_FLOOR = 0.90"
+  },
+  "src/research/prereg.py:76-81": {
+   "first": "PROFILES = {",
+   "last": "}"
+  },
+  "src/research/prereg.py:96-105": {
+   "first": "GATE_RULES_CURRENT = 2",
+   "last": "}"
+  },
+  "src/research/refutations.py:31": {
+   "first": "OUTCOMES = (\"refuted\", \"upheld\")",
+   "last": "OUTCOMES = (\"refuted\", \"upheld\")"
+  },
+  "src/research/refutations.py:77": {
+   "first": "def object_to(hypothesis: str, *, claim: str, evidence: str, by: str,",
+   "last": "def object_to(hypothesis: str, *, claim: str, evidence: str, by: str,"
+  },
+  "src/research/significance.py:110": {
+   "first": "def expected_max_sharpe(n_trials: float, sharpe_variance: float) -> float:",
+   "last": "def expected_max_sharpe(n_trials: float, sharpe_variance: float) -> float:"
+  },
+  "src/research/significance.py:110-124": {
+   "first": "def expected_max_sharpe(n_trials: float, sharpe_variance: float) -> float:",
+   "last": "+ EULER_GAMMA * _N.inv_cdf(1 - 1 / (n_trials * math.e)))"
+  },
+  "src/research/significance.py:139": {
+   "first": "def deflated_sharpe(sharpe: float, *, n_trials: float, sharpe_variance: float,",
+   "last": "def deflated_sharpe(sharpe: float, *, n_trials: float, sharpe_variance: float,"
+  },
+  "src/research/significance.py:139-146": {
+   "first": "def deflated_sharpe(sharpe: float, *, n_trials: float, sharpe_variance: float,",
+   "last": "kurtosis=kurtosis)"
+  },
+  "src/research/significance.py:14-17": {
+   "first": "* ``deflated_sharpe``  — Bailey & López de Prado (2014), \"The Deflated Sharpe Ratio\",",
+   "last": "in tests/test_significance.py)."
+  },
+  "src/research/significance.py:23-25": {
+   "first": "* ``pbo_cscv``         — Probability of Backtest Overfitting by combinatorially",
+   "last": "Zhu 2017, \"The Probability of Backtest Overfitting\")."
+  },
+  "src/research/significance.py:259": {
+   "first": "def li_ji_effective(corr: np.ndarray) -> float:",
+   "last": "def li_ji_effective(corr: np.ndarray) -> float:"
+  },
+  "src/research/significance.py:259-300": {
+   "first": "def li_ji_effective(corr: np.ndarray) -> float:",
+   "last": "live = [k for k in reps if pnl[k].std(ddof=0) > 0]"
+  },
+  "src/research/significance.py:29-31": {
+   "first": "* ``superior_predictive_ability`` — Hansen (2005), \"A Test for Superior Predictive",
+   "last": "strategy in a searched family beat a benchmark, and the"
+  },
+  "src/research/significance.py:33": {
+   "first": "the first step of Romano & Wolf's stepdown), on the stationary",
+   "last": "the first step of Romano & Wolf's stepdown), on the stationary"
+  },
+  "src/research/significance.py:34": {
+   "first": "bootstrap of Politis & Romano (1994).",
+   "last": "bootstrap of Politis & Romano (1994)."
+  },
+  "src/research/significance.py:469": {
+   "first": "def superior_predictive_ability(diffs: np.ndarray, *, mean_block: float, n_boot: int = 5000,",
+   "last": "def superior_predictive_ability(diffs: np.ndarray, *, mean_block: float, n_boot: int = 5000,"
+  },
+  "src/research/significance.py:469-510": {
+   "first": "def superior_predictive_ability(diffs: np.ndarray, *, mean_block: float, n_boot: int = 5000,",
+   "last": "mean_block=float(mean_block), n_boot=int(n_boot), n_obs=int(n))"
+  },
+  "src/research/significance.py:57": {
+   "first": "#: the eigenvalue-based count (Li & Ji 2005) and uses the LARGER of the two, so neither",
+   "last": "#: the eigenvalue-based count (Li & Ji 2005) and uses the LARGER of the two, so neither"
+  },
+  "src/research/significance.py:59": {
+   "first": "CLUSTER_MIN_CORRELATION = 0.5",
+   "last": "CLUSTER_MIN_CORRELATION = 0.5"
+  },
+  "src/research/significance.py:94-107": {
+   "first": "def probabilistic_sharpe(sharpe: float, benchmark: float, *, n_obs: int,",
+   "last": "return _N.cdf((sharpe - benchmark) * math.sqrt(n_obs - 1) / math.sqrt(denom))"
+  },
+  "src/research/trials.py:1-45": {
+   "first": "\"\"\"",
+   "last": "run_close — status (complete|aborted|crashed), n_intents, n_outcomes, bundle_sha"
+  },
+  "src/research/trials.py:1002": {
+   "first": "def verify_append_only(base_ref: str, *, repo: Path = REPO, ledger_rel: Path = LEDGER_REL) -> list[str]:",
+   "last": "def verify_append_only(base_ref: str, *, repo: Path = REPO, ledger_rel: Path = LEDGER_REL) -> list[str]:"
+  },
+  "src/research/trials.py:101": {
+   "first": "_RUN_ID = re.compile(r\"^TR-\\d{8}T\\d{6}Z-[0-9a-f]{8}$\")",
+   "last": "_RUN_ID = re.compile(r\"^TR-\\d{8}T\\d{6}Z-[0-9a-f]{8}$\")"
+  },
+  "src/research/trials.py:1016": {
+   "first": "def seal(path: Path, *, repo: Path = REPO) -> str:",
+   "last": "def seal(path: Path, *, repo: Path = REPO) -> str:"
+  },
+  "src/research/trials.py:11-17": {
+   "first": "The contract:",
+   "last": "erase it."
+  },
+  "src/research/trials.py:21-23": {
+   "first": "* **Hash-chained.** Every row carries ``prev`` = sha256 of the previous row's bytes",
+   "last": "row breaks the chain, and ``verify_shard`` says where."
+  },
+  "src/research/trials.py:310": {
+   "first": "def genesis(run_id: str) -> str:",
+   "last": "def genesis(run_id: str) -> str:"
+  },
+  "src/research/trials.py:567": {
+   "first": "def write_bundle(artifacts_dir: Path, returns: Mapping[str, list]) -> str:",
+   "last": "def write_bundle(artifacts_dir: Path, returns: Mapping[str, list]) -> str:"
+  },
+  "src/research/trials.py:636-680": {
+   "first": "def verify_shard(path: Path, artifacts_dir: Path | None = None) -> ShardReport:",
+   "last": "prev = hashlib.sha256(line).hexdigest()"
+  },
+  "src/research/trials.py:97-101": {
+   "first": "ROW_TYPES = (\"run_open\", \"intent\", \"outcome\", \"run_close\")",
+   "last": "_RUN_ID = re.compile(r\"^TR-\\d{8}T\\d{6}Z-[0-9a-f]{8}$\")"
+  },
+  "src/research/watch_admission.py:1-64": {
+   "first": "\"\"\"",
+   "last": "\"\"\""
+  },
+  "src/research/watch_admission.py:101": {
+   "first": "STAGES = (\"registration\", \"ledger\", \"chain\", \"evaluator\", \"code\", \"refutations\", \"witness\",",
+   "last": "STAGES = (\"registration\", \"ledger\", \"chain\", \"evaluator\", \"code\", \"refutations\", \"witness\","
+  },
+  "src/research/watch_admission.py:294": {
+   "first": "def settled_anniversaries(rows) -> list[Anniversary]:",
+   "last": "def settled_anniversaries(rows) -> list[Anniversary]:"
+  },
+  "src/research/watch_admission.py:321": {
+   "first": "def year_reading(spec: Mapping, prefix, opened: str, k: int, theta: float) -> dict:",
+   "last": "def year_reading(spec: Mapping, prefix, opened: str, k: int, theta: float) -> dict:"
+  },
+  "src/research/watch_admission.py:414": {
+   "first": "def timeline(spec: Mapping, rows, route: Route, *, conditions_at: ConditionsAt | None = None) -> list[dict]:",
+   "last": "def timeline(spec: Mapping, rows, route: Route, *, conditions_at: ConditionsAt | None = None) -> list[dict]:"
+  },
+  "src/research/watch_admission.py:563": {
+   "first": "def stage_evaluator(env: Env, spec: Mapping, prefix_rows) -> Stage:",
+   "last": "def stage_evaluator(env: Env, spec: Mapping, prefix_rows) -> Stage:"
+  },
+  "src/research/watch_admission.py:866": {
+   "first": "def write_record(record: dict, verdict_dir: Path | None = None) -> Path:",
+   "last": "def write_record(record: dict, verdict_dir: Path | None = None) -> Path:"
+  },
+  "src/research/watch_admission.py:884": {
+   "first": "def governing(watch: str, *, env: Env | None = None) -> dict:",
+   "last": "def governing(watch: str, *, env: Env | None = None) -> dict:"
+  },
+  "src/research/watch_admission.py:963": {
+   "first": "def verify_record(record: Mapping, *, env: Env | None = None) -> tuple[list[str], list[str]]:",
+   "last": "def verify_record(record: Mapping, *, env: Env | None = None) -> tuple[list[str], list[str]]:"
+  },
+  "src/strategy/counted.py:1-25": {
+   "first": "\"\"\"",
+   "last": "live/signals.py imports the engine, so it is part of the live bot's import closure"
+  },
+  "src/strategy/engine.py:213-262": {
+   "first": "def compute_trade_returns(df: pd.DataFrame,",
+   "last": "open (TP/SL still win on the same bar); falls back to ``entry_signal``."
+  },
+  "src/strategy/engine.py:236-237": {
+   "first": "fills at the open less ``stop_slippage_pct`` (\"gap_stop\"); at or through the",
+   "last": "target, at the open (\"gap_target\"). Otherwise, both levels inside one bar resolve"
+  },
+  "src/strategy/engine.py:239-242": {
+   "first": "(c) With no exit, the time exit fills at the OPEN of bar N+1+MAX (the live cycle that",
+   "last": "close is used (\"time_exit_truncated\")."
+  },
+  "src/strategy/engine.py:248-250": {
+   "first": "(e) ``slippage_pct`` is round-trip and comes off every trade once;",
+   "last": "on stop and gap-stop exits only."
+  },
+  "src/strategy/engine.py:327-369": {
+   "first": "exit_type, exit_loc, exit_at_open = \"gap_stop\", k, True",
+   "last": "exit_return, exit_type = ret_at(close_arr[last]), \"time_exit_truncated\""
+  },
+  "src/strategy/engine.py:339": {
+   "first": "exit_type, exit_loc = \"ambiguous_same_bar\", k",
+   "last": "exit_type, exit_loc = \"ambiguous_same_bar\", k"
+  },
+  "tests/test_return_convention_lab.py:191-204": {
+   "first": "class TwoDisjointMetricStacksTests(unittest.TestCase):",
+   "last": "\"bond_ladder_study.py\"]"
+  },
+  "tools/admit.py:1-54": {
+   "first": "#!/usr/bin/env python3",
+   "last": "from __future__ import annotations"
+  },
+  "tools/admit.py:105": {
+   "first": "STOP_SLIPPAGE_PCT = 0.0005",
+   "last": "STOP_SLIPPAGE_PCT = 0.0005"
+  },
+  "tools/admit.py:125": {
+   "first": "PRICE_V2_RATIFIED = False",
+   "last": "PRICE_V2_RATIFIED = False"
+  },
+  "tools/admit.py:147": {
+   "first": "def _verdict(stages: list[Stage]) -> str:",
+   "last": "def _verdict(stages: list[Stage]) -> str:"
+  },
+  "tools/admit.py:147-155": {
+   "first": "def _verdict(stages: list[Stage]) -> str:",
+   "last": "return ADMIT"
+  },
+  "tools/admit.py:662-673": {
+   "first": "def write_verdict(record: dict, verdict_dir: Path | None = None) -> Path:",
+   "last": "return target"
+  },
+  "tools/admit.py:679-682": {
+   "first": "ADMIT_CHAIN = (\"registration\", \"code\", \"refutations\", \"parity\", \"witness\", \"development\",",
+   "last": "\"deflation_diagnostic\", \"familywise\", \"cost_stress\", \"benchmark\", \"forward\")"
+  },
+  "tools/admit.py:695": {
+   "first": "def verify_record(record: dict, *, prereg_dir=None, deploy_ref: str | None = None) -> list[str]:",
+   "last": "def verify_record(record: dict, *, prereg_dir=None, deploy_ref: str | None = None) -> list[str]:"
+  },
+  "tools/admit_tactical.py:1-32": {
+   "first": "\"\"\"",
+   "last": "\"\"\""
+  },
+  "tools/admit_tactical.py:16": {
+   "first": "lookahead     orders are unchanged when all data after each of 12 cuts is erased",
+   "last": "lookahead     orders are unchanged when all data after each of 12 cuts is erased"
+  },
+  "tools/admit_tactical.py:73-78": {
+   "first": "ADMIT_CHAIN = (\"registration\", \"code\", \"refutations\", \"witness\", \"lookahead\", \"development\",",
+   "last": "\"deflation_diagnostic\", \"familywise\", \"eras\", \"cost_stress\", \"forward\")"
+  },
+  "tools/admit_tactical.py:77": {
+   "first": "ADMIT_CHAIN_V2 = (\"registration\", \"code\", \"refutations\", \"witness\", \"lookahead\", \"development\",",
+   "last": "ADMIT_CHAIN_V2 = (\"registration\", \"code\", \"refutations\", \"witness\", \"lookahead\", \"development\","
+  },
+  "tools/edge_scorecard.py:71": {
+   "first": "\"verdict\": v[\"verdict\"] if v else \"NOT EVALUATED\",",
+   "last": "\"verdict\": v[\"verdict\"] if v else \"NOT EVALUATED\","
+  },
+  "tools/forward_watch.py:111-119": {
+   "first": "def _refuse_dirty():",
+   "last": "code = _refuse_dirty()"
+  },
+  "tools/forward_watch.py:15-19": {
+   "first": "``log`` refuses a dirty working tree (each line records the code it ran on), fetches a",
+   "last": "see the spec there."
+  },
+  "tools/forward_watch.py:305": {
+   "first": "p = sub.add_parser(\"attest-evaluator\")",
+   "last": "p = sub.add_parser(\"attest-evaluator\")"
+  },
+  "tools/forward_watch.py:55-60": {
+   "first": "def reached(rel: str, base_ref: str, *, repo: Path = REPO) -> pd.Timestamp | None:",
+   "last": "out = _git(\"log\", \"--first-parent\", base_ref, \"--diff-filter=A\", \"--format=%cI\", \"--\", rel, repo=repo)"
+  },
+  "tools/prereg.py:38-40": {
+   "first": "# The frozen candidate the admission gate re-runs: exactly these five keys.",
+   "last": "\"vwap_zscore_thresh\": -1.0, \"max_trade_bars\": 8},"
+  },
+  "tools/refute.py:1-16": {
+   "first": "#!/usr/bin/env python3",
+   "last": "\"\"\""
+  },
+  "tools/research_ui.py:659-662": {
+   "first": "#: A file citing more than this many distinct nodes is an index or a session summary,",
+   "last": "ROLLUP_CITATION_LIMIT = 8"
+  },
+  "tools/research_ui.py:662": {
+   "first": "ROLLUP_CITATION_LIMIT = 8",
+   "last": "ROLLUP_CITATION_LIMIT = 8"
+  },
+  "tools/research_ui.py:698": {
+   "first": "def files_by_node(self):",
+   "last": "def files_by_node(self):"
+  },
+  "tools/research_ui.py:698-760": {
+   "first": "def files_by_node(self):",
+   "last": "return sorted(self._rollups, key=lambda r: -r[1])"
+  },
+  "tools/return_convention_lab.py:1-60": {
+   "first": "#!/usr/bin/env python3",
+   "last": "paired deltas are exactly the right measurement; and ``git blame`` puts :107 in"
+  },
+  "tools/trial_ledger.py:56-70": {
+   "first": "def cmd_verify(args) -> int:",
+   "last": "return 1 if bad or history else 0"
+  }
+ },
+ "docs": [
+  "docs/METHODS.md",
+  "docs/GLOSSARY.md"
+ ]
+}

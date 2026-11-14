@@ -75,10 +75,10 @@ day ends in a `seal` row that hashes that day's lines
 
 Entries and weights use only lagged information. For the research studies this is literal:
 `mr_daily_lab.py` lags every rolling input that feeds an entry with `.shift(1)`
-([`research/README.md:215`](research/README.md)). The same table draws a distinction worth
+([`research/README.md:216`](research/README.md)). The same table draws a distinction worth
 keeping: in the engine code (`src/signals/`, `src/strategy/`) the `.shift(1)` *letter* is not
 followed even though the no-look-ahead *property* holds
-([`research/README.md:215`](research/README.md)). The contributing standard therefore asks for a
+([`research/README.md:216`](research/README.md)). The contributing standard therefore asks for a
 decision-time proof rather than a `.shift(1)` citation ([`../CONTRIBUTING.md` §Standards](../CONTRIBUTING.md)).
 
 The model proof is the vol20 audit. For each session `t` the tool reconstructs annualised
@@ -161,7 +161,7 @@ than 8 reports a degenerate band rather than a false range
 ([`uncertainty.py:100-103`](../src/backtest/uncertainty.py), [`:139`](../src/backtest/uncertainty.py),
 [`:46`](../src/backtest/uncertainty.py)). The studies use block = 20, B = 5000, seed = 0, pinned
 identical in `power_study.py:55-57` and `static_product_study.py:40-42`
-([`research/README.md:216`](research/README.md)). The design is *paired*: the same block-start
+([`research/README.md:217`](research/README.md)). The design is *paired*: the same block-start
 indices are drawn for both legs and the statistic is `Sharpe(active*) − Sharpe(bench*)`;
 pairing halves the standard error (0.19 vs 0.39 unpaired on the 12.5-year window)
 ([`research/D6_power_equivalence_study.md` §Methodology](research/D6_power_equivalence_study.md)).
@@ -183,7 +183,7 @@ mean-reversion family (`mr_daily_lab`, `power_study`, `power_study_6040`,
 `exp(cumsum)` curves; the static-product family (`static_product_study`, `gold_oos_study`,
 `voltarget_riskparity_study`, `bond_ladder_study`) uses simple returns with `cumprod(1+r)`.
 On a provably identical 60/40 they publish 0.70 and 0.82
-([`research/README.md:235-243`](research/README.md); node `F153`), now pinned by
+([`research/README.md:236-244`](research/README.md); node `F153`), now pinned by
 [`../tests/test_return_convention_lab.py:191-204`](../tests/test_return_convention_lab.py) for the five
 active files and three of the four static files (`voltarget_riskparity_study` is not in the
 test's list). The

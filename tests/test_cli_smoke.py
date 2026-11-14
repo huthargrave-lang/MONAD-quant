@@ -55,6 +55,7 @@ RUNS_CLEAN = {
     "recent": ["5"],
     "map": [],
     "docs": [],
+    "cites": [],                           # exits 1 on a moved cite; this repo's cites are in place
     "tests": ["strategy_engine"],
     "web": ["F19"],
     "neighbors": ["F19"],

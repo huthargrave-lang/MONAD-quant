@@ -37,7 +37,7 @@ requires the private store and zero skipped watch tests.
 
 **Block bootstrap** — A moving-block resample (`n // block` blocks with replacement) that
 preserves short-range autocorrelation; the studies use block 20, B 5000, seed 0, paired across
-legs. [`../src/backtest/uncertainty.py:112`](../src/backtest/uncertainty.py); [`research/README.md:216`](research/README.md).
+legs. [`../src/backtest/uncertainty.py:112`](../src/backtest/uncertainty.py); [`research/README.md:217`](research/README.md).
 
 **Board** — A ruling on a hypothesis's objections by three independent adjudicators (not the
 author, not the refuter), read-only, judged against the claim as registered; stored as

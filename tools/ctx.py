@@ -1169,6 +1169,185 @@ def cmd_docs(args):
             print("  {} -> {}".format(doc, ", ".join(refs)))
 
 
+# ── code citations in prose docs: anchored so a moved line fails instead of misleading ──
+# A fact-checked doc cites code as [`path:12-20`](path) (or [`:12-20`](path) after a first
+# cite). Nothing tied those numbers to the code, so an edit above a cited line silently
+# re-pointed it: the commit after the 2026-10-30 fact-check of docs/METHODS.md and
+# docs/GLOSSARY.md moved all ten of their tools/admit.py cites and every test stayed green.
+# The lock records, per cited path:range, the first and last non-blank line it covered when
+# it was anchored; a check fails when those lines are no longer there. `--anchor` adds
+# anchors for NEW cites and prunes unused ones, but never rewrites an existing one: a moved
+# cite is fixed by changing the doc's numbers (a reviewable edit), not by re-locking.
+# Commit-pinned cites ([`path` (`SYMBOL`, at <sha>:N)](path)) cannot drift; they are checked
+# against that commit and for the symbol still existing.
+CITATION_LOCK = "docs/citation_anchors.json"
+_LINE_CITE = re.compile(r"\[`([^`\]]*?):(\d+)(?:-(\d+))?`\]\(([^)\s#]+)\)")
+_PINNED_CITE = re.compile(
+    r"\[`[^`\]]+`\s*\(`([^`]+)`,\s*at\s+([0-9a-f]{7,40}):(\d+)(?:-(\d+))?\)\]\(([^)\s#]+)\)")
+
+
+def _cite_key(path, a, b):
+    return f"{path}:{a}" if a == b else f"{path}:{a}-{b}"
+
+
+def _cite_ends(lines, a, b):
+    """(first, last) non-blank line, stripped, of lines a..b (1-based, inclusive)."""
+    seg = [ln.strip() for ln in lines[a - 1:b] if ln.strip()]
+    return (seg[0], seg[-1]) if seg else ("", "")
+
+
+def _doc_cites(repo, doc):
+    """Every line cite and commit-pinned cite in ``doc`` (repo-relative)."""
+    text = open(os.path.join(repo, doc), encoding="utf-8").read()
+    base = os.path.dirname(doc)
+    line_cites, pinned = [], []
+    for n, line in enumerate(text.splitlines(), 1):
+        for m in _LINE_CITE.finditer(line):
+            label, a, b, target = m.group(1), int(m.group(2)), int(m.group(3) or m.group(2)), m.group(4)
+            if "://" in target:
+                continue
+            path = os.path.normpath(os.path.join(base, target)).replace(os.sep, "/")
+            line_cites.append({"doc": doc, "line": n, "label": label, "path": path, "a": a, "b": b})
+        for m in _PINNED_CITE.finditer(line):
+            symbol, sha, a, b, target = m.group(1), m.group(2), int(m.group(3)), int(m.group(4) or m.group(3)), m.group(5)
+            path = os.path.normpath(os.path.join(base, target)).replace(os.sep, "/")
+            pinned.append({"doc": doc, "line": n, "symbol": symbol, "sha": sha, "path": path, "a": a, "b": b})
+    return line_cites, pinned
+
+
+def _read_lock(repo, lock_rel):
+    path = os.path.join(repo, lock_rel)
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _relocated(lines, first, last):
+    """Where an anchor's first and last lines are now, if each occurs exactly once."""
+    def once(text):
+        hits = [i + 1 for i, ln in enumerate(lines) if ln.strip() == text]
+        return hits[0] if len(hits) == 1 else None
+    return once(first), once(last)
+
+
+def citation_report(repo=None, lock_rel=CITATION_LOCK):
+    """Check every code citation in the docs the lock covers. Returns
+    {lock, docs, cites, pinned, problems, unanchored: {key: [first, last]}, unused: [key]}."""
+    repo = repo or REPO
+    lock = _read_lock(repo, lock_rel)
+    out = {"lock": lock_rel if lock is not None else None, "docs": [], "cites": 0, "pinned": 0,
+           "problems": [], "unanchored": {}, "unused": []}
+    if lock is None:
+        return out
+    anchors = lock.get("anchors", {})
+    out["docs"] = list(lock.get("docs", []))
+    seen, files = set(), {}
+
+    def lines_of(path):
+        if path not in files:
+            full = os.path.join(repo, path)
+            files[path] = (open(full, encoding="utf-8", errors="replace").read().splitlines()
+                           if os.path.isfile(full) else None)
+        return files[path]
+
+    for doc in out["docs"]:
+        if not os.path.isfile(os.path.join(repo, doc)):
+            out["problems"].append(f"{doc}: the lock covers a doc that does not exist")
+            continue
+        line_cites, pinned = _doc_cites(repo, doc)
+        out["cites"] += len(line_cites)
+        out["pinned"] += len(pinned)
+        for c in line_cites:
+            where = f"{doc}:{c['line']}"
+            named = os.path.basename(c["label"]) if c["label"] else ""
+            if named and named != os.path.basename(c["path"]):
+                out["problems"].append(f"{where}: the cite names {named} but links to {c['path']}")
+            lines = lines_of(c["path"])
+            if lines is None:
+                out["problems"].append(f"{where}: cites {c['path']}, which does not exist")
+                continue
+            if c["a"] < 1 or c["b"] < c["a"] or c["b"] > len(lines):
+                out["problems"].append(f"{where}: {c['path']}:{c['a']}-{c['b']} is outside its "
+                                       f"{len(lines)} lines")
+                continue
+            key = _cite_key(c["path"], c["a"], c["b"])
+            seen.add(key)
+            ends = _cite_ends(lines, c["a"], c["b"])
+            if key not in anchors:
+                out["unanchored"][key] = list(ends)
+                out["problems"].append(f"{where}: {key} is not anchored (check it points where the "
+                                       f"text means, then `ctx cites --anchor`)")
+                continue
+            want = (anchors[key]["first"], anchors[key]["last"])
+            if ends != want:
+                now = _relocated(lines, *want)
+                hint = (f"; the anchored lines are now at {now[0]}" + (f"-{now[1]}" if now[1] != now[0] else "")
+                        if now[0] else "; the anchored first line no longer occurs exactly once")
+                out["problems"].append(f"{where}: {key} moved or changed (anchored {want[0][:60]!r}){hint}")
+        for p in pinned:
+            where = f"{doc}:{p['line']}"
+            got = subprocess.run(["git", "-C", repo, "show", f"{p['sha']}:{p['path']}"],
+                                 capture_output=True, text=True)
+            if got.returncode != 0:
+                out["problems"].append(f"{where}: {p['sha']}:{p['path']} is not in this repository")
+                continue
+            old = got.stdout.splitlines()
+            if not any(p["symbol"] in ln for ln in old[p["a"] - 1:p["b"]]):
+                out["problems"].append(f"{where}: `{p['symbol']}` is not at {p['sha']}:{p['a']}")
+            cur = lines_of(p["path"])
+            if cur is None or not any(re.search(r"\b" + re.escape(p["symbol"]) + r"\b", ln) for ln in cur):
+                out["problems"].append(f"{where}: `{p['symbol']}` no longer exists in {p['path']}")
+    out["unused"] = sorted(k for k in anchors if k not in seen)
+    return out
+
+
+def anchor_citations(repo=None, lock_rel=CITATION_LOCK, docs=None):
+    """Anchor every cite that has no anchor yet (from the cited lines as they are now) and
+    prune anchors no doc cites. An existing anchor is NEVER rewritten. ``docs`` creates the
+    lock (or replaces its doc list)."""
+    repo = repo or REPO
+    lock = _read_lock(repo, lock_rel) or {"docs": []}
+    if docs is not None:
+        lock["docs"] = list(docs)
+    lock.setdefault("_README", "Anchors for code citations in prose docs (tools/ctx.py `ctx cites`): "
+                    "per cited path:range, the first and last non-blank line it covered when "
+                    "anchored. `ctx cites` fails when they move; `ctx cites --anchor` adds anchors "
+                    "for new cites and prunes unused ones, never rewriting an existing anchor.")
+    lock.setdefault("anchors", {})
+    with open(os.path.join(repo, lock_rel), "w", encoding="utf-8") as f:   # docs list first
+        json.dump(lock, f, indent=1, sort_keys=True, ensure_ascii=False)
+    rep = citation_report(repo, lock_rel)
+    added = sorted(rep["unanchored"])
+    for key in added:
+        first, last = rep["unanchored"][key]
+        lock["anchors"][key] = {"first": first, "last": last}
+    for key in rep["unused"]:
+        del lock["anchors"][key]
+    with open(os.path.join(repo, lock_rel), "w", encoding="utf-8") as f:
+        json.dump(lock, f, indent=1, sort_keys=True, ensure_ascii=False)
+        f.write("\n")
+    return {"added": added, "pruned": rep["unused"]}
+
+
+def cmd_cites(args):
+    if args.anchor:
+        res = anchor_citations()
+        print(f"anchored {len(res['added'])} new cite(s); pruned {len(res['pruned'])} unused anchor(s)")
+    rep = citation_report()
+    if rep["lock"] is None:
+        print(f"no {CITATION_LOCK}: no doc's code citations are anchored (nothing to check)")
+        return
+    print(f"code citations in {', '.join(rep['docs'])}: {rep['cites']} line cite(s), "
+          f"{rep['pinned']} commit-pinned; {len(rep['problems'])} problem(s)"
+          + (f"; {len(rep['unused'])} unused anchor(s) (`ctx cites --anchor` prunes them)"
+             if rep["unused"] else ""))
+    for p in rep["problems"]:
+        print(f"  FAIL {p}")
+    if rep["problems"]:
+        sys.exit(1)
+
+
 def cmd_map(args):
     m = _manifest()
     if args.area:
@@ -3990,6 +4169,10 @@ def main():
     sub.add_parser("status").set_defaults(fn=cmd_status)
     sp = sub.add_parser("recent"); sp.add_argument("n", nargs="?", type=int, default=10); sp.set_defaults(fn=cmd_recent)
     sp = sub.add_parser("docs"); sp.set_defaults(fn=cmd_docs)
+    sp = sub.add_parser("cites")
+    sp.add_argument("--anchor", action="store_true",
+                    help="anchor new cites and prune unused anchors (never rewrites an existing one)")
+    sp.set_defaults(fn=cmd_cites)
     sp = sub.add_parser("map"); sp.add_argument("area", nargs="?"); sp.set_defaults(fn=cmd_map)
     sp = sub.add_parser("tests"); sp.add_argument("area"); sp.set_defaults(fn=cmd_tests)
     sp = sub.add_parser("web"); sp.add_argument("node", nargs="?")
