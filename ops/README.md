@@ -282,6 +282,22 @@ CI runs `tools/forward_watch.py verify --against origin/development` on the PR; 
 is green. The next cycle fast-forwards (or merges) `origin/development` back into the worktree
 before it logs, so the ledger branch always carries development's attestations.
 
+### At an anniversary: the route's record
+
+Once the weekly PR has brought the log to `development` past an anniversary's settle line (the
+64th session line after its cut), run, on a clean checkout of `development`:
+
+```bash
+venv/bin/python tools/admit.py --watch H366200 --dry-run
+```
+
+Without `--dry-run` it writes one record per settled anniversary that has none yet
+(`docs/research/verdicts/<ID>/watch-aNN.json`, `O_EXCL`); commit them in a PR. The witness stage
+needs the settling prefix on `origin/development`, so run it after the merge, never from the
+ledger branch. H366201 needs the private store at a promote crossing, where its long-leg
+condition reads vendor returns. Nothing is due before H366200's anniversary 1 settles (about
+2027-10-12 plus 64 sessions), and nothing can promote before its anniversary 2.
+
 ## Safety notes
 - Re-pointing or editing `monad-trader.service` is **out of scope** for routine ops — the trader is **decommissioned** (OPERATIONS.md §6.1); re-arming it is a reviewed commit that deletes `ops/DECOMMISSIONED.json`, never an ops action.
 - If `status_check.sh` shows **port 7496 OPEN**, stop immediately — that is the live port and must never be used here.

@@ -260,7 +260,7 @@ recompute the seeded SPA and (1+m); (vi) a profile switches only when a size stu
 ([`DEFLATION_RULE_QUESTION.md` §Measured: the tactical trigger](research/DEFLATION_RULE_QUESTION.md);
 [`../tools/admit_tactical.py:77`](../tools/admit_tactical.py)). The price profile stays blocked:
 `PRICE_V2_RATIFIED = False`, with a 1008-session floor
-([`../tools/admit.py:90`](../tools/admit.py); [`../src/research/prereg.py:124`](../src/research/prereg.py)).
+([`../tools/admit.py:125`](../tools/admit.py); [`../src/research/prereg.py:124`](../src/research/prereg.py)).
 
 **What the power study found.** On synthetic families (one real idea with four correlated
 variants plus unrelated null ideas, 20 years, 60 replications) the DSR stage fails in both
@@ -291,16 +291,41 @@ price profile the stages are registration, code (clean tree at a known commit), 
 parity (the live bot decides like the backtest), witness (the registration and every searched
 trial are already on the deploy branch), development (the frozen candidate re-run at
 instrument cost), deflation, cost_stress (2×), benchmark (Calmar ≥ buy & hold) and forward
-([`../tools/admit.py:1-42`](../tools/admit.py), [`:593-597`](../tools/admit.py)). The verdict is
+([`../tools/admit.py:1-54`](../tools/admit.py), [`:679-682`](../tools/admit.py)). The verdict is
 the worst stage outcome, `REJECT > BLOCKED > PENDING > ADMIT`
-([`admit.py:112-120`](../tools/admit.py)); profiles without a holdout return `UNSUPPORTED`. The
+([`admit.py:147-155`](../tools/admit.py)); profiles without a holdout return `UNSUPPORTED`. The
 tactical chain replaces parity with lookahead, adds `eras` (active Sharpe > 0 in every
 registered era), and under v2 makes `deflation_diagnostic` a mandatory SKIP while
 `familywise` gates ([`../tools/admit_tactical.py:1-32`](../tools/admit_tactical.py),
 [`:73-78`](../tools/admit_tactical.py)). Verdict records are written once with `O_EXCL` and
-re-verified from the ledger ([`admit.py:577-590`](../tools/admit.py), [`:599`](../tools/admit.py));
+re-verified from the ledger ([`admit.py:662-673`](../tools/admit.py), [`:695`](../tools/admit.py));
 a hypothesis with no record reads `NOT EVALUATED`
 ([`../tools/edge_scorecard.py:71`](../tools/edge_scorecard.py)).
+
+**The watch chain.** A forward watch is not a preregistration, so `tools/admit.py --watch <ID>`
+admits it by its own chain and never calls `prereg.load`
+([`../src/research/watch_admission.py:1-64`](../src/research/watch_admission.py)). The stages
+are the eleven `route.2.json` ratified
+([`watch_admission.py:101`](../src/research/watch_admission.py)):
+- registration: the spec reached the deploy branch on its first-parent history;
+- ledger;
+- chain: the log prefix verifies;
+- evaluator: every line that computed a return ran on the evaluator pinned at that point,
+  recomputed from git at the line's `code.sha`, and an attestation counts only from a
+  deploy-branch commit ([`:563`](../src/research/watch_admission.py));
+- code, refutations, witness (the log prefix is on the deploy branch) and window;
+- sequential: the anniversary read on the prefix that settles it
+  ([`:294`](../src/research/watch_admission.py), [`:414`](../src/research/watch_admission.py));
+- corroboration and void.
+
+One record is written per settled anniversary, with `O_EXCL`, plus one for a VOID, and the latest
+governs ([`:866`](../src/research/watch_admission.py), [`:884`](../src/research/watch_admission.py)).
+A BLOCKED run is never written, so it cannot spend an anniversary. The verifier recomputes every
+derivable field from the log prefix a record pins, so a hand-written ADMIT does not verify
+([`:963`](../src/research/watch_admission.py)). It cannot recompute a domain watch's long leg
+without the private store. That one input follows the repository's three-valued private-store
+rule (§10): absent, the record's stated leg is replayed and reported as a note; present, it is
+recomputed; altered, the record fails.
 
 **Objections and boards.** Anyone may object; objections and answers must cite checkable
 evidence and are appended to `docs/research/refutations/<H>.jsonl`
@@ -365,15 +390,22 @@ alpha assigned to a closed or voided watch is never recycled
 [`forward_watch.py:629-653`](../src/research/forward_watch.py)). Honest power is stated in the
 policy: ordinal 3's boundary is 5.257 nats, 4.5% by 40 years at a true Sharpe of 0.3, so from
 ordinal 3 on a watch is a record, not a practical admission path. For the founding cohort the
-simulated admission probability at a true Sharpe of 0.3 is 1.7% by 20 years, 17.9% by 40 and
-64.7% by 100 (100k paths; [`research/FORWARD_ROUTE_PROPOSAL.md` §Decision-debate consensus (2026-10-09), route-admission table](research/FORWARD_ROUTE_PROPOSAL.md)).
+simulated admission probability at a true Sharpe of 0.3 is 1.72% by 20 years, 18.06% by 40 and
+64.94% by 100. That is 200k paths a cell at seed 20261114, published with the chain; the debate's
+100k-path 1.7%, 17.9% and 64.7% reproduce. A watch with no edge is ever admitted about 1.47% of
+the time, under Ville's bound of 2.08%
+([`research/FORWARD_ROUTE_TABLES.md`](research/FORWARD_ROUTE_TABLES.md);
+[`research/FORWARD_ROUTE_PROPOSAL.md` §Decision-debate consensus (2026-10-09), route-admission table](research/FORWARD_ROUTE_PROPOSAL.md)).
 An admitted sleeve is sized against the D6 static 60/40 host
 (`TR-20261006T005053Z-9336581d#0`) over a carve grid {0, 2.5%, 5%, 10%}, within a 1.0 pp
 extra-drawdown budget, `maxDD(mix) − maxDD(host)` on the daily close path, the maximum over
 three frozen windows binding ([`route.2.json` `sizing`](research/forward_watch/policy/route.2.json)).
 De-admission is a CUSUM on per-year ΔLLR, `W_k = max(0, W_{k−1} − ΔLLR_k)`, alarming at
 h = 2.0, plus the close boundary, a VOID, or a daily drawdown cut that sets the size to 0
-([`route.2.json` `de_admission`](research/forward_watch/policy/route.2.json)).
+([`route.2.json` `de_admission`](research/forward_watch/policy/route.2.json)). The CUSUM
+false-alarms on a true-0.3 watch 5.98% of the time within 20 years and catches a −0.3 watch
+81.32% of the time (median 13 years). From ln 48, the close boundary alone catches that watch
+only 2.30% of the time ([`research/FORWARD_ROUTE_TABLES.md` §4](research/FORWARD_ROUTE_TABLES.md)).
 
 ## 9. The evidence graph
 

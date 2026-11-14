@@ -381,3 +381,48 @@ with its seven required tests (`route.2.json` `build.tests_required`), before H3
 anniversary 2 settles (~2029-01). (4) CUSUM, the stagewise lower bound, the carve search, the
 daily cut, the published tables, at the first ADMIT. (5) DIRECTIONS.md:18, 35-37, 124. Frozen
 watch docs and specs are not edited (F366210 precedent).
+
+## Implementation (2026-11-14): the `admit_watch` chain
+
+**Outcome: item (3) of the order of work is built**, ahead of H366200's anniversary 2 (~2029-01).
+The chain is `tools/admit.py --watch <ID>`, with its engine in `src/research/watch_admission.py`.
+No spec, policy, ledger or log byte changed. The chain is not one of any spec's
+`evaluator_sources`, so it needs no new attestation.
+
+- **Stages, as `route.2.json` `build.stages` orders them:** registration (first-parent arrival,
+  byte-identical spec), ledger, chain, evaluator continuity, code, refutations, witness, window,
+  sequential, corroboration, void. Evaluator continuity is recomputed from git objects at each
+  line's `code.sha`, and an attestation counts only from a deploy-branch commit. On the committed
+  logs every attestation hashes to the evaluator it attests, and every computing line ran on its
+  pinned evaluator.
+- **Records:** `docs/research/verdicts/<ID>/watch-aNN.json` per settled anniversary and
+  `watch-void.json` for a VOID, each `O_EXCL`; the latest governs. The verifier recomputes every
+  derivable field from the log prefix a record pins. `tools/admit.py --verify-records` (a CI step)
+  runs it beside the preregistration verdicts.
+- **The seven required tests:** `tests/test_watch_admission.py`, class `RequiredByThePolicy`, one
+  test each, in the policy's order. The other tests in that file exercise the stages, the
+  records and the verifier end to end on scratch repositories. The domain path runs on the real
+  frozen H366201 spec.
+- **Published with it:** [`FORWARD_ROUTE_TABLES.md`](FORWARD_ROUTE_TABLES.md). The consensus
+  figures reproduce, with two corrections:
+  - `test.beta_prime`'s "about 0.205 at alpha_i = 0.05/3" is the α/2 value. Wald's approximation
+    at α/3 is 0.207, and the simulated close probability at a true 0.3 is 0.174. The policy
+    marks the value derived, so nothing it governs changes.
+  - Q4's close-boundary-alone 4.7% was computed from round 2's ln 32. From the ratified ln 48 it
+    is 2.30%.
+
+**Readings where the frozen text is silent** (stated in the module docstring, each pinned by a test):
+1. The CUSUM alarms at W ≥ h, with W = 0 on the admitting anniversary.
+2. After an ADMIT, the watch's own terminal close de-admits: the close boundary, or H366201's
+   long-leg consequence at a promote crossing. So does a VOID.
+3. An objection upheld at any time REJECTS on the route, as at the gate. An open objection blocks
+   every record. An ADMIT also needs at least one objection filed, all of them refuted.
+4. CLOSED, VOID, DE-ADMIT and REJECT are terminal: a de-admitted watch is not re-admitted on the
+   same record (Q3: never sized up later on the same record).
+5. BLOCKED and PENDING are never written, so a blocked run cannot spend an anniversary.
+
+**Still to build, at the first ADMIT (item 4):** the sizing record (the stagewise-ordering 80%
+lower bound, the carve search) and the daily drawdown cut.
+
+**State today:** both watches read PENDING. Neither log has a `window_open` line yet, and logging
+resumes after `attest-evaluator` on each watch (an owner step; private store).

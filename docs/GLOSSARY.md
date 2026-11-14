@@ -14,7 +14,7 @@ the unit of evidence for daily strategies, so beta cancels. Misaligned inputs ar
 
 **Admission (gate)** — The deterministic chain in `tools/admit.py` that is the only way a
 pre-registered hypothesis becomes an "edge"; it writes an immutable verdict record. No model
-judges anything in it. [`../tools/admit.py:1-42`](../tools/admit.py).
+judges anything in it. [`../tools/admit.py:1-54`](../tools/admit.py).
 
 **Alpha spending** — Each forward watch receives a share `γ_i` of its spec's alpha from the
 freeze ledger: 1/3 for each founder, `1/(i(i+1))` from ordinal 3; shares sum to 1 and are never
@@ -76,12 +76,16 @@ engine's evaluators refuse to run without a begun trial holding an unspent runti
 [`../src/strategy/counted.py:1-25`](../src/strategy/counted.py); [`research/trials/README.md`](research/trials/README.md).
 
 **CUSUM** — The de-admission statistic on a watch's per-year own-data ΔLLR:
-`W_k = max(0, W_{k−1} − ΔLLR_k)`, alarming at h = 2.0.
-[`research/forward_watch/policy/route.2.json` `de_admission`](research/forward_watch/policy/route.2.json).
+`W_k = max(0, W_{k−1} − ΔLLR_k)`, alarming at h = 2.0. The chain starts it at W = 0 on the
+admitting anniversary and alarms when W ≥ h; a year's ΔLLR is scored on that year's own sessions.
+[`research/forward_watch/policy/route.2.json` `de_admission`](research/forward_watch/policy/route.2.json);
+[`../src/research/watch_admission.py:321`](../src/research/watch_admission.py), [`:414`](../src/research/watch_admission.py).
 
 **De-admission** — Loss of an admitted sleeve's eligibility: a CUSUM alarm, the close boundary
-on the full record, or a VOID; a daily drawdown cut beyond the budget sets the size to 0.
-[`research/forward_watch/policy/route.2.json` `de_admission`](research/forward_watch/policy/route.2.json).
+on the full record, or a VOID; a daily drawdown cut beyond the budget sets the size to 0. The
+chain writes it as a `DE-ADMIT` record, and a de-admitted watch is not re-admitted on the same record.
+[`research/forward_watch/policy/route.2.json` `de_admission`](research/forward_watch/policy/route.2.json);
+[`../src/research/watch_admission.py:1-64`](../src/research/watch_admission.py).
 
 **Decision (D)** — A go/no-go or design node that `resolves` a Hypothesis and cites the
 Findings it rests on; records a recommendation and whether it was applied.
@@ -283,7 +287,7 @@ applied on stop and gap-stop exits only. The ratified prior is 5 bp, stated in e
 price-profile admission record, with a 3× stress stage (15 bp) for registrations from 2026-10-29
 ([`../tools/admit.py`](../tools/admit.py) `STOP_SLIPPAGE_PCT`, `stop_stress_applies`).
 [`../src/strategy/engine.py:248-250`](../src/strategy/engine.py); [`research/ENGINE_V3_QUESTION.md` §(g) amendment](research/ENGINE_V3_QUESTION.md);
-[`../tools/admit.py:81`](../tools/admit.py).
+[`../tools/admit.py:105`](../tools/admit.py).
 
 **supersedes** — New → stale node: replaces a now-stale claim and is auto-paired with the
 tombstone; never traversed backward. [`../SCHEMA.md` §5a, §6](../SCHEMA.md).
@@ -294,7 +298,7 @@ tombstone; never traversed backward. [`../SCHEMA.md` §5a, §6](../SCHEMA.md).
 domain benchmark, admitted by `admit_tactical.py` (no parity stage). `price_strategy`: the
 hourly engine family, admitted by `admit.py` with a forward paper holdout; its v2 familywise
 stage is blocked pending a size study. [`../src/research/prereg.py:76-81`](../src/research/prereg.py);
-[`../tools/admit.py:90`](../tools/admit.py).
+[`../tools/admit.py:125`](../tools/admit.py).
 
 **Time exit** — With no bracket exit, the trade fills at the open of bar N+1+MAX; only at the
 end of the data does it fall back to the last close (`time_exit_truncated`).
@@ -318,7 +322,7 @@ target-wins ambiguity and look-ahead Kelly (never admissible); 2 bp with stop-wi
 
 **Verdict** — The worst stage outcome of an admission run: `REJECT > BLOCKED > PENDING >
 ADMIT`; `UNSUPPORTED` for a profile with no holdout; `NOT EVALUATED` on the scorecard for a
-hypothesis with no record. [`../tools/admit.py:112`](../tools/admit.py);
+hypothesis with no record. [`../tools/admit.py:147`](../tools/admit.py);
 [`../tools/edge_scorecard.py:71`](../tools/edge_scorecard.py).
 
 **Vintage** — A fetched NAV panel recorded by sha and `fetched_at`; a session's decision reads
@@ -329,6 +333,14 @@ a live process could have had. [`../src/research/forward_watch.py:1037`](../src/
 redemption terms, 63 sessions without a vintage); nothing may be logged after it, and the
 anniversaries before it are kept. [`../src/research/forward_watch.py:78`](../src/research/forward_watch.py);
 [`research/METAL_TRUST_FORWARD_WATCH.md` §Evaluation, stated in advance (VOID)](research/METAL_TRUST_FORWARD_WATCH.md).
+
+**Watch admission (`admit_watch`)** — The forward-evidence route's own chain for a forward watch,
+`tools/admit.py --watch <ID>`. It never loads a preregistration. It runs eleven stages, from
+registration to void, and writes one record per settled anniversary (`O_EXCL`) plus one for a
+VOID; the latest governs. Verdicts are CONTINUE, ADMIT, ADMITTED, DE-ADMIT, CLOSED, VOID or
+REJECT; a BLOCKED run is never written. The verifier recomputes a record from the log prefix it
+pins. [`../src/research/watch_admission.py:1-64`](../src/research/watch_admission.py), [`:101`](../src/research/watch_admission.py), [`:963`](../src/research/watch_admission.py);
+[`research/FORWARD_ROUTE_TABLES.md`](research/FORWARD_ROUTE_TABLES.md).
 
 **Window open** — The `window_open` line: the first session after the watch's spec reached the
 deploy branch, dated by the first-parent commit so a window cannot open retroactively.

@@ -35,7 +35,8 @@ instruments enter at all. The reasoning is in [`../DIRECTIONS.md`](../DIRECTIONS
 
 Governance directories: [`prereg/`](prereg/README.md) (frozen pre-registrations),
 [`trials/`](trials/README.md) (hash-chained trial ledger), `refutations/` (objections and
-board rulings), `forward_watch/` (frozen forward records and the multiplicity policy),
+board rulings), `forward_watch/` (frozen forward records and the multiplicity policy; the route's
+admission chain is `tools/admit.py --watch`, its error rates in [`FORWARD_ROUTE_TABLES.md`](FORWARD_ROUTE_TABLES.md)),
 [`reeval/`](reeval/README.md) (re-evaluation of pre-gate findings), [`data/`](data/README.md)
 (content-addressed datasets and their redistribution terms), `proposals/` (edits to fenced files
 awaiting sign-off), `reviews/` (session reviews and handoffs). The workflow that threads them

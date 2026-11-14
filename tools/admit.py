@@ -39,8 +39,17 @@ Verdict = worst stage outcome: REJECT > BLOCKED > PENDING > ADMIT.
 Other profiles (event_study, allocation) are UNSUPPORTED until their holdouts exist; the
 gate says so rather than admitting on a partial chain.
 
+Profile ``forward_watch`` (``--watch <ID>``): the forward-evidence route's own chain for a
+forward watch, which is not a preregistration (src/research/watch_admission.py;
+FORWARD_ROUTE_PROPOSAL.md Q1-Q5, ratified 2026-10-29): registration, ledger, chain,
+evaluator continuity, code, refutations, witness, window, sequential, corroboration, void,
+one record per settled anniversary (O_EXCL), the latest governing. It runs no backtest: it
+reads the watch's chained log.
+
   venv/bin/python tools/admit.py H97            # evaluate, write the verdict record
   venv/bin/python tools/admit.py H97 --dry-run  # evaluate, write nothing but trials
+  venv/bin/python tools/admit.py --watch H366200 [--dry-run]   # a forward watch on the route
+  venv/bin/python tools/admit.py --watch-tables # the route's published error-rate tables
 """
 from __future__ import annotations
 
@@ -687,7 +696,12 @@ def verify_record(record: dict, *, prereg_dir=None, deploy_ref: str | None = Non
     """Problems that make a verdict record untrustworthy (red-team attack 7b: a
     hand-written ADMIT file used to count). An ADMIT must be internally consistent, name
     a real gate run in the ledger for the same hypothesis and spec hash, and match the
-    registration as it stands. Any verdict naming a ledger run must name a real one."""
+    registration as it stands. Any verdict naming a ledger run must name a real one. A
+    forward-watch record (profile ``forward_watch``) is verified by its own chain's verifier,
+    which recomputes it from the log prefix it pins."""
+    if record.get("profile") == "forward_watch":
+        from src.research import watch_admission
+        return watch_admission.verify_record(record)[0]
     problems = []
     try:
         stages = [Stage(**s) for s in record.get("stages", [])]
@@ -892,14 +906,26 @@ def _verify_price_familywise(by_stage: dict, head: dict, spec: dict, rows, dev) 
     return problems
 
 
-def verify_records(verdict_dir: Path | None = None, *, prereg_dir=None) -> dict:
-    """{relative path: problems} for every verdict record that fails verification."""
+def verify_records(verdict_dir: Path | None = None, *, prereg_dir=None, watch_env=None,
+                   notes: list | None = None) -> dict:
+    """{relative path: problems} for every verdict record that fails verification.
+    Forward-watch records go to their own verifier (``watch_env``: where it reads the logs,
+    git and the private store; default the repository's); what it could not recompute here
+    (a domain watch's long leg without the private store) is appended to ``notes``."""
+    from src.research import watch_admission
     base = Path(verdict_dir) if verdict_dir is not None else VERDICT_DIR
     out = {}
     for path in sorted(base.glob("H*/*.json")) if base.is_dir() else []:
         try:
             record = __import__("json").loads(path.read_text(encoding="utf-8"))
-            problems = verify_record(record, prereg_dir=prereg_dir)
+            if record.get("profile") == "forward_watch":
+                problems, found = watch_admission.verify_record(record, env=watch_env)
+                if path.name != watch_admission.record_name(record.get("event") or ""):
+                    problems.append(f"filed under another event (as {path.name})")
+                if notes is not None:
+                    notes += [(str(path.relative_to(base)), n) for n in found]
+            else:
+                problems = verify_record(record, prereg_dir=prereg_dir)
             if record.get("hypothesis") != path.parent.name:
                 problems.append("filed under another hypothesis")
         except ValueError as exc:
@@ -907,6 +933,40 @@ def verify_records(verdict_dir: Path | None = None, *, prereg_dir=None) -> dict:
         if problems:
             out[str(path.relative_to(base))] = problems
     return out
+
+
+def watch_main(watch: str, *, dry_run: bool) -> int:
+    """``--watch <ID>``: every record due on the route, in order; written unless dry-run."""
+    from src.research import forward_watch as fw
+    from src.research import watch_admission as wa
+
+    spec, _h = fw.load(watch)
+    route = wa.route_for(spec, watch)
+    print(f"{watch}: forward-evidence route ({route.policy_path}), ordinal {route.ordinal} "
+          f"({route.cohort}), gamma {route.to_json()['gamma']}, alpha_i {route.alpha_i:.6f}")
+    print(f"  admit at LLR >= {route.upper:.4f}; the spec's own promote at {route.own_upper:.4f}; "
+          f"close at <= {route.lower:.4f}; first decisive anniversary {route.first_decisive}; "
+          f"CUSUM alarm at W >= {route.cusum_h:g} after an admission")
+    out = wa.evaluate(watch)
+    if out["pending"]:
+        print(f"PENDING: {out['pending']}")
+    if out.get("ended"):
+        print(f"ENDED: {out['ended']}")
+    blocked = False
+    for rec in out["records"]:
+        print(f"\n{rec.get('event') or '(no event)'}: as of {rec.get('as_of') or '-'}")
+        for s in rec.get("stages", []):
+            print(f"  {s['outcome'].upper():8} {s['name']:<14} {s['detail']}")
+        print(f"{watch} {rec.get('event') or ''}: {rec['verdict']}  ({rec.get('reason')})")
+        if rec["verdict"] not in wa.WRITTEN:
+            blocked = True
+            print("  nothing written: a blocked evaluation spends no anniversary")
+        elif not dry_run:
+            path = wa.write_record(rec)
+            print(f"  record -> {os.path.relpath(path, REPO)}")
+    gov = wa.governing(watch)
+    print(f"\ngoverning: {gov['verdict'] or 'no record yet'}" + (f" ({gov['by']})" if gov["verdict"] else ""))
+    return 1 if blocked else 0
 
 
 def verify_history(base_ref: str, *, repo: Path = Path(REPO)) -> list[str]:
@@ -923,14 +983,27 @@ def main(argv=None) -> int:
                     help="check no verdict on REF's merge-base was edited or deleted, then exit")
     ap.add_argument("--verify-records", action="store_true",
                     help="check every verdict record is consistent and backed by a gate run, then exit")
+    ap.add_argument("--watch", metavar="ID",
+                    help="evaluate a forward watch on the forward-evidence route (profile forward_watch)")
+    ap.add_argument("--watch-tables", action="store_true",
+                    help="print the route's error-rate and admission-probability tables, then exit")
     args = ap.parse_args(argv)
     if args.verify_records:
-        bad = verify_records()
+        notes: list = []
+        bad = verify_records(notes=notes)
         for rel, problems in bad.items():
             for p in problems:
                 print(f"FAIL {rel}: {p}")
+        for rel, n in notes:
+            print(f"NOTE {rel}: {n}")
         print(f"{len(bad)} invalid record(s)")
         return 1 if bad else 0
+    if args.watch_tables:
+        from src.research import watch_route_tables
+        print(watch_route_tables.render(watch_route_tables.compute()))
+        return 0
+    if args.watch:
+        return watch_main(args.watch, dry_run=args.dry_run)
     if args.verify_history:
         problems = verify_history(args.verify_history)
         for p in problems:
