@@ -30,6 +30,7 @@
 | **Research compendium** | 200+ study writeups, each a deterministic tool plus a standalone document with its status, nodes, and reproduce command. | [`docs/research/`](docs/research/README.md) |
 | **Research governance** | Pre-registration (`tools/prereg.py`), a hash-chained trial ledger that records every backtest attempted — losers included — and deflates results by it (`tools/trial_ledger.py`), objections (`tools/refute.py`), an admission gate that is the only way a hypothesis becomes an edge (`tools/admit.py`), and frozen forward watches with a multiplicity charge. | [`docs/research/prereg/`](docs/research/prereg/README.md), [`trials/`](docs/research/trials/README.md), [`forward_watch/`](docs/research/forward_watch/policy/route.json), [`DAILY_STRATEGIES.md`](docs/research/DAILY_STRATEGIES.md) |
 | **Context Kit** | A stdlib-only, portable knowledge layer over code ∪ ideas: routing, provenance (`why`), blast radius (`impact`), edit fences, drift and staleness detectors, and an interactive 3D map served read-only. | [`CONTEXT_KIT.md`](CONTEXT_KIT.md), [`tools/ctx.py`](tools/ctx.py) |
+| **`countedtrials`** | The trial ledger and its significance kernel as a standalone, pip-installable package for any backtester: every attempt recorded before its result exists, hash-chained, and a familywise verdict deflated by the count it measured. Same on-disk format as this repository's ledger; CI checks the two cannot drift. | [`packages/countedtrials/`](packages/countedtrials/README.md) |
 | **Public research surfaces** | A static site (research-web browser, 500+ node views, context map, stock screener with authored lenses, daily news-tone ledger) that publishes only what the repository owns. | [site](https://huthargrave-lang.github.io/MONAD-quant/), [`tools/export_pages.py`](tools/export_pages.py), [`docs/TONE_LEDGER.md`](docs/TONE_LEDGER.md) |
 | **Reference engine** | The long-only RSI/VWAP mean-reversion engine (signals → backtest → sweep → paper broker) that the methodology was proven on. Paper-only by evidence, not by caution. | [`docs/REFERENCE_ENGINE.md`](docs/REFERENCE_ENGINE.md) |
 | **Guards** | 200+ test modules that fail CI on graph integrity, manifest drift, stale citations, dead config knobs, and prose that disagrees with code. | [`tests/`](tests/) |
@@ -189,7 +190,8 @@ frozen data ──> counted evaluator ──> trial ledger ──> relative stat
 [`docs/METHODS.md`](docs/METHODS.md) is the paper-style methods section with every formula and
 constant cited to the code; [`docs/GLOSSARY.md`](docs/GLOSSARY.md) defines the vocabulary;
 [`CONTRIBUTING.md`](CONTRIBUTING.md) walks through the workflow end to end. To lift the Context Kit
-into another repository, start from [`examples/minimal-research-web/`](examples/minimal-research-web/README.md).
+into another repository, start from [`examples/minimal-research-web/`](examples/minimal-research-web/README.md). To count the
+trials of your own backtests, with any backtester, install [`packages/countedtrials/`](packages/countedtrials/README.md).
 
 ---
 
@@ -344,6 +346,8 @@ MONAD-quant/
 │   ├── REFERENCE_ENGINE.md  <- The test-bench engine, execution model, sweep, deployment
 │   ├── TONE_LEDGER.md       <- Pre-registered gates for the daily news-tone series
 │   └── history/             <- Archived optimization logs (superseded numbers, kept as history)
+├── packages/
+│   └── countedtrials/       <- The trial ledger + significance kernel as an installable package (numpy/pandas only)
 ├── examples/
 │   └── minimal-research-web/ <- Non-finance worked example: lift the Context Kit in 5 minutes
 ├── tools/

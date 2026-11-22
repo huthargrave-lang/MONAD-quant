@@ -761,6 +761,31 @@
         "CLAUDE.md"
       ],
       "do_not_touch_without_approval": false
+    },
+    "countedtrials": {
+      "summary": "The trial ledger and its significance kernel as a standalone, pip-installable package for other repositories and any backtester (numpy/pandas only; imports nothing from this repo). ledger.py is src/research/trials.py ported (same schema-v1 on-disk format, no repo root, no prereg hook); significance.py is a BYTE-IDENTICAL copy of src/research/significance.py; guard.py is src/strategy/counted.py ported; analysis.py is the family deflation plus the gate-rules-v2 familywise SPA verdict; study.py is the high-level Study API; cli.py is the `countedtrials` command. tests/test_countedtrials.py fails on any drift between the package and src/research/. Not a producer of this repository's ledger: repo code counts through src/research/trials.py.",
+      "files": [
+        "packages/countedtrials/"
+      ],
+      "entrypoints": [
+        "packages/countedtrials/countedtrials/study.py::Study",
+        "packages/countedtrials/countedtrials/analysis.py::family_spa",
+        "packages/countedtrials/countedtrials/analysis.py::deflate",
+        "packages/countedtrials/countedtrials/ledger.py::open_run",
+        "packages/countedtrials/countedtrials/guard.py::evaluator",
+        "packages/countedtrials/countedtrials/cli.py::main"
+      ],
+      "tests": [
+        "tests/test_countedtrials.py",
+        "tests/test_producer_ledger_wiring.py"
+      ],
+      "docs": [
+        "packages/countedtrials/README.md",
+        "docs/research/DEFLATION_RULE_QUESTION.md",
+        "docs/research/trials/README.md"
+      ],
+      "do_not_touch_without_approval": false,
+      "run_cmd": "PYTHONPATH=packages/countedtrials python3 packages/countedtrials/examples/rule_zoo_on_noise.py <ledger_dir>"
     }
   },
   "routing": [
@@ -1404,6 +1429,40 @@
         "committing a filing body or raw header bytes",
         "a SEC_USER_AGENT at example.com or without an @",
         "pushing to any ref but edgar-ledger"
+      ]
+    },
+    {
+      "keywords": [
+        "countedtrials",
+        "standalone package",
+        "pip install",
+        "installable",
+        "pyproject",
+        "wheel",
+        "study api",
+        "count my backtests",
+        "portable ledger",
+        "extract the ledger"
+      ],
+      "read": [
+        "packages/countedtrials/README.md",
+        "packages/countedtrials/countedtrials/study.py",
+        "packages/countedtrials/countedtrials/analysis.py",
+        "tests/test_countedtrials.py",
+        "src/research/significance.py (the kernel's source of truth)",
+        "src/research/trials.py (the ledger's source of truth)"
+      ],
+      "run": [
+        "python3 -m pytest tests/test_countedtrials.py -q",
+        "PYTHONPATH=packages/countedtrials python3 packages/countedtrials/examples/rule_zoo_on_noise.py /tmp/ct-ledger",
+        "ctx map countedtrials"
+      ],
+      "avoid": [
+        "editing packages/countedtrials/countedtrials/significance.py directly (edit src/research/significance.py and cp it over; the byte-identity test enforces it)",
+        "changing the ledger row format on one side only (schema v1 is shared with src/research/trials.py)",
+        "importing src/ or tools/ from the package, or importing countedtrials from repository code",
+        "an in-tree `pip install ./packages/countedtrials` (leaves build/ under packages/; build from a copy)",
+        "changing the example without updating the README's quoted output"
       ]
     }
   ],

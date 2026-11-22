@@ -61,6 +61,10 @@ EXEMPT = {
 
 COUNTING_METHODS = {"begin", "trial"}
 
+#: The ledger extracted as an installable library (packages/countedtrials/README.md).
+STANDALONE = "packages/countedtrials/"
+FIRST_PARTY_ROOTS = {"src", "tools", "live", "config", "config_modules", "main", "sweep"}
+
 
 def _name(call):
     f = call.func
@@ -211,7 +215,12 @@ class ProducersWriteTheCanonicalLedger(unittest.TestCase):
         somewhere CI never verifies, which is an undercount with extra steps."""
         offenders = []
         for rel in _first_party():
-            if rel.startswith("src/research/"):
+            # packages/countedtrials is the ledger as a library for OTHER repositories: its
+            # ``open_run`` is its own (countedtrials.ledger), the caller's ledger directory is
+            # its whole interface, and it cannot reach this repository's ledger or evaluators
+            # (test_the_standalone_package_is_not_a_producer_here pins that). It is not a
+            # producer of the canonical ledger, so there is nothing for it to divert.
+            if rel.startswith(("src/research/", STANDALONE)):
                 continue
             with open(os.path.join(ROOT, rel), encoding="utf-8") as fh:
                 tree = ast.parse(fh.read())
@@ -220,6 +229,30 @@ class ProducersWriteTheCanonicalLedger(unittest.TestCase):
                     if any(kw.arg == "ledger_dir" for kw in c.keywords):
                         offenders.append(f"{rel}:{c.lineno}")
         self.assertEqual(offenders, [])
+
+    def test_the_standalone_package_is_not_a_producer_here(self):
+        """The exemption above is safe only while the package imports nothing of this
+        repository (so it cannot call an engine evaluator or the canonical ledger) and
+        nothing here that evaluates strategies imports the package (so no producer can
+        route its trials through it)."""
+        def imported(tree):
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    yield from (a.name.split(".")[0] for a in node.names)
+                elif isinstance(node, ast.ImportFrom) and node.level == 0:
+                    yield (node.module or "").split(".")[0]
+
+        inside, outside = [], []
+        for rel in _first_party():
+            with open(os.path.join(ROOT, rel), encoding="utf-8") as fh:
+                roots = set(imported(ast.parse(fh.read())))
+            if rel.startswith(STANDALONE):
+                inside += [f"{rel} imports {r}" for r in sorted(roots & FIRST_PARTY_ROOTS)]
+            elif "countedtrials" in roots:
+                outside.append(rel)
+        self.assertEqual(inside, [], "the standalone package must not import this repository")
+        self.assertEqual(outside, [], "repository code must count through src/research/trials.py, "
+                                      "not through the standalone package")
 
     def test_library_producers_cannot_be_called_uncounted(self):
         import walkforward_eval

@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "countedtrials"
+version = "0.1.0"
+description = "A tamper-evident ledger of every backtest you ran, and Sharpe ratios deflated by a measured (not self-reported) number of trials."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Monad Industries" }]
+keywords = ["backtesting", "overfitting", "deflated sharpe ratio", "multiple testing", "quant", "reproducibility"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+dependencies = ["numpy>=1.24", "pandas>=2.0"]
+
+[project.urls]
+Homepage = "https://github.com/huthargrave-lang/MONAD-quant/tree/development/packages/countedtrials"
+Source = "https://github.com/huthargrave-lang/MONAD-quant"
+
+[project.scripts]
+countedtrials = "countedtrials.cli:main"
+
+[tool.setuptools]
+packages = ["countedtrials"]

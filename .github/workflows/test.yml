@@ -101,6 +101,22 @@ jobs:
           python tools/refute.py verify --against origin/development
           python tools/reevaluate_web.py verify --against origin/development
 
+      # packages/countedtrials is this ledger as a standalone package. tests/test_countedtrials.py
+      # pins its behaviour and its format against src/research/; this step pins the one thing
+      # a sys.path import cannot: that the wheel installs into a venv that has never seen this
+      # repository and its console script runs a counted search there.
+      - name: countedtrials installs and runs outside the repository
+        run: |
+          python -m venv /tmp/ct-venv
+          # Built from a copy: an in-tree build leaves build/ and *.egg-info under packages/,
+          # which the area-coverage guard would then read as unclaimed first-party modules.
+          cp -r packages/countedtrials /tmp/ct-src
+          /tmp/ct-venv/bin/pip install /tmp/ct-src
+          cp packages/countedtrials/examples/rule_zoo_on_noise.py /tmp/ct-demo.py
+          cd /tmp
+          /tmp/ct-venv/bin/python ct-demo.py /tmp/ct-ledger
+          /tmp/ct-venv/bin/countedtrials --ledger /tmp/ct-ledger verify --require-closed
+
       - name: Run the full test suite (with coverage)
         run: |
           coverage run --source=src,live -m pytest tests/ -v
