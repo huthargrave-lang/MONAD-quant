@@ -466,6 +466,128 @@ class TestVerdict(Case):
                        prior_search_trials=-1)
 
 
+class TestWhatAReviewFound(Case):
+    """Regressions from the independent review of the first version (2026-11-22). The first
+    two made a result look MORE significant than the recorded search allows."""
+
+    def test_results_seen_in_a_killed_run_are_charged_not_forgotten(self):
+        """Series are bundled at run close. Forty trials complete, the process dies, the
+        run is sealed: their outcomes say ``ok`` but their returns never reached disk. A
+        second run then evaluates only the winner. The forty were looked at; they count."""
+        code = (
+            "import os, sys, numpy as np, pandas as pd, countedtrials as ct\n"
+            "d = pd.bdate_range('2018-01-01', periods=1000)\n"
+            "f = lambda seed: pd.Series(np.random.default_rng(seed).normal(0, 0.01, 1000), index=d)\n"
+            "st = ct.Study('fam.test', ledger_dir=sys.argv[1], producer='killed').__enter__()\n"
+            "st.search(f, {'seed': list(range(40))})\n"
+            "os._exit(0)\n")
+        subprocess.run([sys.executable, "-c", code, str(self.dir)],
+                       env={**os.environ, "PYTHONPATH": str(PKG)}, check=True)
+        ledger.seal(self.shards()[0])
+        with self.study() as st:
+            winner = st.evaluate(lambda seed: noise(seed), {"seed": 7})
+        spa = ct.family_spa(winner.key, ledger_dir=self.dir, n_boot=500)
+        # All forty: a spec is params + data + the function's qualified name, and the
+        # re-run's function is a different object from the killed script's, so the winner's
+        # earlier evaluation is not "the same spec, now visible". The conservative reading.
+        self.assertEqual((spa.tested, spa.unknown_specs, spa.m), (1, 40, 40))
+        self.assertAlmostEqual(spa.p_value, min(1.0, spa.worst_p * 41))
+        d = ct.deflate(winner.key, ledger_dir=self.dir)
+        self.assertEqual(d.unknown_specs_added, 40)
+        self.assertGreaterEqual(d.n_trials, 41)
+
+    def test_results_in_a_run_still_open_are_charged_too(self):
+        with self.study() as other:
+            other.search(lambda seed: noise(seed), {"seed": list(range(10, 20))})
+            with self.study() as st:
+                mine = st.evaluate(lambda seed: noise(seed), {"seed": 1})
+                with self.assertRaisesRegex(ValueError, "has not written them to disk"):
+                    ct.family_spa(mine.key, ledger_dir=self.dir, n_boot=300)
+            spa = ct.family_spa(mine.key, ledger_dir=self.dir, n_boot=300)
+            self.assertEqual((spa.tested, spa.unknown_specs), (1, 10))
+        after = ct.family_spa(mine.key, ledger_dir=self.dir, n_boot=300)
+        self.assertEqual((after.tested, after.unknown_specs), (11, 0))
+
+    def test_a_benchmark_with_holes_is_refused_not_zero_filled(self):
+        market = noise(999, mean=0.0005)
+        with self.study() as st:
+            st.search(lambda seed: market + noise(seed) * 0.1, {"seed": [1, 2, 3]})
+        best = ct.best_trial("fam.test", ledger_dir=self.dir)
+        full = ct.family_spa(best, ledger_dir=self.dir, n_boot=300, benchmark=market)
+        self.assertGreater(full.p_value, 0.05)
+        for holed in (market.iloc[::2], market.resample("W").sum()):
+            with self.assertRaisesRegex(ValueError, "benchmark is missing"):
+                ct.family_spa(best, ledger_dir=self.dir, n_boot=300, benchmark=holed)
+
+    def test_timezone_aware_indexes_keep_their_local_dates(self):
+        for tz in ("America/New_York", "Asia/Tokyo"):
+            with self.subTest(tz=tz):
+                fam = f"fam.{tz.split('/')[1]}"
+                idx = pd.bdate_range("2023-01-02", periods=400).tz_localize(tz)
+                rng = np.random.default_rng(3)
+                with self.study(fam) as st:
+                    st.search(lambda k: pd.Series(rng.normal(0, 0.01, 400), index=idx), {"k": [1, 2]})
+                d = ct.deflate(ct.best_trial(fam, ledger_dir=self.dir), ledger_dir=self.dir)
+                self.assertEqual(d.moments.n_obs, 400)   # no session moved onto a weekend
+
+    def test_a_series_the_readers_could_not_use_is_refused_at_write_time(self):
+        bad = {
+            "int index": pd.Series([0.01, -0.01, 0.02]),
+            "leading NaN": noise(1).pct_change(),
+        }
+        with self.study() as st:
+            st.evaluate(lambda seed: noise(seed), {"seed": 1})
+            for i, (name, series) in enumerate(bad.items()):
+                with self.subTest(name), self.assertRaises(ct.LedgerError):
+                    st.evaluate(lambda case: series, {"case": i})
+        self.assertEqual([r.status for r in ledger.iter_trials(self.dir)], ["ok", "error", "error"])
+        ct.report("fam.test", ledger_dir=self.dir, n_boot=300)   # the family is still readable
+
+    def test_when_every_trial_raised_the_report_says_why(self):
+        with self.study() as st:
+            st.search(lambda seed: noise(seed).pct_change(), {"seed": [1, 2]})
+        with self.assertRaisesRegex(ValueError, r"2 trial\(s\) raised.*pct_change"):
+            ct.report("fam.test", ledger_dir=self.dir)
+
+    def test_a_three_day_series_cannot_be_the_reported_winner(self):
+        tiny = pd.Series([0.010, 0.011, 0.0105], index=pd.bdate_range("2019-06-03", periods=3))
+        with self.study() as st:
+            real = st.evaluate(lambda seed: noise(seed, mean=0.001), {"seed": 1})
+            st.evaluate(lambda seed: tiny, {"seed": 2})
+        self.assertEqual(ct.best_trial("fam.test", ledger_dir=self.dir), real.key)
+
+    def test_searching_on_after_a_verdict_opens_a_new_run(self):
+        with self.study() as st:
+            st.search(lambda seed: noise(seed), {"seed": [1, 2]})
+            st.report(n_boot=300)
+            st.search(lambda seed: noise(seed), {"seed": [3]})
+            self.assertEqual(st.deflate().trials_recorded, 3)
+        counts = ledger.family_counts(self.dir)["fam.test"]
+        self.assertEqual((counts["runs"], counts["intents"]), (2, 3))
+        self.assertEqual([r.errors for r in ledger.verify_ledger(self.dir, require_closed=True)], [[], []])
+
+    def test_counted_records_positional_arguments_by_name(self):
+        with self.study() as st:
+            objective = st.counted(lambda seed, scale=1.0: noise(seed) * scale)
+            objective(4, scale=2.0)
+        self.assertEqual(ledger.iter_trials(self.dir)[0].spec["params"], {"seed": 4, "scale": 2.0})
+
+    def test_a_ledger_at_the_repository_root_still_sees_a_dirty_tree(self):
+        repo = Path(self._tmp.name) / "repo"
+        repo.mkdir()
+        git = ["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"]
+        subprocess.run([*git, "init", "-q"], check=True)
+        (repo / "strategy.py").write_text("edge = 0\n")
+        subprocess.run([*git, "add", "-A"], check=True)
+        subprocess.run([*git, "commit", "-q", "-m", "init"], check=True)
+        clean = ledger.code_state(repo, exclude=[repo])
+        self.assertIs(clean["dirty"], False)
+        (repo / "TR-20260101T000000Z-00000000.jsonl").write_text("{}\n")   # the ledger's own file
+        self.assertIs(ledger.code_state(repo, exclude=[repo])["dirty"], False)
+        (repo / "strategy.py").write_text("edge = 1\n")
+        self.assertIs(ledger.code_state(repo, exclude=[repo])["dirty"], True)
+
+
 class TestCLI(Case):
     def cli(self, *argv):
         out = io.StringIO()
@@ -489,6 +611,20 @@ class TestCLI(Case):
         self.assertIn("DSR", out)
         self.assertEqual(self.cli("show", key.split("#")[0])[0], 0)
         self.assertEqual(self.cli("report", "fam.absent")[0], 1)
+
+    def test_verify_fails_on_a_ledger_directory_that_does_not_exist(self):
+        code, out = self.cli("verify", "--require-closed")
+        self.assertEqual(code, 1, "a CI gate pointed at a mistyped path must not pass")
+        self.assertIn("no ledger directory", out)
+
+    def test_a_tampered_ledger_is_refused_without_a_traceback(self):
+        with self.study() as st:
+            st.evaluate(lambda seed: noise(seed), {"seed": 1})
+        shard = self.shards()[0]
+        shard.write_text(shard.read_text().replace('"seed":1', '"seed":2'))
+        code, out = self.cli("report", "fam.test")
+        self.assertEqual(code, 1)
+        self.assertIn("REFUSED", out)
 
     def test_verify_exits_nonzero_on_tampering(self):
         with self.study() as st:

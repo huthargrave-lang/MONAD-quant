@@ -11,9 +11,12 @@ those attempts amount to:
     conservative max of the cluster count and the Li-Ji eigenvalue count is used
     (``significance.effective_trials``);
   * ``ok`` trials with no trades are one "found nothing" idea;
-  * trials whose result is UNKNOWN (``error``, ``abandoned``, crash ``orphan``) cannot be
-    correlated with anything, so each distinct spec among them adds one independent
-    trial, unless the same spec also produced an ``ok`` result elsewhere in the family.
+  * trials whose result is UNKNOWN cannot be correlated with anything, so each distinct
+    spec among them adds one independent trial, unless the same spec also produced a
+    visible result elsewhere in the family. Unknown means ``error``, ``abandoned``, a
+    crash ``orphan``, and also an ``ok`` trial whose return series never reached disk:
+    series are bundled when a run closes, so a run that was killed (and sealed) or is
+    still open has results somebody saw and this module cannot.
 
 Which number to believe. MONAD measured both corrections on synthetic families
 (its finding F404718) and the DSR, built this way, is miscalibrated in both directions:
@@ -92,10 +95,12 @@ def _family(ledger_dir, family: str) -> list:
 
 
 def _series(records, ledger_dir) -> dict:
-    """Return series by trial key; ok trials without trades enter as empty series."""
+    """Return series by trial key; ok trials that recorded no trades enter as empty series.
+    An ok trial that DID record returns but whose bundle is not on disk gets no entry: it
+    is not "found nothing", it is unknown (see ``_unknown_specs``)."""
     series = ledger.load_returns(records, ledger_dir)
     for r in records:
-        if r.status == "ok" and r.key not in series:
+        if r.status == "ok" and r.returns_sha is None:
             series[r.key] = pd.Series(dtype=float)
     return series
 
@@ -114,11 +119,21 @@ def _target(candidate: str, ledger_dir):
     return target, [r for r in everything if r.family == target.family]
 
 
-def _unknown_specs(family) -> set:
-    """Distinct specs whose result nobody can see (error, abandoned, crash orphan), unless
-    the same spec also produced an ok result elsewhere in the family."""
-    ok_specs = {r.spec_hash for r in family if r.status == "ok"}
-    return {r.spec_hash for r in family if r.status != "ok"} - ok_specs
+def _unknown_specs(family, loaded) -> set:
+    """Distinct specs with no VISIBLE result anywhere in the family. Visible = an ok trial
+    whose series was read (``loaded``: the keys ``load_returns`` returned) or that recorded
+    no trades. Everything else is charged: error, abandoned, crash orphan, and an ok trial
+    whose returns were never bundled (killed-and-sealed run, or a run still open)."""
+    visible = {r.spec_hash for r in family
+               if r.status == "ok" and (r.returns_sha is None or r.key in loaded)}
+    return {r.spec_hash for r in family} - visible
+
+
+def _no_returns(target) -> str:
+    if target.returns_sha is not None:
+        return (f"{target.key} recorded returns, but its run has not written them to disk "
+                f"(series are bundled when the run closes; a run that crashed never wrote them)")
+    return f"{target.key} recorded no returns; there is nothing to judge"
 
 
 def _prior(n) -> int:
@@ -139,10 +154,10 @@ def deflate(candidate: str, *, ledger_dir: Path | None = None,
     target, family = _target(candidate, ledger_dir)
     series = _series(family, ledger_dir)
     if not len(series.get(target.key, ())):
-        raise ValueError(f"{candidate} recorded no returns; there is nothing to deflate")
+        raise ValueError(_no_returns(target))
     eff = sig.effective_trials(series)
 
-    unknown = _unknown_specs(family)
+    unknown = _unknown_specs(family, series)
     n_trials = eff.n_effective + len(unknown) + prior
 
     pnl = sig.daily_pnl({target.key: series[target.key]})[target.key]
@@ -171,11 +186,34 @@ def family_sharpes(family: str, *, ledger_dir: Path | None = None) -> dict:
 
 def best_trial(family: str, *, ledger_dir: Path | None = None) -> str:
     """The key of the family's highest-Sharpe trial: the one a search would report.
-    Ties break on the earliest key, so the answer depends only on the ledger."""
-    sharpes = family_sharpes(family, ledger_dir=ledger_dir)
-    if not sharpes:
-        raise ValueError(f"family {family!r} has no trial with returns")
-    return max(sorted(sharpes), key=lambda k: sharpes[k])
+
+    Only trials with at least ``MIN_OBS`` daily observations compete when any exist (a
+    three-day series can post any Sharpe and cannot be tested). Ties break on the earliest
+    key, so the answer depends only on the ledger."""
+    records = _family(ledger_dir, family)
+    series = {k: v for k, v in ledger.load_returns(records, ledger_dir).items() if len(v)}
+    if not series:
+        errors = [r for r in records if r.status == "error"]
+        hint = ""
+        if errors:
+            first = next((row.get("error") for row in _outcome_rows(errors[0], ledger_dir)), None)
+            hint = f"; {len(errors)} trial(s) raised, the first with: {first}"
+        raise ValueError(f"family {family!r} has no trial with readable returns{hint}")
+    pnl = sig.daily_pnl(series)
+    long_enough = [k for k in series if len(sig.active_span(pnl[k])) >= MIN_OBS]
+    pool = sorted(long_enough or series)
+    return max(pool, key=lambda k: sig.active_span_sharpe(pnl[k]))
+
+
+def _outcome_rows(record, ledger_dir):
+    """The outcome row(s) of one trial, read straight from its shard (for error text)."""
+    import json
+    path = ledger._dir(ledger_dir) / f"{record.run_id}.jsonl"
+    for line in path.read_bytes().split(b"\n"):
+        if line:
+            row = json.loads(line)
+            if row.get("type") == "outcome" and row.get("trial") == record.trial:
+                yield row
 
 
 def _matrix(family: str, ledger_dir) -> pd.DataFrame:
@@ -199,6 +237,19 @@ def family_pbo(family: str, *, ledger_dir: Path | None = None, n_splits: int = 1
     return sig.pbo_cscv(m, n_splits=n_splits)
 
 
+def _by_day(series: pd.Series) -> pd.Series:
+    """A return series summed per calendar date, on ITS OWN dates only. Unlike
+    ``significance.daily_pnl`` it does not fill a business-day grid with zeros: for a
+    benchmark, a day it does not cover must surface as missing, never as a flat day."""
+    idx = pd.DatetimeIndex(pd.to_datetime(series.index))
+    if idx.tz is not None:
+        idx = idx.tz_localize(None)
+    values = np.asarray(series, dtype=float)
+    if not np.all(np.isfinite(values)):
+        raise ValueError("benchmark contains non-finite values")
+    return pd.Series(values, index=idx.normalize()).groupby(level=0).sum()
+
+
 @dataclass
 class FamilySPA:
     """The familywise verdict on one candidate (MONAD gate rules v2)."""
@@ -206,7 +257,8 @@ class FamilySPA:
     p_value: float                 # worst block p x (1 + m), capped at 1: the verdict statistic
     worst_p: float                 # worst (b+1)/(B+1) across blocks, before the (1 + m) charge
     m: int                         # attempts the matrix cannot contain, charged by union bound
-    unknown_specs: int             #   ... results nobody can see (error/abandoned/orphan)
+    unknown_specs: int             #   ... results this test cannot see (error, abandoned,
+                                   #       orphan, or ok with its returns never written)
     off_window: int                #   ... trials that ran on a different window
     prior_search_trials: int       #   ... declared search from before the ledger
     tested: int                    # family members in the test matrix
@@ -250,9 +302,10 @@ def family_spa(candidate: str, *, benchmark: pd.Series | None = None,
     if not 0 < alpha < 1:
         raise ValueError("alpha must be in (0, 1)")
     target, family = _target(candidate, ledger_dir)
-    series = {k: v for k, v in ledger.load_returns(family, ledger_dir).items() if len(v)}
+    loaded = ledger.load_returns(family, ledger_dir)
+    series = {k: v for k, v in loaded.items() if len(v)}
     if target.key not in series:
-        raise ValueError(f"{candidate} recorded no returns; there is nothing to test")
+        raise ValueError(_no_returns(target))
     pnl = sig.daily_pnl(series)
     window = sig.active_span(pnl[target.key]).index
     if len(window) < MIN_OBS:
@@ -274,15 +327,16 @@ def family_spa(candidate: str, *, benchmark: pd.Series | None = None,
             kept.append(k)
     d = pnl.loc[window, kept]
     if benchmark is not None:
-        b = sig.daily_pnl({"b": benchmark})["b"].reindex(window)
+        b = _by_day(benchmark).reindex(window)
         if b.isna().any():
             raise ValueError(f"benchmark is missing {int(b.isna().sum())} of the candidate's "
-                             f"{len(window)} dates")
+                             f"{len(window)} dates (it must be daily and cover every one; a "
+                             f"missing day is not a zero return)")
         d = d.sub(b, axis=0)
         flat = [k for k in d.columns if k != target.key and float(d[k].std(ddof=1)) == 0.0]
         zero += len(flat)   # identical to the benchmark: found nothing
         d = d.drop(columns=flat)
-    unknown = len(_unknown_specs(family))
+    unknown = len(_unknown_specs(family, loaded))
     m = unknown + off_window + prior
     B = n_boot if n_boot is not None else spa_n_boot(m, alpha)
     j = list(d.columns).index(target.key)

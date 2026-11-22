@@ -113,12 +113,12 @@ A two-line CI job makes the count a property of the repository rather than a pro
 | `Study(family, ledger_dir=, data=, producer=, context=)` | One counted run. `data` identifies the dataset and is part of every trial's spec hash, so the same parameters on different data are different trials. |
 | `study.evaluate(fn, params)` | One trial. `fn(**params)` returns a `pd.Series`, a `(series, metrics_dict)` pair, or `None` for "no trades". |
 | `study.search(fn, grid)` | Every point of a dict-of-lists or a list of dicts. A point that raises is recorded and the search continues. |
-| `study.counted(fn)` | Wraps `fn` so each keyword call is one trial: hand it to an optimizer as its objective. |
+| `study.counted(fn)` | Wraps `fn` so each call is one trial and returns its series. Wrap once more to return the scalar an optimizer wants. |
 | `study.report()` / `ct.report(family)` | SPA verdict, DSR and PBO for the family's best (or a named) trial. |
 | `ct.family_spa(key, benchmark=, prior_search_trials=)` | The verdict alone. `benchmark` is a daily return series to beat (default: zero). |
 | `ct.deflate(key)` / `ct.family_pbo(family)` | The diagnostics alone. |
 | `@ct.evaluator` / `ct.uncounted(reason)` | The runtime guard and its one, greppable bypass. |
-| `ct.open_run(...)`, `run.begin(...)`, `trial.complete(...)` | The low-level writer, for producers that parallelise (begin in the parent before dispatch, complete in the parent as results return). |
+| `ct.open_run(...)`, `run.begin(...)`, `trial.complete(...)` | The low-level writer `Study` is built on. One trial is open at a time: `begin` refuses while the previous trial has not evaluated. |
 
 Sharpe ratios inside the library are per period; they are annualized (×√252) only for display.
 
@@ -143,6 +143,11 @@ p = (worst candidate p over stationary-bootstrap mean blocks of 20/63/126 sessio
 m = unknown-result specs + trials that ran on another window + declared prior search
 ```
 
+An *unknown-result* spec is one with no visible result anywhere in the family: it raised, was
+abandoned, was orphaned by a crash, or finished in a run that never wrote its return series
+(series are bundled when a run closes, so a killed run's completed trials were seen by
+someone and cannot be seen by the test).
+
 Each block p is estimated as (b+1)/(B+1) with B ≥ max(5000, 20(1+m)/α), so the verdict is
 never decided by bootstrap resolution. The union bound over `m` needs no independence
 assumption. Trials that found nothing (no variance) are dropped, which is exactly equivalent
@@ -157,7 +162,15 @@ is the degenerate one-idea case.
   guard bypassed, is not in the ledger. `@evaluator` closes the casual path; nothing closes a
   determined one. Declare what came before with `prior_search_trials` — it can only raise the bar.
 - **Families are your claim.** Splitting one idea across two family names halves its count.
-  Name the family for the idea ("long-only RSI mean reversion, daily"), not for the run.
+  Name the family for the idea (`rsi_mean_reversion.daily.v1`), not for the run. Names are
+  letters, digits and `_ . : -`.
+- **Returns are daily, indexed by date.** Intraday returns are summed per calendar day; a
+  timezone-aware index is read in its local time; a non-datetime index or a NaN is refused
+  when the trial is recorded. One run evaluates one trial at a time (the guard is per
+  context), so parallelise across runs, not inside one.
+- **A verdict closes the run.** `report()`, `deflate()`, `spa()` and `best()` close the current
+  shard so its series can be read; evaluating again opens a new one in the same family.
+  Run from inside your repository: the commit and dirty flag are read from the working directory.
 - **A file that never reached a commit cannot be witnessed by git.** Append-only history is
   checked from the first commit a shard appears in. Commit ledgers with the code that wrote them.
 - **Significance is not tradability.** A result that survives this has survived selection

@@ -49,6 +49,10 @@ def cmd_stats(args) -> int:
 
 
 def cmd_verify(args) -> int:
+    if not ledger._dir(args.ledger).is_dir():
+        # A gate that passes on a mistyped path verifies nothing, forever.
+        print(f"FAIL no ledger directory at {ledger._dir(args.ledger)}")
+        return 1
     reports = ledger.verify_ledger(args.ledger, require_closed=args.require_closed)
     bad = [r for r in reports if not r.ok]
     for r in bad:
@@ -106,6 +110,14 @@ def cmd_seal(args) -> int:
     return 0
 
 
+def _run(fn, args) -> int:
+    try:
+        return fn(args)
+    except ledger.LedgerError as exc:      # e.g. a tampered shard: readers refuse, they do not skip
+        print(f"REFUSED: {exc}")
+        return 1
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="countedtrials", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -140,7 +152,7 @@ def main(argv=None) -> int:
     se.add_argument("run")
     se.set_defaults(fn=cmd_seal)
     args = ap.parse_args(argv)
-    return args.fn(args)
+    return _run(args.fn, args)
 
 
 if __name__ == "__main__":

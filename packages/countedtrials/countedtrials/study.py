@@ -10,6 +10,9 @@ countedtrials — ``Study``: count a search without changing how you write it.
         study.search(backtest, {"fast": [5, 10, 20], "slow": [50, 100, 200]})
         print(study.report())
 
+Run it from inside your git repository: each run records the commit and whether the
+working tree was dirty, read from the working directory.
+
 Each evaluation writes its intent (the parameters, hashed) to disk BEFORE the function
 runs, and its outcome after. A configuration that raises is recorded as an ``error``; one
 you interrupt is recorded as ``abandoned``; one whose process is killed stays an orphan.
@@ -21,6 +24,7 @@ Works with any backtester: the only contract is "parameters in, returns series o
 """
 from __future__ import annotations
 
+import inspect
 import itertools
 import math
 import sys
@@ -28,6 +32,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping
 
+import numpy as np
 import pandas as pd
 
 from countedtrials import analysis, ledger
@@ -69,7 +74,31 @@ def _unpack(out) -> tuple[pd.Series | None, dict]:
         raise ledger.LedgerError(
             f"a counted function must return a pandas Series of returns indexed by time "
             f"(or (series, metrics dict), or None for 'no trades'); got {type(out).__name__}")
-    return out, extra
+    return _check_returns(out), extra
+
+
+def _check_returns(returns: pd.Series) -> pd.Series:
+    """Refuse, at write time, a series the readers could not use later. The ledger is
+    append-only: a trial stored with an unparseable index would make its whole family
+    unreadable for good, so the check belongs before the outcome is written.
+
+    A timezone-aware index is reduced to its LOCAL wall-clock time: the verdict statistics
+    work on calendar dates, and converting to UTC would move an Asian or early-morning
+    session onto the previous day."""
+    if not len(returns):
+        return returns
+    if not isinstance(returns.index, pd.DatetimeIndex):
+        raise ledger.LedgerError(
+            f"returns must be indexed by a pandas DatetimeIndex (got {type(returns.index).__name__}); "
+            f"the statistics align trials by date")
+    if returns.isna().any() or not np.isfinite(returns.to_numpy(dtype=float)).all():
+        raise ledger.LedgerError(
+            f"returns contain {int((~np.isfinite(returns.to_numpy(dtype=float))).sum())} non-finite "
+            f"value(s); a leading NaN from pct_change() is the usual cause (fillna(0.0) or drop it)")
+    if returns.index.tz is not None:
+        returns = returns.copy()
+        returns.index = returns.index.tz_localize(None)
+    return returns
 
 
 def _basic_metrics(returns: pd.Series | None) -> dict:
@@ -93,24 +122,39 @@ class Study:
         #: Identifies the data every trial ran on (e.g. {"symbol": "SPY", "sha256": ...}); it is
         #: part of each trial's spec hash, so the same parameters on different data are different trials.
         self.data = dict(data) if data is not None else None
-        self._ctx = ledger.open_run(producer=self.producer, family=family, hypothesis=hypothesis,
-                                    context=context, ledger_dir=self.ledger_dir)
+        self.hypothesis = hypothesis
+        self.context = dict(context) if context is not None else None
+        self._ctx: ledger.open_run | None = None
         self.run: ledger.Run | None = None
+        self._entered = False
         self.results: list[TrialResult] = []
 
     # -- lifecycle
-    def __enter__(self) -> "Study":
+    def _open(self) -> None:
+        self._ctx = ledger.open_run(producer=self.producer, family=self.family,
+                                    hypothesis=self.hypothesis, context=self.context,
+                                    ledger_dir=self.ledger_dir)
         self.run = self._ctx.__enter__()
+
+    def __enter__(self) -> "Study":
+        self._entered = True
+        self._open()
         return self
 
     def __exit__(self, exc_type, exc, tb) -> bool:
-        if self.run is not None and self.run._closed:   # a verdict already closed the run
+        self._entered = False
+        if self.run is None or self.run._closed:   # a verdict already closed the run
             return False
         return self._ctx.__exit__(exc_type, exc, tb)
 
     def _need_run(self) -> ledger.Run:
-        if self.run is None:
+        if not self._entered:
             raise ledger.LedgerError("use the Study as a context manager: `with Study(...) as study:`")
+        if self.run._closed:
+            # A verdict (report/deflate/spa/best) closed the previous run so its series could
+            # be read. Searching on after looking is a new run in the same family, and the
+            # ledger shows it as one: the look happened between two shards.
+            self._open()
         return self.run
 
     # -- counting
@@ -152,10 +196,14 @@ class Study:
         return [self.evaluate(fn, p, reraise=False) for p in expand_grid(grid)]
 
     def counted(self, fn: Callable[..., Any]) -> Callable[..., pd.Series | None]:
-        """Decorator form: every keyword call of the returned function is one counted
-        trial and returns ``fn``'s series. For optimizers that call an objective."""
-        def wrapper(**params):
-            return self.evaluate(fn, params).returns
+        """Decorator form: every call of the returned function is one counted trial and
+        returns ``fn``'s series. Positional arguments are recorded under ``fn``'s parameter
+        names. To drive an optimizer, wrap it once more to return the scalar it wants."""
+        signature = inspect.signature(fn)
+
+        def wrapper(*args, **kwargs):
+            bound = signature.bind(*args, **kwargs)
+            return self.evaluate(fn, dict(bound.arguments)).returns
         wrapper.__name__ = getattr(fn, "__name__", "counted")
         wrapper.__doc__ = fn.__doc__
         return wrapper
@@ -182,6 +230,7 @@ class Study:
                                ledger_dir=self.ledger_dir, **kwargs)
 
     def _flush(self) -> None:
-        """Return series are bundled at run close; close this run so they can be read."""
+        """Return series are bundled at run close; close this run so they can be read.
+        The next ``evaluate`` opens a new run (see ``_need_run``)."""
         if self.run is not None and not self.run._closed:
             self._ctx.__exit__(None, None, None)

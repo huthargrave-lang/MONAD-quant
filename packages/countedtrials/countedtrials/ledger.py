@@ -258,7 +258,12 @@ def code_state(repo: Path | None = None, exclude: Iterable[Path] = ()) -> dict:
             rel = Path(r).resolve().relative_to(repo.resolve()).as_posix()
         except ValueError:
             continue  # outside the repository: nothing to exclude
-        excludes.append(f":(exclude){rel}")
+        if rel == ".":
+            # The ledger IS the repository root. Excluding "." would exclude everything and
+            # report every tree as clean; leave out only the ledger's own files.
+            excludes += [":(exclude,glob)TR-*.jsonl", f":(exclude){ARTIFACTS}"]
+        else:
+            excludes.append(f":(exclude){rel}")
     diff = _git(repo, "diff", "HEAD", "--binary", "--", ".", *excludes)
     untracked = _git(repo, "ls-files", "--others", "--exclude-standard", "-z", "--", ".", *excludes)
     if diff.returncode != 0 or untracked.returncode != 0:
